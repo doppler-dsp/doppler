@@ -7,9 +7,9 @@
 Every panel is one telemetry probe an `track.MpskReceiver` exposes, and
 every trace came out of a **single** `telemetry.MemoryCapture` over a
 **single** `telemetry.Telemetry` ring. One `set_telemetry` attach registers
-the receiver's own carrier probes **and** forwards to its symbol-timing
-child loop, so a cold-start QPSK pull-in leaves a complete record of the
-whole receiver:
+the receiver's own carrier probes **and** forwards to both of its
+instrumented children — the symbol-timing loop and the front-end AGC — so a
+cold-start QPSK pull-in leaves a complete record of the whole receiver:
 
 - **`rx.lock` / `rx.tracking` / `rx.car.locked`** — the carrier lock EMA
     rises off its cold-start value, and the two verify-counted decisions
@@ -23,11 +23,27 @@ whole receiver:
     ~8.0 and the fractional interpolation phase sweeps its `[0, 1)` range.
 - **`rx.sync.lock` / `rx.sync.locked`** — the timing lock statistic climbs
     and its verify-counted decision declares.
+- **`rx.agc.gain_db` / `rx.agc.level_db`** — the front-end AGC, which by
+    `mpsk_rx_agc_bn()` is the slowest of the receiver's three loops. Here it
+    has nothing to do: the stimulus is unit-magnitude symbols against a 0 dB
+    reference, so the loop starts converged and both traces are dither —
+    `level_db` holding the reference inside a few tenths of a dB while the
+    commanded gain wanders by hundredths. That is the point worth reading
+    off this panel. `level_db` is the loop's *input*, so "converged" is
+    legible from the trace alone; `gain_db` settles to an offset that
+    depends on how loud the input happened to be, and cannot be judged
+    without knowing it. A cold, off-reference start is where the pair
+    separates, and that measurement belongs with the AGC's own evidence
+    rather than here.
 
 Nothing is decimated (`decim=1`) and nothing is dropped — the summary cell
-reports the full capture: 11 probes, one 16-byte record per probe per
-recovered symbol. The x-axis is real time, because each record carries the
-sample index it was stamped with.
+reports the full capture: 13 probes, one 16-byte record per event. For the
+eleven carrier and timing probes an event is a recovered symbol; the two
+`rx.agc.*` probes are tapped **pre-terminal**, ahead of the stage the timing
+loop steers, and emit once per gain update instead, so they are denser and
+carry no symbol index. The x-axis is real time, because each record carries
+the sample index it was stamped with — which is what lets two probes counted
+on different grids be read against each other at all.
 
 ## How it works
 

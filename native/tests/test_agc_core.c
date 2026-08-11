@@ -253,23 +253,70 @@ main (void)
     CHECK (tlm != NULL && a != NULL);
     CHECK (agc_set_telemetry (a, tlm, "agc", 1) == DP_OK);
     CHECK (dp_tlm_probe_id (tlm, "agc.gain_db") == a->tlm.id_gain);
+    CHECK (dp_tlm_probe_id (tlm, "agc.level_db") == a->tlm.id_level);
+    CHECK (a->tlm.id_gain != a->tlm.id_level);
 
-    /* One record per gain update (default period 1 -> per sample); the
-     * last record is the current integrator value exactly. */
+    /* TWO records per gain update (default period 1 -> per sample), and the
+     * pair is (command, the level that command was answering): the last two
+     * records are the current integrator value and the detector's measured
+     * level, in that order. */
     for (int i = 0; i < 32; i++)
       (void)agc_step (a, 0.5f + 0.0f * I);
-    dp_tlm_rec_t recs[64];
-    size_t       n = dp_tlm_read (tlm, 64, recs, 64);
-    CHECK (n == 32);
-    CHECK (recs[n - 1].value == (float)a->gain_db);
+    dp_tlm_rec_t recs[128];
+    size_t       n = dp_tlm_read (tlm, 128, recs, 128);
+    CHECK (n == 64);
+    CHECK (recs[n - 2].probe == a->tlm.id_gain);
+    CHECK (recs[n - 2].value == (float)a->gain_db);
+    CHECK (recs[n - 1].probe == a->tlm.id_level);
+    CHECK (recs[n - 1].value
+           == (float)(10.0 * agc_log10_ (a->p_avg + AGC_POWER_FLOOR)));
+
+    /* level_db is the loop's INPUT and is zero-referenced against ref_db:
+     * driving a -6 dB signal (0.5 amplitude) toward a 0 dB reference, the
+     * measured level must close on ref_db while the gain climbs away from 0.
+     * This is the property that makes settling readable without knowing the
+     * input level -- gain_db alone settles to an unknown offset. */
+    {
+      agc_state_t *s = agc_create (0.0, 0.0025, 0.05);
+      dp_tlm_t    *t = dp_tlm_create (1 << 13);
+      CHECK (s != NULL && t != NULL);
+      CHECK (agc_set_telemetry (s, t, "agc", 1) == DP_OK);
+      for (int i = 0; i < 4096; i++)
+        (void)agc_step (s, 0.5f + 0.0f * I);
+      double lvl = 10.0 * agc_log10_ (s->p_avg + AGC_POWER_FLOOR);
+      CHECK (fabs (lvl - s->ref_db) < 0.1);  /* level -> reference   */
+      CHECK (fabs (s->gain_db - 6.0) < 0.1); /* gain -> +6 dB        */
+      /* And the probe carried it: the level stream must END nearer the
+         reference than it STARTED, which a mis-wired probe (emitting the
+         gain twice, say) would not satisfy -- the gain moves the other way. */
+      dp_tlm_rec_t r[4];
+      size_t       got = 0, first_lvl = 0, last_lvl = 0;
+      int          have_first = 0;
+      while ((got = dp_tlm_read (t, 4, r, 4)) > 0)
+        for (size_t i = 0; i < got; i++)
+          if (r[i].probe == s->tlm.id_level)
+            {
+              if (!have_first)
+                {
+                  first_lvl  = (size_t)(fabs ((double)r[i].value) * 1000.0);
+                  have_first = 1;
+                }
+              last_lvl = (size_t)(fabs ((double)r[i].value) * 1000.0);
+            }
+      CHECK (have_first);
+      CHECK (last_lvl < first_lvl); /* |level - 0 dB| shrank */
+      dp_tlm_destroy (t);
+      agc_destroy (s);
+    }
 
     /* Blob determinism: an attached and a detached instance with the
      * same running state serialize byte-identically. */
     agc_state_t *d = agc_create (0.0, 0.0025, 0.05);
     CHECK (d != NULL);
-    *d             = *a;
-    d->tlm.ctx     = NULL;
-    d->tlm.id_gain = 0;
+    *d              = *a;
+    d->tlm.ctx      = NULL;
+    d->tlm.id_gain  = 0;
+    d->tlm.id_level = 0;
     uint8_t blob_a[sizeof (dp_state_hdr_t) + sizeof (agc_state_t)];
     uint8_t blob_d[sizeof (blob_a)];
     CHECK (agc_state_bytes (a) == sizeof (blob_a));
@@ -291,7 +338,7 @@ main (void)
     CHECK (agc_set_telemetry (a, NULL, "agc", 1) == DP_OK);
     CHECK (a->tlm.ctx == NULL);
     (void)agc_step (a, 0.5f + 0.0f * I);
-    CHECK (dp_tlm_read (tlm, 64, recs, 64) == 0);
+    CHECK (dp_tlm_read (tlm, 128, recs, 128) == 0);
 
     agc_destroy (d);
     agc_destroy (b);

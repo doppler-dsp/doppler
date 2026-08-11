@@ -718,6 +718,23 @@ _agc_build (RateConverter_state_t *s)
      detector and the gain-apply still run every sample, so this does not
      decimate the level trajectory. */
   s->agc->gain_update_period = AGC_DECIM_DEFAULT;
+
+  /* Re-apply the requested telemetry attachment to the NEW child. The AGC
+     survives a rate change (see the caller in _reconfigure), so its
+     instrumentation has to as well -- otherwise a rate change would silently
+     stop the gain trajectory being recorded. Probe names are idempotent
+     (same name -> same id), so re-attaching neither leaks table entries nor
+     invalidates ids a reader already holds.
+
+     The result is deliberately ignored: signal processing must not fail
+     because observation could not be set up. For a rebuild this cannot fail
+     anyway (the names are already registered, so each probe is a hit rather
+     than a miss); it can only fail on the FIRST application, which happens
+     here when the attach arrived before the AGC existed and the probe table
+     was full by then -- documented on RateConverter_set_telemetry(). */
+  if (s->agc_tlm_req.ctx)
+    (void)agc_set_telemetry (s->agc, s->agc_tlm_req.ctx, s->agc_tlm_req.prefix,
+                             s->agc_tlm_req.decim);
   return 1;
 }
 
@@ -860,6 +877,34 @@ double
 RateConverter_agc_gain_db (const RateConverter_state_t *s)
 {
   return s->agc ? agc_get_applied_gain_db (s->agc) : 0.0;
+}
+
+int
+RateConverter_set_telemetry (RateConverter_state_t *s, dp_tlm_t *tlm,
+                             const char *prefix, uint32_t decim)
+{
+  if (!tlm) /* detach: drop the request too, so a rebuild stays detached */
+    {
+      s->agc_tlm_req.ctx = NULL;
+      if (s->agc)
+        (void)agc_set_telemetry (s->agc, NULL, prefix, decim);
+      return DP_OK;
+    }
+
+  /* Record the request before applying it, so a later _agc_build() -- a rate
+     change, or an enable_agc() that has not happened yet -- re-applies it. */
+  const char *p = prefix ? prefix : "agc";
+  (void)snprintf (s->agc_tlm_req.prefix, sizeof (s->agc_tlm_req.prefix), "%s",
+                  p);
+  s->agc_tlm_req.decim = decim;
+  s->agc_tlm_req.ctx   = tlm;
+
+  /* Nothing to instrument yet is not an error -- whether this cascade has an
+     AGC is the composing receiver's construction-time choice, and a caller
+     attaching telemetry should not have to know which way that went. */
+  if (!s->agc)
+    return DP_OK;
+  return agc_set_telemetry (s->agc, tlm, p, decim);
 }
 
 bool

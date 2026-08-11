@@ -224,6 +224,13 @@ ddc_get_clipped (const ddc_state_t *s)
   return RateConverter_get_clipped (s->rc) != 0;
 }
 
+int
+ddc_set_telemetry (ddc_state_t *s, dp_tlm_t *tlm, const char *prefix,
+                   uint32_t decim)
+{
+  return RateConverter_set_telemetry (s->rc, tlm, prefix, decim);
+}
+
 /* ── Serializable state — standard envelope + LO + RateConverter ─────────────
  * Layout: [dp_state_hdr_t][ddc_extra_t][lo][rc]; see dp_state.h. */
 

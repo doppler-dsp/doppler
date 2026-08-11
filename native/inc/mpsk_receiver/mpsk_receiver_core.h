@@ -491,25 +491,51 @@ extern "C"
    * decision-directed discriminator or dropped back to NDA), then the
    * carrier loop's "<prefix>.car.e" / ".freq" / ".locked" and the
    * symbol-timing loop's "<prefix>.sync.e" / ".ctrl" / ".rate" / ".lock" /
-   * ".locked" / ".mu" -- eleven probes total, all thinned by @p decim and all
-   * emitted once per recovered symbol.  Passing NULL detaches everything.
+   * ".locked" / ".mu" -- eleven probes emitted once per recovered symbol --
+   * then the front end's AGC under "<prefix>.agc" ("<prefix>.agc.gain_db" and
+   * "<prefix>.agc.level_db"; see agc_set_telemetry()).  Thirteen probes total,
+   * all thinned by @p decim.  Passing NULL detaches everything.
+   *
+   * @warning The two AGC probes are NOT at the symbol rate the other eleven
+   * are.  That AGC sits pre-terminal in the cascade (RateConverter's tap,
+   * ahead of the stage the timing loop steers) and emits once per
+   * gain-update event, i.e. every @c AGC_DECIM_DEFAULT samples of that
+   * fixed-rate stream -- so it reports on a grid that depends on the planned
+   * cascade, not on recovered symbols, and a run yields a different number of
+   * AGC records than carrier records.  Compare the two by TIME, never by
+   * record index.  This is deliberate: the AGC's bandwidth is quoted in the
+   * pre-terminal stream's units precisely so it is not coupled to the loop
+   * that is stretching the symbol grid (see RateConverter_enable_agc()).
+   *
+   * Instrumenting it matters because it is the SLOWEST of the receiver's
+   * three loops by construction -- mpsk_rx_agc_bn() derives its bandwidth as
+   * a fraction of the slowest loop it feeds -- so it, not the carrier or
+   * timing loop, is what sets how long this receiver takes to become usable.
+   * Its settling was previously the one thing a caller had to infer; the
+   * zero-referenced "<prefix>.agc.level_db" is what makes it measurable.
+   *
+   * With @c agc = 0 at construction there is no AGC to attach and the two
+   * probes are simply absent (eleven, not thirteen); this still returns
+   * DP_OK.
+   *
    * Setup path, never hot; the context is borrowed and must outlive the
    * attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
    * @param state  Must be non-NULL.
    * @param tlm    Telemetry context to attach, or NULL to detach.
    * @param prefix Probe-name prefix, e.g. "rx".
-   * @param decim  Emit every decim-th symbol; >= 1.
+   * @param decim  Emit every decim-th symbol (every decim-th gain update for
+   *               the two AGC probes); >= 1.
    * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take the
-   *         eleven probes (the attach fails whole; everything detached).
+   *         probes (the attach fails whole; everything detached).
    * @code
    * >>> import numpy as np
    * >>> from doppler.track import MpskReceiver
    * >>> from doppler.telemetry import Telemetry
-   * >>> tlm = Telemetry(1 << 14)   # 11 probes x ~512 syms + headroom
+   * >>> tlm = Telemetry(1 << 14)   # 13 probes x ~512 syms + headroom
    * >>> rx = MpskReceiver(m=4, sps=4, m_out=2)
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> len(tlm.probe_names)
-   * 11
+   * 13
    * >>> rng = np.random.default_rng(7)
    * >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
    * >>> x = np.repeat(syms, 4)
@@ -520,6 +546,9 @@ extern "C"
    * >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
    * >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
    * >>> n_sync > 0 and n_sync == n_car
+   * True
+   * >>> n_agc = len(recs[recs["probe"] == tlm.probe_id("rx.agc.gain_db")])
+   * >>> n_agc > 0 and n_agc != n_sync   # cascade grid, not symbol grid
    * True
    *
    * @endcode

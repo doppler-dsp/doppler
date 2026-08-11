@@ -365,20 +365,29 @@ extern "C"
   /**
    * @brief Attach (or detach) a telemetry context across the receiver.
    *
-   * Registers the same eleven probes as mpsk_receiver_set_telemetry(), whose
-   * contract it shares: the receiver's own "<prefix>.lock" and
+   * Registers the same thirteen probes as mpsk_receiver_set_telemetry(), whose
+   * contract it shares in full: the receiver's own "<prefix>.lock" and
    * "<prefix>.tracking", the carrier loop's "<prefix>.car.e" / ".freq" /
    * ".locked", and the symbol-timing loop's "<prefix>.sync.e" / ".ctrl" /
-   * ".rate" / ".lock" / ".locked" / ".mu" — all thinned by @p decim and
-   * emitted once per recovered symbol. Passing NULL detaches everything. Setup
-   * path, never hot; the context is borrowed and must outlive the attachment.
+   * ".rate" / ".lock" / ".locked" / ".mu" — eleven emitted once per recovered
+   * symbol — then the front end's AGC under "<prefix>.agc" (".gain_db" and
+   * ".level_db"), forwarded through ddcr_set_telemetry(). All thinned by
+   * @p decim. Passing NULL detaches everything. Setup path, never hot; the
+   * context is borrowed and must outlive the attachment.
+   *
+   * @warning As on the complex twin, the two AGC probes are on the cascade's
+   * pre-terminal grid rather than the symbol grid, so their record count
+   * differs from the other eleven — compare by time, not by index. See
+   * mpsk_receiver_set_telemetry() for why, and for why that AGC is the loop
+   * that sets the receiver's warmup.
    *
    * @param state  Must be non-NULL.
    * @param tlm    Telemetry context to attach, or NULL to detach.
    * @param prefix Probe-name prefix, e.g. "rx".
-   * @param decim  Emit every decim-th symbol; >= 1.
+   * @param decim  Emit every decim-th symbol (every decim-th gain update for
+   *               the two AGC probes); >= 1.
    * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take the
-   *         eleven probes (the attach fails whole; everything detached).
+   *         probes (the attach fails whole; everything detached).
    * @code
    * >>> import numpy as np
    * >>> from doppler.track import MpskReceiverR
@@ -387,7 +396,7 @@ extern "C"
    * >>> rx = MpskReceiverR(m=4, sps=10, m_out=2, init_norm_freq=0.25)
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> len(tlm.probe_names)
-   * 11
+   * 13
    * >>> rng = np.random.default_rng(7)
    * >>> idx = rng.integers(0, 4, 512)
    * >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 10)
@@ -401,6 +410,9 @@ extern "C"
    * >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
    * >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
    * >>> n_sync > 0 and n_sync == n_car
+   * True
+   * >>> n_agc = len(recs[recs["probe"] == tlm.probe_id("rx.agc.gain_db")])
+   * >>> n_agc > 0 and n_agc != n_sync   # cascade grid, not symbol grid
    * True
    *
    * @endcode

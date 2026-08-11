@@ -317,3 +317,10 @@ ddcr_get_clipped (const ddcr_state_t *s)
 {
   return RateConverter_get_clipped (s->rc) != 0;
 }
+
+int
+ddcr_set_telemetry (ddcr_state_t *s, dp_tlm_t *tlm, const char *prefix,
+                    uint32_t decim)
+{
+  return RateConverter_set_telemetry (s->rc, tlm, prefix, decim);
+}

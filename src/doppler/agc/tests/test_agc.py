@@ -225,15 +225,25 @@ def test_set_telemetry_records_gain_series():
     obj.steps(x)
 
     recs = tlm.read()
-    # one record per decim-chunk control update
-    assert len(recs) == 4096 // obj.decim
-    gains = recs["value"]
+    # two probes, each one record per decim-chunk control update
+    assert sorted(tlm.probe_names) == ["agc.gain_db", "agc.level_db"]
+    gains = recs[recs["probe"] == tlm.probe_id("agc.gain_db")]["value"]
+    levels = recs[recs["probe"] == tlm.probe_id("agc.level_db")]["value"]
+    assert len(gains) == len(levels) == 4096 // obj.decim
+    assert len(recs) == 2 * (4096 // obj.decim)
     # quiet input, 0 dB reference: the commanded gain rises monotonically
     # toward +18 dB (10*log10(1/0.125^2)) without overshooting wildly
     assert gains[-1] > gains[0]
     assert gains[-1] == pytest.approx(20.0 * np.log10(1 / 0.125), abs=3.0)
     # the last record equals the live property exactly (float32 narrow)
     assert gains[-1] == pytest.approx(obj.gain_db, abs=1e-4)
+    # level_db is the loop's INPUT, and it is zero-referenced: it closes on
+    # ref_db while the gain climbs away from 0. That is what makes settling
+    # readable without knowing the input level -- and it is a genuinely
+    # different series from the gain, not a second copy of it.
+    assert abs(levels[-1] - 0.0) < abs(levels[0] - 0.0)
+    assert levels[-1] == pytest.approx(0.0, abs=0.5)
+    assert not np.allclose(levels, gains)
 
 
 def test_set_telemetry_accepts_capsule_and_none():

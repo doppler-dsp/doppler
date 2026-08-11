@@ -198,9 +198,9 @@ extern "C"
    */
   typedef struct
   {
-    dp_tlm_t *ctx;     /* NULL = detached                   */
-    int32_t   id_gain; /* probe id from a successful attach */
-    int32_t   _pad;
+    dp_tlm_t *ctx;      /* NULL = detached                    */
+    int32_t   id_gain;  /* probe ids from a successful attach  */
+    int32_t   id_level; /* (fills what used to be _pad)        */
   } agc_tlm_t;
 
   /**
@@ -382,8 +382,11 @@ void agc_reset(agc_state_t *state);
         state->clip_lin = (float)agc_exp10_ (state->clip_db * 0.05);
         state->gain_phase = 0;
         /* Telemetry tap — per gain-update event (already amortised by the
-         * period), one branch when detached. */
+         * period), one branch when detached.  `meas_db` is the level the
+         * detector believes it has BEFORE this update's correction, so the
+         * pair reads as (command, what it was answering). */
         DP_TLM (state->tlm.ctx, state->tlm.id_gain, state->gain_db);
+        DP_TLM (state->tlm.ctx, state->tlm.id_level, meas_db);
       }
 
     /* Output clip — square clip (I and Q independent) to the cached level,
@@ -451,9 +454,22 @@ double agc_get_applied_gain_db(const agc_state_t *state);
   /**
    * @brief Attach (or detach) a telemetry context and register the AGC's
    * probes on it.
-   * Registers one probe, "<prefix>.gain_db" — the loop-filter integrator
-   * (the commanded gain in dB), recorded once per gain-update event and
-   * further thinned by decim.  Passing NULL detaches (probe sites revert
+   * Registers two probes, both recorded once per gain-update event and
+   * further thinned by decim:
+   *
+   *   - "<prefix>.gain_db" — the loop-filter integrator, i.e. the gain the
+   *     loop is commanding, in dB.
+   *   - "<prefix>.level_db" — the level the power detector measures,
+   *     `10*log10(p_avg)`, in dB.  This is the loop's *input*: the
+   *     integrator drives `ref_db - level_db` to zero, so level_db is the
+   *     zero-referenced settling indicator.  Reading it says whether the
+   *     loop has converged without knowing the true input level, which
+   *     gain_db alone cannot — gain_db settles to an offset that depends
+   *     on how loud the signal happens to be.
+   *
+   * The pair is emitted from one update, with level_db being the belief
+   * that update was answering (measured before the correction is applied).
+   * Passing NULL detaches (probe sites revert
    * to their single-branch disabled cost); re-attaching after a reset is
    * idempotent (same name -> same probe id).  Setup path, never hot: call
    * before the producer thread starts stepping, and keep every object
@@ -464,9 +480,9 @@ double agc_get_applied_gain_db(const agc_state_t *state);
    * @param tlm    Telemetry context to attach, or NULL to detach.
    * @param prefix Probe-name prefix, e.g. "agc" or "rx.agc".
    * @param decim  Emit every decim-th gain update; >= 1.
-   * @return DP_OK, or DP_ERR_INVALID when the probe table is full or the
-   *         prefixed name is invalid (the attach fails whole; the object
-   *         stays detached).
+   * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take both
+   *         probes or a prefixed name is invalid (the attach fails whole;
+   *         the object stays detached).
    * @code
    * >>> import numpy as np
    * >>> from doppler.agc import AGC
@@ -474,15 +490,19 @@ double agc_get_applied_gain_db(const agc_state_t *state);
    * >>> tlm = Telemetry(1 << 12)
    * >>> agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
    * >>> agc.set_telemetry(tlm, "agc")
-   * >>> tlm.probe_names
-   * {'agc.gain_db': 0}
-   * >>> x = (0.5 + 0j) * np.ones(256, dtype=np.complex64)
+   * >>> sorted(tlm.probe_names)
+   * ['agc.gain_db', 'agc.level_db']
+   * >>> x = (0.5 + 0j) * np.ones(4096, dtype=np.complex64)
    * >>> _ = agc.steps(x)
-   * >>> recs = tlm.read()          # one record per decim-chunk update
-   * >>> len(recs) == 256 // agc.decim
+   * >>> recs = tlm.read()      # both probes, per decim-chunk update
+   * >>> gain = recs[recs["probe"] == tlm.probe_id("agc.gain_db")]["value"]
+   * >>> lvl = recs[recs["probe"] == tlm.probe_id("agc.level_db")]["value"]
+   * >>> len(gain) == len(lvl) == 4096 // agc.decim
    * True
-   * >>> bool(recs["value"][-1] > recs["value"][0])  # gain rises to ref
-   * True
+   * >>> round(float(gain[-1]), 1)   # -6 dB input, 0 dB ref -> +6 dB gain
+   * 6.0
+   * >>> round(float(lvl[-1]), 1)    # settled: measured level == ref
+   * 0.0
    *
    * @endcode
    */

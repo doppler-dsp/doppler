@@ -73,6 +73,47 @@ ______________________________________________________________________
     and stays in `scripts/.init-param-optionality-ignore`. A test pins the
     current behaviour so it fails when that is fixed.
 
+- **`MpskReceiver`/`MpskReceiverR` telemetry reaches the front-end AGC —
+    `rx.agc.gain_db` and `rx.agc.level_db`, so the probe set is thirteen
+    rather than eleven.** That AGC was the receiver's third loop and the only
+    one emitting nothing, which is the awkward part: by `mpsk_rx_agc_bn()` it
+    is the SLOWEST of the three by construction, so it — not the carrier or
+    timing loop — sets how long the receiver takes to become usable. Its
+    settling had to be inferred.
+
+    The forward was not one hop. The AGC lives inside the front end's
+    `RateConverter`, which had **no telemetry surface at all**, so the missing
+    layer is added: `RateConverter_set_telemetry()` forwards to its one
+    instrumented child, and `ddc_set_telemetry()`/`ddcr_set_telemetry()`
+    forward to that. Deliberately C-only — `RateConverter_enable_agc()` is not
+    exposed to Python either, so a Python `set_telemetry` there could only ever
+    register nothing.
+
+    `agc_set_telemetry()` now registers **two** probes. `level_db` is the
+    detector's measured level, `10*log10(p_avg)` — the loop's *input*, which
+    the integrator drives to `ref_db`. That is the point: it is
+    zero-referenced, so settling is readable without knowing the true input
+    level, where `gain_db` alone settles to an offset that depends on how loud
+    the signal happens to be. `AGC_STATE_VERSION` is unchanged — the new probe
+    id fills what was padding, so the blob's size and meaning do not move.
+
+    Two behaviours worth knowing. The AGC probes are **not on the symbol
+    grid**: the tap is pre-terminal in the cascade, ahead of the stage the
+    timing loop steers (deliberately, so its bandwidth is not coupled to the
+    loop stretching the symbol grid), and it emits per gain-update event — so
+    compare AGC records against loop records by time, never by index. And with
+    `agc = 0` there is no third loop, so the attach registers eleven probes and
+    still returns success: a caller should not have to know how the receiver
+    was constructed to avoid an error.
+
+    The attachment is held as a *request*, which fixes a latent trap rather
+    than only adding one: `_agc_build()` destroys and rebuilds the AGC on a
+    re-plan, so a `set_rate()` would otherwise have silently stopped the gain
+    trajectory being recorded with no error anywhere to say so. A C test pins
+    that, plus the attach-before-`enable_agc` ordering and the whole-attach
+    rollback when only the AGC forward cannot fit the probe table. Every claim
+    was proved by sabotage.
+
 ### Changed
 
 - **just-makeit pin 0.55.1 → 0.55.2.** Both fixes in it were surfaced by

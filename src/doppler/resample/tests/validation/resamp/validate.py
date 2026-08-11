@@ -587,8 +587,8 @@ def review(d: Data) -> None:
     )
     R.find(
         "F3",
-        "GAP",
-        "`resamp_get_ctrl_acc`'s docblock describes the wrong structure. "
+        "FIXED",
+        "`resamp_get_ctrl_acc`'s docblock described the wrong structure. "
         "It says `mu` names 'the arm the last output read' and closes by "
         "conceding the opposite reading as a peculiarity of a decimating "
         "terminal stage. That phrasing belongs to the transposed "
@@ -597,16 +597,18 @@ def review(d: Data) -> None:
         "reports `ctrl_phase`, and the control port rides the "
         "interpolating structure at every rate. So the exception's "
         "rate-dependence is spurious and 'the NEXT output's arm' holds "
-        "throughout (C §10, at 0.7, 0.923, 1.3 and 2.5).",
+        "throughout (C §10, at 0.7, 0.923, 1.3 and 2.5). Corrected in the"
+        "header, which now states the NEXT-output reading, says it holds at"
+        "every rate and why, and drops the spurious `rate <= 1` carve-out.",
     )
     R.find(
         "F4",
-        "GAP",
-        "The same docblock states the slip unit as output periods: 'one "
+        "FIXED",
+        "The same docblock stated the slip unit as output periods: 'one "
         "cycle of wrap is one output period of slip'. A wrap buys one "
         "**input** interval (C §11, measured against the counting law at "
         "rates 0.7 and 0.3). The two coincide only at unity, which is "
-        "presumably where the sentence was checked.",
+        "presumably where the sentence was checked. Corrected in the header.",
     )
     R.find(
         "F5",
@@ -640,17 +642,19 @@ def review(d: Data) -> None:
     )
     R.find(
         "F8",
-        "GAP",
-        "`resamp_dc_gain` names arm 0's tap sum, but the realised DC gain "
+        "FIXED",
+        "`resamp_dc_gain` named arm 0's tap sum without saying so, but the "
+        "realised DC gain "
         "at a non-unity rate is the arm average (§2.3): 1.000586 computed "
         "against 1.000249-1.000293 measured. The spread is 3.4e-4 and of "
         "no practical consequence; it is a naming claim, not a numeric "
-        "one.",
+        "one. Corrected in the header, which now names it as ARM 0's gain "
+        "and tabulates the measured arm average beside it.",
     )
     R.find(
         "F9",
-        "GAP",
-        "`resamp_interp_inputs_needed`'s docblock UNDERSTATES its own "
+        "FIXED",
+        "`resamp_interp_inputs_needed`'s docblock UNDERSTATED its own "
         "guarantee. It scopes exactness to an integer interpolation factor "
         "-- 'for an integer interpolation factor ... this is exact, so a "
         "caller can generate precisely this many inputs' -- but the "
@@ -661,7 +665,10 @@ def review(d: Data) -> None:
         "header is told not to rely on the streaming contract at a "
         "fractional rate, when they can. Understating a guarantee is a "
         "milder defect than overstating one, but it is the same kind: the "
-        "header is not what the code does.",
+        "header is not what the code does. Corrected in the header, which now"
+        "states the guarantee holds at every rate, explains that it is"
+        "structural rather than numeric, and keeps the old integer-factor"
+        "reading as the different (real) property it actually is.",
     )
     R.md()
     R.table(

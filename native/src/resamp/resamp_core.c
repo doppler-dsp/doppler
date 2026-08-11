@@ -153,23 +153,19 @@ _kaiser_num_taps (size_t num_phases, double atten, double pb, double sb)
 static inline uint32_t
 _step_inc (double rate, int upsample)
 {
+  /* The arithmetic is resamp's -- which reciprocal, and which branch -- and
+     the CONVERSION is nco_core.h's, like every other double-valued phase
+     quantity in the library.  The modular face is the one this rule wants:
+     `q` reaches exactly 2^32 at rate 1 (the upsample branch requires
+     rate >= 1, so 2^32/rate <= 2^32 with equality only there), and one whole
+     period per tick is not a limit to clamp but rate 1 itself, which the
+     `u(k) <= u(k-1)` load test reads back from 0 as "a period elapsed".
+     This used to convert here, through int64_t.  The reasoning was right and
+     the location was not: owning a cast locally is what let a second one
+     grow beside it in this same file, and that one carried a live defect.
+     See nco_phase_units_mod. */
   double q = upsample ? 4294967296.0 / rate : rate * 4294967296.0;
-  if (!(q >= 0.0)) /* negated, so NaN lands here rather than sailing on */
-    return 0;
-  /* With NaN and negatives already gone, `q` is in [0, 2^32] -- the upsample
-     branch requires rate >= 1, so 2^32/rate <= 2^32 with equality only at
-     rate == 1, and the decimating branch has rate < 1.  Only that one
-     boundary value is unrepresentable as a uint32, and a bare cast of it is
-     undefined (C99 6.3.1.4).
-     Converting through a WIDER SIGNED type removes the special case instead
-     of branching on it: int64_t represents 2^32 exactly, so the float->int
-     conversion is defined for the whole range, and the int64->uint32
-     narrowing is well-defined modular reduction (6.3.1.3p2) -- which lands
-     one full period per tick on 0, exactly what the `u(k) <= u(k-1)` load
-     test reads back as "a period elapsed".
-     The intermediate must be 64-bit: int32_t cannot represent 2^32, so it
-     would reintroduce the very conversion this avoids. */
-  return (uint32_t)(int64_t)q;
+  return nco_phase_units_mod (q);
 }
 
 static resamp_state_t *
@@ -382,8 +378,9 @@ double
 resamp_get_ctrl_acc (const resamp_state_t *s)
 {
   /* The phase word as a fraction of one input interval: in [0, 1) by
-     construction, which is what this accessor has always promised. */
-  return (double)s->ctrl_phase / 4294967296.0;
+     construction, which is what this accessor has always promised, and
+     which is exactly nco_word_to_norm's range. */
+  return nco_word_to_norm (s->ctrl_phase);
 }
 
 /* ------------------------------------------------------------------ */
@@ -625,10 +622,28 @@ resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
      ONE conversion.  Folding two quantities separately and adding the words
      truncates twice, which at a composite of exactly 1.0 sums to 2^32-1 and
      reads as a completed period that never happened. */
-  double   t_in  = 1.0 / delta;
-  double   whole = floor (t_in);
-  uint32_t frac  = (uint32_t)((t_in - whole) * 4294967296.0 + 0.5);
-  uint32_t skip  = whole >= 4294967295.0 ? 0xFFFFFFFFu : (uint32_t)whole;
+  double t_in  = 1.0 / delta;
+  double whole = floor (t_in);
+
+  /* The fraction of an input interval is a PHASE, so it converts where every
+     other double-valued phase in the library converts. This site used to
+     hold its own `(uint32_t)(frac_part * 2^32 + 0.5)`, and the private copy
+     had both failure modes nco_core.h warns about.
+     It ROUNDED where the library truncates -- the exact drift that made the
+     conversion canonical in the first place -- and the rounding could reach
+     a full period: with the fractional part within 0.5/2^32 of 1.0 the
+     `+ 0.5` carries the product to 2^32, whose cast to uint32_t is undefined
+     (C99 6.3.1.4) and on x86 lands as 0. Read back, 0 said "no fraction"
+     while floor(t_in) said "no whole interval" either, so ctrl_debt came out
+     0, no input was ever consumed, and the call emitted max_out copies of
+     one sample off an unchanged delay line.
+     Folding into [0, 1) and truncating cannot reach 2^32 at all, so the
+     boundary stops being a case to handle. Reachable, not theoretical: the
+     window was delta in (1.0, 1.0 + ~1.16e-10], and a Doppler ramp through
+     zero sweeps a receiver's composite rate straight across it -- which is
+     what cost async_dsss_receiver_spec_demo its lock at closest approach. */
+  uint32_t frac = nco_norm_phase_to_word (t_in);
+  uint32_t skip = whole >= 4294967295.0 ? 0xFFFFFFFFu : (uint32_t)whole;
 
   int    offered = 1; /* the caller's sample, not yet loaded */
   size_t n       = 0;

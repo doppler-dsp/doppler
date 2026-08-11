@@ -216,6 +216,85 @@ eq_interp_fill (size_t nphases, size_t ntaps)
   return ok;
 }
 
+/* A composite rate a HAIR above unity must still consume its input.
+ *
+ * `1/delta` just below 1.0 rounds its fractional part up to a full period,
+ * and a bare cast of 2^32 to uint32_t is undefined (C99 6.3.1.4) — on x86 it
+ * yields 0, which reads as "no fraction", while `floor(1/delta)` is 0 and so
+ * says "no whole interval" either. ctrl_debt came out 0, no input was ever
+ * loaded, and the call emitted max_out copies of one sample off an unchanged
+ * delay line. The rounded-up fraction IS one more whole interval and is
+ * carried now.
+ *
+ * The window is `delta` in (1.0, 1.0 + ~1.16e-10], which sounds unreachable
+ * and is not: a Doppler ramp through zero sweeps a receiver's composite rate
+ * straight across it. It cost async_dsss_receiver_spec_demo its lock at the
+ * time of closest approach — tracking cleanly to within tens of Hz, then
+ * -350 Hz and lock_metric -0.109 the moment the offset crossed zero.
+ *
+ * Asserted on the OUTPUT COUNT and on variation, not on sample values: at
+ * `delta ~ 1` one output per input is the whole contract, and a stalled load
+ * shows up as both a count blow-out and a constant. Returns 1 when ok. */
+static int
+ctrl_near_unity_consumes_input (void)
+{
+  enum
+  {
+    L   = 512,
+    CAP = 8192
+  };
+  /* Straddle the window: inside it, at its edges, and well outside on both
+     sides. The negative side is the control — it never had the defect, so a
+     fix that broke it would show here. */
+  static const double dev[] = { 0.0,     2.3e-16, 1.0e-12, 1.0e-11,  5.0e-11,
+                                1.0e-10, 1.0e-9,  1.0e-6,  -1.0e-10, -1.0e-6 };
+
+  float _Complex in[L], ctrl[L], out[CAP];
+  for (size_t i = 0; i < (size_t)L; i++)
+    {
+      double ph = 2.0 * M_PI * 0.037 * (double)i;
+      in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
+    }
+
+  int ok = 1;
+  for (size_t k = 0; k < sizeof dev / sizeof dev[0]; k++)
+    {
+      for (size_t i = 0; i < (size_t)L; i++)
+        ctrl[i] = CMPLXF ((float)dev[k], 0.0f);
+
+      resamp_state_t *r = resamp_create (1.0);
+      if (!r)
+        return 0;
+      size_t n = resamp_execute_ctrl (r, in, ctrl, L, out, CAP);
+      resamp_destroy (r);
+
+      /* One output per input, give or take the boundary sample. A stall
+         runs to CAP. */
+      if (n < (size_t)L - 2 || n > (size_t)L + 2)
+        {
+          fprintf (stderr,
+                   "  ctrl dev %+.3e: %zu outputs from %d inputs "
+                   "(expected ~%d)\n",
+                   dev[k], n, L, L);
+          ok = 0;
+          continue;
+        }
+      /* And it must be a signal, not one sample repeated. */
+      size_t repeats = 0;
+      for (size_t i = 1; i < n; i++)
+        if (crealf (out[i]) == crealf (out[i - 1])
+            && cimagf (out[i]) == cimagf (out[i - 1]))
+          repeats++;
+      if (repeats > n / 8)
+        {
+          fprintf (stderr, "  ctrl dev %+.3e: %zu/%zu outputs repeat\n",
+                   dev[k], repeats, n);
+          ok = 0;
+        }
+    }
+  return ok;
+}
+
 /* resamp_execute_ctrl_push (one input at a time) must reproduce the block
  * resamp_execute_ctrl on the same (in, ctrl[]) bit-for-bit — the property a
  * closed timing loop relies on to steer the strobe per output. Returns 1 ok.
@@ -423,9 +502,24 @@ main (void)
    * execute_ctrl, for decimation, interpolation, and unity — the property a
    * closed-loop timing/rate tracker relies on to steer the strobe per output.
    */
+  /* A composite rate a hair above unity must not stall the load — the
+   * boundary a Doppler ramp crosses at closest approach. */
+  CHECK (ctrl_near_unity_consumes_input ());
+
+  /* Decimating, unity NEIGHBOURHOOD, and interpolating. The neighbourhood
+   * is the part worth spelling out: 1.0 alone is the one rate where the
+   * interpolator's and decimator's recurrences coincide, so it cannot
+   * distinguish them, and the rates a hair either side of it are where the
+   * ctrl accumulator's boundary handling actually lives. 0.923 is the
+   * terminal rate a CIC(8) cascade plans at sps = 17.333 -- a real
+   * operating point rather than a round number. */
   CHECK (eq_ctrl_push (0.4));
-  CHECK (eq_ctrl_push (2.0));
+  CHECK (eq_ctrl_push (0.923));
+  CHECK (eq_ctrl_push (0.999));
   CHECK (eq_ctrl_push (1.0));
+  CHECK (eq_ctrl_push (1.001));
+  CHECK (eq_ctrl_push (2.0));
+  CHECK (eq_ctrl_push (3.0));
 
   /* A SINGLE-PHASE bank must select arm 0, not shift by 32.
    *

@@ -112,15 +112,26 @@ extern "C"
    * control asking to speed up returned roughly a ninth of the correct
    * increment.
    *
-   * `resamp` is no longer one of those sites, and the reason is worth
-   * stating so it is not "consolidated" back: under the interpolating
-   * rule it adopted afterwards, outputs are emitted every tick and the
-   * phase word only decides when to LOAD, so a step of one whole period
-   * per tick -- rate 1 -- is an ordinary operating point whose exact
-   * encoding is 0, not a limit to be clamped. It therefore lands that
-   * boundary MODULARLY, in its own `_step_inc`; see the comment there.
-   * Saturation below remains right for a phase ACCUMULATOR, which is
-   * what this function converts for.
+   * `resamp` needs the OTHER answer at that boundary, and it gets it from
+   * @ref nco_phase_units_mod rather than from a private cast. Under the
+   * interpolating rule, outputs are emitted every tick and the phase word
+   * only decides when to LOAD, so a step of one whole period per tick --
+   * rate 1 -- is an ordinary operating point whose exact encoding is 0,
+   * not a limit to be clamped. Saturation here remains right for a phase
+   * ACCUMULATOR, which is what this function converts for.
+   *
+   * Two behaviours, ONE home. This paragraph used to argue the opposite --
+   * that resamp should keep the modular cast "in its own `_step_inc`" so
+   * it would not be consolidated back -- and it was right about the
+   * BEHAVIOUR and wrong about the HOME. The faces above already show one
+   * fold serving two dimensions; one cast can likewise serve two boundary
+   * conventions. The cost of the private home was not hypothetical: a file
+   * that already owned "the conversion" locally grew a SECOND one beside
+   * it -- `resamp_execute_ctrl_push`'s `(uint32_t)(frac * 2^32 + 0.5)` --
+   * whose rounding could carry past 2^32 into the undefined cast, stalling
+   * the interpolator for any composite rate in (1.0, 1.0 + 1.16e-10]. A
+   * Doppler ramp crosses that window at closest approach, and it cost a
+   * receiver its lock there.
    *
    * Behaviour here is total and host-independent: below zero (and NaN,
    * which the negated comparison rejects rather than passing to the cast)
@@ -146,6 +157,76 @@ extern "C"
     if (units >= 4294967296.0)
       return 4294967295u;
     return (uint32_t)units;
+  }
+
+  /**
+   * @brief Total, MODULAR double -> phase word: one whole period is 0.
+   *
+   * The resampling twin of @ref nco_phase_units. Same single float
+   * boundary, opposite answer at the top of the range, and the choice
+   * belongs to the CALLER's dimension rather than to the value:
+   *
+   *   - A phase ACCUMULATOR cannot express more than one cycle per sample,
+   *     so asking for more is out of range and @ref nco_phase_units clamps
+   *     -- saying so, where a wrap would silently invert the intent.
+   *   - A resampling STEP of one whole period per tick is not out of range
+   *     at all: it is rate 1, an ordinary operating point, and its exact
+   *     encoding is 0. Under the interpolator's rule (emit every tick,
+   *     load when the accumulator fails to advance) a step of 0 means the
+   *     accumulator never advances, so `u(k) <= u(k-1)` holds every tick,
+   *     one input is consumed per output, and one arm serves throughout --
+   *     which is precisely what rate 1 should do.
+   *
+   * Clamping that case instead is wrong but undramatic, and the measured
+   * number is worth keeping because a comment once guessed it: 2^32-1
+   * emits 4097 outputs for 4096 inputs (1.000244) where 0 emits exactly
+   * 4096. A slow drift, not a doubling.
+   *
+   * Total for every double. NaN and anything <= 0 give 0 (the negated
+   * comparison is what rejects NaN, as above). Below 2^32 the bare cast is
+   * defined and truncates toward zero. At or above 2^32 the value is
+   * reduced modulo one period first -- `fmod` is exact, so the reduction
+   * introduces no error of its own, and it keeps the face total instead of
+   * trading one undefined cast for an assumed range. Callers converting a
+   * rate reciprocal reach it well inside 2^32 anyway; the reduction is
+   * there so no caller has to prove that before calling.
+   *
+   * @param units  A step already scaled to phase-word units (cycles x
+   *               2^32). Any value, including NaN.
+   * @return `units` reduced modulo 2^32 and truncated toward zero.
+   */
+  JM_FORCEINLINE uint32_t
+  nco_phase_units_mod (double units)
+  {
+    if (!(units > 0.0))
+      return 0u;
+    if (units < 4294967296.0)
+      return (uint32_t)units;
+    return (uint32_t)fmod (units, 4294967296.0);
+  }
+
+  /**
+   * @brief The INVERSE: a phase word back to normalised cycles in [0, 1).
+   *
+   * uint32 -> double is exact and total -- every phase word is
+   * representable, so unlike the forward direction there is no boundary,
+   * no undefined case and nothing to decide. It lives here anyway, for the
+   * duller reason: `word / 2^32` was written out at four sites, and a
+   * scale factor spelled by hand four times is a scale factor that can be
+   * mistyped in one of them. The forward faces are confined because they
+   * can trap; this one is shared because it is duplication.
+   *
+   * Read it back in whatever unit the caller's full scale is -- multiply
+   * by `sf` for chips, by a symbol period for symbols. Callers doing that
+   * are exactly the ones this saves from restating 2^32.
+   *
+   * @param word  Any phase word.
+   * @return `word / 2^32`, in `[0, 1)`.
+   */
+  JM_FORCEINLINE double
+  nco_word_to_norm (uint32_t word)
+  {
+    return (double)word / 4294967296.0;
   }
 
   /**

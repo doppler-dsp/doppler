@@ -1,0 +1,181 @@
+# Object Validation
+
+Every object doppler certifies carries its own **evidence**: measurements
+taken from the shipped C through its shipped binding, a review that judges
+them, and a set of limits a caller may rely on. This page is the process.
+Follow it rather than reconstructing it from the last object that went
+through.
+
+## Why the evidence layer exists
+
+The campaign started because a report's "Limits" section ended with the
+sentence *"Claims a caller may rely on. A failure here is a regression, not
+a new finding"* — and nothing executed it. The tree lived at
+`src/doppler/tests/validation/`, no make target reached it, no CI job named
+it, and `pytest --collect-only` found zero tests inside it. Forty-four
+claims across the first two objects were asserted by nobody, and two
+regressions went straight through them in one afternoon.
+
+So the rule that shapes everything below: **a claim nothing runs is prose.**
+When you add a phase, ask which gate executes it. If the answer is "none",
+it is documentation, and it belongs in `docs/design/` where nobody will
+mistake it for a guarantee.
+
+## The order is not negotiable
+
+1. **The C header is the SSOT.** Read `native/inc/<obj>/<obj>_core.h`
+    first and enumerate every claim its prose makes.
+1. **Map each claim onto `native/tests/test_<obj>_core.c`** — pinned,
+    pinned only at literals, or absent. The uncovered rows dictate the C
+    tests to write. Write them, and **prove each by sabotage** before
+    trusting it.
+1. **Only then** build the Python validation folder, which characterises,
+    plots and asserts.
+
+This was learned rather than designed. **NCO and LO were the first two
+objects**, and NCO went Python-first: its header claims were discovered
+empirically from outside, which produced evidence in the wrong language for
+the gate and cost a rewrite. The question that corrected it — *"did we
+start with `nco_core.h` as SSOT, then update/write C tests?"* — is the one
+to ask yourself at the start of each object.
+
+The reason is not tidiness. An object's most important surface is often the
+one the binding does not expose: resamp's control accumulator,
+`resamp_get_ctrl_acc`, is *the* diagnostic for a closed timing loop and has
+no Python binding at all. A Python-first audit measures whatever the
+binding happens to reach and reports a clean bill of health for the surface
+that matters least.
+
+## Step 1 — the claim inventory
+
+Read the header and write down every prose claim, then grep the C test for
+it. Three outcomes, and the middle one is the trap:
+
+| verdict                     | meaning                                                                                   |
+| --------------------------- | ----------------------------------------------------------------------------------------- |
+| **pinned**                  | an assertion genuinely tests the claim                                                    |
+| **pinned only at literals** | the test's *comment* claims more than its assertion does — prose wearing a test's clothes |
+| **absent**                  | zero mentions                                                                             |
+
+resamp's inventory is the worked example: 16 public entry points against a
+593-line test, of which three had **zero** mentions
+(`resamp_get_ctrl_acc`, `resamp_dc_gain`, `resamp_destroy(NULL)`) and two
+more were literals-only — `set_rate`'s comment promised "preserves phase"
+while asserting only that `get_rate()` read back, and `reset`'s promised
+"zeroes phase/delay" while asserting only that the rate survived. A reset
+that zeroed nothing at all passed that test.
+
+## Step 2 — the C tests, and the sabotage
+
+Write a test for every uncovered claim, then **break the code and watch it
+go red**. A test you have not seen fail is not evidence.
+
+Two failure modes to design against:
+
+**Measure against an external truth, not against the other entry point.**
+A consistency test (path A equals path B) is structurally blind to any
+defect the two paths share. resamp's `eq_ctrl_push` compared the block and
+push control paths, swept the deviation across unity on every run, and
+passed for the entire period the control accumulator was running the
+decimator's recurrence on the interpolator's structure. Prefer truths that
+need no timing convention: a resampled pure tone is still a pure tone; the
+output count is the integral of the rate regardless of the filter; a
+polyphase arm can be *read off the output* by giving arm `p` the single tap
+`p + 1`.
+
+**A reject test can pass vacuously.** Assert the precondition too. resamp's
+§12 asserts that `mu` stays bit-exactly `0.0` at an exact rate — which an
+accessor hard-wired to `0.0` also satisfies. The sabotage that took §10,
+§11 and §12's slewing case red left the steady case **green**, and it now
+carries its own precondition: steer the same rate off-exact and require
+`mu` to move. Same shape as `reset` — a reset test proves nothing if the
+state was already zero when it ran.
+
+## Step 3 — the validation folder
+
+Each certified object owns a folder beside its **module's** tests — the
+module, not the object, so `nco` and `lo` are siblings under `source`:
+
+```text
+src/doppler/<module>/tests/validation/<object>/
+    validate.py     the runner: characterise -> review -> limits
+    results.md      the authoritative report, GENERATED, never hand-edited
+    *.png           plots it embeds
+    data/*.csv      raw sweeps, so any number can be re-derived
+```
+
+Shared machinery lives in `src/doppler/tests/`:
+
+- `_validation_common.py` — the `Report` class and the `--check` CLI, so
+    the format cannot drift between objects
+- `loop_reference.py` — the closed-loop reference every steered object is
+    measured against, with the detector as a parameter
+
+Anything a **second** object needs moves into the shared home when that
+second caller appears, not in anticipation of one.
+
+### The report's five sections
+
+1. **The object** — links to `docs/design/<obj>.md` and the header; does
+    **not** restate them. If this section starts writing design rationale,
+    that content belongs in `docs/design/`.
+1. **Characterisation** — measured behaviour, tables and plots, **no
+    verdicts**. Section numbers track the C test file's own numbering so the
+    two read side by side. Claims unreachable from Python are reported as
+    **C-ONLY** with the C section that covers them, never silently skipped.
+1. **Review** — findings with verdicts: `BY DESIGN`, `GAP`, `CONFIRMED`,
+    `FIXED`, `C-ONLY`.
+1. **Limits** — the envelope a caller may rely on, asserted.
+1. **Summary.**
+
+**Phases in order, and no fixes during characterisation** — findings only.
+A fix made while measuring contaminates the measurement it came from.
+
+## The two gates
+
+They answer different questions, and the split is the whole point.
+
+| gate                        | question                             | what runs it                   |
+| --------------------------- | ------------------------------------ | ------------------------------ |
+| `test_validation_limits.py` | do the limits still hold?            | `make test-python`, per module |
+| `make validate-check`       | is the committed `results.md` stale? | `make gates`                   |
+
+**The limits gate** lives at
+`src/doppler/<module>/tests/test_validation_limits.py`. It runs each
+object's own `build(write=False)` and fails on any limit that does not
+hold, so the evidence and the gate are the *same code* and cannot disagree
+the way a hand-copied assertion would. `write=False` suppresses
+`results.md`, the plots and the CSVs — a test must never write into the
+repo — while every measurement still executes.
+
+It is a per-module file rather than one tree-wide collector because each
+validator imports its own module's objects; a single collector would import
+every extension in the tree to run any object's limits.
+
+**The staleness gate** is `make validate-check`, which re-renders each
+report in memory and fails if the committed bytes differ. `make validate`
+regenerates. Both discover validators by glob, so **a new object is gated
+the moment its folder exists** — there is no registration step to forget.
+
+## Adding an object
+
+- [ ] Enumerate the header's claims; map each onto the C test
+- [ ] Write C tests for the uncovered ones; sabotage each and watch it fail
+- [ ] Create `src/doppler/<module>/tests/validation/<object>/` with
+    `validate.py` and an `__init__.py`
+- [ ] Add the module's `test_validation_limits.py` if it is the module's
+    first object; otherwise add the object to its `OBJECTS` map
+- [ ] `make validate` to generate `results.md`, plots and CSVs
+- [ ] `make validate-check` and the module's pytest, both green
+- [ ] Commit the generated report — it is the deliverable, not a build
+    artifact
+
+## Conventions worth knowing
+
+- `results.md` is **generated**. It is excluded from mdformat, and
+    `validate.py` rstrips to exactly one trailing newline so the
+    end-of-file-fixer and the generator cannot fight each other.
+- A failing **limit** is a regression. A new problem found while
+    characterising is a **finding**, and goes in section 3 with a verdict.
+- Findings that will not be fixed in the same pass get **filed as issues**
+    before the PR merges, not explained in a docstring.

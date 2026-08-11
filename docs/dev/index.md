@@ -9,6 +9,7 @@ The pages a contributor actually needs, in reading order:
 - [Error Convention](error-convention.md) — how errors are returned across the C ABI
 - [DSSS Acquisition Use Cases](dsss-use-cases.md) — the two wide-Doppler operating regimes driving the acquisition design
 - [Benchmarking](benchmarking.md) — running and interpreting benchmark results
+- [Object Validation](validation.md) — how an object is certified: header claims → C tests proven by sabotage → the generated evidence report and its two gates
 - [Doc Examples](doc-examples.md) — every docs code snippet is discovered and tested, no opt-in list
 - [Docstring Authoring](docstring-authoring.md) — write the C header Doxygen so `jm` derives top-notch Python docstrings on both faces
 - [Docs Conventions](docs-conventions.md) — what's generated vs. hand-owned under `docs/`, and the nav-index/Related-pages CI gates

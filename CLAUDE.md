@@ -959,46 +959,28 @@ ______________________________________________________________________
 
 ## Object validation — the certification evidence
 
-Each object certified under the validation campaign owns a folder **beside
-its module's tests**:
+**The process has one home: [`docs/dev/validation.md`](docs/dev/validation.md).**
+Follow it there — the inventory step, the sabotage rule, the report's five
+sections, the two gates and the per-object checklist. It is a contributor
+page rather than a note here precisely so it is followed rather than
+reconstructed.
 
-```
-src/doppler/<module>/tests/validation/<object>/
-    validate.py     the runner: characterise -> review -> limits
-    results.md      the authoritative report, GENERATED, never hand-edited
-    *.png           plots it embeds
-    data/*.csv      raw sweeps, so any number can be re-derived
-```
+The two things worth repeating at this altitude, because getting either
+wrong wastes a day:
 
-Shared machinery lives in `src/doppler/tests/` — `_validation_common.py`
-(the `Report` class and the `--check` CLI, so the format cannot drift
-between objects) and `loop_reference.py` (the closed-loop reference every
-steered object is measured against, detector as a parameter).
-
-**Both halves are gated, and they answer different questions.**
-
-- The **limits** — the report's "claims a caller may rely on" — are asserted
-    by `src/doppler/<module>/tests/test_validation_limits.py`, which runs each
-    object's own `build(write=False)` and fails on any limit that does not
-    hold. Evidence and gate are the same code, so they cannot disagree.
-- The **report's staleness** is `make validate-check` (in `gates`), which
-    re-renders in memory and fails if the committed `results.md` differs.
-    `make validate` regenerates. Both discover validators by glob, so a new
-    object is gated the moment its folder exists.
-
-That split is not decoration. The tree previously lived at
-`src/doppler/tests/validation/` and was executed by **nothing** — no make
-target, no CI job, `pytest --collect-only` found zero tests in it — so 44
-claims across two objects were asserted by nobody and two regressions went
-through them in one afternoon. If you add a phase, ask which of the two
-gates runs it.
-
-**The order when validating a new object is not negotiable:** the header is
-the SSOT — enumerate every prose claim, map each to the object's
-`test_<obj>_core.c` as pinned / pinned-only-at-literals / absent, write C
-tests for the uncovered ones and prove each by sabotage, and only then build
-`validate.py`. Going Python-first produces evidence in the wrong language for
-the gate.
+- **The order is not negotiable.** The C header is the SSOT: enumerate its
+    prose claims, map each onto `test_<obj>_core.c` as pinned /
+    pinned-only-at-literals / absent, write C tests for the uncovered ones
+    and **prove each by sabotage** — and only then build `validate.py`.
+    Python-first produces evidence in the wrong language for the gate, and
+    measures whatever the binding happens to expose rather than what
+    matters. NCO cost a rewrite this way.
+- **A claim nothing runs is prose.** The tree used to live at
+    `src/doppler/tests/validation/` and was executed by **nothing** — no make
+    target, no CI job, `pytest --collect-only` found zero tests in it — so 44
+    claims across the first two objects were asserted by nobody and two
+    regressions went through them in one afternoon. If you add a phase, ask
+    which of the two gates runs it.
 
 ______________________________________________________________________
 

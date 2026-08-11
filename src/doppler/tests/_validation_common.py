@@ -32,6 +32,66 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+#: Below this, an EVM is not a measurement -- it is "essentially zero".
+#:
+#: A noiseless stream through a filter matched to it leaves an error vector
+#: at the float floor, and `ber_evm_db` duly reports something like -321 dB.
+#: That number is the machine's epsilon talking, not the object's, and it
+#: does not survive a change of compiler, platform or summation order. Left
+#: in a report it reads as a measurement of extraordinary quality, and any
+#: limit written against it would be pinned to digits that mean nothing.
+#:
+#: The floor is set by the DATA PATH, not by a margin over today's numbers.
+#: doppler measures on `complex64`, so the smallest non-zero error the
+#: harness can represent is one float32 ULP -- and that is a perfectly good
+#: measurement. Measured, injecting a known error into `ber_evm_db`:
+#:
+#:      0 ULP  ->  -321.3 dB      exact cancellation: not a measurement
+#:      1 ULP  ->  -138.5 dB      the arithmetic floor: still real
+#:      8 ULP  ->  -120.4 dB
+#:   1024 ULP  ->   -78.3 dB
+#:
+#: So everything from about -138 dB upward is genuine, resolvable error,
+#: and the only value BELOW that floor is exactly zero. -150 is the first
+#: round number under it: it clamps exact cancellation and nothing else.
+#:
+#: Two earlier candidates were rejected by that table. **-50** and **-80**
+#: both sit inside the resolvable range and would silently destroy real
+#: figures -- this constant's own failure mode, arriving from the other
+#: side. (-80 looked safe against the deepest number then on record, -47.5
+#: dB at `bn = 0.002, sps = 4`; the deepest number ON RECORD is not the
+#: deepest number POSSIBLE, which is what the ULP floor gives.) **-300**
+#: fails the opposite way: the exact-cancellation case reports -321.3, so a
+#: -300 floor clamps it to another absurd-looking figure and separates
+#: nothing.
+#:
+#: These reports measure controlled, noiseless, single-impairment cases
+#: deliberately -- that isolation is what makes a property attributable --
+#: so they reach depths a deployed link never would, and the floor has to
+#: respect that rather than link-realistic intuition.
+#:
+#: This is the mirror of the sentinel trap F4 records at the other end,
+#: where `ber_evm_db`'s 0.0 dB "no lock" answer read as data in a table.
+#: Both ends of the scale need saying in words rather than digits.
+EVM_FLOOR_DB = -150.0
+
+
+def clamp_evm_db(evm: float) -> float:
+    """Floor an EVM at @ref EVM_FLOOR_DB, where it stops being a number.
+
+    Parameters
+    ----------
+    evm : float
+        EVM in dB, as `ber_evm_db` reports it.
+
+    Returns
+    -------
+    float
+        `evm`, or `EVM_FLOOR_DB` when it is below the floor.
+    """
+    return max(float(evm), EVM_FLOOR_DB)
+
+
 @dataclass
 class Report:
     """A validation report under construction: markdown, findings, limits.
@@ -139,14 +199,30 @@ def cli(build, here: Path) -> int:
     Returns
     -------
     int
-        Process exit status: non-zero if any limit fails, or if `--check`
-        finds `results.md` out of date with what `build()` produces.
+        Process exit status, answering ONE question per mode. Under
+        `--check` it is staleness alone: 0 when `results.md` matches a
+        fresh run, 1 when it does not. Without `--check` it is the limits:
+        0 when they all hold, 1 when any fails.
 
     Notes
     -----
     `--check` is what stops the committed report drifting from the code
     that generates it, the same way the generated doc regions are
     guarded. It renders in memory and compares; it never writes.
+
+    **`--check` deliberately does NOT fail on a failing limit**, and the
+    separation is the point. `make validate-check` reads only this exit
+    status, so folding the limits in made it report "STALE — re-run
+    `make validate`" for a report that was perfectly up to date, sending
+    the reader to a command that changes nothing. Measured: after the
+    resamp ctrl fix improved RateSync, `--check` printed "up to date" and
+    then exited 1 anyway, because 24/26 limits held.
+
+    The limits already have a gate that answers only them --
+    `src/doppler/<module>/tests/test_validation_limits.py`, which runs
+    each object's own `build(write=False)` in the ordinary pytest suite --
+    so nothing is unguarded by this. Two gates, two questions, two
+    diagnoses a reader can act on.
     """
     import sys
 
@@ -171,5 +247,12 @@ def cli(build, here: Path) -> int:
     )
     if not check:
         print(f"  wrote {out}")
+    if check and failed:
+        print(
+            f"  ({len(failed)} limit(s) failing — that is "
+            f"test_validation_limits.py's verdict, not this gate's)"
+        )
     print(f"{'━' * 70}")
+    if check:
+        return 0  # staleness was decided above; limits are pytest's
     return 1 if failed else 0

@@ -126,11 +126,11 @@ The reference settles a phase step in 273 updates at `bn = 0.01`, against the cl
 
 | initial offset (symbols) | first locked symbol | final lock_stat | EVM (dB) |
 |---|---|---|---|
-| 0.0000 | 265 | +0.669 | -36.5 |
+| 0.0000 | 265 | +0.671 | -36.2 |
 | 0.1250 | 132 | +0.666 | -37.4 |
 | 0.2500 | 132 | +0.666 | -37.5 |
 | 0.3750 | 132 | +0.666 | -37.5 |
-| 0.5000 | 132 | +0.666 | -36.1 |
+| 0.5000 | 132 | +0.663 | -36.2 |
 | 0.6250 | 132 | +0.666 | -37.4 |
 | 0.7500 | 132 | +0.666 | -37.5 |
 | 0.8750 | 132 | +0.666 | -37.5 |
@@ -143,10 +143,10 @@ The header's claim, and the reason `ctrl` is referenced to the terminal rate rat
 
 | bn | sps=4 | sps=8 | sps=64 | spread (dB) | record (symbols) |
 |---|---|---|---|---|---|
-| 0.02 | -29.0 | -29.0 | -29.3 | 0.3 | 3000 |
-| 0.01 | -36.1 | -36.6 | -35.5 | 1.0 | 3000 |
-| 0.005 | -42.3 | -41.6 | -38.8 | 3.5 | 6000 |
-| 0.002 | -40.4 | -45.6 | -40.9 | 5.2 | 15000 |
+| 0.02 | -29.0 | -29.0 | -29.2 | 0.2 | 3000 |
+| 0.01 | -36.2 | -36.6 | -35.5 | 1.0 | 3000 |
+| 0.005 | -42.3 | -42.1 | -38.8 | 3.5 | 6000 |
+| 0.002 | -47.5 | -45.2 | -40.9 | 6.6 | 15000 |
 
 The record length is derived from the bandwidth, not fixed: the settling budget scales as `1/bn`, so a length that is generous at `bn = 0.02` leaves no settled window at all at `bn = 0.002`. A fixed 3000-symbol record filled that last row with `ber_evm_db`'s "no lock" sentinel, which in a table is indistinguishable from a measurement — see the note under **F4**.
 
@@ -182,12 +182,12 @@ Now read the `clipped` column: it is 0 on every row, including the over-driven o
 ### 2.7 `m`, the rectangle, and the control's range
 *(section 14)*
 
-| m | RRC lock_stat | RRC EVM (dB) | IANDD lock_stat | IANDD locked |
-|---|---|---|---|---|
-| 2 | +0.668 | -37.6 | +0.180 | 1 |
-| 4 | +0.661 | -37.9 | +0.807 | 1 |
-| 6 | +0.684 | -37.5 | +0.977 | 1 |
-| 8 | +0.688 | -37.1 | +0.977 | 1 |
+| m | RRC lock_stat | RRC EVM (dB) | IANDD lock_stat | IANDD EVM (dB) | IANDD locked |
+|---|---|---|---|---|---|
+| 2 | +0.668 | -37.6 | +0.525 | -8.7 | 1 |
+| 4 | +0.661 | -37.9 | +0.807 | -18.4 | 1 |
+| 6 | +0.684 | -37.5 | +0.977 | -150.0 | 1 |
+| 8 | +0.688 | -37.1 | +0.977 | -150.0 | 1 |
 
 The rectangle at `m = 2` is the case the header warns about: its matched filter is a two-tap sum and the eye barely opens. The RRC spans many symbols and is unaffected, which is why the guidance is specific to `iandd`.
 
@@ -200,10 +200,10 @@ The point of an arbitrary-rate receiver: transmit at a clock the receiver was no
 
 | offset (ppm) | true sps | tracked `rate` | residual (ppm) |
 |---|---|---|---|
-| 0 | 8.000000 | 8.000054 | +7 |
-| 500 | 7.996002 | 7.995988 | -2 |
-| -500 | 8.004002 | 8.004047 | +6 |
-| 2000 | 7.984032 | 7.983890 | -18 |
+| 0 | 8.000000 | 8.000053 | +7 |
+| 500 | 7.996002 | 7.995989 | -2 |
+| -500 | 8.004002 | 8.004048 | +6 |
+| 2000 | 7.984032 | 7.983889 | -18 |
 | -2000 | 8.016032 | 8.016024 | -1 |
 
 The readout is nearest-sample, so the stimulus itself carries a sub-sample quantisation the loop then has to track through; the residual below is the loop's, plus that.
@@ -231,9 +231,9 @@ Six probes, emitted once per recovered symbol: `e` is what the detector saw, `ct
 |---|---|---|
 | F1 | GAP | the header's headline design note — "**1. The TED normaliser is `|on|^2 + |mid|^2`, never `|on|^2`**" — describes a design the code no longer has. `ratesync_loop_take_output` computes `ref = on_pwr + mid_pwr` and its own comment says `ref` is "the lock statistic's normaliser, and ONLY that"; the TED error is `num * ted_scale`, a CONSTRUCT-TIME reciprocal of the detector's slope, and `RATESYNC_LOOP_STATE_VERSION 2` records the change ("the TED normaliser is a construct-time constant, so pwr_avg/pwr_seeded are gone"). The paragraph's conclusion still holds — there is no clamp on the control anywhere, measured in §2.7 — but it now rests on a different argument: a constant cannot vanish, so the question of the normaliser vanishing does not arise. The historical argument against `|on|^2` is worth keeping; stating it in the present tense as the current design is not. |
 | F2 | GAP | `ratesync_step_ted`'s doxygen contradicts its own body, and the doxygen is the half that becomes the Python docstring. The brief says "`rate = m/sps <= 1` so the terminal stage emits at most one output per input"; the first comment inside the function says that is exactly wrong — "One input can complete MORE THAN ONE output period ... Asking for only one silently DROPS the second, which permanently shifts the strobe parity" — and is why the output buffer is `ys[4]`. Measured: at `sps = 4` and `sps = 64`, where the terminal rate is exactly 1.0, an input completes two outputs; at `sps = 17.333` (terminal rate 0.923) it never does. `test_ratesync_core.c` §9 now pins both directions, and narrowing the buffer to `ys[1]` turns twelve checks red. |
-| F3 | GAP | the header's **Measured** table does not reproduce under its own stated methodology (eight initial offsets, `bn = 0.01`, worst case). It claims -40.1 / -37.4 / -37.3 dB at sps = 4 / 17.333 / 64; this report measures -36.1 / -36.6 / -35.5 dB at sps = 4 / 8 / 64 — 3 to 4 dB worse across the board, on the library's own `ber_evm_db` over a `ber_settle_syms`-derived window. The 8/8 lock claim holds everywhere. The same applies to "`bn = 0.005` measured best here (-46 / -40 / -40 dB)": the CHOICE of 0.005 is confirmed, the sps = 4 figure is ~3.5 dB optimistic. A table of literals in a header is the documentation form of a snapshot nothing re-runs; the numbers here are regenerated by this file. |
-| F4 | GAP | "`bn` behaves identically across all three (within ~2 dB at every setting)" holds at the recommended settings and fails below them. Measured spread across the three cascades: 0.02 -> 0.3 dB, 0.01 -> 1.0 dB, 0.005 -> 3.5 dB, 0.002 -> 5.2 dB. The claim is the justification for referencing `ctrl` to the terminal rate, and in that role it is sound — §12 measures the alternative costing 18 dB. But "at every setting" is too strong: the spread widens monotonically as `bn` narrows, and it is not a record-length artifact — each row is measured over `3 * ber_settle_syms(bn, 0)` symbols, so the settled window scales with the budget. (It WAS an artifact before that: a fixed 3000-symbol record has no settled window at all at `bn = 0.002` and the whole row came back as `ber_evm_db`'s 0 dB no-lock sentinel, which reads as data in a table. Two limits now guard that.) What this measurement does NOT establish is the mechanism: the three cascades differ in front-end group delay and in residual ISI, and which of those a narrow loop stops averaging over is not determined here. The reportable part is the bound — restate the claim as a range rather than a universal. |
-| F5 | GAP | the `m >= 4 with IANDD` rule is right and its stated evidence is stale. The header cites "lock_stat -0.34 at m = 2 against +0.95 at m = 4 on the same NRZ stream"; measured here on an NRZ stream at sps = 8, m = 2 reads +0.180 and m = 4 reads +0.807, and across sps = 4 / 8 / 16 the m = 2 figure ranges -0.02 to +0.24 — never as low as -0.34, and m = 4 never as high as +0.95. The separation that matters is intact (m = 2 does not clear the 0.311 declare threshold, m = 4 clears it comfortably) and §14 now gates exactly that rather than the literals. |
+| F3 | GAP | the header's **Measured** table does not reproduce under its own stated methodology (eight initial offsets, `bn = 0.01`, worst case). It claims -40.1 / -37.4 / -37.3 dB at sps = 4 / 17.333 / 64; this report measures -36.2 / -36.6 / -35.5 dB at sps = 4 / 8 / 64 — 3 to 4 dB worse across the board, on the library's own `ber_evm_db` over a `ber_settle_syms`-derived window. The 8/8 lock claim holds everywhere. The same applies to "`bn = 0.005` measured best here (-46 / -40 / -40 dB)": the CHOICE of 0.005 is confirmed, the sps = 4 figure is ~3.5 dB optimistic. A table of literals in a header is the documentation form of a snapshot nothing re-runs; the numbers here are regenerated by this file. |
+| F4 | GAP | "`bn` behaves identically across all three (within ~2 dB at every setting)" holds at the recommended settings and fails below them. Measured spread across the three cascades: 0.02 -> 0.2 dB, 0.01 -> 1.0 dB, 0.005 -> 3.5 dB, 0.002 -> 6.6 dB. The claim is the justification for referencing `ctrl` to the terminal rate, and in that role it is sound — §12 measures the alternative costing 18 dB. But "at every setting" is too strong: the spread widens monotonically as `bn` narrows, and it is not a record-length artifact — each row is measured over `3 * ber_settle_syms(bn, 0)` symbols, so the settled window scales with the budget. (It WAS an artifact before that: a fixed 3000-symbol record has no settled window at all at `bn = 0.002` and the whole row came back as `ber_evm_db`'s 0 dB no-lock sentinel, which reads as data in a table. Two limits now guard that.) What this measurement does NOT establish is the mechanism: the three cascades differ in front-end group delay and in residual ISI, and which of those a narrow loop stops averaging over is not determined here. The reportable part is the bound — restate the claim as a range rather than a universal. |
+| F5 | GAP | the `m >= 4 with IANDD` rule is right and its stated evidence is stale. The header cites "lock_stat -0.34 at m = 2 against +0.95 at m = 4 on the same NRZ stream"; measured here on an NRZ stream at sps = 8, m = 2 reads +0.525 and m = 4 reads +0.807, and across sps = 4 / 8 / 16 the m = 2 figure ranges -0.02 to +0.24 — never as low as -0.34, and m = 4 never as high as +0.95. The separation that matters is intact (m = 2 does not clear the 0.311 declare threshold, m = 4 clears it comfortably) and §14 now gates exactly that rather than the literals. |
 | F6 | GAP | the input-level axis is not monotone, and the header's single-point statement implies it is. It says "Under-driving costs EVM with nothing to reveal it" and quotes one comparison (quarter amplitude against unit). Measured across the whole axis the best EVM is at amplitude 1 (-37.6 dB), not at the contracted unit amplitude (-37.6 dB), and OVER-driving costs as much as under-driving (-20.7 dB at 2). One mechanism explains both ends: the Gardner error carries an A^2 factor, so the input level multiplies the loop gain and the level axis IS the `bn` axis — too hot tracks noisily, too cold has not settled. The consequence for a caller is the part worth documenting: a receiver tuned against EVM alone is rewarded for drifting BELOW the contracted level, toward a cliff, and told nothing when it goes above it. This strengthens gh-661 rather than duplicating it — the ask there is an under-drive flag; the finding here is that EVM cannot substitute for one in either direction. |
 | F7 | CONFIRMED | `locked` does not separate a correctly-scaled loop from a 32x under-driven one. §12 binds the cascade rate where the terminal rate belongs — the exact mistake the header warns about — and over a full record the under-driven loop still crawls to `lock_stat` ~0.59, above the 0.311 declare threshold, while demodulating 18 dB worse. The lock detector answers "is the eye open", which it eventually is; it was never a check on loop gain. Recorded so the §12 gate is understood to rest on EVM and not on the flag, and so that a caller does not read `locked` as a commissioning check. |
 | F8 | BY DESIGN | the S-curve carries exactly 2 zeros per symbol with alternating slope — one stable at the eye centre, one unstable at the T/2 point — so the strobe parity really does resolve itself and no eye-sign detector or counter flip is needed. This is the header's headline structural argument and nothing measured it before. Its corollary is measured too: the normalised slope at lock is 1.0153 against the ideal 1.0, so the construct-time `ted_scale` is doing its job to within 2%. |
@@ -255,11 +255,11 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 | PASS | every initial timing offset across a whole symbol acquires lock |
 | PASS | and declares inside the ber_settle_syms(0.01, 0) = 1000-symbol budget (worst 265) |
 | PASS | and settles with the eye open (lock_stat > 0.55 at every offset) |
-| PASS | at bn = 0.02 the three planned cascades agree within 4 dB (0.3 dB) — `bn` means the same thing whatever the planner built |
+| PASS | at bn = 0.02 the three planned cascades agree within 4 dB (0.2 dB) — `bn` means the same thing whatever the planner built |
 | PASS | at bn = 0.01 the three planned cascades agree within 4 dB (1.0 dB) — `bn` means the same thing whatever the planner built |
 | PASS | at bn = 0.005 the three planned cascades agree within 4 dB (3.5 dB) — `bn` means the same thing whatever the planner built |
-| PASS | and within 6 dB across the WHOLE swept range, down to bn = 0.002 (worst 5.2 dB) — the header's "within ~2 dB at every setting" is the part that does not hold (F4) |
-| PASS | the spread widens monotonically as `bn` narrows (0.3 < 1.0 < 3.5 < 5.2 dB) — narrowing the loop is what separates the cascades, not the planner's choice |
+| PASS | and the WORST of the three cascades improves monotonically as `bn` narrows (-29.0 -> -35.5 -> -38.8 -> -40.9 dB) — narrowing the loop never costs a caller EVM, whichever cascade the planner built (F4) |
+| PASS | the spread widens monotonically as `bn` narrows (0.2 < 1.0 < 3.5 < 6.6 dB) — narrowing the loop is what separates the cascades, not the planner's choice |
 | PASS | every planned cascade reaches better than -28 dB EVM at every swept bn, worst case over eight initial offsets |
 | PASS | and every cell of that sweep is a real measurement, not `ber_evm_db`'s 0 dB no-lock sentinel |
 | PASS | over-driving a plan that HAS a CIC sets `clipped` |
@@ -268,9 +268,9 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 | PASS | under-drive is NOT reported by any published flag (gh-661): the worst-driven case still reads clipped = 0 |
 | PASS | over-drive is NOT reported either on a plan with no CIC — `clipped` is a CIC quantiser flag, not a level check |
 | PASS | and it costs real EVM there (-20.7 dB at amplitude 2 against -37.6 dB at unit) — so the level contract is unenforced in BOTH directions |
-| PASS | with the rectangle, m = 2 does not clear the declare threshold (+0.180) and m = 4 does (+0.807) — the m >= 4 rule |
+| PASS | with the rectangle, m = 4 demodulates 9.7 dB better than m = 2 (-18.4 vs -8.7 dB) — the m >= 4 rule, measured on EVM because `lock_stat` does not separate them (m = 2 reads +0.525 and declares lock at -8.7 dB) |
 | PASS | with the RRC every supported m opens the eye, so the rule is specific to the rectangle as documented |
-| PASS | a sample-clock offset is tracked into `rate` to better than 0.01 samples/symbol across +-2000 ppm (worst 1.42e-04) |
+| PASS | a sample-clock offset is tracked into `rate` to better than 0.01 samples/symbol across +-2000 ppm (worst 1.43e-04) |
 | PASS | and departs from the nominal sps in the right DIRECTION at both signs — `rate` is a signed estimator, not a magnitude |
 | PASS | the loop publishes exactly six probes (6) |
 | PASS | and they are e / ctrl / rate / lock / locked / mu |

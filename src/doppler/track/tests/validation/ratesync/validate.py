@@ -36,7 +36,7 @@ from doppler.filter import FIR
 from doppler.resample import MatchedRateConverter
 from doppler.telemetry import Telemetry
 from doppler.tests import loop_reference as ll
-from doppler.tests._validation_common import Report, cli
+from doppler.tests._validation_common import Report, clamp_evm_db, cli
 from doppler.track import RateSync
 from doppler.wfm import rrc_taps
 
@@ -212,7 +212,9 @@ def evm_db(y: np.ndarray, bn: float) -> float:
             f"record of {y.size} symbols has no settled window at bn={bn:g} "
             f"(budget {lo}); use record_syms(bn)"
         )
-    return float(ber_evm_db(y, lo, y.size, 2))
+    # Floored at EVM_FLOOR_DB: below it the error vector is the float
+    # floor of a noiseless matched case, not this object's performance.
+    return clamp_evm_db(ber_evm_db(y, lo, y.size, 2))
 
 
 def run_sync(
@@ -891,18 +893,27 @@ def characterise() -> Data:
         ev = evm_db(y, 0.01)
         # the rectangle, on a stream matched to it
         xn = np.repeat(symbols(NSYM), 8).astype(np.complex64)
-        rn, _yn, _ = run_sync(xn, 8.0, bn=0.01, m=m, pulse="iandd")
+        rn, yn, _ = run_sync(xn, 8.0, bn=0.01, m=m, pulse="iandd")
+        evn = evm_db(yn, 0.01)
         rows.append(
             [
                 m,
                 f"{rs.lock_stat:+.3f}",
                 f"{ev:.1f}",
                 f"{rn.lock_stat:+.3f}",
+                f"{evn:.1f}",
                 int(rn.locked),
             ]
         )
         d.m_rows.append(
-            (m, float(rs.lock_stat), ev, float(rn.lock_stat), int(rn.locked))
+            (
+                m,
+                float(rs.lock_stat),
+                ev,
+                float(rn.lock_stat),
+                int(rn.locked),
+                evn,
+            )
         )
     R.table(
         [
@@ -910,6 +921,7 @@ def characterise() -> Data:
             "RRC lock_stat",
             "RRC EVM (dB)",
             "IANDD lock_stat",
+            "IANDD EVM (dB)",
             "IANDD locked",
         ],
         rows,
@@ -1288,12 +1300,25 @@ def limits(d: Data) -> None:
                 f"same thing whatever the planner built",
             )
     spreads = [max(v) - min(v) for _, v in d.bn_rows]
+    # Bound the WORST cascade, not the spread between them.
+    #
+    # A spread bound was the wrong shape and the resamp ctrl fix proved it:
+    # `bn = 0.002, sps = 4` improved from -40.4 to -47.5 dB — the cascade
+    # whose terminal rate is exactly 1.0, which is the rate that fix
+    # repaired — and the spread widened from 5.2 to 6.6 dB as a RESULT. The
+    # limit then failed because the object got better, which is a limit
+    # that punishes improvement.
+    #
+    # What a caller actually relies on is that narrowing `bn` never costs
+    # them EVM whichever cascade the planner built. That is a claim about
+    # the worst row, and it survives any one cascade improving.
+    worst = [max(v) for _, v in d.bn_rows]  # EVM in dB: max == worst
     R.limit(
-        max(spreads) < 6.0,
-        f"and within 6 dB across the WHOLE swept range, down to "
-        f"bn = {d.bn_grid[-1]:g} (worst {max(spreads):.1f} dB) — the "
-        f'header\'s "within ~2 dB at every setting" is the part that does '
-        f"not hold (F4)",
+        all(b <= a for a, b in zip(worst, worst[1:])),
+        f"and the WORST of the three cascades improves monotonically as "
+        f"`bn` narrows ({' -> '.join(f'{w:.1f}' for w in worst)} dB) — "
+        f"narrowing the loop never costs a caller EVM, whichever cascade "
+        f"the planner built (F4)",
     )
     R.limit(
         spreads == sorted(spreads),
@@ -1351,10 +1376,23 @@ def limits(d: Data) -> None:
     # --- m and the rectangle --------------------------------------------
     m2 = next(r for r in d.m_rows if r[0] == 2)
     m4 = next(r for r in d.m_rows if r[0] == 4)
+    # The m >= 4 rule is asserted on what it COSTS, not on the lock flag.
+    #
+    # This used to read `m2[3] < 0.311 <= m4[3]` — m = 2 must not clear the
+    # declare threshold. That worked only while the number happened to sit
+    # at +0.180, and it stopped being true the moment the resamp ctrl fix
+    # improved the rate-1.0 cascades: m = 2 now reads +0.525 and DOES clear
+    # the threshold, while still demodulating at -8.7 dB against m = 4's
+    # -18.1 dB. So the flag flipped and the guidance did not — the rule is
+    # as right as it ever was, and `lock_stat` was never the quantity that
+    # discriminates. That is F7, applied: the lock detector answers "is the
+    # eye open", not "is this configuration usable".
     R.limit(
-        m2[3] < 0.311 <= m4[3],
-        f"with the rectangle, m = 2 does not clear the declare threshold "
-        f"({m2[3]:+.3f}) and m = 4 does ({m4[3]:+.3f}) — the m >= 4 rule",
+        m4[5] < m2[5] - 6.0,
+        f"with the rectangle, m = 4 demodulates {m2[5] - m4[5]:.1f} dB "
+        f"better than m = 2 ({m4[5]:.1f} vs {m2[5]:.1f} dB) — the m >= 4 "
+        f"rule, measured on EVM because `lock_stat` does not separate them "
+        f"(m = 2 reads {m2[3]:+.3f} and declares lock at {m2[5]:.1f} dB)",
     )
     R.limit(
         all(r[1] > 0.55 for r in d.m_rows),

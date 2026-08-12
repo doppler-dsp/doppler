@@ -1958,6 +1958,27 @@ True
 """
 objects = ["agc"]
 
+[[module.agc.functions]]
+name = "settling_samples"
+doc = "How many samples this loop needs to settle -- the design query a caller sizing a warm-up budget, a burst preamble or an acquisition guard has to answer. 1/(4*loop_bw) is the loop FILTER's time constant and not the object's: the detector sits inside the loop and measures in power, so a quiet input settles more slowly. Measured, the multiplier runs from about 0.8 on a loud start to nearly 5 on a quiet one with a slow detector. This runs the real loop against a constant input and counts, so there is no fitted curve to go stale. gain_err_db is POSITIVE for a quiet input, which is the slow direction and the one to budget for. Returns 0 rather than a plausible guess when the arguments are invalid. Design-time only: it allocates and iterates."
+return_type = "size_t"
+
+[[module.agc.functions.params]]
+name = "loop_bw"
+type = "double"
+
+[[module.agc.functions.params]]
+name = "alpha"
+type = "double"
+
+[[module.agc.functions.params]]
+name = "gain_err_db"
+type = "double"
+
+[[module.agc.functions.params]]
+name = "tol_db"
+type = "double"
+
 # Propagation impairments: things that TRANSFORM a signal on its way from
 # transmitter to receiver, as opposed to source's awgn/lo/nco, which GENERATE
 # one. DopplerChannel is the first; multipath/fading/phase-noise belong here

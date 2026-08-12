@@ -41,6 +41,45 @@ agc_reset (agc_state_t *state)
   state->p_avg      = pow (10.0, state->ref_db * 0.1);
 }
 
+size_t
+agc_settling_samples (double loop_bw, double alpha, double gain_err_db,
+                      double tol_db)
+{
+  /* Refuse rather than guess: every one of these makes the question
+     meaningless, and a plausible number would be worse than none. */
+  if (!(loop_bw > 0.0) || !(alpha > 0.0) || !(alpha <= 1.0) || !(tol_db > 0.0)
+      || !isfinite (gain_err_db))
+    return 0;
+  /* Already inside the tolerance: settled at sample zero, but the contract
+     says >= 1 for an answer, so report the first sample. */
+  if (fabs (gain_err_db) <= tol_db)
+    return 1;
+
+  agc_state_t *s = agc_create (0.0, loop_bw, alpha);
+  if (!s)
+    return 0;
+
+  /* An input needing `gain_err_db` of gain to reach a 0 dB reference. The
+     direction is the caller's: positive means quiet, which is the slow
+     case because the detector's dB reading crawls up a concave log. */
+  float complex x = (float)pow (10.0, -gain_err_db / 20.0) * (0.6f + 0.8f * I);
+
+  /* Bounded search. The measured multiplier tops out near 5 for the
+     slowest detector this object accepts; 64 filter time constants is an
+     order of magnitude of headroom over that, and a loop that has not
+     settled by then is not going to. */
+  size_t budget = (size_t)(64.0 / (4.0 * loop_bw)) + 1u;
+  size_t n      = 0;
+  for (; n < budget; n++)
+    {
+      (void)agc_step (s, x);
+      if (fabs (s->gain_db - gain_err_db) <= tol_db)
+        break;
+    }
+  agc_destroy (s);
+  return n < budget ? n + 1u : 0u;
+}
+
 int
 agc_set_telemetry (agc_state_t *state, dp_tlm_t *tlm, const char *prefix,
                    uint32_t decim)

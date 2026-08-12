@@ -16,6 +16,6 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .agc import AGC  # noqa: E402
+from .agc import AGC, settling_samples  # noqa: E402
 
-__all__ = ["AGC"]
+__all__ = ["AGC", "settling_samples"]

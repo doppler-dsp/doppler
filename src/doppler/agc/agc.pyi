@@ -371,3 +371,22 @@ class AGC:
         tb : object | None
             Traceback object, or None. Ignored.
         """
+
+def settling_samples(
+    loop_bw: float,
+    alpha: float,
+    gain_err_db: float,
+    tol_db: float,
+) -> int:
+    """How many samples this loop needs to settle -- the design query a caller
+    sizing a warm-up budget, a burst preamble or an acquisition guard has to
+    answer. 1/(4*loop_bw) is the loop FILTER's time constant and not the
+    object's: the detector sits inside the loop and measures in power, so a
+    quiet input settles more slowly. Measured, the multiplier runs from about
+    0.8 on a loud start to nearly 5 on a quiet one with a slow detector. This
+    runs the real loop against a constant input and counts, so there is no
+    fitted curve to go stale. gain_err_db is POSITIVE for a quiet input, which
+    is the slow direction and the one to budget for. Returns 0 rather than a
+    plausible guess when the arguments are invalid. Design-time only: it
+    allocates and iterates.
+    """

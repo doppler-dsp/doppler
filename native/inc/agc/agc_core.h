@@ -560,6 +560,60 @@ void agc_reset(agc_state_t *state);
 double agc_get_applied_gain_db(const agc_state_t *state);
 
   /**
+   * @brief How many samples this loop needs to settle — the design query.
+   *
+   * Answers "how long must I wait before the output level can be trusted",
+   * which a caller sizing a warm-up budget, a burst preamble or an
+   * acquisition guard has to answer and could not.
+   *
+   * @par Why the header's time constant is not the answer
+   * @c 1/(4*loop_bw) is the loop FILTER's time constant, and the object is
+   * not the filter — the detector sits inside the loop and measures in
+   * power, so a quiet input settles more slowly (see the Linear-in-dB note
+   * above).  The real settling is @c M/(4*loop_bw) where @c M depends on
+   * the starting error and on how fast the detector is relative to the
+   * filter, @c alpha/(4*loop_bw).  Measured, @c M runs from about 0.8 on a
+   * loud start to nearly 5 on a quiet one with a slow detector.
+   *
+   * @par It measures rather than approximates
+   * This runs the real @ref agc_step loop against a constant input and
+   * counts, so there is no fitted curve to go stale: the answer is
+   * whatever the shipped loop does, and it cannot disagree with the object
+   * it describes.  Design-time only — it allocates and iterates, so call
+   * it while planning a pipeline, never inside one.
+   *
+   * @param loop_bw      Loop noise bandwidth, as passed to agc_create().
+   * @param alpha        Detector EMA coefficient, as passed to
+   *                     agc_create().
+   * @param gain_err_db  How far from settled the loop starts, in dB of
+   *                     gain it must apply.  POSITIVE for a quiet input
+   *                     (the loop must add gain) — the slow direction, and
+   *                     the one to budget for.  For a cold receiver this
+   *                     is the whole input dynamic range it must cover,
+   *                     not the steady-state variation.
+   * @param tol_db       Settled means within this many dB of the target.
+   * @return Samples to settle (>= 1), or 0 if the arguments are invalid or
+   *         the loop does not settle within a bounded search.
+   * @code
+   * >>> from doppler.agc import settling_samples
+   * >>> settling_samples(0.0025, 0.05, 40.0, 0.5)   # cold, 40 dB quiet
+   * 430
+   * >>> settling_samples(0.0025, 0.05, 40.0, 3.0)   # a looser bar is cheaper
+   * 294
+   * >>> settling_samples(0.0025, 0.05, -40.0, 0.5)  # loud: the fast direction
+   * 175
+   * >>> settling_samples(0.01, 0.05, 40.0, 0.5)     # 4x the bandwidth, ~1/4
+   * 112
+   * >>> settling_samples(0.0025, 0.05, 0.1, 0.5)    # already inside tol_db
+   * 1
+   * >>> settling_samples(0.0, 0.05, 40.0, 0.5)      # refused, not guessed
+   * 0
+   * @endcode
+   */
+  size_t agc_settling_samples (double loop_bw, double alpha,
+                               double gain_err_db, double tol_db);
+
+  /**
    * @brief Attach (or detach) a telemetry context and register the AGC's
    * probes on it.
    * Registers two probes, both recorded once per gain-update event and
@@ -626,6 +680,7 @@ int agc_set_telemetry(agc_state_t *state, dp_tlm_t * tlm, const char * prefix, u
   void    agc_get_state (const agc_state_t *state, void *blob);
   int     agc_set_state (agc_state_t *state, const void *blob);
 
+size_t settling_samples(double loop_bw, double alpha, double gain_err_db, double tol_db);
 #ifdef __cplusplus
 }
 #endif

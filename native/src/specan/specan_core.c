@@ -238,12 +238,36 @@ specan_execute (specan_state_t *state, const float complex *x, size_t x_len,
   if (state->pend_len < need)
     return 0;
 
-  /* Fresh frame: average navg segments, then read the linear two-sided power.
-   */
+  /* Consume EVERY complete window, not just the first.
+   *
+   * One call returns one spectrum, so when the caller hands over more than a
+   * window's worth at a time this used to emit the OLDEST window and keep the
+   * rest buffered forever. `pend_len` then grew without bound: feeding 4096
+   * samples repeatedly at this config decimates to 524 and consumes 256, so
+   * every call netted +268 and nothing ever gave it back. Measured over eight
+   * calls -- 268, 536, 804, 1073, 1341, 1609, 1878, 2146 -- and it does not
+   * turn around. Three consequences, in order of how badly they bite:
+   *
+   * 1. `specan_state_bytes` reserves `n*navg` samples for `pend`, because the
+   *    state protocol makes the blob size a CONFIG fingerprint. So once
+   *    pend_len passed 256, `specan_get_state` wrote past the end of the
+   *    caller's buffer -- 17 KB into a 2 KB reservation by the eighth call.
+   * 2. The analyzer leaked ~2 KB per call, forever.
+   * 3. The spectrum returned was computed from ever-staler samples, so a
+   *    display fell further behind real time the longer it ran.
+   *
+   * Skipping to the newest complete window fixes all three and costs one
+   * psd pass, not `frames` of them: the intermediate windows would each have
+   * been overwritten by the next `psd_reset` anyway. A display that cannot
+   * keep up shows the LATEST frame; it does not queue history it will never
+   * catch up on. That the buffer is now bounded by `need` is what makes the
+   * fixed-size state blob correct, so the serialization round-trip that
+   * exposed this passes as a consequence rather than by its own patch. */
+  size_t frames = state->pend_len / need;
   psd_reset (state->psd);
-  psd_accumulate (state->psd, state->pend, need);
-  state->pend_len -= need;
-  memmove (state->pend, state->pend + need,
+  psd_accumulate (state->psd, state->pend + (frames - 1) * need, need);
+  state->pend_len -= frames * need;
+  memmove (state->pend, state->pend + frames * need,
            state->pend_len * sizeof *state->pend);
 
   psd_power_twosided (state->psd, state->nfft, state->pwr, state->nfft);

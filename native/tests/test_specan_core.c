@@ -132,6 +132,40 @@ main (void)
 
   free (tone);
   free (out);
+
+  /* The pending buffer must stay bounded by one window, however much input
+   * arrives per call. It did not: one call emitted one spectrum and kept the
+   * rest of a large block buffered, so `pend_len` grew by the leftover every
+   * call and never came back down. That leaked memory, staled the displayed
+   * frame, and -- because specan_state_bytes reserves exactly n*navg samples
+   * for `pend` -- made specan_get_state write past the end of the caller's
+   * blob. Driven here well past the point where the old code had already
+   * overrun that reservation (268 by the first call, 2146 by the eighth). */
+  {
+    float complex big[4096];
+    float         sout[2048];
+    for (int i = 0; i < 4096; i++)
+      big[i] = (float)(i % 7) - 3.0f + 0.2f * I;
+    specan_state_t *g
+        = specan_create (1e6, 1e5, 1e3, 0.0, 0.0, 0.0, 1.0, 0, 1, 2);
+    CHECK (g != NULL);
+    if (g)
+      {
+        size_t need = g->n * g->navg, worst = 0;
+        for (int k = 0; k < 64; k++)
+          {
+            (void)specan_execute (g, big, 4096, sout, 2048);
+            if (g->pend_len > worst)
+              worst = g->pend_len;
+          }
+        CHECK (worst < need);
+        /* and the blob the fixed-size reservation promises still fits */
+        CHECK (g->pend_len * sizeof (float _Complex)
+               <= need * sizeof (float _Complex));
+        specan_destroy (g);
+      }
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_specan_core FAILED (%d)\n", _fails);

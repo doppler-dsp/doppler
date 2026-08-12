@@ -31,7 +31,7 @@ jobs:
         os: [ubuntu-22.04, ubuntu-24.04, macos-latest]
 
     steps:
-    - uses: actions/checkout@v7.0.1
+    - uses: actions/checkout@v7
 
     # `make install-deps` is the one dep command a developer also runs: it
     # self-bootstraps jbx and installs jb.toml's runtime+dev groups, auto-
@@ -114,7 +114,7 @@ jobs:
         python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
 
     steps:
-    - uses: actions/checkout@v7.0.1
+    - uses: actions/checkout@v7
 
     - name: Install system dependencies
       run: make install-deps
@@ -193,7 +193,7 @@ jobs:
       run: make test-examples-python
 
     - name: Upload coverage report
-      uses: actions/upload-artifact@v7.0.1
+      uses: actions/upload-artifact@v7
       if: matrix.python-version == '3.12'
       with:
         name: coverage-report
@@ -213,7 +213,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v7.0.1
+    - uses: actions/checkout@v7
 
     - name: Build on glibc 2.28 and verify no newer symbols
       # Builds this checkout inside the Debian 10 image, smoke-runs the C
@@ -229,7 +229,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v7.0.1
+    - uses: actions/checkout@v7
 
     - name: Install doxygen
       run: make install-docs-deps
@@ -253,7 +253,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v7.0.1
+    - uses: actions/checkout@v7
       with:
         fetch-depth: 0
 
@@ -270,7 +270,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v7.0.1
+    - uses: actions/checkout@v7
 
     - name: Install uv
       uses: ./.github/actions/setup-uv
@@ -300,7 +300,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v7.0.1
+    - uses: actions/checkout@v7
 
     - name: Build + smoke the build-on-doppler images
       run: make docker-examples
@@ -328,7 +328,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v7.0.1
+    - uses: actions/checkout@v7
 
     # `make lint` now includes the tests-ssot assertion ratchet, which needs a
     # BASELINE to compare against -- and actions/checkout fetches only the PR
@@ -369,7 +369,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v7.0.1
+    - uses: actions/checkout@v7
 
     - name: Install uv
       uses: ./.github/actions/setup-uv
@@ -394,7 +394,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v7.0.1
+    - uses: actions/checkout@v7
       with:
         # Full history so the patch gate can diff against origin/main.
         fetch-depth: 0
@@ -444,7 +444,7 @@ jobs:
 
     - name: Upload coverage report
       if: always()
-      uses: actions/upload-artifact@v7.0.1
+      uses: actions/upload-artifact@v7
       with:
         name: coverage-report
         path: |

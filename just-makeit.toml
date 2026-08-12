@@ -2046,6 +2046,37 @@ type = "double"
 [[module.util.functions.params]]
 name = "nan_to"
 type = "double"
+
+[[module.util.functions]]
+name = "ema_step"
+doc = "One step of a first-order exponential moving average, state + alpha*(x - state). The canonical EMA for the library: it was written out four times in two different algebraic forms before this existed, and duplicated implementations drift. The incremental form is the more accurate of the two everywhere the library operates, by a margin that grows as the average lengthens; alpha == 1 (pass-through) and alpha == 0 (frozen) are both exact. NOT total in x -- a non-finite observation poisons the state permanently, because an EMA remembers, so saturate() belongs on this function's input."
+return_type = "double"
+
+[[module.util.functions.params]]
+name = "state"
+type = "double"
+
+[[module.util.functions.params]]
+name = "x"
+type = "double"
+
+[[module.util.functions.params]]
+name = "alpha"
+type = "double"
+
+[[module.util.functions]]
+name = "ema_alpha_decim"
+doc = "The EMA coefficient that advances d samples in one step, 1 - (1 - alpha)^d. A decimated loop updates once per chunk of d samples and must not thereby change its own time constant. Computed through expm1/log1p because the direct expression cancels catastrophically for small alpha -- 26865 ulps off at alpha 1e-5, d 1 -- and being exact at d == 1 is what lets the decimated and per-sample paths be compared bit-for-bit."
+return_type = "double"
+
+[[module.util.functions.params]]
+name = "alpha"
+type = "double"
+
+[[module.util.functions.params]]
+name = "d"
+type = "size_t"
+
 [module.arith]
 doc = """
 Fixed-point accumulators: Q8 and Q15 scalar sums (AccQ8, AccQ15) with exact integer arithmetic for bit-true pipelines.

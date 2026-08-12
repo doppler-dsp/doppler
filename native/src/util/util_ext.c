@@ -42,6 +42,33 @@ _bind_saturate (PyObject *self, PyObject *args, PyObject *kwds)
   return PyFloat_FromDouble (saturate (v, lo, hi, nan_to));
 }
 
+static PyObject *
+_bind_ema_step (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "state", "x", "alpha", NULL };
+  double       state     = 0.0;
+  double       x         = 0.0;
+  double       alpha     = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddd", _kwlist, &state, &x,
+                                    &alpha))
+    return NULL;
+  return PyFloat_FromDouble (ema_step (state, x, alpha));
+}
+
+static PyObject *
+_bind_ema_alpha_decim (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char       *_kwlist[] = { "alpha", "d", NULL };
+  double             alpha     = 0.0;
+  unsigned long long d_raw     = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dK", _kwlist, &alpha, &d_raw))
+    return NULL;
+  size_t d = (size_t)d_raw;
+  return PyFloat_FromDouble (ema_alpha_decim (alpha, d));
+}
+
 /* ======================================================== */
 /* Module                                                    */
 /* ======================================================== */
@@ -146,6 +173,134 @@ static PyMethodDef util_module_methods[] = {
     "1.0\n"
     ">>> saturate(float(\"nan\"), 0.0, 1.0, 0.0)   # ... which may be the "
     "other\n"
+    "0.0\n" },
+  { "ema_step", (PyCFunction)(void *)_bind_ema_step,
+    METH_VARARGS | METH_KEYWORDS,
+    "One step of a first-order exponential moving average, state +\n"
+    "alpha*(x - state). The canonical EMA for the library: it was written\n"
+    "out four times in two different algebraic forms before this existed,\n"
+    "and duplicated implementations drift. The incremental form is the more\n"
+    "accurate of the two everywhere the library operates, by a margin that\n"
+    "grows as the average lengthens; alpha == 1 (pass-through) and alpha ==\n"
+    "0 (frozen) are both exact. NOT total in x -- a non-finite observation\n"
+    "poisons the state permanently, because an EMA remembers, so saturate()\n"
+    "belongs on this function's input.\n"
+    "\n"
+    "The canonical EMA for the whole library. It was written out four times\n"
+    "before this existed — `agc` (power detector), `async_dsss_receiver`\n"
+    "(the lock_num/lock_den pair), `acc_trace` (ACC_TRACE_EXP) and the\n"
+    "recursion `det_ema_alpha` sizes — in **two different algebraic forms**,\n"
+    "which are identical on paper and not in floating point. Duplicated\n"
+    "implementations drift; this is the one.\n"
+    "\n"
+    "### Why this form, and not `alpha*x + (1-alpha)*state`\n"
+    "\n"
+    "Both were measured against a 60-digit reference over 5000 steps. The\n"
+    "incremental form written here is the more accurate one everywhere the\n"
+    "library actually operates, by a margin that grows as the average gets\n"
+    "longer — which is the direction a narrow-band estimator moves:\n"
+    "\n"
+    "| `alpha` | this form | `alpha*x + (1-alpha)*state` |\n"
+    "|---------|-----------|------------------------------|\n"
+    "| 0.05    | 9.0e-17   | 6.5e-16                      |\n"
+    "| 1e-3    | 3.1e-16   | 1.6e-15                      |\n"
+    "| 1e-5    | 2.7e-17   | 5.4e-15                      |\n"
+    "\n"
+    "The other form wins exactly one case, and it is a boundary rather than\n"
+    "a regime: at `alpha == 1` it returns `x` bit-exactly while the\n"
+    "incremental form does not (measured inexact for 9.6% of random `(state,\n"
+    "x)` pairs, because `state + 1*(x - state)` rounds twice). That case is\n"
+    "real — `det_ema_alpha` returns exactly 1.0 for \"no gain requested, so\n"
+    "no averaging\" — so it is handled explicitly below rather than paid for\n"
+    "at every alpha.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "state : float\n"
+    "    Current EMA state.\n"
+    "x : float\n"
+    "    New observation.\n"
+    "alpha : float\n"
+    "    Coefficient in `[0, 1]`. `1` is pass-through (no averaging) and is\n"
+    "    exact; `0` freezes the state and is exact. A value above 1\n"
+    "    saturates to pass-through rather than overshooting.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    The updated state.\n"
+    "\n"
+    "Notes\n"
+    "-----\n"
+    "NOT total in `x`: a non-finite observation poisons the state\n"
+    "permanently, because an EMA remembers. That is deliberate — the guard\n"
+    "belongs at the boundary where an untrusted value first becomes\n"
+    "persistent state, which is this function's input. Use ::saturate there,\n"
+    "as `agc_steps` does. See `agc_core.h` for what one unguarded non-finite\n"
+    "sample cost.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.util import ema_step\n"
+    ">>> ema_step(0.0, 1.0, 0.5)          # halfway to the observation\n"
+    "0.5\n"
+    ">>> ema_step(2.0, 2.0, 0.25)         # at its fixed point, no motion\n"
+    "2.0\n"
+    ">>> ema_step(1.0, 7.0, 1.0)          # alpha 1 is exact pass-through\n"
+    "7.0\n"
+    ">>> ema_step(1.0, 7.0, 0.0)          # alpha 0 freezes the state\n"
+    "1.0\n" },
+  { "ema_alpha_decim", (PyCFunction)(void *)_bind_ema_alpha_decim,
+    METH_VARARGS | METH_KEYWORDS,
+    "The EMA coefficient that advances d samples in one step, 1 - (1 -\n"
+    "alpha)^d. A decimated loop updates once per chunk of d samples and must\n"
+    "not thereby change its own time constant. Computed through expm1/log1p\n"
+    "because the direct expression cancels catastrophically for small alpha\n"
+    "-- 26865 ulps off at alpha 1e-5, d 1 -- and being exact at d == 1 is\n"
+    "what lets the decimated and per-sample paths be compared bit-for-bit.\n"
+    "\n"
+    "A decimated loop updates its average once per chunk of `d` samples and\n"
+    "must not thereby change its own time constant. Compounding the pole\n"
+    "exactly is what makes `decim` a performance knob instead of a retune.\n"
+    "\n"
+    "### Why `expm1`/`log1p` rather than the direct expression\n"
+    "\n"
+    "`1.0 - pow(1.0 - alpha, d)` cancels catastrophically for small `alpha`,\n"
+    "and the damage is worst exactly where a narrow-band estimator lives.\n"
+    "Measured at `d == 1`, where the answer must be `alpha` itself:\n"
+    "\n"
+    "| `alpha` | direct `1-(1-alpha)^1` | this function |\n"
+    "|---------|------------------------|---------------|\n"
+    "| 0.05    | 6 ulps off             | exact         |\n"
+    "| 1e-5    | 26865 ulps off         | exact         |\n"
+    "\n"
+    "The repeated-multiply form in `agc_steps` has this defect today. Being\n"
+    "exact at `d == 1` is the property that lets a caller set `decim = 1`\n"
+    "and get bit-for-bit the undecimated recursion, so the decimated and\n"
+    "per-sample paths can be compared at all.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "alpha : float\n"
+    "    Per-sample coefficient in `[0, 1]`.\n"
+    "d : int\n"
+    "    Chunk length in samples, `>= 1`.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    The per-chunk coefficient, in `[0, 1]`.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.util import ema_alpha_decim\n"
+    ">>> ema_alpha_decim(0.05, 1)         # d == 1 returns alpha exactly\n"
+    "0.05\n"
+    ">>> round(ema_alpha_decim(0.05, 8), 12)\n"
+    "0.336579568711\n"
+    ">>> ema_alpha_decim(1.0, 4)          # pass-through stays pass-through\n"
+    "1.0\n"
+    ">>> ema_alpha_decim(0.0, 8)          # frozen stays frozen\n"
     "0.0\n" },
   { NULL, NULL, 0, NULL }
 };

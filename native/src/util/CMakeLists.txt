@@ -1,4 +1,4 @@
-add_library(util_core OBJECT util_core.c square_clip.c saturate.c)
+add_library(util_core OBJECT util_core.c square_clip.c saturate.c ema_step.c ema_alpha_decim.c)
 target_include_directories(util_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)

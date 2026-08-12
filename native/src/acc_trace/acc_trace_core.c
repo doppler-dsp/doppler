@@ -8,6 +8,7 @@
  * real sample (not +/-inf sentinels) and the EMA start unbiased.
  */
 #include "acc_trace/acc_trace_core.h"
+#include "util/util_core.h"
 
 acc_trace_state_t *
 acc_trace_create (size_t n, int mode, double alpha)
@@ -110,7 +111,7 @@ acc_trace_accumulate (acc_trace_state_t *state, const float *p, size_t p_len)
       {
         const double a = state->alpha;
         for (size_t i = 0; i < n; i++)
-          acc[i] = a * (double)p[i] + (1.0 - a) * acc[i];
+          acc[i] = ema_step (acc[i], (double)p[i], a);
         break;
       }
     case ACC_TRACE_MAXHOLD:

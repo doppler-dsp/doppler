@@ -1,5 +1,6 @@
 #include "agc/agc_core.h"
 #include "jm_simd.h"
+#include <float.h>
 
 agc_state_t *
 agc_create (double ref_db, double loop_bw, double alpha)
@@ -72,7 +73,15 @@ DP_DEFINE_POD_STATE_TLM (agc, agc_state_t, AGC_STATE_MAGIC, AGC_STATE_VERSION,
 double
 agc_get_applied_gain_db (const agc_state_t *state)
 {
-  return 20.0 * log10 (state->g_last);
+  /* Total, for the same reason the detector's input is (see AGC_POWER_CEIL).
+     g_last underflows to 0 for an extreme commanded gain -- agc_exp10_
+     saturates low rather than returning a denormal -- and 20*log10(0) is
+     -INF, which is a non-finite value escaping through a PUBLIC accessor
+     even though the state behind it is perfectly well-formed. Saturating to
+     the smallest normal double keeps the reading finite while leaving it
+     unmistakably "off" (about -6151 dB); NaN takes the same low rail, on the
+     rule this object uses everywhere: when the input is unknown, attenuate. */
+  return 20.0 * log10 (saturate (state->g_last, DBL_MIN, DBL_MAX, DBL_MIN));
 }
 
 JM_HOT void
@@ -144,7 +153,12 @@ agc_steps (agc_state_t *state, const float complex *input,
         output[i + j] = square_clip (output[i + j], clip_lin);
 
       /* Control update — once per chunk, with the rescaled coefficients. */
-      double p_mean = (double)psum * inv_c;
+      /* The detector's input is the AGC's one safety boundary — see
+         AGC_POWER_CEIL.  psum is a float reduction, so an overflowing chunk
+         arrives here as an infinity; saturate() sends that, and any NaN, to
+         the ceiling rather than into p_avg. */
+      double p_mean = saturate ((double)psum * inv_c, 0.0, AGC_POWER_CEIL,
+                                AGC_POWER_CEIL);
       state->p_avg += alpha_c * (p_mean - state->p_avg);
       double meas_db = 10.0 * agc_log10_ (state->p_avg + AGC_POWER_FLOOR);
       state->gain_db += k_c * (state->ref_db - meas_db);

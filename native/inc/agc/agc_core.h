@@ -102,6 +102,37 @@ extern "C"
 #define AGC_POWER_FLOOR 1e-30
 
 /**
+ * @brief Power ceiling for the detector, in linear units.
+ *
+ * The largest @c |y|^2 a pair of finite @c float components can produce:
+ * @c 2*FLT_MAX^2.  Any measured power above this came from a non-finite
+ * output, which in turn came from a non-finite input or an overflowed gain
+ * — never from a signal.
+ *
+ * @par The detector's input is the AGC's one safety boundary
+ * Every power reaching the EMA is put through @ref saturate into
+ * @c [0, AGC_POWER_CEIL], with NaN sent to the **ceiling** — an unknown
+ * level must drive the gain DOWN, since too little gain loses a signal
+ * while too much rails everything downstream.
+ *
+ * That boundary, and not the stages around it, because the EMA is the
+ * first place an input sample becomes *persistent* state.  The gain
+ * multiply ahead of it is transient: a bad sample makes one bad output
+ * sample and is gone.  Once it folds into @c p_avg it is remembered, and
+ * the measured level, the loop integrator and the applied gain are all
+ * functions of @c p_avg.  One guard here makes the whole chain total,
+ * where a clamp at each stage would be several chances to miss one.
+ *
+ * It is sufficient because a guarded @c p_avg is a convex combination of a
+ * finite @c p_avg and a saturated @c p, so it cannot leave the interval
+ * once it starts inside — which @c agc_create() and @c agc_reset()
+ * guarantee by seeding it with the reference power.  Measured on the
+ * unguarded loop, a *single* non-finite input sample drove @c p_avg to NaN
+ * permanently, and a following normal sample did not recover it.
+ */
+#define AGC_POWER_CEIL 2.3158417847463238e77
+
+/**
  * @brief Default envelope decimation factor (agc_state_t::decim).
  *
  * agc_steps() runs the detector + loop filter once per chunk of
@@ -128,11 +159,29 @@ extern "C"
    * integer part becomes a raw IEEE-754 exponent and the fractional part
    * a 4th-order Taylor series.  Far cheaper than libm pow(); the AGC loop
    * tolerates orders of magnitude more error than this.
+   *
+   * @par Total, because the exponent assembly is not
+   * @c z is saturated into the range the exponent field can hold before it
+   * is used.  Without that, assembling @c ((int64_t)zi + 1023) << 52
+   * overflows into the SIGN bit for @c |v| past ~308, and the function
+   * returns a **negative** result where the true answer is @c +inf or 0 —
+   * measured, @c agc_exp10_(309) gave @c -3.09e-308 and
+   * @c agc_exp10_(-320) gave @c -3.23e+296.  A gain function that returns a
+   * negative gain does not merely lose precision, it inverts the signal.
+   * Past the rails this now saturates at @c 2^±1023 instead.
+   *
+   * NaN takes the LOW rail, and the direction is the same one
+   * @ref AGC_POWER_CEIL uses: when the input is unknown, attenuate.  A gain
+   * saturated low is silence; a gain saturated high rails everything
+   * downstream of it.
    */
   JM_FORCEINLINE double
   agc_exp10_ (double v)
   {
-    double z = v * 3.321928094887362; /* z = v * log2(10)        */
+    /* Bound BEFORE floor(): (int64_t) of a huge double is itself undefined,
+       so the saturation cannot wait until the cast. */
+    double z = saturate (v * 3.321928094887362, /* z = v * log2(10) */
+                         -1023.0, 1023.0, -1023.0);
     double zi = floor (z);
     double u = (z - zi) * 0.6931471805599453; /* frac(z) * ln2, [0, ln2) */
     /* 2^frac = e^u via 4th-order Taylor: 1 + u + u^2/2 + u^3/6 + u^4/24. */
@@ -158,10 +207,29 @@ extern "C"
    * atanh series with t = (m-1)/(m+1) in &#91;0, 1/3&#93; (two terms), and scales
    * log2 by log10(2).  Used only on the decimated control path, so even
    * the divide is amortised across a decimation chunk.
+   *
+   * @par Total, and it must be — it reads the exponent field directly
+   * @p p is saturated into @c [AGC_POWER_FLOOR, AGC_POWER_CEIL] first.  The
+   * bit-field split has no notion of a special value: handed a NaN it reads
+   * the exponent as an ordinary 1024 and returns a perfectly plausible
+   * @c +308, where libm's @c log10 returns NaN.  Measured on the unguarded
+   * version, that fabricated level was what turned a stalled AGC into a
+   * runaway one — the loop believed it was seeing @c +3084 dB and drove the
+   * gain the other way, forever.  A wrong answer that looks like a right
+   * one is worse than an infinity.
+   *
+   * The floor is why silence reads as about @c -300 dB rather than
+   * @c -INF, so that promise is now structural rather than something each
+   * caller has to remember to add.
    */
   JM_FORCEINLINE double
   agc_log10_ (double p)
   {
+    /* NaN to the CEILING: for a measured LEVEL, unknown must read loud, so
+       the loop it feeds turns the gain down.  Same rule as AGC_POWER_CEIL,
+       stated the other way round from agc_exp10_'s because this is a level
+       and that is a gain. */
+    p = saturate (p, AGC_POWER_FLOOR, AGC_POWER_CEIL, AGC_POWER_CEIL);
     uint64_t bits;
     memcpy (&bits, &p, sizeof bits);
     int e = (int)((bits >> 52) & 0x7FF) - 1023; /* p = m * 2^e       */
@@ -366,7 +434,10 @@ void agc_reset(agc_state_t *state);
      * exactly as the per-sample loop, so the detector trajectory is unchanged
      * by the period; only the loop-filter command below is decimated. */
     double p = agc_power_ (y);
-    state->p_avg += state->alpha * (p - state->p_avg);
+    state->p_avg
+        += state->alpha
+           * (saturate (p, 0.0, AGC_POWER_CEIL, AGC_POWER_CEIL)
+              - state->p_avg);
 
     /* Stage 3: 1st-order loop filter — once per period.  Integrate the dB
      * error with step size period*4*loop_bw, so the integrator advances at

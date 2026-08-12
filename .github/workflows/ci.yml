@@ -330,6 +330,22 @@ jobs:
     steps:
     - uses: actions/checkout@v7.0.1
 
+    # `make lint` now includes the tests-ssot assertion ratchet, which needs a
+    # BASELINE to compare against -- and actions/checkout fetches only the PR
+    # ref, so `origin/main` does not exist here even though it always does on a
+    # developer's clone. That asymmetry is the whole bug: the gate passed
+    # locally and failed on the runner with "base ref does not resolve", which
+    # is the fail-closed branch behaving correctly on an input only CI sees.
+    #
+    # Explicit refspec rather than `git fetch origin main`, which lands in
+    # FETCH_HEAD and leaves refs/remotes/origin/main absent depending on how
+    # remote.origin.fetch was configured. --depth=1 is enough: the ratchet
+    # reads trees at that one commit, never history.
+    - name: Fetch the ratchet's baseline
+      run: |
+        git fetch --no-tags --depth=1 origin \
+          +refs/heads/main:refs/remotes/origin/main
+
     # uv, not bare setup-python: the hooks now DISPATCH into the Makefile
     # (`make -s lint-ruff`), which invokes `$(DEV_RUN) <tool>` so the version
     # comes from uv.lock. That is what makes this job and a developer's `make

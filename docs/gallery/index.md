@@ -84,6 +84,7 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 ## Gain Control
 
 - [AGC](agc.md) — closed-loop power controller with decimated and per-sample loop updates.
+- [AGC Settling — a design chart](agc-settling-design.md) — how long to wait, when `1/(4·loop_bw)` is only a floor.
 
 ## Telemetry
 

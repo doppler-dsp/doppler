@@ -1,4 +1,5 @@
 #include "carrier_acq/carrier_acq_core.h"
+#include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <complex.h>
@@ -11,29 +12,18 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-static uint32_t _rng_state;
-static uint32_t
-_xorshift32 (void)
-{
-  uint32_t x = _rng_state;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  return _rng_state = x;
-}
-
 /* BPSK NRZ data (+-1, held sps samples/symbol) * a complex tone at
  * tone_hz, sampled at sample_rate_hz -- deterministic given seed. */
 static float complex *
 _make_signal (size_t n_symbols, size_t sps, double sample_rate_hz,
               double tone_hz, uint32_t seed, size_t *out_len)
 {
-  size_t         n = n_symbols * sps;
-  float complex *x = malloc (n * sizeof (float complex));
-  _rng_state       = seed ? seed : 1u;
+  size_t         n  = n_symbols * sps;
+  float complex *x  = malloc (n * sizeof (float complex));
+  uint32_t       st = seed;
   for (size_t sym = 0; sym < n_symbols; sym++)
     {
-      float bit = (_xorshift32 () & 1u) ? 1.0f : -1.0f;
+      float bit = (dp_xs32 (&st) & 1u) ? 1.0f : -1.0f;
       for (size_t j = 0; j < sps; j++)
         {
           size_t i     = sym * sps + j;
@@ -49,11 +39,11 @@ static float complex *
 _make_noise (size_t n, uint32_t seed)
 {
   float complex *noise = malloc (n * sizeof (float complex));
-  _rng_state           = seed ? seed : 1u;
+  uint32_t       st    = seed;
   for (size_t i = 0; i < n; i++)
     {
-      float a  = ((float)(_xorshift32 () % 2001u) - 1000.0f) / 100000.0f;
-      float b  = ((float)(_xorshift32 () % 2001u) - 1000.0f) / 100000.0f;
+      float a  = ((float)(dp_xs32 (&st) % 2001u) - 1000.0f) / 100000.0f;
+      float b  = ((float)(dp_xs32 (&st) % 2001u) - 1000.0f) / 100000.0f;
       noise[i] = a + I * b;
     }
   return noise;

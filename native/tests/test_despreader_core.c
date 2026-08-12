@@ -12,6 +12,7 @@
  *   6. Reset reproducibility
  */
 #include "despreader/despreader_core.h"
+#include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <complex.h>
@@ -20,23 +21,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int
-prbs (uint32_t *st)
-{
-  uint32_t x = *st;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *st = x;
-  return (x & 1u) ? -1 : 1;
-}
-
 static void
 make_code (uint8_t *code, size_t sf, uint32_t seed)
 {
   uint32_t st = seed;
   for (size_t i = 0; i < sf; i++)
-    code[i] = prbs (&st) > 0 ? 0u : 1u;
+    code[i] = dp_bit (&st) > 0 ? 0u : 1u;
 }
 
 /* Build a continuous DSSS-BPSK signal: PN code x BPSK data (one data bit every
@@ -52,11 +42,11 @@ make_signal (float complex *rx, int *data, const uint8_t *code, size_t sf,
   size_t   k     = 0;
   double   cph   = 0.0;
   double   phase = 0.0, w = f0 * 2.0 * M_PI;
-  int      bit = prbs (&dst);
+  int      bit = dp_bit (&dst);
   for (size_t p = 0; p < nper; p++)
     {
       if (p % periods_per_bit == 0) /* new data bit at the bit boundary */
-        bit = prbs (&dst);
+        bit = dp_bit (&dst);
       data[p / periods_per_bit] = bit;
       for (size_t i = 0; i < sf * sps; i++, k++)
         {
@@ -67,9 +57,9 @@ make_signal (float complex *rx, int *data, const uint8_t *code, size_t sf,
             {
               float gr = 0, gi = 0;
               for (int j = 0; j < 4; j++)
-                gr += (float)prbs (&nst);
+                gr += (float)dp_bit (&nst);
               for (int j = 0; j < 4; j++)
-                gi += (float)prbs (&nst);
+                gi += (float)dp_bit (&nst);
               s += CMPLXF (sigma * gr * 0.5f, sigma * gi * 0.5f);
             }
           rx[k] = s;

@@ -1,4 +1,5 @@
 #include "burst_despreader/burst_despreader_core.h"
+#include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <complex.h>
@@ -51,17 +52,6 @@ amb_ber (const uint8_t *rx, const uint8_t *tx, size_t start, size_t nsym)
     err += (rx[i] != tx[i]);
   double b = (double)err / (double)tot;
   return b < 1.0 - b ? b : 1.0 - b;
-}
-
-/* xorshift + Box-Muller unit-variance Gaussian (per component). */
-static float
-gauss2 (uint32_t *st)
-{
-  uint32_t a  = (*st ^= *st << 13, *st ^= *st >> 17, *st ^= *st << 5, *st);
-  uint32_t b  = (*st ^= *st << 13, *st ^= *st >> 17, *st ^= *st << 5, *st);
-  double   r1 = ((double)a + 1.0) / 4294967297.0;
-  double   r2 = ((double)b + 1.0) / 4294967297.0;
-  return (float)(sqrt (-2.0 * log (r1)) * cos (2.0 * M_PI * r2));
 }
 
 int
@@ -138,7 +128,8 @@ main (void)
     float    sigma = 1.0f; /* per-component input noise std (A = 1) */
     burst          = make_burst (code, sf, sps, nsym, 0.0, tx, &blen);
     for (size_t i = 0; i < blen; i++)
-      burst[i] += CMPLXF (sigma * gauss2 (&st), sigma * gauss2 (&st));
+      burst[i] += CMPLXF (sigma * (float)dp_gauss (&st),
+                          sigma * (float)dp_gauss (&st));
     /* Narrow loops: snr_est measures the EFFECTIVE post-loop SNR — the
      * tracking loops' residual phase jitter rotates signal energy into
      * Im, so the estimate sits below the AWGN-only value by the jitter

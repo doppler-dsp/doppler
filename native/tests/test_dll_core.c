@@ -15,6 +15,7 @@
  *      noise seeds, zero Doppler/carrier)
  */
 #include "dll/dll_core.h"
+#include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <complex.h>
@@ -23,25 +24,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* xorshift ±1 BPSK data bit (one per code period). */
-static int
-prbs (uint32_t *st)
-{
-  uint32_t x = *st;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *st = x;
-  return (x & 1u) ? -1 : 1;
-}
-
 /* Build a deterministic 0/1 spreading code (xorshift bits). */
 static void
 make_code (uint8_t *code, size_t sf, uint32_t seed)
 {
   uint32_t st = seed;
   for (size_t i = 0; i < sf; i++)
-    code[i] = prbs (&st) > 0 ? 0u : 1u;
+    code[i] = dp_bit (&st) > 0 ? 0u : 1u;
 }
 
 /* Carrier-free spread signal at code rate (1+delta), BPSK data per period
@@ -55,12 +44,12 @@ make_signal (float complex *rx, const uint8_t *code, size_t sf, size_t sps,
   uint32_t dst    = seed;
   size_t   tsamps = sf * sps;
   double   inv    = 1.0 / (double)sps;
-  int      data   = prbs (&dst);
+  int      data   = dp_bit (&dst);
   size_t   k      = 0;
   double   cph    = 0.0; /* incoming code phase, chips */
   for (size_t p = 0; p < nper; p++)
     {
-      data = const_data ? 1 : prbs (&dst);
+      data = const_data ? 1 : dp_bit (&dst);
       for (size_t i = 0; i < tsamps; i++, k++)
         {
           size_t idx  = (size_t)fmod (cph, (double)sf);
@@ -70,26 +59,6 @@ make_signal (float complex *rx, const uint8_t *code, size_t sf, size_t sps,
         }
     }
   return k;
-}
-
-/* Unit-variance complex Gaussian (Box-Muller from xorshift); 0.5 variance per
- * component so E|z|^2 = 1 — a noise-only stream for the lock detector. */
-static float complex
-cgauss (uint32_t *st)
-{
-  *st ^= *st << 13;
-  *st ^= *st >> 17;
-  *st ^= *st << 5;
-  uint32_t a = *st;
-  *st ^= *st << 13;
-  *st ^= *st >> 17;
-  *st ^= *st << 5;
-  uint32_t b   = *st;
-  double   u1  = ((double)a + 1.0) / 4294967297.0;
-  double   u2  = ((double)b + 1.0) / 4294967297.0;
-  double   mag = sqrt (-log (u1)); /* sqrt(-2 ln u1)/sqrt(2) */
-  double   th  = 6.283185307179586 * u2;
-  return (float)(mag * cos (th)) + (float)(mag * sin (th)) * I;
 }
 
 int
@@ -291,10 +260,7 @@ main (void)
     uint32_t       ds   = 7u;
     for (size_t i = 0; i < nsym + 6; i++)
       {
-        ds ^= ds << 13;
-        ds ^= ds >> 17;
-        ds ^= ds << 5;
-        data[i] = (ds & 1u) ? 1 : -1;
+        data[i] = (dp_xs32 (&ds) & 1u) ? 1 : -1;
       }
     for (size_t nn = 0; nn < N; nn++)
       {
@@ -369,7 +335,7 @@ main (void)
        statistic sits near sqrt(2*N) ~ 6.3 and stays below threshold. */
     uint32_t st = 4242u;
     for (size_t i = 0; i < te * nper; i++)
-      rx[i] = cgauss (&st);
+      rx[i] = dp_cgauss (&st);
     dll_state_t *dn = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
     dll_steps (dn, rx, te * nper, out, te * nper);
     DP_CHECK (dll_get_locked (dn) == 0);

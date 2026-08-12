@@ -9,8 +9,10 @@ shared parts live in the `dp_*_test.h` family rather than in each file.
 | header            | owns                                                          |
 | ----------------- | ------------------------------------------------------------- |
 | `dp_test.h`       | **assertions, the counters, the epilogue** — everything below |
+| `dp_rng_test.h`   | **randomness**: the generator, the uniforms, the Gaussians    |
 | `dp_state_test.h` | the serialize → restore → reject-a-clobbered-blob round trip  |
 | `dp_tx_test.h`    | stimulus: one shaped symbol stream, one place                 |
+| `dp_dsss_test.h`  | stimulus: the code-spread BPSK capture, fixed or ramped       |
 | `dp_sym_test.h`   | truth-free symbol-quality verdicts for receiver tests         |
 | `dp_ber_test.h`   | error-rate measurement: settling, alignment, sampling, the CI |
 | `dp_mf_test.h`    | matched-filter fixtures (RRC-BPSK on a carrier, EVM)          |
@@ -82,6 +84,45 @@ do not share an epsilon, and the suite's per-file `TOL` constants deliberately
 range from `1e-3f` to `1e-12`. Keep yours at the call site or in your file;
 never push one into `dp_test.h`.
 
+## Randomness
+
+Every test's data bits and every test's noise come from `dp_rng_test.h`.
+
+```c
+uint32_t st = 12345u;              /* the seed is yours, and explicit */
+int   b = dp_bit (&st);            /* +-1                             */
+double u = dp_uni (&st);           /* (0, 1]                          */
+double g = dp_gauss (&st);         /* N(0, 1)                         */
+float complex z = dp_cgauss (&st); /* E|z|^2 = 1, 0.5 per component   */
+```
+
+`dp_xs32` is the generator itself; `dp_xs64` / `dp_uni64` / `dp_gauss64` are
+the 64-bit width, which exists so `test_dp_ber.c` can measure into the tail of
+the error-rate curve with a full 53-bit mantissa.
+
+**`dp_cgauss` is not `dp_gauss() + I * dp_gauss()`.** It draws two words and
+uses both Box-Muller branches, landing at `E|z|^2 = 1` — so a caller scaling
+by `sigma` gets noise power `sigma^2`. The sum form draws four, discards half
+of them, and lands at unit variance *per component*, which is twice the power.
+Both are defensible readings of "complex Gaussian", which is precisely why the
+one this suite uses is a function rather than a convention.
+
+Twenty copies of the xorshift step and five of `gauss` accumulated before this
+header existed, and one of the five was a half-finished edit that delivered
+mean +0.056 and variance 1.115 while claiming N(0, 1). Nothing failed —
+`test_costas_core.c` ran its only AWGN test 0.47 dB hot on biased,
+heavy-tailed noise for as long as the copy existed. A private generator cannot
+be wrong in a way anything notices, so `make lint` rejects a new one: an
+inline xorshift, a hand-written Box-Muller, or either uniform mapping fails
+`tests-ssot` outside `dp_rng_test.h`.
+
+`test_dp_rng.c` pins it. The integer streams are compared bit-for-bit against
+recorded vectors; the Gaussians are checked to a tolerance and then measured
+(mean, variance, two-sigma tail, and `E|z|^2`). The split is not fussiness —
+`log`, `cos` and `sin` are libm, libm is not correctly rounded by any
+standard, and the arm64 and macOS runners return their own last ulp. Pinning a
+Gaussian's bits would be a flaky test wearing a strict one's clothes.
+
 ## Where a new helper goes
 
 - **Used by one test** → keep it `static` in that test. Not everything shared
@@ -90,22 +131,39 @@ never push one into `dp_test.h`.
     header above, or a new `dp_<topic>_test.h` if it is genuinely a new topic.
 - **An assertion or a counter** → `dp_test.h`, and only after asking whether
     an existing macro composes into it.
+- **A distribution or a generator** → `dp_rng_test.h`, always, even for one
+    caller. Nothing else in this directory may hold one, and the gate enforces
+    that rather than trusting this bullet.
 
 What does *not* go here: a per-object test that happens to share a name with
 another one. `test_state_roundtrip` is defined in six files with six different
 bodies — each drives its own object's split-stream resume. Same property,
 different test. Consolidating those would delete coverage, not duplication.
 
+`make_signal` is the same trap one level up. It is defined in eight files, and
+only two of those were one function written twice (the DSSS pair, now
+`dp_dsss_test.h`). The other six build genuinely different signals that happen
+to share a name: a tone times NRZ data, an M-PSK stream with a frequency ramp,
+a carrier-free spread signal at code rate, an RC-shaped stream at a timing
+offset. Count implementations, not names.
+
 ## Gates
 
-`make lint` runs `tests-ssot`, which enforces two things.
+`make lint` runs `tests-ssot`, which enforces three things.
 
-**One definition.** A test may not re-define an assertion `dp_test.h` already
+**One definition.** A test may not re-define anything the family already
 provides, nor roll its own `CHECK`/`REQUIRE`/`EXPECT`/`ASSERT`. The forbidden
-set is derived from `dp_test.h` on every run, so a macro added there is covered
-without touching the checker. This exists because 90 copies of `CHECK` in six
-incompatible variants accumulated under a convention that was already written
-down — a note in a README is not a control.
+set is derived from every `dp_*.h` here on every run, so a name added to any
+member — or a whole new member — is covered without touching the checker. This
+exists because 90 copies of `CHECK` in six incompatible variants accumulated
+under a convention that was already written down — a note in a README is not a
+control.
+
+**No private randomness.** An inline xorshift, a hand-written Box-Muller, or
+either of the two uniform mappings fails the gate anywhere but
+`dp_rng_test.h`. `check_stimulus_sources.py` deliberately declines this check
+at repo scale, where hand-rolled noise hits 72 files and a ratchet that large
+is noise; here the count is zero, so it is a rule instead of a ratchet.
 
 **No silent loss of coverage.** No `native/tests/*.c` may end up with fewer
 assertions than `$(ASSERT_BASE)` (default `origin/main`) has. A migration or a

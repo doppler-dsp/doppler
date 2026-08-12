@@ -13,6 +13,7 @@
  *   6. Reset reproducibility
  */
 #include "carrier_nda/carrier_nda_core.h"
+#include "dp_rng_test.h"
 #include "dp_test.h"
 #include "mpsk/mpsk_core.h"
 #include <complex.h>
@@ -22,24 +23,6 @@
 #include <string.h>
 
 #define TWOPI 6.283185307179586
-
-static uint32_t
-xs (uint32_t *st)
-{
-  uint32_t x = *st;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *st = x;
-  return x;
-}
-static float
-gauss (uint32_t *st)
-{
-  double r1 = (xs (st) + 1.0) / 4294967297.0;
-  double r2 = (xs (st) + 1.0) / 4294967297.0;
-  return (float)(sqrt (-2.0 * log (r1)) * cos (TWOPI * r2));
-}
 
 /* Run the loop over a built signal; report tracked freq + lock. */
 static void
@@ -179,7 +162,8 @@ main (void)
         uint32_t ns = 5u;
         for (size_t k = 0; k < N; k++)
           rx[k] = (float complex)cexp (I * TWOPI * f0 * (double)k)
-                  + 0.05f * gauss (&ns) + 0.05f * gauss (&ns) * I;
+                  + 0.05f * (float)dp_gauss (&ns)
+                  + 0.05f * (float)dp_gauss (&ns) * I;
         carrier_nda_state_t *c
             = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, ms[mi]);
         double f, lk;
@@ -207,12 +191,13 @@ main (void)
         for (size_t s = 0; s < nsym; s++)
           {
             float complex a
-                = mpsk_constellation ((int)(xs (&ds) % (uint32_t)m), m);
+                = mpsk_constellation ((int)(dp_xs32 (&ds) % (uint32_t)m), m);
             for (int i = 0; i < sps; i++)
               {
                 size_t k = s * (size_t)sps + (size_t)i;
                 rx[k]    = a * (float complex)cexp (I * TWOPI * f0 * (double)k)
-                           + 0.1f * gauss (&ns) + 0.1f * gauss (&ns) * I;
+                           + 0.1f * (float)dp_gauss (&ns)
+                           + 0.1f * (float)dp_gauss (&ns) * I;
               }
           }
         carrier_nda_state_t *c
@@ -235,7 +220,8 @@ main (void)
     uint32_t       ns = 3u;
     for (size_t k = 0; k < N; k++)
       rx[k] = (float complex)cexp (I * TWOPI * 0.0012 * (double)k)
-              + 0.05f * gauss (&ns) + 0.05f * gauss (&ns) * I;
+              + 0.05f * (float)dp_gauss (&ns)
+              + 0.05f * (float)dp_gauss (&ns) * I;
     carrier_nda_state_t *c = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
     double               f1, lk1, f2, lk2;
     run (c, rx, N, &f1, &lk1);
@@ -375,7 +361,8 @@ main (void)
     uint32_t       ns = 23u;
     for (size_t k = 0; k < N; k++)
       rx[k] = (float complex)cexp (I * TWOPI * f0 * (double)k)
-              + 0.05f * gauss (&ns) + 0.05f * gauss (&ns) * I;
+              + 0.05f * (float)dp_gauss (&ns)
+              + 0.05f * (float)dp_gauss (&ns) * I;
     /* 1e-4 .. 1e4 — eight decades, centred on the unit scale the retired
      * AGC used to be the only way to reach. */
     double scales[] = { 1e-4, 1e-2, 1.0, 1e2, 1e4 };

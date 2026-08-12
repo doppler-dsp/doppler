@@ -19,6 +19,7 @@
  *     constellation that both truth-free validators would otherwise pass.
  */
 #include "dp_ber_test.h"
+#include "dp_rng_test.h"
 #include "dp_test.h"
 #include <complex.h>
 #include <math.h>
@@ -27,29 +28,6 @@
 #include <string.h>
 
 /* --- stimulus helpers ---------------------------------------------------- */
-
-static uint64_t
-xs64 (uint64_t *s)
-{
-  uint64_t x = *s;
-  x ^= x << 13;
-  x ^= x >> 7;
-  x ^= x << 17;
-  *s = x;
-  return x;
-}
-
-static double
-uni (uint64_t *s)
-{
-  return ((double)(xs64 (s) >> 11) + 1.0) / 9007199254740993.0;
-}
-
-static double
-gauss (uint64_t *s)
-{
-  return sqrt (-2.0 * log (uni (s))) * cos (2.0 * MPSK_PI * uni (s));
-}
 
 /* rx[i] = constellation(truth[i + lag]) rotated by `phase`, plus AWGN at the
  * given per-quadrature sigma. Exactly the convention dp_ber_sync() resolves.
@@ -65,8 +43,8 @@ build (float complex *rx, size_t n_rx, const uint8_t *truth, size_t n_truth,
       double th = phase;
       if (t >= 0 && (size_t)t < n_truth)
         th += 2.0 * MPSK_PI * (double)truth[t] / (double)m + phi0;
-      rx[i] = (float)(cos (th) + sigma * gauss (st))
-              + (float)(sin (th) + sigma * gauss (st)) * I;
+      rx[i] = (float)(cos (th) + sigma * dp_gauss64 (st))
+              + (float)(sin (th) + sigma * dp_gauss64 (st)) * I;
     }
 }
 
@@ -188,7 +166,7 @@ test_ci_coverage (void)
       while (errs < r)
         {
           n++;
-          if (uni (&st) < p)
+          if (dp_uni64 (&st) < p)
             errs++;
         }
       c = dp_ber_ci (errs, n, conf);
@@ -217,7 +195,7 @@ test_sync_resolves (void)
   int                  m  = 4;
 
   for (int i = 0; i < NSYM; i++)
-    truth[i] = (uint8_t)(xs64 (&st) % 4u);
+    truth[i] = (uint8_t)(dp_xs64 (&st) % 4u);
 
   /* Several (lag, phase) combinations, including the negative lags an RRC
      front end really produces and a phase far from any constellation point. */
@@ -283,8 +261,8 @@ test_sync_rejects_garbage (void)
       dp_ber_marker_t mk = { NULL, 256, 1000, 0, 0 };
       for (int i = 0; i < NSYM; i++)
         {
-          truth[i] = (uint8_t)(xs64 (&st) % 4u);
-          other[i] = (uint8_t)(xs64 (&st) % 4u);
+          truth[i] = (uint8_t)(dp_xs64 (&st) % 4u);
+          other[i] = (uint8_t)(dp_xs64 (&st) % 4u);
         }
       /* rx carries `other`; the marker is taken from `truth`. */
       build (rx, NSYM, other, NSYM, m, 0, 0.0, 0.15, &st);
@@ -303,8 +281,8 @@ test_sync_rejects_garbage (void)
     dp_ber_marker_t mk = { NULL, 256, 1000, 0, 0 };
     for (int i = 0; i < NSYM; i++)
       {
-        truth[i] = (uint8_t)(xs64 (&st) % 4u);
-        rx[i]    = (float)gauss (&st) + (float)gauss (&st) * I;
+        truth[i] = (uint8_t)(dp_xs64 (&st) % 4u);
+        rx[i]    = (float)dp_gauss64 (&st) + (float)dp_gauss64 (&st) * I;
       }
     sy = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, DP_BER_LAG_SPAN,
                       DP_BER_SYNC_PFA);
@@ -319,7 +297,7 @@ test_sync_rejects_garbage (void)
     dp_ber_sync_t   sy;
     dp_ber_marker_t mk = { NULL, 16, 1000, 0, 0 };
     for (int i = 0; i < NSYM; i++)
-      truth[i] = (uint8_t)(xs64 (&st) % 4u);
+      truth[i] = (uint8_t)(dp_xs64 (&st) % 4u);
     build (rx, NSYM, truth, NSYM, m, 11, 0.0, 0.15, &st);
     sy = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, DP_BER_LAG_SPAN,
                       DP_BER_SYNC_PFA);
@@ -345,7 +323,7 @@ test_score_counts_exactly (void)
   dp_ber_t             acc;
 
   for (int i = 0; i < NSYM; i++)
-    truth[i] = (uint8_t)(xs64 (&st) % 4u);
+    truth[i] = (uint8_t)(dp_xs64 (&st) % 4u);
   build (rx, NSYM, truth, NSYM, m, 5, 0.4, 0.0, &st); /* noise-free */
 
   /* Inject exactly 37 symbol errors, each a single-step neighbour so the
@@ -500,7 +478,7 @@ test_sanity_gate (void)
   dp_ber_report_t      r;
 
   for (int i = 0; i < NSYM; i++)
-    truth[i] = (uint8_t)(xs64 (&st) % 4u);
+    truth[i] = (uint8_t)(dp_xs64 (&st) % 4u);
   build (rx, NSYM, truth, NSYM, m, 9, 0.7, sigma, &st);
 
   /* The honest path: a clean measurement should PASS every gate and land
@@ -614,7 +592,7 @@ test_inverse_sampling_loop (void)
   while (!dp_ber_enough (&acc) && bursts < 400)
     {
       for (int i = 0; i < NSYM; i++)
-        truth[i] = (uint8_t)(xs64 (&st) & 1u);
+        truth[i] = (uint8_t)(dp_xs64 (&st) & 1u);
       build (rx, NSYM, truth, NSYM, m, 3, -0.9, sigma, &st);
       dp_ber_measure (&acc, rx, NSYM, truth, NSYM, esn0_db, 0, 1, NULL);
       bursts++;

@@ -12,38 +12,13 @@
  *   6. Reset reproducibility
  */
 #include "costas/costas_core.h"
+#include "dp_rng_test.h"
 #include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-/* Deterministic ±1 BPSK bit stream (xorshift). */
-static int
-prbs (uint32_t *st)
-{
-  uint32_t x = *st;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *st = x;
-  return (x & 1u) ? -1 : 1;
-}
-
-/* Box-Muller unit-variance Gaussian (per component). */
-static float
-gauss (uint32_t *st)
-{
-  double u1 = (prbs (st) + 2) / 4.0; /* crude but seeded; reseed below */
-  (void)u1;
-  /* use two PRBS dwords mapped to (0,1) */
-  uint32_t a  = (*st ^= *st << 7, *st);
-  uint32_t b  = (*st ^= *st >> 9, *st);
-  double   r1 = (a + 1.0) / 4294967297.0;
-  double   r2 = (b + 1.0) / 4294967297.0;
-  return (float)(sqrt (-2.0 * log (r1)) * cos (2.0 * M_PI * r2));
-}
 
 /* Build a continuous BPSK-at-symbol-rate signal with carrier residual f0
  * (cycles/sample), optional per-sample frequency ramp (Doppler rate), and
@@ -57,14 +32,15 @@ make_signal (float complex *rx, int *bits, size_t nsym, size_t tsamps,
   size_t   k = 0;
   for (size_t s = 0; s < nsym; s++)
     {
-      int b   = prbs (&bst);
+      int b   = dp_bit (&bst);
       bits[s] = b;
       for (size_t i = 0; i < tsamps; i++, k++)
         {
           float complex c = cexpf ((float)phase * I);
           rx[k]           = (float)b * c;
           if (sigma > 0.0f)
-            rx[k] += CMPLXF (sigma * gauss (&nst), sigma * gauss (&nst));
+            rx[k] += CMPLXF (sigma * (float)dp_gauss (&nst),
+                             sigma * (float)dp_gauss (&nst));
           phase += w;
           w += ramp * 2.0 * M_PI; /* frequency ramps each sample */
         }
@@ -172,7 +148,10 @@ main (void)
     float complex *rx   = malloc (nsym * tsamps * sizeof (*rx));
     int           *bits = malloc (nsym * sizeof (*bits));
     /* sigma=1.0 per component → ~ -3 dB per-sample SNR; +12 dB from the
-     * 16-fold I&D → comfortably locked. */
+     * 16-fold I&D → comfortably locked. That arithmetic is only true as of
+     * the move to dp_rng_test.h: this file's own Box-Muller drew both of its
+     * uniforms from a degenerate two-shift recurrence and delivered variance
+     * 1.115, so the stated sigma was 0.47 dB optimistic. */
     make_signal (rx, bits, nsym, tsamps, 0.0015, 0.0, 1.0f, 2024u);
     costas_state_t *c = costas_create (0.03, 0.707, 0.0, tsamps, 0.0);
     double          f, lk;
@@ -180,7 +159,14 @@ main (void)
     run (c, rx, bits, nsym, tsamps, &f, &lk, &be);
     DP_CHECK (fabs (f - 0.0015) < 5e-4);
     DP_CHECK (lk > 0.7);
-    DP_CHECK (be == 0);
+    /* A BOUND, not `be == 0`. At ~9 dB Es/N0 over a 2500-symbol tail the
+     * expected error count is ~0.1, so zero errors is a ~90%-per-seed
+     * outcome, not a property: swept over seeds 2024..2043 this returns 1
+     * error at two of them. `be == 0` passed only because the seed is
+     * pinned, and would have flaked the first time libm rounded differently
+     * on another runner. Three errors is BER 1.2e-3 — still decisively
+     * "locked and decoding", and ~4e-6 likely to be exceeded by chance. */
+    DP_CHECK (be <= 3);
     costas_destroy (c);
     free (rx);
     free (bits);
@@ -344,23 +330,15 @@ main (void)
     costas_destroy (c);
 
     /* noise only: |cos(theta)| EMA hovers near 2/pi ~ 0.64, well under
-     * the 0.85 declare threshold -> never declares */
+     * the 0.85 declare threshold -> never declares. dp_cgauss carries
+     * E|z|^2 = 1 where the hand-rolled loop here carried 2; the metric is
+     * amplitude-normalised, so the measured value moves by 3e-6. */
     uint32_t        st = 77u;
     costas_state_t *n  = costas_create (0.05, 0.707, 0.0, TS, 0.0);
     DP_CHECK (n != NULL);
     for (int i = 0; i < TS * NS; i++)
       {
-        st ^= st << 13;
-        st ^= st >> 17;
-        st ^= st << 5;
-        double u1 = ((double)st + 1.0) / 4294967297.0;
-        st ^= st << 13;
-        st ^= st >> 17;
-        st ^= st << 5;
-        double u2 = ((double)st + 1.0) / 4294967297.0;
-        double m  = sqrt (-2.0 * log (u1));
-        rx[i]     = (float complex) (m * cos (2.0 * M_PI * u2)
-                                     + m * sin (2.0 * M_PI * u2) * I);
+        rx[i] = dp_cgauss (&st);
       }
     (void)costas_steps (n, rx, TS * NS, out, NS);
     DP_CHECK (costas_get_locked (n) == 0);

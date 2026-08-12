@@ -26,6 +26,7 @@
  * +-1.0 and clips silently past it, costing ~25 dB of EVM that no lock metric
  * reveals. See mpsk_receiver_r_get_clipped().
  */
+#include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_sym_test.h"
 #include "dp_test.h"
@@ -46,35 +47,6 @@
 /* The design centre: the R2C halfband's +fs/4 shift makes this the symmetric,
  * best-rejection point of the front end. */
 #define FC_CENTRE 0.25
-
-static int
-prbs (uint32_t *st)
-{
-  uint32_t x = *st;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *st = x;
-  return (int)(x & 0xFFFFu);
-}
-
-static double
-uni (uint32_t *st)
-{
-  uint32_t x = *st;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *st = x;
-  return ((double)x + 1.0) / 4294967297.0;
-}
-
-static double
-gauss (uint32_t *st)
-{
-  double u1 = uni (st), u2 = uni (st);
-  return sqrt (-2.0 * log (u1)) * cos (2.0 * M_PI * u2);
-}
 
 static double
 phi0_for (int m)
@@ -101,7 +73,7 @@ make_mpsk_real (float *tx, int *idx, int m, double sps, size_t nsym, double fc,
   size_t   isps  = (size_t)sps;
   for (size_t k = 0; k < nsym; k++)
     {
-      int ki    = prbs (&st) % m;
+      int ki    = (int)(dp_xs32 (&st) & 0xFFFFu) % m;
       idx[k]    = ki;
       double th = 2.0 * M_PI * (double)ki / (double)m + phi0;
       double sr = TX_AMP * cos (th);
@@ -111,7 +83,8 @@ make_mpsk_real (float *tx, int *idx, int m, double sps, size_t nsym, double fc,
           size_t n  = k * isps + j;
           double ph = 2.0 * M_PI * fc * (double)n;
           /* Re{(sr + j si) e^{j ph}} = sr cos(ph) - si sin(ph) */
-          tx[n] = (float)(sr * cos (ph) - si * sin (ph) + sigma * gauss (&st));
+          tx[n] = (float)(sr * cos (ph) - si * sin (ph)
+                          + sigma * dp_gauss (&st));
         }
     }
 }

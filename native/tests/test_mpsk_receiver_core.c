@@ -19,6 +19,7 @@
  * lock metric reveals; a unit-amplitude constellation plus noise sits right on
  * that edge. See mpsk_receiver_get_clipped().
  */
+#include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_sym_test.h"
 #include "dp_test.h"
@@ -35,36 +36,6 @@
 #define TX_AMP 0.5f
 /* Terminal outputs per symbol: the old `n`, now the cascade's own. */
 #define M_OUT 4
-
-static int
-prbs (uint32_t *st)
-{
-  uint32_t x = *st;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *st = x;
-  return (int)(x & 0xFFFFu);
-}
-
-/* Uniform (0,1] from the PRBS, then a Box-Muller standard normal. */
-static double
-uni (uint32_t *st)
-{
-  uint32_t x = *st;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *st = x;
-  return ((double)x + 1.0) / 4294967297.0;
-}
-
-static double
-gauss (uint32_t *st)
-{
-  double u1 = uni (st), u2 = uni (st);
-  return sqrt (-2.0 * log (u1)) * cos (2.0 * M_PI * u2);
-}
 
 /* Constellation phase offset matching the mpsk convention (pi/4 for QPSK). */
 static double
@@ -89,7 +60,7 @@ make_mpsk (float complex *tx, int *idx, int m, double foff, double snr_db,
       = TX_AMP * sqrt (0.5 / pow (10.0, snr_db / 10.0)); /* per quad. */
   for (size_t k = 0; k < NSYM; k++)
     {
-      int ki           = prbs (&st) % m;
+      int ki           = (int)(dp_xs32 (&st) & 0xFFFFu) % m;
       idx[k]           = ki;
       double        th = 2.0 * M_PI * (double)ki / (double)m + phi0;
       float complex s  = TX_AMP * ((float)cos (th) + (float)sin (th) * I);
@@ -98,8 +69,8 @@ make_mpsk (float complex *tx, int *idx, int m, double foff, double snr_db,
           size_t        n  = k * (size_t)SPS + j;
           double        ph = 2.0 * M_PI * foff * (double)n;
           float complex c  = (float)cos (ph) + (float)sin (ph) * I;
-          float complex w  = (float)(sigma * gauss (&st))
-                             + (float)(sigma * gauss (&st)) * I;
+          float complex w  = (float)(sigma * dp_gauss (&st))
+                             + (float)(sigma * dp_gauss (&st)) * I;
           tx[n]            = s * c + w;
         }
     }

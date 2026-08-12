@@ -8,6 +8,7 @@
  * check that acq_result_t::cn0_dbhz_est tracks a known injected C/N0.
  */
 #include "acq/acq_core.h"
+#include "dp_rng_test.h"
 #include "dp_test.h"
 #include <complex.h>
 #include <math.h>
@@ -103,27 +104,6 @@ _acq_run_roundtrip (const float complex *s0d, size_t nx, size_t spc,
   return 0;
 }
 
-/* Unit-variance complex Gaussian (Box-Muller from xorshift); 0.5 variance per
- * component so E|z|^2 = 1 (same generator as test_dll_core.c/
- * test_symsync_core.c — no shared test-utils header exists for it yet). */
-static float complex
-cgauss (uint32_t *st)
-{
-  *st ^= *st << 13;
-  *st ^= *st >> 17;
-  *st ^= *st << 5;
-  uint32_t a = *st;
-  *st ^= *st << 13;
-  *st ^= *st >> 17;
-  *st ^= *st << 5;
-  uint32_t b   = *st;
-  double   u1  = ((double)a + 1.0) / 4294967297.0;
-  double   u2  = ((double)b + 1.0) / 4294967297.0;
-  double   mag = sqrt (-log (u1)); /* sqrt(-2 ln u1)/sqrt(2) */
-  double   th  = 6.283185307179586 * u2;
-  return (float)(mag * cos (th)) + (float)(mag * sin (th)) * I;
-}
-
 /* C/N0 calibration: acq_result_t::cn0_dbhz_est should track a known injected
  * C/N0 while AWGN dominates the CFAR noise estimate -- the entire point of
  * reporting a bandwidth-normalised C/N0 instead of a raw per-sample or
@@ -172,7 +152,7 @@ _acq_cn0_calibration (void)
     {
       uint8_t chip = CODE31[(k / spc) % 31];
       float   c    = (chip & 1u) ? -1.0f : 1.0f; /* unit chip amplitude */
-      x[k]         = c + sigma * cgauss (&st);
+      x[k]         = c + sigma * dp_cgauss (&st);
     }
 
   acq_result_t hits[4];

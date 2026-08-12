@@ -491,6 +491,21 @@ target_include_directories(test_dp_ber
 target_compile_options(test_dp_ber PRIVATE -O2)
 add_test(NAME test_dp_ber COMMAND test_dp_ber)
 
+# native/tests/dp_rng_test.h is the suite's ONE random source: the data bits
+# every modulated test transmits and the AWGN every receiver test is scored
+# under. It is the single point where one edit moves every BER, EVM and
+# lock-metric number at once -- plausibly, since noise that is slightly wrong
+# still looks like noise. Header-only and owned by no object, so its self-test
+# is registered here alongside the other two. It pins the integer streams
+# exactly and the distributions statistically; the header says why the
+# Gaussians cannot be pinned bit-for-bit across libm implementations.
+add_executable(test_dp_rng native/tests/test_dp_rng.c)
+target_link_libraries(test_dp_rng PRIVATE m)
+target_include_directories(test_dp_rng
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_rng PRIVATE -O2)
+add_test(NAME test_dp_rng COMMAND test_dp_rng)
+
 # native/inc/dp_isotime.h formats filename-safe basic-format UTC timestamps.
 # The format is NOT defined there -- it is just-bashit's `iso-8601-basic`, and
 # code cannot be shared between a bash library and a C one, so this test holds

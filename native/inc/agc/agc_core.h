@@ -28,14 +28,34 @@
  * @endcode
  *
  * which converges to @c gain_db = ref_db - px_db with a time constant of
- * roughly @c 1/(4*loop_bw) samples — independent of the absolute signal
- * level.  A 60 dB-loud signal and a 0 dB-quiet signal settle in the same
- * number of samples; only a level-dependent loop would not.
+ * roughly @c 1/(4*loop_bw) samples, independent of the absolute signal
+ * level.
+ *
+ * @par ...but that is the FILTER, and the object is not the filter
+ * The reduction above treats @c px_db as given.  It is not: the detector is
+ * inside this loop and it measures in POWER, so a quiet input's dB reading
+ * approaches from the wrong side of a concave log and crawls.  The
+ * level-independence therefore belongs to the loop filter alone, and the
+ * OBJECT's settling is level-dependent.  Measured, 1/e settling at
+ * @c loop_bw 0.005 against a predicted 50 samples:
+ *
+ *   +40 dB in: 41    +20 dB: 45    -20 dB: 84    -40 dB: 109
+ *
+ * The asymmetry scales with the detector's own bandwidth — the spread
+ * between a +40 dB and a -40 dB input is 0.21 at @c alpha 0.2, 1.01 at
+ * 0.05, and 2.98 at 0.01.  A composing receiver sizing a warm-up budget
+ * from @c 1/(4*loop_bw) alone will be optimistic by up to 3x on a weak
+ * signal.  See docs/design/agc.md section 6.
  *
  * @par Power detector
  * @c p_avg is an exponential moving average (1-pole leaky integrator) of
  * the instantaneous output power @c |y|^2.  @c alpha in (0, 1] sets the
  * detector bandwidth: small @c alpha smooths hard but reacts slowly.
+ *
+ * Its input is this object's ONE safety boundary — see @ref AGC_POWER_CEIL.
+ * The EMA is where an input sample first becomes persistent state, so it is
+ * the only place a malformed input can do lasting damage, and the only
+ * place guarded.
  *
  * @par Topology
  * Feedback — power is measured AFTER the gain.  The gain applied to
@@ -93,11 +113,22 @@ extern "C"
 /**
  * @brief Power floor for the detector, in linear units.
  *
- * Substituted for @c p_avg inside @c log10() so that a long run of
- * silence yields a large-but-finite measured level (about -300 dB)
- * instead of @c -INF / @c NaN.  Also keeps the log10() argument a normal
- * (non-denormal) double.  Never reached in normal operation — @c p_avg
- * is seeded with the reference power at create/reset.
+ * The low end of @ref agc_log10_'s saturation range, so a long run of
+ * silence yields a large-but-finite measured level — exactly -300 dB —
+ * instead of @c -INF / @c NaN, and the @c log10() argument stays a normal
+ * (non-denormal) double.  The floor lives inside the primitive rather than
+ * at each call site, so that promise is structural and not something a
+ * caller has to remember to add.
+ *
+ * @par It IS reached, and used to be fatal
+ * This said "never reached in normal operation — @c p_avg is seeded with
+ * the reference power at create/reset", which is true of the seed and says
+ * nothing about the steady state.  Any gap in the signal reaches it: a
+ * muted source, a stream discontinuity, a receiver started on a zero-filled
+ * buffer.  Measured on the unguarded object, ~800 silent samples — 100
+ * symbols at 8 samples per symbol — left the loop permanently dead, because
+ * reaching the floor gave the filter a constant +300 dB error to integrate.
+ * @ref AGC_POWER_CEIL is the guard that makes reaching it survivable.
  */
 #define AGC_POWER_FLOOR 1e-30
 
@@ -318,10 +349,16 @@ extern "C"
    * closed-loop behaviour: @p ref_db sets the target, @p loop_bw sets the
    * convergence speed, and @p alpha sets the detector smoothing.
    * @param ref_db   Target output power in dB (e.g. @c 0.0 for unity power).
-   * @param loop_bw  Loop noise bandwidth in cycles/sample; the loop settles
-   *                 in roughly @c 1/(4*loop_bw) samples.  Smaller values
-   *                 are slower and smoother; keep well below
-   *                 @c 1/(4*decim) when using agc_steps().
+   * @param loop_bw  Loop noise bandwidth in cycles/sample.  The FILTER's
+   *                 time constant is @c 1/(4*loop_bw) samples; the object
+   *                 settles more slowly than that on a quiet input, because
+   *                 the detector is inside the loop and measures in power
+   *                 (see the Linear-in-dB note above — measured 1.7x to
+   *                 2.2x at -40 dB in, worse at small @p alpha).  Treat
+   *                 @c 1/(4*loop_bw) as a floor on settling, not an
+   *                 estimate of it.  Smaller values are slower and
+   *                 smoother; keep well below @c 1/(4*decim) when using
+   *                 agc_steps().
    * @param alpha    Power-detector EMA coefficient in (0, 1]; smaller values
    *                 smooth harder but react slower to envelope changes.
    * @return Heap-allocated @c agc_state_t, or @c NULL on allocation failure.

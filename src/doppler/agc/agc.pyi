@@ -17,9 +17,13 @@ class AGC:
     ref_db : float, default 0.0
         Target output power in dB (e.g. 0.0 for unity power).
     loop_bw : float, default 0.0025
-        Loop noise bandwidth in cycles/sample; the loop settles in roughly
-        1/(4*loop_bw) samples. Smaller values are slower and smoother; keep
-        well below 1/(4*decim) when using agc_steps().
+        Loop noise bandwidth in cycles/sample. The FILTER's time constant is
+        1/(4*loop_bw) samples; the object settles more slowly than that on a
+        quiet input, because the detector is inside the loop and measures in
+        power (see the Linear-in-dB note above — measured 1.7x to 2.2x at -40
+        dB in, worse at small alpha). Treat 1/(4*loop_bw) as a floor on
+        settling, not an estimate of it. Smaller values are slower and
+        smoother; keep well below 1/(4*decim) when using agc_steps().
     alpha : float, default 0.05
         Power-detector EMA coefficient in (0, 1]; smaller values smooth harder
         but react slower to envelope changes.

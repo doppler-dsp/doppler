@@ -64,7 +64,7 @@ doppler/
 ├── Dockerfile / docker-compose.yml      multi-container streaming demo (NATS PUB/SUB tx → rx/spectrum)
 ├── Doxyfile / mkdocs.yml                docs toolchain (mkdocs-material + mkdoxy)
 ├── .pre-commit-config.yaml              lints/formats hand-written code only (jm glue excluded)
-├── jb.toml                              just-buildit packaging config
+├── bootstrap.toml                              just-buildit packaging config
 ├── CLAUDE.md / CONTRIBUTING.md          assistant + contributor guides
 ├── README.md / CHANGELOG.md / LICENSE   project docs
 └── conftest.py                          pytest root config (doctest gate wiring)

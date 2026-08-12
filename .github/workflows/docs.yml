@@ -50,10 +50,10 @@ jobs:
           sync: --group dev --group docs
 
       - name: Install doxygen
-        # `make install-docs-deps`, not a raw apt-get: jb.toml's `docs` group is
+        # `make install-docs-deps`, not a raw apt-get: bootstrap.toml's `docs` group is
         # the single dependency list, shared with ci.yml's doxygen job. The
         # inline copy had already drifted from it (missing graphviz's companions
-        # / the LaTeX set jb.toml declares).
+        # / the LaTeX set bootstrap.toml declares).
         run: make install-docs-deps
 
       - name: Generate C API docs

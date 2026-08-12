@@ -34,7 +34,7 @@ jobs:
     - uses: actions/checkout@v7
 
     # `make install-deps` is the one dep command a developer also runs: it
-    # self-bootstraps jbx and installs jb.toml's runtime+dev groups, auto-
+    # self-bootstraps jbx and installs bootstrap.toml's runtime+dev groups, auto-
     # detecting apt vs brew — so one step covers Ubuntu and macOS both.
     - name: Install system dependencies
       run: make install-deps
@@ -403,9 +403,9 @@ jobs:
       # clang + the matching llvm tools (llvm-profdata / llvm-cov) used to be
       # an inline `sudo apt-get install -y clang llvm` here, on the grounds
       # that they were coverage tooling rather than build deps. They are in
-      # jb.toml's dev group now: `make gates` runs `coverage`, so a box that
+      # bootstrap.toml's dev group now: `make gates` runs `coverage`, so a box that
       # cannot install them cannot run the gate set, and a second dependency
-      # list outside jb.toml is the thing that file exists to prevent.
+      # list outside bootstrap.toml is the thing that file exists to prevent.
       run: make install-deps
 
     - name: Install uv + Python + package deps

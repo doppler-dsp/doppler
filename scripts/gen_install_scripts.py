@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Generate tests/install/build-*-deps.sh from jb.toml.
+"""Generate tests/install/build-*-deps.sh from bootstrap.toml.
 
-jb.toml's ``[dev.*]`` package lists are the single source of truth for
+bootstrap.toml's ``[dev.*]`` package lists are the single source of truth for
 doppler's system dependencies -- ``make install-deps``, CI, and both
 Dockerfiles already read them via just-bashit. The per-distro install
 scripts under ``tests/install/`` (rendered into ``docs/install/source.md``
 and ``docs/quickstart.md`` via ``--8<--`` snippet includes) used to be a
 hand-maintained second copy of the same lists, and they drifted -- the
-dnf/zypper scripts once carried a ``gcc-c++`` that ``jb.toml`` never
+dnf/zypper scripts once carried a ``gcc-c++`` that ``bootstrap.toml`` never
 listed, and the brew script disagreed with ``[dev.brew]`` in both
-directions. This generator projects the scripts from jb.toml, so the
+directions. This generator projects the scripts from bootstrap.toml, so the
 docs can only ever show what ``make install-deps`` actually installs.
 
 Two dev packages are deliberately excluded from the docs projection
@@ -24,7 +24,7 @@ Two dev packages are deliberately excluded from the docs projection
 * ``clang``/``llvm``/``libclang-rt-dev``/``compiler-rt`` -- only
   ``make coverage`` needs them, for the dedicated clang-instrumented tree,
   ``llvm-profdata``/``llvm-cov``, and the ``-fprofile-instr-generate``
-  runtime (which clang does NOT pull in on its own -- see jb.toml). The
+  runtime (which clang does NOT pull in on its own -- see bootstrap.toml). The
   walkthrough builds with the platform compiler and never asks for a
   coverage report.
 
@@ -43,10 +43,10 @@ from pathlib import Path
 import tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
-JB_TOML = ROOT / "jb.toml"
+BOOTSTRAP_TOML = ROOT / "bootstrap.toml"
 OUT_DIR = ROOT / "tests" / "install"
 
-# Packages present in jb.toml's dev groups that the build-from-source
+# Packages present in bootstrap.toml's dev groups that the build-from-source
 # docs deliberately don't show -- see the module docstring for why each.
 DOCS_EXCLUDE = frozenset(
     {
@@ -122,8 +122,9 @@ def render(manager: str, packages: list[str]) -> str:
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
         "\n"
-        "# Generated from jb.toml by scripts/gen_install_scripts.py -- do\n"
-        "# not edit; change jb.toml's [dev.*] packages and run\n"
+        "# Generated from bootstrap.toml by\n"
+        "# scripts/gen_install_scripts.py -- do\n"
+        "# not edit; change bootstrap.toml's [dev.*] packages and run\n"
         "# `make docs-relink`.\n"
         f"{comment}\n"
         "# --8<-- [start:install]\n"
@@ -145,7 +146,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    with open(JB_TOML, "rb") as f:
+    with open(BOOTSTRAP_TOML, "rb") as f:
         jb = tomllib.load(f)
 
     stale: list[str] = []
@@ -154,8 +155,8 @@ def main() -> int:
             packages = jb["dev"][manager]["packages"]
         except KeyError:
             raise SystemExit(
-                f"gen_install_scripts: jb.toml has no [dev.{manager}] "
-                f"packages -- MANAGERS and jb.toml are out of step."
+                f"gen_install_scripts: bootstrap.toml has no [dev.{manager}] "
+                f"packages -- MANAGERS and bootstrap.toml are out of step."
             ) from None
         rendered = render(manager, packages)
         path = OUT_DIR / filename
@@ -168,13 +169,13 @@ def main() -> int:
     if stale:
         if args.check:
             print(
-                "install scripts out of sync with jb.toml: "
+                "install scripts out of sync with bootstrap.toml: "
                 + ", ".join(stale)
                 + " -- run: make docs-relink",
                 file=sys.stderr,
             )
             return 1
-        print(f"regenerated from jb.toml: {', '.join(stale)}")
+        print(f"regenerated from bootstrap.toml: {', '.join(stale)}")
     return 0
 
 

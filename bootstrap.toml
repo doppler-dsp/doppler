@@ -38,7 +38,7 @@ config = "just-makeit.toml"
 #     builds a dedicated clang-instrumented tree, so gcc cannot answer for it.
 #     ci.yml carried these as an inline `sudo apt-get install -y clang llvm`
 #     with a comment calling them "coverage tooling, not build deps, so it
-#     stays out of jb.toml's dev group". That distinction does not survive
+#     stays out of bootstrap.toml's dev group". That distinction does not survive
 #     `gates` running `coverage`: it made this file no longer the one place a
 #     consumer reads from, which is the exact invariant stated above.
 # NOT listed: compiler-rt. `coverage` needs clang's profile runtime

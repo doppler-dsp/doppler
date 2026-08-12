@@ -278,7 +278,7 @@ optional stream component, which vendors `nats.c`, are both pure C99).
 
 ??? note "Installing system deps by hand instead"
 
-    `make install-deps` reads [`jb.toml`](https://github.com/doppler-dsp/doppler/blob/main/jb.toml),
+    `make install-deps` reads [`bootstrap.toml`](https://github.com/doppler-dsp/doppler/blob/main/bootstrap.toml),
     the single source of truth for doppler's system deps, so it stays in
     sync automatically. To install them yourself instead:
 

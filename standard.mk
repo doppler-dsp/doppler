@@ -23,7 +23,7 @@
 #   uv.lock                 pins them, committed.
 #   .pre-commit-config.yaml WHEN a check fires; dispatches to `make -s
 #                           lint-<tool>` so it cannot drift from `make format`.
-#   jb.toml                 system packages, consumed by `install-deps`.
+#   bootstrap.toml          system packages, consumed by `install-deps`.
 #   .github/workflows       calls `make <target>`; anything else must be
 #                           provably environment plumbing.
 #
@@ -180,9 +180,9 @@ lint: standard-check help-check ghost-check gates-check ## Run the full lint gat
 format: ## Auto-fix formatting with every configured formatter
 	@for t in $(FORMAT_TOOLS); do $(MAKE) -s lint-$$t || exit 1; done
 
-# System packages, from jb.toml. A repo that declares none still gets a
+# System packages, from bootstrap.toml. A repo that declares none still gets a
 # working target — `jbx install-deps` is a no-op there.
-install-deps: ## Install system build dependencies (jb.toml)
+install-deps: ## Install system build dependencies (bootstrap.toml)
 	@command -v jbx >/dev/null 2>&1 \
 	    || curl -sSL https://just-buildit.github.io/get-jb.sh | bash
 	PATH="$$HOME/.local/bin:$$PATH" jbx install-deps

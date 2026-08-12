@@ -576,7 +576,7 @@ constraints make it safe:
     rather than preventing it. The obvious fix — have `iso-8601-basic` call
     the C once it is proven — closes a dependency loop: `iso-8601-basic` is
     called from just-bashit's `logging.sh` (every log line) and advertised by
-    its installer `get-jb.sh`, while doppler's `jb.toml` sources
+    its installer `get-jb.sh`, while doppler's `bootstrap.toml` sources
     `just-bashit:install-deps` and `just-bashit:just-makeit`. doppler →
     just-bashit → doppler means a machine running doppler's own
     `install-deps` would need doppler already built in order to log the

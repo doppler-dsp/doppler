@@ -215,7 +215,7 @@ minimal PEP 517 backend driving the whole thing):
     (free for public repos) — no QEMU or cross-toolchain anywhere.
 1. **macOS (`build-macos`, a separate job)** — natively on a macOS arm64
     runner. `astral-sh/setup-uv` selects the Python, **`make install-deps`**
-    installs the system deps (reads `jb.toml`, the single source of truth for
+    installs the system deps (reads `bootstrap.toml`, the single source of truth for
     doppler's system deps), and **`make wheel`** (= `uv build --wheel`) drives
     the same `just-buildit` backend as the Linux leg — no hand-rolled `uv  venv` / `python -m build` bootstrap to drift from CI. The job pins
     `MACOSX_DEPLOYMENT_TARGET=11.0` and

@@ -93,6 +93,18 @@ def clamp_evm_db(evm: float) -> float:
     return max(float(evm), EVM_FLOOR_DB)
 
 
+def _cell(value: object) -> str:
+    """Render one table cell so its content cannot become structure.
+
+    A pipe inside a cell is a column delimiter unless escaped, and a DSP
+    report reaches for one constantly -- ``|gain_db|``, ``|per-sample -
+    chunked|``, ``|H(f)|``. Escaping here rather than at each call site is
+    the point: a report author writing a magnitude should not have to know
+    the table is pipe-delimited.
+    """
+    return str(value).replace("|", r"\|")
+
+
 @dataclass
 class Report:
     """A validation report under construction: markdown, findings, limits.
@@ -124,11 +136,25 @@ class Report:
         self.lines.append(text)
 
     def table(self, header: list[str], rows: list[list[str]]) -> None:
-        """Append a pipe table, followed by a blank separator line."""
-        self.md("| " + " | ".join(header) + " |")
+        """Append a pipe table, followed by a blank separator line.
+
+        Every cell is escaped, because a DSP report writes absolute values
+        constantly and ``|gain_db|`` is a column delimiter to markdown, not
+        a magnitude. Two shipped reports were malformed this way -- the AGC's
+        ``worst |gain_db| over 4000 on-target samples`` header parsed as four
+        columns against a two-column body, and the EMA's
+        ``|per-sample - chunked|`` as five against three.
+
+        Neither was caught, and ``make validate-check`` structurally cannot
+        catch it: that gate re-runs the generator and compares, so a
+        generator emitting broken markdown agrees with itself perfectly.
+        ``scripts/check_validation_tables.py`` is the gate that reads the
+        rendered table instead.
+        """
+        self.md("| " + " | ".join(_cell(c) for c in header) + " |")
         self.md("|" + "|".join("---" for _ in header) + "|")
         for r in rows:
-            self.md("| " + " | ".join(str(c) for c in r) + " |")
+            self.md("| " + " | ".join(_cell(c) for c in r) + " |")
         self.md()
 
     # ── phases 2 and 3 ───────────────────────────────────────────────

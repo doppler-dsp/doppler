@@ -131,6 +131,22 @@ P > 1 refreshes the loop-filter command once per P samples with the step scaled 
 | 32 | -19.9987 |
 
 
+### 2.9 `decim` against the transient, and the rule that bounds it
+
+`decim` preserves the steady state (C §23) — the open question was always the TRANSIENT. Both per-chunk coefficients are compounded (`1-(1-a)^d`, not `d*a`), so what remains is the first-order hold: a longer chunk ramps the applied gain over a longer span, and the detector sees a different signal. That is bounded by ONE number, `4*decim*loop_bw` — how far the loop moves within a chunk.
+
+Measured here rather than asserted, so this section cannot outlive the code: the worst spread between `decim` 8/16/32 at a common sample index, sampled across the whole transient. Both step directions, because the loop is not symmetric — the detector is inside it and measures power, so a RISING gain (weak input) costs several times a falling one and is what sets the rule.
+
+| 4*decim*loop_bw | gain direction | worst spread (dB) |
+|---|---|---|
+| 0.032 | falling | 0.057 |
+| 0.032 | rising | 0.195 |
+| 0.32 | falling | 0.936 |
+| 0.32 | rising | 0.841 |
+
+
+**Keep `4*decim*loop_bw <= 0.05` and `decim` costs under 0.3 dB of transient** — the rule the header states and `test_agc_core.c` §23 asserts. The 0.32 rows are six times the rule and are what the 2.53 dB anomaly was measured at before the loop gain was compounded (doppler#699).
+
 ## 3. Review
 
 Findings, with verdicts. Limits are section 4.
@@ -139,7 +155,7 @@ Findings, with verdicts. Limits are section 4.
 
 - **F2 · FIXED** — Two input sequences used to destroy the loop permanently: one non-finite sample, and ~800 samples of silence. Both are closed by a single saturate() at the detector's input, with the primitives made total behind it. §2.4 and §2.5 measure the repaired behaviour through the binding; C §13-§17 certify it.
 
-- **F3 · CONFIRMED** — decim preserves the steady state but NOT the transient — measured 2.53 dB apart at a common sample index, with larger decim converging faster, because a first-order recursion taking fewer, larger steps only agrees with one taking many small steps in the limit. The header's 'keeps their per-sample meaning' reads stronger than it is. C §23 pins the steady state and records the divergence.
+- **F3 · FIXED** — decim preserved the steady state but NOT the transient — 2.53 dB apart at a common sample index, larger decim converging faster, because the loop-filter gain was scaled LINEARLY by the chunk length while the detector's pole was compounded. `d*k1` is the rectangular approximation to `1-(1-k1)^d` and is always the smaller, so more decimation meant a faster loop. Compounding it (doppler#699) cut it to 0.057 dB falling and 0.195 dB rising inside the rule, and 3.3x at the old settings. What remains is the first-order hold, which is not a coefficient and cannot be compounded away — so it is BOUNDED instead: `4*decim*loop_bw <= 0.05` costs under 0.3 dB, §2.9 measures it in both step directions, and C §23 now asserts it rather than only recording the divergence. Verdict READ from §2.9's measurement.
 
 - **F4 · GAP** — An over-long telemetry prefix is truncated rather than rejected, so an object's two probes can collapse onto one id while the attach reports success — both series then interleave under one name. Not AGC-specific: every set_telemetry builds names the same way, and composing receivers nest prefixes. Filed as doppler#676; C §24 tests the table-full reject instead.
 
@@ -156,6 +172,6 @@ Claims a caller may rely on. A failure here is a regression, not a new finding �
 
 ## 5. Summary
 
-- **6 findings**, 3 of them gaps or confirmed defects: F3, F4, F6
-- **16/16 limits** hold
+- **6 findings**, 2 of them gaps or confirmed defects: F4, F6
+- **18/18 limits** hold
 - Raw sweeps: `data/settling.csv`, `data/converged_gain.csv`, `data/telemetry.csv`

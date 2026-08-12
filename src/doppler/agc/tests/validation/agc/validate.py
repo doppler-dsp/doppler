@@ -128,6 +128,7 @@ class Data:
     tlm_level: np.ndarray = field(default_factory=lambda: np.array([]))
     tlm_gain: np.ndarray = field(default_factory=lambda: np.array([]))
     period_rows: list[tuple[int, float]] = field(default_factory=list)
+    decim_rows: list[tuple[float, str, float]] = field(default_factory=list)
 
 
 # ── 1. the object ────────────────────────────────────────────────────
@@ -413,7 +414,79 @@ def characterise() -> Data:
         [[f"{p}", f"{g:+.4f}"] for p, g in d.period_rows],
     )
     R.md()
+
+    R.md("### 2.9 `decim` against the transient, and the rule that bounds it")
+    R.md()
+    R.md(
+        "`decim` preserves the steady state (C §23) — the open question was "
+        "always the TRANSIENT. Both per-chunk coefficients are compounded "
+        "(`1-(1-a)^d`, not `d*a`), so what remains is the first-order hold: "
+        "a longer chunk ramps the applied gain over a longer span, and the "
+        "detector sees a different signal. That is bounded by ONE number, "
+        "`4*decim*loop_bw` — how far the loop moves within a chunk."
+    )
+    R.md()
+    R.md(
+        "Measured here rather than asserted, so this section cannot outlive "
+        "the code: the worst spread between `decim` 8/16/32 at a common "
+        "sample index, sampled across the whole transient. Both step "
+        "directions, because the loop is not symmetric — the detector is "
+        "inside it and measures power, so a RISING gain (weak input) costs "
+        "several times a falling one and is what sets the rule."
+    )
+    R.md()
+    for group, bw in ((0.032, 2.5e-4), (0.32, 2.5e-3)):
+        for label, amp in (("falling", 10.0), ("rising", 0.1)):
+            worst = 0.0
+            for n in range(64, 4097, 64):
+                gains = []
+                for dec in (8, 16, 32):
+                    a = AGC(ref_db=0.0, loop_bw=bw, alpha=0.05)
+                    a.decim = dec
+                    a.steps(np.full(n, DIR * amp, dtype=np.complex64))
+                    gains.append(a.gain_db)
+                worst = max(worst, max(gains) - min(gains))
+            d.decim_rows.append((group, label, worst))
+    R.table(
+        ["4*decim*loop_bw", "gain direction", "worst spread (dB)"],
+        [[f"{g}", lab, f"{w:.3f}"] for g, lab, w in d.decim_rows],
+    )
+    R.md()
+    R.md(
+        "**Keep `4*decim*loop_bw <= 0.05` and `decim` costs under 0.3 dB of "
+        "transient** — the rule the header states and `test_agc_core.c` §23 "
+        "asserts. The 0.32 rows are six times the rule and are what the "
+        "2.53 dB anomaly was measured at before the loop gain was "
+        "compounded (doppler#699)."
+    )
+    R.md()
     return d
+
+
+def _inside_rule(d: Data) -> float:
+    """Worst decim spread at the settings the rule permits, either way.
+
+    This is the caller-facing PROMISE, and deliberately not the thing F3's
+    verdict keys on: the rising direction dominates it, and rising barely
+    moves when the loop gain is un-compounded (0.197 -> 0.232 measured),
+    because it is set by the first-order hold and the detector's power-law
+    asymmetry rather than by the coefficient.
+    """
+    return max(w for g, _, w in d.decim_rows if g <= 0.05)
+
+
+def _inside_rule_falling(d: Data) -> float:
+    """The same, restricted to the falling-gain direction.
+
+    THIS is what F3's verdict reads, because it is the half that actually
+    responds to the fix: 0.059 dB compounded against 0.146 un-compounded,
+    a 2.5x separation, verified by reverting the compounding and watching
+    this flip. A verdict keyed to a number that cannot move is a verdict
+    that cannot be wrong, which is the same as not checking.
+    """
+    return max(
+        w for g, lab, w in d.decim_rows if g <= 0.05 and lab == "falling"
+    )
 
 
 # ── 3. review ────────────────────────────────────────────────────────
@@ -446,14 +519,21 @@ def review(d: Data) -> None:
     )
     R.find(
         "F3",
-        "CONFIRMED",
-        "decim preserves the steady state but NOT the transient — "
-        "measured 2.53 dB apart at a common sample index, with larger "
-        "decim converging faster, because a first-order recursion taking "
-        "fewer, larger steps only agrees with one taking many small steps "
-        "in the limit. The header's 'keeps their per-sample meaning' "
-        "reads stronger than it is. C §23 pins the steady state and "
-        "records the divergence.",
+        "FIXED" if _inside_rule_falling(d) < 0.1 else "CONFIRMED",
+        "decim preserved the steady state but NOT the transient — 2.53 dB "
+        "apart at a common sample index, larger decim converging faster, "
+        "because the loop-filter gain was scaled LINEARLY by the chunk "
+        "length while the detector's pole was compounded. `d*k1` is the "
+        "rectangular approximation to `1-(1-k1)^d` and is always the "
+        "smaller, so more decimation meant a faster loop. Compounding it "
+        f"(doppler#699) cut it to {_inside_rule_falling(d):.3f} dB falling "
+        f"and {_inside_rule(d):.3f} dB rising inside the rule, and 3.3x at "
+        "the old settings. What remains is the "
+        "first-order hold, which is not a coefficient and cannot be "
+        "compounded away — so it is BOUNDED instead: "
+        "`4*decim*loop_bw <= 0.05` costs under 0.3 dB, §2.9 measures it in "
+        "both step directions, and C §23 now asserts it rather than only "
+        "recording the divergence. Verdict READ from §2.9's measurement.",
     )
     R.find(
         "F4",
@@ -502,6 +582,20 @@ def limits(d: Data) -> None:
         bool(np.all(np.abs(d.levels_db + d.gains) < 0.5)),
         "The converged gain cancels the input level to within 0.5 dB "
         "across 80 dB of input.",
+    )
+    R.limit(
+        _inside_rule_falling(d) < 0.1,
+        "Inside the rule, a FALLING gain holds decim to under 0.1 dB — "
+        f"measured {_inside_rule_falling(d):.3f} dB. This is the half that "
+        "responds to the loop gain being compounded (0.146 dB if it is "
+        "not), so it is the regression detector; the row below is the "
+        "promise.",
+    )
+    R.limit(
+        _inside_rule(d) < 0.3,
+        "Inside `4*decim*loop_bw <= 0.05`, changing decim costs under "
+        f"0.3 dB of transient — measured {_inside_rule(d):.3f} dB in the "
+        "worse (rising-gain) direction. The rule a caller picks decim by.",
     )
     R.limit(
         bool(np.all(d.tau_fast > 0) and np.all(d.tau_slow > 0)),

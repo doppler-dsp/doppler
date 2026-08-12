@@ -43,10 +43,13 @@ Run:  uv run python src/doppler/examples/agc_settling_design_demo.py
 
 from __future__ import annotations
 
-import math
-import sys
-
+# The include region starts above the imports on purpose: the block this
+# page publishes has to run as shown, and `math` is used inside
+# settle_multiplier. A region that starts below its own imports produces a
+# snippet that reads fine and raises NameError for anyone who copies it.
 # --8<-- [start:chart]
+import math
+
 import numpy as np
 
 from doppler.agc import AGC
@@ -213,4 +216,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

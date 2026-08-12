@@ -24,15 +24,36 @@ What it forbids
 The forbidden list is DERIVED from dp_test.h on every run, not written here,
 so a macro added there is covered without editing this file.
 
+The assertion ratchet
+---------------------
+The second half of this gate exists because naming was not the only way the
+harness lost ground. A migration, a rebase, or a badly resolved conflict can
+silently REDUCE the number of assertions in a file: it still compiles, the
+survivors still pass, `ctest` still reports 100%, and nothing announces that
+coverage went backwards. That is a smaller-denominator failure -- read the
+count, not the percentage.
+
+It is not hypothetical either. This branch was cut before
+`feat(telemetry)` landed on `main`, and the consolidation would have dropped
+**43 assertions across three files** (`test_RateConverter_core.c` -20,
+`test_mpsk_receiver_core.c` -12, `test_agc_core.c` -11) with a green suite.
+One of the three was spotted by review; the other two only by counting.
+
+So: no test file may end up with fewer assertions than the base ref has,
+unless it is listed in `native/tests/.assertion-ratchet-ignore` with a
+reason. Deliberate removals are fine and rare; silent ones are the bug.
+
 Usage
 -----
-    python scripts/check_tests_ssot.py     # exit 1 on any violation
+    python scripts/check_tests_ssot.py                  # naming only
+    python scripts/check_tests_ssot.py --base origin/main   # + the ratchet
 """
 
 from __future__ import annotations
 
 import pathlib
 import re
+import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -62,6 +83,84 @@ def provided() -> tuple[set[str], set[str]]:
     macros = set(re.findall(r"^#define\s+(\w+)", text, re.M))
     funcs = set(re.findall(r"^(dp_\w+)\s*\(", text, re.M))
     return macros, funcs
+
+
+IGNORE = TESTS / ".assertion-ratchet-ignore"
+
+# What counts as an assertion, on either side of the migration. Both sets are
+# counted the same way -- per line, skipping `#define` -- so the comparison is
+# between call sites, never between a definition and a call.
+OLD_ASSERT = re.compile(r"(?<![A-Za-z0-9_])CHECK\w*\s*\(")
+NEW_ASSERT = re.compile(
+    r"(?<![A-Za-z0-9_])(DP_CHECK|DP_REQUIRE|DP_CHECK_MSG|DP_REQUIRE_MSG"
+    r"|DP_CHECK_NEAR|DP_RECORD_FAIL|DP_STATE_ROUNDTRIP_TEST)\s*\("
+)
+
+
+def count_assertions(text: str) -> int:
+    n = 0
+    for line in text.splitlines():
+        if re.match(r"\s*#\s*define", line):
+            continue
+        n += len(OLD_ASSERT.findall(line)) + len(NEW_ASSERT.findall(line))
+    return n
+
+
+def ratchet(base: str) -> list[str]:
+    """Fail any test file that has fewer assertions than `base` has."""
+    rev = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{base}^{{commit}}"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if rev.returncode != 0:
+        return [
+            f"base ref {base!r} does not resolve — fetch it first; "
+            f"a ratchet that cannot read its baseline has not passed"
+        ]
+
+    excused = {}
+    if IGNORE.exists():
+        for line in IGNORE.read_text().splitlines():
+            line = line.split("#", 1)[0].strip()
+            if line:
+                name, _, why = line.partition(" ")
+                excused[name] = why.strip()
+
+    listing = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", base, "native/tests/"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    ).stdout.split()
+
+    bad = []
+    for rel in (f for f in listing if f.endswith(".c")):
+        was = subprocess.run(
+            ["git", "show", f"{base}:{rel}"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if was.returncode != 0:
+            continue
+        now = ROOT / rel
+        if not now.exists():
+            continue  # deletion is a visible act, not a silent loss
+        before, after = (
+            count_assertions(was.stdout),
+            count_assertions(now.read_text()),
+        )
+        if after < before:
+            key = pathlib.Path(rel).name
+            if key in excused:
+                continue
+            bad.append(
+                f"{rel}: {before} assertions at {base}, {after} here "
+                f"(-{before - after})"
+            )
+    return bad
 
 
 def main() -> int:
@@ -121,10 +220,25 @@ def main() -> int:
         print(f"\n  {len(bad)} violation(s). See native/tests/README.md.")
         return 1
 
+    base = None
+    for i, a in enumerate(sys.argv):
+        if a == "--base" and i + 1 < len(sys.argv):
+            base = sys.argv[i + 1]
+    lost = ratchet(base) if base else []
+    if lost:
+        print("check_tests_ssot: a test file LOST assertions.")
+        for line in lost:
+            print(f"  {line}")
+        print("\n  A suite can go green while covering less. If a removal is")
+        print("  deliberate, list the file in")
+        print(f"  {IGNORE.relative_to(ROOT)} with the reason.")
+        return 1
+
     scanned = len(list(TESTS.glob("*.c")))
     print(
         f"check_tests_ssot: OK — {scanned} tests, "
         f"{len(macros)} macros and {len(funcs)} helpers owned by dp_test.h"
+        + (f"; no file lost assertions vs {base}" if base else "")
     )
     return 0
 

@@ -40,15 +40,19 @@ _Cascade state_  _owns all sub-stage C objects._[More...](#detailed-description)
 |  double | [**agc\_alpha**](#variable-agc_alpha)  <br> |
 |  double | [**agc\_bn\_sym**](#variable-agc_bn_sym)  <br> |
 |  double | [**agc\_ref\_db**](#variable-agc_ref_db)  <br> |
+|  struct [**RateConverter\_state\_t**](structRateConverter__state__t.md) | [**agc\_tlm\_req**](#variable-agc_tlm_req)  <br> |
 |  double | [**bank\_e0**](#variable-bank_e0)  <br> |
 |  double | [**bank\_sps**](#variable-bank_sps)  <br> |
 |  double | [**beta**](#variable-beta)  <br> |
 |  size\_t | [**buf\_cap**](#variable-buf_cap)  <br> |
 |  float \_Complex \* | [**bufs**](#variable-bufs)  <br> |
 |  int | [**compensate**](#variable-compensate)  <br> |
+|  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**ctx**](#variable-ctx)  <br> |
+|  uint32\_t | [**decim**](#variable-decim)  <br> |
 |  int | [**n\_stages**](#variable-n_stages)  <br> |
 |  bool | [**narrow\_pulse**](#variable-narrow_pulse)  <br> |
 |  size\_t | [**num\_phases**](#variable-num_phases)  <br> |
+|  char | [**prefix**](#variable-prefix)  <br> |
 |  int | [**pulse**](#variable-pulse)  <br> |
 |  double | [**pulse\_sps**](#variable-pulse_sps)  <br> |
 |  double | [**rate**](#variable-rate)  <br> |
@@ -183,6 +187,23 @@ derived: 10\*log10(bank\_e0 / bank\_sps)
 
 
 
+### variable agc\_tlm\_req 
+
+```C++
+struct RateConverter_state_t RateConverter_state_t::agc_tlm_req;
+```
+
+
+
+The telemetry attachment as REQUESTED, not as currently applied. Held here rather than only on the AGC because the AGC is destroyed and rebuilt whenever the plan changes (\_agc\_build), and may not exist yet when the attach arrives; keeping the request lets every rebuild re-apply it. Never packed into a state blob — telemetry is observation. See [**RateConverter\_set\_telemetry()**](RateConverter__core_8h.md#function-rateconverter_set_telemetry). 
+
+
+        
+
+<hr>
+
+
+
 ### variable bank\_e0 
 
 ```C++
@@ -284,6 +305,42 @@ CIC droop-comp flag
 
 
 
+### variable ctx 
+
+```C++
+dp_tlm_t* RateConverter_state_t::ctx;
+```
+
+
+
+NULL = detached 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable decim 
+
+```C++
+uint32_t RateConverter_state_t::decim;
+```
+
+
+
+as passed by the caller 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable n\_stages 
 
 ```C++
@@ -328,6 +385,24 @@ size_t RateConverter_state_t::num_phases;
 
 
 terminal-stage arms (power of two) 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable prefix 
+
+```C++
+char RateConverter_state_t::prefix[DP_TLM_NAME_MAX];
+```
+
+
+
+as passed by the caller 
  
 
 

@@ -70,6 +70,12 @@ typedef struct
   double       agc_ref_db;   
   double       agc_bn_sym;   
   double       agc_alpha;    
+  struct
+  {
+    dp_tlm_t *ctx;                   
+    char      prefix[DP_TLM_NAME_MAX]; 
+    uint32_t  decim;                 
+  } agc_tlm_req;
 } RateConverter_state_t;
 
 RateConverter_state_t *RateConverter_create (double rate, int compensate);
@@ -99,6 +105,9 @@ int RateConverter_enable_agc (RateConverter_state_t *s, double bn_sym,
 double RateConverter_agc_ref_db (const RateConverter_state_t *s);
 
 double RateConverter_agc_gain_db (const RateConverter_state_t *s);
+
+int RateConverter_set_telemetry (RateConverter_state_t *s, dp_tlm_t *tlm,
+                                 const char *prefix, uint32_t decim);
 
 void RateConverter_destroy (RateConverter_state_t *s);
 

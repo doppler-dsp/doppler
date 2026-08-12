@@ -28,6 +28,18 @@ extern "C"
     float i = fminf (fmaxf (cimagf (y), -lin), lin);
     return r + i * I;
   }
+
+  JM_FORCEINLINE double
+  saturate (double v, double lo, double hi, double nan_to)
+  {
+    if (v >= lo && v <= hi)
+      return v; /* the common case; false for NaN, which falls through */
+    if (v < lo)
+      return lo;
+    if (v > hi)
+      return hi;
+    return nan_to; /* nothing else can reach here */
+  }
 #ifdef __cplusplus
 }
 #endif

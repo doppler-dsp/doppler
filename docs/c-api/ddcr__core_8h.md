@@ -94,6 +94,7 @@ _Real-input Digital Down-Converter — halfband R2C + LO + cascade._ [More...](#
 |  size\_t | [**ddcr\_run**](#function-ddcr_run) ([**ddcr\_state\_t**](ddcr__core_8h.md#typedef-ddcr_state_t) \* s, const void \* state\_in, void \* state\_out, const float \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Pure run: inject_ `state_in` _, process_`in` _, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config. Either state may be NULL (NULL in = use current; NULL out = discard)._`state_in` _/_`state_out` _may alias._ |
 |  void | [**ddcr\_set\_norm\_freq**](#function-ddcr_set_norm_freq) ([**ddcr\_state\_t**](ddcr__core_8h.md#typedef-ddcr_state_t) \* s, double norm\_freq) <br>_Retune the fine NCO without resetting halfband or resampler history. Updates the LO phase increment only; state is preserved for seamless tuning across block boundaries._  |
 |  int | [**ddcr\_set\_state**](#function-ddcr_set_state) ([**ddcr\_state\_t**](ddcr__core_8h.md#typedef-ddcr_state_t) \* s, const void \* blob) <br>_Restore full-chain state from_ `blob` _into_`s` _._ |
+|  int | [**ddcr\_set\_telemetry**](#function-ddcr_set_telemetry) ([**ddcr\_state\_t**](ddcr__core_8h.md#typedef-ddcr_state_t) \* s, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context on the cascade's AGC._  |
 |  size\_t | [**ddcr\_state\_bytes**](#function-ddcr_state_bytes) (const [**ddcr\_state\_t**](ddcr__core_8h.md#typedef-ddcr_state_t) \* s) <br>_Byte size of_ `s's` _state blob (envelope + extra + chain)._ |
 
 
@@ -839,6 +840,49 @@ int ddcr_set_state (
 **Returns:**
 
 DP\_OK, or DP\_ERR\_INVALID if the envelope/rate disagree with `s` (rebuild the engine from the matching descriptor first). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function ddcr\_set\_telemetry 
+
+_Attach (or detach) a telemetry context on the cascade's AGC._ 
+```C++
+int ddcr_set_telemetry (
+    ddcr_state_t * s,
+    dp_tlm_t * tlm,
+    const char * prefix,
+    uint32_t decim
+) 
+```
+
+
+
+The twin of [**ddc\_set\_telemetry()**](ddc__core_8h.md#function-ddc_set_telemetry), forwarded to the same [**RateConverter\_set\_telemetry()**](RateConverter__core_8h.md#function-rateconverter_set_telemetry) over the same cascade: the R2C front end and the fixed stages have no loop to report, so the one instrumented child is the pre-terminal AGC ("&lt;prefix&gt;.gain\_db" and "&lt;prefix&gt;.level\_db"). DP\_OK with no probes when the cascade has no AGC enabled.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+* `tlm` Telemetry context to attach, or NULL to detach. 
+* `prefix` Probe-name prefix, e.g. "rx.agc". 
+* `decim` Emit every decim-th gain update; &gt;= 1. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take the AGC's probes (the attach fails whole). 
 
 
 

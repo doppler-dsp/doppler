@@ -46,8 +46,8 @@ _SymbolSync component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**symsync\_\_core\_8h\_1a0411cd49bb5b71852cecd93bcbf0ca2d**](#enum-symsync__core_8h_1a0411cd49bb5b71852cecd93bcbf0ca2d)  <br>_Pulse code for_ [_**symsync\_ted\_slope()**_](symsync__core_8h.md#function-symsync_ted_slope) _; values match rc\_pulse\_t._ |
-| enum  | [**symsync\_\_core\_8h\_1a726ca809ffd3d67ab4b8476646f26635**](#enum-symsync__core_8h_1a726ca809ffd3d67ab4b8476646f26635)  <br>_Timing-error-detector selection for_ [_**symsync\_state\_t::ted**_](structsymsync__state__t.md#variable-ted) _._ |
+| enum  | [**symsync\_\_core\_8h\_1a0411cd49bb5b71852cecd93bcbf0ca2d**](#enum-symsync__core_8h_1a0411cd49bb5b71852cecd93bcbf0ca2d)  <br>_Timing-error-detector selection for_ [_**symsync\_state\_t::ted**_](structsymsync__state__t.md#variable-ted) _._ |
+| enum  | [**symsync\_\_core\_8h\_1abed82baf7f470b522273a3e37c24c600**](#enum-symsync__core_8h_1abed82baf7f470b522273a3e37c24c600)  <br>_Pulse code for_ [_**symsync\_ted\_slope()**_](symsync__core_8h.md#function-symsync_ted_slope) _; values match rc\_pulse\_t._ |
 
 
 
@@ -155,11 +155,11 @@ symsync_destroy(obj);
 
 ### enum symsync\_\_core\_8h\_1a0411cd49bb5b71852cecd93bcbf0ca2d 
 
-_Pulse code for_ [_**symsync\_ted\_slope()**_](symsync__core_8h.md#function-symsync_ted_slope) _; values match rc\_pulse\_t._
+_Timing-error-detector selection for_ [_**symsync\_state\_t::ted**_](structsymsync__state__t.md#variable-ted) _._
 ```C++
 enum symsync__core_8h_1a0411cd49bb5b71852cecd93bcbf0ca2d {
-    SYMSYNC_PULSE_IANDD = 0,
-    SYMSYNC_PULSE_RRC = 1
+    SYMSYNC_TED_GARDNER = 0,
+    SYMSYNC_TED_DTTL = 1
 };
 ```
 
@@ -170,13 +170,13 @@ enum symsync__core_8h_1a0411cd49bb5b71852cecd93bcbf0ca2d {
 
 
 
-### enum symsync\_\_core\_8h\_1a726ca809ffd3d67ab4b8476646f26635 
+### enum symsync\_\_core\_8h\_1abed82baf7f470b522273a3e37c24c600 
 
-_Timing-error-detector selection for_ [_**symsync\_state\_t::ted**_](structsymsync__state__t.md#variable-ted) _._
+_Pulse code for_ [_**symsync\_ted\_slope()**_](symsync__core_8h.md#function-symsync_ted_slope) _; values match rc\_pulse\_t._
 ```C++
-enum symsync__core_8h_1a726ca809ffd3d67ab4b8476646f26635 {
-    SYMSYNC_TED_GARDNER = 0,
-    SYMSYNC_TED_DTTL = 1
+enum symsync__core_8h_1abed82baf7f470b522273a3e37c24c600 {
+    SYMSYNC_PULSE_IANDD = 0,
+    SYMSYNC_PULSE_RRC = 1
 };
 ```
 

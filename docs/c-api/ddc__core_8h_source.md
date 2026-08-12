@@ -72,6 +72,9 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
 
 bool ddc_get_clipped(const ddc_state_t *state);
 
+  int ddc_set_telemetry (ddc_state_t *state, dp_tlm_t *tlm, const char *prefix,
+                         uint32_t decim);
+
 size_t ddc_execute_max_out(ddc_state_t *state, size_t x_len);
 
   /* ── Serializable state — complex DDC (LO + RateConverter) ─────────────────

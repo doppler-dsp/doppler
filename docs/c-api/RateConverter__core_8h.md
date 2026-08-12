@@ -95,6 +95,7 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 |  void | [**RateConverter\_reset**](#function-rateconverter_reset) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory._  |
 |  void | [**RateConverter\_set\_rate**](#function-rateconverter_set_rate) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, double rate) <br>_Change the rate; rebuilds the cascade and resets all filter state. Silently ignores rate &lt;= 0._  |
 |  int | [**RateConverter\_set\_state**](#function-rateconverter_set_state) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, const void \* blob) <br>_Restore active-stage state from_ `blob` _(same rate)._ |
+|  int | [**RateConverter\_set\_telemetry**](#function-rateconverter_set_telemetry) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context on the pre-terminal AGC._  |
 |  int | [**RateConverter\_stage\_label**](#function-rateconverter_stage_label) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, int i, char \* buf, size\_t len) <br>_Write a human-readable label for stage i into buf._  |
 |  const char \* | [**RateConverter\_stages\_value**](#function-rateconverter_stages_value) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, size\_t i) <br>_Label of stage_ `i` _, e.g. "CIC(8)+FIR" or "Resampler(0.923,rrc)"._ |
 |  size\_t | [**RateConverter\_state\_bytes**](#function-rateconverter_state_bytes) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Bytes_ [_**RateConverter\_get\_state()**_](RateConverter__core_8h.md#function-rateconverter_get_state) _writes for_`s` _(envelope + stages)._ |
@@ -1039,6 +1040,72 @@ DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects.
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function RateConverter\_set\_telemetry 
+
+_Attach (or detach) a telemetry context on the pre-terminal AGC._ 
+```C++
+int RateConverter_set_telemetry (
+    RateConverter_state_t * s,
+    dp_tlm_t * tlm,
+    const char * prefix,
+    uint32_t decim
+) 
+```
+
+
+
+The cascade has no loop of its own to report — the stages are fixed filters — so this forwards to the one child that does: the pre-terminal AGC, under `prefix` verbatim. It registers that child's probes ("&lt;prefix&gt;.gain\_db" and "&lt;prefix&gt;.level\_db"; see [**agc\_set\_telemetry()**](agc__core_8h.md#function-agc_set_telemetry)) and nothing else, which is why the prefix is not extended with a component name — there is no second thing here to disambiguate it from.
+
+
+A composing object forwards its own prefix down: an `mpsk_receiver` attached as "rx" passes "rx.agc", and the receiver's gain trajectory joins its carrier and timing probes on one context.
+
+
+With the AGC off (a plain cascade, or a matched one where [**RateConverter\_enable\_agc()**](RateConverter__core_8h.md#function-rateconverter_enable_agc) was never called) there is nothing to instrument and this is a successful no-op — DP\_OK with no probes registered. That is deliberate: whether the AGC exists is the composing receiver's construction-time choice (`agc = 0`), and a caller attaching telemetry should not have to know which way that went to avoid an error.
+
+
+The attachment is remembered as a REQUEST, so it survives the AGC being rebuilt by a rate change and is applied to an AGC enabled after the fact. One consequence of that: an attach made before the AGC exists reports DP\_OK here, and if the probe table has filled by the time the AGC is built the probes are dropped without failing the build — signal processing does not fail because observation could not be set up. Attach after construction (which is what every composing object here does) and the return value covers it; otherwise check the context's probe names.
+
+
+Setup path, never hot: call before the producer thread starts; the context is borrowed and must outlive the attachment (SPSC rules in [**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)). Passing NULL detaches.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+* `tlm` Telemetry context to attach, or NULL to detach. 
+* `prefix` Probe-name prefix, e.g. "agc" or "rx.agc". 
+* `decim` Emit every decim-th gain update; &gt;= 1. 
+
+
+
+**Returns:**
+
+DP\_OK — including when no AGC is enabled — or DP\_ERR\_INVALID when the probe table cannot take the AGC's probes (the attach fails whole; the AGC stays detached).
+
+
+
+```C++
+RateConverter_state_t *rc =
+    RateConverter_create_matched (2.0 / 8.0, 1, RC_PULSE_RRC, 0.35, 8,
+                                  2.0, 1024);
+RateConverter_enable_agc (rc, 1e-4, 0.01);
+dp_tlm_t *tlm = dp_tlm_create (1 << 12);
+RateConverter_set_telemetry (rc, tlm, "agc", 1);
+RateConverter_destroy (rc);
+dp_tlm_destroy (tlm);
+```
+ 
 
 
         

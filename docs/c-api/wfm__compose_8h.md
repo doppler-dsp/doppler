@@ -40,7 +40,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**wfm\_\_compose\_8h\_1abed82baf7f470b522273a3e37c24c600**](#enum-wfm__compose_8h_1abed82baf7f470b522273a3e37c24c600)  <br>_Per-field "draw uniformly each repeat" flags (_ `ranged` _bitmask)._ |
+| enum  | [**wfm\_\_compose\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57**](#enum-wfm__compose_8h_1ab04a0655cd1e3bcac5e8f48c18df1a57)  <br>_Per-field "draw uniformly each repeat" flags (_ `ranged` _bitmask)._ |
 | typedef struct wfm\_compose\_state | [**wfm\_compose\_state\_t**](#typedef-wfm_compose_state_t)  <br> |
 | enum  | [**wfm\_seed\_advance\_t**](#enum-wfm_seed_advance_t)  <br>_Per-repeat seed policy for a looped/continuous stream._  |
 
@@ -145,11 +145,11 @@ wfm_compose_destroy(c);
 
 
 
-### enum wfm\_\_compose\_8h\_1abed82baf7f470b522273a3e37c24c600 
+### enum wfm\_\_compose\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57 
 
 _Per-field "draw uniformly each repeat" flags (_ `ranged` _bitmask)._
 ```C++
-enum wfm__compose_8h_1abed82baf7f470b522273a3e37c24c600 {
+enum wfm__compose_8h_1ab04a0655cd1e3bcac5e8f48c18df1a57 {
     WFM_RANGE_FREQ = 1u << 0,
     WFM_RANGE_SNR = 1u << 1,
     WFM_RANGE_LEVEL = 1u << 2,

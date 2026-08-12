@@ -100,6 +100,7 @@
 * **agc\_reset** ([**agc\_core.h**](agc__core_8h.md))
 * **agc\_set\_state** ([**agc\_core.h**](agc__core_8h.md))
 * **agc\_set\_telemetry** ([**agc\_core.h**](agc__core_8h.md))
+* **agc\_settling\_samples** ([**agc\_core.h**](agc__core_8h.md))
 * **agc\_state\_bytes** ([**agc\_core.h**](agc__core_8h.md))
 * **agc\_step** ([**agc\_core.h**](agc__core_8h.md))
 * **agc\_steps** ([**agc\_core.h**](agc__core_8h.md))
@@ -414,6 +415,7 @@
 * **ddc\_run** ([**ddc\_core.h**](ddc__core_8h.md))
 * **ddc\_set\_norm\_freq** ([**ddc\_core.h**](ddc__core_8h.md))
 * **ddc\_set\_state** ([**ddc\_core.h**](ddc__core_8h.md))
+* **ddc\_set\_telemetry** ([**ddc\_core.h**](ddc__core_8h.md))
 * **ddc\_state\_bytes** ([**ddc\_core.h**](ddc__core_8h.md))
 * **ddcr\_create** ([**ddcr\_core.h**](ddcr__core_8h.md))
 * **ddcr\_create\_matched** ([**ddcr\_core.h**](ddcr__core_8h.md))
@@ -434,6 +436,7 @@
 * **ddcr\_run** ([**ddcr\_core.h**](ddcr__core_8h.md))
 * **ddcr\_set\_norm\_freq** ([**ddcr\_core.h**](ddcr__core_8h.md))
 * **ddcr\_set\_state** ([**ddcr\_core.h**](ddcr__core_8h.md))
+* **ddcr\_set\_telemetry** ([**ddcr\_core.h**](ddcr__core_8h.md))
 * **ddcr\_state\_bytes** ([**ddcr\_core.h**](ddcr__core_8h.md))
 * **delay\_create** ([**delay\_core.h**](delay__core_8h.md))
 * **delay\_destroy** ([**delay\_core.h**](delay__core_8h.md))
@@ -1101,6 +1104,7 @@
 * **RateConverter\_reset** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **RateConverter\_set\_rate** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **RateConverter\_set\_state** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
+* **RateConverter\_set\_telemetry** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **RateConverter\_stage\_label** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **RateConverter\_stages\_value** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **RateConverter\_state\_bytes** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
@@ -1178,6 +1182,7 @@
 
 ## s
 
+* **settling\_samples** ([**agc\_core.h**](agc__core_8h.md))
 * **sat16** ([**arith\_core.h**](arith__core_8h.md))
 * **sat8** ([**arith\_core.h**](arith__core_8h.md))
 * **shl\_i64** ([**arith\_core.h**](arith__core_8h.md))
@@ -1225,6 +1230,7 @@
 * **symsync\_steps\_max\_out** ([**symsync\_core.h**](symsync__core_8h.md))
 * **symsync\_ted\_slope** ([**symsync\_core.h**](symsync__core_8h.md))
 * **symsync\_tlm\_flush** ([**symsync\_core.h**](symsync__core_8h.md))
+* **saturate** ([**util\_core.h**](util__core_8h.md))
 * **square\_clip** ([**util\_core.h**](util__core_8h.md))
 
 

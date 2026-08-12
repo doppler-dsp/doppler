@@ -1,9 +1,10 @@
 """Performance-characterisation gate for ``doppler.dsss.BurstAcquisition``.
 
-Drives the engine through the ``dsss_acq_characterization`` demo — a length-511
-PN preamble (9-stage MLS) repeated 5 times, a 64-chip-per-symbol BPSK DSSS
-payload, and silence before and after, arriving at a random integer code phase
-and a random Doppler across the engine's capture range, in AWGN — and pins the
+Drives the engine through the `burst_acquisition` characterization subject
+— a length-511 PN preamble (9-stage MLS) repeated 5 times, a
+64-chip-per-symbol BPSK DSSS payload, and silence before and after,
+arriving at a random integer code phase and a random Doppler across the
+engine's capture range, in AWGN — and pins the
 two operating-curve properties a characterisation must hold:
 
 * **Pd** rises with Es/N0 — a noise floor at low Es/N0 and (near-)certain
@@ -21,7 +22,10 @@ import math
 import numpy as np
 import pytest
 
-from doppler.examples.dsss_acq_characterization import (
+# The dotted path is exactly 80 characters, one over the limit. Kept absolute
+# and noqa'd rather than made relative, so it reads the same as the sibling
+# twins for the other two characterization subjects.
+from doppler.dsss.tests.characterization.burst_acquisition.characterize import (  # noqa: E501
     ACQ_CODE,
     ACQ_REPS,
     CHIP_RATE,

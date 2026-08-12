@@ -1419,19 +1419,24 @@ test-snippets: ## Run the python/C/shell doc-fence gates
 # pytest-benchmark disables itself under xdist, and unlike `test-stubs`, where
 # a text-mode .pyi shares one doctest namespace across the file.
 #
-# Measured on 8 cores, and both halves of the win are worth recording because
-# only one of them is parallelism:
+# Measured on 8 cores, and only one half of the win is parallelism:
 #
-#   376.6 s  before — two Monte-Carlo sweeps were 75% of the gate
-#    91.5 s  after moving them to `make characterize` (4.1x, serial)
-#    29.9 s  after adding -n auto as well (3.1x again; 12.6x overall)
+#   376.6 s  before — three Monte-Carlo sweeps dominated the gate
+#    68.8 s  after moving them to `make characterize` (5.5x, still serial)
+#    ~13  s  with -n auto as well; 20.6 s for this whole target, downstream
+#            example included
 #
-# 3.1x rather than 8x on 8 cores is expected and not worth chasing: several
-# examples drive Plan.prepare()'s own pthread parallel-for, so workers
-# oversubscribe, and the run cannot finish faster than its longest single
-# example — `dsss_acq_characterization.py` at ~19 s, which is what the 29.9 s
-# is now mostly made of. That one is the obvious next candidate for the
-# characterization category; it is a characterization by name already.
+# The two halves are worth keeping separate because the first one is where the
+# thinking was: 164.6 s + 117.7 s + 18.9 s of sweep against ~58 s for every
+# other example combined. No amount of parallelism fixes a gate whose cost is
+# one item, and Amdahl said so — with the biggest sweep still present the floor
+# was its own 164.6 s.
+#
+# What is left is the shape xdist is actually good at: the longest single
+# example is now `detector2d_acq_demo.py` at ~6.2 s, with a smooth tail behind
+# it (5.6, 5.3, 4.0, 3.0 …), so no one item sets the floor. Sublinear scaling
+# is expected and not worth chasing — several examples drive Plan.prepare()'s
+# own pthread parallel-for, so workers oversubscribe by design.
 #
 # TWO passes, and the split is the point — exactly as `test-python` splits out
 # its benchmark directories, for the same reason. `ddc_fn_scaling.py` asserts a

@@ -3,7 +3,7 @@
 Imports its helper
 functions and re-runs them at a much smaller trial count (mirrors
 ``test_acq_characterization.py``'s relationship to
-``dsss_acq_characterization.py``), so the default test run gets real
+the `burst_acquisition` subject), so the default test run gets real
 coverage of the randomized C/N0 / Doppler / sample-rate / power-level /
 data-sequence axes without the full 300-trial sweep's wall-clock cost.
 

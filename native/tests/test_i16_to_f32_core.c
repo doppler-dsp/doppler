@@ -4,12 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 
-static inline int
-_feq (float a, float b, float tol)
-{
-  return fabsf (a - b) <= tol;
-}
-
 int
 main (void)
 {
@@ -22,9 +16,10 @@ main (void)
   {
     i16_to_f32_state_t *obj = i16_to_f32_create (32768.0f);
     DP_CHECK (obj != NULL);
-    DP_CHECK (_feq (i16_to_f32_step (obj, 32767), 32767.0f / 32768.0f, 1e-6f));
-    DP_CHECK (_feq (i16_to_f32_step (obj, -32768), -1.0f, 1e-6f));
-    DP_CHECK (_feq (i16_to_f32_step (obj, 0), 0.0f, 1e-7f));
+    DP_CHECK (
+        dp_nearf (i16_to_f32_step (obj, 32767), 32767.0f / 32768.0f, 1e-6f));
+    DP_CHECK (dp_nearf (i16_to_f32_step (obj, -32768), -1.0f, 1e-6f));
+    DP_CHECK (dp_nearf (i16_to_f32_step (obj, 0), 0.0f, 1e-7f));
     i16_to_f32_destroy (obj);
   }
 
@@ -32,8 +27,8 @@ main (void)
   {
     i16_to_f32_state_t *obj = i16_to_f32_create (1.0f);
     DP_CHECK (obj != NULL);
-    DP_CHECK (_feq (i16_to_f32_step (obj, 100), 100.0f, 1e-6f));
-    DP_CHECK (_feq (i16_to_f32_step (obj, -50), -50.0f, 1e-6f));
+    DP_CHECK (dp_nearf (i16_to_f32_step (obj, 100), 100.0f, 1e-6f));
+    DP_CHECK (dp_nearf (i16_to_f32_step (obj, -50), -50.0f, 1e-6f));
     i16_to_f32_destroy (obj);
   }
 
@@ -41,7 +36,7 @@ main (void)
   {
     i16_to_f32_state_t *obj = i16_to_f32_create (32768.0f);
     DP_CHECK (obj != NULL);
-    DP_CHECK (_feq (i16_to_f32_step (obj, 16384), 0.5f, 1.0f / 32768.0f));
+    DP_CHECK (dp_nearf (i16_to_f32_step (obj, 16384), 0.5f, 1.0f / 32768.0f));
     i16_to_f32_destroy (obj);
   }
 

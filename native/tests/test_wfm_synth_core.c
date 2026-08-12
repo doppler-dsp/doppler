@@ -7,21 +7,6 @@
 
 /* Floating-point helpers — use inline functions, not macros, so arguments
  * are evaluated exactly once.  Safe to call with stateful step() results. */
-static inline int
-_almost_eq (float a, float b, float tol)
-{
-  return fabsf (a - b) <= tol;
-}
-static inline int
-_almost_eq_c (float complex a, float complex b, float tol)
-{
-  return _almost_eq (crealf (a), crealf (b), tol)
-         && _almost_eq (cimagf (a), cimagf (b), tol);
-}
-#define ALMOST_EQ(a, b, tol) _almost_eq ((float)(a), (float)(b), tol)
-#define ALMOST_EQ_C(a, b, tol)                                                \
-  _almost_eq_c ((float complex) (a), (float complex) (b), tol)
-
 int
 main (void)
 {
@@ -147,10 +132,10 @@ main (void)
     float complex y[24];
     wfm_synth_steps (bs, y, 24); /* two passes (cycled) */
     /* bpsk: bit 1 -> -1, bit 0 -> +1; symbol centre at each sps-block */
-    DP_CHECK (ALMOST_EQ (crealf (y[0]), -1.0f, 1e-5f)); /* bit 1 */
-    DP_CHECK (ALMOST_EQ (crealf (y[2]), 1.0f, 1e-5f));  /* bit 0 */
+    DP_CHECK (dp_nearf (crealf (y[0]), -1.0f, 1e-5f)); /* bit 1 */
+    DP_CHECK (dp_nearf (crealf (y[2]), 1.0f, 1e-5f));  /* bit 0 */
     DP_CHECK (
-        ALMOST_EQ (crealf (y[12]), -1.0f, 1e-5f)); /* cycled: bit 1 again */
+        dp_nearf (crealf (y[12]), -1.0f, 1e-5f)); /* cycled: bit 1 again */
     int cyc = 1;
     for (int i = 0; i < 12; i++)
       if (y[i] != y[i + 12])
@@ -237,11 +222,11 @@ main (void)
     float complex y[16];
     wfm_synth_steps (ss, y, 16); /* 4 syms * 2 sps = 8/pass → two passes */
     /* symbol centre at each sps-block equals the symbol itself */
-    DP_CHECK (ALMOST_EQ_C (y[0], syms[0], 1e-5f));
-    DP_CHECK (ALMOST_EQ_C (y[2], syms[1], 1e-5f));
-    DP_CHECK (ALMOST_EQ_C (y[4], syms[2], 1e-5f));
-    DP_CHECK (ALMOST_EQ_C (y[6], syms[3], 1e-5f));
-    DP_CHECK (ALMOST_EQ_C (y[8], syms[0], 1e-5f)); /* cycled */
+    DP_CHECK (dp_cnearf (y[0], syms[0], 1e-5f));
+    DP_CHECK (dp_cnearf (y[2], syms[1], 1e-5f));
+    DP_CHECK (dp_cnearf (y[4], syms[2], 1e-5f));
+    DP_CHECK (dp_cnearf (y[6], syms[3], 1e-5f));
+    DP_CHECK (dp_cnearf (y[8], syms[0], 1e-5f)); /* cycled */
     int cyc = 1;
     for (int i = 0; i < 8; i++)
       if (y[i] != y[i + 8])
@@ -327,17 +312,17 @@ main (void)
     wfm_synth_steps (cu, y, N);
 
     /* unit magnitude everywhere (a pure FM tone has constant envelope) */
-    DP_CHECK (ALMOST_EQ (cabsf (y[0]), 1.0f, 1e-4f));
-    DP_CHECK (ALMOST_EQ (cabsf (y[N / 2]), 1.0f, 1e-4f));
-    DP_CHECK (ALMOST_EQ (cabsf (y[N - 1]), 1.0f, 1e-4f));
+    DP_CHECK (dp_nearf (cabsf (y[0]), 1.0f, 1e-4f));
+    DP_CHECK (dp_nearf (cabsf (y[N / 2]), 1.0f, 1e-4f));
+    DP_CHECK (dp_nearf (cabsf (y[N - 1]), 1.0f, 1e-4f));
 
     /* instantaneous frequency rises: estimate it from the phase increment
      * (cycles/sample) at the start vs. the end of the sweep. */
     double w_lo = carg (y[1] * conjf (y[0])) / 6.283185307179586; /* ≈ f0/fs */
     double w_hi
         = carg (y[N - 1] * conjf (y[N - 2])) / 6.283185307179586; /* ≈ f1/fs */
-    DP_CHECK (ALMOST_EQ (w_lo, f0 / fs, 2e-3f));
-    DP_CHECK (ALMOST_EQ (w_hi, f1 / fs, 2e-3f));
+    DP_CHECK (dp_nearf (w_lo, f0 / fs, 2e-3f));
+    DP_CHECK (dp_nearf (w_hi, f1 / fs, 2e-3f));
 
     /* step() and steps() must agree bit-for-bit (the #67 lesson). */
     wfm_synth_state_t *cs = wfm_synth_create (WFM_SYNTH_CHIRP, fs, f0, 100.0,
@@ -363,8 +348,8 @@ main (void)
     wfm_synth_steps (cd, d, N);
     double wd_lo = carg (d[1] * conjf (d[0])) / 6.283185307179586;
     double wd_hi = carg (d[N - 1] * conjf (d[N - 2])) / 6.283185307179586;
-    DP_CHECK (ALMOST_EQ (wd_lo, f1 / fs, 2e-3f)); /* starts high */
-    DP_CHECK (ALMOST_EQ (wd_hi, f0 / fs, 2e-3f)); /* ends low   */
+    DP_CHECK (dp_nearf (wd_lo, f1 / fs, 2e-3f)); /* starts high */
+    DP_CHECK (dp_nearf (wd_hi, f0 / fs, 2e-3f)); /* ends low   */
 
     free (d);
     free (y);

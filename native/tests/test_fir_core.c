@@ -4,18 +4,6 @@
 #include <math.h>
 #include <stdio.h>
 
-static inline int
-_feq (float a, float b, float tol)
-{
-  return fabsf (a - b) <= tol;
-}
-static inline int
-_ceq (float complex a, float complex b, float tol)
-{
-  return _feq (crealf (a), crealf (b), tol)
-         && _feq (cimagf (a), cimagf (b), tol);
-}
-
 int
 main (void)
 {
@@ -34,16 +22,16 @@ main (void)
   float complex out[6];
   size_t        n = fir_execute (f, in, 6, out);
   DP_CHECK (n == 6);
-  DP_CHECK (_feq (crealf (out[0]), 0.5f, 1e-6f));
-  DP_CHECK (_feq (crealf (out[1]), 0.25f, 1e-6f));
-  DP_CHECK (_feq (crealf (out[2]), 0.125f, 1e-6f));
-  DP_CHECK (_feq (crealf (out[3]), 0.0f, 1e-6f));
+  DP_CHECK (dp_nearf (crealf (out[0]), 0.5f, 1e-6f));
+  DP_CHECK (dp_nearf (crealf (out[1]), 0.25f, 1e-6f));
+  DP_CHECK (dp_nearf (crealf (out[2]), 0.125f, 1e-6f));
+  DP_CHECK (dp_nearf (crealf (out[3]), 0.0f, 1e-6f));
 
   /* ── reset clears delay ───────────────────────────────────────────── */
   fir_execute (f, in, 6, out);
   fir_reset (f);
   fir_execute (f, in, 6, out);
-  DP_CHECK (_feq (crealf (out[0]), 0.5f, 1e-6f));
+  DP_CHECK (dp_nearf (crealf (out[0]), 0.5f, 1e-6f));
 
   /* ── complex taps ─────────────────────────────────────────────────── */
   float complex ctaps[2] = { 1.0f + 0.0f * I, 0.0f + 1.0f * I };
@@ -53,8 +41,8 @@ main (void)
   float complex cin[4] = { 1.0f + 0.0f * I, 0, 0, 0 };
   float complex cout[4];
   fir_execute (cf, cin, 4, cout);
-  DP_CHECK (_ceq (cout[0], 1.0f + 0.0f * I, 1e-6f));
-  DP_CHECK (_ceq (cout[1], 0.0f + 1.0f * I, 1e-6f));
+  DP_CHECK (dp_cnearf (cout[0], 1.0f + 0.0f * I, 1e-6f));
+  DP_CHECK (dp_cnearf (cout[1], 0.0f + 1.0f * I, 1e-6f));
   fir_destroy (cf);
 
   fir_destroy (f);

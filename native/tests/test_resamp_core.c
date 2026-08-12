@@ -48,8 +48,6 @@
 /* File-scope so the §10+ section functions can CHECK for themselves rather
    than funnelling a bool back through main(). */
 
-#define ALMOST_EQ(a, b, tol) (fabsf ((float)(a) - (float)(b)) <= (float)(tol))
-
 /* ── The two resampling gates ────────────────────────────────────────────
  *
  * They are BOTH needed, and mutation testing shows why: their sensitivities

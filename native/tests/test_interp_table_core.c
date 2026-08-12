@@ -17,14 +17,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static inline int
-almost_eq_c (double complex a, double complex b, double tol)
-{
-  return fabs (creal (a) - creal (b)) <= tol
-         && fabs (cimag (a) - cimag (b)) <= tol;
-}
-#define ALMOST_EQ_C(a, b) almost_eq_c ((a), (b), 1e-9)
-
 int
 main (void)
 {
@@ -55,9 +47,9 @@ main (void)
     double                in[3] = { 0.9, 1.9, 2.9 };
     double complex        out[3];
     DP_CHECK (interp_table_execute (obj, in, 3, out, 3) == 3);
-    DP_CHECK (ALMOST_EQ_C (out[0], 10.0));
-    DP_CHECK (ALMOST_EQ_C (out[1], 20.0));
-    DP_CHECK (ALMOST_EQ_C (out[2], 30.0));
+    DP_CHECK (dp_cnear (out[0], 10.0, 1e-9));
+    DP_CHECK (dp_cnear (out[1], 20.0, 1e-9));
+    DP_CHECK (dp_cnear (out[2], 30.0, 1e-9));
     interp_table_destroy (obj);
   }
 
@@ -70,9 +62,10 @@ main (void)
     double                in[3] = { 0.4, 0.6, 1.5 };
     double complex        out[3];
     DP_CHECK (interp_table_execute (obj, in, 3, out, 3) == 3);
-    DP_CHECK (ALMOST_EQ_C (out[0], 10.0)); /* frac=0.4 <= 0.5 -> lo */
-    DP_CHECK (ALMOST_EQ_C (out[1], 20.0)); /* frac=0.6 >  0.5 -> hi */
-    DP_CHECK (ALMOST_EQ_C (out[2], 20.0)); /* frac=0.5 exactly -> lo (tie) */
+    DP_CHECK (dp_cnear (out[0], 10.0, 1e-9)); /* frac=0.4 <= 0.5 -> lo */
+    DP_CHECK (dp_cnear (out[1], 20.0, 1e-9)); /* frac=0.6 >  0.5 -> hi */
+    DP_CHECK (
+        dp_cnear (out[2], 20.0, 1e-9)); /* frac=0.5 exactly -> lo (tie) */
     interp_table_destroy (obj);
   }
 
@@ -87,9 +80,9 @@ main (void)
     double                in[3] = { 0.25, 2.75, -0.5 };
     double complex        out[3];
     DP_CHECK (interp_table_execute (obj, in, 3, out, 3) == 3);
-    DP_CHECK (ALMOST_EQ_C (out[0], 12.5)); /* 10 + 0.25*(20-10) */
-    DP_CHECK (ALMOST_EQ_C (out[1], 15.0)); /* wraps: 30 + 0.75*(10-30) */
-    DP_CHECK (ALMOST_EQ_C (out[2], 20.0)); /* floor(-0.5)=-1 -> idx 2;
+    DP_CHECK (dp_cnear (out[0], 12.5, 1e-9)); /* 10 + 0.25*(20-10) */
+    DP_CHECK (dp_cnear (out[1], 15.0, 1e-9)); /* wraps: 30 + 0.75*(10-30) */
+    DP_CHECK (dp_cnear (out[2], 20.0, 1e-9)); /* floor(-0.5)=-1 -> idx 2;
                                             frac=0.5: 30 + 0.5*(10-30) */
     interp_table_destroy (obj);
   }
@@ -104,7 +97,7 @@ main (void)
     double         in[1] = { 0.0 };
     double complex out[1];
     interp_table_execute (obj, in, 1, out, 1);
-    DP_CHECK (ALMOST_EQ_C (out[0], 1.0)); /* unaffected by the mutation */
+    DP_CHECK (dp_cnear (out[0], 1.0, 1e-9)); /* unaffected by the mutation */
     interp_table_destroy (obj);
   }
 
@@ -124,7 +117,7 @@ main (void)
     DP_CHECK (interp_table_execute (obj, in, 6, full, 6) == 6);
     DP_CHECK (interp_table_execute (obj, in, 6, out, 2) == 2);
     for (int i = 0; i < 2; i++)
-      DP_CHECK (ALMOST_EQ_C (out[i], creal (full[i])));
+      DP_CHECK (dp_cnear (out[i], creal (full[i]), 1e-9));
     for (int i = 2; i < 6; i++)
       DP_CHECK (out[i] == 42.0 + 42.0 * I); /* tail untouched */
 

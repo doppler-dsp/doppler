@@ -15,13 +15,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static inline int
-_almost_eq_c (float complex a, float complex b, float tol)
-{
-  return fabsf (crealf (a) - crealf (b)) <= tol
-         && fabsf (cimagf (a) - cimagf (b)) <= tol;
-}
-
 /* ── ddcr_run pure-transducer round-trip ──────────────────────────────────
  * The stateless `ddcr_run(state_in, state_out, …)` face: a whole-stream
  * reference run, then a split where the first half emits its state and a
@@ -63,7 +56,7 @@ test_run_roundtrip (double norm_freq, double rate)
      * split boundary: the CIC / Resampler taps contract differently across
      * the cut on arm64 (the halfband plan is grouping-invariant, hence exact
      * there). A real state-restore bug would be O(1) — far above tol. */
-    if (!_almost_eq_c (outA[i], outB[i], 1e-3f))
+    if (!dp_cnearf (outA[i], outB[i], 1e-3f))
       bad++;
   DP_CHECK (bad == 0);
 
@@ -223,7 +216,7 @@ test_push_equals_block (void)
   DP_CHECK (nA == nB);
   int bad = 0;
   for (size_t i = 0; i < nA && i < nB; i++)
-    if (!_almost_eq_c (outA[i], outB[i], 1e-5f))
+    if (!dp_cnearf (outA[i], outB[i], 1e-5f))
       bad++;
   DP_CHECK (bad == 0);
   ddcr_destroy (a);

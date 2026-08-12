@@ -23,19 +23,6 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-static inline int
-_feq (float a, float b, float tol)
-{
-  return fabsf (a - b) <= tol;
-}
-static inline int
-_ceq (float complex a, float complex b, float tol)
-{
-  return _feq (crealf (a), crealf (b), tol)
-         && _feq (cimagf (a), cimagf (b), tol);
-}
-#define FEQC(a, b, tol) _ceq ((float complex) (a), (float complex) (b), (tol))
-
 /*
  * Feed n_in copies of `sample` through obj and return the last output.
  * `out` must hold at least ceil(n_in / R) elements.
@@ -114,7 +101,7 @@ main (void)
     size_t        n      = cic_decimate (obj, in, 64, out, 64);
     DP_CHECK (n == 16);
     for (size_t i = CIC_N; i < n; i++)
-      DP_CHECK (FEQC (out[i], 0.0f, 0.0f));
+      DP_CHECK (dp_cnearf (out[i], 0.0f, 0.0f));
     cic_destroy (obj);
   }
 
@@ -128,7 +115,7 @@ main (void)
     float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
     float complex  last
         = dc_last (obj, 1.0f + 0.0f * I, out, n_in, n_in / R + 1);
-    DP_CHECK (FEQC (last, 1.0f + 0.0f * I, 4e-5f));
+    DP_CHECK (dp_cnearf (last, 1.0f + 0.0f * I, 4e-5f));
     free (out);
     cic_destroy (obj);
   }
@@ -142,7 +129,7 @@ main (void)
     float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
     float complex  last
         = dc_last (obj, -1.0f + 0.0f * I, out, n_in, n_in / R + 1);
-    DP_CHECK (FEQC (last, -1.0f + 0.0f * I, 4e-5f));
+    DP_CHECK (dp_cnearf (last, -1.0f + 0.0f * I, 4e-5f));
     free (out);
     cic_destroy (obj);
   }
@@ -156,7 +143,7 @@ main (void)
     float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
     float complex  last
         = dc_last (obj, 0.0f + 1.0f * I, out, n_in, n_in / R + 1);
-    DP_CHECK (FEQC (last, 0.0f + 1.0f * I, 4e-5f));
+    DP_CHECK (dp_cnearf (last, 0.0f + 1.0f * I, 4e-5f));
     free (out);
     cic_destroy (obj);
   }
@@ -171,7 +158,7 @@ main (void)
     float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
     float complex  last
         = dc_last (obj, 0.5f + 0.5f * I, out, n_in, n_in / R + 1);
-    DP_CHECK (FEQC (last, 0.5f + 0.5f * I, 4e-5f));
+    DP_CHECK (dp_cnearf (last, 0.5f + 0.5f * I, 4e-5f));
     free (out);
     cic_destroy (obj);
   }
@@ -222,7 +209,7 @@ main (void)
     DP_CHECK (n == (size_t)(8 * CIC_N));
 
     /* settled output must be 1.0 */
-    DP_CHECK (FEQC (out[n - 1], 1.0f + 0.0f * I, 4e-5f));
+    DP_CHECK (dp_cnearf (out[n - 1], 1.0f + 0.0f * I, 4e-5f));
     cic_destroy (obj);
   }
 
@@ -258,8 +245,8 @@ main (void)
     cic_decimate (a, in, R, out_split, 4);
     cic_decimate (a, in + R, R, out_split + 1, 3);
 
-    DP_CHECK (FEQC (out_split[0], out_whole[0], 0.0f));
-    DP_CHECK (FEQC (out_split[1], out_whole[1], 0.0f));
+    DP_CHECK (dp_cnearf (out_split[0], out_whole[0], 0.0f));
+    DP_CHECK (dp_cnearf (out_split[1], out_whole[1], 0.0f));
 
     cic_destroy (a);
     cic_destroy (b);
@@ -430,17 +417,17 @@ main (void)
     DP_CHECK (cic_decimate (b, in, n_in, part, K) == K);
     /* what was written is the true prefix ... */
     for (size_t k = 0; k < K; k++)
-      DP_CHECK (FEQC (part[k], full[k], 0.0f));
+      DP_CHECK (dp_cnearf (part[k], full[k], 0.0f));
     /* ... and nothing past the capacity was touched. */
     for (size_t k = K; k < n_full; k++)
-      DP_CHECK (FEQC (part[k], CANARY, 0.0f));
+      DP_CHECK (dp_cnearf (part[k], CANARY, 0.0f));
     /* ... and both filters are in the SAME state: the next block agrees. */
     float complex nextA[16], nextB[16];
     size_t        nA = cic_decimate (a, in, n_in, nextA, n_full);
     size_t        nB = cic_decimate (b, in, n_in, nextB, n_full);
     DP_CHECK (nA == nB);
     for (size_t k = 0; k < nA; k++)
-      DP_CHECK (FEQC (nextA[k], nextB[k], 0.0f));
+      DP_CHECK (dp_cnearf (nextA[k], nextB[k], 0.0f));
 
     cic_destroy (a);
     cic_destroy (b);

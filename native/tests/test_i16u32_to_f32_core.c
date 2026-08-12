@@ -4,12 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 
-static inline int
-_feq (float a, float b, float tol)
-{
-  return fabsf (a - b) <= tol;
-}
-
 int
 main (void)
 {
@@ -21,15 +15,15 @@ main (void)
     i16u32_to_f32_state_t *obj = i16u32_to_f32_create (32768.0f);
     DP_CHECK (obj != NULL);
     /* 0x00007FFF = int16 +32767 */
-    DP_CHECK (_feq (i16u32_to_f32_step (obj, 0x00007FFFu), 32767.0f / 32768.0f,
-                    1e-6f));
+    DP_CHECK (dp_nearf (i16u32_to_f32_step (obj, 0x00007FFFu),
+                        32767.0f / 32768.0f, 1e-6f));
     /* 0x00008000 = int16 -32768 (two's complement) */
-    DP_CHECK (_feq (i16u32_to_f32_step (obj, 0x00008000u), -1.0f, 1e-6f));
-    DP_CHECK (_feq (i16u32_to_f32_step (obj, 0u), 0.0f, 1e-7f));
+    DP_CHECK (dp_nearf (i16u32_to_f32_step (obj, 0x00008000u), -1.0f, 1e-6f));
+    DP_CHECK (dp_nearf (i16u32_to_f32_step (obj, 0u), 0.0f, 1e-7f));
     /* Upper 16 bits must be ignored */
     float a = i16u32_to_f32_step (obj, 0x00007FFFu);
     float b = i16u32_to_f32_step (obj, 0xDEAD7FFFu);
-    DP_CHECK (_feq (a, b, 1e-7f));
+    DP_CHECK (dp_nearf (a, b, 1e-7f));
     i16u32_to_f32_destroy (obj);
   }
 

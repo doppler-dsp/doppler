@@ -8,13 +8,6 @@
 
 #define TOL 1e-12
 
-static inline int
-ceq (double complex a, double complex b)
-{
-  return fabs (creal (a) - creal (b)) < TOL
-         && fabs (cimag (a) - cimag (b)) < TOL;
-}
-
 int
 main (void)
 {
@@ -64,9 +57,9 @@ main (void)
 
     size_t n = delay_ptr (obj, 3, win, 3);
     DP_CHECK (n == 3);
-    DP_CHECK (ceq (win[0], 3.0 + 0.0 * I));
-    DP_CHECK (ceq (win[1], 2.0 + 0.0 * I));
-    DP_CHECK (ceq (win[2], 1.0 + 0.0 * I));
+    DP_CHECK (dp_cnear (win[0], 3.0 + 0.0 * I, TOL));
+    DP_CHECK (dp_cnear (win[1], 2.0 + 0.0 * I, TOL));
+    DP_CHECK (dp_cnear (win[2], 1.0 + 0.0 * I, TOL));
     delay_destroy (obj);
   }
 
@@ -78,8 +71,8 @@ main (void)
     delay_push (obj, 10.0 + 0.0 * I);
     size_t n = delay_push_ptr (obj, 20.0 + 0.0 * I, win, 2);
     DP_CHECK (n == 2);
-    DP_CHECK (ceq (win[0], 20.0 + 0.0 * I));
-    DP_CHECK (ceq (win[1], 10.0 + 0.0 * I));
+    DP_CHECK (dp_cnear (win[0], 20.0 + 0.0 * I, TOL));
+    DP_CHECK (dp_cnear (win[1], 10.0 + 0.0 * I, TOL));
     delay_destroy (obj);
   }
 
@@ -95,10 +88,10 @@ main (void)
 
     /* Last 4 pushes: 5 6 7 8 → window = [8, 7, 6, 5] */
     delay_ptr (obj, 4, win, 4);
-    DP_CHECK (ceq (win[0], 8.0 + 0.0 * I));
-    DP_CHECK (ceq (win[1], 7.0 + 0.0 * I));
-    DP_CHECK (ceq (win[2], 6.0 + 0.0 * I));
-    DP_CHECK (ceq (win[3], 5.0 + 0.0 * I));
+    DP_CHECK (dp_cnear (win[0], 8.0 + 0.0 * I, TOL));
+    DP_CHECK (dp_cnear (win[1], 7.0 + 0.0 * I, TOL));
+    DP_CHECK (dp_cnear (win[2], 6.0 + 0.0 * I, TOL));
+    DP_CHECK (dp_cnear (win[3], 5.0 + 0.0 * I, TOL));
     delay_destroy (obj);
   }
 
@@ -113,9 +106,9 @@ main (void)
     delay_write (obj, 3.0 + 0.0 * I);
 
     delay_ptr (obj, 3, win, 3);
-    DP_CHECK (ceq (win[0], 3.0 + 0.0 * I));
-    DP_CHECK (ceq (win[1], 2.0 + 0.0 * I));
-    DP_CHECK (ceq (win[2], 1.0 + 0.0 * I));
+    DP_CHECK (dp_cnear (win[0], 3.0 + 0.0 * I, TOL));
+    DP_CHECK (dp_cnear (win[1], 2.0 + 0.0 * I, TOL));
+    DP_CHECK (dp_cnear (win[2], 1.0 + 0.0 * I, TOL));
     delay_destroy (obj);
   }
 
@@ -132,7 +125,7 @@ main (void)
     DP_CHECK (obj->head == 0);
     delay_ptr (obj, 4, win, 4);
     for (int i = 0; i < 4; i++)
-      DP_CHECK (ceq (win[i], 0.0 + 0.0 * I));
+      DP_CHECK (dp_cnear (win[i], 0.0 + 0.0 * I, TOL));
     delay_destroy (obj);
   }
 
@@ -156,8 +149,8 @@ main (void)
     delay_push (obj, -3.0 + 4.0 * I);
 
     delay_ptr (obj, 2, win, 2);
-    DP_CHECK (ceq (win[0], -3.0 + 4.0 * I));
-    DP_CHECK (ceq (win[1], 1.5 + 2.5 * I));
+    DP_CHECK (dp_cnear (win[0], -3.0 + 4.0 * I, TOL));
+    DP_CHECK (dp_cnear (win[1], 1.5 + 2.5 * I, TOL));
     delay_destroy (obj);
   }
 
@@ -177,25 +170,25 @@ main (void)
     for (size_t k = 0; k < 4; k++)
       win[k] = CANARY;
     DP_CHECK (delay_ptr (obj, 4, win, 2) == 2);
-    DP_CHECK (ceq (win[0], 4.0 + 0.0 * I));
-    DP_CHECK (ceq (win[1], 3.0 + 0.0 * I));
-    DP_CHECK (ceq (win[2], CANARY)); /* past capacity: untouched */
-    DP_CHECK (ceq (win[3], CANARY));
+    DP_CHECK (dp_cnear (win[0], 4.0 + 0.0 * I, TOL));
+    DP_CHECK (dp_cnear (win[1], 3.0 + 0.0 * I, TOL));
+    DP_CHECK (dp_cnear (win[2], CANARY, TOL)); /* past capacity: untouched */
+    DP_CHECK (dp_cnear (win[3], CANARY, TOL));
 
     /* max_out == 0 writes nothing. */
     for (size_t k = 0; k < 4; k++)
       win[k] = CANARY;
     DP_CHECK (delay_ptr (obj, 4, win, 0) == 0);
     for (size_t k = 0; k < 4; k++)
-      DP_CHECK (ceq (win[k], CANARY));
+      DP_CHECK (dp_cnear (win[k], CANARY, TOL));
 
     /* push_ptr with no room: the snapshot is empty, but sample 5 is in. */
     DP_CHECK (delay_push_ptr (obj, 5.0 + 0.0 * I, win, 0) == 0);
     for (size_t k = 0; k < 4; k++)
-      DP_CHECK (ceq (win[k], CANARY));
+      DP_CHECK (dp_cnear (win[k], CANARY, TOL));
     DP_CHECK (delay_ptr (obj, 4, win, 4) == 4);
-    DP_CHECK (ceq (win[0], 5.0 + 0.0 * I)); /* the push landed */
-    DP_CHECK (ceq (win[1], 4.0 + 0.0 * I));
+    DP_CHECK (dp_cnear (win[0], 5.0 + 0.0 * I, TOL)); /* the push landed */
+    DP_CHECK (dp_cnear (win[1], 4.0 + 0.0 * I, TOL));
 
     delay_destroy (obj);
   }

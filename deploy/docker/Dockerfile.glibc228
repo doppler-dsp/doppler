@@ -1,0 +1,58 @@
+# syntax=docker/dockerfile:1
+# deploy/docker/Dockerfile.glibc228 — the glibc floor, as a build toolchain.
+#
+# Unlike every other image here, this one carries NO doppler source and is
+# never published. It is a build environment for a gate: `make glibc-gate`
+# bind-mounts the checkout into it, builds out-of-tree, and points the
+# existing `glibc-check` at the result. That is what makes the floor
+# answerable on a modern dev box — the check was always fine, the *input*
+# was what only CI could produce.
+#
+# Debian 10 "Buster" IS the floor: its glibc is 2.28, which is exactly what
+# GLIBC_MAX asserts. So raising GLIBC_MAX means moving this base image to the
+# distro shipping that glibc, not just editing the number in the Makefile.
+#
+# The provisioning below is lifted verbatim in intent from the steps that
+# used to sit inline in .github/workflows/ci.yml. Moving it here is what let
+# that job collapse to a single `make glibc-gate`, so CI and a dev box now
+# run one definition instead of two that could drift.
+FROM debian:buster-slim
+
+# Buster is EOL: the regular mirrors no longer carry it, and its release
+# files are past Valid-Until. Both the archive mirror and the explicit
+# opt-out are required — either alone still fails at `apt-get update`.
+RUN printf '%s\n' \
+      'deb http://archive.debian.org/debian buster main' \
+      'deb http://archive.debian.org/debian-security buster/updates main' \
+      > /etc/apt/sources.list \
+ && apt-get -o Acquire::Check-Valid-Until=false update \
+ && apt-get install -y --no-install-recommends \
+      build-essential \
+      pkg-config \
+      ca-certificates \
+      wget \
+ && rm -rf /var/lib/apt/lists/*
+
+# Buster ships cmake 3.13, under doppler's 3.16 minimum, and Kitware's own
+# Buster apt repo is EOL too — so take the statically-linked installer from
+# the GitHub release. TARGETARCH is supplied by buildkit; Kitware's asset
+# names differ from Docker's arch names, hence the mapping. Failing loudly on
+# an unmapped arch beats downloading a 404 and installing nothing.
+ARG CMAKE_VERSION=3.28.6
+ARG TARGETARCH=amd64
+RUN set -eu; \
+    case "$TARGETARCH" in \
+      amd64) karch=x86_64  ;; \
+      arm64) karch=aarch64 ;; \
+      *) echo "no Kitware cmake asset for TARGETARCH=$TARGETARCH" >&2; \
+         exit 1 ;; \
+    esac; \
+    wget -q -O /tmp/cmake-install.sh \
+      "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${karch}.sh"; \
+    sh /tmp/cmake-install.sh --skip-license --prefix=/usr/local; \
+    rm /tmp/cmake-install.sh
+
+# `make glibc-gate` runs this as the invoking user (so the build tree it
+# writes into the bind-mounted checkout is not root-owned) and that uid has
+# no passwd entry, hence no home. Anything asking for one lands in /tmp.
+ENV HOME=/tmp

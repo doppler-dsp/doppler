@@ -14,6 +14,24 @@ the Makefile (the single driver — never a raw `docker build`):
 
 `make docker-examples` builds + smokes all three build-on-doppler images.
 
+## The one image that is not an image *of* doppler
+
+| Image                  | For                                    | Dockerfile            | Built by          | Published          |
+| ---------------------- | -------------------------------------- | --------------------- | ----------------- | ------------------ |
+| **`doppler-glibc228`** | *gating* the glibc floor — a toolchain | `Dockerfile.glibc228` | `make glibc-gate` | never (local + CI) |
+
+Every image above bakes doppler *in*. This one bakes nothing in: it is Debian
+10 (glibc 2.28) plus a build toolchain, and `make glibc-gate` bind-mounts the
+checkout into it, builds out-of-tree into `build-glibc228/`, smoke-runs the C
+examples, and points the existing `glibc-check` at the result.
+
+It exists because `glibc-check` is pure inspection — it only means anything
+against a build *made* on the floor. Until this image, that build could only
+happen inside CI's job, so the answer arrived one push at a time. The apt and
+cmake bootstrap that used to sit inline in `ci.yml` lives in the Dockerfile
+now, and the job is a single `make glibc-gate` — the same command a laptop
+runs.
+
 ## Why one Dockerfile for three images
 
 `Dockerfile.examples` compiles and *installs* this checkout's doppler **once**
@@ -45,6 +63,7 @@ flowchart TD
 | `Dockerfile.cli`      | runtime "try it" image (wheel + demos)               |
 | `Dockerfile.examples` | the shared-base multi-target build-on-doppler images |
 | `Dockerfile`          | k8s `stream_tool` (produce/consume)                  |
+| `Dockerfile.glibc228` | Debian 10 build toolchain for the `glibc-gate` gate  |
 | `stream_tool.c`       | its source                                           |
 | `*-README.md`         | the in-image guide COPYed into each image            |
 

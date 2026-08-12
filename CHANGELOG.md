@@ -727,6 +727,42 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **The AGC's decimated loop filter integrated rectangularly, and `decim`
+    now comes with a rule.** The detector's pole was compounded; the loop
+    gain was not — it scaled linearly as `d*4*loop_bw`, the rectangular
+    approximation to `1-(1-4*loop_bw)^d`. `(1 - d*k1)` is always the
+    smaller, so **a larger `decim` always converged faster**, which is the
+    2.53 dB spread `test_agc_core.c` §23 had recorded and declined to
+    assert. Now `ema_alpha_decim(4*loop_bw, d)`, exact at `d == 1`.
+
+    That cut it 3.3x (2.53 → 0.77 dB at the same settings) and did not
+    remove it, because the rest is the **first-order hold**: the applied
+    gain ramps across each chunk, so a longer chunk ramps over a longer
+    span and the detector sees a different signal. Not a coefficient, so
+    not compoundable — but boundable, by one number:
+
+    **Keep `4*decim*loop_bw <= 0.05` and `decim` costs under 0.3 dB of
+    transient.** Below that the worst case scales as roughly 6x the group,
+    so halving it halves the error; §23's own settings sit at 0.32, six
+    times the rule, which is why the anomaly showed up there.
+
+    Both step directions are quoted in the header table because the loop is
+    not symmetric — the detector is inside it and measures power, so a
+    **rising** gain costs ~4x a falling one and sets the rule. That was
+    nearly missed: the first sweep measured only the falling direction and
+    put the promise at 0.1 dB. `agc_demo.py` cold-starts into a weak signal,
+    so its new step-response family assert failed at 0.232 dB and forced the
+    correction before any of it shipped — the example working as a gate, not
+    an illustration. `docs/dev/validation.md`'s checklist now names that
+    step explicitly.
+
+    §23 asserts both directions, and they do different jobs: reverting the
+    compounding moves the falling case 0.059 → 0.146 dB but the rising one
+    only 0.197 → 0.232 dB, so the falling case is the **regression
+    detector** (verified by reverting it) and the rising case pins the
+    promise. Stated in the test, because a bound that cannot fail is
+    decoration. Closes #699.
+
 - **75 assertions across 20 C tests could not fail.** The hand-written
     epilogue every test carried — `if (_fails) { …; return 1; }` then
     `printf ("… PASSED"); return 0;` — had drifted in 20 files so the gate sat

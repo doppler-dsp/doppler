@@ -71,10 +71,42 @@
  * staircase — while the gain-apply and the power sum vectorise.  This is
  * sound because the detector average already band-limits the envelope,
  * but it makes agc_steps() not bit-identical to a per-sample agc_step()
- * loop, only equivalent at convergence.  The per-block detector and loop
- * coefficients are rescaled from @c alpha / @c loop_bw internally, so
- * those keep their per-sample meaning; keep @c loop_bw well below
- * @c 1/(4*decim) for loop stability.
+ * loop, only equivalent at convergence.  Both per-block coefficients are
+ * COMPOUNDED from @c alpha / @c loop_bw internally — @c 1-(1-a)^decim, not
+ * @c decim*a — so both keep their per-sample meaning exactly, including at
+ * @c decim==1.
+ *
+ * @par Choosing decim — one number
+ * @parblock
+ * @c 4*decim*loop_bw is how far the loop moves within one chunk, and it is
+ * the only quantity that decides whether @c decim is free:
+ *
+ * | @c 4*decim*loop_bw | gain falling | gain rising | worst |
+ * | ------------------ | ------------ | ----------- | ------- |
+ * | 0.008              | 0.015 dB     | 0.054 dB    | 0.05 dB |
+ * | 0.032              | 0.059 dB     | 0.197 dB    | 0.20 dB |
+ * | 0.128              | 0.281 dB     | 0.592 dB    | 0.59 dB |
+ * | 0.320              | 1.08 dB      | 0.91 dB     | 1.08 dB |
+ * | 0.640              | 3.73 dB      | 0.97 dB     | 3.73 dB |
+ *
+ * **Keep @c 4*decim*loop_bw at or below 0.05 and @c decim costs under
+ * 0.3 dB of transient** — pick it for throughput and forget it.  Below
+ * that the worst case scales roughly as 6x the number, so halving the
+ * group halves the error; above it @c decim becomes a tuning parameter
+ * you have to account for.
+ *
+ * Both directions are quoted because this loop is not symmetric: the
+ * detector is inside it and measures POWER, so a rising gain (weak input)
+ * costs about 4x a falling one at the same group, and is the direction the
+ * rule is set by.  It is the same asymmetry the @c loop_bw parameter note
+ * describes for settling time.
+ *
+ * The steady state is unaffected either way; this is about the shape of
+ * the acquisition.  What sets the bound is the first-order hold, not the
+ * coefficients: a longer chunk ramps the gain over a longer span, so the
+ * detector sees a different signal.  That is also why it cannot be
+ * compounded away.
+ * @endparblock
  *
  * @par Output clipping
  * Each output sample is square-clipped: the real and imaginary parts
@@ -167,9 +199,9 @@ extern "C"
  * @brief Default envelope decimation factor (agc_state_t::decim).
  *
  * agc_steps() runs the detector + loop filter once per chunk of
- * @c decim samples.  @c decim must stay small relative to the loop time
- * constant ~1/(4*loop_bw); useful values are 8, 16 and 32.  8 keeps the
- * gain trajectory well inside the default loop bandwidth and is one
+ * @c decim samples; useful values are 8, 16 and 32.  The rule is
+ * @c 4*decim*loop_bw <= 0.05 (see "Choosing decim" above), which 8
+ * satisfies at every loop bandwidth this object is used at; it is also one
  * AVX-width vector for the in-chunk gain-apply.
  */
 #define AGC_DECIM_DEFAULT 8
@@ -322,7 +354,9 @@ extern "C"
      * refreshes once per this many samples — a zero-order hold on the
      * gain that amortises the transcendentals on a sample-rate hot loop.
      * 1 (default) is the exact per-sample loop; >1 trades gain-update
-     * latency for speed (keep well below 1/(4*loop_bw), like decim). */
+     * latency for speed (keep well below 1/(4*loop_bw)).  The same shape
+     * as decim's `4*decim*loop_bw <= 0.05`, but only decim's is measured —
+     * this one is a zero-order hold on a different quantity. */
     size_t gain_update_period;
     double gain_db; /* loop-filter integrator: current gain, dB        */
     /* Power-detector EMA of OUTPUT power, linear. Anything setting this by
@@ -357,8 +391,8 @@ extern "C"
    *                 2.2x at -40 dB in, worse at small @p alpha).  Treat
    *                 @c 1/(4*loop_bw) as a floor on settling, not an
    *                 estimate of it.  Smaller values are slower and
-   *                 smoother; keep well below @c 1/(4*decim) when using
-   *                 agc_steps().
+   *                 smoother.  With agc_steps(), the pairing rule is
+   *                 @c 4*decim*loop_bw <= 0.05 — see "Choosing decim".
    * @param alpha    Power-detector EMA coefficient in (0, 1]; smaller values
    *                 smooth harder but react slower to envelope changes.
    * @return Heap-allocated @c agc_state_t, or @c NULL on allocation failure.

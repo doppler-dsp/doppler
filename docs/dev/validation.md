@@ -164,13 +164,34 @@ the moment its folder exists** — there is no registration step to forget.
 ## Adding an object
 
 - [ ] Enumerate the header's claims; map each onto the C test
+
 - [ ] Write C tests for the uncovered ones; sabotage each and watch it fail
+
 - [ ] Create `src/doppler/<module>/tests/validation/<object>/` with
     `validate.py` and an `__init__.py`
+
 - [ ] Add the module's `test_validation_limits.py` if it is the module's
     first object; otherwise add the object to its `OBJECTS` map
+
 - [ ] `make validate` to generate `results.md`, plots and CSVs
+
+- [ ] **Update the C test and the Python example to carry whatever the
+    validation established** — a new limit, a corrected rule, a number a
+    caller has to choose by. A finding that reaches only the report reaches
+    nobody: the report is evidence, while `native/tests/test_<obj>_core.c`
+    is what keeps the property true and `src/doppler/examples/<obj>_demo.py`
+    is where a user meets it. Both are already gated (`ctest`, and
+    `test_examples.py` runs every example and requires it to self-validate
+    with physical asserts), so a rule written into them cannot quietly stop
+    being true.
+
+    This is not bookkeeping. The AGC's `4*decim*loop_bw <= 0.05` rule was
+    calibrated on one step direction, and it was **the example** — which
+    cold-starts into a weak signal, the other direction — that failed its
+    own assert and forced the rule 4x tighter before it shipped.
+
 - [ ] `make validate-check` and the module's pytest, both green
+
 - [ ] Commit the generated report — it is the deliverable, not a build
     artifact
 

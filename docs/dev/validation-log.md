@@ -62,7 +62,7 @@ folder exists. There is no list here to update.
 
 | object                                                                                                              | module     | limits | findings | still open                          |
 | ------------------------------------------------------------------------------------------------------------------- | ---------- | ------ | -------- | ----------------------------------- |
-| [AGC](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/agc/tests/validation/agc/results.md)             | `agc`      | 16/16  | 6        | 3 — F3, F4, F6                      |
+| [AGC](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/agc/tests/validation/agc/results.md)             | `agc`      | 18/18  | 6        | 2 — F4, F6                          |
 | [resamp](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/resample/tests/validation/resamp/results.md)  | `resample` | 14/14  | 9        | none                                |
 | [LO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/lo/results.md)            | `source`   | 26/26  | 9        | none                                |
 | [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)          | `source`   | 18/18  | 9        | none                                |

@@ -202,6 +202,63 @@ ______________________________________________________________________
     reason. It is empty, and the intent is that it stays that way — the
     regression above was fixed by rebasing, not by an entry.
 
+- **`dp_tlm_demux()` and `dp_tlm_demux_counts()` split a record array by
+    probe in one pass** (C API; `dp_tlm/dp_tlm_core.h`). Records come out of a
+    context interleaved — every probe's emissions in emission order — and every
+    consumer that wanted one probe's trace wrote the same
+    `recs[recs["probe"] == id]["value"]` filter, once per probe, over the whole
+    array. The pair does it as a sizing pass and a fill pass, placing each
+    record on the visit that reads it: **O(n)** rather than O(n × probes).
+
+    Both take a plain array rather than a context, so the same call serves
+    `dp_tlm_read()`'s output, `dp_tlm_capture_records()`, and a `.tlm16` file
+    read straight off disk. Probe ids are registry slots, so `counts` and the
+    destination tables are indexed directly by id and need no map; ids beyond
+    the caller's table are skipped rather than treated as an error, because a
+    blob from another context may legitimately carry more probes than the one
+    asking about it. Writes stop at each probe's capacity, so a buffer sized
+    from a stale count truncates instead of overrunning.
+
+- **`read_dict()` on `Telemetry`, `MemoryCapture` and `Capture`** — the same
+    records the existing readers return, grouped by probe **name**:
+    `{name: values}`, or `{name: (n, values)}` with `index=True`, where `n` is
+    the sample index each value was stamped with. That last part is the point
+    of the index flag — a real time axis is `n / fs`, where the alternative
+    people actually wrote was `np.arange(v.size)` labelled "symbol index",
+    which is only the same thing when every probe fires on every sample.
+
+    `Telemetry.read_dict()` **drains**, exactly as `read()` does, and shares the
+    ring with it — calling both in one loop splits the records between them.
+    The capture flavours' does **not** consume: it reads the accumulated
+    capture and can be called as often as you like. Every *registered* probe
+    gets a key either way, including one that emitted nothing on this drain, so
+    a plotting loop does not break on the first block where a probe happens not
+    to fire.
+
+    The regrouping is **not** in the binding — it is `dp_tlm_demux()` above, so
+    a C consumer reading a `.tlm16` off disk gets the identical split, and the
+    hand-written part is marshalling only. It is hand-written because the shape
+    has no manifest spelling: jm's `dict` property binds scalar values, not
+    arrays. Both bindings call **one** `tlm_build_read_dict()`, which is also
+    where two latent defects are fixed once rather than twice — a duplicate
+    probe name is now rejected by name instead of being a use-after-free
+    (the second insert dropped the dict's only reference to an array still
+    being written through), and the probe bound is clamped where both calls
+    originate, so a `nprobes` past `DP_TLM_MAX_PROBES` can no longer hand
+    Python arrays that `dp_tlm_demux` never fills and `PyArray_SimpleNew` never
+    zeroed.
+
+    `dp_tlm_capture_context()` is new alongside it, exposing the borrowed
+    context so a capture resolves its own ids into names rather than being
+    handed the context separately and keeping the two associated by hand.
+
+    The MPSK telemetry capture demo and its gallery page are rewritten on this:
+    the ring-size guess, the `chunks + np.concatenate`, the per-probe filter,
+    the `{v: k}` id-to-name inversion and the fake sample axis are all gone,
+    the drain is four lines, and the x-axis is real milliseconds — so the
+    carrier pull-in lines up across `rx.car.freq`, `rx.car.locked` and
+    `rx.tracking` by inspection.
+
 ### Changed
 
 - **Four more CI/release steps became make targets, after an audit prompted by
@@ -297,6 +354,51 @@ ______________________________________________________________________
     one jm cannot be installed while the manifest names another.
     `scripts/check_version_strings.py` never covered this — it guards
     *doppler's* release version against being hand-typed into docs.
+
+- **A capture's `with` exit finalizes instead of freeing, so the capture
+    outlives its block.** `__exit__` on `MemoryCapture` and `Capture` now calls
+    `close()`: it drains the tail, joins the writer thread, writes the sidecar
+    and detaches from the context — and stops there. The object stays usable,
+    so the records and the drop verdict are readable **after** the `with`
+    block, which is when a caller wants them. Nothing is freed twice:
+    `tp_dealloc` still destroys, exactly once, at collection.
+
+    Before this, a capture you intended to read back had exactly one shape —
+    an explicit `close()` and every read from *inside* the block, because exit
+    destroyed and the memory flavour only completes on the final drain. Both
+    halves of that ceremony are gone; the demo above drops its `close()` call
+    and reads after the block.
+
+    Code that relied on the memory being released at exit now releases it at
+    collection instead. `close()` remains public and repeat-safe — a second
+    call returns the verdict the first computed, which is exactly how the
+    teardown avoids closing a capture the block already finalized.
+
+    One line of manifest — `[dp_tlm_capture.destroy] exit = "close"` — and the
+    duplicated `error_message` on that table is deleted with it, because the
+    teardown inherits the finalizer's diagnostic once the two calls split. A
+    hole in the capture raises `ValueError` carrying that message from
+    `close()`, `destroy()` and `with` exit alike.
+
+- **`scripts/check_doc_face_parity.py` compares `Raises`, not only
+    `Examples`.** The gate asserted one section and was being read as asserting
+    the invariant. The inherited-error divergence above reached the raise and
+    the runtime `__doc__` as `ValueError` while the `.pyi` said `RuntimeError`
+    — one manifest input rendered two ways, one of them wrong — and the gate
+    reported "0 divergent" throughout it. It was found by reading, which is the
+    thing the gate exists to make unnecessary.
+
+    Both faces are static text the checker already parses: the runtime side is
+    the `PyMethodDef` literal in the sacred fragment, the stub side is the
+    `.pyi`. No build, no import, no new target — the same script in the same
+    wave, comparing one more section, with the section in the key so a method
+    can diverge in one and not the other. The failure text now names which fix
+    applies, because they are opposite: a divergent `Examples` means a header
+    `@code` was edited and the hand-owned fragment did not follow (patch the
+    fragment), while a divergent `Raises` means jm rendered one input two ways
+    (a codegen bug, which hand-patching the faces into agreement would hide).
+    202 methods compared, 0 divergent (12 fragment methods have no stub
+    counterpart).
 
 ### Fixed
 

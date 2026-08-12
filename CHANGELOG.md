@@ -697,6 +697,34 @@ ______________________________________________________________________
     is an accuracy improvement in the accumulator's own state, which is where
     a long trace's error actually accumulates.
 
+- **The AGC detector runs the shared EMA, and its `decim == 1` pole becomes
+    exact.** Recorded as finding F2 of the EMA's validation report. Both
+    paths move onto the primitive: `agc_steps`'s chunk pole was a repeated
+    multiply of `(1 - alpha)` followed by `1 - ac` — catastrophic
+    cancellation at `d == 1`, where the answer must be `alpha` itself:
+    **6 ulps off at `alpha = 0.05`, 2556 at 6.25e-5** (the AGC's real
+    bandwidth inside the RateConverter cascade) and **26865 at 1e-5**. It is
+    now `ema_alpha_decim(alpha, d)`, exact at `d == 1` by construction.
+    `agc_step` was already the exact per-sample recursion, so that is a pure
+    substitution which additionally makes `alpha == 1` exact.
+
+    What this fixes, stated precisely: it makes `decim = 1` genuinely the
+    undecimated recursion. That is a property, not a numeric shift — the
+    decim table is unchanged to three decimals and full-precision readback
+    moves only in the last digits (`gain_db` -123.40348827166616 →
+    -123.40348827170807 at `alpha = 6.25e-5`).
+
+    What it does **not** fix, measured rather than assumed: `agc_steps(decim=1)`
+    and `agc_step` still disagree, and the pole was never the cause. The two
+    paths apply GAIN differently — `agc_steps` ramps it across the chunk with
+    a first-order hold, `agc_step` refreshes it per period — so the powers
+    reaching the detector differ. At `alpha = 1e-5` the `p_avg` gap moves
+    only 4.16e-11 → 3.96e-11. Worth knowing before anything asserts
+    bit-exactness between those two paths, because it would fail for that
+    reason and not for a defect. The loop-filter gain `k_d` is deliberately
+    untouched: a linear approximation of a different quantity, tracked as
+    #699.
+
 ### Fixed
 
 - **75 assertions across 20 C tests could not fail.** The hand-written

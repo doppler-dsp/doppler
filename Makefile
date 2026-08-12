@@ -562,8 +562,18 @@ define RELEASE_BRANCH_NOTES
 @echo "    docs/benchmarks.md"
 endef
 
-RELEASE_WATCH_CMD = @REPO=doppler-dsp/doppler scripts/release-watch.sh \
-                        "$(VERSION)"
+# The script is VENDORED from canonical (just-buildit.github.io) and held to it
+# by standard-check; everything doppler-specific is here. It used to be a local
+# 194-line copy that had drifted from just-makeit's — same filename, same
+# target, different capabilities.
+#
+# RW_PUBLISH_JOB must stay precise: a matcher that also caught
+# "Publish container images" would read PyPI as live before it is, and one that
+# matches nothing at all would let a rerun fire after a successful publish.
+RELEASE_WATCH_CMD = @REPO=doppler-dsp/doppler RW_PKG=doppler-dsp \
+                        RW_PUBLISH_JOB="publish to pypi" \
+                        HANG_MIN=30 RW_MIN_ASSETS=3 \
+                        scripts/release-watch.sh "$(VERSION)"
 
 # ── Clean ────────────────────────────────────────────────────────────────────
 CLEAN_PATHS = $(BUILD_DIR) $(PY_BUILD_DIR) $(UBSAN_DIR) $(GLIBC_BUILD_DIR) \
@@ -601,6 +611,11 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 bench-report \
                 docker-runtime docker-sdk docker-downstream docker-stream \
                 docker-examples smoke-image
+
+# ── Vendored from canonical ──────────────────────────────────────────────────
+# Verbatim copies the drift gate holds to canonical, alongside standard.mk
+# itself. Edit canonical and re-vendor; never edit these in place.
+VENDORED_FILES = scripts/release-watch.sh
 
 include standard.mk
 

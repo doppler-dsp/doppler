@@ -2,40 +2,77 @@
 #
 # release-watch.sh — autonomously see a tagged release through to verified.
 #
+# CANONICAL. Vendored verbatim by adopters and gated by `make standard-check`;
+# per-repo variation is configuration below, never an edit to this file.
+#
 # Given a version, finds its release.yml run, streams job outcomes, recovers
 # from ONE pre-publish flake (rerun a failed job, or cancel+rerun a hung one),
-# and verifies the real artifacts a consumer touches: PyPI (per-version
+# and verifies the artifacts a consumer actually touches: PyPI (per-version
 # endpoint, then `latest`, which lags 30-60s), the GitHub Release (published,
-# not a draft, has notes), and — doppler being a C+Python project — the three
-# pre-built C-library tarballs attached as release assets.
+# not a draft, has notes), and optionally release assets.
 #
-# The recovery is SAFE because release.yml gates `publish-python` behind
-# `smoke-wheel`: while the PyPI publish has not succeeded, nothing has reached
+# The recovery is SAFE because release.yml gates the PyPI publish behind the
+# wheel smoke test: while the publish has not succeeded, nothing has reached
 # PyPI, so a rerun cannot double-publish. Once it succeeds we never rerun — a
-# later failure (container / github-release / post-release smoke) is a real
-# problem for a human, and re-uploading an existing version would fail.
+# later failure is a real problem for a human, and re-uploading an existing
+# version would fail.
 #
-# Usage:  REPO=owner/name scripts/release-watch.sh <x.y.z>
+# Usage:  REPO=owner/name RW_PKG=dist-name scripts/release-watch.sh <x.y.z>
 # See:    skills://release-process
 set -uo pipefail
 
-VERSION="${1:?usage: REPO=owner/name release-watch.sh <x.y.z>}"
+VERSION="${1:?usage: REPO=owner/name RW_PKG=dist release-watch.sh <x.y.z>}"
 REPO="${REPO:?set REPO=owner/name}"
+PKG="${RW_PKG:?set RW_PKG=<PyPI distribution name>}"
 TAG="v$VERSION"
-PKG="doppler-dsp"
-HANG_MIN="${HANG_MIN:-30}"   # a pre-publish job in_progress this long = hung
+
+# ── Configuration ────────────────────────────────────────────────────────────
+# A pre-publish job in_progress this long is treated as a hung runner.
+HANG_MIN="${HANG_MIN:-25}"
+
+# The job that publishes to PyPI, as a jq regex. ANCHORED BY DEFAULT, and that
+# is the whole point: an unanchored `publish` also matches "Artifact smoke
+# (pre-publish) / …" and "Publish multi-arch manifest". Measured on
+# just-makeit's v0.57.0 run, the loose form matched 14 jobs, 12 of them
+# pre-publish smoke tests that succeed BEFORE PyPI is touched — so `published`
+# went true early and every recovery path below was unreachable. The recovery
+# had never been able to run.
+#
+# Direction of danger is asymmetric, which is why this is validated rather than
+# merely documented: a matcher that is too BROAD only forfeits recovery, while
+# one that matches NOTHING would let a rerun fire after a successful publish.
+RW_PUBLISH_JOB="${RW_PUBLISH_JOB:-^publish$}"
+
+# Jobs ineligible for a pre-publish cancel+rerun: the publish jobs themselves
+# and everything downstream. Deliberately a union covering both spellings in
+# use across the org (`github-release` and `Create GitHub release`), because
+# over-excluding only declines a recovery, while under-excluding could cancel
+# something that has already shipped.
+RW_POST_JOBS="${RW_POST_JOBS:-publish|post-release|github.release|create github|container|docker|manifest}"
+
+# Release assets to require, for projects that attach build products. 0 = skip.
+RW_MIN_ASSETS="${RW_MIN_ASSETS:-0}"
+RW_ASSET_PATTERN="${RW_ASSET_PATTERN:-\\.tar\\.gz$}"
+
 RETRIED=0
 
 echo "release-watch: $REPO $TAG"
 
 # The PyPI publish already succeeded? Recovery is only safe while this is false.
-# Match the PyPI publish job SPECIFICALLY — "Publish container image" runs later
-# and must not be read as "PyPI is live".
 published() {
   gh run view "$RUN" -R "$REPO" --json jobs --jq \
-    '[.jobs[] | select(.name|test("publish to pypi";"i"))
-              | select(.conclusion=="success")] | length' \
+    "[.jobs[] | select(.name|test(\"$RW_PUBLISH_JOB\";\"i\"))
+              | select(.conclusion==\"success\")] | length" \
     2>/dev/null | grep -q '^[1-9]'
+}
+
+# How many jobs the publish matcher sees at all, whatever their conclusion.
+# Zero on a COMPLETED run means the matcher is wrong for this repo, and we must
+# not guess: that is the one direction in which a rerun could double-publish.
+publish_job_count() {
+  gh run view "$RUN" -R "$REPO" --json jobs --jq \
+    "[.jobs[] | select(.name|test(\"$RW_PUBLISH_JOB\";\"i\"))] | length" \
+    2>/dev/null
 }
 
 # ── 1. Find the release run for the tag (it may lag the push by a few seconds).
@@ -51,20 +88,14 @@ done
 if [ -z "$RUN" ]; then echo "::error:: no release.yml run found for $TAG"; exit 1; fi
 echo "  run: $RUN  (https://github.com/$REPO/actions/runs/$RUN)"
 
-# Jobs that are NOT eligible for a pre-publish cancel+rerun: the publish jobs
-# themselves and everything downstream of them. "Smoke-test the built wheel" is
-# pre-publish and IS eligible; "Post-release C smoke" is not (it runs after
-# publish) — hence the precise "post-release" exclusion.
-POST='publish|post-release|github release|create github|container|docker|manifest'
-
 # ── The CI-on-the-tagged-commit repair ──────────────────────────────────────
 # release.yml's "Verify CI passed on the tagged commit" job polls for the
 # `CI passed` check on the tag's SHA and refuses to publish unless it is green.
 # When THAT is what failed, rerunning the RELEASE run is useless: the verify job
 # simply re-reads the same completed failure and fails again in under a second,
 # burning the one recovery on something that could never have worked. That is
-# exactly what happened to v0.42.0 — a `setup-uv` manifest fetch timed out in
-# one of six Python jobs, long after every wheel had already built.
+# exactly what happened to doppler v0.42.0 — a `setup-uv` manifest fetch timed
+# out in one of six Python jobs, long after every wheel had already built.
 #
 # The repair has to start one run earlier, on CI itself. `wait_ci` tolerates the
 # check-run being ABSENT (jq -> null): rerunning a run withdraws its check until
@@ -110,10 +141,21 @@ while true; do
 
   if [ "$STATUS" = "completed" ]; then
     [ "$CONCL" = "success" ] && break
+
+    # Every job exists now, so the matcher can be held to account. Matching
+    # nothing means we cannot tell whether PyPI already has this version.
+    if [ "$(publish_job_count)" = "0" ]; then
+      echo "::error:: RW_PUBLISH_JOB (/$RW_PUBLISH_JOB/) matched no job in this run."
+      echo "  Refusing to auto-recover: without it, a rerun could re-publish."
+      echo "  Jobs in this run:"
+      echo "$J" | jq -r '.jobs[] | "    " + .name'
+      exit 1
+    fi
+
     if [ "$RETRIED" = 0 ] && ! published; then
       # Did the CI-verify gate fail? Then CI is what needs rerunning, not us.
       if echo "$J" | jq -e '[.jobs[] | select(.conclusion=="failure")
-              | select(.name|test("verify ci passed";"i"))] | length > 0' \
+              | select(.name|test("verify ci";"i"))] | length > 0' \
               >/dev/null 2>&1; then
         SHA=$(gh run view "$RUN" -R "$REPO" --json headSha --jq .headSha 2>/dev/null)
         CIRUN=$(ci_run_id "$SHA")
@@ -136,7 +178,7 @@ while true; do
 
   # Hang: a pre-publish job stuck in_progress past the threshold.
   if [ "$RETRIED" = 0 ] && ! published; then
-    STUCK=$(echo "$J" | jq -r --argjson lim $((HANG_MIN * 60)) --arg post "$POST" '
+    STUCK=$(echo "$J" | jq -r --argjson lim $((HANG_MIN * 60)) --arg post "$RW_POST_JOBS" '
       now as $n | .jobs[]
       | select(.status=="in_progress")
       | select((.name|test($post;"i"))|not)
@@ -174,21 +216,26 @@ for i in $(seq 1 8); do
   sleep 15
 done
 
-# ── 4. GitHub Release: published, not a draft, has notes (awk extraction ran)
-#      AND carries the three C-library tarballs (doppler is C + Python).
+# ── 4. GitHub Release: published, not a draft, has notes (awk extraction ran),
+#      and carries however many build assets this project attaches.
 rel=$(gh release view "$TAG" -R "$REPO" --json isDraft,body,assets 2>/dev/null)
 draft=$(echo "$rel" | jq -r '.isDraft')
 notes=$(echo "$rel" | jq -r '.body | length')
-tarballs=$(echo "$rel" | jq -r '[.assets[] | select(.name|test("\\.tar\\.gz$"))] | length')
 if [ "$draft" = "false" ] && [ "${notes:-0}" -gt 0 ]; then
   echo "  - GitHub Release $TAG published (notes: ${notes} chars)"
 else
   echo "::error:: GitHub Release $TAG not clean (draft=$draft, notes=${notes:-0})"; exit 1
 fi
-if [ "${tarballs:-0}" -ge 3 ]; then
-  echo "  - C-library tarballs attached: ${tarballs}"
-else
-  echo "::error:: expected >=3 C tarballs on $TAG, found ${tarballs:-0}"; exit 1
+
+if [ "$RW_MIN_ASSETS" -gt 0 ]; then
+  assets=$(echo "$rel" | jq -r --arg pat "$RW_ASSET_PATTERN" \
+           '[.assets[] | select(.name|test($pat))] | length')
+  if [ "${assets:-0}" -ge "$RW_MIN_ASSETS" ]; then
+    echo "  - release assets matching /$RW_ASSET_PATTERN/: ${assets}"
+  else
+    echo "::error:: expected >=$RW_MIN_ASSETS assets matching /$RW_ASSET_PATTERN/ on $TAG, found ${assets:-0}"
+    exit 1
+  fi
 fi
 
 echo "release-watch: $TAG SHIPPED + VERIFIED"

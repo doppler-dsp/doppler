@@ -11,6 +11,10 @@ instead.)
 - [The NCO](nco.md) — the 32-bit phase accumulator every rate in the
     library stands on: why an integer register instead of a double, the
     one float boundary, and how carrier and timing read the same thing
+- [Exponential Moving Average](ema.md) — the running average every estimator
+    in the library is built on: which of its two algebraic forms is the right
+    one and why that was measured, what its boundaries guarantee, and why an
+    EMA is not a loop filter
 - [Quantization](QUANTIZATION.md) — fixed-point pipeline design
 - [CIC Decimator](cic.md) — the fixed-point input budget: DC gain and PAPR headroom
 - [Measurement Suite](measurement-suite.md) — tone, NPR, and IMD metric internals

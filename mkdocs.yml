@@ -253,6 +253,7 @@ nav:
       - Design: design/index.md
       - API Taxonomy: design/api-taxonomy.md
       - The NCO: design/nco.md
+      - Exponential Moving Average: design/ema.md
       - Quantization: design/QUANTIZATION.md
       - CIC Decimator: design/cic.md
       - Measurement Suite: design/measurement-suite.md

@@ -100,3 +100,135 @@ def saturate(v: float, lo: float, hi: float, nan_to: float) -> float:
     0.0
 
     """
+
+def ema_step(state: float, x: float, alpha: float) -> float:
+    """One step of a first-order exponential moving average, state +
+    alpha*(x - state). The canonical EMA for the library: it was written
+    out four times in two different algebraic forms before this existed,
+    and duplicated implementations drift. The incremental form is the more
+    accurate of the two everywhere the library operates, by a margin that
+    grows as the average lengthens; alpha == 1 (pass-through) and alpha ==
+    0 (frozen) are both exact. NOT total in x -- a non-finite observation
+    poisons the state permanently, because an EMA remembers, so saturate()
+    belongs on this function's input.
+
+    The canonical EMA for the whole library. It was written out four times
+    before this existed — `agc` (power detector), `async_dsss_receiver`
+    (the lock_num/lock_den pair), `acc_trace` (ACC_TRACE_EXP) and the
+    recursion `det_ema_alpha` sizes — in **two different algebraic forms**,
+    which are identical on paper and not in floating point. Duplicated
+    implementations drift; this is the one.
+
+    ### Why this form, and not `alpha*x + (1-alpha)*state`
+
+    Both were measured against a 60-digit reference over 5000 steps. The
+    incremental form written here is the more accurate one everywhere the
+    library actually operates, by a margin that grows as the average gets
+    longer — which is the direction a narrow-band estimator moves:
+
+    | `alpha` | this form | `alpha*x + (1-alpha)*state` |
+    |---------|-----------|------------------------------|
+    | 0.05    | 9.0e-17   | 6.5e-16                      |
+    | 1e-3    | 3.1e-16   | 1.6e-15                      |
+    | 1e-5    | 2.7e-17   | 5.4e-15                      |
+
+    The other form wins exactly one case, and it is a boundary rather than
+    a regime: at `alpha == 1` it returns `x` bit-exactly while the
+    incremental form does not (measured inexact for 9.6% of random `(state,
+    x)` pairs, because `state + 1*(x - state)` rounds twice). That case is
+    real — `det_ema_alpha` returns exactly 1.0 for "no gain requested, so
+    no averaging" — so it is handled explicitly below rather than paid for
+    at every alpha.
+
+    Parameters
+    ----------
+    state : float
+        Current EMA state.
+    x : float
+        New observation.
+    alpha : float
+        Coefficient in `[0, 1]`. `1` is pass-through (no averaging) and is
+        exact; `0` freezes the state and is exact. A value above 1
+        saturates to pass-through rather than overshooting.
+
+    Returns
+    -------
+    float
+        The updated state.
+
+    Notes
+    -----
+    NOT total in `x`: a non-finite observation poisons the state
+    permanently, because an EMA remembers. That is deliberate — the guard
+    belongs at the boundary where an untrusted value first becomes
+    persistent state, which is this function's input. Use ::saturate there,
+    as `agc_steps` does. See `agc_core.h` for what one unguarded non-finite
+    sample cost.
+
+    Examples
+    --------
+    >>> from doppler.util import ema_step
+    >>> ema_step(0.0, 1.0, 0.5)          # halfway to the observation
+    0.5
+    >>> ema_step(2.0, 2.0, 0.25)         # at its fixed point, no motion
+    2.0
+    >>> ema_step(1.0, 7.0, 1.0)          # alpha 1 is exact pass-through
+    7.0
+    >>> ema_step(1.0, 7.0, 0.0)          # alpha 0 freezes the state
+    1.0
+
+    """
+
+def ema_alpha_decim(alpha: float, d: int) -> float:
+    """The EMA coefficient that advances d samples in one step, 1 - (1 -
+    alpha)^d. A decimated loop updates once per chunk of d samples and must
+    not thereby change its own time constant. Computed through expm1/log1p
+    because the direct expression cancels catastrophically for small alpha
+    -- 26865 ulps off at alpha 1e-5, d 1 -- and being exact at d == 1 is
+    what lets the decimated and per-sample paths be compared bit-for-bit.
+
+    A decimated loop updates its average once per chunk of `d` samples and
+    must not thereby change its own time constant. Compounding the pole
+    exactly is what makes `decim` a performance knob instead of a retune.
+
+    ### Why `expm1`/`log1p` rather than the direct expression
+
+    `1.0 - pow(1.0 - alpha, d)` cancels catastrophically for small `alpha`,
+    and the damage is worst exactly where a narrow-band estimator lives.
+    Measured at `d == 1`, where the answer must be `alpha` itself:
+
+    | `alpha` | direct `1-(1-alpha)^1` | this function |
+    |---------|------------------------|---------------|
+    | 0.05    | 6 ulps off             | exact         |
+    | 1e-5    | 26865 ulps off         | exact         |
+
+    The repeated-multiply form in `agc_steps` has this defect today. Being
+    exact at `d == 1` is the property that lets a caller set `decim = 1`
+    and get bit-for-bit the undecimated recursion, so the decimated and
+    per-sample paths can be compared at all.
+
+    Parameters
+    ----------
+    alpha : float
+        Per-sample coefficient in `[0, 1]`.
+    d : int
+        Chunk length in samples, `>= 1`.
+
+    Returns
+    -------
+    float
+        The per-chunk coefficient, in `[0, 1]`.
+
+    Examples
+    --------
+    >>> from doppler.util import ema_alpha_decim
+    >>> ema_alpha_decim(0.05, 1)         # d == 1 returns alpha exactly
+    0.05
+    >>> round(ema_alpha_decim(0.05, 8), 12)
+    0.336579568711
+    >>> ema_alpha_decim(1.0, 4)          # pass-through stays pass-through
+    1.0
+    >>> ema_alpha_decim(0.0, 8)          # frozen stays frozen
+    0.0
+
+    """

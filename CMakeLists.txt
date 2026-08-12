@@ -475,6 +475,17 @@ target_include_directories(test_detection_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_detection_core COMMAND test_detection_core)
 
+# util is function-only too: the EMA primitive and the saturate/square_clip
+# pair are module-level, so their test is registered here for the same
+# reason. It links util_core for the out-of-line definitions, though every
+# assertion inlines the header copy — which is the point, since the header
+# is what every C caller in the library actually compiles against.
+add_executable(test_util_core native/tests/test_util_core.c)
+target_link_libraries(test_util_core PRIVATE util_core m)
+target_include_directories(test_util_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_util_core COMMAND test_util_core)
+
 # native/tests/dp_ber_test.h is the error-rate measurement harness every
 # receiver test scores through -- the settling window, the Pfa-gated alignment,
 # inverse binomial sampling and the exact confidence interval. It is header-

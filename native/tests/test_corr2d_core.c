@@ -9,13 +9,6 @@
 
 #define TOL 1e-4f
 
-static inline int
-ceq (float complex a, float complex b)
-{
-  return fabsf (crealf (a) - crealf (b)) < TOL
-         && fabsf (cimagf (a) - cimagf (b)) < TOL;
-}
-
 static uint32_t
 _xorshift32 (uint32_t *s)
 {
@@ -102,9 +95,9 @@ main (void)
     size_t          n_out = corr2d_execute (obj, ref, N, out, N);
 
     DP_CHECK (n_out == N);
-    DP_CHECK (ceq (out[0], 1.0f + 0.0f * I));
+    DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
     for (size_t k = 1; k < N; k++)
-      DP_CHECK (ceq (out[k], 0.0f + 0.0f * I));
+      DP_CHECK (dp_cnearf (out[k], 0.0f + 0.0f * I, TOL));
 
     corr2d_destroy (obj);
   }
@@ -147,12 +140,12 @@ main (void)
 
     /* Peak should be at row=1, col=0 → flat index = 1*NX + 0 = NX */
     size_t peak_idx = NX;
-    DP_CHECK (ceq (out[peak_idx], 1.0f + 0.0f * I));
+    DP_CHECK (dp_cnearf (out[peak_idx], 1.0f + 0.0f * I, TOL));
 
     /* All other bins zero */
     for (size_t k = 0; k < N; k++)
       if (k != peak_idx)
-        DP_CHECK (ceq (out[k], 0.0f + 0.0f * I));
+        DP_CHECK (dp_cnearf (out[k], 0.0f + 0.0f * I, TOL));
 
     corr2d_destroy (obj);
   }
@@ -210,7 +203,7 @@ main (void)
     corr2d_execute (fast, dense_in, n, out, n);
     _brute_corr2d (dense_in, dense_ref, ny, nx, expect);
     for (size_t k = 0; k < n; k++)
-      DP_CHECK (ceq (out[k], expect[k]));
+      DP_CHECK (dp_cnearf (out[k], expect[k], TOL));
     corr2d_destroy (fast);
 
     /* genuinely multi-row ref -> general path; the pre-existing suite had
@@ -223,7 +216,7 @@ main (void)
     corr2d_execute (slow, dense_in, n, out, n);
     _brute_corr2d (dense_in, dense_ref2, ny, nx, expect);
     for (size_t k = 0; k < n; k++)
-      DP_CHECK (ceq (out[k], expect[k]));
+      DP_CHECK (dp_cnearf (out[k], expect[k], TOL));
     corr2d_destroy (slow);
   }
 
@@ -270,13 +263,13 @@ main (void)
     in[1]                = 1.0f; /* row 0, col 1 -- matches ref2's replica */
     float complex out[16];
     corr2d_execute (obj, in, N, out, N);
-    DP_CHECK (ceq (out[0], 1.0f + 0.0f * I));
+    DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
 
     /* reject: no longer single-row -- object's ref/spectrum must be left
      * completely untouched (execute() still reflects ref2, not bad_ref). */
     DP_CHECK (corr2d_set_ref (obj, bad_ref) == -1);
     corr2d_execute (obj, in, N, out, N);
-    DP_CHECK (ceq (out[0], 1.0f + 0.0f * I));
+    DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
 
     corr2d_destroy (obj);
   }
@@ -312,15 +305,17 @@ main (void)
         DP_CHECK (corr2d_execute (a, input, n, full, n) == n);
         DP_CHECK (corr2d_execute (b, input, n, part, 6) == 6);
         for (size_t k = 0; k < 6; k++)
-          DP_CHECK (ceq (part[k], full[k])); /* prefix is the same surface */
+          DP_CHECK (dp_cnearf (part[k], full[k],
+                               TOL)); /* prefix is the same surface */
         for (size_t k = 6; k < n; k++)
-          DP_CHECK (ceq (part[k], 42.0f + 42.0f * I)); /* tail untouched */
+          DP_CHECK (dp_cnearf (part[k], 42.0f + 42.0f * I,
+                               TOL)); /* tail untouched */
 
         for (size_t k = 0; k < n; k++)
           part[k] = 42.0f + 42.0f * I;
         DP_CHECK (corr2d_execute (b, input, n, part, 0) == 0);
         for (size_t k = 0; k < n; k++)
-          DP_CHECK (ceq (part[k], 42.0f + 42.0f * I));
+          DP_CHECK (dp_cnearf (part[k], 42.0f + 42.0f * I, TOL));
         corr2d_destroy (a);
         corr2d_destroy (b);
       }

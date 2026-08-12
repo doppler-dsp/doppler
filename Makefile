@@ -592,6 +592,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
                 glibc-check glibc-gate specan-check check-isotime-parity \
+                tests-ssot \
                 install-docs-deps \
                 wheel-check wheel-smoke release-smoke \
                 bench-interleaved bench-publish bench-docs bench-stream \
@@ -602,6 +603,16 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
 include standard.mk
 
 # ── Everything below is genuinely doppler's own ──────────────────────────────
+
+# Hung off `lint` as an extra prerequisite rather than added to standard.mk,
+# which is vendored and must not be edited. CI runs `make lint` and nothing
+# else, so this is what makes the rule enforced instead of merely written in
+# native/tests/README.md — which is the distinction that matters, since the
+# convention WAS written down while 90 copies of CHECK accumulated under it.
+lint: tests-ssot
+
+tests-ssot: ## Verify no C test re-defines what dp_test.h provides
+	@uv run python scripts/check_tests_ssot.py
 
 # The docs system deps (doxygen, graphviz, LaTeX) — the `docs` group in
 # jb.toml. standard.mk's `install-deps` installs only the default groups

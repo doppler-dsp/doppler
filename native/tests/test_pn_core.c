@@ -9,21 +9,6 @@
 
 /* Floating-point helpers — use inline functions, not macros, so arguments
  * are evaluated exactly once.  Safe to call with stateful step() results. */
-static inline int
-_almost_eq (float a, float b, float tol)
-{
-  return fabsf (a - b) <= tol;
-}
-static inline int
-_almost_eq_c (float complex a, float complex b, float tol)
-{
-  return _almost_eq (crealf (a), crealf (b), tol)
-         && _almost_eq (cimagf (a), cimagf (b), tol);
-}
-#define ALMOST_EQ(a, b, tol) _almost_eq ((float)(a), (float)(b), tol)
-#define ALMOST_EQ_C(a, b, tol)                                                \
-  _almost_eq_c ((float complex) (a), (float complex) (b), tol)
-
 /* Steps the LFSR until the register returns to its seed; returns the period,
  * or -1 if it exceeds 2^n (non-maximal / degenerate). */
 static long

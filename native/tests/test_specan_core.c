@@ -6,14 +6,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static inline int
-_almost_eq (double a, double b, double tol)
-{
-  return fabs (a - b) <= tol;
-}
-#define ALMOST_EQ(a, b, tol)                                                  \
-  _almost_eq ((double)(a), (double)(b), (double)(tol))
-
 static const double PI = 3.14159265358979323846;
 
 /* Fill buf with a unit-rate complex exponential of normalised frequency fn
@@ -78,13 +70,13 @@ main (void)
   DP_CHECK (sa != NULL);
   if (!sa)
     return 1;
-  DP_CHECK (ALMOST_EQ (sa->fs_out, span * 1.28, 1.0)); /* span -> decim rate */
-  DP_CHECK (sa->nfft == 2 * sa->n); /* pad = 2, n is pow2  */
-  DP_CHECK (sa->disp_n % 2 == 1);   /* odd, DC-centred     */
+  DP_CHECK (dp_near (sa->fs_out, span * 1.28, 1.0)); /* span -> decim rate */
+  DP_CHECK (sa->nfft == 2 * sa->n);                  /* pad = 2, n is pow2  */
+  DP_CHECK (sa->disp_n % 2 == 1);                    /* odd, DC-centred     */
   DP_CHECK (sa->disp_lo + sa->disp_n <= sa->nfft);
   double realized_rbw = sa->psd->enbw * sa->fs_out / (double)sa->n;
-  DP_CHECK (ALMOST_EQ (realized_rbw, rbw, rbw * 0.05)); /* RBW met within 5% */
-  DP_CHECK (sa->beta > 0.0); /* Kaiser actually used*/
+  DP_CHECK (dp_near (realized_rbw, rbw, rbw * 0.05)); /* RBW met within 5% */
+  DP_CHECK (sa->beta > 0.0);                          /* Kaiser actually used*/
 
   /* 3. A unit tone at +30 kHz lands at +30 kHz in the display, near 0 dB. */
   const double f_off = 30e3;
@@ -95,9 +87,9 @@ main (void)
   size_t dc_bin = sa->disp_n / 2; /* odd length -> exact DC-centred index */
   double bin_hz = sa->fs_out / (double)sa->nfft;
   double pk_hz  = ((double)pk - (double)dc_bin) * bin_hz;
-  DP_CHECK (ALMOST_EQ (pk_hz, f_off, bin_hz)); /* within one display bin  */
-  DP_CHECK (out[pk] > -3.0);                   /* ~0 dBFS for amplitude 1 */
-  DP_CHECK (out[pk] - out[5] > 30.0);          /* tone clears far bins     */
+  DP_CHECK (dp_near (pk_hz, f_off, bin_hz)); /* within one display bin  */
+  DP_CHECK (out[pk] > -3.0);                 /* ~0 dBFS for amplitude 1 */
+  DP_CHECK (out[pk] - out[5] > 30.0);        /* tone clears far bins     */
 
   /* 4. Retuning to the tone moves it to DC (cheap LO retune, no rebuild). */
   specan_retune (sa, f_off);

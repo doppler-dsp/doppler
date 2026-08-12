@@ -6,21 +6,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static inline int
-_almost_eq (float a, float b, float tol)
-{
-  return fabsf (a - b) <= tol;
-}
-static inline int
-_almost_eq_c (float complex a, float complex b, float tol)
-{
-  return _almost_eq (crealf (a), crealf (b), tol)
-         && _almost_eq (cimagf (a), cimagf (b), tol);
-}
-#define ALMOST_EQ(a, b, tol) _almost_eq ((float)(a), (float)(b), tol)
-#define ALMOST_EQ_C(a, b, tol)                                                \
-  _almost_eq_c ((float complex) (a), (float complex) (b), tol)
-
 /* SPEC.md's geometry: 3.069 Mcps at spc=2, a 2.5 GHz carrier, and the +/-50
    kHz uncertainty expressed as what it physically is — 20 ppm of the time
    base. */
@@ -83,8 +68,8 @@ main (void)
 
     /* +/-2 kHz around the expected 50 kHz, 50 Hz resolution. */
     double f = _peak_hz (y, n < 4096 ? n : 4096, T_FS, 48000.0, 52000.0, 50.0);
-    DP_CHECK (ALMOST_EQ (f, T_FC * T_PPM * 1e-6, 200.0f));
-    DP_CHECK (ALMOST_EQ (doppler_channel_get_offset_hz (ch), 50000.0, 1.0f));
+    DP_CHECK (dp_nearf (f, T_FC * T_PPM * 1e-6, 200.0f));
+    DP_CHECK (dp_nearf (doppler_channel_get_offset_hz (ch), 50000.0, 1.0f));
 
     /* ---- 2. the time base dilates: n_out ~= n_in / (1 + d) --------- */
     double expect = (double)T_N / (1.0 + T_PPM * 1e-6);
@@ -103,7 +88,7 @@ main (void)
     float complex *y   = malloc (cap * sizeof *y);
     size_t         n   = doppler_channel_execute (ch, x, T_N, y, cap);
     DP_CHECK (n == T_N);
-    DP_CHECK (ALMOST_EQ (doppler_channel_get_offset_hz (ch), 0.0, 1e-9f));
+    DP_CHECK (dp_nearf (doppler_channel_get_offset_hz (ch), 0.0, 1e-9f));
     free (y);
     doppler_channel_destroy (ch);
   }
@@ -122,8 +107,8 @@ main (void)
       (void)doppler_channel_execute (ch, x, T_N, y, cap);
     double t = doppler_channel_get_elapsed_s (ch);
     DP_CHECK (t > 0.0);
-    DP_CHECK (ALMOST_EQ (doppler_channel_get_offset_hz (ch),
-                         T_FC * T_RATE * 1e-6 * t, 0.01f));
+    DP_CHECK (dp_nearf (doppler_channel_get_offset_hz (ch),
+                        T_FC * T_RATE * 1e-6 * t, 0.01f));
     free (y);
     doppler_channel_destroy (ch);
   }
@@ -147,7 +132,7 @@ main (void)
     DP_CHECK (na == nb);
     int same = 1;
     for (size_t k = 0; k < (na < nb ? na : nb); k++)
-      if (!ALMOST_EQ_C (ya[k], yb[k], 1e-4f))
+      if (!dp_cnearf (ya[k], yb[k], 1e-4f))
         {
           same = 0;
           break;
@@ -235,7 +220,7 @@ main (void)
     (void)doppler_channel_execute (ch, x, T_N, y, cap);
     DP_CHECK (doppler_channel_get_elapsed_s (ch) > 0.0);
     doppler_channel_reset (ch);
-    DP_CHECK (ALMOST_EQ (doppler_channel_get_elapsed_s (ch), 0.0, 1e-12f));
+    DP_CHECK (dp_nearf (doppler_channel_get_elapsed_s (ch), 0.0, 1e-12f));
     free (y);
     doppler_channel_destroy (ch);
   }

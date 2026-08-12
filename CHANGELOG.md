@@ -310,6 +310,33 @@ ______________________________________________________________________
     there cannot be one without re-running the sweep. `make gallery` makes
     the figure reproducible, not automatically fresh.
 
+- **One canonical exponential moving average, certified — `ema_step` and
+    `ema_alpha_decim` in `native/inc/util/util_core.h`.** The library had
+    written the first-order EMA out four times in two different algebraic
+    forms, with no shared statement of what the recursion guarantees. The
+    form was chosen by measurement rather than taste: scored against a
+    40-digit reference computed from neither form, the incremental
+    `state + alpha*(x - state)` beats `alpha*x + (1-alpha)*state` everywhere
+    the library operates, and the margin widens as the average lengthens
+    (2.7e-17 against 5.4e-15 at `alpha = 1e-5`). `ema_alpha_decim` computes
+    `1-(1-alpha)^d` through `expm1`/`log1p`, because the direct expression is
+    catastrophic cancellation at `d == 1` — 26865 ulps off at `alpha = 1e-5`,
+    where the answer must be `alpha` itself.
+
+    It is the sixth object certified under the validation campaign and the
+    first that is a primitive rather than a DSP block: 15/15 limits in
+    `src/doppler/util/tests/validation/ema/`, C evidence in
+    `test_util_core.c` §1–§8 with every section sabotage-proven, rationale in
+    `docs/design/ema.md`. Two laws nothing previously checked are now pinned
+    — the `(2-alpha)/alpha` noise reduction that `det_ema_alpha` has been
+    *inverting* all along to size a coefficient, and the memory crossing
+    `1 - 1/e` on exactly sample `ceil(-1/ln(1-alpha))`.
+
+    Recorded here rather than with the change: the primitive merged (#700)
+    with no CHANGELOG entry, which `changelog-check` cannot catch — it fails
+    only when `[Unreleased]` is entirely empty, so anything lands green under
+    any other bullet. The gate's gap is #705.
+
 ### Changed
 
 - **The C tests' randomness has one home, `native/tests/dp_rng_test.h`, and
@@ -634,6 +661,19 @@ ______________________________________________________________________
     root. Removed, with `/*.csv` added to `.gitignore` beside the existing
     `/*.png` and `/bench_*.json`. Root-scoped, so the validation trees'
     deliberately committed `*/data/*.csv` are untouched.
+
+- **`async_dsss_receiver`'s lock EMAs run the shared primitive —
+    bit-identical.** First of the sites in #698, and deliberately the one that
+    cannot change behaviour: the power-weighted `lock_num`/`lock_den` pair was
+    already the incremental form, and `lock_alpha` is `1/DWELL` with the dwell
+    fixed at 30, so `ema_step`'s `alpha >= 1.0` branch is unreachable here.
+
+    Bit-identity was measured, not argued: a 200-symbol run at CN0 90 dB-Hz /
+    Doppler 40 Hz / seed 3, `lock_metric` sampled every 4096 samples (489
+    chunks, 475 nonzero), packed to raw doubles and compared byte for byte.
+    **And the comparison was proven live before being believed** — a signature
+    that never changes is exactly what a stale build produces, so halving
+    `lock_alpha` inside the migrated call was checked to move it first.
 
 ### Fixed
 

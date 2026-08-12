@@ -100,16 +100,21 @@ or this subject alone::
 Runs in ~45 s.
 """
 
+from __future__ import annotations
+
 import math
 import sys
 import warnings
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
-from numpy.typing import NDArray
 
 from doppler.dsss import BurstAcquisition
 from doppler.wfm import PN, Synth, dsss_spread, mls_poly
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 # Artifacts land beside this script, like the sibling subjects and the
 # validation tree -- `make characterize` runs from the repo root.

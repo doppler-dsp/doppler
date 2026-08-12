@@ -219,6 +219,68 @@ test_state_roundtrip (void)
   free (blob);
 }
 
+/* ------------------------------------------------------------------
+ * test_stream_pinned: the sequence is PINNED, not merely self-consistent.
+ *
+ * gh-690: this generator shipped with two implementations selected at run
+ * time, and they produced different noise from the same seed — the scalar
+ * state s[0..3] and the eight AVX-512 streams vs[0..3][0..7] come from
+ * different SplitMix64 draws. Every AWGN-derived number was therefore
+ * platform-dependent, silently.
+ *
+ * Nothing here caught it, and test_reset_reproducible() is why: it compares
+ * a stream to ITSELF after awgn_reset(), on one path, on one machine. That
+ * passes identically under either implementation. Self-consistency is not
+ * reproducibility, and only an external reference can tell them apart.
+ *
+ * So: reference values, recorded from the scalar path, which is the one
+ * every shipped Linux build has always run. A future re-vectorisation is
+ * welcome and has to reproduce these.
+ *
+ * The RNG and the LUT are integer and table lookups, so the real and
+ * imaginary parts are exactly reproducible; the tolerance is for logf, which
+ * libm does not guarantee to the last ulp across platforms. It is far below
+ * the ~0.3 spacing between consecutive samples, so a WRONG stream cannot
+ * hide inside it — which is the property that matters, and the reason a
+ * tolerance is honest here rather than a loophole.
+ * ------------------------------------------------------------------ */
+static void
+test_stream_pinned (void)
+{
+  printf ("\n-- Stream pinned (gh-690) --\n");
+  static const float want_re[]
+      = { -0.268593192f, -0.054472364f, -0.578596532f, -1.609373569f };
+  static const float want_im[]
+      = { 0.581977606f, -0.171774969f, -0.357516527f, -1.250267267f };
+
+  awgn_state_t *g = awgn_create (42, 1.0f);
+  float complex out[4];
+  awgn_generate (g, 4, out, 4);
+  for (size_t i = 0; i < 4; i++)
+    {
+      DP_CHECK_NEAR (crealf (out[i]), want_re[i], 1e-5);
+      DP_CHECK_NEAR (cimagf (out[i]), want_im[i], 1e-5);
+    }
+  awgn_destroy (g);
+
+  /* The head being right does not mean the state update is. */
+  awgn_state_t *h = awgn_create (12345, 1.0f);
+  float complex buf[4096];
+  double        acc_re = 0.0, acc_im = 0.0;
+  for (int r = 0; r < 64; r++)
+    {
+      awgn_generate (h, 4096, buf, 4096);
+      for (size_t i = 0; i < 4096; i++)
+        {
+          acc_re += (double)crealf (buf[i]);
+          acc_im += (double)cimagf (buf[i]);
+        }
+    }
+  DP_CHECK_NEAR (acc_re, 17.390397, 0.05);
+  DP_CHECK_NEAR (acc_im, -47.646037, 0.05);
+  awgn_destroy (h);
+}
+
 int
 main (void)
 {
@@ -226,6 +288,7 @@ main (void)
   test_amplitude_property ();
   test_zero_amplitude ();
   test_reset_reproducible ();
+  test_stream_pinned ();
   test_reseed ();
   test_statistics ();
   test_split_block ();

@@ -16,17 +16,59 @@
  *
  * One xoshiro256++ state (4 × uint64).  Two next() calls per sample.
  *
- * ### AVX-512 path
+ * ### One path, on purpose (gh-690)
  *
- * Eight independent xoshiro256++ streams stored in vs[0..3][0..7]
- * (word × stream layout).  Each stream occupies one 64-bit lane of a
- * __m512i register, giving 8 independent outputs per SIMD step.
+ * There was a second, AVX-512 implementation running EIGHT independent
+ * xoshiro256++ streams out of `vs[0..3][0..7]`, selected at run time. It
+ * produced a DIFFERENT noise sequence from the same seed — the scalar state
+ * `s[0..3]` and the eight `vs` streams are seeded from different SplitMix64
+ * draws, so they are unrelated sequences. Same seed, sample [1]:
+ * `-0.054472364 -0.171774969` scalar against `-0.345792860 +0.103448674`
+ * vectorised.
  *
- *   - Two xs8() calls produce 8 u1 and 8 idx values.
- *   - _mm512_cvtepi64_epi32 packs 8 × 64-bit → 8 × 32-bit (__m256i).
- *   - _ZGVdN8v_logf (libmvec AVX2) computes 8 logarithms in parallel.
- *   - _mm256_i32gather_ps reads sin and cos from the 65536-entry LUT.
- *   - Two _mm256_storeu_ps interleave re/im directly into the output.
+ * That made every AWGN-derived number — BER curves, EVM, validation output —
+ * silently unreproducible across platforms, and nothing noticed, because the
+ * only reproducibility test compared a stream to itself after `awgn_reset`
+ * (same path, same machine) and passes identically under either.
+ *
+ * Two measurements decided the removal rather than a rewrite:
+ *
+ *   - On Linux the fast path was DEAD. Its guard requires the libmvec symbol
+ *     `_ZGVdN8v_logf`, declared weak, and no doppler artifact links libmvec —
+ *     so it never executed in a shipped Linux build.
+ *   - On macOS/Windows x86-64 it was LIVE, because the non-Linux branch
+ *     defined that symbol as a scalar-loop shim, so the NULL check could not
+ *     fail. Those platforms paid the divergence while getting no vectorised
+ *     logarithm at all.
+ *
+ * Which is to say the cost was paid exactly where the benefit was absent. The
+ * benefit was real where it could be had (~1.6x, 446 against 280 Msamp/s with
+ * libmvec linked), so this is worth restoring — with a parity gate and an
+ * explicit `-lmvec`, and consuming THIS stream rather than its own.
+ *
+ * ### The eight streams were never independent
+ *
+ * Worth knowing before anyone rebuilds it. The per-stream seed offset was
+ * `seed + j * 0x9e3779b97f4a7c15`, and that constant is exactly what
+ * SplitMix64 adds to its own state on every draw. So advancing the STREAM
+ * index by one is the same operation as advancing the splitmix chain by one
+ * DRAW, and `vs[w][j] == vs[w-1][j+1]` — every stream is its neighbour
+ * shifted by a word.
+ *
+ * Measured at seed 42: that identity holds for all 21 checkable pairs, the
+ * 32 state slots contain only **11 distinct 64-bit words**, and stream 0 is
+ * bit-for-bit the scalar stream (which is why sample [0] agreed between the
+ * two paths while everything after it diverged).
+ *
+ * Eight lanes of a generator whose starting states overlap in three of their
+ * four words are not eight independent streams. Whatever replaces this needs
+ * genuinely separated seeds — SplitMix64 run forward per stream, or
+ * xoshiro256++'s own `jump()`.
+ *
+ * `vs[4][8]` is still seeded and serialized. Dropping it would change
+ * `awgn_state_bytes`, which `wfm_synth_state_bytes` includes, churning the
+ * state protocol of two objects to save 256 bytes. `test_awgn_core.c` pins
+ * the sequence, so a future vectorisation has to reproduce it.
  *
  * ### Sin/cos LUT
  *
@@ -41,26 +83,12 @@
  *
  * xoshiro256++: Blackman & Vigna, ACM TOMS 47(4), 2021.
  * SplitMix64:   Steele et al., PLDI 2014.
- * _ZGVdN8v_logf: glibc libmvec, 8-wide single-precision log (AVX2).
  */
 #include "awgn/awgn_core.h"
 
 #include <complex.h>
 #include <math.h>
 #include <stdlib.h>
-
-/* Runtime-dispatched AVX-512 path. Compiled on any x86-64 GCC/Clang build —
- * including the distribution-safe (x86-64-v2) wheel — by giving the SIMD
- * functions a per-function `target` attribute, then selecting them at run time
- * via __builtin_cpu_supports(). The AVX-512 code is present in the binary but
- * only *executed* on CPUs that support it, so there is no SIGILL risk on older
- * hardware (which takes the scalar path). */
-#if defined(__x86_64__) && (defined(__GNUC__) || defined(__clang__))
-#define AWGN_X86_DISPATCH 1
-#include <immintrin.h>
-#define AWGN_AVX512_TARGET                                                    \
-  __attribute__ ((target ("avx512f,avx512dq,avx2,fma")))
-#endif
 
 /* ------------------------------------------------------------------ */
 /* Sin/cos LUT — 2^16 entries, same layout as lo_core.               */
@@ -266,126 +294,6 @@ generate_scalar (awgn_state_t *state, size_t n, float complex *out)
 }
 
 /* ================================================================== */
-/* Generate — AVX-512 path                                            */
-/* ================================================================== */
-
-#ifdef AWGN_X86_DISPATCH
-
-/*
- * _ZGVdN8v_logf: glibc libmvec 8-wide float32 log (AVX2).
- * Only glibc (Linux) ships libmvec; provide a scalar fallback elsewhere
- * so the AVX-512 fast path still compiles on macOS and Windows.
- */
-#ifdef __linux__
-/* Weak: the distribution-safe wheel does not hard-link libmvec, so on an old
- * glibc with no vector-math provider this stays unresolved (== NULL) and the
- * dispatcher falls back to scalar — the .so still loads. On modern glibc the
- * symbol resolves (libmvec / merged libm) and the AVX-512 path runs. */
-/* target("avx2"): libmvec's _ZGVdN8v_logf uses the AVX2 vector-call ABI for
- * its
- * __m256 argument. Annotate the declaration so it matches at a non-AVX
- * baseline (e.g. -march=x86-64-v2): without it, clang rejects the call from
- * the AVX-target dispatcher as an ABI-changing __m256-by-value pass. ABI-only
- * — no codegen change (gcc text/data identical with and without it). */
-extern __m256 _ZGVdN8v_logf (__m256) __attribute__ ((weak))
-__attribute__ ((target ("avx2")));
-#else
-AWGN_AVX512_TARGET static inline __m256
-_ZGVdN8v_logf (__m256 x)
-{
-  float v[8];
-  _mm256_storeu_ps (v, x);
-  for (int i = 0; i < 8; i++)
-    v[i] = logf (v[i]);
-  return _mm256_loadu_ps (v);
-}
-#endif
-
-/*
- * 8-wide xoshiro256++ step using __m512i (8 independent 64-bit lanes).
- * vs[word][stream] is transposed into __m512i s[4] before the loop and
- * written back after.
- */
-AWGN_AVX512_TARGET static inline __m512i
-xoshiro8_next (__m512i s[4])
-{
-  __m512i sum = _mm512_add_epi64 (s[0], s[3]);
-  __m512i r = _mm512_add_epi64 (_mm512_or_si512 (_mm512_slli_epi64 (sum, 23),
-                                                 _mm512_srli_epi64 (sum, 41)),
-                                s[0]);
-  __m512i t = _mm512_slli_epi64 (s[1], 17);
-  s[2]      = _mm512_xor_si512 (s[2], s[0]);
-  s[3]      = _mm512_xor_si512 (s[3], s[1]);
-  s[1]      = _mm512_xor_si512 (s[1], s[2]);
-  s[0]      = _mm512_xor_si512 (s[0], s[3]);
-  s[2]      = _mm512_xor_si512 (s[2], t);
-  s[3]      = _mm512_or_si512 (_mm512_slli_epi64 (s[3], 45),
-                               _mm512_srli_epi64 (s[3], 19));
-  return r;
-}
-
-AWGN_AVX512_TARGET static void
-generate_avx512 (awgn_state_t *state, size_t n, float complex *out)
-{
-  const float amp = state->amplitude;
-
-  /* Load 8-stream state: vs[word][stream_lane] → __m512i s[word] */
-  __m512i s[4];
-  for (int w = 0; w < 4; w++)
-    s[w] = _mm512_loadu_si512 (state->vs[w]);
-
-  size_t i = 0;
-  for (; i + 8 <= n; i += 8)
-    {
-      __m512i r0 = xoshiro8_next (s);
-      __m512i r1 = xoshiro8_next (s);
-
-      /* u1 = (top-24(r0) + 1) × 2^-24 ∈ (0, 1] */
-      __m256i hi0 = _mm512_cvtepi64_epi32 (_mm512_srli_epi64 (r0, 40));
-      hi0         = _mm256_add_epi32 (hi0, _mm256_set1_epi32 (1));
-      __m256 u1   = _mm256_mul_ps (_mm256_cvtepi32_ps (hi0),
-                                   _mm256_set1_ps (0x1.0p-24f));
-
-      /* idx = top-16(r1), packed as 8 × 32-bit */
-      __m256i sin_idx = _mm512_cvtepi64_epi32 (_mm512_srli_epi64 (r1, 48));
-      __m256i cos_idx = _mm256_and_si256 (
-          _mm256_add_epi32 (sin_idx, _mm256_set1_epi32 (LUT_QTR)),
-          _mm256_set1_epi32 (0xFFFF));
-
-      /* LUT gather: sin and cos in one 256-bit load each */
-      __m256 vsin = _mm256_i32gather_ps (lut, sin_idx, 4);
-      __m256 vcos = _mm256_i32gather_ps (lut, cos_idx, 4);
-
-      /* radial = amp × sqrt(−2 × log(u1)) */
-      __m256 rad
-          = _mm256_mul_ps (_mm256_set1_ps (amp),
-                           _mm256_sqrt_ps (_mm256_mul_ps (
-                               _mm256_set1_ps (-2.0f), _ZGVdN8v_logf (u1))));
-
-      /* Interleave re/im into contiguous complex output (8 × CF32 = 64 bytes)
-       */
-      __m256 re  = _mm256_mul_ps (rad, vcos);
-      __m256 im  = _mm256_mul_ps (rad, vsin);
-      __m256 ilo = _mm256_unpacklo_ps (re, im);
-      __m256 ihi = _mm256_unpackhi_ps (re, im);
-      _mm256_storeu_ps ((float *)(out + i),
-                        _mm256_permute2f128_ps (ilo, ihi, 0x20));
-      _mm256_storeu_ps ((float *)(out + i + 4),
-                        _mm256_permute2f128_ps (ilo, ihi, 0x31));
-    }
-
-  /* Store vector state back. */
-  for (int w = 0; w < 4; w++)
-    _mm512_storeu_si512 (state->vs[w], s[w]);
-
-  /* Scalar tail (< 8 remaining samples). */
-  if (i < n)
-    generate_scalar (state, n - i, out + i);
-}
-
-#endif /* AWGN_X86_DISPATCH */
-
-/* ================================================================== */
 /* Public dispatcher                                                   */
 /* ================================================================== */
 
@@ -396,20 +304,6 @@ awgn_generate (awgn_state_t *state, size_t n, float complex *out,
   /* Emission stops at the caller's capacity (jm gh-138). */
   if (n > max_out)
     n = max_out;
-#ifdef AWGN_X86_DISPATCH
-  /* Cache the one-time probe: need both AVX-512 *and* a resolved vector-log
-   * (weak symbol) — features don't change at run time. */
-  static int use_avx512 = -1;
-  if (use_avx512 < 0)
-    use_avx512 = (__builtin_cpu_supports ("avx512f") && _ZGVdN8v_logf != NULL)
-                     ? 1
-                     : 0;
-  if (use_avx512)
-    {
-      generate_avx512 (state, n, out);
-      return n;
-    }
-#endif
   generate_scalar (state, n, out);
   return n;
 }

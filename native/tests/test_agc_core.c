@@ -47,42 +47,25 @@
  */
 #include "agc/agc_core.h"
 #include "dp_state_test.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
 
-/* File-scope so the §13+ section functions can CHECK for themselves rather
-   than funnelling a bool back through main(). */
-static int _fails = 0;
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
-
-/* Floating-point helpers — use inline functions, not macros, so arguments
- * are evaluated exactly once.  Safe to call with stateful step() results. */
-static inline int
-_almost_eq (float a, float b, float tol)
-{
-  return fabsf (a - b) <= tol;
-}
-static inline int
-_almost_eq_c (float complex a, float complex b, float tol)
-{
-  return _almost_eq (crealf (a), crealf (b), tol)
-         && _almost_eq (cimagf (a), cimagf (b), tol);
-}
-#define ALMOST_EQ(a, b, tol) _almost_eq ((float)(a), (float)(b), tol)
-#define ALMOST_EQ_C(a, b, tol)                                                \
-  _almost_eq_c ((float complex) (a), (float complex) (b), tol)
+/* The assertion counter is dp_test.h's, at file scope, which is what lets the
+ * §13+ section functions assert for themselves rather than funnelling a bool
+ * back through main().  Their own diagnostics print and then `return 0`, so
+ * the failure is counted by main's DP_CHECK on the section — no
+ * DP_RECORD_FAIL is needed here.
+ *
+ * dp_nearf / dp_cnearf replace this file's ALMOST_EQ / ALMOST_EQ_C at the
+ * same precision they had: both compared in FLOAT, so every call site keeps
+ * the tolerance it was verified against.  The one that deserves a second
+ * look is §12's blob-determinism check at 1e-9 — in float that is exact
+ * equality after rounding, which is weaker than the bit-identical it means.
+ * Left alone deliberately: tightening a tolerance is a behaviour change, not
+ * part of a mechanical migration.  Filed as gh-682. */
 
 /* Feed n copies of a constant-magnitude sample; return the power of the
  * final output in dB.  Used to probe the converged loop state. */
@@ -1063,19 +1046,19 @@ main (void)
 
   /* ---- lifecycle ---- */
   agc_state_t *obj = agc_create (0.0, 0.0025, 0.05);
-  CHECK (obj != NULL);
+  DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
 
   /* create seeds gain_db = 0 dB and p_avg = reference power = 10^0 = 1 */
-  CHECK (ALMOST_EQ (obj->gain_db, 0.0, 1e-6));
-  CHECK (ALMOST_EQ (obj->p_avg, 1.0, 1e-6));
+  DP_CHECK (dp_nearf (obj->gain_db, 0.0, 1e-6));
+  DP_CHECK (dp_nearf (obj->p_avg, 1.0, 1e-6));
 
   /* ---- convergence: a loud input is driven down to ref_db (0 dB) ---- */
   double out_db = run_const (obj, dir * 10.0f, 4000);
-  CHECK (ALMOST_EQ (out_db, 0.0, 0.5));
+  DP_CHECK (dp_nearf (out_db, 0.0, 0.5));
   /* gain settles to -20 dB: 20*log10(10) of input attenuation */
-  CHECK (ALMOST_EQ (obj->gain_db, -20.0, 0.5));
+  DP_CHECK (dp_nearf (obj->gain_db, -20.0, 0.5));
   agc_destroy (obj);
 
   /* ---- linear-in-dB: a quiet and a loud input settle to the same
@@ -1085,25 +1068,25 @@ main (void)
   agc_state_t *hi    = agc_create (0.0, 0.0025, 0.05);
   double       lo_db = run_const (lo, dir * 0.01f, 4000);  /* -40 dB input */
   double       hi_db = run_const (hi, dir * 100.0f, 4000); /* +40 dB input */
-  CHECK (ALMOST_EQ (lo_db, 0.0, 0.5));
-  CHECK (ALMOST_EQ (hi_db, 0.0, 0.5));
-  CHECK (ALMOST_EQ (lo_db, hi_db, 0.5));
+  DP_CHECK (dp_nearf (lo_db, 0.0, 0.5));
+  DP_CHECK (dp_nearf (hi_db, 0.0, 0.5));
+  DP_CHECK (dp_nearf (lo_db, hi_db, 0.5));
   agc_destroy (lo);
   agc_destroy (hi);
 
   /* ---- non-zero reference: output converges to ref_db, not 0 dB ---- */
   agc_state_t *r    = agc_create (-6.0, 0.0025, 0.05);
   double       r_db = run_const (r, dir * 3.0f, 4000);
-  CHECK (ALMOST_EQ (r_db, -6.0, 0.5));
+  DP_CHECK (dp_nearf (r_db, -6.0, 0.5));
   agc_destroy (r);
 
   /* ---- fast-math approximations agree with the exact functions ---- */
-  CHECK (ALMOST_EQ (agc_exp10_ (0.0), 1.0, 1e-3));
-  CHECK (ALMOST_EQ (agc_exp10_ (2.0), 100.0, 0.2));
-  CHECK (ALMOST_EQ (agc_exp10_ (-1.5), 0.0316227766, 1e-3));
-  CHECK (ALMOST_EQ (agc_log10_ (1.0), 0.0, 1e-3));
-  CHECK (ALMOST_EQ (agc_log10_ (100.0), 2.0, 1e-2));
-  CHECK (ALMOST_EQ (agc_log10_ (0.001), -3.0, 1e-2));
+  DP_CHECK (dp_nearf (agc_exp10_ (0.0), 1.0, 1e-3));
+  DP_CHECK (dp_nearf (agc_exp10_ (2.0), 100.0, 0.2));
+  DP_CHECK (dp_nearf (agc_exp10_ (-1.5), 0.0316227766, 1e-3));
+  DP_CHECK (dp_nearf (agc_log10_ (1.0), 0.0, 1e-3));
+  DP_CHECK (dp_nearf (agc_log10_ (100.0), 2.0, 1e-2));
+  DP_CHECK (dp_nearf (agc_log10_ (0.001), -3.0, 1e-2));
 
   /* ---- decimated steps() converges to the same gain as a per-sample
           step() loop: the block-rate control loop reaches the same
@@ -1118,7 +1101,7 @@ main (void)
     agc_steps (a, in, blk, 3000);
     for (size_t i = 0; i < 3000; i++)
       (void)agc_step (b, in[i]);
-    CHECK (ALMOST_EQ (a->gain_db, b->gain_db, 0.3));
+    DP_CHECK (dp_nearf (a->gain_db, b->gain_db, 0.3));
     agc_destroy (a);
     agc_destroy (b);
   }
@@ -1133,7 +1116,7 @@ main (void)
     agc_steps (b, buf, ref, 64);
     agc_steps (a, buf, buf, 64);
     for (size_t i = 0; i < 64; i++)
-      CHECK (ALMOST_EQ_C (buf[i], ref[i], 1e-6f));
+      DP_CHECK (dp_cnearf (buf[i], ref[i], 1e-6f));
     agc_destroy (a);
     agc_destroy (b);
   }
@@ -1149,12 +1132,12 @@ main (void)
     for (int di = 0; di < 3; di++)
       {
         agc_state_t *a = agc_create (0.0, 0.002, 0.05);
-        CHECK (a->decim == AGC_DECIM_DEFAULT); /* create() default */
+        DP_CHECK (a->decim == AGC_DECIM_DEFAULT); /* create() default */
         a->decim = decims[di];
         agc_steps (a, in, blk, 4000);
         double pw = (double)crealf (blk[3999]) * crealf (blk[3999])
                     + (double)cimagf (blk[3999]) * cimagf (blk[3999]);
-        CHECK (ALMOST_EQ (10.0 * log10 (pw), 0.0, 0.5));
+        DP_CHECK (dp_nearf (10.0 * log10 (pw), 0.0, 0.5));
         agc_destroy (a);
       }
   }
@@ -1162,15 +1145,15 @@ main (void)
   /* ---- reset restores post-create state; config is preserved ---- */
   {
     agc_state_t *s = agc_create (0.0, 0.0025, 0.05);
-    run_const (s, dir * 50.0f, 2000); /* perturb the loop */
-    CHECK (fabs (s->gain_db) > 1.0);  /* loop has clearly moved */
+    run_const (s, dir * 50.0f, 2000);   /* perturb the loop */
+    DP_CHECK (fabs (s->gain_db) > 1.0); /* loop has clearly moved */
     agc_reset (s);
-    CHECK (ALMOST_EQ (s->gain_db, 0.0, 1e-6));
-    CHECK (ALMOST_EQ (s->p_avg, 1.0, 1e-6));
-    CHECK (ALMOST_EQ (s->ref_db, 0.0, 1e-6));
-    CHECK (ALMOST_EQ (s->loop_bw, 0.0025, 1e-6));
-    CHECK (ALMOST_EQ (s->alpha, 0.05, 1e-6));
-    CHECK (ALMOST_EQ (s->clip_db, AGC_CLIP_DB_DEFAULT, 1e-6));
+    DP_CHECK (dp_nearf (s->gain_db, 0.0, 1e-6));
+    DP_CHECK (dp_nearf (s->p_avg, 1.0, 1e-6));
+    DP_CHECK (dp_nearf (s->ref_db, 0.0, 1e-6));
+    DP_CHECK (dp_nearf (s->loop_bw, 0.0025, 1e-6));
+    DP_CHECK (dp_nearf (s->alpha, 0.05, 1e-6));
+    DP_CHECK (dp_nearf (s->clip_db, AGC_CLIP_DB_DEFAULT, 1e-6));
     agc_destroy (s);
   }
 
@@ -1179,10 +1162,10 @@ main (void)
           convergence it equals the commanded gain_db. ---- */
   {
     agc_state_t *s = agc_create (0.0, 0.0025, 0.05);
-    CHECK (ALMOST_EQ (agc_get_applied_gain_db (s), 0.0, 1e-6));
+    DP_CHECK (dp_nearf (agc_get_applied_gain_db (s), 0.0, 1e-6));
     run_const (s, dir * 10.0f, 4000);
-    CHECK (ALMOST_EQ (agc_get_applied_gain_db (s), s->gain_db, 0.5));
-    CHECK (ALMOST_EQ (agc_get_applied_gain_db (s), -20.0, 0.5));
+    DP_CHECK (dp_nearf (agc_get_applied_gain_db (s), s->gain_db, 0.5));
+    DP_CHECK (dp_nearf (agc_get_applied_gain_db (s), -20.0, 0.5));
     agc_destroy (s);
   }
 
@@ -1190,15 +1173,15 @@ main (void)
           output only — it does not feed the detector ---- */
   {
     agc_state_t *s = agc_create (0.0, 0.0025, 0.05);
-    CHECK (ALMOST_EQ (s->clip_db, AGC_CLIP_DB_DEFAULT, 1e-6)); /* default */
+    DP_CHECK (dp_nearf (s->clip_db, AGC_CLIP_DB_DEFAULT, 1e-6)); /* default */
     s->clip_db = 6.0; /* L = 10^(6/20) ~ 1.995 */
     double L   = pow (10.0, 6.0 / 20.0);
     /* first step: gain is exactly unity, so output = clip(x).  re (5)
        exceeds L and clamps; im (1) is below L and is kept unchanged —
        proving the clip is square, not a circular magnitude limit. */
     float complex y = agc_step (s, 5.0f + 1.0f * I);
-    CHECK (ALMOST_EQ (crealf (y), L, 0.02));
-    CHECK (ALMOST_EQ (cimagf (y), 1.0, 1e-6));
+    DP_CHECK (dp_nearf (crealf (y), L, 0.02));
+    DP_CHECK (dp_nearf (cimagf (y), 1.0, 1e-6));
     agc_destroy (s);
   }
 
@@ -1214,7 +1197,7 @@ main (void)
         (void)agc_step (a, dir * 10.0f);
         (void)agc_step (b, dir * 10.0f);
       }
-    CHECK (ALMOST_EQ (a->gain_db, b->gain_db, 1e-9));
+    DP_CHECK (dp_nearf (a->gain_db, b->gain_db, 1e-9));
     agc_destroy (a);
     agc_destroy (b);
   }
@@ -1229,8 +1212,8 @@ main (void)
     agc_steps (s, in, out, 256);
     for (size_t i = 0; i < 256; i++)
       {
-        CHECK (fabsf (crealf (out[i])) <= 1.0f + 1e-3f);
-        CHECK (fabsf (cimagf (out[i])) <= 1.0f + 1e-3f);
+        DP_CHECK (fabsf (crealf (out[i])) <= 1.0f + 1e-3f);
+        DP_CHECK (fabsf (cimagf (out[i])) <= 1.0f + 1e-3f);
       }
     agc_destroy (s);
   }
@@ -1238,16 +1221,16 @@ main (void)
   agc_destroy (NULL); /* must be a no-op */
 
   /* serializable state — POD snapshot round-trips + rejects a bad envelope.
-   * (Moved above the final _fails check: this block used to sit after it,
-   * so its own failures could never fail the test.) */
+   * (Moved above the final DP_TEST_END: this block used to sit after the
+   * epilogue, so its own failures could never fail the test.) */
   {
     agc_state_t *a = agc_create (0.0, 0.0025, 0.05);
     agc_state_t *b = agc_create (0.0, 0.0025, 0.05);
-    CHECK (a != NULL && b != NULL);
+    DP_CHECK (a != NULL && b != NULL);
     for (int i = 0; i < 50; i++)
       (void)agc_step (a, 4.0f + 0.0f * I);
     DP_STATE_ROUNDTRIP_TEST (agc, a, b);
-    CHECK (agc_get_applied_gain_db (b) == agc_get_applied_gain_db (a));
+    DP_CHECK (agc_get_applied_gain_db (b) == agc_get_applied_gain_db (a));
     agc_destroy (a);
     agc_destroy (b);
   }
@@ -1258,11 +1241,11 @@ main (void)
   {
     dp_tlm_t    *tlm = dp_tlm_create (256);
     agc_state_t *a   = agc_create (0.0, 0.0025, 0.05);
-    CHECK (tlm != NULL && a != NULL);
-    CHECK (agc_set_telemetry (a, tlm, "agc", 1) == DP_OK);
-    CHECK (dp_tlm_probe_id (tlm, "agc.gain_db") == a->tlm.id_gain);
-    CHECK (dp_tlm_probe_id (tlm, "agc.level_db") == a->tlm.id_level);
-    CHECK (a->tlm.id_gain != a->tlm.id_level);
+    DP_CHECK (tlm != NULL && a != NULL);
+    DP_CHECK (agc_set_telemetry (a, tlm, "agc", 1) == DP_OK);
+    DP_CHECK (dp_tlm_probe_id (tlm, "agc.gain_db") == a->tlm.id_gain);
+    DP_CHECK (dp_tlm_probe_id (tlm, "agc.level_db") == a->tlm.id_level);
+    DP_CHECK (a->tlm.id_gain != a->tlm.id_level);
 
     /* TWO records per gain update (default period 1 -> per sample), and the
      * pair is (command, the level that command was answering): the last two
@@ -1272,12 +1255,12 @@ main (void)
       (void)agc_step (a, 0.5f + 0.0f * I);
     dp_tlm_rec_t recs[128];
     size_t       n = dp_tlm_read (tlm, 128, recs, 128);
-    CHECK (n == 64);
-    CHECK (recs[n - 2].probe == a->tlm.id_gain);
-    CHECK (recs[n - 2].value == (float)a->gain_db);
-    CHECK (recs[n - 1].probe == a->tlm.id_level);
-    CHECK (recs[n - 1].value
-           == (float)(10.0 * agc_log10_ (a->p_avg + AGC_POWER_FLOOR)));
+    DP_CHECK (n == 64);
+    DP_CHECK (recs[n - 2].probe == a->tlm.id_gain);
+    DP_CHECK (recs[n - 2].value == (float)a->gain_db);
+    DP_CHECK (recs[n - 1].probe == a->tlm.id_level);
+    DP_CHECK (recs[n - 1].value
+              == (float)(10.0 * agc_log10_ (a->p_avg + AGC_POWER_FLOOR)));
 
     /* level_db is the loop's INPUT and is zero-referenced against ref_db:
      * driving a -6 dB signal (0.5 amplitude) toward a 0 dB reference, the
@@ -1287,13 +1270,13 @@ main (void)
     {
       agc_state_t *s = agc_create (0.0, 0.0025, 0.05);
       dp_tlm_t    *t = dp_tlm_create (1 << 13);
-      CHECK (s != NULL && t != NULL);
-      CHECK (agc_set_telemetry (s, t, "agc", 1) == DP_OK);
+      DP_CHECK (s != NULL && t != NULL);
+      DP_CHECK (agc_set_telemetry (s, t, "agc", 1) == DP_OK);
       for (int i = 0; i < 4096; i++)
         (void)agc_step (s, 0.5f + 0.0f * I);
       double lvl = 10.0 * agc_log10_ (s->p_avg + AGC_POWER_FLOOR);
-      CHECK (fabs (lvl - s->ref_db) < 0.1);  /* level -> reference   */
-      CHECK (fabs (s->gain_db - 6.0) < 0.1); /* gain -> +6 dB        */
+      DP_CHECK (fabs (lvl - s->ref_db) < 0.1);  /* level -> reference   */
+      DP_CHECK (fabs (s->gain_db - 6.0) < 0.1); /* gain -> +6 dB        */
       /* And the probe carried it: the level stream must END nearer the
          reference than it STARTED, which a mis-wired probe (emitting the
          gain twice, say) would not satisfy -- the gain moves the other way. */
@@ -1311,8 +1294,8 @@ main (void)
                 }
               last_lvl = (size_t)(fabs ((double)r[i].value) * 1000.0);
             }
-      CHECK (have_first);
-      CHECK (last_lvl < first_lvl); /* |level - 0 dB| shrank */
+      DP_CHECK (have_first);
+      DP_CHECK (last_lvl < first_lvl); /* |level - 0 dB| shrank */
       dp_tlm_destroy (t);
       agc_destroy (s);
     }
@@ -1320,33 +1303,33 @@ main (void)
     /* Blob determinism: an attached and a detached instance with the
      * same running state serialize byte-identically. */
     agc_state_t *d = agc_create (0.0, 0.0025, 0.05);
-    CHECK (d != NULL);
+    DP_CHECK (d != NULL);
     *d              = *a;
     d->tlm.ctx      = NULL;
     d->tlm.id_gain  = 0;
     d->tlm.id_level = 0;
     uint8_t blob_a[sizeof (dp_state_hdr_t) + sizeof (agc_state_t)];
     uint8_t blob_d[sizeof (blob_a)];
-    CHECK (agc_state_bytes (a) == sizeof (blob_a));
+    DP_CHECK (agc_state_bytes (a) == sizeof (blob_a));
     agc_get_state (a, blob_a);
     agc_get_state (d, blob_d);
-    CHECK (memcmp (blob_a, blob_d, sizeof (blob_a)) == 0);
+    DP_CHECK (memcmp (blob_a, blob_d, sizeof (blob_a)) == 0);
 
     /* Restore into an attached instance: running state comes from the
      * blob, the receiver's own live attachment survives. */
     dp_tlm_t    *tlm2 = dp_tlm_create (256);
     agc_state_t *b    = agc_create (0.0, 0.0025, 0.05);
-    CHECK (tlm2 != NULL && b != NULL);
-    CHECK (agc_set_telemetry (b, tlm2, "rx.agc", 1) == DP_OK);
-    CHECK (agc_set_state (b, blob_a) == DP_OK);
-    CHECK (b->gain_db == a->gain_db);
-    CHECK (b->tlm.ctx == tlm2);
+    DP_CHECK (tlm2 != NULL && b != NULL);
+    DP_CHECK (agc_set_telemetry (b, tlm2, "rx.agc", 1) == DP_OK);
+    DP_CHECK (agc_set_state (b, blob_a) == DP_OK);
+    DP_CHECK (b->gain_db == a->gain_db);
+    DP_CHECK (b->tlm.ctx == tlm2);
 
     /* Detach: emit sites revert to the single-branch no-op. */
-    CHECK (agc_set_telemetry (a, NULL, "agc", 1) == DP_OK);
-    CHECK (a->tlm.ctx == NULL);
+    DP_CHECK (agc_set_telemetry (a, NULL, "agc", 1) == DP_OK);
+    DP_CHECK (a->tlm.ctx == NULL);
     (void)agc_step (a, 0.5f + 0.0f * I);
-    CHECK (dp_tlm_read (tlm, 128, recs, 128) == 0);
+    DP_CHECK (dp_tlm_read (tlm, 128, recs, 128) == 0);
 
     agc_destroy (d);
     agc_destroy (b);
@@ -1357,40 +1340,33 @@ main (void)
 
   /* ── §13-§18: the safety pass. Every one of these was proven by
      sabotage — reverting the guard it names turns it red. ───────────────── */
-  CHECK (guard_survives_one_bad_sample ((float)(1.0 / 0.0) + 0.0f * I,
-                                        "+Inf real"));
-  CHECK (guard_survives_one_bad_sample (0.0f + (float)(1.0 / 0.0) * I,
-                                        "+Inf imag"));
-  CHECK (guard_survives_one_bad_sample ((float)(0.0 / 0.0) + 0.0f * I,
-                                        "NaN real"));
-  CHECK (guard_survives_one_bad_sample (1.0f + (float)(0.0 / 0.0) * I,
-                                        "NaN imag"));
+  DP_CHECK (guard_survives_one_bad_sample ((float)(1.0 / 0.0) + 0.0f * I,
+                                           "+Inf real"));
+  DP_CHECK (guard_survives_one_bad_sample (0.0f + (float)(1.0 / 0.0) * I,
+                                           "+Inf imag"));
+  DP_CHECK (guard_survives_one_bad_sample ((float)(0.0 / 0.0) + 0.0f * I,
+                                           "NaN real"));
+  DP_CHECK (guard_survives_one_bad_sample (1.0f + (float)(0.0 / 0.0) * I,
+                                           "NaN imag"));
 
-  CHECK (silence_leaves_the_loop_recoverable (0));
-  CHECK (silence_leaves_the_loop_recoverable (1));
+  DP_CHECK (silence_leaves_the_loop_recoverable (0));
+  DP_CHECK (silence_leaves_the_loop_recoverable (1));
 
-  CHECK (exp10_is_total ());
-  CHECK (log10_is_total ());
-  CHECK (applied_gain_is_finite_after_silence ());
-  CHECK (saturate_contract ());
+  DP_CHECK (exp10_is_total ());
+  DP_CHECK (log10_is_total ());
+  DP_CHECK (applied_gain_is_finite_after_silence ());
+  DP_CHECK (saturate_contract ());
 
   /* ── §19-§24: the rest of the claim inventory — the header's prose that
      nothing ran, and the tests whose comments claimed more than their
      assertions did. ──────────────────────────────────────────────────── */
-  CHECK (gain_update_period_holds_and_converges ());
-  CHECK (settling_scales_with_bandwidth_and_depends_on_level ());
-  CHECK (seed_is_the_reference_power ());
-  CHECK (block_gain_is_a_first_order_hold ());
-  CHECK (decim_is_neutral_at_the_steady_state ());
-  CHECK (failed_attach_leaves_it_detached ());
-  CHECK (settling_samples_is_the_loop_it_describes ());
+  DP_CHECK (gain_update_period_holds_and_converges ());
+  DP_CHECK (settling_scales_with_bandwidth_and_depends_on_level ());
+  DP_CHECK (seed_is_the_reference_power ());
+  DP_CHECK (block_gain_is_a_first_order_hold ());
+  DP_CHECK (decim_is_neutral_at_the_steady_state ());
+  DP_CHECK (failed_attach_leaves_it_detached ());
+  DP_CHECK (settling_samples_is_the_loop_it_describes ());
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_agc_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-
-  printf ("test_agc_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_agc_core");
 }

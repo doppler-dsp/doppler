@@ -337,6 +337,7 @@ uv run python scripts/check_nav_index.py
 uv run python scripts/gen_related_pages.py --check
 uv run python scripts/gen_readme.py --check
 uv run python scripts/gen_install_scripts.py --check
+uv run python scripts/gen_validation_log.py --check
 uv run python scripts/gen_doc_versions.py --check
 uv run python scripts/check_version_strings.py
 uv run python scripts/check_doc_targets.py
@@ -916,6 +917,7 @@ docs-relink: ## Regenerate every generated doc region
 	uv run python scripts/gen_related_pages.py --write
 	uv run python scripts/gen_readme.py --write
 	uv run python scripts/gen_install_scripts.py --write
+	uv run python scripts/gen_validation_log.py --write
 	uv run python scripts/gen_doc_versions.py --write
 	uv run python scripts/gen_jm_pin.py --write
 
@@ -927,6 +929,7 @@ docs-drift-check: ## Check the generated doc regions are up to date
 	uv run python scripts/gen_related_pages.py --check
 	uv run python scripts/gen_readme.py --check
 	uv run python scripts/gen_install_scripts.py --check
+	uv run python scripts/gen_validation_log.py --check
 
 # Every object certified under the validation campaign owns
 # src/doppler/<module>/tests/validation/<object>/, and `results.md` there is

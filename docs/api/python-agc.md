@@ -72,9 +72,39 @@ buf = np.full(2000, 2.0 + 0j, dtype=np.complex64)
 agc.steps(buf, out=buf)
 ```
 
+### How long until it has settled
+
+`settling_samples` answers the question a warm-up budget, a burst preamble
+or an acquisition guard has to answer, and that `1/(4*loop_bw)` does not:
+
+```python
+from doppler.agc import settling_samples
+
+settling_samples(0.0025, 0.05, 40.0, 0.5)   # 430 — cold, 40 dB quiet
+settling_samples(0.0025, 0.05, -40.0, 0.5)  # 175 — loud, the fast direction
+```
+
+`1/(4*loop_bw)` is the loop **filter's** time constant, and the object is
+not the filter: the detector sits inside the loop and measures in *power*,
+so a quiet input settles more slowly. Pass the largest gain error you expect
+to *start* from — **positive for a quiet input**, which is the slow
+direction and the one to budget for. For a cold receiver that is the whole
+input dynamic range it must cover, not the steady-state variation.
+
+It runs the real loop and counts rather than evaluating a fitted curve, so
+it cannot go stale relative to the object it describes. That makes it a
+design-time call: it allocates and iterates, so use it while planning a
+pipeline, never inside one. Invalid arguments return `0` rather than a
+plausible-looking guess.
+
+The multiplier it is measuring is charted across both design axes in
+[AGC Settling — a design chart](../gallery/agc-settling-design.md).
+
 ______________________________________________________________________
 
 ::: doppler.agc.AGC
+
+::: doppler.agc.settling_samples
 
 ## Related pages
 

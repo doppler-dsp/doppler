@@ -26,6 +26,7 @@
  *   §22 The block gain is a linear ramp within a chunk, not a staircase
  *   §23 decim is neutral at the steady state (and NOT mid-transient)
  *   §24 A failed attach leaves the object detached
+ *   §25 agc_settling_samples obeys the physics it reports
  *
  * Sections §13 onward were added by the validation campaign. They exist
  * because agc_core.h claimed the power floor was "never reached in normal
@@ -936,6 +937,123 @@ failed_attach_leaves_it_detached (void)
   return ok;
 }
 
+/* ── §25 — agc_settling_samples answers the design query ──────────────────
+ *
+ * It simulates the real loop rather than evaluating a fitted curve, so the
+ * thing to pin is not a set of literals -- those would just restate the
+ * simulation -- but the PHYSICS the answer has to obey, and the refusals.
+ *
+ * The physics is the same asymmetry section §20 measures directly: a quiet
+ * start is slower than a loud one, settling scales as 1/loop_bw, and a
+ * looser tolerance is cheaper. A helper that returned a constant, or that
+ * ignored an argument, passes none of them. */
+static int
+settling_samples_is_the_loop_it_describes (void)
+{
+  int ok = 1;
+
+  /* Refusals first: an answer here would be a plausible-looking guess. */
+  struct
+  {
+    double      bw, alpha, err, tol;
+    const char *what;
+  } bad[] = {
+    { 0.0, 0.05, 40.0, 0.5, "loop_bw 0" },
+    { -0.01, 0.05, 40.0, 0.5, "negative loop_bw" },
+    { 0.0025, 0.0, 40.0, 0.5, "alpha 0" },
+    { 0.0025, 1.5, 40.0, 0.5, "alpha above 1" },
+    { 0.0025, 0.05, 40.0, 0.0, "tol_db 0" },
+    { 0.0025, 0.05, 0.0 / 0.0, 0.5, "NaN error" },
+  };
+  for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
+    {
+      size_t got = agc_settling_samples (bad[i].bw, bad[i].alpha, bad[i].err,
+                                         bad[i].tol);
+      if (got != 0)
+        {
+          fprintf (stderr, "  §25 %s: returned %zu, expected a refusal\n",
+                   bad[i].what, got);
+          ok = 0;
+        }
+    }
+
+  /* Already inside the tolerance is settled, and the contract says >= 1. */
+  if (agc_settling_samples (0.0025, 0.05, 0.1, 0.5) != 1)
+    {
+      fprintf (stderr, "  §25 an already-settled loop did not report 1\n");
+      ok = 0;
+    }
+
+  size_t quiet = agc_settling_samples (0.0025, 0.05, 40.0, 0.5);
+  size_t loud  = agc_settling_samples (0.0025, 0.05, -40.0, 0.5);
+  size_t loose = agc_settling_samples (0.0025, 0.05, 40.0, 3.0);
+  size_t fast  = agc_settling_samples (0.01, 0.05, 40.0, 0.5);
+
+  /* Vacuity precondition: every one must be a real answer, or the
+     comparisons below are between refusals. */
+  if (!(quiet && loud && loose && fast))
+    {
+      fprintf (stderr,
+               "  §25 precondition — a valid query was refused "
+               "(%zu, %zu, %zu, %zu)\n",
+               quiet, loud, loose, fast);
+      return 0;
+    }
+
+  /* A quiet start is the slow direction — the detector's concave log. */
+  if (!(quiet > loud))
+    {
+      fprintf (stderr,
+               "  §25 a +40 dB start took %zu against a -40 dB start's %zu; "
+               "the asymmetry has vanished or reversed\n",
+               quiet, loud);
+      ok = 0;
+    }
+  /* A looser bar is cheaper. Catches a helper ignoring tol_db. */
+  if (!(loose < quiet))
+    {
+      fprintf (stderr, "  §25 tol_db 3.0 cost %zu against 0.5's %zu\n", loose,
+               quiet);
+      ok = 0;
+    }
+  /* Settling scales as 1/loop_bw: 4x the bandwidth, roughly a quarter the
+     samples. Loose bounds because the detector's share does not scale with
+     the filter's -- that non-scaling IS the object's character, so this
+     asserts the law without pretending it is exact. */
+  double scale = (double)quiet / (double)fast;
+  if (!(scale > 2.0 && scale < 6.0))
+    {
+      fprintf (stderr,
+               "  §25 4x the bandwidth changed settling by %.2fx (%zu -> "
+               "%zu), expected roughly 4x\n",
+               scale, quiet, fast);
+      ok = 0;
+    }
+
+  /* And the answer is the LOOP's, not a formula's: run the real thing to
+     the reported sample count and it must genuinely be inside tol_db.
+     This is what makes the helper trustworthy rather than plausible. */
+  {
+    agc_state_t *s = agc_create (0.0, 0.0025, 0.05);
+    if (!s)
+      return 0;
+    float complex x = (float)pow (10.0, -40.0 / 20.0) * (0.6f + 0.8f * I);
+    for (size_t n = 0; n < quiet; n++)
+      (void)agc_step (s, x);
+    if (!(fabs (s->gain_db - 40.0) <= 0.5))
+      {
+        fprintf (stderr,
+                 "  §25 after the reported %zu samples the loop is at %g dB, "
+                 "not within 0.5 of 40 — the helper does not describe the "
+                 "loop it claims to\n",
+                 quiet, s->gain_db);
+        ok = 0;
+      }
+    agc_destroy (s);
+  }
+  return ok;
+}
+
 int
 main (void)
 {
@@ -1265,6 +1383,7 @@ main (void)
   CHECK (block_gain_is_a_first_order_hold ());
   CHECK (decim_is_neutral_at_the_steady_state ());
   CHECK (failed_attach_leaves_it_detached ());
+  CHECK (settling_samples_is_the_loop_it_describes ());
 
   if (_fails)
     {

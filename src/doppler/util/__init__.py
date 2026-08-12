@@ -14,6 +14,6 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .util import square_clip  # noqa: E402
+from .util import square_clip, saturate  # noqa: E402
 
-__all__ = ["square_clip"]
+__all__ = ["square_clip", "saturate"]

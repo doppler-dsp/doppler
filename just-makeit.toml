@@ -2004,6 +2004,27 @@ type = "float _Complex"
 [[module.util.functions.params]]
 name = "lin"
 type = "float"
+
+[[module.util.functions]]
+name = "saturate"
+doc = "Saturate a value into [lo, hi], total over every double including NaN and both infinities. The NaN destination is a parameter because which end is safe is domain knowledge: a gain control guarding a measured power wants the ceiling, a lock statistic wants the floor. Use it at the boundary where an untrusted value first becomes persistent state -- the input of an EMA, accumulator or integrator."
+return_type = "double"
+
+[[module.util.functions.params]]
+name = "v"
+type = "double"
+
+[[module.util.functions.params]]
+name = "lo"
+type = "double"
+
+[[module.util.functions.params]]
+name = "hi"
+type = "double"
+
+[[module.util.functions.params]]
+name = "nan_to"
+type = "double"
 [module.arith]
 doc = """
 Fixed-point accumulators: Q8 and Q15 scalar sums (AccQ8, AccQ15) with exact integer arithmetic for bit-true pipelines.

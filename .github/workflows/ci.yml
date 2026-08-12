@@ -132,7 +132,11 @@ jobs:
       # Started here, before any build/test step, because the "Doctest
       # generated stubs" step below now needs a live broker too (stream.pyi's
       # examples create real nats:// Publisher/Push/etc. handles).
-      run: bash scripts/start-nats.sh
+      #
+      # `make nats-up`, not a bare `bash scripts/...`: gates-check only sees
+      # `make <target>`, so as a raw script call the step that decides whether
+      # a whole transport is exercised was invisible to it.
+      run: make nats-up
 
     - name: Build C library
       run: make build
@@ -183,7 +187,7 @@ jobs:
 
     - name: Stop NATS broker
       if: always()
-      run: docker rm -f nats || true
+      run: make nats-down
 
     - name: Python example smoke tests
       run: make test-examples-python
@@ -397,14 +401,14 @@ jobs:
     - name: Start NATS JetStream broker (covers the nats:// stream path)
       # The stream suite's nats:// tests self-skip when 127.0.0.1:4222 is
       # unreachable; start a JetStream broker so stream_nats.c is exercised.
-      run: bash scripts/start-nats.sh
+      run: make nats-up
 
     - name: Coverage (clang source-based; C ∪ Python ∪ Rust)
       run: make coverage | tee coverage.txt
 
     - name: Stop NATS broker
       if: always()
-      run: docker rm -f nats 2>/dev/null || true
+      run: make nats-down
 
     - name: Patch-coverage gate (changed C lines must be >= 90%)
       # diff-cover fails the job (→ blocks ci-passed) when a PR's added/changed

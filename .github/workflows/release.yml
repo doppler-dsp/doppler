@@ -28,12 +28,12 @@ jobs:
           TAG="${GITHUB_REF_NAME}"          # e.g. v0.2.1
           VERSION="${TAG#v}"                # e.g.   0.2.1
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          # The jm pin the SDK image bakes in — read from the manifest so the
-          # image's just-makeit stays in lock-step with the repo, never a
-          # hardcoded default.
-          JM=$(grep -m1 '^jm_version' just-makeit.toml | \
-               sed 's/.*"\(.*\)".*/\1/')
-          echo "jm_version=${JM}" >> "$GITHUB_OUTPUT"
+          # The jm pin the SDK image bakes in — asked of the Makefile, which
+          # already derives JM_VERSION from just-makeit.toml for the docker-*
+          # targets. This step had its own grep/sed doing the same job, so one
+          # pin had two extractions that agreed only by luck, and the image's
+          # jm depended on which caller you went through.
+          echo "jm_version=$(make -s print-jm-version)" >> "$GITHUB_OUTPUT"
 
       # `make version-check` is the SSOT for "the manifests agree": it probes
       # pyproject.toml, CMakeLists.txt and ffi/rust/Cargo.toml, and fails if any
@@ -249,72 +249,45 @@ jobs:
   # Build and package C libraries (headers + static + shared)
   # for Linux x86_64, Linux aarch64, and macOS arm64.
   # ------------------------------------------------------------------
+  # One matrixed job, not two near-identical ones. The x86_64 and aarch64 legs
+  # differed only in the image arch and the platform string they hand-typed
+  # into `tar` — the same shape build-python's arch matrix already uses. The
+  # tarball itself is `make package-c-tarball`, which derives the platform from
+  # uname, so a leg cannot label itself as an arch it did not build on.
   build-c-linux:
-    name: Package C library (manylinux_2_28 x86_64)
+    name: Package C library (manylinux_2_28 ${{ matrix.arch.tag }})
     needs: verify-version
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Native ARM64 runner (free for public repos), same as build-python's
+        # aarch64 leg — no QEMU or cross-toolchain anywhere.
+        arch:
+          - { tag: x86_64, runner: ubuntu-latest }
+          - { tag: aarch64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.arch.runner }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build in manylinux container and install to prefix
+      - name: Build + tar the C library in the manylinux container
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/project" \
             -w /project \
-            quay.io/pypa/manylinux_2_28_x86_64 \
+            quay.io/pypa/manylinux_2_28_${{ matrix.arch.tag }} \
             bash -euxc "
               # Container-context dep install (2 packages); a jbx/jb.toml
               # bootstrap here would add a CDN dependency to the C build for no
               # gain. make itself ships in the manylinux image.
-              dnf install -y make cmake pkg-config
-              make package-c PREFIX=/project/install
+              dnf install -y make cmake pkg-config tar gzip
+              make package-c-tarball VERSION=${{ needs.verify-version.outputs.version }}
             "
 
-      - name: Create tarball
-        run: |
-          VERSION="${{ needs.verify-version.outputs.version }}"
-          mkdir -p dist
-          tar -czf "dist/doppler-${VERSION}-linux-x86_64.tar.gz" \
-            -C install .
-
-      - name: Upload C library (Linux x86_64)
+      - name: Upload C library (Linux ${{ matrix.arch.tag }})
         uses: actions/upload-artifact@v4
         with:
-          name: c-dist-linux
-          path: dist/doppler-*-linux-x86_64.tar.gz
-
-  build-c-linux-arm64:
-    name: Package C library (manylinux_2_28 aarch64)
-    needs: verify-version
-    # Native ARM64 runner (free for public repos), same as build-python's
-    # aarch64 leg — no QEMU or cross-toolchain anywhere.
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build in manylinux container and install to prefix
-        run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/project" \
-            -w /project \
-            quay.io/pypa/manylinux_2_28_aarch64 \
-            bash -euxc "
-              dnf install -y make cmake pkg-config
-              make package-c PREFIX=/project/install
-            "
-
-      - name: Create tarball
-        run: |
-          VERSION="${{ needs.verify-version.outputs.version }}"
-          mkdir -p dist
-          tar -czf "dist/doppler-${VERSION}-linux-aarch64.tar.gz" \
-            -C install .
-
-      - name: Upload C library (Linux aarch64)
-        uses: actions/upload-artifact@v4
-        with:
-          name: c-dist-linux-arm64
-          path: dist/doppler-*-linux-aarch64.tar.gz
+          name: c-dist-linux-${{ matrix.arch.tag }}
+          path: dist/doppler-*-linux-${{ matrix.arch.tag }}.tar.gz
 
   build-c-macos:
     name: Package C library (macOS arm64)
@@ -326,15 +299,11 @@ jobs:
       - name: Install system dependencies
         run: make install-deps
 
-      - name: Build and install to prefix
-        run: make package-c PREFIX="${{ github.workspace }}/install"
-
-      - name: Create tarball
-        run: |
-          VERSION="${{ needs.verify-version.outputs.version }}"
-          mkdir -p dist
-          tar -czf "dist/doppler-${VERSION}-macos-arm64.tar.gz" \
-            -C install .
+      - name: Build + tar the C library
+        # Same target the Linux legs run in their container, and the same one a
+        # developer can run before cutting a tag — the tarball is no longer an
+        # artifact that only a release could produce.
+        run: make package-c-tarball VERSION="${{ needs.verify-version.outputs.version }}"
 
       - name: Upload C library (macOS)
         uses: actions/upload-artifact@v4
@@ -480,11 +449,8 @@ jobs:
         # Same scripts/smoke-image.sh that `make docker-runtime` runs, so the
         # published-image check cannot drift from the CI check.
         run: |
-          for arch in amd64 arm64; do
-            bash scripts/smoke-image.sh runtime \
-              "ghcr.io/${{ github.repository }}:${{ needs.verify-version.outputs.version }}" \
-              "linux/$arch"
-          done
+          make smoke-image KIND=runtime \
+            IMAGE="ghcr.io/${{ github.repository }}:${{ needs.verify-version.outputs.version }}"
 
       # The SDK image (ghcr.io/doppler-dsp/doppler-sdk) — the "build ON
       # doppler" artifact: doppler installed to /usr/local + toolchain + uv/jm.
@@ -512,11 +478,8 @@ jobs:
         # copy had silently degraded to a bare `pkg-config --modversion`, a
         # strictly weaker gate on the PUBLISHED image than CI ran.)
         run: |
-          for arch in amd64 arm64; do
-            bash scripts/smoke-image.sh sdk \
-              "ghcr.io/${{ github.repository }}-sdk:${{ needs.verify-version.outputs.version }}" \
-              "linux/$arch"
-          done
+          make smoke-image KIND=sdk \
+            IMAGE="ghcr.io/${{ github.repository }}-sdk:${{ needs.verify-version.outputs.version }}"
 
       # The iqtools showcase (ghcr.io/doppler-dsp/doppler-downstream-jm) — the
       # flagship worked downstream, shipped already built with its whole suite
@@ -542,11 +505,8 @@ jobs:
         # definition of the check (this is where the #601 quoting SyntaxError
         # lived, precisely because it was a hand-typed second copy).
         run: |
-          for arch in amd64 arm64; do
-            bash scripts/smoke-image.sh downstream \
-              "ghcr.io/${{ github.repository }}-downstream-jm:${{ needs.verify-version.outputs.version }}" \
-              "linux/$arch"
-          done
+          make smoke-image KIND=downstream \
+            IMAGE="ghcr.io/${{ github.repository }}-downstream-jm:${{ needs.verify-version.outputs.version }}"
 
   # ------------------------------------------------------------------
   # GitHub Release with auto-generated notes
@@ -560,7 +520,6 @@ jobs:
       - build-python
       - build-macos
       - build-c-linux
-      - build-c-linux-arm64
       - build-c-macos
       - publish-python
       - publish-container

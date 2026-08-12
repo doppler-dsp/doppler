@@ -146,6 +146,43 @@ ______________________________________________________________________
 
 ### Changed
 
+- **Four more CI/release steps became make targets, after an audit prompted by
+    the `glibc-gate` work above.** Same rule each time: a step only CI can run
+    is a step only CI can debug.
+
+    - **`make package-c-tarball VERSION=x.y.z`** — the released C library
+        tarball. It was three hand-written `tar -czf` lines in `release.yml`,
+        one per platform, wrapped in two more hand-written manylinux
+        `docker run` blocks, and **no target produced it at all**: `package-c`
+        stopped at installing to a prefix, and the only `tar` in the Makefile
+        was coverage staging. So `release-smoke` could test a *published*
+        tarball that nothing could build locally. The platform string is now
+        derived from `uname` instead of hard-coded per copy — a leg can no
+        longer label itself an arch it did not build on — and the two Linux
+        jobs collapse into one matrixed `build-c-linux`, mirroring
+        `build-python`'s existing arch matrix.
+
+    - **`make nats-up` / `make nats-down`** — the JetStream broker the
+        `nats://` stream tests need. It was `bash scripts/start-nats.sh` plus
+        an inline `docker rm -f nats` written two different ways, and
+        `gates-check` only scans for `make <target>` — so the one step
+        deciding whether a whole transport is exercised was invisible to the
+        gate that exists to catch CI-only steps. Both are in `GATES_PROVISION`
+        now. `nats-up` is also idempotent, which the script was not: with a
+        broker already running it exits **125** (`docker run --name nats`
+        refuses the duplicate), fine on a fresh runner and wrong on a dev box.
+
+    - **`make smoke-image KIND=… IMAGE=…`** — the per-arch published-image
+        smoke, written out three times in `release.yml`. They already shared
+        `smoke-image.sh`; the loop around it was the copy. This file's own
+        comments record two bugs that lived in exactly such a re-typed copy
+        (the SDK check degrading to a version print, and the #601 quoting
+        `SyntaxError`).
+
+    - **`make print-jm-version`** — `release.yml` re-derived the jm pin with
+        its own `grep`/`sed` while `JM_VERSION` already read the same file, so
+        one pin had two extractions that agreed only by luck.
+
 - **just-makeit pin 0.55.1 → 0.55.2.** Both fixes in it were surfaced by
     doppler's own 0.55.1 bump, and both are docs/formatting only — no
     signature, no behaviour, and every non-whitespace line in the 85 changed
@@ -204,6 +241,24 @@ ______________________________________________________________________
     *doppler's* release version against being hand-typed into docs.
 
 ### Fixed
+
+- **The C-library tarball could be built empty, and would have shipped.**
+    Found by running `package-c-tarball` for the first time — the point of
+    making it a target. Two defects, both invisible while the logic lived in
+    `release.yml`: the staging prefix was reached as `$(CURDIR)/$(C_INSTALL_DIR)`,
+    which is nonsense once `BUILD_DIR` is absolute (`/home/…/doppler//tmp/…`),
+    so cmake installed to one path while `tar` read another; and `tar` **wrote
+    a 20-byte archive on its way out**. Had the prefix been merely empty rather
+    than absent, tar would have exited 0 and a GitHub Release would have
+    carried an empty tarball.
+
+    `$(abspath …)` fixes the path for relative and absolute alike. The archive
+    is then checked for `include/`, `lib/` and `lib/pkgconfig/` — the three
+    documented consumer faces resolve through those — so a partial install
+    fails the build instead of shipping. Verified: a tarball with `lib/` but no
+    `include/` is refused; the real one carries 241 entries. The prefix is also
+    staged fresh each run, since installing into a surviving one MERGES and a
+    deleted header would ship forever.
 
 - **`glibc-check` reported ALL GREEN when there was nothing to check.**
     Pointed at a directory with no `libdoppler.so`, `objdump` wrote its error

@@ -246,12 +246,35 @@ TEST_EXAMPLES_CMD = $(MAKE) --no-print-directory test-examples-c
 
 TEST_ALL_DEPS = test test-examples test-python test-examples-python
 
+# The stream suite's nats:// tests self-skip when 127.0.0.1:4222 is
+# unreachable, so whether they RUN is a property of the environment, not of the
+# test selection. CI started the broker with a bare `bash scripts/start-nats.sh`
+# and tore it down with an inline `docker rm -f nats` written two different
+# ways -- and `gates-check` scans for `make <target>`, so the one step that
+# decides whether a whole transport is exercised was invisible to the gate that
+# exists to catch CI-only steps. As targets they are visible, listed in
+# GATES_PROVISION, and runnable before `make test-python` or `make coverage`.
+#
+# `docker rm -f` first because start-nats.sh runs `docker run --name nats`,
+# which fails outright if a container by that name is already there -- fine for
+# a fresh runner, wrong for a dev box running it twice.
+nats-up: ## Start the NATS JetStream broker the nats:// stream tests need
+	@docker rm -f nats >/dev/null 2>&1 || true
+	@bash scripts/start-nats.sh
+
+nats-down: ## Stop and remove the NATS JetStream broker
+	@docker rm -f nats >/dev/null 2>&1 || true
+	@echo "nats-down: broker stopped"
+
 # `gates` must run every gate CI does — enforced by `gates-check` (standard.mk),
 # which scans ci.yml and fails on any `make <target>` CI runs that `gates`
 # cannot reach. Every such target is here or in GATES_PROVISION; nothing is
 # silently omitted. GATES_PROVISION is the setup/build steps a dev runs BEFORE
 # gating (install the deps, build the tree), not gates themselves.
-GATES_PROVISION = install-deps install-docs-deps build pyext
+# nats-up/nats-down are provisioning, not gates: they decide whether the
+# nats:// stream tests RUN at all (the suite self-skips on an unreachable
+# broker), so they belong to the "bring the box up" half, the same as build.
+GATES_PROVISION = install-deps install-docs-deps build pyext nats-up nats-down
 GATES_DEPS    = lint changelog-check drift-check doxygen-check docs-check \
                 validate-check \
                 test-all test-stubs test-api-docs test-snippets test-rust \
@@ -557,7 +580,8 @@ endef
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 gen-c-api-run doxygen-pin-image \
-                package-c sdist release-notes \
+                package-c package-c-tarball sdist release-notes \
+                print-jm-version nats-up nats-down \
                 docs-relink docs-drift-check drift-check changelog-check \
                 validate validate-check \
                 doxygen-warn-gate \
@@ -573,7 +597,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 bench-interleaved bench-publish bench-docs bench-stream \
                 bench-report \
                 docker-runtime docker-sdk docker-downstream docker-stream \
-                docker-examples
+                docker-examples smoke-image
 
 include standard.mk
 
@@ -757,7 +781,8 @@ just-build: pyext ## PEP 517 build hook for just-buildit
 # install layout lives in one place. LIBDIR=lib (not the RHEL/manylinux lib64
 # default) so a consumer's find_package/CMAKE_PREFIX_PATH resolves the config on
 # every distro (CMake searches lib/ universally; lib64/ only where the platform
-# opts in). Tarball naming stays in the caller — it is per-platform and trivial.
+# opts in). Tarball naming used to stay in the caller, "per-platform and
+# trivial" — see `package-c-tarball` below for how that turned out.
 package-c: ## PREFIX=<dir> — build+install the relocatable C library (no Python)
 ifndef PREFIX
 	@echo "usage: make package-c PREFIX=<dir>"; exit 1
@@ -767,6 +792,53 @@ endif
 	$(CMAKE) --build $(BUILD_DIR) --parallel $(NPROC)
 	$(CMAKE) --install $(BUILD_DIR) --prefix $(PREFIX)
 
+# "Trivial" was true of each copy and false of the set. This was three
+# hand-written `tar -czf` lines in release.yml — one per platform — wrapped in
+# two more hand-written manylinux `docker run` blocks, and no target anywhere
+# produced the artifact. So the tarball a release ships could not be built or
+# inspected before cutting a tag, while `release-smoke` could only test one
+# already published: doppler could smoke-test an artifact it could not make.
+#
+# The platform string is DERIVED here rather than passed in. Each CI copy
+# hard-coded its own, which is precisely how one could disagree with the runner
+# it ran on; uname cannot. `darwin` is spelled `macos` in the published names,
+# and that rename is the only special case.
+# The staging prefix goes UNDER $(BUILD_DIR), not the repo root. CI installed
+# to ./install and got away with it on a throwaway runner; on a dev box that is
+# an untracked directory in the tree (`install/` is not even gitignored) and
+# scattered cmake output, which this repo's layout rule exists to prevent.
+C_PLATFORM ?= $(shell uname -s | tr '[:upper:]' '[:lower:]' \
+                  | sed 's/^darwin$$/macos/')-$(shell uname -m)
+C_INSTALL_DIR ?= $(BUILD_DIR)/package-c-prefix
+DIST_DIR      ?= dist
+
+package-c-tarball: ## VERSION=x.y.z — build + tar the released C library into $(DIST_DIR)/
+ifndef VERSION
+	@echo "usage: make package-c-tarball VERSION=<x.y.z>"; exit 1
+endif
+# Staged fresh every time: an install into a surviving prefix MERGES, so a
+# header deleted since the last run would ship in the tarball forever.
+# $(abspath), not $(CURDIR)/, because C_INSTALL_DIR follows BUILD_DIR and an
+# absolute BUILD_DIR made that `/home/.../doppler//tmp/...` -- cmake installed
+# there while tar read the real path, and the release tarball came out EMPTY.
+	@rm -rf $(C_INSTALL_DIR)
+	@$(MAKE) --no-print-directory package-c PREFIX=$(abspath $(C_INSTALL_DIR))
+	@mkdir -p $(DIST_DIR)
+	@tar -czf "$(DIST_DIR)/doppler-$(VERSION)-$(C_PLATFORM).tar.gz" \
+	    -C $(C_INSTALL_DIR) .
+# And then CHECK it, because the failure above wrote a 20-byte archive on its
+# way out: had the prefix merely been empty rather than absent, tar would have
+# exited 0 and this would have shipped an empty tarball to a GitHub Release.
+# Assert the shape a consumer needs, not merely that bytes exist -- the three
+# documented faces resolve through include/, lib/ and lib/pkgconfig/.
+	@tb="$(DIST_DIR)/doppler-$(VERSION)-$(C_PLATFORM).tar.gz"; \
+	 for want in ./include/ ./lib/ ./lib/pkgconfig/; do \
+	     tar -tzf "$$tb" | grep -q "^$$want" || { \
+	         echo "package-c-tarball: $$tb has no $$want — refusing to ship it"; \
+	         exit 1; }; \
+	 done; \
+	 echo "package-c-tarball: $$tb ($$(tar -tzf "$$tb" | wc -l) entries)"
+
 # Source distribution, sibling of standard.mk's `wheel` (= uv build --wheel).
 # release.yml's build-sdist job calls this instead of hand-rolling a
 # uv-venv/pip/`python -m build --sdist` bootstrap.
@@ -774,6 +846,13 @@ sdist: ## Build a source distribution into dist/
 	$(UV) build --sdist
 	@echo ""
 	@ls -lh dist/*.tar.gz
+
+# JM_VERSION already reads just-makeit.toml (see the Container images block).
+# release.yml re-derived the same value with its own grep/sed, so one pin had
+# two extractions that agreed only by luck -- and the SDK image's jm is built
+# from whichever one the caller happened to use. This is the one that counts.
+print-jm-version: ## Print the just-makeit pin (release.yml reads it from here)
+	@echo "$(JM_VERSION)"
 
 # The ONE definition of the GitHub Release body — release.yml's github-release
 # job pipes this into `body_path` rather than carrying its own copy of the
@@ -1363,3 +1442,23 @@ docker-stream: ## Build+smoke the lean compose streaming-services image
 
 docker-examples: docker-sdk docker-downstream docker-stream ## Build+smoke all build-on-doppler images
 	@echo "All build-on-doppler images built and smoked."
+
+# The targets above smoke a LOCAL single-arch `:dev` image; release.yml smokes
+# the PUSHED multi-arch one, once per architecture. That per-arch loop was
+# written out three times in release.yml (runtime / sdk / downstream),
+# identical but for the kind and the image ref — the same hand-copying that
+# this file's own comments record twice: the release SDK check silently
+# degrading to a version print, and the #601 quoting SyntaxError. Both lived in
+# a re-typed copy, so the loop is now typed once too.
+SMOKE_ARCHES ?= amd64 arm64
+
+smoke-image: ## KIND=<runtime|sdk|downstream|stream> IMAGE=<ref> — smoke it on $(SMOKE_ARCHES)
+ifndef KIND
+	@echo "usage: make smoke-image KIND=<kind> IMAGE=<ref>"; exit 1
+endif
+ifndef IMAGE
+	@echo "usage: make smoke-image KIND=<kind> IMAGE=<ref>"; exit 1
+endif
+	@for a in $(SMOKE_ARCHES); do \
+	     bash scripts/smoke-image.sh $(KIND) "$(IMAGE)" "linux/$$a" || exit 1; \
+	 done

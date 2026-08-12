@@ -736,32 +736,54 @@ block_gain_is_a_first_order_hold (void)
   return ok;
 }
 
-/* ── §23 — decim is neutral at the STEADY STATE, and only there ───────────
+/* ── §23 — decim is neutral, and ONE number says how neutral ─────────────
  *
- * The per-chunk coefficients are rescaled internally so a caller changing
+ * The per-chunk coefficients are compounded internally so a caller changing
  * decim does not retune. §8 checked only that each decim reached the
  * reference by sample 4000, one decim at a time; this compares the three
  * against each other on gain_db, which is tighter.
  *
- * It deliberately does NOT assert that the trajectories agree, because
- * measurement says they do not. Same input, gain_db at a common index:
+ * This section used to record a 2.53 dB mid-transient spread as a finding
+ * and assert nothing about it. The cause was the loop filter integrating
+ * RECTANGULARLY: the closed-loop error decays by (1 - k1) per sample with
+ * k1 = 4*loop_bw, so over d samples by (1 - k1)^d, while a chunked update
+ * applying d*k1 approximates that -- and (1 - d*k1) is always the smaller,
+ * so a larger decim always converged faster. Compounding it with
+ * ema_alpha_decim (doppler#699) cut the spread 3.3x at the same settings:
  *
- *     n     decim 8    decim 16   decim 32   spread
- *     64    -10.307    -10.872    -11.826    1.52 dB
- *     128   -16.563    -17.313    -19.090    2.53 dB
- *     256   -19.657    -19.946    -20.708    1.05 dB
- *     512   -19.992    -19.998    -19.989    0.009 dB
+ *     n     BEFORE (d*k1)              AFTER (1-(1-k1)^d)
+ *           d8       d16      d32  sp    d8       d16      d32   sp
+ *     64   -10.307  -10.872 -11.826 1.52 -9.998  -10.164 -10.220 0.22
+ *     128  -16.563  -17.313 -19.090 2.53 -16.197 -16.459 -16.971 0.77
+ *     256  -19.657  -19.946 -20.708 1.05 -19.531 -19.681 -20.158 0.63
+ *     512  -19.992  -19.998 -19.989 0.01 -19.987 -19.993 -19.998 0.01
  *
- * A larger decim converges FASTER mid-transient: the rescaled step is
- * d*4*loop_bw per update, and a first-order recursion taking fewer, larger
- * steps is not equivalent to one taking many small ones -- it only agrees
- * in the limit. So "keeps its per-sample meaning" is a statement about the
- * steady state and the nominal bandwidth, not about the transient, and a
- * caller who changes decim DOES change the acquisition shape. The
- * divergence is worst at decim 32, which is also where the header's own
- * `loop_bw << 1/(4*decim)` precondition is thinnest: 0.0025 against 0.0078
- * is 3x, not "well below". Recorded as a finding rather than pinned as a
- * behaviour. */
+ * What is LEFT is not the loop filter and not the detector's pole: the
+ * applied gain ramps across each chunk (first-order hold), so a longer
+ * chunk ramps over a longer span and the detector sees a different signal.
+ * That residual is governed by how far the loop moves within one chunk,
+ * which is the group `4*decim*loop_bw` -- the same one the header's
+ * `loop_bw << 1/(4*decim)` precondition is written in. Swept:
+ *
+ *     4*decim*loop_bw   gain falling   gain rising
+ *     0.008             0.015 dB       0.054 dB
+ *     0.032             0.059 dB       0.197 dB
+ *     0.128             0.281 dB       0.592 dB
+ *     0.320             1.077 dB       0.909 dB  <- these settings
+ *     0.640             3.734 dB       0.970 dB
+ *
+ * BOTH directions, because the loop is not symmetric -- the detector is
+ * inside it and measures power, so a RISING gain costs ~4x a falling one
+ * at the same group and is what sets the rule. A first pass measured only
+ * the falling direction and set the rule 4x too loose; the Python example
+ * cold-starts into a weak signal and caught it.
+ *
+ * So the rule is `worst spread ~ 6 * 4*decim*loop_bw`, and "well below" in
+ * the precondition means <= 0.05, not <= 0.3. Both halves are asserted
+ * below: the steady state agrees regardless, and INSIDE the rule the
+ * transient agrees too, in the worse direction. These settings sit at
+ * 0.32 -- six times the rule -- which is why the anomaly showed up here,
+ * and they are still measured rather than asserted tightly. */
 static int
 decim_is_neutral_at_the_steady_state (void)
 {
@@ -806,6 +828,103 @@ decim_is_neutral_at_the_steady_state (void)
         }
       agc_destroy (s);
     }
+
+  /* The rule, asserted. Inside `4*decim*loop_bw <= 0.05` the TRANSIENT
+     agrees too, not merely the steady state — which is the claim a caller
+     needs when choosing decim, and the one nothing checked before.
+     loop_bw 2.5e-4 puts the worst case (decim 32) at 0.032, comfortably
+     inside. Driven in the RISING-gain direction (a weak input), which is
+     the worse of the two and therefore the one the rule is set by:
+     measured 0.197 dB there against the 0.3 dB the rule promises, and
+     0.059 dB if driven the other way. Sampled across the transient rather
+     than at its end, because the end is where every decim agrees. */
+  {
+    enum
+    {
+      M = 4096
+    };
+    static float complex lin[M], lout[M];
+
+    const double bw    = 2.5e-4;
+    const double group = 4.0 * 32.0 * bw; /* the rule's own quantity */
+
+    /* Both directions, and they do different jobs -- worth being explicit,
+       because a bound that cannot fail is decoration. Measured at this
+       group with the compounding reverted:
+
+           direction        compounded   linear d*k1   discriminates
+           falling (strong)   0.059 dB     0.146 dB    yes, 2.5x
+           rising  (weak)     0.197 dB     0.232 dB    barely, 1.2x
+
+       So the FALLING case at 0.1 dB is the regression detector: it is the
+       one that goes red if the compounding is undone, verified by doing
+       exactly that. The RISING case at 0.3 dB pins the user-facing promise
+       in its worse direction, and is NOT sabotage-sensitive -- rising is
+       dominated by the first-order hold and the loop's power-detector
+       asymmetry, neither of which the coefficient touches. */
+    struct
+    {
+      float       amp;
+      double      bound;
+      const char *what;
+    } dirs[2] = { { 10.0f, 0.1, "falling (regression detector)" },
+                  { 0.1f, 0.3, "rising (the rule's promise)" } };
+
+    for (int di = 0; di < 2; di++)
+      {
+        for (size_t i = 0; i < M; i++)
+          lin[i] = dir * dirs[di].amp;
+
+        double worst = 0.0;
+        size_t at    = 0;
+        for (size_t n = 64; n <= M; n += 64)
+          {
+            double lo = 0.0, hi = 0.0;
+            for (int k = 0; k < 3; k++)
+              {
+                agc_state_t *s = agc_create (0.0, bw, 0.05);
+                if (!s)
+                  return 0;
+                s->decim = ds[k];
+                agc_steps (s, lin, lout, n);
+                double g = s->gain_db;
+                agc_destroy (s);
+                if (k == 0)
+                  lo = hi = g;
+                else
+                  {
+                    if (g < lo)
+                      lo = g;
+                    if (g > hi)
+                      hi = g;
+                  }
+              }
+            if (hi - lo > worst)
+              {
+                worst = hi - lo;
+                at    = n;
+              }
+          }
+        /* Vacuity: a transient that never moved would agree trivially. */
+        if (!(worst > 0.0))
+          {
+            fprintf (stderr,
+                     "  §23 %s — the three decims agree EXACTLY across the "
+                     "whole transient, so this asserts nothing\n",
+                     dirs[di].what);
+            ok = 0;
+          }
+        if (!(worst < dirs[di].bound))
+          {
+            fprintf (stderr,
+                     "  §23 %s: at 4*decim*loop_bw = %g (inside the <= 0.05 "
+                     "rule) the mid-transient spread is %g dB at n = %zu, "
+                     "over the %g dB bound\n",
+                     dirs[di].what, group, worst, at, dirs[di].bound);
+            ok = 0;
+          }
+      }
+  }
   return ok;
 }
 

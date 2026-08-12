@@ -146,7 +146,16 @@ agc_steps (agc_state_t *state, const float complex *input,
      therefore comparable to the per-sample path at all.  See
      docs/design/ema.md §6 and doppler#698. */
   double alpha_d = ema_alpha_decim (state->alpha, d);
-  double k_d     = (double)d * 4.0 * state->loop_bw; /* loop-filter gain */
+  /* The loop filter's gain, compounded the same way and for the same
+     reason.  The closed-loop error decays by (1 - k1) per sample with
+     k1 = 4*loop_bw, so over d samples it decays by (1 - k1)^d; a chunked
+     update applying d*k1 is the RECTANGULAR approximation to that, and
+     (1 - d*k1) is always the smaller, so a larger decim always converged
+     FASTER.  That was the 2.53 dB spread §23 recorded and declined to
+     assert.  The divergence is second order in d*k1 -- at decim 32 with
+     loop_bw 0.0025 the header's own `loop_bw << 1/(4*decim)` precondition
+     is only 3x, which is why it showed there first.  See doppler#699. */
+  double k_d = ema_alpha_decim (4.0 * state->loop_bw, d);
 
   /* Output clip threshold, linear amplitude — constant for the call. */
   float clip_lin = (float)agc_exp10_ (state->clip_db * 0.05);
@@ -159,7 +168,7 @@ agc_steps (agc_state_t *state, const float complex *input,
         {
           inv_c   = 1.0 / (double)c;
           alpha_c = ema_alpha_decim (state->alpha, c);
-          k_c     = (double)c * 4.0 * state->loop_bw;
+          k_c     = ema_alpha_decim (4.0 * state->loop_bw, c);
         }
 
       /* Linear gain interpolation (first-order hold): ramp from the gain

@@ -84,10 +84,10 @@ Silence drives the detector to its floor and the filter integrates a constant er
 
 | silent gap | state finite | samples to recover |
 |---|---|---|
-| 100 | yes | 199 |
-| 1,000 | yes | 8,599 |
-| 3,000 | yes | 6,594 |
-| 10,000 | yes | 8,226 |
+| 100 | yes | 197 |
+| 1,000 | yes | 8,602 |
+| 3,000 | yes | 6,478 |
+| 10,000 | yes | 8,134 |
 
 
 ![Recovery after a silent gap](guard_recovery.png)
@@ -99,12 +99,12 @@ Across 80 dB of input the loop settles on exactly the gain that puts the output 
 | input (dB) | gain (dB) | input + gain (dB) |
 |---|---|---|
 | +40 | -40.000 | +0.000 |
-| +30 | -29.993 | +0.001 |
-| +20 | -19.999 | +0.001 |
-| +10 | -9.994 | +0.000 |
-| -10 | +10.008 | +0.002 |
-| -20 | +20.001 | +0.001 |
-| -30 | +30.012 | +0.006 |
+| +30 | -29.994 | -0.000 |
+| +20 | -19.998 | +0.002 |
+| +10 | -9.993 | +0.001 |
+| -10 | +10.007 | +0.001 |
+| -20 | +20.000 | +0.000 |
+| -30 | +30.013 | +0.006 |
 | -40 | +40.001 | +0.001 |
 
 

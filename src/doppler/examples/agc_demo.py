@@ -5,18 +5,28 @@ through, and runs the same input through three decimation settings —
 decim = 1, 8, 16 — at one fixed loop bandwidth.
 
 agc_steps() runs the detector + loop filter once per chunk of `decim`
-samples, but rescales the per-chunk coefficients from `loop_bw` / `alpha`
-(k_c = c * 4 * loop_bw, alpha_c = 1 - (1 - alpha)**c).  That rescaling is
-what keeps `loop_bw` its per-sample meaning, so all three decim settings
-share one effective loop bandwidth and converge on top of each other —
-decim only coarsens the path, not the destination.
+samples, but COMPOUNDS both per-chunk coefficients from `loop_bw` / `alpha`
+(k_c = 1 - (1 - 4*loop_bw)**c, alpha_c = 1 - (1 - alpha)**c).  Compounding
+rather than scaling linearly by `c` is what keeps them their per-sample
+meaning, so all three decim settings share one effective loop bandwidth and
+converge on top of each other — decim only coarsens the path, not the
+destination.
 
-Saves a two-panel plot to agc_convergence.png:
+How MUCH it coarsens the path is set by a single number, `4*decim*loop_bw`:
+how far the loop moves within one chunk.  The rule is to keep it at or
+below 0.05, and the third panel is that rule made visible — the same step
+response run at two bandwidths that straddle it.
+
+Saves a three-panel plot to agc_convergence.png:
   - top    : input vs output power (dB) for each decim, with the reference
-  - bottom : applied gain (dB) for each decim — the gain actually seen by
+  - middle : applied gain (dB) for each decim — the gain actually seen by
              each sample.  agc_steps() commands a new gain once per chunk
              but applies it as a first-order hold, ramping linearly across
              the chunk, so the trace is smooth rather than a staircase.
+  - bottom : the step-response FAMILY.  decim 8/16/32 at 4*decim*loop_bw =
+             0.032 (inside the rule, curves indistinguishable) and at 0.32
+             (six times the rule, curves visibly fanned).  Time is in loop
+             time constants so the two bandwidths overlay.
 
 Run:
   python examples/python/agc_demo.py
@@ -112,7 +122,92 @@ for d in DECIMS:
         f"expected {REF_DB - HI_DB:+.1f} dB"
     )
 
-fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(9, 6))
+# ── The rule, as a family of step responses ──────────────────────────────
+# `4*decim*loop_bw` is how far the loop moves within one chunk, and it is
+# the only quantity that decides whether decim is free. Two bandwidths that
+# straddle the 0.05 rule, each run at decim 8/16/32, from a cold start so
+# the whole transient is visible rather than the tail of one.
+FAMILY_DECIMS = (8, 16, 32)
+GROUP_IN = 0.032  # inside the rule
+GROUP_OUT = 0.32  # six times it — where the anomaly was found
+# Each group is quoted at the LARGEST decim, so it bounds the whole family.
+BW_IN = GROUP_IN / (4.0 * max(FAMILY_DECIMS))
+BW_OUT = GROUP_OUT / (4.0 * max(FAMILY_DECIMS))
+
+
+def step_family(loop_bw):
+    """Applied gain vs time-in-loop-time-constants, one trace per decim.
+
+    A cold start into a constant -20 dB input: the loop must climb 20 dB,
+    which is the transient the rule is about. Time is normalised by the
+    loop time constant 1/(4*loop_bw) so families at different bandwidths
+    lie on the same axis and can be compared by eye.
+    """
+    tau = 1.0 / (4.0 * loop_bw)
+    n_fam = int(6 * tau)
+    amp_fam = 10.0 ** (-20.0 / 20.0)
+    xf = (amp_fam * np.exp(2j * np.pi * F_TONE * np.arange(n_fam))).astype(
+        np.complex64
+    )
+    traces = {}
+    for d in FAMILY_DECIMS:
+        a = AGC(REF_DB, loop_bw, ALPHA)
+        a.decim = d
+        yf = a.steps(xf)
+        traces[d] = 20.0 * np.log10(np.abs(yf) / np.abs(xf))
+    return np.arange(n_fam) / tau, traces
+
+
+def worst_spread(traces):
+    """Largest gap between any two decims, compared fairly.
+
+    Sampled at indices where every decim has just FINISHED a chunk (one
+    less than a multiple of the largest decim). Comparing at arbitrary
+    indices would measure the first-order hold's ramp phase instead: at
+    sample 20 a decim-32 loop is mid-ramp while a decim-8 loop committed
+    its gain 4 samples ago, and that intra-chunk sawtooth is inherent to
+    the hold rather than a difference in trajectory. Aligning to chunk
+    ends is what makes this the same quantity the rule is stated for.
+    """
+    step = max(FAMILY_DECIMS)
+    idx = np.arange(step - 1, len(next(iter(traces.values()))), step)
+    stack = np.vstack([traces[d][idx] for d in FAMILY_DECIMS])
+    return float(np.max(stack.max(axis=0) - stack.min(axis=0)))
+
+
+t_in, fam_in = step_family(BW_IN)
+t_out, fam_out = step_family(BW_OUT)
+spread_in = worst_spread(fam_in)
+spread_out = worst_spread(fam_out)
+
+print()
+print("=== decim neutrality vs 4*decim*loop_bw ===")
+print(
+    f"  group {GROUP_IN:<5} (loop_bw {BW_IN:.2e}): "
+    f"worst spread {spread_in:.3f} dB"
+)
+print(
+    f"  group {GROUP_OUT:<5} (loop_bw {BW_OUT:.2e}): "
+    f"worst spread {spread_out:.3f} dB"
+)
+
+# The rule is the claim this example exists to demonstrate, so it is
+# asserted rather than only drawn. These families cold-start into a weak
+# input, so the loop must RAISE its gain — the worse of the two directions
+# (the detector is inside the loop and measures power), and the one the
+# 0.3 dB promise is set by. An earlier draft of the rule was calibrated on
+# the falling direction alone and this assertion is what caught it.
+assert spread_in < 0.3, (
+    f"inside the rule (4*decim*loop_bw = {GROUP_IN}) the family spread "
+    f"{spread_in:.3f} dB, over the 0.3 dB the rule promises"
+)
+assert spread_out > 3 * spread_in, (
+    f"outside the rule the family spread {spread_out:.3f} dB is not "
+    f"meaningfully worse than inside it ({spread_in:.3f} dB) — the panel "
+    f"would show no contrast"
+)
+
+fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(9, 8.5))
 
 ax1.axhline(
     REF_DB, color="0.6", ls="--", lw=1, label=f"reference ({REF_DB:.0f} dB)"
@@ -136,6 +231,31 @@ ax2.set_xlabel("sample")
 ax2.set_ylabel("applied gain (dB)")
 ax2.legend(loc="center right", fontsize=8)
 ax2.grid(alpha=0.3)
+
+# Panel 3 — the family. Solid = inside the rule (curves land on top of one
+# another), dashed = six times the rule (they fan out). Same three decims
+# in both, same colours as the panels above.
+for d, color in zip(FAMILY_DECIMS, colors):
+    ax3.plot(t_in, fam_in[d], color=color, lw=1.4, label=f"decim {d}")
+for d, color in zip(FAMILY_DECIMS, colors):
+    ax3.plot(t_out, fam_out[d], color=color, lw=1.4, ls="--")
+ax3.set_xlabel("time (loop time constants, $1/4B_L$)")
+ax3.set_ylabel("applied gain (dB)")
+ax3.set_title(
+    f"Step-response family (cold start, weak input) — solid: "
+    f"$4\\,d\\,B_L$ = {GROUP_IN} "
+    f"(spread {spread_in:.3f} dB)   "
+    f"dashed: {GROUP_OUT} (spread {spread_out:.2f} dB)"
+)
+ax3.legend(loc="lower right", fontsize=8, title="both line styles")
+ax3.grid(alpha=0.3)
+ax3.annotate(
+    "keep $4\\,d\\,B_L \\leq 0.05$\nand decim costs < 0.1 dB",
+    xy=(0.02, 0.06),
+    xycoords="axes fraction",
+    fontsize=8,
+    bbox={"boxstyle": "round", "fc": "white", "ec": "0.7", "alpha": 0.9},
+)
 
 fig.tight_layout()
 out_path = "agc_convergence.png"

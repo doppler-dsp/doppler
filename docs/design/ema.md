@@ -20,11 +20,11 @@ explains the reasoning they assume.
 Related: [Automatic Gain Control](agc.md), [The NCO](nco.md).
 
 **Status.** Sections 1–6 describe the shipped primitive, and every
-mechanism in them is pinned by a sabotage-proven C test. Section 7 is a
-**diagnosis, not a change**: it explains a measured defect in `agc`'s
-decimated loop that this primitive is the fix for, and that adoption has
-not happened. Section 8 records that the four historical call sites are
-**not yet migrated** — the primitive exists, and nothing uses it.
+mechanism in them is pinned by a sabotage-proven C test. Section 7 was
+written as a diagnosis of a measured defect in `agc`'s decimated loop and
+is now the record of its **fix**, including the caller-facing rule that
+came out of measuring it. Section 8 records adoption: every historical
+call site now runs the one primitive.
 
 ______________________________________________________________________
 
@@ -264,6 +264,9 @@ The first compounds the pole — the shape §6 describes, near enough. The
 second scales an **integrator** gain linearly by `d`, which is a
 different operation with a different error.
 
+Both lines are now `ema_alpha_decim`; the pair above is quoted as it stood,
+because the rest of this section is the argument for why.
+
 For the closed loop, the error decays per sample by `(1 - k₁)` with
 `k₁ = 4·loop_bw`. Over `d` samples that is `(1 - k₁)^d`; the chunked
 update applies `(1 - d·k₁)` instead. Those differ by the second-order
@@ -277,20 +280,43 @@ always converges faster**:
 | 32  | 0.724980              | 0.680000           | 0.044980 | 0.0496       |
 
 (at `loop_bw = 0.0025`, so `k₁ = 0.01`.) The divergence is therefore
-**second order in `d·k₁`**, matching `d(d-1)/2 · (4·loop_bw)²` to three
-significant figures.
+**second order in `d·k₁`**: `d(d-1)/2 · (4·loop_bw)²` predicts it to
+within 2% at `d = 8` and 10% at `d = 32`, the residual being the
+higher-order terms it omits. (An earlier draft claimed three significant
+figures; it is the right leading order, not that.)
 
 This is the mechanism behind `test_agc_core.c` §23's measured spread of
 **2.53 dB** between `decim` 8 and 32 at a common sample index. Two
 consequences worth stating plainly:
 
-- **It is not the detector.** The chunk's power is a flat mean of every
-    sample (nothing is subsampled) and its pole is compounded, so the
-    detector contributes essentially nothing: with the loop's Euler term
-    made negligible and the input driven violently within each chunk
-    (alternating 1:100 every sample; 90% silence with 10% bursts), the
-    spread across `decim` 8/16/32 measured **0.000022–0.000188 dB**,
-    five orders of magnitude below the effect.
+- **It is not the detector — for this stimulus.** The chunk's power is a
+    flat mean of every sample (nothing is subsampled) and its pole is
+    compounded. Measured on the detector's own state (`p_avg`, loop inert
+    so the applied gain stays 1, which is the isolation that works — see
+    the correction below), the spread across `decim` 8/16/32 on §23's
+    constant-envelope input is **0.0035 dB**, against the 1.52 dB total at
+    the same index. So the attribution holds, by about 2.6 orders of
+    magnitude.
+
+    It does **not** generalise, and the earlier draft's "five orders of
+    magnitude" came from a method that suppressed the quantity it was
+    measuring: driving `loop_bw → 0` and reading `gain_db` scales the
+    detector's disagreement by `k₁ ≈ 1e-9` along with everything else, so
+    "spread ≈ 0" was close to vacuous. Read off `p_avg` instead, a signal
+    with structure *inside* the chunk separates the decims by far more:
+
+    | input                          | spread across `decim` 8/16/32 |
+    | ------------------------------ | ----------------------------- |
+    | constant \|x\|=10              | 0.0035 dB                     |
+    | alternating 1:100 every sample | 0.0034 dB                     |
+    | 90% silence, 10% bursts        | **0.55 dB**                   |
+    | monotone ramp 1 → 100          | **0.61 dB**                   |
+
+    That part is irreducible: a block mean cannot equal a per-sample
+    geometric weighting for a signal that varies within the block. It is
+    why the rule below is stated for the transient rather than as a claim
+    that `decim` is free.
+
 - **The header's `loop_bw << 1/(4·decim)` precondition is not only a
     stability condition** — it is precisely `d·k₁ << 1`, the condition
     that makes this second-order term vanish. At `decim = 32` with
@@ -299,40 +325,95 @@ consequences worth stating plainly:
 
 The fix is to compound the loop gain the way the detector's pole is
 compounded, `k_d = 1 - (1 - k₁)^d` computed through the same
-cancellation-free path. **This has not been done.** It changes a
-transient, so it needs its own measurement and its own gate, and the
-`d = 1` bit-exactness it depends on is the property §6 was built to
-provide.
+cancellation-free path — `ema_alpha_decim(4·loop_bw, d)`. **Done**, and
+the `d = 1` bit-exactness it depends on is the property §6 was built to
+provide. Measured at §23's own settings:
+
+| n   | before, spread | after, spread |
+| --- | -------------- | ------------- |
+| 64  | 1.52 dB        | 0.22 dB       |
+| 128 | **2.53 dB**    | **0.77 dB**   |
+| 256 | 1.05 dB        | 0.63 dB       |
+| 512 | 0.009 dB       | 0.012 dB      |
+
+So the rectangular integration was most of it, and not all of it. What
+survives is the **first-order hold**: the applied gain ramps across each
+chunk, so a longer chunk ramps over a longer span and the detector sees a
+different signal — the same mechanism as the table above, arriving through
+the loop rather than the input. It cannot be compounded away, because it
+is not a coefficient.
+
+What it *can* be is bounded, by one number. `4·decim·loop_bw` is how far
+the loop moves within a chunk, and it is the group the header's
+precondition was always written in:
+
+| `4·decim·loop_bw` | gain falling | gain rising | worst   |
+| ----------------- | ------------ | ----------- | ------- |
+| 0.008             | 0.015 dB     | 0.054 dB    | 0.05 dB |
+| 0.032             | 0.059 dB     | 0.197 dB    | 0.20 dB |
+| 0.128             | 0.281 dB     | 0.592 dB    | 0.59 dB |
+| 0.320             | 1.08 dB      | 0.91 dB     | 1.08 dB |
+| 0.640             | 3.73 dB      | 0.97 dB     | 3.73 dB |
+
+**Keep `4·decim·loop_bw ≤ 0.05` and `decim` costs under 0.3 dB of
+transient.** That is the rule the header now states and `test_agc_core.c`
+§23 now asserts.
+
+Both directions are quoted because the loop is not symmetric — the
+detector sits inside it and measures power, so a **rising** gain costs
+about 4× a falling one at the same group. That direction sets the rule,
+and it was nearly missed: the first sweep measured only the falling case
+and put the promise at 0.1 dB. `agc_demo.py` cold-starts into a weak
+signal, so its family assert failed at 0.232 dB and forced the correction
+before any of it shipped. The example earned its place as a gate rather
+than an illustration.
+
+§23 asserts both, and they do different jobs. At the same group, reverting
+the compounding moves the falling case 0.059 → 0.146 dB but the rising one
+only 0.197 → 0.232 dB, so **the falling case is the regression detector**
+(verified by doing exactly that) while the rising case pins the promise.
+Rising is dominated by the first-order hold and the detector asymmetry,
+neither of which the coefficient touches — so a bound there would look
+like a guard and catch nothing.
+
+§23's own configuration is `0.32`, six times the rule. That is why the
+anomaly appeared there, and why it is quantified rather than eliminated.
 
 ______________________________________________________________________
 
-## 8. What has not happened yet
+## 8. Adoption — what happened
 
-The primitive ships. **Nothing uses it.**
+The primitive ships, and **every site that can use it now does.**
 
-| site                                        | form                                 | status       |
-| ------------------------------------------- | ------------------------------------ | ------------ |
-| `agc_core.c` power detector                 | incremental                          | not migrated |
-| `async_dsss_receiver_core.c` `lock_num/den` | incremental                          | not migrated |
-| `acc_trace_core.c` `ACC_TRACE_EXP`          | two-product                          | not migrated |
-| `detection_core.h` `det_ema_alpha`          | sizes the recursion, does not run it | n/a          |
+| site                                        | form was      | status                            |
+| ------------------------------------------- | ------------- | --------------------------------- |
+| `agc_core.c` power detector                 | incremental   | migrated; pole now exact at `d=1` |
+| `async_dsss_receiver_core.c` `lock_num/den` | incremental   | migrated; bit-identical           |
+| `acc_trace_core.c` `ACC_TRACE_EXP`          | two-product   | migrated; more accurate           |
+| `detection_core.h` `det_ema_alpha`          | sizes it only | n/a — never ran the recursion     |
 
-Two of those change behaviour on migration and one does not:
+Two changed behaviour and one did not, as predicted:
 
-- `acc_trace` moves from the two-product form to the incremental one, so
-    its numbers change in the last ulps. That is an improvement by §3's
-    table, and it is still a change that needs a measurement.
-- `agc` gains an exactly-compounded detector pole (§6), which changes
-    `decim = 1` from "6 ulps off" to exact.
-- `async_dsss_receiver` is already the incremental form at `d = 1`, so
-    adopting the primitive there is a pure substitution.
+- `acc_trace` moved from the two-product form to the incremental one.
+    Measured on the real consumer in C against a `long double` reference,
+    the error improves at every coefficient and most where §3 predicted:
+    **43× at `alpha = 1e-5`**, 2.7× at 1e-3, 1.8× at 0.01, 3.7× at 0.2.
+    Its readback is float32, so no consumer can observe it — the gain is in
+    the accumulator's own state, which is where a long trace's error
+    actually accumulates.
+- `agc` gained an exactly-compounded detector pole (§6), so `decim = 1` is
+    the undecimated recursion rather than 6 ulps off it — and then §7's
+    loop-filter half followed.
+- `async_dsss_receiver` was already the incremental form, so it was a pure
+    substitution. Verified **byte for byte** on a 200-symbol run, with the
+    comparison itself sabotage-checked first, because a signature that
+    never changes is exactly what a stale build produces.
 
-Until each is migrated, this page describes a primitive and the library
-still runs four copies. The migration is deliberately separate work: the
-point of establishing the properties first is that each call site can
-then be moved against a known contract instead of against an assumption.
-
-______________________________________________________________________
+So this page now describes the library's behaviour and not only a
+function. Establishing the properties first is what made that possible:
+each site moved against a known contract instead of against an assumption,
+and the one that changed numerics most was the one whose direction §3 had
+already predicted.
 
 ## 9. What was considered and rejected — the first-order CIC
 

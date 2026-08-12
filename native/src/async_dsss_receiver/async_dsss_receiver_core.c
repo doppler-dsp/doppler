@@ -1,4 +1,5 @@
 #include "async_dsss_receiver/async_dsss_receiver_core.h"
+#include "util/util_core.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -470,10 +471,10 @@ _track_chain (async_dsss_receiver_state_t *s, const float complex *x,
    * ASYNC_DSSS_RX_LOCK_* defines. */
   for (size_t i = 0; i < n_out; i++)
     {
-      double re = (double)crealf (out[i]);
-      double im = (double)cimagf (out[i]);
-      s->lock_num += s->lock_alpha * ((re * re - im * im) - s->lock_num);
-      s->lock_den += s->lock_alpha * ((re * re + im * im) - s->lock_den);
+      double re   = (double)crealf (out[i]);
+      double im   = (double)cimagf (out[i]);
+      s->lock_num = ema_step (s->lock_num, re * re - im * im, s->lock_alpha);
+      s->lock_den = ema_step (s->lock_den, re * re + im * im, s->lock_alpha);
       s->lock_metric = (s->lock_den > 0.0) ? s->lock_num / s->lock_den : 0.0;
       (void)lockdet_step (&s->sym_lockdet, s->lock_metric);
     }

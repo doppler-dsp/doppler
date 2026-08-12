@@ -20,7 +20,7 @@ jobs:
       version: ${{ steps.get.outputs.version }}
       jm_version: ${{ steps.get.outputs.jm_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Extract tag version
         id: get
@@ -126,7 +126,7 @@ jobs:
           - { tag: x86_64, runner: ubuntu-latest }
           - { tag: aarch64, runner: ubuntu-24.04-arm }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build wheel (${{ matrix.python }}) in manylinux container
         # `make wheel` (= uv build --wheel) is the reference wheel build and is
@@ -163,7 +163,7 @@ jobs:
         run: make wheel-check
 
       - name: Upload wheel (${{ matrix.python }})
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: python-dist-${{ matrix.python }}-${{ matrix.arch.tag }}
           path: dist/*.whl
@@ -194,10 +194,10 @@ jobs:
       matrix:
         python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv + Python ${{ matrix.python }}
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python }}
 
@@ -215,7 +215,7 @@ jobs:
         run: make wheel
 
       - name: Upload wheel (Python ${{ matrix.python }})
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: python-dist-macos-${{ matrix.python }}
           path: dist/*.whl
@@ -228,10 +228,10 @@ jobs:
     needs: verify-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v7
 
       - name: Build sdist
         # `make sdist` = `uv build --sdist`, whose isolated PEP 517 build pulls
@@ -240,7 +240,7 @@ jobs:
         run: make sdist
 
       - name: Upload sdist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: python-dist-sdist
           path: dist/*.tar.gz
@@ -267,7 +267,7 @@ jobs:
           - { tag: aarch64, runner: ubuntu-24.04-arm }
     runs-on: ${{ matrix.arch.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build + tar the C library in the manylinux container
         run: |
@@ -284,7 +284,7 @@ jobs:
             "
 
       - name: Upload C library (Linux ${{ matrix.arch.tag }})
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: c-dist-linux-${{ matrix.arch.tag }}
           path: dist/doppler-*-linux-${{ matrix.arch.tag }}.tar.gz
@@ -294,7 +294,7 @@ jobs:
     needs: verify-version
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install system dependencies
         run: make install-deps
@@ -306,7 +306,7 @@ jobs:
         run: make package-c-tarball VERSION="${{ needs.verify-version.outputs.version }}"
 
       - name: Upload C library (macOS)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: c-dist-macos
           path: dist/doppler-*-macos-arm64.tar.gz
@@ -330,19 +330,19 @@ jobs:
           - { tag: x86_64, runner: ubuntu-latest }
           - { tag: aarch64, runner: ubuntu-24.04-arm }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
       # `make wheel-smoke` builds the throwaway venv with uv (a make target,
       # not the old inline step), so uv must be on PATH — setup-python alone is
       # not enough.
-      - uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@v7
 
       - name: Download the cp312 wheel
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: python-dist-cp312-${{ matrix.arch.tag }}
           path: dist/
@@ -365,7 +365,7 @@ jobs:
       id-token: write   # required for OIDC trusted publishing
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: python-dist-*
           merge-multiple: true
@@ -398,7 +398,7 @@ jobs:
       packages: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Wait for the version to be resolvable on PyPI
         run: |
@@ -413,7 +413,7 @@ jobs:
           echo "::error::doppler-dsp==$VERSION never appeared on PyPI."; exit 1
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -425,15 +425,15 @@ jobs:
       # build-python). Emulated pip is a ~1 min cost, vs the ~19 min
       # emulated source build this job carried before v0.32.0.
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
         with:
           platforms: arm64
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/docker/Dockerfile.cli
@@ -459,7 +459,7 @@ jobs:
       # keeps it to the C core, not the full extension tree the pre-v0.32
       # runtime paid ~19 min for). Version-lock is by source, so no PyPI wait.
       - name: Build and push the SDK image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/docker/Dockerfile.examples
@@ -487,7 +487,7 @@ jobs:
       # from source, so the arm64 layer additionally runs iqtools' ctest+pytest
       # under emulation — a slower leg, paid once per release.
       - name: Build and push the downstream-jm showcase image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/docker/Dockerfile.examples
@@ -527,17 +527,17 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Download Python artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: python-dist-*
           merge-multiple: true
           path: dist/
 
       - name: Download C artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: c-dist-*
           merge-multiple: true
@@ -563,7 +563,7 @@ jobs:
           echo "release body: $(wc -l < "${RUNNER_TEMP}/release-notes.md") lines"
 
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           files: dist/*
@@ -593,7 +593,7 @@ jobs:
             plat: macos-arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install pkg-config (macOS)
         if: runner.os == 'macOS'

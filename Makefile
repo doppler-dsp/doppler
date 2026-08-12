@@ -255,7 +255,7 @@ GATES_PROVISION = install-deps install-docs-deps build pyext
 GATES_DEPS    = lint changelog-check drift-check doxygen-check docs-check \
                 validate-check \
                 test-all test-stubs test-api-docs test-snippets test-rust \
-                abi-check link-check consumer-faces-check glibc-check \
+                abi-check link-check consumer-faces-check glibc-gate \
                 specan-check check-isotime-parity coverage coverage-gate \
                 docker-examples
 
@@ -542,7 +542,8 @@ RELEASE_WATCH_CMD = @REPO=doppler-dsp/doppler scripts/release-watch.sh \
                         "$(VERSION)"
 
 # ── Clean ────────────────────────────────────────────────────────────────────
-CLEAN_PATHS = $(BUILD_DIR) $(PY_BUILD_DIR) $(UBSAN_DIR) docs/doxygen/ site/ \
+CLEAN_PATHS = $(BUILD_DIR) $(PY_BUILD_DIR) $(UBSAN_DIR) $(GLIBC_BUILD_DIR) \
+              docs/doxygen/ site/ \
               *.png bench_*.json zensical.toml __pycache__
 
 define CLEAN_CMD
@@ -566,7 +567,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 test-ubsan \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
-                glibc-check specan-check check-isotime-parity \
+                glibc-check glibc-gate specan-check check-isotime-parity \
                 install-docs-deps \
                 wheel-check wheel-smoke release-smoke \
                 bench-interleaved bench-publish bench-docs bench-stream \
@@ -1110,21 +1111,73 @@ consumer-faces-check: build ## Build a consumer via cc/CMake/pkg-config, assert 
 	 && bash tests/install/stream-consumer/build-three-ways.sh "$$t/pfx"; \
 	 rc=$$?; rm -rf "$$t"; exit $$rc
 
-# The oldest glibc a released .so may reference. Only meaningful against a
-# build made on that glibc — CI runs this in a Debian 10 container, and running
-# it on a modern distro will fail on the local build's newer symbols, which is
-# the check working, not a bug.
+# The oldest glibc a released .so may reference. Pure inspection, and only
+# meaningful against a build MADE on that glibc: pointed at a modern distro's
+# build it fails on that build's legitimately newer symbols, which is the
+# check working, not a bug. `glibc-gate` below supplies the old-glibc input;
+# this target is what it (and nothing else now) runs against the result.
 GLIBC_MAX ?= 2.28
 glibc-check: ## Verify no glibc symbol newer than $(GLIBC_MAX) (needs an old-glibc build)
-	@BAD=$$(objdump -T $(BUILD_DIR)/libdoppler.so \
-	        | grep -oP 'GLIBC_\K[0-9.]+' | sort -Vu \
+# Fail-closed on BOTH ways of reading nothing, because "no bad symbols found"
+# and "no symbols found" produced the identical green line: pointed at a dir
+# with no .so, objdump wrote its error to stderr, $$BAD came back empty and
+# this printed ALL SYMBOLS OK. Harmless while a human ran it right after a
+# build; a false pass once `glibc-gate` made it a gate in GATES_DEPS.
+	@so=$(BUILD_DIR)/libdoppler.so; \
+	 if [ ! -f "$$so" ]; then \
+	     echo "glibc-check: no $$so to inspect — build it first," \
+	          "or run 'make glibc-gate' to build one on glibc $(GLIBC_MAX)"; \
+	     exit 1; \
+	 fi; \
+	 SEEN=$$(objdump -T "$$so" | grep -oP 'GLIBC_\K[0-9.]+' | sort -Vu); \
+	 if [ -z "$$SEEN" ]; then \
+	     echo "glibc-check: $$so references no versioned glibc symbol at all —" \
+	          "objdump read nothing, so nothing was asserted"; \
+	     exit 1; \
+	 fi; \
+	 BAD=$$(printf '%s\n' "$$SEEN" \
 	        | awk -F. -v mx="$(GLIBC_MAX)" \
 	            'BEGIN{split(mx,m,".")} $$1 > m[1] || ($$1 == m[1] && $$2 > m[2])'); \
 	 if [ -n "$$BAD" ]; then \
 	     echo "glibc-check: libdoppler.so references glibc > $(GLIBC_MAX): $$BAD"; \
 	     exit 1; \
 	 fi; \
-	 echo "glibc-check: all glibc symbols <= $(GLIBC_MAX)"
+	 echo "glibc-check: all glibc symbols <= $(GLIBC_MAX) (highest: $$(printf '%s\n' "$$SEEN" | tail -1))"
+
+# The missing half: a way to PRODUCE an old-glibc build anywhere. Without it
+# the floor was answerable only by pushing and reading CI, and `glibc-check`
+# sat in GATES_DEPS as a gate no dev box could pass — so the fix is to supply
+# the input, never to weaken the assertion above.
+#
+# Its own build dir, deliberately. Sharing $(BUILD_DIR) would leave a
+# Buster-compiled CMake cache in the dev's tree, and the next local
+# `cmake -B build` aborts on the changed compiler. STANDALONE_BUILD_DIR is
+# overridden for exactly the same reason: it is the one path reached by
+# `test-examples` that is not already derived from BUILD_DIR.
+#
+# `test-examples` runs here because it is the half of CI's old job that
+# proves the artifact WORKS under glibc $(GLIBC_MAX), not merely that its
+# symbol table looks right — dropping it would quietly shrink coverage.
+#
+# The image is a toolchain, not a product: no source baked in, checkout
+# bind-mounted, nothing published. That is why this `docker build` sits here
+# beside the gate it feeds rather than in the container-images section, whose
+# rule is about the images doppler SHIPS.
+GLIBC_BUILD_DIR  ?= build-glibc228
+GLIBC_IMAGE      ?= $(DOCKER_IMAGE)-glibc228:$(DOCKER_TAG)
+GLIBC_DOCKERFILE := deploy/docker/Dockerfile.glibc228
+
+glibc-gate: ## Build in a glibc $(GLIBC_MAX) container, then run glibc-check on it
+	docker build -f $(GLIBC_DOCKERFILE) -t $(GLIBC_IMAGE) deploy/docker
+# Run as the caller, not root: the build tree lands in the bind-mounted
+# checkout, and a root-owned build-glibc228/ is one `make clean` away from
+# needing sudo. One `make` invocation, three goals — command-line overrides
+# propagate to the sub-makes `test-examples` spawns.
+	docker run --rm -u $$(id -u):$$(id -g) \
+	    -v "$(CURDIR)":/w -w /w $(GLIBC_IMAGE) \
+	    make build test-examples glibc-check \
+	        BUILD_DIR=$(GLIBC_BUILD_DIR) \
+	        STANDALONE_BUILD_DIR=$(GLIBC_BUILD_DIR)/standalone
 
 # The recorded specan demo frames are a projection of the specan source, so a
 # change to one without the other ships a demo that no longer matches the code.

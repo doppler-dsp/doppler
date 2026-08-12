@@ -188,7 +188,7 @@ ______________________________________________________________________
 | --------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------ |
 | `build-and-test` (Ubuntu 22.04, 24.04, macOS) | CMake build, CTest, C example smoke tests, C++-free symbol check, static-link smoke | C layer correctness                              |
 | `python` (3.9–3.14)                           | `make pyext`, pytest, `--doctest-glob` on `.pyi` stubs, Python example smoke tests  | Python API and bindings                          |
-| `glibc-228` (Debian 10 buster)                | Imports the built extension                                                         | glibc symbol floor (catches `GLIBC_2.29+` leaks) |
+| `glibc-228` (Debian 10 buster)                | `make glibc-gate` — builds + smoke-runs the C examples inside the floor image       | glibc symbol floor (catches `GLIBC_2.29+` leaks) |
 | `manifest-drift`                              | `jm status --check`                                                                 | jm TOML matches generated files                  |
 | `ci-passed`                                   | Aggregates all required jobs                                                        | Required by `release.yml verify-ci`              |
 
@@ -239,15 +239,26 @@ cmake -B build -DDOPPLER_NATIVE=OFF && cmake --build build
 
 ### GLIBC symbol floor broken (`glibc-228` job fails)
 
-Symptom: `ImportError: GLIBC_2.29 not found` inside the Debian 10 container.
+Symptom:
+`glibc-check: libdoppler.so references glibc > 2.28: 2.29` — or, downstream of
+shipping one, `ImportError: GLIBC_2.29 not found` on an older distro.
 
 Cause: A new syscall wrapper or libc function (e.g., `close_range`, `statx`)
 was called directly or pulled in by a dependency.
 
-Find the culprit:
+Reproduce it locally — this is the same command CI runs, and it needs only
+docker:
 
 ```bash
-nm build/libdoppler.so | grep 'GLIBC_2\.29\|GLIBC_2\.3[0-9]'
+make glibc-gate
+```
+
+Find the culprit. Read the **gate's** build tree, not `build/`: your own
+build legitimately references your distro's newer symbols, so scanning it
+answers a different question.
+
+```bash
+nm build-glibc228/libdoppler.so | grep 'GLIBC_2\.29\|GLIBC_2\.3[0-9]'
 ```
 
 Fix: add a shim or avoid the high-version symbol; check what vendored code

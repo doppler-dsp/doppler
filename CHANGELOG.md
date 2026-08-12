@@ -114,6 +114,36 @@ ______________________________________________________________________
     rollback when only the AGC forward cannot fit the probe table. Every claim
     was proved by sabotage.
 
+- **`make glibc-gate` — the glibc floor is now answerable on a dev box.**
+    `glibc-check` is pure inspection, so it was only ever as good as the `.so`
+    it was pointed at, and only CI could produce an old-glibc one: on any
+    modern distro the local build legitimately references newer symbols and
+    the check failed by design. It sat in `GATES_DEPS` as a gate no laptop
+    could pass, and the answer arrived one push at a time.
+
+    The fix supplies the missing *input*, and does not touch the assertion.
+    `deploy/docker/Dockerfile.glibc228` is Debian 10 (glibc 2.28 — the floor
+    itself, which is why raising `GLIBC_MAX` means moving the base image, not
+    editing a number) plus a build toolchain: no doppler source baked in, and
+    never published. `glibc-gate` bind-mounts the checkout into it as the
+    invoking user, builds out-of-tree into `build-glibc228/`, smoke-runs the C
+    examples, and runs the existing `glibc-check` against the result.
+
+    Its own build dir, deliberately: sharing `build/` would leave a
+    Buster-compiled CMake cache in the tree and abort the next local
+    `cmake -B build` on the changed compiler. `STANDALONE_BUILD_DIR` is
+    overridden for the same reason — it is the one path `test-examples`
+    reaches that is not already derived from `BUILD_DIR`. Verified rather than
+    assumed: after a run, the host's `examples/standalone/build` still holds
+    its own host-path cache and the container's sits under
+    `build-glibc228/standalone`.
+
+    The `glibc-228` CI job is now a single `make glibc-gate`. The archive-apt
+    sources and the Kitware cmake tarball it used to hand-roll inline in
+    `ci.yml` live in the Dockerfile, so CI and a dev box run one definition
+    instead of two that could drift. Measured on CachyOS (glibc 2.43): the
+    gate build tops out at **2.27**, the host build reaches **2.43**.
+
 ### Changed
 
 - **just-makeit pin 0.55.1 → 0.55.2.** Both fixes in it were surfaced by
@@ -174,6 +204,22 @@ ______________________________________________________________________
     *doppler's* release version against being hand-typed into docs.
 
 ### Fixed
+
+- **`glibc-check` reported ALL GREEN when there was nothing to check.**
+    Pointed at a directory with no `libdoppler.so`, `objdump` wrote its error
+    to stderr, `$BAD` came back empty, and the target printed
+    `all glibc symbols <= 2.28` and exited 0 — "no bad symbols found" and "no
+    symbols found" were the same green line. Found while wiring `glibc-gate`,
+    which is what raised the stakes: harmless when a human ran it right after
+    a build, a false pass once it became the payload of a gate in
+    `GATES_DEPS`.
+
+    Both readings of nothing now fail closed — a missing `.so`, and a `.so`
+    carrying no versioned glibc symbol at all — each naming which one it was.
+    All four paths were exercised: the two vacuous ones now exit 1, the
+    old-glibc build still passes, and the host build still fails on 2.29. The
+    success line also reports the highest symbol actually seen, so a pass
+    shows its evidence instead of asserting itself.
 
 - **`max_out` is a pre-allocation hint, and four doc comments said it was a
     limit.** `nco_core.h` and `lo_core.h` both called `*_max_out()` the

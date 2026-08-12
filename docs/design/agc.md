@@ -16,11 +16,11 @@ either; it explains the reasoning they assume.
 Related: [MPSK Receiver](mpsk.md), [Telemetry](telemetry.md),
 [Quantization](QUANTIZATION.md), [The NCO](nco.md).
 
-**Status.** Sections 1–3 and 7 describe the shipped object. Section 4 is a
-**proposal**: the two runaways it names are measured on the shipped code and
-are real, the bounds that answer them are not implemented. Section 5 is
-**open design** — a problem statement with measurements and no chosen
-answer. Section 6 corrects a claim the header currently makes.
+**Status.** Sections 1–4 and 7 describe the shipped object; §4's guard is
+implemented and every mechanism in it is pinned by a sabotage-proven C test.
+Section 5 is **open design** — a problem statement with measurements and no
+chosen answer. Section 6 records a claim the header made that measurement
+did not support, and §4.4 a change proposed but not made.
 
 ______________________________________________________________________
 
@@ -59,6 +59,54 @@ Three stages run per sample:
   2. Detector     p_avg += alpha · (|y|² − p_avg)
   3. Loop filter  gain_db += (4·loop_bw) · (ref_db − 10·log10(p_avg))
 ```
+
+Drawn out, with the guards of §4 in place and the one boundary that matters
+marked:
+
+```mermaid
+%%{init: {'themeVariables': {'fontSize': '20px'}}}%%
+flowchart TD
+    X(["x<br/>untrusted"]) --> G
+
+    subgraph TRANSIENT["transient<br/>one bad sample,<br/>one bad output"]
+      G["① gain<br/>y = x · g_last"]
+      CLIP["square_clip<br/>output only"]
+      G --> CLIP
+    end
+
+    CLIP --> OUT(["y"])
+    G -->|unclipped| P["power<br/>agc_power_"]
+    P --> S1{{"saturate<br/>0 … CEIL<br/>NaN → CEIL"}}
+
+    subgraph PERSIST["persistent<br/>remembered"]
+      EMA["② detector<br/>p_avg +=<br/>α·(p − p_avg)"]
+      L2["agc_log10_<br/>total"]
+      LF["③ loop filter<br/>gain_db +=<br/>4·bn·(ref − level)"]
+      EMA --> L2 --> LF
+    end
+
+    S1 --> EMA
+    LF --> E2["agc_exp10_<br/>total"]
+    E2 -->|g_last| G
+
+    L2 -.->|level_db| TLM(["telemetry"])
+    LF -.->|gain_db| TLM
+    E2 -.-> ACC{{"saturate<br/>NaN → DBL_MIN"}}
+    ACC -.-> API(["applied_gain_db"])
+```
+
+The two hexagons are the guards; everything else is signal or control flow.
+
+The diagram's one load-bearing feature is the **subgraph boundary**. Stage ①
+is transient: a bad sample makes one bad output sample and is forgotten. The
+detector is where an input first becomes *persistent* state, and everything
+after it — the measured level, the integrator, the applied gain — is a
+function of `p_avg`. That is why there is a single guard on that edge rather
+than a clamp at each stage, and §4 is the measurement behind it.
+
+The two `agc_log10_` / `agc_exp10_` boxes are not a second safety layer;
+they are the primitives keeping their own contracts, so that a *future*
+caller cannot reach the failure the guard now makes unreachable here.
 
 ### 2.1 The loop filter is linear in dB, and that is the whole design
 
@@ -196,10 +244,7 @@ judged without knowing it.
 
 ______________________________________________________________________
 
-## 4. The loop must be total — PROPOSED
-
-> **The bounds in this section are not implemented.** The two failures are
-> measured on the shipped object and are real; the answer is a proposal.
+## 4. The loop is total
 
 The governing requirement, and the one this page exists to state:
 
@@ -211,7 +256,10 @@ hands it. It cannot assume its input is well-formed, and it is the one
 object whose failure is silent: a corrupted gain does not crash, it
 multiplies.
 
-Two independent paths violate this today.
+Two independent paths violated this, both measured on the shipped object
+before the guard existed. §4.1 and §4.2 are those measurements — kept in the
+past tense they were taken in, because the numbers are what justify the
+guard's shape and a repaired object cannot re-derive them.
 
 ### 4.1 Silence winds the integrator until the arithmetic breaks
 
@@ -261,39 +309,93 @@ buffer, a garbage file, and the AGC is dead for the rest of the run.
 Bounding the integrator does not help this path at all, which is why the
 answer is two bounds and not one.
 
-### 4.3 The two bounds
+### 4.3 One guard, at the boundary
 
-**(1) The detector is made total.** Clamp the instantaneous power into
-`[0, AGC_POWER_CEIL]` before it reaches the EMA. The ceiling is derived,
-not chosen: the largest `|y|²` a finite float32 pair can produce is
-**2.32e77**, comfortably inside double. So `p_avg` can only go non-finite
-if `y` did, and one clamp closes it. Measured confirmation that the clamp is
-all that is needed: inputs of 1e19, 1e20 and 3e19 — enormous but finite —
-already leave `p_avg` finite at 7.5e36, 7.3e38 and 6.6e37.
+**The detector's input is made total, and that is the whole safety fix.**
+Every power reaching the EMA goes through `saturate` into
+`[0, AGC_POWER_CEIL]`. The ceiling is derived, not chosen: the largest
+`|y|²` a finite float32 pair can produce is **2.32e77**, comfortably inside
+double, so `p_avg` can only go non-finite if `y` did. Measured confirmation
+that nothing more is needed on this axis: inputs of 1e19, 1e20 and 3e19 —
+enormous but finite — already leave `p_avg` finite at 7.5e36, 7.3e38 and
+6.6e37.
 
-**(2) The integrator saturates.** Bound `gain_db` to a limit derived from
-what float32 can express: its range is `+770.6 dB` to `−758.6 dB` of
-amplitude, so a gain outside that cannot change any output it is applied to.
-Measured with a ±760 dB rail, 50000 silent samples leave `gain_db = 763`,
-`p_avg = 4.4e-323` — denormal but finite — output 0, and a returning signal
-recovers.
+`p_avg` guarded is a convex combination of a finite `p_avg` and a saturated
+`p`, so it cannot leave the interval once it starts inside — which
+`agc_create()` and `agc_reset()` guarantee by seeding it with the reference
+power.
 
-**These are safety bounds, and must stay unreachable in operation.** The
-deepest *legitimate* gain in any measurement taken for this page is ~80 dB,
-against a bound at 760. This distinction is the whole point: a bound tight
-enough to be operationally useful is a **policy**, it changes working
-behaviour, and it belongs in §5 with a name and a knob — not smuggled in as
-a safety fix.
-
-**(3) The primitives become total.** `agc_exp10_` must saturate rather than
-sign-flip past its exponent range; `agc_log10_` must not answer a non-finite
-argument with a plausible number. With (1) and (2) both are unreachable, but
-a primitive whose contract holds only because of its callers is a trap for
-the next caller.
-
-Within their working range both are honest: swept over 30 decades,
+**The primitives keep their own contracts.** `agc_exp10_` saturates rather
+than sign-flipping past its exponent range, and `agc_log10_` saturates its
+argument rather than answering a non-finite one with a plausible number.
+With the guard in place both are unreachable *from here* — but a primitive
+whose contract holds only because of its callers is a trap for the next
+caller. Within their working range both are honest: swept over 30 decades,
 `agc_exp10_`'s worst relative error is **7.5e-4** and `agc_log10_`'s worst
 absolute error is **7.8e-4**, against a documented ~1e-3.
+
+**One accessor needed the same treatment.** State being total is not the
+same as everything *derived* from it being total:
+`agc_get_applied_gain_db()` returned `20·log10(0) = −INF` once an extreme
+commanded gain underflowed `g_last`, handing a caller a non-finite number
+out of a perfectly well-formed object. It saturates to the smallest normal
+double, reading about `−6153 dB` — finite, and unmistakably "off".
+
+#### An integrator bound was proposed here, and measurement retired it
+
+The draft of this section called for a second bound saturating `gain_db` at
+float32's ±760 dB. With the guard in place it is unnecessary, and sometimes
+worse. Silent gap, then a returning signal:
+
+| gap       | guard only: recovery | state  | with a ±760 dB bound |
+| --------- | -------------------- | ------ | -------------------- |
+| 100       | 196                  | finite | 196                  |
+| 400       | 113                  | finite | 113                  |
+| 800       | 7660                 | finite | 4312                 |
+| 3 000     | 6381                 | finite | 4520                 |
+| 10 000    | 7800                 | finite | 4520                 |
+| 100 000   | **1988**             | finite | 4520                 |
+| 1 000 000 | **2802**             | finite | 4520                 |
+
+**Recovery does not grow with gap length** — a million silent samples come
+back faster than eight hundred do. The wind-up is self-limiting: the gain
+climbs until `(float)g_last` overflows, `0 × inf` produces a NaN, and the
+guard reads that NaN as *maximally loud*, driving the gain back. The loop
+bounces rather than integrating monotonically, and that is the guard doing
+its job one level up from where it was aimed.
+
+So the bound buys determinism (a flat 4520) and not speed — at the two
+longest gaps it is measurably **slower** than no bound at all. A second
+mechanism, a second thing to document and justify, for a worse number.
+Dropped.
+
+**The rule it leaves behind is still worth stating**, because §5 will be
+tempted to break it: a safety bound must be *unreachable in operation*. The
+deepest legitimate gain in any measurement on this page is ~80 dB. A bound
+tight enough to be operationally useful is a **policy** — it changes working
+behaviour — and it belongs in §5 with a name and a knob, never smuggled in
+as a safety fix.
+
+#### The mechanisms, and what pins each one
+
+Every row was proven by sabotage: reverting the guard turns the named test
+red, and the observed failure is the one in the last column.
+
+| mechanism                               | prevents                                                        | pinned by          | failure when reverted                          |
+| --------------------------------------- | --------------------------------------------------------------- | ------------------ | ---------------------------------------------- |
+| `saturate` at the EMA input, `agc_step` | one non-finite sample poisoning `p_avg` for the rest of the run | §13 ×4, §14 (step) | `p_avg` NaN; never recovers in 100 000 samples |
+| the same guard in `agc_steps`           | the block path, which folds the detector over a chunk mean      | §14 (steps)        | `p_avg` NaN via the chunk mean                 |
+| `agc_exp10_` bounds `z` first           | a **negative** gain — signal inversion, not lost precision      | §15                | `(309) = −3.09e−308`, `(−400) = −3.23e+216`    |
+| `agc_log10_` saturates its argument     | a fabricated level that looks plausible                         | §16                | `(NaN) = 308.431`                              |
+| `saturate` in the applied-gain accessor | a non-finite value escaping a public getter                     | §17                | `−inf`                                         |
+| `nan_to` being a **parameter**          | the safe direction being guessed                                | §18, §13 ×2        | NaN → `lo`: "unknown level drove gain **UP**"  |
+
+That last row is the one worth dwelling on. Written the obvious way —
+`fmin(fmax(v, lo), hi)` — NaN lands on `lo` on this platform, which for a
+*level* is the destructive direction: reading low drives the gain **up** and
+rails everything downstream. Every test asserting only `isfinite` passes it.
+That is why `saturate` takes the destination as an argument and why §13
+asserts the direction alongside finiteness.
 
 ### 4.4 The gain word wants to be an integer
 
@@ -433,6 +535,45 @@ contribution stated.
 ______________________________________________________________________
 
 ## 7. What it costs, and what is already true
+
+### 7.1 Throughput, and the guard's price
+
+`bench_agc_core`, Release, 65536-sample blocks, before and after §4's guard,
+15 alternating runs of each binary from two worktrees:
+
+| case           | min   | median | max   | run-to-run spread |
+| -------------- | ----- | ------ | ----- | ----------------- |
+| before `step`  | 28.5  | 30.7   | 31.5  | 9.8%              |
+| after `step`   | 27.4  | 29.9   | 31.2  | 12.7%             |
+| before `steps` | 103.3 | 126.0  | 130.1 | 21.3%             |
+| after `steps`  | 100.4 | 129.0  | 131.3 | 24.0%             |
+
+(MSa/s.) On medians `step` reads −2.6% and `steps` **+2.4%** — opposite
+signs, which is the signature of noise rather than an effect. On best-of-N,
+the robust estimator for throughput, they are −1.0% and +0.9%. **The guard's
+cost is below this benchmark's resolution, bounded at about 1%.**
+
+The operation count says the same thing independently, which matters because
+a noisy benchmark should not be the whole argument. At the default
+`gain_update_period = 1`, `agc_step` already runs *both* `agc_exp10_` and
+`agc_log10_` per sample — a 4th-order Taylor series, two `memcpy`s and a
+divide each. The guard adds about six comparisons on top: two at the EMA,
+two inside each primitive. `saturate` is `always_inline`, so it cannot have
+become a call.
+
+**The production path is the cheaper one.** A receiver's AGC runs inside the
+`RateConverter` cascade through `agc_steps`, where the guard fires once per
+`decim`-sample chunk — eight times less often — behind a SIMD reduction that
+dominates. `agc_step` is the per-sample reference and conformance path.
+
+**A caveat worth carrying to any future perf gate on this object**: the
+run-to-run spread above is 10–24% on one quiet machine. That is
+independently why [#543](https://github.com/doppler-dsp/doppler/issues/543)
+removed `perf-regression.yml` — it reported regressions whose sign reversed
+locally, which is precisely what a 20% spread does to a 2% effect. Anything
+gating this needs best-of-N across interleaved builds, never single runs.
+
+### 7.2 Properties already confirmed
 
 Confirmed by measurement and safe to rely on:
 

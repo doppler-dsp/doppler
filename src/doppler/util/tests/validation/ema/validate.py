@@ -21,6 +21,7 @@ properties of the recursion over a long run rather than of one step.
 from __future__ import annotations
 
 import math
+import re
 import struct
 import sys
 from dataclasses import dataclass, field
@@ -34,8 +35,57 @@ from doppler.util import ema_alpha_decim, ema_step
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
+ROOT = HERE.parents[5]
 
 R = Report()
+
+# ── Findings F1 and F2 are claims about OTHER files, so they are read ──
+# rather than asserted.
+#
+# Both were written as fixed prose ("NOTHING USES IT", "`agc_steps` forms
+# its detector pole by repeated multiplication") and both became false the
+# moment the migration landed -- while `make validate-check` went on
+# reporting the report "up to date", because that gate re-runs this
+# generator and compares, and the generator was the stale part. A finding
+# naming `agc_core.c` is a claim ABOUT `agc_core.c`; it rots exactly when
+# the work succeeds, which is the worst possible moment for it to read as
+# still open.
+#
+# Deriving it makes the rot impossible: the verdict follows the tree, and
+# `validate-check` turns red the moment the tree moves and the committed
+# report disagrees. That converts a sentence that needs remembering into a
+# gate that does not.
+SITES = {
+    "agc_core.c": ROOT / "native/src/agc/agc_core.c",
+    "async_dsss_receiver_core.c": (
+        ROOT / "native/src/async_dsss_receiver/async_dsss_receiver_core.c"
+    ),
+    "acc_trace_core.c": ROOT / "native/src/acc_trace/acc_trace_core.c",
+}
+
+# Comments are stripped before matching, because they discuss the very
+# thing being detected: agc_core.c's pole now carries a comment naming the
+# `(1 - alpha)` repeated multiply it replaced, and a naive grep reads that
+# as the defect still being present.
+_COMMENTS = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)
+_CALL = re.compile(r"\bema_(?:step|alpha_decim)\s*\(")
+_DECIM_CALL = re.compile(r"\bema_alpha_decim\s*\(")
+
+
+def _code(path: Path) -> str:
+    """The file's code with comments removed."""
+    return _COMMENTS.sub(" ", path.read_text())
+
+
+def adopters() -> dict[str, bool]:
+    """Which historical call sites now call the shared primitive."""
+    return {n: bool(_CALL.search(_code(p))) for n, p in SITES.items()}
+
+
+def agc_pole_is_compounded() -> bool:
+    """True once `agc_steps` forms its detector pole with the primitive."""
+    return bool(_DECIM_CALL.search(_code(SITES["agc_core.c"])))
+
 
 # Coefficients spanning the range the library actually uses: 1e-5 is a
 # long detection average, 0.05 the AGC's shipped detector, 0.5 a fast
@@ -392,9 +442,16 @@ def characterise() -> Data:
     R.md(
         "The direct form's error grows without bound as the average "
         "lengthens; the shipped form is exact at every coefficient "
-        "tried. `agc_steps` forms its detector pole by repeated "
-        "multiplication and therefore sits in the left-hand column "
-        "today — recorded as §3 F2."
+        "tried. "
+        + (
+            "`agc_steps` now forms its detector pole with "
+            "`ema_alpha_decim` and therefore sits in the right-hand "
+            "column — §3 F2, fixed."
+            if agc_pole_is_compounded()
+            else "`agc_steps` forms its detector pole by repeated "
+            "multiplication and therefore sits in the left-hand column "
+            "today — recorded as §3 F2."
+        )
     )
     R.md()
     R.md("![ulps off at d = 1](decim_d1.png)")
@@ -541,34 +598,76 @@ def review(d: Data) -> None:
     R.md()
     R.md("Findings, with verdicts. Limits are section 4.")
     R.md()
-    R.find(
-        "F1",
-        "CONFIRMED",
-        "The primitive exists and NOTHING USES IT. All four historical "
-        "call sites still carry their own copy of the recursion: "
-        "`agc_core.c`'s power detector and `async_dsss_receiver_core.c`'s "
-        "lock_num/lock_den pair (incremental), and `acc_trace_core.c`'s "
-        "ACC_TRACE_EXP (two-product). Until they are migrated this report "
-        "certifies a function, not the library's behaviour — the "
-        "properties below are true of `ema_step` and say nothing about "
-        "the four copies. Migration is deliberately separate work so each "
-        "site moves against a known contract rather than an assumption, "
-        "and two of the three change numerically when it happens "
-        "(acc_trace changes form; agc gains an exact d=1 pole).",
-    )
+    # F1 and F2 are read off the tree, not asserted — see SITES above.
+    who = adopters()
+    holdouts = sorted(n for n, ok in who.items() if not ok)
+    if holdouts:
+        R.find(
+            "F1",
+            "CONFIRMED",
+            "The primitive exists and "
+            + (
+                "NOTHING USES IT"
+                if len(holdouts) == len(who)
+                else f"{len(holdouts)} of {len(who)} call sites still "
+                "carry their own copy"
+            )
+            + ": "
+            + ", ".join(f"`{n}`" for n in holdouts)
+            + ". Until they are migrated this report certifies a "
+            "function, not the library's behaviour — the properties "
+            "below are true of `ema_step` and say nothing about those "
+            "copies. Migration is deliberately separate work so each "
+            "site moves against a known contract rather than an "
+            "assumption, and two of the three change numerically when "
+            "it happens (acc_trace changes form; agc gains an exact "
+            "d=1 pole).",
+        )
+    else:
+        R.find(
+            "F1",
+            "FIXED",
+            "Every historical call site now calls the shared primitive: "
+            + ", ".join(f"`{n}`" for n in sorted(who))
+            + ". So the properties below are statements about the "
+            "library's behaviour and not only about `ema_step` — which "
+            "is what this finding existed to deny until it was true. "
+            "(`det_ema_alpha` sizes the recursion and never runs it, so "
+            "there was nothing there to migrate.) Verdict READ from "
+            "those files rather than asserted here, so it cannot "
+            "outlive the state it describes.",
+        )
+
     worst = int(d.decim_ulps_direct.max())
-    R.find(
-        "F2",
-        "CONFIRMED",
-        f"`agc_steps` forms its detector pole as `1 - a1^d` by repeated "
-        f"multiplication, which at d == 1 is `1-(1-alpha)` — the "
-        f"cancelling form measured in §2.3 at up to {worst} ulps off "
-        "across the coefficients tried. So `decim = 1` on the AGC is not "
-        "bit-for-bit the undecimated recursion, which is the property "
-        "that would let its decimated and per-sample paths be compared "
-        "at all. `ema_alpha_decim` is the fix and is not yet adopted "
-        "there; see F1.",
-    )
+    if not agc_pole_is_compounded():
+        R.find(
+            "F2",
+            "CONFIRMED",
+            f"`agc_steps` forms its detector pole as `1 - a1^d` by "
+            f"repeated multiplication, which at d == 1 is "
+            f"`1-(1-alpha)` — the cancelling form measured in §2.3 at "
+            f"up to {worst} ulps off across the coefficients tried. So "
+            "`decim = 1` on the AGC is not bit-for-bit the undecimated "
+            "recursion, which is the property that would let its "
+            "decimated and per-sample paths be compared at all. "
+            "`ema_alpha_decim` is the fix and is not yet adopted "
+            "there; see F1.",
+        )
+    else:
+        R.find(
+            "F2",
+            "FIXED",
+            "`agc_steps` forms its detector pole with "
+            "`ema_alpha_decim`, so `decim = 1` is now bit-for-bit the "
+            "undecimated recursion. It previously used a repeated "
+            f"multiply of `(1 - alpha)`, off by up to {worst} ulps at "
+            "d == 1 across the coefficients §2.3 sweeps. Note what "
+            "this did NOT buy: `agc_steps(decim=1)` and `agc_step` "
+            "still differ, because the two apply GAIN differently (a "
+            "first-order-hold ramp across the chunk against a "
+            "per-period refresh) — the pole was never that gap's "
+            "cause. Verdict READ from `agc_core.c`.",
+        )
     R.find(
         "F3",
         "BY DESIGN",

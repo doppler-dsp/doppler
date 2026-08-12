@@ -88,7 +88,7 @@ The property that makes a decimated path comparable to an undecimated one: the c
 | 0.5 | 0 | 0 |
 
 
-The direct form's error grows without bound as the average lengthens; the shipped form is exact at every coefficient tried. `agc_steps` forms its detector pole by repeated multiplication and therefore sits in the left-hand column today — recorded as §3 F2.
+The direct form's error grows without bound as the average lengthens; the shipped form is exact at every coefficient tried. `agc_steps` now forms its detector pole with `ema_alpha_decim` and therefore sits in the right-hand column — §3 F2, fixed.
 
 ![ulps off at d = 1](decim_d1.png)
 
@@ -148,6 +148,18 @@ This section was first written scoring the crossing against the continuous const
 
 Findings, with verdicts. Limits are section 4.
 
+- **F1 · FIXED** — Every historical call site now calls the shared primitive: `acc_trace_core.c`, `agc_core.c`, `async_dsss_receiver_core.c`. So the properties below are statements about the library's behaviour and not only about `ema_step` — which is what this finding existed to deny until it was true. (`det_ema_alpha` sizes the recursion and never runs it, so there was nothing there to migrate.) Verdict READ from those files rather than asserted here, so it cannot outlive the state it describes.
+
+- **F2 · FIXED** — `agc_steps` forms its detector pole with `ema_alpha_decim`, so `decim = 1` is now bit-for-bit the undecimated recursion. It previously used a repeated multiply of `(1 - alpha)`, off by up to 136763029 ulps at d == 1 across the coefficients §2.3 sweeps. Note what this did NOT buy: `agc_steps(decim=1)` and `agc_step` still differ, because the two apply GAIN differently (a first-order-hold ramp across the chunk against a per-period refresh) — the pole was never that gap's cause. Verdict READ from `agc_core.c`.
+
+- **F3 · BY DESIGN** — `ema_step` is not total in `x`: a non-finite observation poisons the state permanently, and there is no guard. That is the same decision `saturate` exists to serve — an EMA remembers, so its input is the boundary where an untrusted value first becomes persistent state, and one guard there makes the whole downstream chain total where a clamp at each stage is several chances to miss one. The caller places it because only the caller knows which end is safe. The AGC's history is the argument: one non-finite sample destroyed its loop permanently, and the fix was a single `saturate` at the detector's input, not a defensive recursion.
+
+- **F4 · BY DESIGN** — A coefficient above 1 saturates to pass-through rather than applying the bare recursion, which would fly past the observation and oscillate outward. It is a caller error either way; saturating makes the worst case 'no averaging', which is wrong but stable, instead of a diverging estimator.
+
+- **F5 · BY DESIGN** — Two expectations about the two-product form did not survive measurement, and are recorded because the reasoning that produced them is tempting: it does NOT drift off its fixed point (both forms return the state exactly when handed their own value), and it is exact at alpha = 0. So §2.2's freeze and fixed-point rows pin a floor BOTH forms meet — they are not the argument for the shipped one. The argument is §2.1's accuracy margin and the `alpha = 1` row.
+
+- **F6 · C-ONLY** — Every C caller inlines the header definition, while this report exercises the single out-of-line copy emitted by `native/src/util/ema_step.c`. Those are the same source by construction — the C99 `extern inline` idiom, where the translation unit declares rather than redefines — so they cannot drift. Worth naming because the sibling `square_clip.c` does NOT follow it: it carries a hand-copied second body, so the function C inlines and the function Python calls are two pieces of source kept in agreement by hand. That is the duplication this primitive exists to end, and it is still present next door.
+
 
 ## 4. Limits
 
@@ -157,6 +169,6 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 
 ## 5. Summary
 
-- **6 findings**, 2 of them gaps or confirmed defects: F1, F2
+- **6 findings**, 0 of them gaps or confirmed defects — none left
 - **15/15 limits** hold
 - Raw sweeps: `data/accuracy.csv`, `data/decim_d1.csv`, `data/noise_reduction.csv`

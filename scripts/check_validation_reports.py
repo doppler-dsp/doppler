@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""Every markdown table in a generated validation report must be well formed.
+"""A generated validation report must actually say what it claims to say.
+
+Two structural properties, both of which a shipped report violated, and
+neither of which any existing gate could see:
+
+1. **Every markdown table parses.** Five of six reports had a malformed one.
+2. **Every finding it counts, it shows.** All six headed section 3
+   "Findings, with verdicts" and rendered NONE of them -- 50 findings that
+   existed only in console output, with the reports cross-referencing into
+   the empty section ("recorded as §3 F6").
+
+Both are checked against the RENDERED file, which is the point: they are
+properties of the artifact a reader opens, not of the code that wrote it.
 
 Why this is not covered by ``make validate-check``
 --------------------------------------------------
@@ -103,6 +115,35 @@ def check(path: Path) -> list[str]:
     return bad
 
 
+# "- **F1 · FIXED** — ..." as Report.find renders it.
+FINDING_RE = re.compile(r"^- \*\*(F\d+) · ", re.M)
+# Section 5's own count: "- **6 findings**, 0 of them gaps ..."
+SUMMARY_RE = re.compile(r"^- \*\*(\d+) findings\*\*", re.M)
+
+
+def check_findings(path: Path) -> list[str]:
+    """The report must render every finding its summary counts.
+
+    Both numbers come from the rendered file, so this is a self-consistency
+    check: it needs no access to the validator, and it catches the exact
+    defect that shipped -- a summary saying "6 findings" above a section 3
+    containing none.
+    """
+    text = path.read_text()
+    rel = path.relative_to(ROOT)
+    claimed = SUMMARY_RE.search(text)
+    if not claimed:
+        return [f"{rel}: no '**N findings**' line in the summary"]
+    want = int(claimed.group(1))
+    got = FINDING_RE.findall(text)
+    if len(got) != want:
+        return [
+            f"{rel}: the summary counts {want} finding(s) and the report "
+            f"renders {len(got)} — section 3 is where they belong"
+        ]
+    return []
+
+
 def main() -> int:
     reports = sorted(ROOT.glob(GLOB))
     if not reports:
@@ -118,23 +159,25 @@ def main() -> int:
     bad: list[str] = []
     for r in reports:
         bad += check(r)
+        bad += check_findings(r)
 
     if bad:
-        print("check_validation_tables: malformed table(s):", file=sys.stderr)
+        print("check_validation_reports: FAIL", file=sys.stderr)
         for b in bad:
             print(f"  {b}", file=sys.stderr)
         print(
             "\n  A cell containing '|' (a magnitude, say) must be escaped as "
-            "'\\|'.\n  Report.table() does this for every cell — if this "
-            "fired, something\n  bypassed it. See "
+            "'\\|', and\n  every finding must be rendered where the report "
+            "says it is. Report.table()\n  and Report.find() both do this "
+            "already — if this fired, something bypassed\n  them. See "
             "src/doppler/tests/_validation_common.py.",
             file=sys.stderr,
         )
         return 1
 
     print(
-        f"check_validation_tables: OK — {len(reports)} report(s), "
-        "every table well formed"
+        f"check_validation_reports: OK — {len(reports)} report(s), "
+        "tables well formed, every finding rendered"
     )
     return 0
 

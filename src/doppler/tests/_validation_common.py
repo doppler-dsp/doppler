@@ -159,8 +159,27 @@ class Report:
 
     # ── phases 2 and 3 ───────────────────────────────────────────────
     def find(self, tag: str, verdict: str, text: str) -> None:
-        """Record one review finding and echo it to the console."""
+        """Record one review finding, render it, and echo it.
+
+        All three from one call, deliberately. Recording and rendering used
+        to be separate, and only recording was ever wired up: every report
+        headed section 3 "Findings, with verdicts" and then listed **none**
+        of them. Six reports, every finding, invisible -- they existed only
+        in this function's console output, which nothing keeps.
+
+        The reports cross-reference into that void: the EMA's claim table
+        says "recorded as §3 F6" and the AGC's says "see §3 F4", pointing
+        at a section with no content. Phase 2 of
+        ``docs/dev/validation.md`` is the review, and the artifact that is
+        supposed to carry it carried a heading.
+
+        Every ``find()`` is called from a validator's ``review()``, right
+        after the section 3 heading, so appending here lands in the right
+        place with no ordering rule for authors to remember.
+        """
         self.findings.append((tag, verdict, text))
+        self.md(f"- **{tag} · {verdict}** — {text}")
+        self.md()
         print(f"  [{verdict:^10}] {tag}: {text[:96]}")
 
     def limit(self, ok: bool, claim: str) -> bool:

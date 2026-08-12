@@ -144,6 +144,64 @@ ______________________________________________________________________
     instead of two that could drift. Measured on CachyOS (glibc 2.43): the
     gate build tops out at **2.27**, the host build reaches **2.43**.
 
+- **`native/tests/dp_test.h` — the `dp_*_test.h` family gets the foundation it
+    was already standing on.** `dp_state_test.h` had documented its dependency
+    for as long as it existed — *"Requires (already present in every
+    `test_*_core.c`): the `CHECK` macro"* — and that requirement was met by
+    **90 copies of `CHECK` in six mutually incompatible variants**: two arities,
+    two failure semantics, and one whose condition was inverted. A shared
+    harness resting on a macro every includer redefines is a contract with
+    nobody. The compiler said so on the first build: `dp_state_test.h` *calls*
+    `CHECK` and stopped compiling the moment the copies went away.
+
+    Both failure semantics are kept, under the names the wider testing world
+    uses for the same split, because both were legitimate and converting either
+    into the other would not have been a refactor — the checks that follow a
+    `DP_REQUIRE` exist precisely because the pointer is known-good by then:
+
+    | macro                           | on failure            | files |
+    | ------------------------------- | --------------------- | ----- |
+    | `DP_CHECK` / `DP_CHECK_MSG`     | count it, carry on    | 79    |
+    | `DP_REQUIRE` / `DP_REQUIRE_MSG` | report and `return 1` | 9     |
+
+    Plus `DP_CHECK_NEAR` — promoted from `test_dp_ber.c`, the one file whose
+    numeric failures already printed both values and the tolerance — and
+    `dp_nearf` / `dp_near` / `dp_cnearf` / `dp_cnear`, which retire 18 private
+    copies of `|a-b| <= tol` and their 36 wrapper macros. Tolerance stays an
+    **argument** throughout: `TOL` is defined five times in the suite with five
+    deliberately different values (`1e-3f` through `1e-12`), because a CF32
+    round-trip and a double-precision spectral estimate do not share an epsilon.
+    The comparison was duplicated; the constant was not.
+
+    The counter lives in the header at file scope rather than as a local in
+    `main`, because 20 tests call checks from helper functions — which is why
+    15 of them had already promoted it by hand.
+
+    89 files, **-994 net lines**. `native/tests/README.md` documents the family
+    and where a new helper goes. Only `examples/downstream-jm/native/tests/`
+    keeps its own `CHECK`: it is a separate downstream project, which is the
+    point of it.
+
+- **`make lint` runs `tests-ssot`.** Two rules, because the convention was
+    *already written down* while 90 copies accumulated under it. No test may
+    re-define an assertion `dp_test.h` provides or roll its own
+    `CHECK`/`REQUIRE`/`EXPECT`/`ASSERT` — the forbidden set is **derived from
+    `dp_test.h` on every run**, so a macro added there is covered without
+    touching the checker. And no `native/tests/*.c` may end up with **fewer
+    assertions** than `$(ASSERT_BASE)` has.
+
+    That second rule is not theoretical. This work was branched before
+    `feat(telemetry)` reached `main` and would have dropped **43 assertions
+    across three files** — `test_RateConverter_core.c` -20,
+    `test_mpsk_receiver_core.c` -12, `test_agc_core.c` -11 — with a completely
+    green suite: the files compile, the survivors pass, `ctest` reports 100%.
+    Review caught the one file it knew; the other two were only ever going to
+    be found by counting. Read the count, not the percentage.
+
+    Deliberate removals go in `native/tests/.assertion-ratchet-ignore` with a
+    reason. It is empty, and the intent is that it stays that way — the
+    regression above was fixed by rebasing, not by an entry.
+
 ### Changed
 
 - **Four more CI/release steps became make targets, after an audit prompted by
@@ -241,6 +299,29 @@ ______________________________________________________________________
     *doppler's* release version against being hand-typed into docs.
 
 ### Fixed
+
+- **75 assertions across 20 C tests could not fail.** The hand-written
+    epilogue every test carried — `if (_fails) { …; return 1; }` then
+    `printf ("… PASSED"); return 0;` — had drifted in 20 files so the gate sat
+    **above** later assertions. Anything checked after it printed `FAIL` to
+    stderr and the test still exited **0**, which CTest reports as green.
+    Demonstrated rather than argued: a deliberately broken check in
+    `test_acc_cf64_core.c` produced
+
+    ```
+    FAIL …/test_acc_cf64_core.c:71  acc_cf64_get_acc (b) == 123456.0 + …
+    test_acc_cf64_core PASSED
+    EXIT=0
+    ```
+
+    **This is how the `specan_get_state` heap overflow below stayed hidden** —
+    the state round-trip that would have caught it was one of the 75.
+
+    `DP_TEST_END` replaces the whole shape and reports as the **last statement
+    of `main`**, so nothing can be appended after it and the drift is
+    unconstructible rather than merely discouraged. It also fails a test that
+    asserted **nothing**: a body that is `#if 0`-ed out, or a loop that never
+    ran, otherwise exits 0 and reads as passing forever.
 
 - **The C-library tarball could be built empty, and would have shipped.**
     Found by running `package-c-tarball` for the first time — the point of

@@ -1,12 +1,18 @@
-"""dsss_acquisition_stress.py -- randomized stress test for `Acquisition`
-ALONE, isolated from the rest of the composed `DsssReceiver` chain, across
-the exact same axes `dsss_receiver_stress.py` defined for the full receiver
+"""Characterization of `Acquisition` ALONE.
+
+Isolated from the rest of the composed `DsssReceiver` chain, across the
+exact same axes the `dsss_receiver` subject defined for the full receiver
 (C/N0 40-80 dB-Hz, Doppler up to 0.9x the native search span, front-end
 sample rate via spc, and signal amplitude).
 
+This is a **characterization**, not an example: it runs for minutes and is
+run deliberately by `make characterize`. See
+`doppler.dsss.tests.characterization` for why that distinction exists and
+what the per-push fast twin does and does not cover.
+
 Why isolate Acquisition
 -----------------------
-`dsss_receiver_stress.py` found the *composed* `DsssReceiver` pulls in only
+the `dsss_receiver` subject found the *composed* `DsssReceiver` pulls in only
 out to ~263 Hz of Doppler, far inside the ~1466 Hz native search span its
 embedded `Acquisition` is configured to search (`doppler_uncertainty=
 0.95*SPAN_HZ`). That finding never established WHERE in the chain the
@@ -41,7 +47,8 @@ that the composed receiver inherits.
 
 Ground truth against wfmgen
 ---------------------------
-Signal generation reuses `dsss_receiver_stress.make_signal_wfmgen` and its
+Signal generation reuses the `dsss_receiver` subject's
+`make_signal_wfmgen` and its
 link geometry verbatim -- one wfmgen composition, one source of truth,
 shared by both harnesses. Two pieces of ground truth Acquisition's raw
 output is checked against:
@@ -63,7 +70,12 @@ output is checked against:
 
 Run::
 
-    python -m doppler.examples.dsss_acquisition_stress
+    make characterize
+
+or one subject alone::
+
+    python -m \
+        doppler.dsss.tests.characterization.acquisition.characterize
 """
 
 from __future__ import annotations
@@ -71,11 +83,12 @@ from __future__ import annotations
 import math
 import sys
 import warnings
+from pathlib import Path
 
 import numpy as np
 
 from doppler.dsss import Acquisition
-from doppler.examples.dsss_receiver_stress import (
+from doppler.dsss.tests.characterization.dsss_receiver.characterize import (
     CHIP_RATE,
     CN0_RANGE_DBHZ,
     CODE,
@@ -90,6 +103,10 @@ from doppler.examples.dsss_receiver_stress import (
     make_signal_wfmgen,
 )
 from doppler.resample import RateConverter
+
+# Artifacts land beside this script (see the receiver subject and the
+# validation tree): `make characterize` runs from the repo root.
+HERE = Path(__file__).resolve().parent
 
 # Acquisition sizing knobs, matching what DsssReceiver configures internally
 # for its own embedded engine (native_dsss_receiver_core.c's
@@ -269,7 +286,7 @@ def run_trial(
 
 def sweep_cn0_calibration(n_per_bucket=12, doppler_hz=20.0, spc=2, seed0=4000):
     """Dedicated C/N0 sweep at fixed near-zero Doppler/spc/power (isolates
-    the C/N0 axis, same rationale as `dsss_receiver_stress`'s dedicated
+    the C/N0 axis, same rationale as `dsss_receiver`'s dedicated
     sweep). Returns, per bucket, the empirical on-true-cell rate and the
     engine's own mean `pd_predicted` -- the direct "measured performance vs
     the setting" check: does the empirical rate roughly track what the
@@ -342,7 +359,7 @@ def sweep_doppler_acquisition_range(
     stay high across its FULL configured Doppler search range, or does it
     narrow the way the composed DsssReceiver did? Sweeps |Doppler| buckets
     from 0 up to `DOPPLER_FRAC_OF_SPAN * SPAN_HZ` (the same range
-    `dsss_receiver_stress.find_doppler_pullin_boundary` bisected and found
+    `dsss_receiver.find_doppler_pullin_boundary` bisected and found
     collapsing by ~263 Hz at the receiver level)."""
     edges = np.linspace(0.0, DOPPLER_FRAC_OF_SPAN * SPAN_HZ, 6)
     rates = []
@@ -369,7 +386,8 @@ def sweep_doppler_acquisition_range(
     return rates
 
 
-def main(n_trials=300, out_path="dsss_acquisition_stress.png"):
+def main(n_trials=300, out_path=None):
+    out_path = HERE / "acquisition.png" if out_path is None else out_path
     print(
         f"Acquisition stress: SF={SF}, chip_rate={CHIP_RATE / 1e6:g} MHz, "
         f"native span +/-{SPAN_HZ:.0f} Hz, "
@@ -402,7 +420,8 @@ def main(n_trials=300, out_path="dsss_acquisition_stress.png"):
             f"  |Doppler est error|: mean={handoff['mean_abs_err_hz']:.0f} Hz "
             f"median={handoff['median_abs_err_hz']:.0f} Hz\n"
             f"  {handoff['frac_exceeds_downstream_pullin']:.0%} of on-cell "
-            "trials have |error| > 263 Hz -- dsss_receiver_stress.py's own "
+            "trials have |error| > 263 Hz -- the `dsss_receiver` "
+            "subject's own "
             "measured DsssReceiver-level Doppler pull-in boundary"
         )
 
@@ -440,7 +459,7 @@ def main(n_trials=300, out_path="dsss_acquisition_stress.png"):
 
     # The isolation result: Acquisition's own on-true-cell rate should stay
     # high across the WHOLE configured Doppler range -- if this holds while
-    # dsss_receiver_stress's boundary sits at ~263 Hz, the narrowing is
+    # the `dsss_receiver` subject's boundary sits at ~263 Hz, the narrowing is
     # proven to live downstream of Acquisition (Dll/MpskReceiver's own
     # carrier loop), not in Acquisition's Doppler search itself.
     assert all(r >= 0.7 for r in doppler_rates), (
@@ -517,8 +536,4 @@ def main(n_trials=300, out_path="dsss_acquisition_stress.png"):
 
 
 if __name__ == "__main__":
-    main(
-        out_path=sys.argv[1]
-        if len(sys.argv) > 1
-        else "dsss_acquisition_stress.png"
-    )
+    main(out_path=sys.argv[1] if len(sys.argv) > 1 else None)

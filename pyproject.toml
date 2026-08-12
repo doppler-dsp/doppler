@@ -83,6 +83,7 @@ python_files = ["test_*.py", "bench_*.py"]
 testpaths = ["src"]
 markers = [
     "docs_snippets: doc-example drift gate (runs the ```python fences in docs/); CI runs it once on 3.12, excluded from the version matrix via -m 'not docs_snippets'",
+    "examples_serial: an example whose own assertion is a TIMING, so it cannot share the machine. Applied from src/doppler/examples/.examples-serial, never by hand. The example gate runs its bulk under xdist with `-m 'examples and not examples_serial'` and then gives these a second SERIAL pass -- the same split `test-python` applies to the benchmark directories. Found the hard way: ddc_fn_scaling.py asserts a 2-thread speedup > 1.25x to prove execute() releases the GIL, and under 8 xdist workers it measured 1.15x and reported the contention as 'execute appears GIL-bound'.",
     "examples: example-script smoke gate (runs every example as a subprocess, discovered not registered); excluded from `make test-python` by the Makefile's PYTEST_SELECT because the gate owns a target of its own (test-examples-python), so the suites add up instead of overlapping. NOT excluded from `make coverage`, which runs the whole suite: an example exercises library code through the instrumented extension and that coverage counts. This said 'excluded from the coverage run via -m not examples' from the day the marker was added (f79ac33f) and the coverage recipe never carried the flag, so the claim described an intention rather than the build.",
 ]
 

@@ -51,6 +51,12 @@ REPO = Path(__file__).resolve().parents[3]
 EXAMPLES_DIR = REPO / "src" / "doppler" / "examples"
 SKIP_REGISTRY = EXAMPLES_DIR / ".examples-skip"
 
+# Examples that must NOT share the machine, because what they assert IS a
+# timing: `.examples-serial`, same `script.py: reason` shape as the skip
+# registry. They still run on every push — the Makefile gives them a second,
+# serial pass — so this is a scheduling constraint, never an excuse.
+SERIAL_REGISTRY = EXAMPLES_DIR / ".examples-serial"
+
 # Examples living outside src/doppler/examples/ that are part of the
 # same guarantee. The standalone example is the "pip install + one file"
 # story the install docs tell.
@@ -63,11 +69,11 @@ EXTRA_EXAMPLES = [REPO / "examples" / "standalone" / "example.py"]
 TIMEOUT_S = 300
 
 
-def _load_registry() -> dict[str, str]:
+def _load_registry(path: Path) -> dict[str, str]:
     entries: dict[str, str] = {}
-    if not SKIP_REGISTRY.exists():
+    if not path.exists():
         return entries
-    for raw in SKIP_REGISTRY.read_text(encoding="utf-8").splitlines():
+    for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
@@ -82,8 +88,22 @@ def _discover() -> list[Path]:
     return scripts
 
 
-SKIPS = _load_registry()
+SKIPS = _load_registry(SKIP_REGISTRY)
+SERIALS = _load_registry(SERIAL_REGISTRY)
 SCRIPTS = _discover()
+
+
+def _param(script: Path):
+    """One parametrize entry, marked `examples_serial` when the registry
+    says this example measures something a parallel run would perturb.
+
+    The mark is what lets the Makefile run the bulk under xdist and these
+    in a second serial pass, without either side naming a script — the
+    registry stays the only place a name appears.
+    """
+    if script.name in SERIALS:
+        return pytest.param(script, marks=pytest.mark.examples_serial)
+    return script
 
 
 def _broker_reachable(host: str = "127.0.0.1", port: int = 4222) -> bool:
@@ -94,7 +114,11 @@ def _broker_reachable(host: str = "127.0.0.1", port: int = 4222) -> bool:
         return False
 
 
-@pytest.mark.parametrize("script", SCRIPTS, ids=[s.name for s in SCRIPTS])
+@pytest.mark.parametrize(
+    "script",
+    [_param(s) for s in SCRIPTS],
+    ids=[s.name for s in SCRIPTS],
+)
 def test_example_runs(script: Path, tmp_path: Path) -> None:
     reason = SKIPS.get(script.name)
     if reason is not None:
@@ -131,20 +155,40 @@ def test_example_runs(script: Path, tmp_path: Path) -> None:
     )
 
 
-def test_registry_entries_have_reasons() -> None:
-    missing = [name for name, reason in SKIPS.items() if not reason]
+@pytest.mark.parametrize(
+    ("which", "entries"), [("skip", SKIPS), ("serial", SERIALS)]
+)
+def test_registry_entries_have_reasons(which, entries) -> None:
+    missing = [name for name, reason in entries.items() if not reason]
     assert not missing, (
-        "skip-registry entries without a reason (format is "
+        f"{which}-registry entries without a reason (format is "
         f"'script.py: reason'): {missing}"
     )
 
 
-def test_registry_entries_exist() -> None:
+@pytest.mark.parametrize(
+    ("which", "entries"), [("skip", SKIPS), ("serial", SERIALS)]
+)
+def test_registry_entries_exist(which, entries) -> None:
     known = {s.name for s in SCRIPTS}
-    stale = sorted(set(SKIPS) - known)
+    stale = sorted(set(entries) - known)
     assert not stale, (
-        "skip-registry entries naming no existing example (delete the "
+        f"{which}-registry entries naming no existing example (delete the "
         f"line): {stale}"
+    )
+
+
+def test_serial_registry_is_disjoint_from_skips() -> None:
+    """A skipped example cannot also need a serial pass.
+
+    Both registries would be satisfiable at once and the result reads as
+    "runs, carefully" while the example never runs at all — the exact
+    class of quiet no-op both registries exist to prevent.
+    """
+    both = sorted(set(SERIALS) & set(SKIPS))
+    assert not both, (
+        f"in BOTH .examples-skip and .examples-serial: {both} — a skipped "
+        "example does not need a scheduling constraint"
     )
 
 

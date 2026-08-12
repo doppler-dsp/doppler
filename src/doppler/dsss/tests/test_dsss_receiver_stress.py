@@ -1,4 +1,6 @@
-"""Fast pytest twin of ``dsss_receiver_stress.py`` -- imports its helper
+"""Fast pytest twin of the `dsss_receiver` characterization subject.
+
+Imports its helper
 functions and re-runs them at a much smaller trial count (mirrors
 ``test_acq_characterization.py``'s relationship to
 ``dsss_acq_characterization.py``), so the default test run gets real
@@ -14,7 +16,7 @@ import math
 
 import numpy as np
 
-from doppler.examples.dsss_receiver_stress import (
+from doppler.dsss.tests.characterization.dsss_receiver.characterize import (
     CHIP_RATE,
     CODE,
     DOPPLER_FRAC_OF_SPAN,

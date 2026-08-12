@@ -3,7 +3,8 @@
 
 ``test_dsss_acquisition_stress.py`` already characterizes this class's
 search *accuracy* (Doppler/code-phase/CN0 sweep, reusing
-``dsss_acquisition_stress.py``'s own scene builder). What's missing --
+the `acquisition` characterization subject's own scene builder).
+What's missing --
 because it was only ever written for ``BurstAcquisition`` in
 ``test_acq.py`` before the Acquisition/BurstAcquisition split -- is
 coverage of this class's own grid-configuration surface:

@@ -174,6 +174,40 @@ the moment its folder exists** — there is no registration step to forget.
 - [ ] Commit the generated report — it is the deliverable, not a build
     artifact
 
+## Where a long sweep goes instead — characterization
+
+A validator runs on every push, twice: `test_validation_limits.py` executes
+its `build(write=False)`, and `make validate-check` re-renders its report.
+Both run **every measurement**. So a validator is the wrong home for a
+sweep that needs minutes to say anything — putting one there taxes every
+push for an answer nobody asked for on that push.
+
+Those live in **`src/doppler/<module>/tests/characterization/<subject>/`**
+as `characterize.py`, run by `make characterize` and by nothing else. The
+two categories answer different questions:
+
+|             | **validation**                        | **characterization**                          |
+| ----------- | ------------------------------------- | --------------------------------------------- |
+| asks        | do the certified limits still hold?   | how does it behave across its whole envelope? |
+| runs        | every push (limits + staleness)       | `make characterize`, deliberately             |
+| deliverable | `results.md`, a caller may rely on it | the sweep's own findings                      |
+
+The category exists because two DSSS Monte-Carlo sweeps were sitting in
+`src/doppler/examples/`, where the smoke gate ran them on every push:
+measured, **164.6 s + 117.7 s against ~58 s for the other 65 examples put
+together** — 75% of that gate. Shortening them to fit would have spent the
+statistical confidence that is their entire point, so they moved.
+
+Each subject keeps a **fast twin** under `tests/` that imports its helpers
+and runs a few trials, and that twin is the per-push cover. Be precise
+about what it buys: the twin proves the helpers still run, **not** that the
+envelope still holds. A regression that moves a pull-in boundary without
+breaking an import waits for the next `make characterize`.
+`make characterization-check` (in `lint`) is the floor — it fails a subject
+with no `__main__` block or no twin at all, which are the two ways a sweep
+becomes a silent no-op. Full rationale:
+`src/doppler/dsss/tests/characterization/__init__.py`.
+
 ## Conventions worth knowing
 
 - `results.md` is **generated**. It is excluded from mdformat, and

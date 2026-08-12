@@ -259,6 +259,43 @@ ______________________________________________________________________
     carrier pull-in lines up across `rx.car.freq`, `rx.car.locked` and
     `rx.tracking` by inspection.
 
+- **`make characterize` — a category for the long sweeps, so they stop taxing
+    every push.** A **characterization** answers "how does this object behave
+    across its whole envelope" by sweeping C/N0, Doppler, sample rate and seed
+    until the answer is statistically meaningful. Two of them were living in
+    `src/doppler/examples/`, where the smoke gate ran them on every push:
+    measured, **164.6 s + 117.7 s against ~58 s for the other 65 examples put
+    together**, i.e. **75% of a 376 s gate**. Shortening a 300-trial
+    Monte-Carlo to fit a smoke gate spends the statistical confidence that is
+    its entire point, so they moved instead of shrinking, and the example gate
+    fell to 91.5 s on that change alone.
+
+    `src/doppler/dsss/tests/characterization/{dsss_receiver,acquisition}/characterize.py`,
+    laid out like the validation tree — one directory per subject, one fixed
+    filename, artifacts beside the script, discovered by glob — so a new
+    subject is covered the moment its folder exists. **Not** in `GATES_DEPS`
+    and not in `ci.yml`: it is run on purpose, when the envelope is the
+    question.
+
+    **Validation was the wrong home for these, for a mechanical reason.** A
+    validator runs every measurement on every push *twice* —
+    `test_validation_limits.py` executes its `build(write=False)` and
+    `make validate-check` re-renders its report — so parking a 280 s sweep
+    there would have moved the cost rather than removed it. The two categories
+    now answer different questions, and `docs/dev/validation.md` says which is
+    which.
+
+    What guards the code per-push is each subject's **fast twin** under
+    `tests/`, which imports its helpers and runs a handful of trials, plus
+    **`make characterization-check`** (in `lint`): it fails a subject with no
+    `__main__` block or no twin at all — the two ways a sweep becomes a silent
+    no-op. Stated rather than implied: the twin proves the helpers still run,
+    **not** that the envelope still holds. A regression that moves a pull-in
+    boundary without breaking an import waits for the next `make characterize`.
+    Each subject's committed `.png` is a snapshot of the last deliberate run
+    and nothing gates its freshness — unlike `results.md`, and for the same
+    reason the sweep is not per-push.
+
 ### Changed
 
 - **The C tests' randomness has one home, `native/tests/dp_rng_test.h`, and
@@ -457,6 +494,67 @@ ______________________________________________________________________
     (a codegen bug, which hand-patching the faces into agreement would hide).
     202 methods compared, 0 divergent (12 fragment methods have no stub
     counterpart).
+
+- **just-makeit pin 0.55.2 → 0.55.3.** 0.55.3 is the fix for
+    [jm gh-920](https://github.com/just-buildit/just-makeit/issues/920), which
+    this repo filed an hour earlier, so the hand-restored two-line block in
+    `source_ext_lo.c` and `source_ext_nco.c` comes back out and the carve-out
+    is **retired rather than carried**.
+
+    The release's own diagnosis is sharper than the issue's and worth keeping:
+    jm gh-607 shipped exact allocation together with a `max_out(state, n)`
+    prototype that can *see* the call, and doppler sits in the seam — opted
+    into `pass_capacity` while its headers still declare the call-independent
+    `max_out(state)`. jm had extended exactness to a value that provably
+    cannot depend on `n`, and **a call-independent cap read as a per-call
+    bound is a silent truncation**. A state-only prototype keeps the clamp on
+    both faces.
+
+    Verified on adoption: the fragments regenerate with the growing form and
+    no hand-patch, `NCO.steps_u32(393_216)` returns all 393216 samples again,
+    and the #116 large-n tests are green from jm's own output rather than from
+    a local patch.
+
+    The `out=` half of gh-920 is unchanged, and correctly so: a request-sized
+    buffer is accepted only where the bound is declared per-call, which
+    `*_max_out(state)` cannot claim. That is doppler's header shape rather
+    than jm's codegen, and the comment in `nco_core.h` now says so instead of
+    pointing at the issue.
+
+    Recorded here because it was not: the bump (`4f1eb86b`) moved all three
+    pin sites and touched no CHANGELOG, and `changelog-check` cannot see that
+    — it fails only on an empty `[Unreleased]`. `gen_jm_pin.py --check` now
+    asserts the pinned version appears on a jm-pin line in this file, which is
+    the gate that would have caught it.
+
+- **The Python example gate runs in parallel, in two passes: 376.6 s → 36.7 s.**
+    `-n auto` on the bulk (each example is already an independent subprocess in
+    a throwaway cwd), which took the post-move 91.5 s down to 29.9 s — 10.3x
+    overall, with nothing skipped and no example weakened.
+
+    **A single `-n auto` would have shipped a broken gate.**
+    `ddc_fn_scaling.py` asserts a 2-thread speedup (`su2 > 1.25`) to prove
+    `execute()` releases the GIL; under eight xdist workers the workers already
+    own every core, so it measured **1.15x** and reported the contention as
+    "execute appears GIL-bound". A gate must not fail merely for running, and
+    equally must not be weakened to fit its harness — so examples whose
+    assertion *is* a timing get a second **serial** pass. Same split, same
+    reason, that `make test-python` already applies to the benchmark
+    directories.
+
+    Which ones is declared in `src/doppler/examples/.examples-serial`
+    (`script.py: reason`, reasons mandatory, same shape as `.examples-skip`),
+    and the `examples_serial` marker is applied *from* that registry — so
+    **neither pass names a script** and the registry stays the only place a
+    name appears. Three meta-tests pin it: an entry with no reason, an entry
+    naming a deleted script, and an entry in both registries at once (which
+    would read as "runs, carefully" while the example never ran).
+
+    3.1x rather than 8x on eight cores is expected and not worth chasing:
+    several examples drive `Plan.prepare()`'s own pthread parallel-for, so
+    workers oversubscribe, and the run cannot finish faster than its longest
+    single example — now `dsss_acq_characterization.py` at ~19 s, which is the
+    obvious next candidate for the characterization category above.
 
 ### Fixed
 

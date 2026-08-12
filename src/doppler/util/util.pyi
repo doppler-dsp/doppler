@@ -202,10 +202,11 @@ def ema_alpha_decim(alpha: float, d: int) -> float:
     | 0.05    | 6 ulps off             | exact         |
     | 1e-5    | 26865 ulps off         | exact         |
 
-    The repeated-multiply form in `agc_steps` has this defect today. Being
-    exact at `d == 1` is the property that lets a caller set `decim = 1`
-    and get bit-for-bit the undecimated recursion, so the decimated and
-    per-sample paths can be compared at all.
+    `agc_steps` used the repeated-multiply form and had this defect; it now
+    forms BOTH its per-chunk coefficients with this function. Being exact
+    at `d == 1` is the property that lets a caller set `decim = 1` and get
+    bit-for-bit the undecimated recursion, so the decimated and per-sample
+    paths can be compared at all.
 
     Parameters
     ----------

@@ -23,7 +23,8 @@ class AGC:
         power (see the Linear-in-dB note above — measured 1.7x to 2.2x at -40
         dB in, worse at small alpha). Treat 1/(4*loop_bw) as a floor on
         settling, not an estimate of it. Smaller values are slower and
-        smoother; keep well below 1/(4*decim) when using agc_steps().
+        smoother. With agc_steps(), the pairing rule is 4*decim*loop_bw <= 0.05
+        — see "Choosing decim".
     alpha : float, default 0.05
         Power-detector EMA coefficient in (0, 1]; smaller values smooth harder
         but react slower to envelope changes.

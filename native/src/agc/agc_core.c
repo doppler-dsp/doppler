@@ -1,5 +1,6 @@
 #include "agc/agc_core.h"
 #include "jm_simd.h"
+#include "util/util_core.h"
 #include <float.h>
 
 agc_state_t *
@@ -127,9 +128,8 @@ JM_HOT void
 agc_steps (agc_state_t *state, const float complex *input,
            float complex *output, size_t n)
 {
-  size_t d  = state->decim ? state->decim : 1; /* chunk length, guard >=1 */
-  double a1 = 1.0 - state->alpha;              /* per-sample EMA pole     */
-  double g_prev = state->g_last;               /* ramp continues from here */
+  size_t d      = state->decim ? state->decim : 1; /* chunk len, >=1 */
+  double g_prev = state->g_last; /* ramp continues from here */
 
   /* Every full chunk shares the same control coefficients, so compute
    * them — including the reciprocal chunk length used for averaging —
@@ -137,10 +137,15 @@ agc_steps (agc_state_t *state, const float complex *input,
    * (8/16/32) are powers of two, so 1.0/d is exact and the multiply
    * below is bit-identical to a divide. */
   double inv_d = 1.0 / (double)d;
-  double ac    = 1.0;
-  for (size_t k = 0; k < d; k++)
-    ac *= a1;
-  double alpha_d = 1.0 - ac;                         /* EMA pole over d  */
+  /* The detector's pole, compounded over the chunk by the shared
+     primitive.  This used to be a repeated multiply of (1 - alpha)
+     followed by `1 - ac`, which is catastrophic cancellation: at d == 1,
+     where the answer must be alpha itself, it was 6 ulps off at alpha
+     0.05 and 26865 off at 1e-5.  ema_alpha_decim is exact there, which
+     is what makes `decim = 1` genuinely the undecimated recursion and
+     therefore comparable to the per-sample path at all.  See
+     docs/design/ema.md §6 and doppler#698. */
+  double alpha_d = ema_alpha_decim (state->alpha, d);
   double k_d     = (double)d * 4.0 * state->loop_bw; /* loop-filter gain */
 
   /* Output clip threshold, linear amplitude — constant for the call. */
@@ -152,11 +157,8 @@ agc_steps (agc_state_t *state, const float complex *input,
       double inv_c = inv_d, alpha_c = alpha_d, k_c = k_d;
       if (c != d) /* final short chunk: rescale to its actual length */
         {
-          inv_c = 1.0 / (double)c;
-          ac    = 1.0;
-          for (size_t k = 0; k < c; k++)
-            ac *= a1;
-          alpha_c = 1.0 - ac;
+          inv_c   = 1.0 / (double)c;
+          alpha_c = ema_alpha_decim (state->alpha, c);
           k_c     = (double)c * 4.0 * state->loop_bw;
         }
 
@@ -196,9 +198,9 @@ agc_steps (agc_state_t *state, const float complex *input,
          AGC_POWER_CEIL.  psum is a float reduction, so an overflowing chunk
          arrives here as an infinity; saturate() sends that, and any NaN, to
          the ceiling rather than into p_avg. */
-      double p_mean = saturate ((double)psum * inv_c, 0.0, AGC_POWER_CEIL,
-                                AGC_POWER_CEIL);
-      state->p_avg += alpha_c * (p_mean - state->p_avg);
+      double p_mean  = saturate ((double)psum * inv_c, 0.0, AGC_POWER_CEIL,
+                                 AGC_POWER_CEIL);
+      state->p_avg   = ema_step (state->p_avg, p_mean, alpha_c);
       double meas_db = 10.0 * agc_log10_ (state->p_avg + AGC_POWER_FLOOR);
       state->gain_db += k_c * (state->ref_db - meas_db);
       /* Telemetry tap — per chunk update (event rate, not sample rate).

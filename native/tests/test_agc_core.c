@@ -1,8 +1,53 @@
+/*
+ * test_agc_core.c — C-level unit tests for the log-domain AGC.
+ *
+ * Tests cover:
+ *   §1  Lifecycle: create seeds gain_db = 0 dB and p_avg = reference power
+ *   §2  Convergence: a loud input is driven down to ref_db
+ *   §3  Both a quiet and a loud input reach ref within one budget
+ *   §4  A non-zero reference converges to ref_db, not 0 dB
+ *   §5  agc_exp10_ / agc_log10_ agree with libm at sample points
+ *   §6  Decimated steps() reaches the same steady state as step()
+ *   §7  steps() supports in-place operation
+ *   §8  decim 8 / 16 / 32 all converge the output to the reference
+ *   §9  reset restores post-create state; configuration survives
+ *   §10 applied_gain_db is 0 at create and equals gain_db at convergence
+ *   §11 Output clipping is square, and never perturbs the loop
+ *   §12 Serializable round-trip, blob determinism, telemetry attach/detach
+ *   §13 One non-finite input sample cannot poison the detector
+ *   §14 Silence leaves the loop finite AND recoverable, both entry points
+ *   §15 agc_exp10_ is total: no input yields a negative gain
+ *   §16 agc_log10_ is total: a NaN does not read as a plausible level
+ *   §17 applied_gain_db stays finite when the linear gain underflows
+ *   §18 saturate()'s own contract, including both NaN destinations
+ *
+ * Sections §13 onward were added by the validation campaign. They exist
+ * because agc_core.h claimed the power floor was "never reached in normal
+ * operation" and nothing ran that claim — while measurement showed the loop
+ * could be destroyed permanently by a single non-finite sample, and by ~800
+ * samples of silence. Each was proven by sabotage before being trusted.
+ *
+ * They share one shape worth naming: every one asserts a VACUITY
+ * PRECONDITION first. "The state is finite" is satisfied by a loop that did
+ * nothing at all, so each test first establishes that the thing it is
+ * guarding against actually happened — the gain moved, the linear gain
+ * underflowed, the detector saturated — and only then asserts the guard
+ * held. Without that, reverting the guard would leave them green.
+ *
+ * §18 tests a util primitive from the agc test rather than from a util one,
+ * because the util module has no C test harness at all and its per-module
+ * CMakeLists is jm-generated. Filed rather than worked around here.
+ */
 #include "agc/agc_core.h"
 #include "dp_state_test.h"
 #include <complex.h>
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
+
+/* File-scope so the §13+ section functions can CHECK for themselves rather
+   than funnelling a bool back through main(). */
+static int _fails = 0;
 
 #define CHECK(cond)                                                           \
   do                                                                          \
@@ -44,11 +89,365 @@ run_const (agc_state_t *agc, float complex x, size_t n)
   return 10.0 * log10 (p);
 }
 
+/* ── §13 — one non-finite input sample cannot poison the detector ─────────
+ *
+ * The EMA is where an input sample first becomes PERSISTENT state, so it is
+ * the boundary the guard defends.  Unguarded, a single Inf or NaN sample
+ * drove p_avg non-finite and it never returned: a following normal sample
+ * left it NaN, and the object was dead for the rest of the run.
+ *
+ * The direction is asserted too, not just finiteness.  An unknown level
+ * must read LOUD so the loop turns the gain DOWN; a guard that sent NaN to
+ * the floor instead would be equally "finite" and would drive the gain up,
+ * railing everything downstream.  That is what the gain_db < 0 check pins. */
+static int
+guard_survives_one_bad_sample (float complex bad, const char *what)
+{
+  int          ok = 1;
+  agc_state_t *s  = agc_create (0.0, 0.0025, 0.05);
+  if (!s)
+    return 0;
+
+  /* Vacuity precondition: the loop starts in a known-good state, so the
+     assertions below are about the guard and not about nothing happening. */
+  if (!(s->p_avg == 1.0 && s->gain_db == 0.0))
+    {
+      fprintf (stderr, "  §13 %s: precondition — loop did not start clean\n",
+               what);
+      ok = 0;
+    }
+
+  (void)agc_step (s, bad);
+
+  if (!isfinite (s->p_avg))
+    {
+      fprintf (stderr, "  §13 %s: p_avg went non-finite (%g)\n", what,
+               s->p_avg);
+      ok = 0;
+    }
+  if (!isfinite (s->gain_db))
+    {
+      fprintf (stderr, "  §13 %s: gain_db went non-finite (%g)\n", what,
+               s->gain_db);
+      ok = 0;
+    }
+  /* The detector must have SATURATED, not ignored the sample — otherwise a
+     guard that simply dropped bad samples would also pass. */
+  if (!(s->p_avg > 1.0))
+    {
+      fprintf (stderr, "  §13 %s: detector did not saturate (p_avg %g)\n",
+               what, s->p_avg);
+      ok = 0;
+    }
+  /* ...and the saturation drove the gain DOWN. */
+  if (!(s->gain_db < 0.0))
+    {
+      fprintf (stderr, "  §13 %s: unknown level drove gain UP (%g dB)\n", what,
+               s->gain_db);
+      ok = 0;
+    }
+
+  /* The loop still works afterwards: this is the half that failed before. */
+  float complex y = agc_step (s, 1.0f + 0.0f * I);
+  if (!isfinite (crealf (y)) || !isfinite (cimagf (y)))
+    {
+      fprintf (stderr, "  §13 %s: output non-finite after recovery sample\n",
+               what);
+      ok = 0;
+    }
+  if (!isfinite (s->p_avg))
+    {
+      fprintf (stderr, "  §13 %s: p_avg non-finite after a normal sample\n",
+               what);
+      ok = 0;
+    }
+  agc_destroy (s);
+  return ok;
+}
+
+/* ── §14 — silence leaves the loop finite AND recoverable ─────────────────
+ *
+ * With no signal the detector reads the power floor, the filter sees a
+ * constant ~+300 dB error, and the integrator climbs.  Unguarded that ended
+ * in a permanently dead object after ~800 silent samples.  Guarded, the
+ * wind-up is self-limiting: the gain eventually overflows, the guard reads
+ * the resulting non-finite power as maximally loud, and the loop is driven
+ * back.  Both entry points are checked because agc_steps() folds the
+ * detector over a chunk mean and could guard only one of them. */
+static int
+silence_leaves_the_loop_recoverable (int use_block)
+{
+  enum
+  {
+    SETTLE = 4000,
+    GAP    = 3000,
+    BUDGET = 100000
+  };
+  const float complex dir  = 0.6f + 0.8f * I;
+  const char         *what = use_block ? "steps" : "step";
+  int                 ok   = 1;
+  agc_state_t        *s    = agc_create (0.0, 0.0025, 0.05);
+  if (!s)
+    return 0;
+
+  static float complex zeros[GAP], out[GAP];
+  for (size_t i = 0; i < GAP; i++)
+    zeros[i] = 0.0f + 0.0f * I;
+
+  for (int n = 0; n < SETTLE; n++)
+    (void)agc_step (s, dir * 1.0f);
+  double settled = s->gain_db;
+
+  if (use_block)
+    agc_steps (s, zeros, out, GAP);
+  else
+    for (int n = 0; n < GAP; n++)
+      (void)agc_step (s, 0.0f + 0.0f * I);
+
+  /* Vacuity precondition: the silence must actually have moved the loop.
+     "Still finite" proves nothing about a loop that never left its seed. */
+  if (!(fabs (s->gain_db - settled) > 1.0))
+    {
+      fprintf (stderr,
+               "  §14 %s: precondition — silence did not move the "
+               "loop (%g -> %g)\n",
+               what, settled, s->gain_db);
+      ok = 0;
+    }
+  if (!isfinite (s->gain_db) || !isfinite (s->p_avg) || !isfinite (s->g_last))
+    {
+      fprintf (stderr,
+               "  §14 %s: state non-finite after silence "
+               "(gain %g, p_avg %g, g_last %g)\n",
+               what, s->gain_db, s->p_avg, s->g_last);
+      ok = 0;
+    }
+
+  /* And it comes back. This is the assertion the unguarded loop failed: it
+     stayed NaN forever, so `recovered` never became true. */
+  int recovered = 0;
+  for (long n = 0; n < BUDGET && !recovered; n++)
+    {
+      (void)agc_step (s, dir * 1.0f);
+      if (fabs (s->gain_db) < 1.0)
+        recovered = 1;
+    }
+  if (!recovered)
+    {
+      fprintf (stderr,
+               "  §14 %s: did not recover within %d samples "
+               "(gain %g, p_avg %g)\n",
+               what, BUDGET, s->gain_db, s->p_avg);
+      ok = 0;
+    }
+  agc_destroy (s);
+  return ok;
+}
+
+/* ── §15 — agc_exp10_ is total ────────────────────────────────────────────
+ *
+ * It assembles an IEEE-754 exponent field directly.  Unguarded, past
+ * |v| ~ 308 that assembly overflowed into the SIGN bit and the function
+ * returned a negative number where the true answer is +inf or 0 — measured,
+ * agc_exp10_(309) = -3.09e-308 and agc_exp10_(-320) = -3.23e+296.  A gain
+ * that comes back negative does not lose precision, it inverts the signal.
+ *
+ * `>= 0.0` is also the NaN test: every comparison against NaN is false. */
+static int
+exp10_is_total (void)
+{
+  int          ok = 1;
+  const double vs[]
+      = { 0.0,   1.0,    -1.0,   100.0,   -100.0, 307.0, 308.0, 309.0, -309.0,
+          400.0, -400.0, 1000.0, -1000.0, 1e6,    -1e6,  1e30,  -1e30 };
+  for (size_t i = 0; i < sizeof vs / sizeof vs[0]; i++)
+    {
+      double g = agc_exp10_ (vs[i]);
+      if (!(g >= 0.0))
+        {
+          fprintf (stderr, "  §15 agc_exp10_(%g) = %g — negative or NaN\n",
+                   vs[i], g);
+          ok = 0;
+        }
+      if (!isfinite (g))
+        {
+          fprintf (stderr, "  §15 agc_exp10_(%g) = %g — not finite\n", vs[i],
+                   g);
+          ok = 0;
+        }
+    }
+  /* A NaN exponent attenuates: same rule the detector's guard uses, applied
+     to a gain rather than a level. */
+  double gn = agc_exp10_ (0.0 / 0.0);
+  if (!(gn >= 0.0 && gn <= 1.0))
+    {
+      fprintf (stderr, "  §15 agc_exp10_(NaN) = %g — did not attenuate\n", gn);
+      ok = 0;
+    }
+  /* Saturating must not have cost accuracy inside the working range. The
+     header documents ~1e-3 relative; measured worst is 7.5e-4. */
+  for (double v = -15.0; v <= 15.0; v += 0.01)
+    {
+      double got = agc_exp10_ (v), ref = pow (10.0, v);
+      if (!(fabs (got - ref) / ref < 1e-3))
+        {
+          fprintf (stderr, "  §15 agc_exp10_(%g) rel err %g exceeds 1e-3\n", v,
+                   fabs (got - ref) / ref);
+          ok = 0;
+          break;
+        }
+    }
+  return ok;
+}
+
+/* ── §16 — agc_log10_ is total ────────────────────────────────────────────
+ *
+ * The bit-field split has no notion of special values.  Unguarded it read a
+ * NaN's exponent field as an ordinary 1024 and returned a perfectly
+ * plausible +308 where libm returns NaN — and that fabricated level is what
+ * turned a stalled loop into a runaway one, because the filter believed it
+ * was seeing +3084 dB and drove the gain the other way, forever.  A wrong
+ * answer that looks like a right one is worse than an infinity. */
+static int
+log10_is_total (void)
+{
+  int    ok       = 1;
+  double at_ceil  = agc_log10_ (AGC_POWER_CEIL);
+  double at_floor = agc_log10_ (AGC_POWER_FLOOR);
+
+  struct
+  {
+    double      in, want;
+    const char *what;
+  } cases[] = {
+    { 0.0 / 0.0, at_ceil, "NaN" },    { 1.0 / 0.0, at_ceil, "+Inf" },
+    { -1.0 / 0.0, at_floor, "-Inf" }, { 0.0, at_floor, "0" },
+    { -1.0, at_floor, "negative" },   { 1e300, at_ceil, "above ceiling" },
+  };
+  for (size_t i = 0; i < sizeof cases / sizeof cases[0]; i++)
+    {
+      double got = agc_log10_ (cases[i].in);
+      if (!(got == cases[i].want))
+        {
+          fprintf (stderr,
+                   "  §16 agc_log10_(%s) = %g, expected the saturated %g\n",
+                   cases[i].what, got, cases[i].want);
+          ok = 0;
+        }
+    }
+  /* The header's "silence reads about -300 dB" is now structural rather
+     than something every caller has to remember to add a floor for. */
+  if (!(fabs (10.0 * at_floor + 300.0) < 0.01))
+    {
+      fprintf (stderr, "  §16 the floor reads %g dB, not -300\n",
+               10.0 * at_floor);
+      ok = 0;
+    }
+  /* Accuracy inside the working range; header documents ~1e-3 absolute and
+     the measured worst is 7.8e-4, so the old 1e-2 tolerance was ten times
+     looser than the claim it was protecting. */
+  for (double e = -12.0; e <= 12.0; e += 0.01)
+    {
+      double p = pow (10.0, e);
+      if (!(fabs (agc_log10_ (p) - log10 (p)) < 1e-3))
+        {
+          fprintf (stderr, "  §16 agc_log10_(%g) abs err %g exceeds 1e-3\n", p,
+                   fabs (agc_log10_ (p) - log10 (p)));
+          ok = 0;
+          break;
+        }
+    }
+  return ok;
+}
+
+/* ── §17 — a public accessor cannot return a non-finite value ─────────────
+ *
+ * The state being total is not the same as everything DERIVED from it being
+ * total.  agc_exp10_ correctly saturates a very negative commanded gain to
+ * a linear 0, and 20*log10(0) is -INF — so this accessor handed a caller a
+ * non-finite number out of a perfectly well-formed object. */
+static int
+applied_gain_is_finite_after_silence (void)
+{
+  int          ok = 1;
+  agc_state_t *s  = agc_create (0.0, 0.0025, 0.05);
+  if (!s)
+    return 0;
+  for (int n = 0; n < 3000; n++)
+    (void)agc_step (s, 0.0f + 0.0f * I);
+
+  /* Vacuity precondition: the linear gain must actually have underflowed,
+     or "finite" is a statement about an ordinary gain and proves nothing. */
+  if (!(s->g_last == 0.0))
+    {
+      fprintf (stderr,
+               "  §17 precondition — g_last did not underflow (%g); the "
+               "accessor is not being asked the hard question\n",
+               s->g_last);
+      ok = 0;
+    }
+  double db = agc_get_applied_gain_db (s);
+  if (!isfinite (db))
+    {
+      fprintf (stderr, "  §17 applied_gain_db = %g, not finite\n", db);
+      ok = 0;
+    }
+  /* Still unmistakably "off" rather than quietly plausible. */
+  if (!(db < -1000.0))
+    {
+      fprintf (stderr, "  §17 applied_gain_db = %g does not read as off\n",
+               db);
+      ok = 0;
+    }
+  agc_destroy (s);
+  return ok;
+}
+
+/* ── §18 — saturate()'s contract, including both NaN destinations ─────────
+ *
+ * Lives here rather than in a util test because the util module has no C
+ * test harness and its per-module CMakeLists is jm-generated; filed rather
+ * than worked around. The NaN destination being a PARAMETER is the part
+ * worth pinning: which end is safe is domain knowledge, and this object
+ * needs the ceiling for a level while a lock statistic would need the
+ * floor. */
+static int
+saturate_contract (void)
+{
+  int    ok    = 1;
+  double nan_v = 0.0 / 0.0, inf_v = 1.0 / 0.0;
+  struct
+  {
+    double      v, lo, hi, nan_to, want;
+    const char *what;
+  } cases[] = {
+    { 0.5, 0.0, 1.0, 1.0, 0.5, "inside is passed through" },
+    { 0.0, 0.0, 1.0, 1.0, 0.0, "the lower bound is inclusive" },
+    { 1.0, 0.0, 1.0, 1.0, 1.0, "the upper bound is inclusive" },
+    { 2.0, 0.0, 1.0, 1.0, 1.0, "above saturates high" },
+    { -3.0, 0.0, 1.0, 1.0, 0.0, "below saturates low" },
+    { inf_v, 0.0, 1.0, 1.0, 1.0, "+Inf is just above" },
+    { -inf_v, 0.0, 1.0, 1.0, 0.0, "-Inf is just below" },
+    { nan_v, 0.0, 1.0, 1.0, 1.0, "NaN takes the caller's end (high)" },
+    { nan_v, 0.0, 1.0, 0.0, 0.0, "NaN takes the caller's end (low)" },
+  };
+  for (size_t i = 0; i < sizeof cases / sizeof cases[0]; i++)
+    {
+      double got
+          = saturate (cases[i].v, cases[i].lo, cases[i].hi, cases[i].nan_to);
+      if (!(got == cases[i].want))
+        {
+          fprintf (stderr, "  §18 %s: got %g, expected %g\n", cases[i].what,
+                   got, cases[i].want);
+          ok = 0;
+        }
+    }
+  return ok;
+}
+
 int
 main (void)
 {
-  int _fails = 0;
-
   /* unit-magnitude direction: (0.6 + 0.8j) has |.| == 1, so scaling it
    * by A gives an input of magnitude A exercising both re and im. */
   const float complex dir = 0.6f + 0.8f * I;
@@ -346,6 +745,25 @@ main (void)
     dp_tlm_destroy (tlm2);
     dp_tlm_destroy (tlm);
   }
+
+  /* ── §13-§18: the safety pass. Every one of these was proven by
+     sabotage — reverting the guard it names turns it red. ───────────────── */
+  CHECK (guard_survives_one_bad_sample ((float)(1.0 / 0.0) + 0.0f * I,
+                                        "+Inf real"));
+  CHECK (guard_survives_one_bad_sample (0.0f + (float)(1.0 / 0.0) * I,
+                                        "+Inf imag"));
+  CHECK (guard_survives_one_bad_sample ((float)(0.0 / 0.0) + 0.0f * I,
+                                        "NaN real"));
+  CHECK (guard_survives_one_bad_sample (1.0f + (float)(0.0 / 0.0) * I,
+                                        "NaN imag"));
+
+  CHECK (silence_leaves_the_loop_recoverable (0));
+  CHECK (silence_leaves_the_loop_recoverable (1));
+
+  CHECK (exp10_is_total ());
+  CHECK (log10_is_total ());
+  CHECK (applied_gain_is_finite_after_silence ());
+  CHECK (saturate_contract ());
 
   if (_fails)
     {

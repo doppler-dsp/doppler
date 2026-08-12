@@ -12,20 +12,10 @@
  *   7. Property accessors — get/set norm_freq, phase, phase_inc
  */
 #include "dp_state_test.h"
+#include "dp_test.h"
 #include "lo/lo_core.h"
 #include <math.h>
 #include <stdio.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* Absolute-value tolerance for floating-point comparisons.
  * The 2^16-entry LUT gives ~96 dBc SFDR; error on any single sample
@@ -47,18 +37,17 @@ near_c (float complex a, float complex b)
 int
 main (void)
 {
-  int _fails = 0;
 
   /* ----------------------------------------------------------------
    * 1. Lifecycle
    * ---------------------------------------------------------------- */
   {
     lo_state_t *lo = lo_create (0.0);
-    CHECK (lo != NULL);
+    DP_CHECK (lo != NULL);
     if (!lo)
       return 1;
     lo_reset (lo);
-    CHECK (lo_get_phase (lo) == 0u);
+    DP_CHECK (lo_get_phase (lo) == 0u);
     lo_destroy (lo);
   }
 
@@ -70,7 +59,7 @@ main (void)
     float complex out[8];
     lo_steps (lo, 8, out, 8);
     for (int i = 0; i < 8; i++)
-      CHECK (near_c (out[i], 1.0f + 0.0f * I));
+      DP_CHECK (near_c (out[i], 1.0f + 0.0f * I));
     lo_destroy (lo);
   }
 
@@ -88,14 +77,14 @@ main (void)
     lo_state_t   *lo = lo_create (0.25);
     float complex out[8];
     lo_steps (lo, 8, out, 8);
-    CHECK (near_c (out[0], 1.0f + 0.0f * I));
-    CHECK (near_c (out[1], 0.0f + 1.0f * I));
-    CHECK (near_c (out[2], -1.0f + 0.0f * I));
-    CHECK (near_c (out[3], 0.0f - 1.0f * I));
-    CHECK (near_c (out[4], 1.0f + 0.0f * I));
-    CHECK (near_c (out[5], 0.0f + 1.0f * I));
-    CHECK (near_c (out[6], -1.0f + 0.0f * I));
-    CHECK (near_c (out[7], 0.0f - 1.0f * I));
+    DP_CHECK (near_c (out[0], 1.0f + 0.0f * I));
+    DP_CHECK (near_c (out[1], 0.0f + 1.0f * I));
+    DP_CHECK (near_c (out[2], -1.0f + 0.0f * I));
+    DP_CHECK (near_c (out[3], 0.0f - 1.0f * I));
+    DP_CHECK (near_c (out[4], 1.0f + 0.0f * I));
+    DP_CHECK (near_c (out[5], 0.0f + 1.0f * I));
+    DP_CHECK (near_c (out[6], -1.0f + 0.0f * I));
+    DP_CHECK (near_c (out[7], 0.0f - 1.0f * I));
     lo_destroy (lo);
   }
 
@@ -111,10 +100,10 @@ main (void)
     lo_steps (a, 16, ref, 16);
     lo_steps (b, 8, blk, 8);
     for (int i = 0; i < 8; i++)
-      CHECK (near_c (blk[i], ref[i]));
+      DP_CHECK (near_c (blk[i], ref[i]));
     lo_steps (b, 8, blk, 8);
     for (int i = 0; i < 8; i++)
-      CHECK (near_c (blk[i], ref[8 + i]));
+      DP_CHECK (near_c (blk[i], ref[8 + i]));
     lo_destroy (a);
     lo_destroy (b);
   }
@@ -142,10 +131,10 @@ main (void)
     lo_steps (lo_ref, 8, out_ref, 8);
 
     for (int i = 0; i < 8; i++)
-      CHECK (near_c (out_ctrl[i], out_ref[i]));
+      DP_CHECK (near_c (out_ctrl[i], out_ref[i]));
 
     /* Base norm_freq is unchanged after steps_ctrl. */
-    CHECK (lo_get_norm_freq (lo_ctrl) == 0.0);
+    DP_CHECK (lo_get_norm_freq (lo_ctrl) == 0.0);
 
     lo_destroy (lo_ctrl);
     lo_destroy (lo_ref);
@@ -165,11 +154,11 @@ main (void)
       {
         float mag2 = crealf (out[k]) * crealf (out[k])
                      + cimagf (out[k]) * cimagf (out[k]);
-        CHECK (near (mag2, 1.0f));
+        DP_CHECK (near (mag2, 1.0f));
       }
     /* out[1] should equal j * out[0] at quarter-rate */
     float complex expected1 = I * out[0];
-    CHECK (near_c (out[1], expected1));
+    DP_CHECK (near_c (out[1], expected1));
     lo_destroy (lo);
   }
 
@@ -178,20 +167,20 @@ main (void)
    * ---------------------------------------------------------------- */
   {
     lo_state_t *lo = lo_create (0.25);
-    CHECK (lo_get_norm_freq (lo) == 0.25);
-    CHECK (lo_get_phase (lo) == 0u);
-    CHECK (lo_get_phase_inc (lo) == 0x40000000u);
+    DP_CHECK (lo_get_norm_freq (lo) == 0.25);
+    DP_CHECK (lo_get_phase (lo) == 0u);
+    DP_CHECK (lo_get_phase_inc (lo) == 0x40000000u);
 
     lo_set_phase (lo, 0x80000000u);
-    CHECK (lo_get_phase (lo) == 0x80000000u);
+    DP_CHECK (lo_get_phase (lo) == 0x80000000u);
 
     lo_set_norm_freq (lo, 0.5);
-    CHECK (lo_get_phase_inc (lo) == 0x80000000u);
-    CHECK (lo_get_phase (lo) == 0x80000000u); /* unchanged */
+    DP_CHECK (lo_get_phase_inc (lo) == 0x80000000u);
+    DP_CHECK (lo_get_phase (lo) == 0x80000000u); /* unchanged */
 
     lo_reset (lo);
-    CHECK (lo_get_phase (lo) == 0u);
-    CHECK (lo_get_phase_inc (lo) == 0x80000000u); /* unchanged */
+    DP_CHECK (lo_get_phase (lo) == 0u);
+    DP_CHECK (lo_get_phase_inc (lo) == 0x80000000u); /* unchanged */
 
     lo_destroy (lo);
   }
@@ -219,9 +208,9 @@ main (void)
       if (crealf (got[i]) != crealf (ref[i])
           || cimagf (got[i]) != cimagf (ref[i]))
         exact = 0;
-    CHECK (exact); /* bit-exact, not just near */
+    DP_CHECK (exact); /* bit-exact, not just near */
     /* phase accumulators must also have advanced identically */
-    CHECK (lo_get_phase (&stp) == lo_get_phase (blk));
+    DP_CHECK (lo_get_phase (&stp) == lo_get_phase (blk));
     lo_destroy (blk);
   }
 
@@ -232,9 +221,9 @@ main (void)
     lo_state_t *heap = lo_create (0.3);
     lo_state_t  byval;
     lo_init (&byval, 0.3);
-    CHECK (byval.phase == heap->phase);
-    CHECK (byval.phase_inc == heap->phase_inc);
-    CHECK (byval.norm_freq == heap->norm_freq);
+    DP_CHECK (byval.phase == heap->phase);
+    DP_CHECK (byval.phase_inc == heap->phase_inc);
+    DP_CHECK (byval.norm_freq == heap->norm_freq);
 
     float complex a[64], b[64];
     lo_steps (heap, 64, a, 64);
@@ -244,7 +233,7 @@ main (void)
     for (int i = 0; i < 64; i++)
       if (crealf (a[i]) != crealf (b[i]) || cimagf (a[i]) != cimagf (b[i]))
         exact = 0;
-    CHECK (exact);
+    DP_CHECK (exact);
     lo_destroy (heap);
   }
 
@@ -277,14 +266,14 @@ main (void)
         if (s.phase < prev) /* accumulator overflowed (clean wrap) */
           wraps++;
       }
-    CHECK (bad_mag == 0); /* never drifts off the unit circle       */
-    CHECK (bad_nan == 0); /* never produces NaN over 30M samples     */
+    DP_CHECK (bad_mag == 0); /* never drifts off the unit circle       */
+    DP_CHECK (bad_nan == 0); /* never produces NaN over 30M samples     */
     /* The integer accumulator is EXACTLY predictable after N steps —
      * the property a double-phase accumulator loses to rounding.    */
     uint32_t expected = (uint32_t)((uint64_t)inc * (uint64_t)RUN);
-    CHECK (s.phase == expected);
+    DP_CHECK (s.phase == expected);
     /* and it wrapped ~RUN*norm_freq times with no stall/drift */
-    CHECK (wraps > 2900000L && wraps < 3100000L);
+    DP_CHECK (wraps > 2900000L && wraps < 3100000L);
   }
 
   /* ----------------------------------------------------------------
@@ -303,16 +292,16 @@ main (void)
       (void)lo_step (&s);
     uint32_t ph_before = lo_get_phase (&s);
 
-    lo_set_norm_freq (&s, 0.2);                   /* retune */
-    CHECK (lo_get_phase (&s) == ph_before);       /* no jump      */
-    CHECK (lo_get_phase_inc (&s) == 0x33333333u); /* 0.2 * 2^32   */
+    lo_set_norm_freq (&s, 0.2);                      /* retune */
+    DP_CHECK (lo_get_phase (&s) == ph_before);       /* no jump      */
+    DP_CHECK (lo_get_phase_inc (&s) == 0x33333333u); /* 0.2 * 2^32   */
     (void)lo_step (&s);
-    CHECK (lo_get_phase (&s) == ph_before + 0x33333333u); /* new inc  */
+    DP_CHECK (lo_get_phase (&s) == ph_before + 0x33333333u); /* new inc  */
 
     /* exact integer phase nudge (proportional term of a loop) */
     uint32_t ph2 = lo_get_phase (&s);
     lo_set_phase (&s, ph2 + 0x10000000u);
-    CHECK (lo_get_phase (&s) == ph2 + 0x10000000u);
+    DP_CHECK (lo_get_phase (&s) == ph2 + 0x10000000u);
   }
 
   /* ----------------------------------------------------------------
@@ -325,11 +314,11 @@ main (void)
     /* -0.25 folds to 0.75 → inc = 3 * 2^30 = 0xC0000000 */
     lo_state_t neg;
     lo_init (&neg, -0.25);
-    CHECK (lo_get_phase_inc (&neg) == 0xC0000000u);
+    DP_CHECK (lo_get_phase_inc (&neg) == 0xC0000000u);
     /* 1.25 folds to 0.25 → inc = 0x40000000, same as 0.25 */
     lo_state_t big;
     lo_init (&big, 1.25);
-    CHECK (lo_get_phase_inc (&big) == 0x40000000u);
+    DP_CHECK (lo_get_phase_inc (&big) == 0x40000000u);
 
     lo_state_t   *ref = lo_create (-0.25);
     float complex a[16], b[16];
@@ -340,7 +329,7 @@ main (void)
     for (int i = 0; i < 16; i++)
       if (crealf (a[i]) != crealf (b[i]) || cimagf (a[i]) != cimagf (b[i]))
         exact = 0;
-    CHECK (exact);
+    DP_CHECK (exact);
     lo_destroy (ref);
   }
 
@@ -362,13 +351,14 @@ main (void)
     float complex tmp[256];
     lo_steps (a, N, tmp, N); /* advance N */
 
-    CHECK (lo_state_bytes (a) == sizeof (dp_state_hdr_t) + sizeof (uint32_t));
+    DP_CHECK (lo_state_bytes (a)
+              == sizeof (dp_state_hdr_t) + sizeof (uint32_t));
     unsigned char blob[32];
     lo_get_state (a, blob);
     lo_destroy (a);
 
     lo_state_t *b = lo_create (0.123456); /* fresh, from the descriptor */
-    CHECK (lo_set_state (b, blob) == DP_OK);
+    DP_CHECK (lo_set_state (b, blob) == DP_OK);
     float complex resumed[256];
     lo_steps (b, M, resumed, M);
     lo_destroy (b);
@@ -378,7 +368,7 @@ main (void)
       if (crealf (resumed[i]) != crealf (full[N + i])
           || cimagf (resumed[i]) != cimagf (full[N + i]))
         exact = 0;
-    CHECK (exact); /* bit-exact resume from the serialized state */
+    DP_CHECK (exact); /* bit-exact resume from the serialized state */
   }
 
   /* 14. Standard envelope round-trip + reject (the shared bytes-interface
@@ -428,20 +418,20 @@ main (void)
 
     /* freq=50 Hz: fractional remainder ~0.11, truncates to 10226. */
     lo_state_t *lo50 = lo_create (50.0 / fs);
-    CHECK (lo_get_phase_inc (lo50) == 10226u);
+    DP_CHECK (lo_get_phase_inc (lo50) == 10226u);
     double actual50 = (double)lo_get_phase_inc (lo50) / 4294967296.0 * fs;
-    CHECK (actual50 <= 50.0 + 1e-9); /* truncation never overshoots */
-    CHECK (fabs (actual50 - 50.0) <= step_hz + 1e-9);
+    DP_CHECK (actual50 <= 50.0 + 1e-9); /* truncation never overshoots */
+    DP_CHECK (fabs (actual50 - 50.0) <= step_hz + 1e-9);
     lo_destroy (lo50);
 
     /* freq=51 Hz: fractional remainder ~0.635 -- truncates to 10430 (floor),
      * a ~-0.00279 Hz error (within one full step, the truncation guarantee).
      * Round-to-nearest would give 10431; this CHECK pins the truncation. */
     lo_state_t *lo51 = lo_create (51.0 / fs);
-    CHECK (lo_get_phase_inc (lo51) == 10430u);
+    DP_CHECK (lo_get_phase_inc (lo51) == 10430u);
     double actual51 = (double)lo_get_phase_inc (lo51) / 4294967296.0 * fs;
-    CHECK (actual51 <= 51.0 + 1e-9); /* truncation never overshoots */
-    CHECK (fabs (actual51 - 51.0) <= step_hz + 1e-9);
+    DP_CHECK (actual51 <= 51.0 + 1e-9); /* truncation never overshoots */
+    DP_CHECK (fabs (actual51 - 51.0) <= step_hz + 1e-9);
     lo_destroy (lo51);
   }
 
@@ -457,19 +447,19 @@ main (void)
     for (int i = 0; i < 16; i++)
       out[i] = 42.0f + 42.0f * I;
 
-    CHECK (lo_steps (lo, 16, out, 5) == 5);
+    DP_CHECK (lo_steps (lo, 16, out, 5) == 5);
     for (int i = 5; i < 16; i++)
-      CHECK (out[i] == 42.0f + 42.0f * I); /* tail untouched */
+      DP_CHECK (out[i] == 42.0f + 42.0f * I); /* tail untouched */
     lo_steps (ref, 5, expect, 5);
     for (int i = 0; i < 5; i++)
-      CHECK (out[i] == expect[i]);
-    CHECK (lo_get_phase (lo)
-           == lo_get_phase (ref)); /* advanced by 5, not 16 */
+      DP_CHECK (out[i] == expect[i]);
+    DP_CHECK (lo_get_phase (lo)
+              == lo_get_phase (ref)); /* advanced by 5, not 16 */
 
     /* Zero capacity emits nothing and does not advance the phase. */
     uint32_t before = lo_get_phase (lo);
-    CHECK (lo_steps (lo, 16, out, 0) == 0);
-    CHECK (lo_get_phase (lo) == before);
+    DP_CHECK (lo_steps (lo, 16, out, 0) == 0);
+    DP_CHECK (lo_get_phase (lo) == before);
 
     /* The control-port form clamps on the same rule: ctrl_len is the
      * request, max_out the capacity, and the shorter one wins. */
@@ -477,9 +467,9 @@ main (void)
     float complex cout[8];
     for (int i = 0; i < 8; i++)
       cout[i] = 42.0f + 42.0f * I;
-    CHECK (lo_steps_ctrl (lo, ctrl, 8, cout, 3) == 3);
+    DP_CHECK (lo_steps_ctrl (lo, ctrl, 8, cout, 3) == 3);
     for (int i = 3; i < 8; i++)
-      CHECK (cout[i] == 42.0f + 42.0f * I);
+      DP_CHECK (cout[i] == 42.0f + 42.0f * I);
 
     lo_destroy (lo);
     lo_destroy (ref);
@@ -510,8 +500,8 @@ main (void)
         if (crealf (p) != crealf (z) || cimagf (p) != cimagf (z))
           exact = 0;
       }
-    CHECK (exact);
-    CHECK (lo_get_phase (&plain) == lo_get_phase (&zeroed));
+    DP_CHECK (exact);
+    DP_CHECK (lo_get_phase (&plain) == lo_get_phase (&zeroed));
 
     /* (b) A constant control is the same oscillator as the equivalent
      * base rate: base 0, ctrl 0.25 == a 0.25 LO, bit-for-bit. */
@@ -526,7 +516,7 @@ main (void)
     for (int i = 0; i < 64; i++)
       if (crealf (a[i]) != crealf (b[i]) || cimagf (a[i]) != cimagf (b[i]))
         exact = 0;
-    CHECK (exact);
+    DP_CHECK (exact);
     lo_destroy (ref);
 
     /* (c) A NEGATIVE control composes modularly.  The fold takes -0.25
@@ -544,8 +534,8 @@ main (void)
     for (int i = 0; i < 64; i++)
       if (crealf (a[i]) != crealf (b[i]) || cimagf (a[i]) != cimagf (b[i]))
         exact = 0;
-    CHECK (exact);
-    CHECK (lo_get_phase (&down) == lo_get_phase (quarter));
+    DP_CHECK (exact);
+    DP_CHECK (lo_get_phase (&down) == lo_get_phase (quarter));
     lo_destroy (quarter);
 
     /* (d) Only the fractional cycle survives: 1.25 == 0.25, -1.75 ==
@@ -565,9 +555,9 @@ main (void)
         (void)lo_step_ctrl (&f1, 1.25);
         (void)lo_step_ctrl (&f2, -1.75);
       }
-    CHECK (lo_get_phase (&f0) != 0u); /* not the vacuous comparison */
-    CHECK (lo_get_phase (&f1) == lo_get_phase (&f0));
-    CHECK (lo_get_phase (&f2) == lo_get_phase (&f0));
+    DP_CHECK (lo_get_phase (&f0) != 0u); /* not the vacuous comparison */
+    DP_CHECK (lo_get_phase (&f1) == lo_get_phase (&f0));
+    DP_CHECK (lo_get_phase (&f2) == lo_get_phase (&f0));
 
     /* (e) The control is transient: it never lands in phase_inc or
      * norm_freq, so the step AFTER a steered one advances by the centre
@@ -576,11 +566,11 @@ main (void)
     lo_init (&keep, 0.1);
     uint32_t inc0 = lo_get_phase_inc (&keep);
     (void)lo_step_ctrl (&keep, 0.37);
-    CHECK (lo_get_phase_inc (&keep) == inc0);
-    CHECK (lo_get_norm_freq (&keep) == 0.1);
+    DP_CHECK (lo_get_phase_inc (&keep) == inc0);
+    DP_CHECK (lo_get_norm_freq (&keep) == 0.1);
     uint32_t ph_after_steer = lo_get_phase (&keep);
     (void)lo_step_ctrl (&keep, 0.0);
-    CHECK (lo_get_phase (&keep) == ph_after_steer + inc0);
+    DP_CHECK (lo_get_phase (&keep) == ph_after_steer + inc0);
 
     /* (f) Emit BEFORE increment, on the steered path too: seeded at an
      * arbitrary phase word, the first sample is the LUT at THAT word. */
@@ -589,8 +579,9 @@ main (void)
     lo_set_phase (&seeded, 0x9ABC0000u);
     uint16_t      widx = (uint16_t)(0x9ABC0000u >> 16);
     float complex s0   = lo_step_ctrl (&seeded, 0.42);
-    CHECK (crealf (s0) == lo_sin_lut[(uint16_t)(widx + (uint16_t)LO_LUT_QTR)]);
-    CHECK (cimagf (s0) == lo_sin_lut[widx]);
+    DP_CHECK (crealf (s0)
+              == lo_sin_lut[(uint16_t)(widx + (uint16_t)LO_LUT_QTR)]);
+    DP_CHECK (cimagf (s0) == lo_sin_lut[widx]);
   }
 
   /* ----------------------------------------------------------------
@@ -614,7 +605,7 @@ main (void)
     lo_state_t *bs = lo_create (0.077);
     lo_state_t  ss;
     lo_init (&ss, 0.077);
-    CHECK (lo_steps_ctrl (bs, ctrl, N, blk, N) == N);
+    DP_CHECK (lo_steps_ctrl (bs, ctrl, N, blk, N) == N);
     for (size_t i = 0; i < N; i++)
       one[i] = lo_step_ctrl (&ss, (double)ctrl[i]);
 
@@ -623,11 +614,11 @@ main (void)
       if (crealf (blk[i]) != crealf (one[i])
           || cimagf (blk[i]) != cimagf (one[i]))
         exact = 0;
-    CHECK (exact);
-    CHECK (lo_get_phase (bs) == lo_get_phase (&ss));
+    DP_CHECK (exact);
+    DP_CHECK (lo_get_phase (bs) == lo_get_phase (&ss));
     /* the block form must not persist the control either */
-    CHECK (lo_get_phase_inc (bs) == lo_get_phase_inc (&ss));
-    CHECK (lo_get_norm_freq (bs) == 0.077);
+    DP_CHECK (lo_get_phase_inc (bs) == lo_get_phase_inc (&ss));
+    DP_CHECK (lo_get_norm_freq (bs) == 0.077);
     lo_destroy (bs);
   }
 
@@ -639,7 +630,7 @@ main (void)
    * ---------------------------------------------------------------- */
   {
     lo_destroy (NULL);
-    CHECK (1); /* reached: the call above did not fault */
+    DP_CHECK (1); /* reached: the call above did not fault */
   }
 
   /* ----------------------------------------------------------------
@@ -654,25 +645,25 @@ main (void)
    * become true again.
    * ---------------------------------------------------------------- */
   {
-    CHECK (lo_steps_max_out (NULL) == 65536u);
-    CHECK (lo_steps_ctrl_max_out (NULL) == 65536u);
+    DP_CHECK (lo_steps_max_out (NULL) == 65536u);
+    DP_CHECK (lo_steps_ctrl_max_out (NULL) == 65536u);
 
     const size_t   BIG = 70000;
     float complex *big = malloc (BIG * sizeof *big);
-    CHECK (big != NULL);
+    DP_CHECK (big != NULL);
     if (big)
       {
         lo_state_t *lo = lo_create (0.013);
-        CHECK (lo_steps (lo, BIG, big, BIG) == BIG);
+        DP_CHECK (lo_steps (lo, BIG, big, BIG) == BIG);
         /* every sample really was written: the phase advanced by all of
          * them, and the tail is on the unit circle rather than zeroed */
         lo_state_t *chk = lo_create (0.013);
-        CHECK (
+        DP_CHECK (
             lo_get_phase (lo)
             == (uint32_t)((uint64_t)lo_get_phase_inc (chk) * (uint64_t)BIG));
         float m2 = crealf (big[BIG - 1]) * crealf (big[BIG - 1])
                    + cimagf (big[BIG - 1]) * cimagf (big[BIG - 1]);
-        CHECK (near (m2, 1.0f));
+        DP_CHECK (near (m2, 1.0f));
         lo_destroy (lo);
         lo_destroy (chk);
         free (big);
@@ -704,8 +695,8 @@ main (void)
         if (ec > worst_cos)
           worst_cos = ec;
       }
-    CHECK (worst_sin < 1e-6f); /* the table IS sin, everywhere      */
-    CHECK (worst_cos < 1e-6f); /* +QTR IS cos, at every index       */
+    DP_CHECK (worst_sin < 1e-6f); /* the table IS sin, everywhere      */
+    DP_CHECK (worst_cos < 1e-6f); /* +QTR IS cos, at every index       */
 
     /* Unit magnitude over a full sweep of the phase range, not just the
      * four exact points: an odd increment coprime with 2^32 visits every
@@ -724,7 +715,7 @@ main (void)
               worst_m = fabsf (m2 - 1.0f);
           }
       }
-    CHECK (worst_m < 1e-5f);
+    DP_CHECK (worst_m < 1e-5f);
     lo_destroy (sweep);
   }
 
@@ -749,12 +740,12 @@ main (void)
     const double f51 = 51.0 / 21.0e6;
 
     lo_state_t *cfg = lo_create (f51);
-    CHECK (lo_get_phase_inc (cfg) == 10430u); /* configure path */
+    DP_CHECK (lo_get_phase_inc (cfg) == 10430u); /* configure path */
 
     lo_state_t steer;
     lo_init (&steer, 0.0);
     (void)lo_step_ctrl (&steer, f51);
-    CHECK (lo_get_phase (&steer) == 10430u); /* control path, same word */
+    DP_CHECK (lo_get_phase (&steer) == 10430u); /* control path, same word */
 
     /* and the block control port agrees with both */
     lo_state_t   *bsteer = lo_create (0.0);
@@ -764,18 +755,12 @@ main (void)
     /* float32 rounds the REQUEST before the fold ever sees it, so the
      * two differ by the float32 representation error, not by the
      * conversion's rounding mode -- a few counts, never a whole step. */
-    CHECK (lo_get_phase (bsteer) <= 10430u + 4u);
-    CHECK (lo_get_phase (bsteer) + 4u >= 10430u);
+    DP_CHECK (lo_get_phase (bsteer) <= 10430u + 4u);
+    DP_CHECK (lo_get_phase (bsteer) + 4u >= 10430u);
 
     lo_destroy (cfg);
     lo_destroy (bsteer);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_lo_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_lo_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_lo_core");
 }

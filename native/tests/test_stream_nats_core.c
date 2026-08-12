@@ -6,6 +6,8 @@
  * nats-server is reachable on 127.0.0.1:4222 -- this is an integration
  * test against a live broker, not a unit test of pure logic.
  */
+#define DP_TEST_VERBOSE 1
+#include "dp_test.h"
 #include "stream/stream.h"
 
 #include <arpa/inet.h>
@@ -20,23 +22,6 @@
 
 #define SKIP_CODE 77
 #define SETTLE_US 300000 /* core NATS: sub/rep must exist before pub/req */
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "  FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);  \
-          _fails++;                                                           \
-        }                                                                     \
-      else                                                                    \
-        {                                                                     \
-          printf ("  PASS  %s\n", #cond);                                     \
-        }                                                                     \
-    }                                                                         \
-  while (0)
-
-static int _fails = 0;
 
 static int
 broker_reachable (void)
@@ -74,28 +59,28 @@ test_pub_sub_roundtrip (void)
   const char *ep = nats_ep ("pubsub");
 
   dp_sub_t *sub = dp_sub_create (ep);
-  CHECK (sub != NULL);
+  DP_CHECK (sub != NULL);
   usleep (SETTLE_US);
 
   dp_pub_t *pub = dp_pub_create (ep, CF64);
-  CHECK (pub != NULL);
+  DP_CHECK (pub != NULL);
   usleep (SETTLE_US);
 
   double _Complex tx[3] = { 1 + 2 * I, 3 + 4 * I, 5 + 6 * I };
-  CHECK (dp_pub_send_cf64 (pub, tx, 3, 48000.0, 915e6) == DP_OK);
+  DP_CHECK (dp_pub_send_cf64 (pub, tx, 3, 48000.0, 915e6) == DP_OK);
 
   dp_msg_t   *msg = NULL;
   dp_header_t hdr;
   dp_sub_set_timeout (sub, 3000);
-  CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_OK);
-  CHECK (msg != NULL);
+  DP_CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_OK);
+  DP_CHECK (msg != NULL);
   if (msg)
     {
-      CHECK (dp_msg_num_samples (msg) == 3);
+      DP_CHECK (dp_msg_num_samples (msg) == 3);
       double _Complex *rx = (double _Complex *)dp_msg_data (msg);
-      CHECK (memcmp (rx, tx, sizeof tx) == 0);
-      CHECK (hdr.sample_rate == 48000.0);
-      CHECK (hdr.center_freq == 915e6);
+      DP_CHECK (memcmp (rx, tx, sizeof tx) == 0);
+      DP_CHECK (hdr.sample_rate == 48000.0);
+      DP_CHECK (hdr.center_freq == 915e6);
       dp_msg_free (msg);
     }
 
@@ -113,37 +98,37 @@ test_req_rep_roundtrip (void)
   const char *ep = nats_ep ("ctrl");
 
   dp_rep_t *rep = dp_rep_create (ep);
-  CHECK (rep != NULL);
+  DP_CHECK (rep != NULL);
   usleep (SETTLE_US);
 
   dp_req_t *req = dp_req_create (ep);
-  CHECK (req != NULL);
+  DP_CHECK (req != NULL);
 
   const char *ping = "ping";
-  CHECK (dp_req_send (req, ping, strlen (ping) + 1) == DP_OK);
+  DP_CHECK (dp_req_send (req, ping, strlen (ping) + 1) == DP_OK);
 
   dp_msg_t *rq_msg  = NULL;
   size_t    rq_size = 0;
   dp_rep_set_timeout (rep, 3000);
-  CHECK (dp_rep_recv (rep, &rq_msg, &rq_size) == DP_OK);
+  DP_CHECK (dp_rep_recv (rep, &rq_msg, &rq_size) == DP_OK);
   if (rq_msg)
     {
-      CHECK (rq_size == strlen (ping) + 1);
-      CHECK (strcmp ((const char *)dp_msg_data (rq_msg), ping) == 0);
+      DP_CHECK (rq_size == strlen (ping) + 1);
+      DP_CHECK (strcmp ((const char *)dp_msg_data (rq_msg), ping) == 0);
       dp_msg_free (rq_msg);
     }
 
   const char *pong = "pong";
-  CHECK (dp_rep_send (rep, pong, strlen (pong) + 1) == DP_OK);
+  DP_CHECK (dp_rep_send (rep, pong, strlen (pong) + 1) == DP_OK);
 
   dp_msg_t *rp_msg  = NULL;
   size_t    rp_size = 0;
   dp_req_set_timeout (req, 3000);
-  CHECK (dp_req_recv (req, &rp_msg, &rp_size) == DP_OK);
+  DP_CHECK (dp_req_recv (req, &rp_msg, &rp_size) == DP_OK);
   if (rp_msg)
     {
-      CHECK (rp_size == strlen (pong) + 1);
-      CHECK (strcmp ((const char *)dp_msg_data (rp_msg), pong) == 0);
+      DP_CHECK (rp_size == strlen (pong) + 1);
+      DP_CHECK (strcmp ((const char *)dp_msg_data (rp_msg), pong) == 0);
       dp_msg_free (rp_msg);
     }
 
@@ -164,30 +149,30 @@ test_chunked_pub_sub (void)
   const size_t n  = 100000; /* 1.6 MB of CF64 > 1 MiB max_payload */
 
   dp_sub_t *sub = dp_sub_create (ep);
-  CHECK (sub != NULL);
+  DP_CHECK (sub != NULL);
   usleep (SETTLE_US);
 
   dp_pub_t *pub = dp_pub_create (ep, CF64);
-  CHECK (pub != NULL);
+  DP_CHECK (pub != NULL);
   usleep (SETTLE_US);
 
   double _Complex *tx = malloc (n * sizeof *tx);
-  CHECK (tx != NULL);
+  DP_CHECK (tx != NULL);
   if (tx)
     {
       for (size_t i = 0; i < n; i++)
         tx[i] = (double)i + (double)(i + 1) * I;
 
-      CHECK (dp_pub_send_cf64 (pub, tx, n, 1e6, 2.4e9) == DP_OK);
+      DP_CHECK (dp_pub_send_cf64 (pub, tx, n, 1e6, 2.4e9) == DP_OK);
 
       dp_msg_t   *msg = NULL;
       dp_header_t hdr;
       dp_sub_set_timeout (sub, 5000);
-      CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_OK);
+      DP_CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_OK);
       if (msg)
         {
-          CHECK (dp_msg_num_samples (msg) == n);
-          CHECK (memcmp (dp_msg_data (msg), tx, n * sizeof *tx) == 0);
+          DP_CHECK (dp_msg_num_samples (msg) == n);
+          DP_CHECK (memcmp (dp_msg_data (msg), tx, n * sizeof *tx) == 0);
           dp_msg_free (msg);
         }
       free (tx);
@@ -212,11 +197,5 @@ main (void)
   test_chunked_pub_sub ();
 
   printf ("\n");
-  if (_fails)
-    {
-      fprintf (stderr, "%d failed, fix before commit\n", _fails);
-      return 1;
-    }
-  printf ("All tests passed\n");
-  return 0;
+  DP_TEST_END ("test_stream_nats_core");
 }

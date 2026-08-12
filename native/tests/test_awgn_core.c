@@ -1,4 +1,6 @@
+#define DP_TEST_VERBOSE 1
 #include "awgn/awgn_core.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -8,23 +10,6 @@
 #define N_STAT 65536 /* samples for statistical checks */
 #define N_SMALL 256
 
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "  FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);  \
-          _fails++;                                                           \
-        }                                                                     \
-      else                                                                    \
-        {                                                                     \
-          printf ("  PASS  %s\n", #cond);                                     \
-        }                                                                     \
-    }                                                                         \
-  while (0)
-
-static int _fails = 0;
-
 /* ------------------------------------------------------------------
  * test_lifecycle: create, destroy, NULL safety.
  * ------------------------------------------------------------------ */
@@ -33,10 +18,10 @@ test_lifecycle (void)
 {
   printf ("\n-- Lifecycle --\n");
   awgn_state_t *g = awgn_create (0, 1.0f);
-  CHECK (g != NULL);
+  DP_CHECK (g != NULL);
   awgn_destroy (g);
   awgn_destroy (NULL); /* must be a no-op */
-  CHECK (1);           /* no crash */
+  DP_CHECK (1);        /* no crash */
 }
 
 /* ------------------------------------------------------------------
@@ -47,9 +32,9 @@ test_amplitude_property (void)
 {
   printf ("\n-- Amplitude property --\n");
   awgn_state_t *g = awgn_create (1, 2.0f);
-  CHECK (awgn_get_amplitude (g) == 2.0f);
+  DP_CHECK (awgn_get_amplitude (g) == 2.0f);
   awgn_set_amplitude (g, 0.5f);
-  CHECK (awgn_get_amplitude (g) == 0.5f);
+  DP_CHECK (awgn_get_amplitude (g) == 0.5f);
   awgn_destroy (g);
 }
 
@@ -67,7 +52,7 @@ test_zero_amplitude (void)
   for (int i = 0; i < N_SMALL; i++)
     if (buf[i] != 0.0f + 0.0f * I)
       all_zero = 0;
-  CHECK (all_zero);
+  DP_CHECK (all_zero);
   awgn_destroy (g);
 }
 
@@ -85,7 +70,7 @@ test_reset_reproducible (void)
   awgn_reset (g);
   awgn_generate (g, N_SMALL, b, N_SMALL);
 
-  CHECK (memcmp (a, b, N_SMALL * sizeof *a) == 0);
+  DP_CHECK (memcmp (a, b, N_SMALL * sizeof *a) == 0);
   awgn_destroy (g);
 }
 
@@ -107,13 +92,13 @@ test_reseed (void)
   for (int i = 0; i < N_SMALL; i++)
     if (a[i] != b[i])
       differs = 1;
-  CHECK (differs);
+  DP_CHECK (differs);
 
   /* reseed back to 1 should reproduce stream a */
   awgn_reseed (g, 1);
   float complex c[N_SMALL];
   awgn_generate (g, N_SMALL, c, N_SMALL);
-  CHECK (memcmp (a, c, N_SMALL * sizeof *a) == 0);
+  DP_CHECK (memcmp (a, c, N_SMALL * sizeof *a) == 0);
   awgn_destroy (g);
 }
 
@@ -148,13 +133,13 @@ test_statistics (void)
 
   /* Mean within ±3σ/√N of 0 (3*amp/√65536 ≈ 0.023 for amp=2) */
   double mean_tol = 3.0 * amp / sqrt ((double)N_STAT);
-  CHECK (fabs (mean_re) < mean_tol);
-  CHECK (fabs (mean_im) < mean_tol);
+  DP_CHECK (fabs (mean_re) < mean_tol);
+  DP_CHECK (fabs (mean_im) < mean_tol);
 
   /* Variance within 2% of amp² */
   double var_tol = 0.02 * amp * amp;
-  CHECK (fabs (var_re - amp * amp) < var_tol);
-  CHECK (fabs (var_im - amp * amp) < var_tol);
+  DP_CHECK (fabs (var_re - amp * amp) < var_tol);
+  DP_CHECK (fabs (var_im - amp * amp) < var_tol);
 
   free (buf);
   awgn_destroy (g);
@@ -181,7 +166,7 @@ test_split_block (void)
   awgn_generate (g, half, part + half, half);
   awgn_destroy (g);
 
-  CHECK (memcmp (full, part, N_SMALL * sizeof *full) == 0);
+  DP_CHECK (memcmp (full, part, N_SMALL * sizeof *full) == 0);
 }
 
 /* ------------------------------------------------------------------
@@ -194,13 +179,13 @@ test_oneshot (void)
 
   float complex ref[N_SMALL];
   awgn_state_t *g = awgn_create (42, 0.7f);
-  CHECK (g != NULL);
+  DP_CHECK (g != NULL);
   awgn_generate (g, N_SMALL, ref, N_SMALL);
   awgn_destroy (g);
 
   float complex out[N_SMALL];
-  CHECK (awgn (42, 0.7f, N_SMALL, out) == 0);
-  CHECK (memcmp (ref, out, N_SMALL * sizeof *out) == 0);
+  DP_CHECK (awgn (42, 0.7f, N_SMALL, out) == 0);
+  DP_CHECK (memcmp (ref, out, N_SMALL * sizeof *out) == 0);
 }
 
 /* Advance the RNG, serialize, restore into a fresh generator, and the noise
@@ -223,11 +208,11 @@ test_state_roundtrip (void)
   awgn_generate (a, M, ref, M); /* reference continuation */
 
   awgn_state_t *b = awgn_create (123, 1.0f);
-  CHECK (awgn_set_state (b, blob) == DP_OK);
+  DP_CHECK (awgn_set_state (b, blob) == DP_OK);
   ((char *)blob)[0] ^= (char)0xFF;
-  CHECK (awgn_set_state (b, blob) == DP_ERR_INVALID);
+  DP_CHECK (awgn_set_state (b, blob) == DP_ERR_INVALID);
   awgn_generate (b, M, got, M);
-  CHECK (memcmp (ref, got, sizeof ref) == 0);
+  DP_CHECK (memcmp (ref, got, sizeof ref) == 0);
 
   awgn_destroy (a);
   awgn_destroy (b);
@@ -248,11 +233,5 @@ main (void)
   test_state_roundtrip ();
 
   printf ("\n");
-  if (_fails)
-    {
-      fprintf (stderr, "%d failed, fix before commit\n", _fails);
-      return 1;
-    }
-  printf ("All tests passed\n");
-  return 0;
+  DP_TEST_END ("test_awgn_core");
 }

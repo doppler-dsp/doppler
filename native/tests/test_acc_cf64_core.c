@@ -1,19 +1,9 @@
 #include "acc_cf64/acc_cf64_core.h"
 #include "dp_state_test.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* Floating-point helpers — use inline functions, not macros, so arguments
  * are evaluated exactly once.  Safe to call with stateful step() results. */
@@ -35,16 +25,15 @@ _almost_eq_c (float complex a, float complex b, float tol)
 int
 main (void)
 {
-  int               _fails = 0;
-  acc_cf64_state_t *obj    = acc_cf64_create (0.0 + 0.0 * I);
-  CHECK (obj != NULL);
+  acc_cf64_state_t *obj = acc_cf64_create (0.0 + 0.0 * I);
+  DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
 
   /* acc: getter / setter */
-  CHECK (acc_cf64_get_acc (obj) == 0.0 + 0.0 * I);
+  DP_CHECK (acc_cf64_get_acc (obj) == 0.0 + 0.0 * I);
   acc_cf64_set_acc (obj, 2.0 + 0.0 * I);
-  CHECK (acc_cf64_get_acc (obj) == 2.0 + 0.0 * I);
+  DP_CHECK (acc_cf64_get_acc (obj) == 2.0 + 0.0 * I);
 
   /* step: verify it runs without crashing */
   (void)acc_cf64_step (obj, 0.0 + 0.0 * I);
@@ -52,27 +41,21 @@ main (void)
   /* reset restores defaults */
   acc_cf64_set_acc (obj, 2.0 + 0.0 * I);
   acc_cf64_reset (obj);
-  CHECK (acc_cf64_get_acc (obj) == 0.0 + 0.0 * I);
+  DP_CHECK (acc_cf64_get_acc (obj) == 0.0 + 0.0 * I);
 
   acc_cf64_destroy (obj);
-  if (_fails)
-    {
-      fprintf (stderr, "test_acc_cf64_core FAILED (%d)\n", _fails);
-      return 1;
-    }
   /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
   {
     acc_cf64_state_t *a = acc_cf64_create (0.0 + 0.0 * I);
     acc_cf64_state_t *b = acc_cf64_create (0.0 + 0.0 * I);
-    CHECK (a != NULL && b != NULL);
+    DP_CHECK (a != NULL && b != NULL);
     acc_cf64_step (a, 3.0 + 1.0 * I);
     acc_cf64_step (a, -1.0 + 2.0 * I);
     DP_STATE_ROUNDTRIP_TEST (acc_cf64, a, b);
-    CHECK (acc_cf64_get_acc (b) == acc_cf64_get_acc (a));
+    DP_CHECK (acc_cf64_get_acc (b) == acc_cf64_get_acc (a));
     acc_cf64_destroy (a);
     acc_cf64_destroy (b);
   }
 
-  printf ("test_acc_cf64_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_acc_cf64_core");
 }

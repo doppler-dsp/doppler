@@ -7,23 +7,11 @@
  */
 #include "ddc/ddc_core.h"
 #include "dp_mf_test.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-static int _fails = 0;
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* ── Serializable state: mid-stream split resumes bit-for-bit ──────────────
  */
@@ -50,21 +38,21 @@ test_state_roundtrip (void)
   ddc_destroy (r1);
 
   ddc_state_t *r2 = ddc_create (norm_freq, rate);
-  CHECK (ddc_set_state (r2, blob) == DP_OK);
+  DP_CHECK (ddc_set_state (r2, blob) == DP_OK);
   ((char *)blob)[0] ^= (char)0xFF; /* clobber envelope -> reject */
-  CHECK (ddc_set_state (r2, blob) == DP_ERR_INVALID);
+  DP_CHECK (ddc_set_state (r2, blob) == DP_ERR_INVALID);
   ((char *)blob)[0] ^= (char)0xFF;
   nB += ddc_execute (r2, in + cut, L - cut, outB + nB, CAP - nB);
   ddc_destroy (r2);
   free (blob);
 
-  CHECK (nA == nB);
+  DP_CHECK (nA == nB);
   int bad = 0;
   for (size_t i = 0; i < nA && i < nB; i++)
     if (crealf (outA[i]) != crealf (outB[i])
         || cimagf (outA[i]) != cimagf (outB[i]))
       bad++;
-  CHECK (bad == 0);
+  DP_CHECK (bad == 0);
   free (in);
   free (outA);
   free (outB);
@@ -86,28 +74,28 @@ static void
 test_flavors_and_invalid_params (void)
 {
   ddc_state_t *plain = ddc_create (0.0, 0.25);
-  CHECK (plain != NULL);
-  CHECK (ddc_get_clipped (plain) == false);
+  DP_CHECK (plain != NULL);
+  DP_CHECK (ddc_get_clipped (plain) == false);
   ddc_destroy (plain);
 
-  CHECK (ddc_create (0.0, 0.0) == NULL);
-  CHECK (ddc_create (0.0, -0.25) == NULL);
+  DP_CHECK (ddc_create (0.0, 0.0) == NULL);
+  DP_CHECK (ddc_create (0.0, -0.25) == NULL);
   /* RC_PULSE_NONE would hand back an object whose "matched filter" is a
      Kaiser anti-alias bank — that is what ddc_create() is for. */
-  CHECK (ddc_create_matched (0.0, 0.25, RC_PULSE_NONE, 0.35, 8, 2.0, 1024)
-         == NULL);
-  CHECK (ddc_create_matched (0.0, -0.25, RC_PULSE_RRC, 0.35, 8, 2.0, 1024)
-         == NULL);
-  CHECK (ddc_create_matched (0.0, 0.25, RC_PULSE_RRC, 2.0, 8, 2.0, 1024)
-         == NULL); /* beta out of range — rejected by the cascade */
+  DP_CHECK (ddc_create_matched (0.0, 0.25, RC_PULSE_NONE, 0.35, 8, 2.0, 1024)
+            == NULL);
+  DP_CHECK (ddc_create_matched (0.0, -0.25, RC_PULSE_RRC, 0.35, 8, 2.0, 1024)
+            == NULL);
+  DP_CHECK (ddc_create_matched (0.0, 0.25, RC_PULSE_RRC, 2.0, 8, 2.0, 1024)
+            == NULL); /* beta out of range — rejected by the cascade */
 
   ddc_state_t *m
       = ddc_create_matched (0.0, 0.125, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
-  CHECK (m != NULL);
+  DP_CHECK (m != NULL);
   ddc_destroy (m);
   ddc_state_t *r
       = ddc_create_matched (0.0, 0.125, RC_PULSE_IANDD, 0.35, 4, 4.0, 256);
-  CHECK (r != NULL);
+  DP_CHECK (r != NULL);
   ddc_destroy (r);
 }
 
@@ -138,13 +126,13 @@ test_freq_port_is_the_lo_axis (void)
   size_t nB = ddc_execute_ctrl (b, in, L, 0.0, 0.0, outB, CAP);
   size_t nC = ddc_execute_ctrl (c, in, L, 0.0, 0.0, outC, CAP);
 
-  CHECK (nA == nB);
+  DP_CHECK (nA == nB);
   int bad = 0;
   for (size_t i = 0; i < nA && i < nB; i++)
     if (crealf (outA[i]) != crealf (outB[i])
         || cimagf (outA[i]) != cimagf (outB[i]))
       bad++;
-  CHECK (bad == 0);
+  DP_CHECK (bad == 0);
 
   /* Teeth: the same comparison against an unsteered LO must fail loudly, or
      the equality above would be vacuous. */
@@ -152,11 +140,11 @@ test_freq_port_is_the_lo_axis (void)
   for (size_t i = 0; i < nA && i < nC; i++)
     if (cabsf (outA[i] - outC[i]) > 1e-3f)
       differs++;
-  CHECK (differs > (int)(nA / 4));
+  DP_CHECK (differs > (int)(nA / 4));
 
   /* And the centre frequency is untouched — the deviation is per-sample and
      transient, so the object holds no loop state. */
-  CHECK (ddc_get_norm_freq (a) == 0.0);
+  DP_CHECK (ddc_get_norm_freq (a) == 0.0);
 
   ddc_destroy (a);
   ddc_destroy (b);
@@ -190,13 +178,13 @@ test_push_equals_block (void)
   size_t nB = 0;
   for (size_t i = 0; i < L; i++)
     nB += ddc_execute_ctrl_push (b, in[i], rctrl, fctrl, outB + nB, CAP - nB);
-  CHECK (nA == nB);
+  DP_CHECK (nA == nB);
   int bad = 0;
   for (size_t i = 0; i < nA && i < nB; i++)
     if (crealf (outA[i]) != crealf (outB[i])
         || cimagf (outA[i]) != cimagf (outB[i]))
       bad++;
-  CHECK (bad == 0);
+  DP_CHECK (bad == 0);
   ddc_destroy (a);
   ddc_destroy (b);
   free (in);
@@ -224,7 +212,7 @@ test_matched_recovers_symbols (void)
       size_t          n;
       float _Complex *x = mf_tx (sps, j / 16.0, fc, &n);
       float _Complex *y = calloc (n, sizeof *y);
-      CHECK (x != NULL && y != NULL);
+      DP_CHECK (x != NULL && y != NULL);
       if (!x || !y)
         {
           free (x);
@@ -242,7 +230,7 @@ test_matched_recovers_symbols (void)
       free (y);
     }
 
-  CHECK (best < -40.0); /* measured -45.4 dB (CIC(8) alias floor) */
+  DP_CHECK (best < -40.0); /* measured -45.4 dB (CIC(8) alias floor) */
   if (best >= -40.0)
     fprintf (stderr, "  matched DDC EVM: %.1f dB\n", best);
 }
@@ -269,7 +257,7 @@ test_carrier_loop_pulls_in (void)
 
   ddc_state_t *s
       = ddc_create_matched (tuned, rate, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
-  CHECK (s != NULL);
+  DP_CHECK (s != NULL);
 
   double freq_ctrl = 0.0, e_last = 0.0;
   float _Complex prev = 0.0f;
@@ -292,9 +280,9 @@ test_carrier_loop_pulls_in (void)
           have_prev = 1;
         }
     }
-  CHECK (fabs (f0 + tuned + freq_ctrl) < 1e-6); /* measured 6e-11 */
-  CHECK (fabs (e_last) < 1e-5);
-  CHECK (ddc_get_norm_freq (s) == tuned); /* the centre never moved */
+  DP_CHECK (fabs (f0 + tuned + freq_ctrl) < 1e-6); /* measured 6e-11 */
+  DP_CHECK (fabs (e_last) < 1e-5);
+  DP_CHECK (ddc_get_norm_freq (s) == tuned); /* the centre never moved */
   ddc_destroy (s);
 
   /* Teeth: hold the port at zero and the same stream keeps spinning at
@@ -317,7 +305,7 @@ test_carrier_loop_pulls_in (void)
           have_prev = 1;
         }
     }
-  CHECK (fabs (open_e - (f0 + tuned) / rate) < 1e-3);
+  DP_CHECK (fabs (open_e - (f0 + tuned) / rate) < 1e-3);
   ddc_destroy (t);
 }
 
@@ -335,11 +323,12 @@ test_clipped_forwards (void)
   /* rate 2/64 plans a CIC(32) + terminal stage. */
   ddc_state_t *d
       = ddc_create_matched (0.0, 2.0 / 64.0, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
-  CHECK (ddc_get_clipped (d) == false);
+  DP_CHECK (ddc_get_clipped (d) == false);
   ddc_execute (d, in, L, out, L);
-  CHECK (ddc_get_clipped (d) == true);
+  DP_CHECK (ddc_get_clipped (d) == true);
   ddc_reset (d);
-  CHECK (ddc_get_clipped (d) == false); /* sticky until reset, not forever */
+  DP_CHECK (ddc_get_clipped (d)
+            == false); /* sticky until reset, not forever */
   ddc_destroy (d);
 
   /* A halfband plan has no CIC, so the honest answer is false however hard it
@@ -347,7 +336,7 @@ test_clipped_forwards (void)
   ddc_state_t *h
       = ddc_create_matched (0.0, 0.5, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
   ddc_execute (h, in, L, out, L);
-  CHECK (ddc_get_clipped (h) == false);
+  DP_CHECK (ddc_get_clipped (h) == false);
   ddc_destroy (h);
 
   free (in);
@@ -384,20 +373,20 @@ test_matched_state_roundtrip (void)
 
   ddc_state_t *c
       = ddc_create_matched (nf, rate, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
-  CHECK (ddc_set_state (c, blob) == DP_OK);
+  DP_CHECK (ddc_set_state (c, blob) == DP_OK);
   nB += ddc_execute (c, in + cut, L - cut, outB + nB, CAP - nB);
   ddc_destroy (c);
 
-  CHECK (nA == nB);
+  DP_CHECK (nA == nB);
   int bad = 0;
   for (size_t i = 0; i < nA && i < nB; i++)
     if (crealf (outA[i]) != crealf (outB[i])
         || cimagf (outA[i]) != cimagf (outB[i]))
       bad++;
-  CHECK (bad == 0);
+  DP_CHECK (bad == 0);
 
   ddc_state_t *plain = ddc_create (nf, rate);
-  CHECK (ddc_set_state (plain, blob) == DP_ERR_INVALID);
+  DP_CHECK (ddc_set_state (plain, blob) == DP_ERR_INVALID);
   ddc_destroy (plain);
 
   free (blob);
@@ -410,7 +399,7 @@ int
 main (void)
 {
   ddc_state_t *obj = ddc_create (0.0, 0.25);
-  CHECK (obj != NULL);
+  DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
   ddc_reset (obj);
@@ -425,11 +414,5 @@ main (void)
   test_clipped_forwards ();
   test_matched_state_roundtrip ();
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_ddc_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_ddc_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_ddc_core");
 }

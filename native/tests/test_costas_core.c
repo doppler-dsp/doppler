@@ -12,22 +12,12 @@
  *   6. Reset reproducibility
  */
 #include "costas/costas_core.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* Deterministic ±1 BPSK bit stream (xorshift). */
 static int
@@ -108,25 +98,24 @@ run (costas_state_t *c, const float complex *rx, const int *bits, size_t nsym,
 int
 main (void)
 {
-  int _fails = 0;
 
   /* ---------------------------------------------------------------- *
    * 1. Lifecycle, gain math, init==create parity                     *
    * ---------------------------------------------------------------- */
   {
     costas_state_t *c = costas_create (0.05, 0.707, 0.01, 16, 0.0);
-    CHECK (c != NULL);
+    DP_CHECK (c != NULL);
     if (!c)
       return 1;
     /* gains derive from the embedded loop_filter (bn,zeta,t=1) */
-    CHECK (c->lf.kp > 0.0 && c->lf.ki > 0.0);
+    DP_CHECK (c->lf.kp > 0.0 && c->lf.ki > 0.0);
     /* seeded NCO frequency == requested residual */
-    CHECK (fabs (costas_get_norm_freq (c) - 0.01) < 1e-12);
+    DP_CHECK (fabs (costas_get_norm_freq (c) - 0.01) < 1e-12);
 
     costas_state_t v;
     costas_init (&v, 0.05, 0.707, 0.01, 16, 0.0);
-    CHECK (v.lf.kp == c->lf.kp && v.lf.ki == c->lf.ki);
-    CHECK (v.nco.phase_inc == c->nco.phase_inc);
+    DP_CHECK (v.lf.kp == c->lf.kp && v.lf.ki == c->lf.ki);
+    DP_CHECK (v.nco.phase_inc == c->nco.phase_inc);
     costas_destroy (c);
   }
 
@@ -145,9 +134,9 @@ main (void)
         double          f, lk;
         int             be;
         run (c, rx, bits, nsym, tsamps, &f, &lk, &be);
-        CHECK (fabs (f - f0s[t]) < 2e-4); /* tracked the residual    */
-        CHECK (lk > 0.9);                 /* phase-locked            */
-        CHECK (be == 0);                  /* zero bit errors on tail */
+        DP_CHECK (fabs (f - f0s[t]) < 2e-4); /* tracked the residual    */
+        DP_CHECK (lk > 0.9);                 /* phase-locked            */
+        DP_CHECK (be == 0);                  /* zero bit errors on tail */
         costas_destroy (c);
       }
     free (rx);
@@ -167,8 +156,8 @@ main (void)
     double          f, lk;
     int             be;
     run (c, rx, bits, nsym, tsamps, &f, &lk, &be);
-    CHECK (be == 0); /* min(err, n-err)==0 even if globally inverted  */
-    CHECK (lk > 0.9);
+    DP_CHECK (be == 0); /* min(err, n-err)==0 even if globally inverted  */
+    DP_CHECK (lk > 0.9);
     costas_destroy (c);
     free (rx);
     free (bits);
@@ -189,9 +178,9 @@ main (void)
     double          f, lk;
     int             be;
     run (c, rx, bits, nsym, tsamps, &f, &lk, &be);
-    CHECK (fabs (f - 0.0015) < 5e-4);
-    CHECK (lk > 0.7);
-    CHECK (be == 0);
+    DP_CHECK (fabs (f - 0.0015) < 5e-4);
+    DP_CHECK (lk > 0.7);
+    DP_CHECK (be == 0);
     costas_destroy (c);
     free (rx);
     free (bits);
@@ -213,9 +202,9 @@ main (void)
     double          f, lk;
     int             be;
     run (c, rx, bits, nsym, tsamps, &f, &lk, &be);
-    CHECK (fabs (f - final_f0) < 1e-3); /* follows the moving carrier */
-    CHECK (lk > 0.85);
-    CHECK (be == 0);
+    DP_CHECK (fabs (f - final_f0) < 1e-3); /* follows the moving carrier */
+    DP_CHECK (lk > 0.85);
+    DP_CHECK (be == 0);
     costas_destroy (c);
     free (rx);
     free (bits);
@@ -237,7 +226,7 @@ main (void)
     double f2, lk2;
     int    be2;
     run (c, rx, bits, nsym, tsamps, &f2, &lk2, &be2);
-    CHECK (f1 == f2 && lk1 == lk2 && be1 == be2);
+    DP_CHECK (f1 == f2 && lk1 == lk2 && be1 == be2);
     costas_destroy (c);
     free (rx);
     free (bits);
@@ -261,16 +250,16 @@ main (void)
     costas_state_t *pll = costas_create (0.01, 0.707, 0.0, tsamps, 0.0);
     run (pll, rx, bits, nsym, tsamps, &f, &lk, &be);
     int pll_locked = (fabs (f - f0) < 5e-4) && (lk > 0.9);
-    CHECK (!pll_locked); /* the bare PLL does NOT acquire it */
+    DP_CHECK (!pll_locked); /* the bare PLL does NOT acquire it */
     costas_destroy (pll);
 
     /* FLL-assisted (bn_fll > 0): the wide frequency discriminator pulls
      * the integrator on, and the loop locks. */
     costas_state_t *fll = costas_create (0.01, 0.707, 0.0, tsamps, 0.03);
     run (fll, rx, bits, nsym, tsamps, &f, &lk, &be);
-    CHECK (fabs (f - f0) < 5e-4); /* tracked the large residual */
-    CHECK (lk > 0.9);             /* locked */
-    CHECK (be == 0);              /* zero bit errors on the tail */
+    DP_CHECK (fabs (f - f0) < 5e-4); /* tracked the large residual */
+    DP_CHECK (lk > 0.9);             /* locked */
+    DP_CHECK (be == 0);              /* zero bit errors on the tail */
     costas_destroy (fll);
     free (rx);
     free (bits);
@@ -303,18 +292,18 @@ main (void)
     costas_destroy (r1);
 
     costas_state_t *r2 = costas_create (0.01, 0.707, 0.0, 4, 0.0);
-    CHECK (costas_set_state (r2, blob) == DP_OK);
+    DP_CHECK (costas_set_state (r2, blob) == DP_OK);
     ((char *)blob)[0] ^= (char)0xFF;
-    CHECK (costas_set_state (r2, blob) == DP_ERR_INVALID);
+    DP_CHECK (costas_set_state (r2, blob) == DP_ERR_INVALID);
     ((char *)blob)[0] ^= (char)0xFF;
     nB += costas_steps (r2, rx + CUT, L - CUT, outB + nB, CAP - nB);
     costas_destroy (r2);
     free (blob);
 
-    CHECK (nA == nB);
+    DP_CHECK (nA == nB);
     for (size_t i = 0; i < nA && i < nB; i++)
-      CHECK (crealf (outA[i]) == crealf (outB[i])
-             && cimagf (outA[i]) == cimagf (outB[i]));
+      DP_CHECK (crealf (outA[i]) == crealf (outB[i])
+                && cimagf (outA[i]) == cimagf (outB[i]));
     free (rx);
     free (outA);
     free (outB);
@@ -334,31 +323,31 @@ main (void)
     for (int i = 0; i < TS * NS; i++)
       rx[i] = ((i / (TS * 4)) % 2 ? -1.0f : 1.0f) + 0.0f * I;
     costas_state_t *c = costas_create (0.05, 0.707, 0.0, TS, 0.0);
-    CHECK (c != NULL);
-    CHECK (costas_get_locked (c) == 0); /* fresh: unlocked */
-    CHECK (c->lock.up_thresh == 0.85 && c->lock.down_thresh == 0.78);
-    CHECK (c->lock.n_up == 8 && c->lock.n_down == 32);
+    DP_CHECK (c != NULL);
+    DP_CHECK (costas_get_locked (c) == 0); /* fresh: unlocked */
+    DP_CHECK (c->lock.up_thresh == 0.85 && c->lock.down_thresh == 0.78);
+    DP_CHECK (c->lock.n_up == 8 && c->lock.n_down == 32);
     (void)costas_steps (c, rx, TS * NS, out, NS);
-    CHECK (costas_get_locked (c) == 1);
-    CHECK (costas_get_lock_metric (c) > 0.85);
+    DP_CHECK (costas_get_locked (c) == 1);
+    DP_CHECK (costas_get_lock_metric (c) > 0.85);
 
     /* reset drops the decision but keeps the rule */
     costas_reset (c);
-    CHECK (costas_get_locked (c) == 0);
-    CHECK (c->lock.n_down == 32);
+    DP_CHECK (costas_get_locked (c) == 0);
+    DP_CHECK (c->lock.n_down == 32);
 
     /* configure_lock re-tunes; an unreachable declare threshold never
      * locks even on the clean stream */
     costas_configure_lock (c, 2.0, 1.9, 8, 32);
     (void)costas_steps (c, rx, TS * NS, out, NS);
-    CHECK (costas_get_locked (c) == 0);
+    DP_CHECK (costas_get_locked (c) == 0);
     costas_destroy (c);
 
     /* noise only: |cos(theta)| EMA hovers near 2/pi ~ 0.64, well under
      * the 0.85 declare threshold -> never declares */
     uint32_t        st = 77u;
     costas_state_t *n  = costas_create (0.05, 0.707, 0.0, TS, 0.0);
-    CHECK (n != NULL);
+    DP_CHECK (n != NULL);
     for (int i = 0; i < TS * NS; i++)
       {
         st ^= st << 13;
@@ -374,8 +363,8 @@ main (void)
                                      + m * sin (2.0 * M_PI * u2) * I);
       }
     (void)costas_steps (n, rx, TS * NS, out, NS);
-    CHECK (costas_get_locked (n) == 0);
-    CHECK (costas_get_lock_metric (n) < 0.85);
+    DP_CHECK (costas_get_locked (n) == 0);
+    DP_CHECK (costas_get_lock_metric (n) < 0.85);
     costas_destroy (n);
   }
 
@@ -394,21 +383,21 @@ main (void)
       rx[i] = ((i / (TS * 4)) % 2 ? -1.0f : 1.0f) + 0.0f * I;
     dp_tlm_t       *tlm = dp_tlm_create (4096);
     costas_state_t *c   = costas_create (0.05, 0.707, 0.0, TS, 0.0);
-    CHECK (tlm != NULL && c != NULL);
-    CHECK (costas_set_telemetry (c, tlm, "car", 1) == DP_OK);
-    CHECK (dp_tlm_probe_id (tlm, "car.lock") == c->tlm.id_lock);
-    CHECK (dp_tlm_probe_id (tlm, "car.e") == c->tlm.id_e);
-    CHECK (dp_tlm_probe_id (tlm, "car.freq") == c->tlm.id_freq);
-    CHECK (dp_tlm_probe_id (tlm, "car.locked") == c->tlm.id_locked);
+    DP_CHECK (tlm != NULL && c != NULL);
+    DP_CHECK (costas_set_telemetry (c, tlm, "car", 1) == DP_OK);
+    DP_CHECK (dp_tlm_probe_id (tlm, "car.lock") == c->tlm.id_lock);
+    DP_CHECK (dp_tlm_probe_id (tlm, "car.e") == c->tlm.id_e);
+    DP_CHECK (dp_tlm_probe_id (tlm, "car.freq") == c->tlm.id_freq);
+    DP_CHECK (dp_tlm_probe_id (tlm, "car.locked") == c->tlm.id_locked);
 
     size_t k = costas_steps (c, rx, L, out, NS);
-    CHECK (k == NS);
+    DP_CHECK (k == NS);
     size_t n_rec = dp_tlm_read (tlm, 512, recs, 512);
-    CHECK (n_rec == 4 * NS); /* lock + e + freq + locked per symbol */
+    DP_CHECK (n_rec == 4 * NS); /* lock + e + freq + locked per symbol */
     /* The last records mirror the tracked state (flush order:
      * lock, e, freq, locked). */
-    CHECK (recs[n_rec - 2].value == (float)c->nco.norm_freq);
-    CHECK (recs[n_rec - 1].value == (float)costas_get_locked (c));
+    DP_CHECK (recs[n_rec - 2].value == (float)c->nco.norm_freq);
+    DP_CHECK (recs[n_rec - 1].value == (float)costas_get_locked (c));
 
     /* Blobs zero the attachment (deterministic) and set_state into an
      * attached instance preserves that instance's live attachment. */
@@ -416,22 +405,22 @@ main (void)
     void  *b1 = malloc (sb), *b2 = malloc (sb);
     costas_get_state (c, b1);
     costas_state_t *d = costas_create (0.05, 0.707, 0.0, TS, 0.0);
-    CHECK (d != NULL);
-    CHECK (costas_set_telemetry (d, tlm, "car2", 2) == DP_OK);
-    CHECK (costas_set_state (d, b1) == DP_OK);
-    CHECK (d->tlm.ctx == tlm);
-    CHECK (d->tlm.id_e == dp_tlm_probe_id (tlm, "car2.e"));
+    DP_CHECK (d != NULL);
+    DP_CHECK (costas_set_telemetry (d, tlm, "car2", 2) == DP_OK);
+    DP_CHECK (costas_set_state (d, b1) == DP_OK);
+    DP_CHECK (d->tlm.ctx == tlm);
+    DP_CHECK (d->tlm.id_e == dp_tlm_probe_id (tlm, "car2.e"));
     costas_get_state (d, b2);
-    CHECK (memcmp (b1, b2, sb) == 0); /* attachment-independent bytes */
+    DP_CHECK (memcmp (b1, b2, sb) == 0); /* attachment-independent bytes */
     free (b1);
     free (b2);
     costas_destroy (d);
 
     /* Detach: probe sites revert to the single-branch cost. */
-    CHECK (costas_set_telemetry (c, NULL, "car", 1) == DP_OK);
-    CHECK (c->tlm.ctx == NULL);
+    DP_CHECK (costas_set_telemetry (c, NULL, "car", 1) == DP_OK);
+    DP_CHECK (c->tlm.ctx == NULL);
     (void)costas_steps (c, rx, L, out, NS);
-    CHECK (dp_tlm_read (tlm, 512, recs, 512) == 0);
+    DP_CHECK (dp_tlm_read (tlm, 512, recs, 512) == 0);
 
     /* A full probe table fails the attach whole. */
     char pname[DP_TLM_NAME_MAX];
@@ -440,17 +429,11 @@ main (void)
         (void)snprintf (pname, sizeof (pname), "fill%zu", i);
         (void)dp_tlm_probe (tlm, pname, 1);
       }
-    CHECK (costas_set_telemetry (c, tlm, "nope", 1) == DP_ERR_INVALID);
-    CHECK (c->tlm.ctx == NULL);
+    DP_CHECK (costas_set_telemetry (c, tlm, "nope", 1) == DP_ERR_INVALID);
+    DP_CHECK (c->tlm.ctx == NULL);
     costas_destroy (c);
     dp_tlm_destroy (tlm);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_costas_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_costas_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_costas_core");
 }

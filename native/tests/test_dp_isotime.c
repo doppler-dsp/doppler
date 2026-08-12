@@ -15,30 +15,18 @@
  * hand-edit an expected value to make a failing test pass, since the whole
  * point is that this side follows the other.
  *
- * @note Uses the `_fails` + `CHECK` convention of the other hand-registered
+ * @note Uses dp_test.h, like every other C test here; hand-registered
  * tests, **not** `assert`. doppler builds Release, Release defines `NDEBUG`,
  * and `NDEBUG` compiles `assert` away — a first draft of this file used
  * `assert` and reported "all passed" while printing every mismatch, so a
  * deliberately broken formatter still exited 0.
  */
 #include "dp_isotime.h"
+#include "dp_test.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static int _fails = 0;
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /** 2026-08-05T04:15:30Z as seconds since the UNIX epoch. */
 #define T_2026 1785903330LL
@@ -55,10 +43,10 @@ expect (int64_t sec, uint32_t nsec, unsigned frac, const char *want)
                "want \"%s\"\n",
                __FILE__, (long long)sec, nsec, frac, n < 0 ? "<error>" : buf,
                n, want);
-      _fails++;
+      DP_RECORD_FAIL ();
       return;
     }
-  CHECK ((size_t)n == strlen (want));
+  DP_CHECK ((size_t)n == strlen (want));
 }
 
 static void
@@ -74,10 +62,10 @@ expect_ext (int64_t sec, uint32_t nsec, unsigned frac, const char *want)
                "\"%s\" (%d), want \"%s\"\n",
                __FILE__, (long long)sec, nsec, frac, n < 0 ? "<error>" : buf,
                n, want);
-      _fails++;
+      DP_RECORD_FAIL ();
       return;
     }
-  CHECK ((size_t)n == strlen (want));
+  DP_CHECK ((size_t)n == strlen (want));
 }
 
 /* iso-8601-basic -d '2026-08-05T04:15:30.123456789Z' [-m|-u|-n] */
@@ -133,17 +121,18 @@ test_rejects_bad_input (void)
 {
   char buf[DP_ISOTIME_MAX];
   /* nsec out of range */
-  CHECK (
+  DP_CHECK (
       dp_isotime_format (buf, sizeof buf, T_2026, 1000000000u, DP_ISOTIME_SEC)
       < 0);
   /* frac must be one of 0/3/6/9 */
-  CHECK (dp_isotime_format (buf, sizeof buf, T_2026, 0u, 1u) < 0);
-  CHECK (dp_isotime_format (buf, sizeof buf, T_2026, 0u, 12u) < 0);
-  CHECK (dp_isotime_format (NULL, sizeof buf, T_2026, 0u, DP_ISOTIME_SEC) < 0);
+  DP_CHECK (dp_isotime_format (buf, sizeof buf, T_2026, 0u, 1u) < 0);
+  DP_CHECK (dp_isotime_format (buf, sizeof buf, T_2026, 0u, 12u) < 0);
+  DP_CHECK (dp_isotime_format (NULL, sizeof buf, T_2026, 0u, DP_ISOTIME_SEC)
+            < 0);
   /* Too small a buffer reports failure rather than truncating silently. */
   char tiny[8];
-  CHECK (dp_isotime_format (tiny, sizeof tiny, T_2026, 0u, DP_ISOTIME_SEC)
-         < 0);
+  DP_CHECK (dp_isotime_format (tiny, sizeof tiny, T_2026, 0u, DP_ISOTIME_SEC)
+            < 0);
 }
 
 /* No colons, no path separators -- the entire reason the basic form exists. */
@@ -151,13 +140,13 @@ static void
 test_is_filename_safe (void)
 {
   char buf[DP_ISOTIME_MAX];
-  CHECK (
+  DP_CHECK (
       dp_isotime_format (buf, sizeof buf, T_2026, 123456789u, DP_ISOTIME_NSEC)
       > 0);
-  CHECK (strchr (buf, ':') == NULL);
-  CHECK (strchr (buf, '/') == NULL);
-  CHECK (strchr (buf, '\\') == NULL);
-  CHECK (strchr (buf, ' ') == NULL);
+  DP_CHECK (strchr (buf, ':') == NULL);
+  DP_CHECK (strchr (buf, '/') == NULL);
+  DP_CHECK (strchr (buf, '\\') == NULL);
+  DP_CHECK (strchr (buf, ' ') == NULL);
 }
 
 /* The extended spelling, which is what SigMF's `core:datetime` takes. Same
@@ -183,39 +172,41 @@ static void
 test_styles_agree (void)
 {
   char basic[DP_ISOTIME_MAX], ext[DP_ISOTIME_MAX], stripped[DP_ISOTIME_MAX];
-  CHECK (dp_isotime_format_as (basic, sizeof basic, T_2026, 123456789u,
-                               DP_ISOTIME_USEC, DP_ISOTIME_BASIC)
-         > 0);
-  CHECK (dp_isotime_format_as (ext, sizeof ext, T_2026, 123456789u,
-                               DP_ISOTIME_USEC, DP_ISOTIME_EXTENDED)
-         > 0);
+  DP_CHECK (dp_isotime_format_as (basic, sizeof basic, T_2026, 123456789u,
+                                  DP_ISOTIME_USEC, DP_ISOTIME_BASIC)
+            > 0);
+  DP_CHECK (dp_isotime_format_as (ext, sizeof ext, T_2026, 123456789u,
+                                  DP_ISOTIME_USEC, DP_ISOTIME_EXTENDED)
+            > 0);
   size_t k = 0;
   for (size_t i = 0; ext[i] != '\0'; i++)
     if (ext[i] != '-' && ext[i] != ':')
       stripped[k++] = ext[i];
   stripped[k] = '\0';
-  CHECK (strcmp (stripped, basic) == 0);
+  DP_CHECK (strcmp (stripped, basic) == 0);
   /* And extended really does carry the separators the basic form drops. */
-  CHECK (strchr (ext, ':') != NULL);
-  CHECK (strchr (basic, ':') == NULL);
+  DP_CHECK (strchr (ext, ':') != NULL);
+  DP_CHECK (strchr (basic, ':') == NULL);
 }
 
 static void
 test_rejects_bad_style (void)
 {
   char buf[DP_ISOTIME_MAX];
-  CHECK (dp_isotime_format_as (buf, sizeof buf, T_2026, 0u, DP_ISOTIME_SEC, 2)
-         < 0);
-  CHECK (dp_isotime_format_as (buf, sizeof buf, T_2026, 0u, DP_ISOTIME_SEC, -1)
-         < 0);
+  DP_CHECK (
+      dp_isotime_format_as (buf, sizeof buf, T_2026, 0u, DP_ISOTIME_SEC, 2)
+      < 0);
+  DP_CHECK (
+      dp_isotime_format_as (buf, sizeof buf, T_2026, 0u, DP_ISOTIME_SEC, -1)
+      < 0);
   /* Extended is 4 chars longer, so a buffer that fits basic may not fit it. */
   char snug[17]; /* exactly "20260805T041530Z" + NUL */
-  CHECK (dp_isotime_format_as (snug, sizeof snug, T_2026, 0u, DP_ISOTIME_SEC,
-                               DP_ISOTIME_BASIC)
-         == 16);
-  CHECK (dp_isotime_format_as (snug, sizeof snug, T_2026, 0u, DP_ISOTIME_SEC,
-                               DP_ISOTIME_EXTENDED)
-         < 0);
+  DP_CHECK (dp_isotime_format_as (snug, sizeof snug, T_2026, 0u,
+                                  DP_ISOTIME_SEC, DP_ISOTIME_BASIC)
+            == 16);
+  DP_CHECK (dp_isotime_format_as (snug, sizeof snug, T_2026, 0u,
+                                  DP_ISOTIME_SEC, DP_ISOTIME_EXTENDED)
+            < 0);
 }
 
 static void
@@ -223,10 +214,10 @@ test_now_is_wellformed (void)
 {
   char buf[DP_ISOTIME_MAX];
   int  n = dp_isotime_now (buf, sizeof buf, DP_ISOTIME_MSEC);
-  CHECK (n == 20); /* YYYYMMDDThhmmss.fffZ = 15 + 1 + 3 + 1 */
-  CHECK (n > 15 && buf[8] == 'T');
-  CHECK (n > 15 && buf[15] == '.');
-  CHECK (n > 0 && buf[n - 1] == 'Z');
+  DP_CHECK (n == 20); /* YYYYMMDDThhmmss.fffZ = 15 + 1 + 3 + 1 */
+  DP_CHECK (n > 15 && buf[8] == 'T');
+  DP_CHECK (n > 15 && buf[15] == '.');
+  DP_CHECK (n > 0 && buf[n - 1] == 'Z');
 }
 
 /* `--emit SEC NSEC FRAC` prints one basic-format stamp and exits, so
@@ -273,11 +264,5 @@ main (int argc, char **argv)
   test_rejects_bad_style ();
   test_now_is_wellformed ();
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_dp_isotime FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_dp_isotime PASSED\n");
-  return 0;
+  DP_TEST_END ("test_dp_isotime");
 }

@@ -10,25 +10,13 @@
  * test.)
  */
 
+#include "dp_test.h"
 #include "hbdecim/hbdecim_r2c_core.h"
 
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-static int _fails = 0;
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* 4-tap symmetric halfband FIR branch. */
 static const float H4[4] = { -0.2122f, 0.6366f, 0.6366f, -0.2122f };
@@ -38,10 +26,10 @@ main (void)
 {
   /* ── lifecycle ──────────────────────────────────────────────────────── */
   hbdecim_r2c_state_t *obj = hbdecim_r2c_create (4, H4);
-  CHECK (obj != NULL);
+  DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
-  CHECK (hbdecim_r2c_create (4, NULL) == NULL); /* NULL taps rejected */
+  DP_CHECK (hbdecim_r2c_create (4, NULL) == NULL); /* NULL taps rejected */
   hbdecim_r2c_destroy (obj);
 
   /* ── serializable state round-trip + reject ─────────────────────────── */
@@ -65,28 +53,22 @@ main (void)
     hbdecim_r2c_destroy (r1);
 
     hbdecim_r2c_state_t *r2 = hbdecim_r2c_create (4, H4);
-    CHECK (hbdecim_r2c_set_state (r2, blob) == DP_OK);
+    DP_CHECK (hbdecim_r2c_set_state (r2, blob) == DP_OK);
     ((char *)blob)[0] ^= (char)0xFF; /* clobber envelope -> reject */
-    CHECK (hbdecim_r2c_set_state (r2, blob) == DP_ERR_INVALID);
+    DP_CHECK (hbdecim_r2c_set_state (r2, blob) == DP_ERR_INVALID);
     ((char *)blob)[0] ^= (char)0xFF;
     nB += hbdecim_r2c_execute (r2, in + cut, L - cut, outB + nB, CAP - nB);
     hbdecim_r2c_destroy (r2);
     free (blob);
 
-    CHECK (nA == nB);
+    DP_CHECK (nA == nB);
     for (size_t i = 0; i < nA && i < nB; i++)
-      CHECK (crealf (outA[i]) == crealf (outB[i])
-             && cimagf (outA[i]) == cimagf (outB[i]));
+      DP_CHECK (crealf (outA[i]) == crealf (outB[i])
+                && cimagf (outA[i]) == cimagf (outB[i]));
     free (in);
     free (outA);
     free (outB);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_hbdecim_r2c_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_hbdecim_r2c_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_hbdecim_r2c_core");
 }

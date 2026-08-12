@@ -1,18 +1,8 @@
 #include "ber_meter/ber_meter_core.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* Floating-point helpers — use inline functions, not macros, so arguments
  * are evaluated exactly once.  Safe to call with stateful step() results. */
@@ -34,9 +24,8 @@ _almost_eq_c (float complex a, float complex b, float tol)
 int
 main (void)
 {
-  int                _fails = 0;
-  ber_meter_state_t *obj    = ber_meter_create (4, 200, 0.99);
-  CHECK (obj != NULL);
+  ber_meter_state_t *obj = ber_meter_create (4, 200, 0.99);
+  DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
 
@@ -46,11 +35,5 @@ main (void)
   ber_meter_reset (obj);
 
   ber_meter_destroy (obj);
-  if (_fails)
-    {
-      fprintf (stderr, "test_ber_meter_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_ber_meter_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_ber_meter_core");
 }

@@ -1,19 +1,9 @@
 #include "adc/adc_core.h"
 #include "dp_state_test.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* Floating-point helpers — use inline functions, not macros, so arguments
  * are evaluated exactly once.  Safe to call with stateful step() results. */
@@ -35,9 +25,8 @@ _almost_eq_c (float complex a, float complex b, float tol)
 int
 main (void)
 {
-  int          _fails = 0;
-  adc_state_t *obj    = adc_create (16, -10.0f, 0);
-  CHECK (obj != NULL);
+  adc_state_t *obj = adc_create (16, -10.0f, 0);
+  DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
 
@@ -48,25 +37,19 @@ main (void)
   adc_reset (obj);
 
   adc_destroy (obj);
-  if (_fails)
-    {
-      fprintf (stderr, "test_adc_core FAILED (%d)\n", _fails);
-      return 1;
-    }
   /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
   {
     adc_state_t *a = adc_create (8, 0.0f, 1);
     adc_state_t *b = adc_create (8, 0.0f, 1);
-    CHECK (a != NULL && b != NULL);
+    DP_CHECK (a != NULL && b != NULL);
     for (int i = 0; i < 20; i++)
       (void)adc_step (a, 2.0f); /* clip + advance dither RNG */
     DP_STATE_ROUNDTRIP_TEST (adc, a, b);
-    CHECK (b->rng == a->rng && b->clipped == a->clipped);
-    CHECK (adc_step (b, 0.3f) == adc_step (a, 0.3f));
+    DP_CHECK (b->rng == a->rng && b->clipped == a->clipped);
+    DP_CHECK (adc_step (b, 0.3f) == adc_step (a, 0.3f));
     adc_destroy (a);
     adc_destroy (b);
   }
 
-  printf ("test_adc_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_adc_core");
 }

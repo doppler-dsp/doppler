@@ -22,25 +22,13 @@
  * emission count can falsify the audit.
  */
 #include "carrier_nda/carrier_nda_core.h"
+#include "dp_test.h"
 #include "dp_tlm_capture/dp_tlm_capture_core.h"
 
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
-
-static int _fails = 0;
 
 /* One QPSK-ish block with a carrier offset, so the loop actually tracks and
    every probe has something to say. Content does not matter to the bound --
@@ -66,31 +54,31 @@ main (void)
 
   carrier_nda_state_t *c = carrier_nda_create (0.01, 0.707, 0.0, SPS, 4, 4);
   dp_tlm_t            *t = dp_tlm_create (1);
-  CHECK (c && t);
+  DP_CHECK (c && t);
   if (!c || !t)
     return 1;
 
   /* decim = 1: every event on every probe, the densest the object can be. */
-  CHECK (carrier_nda_set_telemetry (c, t, "car", 1) == DP_OK);
+  DP_CHECK (carrier_nda_set_telemetry (c, t, "car", 1) == DP_OK);
 
   size_t probes = dp_tlm_probe_count (t);
   /* 4, all its own. Was 5 until gh-657 retired the embedded arm AGC and with
      it the forwarded "car.agc.gain_db". If this number moves, the bound moves
      with it -- which is the point of deriving it rather than hard-coding. */
-  CHECK (probes == 4);
+  DP_CHECK (probes == 4);
 
   size_t bound = dp_tlm_block_bound (t, BLOCK);
-  CHECK (bound == probes * BLOCK);
+  DP_CHECK (bound == probes * BLOCK);
 
   float complex *x = malloc (BLOCK * sizeof *x);
   float complex *y = malloc (BLOCK * sizeof *y);
-  CHECK (x && y);
+  DP_CHECK (x && y);
   if (!x || !y)
     return 1;
   fill (x, BLOCK, SPS, 1.0 / 512.0);
 
   dp_tlm_capture_t *cap = dp_tlm_capture_open (t, BLOCK, NULL, NULL);
-  CHECK (cap != NULL);
+  DP_CHECK (cap != NULL);
 
   /* Measure the WORST block, not just the total: an object that averaged
      under the bound while overshooting on one block would still overflow a
@@ -105,7 +93,7 @@ main (void)
       prev = got;
       (void)carrier_nda_steps (c, x, BLOCK, y, BLOCK);
     }
-  CHECK (dp_tlm_capture_close (cap) == DP_OK);
+  DP_CHECK (dp_tlm_capture_close (cap) == DP_OK);
 
   size_t total = dp_tlm_capture_count (cap);
   size_t tail  = total - prev;
@@ -119,11 +107,11 @@ main (void)
 
   /* THE assertion: a real object, at its densest setting, never exceeded the
      bound in any single block. */
-  CHECK (worst <= bound);
-  CHECK (total <= (size_t)NBLK * bound);
+  DP_CHECK (worst <= bound);
+  DP_CHECK (total <= (size_t)NBLK * bound);
   /* And, because the ring was sized to the bound, nothing was lost. */
-  CHECK (dp_tlm_capture_dropped (cap) == 0);
-  CHECK (dp_tlm_dropped (t) == 0);
+  DP_CHECK (dp_tlm_capture_dropped (cap) == 0);
+  DP_CHECK (dp_tlm_dropped (t) == 0);
 
   /* Tightness, which is what makes the inequality above mean something. The
      audit predicts this object emits 4 probes per input UNCONDITIONALLY and
@@ -142,9 +130,9 @@ main (void)
      nothing at all. The equality pins the prediction itself, and it is
      deliberately brittle: if this object's emission density moves again, this
      goes red, and that is the correct outcome. */
-  CHECK (total > 0);
-  CHECK (worst > bound / 2);
-  CHECK (worst == 4 * BLOCK); /* the audit's exact prediction */
+  DP_CHECK (total > 0);
+  DP_CHECK (worst > bound / 2);
+  DP_CHECK (worst == 4 * BLOCK); /* the audit's exact prediction */
 
   dp_tlm_capture_destroy (cap);
   dp_tlm_destroy (t);
@@ -152,11 +140,5 @@ main (void)
   free (x);
   free (y);
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_tlm_bound_real FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_tlm_bound_real PASSED\n");
-  return 0;
+  DP_TEST_END ("test_tlm_bound_real");
 }

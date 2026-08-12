@@ -1,18 +1,8 @@
+#include "dp_test.h"
 #include "nprmeas/nprmeas_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 #define NCAP 32768u
 
@@ -53,12 +43,11 @@ notched_noise (float *x, size_t n, double depth_db)
 int
 main (void)
 {
-  int    _fails = 0;
-  float *x      = (float *)malloc (NCAP * sizeof (float));
+  float *x = (float *)malloc (NCAP * sizeof (float));
 
   /* dynamic_range_db = 90 -> Kaiser beta ~12, matching the old default. */
   nprmeas_state_t *m = nprmeas_create (NCAP, 1.0, 1.0, 0, 90.0);
-  CHECK (m != NULL);
+  DP_CHECK (m != NULL);
 
   /* active band [0.06, 0.46], notch [0.20, 0.25] (k in [200,250] over n) ->
    * normalised freq k/n.  fs=1, df = 1/nfft.  active in Hz = [60,460]/NCAP. */
@@ -73,8 +62,8 @@ main (void)
       r = nprmeas_analyze (m, x, NCAP, alo, ahi, nlo, nhi, guard);
       /* measured NPR should track the synthesised notch depth (loose: the
        * window skirts and finite bins blur it). */
-      CHECK (fabs (r.npr_db - (double)depth) < 8.0);
-      CHECK (r.n_inband_bins > 0 && r.n_notch_bins > 0);
+      DP_CHECK (fabs (r.npr_db - (double)depth) < 8.0);
+      DP_CHECK (r.n_inband_bins > 0 && r.n_notch_bins > 0);
     }
 
   nprmeas_destroy (m);
@@ -90,32 +79,26 @@ main (void)
     size_t           cap = nprmeas_spectrum_dbfs_max_out (m); /* == nfft */
     float           *xs  = (float *)malloc (NCAP * sizeof (float));
     float           *o   = (float *)malloc (cap * sizeof (float));
-    CHECK (m && xs && o);
+    DP_CHECK (m && xs && o);
     for (size_t i = 0; i < NCAP; i++)
       xs[i] = (float)sin (0.05 * (double)i);
     for (size_t i = 0; i < cap; i++)
       o[i] = 42.0f;
 
-    CHECK (nprmeas_spectrum_dbfs (m, xs, NCAP, o, 5) == 5);
+    DP_CHECK (nprmeas_spectrum_dbfs (m, xs, NCAP, o, 5) == 5);
     for (size_t i = 5; i < cap; i++)
-      CHECK (o[i] == 42.0f); /* tail untouched */
+      DP_CHECK (o[i] == 42.0f); /* tail untouched */
 
     /* Zero capacity emits nothing. */
     for (size_t i = 0; i < cap; i++)
       o[i] = 42.0f;
-    CHECK (nprmeas_spectrum_dbfs (m, xs, NCAP, o, 0) == 0);
+    DP_CHECK (nprmeas_spectrum_dbfs (m, xs, NCAP, o, 0) == 0);
     for (size_t i = 0; i < cap; i++)
-      CHECK (o[i] == 42.0f);
+      DP_CHECK (o[i] == 42.0f);
     free (xs);
     free (o);
     nprmeas_destroy (m);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_nprmeas_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_nprmeas_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_nprmeas_core");
 }

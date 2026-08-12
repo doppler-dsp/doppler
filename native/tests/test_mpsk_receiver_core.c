@@ -19,6 +19,7 @@
  * lock metric reveals; a unit-amplitude constellation plus noise sits right on
  * that edge. See mpsk_receiver_get_clipped().
  */
+#include "dp_test.h"
 #include "dp_state_test.h"
 #include "dp_sym_test.h"
 #include "mpsk_receiver/mpsk_receiver_core.h"
@@ -26,17 +27,6 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 #define NSYM 6000
 #define SPS 8.0
@@ -184,7 +174,6 @@ RX (int m, double sps, size_t m_out, int pulse, double bn_carrier,
 int
 main (void)
 {
-  int            _fails = 0;
   float complex *tx     = malloc (NSAMP * sizeof (*tx));
   int           *idx    = malloc (NSYM * sizeof (int));
   float complex *out    = malloc (NSYM * sizeof (*out));
@@ -192,34 +181,34 @@ main (void)
   /* 1. Lifecycle / validation / getters / reset reproducibility */
   {
     /* invalid args -> NULL */
-    CHECK (RX (3, SPS, M_OUT, 0, 0.01, 0, 0.5, 0.0, 100) == NULL); /* bad m  */
-    CHECK (RX (4, SPS, 3, 0, 0.01, 0, 0.5, 0.0, 100) == NULL); /* m_out odd  */
-    CHECK (RX (4, SPS, 16, 0, 0.01, 0, 0.5, 0.0, 100) == NULL); /* m_out > 8 */
-    CHECK (RX (4, 2.0, 4, 0, 0.01, 0, 0.5, 0.0, 100)
+    DP_CHECK (RX (3, SPS, M_OUT, 0, 0.01, 0, 0.5, 0.0, 100) == NULL); /* bad m  */
+    DP_CHECK (RX (4, SPS, 3, 0, 0.01, 0, 0.5, 0.0, 100) == NULL); /* m_out odd  */
+    DP_CHECK (RX (4, SPS, 16, 0, 0.01, 0, 0.5, 0.0, 100) == NULL); /* m_out > 8 */
+    DP_CHECK (RX (4, 2.0, 4, 0, 0.01, 0, 0.5, 0.0, 100)
            == NULL); /* sps < m_out: the terminal stage would interpolate */
-    CHECK (RX (4, 0.0, 4, 0, 0.01, 0, 0.5, 0.0, 100) == NULL); /* sps == 0  */
-    CHECK (RX (4, SPS, M_OUT, 2, 0.01, 0, 0.5, 0.0, 100)
+    DP_CHECK (RX (4, 0.0, 4, 0, 0.01, 0, 0.5, 0.0, 100) == NULL); /* sps == 0  */
+    DP_CHECK (RX (4, SPS, M_OUT, 2, 0.01, 0, 0.5, 0.0, 100)
            == NULL); /* bad pulse */
 
     mpsk_receiver_state_t *rx
         = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
-    CHECK (rx != NULL);
+    DP_CHECK (rx != NULL);
     if (!rx)
       return 1;
-    CHECK (mpsk_receiver_get_m (rx) == 4);
-    CHECK (mpsk_receiver_get_sps (rx) == SPS);
-    CHECK (mpsk_receiver_get_m_out (rx) == M_OUT);
-    CHECK (mpsk_receiver_get_tracking (rx) == 0);
-    CHECK (mpsk_receiver_get_clipped (rx) == 0); /* nothing pushed yet */
+    DP_CHECK (mpsk_receiver_get_m (rx) == 4);
+    DP_CHECK (mpsk_receiver_get_sps (rx) == SPS);
+    DP_CHECK (mpsk_receiver_get_m_out (rx) == M_OUT);
+    DP_CHECK (mpsk_receiver_get_tracking (rx) == 0);
+    DP_CHECK (mpsk_receiver_get_clipped (rx) == 0); /* nothing pushed yet */
 
     make_mpsk (tx, idx, 4, 0.0008, 35.0, 99u);
     size_t k1 = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
     double f1 = mpsk_receiver_get_norm_freq (rx);
     mpsk_receiver_reset (rx);
-    CHECK (mpsk_receiver_get_tracking (rx) == 0);
+    DP_CHECK (mpsk_receiver_get_tracking (rx) == 0);
     size_t k2 = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
-    CHECK (k1 == k2);
-    CHECK (mpsk_receiver_get_norm_freq (rx) == f1); /* reset is reproducible */
+    DP_CHECK (k1 == k2);
+    DP_CHECK (mpsk_receiver_get_norm_freq (rx) == f1); /* reset is reproducible */
     mpsk_receiver_destroy (rx);
   }
 
@@ -242,13 +231,13 @@ main (void)
           size_t k   = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
           double ser = tail_ser (out, k, idx, m, phi0_for (m),
                                  dp_test_settle_syms (0.01, 0.005));
-          CHECK (ser < 0.01); /* clean recovery       */
+          DP_CHECK (ser < 0.01); /* clean recovery       */
           /* The lock EMA's noise-only sd is CARRIER_NDA_LOCK_NORM_SD (0.1132)
              at EVERY m, so a threshold is meaningfully stated in sigmas. The
              shipped default lock_thresh of 0.5 is 4.42 sigma (per-look Pfa
              5e-6); assert that here rather than the old 0.15, which was only
              1.3 sigma -- a value a noise-only run reaches routinely. */
-          CHECK (mpsk_receiver_get_lock (rx) > 0.5);
+          DP_CHECK (mpsk_receiver_get_lock (rx) > 0.5);
           mpsk_receiver_destroy (rx);
         }
   }
@@ -259,12 +248,12 @@ main (void)
   {
     mpsk_receiver_state_t *rx
         = RX (4, SPS, M_OUT, MPSK_RX_PULSE_RRC, 0.005, 0, 0.5, 0.0, 200);
-    CHECK (rx != NULL);
+    DP_CHECK (rx != NULL);
     make_mpsk (tx, idx, 4, 0.0, 30.0, 21u);
     size_t k   = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
     double ser = tail_ser (out, k, idx, 4, phi0_for (4),
                            dp_test_settle_syms (0.01, 0.005));
-    CHECK (ser < 0.02);
+    DP_CHECK (ser < 0.02);
     mpsk_receiver_destroy (rx);
   }
 
@@ -287,10 +276,10 @@ main (void)
         = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 1, 0.65, 0.0, 200);
     make_mpsk (tx, idx, 4, 0.0005, 30.0, 33u);
     size_t k = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
-    CHECK (mpsk_receiver_get_tracking (rx) == 1); /* handed over */
+    DP_CHECK (mpsk_receiver_get_tracking (rx) == 1); /* handed over */
     double ser = tail_ser (out, k, idx, 4, phi0_for (4),
                            dp_test_settle_syms (0.01, 0.01));
-    CHECK (ser < 0.01);
+    DP_CHECK (ser < 0.01);
 
     /* two-way: a sustained lock loss (noise-dominated input collapses the
        lock EMA below the 0.8x drop threshold for 32 straight symbols)
@@ -303,11 +292,11 @@ main (void)
        estimate before the signal returns. */
     make_mpsk (tx, idx, 4, 0.0005, -10.0, 44u);
     (void)mpsk_receiver_steps (rx, tx, (NSAMP / 10), out, NSYM);
-    CHECK (mpsk_receiver_get_tracking (rx) == 0); /* dropped back */
+    DP_CHECK (mpsk_receiver_get_tracking (rx) == 0); /* dropped back */
     mpsk_receiver_set_norm_freq (rx, 0.0005);     /* acq re-seed */
     make_mpsk (tx, idx, 4, 0.0005, 30.0, 45u);
     (void)mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
-    CHECK (mpsk_receiver_get_tracking (rx) == 1); /* re-declared */
+    DP_CHECK (mpsk_receiver_get_tracking (rx) == 1); /* re-declared */
     mpsk_receiver_destroy (rx);
   }
 
@@ -325,14 +314,14 @@ main (void)
         = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
     mpsk_receiver_state_t *b
         = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
-    CHECK (a != NULL && b != NULL);
+    DP_CHECK (a != NULL && b != NULL);
     (void)mpsk_receiver_steps (a, tx, 256, out, 32);
     DP_STATE_ROUNDTRIP_TEST (mpsk_receiver, a, b);
-    CHECK (b->l.sym_count == a->l.sym_count);
+    DP_CHECK (b->l.sym_count == a->l.sym_count);
     /* the timing loop's strobe phase is the child that must resume */
-    CHECK (b->l.timing.out_count == a->l.timing.out_count);
-    CHECK (b->l.timing.prime_left == a->l.timing.prime_left);
-    CHECK (b->l.sym_rot == a->l.sym_rot);
+    DP_CHECK (b->l.timing.out_count == a->l.timing.out_count);
+    DP_CHECK (b->l.timing.prime_left == a->l.timing.prime_left);
+    DP_CHECK (b->l.sym_rot == a->l.sym_rot);
     mpsk_receiver_destroy (a);
     mpsk_receiver_destroy (b);
   }
@@ -348,28 +337,28 @@ main (void)
     dp_tlm_t              *tlm = dp_tlm_create (4096);
     mpsk_receiver_state_t *a
         = RX (2, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
-    CHECK (tlm != NULL && a != NULL);
-    CHECK (mpsk_receiver_set_telemetry (a, tlm, "rx", 1) == DP_OK);
-    CHECK (dp_tlm_probe_id (tlm, "rx.lock") == a->l.tlm.id_lock);
-    CHECK (dp_tlm_probe_id (tlm, "rx.tracking") == a->l.tlm.id_tracking);
-    CHECK (dp_tlm_probe_id (tlm, "rx.car.e") == a->l.tlm.id_e);
-    CHECK (dp_tlm_probe_id (tlm, "rx.car.freq") == a->l.tlm.id_freq);
-    CHECK (dp_tlm_probe_id (tlm, "rx.car.locked") == a->l.tlm.id_locked);
-    CHECK (dp_tlm_probe_id (tlm, "rx.sync.e") == a->l.timing.tlm.id_e);
-    CHECK (dp_tlm_probe_id (tlm, "rx.sync.locked")
+    DP_CHECK (tlm != NULL && a != NULL);
+    DP_CHECK (mpsk_receiver_set_telemetry (a, tlm, "rx", 1) == DP_OK);
+    DP_CHECK (dp_tlm_probe_id (tlm, "rx.lock") == a->l.tlm.id_lock);
+    DP_CHECK (dp_tlm_probe_id (tlm, "rx.tracking") == a->l.tlm.id_tracking);
+    DP_CHECK (dp_tlm_probe_id (tlm, "rx.car.e") == a->l.tlm.id_e);
+    DP_CHECK (dp_tlm_probe_id (tlm, "rx.car.freq") == a->l.tlm.id_freq);
+    DP_CHECK (dp_tlm_probe_id (tlm, "rx.car.locked") == a->l.tlm.id_locked);
+    DP_CHECK (dp_tlm_probe_id (tlm, "rx.sync.e") == a->l.timing.tlm.id_e);
+    DP_CHECK (dp_tlm_probe_id (tlm, "rx.sync.locked")
            == a->l.timing.tlm.id_locked);
-    CHECK (dp_tlm_probe_id (tlm, "rx.sync.mu") == a->l.timing.tlm.id_mu);
+    DP_CHECK (dp_tlm_probe_id (tlm, "rx.sync.mu") == a->l.timing.tlm.id_mu);
     /* The front end's AGC is the third loop, forwarded under "rx.agc". It was
        the only one of the three emitting nothing, which made its settling the
        one thing a caller had to infer -- and by mpsk_rx_agc_bn() it is the
        SLOWEST of the three, so it is what sets the receiver's warmup. */
     int id_agc_gain = dp_tlm_probe_id (tlm, "rx.agc.gain_db");
     int id_agc_lvl  = dp_tlm_probe_id (tlm, "rx.agc.level_db");
-    CHECK (id_agc_gain >= 0 && id_agc_lvl >= 0);
-    CHECK (dp_tlm_probe_count (tlm) == 13);
+    DP_CHECK (id_agc_gain >= 0 && id_agc_lvl >= 0);
+    DP_CHECK (dp_tlm_probe_count (tlm) == 13);
 
     size_t n_sym = mpsk_receiver_steps (a, tx, 512, out, 80);
-    CHECK (n_sym > 0);
+    DP_CHECK (n_sym > 0);
     dp_tlm_rec_t recs[2048];
     size_t       n_rec = dp_tlm_read (tlm, 2048, recs, 2048);
     /* lock + tracking + car(e,freq,locked) + sync(e,ctrl,rate,lock,locked,mu):
@@ -384,10 +373,10 @@ main (void)
       if (recs[i].probe == (uint16_t)id_agc_gain
           || recs[i].probe == (uint16_t)id_agc_lvl)
         n_agc++;
-    CHECK (n_agc > 0);          /* the forward actually reaches the AGC */
-    CHECK (n_agc % 2 == 0);     /* both probes emit together, always    */
-    CHECK (n_agc / 2 != n_sym); /* a cascade grid, not the symbol grid  */
-    CHECK (n_rec == 11 * n_sym + n_agc);
+    DP_CHECK (n_agc > 0);          /* the forward actually reaches the AGC */
+    DP_CHECK (n_agc % 2 == 0);     /* both probes emit together, always    */
+    DP_CHECK (n_agc / 2 != n_sym); /* a cascade grid, not the symbol grid  */
+    DP_CHECK (n_rec == 11 * n_sym + n_agc);
 
     /* `mu` is the timing NCO's phase, so it is a FRACTION: every record must
        land in [0, 1) whatever the loop is doing, and it must actually vary
@@ -399,27 +388,27 @@ main (void)
         if (recs[i].probe == (uint16_t)a->l.timing.tlm.id_mu)
           {
             double v = (double)recs[i].value;
-            CHECK (v >= 0.0 && v < 1.0);
+            DP_CHECK (v >= 0.0 && v < 1.0);
             mn = v < mn ? v : mn;
             mx = v > mx ? v : mx;
             n_mu++;
           }
-      CHECK (n_mu == (int)n_sym);
-      CHECK (mx > mn);
+      DP_CHECK (n_mu == (int)n_sym);
+      DP_CHECK (mx > mn);
     }
 
     /* Detach cascades to both embedded loops (and the AGC). */
-    CHECK (mpsk_receiver_set_telemetry (a, NULL, "rx", 1) == DP_OK);
-    CHECK (a->l.tlm.ctx == NULL && a->l.timing.tlm.ctx == NULL);
+    DP_CHECK (mpsk_receiver_set_telemetry (a, NULL, "rx", 1) == DP_OK);
+    DP_CHECK (a->l.tlm.ctx == NULL && a->l.timing.tlm.ctx == NULL);
     (void)mpsk_receiver_steps (a, tx, 512, out, 80);
-    CHECK (dp_tlm_read (tlm, 2048, recs, 2048) == 0);
+    DP_CHECK (dp_tlm_read (tlm, 2048, recs, 2048) == 0);
 
     /* bits() flushes telemetry too (the guarded in-loop path). */
-    CHECK (mpsk_receiver_set_telemetry (a, tlm, "rx2", 1) == DP_OK);
+    DP_CHECK (mpsk_receiver_set_telemetry (a, tlm, "rx2", 1) == DP_OK);
     uint8_t bit_out[128];
     size_t  n_bits = mpsk_receiver_bits (a, tx, 512, bit_out, 128);
-    CHECK (n_bits > 0);
-    CHECK (dp_tlm_read (tlm, 2048, recs, 2048) > 0);
+    DP_CHECK (n_bits > 0);
+    DP_CHECK (dp_tlm_read (tlm, 2048, recs, 2048) > 0);
 
     /* A full probe table fails the attach whole (receiver detached). */
     char pname[DP_TLM_NAME_MAX];
@@ -430,23 +419,23 @@ main (void)
       }
     mpsk_receiver_state_t *b
         = RX (2, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
-    CHECK (b != NULL);
-    CHECK (mpsk_receiver_set_telemetry (b, tlm, "full", 1) == DP_ERR_INVALID);
-    CHECK (b->l.tlm.ctx == NULL);
+    DP_CHECK (b != NULL);
+    DP_CHECK (mpsk_receiver_set_telemetry (b, tlm, "full", 1) == DP_ERR_INVALID);
+    DP_CHECK (b->l.tlm.ctx == NULL);
 
     /* Partial registration failure unwinds: leave exactly six slots — the
      * receiver's own five probes fit, the six-probe timing forward cannot,
      * and the whole attach fails with everything detached again. */
     dp_tlm_t *tlm2 = dp_tlm_create (256);
-    CHECK (tlm2 != NULL);
+    DP_CHECK (tlm2 != NULL);
     for (size_t i = 0;
          dp_tlm_probe_count (tlm2) < (size_t)(DP_TLM_MAX_PROBES - 6); i++)
       {
         (void)snprintf (pname, sizeof (pname), "fill%zu", i);
         (void)dp_tlm_probe (tlm2, pname, 1);
       }
-    CHECK (mpsk_receiver_set_telemetry (b, tlm2, "uw", 1) == DP_ERR_INVALID);
-    CHECK (b->l.tlm.ctx == NULL && b->l.timing.tlm.ctx == NULL);
+    DP_CHECK (mpsk_receiver_set_telemetry (b, tlm2, "uw", 1) == DP_ERR_INVALID);
+    DP_CHECK (b->l.tlm.ctx == NULL && b->l.timing.tlm.ctx == NULL);
     dp_tlm_destroy (tlm2);
 
     /* The unwind one step further out: leave exactly ELEVEN slots, so both
@@ -454,18 +443,18 @@ main (void)
        the loops are rolled back too, or a caller who checked the return value
        would still be quietly emitting eleven of thirteen probes. */
     dp_tlm_t *tlm3 = dp_tlm_create (256);
-    CHECK (tlm3 != NULL);
+    DP_CHECK (tlm3 != NULL);
     for (size_t i = 0;
          dp_tlm_probe_count (tlm3) < (size_t)(DP_TLM_MAX_PROBES - 11); i++)
       {
         (void)snprintf (pname, sizeof (pname), "fill%zu", i);
         (void)dp_tlm_probe (tlm3, pname, 1);
       }
-    CHECK (mpsk_receiver_set_telemetry (b, tlm3, "uw2", 1) == DP_ERR_INVALID);
-    CHECK (b->l.tlm.ctx == NULL && b->l.timing.tlm.ctx == NULL);
+    DP_CHECK (mpsk_receiver_set_telemetry (b, tlm3, "uw2", 1) == DP_ERR_INVALID);
+    DP_CHECK (b->l.tlm.ctx == NULL && b->l.timing.tlm.ctx == NULL);
     /* And nothing emits: the rollback is real, not just a flag. */
     (void)mpsk_receiver_steps (b, tx, 512, out, 80);
-    CHECK (dp_tlm_read (tlm3, 2048, recs, 2048) == 0);
+    DP_CHECK (dp_tlm_read (tlm3, 2048, recs, 2048) == 0);
     dp_tlm_destroy (tlm3);
 
     /* With agc = 0 there is no third loop to attach: eleven probes, and the
@@ -476,12 +465,12 @@ main (void)
         0.0, 100, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 0,
         MPSK_RX_AGC_BW_RATIO);
     dp_tlm_t *tlm4 = dp_tlm_create (4096);
-    CHECK (noagc != NULL && tlm4 != NULL);
+    DP_CHECK (noagc != NULL && tlm4 != NULL);
     if (noagc && tlm4)
       {
-        CHECK (mpsk_receiver_set_telemetry (noagc, tlm4, "rx", 1) == DP_OK);
-        CHECK (dp_tlm_probe_count (tlm4) == 11);
-        CHECK (dp_tlm_probe_id (tlm4, "rx.agc.gain_db") < 0);
+        DP_CHECK (mpsk_receiver_set_telemetry (noagc, tlm4, "rx", 1) == DP_OK);
+        DP_CHECK (dp_tlm_probe_count (tlm4) == 11);
+        DP_CHECK (dp_tlm_probe_id (tlm4, "rx.agc.gain_db") < 0);
       }
     dp_tlm_destroy (tlm4);
     mpsk_receiver_destroy (noagc);
@@ -517,16 +506,16 @@ main (void)
             4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, bn_c, 0.707, bn_t, 0,
             0.5, 0.0, 100, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 1,
             MPSK_RX_AGC_BW_RATIO);
-        CHECK (rx != NULL);
+        DP_CHECK (rx != NULL);
         if (!rx)
           continue;
         /* The receiver's ONE AGC, in the front-end cascade; bn is per symbol
            on both sides of the comparison. */
         double bn_agc = rx->fe->rc->agc_bn_sym;
-        CHECK (bn_agc < bn_c && bn_agc < bn_t);
+        DP_CHECK (bn_agc < bn_c && bn_agc < bn_t);
         /* And it is the ratio, off the slowest — not merely "smaller". */
         double slowest = bn_c < bn_t ? bn_c : bn_t;
-        CHECK (fabs (bn_agc - MPSK_RX_AGC_BW_RATIO * slowest)
+        DP_CHECK (fabs (bn_agc - MPSK_RX_AGC_BW_RATIO * slowest)
                < 1e-15 * slowest + 1e-18);
         mpsk_receiver_destroy (rx);
       }
@@ -548,7 +537,7 @@ main (void)
     float complex         *tx = stx; /* keep the body reading naturally */
     mpsk_receiver_state_t *a
         = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
-    CHECK (a != NULL);
+    DP_CHECK (a != NULL);
     if (a)
       {
         /* Enough input for the loop to move off unity, nowhere near
@@ -556,9 +545,9 @@ main (void)
         float complex y[512];
         size_t        n_pre = (size_t)SPS * 200u;
         (void)mpsk_receiver_steps (a, tx, n_pre, y, 512);
-        CHECK (a->fe->rc->agc != NULL);
+        DP_CHECK (a->fe->rc->agc != NULL);
         /* Non-vacuous: the gain is genuinely mid-flight at the split. */
-        CHECK (mpsk_receiver_get_agc_gain_db (a) != 0.0);
+        DP_CHECK (mpsk_receiver_get_agc_gain_db (a) != 0.0);
 
         size_t   nb   = mpsk_receiver_state_bytes (a);
         uint8_t *blob = malloc (nb);
@@ -566,7 +555,7 @@ main (void)
 
         mpsk_receiver_state_t *b
             = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
-        CHECK (b != NULL && mpsk_receiver_set_state (b, blob) == DP_OK);
+        DP_CHECK (b != NULL && mpsk_receiver_set_state (b, blob) == DP_OK);
 
         /* Resume both on the same remainder; every symbol must match bit for
          * bit, which it cannot if the in-flight seed mean was lost. */
@@ -575,12 +564,12 @@ main (void)
             = mpsk_receiver_steps (a, tx + n_pre, NSAMP - n_pre, ya, 512);
         size_t nc
             = mpsk_receiver_steps (b, tx + n_pre, NSAMP - n_pre, yb, 512);
-        CHECK (na == nc && na > 0);
+        DP_CHECK (na == nc && na > 0);
         int same = 1;
         for (size_t i = 0; i < na && i < nc; i++)
           if (memcmp (&ya[i], &yb[i], sizeof ya[i]) != 0)
             same = 0;
-        CHECK (same);
+        DP_CHECK (same);
 
         free (blob);
         mpsk_receiver_destroy (b);
@@ -618,22 +607,22 @@ main (void)
                 4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.01,
                 0, 0.5, 0.0, 100, 0, MPSK_RX_NUM_PHASES,
                 MPSK_RX_NDA_TAP_STROBE, use_agc, MPSK_RX_AGC_BW_RATIO);
-            CHECK (rx != NULL);
+            DP_CHECK (rx != NULL);
             if (rx)
               {
                 size_t n = mpsk_receiver_steps (rx, sx, NSAMP, so, NSYM);
-                CHECK (n > 0);
+                DP_CHECK (n > 0);
                 if (use_agc)
                   {
                     gain[a] = mpsk_receiver_get_agc_gain_db (rx);
                     nsym[a] = n;
                     /* SER 0 at every level, not merely "it ran". */
-                    CHECK (tail_ser (so, n, si, 4, phi0_for (4), 400) == 0.0);
+                    DP_CHECK (tail_ser (so, n, si, 4, phi0_for (4), 400) == 0.0);
                   }
                 else
                   {
                     /* agc=0 is the bisect handle: no gain, ever. */
-                    CHECK (mpsk_receiver_get_agc_gain_db (rx) == 0.0);
+                    DP_CHECK (mpsk_receiver_get_agc_gain_db (rx) == 0.0);
                   }
                 mpsk_receiver_destroy (rx);
               }
@@ -643,18 +632,11 @@ main (void)
           }
       }
     /* Same symbol count at every level -- the receiver did the same work. */
-    CHECK (nsym[0] == nsym[1] && nsym[1] == nsym[2]);
+    DP_CHECK (nsym[0] == nsym[1] && nsym[1] == nsym[2]);
     /* And the AGC is what made the levels agree: its gain tracked the input
        across the full 24 dB, which is the non-vacuous half. */
-    CHECK (gain[0] - gain[1] > 10.0 && gain[1] - gain[2] > 10.0);
+    DP_CHECK (gain[0] - gain[1] > 10.0 && gain[1] - gain[2] > 10.0);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_mpsk_receiver_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-
-  printf ("test_mpsk_receiver_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_mpsk_receiver_core");
 }

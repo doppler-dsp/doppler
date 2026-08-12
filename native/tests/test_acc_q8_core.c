@@ -1,19 +1,9 @@
 #include "acc_q8/acc_q8_core.h"
 #include "dp_state_test.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* Floating-point helpers — use inline functions, not macros, so arguments
  * are evaluated exactly once.  Safe to call with stateful step() results. */
@@ -35,16 +25,15 @@ _almost_eq_c (float complex a, float complex b, float tol)
 int
 main (void)
 {
-  int             _fails = 0;
-  acc_q8_state_t *obj    = acc_q8_create (0);
-  CHECK (obj != NULL);
+  acc_q8_state_t *obj = acc_q8_create (0);
+  DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
 
   /* acc: getter / setter */
-  CHECK (acc_q8_get_acc (obj) == 0);
+  DP_CHECK (acc_q8_get_acc (obj) == 0);
   acc_q8_set_acc (obj, 2);
-  CHECK (acc_q8_get_acc (obj) == 2);
+  DP_CHECK (acc_q8_get_acc (obj) == 2);
 
   /* step: verify it runs without crashing */
   (void)acc_q8_step (obj, 0);
@@ -52,27 +41,21 @@ main (void)
   /* reset restores defaults */
   acc_q8_set_acc (obj, 2);
   acc_q8_reset (obj);
-  CHECK (acc_q8_get_acc (obj) == 0);
+  DP_CHECK (acc_q8_get_acc (obj) == 0);
 
   acc_q8_destroy (obj);
-  if (_fails)
-    {
-      fprintf (stderr, "test_acc_q8_core FAILED (%d)\n", _fails);
-      return 1;
-    }
   /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
   {
     acc_q8_state_t *a = acc_q8_create (0);
     acc_q8_state_t *b = acc_q8_create (0);
-    CHECK (a != NULL && b != NULL);
+    DP_CHECK (a != NULL && b != NULL);
     acc_q8_step (a, (int8_t)42);
     acc_q8_step (a, (int8_t)-13);
     DP_STATE_ROUNDTRIP_TEST (acc_q8, a, b);
-    CHECK (acc_q8_get_acc (b) == acc_q8_get_acc (a));
+    DP_CHECK (acc_q8_get_acc (b) == acc_q8_get_acc (a));
     acc_q8_destroy (a);
     acc_q8_destroy (b);
   }
 
-  printf ("test_acc_q8_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_acc_q8_core");
 }

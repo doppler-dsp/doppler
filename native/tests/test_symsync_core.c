@@ -10,23 +10,13 @@
  *   5. Both TEDs (Gardner, DTTL) lock on a BPSK stream
  */
 #include "dp_state_test.h"
+#include "dp_test.h"
 #include "symsync/symsync_core.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 #define NSYM 2000
 #define SPS 4
@@ -134,28 +124,27 @@ tail_ber (const float complex *sym, size_t nsym, const int *bits, size_t nbits)
 int
 main (void)
 {
-  int            _fails = 0;
-  float complex *rx     = malloc (NSYM * SPS * sizeof (*rx));
-  int           *bits   = malloc (NSYM * sizeof (int));
-  float complex *sym    = malloc (NSYM * sizeof (*sym));
+  float complex *rx   = malloc (NSYM * SPS * sizeof (*rx));
+  int           *bits = malloc (NSYM * sizeof (int));
+  float complex *sym  = malloc (NSYM * sizeof (*sym));
 
   /* 1. Lifecycle / order / reset reproducibility */
   {
     symsync_state_t *s
         = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
-    CHECK (s != NULL);
+    DP_CHECK (s != NULL);
     if (!s)
       return 1;
-    CHECK (s->farrow.order == FARROW_CUBIC);
-    CHECK (s->ted == SYMSYNC_TED_GARDNER);
-    CHECK (fabs (symsync_get_bn (s) - 0.01) < 1e-12);
+    DP_CHECK (s->farrow.order == FARROW_CUBIC);
+    DP_CHECK (s->ted == SYMSYNC_TED_GARDNER);
+    DP_CHECK (fabs (symsync_get_bn (s) - 0.01) < 1e-12);
     make_signal (rx, bits, NSYM, 1.3, 1.0, 3u);
     size_t k1 = symsync_steps (s, rx, NSYM * SPS, sym, NSYM);
     double r1 = symsync_get_rate (s);
     symsync_reset (s);
     size_t k2 = symsync_steps (s, rx, NSYM * SPS, sym, NSYM);
-    CHECK (k1 == k2);
-    CHECK (symsync_get_rate (s) == r1);
+    DP_CHECK (k1 == k2);
+    DP_CHECK (symsync_get_rate (s) == r1);
     symsync_destroy (s);
   }
 
@@ -169,7 +158,7 @@ main (void)
         make_signal (rx, bits, NSYM, off, 1.0, 7u);
         size_t k   = symsync_steps (s, rx, NSYM * SPS, sym, NSYM);
         double ber = tail_ber (sym, k, bits, NSYM);
-        CHECK (ber == 0.0);
+        DP_CHECK (ber == 0.0);
         symsync_destroy (s);
       }
   }
@@ -184,9 +173,9 @@ main (void)
         make_signal (rx, bits, NSYM, 1.3, rates[ri], 11u);
         size_t k   = symsync_steps (s, rx, NSYM * SPS, sym, NSYM);
         double ber = tail_ber (sym, k, bits, NSYM);
-        CHECK (ber == 0.0);
+        DP_CHECK (ber == 0.0);
         /* recovered samples/symbol tracks the true clock rate to ~1% */
-        CHECK (fabs (symsync_get_rate (s) - SPS * rates[ri]) < 0.05);
+        DP_CHECK (fabs (symsync_get_rate (s) - SPS * rates[ri]) < 0.05);
         symsync_destroy (s);
       }
   }
@@ -199,7 +188,7 @@ main (void)
             = symsync_create (SPS, 0.01, 0.707, order, SYMSYNC_TED_GARDNER);
         make_signal (rx, bits, NSYM, 1.7, 1.0, 13u);
         size_t k = symsync_steps (s, rx, NSYM * SPS, sym, NSYM);
-        CHECK (tail_ber (sym, k, bits, NSYM) == 0.0);
+        DP_CHECK (tail_ber (sym, k, bits, NSYM) == 0.0);
         symsync_destroy (s);
       }
   }
@@ -219,7 +208,7 @@ main (void)
             = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, teds[ti]);
         make_signal (rx, bits, NSYM, 2.1, 1.0, 17u);
         size_t k = symsync_steps (s, rx, NSYM * SPS, sym, NSYM);
-        CHECK (tail_ber (sym, k, bits, NSYM) == 0.0);
+        DP_CHECK (tail_ber (sym, k, bits, NSYM) == 0.0);
         symsync_destroy (s);
       }
   }
@@ -239,7 +228,8 @@ main (void)
     symsync_state_t v;
     memset (&v, 0xFF, sizeof v);
     symsync_init (&v, SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_DTTL);
-    CHECK (memcmp (c, &v, sizeof *c) == 0); /* init == create, byte-for-byte */
+    DP_CHECK (memcmp (c, &v, sizeof *c)
+              == 0); /* init == create, byte-for-byte */
     symsync_destroy (c);
   }
 
@@ -257,12 +247,12 @@ main (void)
         = symsync_create (8, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_DTTL);
     symsync_state_t *b
         = symsync_create (8, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_DTTL);
-    CHECK (a != NULL && b != NULL);
+    DP_CHECK (a != NULL && b != NULL);
     (void)symsync_steps (a, rx, 256, sym, 32);
     DP_STATE_ROUNDTRIP_TEST (symsync, a, b);
-    CHECK (b->timing.phase == a->timing.phase); /* nco child */
-    CHECK (b->last_error == a->last_error);
-    CHECK (b->ted == a->ted);
+    DP_CHECK (b->timing.phase == a->timing.phase); /* nco child */
+    DP_CHECK (b->last_error == a->last_error);
+    DP_CHECK (b->ted == a->ted);
     symsync_destroy (a);
     symsync_destroy (b);
   }
@@ -277,51 +267,51 @@ main (void)
     dp_tlm_t        *tlm = dp_tlm_create (1024);
     symsync_state_t *a
         = symsync_create (4, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
-    CHECK (tlm != NULL && a != NULL);
-    CHECK (symsync_set_telemetry (a, tlm, "sync", 1) == DP_OK);
-    CHECK (dp_tlm_probe_id (tlm, "sync.e") == a->tlm.id_e);
-    CHECK (dp_tlm_probe_id (tlm, "sync.freq") == a->tlm.id_freq);
-    CHECK (dp_tlm_probe_id (tlm, "sync.rate") == a->tlm.id_rate);
-    CHECK (dp_tlm_probe_id (tlm, "sync.lock") == a->tlm.id_lock);
-    CHECK (dp_tlm_probe_id (tlm, "sync.locked") == a->tlm.id_locked);
+    DP_CHECK (tlm != NULL && a != NULL);
+    DP_CHECK (symsync_set_telemetry (a, tlm, "sync", 1) == DP_OK);
+    DP_CHECK (dp_tlm_probe_id (tlm, "sync.e") == a->tlm.id_e);
+    DP_CHECK (dp_tlm_probe_id (tlm, "sync.freq") == a->tlm.id_freq);
+    DP_CHECK (dp_tlm_probe_id (tlm, "sync.rate") == a->tlm.id_rate);
+    DP_CHECK (dp_tlm_probe_id (tlm, "sync.lock") == a->tlm.id_lock);
+    DP_CHECK (dp_tlm_probe_id (tlm, "sync.locked") == a->tlm.id_locked);
 
     size_t n_sym = symsync_steps (a, trx, 512, tsym, 160);
-    CHECK (n_sym > 0);
+    DP_CHECK (n_sym > 0);
     dp_tlm_rec_t recs[1024];
     size_t       n_rec = dp_tlm_read (tlm, 1024, recs, 1024);
-    CHECK (n_rec == 5 * n_sym); /* e + freq + rate + lock + locked */
-    CHECK (recs[n_rec - 1].probe == (uint16_t)a->tlm.id_locked);
-    CHECK (recs[n_rec - 1].value == (float)a->lock.locked);
+    DP_CHECK (n_rec == 5 * n_sym); /* e + freq + rate + lock + locked */
+    DP_CHECK (recs[n_rec - 1].probe == (uint16_t)a->tlm.id_locked);
+    DP_CHECK (recs[n_rec - 1].value == (float)a->lock.locked);
 
     /* Blob determinism: attached vs detached serialize identically. */
     symsync_state_t *d
         = symsync_create (4, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
-    CHECK (d != NULL);
+    DP_CHECK (d != NULL);
     *d          = *a;
     d->tlm.ctx  = NULL;
     d->tlm.id_e = d->tlm.id_freq = d->tlm.id_rate = d->tlm.id_lock
         = d->tlm.id_locked                        = 0;
     uint8_t blob_a[sizeof (dp_state_hdr_t) + sizeof (symsync_state_t)];
     uint8_t blob_d[sizeof (blob_a)];
-    CHECK (symsync_state_bytes (a) == sizeof (blob_a));
+    DP_CHECK (symsync_state_bytes (a) == sizeof (blob_a));
     symsync_get_state (a, blob_a);
     symsync_get_state (d, blob_d);
-    CHECK (memcmp (blob_a, blob_d, sizeof (blob_a)) == 0);
+    DP_CHECK (memcmp (blob_a, blob_d, sizeof (blob_a)) == 0);
 
     /* Restore into an attached instance keeps the live attachment. */
     dp_tlm_t        *tlm2 = dp_tlm_create (1024);
     symsync_state_t *b
         = symsync_create (4, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
-    CHECK (tlm2 != NULL && b != NULL);
-    CHECK (symsync_set_telemetry (b, tlm2, "rx.sync", 1) == DP_OK);
-    CHECK (symsync_set_state (b, blob_a) == DP_OK);
-    CHECK (b->rate_est == a->rate_est);
-    CHECK (b->tlm.ctx == tlm2);
+    DP_CHECK (tlm2 != NULL && b != NULL);
+    DP_CHECK (symsync_set_telemetry (b, tlm2, "rx.sync", 1) == DP_OK);
+    DP_CHECK (symsync_set_state (b, blob_a) == DP_OK);
+    DP_CHECK (b->rate_est == a->rate_est);
+    DP_CHECK (b->tlm.ctx == tlm2);
 
     /* Detach: no further records. */
-    CHECK (symsync_set_telemetry (a, NULL, "sync", 1) == DP_OK);
+    DP_CHECK (symsync_set_telemetry (a, NULL, "sync", 1) == DP_OK);
     (void)symsync_steps (a, trx, 512, tsym, 160);
-    CHECK (dp_tlm_read (tlm, 1024, recs, 1024) == 0);
+    DP_CHECK (dp_tlm_read (tlm, 1024, recs, 1024) == 0);
 
     symsync_destroy (d);
     symsync_destroy (b);
@@ -340,13 +330,13 @@ main (void)
     dp_tlm_t        *tlm = dp_tlm_create (1024);
     symsync_state_t *a
         = symsync_create (4, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_DTTL);
-    CHECK (tlm != NULL && a != NULL);
-    CHECK (symsync_set_telemetry (a, tlm, "s", 1) == DP_OK);
+    DP_CHECK (tlm != NULL && a != NULL);
+    DP_CHECK (symsync_set_telemetry (a, tlm, "s", 1) == DP_OK);
 
     /* Attached DTTL block loop. */
     size_t       n_sym = symsync_steps (a, trx2, 64, tsym2, 32);
     dp_tlm_rec_t recs[256];
-    CHECK (dp_tlm_read (tlm, 256, recs, 256) == 5 * n_sym);
+    DP_CHECK (dp_tlm_read (tlm, 256, recs, 256) == 5 * n_sym);
 
     /* Public single-sample step (dispatches + flushes when attached). */
     float complex y;
@@ -354,8 +344,8 @@ main (void)
     for (int i = 0; i < 64; i++)
       if (symsync_step (a, trx2[i], &y))
         n_step_sym++;
-    CHECK (n_step_sym > 0);
-    CHECK (dp_tlm_read (tlm, 256, recs, 256) == 5 * n_step_sym);
+    DP_CHECK (n_step_sym > 0);
+    DP_CHECK (dp_tlm_read (tlm, 256, recs, 256) == 5 * n_step_sym);
 
     /* Fill the probe table; a fresh attach must fail whole and leave the
      * object detached. */
@@ -367,9 +357,9 @@ main (void)
       }
     symsync_state_t *c
         = symsync_create (4, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
-    CHECK (c != NULL);
-    CHECK (symsync_set_telemetry (c, tlm, "full", 1) == DP_ERR_INVALID);
-    CHECK (c->tlm.ctx == NULL);
+    DP_CHECK (c != NULL);
+    DP_CHECK (symsync_set_telemetry (c, tlm, "full", 1) == DP_ERR_INVALID);
+    DP_CHECK (c->tlm.ctx == NULL);
 
     symsync_destroy (c);
     symsync_destroy (a);
@@ -395,8 +385,8 @@ main (void)
     symsync_state_t *s
         = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
     (void)symsync_steps (s, lrx, measure * SPS, lsym, nsym);
-    CHECK (symsync_get_locked (s) == 1);
-    CHECK (symsync_get_lock_stat (s) > 0.5); /* default threshold ~0.24 */
+    DP_CHECK (symsync_get_locked (s) == 1);
+    DP_CHECK (symsync_get_lock_stat (s) > 0.5); /* default threshold ~0.24 */
     symsync_destroy (s);
 
     uint32_t st = 9090u;
@@ -405,7 +395,7 @@ main (void)
     symsync_state_t *n
         = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
     (void)symsync_steps (n, lrx, nsym * SPS, lsym, nsym);
-    CHECK (symsync_get_locked (n) == 0);
+    DP_CHECK (symsync_get_locked (n) == 0);
     symsync_destroy (n);
 
     free (lrx);
@@ -419,12 +409,14 @@ main (void)
   {
     symsync_state_t *s
         = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
-    CHECK (symsync_configure_lock (s, 0.35, 10.0, 1e-3, 0.9) == DP_OK);
-    CHECK (s->avgs > 0);
-    CHECK (symsync_configure_lock (s, 0.35, 10.0, 0.0, 0.9) == DP_ERR_INVALID);
-    CHECK (symsync_configure_lock (s, 0.35, 10.0, 1.0, 0.9) == DP_ERR_INVALID);
-    CHECK (symsync_configure_lock (s, 0.35, 10.0, 0.9, 0.9)
-           == DP_ERR_INVALID); /* pd must exceed pfa */
+    DP_CHECK (symsync_configure_lock (s, 0.35, 10.0, 1e-3, 0.9) == DP_OK);
+    DP_CHECK (s->avgs > 0);
+    DP_CHECK (symsync_configure_lock (s, 0.35, 10.0, 0.0, 0.9)
+              == DP_ERR_INVALID);
+    DP_CHECK (symsync_configure_lock (s, 0.35, 10.0, 1.0, 0.9)
+              == DP_ERR_INVALID);
+    DP_CHECK (symsync_configure_lock (s, 0.35, 10.0, 0.9, 0.9)
+              == DP_ERR_INVALID); /* pd must exceed pfa */
 
     /* raw: an unreachable threshold never locks even on a strong signal. */
     size_t         nsym  = 4000;
@@ -433,21 +425,14 @@ main (void)
     float complex *lsym  = malloc (nsym * sizeof (*lsym));
     make_signal (lrx, lbits, nsym, 1.3, 1.0, 13u);
     symsync_configure_lock_raw (s, 20, 100.0, 100.0, 1, 1);
-    CHECK (s->avgs == 20);
+    DP_CHECK (s->avgs == 20);
     (void)symsync_steps (s, lrx, (nsym - 100) * SPS, lsym, nsym);
-    CHECK (symsync_get_locked (s) == 0);
+    DP_CHECK (symsync_get_locked (s) == 0);
     symsync_destroy (s);
     free (lrx);
     free (lbits);
     free (lsym);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_symsync_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-
-  printf ("test_symsync_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_symsync_core");
 }

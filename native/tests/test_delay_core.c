@@ -1,20 +1,10 @@
 #include "delay/delay_core.h"
 #include "dp_state_test.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 #define TOL 1e-12
 
@@ -28,16 +18,15 @@ ceq (double complex a, double complex b)
 int
 main (void)
 {
-  int _fails = 0;
 
   /* ── lifecycle ──────────────────────────────────────────────────── */
   {
     delay_state_t *obj = delay_create (4);
-    CHECK (obj != NULL);
-    CHECK (obj->num_taps == 4);
-    CHECK (obj->capacity == 4); /* 4 is already a power of two */
-    CHECK (obj->mask == 3);
-    CHECK (obj->buf != NULL);
+    DP_CHECK (obj != NULL);
+    DP_CHECK (obj->num_taps == 4);
+    DP_CHECK (obj->capacity == 4); /* 4 is already a power of two */
+    DP_CHECK (obj->mask == 3);
+    DP_CHECK (obj->buf != NULL);
     delay_destroy (obj);
 
     delay_destroy (NULL); /* must not crash */
@@ -46,19 +35,19 @@ main (void)
   /* ── capacity is always a power of two ─────────────────────────── */
   {
     delay_state_t *a = delay_create (1);
-    CHECK (a->capacity == 1);
+    DP_CHECK (a->capacity == 1);
     delay_destroy (a);
 
     delay_state_t *b = delay_create (3);
-    CHECK (b->capacity == 4);
+    DP_CHECK (b->capacity == 4);
     delay_destroy (b);
 
     delay_state_t *c = delay_create (5);
-    CHECK (c->capacity == 8);
+    DP_CHECK (c->capacity == 8);
     delay_destroy (c);
 
     delay_state_t *d = delay_create (8);
-    CHECK (d->capacity == 8);
+    DP_CHECK (d->capacity == 8);
     delay_destroy (d);
   }
 
@@ -74,10 +63,10 @@ main (void)
     delay_push (obj, 3.0 + 0.0 * I);
 
     size_t n = delay_ptr (obj, 3, win, 3);
-    CHECK (n == 3);
-    CHECK (ceq (win[0], 3.0 + 0.0 * I));
-    CHECK (ceq (win[1], 2.0 + 0.0 * I));
-    CHECK (ceq (win[2], 1.0 + 0.0 * I));
+    DP_CHECK (n == 3);
+    DP_CHECK (ceq (win[0], 3.0 + 0.0 * I));
+    DP_CHECK (ceq (win[1], 2.0 + 0.0 * I));
+    DP_CHECK (ceq (win[2], 1.0 + 0.0 * I));
     delay_destroy (obj);
   }
 
@@ -88,9 +77,9 @@ main (void)
 
     delay_push (obj, 10.0 + 0.0 * I);
     size_t n = delay_push_ptr (obj, 20.0 + 0.0 * I, win, 2);
-    CHECK (n == 2);
-    CHECK (ceq (win[0], 20.0 + 0.0 * I));
-    CHECK (ceq (win[1], 10.0 + 0.0 * I));
+    DP_CHECK (n == 2);
+    DP_CHECK (ceq (win[0], 20.0 + 0.0 * I));
+    DP_CHECK (ceq (win[1], 10.0 + 0.0 * I));
     delay_destroy (obj);
   }
 
@@ -106,10 +95,10 @@ main (void)
 
     /* Last 4 pushes: 5 6 7 8 → window = [8, 7, 6, 5] */
     delay_ptr (obj, 4, win, 4);
-    CHECK (ceq (win[0], 8.0 + 0.0 * I));
-    CHECK (ceq (win[1], 7.0 + 0.0 * I));
-    CHECK (ceq (win[2], 6.0 + 0.0 * I));
-    CHECK (ceq (win[3], 5.0 + 0.0 * I));
+    DP_CHECK (ceq (win[0], 8.0 + 0.0 * I));
+    DP_CHECK (ceq (win[1], 7.0 + 0.0 * I));
+    DP_CHECK (ceq (win[2], 6.0 + 0.0 * I));
+    DP_CHECK (ceq (win[3], 5.0 + 0.0 * I));
     delay_destroy (obj);
   }
 
@@ -124,9 +113,9 @@ main (void)
     delay_write (obj, 3.0 + 0.0 * I);
 
     delay_ptr (obj, 3, win, 3);
-    CHECK (ceq (win[0], 3.0 + 0.0 * I));
-    CHECK (ceq (win[1], 2.0 + 0.0 * I));
-    CHECK (ceq (win[2], 1.0 + 0.0 * I));
+    DP_CHECK (ceq (win[0], 3.0 + 0.0 * I));
+    DP_CHECK (ceq (win[1], 2.0 + 0.0 * I));
+    DP_CHECK (ceq (win[2], 1.0 + 0.0 * I));
     delay_destroy (obj);
   }
 
@@ -140,10 +129,10 @@ main (void)
     delay_reset (obj);
 
     /* After reset everything should be zero and head should be 0. */
-    CHECK (obj->head == 0);
+    DP_CHECK (obj->head == 0);
     delay_ptr (obj, 4, win, 4);
     for (int i = 0; i < 4; i++)
-      CHECK (ceq (win[i], 0.0 + 0.0 * I));
+      DP_CHECK (ceq (win[i], 0.0 + 0.0 * I));
     delay_destroy (obj);
   }
 
@@ -151,10 +140,10 @@ main (void)
   {
     delay_state_t *obj = delay_create (7);
     /* gh-607: delay_ptr_max_out(n) is the tight per-call bound min(n,taps). */
-    CHECK (delay_ptr_max_out (obj, 7) == 7);   /* n == num_taps      */
-    CHECK (delay_ptr_max_out (obj, 100) == 7); /* clamped to num_taps */
-    CHECK (delay_ptr_max_out (obj, 3) == 3);   /* tight: n < num_taps */
-    CHECK (delay_push_ptr_max_out (obj) == 7);
+    DP_CHECK (delay_ptr_max_out (obj, 7) == 7);   /* n == num_taps      */
+    DP_CHECK (delay_ptr_max_out (obj, 100) == 7); /* clamped to num_taps */
+    DP_CHECK (delay_ptr_max_out (obj, 3) == 3);   /* tight: n < num_taps */
+    DP_CHECK (delay_push_ptr_max_out (obj) == 7);
     delay_destroy (obj);
   }
 
@@ -167,8 +156,8 @@ main (void)
     delay_push (obj, -3.0 + 4.0 * I);
 
     delay_ptr (obj, 2, win, 2);
-    CHECK (ceq (win[0], -3.0 + 4.0 * I));
-    CHECK (ceq (win[1], 1.5 + 2.5 * I));
+    DP_CHECK (ceq (win[0], -3.0 + 4.0 * I));
+    DP_CHECK (ceq (win[1], 1.5 + 2.5 * I));
     delay_destroy (obj);
   }
 
@@ -187,51 +176,46 @@ main (void)
 
     for (size_t k = 0; k < 4; k++)
       win[k] = CANARY;
-    CHECK (delay_ptr (obj, 4, win, 2) == 2);
-    CHECK (ceq (win[0], 4.0 + 0.0 * I));
-    CHECK (ceq (win[1], 3.0 + 0.0 * I));
-    CHECK (ceq (win[2], CANARY)); /* past capacity: untouched */
-    CHECK (ceq (win[3], CANARY));
+    DP_CHECK (delay_ptr (obj, 4, win, 2) == 2);
+    DP_CHECK (ceq (win[0], 4.0 + 0.0 * I));
+    DP_CHECK (ceq (win[1], 3.0 + 0.0 * I));
+    DP_CHECK (ceq (win[2], CANARY)); /* past capacity: untouched */
+    DP_CHECK (ceq (win[3], CANARY));
 
     /* max_out == 0 writes nothing. */
     for (size_t k = 0; k < 4; k++)
       win[k] = CANARY;
-    CHECK (delay_ptr (obj, 4, win, 0) == 0);
+    DP_CHECK (delay_ptr (obj, 4, win, 0) == 0);
     for (size_t k = 0; k < 4; k++)
-      CHECK (ceq (win[k], CANARY));
+      DP_CHECK (ceq (win[k], CANARY));
 
     /* push_ptr with no room: the snapshot is empty, but sample 5 is in. */
-    CHECK (delay_push_ptr (obj, 5.0 + 0.0 * I, win, 0) == 0);
+    DP_CHECK (delay_push_ptr (obj, 5.0 + 0.0 * I, win, 0) == 0);
     for (size_t k = 0; k < 4; k++)
-      CHECK (ceq (win[k], CANARY));
-    CHECK (delay_ptr (obj, 4, win, 4) == 4);
-    CHECK (ceq (win[0], 5.0 + 0.0 * I)); /* the push landed */
-    CHECK (ceq (win[1], 4.0 + 0.0 * I));
+      DP_CHECK (ceq (win[k], CANARY));
+    DP_CHECK (delay_ptr (obj, 4, win, 4) == 4);
+    DP_CHECK (ceq (win[0], 5.0 + 0.0 * I)); /* the push landed */
+    DP_CHECK (ceq (win[1], 4.0 + 0.0 * I));
 
     delay_destroy (obj);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_delay_core FAILED (%d)\n", _fails);
-      return 1;
-    }
   /* serializable state — field-wise ring + head round-trips + rejects. */
   {
     delay_state_t *a = delay_create (4);
     delay_state_t *b = delay_create (4);
-    CHECK (a != NULL && b != NULL);
+    DP_CHECK (a != NULL && b != NULL);
     delay_push (a, 1.0 + 2.0 * I);
     delay_push (a, -3.0 + 0.5 * I);
     delay_push (a, 4.0 - 1.0 * I);
     DP_STATE_ROUNDTRIP_TEST (delay, a, b);
-    CHECK (b->head == a->head);
-    CHECK (memcmp (b->buf, a->buf, 2 * a->capacity * sizeof (double _Complex))
-           == 0);
+    DP_CHECK (b->head == a->head);
+    DP_CHECK (
+        memcmp (b->buf, a->buf, 2 * a->capacity * sizeof (double _Complex))
+        == 0);
     delay_destroy (a);
     delay_destroy (b);
   }
 
-  printf ("test_delay_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_delay_core");
 }

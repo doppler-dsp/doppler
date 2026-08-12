@@ -1,19 +1,9 @@
 #include "acc_f32/acc_f32_core.h"
 #include "dp_state_test.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* Floating-point helpers — use inline functions, not macros, so arguments
  * are evaluated exactly once.  Safe to call with stateful step() results. */
@@ -35,16 +25,15 @@ _almost_eq_c (float complex a, float complex b, float tol)
 int
 main (void)
 {
-  int              _fails = 0;
-  acc_f32_state_t *obj    = acc_f32_create (0.0f);
-  CHECK (obj != NULL);
+  acc_f32_state_t *obj = acc_f32_create (0.0f);
+  DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
 
   /* acc: getter / setter */
-  CHECK (acc_f32_get_acc (obj) == 0.0f);
+  DP_CHECK (acc_f32_get_acc (obj) == 0.0f);
   acc_f32_set_acc (obj, 2.0f);
-  CHECK (acc_f32_get_acc (obj) == 2.0f);
+  DP_CHECK (acc_f32_get_acc (obj) == 2.0f);
 
   /* step: verify it runs without crashing */
   (void)acc_f32_step (obj, 0.0f);
@@ -52,27 +41,21 @@ main (void)
   /* reset restores defaults */
   acc_f32_set_acc (obj, 2.0f);
   acc_f32_reset (obj);
-  CHECK (acc_f32_get_acc (obj) == 0.0f);
+  DP_CHECK (acc_f32_get_acc (obj) == 0.0f);
 
   acc_f32_destroy (obj);
-  if (_fails)
-    {
-      fprintf (stderr, "test_acc_f32_core FAILED (%d)\n", _fails);
-      return 1;
-    }
   /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
   {
     acc_f32_state_t *a = acc_f32_create (0.0f);
     acc_f32_state_t *b = acc_f32_create (0.0f);
-    CHECK (a != NULL && b != NULL);
+    DP_CHECK (a != NULL && b != NULL);
     acc_f32_step (a, 1.5f);
     acc_f32_step (a, -0.25f);
     DP_STATE_ROUNDTRIP_TEST (acc_f32, a, b);
-    CHECK (acc_f32_get_acc (b) == acc_f32_get_acc (a));
+    DP_CHECK (acc_f32_get_acc (b) == acc_f32_get_acc (a));
     acc_f32_destroy (a);
     acc_f32_destroy (b);
   }
 
-  printf ("test_acc_f32_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_acc_f32_core");
 }

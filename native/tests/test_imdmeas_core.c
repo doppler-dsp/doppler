@@ -1,18 +1,8 @@
+#include "dp_test.h"
 #include "imdmeas/imdmeas_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 #define NCAP 4096u
 
@@ -26,8 +16,7 @@ add_cos (float *x, size_t n, double cyc, double amp)
 int
 main (void)
 {
-  int    _fails = 0;
-  float *x      = (float *)malloc (NCAP * sizeof (float));
+  float *x = (float *)malloc (NCAP * sizeof (float));
   for (size_t i = 0; i < NCAP; i++)
     x[i] = 0.0f;
 
@@ -41,19 +30,19 @@ main (void)
 
   /* dynamic_range_db = 90 -> Kaiser beta ~12, matching the old default. */
   imdmeas_state_t *m = imdmeas_create (NCAP, 1.0, 1.0, 0, 90.0);
-  CHECK (m != NULL);
+  DP_CHECK (m != NULL);
   imd_meas_t r;
   r = imdmeas_analyze (m, x, NCAP);
 
-  CHECK (fabs (r.f1 - 200.0 / NCAP) < 2e-3);
-  CHECK (fabs (r.f2 - 250.0 / NCAP) < 2e-3);
-  CHECK (fabs (r.imd3_dbc - (-40.0)) < 0.5);
-  CHECK (fabs (r.imd3_lo_freq - 150.0 / NCAP) < 2e-3);
-  CHECK (fabs (r.imd3_hi_freq - 300.0 / NCAP) < 2e-3);
-  CHECK (fabs (r.imd2_freq - 50.0 / NCAP) < 2e-3);
+  DP_CHECK (fabs (r.f1 - 200.0 / NCAP) < 2e-3);
+  DP_CHECK (fabs (r.f2 - 250.0 / NCAP) < 2e-3);
+  DP_CHECK (fabs (r.imd3_dbc - (-40.0)) < 0.5);
+  DP_CHECK (fabs (r.imd3_lo_freq - 150.0 / NCAP) < 2e-3);
+  DP_CHECK (fabs (r.imd3_hi_freq - 300.0 / NCAP) < 2e-3);
+  DP_CHECK (fabs (r.imd2_freq - 50.0 / NCAP) < 2e-3);
   /* TOI = mean-tone level (0 dBFS) + |IMD3|/2 = 20 dBFS */
-  CHECK (fabs (r.toi_dbfs - 20.0) < 0.5);
-  CHECK (fabs (r.p1_dbfs) < 0.2 && fabs (r.p2_dbfs) < 0.2);
+  DP_CHECK (fabs (r.toi_dbfs - 20.0) < 0.5);
+  DP_CHECK (fabs (r.p1_dbfs) < 0.2 && fabs (r.p2_dbfs) < 0.2);
 
   imdmeas_destroy (m);
   free (x);
@@ -68,32 +57,26 @@ main (void)
     size_t           cap = imdmeas_spectrum_dbfs_max_out (m); /* == nfft */
     float           *xs  = (float *)malloc (NCAP * sizeof (float));
     float           *o   = (float *)malloc (cap * sizeof (float));
-    CHECK (m && xs && o);
+    DP_CHECK (m && xs && o);
     for (size_t i = 0; i < NCAP; i++)
       xs[i] = (float)sin (0.05 * (double)i);
     for (size_t i = 0; i < cap; i++)
       o[i] = 42.0f;
 
-    CHECK (imdmeas_spectrum_dbfs (m, xs, NCAP, o, 5) == 5);
+    DP_CHECK (imdmeas_spectrum_dbfs (m, xs, NCAP, o, 5) == 5);
     for (size_t i = 5; i < cap; i++)
-      CHECK (o[i] == 42.0f); /* tail untouched */
+      DP_CHECK (o[i] == 42.0f); /* tail untouched */
 
     /* Zero capacity emits nothing. */
     for (size_t i = 0; i < cap; i++)
       o[i] = 42.0f;
-    CHECK (imdmeas_spectrum_dbfs (m, xs, NCAP, o, 0) == 0);
+    DP_CHECK (imdmeas_spectrum_dbfs (m, xs, NCAP, o, 0) == 0);
     for (size_t i = 0; i < cap; i++)
-      CHECK (o[i] == 42.0f);
+      DP_CHECK (o[i] == 42.0f);
     free (xs);
     free (o);
     imdmeas_destroy (m);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_imdmeas_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_imdmeas_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_imdmeas_core");
 }

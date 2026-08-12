@@ -12,33 +12,21 @@
  * Uses the `_fails` + `CHECK` convention, not `assert`: doppler builds
  * Release and Release defines NDEBUG, which compiles `assert` away.
  */
+#include "dp_test.h"
 #include "wfm/wfm_time.h"
 
 #include <stdio.h>
-
-static int _fails = 0;
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* `date -u -d 1950-01-01T00:00:00Z +%s` = -631152000, so the offset is the
    negation of that: 20 years with 5 leap days. */
 static void
 test_offset_is_the_documented_constant (void)
 {
-  CHECK (WFM_J1950_UNIX_OFFSET_SEC == 631152000.0);
-  CHECK (WFM_J1950_UNIX_OFFSET_SEC == 7305.0 * 86400.0);
+  DP_CHECK (WFM_J1950_UNIX_OFFSET_SEC == 631152000.0);
+  DP_CHECK (WFM_J1950_UNIX_OFFSET_SEC == 7305.0 * 86400.0);
   /* The J1950 epoch maps to the start of UNIX time's own predecessor era. */
-  CHECK (wfm_j1950_to_unix_sec (0.0) == -631152000.0);
-  CHECK (wfm_unix_to_j1950_sec (0.0) == 631152000.0);
+  DP_CHECK (wfm_j1950_to_unix_sec (0.0) == -631152000.0);
+  DP_CHECK (wfm_unix_to_j1950_sec (0.0) == 631152000.0);
 }
 
 /* 2026-08-05T04:15:30Z: UNIX 1785903330, J1950 that plus the offset. */
@@ -48,10 +36,11 @@ test_round_trip (void)
   const double unix_sec = 1785903330.0;
   const double j1950    = unix_sec + WFM_J1950_UNIX_OFFSET_SEC;
 
-  CHECK (wfm_unix_to_j1950_sec (unix_sec) == j1950);
-  CHECK (wfm_j1950_to_unix_sec (j1950) == unix_sec);
+  DP_CHECK (wfm_unix_to_j1950_sec (unix_sec) == j1950);
+  DP_CHECK (wfm_j1950_to_unix_sec (j1950) == unix_sec);
   /* Exactly reversible at second granularity for present-day instants. */
-  CHECK (wfm_j1950_to_unix_sec (wfm_unix_to_j1950_sec (unix_sec)) == unix_sec);
+  DP_CHECK (wfm_j1950_to_unix_sec (wfm_unix_to_j1950_sec (unix_sec))
+            == unix_sec);
 }
 
 /* The case that makes this more than an offset. doppler's own BLUE writer
@@ -61,14 +50,14 @@ test_round_trip (void)
 static void
 test_zero_is_unset_not_1950 (void)
 {
-  CHECK (!wfm_timecode_is_set (WFM_TIMECODE_UNSET));
-  CHECK (!wfm_timecode_is_set (0.0));
-  CHECK (wfm_timecode_is_set (1.0));
-  CHECK (wfm_timecode_is_set (WFM_J1950_UNIX_OFFSET_SEC));
+  DP_CHECK (!wfm_timecode_is_set (WFM_TIMECODE_UNSET));
+  DP_CHECK (!wfm_timecode_is_set (0.0));
+  DP_CHECK (wfm_timecode_is_set (1.0));
+  DP_CHECK (wfm_timecode_is_set (WFM_J1950_UNIX_OFFSET_SEC));
 
   uint64_t ns = 12345u;
-  CHECK (wfm_j1950_to_unix_ns (0.0, &ns) == -1);
-  CHECK (ns == 12345u); /* untouched on failure */
+  DP_CHECK (wfm_j1950_to_unix_ns (0.0, &ns) == -1);
+  DP_CHECK (ns == 12345u); /* untouched on failure */
 }
 
 /* A 1950s capture is real BLUE data. It cannot be expressed as UNIX
@@ -79,14 +68,14 @@ test_pre_1970_refuses_rather_than_wrapping (void)
 {
   uint64_t ns = 999u;
   /* 1955-ish: set, but negative once shifted to the UNIX epoch. */
-  CHECK (wfm_j1950_to_unix_ns (5.0 * 365.0 * 86400.0, &ns) == -1);
-  CHECK (ns == 999u);
+  DP_CHECK (wfm_j1950_to_unix_ns (5.0 * 365.0 * 86400.0, &ns) == -1);
+  DP_CHECK (ns == 999u);
   /* One second before the UNIX epoch is still a refusal, not a wrap. */
-  CHECK (wfm_j1950_to_unix_ns (WFM_J1950_UNIX_OFFSET_SEC - 1.0, &ns) == -1);
-  CHECK (ns == 999u);
+  DP_CHECK (wfm_j1950_to_unix_ns (WFM_J1950_UNIX_OFFSET_SEC - 1.0, &ns) == -1);
+  DP_CHECK (ns == 999u);
   /* The UNIX epoch itself is representable. */
-  CHECK (wfm_j1950_to_unix_ns (WFM_J1950_UNIX_OFFSET_SEC, &ns) == 0);
-  CHECK (ns == 0u);
+  DP_CHECK (wfm_j1950_to_unix_ns (WFM_J1950_UNIX_OFFSET_SEC, &ns) == 0);
+  DP_CHECK (ns == 0u);
 }
 
 static void
@@ -95,15 +84,15 @@ test_ns_conversion (void)
   uint64_t ns = 0u;
   /* 2026-08-05T04:15:30Z */
   const double j1950 = 1785903330.0 + WFM_J1950_UNIX_OFFSET_SEC;
-  CHECK (wfm_j1950_to_unix_ns (j1950, &ns) == 0);
-  CHECK (ns == UINT64_C (1785903330000000000));
+  DP_CHECK (wfm_j1950_to_unix_ns (j1950, &ns) == 0);
+  DP_CHECK (ns == UINT64_C (1785903330000000000));
 
   /* Half a second resolves; see the header's note on why the low digits of
      a BLUE-derived nanosecond value are padding rather than measurement. */
-  CHECK (wfm_j1950_to_unix_ns (j1950 + 0.5, &ns) == 0);
-  CHECK (ns == UINT64_C (1785903330500000000));
+  DP_CHECK (wfm_j1950_to_unix_ns (j1950 + 0.5, &ns) == 0);
+  DP_CHECK (ns == UINT64_C (1785903330500000000));
 
-  CHECK (wfm_j1950_to_unix_ns (j1950, NULL) == -1);
+  DP_CHECK (wfm_j1950_to_unix_ns (j1950, NULL) == -1);
 }
 
 int
@@ -115,11 +104,5 @@ main (void)
   test_pre_1970_refuses_rather_than_wrapping ();
   test_ns_conversion ();
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_wfm_time FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_wfm_time PASSED\n");
-  return 0;
+  DP_TEST_END ("test_wfm_time");
 }

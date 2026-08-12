@@ -1,20 +1,10 @@
 #include "corr/corr_core.h"
 #include "dp_state_test.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 #define TOL 1e-4f /* CF32 round-trip tolerance */
 
@@ -28,8 +18,7 @@ ceq (float complex a, float complex b)
 int
 main (void)
 {
-  int          _fails = 0;
-  const size_t N      = 16;
+  const size_t N = 16;
 
   /* ── lifecycle ────────────────────────────────────────────────────── */
   {
@@ -38,14 +27,14 @@ main (void)
       ref[i] = 1.0f + 0.0f * I;
 
     corr_state_t *obj = corr_create (ref, N, 1, 1, 0);
-    CHECK (obj != NULL);
-    CHECK (obj->n == N);
-    CHECK (obj->dwell == 1);
-    CHECK (obj->count == 0);
-    CHECK (obj->fwd != NULL);
-    CHECK (obj->inv != NULL);
+    DP_CHECK (obj != NULL);
+    DP_CHECK (obj->n == N);
+    DP_CHECK (obj->dwell == 1);
+    DP_CHECK (obj->count == 0);
+    DP_CHECK (obj->fwd != NULL);
+    DP_CHECK (obj->inv != NULL);
     corr_reset (obj); /* must not crash */
-    CHECK (obj->count == 0);
+    DP_CHECK (obj->count == 0);
     corr_destroy (obj);
     corr_destroy (NULL); /* must not crash */
   }
@@ -59,15 +48,15 @@ main (void)
     ref[0]                = 1.0f + 0.0f * I; /* unit impulse */
 
     corr_state_t *obj = corr_create (ref, N, 1, 1, 0);
-    CHECK (obj != NULL);
+    DP_CHECK (obj != NULL);
 
     float complex out[16];
     size_t        n_out = corr_execute (obj, ref, N, out, N);
 
-    CHECK (n_out == N);                    /* dwell=1 → always dumps */
-    CHECK (ceq (out[0], 1.0f + 0.0f * I)); /* peak at lag 0           */
+    DP_CHECK (n_out == N);                    /* dwell=1 → always dumps */
+    DP_CHECK (ceq (out[0], 1.0f + 0.0f * I)); /* peak at lag 0           */
     for (size_t k = 1; k < N; k++)
-      CHECK (ceq (out[k], 0.0f + 0.0f * I));
+      DP_CHECK (ceq (out[k], 0.0f + 0.0f * I));
 
     corr_destroy (obj);
   }
@@ -93,8 +82,8 @@ main (void)
       {
         float expected_re = (float)N * crealf (ref[k]);
         float expected_im = (float)N * cimagf (ref[k]);
-        CHECK (fabsf (crealf (out[k]) - expected_re) < TOL * (float)N);
-        CHECK (fabsf (cimagf (out[k]) - expected_im) < TOL * (float)N);
+        DP_CHECK (fabsf (crealf (out[k]) - expected_re) < TOL * (float)N);
+        DP_CHECK (fabsf (cimagf (out[k]) - expected_im) < TOL * (float)N);
       }
 
     corr_destroy (obj);
@@ -110,24 +99,24 @@ main (void)
     float complex out[16];
 
     size_t n1 = corr_execute (obj, ref, N, out, N);
-    CHECK (n1 == 0);
-    CHECK (obj->count == 1);
+    DP_CHECK (n1 == 0);
+    DP_CHECK (obj->count == 1);
 
     size_t n2 = corr_execute (obj, ref, N, out, N);
-    CHECK (n2 == 0);
-    CHECK (obj->count == 2);
+    DP_CHECK (n2 == 0);
+    DP_CHECK (obj->count == 2);
 
     size_t n3 = corr_execute (obj, ref, N, out, N);
-    CHECK (n3 == N);         /* dump on third call */
-    CHECK (obj->count == 0); /* counter reset */
+    DP_CHECK (n3 == N);         /* dump on third call */
+    DP_CHECK (obj->count == 0); /* counter reset */
 
     /* After 3 frames of impulse-against-impulse, out[0] ≈ 3.0 */
-    CHECK (crealf (out[0]) > 2.9f && crealf (out[0]) < 3.1f);
+    DP_CHECK (crealf (out[0]) > 2.9f && crealf (out[0]) < 3.1f);
 
     /* Immediate fourth call starts fresh — returns 0 */
     size_t n4 = corr_execute (obj, ref, N, out, N);
-    CHECK (n4 == 0);
-    CHECK (obj->count == 1);
+    DP_CHECK (n4 == 0);
+    DP_CHECK (obj->count == 1);
 
     corr_destroy (obj);
   }
@@ -143,8 +132,8 @@ main (void)
     corr_execute (obj, ref, N, out, N); /* count = 1 */
     corr_execute (obj, ref, N, out, N); /* count = 2 */
     corr_reset (obj);                   /* back to 0 */
-    CHECK (obj->count == 0);
-    CHECK (ceq (obj->accum[0], 0.0f + 0.0f * I));
+    DP_CHECK (obj->count == 0);
+    DP_CHECK (ceq (obj->accum[0], 0.0f + 0.0f * I));
 
     corr_destroy (obj);
   }
@@ -163,13 +152,13 @@ main (void)
      * R[τ] = IFFT(FFT(δ[n-1]) · conj(FFT(δ[n]))) / N
      *       = δ[τ-1]  → peak at index 1.                         */
     corr_execute (obj, ref_b, N, out, N);
-    CHECK (ceq (out[1], 1.0f + 0.0f * I));
+    DP_CHECK (ceq (out[1], 1.0f + 0.0f * I));
 
     /* Switch to ref_b; correlate ref_b against itself → peak at lag 0. */
     corr_set_ref (obj, ref_b);
-    CHECK (obj->count == 0);
+    DP_CHECK (obj->count == 0);
     corr_execute (obj, ref_b, N, out, N);
-    CHECK (ceq (out[0], 1.0f + 0.0f * I));
+    DP_CHECK (ceq (out[0], 1.0f + 0.0f * I));
 
     corr_destroy (obj);
   }
@@ -179,7 +168,7 @@ main (void)
     float complex ref[16] = { 0 };
     ref[0]                = 1.0f;
     corr_state_t *obj     = corr_create (ref, N, 1, 1, 0);
-    CHECK (corr_execute_max_out (obj) == N);
+    DP_CHECK (corr_execute_max_out (obj) == N);
     corr_destroy (obj);
   }
 
@@ -192,17 +181,17 @@ main (void)
     float complex in[16]  = { 0 };
     in[1]                 = 1.0f;
     corr_state_t *obj     = corr_create (ref, N, 1, 1, 32);
-    CHECK (obj->n_out == 32);
-    CHECK (corr_execute_max_out (obj) == 32);
+    DP_CHECK (obj->n_out == 32);
+    DP_CHECK (corr_execute_max_out (obj) == 32);
 
     float complex out[32];
     size_t        no = corr_execute (obj, in, N, out, 32);
-    CHECK (no == 32);
+    DP_CHECK (no == 32);
     size_t pk = 0;
     for (size_t k = 1; k < 32; k++)
       if (cabsf (out[k]) > cabsf (out[pk]))
         pk = k;
-    CHECK (pk == 2);
+    DP_CHECK (pk == 2);
     corr_destroy (obj);
   }
 
@@ -219,33 +208,28 @@ main (void)
     corr_state_t *a = corr_create (ref, 16, 1, 1, 0);
     corr_state_t *b = corr_create (ref, 16, 1, 1, 0);
     float complex full[16], part[16];
-    CHECK (a != NULL && b != NULL);
+    DP_CHECK (a != NULL && b != NULL);
     for (int i = 0; i < 16; i++)
       part[i] = 42.0f + 42.0f * I;
 
-    CHECK (corr_execute (a, in, 16, full, 16) == 16);
-    CHECK (corr_execute (b, in, 16, part, 5) == 5);
+    DP_CHECK (corr_execute (a, in, 16, full, 16) == 16);
+    DP_CHECK (corr_execute (b, in, 16, part, 5) == 5);
     for (int i = 0; i < 5; i++)
-      CHECK (ceq (part[i], full[i])); /* prefix is the same surface */
+      DP_CHECK (ceq (part[i], full[i])); /* prefix is the same surface */
     for (int i = 5; i < 16; i++)
-      CHECK (ceq (part[i], 42.0f + 42.0f * I)); /* tail untouched */
+      DP_CHECK (ceq (part[i], 42.0f + 42.0f * I)); /* tail untouched */
 
     /* Zero capacity writes nothing, and the dump still consumes -- the
      * frames are spent either way, so `count` must not desynchronise. */
     for (int i = 0; i < 16; i++)
       part[i] = 42.0f + 42.0f * I;
-    CHECK (corr_execute (b, in, 16, part, 0) == 0);
+    DP_CHECK (corr_execute (b, in, 16, part, 0) == 0);
     for (int i = 0; i < 16; i++)
-      CHECK (ceq (part[i], 42.0f + 42.0f * I));
+      DP_CHECK (ceq (part[i], 42.0f + 42.0f * I));
     corr_destroy (a);
     corr_destroy (b);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_corr_core FAILED (%d)\n", _fails);
-      return 1;
-    }
   /* serializable state — accumulator + count resume; FFT plans + ref rebuilt.
    */
   {
@@ -257,14 +241,13 @@ main (void)
       }
     corr_state_t *a = corr_create (ref, 16, 3, 1, 0);
     corr_state_t *b = corr_create (ref, 16, 3, 1, 0);
-    CHECK (a != NULL && b != NULL);
+    DP_CHECK (a != NULL && b != NULL);
     (void)corr_execute (a, in, 16, out, 16);
     DP_STATE_ROUNDTRIP_TEST (corr, a, b);
-    CHECK (b->count == a->count && b->accum[0] == a->accum[0]);
+    DP_CHECK (b->count == a->count && b->accum[0] == a->accum[0]);
     corr_destroy (a);
     corr_destroy (b);
   }
 
-  printf ("test_corr_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_corr_core");
 }

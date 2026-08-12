@@ -47,8 +47,37 @@
  *
  * Both take `cn0_dbhz` and derive the noise amplitude from it against `fs`,
  * so the level is stated in the unit the receivers are specified in rather
- * than as a bare sigma. Noise is `dp_cgauss` scaled by `sigma / sqrt(2)`;
- * see dp_rng_test.h for why that carries `E|z|^2 = 1`.
+ * than as a bare sigma.
+ *
+ * ## KNOWN DEFECT: these captures are 3.01 dB quieter than they claim (#688)
+ *
+ * The noise line scales `dp_cgauss` by `sigma / sqrt(2)` — the factor for the
+ * OTHER complex-Gaussian convention, the one carrying unit variance PER
+ * COMPONENT. `dp_cgauss` carries `E|z|^2 = 1` (see dp_rng_test.h), so the
+ * injected power is `sigma^2 / 2`: **a capture asking for 60.0 dB-Hz really
+ * delivers 63.01.** Measured over 2e6 draws, `E|n|^2 = 0.4996` against a
+ * target of 1.0.
+ *
+ * The corroboration is physical rather than algebraic, and it is what makes
+ * this certain: these tests print EVM about 3 dB BETTER than their nominal
+ * Es/N0, which no receiver can do — impairments only move EVM the wrong way.
+ *
+ * It is pre-existing and faithfully reproduced. The private `cgauss` these
+ * builders were copied from had the same `E|z|^2 = 1`, so the factor was
+ * already wrong on `main`; the migration is byte-identical, defect included.
+ * What made it findable is that the convention is now written down once
+ * instead of being re-derived per file behind the phrase "unit-variance
+ * complex Gaussian", which is ambiguous between precisely these two readings.
+ *
+ * **It is not fixed here, and the reason is a finding of its own.** Removing
+ * the `/sqrt(2)` makes `test_async_dsss_receiver_core` fail, and not in the
+ * way a 3 dB correction should. Its BER sweep goes non-monotonic — 6.0 dB
+ * Es/N0 decodes at 0.0029, 8.0 dB fails at 0.4389, 10.0 dB decodes at
+ * 0.0000 — which is not a threshold, it is acquisition succeeding or failing
+ * per point. Raising the sweep would not fix it. So the honest reading is
+ * that these BER assertions have been passing on 3 dB of noise they were
+ * never supposed to have, and correcting the level is a receiver
+ * investigation rather than a constant. That is #688, not this file.
  *
  * Both allocate. The caller frees `*x_out` and `*data_out`.
  */

@@ -25,6 +25,11 @@ What it forbids
 4. Rolling a private random source: an inline xorshift step, a hand-written
    Box-Muller, or either of the two uniform mappings. `dp_rng_test.h` is the
    sanctioned home and the only file exempt.
+5. Drawing twice from ONE generator state inside one expression. The two
+   calls are indeterminately sequenced (C11 6.5.2.2p10), so the order is the
+   compiler's -- and gcc and clang really do disagree, which means such a
+   line draws a different noise stream under `make test` (gcc) than under
+   `make coverage` (clang).
 
 The forbidden list is DERIVED from the family on every run, not written here,
 so a macro added to any member -- or a whole new member -- is covered without
@@ -169,7 +174,14 @@ GENERATOR_IDIOMS = [
         "dp_xs32 / dp_xs64",
     ),
     (
-        re.compile(r"sqrt\s*\(\s*-\s*(2\.0\s*\*\s*)?log\s*\("),
+        # `sqrt (-2.0 * log (u))` and `sqrt (-log (u))` were the only two
+        # spellings the first version matched, which made a rule stated as
+        # absolute into a ratchet on two literals. It missed `sqrtf`/`logf`
+        # — the natural spelling in a float-heavy suite, and therefore the
+        # one a new private Gaussian would actually use — as well as an
+        # integer `-2 *` and `log1p`. Review caught it; the fix is to accept
+        # any numeric factor and both float and double names.
+        re.compile(r"sqrtf?\s*\(\s*-\s*[-\d.eEf*\s]*log(?:f|1p|1pf)?\s*\("),
         "a hand-rolled Box-Muller transform",
         "dp_gauss / dp_cgauss / dp_gauss64",
     ),
@@ -196,14 +208,126 @@ def strip_comments(text: str) -> str:
     no longer does. A scanner that reads comments would fire on the
     documentation of the very rule it enforces — the failure mode where
     describing a detector's target blinds or trips the detector.
+
+    String- and char-literal aware, which the first version was not. A regex
+    split treats the `/*` inside `"a/*b"` as opening a comment and blanks
+    everything up to the next `*/` in any later literal — taking real code
+    with it and reporting zero violations for the span. A false NEGATIVE, in
+    a gate whose entire value is being absolute, triggered by a test gaining
+    a URL or a format string. Found by review, not by the sabotage battery,
+    which only ever fed it well-formed code.
     """
-    out = []
-    for chunk in re.split(r"(/\*.*?\*/|//[^\n]*)", text, flags=re.S):
-        if chunk.startswith("/*") or chunk.startswith("//"):
-            out.append("".join(c if c == "\n" else " " for c in chunk))
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c = text[i]
+        if c == '"' or c == "'":  # literal: copied out verbatim
+            quote, j = c, i + 1
+            while j < n:
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == quote:
+                    j += 1
+                    break
+                if text[j] == "\n":  # unterminated; do not run away
+                    break
+                j += 1
+            out.append(text[i:j])
+            i = j
+        elif text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            out.append("".join(ch if ch == "\n" else " " for ch in text[i:j]))
+            i = j
+        elif text.startswith("//", i):
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            out.append(" " * (j - i))
+            i = j
         else:
-            out.append(chunk)
+            out.append(c)
+            i += 1
     return "".join(out)
+
+
+#: A draw call from `dp_rng_test.h`, with the state it advances.
+DRAW = re.compile(
+    r"\bdp_(?:xs32|xs64|uni|uni64|bit|gauss|gauss64|cgauss)\s*\(\s*&?(\w+)"
+)
+
+
+def double_draws() -> list[str]:
+    """Fail an expression that draws twice from ONE generator state.
+
+    Two calls in one expression are indeterminately sequenced (C11
+    6.5.2.2p10) -- no undefined behaviour, but the order is the compiler's,
+    and gcc and clang really do choose differently: for
+    `(..) + (..) * I` gcc evaluates the imaginary operand first and clang the
+    real one, at -O0 and -O2 alike. doppler compiles these tests with both
+    (`make test` is gcc, `make coverage` is clang), so such a line draws a
+    different noise stream per job -- silently, since the assertions are
+    statistical and both orders pass.
+
+    Eleven sites across seven files had this when the check was written,
+    seven of them genuinely divergent. That is too many to hold with a
+    paragraph, which is the only reason this is a gate: the review that found
+    the class judged a regex not obviously worth it, and it would have been
+    right at three sites.
+
+    Statements are split on `;` and only a REPEATED state name counts, so
+    `dp_bit (&bst) + dp_gauss (&nst)` -- two streams, order irrelevant -- is
+    silent, which is the form the header teaches.
+
+    A local wrapper counts as a draw. `test_corr2d_core.c` writes
+    `_rand_uniform (&seed) + _rand_uniform (&seed) * I`, where the draw is one
+    call deeper; a scan that only knew the `dp_*` names walked straight past
+    it, and review had to point at it. Any `static` function in the file whose
+    body draws is folded into the set first, so the check follows one level of
+    indirection instead of trusting that nobody wraps.
+
+    That fold reads function definitions in GNU style -- name at the start of
+    a line, brace on its own line -- because that is what `clang-format`
+    produces and `make lint` runs it before this gate. A wrapper written all
+    on one line would be missed. Stated rather than hidden: it is a real
+    precondition, and it is why the sabotage for this rule has to be written
+    in the repo's own style to mean anything. A one-line sabotage passed and
+    proved nothing.
+    """
+    bad = []
+    for path in sorted(TESTS.glob("*.c")) + sorted(TESTS.glob("*.h")):
+        code = strip_comments(path.read_text())
+        names = ["dp_(?:xs32|xs64|uni|uni64|bit|gauss|gauss64|cgauss)"]
+        for _ in range(3):  # to a fixpoint; three levels is generous
+            drawer = re.compile(r"\b(?:" + "|".join(names) + r")\s*\(")
+            found = set()
+            for m in re.finditer(
+                r"^(\w+)\s*\([^;]*?\)\s*\n\{(.*?)\n\}", code, re.M | re.S
+            ):
+                if drawer.search(m.group(2)):
+                    found.add(m.group(1))
+            fresh = [re.escape(f) for f in found if re.escape(f) not in names]
+            if not fresh:
+                break
+            names += fresh
+        draw = re.compile(r"\b(?:" + "|".join(names) + r")\s*\(\s*&?(\w+)")
+        line, buf, start = 1, [], 1
+        for ch in code:
+            if ch == "\n":
+                line += 1
+            if ch == ";":
+                states = draw.findall("".join(buf))
+                dupes = {s for s in states if states.count(s) > 1}
+                if dupes:
+                    bad.append(
+                        f"{path.relative_to(ROOT)}:{start}: draws twice from "
+                        f"'{sorted(dupes)[0]}' in one expression — the order "
+                        f"is the compiler's (gcc and clang differ). Draw into "
+                        f"named locals first."
+                    )
+                buf, start = [], line
+            else:
+                buf.append(ch)
+    return bad
 
 
 def generators() -> list[str]:
@@ -389,6 +513,7 @@ def main() -> int:
                     )
 
     bad += generators()
+    bad += double_draws()
 
     if bad:
         print("check_tests_ssot: the shared harness is the single definition.")

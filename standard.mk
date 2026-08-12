@@ -82,6 +82,16 @@ SHELL      = $(STD_SHELL)
 STANDARD_FILE ?= standard.mk
 STANDARD_URL  ?= https://just-buildit.github.io/standard.mk
 
+# Everything ELSE vendored verbatim from canonical, as repo-relative paths —
+# shared scripts today, and anything a target invokes rather than defines.
+# `standard.mk` is not listed: it carries the URL that locates all the others.
+#
+# The base is DERIVED from STANDARD_URL rather than stated again, so a repo
+# aimed at a staging mirror moves its whole vendored set together instead of
+# checking one file against staging and the rest against production.
+VENDORED_FILES  ?=
+VENDOR_BASE_URL ?= $(dir $(STANDARD_URL))
+
 # ── Tooling ──────────────────────────────────────────────────────────────────
 # The ONLY place a tool binary is named. Versions live in pyproject.toml's dev
 # group and are pinned by uv.lock; humans, hooks and CI all reach the tools
@@ -668,32 +678,65 @@ _STD_SECTION_ORDER = Core Lint Aggregates C Python Rust Docs Doxygen Bench \
 # outage, bad deploy, a 404 after a rename) — silently degrades into "compared
 # against something older", and one bad deploy would disable the drift gate
 # across every repo at once with nothing going red.
-standard-check: ## Verify the vendored standard.mk matches canonical
+#
+# It walks a LIST, not a single file, because standard.mk is not the only thing
+# vendored verbatim from canonical. `release-watch.sh` proved the point: two
+# repos wired the same filename to the same target and the scripts silently
+# forked, one growing a CI-repair path the other never got. Sharing the target
+# name while hand-copying the file it runs shares nothing.
+#
+# One gate rather than two. A second target with its own fetch-and-diff loop
+# would be a peer implementation of this one, which is the duplication the list
+# exists to end.
+standard-check: ## Verify every vendored file matches canonical
 	@if [ -z "$(STANDARD_URL)" ]; then \
 	    echo "standard-check: OFF — STANDARD_URL is empty, so drift is NOT"; \
 	    echo "  checked in this repo. That is a deliberate opt-out, not a"; \
 	    echo "  pass; unset it only if you mean it."; \
 	    exit 0; \
 	fi; \
-	tmp=$$(mktemp); \
-	if ! curl -fsSL "$(STANDARD_URL)" -o "$$tmp" 2>/dev/null; then \
+	n=0; fail=0; \
+	for f in $(STANDARD_FILE) $(VENDORED_FILES); do \
+	    : "The x prefix is load-bearing: an empty STANDARD_FILE expands the"; \
+	    : "pattern to a bare ) and the shell dies on a syntax error instead"; \
+	    : "of reaching the compared-0-files guard below. Quoted, so an exact"; \
+	    : "match rather than a glob."; \
+	    case "x$$f" in \
+	        "x$(STANDARD_FILE)") u="$(STANDARD_URL)" ;; \
+	        *)                   u="$(VENDOR_BASE_URL)$$f" ;; \
+	    esac; \
+	    if [ ! -f "$$f" ]; then \
+	        echo "ERROR: $$f is vendored but missing from this repo."; \
+	        echo "  A gate that compares nothing has not passed. Fetch it:"; \
+	        echo "    curl -fsSL $$u -o $$f"; \
+	        fail=1; continue; \
+	    fi; \
+	    tmp=$$(mktemp); \
+	    if ! curl -fsSL "$$u" -o "$$tmp" 2>/dev/null; then \
+	        rm -f "$$tmp"; \
+	        echo "ERROR: cannot fetch $$u"; \
+	        echo "  A gate that cannot reach its reference has not passed;"; \
+	        echo "  it has not run. Fix the fetch, do not skip the gate."; \
+	        fail=1; continue; \
+	    fi; \
+	    if ! diff -u "$$tmp" "$$f" >/dev/null 2>&1; then \
+	        echo "ERROR: $$f differs from $$u"; \
+	        diff -u "$$tmp" "$$f" | head -40; \
+	        rm -f "$$tmp"; \
+	        echo ""; \
+	        echo "  Vendored files are verbatim. Per-repo variation is"; \
+	        echo "  configuration in the Makefile; change canonical, not this."; \
+	        fail=1; continue; \
+	    fi; \
 	    rm -f "$$tmp"; \
-	    echo "ERROR: cannot fetch $(STANDARD_URL)"; \
-	    echo "  A gate that cannot reach its reference has not passed;"; \
-	    echo "  it has not run. Fix the fetch, do not skip the gate."; \
+	    n=$$((n + 1)); \
+	done; \
+	[ "$$fail" -eq 0 ] || exit 1; \
+	if [ "$$n" -eq 0 ]; then \
+	    echo "ERROR: standard-check compared 0 files — it did not run."; \
 	    exit 1; \
 	fi; \
-	if ! diff -u "$$tmp" "$(STANDARD_FILE)" >/dev/null 2>&1; then \
-	    echo "ERROR: $(STANDARD_FILE) differs from $(STANDARD_URL)"; \
-	    diff -u "$$tmp" "$(STANDARD_FILE)" | head -40; \
-	    rm -f "$$tmp"; \
-	    echo ""; \
-	    echo "  standard.mk is vendored verbatim. Per-repo variation is"; \
-	    echo "  configuration in the Makefile; change canonical, not this."; \
-	    exit 1; \
-	fi; \
-	rm -f "$$tmp"; \
-	echo "standard-check: vendored standard.mk matches canonical"
+	echo "standard-check: $$n vendored file(s) match canonical"
 
 # Help completeness, both directions: every listed target carries a
 # description, and every target that exists is listed.

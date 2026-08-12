@@ -626,7 +626,7 @@ include standard.mk
 # else, so this is what makes the rule enforced instead of merely written in
 # native/tests/README.md — which is the distinction that matters, since the
 # convention WAS written down while 90 copies of CHECK accumulated under it.
-lint: tests-ssot characterization-check
+lint: tests-ssot characterization-check validation-tables-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -636,6 +636,16 @@ lint: tests-ssot characterization-check
 ASSERT_BASE ?= origin/main
 tests-ssot: ## Verify no C test re-defines dp_test.h's macros or loses assertions
 	@uv run python scripts/check_tests_ssot.py --base $(ASSERT_BASE)
+
+# Hung off `lint` rather than `validate-check` deliberately. `validate-check`
+# re-runs each validator and compares -- a STALENESS gate, and staleness is
+# not correctness: a generator emitting broken markdown agrees with itself,
+# so five of six reports shipped a malformed table under a green gate. This
+# reads the RENDERED file instead, so it also catches a hand edit and a
+# future generator that grows its own emitter. On `lint` it runs in the fast
+# CI job, seconds after the mistake, instead of behind the validators.
+validation-tables-check: ## Verify every generated validation report's tables parse
+	@uv run python scripts/check_validation_tables.py
 
 # The docs system deps (doxygen, graphviz, LaTeX) — the `docs` group in
 # bootstrap.toml. standard.mk's `install-deps` installs only the default groups

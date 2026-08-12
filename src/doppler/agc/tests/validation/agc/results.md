@@ -57,7 +57,7 @@ The same measurement against bandwidth, at one level so the detector's contribut
 
 `create()` seeds the detector with the REFERENCE power, so a stream that arrives already on target moves the loop nowhere. Measured as the largest excursion over 4000 on-target samples:
 
-| ref_db | worst |gain_db| over 4000 on-target samples |
+| ref_db | worst \|gain_db\| over 4000 on-target samples |
 |---|---|
 | -12 | 0.0000 |
 | -6 | 0.0000 |

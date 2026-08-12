@@ -96,7 +96,7 @@ The direct form's error grows without bound as the average lengthens; the shippe
 
 `d` steps of `alpha` must equal one step of `ema_alpha_decim(alpha, d)`. This is what *decimation does not retune the loop* means.
 
-| alpha | d | |per-sample − chunked| |
+| alpha | d | \|per-sample − chunked\| |
 |---|---|---|
 | 0.0001 | 2 | 0.0e+00 |
 | 0.0001 | 8 | 2.2e-19 |

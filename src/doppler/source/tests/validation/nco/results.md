@@ -179,7 +179,7 @@ That is the point. A real detector reports the error through some S-curve with f
 
 `bn = 0.01`, `zeta = 0.707`, one update per sample, disturbance at sample 500. The classic settling estimate for a second-order loop is `5/bn` = 500 samples. Error wrapped to `[-0.5, 0.5)`, so the detector is linear while the error stays inside half a cycle.
 
-| drive | peak |error| (cyc) | settle (samples after disturbance) | residual |error| (cyc) | final control (cyc/sample) |
+| drive | peak \|error\| (cyc) | settle (samples after disturbance) | residual \|error\| (cyc) | final control (cyc/sample) |
 |---|---|---|---|---|
 | +0.25 cycle step | 0.25000 | 273 | 0.00e+00 | 2.2671e-10 |
 | -0.25 cycle step | 0.25000 | 273 | 0.00e+00 | 6.0455e-12 |
@@ -240,7 +240,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 | PASS | the ctrl dead zone is one PHASE-WORD LSB wide (0.232 ppb) — the quantization floor, not the port's precision |
 | PASS | at an irrational rate the strobe dithers between two adjacent intervals [8, 9] whose mean is 1/norm_freq |
 | PASS | scaled output never leaves [0, nmax) |
-| PASS | under a NEGATIVE control the event fires at the intended |ctrl| rate, not the folded 1-|ctrl| — the composite's sign decides |
+| PASS | under a NEGATIVE control the event fires at the intended \|ctrl\| rate, not the folded 1-\|ctrl\| — the composite's sign decides |
 | PASS | a phase step settles inside the 5/bn estimate (273 and 273 samples against 500) |
 | PASS | the loop is symmetric in sign: +step and -step settle identically |
 | PASS | a phase step leaves NO steady-state error (residual 0.0e+00 cycles) |

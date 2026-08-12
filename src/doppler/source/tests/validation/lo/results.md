@@ -99,10 +99,10 @@ The LO is not a second oscillator — it is `nco_state_t`'s arithmetic with a LU
 
 | property | measured over all 65536 entries |
 |---|---|
-| max |lut[i] - sin(2pi i / 65536)| | 4.111e-07 |
-| max |lut[i+QTR] - cos(2pi i / 65536)| | 4.111e-07 |
-| max |1 - |lut[i+QTR] + j lut[i]|| | 2.182e-07 |
-| max |1 - |sample|| over a 65536-sample run at an odd rate | 5.527e-08 |
+| max \|lut[i] - sin(2pi i / 65536)\| | 4.111e-07 |
+| max \|lut[i+QTR] - cos(2pi i / 65536)\| | 4.111e-07 |
+| max \|1 - \|lut[i+QTR] + j lut[i]\|\| | 2.182e-07 |
+| max \|1 - \|sample\|\| over a 65536-sample run at an odd rate | 5.527e-08 |
 
 Amplitude error is at the float32 floor (`1.19e-07` is one ulp at 1.0), four orders of magnitude below the half-bin phase error `0.5/65536 = 7.629e-06` cycles. So the header's attribution of the spur floor to *phase* truncation, not amplitude quantization, is measured rather than assumed — and 2.4 confirms it directly.
 
@@ -197,8 +197,8 @@ The header calls `steps_ctrl` *"the natural API for FM synthesis and frequency-h
 
 | stimulus | measured |
 |---|---|
-| linear chirp, ctrl 0.02 -> 0.30 over 16384 samples | max |instantaneous freq - commanded| = 1.515e-05 cycles/sample |
-| hard hop, ctrl 0.05 -> 0.31 at the midpoint | 0.050003 before, 0.309998 after; the sample BEFORE the hop is still at the old rate (|err| 3.03e-06) — the change takes effect on the step it is commanded, with no phase discontinuity |
+| linear chirp, ctrl 0.02 -> 0.30 over 16384 samples | max \|instantaneous freq - commanded\| = 1.515e-05 cycles/sample |
+| hard hop, ctrl 0.05 -> 0.31 at the midpoint | 0.050003 before, 0.309998 after; the sample BEFORE the hop is still at the old rate (\|err\| 3.03e-06) — the change takes effect on the step it is commanded, with no phase discontinuity |
 
 The chirp tracks the command to 2.0x the half-LUT-bin phase quantum, which is the resolution the LUT can express at all — the control port is not the limit here, the table is.
 
@@ -265,7 +265,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 |---|---|
 | PASS | the table IS sin at every one of its 65536 entries (max error 4.11e-07) |
 | PASS | the LUT_QTR offset IS cos at every index (max error 4.11e-07) |
-| PASS | every emitted sample is a unit-magnitude phasor (max |1-|x|| = 5.53e-08) |
+| PASS | every emitted sample is a unit-magnitude phasor (max \|1-\|x\|\| = 5.53e-08) |
 | PASS | SFDR is >= 90 dBc at ANY frequency — the bound lo_core.h now states (worst measured 92.41 dBc, 2.41 dB of margin) |
 | PASS | the worst case IS the phase-truncation bound 6.02B-3.92 = 92.40 dBc, not something else (92.41 measured) — so the margin above is the real margin, not an artefact of where the sweep happened to look |
 | PASS | at a generic frequency SFDR meets the typical ~96 dBc (96.32 dBc worst of 400 random rates) |

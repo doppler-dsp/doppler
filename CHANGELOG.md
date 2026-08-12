@@ -675,6 +675,28 @@ ______________________________________________________________________
     that never changes is exactly what a stale build produces, so halving
     `lock_alpha` inside the migrated call was checked to move it first.
 
+- **`ACC_TRACE_EXP` runs the shared EMA, and gets more accurate.** It was the
+    library's only `alpha*x + (1-alpha)*acc` site; migrating it to `ema_step`
+    moves it to the incremental form, which `docs/design/ema.md` §3 measures
+    as the more accurate of the two.
+
+    Measured on the real consumer, in C, because Python cannot see it:
+    `acc_trace_value()` returns **float32** and the two forms differ at
+    ~1e-16, so a Python before/after reads ~1e-7 at every alpha — pure
+    quantisation — and would have shown "no change" while proving nothing.
+    Against a `long double` reference over 4000 frames, the error improves at
+    every coefficient and **most where the design predicted**: 43x at
+    `alpha = 1e-5` (6.5e-13 → 1.5e-14), 2.7x at 1e-3, 1.8x at 0.01, 3.7x at
+    0.2. A spectrum trace at 1e-5 is exactly the long-average case the old
+    form was worst for. That is an independent confirmation of the design's
+    §3 table, which was measured on the primitive in isolation.
+
+    `ACC_TRACE_MEAN` (Welford) is untouched — a different recursion with its
+    own `1/count` weighting, not an EMA — as are `MAXHOLD`/`MINHOLD`. The
+    float32 readback means no downstream consumer can observe the change; it
+    is an accuracy improvement in the accumulator's own state, which is where
+    a long trace's error actually accumulates.
+
 ### Fixed
 
 - **75 assertions across 20 C tests could not fail.** The hand-written

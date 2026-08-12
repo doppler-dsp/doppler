@@ -49,7 +49,7 @@
  * so the level is stated in the unit the receivers are specified in rather
  * than as a bare sigma.
  *
- * ## KNOWN DEFECT: these captures are 3.01 dB quieter than they claim (#688)
+ * ## KNOWN DEFECT: these captures are 3.01 dB quieter than they claim (#689)
  *
  * The noise line scales `dp_cgauss` by `sigma / sqrt(2)` — the factor for the
  * OTHER complex-Gaussian convention, the one carrying unit variance PER
@@ -77,7 +77,7 @@
  * per point. Raising the sweep would not fix it. So the honest reading is
  * that these BER assertions have been passing on 3 dB of noise they were
  * never supposed to have, and correcting the level is a receiver
- * investigation rather than a constant. That is #688, not this file.
+ * investigation rather than a constant. That is #689, not this file.
  *
  * Both allocate. The caller frees `*x_out` and `*data_out`.
  */

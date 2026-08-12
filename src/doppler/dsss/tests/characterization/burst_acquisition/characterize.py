@@ -1,4 +1,9 @@
-"""dsss_acq_characterization.py — Pd / Pfa vs Es/N0 for DSSS acquisition.
+"""Characterization of `BurstAcquisition` — Pd / Pfa vs Es/N0.
+
+This is a **characterization**, not an example: it sweeps a noise floor
+over many trials and is run deliberately by `make characterize`. See
+`doppler.dsss.tests.characterization` for why that distinction exists
+and what the per-push fast twin does and does not cover.
 
 Scenario
 --------
@@ -85,19 +90,29 @@ every invocation as a regression guard.
 
 Run::
 
-    python -m doppler.examples.dsss_acq_characterization
+    make characterize
+
+or this subject alone::
+
+    python -m \
+        doppler.dsss.tests.characterization.burst_acquisition.characterize
 
 Runs in ~45 s.
 """
 
 import math
 import warnings
+from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
 
 from doppler.dsss import BurstAcquisition
 from doppler.wfm import PN, Synth, dsss_spread, mls_poly
+
+# Artifacts land beside this script, like the sibling subjects and the
+# validation tree -- `make characterize` runs from the repo root.
+HERE = Path(__file__).resolve().parent
 
 # ── burst geometry ───────────────────────────────────────────────────────────
 PN_LENGTH = 9  # LFSR stages; MLS period SF = 2**9 - 1 = 511 chips
@@ -509,8 +524,12 @@ def acq_surface(frame: NDArray[np.complex64]) -> NDArray[np.float64]:
     return np.abs(code_corr)
 
 
-def main(out_path: str = "dsss_acq_characterization.png") -> None:
-    """Render the three-panel characterisation to ``out_path``."""
+def main(out_path: str | Path | None = None) -> None:
+    """Render the three-panel characterisation to ``out_path``.
+
+    Defaults to ``burst_acquisition.png`` beside this script.
+    """
+    out_path = HERE / "burst_acquisition.png" if out_path is None else out_path
     import matplotlib
 
     matplotlib.use("Agg")  # headless: render straight to a file

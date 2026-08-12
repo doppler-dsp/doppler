@@ -174,7 +174,7 @@ Every real burst decodes; any false alarms correctly fail the CRC.
 
 - **Pfa stays correctly calibrated under a blind, overlapping-dwell sweep**
     like this demo's, validated by a large Monte-Carlo sweep
-    (`dsss_acq_characterization.py`'s `measure_sweep_pfa`) across several
+    (the `burst_acquisition` characterization subject's `measure_sweep_pfa`) across several
     overlap fractions: overlapping search does not inflate the false-alarm
     rate beyond the configured `pfa`.
 

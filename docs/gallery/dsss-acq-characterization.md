@@ -95,10 +95,22 @@ curves.
 
 ## Run it
 
+This is a **characterization**, not an example: it sweeps a noise floor over
+many trials, so it is run deliberately rather than on every push. See
+[Object Validation](../dev/validation.md#where-a-long-sweep-goes-instead-characterization)
+for the distinction.
+
+<!-- docs-snippet: no-exec=a characterization sweep is deliberate, not per-push — this fence used to execute the whole ~30 s run inside the docs gate -->
+
 ```sh
-python -m doppler.examples.dsss_acq_characterization   # ~30 s → PNG
+make characterize          # every subject
+
+python -m \
+    doppler.dsss.tests.characterization.burst_acquisition.characterize
 ```
 
 The waveform geometry, signal construction, and the `(Doppler bin, code phase)`
-mapping live in `doppler.examples.dsss_acq_characterization`, shared with the
-`test_acq_characterization` gate so the demo and the test agree by construction.
+mapping live in
+`doppler.dsss.tests.characterization.burst_acquisition.characterize`, shared
+with the `test_acq_characterization` gate so the sweep and the test agree by
+construction.

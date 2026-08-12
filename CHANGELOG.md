@@ -264,13 +264,16 @@ ______________________________________________________________________
     across its whole envelope" by sweeping C/N0, Doppler, sample rate and seed
     until the answer is statistically meaningful. Two of them were living in
     `src/doppler/examples/`, where the smoke gate ran them on every push:
-    measured, **164.6 s + 117.7 s against ~58 s for the other 65 examples put
-    together**, i.e. **75% of a 376 s gate**. Shortening a 300-trial
-    Monte-Carlo to fit a smoke gate spends the statistical confidence that is
-    its entire point, so they moved instead of shrinking, and the example gate
-    fell to 91.5 s on that change alone.
+    measured, **164.6 s + 117.7 s + 18.9 s against ~58 s for every other
+    example combined** — three sweeps were the overwhelming majority of a
+    376 s gate. Shortening a 300-trial Monte-Carlo to fit a smoke gate spends
+    the statistical confidence that is its entire point, so they moved instead
+    of shrinking, and the example gate fell to **68.8 s** on that change
+    alone.
 
-    `src/doppler/dsss/tests/characterization/{dsss_receiver,acquisition}/characterize.py`,
+    Three subjects under `src/doppler/dsss/tests/characterization/`:
+    `dsss_receiver`, `acquisition` (the continuous `Acquisition`) and
+    `burst_acquisition` (`BurstAcquisition`'s Pd/Pfa vs Es/N0),
     laid out like the validation tree — one directory per subject, one fixed
     filename, artifacts beside the script, discovered by glob — so a new
     subject is covered the moment its folder exists. **Not** in `GATES_DEPS`
@@ -527,10 +530,11 @@ ______________________________________________________________________
     asserts the pinned version appears on a jm-pin line in this file, which is
     the gate that would have caught it.
 
-- **The Python example gate runs in parallel, in two passes: 376.6 s → 36.7 s.**
+- **The Python example gate runs in parallel, in two passes: 376.6 s → 20.6 s.**
     `-n auto` on the bulk (each example is already an independent subprocess in
-    a throwaway cwd), which took the post-move 91.5 s down to 29.9 s — 10.3x
-    overall, with nothing skipped and no example weakened.
+    a throwaway cwd), which took the post-move 68.8 s down to ~13 s — 20.6 s
+    for the whole target, downstream example included, with nothing skipped
+    and no example weakened.
 
     **A single `-n auto` would have shipped a broken gate.**
     `ddc_fn_scaling.py` asserts a 2-thread speedup (`su2 > 1.25`) to prove
@@ -550,11 +554,13 @@ ______________________________________________________________________
     naming a deleted script, and an entry in both registries at once (which
     would read as "runs, carefully" while the example never ran).
 
-    3.1x rather than 8x on eight cores is expected and not worth chasing:
-    several examples drive `Plan.prepare()`'s own pthread parallel-for, so
-    workers oversubscribe, and the run cannot finish faster than its longest
-    single example — now `dsss_acq_characterization.py` at ~19 s, which is the
-    obvious next candidate for the characterization category above.
+    Sublinear scaling is expected and not worth chasing: several examples
+    drive `Plan.prepare()`'s own pthread parallel-for, so workers oversubscribe
+    by design. What matters is that no single item sets the floor any more —
+    the longest example is now `detector2d_acq_demo.py` at ~6.2 s with a smooth
+    tail behind it, which is the shape xdist is actually good at. While one
+    164.6 s sweep remained, Amdahl put the floor at that sweep no matter how
+    many workers were thrown at it.
 
 ### Fixed
 

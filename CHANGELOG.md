@@ -204,6 +204,64 @@ ______________________________________________________________________
 
 ### Changed
 
+- **The C tests' randomness has one home, `native/tests/dp_rng_test.h`, and
+    one of the copies it replaced was broken.** This is a BEHAVIOUR change to
+    `test_costas_core.c`, not a refactor — read the second paragraph before
+    reviewing the diff as a mechanical migration.
+
+    The xorshift32 step was written out **twenty times** across `native/tests`
+    (inlined nine, wrapped eleven), `prbs` six times under two different
+    contracts sharing one name, `cgauss` five times byte-identically, `uni`
+    twice, and `gauss` five times in two implementations. Nineteen of the
+    twenty files are a bit-exact migration: the shifts, their order, the
+    `(x + 1) / (2^32 + 1)` uniform mapping and the draw order are all
+    preserved, proved by running each retired implementation against the
+    shared one over 12.9 million draws and comparing bit patterns, not
+    tolerances.
+
+    The twentieth was `test_costas_core.c`, whose `gauss` was a half-finished
+    edit that had been sitting in the tree: it computed `u1`, voided it with
+    `(void)u1`, then drew both Box-Muller uniforms from a two-shift recurrence
+    that is neither xorshift32 nor full-period, with the second word one
+    shift-xor from the first. Measured over 2e6 draws against the N(0,1) it
+    claimed to be — mean **+0.056**, variance **1.115**, kurtosis **3.62**,
+    two-sigma tail **0.063** against 0.0455. Its one AWGN test therefore ran
+    0.47 dB hot on biased, heavy-tailed noise, and a Costas phase detector
+    reads a mean offset as signal. Nothing ever failed, because the assertion
+    had margin. Re-verified after the fix: tracked frequency 0.00150647 →
+    0.00152291 against a 5e-4 tolerance, lock metric 0.9697 → 0.9560 against a
+    0.7 floor, bit errors 0 → 0.
+
+    Two further findings fell out of doing it:
+
+    - `test_dp_ber.c`'s Gaussian drew its two uniforms from **unsequenced**
+        operands of one `*` expression, so which drew first was the compiler's
+        choice and the two orders give different noise (6.3417 against 2.3548
+        at the same seed). Now sequenced explicitly, in the order gcc -O2
+        happened to pick, so the stream is preserved and stops being a
+        compiler's opinion.
+    - `test_costas_core.c` asserted `be == 0` on a noise test where the
+        expected error count is ~0.1 — a ~90%-per-seed outcome that returns 1
+        error at two of seeds 2024..2043. It passed only because the seed is
+        pinned, and would have flaked the first time a runner's libm rounded
+        differently. Now a bound.
+
+    `make_signal` is deliberately NOT consolidated. It is defined in eight
+    files and only two were one function written twice — the byte-identical
+    DSSS pair, now `dp_dsss_test.h`. The other six build genuinely different
+    signals sharing a name, and folding them together would delete the
+    differences each test exists to drive.
+
+    `tests-ssot` now derives its forbidden set from every `dp_*.h` here rather
+    than from `dp_test.h` alone, and rejects a new private generator outright:
+    an inline xorshift, a hand-written Box-Muller, or either uniform mapping.
+    `check_stimulus_sources.py` declines that check at repo scale, where
+    hand-rolled noise hits 72 files and a ratchet that large is noise; inside
+    `native/tests` the count is now zero, so it is a rule. `test_dp_rng.c`
+    pins the integer streams bit-for-bit and measures the distributions —
+    including the exact statistics above, so the defect that motivated the
+    header is one the gate now rejects.
+
 - **Four more CI/release steps became make targets, after an audit prompted by
     the `glibc-gate` work above.** Same rule each time: a step only CI can run
     is a step only CI can debug.

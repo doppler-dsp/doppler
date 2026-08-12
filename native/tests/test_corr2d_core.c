@@ -1,4 +1,5 @@
 #include "corr2d/corr2d_core.h"
+#include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <complex.h>
@@ -9,19 +10,10 @@
 
 #define TOL 1e-4f
 
-static uint32_t
-_xorshift32 (uint32_t *s)
-{
-  *s ^= *s << 13;
-  *s ^= *s >> 17;
-  *s ^= *s << 5;
-  return *s;
-}
-
 static float
 _rand_uniform (uint32_t *s)
 {
-  return ((float)(_xorshift32 (s) % 20001u) - 10000.0f) / 10000.0f;
+  return ((float)(dp_xs32 (s) % 20001u) - 10000.0f) / 10000.0f;
 }
 
 /* Hand-written O(n^2) circular cross-correlation, matching corr2d's own

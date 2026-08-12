@@ -15,32 +15,12 @@
  * Python test (test_carrier_mpsk.py), where both types live in track.so.
  */
 #include "carrier_mpsk/carrier_mpsk_core.h"
+#include "dp_rng_test.h"
 #include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-/* xorshift32 PRNG — deterministic across runs. */
-static uint32_t
-xs (uint32_t *st)
-{
-  uint32_t x = *st;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *st = x;
-  return x;
-}
-
-/* Box-Muller unit-variance Gaussian (per component), seeded. */
-static float
-gauss (uint32_t *st)
-{
-  double r1 = (xs (st) + 1.0) / 4294967297.0;
-  double r2 = (xs (st) + 1.0) / 4294967297.0;
-  return (float)(sqrt (-2.0 * log (r1)) * cos (2.0 * M_PI * r2));
-}
 
 /* Continuous M-PSK-at-symbol-rate signal with carrier residual f0
  * (cycles/sample), optional per-sample frequency ramp, and optional AWGN
@@ -54,7 +34,7 @@ make_signal (float complex *rx, int *labels, size_t nsym, size_t tsamps, int m,
   size_t   k = 0;
   for (size_t s = 0; s < nsym; s++)
     {
-      int g            = (int)(xs (&bst) % (uint32_t)m);
+      int g            = (int)(dp_xs32 (&bst) % (uint32_t)m);
       labels[s]        = g;
       float complex pt = mpsk_constellation (g, m);
       for (size_t i = 0; i < tsamps; i++, k++)
@@ -62,7 +42,8 @@ make_signal (float complex *rx, int *labels, size_t nsym, size_t tsamps, int m,
           float complex c = cexpf ((float)phase * I);
           rx[k]           = pt * c;
           if (sigma > 0.0f)
-            rx[k] += CMPLXF (sigma * gauss (&nst), sigma * gauss (&nst));
+            rx[k] += CMPLXF (sigma * (float)dp_gauss (&nst),
+                             sigma * (float)dp_gauss (&nst));
           phase += w;
           w += ramp * 2.0 * M_PI;
         }

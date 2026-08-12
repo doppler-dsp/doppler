@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail when a C test re-defines something `dp_test.h` already provides.
+"""Fail when a C test re-defines something the shared harness provides.
 
 This directory held **90 copies of `CHECK` in six incompatible variants** --
 two arities, two failure semantics, and one whose condition was inverted --
@@ -13,16 +13,39 @@ rule is a gate, not a paragraph.
 
 What it forbids
 ---------------
-1. Re-defining any macro `dp_test.h` defines (`DP_CHECK`, `DP_TEST_END`, ...).
+1. Re-defining any macro the `dp_*.h` family defines (`DP_CHECK`,
+   `DP_TEST_END`, `DP_STATE_ROUNDTRIP_TEST`, ...).
 2. Defining an assertion macro of your own -- anything named `CHECK`,
    `REQUIRE`, `EXPECT` or `ASSERT`, with or without a suffix. That is the
    original sin, and it is what a new file scaffolded from an old template
    will do.
-3. Re-implementing a comparison `dp_test.h` exports (`dp_nearf`, `dp_cnear`,
-   ...), including under the historical names the consolidation retired.
+3. Re-implementing a helper the family exports (`dp_nearf`, `dp_cgauss`,
+   `dp_dsss_capture`, ...), including under the historical names the
+   consolidation retired.
+4. Rolling a private random source: an inline xorshift step, a hand-written
+   Box-Muller, or either of the two uniform mappings. `dp_rng_test.h` is the
+   sanctioned home and the only file exempt.
 
-The forbidden list is DERIVED from dp_test.h on every run, not written here,
-so a macro added there is covered without editing this file.
+The forbidden list is DERIVED from the family on every run, not written here,
+so a macro added to any member -- or a whole new member -- is covered without
+editing this file.
+
+Why (4) is here and not in check_stimulus_sources.py
+---------------------------------------------------
+That gate looked at hand-rolled Gaussian noise and declined: it "hits 72
+files, most of them legitimately", and a ratchet that large is noise, and a
+noisy gate gets switched off. Correct across the Python layer and the
+validation harnesses. Not correct HERE. After the dp_rng_test.h consolidation
+the count in `native/tests` is zero, so the rule is absolute rather than a
+ratchet, and an absolute rule is worth a gate.
+
+The cost of not having had it: the xorshift step was written out twenty times
+and `gauss` five, and the fifth was a half-finished edit -- `(void)u1`, then
+two uniforms drawn one shift apart from a two-shift recurrence. It delivered
+mean +0.056 and variance 1.115 where it claimed N(0,1), so the file's only
+AWGN test ran 0.47 dB hot on biased, heavy-tailed noise for as long as it
+existed. Nothing failed. A private generator cannot be wrong in a way
+anything notices, which is exactly why it may not be private.
 
 The assertion ratchet
 ---------------------
@@ -77,12 +100,127 @@ RETIRED = [
 ASSERTION_LIKE = re.compile(r"^(CHECK|REQUIRE|EXPECT|ASSERT)\w*$")
 
 
-def provided() -> tuple[set[str], set[str]]:
-    """(macros, functions) that dp_test.h defines."""
-    text = HEADER.read_text()
-    macros = set(re.findall(r"^#define\s+(\w+)", text, re.M))
-    funcs = set(re.findall(r"^(dp_\w+)\s*\(", text, re.M))
+def family() -> list[pathlib.Path]:
+    """Every shared harness header, which is every `dp_*.h` here.
+
+    Derived by glob rather than listed, for the same reason the forbidden
+    macro set is derived from the headers: a new family member is covered the
+    day it lands, without an edit here that someone has to remember.
+
+    The glob is `dp_*.h` and NOT `dp_*_test.h`, which is the obvious spelling
+    and is wrong: `dp_test.h` -- the founding member, and the one that owns
+    every assertion -- does not match it. Written that way, this gate parsed
+    six headers, reported a cheerful count of them, and quietly stopped
+    noticing a test that re-defined `DP_CHECK`. Caught by sabotage; it read as
+    correct. Hence the assertion in `main`.
+    """
+    return sorted(TESTS.glob("dp_*.h"))
+
+
+def provided() -> tuple[dict[str, str], dict[str, str]]:
+    """(macros, functions) the family defines, each mapped to its owner.
+
+    This read `dp_test.h` alone until `dp_rng_test.h` landed, which meant the
+    gate covered the assertions and nothing else: a test could re-implement
+    `dp_cgauss` or re-declare `DP_STATE_ROUNDTRIP_TEST` and the checker had
+    no opinion. Owning the name is the point of the family, not a property of
+    one member of it.
+    """
+    macros: dict[str, str] = {}
+    funcs: dict[str, str] = {}
+    for header in family():
+        text = header.read_text()
+        for name in re.findall(r"^#define\s+(\w+)", text, re.M):
+            macros.setdefault(name, header.name)
+        for name in re.findall(r"^(dp_\w+)\s*\(", text, re.M):
+            funcs.setdefault(name, header.name)
     return macros, funcs
+
+
+#: Generator idioms that must not reappear in a test. `dp_rng_test.h` is the
+#: sanctioned home and is exempt; everything else in `native/tests` gets its
+#: randomness from there.
+#:
+#: This is the narrow version of a check `check_stimulus_sources.py`
+#: deliberately declined to make. That gate says a hand-rolled Box-Muller
+#: "hits 72 files, most of them legitimately", and a ratchet that large is
+#: noise. True across the Python layer and the validation harnesses — and not
+#: true HERE, where after the consolidation the count is zero and the rule is
+#: absolute. A gate is only worth having where it can be a rule.
+GENERATOR_IDIOMS = [
+    (
+        # The defining shape is that the SAME lvalue appears on both sides:
+        # `x ^= x << 13`, `*st ^= *st >> 17`. Hence the backreference, and it
+        # is load-bearing in both directions. Without the `*` form the pattern
+        # missed nine of the twenty historical copies while looking like it
+        # worked; with `*` but without the backreference it matched
+        # `test_burst_demod_core.c`'s CRC-16 (`c ^= (bits[i] & 1u) << 15`),
+        # which xors a DIFFERENT expression and is not a generator at all.
+        # Both mistakes were made here, and both were caught by sabotage
+        # rather than by reading.
+        re.compile(r"(\*?\w+(?:\[\w+\])?)\s*\^=\s*\1\s*(?:<<|>>)\s*\d+"),
+        "an inline xorshift step",
+        "dp_xs32 / dp_xs64",
+    ),
+    (
+        # The same shape spelled out: `x = x ^ (x << 13)`.
+        re.compile(r"(\*?\w+)\s*=\s*\1\s*\^\s*\(?\s*\1\s*(?:<<|>>)\s*\d+"),
+        "an inline xorshift step",
+        "dp_xs32 / dp_xs64",
+    ),
+    (
+        re.compile(r"sqrt\s*\(\s*-\s*(2\.0\s*\*\s*)?log\s*\("),
+        "a hand-rolled Box-Muller transform",
+        "dp_gauss / dp_cgauss / dp_gauss64",
+    ),
+    (
+        re.compile(r"/\s*4294967297\.0"),
+        "the private (x + 1) / (2^32 + 1) uniform mapping",
+        "dp_uni",
+    ),
+    (
+        re.compile(r"/\s*9007199254740993\.0"),
+        "the private 53-bit uniform mapping",
+        "dp_uni64",
+    ),
+]
+
+RNG_HOME = "dp_rng_test.h"
+
+
+def strip_comments(text: str) -> str:
+    """Blank out C comments, preserving line numbering.
+
+    Required, not tidiness: `dp_rng_test.h` documents the broken generator it
+    replaced by QUOTING it, and `test_costas_core.c` explains in prose what it
+    no longer does. A scanner that reads comments would fire on the
+    documentation of the very rule it enforces — the failure mode where
+    describing a detector's target blinds or trips the detector.
+    """
+    out = []
+    for chunk in re.split(r"(/\*.*?\*/|//[^\n]*)", text, flags=re.S):
+        if chunk.startswith("/*") or chunk.startswith("//"):
+            out.append("".join(c if c == "\n" else " " for c in chunk))
+        else:
+            out.append(chunk)
+    return "".join(out)
+
+
+def generators() -> list[str]:
+    """Fail any test that rolls its own random source."""
+    bad = []
+    for path in sorted(TESTS.glob("*.c")) + sorted(TESTS.glob("*.h")):
+        if path.name == RNG_HOME:
+            continue
+        code = strip_comments(path.read_text())
+        for n, line in enumerate(code.splitlines(), 1):
+            for pattern, what, use in GENERATOR_IDIOMS:
+                if pattern.search(line):
+                    bad.append(
+                        f"{path.relative_to(ROOT)}:{n}: {what} — "
+                        f"use {use} from {RNG_HOME}"
+                    )
+    return bad
 
 
 IGNORE = TESTS / ".assertion-ratchet-ignore"
@@ -169,29 +307,56 @@ def ratchet(base: str) -> list[str]:
 
 
 def main() -> int:
-    if not HEADER.exists():
-        print(f"check_tests_ssot: {HEADER} is missing — nothing to enforce,")
-        print("  so this gate has not run, so it has not passed.")
-        return 1
+    # An empty result set is not a pass, in either half of this gate. The
+    # glibc gate went green on a missing .so and the C tarball gate on an
+    # empty tarball; both looked exactly like this code path.
+    for required in (HEADER, TESTS / RNG_HOME):
+        if not required.exists():
+            print(
+                f"check_tests_ssot: {required} is missing — nothing to "
+                "enforce,"
+            )
+            print("  so this gate has not run, so it has not passed.")
+            return 1
 
     macros, funcs = provided()
-    if not macros:
-        print("check_tests_ssot: parsed NO macros out of dp_test.h —")
-        print("  the scan found nothing, so it did not run.")
+    if not macros or not funcs:
+        print("check_tests_ssot: parsed NO names out of the dp_*.h")
+        print("  family — the scan found nothing, so it did not run.")
         return 1
 
+    # The family glob must actually reach the founding members. A glob that
+    # silently misses one leaves this gate reporting a healthy count while
+    # covering less than it used to -- which is what `dp_*_test.h` did to
+    # `dp_test.h`, and is the same smaller-denominator failure the assertion
+    # ratchet below exists to catch.
+    for anchor, macro in (
+        ("dp_test.h", "DP_CHECK"),
+        (RNG_HOME, "DP_RNG_TWO_PI"),
+    ):
+        if macros.get(macro) != anchor:
+            print(
+                f"check_tests_ssot: {macro} is not attributed to {anchor} — "
+                "the family"
+            )
+            print("  glob is not reaching it, so this gate covers less than")
+            print("  it claims. Not a pass.")
+            return 1
+
+    owners = {p.name for p in family()}
     bad: list[str] = []
     for path in sorted(TESTS.glob("*.c")) + sorted(TESTS.glob("*.h")):
-        if path.name == HEADER.name:
-            continue
+        # A family header legitimately defines what it owns. It must still not
+        # re-define what a SIBLING owns, so only its own names are skipped.
+        mine = path.name if path.name in owners else None
         for n, line in enumerate(path.read_text().splitlines(), 1):
             m = re.match(r"\s*#\s*define\s+(\w+)", line)
             if m:
                 name = m.group(1)
-                if name in macros:
+                if name in macros and macros[name] != mine:
                     bad.append(
                         f"{path.relative_to(ROOT)}:{n}: re-defines "
-                        f"{name}, which dp_test.h provides"
+                        f"{name}, which {macros[name]} provides"
                     )
                 elif ASSERTION_LIKE.match(name):
                     bad.append(
@@ -212,11 +377,18 @@ def main() -> int:
                 m.group(1) if m else None,
                 fn.group(1) if fn else None,
             ):
-                if cand and (cand in funcs or cand in RETIRED):
+                if cand in RETIRED:
                     bad.append(
                         f"{path.relative_to(ROOT)}:{n}: re-implements "
-                        f"{cand} — dp_test.h exports it"
+                        f"{cand} — it was retired"
                     )
+                elif cand in funcs and funcs[cand] != mine:
+                    bad.append(
+                        f"{path.relative_to(ROOT)}:{n}: re-implements "
+                        f"{cand} — {funcs[cand]} exports it"
+                    )
+
+    bad += generators()
 
     if bad:
         print("check_tests_ssot: the shared harness is the single definition.")
@@ -246,7 +418,8 @@ def main() -> int:
     scanned = len(list(TESTS.glob("*.c")))
     print(
         f"check_tests_ssot: OK — {scanned} tests, "
-        f"{len(macros)} macros and {len(funcs)} helpers owned by dp_test.h"
+        f"{len(macros)} macros and {len(funcs)} helpers owned by "
+        f"{len(family())} dp_*.h harness headers; no private RNG"
         + (f"; no file lost assertions vs {base}" if base else "")
     )
     return 0

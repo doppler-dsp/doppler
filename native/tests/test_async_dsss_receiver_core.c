@@ -26,6 +26,8 @@
  * this project's own established per-test-file convention).
  */
 #include "async_dsss_receiver/async_dsss_receiver_core.h"
+#include "dp_dsss_test.h"
+#include "dp_rng_test.h"
 #include "dp_sym_test.h"
 #include "dp_test.h"
 #include "gold/gold_core.h" /* SPEC Gold-1023 for the Es/N0-floor sweep   */
@@ -39,135 +41,6 @@
 /* A length-7 maximal-length sequence -- same fixture test_dsss_receiver_
  * core.c/test_acq_core.c use for fast, real (not mocked) unit tests. */
 static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
-
-/* xorshift32 PRBS, +-1 -- same generator test_dsss_receiver_core.c's own
- * prbs()/cgauss() use. */
-static int
-prbs (uint32_t *st)
-{
-  uint32_t x = *st;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *st = x;
-  return (x & 1u) ? -1 : 1;
-}
-
-static float complex
-cgauss (uint32_t *st)
-{
-  *st ^= *st << 13;
-  *st ^= *st >> 17;
-  *st ^= *st << 5;
-  uint32_t a = *st;
-  *st ^= *st << 13;
-  *st ^= *st >> 17;
-  *st ^= *st << 5;
-  uint32_t b   = *st;
-  double   u1  = ((double)a + 1.0) / 4294967297.0;
-  double   u2  = ((double)b + 1.0) / 4294967297.0;
-  double   mag = sqrt (-log (u1));
-  double   th  = 6.283185307179586 * u2;
-  return (float)(mag * cos (th)) + (float)(mag * sin (th)) * I;
-}
-
-/* Build a continuous, code-spread BPSK capture with a FIXED residual
- * Doppler -- mirrors test_dsss_receiver_core.c's own _make_signal(). */
-static void
-_make_signal (const uint8_t *code, size_t sf, size_t spc, double fs,
-              double tsym, double doppler_hz, double cn0_dbhz, size_t n_sym,
-              size_t pre_silence, uint32_t seed, float complex **x_out,
-              size_t *n_out, double **data_out)
-{
-  float *csign = malloc (sf * sizeof *csign);
-  for (size_t i = 0; i < sf; i++)
-    csign[i] = code[i] & 1 ? -1.0f : 1.0f;
-
-  double  *data = malloc ((n_sym + 4) * sizeof *data);
-  uint32_t st   = seed ? seed : 1;
-  for (size_t i = 0; i < n_sym + 4; i++)
-    {
-      st ^= st << 13;
-      st ^= st >> 17;
-      st ^= st << 5;
-      data[i] = (st & 1u) ? 1.0 : -1.0;
-    }
-
-  size_t         n   = (size_t)((double)n_sym * tsym) + 4 * sf * spc;
-  size_t         tot = pre_silence + n;
-  float complex *x   = calloc (tot, sizeof *x);
-
-  double amp_snr = sqrt (pow (10.0, cn0_dbhz / 10.0) / fs);
-  double sigma   = 1.0 / amp_snr;
-  for (size_t i = 0; i < tot; i++)
-    x[i] = (float complex) (sigma / sqrt (2.0)) * cgauss (&st);
-
-  for (size_t idx = 0; idx < n; idx++)
-    {
-      size_t si = (size_t)((double)idx / tsym);
-      if (si >= n_sym + 4)
-        si = n_sym + 3;
-      size_t cph = (idx / spc) % sf;
-      double ph = 2.0 * 3.14159265358979323846 * doppler_hz / fs * (double)idx;
-      float complex carrier = (float complex) (cos (ph) + I * sin (ph));
-      x[pre_silence + idx] += (float)(data[si] * csign[cph]) * carrier;
-    }
-
-  free (csign);
-  *x_out    = x;
-  *n_out    = tot;
-  *data_out = data;
-}
-
-/* Build a continuous, code-spread BPSK capture with a linear Doppler
- * RAMP (chirp) -- mirrors test_dsss_receiver_core.c's own
- * _make_ramp_signal(). */
-static void
-_make_ramp_signal (const uint8_t *code, size_t sf, size_t spc, double fs,
-                   double tsym, double rate_hz_per_s, double cn0_dbhz,
-                   size_t n_sym, size_t pre_silence, uint32_t seed,
-                   float complex **x_out, size_t *n_out, double **data_out)
-{
-  float *csign = malloc (sf * sizeof *csign);
-  for (size_t i = 0; i < sf; i++)
-    csign[i] = code[i] & 1 ? -1.0f : 1.0f;
-
-  double  *data = malloc ((n_sym + 4) * sizeof *data);
-  uint32_t st   = seed ? seed : 1;
-  for (size_t i = 0; i < n_sym + 4; i++)
-    {
-      st ^= st << 13;
-      st ^= st >> 17;
-      st ^= st << 5;
-      data[i] = (st & 1u) ? 1.0 : -1.0;
-    }
-
-  size_t         n   = (size_t)((double)n_sym * tsym) + 4 * sf * spc;
-  size_t         tot = pre_silence + n;
-  float complex *x   = calloc (tot, sizeof *x);
-
-  double amp_snr = sqrt (pow (10.0, cn0_dbhz / 10.0) / fs);
-  double sigma   = 1.0 / amp_snr;
-  for (size_t i = 0; i < tot; i++)
-    x[i] = (float complex) (sigma / sqrt (2.0)) * cgauss (&st);
-
-  for (size_t idx = 0; idx < n; idx++)
-    {
-      size_t si = (size_t)((double)idx / tsym);
-      if (si >= n_sym + 4)
-        si = n_sym + 3;
-      size_t cph = (idx / spc) % sf;
-      double t   = (double)idx / fs;
-      double ph = 2.0 * 3.14159265358979323846 * (0.5 * rate_hz_per_s * t * t);
-      float complex carrier = (float complex) (cos (ph) + I * sin (ph));
-      x[pre_silence + idx] += (float)(data[si] * csign[cph]) * carrier;
-    }
-
-  free (csign);
-  *x_out    = x;
-  *n_out    = tot;
-  *data_out = data;
-}
 
 /* Stream `x` through `rx` in fixed-size chunks, collecting every emitted
  * symbol; return the symbol count and fill `*syms_out` (caller frees). */
@@ -292,8 +165,8 @@ _test_acquire_and_decode (void)
   float complex *x;
   size_t         n;
   double        *data;
-  _make_signal (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7, &x,
-                &n, &data);
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
+                   &x, &n, &data);
 
   async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
@@ -410,8 +283,8 @@ _test_give_up_cap (void)
   float complex *x;
   size_t         n;
   double        *data;
-  _make_signal (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 9, &x,
-                &n, &data);
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 9,
+                   &x, &n, &data);
 
   async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
@@ -485,13 +358,13 @@ _test_spec_ramp_decode (void)
   uint8_t *code = malloc (sf);
   uint32_t cst  = 13;
   for (size_t i = 0; i < sf; i++)
-    code[i] = (uint8_t)(prbs (&cst) > 0 ? 0u : 1u);
+    code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
 
   float complex *x;
   size_t         n;
   double        *data;
-  _make_ramp_signal (code, sf, spc, fs, tsym, rate_hz_per_s, cn0, n_sym,
-                     pre_silence, 21, &x, &n, &data);
+  dp_dsss_ramp_capture (code, sf, spc, fs, tsym, rate_hz_per_s, cn0, n_sym,
+                        pre_silence, 21, &x, &n, &data);
 
   async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
       code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
@@ -562,13 +435,13 @@ _test_spec_combined_scenario_at_spec_floor (void)
   uint8_t *code = malloc (sf);
   uint32_t cst  = 13;
   for (size_t i = 0; i < sf; i++)
-    code[i] = (uint8_t)(prbs (&cst) > 0 ? 0u : 1u);
+    code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
 
   float complex *x;
   size_t         n;
   double        *data;
-  _make_ramp_signal (code, sf, spc, fs, tsym, rate_hz_per_s, cn0, n_sym,
-                     pre_silence, 21, &x, &n, &data);
+  dp_dsss_ramp_capture (code, sf, spc, fs, tsym, rate_hz_per_s, cn0, n_sym,
+                        pre_silence, 21, &x, &n, &data);
 
   async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
       code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
@@ -649,10 +522,7 @@ _test_awgn_esn0_floor (void)
       uint32_t st     = 0x51ced00du + (uint32_t)p;
       for (size_t i = 0; i < n_data; i++)
         {
-          st ^= st << 13;
-          st ^= st >> 17;
-          st ^= st << 5;
-          dbits[i] = (uint8_t)(st & 1u);
+          dbits[i] = (uint8_t)(dp_xs32 (&st) & 1u);
           dsym[i]  = 1.0 - 2.0 * (double)dbits[i]; /* transmitted BPSK sym */
         }
 
@@ -667,7 +537,7 @@ _test_awgn_esn0_floor (void)
       double         amp   = sqrt (pow (10.0, cn0 / 10.0) / fs);
       double         sigma = 1.0 / amp;
       for (size_t i = 0; i < tot; i++)
-        x[i] = (float complex) (sigma / sqrt (2.0)) * cgauss (&st);
+        x[i] = (float complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
       for (size_t i = 0; i < n; i++)
         x[pre + i] += (float)(1.0 - 2.0 * (double)chips[i / spc]);
 

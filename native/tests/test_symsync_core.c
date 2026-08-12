@@ -9,6 +9,7 @@
  *   4. All three interpolator orders lock
  *   5. Both TEDs (Gardner, DTTL) lock on a BPSK stream
  */
+#include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include "symsync/symsync_core.h"
@@ -20,38 +21,6 @@
 
 #define NSYM 2000
 #define SPS 4
-
-static int
-prbs (uint32_t *st)
-{
-  uint32_t x = *st;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *st = x;
-  return (x & 1u) ? -1 : 1;
-}
-
-/* Unit-variance complex Gaussian (Box-Muller from xorshift); 0.5 variance per
- * component so E|z|^2 = 1 — a noise-only stream for the lock detector
- * (mirrors test_dll_core.c's cgauss). */
-static float complex
-cgauss (uint32_t *st)
-{
-  *st ^= *st << 13;
-  *st ^= *st >> 17;
-  *st ^= *st << 5;
-  uint32_t a = *st;
-  *st ^= *st << 13;
-  *st ^= *st >> 17;
-  *st ^= *st << 5;
-  uint32_t b   = *st;
-  double   u1  = ((double)a + 1.0) / 4294967297.0;
-  double   u2  = ((double)b + 1.0) / 4294967297.0;
-  double   mag = sqrt (-log (u1));
-  double   th  = 6.283185307179586 * u2;
-  return (float)(mag * cos (th)) + (float)(mag * sin (th)) * I;
-}
 
 /* Nyquist raised-cosine pulse (matched-filtered), unit symbol period T. */
 static double
@@ -77,7 +46,7 @@ make_signal (float complex *rx, int *bits, size_t nsym, double offset,
     rx[i] = 0.0f;
   for (size_t k = 0; k < nsym; k++)
     {
-      int b    = prbs (&st);
+      int b    = dp_bit (&st);
       bits[k]  = b; /* fill every bit so the BER tail is always valid */
       double c = (double)k * SPS * rate + offset;
       if (c + span >= (double)n)
@@ -391,7 +360,7 @@ main (void)
 
     uint32_t st = 9090u;
     for (size_t i = 0; i < nsym * SPS; i++)
-      lrx[i] = cgauss (&st);
+      lrx[i] = dp_cgauss (&st);
     symsync_state_t *n
         = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
     (void)symsync_steps (n, lrx, nsym * SPS, lsym, nsym);

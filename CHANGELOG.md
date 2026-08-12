@@ -985,6 +985,69 @@ ______________________________________________________________________
     `jm`'s `_dump` no longer returns a manifest whose self-check failed to
     parse, which is how three escaping bugs survived three releases.
 
+- **`awgn_generate` shipped two implementations that produced different noise
+    from the same seed, and every AWGN-derived number was therefore
+    platform-dependent.** It dispatched at run time between a scalar path and an
+    AVX-512 one. `awgn_create (42, 1.0f)`:
+
+    |       | scalar                      | AVX-512                     |
+    | ----- | --------------------------- | --------------------------- |
+    | `[0]` | `-0.268593192  0.581977606` | `-0.268593192  0.581977606` |
+    | `[1]` | `-0.054472364 -0.171774969` | `-0.345792860  0.103448674` |
+    | `[2]` | `-0.578596532 -0.357516527` | `0.134781227 -0.333317131`  |
+
+    BER curves, EVM, validation output and the published benchmarks all inherited
+    that, silently, because the assertions on them are statistical and **both
+    streams pass**. Closes #690.
+
+    **Nothing caught it, and one test is why.** `test_reset_reproducible`
+    compares a stream to *itself* after `awgn_reset` — one path, one machine — so
+    it passes identically under either implementation. Self-consistency is not
+    reproducibility; only an external reference separates them.
+
+    **The fast path is removed rather than repaired, because of where it ran.**
+    On Linux it was dead code: `_ZGVdN8v_logf` is a weak, *unresolved* symbol
+    (no doppler artifact links libmvec — checked with `ldd` on `libdoppler.so`,
+    `test_awgn_core` and `bench_awgn_core`), so the NULL check always sent
+    execution to the scalar loop. On macOS/Windows x86-64 the non-Linux `#else`
+    defines that symbol as a scalar-loop *shim*, so the check could not fail and
+    the vector path was live. The divergence was paid exactly where the
+    vectorised logarithm was absent, and the speed-up was unavailable where it
+    existed.
+
+    **The eight lanes were never independent**, which is the part worth keeping.
+    The per-stream seed was `seed + j * 0x9e3779b97f4a7c15`, and that constant is
+    what SplitMix64 adds to its own state on every draw — so advancing the
+    *stream index* is the same operation as advancing the chain by one *draw*.
+    Measured at seed 42: `vs[w][j] == vs[w-1][j+1]` for 21 of 21 pairs, **11
+    distinct words across the 32 state slots**, and stream 0 identical to the
+    scalar stream. Eight lanes overlapping in three of their four words are not
+    eight streams, and it is why sample `[0]` agreed between the paths while
+    everything after it diverged.
+
+    **Compatibility.** No change on Linux or arm64 — both already ran the scalar
+    path, confirmed by checking that the pre-change build already produces the
+    values now pinned. macOS/Windows x86-64 with AVX-512 changes, and changes
+    *onto* what every other platform has always produced. `vs[4][8]` stays
+    seeded and serialized: dropping it would change `awgn_state_bytes`, which
+    `wfm_synth_state_bytes` includes, churning the state protocol of two objects
+    to save 256 bytes.
+
+    **`test_stream_pinned` is the gate**, and it is an external reference rather
+    than a mirror: four recorded samples plus a 262 144-sample accumulator, so
+    the head being right does not imply the state update is. Sabotage-proven —
+    xoshiro rotate `23`→`24`, `s[3]` rotate `45`→`44`, u1 extraction
+    `>>40`→`>>41`, and uniform scale `2^-24`→`2^-25` each turn it red. Two
+    earlier sabotages *passed* and proved nothing (one pointed the generator at
+    `vs[0]`, which the overlap above makes identical to `s[0..3]`), and they are
+    recorded in the commit because a no-op sabotage manufactures confidence.
+
+    The 1.6x (446 against 280 Msamp/s with libmvec linked) is worth having back,
+    and can return with a parity gate against these pinned values, an explicit
+    `-lmvec`, genuinely separated per-stream seeds (SplitMix64 run forward per
+    stream, or xoshiro's own `jump()`), and consuming this stream rather than a
+    second one of its own.
+
 ## [0.42.0] — 2026-08-07
 
 ### Breaking

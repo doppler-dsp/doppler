@@ -611,8 +611,14 @@ include standard.mk
 # convention WAS written down while 90 copies of CHECK accumulated under it.
 lint: tests-ssot
 
-tests-ssot: ## Verify no C test re-defines what dp_test.h provides
-	@uv run python scripts/check_tests_ssot.py
+# The base the assertion ratchet compares against, same shape as COV_BASE:
+# no test file may end up with FEWER assertions than the base ref has. A
+# migration or a badly resolved rebase can drop assertions while the suite
+# stays green -- this branch dropped 43 across three files before it was
+# caught, and only one of the three was visible to review.
+ASSERT_BASE ?= origin/main
+tests-ssot: ## Verify no C test re-defines dp_test.h's macros or loses assertions
+	@uv run python scripts/check_tests_ssot.py --base $(ASSERT_BASE)
 
 # The docs system deps (doxygen, graphviz, LaTeX) — the `docs` group in
 # jb.toml. standard.mk's `install-deps` installs only the default groups

@@ -1,0 +1,19 @@
+# Test files allowed to have FEWER assertions than the ratchet's base ref.
+#
+# check_tests_ssot.py --base <ref> fails any native/tests/*.c whose assertion
+# count dropped, because a suite can go green while covering less: the file
+# still compiles, the survivors still pass, ctest still reports 100%, and
+# nothing announces the loss. Read the count, not the percentage.
+#
+# Deliberate removals are fine — deleting a test that pinned a behaviour the
+# library no longer has, or folding two assertions into one stronger one. They
+# are also rare, and they should be *stated*. Silent ones are the bug.
+#
+# Format: `<basename>  <reason>`, one per line. Deleting a whole file is not
+# listed here — a deletion is a visible act in the diff, and the ratchet only
+# looks at files that still exist.
+#
+# EMPTY, and the intent is that it stays that way. The regression that
+# motivated this gate — 43 assertions across test_RateConverter_core.c,
+# test_mpsk_receiver_core.c and test_agc_core.c, from a branch cut before
+# feat(telemetry) reached main — was fixed by rebasing, not by an entry here.

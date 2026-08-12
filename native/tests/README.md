@@ -96,12 +96,28 @@ another one. `test_state_roundtrip` is defined in six files with six different
 bodies — each drives its own object's split-stream resume. Same property,
 different test. Consolidating those would delete coverage, not duplication.
 
-## Gate
+## Gates
 
-`make lint` runs `tests-ssot`, which fails if a test re-defines an assertion
-`dp_test.h` already provides. It exists because this file previously held 90
-copies of `CHECK` in six incompatible variants, and a note in a README is not
-a control.
+`make lint` runs `tests-ssot`, which enforces two things.
+
+**One definition.** A test may not re-define an assertion `dp_test.h` already
+provides, nor roll its own `CHECK`/`REQUIRE`/`EXPECT`/`ASSERT`. The forbidden
+set is derived from `dp_test.h` on every run, so a macro added there is covered
+without touching the checker. This exists because 90 copies of `CHECK` in six
+incompatible variants accumulated under a convention that was already written
+down — a note in a README is not a control.
+
+**No silent loss of coverage.** No `native/tests/*.c` may end up with fewer
+assertions than `$(ASSERT_BASE)` (default `origin/main`) has. A migration or a
+badly resolved rebase can drop assertions while everything stays green: the
+file compiles, the survivors pass, `ctest` reports 100%. Read the count, not
+the percentage. This consolidation itself dropped **43 assertions across three
+files** — cut before `feat(telemetry)` reached `main` — and only one of the
+three was visible to review; the other two were found by counting.
+
+Deliberate removals go in `native/tests/.assertion-ratchet-ignore` with a
+reason. Deleting a whole file needs no entry: a deletion is visible in the
+diff, which is exactly what the silent case is not.
 
 ## The one exception
 

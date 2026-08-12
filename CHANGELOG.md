@@ -381,6 +381,19 @@ ______________________________________________________________________
     it (just-buildit.github.io#20). The old name is still read, and warns, so
     the merge order between this and the canonical publish does not matter.
 
+    **The just-makeit pin moves 0.55.3 -> 0.57.0 in the same commit, because
+    the rename is not doppler's alone to make.** jm *generates* this file into
+    every scaffolded project, so `jb.toml` is a manifest-owned path: under
+    0.55.3 the rename read as `MISSING (1) — jm apply will create: + jb.toml`
+    and `make drift-check` exited 1. jm 0.57.0 (just-makeit#935) renames the
+    template, which is what makes the rename expressible here at all. It
+    carries 0.56.0 as well — a `jm status` NOTE for a `pass_capacity` opt-in
+    that cannot take effect (gh-921), and fixes that do not touch the codegen
+    doppler exercises. Verified: zero codegen drift across the bump.
+
+    `examples/downstream-jm` is a jm project in its own right and is gated by
+    the same `status --check`, so its own copy of the file is renamed with it.
+
 - **Four more CI/release steps became make targets, after an audit prompted by
     the `glibc-gate` work above.** Same rule each time: a step only CI can run
     is a step only CI can debug.

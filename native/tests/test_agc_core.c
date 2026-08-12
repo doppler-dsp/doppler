@@ -20,6 +20,12 @@
  *   §16 agc_log10_ is total: a NaN does not read as a plausible level
  *   §17 applied_gain_db stays finite when the linear gain underflows
  *   §18 saturate()'s own contract, including both NaN destinations
+ *   §19 gain_update_period: zero-order hold, and P-independent convergence
+ *   §20 Settling scales with loop_bw, and is SLOWER on a quiet input
+ *   §21 create and reset seed p_avg from the reference, at any ref_db
+ *   §22 The block gain is a linear ramp within a chunk, not a staircase
+ *   §23 decim is neutral at the steady state (and NOT mid-transient)
+ *   §24 A failed attach leaves the object detached
  *
  * Sections §13 onward were added by the validation campaign. They exist
  * because agc_core.h claimed the power floor was "never reached in normal
@@ -445,6 +451,491 @@ saturate_contract (void)
   return ok;
 }
 
+/* ── §19 — gain_update_period: a documented feature with no coverage ──────
+ *
+ * P > 1 amortises the transcendentals: the detector and the gain-apply run
+ * every sample while the loop-filter command refreshes once per P, with the
+ * integrator step scaled by P so it advances at the same per-sample rate.
+ * Nothing in this file ever set it to anything but the default.
+ *
+ * Two things to pin, and the second is the one a wrong P-scaling breaks:
+ * the converged gain must not depend on P, and the applied gain must be a
+ * genuine zero-order hold -- constant for P-1 samples, then stepping. */
+static int
+gain_update_period_holds_and_converges (void)
+{
+  const float complex dir = 0.6f + 0.8f * I;
+  int                 ok  = 1;
+  double              ref = 0.0, want = -20.0; /* 10x input -> -20 dB gain */
+  size_t              Ps[3] = { 1, 8, 32 };
+  for (int k = 0; k < 3; k++)
+    {
+      agc_state_t *s = agc_create (ref, 0.0025, 0.05);
+      if (!s)
+        return 0;
+      s->gain_update_period = Ps[k];
+      for (int n = 0; n < 8000; n++)
+        (void)agc_step (s, dir * 10.0f);
+      if (!(fabs (s->gain_db - want) < 0.5))
+        {
+          fprintf (stderr, "  §19 P=%zu converged to %g dB, not %g\n", Ps[k],
+                   s->gain_db, want);
+          ok = 0;
+        }
+      agc_destroy (s);
+    }
+
+  /* The zero-order hold itself. With P = 8 the applied gain must be
+     unchanged for 7 samples and then move -- a loop that refreshed every
+     sample, or one that never refreshed, both fail this. */
+  {
+    agc_state_t *s = agc_create (ref, 0.0025, 0.05);
+    if (!s)
+      return 0;
+    s->gain_update_period = 8;
+    for (int n = 0; n < 64; n++) /* get off the seed so the gain is moving */
+      (void)agc_step (s, dir * 10.0f);
+    double held    = agc_get_applied_gain_db (s);
+    int    changes = 0;
+    for (int n = 0; n < 8; n++)
+      {
+        (void)agc_step (s, dir * 10.0f);
+        double now = agc_get_applied_gain_db (s);
+        if (now != held)
+          {
+            changes++;
+            held = now;
+          }
+      }
+    /* Vacuity precondition: the gain must actually be moving, or "held
+       constant" is a statement about a converged loop and proves nothing. */
+    if (changes == 0)
+      {
+        fprintf (stderr, "  §19 precondition — gain never moved, so the "
+                         "hold is not being tested\n");
+        ok = 0;
+      }
+    else if (changes != 1)
+      {
+        fprintf (stderr,
+                 "  §19 P=8 applied gain changed %d times in 8 "
+                 "samples, expected exactly 1 (zero-order hold)\n",
+                 changes);
+        ok = 0;
+      }
+    agc_destroy (s);
+  }
+  return ok;
+}
+
+/* ── §20 — settling is level-DEPENDENT, and the header now says so ────────
+ *
+ * The old prose claimed a loud and a quiet input settle in the same number
+ * of samples. The existing §3 "tested" that by running both for a fixed
+ * 4000 samples and checking both ended at the reference -- which one
+ * settling in 100 samples and the other in 3900 also passes. This measures
+ * the time.
+ *
+ * Two claims, opposite in spirit, and both are real: the FILTER's time
+ * constant scales as 1/(4*loop_bw), and the OBJECT is slower on a quiet
+ * input because the detector measures in power. */
+static long
+tau_1e (double loop_bw, double alpha, double amp, long budget)
+{
+  const float complex dir = 0.6f + 0.8f * I;
+  agc_state_t        *s   = agc_create (0.0, loop_bw, alpha);
+  if (!s)
+    return -1;
+  double gain_inf = -20.0 * log10 (amp); /* ref 0 dB */
+  double err0     = fabs (gain_inf);
+  long   n        = 0;
+  for (; n < budget; n++)
+    {
+      (void)agc_step (s, dir * (float)amp);
+      if (fabs (s->gain_db - gain_inf) <= err0 / 2.718281828459045)
+        break;
+    }
+  agc_destroy (s);
+  return n < budget ? n + 1 : -1;
+}
+
+static int
+settling_scales_with_bandwidth_and_depends_on_level (void)
+{
+  int ok = 1;
+
+  /* (a) The filter's bandwidth scaling: halve loop_bw, double the time
+     constant. Measured against the SAME input level, so the detector's
+     contribution is common to both and cancels. A hard-coded step size --
+     one that ignored loop_bw -- fails here and nowhere else. */
+  long t_fast = tau_1e (0.005, 0.05, 10.0, 200000);
+  long t_slow = tau_1e (0.0025, 0.05, 10.0, 200000);
+  if (t_fast <= 0 || t_slow <= 0)
+    {
+      fprintf (stderr, "  §20 settling did not complete (%ld, %ld)\n", t_fast,
+               t_slow);
+      ok = 0;
+    }
+  else
+    {
+      double ratio = (double)t_slow / (double)t_fast;
+      if (!(ratio > 1.6 && ratio < 2.4))
+        {
+          fprintf (stderr,
+                   "  §20 halving loop_bw scaled settling by %.2fx "
+                   "(%ld -> %ld), expected ~2x\n",
+                   ratio, t_fast, t_slow);
+          ok = 0;
+        }
+    }
+
+  /* (b) The object is NOT level-independent, and the direction is fixed: a
+     quiet input is SLOWER, never faster. This is the claim the header used
+     to make in reverse, so a regression that "restored" level-independence
+     would have to make the quiet case faster -- which this catches. */
+  long t_loud  = tau_1e (0.0025, 0.01, 100.0, 500000);
+  long t_quiet = tau_1e (0.0025, 0.01, 0.01, 500000);
+  if (t_loud <= 0 || t_quiet <= 0)
+    {
+      fprintf (stderr, "  §20 level sweep did not complete (%ld, %ld)\n",
+               t_loud, t_quiet);
+      ok = 0;
+    }
+  else if (!(t_quiet > t_loud))
+    {
+      fprintf (stderr,
+               "  §20 quiet input settled in %ld samples vs %ld loud — the "
+               "detector's asymmetry has vanished; re-derive the header\n",
+               t_quiet, t_loud);
+      ok = 0;
+    }
+  return ok;
+}
+
+/* ── §21 — the seed is the REFERENCE power, at any reference ──────────────
+ *
+ * create() and reset() both seed p_avg with 10^(ref_db/10) so the first
+ * block of on-target samples produces no transient. §1 and §9 checked this
+ * at ref_db = 0 only -- where the seed is 1.0, and a seed hard-wired to 1.0
+ * passes identically. Anything setting p_avg by hand must use the reference
+ * power and not a measured input power, so this is the claim that keeps
+ * that promise honest. */
+static int
+seed_is_the_reference_power (void)
+{
+  int    ok      = 1;
+  double refs[5] = { -12.0, -6.0, 0.0, 6.0, 12.0 };
+  for (int k = 0; k < 5; k++)
+    {
+      double       want = pow (10.0, refs[k] * 0.1);
+      agc_state_t *s    = agc_create (refs[k], 0.0025, 0.05);
+      if (!s)
+        return 0;
+      if (!(fabs (s->p_avg - want) < 1e-12 * (want > 1.0 ? want : 1.0)))
+        {
+          fprintf (stderr, "  §21 create(ref %g): p_avg %g, expected %g\n",
+                   refs[k], s->p_avg, want);
+          ok = 0;
+        }
+      if (!(s->g_last == 1.0))
+        {
+          fprintf (stderr, "  §21 create(ref %g): g_last %g, expected 1.0\n",
+                   refs[k], s->g_last);
+          ok = 0;
+        }
+
+      /* reset() re-seeds from the CURRENT ref_db, and clears g_last. Both
+         need a vacuity precondition: perturb first, or a reset that did
+         nothing at all would pass. */
+      for (int n = 0; n < 500; n++)
+        (void)agc_step (s, (0.6f + 0.8f * I) * 25.0f);
+      if (!(fabs (s->p_avg - want) > 1e-6 && s->g_last != 1.0))
+        {
+          fprintf (stderr,
+                   "  §21 precondition (ref %g) — the loop did not move "
+                   "(p_avg %g, g_last %g)\n",
+                   refs[k], s->p_avg, s->g_last);
+          ok = 0;
+        }
+      agc_reset (s);
+      if (!(fabs (s->p_avg - want) < 1e-12 * (want > 1.0 ? want : 1.0)))
+        {
+          fprintf (stderr, "  §21 reset(ref %g): p_avg %g, expected %g\n",
+                   refs[k], s->p_avg, want);
+          ok = 0;
+        }
+      if (!(s->g_last == 1.0 && s->gain_db == 0.0 && s->gain_phase == 0))
+        {
+          fprintf (stderr,
+                   "  §21 reset(ref %g): g_last %g gain_db %g phase %zu\n",
+                   refs[k], s->g_last, s->gain_db, s->gain_phase);
+          ok = 0;
+        }
+      /* Configuration survives. */
+      if (!(s->ref_db == refs[k]))
+        {
+          fprintf (stderr, "  §21 reset clobbered ref_db (%g)\n", s->ref_db);
+          ok = 0;
+        }
+      agc_destroy (s);
+    }
+  return ok;
+}
+
+/* ── §22 — the block form is a first-order hold, not a staircase ──────────
+ *
+ * agc_steps() interpolates the applied gain linearly across each chunk so
+ * there is no inter-chunk step. Measured by reading the realised gain per
+ * sample straight off the output of a constant input.
+ *
+ * Must be measured during the TRANSIENT: at convergence the ramp is flat
+ * and a staircase would be indistinguishable, which is the vacuity trap
+ * here. */
+static int
+block_gain_is_a_first_order_hold (void)
+{
+  enum
+  {
+    N = 64,
+    D = 8
+  };
+  int                  ok  = 1;
+  const float complex  dir = 0.6f + 0.8f * I;
+  static float complex in[N], out[N];
+  for (size_t i = 0; i < N; i++)
+    in[i] = dir * 10.0f; /* hot, so the loop is moving */
+
+  agc_state_t *s = agc_create (0.0, 0.0025, 0.05);
+  if (!s)
+    return 0;
+  s->decim = D;
+  agc_steps (s, in, out, N);
+
+  /* Chunk 1 (samples 8..15) is the first with a commanded gain: chunk 0
+     runs at the seed. Its per-sample gain steps must be equal. */
+  double g[D + 1];
+  for (int i = 0; i <= D; i++)
+    g[i] = (double)cabsf (out[D + i - 1]) / (double)cabsf (in[D + i - 1]);
+
+  /* Compare each step against the chunk's MEAN step rather than against the
+     first: the gains are read back off float32 outputs, so each carries
+     ~1e-7 of rounding, and chaining that to one reference exaggerates it.
+     1% of the mean is still four orders clear of a staircase, which would
+     put seven steps at zero and one at the whole chunk's change. */
+  double mean_step = 0.0;
+  for (int i = 0; i < D; i++)
+    mean_step += (g[i + 1] - g[i]) / (double)D;
+
+  /* Vacuity precondition: the chunk must actually be ramping. */
+  if (!(fabs (mean_step) > 1e-6))
+    {
+      fprintf (stderr,
+               "  §22 precondition — chunk is flat (mean step %g); a "
+               "staircase would pass this\n",
+               mean_step);
+      ok = 0;
+    }
+  for (int i = 0; i < D; i++)
+    {
+      double step = g[i + 1] - g[i];
+      if (!(fabs (step - mean_step) < 0.01 * fabs (mean_step)))
+        {
+          fprintf (stderr,
+                   "  §22 in-chunk step %d is %g against a mean of %g — not "
+                   "a linear ramp\n",
+                   i, step, mean_step);
+          ok = 0;
+          break;
+        }
+    }
+  agc_destroy (s);
+  return ok;
+}
+
+/* ── §23 — decim is neutral at the STEADY STATE, and only there ───────────
+ *
+ * The per-chunk coefficients are rescaled internally so a caller changing
+ * decim does not retune. §8 checked only that each decim reached the
+ * reference by sample 4000, one decim at a time; this compares the three
+ * against each other on gain_db, which is tighter.
+ *
+ * It deliberately does NOT assert that the trajectories agree, because
+ * measurement says they do not. Same input, gain_db at a common index:
+ *
+ *     n     decim 8    decim 16   decim 32   spread
+ *     64    -10.307    -10.872    -11.826    1.52 dB
+ *     128   -16.563    -17.313    -19.090    2.53 dB
+ *     256   -19.657    -19.946    -20.708    1.05 dB
+ *     512   -19.992    -19.998    -19.989    0.009 dB
+ *
+ * A larger decim converges FASTER mid-transient: the rescaled step is
+ * d*4*loop_bw per update, and a first-order recursion taking fewer, larger
+ * steps is not equivalent to one taking many small ones -- it only agrees
+ * in the limit. So "keeps its per-sample meaning" is a statement about the
+ * steady state and the nominal bandwidth, not about the transient, and a
+ * caller who changes decim DOES change the acquisition shape. The
+ * divergence is worst at decim 32, which is also where the header's own
+ * `loop_bw << 1/(4*decim)` precondition is thinnest: 0.0025 against 0.0078
+ * is 3x, not "well below". Recorded as a finding rather than pinned as a
+ * behaviour. */
+static int
+decim_is_neutral_at_the_steady_state (void)
+{
+  enum
+  {
+    N = 512
+  };
+  int                  ok  = 1;
+  const float complex  dir = 0.6f + 0.8f * I;
+  static float complex in[N], out[N];
+  for (size_t i = 0; i < N; i++)
+    in[i] = dir * 10.0f;
+
+  size_t ds[3] = { 8, 16, 32 };
+  double first = 0.0;
+  for (int k = 0; k < 3; k++)
+    {
+      agc_state_t *s = agc_create (0.0, 0.0025, 0.05);
+      if (!s)
+        return 0;
+      s->decim = ds[k];
+      agc_steps (s, in, out, N);
+      /* Vacuity: each must have actually converged, or "they agree" is a
+         statement about three loops that all did nothing. */
+      if (!(fabs (s->gain_db + 20.0) < 0.1))
+        {
+          fprintf (stderr,
+                   "  §23 precondition — decim %zu is at %g dB after %d "
+                   "samples, not converged on -20\n",
+                   ds[k], s->gain_db, N);
+          ok = 0;
+        }
+      if (k == 0)
+        first = s->gain_db;
+      else if (!(fabs (s->gain_db - first) < 0.05))
+        {
+          fprintf (stderr,
+                   "  §23 decim %zu settled at %g dB against decim 8's %g — "
+                   "the rescaling does not preserve the steady state\n",
+                   ds[k], s->gain_db, first);
+          ok = 0;
+        }
+      agc_destroy (s);
+    }
+  return ok;
+}
+
+/* ── §24 — a failed attach leaves the object DETACHED ─────────────────────
+ *
+ * agc_set_telemetry documents DP_ERR_INVALID "when the probe table cannot
+ * take both probes ... the attach fails whole; the object stays detached".
+ * Nothing ran it.
+ *
+ * The table is filled to one free slot, so the FIRST probe registers and
+ * the second cannot -- which is the interesting case, because a half-armed
+ * object would still have a valid id_gain and a live ctx.
+ *
+ * NB the other documented reject, "a prefixed name is invalid", is NOT
+ * exercised here because it does not happen: an over-long prefix is
+ * silently TRUNCATED by snprintf into DP_TLM_NAME_MAX, so
+ * "<prefix>.gain_db" and "<prefix>.level_db" collapse to the same name, the
+ * second lookup returns the first's id, and the attach reports DP_OK with
+ * id_gain == id_level -- both series then interleave on one probe with no
+ * way to separate them. Measured. Filed rather than pinned, because the
+ * naming is shared by every object's set_telemetry and the fix is not the
+ * AGC's to make. */
+static int
+failed_attach_leaves_it_detached (void)
+{
+  int       ok  = 1;
+  dp_tlm_t *tlm = dp_tlm_create (256);
+  if (!tlm)
+    return 0;
+  agc_state_t *s = agc_create (0.0, 0.0025, 0.05);
+  if (!s)
+    {
+      dp_tlm_destroy (tlm);
+      return 0;
+    }
+
+  char nm[DP_TLM_NAME_MAX];
+
+  /* Vacuity precondition, proved on a throwaway context because proving it
+     CONSUMES the slot: after DP_TLM_MAX_PROBES-1 fillers exactly one slot
+     must remain, so the AGC's first probe fits and its second cannot. That
+     split is the interesting case — a half-armed object would still hold a
+     valid id_gain and a live ctx. */
+  {
+    dp_tlm_t *probe_t = dp_tlm_create (256);
+    if (!probe_t)
+      {
+        agc_destroy (s);
+        dp_tlm_destroy (tlm);
+        return 0;
+      }
+    for (int i = 0; i < DP_TLM_MAX_PROBES - 1; i++)
+      {
+        (void)snprintf (nm, sizeof nm, "filler.%d", i);
+        if (dp_tlm_probe (probe_t, nm, 1) < 0)
+          {
+            fprintf (stderr, "  §24 could not fill the probe table (at %d)\n",
+                     i);
+            ok = 0;
+            break;
+          }
+      }
+    if (!(dp_tlm_probe (probe_t, "spare.one", 1) >= 0))
+      {
+        fprintf (stderr,
+                 "  §24 precondition — no slot left after %d "
+                 "fillers; the table is smaller than assumed\n",
+                 DP_TLM_MAX_PROBES - 1);
+        ok = 0;
+      }
+    if (!(dp_tlm_probe (probe_t, "spare.two", 1) < 0))
+      {
+        fprintf (stderr, "  §24 precondition — more than one slot was free; "
+                         "the AGC's second probe would fit and the split "
+                         "case is untested\n");
+        ok = 0;
+      }
+    dp_tlm_destroy (probe_t);
+  }
+
+  for (int i = 0; i < DP_TLM_MAX_PROBES - 1; i++)
+    {
+      (void)snprintf (nm, sizeof nm, "filler.%d", i);
+      (void)dp_tlm_probe (tlm, nm, 1);
+    }
+
+  int rc = agc_set_telemetry (s, tlm, "agc", 1);
+  if (!(rc == DP_ERR_INVALID))
+    {
+      fprintf (stderr,
+               "  §24 attach into a nearly-full table returned %d, "
+               "expected DP_ERR_INVALID\n",
+               rc);
+      ok = 0;
+    }
+  if (!(s->tlm.ctx == NULL))
+    {
+      fprintf (stderr, "  §24 a failed attach left the object ATTACHED\n");
+      ok = 0;
+    }
+  /* And it still runs, emitting nothing — the half that "fails whole"
+     actually promises. */
+  (void)agc_step (s, 1.0f + 0.0f * I);
+  dp_tlm_rec_t recs[8];
+  if (!(dp_tlm_read (tlm, 8, recs, 8) == 0))
+    {
+      fprintf (stderr, "  §24 a half-attached object emitted records\n");
+      ok = 0;
+    }
+  agc_destroy (s);
+  dp_tlm_destroy (tlm);
+  return ok;
+}
+
 int
 main (void)
 {
@@ -764,6 +1255,16 @@ main (void)
   CHECK (log10_is_total ());
   CHECK (applied_gain_is_finite_after_silence ());
   CHECK (saturate_contract ());
+
+  /* ── §19-§24: the rest of the claim inventory — the header's prose that
+     nothing ran, and the tests whose comments claimed more than their
+     assertions did. ──────────────────────────────────────────────────── */
+  CHECK (gain_update_period_holds_and_converges ());
+  CHECK (settling_scales_with_bandwidth_and_depends_on_level ());
+  CHECK (seed_is_the_reference_power ());
+  CHECK (block_gain_is_a_first_order_hold ());
+  CHECK (decim_is_neutral_at_the_steady_state ());
+  CHECK (failed_attach_leaves_it_detached ());
 
   if (_fails)
     {

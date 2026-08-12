@@ -115,10 +115,15 @@ def ratchet(base: str) -> list[str]:
         text=True,
     )
     if rev.returncode != 0:
-        return [
-            f"base ref {base!r} does not resolve — fetch it first; "
-            f"a ratchet that cannot read its baseline has not passed"
-        ]
+        raise LookupError(
+            f"base ref {base!r} does not resolve.\n"
+            "  A ratchet that cannot read its baseline has not passed, so\n"
+            "  this is a failure rather than a skip — but it is NOT a lost\n"
+            "  assertion, and reporting it as one sends the reader hunting\n"
+            "  a regression that is not there.\n"
+            "  Fetch it:  git fetch --no-tags --depth=1 origin \\\n"
+            "               +refs/heads/main:refs/remotes/origin/main"
+        )
 
     excused = {}
     if IGNORE.exists():
@@ -224,7 +229,11 @@ def main() -> int:
     for i, a in enumerate(sys.argv):
         if a == "--base" and i + 1 < len(sys.argv):
             base = sys.argv[i + 1]
-    lost = ratchet(base) if base else []
+    try:
+        lost = ratchet(base) if base else []
+    except LookupError as exc:
+        print(f"check_tests_ssot: {exc}")
+        return 1
     if lost:
         print("check_tests_ssot: a test file LOST assertions.")
         for line in lost:

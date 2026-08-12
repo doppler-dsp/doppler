@@ -8,22 +8,12 @@
  * reset behaviour — all verifiable without a filter-design library.
  */
 #include "dp_state_test.h"
+#include "dp_test.h"
 #include "hbdecim_q15/hbdecim_q15_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* Flat impulse response (all ones, num_taps=1): FIR branch is empty
  * (K=0), only the delay center-tap path executes.  Useful for testing
@@ -40,26 +30,25 @@ static const float H25_stub[25]
 int
 main (void)
 {
-  int _fails = 0;
 
   /* ── NULL / bad-arg guards ───────────────────────────────────── */
-  CHECK (hbdecim_q15_create (0, H1) == NULL);
-  CHECK (hbdecim_q15_create (1, NULL) == NULL);
+  DP_CHECK (hbdecim_q15_create (0, H1) == NULL);
+  DP_CHECK (hbdecim_q15_create (1, NULL) == NULL);
 
   /* ── Lifecycle (num_taps=1) ──────────────────────────────────── */
   hbdecim_q15_state_t *r = hbdecim_q15_create (1, H1);
-  CHECK (r != NULL);
+  DP_CHECK (r != NULL);
   if (!r)
     return 1;
-  CHECK (hbdecim_q15_get_num_taps (r) == 1);
-  CHECK (fabs (hbdecim_q15_get_rate (r) - 0.5) < 1e-9);
+  DP_CHECK (hbdecim_q15_get_num_taps (r) == 1);
+  DP_CHECK (fabs (hbdecim_q15_get_rate (r) - 0.5) < 1e-9);
   hbdecim_q15_reset (r);
   hbdecim_q15_destroy (r);
   r = NULL;
 
   /* ── Zero input → zero output ────────────────────────────────── */
   r = hbdecim_q15_create (25, H25_stub);
-  CHECK (r != NULL);
+  DP_CHECK (r != NULL);
   if (!r)
     return 1;
 
@@ -68,9 +57,9 @@ main (void)
   size_t               n;
 
   n = hbdecim_q15_execute (r, zeros, 256, out, 128);
-  CHECK (n == 128);
+  DP_CHECK (n == 128);
   for (int i = 0; i < 256; i++)
-    CHECK (out[i] == 0);
+    DP_CHECK (out[i] == 0);
 
   /* ── 2:1 decimation ratio ────────────────────────────────────── */
   int16_t ramp[2048];
@@ -78,65 +67,59 @@ main (void)
   for (int i = 0; i < 2048; i++)
     ramp[i] = (int16_t)(i & 0x7fff);
   n = hbdecim_q15_execute (r, ramp, 1024, ramp_out, 512);
-  CHECK (n == 512);
+  DP_CHECK (n == 512);
 
   /* ── Odd block: trailing even pair buffered, consumed next call ─ */
   hbdecim_q15_reset (r);
   n = hbdecim_q15_execute (r, zeros, 3, out, 64);
-  CHECK (n == 1); /* floor(3/2) = 1 complete pair processed */
+  DP_CHECK (n == 1); /* floor(3/2) = 1 complete pair processed */
   n = hbdecim_q15_execute (r, zeros, 1, out, 64);
-  CHECK (n == 1); /* buffered pair + 1 new odd = 1 more output   */
+  DP_CHECK (n == 1); /* buffered pair + 1 new odd = 1 more output   */
 
   /* ── Execute with empty input ────────────────────────────────── */
   n = hbdecim_q15_execute (r, zeros, 0, out, 64);
-  CHECK (n == 0);
+  DP_CHECK (n == 0);
 
   /* ── max_out=0 produces no output ───────────────────────────── */
   n = hbdecim_q15_execute (r, zeros, 128, out, 0);
-  CHECK (n == 0);
+  DP_CHECK (n == 0);
 
   /* ── reset clears delay lines (zero after reset + zero input) ── */
   hbdecim_q15_reset (r);
   n = hbdecim_q15_execute (r, zeros, 256, out, 128);
-  CHECK (n == 128);
+  DP_CHECK (n == 128);
   for (int i = 0; i < 256; i++)
-    CHECK (out[i] == 0);
+    DP_CHECK (out[i] == 0);
 
   hbdecim_q15_destroy (r);
 
   /* ── execute_max_out always returns 0 (lazy-alloc signal) ────── */
   r = hbdecim_q15_create (1, H1);
-  CHECK (r != NULL);
+  DP_CHECK (r != NULL);
   if (!r)
     return 1;
-  CHECK (hbdecim_q15_execute_max_out (r) == 0);
+  DP_CHECK (hbdecim_q15_execute_max_out (r) == 0);
   hbdecim_q15_destroy (r);
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_hbdecim_q15_core FAILED (%d)\n", _fails);
-      return 1;
-    }
   /* serializable state — four dual-write rings + heads round-trip + reject. */
   {
     const float          htaps[4] = { 0.1f, -0.2f, 0.3f, 0.0f };
     hbdecim_q15_state_t *a        = hbdecim_q15_create (7, htaps);
     hbdecim_q15_state_t *b        = hbdecim_q15_create (7, htaps);
-    CHECK (a != NULL && b != NULL);
+    DP_CHECK (a != NULL && b != NULL);
     int16_t in[32], out[32];
     for (int i = 0; i < 32; i++)
       in[i] = (int16_t)(100 * i);
     (void)hbdecim_q15_execute (a, in, 32, out, 32);
     DP_STATE_ROUNDTRIP_TEST (hbdecim_q15, a, b);
-    CHECK (b->even_head == a->even_head && b->odd_head == a->odd_head);
-    CHECK (b->has_pending == a->has_pending);
+    DP_CHECK (b->even_head == a->even_head && b->odd_head == a->odd_head);
+    DP_CHECK (b->has_pending == a->has_pending);
     const size_t rb = 2 * a->cap * sizeof (int16_t);
-    CHECK (memcmp (b->even_I, a->even_I, rb) == 0);
-    CHECK (memcmp (b->odd_Q, a->odd_Q, rb) == 0);
+    DP_CHECK (memcmp (b->even_I, a->even_I, rb) == 0);
+    DP_CHECK (memcmp (b->odd_Q, a->odd_Q, rb) == 0);
     hbdecim_q15_destroy (a);
     hbdecim_q15_destroy (b);
   }
 
-  printf ("test_hbdecim_q15_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_hbdecim_q15_core");
 }

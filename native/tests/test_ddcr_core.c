@@ -9,23 +9,11 @@
  */
 #include "ddcr/ddcr_core.h"
 #include "dp_mf_test.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-static int _fails = 0;
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 static inline int
 _almost_eq_c (float complex a, float complex b, float tol)
@@ -68,7 +56,7 @@ test_run_roundtrip (double norm_freq, double rate)
   nB += ddcr_run (r2, blob, NULL, in + cut, L - cut, outB + nB, CAP - nB);
   ddcr_destroy (r2);
 
-  CHECK (nA == nB);
+  DP_CHECK (nA == nB);
   int bad = 0;
   for (size_t i = 0; i < nA && i < nB; i++)
     /* Restored vs continuous output matches up to FMA-grouping ULPs at the
@@ -77,14 +65,14 @@ test_run_roundtrip (double norm_freq, double rate)
      * there). A real state-restore bug would be O(1) — far above tol. */
     if (!_almost_eq_c (outA[i], outB[i], 1e-3f))
       bad++;
-  CHECK (bad == 0);
+  DP_CHECK (bad == 0);
 
   /* a corrupted state_in must make ddcr_run reject (set_state != 0) -> 0 out
    */
   ddcr_state_t *r3 = ddcr_create (norm_freq, rate);
   ddcr_get_state (r3, blob);
   ((char *)blob)[0] ^= (char)0xFF; /* clobber the header magic */
-  CHECK (ddcr_run (r3, blob, NULL, in, cut, outB, CAP) == 0);
+  DP_CHECK (ddcr_run (r3, blob, NULL, in, cut, outB, CAP) == 0);
   ddcr_destroy (r3);
 
   free (blob);
@@ -117,23 +105,23 @@ test_state_roundtrip (void)
   ddcr_destroy (r1);
 
   ddcr_state_t *r2 = ddcr_create (norm_freq, rate);
-  CHECK (ddcr_set_state (r2, blob) == DP_OK);
+  DP_CHECK (ddcr_set_state (r2, blob) == DP_OK);
   /* a mismatched-rate engine must reject the blob */
   ddcr_state_t *rbad = ddcr_create (norm_freq, 0.2);
-  CHECK (ddcr_set_state (rbad, blob) == DP_ERR_INVALID);
+  DP_CHECK (ddcr_set_state (rbad, blob) == DP_ERR_INVALID);
   ddcr_destroy (rbad);
 
   nB += ddcr_execute (r2, in + cut, L - cut, outB + nB, CAP - nB);
   ddcr_destroy (r2);
   free (blob);
 
-  CHECK (nA == nB);
+  DP_CHECK (nA == nB);
   int bad = 0;
   for (size_t i = 0; i < nA && i < nB; i++)
     if (crealf (outA[i]) != crealf (outB[i])
         || cimagf (outA[i]) != cimagf (outB[i]))
       bad++;
-  CHECK (bad == 0);
+  DP_CHECK (bad == 0);
   free (in);
   free (outA);
   free (outB);
@@ -145,25 +133,25 @@ static void
 test_flavors_and_invalid_params (void)
 {
   ddcr_state_t *plain = ddcr_create (0.0, 0.25);
-  CHECK (plain != NULL);
-  CHECK (ddcr_get_clipped (plain) == false);
+  DP_CHECK (plain != NULL);
+  DP_CHECK (ddcr_get_clipped (plain) == false);
   ddcr_destroy (plain);
 
   /* rate >= 0.5 — the halfband already took a factor of two */
-  CHECK (ddcr_create (0.0, 0.5) == NULL);
-  CHECK (ddcr_create (0.0, 0.0) == NULL);
-  CHECK (ddcr_create_matched (0.0, 0.25, RC_PULSE_NONE, 0.35, 8, 2.0, 1024)
-         == NULL);
-  CHECK (ddcr_create_matched (0.0, 0.6, RC_PULSE_RRC, 0.35, 8, 2.0, 1024)
-         == NULL);
+  DP_CHECK (ddcr_create (0.0, 0.5) == NULL);
+  DP_CHECK (ddcr_create (0.0, 0.0) == NULL);
+  DP_CHECK (ddcr_create_matched (0.0, 0.25, RC_PULSE_NONE, 0.35, 8, 2.0, 1024)
+            == NULL);
+  DP_CHECK (ddcr_create_matched (0.0, 0.6, RC_PULSE_RRC, 0.35, 8, 2.0, 1024)
+            == NULL);
 
   ddcr_state_t *m
       = ddcr_create_matched (0.0, 0.125, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
-  CHECK (m != NULL);
+  DP_CHECK (m != NULL);
   ddcr_destroy (m);
   ddcr_state_t *r
       = ddcr_create_matched (0.0, 0.125, RC_PULSE_IANDD, 0.35, 4, 4.0, 256);
-  CHECK (r != NULL);
+  DP_CHECK (r != NULL);
   ddcr_destroy (r);
 }
 
@@ -187,14 +175,14 @@ test_freq_port_is_the_lo_axis (void)
   size_t nA = ddcr_execute_ctrl (a, in, L, 0.0, f, outA, CAP);
   size_t nB = ddcr_execute_ctrl (b, in, L, 0.0, 0.0, outB, CAP);
 
-  CHECK (nA == nB);
+  DP_CHECK (nA == nB);
   int bad = 0;
   for (size_t i = 0; i < nA && i < nB; i++)
     if (crealf (outA[i]) != crealf (outB[i])
         || cimagf (outA[i]) != cimagf (outB[i]))
       bad++;
-  CHECK (bad == 0);
-  CHECK (ddcr_get_norm_freq (a) == 0.0); /* centre untouched */
+  DP_CHECK (bad == 0);
+  DP_CHECK (ddcr_get_norm_freq (a) == 0.0); /* centre untouched */
 
   ddcr_destroy (a);
   ddcr_destroy (b);
@@ -232,12 +220,12 @@ test_push_equals_block (void)
   size_t nB = 0;
   for (size_t i = 0; i < L; i++)
     nB += ddcr_execute_ctrl_push (b, in[i], rctrl, fctrl, outB + nB, CAP - nB);
-  CHECK (nA == nB);
+  DP_CHECK (nA == nB);
   int bad = 0;
   for (size_t i = 0; i < nA && i < nB; i++)
     if (!_almost_eq_c (outA[i], outB[i], 1e-5f))
       bad++;
-  CHECK (bad == 0);
+  DP_CHECK (bad == 0);
   ddcr_destroy (a);
   ddcr_destroy (b);
   free (in);
@@ -261,7 +249,7 @@ test_matched_recovers_symbols (void)
       float _Complex *x  = mf_tx (sps, j / 16.0, fc, &n);
       float _Complex *y  = calloc (n, sizeof *y);
       float          *xr = malloc (n * sizeof (float));
-      CHECK (x != NULL && y != NULL && xr != NULL);
+      DP_CHECK (x != NULL && y != NULL && xr != NULL);
       if (!x || !y || !xr)
         {
           free (x);
@@ -285,7 +273,7 @@ test_matched_recovers_symbols (void)
       free (xr);
     }
 
-  CHECK (best < -50.0); /* measured -59.8 dB (halfband cascade) */
+  DP_CHECK (best < -50.0); /* measured -59.8 dB (halfband cascade) */
   if (best >= -50.0)
     fprintf (stderr, "  matched DdcR EVM: %.1f dB\n", best);
 }
@@ -304,11 +292,11 @@ test_clipped_forwards (void)
 
   ddcr_state_t *r = ddcr_create_matched (0.0, 2.0 / 64.0, RC_PULSE_RRC, 0.35,
                                          8, 2.0, 1024);
-  CHECK (ddcr_get_clipped (r) == false);
+  DP_CHECK (ddcr_get_clipped (r) == false);
   ddcr_execute (r, in, L, out, L);
-  CHECK (ddcr_get_clipped (r) == true);
+  DP_CHECK (ddcr_get_clipped (r) == true);
   ddcr_reset (r);
-  CHECK (ddcr_get_clipped (r) == false);
+  DP_CHECK (ddcr_get_clipped (r) == false);
   ddcr_destroy (r);
 
   free (in);
@@ -319,7 +307,7 @@ int
 main (void)
 {
   ddcr_state_t *obj = ddcr_create (0.0, 0.25);
-  CHECK (obj != NULL);
+  DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
   ddcr_reset (obj);
@@ -334,11 +322,5 @@ main (void)
   test_matched_recovers_symbols ();
   test_clipped_forwards ();
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_ddcr_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_ddcr_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_ddcr_core");
 }

@@ -1,17 +1,7 @@
+#include "dp_test.h"
 #include "gold/gold_core.h"
 #include <stdio.h>
 #include <stdlib.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 #define SF 1023 /* 2^10 - 1: the CCSDS command-link Gold code period */
 
@@ -100,28 +90,28 @@ is_gold_valued (int v)
 int
 main (void)
 {
-  int _fails = 0;
 
   /* ── construction validation ── */
-  CHECK (gold_create (TAPS_A, 0, TAPS_B, SEED_B, 10) == NULL); /* seed_a=0 */
-  CHECK (gold_create (TAPS_A, SEED_A_EXAMPLE, TAPS_B, 0, 10)
-         == NULL); /* seed_b=0 */
-  CHECK (gold_create (TAPS_A, SEED_A_EXAMPLE, TAPS_B, SEED_B, 0)
-         == NULL); /* length=0 */
-  CHECK (gold_create (TAPS_A, SEED_A_EXAMPLE, TAPS_B, SEED_B, 65)
-         == NULL); /* length>64 */
+  DP_CHECK (gold_create (TAPS_A, 0, TAPS_B, SEED_B, 10)
+            == NULL); /* seed_a=0 */
+  DP_CHECK (gold_create (TAPS_A, SEED_A_EXAMPLE, TAPS_B, 0, 10)
+            == NULL); /* seed_b=0 */
+  DP_CHECK (gold_create (TAPS_A, SEED_A_EXAMPLE, TAPS_B, SEED_B, 0)
+            == NULL); /* length=0 */
+  DP_CHECK (gold_create (TAPS_A, SEED_A_EXAMPLE, TAPS_B, SEED_B, 65)
+            == NULL); /* length>64 */
 
   gold_state_t *g = gold_create (TAPS_A, SEED_A_EXAMPLE, TAPS_B, SEED_B, 10);
-  CHECK (g != NULL);
+  DP_CHECK (g != NULL);
   if (!g)
     return 1;
 
   /* ── register A / register B individually maximal-length (period 1023) ── */
-  CHECK (single_lfsr_period (TAPS_A, SEED_A_EXAMPLE, 10) == SF);
-  CHECK (single_lfsr_period (TAPS_B, SEED_B, 10) == SF);
+  DP_CHECK (single_lfsr_period (TAPS_A, SEED_A_EXAMPLE, 10) == SF);
+  DP_CHECK (single_lfsr_period (TAPS_B, SEED_B, 10) == SF);
 
   /* ── combined Gold sequence: period exactly SF (not a proper divisor) ── */
-  CHECK (gold_period (g) == SF);
+  DP_CHECK (gold_period (g) == SF);
 
   /* ── CCSDS worked example (Figure 5-2, Code #365): first 15 chips + the
    * balance property the standard itself calls out (512 ones, 511 zeros) ── */
@@ -133,12 +123,12 @@ main (void)
     static const uint8_t expected[15]
         = { 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1 };
     for (int i = 0; i < 15; i++)
-      CHECK (chips[i] == expected[i]);
+      DP_CHECK (chips[i] == expected[i]);
     int ones = 0;
     for (int i = 0; i < SF; i++)
       ones += chips[i];
-    CHECK (ones == 512);
-    CHECK (SF - ones == 511);
+    DP_CHECK (ones == 512);
+    DP_CHECK (SF - ones == 511);
     gold_destroy (ex);
   }
 
@@ -154,14 +144,14 @@ main (void)
 
     int acorr[SF];
     xcorr_values (c1, c1, acorr);
-    CHECK (acorr[0] == SF); /* peak: full correlation with itself */
+    DP_CHECK (acorr[0] == SF); /* peak: full correlation with itself */
     for (int k = 1; k < SF; k++)
-      CHECK (is_gold_valued (acorr[k]));
+      DP_CHECK (is_gold_valued (acorr[k]));
 
     int xcorr[SF];
     xcorr_values (c1, c2, xcorr);
     for (int k = 0; k < SF; k++)
-      CHECK (is_gold_valued (xcorr[k]));
+      DP_CHECK (is_gold_valued (xcorr[k]));
 
     gold_destroy (g1);
     gold_destroy (g2);
@@ -174,7 +164,7 @@ main (void)
     gold_reset (g);
     gold_generate (g, 8, after, 8);
     for (int i = 0; i < 8; i++)
-      CHECK (before[i] == after[i]);
+      DP_CHECK (before[i] == after[i]);
   }
 
   gold_destroy (g);
@@ -193,22 +183,16 @@ main (void)
     gold_generate (a, 64, ref, 64); /* reference continuation */
 
     gold_state_t *b = gold_create (TAPS_A, SEED_A_EXAMPLE, TAPS_B, SEED_B, 10);
-    CHECK (gold_set_state (b, blob) == DP_OK);
+    DP_CHECK (gold_set_state (b, blob) == DP_OK);
     ((char *)blob)[0] ^= (char)0xFF;
-    CHECK (gold_set_state (b, blob) == DP_ERR_INVALID);
+    DP_CHECK (gold_set_state (b, blob) == DP_ERR_INVALID);
     gold_generate (b, 64, got, 64);
     for (int i = 0; i < 64; i++)
-      CHECK (got[i] == ref[i]);
+      DP_CHECK (got[i] == ref[i]);
     gold_destroy (a);
     gold_destroy (b);
     free (blob);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_gold_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_gold_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_gold_core");
 }

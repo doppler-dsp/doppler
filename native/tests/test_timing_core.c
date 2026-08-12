@@ -5,21 +5,11 @@
  * checks are that pacing actually waits ~n/fs, that the stamp arithmetic is
  * exact, and that underruns are counted / resync re-anchors.
  */
+#include "dp_test.h"
 #include "timing/timing_core.h"
 
 #include <inttypes.h>
 #include <stdio.h>
-
-#define CHECK(c, m)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(c))                                                               \
-        {                                                                     \
-          fprintf (stderr, "FAIL: %s\n", m);                                  \
-          return 1;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* The stamp is pure arithmetic off a fixed epoch: two stamps n samples apart
    differ by exactly round(n / fs * 1e9) ns, independent of wall time. */
@@ -31,9 +21,10 @@ test_stamp_exact (void)
   uint64_t t0 = dp_sample_clock_stamp (&c);
   c.n         = 500; /* poke the count directly to test the math */
   uint64_t t1 = dp_sample_clock_stamp (&c);
-  CHECK (t1 - t0 == 500000000ULL, "500 samples @1kHz == 0.5 s");
+  DP_REQUIRE_MSG (t1 - t0 == 500000000ULL, "500 samples @1kHz == 0.5 s");
   c.n = 1000;
-  CHECK (dp_sample_clock_stamp (&c) - t0 == 1000000000ULL, "1000 == 1 s");
+  DP_REQUIRE_MSG (dp_sample_clock_stamp (&c) - t0 == 1000000000ULL,
+                  "1000 == 1 s");
   return 0;
 }
 
@@ -53,9 +44,9 @@ test_pace_waits (void)
   for (int i = 0; i < 4; i++)
     dp_sample_clock_pace (&c, 5000); /* 4 * 5000 / 1e5 = 0.2 s */
   double elapsed = (double)(dp_mono_ns () - start) / 1e9;
-  CHECK (elapsed > 0.18, "paced run waited at least ~0.2 s");
-  CHECK (elapsed < 0.6, "paced run was not absurdly slow");
-  CHECK (c.n == 20000, "cumulative sample count tracked");
+  DP_REQUIRE_MSG (elapsed > 0.18, "paced run waited at least ~0.2 s");
+  DP_REQUIRE_MSG (elapsed < 0.6, "paced run was not absurdly slow");
+  DP_REQUIRE_MSG (c.n == 20000, "cumulative sample count tracked");
   return 0;
 }
 
@@ -68,8 +59,9 @@ test_underrun_counted (void)
   dp_sample_clock_init (&c, 1e12, 0); /* 1 TS/s: 1000 samples = 1 ns */
   for (int i = 0; i < 5; i++)
     dp_sample_clock_pace (&c, 1000);
-  CHECK (c.underruns >= 1, "behind-real-time blocks count as underruns");
-  CHECK (c.max_late_ns > 0, "worst lateness recorded");
+  DP_REQUIRE_MSG (c.underruns >= 1,
+                  "behind-real-time blocks count as underruns");
+  DP_REQUIRE_MSG (c.max_late_ns > 0, "worst lateness recorded");
   return 0;
 }
 
@@ -83,7 +75,8 @@ test_resync (void)
   uint64_t epoch0 = c.epoch_mono_ns;
   for (int i = 0; i < 5; i++)
     dp_sample_clock_pace (&c, 1000);
-  CHECK (c.epoch_mono_ns > epoch0, "resync re-anchored the epoch forward");
+  DP_REQUIRE_MSG (c.epoch_mono_ns > epoch0,
+                  "resync re-anchored the epoch forward");
   return 0;
 }
 
@@ -95,8 +88,8 @@ test_reset (void)
   dp_sample_clock_init (&c, 1e12, 0);
   dp_sample_clock_pace (&c, 1000);
   dp_sample_clock_reset (&c);
-  CHECK (c.n == 0, "reset zeroes the sample count");
-  CHECK (c.underruns == 0, "reset clears underruns");
+  DP_REQUIRE_MSG (c.n == 0, "reset zeroes the sample count");
+  DP_REQUIRE_MSG (c.underruns == 0, "reset clears underruns");
   return 0;
 }
 
@@ -108,11 +101,12 @@ test_stamp_at_matches_stamp (void)
   dp_sample_clock_t c;
   dp_sample_clock_init (&c, 1000.0, 0);
   c.n = 500;
-  CHECK (dp_sample_clock_stamp_at (&c, 500) == dp_sample_clock_stamp (&c),
-         "stamp_at(c, c->n) == stamp(c)");
-  CHECK (dp_sample_clock_stamp_at (&c, 250)
-             == dp_sample_clock_stamp_at (&c, 500) - 250000000ULL,
-         "stamp_at is pure arithmetic at an arbitrary (past) n");
+  DP_REQUIRE_MSG (dp_sample_clock_stamp_at (&c, 500)
+                      == dp_sample_clock_stamp (&c),
+                  "stamp_at(c, c->n) == stamp(c)");
+  DP_REQUIRE_MSG (dp_sample_clock_stamp_at (&c, 250)
+                      == dp_sample_clock_stamp_at (&c, 500) - 250000000ULL,
+                  "stamp_at is pure arithmetic at an arbitrary (past) n");
   return 0;
 }
 
@@ -124,11 +118,11 @@ test_track_first_call_adopts (void)
   dp_sample_clock_t c;
   dp_sample_clock_init (&c, 1000.0, 0);
   uint64_t observed = 1700000000000000000ULL; /* an arbitrary "real" ts */
-  CHECK (dp_sample_clock_track (&c, observed, 100, 1000000ULL) != 0,
-         "first track() call adopts");
-  CHECK (c.has_anchor != 0, "has_anchor set after first track()");
-  CHECK (dp_sample_clock_stamp_at (&c, 100) == observed,
-         "adopted epoch reproduces the observed timestamp exactly");
+  DP_REQUIRE_MSG (dp_sample_clock_track (&c, observed, 100, 1000000ULL) != 0,
+                  "first track() call adopts");
+  DP_REQUIRE_MSG (c.has_anchor != 0, "has_anchor set after first track()");
+  DP_REQUIRE_MSG (dp_sample_clock_stamp_at (&c, 100) == observed,
+                  "adopted epoch reproduces the observed timestamp exactly");
   return 0;
 }
 
@@ -149,10 +143,11 @@ test_track_tolerance_absorbs_jitter (void)
   uint64_t predicted = dp_sample_clock_stamp_at (&c, 1000);
   int resynced = dp_sample_clock_track (&c, predicted + 5000 /* 5us */, 1000,
                                         1000000ULL);
-  CHECK (resynced == 0, "small jitter inside tolerance does not resync");
-  CHECK (c.epoch_real_ns == epoch_after_first,
-         "epoch unchanged when within tolerance");
-  CHECK (c.n == 1000, "n still advances to the latest observation");
+  DP_REQUIRE_MSG (resynced == 0,
+                  "small jitter inside tolerance does not resync");
+  DP_REQUIRE_MSG (c.epoch_real_ns == epoch_after_first,
+                  "epoch unchanged when within tolerance");
+  DP_REQUIRE_MSG (c.n == 1000, "n still advances to the latest observation");
   return 0;
 }
 
@@ -169,9 +164,9 @@ test_track_resyncs_beyond_tolerance (void)
   uint64_t predicted = dp_sample_clock_stamp_at (&c, 1000);
   uint64_t skewed    = predicted + 50000000ULL; /* 50ms, past the 1ms tol */
   int      resynced  = dp_sample_clock_track (&c, skewed, 1000, 1000000ULL);
-  CHECK (resynced != 0, "discrepancy beyond tolerance resyncs");
-  CHECK (dp_sample_clock_stamp_at (&c, 1000) == skewed,
-         "re-anchored epoch reproduces the new observation exactly");
+  DP_REQUIRE_MSG (resynced != 0, "discrepancy beyond tolerance resyncs");
+  DP_REQUIRE_MSG (dp_sample_clock_stamp_at (&c, 1000) == skewed,
+                  "re-anchored epoch reproduces the new observation exactly");
   return 0;
 }
 
@@ -188,9 +183,10 @@ test_track_rejects_stale (void)
 
   int accepted
       = dp_sample_clock_track (&c, 1600000000000000000ULL, 100, 1000000ULL);
-  CHECK (accepted == 0, "stale (older-n) observation is rejected");
-  CHECK (c.epoch_real_ns == epoch_before, "epoch unchanged by a stale obs");
-  CHECK (c.n == n_before, "n unchanged by a stale obs");
+  DP_REQUIRE_MSG (accepted == 0, "stale (older-n) observation is rejected");
+  DP_REQUIRE_MSG (c.epoch_real_ns == epoch_before,
+                  "epoch unchanged by a stale obs");
+  DP_REQUIRE_MSG (c.n == n_before, "n unchanged by a stale obs");
   return 0;
 }
 

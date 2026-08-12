@@ -10,6 +10,7 @@
  * Skips (exit 77, CTest SKIP_RETURN_CODE) rather than fails when no
  * nats-server is reachable on 127.0.0.1:4222.
  */
+#include "dp_test.h"
 #include "wfm/wfm_sink.h"
 
 #include <arpa/inet.h>
@@ -21,17 +22,6 @@
 #include <unistd.h>
 
 #define SKIP_CODE 77
-
-#define CHECK(c, m)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(c))                                                               \
-        {                                                                     \
-          fprintf (stderr, "FAIL: %s\n", m);                                  \
-          return 1;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 static int
 broker_reachable (void)
@@ -69,15 +59,18 @@ main (void)
       snprintf (ep, sizeof ep, "nats://127.0.0.1:4222/wfm-sink-test-%d-%ld", t,
                 (long)time (NULL));
       wfm_stream_sink_t *s = wfm_stream_sink_open (ep, t);
-      CHECK (s, "sink open");
-      CHECK (wfm_stream_sink_send (s, blk, 256, 1e6, 2.4e9) == 0, "send 1");
-      CHECK (wfm_stream_sink_send (s, blk, 256, 1e6, 2.4e9) == 0, "send 2");
+      DP_REQUIRE_MSG (s, "sink open");
+      DP_REQUIRE_MSG (wfm_stream_sink_send (s, blk, 256, 1e6, 2.4e9) == 0,
+                      "send 1");
+      DP_REQUIRE_MSG (wfm_stream_sink_send (s, blk, 256, 1e6, 2.4e9) == 0,
+                      "send 2");
       wfm_stream_sink_close (s);
     }
 
   /* invalid wire type → NULL */
-  CHECK (!wfm_stream_sink_open ("nats://127.0.0.1:4222/wfm-sink-bad", 9),
-         "bad type rejected");
+  DP_REQUIRE_MSG (
+      !wfm_stream_sink_open ("nats://127.0.0.1:4222/wfm-sink-bad", 9),
+      "bad type rejected");
 
   printf ("test_wfm_sink: OK (5 wire types published)\n");
   return 0;

@@ -13,6 +13,7 @@
  *   - Alias rejection: stopband tone ≥ 20 dB below passband reference
  */
 #include "cic/cic_core.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -21,17 +22,6 @@
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 static inline int
 _feq (float a, float b, float tol)
@@ -66,13 +56,12 @@ dc_last (cic_state_t *obj, float complex sample, float complex *out,
 int
 main (void)
 {
-  int _fails = 0;
 
   /* ── Invalid constructor args → NULL ─────────────────────────────────── */
-  CHECK (cic_create (0) == NULL);    /* R = 0 */
-  CHECK (cic_create (1) == NULL);    /* R = 1: < 2 */
-  CHECK (cic_create (3) == NULL);    /* non-power-of-two */
-  CHECK (cic_create (8192) == NULL); /* R > 4096 */
+  DP_CHECK (cic_create (0) == NULL);    /* R = 0 */
+  DP_CHECK (cic_create (1) == NULL);    /* R = 1: < 2 */
+  DP_CHECK (cic_create (3) == NULL);    /* non-power-of-two */
+  DP_CHECK (cic_create (8192) == NULL); /* R > 4096 */
 
   /* NULL destroy is a documented no-op */
   cic_destroy (NULL);
@@ -80,15 +69,15 @@ main (void)
   /* ── shift field: CIC_N * log2(R) ────────────────────────────────────── */
   {
     cic_state_t *obj = cic_create (16);
-    CHECK (obj != NULL);
-    CHECK (obj->R == 16);
-    CHECK (obj->shift == 16); /* CIC_N=4, log2(16)=4 → 4*4=16 */
+    DP_CHECK (obj != NULL);
+    DP_CHECK (obj->R == 16);
+    DP_CHECK (obj->shift == 16); /* CIC_N=4, log2(16)=4 → 4*4=16 */
     cic_destroy (obj);
   }
   {
     cic_state_t *obj = cic_create (8);
-    CHECK (obj != NULL);
-    CHECK (obj->shift == 12); /* CIC_N=4, log2(8)=3 → 4*3=12 */
+    DP_CHECK (obj != NULL);
+    DP_CHECK (obj->shift == 12); /* CIC_N=4, log2(8)=3 → 4*3=12 */
     cic_destroy (obj);
   }
 
@@ -97,19 +86,19 @@ main (void)
   {
     uint32_t     R   = 8;
     cic_state_t *obj = cic_create (R);
-    CHECK (obj != NULL);
+    DP_CHECK (obj != NULL);
     float complex in[256] = { 0 }, out[256];
     for (int k = 1; k <= 4; k++)
       {
         cic_reset (obj);
         size_t n = cic_decimate (obj, in, (size_t)k * R, out, 256);
-        CHECK (n == (size_t)k);
+        DP_CHECK (n == (size_t)k);
       }
     /* Partial block: R-1 inputs → 0 outputs */
     cic_reset (obj);
-    CHECK (cic_decimate (obj, in, R - 1, out, 256) == 0);
+    DP_CHECK (cic_decimate (obj, in, R - 1, out, 256) == 0);
     /* Then 1 more input completes the first decimation cycle */
-    CHECK (cic_decimate (obj, in, 1, out, 256) == 1);
+    DP_CHECK (cic_decimate (obj, in, 1, out, 256) == 1);
     cic_destroy (obj);
   }
 
@@ -120,12 +109,12 @@ main (void)
    * exactly 0+0j. */
   {
     cic_state_t *obj = cic_create (4);
-    CHECK (obj != NULL);
+    DP_CHECK (obj != NULL);
     float complex in[64] = { 0 }, out[64];
     size_t        n      = cic_decimate (obj, in, 64, out, 64);
-    CHECK (n == 16);
+    DP_CHECK (n == 16);
     for (size_t i = CIC_N; i < n; i++)
-      CHECK (FEQC (out[i], 0.0f, 0.0f));
+      DP_CHECK (FEQC (out[i], 0.0f, 0.0f));
     cic_destroy (obj);
   }
 
@@ -134,12 +123,12 @@ main (void)
   {
     uint32_t     R   = 4;
     cic_state_t *obj = cic_create (R);
-    CHECK (obj != NULL);
+    DP_CHECK (obj != NULL);
     size_t         n_in = 8 * R * CIC_N;
     float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
     float complex  last
         = dc_last (obj, 1.0f + 0.0f * I, out, n_in, n_in / R + 1);
-    CHECK (FEQC (last, 1.0f + 0.0f * I, 4e-5f));
+    DP_CHECK (FEQC (last, 1.0f + 0.0f * I, 4e-5f));
     free (out);
     cic_destroy (obj);
   }
@@ -148,12 +137,12 @@ main (void)
   {
     uint32_t     R   = 4;
     cic_state_t *obj = cic_create (R);
-    CHECK (obj != NULL);
+    DP_CHECK (obj != NULL);
     size_t         n_in = 8 * R * CIC_N;
     float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
     float complex  last
         = dc_last (obj, -1.0f + 0.0f * I, out, n_in, n_in / R + 1);
-    CHECK (FEQC (last, -1.0f + 0.0f * I, 4e-5f));
+    DP_CHECK (FEQC (last, -1.0f + 0.0f * I, 4e-5f));
     free (out);
     cic_destroy (obj);
   }
@@ -162,12 +151,12 @@ main (void)
   {
     uint32_t     R   = 4;
     cic_state_t *obj = cic_create (R);
-    CHECK (obj != NULL);
+    DP_CHECK (obj != NULL);
     size_t         n_in = 8 * R * CIC_N;
     float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
     float complex  last
         = dc_last (obj, 0.0f + 1.0f * I, out, n_in, n_in / R + 1);
-    CHECK (FEQC (last, 0.0f + 1.0f * I, 4e-5f));
+    DP_CHECK (FEQC (last, 0.0f + 1.0f * I, 4e-5f));
     free (out);
     cic_destroy (obj);
   }
@@ -177,12 +166,12 @@ main (void)
   {
     uint32_t     R   = 32;
     cic_state_t *obj = cic_create (R);
-    CHECK (obj != NULL);
+    DP_CHECK (obj != NULL);
     size_t         n_in = 12 * R * CIC_N;
     float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
     float complex  last
         = dc_last (obj, 0.5f + 0.5f * I, out, n_in, n_in / R + 1);
-    CHECK (FEQC (last, 0.5f + 0.5f * I, 4e-5f));
+    DP_CHECK (FEQC (last, 0.5f + 0.5f * I, 4e-5f));
     free (out);
     cic_destroy (obj);
   }
@@ -191,7 +180,7 @@ main (void)
   {
     uint32_t     R   = 4;
     cic_state_t *obj = cic_create (R);
-    CHECK (obj != NULL);
+    DP_CHECK (obj != NULL);
     size_t         n_in = 64;
     float complex *in   = malloc (n_in * sizeof (float complex));
     float complex *out1 = malloc (n_in * sizeof (float complex));
@@ -203,8 +192,8 @@ main (void)
     size_t n1 = cic_decimate (obj, in, n_in, out1, n_in);
     cic_reset (obj);
     size_t n2 = cic_decimate (obj, in, n_in, out2, n_in);
-    CHECK (n1 == n2);
-    CHECK (memcmp (out1, out2, n1 * sizeof (float complex)) == 0);
+    DP_CHECK (n1 == n2);
+    DP_CHECK (memcmp (out1, out2, n1 * sizeof (float complex)) == 0);
 
     free (in);
     free (out1);
@@ -215,7 +204,7 @@ main (void)
   /* ── Reconfigure: output count and DC response update correctly ──────── */
   {
     cic_state_t *obj = cic_create (4);
-    CHECK (obj != NULL);
+    DP_CHECK (obj != NULL);
     float complex in[256], out[256];
     for (int i = 0; i < 256; i++)
       in[i] = 1.0f;
@@ -225,28 +214,28 @@ main (void)
 
     /* reconfigure to R=8 */
     cic_reconfigure (obj, 8);
-    CHECK (obj->R == 8);
-    CHECK (obj->shift == 12); /* CIC_N=4, log2(8)=3 */
+    DP_CHECK (obj->R == 8);
+    DP_CHECK (obj->shift == 12); /* CIC_N=4, log2(8)=3 */
 
     /* output count must reflect new R */
     size_t n = cic_decimate (obj, in, 8 * 8 * CIC_N, out, 256);
-    CHECK (n == (size_t)(8 * CIC_N));
+    DP_CHECK (n == (size_t)(8 * CIC_N));
 
     /* settled output must be 1.0 */
-    CHECK (FEQC (out[n - 1], 1.0f + 0.0f * I, 4e-5f));
+    DP_CHECK (FEQC (out[n - 1], 1.0f + 0.0f * I, 4e-5f));
     cic_destroy (obj);
   }
 
   /* ── Reconfigure: invalid args are silently ignored ─────────────────── */
   {
     cic_state_t *obj = cic_create (8);
-    CHECK (obj != NULL);
+    DP_CHECK (obj != NULL);
     cic_reconfigure (obj, 0); /* R=0: invalid, ignored */
-    CHECK (obj->R == 8);
+    DP_CHECK (obj->R == 8);
     cic_reconfigure (obj, 3); /* non-power-of-two: invalid, ignored */
-    CHECK (obj->R == 8);
+    DP_CHECK (obj->R == 8);
     cic_reconfigure (obj, 8192); /* R > 4096: invalid, ignored */
-    CHECK (obj->R == 8);
+    DP_CHECK (obj->R == 8);
     cic_destroy (obj);
   }
 
@@ -260,7 +249,7 @@ main (void)
 
     cic_state_t *a = cic_create (R);
     cic_state_t *b = cic_create (R);
-    CHECK (a && b);
+    DP_CHECK (a && b);
 
     /* whole: 2R in one call */
     cic_decimate (b, in, 2 * R, out_whole, 4);
@@ -269,8 +258,8 @@ main (void)
     cic_decimate (a, in, R, out_split, 4);
     cic_decimate (a, in + R, R, out_split + 1, 3);
 
-    CHECK (FEQC (out_split[0], out_whole[0], 0.0f));
-    CHECK (FEQC (out_split[1], out_whole[1], 0.0f));
+    DP_CHECK (FEQC (out_split[0], out_whole[0], 0.0f));
+    DP_CHECK (FEQC (out_split[1], out_whole[1], 0.0f));
 
     cic_destroy (a);
     cic_destroy (b);
@@ -312,7 +301,7 @@ main (void)
     pwr_alias /= (double)n_meas;
 
     double rejection_db = 10.0 * log10 (pwr_pass / (pwr_alias + 1e-300));
-    CHECK (rejection_db >= 20.0);
+    DP_CHECK (rejection_db >= 20.0);
 
     cic_destroy (obj);
     free (in);
@@ -338,31 +327,31 @@ main (void)
     cic_state_t *r1  = cic_create (R);
     size_t       nB  = cic_decimate (r1, in, cut, outB, 64);
     size_t       sb  = cic_state_bytes (r1);
-    CHECK (sb
-           == sizeof (dp_state_hdr_t) + 4 * CIC_N * sizeof (uint64_t)
-                  + sizeof (uint32_t) + sizeof (uint8_t));
+    DP_CHECK (sb
+              == sizeof (dp_state_hdr_t) + 4 * CIC_N * sizeof (uint64_t)
+                     + sizeof (uint32_t) + sizeof (uint8_t));
     /* This block's own input runs to +-3, i.e. well past the +-1.0 bound —
        so the sticky flag must be up, and must survive the round trip.  A
        resumed stream that forgot it had clipped would answer wrongly. */
-    CHECK (r1->clipped == 1);
+    DP_CHECK (r1->clipped == 1);
     void *blob = malloc (sb);
     cic_get_state (r1, blob);
     cic_destroy (r1);
 
     cic_state_t *r2 = cic_create (R);
-    CHECK (r2->clipped == 0);
-    CHECK (cic_set_state (r2, blob) == DP_OK);
-    CHECK (r2->clipped == 1);
+    DP_CHECK (r2->clipped == 0);
+    DP_CHECK (cic_set_state (r2, blob) == DP_OK);
+    DP_CHECK (r2->clipped == 1);
     /* standard envelope: a magic-clobbered blob is rejected, r2 untouched */
     ((char *)blob)[0] ^= (char)0xFF;
-    CHECK (cic_set_state (r2, blob) == DP_ERR_INVALID);
+    DP_CHECK (cic_set_state (r2, blob) == DP_ERR_INVALID);
     ((char *)blob)[0] ^= (char)0xFF;
     nB += cic_decimate (r2, in + cut, L - cut, outB + nB, 64 - nB);
     cic_destroy (r2);
     free (blob);
 
-    CHECK (nA == nB);
-    CHECK (nA > 0 && memcmp (outA, outB, nA * sizeof (float complex)) == 0);
+    DP_CHECK (nA == nB);
+    DP_CHECK (nA > 0 && memcmp (outA, outB, nA * sizeof (float complex)) == 0);
     free (in);
   }
 
@@ -371,7 +360,7 @@ main (void)
   {
     cic_state_t  *obj = cic_create (16);
     float complex in[64];
-    CHECK (obj->clipped == 0);
+    DP_CHECK (obj->clipped == 0);
     /* The bound is CIC_PAPR_HEADROOM, not 1.0: the encoder reserves that
        headroom precisely so a unit-amplitude signal's peaks fit (an RRC
        stream peaks at 1.582x its symbol amplitude). 1.5 is now IN range —
@@ -381,25 +370,25 @@ main (void)
       in[i] = 0.9f + 0.9f * I;
     float complex out[8];
     cic_decimate (obj, in, 64, out, 8);
-    CHECK (obj->clipped == 0); /* in range — no false positive */
+    DP_CHECK (obj->clipped == 0); /* in range — no false positive */
 
     for (size_t i = 0; i < 64; i++)
       in[i] = 1.5f + 0.0f * I;
     cic_decimate (obj, in, 64, out, 8);
-    CHECK (obj->clipped == 0); /* inside the PAPR headroom */
+    DP_CHECK (obj->clipped == 0); /* inside the PAPR headroom */
 
     for (size_t i = 0; i < 64; i++)
       in[i] = 1.05f * CIC_PAPR_HEADROOM + 0.0f * I;
     cic_decimate (obj, in, 64, out, 8);
-    CHECK (obj->clipped == 1);
+    DP_CHECK (obj->clipped == 1);
 
     for (size_t i = 0; i < 64; i++)
       in[i] = 0.1f + 0.0f * I;
     cic_decimate (obj, in, 64, out, 8);
-    CHECK (obj->clipped == 1); /* sticky across later in-range blocks */
+    DP_CHECK (obj->clipped == 1); /* sticky across later in-range blocks */
 
     cic_reset (obj);
-    CHECK (obj->clipped == 0); /* cleared only by reset() */
+    DP_CHECK (obj->clipped == 0); /* cleared only by reset() */
 
     /* every component and sign is caught */
     const float         B      = 1.05f * CIC_PAPR_HEADROOM;
@@ -410,7 +399,7 @@ main (void)
         for (size_t i = 0; i < 64; i++)
           in[i] = bad[k];
         cic_decimate (obj, in, 64, out, 8);
-        CHECK (obj->clipped == 1);
+        DP_CHECK (obj->clipped == 1);
       }
     cic_destroy (obj);
   }
@@ -433,35 +422,29 @@ main (void)
     const size_t        K      = 5;
 
     cic_state_t *a = cic_create (R);
-    CHECK (cic_decimate (a, in, n_in, full, n_full) == n_full);
+    DP_CHECK (cic_decimate (a, in, n_in, full, n_full) == n_full);
 
     cic_state_t *b = cic_create (R);
     for (size_t k = 0; k < n_full; k++)
       part[k] = CANARY;
-    CHECK (cic_decimate (b, in, n_in, part, K) == K);
+    DP_CHECK (cic_decimate (b, in, n_in, part, K) == K);
     /* what was written is the true prefix ... */
     for (size_t k = 0; k < K; k++)
-      CHECK (FEQC (part[k], full[k], 0.0f));
+      DP_CHECK (FEQC (part[k], full[k], 0.0f));
     /* ... and nothing past the capacity was touched. */
     for (size_t k = K; k < n_full; k++)
-      CHECK (FEQC (part[k], CANARY, 0.0f));
+      DP_CHECK (FEQC (part[k], CANARY, 0.0f));
     /* ... and both filters are in the SAME state: the next block agrees. */
     float complex nextA[16], nextB[16];
     size_t        nA = cic_decimate (a, in, n_in, nextA, n_full);
     size_t        nB = cic_decimate (b, in, n_in, nextB, n_full);
-    CHECK (nA == nB);
+    DP_CHECK (nA == nB);
     for (size_t k = 0; k < nA; k++)
-      CHECK (FEQC (nextA[k], nextB[k], 0.0f));
+      DP_CHECK (FEQC (nextA[k], nextB[k], 0.0f));
 
     cic_destroy (a);
     cic_destroy (b);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_cic_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_cic_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_cic_core");
 }

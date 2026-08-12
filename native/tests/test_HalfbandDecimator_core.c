@@ -1,19 +1,9 @@
 #include "HalfbandDecimator/HalfbandDecimator_core.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* Floating-point helpers — use inline functions, not macros, so arguments
  * are evaluated exactly once.  Safe to call with stateful step() results. */
@@ -35,11 +25,10 @@ _almost_eq_c (float complex a, float complex b, float tol)
 int
 main (void)
 {
-  int _fails = 0;
   /* Minimal 3-tap halfband prototype: [0.25, 0.5, 0.25] */
   static const float         h[] = { 0.25f, 0.5f, 0.25f };
   HalfbandDecimator_state_t *obj = HalfbandDecimator_create (3, h);
-  CHECK (obj != NULL);
+  DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
 
@@ -73,19 +62,19 @@ main (void)
     HalfbandDecimator_destroy (r1);
 
     HalfbandDecimator_state_t *r2 = HalfbandDecimator_create (3, h);
-    CHECK (HalfbandDecimator_set_state (r2, blob) == DP_OK);
+    DP_CHECK (HalfbandDecimator_set_state (r2, blob) == DP_OK);
     ((char *)blob)[0] ^= (char)0xFF; /* clobber envelope -> reject */
-    CHECK (HalfbandDecimator_set_state (r2, blob) == DP_ERR_INVALID);
+    DP_CHECK (HalfbandDecimator_set_state (r2, blob) == DP_ERR_INVALID);
     ((char *)blob)[0] ^= (char)0xFF;
     nB += HalfbandDecimator_execute (r2, in + cut, L - cut, outB + nB,
                                      L - cut);
     HalfbandDecimator_destroy (r2);
     free (blob);
 
-    CHECK (nA == nB);
+    DP_CHECK (nA == nB);
     for (size_t i = 0; i < nA && i < nB; i++)
-      CHECK (crealf (outA[i]) == crealf (outB[i])
-             && cimagf (outA[i]) == cimagf (outB[i]));
+      DP_CHECK (crealf (outA[i]) == crealf (outB[i])
+                && cimagf (outA[i]) == cimagf (outB[i]));
     free (in);
     free (outA);
     free (outB);
@@ -97,27 +86,21 @@ main (void)
     float                      h[3] = { 0.25f, 0.5f, 0.25f };
     HalfbandDecimator_state_t *d    = HalfbandDecimator_create (3, h);
     float complex              in[64], out[64];
-    CHECK (d != NULL);
+    DP_CHECK (d != NULL);
     for (int i = 0; i < 64; i++)
       {
         in[i]  = (float)i + 0.0f * I;
         out[i] = 42.0f + 42.0f * I;
       }
     size_t n = HalfbandDecimator_execute (d, in, 64, out, 5);
-    CHECK (n <= 5);
+    DP_CHECK (n <= 5);
     for (size_t i = n; i < 64; i++)
-      CHECK (out[i] == 42.0f + 42.0f * I); /* tail untouched */
+      DP_CHECK (out[i] == 42.0f + 42.0f * I); /* tail untouched */
 
     /* Zero capacity emits nothing at all. */
-    CHECK (HalfbandDecimator_execute (d, in, 64, out, 0) == 0);
+    DP_CHECK (HalfbandDecimator_execute (d, in, 64, out, 0) == 0);
     HalfbandDecimator_destroy (d);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_HalfbandDecimator_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_HalfbandDecimator_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_HalfbandDecimator_core");
 }

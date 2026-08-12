@@ -1,20 +1,10 @@
 #include "dp_state_test.h"
+#include "dp_test.h"
 #include "specan/specan_core.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 static inline int
 _almost_eq (double a, double b, double tol)
@@ -65,68 +55,67 @@ argmax (const float *a, size_t n)
 int
 main (void)
 {
-  int            _fails = 0;
   const double   fs = 1.0e6, span = 200e3, rbw = 1500.0;
   const size_t   NTONE = 1u << 14; /* 16384 input samples per drive */
   float complex *tone  = malloc (NTONE * sizeof *tone);
   float         *out   = malloc (2048 * sizeof *out);
-  CHECK (tone && out);
+  DP_CHECK (tone && out);
   if (!tone || !out)
     return 1;
 
   /* 1. Invalid arguments are rejected (no opaque NULL surprises). */
-  CHECK (specan_create (0.0, span, rbw, 0, 0, 0, 1.0, 0, 1, 1)
-         == NULL); /* fs   */
-  CHECK (specan_create (fs, 0.0, rbw, 0, 0, 0, 1.0, 0, 1, 1)
-         == NULL); /* span */
-  CHECK (specan_create (fs, span, 0.0, 0, 0, 0, 1.0, 0, 1, 1)
-         == NULL); /* rbw  */
-  CHECK (specan_create (fs, span, rbw, 0, 0, 0, 1.0, 0, 1, 0)
-         == NULL); /* navg */
+  DP_CHECK (specan_create (0.0, span, rbw, 0, 0, 0, 1.0, 0, 1, 1)
+            == NULL); /* fs   */
+  DP_CHECK (specan_create (fs, 0.0, rbw, 0, 0, 0, 1.0, 0, 1, 1)
+            == NULL); /* span */
+  DP_CHECK (specan_create (fs, span, 0.0, 0, 0, 0, 1.0, 0, 1, 1)
+            == NULL); /* rbw  */
+  DP_CHECK (specan_create (fs, span, rbw, 0, 0, 0, 1.0, 0, 1, 0)
+            == NULL); /* navg */
 
   /* 2. The natural params derive a sane DSP grid. */
   specan_state_t *sa = specan_create (fs, span, rbw, 0, 0, 0, 1.0, 0, 1, 1);
-  CHECK (sa != NULL);
+  DP_CHECK (sa != NULL);
   if (!sa)
     return 1;
-  CHECK (ALMOST_EQ (sa->fs_out, span * 1.28, 1.0)); /* span -> decim rate */
-  CHECK (sa->nfft == 2 * sa->n);                    /* pad = 2, n is pow2  */
-  CHECK (sa->disp_n % 2 == 1);                      /* odd, DC-centred     */
-  CHECK (sa->disp_lo + sa->disp_n <= sa->nfft);
+  DP_CHECK (ALMOST_EQ (sa->fs_out, span * 1.28, 1.0)); /* span -> decim rate */
+  DP_CHECK (sa->nfft == 2 * sa->n); /* pad = 2, n is pow2  */
+  DP_CHECK (sa->disp_n % 2 == 1);   /* odd, DC-centred     */
+  DP_CHECK (sa->disp_lo + sa->disp_n <= sa->nfft);
   double realized_rbw = sa->psd->enbw * sa->fs_out / (double)sa->n;
-  CHECK (ALMOST_EQ (realized_rbw, rbw, rbw * 0.05)); /* RBW met within 5%   */
-  CHECK (sa->beta > 0.0);                            /* Kaiser actually used*/
+  DP_CHECK (ALMOST_EQ (realized_rbw, rbw, rbw * 0.05)); /* RBW met within 5% */
+  DP_CHECK (sa->beta > 0.0); /* Kaiser actually used*/
 
   /* 3. A unit tone at +30 kHz lands at +30 kHz in the display, near 0 dB. */
   const double f_off = 30e3;
   gen_tone (tone, NTONE, f_off / fs, 1.0);
   size_t nfr = drive_first_frame (sa, tone, NTONE, 4096, out, 2048);
-  CHECK (nfr == sa->disp_n);
+  DP_CHECK (nfr == sa->disp_n);
   size_t pk     = argmax (out, nfr);
   size_t dc_bin = sa->disp_n / 2; /* odd length -> exact DC-centred index */
   double bin_hz = sa->fs_out / (double)sa->nfft;
   double pk_hz  = ((double)pk - (double)dc_bin) * bin_hz;
-  CHECK (ALMOST_EQ (pk_hz, f_off, bin_hz)); /* within one display bin  */
-  CHECK (out[pk] > -3.0);                   /* ~0 dBFS for amplitude 1 */
-  CHECK (out[pk] - out[5] > 30.0);          /* tone clears far bins     */
+  DP_CHECK (ALMOST_EQ (pk_hz, f_off, bin_hz)); /* within one display bin  */
+  DP_CHECK (out[pk] > -3.0);                   /* ~0 dBFS for amplitude 1 */
+  DP_CHECK (out[pk] - out[5] > 30.0);          /* tone clears far bins     */
 
   /* 4. Retuning to the tone moves it to DC (cheap LO retune, no rebuild). */
   specan_retune (sa, f_off);
   size_t nfr2 = drive_first_frame (sa, tone, NTONE, 4096, out, 2048);
-  CHECK (nfr2 == sa->disp_n);
+  DP_CHECK (nfr2 == sa->disp_n);
   size_t pk2 = argmax (out, nfr2);
-  CHECK (llabs ((long long)pk2 - (long long)dc_bin) <= 2);
+  DP_CHECK (llabs ((long long)pk2 - (long long)dc_bin) <= 2);
   specan_destroy (sa);
 
   /* 5. navg buffers a full averaging window before emitting a frame. */
   specan_state_t *sb = specan_create (fs, span, rbw, 0, 0, 0, 1.0, 0, 1, 2);
-  CHECK (sb != NULL);
+  DP_CHECK (sb != NULL);
   if (sb)
     {
       /* One window length of input is far short of n*navg decimated. */
-      CHECK (specan_execute (sb, tone, sb->n, out, 2048) == 0);
+      DP_CHECK (specan_execute (sb, tone, sb->n, out, 2048) == 0);
       size_t nfr3 = drive_first_frame (sb, tone, NTONE, 4096, out, 2048);
-      CHECK (nfr3 == sb->disp_n);
+      DP_CHECK (nfr3 == sb->disp_n);
       specan_destroy (sb);
     }
 
@@ -148,7 +137,7 @@ main (void)
       big[i] = (float)(i % 7) - 3.0f + 0.2f * I;
     specan_state_t *g
         = specan_create (1e6, 1e5, 1e3, 0.0, 0.0, 0.0, 1.0, 0, 1, 2);
-    CHECK (g != NULL);
+    DP_CHECK (g != NULL);
     if (g)
       {
         size_t need = g->n * g->navg, worst = 0;
@@ -158,19 +147,14 @@ main (void)
             if (g->pend_len > worst)
               worst = g->pend_len;
           }
-        CHECK (worst < need);
+        DP_CHECK (worst < need);
         /* and the blob the fixed-size reservation promises still fits */
-        CHECK (g->pend_len * sizeof (float _Complex)
-               <= need * sizeof (float _Complex));
+        DP_CHECK (g->pend_len * sizeof (float _Complex)
+                  <= need * sizeof (float _Complex));
         specan_destroy (g);
       }
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_specan_core FAILED (%d)\n", _fails);
-      return 1;
-    }
   /* serializable state — ddc + psd children + pending samples resume. */
   {
     float complex in[4096];
@@ -181,14 +165,13 @@ main (void)
         = specan_create (1e6, 1e5, 1e3, 0.0, 0.0, 0.0, 1.0, 0, 1, 2);
     specan_state_t *b
         = specan_create (1e6, 1e5, 1e3, 0.0, 0.0, 0.0, 1.0, 0, 1, 2);
-    CHECK (a != NULL && b != NULL);
+    DP_CHECK (a != NULL && b != NULL);
     (void)specan_execute (a, in, 4096, out, 2048);
     DP_STATE_ROUNDTRIP_TEST (specan, a, b);
-    CHECK (b->pend_len == a->pend_len);
+    DP_CHECK (b->pend_len == a->pend_len);
     specan_destroy (a);
     specan_destroy (b);
   }
 
-  printf ("test_specan_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_specan_core");
 }

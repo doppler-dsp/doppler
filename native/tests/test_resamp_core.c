@@ -38,6 +38,7 @@
  * the interpolator's structure.
  */
 
+#include "dp_test.h"
 #include "resamp/resamp_impl.h"
 #include <complex.h>
 #include <math.h>
@@ -46,18 +47,6 @@
 
 /* File-scope so the §10+ section functions can CHECK for themselves rather
    than funnelling a bool back through main(). */
-static int _fails = 0;
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 #define ALMOST_EQ(a, b, tol) (fabsf ((float)(a) - (float)(b)) <= (float)(tol))
 
@@ -1093,22 +1082,22 @@ main (void)
 {
   /* ---- create / destroy ---- */
   resamp_state_t *r = resamp_create (1.0);
-  CHECK (r != NULL);
+  DP_CHECK (r != NULL);
   if (!r)
     return 1;
 
   /* ---- properties ---- */
-  CHECK (resamp_get_rate (r) == 1.0);
-  CHECK (resamp_get_num_phases (r) == 4096);
-  CHECK (resamp_get_num_taps (r) == 19);
+  DP_CHECK (resamp_get_rate (r) == 1.0);
+  DP_CHECK (resamp_get_num_phases (r) == 4096);
+  DP_CHECK (resamp_get_num_taps (r) == 19);
 
   /* ---- set_rate preserves phase ---- */
   resamp_set_rate (r, 2.0);
-  CHECK (resamp_get_rate (r) == 2.0);
+  DP_CHECK (resamp_get_rate (r) == 2.0);
 
   /* ---- reset: zeroes phase/delay, preserves rate ---- */
   resamp_reset (r);
-  CHECK (resamp_get_rate (r) == 2.0); /* rate must survive reset */
+  DP_CHECK (resamp_get_rate (r) == 2.0); /* rate must survive reset */
 
   resamp_destroy (r);
 
@@ -1149,7 +1138,7 @@ main (void)
               double fs = f + (s ? df / 2 : -df / 2);
               size_t t
                   = gate_run (1.0, fs, use_ctrl, y, sizeof y / sizeof y[0]);
-              CHECK (t == (size_t)GATE_N); /* unity is 1:1, every sample */
+              DP_CHECK (t == (size_t)GATE_N); /* unity is 1:1, every sample */
               h[s]
                   = gate_project (y + GATE_SKIP, t - GATE_SKIP, fs, GATE_SKIP);
             }
@@ -1166,9 +1155,9 @@ main (void)
       fprintf (stderr,
                "  R==1 all-pass %s: |H| dev %.3e, delay %.4f +/- %.3e\n",
                use_ctrl ? "ctrl" : "free", worst_h, mean, spread);
-      CHECK (worst_h < 5e-3); /* all-pass */
-      CHECK (spread < 2e-2);  /* PURE delay: no frequency dependence */
-      CHECK (mean > 8.0 && mean < 12.0); /* and it is the filter's own */
+      DP_CHECK (worst_h < 5e-3); /* all-pass */
+      DP_CHECK (spread < 2e-2);  /* PURE delay: no frequency dependence */
+      DP_CHECK (mean > 8.0 && mean < 12.0); /* and it is the filter's own */
     }
 
   /* ---- a resampled pure tone must still be a pure tone ----
@@ -1187,13 +1176,13 @@ main (void)
           if (!(evm < -60.0))
             fprintf (stderr, "  tone purity rate=%.2f %s: %.1f dB\n",
                      gate_rates[k], use_ctrl ? "ctrl" : "free", evm);
-          CHECK (evm < -60.0);
+          DP_CHECK (evm < -60.0);
         }
   }
 
   /* ---- 2x decimation: output count ---- */
   r = resamp_create (0.5);
-  CHECK (r != NULL);
+  DP_CHECK (r != NULL);
   if (!r)
     return 1;
 
@@ -1203,12 +1192,12 @@ main (void)
 
   n = resamp_execute (r, in2, 128, out2, 64);
   /* expect ~64 output samples (allow filter startup delay) */
-  CHECK (n >= 56 && n <= 64);
+  DP_CHECK (n >= 56 && n <= 64);
   resamp_destroy (r);
 
   /* ---- 2x interpolation: output count ---- */
   r = resamp_create (2.0);
-  CHECK (r != NULL);
+  DP_CHECK (r != NULL);
   if (!r)
     return 1;
 
@@ -1217,12 +1206,12 @@ main (void)
     in3[i] = CMPLXF (1.0f, 0.0f);
 
   n = resamp_execute (r, in3, 64, out3, 132);
-  CHECK (n >= 120 && n <= 132);
+  DP_CHECK (n >= 120 && n <= 132);
   resamp_destroy (r);
 
   /* ---- execute_ctrl unity rate, zero ctrl ---- */
   r = resamp_create (1.0);
-  CHECK (r != NULL);
+  DP_CHECK (r != NULL);
   if (!r)
     return 1;
 
@@ -1233,21 +1222,21 @@ main (void)
       ctrl[i] = 0.0;
     }
   n = resamp_execute_ctrl (r, in, ctrl, N, out, N);
-  CHECK (n == N);
+  DP_CHECK (n == N);
   resamp_destroy (r);
 
   /* Serializable-state round-trip across rates (decimate, interpolate,
    * non-integer) — bit-exact resume from the handed-off state blob. */
-  CHECK (rt_resamp (0.5)); /* decimation: decim_iad/decim_tfd path */
-  CHECK (rt_resamp (2.0)); /* interpolation: delay_buf path        */
-  CHECK (rt_resamp (0.4)); /* non-integer: fractional phase + ctrl */
+  DP_CHECK (rt_resamp (0.5)); /* decimation: decim_iad/decim_tfd path */
+  DP_CHECK (rt_resamp (2.0)); /* interpolation: delay_buf path        */
+  DP_CHECK (rt_resamp (0.4)); /* non-integer: fractional phase + ctrl */
 
   /* Streaming interpolation fill == resamp_execute, and block-invariant
    * (single M-fill == M on-demand 1-fills). pow-2 nphases → exact overflow
    * count. Both the pulse-shaper's steps() and step() paths depend on this. */
-  CHECK (eq_interp_fill (8, 4));
-  CHECK (eq_interp_fill (4, 17));
-  CHECK (eq_interp_fill (16, 3));
+  DP_CHECK (eq_interp_fill (8, 4));
+  DP_CHECK (eq_interp_fill (4, 17));
+  DP_CHECK (eq_interp_fill (16, 3));
 
   /* Streaming control port: one-input-at-a-time execute_ctrl_push == the block
    * execute_ctrl, for decimation, interpolation, and unity — the property a
@@ -1255,7 +1244,7 @@ main (void)
    */
   /* A composite rate a hair above unity must not stall the load — the
    * boundary a Doppler ramp crosses at closest approach. */
-  CHECK (ctrl_near_unity_consumes_input ());
+  DP_CHECK (ctrl_near_unity_consumes_input ());
 
   /* Decimating, unity NEIGHBOURHOOD, and interpolating. The neighbourhood
    * is the part worth spelling out: 1.0 alone is the one rate where the
@@ -1264,13 +1253,13 @@ main (void)
    * ctrl accumulator's boundary handling actually lives. 0.923 is the
    * terminal rate a CIC(8) cascade plans at sps = 17.333 -- a real
    * operating point rather than a round number. */
-  CHECK (eq_ctrl_push (0.4));
-  CHECK (eq_ctrl_push (0.923));
-  CHECK (eq_ctrl_push (0.999));
-  CHECK (eq_ctrl_push (1.0));
-  CHECK (eq_ctrl_push (1.001));
-  CHECK (eq_ctrl_push (2.0));
-  CHECK (eq_ctrl_push (3.0));
+  DP_CHECK (eq_ctrl_push (0.4));
+  DP_CHECK (eq_ctrl_push (0.923));
+  DP_CHECK (eq_ctrl_push (0.999));
+  DP_CHECK (eq_ctrl_push (1.0));
+  DP_CHECK (eq_ctrl_push (1.001));
+  DP_CHECK (eq_ctrl_push (2.0));
+  DP_CHECK (eq_ctrl_push (3.0));
 
   /* A SINGLE-PHASE bank must select arm 0, not shift by 32.
    *
@@ -1291,22 +1280,22 @@ main (void)
   {
     const float     bank1[2] = { 1.0f, 0.0f };
     resamp_state_t *r1       = resamp_create_custom (1, 2, bank1, 2.0);
-    CHECK (r1 != NULL);
+    DP_CHECK (r1 != NULL);
     if (r1)
       {
-        CHECK (r1->num_phases == 1);
+        DP_CHECK (r1->num_phases == 1);
         float _Complex in[4] = { 1.0f + 0.0f * I, 2.0f + 0.0f * I,
                                  3.0f + 0.0f * I, 4.0f + 0.0f * I };
         float _Complex out[8];
         size_t used = resamp_interp_fill (r1, in, out, 8);
-        CHECK (used <= 4);
+        DP_CHECK (used <= 4);
         for (size_t i = 0; i < 8; i++)
           {
             /* Every output must be a real dot product over the delay line,
                not whatever lay past the end of a one-arm bank. */
-            CHECK (isfinite (crealf (out[i])));
-            CHECK (isfinite (cimagf (out[i])));
-            CHECK (fabsf (crealf (out[i])) <= 4.0f);
+            DP_CHECK (isfinite (crealf (out[i])));
+            DP_CHECK (isfinite (cimagf (out[i])));
+            DP_CHECK (fabsf (crealf (out[i])) <= 4.0f);
           }
         resamp_destroy (r1);
       }
@@ -1325,19 +1314,19 @@ main (void)
    * runs at. */
   {
     resamp_state_t *r1 = resamp_create (1.0);
-    CHECK (r1 != NULL);
+    DP_CHECK (r1 != NULL);
     if (r1)
       {
         size_t need = resamp_interp_inputs_needed (r1, 1000);
-        CHECK (need >= 999 && need <= 1000);
+        DP_CHECK (need >= 999 && need <= 1000);
         /* Neighbours either side must agree to within a sample -- the
            conversion should be continuous across the branch boundary. */
         resamp_state_t *rlo = resamp_create (0.9999999);
         resamp_state_t *rhi = resamp_create (1.0000001);
         size_t          nlo = resamp_interp_inputs_needed (rlo, 1000);
         size_t          nhi = resamp_interp_inputs_needed (rhi, 1000);
-        CHECK (nhi >= 999 && nhi <= 1000);
-        CHECK (need >= nhi); /* unity consumes no fewer than faster */
+        DP_CHECK (nhi >= 999 && nhi <= 1000);
+        DP_CHECK (need >= nhi); /* unity consumes no fewer than faster */
         (void)nlo;
         resamp_destroy (rlo);
         resamp_destroy (rhi);
@@ -1346,39 +1335,40 @@ main (void)
   }
 
   /* ── §10 — the control accumulator names the NEXT output's arm ──────── */
-  CHECK (ctrl_acc_names_next_arm (0.7));
-  CHECK (ctrl_acc_names_next_arm (0.923));
-  CHECK (ctrl_acc_names_next_arm (1.3));
-  CHECK (ctrl_acc_names_next_arm (2.5));
+  DP_CHECK (ctrl_acc_names_next_arm (0.7));
+  DP_CHECK (ctrl_acc_names_next_arm (0.923));
+  DP_CHECK (ctrl_acc_names_next_arm (1.3));
+  DP_CHECK (ctrl_acc_names_next_arm (2.5));
 
   /* ── §11 — one wrap buys one INPUT interval ─────────────────────────── */
-  CHECK (ctrl_wrap_is_one_input (0.7));
-  CHECK (ctrl_wrap_is_one_input (0.3));
+  DP_CHECK (ctrl_wrap_is_one_input (0.7));
+  DP_CHECK (ctrl_wrap_is_one_input (0.3));
 
   /* ── §12 — steady where the interval is whole, slewing where it is not ─
      0.5, 1.0 and 0.25 all give an integer 1/rate, so the fraction is exactly
      zero. 0.499 is 0.5 with a residual rate error a loop would have to
      absorb, and its wrap count is predicted rather than merely non-zero. */
-  CHECK (ctrl_acc_steady_at_exact_rate (0.5));
-  CHECK (ctrl_acc_steady_at_exact_rate (1.0));
-  CHECK (ctrl_acc_steady_at_exact_rate (0.25));
-  CHECK (ctrl_acc_slews_at_rate_error (0.499));
+  DP_CHECK (ctrl_acc_steady_at_exact_rate (0.5));
+  DP_CHECK (ctrl_acc_steady_at_exact_rate (1.0));
+  DP_CHECK (ctrl_acc_steady_at_exact_rate (0.25));
+  DP_CHECK (ctrl_acc_slews_at_rate_error (0.499));
 
   /* ── §13 — dc_gain is computed, and a measurement must agree ────────── */
   {
     resamp_state_t *rg = resamp_create (0.5);
-    CHECK (rg != NULL);
+    DP_CHECK (rg != NULL);
     if (rg)
       {
         double g = resamp_dc_gain (rg);
         fprintf (stderr, "  §13 default Kaiser dc_gain %.6f\n", g);
-        CHECK (fabs (g - 1.0) < 1e-3); /* the header's @code says 1.000 */
+        DP_CHECK (fabs (g - 1.0) < 1e-3); /* the header's @code says 1.000 */
         resamp_destroy (rg);
       }
 
     double worst = dc_gain_worst_arm_deviation ();
     fprintf (stderr, "  §13 worst arm deviation from arm 0: %.3e\n", worst);
-    CHECK (worst >= 0.0 && worst < 1e-3); /* arm 0 answers for all of them */
+    DP_CHECK (worst >= 0.0
+              && worst < 1e-3); /* arm 0 answers for all of them */
 
     /* Computed vs measured, on the interpolating and the decimating path —
        the latter is where the `rate` pre-scale has to cancel. */
@@ -1386,7 +1376,7 @@ main (void)
       {
         double          rate = i ? 0.5 : 2.0;
         resamp_state_t *rr   = resamp_create (rate);
-        CHECK (rr != NULL);
+        DP_CHECK (rr != NULL);
         if (!rr)
           continue;
         double want = resamp_dc_gain (rr);
@@ -1394,26 +1384,26 @@ main (void)
         double got = dc_gain_measured (rate);
         fprintf (stderr, "  §13 rate %.2f: computed %.6f, measured %.6f\n",
                  rate, want, got);
-        CHECK (fabs (got - want) < 5e-3);
+        DP_CHECK (fabs (got - want) < 5e-3);
       }
 
     /* A custom bank answers with its own tap sum, not with 1.0. */
     const float b2[8] = { 0.75f, 1.25f, 0.5f, 1.5f, 0.25f, 1.75f, 1.0f, 1.0f };
     resamp_state_t *rc = resamp_create_custom (4, 2, b2, 1.0);
-    CHECK (rc != NULL);
+    DP_CHECK (rc != NULL);
     if (rc)
       {
-        CHECK (resamp_dc_gain (rc) == 2.0);
+        DP_CHECK (resamp_dc_gain (rc) == 2.0);
         resamp_destroy (rc);
       }
   }
 
   /* ── §14 — destroy(NULL) is a no-op; create_custom rejects ──────────── */
-  CHECK (lifecycle_rejects ());
+  DP_CHECK (lifecycle_rejects ());
 
   /* ── §15 / §16 — the two promises the old literals could not see ────── */
-  CHECK (set_rate_preserves_state ());
-  CHECK (reset_zeroes_state ());
+  DP_CHECK (set_rate_preserves_state ());
+  DP_CHECK (reset_zeroes_state ());
 
   /* ── §17 — the bank's advertised 60 dB / 0.4-0.6 pass-stop ──────────
      The cutoffs are normalised to fs_out, so a frequency quoted as `f` of
@@ -1436,10 +1426,10 @@ main (void)
                  "  §17 rate=%.2f: fs_out 0.2/0.4 -> %.2f/%.2f dB, "
                  "0.6/0.9 -> %.1f/%.1f dB\n",
                  rate, pb_in, pb_edge, sb_edge, sb_deep);
-        CHECK (fabs (pb_in) < 0.5);   /* well inside the passband  */
-        CHECK (fabs (pb_edge) < 1.0); /* at the advertised edge    */
-        CHECK (sb_edge < -60.0);      /* the advertised rejection  */
-        CHECK (sb_deep < -60.0);      /* and it stays down         */
+        DP_CHECK (fabs (pb_in) < 0.5);   /* well inside the passband  */
+        DP_CHECK (fabs (pb_edge) < 1.0); /* at the advertised edge    */
+        DP_CHECK (sb_edge < -60.0);      /* the advertised rejection  */
+        DP_CHECK (sb_deep < -60.0);      /* and it stays down         */
       }
   }
 
@@ -1463,8 +1453,8 @@ main (void)
                  "  §17b rate=%.1f: image floor %.1f dBc (f0 .05), "
                  "%.1f dBc (f0 .35)\n",
                  rates[i], lo, hi);
-        CHECK (lo < -60.0);
-        CHECK (hi < -60.0);
+        DP_CHECK (lo < -60.0);
+        DP_CHECK (hi < -60.0);
       }
   }
 
@@ -1472,10 +1462,10 @@ main (void)
      Both directions: identical to `execute` at or above unity, and
      necessarily different below it, where `execute` is the transposed
      decimator. */
-  CHECK (ctrl_rides_interpolator (2.0));
-  CHECK (ctrl_rides_interpolator (1.0));
-  CHECK (ctrl_rides_interpolator (0.7));
-  CHECK (ctrl_rides_interpolator (0.5));
+  DP_CHECK (ctrl_rides_interpolator (2.0));
+  DP_CHECK (ctrl_rides_interpolator (1.0));
+  DP_CHECK (ctrl_rides_interpolator (0.7));
+  DP_CHECK (ctrl_rides_interpolator (0.5));
 
   /* §19 retired: it pinned "only the real part of `ctrl` is used", and the
      port is a `double` now, so there is no imaginary half to discard. The
@@ -1484,18 +1474,12 @@ main (void)
   /* ── §20 — the streaming contract holds at every rate ───────────────
      Fractional rates included, which is where the header's "integer
      interpolation factor" scoping says not to rely on it. */
-  CHECK (inputs_needed_is_exact (1.0));
-  CHECK (inputs_needed_is_exact (1.5));
-  CHECK (inputs_needed_is_exact (2.0));
-  CHECK (inputs_needed_is_exact (2.5));
-  CHECK (inputs_needed_is_exact (3.7));
-  CHECK (inputs_needed_is_exact (7.3));
+  DP_CHECK (inputs_needed_is_exact (1.0));
+  DP_CHECK (inputs_needed_is_exact (1.5));
+  DP_CHECK (inputs_needed_is_exact (2.0));
+  DP_CHECK (inputs_needed_is_exact (2.5));
+  DP_CHECK (inputs_needed_is_exact (3.7));
+  DP_CHECK (inputs_needed_is_exact (7.3));
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_resamp_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_resamp_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_resamp_core");
 }

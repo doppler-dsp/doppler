@@ -1,20 +1,10 @@
 #include "dp_state_test.h"
+#include "dp_test.h"
 #include "psd/psd_core.h"
 #include <complex.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* argmax over a float array. */
 static size_t
@@ -71,27 +61,31 @@ stddev (const float *a, size_t lo, size_t hi)
 int
 main (void)
 {
-  int          _fails = 0;
-  const size_t N      = 64;
+  const size_t N = 64;
 
   /* ── lifecycle + invalid args ───────────────────────────────────────── */
   {
-    CHECK (psd_create (1, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1) == NULL); /* n<2  */
-    CHECK (psd_create (N, 0.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1) == NULL); /* fs   */
-    CHECK (psd_create (N, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.1) == NULL); /* win  */
-    CHECK (psd_create (N, 1.0, 0, 0.0f, 1, 0.0, 0, 0, 0.1) == NULL); /* fscl */
-    CHECK (psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 9, 0.1) == NULL); /* mode */
-    psd_destroy (NULL);                                              /* ok   */
+    DP_CHECK (psd_create (1, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1)
+              == NULL); /* n<2  */
+    DP_CHECK (psd_create (N, 0.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1)
+              == NULL); /* fs   */
+    DP_CHECK (psd_create (N, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.1)
+              == NULL); /* win  */
+    DP_CHECK (psd_create (N, 1.0, 0, 0.0f, 1, 0.0, 0, 0, 0.1)
+              == NULL); /* fscl */
+    DP_CHECK (psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 9, 0.1)
+              == NULL); /* mode */
+    psd_destroy (NULL); /* ok   */
 
     psd_state_t *w = psd_create (N, 1.0e6, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
-    CHECK (w != NULL);
-    CHECK (w->n == N);
-    CHECK (w->fs == 1.0e6);
-    CHECK (w->enbw > 1.0); /* any non-rectangular window has ENBW > 1 bin */
+    DP_CHECK (w != NULL);
+    DP_CHECK (w->n == N);
+    DP_CHECK (w->fs == 1.0e6);
+    DP_CHECK (w->enbw > 1.0); /* any non-rectangular window has ENBW > 1 bin */
 
     /* psd_db before any frame → 0 (None in Python). */
     float db[64];
-    CHECK (psd_psd_db (w, N, db, N) == 0);
+    DP_CHECK (psd_psd_db (w, N, db, N) == 0);
     psd_destroy (w);
   }
 
@@ -103,8 +97,8 @@ main (void)
       x[i] = 1.0f + 0.0f * I;
     psd_accumulate (w, x, N);
     float db[64];
-    CHECK (psd_psd_db (w, N, db, N) == N);
-    CHECK (argmax (db, N) == N / 2); /* DC at index n/2 */
+    DP_CHECK (psd_psd_db (w, N, db, N) == N);
+    DP_CHECK (argmax (db, N) == N / 2); /* DC at index n/2 */
     psd_destroy (w);
   }
 
@@ -122,10 +116,10 @@ main (void)
     for (size_t i = 0; i < 7; i++)
       buf[3 * N + i] = x[i];
     psd_accumulate (w, buf, 3 * N + 7);
-    CHECK (w->avg->count == 3);
+    DP_CHECK (w->avg->count == 3);
     float db[64];
     psd_psd_db (w, N, db, N);
-    CHECK (argmax (db, N) == N / 2 + (size_t)k);
+    DP_CHECK (argmax (db, N) == N / 2 + (size_t)k);
     psd_destroy (w);
   }
 
@@ -140,7 +134,7 @@ main (void)
     psd_psd_dbhz (w, 32, b, 32);
     float off0 = a[0] - b[0];
     for (size_t i = 0; i < 32; i++)
-      CHECK (fabsf ((a[i] - b[i]) - off0) < 1e-3f);
+      DP_CHECK (fabsf ((a[i] - b[i]) - off0) < 1e-3f);
     psd_destroy (w);
   }
 
@@ -156,17 +150,17 @@ main (void)
     double bands[4] = { -0.5, 0.0, 0.0, 0.5 };
     float  per[2];
     size_t nb = psd_band_power (w, bands, 4, per, 2); /* per[2] */
-    CHECK (nb == 2);
+    DP_CHECK (nb == 2);
     double total = psd_total_band_power (w, bands, 4);
     /* total power = sum of the two halves' linear powers */
     double lin = pow (10.0, per[0] / 10.0) + pow (10.0, per[1] / 10.0);
-    CHECK (fabs (10.0 * log10 (lin) - total) < 1e-2);
+    DP_CHECK (fabs (10.0 * log10 (lin) - total) < 1e-2);
 
     /* a band entirely outside the span integrates to the floor */
     double far[2] = { 10.0, 11.0 };
     float  pf[1];
     psd_band_power (w, far, 2, pf, 1); /* pf[1] */
-    CHECK (pf[0] < -150.0f);
+    DP_CHECK (pf[0] < -150.0f);
     psd_destroy (w);
   }
 
@@ -184,13 +178,13 @@ main (void)
       for (size_t pad = 1; pad <= 4; pad *= 4)
         {
           psd_state_t *w = psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0, 0, 0.1);
-          CHECK (w != NULL);
+          DP_CHECK (w != NULL);
           float complex x[64];
           fill_tone (x, N, 9); /* window spreads it; Parseval recovers total */
           for (int r = 0; r < 8; r++)
             psd_accumulate (w, x, N);
           double p = psd_total_band_power (w, whole, 2);
-          CHECK (fabs (p) < 0.3); /* 0 dBFS +/- 0.3 dB, any window/pad */
+          DP_CHECK (fabs (p) < 0.3); /* 0 dBFS +/- 0.3 dB, any window/pad */
           psd_destroy (w);
         }
   }
@@ -203,7 +197,7 @@ main (void)
     for (int r = 0; r < 4; r++)
       psd_accumulate (w, x, N);
     double obw = psd_occupied_bw (w, 0.99);
-    CHECK (obw > 0.0 && obw < 0.5); /* a tone occupies a small fraction */
+    DP_CHECK (obw > 0.0 && obw < 0.5); /* a tone occupies a small fraction */
     psd_destroy (w);
   }
 
@@ -224,15 +218,15 @@ main (void)
     double nf  = psd_noise_floor (w);
     double snr = psd_snr (w, 0.0, 0.2); /* band around bin 6 */
     double sf  = psd_sfdr (w, -120.0f);
-    CHECK (isfinite (nf));
-    CHECK (isfinite (snr) && snr > 0.0); /* carrier above the floor    */
-    CHECK (isfinite (sf) && sf > 0.0);   /* carrier above the spur     */
+    DP_CHECK (isfinite (nf));
+    DP_CHECK (isfinite (snr) && snr > 0.0); /* carrier above the floor    */
+    DP_CHECK (isfinite (sf) && sf > 0.0);   /* carrier above the spur     */
 
     /* reset clears the average */
     psd_reset (w);
-    CHECK (w->avg->count == 0);
+    DP_CHECK (w->avg->count == 0);
     float db[64];
-    CHECK (psd_psd_db (w, N, db, N) == 0);
+    DP_CHECK (psd_psd_db (w, N, db, N) == 0);
     psd_destroy (w);
   }
 
@@ -249,11 +243,11 @@ main (void)
         psd_accumulate_real (w, x, N);
         float  two[128];
         size_t nfft = psd_power_twosided (w, w->nfft, two, w->nfft);
-        CHECK (nfft == w->nfft);
-        CHECK (fabs (two[w->nfft / 2] - A * A) < 1e-3); /* DC bin */
+        DP_CHECK (nfft == w->nfft);
+        DP_CHECK (fabs (two[w->nfft / 2] - A * A) < 1e-3); /* DC bin */
         float one[65];
         psd_power_onesided (w, w->nfft / 2 + 1, one, w->nfft / 2 + 1);
-        CHECK (fabs (one[0] - A * A) < 1e-3); /* one-sided DC */
+        DP_CHECK (fabs (one[0] - A * A) < 1e-3); /* one-sided DC */
         psd_destroy (w);
       }
   }
@@ -262,8 +256,9 @@ main (void)
   {
     psd_state_t *h = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
     psd_state_t *k = psd_create (N, 1.0, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
-    CHECK (fabs (h->enbw - 1.5) < 0.05);
-    CHECK (k->enbw > h->enbw); /* a Kaiser(8) main lobe is wider than Hann */
+    DP_CHECK (fabs (h->enbw - 1.5) < 0.05);
+    DP_CHECK (k->enbw
+              > h->enbw); /* a Kaiser(8) main lobe is wider than Hann */
     psd_destroy (h);
     psd_destroy (k);
   }
@@ -277,13 +272,13 @@ main (void)
     float two[64], one[33];
     psd_power_twosided (w, N, two, N);
     size_t no = psd_power_onesided (w, N / 2 + 1, one, N / 2 + 1);
-    CHECK (no == N / 2 + 1);
+    DP_CHECK (no == N / 2 + 1);
     double st = 0.0, so = 0.0;
     for (size_t i = 0; i < N; i++)
       st += two[i];
     for (size_t i = 0; i < no; i++)
       so += one[i];
-    CHECK (fabs (st - so) < 1e-4 * st);
+    DP_CHECK (fabs (st - so) < 1e-4 * st);
     psd_destroy (w);
   }
 
@@ -303,7 +298,7 @@ main (void)
         psd_destroy (w);
       }
     /* nfft doubles from pad=1 (64) to pad=2 (128): total scales ~2x */
-    CHECK (fabs (tot[2] / tot[1] - 2.0) < 0.05);
+    DP_CHECK (fabs (tot[2] / tot[1] - 2.0) < 0.05);
   }
 
   /* ── mean of K identical frames equals a single frame (exact) ───────── */
@@ -323,7 +318,7 @@ main (void)
     float b[33];
     psd_power_onesided (w, N / 2 + 1, b, N / 2 + 1);
     for (size_t i = 0; i < N / 2 + 1; i++)
-      CHECK (fabsf (a[i] - b[i]) < 1e-6f * (fabsf (a[i]) + 1e-6f));
+      DP_CHECK (fabsf (a[i] - b[i]) < 1e-6f * (fabsf (a[i]) + 1e-6f));
     psd_destroy (w);
   }
 
@@ -348,7 +343,7 @@ main (void)
     psd_power_twosided (mx, N, pmx, N);
     psd_power_twosided (mn, N, pmn, N);
     for (size_t i = 0; i < N; i++)
-      CHECK (pmx[i] >= pmn[i] - 1e-6f);
+      DP_CHECK (pmx[i] >= pmn[i] - 1e-6f);
     psd_destroy (mx);
     psd_destroy (mn);
   }
@@ -369,7 +364,7 @@ main (void)
     psd_power_twosided (w1, N, p1, N);
     psd_power_twosided (wK, N, pK, N);
     /* white noise: the K-averaged spectrum is flatter (smaller spread). */
-    CHECK (stddev (pK, 1, N) < stddev (p1, 1, N));
+    DP_CHECK (stddev (pK, 1, N) < stddev (p1, 1, N));
     free (buf);
     psd_destroy (w1);
     psd_destroy (wK);
@@ -383,58 +378,53 @@ main (void)
     psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
     float complex x[64];
     float         buf[64];
-    CHECK (w != NULL);
+    DP_CHECK (w != NULL);
     fill_tone (x, N, 10);
     psd_accumulate (w, x, N);
 
     for (size_t i = 0; i < N; i++)
       buf[i] = 42.0f;
-    CHECK (psd_power_twosided (w, N, buf, 5) == 5);
+    DP_CHECK (psd_power_twosided (w, N, buf, 5) == 5);
     for (size_t i = 5; i < N; i++)
-      CHECK (buf[i] == 42.0f); /* tail untouched */
+      DP_CHECK (buf[i] == 42.0f); /* tail untouched */
 
     for (size_t i = 0; i < N; i++)
       buf[i] = 42.0f;
-    CHECK (psd_psd_db (w, N, buf, 3) == 3);
+    DP_CHECK (psd_psd_db (w, N, buf, 3) == 3);
     for (size_t i = 3; i < N; i++)
-      CHECK (buf[i] == 42.0f);
+      DP_CHECK (buf[i] == 42.0f);
 
     for (size_t i = 0; i < N; i++)
       buf[i] = 42.0f;
-    CHECK (psd_psd_dbhz (w, N, buf, 3) == 3);
+    DP_CHECK (psd_psd_dbhz (w, N, buf, 3) == 3);
     for (size_t i = 3; i < N; i++)
-      CHECK (buf[i] == 42.0f);
+      DP_CHECK (buf[i] == 42.0f);
 
     /* power_onesided writes out[0] and out[half] OUTSIDE its loop, so a
      * loop-only clamp would still scribble at index half (== 32 here). */
     for (size_t i = 0; i < N; i++)
       buf[i] = 42.0f;
-    CHECK (psd_power_onesided (w, N / 2 + 1, buf, 4) == 4);
+    DP_CHECK (psd_power_onesided (w, N / 2 + 1, buf, 4) == 4);
     for (size_t i = 4; i < N; i++)
-      CHECK (buf[i] == 42.0f); /* in particular buf[32], the half index */
+      DP_CHECK (buf[i] == 42.0f); /* in particular buf[32], the half index */
 
     /* Zero capacity emits nothing from any of them. */
     for (size_t i = 0; i < N; i++)
       buf[i] = 42.0f;
-    CHECK (psd_power_twosided (w, N, buf, 0) == 0);
-    CHECK (psd_power_onesided (w, N / 2 + 1, buf, 0) == 0);
-    CHECK (psd_psd_db (w, N, buf, 0) == 0);
+    DP_CHECK (psd_power_twosided (w, N, buf, 0) == 0);
+    DP_CHECK (psd_power_onesided (w, N / 2 + 1, buf, 0) == 0);
+    DP_CHECK (psd_psd_db (w, N, buf, 0) == 0);
     for (size_t i = 0; i < N; i++)
-      CHECK (buf[i] == 42.0f);
+      DP_CHECK (buf[i] == 42.0f);
 
     /* band_power emits one value per BAND -- half the edge count. */
     double bands[4] = { -0.5, 0.0, 0.0, 0.5 };
     float  per[2]   = { 42.0f, 42.0f };
-    CHECK (psd_band_power (w, bands, 4, per, 1) == 1);
-    CHECK (per[1] == 42.0f);
+    DP_CHECK (psd_band_power (w, bands, 4, per, 1) == 1);
+    DP_CHECK (per[1] == 42.0f);
     psd_destroy (w);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_psd_core FAILED (%d)\n", _fails);
-      return 1;
-    }
   /* serializable state — delegates to the acc_trace averager child. */
   {
     float complex frame[64];
@@ -442,15 +432,14 @@ main (void)
       frame[i] = (float)(i % 8) - 4.0f + 0.3f * I;
     psd_state_t *a = psd_create (64, 1.0e6, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
     psd_state_t *b = psd_create (64, 1.0e6, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
-    CHECK (a != NULL && b != NULL);
+    DP_CHECK (a != NULL && b != NULL);
     psd_accumulate (a, frame, 64);
     psd_accumulate (a, frame, 64);
     DP_STATE_ROUNDTRIP_TEST (psd, a, b);
-    CHECK (b->avg->count == a->avg->count);
+    DP_CHECK (b->avg->count == a->avg->count);
     psd_destroy (a);
     psd_destroy (b);
   }
 
-  printf ("test_psd_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_psd_core");
 }

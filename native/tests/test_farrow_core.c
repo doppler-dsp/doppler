@@ -10,22 +10,12 @@
  *   5. Reset clears the delay line
  */
 #include "dp_state_test.h"
+#include "dp_test.h"
 #include "farrow/farrow_core.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* Interpolate a length-N real sequence f[] at continuous position `pos`
  * (= integer index + fraction) by streaming through the Farrow, accounting for
@@ -50,19 +40,18 @@ interp_at (int order, const float *f, int n, double pos)
 int
 main (void)
 {
-  int _fails = 0;
 
   /* 1. Lifecycle / order / parity */
   {
     farrow_state_t *c = farrow_create (FARROW_CUBIC);
-    CHECK (c != NULL);
+    DP_CHECK (c != NULL);
     if (!c)
       return 1;
-    CHECK (c->order == FARROW_CUBIC);
-    CHECK (farrow_get_group_delay (c) == 2);
+    DP_CHECK (c->order == FARROW_CUBIC);
+    DP_CHECK (farrow_get_group_delay (c) == 2);
     farrow_state_t v;
     farrow_init (&v, FARROW_CUBIC);
-    CHECK (v.order == c->order);
+    DP_CHECK (v.order == c->order);
     farrow_destroy (c);
   }
 
@@ -74,8 +63,9 @@ main (void)
         farrow_init (&s, order);
         for (int i = 0; i < 4; i++)
           farrow_push (&s, (float)i + 0.0f * I);
-        CHECK (cabsf (farrow_eval (&s, 0.0f) - 1.0f) < 1e-5f);     /* d[1] */
-        CHECK (cabsf (farrow_eval (&s, 0.999f) - 1.999f) < 1e-2f); /* ->d[2] */
+        DP_CHECK (cabsf (farrow_eval (&s, 0.0f) - 1.0f) < 1e-5f); /* d[1] */
+        DP_CHECK (cabsf (farrow_eval (&s, 0.999f) - 1.999f)
+                  < 1e-2f); /* ->d[2] */
       }
   }
 
@@ -105,7 +95,7 @@ main (void)
             if (fabsf (crealf (got) - (float)exact) > 1e-2f)
               bad++;
           }
-        CHECK (bad == 0); /* exact for its own degree */
+        DP_CHECK (bad == 0); /* exact for its own degree */
       }
   }
 
@@ -133,7 +123,7 @@ main (void)
               errors++;
           }
       }
-    CHECK (errors == 0);
+    DP_CHECK (errors == 0);
   }
 
   /* 5. Reset clears the delay line */
@@ -142,30 +132,24 @@ main (void)
     farrow_push (s, 5.0f + 0.0f * I);
     farrow_push (s, 6.0f + 0.0f * I);
     farrow_reset (s);
-    CHECK (cabsf (farrow_eval (s, 0.5f)) < 1e-6f);
+    DP_CHECK (cabsf (farrow_eval (s, 0.5f)) < 1e-6f);
     farrow_destroy (s);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_farrow_core FAILED (%d)\n", _fails);
-      return 1;
-    }
   /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
   {
     farrow_state_t *a = farrow_create (FARROW_CUBIC);
     farrow_state_t *b = farrow_create (FARROW_CUBIC);
-    CHECK (a != NULL && b != NULL);
+    DP_CHECK (a != NULL && b != NULL);
     farrow_push (a, 1.0f + 0.0f * I);
     farrow_push (a, 0.0f + 2.0f * I);
     farrow_push (a, -1.0f + 0.5f * I);
     farrow_push (a, 0.5f - 0.5f * I);
     DP_STATE_ROUNDTRIP_TEST (farrow, a, b);
-    CHECK (farrow_eval (b, 0.3f) == farrow_eval (a, 0.3f));
+    DP_CHECK (farrow_eval (b, 0.3f) == farrow_eval (a, 0.3f));
     farrow_destroy (a);
     farrow_destroy (b);
   }
 
-  printf ("test_farrow_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_farrow_core");
 }

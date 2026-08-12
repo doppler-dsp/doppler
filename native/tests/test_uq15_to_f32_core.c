@@ -1,18 +1,8 @@
+#include "dp_test.h"
 #include "uq15_to_f32/uq15_to_f32_core.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* Floating-point helpers — use inline functions, not macros, so arguments
  * are evaluated exactly once.  Safe to call with stateful step() results. */
@@ -34,9 +24,8 @@ _almost_eq_c (float complex a, float complex b, float tol)
 int
 main (void)
 {
-  int                  _fails = 0;
-  uq15_to_f32_state_t *obj    = uq15_to_f32_create (32768.0f);
-  CHECK (obj != NULL);
+  uq15_to_f32_state_t *obj = uq15_to_f32_create (32768.0f);
+  DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
 
@@ -47,11 +36,5 @@ main (void)
   uq15_to_f32_reset (obj);
 
   uq15_to_f32_destroy (obj);
-  if (_fails)
-    {
-      fprintf (stderr, "test_uq15_to_f32_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_uq15_to_f32_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_uq15_to_f32_core");
 }

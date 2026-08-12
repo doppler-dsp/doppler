@@ -1,19 +1,9 @@
 #include "Resampler/Resampler_core.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* Floating-point helpers — use inline functions, not macros, so arguments
  * are evaluated exactly once.  Safe to call with stateful step() results. */
@@ -35,9 +25,8 @@ _almost_eq_c (float complex a, float complex b, float tol)
 int
 main (void)
 {
-  int                _fails = 0;
-  Resampler_state_t *obj    = Resampler_create (0.0);
-  CHECK (obj != NULL);
+  Resampler_state_t *obj = Resampler_create (0.0);
+  DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
 
@@ -71,18 +60,18 @@ main (void)
     Resampler_destroy (r1);
 
     Resampler_state_t *r2 = Resampler_create (0.5);
-    CHECK (Resampler_set_state (r2, blob) == DP_OK);
+    DP_CHECK (Resampler_set_state (r2, blob) == DP_OK);
     ((char *)blob)[0] ^= (char)0xFF; /* clobber envelope -> reject */
-    CHECK (Resampler_set_state (r2, blob) == DP_ERR_INVALID);
+    DP_CHECK (Resampler_set_state (r2, blob) == DP_ERR_INVALID);
     ((char *)blob)[0] ^= (char)0xFF;
     nB += Resampler_execute (r2, in + cut, L - cut, outB + nB, L - cut);
     Resampler_destroy (r2);
     free (blob);
 
-    CHECK (nA == nB);
+    DP_CHECK (nA == nB);
     for (size_t i = 0; i < nA && i < nB; i++)
-      CHECK (crealf (outA[i]) == crealf (outB[i])
-             && cimagf (outA[i]) == cimagf (outB[i]));
+      DP_CHECK (crealf (outA[i]) == crealf (outB[i])
+                && cimagf (outA[i]) == cimagf (outB[i]));
     free (in);
     free (outA);
     free (outB);
@@ -94,32 +83,26 @@ main (void)
      * capacity, so an under-sized buffer truncates instead of overruns. */
     Resampler_state_t *r = Resampler_create (1.0);
     float complex      in[64], out[64];
-    CHECK (r != NULL);
+    DP_CHECK (r != NULL);
     for (int i = 0; i < 64; i++)
       {
         in[i]  = (float)i + 0.0f * I;
         out[i] = 42.0f + 42.0f * I;
       }
     size_t n = Resampler_execute (r, in, 64, out, 5);
-    CHECK (n <= 5);
+    DP_CHECK (n <= 5);
     for (size_t i = n; i < 64; i++)
-      CHECK (out[i] == 42.0f + 42.0f * I); /* tail untouched */
+      DP_CHECK (out[i] == 42.0f + 42.0f * I); /* tail untouched */
 
     /* Zero capacity emits nothing at all. */
-    CHECK (Resampler_execute (r, in, 64, out, 0) == 0);
+    DP_CHECK (Resampler_execute (r, in, 64, out, 0) == 0);
 
     double ctrl[64];
     for (int i = 0; i < 64; i++)
       ctrl[i] = 0.0;
-    CHECK (Resampler_execute_ctrl (r, in, 64, ctrl, 64, out, 3) <= 3);
+    DP_CHECK (Resampler_execute_ctrl (r, in, 64, ctrl, 64, out, 3) <= 3);
     Resampler_destroy (r);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_Resampler_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_Resampler_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_Resampler_core");
 }

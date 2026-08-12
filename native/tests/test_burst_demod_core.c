@@ -1,19 +1,9 @@
 #include "burst_demod/burst_demod_core.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 #define ACQ_SF 500
 #define ACQ_REPS 5
@@ -89,7 +79,6 @@ static int
 run_case (const char *name, double f0, double f0_prior, double mu,
           double max_rate)
 {
-  int _fails = 0;
   /* Codes + payload (deterministic). */
   uint8_t acode[ACQ_SF], dcode[DATA_SF], payload[PAYLOAD];
   for (size_t i = 0; i < ACQ_SF; i++)
@@ -107,20 +96,20 @@ run_case (const char *name, double f0, double f0_prior, double mu,
 
   burst_demod_state_t *d = burst_demod_create (dcode, DATA_SF, SPC, CHIP_RATE,
                                                0.0, max_rate, PAYLOAD, 10);
-  CHECK (d != NULL);
+  DP_CHECK (d != NULL);
   burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
   burst_demod_set_sync (d, SYNC, SYNC_LEN);
   burst_demod_set_prior (d, f0_prior, 0);
 
   uint8_t bits[PAYLOAD];
   size_t  nb = burst_demod_demod (d, y, n, bits, PAYLOAD);
-  CHECK (nb == PAYLOAD);
-  CHECK (d->frame_valid == 1);
+  DP_CHECK (nb == PAYLOAD);
+  DP_CHECK (d->frame_valid == 1);
   size_t errs = 0;
   for (size_t i = 0; i < PAYLOAD; i++)
     if (bits[i] != payload[i])
       errs++;
-  CHECK (errs == 0);
+  DP_CHECK (errs == 0);
 
   printf ("  %-10s f0=%.4f(prior %.4f) mu=%.2e | est f=%.1fHz r=%.2eHz/s "
           "snr=%.0f off=%zu valid=%d errs=%zu\n",
@@ -128,14 +117,13 @@ run_case (const char *name, double f0, double f0_prior, double mu,
           d->est_snr_db, d->frame_offset, d->frame_valid, errs);
   burst_demod_destroy (d);
   free (y);
-  return _fails;
+  return 0;
 }
 
 /* Guard / error / clamp paths the happy-path cases never reach. */
 static int
 run_edge_cases (void)
 {
-  int     _fails = 0;
   uint8_t dc[DATA_SF], ac[ACQ_SF];
   for (size_t i = 0; i < DATA_SF; i++)
     dc[i] = (uint8_t)(i & 1u);
@@ -143,24 +131,26 @@ run_edge_cases (void)
     ac[i] = (uint8_t)(i & 1u);
 
   /* Argument validation → NULL (each clause of the create guard). */
-  CHECK (burst_demod_create (NULL, DATA_SF, SPC, CHIP_RATE, 0, 0, PAYLOAD, 10)
-         == NULL);
-  CHECK (burst_demod_create (dc, 0, SPC, CHIP_RATE, 0, 0, PAYLOAD, 10)
-         == NULL);
-  CHECK (burst_demod_create (dc, DATA_SF, 0, CHIP_RATE, 0, 0, PAYLOAD, 10)
-         == NULL);
-  CHECK (burst_demod_create (dc, DATA_SF, SPC, 0.0, 0, 0, PAYLOAD, 10)
-         == NULL);
-  CHECK (burst_demod_create (dc, DATA_SF, SPC, CHIP_RATE, 0, -1.0, PAYLOAD, 10)
-         == NULL);
-  CHECK (burst_demod_create (dc, DATA_SF, SPC, CHIP_RATE, 0, 0, PAYLOAD, 0)
-         == NULL);
+  DP_CHECK (
+      burst_demod_create (NULL, DATA_SF, SPC, CHIP_RATE, 0, 0, PAYLOAD, 10)
+      == NULL);
+  DP_CHECK (burst_demod_create (dc, 0, SPC, CHIP_RATE, 0, 0, PAYLOAD, 10)
+            == NULL);
+  DP_CHECK (burst_demod_create (dc, DATA_SF, 0, CHIP_RATE, 0, 0, PAYLOAD, 10)
+            == NULL);
+  DP_CHECK (burst_demod_create (dc, DATA_SF, SPC, 0.0, 0, 0, PAYLOAD, 10)
+            == NULL);
+  DP_CHECK (
+      burst_demod_create (dc, DATA_SF, SPC, CHIP_RATE, 0, -1.0, PAYLOAD, 10)
+      == NULL);
+  DP_CHECK (burst_demod_create (dc, DATA_SF, SPC, CHIP_RATE, 0, 0, PAYLOAD, 0)
+            == NULL);
 
   burst_demod_destroy (NULL); /* no-op on NULL */
 
   burst_demod_state_t *d
       = burst_demod_create (dc, DATA_SF, SPC, CHIP_RATE, 0, 0, PAYLOAD, 10);
-  CHECK (d != NULL);
+  DP_CHECK (d != NULL);
   burst_demod_set_preamble (d, NULL, 0, 0); /* guard: ignored */
   burst_demod_set_sync (d, NULL, 0);        /* guard: ignored */
   burst_demod_set_preamble (d, ac, ACQ_SF, ACQ_REPS);
@@ -172,38 +162,31 @@ run_edge_cases (void)
   float complex tiny[8] = { 0 };
   uint8_t       eb[PAYLOAD];
   burst_demod_set_prior (d, 0.0, 0);
-  CHECK (burst_demod_demod (d, tiny, 8, eb, PAYLOAD) == 0);
-  CHECK (d->frame_valid == 0);
+  DP_CHECK (burst_demod_demod (d, tiny, 8, eb, PAYLOAD) == 0);
+  DP_CHECK (d->frame_valid == 0);
   burst_demod_destroy (d);
 
   /* est_segments > acq_sf forces the per-segment chip clamp (Lseg >= 1). */
   burst_demod_state_t *d2 = burst_demod_create (dc, DATA_SF, SPC, CHIP_RATE, 0,
                                                 0, PAYLOAD, ACQ_SF + 100);
-  CHECK (d2 != NULL);
+  DP_CHECK (d2 != NULL);
   burst_demod_set_preamble (d2, ac, ACQ_SF, 1);
   burst_demod_destroy (d2);
-  return _fails;
+  return 0;
 }
 
 int
 main (void)
 {
-  int _fails = 0;
-  _fails += run_edge_cases ();
+  (void)run_edge_cases ();
 
   /* Near-static Doppler (negligible rate): max_rate = 0, single-FFT estimate.
    */
-  _fails += run_case ("static", 0.012, 0.012, 0.0, 0.0);
+  (void)run_case ("static", 0.012, 0.012, 0.0, 0.0);
 
   /* LEO: a real chirp, coarse prior slightly off; the 2-D estimate recovers
    * the residual Doppler + rate and dechirps before despreading. */
-  _fails += run_case ("leo", 0.012, 0.0115, 6.0e-7, 1.0e-6);
+  (void)run_case ("leo", 0.012, 0.0115, 6.0e-7, 1.0e-6);
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_burst_demod_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_burst_demod_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_burst_demod_core");
 }

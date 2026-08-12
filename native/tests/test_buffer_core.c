@@ -9,18 +9,8 @@
  * wrap correctly afterwards.
  */
 #include "buffer/buffer.h"
+#include "dp_test.h"
 #include <stdio.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* Advance head and tail to `target` while keeping occupancy near zero, using
  * a small fixed scratch so the prime works for any (possibly 16 KiB-page)
@@ -46,38 +36,37 @@
 int
 main (void)
 {
-  int    _fails = 0;
-  size_t page   = dp__page_size ();
+  size_t page = dp__page_size ();
 
   /* ── invalid sizes are rejected ─────────────────────────────────── */
   {
-    CHECK (dp_f32_create (0) == NULL);  /* zero */
-    CHECK (dp_f32_create (3) == NULL);  /* not a power of two */
-    CHECK (dp_f32_create (96) == NULL); /* not a power of two */
+    DP_CHECK (dp_f32_create (0) == NULL);  /* zero */
+    DP_CHECK (dp_f32_create (3) == NULL);  /* not a power of two */
+    DP_CHECK (dp_f32_create (96) == NULL); /* not a power of two */
   }
 
   /* ── sub-page request rounds up to a whole, power-of-two page ────── */
   {
     /* elem = bytes per complex sample: f32=8, f64=16, i16=4. */
     dp_f32_t *a = dp_f32_create (1);
-    CHECK (a != NULL);
-    CHECK ((a->capacity & (a->capacity - 1)) == 0);
-    CHECK (a->capacity * 8 >= page);
-    CHECK ((a->capacity * 8) % page == 0);
+    DP_CHECK (a != NULL);
+    DP_CHECK ((a->capacity & (a->capacity - 1)) == 0);
+    DP_CHECK (a->capacity * 8 >= page);
+    DP_CHECK ((a->capacity * 8) % page == 0);
     dp_f32_destroy (a);
 
     dp_f64_t *b = dp_f64_create (1);
-    CHECK (b != NULL);
-    CHECK ((b->capacity & (b->capacity - 1)) == 0);
-    CHECK (b->capacity * 16 >= page);
-    CHECK ((b->capacity * 16) % page == 0);
+    DP_CHECK (b != NULL);
+    DP_CHECK ((b->capacity & (b->capacity - 1)) == 0);
+    DP_CHECK (b->capacity * 16 >= page);
+    DP_CHECK ((b->capacity * 16) % page == 0);
     dp_f64_destroy (b);
 
     dp_i16_t *c = dp_i16_create (1);
-    CHECK (c != NULL);
-    CHECK ((c->capacity & (c->capacity - 1)) == 0);
-    CHECK (c->capacity * 4 >= page);
-    CHECK ((c->capacity * 4) % page == 0);
+    DP_CHECK (c != NULL);
+    DP_CHECK ((c->capacity & (c->capacity - 1)) == 0);
+    DP_CHECK (c->capacity * 4 >= page);
+    DP_CHECK ((c->capacity * 4) % page == 0);
     dp_i16_destroy (c);
   }
 
@@ -88,21 +77,21 @@ main (void)
      * unchanged. */
     size_t    exact = page / 8;
     dp_f32_t *a     = dp_f32_create (exact);
-    CHECK (a != NULL);
-    CHECK (a->capacity == exact);
+    DP_CHECK (a != NULL);
+    DP_CHECK (a->capacity == exact);
     dp_f32_destroy (a);
 
     /* Two pages — also unchanged. */
     dp_f32_t *b = dp_f32_create (exact * 2);
-    CHECK (b != NULL);
-    CHECK (b->capacity == exact * 2);
+    DP_CHECK (b != NULL);
+    DP_CHECK (b->capacity == exact * 2);
     dp_f32_destroy (b);
   }
 
   /* ── mirror wraps correctly after rounding (f32) ─────────────────── */
   {
     dp_f32_t *buf = dp_f32_create (1); /* rounds up to the page minimum */
-    CHECK (buf != NULL);
+    DP_CHECK (buf != NULL);
     size_t cap = buf->capacity;
 
     PRIME_TO (f32, float, buf, cap - 2); /* head = tail = cap - 2 */
@@ -110,10 +99,10 @@ main (void)
     /* Four interleaved I/Q samples written at index cap-2 straddle the wrap
      * at `cap`; the double-mapping must hand them back contiguously. */
     float in[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
-    CHECK (dp_f32_write (buf, in, 4) == true);
+    DP_CHECK (dp_f32_write (buf, in, 4) == true);
     float *view = dp_f32_wait (buf, 4);
     for (int i = 0; i < 8; i++)
-      CHECK (view[i] == in[i]);
+      DP_CHECK (view[i] == in[i]);
     dp_f32_consume (buf, 4);
     dp_f32_destroy (buf);
   }
@@ -121,16 +110,16 @@ main (void)
   /* ── mirror wraps correctly after rounding (i16 IQ path) ─────────── */
   {
     dp_i16_t *buf = dp_i16_create (1);
-    CHECK (buf != NULL);
+    DP_CHECK (buf != NULL);
     size_t cap = buf->capacity;
 
     PRIME_TO (i16, int16_t, buf, cap - 2);
 
     int16_t in[8] = { 10, 11, 20, 21, 30, 31, 40, 41 };
-    CHECK (dp_i16_write (buf, in, 4) == true);
+    DP_CHECK (dp_i16_write (buf, in, 4) == true);
     int16_t *view = dp_i16_wait (buf, 4);
     for (int i = 0; i < 8; i++)
-      CHECK (view[i] == in[i]);
+      DP_CHECK (view[i] == in[i]);
     dp_i16_consume (buf, 4);
     dp_i16_destroy (buf);
   }
@@ -150,20 +139,14 @@ main (void)
         size_t n = cap - written;
         if (n > 64)
           n = 64;
-        CHECK (dp_f32_write (buf, chunk, n) == true);
+        DP_CHECK (dp_f32_write (buf, chunk, n) == true);
         written += n;
       }
     /* Now full: one more sample must be dropped. */
-    CHECK (dp_f32_write (buf, chunk, 1) == false);
-    CHECK (buf->dropped == 1);
+    DP_CHECK (dp_f32_write (buf, chunk, 1) == false);
+    DP_CHECK (buf->dropped == 1);
     dp_f32_destroy (buf);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_buffer_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_buffer_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_buffer_core");
 }

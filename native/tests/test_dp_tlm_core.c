@@ -10,21 +10,11 @@
  * preserved across restore) exercised on a local mock object.
  */
 #include "dp_state.h"
+#include "dp_test.h"
 #include "dp_tlm/dp_tlm_core.h"
 
 #include <pthread.h>
 #include <stdio.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* ── mock instrumented object for the POD_STATE_TLM rule ────────────────── */
 
@@ -72,20 +62,19 @@ producer_main (void *arg)
 int
 main (void)
 {
-  int _fails = 0;
 
   /* ── create/destroy: invalid sizes rejected, NULL-safe destroy ───── */
   {
-    CHECK (dp_tlm_create (0) == NULL);
-    CHECK (dp_tlm_create (3) == NULL); /* not a power of two */
-    dp_tlm_destroy (NULL);             /* must not crash */
+    DP_CHECK (dp_tlm_create (0) == NULL);
+    DP_CHECK (dp_tlm_create (3) == NULL); /* not a power of two */
+    dp_tlm_destroy (NULL);                /* must not crash */
 
     dp_tlm_t *t = dp_tlm_create (256);
-    CHECK (t != NULL);
+    DP_CHECK (t != NULL);
     /* Sub-page requests round up (buffer.h semantics); capacity is
      * authoritative and stays a power of two. */
-    CHECK (dp_tlm_capacity (t) >= 256);
-    CHECK ((dp_tlm_capacity (t) & (dp_tlm_capacity (t) - 1)) == 0);
+    DP_CHECK (dp_tlm_capacity (t) >= 256);
+    DP_CHECK ((dp_tlm_capacity (t) & (dp_tlm_capacity (t) - 1)) == 0);
     dp_tlm_destroy (t);
   }
 
@@ -94,28 +83,28 @@ main (void)
     dp_tlm_t *t = dp_tlm_create (256);
     int       a = dp_tlm_probe (t, "agc.gain_db", 1);
     int       b = dp_tlm_probe (t, "sync.e", 4);
-    CHECK (a == 0 && b == 1);
-    CHECK (dp_tlm_probe_count (t) == 2);
+    DP_CHECK (a == 0 && b == 1);
+    DP_CHECK (dp_tlm_probe_count (t) == 2);
 
     /* Same name: same id, decim updated, no new entry. */
     int a2 = dp_tlm_probe (t, "agc.gain_db", 8);
-    CHECK (a2 == a);
-    CHECK (dp_tlm_probe_count (t) == 2);
-    CHECK (t->probes[a].decim == 8);
+    DP_CHECK (a2 == a);
+    DP_CHECK (dp_tlm_probe_count (t) == 2);
+    DP_CHECK (t->probes[a].decim == 8);
 
-    CHECK (dp_tlm_probe_id (t, "sync.e") == b);
-    CHECK (dp_tlm_probe_id (t, "nope") == DP_ERR_INVALID);
-    CHECK (dp_tlm_probe_name (t, b) != NULL);
-    CHECK (dp_tlm_probe_name (t, 99) == NULL);
+    DP_CHECK (dp_tlm_probe_id (t, "sync.e") == b);
+    DP_CHECK (dp_tlm_probe_id (t, "nope") == DP_ERR_INVALID);
+    DP_CHECK (dp_tlm_probe_name (t, b) != NULL);
+    DP_CHECK (dp_tlm_probe_name (t, 99) == NULL);
 
     /* Invalid registrations. */
-    CHECK (dp_tlm_probe (t, NULL, 1) == DP_ERR_INVALID);
-    CHECK (dp_tlm_probe (t, "x", 0) == DP_ERR_INVALID);
+    DP_CHECK (dp_tlm_probe (t, NULL, 1) == DP_ERR_INVALID);
+    DP_CHECK (dp_tlm_probe (t, "x", 0) == DP_ERR_INVALID);
     char long_name[DP_TLM_NAME_MAX + 8];
     for (int i = 0; i < DP_TLM_NAME_MAX + 4; i++)
       long_name[i] = 'a';
     long_name[DP_TLM_NAME_MAX + 4] = '\0';
-    CHECK (dp_tlm_probe (t, long_name, 1) == DP_ERR_INVALID);
+    DP_CHECK (dp_tlm_probe (t, long_name, 1) == DP_ERR_INVALID);
     dp_tlm_destroy (t);
   }
 
@@ -126,9 +115,9 @@ main (void)
     for (int i = 0; i < DP_TLM_MAX_PROBES; i++)
       {
         (void)snprintf (name, sizeof (name), "p%d", i);
-        CHECK (dp_tlm_probe (t, name, 1) == i);
+        DP_CHECK (dp_tlm_probe (t, name, 1) == i);
       }
-    CHECK (dp_tlm_probe (t, "one_too_many", 1) == DP_ERR_INVALID);
+    DP_CHECK (dp_tlm_probe (t, "one_too_many", 1) == DP_ERR_INVALID);
     dp_tlm_destroy (t);
   }
 
@@ -161,13 +150,13 @@ main (void)
     dp_tlm_emit (t, 1000000, 5.0);           /* far past it */
 
     dp_tlm_rec_t recs[8];
-    CHECK (dp_tlm_read (t, 8, recs, 8) == 0);
-    CHECK (dp_tlm_stats (t).emitted == 0);
+    DP_CHECK (dp_tlm_read (t, 8, recs, 8) == 0);
+    DP_CHECK (dp_tlm_stats (t).emitted == 0);
 
     /* The registered id still works, so the guard is not simply off. */
     dp_tlm_emit (t, id, 6.0);
-    CHECK (dp_tlm_read (t, 8, recs, 8) == 1);
-    CHECK (recs[0].value == 6.0f);
+    DP_CHECK (dp_tlm_read (t, 8, recs, 8) == 1);
+    DP_CHECK (recs[0].value == 6.0f);
     dp_tlm_destroy (t);
   }
 
@@ -182,14 +171,14 @@ main (void)
     dp_tlm_emit (t, id, -3.25);
 
     dp_tlm_rec_t recs[8];
-    CHECK (dp_tlm_read (t, 8, recs, 8) == 2);
-    CHECK (recs[0].n == 1000 && recs[0].value == 1.5f);
-    CHECK (recs[1].n == 2000 && recs[1].value == -3.25f);
-    CHECK (recs[0].probe == (uint16_t)id && recs[0].flags == 0);
-    CHECK (dp_tlm_emitted (t, id) == 2);
+    DP_CHECK (dp_tlm_read (t, 8, recs, 8) == 2);
+    DP_CHECK (recs[0].n == 1000 && recs[0].value == 1.5f);
+    DP_CHECK (recs[1].n == 2000 && recs[1].value == -3.25f);
+    DP_CHECK (recs[0].probe == (uint16_t)id && recs[0].flags == 0);
+    DP_CHECK (dp_tlm_emitted (t, id) == 2);
 
     /* Drained: next read is empty, non-blocking. */
-    CHECK (dp_tlm_read (t, 8, recs, 8) == 0);
+    DP_CHECK (dp_tlm_read (t, 8, recs, 8) == 0);
     dp_tlm_destroy (t);
   }
 
@@ -202,9 +191,9 @@ main (void)
 
     dp_tlm_rec_t recs[8];
     size_t       n = dp_tlm_read (t, 8, recs, 8);
-    CHECK (n == 4); /* events 0, 3, 6, 9 */
-    CHECK (recs[0].value == 0.0f && recs[1].value == 3.0f
-           && recs[2].value == 6.0f && recs[3].value == 9.0f);
+    DP_CHECK (n == 4); /* events 0, 3, 6, 9 */
+    DP_CHECK (recs[0].value == 0.0f && recs[1].value == 3.0f
+              && recs[2].value == 6.0f && recs[3].value == 9.0f);
     dp_tlm_destroy (t);
   }
 
@@ -231,12 +220,12 @@ main (void)
         while ((n = dp_tlm_read (t, 31, recs, 31)) > 0) /* odd partial size */
           for (size_t i = 0; i < n; i++)
             {
-              CHECK (recs[i].n == next_expected);
+              DP_CHECK (recs[i].n == next_expected);
               next_expected++;
             }
       }
-    CHECK (next_expected == produced);
-    CHECK (dp_tlm_dropped (t) == 0);
+    DP_CHECK (next_expected == produced);
+    DP_CHECK (dp_tlm_dropped (t) == 0);
     dp_tlm_destroy (t);
   }
 
@@ -250,8 +239,8 @@ main (void)
     for (size_t i = 0; i < total; i++)
       dp_tlm_emit (t, id, (double)i);
 
-    CHECK (dp_tlm_dropped (t) == 100);
-    CHECK (dp_tlm_emitted (t, id) == (uint64_t)cap);
+    DP_CHECK (dp_tlm_dropped (t) == 100);
+    DP_CHECK (dp_tlm_emitted (t, id) == (uint64_t)cap);
 
     /* The ring holds the FIRST cap records (lossy producer drops new
      * data on overrun, never overwrites old). */
@@ -261,10 +250,10 @@ main (void)
     while ((n = dp_tlm_read (t, 64, recs, 64)) > 0)
       {
         for (size_t i = 0; i < n; i++)
-          CHECK (recs[i].value == (float)seen + (float)i);
+          DP_CHECK (recs[i].value == (float)seen + (float)i);
         seen += n;
       }
-    CHECK (seen == (uint64_t)cap);
+    DP_CHECK (seen == (uint64_t)cap);
     dp_tlm_destroy (t);
   }
 
@@ -303,8 +292,8 @@ main (void)
     pthread_join (th, NULL);
     DRAIN (); /* tail: everything still in the ring after the join */
 #undef DRAIN
-    CHECK (ordered);
-    CHECK (got + dp_tlm_dropped (t) == (uint64_t)pa.n_events);
+    DP_CHECK (ordered);
+    DP_CHECK (got + dp_tlm_dropped (t) == (uint64_t)pa.n_events);
     dp_tlm_destroy (t);
   }
 
@@ -320,22 +309,22 @@ main (void)
     detached.tlm.id_x     = 0;
     uint8_t blob_a[sizeof (dp_state_hdr_t) + sizeof (mock_state_t)];
     uint8_t blob_b[sizeof (blob_a)];
-    CHECK (mock_state_bytes (&a) == sizeof (blob_a));
+    DP_CHECK (mock_state_bytes (&a) == sizeof (blob_a));
     mock_get_state (&a, blob_a);
     mock_get_state (&detached, blob_b);
-    CHECK (memcmp (blob_a, blob_b, sizeof (blob_a)) == 0);
+    DP_CHECK (memcmp (blob_a, blob_b, sizeof (blob_a)) == 0);
 
     /* Restore into an attached instance: running state comes from the
      * blob, the receiver's live attachment survives. */
     dp_tlm_t    *t2 = dp_tlm_create (256);
     mock_state_t b  = { 9.9, 1, { t2, 5, 0 } };
-    CHECK (mock_set_state (&b, blob_a) == DP_OK);
-    CHECK (b.phase == 0.5 && b.count == 7);
-    CHECK (b.tlm.ctx == t2 && b.tlm.id_x == 5);
+    DP_CHECK (mock_set_state (&b, blob_a) == DP_OK);
+    DP_CHECK (b.phase == 0.5 && b.count == 7);
+    DP_CHECK (b.tlm.ctx == t2 && b.tlm.id_x == 5);
 
     /* Envelope reject still applies. */
     blob_a[0] ^= 0xff;
-    CHECK (mock_set_state (&b, blob_a) == DP_ERR_INVALID);
+    DP_CHECK (mock_set_state (&b, blob_a) == DP_ERR_INVALID);
     dp_tlm_destroy (t2);
     dp_tlm_destroy (t);
   }
@@ -345,33 +334,33 @@ main (void)
     dp_tlm_t *t = dp_tlm_create (1 << 12);
 
     /* No probes registered means no bound to state -- not "zero records". */
-    CHECK (dp_tlm_block_bound (t, 256) == 0);
+    DP_CHECK (dp_tlm_block_bound (t, 256) == 0);
 
-    CHECK (dp_tlm_probe (t, "a", 1) == 0);
-    CHECK (dp_tlm_block_bound (t, 256) == 256);
-    CHECK (dp_tlm_probe (t, "b", 1) == 1);
-    CHECK (dp_tlm_block_bound (t, 256) == 512);
+    DP_CHECK (dp_tlm_probe (t, "a", 1) == 0);
+    DP_CHECK (dp_tlm_block_bound (t, 256) == 256);
+    DP_CHECK (dp_tlm_probe (t, "b", 1) == 1);
+    DP_CHECK (dp_tlm_block_bound (t, 256) == 512);
 
     /* Decimation must NOT shrink the bound. Probes registered together share
        a phase, so a decim-D probe still emits its whole burst on the same
        event -- decim thins the SERIES, never the worst-case block. Dividing
        here is the tempting bug that would silently under-size the ring. */
-    CHECK (dp_tlm_probe (t, "b", 8) == 1);
-    CHECK (dp_tlm_block_bound (t, 256) == 512);
+    DP_CHECK (dp_tlm_probe (t, "b", 8) == 1);
+    DP_CHECK (dp_tlm_block_bound (t, 256) == 512);
 
     /* Degenerate inputs say "no bound" rather than a plausible-looking 0. */
-    CHECK (dp_tlm_block_bound (t, 0) == 0);
-    CHECK (dp_tlm_block_bound (NULL, 256) == 0);
+    DP_CHECK (dp_tlm_block_bound (t, 0) == 0);
+    DP_CHECK (dp_tlm_block_bound (NULL, 256) == 0);
 
     /* Saturate rather than wrap: a wrapped product would size the ring SMALL,
        the one failure this function exists to make impossible. */
-    CHECK (dp_tlm_block_bound (t, (size_t)-1) == (size_t)-1);
+    DP_CHECK (dp_tlm_block_bound (t, (size_t)-1) == (size_t)-1);
 
     /* Ids are slots, and probe_id_at is the accessor that says so. */
-    CHECK (dp_tlm_probe_id_at (t, 0) == 0);
-    CHECK (dp_tlm_probe_id_at (t, 1) == 1);
-    CHECK (dp_tlm_probe_id_at (t, 2) == DP_ERR_INVALID);
-    CHECK (dp_tlm_probe_id_at (NULL, 0) == DP_ERR_INVALID);
+    DP_CHECK (dp_tlm_probe_id_at (t, 0) == 0);
+    DP_CHECK (dp_tlm_probe_id_at (t, 1) == 1);
+    DP_CHECK (dp_tlm_probe_id_at (t, 2) == DP_ERR_INVALID);
+    DP_CHECK (dp_tlm_probe_id_at (NULL, 0) == DP_ERR_INVALID);
 
     dp_tlm_destroy (t);
   }
@@ -380,34 +369,34 @@ main (void)
   {
     dp_tlm_t *t  = dp_tlm_create (1 << 12);
     int       id = dp_tlm_probe (t, "x", 1);
-    CHECK (dp_tlm_avail (t) == 0);
-    CHECK (dp_tlm_avail (NULL) == 0);
+    DP_CHECK (dp_tlm_avail (t) == 0);
+    DP_CHECK (dp_tlm_avail (NULL) == 0);
     for (int i = 0; i < 5; i++)
       dp_tlm_emit (t, id, (double)i);
-    CHECK (dp_tlm_avail (t) == 5);
+    DP_CHECK (dp_tlm_avail (t) == 5);
 
     /* avail() must not consume: reading it twice reads the same 5. */
-    CHECK (dp_tlm_avail (t) == 5);
+    DP_CHECK (dp_tlm_avail (t) == 5);
     dp_tlm_rec_t got[8];
-    CHECK (dp_tlm_read (t, 8, got, 8) == 5);
-    CHECK (dp_tlm_avail (t) == 0);
+    DP_CHECK (dp_tlm_read (t, 8, got, 8) == 5);
+    DP_CHECK (dp_tlm_avail (t) == 0);
 
     /* Already big enough -> no-op, and cheap enough to call every boundary. */
     size_t cap0 = dp_tlm_capacity (t);
-    CHECK (dp_tlm_resize (t, cap0 / 2) == DP_OK);
-    CHECK (dp_tlm_capacity (t) == cap0);
+    DP_CHECK (dp_tlm_resize (t, cap0 / 2) == DP_OK);
+    DP_CHECK (dp_tlm_capacity (t) == cap0);
 
     /* Growth rounds a non-power-of-two request UP; buffer.h demands pow2. */
-    CHECK (dp_tlm_resize (t, cap0 + 1) == DP_OK);
-    CHECK (dp_tlm_capacity (t) >= cap0 + 1);
+    DP_CHECK (dp_tlm_resize (t, cap0 + 1) == DP_OK);
+    DP_CHECK (dp_tlm_capacity (t) >= cap0 + 1);
     size_t cap1 = dp_tlm_capacity (t);
-    CHECK ((cap1 & (cap1 - 1)) == 0);
+    DP_CHECK ((cap1 & (cap1 - 1)) == 0);
 
-    CHECK (dp_tlm_resize (NULL, 16) == DP_ERR_INVALID);
+    DP_CHECK (dp_tlm_resize (NULL, 16) == DP_ERR_INVALID);
 
     /* The fresh ring is usable, and the probe registry survived the swap. */
     dp_tlm_emit (t, id, 42.0);
-    CHECK (dp_tlm_read (t, 8, got, 8) == 1 && got[0].value == 42.0f);
+    DP_CHECK (dp_tlm_read (t, 8, got, 8) == 1 && got[0].value == 42.0f);
     dp_tlm_destroy (t);
   }
 
@@ -421,16 +410,16 @@ main (void)
     dp_tlm_emit (t, b, 2.0);
 
     dp_tlm_stats_t s = dp_tlm_stats (t);
-    CHECK (s.probes == 2);
-    CHECK (s.capacity == dp_tlm_capacity (t));
-    CHECK (s.dropped == 0);
+    DP_CHECK (s.probes == 2);
+    DP_CHECK (s.capacity == dp_tlm_capacity (t));
+    DP_CHECK (s.dropped == 0);
     /* emitted is the SUM across probes, not any single probe's count -- 4,
        not 3 and not 1. */
-    CHECK (s.emitted == 4);
+    DP_CHECK (s.emitted == 4);
 
     dp_tlm_stats_t z = dp_tlm_stats (NULL);
-    CHECK (z.probes == 0 && z.capacity == 0 && z.emitted == 0
-           && z.dropped == 0);
+    DP_CHECK (z.probes == 0 && z.capacity == 0 && z.emitted == 0
+              && z.dropped == 0);
     dp_tlm_destroy (t);
   }
 
@@ -439,20 +428,20 @@ main (void)
      a lookup); the C form refuses instead. ─────────────────────────────────*/
   {
     dp_tlm_t *t = dp_tlm_create (1 << 12);
-    CHECK (dp_tlm_probe (t, "sd", 4) == 0);
-    CHECK (dp_tlm_set_decim (t, "sd", 2) == DP_OK);
+    DP_CHECK (dp_tlm_probe (t, "sd", 4) == 0);
+    DP_CHECK (dp_tlm_set_decim (t, "sd", 2) == DP_OK);
 
     /* It really retuned, and re-primed the phase so the next event emits. */
     dp_tlm_rec_t buf[8];
     for (int i = 0; i < 4; i++)
       dp_tlm_emit (t, 0, (double)i);
-    CHECK (dp_tlm_read (t, 8, buf, 8) == 2); /* decim 2 over 4 events */
+    DP_CHECK (dp_tlm_read (t, 8, buf, 8) == 2); /* decim 2 over 4 events */
 
     /* An unknown name is an ERROR, not a silent registration. */
-    CHECK (dp_tlm_set_decim (t, "typo", 2) == DP_ERR_INVALID);
-    CHECK (dp_tlm_probe_count (t) == 1);
-    CHECK (dp_tlm_set_decim (t, "sd", 0) == DP_ERR_INVALID);
-    CHECK (dp_tlm_set_decim (NULL, "sd", 2) == DP_ERR_INVALID);
+    DP_CHECK (dp_tlm_set_decim (t, "typo", 2) == DP_ERR_INVALID);
+    DP_CHECK (dp_tlm_probe_count (t) == 1);
+    DP_CHECK (dp_tlm_set_decim (t, "sd", 0) == DP_ERR_INVALID);
+    DP_CHECK (dp_tlm_set_decim (NULL, "sd", 2) == DP_ERR_INVALID);
     dp_tlm_destroy (t);
   }
 
@@ -464,29 +453,29 @@ main (void)
     for (int i = 0; i < 10; i++)
       dp_tlm_emit (t, id, (double)i);
 
-    CHECK (dp_tlm_read_max_out (t) == 10);
-    CHECK (dp_tlm_read_max_out (NULL) == 0);
+    DP_CHECK (dp_tlm_read_max_out (t) == 10);
+    DP_CHECK (dp_tlm_read_max_out (NULL) == 0);
 
     /* A short buffer takes what fits and leaves the rest -- it does not
        truncate the ring. */
-    CHECK (dp_tlm_read (t, 4, buf, 4) == 4);
-    CHECK (buf[0].value == 0.0f && buf[3].value == 3.0f);
-    CHECK (dp_tlm_avail (t) == 6);
+    DP_CHECK (dp_tlm_read (t, 4, buf, 4) == 4);
+    DP_CHECK (buf[0].value == 0.0f && buf[3].value == 3.0f);
+    DP_CHECK (dp_tlm_avail (t) == 6);
 
     /* An ample buffer takes the remainder, and no more than exists. */
-    CHECK (dp_tlm_read (t, 64, buf, 64) == 6);
-    CHECK (buf[0].value == 4.0f && buf[5].value == 9.0f);
-    CHECK (dp_tlm_avail (t) == 0);
-    CHECK (dp_tlm_read (t, 64, buf, 64) == 0);
+    DP_CHECK (dp_tlm_read (t, 64, buf, 64) == 6);
+    DP_CHECK (buf[0].value == 4.0f && buf[5].value == 9.0f);
+    DP_CHECK (dp_tlm_avail (t) == 0);
+    DP_CHECK (dp_tlm_read (t, 64, buf, 64) == 0);
     dp_tlm_destroy (t);
   }
 
   /* ── read() NULL-safety: the one accessor that used to dereference ────── */
   {
     dp_tlm_rec_t out[4];
-    CHECK (dp_tlm_read (NULL, 4, out, 4) == 0);
+    DP_CHECK (dp_tlm_read (NULL, 4, out, 4) == 0);
     dp_tlm_t *t = dp_tlm_create (1 << 12);
-    CHECK (dp_tlm_read (t, 4, NULL, 4) == 0);
+    DP_CHECK (dp_tlm_read (t, 4, NULL, 4) == 0);
     dp_tlm_destroy (t);
   }
 
@@ -500,7 +489,7 @@ main (void)
     size_t counts[3];
 
     dp_tlm_demux_counts (recs, 6, counts, 3);
-    CHECK (counts[0] == 3 && counts[1] == 2 && counts[2] == 1);
+    DP_CHECK (counts[0] == 3 && counts[1] == 2 && counts[2] == 1);
 
     float     v0[3], v1[2], v2[1];
     uint64_t  n0[3], n1[2], n2[1];
@@ -510,17 +499,17 @@ main (void)
 
     dp_tlm_demux (recs, 6, values, index, caps, 3);
     /* FIFO order preserved within each probe, values paired to their n. */
-    CHECK (v0[0] == 1.0f && v0[1] == 3.0f && v0[2] == 6.0f);
-    CHECK (n0[0] == 10 && n0[1] == 12 && n0[2] == 15);
-    CHECK (v1[0] == 2.0f && v1[1] == 5.0f);
-    CHECK (n1[0] == 11 && n1[1] == 14);
-    CHECK (v2[0] == 4.0f && n2[0] == 13);
+    DP_CHECK (v0[0] == 1.0f && v0[1] == 3.0f && v0[2] == 6.0f);
+    DP_CHECK (n0[0] == 10 && n0[1] == 12 && n0[2] == 15);
+    DP_CHECK (v1[0] == 2.0f && v1[1] == 5.0f);
+    DP_CHECK (n1[0] == 11 && n1[1] == 14);
+    DP_CHECK (v2[0] == 4.0f && n2[0] == 13);
 
     /* index = NULL is values-only, not a crash. */
     float  v0b[3], v1b[2], v2b[1];
     float *vonly[3] = { v0b, v1b, v2b };
     dp_tlm_demux (recs, 6, vonly, NULL, caps, 3);
-    CHECK (v0b[0] == 1.0f && v0b[2] == 6.0f);
+    DP_CHECK (v0b[0] == 1.0f && v0b[2] == 6.0f);
 
     /* A stale (too-small) count truncates rather than overrunning: cap
      * probe 0 at one record and the second and third must not be written. */
@@ -528,7 +517,7 @@ main (void)
     float *one[3]      = { guard, NULL, NULL };
     size_t smallcap[3] = { 1, 0, 0 };
     dp_tlm_demux (recs, 6, one, NULL, smallcap, 3);
-    CHECK (guard[0] == 1.0f && guard[1] == -1.0f && guard[2] == -1.0f);
+    DP_CHECK (guard[0] == 1.0f && guard[1] == -1.0f && guard[2] == -1.0f);
 
     /* Ids past the caller's table belong to another context: skipped, and
      * they must not shift anyone else's placement. */
@@ -536,26 +525,20 @@ main (void)
         = { { 20, 7.0f, 0, 0 }, { 21, 8.0f, 9, 0 }, { 22, 9.0f, 0, 0 } };
     size_t c1[1];
     dp_tlm_demux_counts (alien, 3, c1, 1);
-    CHECK (c1[0] == 2);
+    DP_CHECK (c1[0] == 2);
     float  va[2]     = { -1.0f, -1.0f };
     float *valien[1] = { va };
     size_t capa[1]   = { 2 };
     dp_tlm_demux (alien, 3, valien, NULL, capa, 1);
-    CHECK (va[0] == 7.0f && va[1] == 9.0f);
+    DP_CHECK (va[0] == 7.0f && va[1] == 9.0f);
 
     /* NULL-safety on both halves. */
     dp_tlm_demux_counts (NULL, 4, counts, 3);
-    CHECK (counts[0] == 0 && counts[1] == 0 && counts[2] == 0);
+    DP_CHECK (counts[0] == 0 && counts[1] == 0 && counts[2] == 0);
     dp_tlm_demux_counts (recs, 6, NULL, 3);
     dp_tlm_demux (NULL, 6, values, index, caps, 3);
     dp_tlm_demux (recs, 6, values, index, NULL, 3);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_dp_tlm_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_dp_tlm_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_dp_tlm_core");
 }

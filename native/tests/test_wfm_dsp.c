@@ -2,6 +2,7 @@
  * test_wfm_dsp.c — DSSS spreading + RRC taps (Phase B) + the two-code DSSS
  * burst frame builder.
  */
+#include "dp_test.h"
 #include "wfm/wfm_dsp.h"
 
 #include "dp_crc16.h"
@@ -11,36 +12,27 @@
 #include <stdio.h>
 #include <string.h>
 
-#define CHECK(c, m)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(c))                                                               \
-        {                                                                     \
-          fprintf (stderr, "FAIL: %s\n", m);                                  \
-          return 1;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
-
 static int
 check_rrc (double beta, int sps, int span)
 {
   size_t       n = wfm_rrc_ntaps (sps, span);
   static float taps[4096];
-  CHECK (n <= 4096, "ntaps fits");
+  DP_REQUIRE_MSG (n <= 4096, "ntaps fits");
   wfm_rrc_taps (beta, sps, span, taps);
   double sumsq = 0.0;
   size_t mid   = (size_t)(span * sps);
   for (size_t i = 0; i < n; i++)
     {
-      CHECK (isfinite (taps[i]), "tap finite (no singularity NaN)");
+      DP_REQUIRE_MSG (isfinite (taps[i]), "tap finite (no singularity NaN)");
       sumsq += (double)taps[i] * taps[i];
       /* symmetric about the centre */
-      CHECK (fabsf (taps[i] - taps[n - 1 - i]) < 1e-5f, "rrc symmetric");
+      DP_REQUIRE_MSG (fabsf (taps[i] - taps[n - 1 - i]) < 1e-5f,
+                      "rrc symmetric");
       /* centre tap is the peak */
-      CHECK (fabsf (taps[i]) <= fabsf (taps[mid]) + 1e-6f, "centre is peak");
+      DP_REQUIRE_MSG (fabsf (taps[i]) <= fabsf (taps[mid]) + 1e-6f,
+                      "centre is peak");
     }
-  CHECK (fabs (sumsq - 1.0) < 1e-4, "rrc unit energy");
+  DP_REQUIRE_MSG (fabs (sumsq - 1.0) < 1e-4, "rrc unit energy");
   return 0;
 }
 
@@ -55,7 +47,8 @@ check_rrc_polyphase (double beta, int sps, int span)
   size_t       num_taps  = wfm_rrc_bank_ntaps (span);
   static float proto[4096];
   static float bank[4096];
-  CHECK (proto_len <= 4096 && (size_t)sps * num_taps <= 4096, "sizes fit");
+  DP_REQUIRE_MSG (proto_len <= 4096 && (size_t)sps * num_taps <= 4096,
+                  "sizes fit");
 
   wfm_rrc_taps (beta, sps, span, proto);
   float scale = (float)sqrt ((double)sps);
@@ -68,13 +61,15 @@ check_rrc_polyphase (double beta, int sps, int span)
         size_t idx  = t * (size_t)sps + (size_t)p;
         float  want = (idx < proto_len) ? proto[idx] * scale : 0.0f;
         float  got  = bank[(size_t)p * num_taps + t];
-        CHECK (fabsf (got - want) < 1e-6f, "bank == scaled decomposed proto");
+        DP_REQUIRE_MSG (fabsf (got - want) < 1e-6f,
+                        "bank == scaled decomposed proto");
         bank_sumsq += (double)got * got;
       }
   /* Every prototype tap lands in exactly one phase, so the bank's total
    * energy is the prototype's (== 1 unit-energy) times the sqrt(sps)^2 = sps
    * transmit-power scale. */
-  CHECK (fabs (bank_sumsq - (double)sps) < 1e-3, "bank energy == sps");
+  DP_REQUIRE_MSG (fabs (bank_sumsq - (double)sps) < 1e-3,
+                  "bank energy == sps");
   return 0;
 }
 
@@ -108,7 +103,7 @@ main (void)
   const float sgn[4] = { 1, -1, -1, 1 };
   for (size_t i = 0; i < 2; i++)
     for (size_t j = 0; j < 4; j++)
-      CHECK (chips[i * 4 + j] == syms[i] * sgn[j], "spread value");
+      DP_REQUIRE_MSG (chips[i * 4 + j] == syms[i] * sgn[j], "spread value");
 
   /* despread (correlate with the code) recovers sym * sf */
   for (size_t i = 0; i < 2; i++)
@@ -116,7 +111,8 @@ main (void)
       float _Complex acc = 0;
       for (size_t j = 0; j < 4; j++)
         acc += chips[i * 4 + j] * sgn[j];
-      CHECK (cabsf (acc / 4.0f - syms[i]) < 1e-6f, "despread recovers symbol");
+      DP_REQUIRE_MSG (cabsf (acc / 4.0f - syms[i]) < 1e-6f,
+                      "despread recovers symbol");
     }
 
   /* ── CRC-16-CCITT vector: the standard check input "123456789" (as bits,
@@ -128,7 +124,8 @@ main (void)
     for (size_t i = 0; i < 9; i++)
       for (int b = 0; b < 8; b++)
         bits[i * 8 + b] = (uint8_t)((ascii[i] >> (7 - b)) & 1);
-    CHECK (dp_crc16_ccitt (bits, 72) == 0x29B1u, "crc16-ccitt check vector");
+    DP_REQUIRE_MSG (dp_crc16_ccitt (bits, 72) == 0x29B1u,
+                    "crc16-ccitt check vector");
   }
 
   /* ── Frame builder: preamble tile + XOR spread + MSB-first CRC trailer,
@@ -141,42 +138,48 @@ main (void)
 
     /* sizing: 3*2 preamble + (2 sync + 3 payload + 16 crc) * 2 chips */
     size_t n = wfm_frame_dsss_nchips (3, 2, 2, 2, 3, 1);
-    CHECK (n == 6 + 21 * 2, "nchips counts preamble + spread frame + crc");
+    DP_REQUIRE_MSG (n == 6 + 21 * 2,
+                    "nchips counts preamble + spread frame + crc");
     /* crc off / no payload: trailer only with payload bits to protect */
-    CHECK (wfm_frame_dsss_nchips (3, 2, 2, 2, 3, 0) == 6 + 5 * 2,
-           "nchips without crc");
-    CHECK (wfm_frame_dsss_nchips (3, 2, 2, 2, 0, 1) == 6 + 2 * 2,
-           "crc over empty payload is dropped");
-    CHECK (wfm_frame_dsss_nchips (0, 0, 2, 0, 3, 0) == 3 * 2,
-           "preamble-less frame");
-    CHECK (wfm_frame_dsss_nchips (3, 2, 0, 0, 0, 0) == 6, "preamble only");
-    CHECK (wfm_frame_dsss_nchips (0, 0, 0, 2, 3, 1) == 0,
-           "frame bits with no data code is invalid");
-    CHECK (wfm_frame_dsss_nchips (0, 0, 2, 0, 0, 0) == 0, "empty burst");
+    DP_REQUIRE_MSG (wfm_frame_dsss_nchips (3, 2, 2, 2, 3, 0) == 6 + 5 * 2,
+                    "nchips without crc");
+    DP_REQUIRE_MSG (wfm_frame_dsss_nchips (3, 2, 2, 2, 0, 1) == 6 + 2 * 2,
+                    "crc over empty payload is dropped");
+    DP_REQUIRE_MSG (wfm_frame_dsss_nchips (0, 0, 2, 0, 3, 0) == 3 * 2,
+                    "preamble-less frame");
+    DP_REQUIRE_MSG (wfm_frame_dsss_nchips (3, 2, 0, 0, 0, 0) == 6,
+                    "preamble only");
+    DP_REQUIRE_MSG (wfm_frame_dsss_nchips (0, 0, 0, 2, 3, 1) == 0,
+                    "frame bits with no data code is invalid");
+    DP_REQUIRE_MSG (wfm_frame_dsss_nchips (0, 0, 2, 0, 0, 0) == 0,
+                    "empty burst");
 
     static uint8_t out[64];
     /* the chips builder mirrors the sizing guard: invalid geometry (frame
      * bits with no data code) writes nothing and returns 0 */
-    CHECK (wfm_frame_dsss_chips (NULL, 0, 0, NULL, 0, sync, 2, pay, 3, 1, out)
-               == 0,
-           "chips builder rejects invalid geometry");
-    CHECK (wfm_frame_dsss_chips (acq, 3, 2, dcode, 2, sync, 2, pay, 3, 1, out)
-               == n,
-           "chips written == nchips");
+    DP_REQUIRE_MSG (
+        wfm_frame_dsss_chips (NULL, 0, 0, NULL, 0, sync, 2, pay, 3, 1, out)
+            == 0,
+        "chips builder rejects invalid geometry");
+    DP_REQUIRE_MSG (
+        wfm_frame_dsss_chips (acq, 3, 2, dcode, 2, sync, 2, pay, 3, 1, out)
+            == n,
+        "chips written == nchips");
     /* preamble: acq tiled twice, unmodulated */
     const uint8_t pre[6] = { 1, 0, 1, 1, 0, 1 };
-    CHECK (memcmp (out, pre, 6) == 0, "preamble is the tiled code");
+    DP_REQUIRE_MSG (memcmp (out, pre, 6) == 0, "preamble is the tiled code");
     /* frame: each bit XOR the code — sync 1,0 then payload 1,1,0 */
     const uint8_t head[10] = { 1, 0, 0, 1, /* sync 1,0 */
                                1, 0, 1, 0, 0, 1 /* payload 1,1,0 */ };
-    CHECK (memcmp (out + 6, head, 10) == 0, "frame bits XOR-spread");
+    DP_REQUIRE_MSG (memcmp (out + 6, head, 10) == 0, "frame bits XOR-spread");
     /* crc trailer: crc16(payload) spread MSB-first */
     uint16_t c = dp_crc16_ccitt (pay, 3);
     for (size_t i = 0; i < 16; i++)
       {
         uint8_t b = (uint8_t)((c >> (15 - i)) & 1u);
-        CHECK (out[16 + 2 * i] == (b ^ 0u) && out[16 + 2 * i + 1] == (b ^ 1u),
-               "crc trailer spread MSB-first");
+        DP_REQUIRE_MSG (out[16 + 2 * i] == (b ^ 0u)
+                            && out[16 + 2 * i + 1] == (b ^ 1u),
+                        "crc trailer spread MSB-first");
       }
   }
 

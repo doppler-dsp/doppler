@@ -16,22 +16,12 @@
  */
 #include "dll/dll_core.h"
 #include "dp_state_test.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* xorshift ±1 BPSK data bit (one per code period). */
 static int
@@ -105,29 +95,28 @@ cgauss (uint32_t *st)
 int
 main (void)
 {
-  int _fails = 0;
 
   /* ---------------------------------------------------------------- *
    * 1. Lifecycle, NULL-code guard, init==create parity               *
    * ---------------------------------------------------------------- */
   {
-    CHECK (dll_create (NULL, 0, 2, 0.0, 0.01, 0.707, 0.5, 1) == NULL);
+    DP_CHECK (dll_create (NULL, 0, 2, 0.0, 0.01, 0.707, 0.5, 1) == NULL);
 
     uint8_t code[31];
     make_code (code, 31, 1u);
     dll_state_t *c = dll_create (code, 31, 2, 0.0, 0.02, 0.707, 0.5, 1);
-    CHECK (c != NULL);
+    DP_CHECK (c != NULL);
     if (!c)
       return 1;
-    CHECK (c->lf.kp > 0.0 && c->lf.ki > 0.0);
-    CHECK (c->sf == 31 && c->sps == 2);
-    CHECK (dll_get_code_rate (c) == 1.0);
+    DP_CHECK (c->lf.kp > 0.0 && c->lf.ki > 0.0);
+    DP_CHECK (c->sf == 31 && c->sps == 2);
+    DP_CHECK (dll_get_code_rate (c) == 1.0);
 
     dll_state_t v;
     dll_init (&v, code, 31, 2, 0.0, 0.02, 0.707, 0.5);
-    CHECK (v.lf.kp == c->lf.kp && v.lf.ki == c->lf.ki);
-    CHECK (v.owns_code == 0);  /* init borrows */
-    CHECK (c->owns_code == 1); /* create copies */
+    DP_CHECK (v.lf.kp == c->lf.kp && v.lf.ki == c->lf.ki);
+    DP_CHECK (v.owns_code == 0);  /* init borrows */
+    DP_CHECK (c->owns_code == 1); /* create copies */
     dll_destroy (c);
   }
 
@@ -151,8 +140,8 @@ main (void)
     dll_state_t g;
     memset (&g, 0xFF, sizeof g); /* 0xFF doubles are NaN — the macOS case */
     dll_init (&g, code, 31, 2, 0.0, 0.002, 0.707, 0.5);
-    CHECK (g.rate_aid == 0.0);         /* zeroed, not NaN */
-    CHECK (g.code_nco.phase_inc > 0u); /* NCO not frozen */
+    DP_CHECK (g.rate_aid == 0.0);         /* zeroed, not NaN */
+    DP_CHECK (g.code_nco.phase_inc > 0u); /* NCO not frozen */
     uint32_t inc0 = g.code_nco.phase_inc;
     /* run a clean aligned epoch; the NCO must keep a sane (nonzero, ~nominal)
        phase_inc rather than collapsing to 0. */
@@ -171,8 +160,9 @@ main (void)
             g.acc_e = g.acc_p = g.acc_l = 0.0f;
             wraps++;
           }
-    CHECK (wraps >= 3);                       /* keeps wrapping ~once/epoch */
-    CHECK (g.code_nco.phase_inc > inc0 / 2u); /* still near nominal, not 0 */
+    DP_CHECK (wraps >= 3); /* keeps wrapping ~once/epoch */
+    DP_CHECK (g.code_nco.phase_inc
+              > inc0 / 2u); /* still near nominal, not 0 */
   }
 
   /* ---------------------------------------------------------------- *
@@ -188,9 +178,9 @@ main (void)
     dll_state_t   *d   = dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5, 1);
     float complex *sym = malloc (nper * sizeof (*sym));
     size_t         k   = dll_steps (d, rx, n, sym, nper);
-    CHECK (k >= nper - 2 && k <= nper);           /* ~one prompt per period */
-    CHECK (fabs (dll_get_last_error (d)) < 0.05); /* E ~ L on-time */
-    CHECK (fabs (dll_get_code_rate (d) - 1.0) < 1e-3);
+    DP_CHECK (k >= nper - 2 && k <= nper); /* ~one prompt per period */
+    DP_CHECK (fabs (dll_get_last_error (d)) < 0.05); /* E ~ L on-time */
+    DP_CHECK (fabs (dll_get_code_rate (d) - 1.0) < 1e-3);
     dll_destroy (d);
     free (rx);
     free (sym);
@@ -213,7 +203,7 @@ main (void)
     float complex *sym = malloc (nper * sizeof (*sym));
     size_t         k   = dll_steps (d, rx, n, sym, nper);
     /* the loop must speed its replica up to match the incoming rate */
-    CHECK (fabs (dll_get_code_rate (d) - (1.0 + delta)) < 1e-4);
+    DP_CHECK (fabs (dll_get_code_rate (d) - (1.0 + delta)) < 1e-4);
     /* sub-chip lock holds: the prompt despreads cleanly over the run tail
        (mean |Re prompt| well above 0; the code-phase tracking follows the
        sliding code phase without the integer-sample staircase). Threshold
@@ -227,7 +217,7 @@ main (void)
     double pm = 0.0;
     for (size_t j = lo; j < k; j++)
       pm += fabs (crealf (sym[j]));
-    CHECK (k > lo && pm / (double)(k - lo) > 0.85);
+    DP_CHECK (k > lo && pm / (double)(k - lo) > 0.85);
     dll_destroy (d);
     free (rx);
     free (sym);
@@ -252,8 +242,8 @@ main (void)
     double early_err = fabs (dll_get_last_error (d));
     dll_steps (d, rx + sf * sps * 3, n - sf * sps * 3, sym, nper);
     double late_err = fabs (dll_get_last_error (d));
-    CHECK (early_err > 0.05); /* started misaligned */
-    CHECK (late_err < 0.05);  /* pulled in */
+    DP_CHECK (early_err > 0.05); /* started misaligned */
+    DP_CHECK (late_err < 0.05);  /* pulled in */
     dll_destroy (d);
     free (rx);
     free (sym);
@@ -277,7 +267,7 @@ main (void)
     dll_reset (d);
     dll_steps (d, rx, n, sym, nper);
     double r2 = dll_get_code_rate (d), e2 = dll_get_last_error (d);
-    CHECK (r1 == r2 && e1 == e2);
+    DP_CHECK (r1 == r2 && e1 == e2);
     dll_destroy (d);
     free (rx);
     free (sym);
@@ -320,8 +310,8 @@ main (void)
     dll_state_t *d   = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
     size_t       np  = dll_steps (d, rx, N, out, N);
     size_t       nep = N / te;
-    CHECK (dll_get_segments (d) == K);
-    CHECK (np >= (nep - 1) * K && np <= (nep + 1) * K);
+    DP_CHECK (dll_get_segments (d) == K);
+    DP_CHECK (np >= (nep - 1) * K && np <= (nep + 1) * K);
     /* genie symbol despread on the partials (known timing) recovers the data
      */
     double *acc = calloc (nsym + 8, sizeof (double));
@@ -336,14 +326,14 @@ main (void)
     for (size_t s = 2; s < nsym - 2; s++)
       if ((acc[s] >= 0 ? 1 : -1) != data[s])
         err++;
-    CHECK (err == 0); /* partials recover the asynchronous data */
+    DP_CHECK (err == 0); /* partials recover the asynchronous data */
     /* No code Doppler here (ci is code-aligned above): a well-behaved loop
        should settle near code_rate=1 with a small last_error, not pinned at
        DLL_DISC_CLAMP every epoch (a real bug -- the segments>1 discriminator
        once mixed a tsamps-normalised pp against raw-scale ep/lp, off by
        roughly tsamps^2, so it saturated on essentially every epoch). */
-    CHECK (fabs (dll_get_code_rate (d) - 1.0) < 1e-3);
-    CHECK (fabs (dll_get_last_error (d)) < 0.5);
+    DP_CHECK (fabs (dll_get_code_rate (d) - 1.0) < 1e-3);
+    DP_CHECK (fabs (dll_get_last_error (d)) < 0.5);
     dll_destroy (d);
     free (acc);
     free (rx);
@@ -368,11 +358,11 @@ main (void)
        create, so the detector works with no configure_lock call. */
     size_t       n = make_signal (rx, code, sf, sps, 0.0, nper, 9u, 1);
     dll_state_t *d = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
-    CHECK (dll_get_locked (d) == 0); /* fresh: unlocked */
-    CHECK (dll_get_lock_stat (d) == 0.0);
+    DP_CHECK (dll_get_locked (d) == 0); /* fresh: unlocked */
+    DP_CHECK (dll_get_lock_stat (d) == 0.0);
     dll_steps (d, rx, n, out, te * nper);
-    CHECK (dll_get_locked (d) == 1);
-    CHECK (dll_get_lock_stat (d) > 8.567); /* default CFAR threshold */
+    DP_CHECK (dll_get_locked (d) == 1);
+    DP_CHECK (dll_get_lock_stat (d) > 8.567); /* default CFAR threshold */
     dll_destroy (d);
 
     /* noise only: prompt power matches the off-peak reference, so the
@@ -382,15 +372,16 @@ main (void)
       rx[i] = cgauss (&st);
     dll_state_t *dn = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
     dll_steps (dn, rx, te * nper, out, te * nper);
-    CHECK (dll_get_locked (dn) == 0);
-    CHECK (dll_get_lock_stat (dn) < 8.567);
-    CHECK (dll_get_lock_stat (dn) > 3.0); /* near sqrt(40), not degenerate */
-    CHECK (dll_get_noise_est (dn) > 0.0);
+    DP_CHECK (dll_get_locked (dn) == 0);
+    DP_CHECK (dll_get_lock_stat (dn) < 8.567);
+    DP_CHECK (dll_get_lock_stat (dn)
+              > 3.0); /* near sqrt(40), not degenerate */
+    DP_CHECK (dll_get_noise_est (dn) > 0.0);
     /* configure_lock retunes the threshold; an unreachable one never locks. */
     dll_configure_lock_raw (dn, 1e9, 1e9, 20, 1.0 / 1024.0, 1, 1);
-    CHECK (dll_get_lock_stat (dn) == 0.0); /* retune clears the statistic */
+    DP_CHECK (dll_get_lock_stat (dn) == 0.0); /* retune clears the statistic */
     dll_steps (dn, rx, te * nper, out, te * nper);
-    CHECK (dll_get_locked (dn) == 0);
+    DP_CHECK (dll_get_locked (dn) == 0);
     dll_destroy (dn);
 
     /* Verify-counted declare: the default config (pfa=1e-3 -> n_up=2)
@@ -414,10 +405,10 @@ main (void)
     make_signal (rx, code, sf, sps, 0.0, 11, 9u, 1);
     dll_state_t *dv = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
     dll_steps (dv, rx, nv, out, nv);
-    CHECK (dv->lock.cnt == 1);
-    CHECK (dll_get_locked (dv) == 0);
+    DP_CHECK (dv->lock.cnt == 1);
+    DP_CHECK (dll_get_locked (dv) == 0);
     dll_steps (dv, rx + nv, nv, out, nv);
-    CHECK (dll_get_locked (dv) == 1);
+    DP_CHECK (dll_get_locked (dv) == 1);
     dll_destroy (dv);
     free (rx);
     free (out);
@@ -434,13 +425,13 @@ main (void)
       code[i] = (uint8_t)(i & 1);
     dll_state_t *a = dll_create (code, 31, 2, 0.0, 0.02, 0.707, 0.5, 1);
     dll_state_t *b = dll_create (code, 31, 2, 0.0, 0.02, 0.707, 0.5, 1);
-    CHECK (a != NULL && b != NULL);
+    DP_CHECK (a != NULL && b != NULL);
     for (int i = 0; i < 80; i++)
       dll_accumulate (a, (float)(i % 7) - 3.0f + 0.5f * I);
     DP_STATE_ROUNDTRIP_TEST (dll, a, b);
-    CHECK (b->chip_pos == a->chip_pos && b->acc_p == a->acc_p);
-    CHECK (b->lf.integ == a->lf.integ);            /* child resumed */
-    CHECK (b->code != NULL && b->code != a->code); /* code preserved */
+    DP_CHECK (b->chip_pos == a->chip_pos && b->acc_p == a->acc_p);
+    DP_CHECK (b->lf.integ == a->lf.integ);            /* child resumed */
+    DP_CHECK (b->code != NULL && b->code != a->code); /* code preserved */
     dll_destroy (a);
     dll_destroy (b);
   }
@@ -454,37 +445,37 @@ main (void)
     for (int i = 0; i < 31; i++)
       code[i] = (uint8_t)(i & 1);
     dll_state_t *d = dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 1);
-    CHECK (d != NULL);
+    DP_CHECK (d != NULL);
     /* create-time default == the exact caller-path config; both lockdet
      * thresholds carry the CFAR eta (no level hysteresis by default) and
      * the declare verify count derives from the pfa:
      * det_verify_count(1e-3, 1e-6) = 2. */
-    CHECK (d->lock.up_thresh == det_threshold_noncoherent (1e-3, 20));
-    CHECK (d->lock.down_thresh == d->lock.up_thresh);
-    CHECK (d->lock.n_up == 2 && d->lock.n_down == 2);
-    CHECK (fabs (d->lock_alpha - 1.0 / 1024.0) < 1e-15); /* auto floor */
+    DP_CHECK (d->lock.up_thresh == det_threshold_noncoherent (1e-3, 20));
+    DP_CHECK (d->lock.down_thresh == d->lock.up_thresh);
+    DP_CHECK (d->lock.n_up == 2 && d->lock.n_down == 2);
+    DP_CHECK (fabs (d->lock_alpha - 1.0 / 1024.0) < 1e-15); /* auto floor */
 
     /* auto derivation follows 1/alpha = max(32*N, 1024) */
-    CHECK (dll_configure_lock (d, 1e-3, 64, 0.0) == DP_OK);
-    CHECK (fabs (d->lock_alpha - 1.0 / 2048.0) < 1e-15);
-    CHECK (d->n_looks == 64);
+    DP_CHECK (dll_configure_lock (d, 1e-3, 64, 0.0) == DP_OK);
+    DP_CHECK (fabs (d->lock_alpha - 1.0 / 2048.0) < 1e-15);
+    DP_CHECK (d->n_looks == 64);
 
     /* explicit reference SNR overrides the auto sizing */
-    CHECK (dll_configure_lock (d, 1e-2, 20, 20.0) == DP_OK);
-    CHECK (fabs (d->lock_alpha - 2.0 / 101.0) < 1e-15);
-    CHECK (d->lock.up_thresh == det_threshold_noncoherent (1e-2, 20));
+    DP_CHECK (dll_configure_lock (d, 1e-2, 20, 20.0) == DP_OK);
+    DP_CHECK (fabs (d->lock_alpha - 2.0 / 101.0) < 1e-15);
+    DP_CHECK (d->lock.up_thresh == det_threshold_noncoherent (1e-2, 20));
 
     /* bad pfa: rejected whole, live config untouched */
     double thr = d->lock.up_thresh, alp = d->lock_alpha;
-    CHECK (dll_configure_lock (d, 0.0, 20, 0.0) == DP_ERR_INVALID);
-    CHECK (dll_configure_lock (d, 1.0, 20, 0.0) == DP_ERR_INVALID);
-    CHECK (dll_configure_lock (d, -1.0, 20, 0.0) == DP_ERR_INVALID);
-    CHECK (d->lock.up_thresh == thr && d->lock_alpha == alp);
+    DP_CHECK (dll_configure_lock (d, 0.0, 20, 0.0) == DP_ERR_INVALID);
+    DP_CHECK (dll_configure_lock (d, 1.0, 20, 0.0) == DP_ERR_INVALID);
+    DP_CHECK (dll_configure_lock (d, -1.0, 20, 0.0) == DP_ERR_INVALID);
+    DP_CHECK (d->lock.up_thresh == thr && d->lock_alpha == alp);
 
     /* n_looks = 0 clamps to 1 (auto floor still applies) */
-    CHECK (dll_configure_lock (d, 1e-3, 0, 0.0) == DP_OK);
-    CHECK (d->n_looks == 1);
-    CHECK (fabs (d->lock_alpha - 1.0 / 1024.0) < 1e-15);
+    DP_CHECK (dll_configure_lock (d, 1e-3, 0, 0.0) == DP_OK);
+    DP_CHECK (d->n_looks == 1);
+    DP_CHECK (fabs (d->lock_alpha - 1.0 / 1024.0) < 1e-15);
     dll_destroy (d);
   }
 
@@ -507,31 +498,32 @@ main (void)
       rx[i] = (code[(size_t)(i / 2) % 31] & 1u) ? -1.0f : 1.0f;
     dp_tlm_t    *tlm = dp_tlm_create (4096);
     dll_state_t *d   = dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 1);
-    CHECK (tlm != NULL && d != NULL);
-    CHECK (dll_set_telemetry (d, tlm, "code", 1) == DP_OK);
-    CHECK (dp_tlm_probe_id (tlm, "code.e") == d->tlm.id_e);
-    CHECK (dp_tlm_probe_id (tlm, "code.rate") == d->tlm.id_rate);
-    CHECK (dp_tlm_probe_id (tlm, "code.lock") == d->tlm.id_lock);
-    CHECK (dp_tlm_probe_id (tlm, "code.locked") == d->tlm.id_locked);
+    DP_CHECK (tlm != NULL && d != NULL);
+    DP_CHECK (dll_set_telemetry (d, tlm, "code", 1) == DP_OK);
+    DP_CHECK (dp_tlm_probe_id (tlm, "code.e") == d->tlm.id_e);
+    DP_CHECK (dp_tlm_probe_id (tlm, "code.rate") == d->tlm.id_rate);
+    DP_CHECK (dp_tlm_probe_id (tlm, "code.lock") == d->tlm.id_lock);
+    DP_CHECK (dp_tlm_probe_id (tlm, "code.locked") == d->tlm.id_locked);
 
     size_t k     = dll_steps (d, rx, L, out, 256);
     size_t n_rec = dp_tlm_read (tlm, 512, recs, 512);
-    CHECK (k > 0 && n_rec == 4 * k); /* e + rate + lock + locked / epoch */
+    DP_CHECK (k > 0 && n_rec == 4 * k); /* e + rate + lock + locked / epoch */
     /* The final epoch's rate/lock/locked records mirror the tracked state
      * (flush order per epoch: e, rate, lock, locked). */
-    CHECK (recs[n_rec - 3].value == (float)d->code_rate);
-    CHECK (recs[n_rec - 2].value == (float)d->lock_stat);
-    CHECK (recs[n_rec - 1].value == (float)dll_get_locked (d));
+    DP_CHECK (recs[n_rec - 3].value == (float)d->code_rate);
+    DP_CHECK (recs[n_rec - 2].value == (float)d->lock_stat);
+    DP_CHECK (recs[n_rec - 1].value == (float)dll_get_locked (d));
 
     /* segments > 1: the partial loop flushes once per epoch (an epoch is
      * `segments` emitted partials), through the same literal-tlm split. */
     dll_state_t *s2 = dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 2);
-    CHECK (s2 != NULL);
-    CHECK (dll_set_telemetry (s2, tlm, "code2", 1) == DP_OK);
+    DP_CHECK (s2 != NULL);
+    DP_CHECK (dll_set_telemetry (s2, tlm, "code2", 1) == DP_OK);
     size_t k2 = dll_steps (s2, rx, L, out, 256);
     size_t n2 = dp_tlm_read (tlm, 512, recs, 512);
-    CHECK (k2 > 0 && n2 > 0 && n2 % 4 == 0);
-    CHECK (n2 <= 4 * (k2 / 2 + 1)); /* one flush per epoch, not per partial */
+    DP_CHECK (k2 > 0 && n2 > 0 && n2 % 4 == 0);
+    DP_CHECK (n2
+              <= 4 * (k2 / 2 + 1)); /* one flush per epoch, not per partial */
     dll_destroy (s2);
 
     /* Blobs zero the attachment (deterministic) and set_state into an
@@ -540,22 +532,22 @@ main (void)
     void  *b1 = malloc (sb), *b2 = malloc (sb);
     dll_get_state (d, b1);
     dll_state_t *d3 = dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 1);
-    CHECK (d3 != NULL);
-    CHECK (dll_set_telemetry (d3, tlm, "code3", 2) == DP_OK);
-    CHECK (dll_set_state (d3, b1) == DP_OK);
-    CHECK (d3->tlm.ctx == tlm);
-    CHECK (d3->tlm.id_e == dp_tlm_probe_id (tlm, "code3.e"));
+    DP_CHECK (d3 != NULL);
+    DP_CHECK (dll_set_telemetry (d3, tlm, "code3", 2) == DP_OK);
+    DP_CHECK (dll_set_state (d3, b1) == DP_OK);
+    DP_CHECK (d3->tlm.ctx == tlm);
+    DP_CHECK (d3->tlm.id_e == dp_tlm_probe_id (tlm, "code3.e"));
     dll_get_state (d3, b2);
-    CHECK (memcmp (b1, b2, sb) == 0); /* attachment-independent bytes */
+    DP_CHECK (memcmp (b1, b2, sb) == 0); /* attachment-independent bytes */
     free (b1);
     free (b2);
     dll_destroy (d3);
 
     /* Detach: probe sites revert to the single-branch cost. */
-    CHECK (dll_set_telemetry (d, NULL, "code", 1) == DP_OK);
-    CHECK (d->tlm.ctx == NULL);
+    DP_CHECK (dll_set_telemetry (d, NULL, "code", 1) == DP_OK);
+    DP_CHECK (d->tlm.ctx == NULL);
     (void)dll_steps (d, rx, L, out, 256);
-    CHECK (dp_tlm_read (tlm, 512, recs, 512) == 0);
+    DP_CHECK (dp_tlm_read (tlm, 512, recs, 512) == 0);
 
     /* A full probe table fails the attach whole. */
     char pname[DP_TLM_NAME_MAX];
@@ -564,8 +556,8 @@ main (void)
         (void)snprintf (pname, sizeof (pname), "fill%zu", i);
         (void)dp_tlm_probe (tlm, pname, 1);
       }
-    CHECK (dll_set_telemetry (d, tlm, "nope", 1) == DP_ERR_INVALID);
-    CHECK (d->tlm.ctx == NULL);
+    DP_CHECK (dll_set_telemetry (d, tlm, "nope", 1) == DP_ERR_INVALID);
+    DP_CHECK (d->tlm.ctx == NULL);
     dll_destroy (d);
     dp_tlm_destroy (tlm);
   }
@@ -616,8 +608,8 @@ main (void)
             prev_phase = cp;
           }
         (void)n;
-        CHECK (max_jump < 5.0); /* no false-lock jump over the whole run */
-        CHECK (fabs (dll_get_code_rate (d) - 1.0) < 1e-3);
+        DP_CHECK (max_jump < 5.0); /* no false-lock jump over the whole run */
+        DP_CHECK (fabs (dll_get_code_rate (d) - 1.0) < 1e-3);
         dll_destroy (d);
       }
     free (rx);
@@ -629,9 +621,9 @@ main (void)
    * this project's own validated point (tsamps=2046, max_error_db=0.5
    * -> windows=11). */
   {
-    CHECK (dll_lookback_segments (2046, 0.5) == 11);
+    DP_CHECK (dll_lookback_segments (2046, 0.5) == 11);
     /* tsamps==0 is a degenerate guard, not a real caller input. */
-    CHECK (dll_lookback_segments (0, 0.5) == 1);
+    DP_CHECK (dll_lookback_segments (0, 0.5) == 1);
     /* Every returned segments count must evenly divide tsamps -- the
      * whole point of the divisor-snapping step. */
     size_t tsamps_probe[] = { 2046, 1024, 63 * 4, 31 * 2, 100 };
@@ -640,17 +632,10 @@ main (void)
       {
         size_t t = tsamps_probe[i];
         size_t s = dll_lookback_segments (t, 0.5);
-        CHECK (s >= 1 && s <= t);
-        CHECK (t % s == 0);
+        DP_CHECK (s >= 1 && s <= t);
+        DP_CHECK (t % s == 0);
       }
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_dll_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-
-  printf ("test_dll_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_dll_core");
 }

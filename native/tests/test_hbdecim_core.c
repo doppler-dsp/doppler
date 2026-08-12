@@ -15,6 +15,8 @@
  * FIR branch = bank[0]; pass this to hbdecim_create.
  */
 
+#define DP_TEST_VERBOSE 1
+#include "dp_test.h"
 #include "hbdecim/hbdecim_core.h"
 
 #include <math.h>
@@ -25,25 +27,6 @@
 /* ================================================================== */
 /* Minimal test harness                                                */
 /* ================================================================== */
-
-static int g_pass = 0;
-static int g_fail = 0;
-
-#define CHECK(cond, msg)                                                      \
-  do                                                                          \
-    {                                                                         \
-      if (cond)                                                               \
-        {                                                                     \
-          printf ("  PASS  %s\n", msg);                                       \
-          g_pass++;                                                           \
-        }                                                                     \
-      else                                                                    \
-        {                                                                     \
-          printf ("  FAIL  %s  (line %d)\n", msg, __LINE__);                  \
-          g_fail++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* ================================================================== */
 /* Reference 4-tap FIR branch (even-length, symmetric)                */
@@ -91,22 +74,22 @@ test_create_destroy (void)
   printf ("\n-- Lifecycle --\n");
 
   hbdecim_state_t *r = hbdecim_create (N_TAPS, H4_FIR);
-  CHECK (r != NULL, "create returns non-NULL");
-  CHECK (hbdecim_get_num_taps (r) == N_TAPS, "num_taps reported");
-  CHECK (hbdecim_get_rate (r) == 0.5, "rate is 0.5");
+  DP_CHECK_MSG (r != NULL, "create returns non-NULL");
+  DP_CHECK_MSG (hbdecim_get_num_taps (r) == N_TAPS, "num_taps reported");
+  DP_CHECK_MSG (hbdecim_get_rate (r) == 0.5, "rate is 0.5");
   hbdecim_destroy (r);
-  CHECK (1, "destroy does not crash");
+  DP_CHECK_MSG (1, "destroy does not crash");
 
   hbdecim_destroy (NULL);
-  CHECK (1, "destroy(NULL) is safe");
+  DP_CHECK_MSG (1, "destroy(NULL) is safe");
 
   /* NULL h must be rejected */
   hbdecim_state_t *bad = hbdecim_create (N_TAPS, NULL);
-  CHECK (bad == NULL, "create rejects NULL h");
+  DP_CHECK_MSG (bad == NULL, "create rejects NULL h");
 
   /* zero num_taps must be rejected */
   bad = hbdecim_create (0, H4_FIR);
-  CHECK (bad == NULL, "create rejects zero num_taps");
+  DP_CHECK_MSG (bad == NULL, "create rejects zero num_taps");
 }
 
 static void
@@ -120,18 +103,18 @@ test_output_length (void)
   float _Complex out[300];
 
   size_t n = hbdecim_execute (r, in, 512, out, 300);
-  CHECK (n == 256, "512 in -> 256 out");
+  DP_CHECK_MSG (n == 256, "512 in -> 256 out");
 
   hbdecim_reset (r);
 
   /* Odd-length: 511 in → 255 out, 1 pending */
   n = hbdecim_execute (r, in, 511, out, 300);
-  CHECK (n == 255, "511 in -> 255 out (1 pending)");
+  DP_CHECK_MSG (n == 255, "511 in -> 255 out (1 pending)");
 
   /* Next: 1 in → 1 out (consumes pending) */
   float _Complex one = CMPLXF (0.0f, 0.0f);
   n                  = hbdecim_execute (r, &one, 1, out, 300);
-  CHECK (n == 1, "1 in -> 1 out after pending");
+  DP_CHECK_MSG (n == 1, "1 in -> 1 out after pending");
 
   hbdecim_destroy (r);
 }
@@ -152,7 +135,7 @@ test_stateful (void)
   size_t na = hbdecim_execute (r2, in, 256, half_a, 140);
   size_t nb = hbdecim_execute (r2, in + 256, 256, half_b, 140);
 
-  CHECK (nf == na + nb, "two half-blocks == one full block (count)");
+  DP_CHECK_MSG (nf == na + nb, "two half-blocks == one full block (count)");
 
   int    match = 1;
   size_t check = (nf < 10) ? nf : 10;
@@ -167,7 +150,7 @@ test_stateful (void)
           break;
         }
     }
-  CHECK (match, "half-block outputs match full-block outputs");
+  DP_CHECK_MSG (match, "half-block outputs match full-block outputs");
 
   hbdecim_destroy (r1);
   hbdecim_destroy (r2);
@@ -187,7 +170,7 @@ test_reset (void)
   hbdecim_reset (r);
   size_t n2 = hbdecim_execute (r, in, 64, out2, 40);
 
-  CHECK (n1 == n2, "reset: same output count");
+  DP_CHECK_MSG (n1 == n2, "reset: same output count");
 
   int    match = 1;
   size_t check = (n1 < 5) ? n1 : 5;
@@ -200,7 +183,7 @@ test_reset (void)
           break;
         }
     }
-  CHECK (match, "reset: outputs reproduce");
+  DP_CHECK_MSG (match, "reset: outputs reproduce");
 
   hbdecim_destroy (r);
 }
@@ -224,7 +207,7 @@ test_dc_passthrough (void)
   if (skip >= n)
     skip = 0;
   double pwr = rms_db (out + skip, n - skip);
-  CHECK (pwr > -2.0 && pwr < 2.0, "DC power near 0 dBFS");
+  DP_CHECK_MSG (pwr > -2.0 && pwr < 2.0, "DC power near 0 dBFS");
 
   hbdecim_destroy (r);
 }
@@ -255,7 +238,7 @@ test_alias_rejection (void)
   /* 4-tap prototype is modest; require ≥ 6 dB attenuation.
    * Production quality is validated by the Python spectral tests
    * which use kaiser_prototype(phases=2) coefficients.           */
-  CHECK (pwr_p - pwr_s > 6.0, "stopband tone attenuated > 6 dB");
+  DP_CHECK_MSG (pwr_p - pwr_s > 6.0, "stopband tone attenuated > 6 dB");
 
   hbdecim_destroy (r);
 }
@@ -289,11 +272,12 @@ test_state_roundtrip (void)
   hbdecim_destroy (r1);
 
   hbdecim_state_t *r2 = hbdecim_create (N_TAPS, H4_FIR);
-  CHECK (hbdecim_set_state (r2, blob) == DP_OK, "set_state accepts the blob");
+  DP_CHECK_MSG (hbdecim_set_state (r2, blob) == DP_OK,
+                "set_state accepts the blob");
   /* standard envelope: a magic-clobbered blob is rejected, r2 untouched */
   ((char *)blob)[0] ^= (char)0xFF;
-  CHECK (hbdecim_set_state (r2, blob) == DP_ERR_INVALID,
-         "set_state rejects a clobbered envelope");
+  DP_CHECK_MSG (hbdecim_set_state (r2, blob) == DP_ERR_INVALID,
+                "set_state rejects a clobbered envelope");
   ((char *)blob)[0] ^= (char)0xFF;
   nB += hbdecim_execute (r2, in + cut, L - cut, outB + nB, 200 - nB);
   hbdecim_destroy (r2);
@@ -304,7 +288,7 @@ test_state_roundtrip (void)
     if (crealf (outA[k]) != crealf (outB[k])
         || cimagf (outA[k]) != cimagf (outB[k]))
       ok = 0;
-  CHECK (ok, "resume from serialized state is bit-exact");
+  DP_CHECK_MSG (ok, "resume from serialized state is bit-exact");
 }
 
 /* ================================================================== */
@@ -324,6 +308,5 @@ main (void)
   test_alias_rejection ();
   test_state_roundtrip ();
 
-  printf ("\n%d passed, %d failed\n", g_pass, g_fail);
-  return g_fail ? 1 : 0;
+  DP_TEST_END ("test_hbdecim_core");
 }

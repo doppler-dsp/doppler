@@ -11,21 +11,11 @@
  *   5. Table is copied, not aliased (caller's array can change after)
  *   6. n property
  */
+#include "dp_test.h"
 #include "interp_table/interp_table_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 static inline int
 almost_eq_c (double complex a, double complex b, double tol)
@@ -38,21 +28,20 @@ almost_eq_c (double complex a, double complex b, double tol)
 int
 main (void)
 {
-  int _fails = 0;
 
   /* ----------------------------------------------------------------
    * 1. Lifecycle
    * ---------------------------------------------------------------- */
   {
-    CHECK (interp_table_create (NULL, 0, 2) == NULL);
+    DP_CHECK (interp_table_create (NULL, 0, 2) == NULL);
     interp_table_destroy (NULL); /* must not crash */
 
     double complex        t[3] = { 10.0, 20.0, 30.0 };
     interp_table_state_t *obj  = interp_table_create (t, 3, 2);
-    CHECK (obj != NULL);
+    DP_CHECK (obj != NULL);
     if (!obj)
       return 1;
-    CHECK (obj->n == 3);
+    DP_CHECK (obj->n == 3);
     interp_table_reset (obj); /* no-op, must not crash */
     interp_table_destroy (obj);
   }
@@ -65,10 +54,10 @@ main (void)
     interp_table_state_t *obj   = interp_table_create (t, 3, 0);
     double                in[3] = { 0.9, 1.9, 2.9 };
     double complex        out[3];
-    CHECK (interp_table_execute (obj, in, 3, out, 3) == 3);
-    CHECK (ALMOST_EQ_C (out[0], 10.0));
-    CHECK (ALMOST_EQ_C (out[1], 20.0));
-    CHECK (ALMOST_EQ_C (out[2], 30.0));
+    DP_CHECK (interp_table_execute (obj, in, 3, out, 3) == 3);
+    DP_CHECK (ALMOST_EQ_C (out[0], 10.0));
+    DP_CHECK (ALMOST_EQ_C (out[1], 20.0));
+    DP_CHECK (ALMOST_EQ_C (out[2], 30.0));
     interp_table_destroy (obj);
   }
 
@@ -80,10 +69,10 @@ main (void)
     interp_table_state_t *obj   = interp_table_create (t, 3, 1);
     double                in[3] = { 0.4, 0.6, 1.5 };
     double complex        out[3];
-    CHECK (interp_table_execute (obj, in, 3, out, 3) == 3);
-    CHECK (ALMOST_EQ_C (out[0], 10.0)); /* frac=0.4 <= 0.5 -> lo */
-    CHECK (ALMOST_EQ_C (out[1], 20.0)); /* frac=0.6 >  0.5 -> hi */
-    CHECK (ALMOST_EQ_C (out[2], 20.0)); /* frac=0.5 exactly -> lo (tie) */
+    DP_CHECK (interp_table_execute (obj, in, 3, out, 3) == 3);
+    DP_CHECK (ALMOST_EQ_C (out[0], 10.0)); /* frac=0.4 <= 0.5 -> lo */
+    DP_CHECK (ALMOST_EQ_C (out[1], 20.0)); /* frac=0.6 >  0.5 -> hi */
+    DP_CHECK (ALMOST_EQ_C (out[2], 20.0)); /* frac=0.5 exactly -> lo (tie) */
     interp_table_destroy (obj);
   }
 
@@ -97,10 +86,10 @@ main (void)
     interp_table_state_t *obj   = interp_table_create (t, 3, 2);
     double                in[3] = { 0.25, 2.75, -0.5 };
     double complex        out[3];
-    CHECK (interp_table_execute (obj, in, 3, out, 3) == 3);
-    CHECK (ALMOST_EQ_C (out[0], 12.5)); /* 10 + 0.25*(20-10) */
-    CHECK (ALMOST_EQ_C (out[1], 15.0)); /* wraps: 30 + 0.75*(10-30) */
-    CHECK (ALMOST_EQ_C (out[2], 20.0)); /* floor(-0.5)=-1 -> idx 2;
+    DP_CHECK (interp_table_execute (obj, in, 3, out, 3) == 3);
+    DP_CHECK (ALMOST_EQ_C (out[0], 12.5)); /* 10 + 0.25*(20-10) */
+    DP_CHECK (ALMOST_EQ_C (out[1], 15.0)); /* wraps: 30 + 0.75*(10-30) */
+    DP_CHECK (ALMOST_EQ_C (out[2], 20.0)); /* floor(-0.5)=-1 -> idx 2;
                                             frac=0.5: 30 + 0.5*(10-30) */
     interp_table_destroy (obj);
   }
@@ -115,7 +104,7 @@ main (void)
     double         in[1] = { 0.0 };
     double complex out[1];
     interp_table_execute (obj, in, 1, out, 1);
-    CHECK (ALMOST_EQ_C (out[0], 1.0)); /* unaffected by the mutation */
+    DP_CHECK (ALMOST_EQ_C (out[0], 1.0)); /* unaffected by the mutation */
     interp_table_destroy (obj);
   }
 
@@ -128,28 +117,22 @@ main (void)
     interp_table_state_t *obj    = interp_table_create (tab, 4, 2);
     const double          in[6]  = { 0.0, 1.0, 2.0, 3.0, 0.5, 1.5 };
     double complex        out[6], full[6];
-    CHECK (obj != NULL);
+    DP_CHECK (obj != NULL);
     for (int i = 0; i < 6; i++)
       out[i] = 42.0 + 42.0 * I;
 
-    CHECK (interp_table_execute (obj, in, 6, full, 6) == 6);
-    CHECK (interp_table_execute (obj, in, 6, out, 2) == 2);
+    DP_CHECK (interp_table_execute (obj, in, 6, full, 6) == 6);
+    DP_CHECK (interp_table_execute (obj, in, 6, out, 2) == 2);
     for (int i = 0; i < 2; i++)
-      CHECK (ALMOST_EQ_C (out[i], creal (full[i])));
+      DP_CHECK (ALMOST_EQ_C (out[i], creal (full[i])));
     for (int i = 2; i < 6; i++)
-      CHECK (out[i] == 42.0 + 42.0 * I); /* tail untouched */
+      DP_CHECK (out[i] == 42.0 + 42.0 * I); /* tail untouched */
 
     /* Zero capacity emits nothing. */
-    CHECK (interp_table_execute (obj, in, 6, out, 0) == 0);
-    CHECK (out[0] == full[0]); /* still holds the earlier write */
+    DP_CHECK (interp_table_execute (obj, in, 6, out, 0) == 0);
+    DP_CHECK (out[0] == full[0]); /* still holds the earlier write */
     interp_table_destroy (obj);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_interp_table_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_interp_table_core PASSED\n");
-  return 0;
+  DP_TEST_END ("test_interp_table_core");
 }

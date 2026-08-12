@@ -2,6 +2,7 @@
  * test_wfm_reader.c — round-trip wfm_writer → wfm_reader across every
  * file type, plus file type auto-detection and the BLUE-magic gate.
  */
+#include "dp_test.h"
 #include "wfm/wfm_keywords.h"
 #include "wfm_reader/wfm_reader_core.h"
 #include "wfm_writer/wfm_writer_core.h"
@@ -14,17 +15,6 @@
 #include <string.h>
 
 #define N 1000
-#define CHECK(c, m)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(c))                                                               \
-        {                                                                     \
-          fprintf (stderr, "FAIL: %s\n", m);                                  \
-          return 1;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
-
 /* A deterministic unit-scale test signal. */
 static void
 make_signal (float _Complex *x, size_t n)
@@ -42,10 +32,10 @@ roundtrip (const char *path, int ft, int stype, double fs, double tol)
   make_signal (x, N);
 
   FILE *fp = fopen (path, "wb");
-  CHECK (fp, "open for write");
+  DP_REQUIRE_MSG (fp, "open for write");
   wfm_writer_state_t *w = wfm_writer_open (fp, ft, stype, 0, fs, 0.0, N, 0.0);
-  CHECK (w, "writer open");
-  CHECK (wfm_writer_write (w, x, N) == N, "writer wrote N");
+  DP_REQUIRE_MSG (w, "writer open");
+  DP_REQUIRE_MSG (wfm_writer_write (w, x, N) == N, "writer wrote N");
   wfm_writer_close (w);
   fclose (fp);
 
@@ -53,33 +43,33 @@ roundtrip (const char *path, int ft, int stype, double fs, double tol)
   if (ft == WFM_FT_SIGMF)
     {
       char *meta = wfm_sigmf_meta_json (stype, 0, fs, 0.0, 0.0, NULL, 0);
-      CHECK (meta, "sigmf meta json");
+      DP_REQUIRE_MSG (meta, "sigmf meta json");
       char mpath[1024];
       snprintf (mpath, sizeof mpath, "%.*s.sigmf-meta",
                 (int)(strlen (path) - 11), path); /* strip .sigmf-data */
       FILE *mf = fopen (mpath, "w");
-      CHECK (mf, "open meta");
+      DP_REQUIRE_MSG (mf, "open meta");
       fputs (meta, mf);
       fclose (mf);
       free (meta);
     }
 
   wfm_reader_state_t *r = wfm_reader_create (path, stype, 0);
-  CHECK (r, "reader open");
+  DP_REQUIRE_MSG (r, "reader open");
   wfm_reader_info_t info;
   wfm_reader_info (r, &info);
-  CHECK (info.sample_type == stype, "sample_type recovered");
+  DP_REQUIRE_MSG (info.sample_type == stype, "sample_type recovered");
   if (ft == WFM_FT_BLUE || ft == WFM_FT_SIGMF)
-    CHECK (fabs (info.fs - fs) < 1.0, "fs recovered from metadata");
+    DP_REQUIRE_MSG (fabs (info.fs - fs) < 1.0, "fs recovered from metadata");
   /* Exact for every file type now: CSV used to be the one that could
      only say 0, which reads as an empty capture. */
-  CHECK (info.num_samples == N, "num_samples");
+  DP_REQUIRE_MSG (info.num_samples == N, "num_samples");
 
   size_t total = 0, n;
   while ((n = wfm_reader_read (r, N - total, y + total, N - total)) > 0)
     total += n;
   wfm_reader_destroy (r);
-  CHECK (total == N, "read back N samples");
+  DP_REQUIRE_MSG (total == N, "read back N samples");
 
   double maxerr = 0.0;
   for (size_t i = 0; i < N; i++)
@@ -88,7 +78,7 @@ roundtrip (const char *path, int ft, int stype, double fs, double tol)
       if (e > maxerr)
         maxerr = e;
     }
-  CHECK (maxerr < tol, "samples round-trip within tol");
+  DP_REQUIRE_MSG (maxerr < tol, "samples round-trip within tol");
   return 0;
 }
 
@@ -102,30 +92,31 @@ test_blue_gate (void)
   float _Complex x[8];
   make_signal (x, 8);
   FILE *fp = fopen (raw, "wb");
-  CHECK (fp, "open raw");
+  DP_REQUIRE_MSG (fp, "open raw");
   wfm_writer_state_t *w
       = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0.0, 8, 0.0);
   wfm_writer_write (w, x, 8);
   wfm_writer_close (w);
   fclose (fp);
   wfm_reader_state_t *r = wfm_reader_create (raw, 0, 0);
-  CHECK (r, "raw opens");
+  DP_REQUIRE_MSG (r, "raw opens");
   wfm_reader_info_t info;
   wfm_reader_info (r, &info);
-  CHECK (info.file_type == WFM_FT_RAW, "raw not mis-detected as BLUE");
+  DP_REQUIRE_MSG (info.file_type == WFM_FT_RAW,
+                  "raw not mis-detected as BLUE");
   wfm_reader_destroy (r);
 
   /* a .det whose .hdr lacks the BLUE magic must be rejected. */
   FILE *hf = fopen ("dp_reader_bad.hdr", "wb");
-  CHECK (hf, "open bad hdr");
+  DP_REQUIRE_MSG (hf, "open bad hdr");
   char junk[512] = "NOTBLUE";
   fwrite (junk, 1, 512, hf);
   fclose (hf);
   FILE *df = fopen ("dp_reader_bad.det", "wb");
   fwrite (x, sizeof x, 1, df);
   fclose (df);
-  CHECK (wfm_reader_create ("dp_reader_bad.det", 0, 0) == NULL,
-         "detached without BLUE magic is rejected");
+  DP_REQUIRE_MSG (wfm_reader_create ("dp_reader_bad.det", 0, 0) == NULL,
+                  "detached without BLUE magic is rejected");
   return 0;
 }
 
@@ -148,31 +139,35 @@ test_detached_header_entry (void)
 
   /* payload: raw cf32 from byte 0 of the .det */
   FILE *df = fopen ("dp_det.det", "wb");
-  CHECK (df != NULL, "open .det");
-  CHECK (fwrite (x, sizeof x[0], N, df) == N, "write .det");
+  DP_REQUIRE_MSG (df != NULL, "open .det");
+  DP_REQUIRE_MSG (fwrite (x, sizeof x[0], N, df) == N, "write .det");
   fclose (df);
 
   for (size_t i = 0; i < sizeof HDR / sizeof *HDR; i++)
     {
       FILE *hf = fopen (HDR[i], "wb");
-      CHECK (hf != NULL, "open detached header");
+      DP_REQUIRE_MSG (hf != NULL, "open detached header");
       /* data_start = 0, detached = 1 -> payload is the collocated .det */
-      CHECK (wfm_blue_write_hcb (hf, 0, 0, 2.4e6, 0.0, 0.0, N, 1, 0.0) == 0,
-             "write detached HCB");
+      DP_REQUIRE_MSG (wfm_blue_write_hcb (hf, 0, 0, 2.4e6, 0.0, 0.0, N, 1, 0.0)
+                          == 0,
+                      "write detached HCB");
       fclose (hf);
 
       wfm_reader_state_t *r = wfm_reader_create (HDR[i], 0, 0);
-      CHECK (r != NULL, "open detached capture by its header");
+      DP_REQUIRE_MSG (r != NULL, "open detached capture by its header");
       wfm_reader_info_t info;
       wfm_reader_info (r, &info);
-      CHECK (info.file_type == WFM_FT_BLUE, "detached header detects BLUE");
-      CHECK (info.num_samples == N, "detached num_samples from data_size");
+      DP_REQUIRE_MSG (info.file_type == WFM_FT_BLUE,
+                      "detached header detects BLUE");
+      DP_REQUIRE_MSG (info.num_samples == N,
+                      "detached num_samples from data_size");
       size_t got = wfm_reader_read (r, N, y, N);
       wfm_reader_destroy (r);
       /* the whole payload -- NOT the 512-byte header as 64 samples */
-      CHECK (got == N, "detached header yields the full payload");
+      DP_REQUIRE_MSG (got == N, "detached header yields the full payload");
       for (size_t k = 0; k < N; k++)
-        CHECK (cabsf (y[k] - x[k]) < 1e-6f, "detached payload is exact");
+        DP_REQUIRE_MSG (cabsf (y[k] - x[k]) < 1e-6f,
+                        "detached payload is exact");
     }
   return 0;
 }
@@ -187,9 +182,10 @@ write_blue_mode (const char *path, char mode, size_t ncomp,
                  const float _Complex *x, size_t n)
 {
   FILE *fp = fopen (path, "wb");
-  CHECK (fp != NULL, "open mode file");
-  CHECK (wfm_blue_write_hcb (fp, 0, 0, 1e6, 0.0, 512.0, n, 0, 0.0) == 0,
-         "write HCB");
+  DP_REQUIRE_MSG (fp != NULL, "open mode file");
+  DP_REQUIRE_MSG (wfm_blue_write_hcb (fp, 0, 0, 1e6, 0.0, 512.0, n, 0, 0.0)
+                      == 0,
+                  "write HCB");
   /* data_size assumed complex; rewrite it for the real component count. */
   double dsz = (double)(n * ncomp * 4);
   fseek (fp, 52, SEEK_SET);
@@ -200,9 +196,9 @@ write_blue_mode (const char *path, char mode, size_t ncomp,
   for (size_t i = 0; i < n; i++)
     {
       float re = crealf (x[i]), im = cimagf (x[i]);
-      CHECK (fwrite (&re, sizeof re, 1, fp) == 1, "write I");
+      DP_REQUIRE_MSG (fwrite (&re, sizeof re, 1, fp) == 1, "write I");
       if (ncomp == 2)
-        CHECK (fwrite (&im, sizeof im, 1, fp) == 1, "write Q");
+        DP_REQUIRE_MSG (fwrite (&im, sizeof im, 1, fp) == 1, "write Q");
     }
   fclose (fp);
   return 0;
@@ -225,33 +221,34 @@ test_blue_format_mode (void)
   if (write_blue_mode ("dp_mode_s.blue", 'S', 1, x, N))
     return 1;
   wfm_reader_state_t *r = wfm_reader_create ("dp_mode_s.blue", 0, 0);
-  CHECK (r != NULL, "scalar BLUE opens");
+  DP_REQUIRE_MSG (r != NULL, "scalar BLUE opens");
   wfm_reader_info_t info;
   wfm_reader_info (r, &info);
-  CHECK (info.mode == WFM_MODE_SCALAR, "mode is scalar");
-  CHECK (info.num_samples == N, "scalar num_samples is not halved");
+  DP_REQUIRE_MSG (info.mode == WFM_MODE_SCALAR, "mode is scalar");
+  DP_REQUIRE_MSG (info.num_samples == N, "scalar num_samples is not halved");
   size_t got = wfm_reader_read (r, N, y, N);
   wfm_reader_destroy (r);
-  CHECK (got == N, "scalar yields every sample, not half");
+  DP_REQUIRE_MSG (got == N, "scalar yields every sample, not half");
   for (size_t k = 0; k < N; k++)
     {
-      CHECK (fabsf (crealf (y[k]) - crealf (x[k])) < 1e-6f, "scalar I exact");
-      CHECK (cimagf (y[k]) == 0.0f, "scalar Q is exactly zero");
+      DP_REQUIRE_MSG (fabsf (crealf (y[k]) - crealf (x[k])) < 1e-6f,
+                      "scalar I exact");
+      DP_REQUIRE_MSG (cimagf (y[k]) == 0.0f, "scalar Q is exactly zero");
     }
 
   /* complex: unchanged, and reports its mode */
   if (write_blue_mode ("dp_mode_c.blue", 'C', 2, x, N))
     return 1;
   r = wfm_reader_create ("dp_mode_c.blue", 0, 0);
-  CHECK (r != NULL, "complex BLUE opens");
+  DP_REQUIRE_MSG (r != NULL, "complex BLUE opens");
   wfm_reader_info (r, &info);
-  CHECK (info.mode == WFM_MODE_COMPLEX, "mode is complex");
-  CHECK (info.num_samples == N, "complex num_samples");
+  DP_REQUIRE_MSG (info.mode == WFM_MODE_COMPLEX, "mode is complex");
+  DP_REQUIRE_MSG (info.num_samples == N, "complex num_samples");
   got = wfm_reader_read (r, N, y, N);
   wfm_reader_destroy (r);
-  CHECK (got == N, "complex yields every sample");
+  DP_REQUIRE_MSG (got == N, "complex yields every sample");
   for (size_t k = 0; k < N; k++)
-    CHECK (cabsf (y[k] - x[k]) < 1e-6f, "complex round-trips");
+    DP_REQUIRE_MSG (cabsf (y[k] - x[k]) < 1e-6f, "complex round-trips");
 
   /* every unsupported mode designator is refused, not guessed at */
   static const char BAD[] = { 'V', 'Q', 'M', 'T', 'X', '1', 'c', 's' };
@@ -259,8 +256,8 @@ test_blue_format_mode (void)
     {
       if (write_blue_mode ("dp_mode_bad.blue", BAD[i], 2, x, 8))
         return 1;
-      CHECK (wfm_reader_create ("dp_mode_bad.blue", 0, 0) == NULL,
-             "unsupported format mode is rejected");
+      DP_REQUIRE_MSG (wfm_reader_create ("dp_mode_bad.blue", 0, 0) == NULL,
+                      "unsupported format mode is rejected");
     }
   return 0;
 }
@@ -279,15 +276,21 @@ static const int64_t     KW_X    = 1234567890123LL;
 static int
 attach_keywords (wfm_writer_state_t *w)
 {
-  CHECK (wfm_writer_add_keyword (w, "COMMENT", 'A', KW_STR, strlen (KW_STR))
-             == 0,
-         "add A");
-  CHECK (wfm_writer_add_keyword (w, "F_C", 'D', &KW_D, 1) == 0, "add D");
-  CHECK (wfm_writer_add_keyword (w, "GAINS", 'F', KW_F, 3) == 0, "add F[]");
-  CHECK (wfm_writer_add_keyword (w, "OFFSET", 'L', &KW_L, 1) == 0, "add L");
-  CHECK (wfm_writer_add_keyword (w, "TRIM", 'I', &KW_I, 1) == 0, "add I");
-  CHECK (wfm_writer_add_keyword (w, "FLAG", 'B', &KW_B, 1) == 0, "add B");
-  CHECK (wfm_writer_add_keyword (w, "TICKS", 'X', &KW_X, 1) == 0, "add X");
+  DP_REQUIRE_MSG (
+      wfm_writer_add_keyword (w, "COMMENT", 'A', KW_STR, strlen (KW_STR)) == 0,
+      "add A");
+  DP_REQUIRE_MSG (wfm_writer_add_keyword (w, "F_C", 'D', &KW_D, 1) == 0,
+                  "add D");
+  DP_REQUIRE_MSG (wfm_writer_add_keyword (w, "GAINS", 'F', KW_F, 3) == 0,
+                  "add F[]");
+  DP_REQUIRE_MSG (wfm_writer_add_keyword (w, "OFFSET", 'L', &KW_L, 1) == 0,
+                  "add L");
+  DP_REQUIRE_MSG (wfm_writer_add_keyword (w, "TRIM", 'I', &KW_I, 1) == 0,
+                  "add I");
+  DP_REQUIRE_MSG (wfm_writer_add_keyword (w, "FLAG", 'B', &KW_B, 1) == 0,
+                  "add B");
+  DP_REQUIRE_MSG (wfm_writer_add_keyword (w, "TICKS", 'X', &KW_X, 1) == 0,
+                  "add X");
   return 0;
 }
 
@@ -295,42 +298,48 @@ attach_keywords (wfm_writer_state_t *w)
 static int
 check_keywords (wfm_reader_state_t *r)
 {
-  CHECK (wfm_reader_num_keywords (r) == 7, "all seven keywords recovered");
+  DP_REQUIRE_MSG (wfm_reader_num_keywords (r) == 7,
+                  "all seven keywords recovered");
   const wfm_keyword_t *k = wfm_reader_find_keyword (r, "COMMENT");
-  CHECK (k && k->type == 'A', "COMMENT is a string");
-  CHECK (k->count == strlen (KW_STR), "string length (no NUL on the wire)");
-  CHECK (memcmp (k->value, KW_STR, k->count) == 0, "string value");
+  DP_REQUIRE_MSG (k && k->type == 'A', "COMMENT is a string");
+  DP_REQUIRE_MSG (k->count == strlen (KW_STR),
+                  "string length (no NUL on the wire)");
+  DP_REQUIRE_MSG (memcmp (k->value, KW_STR, k->count) == 0, "string value");
 
   k = wfm_reader_find_keyword (r, "F_C");
   double d;
-  CHECK (k && k->type == 'D' && k->count == 1, "F_C is a scalar double");
+  DP_REQUIRE_MSG (k && k->type == 'D' && k->count == 1,
+                  "F_C is a scalar double");
   memcpy (&d, k->value, 8);
-  CHECK (d == KW_D, "double value");
+  DP_REQUIRE_MSG (d == KW_D, "double value");
 
   k = wfm_reader_find_keyword (r, "GAINS");
   float f[3];
-  CHECK (k && k->type == 'F' && k->count == 3, "GAINS is a 3-element float");
+  DP_REQUIRE_MSG (k && k->type == 'F' && k->count == 3,
+                  "GAINS is a 3-element float");
   memcpy (f, k->value, sizeof f);
-  CHECK (f[0] == KW_F[0] && f[1] == KW_F[1] && f[2] == KW_F[2],
-         "array order preserved");
+  DP_REQUIRE_MSG (f[0] == KW_F[0] && f[1] == KW_F[1] && f[2] == KW_F[2],
+                  "array order preserved");
 
   k = wfm_reader_find_keyword (r, "OFFSET");
   int32_t l;
-  CHECK (k && k->count == 1, "OFFSET present");
+  DP_REQUIRE_MSG (k && k->count == 1, "OFFSET present");
   memcpy (&l, k->value, 4);
-  CHECK (l == KW_L, "negative int32 value");
+  DP_REQUIRE_MSG (l == KW_L, "negative int32 value");
 
   k = wfm_reader_find_keyword (r, "TICKS");
   int64_t x;
-  CHECK (k && k->count == 1, "TICKS present");
+  DP_REQUIRE_MSG (k && k->count == 1, "TICKS present");
   memcpy (&x, k->value, 8);
-  CHECK (x == KW_X, "int64 value");
+  DP_REQUIRE_MSG (x == KW_X, "int64 value");
 
-  CHECK (wfm_reader_find_keyword (r, "NOPE") == NULL, "absent tag is NULL");
+  DP_REQUIRE_MSG (wfm_reader_find_keyword (r, "NOPE") == NULL,
+                  "absent tag is NULL");
   /* file order is preserved, so index 0 is the first one written */
-  CHECK (strcmp (wfm_reader_keyword (r, 0)->tag, "COMMENT") == 0,
-         "keywords come back in file order");
-  CHECK (wfm_reader_keyword (r, 7) == NULL, "out-of-range index is NULL");
+  DP_REQUIRE_MSG (strcmp (wfm_reader_keyword (r, 0)->tag, "COMMENT") == 0,
+                  "keywords come back in file order");
+  DP_REQUIRE_MSG (wfm_reader_keyword (r, 7) == NULL,
+                  "out-of-range index is NULL");
   return 0;
 }
 
@@ -350,18 +359,19 @@ test_keyword_roundtrip (void)
     {
       const char *path = be ? "dp_kw_be.blue" : "dp_kw_le.blue";
       FILE       *fp   = fopen (path, "wb");
-      CHECK (fp != NULL, "open blue");
+      DP_REQUIRE_MSG (fp != NULL, "open blue");
       wfm_writer_state_t *w
           = wfm_writer_open (fp, WFM_FT_BLUE, 0, be, 2.4e6, 0.0, N, 0.0);
-      CHECK (w != NULL, "writer open");
+      DP_REQUIRE_MSG (w != NULL, "writer open");
       if (attach_keywords (w))
         return 1;
-      CHECK (wfm_writer_write (w, x, N) == N, "write samples");
-      CHECK (wfm_writer_close (w) == 0, "close writes the extended header");
+      DP_REQUIRE_MSG (wfm_writer_write (w, x, N) == N, "write samples");
+      DP_REQUIRE_MSG (wfm_writer_close (w) == 0,
+                      "close writes the extended header");
       fclose (fp);
 
       wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
-      CHECK (r != NULL, "reopen");
+      DP_REQUIRE_MSG (r != NULL, "reopen");
       if (check_keywords (r))
         return 1;
       /* Draining to EOF must stop at the declared payload. The extended
@@ -371,23 +381,25 @@ test_keyword_roundtrip (void)
       size_t total = 0, got;
       while ((got = wfm_reader_read (r, N - total, y + total, N - total)) > 0)
         total += got;
-      CHECK (total == N, "drains to exactly the declared payload");
-      CHECK (wfm_reader_read (r, N, y, N) == 0, "and stays at end of data");
+      DP_REQUIRE_MSG (total == N, "drains to exactly the declared payload");
+      DP_REQUIRE_MSG (wfm_reader_read (r, N, y, N) == 0,
+                      "and stays at end of data");
       for (size_t i = 0; i < N; i++)
-        CHECK (cabsf (y[i] - x[i]) < 1e-6f, "samples unaffected");
+        DP_REQUIRE_MSG (cabsf (y[i] - x[i]) < 1e-6f, "samples unaffected");
       wfm_reader_destroy (r);
     }
 
   /* detached: keywords are in the .hdr, samples in the .det */
   FILE *hf = fopen ("dp_kw_det.hdr", "wb");
-  CHECK (hf != NULL, "open detached header");
-  CHECK (wfm_blue_write_hcb (hf, 0, 0, 2.4e6, 0.0, 0.0, N, 1, 0.0) == 0,
-         "write detached HCB");
+  DP_REQUIRE_MSG (hf != NULL, "open detached header");
+  DP_REQUIRE_MSG (wfm_blue_write_hcb (hf, 0, 0, 2.4e6, 0.0, 0.0, N, 1, 0.0)
+                      == 0,
+                  "write detached HCB");
   fclose (hf);
   /* re-open the header as a BLUE writer target purely to attach keywords:
      the payload goes to the .det, so this writer emits no samples. */
   hf = fopen ("dp_kw_det.hdr", "r+b");
-  CHECK (hf != NULL, "reopen header");
+  DP_REQUIRE_MSG (hf != NULL, "reopen header");
   fseek (hf, 0, SEEK_END);
   {
     uint8_t kwblob[512];
@@ -398,19 +410,20 @@ test_keyword_roundtrip (void)
                           1, 0);
     /* the extended header must start on a 512-byte boundary; the HCB is
        exactly 512 bytes, so block 1 is where it lands. */
-    CHECK (fwrite (kwblob, 1, off, hf) == off, "append extended header");
+    DP_REQUIRE_MSG (fwrite (kwblob, 1, off, hf) == off,
+                    "append extended header");
     int32_t  blocks = 1, size = (int32_t)off;
     uint8_t  b[8];
     uint8_t *p = b;
     memcpy (p, &blocks, 4);
     memcpy (p + 4, &size, 4);
     fseek (hf, 24, SEEK_SET);
-    CHECK (fwrite (b, 1, 8, hf) == 8, "patch ext_start/ext_size");
+    DP_REQUIRE_MSG (fwrite (b, 1, 8, hf) == 8, "patch ext_start/ext_size");
     fclose (hf);
   }
   FILE *df = fopen ("dp_kw_det.det", "wb");
-  CHECK (df != NULL, "open .det");
-  CHECK (fwrite (x, sizeof x[0], N, df) == N, "write payload");
+  DP_REQUIRE_MSG (df != NULL, "open .det");
+  DP_REQUIRE_MSG (fwrite (x, sizeof x[0], N, df) == N, "write payload");
   fclose (df);
 
   /* both entry points must find the keywords -- they live in the header file
@@ -419,15 +432,16 @@ test_keyword_roundtrip (void)
   for (size_t i = 0; i < 2; i++)
     {
       wfm_reader_state_t *r = wfm_reader_create (ENTRY[i], 0, 0);
-      CHECK (r != NULL, "open detached capture");
-      CHECK (wfm_reader_num_keywords (r) == 2,
-             "detached keywords come from the HEADER file");
+      DP_REQUIRE_MSG (r != NULL, "open detached capture");
+      DP_REQUIRE_MSG (wfm_reader_num_keywords (r) == 2,
+                      "detached keywords come from the HEADER file");
       const wfm_keyword_t *k = wfm_reader_find_keyword (r, "F_C");
       double               d;
-      CHECK (k != NULL, "F_C present");
+      DP_REQUIRE_MSG (k != NULL, "F_C present");
       memcpy (&d, k->value, 8);
-      CHECK (d == KW_D, "detached keyword value");
-      CHECK (wfm_reader_read (r, N, y, N) == N, "detached samples still read");
+      DP_REQUIRE_MSG (d == KW_D, "detached keyword value");
+      DP_REQUIRE_MSG (wfm_reader_read (r, N, y, N) == N,
+                      "detached samples still read");
       wfm_reader_destroy (r);
     }
   return 0;
@@ -443,16 +457,17 @@ test_keyword_absent_and_corrupt (void)
   make_signal (x, N);
 
   FILE *fp = fopen ("dp_kw_none.blue", "wb");
-  CHECK (fp != NULL, "open");
+  DP_REQUIRE_MSG (fp != NULL, "open");
   wfm_writer_state_t *w
       = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.4e6, 0.0, N, 0.0);
   wfm_writer_write (w, x, N);
   wfm_writer_close (w);
   fclose (fp);
   wfm_reader_state_t *r = wfm_reader_create ("dp_kw_none.blue", 0, 0);
-  CHECK (r != NULL, "opens");
-  CHECK (wfm_reader_num_keywords (r) == 0, "no extended header, no keywords");
-  CHECK (wfm_reader_keyword (r, 0) == NULL, "index 0 is NULL");
+  DP_REQUIRE_MSG (r != NULL, "opens");
+  DP_REQUIRE_MSG (wfm_reader_num_keywords (r) == 0,
+                  "no extended header, no keywords");
+  DP_REQUIRE_MSG (wfm_reader_keyword (r, 0) == NULL, "index 0 is NULL");
   wfm_reader_destroy (r);
 
   /* claim an extended header that runs off the end of the file */
@@ -463,7 +478,7 @@ test_keyword_absent_and_corrupt (void)
   wfm_writer_close (w);
   fclose (fp);
   fp = fopen ("dp_kw_bad.blue", "r+b");
-  CHECK (fp != NULL, "reopen to corrupt");
+  DP_REQUIRE_MSG (fp != NULL, "reopen to corrupt");
   int32_t huge = 1 << 20; /* ext_size far past EOF */
   fseek (fp, 28, SEEK_SET);
   fwrite (&huge, 4, 1, fp);
@@ -471,9 +486,9 @@ test_keyword_absent_and_corrupt (void)
   r = fopen ("dp_kw_bad.blue", "rb")
           ? wfm_reader_create ("dp_kw_bad.blue", 0, 0)
           : NULL;
-  CHECK (r != NULL, "a bad keyword region does not fail the open");
-  CHECK (wfm_reader_read (r, N, y, N) == N,
-         "samples survive a bad ext header");
+  DP_REQUIRE_MSG (r != NULL, "a bad keyword region does not fail the open");
+  DP_REQUIRE_MSG (wfm_reader_read (r, N, y, N) == N,
+                  "samples survive a bad ext header");
   wfm_reader_destroy (r);
   return 0;
 }
@@ -497,38 +512,40 @@ test_reset_rewinds_to_the_first_sample (void)
   for (size_t i = 0; i < sizeof FT / sizeof *FT; i++)
     {
       FILE *fp = fopen (PATHS[i], "wb");
-      CHECK (fp != NULL, "open");
+      DP_REQUIRE_MSG (fp != NULL, "open");
       wfm_writer_state_t *w
           = wfm_writer_open (fp, FT[i], 0, 0, 2.4e6, 0.0, N, 0.0);
-      CHECK (w != NULL, "writer");
+      DP_REQUIRE_MSG (w != NULL, "writer");
       if (FT[i] == WFM_FT_BLUE && attach_keywords (w))
         return 1;
-      CHECK (wfm_writer_write (w, x, N) == N, "write");
-      CHECK (wfm_writer_close (w) == 0, "close");
+      DP_REQUIRE_MSG (wfm_writer_write (w, x, N) == N, "write");
+      DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "close");
       fclose (fp);
 
       wfm_reader_state_t *r = wfm_reader_create (PATHS[i], 0, 0);
-      CHECK (r != NULL, "open for reset");
-      CHECK (wfm_reader_read (r, N, a, N) == N, "first pass");
+      DP_REQUIRE_MSG (r != NULL, "open for reset");
+      DP_REQUIRE_MSG (wfm_reader_read (r, N, a, N) == N, "first pass");
       wfm_reader_reset (r);
-      CHECK (wfm_reader_read (r, N, b, N) == N, "second pass reads N again");
-      CHECK (wfm_reader_read (r, 1, b + N - 1, 1) == 0,
-             "and stops at the end");
+      DP_REQUIRE_MSG (wfm_reader_read (r, N, b, N) == N,
+                      "second pass reads N again");
+      DP_REQUIRE_MSG (wfm_reader_read (r, 1, b + N - 1, 1) == 0,
+                      "and stops at the end");
       wfm_reader_destroy (r);
       for (size_t k = 0; k + 1 < N; k++)
-        CHECK (a[k] == b[k], "reset replays the identical samples");
+        DP_REQUIRE_MSG (a[k] == b[k], "reset replays the identical samples");
     }
 
   /* detached: payload is byte 0 of the .det, header is elsewhere */
   wfm_reader_state_t *r = wfm_reader_create ("dp_kw_det.hdr", 0, 0);
-  CHECK (r != NULL, "open detached");
-  CHECK (wfm_reader_read (r, N, a, N) == N, "detached first pass");
+  DP_REQUIRE_MSG (r != NULL, "open detached");
+  DP_REQUIRE_MSG (wfm_reader_read (r, N, a, N) == N, "detached first pass");
   wfm_reader_reset (r);
-  CHECK (wfm_reader_read (r, N, b, N) == N, "detached second pass");
-  CHECK (wfm_reader_num_keywords (r) == 2, "keywords survive a reset");
+  DP_REQUIRE_MSG (wfm_reader_read (r, N, b, N) == N, "detached second pass");
+  DP_REQUIRE_MSG (wfm_reader_num_keywords (r) == 2,
+                  "keywords survive a reset");
   wfm_reader_destroy (r);
   for (size_t k = 0; k < N; k++)
-    CHECK (a[k] == b[k], "detached reset replays identically");
+    DP_REQUIRE_MSG (a[k] == b[k], "detached reset replays identically");
   return 0;
 }
 
@@ -539,21 +556,21 @@ test_reset_rewinds_to_the_first_sample (void)
 static int
 test_read_capacity (void)
 {
-  int                 _fails = 0;
-  wfm_reader_state_t *r      = wfm_reader_create ("dp_reader.blue", 0, 0);
+  wfm_reader_state_t *r = wfm_reader_create ("dp_reader.blue", 0, 0);
   float _Complex y[16];
-  CHECK (r, "reopen the BLUE capture");
+  DP_REQUIRE_MSG (r, "reopen the BLUE capture");
   for (size_t i = 0; i < 16; i++)
     y[i] = 42.0f + 42.0f * I;
 
-  CHECK (wfm_reader_read (r, 16, y, 3) == 3, "read stops at max_out");
+  DP_REQUIRE_MSG (wfm_reader_read (r, 16, y, 3) == 3, "read stops at max_out");
   for (size_t i = 3; i < 16; i++)
-    CHECK (y[i] == 42.0f + 42.0f * I, "tail untouched");
+    DP_REQUIRE_MSG (y[i] == 42.0f + 42.0f * I, "tail untouched");
 
   /* Zero capacity reads nothing. */
-  CHECK (wfm_reader_read (r, 16, y, 0) == 0, "zero capacity reads nothing");
+  DP_REQUIRE_MSG (wfm_reader_read (r, 16, y, 0) == 0,
+                  "zero capacity reads nothing");
   wfm_reader_destroy (r);
-  return _fails;
+  return 0;
 }
 
 /* The extended header at the END of an ATTACHED file -- the layout doppler's
@@ -565,58 +582,60 @@ test_read_capacity (void)
 static int
 test_ext_header_at_end_of_attached_file (void)
 {
-  int    _fails = 0;
-  size_t n      = 8;
-  double sr     = 2.048e6;
+  size_t n  = 8;
+  double sr = 2.048e6;
 
   FILE *fp = fopen ("dp_extend.blue", "wb");
-  CHECK (fp, "open for write");
+  DP_REQUIRE_MSG (fp, "open for write");
   wfm_writer_state_t *w
       = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, sr, 0.0, n, 0.0);
-  CHECK (w, "writer open");
-  CHECK (wfm_writer_add_keyword (w, "SRATE", 'D', &sr, 1) == 0, "typed kw");
+  DP_REQUIRE_MSG (w, "writer open");
+  DP_REQUIRE_MSG (wfm_writer_add_keyword (w, "SRATE", 'D', &sr, 1) == 0,
+                  "typed kw");
   float _Complex xs[8];
   for (size_t i = 0; i < n; i++)
     xs[i] = (float)(i + 1) + 0.0f * I;
-  CHECK (wfm_writer_write (w, xs, n) == (int)n, "write samples");
-  CHECK (wfm_writer_close (w) == 0, "close");
+  DP_REQUIRE_MSG (wfm_writer_write (w, xs, n) == (int)n, "write samples");
+  DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "close");
   fclose (fp);
 
   /* The extended header must sit AFTER the data, on a 512-byte boundary. */
   wfm_reader_state_t *r = wfm_reader_create ("dp_extend.blue", 0, 0);
-  CHECK (r, "reader open");
+  DP_REQUIRE_MSG (r, "reader open");
   const wfm_keyword_t *es = wfm_reader_find_header_field (r, "ext_start");
   const wfm_keyword_t *ds = wfm_reader_find_header_field (r, "data_start");
-  CHECK (es && ds, "ext_start/data_start present in the header dict");
+  DP_REQUIRE_MSG (es && ds, "ext_start/data_start present in the header dict");
   if (es && ds)
     {
       int32_t blocks;
       double  dstart;
       memcpy (&blocks, es->value, sizeof blocks);
       memcpy (&dstart, ds->value, sizeof dstart);
-      CHECK ((long)blocks * 512L > (long)dstart,
-             "ext header follows the data");
+      DP_REQUIRE_MSG ((long)blocks * 512L > (long)dstart,
+                      "ext header follows the data");
     }
 
   /* The keyword decodes, and its TYPE survives (a double, not a string). */
   const wfm_keyword_t *kw = wfm_reader_find_keyword (r, "SRATE");
-  CHECK (kw && kw->type == 'D' && kw->count == 1, "SRATE is a 1-element D");
+  DP_REQUIRE_MSG (kw && kw->type == 'D' && kw->count == 1,
+                  "SRATE is a 1-element D");
   if (kw)
     {
       double got;
       memcpy (&got, kw->value, sizeof got);
-      CHECK (fabs (got - sr) < 1.0, "SRATE value round-trips");
+      DP_REQUIRE_MSG (fabs (got - sr) < 1.0, "SRATE value round-trips");
     }
 
   /* And the payload stops at data_size: the extended header is NOT samples. */
   float _Complex y[16];
   size_t got = wfm_reader_read (r, 16, y, 16);
-  CHECK (got == n, "read returns exactly the declared sample count");
+  DP_REQUIRE_MSG (got == n, "read returns exactly the declared sample count");
   for (size_t i = 0; i < got; i++)
-    CHECK (crealf (y[i]) == (float)(i + 1), "sample values intact");
-  CHECK (wfm_reader_read (r, 16, y, 16) == 0, "and stops at the payload end");
+    DP_REQUIRE_MSG (crealf (y[i]) == (float)(i + 1), "sample values intact");
+  DP_REQUIRE_MSG (wfm_reader_read (r, 16, y, 16) == 0,
+                  "and stops at the payload end");
   wfm_reader_destroy (r);
-  return _fails;
+  return 0;
 }
 
 /* The HCB's own keyword area (keylength@160, keywords@164): where X-Midas
@@ -624,43 +643,47 @@ test_ext_header_at_end_of_attached_file (void)
 static int
 test_hcb_keyword_area (void)
 {
-  int   _fails = 0;
-  FILE *fp     = fopen ("dp_hcbkw.blue", "wb");
-  CHECK (fp, "open for write");
+  FILE *fp = fopen ("dp_hcbkw.blue", "wb");
+  DP_REQUIRE_MSG (fp, "open for write");
   wfm_writer_state_t *w
       = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, 0.0, 4, 0.0);
-  CHECK (w, "writer open");
+  DP_REQUIRE_MSG (w, "writer open");
   /* Only the six standard main-header keywords (BLUE 1.1 3.4.1) go to the
      HCB area, and only as ASCII. A user keyword -- even an ASCII one -- goes
      to the extended header, because 3.4 reserves the 92-byte area and lets
      other systems delete user keywords found there. */
-  CHECK (wfm_writer_add_keyword (w, "VER", 'A', "1.1", 3) == 0, "std kw");
-  CHECK (wfm_writer_add_keyword (w, "NAME", 'A', "hello", 5) == 0, "user kw");
+  DP_REQUIRE_MSG (wfm_writer_add_keyword (w, "VER", 'A', "1.1", 3) == 0,
+                  "std kw");
+  DP_REQUIRE_MSG (wfm_writer_add_keyword (w, "NAME", 'A', "hello", 5) == 0,
+                  "user kw");
   double sr = 1e6;
-  CHECK (wfm_writer_add_keyword (w, "SRATE", 'D', &sr, 1) == 0, "typed kw");
+  DP_REQUIRE_MSG (wfm_writer_add_keyword (w, "SRATE", 'D', &sr, 1) == 0,
+                  "typed kw");
   float _Complex xs[4] = { 1, 2, 3, 4 };
-  CHECK (wfm_writer_write (w, xs, 4) == 4, "write");
-  CHECK (wfm_writer_close (w) == 0, "close");
+  DP_REQUIRE_MSG (wfm_writer_write (w, xs, 4) == 4, "write");
+  DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "close");
   fclose (fp);
 
   wfm_reader_state_t  *r  = wfm_reader_create ("dp_hcbkw.blue", 0, 0);
   const wfm_keyword_t *kl = wfm_reader_find_header_field (r, "keylength");
-  CHECK (r && kl, "reader open, keylength present");
+  DP_REQUIRE_MSG (r && kl, "reader open, keylength present");
   if (kl)
     {
       int32_t v;
       memcpy (&v, kl->value, sizeof v);
-      CHECK (v > 0, "keylength patched into the HCB");
+      DP_REQUIRE_MSG (v > 0, "keylength patched into the HCB");
     }
   /* Both sources merge: the caller cannot tell which block a key came from. */
   const wfm_keyword_t *v = wfm_reader_find_keyword (r, "VER");
   const wfm_keyword_t *a = wfm_reader_find_keyword (r, "NAME");
   const wfm_keyword_t *d = wfm_reader_find_keyword (r, "SRATE");
-  CHECK (v && v->type == 'A', "HCB-area keyword decoded");
-  CHECK (a && a->type == 'A', "user ASCII keyword decoded (ext header)");
-  CHECK (d && d->type == 'D', "extended-header keyword decoded, type intact");
+  DP_REQUIRE_MSG (v && v->type == 'A', "HCB-area keyword decoded");
+  DP_REQUIRE_MSG (a && a->type == 'A',
+                  "user ASCII keyword decoded (ext header)");
+  DP_REQUIRE_MSG (d && d->type == 'D',
+                  "extended-header keyword decoded, type intact");
   wfm_reader_destroy (r);
-  return _fails;
+  return 0;
 }
 
 /* ── centre frequency ─────────────────────────────────────────────────────
@@ -731,28 +754,35 @@ test_fc_from_keywords (void)
   int    src;
 
   /* Every conventional tag, ASCII, in the HCB area. */
-  CHECK (fc_from_pair ("FREQ=2400000000", &fc, &src) == 0, "FREQ capture");
-  CHECK (fc == 2.4e9 && src == WFM_FC_FREQ, "FREQ resolves");
-  CHECK (fc_from_pair ("RF_FREQ=1.5e9", &fc, &src) == 0, "RF_FREQ capture");
-  CHECK (fc == 1.5e9 && src == WFM_FC_RF_FREQ, "RF_FREQ resolves");
-  CHECK (fc_from_pair ("CENTER_FREQ=70e6", &fc, &src) == 0, "CENTER capture");
-  CHECK (fc == 70e6 && src == WFM_FC_CENTER_FREQ, "CENTER_FREQ resolves");
-  CHECK (fc_from_pair ("F_C=-3", &fc, &src) == 0, "F_C capture");
-  CHECK (fc == -3.0 && src == WFM_FC_F_C, "F_C resolves");
+  DP_REQUIRE_MSG (fc_from_pair ("FREQ=2400000000", &fc, &src) == 0,
+                  "FREQ capture");
+  DP_REQUIRE_MSG (fc == 2.4e9 && src == WFM_FC_FREQ, "FREQ resolves");
+  DP_REQUIRE_MSG (fc_from_pair ("RF_FREQ=1.5e9", &fc, &src) == 0,
+                  "RF_FREQ capture");
+  DP_REQUIRE_MSG (fc == 1.5e9 && src == WFM_FC_RF_FREQ, "RF_FREQ resolves");
+  DP_REQUIRE_MSG (fc_from_pair ("CENTER_FREQ=70e6", &fc, &src) == 0,
+                  "CENTER capture");
+  DP_REQUIRE_MSG (fc == 70e6 && src == WFM_FC_CENTER_FREQ,
+                  "CENTER_FREQ resolves");
+  DP_REQUIRE_MSG (fc_from_pair ("F_C=-3", &fc, &src) == 0, "F_C capture");
+  DP_REQUIRE_MSG (fc == -3.0 && src == WFM_FC_F_C, "F_C resolves");
 
   /* An explicit zero is a READING, and must not read as "not found" -- that
      distinction is the entire reason fc_source exists. */
-  CHECK (fc_from_pair ("FREQ=0", &fc, &src) == 0, "baseband capture");
-  CHECK (fc == 0.0 && src == WFM_FC_FREQ, "declared baseband");
+  DP_REQUIRE_MSG (fc_from_pair ("FREQ=0", &fc, &src) == 0, "baseband capture");
+  DP_REQUIRE_MSG (fc == 0.0 && src == WFM_FC_FREQ, "declared baseband");
 
   /* Nothing to read, and nothing invented. */
-  CHECK (fc_from_pair ("COMMENT=hi", &fc, &src) == 0, "no-freq capture");
-  CHECK (fc == 0.0 && src == WFM_FC_NONE, "absent stays absent");
+  DP_REQUIRE_MSG (fc_from_pair ("COMMENT=hi", &fc, &src) == 0,
+                  "no-freq capture");
+  DP_REQUIRE_MSG (fc == 0.0 && src == WFM_FC_NONE, "absent stays absent");
 
   /* A value we cannot interpret is left alone rather than guessed at: "2.4
      GHz" parsed as a bare number would be wrong by a factor of a billion. */
-  CHECK (fc_from_pair ("FREQ=2.4 GHz", &fc, &src) == 0, "united capture");
-  CHECK (fc == 0.0 && src == WFM_FC_NONE, "a units suffix is not a number");
+  DP_REQUIRE_MSG (fc_from_pair ("FREQ=2.4 GHz", &fc, &src) == 0,
+                  "united capture");
+  DP_REQUIRE_MSG (fc == 0.0 && src == WFM_FC_NONE,
+                  "a units suffix is not a number");
   return 0;
 }
 
@@ -773,44 +803,48 @@ test_fs_and_t0_provenance (void)
   float _Complex xs[4] = { 0 };
 
   FILE *fp = fopen (path, "wb");
-  CHECK (fp, "open for write");
+  DP_REQUIRE_MSG (fp, "open for write");
   wfm_writer_state_t *w
       = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.5e6, 0.0, 4, 0.0);
-  CHECK (w, "writer open");
-  CHECK (wfm_writer_write (w, xs, 4) == 4, "write");
-  CHECK (wfm_writer_close (w) == 0, "close");
+  DP_REQUIRE_MSG (w, "writer open");
+  DP_REQUIRE_MSG (wfm_writer_write (w, xs, 4) == 4, "write");
+  DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "close");
   fclose (fp);
 
   wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
-  CHECK (r, "reader open");
+  DP_REQUIRE_MSG (r, "reader open");
   wfm_reader_info_t info;
   wfm_reader_info (r, &info);
 
   /* The rate IS declared, via xdelta, so it is attributable. */
-  CHECK (info.fs == 2.5e6, "fs round-trips");
-  CHECK (info.fs_source == WFM_FS_BLUE_XDELTA, "fs attributed to xdelta");
-  CHECK (wfm_reader_get_fs_source (r) == WFM_FS_BLUE_XDELTA, "fs accessor");
+  DP_REQUIRE_MSG (info.fs == 2.5e6, "fs round-trips");
+  DP_REQUIRE_MSG (info.fs_source == WFM_FS_BLUE_XDELTA,
+                  "fs attributed to xdelta");
+  DP_REQUIRE_MSG (wfm_reader_get_fs_source (r) == WFM_FS_BLUE_XDELTA,
+                  "fs accessor");
 
   /* The start time is NOT: doppler never writes one. It must report
      "unknown" rather than 1950. */
-  CHECK (info.t0_source == WFM_T0_NONE, "t0 unset on a doppler-written BLUE");
-  CHECK (info.t0_unix_sec == 0.0, "t0 is 0.0 when unset");
-  CHECK (wfm_reader_get_t0_source (r) == WFM_T0_NONE, "t0 source accessor");
-  CHECK (wfm_reader_get_t0 (r) == 0.0, "t0 accessor");
+  DP_REQUIRE_MSG (info.t0_source == WFM_T0_NONE,
+                  "t0 unset on a doppler-written BLUE");
+  DP_REQUIRE_MSG (info.t0_unix_sec == 0.0, "t0 is 0.0 when unset");
+  DP_REQUIRE_MSG (wfm_reader_get_t0_source (r) == WFM_T0_NONE,
+                  "t0 source accessor");
+  DP_REQUIRE_MSG (wfm_reader_get_t0 (r) == 0.0, "t0 accessor");
   wfm_reader_destroy (r);
 
   /* A raw capture carries no metadata at all, so neither is attributable --
      and fs == 0.0 must be reported as "not found", never as a rate. */
   const char *rawp = "dp_reader_prov.raw";
   FILE       *rf   = fopen (rawp, "wb");
-  CHECK (rf, "raw open");
+  DP_REQUIRE_MSG (rf, "raw open");
   fwrite (xs, sizeof xs, 1, rf);
   fclose (rf);
   wfm_reader_state_t *rr = wfm_reader_create (rawp, 0, 0);
-  CHECK (rr, "raw reader open");
+  DP_REQUIRE_MSG (rr, "raw reader open");
   wfm_reader_info (rr, &info);
-  CHECK (info.fs_source == WFM_FS_NONE, "raw declares no rate");
-  CHECK (info.t0_source == WFM_T0_NONE, "raw declares no start time");
+  DP_REQUIRE_MSG (info.fs_source == WFM_FS_NONE, "raw declares no rate");
+  DP_REQUIRE_MSG (info.t0_source == WFM_T0_NONE, "raw declares no start time");
   wfm_reader_destroy (rr);
   remove (path);
   remove (rawp);
@@ -837,23 +871,25 @@ test_t0_round_trips_through_blue (void)
   float _Complex xs[4] = { 0 };
 
   FILE *fp = fopen (path, "wb");
-  CHECK (fp, "open for write");
+  DP_REQUIRE_MSG (fp, "open for write");
   wfm_writer_state_t *w
       = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.5e6, 0.0, 4, t0);
-  CHECK (w, "writer open");
-  CHECK (wfm_writer_write (w, xs, 4) == 4, "write");
-  CHECK (wfm_writer_close (w) == 0, "close");
+  DP_REQUIRE_MSG (w, "writer open");
+  DP_REQUIRE_MSG (wfm_writer_write (w, xs, 4) == 4, "write");
+  DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "close");
   fclose (fp);
 
   wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
-  CHECK (r, "reader open");
+  DP_REQUIRE_MSG (r, "reader open");
   wfm_reader_info_t info;
   wfm_reader_info (r, &info);
-  CHECK (info.t0_source == WFM_T0_BLUE_TIMECODE, "t0 attributed to timecode");
-  CHECK (info.t0_unix_sec == t0, "t0 round-trips as the SAME unix instant");
-  CHECK (wfm_reader_get_t0 (r) == t0, "t0 accessor agrees");
-  CHECK (wfm_reader_get_t0_source (r) == WFM_T0_BLUE_TIMECODE,
-         "t0 source accessor agrees");
+  DP_REQUIRE_MSG (info.t0_source == WFM_T0_BLUE_TIMECODE,
+                  "t0 attributed to timecode");
+  DP_REQUIRE_MSG (info.t0_unix_sec == t0,
+                  "t0 round-trips as the SAME unix instant");
+  DP_REQUIRE_MSG (wfm_reader_get_t0 (r) == t0, "t0 accessor agrees");
+  DP_REQUIRE_MSG (wfm_reader_get_t0_source (r) == WFM_T0_BLUE_TIMECODE,
+                  "t0 source accessor agrees");
   wfm_reader_destroy (r);
   remove (path);
   return 0;
@@ -868,26 +904,29 @@ test_fc_write_side (void)
   float _Complex xs[4] = { 0 };
 
   FILE *fp = fopen (path, "wb");
-  CHECK (fp, "open for write");
+  DP_REQUIRE_MSG (fp, "open for write");
   wfm_writer_state_t *w
       = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, fc, 4, 0.0);
-  CHECK (w, "writer open");
+  DP_REQUIRE_MSG (w, "writer open");
   /* A standard HCB keyword makes close() rewrite the whole 92-byte area --
      the path on which a frequency written at open could be lost. */
-  CHECK (wfm_writer_add_keyword (w, "VER", 'A', "1.1", 3) == 0, "std kw");
-  CHECK (wfm_writer_write (w, xs, 4) == 4, "write");
-  CHECK (wfm_writer_close (w) == 0, "close");
+  DP_REQUIRE_MSG (wfm_writer_add_keyword (w, "VER", 'A', "1.1", 3) == 0,
+                  "std kw");
+  DP_REQUIRE_MSG (wfm_writer_write (w, xs, 4) == 4, "write");
+  DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "close");
   fclose (fp);
 
   wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
-  CHECK (r, "reader open");
+  DP_REQUIRE_MSG (r, "reader open");
   wfm_reader_info_t info;
   wfm_reader_info (r, &info);
   /* Exactly, not approximately: the typed extended-header copy is preferred
      precisely because it did not round-trip through a decimal string. */
-  CHECK (info.fc == fc, "fc survives to full precision");
-  CHECK (info.fc_source == WFM_FC_FREQ, "and knows where it came from");
-  CHECK (wfm_reader_find_keyword (r, "VER") != NULL, "VER survived too");
+  DP_REQUIRE_MSG (info.fc == fc, "fc survives to full precision");
+  DP_REQUIRE_MSG (info.fc_source == WFM_FC_FREQ,
+                  "and knows where it came from");
+  DP_REQUIRE_MSG (wfm_reader_find_keyword (r, "VER") != NULL,
+                  "VER survived too");
   wfm_reader_destroy (r);
   return 0;
 }
@@ -901,26 +940,27 @@ test_trailing_bytes (void)
   int8_t      raw[10]; /* 5 ci8 samples */
   memset (raw, 0, sizeof raw);
   FILE *fp = fopen (path, "wb");
-  CHECK (fp, "open for write");
-  CHECK (fwrite (raw, 1, sizeof raw, fp) == sizeof raw, "write raw");
+  DP_REQUIRE_MSG (fp, "open for write");
+  DP_REQUIRE_MSG (fwrite (raw, 1, sizeof raw, fp) == sizeof raw, "write raw");
   fclose (fp);
 
   wfm_reader_info_t info;
   /* Right hint: the file divides exactly. */
   wfm_reader_state_t *r = wfm_reader_create (path, 4, 0); /* ci8 */
-  CHECK (r, "reader open ci8");
+  DP_REQUIRE_MSG (r, "reader open ci8");
   wfm_reader_info (r, &info);
-  CHECK (info.trailing_bytes == 0 && info.num_samples == 5, "ci8 divides");
+  DP_REQUIRE_MSG (info.trailing_bytes == 0 && info.num_samples == 5,
+                  "ci8 divides");
   wfm_reader_destroy (r);
 
   /* Wrong hint: 10 bytes is one cf32 sample and two bytes nobody can use.
      Nothing fails -- a headerless file type cannot check a hint -- so the
      remainder is the only thing that says so. */
   r = wfm_reader_create (path, 0, 0); /* cf32 */
-  CHECK (r, "reader open cf32");
+  DP_REQUIRE_MSG (r, "reader open cf32");
   wfm_reader_info (r, &info);
-  CHECK (info.trailing_bytes == 2, "wrong stride leaves a remainder");
-  CHECK (info.num_samples == 1, "and only whole samples are counted");
+  DP_REQUIRE_MSG (info.trailing_bytes == 2, "wrong stride leaves a remainder");
+  DP_REQUIRE_MSG (info.num_samples == 1, "and only whole samples are counted");
   wfm_reader_destroy (r);
   return 0;
 }
@@ -935,27 +975,32 @@ test_detects_by_content_not_extension (void)
   /* A CSV that got renamed is still a CSV. */
   const char *csv = "dp_reader_named.dat";
   FILE       *fp  = fopen (csv, "w");
-  CHECK (fp, "open csv");
+  DP_REQUIRE_MSG (fp, "open csv");
   fputs ("1.0,2.0\n3.0,4.0\n5.0,6.0\n", fp);
   fclose (fp);
   wfm_reader_state_t *r = wfm_reader_create (csv, 0, 0);
-  CHECK (r, "reader open renamed csv");
+  DP_REQUIRE_MSG (r, "reader open renamed csv");
   wfm_reader_info (r, &info);
-  CHECK (info.file_type == WFM_FT_CSV, "text I,Q is CSV whatever it is named");
-  CHECK (info.num_samples == 3, "and its length is counted");
+  DP_REQUIRE_MSG (info.file_type == WFM_FT_CSV,
+                  "text I,Q is CSV whatever it is named");
+  DP_REQUIRE_MSG (info.num_samples == 3, "and its length is counted");
   float _Complex y[4];
-  CHECK (wfm_reader_read (r, 4, y, 4) == 3, "reads as CSV");
-  CHECK (crealf (y[0]) == 1.0f && cimagf (y[2]) == 6.0f, "values intact");
+  DP_REQUIRE_MSG (wfm_reader_read (r, 4, y, 4) == 3, "reads as CSV");
+  DP_REQUIRE_MSG (crealf (y[0]) == 1.0f && cimagf (y[2]) == 6.0f,
+                  "values intact");
   wfm_reader_destroy (r);
 
   /* And the reverse: the BLUE magic outranks a .csv name. */
-  CHECK (write_hcb_only_capture ("dp_reader_named.csv", "COMMENT=x") == 0,
-         "write blue as .csv");
+  DP_REQUIRE_MSG (write_hcb_only_capture ("dp_reader_named.csv", "COMMENT=x")
+                      == 0,
+                  "write blue as .csv");
   r = wfm_reader_create ("dp_reader_named.csv", 0, 0);
-  CHECK (r, "reader open misnamed blue");
+  DP_REQUIRE_MSG (r, "reader open misnamed blue");
   wfm_reader_info (r, &info);
-  CHECK (info.file_type == WFM_FT_BLUE, "the magic wins over the name");
-  CHECK (info.num_samples == 4, "and the payload is located correctly");
+  DP_REQUIRE_MSG (info.file_type == WFM_FT_BLUE,
+                  "the magic wins over the name");
+  DP_REQUIRE_MSG (info.num_samples == 4,
+                  "and the payload is located correctly");
   wfm_reader_destroy (r);
   return 0;
 }
@@ -971,18 +1016,19 @@ test_sigmf_pair_from_create (void)
      so emitting only the samples produces an undecodable capture. */
   wfm_writer_state_t *w = wfm_writer_create (path, 2e6, WFM_FT_SIGMF, 3, 0,
                                              1.2e9, 4, 0.0, 0.0, true);
-  CHECK (w, "writer create");
-  CHECK (wfm_writer_write (w, xs, 4) == 4, "write");
-  CHECK (wfm_writer_close (w) == 0, "close");
+  DP_REQUIRE_MSG (w, "writer create");
+  DP_REQUIRE_MSG (wfm_writer_write (w, xs, 4) == 4, "write");
+  DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "close");
 
   wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
-  CHECK (r, "reader open — the sidecar must exist");
+  DP_REQUIRE_MSG (r, "reader open — the sidecar must exist");
   wfm_reader_info_t info;
   wfm_reader_info (r, &info);
-  CHECK (info.file_type == WFM_FT_SIGMF, "detected as SigMF");
-  CHECK (info.sample_type == 3, "ci16 recovered from the sidecar");
-  CHECK (info.fs == 2e6 && info.fc == 1.2e9, "fs/fc recovered");
-  CHECK (info.fc_source == WFM_FC_SIGMF, "and attributed to the sidecar");
+  DP_REQUIRE_MSG (info.file_type == WFM_FT_SIGMF, "detected as SigMF");
+  DP_REQUIRE_MSG (info.sample_type == 3, "ci16 recovered from the sidecar");
+  DP_REQUIRE_MSG (info.fs == 2e6 && info.fc == 1.2e9, "fs/fc recovered");
+  DP_REQUIRE_MSG (info.fc_source == WFM_FC_SIGMF,
+                  "and attributed to the sidecar");
   wfm_reader_destroy (r);
 
   /* Both halves are found by NAME, so the name is part of the format. The
@@ -990,12 +1036,12 @@ test_sigmf_pair_from_create (void)
      being unwritable -- otherwise this pair of checks would pass vacuously. */
   wfm_writer_state_t *ok = wfm_writer_create (
       "dp_reader_pair.bin", 2e6, WFM_FT_RAW, 3, 0, 0.0, 4, 0.0, 0.0, false);
-  CHECK (ok != NULL, "the same path is writable as raw");
-  CHECK (wfm_writer_close (ok) == 0, "control close");
-  CHECK (wfm_writer_create ("dp_reader_pair.bin", 2e6, WFM_FT_SIGMF, 3, 0, 0.0,
-                            4, 0.0, 0.0, true)
-             == NULL,
-         "a SigMF path must end in .sigmf-data");
+  DP_REQUIRE_MSG (ok != NULL, "the same path is writable as raw");
+  DP_REQUIRE_MSG (wfm_writer_close (ok) == 0, "control close");
+  DP_REQUIRE_MSG (wfm_writer_create ("dp_reader_pair.bin", 2e6, WFM_FT_SIGMF,
+                                     3, 0, 0.0, 4, 0.0, 0.0, true)
+                      == NULL,
+                  "a SigMF path must end in .sigmf-data");
   return 0;
 }
 

@@ -19,37 +19,12 @@
  *     constellation that both truth-free validators would otherwise pass.
  */
 #include "dp_ber_test.h"
+#include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static int _fails = 0;
-
-#define CHECK(cond)                                                           \
-  do                                                                          \
-    {                                                                         \
-      if (!(cond))                                                            \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
-
-#define CHECK_NEAR(a, b, tol)                                                 \
-  do                                                                          \
-    {                                                                         \
-      double _a = (a), _b = (b);                                              \
-      if (!(fabs (_a - _b) <= (tol)))                                         \
-        {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s=%.6g vs %s=%.6g (tol %g)\n",       \
-                   __FILE__, __LINE__, #a, _a, #b, _b, (double)(tol));        \
-          _fails++;                                                           \
-        }                                                                     \
-    }                                                                         \
-  while (0)
 
 /* --- stimulus helpers ---------------------------------------------------- */
 
@@ -102,27 +77,27 @@ test_theory (void)
 {
   /* The textbook anchors. BPSK hits 1e-5 at 9.6 dB; QPSK's SER is ~2x BPSK's
      at the same Es/N0 because it carries two bits in the same energy. */
-  CHECK (fabs (dp_ber_theory_ser (2, pow (10.0, 0.96)) - 9.7e-6) < 1.0e-6);
-  CHECK_NEAR (dp_ber_theory_ser (4, 10.0), 2.0 * dp_ber_qfunc (sqrt (10.0)),
-              1e-15);
-  CHECK (dp_ber_theory_ser (8, 10.0) > dp_ber_theory_ser (4, 10.0));
+  DP_CHECK (fabs (dp_ber_theory_ser (2, pow (10.0, 0.96)) - 9.7e-6) < 1.0e-6);
+  DP_CHECK_NEAR (dp_ber_theory_ser (4, 10.0), 2.0 * dp_ber_qfunc (sqrt (10.0)),
+                 1e-15);
+  DP_CHECK (dp_ber_theory_ser (8, 10.0) > dp_ber_theory_ser (4, 10.0));
 
   /* Gray QPSK is BPSK per bit: same BER at the same Eb/N0, i.e. QPSK at
      3 dB more Es/N0 than BPSK. */
-  CHECK_NEAR (dp_ber_theory_ber (4, 2.0 * 10.0), dp_ber_theory_ber (2, 10.0),
-              1e-12);
+  DP_CHECK_NEAR (dp_ber_theory_ber (4, 2.0 * 10.0),
+                 dp_ber_theory_ber (2, 10.0), 1e-12);
 
   /* The SER=1e-3 operating points quoted in the loop-design rules. */
-  CHECK_NEAR (dp_ber_esn0_db_for_ser (2, 1e-3), 6.8, 0.15);
-  CHECK_NEAR (dp_ber_esn0_db_for_ser (4, 1e-3), 10.3, 0.15);
-  CHECK_NEAR (dp_ber_esn0_db_for_ser (8, 1e-3), 15.7, 0.15);
+  DP_CHECK_NEAR (dp_ber_esn0_db_for_ser (2, 1e-3), 6.8, 0.15);
+  DP_CHECK_NEAR (dp_ber_esn0_db_for_ser (4, 1e-3), 10.3, 0.15);
+  DP_CHECK_NEAR (dp_ber_esn0_db_for_ser (8, 1e-3), 15.7, 0.15);
 
   /* Round-trip: the inverse really inverts. */
   for (int m = 2; m <= 8; m *= 2)
     for (double db = 4.0; db <= 18.0; db += 2.0)
       {
         double s = dp_ber_theory_ser (m, pow (10.0, db / 10.0));
-        CHECK_NEAR (dp_ber_esn0_db_for_ser (m, s), db, 0.01);
+        DP_CHECK_NEAR (dp_ber_esn0_db_for_ser (m, s), db, 0.01);
       }
 }
 
@@ -136,22 +111,22 @@ test_ci_exact (void)
      approximation gets worst, and the one that proves the quantiles really
      come from the exact Gamma relation. */
   dp_ber_ci_t c = dp_ber_ci (1, 1000, 0.99);
-  CHECK_NEAR (c.lo * 1000.0, -log (0.995), 1e-6);
-  CHECK_NEAR (c.hi * 1000.0, -log (0.005), 1e-6);
-  CHECK_NEAR (c.rel, 1.0, 1e-12);
+  DP_CHECK_NEAR (c.lo * 1000.0, -log (0.995), 1e-6);
+  DP_CHECK_NEAR (c.hi * 1000.0, -log (0.005), 1e-6);
+  DP_CHECK_NEAR (c.rel, 1.0, 1e-12);
 
   /* r = 0 is not an error: the one-sided exact bound p <= -ln(alpha)/N still
      holds, and reporting it is how "no errors in N symbols" is stated. */
   c = dp_ber_ci (0, 10000, 0.99);
-  CHECK (c.p_hat == 0.0);
-  CHECK (c.lo == 0.0);
-  CHECK_NEAR (c.hi * 10000.0, -log (0.01), 1e-6);
+  DP_CHECK (c.p_hat == 0.0);
+  DP_CHECK (c.lo == 0.0);
+  DP_CHECK_NEAR (c.hi * 10000.0, -log (0.01), 1e-6);
 
   /* The point estimate is the UNBIASED (r-1)/(N-1), not the naive r/N. */
   c = dp_ber_ci (200, 200000, 0.99);
-  CHECK_NEAR (c.p_hat, 199.0 / 199999.0, 1e-15);
-  CHECK_NEAR (c.rel, 1.0 / sqrt (200.0), 1e-12);
-  CHECK (c.lo < c.p_hat && c.p_hat < c.hi);
+  DP_CHECK_NEAR (c.p_hat, 199.0 / 199999.0, 1e-15);
+  DP_CHECK_NEAR (c.rel, 1.0 / sqrt (200.0), 1e-12);
+  DP_CHECK (c.lo < c.p_hat && c.p_hat < c.hi);
 
   /* The width is set by the ERROR count alone -- the property that makes
      inverse binomial sampling worth the trouble. Two runs with the same r and
@@ -161,9 +136,10 @@ test_ci_exact (void)
   {
     dp_ber_ci_t a = dp_ber_ci (200, 200000, 0.99);
     dp_ber_ci_t b = dp_ber_ci (200, 20000000, 0.99);
-    CHECK_NEAR (a.hi / a.p_hat, b.hi / b.p_hat, 1e-3);
-    CHECK_NEAR (a.lo / a.p_hat, b.lo / b.p_hat, 1e-3);
-    CHECK_NEAR (a.hi * 200000.0, b.hi * 20000000.0, 1e-9); /* exact in N*p */
+    DP_CHECK_NEAR (a.hi / a.p_hat, b.hi / b.p_hat, 1e-3);
+    DP_CHECK_NEAR (a.lo / a.p_hat, b.lo / b.p_hat, 1e-3);
+    DP_CHECK_NEAR (a.hi * 200000.0, b.hi * 20000000.0,
+                   1e-9); /* exact in N*p */
   }
 
   /* More errors -> tighter, monotonically. */
@@ -173,7 +149,7 @@ test_ci_exact (void)
       {
         dp_ber_ci_t k = dp_ber_ci (r, r * 1000, 0.99);
         double      w = k.hi / k.lo;
-        CHECK (w < prev);
+        DP_CHECK (w < prev);
         prev = w;
       }
   }
@@ -181,15 +157,15 @@ test_ci_exact (void)
   /* 200 errors is the documented ~7% relative / ~+-18% at 99%. */
   {
     dp_ber_ci_t k = dp_ber_ci (200, 200000, 0.99);
-    CHECK (k.hi / k.p_hat > 1.13 && k.hi / k.p_hat < 1.25);
-    CHECK (k.lo / k.p_hat > 0.79 && k.lo / k.p_hat < 0.89);
+    DP_CHECK (k.hi / k.p_hat > 1.13 && k.hi / k.p_hat < 1.25);
+    DP_CHECK (k.lo / k.p_hat > 0.79 && k.lo / k.p_hat < 0.89);
   }
 
   /* A wider confidence level must give a wider interval. */
   {
     dp_ber_ci_t a = dp_ber_ci (50, 50000, 0.95);
     dp_ber_ci_t b = dp_ber_ci (50, 50000, 0.99);
-    CHECK (b.lo < a.lo && b.hi > a.hi);
+    DP_CHECK (b.lo < a.lo && b.hi > a.hi);
   }
 }
 
@@ -221,8 +197,8 @@ test_ci_coverage (void)
     }
   /* Exact intervals are conservative, so coverage sits at or a little above
      the nominal level; a one-tail slip would drop it far below. */
-  CHECK ((double)covered / trials >= 0.975);
-  CHECK ((double)covered / trials <= 1.0);
+  DP_CHECK ((double)covered / trials >= 0.975);
+  DP_CHECK ((double)covered / trials <= 1.0);
   printf ("  CI coverage at 99%%, r=%lu: %.3f\n", r, (double)covered / trials);
 }
 
@@ -257,16 +233,16 @@ test_sync_resolves (void)
           build (rx, NSYM, truth, NSYM, m, lags[li], phases[pi], 0.15, &st);
           sy = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, DP_BER_LAG_SPAN,
                             DP_BER_SYNC_PFA);
-          CHECK (sy.ok);
-          CHECK (sy.lag == lags[li]);
+          DP_CHECK (sy.ok);
+          DP_CHECK (sy.lag == lags[li]);
           d = sy.phase - phases[pi];
           while (d > MPSK_PI)
             d -= 2.0 * MPSK_PI;
           while (d < -MPSK_PI)
             d += 2.0 * MPSK_PI;
-          CHECK_NEAR (d, 0.0, 0.05);
-          CHECK (sy.margin_db > 6.0);
-          CHECK (!sy.saturated);
+          DP_CHECK_NEAR (d, 0.0, 0.05);
+          DP_CHECK (sy.margin_db > 6.0);
+          DP_CHECK (!sy.saturated);
         }
   }
 
@@ -278,10 +254,10 @@ test_sync_resolves (void)
     dp_ber_marker_t mk = { NULL, 256, 1000, 0, 0 };
     build (rx, NSYM, truth, NSYM, m, 0, 0.0, 0.15, &st);
     sy = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, 20, DP_BER_SYNC_PFA);
-    CHECK (sy.ok); /* lag 0 is inside +-20 */
+    DP_CHECK (sy.ok); /* lag 0 is inside +-20 */
     build (rx, NSYM, truth, NSYM, m, 137, 0.0, 0.15, &st);
     sy = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, 20, DP_BER_SYNC_PFA);
-    CHECK (!sy.ok);
+    DP_CHECK (!sy.ok);
   }
 }
 
@@ -318,7 +294,7 @@ test_sync_rejects_garbage (void)
         alarms++;
     }
   /* 50 trials x 401 lags at a 1e-6 whole-search Pfa: zero expected. */
-  CHECK (alarms == 0);
+  DP_CHECK (alarms == 0);
   printf ("  sync false alarms on unrelated data: %d/%d\n", alarms, trials);
 
   /* Pure noise, likewise. */
@@ -332,7 +308,7 @@ test_sync_rejects_garbage (void)
       }
     sy = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, DP_BER_LAG_SPAN,
                       DP_BER_SYNC_PFA);
-    CHECK (!sy.ok);
+    DP_CHECK (!sy.ok);
   }
 
   /* A marker too short to identify an alignment says so, rather than
@@ -347,7 +323,7 @@ test_sync_rejects_garbage (void)
     build (rx, NSYM, truth, NSYM, m, 11, 0.0, 0.15, &st);
     sy = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, DP_BER_LAG_SPAN,
                       DP_BER_SYNC_PFA);
-    CHECK (!sy.ok);
+    DP_CHECK (!sy.ok);
   }
 }
 
@@ -385,14 +361,14 @@ test_score_counts_exactly (void)
 
   sy = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, DP_BER_LAG_SPAN,
                     DP_BER_SYNC_PFA);
-  CHECK (sy.ok);
-  CHECK (sy.lag == 5);
+  DP_CHECK (sy.ok);
+  DP_CHECK (sy.lag == 5);
 
   dp_ber_init (&acc, m, 200);
   dp_ber_score (&acc, rx, 1000, NSYM, truth, NSYM, &mk, &sy);
-  CHECK (acc.errors == 37);
-  CHECK (acc.bit_errors == 37); /* Gray: one neighbour step == one bit */
-  CHECK (acc.bits == acc.symbols * 2);
+  DP_CHECK (acc.errors == 37);
+  DP_CHECK (acc.bit_errors == 37); /* Gray: one neighbour step == one bit */
+  DP_CHECK (acc.bits == acc.symbols * 2);
 
   /* The marker symbols were EXCLUDED. The marker sits at truth [500, 756),
      i.e. rx [495, 751) -- entirely before the scored window here -- so widen
@@ -401,8 +377,8 @@ test_score_counts_exactly (void)
     dp_ber_t a2;
     dp_ber_init (&a2, m, 200);
     dp_ber_score (&a2, rx, 400, NSYM, truth, NSYM, &mk, &sy);
-    CHECK (a2.skipped >= 256);
-    CHECK (a2.symbols == (NSYM - 400) - a2.skipped);
+    DP_CHECK (a2.skipped >= 256);
+    DP_CHECK (a2.symbols == (NSYM - 400) - a2.skipped);
   }
 
   /* THE anti-footgun assertion. Hand scoring a deliberately wrong lag and it
@@ -417,7 +393,7 @@ test_score_counts_exactly (void)
     dp_ber_init (&bad, m, 200);
     dp_ber_score (&bad, rx, 1000, NSYM, truth, NSYM, NULL, &wrong);
     rate = (double)bad.errors / (double)bad.symbols;
-    CHECK (rate > 0.6);
+    DP_CHECK (rate > 0.6);
     printf ("  wrong-lag scoring reports %.3f (chance is 0.75)\n", rate);
   }
 
@@ -430,7 +406,7 @@ test_score_counts_exactly (void)
     dp_ber_init (&bad, m, 200);
     dp_ber_score (&bad, rx, 1000, NSYM, truth, NSYM, NULL, &wrong);
     rate = (double)bad.errors / (double)bad.symbols;
-    CHECK (rate > 0.9);
+    DP_CHECK (rate > 0.9);
   }
 }
 
@@ -446,19 +422,19 @@ test_settle (void)
   static unsigned char f[N];
 
   /* The analytic budget: 2*(5/0.01 + 5/0.01) = 2000, never 500. */
-  CHECK (dp_test_settle_syms (0.01, 0.01) == 2000);
-  CHECK (dp_ber_settle (0.01, 0.01, NULL, NULL, NULL, 0, NULL) == 2000);
+  DP_CHECK (dp_test_settle_syms (0.01, 0.01) == 2000);
+  DP_CHECK (dp_ber_settle (0.01, 0.01, NULL, NULL, NULL, 0, NULL) == 2000);
 
   /* A flag that goes high at 800 and stays high: lock at 800. */
   memset (f, 0, sizeof f);
   for (int i = 800; i < N; i++)
     f[i] = 1;
-  CHECK (dp_ber_lock_symbol (f, N, 200, 0.9) == 800);
+  DP_CHECK (dp_ber_lock_symbol (f, N, 200, 0.9) == 800);
 
   /* One late dip must NOT move the reported lock -- the failure that once
      reported 2286 instead of 415 and left no measurement window. */
   f[2500] = 0;
-  CHECK (dp_ber_lock_symbol (f, N, 200, 0.9) == 800);
+  DP_CHECK (dp_ber_lock_symbol (f, N, 200, 0.9) == 800);
 
   /* A detector that declares early then flaps fails the fraction test. */
   memset (f, 0, sizeof f);
@@ -466,16 +442,16 @@ test_settle (void)
     f[i] = 1;
   for (int i = 400; i < N; i++)
     f[i] = (i % 3) == 0;
-  CHECK (dp_ber_lock_symbol (f, N, 200, 0.9) < 0);
+  DP_CHECK (dp_ber_lock_symbol (f, N, 200, 0.9) < 0);
 
   /* Never locked -> -1, and dp_ber_settle reports ok = 0: there is no valid
      steady-state window and the caller must say so. */
   memset (f, 0, sizeof f);
-  CHECK (dp_ber_lock_symbol (f, N, 200, 0.9) == -1);
+  DP_CHECK (dp_ber_lock_symbol (f, N, 200, 0.9) == -1);
   {
     int ok = 1;
     dp_ber_settle (0.01, 0.01, f, NULL, NULL, N, &ok);
-    CHECK (!ok);
+    DP_CHECK (!ok);
   }
 
   /* A lock LATER than the budget wins. */
@@ -485,8 +461,8 @@ test_settle (void)
     memset (t, 0, sizeof t);
     for (int i = 2400; i < N; i++)
       t[i] = 1;
-    CHECK (dp_ber_settle (0.01, 0.01, t, NULL, NULL, N, &ok) == 2400);
-    CHECK (ok);
+    DP_CHECK (dp_ber_settle (0.01, 0.01, t, NULL, NULL, N, &ok) == 2400);
+    DP_CHECK (ok);
   }
 
   /* A handover contributes its instant PLUS the budget again -- the rule that
@@ -501,7 +477,7 @@ test_settle (void)
     for (int i = 900; i < N; i++)
       h[i] = 1;
     s = dp_ber_settle (0.005, 0.005, t, t, h, N, NULL);
-    CHECK (s == 900 + dp_test_settle_syms (0.005, 0.005));
+    DP_CHECK (s == 900 + dp_test_settle_syms (0.005, 0.005));
   }
 }
 
@@ -533,12 +509,12 @@ test_sanity_gate (void)
   dp_ber_init (&acc, m, 200);
   r = dp_ber_measure (&acc, rx, NSYM, truth, NSYM, esn0_db, 0, 1, NULL);
   dp_ber_print ("ideal QPSK @10.3dB", &r);
-  CHECK (r.aligned);
-  CHECK (r.sane);
-  CHECK (r.ser.lo <= dp_ber_theory_ser (m, pow (10.0, esn0_db / 10.0)));
-  CHECK (fabs (r.loss_db) < 1.0);
-  CHECK (fabs (r.evm_db + esn0_db) < 1.5);
-  CHECK (fabs (r.m2m4_db - esn0_db) < 1.5);
+  DP_CHECK (r.aligned);
+  DP_CHECK (r.sane);
+  DP_CHECK (r.ser.lo <= dp_ber_theory_ser (m, pow (10.0, esn0_db / 10.0)));
+  DP_CHECK (fabs (r.loss_db) < 1.0);
+  DP_CHECK (fabs (r.evm_db + esn0_db) < 1.5);
+  DP_CHECK (fabs (r.m2m4_db - esn0_db) < 1.5);
 
   /* "Better than theory" must be rejected. Forge an impossibly good count at
      the same Es/N0: this is what an alignment optimised over the answer, or
@@ -550,17 +526,17 @@ test_sanity_gate (void)
     fake.errors        = 2;
     fake.symbols       = 200000;
     f                  = dp_ber_report (&fake, esn0_db, &sy, 0, NSYM, 1, 0.99);
-    CHECK (!f.sane);
-    CHECK (!f.ok);
+    DP_CHECK (!f.sane);
+    DP_CHECK (!f.ok);
     printf ("  too-good-to-be-true rejected: %s\n", f.why);
   }
 
   /* The EVM floor is M-dependent, and knowing it is what makes the spin test
      below meaningful: a QPSK constellation with NO carrier recovery at all
      still reads -7.0 dB, not 0 dB. */
-  CHECK_NEAR (dp_test_evm_scatter_floor_db (2), -1.39, 0.02);
-  CHECK_NEAR (dp_test_evm_scatter_floor_db (4), -7.00, 0.02);
-  CHECK_NEAR (dp_test_evm_scatter_floor_db (8), -12.92, 0.02);
+  DP_CHECK_NEAR (dp_test_evm_scatter_floor_db (2), -1.39, 0.02);
+  DP_CHECK_NEAR (dp_test_evm_scatter_floor_db (4), -7.00, 0.02);
+  DP_CHECK_NEAR (dp_test_evm_scatter_floor_db (8), -12.92, 0.02);
 
   /* A SPINNING constellation. Both truth-free validators are individually
      fooled -- M2M4 is rotation-blind and still reads a healthy SNR, the
@@ -583,7 +559,7 @@ test_sanity_gate (void)
     dp_ber_init (&spin, m, 200);
     dp_ber_score (&spin, rx, 1000, NSYM, truth, NSYM, NULL, &sy);
     f = dp_ber_report (&spin, esn0_db, &sy, 1000, NSYM, 1, 0.99);
-    CHECK (!f.sane);
+    DP_CHECK (!f.sane);
     printf ("  spinning constellation rejected: %s  (evm %.1f m2m4 %.1f)\n",
             f.why, f.evm_db, f.m2m4_db);
   }
@@ -597,9 +573,9 @@ test_sanity_gate (void)
   {
     dp_ber_sync_t   sy = { 9, 0.7, 100.0, 1.0, 40.0, 20.0, 1, 0, 0, 1, "ok" };
     dp_ber_report_t f  = dp_ber_report (&acc, esn0_db, &sy, 0, NSYM, 0, 0.99);
-    CHECK (!f.ok);
-    CHECK (!f.settled);
-    CHECK (!f.sane); /* gate 1 fails first and shadows the rest */
+    DP_CHECK (!f.ok);
+    DP_CHECK (!f.settled);
+    DP_CHECK (!f.sane); /* gate 1 fails first and shadows the rest */
   }
 
   /* dp_ber_measure() must PROPAGATE the caller's settled flag rather than
@@ -609,8 +585,8 @@ test_sanity_gate (void)
     dp_ber_report_t f;
     dp_ber_init (&a3, m, 200);
     f = dp_ber_measure (&a3, rx, NSYM, truth, NSYM, esn0_db, 0, 0, NULL);
-    CHECK (!f.settled);
-    CHECK (!f.ok);
+    DP_CHECK (!f.settled);
+    DP_CHECK (!f.ok);
   }
 }
 
@@ -643,7 +619,7 @@ test_inverse_sampling_loop (void)
       dp_ber_measure (&acc, rx, NSYM, truth, NSYM, esn0_db, 0, 1, NULL);
       bursts++;
     }
-  CHECK (dp_ber_enough (&acc));
+  DP_CHECK (dp_ber_enough (&acc));
   r = dp_ber_report (&acc, esn0_db, NULL, 0, NSYM, 1, 0.99);
   printf ("  inverse sampling: %d bursts, r=%lu N=%lu, SER %.3e "
           "[%.3e, %.3e] vs theory %.3e\n",
@@ -652,8 +628,8 @@ test_inverse_sampling_loop (void)
   /* The stimulus IS the bound, so the interval must contain theory. This is
      the end-to-end proof that alignment, exclusion, counting and the interval
      are all mutually consistent. */
-  CHECK (r.ser.lo <= theory && theory <= r.ser.hi);
-  CHECK (r.ber.lo <= theory && theory <= r.ber.hi); /* BPSK: BER == SER */
+  DP_CHECK (r.ser.lo <= theory && theory <= r.ser.hi);
+  DP_CHECK (r.ber.lo <= theory && theory <= r.ber.hi); /* BPSK: BER == SER */
 }
 
 int
@@ -669,11 +645,5 @@ main (void)
   test_settle ();
   test_sanity_gate ();
   test_inverse_sampling_loop ();
-  if (_fails)
-    {
-      fprintf (stderr, "test_dp_ber FAILED (%d)\n", _fails);
-      return 1;
-    }
-  printf ("test_dp_ber PASSED\n");
-  return 0;
+  DP_TEST_END ("test_dp_ber");
 }

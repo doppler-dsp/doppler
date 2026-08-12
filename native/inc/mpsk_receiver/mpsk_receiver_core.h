@@ -507,12 +507,18 @@ extern "C"
    * pre-terminal stream's units precisely so it is not coupled to the loop
    * that is stretching the symbol grid (see RateConverter_enable_agc()).
    *
-   * Instrumenting it matters because it is the SLOWEST of the receiver's
-   * three loops by construction -- mpsk_rx_agc_bn() derives its bandwidth as
-   * a fraction of the slowest loop it feeds -- so it, not the carrier or
-   * timing loop, is what sets how long this receiver takes to become usable.
-   * Its settling was previously the one thing a caller had to infer; the
-   * zero-referenced "<prefix>.agc.level_db" is what makes it measurable.
+   * Instrumenting it matters because it is FIRST in the chain, and a level
+   * error is the one kind no downstream loop can correct for itself: a TED
+   * normalises by its own construct-time slope, so it reads a level error as
+   * a loop-gain error (A^2 Gardner, A DTTL) with no other reference to catch
+   * it.  This receiver also makes the AGC the slowest of its three loops by
+   * construction -- mpsk_rx_agc_bn() derives its bandwidth as a fraction of
+   * the slowest loop it feeds, and bn_agc_ratio is validated to (0, 1) -- but
+   * that is a choice of THIS composition, and slowest does not by itself mean
+   * longest: settling is set by the bandwidth AND by how far the level starts
+   * from the reference, which is unknown at construction.  Which is exactly
+   * why it has to be measured rather than inferred; the zero-referenced
+   * "<prefix>.agc.level_db" is what makes that possible.
    *
    * With @c agc = 0 at construction there is no AGC to attach and the two
    * probes are simply absent (eleven, not thirteen); this still returns

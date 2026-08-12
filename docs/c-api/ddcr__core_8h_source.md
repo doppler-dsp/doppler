@@ -105,6 +105,9 @@ extern "C"
 
   bool ddcr_get_clipped (const ddcr_state_t *s);
 
+  int ddcr_set_telemetry (ddcr_state_t *s, dp_tlm_t *tlm, const char *prefix,
+                          uint32_t decim);
+
 
 #ifdef __cplusplus
 }

@@ -142,7 +142,7 @@ extern "C"
  *
  * @par The detector's input is the AGC's one safety boundary
  * Every power reaching the EMA is put through @ref saturate into
- * @c [0, AGC_POWER_CEIL], with NaN sent to the **ceiling** — an unknown
+ * `[0, AGC_POWER_CEIL]`, with NaN sent to the **ceiling** — an unknown
  * level must drive the gain DOWN, since too little gain loses a signal
  * while too much rails everything downstream.
  *
@@ -240,7 +240,7 @@ extern "C"
    * the divide is amortised across a decimation chunk.
    *
    * @par Total, and it must be — it reads the exponent field directly
-   * @p p is saturated into @c [AGC_POWER_FLOOR, AGC_POWER_CEIL] first.  The
+   * @p p is saturated into `[AGC_POWER_FLOOR, AGC_POWER_CEIL]` first.  The
    * bit-field split has no notion of a special value: handed a NaN it reads
    * the exponent as an ordinary 1024 and returns a perfectly plausible
    * @c +308, where libm's @c log10 returns NaN.  Measured on the unguarded

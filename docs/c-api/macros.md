@@ -22,6 +22,7 @@
 * **ADC\_STATE\_VERSION** ([**adc\_core.h**](adc__core_8h.md))
 * **AGC\_CLIP\_DB\_DEFAULT** ([**agc\_core.h**](agc__core_8h.md))
 * **AGC\_DECIM\_DEFAULT** ([**agc\_core.h**](agc__core_8h.md))
+* **AGC\_POWER\_CEIL** ([**agc\_core.h**](agc__core_8h.md))
 * **AGC\_POWER\_FLOOR** ([**agc\_core.h**](agc__core_8h.md))
 * **AGC\_STATE\_MAGIC** ([**agc\_core.h**](agc__core_8h.md))
 * **AGC\_STATE\_VERSION** ([**agc\_core.h**](agc__core_8h.md))

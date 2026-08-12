@@ -718,7 +718,14 @@ int mpsk_receiver_r_set_telemetry (
 
 
 
-Registers the same eleven probes as [**mpsk\_receiver\_set\_telemetry()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_set_telemetry), whose contract it shares: the receiver's own "&lt;prefix&gt;.lock" and "&lt;prefix&gt;.tracking", the carrier loop's "&lt;prefix&gt;.car.e" / ".freq" / ".locked", and the symbol-timing loop's "&lt;prefix&gt;.sync.e" / ".ctrl" / ".rate" / ".lock" / ".locked" / ".mu" — all thinned by `decim` and emitted once per recovered symbol. Passing NULL detaches everything. Setup path, never hot; the context is borrowed and must outlive the attachment.
+Registers the same thirteen probes as [**mpsk\_receiver\_set\_telemetry()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_set_telemetry), whose contract it shares in full: the receiver's own "&lt;prefix&gt;.lock" and "&lt;prefix&gt;.tracking", the carrier loop's "&lt;prefix&gt;.car.e" / ".freq" / ".locked", and the symbol-timing loop's "&lt;prefix&gt;.sync.e" / ".ctrl" / ".rate" / ".lock" / ".locked" / ".mu" — eleven emitted once per recovered symbol — then the front end's AGC under "&lt;prefix&gt;.agc" (".gain\_db" and ".level\_db"), forwarded through [**ddcr\_set\_telemetry()**](ddcr__core_8h.md#function-ddcr_set_telemetry). All thinned by `decim`. Passing NULL detaches everything. Setup path, never hot; the context is borrowed and must outlive the attachment.
+
+
+
+
+**Warning:**
+
+As on the complex twin, the two AGC probes are on the cascade's pre-terminal grid rather than the symbol grid, so their record count differs from the other eleven — compare by time, not by index. See [**mpsk\_receiver\_set\_telemetry()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_set_telemetry) for why, and for why that AGC is the loop that sets the receiver's warmup.
 
 
 
@@ -729,13 +736,13 @@ Registers the same eleven probes as [**mpsk\_receiver\_set\_telemetry()**](mpsk_
 * `state` Must be non-NULL. 
 * `tlm` Telemetry context to attach, or NULL to detach. 
 * `prefix` Probe-name prefix, e.g. "rx". 
-* `decim` Emit every decim-th symbol; &gt;= 1. 
+* `decim` Emit every decim-th symbol (every decim-th gain update for the two AGC probes); &gt;= 1. 
 
 
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take the eleven probes (the attach fails whole; everything detached). 
+DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take the probes (the attach fails whole; everything detached). 
 ```C++
 >>> import numpy as np
 >>> from doppler.track import MpskReceiverR
@@ -744,7 +751,7 @@ DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take the eleven probes (
 >>> rx = MpskReceiverR(m=4, sps=10, m_out=2, init_norm_freq=0.25)
 >>> rx.set_telemetry(tlm, "rx")
 >>> len(tlm.probe_names)
-11
+13
 >>> rng = np.random.default_rng(7)
 >>> idx = rng.integers(0, 4, 512)
 >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 10)
@@ -758,6 +765,9 @@ DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take the eleven probes (
 >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
 >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
 >>> n_sync > 0 and n_sync == n_car
+True
+>>> n_agc = len(recs[recs["probe"] == tlm.probe_id("rx.agc.gain_db")])
+>>> n_agc > 0 and n_agc != n_sync   # cascade grid, not symbol grid
 True
 ```
  

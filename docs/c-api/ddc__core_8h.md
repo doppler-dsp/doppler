@@ -93,6 +93,7 @@ _Digital Down-Converter — composes LO + RateConverter cascade._ [More...](#det
 |  size\_t | [**ddc\_run**](#function-ddc_run) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, const void \* state\_in, void \* state\_out, const float complex \* in, size\_t n\_in, float complex \* out, size\_t max\_out) <br>_Pure run:_ `(state_in, input) -> (state_out, output)` _; either blob may be NULL (NULL in = current; NULL out = discard)._ |
 |  void | [**ddc\_set\_norm\_freq**](#function-ddc_set_norm_freq) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, double val) <br>_Retune the LO without resetting phase or resampler history. Updates the NCO phase increment atomically so the carrier shift changes seamlessly across block boundaries. The resampler history and LO phase accumulator are left intact, avoiding the transient that a full reset would cause._  |
 |  int | [**ddc\_set\_state**](#function-ddc_set_state) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, const void \* blob) <br>_Restore LO + RateConverter state from_ `blob` _._ |
+|  int | [**ddc\_set\_telemetry**](#function-ddc_set_telemetry) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context on the cascade's AGC._  |
 |  size\_t | [**ddc\_state\_bytes**](#function-ddc_state_bytes) (const [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br>_Byte size of_ `state's` _blob (envelope + extra + lo + rc)._ |
 
 
@@ -895,6 +896,49 @@ int ddc_set_state (
 **Returns:**
 
 DP\_OK, or DP\_ERR\_INVALID if the envelope/rate rejects. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function ddc\_set\_telemetry 
+
+_Attach (or detach) a telemetry context on the cascade's AGC._ 
+```C++
+int ddc_set_telemetry (
+    ddc_state_t * state,
+    dp_tlm_t * tlm,
+    const char * prefix,
+    uint32_t decim
+) 
+```
+
+
+
+Forwarded verbatim to [**RateConverter\_set\_telemetry()**](RateConverter__core_8h.md#function-rateconverter_set_telemetry): the mixer and the fixed stages have no loop to report, so the one instrumented child is the cascade's pre-terminal AGC ("&lt;prefix&gt;.gain\_db" and "&lt;prefix&gt;.level\_db"). DP\_OK with no probes when the cascade has no AGC enabled. Setup path, never hot; the context is borrowed and must outlive the attachment.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `tlm` Telemetry context to attach, or NULL to detach. 
+* `prefix` Probe-name prefix, e.g. "rx.agc". 
+* `decim` Emit every decim-th gain update; &gt;= 1. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take the AGC's probes (the attach fails whole). 
 
 
 

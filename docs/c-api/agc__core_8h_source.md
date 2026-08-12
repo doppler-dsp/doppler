@@ -26,6 +26,8 @@ extern "C"
 
 #define AGC_POWER_FLOOR 1e-30
 
+#define AGC_POWER_CEIL 2.3158417847463238e77
+
 #define AGC_DECIM_DEFAULT 8
 
 #define AGC_CLIP_DB_DEFAULT 120.0
@@ -33,7 +35,10 @@ extern "C"
   JM_FORCEINLINE double
   agc_exp10_ (double v)
   {
-    double z = v * 3.321928094887362; /* z = v * log2(10)        */
+    /* Bound BEFORE floor(): (int64_t) of a huge double is itself undefined,
+       so the saturation cannot wait until the cast. */
+    double z = saturate (v * 3.321928094887362, /* z = v * log2(10) */
+                         -1023.0, 1023.0, -1023.0);
     double zi = floor (z);
     double u = (z - zi) * 0.6931471805599453; /* frac(z) * ln2, [0, ln2) */
     /* 2^frac = e^u via 4th-order Taylor: 1 + u + u^2/2 + u^3/6 + u^4/24. */
@@ -55,6 +60,11 @@ extern "C"
   JM_FORCEINLINE double
   agc_log10_ (double p)
   {
+    /* NaN to the CEILING: for a measured LEVEL, unknown must read loud, so
+       the loop it feeds turns the gain down.  Same rule as AGC_POWER_CEIL,
+       stated the other way round from agc_exp10_'s because this is a level
+       and that is a gain. */
+    p = saturate (p, AGC_POWER_FLOOR, AGC_POWER_CEIL, AGC_POWER_CEIL);
     uint64_t bits;
     memcpy (&bits, &p, sizeof bits);
     int e = (int)((bits >> 52) & 0x7FF) - 1023; /* p = m * 2^e       */
@@ -76,9 +86,9 @@ extern "C"
 
   typedef struct
   {
-    dp_tlm_t *ctx;     /* NULL = detached                   */
-    int32_t   id_gain; /* probe id from a successful attach */
-    int32_t   _pad;
+    dp_tlm_t *ctx;      /* NULL = detached                    */
+    int32_t   id_gain;  /* probe ids from a successful attach  */
+    int32_t   id_level; /* (fills what used to be _pad)        */
   } agc_tlm_t;
 
   typedef struct
@@ -139,7 +149,10 @@ void agc_reset(agc_state_t *state);
      * exactly as the per-sample loop, so the detector trajectory is unchanged
      * by the period; only the loop-filter command below is decimated. */
     double p = agc_power_ (y);
-    state->p_avg += state->alpha * (p - state->p_avg);
+    state->p_avg
+        += state->alpha
+           * (saturate (p, 0.0, AGC_POWER_CEIL, AGC_POWER_CEIL)
+              - state->p_avg);
 
     /* Stage 3: 1st-order loop filter — once per period.  Integrate the dB
      * error with step size period*4*loop_bw, so the integrator advances at
@@ -155,8 +168,11 @@ void agc_reset(agc_state_t *state);
         state->clip_lin = (float)agc_exp10_ (state->clip_db * 0.05);
         state->gain_phase = 0;
         /* Telemetry tap — per gain-update event (already amortised by the
-         * period), one branch when detached. */
+         * period), one branch when detached.  `meas_db` is the level the
+         * detector believes it has BEFORE this update's correction, so the
+         * pair reads as (command, what it was answering). */
         DP_TLM (state->tlm.ctx, state->tlm.id_gain, state->gain_db);
+        DP_TLM (state->tlm.ctx, state->tlm.id_level, meas_db);
       }
 
     /* Output clip — square clip (I and Q independent) to the cached level,
@@ -170,6 +186,9 @@ void agc_reset(agc_state_t *state);
 
 double agc_get_applied_gain_db(const agc_state_t *state);
 
+  size_t agc_settling_samples (double loop_bw, double alpha,
+                               double gain_err_db, double tol_db);
+
 int agc_set_telemetry(agc_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
@@ -182,6 +201,7 @@ int agc_set_telemetry(agc_state_t *state, dp_tlm_t * tlm, const char * prefix, u
   void    agc_get_state (const agc_state_t *state, void *blob);
   int     agc_set_state (agc_state_t *state, const void *blob);
 
+size_t settling_samples(double loop_bw, double alpha, double gain_err_db, double tol_db);
 #ifdef __cplusplus
 }
 #endif

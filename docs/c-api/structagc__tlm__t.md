@@ -36,9 +36,9 @@ _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (t
 
 | Type | Name |
 | ---: | :--- |
-|  int32\_t | [**\_pad**](#variable-_pad)  <br> |
 |  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**ctx**](#variable-ctx)  <br> |
 |  int32\_t | [**id\_gain**](#variable-id_gain)  <br> |
+|  int32\_t | [**id\_level**](#variable-id_level)  <br> |
 
 
 
@@ -88,19 +88,6 @@ _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (t
 
 
 
-### variable \_pad 
-
-```C++
-int32_t agc_tlm_t::_pad;
-```
-
-
-
-
-<hr>
-
-
-
 ### variable ctx 
 
 ```C++
@@ -118,6 +105,19 @@ dp_tlm_t* agc_tlm_t::ctx;
 
 ```C++
 int32_t agc_tlm_t::id_gain;
+```
+
+
+
+
+<hr>
+
+
+
+### variable id\_level 
+
+```C++
+int32_t agc_tlm_t::id_level;
 ```
 
 

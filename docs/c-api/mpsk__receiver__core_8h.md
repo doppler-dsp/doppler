@@ -100,7 +100,7 @@ _Pulse-shaped M-PSK receiver: a tuned matched DDC and two loops._ [More...](#det
 |  void | [**mpsk\_receiver\_reset**](#function-mpsk_receiver_reset) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Re-seed the front end and both loops to their create-time state._  |
 |  void | [**mpsk\_receiver\_set\_norm\_freq**](#function-mpsk_receiver_set_norm_freq) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, double val) <br>_Retune to_ `val` _cycles/sample: moves the LO centre there and zeroes the loop's residual estimate, so norm\_freq reads back exactly._ |
 |  int | [**mpsk\_receiver\_set\_state**](#function-mpsk_receiver_set_state) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const void \* blob) <br> |
-|  int | [**mpsk\_receiver\_set\_telemetry**](#function-mpsk_receiver_set_telemetry) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "&lt;prefix&gt;.lock" probe (the carrier lock EMA) and "&lt;prefix&gt;.tracking" (the two-way handover decision, 0/1 — so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then the carrier loop's "&lt;prefix&gt;.car.e" / ".freq" / ".locked" and the symbol-timing loop's "&lt;prefix&gt;.sync.e" / ".ctrl" / ".rate" / ".lock" / ".locked" / ".mu"_  _eleven probes total, all thinned by_`decim` _and all emitted once per recovered symbol. Passing NULL detaches everything. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
+|  int | [**mpsk\_receiver\_set\_telemetry**](#function-mpsk_receiver_set_telemetry) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "&lt;prefix&gt;.lock" probe (the carrier lock EMA) and "&lt;prefix&gt;.tracking" (the two-way handover decision, 0/1 — so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then the carrier loop's "&lt;prefix&gt;.car.e" / ".freq" / ".locked" and the symbol-timing loop's "&lt;prefix&gt;.sync.e" / ".ctrl" / ".rate" / ".lock" / ".locked" / ".mu"_  _eleven probes emitted once per recovered symbol_ _then the front end's AGC under "&lt;prefix&gt;.agc" ("&lt;prefix&gt;.agc.gain\_db" and "&lt;prefix&gt;.agc.level\_db"; see_[_**agc\_set\_telemetry()**_](agc__core_8h.md#function-agc_set_telemetry) _). Thirteen probes total, all thinned by_`decim` _. Passing NULL detaches everything._ |
 |  size\_t | [**mpsk\_receiver\_state\_bytes**](#function-mpsk_receiver_state_bytes) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_receiver\_step\_ted**](#function-mpsk_receiver_step_ted) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* s, float complex x, float complex \* y\_out, int ted) <br>_Push one input sample; emit a symbol if it completed one._  |
 |  size\_t | [**mpsk\_receiver\_steps**](#function-mpsk_receiver_steps) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Demodulate a cf32 block and emit the recovered symbols._  |
@@ -731,7 +731,7 @@ int mpsk_receiver_set_state (
 
 ### function mpsk\_receiver\_set\_telemetry 
 
-_Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "&lt;prefix&gt;.lock" probe (the carrier lock EMA) and "&lt;prefix&gt;.tracking" (the two-way handover decision, 0/1 — so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then the carrier loop's "&lt;prefix&gt;.car.e" / ".freq" / ".locked" and the symbol-timing loop's "&lt;prefix&gt;.sync.e" / ".ctrl" / ".rate" / ".lock" / ".locked" / ".mu"_  _eleven probes total, all thinned by_`decim` _and all emitted once per recovered symbol. Passing NULL detaches everything. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._
+_Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "&lt;prefix&gt;.lock" probe (the carrier lock EMA) and "&lt;prefix&gt;.tracking" (the two-way handover decision, 0/1 — so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then the carrier loop's "&lt;prefix&gt;.car.e" / ".freq" / ".locked" and the symbol-timing loop's "&lt;prefix&gt;.sync.e" / ".ctrl" / ".rate" / ".lock" / ".locked" / ".mu"_  _eleven probes emitted once per recovered symbol_ _then the front end's AGC under "&lt;prefix&gt;.agc" ("&lt;prefix&gt;.agc.gain\_db" and "&lt;prefix&gt;.agc.level\_db"; see_[_**agc\_set\_telemetry()**_](agc__core_8h.md#function-agc_set_telemetry) _). Thirteen probes total, all thinned by_`decim` _. Passing NULL detaches everything._
 ```C++
 int mpsk_receiver_set_telemetry (
     mpsk_receiver_state_t * state,
@@ -745,28 +745,41 @@ int mpsk_receiver_set_telemetry (
 
 
 
+**Warning:**
+
+The two AGC probes are NOT at the symbol rate the other eleven are. That AGC sits pre-terminal in the cascade (RateConverter's tap, ahead of the stage the timing loop steers) and emits once per gain-update event, i.e. every `AGC_DECIM_DEFAULT` samples of that fixed-rate stream  so it reports on a grid that depends on the planned cascade, not on recovered symbols, and a run yields a different number of AGC records than carrier records. Compare the two by TIME, never by record index. This is deliberate: the AGC's bandwidth is quoted in the pre-terminal stream's units precisely so it is not coupled to the loop that is stretching the symbol grid (see [**RateConverter\_enable\_agc()**](RateConverter__core_8h.md#function-rateconverter_enable_agc)).
+
+
+Instrumenting it matters because it is FIRST in the chain, and a level error is the one kind no downstream loop can correct for itself: a TED normalises by its own construct-time slope, so it reads a level error as a loop-gain error (A^2 Gardner, A DTTL) with no other reference to catch it. This receiver also makes the AGC the slowest of its three loops by construction  [**mpsk\_rx\_agc\_bn()**](mpsk__rx__loops_8h.md#function-mpsk_rx_agc_bn) derives its bandwidth as a fraction of the slowest loop it feeds, and bn\_agc\_ratio is validated to (0, 1)  but that is a choice of THIS composition, and slowest does not by itself mean longest: settling is set by the bandwidth AND by how far the level starts from the reference, which is unknown at construction. Which is exactly why it has to be measured rather than inferred; the zero-referenced "&lt;prefix&gt;.agc.level\_db" is what makes that possible.
+
+
+With `agc` = 0 at construction there is no AGC to attach and the two probes are simply absent (eleven, not thirteen); this still returns DP\_OK.
+
+
+Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in [**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)). 
+
 **Parameters:**
 
 
 * `state` Must be non-NULL. 
 * `tlm` Telemetry context to attach, or NULL to detach. 
 * `prefix` Probe-name prefix, e.g. "rx". 
-* `decim` Emit every decim-th symbol; &gt;= 1. 
+* `decim` Emit every decim-th symbol (every decim-th gain update for the two AGC probes); &gt;= 1. 
 
 
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take the eleven probes (the attach fails whole; everything detached). 
+DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take the probes (the attach fails whole; everything detached). 
 ```C++
 >>> import numpy as np
 >>> from doppler.track import MpskReceiver
 >>> from doppler.telemetry import Telemetry
->>> tlm = Telemetry(1 << 14)   # 11 probes x ~512 syms + headroom
+>>> tlm = Telemetry(1 << 14)   # 13 probes x ~512 syms + headroom
 >>> rx = MpskReceiver(m=4, sps=4, m_out=2)
 >>> rx.set_telemetry(tlm, "rx")
 >>> len(tlm.probe_names)
-11
+13
 >>> rng = np.random.default_rng(7)
 >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
 >>> x = np.repeat(syms, 4)
@@ -777,6 +790,9 @@ DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take the eleven probes (
 >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
 >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
 >>> n_sync > 0 and n_sync == n_car
+True
+>>> n_agc = len(recs[recs["probe"] == tlm.probe_id("rx.agc.gain_db")])
+>>> n_agc > 0 and n_agc != n_sync   # cascade grid, not symbol grid
 True
 ```
  

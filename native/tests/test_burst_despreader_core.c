@@ -128,8 +128,15 @@ main (void)
     float    sigma = 1.0f; /* per-component input noise std (A = 1) */
     burst          = make_burst (code, sf, sps, nsym, 0.0, tx, &blen);
     for (size_t i = 0; i < blen; i++)
-      burst[i] += CMPLXF (sigma * (float)dp_gauss (&st),
-                          sigma * (float)dp_gauss (&st));
+      {
+        /* Sequenced: CMPLXF's two arguments are
+           indeterminately sequenced too. gcc and clang happen to
+           agree here (real takes the first draw); pinned anyway,
+           because "they agree today" is not a guarantee. */
+        float n_re = sigma * (float)dp_gauss (&st);
+        float n_im = sigma * (float)dp_gauss (&st);
+        burst[i] += CMPLXF (n_re, n_im);
+      }
     /* Narrow loops: snr_est measures the EFFECTIVE post-loop SNR — the
      * tracking loops' residual phase jitter rotates signal energy into
      * Im, so the estimate sits below the AWGN-only value by the jitter

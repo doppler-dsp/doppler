@@ -161,9 +161,15 @@ main (void)
       {
         uint32_t ns = 5u;
         for (size_t k = 0; k < N; k++)
-          rx[k] = (float complex)cexp (I * TWOPI * f0 * (double)k)
-                  + 0.05f * (float)dp_gauss (&ns)
-                  + 0.05f * (float)dp_gauss (&ns) * I;
+          {
+            /* Sequenced: two draws in one expression are indeterminately
+               sequenced, and gcc takes the imaginary operand first while
+               clang takes the real one. gcc's order is pinned. */
+            float n_im = 0.05f * (float)dp_gauss (&ns);
+            float n_re = 0.05f * (float)dp_gauss (&ns);
+            rx[k] = (float complex)cexp (I * TWOPI * f0 * (double)k) + n_re
+                    + n_im * I;
+          }
         carrier_nda_state_t *c
             = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, ms[mi]);
         double f, lk;
@@ -194,10 +200,11 @@ main (void)
                 = mpsk_constellation ((int)(dp_xs32 (&ds) % (uint32_t)m), m);
             for (int i = 0; i < sps; i++)
               {
-                size_t k = s * (size_t)sps + (size_t)i;
-                rx[k]    = a * (float complex)cexp (I * TWOPI * f0 * (double)k)
-                           + 0.1f * (float)dp_gauss (&ns)
-                           + 0.1f * (float)dp_gauss (&ns) * I;
+                size_t k    = s * (size_t)sps + (size_t)i;
+                float  n_im = 0.1f * (float)dp_gauss (&ns); /* gcc's order */
+                float  n_re = 0.1f * (float)dp_gauss (&ns);
+                rx[k] = a * (float complex)cexp (I * TWOPI * f0 * (double)k)
+                        + n_re + n_im * I;
               }
           }
         carrier_nda_state_t *c
@@ -219,9 +226,12 @@ main (void)
     float complex *rx = malloc (N * sizeof (*rx));
     uint32_t       ns = 3u;
     for (size_t k = 0; k < N; k++)
-      rx[k] = (float complex)cexp (I * TWOPI * 0.0012 * (double)k)
-              + 0.05f * (float)dp_gauss (&ns)
-              + 0.05f * (float)dp_gauss (&ns) * I;
+      {
+        float n_im = 0.05f * (float)dp_gauss (&ns); /* gcc's order */
+        float n_re = 0.05f * (float)dp_gauss (&ns);
+        rx[k] = (float complex)cexp (I * TWOPI * 0.0012 * (double)k) + n_re
+                + n_im * I;
+      }
     carrier_nda_state_t *c = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
     double               f1, lk1, f2, lk2;
     run (c, rx, N, &f1, &lk1);
@@ -360,9 +370,12 @@ main (void)
     double         f0 = 0.001;
     uint32_t       ns = 23u;
     for (size_t k = 0; k < N; k++)
-      rx[k] = (float complex)cexp (I * TWOPI * f0 * (double)k)
-              + 0.05f * (float)dp_gauss (&ns)
-              + 0.05f * (float)dp_gauss (&ns) * I;
+      {
+        float n_im = 0.05f * (float)dp_gauss (&ns); /* gcc's order */
+        float n_re = 0.05f * (float)dp_gauss (&ns);
+        rx[k]      = (float complex)cexp (I * TWOPI * f0 * (double)k) + n_re
+                     + n_im * I;
+      }
     /* 1e-4 .. 1e4 — eight decades, centred on the unit scale the retired
      * AGC used to be the only way to reach. */
     double scales[] = { 1e-4, 1e-2, 1.0, 1e2, 1e4 };

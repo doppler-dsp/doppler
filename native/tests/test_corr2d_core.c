@@ -16,6 +16,22 @@ _rand_uniform (uint32_t *s)
   return ((float)(dp_xs32 (s) % 20001u) - 10000.0f) / 10000.0f;
 }
 
+/* One complex sample, drawn in a DEFINED order.
+ *
+ * `_rand_uniform (&s) + _rand_uniform (&s) * I` reads fine and is not: the
+ * two calls are indeterminately sequenced (C11 6.5.2.2p10), and gcc and
+ * clang disagree about which runs first — gcc gives the real part the SECOND
+ * draw, clang the first. doppler builds this file with both (`make test` is
+ * gcc, `make coverage` is clang), so that spelling produced two different
+ * fixtures. gcc's order is preserved here. See dp_rng_test.h. */
+static float complex
+_rand_cplx (uint32_t *s)
+{
+  float im = _rand_uniform (s);
+  float re = _rand_uniform (s);
+  return re + im * I;
+}
+
 /* Hand-written O(n^2) circular cross-correlation, matching corr2d's own
  * definition R[i,j] = IFFT2(FFT2(x)*conj(FFT2(h)))/(ny*nx) directly from
  * its time-domain form (the DFT correlation theorem):
@@ -185,9 +201,9 @@ main (void)
     uint32_t      seed          = 12345u;
     float complex dense_ref[35] = { 0 }, dense_in[35], expect[35], out[35];
     for (size_t j = 0; j < nx; j++)
-      dense_ref[j] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
+      dense_ref[j] = _rand_cplx (&seed);
     for (size_t k = 0; k < n; k++)
-      dense_in[k] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
+      dense_in[k] = _rand_cplx (&seed);
 
     /* single-row ref -> fast path */
     corr2d_state_t *fast = corr2d_create (dense_ref, ny, nx, 1, 1, 0, 0);
@@ -202,7 +218,7 @@ main (void)
      * no non-impulse correctness check for this path either. */
     float complex dense_ref2[35];
     for (size_t k = 0; k < n; k++)
-      dense_ref2[k] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
+      dense_ref2[k] = _rand_cplx (&seed);
     corr2d_state_t *slow = corr2d_create (dense_ref2, ny, nx, 1, 1, 0, 0);
     DP_CHECK (slow != NULL && slow->fast_path == 0);
     corr2d_execute (slow, dense_in, n, out, n);
@@ -277,11 +293,11 @@ main (void)
     float complex row_ref[35] = { 0 }, full_ref[35], input[35];
     float complex full[35], part[35];
     for (size_t j = 0; j < nx; j++)
-      row_ref[j] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
+      row_ref[j] = _rand_cplx (&seed);
     for (size_t k = 0; k < n; k++)
       {
-        full_ref[k] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
-        input[k]    = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
+        full_ref[k] = _rand_cplx (&seed);
+        input[k]    = _rand_cplx (&seed);
       }
 
     for (int which = 0; which < 2; which++)

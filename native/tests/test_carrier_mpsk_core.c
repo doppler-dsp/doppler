@@ -42,8 +42,15 @@ make_signal (float complex *rx, int *labels, size_t nsym, size_t tsamps, int m,
           float complex c = cexpf ((float)phase * I);
           rx[k]           = pt * c;
           if (sigma > 0.0f)
-            rx[k] += CMPLXF (sigma * (float)dp_gauss (&nst),
-                             sigma * (float)dp_gauss (&nst));
+            {
+              /* Sequenced: CMPLXF's two arguments are
+                 indeterminately sequenced too. gcc and clang happen to
+                 agree here (real takes the first draw); pinned anyway,
+                 because "they agree today" is not a guarantee. */
+              float n_re = sigma * (float)dp_gauss (&nst);
+              float n_im = sigma * (float)dp_gauss (&nst);
+              rx[k] += CMPLXF (n_re, n_im);
+            }
           phase += w;
           w += ramp * 2.0 * M_PI;
         }

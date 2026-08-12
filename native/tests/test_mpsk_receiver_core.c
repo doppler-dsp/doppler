@@ -69,8 +69,12 @@ make_mpsk (float complex *tx, int *idx, int m, double foff, double snr_db,
           size_t        n  = k * (size_t)SPS + j;
           double        ph = 2.0 * M_PI * foff * (double)n;
           float complex c  = (float)cos (ph) + (float)sin (ph) * I;
-          float complex w  = (float)(sigma * dp_gauss (&st))
-                             + (float)(sigma * dp_gauss (&st)) * I;
+          /* Sequenced: indeterminately-sequenced calls in one
+             expression, and gcc and clang pick opposite orders. gcc's is
+             pinned. */
+          double        wi = sigma * dp_gauss (&st);
+          double        wr = sigma * dp_gauss (&st);
+          float complex w  = (float)wr + (float)wi * I;
           tx[n]            = s * c + w;
         }
     }

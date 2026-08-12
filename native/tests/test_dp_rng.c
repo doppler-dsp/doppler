@@ -163,14 +163,23 @@ main (void)
   }
 
   {
+    /* 1e-6, not 1e-7. `dp_cgauss` returns FLOAT, and a float's ulp at
+       |x| >= 1 is 1.192e-7 — larger than a 1e-7 bound, so `im[2]`
+       (-1.3314296) could not have absorbed the single-ulp libm difference
+       this whole block exists to tolerate. Exactly one of the six values is
+       affected, which is why it read as fine: the other five are < 1.0,
+       where the ulp is <= 5.96e-8 and there was over a ulp of headroom. A
+       tolerance has to be checked against the magnitudes it will see, not
+       just against the ones in front of you. (The 1e-12 bounds on the
+       `double` generators above have thousands of ulp of room.) */
     static const double re[] = { -0.397298366, -0.624116182, 0.121869877 };
     static const double im[] = { 0.307486296, 0.18006584, -1.3314296 };
     uint32_t            st   = SEED;
     for (size_t i = 0; i < sizeof re / sizeof *re; i++)
       {
         float complex z = dp_cgauss (&st);
-        DP_CHECK_NEAR (crealf (z), re[i], 1e-7);
-        DP_CHECK_NEAR (cimagf (z), im[i], 1e-7);
+        DP_CHECK_NEAR (crealf (z), re[i], 1e-6);
+        DP_CHECK_NEAR (cimagf (z), im[i], 1e-6);
       }
   }
 

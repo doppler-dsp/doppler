@@ -43,8 +43,16 @@ build (float complex *rx, size_t n_rx, const uint8_t *truth, size_t n_truth,
       double th = phase;
       if (t >= 0 && (size_t)t < n_truth)
         th += 2.0 * MPSK_PI * (double)truth[t] / (double)m + phi0;
-      rx[i] = (float)(cos (th) + sigma * dp_gauss64 (st))
-              + (float)(sin (th) + sigma * dp_gauss64 (st)) * I;
+      /* Sequenced. Two calls in one expression are INDETERMINATELY
+         sequenced (C11 6.5.2.2p10) — not UB, but the order is the
+         compiler's, and gcc and clang genuinely differ here: gcc evaluates
+         the imaginary operand first, clang the real one. `make test` is gcc
+         and `make coverage` is clang, so this line drew two different noise
+         streams depending on the job. Pinned to gcc's order, the one the
+         assertions were tuned against. */
+      double n_im = sigma * dp_gauss64 (st);
+      double n_re = sigma * dp_gauss64 (st);
+      rx[i]       = (float)(cos (th) + n_re) + (float)(sin (th) + n_im) * I;
     }
 }
 
@@ -281,8 +289,10 @@ test_sync_rejects_garbage (void)
     dp_ber_marker_t mk = { NULL, 256, 1000, 0, 0 };
     for (int i = 0; i < NSYM; i++)
       {
-        truth[i] = (uint8_t)(dp_xs64 (&st) % 4u);
-        rx[i]    = (float)dp_gauss64 (&st) + (float)dp_gauss64 (&st) * I;
+        truth[i]    = (uint8_t)(dp_xs64 (&st) % 4u);
+        double n_im = dp_gauss64 (&st); /* gcc's order — see build() */
+        double n_re = dp_gauss64 (&st);
+        rx[i]       = (float)n_re + (float)n_im * I;
       }
     sy = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, DP_BER_LAG_SPAN,
                       DP_BER_SYNC_PFA);

@@ -93,20 +93,55 @@
  * existing stream: xorshift is a bijection on the nonzero states, so a
  * generator that starts nonzero never reaches 0.
  *
+ * **The cost of that substitution: seeds 0 and 1 alias.** They are the same
+ * stream, so a sweep written `for (uint32_t s = 0; s < N; s++)` gets `N-1`
+ * distinct realizations while reporting `N` — a small bias in exactly the
+ * Monte-Carlo-over-seeds use this header is for. Mixing the seed instead
+ * (`x = *st ^ 0x9e3779b9u`) would close it and is deliberately NOT done:
+ * every existing stream would move, and the bit-exactness of the whole
+ * migration onto this header is the property that made it reviewable. Start
+ * seed sweeps at 1.
+ *
  * ## Usage
  *
  * @code
  * #include "dp_rng_test.h"
  * #include "dp_test.h"
  *
- * uint32_t st = 12345u;               // seed is the caller's, and explicit
+ * uint32_t bst = 12345u;              // data stream
+ * uint32_t nst = 12345u ^ 0x9e3779b9u;// noise stream, independently seeded
  * for (size_t i = 0; i < n; i++)
- *   x[i] = (float)dp_bit (&st) + (float)(sigma * dp_gauss (&st));
+ *   x[i] = (float)dp_bit (&bst) + (float)(sigma * dp_gauss (&nst));
  * @endcode
  *
  * Keep separate streams in separate state variables when a test needs the
  * data and the noise to be independently reproducible — the convention the
  * suite already uses is `nst = seed ^ 0x9e3779b9u` for the noise arm.
+ *
+ * ## Never draw twice from one state inside one expression
+ *
+ * @code
+ * z = (float)dp_gauss (&st) + (float)dp_gauss (&st) * I;  // WRONG
+ * @endcode
+ *
+ * Two calls in one expression are **indeterminately sequenced** (C11
+ * 6.5.2.2p10): not undefined behaviour, but the order is the compiler's, and
+ * **gcc and clang genuinely disagree** — gcc evaluates the imaginary operand
+ * first, clang the real one, at both `-O0` and `-O2`. doppler builds with
+ * both (`make test` is gcc, `make coverage` is clang), so such a line draws
+ * two different noise streams depending on the job.
+ *
+ * This was not hypothetical: eleven sites across seven files had it, seven of
+ * them genuinely divergent. Draw into named locals instead —
+ *
+ * @code
+ * double n_im = dp_gauss (&st);
+ * double n_re = dp_gauss (&st);
+ * z = (float)n_re + (float)n_im * I;
+ * @endcode
+ *
+ * — and `make lint` rejects the one-expression form, so this paragraph is not
+ * what is holding the line.
  *
  * ## Where a new generator goes
  *
@@ -256,12 +291,13 @@ dp_uni64 (uint64_t *st)
  * return sqrt (-2.0 * log (uni (s))) * cos (2.0 * MPSK_PI * uni (s));
  * @endcode
  *
- * The operands of `*` are UNSEQUENCED in C, so which of those two calls draws
- * first is the compiler's choice — and the two orders give different noise.
- * Not a theoretical difference: the same seed produces 6.3417 one way and
- * 2.3548 the other. gcc at -O2 on x86-64 picks left-to-right, so writing that
- * order out preserves the stream this suite has been measuring against and
- * makes it stop depending on the compiler.
+ * The two calls are **indeterminately sequenced** (C11 6.5.2.2p10) — not
+ * unsequenced, so there is no undefined behaviour; one of the two orders
+ * happens, and which one is the compiler's choice. The orders give different
+ * noise: the same seed produces 6.3417 one way and 2.3548 the other. gcc at
+ * -O2 on x86-64 picks left-to-right, so writing that order out preserves the
+ * stream this suite has been measuring against and makes it stop depending on
+ * the compiler.
  *
  * @param st  the caller's state; advanced by two words.
  */

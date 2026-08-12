@@ -1475,8 +1475,20 @@ test-snippets: ## Run the python/C/shell doc-fence gates
 test-examples-python: ## Run the Python example gate (requires pyext)
 	uv run pytest -m "examples and not examples_serial" -q -n auto \
 	    $(PYTEST_ARGS) src/doppler/tests/test_examples.py
-	uv run pytest -m "examples and examples_serial" -q \
-	    $(PYTEST_ARGS) src/doppler/tests/test_examples.py
+	@# Exit 5 is pytest's "no tests collected", which is what an EMPTY
+	@# .examples-serial produces -- every item deselected. That is the
+	@# registry doing its job (the constraint was fixed and the line
+	@# deleted), so it must not read as a failure: this target would then go
+	@# red for the correction, which is the same "a gate must not fail for
+	@# running" rule the serial pass exists to honour. Measured, not
+	@# assumed -- a marker expression selecting nothing exits 5 here.
+	@set +e; \
+	 uv run pytest -m "examples and examples_serial" -q \
+	     $(PYTEST_ARGS) src/doppler/tests/test_examples.py; \
+	 rc=$$?; \
+	 if [ $$rc -eq 5 ]; then \
+	     echo "test-examples-python: .examples-serial is empty — nothing needs a serial pass"; \
+	 elif [ $$rc -ne 0 ]; then exit $$rc; fi
 	@$(MAKE) --no-print-directory test-example-downstream-python
 
 # The Python half of the downstream example: build its extension against the

@@ -331,3 +331,111 @@ Until each is migrated, this page describes a primitive and the library
 still runs four copies. The migration is deliberately separate work: the
 point of establishing the properties first is that each call site can
 then be moved against a known contract instead of against an assumption.
+
+______________________________________________________________________
+
+## 9. What was considered and rejected — the first-order CIC
+
+At `alpha = 1/N` an EMA and an N-long moving average answer roughly the
+same question, and the CIC is the cheaper structure by most measures. It
+was measured rather than dismissed, and the reason it is not used here is
+narrower than it first appears.
+
+### The four axes, measured
+
+**Noise** — for unit white input, output variance:
+
+| N    | EMA(1/N) | predicted `1/(2N-1)` | CIC(N)   | predicted `1/N` | CIC/EMA |
+| ---- | -------- | -------------------- | -------- | --------------- | ------- |
+| 8    | 0.066497 | 0.066667             | 0.124839 | 0.125000        | 1.88x   |
+| 64   | 0.007926 | 0.007874             | 0.015577 | 0.015625        | 1.97x   |
+| 1024 | 0.000492 | 0.000489             | 0.000956 | 0.000977        | 1.94x   |
+
+The EMA is ~2x quieter at equal `N`, because `alpha/(2-alpha)` is
+`1/(2N-1)` against the CIC's `1/N`. Note that "`alpha = 1/N` matches
+length N" is not the equal-bandwidth pairing in the first place — that is
+`alpha = 2/(N+1)`, at which the two are equivalent.
+
+**Settling** — samples for a unit step to arrive:
+
+| N    | EMA to 1/e | CIC to 1/e | EMA to 99% | CIC to 99% |
+| ---- | ---------- | ---------- | ---------- | ---------- |
+| 8    | 8          | 6          | 35         | 8          |
+| 64   | 64         | 41         | 293        | 64         |
+| 1024 | 1024       | 648        | 4714       | 1014       |
+
+The CIC settles **exactly** in N samples. The EMA needs ~4.6N to reach
+99% and never truly arrives — it is asymptotic by construction.
+
+**Cost and state** — per input sample, for a CIC *decimating* by `R = N`
+(integrator at the input rate, comb at the output rate):
+
+| N     | EMA(1/N) | CIC decim R=N | CIC state |
+| ----- | -------- | ------------- | --------- |
+| 8     | 1.960 ns | 1.363 ns      | 2 doubles |
+| 1024  | 1.944 ns | 1.360 ns      | 2 doubles |
+| 16384 | 1.891 ns | 1.433 ns      | 2 doubles |
+
+**This is the correction that matters, and an earlier draft of this page
+had it backwards.** A decimating CIC needs **no ring buffer** — its state
+is O(1) at any N, and it is ~30% cheaper per sample, flat in N. The
+N-word buffer belongs to a *rate-1* moving average (a boxcar), which is a
+different structure. Do not reject the CIC on memory; that argument is
+false.
+
+**Fixed point** — unsigned unipolar, the shape a power detector actually
+has, rising to 1000000 and then falling to 1000:
+
+| N    | EMA rising | CIC rising | EMA falling (naive)  | EMA falling (guarded) | CIC falling |
+| ---- | ---------- | ---------- | -------------------- | --------------------- | ----------- |
+| 8    | 999993     | 1000000    | 993                  | 1007                  | 1000        |
+| 64   | 999937     | 1000000    | 937                  | 1063                  | 1000        |
+| 1024 | 998977     | 1000000    | 18446744073709551593 | 2023                  | 1000        |
+
+The CIC is **exact**, both directions, every N — integer adds, no
+rounding until the final shift. The EMA carries a **±(N-1) LSB dead
+band**: once `|x - state| < 2^k` the truncating shift rounds the
+correction to zero and the average stalls short of its input. Worse, the
+naive unsigned update `state += (x - state) >> k` underflows when the
+signal falls, and its failure profile is the bad one — quietly 7 and 63
+LSB wrong at small N, then `2^64` garbage at N=1024. An unsigned EMA
+needs a direction branch; a CIC needs nothing.
+
+### So why the EMA
+
+Not memory, and not cost. **Output rate.**
+
+A first-order CIC's comb fires once per `R` samples, and for a first-order
+section `R` *is* the averaging length. So it produces one output per
+averaging window — a non-overlapping block average. Every EMA consumer in
+this library needs the average faster than that:
+
+- the **AGC** updates its gain every `decim` = 8–32 samples while
+    averaging over `1/alpha` ≈ 16,000; a CIC at `R = N` would move the
+    loop once every 16,000 samples, three orders of magnitude too slow;
+- **acc_trace** in exponential mode wants a trace value every frame, not
+    one every N frames;
+- the **async DSSS lock statistic** is read per symbol, against a dwell
+    of 30.
+
+Which gives the general rule, and it is the honest reason: **for an
+output rate faster than `1/N`, a recursive average is the only O(1)
+option.** A block average that must emit faster than it averages needs
+the ring back, and then the memory objection returns — but as a property
+of the *rate requirement*, not of the CIC.
+
+### Where the CIC is right, doppler already uses one
+
+Two places, both deliberate:
+
+- **Inside `agc_steps` itself.** The chunk power — `JM_SUMSQ_F32` over the
+    chunk followed by `* inv_c` — **is** a first-order CIC decimator at
+    `R = decim`, computed as a direct block sum so it needs no integrator
+    state at all. It supplies the short average; the EMA supplies the long
+    one. The two are cascaded decimate-then-smooth, not competitors, and
+    that cascade is the efficient structure.
+- **The `boxcar` object**, for a genuine fixed-length moving average.
+
+So the rejection is not of the CIC. It is of the CIC *as a replacement for
+the recursive stage*, and only because that stage has to answer faster
+than once per window.

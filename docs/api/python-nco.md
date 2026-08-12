@@ -115,7 +115,7 @@ ______________________________________________________________________
 
 **Gallery** — [AWGN Generator](../gallery/awgn.md), [Measuring an Error Rate, Defensibly](../gallery/ber-awgn.md), [Carrier Loop Stress](../gallery/costas.md), [Gallery](../gallery/index.md)
 **Guides** — [Waveform Generator — `wfmgen`](../guide/wfmgen/index.md), [Recipes](../guide/wfmgen/recipes.md), [Scenes — multi-segment specs](../guide/wfmgen/scenes.md)
-**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [Automatic Gain Control](../design/agc.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Design](../design/index.md), [The NCO](../design/nco.md), [Symbol Timing on a Rate Cascade](../design/ratesync-timing.md), [Spectral & Measurement API Map](../design/spectral-api-map.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
+**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [Automatic Gain Control](../design/agc.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [The Exponential Moving Average](../design/ema.md), [Design](../design/index.md), [The NCO](../design/nco.md), [Symbol Timing on a Rate Cascade](../design/ratesync-timing.md), [Spectral & Measurement API Map](../design/spectral-api-map.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
 **Contributing** — [Doc examples — every snippet is tested](../dev/doc-examples.md), [Validation log](../dev/validation-log.md)
 
 <!-- related-pages:end -->

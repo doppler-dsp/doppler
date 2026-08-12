@@ -67,7 +67,7 @@ folder exists. There is no list here to update.
 | [LO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/lo/results.md)            | `source`   | 26/26  | 9        | none                                |
 | [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)          | `source`   | 18/18  | 9        | none                                |
 | [RateSync](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/ratesync/results.md) | `track`    | 26/26  | 11       | 8 — F1, F2, F3, F4, F5, F6, F7, F11 |
-| [EMA](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/util/tests/validation/ema/results.md)            | `util`     | 15/15  | 6        | 2 — F1, F2                          |
+| [EMA](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/util/tests/validation/ema/results.md)            | `util`     | 15/15  | 6        | none                                |
 
 <!-- validation-log:end -->
 

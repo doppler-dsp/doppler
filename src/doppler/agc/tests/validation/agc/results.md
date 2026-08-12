@@ -135,6 +135,18 @@ P > 1 refreshes the loop-filter command once per P samples with the step scaled 
 
 Findings, with verdicts. Limits are section 4.
 
+- **F1 · BY DESIGN** — Settling is level-dependent: §2.1 measures 5.2x between a +40 dB and a -40 dB input at alpha 0.01. This is inherent, not a defect — the detector measures in POWER on purpose, because an EMA in dB is a geometric mean and would silently redefine what ref_db means per waveform. The header claimed the opposite until this campaign corrected it; a caller sizing a warm-up budget from 1/(4*loop_bw) alone is optimistic by up to 3x on a weak signal.
+
+- **F2 · FIXED** — Two input sequences used to destroy the loop permanently: one non-finite sample, and ~800 samples of silence. Both are closed by a single saturate() at the detector's input, with the primitives made total behind it. §2.4 and §2.5 measure the repaired behaviour through the binding; C §13-§17 certify it.
+
+- **F3 · CONFIRMED** — decim preserves the steady state but NOT the transient — measured 2.53 dB apart at a common sample index, with larger decim converging faster, because a first-order recursion taking fewer, larger steps only agrees with one taking many small steps in the limit. The header's 'keeps their per-sample meaning' reads stronger than it is. C §23 pins the steady state and records the divergence.
+
+- **F4 · GAP** — An over-long telemetry prefix is truncated rather than rejected, so an object's two probes can collapse onto one id while the attach reports success — both series then interleave under one name. Not AGC-specific: every set_telemetry builds names the same way, and composing receivers nest prefixes. Filed as doppler#676; C §24 tests the table-full reject instead.
+
+- **F5 · C-ONLY** — The detector state p_avg has no Python property, so the loop's input is reachable only through the level_db probe (§2.7). The totality of agc_exp10_/agc_log10_ and saturate's NaN direction are internal and certified in C §15, §16 and §18.
+
+- **F6 · GAP** — The object has no notion of signal PRESENCE, so left on a noise floor it amplifies the noise to the reference and the next burst arrives that many dB hot — measured 59.9 dB on a -60 dB floor. Level alone cannot separate a weak signal from noise, so this needs presence information from outside. Open design, stated with its measurements in docs/design/agc.md section 5.
+
 
 ## 4. Limits
 

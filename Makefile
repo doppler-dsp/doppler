@@ -604,7 +604,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
                 glibc-check glibc-gate specan-check check-isotime-parity \
-                tests-ssot \
+                tests-ssot validation-report-check \
                 install-docs-deps \
                 wheel-check wheel-smoke release-smoke \
                 bench-interleaved bench-publish bench-docs bench-stream \
@@ -626,7 +626,7 @@ include standard.mk
 # else, so this is what makes the rule enforced instead of merely written in
 # native/tests/README.md — which is the distinction that matters, since the
 # convention WAS written down while 90 copies of CHECK accumulated under it.
-lint: tests-ssot characterization-check validation-tables-check
+lint: tests-ssot characterization-check validation-report-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -639,13 +639,14 @@ tests-ssot: ## Verify no C test re-defines dp_test.h's macros or loses assertion
 
 # Hung off `lint` rather than `validate-check` deliberately. `validate-check`
 # re-runs each validator and compares -- a STALENESS gate, and staleness is
-# not correctness: a generator emitting broken markdown agrees with itself,
-# so five of six reports shipped a malformed table under a green gate. This
-# reads the RENDERED file instead, so it also catches a hand edit and a
-# future generator that grows its own emitter. On `lint` it runs in the fast
-# CI job, seconds after the mistake, instead of behind the validators.
-validation-tables-check: ## Verify every generated validation report's tables parse
-	@uv run python scripts/check_validation_tables.py
+# not correctness: a generator that emits a broken report agrees with itself
+# perfectly. Under that green gate, five of six reports carried a malformed
+# table and ALL SIX rendered none of the findings they counted. This reads
+# the RENDERED file instead, so it also catches a hand edit and a future
+# validator that grows its own emitter. On `lint` it runs in the fast CI
+# job, seconds after the mistake, instead of behind the validators.
+validation-report-check: ## Verify every generated validation report is structurally sound
+	@uv run python scripts/check_validation_reports.py
 
 # The docs system deps (doxygen, graphviz, LaTeX) — the `docs` group in
 # bootstrap.toml. standard.mk's `install-deps` installs only the default groups

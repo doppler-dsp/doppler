@@ -22,11 +22,35 @@ document a jm version doppler is not on", which was an intent, not a mechanism.
 *doppler's* release version against being hand-typed into docs -- a different
 number entirely.
 
+The pin must also be RECORDED
+-----------------------------
+``--check`` additionally asserts the pinned version appears in
+``CHANGELOG.md`` on a line naming the jm pin. Agreement across three files
+says the bump was applied consistently; it says nothing about whether anyone
+was told.
+
+This is checked here, in the script that already owns the pin, rather than in
+a second gate that would have to parse ``jm_version`` for itself -- the
+version is read once, from the SSOT, and everything asserted about it hangs
+off that read.
+
+``make changelog-check`` cannot cover it: that gate fails only when
+``[Unreleased]`` has **zero** entries, so a bump lands green under any other
+bullet. Demonstrated rather than assumed -- ``4f1eb86b`` moved all three pin
+sites to 0.55.3, retired a hand-patched carve-out and fixed a large-n
+truncation on the NCO path, and touched no CHANGELOG at all. The version it
+shipped was absent from that file and jm's gh-920 was mentioned nowhere.
+
+``--write`` deliberately does NOT fix this half. A derived pin string is
+generated; the sentence explaining what a bump brought is not, and a gate that
+auto-inserted a placeholder would trade a missing entry for a meaningless one.
+
 Usage
 -----
 ::
 
-    python scripts/gen_jm_pin.py --check   # exit 1 on any disagreement
+    python scripts/gen_jm_pin.py --check   # exit 1 on disagreement or if
+                                           # the pin is unrecorded
     python scripts/gen_jm_pin.py --write   # rewrite the derived sites
 """
 
@@ -44,6 +68,13 @@ ROOT = Path(__file__).resolve().parent.parent
 SSOT = ROOT / "just-makeit.toml"
 PYPROJECT = ROOT / "pyproject.toml"
 DOWNSTREAM = ROOT / "examples" / "downstream-jm" / "just-makeit.toml"
+CHANGELOG = ROOT / "CHANGELOG.md"
+
+# A line that is talking about the jm pin. Deliberately loose about the
+# surrounding markdown (bold, backticks, "Carried by the ...") and strict about
+# the subject, so prose mentioning some other 0.x.y cannot satisfy the check.
+PIN_LINE_RE = re.compile(r"just-makeit\s+pin(?:ned)?", re.IGNORECASE)
+SEMVER_RE = re.compile(r"\d+\.\d+\.\d+")
 
 # Anchored to the start of a line so a version quoted in PROSE cannot match --
 # just-makeit.toml carries commentary naming older jm versions, and a comment
@@ -62,6 +93,19 @@ def ssot_version() -> str:
     if not version:
         raise SystemExit(f"gen_jm_pin: no [project] jm_version in {SSOT.name}")
     return str(version)
+
+
+def recorded_versions() -> set[str]:
+    """Every jm version the CHANGELOG names on a jm-pin line.
+
+    Whole file, not just ``[Unreleased]``: a release moves entries into a
+    versioned section, and a bump recorded then is still recorded.
+    """
+    out: set[str] = set()
+    for line in CHANGELOG.read_text(encoding="utf-8").splitlines():
+        if PIN_LINE_RE.search(line):
+            out.update(SEMVER_RE.findall(line))
+    return out
 
 
 def sites(want: str) -> list[tuple[Path, re.Pattern[str], str]]:
@@ -115,8 +159,28 @@ def main() -> int:
         for line in wrote:
             print(f"gen_jm_pin: {line}")
         print(f"gen_jm_pin: all sites pinned to {want}")
-    else:
-        print(f"gen_jm_pin: just-makeit pinned to {want} in all 3 sites")
+        return 0
+
+    # Applied consistently is not the same as announced. --write cannot fix
+    # this one, so it is asserted only in --check.
+    if want not in recorded_versions():
+        print(
+            f"gen_jm_pin: the pin is {want} in all 3 sites, but "
+            f"{CHANGELOG.name} never records it."
+        )
+        print(
+            f"  Add an entry naming the bump, e.g. "
+            f'"**just-makeit pin <previous> → {want}.**", under '
+            f"[Unreleased]."
+        )
+        print(
+            "  `make changelog-check` cannot catch this: it only fails on an "
+            "EMPTY\n  [Unreleased], so a bump ships green under any other "
+            "bullet."
+        )
+        return 1
+
+    print(f"gen_jm_pin: just-makeit pinned to {want} in all 3 sites, recorded")
     return 0
 
 

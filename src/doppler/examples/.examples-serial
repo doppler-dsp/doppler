@@ -1,0 +1,13 @@
+# Examples that must not share the machine with other examples, one
+# "script.py: reason" per line. A reason is mandatory and an entry naming a
+# deleted script fails the meta-test, so this list stays honest.
+#
+# These are NOT skipped. The example gate runs its bulk under pytest-xdist and
+# then gives everything listed here a second, SERIAL pass -- the same split,
+# for the same reason, that `make test-python` already applies to the
+# benchmark directories. An entry here costs wall-clock, never coverage.
+#
+# The bar for an entry is narrow: the example's own assertion must be a
+# TIMING. An example that is merely slow does not belong here (it parallelizes
+# fine); an example whose measurement is perturbed by load does.
+ddc_fn_scaling.py: asserts a 2-thread speedup (su2 > 1.25) to prove execute() releases the GIL -- under xdist the workers already own every core, so it measured 1.15x and read the contention as "execute appears GIL-bound"

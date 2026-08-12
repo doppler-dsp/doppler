@@ -584,6 +584,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 print-jm-version nats-up nats-down \
                 docs-relink docs-drift-check drift-check changelog-check \
                 validate validate-check \
+                characterize characterization-check \
                 doxygen-warn-gate \
                 test-examples-c test-examples-python test-example-downstream \
                 test-example-downstream-python \
@@ -609,7 +610,7 @@ include standard.mk
 # else, so this is what makes the rule enforced instead of merely written in
 # native/tests/README.md — which is the distinction that matters, since the
 # convention WAS written down while 90 copies of CHECK accumulated under it.
-lint: tests-ssot
+lint: tests-ssot characterization-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -930,6 +931,45 @@ validate-check: ## Fail if any validation report is stale (CI gate)
 	 if [ "$$fail" = 0 ]; then \
 	     echo "validate-check: OK — $(words $(VALIDATORS)) report(s) up to date"; \
 	 else echo "validate-check: run 'make validate'"; exit 1; fi
+
+# ── Characterization ─────────────────────────────────────────────────────────
+# A characterization sweeps an object across its whole operating envelope —
+# C/N0, Doppler, sample rate, seed — until the answer is statistically
+# meaningful. That takes MINUTES, which is the entire reason it is a category
+# of its own and not an example.
+#
+# Both subjects here used to live in src/doppler/examples/ and therefore ran on
+# every push through the example smoke gate. Measured: 164.6 s + 117.7 s, i.e.
+# **75% of that gate's 376 s**, against ~58 s for the other 65 examples put
+# together. Shortening a 300-trial Monte-Carlo to fit a smoke gate trades away
+# the statistical confidence that is its whole point, so the sweep moved
+# instead of shrinking.
+#
+# Deliberately NOT in GATES_DEPS and not in ci.yml: this target is run on
+# purpose, when the envelope is the question. What guards the code per-push is
+# each subject's fast twin in src/doppler/<mod>/tests/, plus
+# `characterization-check` below — and be honest about the difference: the twin
+# proves the helpers still import and run, NOT that the envelope still holds.
+# A regression that moves a pull-in boundary without breaking an import waits
+# for the next `make characterize`.
+#
+# Discovered by glob, like VALIDATORS, so a new subject is covered the moment
+# its folder exists. That is not a style choice — the validation tree was
+# executed by NOTHING for its first two objects because it needed a
+# registration step nobody performed (docs/dev/validation.md).
+CHARACTERIZATIONS = $(shell find src/doppler \
+                        -path '*/tests/characterization/*/characterize.py' \
+                      | sort)
+
+characterize: ## Run every characterization sweep (MINUTES — deliberate, not per-push)
+	@for c in $(CHARACTERIZATIONS); do \
+	    echo "=== $$c ==="; \
+	    uv run python $$c || exit 1; \
+	 done
+	@echo "characterize: $(words $(CHARACTERIZATIONS)) subject(s) swept"
+
+characterization-check: ## Verify every characterization subject is runnable and has a fast twin
+	@uv run python scripts/check_characterization.py
 
 # The jm manifest drift gate. --no-install-project because the gate only reads
 # the manifest, so there is no reason to build the C extension for it.
@@ -1371,8 +1411,45 @@ test-snippets: ## Run the python/C/shell doc-fence gates
 	 if [ "$$fail" = 0 ]; then echo "test-snippets: ALL FENCE GATES PASS"; \
 	 else echo "test-snippets: FAILURES above"; exit 1; fi
 
+# Parallel by default, for the same reason `test-python` is: the workload is
+# embarrassingly parallel and pytest-xdist is already a dev dependency. Each
+# example runs as its own SUBPROCESS in a throwaway cwd with MPLBACKEND=Agg and
+# stdin closed (see test_examples.py), so there is no shared state for workers
+# to collide over — unlike the benchmark suite, which must stay serial because
+# pytest-benchmark disables itself under xdist, and unlike `test-stubs`, where
+# a text-mode .pyi shares one doctest namespace across the file.
+#
+# Measured on 8 cores, and both halves of the win are worth recording because
+# only one of them is parallelism:
+#
+#   376.6 s  before — two Monte-Carlo sweeps were 75% of the gate
+#    91.5 s  after moving them to `make characterize` (4.1x, serial)
+#    29.9 s  after adding -n auto as well (3.1x again; 12.6x overall)
+#
+# 3.1x rather than 8x on 8 cores is expected and not worth chasing: several
+# examples drive Plan.prepare()'s own pthread parallel-for, so workers
+# oversubscribe, and the run cannot finish faster than its longest single
+# example — `dsss_acq_characterization.py` at ~19 s, which is what the 29.9 s
+# is now mostly made of. That one is the obvious next candidate for the
+# characterization category; it is a characterization by name already.
+#
+# TWO passes, and the split is the point — exactly as `test-python` splits out
+# its benchmark directories, for the same reason. `ddc_fn_scaling.py` asserts a
+# 2-thread speedup (`su2 > 1.25`) to prove `execute()` releases the GIL; under
+# xdist the workers already own every core, so it measured **1.15x** and read
+# the contention as "execute appears GIL-bound". A gate must not fail for
+# running, and equally must not be weakened to fit its harness, so the examples
+# whose assertion IS a timing get a second serial pass. Which ones is declared
+# in `src/doppler/examples/.examples-serial` (reasons mandatory), and the
+# `examples_serial` marker is applied from that registry — so neither pass
+# names a script and the registry stays the only place a name appears.
+#
+# Override with PYTEST_ARGS="-n 0" to force serial, matching `test-python`.
 test-examples-python: ## Run the Python example gate (requires pyext)
-	uv run pytest -m examples -q src/doppler/tests/test_examples.py
+	uv run pytest -m "examples and not examples_serial" -q -n auto \
+	    $(PYTEST_ARGS) src/doppler/tests/test_examples.py
+	uv run pytest -m "examples and examples_serial" -q \
+	    $(PYTEST_ARGS) src/doppler/tests/test_examples.py
 	@$(MAKE) --no-print-directory test-example-downstream-python
 
 # The Python half of the downstream example: build its extension against the

@@ -1,7 +1,9 @@
-"""Fast pytest twin of ``dsss_acquisition_stress.py`` -- imports its helper
+"""Fast pytest twin of the `acquisition` characterization subject.
+
+Imports its helper
 functions and re-runs them at a much smaller trial count (mirrors
 ``test_dsss_receiver_stress.py``'s relationship to
-``dsss_receiver_stress.py``), so the default test run gets real coverage of
+the `dsss_receiver` subject), so the default test run gets real coverage of
 the isolation question without the full-sweep script's wall-clock cost.
 
 See the example module's docstring for the confirmed finding this harness
@@ -15,7 +17,7 @@ that finding are reflected in this file's assertions.
 
 import numpy as np
 
-from doppler.examples.dsss_acquisition_stress import (
+from doppler.dsss.tests.characterization.acquisition.characterize import (
     _CODE_PHASE_REF,
     CHIP_RATE,
     CODE,

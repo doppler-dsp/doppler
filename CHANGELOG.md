@@ -370,6 +370,17 @@ ______________________________________________________________________
     including the exact statistics above, so the defect that motivated the
     header is one the gate now rejects.
 
+- **`jb.toml` is now `bootstrap.toml`.** The old name pointed at the wrong
+    tool: `jb` reads as just-buildit, the PEP 517 build backend, which has
+    never opened this file — it reads `pyproject.toml` like every other
+    backend. The file is read by `jbx`/`install-deps` instead, and it declares
+    what must exist *before* the language ecosystem's own package manager can
+    run. Nothing inside the file changed; `git mv` and the references.
+
+    `standard.mk` re-vendored, since canonical's three references moved with
+    it (just-buildit.github.io#20). The old name is still read, and warns, so
+    the merge order between this and the canonical publish does not matter.
+
 - **Four more CI/release steps became make targets, after an audit prompted by
     the `glibc-gate` work above.** Same rule each time: a step only CI can run
     is a step only CI can debug.

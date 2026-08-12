@@ -276,7 +276,7 @@ jobs:
             -w /project \
             quay.io/pypa/manylinux_2_28_${{ matrix.arch.tag }} \
             bash -euxc "
-              # Container-context dep install (2 packages); a jbx/jb.toml
+              # Container-context dep install (2 packages); a jbx/bootstrap.toml
               # bootstrap here would add a CDN dependency to the C build for no
               # gain. make itself ships in the manylinux image.
               dnf install -y make cmake pkg-config tar gzip

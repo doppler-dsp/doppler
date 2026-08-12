@@ -442,12 +442,12 @@ COV_IGNORE    ?= (^|/)(vendor|build|build-cov|native/src/app)/|_ext(_[a-z0-9_]+)
 # find .../libclang_rt.profile.a", which reads like a broken toolchain rather
 # than a missing package -- it cost a full gates run to diagnose.
 #
-# DERIVED rather than listed in jb.toml's dev group, because whether `clang`
+# DERIVED rather than listed in bootstrap.toml's dev group, because whether `clang`
 # already carries its profile runtime is a property of the distro RELEASE and
 # one package list cannot express it: Ubuntu 22.04 ships it inside clang's own
 # packages and has no libclang-rt package at all (naming one fails apt
 # outright), while 26.04 splits it into libclang-rt-21-dev that `clang` does
-# not depend on. See the note in jb.toml.
+# not depend on. See the note in bootstrap.toml.
 define COVERAGE_CMD
 @printf 'int main(void){return 0;}\n' > $(COV_DIR)-probe.c 2>/dev/null \
     || { mkdir -p $(dir $(COV_DIR)) ; \
@@ -466,8 +466,8 @@ define COVERAGE_CMD
        echo "  Fedora               :  dnf install compiler-rt"; \
        echo "  openSUSE             :  zypper install llvm-compiler-rt"; \
        echo ""; \
-       echo "  Not in jb.toml's dev group on purpose: 22.04 has no such"; \
-       echo "  package at all and naming one fails apt outright. See jb.toml."; \
+       echo "  Not in bootstrap.toml's dev group on purpose: 22.04 has no such"; \
+       echo "  package at all and naming one fails apt outright. See bootstrap.toml."; \
        echo ""; \
        rm -f $(COV_DIR)-probe.c $(COV_DIR)-probe; exit 1; }
 @rm -f $(COV_DIR)-probe.c $(COV_DIR)-probe
@@ -623,12 +623,12 @@ tests-ssot: ## Verify no C test re-defines dp_test.h's macros or loses assertion
 	@uv run python scripts/check_tests_ssot.py --base $(ASSERT_BASE)
 
 # The docs system deps (doxygen, graphviz, LaTeX) — the `docs` group in
-# jb.toml. standard.mk's `install-deps` installs only the default groups
+# bootstrap.toml. standard.mk's `install-deps` installs only the default groups
 # (runtime, dev) and is vendored, so it cannot take a group; this local target
 # is the one place CI's doxygen job and the Pages docs workflow both reach for
-# the docs group, keeping jb.toml the single dependency list. Bootstraps jbx
+# the docs group, keeping bootstrap.toml the single dependency list. Bootstraps jbx
 # the same way standard.mk's install-deps does.
-install-docs-deps: ## Install the docs system deps (jb.toml `docs` group)
+install-docs-deps: ## Install the docs system deps (bootstrap.toml `docs` group)
 	@command -v jbx >/dev/null 2>&1 \
 	    || curl -sSL https://just-buildit.github.io/get-jb.sh | bash
 	PATH="$$HOME/.local/bin:$$PATH" jbx install-deps -g docs
@@ -911,7 +911,7 @@ endif
 
 # Regenerates every generated doc region: the "## Related pages" blocks on
 # docs/api/*.md, README.md's synced body from docs/index.md, the per-distro
-# install scripts from jb.toml, and the release version stamped into
+# install scripts from bootstrap.toml, and the release version stamped into
 # doc-version regions.
 docs-relink: ## Regenerate every generated doc region
 	uv run python scripts/gen_related_pages.py --write

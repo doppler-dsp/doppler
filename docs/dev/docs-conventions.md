@@ -17,7 +17,7 @@ suspiciously uniform or mechanical:
 | `docs/api/*.md` — `::: doppler.x.Y` directive output                 | mkdocstrings, from the Python docstring, at build time                    | edit the **docstring**, not the page                |
 | `docs/api/*.md` — `## Related pages` block                           | `scripts/gen_related_pages.py`                                            | `make docs-relink`                                  |
 | `README.md` — entire body below the badges                           | `scripts/gen_readme.py`, from `docs/index.md`                             | `make docs-relink`                                  |
-| `tests/install/build-*-deps.sh` (rendered into install docs)         | `scripts/gen_install_scripts.py`, from `jb.toml`'s `[dev.*]` lists        | `make docs-relink`                                  |
+| `tests/install/build-*-deps.sh` (rendered into install docs)         | `scripts/gen_install_scripts.py`, from `bootstrap.toml`'s `[dev.*]` lists | `make docs-relink`                                  |
 | `docs/design/index.md`, `docs/dev/index.md`, `docs/gallery/index.md` | *(hand-written — completeness CI-enforced)*                               | add a bullet by hand; gated by `check_nav_index.py` |
 | `docs/benchmarks.md`                                                 | `make bench-docs`                                                         | `make bench-docs`                                   |
 | `docs/specan/frames.json`                                            | `make record-demo`                                                        | `make record-demo`                                  |
@@ -42,17 +42,17 @@ house idiom used by [Doc Examples](doc-examples.md) and `check_api_docs.py`
 — **discovered, not registered** — so a new page is covered the moment it
 exists, with no opt-in list to remember.
 
-| Check                    | Script                                    | What it needs from you                                |
-| ------------------------ | ----------------------------------------- | ----------------------------------------------------- |
-| API docs coverage        | `scripts/check_api_docs.py`               | Every public symbol named somewhere under `docs/api/` |
-| Nav-index coverage       | `scripts/check_nav_index.py`              | Every page linked from its section's `index.md`       |
-| Related-pages generation | `scripts/gen_related_pages.py`            | Nothing — see below                                   |
-| README sync              | `scripts/gen_readme.py`                   | Nothing — see below                                   |
-| Install-script sync      | `scripts/gen_install_scripts.py`          | Nothing — edit `jb.toml`, run `make docs-relink`      |
-| Version strings          | `scripts/check_version_strings.py`        | Never hand-type the current release version in prose  |
-| Site internal links      | `scripts/check_site_links.py`             | Internal links/anchors resolve in the built site      |
-| Strict build             | `zensical build --strict`                 | Zero build warnings (bad refs, includes)              |
-| Init-param optionality   | `scripts/check_init_param_optionality.py` | A published constructor signature is callable         |
+| Check                    | Script                                    | What it needs from you                                  |
+| ------------------------ | ----------------------------------------- | ------------------------------------------------------- |
+| API docs coverage        | `scripts/check_api_docs.py`               | Every public symbol named somewhere under `docs/api/`   |
+| Nav-index coverage       | `scripts/check_nav_index.py`              | Every page linked from its section's `index.md`         |
+| Related-pages generation | `scripts/gen_related_pages.py`            | Nothing — see below                                     |
+| README sync              | `scripts/gen_readme.py`                   | Nothing — see below                                     |
+| Install-script sync      | `scripts/gen_install_scripts.py`          | Nothing — edit `bootstrap.toml`, run `make docs-relink` |
+| Version strings          | `scripts/check_version_strings.py`        | Never hand-type the current release version in prose    |
+| Site internal links      | `scripts/check_site_links.py`             | Internal links/anchors resolve in the built site        |
+| Strict build             | `zensical build --strict`                 | Zero build warnings (bad refs, includes)                |
+| Init-param optionality   | `scripts/check_init_param_optionality.py` | A published constructor signature is callable           |
 
 (The three fence gates and the example gate live in the `python-tests`
 job — see [Doc Examples](doc-examples.md) for the whole testing story.)
@@ -187,11 +187,11 @@ writing anything.
 
 ## Install-script sync (`gen_install_scripts.py`)
 
-`jb.toml`'s `[dev.*]` package lists are the single source of truth for
+`bootstrap.toml`'s `[dev.*]` package lists are the single source of truth for
 doppler's system dependencies — `make install-deps`, CI, and both
 Dockerfiles read them via just-bashit. The per-distro
 `tests/install/build-*-deps.sh` scripts that the install docs render via
 `--8<--` includes are **generated projections** of those lists (minus
 `patchelf` and `rust`, which only the wheel-repair and Rust-test paths
 need — see the script's docstring). Never edit the scripts: change
-`jb.toml` and run `make docs-relink`; CI fails on any drift.
+`bootstrap.toml` and run `make docs-relink`; CI fails on any drift.

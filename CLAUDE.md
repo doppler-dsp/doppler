@@ -1080,7 +1080,7 @@ regenerate — never hand-edit between its `<!-- related-pages:start -->`/
 entire body below the badges is likewise generated, from `docs/index.md`'s
 readme-sync region, by `scripts/gen_readme.py` (same `make docs-relink`, same
 never-hand-edit-between-markers rule — `<!-- readme-sync:start -->`/`:end`);
-`tests/install/build-*-deps.sh` are generated from `jb.toml`'s `[dev.*]`
+`tests/install/build-*-deps.sh` are generated from `bootstrap.toml`'s `[dev.*]`
 lists by `scripts/gen_install_scripts.py` (same `make docs-relink`);
 `docs/design/index.md`, `docs/dev/index.md`, and `docs/gallery/index.md`
 are hand-written but their completeness is CI-enforced by

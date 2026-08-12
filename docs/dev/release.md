@@ -176,10 +176,11 @@ verify-ci       ──  poll the "CI passed" aggregator on the tagged SHA
 build-python         ──  manylinux_2_28 x86_64 + aarch64 wheels, one docker run per cp3x/arch
 build-macos          ──  macOS arm64 wheels, `make wheel` per Python version
 build-sdist          ──  source distribution (`make sdist`)
-build-c-linux        ──  C library tarball (linux-x86_64)
-build-c-linux-arm64  ──  C library tarball (linux-aarch64)
+build-c-linux        ──  C library tarballs (linux-x86_64 + linux-aarch64, matrixed)
 build-c-macos        ──  C library tarball (macos-arm64)
-    │  (all six build-* jobs run in parallel, gated only on verify-version)
+    │  (all five build-* jobs run in parallel, gated only on verify-version)
+    │  every C tarball is `make package-c-tarball VERSION=x.y.z`, which a
+    │  developer can run before cutting a tag
     ▼
 smoke-wheel      ──  pip-install the cp312 wheel (x86_64 + aarch64, matrixed)
     │                 + run deploy/validation/wfm_e2e.py

@@ -573,6 +573,44 @@ ______________________________________________________________________
     164.6 s sweep remained, Amdahl put the floor at that sweep no matter how
     many workers were thrown at it.
 
+- **One ruff config, and a lint rule for the Python floor.** There was a root
+    `ruff.toml` *and* a `[tool.ruff]` block in `pyproject.toml`. Ruff does not
+    merge them — first found wins — so the pyproject block was **dead**, and
+    only looked effective because both files happened to agree on line-length
+    and excludes. Proved rather than argued: `ruff check --show-settings`
+    printed `Settings path: ".../ruff.toml"`. A rule added to pyproject did
+    nothing at all, which is what made this worth fixing rather than tidying.
+
+    Consolidated into `pyproject.toml`, which is where CLAUDE.md already says
+    it belongs when a project has one. Nothing referenced `ruff.toml` by name
+    (no `--config` in the Makefile, pre-commit, CI or scripts).
+    Behaviour-preservation is proved by diffing the full 975-line
+    `--show-settings` output across the move: the only changes are the settings
+    path and the rule below.
+
+    **`FA102` is now selected**, and `target-version = "py39"` is stated
+    explicitly rather than inferred from `requires-python`. FA102 fails a
+    module that writes `X | Y` without `from __future__ import annotations` —
+    valid *syntax* on 3.9 and a `TypeError` the moment the annotation is
+    evaluated. That is not hypothetical: it shipped in this branch, every local
+    gate passed because they all run on 3.12, and only CI's 3.9 job caught it,
+    at import time. The floor is declared, so the linter enforces it instead of
+    the version matrix discovering it. Sabotage-proven both directions, and on
+    a real 3.9.25 interpreter rather than by argument.
+
+    Not the whole `FA` set: its sibling FA100 is cosmetic ("you could simplify
+    `typing.Optional`") and selecting it would rewrite an unrelated example as
+    a drive-by. A correctness rule and a style campaign are separate decisions.
+
+- **A committed test artifact left the repo root.** `agc_step_response.csv`,
+    206 KB, added by `f79ac33f` — the very commit that introduced the
+    fail-closed example gate on the principle that an example must not pollute
+    the repo. Nothing reads it: `build/examples/c/agc_demo` writes it into
+    whatever cwd it runs from, and `docs/examples/c.md` says to run it from the
+    root. Removed, with `/*.csv` added to `.gitignore` beside the existing
+    `/*.png` and `/bench_*.json`. Root-scoped, so the validation trees'
+    deliberately committed `*/data/*.csv` are untouched.
+
 ### Fixed
 
 - **75 assertions across 20 C tests could not fail.** The hand-written

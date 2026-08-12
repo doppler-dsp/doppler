@@ -253,6 +253,8 @@ long-standing anomaly in the AGC.
 
 `agc_steps` computes **two** decimated coefficients per chunk:
 
+<!-- docs-snippet: skip=a two-line excerpt quoted from agc_steps' chunk loop, not a standalone program — ac, d and state are its locals -->
+
 ```c
 double alpha_d = 1.0 - ac;                         /* detector pole   */
 double k_d     = (double)d * 4.0 * state->loop_bw; /* loop-filter gain */

@@ -1059,11 +1059,11 @@ test_agc_telemetry_forwards_and_survives_a_replan (void)
   {
     dp_tlm_t              *t     = dp_tlm_create (256);
     RateConverter_state_t *plain = RateConverter_create (1.0 / 12.0, 1);
-    CHECK (t != NULL && plain != NULL);
+    DP_CHECK (t != NULL && plain != NULL);
     if (t && plain)
       {
-        CHECK (RateConverter_set_telemetry (plain, t, "agc", 1) == DP_OK);
-        CHECK (dp_tlm_probe_count (t) == 0);
+        DP_CHECK (RateConverter_set_telemetry (plain, t, "agc", 1) == DP_OK);
+        DP_CHECK (dp_tlm_probe_count (t) == 0);
         RateConverter_destroy (plain);
       }
     dp_tlm_destroy (t);
@@ -1076,21 +1076,21 @@ test_agc_telemetry_forwards_and_survives_a_replan (void)
     dp_tlm_t              *t  = dp_tlm_create (1 << 12);
     RateConverter_state_t *mf = RateConverter_create_matched (
         0.5, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
-    CHECK (t != NULL && mf != NULL);
+    DP_CHECK (t != NULL && mf != NULL);
     if (t && mf)
       {
-        CHECK (RateConverter_enable_agc (mf, 1e-3, 0.05) == DP_OK);
-        CHECK (RateConverter_set_telemetry (mf, t, "rx.agc", 1) == DP_OK);
-        CHECK (dp_tlm_probe_count (t) == 2);
-        CHECK (dp_tlm_probe_id (t, "rx.agc.gain_db") >= 0);
-        CHECK (dp_tlm_probe_id (t, "rx.agc.level_db") >= 0);
+        DP_CHECK (RateConverter_enable_agc (mf, 1e-3, 0.05) == DP_OK);
+        DP_CHECK (RateConverter_set_telemetry (mf, t, "rx.agc", 1) == DP_OK);
+        DP_CHECK (dp_tlm_probe_count (t) == 2);
+        DP_CHECK (dp_tlm_probe_id (t, "rx.agc.gain_db") >= 0);
+        DP_CHECK (dp_tlm_probe_id (t, "rx.agc.level_db") >= 0);
 
         float _Complex in[512], out[1024];
         for (int i = 0; i < 512; i++)
           in[i] = 0.5f + 0.0f * I;
         (void)RateConverter_execute (mf, in, 512, out, 1024);
         dp_tlm_rec_t r[64];
-        CHECK (dp_tlm_read (t, 64, r, 64) > 0);
+        DP_CHECK (dp_tlm_read (t, 64, r, 64) > 0);
 
         /* 3. THE ONE THAT BITES: _agc_build() destroys and rebuilds the AGC
               on a re-plan, and the AGC is documented to survive a rate change
@@ -1101,21 +1101,22 @@ test_agc_telemetry_forwards_and_survives_a_replan (void)
               valid and the table does not grow. */
         int id_gain = dp_tlm_probe_id (t, "rx.agc.gain_db");
         RateConverter_set_rate (mf, 0.25);
-        CHECK (dp_tlm_probe_count (t) == 2); /* no leaked duplicates */
-        CHECK (dp_tlm_probe_id (t, "rx.agc.gain_db") == id_gain);
+        DP_CHECK (dp_tlm_probe_count (t) == 2); /* no leaked duplicates */
+        DP_CHECK (dp_tlm_probe_id (t, "rx.agc.gain_db") == id_gain);
         while (dp_tlm_read (t, 64, r, 64) > 0)
           ; /* drain */
         (void)RateConverter_execute (mf, in, 512, out, 1024);
-        CHECK (dp_tlm_read (t, 64, r, 64) > 0); /* still emitting */
+        DP_CHECK (dp_tlm_read (t, 64, r, 64) > 0); /* still emitting */
 
         /* Detach reaches the child too, and stays detached across a re-plan
            (the request is dropped, not merely unapplied). */
-        CHECK (RateConverter_set_telemetry (mf, NULL, "rx.agc", 1) == DP_OK);
+        DP_CHECK (RateConverter_set_telemetry (mf, NULL, "rx.agc", 1)
+                  == DP_OK);
         RateConverter_set_rate (mf, 0.5);
         while (dp_tlm_read (t, 64, r, 64) > 0)
           ;
         (void)RateConverter_execute (mf, in, 512, out, 1024);
-        CHECK (dp_tlm_read (t, 64, r, 64) == 0);
+        DP_CHECK (dp_tlm_read (t, 64, r, 64) == 0);
 
         RateConverter_destroy (mf);
       }
@@ -1129,13 +1130,13 @@ test_agc_telemetry_forwards_and_survives_a_replan (void)
     dp_tlm_t              *t  = dp_tlm_create (256);
     RateConverter_state_t *mf = RateConverter_create_matched (
         0.5, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
-    CHECK (t != NULL && mf != NULL);
+    DP_CHECK (t != NULL && mf != NULL);
     if (t && mf)
       {
-        CHECK (RateConverter_set_telemetry (mf, t, "agc", 1) == DP_OK);
-        CHECK (dp_tlm_probe_count (t) == 0); /* nothing to register yet */
-        CHECK (RateConverter_enable_agc (mf, 1e-3, 0.05) == DP_OK);
-        CHECK (dp_tlm_probe_count (t) == 2); /* applied on build */
+        DP_CHECK (RateConverter_set_telemetry (mf, t, "agc", 1) == DP_OK);
+        DP_CHECK (dp_tlm_probe_count (t) == 0); /* nothing to register yet */
+        DP_CHECK (RateConverter_enable_agc (mf, 1e-3, 0.05) == DP_OK);
+        DP_CHECK (dp_tlm_probe_count (t) == 2); /* applied on build */
         RateConverter_destroy (mf);
       }
     dp_tlm_destroy (t);

@@ -202,7 +202,9 @@ Each subject keeps a **fast twin** under `tests/` that imports its helpers
 and runs a few trials, and that twin is the per-push cover. Be precise
 about what it buys: the twin proves the helpers still run, **not** that the
 envelope still holds. A regression that moves a pull-in boundary without
-breaking an import waits for the next `make characterize`.
+breaking an import waits for the next `make characterize` — a window tracked
+in [gh-692](https://github.com/doppler-dsp/doppler/issues/692), not accepted
+silently.
 `make characterization-check` (in `lint`) is the floor — it fails a subject
 with no `__main__` block or no twin at all, which are the two ways a sweep
 becomes a silent no-op. Full rationale:

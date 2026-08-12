@@ -73,6 +73,11 @@ CHANGELOG = ROOT / "CHANGELOG.md"
 # A line that is talking about the jm pin. Deliberately loose about the
 # surrounding markdown (bold, backticks, "Carried by the ...") and strict about
 # the subject, so prose mentioning some other 0.x.y cannot satisfy the check.
+#
+# Known gap, gh-692's sibling gh-693: every entry is written "X -> Y", so BOTH
+# versions are harvested and a version that appears only as a left-hand side
+# counts as recorded. A forward bump cannot be pre-recorded, so the common path
+# is safe; a ROLLBACK to a previously-departed pin passes silently.
 PIN_LINE_RE = re.compile(r"just-makeit\s+pin(?:ned)?", re.IGNORECASE)
 SEMVER_RE = re.compile(r"\d+\.\d+\.\d+")
 

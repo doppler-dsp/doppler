@@ -657,6 +657,9 @@ record-demo: ## Re-record the specan demo frames (docs/specan/frames.json)
 # `make characterize`. Its page therefore showed an image that could not be
 # reproduced by any target, which is the same "no gate runs it" failure the
 # validation tree had.
+# ONE entry only: the recipe below passes a hard-coded destination, so a second
+# entry would become the first script's argv[1]. Loop + derive the destination
+# before adding one — gh-694.
 GALLERY_CHARACTERIZATIONS := \
     src/doppler/dsss/tests/characterization/burst_acquisition/characterize.py
 
@@ -973,7 +976,8 @@ validate-check: ## Fail if any validation report is stale (CI gate)
 # `characterization-check` below — and be honest about the difference: the twin
 # proves the helpers still import and run, NOT that the envelope still holds.
 # A regression that moves a pull-in boundary without breaking an import waits
-# for the next `make characterize`.
+# for the next `make characterize`. That window, and the figure-freshness gap
+# below it, are tracked in gh-692 rather than left standing on this comment.
 #
 # Discovered by glob, like VALIDATORS, so a new subject is covered the moment
 # its folder exists. That is not a style choice — the validation tree was

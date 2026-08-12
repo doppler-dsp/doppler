@@ -73,4 +73,6 @@ Note what is deliberately *not* claimed: there is still no staleness gate
 on a characterization, and there cannot be one — it would re-run the
 sweep, which is the cost this category exists to avoid. `make gallery`
 makes the published figure **reproducible**, not automatically fresh.
+Tracked in gh-692, together with the matching gap on the envelope itself:
+neither is a decision this docstring gets to make on its own.
 """

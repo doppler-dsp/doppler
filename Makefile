@@ -1261,12 +1261,22 @@ glibc-gate: ## Build in a glibc $(GLIBC_MAX) container, then run glibc-check on 
 # The recorded specan demo frames are a projection of the specan source, so a
 # change to one without the other ships a demo that no longer matches the code.
 SPECAN_BASE ?= HEAD^
+# The frames are a projection of the C core as much as of the Python app, and
+# this watched only the Python. So `native/src/specan/` could change the very
+# numbers in frames.json with the gate reporting `specan=0` — which is exactly
+# what happened: the committed frames were recorded at 1601 display bins and
+# the code now produces 801, a drift nothing reported because the divergence
+# arrived through the C side. A gate that watches half its input is a gate you
+# believe when it says OK.
+SPECAN_SRC_PATHS = src/specan/doppler_specan/ native/src/specan/ \
+                   native/inc/specan/
 specan-check: ## Fail if specan changed without re-recording its demo frames
-	@s=$$(git diff --name-only "$(SPECAN_BASE)"...HEAD -- src/specan/doppler_specan/ | wc -l); \
+	@s=$$(git diff --name-only "$(SPECAN_BASE)"...HEAD -- $(SPECAN_SRC_PATHS) | wc -l); \
 	 f=$$(git diff --name-only "$(SPECAN_BASE)"...HEAD -- docs/specan/frames.json | wc -l); \
 	 if [ "$$s" -gt 0 ] && [ "$$f" -eq 0 ]; then \
-	     echo "specan-check: src/specan/doppler_specan/ changed but"; \
+	     echo "specan-check: specan source changed but"; \
 	     echo "  docs/specan/frames.json was not — run 'make record-demo'"; \
+	     echo "  watched: $(SPECAN_SRC_PATHS)"; \
 	     exit 1; \
 	 fi; \
 	 echo "specan-check: OK (specan=$$s frames=$$f)"

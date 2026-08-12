@@ -197,6 +197,7 @@ nav:
           - cvt Quantization: gallery/cvt-quantization.md
       - Gain Control:
           - AGC: gallery/agc.md
+          - AGC Settling Design: gallery/agc-settling-design.md
       - Telemetry:
           - "Many Emitters, One Consumer": gallery/telemetry-fanin.md
           - "Capturing All Receiver Telemetry": gallery/mpsk-telemetry-capture.md

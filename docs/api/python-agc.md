@@ -80,7 +80,7 @@ ______________________________________________________________________
 
 <!-- related-pages:start -->
 
-**Gallery** — [AGC — Step Response](../gallery/agc.md), [Gallery](../gallery/index.md)
+**Gallery** — [AGC Settling — a design chart](../gallery/agc-settling-design.md), [AGC — Step Response](../gallery/agc.md), [Gallery](../gallery/index.md)
 **Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)
 
 <!-- related-pages:end -->

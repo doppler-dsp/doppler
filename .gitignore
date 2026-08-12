@@ -24,6 +24,14 @@ site/
 /*.png
 /bench_*.json
 
+# A characterization subject's plot, written beside its characterize.py by
+# `make characterize`. A working artifact, not a deliverable: the sweep's
+# findings go to stdout, and a subject with a published page has its plot
+# regenerated into docs/assets/ by `make gallery` instead. Committing both
+# copies is what let the published one sit a month stale behind the code
+# that produced it.
+src/doppler/*/tests/characterization/*/*.png
+
 # benchmarks/history/ is local scratch from `make bench`. The canonical,
 # committed numbers live in benchmarks/published/v<ver>/ (representative,
 # measured by hand — see docs/dev/release.md §2b). Only the .gitkeep here.

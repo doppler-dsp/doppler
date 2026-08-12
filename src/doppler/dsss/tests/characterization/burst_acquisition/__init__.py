@@ -9,20 +9,22 @@ Distinct from the sibling `acquisition` subject, which drives
 `Acquisition` (the continuous engine) rather than `BurstAcquisition`.
 See the parent package for why this is not an example.
 
-## Its gallery page shows a DIFFERENT file
+## The only subject with a published page
 
-This subject is the only one with a published page,
-`docs/gallery/dsss-acq-characterization.md`, and that page embeds
-`docs/assets/dsss_acq_characterization.png` — a separately committed
-image which `make characterize` does **not** refresh and which
-`make gallery` has never regenerated either (this script is not in
-`GALLERY_SCRIPTS`). So the sweep now renders `burst_acquisition.png`
-beside this file while the page keeps showing its own committed copy.
+`docs/gallery/dsss-acq-characterization.md` embeds
+`docs/assets/dsss_acq_characterization.png`, and that image is now
+produced by **`make gallery`**, which re-runs this script with the asset
+path as its argument (the `argv` its `__main__` accepts). It is therefore
+the one characterization plot that is committed, and it is committed in
+exactly one place.
 
-That is pre-existing rather than introduced here, and it is written down
-rather than left to be discovered: the two can disagree, and the page's
-image is the older of the two. Worth resolving in one direction — either
-the page points at this subject's output, or the asset joins the gallery
-pipeline — but that is a docs-pipeline decision, not part of moving the
-sweep out of the per-push gate.
+It got there because nothing else refreshed it. The asset had been
+hand-committed on 2026-07-11 and neither `make gallery` (this script was
+never in `GALLERY_SCRIPTS`) nor `make characterize` touched it;
+regenerating it moved 105,324 bytes to 122,397, so the published figure
+was a month behind its own code.
+
+`make characterize` still writes `burst_acquisition.png` beside this file
+as a working artifact, and that copy is gitignored — one rendering is
+committed, so there is nothing to diverge.
 """

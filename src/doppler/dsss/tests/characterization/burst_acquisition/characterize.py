@@ -101,6 +101,7 @@ Runs in ~45 s.
 """
 
 import math
+import sys
 import warnings
 from pathlib import Path
 
@@ -693,4 +694,7 @@ def main(out_path: str | Path | None = None) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # An explicit destination is how `make gallery` publishes this
+    # subject's plot straight into docs/assets/, matching the argv
+    # convention the sibling subjects already use.
+    main(out_path=sys.argv[1] if len(sys.argv) > 1 else None)

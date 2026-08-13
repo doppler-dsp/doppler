@@ -98,10 +98,10 @@ from doppler.detection import (
     det_threshold_gauss,
 )
 
-# A statistic with H0 variance 1/2 and an H1 mean of 0.635 at the design
+# A statistic with H0 variance 1/2 and an H1 mean of 0.63 at the design
 # point, wanted at pd = 0.99 with a 1e-5 per-look false-alarm budget.
-assert det_dwell_gauss(mean=0.6349, var=0.5, pd=0.99, pfa=1e-5) == 54
-assert round(det_threshold_gauss(mean=0.6349, pd=0.99, pfa=1e-5), 4) == 0.4108
+assert det_dwell_gauss(mean=0.63, var=0.5, pd=0.99, pfa=1e-5) == 55
+assert round(det_threshold_gauss(mean=0.63, pd=0.99, pfa=1e-5), 4) == 0.4076
 
 # The quantile is SIGNED: negative above the median, which is why the
 # separation below is a sum of two tails rather than a difference.

@@ -34,6 +34,15 @@ WarningsAsErrors: "*"
 # Adjust per-project if your header tree differs.
 HeaderFilterRegex: "native/inc/.*"
 
+# jm_perf.h and jm_simd.h are shipped BY just-makeit, not written here — the
+# `_JM_HOT_`/`_JM_RESTRICT_`-style macro names in them trip
+# bugprone-reserved-identifier ten times over. Renaming them locally would
+# drift the manifest gate and be reverted by the next `jm apply`, so the fix
+# belongs upstream in jm; excluding them here keeps the local gate at zero
+# without pretending the finding is wrong. Everything else under native/inc is
+# ours and stays in scope.
+ExcludeHeaderFilterRegex: "native/inc/jm_.*"
+
 # Apply the project's clang-format style to suggested fixes.
 FormatStyle: file
 
@@ -43,3 +52,13 @@ CheckOptions:
     value: "80"
   - key: readability-function-size.BranchThreshold
     value: "10"
+
+  # _GNU_SOURCE and _POSIX_C_SOURCE are not ours to rename — the leading
+  # underscore IS the interface. They are feature-test macros whose exact
+  # spelling is mandated by POSIX and glibc, so the reserved-identifier rule
+  # is right about the letter and wrong about these two: defining them under
+  # any other name silently stops requesting the feature (memfd_create in
+  # buffer.h, clock_gettime/gmtime_r behind dp_isotime.h) and the code then
+  # fails to compile, or worse, links a different declaration.
+  - key: bugprone-reserved-identifier.AllowedIdentifiers
+    value: "_GNU_SOURCE;_POSIX_C_SOURCE"

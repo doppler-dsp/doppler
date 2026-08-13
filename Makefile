@@ -117,8 +117,8 @@ SYNC_CMD   = $(UV) sync
 # way `make format` runs it. That is what closes the "same command, different
 # environment" class of drift: the tool comes from `--group dev` and uv.lock
 # owns the version, so there is no `additional_dependencies` left to drift.
-LINT_TOOLS   = ruff ruff-format mdformat clang-format phase-conversion \
-               stimulus-sources
+LINT_TOOLS   = ruff ruff-format mdformat clang-format clang-tidy \
+               phase-conversion stimulus-sources
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -159,7 +159,34 @@ C_EXCLUDE_RE = (^|/)(native/inc/|vendor/)|_ext\.c$$
 C_FILES = git ls-files '*.c' '*.h' | grep -Ev '$(C_EXCLUDE_RE)'
 
 LINT_clang-format = @$(C_FILES) | xargs -r $(CLANG_FORMAT) -i --style=file
-LINT_clang-tidy   = @$(C_FILES) | xargs -r $(CLANG_TIDY) -p $(BUILD_DIR) --quiet
+
+# clang-tidy does NOT take clang-format's file list, and sharing C_FILES was
+# the reason its first real run emitted 6916 lines of which ~1700 were noise.
+# clang-format formats any file it is handed; clang-tidy COMPILES one, so it
+# needs a translation unit that compile_commands.json actually has an entry
+# for. C_FILES has three kinds of file that are not that: the per-object
+# `*_ext_<obj>.c` fragments (105 of them) are #included into the generated
+# aggregator and never compiled alone, so each one fails on PyObject_HEAD;
+# examples/downstream-jm is a separate jm project with its own build tree, so
+# every file there fails on a header it cannot find; and a bare .h is not a TU.
+# A parse failure is not a finding — it is the gate not running on that file,
+# which is the failure mode this whole exercise exists to remove.
+#
+# Scope is the LIBRARY, not the harnesses. native/tests and native/benchmarks
+# carry ~4900 diagnostics, 4587 of them cert-err33-c for an unchecked printf
+# return in a test — a real rule, aimed at code where nobody is reading the
+# screen. Holding shipped code to it while a test prints freely is the honest
+# split, and it is what keeps the gate at zero rather than behind a ratchet.
+#
+# native/inc is covered WITHOUT being listed: .clang-tidy's HeaderFilterRegex
+# surfaces header diagnostics through whichever TU includes them. That is also
+# why it must not be listed — clang-tidy would then own a file jm generates.
+# The object half of `_ext_<obj>.c` is the CLASS name, so it is CamelCase for
+# Resampler/RateConverter/HalfbandDecimator — a lowercase-only character class
+# misses exactly those three and lets 53 parse failures back in.
+TIDY_FILES = git ls-files 'native/src/*.c' | grep -Ev '_ext(_[A-Za-z0-9_]+)?\.c$$'
+
+LINT_clang-tidy   = @$(TIDY_FILES) | xargs -r $(CLANG_TIDY) -p $(BUILD_DIR) --quiet
 
 # Check-only, so it is in LINT_TOOLS but deliberately NOT in FORMAT_TOOLS.
 # nco_core.h calls confining the double->phase-word conversion "a STRUCTURAL
@@ -293,6 +320,25 @@ CMAKE_FLAGS = -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 # every `cmake --build` in the tree, including `pyext` and both downstream
 # example builds, instead of only the one recipe a flag would reach.
 export CMAKE_BUILD_PARALLEL_LEVEL = $(NPROC)
+
+# clang-tidy and `scripts/bench_report.py` both look for the compilation
+# database at the REPO ROOT, while cmake writes it into $(BUILD_DIR) — so the
+# root entry is a second copy of a generated file, and a second copy goes
+# stale silently. It did: the root database sat at a July in-source configure
+# for weeks (247 entries against the build tree's 425, `cc` off PATH instead
+# of the real `-march`/`-O3` line), so every consumer was reading flags no
+# translation unit was actually compiled with, and nothing said so.
+#
+# A SYMLINK cannot drift — it resolves to whatever the last configure wrote,
+# so there is nothing to refresh and no staleness gate to add. It is relative,
+# so it carries no $(CURDIR) and works in a worktree or a fresh clone; the
+# file is gitignored, hence the rule rather than a checked-in link. Hung off
+# `build` (standard.mk's, extended here by prerequisite) so a clone gets it
+# from the first build. `ln -sfn` is idempotent, and re-running while the
+# link dangles — before the first configure — is harmless.
+build: compile_commands.json
+compile_commands.json:
+	@ln -sfn $(BUILD_DIR)/compile_commands.json $@
 
 # Re-configures with BUILD_PYTHON=ON (default is OFF for C-only builds), then
 # syncs so the venv sees the freshly built extensions.
@@ -604,7 +650,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
                 glibc-check glibc-gate specan-check check-isotime-parity \
-                tests-ssot validation-report-check \
+                tests-ssot validation-report-check hook-dispatch-check \
                 install-docs-deps \
                 wheel-check wheel-smoke release-smoke \
                 bench-interleaved bench-publish bench-docs bench-stream \
@@ -626,7 +672,53 @@ include standard.mk
 # else, so this is what makes the rule enforced instead of merely written in
 # native/tests/README.md — which is the distinction that matters, since the
 # convention WAS written down while 90 copies of CHECK accumulated under it.
-lint: tests-ssot characterization-check validation-report-check
+lint: tests-ssot characterization-check validation-report-check \
+      hook-dispatch-check
+
+# Every hook dispatches `make -s <target>` (the SSOT rule at the top of this
+# file), so .pre-commit-config.yaml holds make target NAMES — and nothing
+# checked that make defines them. It didn't: 759e3fe9 pointed the clang-tidy
+# hook at `lint-clang-tidy` and pinned clang-tidy in the dev group, but never
+# added `clang-tidy` to LINT_TOOLS, so the target it named did not exist and
+# the hook could only ever die with "No rule to make target". A pinned tool, a
+# committed .clang-tidy, and a gate that could not run — which is the exact
+# failure that commit's own message says it was fixing.
+#
+# `ghost-check` cannot catch this: it looks for a .PHONY with no recipe, and an
+# undeclared target is not a ghost, it is nothing at all. Nor could anything
+# else — the hook is `stages: [pre-push]`, `pre-commit install` installs the
+# pre-commit stage only, and `make lint` runs the hooks at their default stage.
+# Three layers of not-running, so the break was invisible from every direction.
+#
+# Reads the make DATABASE rather than trying each target: `make -n <t>` would
+# expand recipes and recurse on any line carrying $(MAKE). Fails closed on a
+# zero match (standard-check's rule) so a future reshuffle of the config's
+# shape silently disarms the gate instead of quietly passing.
+hook-dispatch-check: ## Verify every pre-commit `make` dispatch names a real target
+	@db=$$($(MAKE) -rpn --no-print-directory .hook-dispatch-db 2>/dev/null); \
+	 n=0; missing=''; \
+	 for t in $$(sed -n 's/^[[:space:]]*entry:[[:space:]]*make[[:space:]]\{1,\}-s[[:space:]]\{1,\}\([a-zA-Z0-9_.-]\{1,\}\).*/\1/p' \
+	         .pre-commit-config.yaml); do \
+	     n=$$((n + 1)); \
+	     printf '%s\n' "$$db" | grep -q "^$$t:" || missing="$$missing $$t"; \
+	 done; \
+	 if [ "$$n" -eq 0 ]; then \
+	     echo "ERROR: hook-dispatch-check matched 0 hook entries — it did not"; \
+	     echo '       run. The "entry: make -s <target>" shape it parses has'; \
+	     echo "       changed; fix the pattern, do not delete the gate."; \
+	     exit 1; \
+	 fi; \
+	 if [ -n "$$missing" ]; then \
+	     echo "ERROR: .pre-commit-config.yaml dispatches to make targets that do"; \
+	     echo "       not exist:"; \
+	     printf '  %s\n' $$missing; \
+	     echo ""; \
+	     echo "  Each hook dies with 'No rule to make target', so the tool it"; \
+	     echo "  names never runs. For a lint-<tool> dispatch the fix is almost"; \
+	     echo "  always a missing entry in LINT_TOOLS."; \
+	     exit 1; \
+	 fi; \
+	 echo "hook-dispatch-check: $$n hook dispatch(es) resolve"
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A

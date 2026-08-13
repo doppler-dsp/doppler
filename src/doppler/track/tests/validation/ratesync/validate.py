@@ -58,6 +58,9 @@ NSYM = 3000
 #: offset this report places.
 FINE = 64
 
+#: Independent symbol sequences averaged per roll-off point (§2.2).
+_CASC_SEEDS = (7, 1007, 2007, 3007, 4007)
+
 #: Both detectors `ted` selects between. Every axis this report sweeps that
 #: the detector can plausibly move — the S-curve (§2.2), the `bn` sweep
 #: (§2.5) and the input level (§2.6) — runs over BOTH, because the object
@@ -274,7 +277,7 @@ def run_sync(
     return rs, y, rec
 
 
-def _cascade_slope(beta: float, ted: str) -> float:
+def _cascade_slope(beta: float, ted: str, seed: int = 7) -> float:
     """Normalised S-curve slope at lock, through the real cascade, at @p beta.
 
     Separate from the §2.2 sweep because the shared stimulus cache is keyed
@@ -286,8 +289,8 @@ def _cascade_slope(beta: float, ted: str) -> float:
     point, and a paired difference either side of the lock point is the
     whole of it.
     """
-    nsym, sps, fine = 600, 4, FINE
-    syms = symbols(nsym, 7).astype(np.complex64)
+    nsym, sps, fine = 3000, 4, FINE
+    syms = symbols(nsym, seed).astype(np.complex64)
     gen = Synth(
         type="symbols",
         symbols=syms,
@@ -297,7 +300,7 @@ def _cascade_slope(beta: float, ted: str) -> float:
         sps=fine,
         fs=1.0,
         snr=999.0,
-        seed=7,
+        seed=seed,
     )
     shaped = np.asarray(gen.steps(nsym * fine)).astype(np.complex64)
     dec, j = fine // sps, 2
@@ -321,6 +324,27 @@ def _cascade_slope(beta: float, ted: str) -> float:
         e = np.asarray(tlm.read_dict().get("s.e", []))
         got[off] = float(e.mean()) if e.size else 0.0
     return (got[j] - got[fine - j]) / (2.0 * j / fine)
+
+
+def _pct(mv: tuple[float, float]) -> float:
+    """Seed-to-seed scatter as a percentage of the mean."""
+    return 100.0 * mv[1] / max(abs(mv[0]), 1e-12)
+
+
+def _cascade_slope_avg(beta: float, ted: str) -> tuple[float, float]:
+    """Mean normalised slope over independent symbol sequences, and its sd.
+
+    One realization is a draw, not a constant: a TED's S-curve amplitude
+    carries the transition density of the stream driving it, and the
+    design assigns that to nobody because it is data (F12). Averaging is
+    what makes the scale factor below a measurement with an uncertainty
+    rather than a number the next seed contradicts -- measured, Gardner's
+    through-cascade agreement at beta 0.1 reads 0.93 on one seed and 0.94
+    over several, and the C harness saw the same effect move it by 0.05.
+    """
+    v = [abs(_cascade_slope(beta, ted, seed=s_)) for s_ in _CASC_SEEDS]
+    mean = float(np.mean(v))
+    return mean, float(np.std(v, ddof=1)) if len(v) > 1 else 0.0
 
 
 def _csv(path, cols, header: str) -> None:
@@ -844,20 +868,39 @@ def characterise() -> Data:
     R.md()
     for ted in TEDS:
         d.beta_slope[ted] = [
-            (b, _cascade_slope(b, ted)) for b in (0.1, 0.2, 0.35, 0.5, 0.9)
+            (b, *_cascade_slope_avg(b, ted))
+            for b in (0.1, 0.2, 0.35, 0.5, 0.9)
         ]
+    _by = {t: {b: (m, sd) for b, m, sd in d.beta_slope[t]} for t in TEDS}
     R.table(
-        ["beta", *[f"`{t}`" for t in TEDS]],
+        ["beta", *[c for t in TEDS for c in (f"`{t}`", f"`{t}` sd")]],
         [
             [
                 f"{b:g}",
-                *[f"{abs(dict(d.beta_slope[t])[b]):.3f}" for t in TEDS],
+                *[
+                    c
+                    for t in TEDS
+                    for c in (
+                        f"{_by[t][b][0]:.3f}",
+                        f"{_pct(_by[t][b]):.1f}%",
+                    )
+                ],
             ]
             for b in (0.1, 0.2, 0.35, 0.5, 0.9)
         ],
     )
-    _gspan = [abs(v) for _, v in d.beta_slope["gardner"]]
-    _dspan = [abs(v) for _, v in d.beta_slope["dttl"]]
+    R.md(
+        f"Averaged over {len(_CASC_SEEDS)} independent symbol sequences, "
+        f"with the seed-to-seed scatter beside each value. One realization "
+        f"is a draw rather than a constant — the S-curve's amplitude "
+        f"carries the stream's transition density, which the design assigns "
+        f"to nobody because it is data (**F12**) — so a scale factor quoted "
+        f"from a single seed states a number the next seed does not "
+        f"reproduce."
+    )
+    R.md()
+    _gspan = [abs(v) for _, v, _sd in d.beta_slope["gardner"]]
+    _dspan = [abs(v) for _, v, _sd in d.beta_slope["dttl"]]
     R.md(
         f"Gardner holds unity across the whole range "
         f"({min(_gspan):.2f} to {max(_gspan):.2f}). DTTL does not: it runs "
@@ -875,9 +918,16 @@ def characterise() -> Data:
     R.md()
     _csv(
         DATA / "beta_slope.csv",
-        [np.array([b for b, _ in d.beta_slope["gardner"]])]
-        + [np.array([abs(v) for _, v in d.beta_slope[t]]) for t in TEDS],
-        "beta," + ",".join(f"slope_{t}" for t in TEDS),
+        [np.array([b for b, _m, _s in d.beta_slope["gardner"]])]
+        + [
+            np.array(c)
+            for t in TEDS
+            for c in (
+                [abs(v) for _, v, _s in d.beta_slope[t]],
+                [sd for _, _v, sd in d.beta_slope[t]],
+            )
+        ],
+        "beta," + ",".join(f"slope_{t},sd_{t}" for t in TEDS),
     )
     R.md("![normalised slope vs roll-off](beta_slope.png)")
     R.md()
@@ -1432,8 +1482,8 @@ def _f15_beta(d) -> str:
     past the line limit inline, and a finding's text is prose a reader has
     to follow -- not the place to fight the formatter.
     """
-    g = [abs(v) for _, v in d.beta_slope["gardner"]]
-    t = [abs(v) for _, v in d.beta_slope["dttl"]]
+    g = [abs(v) for _, v, _s in d.beta_slope["gardner"]]
+    t = [abs(v) for _, v, _s in d.beta_slope["dttl"]]
     return (
         f"**Sweeping the roll-off localises it.** One beta cannot separate "
         f"a skipped normalisation from a wrong one — at beta 0.35 Gardner's "
@@ -1878,8 +1928,20 @@ def limits(d: Data) -> None:
         f"({d.slope_meas:.4f}) — the construct-time ted_scale is correct "
         f"FOR GARDNER; the same claim does not hold for dttl, see F15",
     )
-    _gb = [abs(v) for _, v in d.beta_slope["gardner"]]
-    _db = [abs(v) for _, v in d.beta_slope["dttl"]]
+    _gb = [abs(v) for _, v, _s in d.beta_slope["gardner"]]
+    _db = [abs(v) for _, v, _s in d.beta_slope["dttl"]]
+    # The spread claim has to clear its own noise, or it is a statement
+    # about the seed rather than about the object. Endpoints, in units of
+    # their own seed-to-seed sd.
+    _dlo = min(d.beta_slope["dttl"], key=lambda r: abs(r[1]))
+    _dhi = max(d.beta_slope["dttl"], key=lambda r: abs(r[1]))
+    _sep = abs(abs(_dhi[1]) - abs(_dlo[1])) / max(_dhi[2] + _dlo[2], 1e-12)
+    R.limit(
+        _sep > 10.0,
+        f"dttl's roll-off spread is {_sep:.0f}x its own seed-to-seed "
+        f"scatter, so the {abs(_dhi[1]) / abs(_dlo[1]):.1f}x is the object "
+        f"and not the draw",
+    )
     R.limit(
         max(_gb) / min(_gb) < 1.2,
         f"gardner's normalised slope holds unity across the whole roll-off "
@@ -2227,11 +2289,23 @@ def plots(d: Data) -> None:
     fig, ax = plt.subplots(figsize=(9, 5))
     for ted, sty in zip(TEDS, ("o-", "s--")):
         ax.plot(
-            [b for b, _ in d.beta_slope[ted]],
-            [abs(v) for _, v in d.beta_slope[ted]],
+            [b for b, _m, _s in d.beta_slope[ted]],
+            [abs(v) for _, v, _s in d.beta_slope[ted]],
             sty,
             lw=1.4,
             label=ted,
+        )
+        # Error bars, because the sd is measured rather than assumed: the
+        # scale factor is a mean over seeds and the reader should see how
+        # much of its shape is signal.
+        ax.errorbar(
+            [b for b, _m, _s in d.beta_slope[ted]],
+            [abs(v) for _, v, _s in d.beta_slope[ted]],
+            yerr=[sd for _, _v, sd in d.beta_slope[ted]],
+            fmt="none",
+            ecolor="0.4",
+            capsize=3,
+            lw=1.0,
         )
     ax.axhline(1.0, color="0.4", lw=0.9, ls=":", label="ideal (unity)")
     ax.set_xlabel("RRC roll-off beta")

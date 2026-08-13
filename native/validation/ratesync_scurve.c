@@ -12,12 +12,14 @@
  * This harness measures it the direct way, which is the way no Python
  * validator can:
  *
- *   - **No cascade.** The matched pair's composite is a raised cosine in
- *     closed form (`wfm_rc_h`), so the on-time and half-symbol samples at an
- *     ARBITRARY offset `tau` are evaluated analytically rather than
- *     resampled. What that buys is attribution: a discrepancy measured here
- *     is the detector's or the model's, and cannot be the polyphase bank's,
- *     the CIC's or the loop's.
+ *   - **No cascade.** The stimulus is `dp_tx_make()` with `DP_TX_RC` -- the
+ *     raised cosine, which is the matched pair already collapsed, i.e. what
+ *     a matched receiver hands its detector. At `sps = 2` the even samples
+ *     are the on-time instants and the odd ones the half-symbol gate, so
+ *     both detector inputs come off the shared stimulus with no resampling.
+ *     What that buys is attribution: a discrepancy measured here is the
+ *     detector's or the model's, and cannot be the polyphase bank's, the
+ *     CIC's or the loop's.
  *   - **The raw numerator.** `gardner_ted` / `dttl_ted` are called directly,
  *     so the number compared against `symsync_ted_slope()` is the same
  *     quantity that function claims to return, not a normalised error read
@@ -26,12 +28,27 @@
  *     shipped normalisation's slope varies 10.6x between beta 0.1 and 0.9.
  *     A single roll-off cannot see that; this sweeps the supported range.
  *
- * The measurement is a paired central difference: the SAME symbol sequence
- * drives `+d` and `-d`, so the data-dependent part of the S-curve cancels in
- * the difference and a few hundred thousand symbols give a slope stable to
- * several digits. Both the on-time and half-symbol streams are formed by
- * convolving the symbol sequence with the composite sampled at the offset,
- * which is what a matched receiver at that timing phase actually sees.
+ * The measurement is a paired central difference AVERAGED OVER SEEDS: the
+ * same symbol sequence drives `+d` and `-d` so the data-dependent part
+ * cancels in the difference, and several independent sequences are then
+ * averaged because what is left is still a draw. A TED's S-curve amplitude
+ * carries the transition density of the stream driving it, and the design
+ * assigns that to nobody because it is data -- an m-sequence moves Gardner's
+ * slope 15% against i.i.d. symbols (F12). Every table below therefore prints
+ * `sd/mean` across realizations beside the value, and both gates refuse to
+ * run when the mean's standard error is not comfortably inside the tolerance
+ * they are about to apply. A tolerance tighter than the measurement's own
+ * scatter gates noise.
+ *
+ * It matters in practice, not just in principle: on one seed Gardner's
+ * through-cascade agreement read 0.896 at beta 0.1, and over ten it reads
+ * 0.944. The single-seed number was mostly data.
+ *
+ * Nothing here synthesises its own waveform. An earlier version rolled a
+ * private xorshift for the symbols and a hand-written tap-array dot product
+ * for the pulse; `dp_tx_test.h` exists precisely because "the same analytic
+ * direct-form synthesis loop had been written three times", and its symbol
+ * source is the library's own PRBS (`pn_core` via `wfm_synth_mls_poly`).
  *
  * @par What it found, and what it exonerated
  * BOTH detectors' measured slopes match `symsync_ted_slope()` across the
@@ -65,14 +82,15 @@
 /* One-sided pulse span in symbols; matches RateSync's default and is what
    symsync_ted_slope() is handed, so the two see the same truncation. */
 #define SPAN 8
-/* Neighbours summed into one sample. The composite is Nyquist, so the
-   far tails contribute only ISI, but they are cheap here: the taps are
-   precomputed once per offset and reused for every symbol. */
-#define KMAX (SPAN + 2)
-#define NTAP (2 * KMAX + 1)
-/* Symbols averaged per offset. The pairing below removes almost all of the
-   data variance, so this is generous rather than marginal. */
-#define NSYM 200000
+/* Symbols per realization. The pairing below removes most of the data
+   variance and the seed average removes the rest, so this trades length
+   for independent draws rather than spending everything on one. */
+#define NSYM 20000
+/* Independent symbol sequences averaged per point. One realization is a
+   sample of a data-dependent quantity -- the S-curve amplitude carries the
+   transition density, which is data (F12) -- so a single seed states a
+   number the next seed will not reproduce. */
+#define NSEED 8
 /* Central-difference half-step, in symbols. Small enough to sit inside every
    pulse's linear region and large enough that the composite's own rounding
    does not show -- the same reasoning, and nearly the same value, as
@@ -85,83 +103,118 @@
 #define CASC_DTAU 0.03125
 #define CASC_NSYM 4000
 #define CASC_SKIP 300
+/* Realizations averaged per point, as in phase 1. */
+#define CASC_NSEED 10
 /* Set from measurement, not chosen: see the printed table. */
-#define CASC_GARDNER_TOL 0.20
+#define CASC_GARDNER_TOL 0.12
 #define CASC_DTTL_RATCHET 11.0
 
-static uint32_t
-xs32 (uint32_t *st)
-{
-  *st ^= *st << 13;
-  *st ^= *st >> 17;
-  *st ^= *st << 5;
-  return *st;
-}
-
 /**
- * Mean raw detector output over NSYM i.i.d. BPSK symbols, at timing offset
+ * Mean raw detector output over the shared stimulus, at timing offset
  * @p tau, with no cascade anywhere in the path.
  *
- * `gy[j]` is the composite sampled at the on-time instant `tau + j` and
- * `gm[j]` at the half-symbol-early gate `tau - 0.5 + j`, so one symbol's
- * samples are a dot product of the tap arrays with the symbols around it.
+ * Driven by `dp_tx_make()` with `DP_TX_RC` -- the raised cosine, which is
+ * the matched pair already collapsed, i.e. exactly what a matched receiver
+ * hands its detector. At `sps = 2` the even samples are the on-time
+ * instants and the odd ones the half-symbol gate, so the detector's two
+ * inputs come straight off the shared stimulus with no resampling and no
+ * cascade.
+ *
+ * This used to synthesise its own stream: a private xorshift for the
+ * symbols and a hand-rolled tap-array dot product for the pulse. Both were
+ * wrong to write. `dp_tx_test.h` exists because "the same analytic
+ * direct-form synthesis loop had been written three times", and its symbol
+ * source is the library's own PRBS (`pn_core` via `wfm_synth_mls_poly`) --
+ * so a private one here is a fourth copy and a second random source, in a
+ * directory the `no private RNG` rule does not currently scan.
  */
 static double
 s_curve_measured (int ted, double beta, double tau, uint32_t seed)
 {
-  double gy[NTAP], gm[NTAP];
-  for (int j = -KMAX; j <= KMAX; j++)
-    {
-      gy[j + KMAX] = wfm_rc_h (tau + (double)j, beta);
-      gm[j + KMAX] = wfm_rc_h (tau - 0.5 + (double)j, beta);
-    }
+  dp_tx_cfg_t cfg = dp_tx_defaults ();
+  cfg.pulse       = DP_TX_RC; /* TX*RX already collapsed */
+  cfg.sps         = 2.0;      /* on-time + half-symbol gate, nothing else */
+  cfg.beta        = beta;
+  cfg.span        = SPAN;
+  cfg.tau         = tau;
+  cfg.nsym        = NSYM;
+  cfg.seed        = seed;
 
-  /* Ring of the most recent symbols, newest last. */
-  double   a[NTAP];
-  uint32_t st = seed;
-  for (int i = 0; i < NTAP; i++)
-    a[i] = (xs32 (&st) & 1u) ? 1.0 : -1.0;
+  size_t          n = 0;
+  float _Complex *x = dp_tx_make (&cfg, NULL, &n);
+  if (!x)
+    return 0.0;
 
-  double sum    = 0.0;
-  double prev_y = 0.0;
-  int    have   = 0;
-  long   n      = 0;
-  for (long k = 0; k < NSYM; k++)
+  /* Symbol k's centre is `lead + k*sps` in samples (dp_tx_make's origin),
+     and the gate is one sample -- half a symbol -- before it. */
+  const size_t lead   = (size_t)((double)SPAN * cfg.sps);
+  double       sum    = 0.0;
+  long         cnt    = 0;
+  double       prev_y = 0.0;
+  int          have   = 0;
+  for (size_t k = 1; k + 1 < NSYM; k++)
     {
-      /* y and mid for the symbol currently at the ring's centre. */
-      double y = 0.0, mid = 0.0;
-      for (int j = 0; j < NTAP; j++)
-        {
-          /* a[j] is the symbol (KMAX - j) periods AHEAD of centre, so it is
-             weighted by the tap at that displacement. */
-          y += a[j] * gy[NTAP - 1 - j];
-          mid += a[j] * gm[NTAP - 1 - j];
-        }
+      size_t i = lead + k * 2u;
+      if (i >= n || i == 0)
+        break;
+      double y   = (double)crealf (x[i]);
+      double mid = (double)crealf (x[i - 1]);
       if (have)
         {
-          double e = (ted == SYMSYNC_TED_DTTL)
-                         ? dttl_ted ((float)mid, (float)y, (float)prev_y)
-                         : gardner_ted ((float)mid, (float)(y - prev_y));
-          sum += e;
-          n++;
+          sum += (ted == SYMSYNC_TED_DTTL)
+                     ? dttl_ted ((float)mid, (float)y, (float)prev_y)
+                     : gardner_ted ((float)mid, (float)(y - prev_y));
+          cnt++;
         }
       prev_y = y;
       have   = 1;
-      /* Slide one symbol in. */
-      memmove (a, a + 1, (NTAP - 1) * sizeof (double));
-      a[NTAP - 1] = (xs32 (&st) & 1u) ? 1.0 : -1.0;
     }
-  return n ? sum / (double)n : 0.0;
+  free (x);
+  return cnt ? sum / (double)cnt : 0.0;
 }
 
 /* Measured |dS/dtau| at the lock point, paired so the data cancels. */
+/* Slope from ONE realization. Paired: the same seed drives both offsets,
+   so the data-dependent part of the S-curve cancels in the difference. */
 static double
-slope_measured (int ted, double beta)
+slope_one (int ted, double beta, uint32_t seed)
 {
-  const uint32_t seed = 0x5eed1234u;
-  double         sp   = s_curve_measured (ted, beta, DTAU, seed);
-  double         sm   = s_curve_measured (ted, beta, -DTAU, seed);
+  double sp = s_curve_measured (ted, beta, DTAU, seed);
+  double sm = s_curve_measured (ted, beta, -DTAU, seed);
   return fabs ((sp - sm) / (2.0 * DTAU));
+}
+
+/**
+ * Mean slope over NSEED independent symbol sequences, with the seed-to-seed
+ * spread reported alongside.
+ *
+ * The spread is not decoration. A TED's S-curve amplitude carries the
+ * transition density of the stream driving it, and the design assigns that
+ * to nobody because it is data (F12 in the RateSync report: an m-sequence
+ * moves Gardner's slope 15% against i.i.d. symbols). So a slope from one
+ * seed is a draw, not a constant, and any ratio built on it inherits that.
+ * Quoting the spread is what makes the scaling factor below a measurement
+ * with an uncertainty instead of a number the next seed contradicts.
+ *
+ * @param sd_out  receives the sample standard deviation across seeds.
+ */
+static double
+slope_measured (int ted, double beta, double *sd_out)
+{
+  double v[NSEED], sum = 0.0;
+  for (int i = 0; i < NSEED; i++)
+    {
+      /* Distinct, non-zero, and not a sequence the PRBS treats specially. */
+      v[i] = slope_one (ted, beta, (uint32_t)(7u + 1000u * (unsigned)i));
+      sum += v[i];
+    }
+  double mean = sum / (double)NSEED;
+  double acc  = 0.0;
+  for (int i = 0; i < NSEED; i++)
+    acc += (v[i] - mean) * (v[i] - mean);
+  if (sd_out)
+    *sd_out = (NSEED > 1) ? sqrt (acc / (double)(NSEED - 1)) : 0.0;
+  return mean;
 }
 
 int
@@ -188,18 +241,35 @@ main (int argc, char **argv)
   printf ("TED S-curve slope vs symsync_ted_slope() -- RRC, span %d, "
           "%d symbols/point, no cascade\n\n",
           SPAN, NSYM);
-  printf ("  %-8s %6s %14s %14s %8s\n", "ted", "beta", "measured", "declared",
-          "ratio");
+  printf ("  %-8s %6s %12s %9s %12s %9s\n", "ted", "beta", "measured",
+          "sd/mean", "declared", "scale");
   for (size_t t = 0; t < 2; t++)
     {
       for (size_t b = 0; b < nbeta; b++)
         {
-          double meas = slope_measured (teds[t], betas[b]);
+          double sd   = 0.0;
+          double meas = slope_measured (teds[t], betas[b], &sd);
           double decl
               = symsync_ted_slope (teds[t], SYMSYNC_PULSE_RRC, betas[b], SPAN);
           double ratio = (decl > 0.0) ? meas / decl : 0.0;
-          printf ("  %-8s %6.2f %14.6f %14.6f %8.4f\n", names[t], betas[b],
-                  meas, decl, ratio);
+          double rsd   = (meas != 0.0) ? sd / fabs (meas) : 0.0;
+          printf ("  %-8s %6.2f %12.6f %8.2f%% %12.6f %9.4f\n", names[t],
+                  betas[b], meas, 100.0 * rsd, decl, ratio);
+          /* A tolerance below the measurement's own scatter would gate
+             noise. NSEED draws put the mean's standard error at
+             sd/sqrt(NSEED); if that is not comfortably inside TOL the
+             gate is not measuring what it claims to. */
+          if (rsd / sqrt ((double)NSEED) > TOL / 3.0)
+            {
+              fprintf (stderr,
+                       "  %s beta=%.2f: the seed-to-seed scatter (%.2f%%, "
+                       "standard error %.2f%%) is too close to the %.0f%% "
+                       "tolerance — raise NSEED or NSYM rather than the "
+                       "tolerance\n",
+                       names[t], betas[b], 100.0 * rsd,
+                       100.0 * rsd / sqrt ((double)NSEED), 100.0 * TOL);
+              fail = 1;
+            }
 
           if (fabs (ratio - 1.0) > TOL)
             {
@@ -268,59 +338,90 @@ main (int argc, char **argv)
    * drive -- not a pulse re-shaped here. A second implementation of the
    * transmitter is exactly the peer that drifts. */
   printf ("\n  through the cascade (bn = 0, sps 4, m 2, dp_tx stimulus):\n");
-  printf ("  %-8s %6s %14s %14s %8s\n", "ted", "beta", "raw slope", "declared",
-          "ratio");
+  printf ("  %-8s %6s %12s %9s %12s %9s\n", "ted", "beta", "raw slope",
+          "sd/mean", "declared", "scale");
   double worst_gardner = 0.0, dttl_lo = 1e30, dttl_hi = 0.0;
   for (size_t t = 0; t < 2; t++)
     {
       for (size_t b = 0; b < nbeta; b++)
         {
-          double       mean[2] = { 0.0, 0.0 };
           const double taus[2] = { -CASC_DTAU, +CASC_DTAU };
-          for (int si = 0; si < 2; si++)
+          /* One realization per seed; the mean and its scatter below are
+             what the scale factor is quoted from. */
+          double slopes[CASC_NSEED];
+          for (int sd_i = 0; sd_i < CASC_NSEED; sd_i++)
             {
-              dp_tx_cfg_t cfg  = dp_tx_defaults ();
-              cfg.sps          = 4.0;
-              cfg.beta         = betas[b];
-              cfg.span         = SPAN;
-              cfg.tau          = taus[si];
-              cfg.nsym         = CASC_NSYM;
-              size_t         n = 0;
-              float complex *x = dp_tx_make (&cfg, NULL, &n);
-              if (!x)
-                continue;
-              ratesync_state_t *rs
-                  = ratesync_create (4.0, RATESYNC_PULSE_RRC, betas[b], SPAN,
-                                     2, 1024, 0.0, 0.707, teds[t]);
-              if (!rs)
+              double mean[2] = { 0.0, 0.0 };
+              for (int si = 0; si < 2; si++)
                 {
-                  free (x);
-                  continue;
-                }
-              double        sum  = 0.0;
-              long          used = 0, cnt = 0;
-              float complex sym;
-              for (size_t i = 0; i < n; i++)
-                if (ratesync_step (rs, x[i], &sym))
-                  {
-                    /* Discard the cascade's fill; the loop is open, so
-                       there is no transient beyond that to wait out. */
-                    if (++cnt > CASC_SKIP)
+                  dp_tx_cfg_t cfg  = dp_tx_defaults ();
+                  cfg.sps          = 4.0;
+                  cfg.beta         = betas[b];
+                  cfg.span         = SPAN;
+                  cfg.tau          = taus[si];
+                  cfg.nsym         = CASC_NSYM;
+                  cfg.seed         = (uint32_t)(7u + 1000u * (unsigned)sd_i);
+                  size_t         n = 0;
+                  float complex *x = dp_tx_make (&cfg, NULL, &n);
+                  if (!x)
+                    continue;
+                  ratesync_state_t *rs
+                      = ratesync_create (4.0, RATESYNC_PULSE_RRC, betas[b],
+                                         SPAN, 2, 1024, 0.0, 0.707, teds[t]);
+                  if (!rs)
+                    {
+                      free (x);
+                      continue;
+                    }
+                  double        sum  = 0.0;
+                  long          used = 0, cnt = 0;
+                  float complex sym;
+                  for (size_t i = 0; i < n; i++)
+                    if (ratesync_step (rs, x[i], &sym))
                       {
-                        sum += rs->loop.last_error / rs->loop.ted_scale;
-                        used++;
+                        /* Discard the cascade's fill; the loop is open, so
+                           there is no transient beyond that to wait out. */
+                        if (++cnt > CASC_SKIP)
+                          {
+                            sum += rs->loop.last_error / rs->loop.ted_scale;
+                            used++;
+                          }
                       }
-                  }
-              mean[si] = used ? sum / (double)used : 0.0;
-              ratesync_destroy (rs);
-              free (x);
+                  mean[si] = used ? sum / (double)used : 0.0;
+                  ratesync_destroy (rs);
+                  free (x);
+                }
+              slopes[sd_i] = fabs ((mean[1] - mean[0]) / (2.0 * CASC_DTAU));
             }
-          double meas = fabs ((mean[1] - mean[0]) / (2.0 * CASC_DTAU));
+          double acc = 0.0;
+          for (int i2 = 0; i2 < CASC_NSEED; i2++)
+            acc += slopes[i2];
+          double meas = acc / (double)CASC_NSEED;
+          double var  = 0.0;
+          for (int i2 = 0; i2 < CASC_NSEED; i2++)
+            var += (slopes[i2] - meas) * (slopes[i2] - meas);
+          double csd
+              = (CASC_NSEED > 1) ? sqrt (var / (double)(CASC_NSEED - 1)) : 0.0;
           double decl
               = symsync_ted_slope (teds[t], SYMSYNC_PULSE_RRC, betas[b], SPAN);
           double ratio = (decl > 0.0) ? meas / decl : 0.0;
-          printf ("  %-8s %6.2f %14.6f %14.6f %8.4f\n", names[t], betas[b],
-                  meas, decl, ratio);
+          printf ("  %-8s %6.2f %12.6f %8.2f%% %12.6f %9.4f\n", names[t],
+                  betas[b], meas, 100.0 * (meas ? csd / meas : 0.0), decl,
+                  ratio);
+          /* The same rule phase 1 applies: a tolerance below the
+             measurement's own scatter gates noise, not behaviour. */
+          double crsd = meas ? csd / meas : 0.0;
+          if (crsd / sqrt ((double)CASC_NSEED) > CASC_GARDNER_TOL / 3.0)
+            {
+              fprintf (stderr,
+                       "  %s beta=%.2f: through-cascade scatter %.2f%% "
+                       "(standard error %.2f%%) is too close to the %.0f%% "
+                       "tolerance — raise CASC_NSEED or CASC_NSYM\n",
+                       names[t], betas[b], 100.0 * crsd,
+                       100.0 * crsd / sqrt ((double)CASC_NSEED),
+                       100.0 * CASC_GARDNER_TOL);
+              fail = 1;
+            }
           if (teds[t] == SYMSYNC_TED_GARDNER)
             {
               if (fabs (ratio - 1.0) > worst_gardner)

@@ -234,6 +234,16 @@ jobs:
     - name: Install doxygen
       run: make install-docs-deps
 
+    # gen-c-api-check needs the docs Python group (mkdoxy) as well as doxygen.
+    # It lives in THIS job rather than in `docs` because doxygen is already
+    # here at CI's pinned version -- running it in `docs` would fall back to
+    # the container shim and rebuild a pinned doxygen image every run.
+    - name: Install uv
+      uses: ./.github/actions/setup-uv
+      with:
+        python-version: '3.12'
+        sync: --group dev --group docs
+
     - name: Run doxygen (zero warnings)
       # `make doxygen-check`, never an inline doxygen invocation: the Makefile
       # is the single driver, so `make doxygen-check` locally is this job. When
@@ -244,6 +254,11 @@ jobs:
       # versions disagree about what counts as a warning. Bump
       # DOXYGEN_VERSION in the Makefile when this runner image changes.
       run: make doxygen-check
+
+    - name: Committed docs/c-api matches the headers
+      # The generated C API tree is committed, so it can go stale silently --
+      # and had, by 22 pages. `make gen-c-api` locally is this step.
+      run: make gen-c-api-check
 
   # ------------------------------------------------------------------
   # Specan demo frames staleness check

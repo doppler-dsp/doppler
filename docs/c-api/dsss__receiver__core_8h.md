@@ -181,7 +181,7 @@ int dsss_receiver_configure_chain_raw (
 
 
 
-The escape hatch for the one composition-specific knob this object adds beyond its children's own: `segments` (Dll's tracking parameter) and `sps`/`n` (MpskReceiver's sample-rate/carrier-arm parameters) are indepen­dently overridable here, still bridged by a freshly-sized `RateConverter` — never coupled to each other (see the module docstring). Rebuilds `dll`/`rc`/`rx` with every replacement allocated first, only freeing and adopting the old ones once every allocation has succeeded (mirrors `Acquisition`'s own `_regrid()` discipline) — a failed pin leaves the receiver tracking on its prior grid, not half-destroyed. Only meaningful once tracking (the grid defaults still apply to create-time auto-sizing for the next hit while searching; call `dsss_receiver_create()` with different `segments`/`sps` for that, or re-pin here again after the next hit).
+The escape hatch for the one composition-specific knob this object adds beyond its children's own: `segments` (Dll's tracking parameter) and `sps`/`n` (MpskReceiver's sample-rate/carrier-arm parameters) are indepen­dently overridable here, still bridged by a freshly-sized `RateConverter` — never coupled to each other (see the module docstring). Rebuilds `dll`/`rc`/`rx` with every replacement allocated first, only freeing and adopting the old ones once every allocation has succeeded (mirrors `Acquisition`'s own `acq_regrid()` discipline) — a failed pin leaves the receiver tracking on its prior grid, not half-destroyed. Only meaningful once tracking (the grid defaults still apply to create-time auto-sizing for the next hit while searching; call `dsss_receiver_create()` with different `segments`/`sps` for that, or re-pin here again after the next hit).
 
 
 

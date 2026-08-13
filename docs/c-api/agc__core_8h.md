@@ -195,7 +195,18 @@ Feedback — power is measured AFTER the gain. The gain applied to sample `n` is
 **
 **
 
-[**agc\_step()**](agc__core_8h.md#function-agc_step) advances the control loop every sample. [**agc\_steps()**](agc__core_8h.md#function-agc_steps) decimates it: the detector + loop filter run once per chunk of `decim` samples (default `AGC_DECIM_DEFAULT`; typically 8, 16 or 32). The gain the loop commands is linearly interpolated across the chunk — a first-order hold, so the applied gain has no inter-chunk staircase — while the gain-apply and the power sum vectorise. This is sound because the detector average already band-limits the envelope, but it makes [**agc\_steps()**](agc__core_8h.md#function-agc_steps) not bit-identical to a per-sample [**agc\_step()**](agc__core_8h.md#function-agc_step) loop, only equivalent at convergence. The per-block detector and loop coefficients are rescaled from `alpha` / `loop_bw` internally, so those keep their per-sample meaning; keep `loop_bw` well below `1/`(4\*decim) for loop stability.
+[**agc\_step()**](agc__core_8h.md#function-agc_step) advances the control loop every sample. [**agc\_steps()**](agc__core_8h.md#function-agc_steps) decimates it: the detector + loop filter run once per chunk of `decim` samples (default `AGC_DECIM_DEFAULT`; typically 8, 16 or 32). The gain the loop commands is linearly interpolated across the chunk — a first-order hold, so the applied gain has no inter-chunk staircase — while the gain-apply and the power sum vectorise. This is sound because the detector average already band-limits the envelope, but it makes [**agc\_steps()**](agc__core_8h.md#function-agc_steps) not bit-identical to a per-sample [**agc\_step()**](agc__core_8h.md#function-agc_step) loop, only equivalent at convergence. Both per-block coefficients are COMPOUNDED from `alpha` / `loop_bw` internally — `1-`(1-a)^decim, not `decim*a` — so both keep their per-sample meaning exactly, including at `decim==1`.
+
+
+
+
+**
+**
+
+
+
+
+
 
 
 
@@ -245,7 +256,7 @@ agc_state_t * agc_create (
 
 
 * `ref_db` Target output power in dB (e.g. `0.0` for unity power). 
-* `loop_bw` Loop noise bandwidth in cycles/sample. The FILTER's time constant is `1/`(4\*loop\_bw) samples; the object settles more slowly than that on a quiet input, because the detector is inside the loop and measures in power (see the Linear-in-dB note above — measured 1.7x to 2.2x at -40 dB in, worse at small `alpha`). Treat `1/`(4\*loop\_bw) as a floor on settling, not an estimate of it. Smaller values are slower and smoother; keep well below `1/`(4\*decim) when using [**agc\_steps()**](agc__core_8h.md#function-agc_steps). 
+* `loop_bw` Loop noise bandwidth in cycles/sample. The FILTER's time constant is `1/`(4\*loop\_bw) samples; the object settles more slowly than that on a quiet input, because the detector is inside the loop and measures in power (see the Linear-in-dB note above — measured 1.7x to 2.2x at -40 dB in, worse at small `alpha`). Treat `1/`(4\*loop\_bw) as a floor on settling, not an estimate of it. Smaller values are slower and smoother. With [**agc\_steps()**](agc__core_8h.md#function-agc_steps), the pairing rule is `4*decim*loop_bw` &lt;= 0.05 — see "Choosing decim". 
 * `alpha` Power-detector EMA coefficient in (0, 1]; smaller values smooth harder but react slower to envelope changes. 
 
 
@@ -809,7 +820,7 @@ _Default envelope decimation factor (_ [_**agc\_state\_t::decim**_](structagc__s
 
 
 
-[**agc\_steps()**](agc__core_8h.md#function-agc_steps) runs the detector + loop filter once per chunk of `decim` samples. `decim` must stay small relative to the loop time constant ~1/(4\*loop\_bw); useful values are 8, 16 and 32. 8 keeps the gain trajectory well inside the default loop bandwidth and is one AVX-width vector for the in-chunk gain-apply. 
+[**agc\_steps()**](agc__core_8h.md#function-agc_steps) runs the detector + loop filter once per chunk of `decim` samples; useful values are 8, 16 and 32. The rule is `4*decim*loop_bw` &lt;= 0.05 (see "Choosing decim" above), which 8 satisfies at every loop bandwidth this object is used at; it is also one AVX-width vector for the in-chunk gain-apply. 
 
 
         

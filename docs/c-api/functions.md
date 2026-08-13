@@ -491,6 +491,9 @@
 * **det\_threshold\_power** ([**detection\_core.h**](detection__core_8h.md))
 * **det\_verify\_count** ([**detection\_core.h**](detection__core_8h.md))
 * **det\_verify\_delay** ([**detection\_core.h**](detection__core_8h.md))
+* **det\_cmp\_f32\_asc** ([**det\_private.h**](det__private_8h.md))
+* **det\_noise\_estimate** ([**det\_private.h**](det__private_8h.md))
+* **det\_ring\_create** ([**det\_private.h**](det__private_8h.md))
 * **detector\_create** ([**detector\_core.h**](detector__core_8h.md))
 * **detector\_destroy** ([**detector\_core.h**](detector__core_8h.md))
 * **detector\_get\_state** ([**detector\_core.h**](detector__core_8h.md))
@@ -644,6 +647,8 @@
 
 * **esn0\_db\_for\_ser** ([**ber\_meter\_core.h**](ber__meter__core_8h.md))
 * **evm\_scatter\_floor\_db** ([**ber\_meter\_core.h**](ber__meter__core_8h.md))
+* **ema\_alpha\_decim** ([**util\_core.h**](util__core_8h.md))
+* **ema\_step** ([**util\_core.h**](util__core_8h.md))
 
 
 ## f
@@ -1393,13 +1398,6 @@
 * **wfm\_writer\_track\_clipping** ([**wfm\_writer\_core.h**](wfm__writer__core_8h.md))
 * **wfm\_writer\_write** ([**wfm\_writer\_core.h**](wfm__writer__core_8h.md))
 * **write\_blue\_header** ([**wfm\_writer\_core.h**](wfm__writer__core_8h.md))
-
-
-## _
-
-* **\_cmp\_f32\_asc** ([**det\_private.h**](det__private_8h.md))
-* **\_noise\_estimate** ([**det\_private.h**](det__private_8h.md))
-* **\_ring\_create** ([**det\_private.h**](det__private_8h.md))
 
 
 

@@ -195,7 +195,7 @@ struct RateConverter_state_t RateConverter_state_t::agc_tlm_req;
 
 
 
-The telemetry attachment as REQUESTED, not as currently applied. Held here rather than only on the AGC because the AGC is destroyed and rebuilt whenever the plan changes (\_agc\_build), and may not exist yet when the attach arrives; keeping the request lets every rebuild re-apply it. Never packed into a state blob — telemetry is observation. See [**RateConverter\_set\_telemetry()**](RateConverter__core_8h.md#function-rateconverter_set_telemetry). 
+The telemetry attachment as REQUESTED, not as currently applied. Held here rather than only on the AGC because the AGC is destroyed and rebuilt whenever the plan changes (rc\_agc\_build), and may not exist yet when the attach arrives; keeping the request lets every rebuild re-apply it. Never packed into a state blob — telemetry is observation. See [**RateConverter\_set\_telemetry()**](RateConverter__core_8h.md#function-rateconverter_set_telemetry). 
 
 
         

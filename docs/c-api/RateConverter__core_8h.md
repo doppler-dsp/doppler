@@ -504,7 +504,7 @@ This levels signal PLUS noise, so at finite Es/N0 the symbols land slightly low 
 `bn_sym` is in cycles per SYMBOL, matching every other loop bandwidth in this family, and is converted to the AGC's own per-sample units with the one number that describes its position (`bn_sym / bank_sps`). It must stay well below the bandwidth of every loop downstream — an AGC divides out the amplitude those loops' discriminators are built around, so one running near a loop's bandwidth corrects the excursions that loop is itself producing. See [**mpsk\_rx\_agc\_bn()**](mpsk__rx__loops_8h.md#function-mpsk_rx_agc_bn) for the ratio a composing receiver uses.
 
 
-The loop starts at unity gain and walks to the level; there is no seed and no sample is treated specially at the start. A seed is a STEP in gain, and one taken off a signal that has not arrived is a shock the loops downstream cannot absorb  see \_agc\_tap() for the measurement that settled this. So `bn_sym` also sets how fast a level error is corrected, and a very slow AGC leaves the early symbols under- or over-driven for a loop time constant.
+The loop starts at unity gain and walks to the level; there is no seed and no sample is treated specially at the start. A seed is a STEP in gain, and one taken off a signal that has not arrived is a shock the loops downstream cannot absorb  see rc\_agc\_tap() for the measurement that settled this. So `bn_sym` also sets how fast a level error is corrected, and a very slow AGC leaves the early symbols under- or over-driven for a loop time constant.
 
 
 

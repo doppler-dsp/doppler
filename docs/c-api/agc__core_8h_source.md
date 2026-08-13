@@ -103,7 +103,9 @@ extern "C"
      * refreshes once per this many samples — a zero-order hold on the
      * gain that amortises the transcendentals on a sample-rate hot loop.
      * 1 (default) is the exact per-sample loop; >1 trades gain-update
-     * latency for speed (keep well below 1/(4*loop_bw), like decim). */
+     * latency for speed (keep well below 1/(4*loop_bw)).  The same shape
+     * as decim's `4*decim*loop_bw <= 0.05`, but only decim's is measured —
+     * this one is a zero-order hold on a different quantity. */
     size_t gain_update_period;
     double gain_db; /* loop-filter integrator: current gain, dB        */
     /* Power-detector EMA of OUTPUT power, linear. Anything setting this by
@@ -148,11 +150,10 @@ void agc_reset(agc_state_t *state);
      * Instantaneous output power folded into the EMA p_avg += alpha*(p-p_avg)
      * exactly as the per-sample loop, so the detector trajectory is unchanged
      * by the period; only the loop-filter command below is decimated. */
-    double p = agc_power_ (y);
-    state->p_avg
-        += state->alpha
-           * (saturate (p, 0.0, AGC_POWER_CEIL, AGC_POWER_CEIL)
-              - state->p_avg);
+    double p     = agc_power_ (y);
+    state->p_avg = ema_step (
+        state->p_avg, saturate (p, 0.0, AGC_POWER_CEIL, AGC_POWER_CEIL),
+        state->alpha);
 
     /* Stage 3: 1st-order loop filter — once per period.  Integrate the dB
      * error with step size period*4*loop_bw, so the integrator advances at

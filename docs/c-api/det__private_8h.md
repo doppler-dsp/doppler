@@ -55,9 +55,9 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**\_cmp\_f32\_asc**](#function-_cmp_f32_asc) (const void \* a, const void \* b) <br> |
-|  float | [**\_noise\_estimate**](#function-_noise_estimate) (const float \* mag, size\_t lo, size\_t hi, float \* scratch, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) mode) <br>_Aggregate \|corr\| over bins &#91;lo, hi&#93; using the selected mode._  |
-|  dp\_f32\_t \* | [**\_ring\_create**](#function-_ring_create) (size\_t cap\_min) <br> |
+|  int | [**det\_cmp\_f32\_asc**](#function-det_cmp_f32_asc) (const void \* a, const void \* b) <br> |
+|  float | [**det\_noise\_estimate**](#function-det_noise_estimate) (const float \* mag, size\_t lo, size\_t hi, float \* scratch, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) mode) <br>_Aggregate \|corr\| over bins &#91;lo, hi&#93; using the selected mode._  |
+|  dp\_f32\_t \* | [**det\_ring\_create**](#function-det_ring_create) (size\_t cap\_min) <br> |
 |  size\_t | [**next\_pow2**](#function-next_pow2) (size\_t n) <br> |
 
 
@@ -97,10 +97,10 @@ Not part of the public API. Include after the module's own header so that det\_n
 
 
 
-### function \_cmp\_f32\_asc 
+### function det\_cmp\_f32\_asc 
 
 ```C++
-static int _cmp_f32_asc (
+static int det_cmp_f32_asc (
     const void * a,
     const void * b
 ) 
@@ -113,11 +113,11 @@ static int _cmp_f32_asc (
 
 
 
-### function \_noise\_estimate 
+### function det\_noise\_estimate 
 
 _Aggregate \|corr\| over bins &#91;lo, hi&#93; using the selected mode._ 
 ```C++
-static float _noise_estimate (
+static float det_noise_estimate (
     const float * mag,
     size_t lo,
     size_t hi,
@@ -158,10 +158,10 @@ Aggregated noise estimate, or 0 if lo &gt; hi.
 
 
 
-### function \_ring\_create 
+### function det\_ring\_create 
 
 ```C++
-static dp_f32_t * _ring_create (
+static dp_f32_t * det_ring_create (
     size_t cap_min
 ) 
 ```

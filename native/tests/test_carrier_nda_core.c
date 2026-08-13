@@ -515,5 +515,104 @@ main (void)
     dp_tlm_destroy (tlm);
   }
 
+  /* ---------------------------------------------------------------- *
+   * 14. The lock signal is BOUNDED in +-1, at every M and every input. *
+   *                                                                    *
+   *    Half of the argument that made this statistic a detector you    *
+   *    can put a number on. The header's case for limiting is two      *
+   *    properties: bounded, and M-independent under H0. The second is  *
+   *    measured (carrier_nda_lock asserts mean 0 / var 1/2 at every    *
+   *    M); the first was asserted in prose and by nothing else.        *
+   *                                                                    *
+   *    It is not implied by the H0 law. A statistic can have the right *
+   *    variance and still excurse: the RAW form Re(z^M) has exactly    *
+   *    this shape and, at M = 8 on Gaussian noise, an sd of 137 per    *
+   *    look against a value of 1.0 at lock. Bounding is what the       *
+   *    limiter buys, so it is what a regression would take away.       *
+   *                                                                    *
+   *    Swept over phase AND over the scales section 9 uses, because    *
+   *    the bound has to survive the same range the divide does -- an   *
+   *    un-hoisted |z|^M breaks boundedness long before it breaks       *
+   *    finiteness.                                                     *
+   * ---------------------------------------------------------------- */
+  {
+    const int ms[] = { 2, 4, 8 };
+    /* Straddles the eps guard (3.2e-2) and the old FLT_MAX cliff (1e5). */
+    const double amps[] = { 1e-5, 3.2e-2, 1.0, 1e5, 1e15 };
+    for (int mi = 0; mi < 3; mi++)
+      {
+        double worst = 0.0;
+        for (int k = 0; k < 512; k++)
+          {
+            /* A full period at this M, so every phase of the M-th power
+               is visited including the peaks. */
+            double th = -M_PI + 2.0 * M_PI * (double)k / 512.0;
+            for (size_t ai = 0; ai < sizeof amps / sizeof *amps; ai++)
+              {
+                double        A = amps[ai];
+                float complex z
+                    = (float)(A * cos (th)) + (float)(A * sin (th)) * I;
+                double pe, lk;
+                carrier_nda_disc (z, ms[mi], &pe, &lk);
+                DP_CHECK (isfinite (lk) && isfinite (pe));
+                DP_CHECK (fabs (lk) <= 1.0 + 1e-6);
+                if (fabs (lk) > worst)
+                  worst = fabs (lk);
+              }
+          }
+        /* Precondition, so the bound is not passing vacuously: a lock
+           signal pinned at zero would satisfy every check above. The
+           sweep covers a full period, so it must REACH the bound. */
+        DP_CHECK (worst > 0.99);
+      }
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 15. The derived threshold chain, as arithmetic.                    *
+   *                                                                    *
+   *    The header derives three numbers rather than picking them:      *
+   *      alpha  = 0.05                  -> N_eff = (2-a)/a = 39 looks  *
+   *      sd_H0  = sqrt(1/2 * a/(2-a))   = 0.1132                       *
+   *      thresh = eta * sd_H0, and the shipped default 0.5 is          *
+   *               eta = 4.416, a per-look Pfa of 5e-6                  *
+   *                                                                    *
+   *    All three reach a caller as macros, and nothing checked that    *
+   *    the macros still satisfy the identities they were derived from. *
+   *    This is pure arithmetic -- no Monte-Carlo, no seeds -- so it    *
+   *    belongs here rather than in a sweep, and it is exactly the      *
+   *    class of claim that rots silently when a constant is retuned:   *
+   *    change CARRIER_NDA_LOCK_ALPHA alone and the sd macro beside it  *
+   *    becomes a number with no derivation behind it.                  *
+   * ---------------------------------------------------------------- */
+  {
+    const double a = CARRIER_NDA_LOCK_ALPHA;
+    /* N_eff = (2-a)/a, the effective look count the alpha was chosen for
+       (>= the 30-look floor the header cites). */
+    const double n_eff = (2.0 - a) / a;
+    DP_CHECK (fabs (n_eff - 39.0) < 0.5);
+
+    /* Var per look is 1/2 EXACTLY at every M (H0, theta uniform), so the
+       post-EMA sd follows in closed form. The macro must BE this. */
+    const double sd = sqrt (0.5 * a / (2.0 - a));
+    DP_CHECK (fabs (sd - CARRIER_NDA_LOCK_NORM_SD) < 1e-12);
+
+    /* The shipped up-threshold, read back as its Pfa multiplier. 0.5 was
+       a long-standing default that turned out to BE the Pfa-derived value
+       once the statistic became M-independent; that coincidence is the
+       claim, so it is what gets pinned.
+
+       Read off a CONSTRUCTED object rather than from the macro the header
+       names. `CARRIER_NDA_LOCK_DEFAULT_UP` is defined in carrier_nda_core.c
+       and is invisible from the header, so the header's derivation cites a
+       symbol its own reader cannot reach -- and a test that hard-coded 0.5
+       would not notice create() installing something else. What matters to
+       a caller is the threshold the object actually runs with. */
+    carrier_nda_state_t *cd = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+    DP_CHECK (cd != NULL);
+    const double eta = cd->lockdet.up_thresh / CARRIER_NDA_LOCK_NORM_SD;
+    DP_CHECK (fabs (eta - 4.416) < 5e-3);
+    carrier_nda_destroy (cd);
+  }
+
   DP_TEST_END ("test_carrier_nda_core");
 }

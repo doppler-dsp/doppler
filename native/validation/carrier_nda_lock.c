@@ -27,70 +27,69 @@
  *   carrier_nda_lock            full sweep, prints the table
  *   carrier_nda_lock --check    fast CI gate: the H0 law and the H1 shape
  */
+#include "awgn/awgn_core.h"
 #include "carrier_nda/carrier_nda_core.h"
 #include "detection/detection_core.h"
+#include "wfm/wfm_core.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 
-static uint32_t
-xorshift32 (uint32_t *st)
-{
-  *st ^= *st << 13;
-  *st ^= *st >> 17;
-  *st ^= *st << 5;
-  return *st;
-}
-
-/* Unit-variance complex Gaussian (Box-Muller), matching symsync_lock.c. */
-static float complex
-cgauss (uint32_t *st)
-{
-  uint32_t a   = xorshift32 (st);
-  uint32_t b   = xorshift32 (st);
-  double   u1  = ((double)a + 1.0) / 4294967297.0;
-  double   u2  = ((double)b + 1.0) / 4294967297.0;
-  double   mag = sqrt (-log (u1));
-  double   th  = 6.283185307179586 * u2;
-  return (float)(mag * cos (th)) + (float)(mag * sin (th)) * I;
-}
+#define NBLK 4096
 
 /* Mean and variance of the lock statistic over `n` unit-amplitude symbols at
- * `esno_db`. `signal = 0` measures H0 (pure noise, no symbol at all). */
+ * `esno_db`. `signal = 0` measures H0 (pure noise, no symbol at all).
+ *
+ * Noise comes from the SHIPPED generator at the SHIPPED amplitude:
+ * wfm_awgn_amplitude(esno_db, 1.0) is the per-component sigma for unit
+ * symbol energy, and awgn_create() takes exactly that. Deriving it here
+ * instead is what put a 3 dB error in this file's first pass -- the helper
+ * exists precisely so the "is amplitude per-rail or total power" question
+ * is answered once, in one place, by the code that owns the convention.
+ *
+ * The symbol index is a deterministic cycle rather than a random draw, and
+ * that is not laziness: the M-th power STRIPS the modulation, so at lock
+ * every constellation point on the 0-grid raises to the same +1. The
+ * statistic is data-independent by construction -- which is the property
+ * that makes this an NDA detector at all -- so cycling all M indices
+ * uniformly measures exactly what a random stream would, with no second
+ * PRNG to seed, scale or get wrong. */
 static void
-measure (int m, double esno_db, int signal, size_t n, uint32_t seed,
+measure (int m, double esno_db, int signal, size_t n, uint64_t seed,
          double *mean_out, double *var_out)
 {
-  uint32_t st = seed;
-  /* cgauss() is unit TOTAL power (E|n|^2 = 1, half in each quadrature --
-     measured, not assumed). Unit symbol energy against Es/N0 = rd wants
-     total noise power 1/rd, so the scale is sqrt(1/rd).
-     Writing sqrt(0.5/rd) here -- the per-quadrature sd, correct only for a
-     generator that is unit-variance PER RAIL -- makes every Es/N0 on this
-     axis 3 dB optimistic. It did, until the fit disagreed with the phase
-     -variance derivation by exactly a factor of two. */
-  double rd = pow (10.0, esno_db / 10.0);
-  double sd = sqrt (1.0 / rd);
-  double s1 = 0.0, s2 = 0.0;
-  for (size_t i = 0; i < n; i++)
+  float amp       = signal ? wfm_awgn_amplitude ((float)esno_db, 1.0f) : 1.0f;
+  awgn_state_t *g = awgn_create (seed, amp);
+  float complex buf[NBLK];
+  double        s1 = 0.0, s2 = 0.0;
+  if (!g)
     {
-      float complex z = (float complex)sd * cgauss (&st);
-      if (signal)
+      *mean_out = *var_out = -1.0;
+      return;
+    }
+  for (size_t done = 0; done < n;)
+    {
+      size_t got = awgn_generate (g, NBLK, buf, NBLK);
+      for (size_t i = 0; i < got && done < n; i++, done++)
         {
-          /* 0-grid constellation point: what the loop locks TO. */
-          double th = 2.0 * M_PI * (double)(xorshift32 (&st) % (uint32_t)m)
-                      / (double)m;
-          z += (float)cos (th) + (float)sin (th) * I;
+          float complex z = buf[i];
+          if (signal)
+            {
+              /* 0-grid constellation point: what the loop locks TO. */
+              double th = 2.0 * M_PI * (double)(done % (size_t)m) / (double)m;
+              z += (float)cos (th) + (float)sin (th) * I;
+            }
+          double pe, lk;
+          carrier_nda_disc (z, m, &pe, &lk);
+          s1 += lk;
+          s2 += lk * lk;
         }
-      double pe, lk;
-      carrier_nda_disc (z, m, &pe, &lk);
-      s1 += lk;
-      s2 += lk * lk;
     }
   double mean = s1 / (double)n;
   *mean_out   = mean;
   *var_out    = s2 / (double)n - mean * mean;
+  awgn_destroy (g);
 }
 
 int

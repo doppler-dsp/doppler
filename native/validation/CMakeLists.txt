@@ -126,7 +126,12 @@ add_executable(validate_carrier_nda_lock
                ${CMAKE_CURRENT_SOURCE_DIR}/carrier_nda_lock.c)
 target_include_directories(validate_carrier_nda_lock
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-target_link_libraries(validate_carrier_nda_lock PRIVATE doppler_lib_static m)
+# wfm_core is NOT folded into doppler_lib_static (only wfm_dsp_core is), so
+# wfm_awgn_amplitude() -- the one place the AWGN amplitude convention is
+# inverted for a target SNR -- is unreachable from a C harness without this.
+# That reachability gap is why harnesses derive noise levels by hand; filed
+# rather than worked around further.
+target_link_libraries(validate_carrier_nda_lock PRIVATE doppler_lib_static wfm_core m)
 target_compile_options(validate_carrier_nda_lock PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_carrier_nda_lock
          COMMAND validate_carrier_nda_lock --check)

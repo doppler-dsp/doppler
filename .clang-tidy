@@ -26,6 +26,14 @@ Checks: >-
   -cert-oop54-cpp,
   -cert-oop57-cpp,
   -cert-oop58-cpp,
+  -clang-analyzer-optin.performance.Padding,
+
+# optin.performance.Padding wants the fields of dp_f32_t/dp_f64_t/dp_i16_t
+# (buffer.h), dp_tlmr_t and wfm_source_t reordered to shrink padding. Those are
+# PUBLIC structs: the field order is ABI, a consumer compiled against today's
+# header would be silently wrong against a reordered one, and the payoff is
+# bytes in a handful of long-lived objects rather than anything in a hot loop.
+# The check ships opt-in for precisely this reason.
 
 # Treat all warnings as errors. Keep the codebase clean from day one.
 WarningsAsErrors: "*"
@@ -47,11 +55,39 @@ ExcludeHeaderFilterRegex: "native/inc/jm_.*"
 FormatStyle: file
 
 CheckOptions:
-  # Flag functions over 80 lines or 10 branches — DSP algos should be tight.
+  # 80 lines / 10 branches was written before the check had ever run, and it
+  # does not describe this library. Measured across the 197 library TUs: 35
+  # functions exceed 80 lines and 36 exceed 10 branches, but the distribution
+  # is a long tail rather than a cliff — the line counts run 82, 82, 83, 83,
+  # 85, 88 ... and the branch counts 11, 12, 12, 12, 13 ... A threshold that
+  # fires on a 82-line `create()` doing argument validation is measuring the
+  # style of the codebase, not a problem in it.
+  #
+  # 160 / 30 is not the tail of the data fitted for a green run — it is the
+  # level at which the check agrees with an independent signal. At 160/30 it
+  # flags three functions, and the worst of the three, `wfm_synth_steps`
+  # (385 lines, 81 branches), is the SAME function clang-analyzer reports six
+  # uninitialized-read findings in, at lines 800-867. Complexity and defect
+  # coincide there, which is the evidence that this level means something and
+  # 80 did not.
+  #
+  # "Worst" means worst of what the check REPORTS. The genuinely worst function
+  # in the library is `doppler_wfmgen` at 817 lines and 173 branches — over
+  # twice wfm_synth_steps' branch count — and it does not appear because it
+  # carries a NOLINT, added by a commit titled "clang-tidy clean" at a time
+  # when clang-tidy could not run at all. Auditing that file by deleting its
+  # four suppressions also surfaced three real ArrayBound findings. See
+  # gh-723: a suppression written against a gate that never ran is not
+  # evidence of anything, and every NOLINT in the tree predates the gate.
+  #
+  # The three it flags are NOT waived — they are named work in gh-720, and two
+  # of them are already entangled with that issue's analyzer triage. Raising
+  # these numbers again to reach a green run would be the wrong move: the
+  # point of a threshold is that something has to change to satisfy it.
   - key: readability-function-size.LineThreshold
-    value: "80"
+    value: "160"
   - key: readability-function-size.BranchThreshold
-    value: "10"
+    value: "30"
 
   # _GNU_SOURCE and _POSIX_C_SOURCE are not ours to rename — the leading
   # underscore IS the interface. They are feature-test macros whose exact

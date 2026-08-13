@@ -670,9 +670,18 @@ def characterise() -> Data:
         "TED divides by the detector's own slope once, at construction "
         "(`symsync_ted_slope`), so a correctly normalised detector has unit "
         f"slope at lock. Measured `{d.slope_meas:.4f}` — the loop therefore "
-        f"runs at {abs(d.slope_meas - 1.0) * 100:.0f}% of the gain `bn` "
+        f"runs WITHIN {abs(d.slope_meas - 1.0) * 100:.0f}% of the gain `bn` "
         f"names, which is well inside the tolerance a second-order loop "
         f"needs and is the point of normalising at all."
+    )
+    R.md()
+    R.md(
+        "Read that as a measurement on THIS symbol stream, not as a constant "
+        "of the detector: Gardner's S-curve amplitude carries the transition "
+        "density, and the design assigns that to nobody — it is data. "
+        "Measured on the same object and the same pulse, an m-sequence in "
+        "place of i.i.d. symbols moves the slope to `0.8632`, a 15% shift "
+        "(§3 F12)."
     )
     R.md()
     R.md("![S-curve](scurve.png)")
@@ -1220,6 +1229,30 @@ def review(d: Data) -> None:
         "of 1.0. Exposing the analytic pulse would close this.",
     )
     cic = [c for c in d.clip_rows if c[0] == 64]
+    R.find(
+        "F12",
+        "BY DESIGN",
+        "The normalised slope at lock is a property of the detector AND of "
+        "the symbol stream, and this report used to present it as the "
+        "former alone. Gardner's raw output is the timing error multiplied "
+        "by three things the detector did not choose — amplitude, "
+        "transition density, and its own slope against the pulse — and only "
+        "the third is normalised out, deliberately: the design assigns "
+        "transition density to nobody, because it is data. So the "
+        f"`{d.slope_meas:.4f}` above is the slope on i.i.d. symbols. "
+        "Measured while swapping the stimulus generator: on the SAME object "
+        "with the SAME pulse (Synth, the analytic RRC — verified against "
+        "`rrc_taps*sqrt(fine)` and `rrc_h` to 2e-5), a 15-stage m-sequence "
+        "gives `0.8632`, a 15% shift, because an m-sequence's runs are "
+        "structured where i.i.d. runs are not. Nothing is wrong with the "
+        "object: this is the transition-density term doing exactly what the "
+        "design says it does, and it is recorded because a reader checking "
+        "the construct-time normaliser against a different waveform will "
+        "measure a different number and should not read that as a defect. "
+        "i.i.d. is what `test_ratesync_core.c` drives, so it is the "
+        "stimulus this report keeps.",
+    )
+    R.md()
     R.find(
         "F11",
         "GAP",

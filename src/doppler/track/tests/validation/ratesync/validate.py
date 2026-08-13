@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass, field
+from functools import cache
 from pathlib import Path
 
 import numpy as np
@@ -194,6 +195,46 @@ def tau_symbols(sps: int, tau_fine: int) -> float:
     return tau_fine / float(grid_of(sps))
 
 
+def eye_at(sps: int, tau_fine: int, ted: str = "gardner") -> float:
+    """Mean ``|output symbol|`` at a standing offset — how open the eye is.
+
+    The axis-independent way to tell this validator's two S-curve zeros
+    apart. One of them is the eye centre (stable, the equilibrium a closed
+    loop settles on) and the other is the T/2 point (unstable); which is
+    which used to be decided here by a hard-coded ``slope <= 0`` test, and
+    that test is only meaningful relative to a tau axis.
+
+    This validator's tau is a DECIMATION PHASE and the C harness's
+    (`dp_tx_cfg_t::tau`) is a TRANSMITTER offset, so the two axes run in
+    opposite senses and every slope sign is negated between them. The two
+    harnesses consequently agreed on every measured slope and disagreed
+    about which zero to call stable — and the sign test cannot break that
+    tie, because the sign is what differs.
+
+    Amplitude can. A matched filter's output peaks at the eye centre and
+    collapses toward the crossing half a symbol away, and that ordering has
+    no sign convention: the zero with the larger mean ``|symbol|`` is the
+    eye centre on either axis. Measured here, the two differ by 1.000
+    against 0.53-0.79 depending on roll-off, so the discrimination is not
+    marginal.
+
+    .. warning::
+       **Measurement only — this must never migrate into the object.** It
+       works here because a validator generates its own stimulus and so
+       knows an open eye exists to be found. ``RateSync`` knows nothing of
+       the kind: its input may be noise, an unmodulated dwell, or a buffer
+       of zeros, and a timing loop that waited for an open eye before
+       trusting itself would stall on exactly those. The object needs no
+       such test — it escapes the T/2 point by feedback alone, which is a
+       property of the loop's sign rather than of the signal's quality
+       (design §6.2).
+    """
+    x = rrc_bpsk(sps, tau_fine % grid_of(sps), nsym=600)
+    _, y, _ = run_sync(x, float(sps), bn=0.0, ted=ted)
+    a = np.abs(np.asarray(y))
+    return float(a[len(a) // 4 :].mean()) if a.size else 0.0
+
+
 # ────────────────────────────────────────────────────────── measurement
 def settle(bn: float) -> int:
     """Symbols to discard before a steady-state number means anything.
@@ -277,6 +318,21 @@ def run_sync(
     return rs, y, rec
 
 
+@cache
+def _eye_centre_fine(sps: int, ted: str) -> int:
+    """Fine-sample offset of the EYE CENTRE — the stable equilibrium.
+
+    Scanned by amplitude rather than assumed to be 0, for the reason
+    `eye_at` gives: 0 is the T/2 crossing on this validator's axis. The
+    scan is coarse because the answer is one of two points half a symbol
+    apart, not a continuum, and it is cached because it is a property of
+    the cascade's group delay rather than of the roll-off or the seed.
+    """
+    fine = grid_of(sps)
+    offs = range(0, fine, max(1, fine // 8))
+    return max(offs, key=lambda o: eye_at(sps, o, ted))
+
+
 def _cascade_slope(beta: float, ted: str, seed: int = 7) -> float:
     """Normalised S-curve slope at lock, through the real cascade, at @p beta.
 
@@ -287,9 +343,14 @@ def _cascade_slope(beta: float, ted: str, seed: int = 7) -> float:
 
     Two offsets, not a full curve: the quantity is a derivative at one
     point, and a paired difference either side of the lock point is the
-    whole of it.
+    whole of it — provided the pair straddles the LOCK point and not the
+    other equilibrium. It used to straddle `0`, which on this validator's
+    axis is the T/2 crossing, and that is the whole of the retired F15: the
+    normaliser was being checked at the zero it was never meant to describe.
+    The centre now comes from `_eye_centre_fine`, by amplitude.
     """
     nsym, sps, fine = 3000, 4, FINE
+    c = _eye_centre_fine(sps, ted)
     syms = symbols(nsym, seed).astype(np.complex64)
     gen = Synth(
         type="symbols",
@@ -305,7 +366,7 @@ def _cascade_slope(beta: float, ted: str, seed: int = 7) -> float:
     shaped = np.asarray(gen.steps(nsym * fine)).astype(np.complex64)
     dec, j = fine // sps, 2
     got = {}
-    for off in (fine - j, j):
+    for off in ((c - j) % fine, (c + j) % fine):
         x = np.ascontiguousarray(shaped[off::dec])
         rs = RateSync(
             sps=float(sps),
@@ -323,7 +384,8 @@ def _cascade_slope(beta: float, ted: str, seed: int = 7) -> float:
         rs.steps(x)
         e = np.asarray(tlm.read_dict().get("s.e", []))
         got[off] = float(e.mean()) if e.size else 0.0
-    return (got[j] - got[fine - j]) / (2.0 * j / fine)
+    lo, hi = (c - j) % fine, (c + j) % fine
+    return (got[hi] - got[lo]) / (2.0 * j / fine)
 
 
 def _pct(mv: tuple[float, float]) -> float:
@@ -471,7 +533,8 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "ted_scale gives the detector unit slope at lock, so bn means one "
         "bandwidth",
         "C `validate_ratesync_scurve` phases 1-3 + C §20 NEW — formula, "
-        "wiring and through-cascade, all three; the last one disagrees, F15",
+        "wiring and through-cascade, all three; all three now agree, and "
+        "the through-cascade one is measured at the stable zero (F15)",
     ),
     (
         "C27",
@@ -790,13 +853,27 @@ def characterise() -> Data:
                 # report grew a second detector.
                 zs.append((float(t0), float((b - a) / dt)))
         pk = float(np.abs(sc_a).max())
-        stable = [s for _, s in zs if s <= 0]
+        # Which zero is the eye centre, by AMPLITUDE rather than by the sign
+        # of its slope. The sign test that stood here read `s <= 0` and was
+        # inverted: this validator's tau is a decimation phase, whose sense
+        # is opposite to the C harness's transmitter offset, so the rule
+        # selected the T/2 equilibrium and reported its slope as the check
+        # on the construct-time normaliser. Gardner's two zeros carry the
+        # same |slope| (1.0036 against 1.0044) so it read correct either
+        # way; DTTL's do not, and the 2.5995 that became F15 was the
+        # unstable one. See `eye_at`.
+        eyes = [eye_at(sps, round(t0 * fine), ted) for t0, _ in zs]
+        i_st = int(np.argmax(eyes)) if eyes else 0
+        stable_t, stable_s = zs[i_st] if zs else (0.0, 0.0)
         d.scurve_by_ted[ted] = {
             "tau": tau_a,
             "scurve": sc_a,
             "zeros": zs,
+            "eyes": eyes,
             "peak": pk,
-            "slope": abs(stable[0]) if stable else 0.0,
+            "stable_at": stable_t,
+            "stable_i": i_st,
+            "slope": abs(stable_s),
         }
     g = d.scurve_by_ted["gardner"]
     d.tau, d.scurve, d.zeros = g["tau"], g["scurve"], g["zeros"]
@@ -808,14 +885,38 @@ def characterise() -> Data:
     )
 
     R.table(
-        ["ted", "zeros in one symbol", "stable at", "unstable at", "slope"],
+        [
+            "ted",
+            "zeros in one symbol",
+            "stable at",
+            "slope",
+            "unstable at",
+            "slope",
+        ],
         [
             [
                 f"`{t}`",
                 str(len(v["zeros"])),
-                ", ".join(f"{t0:.4f}" for t0, s in v["zeros"] if s <= 0),
-                ", ".join(f"{t0:.4f}" for t0, s in v["zeros"] if s > 0),
-                f"{v['slope']:.4f}",
+                ", ".join(
+                    f"{t0:.4f}"
+                    for i, (t0, _) in enumerate(v["zeros"])
+                    if i == v["stable_i"]
+                ),
+                ", ".join(
+                    f"{abs(s):.4f}"
+                    for i, (_, s) in enumerate(v["zeros"])
+                    if i == v["stable_i"]
+                ),
+                ", ".join(
+                    f"{t0:.4f}"
+                    for i, (t0, _) in enumerate(v["zeros"])
+                    if i != v["stable_i"]
+                ),
+                ", ".join(
+                    f"{abs(s):.4f}"
+                    for i, (_, s) in enumerate(v["zeros"])
+                    if i != v["stable_i"]
+                ),
             ]
             for t, v in ((t, d.scurve_by_ted[t]) for t in TEDS)
         ],
@@ -836,25 +937,29 @@ def characterise() -> Data:
         "That last number is the check on the construct-time normaliser. The "
         "TED divides by the detector's own slope once, at construction "
         "(`symsync_ted_slope`), so a correctly normalised detector has unit "
-        f"slope at lock. Gardner measures `{d.slope_meas:.4f}` — unity, so "
-        f"the loop runs at the gain `bn` names. **DTTL measures "
-        f"`{_dslope:.4f}`, and it should not.** The two detectors have "
-        f"different raw slopes against the same pulse, which is why "
-        f"`ted_scale` is per-detector rather than per-pulse, and both ought "
-        f"to land on 1.0 once each is divided by its own."
+        f"slope at lock. Gardner measures `{d.slope_meas:.4f}` and DTTL "
+        f"`{_dslope:.4f}` — both unity, so the loop runs at the gain `bn` "
+        f"names on either detector. The two have different RAW slopes "
+        f"against the same pulse, which is why `ted_scale` is per-detector "
+        f"rather than per-pulse, and both land on 1.0 once each is divided "
+        f"by its own."
     )
     R.md()
     R.md(
-        "Do not read that as a broken normaliser — it was the first reading "
-        "and it is wrong. `native/validation/ratesync_scurve.c` measures "
-        "the same thing with **no cascade in the path** (the matched "
-        "composite in closed form, the raw detector numerators called "
-        "directly) and finds both detectors matching `symsync_ted_slope()` "
-        "to better than 2% from beta 0.1 to 0.9, with `ratesync_create()` "
-        "installing the right reciprocal for each. The formula and the "
-        "wiring are both correct, so the discrepancy above lives between "
-        "the analytic composite and what the terminal stage hands the "
-        "detector, and is not identified here (**F15**)."
+        "**Read the unstable column, because this report used to quote it "
+        "as the stable one.** Which zero is which was decided here by a "
+        "hard-coded `slope <= 0` test, and that test is meaningful only "
+        "relative to a tau axis: this validator's tau is a DECIMATION "
+        "PHASE and the C harness's is a TRANSMITTER offset, so the two run "
+        "in opposite senses and every slope sign is negated between them. "
+        "The rule therefore selected the T/2 equilibrium and reported its "
+        "slope as the check on the normaliser. Gardner's two zeros carry "
+        "the same |slope| — 1.0036 against 1.0044 — so the default detector "
+        "read correct either way and nothing flagged it; DTTL's do not, and "
+        "the 2.5995 that stood here became **F15**. Both harnesses now "
+        "select by EYE OPENING instead, which has no sign convention: the "
+        "eye measures 1.000 at the stable zero against 0.53-0.79 at T/2 "
+        "depending on roll-off (`eye_at`)."
     )
     R.md()
     R.md(
@@ -902,18 +1007,24 @@ def characterise() -> Data:
     _gspan = [abs(v) for _, v, _sd in d.beta_slope["gardner"]]
     _dspan = [abs(v) for _, v, _sd in d.beta_slope["dttl"]]
     R.md(
-        f"Gardner holds unity across the whole range "
-        f"({min(_gspan):.2f} to {max(_gspan):.2f}). DTTL does not: it runs "
-        f"from {min(_dspan):.2f} to {max(_dspan):.2f}, a factor of "
-        f"**{max(_dspan) / min(_dspan):.1f}** — while its own raw slope "
-        f"changes by only ~1.15x over the same betas (measured cascade-free "
-        f"by `validate_ratesync_scurve`). So this is not a normalisation "
-        f"that was skipped, which would track the raw slope and stay nearly "
-        f"flat; it is one that is applied and does not fit. It is also "
-        f"almost certainly the defect `symsync_ted_slope`'s own doxygen "
-        f"already admits — *\"the shipped normalisation's slope varies "
-        f'10.6x between beta 0.1 and 0.9"* — now localised: **that '
-        f"variation is DTTL's, and Gardner is flat** (**F15**)."
+        f"**Both** detectors hold unity across the whole range — Gardner "
+        f"{min(_gspan):.2f} to {max(_gspan):.2f}, DTTL {min(_dspan):.2f} to "
+        f"{max(_dspan):.2f} — so `bn` names one loop bandwidth at every "
+        f"roll-off on either, which is the header's claim in full."
+    )
+    R.md()
+    R.md(
+        "This table used to read 1.23 to 10.66 for DTTL, a factor of 8.7, "
+        "and was the evidence for **F15** and for gh-669. It was measured "
+        "about offset `0`, which on this axis is the T/2 crossing and not "
+        "the lock point; centring the pair on the eye (`_eye_centre_fine`) "
+        "is the whole of the change, and the retired figures are still "
+        "reproducible by moving it back. The claim in "
+        "`symsync_ted_slope`'s own doxygen that *\"the shipped "
+        "normalisation's slope varies 10.6x between beta 0.1 and 0.9\"* "
+        "came from the same measurement and is **withdrawn**: it was never "
+        "the detector, and the variation belonged to the equilibrium being "
+        "differentiated rather than to the roll-off."
     )
     R.md()
     _csv(
@@ -1485,20 +1596,23 @@ def _f15_beta(d) -> str:
     g = [abs(v) for _, v, _s in d.beta_slope["gardner"]]
     t = [abs(v) for _, v, _s in d.beta_slope["dttl"]]
     return (
-        f"**Sweeping the roll-off localises it.** One beta cannot separate "
-        f"a skipped normalisation from a wrong one — at beta 0.35 Gardner's "
-        f"raw slope is 1.078, so both readings give ~1 — but across beta "
-        f"0.1 to 0.9 the normalised slope holds unity for Gardner "
-        f"({min(g):.2f} to {max(g):.2f}) while DTTL runs {min(t):.2f} to "
-        f"{max(t):.2f}, a factor of {max(t) / min(t):.1f}. A normalisation "
-        f"that was never applied would track the raw slope, which is nearly "
-        f"flat in beta for DTTL (~1.15x); this one is applied and does not "
-        f"fit. That is almost certainly the defect `symsync_ted_slope`'s "
-        f"own doxygen already records — \"the shipped normalisation's slope "
-        f'varies 10.6x between beta 0.1 and 0.9" — and the contribution '
-        f"here is to localise it: **the variation is DTTL's, Gardner is "
-        f"flat**, which the doxygen does not say and which changes who has "
-        f"to fix what."
+        f"**Sweeping the roll-off is what exposed it, and then what "
+        f"cleared it.** Across beta 0.1 to 0.9 the normalised slope now "
+        f"holds unity for BOTH detectors — Gardner {min(g):.2f} to "
+        f"{max(g):.2f}, DTTL {min(t):.2f} to {max(t):.2f}. It did not "
+        f"before: DTTL ran 1.23 to 10.66, a factor of 8.7, and that "
+        f"roll-off dependence is what made the finding look like a "
+        f"property of the pulse or of the normalising formula. It was "
+        f"neither. Every through-cascade slope in this report was taken "
+        f"about offset `0`, and on this validator's axis `0` is the "
+        f"**T/2 equilibrium**, not the eye centre — so the check on the "
+        f"construct-time normaliser was being applied at the one zero it "
+        f"was never meant to describe. DTTL's S-curve is not sinusoidal "
+        f"(F14), so its two zeros carry very different slopes and the "
+        f"error showed; Gardner's is, so its two agree to 0.001 and it "
+        f"read correct throughout, which is why this survived a dedicated "
+        f"C harness, a cascade-free exoneration and a roll-off sweep "
+        f"without being caught."
     )
 
 
@@ -1804,47 +1918,41 @@ def review(d: Data) -> None:
     )
     R.find(
         "F15",
-        "GAP",
+        "FIXED",
         f"the normalised S-curve slope at lock is "
         f"`{d.slope_meas:.4f}` for Gardner and "
-        f"`{d.scurve_by_ted['dttl']['slope']:.4f}` for DTTL, measured "
-        f"through the cascade on the same pulse, stimulus and offset grid. "
-        f"It should be 1 for both — that is the entire point of dividing by "
-        f"the detector's own slope — so on this measurement `bn` names one "
-        f"bandwidth on the default detector and roughly "
-        f"{d.scurve_by_ted['dttl']['slope'] / max(d.slope_meas, 1e-9):.1f}x "
-        f"that on the other. **The obvious cause is ruled out.** This "
-        f"finding first read as a defect in the construct-time normaliser, "
-        f"and `native/validation/ratesync_scurve.c` was written to confirm "
-        f"that and instead exonerated it: measured with NO cascade in the "
-        f"path — the matched composite evaluated in closed form via "
-        f"`wfm_rc_h`, the raw `gardner_ted`/`dttl_ted` numerators called "
-        f"directly — both detectors' true slopes match "
-        f"`symsync_ted_slope()` to better than 2% at every roll-off from "
-        f"beta 0.1 to 0.9, and `ratesync_create()` is checked to install "
-        f"`1/symsync_ted_slope()` correctly for each. The formula is right "
-        f"and the wiring is right. "
-        f"{_f15_beta(d)} **The through-cascade measurement now lives in C "
-        f"too**, as `validate_ratesync_scurve`'s third phase, on the same "
-        f"`dp_tx_make` stimulus the unit tests drive: raw slope against "
-        f"declared, per detector, across the same roll-off range. It gates "
-        f"Gardner's agreement as a real tolerance and DTTL's spread as a "
-        f"ratchet that may only shrink. That matters for a reason beyond "
-        f"tidiness — the first version of this measurement lived in a "
-        f"throwaway probe that read `loop.ring[]` from outside "
-        f"`ratesync_step`, which races the ring's per-OUTPUT update and "
-        f"gave a confident wrong answer; the committed one reads "
-        f"`last_error`, written inside the strobe, and needs no such "
-        f"assumption. Sabotage-checked by pointing the transition gate at "
-        f"the on-time sample: phases 1 and 2 pass unchanged, because they "
-        f"are cascade-free by construction, and phase 3 alone fires. "
-        f"**The closed-loop consequence is still unestablished:** "
-        f"two probes disagree — settling of the rate integrator under a "
-        f"2000 ppm clock step gives a Gardner/DTTL ratio of ~1.0 at "
-        f"`bn = 0.005` and ~3.5 at `bn = 0.002`. Recorded with both the "
-        f"measurement and the exoneration rather than a tidy attribution, "
-        f"because a wrong cause committed to a report is worse than an open "
-        f"one. Tracked in "
+        f"`{d.scurve_by_ted['dttl']['slope']:.4f}` for DTTL — both unity, "
+        f"which is the entire point of dividing by the detector's own "
+        f"slope, so `bn` names one bandwidth on either detector. **It read "
+        f"2.5995 for DTTL until this pass, and the defect was in the "
+        f"measurement, not in the object.** Every through-cascade slope in "
+        f"this report was differentiated about offset `0`, and `0` on this "
+        f"validator's axis is the **T/2 equilibrium** — the unstable zero — "
+        f"not the eye centre. The check on the construct-time normaliser "
+        f"was therefore being applied at the one zero it was never meant "
+        f"to describe. "
+        f"{_f15_beta(d)} **What made it invisible for so long is worth "
+        f"more than the fix.** The stable/unstable labelling came from a "
+        f"hard-coded `slope <= 0` test, which is meaningful only against a "
+        f"tau axis; this validator's tau is a decimation phase and the C "
+        f"harness's is a transmitter offset, so the axes run in opposite "
+        f"senses, every slope sign is negated between them, and the two "
+        f"harnesses agreed on every measured NUMBER while disagreeing "
+        f"about which zero to call stable. A sign test cannot break that "
+        f"tie, because the sign is what differs. Both now select by EYE "
+        f"OPENING, which has no sign convention: mean |symbol| is 1.000 at "
+        f"the stable zero against 0.53-0.79 at T/2. The earlier "
+        f"cascade-free exoneration was correct and complete — the formula "
+        f"and the wiring were never at fault — and it is precisely because "
+        f"it cleared them that the search went looking for a cause between "
+        f"the composite and the terminal stage, where there was none. "
+        f"`validate_ratesync_scurve` now locates the stable zero per "
+        f"configuration and reports BOTH, so the retired figures "
+        f"(1.23..10.75) are still on the page as the unstable column and "
+        f"the correction is auditable rather than asserted. Its DTTL "
+        f"ratchet is retired for a real gate on both detectors, "
+        f"sabotage-verified: flipping the search back to the wrong "
+        f"equilibrium reproduces the old range and fails. Closes "
         f"[gh-669](https://github.com/doppler-dsp/doppler/issues/669).",
     )
     _gj16 = d.resid_by_ted["gardner"] / d.scurve_by_ted["gardner"]["slope"]
@@ -1925,43 +2033,42 @@ def limits(d: Data) -> None:
     R.limit(
         0.8 < d.slope_meas < 1.3,
         f"the normalised S-curve slope at lock is unity to within 30% "
-        f"({d.slope_meas:.4f}) — the construct-time ted_scale is correct "
-        f"FOR GARDNER; the same claim does not hold for dttl, see F15",
+        f"({d.slope_meas:.4f}) — the construct-time ted_scale is correct, "
+        f"and as of F15's resolution this now holds for dttl as well",
     )
     _gb = [abs(v) for _, v, _s in d.beta_slope["gardner"]]
     _db = [abs(v) for _, v, _s in d.beta_slope["dttl"]]
     # The spread claim has to clear its own noise, or it is a statement
     # about the seed rather than about the object. Endpoints, in units of
     # their own seed-to-seed sd.
-    _dlo = min(d.beta_slope["dttl"], key=lambda r: abs(r[1]))
-    _dhi = max(d.beta_slope["dttl"], key=lambda r: abs(r[1]))
-    _sep = abs(abs(_dhi[1]) - abs(_dlo[1])) / max(_dhi[2] + _dlo[2], 1e-12)
-    R.limit(
-        _sep > 10.0,
-        f"dttl's roll-off spread is {_sep:.0f}x its own seed-to-seed "
-        f"scatter, so the {abs(_dhi[1]) / abs(_dlo[1]):.1f}x is the object "
-        f"and not the draw",
-    )
     R.limit(
         max(_gb) / min(_gb) < 1.2,
         f"gardner's normalised slope holds unity across the whole roll-off "
         f"range ({min(_gb):.2f} to {max(_gb):.2f}) — `bn` names one "
         f"bandwidth at every beta, which is the header's claim",
     )
-    # A RATCHET, not an endorsement: dttl's slope varies with beta and
-    # should not (F15, gh-669). Pinned so the known breakage cannot grow
-    # while it is open. It may only ever be REDUCED.
+    # Was a RATCHET on an 8.7x spread while F15 was open. F15 was the
+    # measurement differentiating the T/2 equilibrium, so there is no
+    # breakage left to ratchet and this is now the same real gate Gardner
+    # gets. A ratchet may only shrink; this one shrank to nothing.
     R.limit(
-        max(_db) / min(_db) < 9.0,
-        f"dttl's beta-dependence has not grown past the ratchet "
-        f"({max(_db) / min(_db):.1f}x, ceiling 9.0) — it should be 1.0x, "
-        f"see F15",
+        max(_db) / min(_db) < 1.2,
+        f"dttl's normalised slope holds unity too ({min(_db):.2f} to "
+        f"{max(_db):.2f}) — the 8.7x that stood here was F15, and it was "
+        f"the wrong zero rather than the wrong detector",
     )
     R.limit(
-        max(_gb) / min(_gb) < max(_db) / min(_db),
-        "and the two are not the same story: gardner's normalisation is "
-        "roll-off-independent and dttl's is not, which is what localises "
-        "the defect symsync_ted_slope's doxygen records to one detector",
+        all(
+            v["eyes"][v["stable_i"]]
+            > 1.15
+            * max(e for i, e in enumerate(v["eyes"]) if i != v["stable_i"])
+            for v in d.scurve_by_ted.values()
+            if len(v["eyes"]) == 2
+        ),
+        "the zero this report calls stable carries a decisively wider eye "
+        "than the other — the discrimination that replaced a hard-coded "
+        "slope-sign test, and the one that does not depend on which way "
+        "the tau axis runs (F15)",
     )
     R.limit(
         all(len(v["zeros"]) == 2 for v in d.scurve_by_ted.values()),

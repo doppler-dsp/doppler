@@ -971,7 +971,15 @@ double symsync_ted_slope (
 A TED's raw output is a timing error multiplied by three things it did not choose — the signal amplitude, the transition density, and the detector's own slope against this pulse. Only the last belongs to the detector, and only it can be computed rather than estimated: the matched pair's composite is a raised cosine in closed form (wfm\_rc\_h()), so for i.i.d. symbols  and the answer is a construct-time number. Amplitude does NOT appear: it enters as `A^2` (Gardner) or `A^1` (DTTL) and is the AGC's business, not the detector's — a unity-gain matched cascade delivers the symbol amplitude it was sent ([**RateConverter\_gain()**](RateConverter__core_8h.md#function-rateconverter_gain)). Transition density is left alone, because it is data.
 
 
-Divide a raw TED output by this and the result has unit slope per symbol of timing error, so a loop bandwidth means the same thing at every roll-off. It does NOT today: measured through a real matched cascade, the shipped normalisation's slope varies 10.6x between beta 0.1 and 0.9, so `bn` silently means something an order of magnitude different at the two ends of the supported range.
+Divide a raw TED output by this and the result has unit slope per symbol of timing error, so a loop bandwidth means the same thing at every roll-off, on either detector. Measured through a real matched cascade at the stable zero, it does: 0.99 to 1.00 for both, from beta 0.1 to 0.9 (`validate_ratesync_scurve` phase 3).
+
+
+
+
+**Note:**
+
+This comment used to claim the opposite — "the shipped
+normalisation's slope varies 10.6x between beta 0.1 and 0.9" — and that claim is **withdrawn**. It came from a measurement that differentiated the S-curve about a fixed offset of zero, which through that cascade is the UNSTABLE T/2 equilibrium rather than the eye centre. DTTL's S-curve is not sinusoidal, so its two zeros carry very different slopes and the error surfaced as a spurious roll-off dependence; Gardner's is, so its two agree to 0.001 and nothing looked wrong on the default detector. Recorded because the sentence outlived its evidence and was cited, in good faith, as independent confirmation of the report finding it came from. See the RateSync validation report, F15, and gh-669.
 
 
 Caller multiplies by the reciprocal — see [**ratesync\_loop\_t::ted\_scale**](structratesync__loop__t.md#variable-ted_scale). Never call this on a hot path; it is a construct-time quantity.

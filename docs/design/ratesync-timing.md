@@ -218,19 +218,48 @@ assignment a **parity count**, which looks like it should be ambiguous — and
 a half-symbol error genuinely is an equilibrium of the detector.
 
 It is an **unstable** one. Swept over a fine grid of standing timing offsets,
-the S-curve has exactly two zeros per symbol: one at the eye centre with
-negative slope (stable) and one at the T/2 point with positive slope
-(unstable). The loop runs away from the wrong one on its own.
+the S-curve has exactly two zeros per symbol, crossing in opposite senses:
+one at the eye centre, which restores, and one at the T/2 point, which does
+not. The loop runs away from the wrong one on its own.
 
 So **the parity does not matter**, and no eye-sign detector or counter flip
 is needed. An earlier prototype ran two displaced banks to pin the roles
 structurally; measurement showed that buys nothing and costs double the
 multiplies.
 
-The validation report measures both halves of this — the two zeros and their
-opposite slopes, and the corollary that the normalised slope at the lock
-point is unity (measured 1.015), which is the check that the construct-time
-normaliser of §6.1 is actually doing its job.
+**The object never inspects the eye, and must not.** The escape from the T/2
+point is feedback: at that offset the crossing has the non-restoring sense,
+so any perturbation is amplified rather than corrected, and the loop leaves
+on its own. That argument holds for whatever is on the input — a modulated
+signal, noise, or a buffer of zeros — because it is a property of the loop's
+sign, not of the signal's quality. A receiver that gated on an open eye
+before trusting its own timing loop would stall on exactly the inputs it most
+needs to survive: an unmodulated dwell, a squelched channel, the fill between
+bursts. There is no such gate here and none is wanted.
+
+### What the validator has to do instead, and why it is not this
+
+The validation report faces a question the object does not. It measures
+**open-loop** (`bn = 0`), so nothing pulls the strobe anywhere: it has to
+name the equilibrium it is differentiating before it can check that the
+normalised slope there is unity (§6.1). Getting that wrong is not
+hypothetical — it produced the retired **F15**, an apparent 8.7x roll-off
+dependence in DTTL's normaliser that was the T/2 zero all along.
+
+It cannot name it by the sign of the slope. A sign is only meaningful
+relative to a timing axis, and the two harnesses run theirs in opposite
+senses — the Python validator offsets the decimation phase, the C one offsets
+the transmitter — so a hard-coded `slope <= 0` test picks the eye centre in
+one and the T/2 point in the other, while both report identical numbers.
+Gardner's near-sinusoidal S-curve carries the same slope magnitude at both
+zeros, so nothing on the default detector reveals the mistake.
+
+Eye opening does distinguish them, without reference to any axis: mean
+`|symbol|` measures 1.000 at the eye centre against 0.53–0.79 half a symbol
+away. That is a **measurement-time** discrimination, run on a known modulated
+stimulus the validator generated itself, and it belongs there and nowhere
+else — it is available precisely because a validator controls its own input,
+which is the one thing the object can never assume.
 
 ______________________________________________________________________
 

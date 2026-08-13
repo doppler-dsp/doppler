@@ -13,6 +13,43 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Fixed
+
+- **The TED normaliser was never broken for DTTL; the measurement that said
+    so differentiated the wrong equilibrium.** The RateSync validation
+    report carried F15 — a normalised through-cascade S-curve slope of ~1.0
+    for Gardner but 1.23 rising to 10.75 for DTTL across roll-off, tracked
+    as [gh-669](https://github.com/doppler-dsp/doppler/issues/669) with the
+    cause explicitly open. Both harnesses took that slope about a fixed
+    offset of zero, which through the cascade is the **unstable T/2
+    equilibrium** rather than the eye centre. Measured at the stable zero,
+    DTTL reads 0.9998–1.0013 at every roll-off from beta 0.1 to 0.9, so `bn`
+    names one loop bandwidth on either detector — exactly what
+    `symsync_ted_slope` was always supposed to deliver.
+
+    Two things hid it. Gardner's S-curve is near-sinusoidal, so its two
+    zeros carry the same slope magnitude (1.0036 against 1.0044) and the
+    shipped default detector read correct at either — only DTTL, whose curve
+    is not sinusoidal, could expose the error, and it surfaced as a spurious
+    *roll-off* dependence that sent the investigation after the pulse and
+    the normalising formula instead of the offset. And the stable/unstable
+    labelling came from a hard-coded `slope <= 0` test, which is meaningful
+    only relative to a timing axis: the Python validator offsets the
+    decimation phase and the C harness offsets the transmitter, so their
+    axes run in opposite senses, every slope sign is negated between them,
+    and the two agreed on every measured number while disagreeing about
+    which zero to call stable.
+
+    Both now locate the equilibrium by **eye opening**, which has no sign
+    convention — mean `|symbol|` is 1.000 at the eye centre against
+    0.53–0.79 at T/2. `validate_ratesync_scurve` reports both zeros, so the
+    retired figures remain on the page as the unstable column; its DTTL
+    ratchet is replaced by a real gate on both detectors, sabotage-verified
+    by pointing the search back at the wrong equilibrium. The claim in
+    `symsync_ted_slope`'s own doxygen that the shipped normalisation "varies
+    10.6x between beta 0.1 and 0.9" came from the same measurement and is
+    **withdrawn**.
+
 ### Added
 
 - **RateSync is certified under the object-validation campaign.** It owns

@@ -95,9 +95,11 @@ Every `m`-th terminal output is the on-time strobe and the output `m/2` back is
 the Gardner transition gate, so the oversampled stream and the symbol stream
 come out of the same dot products. A half-symbol error in that assignment *is*
 an equilibrium of the detector — but an **unstable** one: each parity's S-curve
-has one zero at the eye centre with negative slope and one at the T/2 point with
-positive slope, so the loop runs away from the wrong one unaided. No eye-sign
-detector, no counter flip, and no second bank.
+has one zero at the eye centre and one at the T/2 point, crossing in opposite
+senses, so the loop runs away from the wrong one unaided. No eye-sign detector,
+no counter flip, and no second bank — and nothing that inspects the signal,
+which is what lets the escape work on noise or on a buffer of zeros just as
+well as on a modulated stream.
 
 The cost claim in the third panel is measured, not asserted:
 

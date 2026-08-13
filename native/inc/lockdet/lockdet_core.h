@@ -15,10 +15,19 @@
  *  - **Time hysteresis**: @c n_up consecutive looks above @c up_thresh to
  *    declare, @c n_down consecutive looks below @c down_thresh to drop. A
  *    single contrary look resets the run (consecutive, not cumulative), so
- *    the verify counts compose probabilistically: at per-look false-alarm
- *    rate p the false-declare rate is p^n_up. Size the counts with
- *    det_verify_count() and predict the declare latency with
- *    det_verify_delay() (detection module).
+ *    the verify counts compose probabilistically. At per-look false-alarm
+ *    rate p the false-declare rate per look is
+ *
+ *        p^n_up * (1 - p) / (1 - p^n_up)
+ *
+ *    whose reciprocal is exactly det_verify_delay(p, n_up), the mean looks
+ *    to a declare. `p^n_up` alone is the **p -> 0 limit** of that, and is
+ *    what det_verify_count() sizes against -- correct to 0.001% at
+ *    p = 1e-5, 10% at p = 0.1, and **+87% at p = 0.5 with n_up = 4**. Use
+ *    it as the budget (it errs high, so it over-provisions n_up) and
+ *    det_verify_delay() for the number a caller actually observes.
+ *    Measured across p in [0.1, 0.5], n_up in [1, 4]:
+ *    native/validation/lockdet_verify.c.
  *
  * The state struct is **public** so a tracker embeds it by value (no heap)
  * and drives it with lockdet_init()/lockdet_step() — e.g. the DLL steps one

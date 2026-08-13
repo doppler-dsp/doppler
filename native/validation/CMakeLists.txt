@@ -130,3 +130,12 @@ target_link_libraries(validate_carrier_nda_lock PRIVATE doppler_lib_static m)
 target_compile_options(validate_carrier_nda_lock PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_carrier_nda_lock
          COMMAND validate_carrier_nda_lock --check)
+
+add_executable(validate_lockdet_verify
+               ${CMAKE_CURRENT_SOURCE_DIR}/lockdet_verify.c)
+target_include_directories(validate_lockdet_verify
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_lockdet_verify PRIVATE doppler_lib_static m)
+target_compile_options(validate_lockdet_verify PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_lockdet_verify
+         COMMAND validate_lockdet_verify --check)

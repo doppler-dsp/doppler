@@ -121,5 +121,45 @@ main (void)
     lockdet_destroy (b);
   }
 
+  /* init() "doubles as a reconfigure that preserves the current decision"
+   * (header) -- and it differs from configure() in exactly one way, which
+   * nothing pinned: init leaves the in-flight verify RUN alone, while
+   * configure clears it. Tested on a LIVE detector; the check above runs
+   * init on a zeroed struct, where "preserves" is vacuously true. */
+  {
+    lockdet_state_t r;
+    memset (&r, 0, sizeof r);
+    lockdet_init (&r, 1.5, 1.2, 3, 3);
+    DP_CHECK (lockdet_step (&r, 2.0) == 0); /* cnt = 1 of 3, mid-declare */
+    DP_CHECK (r.cnt == 1);
+    r.locked = 1; /* a live decision to preserve */
+    lockdet_init (&r, 9.0, 8.0, 5, 6);
+    DP_CHECK (r.locked == 1); /* decision survives  */
+    DP_CHECK (r.cnt == 1);    /* run survives too — unlike configure() */
+    DP_CHECK (r.up_thresh == 9.0 && r.n_up == 5 && r.n_down == 6);
+    /* The contrast, on the same state: configure() clears the run. */
+    lockdet_configure (&r, 9.0, 8.0, 5, 6);
+    DP_CHECK (r.locked == 1 && r.cnt == 0);
+  }
+
+  /* destroy(NULL) is documented as safe ("May be NULL") and was tested by
+   * nothing. */
+  lockdet_destroy (NULL);
+
+  /* An INVERTED band (up_thresh < down_thresh) is documented only as advice
+   * -- "choose <= up_thresh for level hysteresis" -- and is not refused. Pin
+   * what it actually does, because it is the misconfiguration a caller can
+   * reach and the behaviour is the opposite of hysteresis: a look between
+   * the thresholds is a hit while unlocked AND a miss while locked, so with
+   * unit verify counts the flag chatters every look. */
+  {
+    lockdet_state_t inv;
+    memset (&inv, 0, sizeof inv);
+    lockdet_init (&inv, 1.0, 2.0, 1, 1);      /* up < down: inverted */
+    DP_CHECK (lockdet_step (&inv, 1.5) == 1); /* mid-band declares   */
+    DP_CHECK (lockdet_step (&inv, 1.5) == 0); /* ...and immediately drops */
+    DP_CHECK (lockdet_step (&inv, 1.5) == 1); /* chatter, every look */
+  }
+
   DP_TEST_END ("test_lockdet_core");
 }

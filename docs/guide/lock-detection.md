@@ -140,6 +140,16 @@ before shipping it, even when the algebra looks right.** Full
 derivation and validation numbers in
 [the design note](../design/timing_lock_detector.md).
 
+**Postscript, once the formula moved into shared code.** The `erfcinv`
+-vs-`Q⁻¹` discrepancy above is not a dropped factor of two: since
+`Q⁻¹(p) = √2·erfcinv(2p)`, the two forms are the *same formula* and the
+leading `2` is the convention change. The empirical result stands —
+the naive swap really did miss the pfa target by ~13× — but the cause
+was the convention, and in `Q⁻¹` form the measured variance is simply
+correct. The sizing now lives in `detection` and is shared by every
+Gaussian-statistic detector: see
+[Lock Detection](../design/lock-detect.md).
+
 ## See also
 
 - [Lock Detection: Verify Counts](../gallery/lockdet.md) — the shared

@@ -26,8 +26,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 256,
-        "sha256_16": "31a4d13995775a0e"
+        "bytes": 256
       }
     },
     "record": {
@@ -70,8 +69,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 256,
-        "sha256_16": "d2ac05172ade2191"
+        "bytes": 256
       }
     },
     "record": {
@@ -116,8 +114,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 256,
-        "sha256_16": "fbf9d09a928222ce"
+        "bytes": 256
       }
     },
     "record": {
@@ -159,8 +156,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 256,
-        "sha256_16": "51bbcd3eec7a0adc"
+        "bytes": 256
       }
     },
     "record": {
@@ -199,8 +195,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 64,
-        "sha256_16": "59ce37aa39da6cd2"
+        "bytes": 64
       }
     },
     "record": {
@@ -238,8 +233,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 64,
-        "sha256_16": "59ce37aa39da6cd2"
+        "bytes": 64
       }
     },
     "record": {
@@ -286,8 +280,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 2496,
-        "sha256_16": "7414757608a8cff5"
+        "bytes": 2496
       }
     },
     "record": {
@@ -336,8 +329,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 1152,
-        "sha256_16": "413fe08de336a191"
+        "bytes": 1152
       }
     },
     "record": {
@@ -385,8 +377,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 512,
-        "sha256_16": "5d86f90578f31516"
+        "bytes": 512
       }
     },
     "record": {
@@ -484,8 +475,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 64,
-        "sha256_16": "59ce37aa39da6cd2"
+        "bytes": 64
       }
     },
     "record": {
@@ -518,8 +508,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 64,
-        "sha256_16": "59ce37aa39da6cd2"
+        "bytes": 64
       }
     },
     "record": {
@@ -562,8 +551,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 448,
-        "sha256_16": "08940663755dc722"
+        "bytes": 448
       }
     },
     "record": {
@@ -605,8 +593,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 256,
-        "sha256_16": "7572f031420239ef"
+        "bytes": 256
       }
     },
     "record": {
@@ -647,8 +634,7 @@
     "exit": 0,
     "outputs": {
       "out.blue": {
-        "bytes": 544,
-        "sha256_16": "62f8f9120f04e670"
+        "bytes": 544
       }
     },
     "record": {
@@ -687,8 +673,7 @@
     "exit": 0,
     "outputs": {
       "out.csv": {
-        "bytes": 96,
-        "sha256_16": "080355bb5db37cb8"
+        "bytes": 96
       }
     },
     "record": {
@@ -731,8 +716,7 @@
     "exit": 0,
     "outputs": {
       "out.bin": {
-        "bytes": 32,
-        "sha256_16": "b1286d521f1e6175"
+        "bytes": 32
       }
     },
     "record": {
@@ -771,12 +755,10 @@
     "exit": 0,
     "outputs": {
       "out_sigmf.sigmf-data": {
-        "bytes": 32,
-        "sha256_16": "a5b83a75c0c847cc"
+        "bytes": 32
       },
       "out_sigmf.sigmf-meta": {
-        "bytes": 432,
-        "sha256_16": "e251dedaa0df5fb8"
+        "bytes": 432
       }
     },
     "record": {
@@ -819,8 +801,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 256,
-        "sha256_16": "5790ec0bffefb9bd"
+        "bytes": 256
       }
     },
     "record": {
@@ -865,8 +846,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 256,
-        "sha256_16": "3b82baa2648a7061"
+        "bytes": 256
       }
     },
     "record": {
@@ -905,8 +885,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 64,
-        "sha256_16": "59ce37aa39da6cd2"
+        "bytes": 64
       }
     },
     "record": {
@@ -945,8 +924,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 64,
-        "sha256_16": "fa71735d8e7dabe4"
+        "bytes": 64
       }
     },
     "record": {
@@ -997,8 +975,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 256,
-        "sha256_16": "a14366f6f061d04f"
+        "bytes": 256
       }
     },
     "record": {

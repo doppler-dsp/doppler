@@ -16,11 +16,25 @@ Two things, because ``--record`` alone does not see the whole surface:
   snr_mode, seed, sps, pn geometry, pulse shaping, gaps, repeats. That
   is the parse result serialised, which is precisely what a table-driven
   parser must reproduce.
-* a **hash of the emitted bytes**, which is the only witness for the
-  output-side flags (``--sample-type``, ``--file-type``, ``--endian``)
-  that never appear in the record.
+* the **size** of the emitted bytes, which distinguishes the sample-type
+  widths and the container formats that never appear in the record.
 
 plus the exit code, so the usage-error paths are pinned too.
+
+The golden deliberately does NOT hash the output. It used to, and that
+made it machine-specific: rebuilding the identical source with ``-O0``
+instead of the project's ``-O3 -march=x86-64-v2 -ffast-math`` leaves the
+record byte-identical and changes every waveform hash, because float
+rounding is a property of the toolchain. CI's flags are not this
+machine's, so the hash failed there and passed here -- a golden that
+encodes the builder rather than the behaviour.
+
+What the hash was there for -- ``--endian`` and ``--sample-type``, whose
+effect never reaches the record -- is covered by RELATIONAL checks
+instead (``relational_checks``): big-endian output must be the
+little-endian output with each element reversed, and a narrower sample
+type must produce proportionally fewer bytes. Those hold whatever the
+compiler does to the last mantissa bit.
 
 Fail-closed
 -----------
@@ -34,7 +48,6 @@ commit that adds it.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
 import subprocess
@@ -459,18 +472,80 @@ def run_case(exe: Path, argv: list[str], workdir: Path) -> dict:
     if rec.is_file():
         out["record"] = json.loads(rec.read_text())
 
-    # Hash whatever the run emitted -- the only witness for the flags that
-    # never reach the record (--sample-type, --file-type, --endian).
+    # Size only. A content hash lived here and made the golden
+    # machine-specific -- see the module docstring. Size still separates
+    # cf32 from ci16 and raw from csv, and it is the same number on every
+    # toolchain; the content-sensitive part is relational_checks().
     for f in sorted(workdir.iterdir()):
         if f.name in {"record.json", BITS_FILE, SYMS_FILE, SCENE_FILE}:
             continue
         if f.is_file():
-            digest = hashlib.sha256(f.read_bytes()).hexdigest()[:16]
-            out["outputs"][f.name] = {
-                "bytes": f.stat().st_size,
-                "sha256_16": digest,
-            }
+            out["outputs"][f.name] = {"bytes": f.stat().st_size}
     return out
+
+
+def relational_checks(exe: Path, problems: list[str]) -> None:
+    """Pin --endian and --sample-type without pinning float values.
+
+    Both flags change the emitted bytes and neither reaches the record, so
+    the golden cannot see them by size alone. What CAN be asserted
+    portably is the relationship between two runs of the same waveform:
+    byte order is a permutation, and sample width is a ratio. Neither
+    depends on what the compiler did to the last mantissa bit.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        wd = Path(td)
+        base = [
+            "--type",
+            "tone",
+            "--freq",
+            "0.1",
+            "--count",
+            "16",
+            "--seed",
+            "1",
+        ]
+
+        def emit(name: str, extra: list[str]) -> bytes:
+            path = wd / name
+            subprocess.run(
+                [str(exe), *base, *extra, "--output", str(path)],
+                cwd=wd,
+                capture_output=True,
+                timeout=TIMEOUT_S,
+                check=True,
+            )
+            return path.read_bytes()
+
+        le = emit("le.bin", ["--sample-type", "cf32", "--endian", "le"])
+        be = emit("be.bin", ["--sample-type", "cf32", "--endian", "be"])
+        if len(le) != len(be):
+            problems.append(
+                f"endian changed the output SIZE "
+                f"({len(le)} vs {len(be)}); it must only "
+                f"reorder bytes"
+            )
+        else:
+            # cf32 is 4-byte elements; big-endian reverses each one.
+            swapped = b"".join(
+                le[i : i + 4][::-1] for i in range(0, len(le), 4)
+            )
+            if swapped != be:
+                problems.append(
+                    "--endian be is not the byte-reversed form of --endian le"
+                )
+            if le == be:
+                problems.append(
+                    "--endian le and be produced identical "
+                    "bytes; the flag did nothing"
+                )
+
+        ci16 = emit("ci16.bin", ["--sample-type", "ci16"])
+        if len(ci16) * 2 != len(le):
+            problems.append(
+                f"ci16 output is {len(ci16)} bytes against "
+                f"cf32's {len(le)}; expected exactly half"
+            )
 
 
 def fixtures(workdir: Path, exe: Path) -> None:
@@ -550,6 +625,7 @@ def main() -> int:
 
     problems: list[str] = []
     check_coverage(problems)
+    relational_checks(exe, problems)
     got = build_matrix(exe)
 
     if not args.check:

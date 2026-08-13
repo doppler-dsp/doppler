@@ -122,6 +122,28 @@ extern "C"
    */
   float awgn_get_amplitude (const awgn_state_t *state);
 
+  /**
+   * @brief The @p amplitude that puts a signal at a target SNR.
+   *
+   * The inverse of this generator's own convention, and the reason it lives
+   * here: @ref awgn_create takes a PER-COMPONENT sigma, so the complex noise
+   * power it produces is `2 * amplitude^2`. For a signal of power
+   * @p signal_power at @p snr_db (referenced to the full sample rate),
+   *
+   *   `amplitude = sqrt(signal_power / (2 * 10^(snr_db/10)))`
+   *
+   * Pass the result straight to awgn_create(). "Is the amplitude per rail or
+   * total power?" has two defensible answers and this function is the one
+   * place that answers it -- a caller deriving its own sigma is one factor of
+   * two away from a 3 dB error that nothing will fail on.
+   *
+   * @param snr_db        Target SNR in dB, over the full sample rate.
+   * @param signal_power  Signal power (1.0 for unit-power tones or
+   *                      unit-energy BPSK/QPSK symbols).
+   * @return Per-component sigma for one I or Q rail.
+   */
+  float awgn_amplitude_for_snr (float snr_db, float signal_power);
+
   /** Set amplitude without disturbing RNG state. */
   void awgn_set_amplitude (awgn_state_t *state, float val);
 

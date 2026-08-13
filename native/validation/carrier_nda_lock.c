@@ -30,7 +30,6 @@
 #include "awgn/awgn_core.h"
 #include "carrier_nda/carrier_nda_core.h"
 #include "detection/detection_core.h"
-#include "wfm/wfm_core.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -42,7 +41,7 @@
  * `esno_db`. `signal = 0` measures H0 (pure noise, no symbol at all).
  *
  * Noise comes from the SHIPPED generator at the SHIPPED amplitude:
- * wfm_awgn_amplitude(esno_db, 1.0) is the per-component sigma for unit
+ * awgn_amplitude_for_snr(esno_db, 1.0) is the per-component sigma for unit
  * symbol energy, and awgn_create() takes exactly that. Deriving it here
  * instead is what put a 3 dB error in this file's first pass -- the helper
  * exists precisely so the "is amplitude per-rail or total power" question
@@ -59,7 +58,7 @@ static void
 measure (int m, double esno_db, int signal, size_t n, uint64_t seed,
          double *mean_out, double *var_out)
 {
-  float amp       = signal ? wfm_awgn_amplitude ((float)esno_db, 1.0f) : 1.0f;
+  float amp = signal ? awgn_amplitude_for_snr ((float)esno_db, 1.0f) : 1.0f;
   awgn_state_t *g = awgn_create (seed, amp);
   float complex buf[NBLK];
   double        s1 = 0.0, s2 = 0.0;

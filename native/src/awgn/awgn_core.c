@@ -318,3 +318,10 @@ awgn (uint64_t seed, float amplitude, size_t n, float complex *out)
   awgn_destroy (g);
   return DP_OK;
 }
+
+float
+awgn_amplitude_for_snr (float snr_db, float signal_power)
+{
+  float snr_lin = powf (10.0f, snr_db / 10.0f);
+  return sqrtf (signal_power / (2.0f * snr_lin));
+}

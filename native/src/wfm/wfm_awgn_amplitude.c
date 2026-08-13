@@ -1,18 +1,19 @@
 /*
- * wfm_awgn_amplitude.c — wfmgen module-level function.
+ * wfm_awgn_amplitude.c — wfm module-level function.
+ *
+ * Public alias exposing the AWGN amplitude solver under the wfm module
+ * namespace. The kernel lives once in awgn_core.c (C-first: the algorithm is
+ * not duplicated here), because it inverts THAT generator's per-component
+ * convention and awgn_create() is what consumes the result. Keeping it there
+ * also puts it in doppler_lib_static, so a C test or validation harness can
+ * reach it -- it could not before, which is why several harnesses derived
+ * their own noise level and one of them derived it 3 dB wrong (gh-713).
  */
+#include "awgn/awgn_core.h" /* awgn_amplitude_for_snr */
 #include "wfm/wfm_core.h"
-#include <math.h>
 
-/*
- * AWGN amplitude for a target SNR (dB, measured over the full sample rate).
- * awgn_create uses per-component sigma `amplitude`, so total complex noise
- * power = 2*amplitude². For SNR = signal_power / noise_power:
- *   amplitude = sqrt(signal_power / (2 * 10^(snr_db/10)))
- */
 float
 wfm_awgn_amplitude (float snr_db, float signal_power)
 {
-  float snr_lin = powf (10.0f, snr_db / 10.0f);
-  return sqrtf (signal_power / (2.0f * snr_lin));
+  return awgn_amplitude_for_snr (snr_db, signal_power);
 }

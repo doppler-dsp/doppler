@@ -1656,6 +1656,50 @@ name = "n_noncoh"
 type = "int"
 
 [[module.detection.functions]]
+name = "det_q_inv"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "p"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_dwell_gauss"
+return_type = "int"
+
+[[module.detection.functions.params]]
+name = "mean"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "var"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pd"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_threshold_gauss"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "mean"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pd"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions]]
 name = "det_ema_alpha"
 return_type = "double"
 

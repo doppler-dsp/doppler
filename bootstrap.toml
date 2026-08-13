@@ -80,6 +80,12 @@ config = "just-makeit.toml"
 # consumer, on a bare python:3.12-slim + jbx dev group. Not listed for brew
 # (macOS wheel repair uses delocate-wheel, not auditwheel/patchelf) or
 # msys2 (Windows isn't a wheel-building target here).
+# valgrind: the leak detector. `make test-ubsan` is UBSan only, so before this
+# there was NO leak detector in the tree at all -- gh-723's five unix.Malloc
+# findings in wfmgen had to be confirmed by hand-rolling an -fsanitize=address
+# build in a scratch directory, because the box had neither. It is listed for
+# the four Linux managers only; see the brew and msys2 notes below for why they
+# are excluded rather than forgotten.
 [dev.apt]
 packages = [
     "build-essential",
@@ -91,6 +97,7 @@ packages = [
     "cargo",
     "clang",
     "llvm",
+    "valgrind",
 ]
 
 [dev.pacman]
@@ -104,6 +111,7 @@ packages = [
     "patchelf",
     "clang",
     "llvm",
+    "valgrind",
 ]
 
 # python/numpy: the docs' build-from-source path needs a NumPy-equipped
@@ -115,6 +123,12 @@ packages = [
 # Linux-only job (ubuntu-latest), and macOS clang arrives with Xcode rather
 # than from a formula, so listing llvm here would buy a large build nothing
 # reaches.
+#
+# NO valgrind either, and not by oversight: upstream has never supported Apple
+# Silicon, so the formula is unavailable on every arm64 Mac. Listing it would
+# fail `install-deps` outright on the machines most likely to run it -- the
+# same shape of mistake as naming libclang-rt on 22.04. A macOS developer
+# chasing a leak uses `-fsanitize=address`, which Xcode's clang has built in.
 [dev.brew]
 packages = [
     "cmake",
@@ -136,6 +150,7 @@ packages = [
     "cargo",
     "clang",
     "llvm",
+    "valgrind",
 ]
 
 [dev.zypper]
@@ -150,8 +165,12 @@ packages = [
     "cargo",
     "clang",
     "llvm",
+    "valgrind",
 ]
 
+# NO valgrind: it does not exist on Windows at all -- valgrind has never had a
+# Windows port, MSYS2 packages none, and doppler does not target Windows for
+# development anyway ([project] platforms = ["linux", "macos"], jm gh-213).
 [dev.msys2]
 packages = [
     "mingw-w64-ucrt-x86_64-gcc",

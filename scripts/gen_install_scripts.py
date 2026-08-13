@@ -12,8 +12,9 @@ listed, and the brew script disagreed with ``[dev.brew]`` in both
 directions. This generator projects the scripts from bootstrap.toml, so the
 docs can only ever show what ``make install-deps`` actually installs.
 
-Two dev packages are deliberately excluded from the docs projection
-(``DOCS_EXCLUDE``):
+Some dev packages are deliberately excluded from the docs projection
+(``DOCS_EXCLUDE``). This said "Two" while listing three groups; it is a
+count nothing reads back, so it is now a word rather than a number:
 
 * ``patchelf`` -- only the ``pip install .`` wheel build+repair path
   (auditwheel) touches it; ``make``/``make pyext``, the flow these docs
@@ -27,6 +28,9 @@ Two dev packages are deliberately excluded from the docs projection
   runtime (which clang does NOT pull in on its own -- see bootstrap.toml). The
   walkthrough builds with the platform compiler and never asks for a
   coverage report.
+* ``valgrind`` -- a leak detector for chasing a specific bug by hand (it
+  confirmed the wfmgen early-exit leaks in gh-723). No make target runs it
+  and the build-from-source walkthrough has nothing to memcheck.
 
 Usage
 -----
@@ -57,6 +61,7 @@ DOCS_EXCLUDE = frozenset(
         "llvm",
         "libclang-rt-dev",
         "compiler-rt",
+        "valgrind",
     }
 )
 

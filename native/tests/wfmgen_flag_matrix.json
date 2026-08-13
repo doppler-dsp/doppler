@@ -1,0 +1,1026 @@
+{
+  "bits_file": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits-file",
+      "bits.bin",
+      "--count",
+      "32"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "bits_hex": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits-hex",
+      "b2",
+      "--modulation",
+      "none",
+      "--count",
+      "32"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 256,
+        "sha256_16": "31a4d13995775a0e"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "modulation": "none",
+          "num_samples": 32,
+          "off_samples": 0,
+          "pattern": "10110010",
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "bits"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "bits_literal": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "10110010",
+      "--modulation",
+      "qpsk",
+      "--sps",
+      "2",
+      "--count",
+      "32"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 256,
+        "sha256_16": "d2ac05172ade2191"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "modulation": "qpsk",
+          "num_samples": 32,
+          "off_samples": 0,
+          "pattern": "10110010",
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 2,
+          "type": "bits"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "bpsk_rrc": {
+    "argv": [
+      "--type",
+      "bpsk",
+      "--sps",
+      "4",
+      "--pulse",
+      "rrc",
+      "--rrc-beta",
+      "0.5",
+      "--rrc-span",
+      "6",
+      "--count",
+      "32"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 256,
+        "sha256_16": "fbf9d09a928222ce"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 32,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "pulse": "rrc",
+          "rrc_beta": 0.5,
+          "rrc_span": 6,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 4,
+          "type": "bpsk"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "chirp": {
+    "argv": [
+      "--type",
+      "chirp",
+      "--freq",
+      "0.1",
+      "--f-end",
+      "0.4",
+      "--count",
+      "32"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 256,
+        "sha256_16": "51bbcd3eec7a0adc"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "f_end": 0.4,
+          "freq": 0.1,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 32,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "chirp"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "clip_error": {
+    "argv": [
+      "--type",
+      "tone",
+      "--level",
+      "0",
+      "--count",
+      "8",
+      "--clip-error"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 64,
+        "sha256_16": "59ce37aa39da6cd2"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 8,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "tone"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "clip_report": {
+    "argv": [
+      "--type",
+      "tone",
+      "--level",
+      "0",
+      "--count",
+      "8",
+      "--clip-report"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 64,
+        "sha256_16": "59ce37aa39da6cd2"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 8,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "tone"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "dsss_burst": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--acq-code",
+      "1010",
+      "--acq-reps",
+      "2",
+      "--data-code",
+      "1011",
+      "--sync",
+      "1111100110101",
+      "--crc",
+      "crc16",
+      "--bits",
+      "10101010",
+      "--sps",
+      "2"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 2496,
+        "sha256_16": "7414757608a8cff5"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "acq_code": "1010",
+          "acq_reps": 2,
+          "crc": "crc16",
+          "data_code": "1011",
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 312,
+          "off_samples": 0,
+          "payload": "10101010",
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 2,
+          "sync": "1111100110101",
+          "type": "dsss"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "dsss_burst_hex": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--acq-code-hex",
+      "a5",
+      "--data-code-hex",
+      "b2",
+      "--bits-hex",
+      "0f",
+      "--crc",
+      "none",
+      "--sps",
+      "2"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 1152,
+        "sha256_16": "413fe08de336a191"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "acq_code": "10100101",
+          "acq_reps": 1,
+          "crc": "none",
+          "data_code": "10110010",
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 144,
+          "off_samples": 0,
+          "payload": "00001111",
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 2,
+          "type": "dsss"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "dsss_continuous": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--symbol-rate",
+      "100",
+      "--data-code",
+      "1011",
+      "--data",
+      "prbs",
+      "--fs",
+      "48000",
+      "--count",
+      "64"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 512,
+        "sha256_16": "5d86f90578f31516"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "data_code": "1011",
+          "freq": 0,
+          "fs": 48000,
+          "lfsr": "galois",
+          "num_samples": 64,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "symbol_rate": 100,
+          "type": "dsss"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "err_bad_choice": {
+    "argv": [
+      "--type",
+      "tone",
+      "--pulse",
+      "nonsense"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_dsss_burst_flag_in_continuous": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--symbol-rate",
+      "100",
+      "--data-code",
+      "1011",
+      "--acq-code",
+      "1010"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_missing_value": {
+    "argv": [
+      "--type",
+      "tone",
+      "--freq"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_rrc_beta": {
+    "argv": [
+      "--type",
+      "bpsk",
+      "--pulse",
+      "rrc",
+      "--rrc-beta",
+      "5",
+      "--count",
+      "4"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_unknown": {
+    "argv": [
+      "--nope"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "fc_meta": {
+    "argv": [
+      "--type",
+      "tone",
+      "--fc",
+      "2400000",
+      "--count",
+      "8"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 64,
+        "sha256_16": "59ce37aa39da6cd2"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 8,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "tone"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "from_file": {
+    "argv": [
+      "--from-file",
+      "scene.json"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 64,
+        "sha256_16": "59ce37aa39da6cd2"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 8,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "tone"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "gaps": {
+    "argv": [
+      "--type",
+      "tone",
+      "--count",
+      "16",
+      "--off",
+      "8",
+      "--delay",
+      "4",
+      "--gap-noise",
+      "off",
+      "--repeats",
+      "2"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 448,
+        "sha256_16": "08940663755dc722"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "delay_samples": 4,
+          "freq": 0,
+          "fs": 1,
+          "gap_noise": "off",
+          "lfsr": "galois",
+          "num_samples": 16,
+          "off_samples": 8,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "repeats": 2,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "tone"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "noise": {
+    "argv": [
+      "--type",
+      "noise",
+      "--snr",
+      "10",
+      "--snr-mode",
+      "fs",
+      "--count",
+      "32"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 256,
+        "sha256_16": "7572f031420239ef"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 32,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 10,
+          "snr_mode": "fs",
+          "sps": 1,
+          "type": "noise"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "out_blue": {
+    "argv": [
+      "--type",
+      "tone",
+      "--count",
+      "4",
+      "--file-type",
+      "blue",
+      "--sample-type",
+      "cf32",
+      "--output",
+      "out.blue"
+    ],
+    "exit": 0,
+    "outputs": {
+      "out.blue": {
+        "bytes": 544,
+        "sha256_16": "62f8f9120f04e670"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 4,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "tone"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "out_csv": {
+    "argv": [
+      "--type",
+      "tone",
+      "--count",
+      "4",
+      "--file-type",
+      "csv",
+      "--output",
+      "out.csv"
+    ],
+    "exit": 0,
+    "outputs": {
+      "out.csv": {
+        "bytes": 96,
+        "sha256_16": "080355bb5db37cb8"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 4,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "tone"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "out_file": {
+    "argv": [
+      "--type",
+      "tone",
+      "--count",
+      "8",
+      "--sample-type",
+      "ci16",
+      "--file-type",
+      "raw",
+      "--endian",
+      "be",
+      "--output",
+      "out.bin"
+    ],
+    "exit": 0,
+    "outputs": {
+      "out.bin": {
+        "bytes": 32,
+        "sha256_16": "b1286d521f1e6175"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 8,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "tone"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "out_sigmf": {
+    "argv": [
+      "--type",
+      "tone",
+      "--count",
+      "4",
+      "--file-type",
+      "sigmf",
+      "--output",
+      "out_sigmf"
+    ],
+    "exit": 0,
+    "outputs": {
+      "out_sigmf.sigmf-data": {
+        "bytes": 32,
+        "sha256_16": "a5b83a75c0c847cc"
+      },
+      "out_sigmf.sigmf-meta": {
+        "bytes": 432,
+        "sha256_16": "e251dedaa0df5fb8"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 4,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "tone"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "pn": {
+    "argv": [
+      "--type",
+      "pn",
+      "--pn-length",
+      "7",
+      "--pn-poly",
+      "0",
+      "--lfsr",
+      "fibonacci",
+      "--sps",
+      "2",
+      "--count",
+      "32"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 256,
+        "sha256_16": "5790ec0bffefb9bd"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "fibonacci",
+          "num_samples": 32,
+          "off_samples": 0,
+          "pn_length": 7,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 2,
+          "type": "pn"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "qpsk_level": {
+    "argv": [
+      "--type",
+      "qpsk",
+      "--sps",
+      "2",
+      "--level",
+      "-3",
+      "--headroom",
+      "1",
+      "--count",
+      "32",
+      "--snr-mode",
+      "esno",
+      "--snr",
+      "12"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 256,
+        "sha256_16": "3b82baa2648a7061"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "headroom": 1,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "level": -3,
+          "lfsr": "galois",
+          "num_samples": 32,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 12,
+          "snr_mode": "esno",
+          "sps": 2,
+          "type": "qpsk"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "seed_advance": {
+    "argv": [
+      "--type",
+      "tone",
+      "--count",
+      "8",
+      "--seed-advance",
+      "all"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 64,
+        "sha256_16": "59ce37aa39da6cd2"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 8,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "tone"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "symbols": {
+    "argv": [
+      "--type",
+      "symbols",
+      "--symbols-file",
+      "syms.cf32",
+      "--sps",
+      "1",
+      "--count",
+      "8"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 64,
+        "sha256_16": "fa71735d8e7dabe4"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 8,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "symbols": [
+            1,
+            0,
+            0,
+            1,
+            -1,
+            0,
+            0,
+            -1
+          ],
+          "type": "symbols"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "tone": {
+    "argv": [
+      "--type",
+      "tone",
+      "--freq",
+      "0.1",
+      "--fs",
+      "48000",
+      "--count",
+      "32",
+      "--seed",
+      "3"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 256,
+        "sha256_16": "a14366f6f061d04f"
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0.1,
+          "fs": 48000,
+          "lfsr": "galois",
+          "num_samples": 32,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 3,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "tone"
+        }
+      ],
+      "version": 1
+    }
+  }
+}

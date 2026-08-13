@@ -279,4 +279,20 @@ if(NOT WIN32)
     add_test(NAME wfmgen_cli COMMAND ${CMAKE_COMMAND}
         -DEXE=$<TARGET_FILE:wfmgen_cli>
         -P ${CMAKE_SOURCE_DIR}/native/tests/wfmgen_cli_test.cmake)
+
+    # Per-flag behaviour matrix. wfmgen_cli above covers 23 of the 51 flags
+    # the dispatcher accepts; this pins the resolved --record spec and a hash
+    # of the emitted bytes for the rest, so a change to how ANY flag reaches
+    # its field is caught. It exists for gh-723's table-driven parser rewrite,
+    # which rewrites exactly that path -- but it outlives the rewrite as the
+    # CLI's parse-semantics regression gate.
+    #
+    # Fails closed on coverage: a flag added to the dispatcher without a case
+    # fails this test on the commit that adds it.
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME wfmgen_flag_matrix COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/scripts/gen_wfmgen_flag_matrix.py
+            --exe $<TARGET_FILE:wfmgen_cli> --check)
+    endif()
 endif()

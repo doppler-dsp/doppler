@@ -63,10 +63,15 @@ measure (int m, double esno_db, int signal, size_t n, uint32_t seed,
          double *mean_out, double *var_out)
 {
   uint32_t st = seed;
-  /* Per-quadrature noise sd for unit symbol energy: total noise power is
-     1/rd, so each quadrature carries half of it. */
+  /* cgauss() is unit TOTAL power (E|n|^2 = 1, half in each quadrature --
+     measured, not assumed). Unit symbol energy against Es/N0 = rd wants
+     total noise power 1/rd, so the scale is sqrt(1/rd).
+     Writing sqrt(0.5/rd) here -- the per-quadrature sd, correct only for a
+     generator that is unit-variance PER RAIL -- makes every Es/N0 on this
+     axis 3 dB optimistic. It did, until the fit disagreed with the phase
+     -variance derivation by exactly a factor of two. */
   double rd = pow (10.0, esno_db / 10.0);
-  double sd = sqrt (0.5 / rd);
+  double sd = sqrt (1.0 / rd);
   double s1 = 0.0, s2 = 0.0;
   for (size_t i = 0; i < n; i++)
     {

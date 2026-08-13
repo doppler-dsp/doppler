@@ -20,7 +20,8 @@
  * placed at det_q_inv(p) sigmas so the per-look hit probability is exactly
  * the p the claim is stated in. Then measure:
  *
- *   - the false-declare RATE: declares per look, against p^n_up;
+ *   - the false-declare RATE: declares per look, against the exact
+ *     p^n_up (1-p)/(1-p^n_up) -- p^n_up alone is its p -> 0 limit;
  *   - the declare LATENCY: mean looks to the first declare, against
  *     det_verify_delay(p, n_up).
  *

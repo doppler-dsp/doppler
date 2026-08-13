@@ -345,8 +345,17 @@ double det_ema_alpha(double snr_in_db, double snr_out_db);
  * @brief Verify count: consecutive looks needed to compound to a budget.
  *
  * n consecutive independent looks at per-look probability p compound to
- * p^n, so the smallest n with `p_look^n <= p_target` is
- * `ceil(ln p_target / ln p_look)` (clamped to >= 1). One function serves
+ * ~p^n, so the smallest n with `p_look^n <= p_target` is
+ * `ceil(ln p_target / ln p_look)` (clamped to >= 1).
+ *
+ * That `~` is a BUDGET, and deliberately the conservative side of one: a
+ * consecutive-run detector's exact declare rate is `p^n (1-p)/(1-p^n)`
+ * (lockdet_core.h), which is lower, so sizing on p^n over-provisions n
+ * rather than under. The gap is ~p -- negligible where a detector is
+ * really sized, 10% at p = 0.1 -- so pick n here and predict what a
+ * caller will observe with det_verify_delay().
+ *
+ * One function serves
  * both sides of a lock detector (lockdet_core.h): the declare count from
  * (per-look pfa, false-declare budget) and the drop count from (per-look
  * miss rate 1 - pd, false-drop budget). Degenerate inputs resolve

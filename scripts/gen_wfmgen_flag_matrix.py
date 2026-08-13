@@ -2,11 +2,11 @@
 
 Why this exists
 ---------------
-``wfmgen`` accepts 51 flags through a 49-arm ``else if`` chain, and the
-CLI test covered 23 of them. gh-723 replaces that chain with a flag
+``wfmgen`` accepts 51 flags and the CLI test covered 23 of them. gh-723
+replaced the 49-arm ``else if`` chain that resolved them with a flag
 table, which is a rewrite of how every one of those 51 flags reaches its
 field -- exactly the change a 45%-covered suite cannot police. So the
-coverage comes first and the rewrite is measured against it.
+coverage came first and the rewrite was measured against it.
 
 What it pins
 ------------
@@ -43,6 +43,12 @@ table. A harness that silently stops covering a flag is worse than no
 harness, because it reads as coverage. The flag list is derived from the
 source rather than restated here, so a new flag fails this gate on the
 commit that adds it.
+
+Deriving it from source has its own failure mode, and it fired once: the
+gh-723 rewrite changed the shape being scanned, and a discovery that
+matches nothing would have reported full coverage of an empty set.
+``dispatcher_flags`` therefore hard-fails unless it finds a handful of
+anchor flags that will exist for as long as the tool does.
 """
 
 from __future__ import annotations
@@ -432,10 +438,30 @@ def cases() -> list[tuple[str, list[str]]]:
     ]
 
 
+# The option table's rows, e.g. `{ .name = "--freq", .alias = "-o", ... }`.
+# Whitespace-tolerant because clang-format decides where a row wraps.
+_ROW_RE = re.compile(r'\.(?:name|alias)\s*=\s*"(--?[A-Za-z0-9-]+)"')
+
+# Flags that must always be discovered. They are not a coverage requirement
+# -- cases() already drives them -- they are a check on the DISCOVERY, which
+# reads C source and can therefore go stale silently. It did: the gh-723
+# rewrite replaced the `!strcmp (a, "--x")` chain this used to scan with a
+# table, and had the SKIP cross-check below not fired, coverage would have
+# passed over an empty set and reported "0 flags covered" as success.
+_ANCHORS = {"--type", "--count", "--output", "--freq", "-o"}
+
+
 def dispatcher_flags() -> set[str]:
-    """Every flag the argv chain matches, read from the source."""
-    text = SRC.read_text()
-    return set(re.findall(r'!strcmp \(a, "(--[a-z0-9-]+|-[a-zA-Z])"\)', text))
+    """Every flag the parser accepts, read from its option table."""
+    flags = set(_ROW_RE.findall(SRC.read_text()))
+    missing = _ANCHORS - flags
+    if missing:
+        raise SystemExit(
+            f"wfmgen_flag_matrix: flag discovery is broken -- "
+            f"{', '.join(sorted(missing))} not found in {SRC.name}. "
+            f"The option-table format changed; fix _ROW_RE."
+        )
+    return flags
 
 
 def run_case(exe: Path, argv: list[str], workdir: Path) -> dict:

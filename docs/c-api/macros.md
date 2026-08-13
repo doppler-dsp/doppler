@@ -185,14 +185,27 @@
 ## j
 
 * **JM\_ALIGNED** ([**jm\_perf.h**](jm__perf_8h.md))
+* **JM\_ALIGNED\_IMPL** ([**jm\_perf.h**](jm__perf_8h.md))
 * **JM\_ASSUME\_ALIGNED** ([**jm\_perf.h**](jm__perf_8h.md))
+* **JM\_ASSUME\_ALIGNED\_IMPL** ([**jm\_perf.h**](jm__perf_8h.md))
+* **JM\_DEFINE\_STEPS** ([**jm\_perf.h**](jm__perf_8h.md))
+* **JM\_DEFINE\_STEPS\_EX** ([**jm\_perf.h**](jm__perf_8h.md))
+* **JM\_EVAL\_IMPL** ([**jm\_perf.h**](jm__perf_8h.md))
 * **JM\_FORCEINLINE** ([**jm\_perf.h**](jm__perf_8h.md))
+* **JM\_FORCEINLINE\_IMPL** ([**jm\_perf.h**](jm__perf_8h.md))
 * **JM\_HOT** ([**jm\_perf.h**](jm__perf_8h.md))
+* **JM\_HOT\_IMPL** ([**jm\_perf.h**](jm__perf_8h.md))
 * **JM\_LIKELY** ([**jm\_perf.h**](jm__perf_8h.md))
+* **JM\_LIKELY\_IMPL** ([**jm\_perf.h**](jm__perf_8h.md))
 * **JM\_PREFETCH** ([**jm\_perf.h**](jm__perf_8h.md))
+* **JM\_PREFETCH\_IMPL** ([**jm\_perf.h**](jm__perf_8h.md))
 * **JM\_RESTRICT** ([**jm\_perf.h**](jm__perf_8h.md), [**jm\_simd.h**](jm__simd_8h.md))
+* **JM\_RESTRICT\_IMPL** ([**jm\_perf.h**](jm__perf_8h.md))
+* **JM\_STEPS\_SIMD\_IMPL** ([**jm\_perf.h**](jm__perf_8h.md))
 * **JM\_UNLIKELY** ([**jm\_perf.h**](jm__perf_8h.md))
+* **JM\_UNLIKELY\_IMPL** ([**jm\_perf.h**](jm__perf_8h.md))
 * **JM\_UNROLL** ([**jm\_perf.h**](jm__perf_8h.md))
+* **JM\_UNROLL\_IMPL** ([**jm\_perf.h**](jm__perf_8h.md))
 * **JM\_ADD\_F32** ([**jm\_simd.h**](jm__simd_8h.md))
 * **JM\_ADD\_F64** ([**jm\_simd.h**](jm__simd_8h.md))
 * **JM\_FMA\_F32** ([**jm\_simd.h**](jm__simd_8h.md))
@@ -309,15 +322,6 @@
 ## _
 
 * **\_POSIX\_C\_SOURCE** ([**dp\_isotime.h**](dp__isotime_8h.md))
-* **\_JM\_ALIGNED\_** ([**jm\_perf.h**](jm__perf_8h.md))
-* **\_JM\_ASSUME\_ALIGNED\_** ([**jm\_perf.h**](jm__perf_8h.md))
-* **\_JM\_FORCEINLINE\_** ([**jm\_perf.h**](jm__perf_8h.md))
-* **\_JM\_HOT\_** ([**jm\_perf.h**](jm__perf_8h.md))
-* **\_JM\_LIKELY\_** ([**jm\_perf.h**](jm__perf_8h.md))
-* **\_JM\_PREFETCH\_** ([**jm\_perf.h**](jm__perf_8h.md))
-* **\_JM\_RESTRICT\_** ([**jm\_perf.h**](jm__perf_8h.md))
-* **\_JM\_UNLIKELY\_** ([**jm\_perf.h**](jm__perf_8h.md))
-* **\_JM\_UNROLL\_** ([**jm\_perf.h**](jm__perf_8h.md))
 
 
 

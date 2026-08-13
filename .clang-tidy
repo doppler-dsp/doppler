@@ -42,14 +42,15 @@ WarningsAsErrors: "*"
 # Adjust per-project if your header tree differs.
 HeaderFilterRegex: "native/inc/.*"
 
-# jm_perf.h and jm_simd.h are shipped BY just-makeit, not written here — the
-# `_JM_HOT_`/`_JM_RESTRICT_`-style macro names in them trip
-# bugprone-reserved-identifier ten times over. Renaming them locally would
-# drift the manifest gate and be reverted by the next `jm apply`, so the fix
-# belongs upstream in jm; excluding them here keeps the local gate at zero
-# without pretending the finding is wrong. Everything else under native/inc is
-# ours and stays in scope.
-ExcludeHeaderFilterRegex: "native/inc/jm_.*"
+# There is deliberately no ExcludeHeaderFilterRegex. jm_perf.h and jm_simd.h
+# are shipped BY just-makeit, and their `_JM_HOT_`/`_JM_RESTRICT_`-style macro
+# names used to trip bugprone-reserved-identifier ten times over — excluded
+# here rather than renamed locally, since a local rename would drift the
+# manifest gate and be reverted by the next `jm apply`, so the fix belonged
+# upstream. It landed there: jm 0.58.0 (just-makeit#947) renamed all 16
+# reserved identifiers across jm_perf.h, jm_simd.h and jm_bench.h with the
+# public spelling unchanged, so the exclusion came off with the pin bump and
+# every header under native/inc is in scope again.
 
 # Apply the project's clang-format style to suggested fixes.
 FormatStyle: file

@@ -837,6 +837,12 @@
 * **interp\_table\_reset** ([**interp\_table\_core.h**](interp__table__core_8h.md))
 
 
+## j
+
+* **jm\_dot\_f32** ([**jm\_simd.h**](jm__simd_8h.md))
+* **jm\_dot\_f64** ([**jm\_simd.h**](jm__simd_8h.md))
+
+
 ## k
 
 * **kaiser\_beta** ([**resample\_core.h**](resample__core_8h.md))

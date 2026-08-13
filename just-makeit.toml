@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.57.0"
+jm_version = "0.59.0"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -133,10 +133,29 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # file's stale/missing classification -- it is broader than the reason it was
 # added for (just-makeit#823). Re-check both on every pin bump; jm lists an
 # allowed kwargs finding under KWARGS with a `~`, so they stay visible.
+#
+# native/tests/jm_test.h is allowed MISSING, deliberately and permanently.
+# jm 0.58.0 ships it as a create-only shared assertion harness (CHECK,
+# REQUIRE, ALMOST_EQ) because one downstream had accumulated 90 copies of
+# CHECK in 6 incompatible variants -- that downstream was THIS repo, and it
+# had already fixed the problem its own way. `native/tests/dp_test.h` is that
+# fix: DP_CHECK / DP_REQUIRE / dp_nearf, with 90 test files on it and
+# `make tests-ssot` enforcing it as the single definition. Vendoring
+# jm_test.h beside it would put two peer assertion harnesses in one
+# directory, which is the duplication this repo forbids -- and tests-ssot
+# says so itself, failing on jm_test.h's CHECK, REQUIRE and the two retired
+# ALMOST_EQ spellings. So the file is not adopted, and this entry is what
+# tells the drift gate that its absence is a decision.
+#
+# Consequence worth knowing: a test scaffolded by jm 0.58.0+ will
+# `#include "jm_test.h"` and not compile here until it is converted to
+# DP_CHECK / DP_REQUIRE. tests-ssot fails it on the way past, so the
+# conversion is prompted rather than discovered. Tracked as #730.
 status_allow = [
     "zensical.toml",
     "native/src/resample/resample_ext_Resampler.c",
     "native/src/wfm/wfm_ext_wfm_synth.c",
+    "native/tests/jm_test.h",
 ]
 
 # Benchmark only the 64k block (jm-gh-390). doppler dropped the small-block

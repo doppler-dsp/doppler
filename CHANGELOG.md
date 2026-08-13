@@ -339,6 +339,127 @@ ______________________________________________________________________
 
 ### Changed
 
+- **just-makeit pin 0.57.0 → 0.59.0, and the create-only headers 0.58.0 ships
+    are re-vendored by hand.** Everything in 0.58.0 that doppler wants lands in
+    *create-only* files — `jm apply` never rewrites those, so
+    `make drift-check` stays green whether the migration happens or not, and
+    an existing project receives none of it until someone copies the files
+    over. That is why this is a manual re-vendor of `native/inc/jm_perf.h`,
+    `native/inc/jm_simd.h` and `native/benchmarks/jm_bench.h`, rather than a
+    bump that carried itself.
+
+    **0.59.0 adds nothing to re-vendor** — it changes no template at all
+    (verified by diffing the two tags' `templates/` trees, which are
+    byte-identical), so it is pure tooling on top of the migration below. It
+    is taken in the same commit rather than as a follow-up because landing
+    0.58.0 first would ship a pin that was already stale, and the whole point
+    of the three-site pin gate is that the number means something.
+
+    What 0.59.0 carries that doppler cares about: **`jm status` now names
+    which create-only files are behind, as `OUTDATED`** (gh-949) — the direct
+    answer to the "not compared: create-only files" line this bump would
+    otherwise have left standing. It is *reported, never counted*, because
+    `apply` cannot fix a create-only file and gating on it would fail CI with
+    no command that clears it; it is suppressible via `status_allow`, which is
+    what doppler's `jm_test.h` entry below already does for both its `MISSING`
+    and its `OUTDATED` classification. Measuring it also showed the blind set
+    was far larger than 0.58.0's own note claimed — `status` cannot see drift
+    in **28 of a plain project's 32** manifest-owned files, not five.
+
+    **The first `OUTDATED` report caught doppler's own formatter, not jm.**
+    `native/benchmarks/jm_bench.h` was named on a tree whose content is
+    byte-identical to jm's — strip all whitespace from both and the hashes
+    match. doppler's pre-commit had rewritten it from jm's K&R to GNU, purely
+    because `C_EXCLUDE_RE` reached `native/inc/` and nothing under
+    `native/benchmarks/` or `native/tests/`. Its siblings `jm_perf.h` and
+    `jm_simd.h`, same vintage and same source, were absent from the same
+    report — the control that identifies the cause. `jm_bench.h` and
+    `jm_test.h` join the exclusion and are restored to jm's render, which is
+    what makes the new signal mean something: left formatted, `OUTDATED` fires
+    forever on a file nobody needs to act on, and a real upstream change would
+    arrive into a line already being ignored. Main tree 9 → 8, downstream
+    4 → 2.
+
+    **`jm_*.h` joins `COV_IGNORE`, which had been missing it all along.** The
+    re-vendor brought in jm's `jm_dot_f32` / `jm_dot_f64` inline helpers —
+    22 lines doppler does not call — and `coverage-gate` failed at **18.5%** on
+    a header doppler does not write. The exclusion list already held `vendor/`,
+    the `_ext` glue and the test/bench harnesses under a stated rule of *only
+    first-party `_core.c` counts*; jm's headers are that same category and were
+    simply never listed. It stayed invisible because the patch gate only sees
+    lines a branch CHANGES, and until now no branch had changed one. The `jm_`
+    prefix is deliberately narrow — `native/inc/` is otherwise doppler's own
+    and those inline bodies stay measured, and the SIMD macros doppler really
+    uses are unaffected, since a macro is attributed to the `.c` that expands
+    it.
+
+    The **9 that remain are deliberate and stay visible**, un-suppressed:
+    `.clang-tidy`, `.gitignore`, `Doxyfile`, `Makefile`, `bootstrap.toml`, the
+    two `cmake/*.in`, and `native/inc/clib_common.h` — every one a file
+    doppler authored and will not adopt jm's version of (`clib_common.h`
+    carries the whole `DP_OK`/`DP_ERR_*` vocabulary against jm's 14-line
+    stub). `status_allow` would silence them, and that is exactly the wrong
+    move: jm ships real improvements to these, and harvesting them is how
+    doppler got `make tidy` and `compile-commands` in the first place. An
+    advisory line about a config jm has moved on is the notification, not
+    noise.
+
+    Also in 0.59.0, and the reason it is worth taking promptly: **`jm method` /
+    `property` / `warning` / `error` silently did the wrong thing on a module
+    object when `--module` was omitted** (gh-963). They consulted the flag and
+    nothing else, so its absence selected the *standalone* path: the verb wrote
+    the C stub, never touched the module's binding fragment, printed `Done!`
+    and exited 0 — leaving a tree that builds and imports with the member
+    missing from the class. doppler's documented add-an-object workflow drives
+    exactly those verbs against module objects (`ddc`, `wfm`), so this is a
+    trap doppler was standing next to. The owning module is now inferred from
+    the manifest, which has always recorded it.
+
+    **`.clang-tidy`'s `ExcludeHeaderFilterRegex` comes off in the same
+    commit** — that is the point of the bump here. jm 0.58.0
+    (just-makeit#947) renames all 16 reserved identifiers across the shipped
+    headers (`_JM_LIKELY_`, `_jm_hsum256_f32`, …) with the public spelling
+    unchanged, so the carve-out that had `native/inc/jm_.*` outside the gate
+    is no longer buying anything. Measured rather than assumed, and with one
+    variable moved: the tidy backlog is **118 findings with the exclusion and
+    118 without**, none of them in `native/inc/jm_*`. Every header under
+    `native/inc` is in scope again at no cost. The 118 are the pre-existing
+    backlog tracked as #723, untouched by this.
+
+    **`native/tests/jm_test.h` is the one create-only file doppler does NOT
+    take**, and `make tests-ssot` is what said so — four violations, on its
+    `CHECK`, its `REQUIRE` and both retired `ALMOST_EQ` spellings. jm ships
+    it because one downstream had accumulated 90 copies of `CHECK` in 6
+    incompatible variants; that downstream was this repo, which had
+    already fixed it here as `native/tests/dp_test.h` — `DP_CHECK` /
+    `DP_REQUIRE` / `dp_nearf`, 90 test files on it, and a gate holding it as
+    the single definition. Vendoring jm's harness beside doppler's would put
+    two peer assertion harnesses in one directory, so the file is dropped
+    and `native/tests/jm_test.h` is `status_allow`-ed as permanently
+    missing, which is how the drift gate is told the absence is a decision
+    rather than a lapse. The live consequence — a test scaffolded by jm
+    0.58.0+ includes `jm_test.h` and must be converted to `DP_CHECK` before
+    it compiles, with tests-ssot failing it on the way past — is filed as
+    #730 rather than left in this paragraph.
+
+    Two more things checked and deliberately **not** adopted. The scaffold's
+    own `.clang-tidy` and `make tidy` are 0.58.0 additions for freshly
+    scaffolded projects; doppler's are older, stricter, and scoped to the
+    library rather than to the compile database, so they stay. And
+    `compile_commands.json` was already settled — it is a symlink into
+    `build/`, not a tracked hand-rolled file, so 0.58.0's "delete yours and
+    run `make compile-commands`" migration step is a no-op here.
+
+    `examples/downstream-jm` takes **both** files, unlike the main tree: it
+    exists to show what jm actually generates, so its copies are the point.
+
+    The headers also lose their `@file` blocks upstream, which is not a
+    regression: measured at CI's doxygen 1.9.8, the generated tree builds
+    with **0 warnings**, anchors intact and all 40 inbound links resolving.
+
+    `examples/downstream-jm` is a jm project in its own right and is gated by
+    the same `status --check`, so its pin moves too.
+
 - **The C tests' randomness has one home, `native/tests/dp_rng_test.h`, and
     one of the copies it replaced was broken.** This is a BEHAVIOUR change to
     `test_costas_core.c`, not a refactor — read the second paragraph before

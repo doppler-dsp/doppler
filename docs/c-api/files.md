@@ -14,8 +14,8 @@ Here is a list of all files with brief descriptions:
         * **file** [**dp\_simd.h**](dp__simd_8h.md) _doppler's own composite SIMD reductions, layered over_ `jm_simd.h` _._    
         * **file** [**dp\_state.h**](dp__state_8h.md)     
         * **file** [**dp\_state\_pyhelp.h**](dp__state__pyhelp_8h.md)     
-        * **file** [**jm\_perf.h**](jm__perf_8h.md) _just-makeit performance annotation macros._     
-        * **file** [**jm\_simd.h**](jm__simd_8h.md) _Width-portable SIMD operation macros._     
+        * **file** [**jm\_perf.h**](jm__perf_8h.md)     
+        * **file** [**jm\_simd.h**](jm__simd_8h.md)     
         * **dir** [**HalfbandDecimator**](dir_6ac3f68ee82e011454c15c865a37e192.md)     
             * **file** [**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md) _Halfband 2:1 decimator for CF32 IQ (adapter over hbdecim\_core)._     
         * **dir** [**RateConverter**](dir_ab9e07a54a3e9554c466f24859c37292.md)     

@@ -52,6 +52,7 @@
  *
  * Usage:  ratesync_scurve [--check]
  */
+#include "dp_tx_test.h"
 #include "ratesync/ratesync_core.h"
 #include "symsync/symsync_core.h"
 #include "wfm/wfm_dsp.h"
@@ -77,6 +78,16 @@
    does not show -- the same reasoning, and nearly the same value, as
    symsync_ted_slope's own `d`. */
 #define DTAU 1e-3
+/* Phase 3, through the cascade. A larger step than DTAU: the cascade's
+   output carries the detector's self-noise, so the difference has to clear
+   it, and a thirty-second of a symbol is still well inside every S-curve's
+   linear region. */
+#define CASC_DTAU 0.03125
+#define CASC_NSYM 4000
+#define CASC_SKIP 300
+/* Set from measurement, not chosen: see the printed table. */
+#define CASC_GARDNER_TOL 0.20
+#define CASC_DTTL_RATCHET 11.0
 
 static uint32_t
 xs32 (uint32_t *st)
@@ -236,6 +247,126 @@ main (int argc, char **argv)
         }
       ratesync_destroy (rs);
     }
+
+  /* ── Phase 3: the same slope THROUGH the cascade ──────────────────────
+   *
+   * Phases 1 and 2 exonerate the formula and its wiring. This is the half
+   * that does not agree with them, and it is here rather than in a
+   * throwaway probe because a measurement quoted as evidence has to be
+   * re-runnable: the numbers below are cited on gh-669.
+   *
+   * The raw numerator is recovered as `last_error / ted_scale` rather than
+   * by recomputing the detector from `loop.ring[]`. That matters. The ring
+   * advances per terminal OUTPUT, not per strobe, and one input can
+   * complete two outputs, so reading it from outside `ratesync_step` is
+   * occasionally one output stale -- a race that produced a confident and
+   * wrong answer when this measurement lived in a scratch probe.
+   * `last_error` is written inside `ratesync_loop_take_output` for the
+   * strobe that just fired, so it needs no such assumption.
+   *
+   * Stimulus is dp_tx_make(), the shared harness stimulus the unit tests
+   * drive -- not a pulse re-shaped here. A second implementation of the
+   * transmitter is exactly the peer that drifts. */
+  printf ("\n  through the cascade (bn = 0, sps 4, m 2, dp_tx stimulus):\n");
+  printf ("  %-8s %6s %14s %14s %8s\n", "ted", "beta", "raw slope", "declared",
+          "ratio");
+  double worst_gardner = 0.0, dttl_lo = 1e30, dttl_hi = 0.0;
+  for (size_t t = 0; t < 2; t++)
+    {
+      for (size_t b = 0; b < nbeta; b++)
+        {
+          double       mean[2] = { 0.0, 0.0 };
+          const double taus[2] = { -CASC_DTAU, +CASC_DTAU };
+          for (int si = 0; si < 2; si++)
+            {
+              dp_tx_cfg_t cfg  = dp_tx_defaults ();
+              cfg.sps          = 4.0;
+              cfg.beta         = betas[b];
+              cfg.span         = SPAN;
+              cfg.tau          = taus[si];
+              cfg.nsym         = CASC_NSYM;
+              size_t         n = 0;
+              float complex *x = dp_tx_make (&cfg, NULL, &n);
+              if (!x)
+                continue;
+              ratesync_state_t *rs
+                  = ratesync_create (4.0, RATESYNC_PULSE_RRC, betas[b], SPAN,
+                                     2, 1024, 0.0, 0.707, teds[t]);
+              if (!rs)
+                {
+                  free (x);
+                  continue;
+                }
+              double        sum  = 0.0;
+              long          used = 0, cnt = 0;
+              float complex sym;
+              for (size_t i = 0; i < n; i++)
+                if (ratesync_step (rs, x[i], &sym))
+                  {
+                    /* Discard the cascade's fill; the loop is open, so
+                       there is no transient beyond that to wait out. */
+                    if (++cnt > CASC_SKIP)
+                      {
+                        sum += rs->loop.last_error / rs->loop.ted_scale;
+                        used++;
+                      }
+                  }
+              mean[si] = used ? sum / (double)used : 0.0;
+              ratesync_destroy (rs);
+              free (x);
+            }
+          double meas = fabs ((mean[1] - mean[0]) / (2.0 * CASC_DTAU));
+          double decl
+              = symsync_ted_slope (teds[t], SYMSYNC_PULSE_RRC, betas[b], SPAN);
+          double ratio = (decl > 0.0) ? meas / decl : 0.0;
+          printf ("  %-8s %6.2f %14.6f %14.6f %8.4f\n", names[t], betas[b],
+                  meas, decl, ratio);
+          if (teds[t] == SYMSYNC_TED_GARDNER)
+            {
+              if (fabs (ratio - 1.0) > worst_gardner)
+                worst_gardner = fabs (ratio - 1.0);
+            }
+          else
+            {
+              if (ratio < dttl_lo)
+                dttl_lo = ratio;
+              if (ratio > dttl_hi)
+                dttl_hi = ratio;
+            }
+        }
+    }
+
+  /* Gardner's raw slope through the cascade agrees with the analytic one,
+     which is what makes the DTTL row a finding rather than a property of
+     the measurement. A real gate. */
+  if (worst_gardner > CASC_GARDNER_TOL)
+    {
+      fprintf (stderr,
+               "  gardner's THROUGH-CASCADE slope drifted %.3f from its "
+               "declared one — phases 1 and 2 say the formula and the "
+               "wiring are right, so this is the cascade\n",
+               worst_gardner);
+      fail = 1;
+    }
+  /* DTTL's does not, and by a factor that grows with roll-off. This is the
+     open defect (F15, gh-669), so the gate is a RATCHET on how bad it is,
+     and it may only ever shrink. It is NOT an endorsement: the correct
+     value for this spread is 1.0. */
+  double spread = (dttl_lo > 0.0) ? dttl_hi / dttl_lo : 0.0;
+  printf ("  dttl through-cascade ratio %.2f..%.2f, spread %.1fx "
+          "(ratchet %.1f; correct value 1.0 — gh-669)\n",
+          dttl_lo, dttl_hi, spread, CASC_DTTL_RATCHET);
+  if (spread > CASC_DTTL_RATCHET)
+    {
+      fprintf (stderr,
+               "  dttl's roll-off dependence grew to %.1fx, past the %.1fx "
+               "ratchet — the gh-669 defect got WORSE\n",
+               spread, CASC_DTTL_RATCHET);
+      fail = 1;
+    }
+  if (spread < 2.0)
+    printf ("  NOTE: dttl's spread has collapsed toward 1.0 — if gh-669 was "
+            "fixed, TIGHTEN the ratchet.\n");
 
   if (check && fail)
     {

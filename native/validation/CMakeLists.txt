@@ -139,8 +139,11 @@ add_test(NAME validate_carrier_nda_lock
 # changes its last digits between x86-64 and arm64.
 add_executable(validate_ratesync_scurve
                ${CMAKE_CURRENT_SOURCE_DIR}/ratesync_scurve.c)
+# native/tests too: phase 3 drives dp_tx_make(), the shared harness
+# stimulus the unit tests use, rather than re-shaping a pulse here.
 target_include_directories(validate_ratesync_scurve
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_ratesync_scurve PRIVATE doppler_lib_static m)
 target_compile_options(validate_ratesync_scurve PRIVATE -O3 -funroll-loops
                                                         -ffp-contract=off)

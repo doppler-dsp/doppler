@@ -584,9 +584,26 @@ int
 main (int argc, char **argv)
 {
   int check = (argc > 1 && strcmp (argv[1], "--check") == 0);
+  /* `--check` is the REGRESSION SUBSET, not the same work with a verdict
+     attached. Full validation is a one-and-done per component, refreshed
+     when the component or the toolchain changes; what belongs in routine
+     testing is only the downselect that would catch a real regression
+     coming back. This harness is why the rule exists: the comprehensive
+     sweep grew to 81s and was 78% of `make test-fast`, so every push paid
+     for re-deriving characterisation that had already been recorded in the
+     report. Run with no arguments for the full sweep -- that is what
+     `make validate` invokes and what the report's numbers come from. */
+  const int full = !check;
 
   const double betas[] = { 0.1, 0.2, 0.35, 0.5, 0.9 };
   const size_t nbeta   = sizeof betas / sizeof *betas;
+  /* Regression subset: the DEFAULT roll-off only. One beta cannot separate a
+     skipped normalisation from a wrong one -- that is why the full sweep
+     exists, and why F15 needed it -- but it does catch the normaliser, the
+     equilibrium selection and the eye discrimination all coming undone,
+     which is what a regression here would look like. */
+  const size_t b_lo    = full ? 0 : 2;
+  const size_t b_hi    = full ? nbeta : 3;
   const int    teds[]  = { SYMSYNC_TED_GARDNER, SYMSYNC_TED_DTTL };
   const char  *names[] = { "gardner", "dttl" };
 
@@ -608,7 +625,7 @@ main (int argc, char **argv)
           "sd/mean", "declared", "scale");
   for (size_t t = 0; t < 2; t++)
     {
-      for (size_t b = 0; b < nbeta; b++)
+      for (size_t b = b_lo; b < b_hi; b++)
         {
           double sd   = 0.0;
           double meas = slope_measured (teds[t], betas[b], &sd);
@@ -718,7 +735,7 @@ main (int argc, char **argv)
   double worst_gardner = 0.0, dttl_lo = 1e30, dttl_hi = 0.0;
   for (size_t t = 0; t < 2; t++)
     {
-      for (size_t b = 0; b < nbeta; b++)
+      for (size_t b = b_lo; b < b_hi; b++)
         {
           double csd = 0.0, cs0 = 0.0;
           int    cfound = 0;
@@ -861,144 +878,159 @@ main (int argc, char **argv)
    * so the step here is exactly 4 samples and the guard below enforces the
    * representability rather than trusting this comment. RRC is re-measured
    * at the same sps so the comparison carries no sps difference. */
-  printf ("\n  the pulse as the only variable (bn = 0, sps %.0f, m 2, "
-          "step %g symbol = %.0f samples):\n",
-          NRZ_SPS, NRZ_DTAU, NRZ_DTAU * NRZ_SPS);
-  printf ("  %-8s %-7s %6s %12s %9s %12s %9s\n", "ted", "pulse", "beta",
-          "raw slope", "sd/mean", "declared", "scale");
-  double dttl_nrz = 0.0, dttl_rrc = 0.0;
-  for (size_t t = 0; t < 2; t++)
+  /* Phases 4-6 are CHARACTERISATION: they map an axis, and the map is
+     recorded in the report. Re-deriving it on every push buys nothing a
+     regression subset does not already cover, so they are full-sweep only. */
+  if (full)
     {
-      for (int p = 0; p < 2; p++)
+      printf ("\n  the pulse as the only variable (bn = 0, sps %.0f, m 2, "
+              "step %g symbol = %.0f samples):\n",
+              NRZ_SPS, NRZ_DTAU, NRZ_DTAU * NRZ_SPS);
+      printf ("  %-8s %-7s %6s %12s %9s %12s %9s\n", "ted", "pulse", "beta",
+              "raw slope", "sd/mean", "declared", "scale");
+      double dttl_nrz = 0.0, dttl_rrc = 0.0;
+      for (size_t t = 0; t < 2; t++)
         {
-          const int   rs_pulse = p ? RATESYNC_PULSE_IANDD : RATESYNC_PULSE_RRC;
-          const int   ss_pulse = p ? SYMSYNC_PULSE_IANDD : SYMSYNC_PULSE_RRC;
-          const int   tx_pulse = p ? DP_TX_NRZ : DP_TX_RRC;
-          const char *pname    = p ? "nrz" : "rrc";
-
-          double psd = 0.0;
-          double meas
-              = cascade_slope (teds[t], rs_pulse, tx_pulse, NRZ_BETA, NRZ_SPS,
-                               CASC_M, NRZ_DTAU, &psd, NULL, NULL);
-          double decl  = symsync_ted_slope (teds[t], ss_pulse, NRZ_BETA, SPAN);
-          double ratio = (decl > 0.0) ? meas / decl : 0.0;
-          printf ("  %-8s %-7s %6s %12.6f %8.2f%% %12.6f %9.4f\n", names[t],
-                  pname, p ? "n/a" : "0.35", meas,
-                  100.0 * (meas ? psd / meas : 0.0), decl, ratio);
-
-          /* PRECONDITION, not a sanity check on the answer. The NRZ branch
-             of dp_tx_make is a sample-and-hold indexed by a TRUNCATED symbol
-             number, so a step that is not a whole number of samples does not
-             perturb the waveform slightly — it moves the boundary samples a
-             FULL SYMBOL, and the difference is garbage of arbitrary size.
-             Measured at sps 4, where this step is an eighth of a sample:
-             gardner came back 0.0016 (68% scatter) and dttl came back 8.02,
-             a ratio of 4.01 that looks entirely plausible next to phase 3's
-             2.77 and means nothing at all. So this cannot be a "is the answer
-             suspiciously small" test — that is exactly the check dttl passed
-             while being wrong. It is a test on the STEP, before the fact. */
-          if (p)
+          for (int p = 0; p < 2; p++)
             {
-              double steps = NRZ_DTAU * NRZ_SPS;
-              if (fabs (steps - nearbyint (steps)) > 1e-12)
+              const int rs_pulse
+                  = p ? RATESYNC_PULSE_IANDD : RATESYNC_PULSE_RRC;
+              const int ss_pulse = p ? SYMSYNC_PULSE_IANDD : SYMSYNC_PULSE_RRC;
+              const int tx_pulse = p ? DP_TX_NRZ : DP_TX_RRC;
+              const char *pname  = p ? "nrz" : "rrc";
+
+              double psd  = 0.0;
+              double meas = cascade_slope (teds[t], rs_pulse, tx_pulse,
+                                           NRZ_BETA, NRZ_SPS, CASC_M, NRZ_DTAU,
+                                           &psd, NULL, NULL);
+              double decl
+                  = symsync_ted_slope (teds[t], ss_pulse, NRZ_BETA, SPAN);
+              double ratio = (decl > 0.0) ? meas / decl : 0.0;
+              printf ("  %-8s %-7s %6s %12.6f %8.2f%% %12.6f %9.4f\n",
+                      names[t], pname, p ? "n/a" : "0.35", meas,
+                      100.0 * (meas ? psd / meas : 0.0), decl, ratio);
+
+              /* PRECONDITION, not a sanity check on the answer. The NRZ branch
+                 of dp_tx_make is a sample-and-hold indexed by a TRUNCATED
+                 symbol number, so a step that is not a whole number of samples
+                 does not perturb the waveform slightly — it moves the boundary
+                 samples a FULL SYMBOL, and the difference is garbage of
+                 arbitrary size. Measured at sps 4, where this step is an
+                 eighth of a sample: gardner came back 0.0016 (68% scatter) and
+                 dttl came back 8.02, a ratio of 4.01 that looks entirely
+                 plausible next to phase 3's 2.77 and means nothing at all. So
+                 this cannot be a "is the answer suspiciously small" test —
+                 that is exactly the check dttl passed while being wrong. It is
+                 a test on the STEP, before the fact. */
+              if (p)
                 {
-                  fprintf (stderr,
-                           "  %s/%s: the +-%g-symbol step is %g transmit "
-                           "samples, not a whole number — the sample-and-hold "
-                           "cannot represent it and the slope below is "
-                           "meaningless, not merely imprecise\n",
-                           names[t], pname, NRZ_DTAU, steps);
-                  fail = 1;
+                  double steps = NRZ_DTAU * NRZ_SPS;
+                  if (fabs (steps - nearbyint (steps)) > 1e-12)
+                    {
+                      fprintf (
+                          stderr,
+                          "  %s/%s: the +-%g-symbol step is %g transmit "
+                          "samples, not a whole number — the sample-and-hold "
+                          "cannot represent it and the slope below is "
+                          "meaningless, not merely imprecise\n",
+                          names[t], pname, NRZ_DTAU, steps);
+                      fail = 1;
+                    }
+                }
+              if (teds[t] == SYMSYNC_TED_DTTL)
+                {
+                  if (p)
+                    dttl_nrz = ratio;
+                  else
+                    dttl_rrc = ratio;
                 }
             }
-          if (teds[t] == SYMSYNC_TED_DTTL)
+        }
+      printf ("  dttl: %.4f on its own pulse (nrz) against %.4f on rrc — "
+              "correct value 1.0 for both\n",
+              dttl_nrz, dttl_rrc);
+
+      /* ── Phase 5: sps as the only variable ────────────────────────────────
+       *
+       * Phase 4 was built to test whether RRC is the wrong pulse for DTTL, and
+       * it answered no: at sps 64 DTTL reads ~1.0 on BOTH pulses. But that
+       * same row disagrees with phase 3, which reads 2.77 for DTTL on RRC at
+       * the same roll-off — and the only thing that differs between them is
+       * sps. So the pulse hypothesis is dead and sps is the live one, which is
+       * what this sweeps. RRC on both detectors, roll-off held at 0.35, sps
+       * moving.
+       *
+       * The RRC stimulus is evaluated analytically at any real offset, so
+       * unlike phase 4 the step needs no grid alignment and phase 3's own step
+       * is reused unchanged. */
+      printf ("\n  sps as the only variable (bn = 0, rrc, beta %.2f, m 2, "
+              "step %g symbol):\n",
+              NRZ_BETA, CASC_DTAU);
+      printf ("  %-8s %6s %12s %9s %12s %9s %10s\n", "ted", "sps", "raw slope",
+              "sd/mean", "declared", "scale", "tau0");
+      const double spss[] = { 4.0, 8.0, 16.0, 32.0, 64.0 };
+      const size_t nsps   = sizeof spss / sizeof *spss;
+      for (size_t t = 0; t < 2; t++)
+        {
+          for (size_t s = 0; s < nsps; s++)
             {
-              if (p)
-                dttl_nrz = ratio;
-              else
-                dttl_rrc = ratio;
+              double ssd = 0.0, s0 = 0.0;
+              double meas = cascade_slope (teds[t], RATESYNC_PULSE_RRC,
+                                           DP_TX_RRC, NRZ_BETA, spss[s],
+                                           CASC_M, CASC_DTAU, &ssd, &s0, NULL);
+              double decl = symsync_ted_slope (teds[t], SYMSYNC_PULSE_RRC,
+                                               NRZ_BETA, SPAN);
+              printf ("  %-8s %6.0f %12.6f %8.2f%% %12.6f %9.4f %10.5f\n",
+                      names[t], spss[s], meas,
+                      100.0 * (meas ? ssd / meas : 0.0), decl,
+                      (decl > 0.0) ? meas / decl : 0.0, s0);
             }
+          printf ("\n");
         }
-    }
-  printf ("  dttl: %.4f on its own pulse (nrz) against %.4f on rrc — "
-          "correct value 1.0 for both\n",
-          dttl_nrz, dttl_rrc);
 
-  /* ── Phase 5: sps as the only variable ────────────────────────────────
-   *
-   * Phase 4 was built to test whether RRC is the wrong pulse for DTTL, and
-   * it answered no: at sps 64 DTTL reads ~1.0 on BOTH pulses. But that same
-   * row disagrees with phase 3, which reads 2.77 for DTTL on RRC at the same
-   * roll-off — and the only thing that differs between them is sps. So the
-   * pulse hypothesis is dead and sps is the live one, which is what this
-   * sweeps. RRC on both detectors, roll-off held at 0.35, sps moving.
-   *
-   * The RRC stimulus is evaluated analytically at any real offset, so unlike
-   * phase 4 the step needs no grid alignment and phase 3's own step is
-   * reused unchanged. */
-  printf ("\n  sps as the only variable (bn = 0, rrc, beta %.2f, m 2, "
-          "step %g symbol):\n",
-          NRZ_BETA, CASC_DTAU);
-  printf ("  %-8s %6s %12s %9s %12s %9s %10s\n", "ted", "sps", "raw slope",
-          "sd/mean", "declared", "scale", "tau0");
-  const double spss[] = { 4.0, 8.0, 16.0, 32.0, 64.0 };
-  const size_t nsps   = sizeof spss / sizeof *spss;
-  for (size_t t = 0; t < 2; t++)
-    {
-      for (size_t s = 0; s < nsps; s++)
+      /* ── Phase 6: the rectangle across sps ────────────────────────────────
+       *
+       * Phase 4 measured Gardner on the rectangle at ONE sps and got 0.1754 —
+       * off by 5.7x, worse than anything DTTL does on RRC. That combination is
+       * not a corner: `MpskReceiver` defaults `pulse = "iandd"` and hard-codes
+       * RATESYNC_TED_GARDNER, so it is the shipped default receiver's own
+       * timing path. One point cannot say whether it bites at the sps a real
+       * receiver runs, which is what this sweeps.
+       *
+       * The step is per-row, not shared, because the NRZ sample-and-hold
+       * demands a whole number of samples (phase 4) and no single symbol-step
+       * is integral at every sps. It is printed for that reason: a step that
+       * moves between rows is a difference between them, and 0.25 at sps 4 is
+       * a quarter symbol — inside the triangle composite's linear region, but
+       * only just, so that row is the least comparable of the five and says so
+       * here rather than in a commit message. */
+      printf ("  the rectangle across sps (bn = 0, nrz, m 2):\n");
+      printf ("  %-8s %6s %8s %12s %9s %12s %9s %10s\n", "ted", "sps", "step",
+              "raw slope", "sd/mean", "declared", "scale", "tau0");
+      for (size_t t = 0; t < 2; t++)
         {
-          double ssd = 0.0, s0 = 0.0;
-          double meas = cascade_slope (teds[t], RATESYNC_PULSE_RRC, DP_TX_RRC,
-                                       NRZ_BETA, spss[s], CASC_M, CASC_DTAU,
-                                       &ssd, &s0, NULL);
-          double decl
-              = symsync_ted_slope (teds[t], SYMSYNC_PULSE_RRC, NRZ_BETA, SPAN);
-          printf ("  %-8s %6.0f %12.6f %8.2f%% %12.6f %9.4f %10.5f\n",
-                  names[t], spss[s], meas, 100.0 * (meas ? ssd / meas : 0.0),
-                  decl, (decl > 0.0) ? meas / decl : 0.0, s0);
+          for (size_t s = 0; s < nsps; s++)
+            {
+              /* Smallest step that is a whole number of transmit samples and
+                 no finer than the shared 0.0625: 1/sps rounded up to that
+                 grid. */
+              double step
+                  = (1.0 / spss[s] > NRZ_DTAU) ? 1.0 / spss[s] : NRZ_DTAU;
+              double ssd = 0.0, s0 = 0.0;
+              double meas = cascade_slope (teds[t], RATESYNC_PULSE_IANDD,
+                                           DP_TX_NRZ, NRZ_BETA, spss[s],
+                                           CASC_M, step, &ssd, &s0, NULL);
+              double decl = symsync_ted_slope (teds[t], SYMSYNC_PULSE_IANDD,
+                                               NRZ_BETA, SPAN);
+              printf ("  %-8s %6.0f %8g %12.6f %8.2f%% %12.6f %9.4f %10.5f\n",
+                      names[t], spss[s], step, meas,
+                      100.0 * (meas ? ssd / meas : 0.0), decl,
+                      (decl > 0.0) ? meas / decl : 0.0, s0);
+            }
+          printf ("\n");
         }
-      printf ("\n");
-    }
 
-  /* ── Phase 6: the rectangle across sps ────────────────────────────────
-   *
-   * Phase 4 measured Gardner on the rectangle at ONE sps and got 0.1754 —
-   * off by 5.7x, worse than anything DTTL does on RRC. That combination is
-   * not a corner: `MpskReceiver` defaults `pulse = "iandd"` and hard-codes
-   * RATESYNC_TED_GARDNER, so it is the shipped default receiver's own timing
-   * path. One point cannot say whether it bites at the sps a real receiver
-   * runs, which is what this sweeps.
-   *
-   * The step is per-row, not shared, because the NRZ sample-and-hold demands
-   * a whole number of samples (phase 4) and no single symbol-step is integral
-   * at every sps. It is printed for that reason: a step that moves between
-   * rows is a difference between them, and 0.25 at sps 4 is a quarter symbol
-   * — inside the triangle composite's linear region, but only just, so that
-   * row is the least comparable of the five and says so here rather than in
-   * a commit message. */
-  printf ("  the rectangle across sps (bn = 0, nrz, m 2):\n");
-  printf ("  %-8s %6s %8s %12s %9s %12s %9s %10s\n", "ted", "sps", "step",
-          "raw slope", "sd/mean", "declared", "scale", "tau0");
-  for (size_t t = 0; t < 2; t++)
-    {
-      for (size_t s = 0; s < nsps; s++)
-        {
-          /* Smallest step that is a whole number of transmit samples and no
-             finer than the shared 0.0625: 1/sps rounded up to that grid. */
-          double step = (1.0 / spss[s] > NRZ_DTAU) ? 1.0 / spss[s] : NRZ_DTAU;
-          double ssd = 0.0, s0 = 0.0;
-          double meas = cascade_slope (teds[t], RATESYNC_PULSE_IANDD,
-                                       DP_TX_NRZ, NRZ_BETA, spss[s], CASC_M,
-                                       step, &ssd, &s0, NULL);
-          double decl = symsync_ted_slope (teds[t], SYMSYNC_PULSE_IANDD,
-                                           NRZ_BETA, SPAN);
-          printf ("  %-8s %6.0f %8g %12.6f %8.2f%% %12.6f %9.4f %10.5f\n",
-                  names[t], spss[s], step, meas,
-                  100.0 * (meas ? ssd / meas : 0.0), decl,
-                  (decl > 0.0) ? meas / decl : 0.0, s0);
-        }
-      printf ("\n");
-    }
+    } /* end phases 4-6, full sweep only */
 
   /* ── Phase 7: m, the terminal outputs per symbol ──────────────────────
    *
@@ -1021,11 +1053,25 @@ main (int argc, char **argv)
    * Both pulses are swept, not just the rectangle, so that an m effect can
    * be told apart from an m-and-pulse interaction. sps is held at the phase
    * 4 value, where the NRZ step is a whole number of transmit samples. */
-  printf ("  m, the terminal outputs per symbol (bn = 0, sps %.0f):\n",
-          NRZ_SPS);
+  /* The regression subset keeps only m = 8, which is where the gate below
+     lives and where `m_out` is derived to (mpsk.md §8, `min(8, ...)`). The
+     m = 2 and m = 4 rows are the SHAPE of the convergence -- characterisation,
+     recorded in the report, and not something a push needs to re-derive. */
+  const int    ms_full[]  = { 2, 4, 8 };
+  const int    ms_check[] = { 8 };
+  const int   *ms         = full ? ms_full : ms_check;
+  const size_t n_ms       = full ? sizeof ms_full / sizeof *ms_full : 1u;
+  /* Same sps in both passes, deliberately. Running the regression at a
+     coarser 16 to save time was tried and is WRONG: gardner on the rectangle
+     is the one pair m does not bring to unity, and it is sps-sensitive
+     precisely because it has not converged -- 0.9010 at sps 64 against
+     0.8277 at 16, which trips a tolerance set from the former. A gate must
+     run at the configuration its tolerance was measured at, or the tolerance
+     is describing a different experiment. */
+  const double m_sps = NRZ_SPS;
+  printf ("  m, the terminal outputs per symbol (bn = 0, sps %.0f):\n", m_sps);
   printf ("  %-8s %-6s %4s %12s %9s %12s %9s %10s\n", "ted", "pulse", "m",
           "raw slope", "sd/mean", "declared", "scale", "tau0");
-  const int   ms[]         = { 2, 4, 8 };
   double      worst_m8     = 0.0;
   const char *worst_m8_ted = "";
   const char *worst_m8_pul = "";
@@ -1038,12 +1084,12 @@ main (int argc, char **argv)
           const int   tx_pulse = p ? DP_TX_NRZ : DP_TX_RRC;
           const char *pname    = p ? "nrz" : "rrc";
           double decl = symsync_ted_slope (teds[t], ss_pulse, NRZ_BETA, SPAN);
-          for (size_t k = 0; k < sizeof ms / sizeof *ms; k++)
+          for (size_t k = 0; k < n_ms; k++)
             {
               double msd = 0.0, mt0 = 0.0;
               double meas
                   = cascade_slope (teds[t], rs_pulse, tx_pulse, NRZ_BETA,
-                                   NRZ_SPS, ms[k], NRZ_DTAU, &msd, &mt0, NULL);
+                                   m_sps, ms[k], NRZ_DTAU, &msd, &mt0, NULL);
               double mratio = (decl > 0.0) ? meas / decl : 0.0;
               printf ("  %-8s %-6s %4d %12.6f %8.2f%% %12.6f %9.4f %10.5f\n",
                       names[t], pname, ms[k], meas,

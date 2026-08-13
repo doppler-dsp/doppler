@@ -1108,6 +1108,53 @@ validate: ## Regenerate every object's validation report and plots
 	    echo "=== $$v ==="; \
 	    uv run python $$v || exit 1; \
 	 done
+	@$(MAKE) --no-print-directory validate-c
+
+# The C half of "refresh the validation". ctest runs each of these with
+# `--check`, which is the REGRESSION SUBSET -- the downselect that would catch
+# a real defect returning. Run with NO arguments they perform the full sweep:
+# every axis, every roll-off, the characterisation the reports quote. That is
+# a one-and-done per component, refreshed when the component or the toolchain
+# changes, and it is why the two modes exist at all.
+#
+# Measured, and the reason for the split: ratesync_scurve's full sweep is 81s
+# and was 78% of `make test-fast`, so every push re-derived characterisation
+# that had already been recorded. Its regression subset is 14s.
+#
+# Output goes to $(BUILD_DIR), not the tree: these tables are evidence for a
+# report a human is writing, not a generated artifact with a staleness gate,
+# and a validator that writes into the repo is the thing `write=False` exists
+# to prevent on the Python side.
+# Derived from the tracked SOURCES, not from what happens to sit in the build
+# directory. Globbing `$(BUILD_DIR)/native/validation/validate_*` was tried and
+# is wrong: it picked up `validate_symsync_ted_scurve`, a binary left from
+# 2026-08-08 whose .c had since been deleted, and ran it as though it were a
+# live harness. A stale artifact reporting PASS is worse than no harness at
+# all, and a build directory is not a source of truth about what exists.
+VALIDATORS_C = $(patsubst native/validation/%.c,\
+                 $(BUILD_DIR)/native/validation/validate_%,\
+                 $(shell git ls-files 'native/validation/*.c'))
+VALIDATE_C_OUT = $(BUILD_DIR)/validation-full
+
+.PHONY: validate-c
+validate-c: ## Run every C validation harness's FULL sweep (not the --check subset)
+	@if [ -z "$(VALIDATORS_C)" ]; then \
+	    echo "validate-c: no harness sources found under native/validation/"; \
+	    exit 1; \
+	 fi
+	@mkdir -p $(VALIDATE_C_OUT)
+	@for v in $(VALIDATORS_C); do \
+	    n=$$(basename $$v); \
+	    if [ ! -x "$$v" ]; then \
+	        echo "validate-c: $$n is not built — run 'make build' first"; \
+	        exit 1; \
+	    fi; \
+	    echo "=== $$n (full sweep) ==="; \
+	    $$v > $(VALIDATE_C_OUT)/$$n.txt 2>&1 \
+	        || { echo "validate-c: $$n FAILED — see $(VALIDATE_C_OUT)/$$n.txt"; \
+	             exit 1; }; \
+	 done
+	@echo "validate-c: $(words $(VALIDATORS_C)) harness(es) → $(VALIDATE_C_OUT)/"
 
 validate-check: ## Fail if any validation report is stale (CI gate)
 	@fail=0; \

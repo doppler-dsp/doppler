@@ -322,7 +322,9 @@ else Mode 1 does wrong, it does visibly.
     or the `ppe` 2-D rate×freq estimator — is how a link with more uncertainty
     than that is closed, handed in as `center_freq_hz`. **That variant is a
     separate object composed in front, not a mode inside this one**, and the
-    seam it needs is already the one parameter Mode 1 exposes.
+    seam it needs is already the one parameter Mode 1 exposes. It composes **in
+    C**, the way `dsss_receiver` already composes this receiver — a C object
+    exposed to Python, not a Python pipeline.
 - **It does not hand over to a decision-directed loop.** Mode 2 will define
     that; until it does, `acq_to_track`, `warmup_syms` and the handover
     `lockdet` are not part of this receiver's surface.
@@ -975,13 +977,31 @@ ______________________________________________________________________
 the loops.** One number they possess — the Es/N0 they must still work at —
 drives both the loop bandwidths and the lock indicator.
 
+**The surface is a C surface.** Every derivation below happens inside
+`mpsk_receiver_create()`, calling `detection`'s C primitives; the readbacks are
+C getters. There is no Python factory, no `compose.py` helper and no Python
+assembly of a front end and two loops — jm generates the binding over the C
+object and nothing else. This is the project's C-first rule, and it is worth
+restating here because a construction surface that *derives* things is exactly
+where a convenience wrapper starts to look reasonable.
+
+```text
+mpsk_receiver_create (m, sample_rate_hz, symbol_rate_hz,
+                      pulse, rrc_beta, rrc_span,
+                      center_freq_hz, esn0_floor_db, pd, pfa)
+```
+
+The Python face is that signature, keyword-capable, with the defaults jm reads
+from `objects/mpsk_receiver.toml`:
+
 ```text
 MpskReceiver(m=2, sample_rate_hz=..., symbol_rate_hz=...)
 ```
 
-Optional, and only when the waveform demands it: `pulse=`/`rrc_beta=` when the
-transmitter is not NRZ, `center_freq_hz=` when the signal is not centred
-(required on the real twin), `esn0_floor_db=` to move the design floor off 4.0.
+Optional, and only when the waveform demands it: `pulse`/`rrc_beta` when the
+transmitter is not NRZ, `center_freq_hz` when the signal is not centred
+(required on the real twin), and `esn0_floor_db`/`pd`/`pfa` to move the
+indicator's design point off 4.0 dB / 0.99 / 1e-5.
 
 | parameter                                         | Mode 1                                                                                     |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------ |

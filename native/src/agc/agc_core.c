@@ -1,5 +1,5 @@
 #include "agc/agc_core.h"
-#include "jm_simd.h"
+#include "dp_simd.h"
 #include "util/util_core.h"
 #include <float.h>
 
@@ -194,7 +194,7 @@ agc_steps (agc_state_t *state, const float complex *input,
        * Sum(|y|^2).  For the power-of-two decim chunks this is a pure
        * vector reduction with no scalar remainder. */
       float psum;
-      JM_SUMSQ_F32 (psum, (const float *)&output[i], 2 * c);
+      DP_SUMSQ_F32 (psum, (const float *)&output[i], 2 * c);
 
       /* Square-clip the chunk's output to clip_db via the shared util
        * primitive.  Done after the power sum, so the detector still

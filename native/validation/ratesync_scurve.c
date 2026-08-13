@@ -1000,6 +1000,86 @@ main (int argc, char **argv)
       printf ("\n");
     }
 
+  /* ── Phase 7: m, the terminal outputs per symbol ──────────────────────
+   *
+   * Everything above runs `m = 2`, the minimum the geometry allows, because
+   * that was hard-coded at every call site. It is also the one axis with a
+   * standing rule attached: the header requires `m >= 4 with IANDD`, and
+   * F5 in the RateSync report certifies that rule on the LOCK STATISTIC —
+   * m = 2 does not clear the declare threshold on an NRZ stream and m = 4
+   * clears it comfortably. Nothing had ever checked what m does to the TED
+   * SLOPE, which is a different question about the same number.
+   *
+   * It is the question the residual asks. After the equilibrium fix both
+   * detectors read ~1.00 on RRC at every sps, and both read high on the
+   * RECTANGLE — Gardner ~1.19, DTTL ~1.27 — flat in sps, which is the
+   * signature of something that is not a sampling-rate effect. `m` is the
+   * remaining candidate: the transition gate sits `m/2` outputs back from
+   * the on-time strobe, so at m = 2 it is one output back and the gate is
+   * as coarsely placed as the geometry permits.
+   *
+   * Both pulses are swept, not just the rectangle, so that an m effect can
+   * be told apart from an m-and-pulse interaction. sps is held at the phase
+   * 4 value, where the NRZ step is a whole number of transmit samples. */
+  printf ("  m, the terminal outputs per symbol (bn = 0, sps %.0f):\n",
+          NRZ_SPS);
+  printf ("  %-8s %-6s %4s %12s %9s %12s %9s %10s\n", "ted", "pulse", "m",
+          "raw slope", "sd/mean", "declared", "scale", "tau0");
+  const int   ms[]         = { 2, 4, 8 };
+  double      worst_m8     = 0.0;
+  const char *worst_m8_ted = "";
+  const char *worst_m8_pul = "";
+  for (size_t t = 0; t < 2; t++)
+    {
+      for (int p = 0; p < 2; p++)
+        {
+          const int   rs_pulse = p ? RATESYNC_PULSE_IANDD : RATESYNC_PULSE_RRC;
+          const int   ss_pulse = p ? SYMSYNC_PULSE_IANDD : SYMSYNC_PULSE_RRC;
+          const int   tx_pulse = p ? DP_TX_NRZ : DP_TX_RRC;
+          const char *pname    = p ? "nrz" : "rrc";
+          double decl = symsync_ted_slope (teds[t], ss_pulse, NRZ_BETA, SPAN);
+          for (size_t k = 0; k < sizeof ms / sizeof *ms; k++)
+            {
+              double msd = 0.0, mt0 = 0.0;
+              double meas
+                  = cascade_slope (teds[t], rs_pulse, tx_pulse, NRZ_BETA,
+                                   NRZ_SPS, ms[k], NRZ_DTAU, &msd, &mt0, NULL);
+              double mratio = (decl > 0.0) ? meas / decl : 0.0;
+              printf ("  %-8s %-6s %4d %12.6f %8.2f%% %12.6f %9.4f %10.5f\n",
+                      names[t], pname, ms[k], meas,
+                      100.0 * (meas ? msd / meas : 0.0), decl, mratio, mt0);
+              if (ms[k] == 8 && fabs (mratio - 1.0) > worst_m8)
+                {
+                  worst_m8     = fabs (mratio - 1.0);
+                  worst_m8_ted = names[t];
+                  worst_m8_pul = pname;
+                }
+            }
+        }
+      printf ("\n");
+    }
+  /* At a well-resolved terminal rate EVERY (ted, pulse) pair holds unity —
+     that is the claim `bn` rests on, stated over the whole surface rather
+     than per combination, so a pulse or detector added later is covered
+     without editing this gate. It is m that gets them there: on the
+     rectangle at m = 2 the same measurement reads 1.19 (gardner) and 1.27
+     (dttl), which is what the header's `m >= 4 with IANDD` rule has been
+     asserting on the lock statistic (F5) without anything checking the TED
+     slope it also governs. Gardner on the rectangle is the slowest to
+     converge and sets this number. */
+  printf ("  worst |scale - 1| at m = 8, over every ted x pulse: %.4f "
+          "(%s/%s; tolerance %.2f)\n",
+          worst_m8, worst_m8_ted, worst_m8_pul, CASC_TOL);
+  if (worst_m8 > CASC_TOL)
+    {
+      fprintf (stderr,
+               "  at m = 8 some ted/pulse pair still misses unity by %.3f — "
+               "a well-resolved terminal rate is where the construct-time "
+               "normaliser has no excuse left\n",
+               worst_m8);
+      fail = 1;
+    }
+
   if (check && fail)
     {
       fprintf (stderr, "ratesync_scurve FAIL\n");

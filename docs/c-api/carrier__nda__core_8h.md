@@ -155,7 +155,40 @@ The block API (carrier\_nda\_steps) is the Python face and emits the de-rotated 
 
 **Note:**
 
-**The input level does not matter, and there is no AGC here.** The discriminator divides out its own amplitude law (`|z|^M`) exactly, so both outputs — and with them the loop gain — are invariant to input scale over the whole float range: measured identical to 5e-7 relative from an amplitude of 1e-5 to 1e15, at every M. This loop used to embed a slow arm AGC whose only job was to manufacture `|z| = 1` so a raw `Im(z^M)` would behave; that condition no longer has to be manufactured, and the AGC is gone. A receiver needs exactly one AGC, for its own signal path, and not one per detector (`docs/design/mpsk.md` §2.3).
+**The input level does not matter, and there is no AGC here.** The discriminator divides out its own amplitude law (`|z|^M`) exactly, so both outputs — and with them the loop gain — are invariant to input scale over the whole float range: measured identical to 6.5e-7 relative from an amplitude of 1e-5 to 1e15, at every M  a few float eps, which is the rounding floor a float detector has and not a level dependence. The measurement is test\_carrier\_nda\_core.c section 9; this file carried a tighter 5e-7 that the test itself had already corrected, so the number here now comes from the thing that runs it. This loop used to embed a slow arm AGC whose only job was to manufacture `|z| = 1` so a raw `Im(z^M)` would behave; that condition no longer has to be manufactured, and the AGC is gone. A receiver needs exactly one AGC, for its own signal path, and not one per detector (`docs/design/mpsk.md` §2.3).
+
+
+
+
+**
+**
+
+A caller must start the residual carrier inside a window, and there are two separate limits on that window. Which one binds decides whether a violation is obvious or silent, so both belong here rather than only in the design of whatever composes this.
+
+
+**Loop capture, roughly `k * bn / M`.** Where pull-in is prompt and predictable. This is the tighter bound at every shipped setting and it is the one a caller normally meets. Violating it is LOUD: the tracked frequency walks and `locked` never asserts, which is unmistakable in telemetry.
+
+
+**The aliasing ceiling, `1/(2M)` cycles per sample.** The discriminator runs once per input sample, so an M-th power folds when the residual advances more than half a cycle per update  i.e. at a residual of `1/(2M)` cyc/sample, with stable false locks spaced `1/M` apart. The M-fold ambiguity is therefore a FREQUENCY ambiguity as well as a phase one. Violating this is SILENT and it is this object's worst failure mode: the loop sits still at the wrong frequency and reports a healthy lock statistic  measured on QPSK at a residual of one quarter the update rate, tracked frequency 2e-6 against a true 0.03125 and a lock statistic of +0.83 against the ~1.0 a real lock reads. Nothing self-referenced detects it: the constellation is stationary, so EVM and blind M2M4 both look clean. It takes an external frequency reference, a sync word, or a coarse estimate seeded through `init_norm_freq`.
+
+
+**Both scale as `1/M`,** so an 8PSK caller needs four times tighter tuning than BPSK at the same bandwidth. See `docs/design/mpsk.md` §3.4 and §3.5.
+
+
+
+
+**
+**
+
+The ceiling is linear in the rate the discriminator updates at, and nothing else in the loop depends on that rate  so it is free margin for whoever picks it. Stepping this object per input sample, which is what carrier\_nda\_steps does, is the widest setting available and puts the ceiling tens of times beyond loop capture. A composer that instead taps a DECIMATED stream inherits a proportionally tighter ceiling: at two samples per symbol it falls to one symbol rate over M, which is the regime the QPSK false lock above was measured in. The rule for a composition is to choose the tap so the ceiling stays clear of loop capture at every M it supports, which makes the silent failure structurally unreachable and leaves only the loud one.
+
+
+
+
+**
+**
+
+`n` sets the arm window to `sps / n` samples, and the window is not free: the arm averages across data transitions, so its coherent gain after the M-th power falls as the window widens. For the half-symbol arm (`n = 2`) the gain is `1/2 + 1/(M+1)`  5/6 at BPSK, 7/10 at QPSK, 11/18 at 8PSK  against unity for a constant-modulus input. A caller choosing `n` is choosing a sensitivity loss, and the validation report is the evidence for what each choice costs.
 
 
 

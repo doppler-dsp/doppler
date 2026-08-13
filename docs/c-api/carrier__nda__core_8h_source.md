@@ -62,10 +62,29 @@ extern "C"
  *   sd_H0  = sqrt(1/2 * alpha/(2-alpha))  = 0.1132   (analytic; measured 0.1132)
  *   thresh = eta * sd_H0, eta from the Pfa budget
  *
- * `CARRIER_NDA_LOCK_DEFAULT_UP` = 0.5 is eta = 4.416, i.e. a per-look
- * Pfa of 5e-6 -- so the long-standing default turns out to BE the Pfa-derived
- * value once the statistic is M-independent. It was only ever meaningful at
- * BPSK before: the same 0.5 was eta = 0.9 at QPSK and eta = 0.02 at 8PSK.
+ * The shipped up-threshold of 0.5 is eta = 4.416, i.e. a per-look Pfa of
+ * 5e-6 -- so the long-standing default turns out to BE the Pfa-derived value
+ * once the statistic is M-independent. It was only ever meaningful at BPSK
+ * before: the same 0.5 was eta = 0.9 at QPSK and eta = 0.02 at 8PSK. That
+ * threshold lives in carrier_nda_core.c as CARRIER_NDA_LOCK_DEFAULT_UP and is
+ * not visible from here, so read it back off a constructed instance rather
+ * than assuming this paragraph -- which is what test_carrier_nda_core.c
+ * section 15 does when it pins the chain.
+ *
+ * ── The verify count is NOT sized by that Pfa, and must not be ───────────
+ *
+ * Everything above sizes a PER-LOOK threshold, and compounding it over n_up
+ * consecutive looks assumes those looks are independent. They are not. The
+ * EMA above has N_eff = 39, so its output stays correlated for roughly that
+ * many samples, and this detector steps once per sample -- a verify count
+ * shorter than N_eff is counting one look several times. Measured directly
+ * against a noise-only input: n_up = 8, the value the composing receiver uses
+ * on this same statistic, false-locked 4 trials in 30; n_up = 64 was the
+ * smallest count clean over 300. The shipped default is 64, and 64 > N_eff is
+ * the reason it holds rather than a coincidence -- carrier_nda_core.c carries
+ * the full trial table. Anyone retuning CARRIER_NDA_LOCK_ALPHA moves N_eff and
+ * therefore the floor under n_up. See `docs/design/lock-detect.md` section 3,
+ * which owns this failure mode across every detector in the tree.
  */
 /* EMA smoothing for the lock metric: alpha = det_ema_alpha(0.0, 15.9), giving
  * N_eff = (2-alpha)/alpha = 39 effective looks (>= the 30-look floor). */
@@ -136,7 +155,8 @@ extern "C"
      * (|z|^8 = 1e40 > FLT_MAX, then inf/inf) -- and a NaN here poisons the
      * loop filter and the NCO permanently. With the divide hoisted, the guard
      * is on p alone and means the same thing at every M, and the outputs are
-     * scale-invariant from 1e-5 to 1e15 (max 4.6e-7 relative). At |z| = 1 the
+     * scale-invariant from 1e-5 to 1e15 (max 6.5e-7 relative, at M = 8 and
+     * the top of that range). At |z| = 1 the
      * two forms agree to 1.8e-7 over a full phase sweep, so the S-curve slope
      * -- and with it the meaning of bn -- is unchanged either way.
      *

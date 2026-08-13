@@ -1248,6 +1248,89 @@ test_sps_equals_m_boundary (void)
             == NULL);
 }
 
+/* ── §20 — each detector's amplitude law, and the scale that ignores it ──
+ *
+ * T5/T6/T7 of the ted claim inventory, all three of which were uncovered
+ * here while the report measured them in Python. The inventory is in
+ * docs/dev/validation.md's order: header claim -> this file -> only then
+ * the report. These three arrived the wrong way round, and this section is
+ * the correction.
+ *
+ * The claims, from symsync_core.h and ratesync_core.h:
+ *
+ *   - gardner_ted's raw output carries `A^2` -- both factors are signal.
+ *   - dttl_ted's carries `A^1` -- only `mid` is signal, the transition term
+ *     being a difference of hard-decision SIGNS and so amplitude-free.
+ *   - ted_scale is `1 / symsync_ted_slope(ted, pulse, beta, span)`, a
+ *     construct-time constant computed at `A = 1`, which therefore divides
+ *     out NEITHER amplitude.
+ *
+ * Why this belongs in C and not only in the report: it is exact. No
+ * cascade, no stimulus, no statistics -- two evaluations of a pure function
+ * at two amplitudes, whose ratio is 4 and 2 by construction. The report
+ * measures the same thing through the binding and fits an exponent
+ * (2.000 / 1.000, section 2.6b); this pins it where a regression would be
+ * caught by ctest rather than by a validator someone has to read.
+ *
+ * The consequence is a caller's level-error budget, and it is not shared:
+ * a 2x level error is 4x the designed loop gain under Gardner and 2x under
+ * DTTL. That asymmetry is why no single normaliser applied OUTSIDE the
+ * detectors could serve both, which is the design argument the whole
+ * construct-time-scale scheme rests on. */
+static void
+test_amplitude_law (void)
+{
+  /* An off-lock phase, so both outputs are non-trivial and a ratio means
+     something. `mid` and the on-time step are the detector's two inputs;
+     scaling BOTH is what scaling the input signal does. */
+  const float mid1 = 0.37f, on1 = 0.81f, prev1 = -0.62f;
+
+  for (int i = 0; i < 3; i++)
+    {
+      const float a  = (i == 0) ? 1.0f : (i == 1) ? 2.0f : 4.0f;
+      const float a2 = a * a;
+
+      double g1 = gardner_ted (mid1, on1 - prev1);
+      double gA = gardner_ted (a * mid1, a * on1 - a * prev1);
+      DP_CHECK (fabs (g1) > 1e-6);
+      /* A^2, exactly: the ratio is the square of the scale. */
+      DP_CHECK (fabs (gA - a2 * g1) <= 1e-5 * fabs (a2 * g1));
+
+      double d1 = dttl_ted (mid1, on1, prev1);
+      double dA = dttl_ted (a * mid1, a * on1, a * prev1);
+      DP_CHECK (fabs (d1) > 1e-6);
+      /* A^1: scaling every input scales the output by A, not A^2 --
+         the hard decisions are unchanged by a positive scale, so only
+         `mid` carries the amplitude through. */
+      DP_CHECK (fabs (dA - (double)a * d1) <= 1e-5 * fabs ((double)a * d1));
+
+      /* And the two laws are genuinely different, which is the whole
+         point: at any scale but unity the ratio between them moves. */
+      if (a != 1.0f)
+        DP_CHECK (fabs (gA / g1 - dA / d1) > 0.5);
+    }
+
+  /* T5: ted_scale is the reciprocal of THIS detector's own slope against
+     THIS pulse -- not merely different between the two, which is all §10
+     asserted. A scale wired to the wrong detector, or to the wrong pulse,
+     passes that check and fails this one. */
+  const double beta    = 0.35;
+  const int    teds[2] = { RATESYNC_TED_GARDNER, RATESYNC_TED_DTTL };
+  const int    sym[2]  = { SYMSYNC_TED_GARDNER, SYMSYNC_TED_DTTL };
+  for (int i = 0; i < 2; i++)
+    {
+      ratesync_state_t *s = ratesync_create (
+          4.0, RATESYNC_PULSE_RRC, beta, _SPAN, 2, 1024, 0.01, 0.707, teds[i]);
+      DP_CHECK (s != NULL);
+      if (!s)
+        continue;
+      double want = symsync_ted_slope (sym[i], SYMSYNC_PULSE_RRC, beta, _SPAN);
+      DP_CHECK (want > 0.0);
+      DP_CHECK (fabs (1.0 / s->loop.ted_scale - want) <= 1e-9 * want);
+      ratesync_destroy (s);
+    }
+}
+
 int
 main (void)
 {
@@ -1270,6 +1353,7 @@ main (void)
   test_configure_semantics ();
   test_max_out ();
   test_sps_equals_m_boundary ();
+  test_amplitude_law ();
 
   DP_TEST_END ("test_ratesync_core");
 }

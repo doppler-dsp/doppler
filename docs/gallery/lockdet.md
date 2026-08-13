@@ -30,15 +30,14 @@ chatter-free flag is known before you run anything.
 ## How it works
 
 Consecutive independent looks compound: `n` looks at per-look
-probability `p` reach `p^n`. That single fact turns both verify
+probability `p` reach `≈ p^n`. That single fact turns both verify
 counts into *derived* quantities instead of tuned magic numbers.
 
-(`p^n` is the `p → 0` limit of the exact per-look declare rate,
-`p^n·(1−p)/(1−p^n)` — negligible at the `p` a detector is sized for,
-and it errs toward over-provisioning `n`. See
-[Lock Detection](../design/lock-detect.md) for the measured
-comparison, and note the word *independent*: it is a real
-precondition, not a formality.)
+(Both the `≈` and the word *independent* are load-bearing — the
+approximation errs toward over-provisioning `n`, and the independence
+is a real precondition rather than a formality. Measured comparison
+and the two ways it has bitten:
+[Lock Detection](../design/lock-detect.md).)
 
 - **Declare side** — at a per-look false-alarm rate of `1e-2`, three
     consecutive hits compound to `1e-6`: a loose (cheap, fast) per-look

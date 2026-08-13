@@ -152,11 +152,13 @@ A loop that computes a lock statistic still needs a *decision rule*: when is
 the statistic high enough, long enough, to declare lock — and low enough,
 long enough, to drop it? `LockDet` is that rule factored out once: separate
 declare/drop thresholds (level hysteresis) plus consecutive-look verify
-counts (time hysteresis). Consecutive looks compound probabilistically —
-`n` looks at per-look probability `p` reach `p^n` — so the verify counts are
-*derived*, not guessed: `det_verify_count` sizes them from a per-look rate
-and a compound budget, and `det_verify_delay` predicts the declare latency
-they cost. The DLL's code-lock latch and the M-PSK receiver's two-way
+counts (time hysteresis). Consecutive **independent** looks compound
+probabilistically — `n` looks at per-look probability `p` reach `≈ p^n` — so
+the verify counts are *derived*, not guessed: `det_verify_count` sizes them
+from a per-look rate and a compound budget, and `det_verify_delay` predicts
+the declare latency they cost. Both the `≈` and *independent* are load-bearing
+enough to have their own section in
+[the design note](../design/lock-detect.md). The DLL's code-lock latch and the M-PSK receiver's two-way
 acquisition↔tracking handover both run on an embedded C `lockdet`.
 
 ```python

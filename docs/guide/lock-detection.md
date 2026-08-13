@@ -103,7 +103,7 @@ forward as standing principles, not just historical notes:
 
 **Verify-count independence can silently fail on a fast, correlated
 statistic.** `n_up` consecutive above-threshold looks compounding to
-`pfa^n_up` (the whole reason a verify count buys cheap false-alarm
+`≈ pfa^n_up` (the whole reason a verify count buys cheap false-alarm
 suppression — see [Lock Detection: Verify Counts](../gallery/lockdet.md))
 *assumes independent looks*. `CarrierNda`'s lock statistic is a fast
 EMA, so consecutive samples are highly autocorrelated — borrowing

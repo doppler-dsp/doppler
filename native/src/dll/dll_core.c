@@ -812,7 +812,9 @@ dll_configure_lock (dll_state_t *state, double pfa, size_t n_looks,
   /* Declare-side time hysteresis, sized from the same pfa: the false-declare
    * budget is held three decades under the per-decision pfa, so the verify
    * count is det_verify_count(pfa, pfa*1e-3) — consecutive decisions
-   * compound as pfa^n_up (2 for the default pfa = 1e-3). No level
+   * compound as ~pfa^n_up (2 for the default pfa = 1e-3); the `~` is the
+   * conservative side, so this over-provisions n_up rather than under
+   * (det_verify_count). No level
    * hysteresis by default (up = down = eta): splitting the thresholds
    * needs the detection probability, which needs an SNR the DLL doesn't
    * know; the raw face exposes both thresholds for callers that do. */

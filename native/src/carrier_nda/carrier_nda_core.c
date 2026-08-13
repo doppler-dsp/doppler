@@ -9,7 +9,7 @@
  * (MPSK_RX_HANDOVER_DOWN in mpsk_receiver_core.c), which steps a lockdet
  * on this exact `lock` statistic. n_up was NOT safe to inherit alongside
  * them, though: MpskReceiver's handover verify count (8) assumes
- * consecutive looks compound independently (p^n_up), but `lock` is a
+ * consecutive looks compound independently (~p^n_up), but `lock` is a
  * fast per-sample EMA (CARRIER_NDA_LOCK_ALPHA, ~20-sample memory) --
  * consecutive samples are highly autocorrelated, so that assumption does
  * not hold (the same independence violation flagged, and designed

@@ -290,8 +290,9 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
     ("C4", "arbitrary rate by construction: sps is a double", "§3 §4"),
     (
         "C5",
-        "the TED normaliser is |on|^2 + |mid|^2, never |on|^2",
-        "**STALE** — see F1",
+        "the error path carries a construct-time ted_scale, not a running "
+        "normaliser; |on|^2 + |mid|^2 normalises the LOCK statistic",
+        "§10 NEW — was **STALE** as written; corrected, see F1",
     ),
     (
         "C6",
@@ -308,19 +309,21 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
     ),
     (
         "C10",
-        "the Measured table: 8/8 lock at three planned cascades",
-        "§3, at looser EVM limits — see F3",
+        "every initial offset acquires on all three planned cascades "
+        "(the header no longer quotes EVM literals)",
+        "§3 + §2.4 — see F3",
     ),
     (
         "C11",
-        "bn behaves identically across all three (within ~2 dB at every "
-        "setting)",
-        "§2.5 — **holds only at bn >= 0.005**, see F4",
+        "bn means the same thing on every planned cascade, within ~1 dB at "
+        "the recommended settings; the spread widens as bn narrows",
+        "§2.5 — was stated as a universal; now a range, see F4",
     ),
     (
         "C12",
-        "bn = 0.005 measured best (-46 / -40 / -40 dB)",
-        "§2.5 — choice holds, numbers stale (F3)",
+        "bn = 0.005 is the best of the recommended settings; 0.01 the "
+        "safe default",
+        "§2.5 — the choice, which holds; the literals are gone (F3)",
     ),
     ("C13", "lifecycle: create -> (step/steps/reset)* -> destroy", "§1 §7"),
     ("C14", "m even, 2 <= m <= RATESYNC_MAX_M", "§1"),
@@ -350,26 +353,27 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
     ("C24", "one input can complete TWO terminal outputs", "§9 NEW"),
     (
         "C25",
-        "`rate = m/sps <= 1` so at most one output per input",
-        "**FALSE** — see F2",
+        "`rate = m/sps <= 1` bounds an input at TWO terminal outputs",
+        "§9 — was **FALSE** as written; corrected, see F2",
     ),
     ("C26", "DTTL is a supported detector (BPSK/QPSK only)", "§10 NEW"),
     (
         "C27",
-        "the caller owns the input level; present unit-amplitude symbols",
-        "§2.6 (this report)",
+        "the caller owns the input level; present unit-amplitude symbols, "
+        "and the axis is two-sided and non-monotone",
+        "§2.6 (this report) — second clause added, see F6",
     ),
     (
         "C28",
-        "over-drive IS reported by get_clipped(); there is no under-drive "
-        "twin (gh-661)",
-        "§13 NEW + §2.6",
+        "over-drive is reported by get_clipped() ONLY on plans containing a "
+        "CIC; there is no under-drive twin on any plan (gh-661)",
+        "§13 NEW + §2.6 — qualifier added, see F11",
     ),
     ("C29", "get_clipped() is always 0 when the plan has no CIC", "§13 NEW"),
     (
         "C30",
-        "use m >= 4 with IANDD (lock_stat -0.34 vs +0.95)",
-        "§14 NEW — rule holds, numbers stale (F5)",
+        "use m >= 4 with IANDD: m = 2 does not clear the declare threshold",
+        "§14 NEW — rule holds; stale literals retired, see F5",
     ),
     ("C31", "reset() reproduces the first run bit for bit", "§6"),
     (
@@ -856,22 +860,32 @@ def characterise() -> Data:
         ["symbol amplitude", "EVM (dB)", "lock_stat", "locked", "clipped"],
         rows,
     )
+    _best = min(d.amp_rows, key=lambda r: r[1])
+    _hot = max(d.amp_rows, key=lambda r: r[0])
+    _cold = min(d.amp_rows, key=lambda r: r[0])
     R.md(
-        "Read the EVM column first: it is **not monotone**. The best number "
-        "is at half the contracted amplitude, and the level axis degrades "
-        "in BOTH directions from there — because the Gardner error carries "
-        "an `A^2` factor, so the level multiplies the loop gain, and a loop "
-        "at 4x its designed bandwidth tracks noisily while one at 1/16th is "
-        "too slow to have settled. That is one mechanism, not two, and "
-        "`bn` is the axis it really acts on (**F6**)."
+        f"Read the EVM column first: it is **not monotone**. The best "
+        f"number is at amplitude {_best[0]:g} ({_best[1]:.1f} dB) and the "
+        f"axis degrades in BOTH directions from there — "
+        f"{_best[1] - _hot[1]:.0f} dB by amplitude {_hot[0]:g} and "
+        f"{_best[1] - _cold[1]:.0f} dB by {_cold[0]:g}. That is one "
+        "mechanism, not two: the Gardner error carries an `A^2` factor, so "
+        "the level multiplies the loop gain, and a loop above its designed "
+        "bandwidth tracks noisily while one below it is too slow to have "
+        "settled. `bn` is the axis the level really acts on (**F6**). The "
+        "numbers in this paragraph are derived from the table above rather "
+        "than written beside it — the prose here once said the best number "
+        "was at half the contracted amplitude, which the measurement stopped "
+        "supporting when the stimulus moved to `Synth` and nothing caught it."
     )
     R.md()
     R.md(
-        "Now read the `clipped` column: it is 0 on every row, including the "
-        "over-driven one that lost 16 dB. The plan at `sps = 8` contains no "
-        "CIC, and `clipped` is a CIC quantiser flag — so on this cascade "
-        "neither end of the level axis is reported at all (**F11**). "
-        "Under-drive has no flag on ANY plan, which is "
+        f"Now read the `clipped` column: it is 0 on every row, including "
+        f"the over-driven one that lost {_best[1] - _hot[1]:.0f} dB. The "
+        f"plan at `sps = 8` contains no CIC, and `clipped` is a CIC "
+        f"quantiser flag — so on this cascade neither end of the level axis "
+        f"is reported at all (**F11**). Under-drive has no flag on ANY "
+        f"plan, which is "
         "[gh-661](https://github.com/doppler-dsp/doppler/issues/661)."
     )
     R.md()
@@ -1057,28 +1071,32 @@ def review(d: Data) -> None:
 
     R.find(
         "F1",
-        "GAP",
+        "FIXED",
         "the header's headline design note — \"**1. The TED normaliser is "
-        '`|on|^2 + |mid|^2`, never `|on|^2`**" — describes a design the '
+        '`|on|^2 + |mid|^2`, never `|on|^2`**" — described a design the '
         "code no longer has. `ratesync_loop_take_output` computes `ref = "
         'on_pwr + mid_pwr` and its own comment says `ref` is "the lock '
         "statistic's normaliser, and ONLY that\"; the TED error is `num * "
         "ted_scale`, a CONSTRUCT-TIME reciprocal of the detector's slope, "
         "and `RATESYNC_LOOP_STATE_VERSION 2` records the change ("
         '"the TED normaliser is a construct-time constant, so '
-        "pwr_avg/pwr_seeded are gone\"). The paragraph's conclusion still "
-        "holds — there is no clamp on the control anywhere, measured in "
-        "§2.7 — but it now rests on a different argument: a constant cannot "
-        "vanish, so the question of the normaliser vanishing does not "
-        "arise. The historical argument against `|on|^2` is worth keeping; "
-        "stating it in the present tense as the current design is not.",
+        'pwr_avg/pwr_seeded are gone"). The note is now headed "**Nothing '
+        'in the error path can vanish**" and states the construct-time '
+        "constant as the current design, with the `|on|^2` near-death "
+        "(error -91, the terminal rate driven negative, 2 symbols where "
+        "4000 were expected) kept explicitly as the history that produced "
+        "it and the `|on|^2 + |mid|^2` sum identified as what it is today — "
+        "the lock statistic's normaliser. The conclusion a caller reads is "
+        "unchanged and now rests on the right argument: a constant cannot "
+        "vanish, so there is no runaway to clamp, and §2.7 measures `ctrl` "
+        "staying inside a few hundredths from the worst offset.",
     )
     R.find(
         "F2",
-        "GAP",
-        "`ratesync_step_ted`'s doxygen contradicts its own body, and the "
+        "FIXED",
+        "`ratesync_step_ted`'s doxygen contradicted its own body, and the "
         "doxygen is the half that becomes the Python docstring. The brief "
-        'says "`rate = m/sps <= 1` so the terminal stage emits at most one '
+        'said "`rate = m/sps <= 1` so the terminal stage emits at most one '
         'output per input"; the first comment inside the function says '
         'that is exactly wrong — "One input can complete MORE THAN ONE '
         "output period ... Asking for only one silently DROPS the second, "
@@ -1086,25 +1104,33 @@ def review(d: Data) -> None:
         "output buffer is `ys[4]`. Measured: at `sps = 4` and `sps = 64`, "
         "where the terminal rate is exactly 1.0, an input completes two "
         "outputs; at `sps = 17.333` (terminal rate 0.923) it never does. "
-        "`test_ratesync_core.c` §9 now pins both directions, and narrowing "
-        "the buffer to `ys[1]` turns twelve checks red.",
+        "The brief now says **up to two**, names the terminal-rate-near-1.0 "
+        "condition that reaches the bound, and states why one symbol per "
+        "input is still the correct return (with m >= 2, at most one strobe "
+        "can fall among a single input's outputs). `test_ratesync_core.c` "
+        "§9 pins both directions, and narrowing the buffer to `ys[1]` turns "
+        "twelve checks red.",
     )
-    dict(zip((4, 8, 64), d.bn_rows[1][1])) if len(d.bn_rows) > 1 else {}
     R.find(
         "F3",
-        "GAP",
-        f"the header's **Measured** table does not reproduce under its own "
+        "FIXED",
+        f"the header's **Measured** table did not reproduce under its own "
         f"stated methodology (eight initial offsets, `bn = 0.01`, worst "
-        f"case). It claims -40.1 / -37.4 / -37.3 dB at sps = 4 / 17.333 / "
+        f"case). It claimed -40.1 / -37.4 / -37.3 dB at sps = 4 / 17.333 / "
         f"64; this report measures "
         f"{' / '.join(f'{v:.1f}' for v in d.bn_rows[1][1])} dB at sps = 4 / "
         f"8 / 64 — 3 to 4 dB worse across the board, on the library's own "
         f"`ber_evm_db` over a `ber_settle_syms`-derived window. The 8/8 "
-        f'lock claim holds everywhere. The same applies to "`bn = 0.005` '
-        f'measured best here (-46 / -40 / -40 dB)": the CHOICE of 0.005 is '
-        f"confirmed, the sps = 4 figure is ~3.5 dB optimistic. A table of "
-        f"literals in a header is the documentation form of a snapshot "
-        f"nothing re-runs; the numbers here are regenerated by this file.",
+        f"lock claim held everywhere, and so did the CHOICE of `bn = 0.005` "
+        f"as the best of the recommended settings; only the literals were "
+        f"wrong. The fix is not a fresher table — a table of literals in a "
+        f"header is the documentation form of a snapshot nothing re-runs, "
+        f"and a corrected one rots the same way. **The header no longer "
+        f"quotes EVM at all.** It states what is stable (every offset "
+        f"acquires on every planned cascade; 0.005 best, 0.01 the safe "
+        f"default) and points at §2.4 and §2.5 of this report for the "
+        f"figures, which are regenerated on every push and gated by "
+        f"`test_validation_limits.py`.",
     )
     spread = [max(v) - min(v) for _, v in d.bn_rows]
     spread_txt = ", ".join(
@@ -1112,13 +1138,13 @@ def review(d: Data) -> None:
     )
     R.find(
         "F4",
-        "GAP",
+        "FIXED",
         f'"`bn` behaves identically across all three (within ~2 dB at every '
-        f'setting)" holds at the recommended settings and fails below them. '
+        f'setting)" held at the recommended settings and failed below them. '
         f"Measured spread across the three cascades: {spread_txt}. "
         f"The claim is the justification for referencing `ctrl` to the "
         f"terminal rate, and in that role it is sound — §12 measures the "
-        f'alternative costing 18 dB. But "at every setting" is too strong: '
+        f'alternative costing 18 dB. But "at every setting" was too strong: '
         f"the spread widens monotonically as `bn` narrows, and it is not a "
         f"record-length artifact — each row is measured over "
         f"`3 * ber_settle_syms(bn, 0)` symbols, so the settled window scales "
@@ -1129,47 +1155,59 @@ def review(d: Data) -> None:
         f"that.) What this measurement does NOT establish is the mechanism: "
         f"the three cascades differ in front-end group delay and in residual "
         f"ISI, and which of those a narrow loop stops averaging over is not "
-        f"determined here. The reportable part is the bound — restate the "
-        f"claim as a range rather than a universal.",
+        f"determined here. The header now states it as a range — the spread "
+        f'widens monotonically as `bn` narrows, so read it as "within ~1 dB '
+        f'at the recommended settings" rather than as a universal — and '
+        f"carries the not-established note with it, so the bound is not "
+        f"mistaken for a mechanism. It quotes no per-cascade figures; §2.5 "
+        f"is where the sweep lives.",
     )
     m2 = next((r for r in d.m_rows if r[0] == 2), None)
     m4 = next((r for r in d.m_rows if r[0] == 4), None)
     R.find(
         "F5",
-        "GAP",
-        f"the `m >= 4 with IANDD` rule is right and its stated evidence is "
-        f'stale. The header cites "lock_stat -0.34 at m = 2 against +0.95 '
+        "FIXED",
+        f"the `m >= 4 with IANDD` rule is right and its stated evidence was "
+        f'stale. The header cited "lock_stat -0.34 at m = 2 against +0.95 '
         f'at m = 4 on the same NRZ stream"; measured here on an NRZ stream '
         f"at sps = 8, m = 2 reads {m2[3]:+.3f} and m = 4 reads {m4[3]:+.3f}, "
         f"and across sps = 4 / 8 / 16 the m = 2 figure ranges -0.02 to "
         f"+0.24 — never as low as -0.34, and m = 4 never as high as +0.95. "
         f"The separation that matters is intact (m = 2 does not clear the "
-        f"0.311 declare threshold, m = 4 clears it comfortably) and §14 now "
-        f"gates exactly that rather than the literals.",
+        f"0.311 declare threshold, m = 4 clears it comfortably) and §14 "
+        f"gates exactly that rather than the literals. The header now rests "
+        f"the rule on that separation too — m = 2 fails to clear the lock "
+        f"detector's own declare threshold while m = 4 clears it, with tens "
+        f"of dB of EVM between them — and says in as many words that the "
+        f"particular `lock_stat` values move with `sps` and with the "
+        f"stream, pointing at §2.7 for the sweep.",
     )
     best = min(d.amp_rows, key=lambda r: r[1])
+    cold = min(d.amp_rows, key=lambda r: r[0])
     unit = next(r for r in d.amp_rows if r[0] == 1.0)
     over = [r for r in d.amp_rows if r[0] > 1.0]
     R.find(
         "F6",
-        "GAP",
+        "FIXED",
         f"the input-level axis is not monotone, and the header's "
-        f'single-point statement implies it is. It says "Under-driving '
-        f'costs EVM with nothing to reveal it" and quotes one comparison '
-        f"(quarter amplitude against unit). Measured across the whole axis "
-        f"the best EVM is at amplitude {best[0]:g} ({best[1]:.1f} dB), not "
-        f"at the contracted unit amplitude ({unit[1]:.1f} dB), and "
-        f"OVER-driving costs as much as under-driving "
-        f"({over[0][1]:.1f} dB at {over[0][0]:g}). One mechanism explains "
-        f"both ends: the Gardner error carries an A^2 factor, so the input "
-        f"level multiplies the loop gain and the level axis IS the `bn` "
-        f"axis — too hot tracks noisily, too cold has not settled. The "
-        f"consequence for a caller is the part worth documenting: a "
-        f"receiver tuned against EVM alone is rewarded for drifting BELOW "
-        f"the contracted level, toward a cliff, and told nothing when it "
-        f"goes above it. This strengthens gh-661 rather than duplicating "
-        f"it — the ask there is an under-drive flag; the finding here is "
-        f"that EVM cannot substitute for one in either direction.",
+        f'single-point statement implied it is. It said "Under-driving '
+        f'costs EVM with nothing to reveal it" and quoted one comparison '
+        f"(quarter amplitude against unit), which reads as a one-sided "
+        f"axis. Measured across the whole axis the EVM peaks in the middle "
+        f"— best {best[1]:.1f} dB at amplitude {best[0]:g} — and falls off "
+        f"in BOTH directions, {best[1] - over[0][1]:.0f} dB by amplitude "
+        f"{over[0][0]:g} and {best[1] - cold[1]:.0f} dB by "
+        f"{cold[0]:g}. One mechanism explains both ends: the "
+        f"Gardner error carries an A^2 factor, so the input level "
+        f"multiplies the loop gain and the level axis IS the `bn` axis — "
+        f"too hot tracks noisily, too cold has not settled. The header now "
+        f"states the axis as two-sided and non-monotone, gives that "
+        f"mechanism, and draws the consequence a caller needs: a receiver "
+        f"tuned against EVM alone is rewarded for drifting off the "
+        f"contracted level in either direction, so the level must be "
+        f"measured rather than inferred from this object. That does not "
+        f"close gh-661 — the missing under-drive FLAG is still missing, and "
+        f"this finding is why EVM cannot substitute for one.",
     )
     R.find(
         "F7",
@@ -1180,7 +1218,12 @@ def review(d: Data) -> None:
         "a full record the under-driven loop still crawls to `lock_stat` "
         "~0.59, above the 0.311 declare threshold, while demodulating 18 dB "
         'worse. The lock detector answers "is the eye open", which it '
-        "eventually is; it was never a check on loop gain. Recorded so the "
+        "eventually is; it was never a check on loop gain. Stays open "
+        "because the missing indicator is real work, not prose — gh-661. "
+        "What the header can do about it, it now does: the level contract "
+        "says in as many words that `locked` is not a substitute for a "
+        "level check, since even a badly mis-levelled loop eventually opens "
+        "the eye. Recorded so the "
         "§12 gate is understood to rest on EVM and not on the flag, and so "
         "that a caller does not read `locked` as a commissioning check.",
     )
@@ -1255,8 +1298,8 @@ def review(d: Data) -> None:
     R.md()
     R.find(
         "F11",
-        "GAP",
-        f"`ratesync_get_clipped()` is documented as the over-drive report — "
+        "FIXED",
+        f"`ratesync_get_clipped()` was documented as THE over-drive report — "
         f'"Over-driving is the other end of the same axis and IS reported, '
         f'by ratesync_get_clipped()" — but it is a CIC quantiser flag, and '
         f"whether the plan HAS a CIC is the planner's decision, not the "
@@ -1270,9 +1313,13 @@ def review(d: Data) -> None:
         f"object states a level contract and publishes no flag that "
         f"enforces it — under-drive nowhere, over-drive only where a CIC "
         f"happens to sit in front. The header's own \"Always 0 when the "
-        f'plan has no CIC stage" on `ratesync_get_clipped` is accurate; '
-        f"what is missing is that the create()-level prose presents the "
-        f"flag as the over-drive answer without that qualifier.",
+        f'plan has no CIC stage" on `ratesync_get_clipped` was accurate all '
+        f"along; what was missing was that the create()-level prose "
+        f"presented the flag as the over-drive answer without that "
+        f"qualifier. It now carries it — over-drive is reported only on the "
+        f"subset of plans containing a CIC, whether the plan HAS one is the "
+        f"planner's decision, and `sps = 8` is named as a plan that does "
+        f"not. The reporting gap itself is unchanged and stays with gh-661.",
     )
     R.md()
     R.table(

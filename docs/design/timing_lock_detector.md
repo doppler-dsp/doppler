@@ -62,24 +62,33 @@ implemented literally as given, with one correction: the source formula's
 than a derived constant. `var` is now `SYMSYNC_LOCK_STAT_VARIANCE`, the real
 per-look variance of `lock_signal` under noise-only input, measured directly
 (5,000,000-sample Monte Carlo: mean ≈0, variance ≈1.343) rather than assumed.
-The leading `2` is *not* part of that variance — because `erfcinv` is used
-directly instead of `Q⁻¹`, the √2 factors cancel in `threshold` (identical
-either way) but not in `avgs`, which needs an explicit factor of 2 to match
-the classic `N = variance * ((Q⁻¹(pfa) - Q⁻¹(pd)) / mean)²` derivation once
-rewritten in terms of the `erfcinv`-based denominator. Both hypotheses were
-tried empirically before picking one (see the validation section below): the
-measured variance alone, without the factor of 2, undersizes `avgs` and
-blows past the pfa target by ~13×. No down-threshold or verify-count
+The leading `2` was the **convention, not a factor** — a distinction this
+note got wrong until the formula moved into shared code. Since
+`Q⁻¹(p) = √2·erfcinv(2p)`, the √2 cancels in `threshold` and its square
+absorbs into `avgs`, so the `erfcinv`-direct form with a leading 2 and the
+`Q⁻¹` form with none are the *same formula*. The empirical finding behind the
+old wording still stands and is what made it convincing — the measured
+variance alone, in the `erfcinv` form, undersizes `avgs` and blows past the
+pfa target by ~13× — but the cause was the missing convention change, not a
+derivation-specific constant that had to be kept apart from the variance.
+
+`symsync_configure_lock` now calls `det_dwell_gauss()` / `det_threshold_gauss()`
+in `Q⁻¹` form, where `SYMSYNC_LOCK_STAT_VARIANCE` is passed straight through
+as the variance it is. The derived values are unchanged, pinned at
+`avgs = 133` / `threshold = 0.311` in `test_symsync_core.c`, and the
+equivalence of the two conventions is pinned in `test_detection_core.c`. The
+shared chain is documented in [Lock Detection](lock-detect.md). No down-threshold or verify-count
 derivation is implied by the source formula, so those default to the same
 shape `Dll.configure_lock` uses (see
 [`native/src/symsync/symsync_core.c`](https://github.com/doppler-dsp/doppler/blob/main/native/src/symsync/symsync_core.c)'s
 `SYMSYNC_LOCK_STAT_VARIANCE` comment for the exact defaults and full
 derivation).
 
-No standard C library function computes `erfcinv`; `symsync_core.c` carries
-a private Winitzki-initial-guess-plus-Newton-refinement implementation
-(verified to machine precision against `erfc`), kept local to that file
-pending a second consumer.
+No standard C library function computes `erfcinv`. `symsync_core.c` carried a
+private Winitzki-initial-guess-plus-Newton-refinement implementation, kept
+local *pending a second consumer*; the carrier lock detector became that
+consumer, so it now lives in `detection` behind `det_q_inv()` and this file
+has no private copy.
 
 ## Empirical validation — does it actually hit (pfa, pd)?
 

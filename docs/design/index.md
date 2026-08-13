@@ -27,6 +27,7 @@ instead.)
 - [Automatic Gain Control](agc.md) — the log-domain level loop every receiver
     stands on: why the filter is in dB and the detector is not, why the loop
     must be total under any input, and what level alone cannot tell it
+- [Lock Detection](lock-detect.md) — the sizing chain every lock detector shares, and the independence it assumes
 - [Timing Lock Detector](timing_lock_detector.md) — SymbolSync's Gardner/DTTL lock statistic and sizing formula
 - [Symbol Timing on a Rate Cascade](ratesync-timing.md) — RateSync: why the matched filter and the interpolator are one dot product, why `ctrl` is referenced to the terminal stage's rate, and why the T/2 parity resolves itself
 - [MPSK Receiver](mpsk.md) — streaming M-PSK receiver architecture and carrier-recovery design

@@ -657,7 +657,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
                 glibc-check glibc-gate specan-check check-isotime-parity \
-                tests-ssot validation-report-check hook-dispatch-check \
+                tests-ssot validation-report-check \
                 compile_commands.json \
                 install-docs-deps \
                 wheel-check wheel-smoke release-smoke \
@@ -680,53 +680,7 @@ include standard.mk
 # else, so this is what makes the rule enforced instead of merely written in
 # native/tests/README.md — which is the distinction that matters, since the
 # convention WAS written down while 90 copies of CHECK accumulated under it.
-lint: tests-ssot characterization-check validation-report-check \
-      hook-dispatch-check
-
-# Every hook dispatches `make -s <target>` (the SSOT rule at the top of this
-# file), so .pre-commit-config.yaml holds make target NAMES — and nothing
-# checked that make defines them. It didn't: 759e3fe9 pointed the clang-tidy
-# hook at `lint-clang-tidy` and pinned clang-tidy in the dev group, but never
-# added `clang-tidy` to LINT_TOOLS, so the target it named did not exist and
-# the hook could only ever die with "No rule to make target". A pinned tool, a
-# committed .clang-tidy, and a gate that could not run — which is the exact
-# failure that commit's own message says it was fixing.
-#
-# `ghost-check` cannot catch this: it looks for a .PHONY with no recipe, and an
-# undeclared target is not a ghost, it is nothing at all. Nor could anything
-# else — the hook is `stages: [pre-push]`, `pre-commit install` installs the
-# pre-commit stage only, and `make lint` runs the hooks at their default stage.
-# Three layers of not-running, so the break was invisible from every direction.
-#
-# Reads the make DATABASE rather than trying each target: `make -n <t>` would
-# expand recipes and recurse on any line carrying $(MAKE). Fails closed on a
-# zero match (standard-check's rule) so a future reshuffle of the config's
-# shape silently disarms the gate instead of quietly passing.
-hook-dispatch-check: ## Verify every pre-commit `make` dispatch names a real target
-	@db=$$($(MAKE) -rpn --no-print-directory .hook-dispatch-db 2>/dev/null); \
-	 n=0; missing=''; \
-	 for t in $$(sed -n 's/^[[:space:]]*entry:[[:space:]]*make[[:space:]]\{1,\}-s[[:space:]]\{1,\}\([a-zA-Z0-9_.-]\{1,\}\).*/\1/p' \
-	         .pre-commit-config.yaml); do \
-	     n=$$((n + 1)); \
-	     printf '%s\n' "$$db" | grep -q "^$$t:" || missing="$$missing $$t"; \
-	 done; \
-	 if [ "$$n" -eq 0 ]; then \
-	     echo "ERROR: hook-dispatch-check matched 0 hook entries — it did not"; \
-	     echo '       run. The "entry: make -s <target>" shape it parses has'; \
-	     echo "       changed; fix the pattern, do not delete the gate."; \
-	     exit 1; \
-	 fi; \
-	 if [ -n "$$missing" ]; then \
-	     echo "ERROR: .pre-commit-config.yaml dispatches to make targets that do"; \
-	     echo "       not exist:"; \
-	     printf '  %s\n' $$missing; \
-	     echo ""; \
-	     echo "  Each hook dies with 'No rule to make target', so the tool it"; \
-	     echo "  names never runs. For a lint-<tool> dispatch the fix is almost"; \
-	     echo "  always a missing entry in LINT_TOOLS."; \
-	     exit 1; \
-	 fi; \
-	 echo "hook-dispatch-check: $$n hook dispatch(es) resolve"
+lint: tests-ssot characterization-check validation-report-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A

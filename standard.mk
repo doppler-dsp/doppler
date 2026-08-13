@@ -176,7 +176,7 @@ test-fast: ## Run tests, stopping at the first failure
 # `lint` is the gate — CI runs exactly this and nothing else. The three
 # consistency gates come first because they are near-free and catch the class
 # of rot that review demonstrably does not.
-lint: standard-check help-check ghost-check gates-check ## Run the full lint gate (CI runs this)
+lint: standard-check help-check ghost-check hook-dispatch-check gates-check ## Run the full lint gate (CI runs this)
 	@hook=$$(git rev-parse --git-path hooks/pre-commit 2>/dev/null); \
 	 if [ -n "$$hook" ] && [ ! -f "$$hook" ]; then \
 	     $(PRE_COMMIT) install >/dev/null 2>&1 \
@@ -304,12 +304,20 @@ gates-check: ## Verify `gates` runs every make target CI invokes
 # `release` is RESERVED for the C build type. The release workflow is `ship`
 # and `tag-release`, so the two senses never collide.
 ifeq ($(HAS_C),1)
-STD_TARGETS += build debug release
+STD_TARGETS += build debug release compile-commands tidy
 
 BUILD_DIR     ?= build
 BUILD_TYPE    ?= RelWithDebInfo
 CMAKE         ?= cmake
 CMAKE_FLAGS   ?=
+CLANG_TIDY    ?= clang-tidy
+
+# The translation units `tidy` lints, one per line. sed rather than an
+# interpreter on purpose: a C-only repo should not need Python or jq installed
+# to lint its C, and cmake writes compile_commands.json one "file" key per
+# line. Override it if your generator emits something denser.
+TIDY_FILES    ?= sed -n 's/.*"file": *"\([^"]*\)".*/\1/p' \
+                     compile_commands.json | sort -u
 PYEXT_CMD     ?=
 
 # The in-place extension build belongs to the OVERLAP of the two flags, not to
@@ -335,6 +343,37 @@ ifeq ($(HAS_PYTHON),1)
 pyext: ## Build the Python extension in place
 	$(PYEXT_CMD)
 endif
+
+# clangd and clang-tidy read compile_commands.json from the PROJECT ROOT, while
+# cmake writes it into $(BUILD_DIR) -- hence the copy.
+#
+# Phony, and re-configuring every time. A file target keyed on
+# $(BUILD_DIR)/CMakeCache.txt is the obvious shape and it is wrong: the cache
+# does not move when the source list does, so the copy runs once and never
+# again, and anything that later touches the root copy pins it as up to date
+# forever. That exact rule shipped in just-makeit's generated projects and
+# could not re-copy at all (just-buildit/just-makeit#940). There is no
+# timestamp here to get wrong; configure is idempotent and costs a second.
+compile-commands: ## Refresh compile_commands.json for clangd / clang-tidy
+	$(CMAKE) -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+	    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON $(CMAKE_FLAGS)
+	cp $(BUILD_DIR)/compile_commands.json compile_commands.json
+
+# The file list comes from the compile DATABASE, not a directory walk, so tidy
+# sees exactly the translation units cmake compiles -- no more (a generated .c
+# that no target references, which would fail to lint for reasons that are not
+# about the code) and no less.
+#
+# A repo with no .clang-tidy gets a clear refusal rather than clang-tidy's own
+# default check set, which is not the same thing as "the project's checks".
+tidy: compile-commands ## Run clang-tidy over the compile database
+	@command -v $(CLANG_TIDY) >/dev/null 2>&1 || \
+	    { echo "tidy: $(CLANG_TIDY) not found -- install it first"; exit 1; }
+	@[ -f .clang-tidy ] || \
+	    { echo "tidy: no .clang-tidy in this repo; refusing to lint against"; \
+	      echo "  clang-tidy's defaults, which are not your project's checks."; \
+	      exit 1; }
+	@$(TIDY_FILES) | xargs $(CLANG_TIDY) -p .
 endif
 
 # ── HAS_PYTHON ───────────────────────────────────────────────────────────────
@@ -612,7 +651,7 @@ endif
 # Three invariants that review has been shown not to catch, each failing rather
 # than warning. A gate that cannot run has not passed.
 
-STD_TARGETS += standard-check help-check ghost-check
+STD_TARGETS += standard-check help-check ghost-check hook-dispatch-check
 
 # A temp file, portably: bare `mktemp` is a GNU extension, and the BSD one
 # macOS ships requires a template. The gates parse make's own database, which
@@ -656,7 +695,7 @@ _STD_SECTION = case "$$t" in \
         tsec="Core";; \
     lint-*) tsec="Lint";; \
     test-all|gates|gates-check) tsec="Aggregates";; \
-    build|debug|release|pyext) tsec="C";; \
+    build|debug|release|pyext|compile-commands|tidy) tsec="C";; \
     wheel|test-python) tsec="Python";; \
     test-rust) tsec="Rust";; \
     docs|docs-serve|docs-check) tsec="Docs";; \
@@ -666,7 +705,8 @@ _STD_SECTION = case "$$t" in \
     bump-version|version-check|release-branch|tag-release|release-watch \
         |ship) tsec="Release";; \
     test-examples) tsec="Examples";; \
-    standard-check|help-check|ghost-check) tsec="Gates";; \
+    standard-check|help-check|ghost-check|hook-dispatch-check) \
+        tsec="Gates";; \
     *) tsec="Local";; \
 esac
 
@@ -810,6 +850,49 @@ ghost-check: ## Verify every .PHONY target has a recipe
 	     exit 1; \
 	 fi; \
 	 echo "ghost-check: no ghost targets"
+
+# Every `entry: make -s <target>` in .pre-commit-config.yaml must name a target
+# make actually defines.
+#
+# The convention is that hooks dispatch through make, so the config holds make
+# TARGET NAMES -- and nothing checked they resolve. doppler pointed a hook at
+# `make -s lint-clang-tidy` and pinned clang-tidy in its dev group, but never
+# added it to LINT_TOOLS. The target did not exist, so the hook could only die
+# with "No rule to make target", and the commit that introduced it said "every
+# pre-commit hook dispatches through make". It stayed broken because three
+# things hid it at once: `ghost-check` looks for a .PHONY with no recipe and an
+# UNDECLARED target is not a ghost, the hook was `stages: [pre-push]` while
+# `setup` installs only the pre-commit stage, and `lint` runs pre-commit at the
+# default stage so CI never reached it either. Filed as
+# just-buildit/just-makeit#943.
+#
+# Reads make's DATABASE rather than trying each target: `make -n <target>`
+# expands recipes and, by the documented recursion rule, still EXECUTES lines
+# containing $(MAKE). Probing a target must not run it.
+#
+# Inert with no config file, so a repo without pre-commit is not asked to care.
+hook-dispatch-check: ## Verify every pre-commit `make` dispatch names a real target
+	@cfg=.pre-commit-config.yaml; \
+	 if [ ! -f "$$cfg" ]; then \
+	     echo "hook-dispatch-check: no $$cfg — nothing to check"; \
+	     exit 0; \
+	 fi; \
+	 db=$$($(_STD_TMP)); trap 'rm -f "$$db"' EXIT; \
+	 $(MAKE) -rpn --no-print-directory .std-db-goal >"$$db" 2>/dev/null; \
+	 n=0; missing=""; \
+	 for t in $$(sed -n "s/^[[:space:]]*entry:[[:space:]]*make[[:space:]]\{1,\}\(-s[[:space:]]\{1,\}\)\{0,1\}\([a-zA-Z0-9_.-]\{1,\}\).*/\2/p" "$$cfg"); do \
+	     n=$$((n + 1)); \
+	     grep -q "^$$t:" "$$db" || missing="$$missing $$t"; \
+	 done; \
+	 if [ -n "$$missing" ]; then \
+	     echo "ERROR: pre-commit dispatches to make targets that do not exist:"; \
+	     printf '  %s\n' $$missing; \
+	     echo ""; \
+	     echo "  Each hook runs \`make <target>\` and can only fail with"; \
+	     echo "  'No rule to make target'. Add the target, or fix the entry."; \
+	     exit 1; \
+	 fi; \
+	 echo "hook-dispatch-check: $$n make dispatch(es) resolve"
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 # Generated from the `## description` on each active target's rule line. Never

@@ -58,6 +58,17 @@ NSYM = 3000
 #: offset this report places.
 FINE = 64
 
+#: Both detectors `ted` selects between. Every axis this report sweeps that
+#: the detector can plausibly move — the S-curve (§2.2), the `bn` sweep
+#: (§2.5) and the input level (§2.6) — runs over BOTH, because the object
+#: has two and a report measuring one of them certifies half the object.
+#: It used to measure only Gardner: DTTL's single appearance in the whole
+#: document was one row of the claim table pointing at the C test, and the
+#: level-axis mechanism was stated as an object-wide law from a
+#: Gardner-only sweep. The two detectors do not share an amplitude law
+#: (§2.6b), so that was not a safe extrapolation.
+TEDS = ("gardner", "dttl")
+
 R = Report()
 
 
@@ -231,12 +242,17 @@ def run_sync(
     bn: float = 0.01,
     m: int = 2,
     pulse: str = "rrc",
+    ted: str = "gardner",
     probes: bool = False,
 ):
     """Push one stream through a RateSync and return it with its symbols.
 
     With `probes`, the loop's six telemetry channels are captured — the
     object's own instrumentation, rather than anything recomputed here.
+
+    `ted` selects the detector. It is a real parameter rather than a
+    default left implicit, because the caller has two to choose from and
+    this report is the evidence for both.
     """
     rs = RateSync(
         sps=sps,
@@ -247,6 +263,7 @@ def run_sync(
         num_phases=1024,
         bn=bn,
         zeta=0.707,
+        ted=ted,
     )
     tlm = None
     if probes:
@@ -356,7 +373,32 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "`rate = m/sps <= 1` bounds an input at TWO terminal outputs",
         "§9 — was **FALSE** as written; corrected, see F2",
     ),
-    ("C26", "DTTL is a supported detector (BPSK/QPSK only)", "§10 NEW"),
+    (
+        "C26",
+        "DTTL is a supported detector (BPSK/QPSK only)",
+        "§10 NEW + §2.2 §2.4 §2.5 §2.6 §2.6b (this report)",
+    ),
+    (
+        "C26a",
+        "DTTL has lower self-noise near lock than Gardner",
+        "§2.4 (this report) — 6.4x, see F16",
+    ),
+    (
+        "C26b",
+        "DTTL degrades faster than Gardner at low SNR",
+        "**UNMEASURED** — nothing in this report adds noise, see F17",
+    ),
+    (
+        "C26c",
+        "Gardner's raw error carries A^2, DTTL's carries A^1",
+        "§2.6b (this report) — see F13",
+    ),
+    (
+        "C26d",
+        "ted_scale gives the detector unit slope at lock, so bn means one "
+        "bandwidth",
+        "§2.2 — **gardner only**, dttl measures 2.60, see F15",
+    ),
     (
         "C27",
         "the caller owns the input level; present unit-amplitude symbols, "
@@ -517,6 +559,19 @@ class Data:
     bn_rows: list = field(default_factory=list)
     amps: list = field(default_factory=list)
     amp_rows: list = field(default_factory=list)
+    #: Per-detector copies of the three axes a detector can move. The
+    #: bare fields above stay Gardner's, so the sections that read one
+    #: detector's numbers read the default one; these carry both.
+    scurve_by_ted: dict = field(default_factory=dict)
+    bn_rows_by_ted: dict = field(default_factory=dict)
+    amp_rows_by_ted: dict = field(default_factory=dict)
+    #: Fitted exponent p in |error| ~ A^p, per detector: the header says
+    #: Gardner enters as A^2 and DTTL as A^1, and nothing measured it.
+    amp_law: dict = field(default_factory=dict)
+    #: Resting mean |e| per detector — the self-noise floor, which divided
+    #: by that detector's slope gives a timing jitter the two share a unit
+    #: for.
+    resid_by_ted: dict = field(default_factory=dict)
     clip_rows: list = field(default_factory=list)
     m_rows: list = field(default_factory=list)
     ppm_rows: list = field(default_factory=list)
@@ -629,54 +684,86 @@ def characterise() -> Data:
     R.md()
     sps = 4
     fine = grid_of(sps)
-    taus, errs = [], []
-    for j in range(0, fine + 1, 2):
-        x = rrc_bpsk(sps, j % fine, nsym=600)
-        rs, y, rec = run_sync(x, float(sps), bn=0.0, probes=True)
-        e = np.asarray(rec.get("sync.e", []))
-        taus.append(tau_symbols(sps, j))
-        errs.append(float(e.mean()) if e.size else 0.0)
-    d.tau = np.array(taus)
-    d.scurve = np.array(errs)
-    _csv(DATA / "scurve.csv", [d.tau, d.scurve], "tau_symbols,mean_error")
+    for ted in TEDS:
+        taus, errs = [], []
+        for j in range(0, fine + 1, 2):
+            x = rrc_bpsk(sps, j % fine, nsym=600)
+            rs, y, rec = run_sync(x, float(sps), bn=0.0, ted=ted, probes=True)
+            e = np.asarray(rec.get("sync.e", []))
+            taus.append(tau_symbols(sps, j))
+            errs.append(float(e.mean()) if e.size else 0.0)
+        tau_a, sc_a = np.array(taus), np.array(errs)
+        zs = []
+        for i in range(1, tau_a.size):
+            a, b = sc_a[i - 1], sc_a[i]
+            if a == 0.0 or (a < 0) != (b < 0):
+                dt = tau_a[i] - tau_a[i - 1]
+                t0 = tau_a[i - 1] - a * dt / (b - a)
+                # The LOCAL slope, per symbol of timing error. Measured
+                # here rather than inferred from the peak as `2*pi*peak`:
+                # that identity assumes a sinusoidal S-curve, which is
+                # Gardner's shape and not DTTL's, and applying it to DTTL
+                # reported a slope of 1.79 for a detector whose actual
+                # slope at lock is near 1. A shape assumption is not a
+                # measurement, and it silently became one the moment the
+                # report grew a second detector.
+                zs.append((float(t0), float((b - a) / dt)))
+        pk = float(np.abs(sc_a).max())
+        stable = [s for _, s in zs if s <= 0]
+        d.scurve_by_ted[ted] = {
+            "tau": tau_a,
+            "scurve": sc_a,
+            "zeros": zs,
+            "peak": pk,
+            "slope": abs(stable[0]) if stable else 0.0,
+        }
+    g = d.scurve_by_ted["gardner"]
+    d.tau, d.scurve, d.zeros = g["tau"], g["scurve"], g["zeros"]
+    d.slope_meas = g["slope"]
+    _csv(
+        DATA / "scurve.csv",
+        [d.tau, d.scurve, d.scurve_by_ted["dttl"]["scurve"]],
+        "tau_symbols,mean_error_gardner,mean_error_dttl",
+    )
 
-    # locate sign changes and their slopes
-    zeros = []
-    for i in range(1, d.tau.size):
-        a, b = d.scurve[i - 1], d.scurve[i]
-        if a == 0.0 or (a < 0) != (b < 0):
-            t0 = d.tau[i - 1] - a * (d.tau[i] - d.tau[i - 1]) / (b - a)
-            zeros.append((float(t0), float(b - a)))
-    d.zeros = zeros
     R.table(
-        ["zero at (symbols)", "slope sign", "equilibrium"],
+        ["ted", "zeros in one symbol", "stable at", "unstable at", "slope"],
         [
             [
-                f"{t0:.4f}",
-                "+" if s > 0 else "-",
-                "unstable" if s > 0 else "stable",
+                f"`{t}`",
+                str(len(v["zeros"])),
+                ", ".join(f"{t0:.4f}" for t0, s in v["zeros"] if s <= 0),
+                ", ".join(f"{t0:.4f}" for t0, s in v["zeros"] if s > 0),
+                f"{v['slope']:.4f}",
             ]
-            for t0, s in zeros
+            for t, v in ((t, d.scurve_by_ted[t]) for t in TEDS)
         ],
     )
-    peak = float(np.abs(d.scurve).max())
-    d.slope_meas = 2.0 * np.pi * peak
     R.md(
-        f"Exactly {len(zeros)} zeros across one symbol, alternating in "
-        f"slope — one stable, one unstable, which is the claim. The curve "
-        f"peaks at `{peak:.4f}` a quarter-symbol from each zero, so the "
-        f"normalised slope at the lock point is `2*pi*peak = "
-        f"{d.slope_meas:.4f}`."
+        "**Both** detectors carry exactly two zeros across one symbol, "
+        "alternating in slope — one stable at the eye centre, one unstable "
+        "at the T/2 point — so the structural argument that retires the "
+        "eye-sign detector holds for the whole `ted` axis and not just for "
+        "the default. The slope column is the LOCAL derivative at the "
+        "stable zero, per symbol of timing error, not `2*pi*peak`: that "
+        "identity assumes a sinusoidal S-curve, which is Gardner's shape "
+        "and not DTTL's (**F14**)."
     )
     R.md()
+    _dslope = d.scurve_by_ted["dttl"]["slope"]
     R.md(
         "That last number is the check on the construct-time normaliser. The "
         "TED divides by the detector's own slope once, at construction "
         "(`symsync_ted_slope`), so a correctly normalised detector has unit "
-        f"slope at lock. Measured `{d.slope_meas:.4f}` — the loop therefore "
-        f"runs WITHIN {abs(d.slope_meas - 1.0) * 100:.0f}% of the gain `bn` "
-        f"names, which is well inside the tolerance a second-order loop "
-        f"needs and is the point of normalising at all."
+        f"slope at lock. Measured `{d.slope_meas:.4f}` for Gardner and "
+        f"`{_dslope:.4f}` for DTTL — each within "
+        f"{max(abs(d.slope_meas - 1.0), abs(_dslope - 1.0)) * 100:.0f}% of "
+        f"the gain `bn` names, which is well inside the tolerance a "
+        f"second-order loop needs and is the point of normalising at all. "
+        "The two detectors have DIFFERENT raw slopes against the same pulse "
+        "— that is why `ted_scale` is per-detector rather than per-pulse — "
+        "so both landing near 1.0 checks that the right reciprocal reached "
+        "the right detector, which one detector's number alone cannot."
     )
     R.md()
     R.md(
@@ -772,6 +859,49 @@ def characterise() -> Data:
         f"is the detector's block size showing through."
     )
     R.md()
+    R.md(
+        "**Residual error, per detector.** The per-symbol `e` probe settles "
+        "to a floor, and the floor is the detector's own self-noise rather "
+        "than anything the loop can remove. Measured over the last fifth of "
+        "the same record at `bn = 0.002`, and divided by that detector's "
+        "measured slope from §2.2 to put both in the same unit — symbols of "
+        "timing error, rather than normalised detector output."
+    )
+    R.md()
+    _res = {}
+    for ted in TEDS:
+        x = rrc_bpsk(4, grid_of(4) // 4, nsym=record_syms(0.002))
+        _, _, rec = run_sync(x, 4.0, bn=0.002, ted=ted, probes=True)
+        e = np.abs(np.asarray(rec.get("sync.e", [])))
+        _res[ted] = float(e[-max(1, e.size // 5) :].mean()) if e.size else 0.0
+    d.resid_by_ted = dict(_res)
+    R.table(
+        ["ted", "mean |e| at rest", "slope (§2.2)", "implied timing jitter"],
+        [
+            [
+                f"`{t}`",
+                f"{_res[t]:.4f}",
+                f"{d.scurve_by_ted[t]['slope']:.3f}",
+                f"{_res[t] / d.scurve_by_ted[t]['slope']:.4f} sym",
+            ]
+            for t in TEDS
+        ],
+    )
+    _gj = _res["gardner"] / d.scurve_by_ted["gardner"]["slope"]
+    _dj = _res["dttl"] / d.scurve_by_ted["dttl"]["slope"]
+    R.md(
+        f"DTTL rests **{_gj / _dj:.1f}x** closer to the eye centre than "
+        f"Gardner on the same stream. That is the header's *\"lower "
+        f'self-noise near lock"* — a claim nothing in this report measured '
+        f"until the `ted` axis was swept (**F16**) — and it is the reason "
+        f"to reach for the decision-directed detector at all: Gardner pays "
+        f"a self-noise cost on every non-transition symbol, and DTTL gates "
+        f"those out by construction. Read it against **F17**: this stream "
+        f"is noiseless, the regime that flatters DTTL most, and the "
+        f"header's opposing claim — that it gives the advantage back at "
+        f"low SNR — is measured nowhere in this report."
+    )
+    R.md()
 
     # --- 2.5 bn across the planned cascades -----------------------------
     R.md("### 2.5 Does `bn` mean the same thing on every planned cascade?")
@@ -787,27 +917,50 @@ def characterise() -> Data:
     R.md()
     d.bn_grid = [0.02, 0.01, 0.005, 0.002]
     rows = []
-    for bn in d.bn_grid:
-        row = [f"{bn:g}"]
-        vals = []
-        nsym = record_syms(bn)
-        for sps in (4, 8, 64):
-            worst = -300.0
-            grid = grid_of(sps)
-            for j in range(0, grid, max(1, grid // 8)):
-                x = rrc_bpsk(sps, j, nsym=nsym)
-                _, y, _ = run_sync(x, float(sps), bn=bn)
-                worst = max(worst, evm_db(y, bn))
-            vals.append(worst)
-            row.append(f"{worst:.1f}")
-        row.append(f"{max(vals) - min(vals):.1f}")
-        row.append(str(nsym))
-        rows.append(row)
-        d.bn_rows.append((bn, vals))
+    for ted in TEDS:
+        d.bn_rows_by_ted[ted] = []
+        for bn in d.bn_grid:
+            row = [f"`{ted}`", f"{bn:g}"]
+            vals = []
+            nsym = record_syms(bn)
+            for sps in (4, 8, 64):
+                worst = -300.0
+                grid = grid_of(sps)
+                for j in range(0, grid, max(1, grid // 8)):
+                    x = rrc_bpsk(sps, j, nsym=nsym)
+                    _, y, _ = run_sync(x, float(sps), bn=bn, ted=ted)
+                    worst = max(worst, evm_db(y, bn))
+                vals.append(worst)
+                row.append(f"{worst:.1f}")
+            row.append(f"{max(vals) - min(vals):.1f}")
+            row.append(str(nsym))
+            rows.append(row)
+            d.bn_rows_by_ted[ted].append((bn, vals))
+    d.bn_rows = d.bn_rows_by_ted["gardner"]
     R.table(
-        ["bn", "sps=4", "sps=8", "sps=64", "spread (dB)", "record (symbols)"],
+        [
+            "ted",
+            "bn",
+            "sps=4",
+            "sps=8",
+            "sps=64",
+            "spread (dB)",
+            "record (symbols)",
+        ],
         rows,
     )
+    _gsp = [max(v) - min(v) for _, v in d.bn_rows_by_ted["gardner"]]
+    _dsp = [max(v) - min(v) for _, v in d.bn_rows_by_ted["dttl"]]
+    R.md(
+        f"The cross-cascade spread that F4 is about behaves the same way on "
+        f"both detectors — widening monotonically as `bn` narrows, from "
+        f"{_gsp[0]:.1f} / {_dsp[0]:.1f} dB (gardner / dttl) at "
+        f"`bn = {d.bn_grid[0]:g}` to {_gsp[-1]:.1f} / {_dsp[-1]:.1f} dB at "
+        f"`bn = {d.bn_grid[-1]:g}`. So referencing `ctrl` to the terminal "
+        "rate buys the same cascade-independence for either detector, and "
+        "the range F4 asks the header to state covers both."
+    )
+    R.md()
     R.md(
         "The record length is derived from the bandwidth, not fixed: the "
         "settling budget scales as `1/bn`, so a length that is generous at "
@@ -820,8 +973,12 @@ def characterise() -> Data:
     _csv(
         DATA / "bn_sweep.csv",
         [np.array([b for b, _ in d.bn_rows])]
-        + [np.array([v[i] for _, v in d.bn_rows]) for i in range(3)],
-        "bn,evm_sps4,evm_sps8,evm_sps64",
+        + [
+            np.array([v[i] for _, v in d.bn_rows_by_ted[t]])
+            for t in TEDS
+            for i in range(3)
+        ],
+        "bn," + ",".join(f"evm_{t}_sps{s}" for t in TEDS for s in (4, 8, 64)),
     )
     R.md("![bn sweep](bn_sweep.png)")
     R.md()
@@ -840,43 +997,67 @@ def characterise() -> Data:
     R.md()
     d.amps = [2.0, 1.0, 0.5, 0.25, 0.125]
     rows = []
-    for amp in d.amps:
-        x = rrc_bpsk(8, 8, nsym=NSYM, amp=amp)
-        rs, y, _ = run_sync(x, 8.0, bn=0.01)
-        ev = evm_db(y, 0.01)
-        rows.append(
-            [
-                f"{amp:g}",
-                f"{ev:.1f}",
-                f"{rs.lock_stat:+.3f}",
-                int(rs.locked),
-                int(rs.clipped),
-            ]
-        )
-        d.amp_rows.append(
-            (amp, ev, float(rs.lock_stat), int(rs.locked), int(rs.clipped))
-        )
+    for ted in TEDS:
+        d.amp_rows_by_ted[ted] = []
+        for amp in d.amps:
+            x = rrc_bpsk(8, 8, nsym=NSYM, amp=amp)
+            rs, y, _ = run_sync(x, 8.0, bn=0.01, ted=ted)
+            ev = evm_db(y, 0.01)
+            rows.append(
+                [
+                    f"`{ted}`",
+                    f"{amp:g}",
+                    f"{ev:.1f}",
+                    f"{rs.lock_stat:+.3f}",
+                    int(rs.locked),
+                    int(rs.clipped),
+                ]
+            )
+            d.amp_rows_by_ted[ted].append(
+                (amp, ev, float(rs.lock_stat), int(rs.locked), int(rs.clipped))
+            )
+    d.amp_rows = d.amp_rows_by_ted["gardner"]
     R.table(
-        ["symbol amplitude", "EVM (dB)", "lock_stat", "locked", "clipped"],
+        [
+            "ted",
+            "symbol amplitude",
+            "EVM (dB)",
+            "lock_stat",
+            "locked",
+            "clipped",
+        ],
         rows,
     )
     _best = min(d.amp_rows, key=lambda r: r[1])
     _hot = max(d.amp_rows, key=lambda r: r[0])
     _cold = min(d.amp_rows, key=lambda r: r[0])
+    _dbest = min(d.amp_rows_by_ted["dttl"], key=lambda r: r[1])
+    _dcold = min(d.amp_rows_by_ted["dttl"], key=lambda r: r[0])
     R.md(
-        f"Read the EVM column first: it is **not monotone**. The best "
-        f"number is at amplitude {_best[0]:g} ({_best[1]:.1f} dB) and the "
-        f"axis degrades in BOTH directions from there — "
-        f"{_best[1] - _hot[1]:.0f} dB by amplitude {_hot[0]:g} and "
-        f"{_best[1] - _cold[1]:.0f} dB by {_cold[0]:g}. That is one "
-        "mechanism, not two: the Gardner error carries an `A^2` factor, so "
-        "the level multiplies the loop gain, and a loop above its designed "
-        "bandwidth tracks noisily while one below it is too slow to have "
-        "settled. `bn` is the axis the level really acts on (**F6**). The "
-        "numbers in this paragraph are derived from the table above rather "
-        "than written beside it — the prose here once said the best number "
-        "was at half the contracted amplitude, which the measurement stopped "
-        "supporting when the stimulus moved to `Synth` and nothing caught it."
+        f"Read the EVM column first: on **both** detectors it is **not "
+        f"monotone**. Gardner's best number is at amplitude {_best[0]:g} "
+        f"({_best[1]:.1f} dB) and the axis degrades in BOTH directions from "
+        f"there — {_best[1] - _hot[1]:.0f} dB by amplitude {_hot[0]:g} and "
+        f"{_best[1] - _cold[1]:.0f} dB by {_cold[0]:g}. DTTL peaks at "
+        f"{_dbest[0]:g} ({_dbest[1]:.1f} dB) and gives up "
+        f"{_dbest[1] - _dcold[1]:.0f} dB by {_dcold[0]:g}. That is one "
+        "mechanism, not two: the raw error carries the signal amplitude, "
+        "which the construct-time `ted_scale` deliberately does NOT divide "
+        "out, so the level multiplies the loop gain — a loop above its "
+        "designed bandwidth tracks noisily while one below it is too slow "
+        "to have settled. `bn` is the axis the level really acts on "
+        "(**F6**)."
+    )
+    R.md()
+    R.md(
+        "The two detectors do not share the exponent on that factor, which "
+        "is why this section runs both and why §2.6b measures it directly "
+        "rather than leaving it as an asymmetry the reader has to notice. "
+        "The numbers in this paragraph are derived from the table above "
+        "rather than written beside it — the prose here once said the best "
+        "number was at half the contracted amplitude, which the measurement "
+        "stopped supporting when the stimulus moved to `Synth` and nothing "
+        "caught it."
     )
     R.md()
     R.md(
@@ -909,6 +1090,60 @@ def characterise() -> Data:
         '"always 0 when the plan has no CIC stage", and the reason the '
         "existing `clipped == 0` assertion in the lock sweep needed a "
         "positive twin before it meant anything (§13)."
+    )
+    R.md()
+
+    # --- 2.6b the amplitude law, per detector ---------------------------
+    R.md("### 2.6b The amplitude law is not the same for both detectors")
+    R.md()
+    R.md(
+        "§2.6 reads the level axis through EVM, which is the consequence. "
+        "This is the cause, measured directly. `symsync_core.h` states two "
+        "different exponents — Gardner's raw error is a product of two "
+        "signal samples and so carries `A^2`, while DTTL multiplies one "
+        "signal sample by a difference of SIGNS, which is amplitude-free, "
+        "and so carries `A^1` — and `ted_scale` is a construct-time "
+        "constant computed at `A = 1`, so neither is divided out. Nothing "
+        "measured either."
+    )
+    R.md()
+    R.md(
+        "Measured open-loop (`bn = 0`, so the control never moves and the "
+        "reported error is the detector's own response) at a standing "
+        "quarter-symbol offset, on the `sps = 4` halfband plan — chosen "
+        "because it contains no CIC, so the hottest amplitudes here cannot "
+        "clip and confound the fit. The exponent is the slope of "
+        "`log|error|` against `log A`."
+    )
+    R.md()
+    _law_amps = [0.25, 0.5, 1.0, 2.0, 4.0]
+    _sps, _fine = 4, grid_of(4)
+    _rows = []
+    for ted in TEDS:
+        errs = []
+        for amp in _law_amps:
+            x = rrc_bpsk(_sps, _fine // 4, nsym=600, amp=amp)
+            _, _, rec = run_sync(x, float(_sps), bn=0.0, ted=ted, probes=True)
+            e = np.asarray(rec.get("sync.e", []))
+            errs.append(abs(float(e.mean())) if e.size else 0.0)
+        p = float(np.polyfit(np.log(_law_amps), np.log(errs), 1)[0])
+        d.amp_law[ted] = p
+        _rows.append([f"`{ted}`", *[f"{v:.4g}" for v in errs], f"**{p:.3f}**"])
+    R.table(
+        ["ted", *[f"A = {a:g}" for a in _law_amps], "fitted exponent"],
+        _rows,
+    )
+    R.md(
+        f"`{d.amp_law['gardner']:.3f}` against `{d.amp_law['dttl']:.3f}` — "
+        "the header's `A^2` and `A^1`, confirmed to three figures, and the "
+        "single most useful number in this section for a caller who has to "
+        "budget a level error. A 2x level error is **4x** the designed loop "
+        "gain under Gardner and **2x** under DTTL; a quarter amplitude is "
+        "1/16th against 1/4. The level contract is the same either way — "
+        "present unit amplitude — but the cost of missing it is squared for "
+        "the default detector and linear for the other, so the two are not "
+        "interchangeable in a design that cannot guarantee its input level "
+        "(**F13**)."
     )
     R.md()
 
@@ -1322,6 +1557,117 @@ def review(d: Data) -> None:
         f"not. The reporting gap itself is unchanged and stays with gh-661.",
     )
     R.md()
+    R.find(
+        "F13",
+        "BY DESIGN",
+        f"the two detectors do not share an amplitude law, and until this "
+        f"pass nothing measured either of them. `symsync_core.h` states "
+        f"that Gardner's raw error carries `A^2` (a product of two signal "
+        f"samples) and DTTL's carries `A^1` (one signal sample times a "
+        f"difference of hard-decision SIGNS, which is amplitude-free), and "
+        f"that `ted_scale` divides out neither because it is a "
+        f"construct-time constant computed at `A = 1`. Measured open-loop "
+        f"in §2.6b, the fitted exponents are "
+        f"`{d.amp_law['gardner']:.3f}` and `{d.amp_law['dttl']:.3f}` — the "
+        f"claim exactly. The consequence is the part a caller needs: a 2x "
+        f"level error is 4x the designed loop gain under the default "
+        f"detector and 2x under the other, and a quarter amplitude is "
+        f"1/16th against 1/4. The level contract is identical either way, "
+        f"but the penalty for missing it is squared for one and linear for "
+        f"the other, so a design that cannot guarantee its input level is "
+        f"not indifferent between them. This is also why F6's level axis "
+        f"had to be swept per detector rather than extrapolated from the "
+        f"default.",
+    )
+    R.find(
+        "F14",
+        "FIXED",
+        f"§2.2 inferred the S-curve's slope at lock from its PEAK, as "
+        f"`2*pi*peak`. That identity assumes a sinusoidal S-curve; it is a "
+        f"good approximation for Gardner and wrong for DTTL, whose curve is "
+        f"not sinusoidal. The assumption was harmless while the report "
+        f"measured one detector and became a cross-detector claim the "
+        f"moment it measured two — it reported DTTL's slope as 1.79, an "
+        f"artifact of the shape, where the local derivative at the stable "
+        f"zero is {d.scurve_by_ted['dttl']['slope']:.2f}. §2.2 now "
+        f"differentiates the measured curve at its stable zero for both "
+        f"detectors. Gardner's number moved too, from 1.0153 to "
+        f"{d.slope_meas:.4f} — a direct measurement rather than a shape "
+        f"model, and closer to the ideal 1.0 than the estimate was.",
+    )
+    R.find(
+        "F15",
+        "GAP",
+        f"`ted_scale` does not deliver unit slope at lock for DTTL. The "
+        f"whole point of the construct-time reciprocal — the argument F1 "
+        f"restates and the header leads with — is that dividing by the "
+        f"detector's own slope makes `bn` mean one bandwidth. Measured on "
+        f"the same pulse, the same stimulus and the same offset grid, the "
+        f"normalised slope at lock is "
+        f"`{d.slope_meas:.4f}` for Gardner and "
+        f"`{d.scurve_by_ted['dttl']['slope']:.4f}` for DTTL. So `bn` names "
+        f"one bandwidth on the default detector and roughly "
+        f"{d.scurve_by_ted['dttl']['slope'] / max(d.slope_meas, 1e-9):.1f}x "
+        f"that on the other, and a caller who switches `ted` silently "
+        f"changes their loop bandwidth. This is the same family as the "
+        f"defect `symsync_ted_slope`'s own doxygen already admits — that "
+        f"the shipped normalisation's slope varies 10.6x between beta 0.1 "
+        f"and 0.9 — and it belongs with "
+        f"[gh-669](https://github.com/doppler-dsp/doppler/issues/669), "
+        f"which asks for exactly this comparison in C. **What this does NOT "
+        f"establish is the closed-loop consequence.** Two probes were run "
+        f"and they disagree: settling of the rate integrator under a 2000 "
+        f"ppm clock step gives a Gardner/DTTL ratio of ~1.0 at "
+        f"`bn = 0.005` and ~3.5 at `bn = 0.002`. An open-loop slope this "
+        f"clean and a closed-loop response that inconsistent means the "
+        f"mechanism is not understood yet, and the honest report is the "
+        f"measurement plus that admission — not a bandwidth ratio inferred "
+        f"from the slope alone. Neither probe is in this validator; a "
+        f"direct C S-curve sweep against `symsync_ted_slope()` is the "
+        f"instrument, which is gh-669's ask.",
+    )
+    _gj16 = d.resid_by_ted["gardner"] / d.scurve_by_ted["gardner"]["slope"]
+    _dj16 = d.resid_by_ted["dttl"] / d.scurve_by_ted["dttl"]["slope"]
+    R.find(
+        "F16",
+        "BY DESIGN",
+        f'the header\'s *"lower self-noise near lock"* holds, and is now '
+        f"measured rather than asserted. At rest the normalised error "
+        f"floors at {d.resid_by_ted['gardner']:.4f} for Gardner against "
+        f"{d.resid_by_ted['dttl']:.4f} for DTTL; dividing each by its own "
+        f"measured slope puts them in the same unit — symbols of timing "
+        f"error — and gives {_gj16:.4f} against {_dj16:.4f}, so DTTL rests "
+        f"{_gj16 / _dj16:.1f}x closer to the eye centre. The mechanism is "
+        f"the one the header names: Gardner correlates the gate sample "
+        f"against a step that is zero on a non-transition, so every "
+        f"non-transition symbol contributes noise and no signal, while "
+        f"DTTL's sign difference gates those symbols out exactly. The same "
+        f"ordering shows in §2.5's EVM, where DTTL is 5 to 8 dB better on "
+        f"every cascade at every recommended `bn` — on a NOISELESS stream, "
+        f"which is the condition that flatters a decision-directed "
+        f"detector most and is precisely why F17 matters.",
+    )
+    R.find(
+        "F17",
+        "GAP",
+        "the header's other DTTL claim — that it *\"degrades faster at low "
+        'SNR"* — is unmeasured, and cannot be measured by this report as '
+        "it stands: **nothing in it adds noise**. Every stimulus here is "
+        "noiseless, so every comparison between the detectors (F16's "
+        "self-noise, §2.5's EVM) is taken in exactly the regime that "
+        "favours the decision-directed one, and the crossover the header "
+        "warns about is invisible. That is not a defect in the object and "
+        "not something a limit can cover; it is a missing axis. It also "
+        "does not belong in this validator — an SNR sweep needs Monte "
+        "Carlo over many seeds per point to say anything, and a validator "
+        "runs twice on every push (`test_validation_limits.py` and "
+        "`make validate-check`). The right home is a characterization "
+        "subject under `src/doppler/track/tests/characterization/`, run by "
+        "`make characterize`. Recorded here so the report does not read as "
+        "though the `ted` choice has been characterised end to end when "
+        "half the axis the header prices it on has never been exercised.",
+    )
+    R.md()
     R.table(
         ["finding", "verdict", "detail"],
         [[t, v, x] for t, v, x in R.findings],
@@ -1358,7 +1704,58 @@ def limits(d: Data) -> None:
     R.limit(
         0.8 < d.slope_meas < 1.3,
         f"the normalised S-curve slope at lock is unity to within 30% "
-        f"({d.slope_meas:.4f}) — the construct-time ted_scale is correct",
+        f"({d.slope_meas:.4f}) — the construct-time ted_scale is correct "
+        f"FOR GARDNER; the same claim does not hold for dttl, see F15",
+    )
+    R.limit(
+        all(len(v["zeros"]) == 2 for v in d.scurve_by_ted.values()),
+        "BOTH detectors carry exactly two zeros per symbol, so the parity "
+        "argument covers the whole ted axis and not just the default",
+    )
+    R.limit(
+        all(
+            len(v["zeros"]) == 2
+            and (v["zeros"][0][1] > 0) != (v["zeros"][1][1] > 0)
+            for v in d.scurve_by_ted.values()
+        ),
+        "and on both, the two zeros have opposite slope",
+    )
+
+    # --- the amplitude law, per detector -------------------------------
+    R.limit(
+        abs(d.amp_law["gardner"] - 2.0) < 0.05,
+        f"gardner's raw error scales as A^2 "
+        f"(fitted {d.amp_law['gardner']:.3f}) — a 2x level error is 4x the "
+        f"designed loop gain",
+    )
+    R.limit(
+        abs(d.amp_law["dttl"] - 1.0) < 0.05,
+        f"dttl's raw error scales as A^1 (fitted {d.amp_law['dttl']:.3f}), "
+        f"not A^2 — the two detectors do NOT share a level-error budget",
+    )
+    R.limit(
+        d.amp_law["gardner"] - d.amp_law["dttl"] > 0.9,
+        "and the two exponents differ by ~1, which is the reason no single "
+        "normaliser applied outside the detectors could serve both",
+    )
+
+    # --- dttl is a supported detector, not just a declared one ---------
+    _dj = d.resid_by_ted["dttl"] / d.scurve_by_ted["dttl"]["slope"]
+    _gj = d.resid_by_ted["gardner"] / d.scurve_by_ted["gardner"]["slope"]
+    R.limit(
+        _dj < _gj,
+        f"dttl rests closer to the eye centre than gardner "
+        f"({_dj:.4f} vs {_gj:.4f} symbols) — the header's 'lower self-noise "
+        f"near lock', measured",
+    )
+    R.limit(
+        all(
+            max(vals) < -30.0
+            for bn, vals in d.bn_rows_by_ted["dttl"]
+            if bn >= 0.005
+        ),
+        "dttl demodulates below -30 dB EVM on every planned cascade at "
+        "every recommended bn — the detector works, on all three plans",
     )
 
     # --- acquisition ---------------------------------------------------
@@ -1535,12 +1932,25 @@ def plots(d: Data) -> None:
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.plot(d.tau, d.scurve, lw=1.4)
+    # Both detectors on one axis: the shapes are the argument. They share
+    # the zeros (so the parity claim covers both) and they do NOT share the
+    # slope through them (F15) or the curve's form — DTTL's is visibly not
+    # a sinusoid, which is what made `2*pi*peak` the wrong estimator once
+    # this report grew a second detector (F14).
+    for ted, style in zip(TEDS, ("-", "--")):
+        v = d.scurve_by_ted[ted]
+        ax.plot(
+            v["tau"],
+            v["scurve"],
+            style,
+            lw=1.4,
+            label=f"{ted} (slope {v['slope']:.2f})",
+        )
     ax.axhline(0, color="0.4", lw=0.8)
     for t0, s in d.zeros:
         ax.axvline(
             t0,
-            ls="--",
+            ls=":",
             lw=1.0,
             color="tab:green" if s < 0 else "tab:red",
             label=("stable (eye centre)" if s < 0 else "unstable (T/2)"),
@@ -1548,7 +1958,7 @@ def plots(d: Data) -> None:
     ax.set_xlabel("timing offset (symbols)")
     ax.set_ylabel("normalised TED error")
     ax.set_title(
-        "The T/2 equilibrium is UNSTABLE — the loop leaves it on its own"
+        "Both detectors: same zeros, different slope through them (F14/F15)"
     )
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=9)

@@ -60,14 +60,14 @@ folder exists. There is no list here to update.
 
 **6 of 71 objects certified.** The denominator is every `objects/*.toml` jm fragment, which is the whole object surface — not every one of them is a DSP object with an envelope worth certifying, so read it as a ceiling rather than a target.
 
-| object                                                                                                              | module     | limits | findings | still open |
-| ------------------------------------------------------------------------------------------------------------------- | ---------- | ------ | -------- | ---------- |
-| [AGC](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/agc/tests/validation/agc/results.md)             | `agc`      | 18/18  | 6        | 2 — F4, F6 |
-| [resamp](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/resample/tests/validation/resamp/results.md)  | `resample` | 14/14  | 9        | none       |
-| [LO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/lo/results.md)            | `source`   | 26/26  | 9        | none       |
-| [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)          | `source`   | 18/18  | 9        | none       |
-| [RateSync](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/ratesync/results.md) | `track`    | 26/26  | 12       | 1 — F7     |
-| [EMA](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/util/tests/validation/ema/results.md)            | `util`     | 15/15  | 6        | none       |
+| object                                                                                                              | module     | limits | findings | still open       |
+| ------------------------------------------------------------------------------------------------------------------- | ---------- | ------ | -------- | ---------------- |
+| [AGC](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/agc/tests/validation/agc/results.md)             | `agc`      | 18/18  | 6        | 2 — F4, F6       |
+| [resamp](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/resample/tests/validation/resamp/results.md)  | `resample` | 14/14  | 9        | none             |
+| [LO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/lo/results.md)            | `source`   | 26/26  | 9        | none             |
+| [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)          | `source`   | 18/18  | 9        | none             |
+| [RateSync](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/ratesync/results.md) | `track`    | 33/33  | 17       | 3 — F7, F15, F17 |
+| [EMA](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/util/tests/validation/ema/results.md)            | `util`     | 15/15  | 6        | none             |
 
 <!-- validation-log:end -->
 

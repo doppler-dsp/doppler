@@ -380,6 +380,21 @@ main (void)
         = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
     DP_CHECK (symsync_configure_lock (s, 0.35, 10.0, 1e-3, 0.9) == DP_OK);
     DP_CHECK (s->avgs > 0);
+    /* Pin the DERIVED VALUES, not merely that they are positive. `avgs > 0`
+       passes on any formula at all, including a wrong one -- and this pair is
+       the whole output of the sizing chain. At the defaults (rolloff 0.35,
+       Es/N0 10 dB, pfa 1e-3, pd 0.9) the per-look mean is 0.4399539 and
+       SYMSYNC_LOCK_STAT_VARIANCE is 1.343, giving: */
+    DP_CHECK (s->avgs == 133);
+    DP_CHECK (fabs (s->lock.up_thresh - 0.310985128970) < 1e-9);
+    /* Sensitivity, so the pin above cannot be satisfied by constants: a
+       stricter budget costs looks and raises the bar, a stronger signal
+       (higher Es/N0 -> larger mean) buys both back. */
+    DP_CHECK (symsync_configure_lock (s, 0.35, 10.0, 1e-6, 0.99) == DP_OK);
+    DP_CHECK (s->avgs > 133);
+    DP_CHECK (symsync_configure_lock (s, 0.35, 20.0, 1e-3, 0.9) == DP_OK);
+    DP_CHECK (s->avgs < 133);
+    DP_CHECK (symsync_configure_lock (s, 0.35, 10.0, 1e-3, 0.9) == DP_OK);
     DP_CHECK (symsync_configure_lock (s, 0.35, 10.0, 0.0, 0.9)
               == DP_ERR_INVALID);
     DP_CHECK (symsync_configure_lock (s, 0.35, 10.0, 1.0, 0.9)

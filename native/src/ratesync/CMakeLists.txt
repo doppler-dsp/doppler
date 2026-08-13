@@ -18,6 +18,7 @@ target_link_libraries(ratesync_core PUBLIC
     symsync_core
     nco_core
     farrow_core
+    detection_core
     pn_core)
 
 add_executable(test_ratesync_core
@@ -37,6 +38,7 @@ target_link_libraries(test_ratesync_core
     symsync_core
     nco_core
     farrow_core
+    detection_core
     pn_core
     m)
 target_include_directories(test_ratesync_core
@@ -61,6 +63,7 @@ target_link_libraries(bench_ratesync_core
     symsync_core
     nco_core
     farrow_core
+    detection_core
     pn_core
     m)
 target_include_directories(

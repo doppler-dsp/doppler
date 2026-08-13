@@ -120,9 +120,75 @@ with a perfectly healthy lock — nothing in the timing metrics reveals it. That
 is exactly why the flag exists.
 
 One tuning note: use `m >= 4` with `pulse="iandd"`. The rectangle is one symbol
-wide, so at `m = 2` its matched filter is a two-tap sum and the eye barely opens
-(`lock_stat` −0.34 at m=2 against +0.95 at m=4 on the same NRZ stream). The RRC
-spans many symbols and is unaffected.
+wide, so at `m = 2` its matched filter is a two-tap sum and the eye barely
+opens — measured on an NRZ stream, `m = 2` does not clear the lock detector's
+own declare threshold while `m = 4` clears it comfortably, with tens of dB of
+EVM between them. The rule rests on that separation, not on a particular pair
+of `lock_stat` values: those move with `sps` and with the stream. The RRC spans
+many symbols and is unaffected.
+
+## Choosing a detector
+
+`ted` is the one knob here whose two settings are both correct, so it is a
+choice rather than a default. The demo recovers the same stream with each:
+
+```python
+--8<-- "src/doppler/examples/ratesync_demo.py:ted"
+```
+
+|                               | `gardner` (default)                   | `dttl`                                                                                            |
+| ----------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| kind                          | blind                                 | decision-directed                                                                                 |
+| constellations                | any                                   | BPSK/QPSK only                                                                                    |
+| self-noise near lock          | pays on every non-transition symbol   | gates those out — rests ~6x closer to the eye centre on a noiseless stream                        |
+| does `bn` mean one bandwidth? | yes — flat across roll-off            | **no** — varies ~8x over beta 0.1–0.9 ([#669](https://github.com/doppler-dsp/doppler/issues/669)) |
+| level error costs             | `A²` — a 2x error is 4x the loop gain | `A¹` — a 2x error is 2x                                                                           |
+
+At a realistic Es/N0 the noise dominates and the two reach the same EVM, which
+is what the demo asserts. DTTL's advantage is a *self-noise* advantage, so it
+shows where self-noise is what is left. Start with `gardner`.
+
+## The C composition API
+
+RateSync splits into a cascade and a timing loop so a receiver can inline the
+per-sample step into its own loop rather than calling a block API — which is
+exactly what `MpskReceiver` does, steering the same accumulator through its
+DDC's `rate_ctrl` port. The object form is the same call from C:
+
+```c
+#include <ratesync/ratesync_core.h>
+#include <complex.h>
+#include <stdio.h>
+
+int main(void)
+{
+    /* 17.33389 samples/symbol -- a free-running ADC clock against the
+       symbol clock -- RRC beta 0.35 span 8, m = 2 outputs/symbol, a
+       1024-arm bank, bn 0.01, zeta 0.707, blind Gardner detector. */
+    ratesync_state_t *rs = ratesync_create(17.33389, RATESYNC_PULSE_RRC,
+                                           0.35, 8, 2, 1024, 0.01, 0.707,
+                                           RATESYNC_TED_GARDNER);
+    if (!rs)
+        return 1;
+
+    float complex x[4096];
+    for (int i = 0; i < 4096; i++)
+        x[i] = 0.0f;  /* your baseband goes here */
+
+    /* One input in, at most one symbol out. This is the call a receiver
+       inlines; ratesync_steps() is the block form over the same body. */
+    float complex sym;
+    long got = 0;
+    for (int i = 0; i < 4096; i++)
+        if (ratesync_step(rs, x[i], &sym))
+            got++;
+
+    printf("%ld symbols, rate %.5f, locked %d\n", got,
+           ratesync_get_rate(rs), ratesync_get_locked(rs));
+    ratesync_destroy(rs);
+    return 0;
+}
+```
 
 `SymbolSync` is unchanged and remains the right answer when the matched filter
 is not one this family builds, or when the front end is already at a small

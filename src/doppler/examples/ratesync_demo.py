@@ -88,6 +88,16 @@ def make_signal(sps, tau=0.37, seed=7, es_n0_db=ES_N0_DB):
     peak backoff was also a hand-rolled AGC: a peak detector with no loop
     and no time constant.
 
+    That ``A^2`` is **Gardner's exponent, not the object's**: the two
+    detectors do not share an amplitude law. Gardner's raw error is a
+    product of two signal samples and carries ``A^2``; DTTL's multiplies
+    one signal sample by a difference of hard-decision SIGNS, which is
+    amplitude-free, so it carries ``A^1``. Both are measured -- fitted
+    2.000 and 1.000 -- in section 2.6b of the validation report. The level
+    CONTRACT is the same either way, but the penalty for missing it is
+    squared for the default detector and linear for the other, so the same
+    0.158 mistake above would have cost ~6x rather than ~40x under DTTL.
+
     The CIC's input bound is **2.0**, not 1.0 -- ``CIC_PAPR_HEADROOM``
     reserves exactly the 6 dB a unit-amplitude RRC's 1.582 peak needs, so
     the contracted level fits with margin. What does not fit is the NOISE:
@@ -172,6 +182,47 @@ def track_rate(sps, chunk=4096):
         rates.append(obj.rate)
     return np.array(rates)
 
+
+# --8<-- [start:ted]
+def compare_detectors(rx_signal=None):
+    """Recover the same stream with each timing-error detector.
+
+    `ted` is the one knob on this object whose two settings are both
+    correct, so it is a CHOICE rather than a default -- and a demo that
+    only ever builds the default leaves a caller with no way to make it.
+
+    Returns ``{name: (evm_db, lock_stat, locked)}``.
+    """
+    rx_signal = rx if rx_signal is None else rx_signal
+    out = {}
+    for name in ("gardner", "dttl"):
+        obj = RateSync(
+            sps=SPS, pulse="rrc", beta=BETA, span=SPAN, m=2, bn=BN, ted=name
+        )
+        y = np.asarray(obj.steps(rx_signal))
+        out[name] = (_evm_db(y), float(obj.lock_stat), bool(obj.locked))
+    return out
+
+
+# How to choose, given both lock and (at this Es/N0) both land on the
+# matched-filter floor:
+#
+#   gardner  blind. Works for any constellation, and its `bn` means the
+#            same loop bandwidth at every roll-off -- measured flat across
+#            beta 0.1 to 0.9. The default, and the safe one.
+#   dttl     decision-directed. Lower self-noise near lock: on a NOISELESS
+#            stream it rests ~6x closer to the eye centre, because Gardner
+#            pays a self-noise cost on every non-transition symbol and DTTL
+#            gates those out. Costs: BPSK/QPSK only (it assumes rectangular
+#            I/Q decision boundaries), and its effective loop bandwidth
+#            currently varies ~8x across the roll-off range, so `bn` does
+#            NOT mean one bandwidth for it -- doppler#669.
+#
+# The EVM the two reach HERE is the same, and that is the point worth
+# taking away: at a realistic Es/N0 the noise dominates and the detector
+# choice does not move the number. DTTL's advantage is a self-noise
+# advantage, so it shows where self-noise is what is left.
+# --8<-- [end:ted]
 
 # --8<-- [start:cost]
 from doppler.resample import MatchedRateConverter  # noqa: E402
@@ -347,10 +398,29 @@ def main(out_path="ratesync_demo.png"):
     assert input_taps[-1] > 50 * cascade_taps[-1], (
         f"input-rate filter only {input_taps[-1]} taps vs {cascade_taps[-1]}"
     )
+    # The `ted` axis. Both settings are correct, so both must demonstrate
+    # it: each locks, and each reaches the same matched-filter bound. The
+    # SAMENESS is the claim -- at this Es/N0 the noise dominates and the
+    # detector choice does not move EVM, which is what stops a reader
+    # taking DTTL's noiseless self-noise advantage as a free win.
+    dets = compare_detectors()
+    for name, (d_evm, d_lock, d_locked) in dets.items():
+        assert d_locked, f"{name} never locked (lock_stat {d_lock:.3f})"
+        assert abs(d_evm - floor) < 1.5, (
+            f"{name} EVM {d_evm:.1f} dB is not at the {floor:.1f} dB "
+            f"matched-filter bound"
+        )
+    assert abs(dets["gardner"][0] - dets["dttl"][0]) < 1.0, (
+        f"the two detectors disagree by "
+        f"{abs(dets['gardner'][0] - dets['dttl'][0]):.1f} dB at "
+        f"Es/N0 {ES_N0_DB:g} dB, where both should be noise-limited"
+    )
     print(
         f"validated: locked (lock_stat {sync.lock_stat:.3f}), rate "
         f"{sync.rate:.5f} vs true {target:.5f}, EVM {evm:.1f} dB "
         f"({evm - floor:+.1f} dB from the {floor:.1f} dB bound), "
+        f"ted gardner {dets['gardner'][0]:.1f} / dttl "
+        f"{dets['dttl'][0]:.1f} dB (both noise-limited here), "
         f"bank {cascade_taps[0]} taps/arm at every sps "
         f"(vs {input_taps[-1]} at the input rate, sps=256)"
     )

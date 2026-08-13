@@ -21,6 +21,7 @@
 #include "nco/nco_core.h"
 #include "dp_tlm/dp_tlm_core.h"
 #include "telemetry/telemetry_core.h"
+#include "detection/detection_core.h"
 #ifdef __cplusplus
 extern "C"
 {

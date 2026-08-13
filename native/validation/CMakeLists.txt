@@ -121,3 +121,12 @@ target_link_libraries(validate_symsync_lock PRIVATE doppler_lib_static m)
 target_compile_options(validate_symsync_lock PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_symsync_lock
          COMMAND validate_symsync_lock --check)
+
+add_executable(validate_carrier_nda_lock
+               ${CMAKE_CURRENT_SOURCE_DIR}/carrier_nda_lock.c)
+target_include_directories(validate_carrier_nda_lock
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_carrier_nda_lock PRIVATE doppler_lib_static m)
+target_compile_options(validate_carrier_nda_lock PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_carrier_nda_lock
+         COMMAND validate_carrier_nda_lock --check)

@@ -336,8 +336,15 @@ export CMAKE_BUILD_PARALLEL_LEVEL = $(NPROC)
 # `build` (standard.mk's, extended here by prerequisite) so a clone gets it
 # from the first build. `ln -sfn` is idempotent, and re-running while the
 # link dangles — before the first configure — is harmless.
+#
+# It is a real file target rather than a .PHONY, so make skips it once the
+# link is there. That also means `help-check` sees it: the target is listed in
+# LOCAL_TARGETS and carries a `##` description like any other. Worth knowing
+# why it has to be — help-check skips a file target that EXISTS, and this one
+# is gitignored, so it exists on every developer's box and on no fresh
+# checkout. Undocumented, it passes locally and fails only in CI.
 build: compile_commands.json
-compile_commands.json:
+compile_commands.json: ## Link the compilation database to the build tree
 	@ln -sfn $(BUILD_DIR)/compile_commands.json $@
 
 # Re-configures with BUILD_PYTHON=ON (default is OFF for C-only builds), then
@@ -651,6 +658,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 abi-check link-check consumer-faces-check \
                 glibc-check glibc-gate specan-check check-isotime-parity \
                 tests-ssot validation-report-check hook-dispatch-check \
+                compile_commands.json \
                 install-docs-deps \
                 wheel-check wheel-smoke release-smoke \
                 bench-interleaved bench-publish bench-docs bench-stream \

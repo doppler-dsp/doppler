@@ -154,7 +154,21 @@ LINT_ruff-format = $(RUFF) format $(RUFF_PATHS)
 # jm project living in-tree with its own native/inc, and an anchored pattern
 # misses it — clang-format then ping-pongs with jm over its generated headers
 # forever. vendor/ is the pristine upstream FFT cores (pocketfft / PFFFT).
-C_EXCLUDE_RE = (^|/)(native/inc/|vendor/)|_ext\.c$$
+#
+# jm_bench.h and jm_test.h joined that list once jm 0.59.0 could SAY they had
+# diverged. They are jm's create-only files, exactly like the jm_*.h under
+# native/inc/ — the only reason they were formatted is that they live under
+# native/benchmarks/ and native/tests/, which the path pattern above never
+# reached. The cost was invisible until gh-949: `jm status` reported
+# jm_bench.h as OUTDATED on a tree whose content is byte-identical to jm's,
+# because doppler's own formatter had rewritten it from K&R to GNU. Measured
+# — strip all whitespace from both and the hashes match. Its siblings under
+# native/inc/ were absent from that same report, which is the control.
+#
+# So the exclusion is what makes the new signal mean something: with these
+# formatted, OUTDATED fires forever on a file nobody needs to act on, and a
+# real upstream change would arrive into a line already being ignored.
+C_EXCLUDE_RE = (^|/)(native/inc/|vendor/)|(^|/)jm_(bench|test)\.h$$|_ext\.c$$
 
 C_FILES = git ls-files '*.c' '*.h' | grep -Ev '$(C_EXCLUDE_RE)'
 
@@ -507,7 +521,18 @@ COV_PATCH_MIN ?= 90
 # first-party _core.c counts. `native/src/app/` (the wfmgen CLI) is excluded
 # too: its body is an OBJECT lib compiled into BOTH the executable and a `.so`,
 # but the report attributes only to the `.so`, whose copy is never executed.
-COV_IGNORE    ?= (^|/)(vendor|build|build-cov|native/src/app)/|_ext(_[a-z0-9_]+)?\.c$$|/(tests|benchmarks)/
+#
+# `jm_*.h` is vendored code that simply was not listed. It stayed invisible
+# because the patch gate only sees lines a branch CHANGES, and nothing had
+# changed one until the 0.58.0 re-vendor — which added jm's `jm_dot_f32` /
+# `jm_dot_f64` inline helpers, 22 uncovered lines doppler does not call, and
+# failed `coverage-gate` at 18.5% on a header doppler does not write. The
+# `jm_` prefix is deliberately narrow: `native/inc/` is otherwise doppler's own
+# (`dp_simd.h`, `dp_state.h`, every `*_core.h`) and those inline bodies must
+# stay measured. Only jm's own inline functions lose attribution, and the SIMD
+# MACROS doppler actually uses are unaffected — a macro expands at its call
+# site and is attributed to the `.c` that used it.
+COV_IGNORE    ?= (^|/)(vendor|build|build-cov|native/src/app)/|(^|/)jm_[a-z]+\.h$$|_ext(_[a-z0-9_]+)?\.c$$|/(tests|benchmarks)/
 
 # Preflight: can this toolchain link an instrumented binary at all? Without
 # it the build compiles every object and dies at the FIRST LINK with "cannot

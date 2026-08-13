@@ -1,0 +1,103 @@
+---
+# clang-tidy config for a just-makeit project's C sources.
+#
+# Run it with `make tidy`, which refreshes compile_commands.json first — tidy
+# cannot do anything useful without a compile database, and a stale one lints
+# the project you had last week.
+#
+# Strategy: start clean (-*), opt in to three families:
+#   bugprone-*        real bugs and suspicious patterns
+#   cert-*            CERT C secure coding rules
+#   clang-analyzer-*  static analyzer (null deref, leaks, uninit)
+#
+# C++-only checks in those families are explicitly suppressed below.
+# modernize-*, cppcoreguidelines-*, performance-* are C++-centric — skipped.
+#
+# Two kinds of tuning below, and the difference matters:
+#
+#   - checks turned OFF because they are wrong ABOUT THIS CODE. jm's module
+#     layout and CPython's own idioms trip them on every project, forever.
+#     Each is named with the construct it misfires on.
+#   - checks left ON. jm's generated C reported real findings when this file
+#     was added (gh-944): a leaked benchmark allocation, an unclosed stream,
+#     sixteen reserved identifiers. Those were FIXED rather than suppressed,
+#     which is why `WarningsAsErrors` can be set at all — see below.
+#
+# Two NOLINT regions exist in generated headers, each naming one check and the
+# construct it misfires on. Neither is a blanket suppression.
+
+Checks: >-
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  readability-misleading-indentation,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -cert-dcl50-cpp,
+  -cert-err58-cpp,
+  -cert-msc50-cpp,
+  -cert-msc51-cpp,
+  -cert-msc54-cpp,
+  -cert-oop54-cpp,
+  -cert-oop57-cpp,
+  -cert-oop58-cpp,
+  -bugprone-suspicious-include,
+  -bugprone-casting-through-void,
+  -cert-err33-c,
+
+# Why the last three are off:
+#
+#   bugprone-suspicious-include   A multi-object module's _ext.c does
+#                                 `#include "<mod>_ext_<obj>.c"` to pull each
+#                                 object's bindings into one translation unit.
+#                                 That is the layout, not an accident, so the
+#                                 check fires on every module jm generates.
+#
+#   bugprone-casting-through-void `(PyCFunction)(void *)Fn` in a PyMethodDef is
+#                                 the documented CPython idiom for a
+#                                 METH_VARARGS|METH_KEYWORDS handler. The
+#                                 check's advice is `reinterpret_cast`, which
+#                                 is not available in C.
+#
+#   cert-err33-c                  Generated tests and benchmarks print
+#                                 progress with printf/fprintf and do not
+#                                 check the return. Worth re-enabling in a
+#                                 project that does real I/O — it is a genuine
+#                                 rule, just not one scaffold boilerplate
+#                                 answers.
+
+# Every finding is an error. A generated project reports clean today -- that
+# is measured, not assumed: `make tidy` on a scaffold with --perf, a module,
+# a standalone object and a C app returns zero (gh-944).
+#
+# It was off while jm's own generated C still had findings, because a
+# `make tidy` that fails on a project you just created is the fastest way to
+# teach someone never to run it. That is fixed, so this is a real gate now.
+#
+# If a newer clang-tidy adds a check that fires on generated code, comment
+# this out rather than working around the diagnostic -- this file is yours
+# (just-makeit writes it once and never rewrites it), and a scaffold going red
+# on a toolchain bump is not your bug to fix.
+WarningsAsErrors: "*"
+
+# Only report diagnostics for this project's headers, not system or
+# third-party ones. Widen this if you add a header tree of your own.
+#
+# All THREE directories just-makeit writes headers into, not just native/inc/.
+# It was inc-only, which silently exempted the two shared harness headers --
+# native/benchmarks/jm_bench.h and native/tests/jm_test.h -- from every check
+# here. A filter that excludes a directory the generator actually uses is a
+# check that covers less than it claims, which is the failure this config was
+# added to fix (gh-941), one level in.
+HeaderFilterRegex: "native/(inc|tests|benchmarks)/.*"
+
+# Apply the project's clang-format style to suggested fixes.
+FormatStyle: file
+
+# readability-function-size is deliberately NOT enabled. It was, with an
+# 80-line / 10-branch threshold carried over from a hand-written DSP codebase
+# where "the algorithm should be tight" is a real review standard. Generated
+# argument-parsing glue is not hand-written and legitimately runs longer, so
+# the check fired on jm's own output — a size opinion about code its author
+# does not maintain. Add it back with your own thresholds if you want it.

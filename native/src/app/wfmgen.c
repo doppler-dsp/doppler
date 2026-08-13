@@ -403,6 +403,31 @@ static const char USAGE[]
       "  wfmgen json-template scene.json  # generate skeleton\n"
       "  wfmgen --from-file scene.json --output scene.cf32\n";
 
+/* The five heap fields a parsed source can own. The composer deep-copies
+ * everything it is handed, so these are always the CLI's own copies and are
+ * always ours to free — on the success path and, via `done:`, on every early
+ * exit. Nulled after freeing so a double call is harmless.
+ *
+ * It exists because the frees were previously written out once, at the end of
+ * the success path only: 28 early returns walked past them, which is the five
+ * clang-analyzer unix.Malloc findings this file carried. */
+static void
+source_free (wfm_source_t *s)
+{
+  free (s->bits);
+  free (s->symbols);
+  free (s->acq_code);
+  free (s->data_code);
+  free (s->sync);
+  /* Nulled individually, not chained: `symbols` is float complex * while the
+     rest are uint8_t *, so a chain would be an incompatible assignment. */
+  s->bits      = NULL;
+  s->symbols   = NULL;
+  s->acq_code  = NULL;
+  s->data_code = NULL;
+  s->sync      = NULL;
+}
+
 /* The CLI's whole body lives here as a plain callable (argv in, exit-code out)
  * so it can be archived into libdoppler and invoked by a downstream linker —
  * the `wfmgen` binary is a one-line `main` shim over it (wfmgen_main.c).
@@ -410,11 +435,19 @@ static const char USAGE[]
  * It is a flat, single-pass argv dispatcher: one else-if arm per flag. The
  * length is inherent to the surface area, and splitting the chain across
  * helpers would scatter the parse with no readability gain — hence the
- * function-size suppression. */
+ * function-size suppression.
+ *
+ * Every failure exits through `done:`, which frees the parsed source and
+ * destroys the composer. `comp` and `rc` are therefore declared here rather
+ * than at first use: a `goto` that jumps past a declaration leaves it
+ * uninitialised, and the label reads both. */
 int
 doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
                 char *argv[])
 {
+  wfm_compose_state_t *comp = NULL; /* wfm_compose_destroy tolerates NULL */
+  int                  rc   = 0;
+
   /* --help / --version short-circuit before any spec is built, so they work
    * regardless of the other flags and never leak a partially-parsed source. */
   for (int i = 1; i < argc; i++)
@@ -506,7 +539,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
   if (!(v))                                                                   \
     {                                                                         \
       (void)fprintf (stderr, "error: %s requires a value\n", a);              \
-      return 2;                                                               \
+      rc = 2;                                                                 \
+      goto done;                                                              \
     }
 /* NB: the internal index is named `choice_idx_` (not `idx`) so it cannot
  * shadow a caller variable of the same name — `CHOICE(idx, DATA_MODES)` with a
@@ -524,7 +558,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
       if (choice_idx_ < 0)                                                    \
         {                                                                     \
           (void)fprintf (stderr, "error: bad value for %s\n", a);             \
-          return 2;                                                           \
+          rc = 2;                                                             \
+          goto done;                                                          \
         }                                                                     \
       (dst) = choice_idx_;                                                    \
     }                                                                         \
@@ -573,7 +608,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
           if (src.rrc_beta <= 0.0 || src.rrc_beta > 1.0)
             {
               (void)fprintf (stderr, "error: --rrc-beta must be in (0, 1]\n");
-              return 2;
+              rc = 2;
+              goto done;
             }
         }
       else if (!strcmp (a, "--rrc-span"))
@@ -593,7 +629,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
           if (!src.bits)
             {
               (void)fprintf (stderr, "error: --bits expects a 0/1 string\n");
-              return 2;
+              rc = 2;
+              goto done;
             }
         }
       else if (!strcmp (a, "--bits-hex"))
@@ -605,7 +642,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
             {
               (void)fprintf (stderr,
                              "error: --bits-hex expects a hex string\n");
-              return 2;
+              rc = 2;
+              goto done;
             }
         }
       else if (!strcmp (a, "--bits-file"))
@@ -615,7 +653,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
           if (!text)
             {
               (void)fprintf (stderr, "error: cannot read --bits-file %s\n", v);
-              return 1;
+              rc = 1;
+              goto done;
             }
           free (src.bits);
           src.bits = parse_bit_string (text, &src.n_bits);
@@ -624,7 +663,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
             {
               (void)fprintf (stderr,
                              "error: --bits-file must contain a 0/1 string\n");
-              return 2;
+              rc = 2;
+              goto done;
             }
         }
       else if (!strcmp (a, "--acq-code"))
@@ -636,7 +676,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
             {
               (void)fprintf (stderr,
                              "error: --acq-code expects a 0/1 string\n");
-              return 2;
+              rc = 2;
+              goto done;
             }
         }
       else if (!strcmp (a, "--acq-code-hex"))
@@ -648,7 +689,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
             {
               (void)fprintf (stderr,
                              "error: --acq-code-hex expects a hex string\n");
-              return 2;
+              rc = 2;
+              goto done;
             }
         }
       else if (!strcmp (a, "--acq-reps"))
@@ -665,7 +707,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
             {
               (void)fprintf (stderr,
                              "error: --data-code expects a 0/1 string\n");
-              return 2;
+              rc = 2;
+              goto done;
             }
         }
       else if (!strcmp (a, "--data-code-hex"))
@@ -677,7 +720,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
             {
               (void)fprintf (stderr,
                              "error: --data-code-hex expects a hex string\n");
-              return 2;
+              rc = 2;
+              goto done;
             }
         }
       else if (!strcmp (a, "--sync"))
@@ -688,7 +732,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
           if (!src.sync)
             {
               (void)fprintf (stderr, "error: --sync expects a 0/1 string\n");
-              return 2;
+              rc = 2;
+              goto done;
             }
         }
       else if (!strcmp (a, "--crc"))
@@ -721,7 +766,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
                   stderr,
                   "error: --symbols-file %s unreadable or not whole cf32\n",
                   v);
-              return 1;
+              rc = 1;
+              goto done;
             }
         }
       else if (!strcmp (a, "--fs"))
@@ -823,7 +869,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
           else
             {
               fprintf (stderr, "wfmgen: --gap-noise must be auto|off\n");
-              return 2;
+              rc = 2;
+              goto done;
             }
         }
       else if (!strcmp (a, "--repeat"))
@@ -885,21 +932,23 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
         {
           (void)fprintf (stderr, "error: unknown option '%s' (try --help)\n",
                          a);
-          return 2;
+          rc = 2;
+          goto done;
         }
     }
 
   /* Build the composer: from a JSON spec, or the single-segment flags. A
      recorded --headroom rides in the spec file and is reapplied here unless
-     an explicit --headroom on this run overrides it. */
-  wfm_compose_state_t *comp;
+     an explicit --headroom on this run overrides it. `comp` is declared at the
+     top of the function so `done:` can destroy it from any exit. */
   if (from_file)
     {
       char *spec = slurp_file (from_file);
       if (!spec)
         {
           (void)fprintf (stderr, "error: could not read %s\n", from_file);
-          return 1;
+          rc = 1;
+          goto done;
         }
       comp = wfm_compose_from_json (spec);
       if (!headroom_set)
@@ -915,7 +964,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
           (void)fprintf (stderr,
                          "error: --symbol-rate must be positive (it is the "
                          "continuous-dsss data symbol rate in Hz)\n");
-          return 2;
+          rc = 2;
+          goto done;
         }
       if (src.symbol_rate > 0.0)
         {
@@ -923,27 +973,31 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
             {
               (void)fprintf (stderr,
                              "error: --symbol-rate is only for --type dsss\n");
-              return 2;
+              rc = 2;
+              goto done;
             }
           if (!src.data_code)
             {
               (void)fprintf (stderr, "error: continuous dsss (--symbol-rate) "
                                      "needs --data-code\n");
-              return 2;
+              rc = 2;
+              goto done;
             }
           if (src.acq_code || src.sync)
             {
               (void)fprintf (stderr,
                              "error: --acq-code/--sync are burst-frame flags, "
                              "meaningless with --symbol-rate\n");
-              return 2;
+              rc = 2;
+              goto done;
             }
           if (data_flag_set && src.bits)
             {
               (void)fprintf (stderr,
                              "error: --data and --bits both set the data; "
                              "use one\n");
-              return 2;
+              rc = 2;
+              goto done;
             }
         }
       else if (data_flag_set)
@@ -951,7 +1005,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
           (void)fprintf (
               stderr, "error: --data selects the continuous-dsss data source; "
                       "it needs --symbol-rate\n");
-          return 2;
+          rc = 2;
+          goto done;
         }
       comp = wfm_compose_create (&seg, 1, repeat, continuous);
       wfm_compose_set_seed_advance (comp, seed_advance);
@@ -959,7 +1014,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
   if (!comp)
     {
       (void)fprintf (stderr, "error: could not build the waveform spec\n");
-      return 1;
+      rc = 1;
+      goto done;
     }
 
   /* Borrow the resolved segments (for --record / SigMF) + the capture fs. */
@@ -990,7 +1046,6 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
   if (realtime)
     dp_sample_clock_init (&clk, fs, realtime_resync);
 
-  int           rc   = 0;
   double        gain = pow (10.0, -headroom / 20.0); /* headroom backoff */
   float complex buf[BLK];
   size_t        n;
@@ -1045,22 +1100,22 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
       if (!out_path)
         {
           (void)fprintf (stderr, "error: --detached needs --output\n");
-          wfm_compose_destroy (comp);
-          return 2;
+          rc = 2;
+          goto done;
         }
       if (c)
         {
           (void)fprintf (stderr, "error: --detached requires finite output "
                                  "(not --continuous)\n");
-          wfm_compose_destroy (comp);
-          return 2;
+          rc = 2;
+          goto done;
         }
       char det_path[1024];
       if (build_path (det_path, sizeof det_path, out_path, ".det") != 0)
         {
           (void)fprintf (stderr, "error: output path too long\n");
-          wfm_compose_destroy (comp);
-          return 2;
+          rc = 2;
+          goto done;
         }
       FILE *df = fopen (det_path, "wb");
       if (!df)
@@ -1120,8 +1175,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
             {
               (void)fprintf (stderr,
                              "error: --file-type sigmf needs --output\n");
-              wfm_compose_destroy (comp);
-              return 2;
+              rc = 2;
+              goto done;
             }
           if (c)
             {
@@ -1131,15 +1186,15 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
               (void)fprintf (stderr,
                              "error: --file-type sigmf requires finite "
                              "output (not --continuous)\n");
-              wfm_compose_destroy (comp);
-              return 2;
+              rc = 2;
+              goto done;
             }
           if (build_path (data_path, sizeof data_path, out_path, ".sigmf-data")
               != 0)
             {
               (void)fprintf (stderr, "error: output path too long\n");
-              wfm_compose_destroy (comp);
-              return 2;
+              rc = 2;
+              goto done;
             }
           fp = fopen (data_path, "wb");
         }
@@ -1158,16 +1213,16 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
                   stderr, "error: refusing to write binary IQ to a terminal — "
                           "pass --output FILE (or redirect/pipe stdout)\n\n");
               (void)fputs (USAGE, stderr);
-              wfm_compose_destroy (comp);
-              return 1;
+              rc = 1;
+              goto done;
             }
           fp = to_stdout ? stdout : fopen (out_path, "wb");
         }
       if (!fp)
         {
           (void)fprintf (stderr, "error: cannot open output\n");
-          wfm_compose_destroy (comp);
-          return 1;
+          rc = 1;
+          goto done;
         }
       int                 wft = sigmf ? WFM_FT_RAW : file_type;
       wfm_writer_state_t *w
@@ -1224,11 +1279,12 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
         stderr, "wfmgen: %llu underrun(s) — worst %.3f ms behind real time\n",
         (unsigned long long)clk.underruns, (double)clk.max_late_ns / 1e6);
 
+  /* The success path falls in here; every failure jumps to it. The composer
+     deep-copied whatever it was handed, so the CLI-owned copies are always
+     ours to release, and wfm_compose_destroy tolerates the NULL `comp` an
+     exit taken before the composer was built leaves behind. */
+done:
   wfm_compose_destroy (comp);
-  free (src.bits); /* the composer deep-copied it; free our CLI-owned copy */
-  free (src.symbols); /* same: the bridge copied it; free our CLI-owned copy */
-  free (src.acq_code); /* same for the dsss burst geometry arrays */
-  free (src.data_code);
-  free (src.sync);
+  source_free (&src);
   return rc;
 }

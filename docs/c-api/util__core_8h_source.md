@@ -40,6 +40,28 @@ extern "C"
       return hi;
     return nan_to; /* nothing else can reach here */
   }
+
+  JM_FORCEINLINE double
+  ema_step (double state, double x, double alpha)
+  {
+    /* Loop-invariant, and folded away entirely when alpha is a
+       compile-time constant, so the common path pays nothing. */
+    if (alpha >= 1.0)
+      return x;
+    return state + alpha * (x - state);
+  }
+
+  JM_FORCEINLINE double
+  ema_alpha_decim (double alpha, size_t d)
+  {
+    if (d <= 1)
+      return alpha; /* exact by construction, not by luck */
+    if (alpha <= 0.0)
+      return 0.0;
+    if (alpha >= 1.0)
+      return 1.0; /* log1p(-1) is -inf; answer it directly */
+    return -expm1 ((double)d * log1p (-alpha));
+  }
 #ifdef __cplusplus
 }
 #endif

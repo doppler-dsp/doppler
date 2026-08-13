@@ -315,6 +315,7 @@ COMPILE_DB = symlink
 
 GATES_PROVISION = install-deps install-docs-deps build pyext nats-up nats-down
 GATES_DEPS    = lint changelog-check drift-check doxygen-check docs-check \
+                gen-c-api-check \
                 validate-check \
                 test-all test-stubs test-api-docs test-snippets test-rust \
                 abi-check link-check consumer-faces-check glibc-gate \
@@ -661,6 +662,7 @@ endef
 # gates cover them: criterion 2 is "help lists EVERY target", not "every
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
+                gen-c-api-check \
                 gen-c-api-run doxygen-pin-image \
                 package-c package-c-tarball sdist release-notes \
                 print-jm-version nats-up nats-down \
@@ -906,6 +908,34 @@ gen-c-api-run: ## gen-c-api proper (re-entered with CI's doxygen on PATH)
 	# latex/ in the repo root. Cleaned here rather than gitignored — it is
 	# output of this target, and nothing else in the tree wants that name.
 	rm -rf .mkdoxy .capi-site latex
+
+# docs/c-api/ is GENERATED and COMMITTED, and until now it was the one
+# generated tree with no --check behind it: `docs-drift-check` covers
+# gen_related_pages / gen_readme / gen_install_scripts / gen_validation_log
+# and stops there. It drifted, exactly as an ungated generated tree does --
+# 22 pages, including `util__core_8h.md` missing `ema_step` and
+# `ema_alpha_decim` from the EMA primitive campaign, which merged with its C
+# API docs never regenerated and nothing to say so.
+#
+# Regenerates IN PLACE and asks git whether anything moved, rather than
+# building into a scratch dir and diffing. That would be a second code path
+# for the thing being checked -- doxygen behind a version shim, then mkdoxy,
+# then the index.md restore -- and a check that reimplements its subject is
+# the duplication this repo keeps paying for. CI's checkout is disposable; a
+# developer is left with the tree REGENERATED, which is the state the failure
+# message would have told them to produce anyway.
+gen-c-api-check: ## Fail if the committed docs/c-api is stale against the headers
+	@$(MAKE) -s gen-c-api >/dev/null
+	@d=$$(git status --porcelain -- docs/c-api); \
+	 if [ -n "$$d" ]; then \
+	     printf '%s\n' "$$d"; \
+	     echo "gen-c-api-check: docs/c-api is stale — $$(printf '%s\n' "$$d" \
+	         | wc -l | tr -d ' ') file(s) differ from what the headers"; \
+	     echo "  produce. The tree has been regenerated in place: review it"; \
+	     echo "  and commit."; \
+	     exit 1; \
+	 fi; \
+	 echo "gen-c-api-check: docs/c-api matches the headers"
 
 # PEP 517 build hook for just-buildit. It sets JUST_BUILDIT_OUTPUT_DIR and
 # JUST_BUILDIT_PYTHON before calling this target; the package tree is copied

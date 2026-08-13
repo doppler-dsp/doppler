@@ -1,0 +1,146 @@
+
+
+# File dp\_simd.h
+
+
+
+[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**dp\_simd.h**](dp__simd_8h.md)
+
+[Go to the source code of this file](dp__simd_8h_source.md)
+
+_doppler's own composite SIMD reductions, layered over_ `jm_simd.h` _._[More...](#detailed-description)
+
+* `#include <stddef.h>`
+* `#include "jm_simd.h"`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**DP\_SUMSQ\_F32**](dp__simd_8h.md#define-dp_sumsq_f32) (dst, ptr, n) `/* multi line expression */`<br>_Sum of squares: dst = Σ ptr&#91;i&#93;² for i in &#91;0, n)._  |
+
+## Detailed Description
+
+
+just-makeit ships the TIER primitives — `JM_VEC_F32`, `JM_LOAD_F32`, `JM_FMA_F32`, `JM_HSUM_F32`, `JM_SIMD_WIDTH_F32` — one set per ISA (AVX-512 / AVX2 / NEON / scalar). Anything doppler builds ON those belongs here, in a header doppler owns.
+
+
+That distinction is the whole reason this file exists. `DP_SUMSQ_F32` lived in `native/inc/jm_simd.h` from `bda43475` (the log-domain AGC) until it was lost, and the way it was lost is worth recording: jm's headers are **create-only**, so `jm apply` never rewrites them — which is exactly what let a local addition survive there for months, and exactly why nothing warned when the create-only migration (delete, re-apply, pick up the newer upstream file) discarded it. A local extension inside a vendored file is protected by nothing but the tool's reluctance to touch it.
+
+
+It also carried the wrong namespace. `JM_` belongs to just-makeit, and a future release is free to define `JM_SUMSQ_F32` itself with different semantics or arity; this is doppler's primitive, so it is `DP_`. 
+
+
+    
+## Macro Definition Documentation
+
+
+
+
+
+### define DP\_SUMSQ\_F32 
+
+_Sum of squares: dst = Σ ptr&#91;i&#93;² for i in &#91;0, n)._ 
+```C++
+#define DP_SUMSQ_F32 (
+    dst,
+    ptr,
+    n
+) `/* multi line expression */`
+```
+
+
+
+The bulk runs JM\_SIMD\_WIDTH\_F32-wide via FMA accumulation; the trailing `n` % JM\_SIMD\_WIDTH\_F32 elements are summed scalar. When `n` is a multiple of the SIMD width the remainder loop has zero trips and folds away, leaving a pure vector reduction.
+
+
+A macro rather than a function, and single-pointer rather than a dot product against itself: `jm_dot_f32(a, a, n)` would be undefined behaviour, because both of its parameters are `JM_RESTRICT` and passing one pointer to two restrict-qualified parameters tells the compiler the buffers do not overlap when they are the same buffer.
+
+
+
+
+**Parameters:**
+
+
+* `dst` lvalue of type float — receives the sum. 
+* `ptr` const float \* — base of the contiguous input. 
+* `n` element count (size\_t-convertible).
+
+
+```C++
+float e;
+DP_SUMSQ_F32 (e, buf, 256);   // e = energy of buf[0..255]
+```
+ 
+
+
+        
+
+<hr>
+
+------------------------------
+The documentation for this class was generated from the following file `native/inc/dp_simd.h`
+

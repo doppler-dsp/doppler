@@ -440,14 +440,14 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
     (
         "C26c",
         "Gardner's raw error carries A^2, DTTL's carries A^1",
-        "§2.6b (this report) — see F13",
+        "C §20 NEW (exact, both) + §2.6b (this report) — see F13",
     ),
     (
         "C26d",
         "ted_scale gives the detector unit slope at lock, so bn means one "
         "bandwidth",
-        "C `validate_ratesync_scurve` (formula + wiring, both detectors, "
-        "beta 0.1-0.9) — but §2.2 measures 2.60 through the cascade, F15",
+        "C `validate_ratesync_scurve` phases 1-3 + C §20 NEW — formula, "
+        "wiring and through-cascade, all three; the last one disagrees, F15",
     ),
     (
         "C27",
@@ -1730,7 +1730,11 @@ def review(d: Data) -> None:
         f"the other, so a design that cannot guarantee its input level is "
         f"not indifferent between them. This is also why F6's level axis "
         f"had to be swept per detector rather than extrapolated from the "
-        f"default.",
+        f"default. Pinned in C as well as measured here: "
+        f"`test_ratesync_core.c` §20 asserts both exponents exactly — two "
+        f"evaluations of a pure function at two amplitudes, ratio 4 and 2 "
+        f"by construction — so a regression is caught by ctest rather than "
+        f"by a report someone has to read.",
     )
     R.find(
         "F14",
@@ -1770,8 +1774,21 @@ def review(d: Data) -> None:
         f"beta 0.1 to 0.9, and `ratesync_create()` is checked to install "
         f"`1/symsync_ted_slope()` correctly for each. The formula is right "
         f"and the wiring is right. "
-        f"{_f15_beta(d)} **The closed-loop consequence is still "
-        f"unestablished:** "
+        f"{_f15_beta(d)} **The through-cascade measurement now lives in C "
+        f"too**, as `validate_ratesync_scurve`'s third phase, on the same "
+        f"`dp_tx_make` stimulus the unit tests drive: raw slope against "
+        f"declared, per detector, across the same roll-off range. It gates "
+        f"Gardner's agreement as a real tolerance and DTTL's spread as a "
+        f"ratchet that may only shrink. That matters for a reason beyond "
+        f"tidiness — the first version of this measurement lived in a "
+        f"throwaway probe that read `loop.ring[]` from outside "
+        f"`ratesync_step`, which races the ring's per-OUTPUT update and "
+        f"gave a confident wrong answer; the committed one reads "
+        f"`last_error`, written inside the strobe, and needs no such "
+        f"assumption. Sabotage-checked by pointing the transition gate at "
+        f"the on-time sample: phases 1 and 2 pass unchanged, because they "
+        f"are cascade-free by construction, and phase 3 alone fires. "
+        f"**The closed-loop consequence is still unestablished:** "
         f"two probes disagree — settling of the rate integrator under a "
         f"2000 ppm clock step gives a Gardner/DTTL ratio of ~1.0 at "
         f"`bn = 0.005` and ~3.5 at `bn = 0.002`. Recorded with both the "

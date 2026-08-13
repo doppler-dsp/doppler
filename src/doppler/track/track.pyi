@@ -1769,8 +1769,11 @@ class RateSync:
         must be even and at least 2. The oversampled stream is a by-product of
         the same dot products, not an extra cost. Use m >= 4 with
         pulse="iandd": the rectangle is one symbol wide, so at m=2 its matched
-        filter is a 2-tap sum and the eye statistic barely opens (measured
-        lock_stat -0.34 at m=2 against +0.95 at m=4 on the same NRZ stream).
+        filter is a 2-tap sum and the eye statistic barely opens. Measured on
+        an NRZ stream, m=2 does not clear the lock detector's own declare
+        threshold while m=4 clears it comfortably, with tens of dB of EVM
+        between them. The rule rests on that separation, not on a particular
+        pair of lock_stat values -- those move with sps and with the stream.
         The RRC spans many symbols and is unaffected.
     num_phases : int, default 1024
         Matched-filter arms; a power of two. Sets the fractional-timing

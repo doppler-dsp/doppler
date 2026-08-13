@@ -8,7 +8,7 @@
  * middle, high half at the end, with the Nyquist bin split for even n.
  * m == n is a copy.  Matches scipy.signal.resample to machine precision. */
 static void
-_zeropad_1d (const float complex *p, size_t n, float complex *q, size_t m)
+corr_zeropad_1d (const float complex *p, size_t n, float complex *q, size_t m)
 {
   if (m == n)
     {
@@ -170,7 +170,8 @@ corr_execute (corr_state_t *state, const float complex *in, size_t n_in,
       const float complex *src = state->accum;
       if (state->n_out != state->n)
         {
-          _zeropad_1d (state->accum, state->n, state->work_pad, state->n_out);
+          corr_zeropad_1d (state->accum, state->n, state->work_pad,
+                           state->n_out);
           src = state->work_pad;
         }
       /* Emission stops at the caller's capacity (jm gh-138). This block

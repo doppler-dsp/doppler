@@ -5,7 +5,7 @@
 #include <math.h>
 
 static double
-_i0 (double x)
+kaiser_i0 (double x)
 {
   double xh  = x * 0.5;
   double sum = 1.0, term = 1.0;
@@ -29,12 +29,12 @@ kaiser_window (float *w, size_t w_len, float beta)
       return;
     }
   double b    = (double)beta;
-  double i0b  = _i0 (b);
+  double i0b  = kaiser_i0 (b);
   double half = (double)(w_len - 1) * 0.5;
   for (size_t k = 0; k < w_len; k++)
     {
       double x   = ((double)k - half) / half;
       double arg = b * sqrt (1.0 - x * x);
-      w[k]       = (float)(_i0 (arg) / i0b);
+      w[k]       = (float)(kaiser_i0 (arg) / i0b);
     }
 }

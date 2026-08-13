@@ -37,10 +37,10 @@
 /* ------------------------------------------------------------------ */
 
 /* |log2(D) - round(log2(D))| < this --> exact power-of-2            */
-#define _EXACT_TOL 1e-9
+#define DP_EXACT_TOL 1e-9
 
 /* Decimation factors below this threshold don't benefit from a CIC.  */
-#define _CIC_MIN_D 8.0
+#define DP_CIC_MIN_D 8.0
 
 /* ------------------------------------------------------------------ */
 /* Pre-computed halfband FIR coefficients                              */
@@ -53,9 +53,9 @@
 /*   h = bank[fir_row]  # FIR branch (row 1 for 60dB/0.4-0.6 spec)   */
 /* ------------------------------------------------------------------ */
 
-#define _HB_NTAPS 19
+#define DP_HB_NTAPS 19
 
-static const float _HB_FIR[_HB_NTAPS] = {
+static const float DP_HB_FIR[DP_HB_NTAPS] = {
   0.0015790532f,  -0.0046757734f, 0.0104431789f,  -0.0201746244f,
   0.0357989259f,  -0.0608663708f, 0.1041134074f,  -0.1975378096f,
   0.6316009164f,  0.6316009164f,  -0.1975378096f, 0.1041134074f,
@@ -93,7 +93,7 @@ typedef struct
 
 /* Portable log2 via log(x)/log(2). */
 static double
-_log2 (double x)
+rc_log2 (double x)
 {
   return log (x) / M_LN2;
 }
@@ -114,8 +114,8 @@ _log2 (double x)
  * already landed the rate).
  */
 static int
-_plan (double rate, int compensate, int force_terminal,
-       rc_plan_entry_t plan[RC_MAX_STAGES])
+rc_plan (double rate, int compensate, int force_terminal,
+         rc_plan_entry_t plan[RC_MAX_STAGES])
 {
   if (rate <= 0.0)
     return 0;
@@ -135,10 +135,10 @@ _plan (double rate, int compensate, int force_terminal,
       return 1;
     }
 
-  double log2_D = _log2 (D);
+  double log2_D = rc_log2 (D);
   int    n      = (int)round (log2_D);
 
-  if (fabs (log2_D - n) < _EXACT_TOL)
+  if (fabs (log2_D - n) < DP_EXACT_TOL)
     {
       /* Exact power-of-2 decimation. */
       int ns = 0;
@@ -173,7 +173,7 @@ _plan (double rate, int compensate, int force_terminal,
       return ns;
     }
 
-  if (D >= _CIC_MIN_D)
+  if (D >= DP_CIC_MIN_D)
     {
       /* Non-power-of-2, large D: CIC + Resampler correction. */
       int    n_lo  = (int)floor (log2_D);
@@ -184,7 +184,7 @@ _plan (double rate, int compensate, int force_terminal,
       int    R;
       double corr;
       /* Pick correction whose log2 is closest to 0 (nearest to 1.0). */
-      if (fabs (_log2 (co_lo)) <= fabs (_log2 (co_hi)))
+      if (fabs (rc_log2 (co_lo)) <= fabs (rc_log2 (co_hi)))
         {
           R    = R_lo;
           corr = co_lo;
@@ -222,13 +222,13 @@ _plan (double rate, int compensate, int force_terminal,
 /* ------------------------------------------------------------------ */
 
 /* Number of taps the CIC droop compensator uses when folded into the bank. */
-#define _RC_COMP_NTAPS 7
+#define DP_RC_COMP_NTAPS 7
 /* CIC differential delay assumed by ciccompmf (matches cic_create). */
-#define _RC_CIC_ORDER 4
+#define DP_RC_CIC_ORDER 4
 
 /* Pulse h(t), t in SYMBOL periods from the pulse centre. */
 static double
-_pulse_h (int pulse, double t, double beta)
+rc_pulse_h (int pulse, double t, double beta)
 {
   if (pulse == RC_PULSE_IANDD)
     /* Unit rectangle over one symbol — the matched filter for a rectangular
@@ -241,7 +241,7 @@ _pulse_h (int pulse, double t, double beta)
 /* One-sided support in symbols. The rectangle is one symbol wide whatever
    `span' says. */
 static double
-_pulse_support (int pulse, size_t span)
+rc_pulse_support (int pulse, size_t span)
 {
   return pulse == RC_PULSE_IANDD ? 0.5 : (double)span;
 }
@@ -293,11 +293,11 @@ _pulse_support (int pulse, size_t span)
  * Returns a malloc'd num_phases x (*out_ntaps) bank, or NULL on OOM.
  */
 static float *
-_build_bank (int pulse, double beta, double sps, size_t span,
-             size_t num_phases, const double *comp, size_t n_comp,
-             size_t *out_ntaps, double *out_e0)
+rc_build_bank (int pulse, double beta, double sps, size_t span,
+               size_t num_phases, const double *comp, size_t n_comp,
+               size_t *out_ntaps, double *out_e0)
 {
-  double support = _pulse_support (pulse, span);
+  double support = rc_pulse_support (pulse, span);
   /* Cover the full pulse for EVERY arm: the last arm lags the window by one
      whole INPUT interval (1/sps symbols), so the tap count has to carry that
      on top of the two-sided support.  A lag wants the room at the far end of
@@ -322,7 +322,7 @@ _build_bank (int pulse, double beta, double sps, size_t span,
         {
           /* tap t multiplies x[n-t]: the delay line is newest-first. */
           double ts = -(double)t / sps + support + arm;
-          double h  = _pulse_h (pulse, ts, beta);
+          double h  = rc_pulse_h (pulse, ts, beta);
           if (!comp)
             row[t] = (float)h;
           else
@@ -359,7 +359,7 @@ _build_bank (int pulse, double beta, double sps, size_t span,
   double e0 = 0.0;
   for (size_t t = 0; t < raw; t++)
     {
-      double hp = _pulse_h (pulse, -(double)t / sps + support, beta);
+      double hp = rc_pulse_h (pulse, -(double)t / sps + support, beta);
       e0 += hp * hp;
     }
   float g = (float)(e0 > 0.0 ? 1.0 / e0 : 1.0);
@@ -381,7 +381,7 @@ _build_bank (int pulse, double beta, double sps, size_t span,
 /* ------------------------------------------------------------------ */
 
 static void
-_stage_destroy (rc_stage_t type, void *ptr)
+rc_stage_destroy (rc_stage_t type, void *ptr)
 {
   if (!ptr)
     return;
@@ -406,7 +406,7 @@ _stage_destroy (rc_stage_t type, void *ptr)
 }
 
 static void
-_stage_reset (rc_stage_t type, void *ptr)
+rc_stage_reset (rc_stage_t type, void *ptr)
 {
   switch (type)
     {
@@ -431,7 +431,7 @@ _stage_reset (rc_stage_t type, void *ptr)
  */
 
 static size_t
-_stage_state_bytes (rc_stage_t type, const void *ptr)
+rc_stage_state_bytes (rc_stage_t type, const void *ptr)
 {
   switch (type)
     {
@@ -452,7 +452,7 @@ _stage_state_bytes (rc_stage_t type, const void *ptr)
 }
 
 static char *
-_stage_get_state (rc_stage_t type, const void *ptr, char *p)
+rc_stage_get_state (rc_stage_t type, const void *ptr, char *p)
 {
   switch (type)
     {
@@ -481,7 +481,7 @@ _stage_get_state (rc_stage_t type, const void *ptr, char *p)
 }
 
 static const char *
-_stage_set_state (rc_stage_t type, void *ptr, const char *p)
+rc_stage_set_state (rc_stage_t type, void *ptr, const char *p)
 {
   switch (type)
     {
@@ -514,8 +514,8 @@ _stage_set_state (rc_stage_t type, void *ptr, const char *p)
  * Returns the number of output samples produced.
  */
 static size_t
-_stage_exec (rc_stage_t type, void *ptr, const float _Complex *in, size_t n_in,
-             float _Complex *out, size_t max_out)
+rc_stage_exec (rc_stage_t type, void *ptr, const float _Complex *in,
+               size_t n_in, float _Complex *out, size_t max_out)
 {
   switch (type)
     {
@@ -545,11 +545,11 @@ _stage_exec (rc_stage_t type, void *ptr, const float _Complex *in, size_t n_in,
 /* ------------------------------------------------------------------ */
 
 static void
-_destroy_all_stages (RateConverter_state_t *s)
+rc_destroy_all_stages (RateConverter_state_t *s)
 {
   for (int i = 0; i < s->n_stages; i++)
     {
-      _stage_destroy (s->stage_types[i], s->stage_ptrs[i]);
+      rc_stage_destroy (s->stage_types[i], s->stage_ptrs[i]);
       s->stage_ptrs[i] = NULL;
     }
   s->n_stages = 0;
@@ -568,7 +568,7 @@ _destroy_all_stages (RateConverter_state_t *s)
  * instead of resamp's default Kaiser one, with any CIC droop folded into it.
  */
 static int
-_build_stages (RateConverter_state_t *s, const rc_plan_entry_t *plan, int n)
+rc_build_stages (RateConverter_state_t *s, const rc_plan_entry_t *plan, int n)
 {
   int i;
   for (i = 0; i < n; i++)
@@ -578,7 +578,7 @@ _build_stages (RateConverter_state_t *s, const rc_plan_entry_t *plan, int n)
 
       if (terminal)
         {
-          /* Only a Resampler stage can carry a bank; _plan(force_terminal)
+          /* Only a Resampler stage can carry a bank; rc_plan(force_terminal)
              guarantees one, so this is an assertion of that contract. */
           if (plan[i].type != RC_STAGE_RESAMP)
             goto fail;
@@ -586,13 +586,13 @@ _build_stages (RateConverter_state_t *s, const rc_plan_entry_t *plan, int n)
           /* Droop compensation folds into the bank when an upstream CIC
              asked for it — same tap grid, so the fold is exact and this
              path never appends a comp FIR stage. */
-          double  comp[_RC_COMP_NTAPS];
+          double  comp[DP_RC_COMP_NTAPS];
           double *compp = NULL;
           for (int k = 0; k < i; k++)
             if (plan[k].type == RC_STAGE_CIC && s->compensate)
               {
-                ciccompmf (comp, _RC_CIC_ORDER, (uint32_t)plan[k].R,
-                           _RC_COMP_NTAPS);
+                ciccompmf (comp, DP_RC_CIC_ORDER, (uint32_t)plan[k].R,
+                           DP_RC_COMP_NTAPS);
                 compp = comp;
               }
 
@@ -601,9 +601,9 @@ _build_stages (RateConverter_state_t *s, const rc_plan_entry_t *plan, int n)
           double bank_sps = s->pulse_sps / plan[i].resamp_rate;
           size_t ntaps    = 0;
           double e0       = 0.0;
-          float *bank     = _build_bank (s->pulse, s->beta, bank_sps, s->span,
-                                         s->num_phases, compp, _RC_COMP_NTAPS,
-                                         &ntaps, &e0);
+          float *bank = rc_build_bank (s->pulse, s->beta, bank_sps, s->span,
+                                       s->num_phases, compp, DP_RC_COMP_NTAPS,
+                                       &ntaps, &e0);
           if (!bank)
             goto fail;
           /* Everything the pre-terminal AGC needs to place itself, recorded
@@ -626,7 +626,7 @@ _build_stages (RateConverter_state_t *s, const rc_plan_entry_t *plan, int n)
       switch (plan[i].type)
         {
         case RC_STAGE_HB:
-          obj = hbdecim_create (_HB_NTAPS, _HB_FIR);
+          obj = hbdecim_create (DP_HB_NTAPS, DP_HB_FIR);
           break;
 
         case RC_STAGE_CIC:
@@ -679,7 +679,7 @@ _build_stages (RateConverter_state_t *s, const rc_plan_entry_t *plan, int n)
 fail:
   for (int j = 0; j < i; j++)
     {
-      _stage_destroy (s->stage_types[j], s->stage_ptrs[j]);
+      rc_stage_destroy (s->stage_types[j], s->stage_ptrs[j]);
       s->stage_ptrs[j] = NULL;
     }
   s->n_stages = 0;
@@ -690,14 +690,14 @@ fail:
 /* Pre-terminal AGC                                                    */
 /*                                                                     */
 /* Off unless RateConverter_enable_agc() asked for it. The reference    */
-/* and the seed length come from the bank (recorded in _build_stages),  */
+/* and the seed length come from the bank (recorded in rc_build_stages),  */
 /* so a rebuild re-derives both rather than carrying stale numbers.     */
 /* ------------------------------------------------------------------ */
 
 /* (Re)build the AGC against the CURRENT bank. Returns 1 on success, 0 on a
    bad configuration or OOM; leaves the converter AGC-less either way. */
 static int
-_agc_build (RateConverter_state_t *s)
+rc_agc_build (RateConverter_state_t *s)
 {
   agc_destroy (s->agc);
   s->agc = NULL;
@@ -765,8 +765,8 @@ _agc_build (RateConverter_state_t *s)
    all. Buying back that last spread wants a seed that cannot fire on silence
    -- an asymmetric attack/release, or a max-of-block-means estimate -- not
    the prefix average. Tracked as gh-658. */
-JM_FORCEINLINE float _Complex _agc_tap (RateConverter_state_t *s,
-                                        float _Complex v)
+JM_FORCEINLINE float _Complex rc_agc_tap (RateConverter_state_t *s,
+                                          float _Complex v)
 {
   return s->agc ? agc_step (s->agc, v) : v;
 }
@@ -792,8 +792,8 @@ RateConverter_create (double rate, int compensate)
   s->compensate = compensate;
 
   rc_plan_entry_t plan[RC_MAX_STAGES];
-  int             n = _plan (rate, compensate, 0, plan);
-  if (n == 0 || !_build_stages (s, plan, n))
+  int             n = rc_plan (rate, compensate, 0, plan);
+  if (n == 0 || !rc_build_stages (s, plan, n))
     {
       free (s);
       return NULL;
@@ -831,11 +831,11 @@ RateConverter_create_matched (double rate, int compensate, int pulse,
   rc_plan_entry_t plan[RC_MAX_STAGES];
   /* force_terminal: the terminal stage IS the matched filter and the timing
      element, so it exists even when the rate needs no correction. */
-  int n = _plan (rate, compensate, 1, plan);
+  int n = rc_plan (rate, compensate, 1, plan);
   /* The fold replaces the comp FIR — never both. */
   for (int i = 0; i < n; i++)
     plan[i].compensate = 0;
-  if (n == 0 || !_build_stages (s, plan, n))
+  if (n == 0 || !rc_build_stages (s, plan, n))
     {
       free (s);
       return NULL;
@@ -858,7 +858,7 @@ RateConverter_enable_agc (RateConverter_state_t *s, double bn_sym,
   double keep_bn = s->agc_bn_sym, keep_a = s->agc_alpha;
   s->agc_bn_sym = bn_sym;
   s->agc_alpha  = alpha;
-  if (!_agc_build (s))
+  if (!rc_agc_build (s))
     {
       s->agc_bn_sym = keep_bn;
       s->agc_alpha  = keep_a;
@@ -891,7 +891,7 @@ RateConverter_set_telemetry (RateConverter_state_t *s, dp_tlm_t *tlm,
       return DP_OK;
     }
 
-  /* Record the request before applying it, so a later _agc_build() -- a rate
+  /* Record the request before applying it, so a later rc_agc_build() -- a rate
      change, or an enable_agc() that has not happened yet -- re-applies it. */
   const char *p = prefix ? prefix : "agc";
   (void)snprintf (s->agc_tlm_req.prefix, sizeof (s->agc_tlm_req.prefix), "%s",
@@ -922,7 +922,7 @@ RateConverter_destroy (RateConverter_state_t *s)
 {
   if (!s)
     return;
-  _destroy_all_stages (s);
+  rc_destroy_all_stages (s);
   agc_destroy (s->agc);
   free (s);
 }
@@ -931,7 +931,7 @@ void
 RateConverter_reset (RateConverter_state_t *s)
 {
   for (int i = 0; i < s->n_stages; i++)
-    _stage_reset (s->stage_types[i], s->stage_ptrs[i]);
+    rc_stage_reset (s->stage_types[i], s->stage_ptrs[i]);
   if (s->agc)
     {
       /* Back to unity with the detector at the reference. */
@@ -946,14 +946,14 @@ RateConverter_reset (RateConverter_state_t *s)
    running mean and the counter. Both are live ONLY during the seed window,
    which is exactly why they need packing — a blob taken mid-seed must resume
    mid-seed, and a round-trip that splits after it cannot see them. */
-#define _RC_AGC_SCALARS (sizeof (double) + sizeof (uint32_t))
+#define DP_RC_AGC_SCALARS (sizeof (double) + sizeof (uint32_t))
 
 size_t
 RateConverter_state_bytes (const RateConverter_state_t *s)
 {
   size_t b = sizeof (dp_state_hdr_t);
   for (int i = 0; i < s->n_stages; i++)
-    b += _stage_state_bytes (s->stage_types[i], s->stage_ptrs[i]);
+    b += rc_stage_state_bytes (s->stage_types[i], s->stage_ptrs[i]);
   if (s->agc)
     b += agc_state_bytes (s->agc);
   return b;
@@ -967,7 +967,7 @@ RateConverter_get_state (const RateConverter_state_t *s, void *blob)
             RateConverter_state_bytes (s));
   char *p = (char *)blob + sizeof (dp_state_hdr_t);
   for (int i = 0; i < s->n_stages; i++)
-    p = _stage_get_state (s->stage_types[i], s->stage_ptrs[i], p);
+    p = rc_stage_get_state (s->stage_types[i], s->stage_ptrs[i], p);
   if (s->agc)
     agc_get_state (s->agc, p);
 }
@@ -981,7 +981,7 @@ RateConverter_set_state (RateConverter_state_t *s, const void *blob)
     return rc;
   const char *p = (const char *)blob + sizeof (dp_state_hdr_t);
   for (int i = 0; i < s->n_stages; i++)
-    p = _stage_set_state (s->stage_types[i], s->stage_ptrs[i], p);
+    p = rc_stage_set_state (s->stage_types[i], s->stage_ptrs[i], p);
   if (s->agc)
     return agc_set_state (s->agc, p);
   return DP_OK;
@@ -1021,8 +1021,8 @@ RateConverter_execute (RateConverter_state_t *s, const float _Complex *in,
     }
 
   if (s->n_stages == 1)
-    return _stage_exec (s->stage_types[0], s->stage_ptrs[0], in, n_in, out,
-                        max_out);
+    return rc_stage_exec (s->stage_types[0], s->stage_ptrs[0], in, n_in, out,
+                          max_out);
 
   /* Multi-stage: route through ping-pong intermediate buffers. */
   const float _Complex *src  = in;
@@ -1032,21 +1032,21 @@ RateConverter_execute (RateConverter_state_t *s, const float _Complex *in,
   for (int i = 0; i < s->n_stages - 1; i++)
     {
       float _Complex *dst = s->bufs[ping];
-      n   = _stage_exec (s->stage_types[i], s->stage_ptrs[i], src, n, dst,
-                         s->buf_cap);
+      n   = rc_stage_exec (s->stage_types[i], s->stage_ptrs[i], src, n, dst,
+                           s->buf_cap);
       src = dst;
       ping ^= 1;
     }
-  return _stage_exec (s->stage_types[s->n_stages - 1],
-                      s->stage_ptrs[s->n_stages - 1], src, n, out, max_out);
+  return rc_stage_exec (s->stage_types[s->n_stages - 1],
+                        s->stage_ptrs[s->n_stages - 1], src, n, out, max_out);
 }
 
 /* Run a resamp stage with a constant rate deviation on every input — the
  * scalar control-port form, built on the per-input streaming push. */
 static size_t
-_resamp_exec_ctrl (RateConverter_state_t *s, resamp_state_t *r,
-                   const float _Complex *in, size_t n_in, double ctrl,
-                   float _Complex *out, size_t max_out)
+rc_resamp_exec_ctrl (RateConverter_state_t *s, resamp_state_t *r,
+                     const float _Complex *in, size_t n_in, double ctrl,
+                     float _Complex *out, size_t max_out)
 {
   size_t oi = 0;
   for (size_t i = 0; i < n_in && oi < max_out; i++)
@@ -1054,7 +1054,7 @@ _resamp_exec_ctrl (RateConverter_state_t *s, resamp_state_t *r,
       /* The AGC tap sits here — between the last integer stage and the
          terminal one — and the input block is const, so gaining it in place
          is not an option. Per-sample is what the push path does anyway. */
-      float _Complex v = _agc_tap (s, in[i]);
+      float _Complex v = rc_agc_tap (s, in[i]);
       oi += resamp_execute_ctrl_push (r, v, ctrl, out + oi, max_out - oi);
     }
   return oi;
@@ -1092,8 +1092,8 @@ RateConverter_execute_ctrl (RateConverter_state_t *s, const float _Complex *x,
     }
 
   if (s->n_stages == 1)
-    return _resamp_exec_ctrl (s, (resamp_state_t *)s->stage_ptrs[0], x, n_in,
-                              ctrl, out, max_out);
+    return rc_resamp_exec_ctrl (s, (resamp_state_t *)s->stage_ptrs[0], x, n_in,
+                                ctrl, out, max_out);
 
   /* Upstream integer stages run plain; the terminal Resampler is steered. */
   const float _Complex *src  = x;
@@ -1102,13 +1102,13 @@ RateConverter_execute_ctrl (RateConverter_state_t *s, const float _Complex *x,
   for (int i = 0; i < last; i++)
     {
       float _Complex *dst = s->bufs[ping];
-      n   = _stage_exec (s->stage_types[i], s->stage_ptrs[i], src, n, dst,
-                         s->buf_cap);
+      n   = rc_stage_exec (s->stage_types[i], s->stage_ptrs[i], src, n, dst,
+                           s->buf_cap);
       src = dst;
       ping ^= 1;
     }
-  return _resamp_exec_ctrl (s, (resamp_state_t *)s->stage_ptrs[last], src, n,
-                            ctrl, out, max_out);
+  return rc_resamp_exec_ctrl (s, (resamp_state_t *)s->stage_ptrs[last], src, n,
+                              ctrl, out, max_out);
 }
 
 size_t
@@ -1129,18 +1129,19 @@ RateConverter_execute_ctrl_push (RateConverter_state_t *s, float _Complex x,
   for (int i = 0; i < last; i++)
     {
       float _Complex nxt;
-      n = _stage_exec (s->stage_types[i], s->stage_ptrs[i], &cur, 1, &nxt, 1);
+      n = rc_stage_exec (s->stage_types[i], s->stage_ptrs[i], &cur, 1, &nxt,
+                         1);
       if (n == 0)
         return 0; /* stage swallowed it (between decimation strobes) */
       cur = nxt;
     }
 
   if (s->stage_types[last] != RC_STAGE_RESAMP)
-    return _stage_exec (s->stage_types[last], s->stage_ptrs[last], &cur, 1,
-                        out, max_out);
+    return rc_stage_exec (s->stage_types[last], s->stage_ptrs[last], &cur, 1,
+                          out, max_out);
   /* Same tap, same arithmetic, same order as the block form above — which is
      what keeps push == block bit-for-bit with the AGC on. */
-  cur = _agc_tap (s, cur);
+  cur = rc_agc_tap (s, cur);
   return resamp_execute_ctrl_push ((resamp_state_t *)s->stage_ptrs[last], cur,
                                    ctrl, out, max_out);
 }
@@ -1167,17 +1168,17 @@ RateConverter_set_rate (RateConverter_state_t *s, double rate)
 
   int             matched = s->pulse != RC_PULSE_NONE;
   rc_plan_entry_t plan[RC_MAX_STAGES];
-  int             n = _plan (rate, s->compensate, matched, plan);
+  int             n = rc_plan (rate, s->compensate, matched, plan);
   if (n == 0)
     return;
   if (matched)
     for (int i = 0; i < n; i++)
       plan[i].compensate = 0;
 
-  _destroy_all_stages (s);
+  rc_destroy_all_stages (s);
   s->rate = rate;
 
-  if (!_build_stages (s, plan, n))
+  if (!rc_build_stages (s, plan, n))
     {
       s->n_stages = 0;
       return;
@@ -1186,7 +1187,7 @@ RateConverter_set_rate (RateConverter_state_t *s, double rate)
      length are stale — re-derive rather than carry them. An enabled AGC
      survives a rate change the way the pulse does. */
   if (s->agc)
-    (void)_agc_build (s);
+    (void)rc_agc_build (s);
 }
 
 bool

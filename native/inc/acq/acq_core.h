@@ -568,7 +568,7 @@ extern "C"
    * read that row as `+n/2` and the handoff as `-n/2`, a full-span sign
    * inversion (102 kHz at SPEC.md's geometry) that surfaced as a receiver
    * reporting `tracking == 1` while decoding noise. Auto-sizing now keeps
-   * `window_bins` odd (see `_auto_config_continuous`) so no such index
+   * `window_bins` odd (see `acq_auto_config_continuous`) so no such index
    * exists, and this shared helper keeps the two readings identical
    * regardless.
    *

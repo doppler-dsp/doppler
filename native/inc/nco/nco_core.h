@@ -121,7 +121,7 @@ extern "C"
    * ACCUMULATOR, which is what this function converts for.
    *
    * Two behaviours, ONE home. This paragraph used to argue the opposite --
-   * that resamp should keep the modular cast "in its own `_step_inc`" so
+   * that resamp should keep the modular cast "in its own `resamp_step_inc`" so
    * it would not be consolidated back -- and it was right about the
    * BEHAVIOUR and wrong about the HOME. The faces above already show one
    * fold serving two dimensions; one cast can likewise serve two boundary

@@ -42,7 +42,7 @@
  *     `MpskReceiver` -- the "track" leg of coarse -> freeze -> refine ->
  *     unfreeze/track. `costas_update()` runs once per code period, driven by
  *     a NON-DATA-AIDED (squaring) discriminator over that period's coherent-
- *     I&D partials (`_track_period()`): a code period spans ~0.9 data symbols
+ *     I&D partials (`adr_track_period()`): a code period spans ~0.9 data symbols
  *     at SPEC's async ratio, so a transition lands inside nearly every
  *     period, and squaring is what makes the carrier error transition-robust
  *     (a decision-directed sign-aligned combine, tried first, thrashed
@@ -130,7 +130,7 @@ extern "C"
    * loop's data-modulated despread-symbol input. The phase discriminator is
    * NON-DATA-AIDED (squaring the emitted coherent-I&D partials) so it is
    * immune to the async data transitions that land inside nearly every code
-   * period (see _track_period()); with that clean, transition-robust error
+   * period (see adr_track_period()); with that clean, transition-robust error
    * the plain PLL tracks the coupled Doppler (offset AND 500 Hz/s ramp)
    * pre-despread. So the FLL is not exposed here at all, not merely
    * defaulted off. */
@@ -200,7 +200,7 @@ extern "C"
     /* Track stage: DsssReceiver's own composition. costas_init()'s tsamps is
      * one whole code period, and the pre-despread carrier loop updates once
      * per period from a non-data-aided (squaring) combine of that period's
-     * coherent-I&D partials (see _track_period() in the .c file). */
+     * coherent-I&D partials (see adr_track_period() in the .c file). */
     costas_state_t         car;
     dll_state_t           *dll;
     RateConverter_state_t *rc;

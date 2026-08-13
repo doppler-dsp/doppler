@@ -172,7 +172,7 @@ seed (symsync_state_t *s)
    actually sees for one symbol. rrc*rrc is a raised cosine and rect*rect is a
    triangle, both closed form, so this costs no table and no convolution. */
 static double
-_composite (int pulse, double t, double beta)
+symsync_composite (int pulse, double t, double beta)
 {
   if (pulse == SYMSYNC_PULSE_IANDD)
     return fabs (t) < 1.0 ? 1.0 - fabs (t) : 0.0;
@@ -182,18 +182,18 @@ _composite (int pulse, double t, double beta)
 /* Mean detector output at timing offset `tau`, for i.i.d. symbols of unit
    amplitude. See the header for the two derivations. */
 static double
-_s_curve (int ted, int pulse, double beta, size_t span, double tau)
+symsync_s_curve (int ted, int pulse, double beta, size_t span, double tau)
 {
   if (ted == SYMSYNC_TED_DTTL)
-    return _composite (pulse, tau - 0.5, beta)
-           - _composite (pulse, tau + 0.5, beta);
+    return symsync_composite (pulse, tau - 0.5, beta)
+           - symsync_composite (pulse, tau + 0.5, beta);
 
   double s     = 0.0;
   long   k_max = (long)span + 2;
   for (long k = -k_max; k <= k_max; k++)
-    s += _composite (pulse, tau - 0.5 - (double)k, beta)
-         * (_composite (pulse, tau - (double)k, beta)
-            - _composite (pulse, tau - 1.0 - (double)k, beta));
+    s += symsync_composite (pulse, tau - 0.5 - (double)k, beta)
+         * (symsync_composite (pulse, tau - (double)k, beta)
+            - symsync_composite (pulse, tau - 1.0 - (double)k, beta));
   return s;
 }
 
@@ -204,8 +204,8 @@ symsync_ted_slope (int ted, int pulse, double beta, size_t span)
      be the linear region of every pulse here and large enough that the
      closed forms' own rounding does not show. */
   const double d = 1e-4;
-  double       s = (_s_curve (ted, pulse, beta, span, d)
-                    - _s_curve (ted, pulse, beta, span, -d))
+  double       s = (symsync_s_curve (ted, pulse, beta, span, d)
+                    - symsync_s_curve (ted, pulse, beta, span, -d))
                    / (2.0 * d);
   return fabs (s);
 }

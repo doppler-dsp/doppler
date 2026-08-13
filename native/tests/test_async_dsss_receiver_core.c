@@ -327,7 +327,7 @@ _test_give_up_cap (void)
  * comment for why SPEC's literal 5dB floor is NOT used here). Proves
  * THIS object's own new machinery -- the refine stage's frequency
  * estimate and the per-code-period (not per-partial -- see
- * _build_track_chain()'s comment) carrier cadence -- correctly closes
+ * adr_build_track_chain()'s comment) carrier cadence -- correctly closes
  * the loop and decodes under a real Doppler RAMP, the scenario the
  * reverted C-port attempt (FINISHING_PLAN.md's "C port attempt #1")
  * never got this far with. */

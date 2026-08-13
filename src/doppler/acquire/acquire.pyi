@@ -40,8 +40,8 @@ class CarrierAcquisition:
         more blocks once real data shows it needs to.
     sequential : bool, default True
         True: test for a detection after EVERY block (the per-block CFAR ratio
-        threshold -- see _ratio_threshold() in carrier_acq_core.c -- tightens
-        as more looks accumulate), stopping the moment one fires or
+        threshold -- see carrier_acq_ratio_threshold() in carrier_acq_core.c --
+        tightens as more looks accumulate), stopping the moment one fires or
         max_n_blocks is reached. False: accumulate silently and test once, at
         dwell_target.
     max_n_blocks : int, default 100000

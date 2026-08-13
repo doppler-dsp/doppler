@@ -31,7 +31,7 @@ next_pow2 (size_t n)
  * by OS (4 KiB on Linux/Windows, 16 KiB on macOS).  We start at the
  * smallest power-of-2 >= cap_min and double until create succeeds. */
 static dp_f32_t *
-_ring_create (size_t cap_min)
+det_ring_create (size_t cap_min)
 {
   size_t cap = next_pow2 (cap_min > 1 ? cap_min : 1);
   dp_f32_t *ring = NULL;
@@ -49,7 +49,7 @@ _ring_create (size_t cap_min)
 }
 
 static int
-_cmp_f32_asc (const void *a, const void *b)
+det_cmp_f32_asc (const void *a, const void *b)
 {
   float fa = *(const float *)a;
   float fb = *(const float *)b;
@@ -71,7 +71,7 @@ _cmp_f32_asc (const void *a, const void *b)
  * @return        Aggregated noise estimate, or 0 if lo > hi.
  */
 static float
-_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
+det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
                  det_noise_mode_t mode)
 {
   if (lo > hi)
@@ -88,7 +88,7 @@ _noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
       }
     case DET_NOISE_MEDIAN:
       memcpy (scratch, mag + lo, count * sizeof (float));
-      qsort (scratch, count, sizeof (float), _cmp_f32_asc);
+      qsort (scratch, count, sizeof (float), det_cmp_f32_asc);
       return scratch[count / 2];
     case DET_NOISE_MIN:
       {

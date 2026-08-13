@@ -6,7 +6,7 @@
 #include <string.h>
 
 static int
-_peak_cmp_desc (const void *a, const void *b)
+peaks_peak_cmp_desc (const void *a, const void *b)
 {
   float da = ((const dp_peak_t *)a)->amplitude_db;
   float db = ((const dp_peak_t *)b)->amplitude_db;
@@ -55,7 +55,7 @@ find_peaks_f32 (const float *db, size_t db_len, size_t n_peaks, float min_db,
         }
     }
 
-  qsort (cands, nc, sizeof (dp_peak_t), _peak_cmp_desc);
+  qsort (cands, nc, sizeof (dp_peak_t), peaks_peak_cmp_desc);
 
   size_t nout = (nc < n_peaks) ? nc : n_peaks;
   memcpy (result, cands, nout * sizeof (dp_peak_t));

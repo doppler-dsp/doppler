@@ -21,7 +21,7 @@ design_lowpass (double fpass, double fstop, double atten_db, float *out)
    *
    * kaiser_num_taps(num_phases, atten, pb, sb) treats pb/sb as
    * cycles/sample (Nyquist == 0.5) *after* dividing by num_phases — see
-   * doppler.resample._build_bank's wc = 2*pi*(pb/num_phases + ...). At
+   * resamp_core.c's resamp_build_bank's wc = 2*pi*(pb/num_phases + ...). At
    * num_phases=1 that means pb/sb themselves must already be
    * cycles/sample, so our Nyquist-normalised (1.0 == fs/2) fpass/fstop
    * need the /2 conversion below before being passed in. */

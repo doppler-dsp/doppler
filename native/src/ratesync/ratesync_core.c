@@ -229,16 +229,16 @@ ratesync_loop_set_telemetry (ratesync_loop_t *l, dp_tlm_t *tlm,
  * the prime countdown must not re-arm on a stream that is already flowing. */
 
 /* Scalars packed between the envelope and the child. */
-#define _RS_DOUBLES                                                           \
-  5                /* ctrl, last_error, rate_est, lock_sum, lock_stat         \
-                    */
-#define _RS_U64S 4 /* have_prev, prime_left, out_count, ring_n           */
+#define DP_RS_DOUBLES                                                         \
+  5                  /* ctrl, last_error, rate_est, lock_sum, lock_stat       \
+                      */
+#define DP_RS_U64S 4 /* have_prev, prime_left, out_count, ring_n           */
 
 size_t
 ratesync_loop_state_bytes (const ratesync_loop_t *l)
 {
-  return sizeof (dp_state_hdr_t) + _RS_DOUBLES * sizeof (double)
-         + _RS_U64S * sizeof (uint64_t) + sizeof (uint64_t) /* lock_count */
+  return sizeof (dp_state_hdr_t) + DP_RS_DOUBLES * sizeof (double)
+         + DP_RS_U64S * sizeof (uint64_t) + sizeof (uint64_t) /* lock_count */
          + (RATESYNC_MAX_M / 2 + 1 + 1)
                * sizeof (float complex) /* ring+prev */
          + sizeof (uint32_t) * 2        /* lockdet cnt, locked */

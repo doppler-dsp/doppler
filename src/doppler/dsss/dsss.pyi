@@ -2339,7 +2339,7 @@ class DsssReceiver:
         `RateConverter` — never coupled to each other (see the module
         docstring). Rebuilds `dll`/`rc`/`rx` with every replacement allocated
         first, only freeing and adopting the old ones once every allocation has
-        succeeded (mirrors `Acquisition`'s own `_regrid()` discipline) — a
+        succeeded (mirrors `Acquisition`'s own `acq_regrid()` discipline) — a
         failed pin leaves the receiver tracking on its prior grid, not
         half-destroyed. Only meaningful once tracking (the grid defaults still
         apply to create-time auto-sizing for the next hit while searching; call

@@ -691,7 +691,7 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
                  bits, and one epoch-wide sign would silently corrupt one
                  of them. A carrier-tracking consumer that wants a
                  data-wiped reference derives its own (see
-                 dsss_receiver_core.c's `_carrier_update_from_partials`)
+                 dsss_receiver_core.c's `dsss_rx_carrier_update_from_partials`)
                  rather than this primitive baking one into its output. */
               double denom = best_abs > 0.0 ? state->seg_norm * best_abs
                                             : state->seg_norm;

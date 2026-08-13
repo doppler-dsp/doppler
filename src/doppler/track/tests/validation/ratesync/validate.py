@@ -618,6 +618,10 @@ class Data:
     #: Fitted exponent p in |error| ~ A^p, per detector: the header says
     #: Gardner enters as A^2 and DTTL as A^1, and nothing measured it.
     amp_law: dict = field(default_factory=dict)
+    #: The amplitude-law sweep itself, so §2.6b's figure and CSV draw the
+    #: same points the table prints rather than re-measuring them.
+    amp_law_amps: list = field(default_factory=list)
+    amp_law_err: dict = field(default_factory=dict)
     #: Normalised slope at lock vs roll-off, per detector — the sweep that
     #: separates a skipped normalisation from a wrong one.
     beta_slope: dict = field(default_factory=dict)
@@ -868,6 +872,14 @@ def characterise() -> Data:
         f'10.6x between beta 0.1 and 0.9"* — now localised: **that '
         f"variation is DTTL's, and Gardner is flat** (**F15**)."
     )
+    R.md()
+    _csv(
+        DATA / "beta_slope.csv",
+        [np.array([b for b, _ in d.beta_slope["gardner"]])]
+        + [np.array([abs(v) for _, v in d.beta_slope[t]]) for t in TEDS],
+        "beta," + ",".join(f"slope_{t}" for t in TEDS),
+    )
+    R.md("![normalised slope vs roll-off](beta_slope.png)")
     R.md()
     R.md(
         "Read that as a measurement on THIS symbol stream, not as a constant "
@@ -1222,6 +1234,7 @@ def characterise() -> Data:
     _law_amps = [0.25, 0.5, 1.0, 2.0, 4.0]
     _sps, _fine = 4, grid_of(4)
     _rows = []
+    _law_err: dict[str, list[float]] = {}
     for ted in TEDS:
         errs = []
         for amp in _law_amps:
@@ -1231,7 +1244,10 @@ def characterise() -> Data:
             errs.append(abs(float(e.mean())) if e.size else 0.0)
         p = float(np.polyfit(np.log(_law_amps), np.log(errs), 1)[0])
         d.amp_law[ted] = p
+        _law_err[ted] = errs
         _rows.append([f"`{ted}`", *[f"{v:.4g}" for v in errs], f"**{p:.3f}**"])
+    d.amp_law_amps = list(_law_amps)
+    d.amp_law_err = {k: list(v) for k, v in _law_err.items()}
     R.table(
         ["ted", *[f"A = {a:g}" for a in _law_amps], "fitted exponent"],
         _rows,
@@ -1248,6 +1264,13 @@ def characterise() -> Data:
         "interchangeable in a design that cannot guarantee its input level "
         "(**F13**)."
     )
+    R.md()
+    _csv(
+        DATA / "amp_law.csv",
+        [np.array(_law_amps)] + [np.array(_law_err[t]) for t in TEDS],
+        "amplitude," + ",".join(f"abs_error_{t}" for t in TEDS),
+    )
+    R.md("![the amplitude law](amp_law.png)")
     R.md()
 
     # --- 2.7 m, and the rectangle ---------------------------------------
@@ -2122,14 +2145,20 @@ def plots(d: Data) -> None:
 
     fig, ax = plt.subplots(figsize=(9, 5))
     bns = [b for b, _ in d.bn_rows]
-    for i, sps in enumerate((4, 8, 64)):
-        ax.plot(
-            bns,
-            [v[i] for _, v in d.bn_rows],
-            "o-",
-            lw=1.3,
-            label=f"sps = {sps}",
-        )
+    # Both detectors, or the figure shows half of the table above it:
+    # solid gardner, dashed dttl, one colour per cascade so the pairing
+    # reads as "same plan, two detectors" rather than six unrelated lines.
+    for ti, ted in enumerate(TEDS):
+        for i, sps in enumerate((4, 8, 64)):
+            ax.plot(
+                bns,
+                [v[i] for _, v in d.bn_rows_by_ted[ted]],
+                "o-" if ti == 0 else "s--",
+                lw=1.3,
+                color=f"C{i}",
+                alpha=1.0 if ti == 0 else 0.65,
+                label=f"{ted}, sps = {sps}",
+            )
     ax.set_xscale("log")
     ax.invert_xaxis()
     ax.set_xlabel("loop noise bandwidth bn (per symbol)")
@@ -2143,13 +2172,21 @@ def plots(d: Data) -> None:
 
     fig, (a1, a2) = plt.subplots(1, 2, figsize=(13, 4.5))
     amps = [r[0] for r in d.amp_rows]
-    a1.semilogx(amps, [r[1] for r in d.amp_rows], "o-", lw=1.3)
+    for ted, sty in zip(TEDS, ("o-", "s--")):
+        a1.semilogx(
+            amps,
+            [r[1] for r in d.amp_rows_by_ted[ted]],
+            sty,
+            lw=1.3,
+            label=ted,
+        )
+    a1.legend(fontsize=8)
     a1.axvline(
         1.0, color="tab:green", ls="--", lw=1.0, label="contracted level"
     )
     a1.set_xlabel("symbol amplitude")
     a1.set_ylabel("EVM (dB)")
-    a1.set_title("Under-drive is not monotone (F6)")
+    a1.set_title("The level axis is two-sided on BOTH detectors (F6)")
     a1.grid(True, which="both", alpha=0.3)
     a1.legend(fontsize=8)
     a2.semilogx(
@@ -2165,6 +2202,52 @@ def plots(d: Data) -> None:
     a2.legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(HERE / "input_level.png", dpi=110)
+    plt.close(fig)
+
+    # The session's headline result, and the one number a reader should be
+    # able to see rather than reconstruct from a table: `bn` means one
+    # bandwidth for gardner at every roll-off and does not for dttl.
+    fig, ax = plt.subplots(figsize=(9, 5))
+    for ted, sty in zip(TEDS, ("o-", "s--")):
+        ax.plot(
+            [b for b, _ in d.beta_slope[ted]],
+            [abs(v) for _, v in d.beta_slope[ted]],
+            sty,
+            lw=1.4,
+            label=ted,
+        )
+    ax.axhline(1.0, color="0.4", lw=0.9, ls=":", label="ideal (unity)")
+    ax.set_xlabel("RRC roll-off beta")
+    ax.set_ylabel("normalised slope at lock")
+    ax.set_yscale("log")
+    ax.set_title("`bn` names one bandwidth only where this is flat at 1 (F15)")
+    ax.grid(True, alpha=0.3, which="both")
+    ax.legend(fontsize=9)
+    fig.tight_layout()
+    fig.savefig(HERE / "beta_slope.png", dpi=110)
+    plt.close(fig)
+
+    # Log-log, because the claim IS the slope: two straight lines of
+    # gradient 2 and 1, which is easier to check by eye than five ratios.
+    fig, ax = plt.subplots(figsize=(9, 5))
+    for ted, sty in zip(TEDS, ("o-", "s--")):
+        ax.loglog(
+            d.amp_law_amps,
+            d.amp_law_err[ted],
+            sty,
+            lw=1.4,
+            label=f"{ted} (fitted A^{d.amp_law[ted]:.3f})",
+        )
+    ax.set_xlabel("symbol amplitude A")
+    ax.set_ylabel("|mean detector output| at a fixed offset")
+    ax.set_title(
+        "Gardner carries A^2, DTTL carries A^1 — the level-error "
+        "budget is not shared (F13)"
+    )
+    ax.grid(True, alpha=0.3, which="both")
+    ax.legend(fontsize=9)
+    fig.tight_layout()
+    fig.savefig(HERE / "amp_law.png", dpi=110)
     plt.close(fig)
 
     rec = getattr(d, "traj", {})
@@ -2203,7 +2286,12 @@ def build(write: bool = True) -> Report:
     limits(d)
     if write:
         plots(d)
-    R.summary("\n- Raw sweeps: `data/scurve.csv`, `data/bn_sweep.csv`")
+    R.summary(
+        "\n- Raw sweeps: `data/scurve.csv`, `data/bn_sweep.csv`, "
+        "`data/beta_slope.csv`, `data/amp_law.csv` — every one of them "
+        "carrying both detectors, so any number in the `ted` tables above "
+        "can be re-derived rather than taken on the report's word."
+    )
     R.emit(HERE / "results.md")
     return R
 

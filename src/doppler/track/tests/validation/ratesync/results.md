@@ -124,6 +124,8 @@ Do not read that as a broken normaliser — it was the first reading and it is w
 
 Gardner holds unity across the whole range (0.93 to 1.01). DTTL does not: it runs from 1.29 to 10.48, a factor of **8.1** — while its own raw slope changes by only ~1.15x over the same betas (measured cascade-free by `validate_ratesync_scurve`). So this is not a normalisation that was skipped, which would track the raw slope and stay nearly flat; it is one that is applied and does not fit. It is also almost certainly the defect `symsync_ted_slope`'s own doxygen already admits — *"the shipped normalisation's slope varies 10.6x between beta 0.1 and 0.9"* — now localised: **that variation is DTTL's, and Gardner is flat** (**F15**).
 
+![normalised slope vs roll-off](beta_slope.png)
+
 Read that as a measurement on THIS symbol stream, not as a constant of the detector: Gardner's S-curve amplitude carries the transition density, and the design assigns that to nobody — it is data. Measured on the same object and the same pulse, an m-sequence in place of i.i.d. symbols moves the slope to `0.8632`, a 15% shift (§3 F12).
 
 ![S-curve](scurve.png)
@@ -233,6 +235,8 @@ Measured open-loop (`bn = 0`, so the control never moves and the reported error 
 | `dttl` | 0.05735 | 0.1147 | 0.2294 | 0.4588 | 0.9177 | **1.000** |
 
 `2.000` against `1.000` — the header's `A^2` and `A^1`, confirmed to three figures, and the single most useful number in this section for a caller who has to budget a level error. A 2x level error is **4x** the designed loop gain under Gardner and **2x** under DTTL; a quarter amplitude is 1/16th against 1/4. The level contract is the same either way — present unit amplitude — but the cost of missing it is squared for the default detector and linear for the other, so the two are not interchangeable in a design that cannot guarantee its input level (**F13**).
+
+![the amplitude law](amp_law.png)
 
 ### 2.7 `m`, the rectangle, and the control's range
 *(section 14)*
@@ -387,4 +391,4 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 
 - **17 findings**, 3 of them gaps or confirmed defects: F7, F15, F17
 - **36/36 limits** hold
-- Raw sweeps: `data/scurve.csv`, `data/bn_sweep.csv`
+- Raw sweeps: `data/scurve.csv`, `data/bn_sweep.csv`, `data/beta_slope.csv`, `data/amp_law.csv` — every one of them carrying both detectors, so any number in the `ted` tables above can be re-derived rather than taken on the report's word.

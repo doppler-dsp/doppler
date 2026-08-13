@@ -708,7 +708,7 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "`RateConverter` — never coupled to each other (see the module\n"
     "docstring). Rebuilds `dll`/`rc`/`rx` with every replacement allocated\n"
     "first, only freeing and adopting the old ones once every allocation has\n"
-    "succeeded (mirrors `Acquisition`'s own `_regrid()` discipline) — a\n"
+    "succeeded (mirrors `Acquisition`'s own `acq_regrid()` discipline) — a\n"
     "failed pin leaves the receiver tracking on its prior grid, not\n"
     "half-destroyed. Only meaningful once tracking (the grid defaults still\n"
     "apply to create-time auto-sizing for the next hit while searching; call\n"

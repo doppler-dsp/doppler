@@ -225,15 +225,15 @@ mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
  * wrong, and boxcar_state_bytes is a few hundred bytes once. */
 
 /* freq_ctrl, car_error, lock */
-#define _MRX_DOUBLES 3
+#define DP_MRX_DOUBLES 3
 /* sym_count, tracking|have_prev_idx, prev_idx */
-#define _MRX_U64S 3
+#define DP_MRX_U64S 3
 
 size_t
 mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l)
 {
-  return sizeof (dp_state_hdr_t) + _MRX_DOUBLES * sizeof (double)
-         + _MRX_U64S * sizeof (uint64_t)
+  return sizeof (dp_state_hdr_t) + DP_MRX_DOUBLES * sizeof (double)
+         + DP_MRX_U64S * sizeof (uint64_t)
          + 4 * sizeof (uint32_t) /* handover + car_lock cnt/locked */
          + ratesync_loop_state_bytes (&l->timing)
          + loop_filter_state_bytes (&l->car_lf) + boxcar_state_bytes (&l->arm);

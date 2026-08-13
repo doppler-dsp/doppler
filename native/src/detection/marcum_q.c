@@ -76,7 +76,7 @@ gammaq (double a, double x)
 /* P(Poisson(v) <= n-1) = Q(n, v) exactly (standard Poisson/gamma
  * duality, integer shape). */
 static double
-_poisson_cdf (int n, double v)
+marcum_poisson_cdf (int n, double v)
 {
   return gammaq ((double)n, v);
 }
@@ -85,7 +85,7 @@ _poisson_cdf (int n, double v)
  * evaluation -- always safe (never built from a possibly-underflowed
  * predecessor the way the old recurrence's seed term was). */
 static double
-_poisson_pmf (double v, int n)
+marcum_poisson_pmf (double v, int n)
 {
   return exp ((double)n * log (v) - v - lgamma ((double)n + 1.0));
 }
@@ -104,7 +104,7 @@ marcum_q (int m, double a, double b)
     }
   double v = 0.5 * b * b;
   if (a < EPS)
-    return _poisson_cdf (m, v);
+    return marcum_poisson_cdf (m, v);
 
   /* The outer sum Q_M(a,b) = sum_k w_k * Q_{M+k}(0,b), w_k =
    * Poisson(u) pmf at k (u = a^2/2), had the SAME underflow failure
@@ -125,15 +125,15 @@ marcum_q (int m, double a, double b)
     k0 = 0;
   int margin = (int)(12.0 * sqrt (u + 1.0)) + 60;
 
-  double w0       = _poisson_pmf (u, k0);
-  double chi_sum0 = _poisson_cdf (m + k0, v);
+  double w0       = marcum_poisson_pmf (u, k0);
+  double chi_sum0 = marcum_poisson_cdf (m + k0, v);
   double result   = w0 * chi_sum0;
 
   /* Walk UP (k > k0): w_k and chi_sum both extend via cheap forward
    * ratios, seeded from the safe anchor above. */
   {
     double w = w0, chi_sum = chi_sum0;
-    double chi_term = _poisson_pmf (v, m + k0);
+    double chi_term = marcum_poisson_pmf (v, m + k0);
     for (int k = k0 + 1; k <= k0 + margin; k++)
       {
         w *= u / (double)k;
@@ -152,7 +152,7 @@ marcum_q (int m, double a, double b)
     for (int k = k0 - 1; k >= 0 && k >= k0 - margin; k--)
       {
         w *= (double)(k + 1) / u;
-        chi_sum -= _poisson_pmf (v, m + k);
+        chi_sum -= marcum_poisson_pmf (v, m + k);
         if (chi_sum < 0.0)
           chi_sum = 0.0;
         double contrib = w * chi_sum;

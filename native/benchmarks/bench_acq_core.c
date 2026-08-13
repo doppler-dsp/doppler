@@ -154,7 +154,7 @@ main (void)
           /* The wideband case expects 35, not the 34 this once did: window
            * sizing is against the spacing bins are actually reported at
            * (doppler_res_hz = 2*span), and forced odd so coverage is symmetric
-           * and no ambiguous n/2 index exists -- see _cover_window_bins() /
+           * and no ambiguous n/2 index exists -- see acq_cover_window_bins() /
            * acq_bin_to_signed(). */
           if (a->coherent_bins != 1 || a->window_bins != cfg->expect_bins)
             {

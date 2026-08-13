@@ -6,14 +6,14 @@
 #include <string.h>
 
 /* Bernoulli numbers B_{2k} for k = 1 ... 9 */
-static const double _berno[9] = {
+static const double ciccomp_berno[9] = {
   1.0 / 6.0,       -1.0 / 30.0, 1.0 / 42.0,      -1.0 / 30.0,     5.0 / 66.0,
   -691.0 / 2730.0, 7.0 / 6.0,   -3617.0 / 510.0, 43867.0 / 798.0,
 };
 
 /* Gaussian elimination with partial pivoting.  n <= 9. */
 static void
-_solve (double *A, double *b, int n)
+ciccomp_solve (double *A, double *b, int n)
 {
   for (int col = 0; col < n; col++)
     {
@@ -84,7 +84,7 @@ ciccompmf (double *out, uint32_t N, uint32_t R, uint32_t M)
           for (uint32_t q = 1; q <= u; q++)
             {
               uint32_t idx  = u - q + 1;
-              double   bval = fabs (_berno[idx - 1]);
+              double   bval = fabs (ciccomp_berno[idx - 1]);
               double   term = (double)N * bval / (2.0 * idx)
                               * (1.0 - pow ((double)R, -2.0 * (double)idx));
               b[u - 1] += (double)(2 * q - 1) * pow (term, (double)q);
@@ -94,7 +94,7 @@ ciccompmf (double *out, uint32_t N, uint32_t R, uint32_t M)
       memcpy (a, b, half * sizeof (double));
       double Atmp[9 * 9];
       memcpy (Atmp, A, half * half * sizeof (double));
-      _solve (Atmp, a, (int)half);
+      ciccomp_solve (Atmp, a, (int)half);
 
       double a0 = 1.0;
       for (uint32_t i = 0; i < half; i++)
@@ -128,7 +128,7 @@ ciccompmf (double *out, uint32_t N, uint32_t R, uint32_t M)
           for (uint32_t q = 1; q < u; q++)
             {
               uint32_t idx  = u - q;
-              double   bval = fabs (_berno[idx - 1]);
+              double   bval = fabs (ciccomp_berno[idx - 1]);
               double   term = (double)N * bval / (2.0 * idx)
                               * (1.0 - pow ((double)R, -2.0 * (double)idx));
               b[u - 1] += (double)(2 * q - 1) * pow (term, (double)q);
@@ -138,7 +138,7 @@ ciccompmf (double *out, uint32_t N, uint32_t R, uint32_t M)
       memcpy (a, b, half * sizeof (double));
       double Atmp[9 * 9];
       memcpy (Atmp, A, half * half * sizeof (double));
-      _solve (Atmp, a, (int)half);
+      ciccomp_solve (Atmp, a, (int)half);
 
       for (uint32_t i = 0; i < half; i++)
         {

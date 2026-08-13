@@ -37,7 +37,7 @@
  * after a dump (corr_execute returned n).
  */
 static void
-_compute_stat (detector_state_t *state)
+detector_compute_stat (detector_state_t *state)
 {
   const size_t n = state->n;
 
@@ -55,8 +55,8 @@ _compute_stat (detector_state_t *state)
   state->peak_mag = state->mag_buf[peak];
 
   state->noise_est
-      = _noise_estimate (state->mag_buf, state->noise_lo, state->noise_hi,
-                         state->noise_scratch, state->noise_mode);
+      = det_noise_estimate (state->mag_buf, state->noise_lo, state->noise_hi,
+                            state->noise_scratch, state->noise_mode);
 
   state->test_stat = (state->noise_est > 0.0f)
                          ? (state->peak_mag / state->noise_est)
@@ -80,7 +80,7 @@ detector_create (const float complex *ref, size_t n, size_t dwell,
   /* Clamp the noise window to the valid index range [0, n-1].  The binding
      passes a SIZE_MAX sentinel (default_raw) for the documented "n-1"
      full-window default; without this clamp it overflows the scratch sizing
-     below and reads mag_buf out of bounds in _noise_estimate. */
+     below and reads mag_buf out of bounds in det_noise_estimate. */
   size_t hi         = (noise_hi < state->n) ? noise_hi : state->n - 1;
   size_t lo         = (noise_lo < state->n) ? noise_lo : state->n - 1;
   state->noise_lo   = (lo <= hi) ? lo : hi;
@@ -88,7 +88,7 @@ detector_create (const float complex *ref, size_t n, size_t dwell,
   state->noise_mode = noise_mode;
   state->threshold  = threshold;
 
-  state->ring = _ring_create (n > 512 ? n : 512);
+  state->ring = det_ring_create (n > 512 ? n : 512);
   if (!state->ring)
     goto fail;
   state->ring_cap = state->ring->capacity;
@@ -263,7 +263,7 @@ detector_push (detector_state_t *state, const float complex *in, size_t n_in,
             continue; /* still accumulating — no dump yet */
 
           state->_last_corr_valid = 1;
-          _compute_stat (state);
+          detector_compute_stat (state);
 
           if (state->threshold == 0.0f || state->test_stat > state->threshold)
             {

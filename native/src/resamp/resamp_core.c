@@ -12,7 +12,7 @@
 /* ------------------------------------------------------------------ */
 
 static double
-_bessel_i0 (double x)
+resamp_bessel_i0 (double x)
 {
   double sum = 1.0, term = 1.0;
   for (int k = 1; k < 30; k++)
@@ -26,7 +26,7 @@ _bessel_i0 (double x)
 }
 
 static double
-_kaiser_beta (double atten)
+resamp_kaiser_beta (double atten)
 {
   if (atten > 50.0)
     return 0.1102 * (atten - 8.7);
@@ -36,7 +36,7 @@ _kaiser_beta (double atten)
 }
 
 static unsigned
-_log2_u (size_t v)
+resamp_log2_u (size_t v)
 {
   unsigned r = 0;
   while ((1u << r) < v)
@@ -50,10 +50,10 @@ _log2_u (size_t v)
  * Returns heap-allocated bank, or NULL on failure.
  */
 static float *
-_build_bank (size_t num_phases, size_t num_taps, double atten, double pb,
-             double sb)
+resamp_build_bank (size_t num_phases, size_t num_taps, double atten, double pb,
+                   double sb)
 {
-  double beta  = _kaiser_beta (atten);
+  double beta  = resamp_kaiser_beta (atten);
   double pb_ph = pb / (double)num_phases;
   double sb_ph = sb / (double)num_phases;
   double wc    = 2.0 * M_PI * (pb_ph + (sb_ph - pb_ph) * 0.5);
@@ -68,13 +68,13 @@ _build_bank (size_t num_phases, size_t num_taps, double atten, double pb,
   if (!g)
     return NULL;
 
-  double b0 = _bessel_i0 (beta);
+  double b0 = resamp_bessel_i0 (beta);
   for (size_t i = 0; i < proto; i++)
     {
       double m   = (double)i - halflen;
       double mid = (double)(proto - 1) * 0.5;
       double u   = 2.0 * ((double)i - mid) / (double)(proto - 1);
-      double w   = _bessel_i0 (beta * sqrt (1.0 - u * u)) / b0;
+      double w   = resamp_bessel_i0 (beta * sqrt (1.0 - u * u)) / b0;
       double s   = (m == 0.0) ? 1.0 : sin (wc * m) / (wc * m);
       g[i]       = w * wc / M_PI * s * (double)num_phases;
     }
@@ -99,7 +99,7 @@ _build_bank (size_t num_phases, size_t num_taps, double atten, double pb,
 
 /* Compute taps-per-phase from Kaiser spec. */
 static size_t
-_kaiser_num_taps (size_t num_phases, double atten, double pb, double sb)
+resamp_kaiser_num_taps (size_t num_phases, double atten, double pb, double sb)
 {
   double pb_ph = pb / (double)num_phases;
   double sb_ph = sb / (double)num_phases;
@@ -151,7 +151,7 @@ _kaiser_num_taps (size_t num_phases, double atten, double pb, double sb)
 /* ------------------------------------------------------------------ */
 
 static inline uint32_t
-_step_inc (double rate, int upsample)
+resamp_step_inc (double rate, int upsample)
 {
   /* The arithmetic is resamp's -- which reciprocal, and which branch -- and
      the CONVERSION is nco_core.h's, like every other double-valued phase
@@ -169,8 +169,8 @@ _step_inc (double rate, int upsample)
 }
 
 static resamp_state_t *
-_create_from_bank (size_t num_phases, size_t num_taps, float *bank_owned,
-                   double rate)
+resamp_create_from_bank (size_t num_phases, size_t num_taps, float *bank_owned,
+                         double rate)
 {
   resamp_state_t *s = calloc (1, sizeof (*s));
   if (!s)
@@ -182,11 +182,11 @@ _create_from_bank (size_t num_phases, size_t num_taps, float *bank_owned,
   s->rate        = rate;
   s->num_phases  = num_phases;
   s->num_taps    = num_taps;
-  s->log2_phases = _log2_u (num_phases);
+  s->log2_phases = resamp_log2_u (num_phases);
   s->upsample    = (rate >= 1.0);
   s->bank        = bank_owned;
   s->phase       = 0;
-  s->phase_inc   = _step_inc (rate, s->upsample);
+  s->phase_inc   = resamp_step_inc (rate, s->upsample);
   s->ctrl_phase  = 0;
   s->ctrl_debt   = 0;
   s->ctrl_ahead  = 0;
@@ -233,11 +233,11 @@ resamp_create (double rate)
   static const double PB         = 0.4;
   static const double SB         = 0.6;
 
-  size_t num_taps = _kaiser_num_taps (NUM_PHASES, ATTEN, PB, SB);
-  float *bank     = _build_bank (NUM_PHASES, num_taps, ATTEN, PB, SB);
+  size_t num_taps = resamp_kaiser_num_taps (NUM_PHASES, ATTEN, PB, SB);
+  float *bank     = resamp_build_bank (NUM_PHASES, num_taps, ATTEN, PB, SB);
   if (!bank)
     return NULL;
-  return _create_from_bank (NUM_PHASES, num_taps, bank, rate);
+  return resamp_create_from_bank (NUM_PHASES, num_taps, bank, rate);
 }
 
 resamp_state_t *
@@ -252,7 +252,7 @@ resamp_create_custom (size_t num_phases, size_t num_taps, const float *bank,
   if (!b)
     return NULL;
   memcpy (b, bank, len * sizeof (float));
-  return _create_from_bank (num_phases, num_taps, b, rate);
+  return resamp_create_from_bank (num_phases, num_taps, b, rate);
 }
 
 void
@@ -350,7 +350,7 @@ resamp_set_rate (resamp_state_t *s, double rate)
 {
   s->rate      = rate;
   s->upsample  = (rate >= 1.0);
-  s->phase_inc = _step_inc (rate, s->upsample);
+  s->phase_inc = resamp_step_inc (rate, s->upsample);
 }
 
 size_t

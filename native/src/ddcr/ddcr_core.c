@@ -48,8 +48,8 @@ static const float s_hb_fir[DDC_HB_TAPS] = {
 };
 
 static ddcr_state_t *
-_ddcr_new (double norm_freq, double rate, int pulse, double beta, size_t span,
-           double pulse_sps, size_t num_phases)
+ddcr_ddcr_new (double norm_freq, double rate, int pulse, double beta,
+               size_t span, double pulse_sps, size_t num_phases)
 {
   if (rate <= 0.0 || rate >= 0.5)
     return NULL;
@@ -96,7 +96,7 @@ _ddcr_new (double norm_freq, double rate, int pulse, double beta, size_t span,
 ddcr_state_t *
 ddcr_create (double norm_freq, double rate)
 {
-  return _ddcr_new (norm_freq, rate, RC_PULSE_NONE, 0.0, 0, 0.0, 0);
+  return ddcr_ddcr_new (norm_freq, rate, RC_PULSE_NONE, 0.0, 0, 0.0, 0);
 }
 
 ddcr_state_t *
@@ -105,7 +105,8 @@ ddcr_create_matched (double norm_freq, double rate, int pulse, double beta,
 {
   if (pulse == RC_PULSE_NONE)
     return NULL;
-  return _ddcr_new (norm_freq, rate, pulse, beta, span, pulse_sps, num_phases);
+  return ddcr_ddcr_new (norm_freq, rate, pulse, beta, span, pulse_sps,
+                        num_phases);
 }
 
 void

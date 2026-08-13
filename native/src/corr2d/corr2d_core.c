@@ -8,7 +8,8 @@
  * middle, high half at the end, with the Nyquist bin split for even n.
  * m == n is a copy.  Matches scipy.signal.resample to machine precision. */
 static void
-_zeropad_1d (const float complex *p, size_t n, float complex *q, size_t m)
+corr2d_zeropad_1d (const float complex *p, size_t n, float complex *q,
+                   size_t m)
 {
   if (m == n)
     {
@@ -30,17 +31,19 @@ _zeropad_1d (const float complex *p, size_t n, float complex *q, size_t m)
 
 /* 2-D spectral zero-pad (ny,nx) -> (ny_out,nx_out), axis-separable: pad rows
  * (nx -> nx_out) into ztmp, then columns (ny -> ny_out) into out.  The
- * even-axis Nyquist split is handled per axis by _zeropad_1d. */
+ * even-axis Nyquist split is handled per axis by corr2d_zeropad_1d. */
 static void
-_zeropad_2d (corr2d_state_t *s, const float complex *p, float complex *out)
+corr2d_zeropad_2d (corr2d_state_t *s, const float complex *p,
+                   float complex *out)
 {
   for (size_t i = 0; i < s->ny; i++)
-    _zeropad_1d (p + i * s->nx, s->nx, s->ztmp + i * s->nx_out, s->nx_out);
+    corr2d_zeropad_1d (p + i * s->nx, s->nx, s->ztmp + i * s->nx_out,
+                       s->nx_out);
   for (size_t j = 0; j < s->nx_out; j++)
     {
       for (size_t i = 0; i < s->ny; i++)
         s->zcol[i] = s->ztmp[i * s->nx_out + j];
-      _zeropad_1d (s->zcol, s->ny, s->zcolout, s->ny_out);
+      corr2d_zeropad_1d (s->zcol, s->ny, s->zcolout, s->ny_out);
       for (size_t i = 0; i < s->ny_out; i++)
         out[i * s->nx_out + j] = s->zcolout[i];
     }
@@ -50,7 +53,7 @@ _zeropad_2d (corr2d_state_t *s, const float complex *p, float complex *out)
  * single-row-reference fast-path precondition (see corr2d_core.h's file
  * doc comment for the identity this licenses).  ny==1 is trivially true. */
 static int
-_is_single_row_ref (const float complex *ref, size_t ny, size_t nx)
+corr2d_is_single_row_ref (const float complex *ref, size_t ny, size_t nx)
 {
   for (size_t i = 1; i < ny; i++)
     for (size_t j = 0; j < nx; j++)
@@ -79,7 +82,7 @@ corr2d_create (const float complex *ref, size_t ny, size_t nx, size_t dwell,
   /* Fast path requires ny_out == ny (the row-axis identity only holds for a
    * matched forward/inverse row-transform length — see the header doc
    * comment) and a reference with no energy outside row 0. */
-  int fast = (nyo == ny) && _is_single_row_ref (ref, ny, nx);
+  int fast = (nyo == ny) && corr2d_is_single_row_ref (ref, ny, nx);
 
   state->work_fft = malloc (n * sizeof (*state->work_fft));
   state->accum    = calloc (n, sizeof (*state->accum));
@@ -222,7 +225,7 @@ corr2d_set_ref (corr2d_state_t *state, const float complex *ref)
       /* Mode is fixed for the object's lifetime (see the header doc
        * comment) — reject rather than silently truncating a ref that no
        * longer fits the single-row assumption row_ref_spec relies on. */
-      if (!_is_single_row_ref (ref, state->ny, state->nx))
+      if (!corr2d_is_single_row_ref (ref, state->ny, state->nx))
         return -1;
       fft_execute_cf32 (state->fwd1d, ref, state->nx, state->row_ref_spec,
                         state->nx);
@@ -256,8 +259,8 @@ corr2d_execute_max_out (corr2d_state_t *state)
  * 1/nx (NOT 1/n = ny*nx: the row-axis orthogonality sum contributes the
  * extra factor of ny that turns 1/n into 1/nx — see the derivation). */
 static size_t
-_execute_fast (corr2d_state_t *state, const float complex *in,
-               float complex *out)
+corr2d_execute_fast (corr2d_state_t *state, const float complex *in,
+                     float complex *out)
 {
   const size_t ny = state->ny, nx = state->nx, nxo = state->nx_out;
 
@@ -282,8 +285,8 @@ _execute_fast (corr2d_state_t *state, const float complex *in,
       else
         {
           for (size_t i = 0; i < ny; i++)
-            _zeropad_1d (state->accum + i * nx, nx, state->work_pad + i * nxo,
-                         nxo);
+            corr2d_zeropad_1d (state->accum + i * nx, nx,
+                               state->work_pad + i * nxo, nxo);
           for (size_t i = 0; i < ny; i++)
             fft_execute_cf32 (state->inv1d, state->work_pad + i * nxo, nxo,
                               out + i * nxo, nxo);
@@ -323,7 +326,7 @@ corr2d_execute (corr2d_state_t *state, const float complex *in, size_t n_in,
 
   if (state->fast_path)
     {
-      size_t n = _execute_fast (state, in, dst);
+      size_t n = corr2d_execute_fast (state, in, dst);
       if (n && dst != out)
         {
           memcpy (out, dst, cap * sizeof *out);
@@ -368,7 +371,7 @@ corr2d_execute (corr2d_state_t *state, const float complex *in, size_t n_in,
       const float complex *src = state->accum;
       if (state->n_out != state->n)
         {
-          _zeropad_2d (state, state->accum, state->work_pad);
+          corr2d_zeropad_2d (state, state->accum, state->work_pad);
           src = state->work_pad;
         }
       fft2d_execute_cf32 (state->inv, src, state->n_out, dst, state->n_out);

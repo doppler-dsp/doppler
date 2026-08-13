@@ -1018,7 +1018,7 @@ test_agc_is_off_unless_asked_and_needs_a_pulse (void)
       /* A plain cascade has no pulse, so `bank_e0 / bank_sps` describes
          nothing — refused rather than given a guessed reference.
            Two independent mechanisms enforce this (the contract check in
-         enable_agc and the bank_sps precondition in _agc_build, which
+         enable_agc and the bank_sps precondition in rc_agc_build, which
          set_rate needs anyway), so this pins the BEHAVIOUR and deleting
          either one alone will not turn it red. That is the intent. */
       DP_CHECK (RateConverter_enable_agc (plain, 1e-3, 0.05)
@@ -1092,7 +1092,7 @@ test_agc_telemetry_forwards_and_survives_a_replan (void)
         dp_tlm_rec_t r[64];
         DP_CHECK (dp_tlm_read (t, 64, r, 64) > 0);
 
-        /* 3. THE ONE THAT BITES: _agc_build() destroys and rebuilds the AGC
+        /* 3. THE ONE THAT BITES: rc_agc_build() destroys and rebuilds the AGC
               on a re-plan, and the AGC is documented to survive a rate change
               "the way the pulse does". Its instrumentation has to survive
               too, or a rate change silently stops the gain trajectory being

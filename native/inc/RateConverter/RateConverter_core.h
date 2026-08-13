@@ -119,7 +119,7 @@ typedef struct
   double       agc_alpha;    /**< detector EMA coefficient               */
   /** The telemetry attachment as REQUESTED, not as currently applied.
       Held here rather than only on the AGC because the AGC is destroyed and
-      rebuilt whenever the plan changes (_agc_build), and may not exist yet
+      rebuilt whenever the plan changes (rc_agc_build), and may not exist yet
       when the attach arrives; keeping the request lets every rebuild re-apply
       it. Never packed into a state blob — telemetry is observation.
       See RateConverter_set_telemetry(). */
@@ -346,7 +346,7 @@ size_t RateConverter_bank_shape_value (const RateConverter_state_t *s,
  * The loop starts at unity gain and walks to the level; there is no seed and
  * no sample is treated specially at the start. A seed is a STEP in gain, and
  * one taken off a signal that has not arrived is a shock the loops downstream
- * cannot absorb -- see _agc_tap() for the measurement that settled this. So
+ * cannot absorb -- see rc_agc_tap() for the measurement that settled this. So
  * @p bn_sym also sets how fast a level error is corrected, and a very slow
  * AGC leaves the early symbols under- or over-driven for a loop time
  * constant.

@@ -122,7 +122,7 @@ extern "C"
  * survives. "Never converges over a realistic burst" is a cold-START
  * complaint about a loop that now starts at unity and walks -- a ramp the
  * loops downstream can follow, where a seeded STEP taken off a signal that
- * has not arrived is a shock they cannot (see _agc_tap() in
+ * has not arrived is a shock they cannot (see rc_agc_tap() in
  * RateConverter_core.c for that measurement). And it sized a CONTINUOUS
  * receiver's loop against a burst budget; this object is continuous by
  * design, and a receiver built for bursts would take feed-forward estimates

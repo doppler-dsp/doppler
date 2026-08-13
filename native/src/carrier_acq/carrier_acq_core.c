@@ -8,9 +8,10 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-/* sin(pi*u)/(pi*u), sinc(0) = 1 -- same idiom as acq_core.c's own _sinc(). */
+/* sin(pi*u)/(pi*u), sinc(0) = 1 -- same idiom as acq_core.c's own
+ * carrier_acq_sinc(). */
 static double
-_sinc (double u)
+carrier_acq_sinc (double u)
 {
   return (u == 0.0) ? 1.0 : sin (M_PI * u) / (M_PI * u);
 }
@@ -22,14 +23,14 @@ _sinc (double u)
  * _known_symbol_psd_template, just derived from the DC-centred grid
  * instead of np.fft.fftfreq's native-order one. */
 static void
-_default_template (float *out, size_t nfft, double sample_rate_hz,
-                   double symbol_rate_hz)
+carrier_acq_default_template (float *out, size_t nfft, double sample_rate_hz,
+                              double symbol_rate_hz)
 {
   for (size_t i = 0; i < nfft; i++)
     {
       double freq_hz
           = ((double)i - (double)nfft / 2.0) * sample_rate_hz / (double)nfft;
-      double s = _sinc (freq_hz / symbol_rate_hz);
+      double s = carrier_acq_sinc (freq_hz / symbol_rate_hz);
       out[i]   = (float)(s * s);
     }
 }
@@ -39,7 +40,7 @@ _default_template (float *out, size_t nfft, double sample_rate_hz,
  * degenerates to 0 on a flat/noise-floor peak rather than dividing by
  * zero. */
 static double
-_parabolic_offset (float y1, float y2, float y3)
+carrier_acq_parabolic_offset (float y1, float y2, float y3)
 {
   float denom = y1 - 2.0f * y2 + y3;
   if (denom == 0.0f)
@@ -99,7 +100,8 @@ carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
   if (psd_template_len == s->nfft)
     memcpy (tmpl, psd_template, s->nfft * sizeof (float));
   else
-    _default_template (tmpl, s->nfft, sample_rate_hz, symbol_rate_hz);
+    carrier_acq_default_template (tmpl, s->nfft, sample_rate_hz,
+                                  symbol_rate_hz);
   double s_t = 0.0, s_t2 = 0.0;
   for (size_t k = 0; k < s->nfft; k++)
     {
@@ -188,13 +190,13 @@ carrier_acq_reset (carrier_acq_state_t *state)
  * out_buf (the correlation map from the dump that just fired -- no
  * second correlation pass needed) and mark ready. */
 static void
-_finish (carrier_acq_state_t *s, size_t lag)
+carrier_acq_finish (carrier_acq_state_t *s, size_t lag)
 {
   size_t nfft    = s->nfft;
   float  y1      = crealf (s->det->out_buf[(lag + nfft - 1) % nfft]);
   float  y2      = crealf (s->det->out_buf[lag]);
   float  y3      = crealf (s->det->out_buf[(lag + 1) % nfft]);
-  double frac    = _parabolic_offset (y1, y2, y3);
+  double frac    = carrier_acq_parabolic_offset (y1, y2, y3);
   double bin_pos = (double)lag + frac;
   if (bin_pos > (double)nfft / 2.0)
     bin_pos -= (double)nfft;
@@ -209,7 +211,7 @@ _finish (carrier_acq_state_t *s, size_t lag)
  * dwell_target) would otherwise stop sequential mode from trying more
  * blocks exactly when real data shows it needs to. */
 static size_t
-_giveup_cap (const carrier_acq_state_t *s)
+carrier_acq_giveup_cap (const carrier_acq_state_t *s)
 {
   return s->sequential ? s->max_n_blocks : s->dwell_target;
 }
@@ -257,7 +259,7 @@ _giveup_cap (const carrier_acq_state_t *s)
 #define CARRIER_ACQ_KAPPA 7.9
 
 static float
-_ratio_threshold (const carrier_acq_state_t *s, size_t n_blocks)
+carrier_acq_ratio_threshold (const carrier_acq_state_t *s, size_t n_blocks)
 {
   double z      = CARRIER_ACQ_KAPPA * det_threshold (s->pfa);
   double spread = sqrt (s->s_t2 / (double)n_blocks) / s->s_t;
@@ -265,7 +267,7 @@ _ratio_threshold (const carrier_acq_state_t *s, size_t n_blocks)
 }
 
 static void
-_process_block (carrier_acq_state_t *s, const float complex *block)
+carrier_acq_process_block (carrier_acq_state_t *s, const float complex *block)
 {
   psd_accumulate (s->psd, block, s->psd->n);
   s->n_blocks++;
@@ -280,20 +282,20 @@ _process_block (carrier_acq_state_t *s, const float complex *block)
   for (size_t k = 0; k < s->nfft; k++)
     s->power_buf[k] = s->pwr_buf[k] + 0.0f * I;
 
-  float eta_nc = _ratio_threshold (s, s->n_blocks);
+  float eta_nc = carrier_acq_ratio_threshold (s, s->n_blocks);
   detector_set_threshold (s->det, eta_nc);
 
   det_result_t result[1];
   size_t n_res = detector_push (s->det, s->power_buf, s->nfft, result, 1);
   if (n_res > 0)
-    _finish (s, result[0].lag);
+    carrier_acq_finish (s, result[0].lag);
 }
 
 void
 carrier_acq_steps (carrier_acq_state_t *state, const float complex *x,
                    size_t x_len)
 {
-  size_t cap = _giveup_cap (state);
+  size_t cap = carrier_acq_giveup_cap (state);
   if (state->ready || state->n_blocks >= cap)
     return;
 
@@ -310,14 +312,14 @@ carrier_acq_steps (carrier_acq_state_t *state, const float complex *x,
       off += take;
       if (state->carry_len == n_fft)
         {
-          _process_block (state, state->carry_buf);
+          carrier_acq_process_block (state, state->carry_buf);
           state->carry_len = 0;
         }
     }
 
   while (!state->ready && state->n_blocks < cap && off + n_fft <= x_len)
     {
-      _process_block (state, x + off);
+      carrier_acq_process_block (state, x + off);
       off += n_fft;
     }
 

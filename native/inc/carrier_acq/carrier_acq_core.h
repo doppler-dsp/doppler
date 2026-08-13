@@ -29,7 +29,7 @@
  * (that statistic -- a classic complex-correlator peak/noise envelope
  * ratio -- does not transfer to this object's real statistic, a
  * power-spectrum-vs-known-template correlation; confirmed via Monte
- * Carlo, ~5x too conservative). _ratio_threshold() (carrier_acq_core.c)
+ * Carlo, ~5x too conservative). carrier_acq_ratio_threshold() (carrier_acq_core.c)
  * instead uses the derived H0 model for this specific statistic (an
  * exact Gamma-sum mean/variance for the averaged, template-correlated
  * periodogram) plus ONE empirically-calibrated tail-inflation constant
@@ -140,7 +140,7 @@ typedef struct {
  *                        data shows it needs to.
  * @param sequential      True: test for a detection after EVERY block
  *                        (the per-block CFAR ratio threshold -- see
- *                        _ratio_threshold() in carrier_acq_core.c --
+ *                        carrier_acq_ratio_threshold() in carrier_acq_core.c --
  *                        tightens as more looks accumulate), stopping
  *                        the moment one fires or max_n_blocks is
  *                        reached. False: accumulate silently and test

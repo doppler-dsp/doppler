@@ -30,8 +30,8 @@
    because they are different objects to a caller (and different Python
    flavors: DDC and MatchedDDC). */
 static ddc_state_t *
-_ddc_new (double norm_freq, double rate, int pulse, double beta, size_t span,
-          double pulse_sps, size_t num_phases)
+ddc_ddc_new (double norm_freq, double rate, int pulse, double beta,
+             size_t span, double pulse_sps, size_t num_phases)
 {
   if (rate <= 0.0)
     return NULL;
@@ -69,7 +69,7 @@ _ddc_new (double norm_freq, double rate, int pulse, double beta, size_t span,
 ddc_state_t *
 ddc_create (double norm_freq, double rate)
 {
-  return _ddc_new (norm_freq, rate, RC_PULSE_NONE, 0.0, 0, 0.0, 0);
+  return ddc_ddc_new (norm_freq, rate, RC_PULSE_NONE, 0.0, 0, 0.0, 0);
 }
 
 ddc_state_t *
@@ -78,7 +78,8 @@ ddc_create_matched (double norm_freq, double rate, int pulse, double beta,
 {
   if (pulse == RC_PULSE_NONE) /* use ddc_create() for a plain conversion */
     return NULL;
-  return _ddc_new (norm_freq, rate, pulse, beta, span, pulse_sps, num_phases);
+  return ddc_ddc_new (norm_freq, rate, pulse, beta, span, pulse_sps,
+                      num_phases);
 }
 
 void

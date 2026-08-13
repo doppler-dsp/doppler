@@ -60,6 +60,7 @@ _Additive White Gaussian Noise generator._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  int | [**awgn**](#function-awgn) (uint64\_t seed, float amplitude, size\_t n, float complex \* out) <br>_One-shot AWGN generation — no persistent state required._  |
+|  float | [**awgn\_amplitude\_for\_snr**](#function-awgn_amplitude_for_snr) (float snr\_db, float signal\_power) <br>_The_ `amplitude` _that puts a signal at a target SNR._ |
 |  [**awgn\_state\_t**](structawgn__state__t.md) \* | [**awgn\_create**](#function-awgn_create) (uint64\_t seed, float amplitude) <br>_Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG via SplitMix64, and sets up both the scalar and the AVX2 parallel streams. The initial seed is stored so_ [_**awgn\_reset()**_](awgn__core_8h.md#function-awgn_reset) _can reproduce the exact same stream._ |
 |  void | [**awgn\_destroy**](#function-awgn_destroy) ([**awgn\_state\_t**](structawgn__state__t.md) \* state) <br> |
 |  size\_t | [**awgn\_generate**](#function-awgn_generate) ([**awgn\_state\_t**](structawgn__state__t.md) \* state, size\_t n, float complex \* out, size\_t max\_out) <br>_Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill_ `out` _with independent complex Gaussians: Re and Im each have zero mean and standard deviation_`amplitude` _. Total complex power = 2 × amplitude². The AVX2 path processes 8 samples in parallel when available._ |
@@ -184,6 +185,52 @@ awgn_destroy(g);
 **Returns:**
 
 DP\_OK on success, DP\_ERR\_MEMORY on allocation failure. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function awgn\_amplitude\_for\_snr 
+
+_The_ `amplitude` _that puts a signal at a target SNR._
+```C++
+float awgn_amplitude_for_snr (
+    float snr_db,
+    float signal_power
+) 
+```
+
+
+
+The inverse of this generator's own convention, and the reason it lives here: [**awgn\_create**](awgn__core_8h.md#function-awgn_create) takes a PER-COMPONENT sigma, so the complex noise power it produces is `2 * amplitude^2`. For a signal of power `signal_power` at `snr_db` (referenced to the full sample rate),
+
+
+`amplitude = sqrt(signal_power / (2 * 10^(snr_db/10)))`
+
+
+Pass the result straight to [**awgn\_create()**](awgn__core_8h.md#function-awgn_create). "Is the amplitude per rail or
+total power?" has two defensible answers and this function is the one place that answers it  a caller deriving its own sigma is one factor of two away from a 3 dB error that nothing will fail on.
+
+
+
+
+**Parameters:**
+
+
+* `snr_db` Target SNR in dB, over the full sample rate. 
+* `signal_power` Signal power (1.0 for unit-power tones or unit-energy BPSK/QPSK symbols). 
+
+
+
+**Returns:**
+
+Per-component sigma for one I or Q rail. 
 
 
 

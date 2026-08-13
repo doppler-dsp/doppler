@@ -51,6 +51,8 @@ extern "C"
 
   float awgn_get_amplitude (const awgn_state_t *state);
 
+  float awgn_amplitude_for_snr (float snr_db, float signal_power);
+
   void awgn_set_amplitude (awgn_state_t *state, float val);
 
   void awgn_reseed (awgn_state_t *state, uint64_t seed);

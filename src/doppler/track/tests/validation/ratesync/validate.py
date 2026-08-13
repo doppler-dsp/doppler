@@ -274,6 +274,55 @@ def run_sync(
     return rs, y, rec
 
 
+def _cascade_slope(beta: float, ted: str) -> float:
+    """Normalised S-curve slope at lock, through the real cascade, at @p beta.
+
+    Separate from the §2.2 sweep because the shared stimulus cache is keyed
+    on the grid rather than on the pulse: this needs a NEW shaped stream per
+    roll-off, and only two offsets of it, so it builds its own rather than
+    widening a cache every other section pays for.
+
+    Two offsets, not a full curve: the quantity is a derivative at one
+    point, and a paired difference either side of the lock point is the
+    whole of it.
+    """
+    nsym, sps, fine = 600, 4, FINE
+    syms = symbols(nsym, 7).astype(np.complex64)
+    gen = Synth(
+        type="symbols",
+        symbols=syms,
+        pulse="rrc",
+        rrc_beta=beta,
+        rrc_span=SPAN,
+        sps=fine,
+        fs=1.0,
+        snr=999.0,
+        seed=7,
+    )
+    shaped = np.asarray(gen.steps(nsym * fine)).astype(np.complex64)
+    dec, j = fine // sps, 2
+    got = {}
+    for off in (fine - j, j):
+        x = np.ascontiguousarray(shaped[off::dec])
+        rs = RateSync(
+            sps=float(sps),
+            pulse="rrc",
+            beta=beta,
+            span=SPAN,
+            m=2,
+            num_phases=1024,
+            bn=0.0,
+            zeta=0.707,
+            ted=ted,
+        )
+        tlm = Telemetry(1 << 20)
+        rs.set_telemetry(tlm, "s")
+        rs.steps(x)
+        e = np.asarray(tlm.read_dict().get("s.e", []))
+        got[off] = float(e.mean()) if e.size else 0.0
+    return (got[j] - got[fine - j]) / (2.0 * j / fine)
+
+
 def _csv(path, cols, header: str) -> None:
     """Write one raw sweep, unless this run is measurement-only."""
     if R.write:
@@ -397,7 +446,8 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "C26d",
         "ted_scale gives the detector unit slope at lock, so bn means one "
         "bandwidth",
-        "§2.2 — **gardner only**, dttl measures 2.60, see F15",
+        "C `validate_ratesync_scurve` (formula + wiring, both detectors, "
+        "beta 0.1-0.9) — but §2.2 measures 2.60 through the cascade, F15",
     ),
     (
         "C27",
@@ -568,6 +618,9 @@ class Data:
     #: Fitted exponent p in |error| ~ A^p, per detector: the header says
     #: Gardner enters as A^2 and DTTL as A^1, and nothing measured it.
     amp_law: dict = field(default_factory=dict)
+    #: Normalised slope at lock vs roll-off, per detector — the sweep that
+    #: separates a skipped normalisation from a wrong one.
+    beta_slope: dict = field(default_factory=dict)
     #: Resting mean |e| per detector — the self-noise floor, which divided
     #: by that detector's slope gives a timing jitter the two share a unit
     #: for.
@@ -755,15 +808,65 @@ def characterise() -> Data:
         "That last number is the check on the construct-time normaliser. The "
         "TED divides by the detector's own slope once, at construction "
         "(`symsync_ted_slope`), so a correctly normalised detector has unit "
-        f"slope at lock. Measured `{d.slope_meas:.4f}` for Gardner and "
-        f"`{_dslope:.4f}` for DTTL — each within "
-        f"{max(abs(d.slope_meas - 1.0), abs(_dslope - 1.0)) * 100:.0f}% of "
-        f"the gain `bn` names, which is well inside the tolerance a "
-        f"second-order loop needs and is the point of normalising at all. "
-        "The two detectors have DIFFERENT raw slopes against the same pulse "
-        "— that is why `ted_scale` is per-detector rather than per-pulse — "
-        "so both landing near 1.0 checks that the right reciprocal reached "
-        "the right detector, which one detector's number alone cannot."
+        f"slope at lock. Gardner measures `{d.slope_meas:.4f}` — unity, so "
+        f"the loop runs at the gain `bn` names. **DTTL measures "
+        f"`{_dslope:.4f}`, and it should not.** The two detectors have "
+        f"different raw slopes against the same pulse, which is why "
+        f"`ted_scale` is per-detector rather than per-pulse, and both ought "
+        f"to land on 1.0 once each is divided by its own."
+    )
+    R.md()
+    R.md(
+        "Do not read that as a broken normaliser — it was the first reading "
+        "and it is wrong. `native/validation/ratesync_scurve.c` measures "
+        "the same thing with **no cascade in the path** (the matched "
+        "composite in closed form, the raw detector numerators called "
+        "directly) and finds both detectors matching `symsync_ted_slope()` "
+        "to better than 2% from beta 0.1 to 0.9, with `ratesync_create()` "
+        "installing the right reciprocal for each. The formula and the "
+        "wiring are both correct, so the discrepancy above lives between "
+        "the analytic composite and what the terminal stage hands the "
+        "detector, and is not identified here (**F15**)."
+    )
+    R.md()
+    R.md(
+        "**Across the roll-off range**, which is what separates a missing "
+        "normalisation from a wrong one. At `beta = 0.35` Gardner's RAW "
+        "slope is 1.078, so a normalised and an unnormalised detector are "
+        "indistinguishable there — one number cannot tell them apart. "
+        "Sweeping `beta` can: a correctly normalised detector holds 1.0 at "
+        "every roll-off, and that is the header's claim in full."
+    )
+    R.md()
+    for ted in TEDS:
+        d.beta_slope[ted] = [
+            (b, _cascade_slope(b, ted)) for b in (0.1, 0.2, 0.35, 0.5, 0.9)
+        ]
+    R.table(
+        ["beta", *[f"`{t}`" for t in TEDS]],
+        [
+            [
+                f"{b:g}",
+                *[f"{abs(dict(d.beta_slope[t])[b]):.3f}" for t in TEDS],
+            ]
+            for b in (0.1, 0.2, 0.35, 0.5, 0.9)
+        ],
+    )
+    _gspan = [abs(v) for _, v in d.beta_slope["gardner"]]
+    _dspan = [abs(v) for _, v in d.beta_slope["dttl"]]
+    R.md(
+        f"Gardner holds unity across the whole range "
+        f"({min(_gspan):.2f} to {max(_gspan):.2f}). DTTL does not: it runs "
+        f"from {min(_dspan):.2f} to {max(_dspan):.2f}, a factor of "
+        f"**{max(_dspan) / min(_dspan):.1f}** — while its own raw slope "
+        f"changes by only ~1.15x over the same betas (measured cascade-free "
+        f"by `validate_ratesync_scurve`). So this is not a normalisation "
+        f"that was skipped, which would track the raw slope and stay nearly "
+        f"flat; it is one that is applied and does not fit. It is also "
+        f"almost certainly the defect `symsync_ted_slope`'s own doxygen "
+        f"already admits — *\"the shipped normalisation's slope varies "
+        f'10.6x between beta 0.1 and 0.9"* — now localised: **that '
+        f"variation is DTTL's, and Gardner is flat** (**F15**)."
     )
     R.md()
     R.md(
@@ -1299,6 +1402,33 @@ def characterise() -> Data:
 
 
 # ═════════════════════════════════════════════════ 3. REVIEW
+def _f15_beta(d) -> str:
+    """F15's roll-off paragraph, built where the arithmetic has room.
+
+    Kept out of the finding's f-string because the ratio expressions run
+    past the line limit inline, and a finding's text is prose a reader has
+    to follow -- not the place to fight the formatter.
+    """
+    g = [abs(v) for _, v in d.beta_slope["gardner"]]
+    t = [abs(v) for _, v in d.beta_slope["dttl"]]
+    return (
+        f"**Sweeping the roll-off localises it.** One beta cannot separate "
+        f"a skipped normalisation from a wrong one — at beta 0.35 Gardner's "
+        f"raw slope is 1.078, so both readings give ~1 — but across beta "
+        f"0.1 to 0.9 the normalised slope holds unity for Gardner "
+        f"({min(g):.2f} to {max(g):.2f}) while DTTL runs {min(t):.2f} to "
+        f"{max(t):.2f}, a factor of {max(t) / min(t):.1f}. A normalisation "
+        f"that was never applied would track the raw slope, which is nearly "
+        f"flat in beta for DTTL (~1.15x); this one is applied and does not "
+        f"fit. That is almost certainly the defect `symsync_ted_slope`'s "
+        f"own doxygen already records — \"the shipped normalisation's slope "
+        f'varies 10.6x between beta 0.1 and 0.9" — and the contribution '
+        f"here is to localise it: **the variation is DTTL's, Gardner is "
+        f"flat**, which the doxygen does not say and which changes who has "
+        f"to fix what."
+    )
+
+
 def review(d: Data) -> None:
     print("\nPHASE 2 — REVIEW")
     R.md("## 3. Review — findings")
@@ -1598,33 +1728,34 @@ def review(d: Data) -> None:
     R.find(
         "F15",
         "GAP",
-        f"`ted_scale` does not deliver unit slope at lock for DTTL. The "
-        f"whole point of the construct-time reciprocal — the argument F1 "
-        f"restates and the header leads with — is that dividing by the "
-        f"detector's own slope makes `bn` mean one bandwidth. Measured on "
-        f"the same pulse, the same stimulus and the same offset grid, the "
-        f"normalised slope at lock is "
+        f"the normalised S-curve slope at lock is "
         f"`{d.slope_meas:.4f}` for Gardner and "
-        f"`{d.scurve_by_ted['dttl']['slope']:.4f}` for DTTL. So `bn` names "
-        f"one bandwidth on the default detector and roughly "
+        f"`{d.scurve_by_ted['dttl']['slope']:.4f}` for DTTL, measured "
+        f"through the cascade on the same pulse, stimulus and offset grid. "
+        f"It should be 1 for both — that is the entire point of dividing by "
+        f"the detector's own slope — so on this measurement `bn` names one "
+        f"bandwidth on the default detector and roughly "
         f"{d.scurve_by_ted['dttl']['slope'] / max(d.slope_meas, 1e-9):.1f}x "
-        f"that on the other, and a caller who switches `ted` silently "
-        f"changes their loop bandwidth. This is the same family as the "
-        f"defect `symsync_ted_slope`'s own doxygen already admits — that "
-        f"the shipped normalisation's slope varies 10.6x between beta 0.1 "
-        f"and 0.9 — and it belongs with "
-        f"[gh-669](https://github.com/doppler-dsp/doppler/issues/669), "
-        f"which asks for exactly this comparison in C. **What this does NOT "
-        f"establish is the closed-loop consequence.** Two probes were run "
-        f"and they disagree: settling of the rate integrator under a 2000 "
-        f"ppm clock step gives a Gardner/DTTL ratio of ~1.0 at "
-        f"`bn = 0.005` and ~3.5 at `bn = 0.002`. An open-loop slope this "
-        f"clean and a closed-loop response that inconsistent means the "
-        f"mechanism is not understood yet, and the honest report is the "
-        f"measurement plus that admission — not a bandwidth ratio inferred "
-        f"from the slope alone. Neither probe is in this validator; a "
-        f"direct C S-curve sweep against `symsync_ted_slope()` is the "
-        f"instrument, which is gh-669's ask.",
+        f"that on the other. **The obvious cause is ruled out.** This "
+        f"finding first read as a defect in the construct-time normaliser, "
+        f"and `native/validation/ratesync_scurve.c` was written to confirm "
+        f"that and instead exonerated it: measured with NO cascade in the "
+        f"path — the matched composite evaluated in closed form via "
+        f"`wfm_rc_h`, the raw `gardner_ted`/`dttl_ted` numerators called "
+        f"directly — both detectors' true slopes match "
+        f"`symsync_ted_slope()` to better than 2% at every roll-off from "
+        f"beta 0.1 to 0.9, and `ratesync_create()` is checked to install "
+        f"`1/symsync_ted_slope()` correctly for each. The formula is right "
+        f"and the wiring is right. "
+        f"{_f15_beta(d)} **The closed-loop consequence is still "
+        f"unestablished:** "
+        f"two probes disagree — settling of the rate integrator under a "
+        f"2000 ppm clock step gives a Gardner/DTTL ratio of ~1.0 at "
+        f"`bn = 0.005` and ~3.5 at `bn = 0.002`. Recorded with both the "
+        f"measurement and the exoneration rather than a tidy attribution, "
+        f"because a wrong cause committed to a report is worse than an open "
+        f"one. Tracked in "
+        f"[gh-669](https://github.com/doppler-dsp/doppler/issues/669).",
     )
     _gj16 = d.resid_by_ted["gardner"] / d.scurve_by_ted["gardner"]["slope"]
     _dj16 = d.resid_by_ted["dttl"] / d.scurve_by_ted["dttl"]["slope"]
@@ -1706,6 +1837,29 @@ def limits(d: Data) -> None:
         f"the normalised S-curve slope at lock is unity to within 30% "
         f"({d.slope_meas:.4f}) — the construct-time ted_scale is correct "
         f"FOR GARDNER; the same claim does not hold for dttl, see F15",
+    )
+    _gb = [abs(v) for _, v in d.beta_slope["gardner"]]
+    _db = [abs(v) for _, v in d.beta_slope["dttl"]]
+    R.limit(
+        max(_gb) / min(_gb) < 1.2,
+        f"gardner's normalised slope holds unity across the whole roll-off "
+        f"range ({min(_gb):.2f} to {max(_gb):.2f}) — `bn` names one "
+        f"bandwidth at every beta, which is the header's claim",
+    )
+    # A RATCHET, not an endorsement: dttl's slope varies with beta and
+    # should not (F15, gh-669). Pinned so the known breakage cannot grow
+    # while it is open. It may only ever be REDUCED.
+    R.limit(
+        max(_db) / min(_db) < 9.0,
+        f"dttl's beta-dependence has not grown past the ratchet "
+        f"({max(_db) / min(_db):.1f}x, ceiling 9.0) — it should be 1.0x, "
+        f"see F15",
+    )
+    R.limit(
+        max(_gb) / min(_gb) < max(_db) / min(_db),
+        "and the two are not the same story: gardner's normalisation is "
+        "roll-off-independent and dttl's is not, which is what localises "
+        "the defect symsync_ted_slope's doxygen records to one detector",
     )
     R.limit(
         all(len(v["zeros"]) == 2 for v in d.scurve_by_ted.values()),

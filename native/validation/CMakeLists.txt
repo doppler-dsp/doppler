@@ -131,6 +131,22 @@ target_compile_options(validate_carrier_nda_lock PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_carrier_nda_lock
          COMMAND validate_carrier_nda_lock --check)
 
+# Each TED's own S-curve against symsync_ted_slope(), with no cascade in the
+# path: the composite pulse is evaluated in closed form, so a discrepancy is
+# the detector's or the model's and cannot be the bank's. -ffp-contract=off
+# for the same host-determinism reason as dll_jitter: the measurement is a
+# paired central difference of two large sums, and a fused multiply-add
+# changes its last digits between x86-64 and arm64.
+add_executable(validate_ratesync_scurve
+               ${CMAKE_CURRENT_SOURCE_DIR}/ratesync_scurve.c)
+target_include_directories(validate_ratesync_scurve
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_ratesync_scurve PRIVATE doppler_lib_static m)
+target_compile_options(validate_ratesync_scurve PRIVATE -O3 -funroll-loops
+                                                        -ffp-contract=off)
+add_test(NAME validate_ratesync_scurve
+         COMMAND validate_ratesync_scurve --check)
+
 add_executable(validate_lockdet_verify
                ${CMAKE_CURRENT_SOURCE_DIR}/lockdet_verify.c)
 target_include_directories(validate_lockdet_verify

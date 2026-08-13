@@ -376,6 +376,46 @@ main (void)
         rx[k]      = (float complex)cexp (I * TWOPI * f0 * (double)k) + n_re
                      + n_im * I;
       }
+    /* The DISCRIMINATOR's own invariance, which is the claim the loop test
+     * below only exercises indirectly. The header states both outputs are
+     * "invariant to input scale over the whole float range: measured
+     * identical to 1e-6 relative from an amplitude of 1e-5 to 1e15, at
+     * every M" -- twenty decades, where the loop sweep below covers eight
+     * and reads a converged frequency rather than the detector. The header
+     * said 5e-7 until this test measured it: the true worst case is 6.5e-7,
+     * at M = 8 and a scale of 1e15, which is ~5 float eps and exactly the
+     * rounding floor a float detector has. Substance unchanged, tolerance
+     * corrected to what holds.
+     *
+     * This is the claim that retired the arm AGC, so it is worth pinning as
+     * stated. It is also the regression test for the hoisted divide: forming
+     * |z|^M at the END overflows float in both directions at M = 8, which
+     * returned exactly zero below |z| = 0.032 and NaN above |z| = 1e5 --
+     * both inside the range asserted here, and both unreachable while an AGC
+     * upstream manufactured |z| ~ 1. */
+    {
+      const double sc[] = { 1e-5, 1e-2, 1.0, 1e2, 1e8, 1e15 };
+      const int    ms[] = { 2, 4, 8 };
+      for (size_t mi = 0; mi < sizeof ms / sizeof *ms; mi++)
+        {
+          /* An off-axis phase, so both outputs are non-trivial and a
+             relative comparison means something. */
+          float complex z0 = (float)cos (0.3) + (float)sin (0.3) * I;
+          double        pe0, lk0;
+          carrier_nda_disc (z0, ms[mi], &pe0, &lk0);
+          DP_CHECK (fabs (pe0) > 1e-3 && fabs (lk0) > 1e-3);
+          for (size_t si = 0; si < sizeof sc / sizeof *sc; si++)
+            {
+              double pe, lk;
+              carrier_nda_disc ((float complex) ((float)sc[si]) * z0, ms[mi],
+                                &pe, &lk);
+              DP_CHECK (isfinite (pe) && isfinite (lk));
+              DP_CHECK (fabs (pe - pe0) <= 1e-6 * fabs (pe0));
+              DP_CHECK (fabs (lk - lk0) <= 1e-6 * fabs (lk0));
+            }
+        }
+    }
+
     /* 1e-4 .. 1e4 — eight decades, centred on the unit scale the retired
      * AGC used to be the only way to reach. */
     double scales[] = { 1e-4, 1e-2, 1.0, 1e2, 1e4 };

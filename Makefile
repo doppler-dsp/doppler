@@ -301,6 +301,18 @@ nats-down: ## Stop and remove the NATS JetStream broker
 # nats-up/nats-down are provisioning, not gates: they decide whether the
 # nats:// stream tests RUN at all (the suite self-skips on an unreachable
 # broker), so they belong to the "bring the box up" half, the same as build.
+# doppler's root compile_commands.json is a relative SYMLINK into the build
+# tree, not a copy: it resolves to whatever the last configure wrote, so there
+# is nothing to refresh and no staleness gate to add, and being relative it
+# survives a worktree or a fresh clone. That is not a preference — the root
+# entry had silently been a stale in-source COPY (247 entries against 425, cc
+# off PATH with no -O3 -march), and scripts/bench_report.py reads it, so
+# published benchmark records carried an unoptimized toolchain line.
+#
+# canonical takes `copy` or `symlink` (just-buildit.github.io#23, filed from
+# here after its cp refused outright against the symlink doppler already had).
+COMPILE_DB = symlink
+
 GATES_PROVISION = install-deps install-docs-deps build pyext nats-up nats-down
 GATES_DEPS    = lint changelog-check drift-check doxygen-check docs-check \
                 validate-check \
@@ -343,6 +355,12 @@ export CMAKE_BUILD_PARALLEL_LEVEL = $(NPROC)
 # why it has to be — help-check skips a file target that EXISTS, and this one
 # is gitignored, so it exists on every developer's box and on no fresh
 # checkout. Undocumented, it passes locally and fails only in CI.
+# Canonical's `compile-commands` produces the root entry the same way, because
+# COMPILE_DB is set to `symlink` above — so the explicit target and this
+# build-time one agree by construction instead of racing to write the same
+# path two different ways. This rule stays because it is hung off `build`: a
+# fresh clone gets the database from its first build, without having to know
+# to ask for it.
 build: compile_commands.json
 compile_commands.json: ## Link the compilation database to the build tree
 	@ln -sfn $(BUILD_DIR)/compile_commands.json $@

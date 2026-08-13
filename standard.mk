@@ -312,6 +312,15 @@ CMAKE         ?= cmake
 CMAKE_FLAGS   ?=
 CLANG_TIDY    ?= clang-tidy
 
+# How the root compile_commands.json is produced: `copy` (default) or
+# `symlink`. A symlink CANNOT go stale -- it resolves to whatever the last
+# configure wrote, so there is nothing to refresh -- and a relative one carries
+# no absolute path, so it survives a worktree or a fresh clone. It is not the
+# default only because a symlink is not free everywhere (Windows without
+# developer mode). Either way this target is idempotent: a root entry that
+# already resolves to the build one is left alone.
+COMPILE_DB    ?= copy
+
 # The translation units `tidy` lints, one per line. sed rather than an
 # interpreter on purpose: a C-only repo should not need Python or jq installed
 # to lint its C, and cmake writes compile_commands.json one "file" key per
@@ -357,7 +366,18 @@ endif
 compile-commands: ## Refresh compile_commands.json for clangd / clang-tidy
 	$(CMAKE) -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 	    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON $(CMAKE_FLAGS)
-	cp $(BUILD_DIR)/compile_commands.json compile_commands.json
+	@src=$(BUILD_DIR)/compile_commands.json; dst=compile_commands.json; \
+	 if [ "$(COMPILE_DB)" = symlink ]; then \
+	     ln -sfn "$$src" "$$dst"; \
+	     echo "compile-commands: $$dst -> $$src"; \
+	 elif [ "$$dst" -ef "$$src" ]; then \
+	     : "Already the same file -- a relative symlink into the build tree."; \
+	     : "cp refuses that outright ('are the same file') and took the whole"; \
+	     : "target, and tidy with it, down in the first HAS_C adopter."; \
+	     echo "compile-commands: $$dst already resolves to $$src"; \
+	 else \
+	     cp "$$src" "$$dst"; \
+	 fi
 
 # The file list comes from the compile DATABASE, not a directory walk, so tidy
 # sees exactly the translation units cmake compiles -- no more (a generated .c
@@ -890,6 +910,20 @@ hook-dispatch-check: ## Verify every pre-commit `make` dispatch names a real tar
 	     echo ""; \
 	     echo "  Each hook runs \`make <target>\` and can only fail with"; \
 	     echo "  'No rule to make target'. Add the target, or fix the entry."; \
+	     exit 1; \
+	 fi; \
+	 : "A config that exists and matched NOTHING is a disarmed gate, not a"; \
+	 : "clean one. Quoting every entry -- a valid YAML rewrite -- moved the"; \
+	 : "shape out from under the pattern and took all 8 dispatches with it,"; \
+	 : "green: the thesis of this gate, reproduced inside the gate."; \
+	 if [ "$$n" -eq 0 ]; then \
+	     echo "ERROR: $$cfg exists but no \`make\` dispatch matched."; \
+	     echo ""; \
+	     echo "  Either no hook dispatches through make -- in which case delete"; \
+	     echo "  this gate deliberately -- or the \`entry:\` shape has moved and"; \
+	     echo "  the pattern no longer sees it. A gate matching nothing is"; \
+	     echo "  indistinguishable from a gate passing, which is what it was"; \
+	     echo "  written to prevent."; \
 	     exit 1; \
 	 fi; \
 	 echo "hook-dispatch-check: $$n make dispatch(es) resolve"

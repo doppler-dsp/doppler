@@ -52,6 +52,40 @@ ______________________________________________________________________
 
 ### Added
 
+- **CarrierNda is certified under the object-validation campaign**, and the
+    certification produced a number the composing receiver needs: the
+    **seeding rule**. `src/doppler/track/tests/validation/carrier_nda/` holds
+    43 asserted limits and 12 findings, and its §2.5 establishes that
+    `bn/M` is the scale the loop's whole acquisition behaviour collapses onto
+    — nine (M, bn) pairs spanning 4x in each land on one curve of settling
+    time against `u = |Δf|·M/bn`, with M dropping out to the third decimal.
+    Two regimes meet at `u = 1`: inside it settling does not depend on the
+    offset at all (1.76–1.92 loop time constants, since a linear second-order
+    loop settles in a fixed number of them whatever the step size), and
+    outside it the beat-note term takes over at quadratic cost. Inverted:
+
+    ```
+      seed within |Δf| ≤ bn/M  →  settled within 2/bn samples
+    ```
+
+    so a coarse acquisition ahead of this loop needs a frequency bin no wider
+    than `2·bn/M`. Measured worst case `u = 1.42` noiseless and `0.85` at
+    6 dB Es/N0. The rule is carried by `test_carrier_nda_core.c` §16 (three
+    claims — the budget, the offset-independence inside the window, and the
+    far slower regime outside it that stops the first two passing vacuously)
+    and demonstrated end-to-end by the new
+    `src/doppler/examples/carrier_nda_seeding_demo.py`, which sizes a
+    coarse M-th-power FFT search from the rule and locks in 1.4/bn against
+    234/bn cold. Five findings are filed rather than carried in prose:
+    gh-732 (the contract needs the seeding number, and does not name the
+    arm's absolute pull-in wall), gh-733 (the half-symbol arm's
+    `1/2 + 1/(M+1)` coherent gain does not reproduce), gh-734 (the lock
+    statistic's H0 spread is M-independent per look and not through the
+    arm, which is why the shipped `n_up = 64` — not the threshold — carries
+    the false-alarm budget), gh-735 (`carrier_nda_get_nco_freq` is
+    unreachable from Python and telemetry), gh-736 (the doc-face parity gate
+    compares Examples/Raises only).
+
 - **RateSync is certified under the object-validation campaign.** It owns
     `src/doppler/track/tests/validation/ratesync/`, and `track` gains the
     `test_validation_limits.py` gate the campaign requires, so its 23-claim

@@ -13,6 +13,8 @@ _Portable lock detector — level + time hysteresis over any scalar lock metric,
 * `#include "clib_common.h"`
 * `#include "dp_state.h"`
 * `#include "jm_perf.h"`
+* `#include "util/util_core.h"`
+* `#include <math.h>`
 
 
 
@@ -401,13 +403,16 @@ JM_FORCEINLINE  JM_HOT int lockdet_step (
 Unlocked: a hit (`x > up_thresh`) advances the verify run and the n\_up-th consecutive hit declares lock; any miss resets the run. Locked: a miss (`x < down_thresh`) advances the run and the n\_down-th consecutive miss drops the lock; any hit (`x >= down_thresh`) resets it. A metric inside the `[down_thresh, up_thresh]` band is sticky — it neither advances a declare nor a drop.
 
 
+A **non-finite look is a miss in both states**: it never advances a declare, and while locked it advances the drop run like any other miss. An unknown lock is not a lock, which is the rule [**util\_core.h**](util__core_8h.md) states for lock statistics generally. So a metric that goes NaN drops the lock after `n_down` looks rather than holding it lit indefinitely.
+
+
 
 
 **Parameters:**
 
 
 * `state` Must be non-NULL. 
-* `x` Lock metric for this look. 
+* `x` Lock metric for this look. Non-finite counts as a miss. 
 
 
 

@@ -737,18 +737,18 @@ concrete rather than hypothetical. It **delegates** to the library for
 `ber_evm_scatter_floor_db` and `BerMeter`, which is the right shape. What it
 does not delegate is the map of what remains:
 
-| stage      | today                                         | gap                                                                                   |
-| ---------- | --------------------------------------------- | ------------------------------------------------------------------------------------- |
-| 1 describe | function arguments                            | no frame descriptor; no named operating points                                        |
-| 2 generate | `make_signal()`, numpy `np.repeat` of symbols | not `wfm_synth`; unframed by construction                                             |
-| 3 impair   | hand-built carrier + AWGN variance            | `doppler_channel` exists and is unused here                                           |
-| 4 run      | direct calls                                  | **no output-rate invariant**                                                          |
-| 5 settle   | `ber_settle_from` + `ber_lock_symbol`         | needs per-symbol lock flags, which come from telemetry rather than the receiver's API |
-| 6 align    | `BerMeter`                                    | correct, and already the shipped path                                                 |
-| 7 score    | SER + EVM                                     | **M2M4 never computed**; no FER                                                       |
-| 8 enough   | `ser_confidence()` -> `BerMeter.interval()`   | none — correct, and correct for the right reason (below)                              |
-| 9 anchor   | partial                                       | `ber_theory_ser` available; not applied uniformly                                     |
-| 10 report  | test assertions                               | no standard record                                                                    |
+| stage      | today                                        | gap                                                                                   |
+| ---------- | -------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 1 describe | function arguments                           | no frame descriptor; no named operating points                                        |
+| 2 generate | `make_signal()` -> `wfm.Synth(type=symbols)` | ~~not `wfm_synth`~~ **closed, §8.4**; still unframed by construction                  |
+| 3 impair   | `Synth`'s own `lo` + `awgn`                  | carrier and AWGN come with the generator now; `doppler_channel` still unused here     |
+| 4 run      | direct calls                                 | **no output-rate invariant**                                                          |
+| 5 settle   | `ber_settle_from` + `ber_lock_symbol`        | needs per-symbol lock flags, which come from telemetry rather than the receiver's API |
+| 6 align    | `BerMeter`                                   | correct, and already the shipped path                                                 |
+| 7 score    | SER + EVM                                    | **M2M4 never computed**; no FER                                                       |
+| 8 enough   | `ser_confidence()` -> `BerMeter.interval()`  | none — correct, and correct for the right reason (below)                              |
+| 9 anchor   | partial                                      | `ber_theory_ser` available; not applied uniformly                                     |
+| 10 report  | test assertions                              | no standard record                                                                    |
 
 **Stage 8 is worth reading rather than counting.** A BER run stopped on an
 error count is **inverse binomial** sampling: the errors are fixed and the
@@ -783,16 +783,73 @@ recording:
 
 - `check_stimulus_sources.py` detects three signatures — a private **pulse**,
     a **peak** level normalisation, and a private **EVM**.
-- `make_signal()` builds rectangular NRZ (`np.repeat` of constellation
-    points). There is no RRC formula, so the `pulse` detector correctly does
-    not fire.
+- `make_signal()` built rectangular NRZ (`np.repeat` of constellation points,
+    before §8.4 converged it). There was no RRC formula, so the `pulse`
+    detector correctly did not fire.
 - `agc()` normalises to unit **average power**, deliberately and with the
     reasoning written out. The `level` detector looks for peak normalisation,
     so it correctly does not fire either.
 
 So the gate catches a private *pulse*; it does not catch a private
-*stimulus*. That is one extension to an existing gate rather than a new
-one — which is the cheap way to keep this from recurring.
+*stimulus*.
+
+The obvious repair — teach it a fourth marker for hand-rolled noise — is one
+its own docstring already argues against, and the argument holds: measured,
+`standard_normal`/Box-Muller occurs in 72 files, most of them legitimately
+(an expected array, inert plumbing, a deliberate noise-only H0 input), and a
+72-entry ratchet is a gate people switch off. **The recurrence gate for this
+class is behavioural instead**: §8.4's `test_rx_stimulus.py` measures the Es/N0
+the stimulus actually carries, whoever generated it. A future private
+re-implementation with an invented convention fails it; one that reproduces
+the convention exactly is not the failure mode this is about.
+
+### 8.4 Stage 2, closed: the generator is the library's, and it is checked
+
+`make_signal()` now asks `wfm.Synth(type="symbols")` for the waveform — the
+same `lo`, `awgn` and sample-and-hold the receiver under test is built
+against, and the same generator `wfmgen` ships. What the harness still owns is
+the truth sequence (deliberately: `idx` is what the metrics score against, and
+it must not come from the thing being scored), the M-PSK mapping that defines
+it, and the level convention in `agc()`.
+
+Two facts made this more than a substitution:
+
+- **`Synth` references its SNR to a unit-power source.** The constellation is
+    therefore unit-modulus by requirement, not by taste; scaling it would scale
+    the delivered Es/N0 with it and nothing would say so. The old `AMPL`
+    constant is gone rather than left at 1.0 as a trap.
+- **The real path is generated 3 dB hot**
+    (`_mpsk_rx_harness.REAL_ESNO_OFFSET_DB`). Taking `Re{}` halves the signal
+    energy *and* the noise variance, so a literal projection preserves Es/N0 —
+    but the real path's convention counts the real noise against the halved
+    `Es` (`var = Es/(2*Es/N0)`), which is 3 dB less noise. Asking the complex
+    generator for 3 dB more delivers exactly that, and as a bonus the two paths
+    now share one noise realisation (scaled by `1/sqrt(2)`) rather than two
+    draws of "the same" random signal.
+
+**And the generator itself was verified, which nobody had done.** `snr_mode = "esno"` is a claim about a ratio of energies at the symbol decision, so it is
+only readable after a matched filter; read at the sample stream it appears
+`10log10(sps)` low, which is what would make a wrong answer look plausible.
+Integrate-and-dump over `sps`, then `snr.snr_data_aided_db` against the known
+signs — the library's own estimator, so an error would have to live in both
+places to hide — gives **within 0.04 dB** of the requested value across
+`m` 2/4/8, `sps` 1..16, Es/N0 0..20 dB, and unchanged on an fs/4 carrier. An
+independent subtraction reading (noisy minus the same-seed clean run *is* the
+noise) agrees to the same 0.04 dB, and the new stimulus reproduces the old
+hand-rolled one's noise variance to within 0.06 dB on both paths.
+
+Three gates now hold it, and each was proved by sabotage (zeroing the real-path
+offset; and mutating the C `mode == 3` branch to skip the `sps` term, rebuilt):
+
+- `wfm/tests/test_wfm_synth.py::test_esno_mode_delivers_esno_at_the_matched_filter`
+    and `::test_esno_holds_on_a_carrier` — the generator's claim;
+- `wfm/tests/test_wfm_synth.py::test_bpsk_payload_regenerates_from_its_descriptor`
+    — a `type="bpsk"` payload is reproducible from `(poly, seed, length)`
+    alone, so a BER can be scored against the descriptor rather than against
+    the transmitter;
+- `track/tests/test_rx_stimulus.py` — the harness's own stimulus: the Es/N0
+    both paths carry, its independence from `m`, the shared waveform and noise
+    draw, and that a clean request is actually clean.
 
 ### 8.3 The plan the sequence implies
 
@@ -814,10 +871,11 @@ Ordered so that nothing depends on an unpinned measurement:
 1. **Frame statistics** (§2.5) beside `ber_meter`, reusing `ber_confidence`
     for the interval. This is what makes FER, and therefore the false-lock
     detector, available.
-1. **Converge the harness onto the library** — stage 2 to `wfm_synth`, stage 8
-    to `ber_confidence`, stage 7 gaining M2M4 and FER. Then extend the gate to
-    cover private stimulus and private statistics, so the convergence cannot
-    silently reverse.
+1. **Converge the harness onto the library** — ~~stage 2 to `wfm_synth`~~
+    (**done, §8.4**, and the generator verified with it), stage 8 to
+    `ber_confidence` (already there — §8.1), stage 7 gaining M2M4 and FER. The
+    convergence is held from reversing by the stimulus's own measurements
+    (§8.2), not by a provenance marker.
 1. **Only then** resume the measurements this document interrupted: the tap
     comparison at Fs = 10 MSa/s / Rs = 1 kSps, the receiver decision it feeds,
     and a re-examination of the issue filed from the unpinned harness.

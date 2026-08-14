@@ -1743,7 +1743,7 @@ def review(d: Data) -> None:
         'the statistic the "M-th-power arm ratio EMA" — a name from '
         "before the arm AGC was retired and the statistic became the "
         "limited `Re((z/|z|)^M)`. A guide describing a detector that no "
-        "longer exists is worse than no guide. To be filed.",
+        "longer exists is worse than no guide. Filed as gh-736.",
     )
     R.find(
         "F5",
@@ -1753,7 +1753,7 @@ def review(d: Data) -> None:
         "DESCRIPTION prose between the `.pyi` and the runtime docstring is "
         'invisible to it. It reported "0 divergent" for the entire time '
         "F3 was live, which is precisely the divergence it exists to catch. "
-        "To be filed.",
+        "Filed as gh-736.",
     )
 
     _ceil = d.edges[SPS // N_ARM][1]
@@ -1782,7 +1782,8 @@ def review(d: Data) -> None:
         f"is unreachable by pulling in, and because it is a frequency "
         f"rather than a multiple of `bn` it binds FIRST at wide `bn`: at "
         f"`bn = 0.02` it sits at `u = 6.1`, inside the loop's own reach. "
-        f"The LOUD/SILENT distinction is unaffected and confirmed.",
+        f"The LOUD/SILENT distinction is unaffected and confirmed. "
+        f"Filed as gh-732.",
     )
     _hm = {m: d.arm_cost[m][NS.index(2)] for m in MS}
     R.find(
@@ -1797,7 +1798,7 @@ def review(d: Data) -> None:
         f"constant-modulus reference is exactly 1.0 as stated; it is the "
         f"formula that is not the object's. §2.6's measured table is the "
         f"answer the header delegates to this report, and the formula "
-        f"should be replaced by a pointer to it.",
+        f"should be replaced by a pointer to it. Filed as gh-733.",
     )
     _w = d.h0[8]
     R.find(
@@ -1816,7 +1817,8 @@ def review(d: Data) -> None:
         f"{UP_THRESH / ANALYTIC_SD:.2f} at M = 2 with a wide arm, and one "
         f"`lock_thresh` does not mean one Pfa across the `n` axis the "
         f"constructor accepts. §2.8 shows what it costs and why the shipped "
-        f"`n_up = 64` is the thing holding the false-alarm budget.",
+        f"`n_up = 64` is the thing holding the false-alarm budget. Filed "
+        f"as gh-734.",
     )
     R.find(
         "F9",
@@ -1828,7 +1830,8 @@ def review(d: Data) -> None:
         "integrator-only estimate, which is what `norm_freq` already "
         "returns, so the two published views of the loop's frequency are "
         "the same view. Same shape as resamp's `get_ctrl_acc` before it was "
-        "bound: the diagnostic that matters is the one the binding skipped.",
+        "bound: the diagnostic that matters is the one the binding "
+        "skipped. Filed as gh-735.",
     )
     R.find(
         "F10",

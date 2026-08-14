@@ -9,15 +9,6 @@
  *
  * Typical usage (FIR inner loop):
  *
- * DOPPLER-LOCAL EDIT — the @code fence is not in jm's template, and it is
- * load-bearing here: doppler renders these headers through mkdoxy and builds
- * the result with `zensical build --strict`. Unfenced, the `coeffs[k]` below
- * reaches markdown as prose, CommonMark reads `[k]` as a shortcut link
- * reference with no definition, and the docs build ABORTS — which partially
- * writes `site/` and made `check_site_links` report 864 broken links from one
- * real cause. Losing this fence to a re-vendor is the SECOND doppler edit this
- * file has lost that way (the first was JM_SUMSQ_F32, now in dp_simd.h).
- * Upstream as just-makeit#968; drop this note and re-vendor once that ships.
  * @code
  *   JM_VEC_F32 acc = JM_ZERO_F32();
  *   for (int k = 0; k < N_TAPS; k++)

@@ -8,6 +8,7 @@ sweep, and the auto-resolved SNR (Es/No for the modulated types).
 import numpy as np
 import pytest
 
+from doppler.snr import snr_data_aided_db
 from doppler.wfm import PN, Synth, bits, chirp, mls_poly, rrc_taps
 
 
@@ -115,6 +116,105 @@ def test_bpsk_esno_auto_snr():
     snr_fs = 10 - 10 * np.log10(8)  # Es/No 10 dB spread over sps=8 samples
     expected_total = 1 + 1 / (10 ** (snr_fs / 10))
     assert np.isclose(_power(s), expected_total, atol=0.05)
+
+
+#: Symbols per case in the Es/N0 read-back below. 20 000 puts the estimator's
+#: own standard error near 0.03 dB, so the 0.25 dB tolerance is about the
+#: generator, not about how long the test ran.
+_ESNO_NSYM = 20000
+
+
+@pytest.mark.parametrize("sps", [1, 4, 8, 16])
+@pytest.mark.parametrize("esno", [0.0, 6.0, 12.0, 20.0])
+def test_esno_mode_delivers_esno_at_the_matched_filter(sps, esno):
+    """``snr_mode="esno"`` must deliver the Es/N0 it claims, where it claims.
+
+    The claim is a RATIO OF ENERGIES at the symbol decision, not a per-sample
+    power ratio, so it is only readable after a matched filter: an
+    integrate-and-dump over ``sps`` samples turns the requested `Es = A^2*sps`
+    into the soft symbol's power and the per-sample `N0` into `sps*N0`, and
+    the ratio survives. Reading the raw sample stream instead measures
+    `Es/N0 - 10log10(sps)` and reads 9 dB low at sps=8, which is what makes a
+    wrong `esno` look plausible.
+
+    Read back with `snr.snr_data_aided_db` -- the library's own data-aided
+    estimator, against the known transmitted signs -- so a shared error would
+    have to live in both the generator and the estimator to hide here. Nothing
+    checked this before: `test_bpsk_esno_auto_snr` above pins the total power
+    the resolved noise amplitude produces, which is the same number for a
+    correct Es/N0 and for one referenced to the wrong node.
+    """
+    rng = np.random.default_rng(5)
+    sent = rng.integers(0, 2, _ESNO_NSYM).astype(np.uint8)
+    syms = np.where(sent, -1.0, 1.0).astype(np.complex64)
+    x = Synth(
+        type="symbols",
+        symbols=syms,
+        sps=sps,
+        fs=1.0,
+        freq=0.0,
+        snr=esno,
+        snr_mode="esno",
+        seed=7,
+    ).steps(sps * _ESNO_NSYM)
+    soft = x.reshape(_ESNO_NSYM, sps).sum(axis=1).astype(np.complex64)
+    got = float(snr_data_aided_db(np.ascontiguousarray(soft), sent))
+    assert abs(got - esno) < 0.25, (
+        f"sps={sps}: asked for Es/N0 {esno:.1f} dB, the matched-filter "
+        f"output reads {got:.2f} dB"
+    )
+
+
+def test_esno_holds_on_a_carrier():
+    """The LO must not change the delivered Es/N0 -- it is a rotation.
+
+    fs/4 is the placement the real receiver path is designed around, and a
+    carrier is the one thing between the noise injection and the measurement
+    that could plausibly rescale it.
+    """
+    rng = np.random.default_rng(5)
+    sent = rng.integers(0, 2, _ESNO_NSYM).astype(np.uint8)
+    syms = np.where(sent, -1.0, 1.0).astype(np.complex64)
+    sps, esno, fc = 8, 12.0, 0.25
+    x = Synth(
+        type="symbols",
+        symbols=syms,
+        sps=sps,
+        fs=1.0,
+        freq=fc,
+        snr=esno,
+        snr_mode="esno",
+        seed=7,
+    ).steps(sps * _ESNO_NSYM)
+    z = x * np.exp(-2j * np.pi * fc * np.arange(x.size))
+    soft = z.reshape(_ESNO_NSYM, sps).sum(axis=1).astype(np.complex64)
+    got = float(snr_data_aided_db(np.ascontiguousarray(soft), sent))
+    assert abs(got - esno) < 0.25, f"on an fs/4 carrier: {got:.2f} dB"
+
+
+def test_bpsk_payload_regenerates_from_its_descriptor():
+    """The PN-sourced bits of a `type="bpsk"` waveform are reproducible.
+
+    A stimulus whose payload cannot be regenerated outside the generator can
+    only be scored against itself, which is how a receiver test ends up
+    measuring its own demodulator. `PN(poly=0, seed, length)` -- the same three
+    numbers the waveform descriptor carries -- must reproduce the transmitted
+    bits exactly, so a BER can be scored against the descriptor alone.
+    """
+    n, sps, seed, length = 4000, 4, 7, 16
+    x = Synth(
+        type="bpsk",
+        sps=sps,
+        fs=1.0,
+        freq=0.0,
+        snr=100.0,
+        seed=seed,
+        pn_length=length,
+    ).steps(sps * n)
+    sent = (x[::sps].real < 0).astype(np.uint8)
+    assert np.array_equal(
+        PN(poly=0, seed=seed, length=length).generate(n), sent
+    )
 
 
 def test_reset_reproduces():

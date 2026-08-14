@@ -37,8 +37,16 @@ mpsk_bits_per_symbol(8)           # 3
 
 **Differential mode** resolves the M-fold carrier phase ambiguity (a
 decision-directed carrier loop locks to one of M phases). Information rides on
-phase *differences*, so an unknown constant rotation cancels — at ~2× the
-symbol-error rate:
+phase *differences*, so an unknown constant rotation cancels — and *any*
+constant rotation cancels, not merely the M constellation steps, because a
+constant offset shifts every sliced index equally.
+
+The cost is **up to 2× the symbol-error rate**, which is a high-SNR asymptote
+rather than a flat factor. Measured, BPSK and QPSK reach it by ~8 dB Es/N0
+while 8PSK — the case below — pays only 1.44× at 4 dB and 2.03× by 14 dB, so a
+link sized at low Es/N0 is charged less than the round number suggests
+([validation report](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/mpsk/tests/validation/mpsk/results.md),
+[design §9.5](../design/mpsk.md)):
 
 ```python
 from doppler.mpsk import mpsk_diff_map, mpsk_diff_demap

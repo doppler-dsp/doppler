@@ -55,6 +55,8 @@
 #include "clib_common.h"
 #include "dp_state.h"
 #include "jm_perf.h"
+#include "util/util_core.h" /* saturate() — the NaN policy, shared */
+#include <math.h>
 #ifdef __cplusplus
 extern "C"
 {
@@ -204,6 +206,21 @@ extern "C"
   JM_FORCEINLINE JM_HOT int
   lockdet_step (lockdet_state_t *state, double x)
   {
+    /* An unknown lock is not a lock. Send a non-finite look to the floor
+       through the SHARED primitive rather than encoding the policy here:
+       saturate()'s own documentation names a lock statistic as the caller
+       that wants NaN at the floor, and until now no lock detector called
+       it, so that paragraph described a caller who did not exist.
+       Doing the substitution once, up front, is also what keeps the two
+       comparisons below plain. NaN fails every comparison, so a detector
+       that handles it inline has to encode the policy in the SPELLING of a
+       predicate (`!(x >= t)` rather than `x < t`) — which is subtle enough
+       that the drop side was written the other way and held the lock lit
+       forever on a dead metric.
+       The bounds are infinite because the substitution is the only job:
+       every finite look, and both infinities, pass through untouched. */
+    x = saturate (x, -INFINITY, INFINITY, -INFINITY);
+
     if (!state->locked)
       {
         if (x > state->up_thresh)
@@ -219,15 +236,7 @@ extern "C"
       }
     else
       {
-        /* `!(x >= down_thresh)` rather than `x < down_thresh`: for every
-           finite x the two are identical, INCLUDING the exclusive edge at
-           x == down_thresh, but a NaN look fails both comparisons, and the
-           spelling decides which way it falls. Written as a miss, so an
-           unknown lock is not a lock — util_core.h:71 states that rule for
-           lock statistics and this is the component that makes the
-           decision. The other direction held the lock forever on a dead
-           metric, with the lamp still lit. */
-        if (!(x >= state->down_thresh))
+        if (x < state->down_thresh)
           {
             if (++state->cnt >= state->n_down)
               {

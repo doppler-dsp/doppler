@@ -49,16 +49,18 @@ that it would fail if the behaviour regressed. Only the sabotage step in
 regeneration substitutes for it — a report that regenerates faithfully from
 a vacuous assertion is faithfully vacuous.
 
-Rows appear by arrival: the generator globs
-`src/doppler/*/tests/validation/*/results.md`, the same discovery
-`make validate` uses, so a newly certified object is listed the moment its
-folder exists. There is no list here to update.
+Rows are sorted by module, then by object, so the table reads as a map of
+the library rather than as a history — arrival order is what the git log
+is for. Discovery is a glob of
+`src/doppler/*/tests/validation/*/results.md`, the same one `make validate`
+uses, so a newly certified object is listed the moment its folder exists.
+There is no list here to update.
 
 ## Certified objects
 
 <!-- validation-log:start -->
 
-**10 of 71 objects certified.** The denominator is every `objects/*.toml` jm fragment, which is the whole object surface — not every one of them is a DSP object with an envelope worth certifying, so read it as a ceiling rather than a target.
+**10 objects certified** — 7 of the 71 `objects/*.toml` jm fragments, plus 3 with no object manifest at all (`ema`, `mpsk`, `resamp`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
 
 | object                                                                                                                    | module      | limits | findings | still open                 |
 | ------------------------------------------------------------------------------------------------------------------------- | ----------- | ------ | -------- | -------------------------- |

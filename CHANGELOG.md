@@ -339,6 +339,39 @@ ______________________________________________________________________
 
 ### Changed
 
+- **just-makeit pin 0.59.0 → 0.59.1, which retires a doppler-local edit rather
+    than adding one.** The whole adoption is deleting nine lines.
+
+    `native/inc/jm_simd.h` carried a local `@code` fence around its usage
+    example, plus a note explaining why. Unfenced, that example's `coeffs[k]`
+    reaches markdown as prose, CommonMark reads `[k]` as a shortcut link
+    reference with no definition, and `zensical build --strict` aborts —
+    partially writing `site/`, which is how one real cause produced 864 broken
+    links. doppler had been carrying the fence; the 0.58.0 re-vendor destroyed
+    it, and CI's Docs job caught the fallout. Filed as
+    [just-makeit#968](https://github.com/just-buildit/just-makeit/issues/968)
+    and fixed there in 0.59.1, so **the fence is jm's now** and doppler's copy
+    is byte-identical to the shipped template again — verified with `cmp`, not
+    by eye. `jm_simd.h` therefore leaves the `OUTDATED` list on its own, which
+    is the report doing exactly what it exists for.
+
+    Nothing else in 0.59.1 reaches doppler. Its other seven template changes
+    are the `jm app` scaffolds (gh-962 — an edit to a generated app is no
+    longer silently discarded), and doppler declares no `[app]`:
+    `native/src/app/wfmgen.c` is hand-written, and says so in its own banner.
+
+    Two behavioural notes, both pre-checked so neither reads as a regression:
+    `.clang-format` now *can* be reported `OUTDATED` (gh-960) and duly is —
+    benign, since jm's template is 2 lines against doppler's 21 and
+    `c_style`/`c_format_command` mean jm formats generated C with **doppler's**
+    committed file, not its own. And a `CMakeLists.txt` that has lost a jm
+    splice anchor is now reported as `UNANCHORED` and **gates** (gh-975);
+    doppler passes, carrying both `# ── Components` and `# ── Modules`. That
+    one is worth knowing about: those read like decorative section headers in
+    a hand-owned file, and `# ── Modules` is where every module's
+    `add_subdirectory` line is appended. Losing it makes a module silently not
+    build while `jm status` reports OK.
+
 - **just-makeit pin 0.57.0 → 0.59.0, and the create-only headers 0.58.0 ships
     are re-vendored by hand.** Everything in 0.58.0 that doppler wants lands in
     *create-only* files — `jm apply` never rewrites those, so

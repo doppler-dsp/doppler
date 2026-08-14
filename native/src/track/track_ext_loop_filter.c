@@ -421,8 +421,8 @@ static PyMethodDef LoopFilterObj_methods[] = {
     ">>> ctl = lf.steps(np.full(50, 0.1))   # constant error into the loop\n"
     ">>> round(float(ctl[0]), 4)            # first control nudge\n"
     "0.0133\n"
-    ">>> round(float(ctl[-1]), 4)           # still ramping — nothing closes\n"
-    "0.0541                                 # the loop here\n"
+    ">>> round(float(ctl[-1]), 4)           # open loop: ramping\n"
+    "0.0541\n"
     "\n" },
 
   { "configure", (PyCFunction)(void *)LoopFilterObj_configure,

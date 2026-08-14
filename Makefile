@@ -700,7 +700,13 @@ include standard.mk
 # else, so this is what makes the rule enforced instead of merely written in
 # native/tests/README.md — which is the distinction that matters, since the
 # convention WAS written down while 90 copies of CHECK accumulated under it.
-lint: tests-ssot characterization-check validation-report-check
+#
+# `changelog-check` joined this list for the second half of that same reason.
+# It was in GATES_DEPS and nowhere else, and NO CI job runs `make gates` — so
+# a gate this repo believed it had was executed by nothing on every PR for as
+# long as it has existed. Being inert (#705) was only half the problem; not
+# running was the other half, and `gates` is a local convenience, not CI.
+lint: tests-ssot characterization-check validation-report-check changelog-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -1147,15 +1153,78 @@ drift-check: ## jm manifest drift gate (CI's 'jm manifest drift')
 # version doppler is not on.
 	cd $(DOWNSTREAM_DIR) && uv run --project $(CURDIR) just-makeit status --check
 
-# Fails when code has shipped since the last tag but [Unreleased] is empty.
-# keep-a-changelog says the entry lands with the change, not at release time.
-# The RELEASE PR is the one legitimate empty state: promotion moves every entry
-# into `## [X.Y.Z]`, so the notes exist, just not under [Unreleased]. That
+# One definition of "code", used by BOTH questions below. Splitting it was how
+# the two halves would drift: a path added to one and not the other leaves a
+# gate that is honest about a file the other has never heard of.
+CHANGELOG_CODE_PATHS = src native objects ffi
+
+# The base a BRANCH is measured against. Overridden in CI, where a
+# `pull_request` checkout has no local `main` to compare with — see ci.yml.
+CHANGELOG_BASE ?= origin/main
+
+# `changelog-check` asks TWO questions, folded into one target rather than
+# split into two, because they share the code-path definition above and a
+# second target would be a second place to keep it right.
+#
+#   1. PER BRANCH — did THIS branch change code without touching CHANGELOG.md?
+#   2. PER REPO   — has code shipped since the last tag with [Unreleased] empty?
+#
+# Question 1 is the one that matters, and it is new. The repo-state question
+# alone goes INERT the moment a single entry exists, so every branch after the
+# first passes for free: #700 shipped a public C API — a whole EMA primitive —
+# with no entry at all, straight through this target, and #705 is that hole.
+# The 0.58.0 bump on `chore/jm-0.58.0` would have gone the same way this week.
+# A question about what this branch did cannot be satisfied by somebody else's
+# earlier commit, which is exactly the property the repo-state question lacks.
+#
+# The design is lifted from just-buildit/just-makeit#956, which cites #705 by
+# URL as its motivating case; jm hit the same thing from the other side, having
+# assembled a seven-PR release in which not one PR wrote an entry. jm keeps it
+# in `local.mk`; doppler has no `local.mk`, and this target already lived here.
+#
+# TOUCHING the file is the bar, not growing a particular section. A refactor
+# that genuinely warrants no user-facing note is one honest line from passing,
+# and a gate that tries to judge which changes *deserve* an entry is a gate
+# that argues with its author.
+#
+# INERT on main by construction: HEAD is an ancestor of the base there, so the
+# range is empty and question 1 has nothing to judge. It only has an opinion on
+# a branch that is ahead.
+#
+# The RELEASE PR is the one legitimate empty [Unreleased]: promotion moves every
+# entry into `## [X.Y.Z]`, so the notes exist, just not under [Unreleased]. That
 # exemption is narrow on purpose — the version must HAVE a section AND its tag
-# must NOT exist yet, which is what stops it becoming permanent.
-changelog-check: ## [Unreleased] must not be empty if code shipped
-	@t=$$(git describe --tags --abbrev=0 2>/dev/null || true); \
-	n=$$(git log --oneline $${t:+$$t..}HEAD -- src native objects ffi 2>/dev/null | wc -l); \
+# must NOT exist yet, which is what stops it becoming permanent. It applies to
+# question 2 only; a release PR still touches CHANGELOG.md, so question 1 needs
+# no exemption at all.
+changelog-check: ## A branch changing code must touch CHANGELOG.md
+	@base=$$(git merge-base HEAD $(CHANGELOG_BASE) 2>/dev/null) || { \
+	  echo "changelog-check: no merge base with $(CHANGELOG_BASE) —"; \
+	  echo "  fetch it (CI needs fetch-depth: 0) or set CHANGELOG_BASE."; \
+	  exit 1; \
+	}; \
+	files=$$(git diff --name-only "$$base"..HEAD); \
+	if [ -z "$$files" ]; then \
+	  echo "changelog-check: no commits ahead of $(CHANGELOG_BASE) — branch check inert"; \
+	else \
+	  pat=$$(printf '%s\n' $(CHANGELOG_CODE_PATHS) | sed 's|.*|^&/|' | paste -sd'|'); \
+	  code=$$(printf '%s\n' "$$files" | grep -E "$$pat" || true); \
+	  if [ -z "$$code" ]; then \
+	    echo "changelog-check: no code changes on this branch"; \
+	  elif printf '%s\n' "$$files" | grep -qx 'CHANGELOG.md'; then \
+	    echo "changelog-check: $$(printf '%s\n' "$$code" | grep -c .) code file(s) on this branch, CHANGELOG.md touched — OK"; \
+	  else \
+	    echo "changelog-check: this branch changes code but not CHANGELOG.md — FAIL"; \
+	    printf '%s\n' "$$code" | sed 's/^/  /' | head -20; \
+	    echo ""; \
+	    echo "  Add an entry under ## [Unreleased] ON THIS BRANCH, so the"; \
+	    echo "  release is a promotion rather than an archaeology exercise."; \
+	    echo "  A purely internal change still gets one honest line."; \
+	    exit 1; \
+	  fi; \
+	fi; \
+	t=$$(git describe --tags --abbrev=0 2>/dev/null || true); \
+	n=$$(git log --oneline $${t:+$$t..}HEAD -- $(CHANGELOG_CODE_PATHS) 2>/dev/null | wc -l); \
 	e=$$(awk '/^## \[Unreleased\]/{f=1;next} f&&/^## /{exit} f' CHANGELOG.md \
 	     | grep -c '^- ' || true); \
 	v=$$(awk -F'"' '/^version = /{print $$2; exit}' pyproject.toml); \

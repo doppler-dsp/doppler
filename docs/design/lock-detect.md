@@ -171,7 +171,42 @@ header spells out which "complex Gaussian" normalisation it chose precisely
 because two are defensible. `native/validation/` was not part of that pass,
 and that is the corner the error came from.
 
-## 6. What this is built on, and what it is not
+## 6. Why a dead statistic drops the lock
+
+There is a third failure direction, and it is not a level or a time: the
+statistic itself can stop being a number. A ratio with a vanished
+denominator, an EMA that inherited one non-finite sample, a metric read
+from a stalled stage — all of them arrive as NaN, and **every comparison
+against NaN is false**. So the decision rule's two tests, `x > up_thresh`
+and `x < down_thresh`, both say *no*, and which way that falls out is
+decided by how the predicate happens to be spelled rather than by any
+argument.
+
+Spelled the obvious way it holds the lock: a locked detector reads the NaN
+as "not a miss", resets the drop run on every look, and keeps the lamp lit
+forever on a metric that has died. That is the worst of the three
+directions, because a lock lamp is exactly the thing a caller trusts when
+they have stopped looking at the signal.
+
+The rule is therefore stated, not inherited: **an unknown lock is not a
+lock.** A non-finite look is a miss on both sides — it never advances a
+declare, and while locked it advances the drop run like any other miss.
+
+It is also not implemented in the detector. `util_core.h`'s `saturate()`
+already carries this decision as its `nan_to` parameter, and its
+documentation already named a lock statistic as the caller that wants the
+floor — while having no such caller, so the rationale described someone who
+did not exist. Routing the look through it makes the policy an argument
+that can be audited at the call site (`-INFINITY`, the floor) rather than a
+comparison someone has to read carefully. The AGC uses the same primitive
+with the opposite end, because an unknown *level* must drive the gain down.
+
+Mechanics and a runnable demonstration:
+[Lock Detection: Verify Counts](../gallery/lockdet.md).
+
+______________________________________________________________________
+
+## 7. What this is built on, and what it is not
 
 |                                                                 | evidence                                                                    |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------- |

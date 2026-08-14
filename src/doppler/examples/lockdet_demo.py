@@ -93,6 +93,21 @@ def main(out_path="lockdet_demo.png"):
     print(f"lock detector transitions:    {t_lock}")
     assert t_lock == 2, "expected exactly one declare and one drop"
 
+    # ── a dead statistic drops the lock ──────────────────────────────
+    # The third failure direction, and the one a chatter demo cannot show:
+    # the metric stops being a number. Every comparison against NaN is
+    # false, so a detector that spells its drop test the obvious way reads
+    # NaN as "not a miss" and holds the lamp lit forever on a dead input.
+    # An unknown lock is not a lock -- see docs/design/lock-detect.md §6.
+    dead = LockDet(up_thresh=eta, down_thresh=down, n_up=n_up, n_down=N_DOWN)
+    assert dead.steps(np.full(n_up, 10.0))[-1] == 1, "should be locked"
+    nan_run = dead.steps(np.full(N_DOWN, np.nan))
+    assert nan_run[-1] == 0, "a NaN statistic must not hold the lock"
+    assert int(np.count_nonzero(nan_run == 1)) == N_DOWN - 1, (
+        "the drop must take exactly n_down looks, like any other miss"
+    )
+    print(f"dead statistic: lock dropped after {N_DOWN} non-finite looks")
+
     # ── declare-latency Monte Carlo vs det_verify_delay ──────────────
     sig = _looks(rng, 200_000, nu=NU)
     pd_look = float(np.mean(sig > eta))  # empirical per-look pd

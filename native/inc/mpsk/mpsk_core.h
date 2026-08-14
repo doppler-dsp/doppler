@@ -169,8 +169,14 @@ void mpsk_demap(const float complex *x, size_t x_len, uint8_t *out, int m);
  * Information rides on phase *differences*: the running constellation index
  * accumulates `gray_decode(label)` each symbol (starting from an implicit
  * zero-phase reference), so an unknown constant carrier phase cancels at the
- * receiver (mpsk_diff_demap) — resolving the M-fold ambiguity, at ~2x the
- * symbol-error rate of coherent map(). Sequential over the array.
+ * receiver (mpsk_diff_demap) — resolving the M-fold ambiguity. Sequential
+ * over the array.
+ *
+ * The cost is up to **2x the symbol-error rate** of coherent map(). That
+ * factor is a high-SNR asymptote, not a constant: measured, BPSK and QPSK
+ * reach it by ~8 dB Es/N0 while 8PSK pays only 1.44x at 4 dB and 2.03x by
+ * 14 dB. A caller sizing a link at low Es/N0 is charged less than the round
+ * number suggests (native/validation/mpsk_diff_penalty.c).
  *
  * @param sym      Gray label bytes (0..M-1), one per symbol.
  * @param sym_len  Number of symbols.

@@ -157,6 +157,58 @@ def check_findings(path: Path) -> list[str]:
     return []
 
 
+#: The front matter, and the two things it must carry. Matched on the
+#: RENDERED file so a report hand-edited into the wrong shape is caught
+#: too, not just a generator that skipped the call.
+EXEC_RE = re.compile(r"^## Executive summary\s*$", re.M)
+STATUS_RE = re.compile(r"^- \*\*Status\.\*\* .+$", re.M)
+TAKEAWAY_RE = re.compile(
+    r"^\*\*What a caller most needs to know\*\*\s*$", re.M
+)
+
+
+def check_executive(path: Path) -> list[str]:
+    """A report opens with an executive summary, and it opens with it.
+
+    Every other section of a validation report is written for somebody
+    already reading it. This one is for the person deciding whether to,
+    and for the caller who will never read further than the status line —
+    so it is the one section whose ABSENCE is invisible to every other
+    gate here: the tables parse, the findings render, the figures resolve,
+    and the report still fails to say whether the object is certified.
+
+    Position is checked, not just presence. A summary that has drifted
+    below section 1 is a summary nobody reads, and `Report.executive`
+    renders into its own `head` list precisely so ordering cannot depend
+    on call order. This catches a validator that emits the heading by hand
+    instead.
+    """
+    text = path.read_text()
+    rel = path.relative_to(ROOT)
+    out: list[str] = []
+    m = EXEC_RE.search(text)
+    if not m:
+        return [
+            f"{rel}: no '## Executive summary' — the report never says "
+            f"whether the object is certified. Call Report.executive() "
+            f"from build(), after limits()"
+        ]
+    first = re.search(r"^## .+$", text, re.M)
+    if first and first.start() != m.start():
+        out.append(
+            f"{rel}: '## Executive summary' is not the first section — it "
+            f"is written last and read FIRST"
+        )
+    if not STATUS_RE.search(text):
+        out.append(f"{rel}: the executive summary has no '**Status.**' line")
+    if not TAKEAWAY_RE.search(text):
+        out.append(
+            f"{rel}: the executive summary lists no takeaways — a status "
+            f"line alone is a scoreboard, not a summary"
+        )
+    return out
+
+
 # "![the amplitude law](amp_law.png)" as a section emits it.
 IMG_RE = re.compile(r"!\[[^\]]*\]\(([^)\s]+)\)")
 
@@ -243,6 +295,7 @@ def main() -> int:
     for r in reports:
         bad += check(r)
         bad += check_findings(r)
+        bad += check_executive(r)
         bad += check_artifacts(r)
 
     if bad:

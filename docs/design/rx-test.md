@@ -1,15 +1,81 @@
-# Receiver Test Harness — inventory
+# Receiver Test Harness
 
-**Status:** inventory, not yet a plan. Everything below was read from the
-tree, not recalled; line counts and symbol lists are as measured. The purpose
-is to establish what already exists before anything new is written, because
-the immediate cause of this document was a hand-rolled measurement harness
-that produced three wrong conclusions in one session — one of which reached a
-filed issue.
+**Status:** goals and inventory; the plan is not here yet. Everything below
+was read from the tree, not recalled; line counts and symbol lists are as
+measured. The immediate cause of this document was a hand-rolled measurement
+harness that produced three wrong conclusions in one session — one of which
+reached a filed issue.
 
 ______________________________________________________________________
 
-## 0. Why an inventory first
+## 0. Goals, and why an inventory comes first
+
+One harness that produces a receiver number anyone can defend — **ours or a
+caller's**. Ten goals, each phrased so it is possible to say whether it has
+been met.
+
+1. **A broken measurement fails loudly.** The harness never returns a
+    plausible number from an untrustworthy state. Alignment that did not
+    detect, a window that has not settled, too few trials for the interval
+    claimed — each is a refusal to report, not a number with a caveat.
+1. **Every measurement primitive is itself tested, and proven by sabotage.**
+    `ber_align_detect`, `ber_evm_db`, `snr_m2m4_db` and the harness headers
+    that wrap them. A test nobody has watched fail is not evidence.
+1. **Anchored to theory, not to itself.** Every rate is checked against
+    closed form (`ber_theory_ser`, `ber_esn0_db_for_ser`), so "all
+    configurations agree" can never be mistaken for "all configurations are
+    correct". A comparison between configurations is not a measurement.
+1. **BER, EVM, M2M4 and FER reported together, always.** They fail
+    differently, and the disagreement is the diagnostic (§2.4, §2.5).
+    Reporting one alone is what makes a false lock invisible.
+1. **Stimulus and measurement come from the library, never from the test.**
+    `wfm_synth`/`wfmgen` generate; `ber`/`snr` measure. The harness composes
+    them and owns no pulse, no level convention and no estimator of its own —
+    the rule `check_stimulus_sources.py` already enforces everywhere else.
+1. **One harness, every receiver.** Parameterised by operating point, not
+    forked per object, so two receivers are comparable by construction rather
+    than by hoping two harnesses agree.
+1. **A run is reproducible from its description.** A frame descriptor, the
+    rates, and the seeds fully determine it — no stored truth arrays, no
+    ambient state. The same description re-run anywhere gives the same number.
+1. **It runs under `make`, in the tree.** Anything a conclusion is drawn from
+    is reachable by a make target and visible to the gates. Exploratory work
+    outside the tree is exactly where the failures behind this document
+    happened (§5.5).
+1. **Internal and external use are the same path.** The harness is a shipped
+    capability, not a test rig: a caller measuring *their* receiver against
+    *their* capture uses what we use. Every measurement piece therefore lives
+    in the library with a binding, and anything reachable only from
+    `native/tests/` is both unavailable to callers and exercised by nobody but
+    us. This is already largely true and worth keeping true — `BerMeter` ships
+    the whole alignment decision (`align_ok`, `align_margin_db`,
+    `align_runner_db`, `align_slips`, `lag`, `phase`) plus `enough` and
+    `interval`, so `dp_ber_sync()` is a convenience over shipped machinery
+    rather than a private capability. The frame layer (§7) must land the same
+    way.
+1. **We use our own tools.** doppler generates its own stimulus, computes its
+    own EVM, estimates its own SNR and checks its own CRC. No numpy
+    re-implementation, no private estimator, no second convention — that is
+    what `check_stimulus_sources.py` already enforces, and dogfooding is also
+    the only thing that keeps the external path honest: a capability our own
+    tests do not use is a capability nobody is testing.
+
+### 0.1 Non-goals
+
+- **Not object certification.** [Object Validation](../dev/validation.md)
+    owns that process; this harness is something certification *uses*.
+- **Not a new generator, and not a new estimator.** Every capability named
+    above already exists somewhere in the tree. The work is connecting,
+    testing and standardising it — a harness that invents its own is the
+    failure being corrected, not the fix.
+- **Not real-time.** Offline records and deterministic seeds. Nothing here
+    promises a bounded per-sample cost or a streaming API for the *measurement*
+    side — the receivers it measures are streaming, the harness around them is
+    not. It is usable on a field capture (the truth-free metrics need no truth,
+    and `*_series` forms already exist for both estimators); that is a
+    consequence of goal 9, not a real-time claim.
+
+### 0.2 Why the inventory comes first
 
 A receiver measurement can fail in a way that returns a **plausible number**
 rather than an error. That is the whole difficulty:
@@ -137,6 +203,20 @@ ber_meter_ser      ber_meter_ber      ber_meter_get_errors
 `ber_align_detect` is the primitive that decides where the received stream
 sits against truth. `ber_meter_get_enough` answers "have I run enough trials",
 and `ber_meter_interval` gives the confidence interval.
+
+**This layer is shipped, which is what makes goal 9 reachable.**
+`doppler.ber.BerMeter` exposes the whole alignment decision — `align`,
+`align_ok`, `align_stat`, `align_margin_db`, `align_runner_db`,
+`align_occurrences`, `align_slips`, `align_saturated`, `lag`, `phase` — plus
+`enough`, `interval`, `ber`, `ser`, `conf`, `target_errors` and the state
+triplet. `doppler.snr` ships `snr_m2m4_db`, `snr_data_aided_db` and both
+`*_series` forms; `doppler.ber` also ships `ber_evm_db`, `ber_settle_syms`,
+`ber_settle_from`, `ber_theory_ser`/`_ber` and `ber_esn0_db_for_ser`.
+
+So a caller measuring their own receiver already has the trio and the
+alignment decision. What they do **not** have is the frame layer (§7) and any
+frame-level accumulation (§2.5) — which is the gap this document exists to
+close, on the external side as much as ours.
 
 ### 2.3 `dp_ber_test.h` (834 lines) — the statistical harness
 

@@ -241,11 +241,33 @@ ______________________________________________________________________
 `bn >= 0` and `t > 0`. `zeta` is described as "typically 0.707" without a
 stated range.
 
-**Neither constraint is enforced in code.** The arithmetic is total — no
-branch, no clamp, no error return — so a caller outside the declared domain
-gets gains rather than a complaint. What those gains are, and whether the
-resulting loop is merely wrong or entirely dead, is [section 8](#8-what-is-not-yet-measured)'s
-question and not settled here.
+**They are enforced at `loop_filter_create()` and deliberately nowhere
+else** ([gh-740](https://github.com/doppler-dsp/doppler/issues/740)). That
+split is the design, so it is worth stating why rather than leaving it to
+look like an omission:
+
+- **`create()` is the untrusted boundary.** `LoopFilter(bn, zeta, t)` hands
+    a Python caller's arbitrary doubles straight to it. Before the guard,
+    `t = 0` produced `kp = ki = 0` — a dead loop indistinguishable from the
+    legitimate frozen `bn = 0` below — and `t = inf`, or a NaN in any
+    argument, produced NaN gains, which poison every subsequent update
+    permanently. Both were one line away in Python. It now returns NULL for
+    `bn < 0`, `zeta <= 0`, `t <= 0` or any non-finite argument, and the
+    binding raises `ValueError` with the component's own message.
+- **`init()` is an internal guarantee.** All seven embedders pass a
+    validated `bn` and a compile-time-constant `zeta`; the only
+    runtime-computed `t` in the tree is `mpsk_receiver`'s `1.0/upd`, safe
+    because `m_out >= 2` is checked in its own constructor. Guarding that is
+    the error handling for impossible scenarios this project does not write.
+
+Validating in `create()` also makes the arithmetic **total**. With
+`bn >= 0` and `zeta > 0` the intermediate `th` is non-negative, so
+`den = 4 + 4*zeta*th + th^2 >= 4` — which closes the one genuinely
+pathological corner: for `zeta >= 1` a sufficiently negative `bn` drives
+`den` exactly through zero and both gains to infinity.
+
+`bn = 0` remains **inside** the domain and is accepted: it means a frozen
+loop, and that is how a loop is held open.
 
 `t` is an update *period in samples*, not a rate, and `bn` is normalised to
 **cycles per sample of the update clock** — so a loop updating once per
@@ -280,10 +302,12 @@ rather than confirming them:
     bandwidth came out.* Every consumer sizes settling as `5/bn` off this
     promise. The expectation is agreement for small `bn*t` and growing
     deviation as `th` approaches 1 — an expectation the sweep can falsify.
-1. **What happens outside the declared domain.** `t = 0` and `bn = 0` both
-    drive `th` to zero; `bn < 0` drives `kp` negative while `ki` stays
-    positive, since it carries `th^2`. Whether those produce a dead loop, an
-    unstable one, or a merely mistuned one is unmeasured.
+1. ~~**What happens outside the declared domain.**~~ **Answered, and the
+    answer became a fix.** `t = 0` produced a dead loop indistinguishable
+    from the legitimate frozen `bn = 0`, and `t = inf` or any NaN produced
+    NaN gains that poison the object permanently — both reachable from
+    Python in one line. `create()` now rejects them (§6, gh-740); `init()`
+    is deliberately still unguarded.
 1. **`loop_filter_steps()` against `loop_filter_step()`.** The block entry
     point claims per-element equivalence, integrator carry across calls, and
     that `out` may alias `x`. It has no C-level caller and no C-level test.

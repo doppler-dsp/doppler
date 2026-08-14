@@ -84,6 +84,29 @@ main (void)
     /* "@param state May be NULL" — the claim is that this is a no-op, and
        until now nothing ran it. */
     loop_filter_destroy (NULL);
+
+    /* gh-740: create() is the UNTRUSTED boundary — a Python caller's
+       arbitrary doubles arrive through it — and rejects every domain
+       violation. init() is deliberately left unguarded (§10): it is the
+       by-value path whose seven embedders all validate upstream, and the
+       asymmetry is the decision, not an oversight. */
+    loop_filter_state_t *edge = loop_filter_create (0.0, zeta, t);
+    DP_CHECK (edge != NULL); /* bn = 0 is IN the domain — see §10 */
+    loop_filter_destroy (edge);
+
+    DP_CHECK (loop_filter_create (-1e-9, zeta, t) == NULL);
+    DP_CHECK (loop_filter_create (bn, zeta, 0.0) == NULL);
+    DP_CHECK (loop_filter_create (bn, zeta, -1.0) == NULL);
+    DP_CHECK (loop_filter_create (bn, 0.0, t) == NULL);
+    DP_CHECK (loop_filter_create (bn, -1.0, t) == NULL);
+    /* Non-finite in any argument: t = INFINITY used to give NaN gains, and
+       a NaN gain poisons every later update permanently. */
+    DP_CHECK (loop_filter_create (INFINITY, zeta, t) == NULL);
+    DP_CHECK (loop_filter_create (bn, INFINITY, t) == NULL);
+    DP_CHECK (loop_filter_create (bn, zeta, INFINITY) == NULL);
+    DP_CHECK (loop_filter_create (NAN, zeta, t) == NULL);
+    DP_CHECK (loop_filter_create (bn, NAN, t) == NULL);
+    DP_CHECK (loop_filter_create (bn, zeta, NAN) == NULL);
   }
 
   /* ------------------------------------------------------------------ *
@@ -303,8 +326,11 @@ main (void)
   /* ------------------------------------------------------------------ *
    * 10. The declared domain's edge, and what lies outside it
    *
-   * The header declares bn >= 0 and t > 0. Nothing enforces either: the
-   * arithmetic is total, with no branch, clamp or error return.
+   * The header declares bn >= 0 and t > 0. create() enforces them (§1);
+   * init() deliberately does not, because it is the by-value path and its
+   * seven embedders validate upstream — guarding an internal guarantee is
+   * error handling this project does not write. gh-740 is where that split
+   * was decided; this section is what pins the unguarded half.
    * ------------------------------------------------------------------ */
   {
     /* bn = 0 is IN the declared domain, and it means a frozen loop: both

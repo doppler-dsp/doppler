@@ -5,16 +5,23 @@ from numpy.typing import NDArray
 
 @final
 class LoopFilter:
-    """LoopFilter component.
+    """Create a loop_filter instance, validating its arguments.
 
     Parameters
     ----------
     bn : float, default 0.01
-        bn constructor parameter.
+        Loop noise bandwidth, normalized cycles/sample; >= 0 and finite
+        (default 0.01).
     zeta : float, default 0.707
-        zeta constructor parameter.
+        Damping factor; > 0 and finite (default 0.707).
     t : float, default 1.0
-        t constructor parameter.
+        Update period in samples; > 0 and finite (default 1.0).
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``bn must be >= 0, zeta
+        > 0 and t > 0, and all three finite``.
 
     Examples
     --------
@@ -101,8 +108,8 @@ class LoopFilter:
         >>> ctl = lf.steps(np.full(50, 0.1))   # constant error into the loop
         >>> round(float(ctl[0]), 4)            # first control nudge
         0.0133
-        >>> round(float(ctl[-1]), 4)           # converging toward the estimate
-        0.0541
+        >>> round(float(ctl[-1]), 4)           # still ramping — nothing closes
+        0.0541                                 # the loop here
 
         """
 

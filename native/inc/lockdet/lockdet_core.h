@@ -179,8 +179,14 @@ extern "C"
    * it. A metric inside the `[down_thresh, up_thresh]` band is sticky — it
    * neither advances a declare nor a drop.
    *
+   * A **non-finite look is a miss in both states**: it never advances a
+   * declare, and while locked it advances the drop run like any other miss.
+   * An unknown lock is not a lock, which is the rule util_core.h states for
+   * lock statistics generally. So a metric that goes NaN drops the lock
+   * after @c n_down looks rather than holding it lit indefinitely.
+   *
    * @param state  Must be non-NULL.
-   * @param x      Lock metric for this look.
+   * @param x      Lock metric for this look. Non-finite counts as a miss.
    * @return Decision after this look (1 = locked, 0 = not).
    *
    * @code
@@ -213,7 +219,15 @@ extern "C"
       }
     else
       {
-        if (x < state->down_thresh)
+        /* `!(x >= down_thresh)` rather than `x < down_thresh`: for every
+           finite x the two are identical, INCLUDING the exclusive edge at
+           x == down_thresh, but a NaN look fails both comparisons, and the
+           spelling decides which way it falls. Written as a miss, so an
+           unknown lock is not a lock — util_core.h:71 states that rule for
+           lock statistics and this is the component that makes the
+           decision. The other direction held the lock forever on a dead
+           metric, with the lamp still lit. */
+        if (!(x >= state->down_thresh))
           {
             if (++state->cnt >= state->n_down)
               {

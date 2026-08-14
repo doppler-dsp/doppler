@@ -2485,7 +2485,7 @@ Examples
 True
 
 """
-objects = ["loop_filter", "costas", "dll", "symsync", "ratesync", "carrier_mpsk", "carrier_nda", "mpsk_receiver", "mpsk_receiver_r"]
+objects = ["loop_filter", "costas", "dll", "symsync", "ratesync", "carrier_mpsk", "carrier_nda", "mpsk_receiver", "mpsk_receiver_r", "bpsk_receiver"]
 
 [module.dsss]
 doc = """

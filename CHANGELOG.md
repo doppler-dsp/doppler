@@ -957,6 +957,39 @@ ______________________________________________________________________
 
 ### Added
 
+- **`BpskReceiver` is designed and declared** — a second receiver, for the
+    **continuous** flavor: NRZ BPSK, minutes to hours, with periods of data
+    modulation off and the carrier on. Not a migration and nothing is
+    superseded; `MpskReceiver` keeps the burst flavor, which is RRC-shaped and
+    seconds-or-less, and the DSSS chain that composes it. There will be at
+    least two receivers, permanently.
+
+    **The two loops are decoupled, and that is the design.** The carrier arm is
+    non-data-aided and timing-independent by construction — squaring a limited
+    sample strips the modulation, so it never needs to know where a symbol
+    starts. It runs free at a clock fixed at construction (a half-symbol boxcar
+    over a cascade output landing near 4 samples/symbol) while the timing loop
+    owns the exact rate through the polyphase arm. Neither waits on the other,
+    and a timing loss cannot take the carrier with it. Timing is **DTTL**, the
+    measured-but-untaken change
+    [#645](https://github.com/doppler-dsp/doppler/issues/645) recorded: RateSync's
+    certification has it at 6.4× lower self-noise near lock than Gardner, with
+    an error carrying `A¹` where Gardner's carries `A²`.
+
+    The caller states the link, not the loops: `sample_rate_hz` and
+    `symbol_rate_hz` are the only required arguments, and both loop bandwidths,
+    the lock threshold, the verify counts, `m_out` and `num_phases` are derived
+    inside `create()` and reported back. `pull_in_hz` and
+    `declare_latency_syms` are published, which no receiver in this library has
+    done before.
+
+    Design in `docs/design/bpsk-receiver.md`, including what must be measured
+    before it can be certified — the squaring-loss floor against Yuen's closed
+    form, the sliding-window penalty a free-running arm pays on a long link,
+    and carrier-on/data-off, where the carrier side is fine by construction and
+    the timing side is unstated everywhere because DTTL needs transitions.
+    Declared but **not yet materialised**.
+
 - **just-makeit pin 0.59.1 → 0.60.1, and 38 C symbols across 6 components
     became linkable.** The mpsk certification found `mpsk_map`/`mpsk_demap`
     absent from `libdoppler.a` and root-caused it upstream: jm emitted the

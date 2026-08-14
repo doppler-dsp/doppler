@@ -1,0 +1,196 @@
+[bpsk_receiver]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "BpskReceiver"
+doc = """
+Streaming NRZ BPSK receiver: non-data-aided carrier recovery and DTTL symbol timing, with the two loops decoupled.
+
+One modulation, one detector, one mode. There is no handover, no warmup, no lock gate, no timing gate and no search, so there is no state the receiver can be wrong about. The lock statistic is telemetry and steers nothing.
+
+The carrier arm is timing-independent by construction -- squaring a limited sample strips the modulation, so the arm never needs to know where a symbol starts. It therefore runs FREE at a clock fixed at construction (a half-symbol boxcar over a cascade output landing near 4 samples/symbol), while the timing loop owns the exact rate through the terminal polyphase arm. Neither loop waits on the other, and a timing loss cannot take the carrier with it.
+
+Scope is the continuous flavor: minutes-to-hours links, NRZ BPSK, periods with the data modulation off and the carrier on. For short RRC-shaped bursts use `MpskReceiver`. See docs/design/bpsk-receiver.md.
+"""
+
+depends_on = [
+  { name = "ddc", link = true },
+  { name = "ratesync", link = true },
+  { name = "RateConverter", link = true },
+  { name = "resamp", link = true },
+  { name = "hbdecim", link = true },
+  { name = "cic", link = true },
+  { name = "fir", link = true },
+  { name = "resample", link = true },
+  { name = "lo", link = true },
+  { name = "nco", link = true },
+  { name = "loop_filter", link = true },
+  { name = "lockdet", link = true },
+  { name = "detection", link = true },
+  { name = "dp_tlm", link = true },
+  { name = "agc", link = true },
+  { name = "boxcar", link = true },
+  { name = "mpsk", link = true },
+]
+serializable = "true"
+
+# A NULL create here means a parameter was out of range, or the detector
+# spec was unreachable -- not that the machine ran out of memory (gh-482).
+create_error = "ValueError"
+create_error_message = "BpskReceiver: invalid parameter or unreachable detector spec (need sample_rate_hz > 0, symbol_rate_hz > 0, sample_rate_hz/symbol_rate_hz >= 4, 0 < pd < 1, 0 < pfa < 1, esn0_floor_db finite)"
+
+[[bpsk_receiver.init_params]]
+name = "sample_rate_hz"
+type = "double"
+required = true
+doc = "Input sample rate, Hz. Whatever the hardware gives -- external rates are not the receiver's to dictate. `create()` plans an integer cascade decimation that lands the free-running carrier arm as near 4 samples/symbol as it can, and reports what it planned as `arm_sps`; nothing is rejected for an awkward rate ratio. Only the ratio to `symbol_rate_hz` matters to the design, but both are stated in Hz so every derived bandwidth can be reported in Hz too."
+
+[[bpsk_receiver.init_params]]
+name = "symbol_rate_hz"
+type = "double"
+required = true
+doc = "Symbol rate, Hz. With `sample_rate_hz` this fixes the oversampling `sps`, which is a derived double and never appears in the API -- 17.33389 samples per symbol is as valid as 4, because the front end plans its own cascade and the terminal stage's accumulator is a double. That is the real case whenever the ADC clock free-runs against the symbol clock."
+
+[[bpsk_receiver.init_params]]
+name = "center_freq_hz"
+type = "double"
+default = "0.0"
+doc = "Where the carrier is expected, Hz, relative to the input's centre. This is the seed, not a search: the loop pulls in from a residual, and how large a residual is reported back as `pull_in_hz`. When the uncertainty exceeds it, compose an acquisition object in front and hand its estimate here -- widening the arm is not the answer, because the loop-capture bound binds long before the aliasing ceiling does."
+
+[[bpsk_receiver.init_params]]
+name = "esn0_floor_db"
+type = "double"
+default = "4.0"
+doc = "The lowest Es/N0 the link must still work at, dB. This is the ONE number the caller possesses that the loops do not, and everything else is derived from it: both loop bandwidths through the loop-SNR rule, and -- with `pd` and `pfa` -- the lock detector's EMA constant, threshold and verify counts. It is a design floor, not a measurement: the receiver never learns the true Es/N0. It sets the UPPER bound on loop bandwidth, below which loop SNR collapses; the lower bound comes from how fast the carrier actually moves, which the caller has not stated."
+
+[[bpsk_receiver.init_params]]
+name = "pd"
+type = "double"
+default = "0.99"
+doc = "Probability of declaring lock at `esn0_floor_db`, for sizing the detector. Chosen together with `pfa` and the floor: the three fix the EMA constant, the threshold and the verify counts as one solution rather than three independent knobs. Construction FAILS rather than silently missing this -- a detector that cannot reach its stated Pd is a lamp that does not light, which is worse than one that was never promised."
+
+[[bpsk_receiver.init_params]]
+name = "pfa"
+type = "double"
+default = "1e-5"
+doc = "Probability of a false lock declaration on noise alone, for sizing the detector. Sized through the Gaussian quantile in `detection` (`det_q_inv`), not the exponential-tail inversion `det_threshold()` uses -- the lock statistic after limiting is Gaussian-tailed, and the two differ enough to matter (4.417 against 4.94 sigmas at pfa 5e-6). Read the resulting declare latency back with `declare_latency_syms`."
+
+# ── the data path ────────────────────────────────────────────────────────
+[[bpsk_receiver.methods]]
+name = "steps"
+doc = "Demodulate a cf32 block and return the recovered BPSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver mixes with the LO, pushes the result through the decimating cascade, and folds the cascade's outputs into two INDEPENDENT loops. The carrier loop reads a free-running half-symbol boxcar over the cascade output -- never a timed sample -- limits it, squares it, and steers the LO from `Im(z^2)`; because squaring strips the modulation, that error needs neither data nor symbol timing. The timing loop reads the terminal polyphase stage, whose bank IS the integrate-and-dump matched filter and whose selected arm IS the fractional symbol delay, and steers `rate_ctrl` from a DTTL error across the on-time and transition outputs. The loop locks to one of two phases (180 degree ambiguity); resolve it with `bits()` differential or a downstream sync word. Read `freq_hz` for the tracked carrier and `lock` for the carrier lock metric."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[bpsk_receiver.methods]]
+name = "bits"
+doc = "Demodulate a cf32 block and return hard bits (one byte of 0/1 per recovered symbol). Differential by DEFAULT: each bit comes from the phase difference between consecutive symbols, which is rotation-invariant and so resolves the 180 degree ambiguity an NDA carrier loop cannot, at about twice the symbol-error rate. Pass differential=0 only when a downstream sync word resolves the ambiguity instead -- coherent bits from an unresolved loop are a misconfiguration, not a choice. Same per-sample carrier and timing recovery as `steps()`."
+arg_type = "void"
+return_type = "uint8_t"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [
+  { name = "x", type = "float _Complex[]" },
+  { name = "differential", type = "int", default = "1" },
+]
+
+[[bpsk_receiver.methods]]
+name = "set_telemetry"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "dp_tlm/dp_tlm_core.h" },
+  { name = "prefix", type = "const char *" },
+  { name = "decim", type = "uint32_t", default = "1" },
+]
+
+[[bpsk_receiver.methods]]
+name = "reset"
+arg_type = "void"
+return_type = "void"
+
+# ── what create() derived, so a caller can check it ──────────────────────
+[[bpsk_receiver.properties]]
+name = "arm_sps"
+type = "double"
+doc = "The carrier arm's planned rate, samples per symbol. Nominally 4; the cascade decimates by an integer, so the achievable rate depends on the caller's rate ratio and this reports what was actually planned. It matters because the boxcar is a HALF-SYMBOL window only when this is exactly 4 -- off-nominal, the window slides against true symbol boundaries and the squaring loss breathes."
+
+[[bpsk_receiver.properties]]
+name = "m_out"
+type = "size_t"
+doc = "Terminal outputs per symbol, fixed at 4 by the design. DTTL takes every 4th output as the on-time strobe and the one 2 back as the transition gate, so the oversampled matched-filtered stream falls out for free."
+
+[[bpsk_receiver.properties]]
+name = "bn_carrier_hz"
+type = "double"
+doc = "Carrier loop noise bandwidth in Hz, DERIVED from `esn0_floor_db` through the loop-SNR rule. Reported because a caller who can read back what was chosen can check it against what their dynamics require."
+
+[[bpsk_receiver.properties]]
+name = "bn_timing_hz"
+type = "double"
+doc = "Timing loop noise bandwidth in Hz, derived alongside `bn_carrier_hz`."
+
+[[bpsk_receiver.properties]]
+name = "lock_thresh"
+type = "double"
+doc = "The declare threshold on the smoothed lock statistic, derived from (`esn0_floor_db`, `pd`, `pfa`) together with the EMA constant and the verify counts. Not independently settable: the four are one solution."
+
+[[bpsk_receiver.properties]]
+name = "pull_in_hz"
+type = "double"
+doc = "The largest residual carrier error, Hz, the loop will reliably pull in unaided -- the contract the caller must satisfy with `center_freq_hz`. This is the loop-capture bound, which binds long before the arm's aliasing ceiling of half the symbol rate. Reported, NOT guarded: exceed it and the failure signature is `freq_hz` walking while `locked` never asserts."
+
+[[bpsk_receiver.properties]]
+name = "declare_latency_syms"
+type = "double"
+doc = "How long the lock lamp takes to light once the signal is there, in symbols -- the verify-count delay at the design point. Published because a caller sizing a burst gate or a timeout needs it, and no receiver in this library has ever reported it."
+
+# ── runtime ──────────────────────────────────────────────────────────────
+[[bpsk_receiver.properties]]
+name = "freq_hz"
+type = "double"
+writable = true
+doc = "The tracked carrier frequency, Hz, relative to the input's centre. Writing it re-seeds the loop and zeroes its residual estimate, so the value reads back exactly."
+
+[[bpsk_receiver.properties]]
+name = "nco_freq_hz"
+type = "double"
+doc = "The loop filter's instantaneous frequency output, Hz -- distinct from `freq_hz`, which is the smoothed estimate. Its MEAN tracks a frequency ramp with no lag; its VARIANCE is loop stress. A caller diagnosing a marginal link wants this one, and the shipped MpskReceiver never exposed it."
+
+[[bpsk_receiver.properties]]
+name = "lock"
+type = "double"
+doc = "The smoothed carrier lock statistic, `Re(z^2)` through an EMA, bounded in +-1 and reading about +1 at lock. Telemetry: nothing in the receiver reads it. Its noise-only standard deviation is what `lock_thresh` is sized against."
+
+[[bpsk_receiver.properties]]
+name = "locked"
+type = "int"
+doc = "The de-chattered lock flag from the hysteretic detector -- level AND time hysteresis, unlike the raw `lock` metric. This is the one to gate on; re-deriving hysteresis from `lock` in Python duplicates what the object already computed."
+
+[[bpsk_receiver.properties]]
+name = "last_error"
+type = "double"
+doc = "The carrier phase discriminator's most recent output, radians -- the residual phase the loop is trying to null, and so a direct read on loop stress."
+
+[[bpsk_receiver.properties]]
+name = "timing_ppm"
+type = "double"
+doc = "The tracked sample-clock offset in parts per million, relative to the nominal rate implied by `sample_rate_hz`/`symbol_rate_hz`. This is what the timing loop has actually found, and on a long link it is the number that says whether the transmitter's clock is where it claimed."
+
+[[bpsk_receiver.properties]]
+name = "agc_gain_db"
+type = "double"
+doc = "Gain the in-cascade AGC is applying, dB. The AGC is load-bearing rather than optional: the timing detector normalises by its own construct-time slope, computed for a unit-amplitude stream, and DTTL's raw error carries amplitude to the first power -- so an unlevelled path is a loop-gain error."
+
+[[bpsk_receiver.properties]]
+name = "clipped"
+type = "int"
+doc = "Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to +-1.0 and clips silently past it -- the output stays finite and plausible, merely distorted, at a cost no lock metric reveals. Always 0 for a plan with no CIC stage."

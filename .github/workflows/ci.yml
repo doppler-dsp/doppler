@@ -386,6 +386,9 @@ jobs:
       # against is the honest comparison. On a `push` event there is no PR to
       # read it from, and `origin/main` is correct there -- HEAD is an ancestor
       # of it, so the branch half goes inert exactly as it should.
+      # `issue-link-check` takes the same base by way of CHANGELOG_BASE (the
+      # Makefile passes it through), so both per-branch gates measure against
+      # the same commit rather than two subtly different ones.
       env:
         CHANGELOG_BASE: ${{ github.event.pull_request.base.sha || 'origin/main' }}
       run: make lint

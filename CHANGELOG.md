@@ -15,6 +15,39 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **A merged fix no longer leaves its issue open.** GitHub closes an issue only
+    when a closing keyword reaches the default branch; doppler rebase-merges,
+    so a commit message carries it — and nothing asked any branch to use one.
+
+    The cost was three issues in one week, all fixed and all still open:
+    `c0e0e615` gated the generated C API tree, which **is** #714, and left it
+    open for a day; PR #717's F1/F2/F3 are #663, #664 and #665, found only
+    because a triage pass read the PR body against the backlog. An open count
+    that includes finished work is a backlog nobody can plan from, and the
+    triage that produced the ranked board had to verify six issues against the
+    tree one at a time to learn which were real.
+
+    `make issue-link-check` asks a branch that changes code to declare either
+    `Closes #N` or `No-issue:`. **The bar is a statement, not a link** — most
+    branches close nothing, and a gate demanding an issue number from a
+    re-vendor would argue with its author, which is the failure mode
+    `changelog-check`'s own comment warns about. Silence is the one rejected
+    answer, because it cannot be told apart from a closure nobody wrote down.
+
+    A bare mention is not a link and is rejected with silence: `See #714 for   context` and `#714` alone both leave the issue open on merge. That
+    discrimination is the gate, so it is what the mutation test targets —
+    relaxing the pattern to accept any `#N` fails exactly those two cases and
+    leaves the other eleven green.
+
+    It shares `CHANGELOG_CODE_PATHS` with `changelog-check` rather than
+    defining "code" a second time, takes the same base so both per-branch
+    gates measure against the same commit, is inert on `main` by construction,
+    and fails closed with no merge base. Logic lives in
+    `scripts/issue-link-check.sh` so its 13 tests can drive it over seeded
+    messages instead of fabricating a scratch repository.
+
+    Closes #746.
+
 - **A NaN lock metric held the lock forever; an unknown lock is not a lock.**
     `lockdet_step`'s drop test read `x < down_thresh`, and every comparison
     against NaN is false — so while locked a non-finite look counted as a

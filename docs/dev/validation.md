@@ -165,9 +165,36 @@ Then the five numbered sections:
     at §2.8 sit unnoticed. Claims unreachable from Python are reported as
     **C-ONLY** with the C section that covers them, never silently skipped.
 1. **Review** — findings with verdicts: `BY DESIGN`, `GAP`, `CONFIRMED`,
-    `FIXED`, `C-ONLY`.
+    `FIXED`, `C-ONLY`. Defined below, because two of them are easy to read
+    backwards.
 1. **Limits** — the envelope a caller may rely on, asserted.
 1. **Summary.**
+
+### The five verdicts
+
+**A verdict is a judgement about a PROBLEM.** There is deliberately no
+verdict meaning "this works" — that is what a limit is for, and recording
+a passing result as a finding inflates the count with something already
+gated.
+
+| verdict     | means                                                                            | open? |
+| ----------- | -------------------------------------------------------------------------------- | ----- |
+| `GAP`       | something is missing or unestablished — no evidence, no binding, no fix yet      | YES   |
+| `CONFIRMED` | a real defect, reproduced and understood, deliberately not fixed here            | YES   |
+| `FIXED`     | a defect this certification found **and corrected**                              | no    |
+| `BY DESIGN` | behaviour that reads as a defect and is intended; the report says why            | no    |
+| `C-ONLY`    | a claim the Python face cannot reach, certified in C instead — name that section | no    |
+
+`CONFIRMED` is the one that gets misused: it means **a confirmed defect**,
+not a confirmed claim. It counts as OPEN, and the count flows into the
+executive summary's status line and
+[the validation log](validation-log.md)'s `still open` column. Using it for
+a positive result — "the header's figure is confirmed correct" — reports a
+clean object as carrying open defects, which is the same
+finished-work-in-the-backlog problem `issue-link-check` exists to stop. The
+mpsk report shipped that way for one commit; RateSync's F7 (a lock
+indicator that cannot distinguish an under-driven loop, left open as
+gh-661) is the shape `CONFIRMED` is actually for.
 
 **Phases in order, and no fixes during characterisation** — findings only.
 A fix made while measuring contaminates the measurement it came from.

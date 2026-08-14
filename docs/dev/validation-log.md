@@ -64,7 +64,7 @@ folder exists. There is no list here to update.
 | ------------------------------------------------------------------------------------------------------------------------- | ----------- | ------ | -------- | -------------------------- |
 | [AGC](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/agc/tests/validation/agc/results.md)                   | `agc`       | 18/18  | 6        | 2 — F4, F6                 |
 | [LockDet](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/lockdet/results.md)     | `detection` | 22/22  | 6        | none                       |
-| [M-PSK constellation](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/mpsk/tests/validation/mpsk/results.md) | `mpsk`      | 24/24  | 6        | 3 — F1, F2, F4             |
+| [M-PSK constellation](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/mpsk/tests/validation/mpsk/results.md) | `mpsk`      | 24/24  | 5        | 1 — F3                     |
 | [resamp](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/resample/tests/validation/resamp/results.md)        | `resample`  | 14/14  | 9        | none                       |
 | [LO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/lo/results.md)                  | `source`    | 26/26  | 9        | none                       |
 | [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)                | `source`    | 18/18  | 9        | none                       |

@@ -337,28 +337,27 @@ def characterise() -> Data:
 def review(d: Data) -> None:
     R.md("## 3. Findings, with verdicts")
     R.md()
-    worst = max(abs(c - w) / w for (c, _dd, w) in d.ser.values() if w > 0)
-    R.find(
-        "F1",
-        "CONFIRMED",
-        "Coherent decision tracks closed-form theory across every "
-        f"measured cell — worst deviation {100.0 * worst:.1f}% over "
-        f"{len(d.ser)} cells at {NSYM:,} symbols each. The slicer is "
-        "correct, not merely self-consistent.",
-    )
     lo = min(dd / c for (c, dd, _w) in d.ser.values() if c > 0)
     hi = max(dd / c for (c, dd, _w) in d.ser.values() if c > 0)
+    # NB there is no finding for "the coherent path tracks theory". That is
+    # not a judgement, it is a limit (§4), and recording it here as well
+    # would inflate the finding count with a result that is already gated.
+    # A verdict is a judgement about a PROBLEM; the review phase has no
+    # vocabulary for "this works", deliberately.
     R.find(
-        "F2",
-        "CONFIRMED",
+        "F1",
+        "FIXED",
         f"The header's `~2x` differential penalty is an ASYMPTOTE, not a "
         f"constant: measured {lo:.2f}x to {hi:.2f}x across this grid, "
         "smallest for the largest M at the lowest Es/N0. A caller sizing "
         "a link at low Es/N0 is charged less than the round number "
-        "suggests. Carried back into the header and both Python faces.",
+        "suggests. The header stated it flatly and is corrected, on both "
+        "Python faces, in the design doc and on the gallery page — which "
+        "was repeating the flat figure while demonstrating it on 8PSK, "
+        "the case furthest from it.",
     )
     R.find(
-        "F3",
+        "F2",
         "C-ONLY",
         "The decision `ahat` and the inline helpers have no Python face, "
         "so the decision-directed carrier error `Im(y·conj(ahat))` — the "
@@ -368,7 +367,7 @@ def review(d: Data) -> None:
         "in it.",
     )
     R.find(
-        "F4",
+        "F3",
         "GAP",
         "`mpsk_core` is folded into no library: `mpsk_map`/`mpsk_demap` "
         "are absent from `libdoppler.a` and `.so`, so a C caller cannot "
@@ -378,7 +377,7 @@ def review(d: Data) -> None:
         "fix wants its own gate and is out of scope here.",
     )
     R.find(
-        "F5",
+        "F4",
         "BY DESIGN",
         "A rotated differential stream decodes symbol 0 wrongly. It "
         "references the implicit zero-phase start, so there is nothing "
@@ -387,7 +386,7 @@ def review(d: Data) -> None:
         "label.",
     )
     R.find(
-        "F6",
+        "F5",
         "FIXED",
         "`test_carrier_mpsk_core.c` carried a private O(M) correlation "
         "search instead of calling `mpsk_slice`, so the carrier-loop test "
@@ -501,17 +500,17 @@ def build(write: bool = True) -> Report:
             "**`~2x` for differential mode is an asymptote, not a "
             f"constant** — measured {lo:.2f}x to {hi:.2f}x. It is an "
             "upper bound reached where a receiver operates, and the "
-            "caller is charged less at low Es/N0 (§2.4, F2).",
+            "caller is charged less at low Es/N0 (§2.4, F1).",
             "**Differential mode survives ANY constant carrier phase**, "
             "not just the M constellation rotations — the stronger claim, "
             "and the one that makes it worth its penalty (§2.5).",
             "**The most important surface has no Python face.** The "
             "decision `ahat` and the inline helpers are C-only; this "
             "report says what it cannot reach rather than reporting a "
-            "clean bill of health for the rest (F3).",
+            "clean bill of health for the rest (F2).",
             "**`mpsk_core` is in no library** — the C face of this module "
             "cannot be linked at all, which every Python gate is blind to "
-            "(F4, [#747](https://github.com/doppler-dsp/doppler/issues/747)).",
+            "(F3, [#747](https://github.com/doppler-dsp/doppler/issues/747)).",
         ],
     )
     R.summary("\n- Raw sweep: `data/ser.csv`")

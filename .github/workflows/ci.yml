@@ -353,23 +353,17 @@ jobs:
         # it would be red on every PR.
         fetch-depth: 0
 
-    # `make lint` also includes the tests-ssot assertion ratchet, which needs a
-    # BASELINE to compare against -- and actions/checkout fetches only the PR
-    # ref, so `origin/main` does not exist here even though it always does on a
-    # developer's clone. That asymmetry is the whole bug: the gate passed
-    # locally and failed on the runner with "base ref does not resolve", which
-    # is the fail-closed branch behaving correctly on an input only CI sees.
-    #
-    # Explicit refspec rather than `git fetch origin main`, which lands in
-    # FETCH_HEAD and leaves refs/remotes/origin/main absent depending on how
-    # remote.origin.fetch was configured. Kept even though `fetch-depth: 0`
-    # above now supplies the same ref: this step states the ratchet's own
-    # requirement, so a future change to the checkout cannot silently remove a
-    # baseline nothing else asks for.
-    - name: Fetch the ratchet's baseline
-      run: |
-        git fetch --no-tags --depth=1 origin \
-          +refs/heads/main:refs/remotes/origin/main
+    # NB there is no longer an explicit `git fetch --depth=1 origin main` step
+    # here. It existed because a default checkout fetches only the PR ref, so
+    # `origin/main` was absent and the tests-ssot ratchet failed closed on the
+    # runner while passing on every developer's clone. `fetch-depth: 0` above
+    # supersedes it -- actions/checkout fetches every branch, the full history
+    # and the tags -- and keeping both was actively harmful, not merely
+    # redundant: `--depth=1 --no-tags` RE-shallowed the repo after the deep
+    # checkout, which left `git describe --tags` with nothing to find. Measured
+    # on the first CI run of this gate, which reported "1 code commit(s) since
+    # repo start" where a developer's clone says "113 since v0.42.0" -- the
+    # repo-state half of changelog-check reduced to nonsense by its own setup.
 
     # uv, not bare setup-python: the hooks now DISPATCH into the Makefile
     # (`make -s lint-ruff`), which invokes `$(DEV_RUN) <tool>` so the version

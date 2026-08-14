@@ -612,6 +612,52 @@ size_t RateConverter_execute_ctrl_push (RateConverter_state_t *s,
                                         float _Complex *out, size_t max_out);
 
 /**
+ * @brief RateConverter_execute_ctrl_push(), also emitting the PRE-TERMINAL
+ *        sample — the cascade's output after every integer stage and after
+ *        the AGC, but before the terminal matched filter.
+ *
+ * This is the tap a non-data-aided carrier discriminator wants, and it is the
+ * reason this variant exists (see docs/design/mpsk.md §3.3). It is already
+ * band-limited by the cascade's own decimation filters and already levelled
+ * by the AGC that sits on this exact node, yet it is ahead of the matched
+ * filter — so reading it needs no symbol timing, and it carries none of the
+ * matched filter's group delay or its between-symbol ISI.
+ *
+ * The rate is `bank_sps` samples per symbol, a planner outcome: read it with
+ * RateConverter_get_bank_sps() rather than assuming it. A consumer wanting a
+ * fixed clock decimates this stream itself.
+ *
+ * A non-terminal stage swallows inputs between its decimation strobes, so
+ * @p n_pre is 0 on those calls — exactly as the return value is.
+ *
+ * @param s        Must be non-NULL.
+ * @param x        One input sample.
+ * @param ctrl     Fractional-rate control for the terminal stage.
+ * @param out      Terminal outputs.
+ * @param max_out  Capacity of @p out.
+ * @param pre_out  Receives the pre-terminal sample; may be NULL.
+ * @param n_pre    Receives 1 if @p pre_out was written, else 0; may be NULL.
+ * @return Number of terminal outputs written, as the non-tap form.
+ */
+size_t RateConverter_execute_ctrl_push_tap (RateConverter_state_t *s,
+                                            float _Complex x, double ctrl,
+                                            float _Complex *out,
+                                            size_t max_out,
+                                            float _Complex *pre_out,
+                                            int *n_pre);
+
+/**
+ * @brief Samples per symbol on the terminal stage's grid — the rate the
+ *        pre-terminal tap runs at.
+ *
+ * A planner outcome, not a constant: `bank_sps = pulse_sps / resamp_rate` for
+ * whatever integer decimation the plan chose, so it depends on the caller's
+ * rate ratio. Reported for the same reason RateConverter::stages is — a
+ * caller who can read back what was planned can check it.
+ */
+double RateConverter_get_bank_sps (const RateConverter_state_t *s);
+
+/**
  * @brief Get / set the output-to-input sample rate ratio.
  * The setter rebuilds the entire cascade (new stage selection, new
  * sub-objects) and resets all filter memories — equivalent to

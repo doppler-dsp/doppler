@@ -2993,7 +2993,7 @@ class MpskReceiver:
         Matched-filter bank arms; a power of two. Sets the fractional-timing
         resolution to 1/num_phases of an output period. The bank is sized by
         the POST-decimation rate, so this costs the same at sps=8 and sps=256.
-    nda_tap : Literal["strobe", "mf_all", "lo_arm"], default "strobe"
+    nda_tap : Literal["strobe", "mf_all", "lo_arm", "preterm"], default "strobe"
         Where the NDA carrier discriminator reads from, which sets its pull-in
         range and whether it needs symbol timing at all. An M-th-power detector
         updating at rate F can only see |df| < F/(2M), so the tap point IS the
@@ -3009,8 +3009,15 @@ class MpskReceiver:
         `lo_arm` reads ahead of the cascade through a free-running half-symbol
         boxcar at the LO rate -- the widest range and fully timing-independent,
         but unmatched, so it pays squaring loss. Fixed at construction: nothing
-        switches underneath you. If you need more range than any tap gives, put
-        a coarse frequency estimate in front and pass it as init_norm_freq.
+        switches underneath you. `preterm` reads the pre-terminal stream:
+        post-cascade, post-AGC, still ahead of the matched filter --
+        band-limited by the cascade's own filters and levelled by the AGC that
+        sits on that exact node, so it is what `lo_arm` approximates by hand,
+        without the arm filter or the full-input-rate noise. Timing-independent
+        like `lo_arm`. Its update rate is the cascade's `bank_sps`, a planner
+        outcome rather than a construction constant, so its pull-in ceiling
+        moves with your rate ratio. If you need more range than any tap gives,
+        put a coarse frequency estimate in front and pass it as init_norm_freq.
     agc : int, default 1
         Level the front-end cascade so the timing detector's construct-time
         slope means what it says. The TED normalises by its OWN slope and
@@ -3092,7 +3099,7 @@ class MpskReceiver:
         warmup_syms: int = ...,
         differential: int = ...,
         num_phases: int = ...,
-        nda_tap: Literal["strobe", "mf_all", "lo_arm"] = "strobe",
+        nda_tap: Literal["strobe", "mf_all", "lo_arm", "preterm"] = "strobe",
         agc: int = ...,
         bn_agc_ratio: float = ...,
     ) -> None: ...

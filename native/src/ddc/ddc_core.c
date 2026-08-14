@@ -197,12 +197,29 @@ ddc_execute_ctrl_push_tap (ddc_state_t *s, float _Complex x, double rate_ctrl,
                            double freq_ctrl, float _Complex *out,
                            size_t max_out, float _Complex *lo_out, int *n_lo)
 {
+  return ddc_execute_ctrl_push_tap2 (s, x, rate_ctrl, freq_ctrl, out, max_out,
+                                     lo_out, n_lo, NULL, NULL);
+}
+
+size_t
+ddc_execute_ctrl_push_tap2 (ddc_state_t *s, float _Complex x, double rate_ctrl,
+                            double freq_ctrl, float _Complex *out,
+                            size_t max_out, float _Complex *lo_out, int *n_lo,
+                            float _Complex *pre_out, int *n_pre)
+{
   float _Complex z = x * lo_step_ctrl (s->lo, freq_ctrl);
   if (lo_out)
     *lo_out = z;
   if (n_lo)
     *n_lo = 1; /* a complex front end mixes every input it is given */
-  return RateConverter_execute_ctrl_push (s->rc, z, rate_ctrl, out, max_out);
+  return RateConverter_execute_ctrl_push_tap (s->rc, z, rate_ctrl, out,
+                                              max_out, pre_out, n_pre);
+}
+
+double
+ddc_get_bank_sps (const ddc_state_t *s)
+{
+  return RateConverter_get_bank_sps (s->rc);
 }
 
 size_t

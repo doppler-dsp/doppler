@@ -1112,10 +1112,13 @@ RateConverter_execute_ctrl (RateConverter_state_t *s, const float _Complex *x,
 }
 
 size_t
-RateConverter_execute_ctrl_push (RateConverter_state_t *s, float _Complex x,
-                                 double ctrl, float _Complex *out,
-                                 size_t max_out)
+RateConverter_execute_ctrl_push_tap (RateConverter_state_t *s,
+                                     float _Complex x, double ctrl,
+                                     float _Complex *out, size_t max_out,
+                                     float _Complex *pre_out, int *n_pre)
 {
+  if (n_pre)
+    *n_pre = 0;
   if (s->n_stages == 0 || max_out == 0)
     return 0;
   int last = s->n_stages - 1;
@@ -1137,13 +1140,43 @@ RateConverter_execute_ctrl_push (RateConverter_state_t *s, float _Complex x,
     }
 
   if (s->stage_types[last] != RC_STAGE_RESAMP)
-    return rc_stage_exec (s->stage_types[last], s->stage_ptrs[last], &cur, 1,
-                          out, max_out);
+    {
+      /* No fractional tail: the AGC tap does not apply, so the pre-terminal
+         sample is the integer cascade's output as it stands. */
+      if (pre_out)
+        *pre_out = cur;
+      if (n_pre)
+        *n_pre = 1;
+      return rc_stage_exec (s->stage_types[last], s->stage_ptrs[last], &cur, 1,
+                            out, max_out);
+    }
   /* Same tap, same arithmetic, same order as the block form above — which is
      what keeps push == block bit-for-bit with the AGC on. */
   cur = rc_agc_tap (s, cur);
+  /* Published AFTER the AGC deliberately: a discriminator reading this node
+     wants the levelled signal, and this is the node the AGC's reference was
+     derived for (agc_ref_db = 10*log10(bank_e0 / bank_sps)). */
+  if (pre_out)
+    *pre_out = cur;
+  if (n_pre)
+    *n_pre = 1;
   return resamp_execute_ctrl_push ((resamp_state_t *)s->stage_ptrs[last], cur,
                                    ctrl, out, max_out);
+}
+
+size_t
+RateConverter_execute_ctrl_push (RateConverter_state_t *s, float _Complex x,
+                                 double ctrl, float _Complex *out,
+                                 size_t max_out)
+{
+  return RateConverter_execute_ctrl_push_tap (s, x, ctrl, out, max_out, NULL,
+                                              NULL);
+}
+
+double
+RateConverter_get_bank_sps (const RateConverter_state_t *s)
+{
+  return s->bank_sps;
 }
 
 size_t

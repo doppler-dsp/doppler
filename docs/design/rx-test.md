@@ -746,14 +746,34 @@ does not delegate is the map of what remains:
 | 5 settle   | `ber_settle_from` + `ber_lock_symbol`         | needs per-symbol lock flags, which come from telemetry rather than the receiver's API |
 | 6 align    | `BerMeter`                                    | correct, and already the shipped path                                                 |
 | 7 score    | SER + EVM                                     | **M2M4 never computed**; no FER                                                       |
-| 8 enough   | `ser_confidence()`, private                   | duplicates shipped `ber_confidence`                                                   |
+| 8 enough   | `ser_confidence()` -> `BerMeter.interval()`   | none — correct, and correct for the right reason (below)                              |
 | 9 anchor   | partial                                       | `ber_theory_ser` available; not applied uniformly                                     |
 | 10 report  | test assertions                               | no standard record                                                                    |
 
-Two of those deserve their names said plainly, because they are the shape this
-whole document is about: **`ser_confidence()` is a private reimplementation of
-`ber_confidence()`**, and **M2M4 is simply absent**, so the harness cannot see
-the disagreement §2.4 relies on.
+**Stage 8 is worth reading rather than counting.** A BER run stopped on an
+error count is **inverse binomial** sampling: the errors are fixed and the
+trial count `N` is the random variable, negative-binomially distributed. Two
+consequences the fixed-`N` habit misses — the naive `r/N` is *biased* (the
+unbiased estimator is `(r-1)/(N-1)`), and the relative standard error is
+`1/sqrt(r)`, depending **only on the error count**. That is precisely why
+stopping on errors gives a consistent measurement and stopping on symbols does
+not: 20 000 symbols at SER 1e-3 yields ~20 errors and ~22% relative error,
+which reads as seed-to-seed variation in the receiver rather than as sampling
+noise.
+
+doppler already gets this right on both sides. `ber_confidence()` is
+documented as the "exact confidence interval for a run stopped on an ERROR
+count", built from the chi-square/gamma relation via doppler's own inverse
+regularized incomplete gamma — **no normal approximation anywhere**, so it
+stays honest at the small error counts where a Wald interval is worst, and at
+`r = 0` it still returns the exact one-sided upper limit `-ln(alpha)/N`, which
+is the honest way to report "no errors in N symbols". `ser_confidence()` is a
+thin wrapper that delegates to `BerMeter.interval()` and accepts-and-ignores
+its legacy `z` argument, because the exact interval is not symmetric and a
+two-sided z-score has nothing to multiply.
+
+So the one gap at stage 7 stands alone: **M2M4 is simply absent**, so the
+harness cannot see the disagreement §2.4 relies on.
 
 ### 8.2 Why the stimulus gate does not catch stage 2
 
@@ -771,8 +791,7 @@ recording:
     so it correctly does not fire either.
 
 So the gate catches a private *pulse*; it does not catch a private
-*stimulus*. And a private **statistic** (`ser_confidence`) is outside its
-vocabulary entirely. Both are extensions to an existing gate rather than a new
+*stimulus*. That is one extension to an existing gate rather than a new
 one — which is the cheap way to keep this from recurring.
 
 ### 8.3 The plan the sequence implies

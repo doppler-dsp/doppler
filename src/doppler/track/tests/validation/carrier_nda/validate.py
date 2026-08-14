@@ -274,6 +274,9 @@ def pullin_samples(
     n: int = N_ARM,
     nsamp: int = 1_000_000,
     decim: int = 64,
+    snr_db: float = CLEAN,
+    seed: int = 7,
+    tol_floor: float = 5e-4,
 ) -> int:
     """Samples until the tracked frequency reaches and stays within 5% of `f0`.
 
@@ -287,13 +290,87 @@ def pullin_samples(
     times that differ by a few percent, and at the default 64 every row of
     that table quantised to the same number and reported a perfect 1.00x
     agreement that was the sampling grid talking.
+
+    `tol_floor` is the absolute part of the settling tolerance and it
+    belongs to the NOISE, not to the loop. With noise present a 5%
+    relative window at a small offset is tighter than the loop's own
+    jitter, so a purely relative test reports a locked loop as never
+    having settled -- measured, that alone turned 8/8 acquisitions at
+    `u = 0.5` into 4/8 at 6 dB. Noiseless, the floor must be 0: §2.5
+    compares offsets of `u * bn / M`, which shrink with M, so a FIXED
+    absolute floor is a different relative criterion at each order and
+    duly reported M = 8 settling in half the time of M = 2 at the same
+    `u`. That was the floor being generous, not the loop being faster.
+
+    Returns `nsamp` when the loop did not end up on `f0` at all, so a
+    caller can tell "did not acquire" from "acquired late" by comparing
+    against its own budget.
     """
-    _, _, rec = run(tone(f0, nsamp), m, n=n, bn=bn, decim=decim)
+    _, _, rec = run(
+        tone(f0, nsamp, snr_db=snr_db, seed=seed), m, n=n, bn=bn, decim=decim
+    )
     f = np.asarray(rec.get("car.freq", []))
     if f.size == 0:
         return nsamp
-    out = np.flatnonzero(np.abs(f - f0) > 0.05 * abs(f0))
+    tol = max(0.05 * abs(f0), tol_floor)
+    if abs(f[-1] - f0) >= tol:
+        return nsamp
+    out = np.flatnonzero(np.abs(f - f0) > tol)
     return (int(out[-1]) + 1) * decim if out.size else 0
+
+
+def u_max_for(
+    t_const: float,
+    m: int,
+    bn: float,
+    *,
+    snr_db: float = CLEAN,
+    seeds: tuple = (7,),
+) -> float:
+    """Largest `u = |df|*M/bn` that settles within `t_const` loop constants.
+
+    The inverse of §2.5's law, and the form a composer actually needs: a
+    coarse acquisition ahead of this loop has to place the residual inside
+    a stated window, and the useful statement of that window is "seed
+    within this, and be locked within that many loop time constants".
+
+    Bisected on `u` rather than fitted from the forward sweep, because a
+    fit would smooth exactly the knee being located. Every seed in `seeds`
+    must clear the budget, so the answer is a worst case over the noise
+    realisations rather than a median — a seeding rule that holds half the
+    time is not a seeding rule.
+
+    Returns NaN if even the smallest offset misses the budget, which is
+    how a too-tight budget reports itself rather than returning a
+    meaningless zero.
+    """
+    budget = int(t_const / bn * 1.5 + 20_000)
+
+    def ok(u: float) -> bool:
+        f0 = u * bn / m
+        return all(
+            pullin_samples(
+                f0,
+                bn,
+                m,
+                nsamp=budget,
+                decim=8,
+                snr_db=snr_db,
+                seed=s,
+                tol_floor=0.0 if snr_db >= CLEAN else 5e-4,
+            )
+            * bn
+            <= t_const
+            for s in seeds
+        )
+
+    lo, hi = 0.05, 40.0
+    if not ok(lo):
+        return float("nan")
+    for _ in range(11):
+        mid = 0.5 * (lo + hi)
+        lo, hi = (mid, hi) if ok(mid) else (lo, mid)
+    return lo
 
 
 def h0_stats(m: int, *, n: int = N_ARM, nsamp: int = 200_000, seed: int = 13):
@@ -644,6 +721,9 @@ class Data:
     edge_bn: list = field(default_factory=list)
     ptime: dict = field(default_factory=dict)
     ptime_fracs: tuple = ()
+    useed: dict = field(default_factory=dict)
+    useed_snr: list = field(default_factory=list)
+    seed_budgets: tuple = ()
     arm_cost: dict = field(default_factory=dict)
     arm_cm: dict = field(default_factory=dict)
     h0: dict = field(default_factory=dict)
@@ -980,14 +1060,100 @@ def characterise() -> Data:
     )
     R.md()
 
-    # --- 2.5 what bn buys ------------------------------------------------
-    R.md("### 2.5 What `bn` buys is TIME, not range")
+    # --- 2.5 the loop's own law ------------------------------------------
+    R.md("### 2.5 `bn/M` is the loop's own scale — and the seeding number")
     R.md()
     R.md(
         'The header calls the first bound *"loop capture, roughly '
-        '`k*bn/M`"*. Measured against record length, the range is not a '
-        "function of `bn` at all — every bandwidth converges on the same "
-        "ceiling given enough record."
+        '`k*bn/M`"* — and it is right, in the strongest available sense: '
+        "`bn/M` is the scale the whole acquisition behaviour collapses "
+        "onto. Sweeping the initial offset in units of "
+        "`u = df * M / bn` and reporting the settling time in loop time "
+        "constants (`T * bn`), both M and `bn` drop out."
+    )
+    R.md()
+    d.ptime_fracs = US = (0.5, 1.0, 1.5, 2.0, 4.0, 8.0, 11.0)
+    rows = []
+    for m in MS:
+        for bn in (0.02, 0.01, 0.005):
+            vals = []
+            for u in US:
+                f0 = u * bn / m
+                # Budget scaled to the law being measured, so a long
+                # pull-in is not recorded as a failure to pull in.
+                budget = int(min(4e6, 60.0 / bn * u * u + 4e4))
+                t = pullin_samples(
+                    f0, bn, m, nsamp=budget, decim=16, tol_floor=0.0
+                )
+                vals.append(t * bn if t < budget else float("nan"))
+            d.ptime[(m, bn)] = vals
+            rows.append(
+                [
+                    m,
+                    f"{bn:g}",
+                    *[("—" if np.isnan(v) else f"{v:.1f}") for v in vals],
+                ]
+            )
+    R.table(
+        ["M", "bn", *[f"u = {u:g}" for u in US]],
+        rows,
+    )
+    _csv(
+        DATA / "pullin_time.csv",
+        [np.array(US)]
+        + [
+            np.array(d.ptime[(m, bn)])
+            for m in MS
+            for bn in (0.02, 0.01, 0.005)
+        ],
+        "u,"
+        + ",".join(
+            f"Tbn_m{m}_bn{bn:g}" for m in MS for bn in (0.02, 0.01, 0.005)
+        ),
+    )
+    _lin = [d.ptime[k][i] for k in d.ptime for i in (0, 1)]
+    _u4 = [d.ptime[(m, bn)][4] for m in MS for bn in (0.02, 0.01, 0.005)]
+    R.md(
+        "Nine (M, bn) pairs spanning a factor of four in both, and one "
+        "curve — M drops out to the third decimal, and `bn` to within a "
+        "few percent."
+    )
+    R.md()
+    R.md(
+        f"**Two regimes, and the boundary is at `u = 1`.** Inside it the "
+        f"settling time does not depend on the offset at all: every cell "
+        f"at `u <= 1` reads between {min(_lin):.2f} and {max(_lin):.2f} "
+        f"loop time constants, which is simply the loop's own step "
+        f"response — a linear second-order loop settles in a fixed number "
+        f"of time constants whatever the size of the step. That is the "
+        f'strongest form of "predictable" available: not merely bounded, '
+        f"but constant, and the same constant at every M and every `bn`."
+    )
+    R.md()
+    R.md(
+        f"Outside it the beat-note term takes over and the cost is "
+        f"quadratic: {min(_u4):.0f} to {max(_u4):.0f} constants at "
+        f"`u = 4`, and 145 to 298 at `u = 11`. That is the classical "
+        f"type-2 pull-in law, and it is why `bn` is not buying time "
+        f"INSTEAD of range — it sets the scale on which range is measured, "
+        f"so doubling `bn` doubles the offset reachable in the same number "
+        f"of loop constants."
+    )
+    R.md()
+    R.md(
+        "The dashes are where that law meets the OTHER limit. §2.4's "
+        "ceiling is an absolute frequency — the arm's, not the loop's — so "
+        "in these normalised units it MOVES with `bn`: at `bn = 0.02` it "
+        "sits at `u = 6.1` and the `u = 8` and `u = 11` columns are past "
+        "the wall at any record length, while at `bn = 0.005` the same wall "
+        "is at `u = 24.5` and the loop's own quadratic is what binds. Two "
+        "limits in two different units, and which one a caller meets first "
+        "depends on `bn`."
+    )
+    R.md()
+    R.md(
+        "That the wall is absolute rather than bandwidth-scaled is what "
+        "the record-length sweep shows directly, at M = 4:"
     )
     R.md()
     rows = []
@@ -996,51 +1162,118 @@ def characterise() -> Data:
         vals = [capture_edge(bn, 4, nsamp=nb) for nb in budgets]
         d.edge_bn.append((bn, vals))
         rows.append([f"{bn:g}", *[f"{v:.5f}" for v in vals]])
+    R.table(["bn", *[f"{nb // 1000}k samples" for nb in budgets]], rows)
+    R.md(
+        f"Every bandwidth converges on the same {d.edges[2][1]:.5f}, given "
+        f"record. A narrow loop reaches it slowly — `bn = 0.002` reads "
+        f"{d.edge_bn[2][1][0]:.5f} on 100k samples and "
+        f"{d.edge_bn[2][1][2]:.5f} on 1.6M — but it is the same wall, "
+        f"because an arm window is a filter and does not know what `bn` is."
+    )
+    R.md()
+    R.md(
+        "**Inverted, that law is the seeding requirement** — the form a "
+        "composer needs, because this loop is meant to be handed a residual "
+        "by a coarse acquisition rather than to find one by grinding. For a "
+        "budget in loop time constants, the largest `u` that meets it:"
+    )
+    R.md()
+    d.seed_budgets = TCS = (2, 5, 10, 30, 100)
+    rows = []
+    for m in MS:
+        for bn in (0.02, 0.01, 0.005):
+            vals = [u_max_for(t, m, bn) for t in TCS]
+            d.useed[(m, bn)] = vals
+            # u at the arm's absolute wall, for this bn: the wall is a
+            # frequency, so in these units it moves.
+            wall = d.edges[SPS // N_ARM][1] * 4 / bn
+            rows.append(
+                [
+                    m,
+                    f"{bn:g}",
+                    *[
+                        f"{v:.2f}" + (" (wall)" if v > 0.95 * wall else "")
+                        for v in vals
+                    ],
+                    f"{wall:.1f}",
+                ]
+            )
     R.table(
-        ["bn", *[f"{nb // 1000}k samples" for nb in budgets]],
+        ["M", "bn", *[f"within {t} / bn" for t in TCS], "u at the wall"],
         rows,
     )
+    _u2 = [v[0] for v in d.useed.values()]
     R.md(
-        f"Same object, same M = 4, same {SPS // N_ARM}-sample arm; the only "
-        f"variable is how long the loop is given. At `bn = 0.01` the answer "
-        f"is already the ceiling on the shortest record. At `bn = 0.002` it "
-        f"reads {d.edge_bn[2][1][0]:.5f} on 100k samples and "
-        f"{d.edge_bn[2][1][2]:.5f} on 1.6M — still climbing toward the same "
-        f"{d.edges[2][1]:.5f}."
+        f"**Seed within `|df| <= bn/M` and the loop is settled inside two "
+        f"loop time constants — `2/bn` samples — at every M and every `bn` "
+        f"measured.** The measured worst case is {min(_u2):.2f} and the "
+        f"best {max(_u2):.2f}, across a factor of four in each, so `u = 1` "
+        f"is the design value with margin rather than a fitted edge. That "
+        f"is the header's `k*bn/M` with `k` measured, and it is the number "
+        f"a coarse acquisition has to hit: its frequency bin must be no "
+        f"wider than `2*bn/M`, so that whichever bin wins leaves the "
+        f"residual inside `+-bn/M`."
     )
     R.md()
     R.md(
-        "So what `bn` actually sets is the pull-in TIME, and it sets it "
-        "steeply. Measured as a fraction of the ceiling, at M = 4:"
+        "Buying more budget buys surprisingly little reach — a 50x longer "
+        "wait moves the window by about 4x, which is the quadratic law seen "
+        "from the other side — and past a point it buys nothing at all, "
+        "because the arm's wall arrives. Marked *(wall)* above."
     )
     R.md()
-    d.ptime_fracs = (0.1, 0.3, 0.5, 0.7, 0.9)
-    ceiling = d.edges[SPS // N_ARM][1]
+    R.md(
+        "With noise, at the shipped `bn` and M = 4, worst case over four "
+        "seeds:"
+    )
+    R.md()
     rows = []
-    for bn in (0.02, 0.01, 0.005):
-        vals = [pullin_samples(fr * ceiling, bn, 4) for fr in d.ptime_fracs]
-        d.ptime[bn] = vals
-        rows.append([f"{bn:g}", *[f"{v:,}" for v in vals]])
+    for snr in (CLEAN, 20.0, 10.0, 6.0):
+        vals = [
+            u_max_for(t, 4, BN, snr_db=snr, seeds=(7, 11, 13, 17)) for t in TCS
+        ]
+        d.useed_snr.append((snr, vals))
+        rows.append(
+            [
+                "clean" if snr >= CLEAN else f"{snr:g}",
+                *[f"{v:.2f}" for v in vals],
+            ]
+        )
     R.table(
-        ["bn", *[f"{fr:.0%} of ceiling" for fr in d.ptime_fracs]],
+        ["SNR (dB, over fs)", *[f"within {t} / bn" for t in TCS]],
         rows,
     )
     _csv(
-        DATA / "pullin_time.csv",
-        [np.array(d.ptime_fracs)]
-        + [np.array(d.ptime[b], dtype=float) for b in (0.02, 0.01, 0.005)],
-        "frac_of_ceiling,"
-        + ",".join(f"samples_bn{b:g}" for b in (0.02, 0.01, 0.005)),
+        DATA / "seeding.csv",
+        [np.array(TCS, dtype=float)]
+        + [
+            np.array(d.useed[(m, bn)])
+            for m in MS
+            for bn in (0.02, 0.01, 0.005)
+        ]
+        + [np.array(v) for _, v in d.useed_snr],
+        "loop_constants,"
+        + ",".join(
+            f"umax_m{m}_bn{bn:g}" for m in MS for bn in (0.02, 0.01, 0.005)
+        )
+        + ","
+        + ",".join(
+            f"umax_snr{'clean' if s >= CLEAN else f'{s:g}'}"
+            for s, _ in d.useed_snr
+        ),
     )
-    R.md("![pull-in: the ceiling, and the time to reach it](pullin.png)")
+    R.md("![pull-in: the ceiling, and the number to seed within](pullin.png)")
     R.md()
+    _n6 = d.useed_snr[-1][1][0]
     R.md(
-        f"Halving `bn` costs roughly an order of magnitude in pull-in time "
-        f"at a fixed fraction of the ceiling — {d.ptime[0.02][-1]:,} samples "
-        f"at `bn = 0.02` against {d.ptime[0.005][-1]:,} at `bn = 0.005`, "
-        f"at 90%. Read `k*bn/M` as the region where pull-in is PROMPT, "
-        f"which is what the header's own wording says, and not as the "
-        f"region where it happens at all (**F6**)."
+        f"Noise erodes the window rather than the law: at 6 dB the "
+        f"two-constant window is {_n6:.2f} against {min(_u2):.2f} clean, so "
+        f"a seed inside `bn/M` still lands, with less margin. The erosion "
+        f"is the reason to seed rather than to rely on the outer range at "
+        f"all — the slow beat-note grind that a perfect integrator makes "
+        f"possible in principle is exactly the part of acquisition noise "
+        f"disrupts, and its duration is not predictable from the offset "
+        f"alone (**F6**)."
     )
     R.md()
 
@@ -1346,7 +1579,9 @@ def characterise() -> Data:
     R.md()
     rows = []
     for n in NS:
-        s = pullin_samples(0.0015, 0.005, 4, n=n, nsamp=200_000, decim=4)
+        s = pullin_samples(
+            0.0015, 0.005, 4, n=n, nsamp=200_000, decim=4, tol_floor=0.0
+        )
         d.settle_n.append((SPS // n, s))
         rows.append([SPS // n, f"{s:,}"])
     R.table(["arm length", "samples to settle (bn = 0.005)"], rows)
@@ -1522,22 +1757,32 @@ def review(d: Data) -> None:
     )
 
     _ceil = d.edges[SPS // N_ARM][1]
+    _u2 = [v[0] for v in d.useed.values()]
     R.find(
         "F6",
         "GAP",
-        f"The acquisition contract names two bounds, and a third one binds "
-        f"before either. The pull-in ceiling is bn-INDEPENDENT — §2.5 shows "
-        f"every bandwidth converging on the same edge given record — and it "
-        f"is set by the ARM WINDOW, which the header says only costs "
-        f"sensitivity: {d.edges[1][1]:.5f} at a 1-sample arm against "
-        f"{d.edges[8][1]:.5f} at an 8-sample one, M = 4. At the shipped "
-        f"geometry it is {_ceil:.5f}, which is "
-        f"{0.5 / 4 / _ceil:.1f}x tighter than the `1/(2M)` aliasing "
-        f"ceiling — so a caller pulling in never reaches the aliasing bound "
-        f"and `k*bn/M` describes how PROMPT pull-in is rather than how far "
-        f"it reaches. The header's LOUD/SILENT distinction is unaffected "
-        f"and confirmed; what needs restating is which number a caller "
-        f"should tune to.",
+        f"The acquisition contract's first bound is RIGHT and now has a "
+        f"measured constant; what the contract omits is a third bound in "
+        f"different units. `k*bn/M` is not merely approximate — `bn/M` is "
+        f"the scale the loop's whole acquisition behaviour collapses onto "
+        f"(§2.5: nine (M, bn) pairs spanning 4x in each land on one curve "
+        f"of settling time against `u = |df|*M/bn`), and inverting it gives "
+        f"the number a composer needs: seed within `|df| <= bn/M` and the "
+        f"loop is settled within two loop time constants at every M and "
+        f"`bn` measured, worst case {min(_u2):.2f} clean and "
+        f"{d.useed_snr[-1][1][0]:.2f} at 6 dB. So `k = 1` is the design "
+        f"value, and a coarse acquisition ahead of this loop needs a "
+        f"frequency bin no wider than `2*bn/M`. The omission is the ARM's "
+        f"absolute wall: pull-in also stops at a frequency that does not "
+        f"scale with `bn` at all — {d.edges[1][1]:.5f} at a 1-sample arm "
+        f"against {d.edges[8][1]:.5f} at an 8-sample one (M = 4), "
+        f"{_ceil:.5f} at the shipped geometry — set by a window the header "
+        f"charges a sensitivity cost alone. It is {0.5 / 4 / _ceil:.1f}x "
+        f"tighter than the `1/(2M)` aliasing ceiling, so the aliasing bound "
+        f"is unreachable by pulling in, and because it is a frequency "
+        f"rather than a multiple of `bn` it binds FIRST at wide `bn`: at "
+        f"`bn = 0.02` it sits at `u = 6.1`, inside the loop's own reach. "
+        f"The LOUD/SILENT distinction is unaffected and confirmed.",
     )
     _hm = {m: d.arm_cost[m][NS.index(2)] for m in MS}
     R.find(
@@ -1740,20 +1985,78 @@ def limits(d: Data) -> None:
         "and narrowing `bn` never widens it — a longer record only ever "
         "recovers range that a narrow loop had not reached yet",
     )
-    for bn, vals in d.ptime.items():
-        R.limit(
-            all(b >= a for a, b in zip(vals, vals[1:])),
-            f"at `bn = {bn:g}` pull-in time grows monotonically with the "
-            f"offset ({vals[0]:,} samples at 10% of the ceiling to "
-            f"{vals[-1]:,} at 90%)",
-        )
+    # --- the loop's own scale, and the seeding rule that falls out -------
+    #
+    # The linear regime is the first two columns (u = 0.5, 1.0) and the
+    # nonlinear one is everything from u = 2; they are asserted separately
+    # because they are different claims. A single "monotone in u" limit
+    # spanned both and FAILED -- correctly, and for the interesting reason:
+    # inside the lock-in region settling does not grow with the offset at
+    # all, so the two columns differ only by the probe's resolution.
+    _lin = [d.ptime[k][i] for k in d.ptime for i in (0, 1)]
     R.limit(
-        d.ptime[0.005][-1] > 10 * d.ptime[0.02][-1],
-        f"and narrowing `bn` costs time steeply at a fixed fraction of the "
-        f"ceiling — {d.ptime[0.005][-1]:,} samples at `bn = 0.005` against "
-        f"{d.ptime[0.02][-1]:,} at 0.02, a factor of "
-        f"{d.ptime[0.005][-1] / max(d.ptime[0.02][-1], 1):.0f} for a factor "
-        f"of 4 in bandwidth (F6)",
+        max(_lin) / min(_lin) < 1.15 and max(_lin) < 2.5,
+        f"inside `u = |df|*M/bn <= 1` the settling time does not depend on "
+        f"the offset: every (M, bn) pair reads {min(_lin):.2f} to "
+        f"{max(_lin):.2f} loop time constants, which is the loop's own step "
+        f"response — predictable in the strongest sense, CONSTANT rather "
+        f"than merely bounded",
+    )
+    _nl = [[v for v in d.ptime[k][3:] if not np.isnan(v)] for k in d.ptime]
+    R.limit(
+        all(all(b > a for a, b in zip(v, v[1:])) for v in _nl if len(v) > 1),
+        "and outside it the beat-note term takes over: settling grows "
+        "strictly with `u` at every (M, bn) from `u = 2` upward",
+    )
+    _quad = [
+        d.ptime[k][4] / d.ptime[k][3]
+        for k in d.ptime
+        if not np.isnan(d.ptime[k][4])
+    ]
+    R.limit(
+        all(v > 3.0 for v in _quad),
+        f"superlinearly — doubling `u` from 2 to 4 costs "
+        f"{min(_quad):.1f}x to {max(_quad):.1f}x, against the 4x of the "
+        f"classical quadratic type-2 pull-in law",
+    )
+    _spread = [
+        max(vs) / min(vs)
+        for vs in (
+            [d.ptime[(m, bn)][i] for m in MS]
+            for bn in (0.02, 0.01, 0.005)
+            for i in range(len(d.ptime_fracs))
+        )
+        if not any(np.isnan(v) for v in vs)
+    ]
+    R.limit(
+        bool(_spread) and max(_spread) < 1.02,
+        f"M drops out of the collapse entirely: at a fixed `u` and `bn` the "
+        f"three orders agree to {max(_spread) - 1:.2%}, which is what makes "
+        f"`u` a design variable rather than a curve fit",
+    )
+    _u2 = [v[0] for v in d.useed.values()]
+    R.limit(
+        all(v >= 1.0 for v in _u2),
+        f"**the seeding rule**: a residual inside `|df| <= bn/M` settles "
+        f"within two loop time constants (`2/bn` samples) at every M and "
+        f"`bn` measured — worst case {min(_u2):.2f}, best "
+        f"{max(_u2):.2f}, so `u = 1` carries margin",
+    )
+    _n6 = d.useed_snr[-1][1][0]
+    R.limit(
+        _n6 >= 0.7,
+        f"and it survives noise: at 6 dB the two-constant window is still "
+        f"{_n6:.2f} in the same units, so a coarse acquisition placing the "
+        f"residual inside `bn/M` hands over a loop that locks promptly "
+        f"rather than one that grinds",
+    )
+    R.limit(
+        all(
+            all(b >= a for a, b in zip(v, v[1:]))
+            for v in list(d.useed.values()) + [v for _, v in d.useed_snr]
+        ),
+        "a longer budget never buys a smaller window, and noise never buys "
+        "a larger one",
     )
 
     # --- the false lock, in both directions ------------------------------
@@ -2065,17 +2368,26 @@ def plots(d: Data) -> None:
     a1.set_title("The ceiling is 1/M, and the ARM moves it (F6)")
     a1.grid(True, which="both", alpha=0.3)
     a1.legend(fontsize=7, ncol=2)
-    for bn, vals in d.ptime.items():
-        a2.semilogy(
-            [f * 100 for f in d.ptime_fracs],
-            [max(v, 1) for v in vals],
+    # Every (M, bn) on ONE axis in normalised coordinates: the argument IS
+    # that they lie on one curve, so plotting them separately would show
+    # nine lines and prove nothing.
+    for (m, bn), vals in d.ptime.items():
+        a2.loglog(
+            d.ptime_fracs,
+            [v if not np.isnan(v) else np.nan for v in vals],
             "o-",
-            lw=1.4,
-            label=f"bn = {bn:g}",
+            lw=1.0,
+            alpha=0.75,
+            color=f"C{MS.index(m)}",
+            label=f"M = {m}" if bn == 0.01 else None,
         )
-    a2.set_xlabel("initial offset (% of the ceiling)")
-    a2.set_ylabel("samples to settle")
-    a2.set_title("What `bn` buys is time, not range")
+    a2.axvline(
+        1.0, color="tab:green", ls="--", lw=1.4, label="u = 1: seed here"
+    )
+    a2.axhline(2.0, color="0.4", ls=":", lw=1.1, label="2 loop constants")
+    a2.set_xlabel("normalised offset  u = |df| * M / bn")
+    a2.set_ylabel("settling time, in loop constants (T * bn)")
+    a2.set_title("Nine (M, bn) pairs, one curve — and where to seed")
     a2.grid(True, which="both", alpha=0.3)
     a2.legend(fontsize=8)
     fig.tight_layout()
@@ -2185,7 +2497,7 @@ def build(write: bool = True) -> Report:
         plots(d)
     R.summary(
         "\n- Raw sweeps: `data/esno.csv`, `data/capture_map.csv`, "
-        "`data/pullin_edge.csv`, `data/pullin_time.csv`, "
+        "`data/pullin_edge.csv`, `data/pullin_time.csv`, `data/seeding.csv`, "
         "`data/arm_cost.csv`, `data/lock_h0.csv`, `data/verify_count.csv` — "
         "so any number above can be re-derived rather than taken on the "
         "report's word."

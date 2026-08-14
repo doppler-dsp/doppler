@@ -344,8 +344,16 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
+      with:
+        # `changelog-check` asks what THIS BRANCH changed, which needs a MERGE
+        # BASE -- and a merge base needs history on both sides. The depth=1
+        # baseline fetch below is enough for the tests-ssot ratchet, which
+        # reads a tree at one commit, but it can never produce a common
+        # ancestor. The gate fails closed rather than guessing, so without this
+        # it would be red on every PR.
+        fetch-depth: 0
 
-    # `make lint` now includes the tests-ssot assertion ratchet, which needs a
+    # `make lint` also includes the tests-ssot assertion ratchet, which needs a
     # BASELINE to compare against -- and actions/checkout fetches only the PR
     # ref, so `origin/main` does not exist here even though it always does on a
     # developer's clone. That asymmetry is the whole bug: the gate passed
@@ -354,8 +362,10 @@ jobs:
     #
     # Explicit refspec rather than `git fetch origin main`, which lands in
     # FETCH_HEAD and leaves refs/remotes/origin/main absent depending on how
-    # remote.origin.fetch was configured. --depth=1 is enough: the ratchet
-    # reads trees at that one commit, never history.
+    # remote.origin.fetch was configured. Kept even though `fetch-depth: 0`
+    # above now supplies the same ref: this step states the ratchet's own
+    # requirement, so a future change to the checkout cannot silently remove a
+    # baseline nothing else asks for.
     - name: Fetch the ratchet's baseline
       run: |
         git fetch --no-tags --depth=1 origin \
@@ -377,6 +387,13 @@ jobs:
     # gates (standard drift, help completeness, no ghost targets) and then the
     # hooks, so CI enforces exactly what a developer runs.
     - name: Run make lint
+      # The PR's base SHA, not `origin/main`: a `pull_request` checkout builds a
+      # merge commit and has no local main, so the base the PR is actually
+      # against is the honest comparison. On a `push` event there is no PR to
+      # read it from, and `origin/main` is correct there -- HEAD is an ancestor
+      # of it, so the branch half goes inert exactly as it should.
+      env:
+        CHANGELOG_BASE: ${{ github.event.pull_request.base.sha || 'origin/main' }}
       run: make lint
 
   manifest-drift:

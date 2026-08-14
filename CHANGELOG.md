@@ -727,6 +727,51 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **`changelog-check` asks what THIS BRANCH changed, and it now runs in CI at
+    all.** Two independent failures in one gate, and the second was the worse
+    one.
+
+    It was **inert**: the question it asked was *"is `[Unreleased]` empty while
+    code has shipped?"*, which stops having an opinion the moment a single
+    entry exists — so every branch after the first passed for free. #700
+    shipped a public C API, the whole EMA primitive, with no entry at all,
+    straight through this target. That is #705, now closed.
+
+    It also **ran nowhere**. It was listed in `GATES_DEPS` and nothing else,
+    and no CI job runs `make gates` — CI's lint job runs `make lint` and
+    nothing else, deliberately. So a gate this repo believed it had was
+    executed by no PR, ever, for as long as it has existed. Being inert was
+    only half the problem; `gates` is a local convenience, not CI. It is a
+    prerequisite of `lint` now, beside `tests-ssot`.
+
+    The new question is per BRANCH: a branch that changes
+    `src`/`native`/`objects`/`ffi` must also touch `CHANGELOG.md`. An answer
+    that cannot be satisfied by somebody else's earlier commit is precisely
+    what the repo-state question lacked. Both questions live in the one target
+    and share one definition of "code", because two targets would be two places
+    to keep that list right.
+
+    **Touching the file is the bar**, not growing a particular section — a
+    change that genuinely warrants no user-facing note is one honest line from
+    passing, and a gate that argues with its author about which changes
+    *deserve* an entry is a worse gate. Inert on `main` by construction: HEAD
+    is an ancestor of the base, so the range is empty and there is nothing to
+    judge. It **fails closed** when it cannot find a merge base, so a CI wiring
+    mistake is loud rather than a silent pass — which is why the lint job now
+    checks out at `fetch-depth: 0` and passes the PR's base SHA as
+    `CHANGELOG_BASE` (a `pull_request` checkout has no local `main`).
+
+    Proven by sabotage in both directions and at the wiring: a committed code
+    change with no `CHANGELOG.md` fails and names the file, adding one line
+    clears it, a bogus base fails loudly instead of passing, and `make lint`
+    itself goes red — the last being the half that was missing before.
+
+    The design is lifted from
+    [just-buildit/just-makeit#956](https://github.com/just-buildit/just-makeit/pull/956),
+    which cites #705 by URL as its motivating case: jm reached the same
+    conclusion from the other side, having assembled a seven-PR release in
+    which not one PR wrote an entry.
+
 - **The AGC's decimated loop filter integrated rectangularly, and `decim`
     now comes with a rule.** The detector's pole was compounded; the loop
     gain was not — it scaled linearly as `d*4*loop_bw`, the rectangular

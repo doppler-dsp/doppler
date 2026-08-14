@@ -279,6 +279,78 @@ def check_artifacts(path: Path) -> list[str]:
     return bad
 
 
+def check_lifecycle(path: Path) -> list[str]:
+    """A certified object must have the deliverables the lifecycle names.
+
+    ``docs/dev/adding-algorithms.md`` says what each phase *produces*, and
+    nothing checked that any of it existed. That is not hypothetical: this
+    gate was written after an audit found ``lockdet`` certified with 22
+    holding limits, ``make gates`` all-pass -- and its phase-1 design page
+    silent on a behaviour the certification had just changed. Every gate
+    was green because no gate asked the question.
+
+    Two things are checked, and both are DERIVED from the tree rather than
+    listed here, so a new object is covered the day its report lands:
+
+    * **the design page exists and is reachable from the report.** Section
+      1 is required to *link* ``docs/design/<algo>.md`` rather than restate
+      it, which only means anything if the link resolves. Catches an object
+      certified with no design page at all, and a link left behind by a
+      rename.
+    * **some C test exercises the object.** Phase 4 is the evidence phase 8
+      is built on, so a report with no C test underneath it is a report
+      measuring something nothing pins. Matched on the object's core
+      header or its ``<obj>_init`` / ``<obj>_step`` entry points rather
+      than on a ``test_<obj>_core.c`` filename, because the filename
+      convention does not hold: ``ema`` is a function primitive whose
+      evidence lives in ``test_util_core.c``, and it is no less certified
+      for that.
+
+    What is deliberately NOT checked here is phase 9's *example*, which is
+    the deliverable the audit actually found missing. Detecting it needs an
+    object -> Python class mapping that the tree does not carry: the
+    validation folder is named for the C core (``resamp``) while the
+    binding is declared under another name (``Resampler``), with no link
+    between them, and guessing at CamelCase would pass ``lockdet`` while
+    failing ``resamp`` for no reason a reader could act on. A gate that is
+    wrong about which objects comply is worse than no gate. Making it
+    derivable means having the report cite its own example, the way it
+    already cites its figures and CSVs -- filed as gh-744 rather than
+    bodged, so this gate does not read as though it covers phase 9.
+    """
+    bad: list[str] = []
+    rel = path.relative_to(ROOT)
+    obj = path.parent.name
+    text = path.read_text(encoding="utf-8")
+
+    designs = dict.fromkeys(
+        re.findall(r"\((?:\.\./)+(docs/design/[A-Za-z0-9_.-]+\.md)\)", text)
+    )
+    if not designs:
+        bad.append(
+            f"{rel}: section 1 links no docs/design page — the lifecycle's "
+            "phase 1, and what section 1 is supposed to link rather than "
+            "restate"
+        )
+    for d in designs:
+        if not (ROOT / d).is_file():
+            bad.append(f"{rel}: links '{d}', which does not exist")
+
+    pat = re.compile(
+        rf"{re.escape(obj)}_core\.h|\b{re.escape(obj)}_(init|step)\b"
+    )
+    tests = ROOT / "native" / "tests"
+    if not any(
+        pat.search(t.read_text(encoding="utf-8", errors="ignore"))
+        for t in tests.glob("*.c")
+    ):
+        bad.append(
+            f"{rel}: no C test references '{obj}' — phase 8 is certifying "
+            "an object that phase 4 never pinned"
+        )
+    return bad
+
+
 def main() -> int:
     reports = sorted(ROOT.glob(GLOB))
     if not reports:
@@ -297,6 +369,7 @@ def main() -> int:
         bad += check_findings(r)
         bad += check_executive(r)
         bad += check_artifacts(r)
+        bad += check_lifecycle(r)
 
     if bad:
         print("check_validation_reports: FAIL", file=sys.stderr)

@@ -15,6 +15,47 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **A NaN lock metric held the lock forever; an unknown lock is not a lock.**
+    `lockdet_step`'s drop test read `x < down_thresh`, and every comparison
+    against NaN is false — so while locked a non-finite look counted as a
+    *hit*, reset the drop run on every look, and left the flag lit
+    indefinitely on a dead statistic. Measured through the binding before the
+    fix: three NaN looks against `n_down = 2`, still reporting locked. Every
+    receiver that publishes a lock lamp reads this decision.
+
+    The library had already settled the question, in the component that
+    exists to answer it. `util_core.h`'s `saturate()` documents *"a lock
+    statistic wants NaN at the **floor** — an unknown lock is not a lock"* as
+    the reason its `nan_to` is a parameter — and **no lock detector had ever
+    called it**, so that paragraph described a caller who did not exist. AGC
+    leverages the primitive in five places; `lockdet` now leverages the same
+    one rather than encoding the policy a second way:
+
+    ```c
+    x = saturate (x, -INFINITY, INFINITY, -INFINITY);
+    ```
+
+    The bounds are infinite because the NaN substitution is the only job:
+    every finite look, and both infinities, pass through untouched. `+inf`
+    remains an ordinary hit and `-inf` an ordinary miss — only NaN is
+    unordered — and the exclusive edge at `x == down_thresh` is unchanged.
+
+    Doing the substitution once, up front, is also what keeps both
+    comparisons plain. The first fix carried the policy in the *spelling* of
+    a predicate (`!(x >= t)` rather than `x < t`, identical for every finite
+    `x` and opposite for NaN), which is exactly the subtlety that let the
+    drop side be written the wrong way to begin with. A rule that survives
+    only in how an operator is spelled is a rule waiting to be re-broken.
+
+    Three coverage gaps closed alongside it, none of them defects:
+    `lockdet_steps` carrying the decision **and** the in-flight verify run
+    *across calls* — the header's "frames of any size with no seam", where
+    only a single block had been tested and one block cannot see a seam;
+    `create()` clamping the verify counts (only `init()`'s clamp was pinned,
+    and they are separate entry points); and `set_state` into a
+    differently-tuned detector, which carries the source's configuration and
+    not merely its decision.
+
 - **`LoopFilter(t=0)` built a silently dead loop and `LoopFilter(t=inf)` one
     whose every output was NaN forever.**
     ([gh-740](https://github.com/doppler-dsp/doppler/issues/740)) The

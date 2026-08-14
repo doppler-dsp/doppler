@@ -33,12 +33,16 @@ import pytest
 from doppler.track.tests.validation.carrier_nda import (
     validate as carrier_nda_validate,
 )
+from doppler.track.tests.validation.loop_filter import (
+    validate as loop_filter_validate,
+)
 from doppler.track.tests.validation.ratesync import (
     validate as ratesync_validate,
 )
 
 OBJECTS = {
     "carrier_nda": carrier_nda_validate,
+    "loop_filter": loop_filter_validate,
     "ratesync": ratesync_validate,
 }
 

@@ -269,6 +269,7 @@ nav:
       - Symbol Timing on a Rate Cascade: design/ratesync-timing.md
       - MPSK Receiver: design/mpsk.md
       - Receiver Test Harness: design/rx-test.md
+      - BPSK Receiver: design/bpsk-receiver.md
       - Corr2D Interpolated Inverse: design/corr2d-interpolated-inverse.md
       - Spectral & Measurement API Map: design/spectral-api-map.md
       - Waveform Amplitude & Composition: design/wfmgen-composition.md

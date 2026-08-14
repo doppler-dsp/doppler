@@ -292,6 +292,7 @@ nav:
       - Dopplerfile: cli/dopplerfile.md
   - Contributing:
       - Contributing: dev/index.md
+      - Adding an Algorithm: dev/adding-algorithms.md
       - Repository Map: dev/repository-map.md
       - Module Layout: dev/module-layout.md
       - Adding a Module: dev/adding-a-module.md

@@ -3,16 +3,16 @@
 A one-line map from "what you're trying to do" to the doc family that
 answers it.
 
-| You want to...                     | Go to                                                                                                           |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Call a specific function or class  | [API Reference](api/index.md) — Python surface, one page per module                                             |
-| See it running, with a plot        | [Gallery](gallery/index.md) — dozens of worked examples grouped by DSP domain                                   |
-| Accomplish a task end-to-end       | [Guides](guide/index.md) — task-oriented walkthroughs (lock detection, DSSS acquisition, PSD, real-time pacing) |
-| Understand why it's built this way | [Design](design/index.md) — architecture decisions and algorithm rationale                                      |
-| Add a module or contribute         | [Contributing](dev/index.md) — repo layout, module conventions, release process                                 |
-| Build a C program against doppler  | [C Quick Start](quickstart-c.md) — get the library + the three CI-verified build faces (cc/CMake/pkg-config)    |
-| Look up a raw C signature          | [C API](c-api/index.md) — machine-generated from the C headers                                                  |
-| Compose and stream a waveform      | [Waveform Generator](guide/wfmgen/index.md) — wfmgen's own top-level nav section                                |
+| You want to...                     | Go to                                                                                                                |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Call a specific function or class  | [API Reference](api/index.md) — Python surface, one page per module                                                  |
+| See it running, with a plot        | [Gallery](gallery/index.md) — dozens of worked examples grouped by DSP domain                                        |
+| Accomplish a task end-to-end       | [Guides](guide/index.md) — task-oriented walkthroughs (lock detection, DSSS acquisition, PSD, real-time pacing)      |
+| Understand why it's built this way | [Design](design/index.md) — architecture decisions and algorithm rationale                                           |
+| Add an algorithm or contribute     | [Adding an Algorithm](dev/adding-algorithms.md) — the lifecycle from design doc to certified, and who owns each step |
+| Build a C program against doppler  | [C Quick Start](quickstart-c.md) — get the library + the three CI-verified build faces (cc/CMake/pkg-config)         |
+| Look up a raw C signature          | [C API](c-api/index.md) — machine-generated from the C headers                                                       |
+| Compose and stream a waveform      | [Waveform Generator](guide/wfmgen/index.md) — wfmgen's own top-level nav section                                     |
 
 Not sure which page has the piece you need? Every family answers a
 different question about the *same* underlying object — for example,

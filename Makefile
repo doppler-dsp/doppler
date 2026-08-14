@@ -117,7 +117,7 @@ SYNC_CMD   = $(UV) sync
 # way `make format` runs it. That is what closes the "same command, different
 # environment" class of drift: the tool comes from `--group dev` and uv.lock
 # owns the version, so there is no `additional_dependencies` left to drift.
-LINT_TOOLS   = ruff ruff-format mdformat clang-format clang-tidy \
+LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format clang-tidy \
                phase-conversion stimulus-sources
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
@@ -201,6 +201,14 @@ LINT_clang-format = @$(C_FILES) | xargs -r $(CLANG_FORMAT) -i --style=file
 TIDY_FILES = git ls-files 'native/src/*.c' | grep -Ev '_ext(_[A-Za-z0-9_]+)?\.c$$'
 
 LINT_clang-tidy   = @$(TIDY_FILES) | xargs -r $(CLANG_TIDY) -p $(BUILD_DIR) --quiet
+
+# FIRST in LINT_TOOLS, and that ordering is the point rather than a
+# preference: mdformat NORMALISES a conflict marker instead of refusing it, so
+# a check that runs after it is looking for something the formatter has already
+# rewritten. Check-only, so not in FORMAT_TOOLS. Logic lives in the script
+# rather than inline here so a test can run it over seeded files — a lint
+# target whose only exercise is corrupting the repo is a target nobody proves.
+LINT_conflict = ./scripts/conflict-check.sh
 
 # Check-only, so it is in LINT_TOOLS but deliberately NOT in FORMAT_TOOLS.
 # nco_core.h calls confining the double->phase-word conversion "a STRUCTURAL

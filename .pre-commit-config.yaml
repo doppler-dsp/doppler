@@ -26,6 +26,34 @@
 exclude: '^vendor/|^docs/c-api/'
 
 repos:
+  # FIRST, and the ordering is load-bearing rather than a preference.
+  #
+  # mdformat NORMALISES a merge-conflict marker instead of refusing it, so any
+  # check that runs after it is hunting for something the formatter has already
+  # rewritten: `<<<<<<< HEAD` becomes `\<<\<<\<<< HEAD`, `>>>>>>> sha` becomes
+  # seven nested blockquotes, and `=======` VANISHES — a line of `=` under text
+  # is a setext H1, so the sentence above is silently promoted into the page's
+  # table of contents and there is nothing left to grep for. Upstream hit
+  # exactly this (just-makeit gh-974): a conflict rendered on their published
+  # docs site for ten days, through every `make lint` and several releases.
+  #
+  # This REPLACES pre-commit-hooks' `check-merge-conflict`, which doppler ran
+  # and which was worse than the ordering suggests. Its first statement is
+  # `if not is_in_merge() and not args.assume_in_merge: return 0` — so outside
+  # an active merge it returned success without opening a file, on every
+  # ordinary `make lint` and every CI run, while printing "Passed". A conflict
+  # that survived a rebase or was resolved badly and committed was invisible.
+  # Two checks for one property, where the weaker one is louder, is worse than
+  # one that always looks.
+  - repo: local
+    hooks:
+      - id: conflict
+        name: conflict markers (raw + mdformat-rewritten)
+        entry: make -s lint-conflict
+        language: system
+        pass_filenames: false
+        always_run: true
+
   # Python + markdown formatting DISPATCHES INWARD: the hook calls a Makefile
   # target rather than resolving the tool itself, so `make format`, the hook and
   # CI cannot run the tool differently. The version comes from pyproject's `dev`
@@ -106,7 +134,10 @@ repos:
         # Helm chart templates are Go templates, not parseable as plain YAML.
         exclude: '^deploy/pipeline/templates/'
       - id: check-toml
-      - id: check-merge-conflict
+      # check-merge-conflict is NOT here: it is inert outside an active merge
+      # (`if not is_in_merge(): return 0`) and blind to mdformat's rewrites.
+      # The `conflict` hook at the top of this file replaces it and always
+      # looks. See scripts/conflict-check.sh.
       - id: end-of-file-fixer
         # generated glue is byte-owned by jm; don't let whitespace fixers drift it
         exclude: '\.pyi$|(^|/)native/inc/|_ext\.c$|(^|/)native/src/[^/]+/CMakeLists\.txt$'

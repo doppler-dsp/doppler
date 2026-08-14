@@ -559,7 +559,8 @@ def review(d: Data) -> None:
         "arrives that many dB hot — measured 59.9 dB on a -60 dB floor. "
         "Level alone cannot separate a weak signal from noise, so this "
         "needs presence information from outside. Open design, stated "
-        "with its measurements in docs/design/agc.md section 5.",
+        "with its measurements in docs/design/agc.md section 5, and "
+        "tracked as gh-750.",
     )
     R.md()
 

@@ -164,6 +164,35 @@ ______________________________________________________________________
 
 ### Added
 
+- **A validation report can no longer record an open finding without
+    filing it, or invent a verdict.** Two checks inside
+    `Report._self_check`, so `make validate`, `make validate-check` and
+    every module's limits test enforce them without naming them.
+
+    A verdict was just a string on the way in while `open_findings`
+    matched exact ones, so `"Gap"`, `"GAP "` or an invented `"OPEN"` was
+    accepted and then counted as **not** open — a typo made a real defect
+    invisible in the executive summary and in the validation log's
+    `still open` column at once. The vocabulary had three homes that
+    disagreed; it now has one.
+
+    And an open finding must cite the issue tracking it. That is the
+    repo's carve-out rule applied where carve-outs actually get recorded:
+    a gap living only inside a report is invisible to everyone not
+    reading that report. Nine of the eleven open findings already cited
+    one, so this codifies a convention rather than inventing a demand;
+    the two that did not are now filed rather than allowlisted
+    ([#750](https://github.com/doppler-dsp/doppler/issues/750), the AGC
+    applying 59.9 dB to a noise floor, and
+    [#751](https://github.com/doppler-dsp/doppler/issues/751), the DTTL's
+    low-SNR claim), so the gate ships with **zero** exceptions.
+
+    The citation rule is also what catches a *positive* result filed
+    under an open verdict — the mpsk report did that for one commit and
+    advertised three open findings against one real one — because a
+    result that holds has no issue to cite. If it is a result rather than
+    a problem, it is a limit, not a finding.
+
 - **The M-PSK constellation is certified — the decision rule every M-PSK
     consumer routes through had no C tests at all.** `mpsk_slice` is the
     library's one hard decision: `mpsk_demap`, `mpsk_diff_demap`,

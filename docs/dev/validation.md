@@ -196,6 +196,27 @@ mpsk report shipped that way for one commit; RateSync's F7 (a lock
 indicator that cannot distinguish an under-driven loop, left open as
 gh-661) is the shape `CONFIRMED` is actually for.
 
+**An open finding must cite the issue tracking it** — `gh-N` or `#N`, in
+the finding's own text. This is the repo's carve-out rule applied where
+carve-outs are actually recorded: a gap that lives only inside a report is
+invisible to everyone not reading that report. agc's F6 (59.9 dB applied to
+a noise floor) and RateSync's F17 (the DTTL's low-SNR claim, unmeasurable
+by a validator that adds no noise) both sat that way until gh-750 and
+gh-751.
+
+It also happens to be the test for the misuse above: **a result that holds
+has no issue to cite, because there is nothing to fix.** If you cannot name
+one, the finding is not open — and if it is a result rather than a problem,
+it is a limit, not a finding at all.
+
+None of this rests on you having read this page. `Report._self_check`
+rejects the render, so `make validate`, `make validate-check` and every
+module's limits test all enforce it without naming it, and a new object is
+covered the moment it exists. The cases are in
+`src/doppler/tests/test_validation_report.py`, driven over seeded reports
+rather than over the committed ones — content that already complies proves
+only the cases that happen to exist.
+
 **Phases in order, and no fixes during characterisation** — findings only.
 A fix made while measuring contaminates the measurement it came from.
 

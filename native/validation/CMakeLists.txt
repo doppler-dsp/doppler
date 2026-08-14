@@ -158,3 +158,17 @@ target_link_libraries(validate_lockdet_verify PRIVATE doppler_lib_static m)
 target_compile_options(validate_lockdet_verify PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_lockdet_verify
          COMMAND validate_lockdet_verify --check)
+
+add_executable(validate_loop_filter_noise_bw
+               ${CMAKE_CURRENT_SOURCE_DIR}/loop_filter_noise_bw.c)
+target_include_directories(validate_loop_filter_noise_bw
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_loop_filter_noise_bw PRIVATE doppler_lib_static m)
+# -ffp-contract=off: the measurement IS an accumulated integrator, so a fused
+# multiply-add inside loop_filter_step moves the last bits of a sum taken over
+# hundreds of thousands of updates. The 1% gate is nowhere near that
+# sensitive, but the printed table is compared across machines.
+target_compile_options(validate_loop_filter_noise_bw PRIVATE
+                       -O3 -funroll-loops -ffp-contract=off)
+add_test(NAME validate_loop_filter_noise_bw
+         COMMAND validate_loop_filter_noise_bw --check)

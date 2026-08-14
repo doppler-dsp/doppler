@@ -164,6 +164,54 @@ ______________________________________________________________________
 
 ### Added
 
+- **just-makeit pin 0.59.1 → 0.60.1, and 38 C symbols across 6 components
+    became linkable.** The mpsk certification found `mpsk_map`/`mpsk_demap`
+    absent from `libdoppler.a` and root-caused it upstream: jm emitted the
+    `target_sources(<pkg>_lib{,_static} …)` wiring **per object, never per
+    component**, so a component contributing only module-level functions was
+    folded into no library at all. A function-only module was wired only if
+    some unrelated object happened to name it in `depends_on` — which is why
+    `snr` shipped and `mpsk` did not
+    ([just-makeit#981](https://github.com/just-buildit/just-makeit/issues/981)).
+
+    The scope was **four times** what the original report said. Hand analysis
+    found 2 components by reasoning about function-only modules; jm 0.60.0's
+    new detector found 17 unwired cores, of which 6 actually defined
+    out-of-line symbols that no library carried — `arith` (14), `wfm` (10),
+    `mpsk` (5), `measure` (4), `util` (4), `filter` (1). `libdoppler.a` went
+    from 1227 to 1265 exported symbols on the bump, and the C reproduction
+    that used to fail to link now runs.
+
+    Among them were `saturate` and `ema_step` — the shared primitives the
+    validation campaign has spent months consolidating call sites onto. The
+    C face of that reuse story was unlinkable the whole time. Python was
+    unaffected throughout, because each extension links its own core
+    directly, which is exactly why nothing noticed.
+
+    0.60.0 also shipped the **detector** for it
+    ([gh-984](https://github.com/just-buildit/just-makeit/issues/984)):
+    `jm status` reports `UNWIRED` and `DANGLING` components, gated through
+    `make drift-check`. **0.60.1 is the patch that made it usable** — 0.60.0's
+    readers were anchored at column 1 and scanned only the root, so a core
+    declared inside an `if()` was invisible, and `jm apply` *deleted* its
+    correct wiring. doppler has all three shapes it missed and is what found
+    it ([gh-988](https://github.com/just-buildit/just-makeit/issues/988)).
+    Nothing was lost here: the pair it deleted duplicated one
+    `native/src/wfmcompose/CMakeLists.txt` already emits under the same
+    guard, and all seven of `timing_core`'s exports stayed in the archive
+    throughout. The pair is restored.
+
+    doppler keeps **five** deliberate exclusions, each scoped to its
+    component rather than to `CMakeLists.txt` — naming the file would exempt
+    every core and re-open the hole above. Four (`wfm_compose`, `wfm_sink`,
+    `wfm_sink_stub`, `wfmgen`) export nothing out-of-line, so no consumer can
+    be missing anything. The fifth is worth stating: `stream_core_obj`
+    exports 75 symbols, and all 75 are in `libdoppler_stream.a` — the
+    optional second library the stream layer ships as by design. jm's check
+    reads only `doppler_lib`/`doppler_lib_static`, so it cannot see a
+    project's second library. Every one of the five was checked with `nm`
+    before being suppressed.
+
 - **A validation report can no longer record an open finding without
     filing it, or invent a verdict.** Two checks inside
     `Report._self_check`, so `make validate`, `make validate-check` and

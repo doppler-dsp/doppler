@@ -44,10 +44,16 @@ class LockDet:
         it. A metric inside the `[down_thresh, up_thresh]` band is sticky — it
         neither advances a declare nor a drop.
 
+        A **non-finite look is a miss in both states**: it never advances a
+        declare, and while locked it advances the drop run like any other miss.
+        An unknown lock is not a lock, which is the rule util_core.h states for
+        lock statistics generally. So a metric that goes NaN drops the lock
+        after n_down looks rather than holding it lit indefinitely.
+
         Parameters
         ----------
         x : float
-            Lock metric for this look.
+            Lock metric for this look. Non-finite counts as a miss.
 
         Returns
         -------

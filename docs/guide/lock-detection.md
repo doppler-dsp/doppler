@@ -103,7 +103,7 @@ forward as standing principles, not just historical notes:
 
 **Verify-count independence can silently fail on a fast, correlated
 statistic.** `n_up` consecutive above-threshold looks compounding to
-`pfa^n_up` (the whole reason a verify count buys cheap false-alarm
+`≈ pfa^n_up` (the whole reason a verify count buys cheap false-alarm
 suppression — see [Lock Detection: Verify Counts](../gallery/lockdet.md))
 *assumes independent looks*. `CarrierNda`'s lock statistic is a fast
 EMA, so consecutive samples are highly autocorrelated — borrowing
@@ -139,6 +139,16 @@ something named and measured, and confirm the replacement empirically
 before shipping it, even when the algebra looks right.** Full
 derivation and validation numbers in
 [the design note](../design/timing_lock_detector.md).
+
+**Postscript, once the formula moved into shared code.** The `erfcinv`
+-vs-`Q⁻¹` discrepancy above is not a dropped factor of two: since
+`Q⁻¹(p) = √2·erfcinv(2p)`, the two forms are the *same formula* and the
+leading `2` is the convention change. The empirical result stands —
+the naive swap really did miss the pfa target by ~13× — but the cause
+was the convention, and in `Q⁻¹` form the measured variance is simply
+correct. The sizing now lives in `detection` and is shared by every
+Gaussian-statistic detector: see
+[Lock Detection](../design/lock-detect.md).
 
 ## See also
 

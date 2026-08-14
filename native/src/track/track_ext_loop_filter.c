@@ -47,7 +47,9 @@ LoopFilterObj_init (LoopFilterObject *self, PyObject *args, PyObject *kwds)
   self->handle = loop_filter_create (bn, zeta, t);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "loop_filter_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "bn must be >= 0, zeta > 0 and t > 0, and all three "
+                       "finite");
       return -1;
     }
   return 0;
@@ -92,15 +94,16 @@ LoopFilter_steps (LoopFilterObject *self, PyObject *args, PyObject *kwds)
 
   if (out_obj && out_obj != Py_None)
     {
-      /* Require the exact output dtype — no silent cast (a cast writes
-       * into a temp copy instead of the caller's buffer). */
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_DOUBLE
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
-          PyErr_SetString (
-              PyExc_TypeError,
-              "out must be a writable ndarray of the output dtype");
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
           Py_DECREF (in_arr);
           return NULL;
         }
@@ -352,32 +355,81 @@ static PyMethodDef LoopFilterObj_methods[] = {
   { "step", (PyCFunction)LoopFilter_step, METH_VARARGS,
     "step(x) -> double\n"
     "\n"
-    "Advance the loop one update with error x; return the control.\n"
+    "Advance the loop one update with error x and return the control\n"
+    "value the tracker should apply.\n"
     "\n"
-    "    >>> from doppler import LoopFilter\n"
-    "    >>> obj = LoopFilter(0.01, 0.707, 1.0)\n"
-    "    >>> obj.step(1.0)\n"
-    "    0.0\n" },
+    "The PI recurrence is `integ += ki*x; control = integ + kp*x`: the\n"
+    "integrator accumulates the running frequency/rate estimate while the\n"
+    "proportional term kp*x is the instantaneous phase nudge.\n"
+    "\n"
+    "Fed a constant error with nothing closing the loop, the integrator —\n"
+    "and therefore the control — **ramps without bound**; measured at 1.84x\n"
+    "between updates 200 and 400 at `bn = 0.02`. That is the accumulation\n"
+    "working, not a defect, and it is what pulls a Costas/DLL/timing loop\n"
+    "into lock once the loop IS closed, because a converging loop is one\n"
+    "whose error is being driven to zero by the correction. Convergence is a\n"
+    "property of the closed loop; this function is one term in it.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : float\n"
+    "    Loop error (discriminator output) for this update.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    Control value integ+kp*x to drive the NCO / interpolator.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.track import LoopFilter\n"
+    ">>> lf = LoopFilter(bn=0.02, zeta=0.707, t=1.0)\n"
+    ">>> round(lf.step(1.0), 6)   # unit error: control = ki + kp\n"
+    "0.05331\n"
+    ">>> round(lf.integ, 6)       # integrator now holds ki\n"
+    "0.001385\n"
+    "\n" },
   { "steps", (PyCFunction)(void *)LoopFilter_steps,
     METH_VARARGS | METH_KEYWORDS,
     "steps(x[, out]) -> ndarray\n"
     "\n"
-    "Run a block of errors through the loop.\n"
+    "Filter a whole block of loop errors, returning the control value for\n"
+    "each update.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import LoopFilter\n"
-    "    >>> obj = LoopFilter(0.01, 0.707, 1.0)\n"
-    "    >>> y = obj.steps(np.zeros(4, dtype=np.float64))\n"
-    "    >>> y.shape\n"
-    "    (4,)\n"
-    "    >>> y.dtype\n"
-    "    dtype('float64')\n" },
+    "Equivalent to calling loop_filter_step() once per element of x in\n"
+    "order, carrying the integrator across the block, so the loop's memory\n"
+    "and lock state persist from one call to the next. This is the block\n"
+    "path used to run a captured error sequence through the filter in one\n"
+    "shot — a plain per-element loop, not a vectorized one: the recurrence\n"
+    "is sequential, so each update depends on the one before it.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.float64]\n"
+    "    Loop-error array, one discriminator sample per update.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.float64]\n"
+    "    Output sample.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.track import LoopFilter\n"
+    ">>> lf = LoopFilter(bn=0.05, zeta=0.707, t=1.0)\n"
+    ">>> ctl = lf.steps(np.full(50, 0.1))   # constant error into the loop\n"
+    ">>> round(float(ctl[0]), 4)            # first control nudge\n"
+    "0.0133\n"
+    ">>> round(float(ctl[-1]), 4)           # open loop: ramping\n"
+    "0.0541\n"
+    "\n" },
 
   { "configure", (PyCFunction)(void *)LoopFilterObj_configure,
     METH_VARARGS | METH_KEYWORDS,
     "configure(bn, zeta, t) -> None\n"
     "\n"
-    "Recompute the loop gains for a new (bn, zeta, t); preserves the "
+    "Recompute the loop gains for a new (bn, zeta, t); preserves the\n"
     "integrator.\n"
     "\n"
     "Recomputes the proportional and integral gains from the standard\n"
@@ -413,9 +465,8 @@ static PyMethodDef LoopFilterObj_methods[] = {
     "\n"
     "Clears the accumulated frequency/rate estimate (integ) back to zero but\n"
     "leaves kp / ki as configured, so the loop reacquires from a clean slate\n"
-    "at its current bandwidth — the right thing when a tracker drops lock "
-    "and\n"
-    "must restart, without re-deriving gains.\n"
+    "at its current bandwidth — the right thing when a tracker drops lock\n"
+    "and must restart, without re-deriving gains.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -481,12 +532,11 @@ static PyMethodDef LoopFilterObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)LoopFilterObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -501,9 +551,8 @@ static PyMethodDef LoopFilterObj_methods[] = {
     "Exit a context manager, releasing the LoopFilter.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -521,9 +570,34 @@ static PyTypeObject LoopFilterObjType = {
   .tp_basicsize                           = sizeof (LoopFilterObject),
   .tp_dealloc                             = (destructor)LoopFilterObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "LoopFilter type.\n",
-  .tp_methods                             = LoopFilterObj_methods,
-  .tp_getset                              = LoopFilter_getset,
-  .tp_new                                 = LoopFilterObj_new,
-  .tp_init                                = (initproc)LoopFilterObj_init,
+  .tp_doc
+  = "Create a loop_filter instance, validating its arguments.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "bn : float, default 0.01\n"
+    "    Loop noise bandwidth, normalized cycles/sample; >= 0 and finite\n"
+    "    (default 0.01).\n"
+    "zeta : float, default 0.707\n"
+    "    Damping factor; > 0 and finite (default 0.707).\n"
+    "t : float, default 1.0\n"
+    "    Update period in samples; > 0 and finite (default 1.0).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``bn must be >= 0, "
+    "zeta\n"
+    "    > 0 and t > 0, and all three finite``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "Create with defaults:\n"
+    "\n"
+    ">>> from doppler import LoopFilter\n"
+    ">>> obj = LoopFilter(bn=0.01, zeta=0.707, t=1.0)\n",
+  .tp_methods = LoopFilterObj_methods,
+  .tp_getset  = LoopFilter_getset,
+  .tp_new     = LoopFilterObj_new,
+  .tp_init    = (initproc)LoopFilterObj_init,
 };

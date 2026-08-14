@@ -37,6 +37,26 @@ double det_snr(int dwell, double pd_min, double pfa);
 
 double det_threshold_noncoherent(double pfa, int n_noncoh);
 
+/* ── Gaussian test statistic ─────────────────────────────────────────────── */
+/*                                                                            */
+/* The helpers above size the amplitude-ratio detector, whose H0 law is       */
+/* Rayleigh. A different family of detectors in this tree threshold a         */
+/* statistic that is GAUSSIAN under H0 -- a lock metric block-averaged over   */
+/* enough looks for the CLT to hold. Those three (symsync's timing lock,      */
+/* dll's code lock, the carrier NDA lock) share one sizing chain, and it      */
+/* lives here so they cannot drift apart.                                     */
+/*                                                                            */
+/* Do NOT reach for det_threshold() on a Gaussian statistic. It inverts       */
+/* Pfa = exp(-eta^2/2), the envelope law, and returns 4.9409 where            */
+/* det_q_inv() returns 4.4172 at the same pfa = 5e-6 -- two plausible small   */
+/* numbers near 5, only one of which is a sigma count.                        */
+
+double det_q_inv(double p);
+
+int det_dwell_gauss(double mean, double var, double pd, double pfa);
+
+double det_threshold_gauss(double mean, double pd, double pfa);
+
 double det_ema_alpha(double snr_in_db, double snr_out_db);
 
 int det_verify_count(double p_look, double p_target);

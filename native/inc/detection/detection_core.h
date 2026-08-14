@@ -203,6 +203,110 @@ double det_snr(int dwell, double pd_min, double pfa);
  */
 double det_threshold_noncoherent(double pfa, int n_noncoh);
 
+/* ── Gaussian test statistic ─────────────────────────────────────────────── */
+/*                                                                            */
+/* The helpers above size the amplitude-ratio detector, whose H0 law is       */
+/* Rayleigh. A different family of detectors in this tree threshold a         */
+/* statistic that is GAUSSIAN under H0 -- a lock metric block-averaged over   */
+/* enough looks for the CLT to hold. Those three (symsync's timing lock,      */
+/* dll's code lock, the carrier NDA lock) share one sizing chain, and it      */
+/* lives here so they cannot drift apart.                                     */
+/*                                                                            */
+/* Do NOT reach for det_threshold() on a Gaussian statistic. It inverts       */
+/* Pfa = exp(-eta^2/2), the envelope law, and returns 4.9409 where            */
+/* det_q_inv() returns 4.4172 at the same pfa = 5e-6 -- two plausible small   */
+/* numbers near 5, only one of which is a sigma count.                        */
+
+/**
+ * @brief Upper-tail quantile of the standard normal: the eta with Q(eta) = p.
+ *
+ * `Q(eta) = 0.5*erfc(eta/sqrt(2))`, so this is `sqrt(2)*erfcinv(2p)`.
+ * Everything below is expressed in it, and a caller thresholding its own
+ * zero-mean Gaussian statistic wants `det_q_inv(pfa) * sd_H0`.
+ *
+ * **Signed, and that matters.** Above the median the quantile is negative,
+ * which is exactly why det_dwell_gauss()'s `Q_inv(pfa) - Q_inv(pd)` is a sum
+ * of two tails rather than a difference: every caller's `pd` is above 0.5.
+ * Clamping it to zero there halves the dwell without failing anything.
+ *
+ * @param p  Tail probability in (0, 1).
+ * @return   Quantile in H0 sigmas -- positive below the median, exactly 0 at
+ *           it, negative above. Fails closed (0.0) for p outside (0, 1).
+ *
+ * @code
+ * >>> from doppler.detection import det_q_inv, det_threshold
+ * >>> round(det_q_inv(p=5e-6), 4)     # the carrier lock metric's 4.42 sigma
+ * 4.4172
+ * >>> round(det_q_inv(p=0.5), 4)      # the median
+ * 0.0
+ * >>> round(det_q_inv(p=0.99), 4)     # above it: NEGATIVE, by design
+ * -2.3263
+ * >>> round(det_threshold(pfa=5e-6), 4)   # the OTHER law -- not this one
+ * 4.9409
+ *
+ * @endcode
+ */
+double det_q_inv(double p);
+
+/**
+ * @brief Looks a Gaussian statistic must average to separate H1 from H0.
+ *
+ * The classic sizing: with a per-look H0 variance @p var and an H1 mean
+ * @p mean (H0 mean zero), block-averaging `n` looks shrinks the H0 spread as
+ * `1/n`, and the smallest `n` whose H0 and H1 tails clear both budgets is
+ *
+ *   `n = var * ((Q_inv(pfa) - Q_inv(pd)) / mean)^2`
+ *
+ * `Q_inv(pd)` is negative for `pd > 0.5`, so the difference is the total
+ * separation both tails must fit inside.
+ *
+ * @param mean  H1 mean of one look, > 0 (H0 mean is taken as zero).
+ * @param var   H0 variance of one look, > 0.
+ * @param pd    Required detection probability, in (0, 1).
+ * @param pfa   Allowed false-alarm probability, in (0, 1) and below @p pd.
+ * @return      Looks needed, rounded up and clamped to >= 1; -1 on invalid
+ *              input.
+ *
+ * @code
+ * >>> from doppler.detection import det_dwell_gauss
+ * >>> det_dwell_gauss(mean=0.4, var=0.5, pd=0.99, pfa=1e-5)
+ * 136
+ * >>> det_dwell_gauss(mean=0.8, var=0.5, pd=0.99, pfa=1e-5)   # 2x mean
+ * 34
+ * >>> det_dwell_gauss(mean=0.0, var=0.5, pd=0.99, pfa=1e-5)   # no signal
+ * -1
+ *
+ * @endcode
+ */
+int det_dwell_gauss(double mean, double var, double pd, double pfa);
+
+/**
+ * @brief Declare threshold for a Gaussian statistic sized by det_dwell_gauss.
+ *
+ * The crossover point that meets both budgets at once, in the statistic's own
+ * units:
+ *
+ *   `thresh = Q_inv(pfa) * mean / (Q_inv(pfa) - Q_inv(pd))`
+ *
+ * Independent of the variance and of the look count -- those set how many
+ * looks are needed to reach this point, not where it is.
+ *
+ * @param mean  H1 mean of one look, > 0.
+ * @param pd    Required detection probability, in (0, 1).
+ * @param pfa   Allowed false-alarm probability, in (0, 1) and below @p pd.
+ * @return      Threshold in the statistic's units; 0.0 on invalid input.
+ *
+ * @code
+ * >>> from doppler.detection import det_threshold_gauss
+ * >>> round(det_threshold_gauss(mean=0.4, pd=0.99, pfa=1e-5), 4)
+ * 0.2588
+ * >>> round(det_threshold_gauss(mean=0.8, pd=0.99, pfa=1e-5), 4)  # scales
+ * 0.5176
+ *
+ * @endcode
+ */
+double det_threshold_gauss(double mean, double pd, double pfa);
+
 /**
  * @brief EMA coefficient for a target estimator SNR (DC level in noise).
  *
@@ -241,8 +345,17 @@ double det_ema_alpha(double snr_in_db, double snr_out_db);
  * @brief Verify count: consecutive looks needed to compound to a budget.
  *
  * n consecutive independent looks at per-look probability p compound to
- * p^n, so the smallest n with `p_look^n <= p_target` is
- * `ceil(ln p_target / ln p_look)` (clamped to >= 1). One function serves
+ * ~p^n, so the smallest n with `p_look^n <= p_target` is
+ * `ceil(ln p_target / ln p_look)` (clamped to >= 1).
+ *
+ * That `~` is a BUDGET, and deliberately the conservative side of one: a
+ * consecutive-run detector's exact declare rate is `p^n (1-p)/(1-p^n)`
+ * (lockdet_core.h), which is lower, so sizing on p^n over-provisions n
+ * rather than under. The gap is ~p -- negligible where a detector is
+ * really sized, 10% at p = 0.1 -- so pick n here and predict what a
+ * caller will observe with det_verify_delay().
+ *
+ * One function serves
  * both sides of a lock detector (lockdet_core.h): the declare count from
  * (per-look pfa, false-declare budget) and the drop count from (per-look
  * miss rate 1 - pd, false-drop budget). Degenerate inputs resolve

@@ -121,3 +121,54 @@ target_link_libraries(validate_symsync_lock PRIVATE doppler_lib_static m)
 target_compile_options(validate_symsync_lock PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_symsync_lock
          COMMAND validate_symsync_lock --check)
+
+add_executable(validate_carrier_nda_lock
+               ${CMAKE_CURRENT_SOURCE_DIR}/carrier_nda_lock.c)
+target_include_directories(validate_carrier_nda_lock
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_carrier_nda_lock PRIVATE doppler_lib_static m)
+target_compile_options(validate_carrier_nda_lock PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_carrier_nda_lock
+         COMMAND validate_carrier_nda_lock --check)
+
+# Each TED's own S-curve against symsync_ted_slope(), with no cascade in the
+# path: the composite pulse is evaluated in closed form, so a discrepancy is
+# the detector's or the model's and cannot be the bank's. -ffp-contract=off
+# for the same host-determinism reason as dll_jitter: the measurement is a
+# paired central difference of two large sums, and a fused multiply-add
+# changes its last digits between x86-64 and arm64.
+add_executable(validate_ratesync_scurve
+               ${CMAKE_CURRENT_SOURCE_DIR}/ratesync_scurve.c)
+# native/tests too: phase 3 drives dp_tx_make(), the shared harness
+# stimulus the unit tests use, rather than re-shaping a pulse here.
+target_include_directories(validate_ratesync_scurve
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_ratesync_scurve PRIVATE doppler_lib_static m)
+target_compile_options(validate_ratesync_scurve PRIVATE -O3 -funroll-loops
+                                                        -ffp-contract=off)
+add_test(NAME validate_ratesync_scurve
+         COMMAND validate_ratesync_scurve --check)
+
+add_executable(validate_lockdet_verify
+               ${CMAKE_CURRENT_SOURCE_DIR}/lockdet_verify.c)
+target_include_directories(validate_lockdet_verify
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_lockdet_verify PRIVATE doppler_lib_static m)
+target_compile_options(validate_lockdet_verify PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_lockdet_verify
+         COMMAND validate_lockdet_verify --check)
+
+add_executable(validate_loop_filter_noise_bw
+               ${CMAKE_CURRENT_SOURCE_DIR}/loop_filter_noise_bw.c)
+target_include_directories(validate_loop_filter_noise_bw
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_loop_filter_noise_bw PRIVATE doppler_lib_static m)
+# -ffp-contract=off: the measurement IS an accumulated integrator, so a fused
+# multiply-add inside loop_filter_step moves the last bits of a sum taken over
+# hundreds of thousands of updates. The 1% gate is nowhere near that
+# sensitive, but the printed table is compared across machines.
+target_compile_options(validate_loop_filter_noise_bw PRIVATE
+                       -O3 -funroll-loops -ffp-contract=off)
+add_test(NAME validate_loop_filter_noise_bw
+         COMMAND validate_loop_filter_noise_bw --check)

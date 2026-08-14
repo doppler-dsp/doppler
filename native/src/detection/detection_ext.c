@@ -97,6 +97,46 @@ _bind_det_threshold_noncoherent (PyObject *self, PyObject *args,
 }
 
 static PyObject *
+_bind_det_q_inv (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "p", NULL };
+  double       p         = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &p))
+    return NULL;
+  return PyFloat_FromDouble (det_q_inv (p));
+}
+
+static PyObject *
+_bind_det_dwell_gauss (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "mean", "var", "pd", "pfa", NULL };
+  double       mean      = 0.0;
+  double       var       = 0.0;
+  double       pd        = 0.0;
+  double       pfa       = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dddd", _kwlist, &mean, &var,
+                                    &pd, &pfa))
+    return NULL;
+  return PyLong_FromLong ((long)det_dwell_gauss (mean, var, pd, pfa));
+}
+
+static PyObject *
+_bind_det_threshold_gauss (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "mean", "pd", "pfa", NULL };
+  double       mean      = 0.0;
+  double       pd        = 0.0;
+  double       pfa       = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddd", _kwlist, &mean, &pd,
+                                    &pfa))
+    return NULL;
+  return PyFloat_FromDouble (det_threshold_gauss (mean, pd, pfa));
+}
+
+static PyObject *
 _bind_det_ema_alpha (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
@@ -438,6 +478,115 @@ static PyMethodDef detection_module_methods[] = {
     ">>> det_threshold_noncoherent(pfa=1e-6, n_noncoh=1) == det_threshold(\n"
     "...     pfa=1e-6)\n"
     "True\n" },
+  { "det_q_inv", (PyCFunction)(void *)_bind_det_q_inv,
+    METH_VARARGS | METH_KEYWORDS,
+    "Upper-tail quantile of the standard normal: the eta with Q(eta) = p.\n"
+    "\n"
+    "`Q(eta) = 0.5*erfc(eta/sqrt(2))`, so this is `sqrt(2)*erfcinv(2p)`.\n"
+    "Everything below is expressed in it, and a caller thresholding its own\n"
+    "zero-mean Gaussian statistic wants `det_q_inv(pfa) * sd_H0`.\n"
+    "\n"
+    "**Signed, and that matters.** Above the median the quantile is\n"
+    "negative, which is exactly why det_dwell_gauss()'s `Q_inv(pfa) -\n"
+    "Q_inv(pd)` is a sum of two tails rather than a difference: every\n"
+    "caller's `pd` is above 0.5. Clamping it to zero there halves the dwell\n"
+    "without failing anything.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "p : float\n"
+    "    Tail probability in (0, 1).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    Quantile in H0 sigmas -- positive below the median, exactly 0 at\n"
+    "    it, negative above. Fails closed (0.0) for p outside (0, 1).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.detection import det_q_inv, det_threshold\n"
+    ">>> round(det_q_inv(p=5e-6), 4)     # the carrier lock metric's 4.42 "
+    "sigma\n"
+    "4.4172\n"
+    ">>> round(det_q_inv(p=0.5), 4)      # the median\n"
+    "0.0\n"
+    ">>> round(det_q_inv(p=0.99), 4)     # above it: NEGATIVE, by design\n"
+    "-2.3263\n"
+    ">>> round(det_threshold(pfa=5e-6), 4)   # the OTHER law -- not this one\n"
+    "4.9409\n" },
+  { "det_dwell_gauss", (PyCFunction)(void *)_bind_det_dwell_gauss,
+    METH_VARARGS | METH_KEYWORDS,
+    "Looks a Gaussian statistic must average to separate H1 from H0.\n"
+    "\n"
+    "The classic sizing: with a per-look H0 variance var and an H1 mean mean\n"
+    "(H0 mean zero), block-averaging `n` looks shrinks the H0 spread as\n"
+    "`1/n`, and the smallest `n` whose H0 and H1 tails clear both budgets is\n"
+    "\n"
+    "`n = var * ((Q_inv(pfa) - Q_inv(pd)) / mean)^2`\n"
+    "\n"
+    "`Q_inv(pd)` is negative for `pd > 0.5`, so the difference is the total\n"
+    "separation both tails must fit inside.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "mean : float\n"
+    "    H1 mean of one look, > 0 (H0 mean is taken as zero).\n"
+    "var : float\n"
+    "    H0 variance of one look, > 0.\n"
+    "pd : float\n"
+    "    Required detection probability, in (0, 1).\n"
+    "pfa : float\n"
+    "    Allowed false-alarm probability, in (0, 1) and below pd.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Looks needed, rounded up and clamped to >= 1; -1 on invalid input.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.detection import det_dwell_gauss\n"
+    ">>> det_dwell_gauss(mean=0.4, var=0.5, pd=0.99, pfa=1e-5)\n"
+    "136\n"
+    ">>> det_dwell_gauss(mean=0.8, var=0.5, pd=0.99, pfa=1e-5)   # 2x mean\n"
+    "34\n"
+    ">>> det_dwell_gauss(mean=0.0, var=0.5, pd=0.99, pfa=1e-5)   # no signal\n"
+    "-1\n" },
+  { "det_threshold_gauss", (PyCFunction)(void *)_bind_det_threshold_gauss,
+    METH_VARARGS | METH_KEYWORDS,
+    "Declare threshold for a Gaussian statistic sized by det_dwell_gauss.\n"
+    "\n"
+    "The crossover point that meets both budgets at once, in the statistic's\n"
+    "own units:\n"
+    "\n"
+    "`thresh = Q_inv(pfa) * mean / (Q_inv(pfa) - Q_inv(pd))`\n"
+    "\n"
+    "Independent of the variance and of the look count -- those set how many\n"
+    "looks are needed to reach this point, not where it is.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "mean : float\n"
+    "    H1 mean of one look, > 0.\n"
+    "pd : float\n"
+    "    Required detection probability, in (0, 1).\n"
+    "pfa : float\n"
+    "    Allowed false-alarm probability, in (0, 1) and below pd.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    Threshold in the statistic's units; 0.0 on invalid input.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.detection import det_threshold_gauss\n"
+    ">>> round(det_threshold_gauss(mean=0.4, pd=0.99, pfa=1e-5), 4)\n"
+    "0.2588\n"
+    ">>> round(det_threshold_gauss(mean=0.8, pd=0.99, pfa=1e-5), 4)  # "
+    "scales\n"
+    "0.5176\n" },
   { "det_ema_alpha", (PyCFunction)(void *)_bind_det_ema_alpha,
     METH_VARARGS | METH_KEYWORDS,
     "EMA coefficient for a target estimator SNR (DC level in noise).\n"
@@ -483,13 +632,22 @@ static PyMethodDef detection_module_methods[] = {
     "Verify count: consecutive looks needed to compound to a budget.\n"
     "\n"
     "n consecutive independent looks at per-look probability p compound to\n"
-    "p^n, so the smallest n with `p_look^n <= p_target` is `ceil(ln p_target\n"
-    "/ ln p_look)` (clamped to >= 1). One function serves both sides of a\n"
-    "lock detector (lockdet_core.h): the declare count from (per-look pfa,\n"
-    "false-declare budget) and the drop count from (per-look miss rate 1 -\n"
-    "pd, false-drop budget). Degenerate inputs resolve naturally: a target\n"
-    "already met by one look returns 1; p_look >= 1 can never compound below\n"
-    "a smaller target and returns INT_MAX.\n"
+    "~p^n, so the smallest n with `p_look^n <= p_target` is `ceil(ln\n"
+    "p_target / ln p_look)` (clamped to >= 1).\n"
+    "\n"
+    "That `~` is a BUDGET, and deliberately the conservative side of one: a\n"
+    "consecutive-run detector's exact declare rate is `p^n (1-p)/(1-p^n)`\n"
+    "(lockdet_core.h), which is lower, so sizing on p^n over-provisions n\n"
+    "rather than under. The gap is ~p -- negligible where a detector is\n"
+    "really sized, 10% at p = 0.1 -- so pick n here and predict what a\n"
+    "caller will observe with det_verify_delay().\n"
+    "\n"
+    "One function serves both sides of a lock detector (lockdet_core.h): the\n"
+    "declare count from (per-look pfa, false-declare budget) and the drop\n"
+    "count from (per-look miss rate 1 - pd, false-drop budget). Degenerate\n"
+    "inputs resolve naturally: a target already met by one look returns 1;\n"
+    "p_look >= 1 can never compound below a smaller target and returns\n"
+    "INT_MAX.\n"
     "\n"
     "Parameters\n"
     "----------\n"

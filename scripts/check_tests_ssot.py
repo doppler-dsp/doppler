@@ -105,6 +105,48 @@ RETIRED = [
 ASSERTION_LIKE = re.compile(r"^(CHECK|REQUIRE|EXPECT|ASSERT)\w*$")
 
 
+def _tracked() -> set[pathlib.Path]:
+    """The files under `native/tests/` that are actually in the repository.
+
+    This gate is a claim about what doppler's test suite contains, so it
+    must read what the repository contains — not whatever happens to be
+    sitting in the working tree.
+
+    The distinction is not hypothetical. `jm apply` materialises its own
+    create-only `jm_test.h`, which doppler does not use (the C tests run on
+    `dp_test.h`, and this gate is what makes that true) and which defines
+    the retired `ALMOST_EQ` / `ALMOST_EQ_C` spellings. It is gitignored, so
+    it never lands — but a plain glob still found it and failed `make lint`
+    with four violations in a file nobody had written and nobody could
+    remove for good. Deriving from `git ls-files` is the same fix
+    `validate-c` already uses after a glob there ran a stale binary whose
+    source had been deleted.
+
+    A file has to be staged before this sees it, which is the repository's
+    existing tradeoff for new files and lint.
+    """
+    out = subprocess.run(
+        ["git", "ls-files", "--", "native/tests"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if out.returncode != 0:  # not a checkout (a tarball, say) — scan it all
+        return set(TESTS.glob("*.c")) | set(TESTS.glob("*.h"))
+    return {ROOT / line for line in out.stdout.split() if line}
+
+
+def sources() -> list[pathlib.Path]:
+    """Every tracked `.c` and `.h` under `native/tests/`, sorted."""
+    keep = _tracked()
+    return sorted(
+        p
+        for p in list(TESTS.glob("*.c")) + list(TESTS.glob("*.h"))
+        if p in keep
+    )
+
+
 def family() -> list[pathlib.Path]:
     """Every shared harness header, which is every `dp_*.h` here.
 
@@ -119,7 +161,7 @@ def family() -> list[pathlib.Path]:
     noticing a test that re-defined `DP_CHECK`. Caught by sabotage; it read as
     correct. Hence the assertion in `main`.
     """
-    return sorted(TESTS.glob("dp_*.h"))
+    return sorted(p for p in _tracked() if p.match("native/tests/dp_*.h"))
 
 
 def provided() -> tuple[dict[str, str], dict[str, str]]:
@@ -294,7 +336,7 @@ def double_draws() -> list[str]:
     proved nothing.
     """
     bad = []
-    for path in sorted(TESTS.glob("*.c")) + sorted(TESTS.glob("*.h")):
+    for path in sources():
         code = strip_comments(path.read_text())
         names = ["dp_(?:xs32|xs64|uni|uni64|bit|gauss|gauss64|cgauss)"]
         for _ in range(3):  # to a fixpoint; three levels is generous
@@ -333,7 +375,7 @@ def double_draws() -> list[str]:
 def generators() -> list[str]:
     """Fail any test that rolls its own random source."""
     bad = []
-    for path in sorted(TESTS.glob("*.c")) + sorted(TESTS.glob("*.h")):
+    for path in sources():
         if path.name == RNG_HOME:
             continue
         code = strip_comments(path.read_text())
@@ -469,7 +511,7 @@ def main() -> int:
 
     owners = {p.name for p in family()}
     bad: list[str] = []
-    for path in sorted(TESTS.glob("*.c")) + sorted(TESTS.glob("*.h")):
+    for path in sources():
         # A family header legitimately defines what it owns. It must still not
         # re-define what a SIBLING owns, so only its own names are skipped.
         mine = path.name if path.name in owners else None
@@ -540,7 +582,7 @@ def main() -> int:
         print(f"  {IGNORE.relative_to(ROOT)} with the reason.")
         return 1
 
-    scanned = len(list(TESTS.glob("*.c")))
+    scanned = len([p for p in sources() if p.suffix == ".c"])
     print(
         f"check_tests_ssot: OK — {scanned} tests, "
         f"{len(macros)} macros and {len(funcs)} helpers owned by "

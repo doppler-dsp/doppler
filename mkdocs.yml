@@ -254,6 +254,7 @@ nav:
       - API Taxonomy: design/api-taxonomy.md
       - The NCO: design/nco.md
       - Exponential Moving Average: design/ema.md
+      - The Loop Filter: design/loop-filter.md
       - Quantization: design/QUANTIZATION.md
       - CIC Decimator: design/cic.md
       - Measurement Suite: design/measurement-suite.md
@@ -292,6 +293,7 @@ nav:
       - Dopplerfile: cli/dopplerfile.md
   - Contributing:
       - Contributing: dev/index.md
+      - Adding an Algorithm: dev/adding-algorithms.md
       - Repository Map: dev/repository-map.md
       - Module Layout: dev/module-layout.md
       - Adding a Module: dev/adding-a-module.md

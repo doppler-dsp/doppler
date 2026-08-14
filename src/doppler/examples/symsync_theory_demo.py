@@ -6,7 +6,12 @@ Two theoretical-correctness checks for :class:`doppler.track.SymbolSync`:
     swept static timing offset and read the Gardner TED, vs a **semi-analytic
     Gardner reference** computed directly from the pulse train. The
     characteristic is one period per symbol with two zeros a half apart —
-    stable lock (positive restoring slope) and the unstable null.
+    the stable lock at the eye centre and the unstable null at T/2, crossing
+    in opposite senses. Which is which is a matter of the eye, not of an
+    absolute slope sign: a sign only means something relative to a timing
+    axis, and naming one without saying which way the axis runs is how the
+    RateSync report came to check its TED normaliser at the T/2 zero for as
+    long as it did (that report's F15).
 
   * **Timing-error variance vs SNR** — at the lock point, `var(e)` is a
     data-pattern **self-noise floor** (present at infinite SNR — a defining

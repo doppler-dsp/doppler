@@ -1,4 +1,5 @@
 #include "symsync/symsync_core.h"
+#include "detection/detection_core.h"
 
 #include "wfm/wfm_dsp.h"
 
@@ -37,24 +38,37 @@
  *   mean = (0.6*rolloff+0.26)*(1 - exp(-0.275*10^(esno_min_db/10)))
  *
  * and the classic Gaussian test-statistic sizing gives the non-coherent
- * block size (avgs) and declare threshold:
+ * block size (avgs) and declare threshold. **That sizing is not this
+ * file's** -- it is det_dwell_gauss() / det_threshold_gauss(), shared
+ * with dll's code lock and the MPSK receiver's carrier lock:
  *
- *   avgs      = 2*var*((erfcinv(2*pfa)-erfcinv(2*pd))/mean)^2
- *   threshold = erfcinv(2*pfa)*mean/(erfcinv(2*pfa)-erfcinv(2*pd))
+ *   avgs      = var*((Q^-1(pfa)-Q^-1(pd))/mean)^2
+ *   threshold = Q^-1(pfa)*mean/(Q^-1(pfa)-Q^-1(pd))
  *
- * erfcinv used directly (not the sqrt(2)*erfcinv(2p) == Q^-1(p)
- * conversion a Gaussian Q-function derivation would normally use) --
- * both formulas were supplied directly by a doppler user, not
- * re-derived against a primary source, implemented literally as given,
- * with one correction: the source formula's avgs used a bare "8" in
- * var's place, which this file originally kept unmodified. That "8"
- * turned out to be an uncalibrated placeholder, not a derived
- * constant -- see SYMSYNC_LOCK_STAT_VARIANCE below for the replacement
- * and the empirical work that picked it.
+ * Only `mean` above is symsync's, because only symsync knows what its
+ * lock statistic reads on a pulse of this rolloff at this Es/N0.
+ *
+ * The source formulas were supplied by a doppler user and written here
+ * literally, in an erfcinv-direct convention with a leading 2.0:
+ *
+ *   avgs = 2*var*((erfcinv(2*pfa)-erfcinv(2*pd))/mean)^2
+ *
+ * That 2.0 was documented here for a long time as a "derivation-specific
+ * factor" that must not be folded into the variance, and it is simpler
+ * than that: since Q^-1(p) = sqrt(2)*erfcinv(2p), the sqrt(2) cancels in
+ * the threshold and its square -- the 2 -- absorbs into the dwell. The
+ * two forms are the SAME formula, and what the user supplied is the
+ * textbook Gaussian sizing. Verified to 1e-12 before the move and pinned
+ * by test_detection_core.c; the derived values here are unchanged, which
+ * test_symsync_core.c pins at avgs=133 / threshold=0.311.
+ *
+ * One correction still stands from before: the source formula's avgs used
+ * a bare "8" in var's place, an uncalibrated placeholder rather than a
+ * derived constant -- see SYMSYNC_LOCK_STAT_VARIANCE below.
  *
  * threshold is scale-independent (var cancels out of the ratio), so it
- * is unaffected by this correction; only avgs -- and the resulting
- * declare latency -- changes.
+ * was unaffected by that correction; only avgs -- and the resulting
+ * declare latency -- changed.
  *
  * Empirically validated against the real object at the defaults below
  * (rolloff=0.35, esno_min=10dB, pfa=1e-3, pd=0.9 -> avgs=133,
@@ -85,27 +99,27 @@
  * SYMSYNC_LOCK_STAT_VARIANCE: the real per-look variance of
  * lock_signal under noise-only input, measured directly (5,000,000
  * samples, mean ~0 confirming the symmetry argument above, variance
- * ~1.343) rather than assumed. It is NOT avgs's scale factor by
- * itself, though -- the (avgs, threshold) formulas above use
- * erfcinv(2p) directly rather than the standard Gaussian
- * Q^-1(p) = sqrt(2)*erfcinv(2p); the sqrt(2) factors cancel in
- * threshold (identical either way) but not in avgs, which needs an
- * extra factor of 2 to match the classic
- * N = variance*((Q^-1(pfa)-Q^-1(pd))/mean)^2 sizing once rewritten in
- * terms of the erfcinv-based denom instead of the Q^-1-based one.
- * Both hypotheses were tried against native/validation/symsync_lock.c
- * before picking one: the measured variance alone (scale=1.343, no
- * factor of 2) blows past the pfa target by ~13x (empirical
- * 1.31e-2 vs nominal 1e-3) -- undersized avgs, not enough averaging to
- * suppress noise variance at that threshold. The factor-of-2-corrected
- * scale (2*1.343=2.686) lands right at the target (see the validation
- * numbers above). This is the reason SYMSYNC_LOCK_STAT_VARIANCE is
- * defined here as the bare measured variance, with the formula itself
- * spelling out "2*var" rather than folding the 2 into the constant --
- * collapsing them back into one opaque number is exactly the kind of
- * mismatched-units bug (an unnamed "8" standing in for an
- * undocumented combination of variance and a derivation-specific
- * factor) this fix exists to prevent recurring. */
+ * ~1.343) rather than assumed. It is passed to det_dwell_gauss() as
+ * exactly that -- a variance, in its own units, with no correction
+ * factor riding on it.
+ *
+ * That is the resolution of a real earlier confusion, worth keeping
+ * because the empirical evidence for it is still valid and still cited
+ * above. Under the old erfcinv-direct form the measured variance alone
+ * (scale=1.343, no factor of 2) overshot the pfa target by ~13x
+ * (empirical 1.31e-2 against a nominal 1e-3) when tried against
+ * native/validation/symsync_lock.c -- undersized avgs, not enough
+ * averaging to suppress noise variance at that threshold -- while
+ * 2*1.343 landed on target. The conclusion drawn at the time was that
+ * the 2 was a mysterious derivation-specific factor that had to be kept
+ * textually separate from the variance so the two could not be
+ * collapsed into one opaque number.
+ *
+ * The measurement was right and the diagnosis was wrong: the missing 2
+ * was the erfcinv-vs-Q^-1 convention, nothing more. In Q^-1 form the
+ * bare measured variance is correct and the factor is simply absent, so
+ * there is no longer a units mismatch to guard against -- which is why
+ * this constant is now passed straight through. */
 #define SYMSYNC_LOCK_STAT_VARIANCE 1.343
 #define SYMSYNC_LOCK_DEFAULT_ROLLOFF 0.35
 #define SYMSYNC_LOCK_DEFAULT_ESNO_MIN_DB 10.0
@@ -113,31 +127,6 @@
 #define SYMSYNC_LOCK_DEFAULT_PD 0.9
 #define SYMSYNC_LOCK_DEFAULT_N_UP 1u
 #define SYMSYNC_LOCK_DEFAULT_N_DOWN 8u
-
-/* Inverse complementary error function via a Winitzki (2008) rational
- * initial guess refined to ~machine precision by Newton's method on
- * erfc(x) - y = 0 (erfc() is standard C99). No house primitive for this
- * existed (detection_core.h's det_threshold() is a different, Rayleigh
- * -law statistic, not Gaussian) -- kept private to this file pending a
- * second consumer, at which point it belongs in the detection module. */
-static double
-erfcinv_ (double y)
-{
-  double x      = 1.0 - y; /* erfcinv(y) == erfinv(1 - y) */
-  double ln1mx2 = log (1.0 - x * x);
-  double a      = 0.147;
-  double t1     = 2.0 / (M_PI * a) + ln1mx2 / 2.0;
-  double inner  = t1 * t1 - ln1mx2 / a;
-  double r      = sqrt (fmax (inner, 0.0)) - t1;
-  double guess  = copysign (sqrt (fmax (r, 0.0)), x);
-  for (int i = 0; i < 4; i++)
-    {
-      double fx  = erfc (guess) - y;
-      double dfx = -2.0 / sqrt (M_PI) * exp (-guess * guess);
-      guess -= fx / dfx;
-    }
-  return guess;
-}
 
 /* Nominal NCO increment: the accumulator advances by 1/sps of full scale per
  * input sample, wrapping once per symbol.  The on-time strobe is the wrap and
@@ -427,21 +416,21 @@ symsync_configure_lock (symsync_state_t *state, double rolloff,
     return DP_ERR_INVALID;
   double mean = (0.6 * rolloff + 0.26)
                 * (1.0 - exp (-0.275 * pow (10.0, esno_min_db / 10.0)));
-  /* erfcinv used directly, matching the source formula literally -- no
-   * sqrt(2) Q-function conversion applied (see this file's top-of-block
-   * comment: implemented as given, not re-derived). The leading 2.0
-   * corrects for that same missing sqrt(2): it is not part of the
-   * variance and must not be folded into SYMSYNC_LOCK_STAT_VARIANCE
-   * (see that constant's comment). */
-  double qi_pfa = erfcinv_ (2.0 * pfa);
-  double qi_pd  = erfcinv_ (2.0 * pd);
-  double denom  = qi_pfa - qi_pd;
-  double avgs_f
-      = 2.0 * SYMSYNC_LOCK_STAT_VARIANCE * (denom / mean) * (denom / mean);
-  size_t avgs = (size_t)ceil (avgs_f);
-  if (avgs < 1)
-    avgs = 1;
-  double threshold = qi_pfa * mean / denom;
+  /* The sizing itself is detection's (det_dwell_gauss / det_threshold_gauss);
+     only `mean` above is symsync's, because only symsync knows what its lock
+     statistic reads on a pulse of this rolloff at this Es/N0.
+     The numbers are unchanged by the move, and provably so: this file used to
+     carry the erfcinv-direct form with a leading 2.0, which is the SAME
+     formula in a different convention -- the sqrt(2) cancels in the threshold
+     and the 2 absorbs it in the dwell. det_q_inv() is Q^-1 =
+     sqrt(2)*erfcinv(2p), so both constants disappear together.
+     test_detection_core.c pins that equivalence, and test_symsync_core.c pins
+     the two derived values here. */
+  int avgs_n = det_dwell_gauss (mean, SYMSYNC_LOCK_STAT_VARIANCE, pd, pfa);
+  if (avgs_n < 1)
+    return DP_ERR_INVALID;
+  size_t avgs      = (size_t)avgs_n;
+  double threshold = det_threshold_gauss (mean, pd, pfa);
   symsync_configure_lock_raw (state, avgs, threshold, threshold,
                               SYMSYNC_LOCK_DEFAULT_N_UP,
                               SYMSYNC_LOCK_DEFAULT_N_DOWN);

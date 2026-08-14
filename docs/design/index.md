@@ -15,6 +15,10 @@ instead.)
     in the library is built on: which of its two algebraic forms is the right
     one and why that was measured, what its boundaries guarantee, and why an
     EMA is not a loop filter
+- [The Loop Filter](loop-filter.md) — the second-order PI every tracking loop
+    in the library embeds by value: where its gains come from, the unit
+    condition its `bn` promise depends on, and what it deliberately does not
+    bound
 - [Quantization](QUANTIZATION.md) — fixed-point pipeline design
 - [CIC Decimator](cic.md) — the fixed-point input budget: DC gain and PAPR headroom
 - [Measurement Suite](measurement-suite.md) — tone, NPR, and IMD metric internals
@@ -27,6 +31,7 @@ instead.)
 - [Automatic Gain Control](agc.md) — the log-domain level loop every receiver
     stands on: why the filter is in dB and the detector is not, why the loop
     must be total under any input, and what level alone cannot tell it
+- [Lock Detection](lock-detect.md) — the sizing chain every lock detector shares, and the independence it assumes
 - [Timing Lock Detector](timing_lock_detector.md) — SymbolSync's Gardner/DTTL lock statistic and sizing formula
 - [Symbol Timing on a Rate Cascade](ratesync-timing.md) — RateSync: why the matched filter and the interpolator are one dot product, why `ctrl` is referenced to the terminal stage's rate, and why the T/2 parity resolves itself
 - [MPSK Receiver](mpsk.md) — streaming M-PSK receiver architecture and carrier-recovery design

@@ -60,7 +60,7 @@ _Second-order proportional-integral loop filter — the shared engine of every t
 | Type | Name |
 | ---: | :--- |
 |  void | [**loop\_filter\_configure**](#function-loop_filter_configure) ([**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Retune the loop gains_ `kp` _/_`ki` _for a new (bn, zeta, t) without disturbing the integrator._ |
-|  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* | [**loop\_filter\_create**](#function-loop_filter_create) (double bn, double zeta, double t) <br>_Create a loop\_filter instance._  |
+|  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* | [**loop\_filter\_create**](#function-loop_filter_create) (double bn, double zeta, double t) <br>_Create a loop\_filter instance, validating its arguments._  |
 |  void | [**loop\_filter\_destroy**](#function-loop_filter_destroy) ([**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state) <br>_Destroy a loop\_filter instance and release all memory._  |
 |  void | [**loop\_filter\_get\_state**](#function-loop_filter_get_state) (const [**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state, void \* blob) <br>_Serialize the loop state into_ `blob` _._ |
 |  void | [**loop\_filter\_init**](#function-loop_filter_init) ([**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Initialise a loop filter in place (no allocation)._  |
@@ -109,6 +109,19 @@ _Second-order proportional-integral loop filter — the shared engine of every t
 An error `e` in, a control value out: `control = integ + kp*e`, with the integrator advancing `integ += ki*e`. The integrator therefore holds the running frequency/rate estimate; `kp*e` is the instantaneous (phase) nudge. Gains `kp` / `ki` come from a loop noise bandwidth, damping, and update period via the standard 2nd-order form ([**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init)).
 
 
+#### Keep &lt;tt&gt;bn \* t &lt;= 0.0112&lt;/tt&gt; and the bandwidth is the one you asked for
+
+
+
+`bn` is the noise bandwidth of the CLOSED loop, in cycles per sample, and `t` is the update period in samples — so a loop ticking once per update has a bandwidth of `bn * t` cycles per update, and only that PRODUCT matters. Measured (`native/validation/loop_filter_noise_bw.c`), the delivered bandwidth is always slightly **wide**, never narrow, by a fractional excess with a closed form:  At `zeta` = 0.707 that is `bn*t <= 0.0112` for 1% and `<= 0.0552` for 5%; heavier damping is more forgiving (`0.0450` for 1% at zeta = 2.0). Every configuration shipped in this library sits inside the 1% figure. Being wide rather than narrow is the safe direction — a caller sizing jitter or settling off `bn` is conservative.
+
+
+The promise assumes the REST of the loop has unit gain (`Kd*K0 = 1`): a discriminator whose slope is 4 delivers a loop four times wider than the `bn` it was handed, and nothing here can detect that. See docs/design/loop-filter.md §3.
+
+
+Settling follows from the same number: a step settles to +-5% within about 2.3 loop constants (`2.3/bn` updates) at zeta = 0.707, so the `5/bn` rule used throughout this library is comfortable rather than tight.
+
+
 The state struct is **public** so a tracker can embed it by value (no heap) and drive it with [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init)/loop\_filter\_step() — e.g. a despreader keeps one for the carrier loop and one for the code loop. [**loop\_filter\_create()**](loop__filter__core_8h.md#function-loop_filter_create) is the heap path used by the Python wrapper.
 
 
@@ -122,6 +135,7 @@ double ctl = loop_filter_step(lf, 0.25);   // integ += ki*e; ret integ+kp*e
 loop_filter_destroy(lf);
 ```
  
+
 
 
     
@@ -180,7 +194,7 @@ True
 
 ### function loop\_filter\_create 
 
-_Create a loop\_filter instance._ 
+_Create a loop\_filter instance, validating its arguments._ 
 ```C++
 loop_filter_state_t * loop_filter_create (
     double bn,
@@ -191,20 +205,23 @@ loop_filter_state_t * loop_filter_create (
 
 
 
+This is the untrusted boundary — the Python constructor passes a caller's arbitrary doubles here — so unlike [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init) it **rejects** anything outside the declared domain rather than computing gains from it. `bn = 0` is inside the domain and is accepted: it means a deliberately frozen loop.
+
+
 
 
 **Parameters:**
 
 
-* `bn` Loop noise bandwidth, normalized cycles/sample (default 0.01). 
-* `zeta` Damping factor (default 0.707). 
-* `t` Update period in samples (default 1.0). 
+* `bn` Loop noise bandwidth, normalized cycles/sample; &gt;= 0 and finite (default 0.01). 
+* `zeta` Damping factor; &gt; 0 and finite (default 0.707). 
+* `t` Update period in samples; &gt; 0 and finite (default 1.0). 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL if any argument is outside the domain above or on allocation failure. The Python binding turns the former into a `ValueError`. 
 
 
 
@@ -284,6 +301,9 @@ void loop_filter_init (
 Computes `kp` / `ki` from the loop noise bandwidth `bn` (normalized, cycles/sample), damping `zeta`, and update period `t` (samples), and stores `bn` / `zeta` / `t`. Does **not** touch `integ`, so it doubles as a reconfigure that preserves lock. Use this for a `loop_filter_state_t` embedded by value; [**loop\_filter\_create()**](loop__filter__core_8h.md#function-loop_filter_create) is calloc + [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init).
 
 
+**Arguments are NOT validated here, on purpose.** This is the by-value path taken by the objects that embed a filter, all of which validate upstream; [**loop\_filter\_create()**](loop__filter__core_8h.md#function-loop_filter_create) is the boundary that faces an untrusted caller and it rejects the same domain this documents. Passing `t = 0` here yields `kp = ki = 0` — a loop that never moves — and a non-finite argument yields NaN gains that never recover.
+
+
 
 
 **Parameters:**
@@ -291,7 +311,7 @@ Computes `kp` / `ki` from the loop noise bandwidth `bn` (normalized, cycles/samp
 
 * `state` Must be non-NULL. 
 * `bn` Loop noise bandwidth, normalized cycles/sample (&gt;= 0). 
-* `zeta` Damping factor (typically 0.707). 
+* `zeta` Damping factor (typically 0.707), &gt; 0. 
 * `t` Update period in samples (&gt; 0). 
 
 
@@ -390,7 +410,10 @@ JM_FORCEINLINE  JM_HOT double loop_filter_step (
 
 
 
-The PI recurrence is `integ += ki*x; control = integ + kp*x`: the integrator accumulates the running frequency/rate estimate while the proportional term `kp*x` is the instantaneous phase nudge. Fed a constant error the integrator ramps linearly and the control converges to the steady-state estimate — the behaviour that pulls a Costas/DLL/timing loop into lock.
+The PI recurrence is `integ += ki*x; control = integ + kp*x`: the integrator accumulates the running frequency/rate estimate while the proportional term `kp*x` is the instantaneous phase nudge.
+
+
+Fed a constant error with nothing closing the loop, the integrator — and therefore the control — **ramps without bound**; measured at 1.84x between updates 200 and 400 at `bn = 0.02`. That is the accumulation working, not a defect, and it is what pulls a Costas/DLL/timing loop into lock once the loop IS closed, because a converging loop is one whose error is being driven to zero by the correction. Convergence is a property of the closed loop; this function is one term in it.
 
 
 
@@ -440,7 +463,7 @@ void loop_filter_steps (
 
 
 
-Equivalent to calling [**loop\_filter\_step()**](loop__filter__core_8h.md#function-loop_filter_step) once per element of `x` in order, carrying the integrator across the block, so the loop's memory and lock state persist from one call to the next. This is the vectorized path used to run a captured error sequence through the filter in one shot.
+Equivalent to calling [**loop\_filter\_step()**](loop__filter__core_8h.md#function-loop_filter_step) once per element of `x` in order, carrying the integrator across the block, so the loop's memory and lock state persist from one call to the next. This is the block path used to run a captured error sequence through the filter in one shot — a plain per-element loop, not a vectorized one: the recurrence is sequential, so each update depends on the one before it.
 
 
 
@@ -461,7 +484,7 @@ Equivalent to calling [**loop\_filter\_step()**](loop__filter__core_8h.md#functi
 >>> ctl = lf.steps(np.full(50, 0.1))   # constant error into the loop
 >>> round(float(ctl[0]), 4)            # first control nudge
 0.0133
->>> round(float(ctl[-1]), 4)           # converging toward the estimate
+>>> round(float(ctl[-1]), 4)           # open loop: ramping
 0.0541
 ```
  

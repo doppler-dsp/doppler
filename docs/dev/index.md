@@ -1,7 +1,15 @@
 # Contributing
 
-The pages a contributor actually needs, in reading order:
+**Start with [Adding an Algorithm](adding-algorithms.md)** — it is the
+lifecycle spine, and it says what order the phases go in, who owns the how
+for each, and which gate proves each one. Everything below is a page it
+links to.
 
+This list is a catalogue, not a reading order: it says what each page *is*,
+so you can find the one that owns your question.
+
+- [Adding an Algorithm](adding-algorithms.md) — the lifecycle spine: the
+    order of the phases, who owns each, and the four places evidence lives
 - [Repository Map](repository-map.md) — a whole-repository view, and why an
     algorithm is implemented once, in C
 - [Module Layout](module-layout.md) — where C headers, sources, and tests go

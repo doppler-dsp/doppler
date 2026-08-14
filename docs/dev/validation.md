@@ -114,7 +114,44 @@ Shared machinery lives in `src/doppler/tests/`:
 Anything a **second** object needs moves into the shared home when that
 second caller appears, not in anticipation of one.
 
-### The report's five sections
+### The report's five sections, and the summary that opens it
+
+**Written last, read first: the executive summary.** `results.md` opens
+with an unnumbered `## Executive summary` carrying two things — a
+**status** line and a short list of **key takeaways**. It is emitted by
+`Report.executive(title, takeaways)`, called from `build()` *after*
+`limits()`, and it renders into the report's `head` rather than appending
+to the body, so its position is a property of `render()` and not of who
+called what when.
+
+The split inside it is deliberate:
+
+- **Status is DERIVED** — CERTIFIED when every limit holds, REGRESSED when
+    any does not, plus the finding tally and which are still open. A
+    hand-written status is the first thing to go stale, and this one cannot:
+    it is a function of the same `limits` and `findings` lists the body
+    renders.
+- **Takeaways are AUTHORED**, because "what matters here" is judgement and
+    no counter produces it. Three to six, each something a caller would
+    change a decision over: a number to design to, a failure mode to defend
+    against, a limit of the evidence. Cite the section that measured it
+    (`§2.5`) so a reader can chase any of them down. A list of twelve is the
+    body of the report again.
+
+**Nothing in it may be time-varying.** `make validate-check` re-renders and
+compares bytes, so a generated date, a duration or a hostname makes every
+report permanently stale and sends the reader to a command that changes
+nothing.
+
+It is unnumbered on purpose. Numbering it `1.` would renumber every
+section below it and invalidate the `§2.x` cross-references in seven
+reports, the C tests that cite them and the issues filed against them —
+for no gain, since front matter is what an executive summary is.
+
+`scripts/check_validation_reports.py` enforces presence, position and both
+parts, against the rendered file.
+
+Then the five numbered sections:
 
 1. **The object** — links to `docs/design/<obj>.md` and the header; does
     **not** restate them. If this section starts writing design rationale,
@@ -189,6 +226,13 @@ the moment its folder exists** — there is no registration step to forget.
     calibrated on one step direction, and it was **the example** — which
     cold-starts into a weak signal, the other direction — that failed its
     own assert and forced the rule 4x tighter before it shipped.
+
+- [ ] **Write the executive summary last** — `R.executive(...)` after
+    `limits()`, with three to six takeaways aimed at a caller who will read
+    nothing else. Do it at the END, when the object is understood: the
+    takeaways are the one part of the report that says which of its
+    findings a reader should act on, and they are unwritable before the
+    measurements exist. Status comes for free.
 
 - [ ] `make validate-check` and the module's pytest, both green
 

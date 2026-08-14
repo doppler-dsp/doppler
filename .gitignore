@@ -67,3 +67,12 @@ build-ubsan/
 # container's Debian 10 tree never collides with the dev's own build/.
 build-glibc228/
 .mkdoxy/
+
+# jm materialises its own create-only assertion harness on every `jm apply`.
+# doppler does not use it: the C tests run on `native/tests/dp_test.h`, and
+# `scripts/check_tests_ssot.py` enforces that every macro and helper is owned
+# by one of the dp_*.h harness headers -- so committing jm_test.h would add a
+# second, unused assertion vocabulary alongside the one that gate protects.
+# Ignored rather than deleted each time, because `jm apply` recreates it and
+# the drift gate is green either way (verified: exit 0 with it absent).
+native/tests/jm_test.h

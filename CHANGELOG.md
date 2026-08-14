@@ -13,7 +13,177 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Fixed
+
+- **`LoopFilter(t=0)` built a silently dead loop and `LoopFilter(t=inf)` one
+    whose every output was NaN forever.**
+    ([gh-740](https://github.com/doppler-dsp/doppler/issues/740)) The
+    constructor accepted a caller's arbitrary doubles and validated none of
+    them, so `t = 0` produced `kp = ki = 0` — a loop indistinguishable from
+    the legitimate frozen `bn = 0` — and `t = inf`, or a NaN in any argument,
+    produced NaN gains that poison every subsequent update permanently. Both
+    were one line away in Python. `loop_filter_create()` now rejects
+    `bn < 0`, `zeta <= 0`, `t <= 0` and any non-finite argument, and the
+    binding raises **`ValueError`** with the component's own message instead
+    of a blanket `MemoryError`.
+
+    Enforcement is at `create()` and **deliberately nowhere else**.
+    `loop_filter_init()` is the by-value path taken by the seven objects that
+    embed a filter, all of which validate upstream — the only
+    runtime-computed `t` in the tree is `mpsk_receiver`'s `1.0/upd`, safe
+    because `m_out >= 2` is checked in its own constructor — so guarding it
+    would be error handling for an impossible scenario. The asymmetry is
+    pinned by `test_loop_filter_core.c` §1 and §10 rather than left to read
+    as an oversight.
+
+    Validating at the boundary also makes the arithmetic **total**: with
+    `bn >= 0` and `zeta > 0` the gain denominator is at least 4, which closes
+    the one genuinely pathological corner — for `zeta >= 1` a sufficiently
+    negative `bn` drove it exactly through zero and both gains to infinity.
+
+- **`check_tests_ssot.py` scanned the working tree rather than the
+    repository, so an ignored file could fail `make lint`.** `jm apply`
+    materialises its own create-only `jm_test.h`, which doppler does not use
+    and which defines the retired `ALMOST_EQ` / `ALMOST_EQ_C` spellings this
+    gate exists to forbid. It is gitignored and never lands, but a plain glob
+    still found it and reported four violations in a file nobody had written
+    and nobody could remove for good. The scan now derives from
+    `git ls-files`, the same fix `validate-c` already uses after a glob there
+    ran a stale binary whose source had been deleted. Verified to still catch
+    a tracked violation, and to scan the same 90 tests and 8 harness headers
+    as before.
+
+- **The TED normaliser was never broken for DTTL; the measurement that said
+    so differentiated the wrong equilibrium.** The RateSync validation
+    report carried F15 — a normalised through-cascade S-curve slope of ~1.0
+    for Gardner but 1.23 rising to 10.75 for DTTL across roll-off, tracked
+    as [gh-669](https://github.com/doppler-dsp/doppler/issues/669) with the
+    cause explicitly open. Both harnesses took that slope about a fixed
+    offset of zero, which through the cascade is the **unstable T/2
+    equilibrium** rather than the eye centre. Measured at the stable zero,
+    DTTL reads 0.9998–1.0013 at every roll-off from beta 0.1 to 0.9, so `bn`
+    names one loop bandwidth on either detector — exactly what
+    `symsync_ted_slope` was always supposed to deliver.
+
+    Two things hid it. Gardner's S-curve is near-sinusoidal, so its two
+    zeros carry the same slope magnitude (1.0036 against 1.0044) and the
+    shipped default detector read correct at either — only DTTL, whose curve
+    is not sinusoidal, could expose the error, and it surfaced as a spurious
+    *roll-off* dependence that sent the investigation after the pulse and
+    the normalising formula instead of the offset. And the stable/unstable
+    labelling came from a hard-coded `slope <= 0` test, which is meaningful
+    only relative to a timing axis: the Python validator offsets the
+    decimation phase and the C harness offsets the transmitter, so their
+    axes run in opposite senses, every slope sign is negated between them,
+    and the two agreed on every measured number while disagreeing about
+    which zero to call stable.
+
+    Both now locate the equilibrium by **eye opening**, which has no sign
+    convention — mean `|symbol|` is 1.000 at the eye centre against
+    0.53–0.79 at T/2. `validate_ratesync_scurve` reports both zeros, so the
+    retired figures remain on the page as the unstable column; its DTTL
+    ratchet is replaced by a real gate on both detectors, sabotage-verified
+    by pointing the search back at the wrong equilibrium. The claim in
+    `symsync_ted_slope`'s own doxygen that the shipped normalisation "varies
+    10.6x between beta 0.1 and 0.9" came from the same measurement and is
+    **withdrawn**.
+
 ### Added
+
+- **`LoopFilter` is certified, and `bn` is now measured rather than
+    asserted.** The second-order PI filter is embedded by value in seven
+    objects — costas, carrier_mpsk, carrier_nda, dll, symsync, ratesync,
+    burst_despreader — and every one of them sizes its settling and its
+    jitter off the promise that `bn` is the loop's noise bandwidth. Nothing
+    in the repository had ever closed the loop and asked what bandwidth came
+    out. It does now, two independent ways that share no arithmetic: Parseval
+    on the impulse response of the real loop (`Bn = 0.5·Σh[n]²`, exact, no
+    RNG and no fitting) and a numerical integral of the derived `|H(f)|²`.
+    They agree to six figures across 108 cells.
+
+    The promise holds, with a correction that is a **law** rather than a
+    scatter. The delivered bandwidth is always slightly *wide* — never
+    narrow, so a caller sizing noise off `bn` is conservative — by a
+    fractional excess that collapses onto the single group `bn·t`, with the
+    update period dropping out entirely, and whose coefficient has a closed
+    form: `Bn/(bn·t) − 1 ≈ 16·zeta²/(4·zeta²+1)²·(bn·t)`. That is not
+    fitted; it reproduces the measured coefficient to five decimals at every
+    damping. **Solved for the budget a caller wants: keep `bn·t ≤ 0.0112` at
+    zeta 0.707 and the bandwidth is within 1%** — every configuration
+    shipped in this library already sits inside it. The rule is now in the
+    header, in `docs/design/loop-filter.md`, and in
+    `src/doppler/examples/loop_filter_bandwidth_demo.py`.
+
+    Settling follows from the same number and is flat in **loop constants**:
+    2.25–2.30 to ±5% across a 50× range of bandwidth, which is the first
+    direct measurement behind the `5/bn` rule the rest of the campaign sizes
+    its windows with, and says the rule is comfortable rather than tight.
+
+    Evidence: `native/tests/test_loop_filter_core.c` grows from one
+    undifferentiated block to eleven `§` sections, every one sabotage-proven,
+    covering seven claims that previously had no test at all — `steps()` had
+    neither a C caller nor a C test, `destroy(NULL)` was never called,
+    `reset` checked `kp` but never `ki`, and the "`init` does not touch
+    `integ`" contract that all seven embedders depend on (two of them
+    *positively*, seeding it to a known carrier offset) was asserted
+    nowhere. The gain check no longer re-types the implementation's own
+    expression beside it — it asserts Rice's parameterisation, which is
+    algebraically identical and textually independent, so a sign or factor
+    error has to be made the same way twice to survive.
+    `native/validation/loop_filter_noise_bw.c` is the new C sweep and
+    `src/doppler/track/tests/validation/loop_filter/` the report: 25 limits,
+    10 findings.
+
+- **Every validation report now opens with an executive summary** — a
+    derived status line (CERTIFIED / REGRESSED, the limit tally, which
+    findings are still open) and three to six authored key takeaways aimed
+    at a caller who will read nothing else. Written last, because the status
+    counts limits and findings that do not exist until every phase has run,
+    and rendered first: `Report.executive()` accumulates into the report's
+    `head`, so ordering is a property of `render()` rather than of call
+    order. Status is derived so it cannot drift from the body the way a
+    hand-written abstract does; takeaways are authored because "what matters
+    here" is judgement and no counter produces it. Added to all seven
+    reports, specified in `docs/dev/validation.md`, and enforced against the
+    rendered file by `scripts/check_validation_reports.py` — presence,
+    position and both parts, each proven by mutation. The section is
+    deliberately unnumbered: numbering it `1.` would renumber everything
+    below and invalidate the `§2.x` cross-references in seven reports, the C
+    tests citing them and the issues filed against them.
+
+- **CarrierNda is certified under the object-validation campaign**, and the
+    certification produced a number the composing receiver needs: the
+    **seeding rule**. `src/doppler/track/tests/validation/carrier_nda/` holds
+    43 asserted limits and 12 findings, and its §2.5 establishes that
+    `bn/M` is the scale the loop's whole acquisition behaviour collapses onto
+    — nine (M, bn) pairs spanning 4x in each land on one curve of settling
+    time against `u = |Δf|·M/bn`, with M dropping out to the third decimal.
+    Two regimes meet at `u = 1`: inside it settling does not depend on the
+    offset at all (1.76–1.92 loop time constants, since a linear second-order
+    loop settles in a fixed number of them whatever the step size), and
+    outside it the beat-note term takes over at quadratic cost. Inverted:
+
+    ```
+      seed within |Δf| ≤ bn/M  →  settled within 2/bn samples
+    ```
+
+    so a coarse acquisition ahead of this loop needs a frequency bin no wider
+    than `2·bn/M`. Measured worst case `u = 1.42` noiseless and `0.85` at
+    6 dB Es/N0. The rule is carried by `test_carrier_nda_core.c` §16 (three
+    claims — the budget, the offset-independence inside the window, and the
+    far slower regime outside it that stops the first two passing vacuously)
+    and demonstrated end-to-end by the new
+    `src/doppler/examples/carrier_nda_seeding_demo.py`, which sizes a
+    coarse M-th-power FFT search from the rule and locks in 1.4/bn against
+    234/bn cold. Five findings are filed rather than carried in prose:
+    gh-732 (the contract needs the seeding number, and does not name the
+    arm's absolute pull-in wall), gh-733 (the half-symbol arm's
+    `1/2 + 1/(M+1)` coherent gain does not reproduce), gh-734 (the lock
+    statistic's H0 spread is M-independent per look and not through the
+    arm, which is why the shipped `n_up = 64` — not the threshold — carries
+    the false-alarm budget), gh-735 (`carrier_nda_get_nco_freq` is
+    unreachable from Python and telemetry), gh-736 (the doc-face parity gate
+    compares Examples/Raises only).
 
 - **RateSync is certified under the object-validation campaign.** It owns
     `src/doppler/track/tests/validation/ratesync/`, and `track` gains the

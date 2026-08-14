@@ -52,16 +52,19 @@ _Detection-theory utilities for the amplitude-ratio test statistic._ [More...](#
 | Type | Name |
 | ---: | :--- |
 |  int | [**det\_dwell**](#function-det_dwell) (double snr, double pd\_min, double pfa, int max\_dwell) <br>_Minimum dwell such that Pd &gt;= pd\_min for the given SNR and Pfa._  |
+|  int | [**det\_dwell\_gauss**](#function-det_dwell_gauss) (double mean, double var, double pd, double pfa) <br>_Looks a Gaussian statistic must average to separate H1 from H0._  |
 |  int | [**det\_dwell\_power**](#function-det_dwell_power) (double snr\_power, double pd\_min, double pfa, int max\_dwell) <br>_Minimum dwell such that Pd &gt;= pd\_min for the power detector._  |
 |  double | [**det\_ema\_alpha**](#function-det_ema_alpha) (double snr\_in\_db, double snr\_out\_db) <br>_EMA coefficient for a target estimator SNR (DC level in noise)._  |
 |  int | [**det\_n\_noncoh**](#function-det_n_noncoh) (double snr, int n\_coh, double pd\_min, double pfa, int max\_n\_noncoh) <br>_Minimum non-coherent looks achieving Pd &gt;= pd\_min at fixed n\_coh._  |
 |  double | [**det\_pd**](#function-det_pd) (double snr, int dwell, double threshold) <br>_Detection probability for given per-sample amplitude SNR and dwell._  |
 |  double | [**det\_pd\_noncoherent**](#function-det_pd_noncoherent) (double snr, int n\_coh, int n\_noncoh, double threshold) <br>_Detection probability for n\_noncoh non-coherent looks._  |
 |  double | [**det\_pd\_power**](#function-det_pd_power) (double snr\_power, int dwell, double power\_threshold) <br>_Detection probability for the power detector._  |
+|  double | [**det\_q\_inv**](#function-det_q_inv) (double p) <br>_Upper-tail quantile of the standard normal: the eta with Q(eta) = p._  |
 |  double | [**det\_snr**](#function-det_snr) (int dwell, double pd\_min, double pfa) <br>_Minimum per-sample amplitude SNR achieving Pd &gt;= pd\_min._  |
 |  double | [**det\_snr\_power**](#function-det_snr_power) (int dwell, double pd\_min, double pfa) <br>_Minimum per-sample power SNR achieving Pd &gt;= pd\_min._  |
 |  double | [**det\_threshold**](#function-det_threshold) (double pfa) <br>_Threshold eta for a given false-alarm probability._  |
 |  double | [**det\_threshold\_f**](#function-det_threshold_f) (double pfa, int n) <br>_Upper quantile of F(n, n) — the exact H0 law for a ratio test whose noise reference is estimated from as many samples as the signal sum._  |
+|  double | [**det\_threshold\_gauss**](#function-det_threshold_gauss) (double mean, double pd, double pfa) <br>_Declare threshold for a Gaussian statistic sized by det\_dwell\_gauss._  |
 |  double | [**det\_threshold\_noncoherent**](#function-det_threshold_noncoherent) (double pfa, int n\_noncoh) <br>_CFAR threshold eta\_nc for a non-coherent detector of n\_noncoh looks._  |
 |  double | [**det\_threshold\_power**](#function-det_threshold_power) (double pfa) <br>_Power threshold p from Pfa for the power detector._  |
 |  int | [**det\_verify\_count**](#function-det_verify_count) (double p\_look, double p\_target) <br>_Verify count: consecutive looks needed to compound to a budget._  |
@@ -170,6 +173,65 @@ Minimum dwell &gt;= 1, or -1 if not achievable.
 >>> from doppler.detection import det_dwell
 >>> det_dwell(snr=0.5, pd_min=0.9, pfa=1e-6, max_dwell=256)
 84
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function det\_dwell\_gauss 
+
+_Looks a Gaussian statistic must average to separate H1 from H0._ 
+```C++
+int det_dwell_gauss (
+    double mean,
+    double var,
+    double pd,
+    double pfa
+) 
+```
+
+
+
+The classic sizing: with a per-look H0 variance `var` and an H1 mean `mean` (H0 mean zero), block-averaging `n` looks shrinks the H0 spread as `1/n`, and the smallest `n` whose H0 and H1 tails clear both budgets is
+
+
+`n = var * ((Q_inv(pfa) - Q_inv(pd)) / mean)^2`
+
+
+`Q_inv(pd)` is negative for `pd > 0.5`, so the difference is the total separation both tails must fit inside.
+
+
+
+
+**Parameters:**
+
+
+* `mean` H1 mean of one look, &gt; 0 (H0 mean is taken as zero). 
+* `var` H0 variance of one look, &gt; 0. 
+* `pd` Required detection probability, in (0, 1). 
+* `pfa` Allowed false-alarm probability, in (0, 1) and below `pd`. 
+
+
+
+**Returns:**
+
+Looks needed, rounded up and clamped to &gt;= 1; -1 on invalid input.
+
+
+
+```C++
+>>> from doppler.detection import det_dwell_gauss
+>>> det_dwell_gauss(mean=0.4, var=0.5, pd=0.99, pfa=1e-5)
+136
+>>> det_dwell_gauss(mean=0.8, var=0.5, pd=0.99, pfa=1e-5)   # 2x mean
+34
+>>> det_dwell_gauss(mean=0.0, var=0.5, pd=0.99, pfa=1e-5)   # no signal
+-1
 ```
  
 
@@ -493,6 +555,58 @@ Detection probability in &#91;0, 1&#93;.
 
 
 
+### function det\_q\_inv 
+
+_Upper-tail quantile of the standard normal: the eta with Q(eta) = p._ 
+```C++
+double det_q_inv (
+    double p
+) 
+```
+
+
+
+`Q(eta) = 0.5*erfc(eta/sqrt(2))`, so this is `sqrt(2)*erfcinv(2p)`. Everything below is expressed in it, and a caller thresholding its own zero-mean Gaussian statistic wants `det_q_inv(pfa) * sd_H0`.
+
+
+**Signed, and that matters.** Above the median the quantile is negative, which is exactly why [**det\_dwell\_gauss()**](detection__core_8h.md#function-det_dwell_gauss)'s `Q_inv(pfa) - Q_inv(pd)` is a sum of two tails rather than a difference: every caller's `pd` is above 0.5. Clamping it to zero there halves the dwell without failing anything.
+
+
+
+
+**Parameters:**
+
+
+* `p` Tail probability in (0, 1). 
+
+
+
+**Returns:**
+
+Quantile in H0 sigmas  positive below the median, exactly 0 at it, negative above. Fails closed (0.0) for p outside (0, 1).
+
+
+
+```C++
+>>> from doppler.detection import det_q_inv, det_threshold
+>>> round(det_q_inv(p=5e-6), 4)     # the carrier lock metric's 4.42 sigma
+4.4172
+>>> round(det_q_inv(p=0.5), 4)      # the median
+0.0
+>>> round(det_q_inv(p=0.99), 4)     # above it: NEGATIVE, by design
+-2.3263
+>>> round(det_threshold(pfa=5e-6), 4)   # the OTHER law -- not this one
+4.9409
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function det\_snr 
 
 _Minimum per-sample amplitude SNR achieving Pd &gt;= pd\_min._ 
@@ -692,6 +806,61 @@ The F(n, n) upper-pfa quantile; 0 on invalid input.
 
 
 
+### function det\_threshold\_gauss 
+
+_Declare threshold for a Gaussian statistic sized by det\_dwell\_gauss._ 
+```C++
+double det_threshold_gauss (
+    double mean,
+    double pd,
+    double pfa
+) 
+```
+
+
+
+The crossover point that meets both budgets at once, in the statistic's own units:
+
+
+`thresh = Q_inv(pfa) * mean / (Q_inv(pfa) - Q_inv(pd))`
+
+
+Independent of the variance and of the look count  those set how many looks are needed to reach this point, not where it is.
+
+
+
+
+**Parameters:**
+
+
+* `mean` H1 mean of one look, &gt; 0. 
+* `pd` Required detection probability, in (0, 1). 
+* `pfa` Allowed false-alarm probability, in (0, 1) and below `pd`. 
+
+
+
+**Returns:**
+
+Threshold in the statistic's units; 0.0 on invalid input.
+
+
+
+```C++
+>>> from doppler.detection import det_threshold_gauss
+>>> round(det_threshold_gauss(mean=0.4, pd=0.99, pfa=1e-5), 4)
+0.2588
+>>> round(det_threshold_gauss(mean=0.8, pd=0.99, pfa=1e-5), 4)  # scales
+0.5176
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function det\_threshold\_noncoherent 
 
 _CFAR threshold eta\_nc for a non-coherent detector of n\_noncoh looks._ 
@@ -799,7 +968,13 @@ int det_verify_count (
 
 
 
-n consecutive independent looks at per-look probability p compound to p^n, so the smallest n with `p_look^n <= p_target` is `ceil(ln p_target / ln p_look)` (clamped to &gt;= 1). One function serves both sides of a lock detector ([**lockdet\_core.h**](lockdet__core_8h.md)): the declare count from (per-look pfa, false-declare budget) and the drop count from (per-look miss rate 1 - pd, false-drop budget). Degenerate inputs resolve naturally: a target already met by one look returns 1; p\_look &gt;= 1 can never compound below a smaller target and returns INT\_MAX.
+n consecutive independent looks at per-look probability p compound to ~p^n, so the smallest n with `p_look^n <= p_target` is `ceil(ln p_target / ln p_look)` (clamped to &gt;= 1).
+
+
+That `~` is a BUDGET, and deliberately the conservative side of one: a consecutive-run detector's exact declare rate is `p^n (1-p)/(1-p^n)` ([**lockdet\_core.h**](lockdet__core_8h.md)), which is lower, so sizing on p^n over-provisions n rather than under. The gap is ~p  negligible where a detector is really sized, 10% at p = 0.1  so pick n here and predict what a caller will observe with [**det\_verify\_delay()**](detection__core_8h.md#function-det_verify_delay).
+
+
+One function serves both sides of a lock detector ([**lockdet\_core.h**](lockdet__core_8h.md)): the declare count from (per-look pfa, false-declare budget) and the drop count from (per-look miss rate 1 - pd, false-drop budget). Degenerate inputs resolve naturally: a target already met by one look returns 1; p\_look &gt;= 1 can never compound below a smaller target and returns INT\_MAX.
 
 
 

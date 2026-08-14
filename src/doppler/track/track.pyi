@@ -5,16 +5,23 @@ from numpy.typing import NDArray
 
 @final
 class LoopFilter:
-    """LoopFilter component.
+    """Create a loop_filter instance, validating its arguments.
 
     Parameters
     ----------
     bn : float, default 0.01
-        bn constructor parameter.
+        Loop noise bandwidth, normalized cycles/sample; >= 0 and finite
+        (default 0.01).
     zeta : float, default 0.707
-        zeta constructor parameter.
+        Damping factor; > 0 and finite (default 0.707).
     t : float, default 1.0
-        t constructor parameter.
+        Update period in samples; > 0 and finite (default 1.0).
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``bn must be >= 0, zeta
+        > 0 and t > 0, and all three finite``.
 
     Examples
     --------
@@ -37,10 +44,15 @@ class LoopFilter:
 
         The PI recurrence is `integ += ki*x; control = integ + kp*x`: the
         integrator accumulates the running frequency/rate estimate while the
-        proportional term kp*x is the instantaneous phase nudge. Fed a constant
-        error the integrator ramps linearly and the control converges to the
-        steady-state estimate — the behaviour that pulls a Costas/DLL/timing
-        loop into lock.
+        proportional term kp*x is the instantaneous phase nudge.
+
+        Fed a constant error with nothing closing the loop, the integrator —
+        and therefore the control — **ramps without bound**; measured at 1.84x
+        between updates 200 and 400 at `bn = 0.02`. That is the accumulation
+        working, not a defect, and it is what pulls a Costas/DLL/timing loop
+        into lock once the loop IS closed, because a converging loop is one
+        whose error is being driven to zero by the correction. Convergence is a
+        property of the closed loop; this function is one term in it.
 
         Parameters
         ----------
@@ -73,9 +85,10 @@ class LoopFilter:
 
         Equivalent to calling loop_filter_step() once per element of x in
         order, carrying the integrator across the block, so the loop's memory
-        and lock state persist from one call to the next. This is the
-        vectorized path used to run a captured error sequence through the
-        filter in one shot.
+        and lock state persist from one call to the next. This is the block
+        path used to run a captured error sequence through the filter in one
+        shot — a plain per-element loop, not a vectorized one: the recurrence
+        is sequential, so each update depends on the one before it.
 
         Parameters
         ----------
@@ -95,7 +108,7 @@ class LoopFilter:
         >>> ctl = lf.steps(np.full(50, 0.1))   # constant error into the loop
         >>> round(float(ctl[0]), 4)            # first control nudge
         0.0133
-        >>> round(float(ctl[-1]), 4)           # converging toward the estimate
+        >>> round(float(ctl[-1]), 4)           # open loop: ramping
         0.0541
 
         """
@@ -1769,8 +1782,11 @@ class RateSync:
         must be even and at least 2. The oversampled stream is a by-product of
         the same dot products, not an extra cost. Use m >= 4 with
         pulse="iandd": the rectangle is one symbol wide, so at m=2 its matched
-        filter is a 2-tap sum and the eye statistic barely opens (measured
-        lock_stat -0.34 at m=2 against +0.95 at m=4 on the same NRZ stream).
+        filter is a 2-tap sum and the eye statistic barely opens. Measured on
+        an NRZ stream, m=2 does not clear the lock detector's own declare
+        threshold while m=4 clears it comfortably, with tens of dB of EVM
+        between them. The rule rests on that separation, not on a particular
+        pair of lock_stat values -- those move with sps and with the stream.
         The RRC spans many symbols and is unaffected.
     num_phases : int, default 1024
         Matched-filter arms; a power of two. Sets the fractional-timing
@@ -2688,11 +2704,19 @@ class CarrierNda:
         """Re-tune the carrier lock detector: locked flips up after n_up
         consecutive samples with the lock-signal EMA above up_thresh, and drops
         after n_down consecutive samples below down_thresh (level + time
-        hysteresis; see detection.LockDet). Defaults (0.5/0.4, 8 up / 32 down)
-        mirror MpskReceiver's own pre-existing acquisition<->tracking handover,
-        which already steps a lockdet on this exact statistic and is validated
-        by that receiver's BER regression gate. A live lock survives the
-        re-tune; the in-flight verify run restarts.
+        hysteresis; see detection.LockDet). Defaults are 0.5/0.4 with 64 up /
+        32 down. The THRESHOLDS are Pfa-derived: 0.5 is 4.416 sigma on the
+        statistic's H0 spread, a per-look false-alarm rate of 5e-6, and it
+        means that at every M because the limited statistic's H0 variance is
+        1/2 for all of them. The VERIFY COUNT is not derived that way and must
+        not be. Compounding a per-look Pfa over n_up assumes successive looks
+        are independent; this detector steps once per sample and its lock EMA
+        stays correlated for roughly 39 samples, so a shorter count is counting
+        one look several times. Measured against noise-only input, n_up=8 --
+        the value MpskReceiver uses on this same statistic -- false-locked 4
+        trials in 30, while 64 was the smallest count clean over 300. Raise
+        n_up rather than lower it unless you have re-measured. A live lock
+        survives the re-tune; the in-flight verify run restarts.
 
         Full lockdet control, mirroring costas_configure_lock(): a split
         declare/drop threshold pair on the lock-signal EMA (level hysteresis)

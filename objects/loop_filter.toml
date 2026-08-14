@@ -6,6 +6,11 @@ no_state = "true"
 no_step = "false"
 class_name = "LoopFilter"
 serializable = "true"
+# gh-740: create() is the untrusted boundary -- a Python caller's arbitrary
+# doubles arrive here. A NULL from create() means the domain was violated,
+# not that malloc failed, so say so rather than raising MemoryError.
+create_error = "ValueError"
+create_error_message = "bn must be >= 0, zeta > 0 and t > 0, and all three finite"
 
 [[loop_filter.init_params]]
 name = "bn"

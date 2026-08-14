@@ -71,6 +71,52 @@ drive the `doppler.dsss.Acquisition` engine's coherent/non-coherent split.
 
 ______________________________________________________________________
 
+## Gaussian test statistic
+
+The helpers above size the amplitude-ratio detector, whose H0 law is Rayleigh.
+A second family of detectors thresholds a statistic that is **Gaussian** under
+H0 — a lock metric averaged over enough looks for the CLT to hold. Those share
+one sizing chain, used by `SymbolSync`'s timing lock and the carrier lock
+detectors. The rationale, the measured evidence, and the independence
+assumption it rests on are in
+[the design note](../design/lock-detect.md).
+
+Given the statistic's H0 variance and its H1 mean at the operating point,
+`det_dwell_gauss` gives the looks needed and `det_threshold_gauss` the declare
+threshold; both are expressed in `det_q_inv`, the standard-normal upper tail.
+
+!!! warning "`det_threshold` is the wrong law here"
+
+    It inverts the envelope law and returns 4.7985 at `pfa = 1e-5`, where
+    `det_q_inv` returns 4.2649. Only one of those is a sigma count for a
+    zero-mean Gaussian.
+
+```python
+from doppler.detection import (
+    det_dwell_gauss,
+    det_q_inv,
+    det_threshold_gauss,
+)
+
+# A statistic with H0 variance 1/2 and an H1 mean of 0.63 at the design
+# point, wanted at pd = 0.99 with a 1e-5 per-look false-alarm budget.
+assert det_dwell_gauss(mean=0.63, var=0.5, pd=0.99, pfa=1e-5) == 55
+assert round(det_threshold_gauss(mean=0.63, pd=0.99, pfa=1e-5), 4) == 0.4076
+
+# The quantile is SIGNED: negative above the median, which is why the
+# separation below is a sum of two tails rather than a difference.
+assert round(det_q_inv(p=1e-5), 4) == 4.2649
+assert round(det_q_inv(p=0.99), 4) == -2.3263
+```
+
+::: doppler.detection.det_q_inv
+
+::: doppler.detection.det_dwell_gauss
+
+::: doppler.detection.det_threshold_gauss
+
+______________________________________________________________________
+
 ## Estimator smoothing
 
 `det_ema_alpha` sizes a first-order EMA probabilistically: treat the
@@ -106,11 +152,13 @@ A loop that computes a lock statistic still needs a *decision rule*: when is
 the statistic high enough, long enough, to declare lock — and low enough,
 long enough, to drop it? `LockDet` is that rule factored out once: separate
 declare/drop thresholds (level hysteresis) plus consecutive-look verify
-counts (time hysteresis). Consecutive looks compound probabilistically —
-`n` looks at per-look probability `p` reach `p^n` — so the verify counts are
-*derived*, not guessed: `det_verify_count` sizes them from a per-look rate
-and a compound budget, and `det_verify_delay` predicts the declare latency
-they cost. The DLL's code-lock latch and the M-PSK receiver's two-way
+counts (time hysteresis). Consecutive **independent** looks compound
+probabilistically — `n` looks at per-look probability `p` reach `≈ p^n` — so
+the verify counts are *derived*, not guessed: `det_verify_count` sizes them
+from a per-look rate and a compound budget, and `det_verify_delay` predicts
+the declare latency they cost. Both the `≈` and *independent* are load-bearing
+enough to have their own section in
+[the design note](../design/lock-detect.md). The DLL's code-lock latch and the M-PSK receiver's two-way
 acquisition↔tracking handover both run on an embedded C `lockdet`.
 
 ```python
@@ -180,6 +228,6 @@ ______________________________________________________________________
 
 **Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [Measuring an Error Rate, Defensibly](../gallery/ber-awgn.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Detection Theory Curves](../gallery/detection-curves.md), [Monte Carlo vs Marcum Q Theory](../gallery/detection-sim.md), [Lock Detection: Verify Counts + Hysteresis](../gallery/lockdet.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md)
 **Guides** — [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Lock Detection Across `doppler.track`](../guide/lock-detection.md)
-**Design** — [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [The Exponential Moving Average](../design/ema.md), [MPSK Receiver](../design/mpsk.md)
+**Design** — [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [The Exponential Moving Average](../design/ema.md), [MPSK Receiver](../design/mpsk.md), [SymbolSync Timing Lock Detector](../design/timing_lock_detector.md)
 
 <!-- related-pages:end -->

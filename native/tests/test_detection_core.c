@@ -257,5 +257,94 @@ main (void)
     DP_CHECK (det_threshold_f (1e-3, 0) == 0.0);
   }
 
+  /* ── det_q_inv ───────────────────────────────────────────────────── */
+  {
+    /* Inverts the tail it claims to: Q(eta) must come back to p. A stub
+     * returning any constant fails this at every p. */
+    const double ps[] = { 5e-6, 1e-5, 1e-3, 1e-2, 0.1, 0.3 };
+    for (size_t i = 0; i < sizeof (ps) / sizeof (ps[0]); i++)
+      {
+        double eta = det_q_inv (ps[i]);
+        DP_CHECK (eta > 0.0);
+        DP_CHECK (
+            CLOSE (0.5 * erfc (eta * M_SQRT1_2), ps[i], 1e-12 + 1e-9 * ps[i]));
+      }
+
+    /* The anchor the carrier lock metric is stated in: 0.5 / 0.1132 is
+     * 4.42 sigma, a per-look Pfa of 5e-6 (carrier_nda_core.h). */
+    DP_CHECK (CLOSE (det_q_inv (5e-6), 4.4172, 1e-4));
+
+    /* It is NOT det_threshold, and that is why it exists: the envelope
+     * law gives 4.9409 where this gives 4.4172. A check for "about 4-5"
+     * would pass on the wrong function, so pin the GAP. */
+    DP_CHECK (CLOSE (det_threshold (5e-6), 4.9409, 1e-4));
+    DP_CHECK (det_threshold (5e-6) - det_q_inv (5e-6) > 0.5);
+
+    /* Monotone decreasing, and fails closed at or past the median. */
+    DP_CHECK (det_q_inv (1e-6) > det_q_inv (1e-3));
+    DP_CHECK (det_q_inv (0.5) == 0.0);
+    DP_CHECK (det_q_inv (0.0) == 0.0);
+    DP_CHECK (det_q_inv (1.0) == 0.0);
+  }
+
+  /* ── det_dwell_gauss / det_threshold_gauss ───────────────────────── */
+  {
+    /* Definitional: both formulas re-derived from det_q_inv itself, so a
+     * transcription error in either implementation shows up here. */
+    double mean = 0.4, var = 0.5, pd = 0.99, pfa = 1e-5;
+    double qa = det_q_inv (pfa), qd = det_q_inv (pd), sep = qa - qd;
+    DP_CHECK (det_dwell_gauss (mean, var, pd, pfa)
+              == (int)ceil (var * (sep / mean) * (sep / mean)));
+    DP_CHECK (
+        CLOSE (det_threshold_gauss (mean, pd, pfa), qa * mean / sep, 1e-12));
+
+    /* Q_inv(pd) is NEGATIVE above the median, so the separation is a sum
+     * of two tails. Getting that sign wrong halves the dwell, which is
+     * the transcription error worth pinning explicitly. */
+    DP_CHECK (qd < 0.0 && sep > qa);
+
+    /* Equivalence with symsync's shipped erfcinv-direct convention:
+     *   avgs = 2*var*((erfcinv(2*pfa) - erfcinv(2*pd))/mean)^2
+     * The sqrt(2) cancels in the threshold and the leading 2 absorbs it
+     * in the dwell, so the two forms are the SAME formula. This pins
+     * that, so the promotion cannot silently move symsync's numbers. */
+    {
+      double ea = det_q_inv (pfa) * M_SQRT1_2; /* == erfcinv(2*pfa) */
+      double ed = det_q_inv (pd) * M_SQRT1_2;  /* == erfcinv(2*pd)  */
+      double avgs_symsync
+          = 2.0 * var * ((ea - ed) / mean) * ((ea - ed) / mean);
+      double thr_symsync = ea * mean / (ea - ed);
+      DP_CHECK (CLOSE (avgs_symsync, var * (sep / mean) * (sep / mean), 1e-9));
+      DP_CHECK (
+          CLOSE (thr_symsync, det_threshold_gauss (mean, pd, pfa), 1e-12));
+    }
+
+    /* Scaling laws: the threshold is linear in the mean and blind to the
+     * variance; the dwell falls as mean^2 and rises with var. */
+    DP_CHECK (CLOSE (det_threshold_gauss (0.8, pd, pfa),
+                     2.0 * det_threshold_gauss (0.4, pd, pfa), 1e-12));
+    DP_CHECK (det_threshold_gauss (mean, pd, pfa)
+              == det_threshold_gauss (mean, pd, pfa));
+    DP_CHECK (det_dwell_gauss (0.8, var, pd, pfa)
+              < det_dwell_gauss (0.4, var, pd, pfa));
+    DP_CHECK (det_dwell_gauss (mean, 2.0 * var, pd, pfa)
+              > det_dwell_gauss (mean, var, pd, pfa));
+    /* A stricter budget costs looks. */
+    DP_CHECK (det_dwell_gauss (mean, var, 0.999, pfa)
+              > det_dwell_gauss (mean, var, 0.99, pfa));
+    DP_CHECK (det_dwell_gauss (mean, var, pd, 1e-9)
+              > det_dwell_gauss (mean, var, pd, 1e-5));
+
+    /* Fail closed on every invalid input, and never return 0 looks. */
+    DP_CHECK (det_dwell_gauss (0.0, var, pd, pfa) == -1);  /* no signal   */
+    DP_CHECK (det_dwell_gauss (mean, 0.0, pd, pfa) == -1); /* no noise    */
+    DP_CHECK (det_dwell_gauss (mean, var, pfa, pd) == -1); /* pd <= pfa   */
+    DP_CHECK (det_dwell_gauss (mean, var, 1.0, pfa) == -1);
+    DP_CHECK (det_dwell_gauss (mean, var, pd, 0.0) == -1);
+    DP_CHECK (det_dwell_gauss (1e6, var, pd, pfa) >= 1); /* clamps, not 0 */
+    DP_CHECK (det_threshold_gauss (0.0, pd, pfa) == 0.0);
+    DP_CHECK (det_threshold_gauss (mean, pfa, pd) == 0.0);
+  }
+
   DP_TEST_END ("test_detection_core");
 }

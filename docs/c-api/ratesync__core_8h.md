@@ -168,7 +168,10 @@ Where SymbolSync separates the jobs (a matched FIR, then a Farrow interpolator s
 
 
 
-**1. The TED normaliser is `|on|^2 + |mid|^2`, never `|on|^2`.** The on-time energy vanishes exactly when the strobe sits on the symbol transitions — which is precisely the state the loop must recover FROM — so normalising by it alone divides by zero at the worst possible moment. Measured: the error reaches -91, the control drives the terminal stage's effective rate NEGATIVE, its accumulator stops advancing, and the cascade emits nothing ever again (2 symbols where 4000 were expected — a permanent death, not a transient). The two energies are the same signal half a symbol apart, so their sum is bounded away from zero at every timing phase; the lock statistic already needs both. This is why RateSync needs no clamp on the control anywhere: with a normaliser that cannot vanish, there is no runaway to clamp.
+**1. Nothing in the error path can vanish.** The TED error is the raw detector output times `ted_scale` — a CONSTRUCT-TIME reciprocal of the detector's own slope against this pulse ([**symsync\_ted\_slope()**](symsync__core_8h.md#function-symsync_ted_slope)), not a running power estimate. A running normaliser is what the error path used to carry, and getting it wrong killed the loop outright: normalising by the on-time energy `|on|^2` alone divides by zero exactly when the strobe sits on the symbol transitions, which is precisely the state the loop must recover FROM. Measured, the error reached -91, the control drove the terminal stage's effective rate NEGATIVE, its accumulator stopped advancing, and the cascade emitted nothing ever again (2 symbols where 4000 were expected — a permanent death, not a transient). The fix at the time was to normalise by `|on|^2 + |mid|^2`: the same signal half a symbol apart, so the sum is bounded away from zero at every timing phase. That sum survives as the LOCK STATISTIC's normaliser, which is the only place it is still computed; the error path moved to the construct-time constant (RATESYNC\_LOOP\_STATE\_VERSION 2 records the change), which settles the question rather than answering it — a constant cannot vanish.
+
+
+Either way the conclusion holds and is what a caller cares about: RateSync needs no clamp on the control anywhere, and there is none in the source. Measured, `ctrl` stays inside a few hundredths driven from the worst initial offset at the widest recommended `bn`, bounded by the detector's own S-curve, which is bounded by construction (report §2.7).
 
 
 **2. The loop stays open until the cascade is primed.** A cascade's first outputs are its delay lines filling, not signal (the eye statistic swings over its whole +-2 range through them). Steering on them is meaningless and was worth one lost acquisition in sixteen. [**ratesync\_create()**](ratesync__core_8h.md#function-ratesync_create) computes the prime length from the terminal bank's own geometry.
@@ -187,22 +190,13 @@ Gardner needs an on-time strobe and a transition gate half a symbol earlier. Run
 
 
 
-RRC-BPSK, noiseless, eight initial timing offsets each, `bn = 0.01`:
+RRC-BPSK, noiseless, eight initial timing offsets each: every offset acquires, on every cascade the planner builds — HB + Resampler(1,rrc) at `sps = 4`, CIC(8) + Resampler(0.923,rrc) at 17.333, CIC(32) + Resampler(1,rrc) at 64.
 
 
-
-|sps   |planned cascade   |lock   |EVM    |
-|-----|-----|-----|-----|
-|4   |HB + Resampler(1,rrc)   |8/8   |-40.1 dB    |
-|17.333   |CIC(8) + Resampler(0.923,rrc)   |8/8   |-37.4 dB    |
-|64   |CIC(32) + Resampler(1,rrc)   |8/8   |-37.3 dB   |
+**The EVM those runs reach is deliberately not quoted here.** A table of literals in a header is the documentation form of a snapshot nothing re-runs, and this one had drifted 3 to 4 dB optimistic by the time anything re-measured it. The live figures are regenerated on every push into `src/doppler/track/tests/validation/ratesync/results.md` — §2.4 for acquisition against the settling budget, §2.5 for the `bn` sweep — and that report's Limits section is executed by `test_validation_limits.py`.
 
 
-
-
-
-
-`bn` behaves identically across all three (within ~2 dB at every setting), which is the point of referencing the control to the terminal rate: the loop bandwidth means the same thing whatever the planner decided to do in front of it. `bn = 0.005` measured best here (-46 / -40 / -40 dB); lower settings acquire too slowly to have settled within the test length.
+What belongs here is the shape, which is stable. `bn` means the same thing on every planned cascade, and that is the point of referencing the control to the TERMINAL stage's rate rather than the cascade rate: the alternative is measured costing 18 dB. How closely depends on how narrow the loop is — the spread across the three cascades widens monotonically as `bn` narrows, from a few tenths of a dB at `bn = 0.02` to several dB at 0.002, so read it as "within ~1 dB at the recommended settings" rather than as a universal. What that measurement does NOT establish is the mechanism: the cascades differ in front-end group delay and in residual ISI, and which of those a narrow loop stops averaging over is not determined. `bn = 0.005` is the best of the recommended settings and `bn = 0.01` the safe default; lower settings acquire too slowly to have settled inside a fixed record, so a record length that does not scale with `1/bn` measures nothing there.
 
 
 Lifecycle: `create -> (step / steps / reset)* -> destroy`
@@ -406,7 +400,12 @@ Builds a `RateConverter(rate = m/sps, pulse, ..., pulse_sps = m)` with CIC droop
 Present **unit-amplitude symbols**. This object carries no AGC, and that is deliberate: a receiver composing it already levels in its own front-end cascade ([**RateConverter\_enable\_agc()**](RateConverter__core_8h.md#function-rateconverter_enable_agc), one per receiver), so an AGC here would be a second one integrating against the first. The level to hit is not a tuned number — the TED normalises by its own construct-time slope, and that slope is computed for the reference the bank already defines, `10*log10(bank_e0 / bank_sps)`, which is ~0 dB because the bank normalises by its own pulse energy. See [**RateConverter\_agc\_ref\_db()**](RateConverter__core_8h.md#function-rateconverter_agc_ref_db), which is defined for any matched cascade whether or not an AGC is enabled.
 
 
-Under-driving costs EVM with nothing to reveal it: at `sps = 17.333`, quarter-amplitude input measures -21.6 dB EVM against -37.0 dB at unit amplitude — 15 dB — with `lock_stat` 0.70 either way, because the loop really does lock and only the demodulation degrades. Over-driving is the other end of the same axis and IS reported, by [**ratesync\_get\_clipped()**](ratesync__core_8h.md#function-ratesync_get_clipped): a CIC bounds its input to +-1.0. There is no under-drive twin of that flag — tracked as gh-661.
+**The level axis is two-sided and it is not monotone**, so "as long as
+it is not clipping" is not a level check. Both ends cost EVM for one reason: the Gardner error carries an `A^2` factor, so the input level multiplies the loop gain and the level axis IS the `bn` axis — too hot tracks noisily, too cold has not settled. Measured, EVM is flat to within a few tenths of a dB either side of the contracted level and falls off sharply outside that, by well over 15 dB at twice amplitude and again at a quarter of it (report §2.6, regenerated every push).
+
+
+**Nothing here reports either end reliably.** Over-drive is reported only on the subset of plans that happen to contain a CIC: [**ratesync\_get\_clipped()**](ratesync__core_8h.md#function-ratesync_get_clipped) is a CIC quantiser flag, and whether the plan HAS a CIC is the planner's decision, not the caller's — a CIC-free cascade (which is what `sps = 8` plans) reads 0 however hard it is driven. Under-drive has no flag on any plan at all; that gap is tracked as gh-661. And `locked` is not a substitute for either: it answers "is the
+eye open", which even a badly mis-levelled loop eventually manages, so it declares lock while demodulating far worse. Judge the input level by measuring it, not by reading a flag off this object.
 
 
 
@@ -418,7 +417,7 @@ Under-driving costs EVM with nothing to reveal it: at `sps = 17.333`, quarter-am
 * `pulse` RATESYNC\_PULSE\_IANDD (rectangular/NRZ) or \_RRC. 
 * `beta` RRC roll-off in `[0, 1]` (ignored for the rectangle). 
 * `span` One-sided RRC span in symbols (ignored for the rectangle, whose support is always one symbol). 
-* `m` Terminal outputs per symbol: even, `2 <= m <= RATESYNC_MAX_M`. Gardner needs the half-symbol gate, so m must be even and at least 2. The oversampled stream is a by-product, not an extra cost. **Use m &gt;= 4 with RATESYNC\_PULSE\_IANDD**: the rectangle is one symbol wide, so at m = 2 its matched filter is a two-tap sum and the eye barely opens (measured lock\_stat -0.34 at m = 2 against +0.95 at m = 4 on the same NRZ stream). The RRC spans many symbols and is unaffected. 
+* `m` Terminal outputs per symbol: even, `2 <= m <= RATESYNC_MAX_M`. Gardner needs the half-symbol gate, so m must be even and at least 2. The oversampled stream is a by-product, not an extra cost. **Use m &gt;= 4 with RATESYNC\_PULSE\_IANDD**: the rectangle is one symbol wide, so at m = 2 its matched filter is a two-tap sum and the eye barely opens. Measured on an NRZ stream, m = 2 does not clear the lock detector's own declare threshold while m = 4 clears it comfortably, and the EVM between them differs by tens of dB. The rule rests on that SEPARATION, not on any particular pair of `lock_stat` values — those move with `sps` and with the stream, and report §2.7 sweeps them. The RRC spans many symbols and is unaffected. 
 * `num_phases` Matched-filter arms; power of two (1024 is a good default). Sets the fractional-timing resolution to `1/num_phases` of an output period. 
 * `bn` Loop noise bandwidth, normalised to the symbol rate. 
 * `zeta` Damping factor (0.707 = critically damped). 
@@ -1146,7 +1145,10 @@ JM_FORCEINLINE  JM_HOT int ratesync_step_ted (
 
 
 
-The workhorse behind [**ratesync\_step()**](ratesync__core_8h.md#function-ratesync_step)/ratesync\_steps(). Pushes one input through the cascade at the current control deviation. `rate = m/sps <= 1` so the terminal stage emits at most one output per input; every m-th output is an on-time strobe, and the output m/2 back is the transition gate. On a strobe the TED compares the two, the PI loop steers the next control, and the on-time sample is the recovered symbol.
+The workhorse behind [**ratesync\_step()**](ratesync__core_8h.md#function-ratesync_step)/ratesync\_steps(). Pushes one input through the cascade at the current control deviation, which emits **up to two** terminal-stage outputs for that one input: `rate = m/sps <= 1` bounds it at two, and a terminal rate at or near 1.0 — what an integer `sps` plans — reaches that bound whenever the control has pushed the accumulator over. Taking only the first would permanently shift the strobe parity, which is why the output buffer holds several and this function drains all of them.
+
+
+Every m-th output is an on-time strobe and the output m/2 back is the transition gate. On a strobe the TED compares the two, the PI loop steers the next control, and the on-time sample is the recovered symbol. With m &gt;= 2 at most one strobe can fall among a single input's outputs, so returning one symbol per input is still correct.
 
 
 Passing a literal `ted` lets the force-inlined body constant-fold the detector branch away, exactly as [**symsync\_step\_ted()**](symsync__core_8h.md#function-symsync_step_ted) does.

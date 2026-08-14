@@ -131,6 +131,7 @@ ______________________________________________________________________
 
 <!-- related-pages:start -->
 
+**Gallery** — [Lock Detection: Verify Counts + Hysteresis](../gallery/lockdet.md)
 **Design** — [Automatic Gain Control](../design/agc.md), [The Exponential Moving Average](../design/ema.md)
 
 <!-- related-pages:end -->

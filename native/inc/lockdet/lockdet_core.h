@@ -33,6 +33,16 @@
  *    before it and a bare `p in [0.1, 0.5]` parses as a link reference and
  *    fails the --strict docs build.)
  *
+ *  - **Non-finite looks**: a NaN look is a **miss in both states** — it never
+ *    advances a declare, and while locked it advances the drop run like any
+ *    other miss, so a metric that goes NaN drops the lock after @c n_down
+ *    rather than holding it lit. An unknown lock is not a lock. The policy is
+ *    not implemented here: the look is passed through util_core.h's
+ *    saturate(), whose @c nan_to parameter documents a lock statistic as the
+ *    caller that wants the floor. Only NaN is unordered — the infinities are
+ *    ordinary looks (+inf a hit, -inf a miss), and the exclusive edges are
+ *    unchanged.
+ *
  * The state struct is **public** so a tracker embeds it by value (no heap)
  * and drives it with lockdet_init()/lockdet_step() — e.g. the DLL steps one
  * on its CFAR statistic each N-look decision, the MPSK receiver steps one on

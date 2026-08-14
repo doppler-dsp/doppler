@@ -58,18 +58,19 @@ folder exists. There is no list here to update.
 
 <!-- validation-log:start -->
 
-**8 of 71 objects certified.** The denominator is every `objects/*.toml` jm fragment, which is the whole object surface — not every one of them is a DSP object with an envelope worth certifying, so read it as a ceiling rather than a target.
+**9 of 71 objects certified.** The denominator is every `objects/*.toml` jm fragment, which is the whole object surface — not every one of them is a DSP object with an envelope worth certifying, so read it as a ceiling rather than a target.
 
-| object                                                                                                                   | module     | limits | findings | still open                 |
-| ------------------------------------------------------------------------------------------------------------------------ | ---------- | ------ | -------- | -------------------------- |
-| [AGC](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/agc/tests/validation/agc/results.md)                  | `agc`      | 18/18  | 6        | 2 — F4, F6                 |
-| [resamp](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/resample/tests/validation/resamp/results.md)       | `resample` | 14/14  | 9        | none                       |
-| [LO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/lo/results.md)                 | `source`   | 26/26  | 9        | none                       |
-| [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)               | `source`   | 18/18  | 9        | none                       |
-| [CarrierNda](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/carrier_nda/results.md) | `track`    | 43/43  | 12       | 6 — F4, F5, F6, F7, F8, F9 |
-| [LoopFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/loop_filter/results.md) | `track`    | 26/26  | 10       | none                       |
-| [RateSync](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/ratesync/results.md)      | `track`    | 36/36  | 17       | 2 — F7, F17                |
-| [EMA](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/util/tests/validation/ema/results.md)                 | `util`     | 15/15  | 6        | none                       |
+| object                                                                                                                   | module      | limits | findings | still open                 |
+| ------------------------------------------------------------------------------------------------------------------------ | ----------- | ------ | -------- | -------------------------- |
+| [AGC](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/agc/tests/validation/agc/results.md)                  | `agc`       | 18/18  | 6        | 2 — F4, F6                 |
+| [LockDet](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/lockdet/results.md)    | `detection` | 22/22  | 6        | none                       |
+| [resamp](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/resample/tests/validation/resamp/results.md)       | `resample`  | 14/14  | 9        | none                       |
+| [LO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/lo/results.md)                 | `source`    | 26/26  | 9        | none                       |
+| [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)               | `source`    | 18/18  | 9        | none                       |
+| [CarrierNda](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/carrier_nda/results.md) | `track`     | 43/43  | 12       | 6 — F4, F5, F6, F7, F8, F9 |
+| [LoopFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/loop_filter/results.md) | `track`     | 26/26  | 10       | none                       |
+| [RateSync](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/ratesync/results.md)      | `track`     | 36/36  | 17       | 2 — F7, F17                |
+| [EMA](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/util/tests/validation/ema/results.md)                 | `util`      | 15/15  | 6        | none                       |
 
 <!-- validation-log:end -->
 

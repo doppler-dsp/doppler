@@ -50,6 +50,15 @@ and the two ways it has bitten:
     ~`1e-13` event per window — the lock survives any realistic fade
     wobble, yet a true signal loss (where that probability jumps to
     ~0.95 per look) drops the flag within ~15 looks.
+- **A non-finite look is a miss on both sides** — it never advances a
+    declare, and while locked it advances the drop run like any other
+    miss, so a statistic that goes NaN drops the lock after `n_down`
+    rather than holding it lit. *An unknown lock is not a lock.* Only
+    NaN is unordered: `+inf` is an ordinary hit, `-inf` an ordinary
+    miss, and the exclusive band edges are untouched. The rule is not
+    implemented in the detector — the look passes through `util`'s
+    `saturate()`, whose `nan_to` argument is where "which end is safe"
+    is stated, once, for the whole library.
 
 The whole rule is sized from budgets, end to end:
 
@@ -76,6 +85,13 @@ assert round(det_verify_delay(0.9, n_up), 2) == 3.72
 d = LockDet(up_thresh=eta, down_thresh=0.8 * eta, n_up=n_up, n_down=10)
 assert [d.step(5.0), d.step(5.0), d.step(5.0)] == [0, 0, 1]  # 3rd hit locks
 assert d.step(2.8) == 1  # inside the band: sticky, no drop progress
+
+# A non-finite look is a miss in BOTH states. With n_down = 1 the drop is
+# immediate; against the n_down = 10 above it would take ten straight NaNs,
+# exactly like any other miss.
+nd = LockDet(up_thresh=eta, down_thresh=0.8 * eta, n_up=1, n_down=1)
+assert nd.step(5.0) == 1              # one hit declares
+assert nd.step(float("nan")) == 0     # the metric died -> so does the lock
 ```
 
 `LockDet` is the Python face of the embeddable C leaf

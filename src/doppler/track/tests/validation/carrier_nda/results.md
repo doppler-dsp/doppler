@@ -146,9 +146,31 @@ The capture edge of §2.3, measured across M and arm length at `bn = 0.02`, on a
 
 The arm length moves it too, and the header does not say so. A 1-sample arm reaches 0.04106 at M = 4 and an 8-sample arm only 0.01245 — a factor of 3.3 — while the header assigns `n` a sensitivity cost alone and says *"nothing else in the loop depends on"* the update rate. At the shipped geometry the ceiling is 4.1x tighter than the `1/(2M)` aliasing ceiling, which is why the aliasing bound is never what a caller hits by pulling in — they hit it only by being SEEDED near an alias, as §2.3 does deliberately (**F6**).
 
-### 2.5 What `bn` buys is TIME, not range
+### 2.5 `bn/M` is the loop's own scale — and the seeding number
 
-The header calls the first bound *"loop capture, roughly `k*bn/M`"*. Measured against record length, the range is not a function of `bn` at all — every bandwidth converges on the same ceiling given enough record.
+The header calls the first bound *"loop capture, roughly `k*bn/M`"* — and it is right, in the strongest available sense: `bn/M` is the scale the whole acquisition behaviour collapses onto. Sweeping the initial offset in units of `u = df * M / bn` and reporting the settling time in loop time constants (`T * bn`), both M and `bn` drop out.
+
+| M | bn | u = 0.5 | u = 1 | u = 1.5 | u = 2 | u = 4 | u = 8 | u = 11 |
+|---|---|---|---|---|---|---|---|---|
+| 2 | 0.02 | 1.9 | 1.9 | 2.9 | 4.8 | 24.6 | — | — |
+| 2 | 0.01 | 1.8 | 1.8 | 3.0 | 3.7 | 17.3 | 94.7 | 297.6 |
+| 2 | 0.005 | 1.8 | 1.8 | 2.4 | 3.8 | 17.0 | 71.1 | 145.3 |
+| 4 | 0.02 | 1.9 | 1.9 | 2.9 | 4.8 | 24.6 | — | — |
+| 4 | 0.01 | 1.8 | 1.8 | 3.0 | 3.7 | 17.3 | 94.7 | 297.4 |
+| 4 | 0.005 | 1.8 | 1.8 | 2.4 | 3.8 | 17.0 | 71.1 | 145.3 |
+| 8 | 0.02 | 1.9 | 1.9 | 2.9 | 4.8 | 24.6 | — | — |
+| 8 | 0.01 | 1.8 | 1.8 | 3.0 | 3.7 | 17.3 | 94.7 | 297.6 |
+| 8 | 0.005 | 1.8 | 1.8 | 2.4 | 3.8 | 17.0 | 71.1 | 145.3 |
+
+Nine (M, bn) pairs spanning a factor of four in both, and one curve — M drops out to the third decimal, and `bn` to within a few percent.
+
+**Two regimes, and the boundary is at `u = 1`.** Inside it the settling time does not depend on the offset at all: every cell at `u <= 1` reads between 1.76 and 1.92 loop time constants, which is simply the loop's own step response — a linear second-order loop settles in a fixed number of time constants whatever the size of the step. That is the strongest form of "predictable" available: not merely bounded, but constant, and the same constant at every M and every `bn`.
+
+Outside it the beat-note term takes over and the cost is quadratic: 17 to 25 constants at `u = 4`, and 145 to 298 at `u = 11`. That is the classical type-2 pull-in law, and it is why `bn` is not buying time INSTEAD of range — it sets the scale on which range is measured, so doubling `bn` doubles the offset reachable in the same number of loop constants.
+
+The dashes are where that law meets the OTHER limit. §2.4's ceiling is an absolute frequency — the arm's, not the loop's — so in these normalised units it MOVES with `bn`: at `bn = 0.02` it sits at `u = 6.1` and the `u = 8` and `u = 11` columns are past the wall at any record length, while at `bn = 0.005` the same wall is at `u = 24.5` and the loop's own quadratic is what binds. Two limits in two different units, and which one a caller meets first depends on `bn`.
+
+That the wall is absolute rather than bandwidth-scaled is what the record-length sweep shows directly, at M = 4:
 
 | bn | 100k samples | 400k samples | 1600k samples |
 |---|---|---|---|
@@ -157,19 +179,38 @@ The header calls the first bound *"loop capture, roughly `k*bn/M`"*. Measured ag
 | 0.002 | 0.00679 | 0.01299 | 0.02236 |
 | 0.001 | 0.00244 | 0.00484 | 0.00947 |
 
-Same object, same M = 4, same 2-sample arm; the only variable is how long the loop is given. At `bn = 0.01` the answer is already the ceiling on the shortest record. At `bn = 0.002` it reads 0.00679 on 100k samples and 0.02236 on 1.6M — still climbing toward the same 0.03066.
+Every bandwidth converges on the same 0.03066, given record. A narrow loop reaches it slowly — `bn = 0.002` reads 0.00679 on 100k samples and 0.02236 on 1.6M — but it is the same wall, because an arm window is a filter and does not know what `bn` is.
 
-So what `bn` actually sets is the pull-in TIME, and it sets it steeply. Measured as a fraction of the ceiling, at M = 4:
+**Inverted, that law is the seeding requirement** — the form a composer needs, because this loop is meant to be handed a residual by a coarse acquisition rather than to find one by grinding. For a budget in loop time constants, the largest `u` that meets it:
 
-| bn | 10% of ceiling | 30% of ceiling | 50% of ceiling | 70% of ceiling | 90% of ceiling |
+| M | bn | within 2 / bn | within 5 / bn | within 10 / bn | within 30 / bn | within 100 / bn | u at the wall |
+|---|---|---|---|---|---|---|---|
+| 2 | 0.02 | 1.42 | 2.18 | 2.84 | 4.28 | 5.71 | 6.1 |
+| 2 | 0.01 | 1.45 | 2.25 | 3.11 | 5.02 | 8.16 | 12.3 |
+| 2 | 0.005 | 1.49 | 2.39 | 3.21 | 5.30 | 9.32 | 24.5 |
+| 4 | 0.02 | 1.42 | 2.18 | 2.84 | 4.28 | 5.71 | 6.1 |
+| 4 | 0.01 | 1.45 | 2.25 | 3.11 | 5.02 | 8.16 | 12.3 |
+| 4 | 0.005 | 1.49 | 2.39 | 3.21 | 5.30 | 9.32 | 24.5 |
+| 8 | 0.02 | 1.42 | 2.18 | 2.84 | 4.28 | 5.71 | 6.1 |
+| 8 | 0.01 | 1.45 | 2.25 | 3.11 | 5.02 | 8.16 | 12.3 |
+| 8 | 0.005 | 1.49 | 2.39 | 3.21 | 5.30 | 9.32 | 24.5 |
+
+**Seed within `|df| <= bn/M` and the loop is settled inside two loop time constants — `2/bn` samples — at every M and every `bn` measured.** The measured worst case is 1.42 and the best 1.49, across a factor of four in each, so `u = 1` is the design value with margin rather than a fitted edge. That is the header's `k*bn/M` with `k` measured, and it is the number a coarse acquisition has to hit: its frequency bin must be no wider than `2*bn/M`, so that whichever bin wins leaves the residual inside `+-bn/M`.
+
+Buying more budget buys surprisingly little reach — a 50x longer wait moves the window by about 4x, which is the quadratic law seen from the other side — and past a point it buys nothing at all, because the arm's wall arrives. Marked *(wall)* above.
+
+With noise, at the shipped `bn` and M = 4, worst case over four seeds:
+
+| SNR (dB, over fs) | within 2 / bn | within 5 / bn | within 10 / bn | within 30 / bn | within 100 / bn |
 |---|---|---|---|---|---|
-| 0.02 | 128 | 192 | 640 | 1,536 | 4,032 |
-| 0.01 | 192 | 1,472 | 4,800 | 11,584 | 30,272 |
-| 0.005 | 1,152 | 11,968 | 37,632 | 91,456 | 235,072 |
+| clean | 1.45 | 2.25 | 3.11 | 5.02 | 8.16 |
+| 20 | 1.45 | 2.20 | 3.02 | 4.87 | 7.87 |
+| 10 | 1.18 | 1.67 | 2.29 | 3.89 | 6.45 |
+| 6 | 0.85 | 1.22 | 1.57 | 2.74 | 5.04 |
 
-![pull-in: the ceiling, and the time to reach it](pullin.png)
+![pull-in: the ceiling, and the number to seed within](pullin.png)
 
-Halving `bn` costs roughly an order of magnitude in pull-in time at a fixed fraction of the ceiling — 4,032 samples at `bn = 0.02` against 235,072 at `bn = 0.005`, at 90%. Read `k*bn/M` as the region where pull-in is PROMPT, which is what the header's own wording says, and not as the region where it happens at all (**F6**).
+Noise erodes the window rather than the law: at 6 dB the two-constant window is 0.85 against 1.42 clean, so a seed inside `bn/M` still lands, with less margin. The erosion is the reason to seed rather than to rely on the outer range at all — the slow beat-note grind that a perfect integrator makes possible in principle is exactly the part of acquisition noise disrupts, and its duration is not predictable from the offset alone (**F6**).
 
 ### 2.6 What `n` costs — the arm window's coherent gain
 
@@ -288,7 +329,7 @@ The instantaneous NCO command — `carrier_nda_get_nco_freq`, which the header c
 
 - **F5 · GAP** — `scripts/check_doc_face_parity.py` compares only `SECTIONS = ("Examples", "Raises")`, so a divergence in DESCRIPTION prose between the `.pyi` and the runtime docstring is invisible to it. It reported "0 divergent" for the entire time F3 was live, which is precisely the divergence it exists to catch. To be filed.
 
-- **F6 · GAP** — The acquisition contract names two bounds, and a third one binds before either. The pull-in ceiling is bn-INDEPENDENT — §2.5 shows every bandwidth converging on the same edge given record — and it is set by the ARM WINDOW, which the header says only costs sensitivity: 0.04106 at a 1-sample arm against 0.01245 at an 8-sample one, M = 4. At the shipped geometry it is 0.03066, which is 4.1x tighter than the `1/(2M)` aliasing ceiling — so a caller pulling in never reaches the aliasing bound and `k*bn/M` describes how PROMPT pull-in is rather than how far it reaches. The header's LOUD/SILENT distinction is unaffected and confirmed; what needs restating is which number a caller should tune to.
+- **F6 · GAP** — The acquisition contract's first bound is RIGHT and now has a measured constant; what the contract omits is a third bound in different units. `k*bn/M` is not merely approximate — `bn/M` is the scale the loop's whole acquisition behaviour collapses onto (§2.5: nine (M, bn) pairs spanning 4x in each land on one curve of settling time against `u = |df|*M/bn`), and inverting it gives the number a composer needs: seed within `|df| <= bn/M` and the loop is settled within two loop time constants at every M and `bn` measured, worst case 1.42 clean and 0.85 at 6 dB. So `k = 1` is the design value, and a coarse acquisition ahead of this loop needs a frequency bin no wider than `2*bn/M`. The omission is the ARM's absolute wall: pull-in also stops at a frequency that does not scale with `bn` at all — 0.04106 at a 1-sample arm against 0.01245 at an 8-sample one (M = 4), 0.03066 at the shipped geometry — set by a window the header charges a sensitivity cost alone. It is 4.1x tighter than the `1/(2M)` aliasing ceiling, so the aliasing bound is unreachable by pulling in, and because it is a frequency rather than a multiple of `bn` it binds FIRST at wide `bn`: at `bn = 0.02` it sits at `u = 6.1`, inside the loop's own reach. The LOUD/SILENT distinction is unaffected and confirmed.
 
 - **F7 · GAP** — The header's closed form for the half-symbol arm, `1/2 + 1/(M+1)`, does not reproduce: measured 0.9267 / 0.7416 / 0.5870 against the predicted 0.8333 / 0.7000 / 0.6111, so it is 11% low at BPSK, 6% low at QPSK and 4% high at 8PSK — wrong in both directions, so not a missing constant. The direction of the claim is right and the constant-modulus reference is exactly 1.0 as stated; it is the formula that is not the object's. §2.6's measured table is the answer the header delegates to this report, and the formula should be replaced by a pointer to it.
 
@@ -321,10 +362,13 @@ Claims a caller may rely on. A failure here is a regression, not a new finding �
 | PASS | the ceiling is at least 3x below the `1/(2M)` aliasing ceiling at every geometry, so pulling in can never reach the aliasing bound — a caller reaches it only by being SEEDED near an alias |
 | PASS | the pull-in RANGE is bn-independent: at `bn = 0.01` a 100k budget and a 1.6M budget give the same edge to 0.3% |
 | PASS | and narrowing `bn` never widens it — a longer record only ever recovers range that a narrow loop had not reached yet |
-| PASS | at `bn = 0.02` pull-in time grows monotonically with the offset (128 samples at 10% of the ceiling to 4,032 at 90%) |
-| PASS | at `bn = 0.01` pull-in time grows monotonically with the offset (192 samples at 10% of the ceiling to 30,272 at 90%) |
-| PASS | at `bn = 0.005` pull-in time grows monotonically with the offset (1,152 samples at 10% of the ceiling to 235,072 at 90%) |
-| PASS | and narrowing `bn` costs time steeply at a fixed fraction of the ceiling — 235,072 samples at `bn = 0.005` against 4,032 at 0.02, a factor of 58 for a factor of 4 in bandwidth (F6) |
+| PASS | inside `u = \|df\|*M/bn <= 1` the settling time does not depend on the offset: every (M, bn) pair reads 1.76 to 1.92 loop time constants, which is the loop's own step response — predictable in the strongest sense, CONSTANT rather than merely bounded |
+| PASS | and outside it the beat-note term takes over: settling grows strictly with `u` at every (M, bn) from `u = 2` upward |
+| PASS | superlinearly — doubling `u` from 2 to 4 costs 4.5x to 5.1x, against the 4x of the classical quadratic type-2 pull-in law |
+| PASS | M drops out of the collapse entirely: at a fixed `u` and `bn` the three orders agree to 0.05%, which is what makes `u` a design variable rather than a curve fit |
+| PASS | **the seeding rule**: a residual inside `\|df\| <= bn/M` settles within two loop time constants (`2/bn` samples) at every M and `bn` measured — worst case 1.42, best 1.49, so `u = 1` carries margin |
+| PASS | and it survives noise: at 6 dB the two-constant window is still 0.85 in the same units, so a coarse acquisition placing the residual inside `bn/M` hands over a loop that locks promptly rather than one that grinds |
+| PASS | a longer budget never buys a smaller window, and noise never buys a larger one |
 | PASS | the SILENT failure is reproducible: seeding at zero against a carrier near `1/M` gives 5 stable false locks in the swept band |
 | PASS | and each is wrong by EXACTLY `1/M` = 0.25 cycles/sample, which is what makes the false locks a lattice rather than a drift |
 | PASS | while reading a lock statistic of at least +1.0000 — nothing self-referenced detects it, which is why it takes an external reference, a sync word or a seeded coarse estimate |
@@ -354,5 +398,5 @@ Claims a caller may rely on. A failure here is a regression, not a new finding �
 ## 5. Summary
 
 - **12 findings**, 6 of them gaps or confirmed defects: F4, F5, F6, F7, F8, F9
-- **40/40 limits** hold
-- Raw sweeps: `data/esno.csv`, `data/capture_map.csv`, `data/pullin_edge.csv`, `data/pullin_time.csv`, `data/arm_cost.csv`, `data/lock_h0.csv`, `data/verify_count.csv` — so any number above can be re-derived rather than taken on the report's word.
+- **43/43 limits** hold
+- Raw sweeps: `data/esno.csv`, `data/capture_map.csv`, `data/pullin_edge.csv`, `data/pullin_time.csv`, `data/seeding.csv`, `data/arm_cost.csv`, `data/lock_h0.csv`, `data/verify_count.csv` — so any number above can be re-derived rather than taken on the report's word.

@@ -11,6 +11,17 @@
  *   5. Cold-start pull-in on MODULATED data with NO symbol timing (the
  * headline)
  *   6. Reset reproducibility
+ *      — serialized state: whole-struct snapshot resumes bit-for-bit
+ *   7. bn is n-invariant: settling does not scale with the arm dumps
+ *   8. set_bn reconfigures the loop filter
+ *   9. Amplitude invariance, at any scale and every M (there is no AGC)
+ *      — telemetry: four sample-rate probes, attachment-independent blobs
+ *  14. The lock signal is BOUNDED in +-1, at every M and every input
+ *  15. The derived threshold chain, as arithmetic
+ *  16. The SEEDING RULE: |df| <= bn/M settles within 2/bn samples
+ *
+ * This list was stale at "1-6" while the file carried sixteen sections —
+ * the file's own index is a claim like any other.
  */
 #include "carrier_nda/carrier_nda_core.h"
 #include "dp_rng_test.h"
@@ -36,26 +47,51 @@ run (carrier_nda_state_t *c, const float complex *rx, size_t n, double *f,
   free (o);
 }
 
-/* First sample index where |norm_freq - f0| falls within 10% of f0, probed
- * every 50 samples — a proxy for closed-loop settling time. Returns N if the
- * loop never settles within the run. */
+/* Scan a cold-start run for the sample at which the tracked frequency
+ * settles on f0, probing every `step` samples.
+ *
+ * `last` picks the semantics, and the two are NOT the same number: 0 gives
+ * the FIRST arrival inside the +-tol_frac band, 1 gives the LAST excursion
+ * out of it. They differ exactly when the loop overshoots, which a
+ * zeta = 0.707 type-2 loop does — and a first-arrival measure then reports
+ * the overshoot's outbound crossing as the answer. Section 7 wants the
+ * cheap proxy (it compares a ratio across n); section 16 pins an absolute
+ * budget a caller is told to rely on, so it takes the honest one.
+ *
+ * Returns N when the loop never settles inside the record. */
+static size_t
+track_settle (size_t sps, int n, int m, double bn, double f0,
+              const float complex *rx, size_t N, double tol_frac, size_t step,
+              int last)
+{
+  carrier_nda_state_t *c     = carrier_nda_create (bn, 0.707, 0.0, sps, n, m);
+  float complex       *o     = malloc (step * sizeof (*o));
+  size_t               first = N, out_at = 0;
+  int                  ever_in = 0;
+  for (size_t i = 0; i + step <= N; i += step)
+    {
+      carrier_nda_steps (c, rx + i, step, o, step);
+      int in = fabs (carrier_nda_get_norm_freq (c) - f0) < tol_frac * f0;
+      if (in && first == N)
+        first = i;
+      if (in)
+        ever_in = 1;
+      else
+        out_at = i + step;
+    }
+  carrier_nda_destroy (c);
+  free (o);
+  if (!ever_in)
+    return N; /* never arrived at all */
+  return last ? out_at : first;
+}
+
+/* Section 7's proxy, unchanged: first arrival inside 10%, probed every 50
+ * samples, at the shipped sps and M = 4. */
 static size_t
 settle_idx (int n, double bn, double f0, const float complex *rx, size_t N)
 {
-  carrier_nda_state_t *c = carrier_nda_create (bn, 0.707, 0.0, 8, n, 4);
-  float complex        o[50];
-  size_t               idx = N;
-  for (size_t i = 0; i + 50 <= N; i += 50)
-    {
-      carrier_nda_steps (c, rx + i, 50, o, 50);
-      if (fabs (carrier_nda_get_norm_freq (c) - f0) < 0.1 * f0)
-        {
-          idx = i;
-          break;
-        }
-    }
-  carrier_nda_destroy (c);
-  return idx;
+  return track_settle (8, n, 4, bn, f0, rx, N, 0.1, 50, 0);
 }
 
 int
@@ -612,6 +648,84 @@ main (void)
     const double eta = cd->lockdet.up_thresh / CARRIER_NDA_LOCK_NORM_SD;
     DP_CHECK (fabs (eta - 4.416) < 5e-3);
     carrier_nda_destroy (cd);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 16. The SEEDING RULE — the number a composer sizes its coarse      *
+   *     acquisition to.                                                *
+   *                                                                    *
+   *    This loop is meant to be handed a residual, not to find one by  *
+   *    grinding, so the contract a caller needs is "how close must the  *
+   *    seed be, and how long until it is locked". The validation report *
+   *    (src/doppler/track/tests/validation/carrier_nda, section 2.5)    *
+   *    measured it across three M and three bn:                         *
+   *                                                                    *
+   *      seed within |df| <= bn/M  ->  settled within 2/bn samples      *
+   *                                                                    *
+   *    and found the behaviour splits into two regimes about that       *
+   *    point. Normalising the offset as u = |df|*M/bn and the time as   *
+   *    T*bn, nine (M, bn) pairs collapse onto ONE curve: flat at        *
+   *    1.76-1.92 loop constants for u <= 1, then quadratic.             *
+   *                                                                    *
+   *    Three separate claims, because they fail in different ways:      *
+   *      (a) the BUDGET holds at the window edge, at every M;           *
+   *      (b) inside the window settling does not depend on the offset   *
+   *          at all — a linear 2nd-order loop settles in a fixed number *
+   *          of time constants whatever the step size. This is the      *
+   *          "predictable" the rule is worth having: constant, not      *
+   *          merely bounded;                                            *
+   *      (c) outside it, it is far slower — which is what stops (a)     *
+   *          passing vacuously. An accessor wired to "settled" would    *
+   *          satisfy (a) and (b) and fail (c).                          *
+   *    And across M, since the whole point of the bn/M form is that M   *
+   *    scales out.                                                      *
+   * ---------------------------------------------------------------- */
+  {
+    enum
+    {
+      NS16 = 40000
+    };
+    const int    ms[] = { 2, 4, 8 };
+    const double bn   = 0.01;
+    const size_t bud  = (size_t)(2.5 / bn); /* the 2/bn rule, with margin
+                                               for platform variation --
+                                               measured worst case 1.92 */
+    float complex *rx = malloc (NS16 * sizeof (*rx));
+    size_t         s_in[3], s_edge[3], s_out[3];
+    for (int mi = 0; mi < 3; mi++)
+      {
+        const int m = ms[mi];
+        /* u = 0.25, 1.0 (the window edge) and 4.0 (well outside it). */
+        const double us[3]  = { 0.25, 1.0, 4.0 };
+        size_t      *dst[3] = { &s_in[mi], &s_edge[mi], &s_out[mi] };
+        for (int ui = 0; ui < 3; ui++)
+          {
+            double f0 = us[ui] * bn / (double)m;
+            for (size_t k = 0; k < NS16; k++)
+              rx[k] = (float complex)cexp (I * TWOPI * f0 * (double)k);
+            /* Noiseless, so the tolerance is purely relative: an absolute
+               floor would be a different criterion at each M, because f0
+               scales as 1/M. That error cost the report a wrong result
+               before a limit caught it. */
+            *dst[ui] = track_settle (8, 4, m, bn, f0, rx, NS16, 0.05, 8, 1);
+          }
+        /* (a) the budget, at the window edge. */
+        DP_CHECK (s_edge[mi] <= bud);
+        /* (b) offset-independent inside the window: a quarter of the way
+               in costs the same as the edge, within the probe's own
+               resolution plus a little. */
+        DP_CHECK (s_in[mi] <= bud);
+        DP_CHECK (fabs ((double)s_edge[mi] - (double)s_in[mi])
+                  <= 0.25 * (double)bud);
+        /* (c) and outside it, far slower — the regime boundary is real. */
+        DP_CHECK (s_out[mi] > 4 * s_edge[mi]);
+      }
+    /* M scales out: that is what makes bn/M the form of the rule rather
+       than a per-order table. */
+    for (int mi = 1; mi < 3; mi++)
+      DP_CHECK (fabs ((double)s_edge[mi] - (double)s_edge[0])
+                <= 0.25 * (double)s_edge[0]);
+    free (rx);
   }
 
   DP_TEST_END ("test_carrier_nda_core");

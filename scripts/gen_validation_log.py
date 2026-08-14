@@ -167,18 +167,40 @@ def parse(report: Path) -> dict[str, object]:
 
 
 def render(rows: list[dict[str, object]]) -> list[str]:
-    """The generated block: a coverage line, then one row per object."""
-    total_objects = len(list(OBJECTS.glob("*.toml")))
-    out = [
-        START_MARKER,
-        "",
-        f"**{len(rows)} of {total_objects} objects certified.** The "
-        f"denominator is every `objects/*.toml` jm fragment, which is the "
-        f"whole object surface — not every one of them is a DSP object "
-        f"with an envelope worth certifying, so read it as a ceiling "
-        f"rather than a target.",
-        "",
-    ]
+    """The generated block: a coverage line, then one row per object.
+
+    The coverage line reports two populations rather than one ratio. It
+    used to read "N of 71 objects certified" against a denominator of
+    `objects/*.toml`, which the numerator is not drawn from: a validation
+    folder is named for the C core, and three certified surfaces —
+    `ema`, `mpsk`, `resamp` — have no object manifest at all, being
+    function primitives or cores declared another way. Dividing one
+    population by the other overstated coverage, and at the limit could
+    have printed a numerator larger than its denominator.
+    """
+    manifests = {p.stem for p in OBJECTS.glob("*.toml")}
+    named = sorted(str(r["object"]) for r in rows)
+    with_manifest = [o for o in named if o in manifests]
+    without = [o for o in named if o not in manifests]
+    line = (
+        f"**{len(rows)} objects certified** — {len(with_manifest)} of the "
+        f"{len(manifests)} `objects/*.toml` jm fragments"
+    )
+    if without:
+        line += (
+            f", plus {len(without)} with no object manifest at all "
+            f"({', '.join(f'`{o}`' for o in without)}): a function "
+            f"primitive, or a core declared another way. "
+        )
+    else:
+        line += ". "
+    line += (
+        "Not every fragment is a DSP object with an envelope worth "
+        "certifying, so read the denominator as a ceiling rather than a "
+        "target — and note the two counts are different populations, not "
+        "a percentage."
+    )
+    out = [START_MARKER, "", line, ""]
     header = ["object", "module", "limits", "findings", "still open"]
     out.append("| " + " | ".join(header) + " |")
     out.append("|" + "|".join("---" for _ in header) + "|")

@@ -1986,7 +1986,8 @@ def review(d: Data) -> None:
         "runs twice on every push (`test_validation_limits.py` and "
         "`make validate-check`). The right home is a characterization "
         "subject under `src/doppler/track/tests/characterization/`, run by "
-        "`make characterize`. Recorded here so the report does not read as "
+        "`make characterize` — tracked as gh-751. Recorded here so the "
+        "report does not read as "
         "though the `ted` choice has been characterised end to end when "
         "half the axis the header prices it on has never been exercised.",
     )

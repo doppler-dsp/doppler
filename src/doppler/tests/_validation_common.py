@@ -83,6 +83,29 @@ if TYPE_CHECKING:
 #: Both ends of the scale need saying in words rather than digits.
 EVM_FLOOR_DB = -150.0
 
+#: The review phase's whole vocabulary, and which verdicts count as OPEN.
+#:
+#: One home, because it had three and they disagreed in the direction that
+#: hides work: the five names lived in a docstring, the open pair lived as
+#: a literal tuple inside `open_findings`, and `find()` validated neither.
+#: A verdict is just a string on the way in, so `"Gap"`, `"GAP "` or an
+#: invented `"OPEN"` was accepted and then silently counted as NOT open --
+#: a typo downgrades a real defect to invisible, in the executive summary
+#: and in the validation log's `still open` column at once.
+#:
+#: A verdict is a judgement about a PROBLEM. There is deliberately none
+#: meaning "this works": that is what a limit is for, and a passing result
+#: recorded as a finding inflates the count with something already gated.
+#: `CONFIRMED` is the one that reads backwards -- it means a confirmed
+#: DEFECT, not a confirmed claim. mpsk shipped two positive results under
+#: it for one commit and advertised three open findings against one real
+#: one; see `docs/dev/validation.md`.
+VERDICTS = ("BY DESIGN", "GAP", "CONFIRMED", "FIXED", "C-ONLY")
+
+#: The subset that counts against the object. Derived from nothing else --
+#: every consumer reads it here.
+OPEN_VERDICTS = ("GAP", "CONFIRMED")
+
 
 def clamp_evm_db(evm: float) -> float:
     """Floor an EVM at @ref EVM_FLOOR_DB, where it stops being a number.
@@ -285,7 +308,7 @@ class Report:
     @property
     def open_findings(self) -> list[tuple[str, str, str]]:
         """Findings still counted against the object."""
-        return [f for f in self.findings if f[1] in ("GAP", "CONFIRMED")]
+        return [f for f in self.findings if f[1] in OPEN_VERDICTS]
 
     def failures(self) -> Iterator[str]:
         """Every limit that does not hold, as its claim text."""
@@ -326,6 +349,39 @@ class Report:
         test all enforce it without any of them naming it.
         """
         problems: list[str] = []
+
+        # A verdict outside the vocabulary is not a typo the reader can
+        # see: `open_findings` matches exact strings, so anything else is
+        # counted as CLOSED. It fails in the direction that hides work.
+        for tag, verdict, _ in self.findings:
+            if verdict not in VERDICTS:
+                problems.append(
+                    f"{tag} has verdict {verdict!r}, which is not one of "
+                    f"{', '.join(VERDICTS)} — an unknown verdict is "
+                    f"silently counted as not open"
+                )
+
+        # An open finding is a defect the object still carries, and the
+        # repo's rule is that a carve-out gets FILED rather than explained
+        # in prose. Enforced here because a gap recorded only inside a
+        # report is invisible to everyone not reading that report -- agc's
+        # F6 (59.9 dB applied to a noise floor) sat that way until gh-750.
+        #
+        # It is also what catches a POSITIVE result mislabelled as open:
+        # "the header's figure is confirmed correct" has no issue to cite,
+        # because there is nothing to fix. That is the mpsk mistake, and
+        # this is the check that would have caught it.
+        for tag, verdict, body in self.findings:
+            if verdict in OPEN_VERDICTS and not re.search(
+                r"gh-\d+|#\d+|issues/\d+", body
+            ):
+                problems.append(
+                    f"{tag} is {verdict} — an open finding must cite the "
+                    f"issue tracking it (gh-N or #N). If there is nothing "
+                    f"to file, it is not open: a result that holds is a "
+                    f"limit, not a finding"
+                )
+
         heads = set(re.findall(r"^#{2,3} (\d+(?:\.\d+)?)\s", text, re.M))
 
         for ref in sorted(set(re.findall(r"§(\d+\.\d+)", text))):

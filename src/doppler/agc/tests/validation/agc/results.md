@@ -173,7 +173,7 @@ Findings, with verdicts. Limits are section 4.
 
 - **F5 · C-ONLY** — The detector state p_avg has no Python property, so the loop's input is reachable only through the level_db probe (§2.7). The totality of agc_exp10_/agc_log10_ and saturate's NaN direction are internal and certified in C §15, §16 and §18.
 
-- **F6 · GAP** — The object has no notion of signal PRESENCE, so left on a noise floor it amplifies the noise to the reference and the next burst arrives that many dB hot — measured 59.9 dB on a -60 dB floor. Level alone cannot separate a weak signal from noise, so this needs presence information from outside. Open design, stated with its measurements in docs/design/agc.md section 5.
+- **F6 · GAP** — The object has no notion of signal PRESENCE, so left on a noise floor it amplifies the noise to the reference and the next burst arrives that many dB hot — measured 59.9 dB on a -60 dB floor. Level alone cannot separate a weak signal from noise, so this needs presence information from outside. Open design, stated with its measurements in docs/design/agc.md section 5, and tracked as gh-750.
 
 
 ## 4. Limits

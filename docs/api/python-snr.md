@@ -70,5 +70,6 @@ ______________________________________________________________________
 <!-- related-pages:start -->
 
 **Gallery** — [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md)
+**Design** — [Receiver Test Harness — inventory](../design/rx-test.md)
 
 <!-- related-pages:end -->

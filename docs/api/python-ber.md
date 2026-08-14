@@ -108,5 +108,6 @@ ______________________________________________________________________
 <!-- related-pages:start -->
 
 **Gallery** — [Measuring an Error Rate, Defensibly](../gallery/ber-awgn.md), [Gallery](../gallery/index.md)
+**Design** — [Receiver Test Harness — inventory](../design/rx-test.md)
 
 <!-- related-pages:end -->

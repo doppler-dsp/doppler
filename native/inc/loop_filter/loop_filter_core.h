@@ -81,20 +81,37 @@ extern "C"
    * as a reconfigure that preserves lock. Use this for a `loop_filter_state_t`
    * embedded by value; loop_filter_create() is calloc + loop_filter_init().
    *
+   * **Arguments are NOT validated here, on purpose.** This is the by-value
+   * path taken by the objects that embed a filter, all of which validate
+   * upstream; loop_filter_create() is the boundary that faces an untrusted
+   * caller and it rejects the same domain this documents. Passing `t = 0`
+   * here yields `kp = ki = 0` — a loop that never moves — and a non-finite
+   * argument yields NaN gains that never recover.
+   *
    * @param state  Must be non-NULL.
    * @param bn     Loop noise bandwidth, normalized cycles/sample (>= 0).
-   * @param zeta   Damping factor (typically 0.707).
+   * @param zeta   Damping factor (typically 0.707), > 0.
    * @param t      Update period in samples (> 0).
    */
   void loop_filter_init(loop_filter_state_t *state, double bn, double zeta,
                         double t);
 
   /**
-   * @brief Create a loop_filter instance.
-   * @param bn    Loop noise bandwidth, normalized cycles/sample (default 0.01).
-   * @param zeta  Damping factor (default 0.707).
-   * @param t     Update period in samples (default 1.0).
-   * @return Heap-allocated state, or NULL on allocation failure.
+   * @brief Create a loop_filter instance, validating its arguments.
+   *
+   * This is the untrusted boundary — the Python constructor passes a
+   * caller's arbitrary doubles here — so unlike loop_filter_init() it
+   * **rejects** anything outside the declared domain rather than computing
+   * gains from it. `bn = 0` is inside the domain and is accepted: it means a
+   * deliberately frozen loop.
+   *
+   * @param bn    Loop noise bandwidth, normalized cycles/sample; >= 0 and
+   *              finite (default 0.01).
+   * @param zeta  Damping factor; > 0 and finite (default 0.707).
+   * @param t     Update period in samples; > 0 and finite (default 1.0).
+   * @return Heap-allocated state, or NULL if any argument is outside the
+   *         domain above or on allocation failure. The Python binding turns
+   *         the former into a @c ValueError.
    * @note Caller must call loop_filter_destroy() when done.
    */
   loop_filter_state_t *loop_filter_create(double bn, double zeta, double t);
@@ -234,8 +251,8 @@ extern "C"
    * >>> ctl = lf.steps(np.full(50, 0.1))   # constant error into the loop
    * >>> round(float(ctl[0]), 4)            # first control nudge
    * 0.0133
-   * >>> round(float(ctl[-1]), 4)           # converging toward the estimate
-   * 0.0541
+   * >>> round(float(ctl[-1]), 4)           # still ramping — nothing closes
+   * 0.0541                                 # the loop here
    *
    * @endcode
    */

@@ -15,6 +15,44 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **`LoopFilter(t=0)` built a silently dead loop and `LoopFilter(t=inf)` one
+    whose every output was NaN forever.**
+    ([gh-740](https://github.com/doppler-dsp/doppler/issues/740)) The
+    constructor accepted a caller's arbitrary doubles and validated none of
+    them, so `t = 0` produced `kp = ki = 0` — a loop indistinguishable from
+    the legitimate frozen `bn = 0` — and `t = inf`, or a NaN in any argument,
+    produced NaN gains that poison every subsequent update permanently. Both
+    were one line away in Python. `loop_filter_create()` now rejects
+    `bn < 0`, `zeta <= 0`, `t <= 0` and any non-finite argument, and the
+    binding raises **`ValueError`** with the component's own message instead
+    of a blanket `MemoryError`.
+
+    Enforcement is at `create()` and **deliberately nowhere else**.
+    `loop_filter_init()` is the by-value path taken by the seven objects that
+    embed a filter, all of which validate upstream — the only
+    runtime-computed `t` in the tree is `mpsk_receiver`'s `1.0/upd`, safe
+    because `m_out >= 2` is checked in its own constructor — so guarding it
+    would be error handling for an impossible scenario. The asymmetry is
+    pinned by `test_loop_filter_core.c` §1 and §10 rather than left to read
+    as an oversight.
+
+    Validating at the boundary also makes the arithmetic **total**: with
+    `bn >= 0` and `zeta > 0` the gain denominator is at least 4, which closes
+    the one genuinely pathological corner — for `zeta >= 1` a sufficiently
+    negative `bn` drove it exactly through zero and both gains to infinity.
+
+- **`check_tests_ssot.py` scanned the working tree rather than the
+    repository, so an ignored file could fail `make lint`.** `jm apply`
+    materialises its own create-only `jm_test.h`, which doppler does not use
+    and which defines the retired `ALMOST_EQ` / `ALMOST_EQ_C` spellings this
+    gate exists to forbid. It is gitignored and never lands, but a plain glob
+    still found it and reported four violations in a file nobody had written
+    and nobody could remove for good. The scan now derives from
+    `git ls-files`, the same fix `validate-c` already uses after a glob there
+    ran a stale binary whose source had been deleted. Verified to still catch
+    a tracked violation, and to scan the same 90 tests and 8 harness headers
+    as before.
+
 - **The TED normaliser was never broken for DTTL; the measurement that said
     so differentiated the wrong equilibrium.** The RateSync validation
     report carried F15 — a normalised through-cascade S-curve slope of ~1.0

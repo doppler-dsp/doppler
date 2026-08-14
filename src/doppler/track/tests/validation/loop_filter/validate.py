@@ -99,17 +99,26 @@ def steps_is_a_scalar_loop() -> bool:
     return bool(m) and "loop_filter_step (state, x[i])" in m.group(1)
 
 
-def init_validates_domain() -> bool:
-    """Does `loop_filter_init` reject bn < 0 or t <= 0?
+def create_validates_domain() -> bool:
+    """Does `loop_filter_create` reject the declared domain's violations?
 
-    Derived so that adding the validation retires the finding without
-    anyone remembering to edit this file.
+    Enforcement lives at `create()` and deliberately not at `init()`
+    (gh-740): `create()` is the untrusted boundary — `LoopFilter(...)`
+    hands a Python caller's arbitrary doubles straight to it — while
+    `init()` is the by-value path whose seven embedders all validate
+    upstream.
+
+    Derived from the source so that losing the guard flips this finding
+    back to a GAP by itself, which is the point of deriving it. It reads
+    `create` rather than `init` because that is where the decision put it;
+    a detector left pointing at `init` would report "still unenforced"
+    forever and be quietly wrong.
     """
     body = re.sub(r"/\*.*?\*/", "", _text(CORE_C), flags=re.S)
-    m = re.search(r"loop_filter_init\s*\([^)]*\)\s*\{(.*?)\n\}", body, re.S)
+    m = re.search(r"loop_filter_create\s*\([^)]*\)\s*\{(.*?)\n\}", body, re.S)
     if not m:
         return False
-    return bool(re.search(r"\bif\b|\breturn\b|assert", m.group(1)))
+    return "isfinite" in m.group(1) and "return NULL" in m.group(1)
 
 
 # ── reference gains, written from the textbook not from the source ───
@@ -222,6 +231,7 @@ class Data:
     steps_matches_step: float = 0.0
     alias_max: float = 0.0
     alias_in_place: bool = False
+    rejected: int = 0
 
 
 def _csv(path: Path, header: str, rows: list[list[float]]) -> None:
@@ -510,6 +520,43 @@ def characterise() -> Data:
         "it rather than reaching for a branch."
     )
     R.md()
+    R.md(
+        "Everything **outside** the domain is now rejected at construction "
+        "(gh-740), which is what keeps the paragraph above meaningful: a "
+        "frozen loop is something a caller asked for, and it can no longer "
+        "be confused with `t = 0` arriving by accident."
+    )
+    R.md()
+    bad = [
+        ("bn < 0", {"bn": -1e-9, "zeta": 0.707, "t": 1.0}),
+        ("zeta = 0", {"bn": 0.01, "zeta": 0.0, "t": 1.0}),
+        ("t = 0", {"bn": 0.01, "zeta": 0.707, "t": 0.0}),
+        ("t = -1", {"bn": 0.01, "zeta": 0.707, "t": -1.0}),
+        ("bn = inf", {"bn": float("inf"), "zeta": 0.707, "t": 1.0}),
+        ("t = inf", {"bn": 0.01, "zeta": 0.707, "t": float("inf")}),
+        ("bn = nan", {"bn": float("nan"), "zeta": 0.707, "t": 1.0}),
+        ("zeta = nan", {"bn": 0.01, "zeta": float("nan"), "t": 1.0}),
+    ]
+    rows = []
+    d.rejected = 0
+    for label, kw in bad:
+        try:
+            LoopFilter(**kw)
+            rows.append([label, "ACCEPTED"])
+        except ValueError:
+            d.rejected += 1
+            rows.append([label, "ValueError"])
+        except Exception as exc:
+            rows.append([label, type(exc).__name__])
+    R.table(["argument", "result"], rows)
+    R.md(
+        f"{d.rejected}/{len(bad)} rejected with `ValueError` — the "
+        "component's own message, not the blanket `MemoryError` a NULL "
+        "`create()` used to produce. The two that mattered most are "
+        "`t = inf` and any NaN, which previously built an object whose "
+        "every output was NaN forever."
+    )
+    R.md()
 
     # 2.9 state ---------------------------------------------------------
     R.md("### 2.9 Serialized state (§11)")
@@ -626,23 +673,28 @@ def review(d: Data) -> None:
         "Both halves derived: the header text and the implementation body.",
     )
 
-    validates = init_validates_domain()
+    validates = create_validates_domain()
     R.find(
         "F6",
-        "GAP" if not validates else "FIXED",
-        "**The declared domain is not enforced.** The header states "
-        "`bn >= 0` and `t > 0`; `loop_filter_init` contains no branch, "
-        "clamp or error return, so `t = 0` silently yields `kp = ki = 0` — "
-        "a dead loop indistinguishable from a deliberately frozen one "
-        "(§2.8) — and `bn < 0` yields `kp < 0` with `ki > 0`, a mixed-sign "
-        "loop. Deeper out, `zeta >= 1` with a sufficiently negative `bn` "
-        "drives the gain denominator through zero and the gains to "
-        "infinity. Nothing here is reachable from a caller obeying the "
-        "documented domain; the finding is that nothing tells one who does "
-        "not. Filed as "
-        "[gh-740](https://github.com/doppler-dsp/doppler/issues/740) — the "
-        "verdict here is derived from whether `loop_filter_init` grew a "
-        "branch, so whichever fix lands retires this finding by itself.",
+        "FIXED" if validates else "GAP",
+        "**The declared domain is enforced at the untrusted boundary, and "
+        "deliberately nowhere else** "
+        "([gh-740](https://github.com/doppler-dsp/doppler/issues/740)). It "
+        "used to be enforced nowhere: `t = 0` yielded `kp = ki = 0`, a dead "
+        "loop indistinguishable from the legitimate frozen `bn = 0` (§2.8), "
+        "and `t = inf` or any NaN argument yielded NaN gains, which poison "
+        "every later update permanently. That was reachable from Python in "
+        "one line, because `LoopFilter(...)` passes a caller's arbitrary "
+        "doubles straight through. `loop_filter_create` now rejects "
+        "`bn < 0`, `zeta <= 0`, `t <= 0` and any non-finite argument, and "
+        "the binding raises `ValueError` rather than a blanket "
+        "`MemoryError` (§2.8). Validating there also makes the arithmetic "
+        "**total**: with `bn >= 0` and `zeta > 0` the gain denominator is "
+        "at least 4, so the `zeta >= 1` case that drove it through zero is "
+        "now unreachable. `loop_filter_init` is **left unguarded on "
+        "purpose** — the by-value path's seven embedders validate upstream, "
+        "and guarding an internal guarantee is error handling this project "
+        "does not write; §10 pins that half.",
     )
 
     R.find(
@@ -747,6 +799,11 @@ def limits(d: Data) -> None:
         d.reset_cleared, "reset clears the estimate and preserves the gains"
     )
     R.limit(d.frozen_ok, "bn = 0 freezes the loop: gains zero, estimate held")
+    R.limit(
+        d.rejected == 8,
+        f"every out-of-domain constructor argument raises ValueError "
+        f"({d.rejected}/8), so a NaN-poisoned loop cannot be built",
+    )
     R.limit(d.state_exact, "a mid-stream state split resumes bit-for-bit")
     R.limit(
         d.state_carries_config,
@@ -843,9 +900,12 @@ def build(write: bool = True) -> Report:
             "have.** Open-loop on a constant error the control ramps "
             "without bound; convergence belongs to the closed loop "
             "(§2.6, F4).",
-            "**The declared domain is documented and unenforced** — `t = 0` "
-            "yields a silently dead loop, indistinguishable from the "
-            "deliberately frozen `bn = 0` (F6).",
+            "**The domain is enforced at the constructor and deliberately "
+            "nowhere else.** `LoopFilter(t=0)` used to build a silently dead "
+            "loop and `LoopFilter(t=inf)` one whose every output was NaN "
+            "forever; both now raise `ValueError`. `loop_filter_init` stays "
+            "unguarded on purpose — it is the by-value path and its seven "
+            "embedders validate upstream (§2.8, F6, gh-740).",
             "**A state restore carries configuration, not just memory**, so "
             "restoring into a differently-built instance retunes it "
             "(§2.9, F8).",

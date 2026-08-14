@@ -67,7 +67,7 @@ folder exists. There is no list here to update.
 | [LO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/lo/results.md)                 | `source`   | 26/26  | 9        | none                       |
 | [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)               | `source`   | 18/18  | 9        | none                       |
 | [CarrierNda](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/carrier_nda/results.md) | `track`    | 43/43  | 12       | 6 — F4, F5, F6, F7, F8, F9 |
-| [LoopFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/loop_filter/results.md) | `track`    | 25/25  | 10       | 1 — F6                     |
+| [LoopFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/loop_filter/results.md) | `track`    | 26/26  | 10       | none                       |
 | [RateSync](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/ratesync/results.md)      | `track`    | 36/36  | 17       | 2 — F7, F17                |
 | [EMA](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/util/tests/validation/ema/results.md)                 | `util`     | 15/15  | 6        | none                       |
 

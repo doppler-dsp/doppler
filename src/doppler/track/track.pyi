@@ -108,8 +108,8 @@ class LoopFilter:
         >>> ctl = lf.steps(np.full(50, 0.1))   # constant error into the loop
         >>> round(float(ctl[0]), 4)            # first control nudge
         0.0133
-        >>> round(float(ctl[-1]), 4)           # still ramping — nothing closes
-        0.0541                                 # the loop here
+        >>> round(float(ctl[-1]), 4)           # open loop: ramping
+        0.0541
 
         """
 

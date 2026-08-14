@@ -1169,7 +1169,8 @@ right.
     rather than the library's, with no gate able to notice a disagreement.
     It now delegates, and the equivalence it silently assumed is proven in
     `test_mpsk_core.c` §5b.
-- **`mpsk_core` is in no library** — *open.* 84 component cores are folded
+- **`mpsk_core` is in no library** — *open,
+    [#747](https://github.com/doppler-dsp/doppler/issues/747).* 84 component cores are folded
     into `libdoppler.a`; `mpsk_core` and `util_core` are not, so
     `mpsk_map`/`mpsk_demap` cannot be linked by a C caller of doppler and
     cannot appear in a C doc snippet, which compiles against that archive.

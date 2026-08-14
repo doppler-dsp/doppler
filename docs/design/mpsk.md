@@ -31,6 +31,19 @@ despreader ([design](async-symbol-despreader.md)) — DSSS-MPSK is the pipeline
 
 ______________________________________________________________________
 
+## 0. Flavors
+
+- Continuous streaming
+    - Time measured in minutes to hours
+    - Periods of data modulation off but carrier on
+    - NRZ BPSK primarily (but capable for shaped M-PSK)
+- Burst
+    - Short duration measured in seconds or less
+    - Narrowband
+    - DSSS payload
+    - MPSK
+    - RRC shaped usually
+
 ## 1. Architecture — composition, not machinery
 
 The receiver owns **no filter, no NCO and no interpolator of its own**. It is

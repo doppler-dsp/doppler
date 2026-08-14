@@ -163,12 +163,7 @@ add_executable(validate_mpsk_diff_penalty
                ${CMAKE_CURRENT_SOURCE_DIR}/mpsk_diff_penalty.c)
 target_include_directories(validate_mpsk_diff_penalty
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-# mpsk_core is linked explicitly: it is a function-only module, so no
-# target_sources() line folds it into doppler_lib_static and the array
-# functions are absent from libdoppler.a entirely (gh-747 — the same is
-# true of util_core). doppler_lib_static is still needed for awgn.
-target_link_libraries(validate_mpsk_diff_penalty
-                      PRIVATE doppler_lib_static mpsk_core m)
+target_link_libraries(validate_mpsk_diff_penalty PRIVATE doppler_lib_static m)
 target_compile_options(validate_mpsk_diff_penalty PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_mpsk_diff_penalty
          COMMAND validate_mpsk_diff_penalty --check)

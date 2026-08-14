@@ -848,6 +848,45 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **The `docs-drift` hook ran in no context at all, and its file filter named
+    a path that no longer exists.** Two independent defects, either of which
+    alone made it inert.
+
+    It sat at `stages: [pre-push]`, and **nothing installs a pre-push hook
+    here**: `make setup` runs `pre-commit install`, which creates
+    `.git/hooks/pre-commit` and nothing else, and no
+    `default_install_hook_types` key asks for more. CI does not cover it
+    either — `make lint` is `pre-commit run --all-files`, which runs the
+    default stage. Measured, not inferred: pushing a branch that modified four
+    `.h` files produced no hook output whatsoever.
+
+    The staging had a stated reason — the entry needs `uv run`, and "the CI
+    `pre-commit` job's bare setup-python environment does not have" it. That
+    stopped being true when the job moved to `./.github/actions/setup-uv` with
+    `sync: --group dev`, the same change that made every other hook dispatch
+    into the Makefile. The rationale outlived its fact, and the hook kept the
+    staging that cost it its execution.
+
+    Its `files:` filter was `^(docs/.*\.md|docs/index\.md|jb\.toml)$` — and
+    `jb.toml` became `bootstrap.toml` (jm 0.57.0, gh-936). So it named a path
+    that no longer exists while missing the real input to
+    `gen_install_scripts.py`, and never covered `gen_validation_log.py`'s
+    inputs at all: editing the file a generator reads would not have run that
+    generator's check. The filter is gone rather than corrected — keeping one
+    in step with four generators' input sets is a second source of truth for
+    what they read, and the whole target takes 0.67s.
+
+    Now on the default stage with `always_run: true`, and proven the way this
+    repo requires: it reports Passed on a clean tree, and drifting `README.md`'s
+    synced body makes it fail naming `scripts/gen_readme.py --write`.
+
+    **`clang-tidy` is left dead deliberately** — it is the other `pre-push`
+    hook, and switching it on means 118 pre-existing findings (#723) blocking
+    every push. Tracked in #737, which now records the part that is easy to
+    miss: clearing those 118 does **not** by itself revive the gate, because
+    the install mechanism is the actual defect. Whatever lands last has to give
+    it an execution home too.
+
 - **`changelog-check` asks what THIS BRANCH changed, and it now runs in CI at
     all.** Two independent failures in one gate, and the second was the worse
     one.

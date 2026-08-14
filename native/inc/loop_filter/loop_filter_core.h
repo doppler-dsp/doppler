@@ -9,6 +9,32 @@
  * Gains @c kp / @c ki come from a loop noise bandwidth, damping, and update
  * period via the standard 2nd-order form (loop_filter_init()).
  *
+ * ### Keep `bn * t <= 0.0112` and the bandwidth is the one you asked for
+ *
+ * @c bn is the noise bandwidth of the CLOSED loop, in cycles per sample, and
+ * @c t is the update period in samples — so a loop ticking once per update
+ * has a bandwidth of `bn * t` cycles per update, and only that PRODUCT
+ * matters. Measured (`native/validation/loop_filter_noise_bw.c`), the
+ * delivered bandwidth is always slightly **wide**, never narrow, by a
+ * fractional excess with a closed form:
+ *
+ *     Bn / (bn*t)  -  1  ~=  16*zeta^2 / (4*zeta^2 + 1)^2  *  (bn*t)
+ *
+ * At @c zeta = 0.707 that is `bn*t <= 0.0112` for 1% and `<= 0.0552` for 5%;
+ * heavier damping is more forgiving (`0.0450` for 1% at zeta = 2.0). Every
+ * configuration shipped in this library sits inside the 1% figure. Being
+ * wide rather than narrow is the safe direction — a caller sizing jitter or
+ * settling off @c bn is conservative.
+ *
+ * The promise assumes the REST of the loop has unit gain (`Kd*K0 = 1`): a
+ * discriminator whose slope is 4 delivers a loop four times wider than the
+ * @c bn it was handed, and nothing here can detect that. See
+ * docs/design/loop-filter.md §3.
+ *
+ * Settling follows from the same number: a step settles to +-5% within about
+ * 2.3 loop constants (`2.3/bn` updates) at zeta = 0.707, so the `5/bn` rule
+ * used throughout this library is comfortable rather than tight.
+ *
  * The state struct is **public** so a tracker can embed it by value (no heap)
  * and drive it with loop_filter_init()/loop_filter_step() — e.g. a despreader
  * keeps one for the carrier loop and one for the code loop.
@@ -154,10 +180,15 @@ extern "C"
    *
    * The PI recurrence is `integ += ki*x; control = integ + kp*x`: the
    * integrator accumulates the running frequency/rate estimate while the
-   * proportional term @c kp*x is the instantaneous phase nudge. Fed a constant
-   * error the integrator ramps linearly and the control converges to the
-   * steady-state estimate — the behaviour that pulls a Costas/DLL/timing loop
-   * into lock.
+   * proportional term @c kp*x is the instantaneous phase nudge.
+   *
+   * Fed a constant error with nothing closing the loop, the integrator — and
+   * therefore the control — **ramps without bound**; measured at 1.84x
+   * between updates 200 and 400 at `bn = 0.02`. That is the accumulation
+   * working, not a defect, and it is what pulls a Costas/DLL/timing loop into
+   * lock once the loop IS closed, because a converging loop is one whose
+   * error is being driven to zero by the correction. Convergence is a
+   * property of the closed loop; this function is one term in it.
    *
    * @param state  Must be non-NULL.
    * @param x      Loop error (discriminator output) for this update.
@@ -186,8 +217,10 @@ extern "C"
    *
    * Equivalent to calling loop_filter_step() once per element of @p x in order,
    * carrying the integrator across the block, so the loop's memory and lock
-   * state persist from one call to the next. This is the vectorized path used
-   * to run a captured error sequence through the filter in one shot.
+   * state persist from one call to the next. This is the block path used to
+   * run a captured error sequence through the filter in one shot — a plain
+   * per-element loop, not a vectorized one: the recurrence is sequential, so
+   * each update depends on the one before it.
    *
    * @param state  Component state (mutated across the block).
    * @param x      Loop-error array, one discriminator sample per update.

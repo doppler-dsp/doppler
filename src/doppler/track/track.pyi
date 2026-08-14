@@ -37,10 +37,15 @@ class LoopFilter:
 
         The PI recurrence is `integ += ki*x; control = integ + kp*x`: the
         integrator accumulates the running frequency/rate estimate while the
-        proportional term kp*x is the instantaneous phase nudge. Fed a constant
-        error the integrator ramps linearly and the control converges to the
-        steady-state estimate — the behaviour that pulls a Costas/DLL/timing
-        loop into lock.
+        proportional term kp*x is the instantaneous phase nudge.
+
+        Fed a constant error with nothing closing the loop, the integrator —
+        and therefore the control — **ramps without bound**; measured at 1.84x
+        between updates 200 and 400 at `bn = 0.02`. That is the accumulation
+        working, not a defect, and it is what pulls a Costas/DLL/timing loop
+        into lock once the loop IS closed, because a converging loop is one
+        whose error is being driven to zero by the correction. Convergence is a
+        property of the closed loop; this function is one term in it.
 
         Parameters
         ----------
@@ -73,9 +78,10 @@ class LoopFilter:
 
         Equivalent to calling loop_filter_step() once per element of x in
         order, carrying the integrator across the block, so the loop's memory
-        and lock state persist from one call to the next. This is the
-        vectorized path used to run a captured error sequence through the
-        filter in one shot.
+        and lock state persist from one call to the next. This is the block
+        path used to run a captured error sequence through the filter in one
+        shot — a plain per-element loop, not a vectorized one: the recurrence
+        is sequential, so each update depends on the one before it.
 
         Parameters
         ----------

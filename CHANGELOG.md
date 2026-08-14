@@ -52,6 +52,50 @@ ______________________________________________________________________
 
 ### Added
 
+- **`LoopFilter` is certified, and `bn` is now measured rather than
+    asserted.** The second-order PI filter is embedded by value in seven
+    objects — costas, carrier_mpsk, carrier_nda, dll, symsync, ratesync,
+    burst_despreader — and every one of them sizes its settling and its
+    jitter off the promise that `bn` is the loop's noise bandwidth. Nothing
+    in the repository had ever closed the loop and asked what bandwidth came
+    out. It does now, two independent ways that share no arithmetic: Parseval
+    on the impulse response of the real loop (`Bn = 0.5·Σh[n]²`, exact, no
+    RNG and no fitting) and a numerical integral of the derived `|H(f)|²`.
+    They agree to six figures across 108 cells.
+
+    The promise holds, with a correction that is a **law** rather than a
+    scatter. The delivered bandwidth is always slightly *wide* — never
+    narrow, so a caller sizing noise off `bn` is conservative — by a
+    fractional excess that collapses onto the single group `bn·t`, with the
+    update period dropping out entirely, and whose coefficient has a closed
+    form: `Bn/(bn·t) − 1 ≈ 16·zeta²/(4·zeta²+1)²·(bn·t)`. That is not
+    fitted; it reproduces the measured coefficient to five decimals at every
+    damping. **Solved for the budget a caller wants: keep `bn·t ≤ 0.0112` at
+    zeta 0.707 and the bandwidth is within 1%** — every configuration
+    shipped in this library already sits inside it. The rule is now in the
+    header, in `docs/design/loop-filter.md`, and in
+    `src/doppler/examples/loop_filter_bandwidth_demo.py`.
+
+    Settling follows from the same number and is flat in **loop constants**:
+    2.25–2.30 to ±5% across a 50× range of bandwidth, which is the first
+    direct measurement behind the `5/bn` rule the rest of the campaign sizes
+    its windows with, and says the rule is comfortable rather than tight.
+
+    Evidence: `native/tests/test_loop_filter_core.c` grows from one
+    undifferentiated block to eleven `§` sections, every one sabotage-proven,
+    covering seven claims that previously had no test at all — `steps()` had
+    neither a C caller nor a C test, `destroy(NULL)` was never called,
+    `reset` checked `kp` but never `ki`, and the "`init` does not touch
+    `integ`" contract that all seven embedders depend on (two of them
+    *positively*, seeding it to a known carrier offset) was asserted
+    nowhere. The gain check no longer re-types the implementation's own
+    expression beside it — it asserts Rice's parameterisation, which is
+    algebraically identical and textually independent, so a sign or factor
+    error has to be made the same way twice to survive.
+    `native/validation/loop_filter_noise_bw.c` is the new C sweep and
+    `src/doppler/track/tests/validation/loop_filter/` the report: 25 limits,
+    10 findings.
+
 - **Every validation report now opens with an executive summary** — a
     derived status line (CERTIFIED / REGRESSED, the limit tally, which
     findings are still open) and three to six authored key takeaways aimed

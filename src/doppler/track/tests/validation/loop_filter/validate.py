@@ -639,7 +639,10 @@ def review(d: Data) -> None:
         "drives the gain denominator through zero and the gains to "
         "infinity. Nothing here is reachable from a caller obeying the "
         "documented domain; the finding is that nothing tells one who does "
-        "not.",
+        "not. Filed as "
+        "[gh-740](https://github.com/doppler-dsp/doppler/issues/740) — the "
+        "verdict here is derived from whether `loop_filter_init` grew a "
+        "branch, so whichever fix lands retires this finding by itself.",
     )
 
     R.find(

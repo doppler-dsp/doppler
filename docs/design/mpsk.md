@@ -13,6 +13,11 @@ demodulates pulse-shaped signals by **composing existing `doppler.track` and
 `doppler.resample` primitives**. C-first: every block below is a C core; the
 Python face is the jm-generated thin wrapper.
 
+**§9 is the exception to that scope**, and deliberately so: it specifies the
+`mpsk` constellation primitive — Gray labelling, the hard-decision rule and
+differential mode — which the receiver reuses rather than contains. It lives
+here because it is the same topic, and one topic has one home.
+
 **The first target is a continuous BPSK receiver.** That is what Mode 1 is
 sized for, what the defaults are chosen against, and what the numbers below
 are quoted at when a single case has to be picked.
@@ -1035,7 +1040,149 @@ the declare latency (§4.1), which tells them how long the indicator takes.
 
 ______________________________________________________________________
 
-## 9. Component reuse
+## 9. The constellation — labelling, and the one decision rule
+
+Everything above decides *when* to sample and *at what phase*. This section
+is what happens to the sample once it arrives: the map from a byte to a
+point, the hard decision back, and the labelling convention that makes a
+near-miss cost one bit instead of several.
+
+It is specified here rather than in a page of its own because it is the same
+topic and there is one home per topic — but note the scope: **`mpsk` is not
+part of the receiver, it is the primitive the receiver decides with.** The
+`doppler.mpsk` module functions (`mpsk_map`, `mpsk_demap`, the differential
+pair) and `mpsk_rx_loops`' per-symbol slicer are two faces of it, and §10
+lists it as reused-as-is for exactly that reason.
+
+### 9.1 One rule, inlined — not a table lookup
+
+`mpsk_slice` is the whole decision: one `atan2`, a `lround` to the nearest
+constellation index, and a Gray encode. It is `JM_FORCEINLINE` in the header
+rather than a call, because the receiver runs it once per **symbol** — not
+per sample — and the header is what every C caller compiles against.
+
+The alternative, an O(M) search for the nearest point by correlation, is
+what a reader tends to write first. It is not wrong, it is just more work
+for the same answer: on the unit circle *nearest in phase* and *nearest in
+Euclidean distance* are the same ordering, so the rounding form is exact,
+not an approximation of the search. That equivalence is the external truth
+the C test measures the slicer against, and it is worth stating because a
+second copy of the rule had already appeared in the suite — see §9.5.
+
+### 9.2 Geometry, and why φ0 is not the same for all M
+
+Unit amplitude throughout; index `k` sits at `exp(j(2πk/M + φ0))`:
+
+| M   | φ0  | points        | why that offset                                    |
+| --- | --- | ------------- | -------------------------------------------------- |
+| 2   | 0   | `{+1, −1}`    | real axis — a real-IF receiver's natural alignment |
+| 4   | π/4 | `(±1 ± j)/√2` | **axis-separable**: I and Q each carry one bit     |
+| 8   | 0   | `exp(jkπ/4)`  | a point on the real axis, as BPSK has              |
+
+QPSK's π/4 is the one that earns its exception. With it, the decision
+reduces to the signs of I and Q independently, and the two bits are carried
+on separate axes — which is what makes QPSK two independent BPSK channels
+rather than a 4-ary decision. Without it the constellation would sit on the
+axes and every decision would couple the components.
+
+### 9.3 Gray labelling — the byte IS the label
+
+The byte a caller passes is not a constellation index that gets Gray-coded
+on the way out; **it is already the Gray label**, and `mpsk_constellation`
+decodes it to an index internally. That choice is what lets a caller treat
+the byte as bits: `log2(M)` bits, LSB-first, and a slip to an adjacent point
+flips exactly one of them.
+
+The property that matters is cyclic and holds at the wrap: for every `k`,
+`popcount(gray(k) ^ gray((k+1) mod M)) == 1`. A labelling correct
+everywhere except across the 0/M−1 seam is the classic near-miss, and it
+costs a full extra bit error on exactly the transitions a noisy symbol is
+most likely to make.
+
+At high SNR almost every symbol error is a slip to a neighbour, so this is
+what makes `BER ≈ SER / log2(M)` rather than something worse.
+
+### 9.4 `ahat` is the decision, and the carrier loop's error signal
+
+`mpsk_slice` returns the label *and* writes the unit-amplitude point back
+through `ahat`. The second output is not a convenience: `Im(y · conj(ahat))`
+is the decision-directed carrier phase error, and it is only a valid error
+signal because `ahat` is on the unit circle regardless of `|y|`. A decision
+scaled by the received amplitude would make the loop gain depend on AGC
+state — which is the same failure the NDA arm's self-normalisation avoids in
+§3.2, arrived at from the other direction.
+
+### 9.5 Differential mode — what it buys, and what it costs
+
+Coherent decision needs absolute phase, and an M-PSK carrier loop can only
+resolve phase modulo `2π/M` (§3.5). Differential mode removes that ambiguity
+by carrying the information on phase *differences*: `mpsk_diff_map`
+accumulates `gray_decode(label)` into a running index from an implicit
+zero-phase start, and `mpsk_diff_demap` recovers each label from the
+difference between consecutive sliced indices.
+
+The invariance is stronger than "immune to the M-fold ambiguity". Any
+**constant** phase offset shifts every sliced index by the same amount, so
+it cancels in the difference — not only the M discrete rotations. What it
+does not survive is a phase that *moves* within the sequence, which is why
+this resolves an ambiguity and does not replace a carrier loop.
+
+**The cost is measured, and `~2x` is an asymptote rather than a constant.**
+`native/validation/mpsk_diff_penalty.c` runs both modes over one shared noise
+realisation — paired, so the seed's luck cancels out of the ratio — and
+anchors the coherent path to closed-form theory so that a defect shared by
+both paths cannot divide out to a plausible 2.0. Measured penalty
+(SER_diff / SER_coh):
+
+| Es/N0 | BPSK        | QPSK        | 8PSK  |
+| ----- | ----------- | ----------- | ----- |
+| 4 dB  | 1.96x       | 1.85x       | 1.44x |
+| 8 dB  | 2.00x       | 1.96x       | 1.73x |
+| 12 dB | *(starved)* | 1.99x       | 1.92x |
+| 14 dB | *(starved)* | *(starved)* | 2.03x |
+
+So the header's `~2x` is right where a receiver actually operates, and
+**optimistic in the caller's favour at low SNR** — 8PSK at 4 dB pays 1.44x,
+not 2x. The convergence is slowest for the largest M, which is the sensible
+direction: the penalty comes from referencing each decision against a noisy
+previous symbol instead of a clean phase, and that second noisy reference
+matters least when the decision regions are already wide.
+
+Cells marked *starved* collected too few errors for the run length to
+resolve, and are not evidence — the harness marks them rather than printing
+a number that looks like one.
+
+The first symbol is also not free: it references the implicit zero-phase
+start, so a constant rotation leaves `out[0]` wrong and every later symbol
+right.
+
+### 9.6 The open items
+
+- **The `~2x` differential SER penalty** — *resolved* (§9.5). Measured
+    across M and Es/N0; it is a high-SNR asymptote, not a constant, and is
+    smaller than 2x at low SNR. Gated on one cell by
+    `validate_mpsk_diff_penalty --check`.
+- **A second copy of the decision rule in the test suite** — *resolved.*
+    `native/tests/test_carrier_mpsk_core.c` carried a private
+    `nearest_label()` — an O(M) correlation search — instead of calling
+    `mpsk_slice`, so the carrier-loop test scored against its own slicer
+    rather than the library's, with no gate able to notice a disagreement.
+    It now delegates, and the equivalence it silently assumed is proven in
+    `test_mpsk_core.c` §5b.
+- **`mpsk_core` is in no library** — *open.* 84 component cores are folded
+    into `libdoppler.a`; `mpsk_core` and `util_core` are not, so
+    `mpsk_map`/`mpsk_demap` cannot be linked by a C caller of doppler and
+    cannot appear in a C doc snippet, which compiles against that archive.
+    The Python face is unaffected (the extension links the core directly),
+    which is exactly why it went unnoticed.
+- **`LSB-first` bit packing is a claim of the header's, not of this
+    module's code.** `mpsk` never packs bits; it deals in whole labels. The
+    unpacking lives in the receiver's `bits()` path, and that is where the
+    convention has to be pinned.
+
+______________________________________________________________________
+
+## 10. Component reuse
 
 Everything here is reused, not reimplemented:
 
@@ -1049,7 +1196,7 @@ Everything here is reused, not reimplemented:
 | `loop_filter` PI                                                    | every loop embeds it by value — as-is                 |
 | `lockdet`                                                           | the hysteretic lock indicator (§4)                    |
 | `detection`                                                         | the Pd/Pfa/verify-count chain (§4.1)                  |
-| `mpsk` slicer/demap (`mpsk_slice`, `mpsk_demap`, `mpsk_diff_demap`) | decision + bits + differential — as-is                |
+| `mpsk` slicer/demap (`mpsk_slice`, `mpsk_demap`, `mpsk_diff_demap`) | decision + bits + differential — as-is (§9)           |
 | `mpsk_rx_loops_t`                                                   | **shared verbatim** by both receiver types (§1.2)     |
 | `Dll(segments)`                                                     | optional DSSS front-end — pipeline, not fused         |
 
@@ -1059,7 +1206,7 @@ objects in their own right): `lo` driven directly, `boxcar` as an NDA arm,
 
 ______________________________________________________________________
 
-## 10. The record — resolved and open
+## 11. The record — resolved and open
 
 - **NDA discriminator form** — *resolved.* M-th-power via repeated squaring of
     the unit-magnitude sample (§3.2), with the lock signal left unscaled so it

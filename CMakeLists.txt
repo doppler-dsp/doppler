@@ -486,6 +486,20 @@ target_include_directories(test_util_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_util_core COMMAND test_util_core)
 
+# mpsk is function-only in the same sense: the constellation map/demap pair
+# and the differential variants are module-level TUs, and the decision rule
+# itself (mpsk_slice, mpsk_phi0, the Gray helpers) is inline in the header
+# with no TU at all. jm emits no C test target, so it is registered here.
+# Links mpsk_core for the out-of-line array functions; the slicer assertions
+# compile the header copy, which is what mpsk_receiver and mpsk_rx_loops.h
+# actually decide through.
+add_executable(test_mpsk_core native/tests/test_mpsk_core.c)
+target_link_libraries(test_mpsk_core PRIVATE mpsk_core m)
+target_include_directories(test_mpsk_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_mpsk_core COMMAND test_mpsk_core)
+
 # The EMA primitive's benchmark, registered here for the same reason its
 # test is: util is function-only, so jm generates no bench target for it.
 # It is a COMPARISON against the bodies the migrated call sites used to

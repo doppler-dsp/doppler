@@ -57,24 +57,20 @@ make_signal (float complex *rx, int *labels, size_t nsym, size_t tsamps, int m,
     }
 }
 
-/* Nearest constellation Gray label to a (possibly rotated/scaled) symbol. */
+/* Nearest constellation Gray label to a (possibly rotated/scaled) symbol.
+ *
+ * This was a private O(M) correlation search until the mpsk certification
+ * found it: a SECOND copy of the library's decision rule, which meant this
+ * test scored the carrier loop against its own slicer rather than against
+ * `mpsk_slice` — the one the receiver actually decides with. The two were
+ * free to disagree with no gate noticing. It now delegates, and the
+ * equivalence it used to assume (nearest in phase == nearest by Euclidean
+ * distance on the unit circle) is proven in test_mpsk_core.c §5b instead. */
 static int
 nearest_label (float complex y, int m)
 {
-  float         best = -1e30f;
-  int           bi   = 0;
-  float complex u    = y / (cabsf (y) + 1e-12f);
-  for (int g = 0; g < m; g++)
-    {
-      float complex p = mpsk_constellation (g, m);
-      float d = crealf (u * conjf (p)); /* cos(angle) — max = nearest */
-      if (d > best)
-        {
-          best = d;
-          bi   = g;
-        }
-    }
-  return bi;
+  float complex ahat;
+  return (int)mpsk_slice (y, m, &ahat);
 }
 
 /* Run the loop; report tracked freq, lock, and the ambiguity-tolerant

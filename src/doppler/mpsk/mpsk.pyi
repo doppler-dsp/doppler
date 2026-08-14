@@ -70,8 +70,13 @@ def mpsk_diff_map(sym: NDArray[np.uint8], m: int = 4) -> NDArray[np.complex64]:
     index accumulates `gray_decode(label)` each symbol (starting from an
     implicit zero-phase reference), so an unknown constant carrier phase
     cancels at the receiver (mpsk_diff_demap) — resolving the M-fold
-    ambiguity, at ~2x the symbol-error rate of coherent map(). Sequential
-    over the array.
+    ambiguity. Sequential over the array.
+
+    The cost is up to **2x the symbol-error rate** of coherent map(). That
+    factor is a high-SNR asymptote, not a constant: measured, BPSK and QPSK
+    reach it by ~8 dB Es/N0 while 8PSK pays only 1.44x at 4 dB and 2.03x by
+    14 dB. A caller sizing a link at low Es/N0 is charged less than the
+    round number suggests (native/validation/mpsk_diff_penalty.c).
 
     Parameters
     ----------

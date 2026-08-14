@@ -89,11 +89,13 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
     nda_tap = 1;
   else if (strcmp (nda_tap_str, "lo_arm") == 0)
     nda_tap = 2;
+  else if (strcmp (nda_tap_str, "preterm") == 0)
+    nda_tap = 3;
   else
     {
       PyErr_Format (PyExc_ValueError,
                     "nda_tap must be one of \"strobe\", \"mf_all\", "
-                    "\"lo_arm\", got '%s'",
+                    "\"lo_arm\", \"preterm\", got '%s'",
                     nda_tap_str);
       return -1;
     }

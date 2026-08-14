@@ -411,6 +411,35 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
                                     float complex *lo_out, int *n_lo);
 
   /**
+   * @brief ddc_execute_ctrl_push_tap(), plus the PRE-TERMINAL tap.
+   *
+   * Two taps, at the two points a carrier discriminator can read without
+   * symbol timing, and they are not equivalent:
+   *
+   * | tap       | where                          | cost                     |
+   * | --------- | ------------------------------ | ------------------------ |
+   * | @p lo_out | post-LO, pre-cascade           | full input noise BW      |
+   * | @p pre_out| post-cascade, post-AGC, pre-MF | none of the above        |
+   *
+   * @p pre_out is the better of the two for exactly the reasons
+   * docs/design/mpsk.md §3.3 gives: the cascade's own filters have already
+   * band-limited it and the AGC has already levelled it, so a half-symbol arm
+   * filter bolted onto @p lo_out is a hand-rolled approximation of what this
+   * node gives for free. Its rate is ddc_get_bank_sps() samples per symbol.
+   *
+   * @param pre_out  Receives the pre-terminal sample; may be NULL.
+   * @param n_pre    Receives 1 if @p pre_out was written, else 0; may be NULL.
+   */
+  size_t ddc_execute_ctrl_push_tap2 (ddc_state_t *state, float complex x,
+                                     double rate_ctrl, double freq_ctrl,
+                                     float complex *out, size_t max_out,
+                                     float complex *lo_out, int *n_lo,
+                                     float complex *pre_out, int *n_pre);
+
+  /** @brief Samples per symbol of the pre-terminal tap; a planner outcome. */
+  double ddc_get_bank_sps (const ddc_state_t *state);
+
+  /**
    * @brief Is this object's rectangular matched filter degenerately narrow?
    *
    * True only for the matched flavor built with `pulse = RC_PULSE_IANDD` and

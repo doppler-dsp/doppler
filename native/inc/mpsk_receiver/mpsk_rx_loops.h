@@ -233,7 +233,21 @@ extern "C"
      *  and fully timing-independent, but unmatched: the arm is a short
      *  lowpass, not the pulse filter, so it pays squaring loss. This is the
      *  classic Costas arm-filter placement. */
-    MPSK_RX_NDA_TAP_LO_ARM = 2
+    MPSK_RX_NDA_TAP_LO_ARM = 2,
+    /** Pre-terminal: post-cascade, post-AGC, ahead of the matched filter.
+     *  What `lo_arm` was reaching for, done properly (docs/design/mpsk.md
+     *  §3.3) — band-limited by the cascade's own filters and levelled by the
+     *  AGC that sits on this exact node, so it needs no arm filter of its
+     *  own, yet it is still ahead of the matched filter and therefore needs
+     *  no symbol timing.
+     *
+     *  Its update rate is `bank_sps`, a PLANNER OUTCOME rather than a
+     *  construction constant, so the pull-in ceiling `bank_sps*Rs/(2M)`
+     *  moves with the caller's rate ratio. §3.3 argues for decimating this
+     *  stream to a fixed 2 sps to pin that down; this tap deliberately does
+     *  not, taking the raw stream so the tap costs no serialized state. Read
+     *  mpsk_rx_updates_per_symbol() for what the rate actually came out as. */
+    MPSK_RX_NDA_TAP_PRETERM = 3
   };
 
 /* Free-running arm window for MPSK_RX_NDA_TAP_LO_ARM, as a fraction of a
@@ -280,6 +294,9 @@ extern "C"
     int    m;          /**< constellation order M (2, 4, 8).             */
     double sps;        /**< samples per symbol at the receiver's input.  */
     double lo_sps;     /**< samples per symbol at the LO's own rate.     */
+    double pre_sps;    /**< samples per symbol pre-terminal (`bank_sps`);
+                            PRETERM only. A planner outcome, read from the
+                            cascade rather than configured.              */
     size_t m_out;      /**< terminal outputs per symbol.                 */
     double bn_carrier; /**< carrier loop noise bandwidth (per symbol).   */
     double bn_agc_ratio; /**< AGC bandwidth as a fraction of the slowest
@@ -360,6 +377,8 @@ extern "C"
       return (double)l->m_out;
     if (l->nda_tap == MPSK_RX_NDA_TAP_LO_ARM)
       return l->lo_sps;
+    if (l->nda_tap == MPSK_RX_NDA_TAP_PRETERM)
+      return l->pre_sps;
     return 1.0;
   }
 
@@ -447,6 +466,22 @@ extern "C"
     if (l->nda_tap != MPSK_RX_NDA_TAP_LO_ARM)
       return;
     mpsk_rx_disc (l, boxcar_step (&l->arm, z));
+  }
+
+  /**
+   * @brief Push one PRE-TERMINAL sample into the NDA discriminator.
+   *
+   * The MPSK_RX_NDA_TAP_PRETERM path, and a no-op for every other tap.
+   * Unlike mpsk_rx_push_lo() there is no arm filter here and none is wanted:
+   * the cascade has already band-limited this node and the AGC has already
+   * levelled it, which is the whole reason the tap exists.
+   */
+  JM_FORCEINLINE JM_HOT void
+  mpsk_rx_push_preterm (mpsk_rx_loops_t *l, float complex z)
+  {
+    if (l->nda_tap != MPSK_RX_NDA_TAP_PRETERM)
+      return;
+    mpsk_rx_disc (l, z);
   }
 
   /**

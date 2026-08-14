@@ -349,13 +349,17 @@ extern "C"
     float complex ys[4];
     float complex zlo;
     int           n_lo = 0;
-    size_t        n    = ddc_execute_ctrl_push_tap (
+    float complex zpre;
+    int           n_pre = 0;
+    size_t        n     = ddc_execute_ctrl_push_tap2 (
         s->fe, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
-        sizeof (ys) / sizeof (ys[0]), &zlo, &n_lo);
-    /* The widest NDA tap reads here — ahead of the cascade, so it needs no
-       symbol timing. A no-op for every other tap. */
+        sizeof (ys) / sizeof (ys[0]), &zlo, &n_lo, &zpre, &n_pre);
+    /* The two timing-independent NDA taps read here, ahead of the matched
+       filter. Each is a no-op unless it is the configured one. */
     if (n_lo)
       mpsk_rx_push_lo (&s->l, zlo);
+    if (n_pre)
+      mpsk_rx_push_preterm (&s->l, zpre);
     int           emitted = 0;
     for (size_t oi = 0; oi < n; oi++)
       emitted |= mpsk_rx_take_output (&s->l, ys[oi], y_out, ted);

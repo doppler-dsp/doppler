@@ -53,9 +53,12 @@ mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
                     int acq_to_track, double lock_thresh, size_t warmup_syms,
                     int differential, int nda_tap)
 {
-  l->m            = m;
-  l->sps          = sps;
-  l->lo_sps       = lo_sps;
+  l->m      = m;
+  l->sps    = sps;
+  l->lo_sps = lo_sps;
+  /* Overwritten by any front end that publishes a real bank rate; this
+     default only keeps mpsk_rx_updates_per_symbol() non-zero. */
+  l->pre_sps      = lo_sps;
   l->m_out        = m_out;
   l->bn_carrier   = bn_carrier;
   l->bn_agc_ratio = bn_agc_ratio;
@@ -325,7 +328,7 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
       || !(zeta > 0.0) || num_phases < 2u
       || (num_phases & (num_phases - 1u)) != 0u
       || nda_tap < MPSK_RX_NDA_TAP_STROBE
-      || nda_tap > MPSK_RX_NDA_TAP_LO_ARM
+      || nda_tap > MPSK_RX_NDA_TAP_PRETERM
       /* An AGC at or above the bandwidth of a loop it feeds corrects the
          excursions that loop is producing; the two then integrate against
          each other. The invariant is structural rather than advisory. */
@@ -357,6 +360,11 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
                       bn_agc_ratio, RATESYNC_TED_GARDNER, acq_to_track,
                       lock_thresh, warmup_syms, differential, nda_tap);
   ratesync_loop_bind_cascade (&rx->l.timing, rx->fe->rc);
+  /* The pre-terminal tap's update rate is the cascade's own bank rate. It is
+     a planner outcome, so it is READ from the cascade that planned it rather
+     than re-derived here — re-deriving would be a second copy of the plan,
+     free to drift from the one the filters were actually built on. */
+  rx->l.pre_sps = ddc_get_bank_sps (rx->fe);
 
   /* The front end levels itself so the TED's construct-time slope means what
      it says. A zero loop bandwidth leaves nothing to be slower than, so the

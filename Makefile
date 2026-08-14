@@ -692,7 +692,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 package-c package-c-tarball sdist release-notes \
                 print-jm-version nats-up nats-down \
                 docs-relink docs-drift-check drift-check changelog-check \
-                validate validate-check \
+                validate validate-c validate-check \
                 characterize characterization-check \
                 doxygen-warn-gate \
                 test-examples-c test-examples-python test-example-downstream \

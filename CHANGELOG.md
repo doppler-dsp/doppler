@@ -52,6 +52,23 @@ ______________________________________________________________________
 
 ### Added
 
+- **Every validation report now opens with an executive summary** — a
+    derived status line (CERTIFIED / REGRESSED, the limit tally, which
+    findings are still open) and three to six authored key takeaways aimed
+    at a caller who will read nothing else. Written last, because the status
+    counts limits and findings that do not exist until every phase has run,
+    and rendered first: `Report.executive()` accumulates into the report's
+    `head`, so ordering is a property of `render()` rather than of call
+    order. Status is derived so it cannot drift from the body the way a
+    hand-written abstract does; takeaways are authored because "what matters
+    here" is judgement and no counter produces it. Added to all seven
+    reports, specified in `docs/dev/validation.md`, and enforced against the
+    rendered file by `scripts/check_validation_reports.py` — presence,
+    position and both parts, each proven by mutation. The section is
+    deliberately unnumbered: numbering it `1.` would renumber everything
+    below and invalidate the `§2.x` cross-references in seven reports, the C
+    tests citing them and the issues filed against them.
+
 - **CarrierNda is certified under the object-validation campaign**, and the
     certification produced a number the composing receiver needs: the
     **seeding rule**. `src/doppler/track/tests/validation/carrier_nda/` holds

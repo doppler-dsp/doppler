@@ -700,6 +700,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 package-c package-c-tarball sdist release-notes \
                 print-jm-version nats-up nats-down \
                 docs-relink docs-drift-check drift-check changelog-check \
+                issue-link-check \
                 validate validate-c validate-check \
                 characterize characterization-check \
                 doxygen-warn-gate \
@@ -739,7 +740,8 @@ include standard.mk
 # a gate this repo believed it had was executed by nothing on every PR for as
 # long as it has existed. Being inert (#705) was only half the problem; not
 # running was the other half, and `gates` is a local convenience, not CI.
-lint: tests-ssot characterization-check validation-report-check changelog-check
+lint: tests-ssot characterization-check validation-report-check changelog-check \
+      issue-link-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -1233,14 +1235,35 @@ drift-check: ## jm manifest drift gate (CI's 'jm manifest drift')
 # version doppler is not on.
 	cd $(DOWNSTREAM_DIR) && uv run --project $(CURDIR) just-makeit status --check
 
-# One definition of "code", used by BOTH questions below. Splitting it was how
-# the two halves would drift: a path added to one and not the other leaves a
-# gate that is honest about a file the other has never heard of.
+# One definition of "code", used by BOTH questions below — and by
+# `issue-link-check`, which asks a third question of the same branch. Splitting
+# it was how the halves would drift: a path added to one and not the others
+# leaves a gate that is honest about a file the rest have never heard of.
 CHANGELOG_CODE_PATHS = src native objects ffi
 
 # The base a BRANCH is measured against. Overridden in CI, where a
 # `pull_request` checkout has no local `main` to compare with — see ci.yml.
 CHANGELOG_BASE ?= origin/main
+
+# A branch that changes code must SAY what it closes, or say it closes
+# nothing. GitHub only closes an issue when a closing keyword reaches the
+# default branch; doppler rebase-merges, so a commit message carries it. This
+# asks whether any branch used one, because nothing did: c0e0e615 gated the
+# generated C API tree, which IS #714, and left it open for a day. The same
+# triage found #663/#664/#665 fixed-and-open on PR #717. An open count that
+# includes finished work is a backlog nobody can plan from.
+#
+# `No-issue:` passes, deliberately. Most branches close nothing, and a gate
+# that demanded an issue number from a re-vendor would argue with its author —
+# the failure mode changelog-check's own comment warns about. Silence is the
+# only rejected answer, because silence cannot be told apart from a closure
+# nobody wrote down.
+#
+# Logic in the script rather than inline so the gate's own test can drive it
+# over seeded messages instead of fabricating a scratch repository.
+issue-link-check: ## A branch changing code must declare Closes #N or No-issue:
+	@ISSUE_BASE=$(CHANGELOG_BASE) ISSUE_CODE_PATHS="$(CHANGELOG_CODE_PATHS)" \
+	    ./scripts/issue-link-check.sh
 
 # `changelog-check` asks TWO questions, folded into one target rather than
 # split into two, because they share the code-path definition above and a

@@ -41,6 +41,7 @@ from doppler.ber import (
 )
 from doppler.telemetry import Telemetry
 from doppler.track import MpskReceiver, MpskReceiverR
+from doppler.wfm import Synth
 
 #: Ddcr's design centre, and the placement the real path exists to serve. An
 #: R2C halfband is the cheapest real-to-complex converter there is, it bakes in
@@ -88,8 +89,22 @@ _CI_METER = BerMeter(m=2, target_errors=1, conf=0.99)
 #: The default-bandwidth budget, for tests that do not retune the loops.
 SETTLE_SYMS = settle_floor()
 
-#: Nominal symbol amplitude before the AGC normalisation below.
-AMPL = 1.0
+#: What to add to a requested Es/N0 before handing it to the COMPLEX generator
+#: when the stimulus is going to be projected onto its real part.
+#:
+#: `10*log10(2)`, and it is a change of convention, not of noise. Taking `Re{}`
+#: halves the signal energy (half the power of a real passband signal sits at
+#: the negative frequency, so `Es = A^2*sps/2`) and halves the noise variance
+#: with it (`Re{}` of circular complex AWGN of variance `N` is real Gaussian of
+#: variance `N/2`). Es/N0 would therefore come out unchanged -- but the real
+#: path's convention counts the real noise against the HALVED Es, i.e.
+#: `var = Es/(2*Es/N0)`, which is 3 dB less noise than a literal projection.
+#: Asking the complex generator for 3 dB more Es/N0 delivers exactly that
+#: variance, so the real stimulus is bit-for-bit the same waveform, the same
+#: noise realisation scaled by `1/sqrt(2)`, and the same numbers the
+#: hand-rolled generator produced (measured agreement: within 0.06 dB of the
+#: old path's noise variance at every `(m, sps, Es/N0)` tried).
+REAL_ESNO_OFFSET_DB = 10.0 * np.log10(2.0)
 
 
 def agc(x):
@@ -122,24 +137,39 @@ def agc(x):
 def make_signal(sps, nsym, *, real, m=4, fc=IF_FS4, esn0_db=None, seed=3):
     """One M-PSK stimulus, as either a real IF or complex baseband.
 
-    Rectangular symbols at `sps` samples each on a carrier at `fc`
-    cycles/sample. The real flavour is `Re{}` of the complex one, which is what
-    a single-ended ADC hands you, so the two paths are compared on the SAME
-    waveform rather than on two similar ones.
+    **The waveform comes from the library generator, not from here.**
+    `wfm.Synth(type="symbols")` holds each constellation point for `sps`
+    samples, mixes it with the `lo` carrier at `fc` cycles/sample and adds
+    `awgn` at the requested Es/N0 -- the same three components the receiver
+    under test is built against, and the same ones `wfmgen` ships to users. All
+    this function still owns is the truth sequence, the M-PSK mapping that
+    defines it, and the level convention below. A private numpy oversample +
+    carrier + noise variance was what stood here; it is the one measurement in
+    this harness that was a genuine duplicate rather than a delegation, and a
+    stimulus nobody else runs is a stimulus nobody else checks.
 
-    `esn0_db` adds AWGN at that symbol-energy-to-noise-density ratio. The two
-    conventions differ and both are needed:
+    The symbol indices stay local because they are TRUTH, not signal: `idx` is
+    what `symbol_metrics` and `coherent_errors` score against, and drawing it
+    from an RNG the harness controls keeps "what was sent" independent of the
+    generator that sends it. The constellation is `exp(2j*pi*k/m)` -- the
+    definition of M-PSK rather than a mapping choice, and deliberately NOT
+    `wfm.qpsk_map`, whose Gray labelling would put a different symbol under
+    index `k` and silently redefine the truth these metrics compare against.
 
-    * complex baseband -- `Es = A^2 * sps`, and `N0` is the variance per
-      complex sample, split evenly between I and Q.
-    * real IF -- `Es = A^2 * sps / 2`, because half the power of a real
-      passband signal sits at the negative frequency, and the real noise
-      variance is `Es / (2 * Es/N0)`.
+    **Unit-modulus symbols are load-bearing.** `Synth` references its SNR to a
+    signal of unit power (`wfm_awgn_amplitude(snr, 1.0)` in effect), so scaling
+    the constellation would scale the delivered Es/N0 with it and nothing would
+    complain. Level is set once, downstream, by `agc()`.
 
-    Both were validated by measurement, not derivation: at `Es/N0 = 12 dB`
-    both paths measure EVM within 0.5 dB of the -12 dB bound at every
-    oversampling ratio tested. A wrong convention here shows up immediately as
-    one path apparently beating the bound.
+    `esn0_db` is the symbol-energy-to-noise-density ratio, `snr_mode="esno"` on
+    the generator: `Es = A^2*sps` spread over `sps` samples, `N0` the variance
+    per complex sample. That claim is now checked rather than assumed --
+    `test_wfm_synth.py` reads it back with `snr.snr_data_aided_db` at the
+    matched-filter output and finds it within 0.04 dB across `sps` 1..16 and
+    Es/N0 0..20 dB. The real flavour is `Re{}` of that complex waveform, which
+    is what a single-ended ADC hands you, generated 3 dB hotter for the reason
+    in `REAL_ESNO_OFFSET_DB` -- so the two paths are compared on the SAME
+    waveform and the same noise realisation, not on two similar ones.
 
     Returns
     -------
@@ -150,25 +180,26 @@ def make_signal(sps, nsym, *, real, m=4, fc=IF_FS4, esn0_db=None, seed=3):
     """
     rng = np.random.default_rng(seed)
     idx = rng.integers(0, m, nsym)
-    bb = np.repeat(np.exp(2j * np.pi * idx / m), int(sps))
-    z = bb * np.exp(2j * np.pi * fc * np.arange(bb.size)) * AMPL
+    snr_db = 100.0  # >= WFM_SYNTH_SNR_CLEAN: no AWGN generated at all
+    if esn0_db is not None:
+        snr_db = esn0_db + (REAL_ESNO_OFFSET_DB if real else 0.0)
+    src = Synth(
+        type="symbols",
+        symbols=np.exp(2j * np.pi * idx / m).astype(np.complex64),
+        sps=int(sps),
+        fs=1.0,  # so `freq` is read as cycles/sample
+        freq=fc,
+        snr=snr_db,
+        snr_mode="esno",
+        seed=seed,
+    )
+    z = src.steps(int(sps) * nsym)
 
     if real:
-        x = z.real.astype(np.float64)
-        if esn0_db is not None:
-            es = AMPL * AMPL * sps / 2.0
-            var = es / (2.0 * 10 ** (esn0_db / 10.0))
-            x = x + rng.standard_normal(x.size) * np.sqrt(var)
-        return np.ascontiguousarray(agc(x).astype(np.float32)), idx
-
-    x = z.astype(np.complex128)
-    if esn0_db is not None:
-        es = AMPL * AMPL * sps
-        var = es / 10 ** (esn0_db / 10.0)
-        x = x + (
-            rng.standard_normal(x.size) + 1j * rng.standard_normal(x.size)
-        ) * np.sqrt(var / 2)
-    return np.ascontiguousarray(agc(x).astype(np.complex64)), idx
+        x = agc(z.real.astype(np.float64))
+        return np.ascontiguousarray(x.astype(np.float32)), idx
+    x = agc(z.astype(np.complex128))
+    return np.ascontiguousarray(x.astype(np.complex64)), idx
 
 
 def evm_scatter_floor_db(m):

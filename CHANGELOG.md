@@ -164,6 +164,47 @@ ______________________________________________________________________
 
 ### Added
 
+- **The M-PSK constellation is certified — the decision rule every M-PSK
+    consumer routes through had no C tests at all.** `mpsk_slice` is the
+    library's one hard decision: `mpsk_demap`, `mpsk_diff_demap`,
+    `mpsk_receiver_core.c` and `mpsk_rx_loops.h` all decide through it, and
+    there was no `native/tests/test_mpsk_core.c`. The only coverage was
+    Python, which cannot reach the six `JM_FORCEINLINE` helpers — including
+    the decision `ahat` whose `Im(y·conj(ahat))` is the decision-directed
+    carrier error a receiver steers on.
+
+    Worse than absent: `test_carrier_mpsk_core.c` carried a private O(M)
+    correlation search instead of calling `mpsk_slice`, so the carrier-loop
+    test scored against **its own slicer**, free to disagree with the
+    library's with no gate able to notice. It now delegates, and the
+    equivalence it had silently assumed — nearest in phase equals nearest by
+    Euclidean distance on the unit circle — is proven rather than assumed.
+
+    The new C test is built inside-out and every section is a property, not
+    a spot value: Gray labelling as a **cyclic** one-bit-per-neighbour
+    invariant (the 0/M−1 seam is where a near-miss labelling breaks, and the
+    transition a noisy symbol is most likely to make), the slicer against an
+    external truth that builds its points from `cos`/`sin` so a broken
+    constellation cannot excuse a broken slicer, buffer canaries for the two
+    length claims, and the memoryless/sequential pair as duals. Ten
+    mutations were applied and each took it red.
+
+- **`~2x` for differential M-PSK is an asymptote, not a constant.** The
+    header stated the penalty and nothing measured it, which left a caller
+    trading a known carrier-phase ambiguity for an unknown cost.
+    `native/validation/mpsk_diff_penalty.c` measures it paired over one
+    shared noise realisation — so the seed's luck cancels out of the ratio —
+    and anchors the coherent path to closed-form theory, because two paths
+    sharing a defect still divide to a plausible 2.0. Measured, 8PSK pays
+    **1.44x at 4 dB** Es/N0 and 2.03x by 14 dB, while BPSK and QPSK reach
+    the asymptote by ~8 dB. The correction is carried back into the header,
+    both Python faces and the design doc; a caller sizing a link at low
+    Es/N0 is charged less than the round number suggests.
+
+    `docs/design/mpsk.md` gains **§9**, which specifies the constellation
+    primitive the receiver reuses — Gray labelling, the one decision rule,
+    why QPSK alone carries a π/4 offset, and what differential mode costs.
+
 - **`LoopFilter` is certified, and `bn` is now measured rather than
     asserted.** The second-order PI filter is embedded by value in seven
     objects — costas, carrier_mpsk, carrier_nda, dll, symsync, ratesync,

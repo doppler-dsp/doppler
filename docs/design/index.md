@@ -15,6 +15,10 @@ instead.)
     in the library is built on: which of its two algebraic forms is the right
     one and why that was measured, what its boundaries guarantee, and why an
     EMA is not a loop filter
+- [The Loop Filter](loop-filter.md) — the second-order PI every tracking loop
+    in the library embeds by value: where its gains come from, the unit
+    condition its `bn` promise depends on, and what it deliberately does not
+    bound
 - [Quantization](QUANTIZATION.md) — fixed-point pipeline design
 - [CIC Decimator](cic.md) — the fixed-point input budget: DC gain and PAPR headroom
 - [Measurement Suite](measurement-suite.md) — tone, NPR, and IMD metric internals

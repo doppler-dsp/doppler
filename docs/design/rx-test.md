@@ -1,10 +1,11 @@
 # Receiver Test Harness
 
-**Status:** goals and inventory; the plan is not here yet. Everything below
-was read from the tree, not recalled; line counts and symbol lists are as
-measured. The immediate cause of this document was a hand-rolled measurement
-harness that produced three wrong conclusions in one session — one of which
-reached a filed issue.
+**Status:** goals (§0), inventory (§1–§6), the frame descriptor it needs (§7),
+and the sequence that drives the plan (§8). Design, not yet built. Everything
+below was read from the tree, not recalled; line counts and symbol lists are
+as measured. The immediate cause of this document was a hand-rolled
+measurement harness that produced three wrong conclusions in one session —
+one of which reached a filed issue.
 
 ______________________________________________________________________
 
@@ -691,7 +692,123 @@ choose it.
 
 ______________________________________________________________________
 
-## 8. Related
+## 8. The sequence, and where it breaks
+
+A receiver measurement is ten stages. Drawing them out is what turns "the
+harness should be trustworthy" into a list of specific things that can go
+wrong, each attached to a stage.
+
+```mermaid
+flowchart TB
+    D["1 DESCRIBE — frame + rates + Es/N0 + seeds"]
+    G["2 GENERATE — wfm_synth: bits, symbols, pulse, oversample"]
+    I["3 IMPAIR — carrier, clock, Doppler, level, AWGN"]
+    R["4 RUN — receiver steps() / bits()"]
+    INV{"outputs == m_out x symbols?"}
+    S["5 SETTLE — ber_settle_from(budget, timing lock, carrier lock)"]
+    A["6 ALIGN — BerMeter.align: lag, phase"]
+    AOK{"align_ok?<br/>margin_db, runner_db"}
+    SC["7 SCORE — BER/SER, EVM, M2M4, FER"]
+    EN{"enough?<br/>target_errors, interval"}
+    TH["9 ANCHOR — vs ber_theory_ser at the stated Es/N0"]
+    REP["10 REPORT — trio + FER + diagnostics + window"]
+    NO(["REFUSE — no number reported"])
+
+    D --> G --> I --> R --> INV
+    INV -->|no| NO
+    INV -->|yes| S --> A --> AOK
+    AOK -->|no| NO
+    AOK -->|yes| SC --> EN
+    EN -->|no, extend the record| R
+    EN -->|yes| TH --> REP
+```
+
+The two diamonds that lead to REFUSE are goal 1 made concrete: an output-rate
+invariant and an alignment that must *detect*, not merely return its best
+guess. Both were violated in the work that prompted this document, and each
+produced a number that looked like a receiver result.
+
+### 8.1 What today's sequence actually is
+
+`src/doppler/track/tests/_mpsk_rx_harness.py` (430 lines) is the de-facto
+receiver harness, and it already implements most of the flow — so the gaps are
+concrete rather than hypothetical. It **delegates** to the library for
+`ber_lock_symbol`, `ber_settle_syms`, `ber_settle_from`,
+`ber_evm_scatter_floor_db` and `BerMeter`, which is the right shape. What it
+does not delegate is the map of what remains:
+
+| stage      | today                                         | gap                                                                                   |
+| ---------- | --------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 1 describe | function arguments                            | no frame descriptor; no named operating points                                        |
+| 2 generate | `make_signal()`, numpy `np.repeat` of symbols | not `wfm_synth`; unframed by construction                                             |
+| 3 impair   | hand-built carrier + AWGN variance            | `doppler_channel` exists and is unused here                                           |
+| 4 run      | direct calls                                  | **no output-rate invariant**                                                          |
+| 5 settle   | `ber_settle_from` + `ber_lock_symbol`         | needs per-symbol lock flags, which come from telemetry rather than the receiver's API |
+| 6 align    | `BerMeter`                                    | correct, and already the shipped path                                                 |
+| 7 score    | SER + EVM                                     | **M2M4 never computed**; no FER                                                       |
+| 8 enough   | `ser_confidence()`, private                   | duplicates shipped `ber_confidence`                                                   |
+| 9 anchor   | partial                                       | `ber_theory_ser` available; not applied uniformly                                     |
+| 10 report  | test assertions                               | no standard record                                                                    |
+
+Two of those deserve their names said plainly, because they are the shape this
+whole document is about: **`ser_confidence()` is a private reimplementation of
+`ber_confidence()`**, and **M2M4 is simply absent**, so the harness cannot see
+the disagreement §2.4 relies on.
+
+### 8.2 Why the stimulus gate does not catch stage 2
+
+It is not an oversight in the harness, and not a hole in the allowlist (which
+has three entries, none of them this file). It is a coverage boundary worth
+recording:
+
+- `check_stimulus_sources.py` detects three signatures — a private **pulse**,
+    a **peak** level normalisation, and a private **EVM**.
+- `make_signal()` builds rectangular NRZ (`np.repeat` of constellation
+    points). There is no RRC formula, so the `pulse` detector correctly does
+    not fire.
+- `agc()` normalises to unit **average power**, deliberately and with the
+    reasoning written out. The `level` detector looks for peak normalisation,
+    so it correctly does not fire either.
+
+So the gate catches a private *pulse*; it does not catch a private
+*stimulus*. And a private **statistic** (`ser_confidence`) is outside its
+vocabulary entirely. Both are extensions to an existing gate rather than a new
+one — which is the cheap way to keep this from recurring.
+
+### 8.3 The plan the sequence implies
+
+Ordered so that nothing depends on an unpinned measurement:
+
+1. **Pin the trio** (§5.1). `ber_align_detect`, `ber_evm_db`, `snr_m2m4_db` —
+    known-answer tests plus sabotage, and a `native/tests/test_snr_core.c`
+    where none exists. Nothing below is trustworthy until this is done.
+1. **Test the five untested harness headers** (§5.2), `dp_tx_test.h` and
+    `dp_sym_test.h` first.
+1. **Add the two refusal points** — the output-rate invariant at stage 4, and
+    making `align_ok` load-bearing at stage 6. Cheapest change with the
+    largest effect, and both are pure additions to the existing flow.
+1. **Lift the frame out of DSSS** (§1.3, §7): `wfm_frame_*` over `wfm_seq_t`,
+    `wfm_frame_dsss_chips()` refactored to call it, `wfm_synth_set_bits()`
+    gaining the frame, and `--sync`/`--acq-*`/`--crc` accepted for
+    `--type bpsk/qpsk`. The existing DSSS round-trip tests are the regression
+    check — bit-identical before and after.
+1. **Frame statistics** (§2.5) beside `ber_meter`, reusing `ber_confidence`
+    for the interval. This is what makes FER, and therefore the false-lock
+    detector, available.
+1. **Converge the harness onto the library** — stage 2 to `wfm_synth`, stage 8
+    to `ber_confidence`, stage 7 gaining M2M4 and FER. Then extend the gate to
+    cover private stimulus and private statistics, so the convergence cannot
+    silently reverse.
+1. **Only then** resume the measurements this document interrupted: the tap
+    comparison at Fs = 10 MSa/s / Rs = 1 kSps, the receiver decision it feeds,
+    and a re-examination of the issue filed from the unpinned harness.
+
+Steps 1–3 are what make any number defensible; 4–6 are what make it
+*reproducible and external*; 7 is the work that was actually wanted.
+
+______________________________________________________________________
+
+## 9. Related
 
 - [Object Validation](../dev/validation.md) — the certification process this
     harness feeds

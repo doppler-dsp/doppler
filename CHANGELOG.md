@@ -1051,6 +1051,56 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **A merge conflict could reach the docs site, three different ways.** The
+    gate is ported from
+    [just-makeit#977](https://github.com/just-buildit/just-makeit/pull/977),
+    where one sat in `docs/configuration.md` for **ten days and a release** and
+    rendered as page content. doppler's tree was clean, so this closes a hole
+    rather than repairing damage — but doppler had three independent ways to
+    miss it, and any one of them is sufficient on its own.
+
+    **1. mdformat normalises the markers instead of refusing them**, so every
+    pass through `make format` made the corruption *less* visible:
+
+    | in the conflict | after mdformat                                                                                                                                       |
+    | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `<<<<<<< HEAD`  | `\<<\<<\<<< HEAD` — every `<` escaped, reads as prose                                                                                                |
+    | `=======`       | **gone.** A line of `=` under text is a setext H1, so the sentence above is silently promoted to a heading and lands in the page's table of contents |
+    | `>>>>>>> sha`   | `> > > > > > > sha` — seven nested blockquotes                                                                                                       |
+
+    A check written against the literal three markers finds **one** of those
+    three, and the `=======` case cannot be found after the fact at all.
+
+    **2. mdformat ran first.** It was hook 59; `check-merge-conflict` was hook
+    109 — so even a raw marker was rewritten before anything looked for it. The
+    new hook is first in the file, and that ordering is load-bearing rather
+    than tidy.
+
+    **3. `check-merge-conflict` was inert anyway**, and this is the one worth
+    knowing. Its first statement is
+    `if not is_in_merge() and not args.assume_in_merge: return 0` — so outside
+    an active merge it returned success without opening a file, on every
+    ordinary `make lint` and every CI run, while printing `Passed`. A conflict
+    that survived a rebase, or was resolved badly and committed, was invisible
+    to it. It is **removed**: two checks for one property, where the weaker one
+    is louder, is worse than one that always looks.
+
+    `scripts/conflict-check.sh` runs over the tracked set on every lint,
+    matching all five forms and anchored at column 1 so a marker quoted inside
+    a fenced code block still passes — this repo's own prose quotes them, and
+    git never writes one indented. The logic is a script rather than an inline
+    recipe **so a test can drive it over seeded files**; a lint target whose
+    only exercise is corrupting the repository is a target nobody proves.
+
+    `src/doppler/tests/test_conflict_markers.py` covers all five forms, the
+    code-block carve-out, the real tracked tree, and that `make lint` reaches
+    it. Mutation-tested rather than assumed: dropping the two mdformat patterns
+    fails exactly the two mdformat cases and leaves the raw three green, and
+    dropping the `^` anchor fails the code-block case **and** the real-tree
+    case — the anchor is load-bearing here, not theoretical. End to end, a
+    seeded conflict in `docs/index.md` fails `make lint` with the marker still
+    raw, which is the ordering fix demonstrated rather than argued.
+
 - **The `docs-drift` hook ran in no context at all, and its file filter named
     a path that no longer exists.** Two independent defects, either of which
     alone made it inert.

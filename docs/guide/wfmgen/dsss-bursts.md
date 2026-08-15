@@ -32,6 +32,13 @@ x = comp.compose()
 This page is the one home for everything `type="dsss"` means; the other
 guide pages carry a summary and link here.
 
+The **frame** — `acq_code` / `acq_reps` / `sync` / `crc` — is not DSSS-specific:
+the same four describe an unspread `type="bits"` waveform, and the layout comes
+from one descriptor either way. See
+[Framing](waveforms.md#framing-preamble-sync-word-crc).
+What is DSSS's own is everything below: the second code, the chip clock, and
+the Es/N0 that refers to the outer data symbol.
+
 ______________________________________________________________________
 
 ## The burst anatomy

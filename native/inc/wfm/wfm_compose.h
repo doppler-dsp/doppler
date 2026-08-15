@@ -298,6 +298,60 @@ int wfm_source_attach_dsss(wfm_synth_state_t *syn, const wfm_source_t *src,
                            double fs);
 
 /**
+ * @brief Non-zero when this source describes a FRAME.
+ *
+ * A preamble or a sync word is what says "framed". **Deliberately not `crc`**:
+ * it defaults to crc16 on every source (`[[module.wfm_compose.source.fields]]`
+ * and wfmgen alike), so reading it as intent would silently append a trailer
+ * to every unframed bit pattern anyone has ever generated. With neither a
+ * preamble nor a sync word, `crc` stays inert exactly as it always was.
+ *
+ * @param src  The source; NULL reads as unframed.
+ */
+int wfm_source_has_frame(const wfm_source_t *src);
+
+/**
+ * @brief NULL when this source's frame fields can be honoured; else why not.
+ *
+ * ONE rule, asked by all three faces — the wfmgen CLI before it generates, the
+ * standalone `Synth` through `wfm_source_to_synth`, and the composer through
+ * `wfm_compose_create` — because the alternative is what shipped: the flags
+ * were accepted, stored and readable back on every face, and applied on none
+ * of them, so a caller who asked for a framed waveform silently got an
+ * unframed one.
+ *
+ * A frame needs a payload, and the unspread types that source their symbols
+ * from the PN LFSR (`bpsk`/`qpsk`/`pn`) have no length to bound one. So the
+ * frame is honoured where the payload is EXPLICIT — `type=bits` with a
+ * pattern, which `modulation` already maps to BPSK or QPSK — and refused with
+ * a reason everywhere else.
+ *
+ * @param src  The source.
+ * @return NULL if there is nothing wrong, else a static message.
+ */
+const char *wfm_source_frame_error(const wfm_source_t *src);
+
+/**
+ * @brief Attach an unspread source's bit pattern, framed or not.
+ *
+ * The `type=bits` counterpart of wfm_source_attach_dsss(), and called from the
+ * same two places for the same reason. When the source carries a frame, the
+ * pattern handed to `wfm_synth_set_bits()` is `wfm_frame_bits()` of
+ * `[preamble x reps | sync | payload | crc]` rather than the payload alone —
+ * so the layout, the CRC's position and its bit order come from the one
+ * descriptor that the DSSS path and the receiver already read.
+ *
+ * The frame CYCLES, exactly as an unframed pattern does: one descriptor fills
+ * whatever length is asked for, which is what turns a one-frame description
+ * into a multi-frame record.
+ *
+ * @param syn  A synth from wfm_synth_create() with `wtype == WFM_SYNTH_BITS`.
+ * @param src  The source (pattern, modulation, and any frame fields).
+ * @return 0 on success (or a non-bits/no-pattern no-op); -1 on failure.
+ */
+int wfm_source_attach_frame(wfm_synth_state_t *syn, const wfm_source_t *src);
+
+/**
  * @brief Construct + configure the synth for one resolved source.
  *
  * THE single synth-construction path (create + chirp-span pin + bits/symbols/RRC

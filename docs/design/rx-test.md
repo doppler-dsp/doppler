@@ -732,7 +732,17 @@ the sequence family differs — which is what makes the cross-correlation
 argument measurable via `runner_db` rather than asserted.
 
 A multi-frame record is still *not* here: it belongs to the accumulator
-(§2.5), not the descriptor.
+(§2.5), not the descriptor. In practice the generator supplies it — a `bits`
+source **cycles** its pattern, so one frame description fills a record of any
+length and the repeat count never enters the struct.
+
+**The named set stays in `native/tests/`, deliberately.** Goal 9 argues that
+anything reachable only from there is exercised by nobody but us, and that is
+the right test for a *capability*. This is a convention: five arbitrary lengths
+that exist so two of OUR measurements are comparable. Shipping them would make
+those lengths an API to keep stable, and a caller describing their own frame
+needs `wfm_frame_t`, not our choice of 1024. The descriptor ships; the set does
+not.
 
 The sync length of 127 is a **placeholder pending the §6 measurement**, not a
 recommendation: it is one register period (`reg_bits = 7`) long enough to be
@@ -952,11 +962,16 @@ Ordered so that nothing depends on an unpinned measurement:
     `wfm_frame_*` over `wfm_seq_t`, `wfm_frame_dsss_chips()` refactored to call
     it (DSSS round-trips bit-identical, as promised), and the named set of
     §7.4. A framed unspread waveform reaches `wfm_synth_set_bits()` by
-    materialising the frame first, which is what §8.7 does. **Still open**:
-    `wfmgen` accepting `--sync`/`--acq-*`/`--crc` for `--type bpsk/qpsk`, so
-    the frame is reachable from the CLI and not only from C
-    ([#755](https://github.com/doppler-dsp/doppler/issues/755)) — until then
-    the frame layer fails goal 9 on the generation side.
+    materialising the frame first. **Since closed on the generation side**:
+    `--sync`/`--acq-*`/`--crc` now reach the samples for `--type bits` on all
+    three faces (the CLI, `Synth`, and `Segment`/`Composer`), and `--record`
+    carries them so `--from-file` rebuilds the framed waveform byte for byte.
+    They had been ACCEPTED and dropped on every unspread face — exit 0, no
+    warning, an unframed waveform, and the sync word readable back as if it had
+    been used ([#755](https://github.com/doppler-dsp/doppler/issues/755)). What
+    remains open there is the generated PN/Gold sequence kinds: `wfm_seq_t`
+    supports them and no face can spell one, so a long capture is still
+    reproducible only from a stored array.
 1. ~~**Frame statistics** (§2.5) beside `ber_meter`~~ **DONE** — `frame_meter`
     / `doppler.ber.FrameMeter`, reusing `ber_confidence` for the interval and
     therefore its stopping rule. This is what makes FER, and therefore the

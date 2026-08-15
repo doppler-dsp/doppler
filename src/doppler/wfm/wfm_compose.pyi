@@ -77,25 +77,30 @@ class Synth:
         the output point itself, oversampled by sps, cycled, and RRC-shaped
         with pulse=rrc. Generalises any modulation (pi/4-QPSK, QAM, ...).
     acq_code : bytes | None, default None
-        For type=dsss: the acquisition/preamble code (0/1 chips), repeated
-        acq_reps times unmodulated at the head of the burst — the coherent
-        pull-in target BurstDespreader.set_acq/BurstDemod.set_preamble lock to.
+        The acquisition/preamble code (0/1), repeated acq_reps times at the
+        head of the frame — the coherent pull-in target
+        BurstDespreader.set_acq/BurstDemod.set_preamble lock to. For type=dsss
+        it is unmodulated chips ahead of the spread frame; for type=bits it is
+        the head of the bit pattern. Setting it (or sync) is what makes a
+        source FRAMED.
     acq_reps : int, default 1
-        For type=dsss: preamble repetitions (periods of acq_code before the
-        frame).
+        Preamble repetitions (periods of acq_code before the sync word).
     data_code : bytes | None, default None
         For type=dsss: the payload spreading code (0/1 chips) — a second code,
         distinct from acq_code; every frame bit (sync | payload | crc) is
         XOR-spread across its full length, so len(data_code) is the spreading
         factor.
     sync : bytes | None, default None
-        For type=dsss: the frame-sync word bits (e.g. Barker-13) between the
-        preamble and the payload — what BurstDemod.set_sync correlates to
-        resolve frame position and BPSK polarity. Optional.
+        The frame-sync word bits (e.g. Barker-13) between the preamble and the
+        payload — what BurstDemod.set_sync correlates to resolve frame position
+        and BPSK polarity, and what a BER alignment detects against. Optional;
+        setting it (or acq_code) is what makes a source FRAMED.
     crc : str, default ``"crc16"``
-        For type=dsss: the frame trailer — crc16 appends a CRC-16-CCITT over
-        the payload bits (what BurstDemod validates as frame_valid); none omits
-        it.
+        The frame trailer — crc16 appends a CRC-16-CCITT over the payload bits
+        (what BurstDemod validates as frame_valid, and what makes a truth-free
+        frame error rate possible); none omits it. Applies only to a FRAMED
+        source: it defaults to crc16, so it alone never frames an otherwise
+        plain pattern.
         One of ``"none"``, ``"crc16"``.
     symbol_rate : float, default 0.0
         For type=dsss: > 0 selects CONTINUOUS asynchronous mode — the spreading
@@ -245,25 +250,30 @@ class Segment:
         the output point itself, oversampled by sps, cycled, and RRC-shaped
         with pulse=rrc. Generalises any modulation (pi/4-QPSK, QAM, ...).
     acq_code : bytes | None, default None
-        For type=dsss: the acquisition/preamble code (0/1 chips), repeated
-        acq_reps times unmodulated at the head of the burst — the coherent
-        pull-in target BurstDespreader.set_acq/BurstDemod.set_preamble lock to.
+        The acquisition/preamble code (0/1), repeated acq_reps times at the
+        head of the frame — the coherent pull-in target
+        BurstDespreader.set_acq/BurstDemod.set_preamble lock to. For type=dsss
+        it is unmodulated chips ahead of the spread frame; for type=bits it is
+        the head of the bit pattern. Setting it (or sync) is what makes a
+        source FRAMED.
     acq_reps : int, default 1
-        For type=dsss: preamble repetitions (periods of acq_code before the
-        frame).
+        Preamble repetitions (periods of acq_code before the sync word).
     data_code : bytes | None, default None
         For type=dsss: the payload spreading code (0/1 chips) — a second code,
         distinct from acq_code; every frame bit (sync | payload | crc) is
         XOR-spread across its full length, so len(data_code) is the spreading
         factor.
     sync : bytes | None, default None
-        For type=dsss: the frame-sync word bits (e.g. Barker-13) between the
-        preamble and the payload — what BurstDemod.set_sync correlates to
-        resolve frame position and BPSK polarity. Optional.
+        The frame-sync word bits (e.g. Barker-13) between the preamble and the
+        payload — what BurstDemod.set_sync correlates to resolve frame position
+        and BPSK polarity, and what a BER alignment detects against. Optional;
+        setting it (or acq_code) is what makes a source FRAMED.
     crc : str, default ``"crc16"``
-        For type=dsss: the frame trailer — crc16 appends a CRC-16-CCITT over
-        the payload bits (what BurstDemod validates as frame_valid); none omits
-        it.
+        The frame trailer — crc16 appends a CRC-16-CCITT over the payload bits
+        (what BurstDemod validates as frame_valid, and what makes a truth-free
+        frame error rate possible); none omits it. Applies only to a FRAMED
+        source: it defaults to crc16, so it alone never frames an otherwise
+        plain pattern.
         One of ``"none"``, ``"crc16"``.
     symbol_rate : float, default 0.0
         For type=dsss: > 0 selects CONTINUOUS asynchronous mode — the spreading

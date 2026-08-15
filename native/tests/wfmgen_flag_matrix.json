@@ -12,6 +12,61 @@
     "outputs": {},
     "record": null
   },
+  "bits_framed": {
+    "argv": [
+      "--type",
+      "bits",
+      "--modulation",
+      "bpsk",
+      "--bits",
+      "10110010",
+      "--acq-code",
+      "1010",
+      "--acq-reps",
+      "2",
+      "--sync",
+      "1111100110101",
+      "--crc",
+      "crc16",
+      "--sps",
+      "2",
+      "--count",
+      "64"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 512
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "acq_code": "1010",
+          "acq_reps": 2,
+          "crc": "crc16",
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "modulation": "bpsk",
+          "num_samples": 64,
+          "off_samples": 0,
+          "pattern": "10110010",
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 2,
+          "sync": "1111100110101",
+          "type": "bits"
+        }
+      ],
+      "version": 1
+    }
+  },
   "bits_hex": {
     "argv": [
       "--type",

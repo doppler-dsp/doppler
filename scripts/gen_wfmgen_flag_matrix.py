@@ -249,6 +249,33 @@ def cases() -> list[tuple[str, list[str]]]:
             ],
         ),
         # ---- dsss: burst frame, hex spelling, and continuous mode ----
+        # An UNSPREAD frame. The same five flags as dsss_burst on a `bits`
+        # source: for a long time they were accepted here and applied only on
+        # dsss, so the record below is the part that matters — it pins that
+        # what was recorded is what was generated. See gh-755.
+        (
+            "bits_framed",
+            [
+                "--type",
+                "bits",
+                "--modulation",
+                "bpsk",
+                "--bits",
+                "10110010",
+                "--acq-code",
+                "1010",
+                "--acq-reps",
+                "2",
+                "--sync",
+                "1111100110101",
+                "--crc",
+                "crc16",
+                "--sps",
+                "2",
+                "--count",
+                "64",
+            ],
+        ),
         (
             "dsss_burst",
             [

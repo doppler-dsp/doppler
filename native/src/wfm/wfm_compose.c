@@ -187,9 +187,15 @@ wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
     return NULL;
   /* Pin a chirp's sweep to the on-time (no-op for non-chirp). */
   wfm_synth_set_chirp_span (syn, on_len);
-  /* Attach a bits pattern / symbols stream / dsss burst (no-op otherwise). */
-  if (src->type == WFM_SYNTH_BITS && src->bits)
-    wfm_synth_set_bits (syn, src->bits, src->n_bits, src->modulation);
+  /* Attach a bits pattern / symbols stream / dsss burst (no-op otherwise).
+     The bits attach goes through the frame path so a framed source emits
+     `[preamble x reps | sync | payload | crc]` here exactly as it does on the
+     standalone face — they share the bridge for that reason. */
+  if (wfm_source_attach_frame (syn, src) != 0)
+    {
+      wfm_synth_destroy (syn);
+      return NULL;
+    }
   if (src->type == WFM_SYNTH_SYMBOLS && src->symbols)
     wfm_synth_set_symbols (syn, src->symbols, src->n_symbols);
   /* dsss burst OR continuous, via the one shared attach path (bridge) so the
@@ -357,6 +363,15 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
 {
   if (!segs || n_segs == 0)
     return NULL;
+  /* Refuse a frame no source in this scene can carry, BEFORE anything is
+     built. Deferring it to build time would reach wfm_compose_build_synth,
+     whose NULL the streaming path turns into a silent gap — and a silent gap
+     is how the frame fields came to be accepted and dropped in the first
+     place. */
+  for (size_t i = 0; i < n_segs; i++)
+    for (size_t k = 0; k < segs[i].n_sources; k++)
+      if (wfm_source_frame_error (&segs[i].sources[k]) != NULL)
+        return NULL;
   wfm_compose_state_t *s = calloc (1, sizeof (*s));
   if (!s)
     return NULL;

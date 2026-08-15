@@ -1042,13 +1042,13 @@ name = "acq_code"
 type = "uint8_t*"
 bytes = true
 coerce = "bit_pattern"
-doc = "For type=dsss: the acquisition/preamble code (0/1 chips), repeated acq_reps times unmodulated at the head of the burst — the coherent pull-in target BurstDespreader.set_acq/BurstDemod.set_preamble lock to."
+doc = "The acquisition/preamble code (0/1), repeated acq_reps times at the head of the frame — the coherent pull-in target BurstDespreader.set_acq/BurstDemod.set_preamble lock to. For type=dsss it is unmodulated chips ahead of the spread frame; for type=bits it is the head of the bit pattern. Setting it (or sync) is what makes a source FRAMED."
 
 [[module.wfm_compose.source.fields]]
 name = "acq_reps"
 type = "size_t"
 default = "1"
-doc = "For type=dsss: preamble repetitions (periods of acq_code before the frame)."
+doc = "Preamble repetitions (periods of acq_code before the sync word)."
 
 [[module.wfm_compose.source.fields]]
 name = "data_code"
@@ -1062,14 +1062,14 @@ name = "sync"
 type = "uint8_t*"
 bytes = true
 coerce = "bit_pattern"
-doc = "For type=dsss: the frame-sync word bits (e.g. Barker-13) between the preamble and the payload — what BurstDemod.set_sync correlates to resolve frame position and BPSK polarity. Optional."
+doc = "The frame-sync word bits (e.g. Barker-13) between the preamble and the payload — what BurstDemod.set_sync correlates to resolve frame position and BPSK polarity, and what a BER alignment detects against. Optional; setting it (or acq_code) is what makes a source FRAMED."
 
 [[module.wfm_compose.source.fields]]
 name = "crc"
 type = "int"
 enum = "crc"
 default = "crc16"
-doc = "For type=dsss: the frame trailer — crc16 appends a CRC-16-CCITT over the payload bits (what BurstDemod validates as frame_valid); none omits it."
+doc = "The frame trailer — crc16 appends a CRC-16-CCITT over the payload bits (what BurstDemod validates as frame_valid, and what makes a truth-free frame error rate possible); none omits it. Applies only to a FRAMED source: it defaults to crc16, so it alone never frames an otherwise plain pattern."
 
 [[module.wfm_compose.source.fields]]
 name = "symbol_rate"

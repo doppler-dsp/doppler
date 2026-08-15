@@ -126,13 +126,37 @@ add_bit_string (cJSON *o, const char *key, const uint8_t *bits, size_t n)
     }
 }
 
+/* Emit the FRAME a source carries — the preamble, its repetitions, the sync
+ * word and the CRC choice. Deliberately NOT type-gated: an unspread `bits`
+ * source can be framed too, and gating this on dsss is how a framed bits
+ * --record came to omit the frame entirely, so --from-file silently rebuilt an
+ * unframed waveform. `wfm_source_has_frame()` is the same predicate the
+ * generator uses, so what is recorded is exactly what was applied.
+ *
+ * The payload is NOT here: a bits source already emits it as "pattern" via
+ * add_bits_fields(), and dsss emits it as "payload" below. */
+static void
+add_frame_fields (cJSON *o, const wfm_source_t *src)
+{
+  if (!wfm_source_has_frame (src))
+    return;
+  add_bit_string (o, "acq_code", src->acq_code, src->n_acq_code);
+  cJSON_AddNumberToObject (o, "acq_reps", (double)src->acq_reps);
+  add_bit_string (o, "sync", src->sync, src->n_sync);
+  cJSON_AddStringToObject (o, "crc", CRC_NAMES[src->crc ? 1 : 0]);
+}
+
 /* Emit a dsss source's burst geometry: the two codes, preamble repetitions,
  * sync word, payload bits, and CRC choice (no-op for other types). */
 static void
 add_dsss_fields (cJSON *o, const wfm_source_t *src)
 {
   if (src->type != WFM_SYNTH_DSSS)
-    return;
+    {
+      /* Not spread, but possibly framed. */
+      add_frame_fields (o, src);
+      return;
+    }
   /* CONTINUOUS (symbol_rate > 0): only the spreading code, the payload (when
      one drives the data), and symbol_rate — no preamble/sync/CRC frame. Emit
      just those so a continuous record round-trips clean, without the spurious
@@ -255,6 +279,46 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
   add_pulse_fields (so, src);
 }
 
+/* Read the frame back: preamble, repetitions, sync word, CRC choice. The
+ * inverse of add_frame_fields(), and called for every waveform type for the
+ * same reason it is written for every waveform type. `crc` defaults to crc16
+ * (the burst_demod frame contract carries a trailer) and is inert unless a
+ * preamble or a sync word is present. Returns 0, or -1 on OOM (partials
+ * released). */
+static int
+read_frame_fields (const cJSON *so, wfm_source_t *out)
+{
+  const struct
+  {
+    const char *key;
+    uint8_t   **arr;
+    size_t     *len;
+  } bitkeys[] = {
+    { "acq_code", &out->acq_code, &out->n_acq_code },
+    { "sync", &out->sync, &out->n_sync },
+  };
+  for (size_t i = 0; i < sizeof bitkeys / sizeof bitkeys[0]; i++)
+    {
+      const char *v = cJSON_GetStringValue (
+          cJSON_GetObjectItemCaseSensitive (so, bitkeys[i].key));
+      if (v)
+        {
+          *bitkeys[i].arr = string_to_bits (v, bitkeys[i].len);
+          if (!*bitkeys[i].arr)
+            {
+              free_src_bits (out, 1); /* drop this source's partials */
+              return -1;
+            }
+        }
+    }
+  out->acq_reps = (size_t)num (so, "acq_reps", 1);
+  int c         = name_index (
+      cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (so, "crc")),
+      CRC_NAMES, 2);
+  out->crc = (c < 0) ? 1 : c;
+  return 0;
+}
+
 /* Parse a source object (the inline segment, or a "sum" entry) into *out.
  * Returns 0, or -1 on a missing/unknown waveform type. */
 static int
@@ -317,33 +381,26 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
             return -1;
         }
     }
+  /* The FRAME, whatever the waveform carrying it. Read for every type, the
+   * mirror of add_frame_fields() on the way out — a framed `bits` source that
+   * wrote its preamble and sync must get them back, or --record → --from-file
+   * quietly rebuilds a different waveform. */
+  if (read_frame_fields (so, out) != 0)
+    return -1;
   if (t == WFM_SYNTH_DSSS)
     {
-      /* Burst geometry: codes/sync as "0/1" strings, payload under "payload"
-       * (or the bits type's "pattern" — same field), crc none|crc16
-       * (default crc16: the burst_demod frame contract carries a trailer). */
-      const struct
-      {
-        const char *key;
-        uint8_t   **arr;
-        size_t     *len;
-      } bitkeys[] = {
-        { "acq_code", &out->acq_code, &out->n_acq_code },
-        { "data_code", &out->data_code, &out->n_data_code },
-        { "sync", &out->sync, &out->n_sync },
-      };
-      for (size_t i = 0; i < 3; i++)
+      /* The spread half: the payload's own code, the payload under "payload"
+       * (or the bits type's "pattern" — same field), and the continuous-mode
+       * discriminator. The preamble/sync/crc came from read_frame_fields. */
+      const char *dc = cJSON_GetStringValue (
+          cJSON_GetObjectItemCaseSensitive (so, "data_code"));
+      if (dc)
         {
-          const char *v = cJSON_GetStringValue (
-              cJSON_GetObjectItemCaseSensitive (so, bitkeys[i].key));
-          if (v)
+          out->data_code = string_to_bits (dc, &out->n_data_code);
+          if (!out->data_code)
             {
-              *bitkeys[i].arr = string_to_bits (v, bitkeys[i].len);
-              if (!*bitkeys[i].arr)
-                {
-                  free_src_bits (out, 1); /* drop this source's partials */
-                  return -1;
-                }
+              free_src_bits (out, 1); /* drop this source's partials */
+              return -1;
             }
         }
       const char *pay = cJSON_GetStringValue (
@@ -360,11 +417,6 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
               return -1;
             }
         }
-      out->acq_reps = (size_t)num (so, "acq_reps", 1);
-      int c         = name_index (
-          cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (so, "crc")),
-          CRC_NAMES, 2);
-      out->crc = (c < 0) ? 1 : c;
       /* symbol_rate > 0 selects the continuous async mode (data clock
          independent of the code); absent/0 = burst. */
       out->symbol_rate = num (so, "symbol_rate", 0.0);

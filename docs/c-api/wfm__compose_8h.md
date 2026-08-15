@@ -79,7 +79,10 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  int | [**wfm\_resolve\_noise**](#function-wfm_resolve_noise) ([**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n) <br>_Resolve a segment list's noise model in place (Phase 4b)._  |
 |  double | [**wfm\_snr\_over\_fs**](#function-wfm_snr_over_fs) (int snr\_mode, int type, int sps, size\_t sf, double sym\_span, double snr) <br>_SNR (dB) referred to fs, from a source's snr/snr\_mode/sps/type._  |
 |  int | [**wfm\_source\_attach\_dsss**](#function-wfm_source_attach_dsss) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Attach a dsss source's data to a freshly-created synth._  |
+|  int | [**wfm\_source\_attach\_frame**](#function-wfm_source_attach_frame) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Attach an unspread source's bit pattern, framed or not._  |
 |  double | [**wfm\_source\_create\_snr**](#function-wfm_source_create_snr) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double snr, int \* snr\_mode) <br>_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `wfm_synth_create()` _._ |
+|  const char \* | [**wfm\_source\_frame\_error**](#function-wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
+|  int | [**wfm\_source\_has\_frame**](#function-wfm_source_has_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Non-zero when this source describes a FRAME._  |
 |  double | [**wfm\_spec\_headroom**](#function-wfm_spec_headroom) (const char \* json) <br>_The top-level_ `headroom` _(dB) from a spec JSON, or 0 if absent._ |
 |  char \* | [**wfm\_spec\_template\_json**](#function-wfm_spec_template_json) (void) <br>_A ready-to-edit example spec in the canonical_  _from-file schema._ |
 |  char \* | [**wfm\_spec\_to\_json**](#function-wfm_spec_to_json) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous, double headroom) <br>_Serialise a spec to a JSON string (for_  _record)._ |
@@ -655,6 +658,48 @@ The single dsss-attach path, called by BOTH synth-construction faces (`wfm_compo
 
 
 
+### function wfm\_source\_attach\_frame 
+
+_Attach an unspread source's bit pattern, framed or not._ 
+```C++
+int wfm_source_attach_frame (
+    wfm_synth_state_t * syn,
+    const wfm_source_t * src
+) 
+```
+
+
+
+The `type=bits` counterpart of [**wfm\_source\_attach\_dsss()**](wfm__compose_8h.md#function-wfm_source_attach_dsss), and called from the same two places for the same reason. When the source carries a frame, the pattern handed to `wfm_synth_set_bits()` is `wfm_frame_bits()` of `[preamble x reps | sync | payload | crc]` rather than the payload alone — so the layout, the CRC's position and its bit order come from the one descriptor that the DSSS path and the receiver already read.
+
+
+The frame CYCLES, exactly as an unframed pattern does: one descriptor fills whatever length is asked for, which is what turns a one-frame description into a multi-frame record.
+
+
+
+
+**Parameters:**
+
+
+* `syn` A synth from [**wfm\_synth\_create()**](wfm__synth__core_8h.md#function-wfm_synth_create) with `wtype == WFM_SYNTH_BITS`. 
+* `src` The source (pattern, modulation, and any frame fields). 
+
+
+
+**Returns:**
+
+0 on success (or a non-bits/no-pattern no-op); -1 on failure. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function wfm\_source\_create\_snr 
 
 _Resolve a source's (snr, snr\_mode) into the pair to hand to_ `wfm_synth_create()` _._
@@ -688,6 +733,76 @@ double wfm_source_create_snr (
 
 The SNR in dB for create. 
 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_source\_frame\_error 
+
+_NULL when this source's frame fields can be honoured; else why not._ 
+```C++
+const char * wfm_source_frame_error (
+    const wfm_source_t * src
+) 
+```
+
+
+
+ONE rule, asked by all three faces — the wfmgen CLI before it generates, the standalone `Synth` through `wfm_source_to_synth`, and the composer through `wfm_compose_create` — because the alternative is what shipped: the flags were accepted, stored and readable back on every face, and applied on none of them, so a caller who asked for a framed waveform silently got an unframed one.
+
+
+A frame needs a payload, and the unspread types that source their symbols from the PN LFSR (`bpsk`/`qpsk`/`pn`) have no length to bound one. So the frame is honoured where the payload is EXPLICIT — `type=bits` with a pattern, which `modulation` already maps to BPSK or QPSK — and refused with a reason everywhere else.
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+
+
+
+**Returns:**
+
+NULL if there is nothing wrong, else a static message. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_source\_has\_frame 
+
+_Non-zero when this source describes a FRAME._ 
+```C++
+int wfm_source_has_frame (
+    const wfm_source_t * src
+) 
+```
+
+
+
+A preamble or a sync word is what says "framed". **Deliberately not `crc`**: it defaults to crc16 on every source (`[[module.wfm_compose.source.fields]]` and wfmgen alike), so reading it as intent would silently append a trailer to every unframed bit pattern anyone has ever generated. With neither a preamble nor a sync word, `crc` stays inert exactly as it always was.
+
+
+
+
+**Parameters:**
+
+
+* `src` The source; NULL reads as unframed. 
 
 
 

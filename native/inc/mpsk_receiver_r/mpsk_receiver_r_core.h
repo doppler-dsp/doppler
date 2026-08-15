@@ -133,7 +133,7 @@ extern "C"
    * @param nda_tap        MPSK_RX_NDA_TAP_* — where the NDA carrier
    *                        discriminator reads, and so its pull-in range:
    *                        `_STROBE` (0, default) at `Rs` and the only tap
-   *                        needing symbol timing, `_MF_ALL` (1) at
+   *                        needing symbol timing, `_MF_OUT` (1) at
    *                        `m_out*Rs`, `_LO_ARM` (2) at the LO rate and
    *                        widest. See mpsk_receiver_create() for the full
    *                        trade and the measured ranges. Two differences

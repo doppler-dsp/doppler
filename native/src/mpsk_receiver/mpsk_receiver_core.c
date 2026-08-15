@@ -58,7 +58,7 @@ mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
   l->lo_sps = lo_sps;
   /* Overwritten by any front end that publishes a real bank rate; this
      default only keeps mpsk_rx_updates_per_symbol() non-zero. */
-  l->pre_sps      = lo_sps;
+  l->mf_in_sps    = lo_sps;
   l->m_out        = m_out;
   l->bn_carrier   = bn_carrier;
   l->bn_agc_ratio = bn_agc_ratio;
@@ -328,7 +328,7 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
       || !(zeta > 0.0) || num_phases < 2u
       || (num_phases & (num_phases - 1u)) != 0u
       || nda_tap < MPSK_RX_NDA_TAP_STROBE
-      || nda_tap > MPSK_RX_NDA_TAP_PRETERM
+      || nda_tap > MPSK_RX_NDA_TAP_MF_IN
       /* An AGC at or above the bandwidth of a loop it feeds corrects the
          excursions that loop is producing; the two then integrate against
          each other. The invariant is structural rather than advisory. */
@@ -368,7 +368,7 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
      It arrives too LATE for mpsk_rx_loops_init(), which has already run
      config_carrier() against the `lo_sps` placeholder — so the carrier filter
      must be re-sized now that the real rate is known. Skipping this is not a
-     tuning nicety: PRETERM would keep gains designed for `lo_sps` updates per
+     tuning nicety: MF_IN would keep gains designed for `lo_sps` updates per
      symbol while actually updating `bank_sps` times, i.e. ki too small by
      (lo_sps/bank_sps)^2 — 1.7e7 at Fs/Rs = 10000, an integrator that never
      moves. The loop then reads a perfect 0 Hz error at 0 Hz offset and
@@ -376,7 +376,7 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
      native/validation/rx_nda_tap.c is the gate. `integ` survives
      loop_filter_init() by contract, and every other tap re-derives the same
      gains it already had. */
-  rx->l.pre_sps = ddc_get_bank_sps (rx->fe);
+  rx->l.mf_in_sps = ddc_get_bank_sps (rx->fe);
   config_carrier (&rx->l);
 
   /* The front end levels itself so the TED's construct-time slope means what

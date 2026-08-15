@@ -187,10 +187,10 @@ each, `tracking` went high **0/100 times at every order** — peak lock 0.371 /
     | tap      | BPSK   | QPSK   | 8PSK       |
     | -------- | ------ | ------ | ---------- |
     | `strobe` | +0.989 | +0.956 | +0.862     |
-    | `mf_all` | +0.904 | +0.384 | **+0.209** |
+    | `mf_out` | +0.904 | +0.384 | **+0.209** |
     | `lo_arm` | +0.926 | +0.677 | +0.551     |
 
-    So on `mf_all` or `lo_arm` at higher M the receiver can decode perfectly and
+    So on `mf_out` or `lo_arm` at higher M the receiver can decode perfectly and
     still not declare, because 0.5 sits above where that tap's statistic settles.
     Scale `lock_thresh` by the reading for your tap and order — the Pfa mapping
     (`thresh / 0.1132` in σ) is unchanged; you are only trading margin.
@@ -206,7 +206,7 @@ also **timing-independent**, which the strobe tap is not.
 | `nda_tap`          | Update rate | Max acquired `Δf` (QPSK, `sps=8`) | Needs timing? |
 | ------------------ | ----------- | --------------------------------- | ------------- |
 | `strobe` (default) | `Rs`        | `0.01·Rs`                         | yes           |
-| `mf_all`           | `m_out·Rs`  | `0.02·Rs`                         | no            |
+| `mf_out`           | `m_out·Rs`  | `0.02·Rs`                         | no            |
 | `lo_arm`           | LO rate     | **`0.08·Rs`**                     | no            |
 
 `lo_arm` is 8× the strobe — exactly the `sps` factor theory predicts. It is
@@ -220,7 +220,7 @@ rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.05, nda_tap="lo_arm")
 does not widen the loop by itself — it widens what the discriminator can see and
 improves the stability margin, which is what lets you then raise `bn_carrier`.
 
-!!! warning "`mf_all` needs `m_out = 8` — it is the tap that pays for a coarse strobe"
+!!! warning "`mf_out` needs `m_out = 8` — it is the tap that pays for a coarse strobe"
 
     Measured at Es/N0 20 dB, `sps = 8`, `bn_carrier = 0.005`, median SER / EVM over
     5 seeds, with and without the handover:
@@ -228,22 +228,22 @@ improves the stability margin, which is what lets you then raise `bn_carrier`.
     | tap      | `m_out=8` (default), any M | `m_out=4`, QPSK | `m_out=4`, 8PSK         |
     | -------- | -------------------------- | --------------- | ----------------------- |
     | `strobe` | SER 0, −19.7 dB            | SER 0, −15.9 dB | SER 0.002, −15.9 dB     |
-    | `mf_all` | SER 0, −19.7 dB            | SER 0, −16.0 dB | **SER 0.851, −11.9 dB** |
+    | `mf_out` | SER 0, −19.7 dB            | SER 0, −16.0 dB | **SER 0.851, −11.9 dB** |
     | `lo_arm` | SER 0, −19.7 dB            | SER 0, −16.0 dB | SER 0.001, −16.0 dB     |
 
     **At the default `m_out = 8` all three taps decode every order cleanly.** Every
-    failure in this table lives at `m_out = 4`, and it is `mf_all` that fails —
+    failure in this table lives at `m_out = 4`, and it is `mf_out` that fails —
     which is what the `Σ g_k^M` gain-collapse argument actually predicts, because
-    `mf_all` is the tap that averages the M-th power over **all `m_out`
+    `mf_out` is the tap that averages the M-th power over **all `m_out`
     matched-filter outputs**, including the badly-timed ones. Halving `m_out`
     halves how much of each symbol those arms cover, and at 8th power that is
     fatal. `lo_arm` is unaffected at every setting measured.
 
     The decode failure is `Σ g_k^M`; it used to come with a **false lock** on top,
-    and that part is fixed. At `m_out = 4`, `mf_all`/8PSK reported +0.94 (+3.90 at
+    and that part is fixed. At `m_out = 4`, `mf_out`/8PSK reported +0.94 (+3.90 at
     `bn_carrier = 0.05`) while decoding at chance; since the lock statistic was
     limited it reports **−0.069** on the identical failure — correctly not locked.
-    `mf_all` + `acq_to_track` at *QPSK* recovered with it, from 2/5 decodes (SER
+    `mf_out` + `acq_to_track` at *QPSK* recovered with it, from 2/5 decodes (SER
     0.295) to **5/5** (SER 0.0000), because the handover is no longer triggered by
     a statistic that meant nothing.
 

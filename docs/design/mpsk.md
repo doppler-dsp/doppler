@@ -50,34 +50,94 @@ The receiver owns **no filter, no NCO and no interpolator of its own**. It is
 a matched down-converter with two loops closed around its two control ports:
 
 ```mermaid
-flowchart TB
-    IN["rx (cf32 baseband, or f32 real IF)"]
-    subgraph RX["MpskReceiver — a matched DDC and two loops"]
-        direction TB
-        LO["LO mix (freq_ctrl)"]
-        CAS["CIC / halfband cascade"]
-        PRE(["pre-terminal stream<br/>FIXED RATE — bank_sps/symbol"])
-        AGC["AGC<br/>(levels the signal path)"]
-        NDA["NDA M-th-power disc<br/>at 2 samples/symbol<br/>→ phase_error"]
-        CLF["carrier loop filter (PI)"]
-        TERM["terminal polyphase stage<br/>(the bank IS the matched filter,<br/>the arm IS the fractional delay)"]
-        STROBE{"m_out outputs/symbol<br/>on-time strobe? gate?"}
-        TED["Gardner TED<br/>(carrier-blind, |·|²)"]
-        TLF["timing loop filter (PI)"]
-        LOCK["lock statistic<br/>Re((z/|z|)^M) → EMA → lockdet<br/>(telemetry only)"]
-        LO --> CAS --> PRE
-        PRE --> AGC
-        PRE --> NDA --> CLF
-        CLF -.->|"freq_ctrl"| LO
-        PRE --> TERM --> STROBE
-        STROBE -->|"every output"| TED --> TLF
-        TLF -.->|"rate_ctrl"| TERM
-        STROBE -->|"strobe only"| LOCK
+flowchart LR
+    IN["Rx<br/>cf32 BB/IF<br/>or f32 IF"]
+
+    subgraph FIXED["fixed rate — the plan sets this clock"]
+        direction LR
+        LO["LO"] --> MIX["MIX"]
+        MIX --> DEC["DEC"] --> AGC["AGC"]
     end
-    IN --> LO
-    STROBE -->|"y_k"| OUT["steps() → cf32 y_k"]
-    STROBE --> BITS["bits() → Gray bits<br/>(differential by default)"]
+
+    subgraph STEERED["steered — the timing loop stretches this clock"]
+        direction LR
+        MFR["MFR"] --> STROBE{"m_out per symbol<br/>on-time? gate?"}
+    end
+
+    subgraph CAR["Phase (carrier) loop"]
+        direction LR
+        PED["PED"] --> PLF["PLF"]
+    end
+
+    subgraph TL["Timing loop"]
+        direction LR
+        TED["TED"] --> TLF["TLF"]
+    end
+
+    IN --> MIX
+    AGC --> MFR
+    AGC -.->|"nda_tap=mf_in"| PED
+    STROBE -.->|"nda_tap=mf_out — every output"| PED
+    STROBE -.->|"nda_tap=strobe — on-time only"| PED
+    STROBE --> TED
+    PLF -.->|"freq_ctrl"| LO
+    TLF -.->|"rate_ctrl"| MFR
+    STROBE -->|"y_k"| OUT["steps()"]
+    STROBE --> BITS["bits()"]
 ```
+
+The figure groups by **clock**, not by component, because that is the
+distinction that explains the receiver: everything left of the MFR runs at a
+rate the *plan* fixed, everything from the MFR on runs at a rate the *timing
+loop* is stretching. The two loops hang off that boundary, and where the PED
+reads relative to it is exactly what `nda_tap` chooses.
+
+**LO sits inside the fixed-rate group deliberately.** Its *rate* is the input
+sample rate, fixed by the plan; it is its *frequency* that PLF steers. Drawing
+LO and MIX as one box hid that difference.
+
+### Nomenclature
+
+One name per block, used in the code, the docs and every figure. Where a term
+below disagrees with a symbol in the source, the source is the thing to fix.
+
+| Term    | Block                    | Owns                                                                                                                       |
+| ------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| **LO**  | Local oscillator         | The phase accumulator; steered by `freq_ctrl`                                                                              |
+| **MIX** | Mixer                    | The complex multiply that brings the carrier to DC                                                                         |
+| **DEC** | Integer decimator        | The planner's CIC / halfband chain, at a fixed integer rate                                                                |
+| **AGC** | Automatic gain control   | The signal level; its reference is derived for this exact node                                                             |
+| **MFR** | Matched filter resampler | The terminal polyphase stage — the bank *is* the matched filter, the arm *is* the fractional delay; steered by `rate_ctrl` |
+| **PED** | Phase error detector     | The NDA M-th-power discriminator; reads wherever `nda_tap` points it                                                       |
+| **PLF** | Phase loop filter        | Type-2 PI, output `freq_ctrl`                                                                                              |
+| **TED** | Timing error detector    | Gardner, carrier-blind (magnitude-squared, so it is independent of carrier phase)                                          |
+| **TLF** | Timing loop filter       | Type-2 PI, output `rate_ctrl`                                                                                              |
+
+### The taps are named for their node
+
+`nda_tap` chooses where the PED reads. The names are the MFR's two ports plus
+one well-known gate:
+
+| `nda_tap` | node                                   | needs symbol timing? |
+| --------- | -------------------------------------- | -------------------- |
+| `mf_in`   | the MFR's **input** — the AGC's output | no                   |
+| `mf_out`  | the MFR's **output**, at `m_out`·Rs    | no                   |
+| `strobe`  | the **on-time** MFR output, at Rs      | yes                  |
+
+`mf_in` and `mf_out` are the two sides of the matched filter; `strobe` is
+`mf_out` with the timing loop's gate applied, and keeps its own name because
+that name is standard.
+
+Naming the **node** rather than a region is deliberate, and both halves were
+wrong before. `preterm` / "pre-MF" describe a region — the LO's output and
+DEC's output are equally "before the matched filter" — where `mf_in` is one
+edge in the figure above (`AGC --> MFR`) and nowhere else. And `mf_all` read
+as *both* sides of the filter rather than its output, which is the one thing
+it never meant.
+
+At the `RateConverter` layer the same node is called *pre-terminal*, which is
+the honest name there: a plain cascade's terminal stage is not a matched
+filter at all, so it has no `mf` to be the input of.
 
 - **The matched filter is the cascade's terminal polyphase stage.** It is not
     a separate FIR: the bank the down-converter was already evaluating carries
@@ -357,7 +417,7 @@ rather than repairs — recorded here because Mode 2 will have to face them:
 
 1. **The carrier loop filter's update period is set once, from the
     acquisition tap's clock, and never re-set when the decision-directed
-    discriminator takes over at the symbol rate.** With `nda_tap = mf_all` at
+    discriminator takes over at the symbol rate.** With `nda_tap = mf_out` at
     `m_out = 8` that is an 8× loop-gain error the moment the receiver
     declares. `config_carrier()` runs at init only.
 1. **The lock EMA's `α` is per-update**, so at a tap faster than `Rs` the
@@ -595,7 +655,7 @@ Why this tap, stated against the three it replaces:
 | tap                        | why not                                                                                                                                                                          |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `strobe` (shipped default) | inside the matched filter's group delay, and the only tap that depends on symbol timing                                                                                          |
-| `mf_all`                   | also inside the matched filter; the between-symbol outputs average two symbols, so their M-th power carries ISI rather than carrier phase                                        |
+| `mf_out`                   | also inside the matched filter; the between-symbol outputs average two symbols, so their M-th power carries ISI rather than carrier phase                                        |
 | `lo_arm`                   | timing-independent and wide, but a hand-rolled approximation of this tap — a free-running half-symbol boxcar bolted ahead of the cascade to claw back SNR at the full input rate |
 
 The pre-terminal stream is what `lo_arm` was reaching for, done properly:
@@ -671,7 +731,7 @@ measured against the shipped filter rather than quoted from a textbook.
     | tap      | `m_out = 4` | `m_out = 8` |
     | -------- | ----------- | ----------- |
     | `strobe` | `0.010·Rs`  | `0.050·Rs`  |
-    | `mf_all` | `0.015·Rs`  | `0.033·Rs`  |
+    | `mf_out` | `0.015·Rs`  | `0.033·Rs`  |
     | `lo_arm` | `0.090·Rs`  | `0.090·Rs`  |
 
     `lo_arm` is the one number `m_out` cannot move, which is the check on the

@@ -83,7 +83,7 @@ extern "C"
     if (n_lo)
       mpsk_rx_push_lo (&s->l, zlo);
     if (n_pre)
-      mpsk_rx_push_preterm (&s->l, zpre);
+      mpsk_rx_push_mf_in (&s->l, zpre);
     int           emitted = 0;
     for (size_t oi = 0; oi < n; oi++)
       emitted |= mpsk_rx_take_output (&s->l, ys[oi], y_out, ted);

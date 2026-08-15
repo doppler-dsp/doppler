@@ -108,7 +108,7 @@ main (int argc, char **argv)
          0.87 dB from the fully-scattered EVM floor, i.e. barely
          distinguishable from noise. The extra ~1.3 dB at M = 8 is (b).
 
-         This matters most at MPSK_RX_NDA_TAP_MF_ALL, where the M-th power
+         This matters most at MPSK_RX_NDA_TAP_MF_OUT, where the M-th power
          genuinely runs on an oversampled pulse at m_out*Rs and needs
          `m_out >= M` outright -- and since m_out maxes out at 8, 8PSK at that
          tap is exactly critically sampled with no margin. The header's

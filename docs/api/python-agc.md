@@ -111,7 +111,7 @@ ______________________________________________________________________
 <!-- related-pages:start -->
 
 **Gallery** — [AGC Settling — a design chart](../gallery/agc-settling-design.md), [AGC — Step Response](../gallery/agc.md), [Gallery](../gallery/index.md)
-**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)
+**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [MPSK Receiver](../design/mpsk.md)
 **Contributing** — [Validation log](../dev/validation-log.md)
 
 <!-- related-pages:end -->

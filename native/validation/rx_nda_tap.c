@@ -5,7 +5,7 @@
  *
  * `nda_tap` chooses where MpskReceiver's M-th-power carrier discriminator
  * reads (mpsk_rx_loops.h). Each tap claims a different pull-in range and a
- * different noise bandwidth, and `preterm` claims to beat the shipped
+ * different noise bandwidth, and `mf_in` claims to beat the shipped
  * `strobe` default outright. Nothing ran on any tap but `strobe` until this
  * harness: every C test and every Python test constructs
  * `MPSK_RX_NDA_TAP_STROBE`, so three of the four taps were prose.
@@ -23,7 +23,7 @@
  *
  * That is not hypothetical. It is how this tap's headline number was
  * originally produced, and the inversion survived into a commit message
- * (`strobe 2.3e-03 Hz` vs `preterm 1.9e-09 Hz`) because the two numbers are
+ * (`strobe 2.3e-03 Hz` vs `mf_in 1.9e-09 Hz`) because the two numbers are
  * genuinely what those two loops print at 0 Hz offset. Reproduced here as the
  * `foff = 0` row of the full sweep, kept deliberately so the trap is visible
  * rather than merely warned about.
@@ -36,13 +36,13 @@
  * loop now scores 0.0 instead of winning, and `|f_err|` becomes a meaningful
  * tie-break between taps that all actually acquired.
  *
- * ## What this harness does NOT find: any advantage of `preterm` over
+ * ## What this harness does NOT find: any advantage of `mf_in` over
  * ## `strobe`
  *
  * Measured, and recorded here because the opposite was claimed: once every
- * tap is scored on a real offset, `preterm`'s residual `|f_err|` is the SAME
- * ORDER as `strobe`'s and `mf_all`'s at every rate ratio in the sweep (at
- * Fs/Rs = 10000: 1.8e-03 vs 6.2e-04 vs 1.5e-03 Hz — `preterm` is slightly
+ * tap is scored on a real offset, `mf_in`'s residual `|f_err|` is the SAME
+ * ORDER as `strobe`'s and `mf_out`'s at every rate ratio in the sweep (at
+ * Fs/Rs = 10000: 1.8e-03 vs 6.2e-04 vs 1.5e-03 Hz — `mf_in` is slightly
  * WORSE than the default). That is the expected result and not a defect:
  * three taps carrying the same `bn_carrier` over the same signal settle to
  * the same loop jitter, and the tap point does not change it. The "six orders
@@ -54,8 +54,8 @@
  * acquisition at these operating points.
  *
  * The claim this file therefore gates is the narrow one that IS true and IS
- * large: `preterm` acquires at rate ratios where `lo_arm` — the tap §3.3 says
- * it supersedes — cannot acquire at all. Whether `preterm` earns its place
+ * large: `mf_in` acquires at rate ratios where `lo_arm` — the tap §3.3 says
+ * it supersedes — cannot acquire at all. Whether `mf_in` earns its place
  * against `strobe` is an open question this harness answers "no evidence yet"
  * (doppler#766); it is not gated in either direction.
  *
@@ -69,7 +69,7 @@
  *
  * Quoting it per symbol rather than in Hz is what makes the sps sweep mean
  * something: the same normalised offset at every rate ratio asks each tap the
- * same question, which matters most for `preterm`, whose update rate is a
+ * same question, which matters most for `mf_in`, whose update rate is a
  * PLANNER OUTCOME (`bank_sps`) rather than a construction constant. A tap
  * whose loop is mis-sized against its own planned rate passes at one ratio
  * and fails at another, so one geometry is not evidence.
@@ -112,8 +112,7 @@
  * unacquired one sits at ~1.0 (the spin puts equal energy on both rails). */
 #define RX_NDA_DEROT_MAX 0.05
 
-static const char *RX_NDA_NAMES[4]
-    = { "strobe", "mf_all", "lo_arm", "preterm" };
+static const char *RX_NDA_NAMES[4] = { "strobe", "mf_out", "lo_arm", "mf_in" };
 
 /** @brief One tap's outcome at one geometry. */
 typedef struct
@@ -163,7 +162,7 @@ rx_nda_gauss (uint32_t *s)
  * sample, with the receiver centred at 0 so the whole offset is the loop's to
  * find. Steps sample by sample through the composition API because that is
  * the path the taps live on: `mpsk_receiver_step_ted()` is what calls
- * `mpsk_rx_push_lo()` and `mpsk_rx_push_preterm()`.
+ * `mpsk_rx_push_lo()` and `mpsk_rx_push_mf_in()`.
  *
  * @param tap       MPSK_RX_NDA_TAP_*.
  * @param sps       Samples per symbol at the receiver's input.
@@ -300,7 +299,7 @@ rx_nda_r_accepts (int tap)
   return 1;
 }
 
-/* The rate ratios the gate sweeps. `preterm`'s update rate is `bank_sps`, a
+/* The rate ratios the gate sweeps. `mf_in`'s update rate is `bank_sps`, a
  * planner outcome, so the plan must be re-consulted at more than one ratio:
  * 8 is the ordinary case, 10000 is the ratio the tap was introduced for. */
 static const double RX_NDA_CHECK_SPS[] = { 8.0, 200.0, 10000.0 };
@@ -317,7 +316,7 @@ main (int argc, char **argv)
   if (check)
     {
       /* G1/G2/G3 — at every rate ratio: every tap that claims to work must
-         ACQUIRE, `preterm` must acquire where `lo_arm` cannot, and `preterm`
+         ACQUIRE, `mf_in` must acquire where `lo_arm` cannot, and `mf_in`
          must leave a de-rotated constellation. */
       for (size_t i = 0; i < RX_NDA_N (RX_NDA_CHECK_SPS); i++)
         {
@@ -367,24 +366,24 @@ main (int argc, char **argv)
           /* G2 — the claim the tap was actually introduced for: it is what
              `lo_arm` "approximates by hand" (docs/design/mpsk.md §3.3), so it
              must succeed where `lo_arm` fails. Deliberately NOT a comparison
-             against `strobe`/`mf_all`: measured, their residuals are the same
-             order as `preterm`'s, so gating one would pin a coincidence. */
+             against `strobe`/`mf_out`: measured, their residuals are the same
+             order as `mf_in`'s, so gating one would pin a coincidence. */
           {
-            double pt = res[MPSK_RX_NDA_TAP_PRETERM].acquired;
+            double pt = res[MPSK_RX_NDA_TAP_MF_IN].acquired;
             double la = res[MPSK_RX_NDA_TAP_LO_ARM].acquired;
             if (!(pt > la + 0.5))
               {
-                printf ("FAIL sps=%.0f: preterm acquired %.4f, lo_arm %.4f — "
-                        "preterm must clear the tap it supersedes by 0.5\n",
+                printf ("FAIL sps=%.0f: mf_in acquired %.4f, lo_arm %.4f — "
+                        "mf_in must clear the tap it supersedes by 0.5\n",
                         sps, pt, la);
                 fail = 1;
               }
           }
           {
-            rx_nda_result_t p = res[MPSK_RX_NDA_TAP_PRETERM];
+            rx_nda_result_t p = res[MPSK_RX_NDA_TAP_MF_IN];
             if (!(p.re > 0.0) || !(p.im / p.re < RX_NDA_DEROT_MAX))
               {
-                printf ("FAIL sps=%.0f preterm: |Im|/|Re| = %.4f "
+                printf ("FAIL sps=%.0f mf_in: |Im|/|Re| = %.4f "
                         "(want < %.2f) — constellation still spinning\n",
                         sps, p.re > 0.0 ? p.im / p.re : -1.0,
                         RX_NDA_DEROT_MAX);
@@ -396,7 +395,7 @@ main (int argc, char **argv)
              1/upd too weak per symbol (its per-update ki scales as t^2 while
              it only gets t^-1 more updates), so it cannot pull in a frequency
              offset at any realistic rate ratio. That is a SHIPPED defect this
-             harness found, not one the preterm tap introduced; it is pinned
+             harness found, not one the mf_in tap introduced; it is pinned
              here so it cannot change unnoticed, and tracked upstream. If this
              line goes red because lo_arm started working, that is the fix
              landing — tighten the gate to RX_NDA_ACQ_MIN and close it. */
@@ -419,11 +418,11 @@ main (int argc, char **argv)
       for (int t = 0; t < 4; t++)
         {
           int got  = rx_nda_r_accepts (t);
-          int want = (t != MPSK_RX_NDA_TAP_PRETERM);
+          int want = (t != MPSK_RX_NDA_TAP_MF_IN);
           if (got != want)
             {
               printf ("FAIL MpskReceiverR %s: create() %s, want %s "
-                      "(preterm needs a bank rate the real front end does "
+                      "(mf_in needs a bank rate the real front end does "
                       "not publish)\n",
                       RX_NDA_NAMES[t], got ? "accepted" : "refused",
                       want ? "accepted" : "refused");
@@ -474,11 +473,11 @@ main (int argc, char **argv)
     }
 
   printf ("Read the |f_err| column across taps at a fixed sps: strobe, "
-          "mf_all and preterm are the\nsame order at every ratio. Three taps "
+          "mf_out and mf_in are the\nsame order at every ratio. Three taps "
           "carrying the same bn_carrier over the same signal\nsettle to the "
           "same loop jitter — the tap point does not buy frequency accuracy, "
           "and no\nclaim that it does is gated here (doppler#766). What "
-          "preterm does buy is acquiring at\nall where lo_arm cannot, which "
+          "mf_in does buy is acquiring at\nall where lo_arm cannot, which "
           "is gated.\n\n");
 
   /* The trap, reproduced. These are the numbers a zero-offset experiment
@@ -502,7 +501,7 @@ main (int argc, char **argv)
   for (int t = 0; t < 4; t++)
     if (rx_nda_r_accepts (t))
       printf ("%s ", RX_NDA_NAMES[t]);
-  printf ("\n  preterm is complex-input only: the real front end publishes no "
+  printf ("\n  mf_in is complex-input only: the real front end publishes no "
           "bank rate,\n  so there is no pre-terminal node to read.\n");
   return 0;
 }

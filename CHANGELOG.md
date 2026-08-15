@@ -15,6 +15,34 @@ ______________________________________________________________________
 
 ### Added
 
+- **The M-PSK harness reports the whole trio, and a false lock proves why it
+    must.** `symbol_metrics` returned SER and EVM; M2M4 was never computed, so
+    the trio the design asks for was two of three. It now returns a
+    `SymbolMetrics` record (`evm_db`, `ser`, `lag`, `m2m4_db`) built from the
+    library's own estimators over one window, and the seven call sites name the
+    field they mean. The EVM had been recomputed in numpy — it agreed with
+    `ber_evm_db` to four decimals, which is what a duplicate looks like right
+    up until one of them changes, and it was invisible to
+    `check_stimulus_sources.py` because that marker looks for a function while
+    this was inline.
+
+    The new test is the argument for truth-referenced measurement, measured
+    rather than asserted. A stable false lock at `df = k*Rs/M` (the M-th power
+    discriminator sees `M*df = k*Rs`, which aliases to zero, so the loop
+    parks) at Es/N0 15 dB:
+
+    | M   | alias | EVM honest | EVM false | penalty | truth-referenced |
+    | --- | ----- | ---------- | --------- | ------- | ---------------- |
+    | 2   | Rs/2  | -13.43 dB  | -9.88 dB  | 3.56 dB | **refused**      |
+    | 4   | Rs/4  | -13.57 dB  | -12.52 dB | 1.05 dB | **refused**      |
+    | 8   | Rs/8  | -14.83 dB  | -14.61 dB | 0.21 dB | **refused**      |
+
+    The receiver declares LOCK at every order; the alignment refuses at every
+    order; and the penalty the truth-free pair shows **shrinks as M rises**,
+    because the alias is `Rs/M`. So the metric that can half-see this at BPSK
+    goes blind exactly where the margin is thinnest. The test pins that shape,
+    not a single point.
+
 - **`test_snr_core.c` and `test_ber_core.c` — the measurement primitives had
     no C tests.** `snr_m2m4_db`, `snr_data_aided_db` and `ber_evm_db` are
     called by two harness headers, by `test_ratesync_core.c` and by

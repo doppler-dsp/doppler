@@ -114,8 +114,11 @@ def test_decodes_a_real_if_burst_at_the_design_centre():
     assert len(y) > 2300, f"only {len(y)} symbols from {len(x)} samples"
     settle = settle_from(pr)
     assert settle is not None, "both loops must lock before symbols are judged"
-    evm, ser, lag = symbol_metrics(y, idx, settle=settle)
-    assert ser == 0.0, f"noiseless SER {ser} (lag {lag}, EVM {evm:.1f} dB)"
+    r = symbol_metrics(y, idx, settle=settle)
+    assert r.ser == 0.0, (
+        f"noiseless SER {r.ser} (lag {r.lag}, EVM {r.evm_db:.1f} dB, "
+        f"M2M4 {r.m2m4_db:.1f} dB)"
+    )
 
 
 def test_noiseless_evm_floor():
@@ -134,8 +137,10 @@ def test_noiseless_evm_floor():
     """
     x, idx = make_signal(32, 2400, real=True)
     y, pr = demod(x, real=True, sps=32, m_out=8)
-    evm, _, _ = symbol_metrics(y, idx, settle=settle_from(pr))
-    assert evm < -20.0, f"noiseless EVM {evm:.1f} dB — floor regressed"
+    r = symbol_metrics(y, idx, settle=settle_from(pr))
+    assert r.evm_db < -20.0, (
+        f"noiseless EVM {r.evm_db:.1f} dB — floor regressed"
+    )
 
 
 def test_evm_lands_on_the_coherent_bound_under_awgn():
@@ -149,10 +154,10 @@ def test_evm_lands_on_the_coherent_bound_under_awgn():
     esn0 = 12.0
     x, idx = make_signal(32, 2400, real=True, esn0_db=esn0)
     y, pr = demod(x, real=True, sps=32, m_out=8)
-    evm, ser, _ = symbol_metrics(y, idx, settle=settle_from(pr))
-    assert -esn0 - 1.0 < evm < -esn0 + 3.0, (
-        f"EVM {evm:.1f} dB against a {-esn0:.0f} dB bound at "
-        f"Es/N0 = {esn0:.0f} dB (SER {ser:.4f})"
+    r = symbol_metrics(y, idx, settle=settle_from(pr))
+    assert -esn0 - 1.0 < r.evm_db < -esn0 + 3.0, (
+        f"EVM {r.evm_db:.1f} dB against a {-esn0:.0f} dB bound at "
+        f"Es/N0 = {esn0:.0f} dB (SER {r.ser:.4f}, M2M4 {r.m2m4_db:.1f} dB)"
     )
 
 
@@ -216,9 +221,9 @@ def test_fs4_is_the_design_centre():
         y, pr = demod(x, real=True, sps=sps, m_out=m_out, fc=IF_FS4)
         settle = settle_from(pr)
         assert settle is not None, f"seed {seed}: no lock at the design centre"
-        evm, ser, _ = symbol_metrics(y, idx, settle=settle)
-        assert ser == 0.0, f"seed {seed}: SER {ser} at fs/4"
-        assert evm < -18.0, f"seed {seed}: EVM {evm:.1f} dB at fs/4"
+        r = symbol_metrics(y, idx, settle=settle)
+        assert r.ser == 0.0, f"seed {seed}: SER {r.ser} at fs/4"
+        assert r.evm_db < -18.0, f"seed {seed}: EVM {r.evm_db:.1f} dB at fs/4"
 
 
 @pytest.mark.parametrize("sps", [10, 16, 20])
@@ -255,8 +260,8 @@ def test_occupied_band_may_touch_dc_but_not_overrun_it(sps):
         settle = settle_from(pr)
         if settle is None:
             return None, None
-        evm, ser, _ = symbol_metrics(y, idx, settle=settle)
-        return float(evm), float(ser)
+        r = symbol_metrics(y, idx, settle=settle)
+        return float(r.evm_db), float(r.ser)
 
     # At the limit the band TOUCHES DC: still error-free, on both sides.
     for fc, side in ((B, "DC"), (0.5 - B, "Nyquist")):

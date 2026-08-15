@@ -43,15 +43,19 @@ In particular
 
 from __future__ import annotations
 
+from typing import NamedTuple
+
 import numpy as np
 
 from doppler.ber import (
     BerMeter,
+    ber_evm_db,
     ber_evm_scatter_floor_db,
     ber_lock_symbol,
     ber_settle_from,
     ber_settle_syms,
 )
+from doppler.snr import snr_m2m4_db
 from doppler.telemetry import Telemetry
 from doppler.track import MpskReceiver, MpskReceiverR
 from doppler.wfm import Synth
@@ -475,6 +479,22 @@ def ser_confidence(errors, symbols, z=1.96):
     return r.p_hat, r.lo, r.hi
 
 
+class SymbolMetrics(NamedTuple):
+    """What one settled burst measures, reported as a set rather than singly.
+
+    Goal 4 of docs/design/rx-test.md: BER, EVM and M2M4 fail DIFFERENTLY, so
+    the disagreement between them is the diagnostic and reporting one alone is
+    what makes a false lock invisible. Named fields rather than a tuple so a
+    caller has to say which number it means -- and so adding the fourth (FER,
+    once the frame layer lands) does not silently renumber anything.
+    """
+
+    evm_db: float
+    ser: float
+    lag: int
+    m2m4_db: float
+
+
 def symbol_metrics(y, idx, m=4, settle=SETTLE_SYMS):
     """EVM (dB) and DIFFERENTIAL SER over the SETTLED part of the burst.
 
@@ -503,7 +523,23 @@ def symbol_metrics(y, idx, m=4, settle=SETTLE_SYMS):
     tests run, so the numbers are unchanged where the search was right; where
     it was wrong, there is now no number.
 
-    Returns `(evm_db, ser, lag)`, `lag` in the meter's convention.
+    **All three numbers come back together**, because they fail differently
+    and the disagreement is the diagnostic. Under a stable false lock at
+    `df = k*Rs/M` the constellation is stationary, so the two truth-free
+    metrics read almost exactly what a healthy link reads -- measured at
+    sps=16, QPSK, Es/N0 15 dB: EVM -12.52 dB and M2M4 12.93 dB against -13.57
+    and 13.77 for the real thing, while the receiver reports LOCKED. Only the
+    truth-referenced measurement sees it, and here it refuses outright. Report
+    any one of these alone and that failure is invisible.
+
+    `evm_db` and `m2m4_db` are the library's own estimators over the SAME
+    window the SER is scored on -- `ber.ber_evm_db` and `snr.snr_m2m4_db`,
+    both pinned by known answer and sabotage in `native/tests/`. The EVM used
+    to be recomputed here in numpy; it agreed with `ber_evm_db` to four
+    decimals, which is what a duplicate looks like right up until one of them
+    changes.
+
+    Returns a `SymbolMetrics`; `lag` is in the meter's convention.
     """
     ys = y[settle:]
     if len(ys) < 200:
@@ -511,19 +547,23 @@ def symbol_metrics(y, idx, m=4, settle=SETTLE_SYMS):
             f"only {len(ys)} symbols after settling at {settle} of "
             f"{len(y)}: too short to measure, so nothing is reported"
         )
+    rx = np.ascontiguousarray(y, dtype=np.complex64)
+    evm = float(ber_evm_db(rx, settle, len(y), m))
+    m2m4 = float(snr_m2m4_db(np.ascontiguousarray(ys, dtype=np.complex64)))
+
     step = 2.0 * np.pi / m
     yr = ys * np.exp(-1j * np.angle(np.mean(ys**m)) / m)
     yr = yr / np.sqrt(np.mean(np.abs(yr) ** 2))
-    ideal = np.exp(1j * step * np.round(np.angle(yr) / step))
-    evm = 10 * np.log10(np.mean(np.abs(yr - ideal) ** 2))
 
     meter = detect_alignment(y, idx, m, settle)
     if meter is None:
         raise AssertionError(
-            f"no alignment detected over {len(ys)} settled symbols (EVM "
-            f"{evm:.1f} dB, scatter floor {evm_scatter_floor_db(m):.1f} dB): "
-            f"there is no lag at which an SER means anything, so none is "
-            f"reported"
+            f"no alignment detected over {len(ys)} settled symbols. The "
+            f"truth-free pair reads EVM {evm:.1f} dB and M2M4 {m2m4:.1f} dB "
+            f"(scatter floor {evm_scatter_floor_db(m):.1f} dB) -- if those "
+            f"look healthy, this is the false-lock signature, not a broken "
+            f"demodulator. There is no lag at which an SER means anything, "
+            f"so none is reported"
         )
     lag = int(meter.lag)
 
@@ -542,4 +582,4 @@ def symbol_metrics(y, idx, m=4, settle=SETTLE_SYMS):
             f"report an SER"
         )
     ser = float(np.mean(dd[a0 : a0 + k] != dt[b0 : b0 + k]))
-    return evm, ser, lag
+    return SymbolMetrics(evm, ser, lag, m2m4)

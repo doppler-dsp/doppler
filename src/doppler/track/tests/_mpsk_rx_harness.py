@@ -12,8 +12,18 @@ In particular
 * **EVM is the quality metric, not BER.** BER/SER saturates at 0 long before
   the constellation is good, so it cannot distinguish a receiver on the bound
   from one 8 dB off it. The convention is `EVM_dB = -(Es/N0)_dB` (an I/Q-plane
-  quantity against an I/Q-plane bound, no factor of two), so an EVM that BEATS
-  the bound means the measurement is wrong, never that the receiver is good.
+  quantity against an I/Q-plane bound, no factor of two), so an EVM that beats
+  the bound usually means the measurement is wrong rather than the receiver
+  good — **but only usually, and only above ~12 dB.** `ber_evm_db` is
+  SELF-referenced: it scores each symbol against the stream's own hard
+  decision, so a misdecided symbol is measured against a nearer constellation
+  point than the one sent and contributes too small an error vector. The
+  metric therefore flatters by an amount set by the SER — measured on QPSK,
+  2.45 dB at Es/N0 = 3 dB, 1.06 at 6, 0.44 at 9, 0.20 at 12, 0.11 at 15,
+  0.04 at 21 (`native/tests/test_ber_core.c` pins both halves). Every EVM
+  assertion here runs at 12 dB or above, where the flattery is inside the
+  margin; a test at a lower operating point must widen its lower bound or it
+  will read the estimator's own bias as a receiver beating physics.
 * **Nothing is measured before the loops settle.** A second-order loop needs
   ~5/Bn symbols, which at the default `bn_timing = 0.01` is 500 -- longer than
   many test bursts. Measuring inside that window measures settling.

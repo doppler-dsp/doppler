@@ -532,6 +532,29 @@ target_include_directories(test_mpsk_core
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_mpsk_core COMMAND test_mpsk_core)
 
+# snr is function-only as well — the two stateless estimators and their
+# sliding-window forms are module-level TUs, so jm emits no C test target and
+# the module had NO C test at all. Both estimators are called by
+# test_async_dsss_receiver_core.c and by two harness headers, which exercises
+# them as tools without pinning a single claim they make.
+add_executable(test_snr_core native/tests/test_snr_core.c)
+target_link_libraries(test_snr_core PRIVATE snr_core m)
+target_include_directories(test_snr_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_snr_core COMMAND test_snr_core)
+
+# ber is function-only in the same sense: the theory curves, the settled
+# window and the self-referenced EVM are module-level TUs (ber_meter is the
+# object, and has its own generated target). ber_evm_db is the harness's
+# quality metric and was likewise never asserted directly.
+add_executable(test_ber_core native/tests/test_ber_core.c)
+target_link_libraries(test_ber_core PRIVATE ber_core detection_core mpsk_core m)
+target_include_directories(test_ber_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_ber_core COMMAND test_ber_core)
+
 # The EMA primitive's benchmark, registered here for the same reason its
 # test is: util is function-only, so jm generates no bench target for it.
 # It is a COMPARISON against the bodies the migrated call sites used to

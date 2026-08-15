@@ -13,6 +13,53 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`test_snr_core.c` and `test_ber_core.c` — the measurement primitives had
+    no C tests.** `snr_m2m4_db`, `snr_data_aided_db` and `ber_evm_db` are
+    called by two harness headers, by `test_ratesync_core.c` and by
+    `test_async_dsss_receiver_core.c`, which exercises them as tools without
+    asserting one thing any of them claims; the `snr` module had no C test at
+    all. Every receiver number this project reports rests on them.
+
+    Each claim is taken from the declaration and pinned by known answer —
+    QPSK/BPSK at a constructed Es/N0, so the reference is the construction and
+    not another estimator — drawing its randomness from `dp_rng_test.h`, which
+    `make tests-ssot` requires and which caught the hand-rolled xorshift and
+    Box-Muller these files started with. Then proven by mutation. Seven mutations, each
+    watched going red: `log10`→`log2` and a wrong fourth-moment weight in
+    M2M4; assuming unit amplitude and skipping the sign-strip in the
+    data-aided form; `20log10`→`10log10` (the I-only convention, worth 3 dB),
+    not estimating the constellation rotation, and relaxing the 20-symbol
+    no-lock floor in `ber_evm_db`.
+
+- **`test_ber_meter_core.c` was a 24-line jm scaffold** — create, reset,
+    destroy — for the object that ships the entire alignment decision, and
+    `ber_align_detect` appeared in exactly one place tree-wide. It now pins
+    what the primitive claims: a planted lag and ABSOLUTE rotation recovered
+    exactly across four lags and four noise levels (the gate estimates its
+    floor from the off-peak lags, so it needs no Es/N0); `ok = 0` rather than
+    a plausible lag for a marker too short to identify one; repeats combined
+    non-coherently buying that gain back; a peak on the edge of the search
+    refused as saturated; an unrelated truth sequence refused outright; and
+    marker symbols excluded from `score()`, landing in `skipped`. Removing the
+    false-alarm gate or shifting the detected lag by one turns it red.
+
+- **The self-referenced EVM flatters at low Es/N0, and now says so.** Writing
+    the known-answer test asserted `EVM[dB] == -(Es/N0)[dB]` at 6 dB and it
+    FAILED, reading -7.06. The estimator is right: it scores each symbol
+    against the stream's own hard decision, so a misdecided symbol is measured
+    against a nearer constellation point and contributes too small an error
+    vector. The bias tracks the SER — measured on QPSK, 2.45 dB at 3 dB Es/N0,
+    1.06 at 6, 0.44 at 9, 0.20 at 12, 0.11 at 15, 0.04 at 21.
+
+    This contradicted a load-bearing sentence in the M-PSK harness ("an EVM
+    that BEATS the bound means the measurement is wrong, never that the
+    receiver is good"), which is true only above ~12 dB. Both the test and the
+    harness docstring now carry the measured table, and the identity is pinned
+    tightly from 12 dB up — where every EVM assertion in the tree actually
+    runs — with the flattery pinned separately as its own monotone property.
+
 ### Changed
 
 - **One SNR conversion, not two.** `wfm_snr_over_fs()` (the composer's

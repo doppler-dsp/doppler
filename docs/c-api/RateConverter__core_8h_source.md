@@ -147,6 +147,15 @@ size_t RateConverter_execute_ctrl_push (RateConverter_state_t *s,
                                         float _Complex x, double ctrl,
                                         float _Complex *out, size_t max_out);
 
+size_t RateConverter_execute_ctrl_push_tap (RateConverter_state_t *s,
+                                            float _Complex x, double ctrl,
+                                            float _Complex *out,
+                                            size_t max_out,
+                                            float _Complex *pre_out,
+                                            int *n_pre);
+
+double RateConverter_get_bank_sps (const RateConverter_state_t *s);
+
 double RateConverter_get_rate (const RateConverter_state_t *s);
 
 void RateConverter_set_rate (RateConverter_state_t *s, double rate);

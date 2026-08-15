@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.60.1"
+jm_version = "0.60.2"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -156,30 +156,29 @@ status_allow = [
     "native/src/resample/resample_ext_Resampler.c",
     "native/src/wfm/wfm_ext_wfm_synth.c",
     "native/tests/jm_test.h",
-    # The five deliberate UNWIRED cores (jm gh-984). Each is scoped to its
+    # The three deliberate UNWIRED cores (jm gh-984). Each is scoped to its
     # COMPONENT, never to `CMakeLists.txt` itself: naming the file would
     # exempt EVERY core from the wiring check and re-open the hole that hid
     # 38 unlinkable symbols across 6 components (gh-747).
     #
     # Verified rather than assumed — `nm` over each core's objects against
-    # `libdoppler.a` before adding it here:
+    # `libdoppler.a` before adding it here: wfm_compose / wfm_sink_stub /
+    # wfmgen export NOTHING out-of-line, so no C consumer can be missing
+    # anything. wfmcompose's own CMakeLists states the policy: its cores are
+    # app/binding-only, and `timing_core` is "the one general-purpose
+    # primitive worth shipping" — which it wires into both libraries itself,
+    # guarded.
     #
-    #   wfm_compose / wfm_sink / wfm_sink_stub / wfmgen  export NOTHING
-    #     out-of-line, so no C consumer can be missing anything. wfmcompose's
-    #     own CMakeLists states the policy: its cores are app/binding-only,
-    #     and `timing_core` is "the one general-purpose primitive worth
-    #     shipping" — which it wires into both libraries itself, guarded.
-    #
-    #   stream_core_obj exports 75 symbols and is the one that needs saying:
-    #     they are all present in `libdoppler_stream.a`, the OPTIONAL second
-    #     library the stream layer ships as by design. jm's check reads only
-    #     `doppler_lib`/`doppler_lib_static`, so it cannot see a project's
-    #     second library and reports a true-but-intended state.
+    # `stream_core_obj` and `wfm_sink_core` were here too, for a reason that
+    # was jm's rather than ours: their symbols ship in `libdoppler_stream`,
+    # the OPTIONAL second library, and jm read only
+    # `doppler_lib`/`doppler_lib_static`. **jm 0.60.2 (gh-991) reads
+    # `add_library(NAME SHARED|STATIC $<TARGET_OBJECTS:X>)` too**, so both are
+    # now correctly seen as shipped and their exemptions are DELETED — a
+    # suppression kept past its cause is one that hides the next real finding.
     "CMakeLists.txt:wfm_compose_core",
-    "CMakeLists.txt:wfm_sink_core",
     "CMakeLists.txt:wfm_sink_stub_core",
     "CMakeLists.txt:wfmgen_core",
-    "CMakeLists.txt:stream_core_obj",
 ]
 
 # Benchmark only the 64k block (jm-gh-390). doppler dropped the small-block

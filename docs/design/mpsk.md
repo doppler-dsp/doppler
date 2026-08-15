@@ -50,33 +50,41 @@ The receiver owns **no filter, no NCO and no interpolator of its own**. It is
 a matched down-converter with two loops closed around its two control ports:
 
 ```mermaid
-flowchart TB
-    IN["rx (cf32 baseband, or f32 real IF)"]
-    subgraph RX["MpskReceiver — a matched DDC and two loops"]
-        direction TB
-        LO["LO mix (freq_ctrl)"]
-        CAS["CIC / halfband cascade"]
-        PRE(["pre-terminal stream<br/>FIXED RATE — bank_sps/symbol"])
-        AGC["AGC<br/>(levels the signal path)"]
-        NDA["NDA M-th-power disc<br/>at 2 samples/symbol<br/>→ phase_error"]
-        CLF["carrier loop filter (PI)"]
-        TERM["terminal polyphase stage<br/>(the bank IS the matched filter,<br/>the arm IS the fractional delay)"]
-        STROBE{"m_out outputs/symbol<br/>on-time strobe? gate?"}
-        TED["Gardner TED<br/>(carrier-blind, |·|²)"]
-        TLF["timing loop filter (PI)"]
-        LOCK["lock statistic<br/>Re((z/|z|)^M) → EMA → lockdet<br/>(telemetry only)"]
-        LO --> CAS --> PRE
-        PRE --> AGC
-        PRE --> NDA --> CLF
-        CLF -.->|"freq_ctrl"| LO
-        PRE --> TERM --> STROBE
-        STROBE -->|"every output"| TED --> TLF
-        TLF -.->|"rate_ctrl"| TERM
-        STROBE -->|"strobe only"| LOCK
+flowchart LR
+    IN["Rx<br/>cf32 BB/IF<br/>or f32 IF"]
+
+    subgraph FIXED["fixed rate — the plan sets this clock"]
+        direction LR
+        LO["LO"]
+        DEC["Decimator<br/>plan integer"]
+        AGC["AGC<br/>defines the level"]
+        LO --> DEC --> AGC
     end
+
+    subgraph STEERED["steered — the timing loop stretches this clock"]
+        direction LR
+        MF["Resampler<br/>matched filter"]
+        STROBE{"m_out per symbol<br/>on-time? gate?"}
+        MF --> STROBE
+    end
+
+    subgraph CAR["Carrier Loop"]
+        direction LR
+        PED["NDA<br/>PED"] --> LOLF["Loop<br/>Filter"]
+    end
+
+    subgraph TL["Timing Loop"]
+        direction LR
+        TED["TED"] --> TLF["Loop<br/>Filter"]
+    end
+
     IN --> LO
-    STROBE -->|"y_k"| OUT["steps() → cf32 y_k"]
-    STROBE --> BITS["bits() → Gray bits<br/>(differential by default)"]
+    AGC --> MF & PED
+    STROBE --> TED
+    LOLF -.->|"freq_ctrl"| LO
+    TLF -.->|"rate_ctrl"| MF
+    STROBE -->|"y_k"| OUT["steps()"]
+    STROBE --> BITS["bits()"]
 ```
 
 - **The matched filter is the cascade's terminal polyphase stage.** It is not

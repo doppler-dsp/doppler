@@ -86,6 +86,7 @@
 * [**fft\_state\_t**](structfft__state__t.md)
 * [**fir\_state\_t**](structfir__state__t.md)
 * [**frame\_meter\_state\_t**](structframe__meter__state__t.md)
+* [**frame\_state\_t**](structframe__state__t.md)
 
 
 ## g

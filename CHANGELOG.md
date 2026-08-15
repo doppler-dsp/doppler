@@ -15,6 +15,32 @@ ______________________________________________________________________
 
 ### Added
 
+- **`doppler.wfm.Frame` — the frame descriptor, reachable from Python.** The
+    measurement half of the frame story shipped first (`wfm_frame_t` in C, and
+    `doppler.ber.FrameMeter` with a Python face); the descriptor half did not,
+    so a caller with a capture could accumulate frame outcomes but had no way
+    to *produce* one. `Frame` closes that: `bits()` materialises
+    `[preamble x reps | sync | payload | CRC]`, `layout()` returns the field
+    offsets as a `FrameLayout` record, and `crc_ok(rx_bits)` scores a received
+    frame using **no payload truth at all** — which is what makes a frame error
+    rate measurable on a real capture, and what still catches a false lock that
+    EVM and M2M4 read as clean.
+
+    It is the **same descriptor the generator uses**, which is the point: a
+    framed `Segment` and a `Frame` built from the same fields now agree symbol
+    for symbol, so a receiver is scored against the frame that was actually
+    sent rather than one reassembled from parts. Every layout decision stays in
+    `wfm_frame.c`; this object is lifecycle and delegation only.
+
+    Each field is a literal array **or** a PN/Gold descriptor a receiver can
+    regenerate — truth for a long record without a long array. The three
+    `wfm_seq_t` cannot nest across the C ABI, so they are flattened with a name
+    prefix (`preamble_*`, `sync_*`, `payload_*`), and a field with an empty
+    array and zero length is **absent** — `wfm_seq_t`'s own convention. An
+    unbuildable descriptor (empty geometry, a literal with no array, a PN with
+    no register width) raises `ValueError` at construction rather than
+    producing a frame with a hole in it.
+
 - **just-makeit pin 0.60.1 → 0.60.2.** Pure bugfix upstream, and three of the
     four fixes are about doppler's own wiring report — this repo is where they
     were found. `jm status` now reads

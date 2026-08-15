@@ -4,6 +4,48 @@ import numpy as np
 from numpy.typing import NDArray
 
 @final
+class FrameLayout(tuple[int, int, int, int, int, int, int, int, int]):
+    """Where each field lands, in bits from the start of the frame. The offsets
+    a receiver needs to slice a capture -- computed once, by the same code the
+    generator laid the frame out with.
+
+    Attributes
+    ----------
+    crc_bits : int
+        16, or 0 when crc is unset or the payload is empty — a CRC over nothing protects nothing
+    """
+
+    @property
+    def preamble_off(self) -> int: ...
+
+    @property
+    def preamble_bits(self) -> int: ...
+
+    @property
+    def sync_off(self) -> int: ...
+
+    @property
+    def sync_bits(self) -> int: ...
+
+    @property
+    def payload_off(self) -> int: ...
+
+    @property
+    def payload_bits(self) -> int: ...
+
+    @property
+    def crc_off(self) -> int: ...
+
+    @property
+    def crc_bits(self) -> int:
+        """16, or 0 when crc is unset or the payload is empty — a CRC over
+        nothing protects nothing
+        """
+
+    @property
+    def total_bits(self) -> int: ...
+
+@final
 class PN:
     """Allocate and initialise a maximal-length-sequence LFSR. The register is
     seeded from ``seed`` and will produce a pseudo-random binary sequence with
@@ -770,6 +812,283 @@ class Gold:
         tb: object | None = ...,
     ) -> None:
         """Exit a context manager, releasing the Gold.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
+class Frame:
+    """Create a frame instance.
+
+    Parameters
+    ----------
+    preamble_kind : Literal["literal", "pn", "gold", "dotted"], default "literal"
+        Enum index; 0=literal…3=dotted.
+    preamble : NDArray[np.uint8]
+        Literal preamble bits, one per element. Pass an EMPTY array when the
+        field is absent or generated -- `wfm_seq_t` already spells absence as a
+        zero length, so this is that convention reaching Python rather than a
+        placeholder. (An omittable array init-param is a jm gap; see the module
+        docs.)
+    preamble_nbits : int, default 0
+        Output bits for a GENERATED preamble kind. A literal takes its length
+        from the `preamble` array instead; `wfm_seq_t` names these apart (len
+        vs reg_bits) for the same reason.
+    preamble_reps : int, default 0
+        Repetitions of the preamble; 0 = no preamble (default: 0).
+    preamble_poly : int, default 0
+        PN feedback polynomial; 0 selects the maximal-length one (default: 0).
+    preamble_seed : int, default 0
+        PN seed; 0 selects 1, since an all-zero register is a fixed point
+        (default: 0).
+    preamble_reg_bits : int, default 0
+        PN/Gold register width, 1..64 (default: 0).
+    preamble_lfsr : Literal["galois", "fibonacci"], default "galois"
+        Enum index; 0=galois…1=fibonacci.
+    preamble_taps_a : int, default 0
+        Gold: first register's taps (default: 0).
+    preamble_seed_a : int, default 0
+        Gold: first register's seed (default: 0).
+    preamble_taps_b : int, default 0
+        Gold: second register's taps (default: 0).
+    preamble_seed_b : int, default 0
+        Gold: second register's seed (default: 0).
+    sync_kind : Literal["literal", "pn", "gold", "dotted"], default "literal"
+        Enum index; 0=literal…3=dotted.
+    sync : NDArray[np.uint8]
+        Literal sync word bits, one per element. Pass an EMPTY array when the
+        field is absent or generated -- `wfm_seq_t` already spells absence as a
+        zero length, so this is that convention reaching Python rather than a
+        placeholder. (An omittable array init-param is a jm gap; see the module
+        docs.)
+    sync_nbits : int, default 0
+        Output bits for a GENERATED sync kind (default: 0).
+    sync_poly : int, default 0
+        PN feedback polynomial; 0 selects the maximal-length one (default: 0).
+    sync_seed : int, default 0
+        PN seed; 0 selects 1 (default: 0).
+    sync_reg_bits : int, default 0
+        PN/Gold register width, 1..64 (default: 0).
+    sync_lfsr : Literal["galois", "fibonacci"], default "galois"
+        Enum index; 0=galois…1=fibonacci.
+    sync_taps_a : int, default 0
+        Gold: first register's taps (default: 0).
+    sync_seed_a : int, default 0
+        Gold: first register's seed (default: 0).
+    sync_taps_b : int, default 0
+        Gold: second register's taps (default: 0).
+    sync_seed_b : int, default 0
+        Gold: second register's seed (default: 0).
+    payload_kind : Literal["literal", "pn", "gold", "dotted"], default "literal"
+        Enum index; 0=literal…3=dotted.
+    payload : NDArray[np.uint8]
+        Literal payload bits, one per element. Pass an EMPTY array when the
+        field is absent or generated -- `wfm_seq_t` already spells absence as a
+        zero length, so this is that convention reaching Python rather than a
+        placeholder. (An omittable array init-param is a jm gap; see the module
+        docs.)
+    payload_nbits : int, default 0
+        Output bits for a GENERATED payload kind (default: 0).
+    payload_poly : int, default 0
+        PN feedback polynomial; 0 selects the maximal-length one (default: 0).
+    payload_seed : int, default 0
+        PN seed; 0 selects 1 (default: 0).
+    payload_reg_bits : int, default 0
+        PN/Gold register width, 1..64 (default: 0).
+    payload_lfsr : Literal["galois", "fibonacci"], default "galois"
+        Enum index; 0=galois…1=fibonacci.
+    payload_taps_a : int, default 0
+        Gold: first register's taps (default: 0).
+    payload_seed_a : int, default 0
+        Gold: first register's seed (default: 0).
+    payload_taps_b : int, default 0
+        Gold: second register's taps (default: 0).
+    payload_seed_b : int, default 0
+        Gold: second register's seed (default: 0).
+    crc : Literal["none", "crc16"], default "none"
+        Enum index; 0=none…1=crc16.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``frame geometry is
+        empty or a field is unbuildable (a literal with no array, or a
+        generated field with no register width)``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.wfm import Frame
+    >>> empty = np.empty(0, np.uint8)                    # an absent field
+    >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)   # Barker-13
+    >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+    >>> f = Frame(empty, sync, payload, crc="crc16")
+    >>> f.nbits                                          # 13 + 16 + 16
+    45
+    >>> f.layout().payload_off
+    13
+    >>> f.crc_ok(f.bits())        # its own bits are its own truth
+    1
+
+    A payload a receiver can REGENERATE, rather than one it must be handed:
+
+    >>> g = Frame(empty, sync, empty, payload_kind="pn",
+    ...           payload_nbits=1024, payload_reg_bits=10, crc="crc16")
+    >>> g.nbits
+    1053
+
+    """
+    def __init__(
+        self,
+        preamble: NDArray[np.uint8],
+        sync: NDArray[np.uint8],
+        payload: NDArray[np.uint8],
+        preamble_kind: Literal["literal", "pn", "gold", "dotted"] = "literal",
+        preamble_nbits: int = ...,
+        preamble_reps: int = ...,
+        preamble_poly: int = ...,
+        preamble_seed: int = ...,
+        preamble_reg_bits: int = ...,
+        preamble_lfsr: Literal["galois", "fibonacci"] = "galois",
+        preamble_taps_a: int = ...,
+        preamble_seed_a: int = ...,
+        preamble_taps_b: int = ...,
+        preamble_seed_b: int = ...,
+        sync_kind: Literal["literal", "pn", "gold", "dotted"] = "literal",
+        sync_nbits: int = ...,
+        sync_poly: int = ...,
+        sync_seed: int = ...,
+        sync_reg_bits: int = ...,
+        sync_lfsr: Literal["galois", "fibonacci"] = "galois",
+        sync_taps_a: int = ...,
+        sync_seed_a: int = ...,
+        sync_taps_b: int = ...,
+        sync_seed_b: int = ...,
+        payload_kind: Literal["literal", "pn", "gold", "dotted"] = "literal",
+        payload_nbits: int = ...,
+        payload_poly: int = ...,
+        payload_seed: int = ...,
+        payload_reg_bits: int = ...,
+        payload_lfsr: Literal["galois", "fibonacci"] = "galois",
+        payload_taps_a: int = ...,
+        payload_seed_a: int = ...,
+        payload_taps_b: int = ...,
+        payload_seed_b: int = ...,
+        crc: Literal["none", "crc16"] = "none",
+    ) -> None: ...
+
+    def bits(
+        self,
+        count: int = 1,
+        out: NDArray[np.uint8] | None = None,
+    ) -> NDArray[np.uint8]:
+        """Materialise n consecutive frames, one bit per byte.
+
+        n counts FRAMES, not bits: a descriptor describes one frame, and a
+        capture holds many. Repeating here rather than making the caller tile
+        it is what matches the generator, whose framed source cycles the same
+        frame to fill whatever length was asked for — so a stream compared
+        against this lines up with the one that was transmitted.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            Bits written.
+        """
+
+    def bits_max_out(self, n: int) -> int:
+        """Bits frame_bits will write for n frames — `n * nbits`.
+
+        Parameters
+        ----------
+        n : int
+            Frame repetitions.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def layout(self) -> FrameLayout:
+        """Where each field lands, in bits from the start of the frame.
+
+        The offsets a receiver needs to slice a capture, computed by the same
+        code the generator laid the frame out with.
+
+        Returns
+        -------
+        FrameLayout
+            Output.
+        """
+
+    def crc_ok(self, rx_bits: NDArray[np.uint8]) -> int:
+        """Check one received frame's CRC.
+
+        **This is what makes a truth-free frame error rate possible.** It needs
+        no payload truth at all, so it works on a real capture, and unlike a
+        self-referenced EVM or a blind M2M4 it still catches a false lock — a
+        rotated constellation fails the check rather than looking clean.
+
+        Parameters
+        ----------
+        rx_bits : NDArray[np.uint8]
+            Received bits, one per byte.
+
+        Returns
+        -------
+        int
+            1 pass, 0 fail, -1 if the frame carries no CRC or rx_bits is
+            shorter than one frame.
+        """
+
+    @property
+    def nbits(self) -> int:
+        """Nbits."""
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "Frame":
+        """Enter a context manager, returning this object.
+
+        Lets a Frame be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        Frame
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the Frame.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

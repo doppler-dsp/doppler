@@ -427,6 +427,67 @@ rather than returning wrong samples).
 
 ::: doppler.wfm.compose.PlanFromFile
 
+## `Frame` — the bit layout, held by both ends
+
+A frame is `[preamble × reps | sync | payload | CRC]`, and the point of
+describing it as an object is that the **transmitter and the receiver hold the
+same description**. The generator already took these fields as flags
+(`Segment(sync=…, acq_code=…, crc=…)`, `wfmgen --sync …`); `Frame` is the same
+layout on the analysis side, so a capture is scored against the frame that was
+actually sent rather than one reconstructed from parts.
+
+Each of the three fields is either a **literal** array or a handful of numbers
+a receiver can **regenerate** — a PN or Gold descriptor — which is what makes a
+long record's truth practical: a million-symbol reference without a
+million-symbol array, and a capture reproducible from its metadata alone. The
+three cannot nest as structs across the C ABI, so they are flattened with a name
+prefix (`preamble_*`, `sync_*`, `payload_*`); a field with **an empty array and
+zero length is absent**, which is the convention `wfm_seq_t` itself uses.
+
+`crc_ok` is the one that earns its place. It needs **no payload truth at all**,
+so it works on a real capture, and unlike a self-referenced EVM or a blind M2M4
+it still catches a false lock — a rotated constellation fails the check rather
+than looking clean. Paired with [`FrameMeter`](python-ber.md), that is a frame
+error rate measured on a signal nobody knows the contents of:
+
+```python
+import numpy as np
+
+from doppler.ber import FrameMeter
+from doppler.wfm import Frame
+
+empty = np.empty(0, np.uint8)                                 # an absent field
+sync = np.array([1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1], np.uint8)  # Barker-13
+payload = np.array([0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1], np.uint8)
+
+f = Frame(empty, sync, payload, crc="crc16")
+
+# Stand-in for a capture: the frame as sent, and the same frame with one
+# payload bit knocked over. On a real record these come from a demodulator.
+clean = f.bits()
+damaged = clean.copy()
+damaged[f.layout().payload_off] ^= 1
+captured_frames = [clean, clean, damaged, clean, damaged]
+
+m = FrameMeter(target_errors=2)
+for rx_bits in captured_frames:        # one frame's bits per iteration
+    m.add(sync_ok=1, crc=f.crc_ok(rx_bits))
+    if m.enough:                        # stop on error count, not frame count
+        break
+
+assert m.errors == 2 and m.crc_passed == 3
+print(m.fer().lo)                      # assert on `lo`, never on `p_hat`
+```
+
+`layout()` returns a `FrameLayout` record with fields `preamble_off`,
+`preamble_bits`, `sync_off`, `sync_bits`, `payload_off`, `payload_bits`,
+`crc_off`, `crc_bits` and `total_bits` — all in bits from the start of the
+frame. `crc_bits` is 16, or **0 when the payload is empty**: a CRC over nothing
+protects nothing, so it is dropped rather than carried as a trailer over no
+data.
+
+::: doppler.wfm.Frame
+
 ## Related pages
 
 <!-- related-pages:start -->

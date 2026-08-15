@@ -125,6 +125,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**filter\_core.h**](filter__core_8h.md) _Filter module — public C API._     
         * **dir** [**fir**](dir_37fd0118bf34c485dd22fe4d261d6eac.md)     
             * **file** [**fir\_core.h**](fir__core_8h.md) _Direct-form FIR filter — real-tap and complex-tap variants._     
+        * **dir** [**frame**](dir_00858a83d5a24a6fcf61a222bafb8b7f.md)     
+            * **file** [**frame\_core.h**](frame__core_8h.md) _A frame's bit layout, held as an object so Python can describe one._     
         * **dir** [**frame\_meter**](dir_7d049e2511dda4d27f50479ac6f6567b.md)     
             * **file** [**frame\_meter\_core.h**](frame__meter__core_8h.md) _Frame outcomes accumulated across a record: FER, and sync detection._     
         * **dir** [**gold**](dir_eaad5c90f79e5666c89030cb43ebb96d.md)     

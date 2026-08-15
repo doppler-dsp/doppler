@@ -34,6 +34,7 @@
 * `#include "pn/pn_core.h"`
 * `#include "wfm_synth/wfm_synth_core.h"`
 * `#include "gold/gold_core.h"`
+* `#include "frame/frame_core.h"`
 * `#include "delay/delay_core.h"`
 * `#include "fft/fft_core.h"`
 * `#include "fft2d/fft2d_core.h"`

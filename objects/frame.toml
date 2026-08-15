@@ -1,0 +1,262 @@
+# frame — a frame's bit layout, describable from Python.
+#
+# The RECEIVE half of the frame story. `wfm_frame_t` (native/inc/wfm/wfm_frame.h)
+# is what the generator builds a frame from and what `wfm_frame_crc_ok()` scores
+# one against; until now only C could hold one, so `doppler.ber.FrameMeter` --
+# which exists precisely to turn CRC outcomes into an exact FER interval -- had
+# no way to be fed from Python. This object closes that: describe the frame,
+# `bits()` it to compare against, `crc_ok(rx)` a capture, feed the result to
+# FrameMeter.
+#
+# It is lifecycle and delegation ONLY. Every layout decision -- where the CRC
+# sits, that it covers the payload alone, that a preamble repeats verbatim --
+# stays in wfm_frame.c, which is the single implementation both ends already
+# share. Re-deriving any of it here would recreate exactly the TX/RX drift the
+# descriptor was introduced to stop.
+#
+# ## Why 30-odd constructor kwargs
+#
+# jm has no struct type in either direction, and `wfm_seq_t` carries a
+# `const uint8_t *bits` besides, so the three sequences cannot nest. They are
+# flattened with a name prefix instead -- `preamble_*`, `sync_*`, `payload_*` --
+# over the same field set each. An object with array `init_params` and
+# no_state/no_step is the jm shape that permits it (precedent: burst_demod).
+
+[frame]
+arg_type = "void"
+return_type = "void"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+no_reset = "true"
+class_name = "Frame"
+create_error = "ValueError"
+create_error_message = "frame geometry is empty or a field is unbuildable (a literal with no array, or a generated field with no register width)"
+# wfm_frame_core holds wfm_frame_bits/_layout/_crc_ok; pn/gold back the
+# generated sequence kinds it calls into.
+depends_on = [
+    { name = "wfm_frame", link = true },
+    { name = "pn", link = true },
+    { name = "gold", link = true },
+]
+
+# ── preamble ────────────────────────────────────────────────────────────────
+[[frame.init_params]]
+name = "preamble_kind"
+type = "enum:wfm_seq_kind"
+default = "literal"
+
+[[frame.init_params]]
+name = "preamble"
+type = "uint8_t[]"
+doc = "Literal preamble bits, one per element. Pass an EMPTY array when the field is absent or generated -- `wfm_seq_t` already spells absence as a zero length, so this is that convention reaching Python rather than a placeholder. (An omittable array init-param is a jm gap; see the module docs.)"
+
+[[frame.init_params]]
+name = "preamble_nbits"
+type = "size_t"
+default = "0"
+doc = "Output bits for a GENERATED preamble kind. A literal takes its length from the `preamble` array instead; `wfm_seq_t` names these apart (len vs reg_bits) for the same reason."
+
+[[frame.init_params]]
+name = "preamble_reps"
+type = "size_t"
+default = "0"
+
+[[frame.init_params]]
+name = "preamble_poly"
+type = "uint64_t"
+default = "0"
+
+[[frame.init_params]]
+name = "preamble_seed"
+type = "uint64_t"
+default = "0"
+
+[[frame.init_params]]
+name = "preamble_reg_bits"
+type = "uint32_t"
+default = "0"
+
+[[frame.init_params]]
+name = "preamble_lfsr"
+type = "enum:wfm_lfsr"
+default = "galois"
+
+[[frame.init_params]]
+name = "preamble_taps_a"
+type = "uint64_t"
+default = "0"
+
+[[frame.init_params]]
+name = "preamble_seed_a"
+type = "uint64_t"
+default = "0"
+
+[[frame.init_params]]
+name = "preamble_taps_b"
+type = "uint64_t"
+default = "0"
+
+[[frame.init_params]]
+name = "preamble_seed_b"
+type = "uint64_t"
+default = "0"
+
+# ── sync ────────────────────────────────────────────────────────────────────
+[[frame.init_params]]
+name = "sync_kind"
+type = "enum:wfm_seq_kind"
+default = "literal"
+
+[[frame.init_params]]
+name = "sync"
+type = "uint8_t[]"
+doc = "Literal sync word bits, one per element. Pass an EMPTY array when the field is absent or generated -- `wfm_seq_t` already spells absence as a zero length, so this is that convention reaching Python rather than a placeholder. (An omittable array init-param is a jm gap; see the module docs.)"
+
+[[frame.init_params]]
+name = "sync_nbits"
+type = "size_t"
+default = "0"
+
+[[frame.init_params]]
+name = "sync_poly"
+type = "uint64_t"
+default = "0"
+
+[[frame.init_params]]
+name = "sync_seed"
+type = "uint64_t"
+default = "0"
+
+[[frame.init_params]]
+name = "sync_reg_bits"
+type = "uint32_t"
+default = "0"
+
+[[frame.init_params]]
+name = "sync_lfsr"
+type = "enum:wfm_lfsr"
+default = "galois"
+
+[[frame.init_params]]
+name = "sync_taps_a"
+type = "uint64_t"
+default = "0"
+
+[[frame.init_params]]
+name = "sync_seed_a"
+type = "uint64_t"
+default = "0"
+
+[[frame.init_params]]
+name = "sync_taps_b"
+type = "uint64_t"
+default = "0"
+
+[[frame.init_params]]
+name = "sync_seed_b"
+type = "uint64_t"
+default = "0"
+
+# ── payload ─────────────────────────────────────────────────────────────────
+[[frame.init_params]]
+name = "payload_kind"
+type = "enum:wfm_seq_kind"
+default = "literal"
+
+[[frame.init_params]]
+name = "payload"
+type = "uint8_t[]"
+doc = "Literal payload bits, one per element. Pass an EMPTY array when the field is absent or generated -- `wfm_seq_t` already spells absence as a zero length, so this is that convention reaching Python rather than a placeholder. (An omittable array init-param is a jm gap; see the module docs.)"
+
+[[frame.init_params]]
+name = "payload_nbits"
+type = "size_t"
+default = "0"
+
+[[frame.init_params]]
+name = "payload_poly"
+type = "uint64_t"
+default = "0"
+
+[[frame.init_params]]
+name = "payload_seed"
+type = "uint64_t"
+default = "0"
+
+[[frame.init_params]]
+name = "payload_reg_bits"
+type = "uint32_t"
+default = "0"
+
+[[frame.init_params]]
+name = "payload_lfsr"
+type = "enum:wfm_lfsr"
+default = "galois"
+
+[[frame.init_params]]
+name = "payload_taps_a"
+type = "uint64_t"
+default = "0"
+
+[[frame.init_params]]
+name = "payload_seed_a"
+type = "uint64_t"
+default = "0"
+
+[[frame.init_params]]
+name = "payload_taps_b"
+type = "uint64_t"
+default = "0"
+
+[[frame.init_params]]
+name = "payload_seed_b"
+type = "uint64_t"
+default = "0"
+
+# ── the frame itself ────────────────────────────────────────────────────────
+[[frame.init_params]]
+name = "crc"
+type = "enum:crc"
+default = "none"
+
+# ── methods ─────────────────────────────────────────────────────────────────
+[[frame.methods]]
+name = "bits"
+arg_type = "void"
+return_type = "uint8_t"
+variable_output = true
+pass_capacity = true
+nogil = true
+
+[[frame.methods]]
+name = "layout"
+arg_type = "void"
+return_type = "wfm_frame_layout_t"
+single = true
+record_name = "FrameLayout"
+record_doc = "Where each field lands, in bits from the start of the frame. The offsets a receiver needs to slice a capture -- computed once, by the same code the generator laid the frame out with."
+record_module = "doppler.wfm"
+result_fields = [
+    { name = "preamble_off", type = "size_t" },
+    { name = "preamble_bits", type = "size_t" },
+    { name = "sync_off", type = "size_t" },
+    { name = "sync_bits", type = "size_t" },
+    { name = "payload_off", type = "size_t" },
+    { name = "payload_bits", type = "size_t" },
+    { name = "crc_off", type = "size_t" },
+    { name = "crc_bits", type = "size_t" },
+    { name = "total_bits", type = "size_t" },
+]
+
+[[frame.methods]]
+name = "crc_ok"
+arg_type = "void"
+return_type = "int"
+params = [{ name = "rx_bits", type = "uint8_t[]" }]
+nogil = true
+
+[[frame.properties]]
+name = "nbits"
+type = "size_t"
+field = true

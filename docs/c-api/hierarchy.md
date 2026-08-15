@@ -71,6 +71,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**fft\_state\_t**](structfft__state__t.md) 
 * **struct** [**fir\_state\_t**](structfir__state__t.md) 
 * **struct** [**frame\_meter\_state\_t**](structframe__meter__state__t.md) _Frame-outcome accumulator. Allocate with_ [_**frame\_meter\_create()**_](frame__meter__core_8h.md#function-frame_meter_create) _._
+* **struct** [**frame\_state\_t**](structframe__state__t.md) _Frame state._ 
 * **struct** [**gold\_state\_t**](structgold__state__t.md) _Gold state._ 
 * **struct** [**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) 
 * **struct** [**hbdecim\_state\_t**](structhbdecim__state__t.md) 

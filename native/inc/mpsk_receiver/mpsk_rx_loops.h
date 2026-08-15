@@ -198,14 +198,14 @@ extern "C"
    * | ---------- | ----------- | ------------------- | --------------------- |
    * | `STROBE`   | `Rs`        | `Rs/(2M)`           | needs symbol timing   |
    * | `MF_OUT`   | `m_out*Rs`  | `m_out*Rs/(2M)`     | inter-symbol ISI bias |
-   * | `LO_ARM`   | LO rate     | `f_lo/(2M)`         | no matched filtering  |
+   * | `MF_IN`    | `bank_sps`  | `bank_sps*Rs/(2M)`  | none — see below      |
    *
    * There is a second axis, and it is the one the cascade rebuild lost.
    * `STROBE` is the only tap that depends on **symbol timing**: it reads the
    * one output the timing loop nominates, so before timing lock it is reading
    * an arbitrary phase of the pulse. `MF_OUT` consumes every terminal output
-   * and so does not care which one is on-time; `LO_ARM` runs a free-running
-   * arm filter ahead of the cascade entirely. Both therefore restore the
+   * and so does not care which one is on-time; `MF_IN` reads the MFR's input
+   * entirely ahead of it. Both therefore restore the
    * property the NDA path exists for — acquiring with no data *and no symbol
    * timing* — which is why they are not merely "wider".
    *
@@ -229,20 +229,17 @@ extern "C"
      *  outputs between symbols are averaging two of them, so their M-th power
      *  carries an ISI bias — worst where the decision margin is smallest. */
     MPSK_RX_NDA_TAP_MF_OUT = 1,
-    /** Post-LO, pre-cascade, through a free-running boxcar arm. Widest range
-     *  and fully timing-independent, but unmatched: the arm is a short
-     *  lowpass, not the pulse filter, so it pays squaring loss. This is the
-     *  classic Costas arm-filter placement. */
-    MPSK_RX_NDA_TAP_LO_ARM = 2,
     /** PRE-MATCHED-FILTER: the AGC's output — post-MIX, post-DEC, post-AGC,
      *  and ahead of the MFR. Named for where it reads rather than for its
      *  position in the cascade, because that is the property a caller cares
      *  about: being ahead of the matched filter is what makes it need no
      *  symbol timing.
      *
-     *  What `lo_arm` was reaching for, done properly (docs/design/mpsk.md
-     *  §3.3) — band-limited by DEC's own filters and levelled by the AGC that
-     *  sits on this exact node, so it needs no arm filter of its own.
+     *  This is where a Costas ARM FILTER would go, and the reason there is
+     *  none: DEC's own filters have already band-limited this node and the
+     *  AGC has already levelled it, so a boxcar bolted on here would be
+     *  re-filtering an already-filtered signal. (`lo_arm`, which did exactly
+     *  that ahead of the cascade, was removed for this reason — gh-768.)
      *
      *  Its update rate is `bank_sps`, a PLANNER OUTCOME rather than a
      *  construction constant, so the pull-in ceiling `bank_sps*Rs/(2M)`
@@ -250,16 +247,9 @@ extern "C"
      *  stream to a fixed 2 sps to pin that down; this tap deliberately does
      *  not, taking the raw stream so the tap costs no serialized state. Read
      *  mpsk_rx_updates_per_symbol() for what the rate actually came out as. */
-    MPSK_RX_NDA_TAP_MF_IN = 3
+    MPSK_RX_NDA_TAP_MF_IN = 2
   };
 
-/* Free-running arm window for MPSK_RX_NDA_TAP_LO_ARM, as a fraction of a
- * symbol at the LO's rate. A half-symbol boxcar is the classic passive arm
- * filter (Yuen Eq. 8-19 is derived for exactly this window) — long enough to
- * buy back some SNR, short enough that it still sees mostly ONE symbol, which
- * is what keeps the tap timing-independent. Clamped into [1, BOXCAR_MAX_LEN].
- */
-#define MPSK_RX_ARM_DIV 2u
 
   /**
    * @brief Telemetry attachment for the receiver's own two probes; the timing
@@ -291,7 +281,6 @@ extern "C"
     double car_error;   /**< last carrier phase discriminator (stress).   */
     double lock;        /**< EMA of the carrier lock signal.              */
     lockdet_state_t car_lock;   /**< de-chattered binary carrier lock.    */
-    boxcar_state_t  arm;        /**< free-running arm filter; LO_ARM only. */
 
     /* ── config (restored by the owner's create(), never packed) ─────── */
     int    m;          /**< constellation order M (2, 4, 8).             */
@@ -311,8 +300,9 @@ extern "C"
 
     /* ── acquisition <-> tracking handover ───────────────────────────── */
     int    acq_to_track; /**< opt-in two-way handover.                   */
-    size_t warmup_syms;  /**< symbols before the switch is allowed.      */
-    size_t sym_count;    /**< symbols emitted (warmup counter).          */
+    size_t sym_count;    /**< symbols emitted; also dates `lock_time`.   */
+    int64_t lock_time;    /**< sym_count when carrier lock was first
+                              declared, or -1 if never. Running state. */
     lockdet_state_t handover; /**< verify-counted declare/drop rule.     */
     int             tracking; /**< 0 = NDA acquire, 1 = decision.        */
 
@@ -351,7 +341,6 @@ extern "C"
    *                      M, so this divided by that is the threshold in noise
    *                      sigmas and its per-look Pfa is Q(that) — 0.5 is
    *                      4.42 sigma, Pfa 5e-6. See carrier_nda_core.h.
-   * @param warmup_syms   Symbols before the handover is allowed.
    * @param differential  bits(): differential (rotation-invariant) demap.
    * @param nda_tap       MPSK_RX_NDA_TAP_* — where the NDA discriminator
    *                      reads, which sets its pull-in range and whether it
@@ -365,7 +354,7 @@ extern "C"
                            double zeta, double bn_timing, double bn_agc_ratio,
                            int ted,
                            int acq_to_track, double lock_thresh,
-                           size_t warmup_syms, int differential, int nda_tap);
+                           int differential, int nda_tap);
 
   /**
    * @brief How many times per symbol the chosen tap updates the carrier loop.
@@ -379,8 +368,6 @@ extern "C"
   {
     if (l->nda_tap == MPSK_RX_NDA_TAP_MF_OUT)
       return (double)l->m_out;
-    if (l->nda_tap == MPSK_RX_NDA_TAP_LO_ARM)
-      return l->lo_sps;
     if (l->nda_tap == MPSK_RX_NDA_TAP_MF_IN)
       return l->mf_in_sps;
     return 1.0;
@@ -451,32 +438,21 @@ extern "C"
     double pe, lk;
     carrier_nda_disc (z, l->m, &pe, &lk);
     l->lock += CARRIER_NDA_LOCK_ALPHA * (lk - l->lock);
-    (void)lockdet_step (&l->car_lock, l->lock);
+    /* First declaration dates `lock_time`, and only the first: a drop and
+       re-acquire does not restamp it, because the question a caller is
+       asking is "how long did this receiver take to lock", not "when did it
+       last hold". Reset clears it back to -1. */
+    if (lockdet_step (&l->car_lock, l->lock) && l->lock_time < 0)
+      l->lock_time = (int64_t)l->sym_count;
     if (!l->tracking)
       mpsk_rx_steer (l, pe);
   }
 
   /**
-   * @brief Feed one post-LO, pre-cascade sample to the free-running arm.
-   *
-   * The MPSK_RX_NDA_TAP_LO_ARM path, and a no-op for every other tap. Called
-   * once per LO step by the owning receiver, ahead of the cascade — which is
-   * exactly why this tap needs no symbol timing and reaches the widest
-   * frequency range the front end can offer.
-   */
-  JM_FORCEINLINE JM_HOT void
-  mpsk_rx_push_lo (mpsk_rx_loops_t *l, float complex z)
-  {
-    if (l->nda_tap != MPSK_RX_NDA_TAP_LO_ARM)
-      return;
-    mpsk_rx_disc (l, boxcar_step (&l->arm, z));
-  }
-
-  /**
-   * @brief Push one PRE-TERMINAL sample into the NDA discriminator.
+   * @brief Push one MFR-INPUT sample into the NDA discriminator.
    *
    * The MPSK_RX_NDA_TAP_MF_IN path, and a no-op for every other tap.
-   * Unlike mpsk_rx_push_lo() there is no arm filter here and none is wanted:
+   * There is no arm filter here and none is wanted:
    * the cascade has already band-limited this node and the AGC has already
    * levelled it, which is the whole reason the tap exists.
    */
@@ -553,7 +529,7 @@ extern "C"
        transient starts from a known instant.
 
        A tap that needs timing it cannot wait for is a reason to pick a
-       different tap, which is what nda_tap is for: MF_OUT and LO_ARM are
+       different tap, which is what nda_tap is for: MF_OUT and MF_IN are
        timing-independent by construction. Gating the default hid that choice
        behind a coupling the caller could not see or override. */
     if (l->nda_tap == MPSK_RX_NDA_TAP_STROBE)
@@ -579,18 +555,23 @@ extern "C"
       }
 
     l->sym_count++;
-    /* Opt-in two-way handover: after warmup, step the verify-counted detector
-       on the carrier lock EMA once per symbol. Its flag IS the discriminator
-       choice — and nothing else, now that both run at the symbol rate.
-       `warmup_syms` is the whole guard: the pre-lock lock EMA overshoots its
-       own ceiling (0.9-1.7 against 0.62), so a warmup shorter than the timing
-       loop's own settling can declare on garbage and hand the carrier to a
-       decision-directed loop with no valid decisions to make. Size it from the
-       timing loop's bandwidth (~5/bn_timing symbols), not from the carrier's. */
-    if (l->acq_to_track && l->sym_count >= l->warmup_syms)
-      {
-        l->tracking = lockdet_step (&l->handover, l->lock);
-      }
+    /* Opt-in two-way handover, on the lock detector and NOTHING ELSE. The
+       verify-counted detector already carries both hysteresis axes — a split
+       declare/drop threshold pair and a consecutive-symbol count in each
+       direction — so a warmup counter in front of it was a second, cruder
+       de-chatterer for the same job.
+
+       It used to be there, guarding an overshoot that gh-657 made
+       impossible. Its comment claimed the pre-lock lock EMA reaches 0.9-1.7
+       against 0.62 settled, but carrier_nda_disc() now divides by |z| at the
+       FIRST squaring, so every later value is a unit vector and `lock` is an
+       EMA of a quantity bounded in [-1, 1] -- it cannot exceed 1 at all.
+       Measured on the shipped receiver (QPSK, sps = 8, 20 dB, 5 seeds), the
+       pre-lock peak is 0.900-0.916 and settled is 0.947-0.968: both numbers
+       in that comment described the pre-normalisation detector, when an
+       upstream AGC still had to manufacture |z| = 1. */
+    if (l->acq_to_track)
+      l->tracking = lockdet_step (&l->handover, l->lock);
     *sym = y_rot;
     return 1;
   }
@@ -633,8 +614,12 @@ extern "C"
  * blob grows by one double.
  * v5: the carrier AGC is GONE -- carrier_nda_disc() normalises by its own
  * |z|^M, so the receiver has exactly one AGC and it lives in the front-end
- * cascade. The blob loses that AGC's sub-blob and both seed scalars. */
-#define MPSK_RX_LOOPS_STATE_VERSION 5u
+ * cascade. The blob loses that AGC's sub-blob and both seed scalars.
+ * v6: the Costas ARM is gone (gh-768) -- there is no free-running boxcar to
+ * pack, so the blob loses that child entirely. It also gains `lock_time`, the
+ * symbol at which carrier lock was first declared, which is running state and
+ * so has to survive a hand-off. Two shape changes at once, one version. */
+#define MPSK_RX_LOOPS_STATE_VERSION 6u
 
   /** @brief Bytes mpsk_rx_loops_get_state() writes. */
   size_t mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l);

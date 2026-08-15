@@ -15,6 +15,15 @@ ______________________________________________________________________
 
 ### Added
 
+- **`lock_time` — the acquisition time, as a number.** Symbols from reset to
+    the FIRST carrier-lock declaration, or -1 if the receiver has not locked;
+    on both receiver types. Dated by the same hysteretic detector `locked`
+    reports, so the two cannot disagree, and only the first declaration is
+    dated — a drop and re-acquire does not restamp it. In SYMBOLS, not seconds:
+    `bn_carrier` and `bn_timing` are both normalised to the symbol rate, so a
+    settling budget quoted in symbols is comparable across every input rate.
+    Previously a caller had to poll `locked` in a loop to learn this.
+
 - **Receiver nomenclature is fixed, and the architecture figure follows it.**
     `docs/design/mpsk.md` now names one block one way — LO, MIX, DEC, AGC,
     MFR, PED, PLF, TED, TLF — with a glossary, and its figure groups by
@@ -329,6 +338,38 @@ ______________________________________________________________________
     runs — with the flattery pinned separately as its own monotone property.
 
 ### Breaking
+
+- **BREAKING: the Costas arm filter is gone, and `nda_tap = "lo_arm"` with
+    it.** A discriminator tap does not need an arm filter where the chain
+    already filters ahead of it — and the one place the receiver added its own,
+    a free-running half-symbol boxcar on the raw post-LO sample, was also the
+    only tap whose node had no filtering ahead of it at all. `mf_in` is that
+    tap done properly: DEC's filters have already band-limited it and the AGC
+    has already levelled it. (The matched filter may itself BE a boxcar — I&D
+    and CIC both are — and that is untouched; this is about the extra arm.)
+
+    It did not work anyway. Measured with `native/validation/rx_nda_tap.c`,
+    fraction of a known carrier offset removed: 0.1352 at sps=8, 0.0002 at
+    sps=200, 0.0000 at sps=10000, unchanged with the modulation removed or the
+    timing loop disabled — the only tap of the four that failed, and it failed
+    everywhere. The published `0.090*Rs` pull-in came from a hand-tuned
+    `bn_carrier` absorbing gh-765 at sps=8, which stops working as the ratio
+    grows. Closes gh-768.
+
+- **BREAKING: `warmup_syms` is gone from both receivers.** The handover now
+    rests on its lock detector and nothing else. That detector already carries
+    both hysteresis axes — a split declare/drop threshold pair and a
+    consecutive-symbol count each way — so the warmup counter was a second,
+    cruder de-chatterer for the same job.
+
+    It was guarding a condition gh-657 made impossible. Its comment claimed the
+    pre-lock lock EMA reaches 0.9-1.7 against 0.62 settled; `carrier_nda_disc()`
+    now divides by `|z|` at the FIRST squaring, so every later value is a unit
+    vector and `lock` is an EMA of something bounded in [-1, 1] — it cannot
+    exceed 1. Measured on the shipped receiver (QPSK, sps=8, 20 dB, 5 seeds):
+    pre-lock peak 0.900-0.916, settled 0.947-0.968. BOTH numbers in that
+    comment described the pre-normalisation detector. Note `acq_to_track`
+    already defaults to 0, so the default receiver never consulted it.
 
 - **BREAKING: `nda_tap = "mf_all"` is now `"mf_out"`.** "all" read as *both*
     sides of the matched filter, which is the one thing it never meant — the

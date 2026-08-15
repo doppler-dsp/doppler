@@ -188,9 +188,8 @@ each, `tracking` went high **0/100 times at every order** — peak lock 0.371 /
     | -------- | ------ | ------ | ---------- |
     | `strobe` | +0.989 | +0.956 | +0.862     |
     | `mf_out` | +0.904 | +0.384 | **+0.209** |
-    | `lo_arm` | +0.926 | +0.677 | +0.551     |
 
-    So on `mf_out` or `lo_arm` at higher M the receiver can decode perfectly and
+    So on `mf_out` at higher M the receiver can decode perfectly and
     still not declare, because 0.5 sits above where that tap's statistic settles.
     Scale `lock_thresh` by the reading for your tap and order — the Pfa mapping
     (`thresh / 0.1132` in σ) is unchanged; you are only trading margin.
@@ -207,14 +206,23 @@ also **timing-independent**, which the strobe tap is not.
 | ------------------ | ----------- | --------------------------------- | ------------- |
 | `strobe` (default) | `Rs`        | `0.01·Rs`                         | yes           |
 | `mf_out`           | `m_out·Rs`  | `0.02·Rs`                         | no            |
-| `lo_arm`           | LO rate     | **`0.08·Rs`**                     | no            |
+| `mf_in`            | `bank_sps`  | not yet measured                  | no            |
 
-`lo_arm` is 8× the strobe — exactly the `sps` factor theory predicts. It is
-fixed at construction, so nothing switches underneath you:
+The tap is fixed at construction, so nothing switches underneath you:
 
 ```python
-rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.05, nda_tap="lo_arm")
+rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.05, nda_tap="mf_in")
 ```
+
+!!! note "`mf_in` is not characterised on this page yet"
+
+    It reads the MFR's input and replaced `lo_arm`, which was removed with the
+    Costas arm filter it depended on (gh-768). Its update rate is the
+    cascade's `bank_sps` — a planner outcome rather than a fixed multiple of
+    `Rs` — so its row cannot be filled in from the others by argument, and it
+    is left blank rather than guessed. `native/validation/rx_nda_tap.c` gates
+    that it acquires at every rate ratio; the pull-in **range** measurement
+    that would fill this cell is gh-766.
 
 `bn_carrier` keeps its meaning at every tap (symbol-rate normalised). The tap
 does not widen the loop by itself — it widens what the discriminator can see and
@@ -229,7 +237,6 @@ improves the stability margin, which is what lets you then raise `bn_carrier`.
     | -------- | -------------------------- | --------------- | ----------------------- |
     | `strobe` | SER 0, −19.7 dB            | SER 0, −15.9 dB | SER 0.002, −15.9 dB     |
     | `mf_out` | SER 0, −19.7 dB            | SER 0, −16.0 dB | **SER 0.851, −11.9 dB** |
-    | `lo_arm` | SER 0, −19.7 dB            | SER 0, −16.0 dB | SER 0.001, −16.0 dB     |
 
     **At the default `m_out = 8` all three taps decode every order cleanly.** Every
     failure in this table lives at `m_out = 4`, and it is `mf_out` that fails —
@@ -237,7 +244,7 @@ improves the stability margin, which is what lets you then raise `bn_carrier`.
     `mf_out` is the tap that averages the M-th power over **all `m_out`
     matched-filter outputs**, including the badly-timed ones. Halving `m_out`
     halves how much of each symbol those arms cover, and at 8th power that is
-    fatal. `lo_arm` is unaffected at every setting measured.
+    fatal.
 
     The decode failure is `Σ g_k^M`; it used to come with a **false lock** on top,
     and that part is fixed. At `m_out = 4`, `mf_out`/8PSK reported +0.94 (+3.90 at
@@ -247,10 +254,10 @@ improves the stability margin, which is what lets you then raise `bn_carrier`.
     0.295) to **5/5** (SER 0.0000), because the handover is no longer triggered by
     a statistic that meant nothing.
 
-    This box previously named `lo_arm` as the failing tap, on numbers taken with a
-    lag search clipped to ±30 and a window inside the settling transient — the two
-    defects fixed in `30c76c6d`. Both report chance SER on a healthy decode, which
-    is how a measurement bug comes to read as a DSP defect.
+    This box once named a different tap as the failing one, on numbers taken
+    with a lag search clipped to ±30 and a window inside the settling transient
+    — the two defects fixed in `30c76c6d`. Both report chance SER on a healthy
+    decode, which is how a measurement bug comes to read as a DSP defect.
 
 !!! danger "`Δf = k·F/M` is a stable false lock, at every tap"
 

@@ -98,10 +98,10 @@
 #include "lockdet/lockdet_core.h"
 #include "symsync/symsync_core.h"
 #include "agc/agc_core.h"
-#include "boxcar/boxcar_core.h"
 #include "dp_tlm/dp_tlm_core.h"
 #include "ber/ber_core.h"
 #include "telemetry/telemetry_core.h"
+#include "boxcar/boxcar_core.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -194,8 +194,6 @@ extern "C"
    * @param init_norm_freq Seed carrier frequency, cycles/sample at the input
    *                        rate (default 0.0). This is the centre the LO is
    *                        tuned to; the loop tracks the residual around it.
-   * @param warmup_syms    Symbols before the acq-to-track switch is allowed
-   *                        (default 100).
    * @param differential   bits(): differential (rotation-invariant) demap
    *                        (default 0 = coherent).
    * @param num_phases     Terminal-stage bank arms; a power of two (default
@@ -218,16 +216,12 @@ extern "C"
    *                          paid for with the ISI the between-symbol
    *                          outputs carry (worst at 8PSK, where the
    *                          decision margin is smallest).
-   *                        - `MPSK_RX_NDA_TAP_LO_ARM` (2) — ahead of the
-   *                          cascade, through a free-running half-symbol
-   *                          boxcar at the LO rate. Widest range and fully
-   *                          timing-independent, but unmatched, so it pays
-   *                          squaring loss; it does NOT work at 8PSK (the
-   *                          8th-power gain over a boxcar arm collapses).
    *                        Measured unaided, QPSK at `sps = 8, m_out = 8`,
    *                        each at its own best `bn_carrier`: `0.050*Rs`
-   *                        (strobe), `0.033*Rs` (mf_out), `0.090*Rs`
-   *                        (lo_arm). Fixed at construction — nothing
+   *                        (strobe), `0.033*Rs` (mf_out). `MF_IN`'s range is
+   *                        not measured yet (gh-766) — its update rate is a
+   *                        planner outcome, so it cannot be derived from the
+   *                        other two. Fixed at construction — nothing
    *                        switches underneath the caller. Note `df = k*F/M`
    *                        is a stable FALSE lock at every tap, reporting a
    *                        healthy lock statistic that no self-referenced
@@ -272,7 +266,7 @@ extern "C"
                         double rrc_beta, int rrc_span, double bn_carrier,
                         double zeta, double bn_timing, int acq_to_track,
                         double lock_thresh, double init_norm_freq,
-                        size_t warmup_syms, int differential,
+                        int differential,
                         size_t num_phases, int nda_tap, int agc,
                         double bn_agc_ratio);
 
@@ -347,17 +341,13 @@ extern "C"
                           float complex *y_out, int ted)
   {
     float complex ys[4];
-    float complex zlo;
-    int           n_lo = 0;
     float complex zpre;
     int           n_pre = 0;
     size_t        n     = ddc_execute_ctrl_push_tap2 (
         s->fe, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
-        sizeof (ys) / sizeof (ys[0]), &zlo, &n_lo, &zpre, &n_pre);
-    /* The two timing-independent NDA taps read here, ahead of the matched
-       filter. Each is a no-op unless it is the configured one. */
-    if (n_lo)
-      mpsk_rx_push_lo (&s->l, zlo);
+        sizeof (ys) / sizeof (ys[0]), NULL, NULL, &zpre, &n_pre);
+    /* The timing-independent NDA tap reads here, at the MFR's input. A no-op
+       unless MF_IN is the configured tap. */
     if (n_pre)
       mpsk_rx_push_mf_in (&s->l, zpre);
     int           emitted = 0;
@@ -453,6 +443,23 @@ extern "C"
   /** @brief Binary carrier-lock flag from the loop's hysteretic (up/down
    * verify-counted) lock detector — de-chattered, unlike the raw metric. */
   int mpsk_receiver_get_locked (const mpsk_receiver_state_t *state);
+
+  /**
+   * @brief Symbols from reset to the FIRST carrier-lock declaration, or -1 if
+   *        the receiver has not locked yet.
+   *
+   * The acquisition time, as a number a caller can read rather than infer by
+   * polling `locked` in a loop. Dated by the same hysteretic detector
+   * `mpsk_receiver_get_locked()` reports, so the two cannot disagree.
+   *
+   * In SYMBOLS, not seconds: `bn_carrier` and `bn_timing` are both normalised
+   * to the symbol rate, so a settling budget quoted in symbols is comparable
+   * across every input rate, and a caller with `Rs` divides once. Only the
+   * first declaration is dated — a drop and re-acquire does not restamp it,
+   * because the question this answers is "how long did this receiver take to
+   * lock", not "when did it last hold". mpsk_receiver_reset() clears it to -1.
+   */
+  int64_t mpsk_receiver_get_lock_time (const mpsk_receiver_state_t *state);
   /** @brief Carrier loop phase discriminator (rad) — the residual phase the
    * loop is trying to null; loop stress. */
   double mpsk_receiver_get_last_error (const mpsk_receiver_state_t *state);

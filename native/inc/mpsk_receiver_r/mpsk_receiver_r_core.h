@@ -74,10 +74,10 @@
 #include "lockdet/lockdet_core.h"
 #include "symsync/symsync_core.h"
 #include "agc/agc_core.h"
-#include "boxcar/boxcar_core.h"
 #include "dp_tlm/dp_tlm_core.h"
 #include "ber/ber_core.h"
 #include "telemetry/telemetry_core.h"
+#include "boxcar/boxcar_core.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -127,23 +127,28 @@ extern "C"
    *                        `0.2 * fs` is `0.2`; the halved value the LO
    *                        actually uses is this object's business, not the
    *                        caller's.
-   * @param warmup_syms    Symbols before the handover is allowed (100).
    * @param differential   bits(): differential demap (default 0).
    * @param num_phases     Terminal-stage bank arms, a power of two (1024).
    * @param nda_tap        MPSK_RX_NDA_TAP_* — where the NDA carrier
    *                        discriminator reads, and so its pull-in range:
    *                        `_STROBE` (0, default) at `Rs` and the only tap
-   *                        needing symbol timing, `_MF_OUT` (1) at
-   *                        `m_out*Rs`, `_LO_ARM` (2) at the LO rate and
-   *                        widest. See mpsk_receiver_create() for the full
-   *                        trade and the measured ranges. Two differences
-   *                        here: `_LO_ARM` taps the arm behind the R2C
-   *                        halfband, at the **halved** internal LO rate
-   *                        rather than the real input rate; and this type
-   *                        does not acquire from a cold zero the way the
-   *                        complex twin does — a real IF must be tuned near,
-   *                        so @p init_norm_freq is the centre and a tap buys
-   *                        pull-in *around* it, not from nothing.
+   *                        needing symbol timing, or `_MF_OUT` (1) at
+   *                        `m_out*Rs`. See mpsk_receiver_create() for the
+   *                        full trade and the measured ranges.
+   *
+   *                        `_MF_IN` is NOT accepted here yet: it reads the
+   *                        cascade's `bank_sps` rate, which this front end
+   *                        does not publish (its `ddcr` carries the same
+   *                        RateConverter, so wiring it is small — measured,
+   *                        `bank_sps` comes out identical on both types).
+   *                        Construction refuses it rather than falling back
+   *                        to a rate that would mis-size the loop.
+   *
+   *                        One further difference: this type does not acquire
+   *                        from a cold zero the way the complex twin does — a
+   *                        real IF must be tuned near, so @p init_norm_freq
+   *                        is the centre and a tap buys pull-in *around* it,
+   *                        not from nothing.
    * @param agc            Non-zero (default) puts this receiver's ONE AGC in
    *                        the front-end cascade, before the terminal
    *                        matched stage — the same placement and the same
@@ -169,7 +174,7 @@ extern "C"
                           double rrc_beta, int rrc_span, double bn_carrier,
                           double zeta, double bn_timing, int acq_to_track,
                           double lock_thresh, double init_norm_freq,
-                          size_t warmup_syms, int differential,
+                          int differential,
                           size_t num_phases, int nda_tap, int agc,
                           double bn_agc_ratio);
 
@@ -237,15 +242,9 @@ extern "C"
                             float complex *y_out, int ted)
   {
     float complex ys[4];
-    float complex zlo;
-    int           n_lo = 0;
     size_t        n    = ddcr_execute_ctrl_push_tap (
         s->fe, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
-        sizeof (ys) / sizeof (ys[0]), &zlo, &n_lo);
-    /* The halfband gates this: n_lo is 0 on every other input, so the arm and
-       its discriminator run at fs_in/2, the LO's own rate. */
-    if (n_lo)
-      mpsk_rx_push_lo (&s->l, zlo);
+        sizeof (ys) / sizeof (ys[0]), NULL, NULL);
     int           emitted = 0;
     for (size_t oi = 0; oi < n; oi++)
       emitted |= mpsk_rx_take_output (&s->l, ys[oi], y_out, ted);
@@ -333,6 +332,23 @@ extern "C"
                                         double                   val);
   double mpsk_receiver_r_get_lock (const mpsk_receiver_r_state_t *state);
   int    mpsk_receiver_r_get_locked (const mpsk_receiver_r_state_t *state);
+
+  /**
+   * @brief Symbols from reset to the FIRST carrier-lock declaration, or -1 if
+   *        the receiver has not locked yet.
+   *
+   * The acquisition time, as a number a caller can read rather than infer by
+   * polling `locked` in a loop. Dated by the same hysteretic detector
+   * `mpsk_receiver_r_get_locked()` reports, so the two cannot disagree.
+   *
+   * In SYMBOLS, not seconds: `bn_carrier` and `bn_timing` are both normalised
+   * to the symbol rate, so a settling budget quoted in symbols is comparable
+   * across every input rate, and a caller with `Rs` divides once. Only the
+   * first declaration is dated — a drop and re-acquire does not restamp it,
+   * because the question this answers is "how long did this receiver take to
+   * lock", not "when did it last hold". mpsk_receiver_r_reset() clears it to -1.
+   */
+  int64_t mpsk_receiver_r_get_lock_time (const mpsk_receiver_r_state_t *state);
   double mpsk_receiver_r_get_last_error (const mpsk_receiver_r_state_t *state);
   /**
    * @brief Re-tune the acquisition<->tracking handover detector directly.
@@ -376,10 +392,10 @@ extern "C"
    * context is borrowed and must outlive the attachment.
    *
    * @warning As on the complex twin, the two AGC probes are on the cascade's
-   * pre-terminal grid rather than the symbol grid, so their record count
+   * MFR-input grid rather than the symbol grid, so their record count
    * differs from the other eleven — compare by time, not by index. See
-   * mpsk_receiver_set_telemetry() for why, and for why that AGC is the loop
-   * that sets the receiver's warmup.
+   * mpsk_receiver_set_telemetry() for why, and for why that AGC is the
+   * slowest loop in the receiver.
    *
    * @param state  Must be non-NULL.
    * @param tlm    Telemetry context to attach, or NULL to detach.

@@ -229,7 +229,7 @@ rx_frame_burst (const rx_frame_cfg_t *c, const uint8_t *bits, size_t nbits,
   rx = mpsk_receiver_create (c->m, c->sps, c->m_out, MPSK_RX_PULSE_RRC,
                              RX_FRAME_BETA, RX_FRAME_SPAN, c->bn_carrier,
                              0.707, c->bn_timing, c->acq_to_track, 0.3,
-                             c->fc - c->foff, 300, 0, MPSK_RX_NUM_PHASES,
+                             c->fc - c->foff, 0, MPSK_RX_NUM_PHASES,
                              c->nda_tap, 1, MPSK_RX_AGC_BW_RATIO);
   if (!rx)
     goto done;

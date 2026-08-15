@@ -144,17 +144,9 @@ extern "C"
   {
     MPSK_RX_NDA_TAP_STROBE = 0,
     MPSK_RX_NDA_TAP_MF_OUT = 1,
-    MPSK_RX_NDA_TAP_LO_ARM = 2,
-    MPSK_RX_NDA_TAP_MF_IN = 3
+    MPSK_RX_NDA_TAP_MF_IN = 2
   };
 
-/* Free-running arm window for MPSK_RX_NDA_TAP_LO_ARM, as a fraction of a
- * symbol at the LO's rate. A half-symbol boxcar is the classic passive arm
- * filter (Yuen Eq. 8-19 is derived for exactly this window) — long enough to
- * buy back some SNR, short enough that it still sees mostly ONE symbol, which
- * is what keeps the tap timing-independent. Clamped into [1, BOXCAR_MAX_LEN].
- */
-#define MPSK_RX_ARM_DIV 2u
 
   typedef struct
   {
@@ -176,7 +168,6 @@ extern "C"
     double car_error;   
     double lock;        
     lockdet_state_t car_lock;   
-    boxcar_state_t  arm;        
     /* ── config (restored by the owner's create(), never packed) ─────── */
     int    m;          
     double sps;        
@@ -190,8 +181,8 @@ extern "C"
     int    tap_timed;  
     /* ── acquisition <-> tracking handover ───────────────────────────── */
     int    acq_to_track; 
-    size_t warmup_syms;  
     size_t sym_count;    
+    int64_t lock_time;    
     lockdet_state_t handover; 
     int             tracking; 
     /* ── demapper ────────────────────────────────────────────────────── */
@@ -211,15 +202,13 @@ extern "C"
                            double zeta, double bn_timing, double bn_agc_ratio,
                            int ted,
                            int acq_to_track, double lock_thresh,
-                           size_t warmup_syms, int differential, int nda_tap);
+                           int differential, int nda_tap);
 
   JM_FORCEINLINE double
   mpsk_rx_updates_per_symbol (const mpsk_rx_loops_t *l)
   {
     if (l->nda_tap == MPSK_RX_NDA_TAP_MF_OUT)
       return (double)l->m_out;
-    if (l->nda_tap == MPSK_RX_NDA_TAP_LO_ARM)
-      return l->lo_sps;
     if (l->nda_tap == MPSK_RX_NDA_TAP_MF_IN)
       return l->mf_in_sps;
     return 1.0;
@@ -256,17 +245,14 @@ extern "C"
     double pe, lk;
     carrier_nda_disc (z, l->m, &pe, &lk);
     l->lock += CARRIER_NDA_LOCK_ALPHA * (lk - l->lock);
-    (void)lockdet_step (&l->car_lock, l->lock);
+    /* First declaration dates `lock_time`, and only the first: a drop and
+       re-acquire does not restamp it, because the question a caller is
+       asking is "how long did this receiver take to lock", not "when did it
+       last hold". Reset clears it back to -1. */
+    if (lockdet_step (&l->car_lock, l->lock) && l->lock_time < 0)
+      l->lock_time = (int64_t)l->sym_count;
     if (!l->tracking)
       mpsk_rx_steer (l, pe);
-  }
-
-  JM_FORCEINLINE JM_HOT void
-  mpsk_rx_push_lo (mpsk_rx_loops_t *l, float complex z)
-  {
-    if (l->nda_tap != MPSK_RX_NDA_TAP_LO_ARM)
-      return;
-    mpsk_rx_disc (l, boxcar_step (&l->arm, z));
   }
 
   JM_FORCEINLINE JM_HOT void
@@ -328,7 +314,7 @@ extern "C"
        transient starts from a known instant.
 
        A tap that needs timing it cannot wait for is a reason to pick a
-       different tap, which is what nda_tap is for: MF_OUT and LO_ARM are
+       different tap, which is what nda_tap is for: MF_OUT and MF_IN are
        timing-independent by construction. Gating the default hid that choice
        behind a coupling the caller could not see or override. */
     if (l->nda_tap == MPSK_RX_NDA_TAP_STROBE)
@@ -354,18 +340,23 @@ extern "C"
       }
 
     l->sym_count++;
-    /* Opt-in two-way handover: after warmup, step the verify-counted detector
-       on the carrier lock EMA once per symbol. Its flag IS the discriminator
-       choice — and nothing else, now that both run at the symbol rate.
-       `warmup_syms` is the whole guard: the pre-lock lock EMA overshoots its
-       own ceiling (0.9-1.7 against 0.62), so a warmup shorter than the timing
-       loop's own settling can declare on garbage and hand the carrier to a
-       decision-directed loop with no valid decisions to make. Size it from the
-       timing loop's bandwidth (~5/bn_timing symbols), not from the carrier's. */
-    if (l->acq_to_track && l->sym_count >= l->warmup_syms)
-      {
-        l->tracking = lockdet_step (&l->handover, l->lock);
-      }
+    /* Opt-in two-way handover, on the lock detector and NOTHING ELSE. The
+       verify-counted detector already carries both hysteresis axes — a split
+       declare/drop threshold pair and a consecutive-symbol count in each
+       direction — so a warmup counter in front of it was a second, cruder
+       de-chatterer for the same job.
+
+       It used to be there, guarding an overshoot that gh-657 made
+       impossible. Its comment claimed the pre-lock lock EMA reaches 0.9-1.7
+       against 0.62 settled, but carrier_nda_disc() now divides by |z| at the
+       FIRST squaring, so every later value is a unit vector and `lock` is an
+       EMA of a quantity bounded in [-1, 1] -- it cannot exceed 1 at all.
+       Measured on the shipped receiver (QPSK, sps = 8, 20 dB, 5 seeds), the
+       pre-lock peak is 0.900-0.916 and settled is 0.947-0.968: both numbers
+       in that comment described the pre-normalisation detector, when an
+       upstream AGC still had to manufacture |z| = 1. */
+    if (l->acq_to_track)
+      l->tracking = lockdet_step (&l->handover, l->lock);
     *sym = y_rot;
     return 1;
   }
@@ -402,8 +393,12 @@ extern "C"
  * blob grows by one double.
  * v5: the carrier AGC is GONE -- carrier_nda_disc() normalises by its own
  * |z|^M, so the receiver has exactly one AGC and it lives in the front-end
- * cascade. The blob loses that AGC's sub-blob and both seed scalars. */
-#define MPSK_RX_LOOPS_STATE_VERSION 5u
+ * cascade. The blob loses that AGC's sub-blob and both seed scalars.
+ * v6: the Costas ARM is gone (gh-768) -- there is no free-running boxcar to
+ * pack, so the blob loses that child entirely. It also gains `lock_time`, the
+ * symbol at which carrier lock was first declared, which is running state and
+ * so has to survive a hand-off. Two shape changes at once, one version. */
+#define MPSK_RX_LOOPS_STATE_VERSION 6u
 
   size_t mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l);
   void mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob);

@@ -99,7 +99,6 @@ def main(out_path="telemetry_fanin_demo.png"):
         init_norm_freq=FOFF,
         acq_to_track=1,
         lock_thresh=0.4,
-        warmup_syms=200,
         bn_carrier=0.03,
     )
     rx.set_telemetry(tlm, "rx")

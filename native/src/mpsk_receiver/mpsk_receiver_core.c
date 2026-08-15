@@ -50,8 +50,8 @@ void
 mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
                     size_t m_out, double bn_carrier, double zeta,
                     double bn_timing, double bn_agc_ratio, int ted,
-                    int acq_to_track, double lock_thresh, size_t warmup_syms,
-                    int differential, int nda_tap)
+                    int acq_to_track, double lock_thresh, int differential,
+                    int nda_tap)
 {
   l->m      = m;
   l->sps    = sps;
@@ -68,19 +68,7 @@ mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
      other two are timing-independent by construction. */
   l->tap_timed = (nda_tap == MPSK_RX_NDA_TAP_STROBE);
 
-  /* Free-running arm for the LO tap: a half-symbol boxcar at the LO's rate,
-     clamped to what the ring can hold. Unit gain — the AGC downstream is what
-     sets the discriminator's operating level. */
-  {
-    double win = lo_sps / (double)MPSK_RX_ARM_DIV;
-    size_t len = (size_t)(win < 1.0 ? 1.0 : win);
-    if (len > (size_t)BOXCAR_MAX_LEN)
-      len = (size_t)BOXCAR_MAX_LEN;
-    boxcar_init (&l->arm, len, 1.0);
-  }
-
   l->acq_to_track = acq_to_track ? 1 : 0;
-  l->warmup_syms  = warmup_syms;
   l->differential = differential ? 1 : 0;
 
   /* The NDA M-th-power loop's stable points are the 0-grid (z^m = +1), but
@@ -114,6 +102,7 @@ mpsk_rx_loops_reset (mpsk_rx_loops_t *l)
   l->lock          = 0.0;
   l->tracking      = 0;
   l->sym_count     = 0;
+  l->lock_time     = -1;
   l->have_prev_idx = 0;
   l->prev_idx      = 0;
   lockdet_reset (&l->handover);
@@ -220,17 +209,19 @@ mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
 
 /* ── Serializable state — the loops ────────────────────────────────────────
  *
- * Scalars, then four self-validating children (timing loop, carrier loop
- * filter, arm AGC, arm boxcar). `freq_scale` and `nda_tap` are pure config —
- * restored by the owner's create() and never packed. The arm rides along
- * unconditionally even though only MPSK_RX_NDA_TAP_LO_ARM fills it: a blob
- * layout that changed shape with the tap would be one more thing to get
- * wrong, and boxcar_state_bytes is a few hundred bytes once. */
+ * Scalars, then two self-validating children (timing loop, carrier loop
+ * filter). `freq_scale` and `nda_tap` are pure config — restored by the
+ * owner's create() and never packed.
+ *
+ * There used to be a third child, the Costas arm's boxcar, packed
+ * unconditionally even though only one tap filled it. gh-768 removed the arm,
+ * so the choice it forced (a fixed layout carrying an unused child, versus a
+ * layout that changed shape with the tap) no longer exists. */
 
 /* freq_ctrl, car_error, lock */
 #define DP_MRX_DOUBLES 3
-/* sym_count, tracking|have_prev_idx, prev_idx */
-#define DP_MRX_U64S 3
+/* sym_count, tracking|have_prev_idx, prev_idx, lock_time */
+#define DP_MRX_U64S 4
 
 size_t
 mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l)
@@ -239,7 +230,7 @@ mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l)
          + DP_MRX_U64S * sizeof (uint64_t)
          + 4 * sizeof (uint32_t) /* handover + car_lock cnt/locked */
          + ratesync_loop_state_bytes (&l->timing)
-         + loop_filter_state_bytes (&l->car_lf) + boxcar_state_bytes (&l->arm);
+         + loop_filter_state_bytes (&l->car_lf);
 }
 
 void
@@ -255,6 +246,8 @@ mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob)
   dp_w_u64 (
       &w, (uint64_t)((l->tracking ? 1u : 0u) | (l->have_prev_idx ? 2u : 0u)));
   dp_w_u64 (&w, (uint64_t)l->prev_idx);
+  /* -1 (never locked) round-trips as a two's-complement u64. */
+  dp_w_u64 (&w, (uint64_t)l->lock_time);
   dp_w_u32 (&w, l->handover.cnt);
   dp_w_u32 (&w, (uint32_t)l->handover.locked);
   dp_w_u32 (&w, l->car_lock.cnt);
@@ -264,8 +257,6 @@ mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob)
   ratesync_loop_get_state (&l->timing, p);
   p += ratesync_loop_state_bytes (&l->timing);
   loop_filter_get_state (&l->car_lf, p);
-  p += loop_filter_state_bytes (&l->car_lf);
-  boxcar_get_state (&l->arm, p);
 }
 
 int
@@ -285,6 +276,7 @@ mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob)
   l->sym_count     = (size_t)dp_r_u64 (&r);
   uint64_t flags   = dp_r_u64 (&r);
   l->prev_idx      = (unsigned)dp_r_u64 (&r);
+  l->lock_time     = (int64_t)dp_r_u64 (&r);
   l->tracking      = (flags & 1u) ? 1 : 0;
   l->have_prev_idx = (flags & 2u) ? 1 : 0;
 
@@ -301,8 +293,7 @@ mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob)
   rc = loop_filter_set_state (&l->car_lf, p);
   if (rc != DP_OK)
     return rc;
-  p += loop_filter_state_bytes (&l->car_lf);
-  return boxcar_set_state (&l->arm, p);
+  return DP_OK;
 }
 
 /* ==================================================================
@@ -314,8 +305,8 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
                       double rrc_beta, int rrc_span, double bn_carrier,
                       double zeta, double bn_timing, int acq_to_track,
                       double lock_thresh, double init_norm_freq,
-                      size_t warmup_syms, int differential, size_t num_phases,
-                      int nda_tap, int agc, double bn_agc_ratio)
+                      int differential, size_t num_phases, int nda_tap,
+                      int agc, double bn_agc_ratio)
 {
   if (m != 2 && m != 4 && m != 8)
     return NULL; /* only BPSK / QPSK / 8PSK */
@@ -358,7 +349,7 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
      lo_sps is a parameter rather than an assumption.) */
   mpsk_rx_loops_init (&rx->l, m, sps, sps, m_out, bn_carrier, zeta, bn_timing,
                       bn_agc_ratio, RATESYNC_TED_GARDNER, acq_to_track,
-                      lock_thresh, warmup_syms, differential, nda_tap);
+                      lock_thresh, differential, nda_tap);
   ratesync_loop_bind_cascade (&rx->l.timing, rx->fe->rc);
   /* The pre-terminal tap's update rate is the cascade's own bank rate. It is
      a planner outcome, so it is READ from the cascade that planned it rather
@@ -515,6 +506,12 @@ int
 mpsk_receiver_get_locked (const mpsk_receiver_state_t *state)
 {
   return state->l.car_lock.locked;
+}
+
+int64_t
+mpsk_receiver_get_lock_time (const mpsk_receiver_state_t *state)
+{
+  return state->l.lock_time;
 }
 
 double

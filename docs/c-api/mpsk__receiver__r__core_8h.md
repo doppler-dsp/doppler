@@ -31,10 +31,10 @@ _Real-input M-PSK receiver: the complex twin behind an R2C front end._ [More...]
 * `#include "lockdet/lockdet_core.h"`
 * `#include "symsync/symsync_core.h"`
 * `#include "agc/agc_core.h"`
-* `#include "boxcar/boxcar_core.h"`
 * `#include "dp_tlm/dp_tlm_core.h"`
 * `#include "ber/ber_core.h"`
 * `#include "telemetry/telemetry_core.h"`
+* `#include "boxcar/boxcar_core.h"`
 
 
 
@@ -84,12 +84,13 @@ _Real-input M-PSK receiver: the complex twin behind an R2C front end._ [More...]
 |  size\_t | [**mpsk\_receiver\_r\_bits**](#function-mpsk_receiver_r_bits) ([**mpsk\_receiver\_r\_state\_t**](structmpsk__receiver__r__state__t.md) \* state, const float \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate a real f32 block and emit hard Gray-coded bits._  |
 |  size\_t | [**mpsk\_receiver\_r\_bits\_max\_out**](#function-mpsk_receiver_r_bits_max_out) ([**mpsk\_receiver\_r\_state\_t**](structmpsk__receiver__r__state__t.md) \* state) <br> |
 |  void | [**mpsk\_receiver\_r\_configure\_lock**](#function-mpsk_receiver_r_configure_lock) ([**mpsk\_receiver\_r\_state\_t**](structmpsk__receiver__r__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the acquisition&lt;-&gt;tracking handover detector directly._  |
-|  [**mpsk\_receiver\_r\_state\_t**](structmpsk__receiver__r__state__t.md) \* | [**mpsk\_receiver\_r\_create**](#function-mpsk_receiver_r_create) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, size\_t warmup\_syms, int differential, size\_t num\_phases, int nda\_tap, int agc, double bn\_agc\_ratio) <br>_Create a real-input M-PSK receiver._  |
+|  [**mpsk\_receiver\_r\_state\_t**](structmpsk__receiver__r__state__t.md) \* | [**mpsk\_receiver\_r\_create**](#function-mpsk_receiver_r_create) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, int differential, size\_t num\_phases, int nda\_tap, int agc, double bn\_agc\_ratio) <br>_Create a real-input M-PSK receiver._  |
 |  void | [**mpsk\_receiver\_r\_destroy**](#function-mpsk_receiver_r_destroy) ([**mpsk\_receiver\_r\_state\_t**](structmpsk__receiver__r__state__t.md) \* state) <br>_Destroy and release all memory._  |
 |  double | [**mpsk\_receiver\_r\_get\_agc\_gain\_db**](#function-mpsk_receiver_r_get_agc_gain_db) (const [**mpsk\_receiver\_r\_state\_t**](structmpsk__receiver__r__state__t.md) \* state) <br>_Gain the front end's AGC is applying, in dB; 0.0 when_ `agc` _= 0._ |
 |  int | [**mpsk\_receiver\_r\_get\_clipped**](#function-mpsk_receiver_r_get_clipped) (const [**mpsk\_receiver\_r\_state\_t**](structmpsk__receiver__r__state__t.md) \* state) <br>_Has the cascade's CIC clipped its input since the last reset?_  |
 |  double | [**mpsk\_receiver\_r\_get\_last\_error**](#function-mpsk_receiver_r_get_last_error) (const [**mpsk\_receiver\_r\_state\_t**](structmpsk__receiver__r__state__t.md) \* state) <br> |
 |  double | [**mpsk\_receiver\_r\_get\_lock**](#function-mpsk_receiver_r_get_lock) (const [**mpsk\_receiver\_r\_state\_t**](structmpsk__receiver__r__state__t.md) \* state) <br> |
+|  int64\_t | [**mpsk\_receiver\_r\_get\_lock\_time**](#function-mpsk_receiver_r_get_lock_time) (const [**mpsk\_receiver\_r\_state\_t**](structmpsk__receiver__r__state__t.md) \* state) <br>_Symbols from reset to the FIRST carrier-lock declaration, or -1 if the receiver has not locked yet._  |
 |  int | [**mpsk\_receiver\_r\_get\_locked**](#function-mpsk_receiver_r_get_locked) (const [**mpsk\_receiver\_r\_state\_t**](structmpsk__receiver__r__state__t.md) \* state) <br> |
 |  int | [**mpsk\_receiver\_r\_get\_m**](#function-mpsk_receiver_r_get_m) (const [**mpsk\_receiver\_r\_state\_t**](structmpsk__receiver__r__state__t.md) \* state) <br> |
 |  size\_t | [**mpsk\_receiver\_r\_get\_m\_out**](#function-mpsk_receiver_r_get_m_out) (const [**mpsk\_receiver\_r\_state\_t**](structmpsk__receiver__r__state__t.md) \* state) <br> |
@@ -333,7 +334,6 @@ mpsk_receiver_r_state_t * mpsk_receiver_r_create (
     int acq_to_track,
     double lock_thresh,
     double init_norm_freq,
-    size_t warmup_syms,
     int differential,
     size_t num_phases,
     int nda_tap,
@@ -364,10 +364,18 @@ Parameters match [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#funct
 * `acq_to_track` Enable the two-way handover (default 0). 
 * `lock_thresh` Handover declare threshold (default 0.5). 
 * `init_norm_freq` Carrier frequency to tune to, cycles/sample **at the real input rate** (default 0.0). A real IF at `0.2 * fs` is `0.2`; the halved value the LO actually uses is this object's business, not the caller's. 
-* `warmup_syms` Symbols before the handover is allowed (100). 
 * `differential` bits(): differential demap (default 0). 
 * `num_phases` Terminal-stage bank arms, a power of two (1024). 
-* `nda_tap` MPSK\_RX\_NDA\_TAP\_\* — where the NDA carrier discriminator reads, and so its pull-in range: `_STROBE` (0, default) at `Rs` and the only tap needing symbol timing, `_MF_OUT` (1) at `m_out*Rs`, `_LO_ARM` (2) at the LO rate and widest. See [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create) for the full trade and the measured ranges. Two differences here: `_LO_ARM` taps the arm behind the R2C halfband, at the **halved** internal LO rate rather than the real input rate; and this type does not acquire from a cold zero the way the complex twin does — a real IF must be tuned near, so `init_norm_freq` is the centre and a tap buys pull-in _around_ it, not from nothing. 
+* `nda_tap` MPSK\_RX\_NDA\_TAP\_\* — where the NDA carrier discriminator reads, and so its pull-in range: `_STROBE` (0, default) at `Rs` and the only tap needing symbol timing, or `_MF_OUT` (1) at `m_out*Rs`. See [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create) for the full trade and the measured ranges.
+
+`_MF_IN` is NOT accepted here yet: it reads the cascade's `bank_sps` rate, which this front end does not publish (its `ddcr` carries the same RateConverter, so wiring it is small — measured, `bank_sps` comes out identical on both types). Construction refuses it rather than falling back to a rate that would mis-size the loop.
+
+
+One further difference: this type does not acquire from a cold zero the way the complex twin does — a real IF must be tuned near, so `init_norm_freq` is the centre and a tap buys pull-in _around_ it, not from nothing. 
+
+**Parameters:**
+
+
 * `agc` Non-zero (default) puts this receiver's ONE AGC in the front-end cascade, before the terminal matched stage — the same placement and the same reason as the complex twin ([**mpsk\_receiver\_create**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create)): it serves BOTH loops, since carrier and timing both run on its output. The timing detector is the one whose gain depends on the level (its slope is a construct-time constant for a unit-amplitude stream); the carrier detector normalises itself but still sees the AGC's transient. Pass 0 and the timing loop is under-driven by `A^2`. 
 * `bn_agc_ratio` That AGC's bandwidth as a fraction of the SLOWEST loop it feeds, `min(bn_carrier, bn_timing)` — see [**mpsk\_rx\_agc\_bn**](mpsk__rx__loops_8h.md#function-mpsk_rx_agc_bn). In (0, 1), refused at 1 or above; `MPSK_RX_AGC_BW_RATIO` (0.05) by default. 
 
@@ -482,6 +490,30 @@ double mpsk_receiver_r_get_lock (
 
 
 
+
+<hr>
+
+
+
+### function mpsk\_receiver\_r\_get\_lock\_time 
+
+_Symbols from reset to the FIRST carrier-lock declaration, or -1 if the receiver has not locked yet._ 
+```C++
+int64_t mpsk_receiver_r_get_lock_time (
+    const mpsk_receiver_r_state_t * state
+) 
+```
+
+
+
+The acquisition time, as a number a caller can read rather than infer by polling `locked` in a loop. Dated by the same hysteretic detector `mpsk_receiver_r_get_locked()` reports, so the two cannot disagree.
+
+
+In SYMBOLS, not seconds: `bn_carrier` and `bn_timing` are both normalised to the symbol rate, so a settling budget quoted in symbols is comparable across every input rate, and a caller with `Rs` divides once. Only the first declaration is dated — a drop and re-acquire does not restamp it, because the question this answers is "how long did this receiver take to
+lock", not "when did it last hold". [**mpsk\_receiver\_r\_reset()**](mpsk__receiver__r__core_8h.md#function-mpsk_receiver_r_reset) clears it to -1. 
+
+
+        
 
 <hr>
 
@@ -725,7 +757,7 @@ Registers the same thirteen probes as [**mpsk\_receiver\_set\_telemetry()**](mps
 
 **Warning:**
 
-As on the complex twin, the two AGC probes are on the cascade's pre-terminal grid rather than the symbol grid, so their record count differs from the other eleven — compare by time, not by index. See [**mpsk\_receiver\_set\_telemetry()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_set_telemetry) for why, and for why that AGC is the loop that sets the receiver's warmup.
+As on the complex twin, the two AGC probes are on the cascade's MFR-input grid rather than the symbol grid, so their record count differs from the other eleven — compare by time, not by index. See [**mpsk\_receiver\_set\_telemetry()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_set_telemetry) for why, and for why that AGC is the slowest loop in the receiver.
 
 
 

@@ -76,7 +76,6 @@ rx = MpskReceiver(
     bn_timing=0.01,
     acq_to_track=1,
     lock_thresh=0.65,
-    warmup_syms=200,
 )
 rx.set_telemetry(tlm, "rx", 1)
 

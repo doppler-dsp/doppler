@@ -60,6 +60,64 @@ enum {
 #define WFM_SYNTH_SNR_CLEAN 100.0
 
 /**
+ * @brief Bits carried by one symbol of @p type — the `bps` an Eb/No needs.
+ *
+ * QPSK carries two, everything else one. DSSS is one because its payload is
+ * BPSK, which is what makes `ebno == esno` for a DSSS source.
+ */
+JM_FORCEINLINE int
+wfm_synth_bps (int type)
+{
+  return (type == WFM_SYNTH_QPSK) ? 2 : 1;
+}
+
+/**
+ * @brief Convert a per-symbol or per-bit SNR to SNR over the full sample rate.
+ *
+ * **The one place this arithmetic lives.** A noise amplitude is always
+ * referenced to fs, so every SNR mode is a conversion into that: an Es/N0
+ * spreads the symbol's energy over @p span samples, and an Eb/No does the same
+ * after first multiplying by the bits the symbol carries. Getting it wrong is
+ * silent — the waveform is still a waveform, at an SNR nobody asked for — so
+ * having it written twice is how a generator and a composer come to place
+ * different noise for the same requested number.
+ *
+ * @param mode  RESOLVED mode: 1 fs, 2 Eb/No, 3 Es/No. Never 0 (auto) — see
+ *              below.
+ * @param bps   Bits per symbol, from wfm_synth_bps().
+ * @param span  Samples one symbol's energy is spread over.
+ * @param snr   The requested figure, in dB, in @p mode's reference.
+ * @return      SNR in dB over fs, ready for awgn_amplitude_for_snr().
+ *
+ * **`auto` and `span` are deliberately the CALLER's**, and that is not an
+ * oversight: they are the two things that legitimately differ. `wfm_synth`
+ * resolves `auto` to fs for a DSSS source because at create() time it cannot
+ * do better — the codes attach afterwards, so the spreading factor that sets
+ * the symbol span is not yet known — while the composer resolves the same
+ * source to Es/No and passes the true span (`sf * sps` for a burst, or
+ * `fs/symbol_rate` for a continuous asynchronous stream, which coincide only
+ * in the synchronous case that mode exists to avoid). Those differences are
+ * inputs, not a second formula.
+ * @code
+ * // Es/No 12 dB at 8 samples/symbol -> 2.969 dB over fs
+ * double fs_db = wfm_synth_snr_over_fs (3, 1, 8.0, 12.0);
+ * // the same figure read as Eb/No on QPSK is 3.010 dB hotter
+ * double eb_db = wfm_synth_snr_over_fs (2, wfm_synth_bps (WFM_SYNTH_QPSK),
+ *                                       8.0, 12.0);
+ * @endcode
+ */
+JM_FORCEINLINE double
+wfm_synth_snr_over_fs (int mode, int bps, double span, double snr)
+{
+  double s = (span > 0.0) ? span : 1.0;
+  if (mode == 2) /* Eb/No */
+    return snr + 10.0 * log10 ((double)bps) - 10.0 * log10 (s);
+  if (mode == 3) /* Es/No */
+    return snr - 10.0 * log10 (s);
+  return snr; /* over fs */
+}
+
+/**
  * @brief Maximal-length-sequence (MLS) primitive polynomial for an LFSR of the
  * given register length n, in pn_core's right-shift Galois convention. Returns
  * 0 for lengths outside 2..64 (caller errors). Generated from verified

@@ -15,6 +15,34 @@ ______________________________________________________________________
 
 ### Changed
 
+- **One SNR conversion, not two.** `wfm_snr_over_fs()` (the composer's
+    per-segment noise floor, and what `Plan` recomputes a swept SNR through)
+    carried its own copy of the mode→SNR-over-fs arithmetic, with a comment
+    saying it "mirrors the conversion in `wfm_synth_core.c` … single source of
+    truth — no drift". It was a second implementation, and the claim held only
+    by inspection: nothing in the tree compared them, `wfm_snr_over_fs` had no
+    test and no binding, and the consequence of a divergence is silent — the
+    same requested SNR meaning two different noise powers depending on how many
+    sources happen to share a segment.
+
+    The arithmetic now lives once, as `wfm_synth_snr_over_fs()` beside the
+    generator that owns it, with `wfm_synth_bps()` for the bits-per-symbol rule
+    both callers need. What legitimately differs stays an ARGUMENT rather than
+    a second formula: the composer resolves `auto` to Es/No for a DSSS source
+    and passes the true symbol span, while the generator resolves the same
+    source to fs because at `create()` time the codes have not attached yet and
+    the spreading factor is unknown.
+
+    `test_wfm_compose` gains the end-to-end check that was missing: for seven
+    (type, mode, sps) combinations, the noise a composed source actually
+    carries against a HAND-DERIVED expected power. The first version computed
+    that expectation by calling `wfm_snr_over_fs()` — which, now that both
+    sides share one conversion, moved with it: dropping the bits-per-symbol
+    term from the Eb/No branch left the test green. A known answer cannot
+    follow the code it checks. With literals it fails by 3.06 dB at QPSK, and
+    the Es/No span term turns out to have been guarded all along by the DSSS
+    byte-identity assertion in the same file.
+
 - **The M-PSK receiver harness generates with `wfm.Synth` and aligns with
     `BerMeter`, instead of with its own numpy.** Two duplicates, both of which
     had invented a convention:

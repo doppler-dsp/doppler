@@ -101,6 +101,14 @@ extern "C"
                                      float _Complex *out, size_t max_out,
                                      float _Complex *lo_out, int *n_lo);
 
+  size_t ddcr_execute_ctrl_push_tap2 (ddcr_state_t *s, float x,
+                                      double rate_ctrl, double freq_ctrl,
+                                      float _Complex *out, size_t max_out,
+                                      float _Complex *lo_out, int *n_lo,
+                                      float _Complex *pre_out, int *n_pre);
+
+  double ddcr_get_bank_sps (const ddcr_state_t *s);
+
   bool ddcr_get_narrow_pulse (const ddcr_state_t *s);
 
   bool ddcr_get_clipped (const ddcr_state_t *s);

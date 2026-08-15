@@ -84,7 +84,9 @@ _Real-input Digital Down-Converter — halfband R2C + LO + cascade._ [More...](#
 |  size\_t | [**ddcr\_execute\_ctrl\_push**](#function-ddcr_execute_ctrl_push) ([**ddcr\_state\_t**](ddcr__core_8h.md#typedef-ddcr_state_t) \* s, float x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out) <br>_Push ONE real input sample; emit whatever outputs it completes._  |
 |  size\_t | [**ddcr\_execute\_ctrl\_push\_max\_out**](#function-ddcr_execute_ctrl_push_max_out) ([**ddcr\_state\_t**](ddcr__core_8h.md#typedef-ddcr_state_t) \* s) <br>_Bound for ONE pushed input:_ `ceil(rate) + 1` _output periods. Non-zero because the push form has no input block to size from._ |
 |  size\_t | [**ddcr\_execute\_ctrl\_push\_tap**](#function-ddcr_execute_ctrl_push_tap) ([**ddcr\_state\_t**](ddcr__core_8h.md#typedef-ddcr_state_t) \* s, float x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* lo\_out, int \* n\_lo) <br>[_**ddcr\_execute\_ctrl\_push()**_](ddcr__core_8h.md#function-ddcr_execute_ctrl_push) _that also hands back the post-LO sample._ |
+|  size\_t | [**ddcr\_execute\_ctrl\_push\_tap2**](#function-ddcr_execute_ctrl_push_tap2) ([**ddcr\_state\_t**](ddcr__core_8h.md#typedef-ddcr_state_t) \* s, float x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* lo\_out, int \* n\_lo, float \_Complex \* pre\_out, int \* n\_pre) <br>[_**ddcr\_execute\_ctrl\_push\_tap()**_](ddcr__core_8h.md#function-ddcr_execute_ctrl_push_tap) _, plus the MFR-INPUT tap._ |
 |  size\_t | [**ddcr\_execute\_max\_out**](#function-ddcr_execute_max_out) ([**ddcr\_state\_t**](ddcr__core_8h.md#typedef-ddcr_state_t) \* s) <br>_Upper bound on one execute call's output, or 0 to let the caller size it from the input block (a decimator never exceeds its input)._  |
+|  double | [**ddcr\_get\_bank\_sps**](#function-ddcr_get_bank_sps) (const [**ddcr\_state\_t**](ddcr__core_8h.md#typedef-ddcr_state_t) \* s) <br>_Samples per symbol of the MFR-input tap; a planner outcome. Identical to the complex twin's at every rate ratio —_ `bank_sps` _is symbol-relative, so the halfband's 2:1 is absorbed by the plan._ |
 |  bool | [**ddcr\_get\_clipped**](#function-ddcr_get_clipped) (const [**ddcr\_state\_t**](ddcr__core_8h.md#typedef-ddcr_state_t) \* s) <br>_Has the cascade's CIC clipped its input since the last reset?_  |
 |  bool | [**ddcr\_get\_narrow\_pulse**](#function-ddcr_get_narrow_pulse) (const [**ddcr\_state\_t**](ddcr__core_8h.md#typedef-ddcr_state_t) \* s) <br>_Is this object's rectangular matched filter degenerately narrow?_  |
 |  double | [**ddcr\_get\_norm\_freq**](#function-ddcr_get_norm_freq) (const [**ddcr\_state\_t**](ddcr__core_8h.md#typedef-ddcr_state_t) \* s) <br>_Return the current fine NCO normalised frequency at the intermediate rate (fs\_in/2, cycles/sample)._  |
@@ -593,12 +595,71 @@ Number of terminal outputs written (0, 1, or more).
 
 
 
+### function ddcr\_execute\_ctrl\_push\_tap2 
+
+[_**ddcr\_execute\_ctrl\_push\_tap()**_](ddcr__core_8h.md#function-ddcr_execute_ctrl_push_tap) _, plus the MFR-INPUT tap._
+```C++
+size_t ddcr_execute_ctrl_push_tap2 (
+    ddcr_state_t * s,
+    float x,
+    double rate_ctrl,
+    double freq_ctrl,
+    float _Complex * out,
+    size_t max_out,
+    float _Complex * lo_out,
+    int * n_lo,
+    float _Complex * pre_out,
+    int * n_pre
+) 
+```
+
+
+
+The real-input twin of [**ddc\_execute\_ctrl\_push\_tap2()**](ddc__core_8h.md#function-ddc_execute_ctrl_push_tap2). `pre_out` receives the cascade's output after every integer stage and after the AGC but ahead of the terminal matched filter — the node an NDA carrier discriminator can read with no symbol timing. Its rate is [**ddcr\_get\_bank\_sps()**](ddcr__core_8h.md#function-ddcr_get_bank_sps) samples per symbol.
+
+
+The halfband gates the whole call: on the inputs it swallows there is no LO step and no cascade push, so `n_lo` and `n_pre` both come back 0.
+
+
+
+
+**Parameters:**
+
+
+* `pre_out` Receives the MFR-input sample; may be NULL. 
+* `n_pre` Receives 1 if `pre_out` was written, else 0; may be NULL. 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function ddcr\_execute\_max\_out 
 
 _Upper bound on one execute call's output, or 0 to let the caller size it from the input block (a decimator never exceeds its input)._ 
 ```C++
 size_t ddcr_execute_max_out (
     ddcr_state_t * s
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function ddcr\_get\_bank\_sps 
+
+_Samples per symbol of the MFR-input tap; a planner outcome. Identical to the complex twin's at every rate ratio —_ `bank_sps` _is symbol-relative, so the halfband's 2:1 is absorbed by the plan._
+```C++
+double ddcr_get_bank_sps (
+    const ddcr_state_t * s
 ) 
 ```
 

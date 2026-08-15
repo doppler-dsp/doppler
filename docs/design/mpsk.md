@@ -76,7 +76,7 @@ flowchart LR
 
     IN --> MIX
     AGC --> MFR
-    AGC -.->|"nda_tap=mf_in"| PED
+    AGC -.->|"nda_tap=mf_in (default)"| PED
     STROBE -.->|"nda_tap=mf_out — every output"| PED
     STROBE -.->|"nda_tap=strobe — on-time only"| PED
     STROBE --> TED
@@ -728,10 +728,10 @@ only tap. The three-way `nda_tap` parameter goes away.
 
 Why this tap, stated against the three it replaces:
 
-| tap                        | why not                                                                                                                                   |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `strobe` (shipped default) | inside the matched filter's group delay, and the only tap that depends on symbol timing                                                   |
-| `mf_out`                   | also inside the matched filter; the between-symbol outputs average two symbols, so their M-th power carries ISI rather than carrier phase |
+| tap      | why not                                                                                                                                   |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `strobe` | inside the matched filter's group delay, and the only tap that depends on symbol timing                                                   |
+| `mf_out` | also inside the matched filter; the between-symbol outputs average two symbols, so their M-th power carries ISI rather than carrier phase |
 
 The MFR's input is the node those two are reaching past: band-limited by DEC's
 own filters, already levelled by the AGC sitting on it, and at a rate the plan

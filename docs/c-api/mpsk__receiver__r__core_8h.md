@@ -366,7 +366,7 @@ Parameters match [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#funct
 * `init_norm_freq` Carrier frequency to tune to, cycles/sample **at the real input rate** (default 0.0). A real IF at `0.2 * fs` is `0.2`; the halved value the LO actually uses is this object's business, not the caller's. 
 * `differential` bits(): differential demap (default 0). 
 * `num_phases` Terminal-stage bank arms, a power of two (1024). 
-* `nda_tap` MPSK\_RX\_NDA\_TAP\_\* — where the NDA carrier discriminator reads, and so its pull-in range: `_STROBE` (0, default) at `Rs` and the only tap needing symbol timing, or `_MF_OUT` (1) at `m_out*Rs`. See [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create) for the full trade and the measured ranges.
+* `nda_tap` MPSK\_RX\_NDA\_TAP\_\* — where the NDA carrier discriminator reads, and so its pull-in range: `_STROBE` (0) at `Rs` and the only tap needing symbol timing, or `_MF_OUT` (1) at `m_out*Rs`. See [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create) for the full trade and the measured ranges.
 
 `_MF_IN` is NOT accepted here yet: it reads the cascade's `bank_sps` rate, which this front end does not publish (its `ddcr` carries the same RateConverter, so wiring it is small — measured, `bank_sps` comes out identical on both types). Construction refuses it rather than falling back to a rate that would mis-size the loop.
 

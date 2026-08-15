@@ -76,6 +76,7 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 | Type | Name |
 | ---: | :--- |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_rx\_agc\_bn**](#function-mpsk_rx_agc_bn) (double bn\_carrier, double bn\_timing, double ratio) <br> |
+|  void | [**mpsk\_rx\_config\_carrier**](#function-mpsk_rx_config_carrier) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_(Re-)size the carrier loop filter for the tap's update rate._  |
 |  void | [**mpsk\_rx\_configure\_lock**](#function-mpsk_rx_configure_lock) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the handover detector; see_ [_**mpsk\_receiver\_configure\_lock()**_](mpsk__receiver__core_8h.md#function-mpsk_receiver_configure_lock) _, which forwards here. A live handover survives; the verify run restarts._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_disc**](#function-mpsk_rx_disc) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex z) <br>_Run the NDA discriminator on one tapped sample._  |
 |  double | [**mpsk\_rx\_freq\_est**](#function-mpsk_rx_freq_est) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Tracked carrier offset in cycles/sample at the LO's rate — the loop's own estimate, excluding the front end's configured centre._  |
@@ -253,6 +254,26 @@ JM_FORCEINLINE double mpsk_rx_agc_bn (
 
 
 
+
+<hr>
+
+
+
+### function mpsk\_rx\_config\_carrier 
+
+_(Re-)size the carrier loop filter for the tap's update rate._ 
+```C++
+void mpsk_rx_config_carrier (
+    mpsk_rx_loops_t * l
+) 
+```
+
+
+
+Called by [**mpsk\_rx\_loops\_init()**](mpsk__rx__loops_8h.md#function-mpsk_rx_loops_init), and AGAIN by each receiver's create() once the cascade has published its `bank_sps` — which arrives too late for init, so the MF\_IN tap would otherwise keep gains designed for the `lo_sps` placeholder. `integ` survives [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init) by contract, and every other tap re-derives the gains it already had. 
+
+
+        
 
 <hr>
 

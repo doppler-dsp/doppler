@@ -131,7 +131,7 @@ extern "C"
    * @param num_phases     Terminal-stage bank arms, a power of two (1024).
    * @param nda_tap        MPSK_RX_NDA_TAP_* — where the NDA carrier
    *                        discriminator reads, and so its pull-in range:
-   *                        `_STROBE` (0, default) at `Rs` and the only tap
+   *                        `_STROBE` (0) at `Rs` and the only tap
    *                        needing symbol timing, or `_MF_OUT` (1) at
    *                        `m_out*Rs`. See mpsk_receiver_create() for the
    *                        full trade and the measured ranges.
@@ -242,9 +242,15 @@ extern "C"
                             float complex *y_out, int ted)
   {
     float complex ys[4];
-    size_t        n    = ddcr_execute_ctrl_push_tap (
+    float complex zpre;
+    int           n_pre = 0;
+    size_t        n     = ddcr_execute_ctrl_push_tap2 (
         s->fe, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
-        sizeof (ys) / sizeof (ys[0]), NULL, NULL);
+        sizeof (ys) / sizeof (ys[0]), NULL, NULL, &zpre, &n_pre);
+    /* The timing-independent NDA tap reads here, at the MFR's input. A no-op
+       unless MF_IN is the configured tap. */
+    if (n_pre)
+      mpsk_rx_push_mf_in (&s->l, zpre);
     int           emitted = 0;
     for (size_t oi = 0; oi < n; oi++)
       emitted |= mpsk_rx_take_output (&s->l, ys[oi], y_out, ted);

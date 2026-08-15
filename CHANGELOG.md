@@ -339,6 +339,34 @@ ______________________________________________________________________
 
 ### Breaking
 
+- **BREAKING: `nda_tap` now defaults to `"mf_in"`, not `"strobe"`, on both
+    receiver types.** The default should be the tap that keeps working in the
+    widest range of conditions, and that is the timing-independent one. A
+    signal can carry **no data modulation for an extended period** — an
+    unmodulated carrier, or a CW preamble ahead of the data — and the Gardner
+    TED is a transition detector, so with no transitions the timing loop has
+    nothing to lock to at all. A carrier tap that depended on symbol timing
+    could never acquire on such a signal, and a user still needs to know the
+    carrier is being tracked.
+
+    `strobe` remains available and remains the cleanest input when there is
+    modulation; it is now a choice rather than the thing you get by default.
+    Anything relying on the old default should pass `nda_tap="strobe"`
+    explicitly.
+
+- **`mf_in` now works on `MpskReceiverR` too — the restriction was unwired
+    code, not architecture.** `ddcr_state_t` carries the same
+    `RateConverter`, so `ddcr_get_bank_sps()` is a delegate and the tap
+    threads through `ddcr_execute_ctrl_push_tap2()` exactly as on the complex
+    path. Measured, `bank_sps` is IDENTICAL on both types at every rate ratio
+    (2.0000 / 1.5625 / 2.4414 at sps 8 / 200 / 10000) — it is symbol-relative,
+    so the halfband's 2:1 is absorbed by the plan; only `lo_sps` differs,
+    which is why that was always a separate parameter. The real receiver now
+    acquires on `mf_in` at every ratio (0.987 / 1.003 / 1.000 of a known
+    offset). `mpsk_rx_config_carrier()` is public for the same reason it is
+    called twice on the complex path: the bank rate arrives after
+    `mpsk_rx_loops_init()` has already sized the filter.
+
 - **BREAKING: the Costas arm filter is gone, and `nda_tap = "lo_arm"` with
     it.** A discriminator tap does not need an arm filter where the chain
     already filters ahead of it — and the one place the receiver added its own,

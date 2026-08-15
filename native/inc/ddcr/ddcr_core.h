@@ -423,6 +423,32 @@ extern "C"
                                      float _Complex *lo_out, int *n_lo);
 
   /**
+   * @brief ddcr_execute_ctrl_push_tap(), plus the MFR-INPUT tap.
+   *
+   * The real-input twin of ddc_execute_ctrl_push_tap2(). @p pre_out receives
+   * the cascade's output after every integer stage and after the AGC but
+   * ahead of the terminal matched filter — the node an NDA carrier
+   * discriminator can read with no symbol timing. Its rate is
+   * ddcr_get_bank_sps() samples per symbol.
+   *
+   * The halfband gates the whole call: on the inputs it swallows there is no
+   * LO step and no cascade push, so @p n_lo and @p n_pre both come back 0.
+   *
+   * @param pre_out  Receives the MFR-input sample; may be NULL.
+   * @param n_pre    Receives 1 if @p pre_out was written, else 0; may be NULL.
+   */
+  size_t ddcr_execute_ctrl_push_tap2 (ddcr_state_t *s, float x,
+                                      double rate_ctrl, double freq_ctrl,
+                                      float _Complex *out, size_t max_out,
+                                      float _Complex *lo_out, int *n_lo,
+                                      float _Complex *pre_out, int *n_pre);
+
+  /** @brief Samples per symbol of the MFR-input tap; a planner outcome.
+   *  Identical to the complex twin's at every rate ratio — `bank_sps` is
+   *  symbol-relative, so the halfband's 2:1 is absorbed by the plan. */
+  double ddcr_get_bank_sps (const ddcr_state_t *s);
+
+  /**
    * @brief Is this object's rectangular matched filter degenerately narrow?
    *
    * The real chain's copy of ddc_get_narrow_pulse(): true only for the

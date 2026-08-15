@@ -19,6 +19,7 @@ _Synth component API._ [More...](#detailed-description)
 * `#include "pn/pn_core.h"`
 * `#include "resamp/resamp_core.h"`
 * `#include <math.h>`
+* `#include "gold/gold_core.h"`
 
 
 
@@ -71,6 +72,7 @@ _Synth component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**wfm\_synth\_bps**](#function-wfm_synth_bps) (int type) <br>_Bits carried by one symbol of_ `type` _— the_`bps` _an Eb/No needs._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**wfm\_synth\_cont\_dsss\_chip**](#function-wfm_synth_cont_dsss_chip) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* s) <br>_One continuous-DSSS chip:_ `code[n % n_code] ^ data` _, as a BPSK sign._ |
 |  [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* | [**wfm\_synth\_create**](#function-wfm_synth_create) (int type, double fs, double freq, double snr, int snr\_mode, uint32\_t seed, int sps, int pn\_length, uint64\_t pn\_poly, int lfsr, double f\_end) <br>_Allocate and configure a waveform synthesiser. The synthesiser combines a local oscillator (LO), optional AWGN, and an optional PN LFSR into a single streaming source. One call to_ [_**wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-wfm_synth_step) _or_[_**wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-wfm_synth_steps) _advances all sub-components in lock-step. SNR &gt;= WFM\_SYNTH\_SNR\_CLEAN (100 dB) skips AWGN entirely — clean waveforms pay no noise overhead. When_`snr_mode` _is "auto" the library picks the natural reference: Es/No for modulated types (BPSK, QPSK), fs-band SNR for tone/noise/PN._ |
 |  void | [**wfm\_synth\_destroy**](#function-wfm_synth_destroy) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Destroy a synth instance and release all memory. Recursively frees the LO, AWGN, and PN sub-objects, then the struct itself. Safe to call with NULL (no-op)._  |
@@ -80,7 +82,7 @@ _Synth component API._ [More...](#detailed-description)
 |  void | [**wfm\_synth\_get\_state**](#function-wfm_synth_get_state) (const [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, void \* blob) <br> |
 |  int | [**wfm\_synth\_get\_sym\_pos**](#function-wfm_synth_get_sym_pos) (const [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Return the current position within the current symbol (0..nsps-1). Reaches nsps and wraps to 0 each time a new symbol is consumed from the PN LFSR. Useful for frame alignment: sym\_pos==0 on a step boundary means the very next sample begins a fresh symbol._  |
 |  int | [**wfm\_synth\_get\_wtype**](#function-wfm_synth_get_wtype) (const [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Return the active waveform type discriminant. Maps to the WFM\_SYNTH\_\* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk. Use this to inspect which synthesis path is active at runtime._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint64\_t | [**wfm\_synth\_mls\_poly**](#function-wfm_synth_mls_poly) (uint32\_t n) <br>_Maximal-length-sequence (MLS) primitive polynomial for an LFSR of the given register length n, in pn\_core's right-shift Galois convention. Returns 0 for lengths outside 2..64 (caller errors). Generated from verified primitive polynomials (period 2^n-1); the n=2..16 values are unchanged._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint64\_t | [**wfm\_synth\_mls\_poly**](#function-wfm_synth_mls_poly) (uint32\_t n) <br>_The MLS primitive polynomial table — pn's, reached by its old name._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**wfm\_synth\_next\_symbol**](#function-wfm_synth_next_symbol) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* s) <br>_Pull the next constellation symbol from the active shaped source._  |
 |  void | [**wfm\_synth\_noise\_steps**](#function-wfm_synth_noise_steps) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, float complex \* output, size\_t n) <br>_Generate n noise-only samples — the synth's additive-AWGN term with no signal — continuing the same noise RNG stream_ [_**wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-wfm_synth_steps) _draws from (no reseed, identical chunked awgn call pattern, so a gap rendered here is the seamless continuation of the on-time noise). Writes exact zeros and advances nothing for a clean synth (no AWGN child). Used by the composer to carry a segment's noise floor through its off-time gap._ |
 |  void | [**wfm\_synth\_reseed\_noise**](#function-wfm_synth_reseed_noise) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, uint32\_t seed) <br>_Reseed only the additive-noise (AWGN) generator, leaving the signal (LO / PN code / data / pulse shaping) untouched. A no-op for a synth with no noise. Used by the composer to give each repeat a fresh noise realization while the underlying waveform stays bit-identical._  |
@@ -99,6 +101,7 @@ _Synth component API._ [More...](#detailed-description)
 |  void | [**wfm\_synth\_set\_wtype**](#function-wfm_synth_set_wtype) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, int val) <br>_Override the waveform type discriminant in-place. Changing wtype does not reinitialise sub-objects; use with care._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**wfm\_synth\_shape**](#function-wfm_synth_shape) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* s, float \_Complex \* out, size\_t m, float \_Complex \* syms) <br>_Produce_ `m` _polyphase-shaped baseband samples into_`out` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**wfm\_synth\_shaper\_prime**](#function-wfm_synth_shaper_prime) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* s) <br>_Prime the shaper's delay line so its output aligns with the dense FIR._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**wfm\_synth\_snr\_over\_fs**](#function-wfm_synth_snr_over_fs) (int mode, int bps, double span, double snr) <br>_Convert a per-symbol or per-bit SNR to SNR over the full sample rate._  |
 |  size\_t | [**wfm\_synth\_state\_bytes**](#function-wfm_synth_state_bytes) (const [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**wfm\_synth\_step**](#function-wfm_synth_step) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Generate one output sample from internal state. Advances the PN LFSR (modulated types only, on symbol boundaries), the LO phase accumulator, and the AWGN engine, then returns the mixed result:_ `sym * carrier + noise` _. Inlined and hot-path annotated so tight per-sample loops pay no call overhead._ |
 |  void | [**wfm\_synth\_steps**](#function-wfm_synth_steps) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, float complex \* output, size\_t n) <br>_Generate a block of output samples. Calls_ [_**wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-wfm_synth_step) _in a tight loop, writing each cf32 sample into_`output` _. The Python binding returns a freshly allocated NumPy complex64 array; ownership is transferred to the caller._ |
@@ -205,6 +208,26 @@ Continuous-DSSS data-symbol source (wfm\_synth\_set\_dsss\_cont's data\_mode).
 <hr>
 ## Public Functions Documentation
 
+
+
+
+### function wfm\_synth\_bps 
+
+_Bits carried by one symbol of_ `type` _— the_`bps` _an Eb/No needs._
+```C++
+JM_FORCEINLINE int wfm_synth_bps (
+    int type
+) 
+```
+
+
+
+QPSK carries two, everything else one. DSSS is one because its payload is BPSK, which is what makes `ebno == esno` for a DSSS source. 
+
+
+        
+
+<hr>
 
 
 
@@ -525,7 +548,7 @@ Integer waveform type index (WFM\_SYNTH\_TONE .. WFM\_SYNTH\_QPSK).
 
 ### function wfm\_synth\_mls\_poly 
 
-_Maximal-length-sequence (MLS) primitive polynomial for an LFSR of the given register length n, in pn\_core's right-shift Galois convention. Returns 0 for lengths outside 2..64 (caller errors). Generated from verified primitive polynomials (period 2^n-1); the n=2..16 values are unchanged._ 
+_The MLS primitive polynomial table — pn's, reached by its old name._ 
 ```C++
 JM_FORCEINLINE uint64_t wfm_synth_mls_poly (
     uint32_t n
@@ -534,6 +557,10 @@ JM_FORCEINLINE uint64_t wfm_synth_mls_poly (
 
 
 
+The table itself moved to `pn/pn_core.h` (`pn_mls_poly`), because the convention it encodes is [**pn\_create()**](pn__core_8h.md#function-pn_create)'s tap mask and not the synth's. This spelling is retained for the call sites that already use it; it forwards and holds no table of its own, so the two cannot disagree. 
+
+
+        
 
 <hr>
 
@@ -1156,6 +1183,57 @@ JM_FORCEINLINE void wfm_synth_shaper_prime (
 
 
 The polyphase interpolator emits its first meaningful sample only after the delay line fills, so its output lags the dense-FIR path by exactly `nsps` samples. Discarding that many leading outputs once, at stream start (which consumes exactly the first source symbol into the delay line), realigns the shaped waveform to the dense path to float precision — so switching a source to polyphase shaping does not shift downstream sample timing. Idempotent via the `primed` flag; re-armed by `wfm_synth_reset`. 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_synth\_snr\_over\_fs 
+
+_Convert a per-symbol or per-bit SNR to SNR over the full sample rate._ 
+```C++
+JM_FORCEINLINE double wfm_synth_snr_over_fs (
+    int mode,
+    int bps,
+    double span,
+    double snr
+) 
+```
+
+
+
+**The one place this arithmetic lives.** A noise amplitude is always referenced to fs, so every SNR mode is a conversion into that: an Es/N0 spreads the symbol's energy over `span` samples, and an Eb/No does the same after first multiplying by the bits the symbol carries. Getting it wrong is silent — the waveform is still a waveform, at an SNR nobody asked for — so having it written twice is how a generator and a composer come to place different noise for the same requested number.
+
+
+
+
+**Parameters:**
+
+
+* `mode` RESOLVED mode: 1 fs, 2 Eb/No, 3 Es/No. Never 0 (auto) — see below. 
+* `bps` Bits per symbol, from [**wfm\_synth\_bps()**](wfm__synth__core_8h.md#function-wfm_synth_bps). 
+* `span` Samples one symbol's energy is spread over. 
+* `snr` The requested figure, in dB, in `mode's` reference. 
+
+
+
+**Returns:**
+
+SNR in dB over fs, ready for [**awgn\_amplitude\_for\_snr()**](awgn__core_8h.md#function-awgn_amplitude_for_snr).
+
+
+\*\*`auto` and `span` are deliberately the CALLER's\*\*, and that is not an oversight: they are the two things that legitimately differ. `wfm_synth` resolves `auto` to fs for a DSSS source because at create() time it cannot do better — the codes attach afterwards, so the spreading factor that sets the symbol span is not yet known — while the composer resolves the same source to Es/No and passes the true span (`sf * sps` for a burst, or `fs/symbol_rate` for a continuous asynchronous stream, which coincide only in the synchronous case that mode exists to avoid). Those differences are inputs, not a second formula. 
+```C++
+// Es/No 12 dB at 8 samples/symbol -> 2.969 dB over fs
+double fs_db = wfm_synth_snr_over_fs (3, 1, 8.0, 12.0);
+// the same figure read as Eb/No on QPSK is 3.010 dB hotter
+double eb_db = wfm_synth_snr_over_fs (2, wfm_synth_bps (WFM_SYNTH_QPSK),
+                                      8.0, 12.0);
+```
+ 
 
 
         

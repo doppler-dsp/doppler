@@ -1,11 +1,15 @@
 # Receiver Test Harness
 
-**Status:** goals (§0), inventory (§1–§6), the frame descriptor it needs (§7),
-and the sequence that drives the plan (§8). Design, not yet built. Everything
-below was read from the tree, not recalled; line counts and symbol lists are
-as measured. The immediate cause of this document was a hand-rolled
-measurement harness that produced three wrong conclusions in one session —
-one of which reached a filed issue.
+**Status:** goals (§0), inventory (§1–§6), the frame descriptor (§7) and the
+sequence that drives the plan (§8). **Built through §8.3 step 6** — the trio
+pinned, the refusals in place, the frame layer and its named set landed, the
+frame-statistics accumulator shipped, and §8.7 running all four metrics on
+`MpskReceiver` from one record. Step 7 — the measurements this document
+interrupted — is what remains. Everything below was read from the tree, not
+recalled; line counts and symbol lists are as measured, and every number in
+§7.6, §8.4–§8.7 came out of a run. The immediate cause of this document was a
+hand-rolled measurement harness that produced three wrong conclusions in one
+session — one of which reached a filed issue.
 
 ______________________________________________________________________
 
@@ -130,6 +134,8 @@ including the output axes (`--file-type`, `--endian`, `--record`,
 
 The frame layout lives in `native/inc/wfm/wfm_dsp.h`:
 
+<!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/wfm/wfm_frame.h, native/inc/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
+
 ```c
 size_t wfm_frame_dsss_nchips (size_t acq_len, size_t acq_reps, size_t data_len, …);
 size_t wfm_frame_dsss_chips  (const uint8_t *acq_code, size_t acq_len, …);
@@ -162,6 +168,8 @@ from three numbers rather than a stored array.
 
 `native/tests/dp_tx_test.h` (307 lines) calls itself "the SSOT for harness
 STIMULUS: one shaped symbol stream, one place." Its configuration is:
+
+<!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/wfm/wfm_frame.h, native/inc/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
 
 ```c
 dp_tx_pulse_t pulse;  double sps;   double beta;  int span;
@@ -222,6 +230,8 @@ close, on the external side as much as ours.
 ### 2.3 `dp_ber_test.h` (834 lines) — the statistical harness
 
 Owns the settled window, the marker model and the sync decision:
+
+<!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/wfm/wfm_frame.h, native/inc/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
 
 ```c
 typedef struct { …; size_t period; size_t reps; } dp_ber_marker_t;
@@ -483,15 +493,38 @@ ______________________________________________________________________
 
 ## 6. Open questions the inventory raises, to be measured not decided
 
-- **Sync length.** Barker maxes at 13 symbols; `dp_ber_test.h`'s default
+- **~~Sync length.~~ MEASURED — and the answer depends entirely on whether the
+    word REPEATS.** Barker maxes at 13 symbols; `dp_ber_test.h`'s default
     marker is `DP_BER_SYNC_SYMS = 256`. That is a ~13x processing-gain
     shortfall, and at a 4 dB Es/N0 floor a 13-symbol sync may not clear the
-    Bonferroni-corrected threshold. `dp_ber_sync()` already reports
-    `margin_db` and `runner_db`, so this is directly measurable.
+    Bonferroni-corrected threshold. `validate_rx_frame_fer` now measures it
+    at the SER = 1e-3 anchor (Es/N0 6.8 dB, BPSK) as a **per-frame sync miss
+    rate** over 640 frames, against `RX_FRAME_CONT`'s PN-127 as the control:
+
+    | sync      | per-frame miss rate | 99% interval  |
+    | --------- | ------------------- | ------------- |
+    | Barker-13 | **0.845**           | 0.755 - 0.942 |
+    | PN-127    | **0**               | 0 - 0.038     |
+
+    So a 13-symbol word confirms roughly one frame in seven, and 127 symbols
+    misses none of 120 — a decisive answer, and exactly the pair
+    `RX_FRAME_BURST` vs `RX_FRAME_CONT` exists to produce.
+
+    **But the same Barker-13 acquires the RECORD without difficulty**, because
+    there it is a *periodic* marker: `dp_ber_sync()` combines ~130 occurrences
+    non-coherently, and the record alignment detects at 5 of 7 bursts. The
+    processing gain is `sqrt(2*K*L)`, so `K` buys what `L` cannot. That is the
+    real finding, and it is not "13 is too short": it is that a short sync word
+    is an ACQUISITION aid and not a per-frame confirmation, so a receiver that
+    validates each frame independently needs the longer one. Nothing here
+    argues for changing the Barker-13 convention — it argues for knowing which
+    of the two jobs a sync word is being asked to do.
+
 - **Where the frame primitive belongs.** Lifting `[preamble | sync | payload |   CRC]` out of `wfm_frame_dsss_chips()` so it serves unspread BPSK/QPSK is a
     refactor of the library generator, not a test-only feature — a real modem
     sends a framed waveform. The DSSS path should then assemble the frame and
     spread it, rather than carry its own copy of the layout.
+
 - **~~An output-rate invariant~~ — the observed `steps()`/`bits()`
     disagreement at high oversampling.** Resolved in two halves, and they go to
     different places (§8.5). As a HARNESS gate the invariant is not needed:
@@ -501,6 +534,7 @@ ______________________________________________________________________
     the RECEIVER — that its two output faces agree — and that belongs in the
     receiver's own tests, where `bits()` is actually called. The harness never
     calls it, so no gate here would ever have seen it.
+
 - **Whether the trio should be reported together, always.** Reporting one of
     BER / EVM / M2M4 alone is what makes a false lock invisible (§2.4), so the
     harness reporting all three by default — and flagging when they disagree —
@@ -508,6 +542,7 @@ ______________________________________________________________________
     itself is the signal: healthy EVM and M2M4 beside a chance BER is the
     signature of a stable false lock, and is otherwise easy to misread as a
     broken demodulator.
+
 - **Where frame statistics live.** The accumulator (§2.5) could be a component
     beside `ber_meter`, or read-backs on the receiver that already produces
     frames. The `ber_meter` precedent argues for the former — it keeps the
@@ -544,6 +579,8 @@ than inline one generator's parameters, the frame is built from a small
 sequence descriptor reused for the preamble, the sync word and the payload
 alike. That makes "a Gold-code sync" a configuration rather than a feature,
 and it keeps `pn_create()` / `gold_create()` as the only implementations.
+
+<!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/wfm/wfm_frame.h, native/inc/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
 
 ```c
 /** Where a run of bits comes from. */
@@ -621,6 +658,8 @@ Both directions need to know where each field sits. Today that arithmetic is
 inline in `wfm_frame_dsss_nchips()`; a receiver scoring a frame would have to
 recompute it, which is exactly how TX and RX drift.
 
+<!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/wfm/wfm_frame.h, native/inc/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
+
 ```c
 /** @brief Where each field lands, in bits from the start of the frame. */
 typedef struct
@@ -664,7 +703,7 @@ That refactor is the point at which the existing DSSS round-trip tests become
 the regression test for the new primitive — it should be bit-identical before
 and after, which is a checkable claim rather than a hope.
 
-### 7.4 The starter set
+### 7.4 The starter set — **built**, `native/tests/dp_frame_test.h`
 
 A frame is arbitrary by construction — that is the point of the descriptor.
 But an arbitrary frame per test is how a convention goes wrong silently, so
@@ -698,7 +737,32 @@ A multi-frame record is still *not* here: it belongs to the accumulator
 The sync length of 127 is a **placeholder pending the §6 measurement**, not a
 recommendation: it is one register period (`reg_bits = 7`) long enough to be
 plausible at 4 dB, and `dp_ber_sync()`'s `margin_db` is what should actually
-choose it.
+choose it. §6 has since measured it, and 127 stands.
+
+**What building it changed.** Three things the table above did not say, each
+found by having to write the values down:
+
+- **A dotted preamble is `len = 2` repeated N times, not `len = 2N` once.** The
+    period is what a coherent integration across repetitions depends on, so the
+    descriptor states the period and the repeat count rather than a length with
+    the period left to be inferred. It is also the only place in the set that
+    exercises `preamble_reps`, which is the field the DSSS acquisition contract
+    uses.
+- **`RX_FRAME_GOLD`'s registers are 10 bits wide against `RX_FRAME_CONT`'s 7.**
+    A Gold family is only a Gold family when its two m-sequences are a genuine
+    **preferred pair**, and doppler ships verified taps for exactly one — the
+    CCSDS length-10 polynomials whose three-valued correlation set
+    `test_gold_core.c` checks. `wfm_seq_t` names the output length apart from
+    the register width precisely so this is expressible: both syncs are 127
+    bits *out*, which is the quantity the comparison holds equal.
+- **A generated field's `poly = 0` was silently emitting a constant**, and the
+    set is what surfaced it — see §7.6.
+
+`test_dp_frame.c` gates the claims rather than the code: the stated bit counts,
+that `RX_FRAME_NONE` carries `RX_FRAME_CONT`'s payload bit for bit, that
+`RX_FRAME_CONT` and `RX_FRAME_GOLD` share a layout byte for byte while their
+sync words differ in ~half their positions, that no sync word recurs inside its
+own payload, and that Barker-13 matches the literal every caller types.
 
 ### 7.6 What landed
 
@@ -719,9 +783,31 @@ put `gold_create` into eight link targets, four of them jm-generated. So the
 DSSS burst assembler MOVED to `wfm_frame.c`: assembling a frame is what it
 does, and the split follows the function rather than the file.
 
-**Not yet built:** the §7.4 named starter set, and the frame-statistics
-accumulator of §2.5 (the FER this makes possible). Those are the next two
-increments.
+**A defect the named set found, which the descriptor's own test could not.**
+`WFM_SEQ_PN` passed its `poly` straight to `pn_create()`, which takes the tap
+mask verbatim — so `poly = 0`, the natural "default" and the value
+`wfm_synth`'s `--pn-poly` already resolves, meant a register with **no
+feedback**: it shifts the seed out and then emits zeros for ever. Measured, a
+127-bit PN field at `reg_bits = 7` carried **2 ones**. Every generated PN
+field in the tree was a constant that still looked like a field.
+
+`test_wfm_frame.c` did not catch it because its check was a **consistency**
+test: it compared `wfm_frame_bits()` against `pn_generate()` with `poly = 0` on
+both sides, and the two agreed perfectly — on two all-zero sequences. The gate
+that catches it is a property no agreement between two halves can establish:
+one period of a length-n MLS carries exactly `2^(n-1)` ones, so a **balance
+check** over `2^n - 1` bits says the descriptor resolved a real polynomial. It
+reads 1 against 256 when it did not, and it fires even with the old
+mutually-consistent comparison restored.
+
+The fix applies the resolution the project already had
+(`poly ? poly : pn_mls_poly (reg_bits)`), and the table moved from
+`wfm_synth_core.h` to **`pn_core.h`** where the convention belongs — it is
+`pn_create()`'s tap mask, not the synth's. `wfm_synth_mls_poly()` remains as a
+forwarder so no call site changed and no second table exists.
+
+**Built since:** the §7.4 named starter set, and the frame-statistics
+accumulator of §2.5. §8.7 is the run that ties them to a receiver.
 
 ### 7.5 Open
 
@@ -862,19 +948,25 @@ Ordered so that nothing depends on an unpinned measurement:
     (§8.5). `align_ok` is now load-bearing for every metric; the stage-4
     invariant is not wanted, because the detection it would have preceded
     already refuses the cases it was for.
-1. **Lift the frame out of DSSS** (§1.3, §7): `wfm_frame_*` over `wfm_seq_t`,
-    `wfm_frame_dsss_chips()` refactored to call it, `wfm_synth_set_bits()`
-    gaining the frame, and `--sync`/`--acq-*`/`--crc` accepted for
-    `--type bpsk/qpsk`. The existing DSSS round-trip tests are the regression
-    check — bit-identical before and after.
-1. **Frame statistics** (§2.5) beside `ber_meter`, reusing `ber_confidence`
-    for the interval. This is what makes FER, and therefore the false-lock
-    detector, available.
+1. **Lift the frame out of DSSS** (§1.3, §7) — **done for the library**:
+    `wfm_frame_*` over `wfm_seq_t`, `wfm_frame_dsss_chips()` refactored to call
+    it (DSSS round-trips bit-identical, as promised), and the named set of
+    §7.4. A framed unspread waveform reaches `wfm_synth_set_bits()` by
+    materialising the frame first, which is what §8.7 does. **Still open**:
+    `wfmgen` accepting `--sync`/`--acq-*`/`--crc` for `--type bpsk/qpsk`, so
+    the frame is reachable from the CLI and not only from C
+    ([#755](https://github.com/doppler-dsp/doppler/issues/755)) — until then
+    the frame layer fails goal 9 on the generation side.
+1. ~~**Frame statistics** (§2.5) beside `ber_meter`~~ **DONE** — `frame_meter`
+    / `doppler.ber.FrameMeter`, reusing `ber_confidence` for the interval and
+    therefore its stopping rule. This is what makes FER, and therefore the
+    false-lock detector, available.
 1. **Converge the harness onto the library** — ~~stage 2 to `wfm_synth`~~
     (**done, §8.4**, and the generator verified with it), stage 8 to
-    `ber_confidence` (already there — §8.1), stage 7 gaining M2M4 and FER. The
-    convergence is held from reversing by the stimulus's own measurements
-    (§8.2), not by a provenance marker.
+    `ber_confidence` (already there — §8.1), ~~stage 7 gaining M2M4 and FER~~
+    (**done**: M2M4 in §8.6, FER in **§8.7**, which is the whole sequence run
+    on `MpskReceiver`). The convergence is held from reversing by the
+    stimulus's own measurements (§8.2), not by a provenance marker.
 1. **Only then** resume the measurements this document interrupted: the tap
     comparison at Fs = 10 MSa/s / Rs = 1 kSps, the receiver decision it feeds,
     and a re-examination of the issue filed from the unpinned harness.
@@ -1006,6 +1098,66 @@ because the alias is `Rs/M` and a smaller offset costs less in the front end —
 so the metric that can half-see this at BPSK goes blind exactly where §2.4
 measures the margin already collapsing (5.4 / 3.3 / 2.8 dB between "on the
 bound" and "completely broken"). That is goal 4 in one measurement.
+
+### 8.7 All four metrics, on a receiver, from one record
+
+`native/validation/rx_frame_fer.c` (`make test` → `validate_rx_frame_fer`) is
+the sequence of §8 end to end: a **named frame** → `wfm_frame_bits()` →
+`wfm_synth` → `MpskReceiver` → `ber` + `snr` + `frame_meter`. It is the first
+FER measured on a receiver rather than on synthetic outcomes, and the first run
+to produce all four metrics together (goal 4). It owns no pulse, no estimator,
+no level convention — and **no random number generator at all**: the noise is
+`wfm_synth`'s AWGN at a requested Es/N0.
+
+BPSK, RRC β = 0.35 span 8, sps = 8, at the SER = 1e-3 anchor (Es/N0 6.79 dB),
+stopping on error counts at both levels:
+
+| frame            | SER      | EVM      | M2M4    | FER         | sync miss | loss  |
+| ---------------- | -------- | -------- | ------- | ----------- | --------- | ----- |
+| `RX_FRAME_NONE`  | 9.99e-04 | -7.33 dB | 6.68 dB | **n/a**     | n/a       | -0.00 |
+| `RX_FRAME_BURST` | 1.14e-03 | -7.33 dB | 6.65 dB | 0.870       | 0.845     | 0.11  |
+| `RX_FRAME_CONT`  | 1.19e-03 | -7.31 dB | 6.68 dB | 0.706       | 0         | 0.15  |
+| `RX_FRAME_GOLD`  | 1.15e-03 | -7.33 dB | 6.69 dB | 0.773       | 0         | 0.12  |
+| `RX_FRAME_ACQ`   | —        | —        | —       | **refused** | —         | —     |
+
+Five things worth reading off it.
+
+**§5.3 is closed.** `dp_ber_marker_t` has modelled a *periodic* marker since it
+was written, and nothing in the tree had ever supplied one — the only thing
+that could emit a frame was the DSSS spreader. The record alignment here is the
+sync word repeating at the frame period, which is what the field was for.
+
+**A periodic marker costs no leading block.** With an unframed stimulus the 256
+symbols that fix the alignment must be given up, because scoring them would
+flatter the rate with symbols that had no chance of being wrong. With a
+periodic sync word every occurrence is excluded uniformly and scoring starts at
+the first one.
+
+**Two refusals, and they are the feature.** `RX_FRAME_ACQ` is refused before a
+single burst runs — a preamble has no payload, so there is no BER, no EVM
+window and no CRC, and 60 bursts would have ended in a *settling* verdict,
+which is the wrong diagnosis for a frame that was never going to be
+demodulated. `RX_FRAME_NONE` is measured for the trio and reports FER as
+**n/a**, not 0.0: an unprotected stream having no truth-free error detector is
+the gap the frame closes, and printing a zero would hide the only thing the
+baseline has to say.
+
+**FER is anchored, not just reported.** If payload bit errors were independent,
+a frame protecting `L` bits fails with probability `1-(1-p)^L`; clustered errors
+hit fewer frames for the same `p`, so that is an upper bound and the gate is
+one-sided, asserted on `frame_meter`'s own **lower** limit. Measured against
+prediction: 0.706 vs 0.710 (CONT), 0.773 vs 0.698 (GOLD), 0.162 vs 0.152
+(BURST, CRC term). The tolerance is 1.15 rather than 1.5 because at 1.5 the
+gate was measured to still PASS with the CRC check sabotaged to always fail.
+
+**Two of the gates would otherwise have been vacuous, and both were found by
+sabotage rather than by review.** Hard-wiring `sync_ok = 1` — a harness that
+stops asking the detector — left every gate green, because an invented miss
+rate is still self-consistent with the FER computed from it; the run therefore
+asserts the detector was observed both to accept and to refuse. And with 85% of
+BURST's frames undetected, the FER anchor is comparing against a number the
+harness measured and handed to itself, so it is **skipped with the reason
+printed** rather than passed.
 
 ## 9. Related
 

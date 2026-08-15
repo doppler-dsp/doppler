@@ -76,8 +76,12 @@ extern "C"
     const uint8_t *bits; /**< LITERAL only; NULL otherwise                 */
 
     /* PN: pn_create (poly, seed, reg_bits, lfsr) */
-    uint64_t poly;
-    uint64_t seed;
+    uint64_t poly; /**< 0 selects `pn_mls_poly(reg_bits)` — the same
+                        "default" `wfm_synth`'s `--pn-poly` means. A literal
+                        0 reaching pn_create() is a register with no
+                        feedback: it emits the seed and then zeros, which is
+                        a CONSTANT field that still looks like a field.    */
+    uint64_t seed;     /**< 0 selects 1; an all-zero register is a fixed point */
     uint32_t reg_bits; /**< register width 1..64; period 2^reg_bits - 1    */
     int      lfsr;     /**< PN_GALOIS (0) or PN_FIBONACCI (1)              */
 

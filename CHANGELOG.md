@@ -15,6 +15,53 @@ ______________________________________________________________________
 
 ### Added
 
+- **The named starter frame set, and one receiver measured end to end on it.**
+    `native/tests/dp_frame_test.h` ships the five frames of the design's §7.4 —
+    `RX_FRAME_NONE` / `BURST` / `CONT` / `GOLD` / `ACQ` — as `wfm_frame_t`
+    values. One struct, five configurations: no per-name code path, no second
+    layout, five rows of a table materialised by the one `wfm_frame_bits()`.
+
+    `native/validation/rx_frame_fer.c` (`validate_rx_frame_fer`, in `ctest`)
+    then runs the whole §8 sequence: a named frame → `wfm_frame_bits()` →
+    `wfm_synth` → `MpskReceiver` → `ber` + `snr` + `frame_meter`. **It is the
+    first FER measured on a receiver rather than on synthetic outcomes, and the
+    first run to produce BER, EVM, M2M4 and FER together.** It owns no pulse,
+    no estimator, no level convention and no random number generator at all —
+    the noise is `wfm_synth`'s AWGN at a requested Es/N0. At the SER = 1e-3
+    anchor the receiver measures 0.11–0.15 dB of implementation loss on a
+    framed, library-generated stimulus.
+
+    This closes §5.3, the inventory finding that the framed generator and the
+    frame-aware measurer had never met: `dp_ber_marker_t` has modelled a
+    PERIODIC marker since it was written and nothing had ever supplied one,
+    because the only thing that could emit a frame was the DSSS spreader. The
+    record alignment is now the sync word repeating at the frame period — which
+    also means a periodic marker costs no leading block, since every occurrence
+    is excluded from scoring uniformly instead of 256 symbols being given up.
+
+    **The §6 open question is measured**, and the answer is not "13 is too
+    short". At Es/N0 6.8 dB a per-frame Barker-13 confirmation misses 0.845 of
+    frames [0.755, 0.942] while PN-127 misses none of 120 [0, 0.038] — yet
+    the SAME Barker-13 acquires the record without difficulty, because there it
+    is periodic and ~130 occurrences combine non-coherently. A short sync word
+    is an acquisition aid, not a per-frame confirmation.
+
+    Two configurations are REFUSED rather than reported: `RX_FRAME_ACQ` before
+    a single burst runs (a preamble has no payload, so there is no BER, no EVM
+    window and no CRC — and 60 bursts would have ended in a *settling* verdict,
+    the wrong diagnosis), and `RX_FRAME_NONE`'s FER as `n/a` rather than 0.0,
+    because an unprotected stream having no truth-free error detector is the
+    gap the frame closes.
+
+    Sabotage found two gates that would have been vacuous. Hard-wiring
+    `sync_ok = 1` left every gate green — an invented miss rate is still
+    self-consistent with the FER computed from it — so the run now asserts the
+    detector was observed both to accept and to refuse. And the FER anchor at a
+    ×1.5 tolerance still PASSED with the CRC check sabotaged to always fail, so
+    it is asserted on `frame_meter`'s own lower limit at ×1.15, and skipped
+    with a printed reason when most of the predicted FER is a sync miss the
+    harness would merely be handing back to itself.
+
 - **`FrameMeter` — the fourth metric, and the only truth-free one that catches
     a false lock.** `doppler.ber.FrameMeter` accumulates frame outcomes across
     a record and reports a frame error rate and a sync MISS rate, each with the
@@ -210,6 +257,34 @@ ______________________________________________________________________
     tolerance constants, before being measured; both are reverted.
 
 ### Fixed
+
+- **A `WFM_SEQ_PN` frame field with `poly = 0` was emitting a constant.**
+    `wfm_frame.c` passed `poly` straight to `pn_create()`, which takes the tap
+    mask verbatim — so 0, the natural "default" and the value `wfm_synth`'s
+    `--pn-poly` already resolves, meant a register with NO FEEDBACK: it shifts
+    the seed out and then emits zeros for ever. Measured, a 127-bit PN field at
+    `reg_bits = 7` carried **2 ones**. Every generated PN field was a constant
+    that still looked like a field, which is why nothing noticed.
+
+    `test_wfm_frame.c` could not catch it because its check was a CONSISTENCY
+    test: it compared `wfm_frame_bits()` against `pn_generate()` with
+    `poly = 0` on both sides and they agreed perfectly — on two all-zero
+    sequences. The new gate is a property no agreement between two halves can
+    establish: one period of a length-n MLS carries exactly `2^(n-1)` ones, so
+    a balance check over `2^n - 1` bits says the descriptor resolved a real
+    polynomial. It reads 1 against 256 when it did not, and it fires even with
+    the old mutually-consistent comparison restored.
+
+    The fix applies the resolution the project already had
+    (`poly ? poly : pn_mls_poly (reg_bits)`). The polynomial table moved from
+    `wfm_synth_core.h` to **`pn_core.h`**, where the convention belongs — it is
+    `pn_create()`'s tap mask, not the synth's — and `wfm_synth_mls_poly()`
+    stays as a forwarder, so no call site changed and no second table exists.
+
+- **`docs/c-api` was stale for `wfm_frame` and `frame_meter`.** Neither of the
+    two commits that added them ran `gen-c-api-check`, so 26 mkdoxy files
+    (including `wfm__frame_8h.md` and `frame__meter__core_8h.md`, which had
+    never been generated at all) would have failed that CI gate. Regenerated.
 
 - **A merged fix no longer leaves its issue open.** GitHub closes an issue only
     when a closing keyword reaches the default branch; doppler rebase-merges,

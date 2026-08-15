@@ -128,6 +128,18 @@ target_include_directories(test_wfm_frame PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_wfm_frame COMMAND test_wfm_frame)
 
+# native/tests/dp_frame_test.h is the NAMED starter set built on that
+# descriptor -- five wfm_frame_t values a receiver harness selects by name, so
+# that a run is reproducible from its description and two harnesses cannot
+# quietly disagree about what "a burst frame" means. Header-only and owned by
+# no object, so its test is registered beside the descriptor's.
+add_executable(test_dp_frame
+    ${CMAKE_SOURCE_DIR}/native/tests/test_dp_frame.c)
+target_link_libraries(test_dp_frame PRIVATE wfm_frame_core pn_core gold_core m)
+target_include_directories(test_dp_frame PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_dp_frame COMMAND test_dp_frame)
+
 add_executable(test_wfm_dsp
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_dsp.c)
 target_link_libraries(test_wfm_dsp PRIVATE wfm_dsp_core wfm_frame_core

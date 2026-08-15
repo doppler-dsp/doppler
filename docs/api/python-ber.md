@@ -83,9 +83,58 @@ zero.** Not to be confused with the *noise* floor `-(Es/N0)`.
 
 ```
 
+## The fourth metric needs no truth and still sees a false lock
+
+`BerMeter` scores symbols against truth. `FrameMeter` scores **frames**, and it
+is the one metric in the set that survives on a real capture *and* catches the
+failure an M-PSK receiver is most prone to.
+
+The other three fail differently, which is why all four are reported together:
+
+| metric                   | needs truth | sees a stable false lock |
+| ------------------------ | ----------- | ------------------------ |
+| EVM (`ber_evm_db`)       | no          | **no**                   |
+| M2M4 (`snr.snr_m2m4_db`) | no          | **no**                   |
+| BER / SER (`BerMeter`)   | **yes**     | yes                      |
+| **FER (`FrameMeter`)**   | **no**      | **yes**                  |
+
+Under a stable false lock the constellation is stationary, so a self-referenced
+EVM and a blind M2M4 both read clean. A CRC-checked frame does not: it either
+checks or it does not, and no payload truth is consulted to find out.
+
+Two counting rules carry the meaning, and each fails silently if reversed. A
+frame whose sync was never **detected** is an error — score only the frames you
+managed to find and the FER *improves* as the receiver gets worse at finding
+them. A frame carrying **no** CRC is not an error when its sync was found, or
+the number measures the frame format rather than the receiver; pass
+`wfm_frame_crc_ok()`'s `-1` straight through and that is handled. The two
+failure modes stay separately countable through `fer()` and `sync_miss()`,
+because "the sync word is too short at this Es/N0" and "the demodulator is
+making bit errors" are different repairs.
+
+`FrameMeter` stops on an ERROR target for the same reason `BerMeter` does, and
+that is not cosmetic: it hands back `ber_confidence`'s exact interval, which is
+the inverse-binomial one. Using it under a fixed-frame-count rule would be the
+wrong sampling model.
+
+```pycon
+>>> from doppler.ber import FrameMeter
+>>> met = FrameMeter(target_errors=4)
+>>> for i in range(20):
+...     met.add(sync_ok=1, crc=0 if i % 5 == 0 else 1)
+>>> met.frames, met.crc_passed, met.errors
+(20, 16, 4)
+>>> fer = met.fer()
+>>> round(fer.p_hat, 3), fer.lo < fer.p_hat < fer.hi
+(0.158, True)
+
+```
+
 ______________________________________________________________________
 
 ::: doppler.ber.BerMeter
+
+::: doppler.ber.FrameMeter
 
 ::: doppler.ber.ber_theory_ser
 

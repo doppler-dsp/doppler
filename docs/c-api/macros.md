@@ -163,6 +163,8 @@
 * **FARROW\_STATE\_VERSION** ([**farrow\_core.h**](farrow__core_8h.md))
 * **FIR\_STATE\_MAGIC** ([**fir\_core.h**](fir__core_8h.md))
 * **FIR\_STATE\_VERSION** ([**fir\_core.h**](fir__core_8h.md))
+* **FRAME\_METER\_STATE\_MAGIC** ([**frame\_meter\_core.h**](frame__meter__core_8h.md))
+* **FRAME\_METER\_STATE\_VERSION** ([**frame\_meter\_core.h**](frame__meter__core_8h.md))
 
 
 ## g
@@ -311,6 +313,7 @@
 
 ## w
 
+* **WFM\_FRAME\_CRC\_BITS** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **WFM\_KW\_MAX\_TAG** ([**wfm\_keywords.h**](wfm__keywords_8h.md))
 * **WFM\_J1950\_UNIX\_OFFSET\_SEC** ([**wfm\_time.h**](wfm__time_8h.md))
 * **WFM\_TIMECODE\_UNSET** ([**wfm\_time.h**](wfm__time_8h.md))

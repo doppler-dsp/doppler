@@ -85,6 +85,7 @@
 * [**fft2d\_state\_t**](structfft2d__state__t.md)
 * [**fft\_state\_t**](structfft__state__t.md)
 * [**fir\_state\_t**](structfir__state__t.md)
+* [**frame\_meter\_state\_t**](structframe__meter__state__t.md)
 
 
 ## g
@@ -170,9 +171,12 @@
 
 ## w
 
+* [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md)
+* [**wfm\_frame\_t**](structwfm__frame__t.md)
 * [**wfm\_keyword\_t**](structwfm__keyword__t.md)
 * [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md)
 * [**wfm\_segment\_t**](structwfm__segment__t.md)
+* [**wfm\_seq\_t**](structwfm__seq__t.md)
 * [**wfm\_source\_t**](structwfm__source__t.md)
 * [**wfm\_span\_t**](structwfm__span__t.md)
 * [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md)

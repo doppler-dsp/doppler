@@ -96,14 +96,41 @@ main (void)
        is the whole argument for generated kinds -- truth for a long record
        without carrying the array, and a capture reproducible from its
        metadata. If these ever diverge, every regenerated-truth BER is scored
-       against the wrong sequence. */
+       against the wrong sequence.
+
+       NOTE the poly: `pn_mls_poly (9)`, not the descriptor's literal 0.
+       pn_create() takes the tap mask verbatim, so a 0 there is a register
+       with NO FEEDBACK. This comparison used to pass `0` on both sides and
+       agreed perfectly -- on two all-zero sequences. That is what a
+       consistency test does when the defect is shared: it confirms the two
+       halves match and says nothing about whether either is a PN. */
     static uint8_t want[300];
-    pn_state_t    *p = pn_create (0, 7, 9, 0);
+    pn_state_t    *p = pn_create (pn_mls_poly (9), 7, 9, 0);
     DP_REQUIRE_MSG (p != NULL, "pn_create");
     DP_REQUIRE_MSG (pn_generate (p, 300, want, 300) == 300, "pn_generate");
     pn_destroy (p);
     DP_REQUIRE_MSG (memcmp (buf, want, 300) == 0,
                     "a PN field IS pn_generate of its own descriptor");
+
+    /* And the property no agreement between two halves can establish: the
+       sequence is actually MAXIMAL-LENGTH. One full period of a length-n MLS
+       carries exactly 2^(n-1) ones, so a balance check over 2^n-1 bits is a
+       direct, cheap test that the descriptor resolved a real polynomial. It
+       reads 1 against 256 when it does not. */
+    {
+      wfm_frame_t bal      = { 0 };
+      bal.payload.kind     = WFM_SEQ_PN;
+      bal.payload.len      = 511; /* one period of a 9-bit register */
+      bal.payload.reg_bits = 9;
+      bal.payload.seed     = 7;
+      size_t ones          = 0;
+      DP_REQUIRE_MSG (wfm_frame_bits (&bal, buf, CAP) == 511, "one period");
+      for (size_t i = 0; i < 511; i++)
+        ones += buf[i];
+      DP_REQUIRE_MSG (ones == 256,
+                      "a default-poly PN field is BALANCED over its period "
+                      "-- i.e. it is maximal-length, not a drained register");
+    }
 
     /* Same descriptor, same bits, every time. */
     static uint8_t again[300];

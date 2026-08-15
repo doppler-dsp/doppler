@@ -373,10 +373,14 @@ static PyMethodDef FrameMeterObj_methods[] = {
     "\n"
     "Examples\n"
     "--------\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import FrameMeter\n"
-    "    >>> obj = FrameMeter(target_errors=200, conf=0.99)\n"
-    "    >>> obj.add(0, 0)\n" },
+    ">>> from doppler.ber import FrameMeter\n"
+    ">>> met = FrameMeter(target_errors=10)\n"
+    ">>> met.add(1, 1)    # found, and it checked\n"
+    ">>> met.add(1, 0)    # found, and the CRC failed\n"
+    ">>> met.add(0, 0)    # never found: still a frame you did not deliver\n"
+    ">>> met.add(1, -1)   # found, no CRC: delivered but not CHECKED\n"
+    ">>> met.frames, met.sync_detected, met.crc_passed, met.errors\n"
+    "(4, 3, 1, 2)\n" },
   { "fer", (PyCFunction)FrameMeterObj_fer, METH_VARARGS,
     "fer() -> BerInterval record (p_hat, lo, hi, rel, conf, errors, "
     "symbols)." },

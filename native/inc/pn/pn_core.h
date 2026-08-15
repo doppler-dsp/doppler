@@ -40,6 +40,97 @@ typedef struct {
 } pn_state_t;
 
 /**
+ * @brief Maximal-length-sequence (MLS) primitive polynomial for a register of
+ * length @p n, in this module's right-shift Galois convention.
+ *
+ * The table lives here because the convention is pn's: `poly` is pn_create()'s
+ * tap mask, and "which mask makes it maximal-length" is a fact about this
+ * LFSR, not about any caller. It is header-only so no component grows a
+ * link-line dependency for a lookup.
+ *
+ * **A zero `poly` is not a polynomial.** pn_create() takes the mask verbatim,
+ * so `poly = 0` is a register with no feedback: it shifts out the seed and
+ * then emits zeros forever. Every caller that lets a user say "default"
+ * therefore resolves it as `poly ? poly : pn_mls_poly (n)` -- wfm_synth's
+ * create does, and wfm_frame's PN sequence kind does. A caller that forgets
+ * gets a constant field that still looks like a field.
+ *
+ * Returns 0 for lengths outside 2..64 (caller errors). Generated from verified
+ * primitive polynomials (period 2^n-1); the n=2..16 values are unchanged.
+ */
+JM_FORCEINLINE uint64_t
+pn_mls_poly(uint32_t n)
+{
+    switch (n) {
+    case 2: return 0x3u;
+    case 3: return 0x5u;
+    case 4: return 0x9u;
+    case 5: return 0x12u;
+    case 6: return 0x21u;
+    case 7: return 0x41u;
+    case 8: return 0x8Eu;
+    case 9: return 0x108u;
+    case 10: return 0x204u;
+    case 11: return 0x402u;
+    case 12: return 0x829u;
+    case 13: return 0x100Du;
+    case 14: return 0x2015u;
+    case 15: return 0x4001u;
+    case 16: return 0x8016u;
+    case 17: return 0x10004u;
+    case 18: return 0x20013u;
+    case 19: return 0x40013u;
+    case 20: return 0x80004u;
+    case 21: return 0x100002u;
+    case 22: return 0x200001u;
+    case 23: return 0x400010u;
+    case 24: return 0x80000Du;
+    case 25: return 0x1000004u;
+    case 26: return 0x2000023u;
+    case 27: return 0x4000013u;
+    case 28: return 0x8000004u;
+    case 29: return 0x10000002u;
+    case 30: return 0x20000029u;
+    case 31: return 0x40000004u;
+    case 32: return 0x80000057u;
+    case 33: return 0x100000029ull;
+    case 34: return 0x200000073ull;
+    case 35: return 0x400000002ull;
+    case 36: return 0x80000003Bull;
+    case 37: return 0x100000001Full;
+    case 38: return 0x2000000031ull;
+    case 39: return 0x4000000008ull;
+    case 40: return 0x800000001Cull;
+    case 41: return 0x10000000004ull;
+    case 42: return 0x2000000001Full;
+    case 43: return 0x4000000002Cull;
+    case 44: return 0x80000000032ull;
+    case 45: return 0x10000000000Dull;
+    case 46: return 0x200000000097ull;
+    case 47: return 0x400000000010ull;
+    case 48: return 0x80000000005Bull;
+    case 49: return 0x1000000000038ull;
+    case 50: return 0x200000000000Eull;
+    case 51: return 0x4000000000025ull;
+    case 52: return 0x8000000000004ull;
+    case 53: return 0x10000000000023ull;
+    case 54: return 0x2000000000003Eull;
+    case 55: return 0x40000000000023ull;
+    case 56: return 0x8000000000004Aull;
+    case 57: return 0x100000000000016ull;
+    case 58: return 0x200000000000031ull;
+    case 59: return 0x40000000000003Dull;
+    case 60: return 0x800000000000001ull;
+    case 61: return 0x1000000000000013ull;
+    case 62: return 0x2000000000000034ull;
+    case 63: return 0x4000000000000001ull;
+    case 64: return 0x800000000000000Dull;
+    default: return 0u;
+    }
+}
+
+
+/**
  * @brief Allocate and initialise a maximal-length-sequence LFSR.
  * The register is seeded from ``seed`` and will produce a pseudo-random
  * binary sequence with period 2^length - 1 for any primitive ``poly``.

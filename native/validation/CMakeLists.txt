@@ -181,3 +181,19 @@ target_compile_options(validate_loop_filter_noise_bw PRIVATE
                        -O3 -funroll-loops -ffp-contract=off)
 add_test(NAME validate_loop_filter_noise_bw
          COMMAND validate_loop_filter_noise_bw --check)
+
+# The end-to-end receiver run: a NAMED frame (native/tests/dp_frame_test.h)
+# through wfm_synth, through MpskReceiver, scored into ber + snr + frame_meter
+# so BER, EVM, M2M4 and FER come out of one record. It is the first FER
+# measured on a receiver rather than on synthetic outcomes, and the first place
+# dp_ber_marker_t's `period` is fed by an actual periodic sync word -- until
+# wfm_frame there was nothing in the tree that could emit one outside DSSS.
+add_executable(validate_rx_frame_fer
+               ${CMAKE_CURRENT_SOURCE_DIR}/rx_frame_fer.c)
+target_include_directories(validate_rx_frame_fer
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_rx_frame_fer PRIVATE doppler_lib_static m)
+target_compile_options(validate_rx_frame_fer PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_rx_frame_fer
+         COMMAND validate_rx_frame_fer --check)

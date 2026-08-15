@@ -84,7 +84,27 @@ extern "C"
   /** @brief Release the meter. */
   void frame_meter_destroy (frame_meter_state_t *state);
 
-  /** @brief Clear every counter; the configuration is untouched. */
+  /**
+   * @brief Clear every counter; the configuration is untouched.
+   *
+   * The target and the confidence level are what the caller asked for, so
+   * resetting the accumulation must not silently re-negotiate them. Use it
+   * between records, or to discard a run that turned out to be measuring the
+   * wrong thing.
+   *
+   * @param state  the meter.
+   * @code
+   * >>> from doppler.ber import FrameMeter
+   * >>> met = FrameMeter(target_errors=10)
+   * >>> met.add(1, 0)
+   * >>> met.frames, met.errors
+   * (1, 1)
+   * >>> met.reset()
+   * >>> met.frames, met.errors
+   * (0, 0)
+   *
+   * @endcode
+   */
   void frame_meter_reset (frame_meter_state_t *state);
 
   /**
@@ -101,6 +121,18 @@ extern "C"
    * A frame counts as an error when its sync was not detected, or when it was
    * and the CRC failed. With `crc = -1` a detected frame counts as delivered,
    * because nothing about it can be checked.
+   *
+   * @code
+   * >>> from doppler.ber import FrameMeter
+   * >>> met = FrameMeter(target_errors=10)
+   * >>> met.add(1, 1)    # found, and it checked
+   * >>> met.add(1, 0)    # found, and the CRC failed
+   * >>> met.add(0, 0)    # never found: still a frame you did not deliver
+   * >>> met.add(1, -1)   # found, no CRC: delivered but not CHECKED
+   * >>> met.frames, met.sync_detected, met.crc_passed, met.errors
+   * (4, 3, 1, 2)
+   *
+   * @endcode
    */
   void frame_meter_add (frame_meter_state_t *state, int sync_ok, int crc);
 
@@ -128,6 +160,21 @@ extern "C"
    * `ber_confidence(errors, frames, conf)` — the same interval `ber_meter`
    * reports, which is generic over trials and therefore applies to frames
    * unchanged. Assert on `lo`, never on `p_hat`.
+   *
+   * @param state  the meter.
+   * @return the rate with its exact interval.
+   * @code
+   * >>> from doppler.ber import FrameMeter
+   * >>> met = FrameMeter(target_errors=4)
+   * >>> for i in range(20):
+   * ...     met.add(1, 0 if i % 5 == 0 else 1)
+   * >>> met.enough
+   * 1
+   * >>> fer = met.fer()
+   * >>> round(fer.p_hat, 3), fer.lo < fer.p_hat < fer.hi
+   * (0.158, True)
+   *
+   * @endcode
    */
   ber_interval_t frame_meter_fer (const frame_meter_state_t *state);
 
@@ -140,6 +187,21 @@ extern "C"
    * enough at this Es/N0" into a measurement** — `ber_align_detect()` already
    * returns `margin_db` and `runner_db` per attempt, and accumulating the
    * decisions is what answers the question with a number.
+   *
+   * @param state  the meter.
+   * @return the miss rate with its exact interval.
+   * @code
+   * >>> from doppler.ber import FrameMeter
+   * >>> met = FrameMeter()
+   * >>> for i in range(50):
+   * ...     met.add(0 if i % 10 == 0 else 1, 1)
+   * >>> met.frames, met.sync_detected
+   * (50, 45)
+   * >>> miss = met.sync_miss()
+   * >>> round(miss.p_hat, 3), miss.hi > miss.p_hat
+   * (0.082, True)
+   *
+   * @endcode
    */
   ber_interval_t frame_meter_sync_miss (const frame_meter_state_t *state);
 

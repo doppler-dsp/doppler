@@ -81,6 +81,7 @@
 * **wfm\_\_compose\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_state\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_seed\_advance\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_seq\_kind\_t** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **wfm\_plan\_t** ([**wfm\_plan.h**](wfm__plan_8h.md))
 * **wfm\_stream\_sink\_t** ([**wfm\_sink.h**](wfm__sink_8h.md))
 * **wfm\_fc\_source\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))

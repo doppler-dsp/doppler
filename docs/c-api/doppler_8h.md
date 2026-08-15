@@ -81,6 +81,7 @@
 * `#include "async_dsss_receiver/async_dsss_receiver_core.h"`
 * `#include "carrier_acq/carrier_acq_core.h"`
 * `#include "ber_meter/ber_meter_core.h"`
+* `#include "frame_meter/frame_meter_core.h"`
 
 
 

@@ -69,6 +69,7 @@ _PN component API._ [More...](#detailed-description)
 |  size\_t | [**pn\_generate**](#function-pn_generate) ([**pn\_state\_t**](structpn__state__t.md) \* state, size\_t n, uint8\_t \* out, size\_t max\_out) <br>_Generate_ `n` _chips into_`out` _and advance the LFSR by_`n` _positions. Each element of_`out` _is 0 or 1. Requesting more than one MLS period is valid — the sequence simply wraps around. The Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot._ |
 |  size\_t | [**pn\_generate\_max\_out**](#function-pn_generate_max_out) ([**pn\_state\_t**](structpn__state__t.md) \* state) <br> |
 |  void | [**pn\_get\_state**](#function-pn_get_state) (const [**pn\_state\_t**](structpn__state__t.md) \* state, void \* blob) <br>_Serialize the LFSR register into_ `blob` _._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint64\_t | [**pn\_mls\_poly**](#function-pn_mls_poly) (uint32\_t n) <br>_Maximal-length-sequence (MLS) primitive polynomial for a register of length_ `n` _, in this module's right-shift Galois convention._ |
 |  void | [**pn\_reset**](#function-pn_reset) ([**pn\_state\_t**](structpn__state__t.md) \* state) <br>_Reset PN to its post-create state. Reloads the LFSR register from the original seed so the sequence restarts from chip 0. Useful for reproducible captures without re-allocating._  |
 |  int | [**pn\_set\_state**](#function-pn_set_state) ([**pn\_state\_t**](structpn__state__t.md) \* state, const void \* blob) <br>_Restore the register; DP\_OK, or DP\_ERR\_INVALID if rejected._  |
 |  size\_t | [**pn\_state\_bytes**](#function-pn_state_bytes) (const [**pn\_state\_t**](structpn__state__t.md) \* state) <br>_Serialized-state byte size._  |
@@ -320,6 +321,32 @@ void pn_get_state (
 
 
 
+
+<hr>
+
+
+
+### function pn\_mls\_poly 
+
+_Maximal-length-sequence (MLS) primitive polynomial for a register of length_ `n` _, in this module's right-shift Galois convention._
+```C++
+JM_FORCEINLINE uint64_t pn_mls_poly (
+    uint32_t n
+) 
+```
+
+
+
+The table lives here because the convention is pn's: `poly` is [**pn\_create()**](pn__core_8h.md#function-pn_create)'s tap mask, and "which mask makes it maximal-length" is a fact about this LFSR, not about any caller. It is header-only so no component grows a link-line dependency for a lookup.
+
+
+**A zero `poly` is not a polynomial.** [**pn\_create()**](pn__core_8h.md#function-pn_create) takes the mask verbatim, so `poly = 0` is a register with no feedback: it shifts out the seed and then emits zeros forever. Every caller that lets a user say "default" therefore resolves it as `poly ? poly : pn_mls_poly (n)`  wfm\_synth's create does, and wfm\_frame's PN sequence kind does. A caller that forgets gets a constant field that still looks like a field.
+
+
+Returns 0 for lengths outside 2..64 (caller errors). Generated from verified primitive polynomials (period 2^n-1); the n=2..16 values are unchanged. 
+
+
+        
 
 <hr>
 

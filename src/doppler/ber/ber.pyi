@@ -632,6 +632,23 @@ class FrameMeter:
 
     def reset(self) -> None:
         """Clear every counter; the configuration is untouched.
+
+        The target and the confidence level are what the caller asked for, so
+        resetting the accumulation must not silently re-negotiate them. Use it
+        between records, or to discard a run that turned out to be measuring
+        the wrong thing.
+
+        Examples
+        --------
+        >>> from doppler.ber import FrameMeter
+        >>> met = FrameMeter(target_errors=10)
+        >>> met.add(1, 0)
+        >>> met.frames, met.errors
+        (1, 1)
+        >>> met.reset()
+        >>> met.frames, met.errors
+        (0, 0)
+
         """
 
     def add(self, sync_ok: int, crc: int) -> None:
@@ -657,6 +674,18 @@ class FrameMeter:
             its sync was not detected, or when it was and the CRC failed. With
             `crc = -1` a detected frame counts as delivered, because nothing
             about it can be checked.
+
+        Examples
+        --------
+        >>> from doppler.ber import FrameMeter
+        >>> met = FrameMeter(target_errors=10)
+        >>> met.add(1, 1)    # found, and it checked
+        >>> met.add(1, 0)    # found, and the CRC failed
+        >>> met.add(0, 0)    # never found: still a frame you did not deliver
+        >>> met.add(1, -1)   # found, no CRC: delivered but not CHECKED
+        >>> met.frames, met.sync_detected, met.crc_passed, met.errors
+        (4, 3, 1, 2)
+
         """
 
     def fer(self) -> BerInterval:
@@ -673,7 +702,20 @@ class FrameMeter:
         Returns
         -------
         BerInterval
-            Output.
+            the rate with its exact interval.
+
+        Examples
+        --------
+        >>> from doppler.ber import FrameMeter
+        >>> met = FrameMeter(target_errors=4)
+        >>> for i in range(20):
+        ...     met.add(1, 0 if i % 5 == 0 else 1)
+        >>> met.enough
+        1
+        >>> fer = met.fer()
+        >>> round(fer.p_hat, 3), fer.lo < fer.p_hat < fer.hi
+        (0.158, True)
+
         """
 
     def sync_miss(self) -> BerInterval:
@@ -693,7 +735,20 @@ class FrameMeter:
         Returns
         -------
         BerInterval
-            Output.
+            the miss rate with its exact interval.
+
+        Examples
+        --------
+        >>> from doppler.ber import FrameMeter
+        >>> met = FrameMeter()
+        >>> for i in range(50):
+        ...     met.add(0 if i % 10 == 0 else 1, 1)
+        >>> met.frames, met.sync_detected
+        (50, 45)
+        >>> miss = met.sync_miss()
+        >>> round(miss.p_hat, 3), miss.hi > miss.p_hat
+        (0.082, True)
+
         """
 
     def state_bytes(self) -> int:

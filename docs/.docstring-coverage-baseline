@@ -11,7 +11,7 @@ doppler.acquire stub=2 runtime=8
 doppler.agc stub=1 runtime=11
 doppler.analyzer stub=9 runtime=10
 doppler.arith stub=5 runtime=43
-doppler.ber stub=9 runtime=22
+doppler.ber stub=8 runtime=14
 doppler.buffer stub=1 runtime=13
 doppler.cvt stub=1 runtime=82
 doppler.ddc stub=13 runtime=41

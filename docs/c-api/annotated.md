@@ -70,6 +70,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**fft2d\_state\_t**](structfft2d__state__t.md)     
 * **struct** [**fft\_state\_t**](structfft__state__t.md)     
 * **struct** [**fir\_state\_t**](structfir__state__t.md)     
+* **struct** [**frame\_meter\_state\_t**](structframe__meter__state__t.md) _Frame-outcome accumulator. Allocate with_ [_**frame\_meter\_create()**_](frame__meter__core_8h.md#function-frame_meter_create) _._    
 * **struct** [**gold\_state\_t**](structgold__state__t.md) _Gold state._     
 * **struct** [**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md)     
 * **struct** [**hbdecim\_state\_t**](structhbdecim__state__t.md)     
@@ -106,9 +107,12 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**tone\_meas\_t**](structtone__meas__t.md) _Single-tone dynamic-measurement bag._     
 * **struct** [**tonemeas\_state\_t**](structtonemeas__state__t.md) _ToneMeasure state: owned window, FFT plan and analysis scratch._     
 * **struct** [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) _UQ15ToF32 state._     
+* **struct** [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) _Where each field lands, in bits from the start of the frame._     
+* **struct** [**wfm\_frame\_t**](structwfm__frame__t.md) _A frame's bit layout:_ `[preamble × reps | sync | payload | crc]` _._    
 * **struct** [**wfm\_keyword\_t**](structwfm__keyword__t.md)     
 * **struct** [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md)     
 * **struct** [**wfm\_segment\_t**](structwfm__segment__t.md) _One composer segment: one or more sources summed over the same span, then a trailing off-time gap._     
+* **struct** [**wfm\_seq\_t**](structwfm__seq__t.md) _A run of bits, however it is produced._     
 * **struct** [**wfm\_source\_t**](structwfm__source__t.md) _One additive source within a segment: a_ `synth` _config + its level._    
 * **struct** [**wfm\_span\_t**](structwfm__span__t.md) _One rendered segment instance's exact timing: where it lands in the composed stream and how its_ `delay | on | off` _spans divide it._    
 * **struct** [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) _Synth state._     

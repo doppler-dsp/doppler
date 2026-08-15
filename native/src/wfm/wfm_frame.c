@@ -39,8 +39,14 @@ seq_bits (const wfm_seq_t *s, uint8_t *out, size_t cap)
 
     case WFM_SEQ_PN:
       {
-        pn_state_t *p = pn_create (s->poly, s->seed ? s->seed : 1u,
-                                   s->reg_bits, s->lfsr);
+        /* poly 0 is "the maximal-length one for this register", the same
+           resolution wfm_synth_create() applies to its --pn-poly. Passing 0
+           through to pn_create() instead means a register with NO FEEDBACK:
+           it shifts the seed out and emits zeros for ever, which is a
+           constant field that still looks like a field. */
+        pn_state_t *p
+            = pn_create (s->poly ? s->poly : pn_mls_poly (s->reg_bits),
+                         s->seed ? s->seed : 1u, s->reg_bits, s->lfsr);
         if (!p)
           return 0;
         size_t n = pn_generate (p, s->len, out, cap);

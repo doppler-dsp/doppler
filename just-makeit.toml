@@ -2533,7 +2533,7 @@ Examples
 0
 
 """
-objects = ["ber_meter"]
+objects = ["ber_meter", "frame_meter"]
 
 [[module.ber.functions]]
 name = "ber_theory_ser"

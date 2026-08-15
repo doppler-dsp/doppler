@@ -1,0 +1,110 @@
+# frame_meter — frame outcomes accumulated across a record.
+#
+# The fourth metric, and the only one that needs NO TRUTH and still catches a
+# false lock: EVM and M2M4 need no truth and read a stationary-but-wrong
+# constellation as clean, BER sees it but needs truth AND a trustworthy
+# alignment, and a CRC-checked frame needs no payload truth at all.
+#
+# Shaped after ber_meter deliberately (docs/design/rx-test.md 2.5): it
+# accumulates outcomes, stops on an ERROR target, and reports the same exact
+# Gamma/chi-square interval through ber_confidence -- which is generic over
+# trials and so applies to frames unchanged. Sharing the stopping rule is not
+# cosmetic: that interval is exact for inverse-binomial sampling, and a fixed
+# frame count would be the wrong model for it.
+
+[frame_meter]
+arg_type = "void"
+return_type = "void"
+mutable = "true"
+no_state = "true"
+no_step = "true"
+class_name = "FrameMeter"
+serializable = "true"
+create_error = "ValueError"
+create_error_message = "conf must lie in (0, 1)"
+# ber_meter, not just ber: ber_confidence() is DECLARED in ber/ber_core.h but
+# DEFINED in ber_meter_core.c, because jm can only return a record from an
+# object method and the interval is a record. So reusing the exact interval --
+# rather than growing a second one here -- means depending on the sibling that
+# houses it.
+depends_on = [{ name = "ber", link = true }, { name = "ber_meter", link = true }, { name = "detection", link = true }]
+
+[[frame_meter.init_params]]
+name = "target_errors"
+type = "size_t"
+default = "200"
+
+[[frame_meter.init_params]]
+name = "conf"
+type = "double"
+default = "0.99"
+
+[[frame_meter.methods]]
+name = "add"
+doc = "Record one frame's outcome. `sync_ok` is the DETECTOR's own decision (ber_align_t.ok, or burst_demod's frame offset validity) -- never a threshold applied afterwards to a statistic. `crc` is wfm_frame_crc_ok()'s return passed straight through: 1 pass, 0 fail, -1 the frame carries no CRC. A frame is an error when its sync was not detected, or when it was and the CRC failed; with no CRC carried, a detected frame counts as delivered, because counting it as an error would measure the frame format rather than the receiver."
+arg_type = "void"
+return_type = "void"
+params = [{ name = "sync_ok", type = "int" }, { name = "crc", type = "int" }]
+
+[[frame_meter.methods]]
+name = "fer"
+doc = "Frame error rate with its exact interval, as a BerInterval. Assert on `lo`, never on `p_hat`: comparing the lower limit against a spec is the form that cannot flake on counting noise. A frame that was never detected counts as an error -- a frame you did not detect is a frame you did not deliver."
+arg_type = "void"
+return_type = "ber_interval_t"
+result_fields = [
+    {name = "p_hat", type = "double"},
+    {name = "lo", type = "double"},
+    {name = "hi", type = "double"},
+    {name = "rel", type = "double"},
+    {name = "conf", type = "double"},
+    {name = "errors", type = "size_t"},
+    {name = "symbols", type = "size_t"},
+]
+single = true
+record_name = "BerInterval"
+record_doc = "Error-rate point estimate with a Gamma/chi-square confidence interval. Assert on `lo`, never `p_hat`."
+record_module = "doppler.ber"
+
+[[frame_meter.methods]]
+name = "sync_miss"
+doc = "Sync MISS rate with its exact interval, as a BerInterval. Reported as a miss rather than a detection rate so it is an ERROR rate like every other number in this module and the same interval applies unchanged. This is what turns 'is this sync word long enough at this Es/N0' into a measurement rather than a judgement."
+arg_type = "void"
+return_type = "ber_interval_t"
+result_fields = [
+    {name = "p_hat", type = "double"},
+    {name = "lo", type = "double"},
+    {name = "hi", type = "double"},
+    {name = "rel", type = "double"},
+    {name = "conf", type = "double"},
+    {name = "errors", type = "size_t"},
+    {name = "symbols", type = "size_t"},
+]
+single = true
+record_name = "BerInterval"
+record_doc = "Error-rate point estimate with a Gamma/chi-square confidence interval. Assert on `lo`, never `p_hat`."
+record_module = "doppler.ber"
+
+[[frame_meter.properties]]
+name = "frames"
+type = "size_t"
+doc = "Frames attempted."
+
+[[frame_meter.properties]]
+name = "sync_detected"
+type = "size_t"
+doc = "Frames whose sync word was detected."
+
+[[frame_meter.properties]]
+name = "crc_passed"
+type = "size_t"
+doc = "Frames whose CRC checked."
+
+[[frame_meter.properties]]
+name = "errors"
+type = "size_t"
+doc = "Frames not delivered: no sync detected, or a failed CRC."
+
+[[frame_meter.properties]]
+name = "enough"
+type = "int"
+doc = "True once `target_errors` frame errors have accumulated -- the stopping condition, so a caller loops records until the measurement has the precision it asked for rather than until a frame count someone guessed."

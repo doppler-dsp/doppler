@@ -1,7 +1,7 @@
 /*
  * ber_ext.c — Python extension module ber
  *
- * Objects: BerMeter
+ * Objects: BerMeter, FrameMeter
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -14,6 +14,7 @@
 #include "ber/ber_core.h"
 
 #include "ber_ext_ber_meter.c"
+#include "ber_ext_frame_meter.c"
 
 static PyObject *
 _bind_ber_theory_ser (PyObject *self, PyObject *args, PyObject *kwds)
@@ -458,6 +459,8 @@ PyInit_ber (void)
   import_array ();
   if (PyType_Ready (&BerMeterObjType) < 0)
     return NULL;
+  if (PyType_Ready (&FrameMeterObjType) < 0)
+    return NULL;
   PyObject *m = PyModule_Create (&ber_moduledef);
   if (!m)
     return NULL;
@@ -465,6 +468,13 @@ PyInit_ber (void)
   if (PyModule_AddObject (m, "BerMeter", (PyObject *)&BerMeterObjType) < 0)
     {
       Py_DECREF (&BerMeterObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&FrameMeterObjType);
+  if (PyModule_AddObject (m, "FrameMeter", (PyObject *)&FrameMeterObjType) < 0)
+    {
+      Py_DECREF (&FrameMeterObjType);
       Py_DECREF (m);
       return NULL;
     }

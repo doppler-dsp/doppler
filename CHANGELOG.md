@@ -15,6 +15,33 @@ ______________________________________________________________________
 
 ### Added
 
+- **`FrameMeter` — the fourth metric, and the only truth-free one that catches
+    a false lock.** `doppler.ber.FrameMeter` accumulates frame outcomes across
+    a record and reports a frame error rate and a sync MISS rate, each with the
+    same exact Gamma/chi-square interval `BerMeter` uses.
+
+    What it is FOR is the gap the previous commit measured: EVM and M2M4 need
+    no truth and read a stationary-but-wrong constellation as clean, BER sees
+    it but needs truth and a trustworthy alignment, and a CRC-checked frame
+    needs no payload truth at all. It either checks or it does not.
+
+    The counting rules are the content, because each is a convention that
+    fails silently. A frame whose sync was never detected IS an error — score
+    only the frames you managed to find and the FER *improves* as the receiver
+    gets worse at finding them. A frame carrying no CRC is NOT an error when
+    its sync was found, or the number measures the frame format rather than
+    the receiver (`crc = -1` is exactly what `wfm_frame_crc_ok()` returns, so
+    it passes straight through). And the two failure modes stay separately
+    countable, because "the sync is too short at this Es/N0" and "the
+    demodulator makes bit errors" are different repairs.
+
+    It stops on an ERROR target, like `ber_meter`, and that is not cosmetic:
+    `ber_confidence` is exact for inverse-binomial sampling, so a
+    fixed-frame-count stopping rule would be the wrong model for the interval
+    it hands back. The header says so rather than leaving it to be assumed.
+    Mutation-tested both rules; the state triplet round-trips a record across
+    a process boundary and rejects a clobbered envelope, from C and Python.
+
 - **A frame descriptor: one bit layout, read from both ends.** `wfm_frame_t`
     (`native/inc/wfm/wfm_frame.h`) describes a frame as
     `[preamble × reps | sync | payload | crc]` in BITS — spreading, pulse

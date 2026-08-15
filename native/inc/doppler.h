@@ -157,6 +157,8 @@ extern "C" {
 
 #include "ber_meter/ber_meter_core.h"
 
+#include "frame_meter/frame_meter_core.h"
+
 #ifdef __cplusplus
 }
 #endif

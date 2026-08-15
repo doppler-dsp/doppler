@@ -19,11 +19,11 @@ class BerInterval(tuple[float, float, float, float, float, int, int]):
     rel : float
         Relative standard error `1/sqrt(r)`.
     conf : float
-        Two-sided confidence level.
+        config: confidence level for the interval
     errors : int
-        Symbol errors counted.
+        running: frames not delivered
     symbols : int
-        Symbols scored.
+        `N` (or bits, for a BER).
     """
 
     @property
@@ -44,15 +44,15 @@ class BerInterval(tuple[float, float, float, float, float, int, int]):
 
     @property
     def conf(self) -> float:
-        """Two-sided confidence level."""
+        """config: confidence level for the interval"""
 
     @property
     def errors(self) -> int:
-        """Symbol errors counted."""
+        """running: frames not delivered"""
 
     @property
     def symbols(self) -> int:
-        """Symbols scored."""
+        """`N` (or bits, for a BER)."""
 
 @final
 class BerMeter:
@@ -583,6 +583,228 @@ class BerMeter:
         tb: object | None = ...,
     ) -> None:
         """Exit a context manager, releasing the BerMeter.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
+class FrameMeter:
+    """Create an accumulator.
+
+    Parameters
+    ----------
+    target_errors : int, default 200
+        frame errors to accumulate before `enough`; 0 is taken as
+        BER_TARGET_ERRORS.
+    conf : float, default 0.99
+        confidence level in (0, 1); 0 is taken as BER_CONF.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``conf must lie in (0,
+        1)``.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.ber import FrameMeter
+    >>> obj = FrameMeter(target_errors=200, conf=0.99)
+
+    """
+    def __init__(
+        self,
+        target_errors: int = ...,
+        conf: float = ...,
+    ) -> None: ...
+
+    def reset(self) -> None:
+        """Clear every counter; the configuration is untouched.
+        """
+
+    def add(self, sync_ok: int, crc: int) -> None:
+        """Record one frame's outcome. `sync_ok` is the DETECTOR's own decision
+        (ber_align_t.ok, or burst_demod's frame offset validity) -- never a
+        threshold applied afterwards to a statistic. `crc` is
+        wfm_frame_crc_ok()'s return passed straight through: 1 pass, 0 fail, -1
+        the frame carries no CRC. A frame is an error when its sync was not
+        detected, or when it was and the CRC failed; with no CRC carried, a
+        detected frame counts as delivered, because counting it as an error
+        would measure the frame format rather than the receiver.
+
+        Parameters
+        ----------
+        sync_ok : int
+            non-zero when the frame's sync word was detected. Pass the
+            detector's own decision — `ber_align_t::ok`, or `burst_demod`'s
+            frame_offset validity — never a threshold applied afterwards to a
+            statistic.
+        crc : int
+            `wfm_frame_crc_ok()`'s return, passed straight through: 1 pass, 0
+            fail, -1 the frame carries no CRC. A frame counts as an error when
+            its sync was not detected, or when it was and the CRC failed. With
+            `crc = -1` a detected frame counts as delivered, because nothing
+            about it can be checked.
+        """
+
+    def fer(self) -> BerInterval:
+        """Frame error rate with its exact interval, as a BerInterval. Assert
+        on `lo`, never on `p_hat`: comparing the lower limit against a spec is
+        the form that cannot flake on counting noise. A frame that was never
+        detected counts as an error -- a frame you did not detect is a frame
+        you did not deliver.
+
+        `ber_confidence(errors, frames, conf)` — the same interval `ber_meter`
+        reports, which is generic over trials and therefore applies to frames
+        unchanged. Assert on `lo`, never on `p_hat`.
+
+        Returns
+        -------
+        BerInterval
+            Output.
+        """
+
+    def sync_miss(self) -> BerInterval:
+        """Sync MISS rate with its exact interval, as a BerInterval. Reported
+        as a miss rather than a detection rate so it is an ERROR rate like
+        every other number in this module and the same interval applies
+        unchanged. This is what turns 'is this sync word long enough at this
+        Es/N0' into a measurement rather than a judgement.
+
+        Reported as a miss rate rather than a detection rate so it is an ERROR
+        rate like every other number here, and so the same interval applies
+        without reinterpretation. **This is what turns "is this sync word long
+        enough at this Es/N0" into a measurement** — `ber_align_detect()`
+        already returns `margin_db` and `runner_db` per attempt, and
+        accumulating the decisions is what answers the question with a number.
+
+        Returns
+        -------
+        BerInterval
+            Output.
+        """
+
+    def state_bytes(self) -> int:
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the FrameMeter has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
+    def get_state(self) -> bytes:
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the FrameMeter has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the FrameMeter has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def frames(self) -> int:
+        """Frames attempted."""
+
+    @property
+    def sync_detected(self) -> int:
+        """Frames whose sync word was detected."""
+
+    @property
+    def crc_passed(self) -> int:
+        """Frames whose CRC checked."""
+
+    @property
+    def errors(self) -> int:
+        """Frames not delivered: no sync detected, or a failed CRC."""
+
+    @property
+    def enough(self) -> int:
+        """True once `target_errors` frame errors have accumulated -- the
+        stopping condition, so a caller loops records until the measurement has
+        the precision it asked for rather than until a frame count someone
+        guessed.
+        """
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "FrameMeter":
+        """Enter a context manager, returning this object.
+
+        Lets a FrameMeter be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        FrameMeter
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the FrameMeter.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

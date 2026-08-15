@@ -68,7 +68,7 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 - [M-PSK Constellation](mpsk.md) — M-PSK mapping and constellation rendering.
 - [M-PSK Receiver](mpsk-receiver.md) — integrated carrier + timing + bit recovery.
 - [M-PSK Receiver: Performance](mpsk-receiver-performance.md) — EVM, SER, lock time, false alarm and level invariance over random geometries.
-- [M-PSK Receiver: Doppler Profile](mpsk-doppler-profile.md) — a step, a ramp up and a ramp down, and the phase error each one costs the carrier loop.
+- [M-PSK Receiver: Doppler Profile](mpsk-doppler-profile.md) — sizing bn_carrier for a predictable acquisition, and what a step and two ramps actually cost.
 
 ## Measurement
 

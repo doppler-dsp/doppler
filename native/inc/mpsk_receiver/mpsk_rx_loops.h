@@ -261,7 +261,9 @@ extern "C"
     int32_t   id_lock;     /**< "<prefix>.lock"     — carrier lock EMA */
     int32_t   id_tracking; /**< "<prefix>.tracking" — handover 0/1     */
     int32_t   id_e;        /**< "<prefix>.car.e"    — carrier disc     */
-    int32_t   id_freq;     /**< "<prefix>.car.freq" — tracked carrier  */
+    int32_t   id_freq;     /**< "<prefix>.car.freq" — integrator only  */
+    int32_t   id_nco;      /**< "<prefix>.car.nco"  — the SUM that
+                                actually drives the LO                */
     int32_t   id_locked;   /**< "<prefix>.car.locked" — lockdet flag   */
   } mpsk_rx_tlm_t;
 

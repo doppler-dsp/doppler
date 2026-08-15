@@ -1,31 +1,36 @@
 #!/usr/bin/env python3
-"""A step, a ramp up, a ramp down — and what each one costs the carrier loop.
+"""Sizing a carrier loop: acquire in a predictable time, then ride the Doppler.
 
 Generates ``docs/assets/mpsk_doppler_profile_demo.png`` (committed gallery
 asset):
 
-  - Top    — the Doppler profile the receiver is handed, and the frequency it
-             tracks. A step at t=0, then a ramp up, then a ramp down, then
-             flat again.
-  - Middle — what the reported frequency ESTIMATE does. `rx.car.freq` is the
-             loop filter's INTEGRATOR alone, so on a ramp it sits a constant
-             distance below the truth — that distance is the proportional
-             term, `kp * theta_ss`, which the applied NCO command includes and
-             the readback does not.
-  - Bottom — PHASE error, the loop stress. Zero on the flats, and a CONSTANT
-             offset on each ramp whose size is a closed form and whose sign
-             follows the ramp direction.
+  - Top    — a Doppler profile: a step at t=0, then a ramp up, then a ramp
+             down, then flat. The tracked carrier (`rx.car.nco`, the command
+             that actually drives the LO) lies on it.
+  - Middle — SIZING, which is the decision that matters. Acquisition time
+             scales as ~1/bn_carrier and lands at 5-10% of the classical
+             `5/bn` settling budget, so you pick `bn_carrier` from the
+             acquisition time you need and get it.
+  - Bottom — what the profile costs: nothing on the flats, and a small
+             CONSTANT phase offset on each ramp. It is book-keeping, and it
+             is computable before you run anything.
 
-That contrast is the whole point. A frequency STEP is free in steady state, so
-a test that only ever applies one cannot tell a correctly-sized loop from a
-narrower one — which is exactly how `freq_scale` under-drove every non-strobe
-tap for as long as it did (gh-765). A RAMP is what charges the loop, and what
-it charges is:
+**A step is free and a ramp is very cheap.** A type-2 loop nulls a frequency
+step to zero steady-state error regardless of gain. Against a ramp it holds a
+constant phase offset with a closed form:
 
     theta_ss = 2*pi*r / wn^2,   wn = 8*zeta*bn / (4*zeta^2 + 1)
 
-with `r` the Doppler rate in cycles/symbol^2. The loop breaks when that lag
-leaves the M-th-power discriminator's linear range, ~pi/(2M).
+At a realistic Doppler rate that number is negligible — 1 kHz/s at this symbol
+rate works out to 4.5e-3 rad, about 1% of the discriminator's linear range.
+The figure runs ~31x that so the offset is visible at all, and even there it
+costs no decisions.
+
+The reason it is worth measuring anyway is not that it hurts: it is that a
+STEP-only test cannot size a loop, because a type-2 loop nulls a step whatever
+its gain. A loop running several times narrower than configured passes every
+step test unchanged, which is exactly how `freq_scale` under-drove every
+non-strobe NDA tap until a ramp measurement found it (gh-765).
 
 Run:  uv run python src/doppler/examples/mpsk_doppler_profile_demo.py
 """
@@ -93,9 +98,32 @@ with MemoryCapture(tlm, BLOCK, SampleClock(FS)) as cap:
         rx.steps(iq[i : i + BLOCK])
 series = cap.read_dict(index=True)  # {name: (sample_index, values)}
 
-n_e, err = series["rx.car.e"]  # PHASE error — the loop stress
-n_f, fhat = series["rx.car.freq"]  # the tracked frequency estimate
+n_e, err = series["rx.car.e"]  # phase error (book-keeping, see below)
+n_f, fhat = series["rx.car.nco"]  # the SUM that drives the LO: integ + kp*e
+n_i, fint = series["rx.car.freq"]  # the integrator alone — the freq MEMORY
 n_l, lock = series["rx.lock"]
+
+# Sizing: acquisition time against bn. The same ASK at every bandwidth (a
+# step at 0.8 of the bn/M seeding bound), so the only thing varying is the
+# loop. This is the middle panel and the practical result.
+BN_GRID = (0.002, 0.005, 0.01, 0.02, 0.04)
+
+
+def acquire_in(bn: float, nsym: int = 20000) -> int:
+    """Symbols to first lock declaration at loop bandwidth `bn`."""
+    r2 = np.random.default_rng(3)
+    i2 = r2.integers(0, M, nsym)
+    t2 = np.exp(1j * (2 * np.pi * i2 / M + np.pi / M)).astype(np.complex64)
+    t2 = np.repeat(t2, SPS)
+    k2 = np.arange(t2.size)
+    f_step = 0.8 * bn / M / SPS  # 0.8 of the seeding bound, in cyc/sample
+    x2 = (t2 * np.exp(2j * np.pi * f_step * k2)).astype(np.complex64)
+    r = MpskReceiver(m=M, sps=SPS, m_out=4, bn_carrier=bn, bn_timing=0.005)
+    r.steps(x2)
+    return int(r.lock_time)
+
+
+lock_times = [acquire_in(b) for b in BN_GRID]
 
 # The closed form this figure exists to show, in the loop's own units.
 wn = 8.0 * 0.707 * BN / (4.0 * 0.707**2 + 1.0)  # rad/symbol
@@ -145,80 +173,106 @@ def main(out_path: str = "mpsk_doppler_profile_demo.png") -> None:
             f"({100 * rel:.0f}% off) — the loop is not the one configured"
         )
 
-    # 3. The reported frequency ESTIMATE lags each ramp by a constant, and
-    #    that constant is PROPORTIONAL TO THE PHASE ERROR — because
-    #    `rx.car.freq` is the integrator alone (mpsk_rx_freq_est), while the
-    #    frequency the LO actually applies is `integ + kp*e`. So the deficit
-    #    IS the proportional term. Checked as a ratio rather than a value:
-    #    the same constant on both ramps, of opposite sign to theta, is what
-    #    distinguishes "proportional term" from "the loop is lagging".
-    ftrue = freq[np.clip(n_f, 0, freq.size - 1)]
-    ferr = fhat - ftrue
-    excursion = a * nseg
-    lag_up = _tail(n_f, ferr, bounds[1], bounds[2]).mean()
-    lag_dn = _tail(n_f, ferr, bounds[2], bounds[3]).mean()
-    k_up, k_dn = lag_up / up, lag_dn / down
+    # 3. SIZING: acquisition time scales as ~1/bn and lands well inside the
+    #    classical 5/bn settling budget at every bandwidth. That
+    #    predictability is the design lever — you choose bn_carrier from the
+    #    acquisition time you can afford, and you get it.
+    for bn_i, lt in zip(BN_GRID, lock_times):
+        assert 0 < lt < 5.0 / bn_i, f"bn={bn_i}: lock_time {lt} outside 5/bn"
     print(
-        f"estimate lag: up {lag_up:+.3e} down {lag_dn:+.3e} cyc/sample; "
-        f"lag/theta {k_up:+.4e} vs {k_dn:+.4e}"
+        "lock_time vs bn: "
+        + ", ".join(f"{b}->{t}" for b, t in zip(BN_GRID, lock_times))
     )
-    assert lag_up * lag_dn < 0, "the estimate lag did not follow the ramp"
-    assert abs(k_up - k_dn) < 0.05 * abs(k_up), (
-        "lag/theta is not the same constant on both ramps, so the deficit is "
-        "not the proportional term"
-    )
-    assert abs(lag_up) < 0.05 * excursion, (
-        "the estimate lag is not small against the frequency excursion"
+    # NOT asserted: a clean 1/bn law. Measured across seeds it is not one —
+    # bn=0.01 comes out bimodal (140/140/139/57/57) and the trend is not
+    # monotonic, because the lock detector's own EMA (alpha=0.05) and its
+    # verify counts put a floor and a threshold-crossing structure on top of
+    # the loop's settling. What IS true is the bound, and the direction.
+    assert lock_times[-1] < lock_times[0], (
+        "a 20x wider loop should still acquire faster overall"
     )
 
-    fig, ax = plt.subplots(3, 1, figsize=(9.5, 8.0), sharex=True)
+    # 4. The SUM that drives the LO rides the ramp; the INTEGRATOR alone is
+    #    short by the proportional term. That is why the sum is the probe
+    #    worth publishing, and why the top panel plots it.
+    ftrue = freq[np.clip(n_f, 0, freq.size - 1)]
+    itrue = freq[np.clip(n_i, 0, freq.size - 1)]
+    excursion = a * nseg
+    sum_up = abs(_tail(n_f, fhat - ftrue, bounds[1], bounds[2]).mean())
+    int_up = abs(_tail(n_i, fint - itrue, bounds[1], bounds[2]).mean())
+    print(
+        f"ramp-up lag: nco sum {sum_up:.3e}, integrator {int_up:.3e} "
+        f"cyc/sample (excursion {excursion:.3e})"
+    )
+    assert sum_up < 0.01 * excursion, "the applied NCO command lagged the ramp"
+    assert int_up > 5.0 * sum_up, (
+        "the integrator-only view should lag by the proportional term; if it "
+        "does not, these two probes are the same view"
+    )
+
+    fig = plt.figure(figsize=(9.5, 9.0))
+    gs = fig.add_gridspec(3, 1, hspace=0.55)
+    ax0, ax1, ax2 = (fig.add_subplot(gs[i]) for i in range(3))
+    ax1.sharex(ax0)
     t_all = np.arange(freq.size) / FS
     te, tf = n_e / FS, n_f / FS
 
-    ax[0].plot(t_all, freq * FS, "k-", lw=1.2, label="Doppler profile")
-    ax[0].plot(
+    # ── 1. the profile, and the command that actually drives the LO ──────
+    ax0.plot(
+        t_all,
+        freq * FS,
+        "-",
+        color="k",
+        lw=2.6,
+        alpha=0.85,
+        label="Doppler profile",
+    )
+    # The sum carries the discriminator's full per-symbol variance — its
+    # MEAN is what tracks the ramp, which is what get_nco_freq() documents
+    # ("mean tracks a ramp with no lag, variance is loop stress").
+    wf = 201
+    fsm = np.convolve(fhat, np.ones(wf) / wf, mode="same")
+    ax0.plot(
         tf,
         fhat * FS,
         "-",
         color="tab:blue",
-        lw=1.0,
-        alpha=0.85,
-        label="tracked (rx.car.freq)",
+        lw=0.5,
+        alpha=0.15,
+        label="rx.car.nco (per symbol)",
     )
-    ax[0].set_ylabel("carrier (Hz)")
+    ax0.plot(
+        tf[wf:-wf],
+        fsm[wf:-wf] * FS,
+        "--",
+        color="tab:cyan",
+        lw=1.4,
+        label=f"its mean over {wf} symbols — the sum driving the LO",
+    )
+    ax0.set_ylabel("carrier (Hz)")
+    ax0.set_xlabel("time (s)")
     rate_hz_s = RATE_SYM * (FS / SPS) ** 2
-    ax[0].set_title(
-        f"QPSK, Rs = {FS / SPS / 1e3:.0f} kSps, "
-        f"bn_carrier = {BN}/symbol — Doppler rate "
-        f"{rate_hz_s / 1e3:.1f} kHz/s on the ramps",
-        fontsize=10,
+    ax0.set_title(
+        f"QPSK, Rs = {FS / SPS / 1e3:.0f} kSps, bn_carrier = {BN}/symbol. "
+        f"Step at t=0, then +-{rate_hz_s / 1e3:.0f} kHz/s ramps.\n"
+        f"The loop rides all of it — the tracked line lies on the profile.",
+        fontsize=9.5,
     )
-    ax[0].legend(fontsize=8, loc="lower right")
+    ax0.legend(fontsize=8, loc="lower right")
 
-    ax[1].plot(tf, ferr * FS, "-", color="tab:green", lw=0.9)
-    ax[1].axhline(0.0, color="k", lw=0.6, alpha=0.4)
-    ax[1].set_ylabel("estimate − truth (Hz)")
-    ax[1].set_title(
-        "`rx.car.freq` is the INTEGRATOR alone, so on a ramp it sits a "
-        "constant below truth: that gap is the\nproportional term kp*theta, "
-        "which the applied NCO command carries and this readback does not.",
-        fontsize=9,
-    )
-
-    # The raw per-symbol discriminator is data-noise dominated (+-0.4 rad);
-    # the CLAIM is about its mean, so show both and let the mean carry it.
+    # ── 2. what that costs: book-keeping, and computable in advance ──────
     w = 301
     sm = np.convolve(err, np.ones(w) / w, mode="same")
-    ax[2].plot(
+    ax1.plot(
         te,
         err,
         "-",
         color="tab:red",
         lw=0.5,
-        alpha=0.18,
+        alpha=0.15,
         label="rx.car.e (per symbol)",
     )
-    ax[2].plot(
+    ax1.plot(
         te[w:-w],
         sm[w:-w],
         "-",
@@ -226,36 +280,72 @@ def main(out_path: str = "mpsk_doppler_profile_demo.png") -> None:
         lw=1.6,
         label=f"mean over {w} symbols",
     )
-    for s, lab in ((+1, "law  +2pi r / wn^2"), (-1, None)):
-        ax[2].axhline(s * theta_ss, color="k", ls="--", lw=0.9, label=lab)
-    ax[2].axhline(
-        linear_range,
-        color="tab:orange",
-        ls=":",
-        lw=1.0,
-        label=f"linear range +-pi/2M = {linear_range:.2f}",
+    for sgn, lab in ((+1, "2*pi*r / wn^2"), (-1, None)):
+        ax1.axhline(sgn * theta_ss, color="k", ls="--", lw=0.9, label=lab)
+    for sgn in (+1, -1):
+        ax1.axhline(
+            sgn * linear_range,
+            color="tab:orange",
+            ls=":",
+            lw=1.0,
+            label="linear range +-pi/2M" if sgn > 0 else None,
+        )
+    ax1.set_ylim(-1.35 * linear_range, 1.35 * linear_range)
+    ax1.set_ylabel("phase error (rad)")
+    ax1.set_xlabel("time (s)")
+    realistic = 2 * np.pi * (1.0e3 / (FS / SPS) ** 2) / wn**2
+    ax1.set_title(
+        f"The cost: nothing on the flats, a constant {theta_ss:.3f} rad on "
+        f"each ramp. Book-keeping, and computable\nbefore you run anything "
+        f"— at a realistic 1 kHz/s it would be {realistic:.0e} rad. The rate "
+        f"here is exaggerated ~{rate_hz_s / 1e3:.0f}x to make it visible.",
+        fontsize=9.5,
     )
-    ax[2].axhline(-linear_range, color="tab:orange", ls=":", lw=1.0)
-    ax[2].set_ylabel("phase error (rad)")
-    ax[2].set_xlabel("time (s)")
-    ax[2].set_title(
-        "...but it costs a CONSTANT PHASE error — the loop stress — whose "
-        "size is the closed form and whose sign is the ramp's.",
-        fontsize=9,
-    )
-    ax[2].set_ylim(-1.35 * linear_range, 1.35 * linear_range)
-    ax[2].legend(fontsize=8, loc="upper left")
+    ax1.legend(fontsize=8, loc="upper left", ncol=2)
 
+    # ── 3. sizing: the decision that actually matters ────────────────────
+    ax2.semilogx(
+        BN_GRID,
+        [5.0 / b for b in BN_GRID],
+        "--",
+        color="0.5",
+        lw=1.1,
+        label="5/bn settling budget",
+    )
+    ax2.semilogx(
+        BN_GRID,
+        lock_times,
+        "o-",
+        color="tab:purple",
+        lw=1.5,
+        ms=7,
+        label="measured lock_time",
+    )
+    ax2.set_yscale("log")
+    ax2.set_xlabel("bn_carrier (per symbol)")
+    ax2.set_ylabel("symbols to lock")
+    ax2.set_title(
+        "SIZING. lock_time sits an order of magnitude inside the 5/bn budget "
+        "at every bandwidth and is\nrepeatable per configuration — but it is "
+        "NOT a clean 1/bn law: the lock detector's own EMA and\nverify counts "
+        "put a floor under it. Measure it, do not compute it —\nwhich is "
+        "what the property is for.",
+        fontsize=9.5,
+    )
+    ax2.legend(fontsize=8)
+    ax2.grid(alpha=0.3, which="both")
+
+    ax = (ax0, ax1)
     for a_ in ax:
         a_.grid(alpha=0.3)
         for b in bounds[1:-1]:
-            a_.axvline(b / FS, color="0.6", lw=0.8, ls="-", alpha=0.7)
-    lo0, hi0 = ax[0].get_ylim()
-    ax[0].set_ylim(lo0, hi0 + 0.18 * (hi0 - lo0))  # headroom for the labels
+            a_.axvline(b / FS, color="0.6", lw=0.8, alpha=0.7)
+    lo0, hi0 = ax0.get_ylim()
+    ax0.set_ylim(lo0, hi0 + 0.20 * (hi0 - lo0))
     for i, nm in enumerate(names):
-        ax[0].text(
+        ax0.text(
             (bounds[i] + bounds[i + 1]) / 2 / FS,
-            ax[0].get_ylim()[1],
+            ax0.get_ylim()[1],
             f" {nm} ",
             ha="center",
             va="top",

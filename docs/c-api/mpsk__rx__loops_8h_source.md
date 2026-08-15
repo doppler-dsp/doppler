@@ -155,6 +155,7 @@ extern "C"
     int32_t   id_tracking; 
     int32_t   id_e;        
     int32_t   id_freq;     
+    int32_t   id_nco;      
     int32_t   id_locked;   
   } mpsk_rx_tlm_t;
 

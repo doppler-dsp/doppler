@@ -363,8 +363,21 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
   /* The pre-terminal tap's update rate is the cascade's own bank rate. It is
      a planner outcome, so it is READ from the cascade that planned it rather
      than re-derived here — re-deriving would be a second copy of the plan,
-     free to drift from the one the filters were actually built on. */
+     free to drift from the one the filters were actually built on.
+
+     It arrives too LATE for mpsk_rx_loops_init(), which has already run
+     config_carrier() against the `lo_sps` placeholder — so the carrier filter
+     must be re-sized now that the real rate is known. Skipping this is not a
+     tuning nicety: PRETERM would keep gains designed for `lo_sps` updates per
+     symbol while actually updating `bank_sps` times, i.e. ki too small by
+     (lo_sps/bank_sps)^2 — 1.7e7 at Fs/Rs = 10000, an integrator that never
+     moves. The loop then reads a perfect 0 Hz error at 0 Hz offset and
+     acquires nothing at any other, which is exactly as wrong as it sounds.
+     native/validation/rx_nda_tap.c is the gate. `integ` survives
+     loop_filter_init() by contract, and every other tap re-derives the same
+     gains it already had. */
   rx->l.pre_sps = ddc_get_bank_sps (rx->fe);
+  config_carrier (&rx->l);
 
   /* The front end levels itself so the TED's construct-time slope means what
      it says. A zero loop bandwidth leaves nothing to be slower than, so the

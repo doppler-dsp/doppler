@@ -188,6 +188,19 @@ add_test(NAME validate_loop_filter_noise_bw
 # measured on a receiver rather than on synthetic outcomes, and the first place
 # dp_ber_marker_t's `period` is fed by an actual periodic sync word -- until
 # wfm_frame there was nothing in the tree that could emit one outside DSSS.
+# The four NDA carrier taps, ranked by how much of a KNOWN offset each one
+# removes. Nothing exercised any tap but STROBE before this harness, and the
+# obvious zero-offset experiment ranks them backwards (a loop that never
+# steers reports a perfect error) -- see the file docstring.
+add_executable(validate_rx_nda_tap
+               ${CMAKE_CURRENT_SOURCE_DIR}/rx_nda_tap.c)
+target_include_directories(validate_rx_nda_tap
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_rx_nda_tap PRIVATE doppler_lib_static m)
+target_compile_options(validate_rx_nda_tap PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_rx_nda_tap
+         COMMAND validate_rx_nda_tap --check)
+
 add_executable(validate_rx_frame_fer
                ${CMAKE_CURRENT_SOURCE_DIR}/rx_frame_fer.c)
 target_include_directories(validate_rx_frame_fer

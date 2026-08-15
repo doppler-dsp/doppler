@@ -403,22 +403,22 @@ main (int argc, char **argv)
           }
         }
 
-      /* G3 — the real-input receiver publishes no bank rate, so it has no
-         MFR-input node to read and must REFUSE the tap rather than
-         silently fall back to `lo_sps` and mis-size the loop. The other two
-         must still construct, or this gate would pass on a receiver that
-         refuses everything. */
+      /* G3 — BOTH receiver types offer every tap, and `mf_in` on the real
+         path is the one worth pinning: it needs the cascade's `bank_sps`,
+         which `ddcr` publishes only because it carries the same
+         RateConverter. Measured, `bank_sps` is identical on both types at
+         every rate ratio — it is symbol-relative, so the halfband's 2:1 is
+         absorbed by the plan. This gate is what stops that wiring being
+         dropped silently: before it, the real receiver refused `mf_in`
+         outright, and a receiver that refuses everything would pass a
+         one-sided check. */
       for (int t = 0; t < 3; t++)
         {
-          int got  = rx_nda_r_accepts (t);
-          int want = (t != MPSK_RX_NDA_TAP_MF_IN);
-          if (got != want)
+          if (!rx_nda_r_accepts (t))
             {
-              printf ("FAIL MpskReceiverR %s: create() %s, want %s "
-                      "(mf_in needs a bank rate the real front end does "
-                      "not publish)\n",
-                      RX_NDA_NAMES[t], got ? "accepted" : "refused",
-                      want ? "accepted" : "refused");
+              printf ("FAIL MpskReceiverR %s: create() refused — both types "
+                      "offer every tap now that ddcr publishes bank_sps\n",
+                      RX_NDA_NAMES[t]);
               fail = 1;
             }
         }

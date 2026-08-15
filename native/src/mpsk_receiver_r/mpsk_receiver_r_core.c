@@ -32,7 +32,7 @@ mpsk_receiver_r_create (int m, double sps, size_t m_out, int pulse,
       || !(bn_timing >= 0.0) || !(zeta > 0.0) || num_phases < 2u
       || (num_phases & (num_phases - 1u)) != 0u
       || nda_tap < MPSK_RX_NDA_TAP_STROBE
-      || nda_tap > MPSK_RX_NDA_TAP_MF_OUT
+      || nda_tap > MPSK_RX_NDA_TAP_MF_IN
       /* An AGC at or above the bandwidth of a loop it feeds corrects the
          excursions that loop is producing; refused, not warned about. */
       || !(bn_agc_ratio > 0.0) || !(bn_agc_ratio < 1.0))
@@ -65,6 +65,15 @@ mpsk_receiver_r_create (int m, double sps, size_t m_out, int pulse,
                       bn_timing, bn_agc_ratio, RATESYNC_TED_GARDNER,
                       acq_to_track, lock_thresh, differential, nda_tap);
   ratesync_loop_bind_cascade (&rx->l.timing, rx->fe->rc);
+  /* Same as the complex twin: the MFR-input tap's update rate is the
+     cascade's own bank rate, READ from the cascade that planned it. It
+     arrives too late for mpsk_rx_loops_init(), which has already sized the
+     carrier filter against the `lo_sps` placeholder, so the filter is
+     re-sized now that the real rate is known. Measured, `bank_sps` comes out
+     identical on both receiver types — it is symbol-relative, so the
+     halfband's 2:1 is absorbed by the plan. */
+  rx->l.mf_in_sps = ddcr_get_bank_sps (rx->fe);
+  mpsk_rx_config_carrier (&rx->l);
 
   /* The same wedge the complex twin gets, in the same place: inside the
      cascade, before the terminal matched stage. The R2C halfband ahead of it

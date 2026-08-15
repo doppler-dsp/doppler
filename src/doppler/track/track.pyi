@@ -2991,30 +2991,29 @@ class MpskReceiver:
         Matched-filter bank arms; a power of two. Sets the fractional-timing
         resolution to 1/num_phases of an output period. The bank is sized by
         the POST-decimation rate, so this costs the same at sps=8 and sps=256.
-    nda_tap : Literal["strobe", "mf_out", "mf_in"], default "strobe"
+    nda_tap : Literal["strobe", "mf_out", "mf_in"], default "mf_in"
         Where the NDA carrier discriminator reads, which sets its pull-in range
         and whether it needs symbol timing at all. An M-th-power detector
         updating at rate F can only see |df| < F/(2M), so the tap point IS the
         range. The names are the matched filter's two ports plus one well-known
-        gate. `strobe` (default) reads the on-time MFR output at the symbol
-        rate Rs: the cleanest input, the narrowest range (Rs/(2M)), and the
-        only tap whose input quality depends on the timing loop -- it steers
-        from its first strobe whether or not timing has declared, so when the
-        carrier must acquire before timing does, that is a reason to pick
-        another tap rather than something the receiver resolves for you.
-        `mf_out` reads every MFR output at m_out*Rs -- m_out times the range
-        and no timing dependence, paid for with the ISI the between-symbol
-        outputs carry, which hurts most where the decision margin is smallest
-        (8PSK). `mf_in` reads the MFR's input: post-MIX, post-DEC, post-AGC,
-        still ahead of the matched filter -- already band-limited by DEC's own
-        filters and already levelled by the AGC that sits on that exact node,
-        which is why it needs no Costas arm filter of its own and why none is
-        provided. Timing-independent. Its update rate is the cascade's
-        `bank_sps`, a planner outcome rather than a construction constant, so
-        its pull-in ceiling moves with your rate ratio. Fixed at construction:
-        nothing switches underneath you. If you need more range than any tap
-        gives, put a coarse frequency estimate in front and pass it as
-        init_norm_freq.
+        gate. `strobe` reads the on-time MFR output at the symbol rate Rs: the
+        cleanest input, the narrowest range (Rs/(2M)), and the only tap whose
+        input quality depends on the timing loop -- it steers from its first
+        strobe whether or not timing has declared, so when the carrier must
+        acquire before timing does, that is a reason to pick another tap rather
+        than something the receiver resolves for you. `mf_out` reads every MFR
+        output at m_out*Rs -- m_out times the range and no timing dependence,
+        paid for with the ISI the between-symbol outputs carry, which hurts
+        most where the decision margin is smallest (8PSK). `mf_in` (default)
+        reads the MFR's input: post-MIX, post-DEC, post-AGC, still ahead of the
+        matched filter -- already band-limited by DEC's own filters and already
+        levelled by the AGC that sits on that exact node, which is why it needs
+        no Costas arm filter of its own and why none is provided.
+        Timing-independent. Its update rate is the cascade's `bank_sps`, a
+        planner outcome rather than a construction constant, so its pull-in
+        ceiling moves with your rate ratio. Fixed at construction: nothing
+        switches underneath you. If you need more range than any tap gives, put
+        a coarse frequency estimate in front and pass it as init_norm_freq.
     agc : int, default 1
         Level the front-end cascade so the timing detector's construct-time
         slope means what it says. The TED normalises by its OWN slope and
@@ -3072,7 +3071,7 @@ class MpskReceiver:
     ...     init_norm_freq=0.0,
     ...     differential=0,
     ...     num_phases=1024,
-    ...     nda_tap="strobe",
+    ...     nda_tap="mf_in",
     ...     agc=1,
     ...     bn_agc_ratio=0.05,
     ... )
@@ -3094,7 +3093,7 @@ class MpskReceiver:
         init_norm_freq: float = ...,
         differential: int = ...,
         num_phases: int = ...,
-        nda_tap: Literal["strobe", "mf_out", "mf_in"] = "strobe",
+        nda_tap: Literal["strobe", "mf_out", "mf_in"] = "mf_in",
         agc: int = ...,
         bn_agc_ratio: float = ...,
     ) -> None: ...
@@ -3635,21 +3634,28 @@ class MpskReceiverR:
         Matched-filter bank arms; a power of two. Sets the fractional-timing
         resolution to 1/num_phases of an output period. The bank is sized by
         the POST-decimation rate, so this costs the same at sps=8 and sps=256.
-    nda_tap : Literal["strobe", "mf_out"], default "strobe"
+    nda_tap : Literal["strobe", "mf_out", "mf_in"], default "mf_in"
         Where the NDA carrier discriminator reads, which sets its pull-in range
         and whether it needs symbol timing at all. An M-th-power detector
         updating at rate F can only see |df| < F/(2M), so the tap point IS the
-        range. `strobe` (default) reads the on-time MFR output at the symbol
-        rate Rs: the cleanest input, the narrowest range (Rs/(2M)), and the
-        only tap whose input quality depends on the timing loop. `mf_out` reads
-        every MFR output at m_out*Rs -- m_out times the range and no timing
-        dependence, paid for with the ISI the between-symbol outputs carry.
-        `mf_in` is not offered on the real-input type: it runs at the cascade's
-        `bank_sps`, which this front end does not publish, and construction
-        refuses it rather than falling back to a rate that would mis-size the
-        loop. Fixed at construction: nothing switches underneath you. If you
-        need more range than any tap gives, put a coarse frequency estimate in
-        front and pass it as init_norm_freq.
+        range. `strobe` reads the on-time MFR output at the symbol rate Rs: the
+        cleanest input, the narrowest range (Rs/(2M)), and the only tap whose
+        input quality depends on the timing loop. `mf_out` reads every MFR
+        output at m_out*Rs -- m_out times the range and no timing dependence,
+        paid for with the ISI the between-symbol outputs carry. `mf_in`
+        (default) reads the MFR's input: post-MIX, post-DEC, post-AGC, still
+        ahead of the matched filter -- already band-limited by DEC's own
+        filters and already levelled by the AGC that sits on that exact node,
+        which is why it needs no Costas arm filter of its own and why none is
+        provided. Timing-independent, which is why it is the default: a signal
+        can carry no data modulation for an extended period, and the Gardner
+        TED needs transitions, so a carrier tap that depended on symbol timing
+        could never acquire on one. Its update rate is the cascade's
+        `bank_sps`, a planner outcome rather than a construction constant, so
+        its pull-in ceiling moves with your rate ratio. Fixed at construction:
+        nothing switches underneath you. If you need more range than any tap
+        gives, put a coarse frequency estimate in front and pass it as
+        init_norm_freq.
     agc : int, default 1
         Level the front-end cascade so the timing detector's construct-time
         slope means what it says. The TED normalises by its OWN slope and
@@ -3709,7 +3715,7 @@ class MpskReceiverR:
     ...     init_norm_freq=0.0,
     ...     differential=0,
     ...     num_phases=1024,
-    ...     nda_tap="strobe",
+    ...     nda_tap="mf_in",
     ...     agc=1,
     ...     bn_agc_ratio=0.05,
     ... )
@@ -3731,7 +3737,7 @@ class MpskReceiverR:
         init_norm_freq: float = ...,
         differential: int = ...,
         num_phases: int = ...,
-        nda_tap: Literal["strobe", "mf_out"] = "strobe",
+        nda_tap: Literal["strobe", "mf_out", "mf_in"] = "mf_in",
         agc: int = ...,
         bn_agc_ratio: float = ...,
     ) -> None: ...

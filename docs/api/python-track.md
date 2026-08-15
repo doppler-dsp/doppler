@@ -228,11 +228,11 @@ lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
     construction; measured maxima for QPSK at `sps=8`, unaided, at the default
     `m_out=8` (`m_out=4` in parentheses — it is on this axis too):
 
-    | `nda_tap`            | Update rate | Max acquired `Δf`    | Needs symbol timing? |
-    | -------------------- | ----------- | -------------------- | -------------------- |
-    | `"strobe"` (default) | `Rs`        | `0.050·Rs` (`0.010`) | yes                  |
-    | `"mf_out"`           | `m_out·Rs`  | `0.033·Rs` (`0.015`) | no                   |
-    | `"mf_in"`            | `bank_sps`  | not yet measured     | no                   |
+    | `nda_tap`           | Update rate | Max acquired `Δf`    | Needs symbol timing? |
+    | ------------------- | ----------- | -------------------- | -------------------- |
+    | `"strobe"`          | `Rs`        | `0.050·Rs` (`0.010`) | yes                  |
+    | `"mf_out"`          | `m_out·Rs`  | `0.033·Rs` (`0.015`) | no                   |
+    | `"mf_in"` (default) | `bank_sps`  | not yet measured     | no                   |
 
     `mf_in` reads the MFR's input, so the terminal rate is not in its path
     either — but its update rate is the cascade's `bank_sps`, a planner

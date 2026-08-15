@@ -205,7 +205,7 @@ extern "C"
    *                        M-th-power detector updating at rate `F` can only
    *                        observe `|df| < F/(2M)`, so the tap point IS the
    *                        range:
-   *                        - `MPSK_RX_NDA_TAP_STROBE` (0, default) — the
+   *                        - `MPSK_RX_NDA_TAP_STROBE` (0) — the
    *                          on-time strobe, at `Rs`. Cleanest input,
    *                          narrowest range, and the ONLY tap whose input
    *                          quality depends on the timing loop — it steers

@@ -214,6 +214,8 @@ extern "C"
     return 1.0;
   }
 
+  void mpsk_rx_config_carrier (mpsk_rx_loops_t *l);
+
   void mpsk_rx_loops_reset (mpsk_rx_loops_t *l);
 
   void mpsk_rx_configure_lock (mpsk_rx_loops_t *l, double up_thresh,

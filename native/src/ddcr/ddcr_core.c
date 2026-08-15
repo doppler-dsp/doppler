@@ -280,6 +280,16 @@ ddcr_execute_ctrl_push_tap (ddcr_state_t *s, float x, double rate_ctrl,
                             double freq_ctrl, float _Complex *out,
                             size_t max_out, float _Complex *lo_out, int *n_lo)
 {
+  return ddcr_execute_ctrl_push_tap2 (s, x, rate_ctrl, freq_ctrl, out, max_out,
+                                      lo_out, n_lo, NULL, NULL);
+}
+
+size_t
+ddcr_execute_ctrl_push_tap2 (ddcr_state_t *s, float x, double rate_ctrl,
+                             double freq_ctrl, float _Complex *out,
+                             size_t max_out, float _Complex *lo_out, int *n_lo,
+                             float _Complex *pre_out, int *n_pre)
+{
   /* The 2:1 halfband is the block API's own state machine — one sample in,
      0 or 1 intermediate samples out.  Half the pushes end here, and on those
      the LO does not step at all, so there is no post-LO sample to tap. */
@@ -288,6 +298,8 @@ ddcr_execute_ctrl_push_tap (ddcr_state_t *s, float x, double rate_ctrl,
     {
       if (n_lo)
         *n_lo = 0;
+      if (n_pre)
+        *n_pre = 0;
       return 0;
     }
 
@@ -296,7 +308,14 @@ ddcr_execute_ctrl_push_tap (ddcr_state_t *s, float x, double rate_ctrl,
     *lo_out = z;
   if (n_lo)
     *n_lo = 1;
-  return RateConverter_execute_ctrl_push (s->rc, z, rate_ctrl, out, max_out);
+  return RateConverter_execute_ctrl_push_tap (s->rc, z, rate_ctrl, out,
+                                              max_out, pre_out, n_pre);
+}
+
+double
+ddcr_get_bank_sps (const ddcr_state_t *s)
+{
+  return RateConverter_get_bank_sps (s->rc);
 }
 
 size_t

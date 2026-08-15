@@ -30,8 +30,8 @@
    then outputs a phase command per symbol; freq_scale turns that into the
    cycles per LO sample the front end's control port wants (rad -> cycles, then
    spread over the lo_sps samples a symbol spans). */
-static void
-config_carrier (mpsk_rx_loops_t *l)
+void
+mpsk_rx_config_carrier (mpsk_rx_loops_t *l)
 {
   /* bn_carrier keeps its meaning — normalised to the SYMBOL rate — whatever
      tap the caller picked, so one setting means the same loop at every tap.
@@ -88,7 +88,7 @@ mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
   lockdet_init (&l->car_lock, lock_thresh, MPSK_RX_HANDOVER_DOWN * lock_thresh,
                 MPSK_RX_HANDOVER_N_UP, MPSK_RX_HANDOVER_N_DOWN);
 
-  config_carrier (l);
+  mpsk_rx_config_carrier (l);
   mpsk_rx_loops_reset (l);
 }
 
@@ -368,7 +368,7 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
      loop_filter_init() by contract, and every other tap re-derives the same
      gains it already had. */
   rx->l.mf_in_sps = ddc_get_bank_sps (rx->fe);
-  config_carrier (&rx->l);
+  mpsk_rx_config_carrier (&rx->l);
 
   /* The front end levels itself so the TED's construct-time slope means what
      it says. A zero loop bandwidth leaves nothing to be slower than, so the

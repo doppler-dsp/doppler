@@ -373,6 +373,17 @@ extern "C"
     return 1.0;
   }
 
+  /**
+   * @brief (Re-)size the carrier loop filter for the tap's update rate.
+   *
+   * Called by mpsk_rx_loops_init(), and AGAIN by each receiver's create()
+   * once the cascade has published its `bank_sps` — which arrives too late
+   * for init, so the MF_IN tap would otherwise keep gains designed for the
+   * `lo_sps` placeholder. `integ` survives loop_filter_init() by contract,
+   * and every other tap re-derives the gains it already had.
+   */
+  void mpsk_rx_config_carrier (mpsk_rx_loops_t *l);
+
   /** @brief Re-seed both loops to their post-init state; keep configuration.
    *  @param l  Must be non-NULL. */
   void mpsk_rx_loops_reset (mpsk_rx_loops_t *l);

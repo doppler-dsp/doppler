@@ -2993,7 +2993,7 @@ class MpskReceiver:
         Matched-filter bank arms; a power of two. Sets the fractional-timing
         resolution to 1/num_phases of an output period. The bank is sized by
         the POST-decimation rate, so this costs the same at sps=8 and sps=256.
-    nda_tap : Literal["strobe", "mf_all", "lo_arm", "preterm"], default "strobe"
+    nda_tap : Literal["strobe", "mf_out", "lo_arm", "mf_in"], default "strobe"
         Where the NDA carrier discriminator reads from, which sets its pull-in
         range and whether it needs symbol timing at all. An M-th-power detector
         updating at rate F can only see |df| < F/(2M), so the tap point IS the
@@ -3002,14 +3002,14 @@ class MpskReceiver:
         whose input quality depends on the timing loop -- it steers from its
         first strobe whether or not timing has declared, so when the carrier
         must acquire before timing does, that is a reason to pick another tap
-        rather than something the receiver resolves for you. `mf_all` reads
+        rather than something the receiver resolves for you. `mf_out` reads
         every terminal output at m_out*Rs -- m_out times the range and no
         timing dependence, paid for with the ISI the between-symbol outputs
         carry, which hurts most where the decision margin is smallest (8PSK).
         `lo_arm` reads ahead of the cascade through a free-running half-symbol
         boxcar at the LO rate -- the widest range and fully timing-independent,
         but unmatched, so it pays squaring loss. Fixed at construction: nothing
-        switches underneath you. `preterm` reads the pre-terminal stream:
+        switches underneath you. `mf_in` reads the pre-terminal stream:
         post-cascade, post-AGC, still ahead of the matched filter --
         band-limited by the cascade's own filters and levelled by the AGC that
         sits on that exact node, so it is what `lo_arm` approximates by hand,
@@ -3099,7 +3099,7 @@ class MpskReceiver:
         warmup_syms: int = ...,
         differential: int = ...,
         num_phases: int = ...,
-        nda_tap: Literal["strobe", "mf_all", "lo_arm", "preterm"] = "strobe",
+        nda_tap: Literal["strobe", "mf_out", "lo_arm", "mf_in"] = "strobe",
         agc: int = ...,
         bn_agc_ratio: float = ...,
     ) -> None: ...
@@ -3627,7 +3627,7 @@ class MpskReceiverR:
         Matched-filter bank arms; a power of two. Sets the fractional-timing
         resolution to 1/num_phases of an output period. The bank is sized by
         the POST-decimation rate, so this costs the same at sps=8 and sps=256.
-    nda_tap : Literal["strobe", "mf_all", "lo_arm"], default "strobe"
+    nda_tap : Literal["strobe", "mf_out", "lo_arm"], default "strobe"
         Where the NDA carrier discriminator reads from, which sets its pull-in
         range and whether it needs symbol timing at all. An M-th-power detector
         updating at rate F can only see |df| < F/(2M), so the tap point IS the
@@ -3636,7 +3636,7 @@ class MpskReceiverR:
         whose input quality depends on the timing loop -- it steers from its
         first strobe whether or not timing has declared, so when the carrier
         must acquire before timing does, that is a reason to pick another tap
-        rather than something the receiver resolves for you. `mf_all` reads
+        rather than something the receiver resolves for you. `mf_out` reads
         every terminal output at m_out*Rs -- m_out times the range and no
         timing dependence, paid for with the ISI the between-symbol outputs
         carry, which hurts most where the decision margin is smallest (8PSK).
@@ -3728,7 +3728,7 @@ class MpskReceiverR:
         warmup_syms: int = ...,
         differential: int = ...,
         num_phases: int = ...,
-        nda_tap: Literal["strobe", "mf_all", "lo_arm"] = "strobe",
+        nda_tap: Literal["strobe", "mf_out", "lo_arm"] = "strobe",
         agc: int = ...,
         bn_agc_ratio: float = ...,
     ) -> None: ...

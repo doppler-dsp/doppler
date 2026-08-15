@@ -86,14 +86,14 @@ MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
   int    nda_tap     = 0;
   if (strcmp (nda_tap_str, "strobe") == 0)
     nda_tap = 0;
-  else if (strcmp (nda_tap_str, "mf_all") == 0)
+  else if (strcmp (nda_tap_str, "mf_out") == 0)
     nda_tap = 1;
   else if (strcmp (nda_tap_str, "lo_arm") == 0)
     nda_tap = 2;
   else
     {
       PyErr_Format (PyExc_ValueError,
-                    "nda_tap must be one of \"strobe\", \"mf_all\", "
+                    "nda_tap must be one of \"strobe\", \"mf_out\", "
                     "\"lo_arm\", got '%s'",
                     nda_tap_str);
       return -1;

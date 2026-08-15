@@ -231,7 +231,7 @@ lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
     | `nda_tap`            | Update rate | Max acquired `Δf`     | Needs symbol timing? |
     | -------------------- | ----------- | --------------------- | -------------------- |
     | `"strobe"` (default) | `Rs`        | `0.050·Rs` (`0.010`)  | yes                  |
-    | `"mf_all"`           | `m_out·Rs`  | `0.033·Rs` (`0.015`)  | no                   |
+    | `"mf_out"`           | `m_out·Rs`  | `0.033·Rs` (`0.015`)  | no                   |
     | `"lo_arm"`           | LO rate     | **`0.090·Rs`** (same) | no                   |
 
     `lo_arm` is the one row `m_out` cannot move — it taps ahead of the cascade,

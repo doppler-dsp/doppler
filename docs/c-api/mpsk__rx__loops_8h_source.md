@@ -143,9 +143,9 @@ extern "C"
   enum
   {
     MPSK_RX_NDA_TAP_STROBE = 0,
-    MPSK_RX_NDA_TAP_MF_ALL = 1,
+    MPSK_RX_NDA_TAP_MF_OUT = 1,
     MPSK_RX_NDA_TAP_LO_ARM = 2,
-    MPSK_RX_NDA_TAP_PRETERM = 3
+    MPSK_RX_NDA_TAP_MF_IN = 3
   };
 
 /* Free-running arm window for MPSK_RX_NDA_TAP_LO_ARM, as a fraction of a
@@ -181,7 +181,7 @@ extern "C"
     int    m;          
     double sps;        
     double lo_sps;     
-    double pre_sps;    
+    double mf_in_sps; 
     size_t m_out;      
     double bn_carrier; 
     double bn_agc_ratio; 
@@ -216,12 +216,12 @@ extern "C"
   JM_FORCEINLINE double
   mpsk_rx_updates_per_symbol (const mpsk_rx_loops_t *l)
   {
-    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_ALL)
+    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_OUT)
       return (double)l->m_out;
     if (l->nda_tap == MPSK_RX_NDA_TAP_LO_ARM)
       return l->lo_sps;
-    if (l->nda_tap == MPSK_RX_NDA_TAP_PRETERM)
-      return l->pre_sps;
+    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_IN)
+      return l->mf_in_sps;
     return 1.0;
   }
 
@@ -270,9 +270,9 @@ extern "C"
   }
 
   JM_FORCEINLINE JM_HOT void
-  mpsk_rx_push_preterm (mpsk_rx_loops_t *l, float complex z)
+  mpsk_rx_push_mf_in (mpsk_rx_loops_t *l, float complex z)
   {
-    if (l->nda_tap != MPSK_RX_NDA_TAP_PRETERM)
+    if (l->nda_tap != MPSK_RX_NDA_TAP_MF_IN)
       return;
     mpsk_rx_disc (l, z);
   }
@@ -281,12 +281,12 @@ extern "C"
   mpsk_rx_take_output (mpsk_rx_loops_t *l, float complex y, float complex *sym,
                        int ted)
   {
-    /* MPSK_RX_NDA_TAP_MF_ALL discriminates on EVERY terminal output, so it
+    /* MPSK_RX_NDA_TAP_MF_OUT discriminates on EVERY terminal output, so it
        runs before the strobe test and needs no timing: it does not care which
        output the timing loop would have nominated. That is the trade — m_out
        times the frequency range and no timing dependence, paid for with the
        ISI those between-symbol outputs carry. */
-    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_ALL)
+    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_OUT)
       mpsk_rx_disc (l, y);
 
     float complex on;
@@ -328,7 +328,7 @@ extern "C"
        transient starts from a known instant.
 
        A tap that needs timing it cannot wait for is a reason to pick a
-       different tap, which is what nda_tap is for: MF_ALL and LO_ARM are
+       different tap, which is what nda_tap is for: MF_OUT and LO_ARM are
        timing-independent by construction. Gating the default hid that choice
        behind a coupling the caller could not see or override. */
     if (l->nda_tap == MPSK_RX_NDA_TAP_STROBE)

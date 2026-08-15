@@ -85,7 +85,7 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 |  int | [**mpsk\_rx\_loops\_set\_state**](#function-mpsk_rx_loops_set_state) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, const void \* blob) <br>_Restore the loops' mutable state from_ `blob` _._ |
 |  size\_t | [**mpsk\_rx\_loops\_state\_bytes**](#function-mpsk_rx_loops_state_bytes) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Bytes_ [_**mpsk\_rx\_loops\_get\_state()**_](mpsk__rx__loops_8h.md#function-mpsk_rx_loops_get_state) _writes._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_push\_lo**](#function-mpsk_rx_push_lo) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex z) <br>_Feed one post-LO, pre-cascade sample to the free-running arm._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_push\_preterm**](#function-mpsk_rx_push_preterm) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex z) <br>_Push one PRE-TERMINAL sample into the NDA discriminator._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_push\_mf\_in**](#function-mpsk_rx_push_mf_in) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex z) <br>_Push one PRE-TERMINAL sample into the NDA discriminator._  |
 |  void | [**mpsk\_rx\_set\_freq\_est**](#function-mpsk_rx_set_freq_est) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double val) <br>_Overwrite the tracked carrier offset (cycles/sample at the LO's rate) so the next output de-rotates by exactly_ `val` _._ |
 |  int | [**mpsk\_rx\_set\_telemetry**](#function-mpsk_rx_set_telemetry) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) telemetry across both loops; see_ [_**mpsk\_receiver\_set\_telemetry()**_](mpsk__receiver__core_8h.md#function-mpsk_receiver_set_telemetry) _, which forwards here._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_steer**](#function-mpsk_rx_steer) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double pe) <br>_Filter a carrier phase error and update_ `freq_ctrl` _._ |
@@ -187,9 +187,9 @@ _Where the NDA carrier discriminator reads from._
 ```C++
 enum mpsk__rx__loops_8h_1a99fb83031ce9923c84392b4e92f956b5 {
     MPSK_RX_NDA_TAP_STROBE = 0,
-    MPSK_RX_NDA_TAP_MF_ALL = 1,
+    MPSK_RX_NDA_TAP_MF_OUT = 1,
     MPSK_RX_NDA_TAP_LO_ARM = 2,
-    MPSK_RX_NDA_TAP_PRETERM = 3
+    MPSK_RX_NDA_TAP_MF_IN = 3
 };
 ```
 
@@ -202,7 +202,7 @@ An M-th-power discriminator updating at rate `F` can only observe a frequency er
 |tap   |update rate   |unambiguous \|df\|   |cost    |
 |-----|-----|-----|-----|
 |`STROBE`   |`Rs`   |`Rs/(2M)`   |needs symbol timing    |
-|`MF_ALL`   |`m_out*Rs`   |`m_out*Rs/(2M)`   |inter-symbol ISI bias    |
+|`MF_OUT`   |`m_out*Rs`   |`m_out*Rs/(2M)`   |inter-symbol ISI bias    |
 |`LO_ARM`   |LO rate   |`f_lo/(2M)`   |no matched filtering   |
 
 
@@ -210,7 +210,7 @@ An M-th-power discriminator updating at rate `F` can only observe a frequency er
 
 
 
-There is a second axis, and it is the one the cascade rebuild lost. `STROBE` is the only tap that depends on **symbol timing**: it reads the one output the timing loop nominates, so before timing lock it is reading an arbitrary phase of the pulse. `MF_ALL` consumes every terminal output and so does not care which one is on-time; `LO_ARM` runs a free-running arm filter ahead of the cascade entirely. Both therefore restore the property the NDA path exists for — acquiring with no data _and no symbol timing_ — which is why they are not merely "wider".
+There is a second axis, and it is the one the cascade rebuild lost. `STROBE` is the only tap that depends on **symbol timing**: it reads the one output the timing loop nominates, so before timing lock it is reading an arbitrary phase of the pulse. `MF_OUT` consumes every terminal output and so does not care which one is on-time; `LO_ARM` runs a free-running arm filter ahead of the cascade entirely. Both therefore restore the property the NDA path exists for — acquiring with no data _and no symbol timing_ — which is why they are not merely "wider".
 
 
 No tap waits. `STROBE` steers from its first strobe whether or not the timing loop has declared, so its dependency is a reason to CHOOSE another tap when the carrier must acquire before timing does — not something the receiver resolves behind the caller's back. Gating it was tried and measured: across a 24-cell sweep it moved one cell, because what it really bought was a carrier transient that started at a known instant and was therefore easier to measure.
@@ -496,11 +496,11 @@ The MPSK\_RX\_NDA\_TAP\_LO\_ARM path, and a no-op for every other tap. Called on
 
 
 
-### function mpsk\_rx\_push\_preterm 
+### function mpsk\_rx\_push\_mf\_in 
 
 _Push one PRE-TERMINAL sample into the NDA discriminator._ 
 ```C++
-JM_FORCEINLINE  JM_HOT void mpsk_rx_push_preterm (
+JM_FORCEINLINE  JM_HOT void mpsk_rx_push_mf_in (
     mpsk_rx_loops_t * l,
     float complex z
 ) 
@@ -508,7 +508,7 @@ JM_FORCEINLINE  JM_HOT void mpsk_rx_push_preterm (
 
 
 
-The MPSK\_RX\_NDA\_TAP\_PRETERM path, and a no-op for every other tap. Unlike [**mpsk\_rx\_push\_lo()**](mpsk__rx__loops_8h.md#function-mpsk_rx_push_lo) there is no arm filter here and none is wanted: the cascade has already band-limited this node and the AGC has already levelled it, which is the whole reason the tap exists. 
+The MPSK\_RX\_NDA\_TAP\_MF\_IN path, and a no-op for every other tap. Unlike [**mpsk\_rx\_push\_lo()**](mpsk__rx__loops_8h.md#function-mpsk_rx_push_lo) there is no arm filter here and none is wanted: the cascade has already band-limited this node and the AGC has already levelled it, which is the whole reason the tap exists. 
 
 
         

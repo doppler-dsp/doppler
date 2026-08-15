@@ -197,13 +197,13 @@ extern "C"
    * | tap        | update rate | unambiguous \|df\|  | cost                  |
    * | ---------- | ----------- | ------------------- | --------------------- |
    * | `STROBE`   | `Rs`        | `Rs/(2M)`           | needs symbol timing   |
-   * | `MF_ALL`   | `m_out*Rs`  | `m_out*Rs/(2M)`     | inter-symbol ISI bias |
+   * | `MF_OUT`   | `m_out*Rs`  | `m_out*Rs/(2M)`     | inter-symbol ISI bias |
    * | `LO_ARM`   | LO rate     | `f_lo/(2M)`         | no matched filtering  |
    *
    * There is a second axis, and it is the one the cascade rebuild lost.
    * `STROBE` is the only tap that depends on **symbol timing**: it reads the
    * one output the timing loop nominates, so before timing lock it is reading
-   * an arbitrary phase of the pulse. `MF_ALL` consumes every terminal output
+   * an arbitrary phase of the pulse. `MF_OUT` consumes every terminal output
    * and so does not care which one is on-time; `LO_ARM` runs a free-running
    * arm filter ahead of the cascade entirely. Both therefore restore the
    * property the NDA path exists for — acquiring with no data *and no symbol
@@ -228,18 +228,21 @@ extern "C"
     /** Every terminal output. `m_out`x the range, timing-independent, but the
      *  outputs between symbols are averaging two of them, so their M-th power
      *  carries an ISI bias — worst where the decision margin is smallest. */
-    MPSK_RX_NDA_TAP_MF_ALL = 1,
+    MPSK_RX_NDA_TAP_MF_OUT = 1,
     /** Post-LO, pre-cascade, through a free-running boxcar arm. Widest range
      *  and fully timing-independent, but unmatched: the arm is a short
      *  lowpass, not the pulse filter, so it pays squaring loss. This is the
      *  classic Costas arm-filter placement. */
     MPSK_RX_NDA_TAP_LO_ARM = 2,
-    /** Pre-terminal: post-cascade, post-AGC, ahead of the matched filter.
+    /** PRE-MATCHED-FILTER: the AGC's output — post-MIX, post-DEC, post-AGC,
+     *  and ahead of the MFR. Named for where it reads rather than for its
+     *  position in the cascade, because that is the property a caller cares
+     *  about: being ahead of the matched filter is what makes it need no
+     *  symbol timing.
+     *
      *  What `lo_arm` was reaching for, done properly (docs/design/mpsk.md
-     *  §3.3) — band-limited by the cascade's own filters and levelled by the
-     *  AGC that sits on this exact node, so it needs no arm filter of its
-     *  own, yet it is still ahead of the matched filter and therefore needs
-     *  no symbol timing.
+     *  §3.3) — band-limited by DEC's own filters and levelled by the AGC that
+     *  sits on this exact node, so it needs no arm filter of its own.
      *
      *  Its update rate is `bank_sps`, a PLANNER OUTCOME rather than a
      *  construction constant, so the pull-in ceiling `bank_sps*Rs/(2M)`
@@ -247,7 +250,7 @@ extern "C"
      *  stream to a fixed 2 sps to pin that down; this tap deliberately does
      *  not, taking the raw stream so the tap costs no serialized state. Read
      *  mpsk_rx_updates_per_symbol() for what the rate actually came out as. */
-    MPSK_RX_NDA_TAP_PRETERM = 3
+    MPSK_RX_NDA_TAP_MF_IN = 3
   };
 
 /* Free-running arm window for MPSK_RX_NDA_TAP_LO_ARM, as a fraction of a
@@ -294,9 +297,10 @@ extern "C"
     int    m;          /**< constellation order M (2, 4, 8).             */
     double sps;        /**< samples per symbol at the receiver's input.  */
     double lo_sps;     /**< samples per symbol at the LO's own rate.     */
-    double pre_sps;    /**< samples per symbol pre-terminal (`bank_sps`);
-                            PRETERM only. A planner outcome, read from the
-                            cascade rather than configured.              */
+    double mf_in_sps; /**< samples per symbol at the AGC's output, ahead of
+                            the MFR (`bank_sps`); MF_IN only. A planner
+                            outcome, read from the cascade that planned it
+                            rather than configured.                      */
     size_t m_out;      /**< terminal outputs per symbol.                 */
     double bn_carrier; /**< carrier loop noise bandwidth (per symbol).   */
     double bn_agc_ratio; /**< AGC bandwidth as a fraction of the slowest
@@ -373,12 +377,12 @@ extern "C"
   JM_FORCEINLINE double
   mpsk_rx_updates_per_symbol (const mpsk_rx_loops_t *l)
   {
-    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_ALL)
+    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_OUT)
       return (double)l->m_out;
     if (l->nda_tap == MPSK_RX_NDA_TAP_LO_ARM)
       return l->lo_sps;
-    if (l->nda_tap == MPSK_RX_NDA_TAP_PRETERM)
-      return l->pre_sps;
+    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_IN)
+      return l->mf_in_sps;
     return 1.0;
   }
 
@@ -471,15 +475,15 @@ extern "C"
   /**
    * @brief Push one PRE-TERMINAL sample into the NDA discriminator.
    *
-   * The MPSK_RX_NDA_TAP_PRETERM path, and a no-op for every other tap.
+   * The MPSK_RX_NDA_TAP_MF_IN path, and a no-op for every other tap.
    * Unlike mpsk_rx_push_lo() there is no arm filter here and none is wanted:
    * the cascade has already band-limited this node and the AGC has already
    * levelled it, which is the whole reason the tap exists.
    */
   JM_FORCEINLINE JM_HOT void
-  mpsk_rx_push_preterm (mpsk_rx_loops_t *l, float complex z)
+  mpsk_rx_push_mf_in (mpsk_rx_loops_t *l, float complex z)
   {
-    if (l->nda_tap != MPSK_RX_NDA_TAP_PRETERM)
+    if (l->nda_tap != MPSK_RX_NDA_TAP_MF_IN)
       return;
     mpsk_rx_disc (l, z);
   }
@@ -502,12 +506,12 @@ extern "C"
   mpsk_rx_take_output (mpsk_rx_loops_t *l, float complex y, float complex *sym,
                        int ted)
   {
-    /* MPSK_RX_NDA_TAP_MF_ALL discriminates on EVERY terminal output, so it
+    /* MPSK_RX_NDA_TAP_MF_OUT discriminates on EVERY terminal output, so it
        runs before the strobe test and needs no timing: it does not care which
        output the timing loop would have nominated. That is the trade — m_out
        times the frequency range and no timing dependence, paid for with the
        ISI those between-symbol outputs carry. */
-    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_ALL)
+    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_OUT)
       mpsk_rx_disc (l, y);
 
     float complex on;
@@ -549,7 +553,7 @@ extern "C"
        transient starts from a known instant.
 
        A tap that needs timing it cannot wait for is a reason to pick a
-       different tap, which is what nda_tap is for: MF_ALL and LO_ARM are
+       different tap, which is what nda_tap is for: MF_OUT and LO_ARM are
        timing-independent by construction. Gating the default hid that choice
        behind a coupling the caller could not see or override. */
     if (l->nda_tap == MPSK_RX_NDA_TAP_STROBE)

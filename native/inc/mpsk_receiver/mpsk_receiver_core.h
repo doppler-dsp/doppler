@@ -156,7 +156,7 @@ extern "C"
    *                        3.0 dB** — the last also sitting 0.87 dB from the
    *                        fully-scattered EVM floor, i.e. barely
    *                        distinguishable from noise. **So m_out = 8 is not
-   *                        optional at M = 8.** At `MPSK_RX_NDA_TAP_MF_ALL`,
+   *                        optional at M = 8.** At `MPSK_RX_NDA_TAP_MF_OUT`,
    *                        where the M-th power runs on the oversampled pulse
    *                        rather than the strobe, the requirement is the
    *                        blunt `m_out >= M`; since m_out maxes at 8, 8PSK
@@ -213,7 +213,7 @@ extern "C"
    *                          quality depends on the timing loop — it steers
    *                          from the first strobe regardless, so pick
    *                          another tap if the carrier must acquire first.
-   *                        - `MPSK_RX_NDA_TAP_MF_ALL` (1) — every terminal
+   *                        - `MPSK_RX_NDA_TAP_MF_OUT` (1) — every terminal
    *                          output, at `m_out*Rs`. No timing dependence,
    *                          paid for with the ISI the between-symbol
    *                          outputs carry (worst at 8PSK, where the
@@ -226,7 +226,7 @@ extern "C"
    *                          8th-power gain over a boxcar arm collapses).
    *                        Measured unaided, QPSK at `sps = 8, m_out = 8`,
    *                        each at its own best `bn_carrier`: `0.050*Rs`
-   *                        (strobe), `0.033*Rs` (mf_all), `0.090*Rs`
+   *                        (strobe), `0.033*Rs` (mf_out), `0.090*Rs`
    *                        (lo_arm). Fixed at construction — nothing
    *                        switches underneath the caller. Note `df = k*F/M`
    *                        is a stable FALSE lock at every tap, reporting a
@@ -359,7 +359,7 @@ extern "C"
     if (n_lo)
       mpsk_rx_push_lo (&s->l, zlo);
     if (n_pre)
-      mpsk_rx_push_preterm (&s->l, zpre);
+      mpsk_rx_push_mf_in (&s->l, zpre);
     int           emitted = 0;
     for (size_t oi = 0; oi < n; oi++)
       emitted |= mpsk_rx_take_output (&s->l, ys[oi], y_out, ted);

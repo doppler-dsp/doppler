@@ -1196,7 +1196,7 @@ test_pre_terminal_tap_on_a_cascade_with_no_fractional_tail (void)
 {
   /* The pre-terminal tap has two code paths and only one of them runs on a
      matched cascade: MpskReceiver always plans a fractional terminal stage,
-     so its `preterm` validator never reaches the branch taken when the last
+     so its `mf_in` validator never reaches the branch taken when the last
      stage is an integer decimator. A plain cascade at an integer rate is the
      shape that does, and the branch is the one where the AGC tap does NOT
      apply — the pre-terminal sample is the integer cascade's output as it

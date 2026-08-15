@@ -15,7 +15,27 @@ ______________________________________________________________________
 
 ### Added
 
-- **`nda_tap = "preterm"` — the pre-terminal NDA carrier tap.** Reads the
+- **Receiver nomenclature is fixed, and the architecture figure follows it.**
+    `docs/design/mpsk.md` now names one block one way — LO, MIX, DEC, AGC,
+    MFR, PED, PLF, TED, TLF — with a glossary, and its figure groups by
+    **clock** (the rate the plan fixed, vs the rate the timing loop stretches)
+    rather than by component. LO and MIX are drawn apart for the first time:
+    the LO's *rate* is fixed and it is its *frequency* PLF steers, which one
+    box hid.
+
+- **The pre-matched-filter tap is `nda_tap = "mf_in"`, not `"preterm"`.** It
+    names the node — the MFR's input — instead of a region, which is what
+    "pre-terminal" and "pre-MF" both were: the LO's output and DEC's output
+    are equally "before the matched filter". It also makes the three taps one
+    taxonomy instead of a list, `mf_in` / `mf_out` being the two sides of the
+    matched filter and `strobe` the gated subset of `mf_out`. The C enum is
+    `MPSK_RX_NDA_TAP_MF_IN`; `mpsk_rx_push_preterm` is `mpsk_rx_push_mf_in`
+    and the `pre_sps` field is `mf_in_sps`. `RateConverter` keeps *pre-terminal*
+    for the same node, which is correct at that layer — a plain cascade's
+    terminal stage is not a matched filter, so it has no `mf` to be the input
+    of. Renamed before release, so no shipped spelling changes.
+
+- **`nda_tap = "mf_in"` — the pre-matched-filter NDA carrier tap.** Reads the
     M-th-power discriminator from the cascade's pre-terminal node: after every
     integer stage and after the AGC, but ahead of the matched filter, so it
     needs no symbol timing and carries none of the matched filter's group delay.
@@ -310,6 +330,14 @@ ______________________________________________________________________
 
 ### Breaking
 
+- **BREAKING: `nda_tap = "mf_all"` is now `"mf_out"`.** "all" read as *both*
+    sides of the matched filter, which is the one thing it never meant — the
+    tap is the MFR's output. Paired with `mf_in` it is now a symmetric
+    input/output naming, and `strobe` keeps its own name because that name is
+    standard. C enum `MPSK_RX_NDA_TAP_MF_OUT`. This is the only shipped
+    spelling that changes; callers passing `nda_tap="mf_all"` get the usual
+    `ValueError` listing the valid names.
+
 - **Frame flags on a waveform that cannot carry one now REFUSE instead of
     being silently ignored.** `--type bpsk|qpsk|pn` (and the Python
     equivalents) source their symbols from the PN LFSR, so there is no length
@@ -417,7 +445,7 @@ ______________________________________________________________________
 
 ### Fixed
 
-- **The `preterm` carrier loop was sized against a placeholder update rate.**
+- **The `mf_in` carrier loop was sized against a placeholder update rate.**
     `config_carrier()` runs inside `mpsk_rx_loops_init()`, which is before
     `mpsk_receiver_create()` can read the cascade's real `bank_sps`, so the tap
     got loop gains designed for `lo_sps` updates per symbol while actually
@@ -2958,7 +2986,7 @@ ______________________________________________________________________
     | `nda_tap`            | Reads                            | Update rate | Max acquired `Δf`     | Needs symbol timing? |
     | -------------------- | -------------------------------- | ----------- | --------------------- | -------------------- |
     | `"strobe"` (default) | the on-time strobe               | `Rs`        | `0.050·Rs` (`0.010`)  | **yes**              |
-    | `"mf_all"`           | every terminal output            | `m_out·Rs`  | `0.033·Rs` (`0.015`)  | no                   |
+    | `"mf_out"`           | every terminal output            | `m_out·Rs`  | `0.033·Rs` (`0.015`)  | no                   |
     | `"lo_arm"`           | post-LO, free-running boxcar arm | LO rate     | **`0.090·Rs`** (same) | no                   |
 
     (Measured unaided, QPSK at `sps=8`, each at its own best `bn_carrier`, at the
@@ -2972,7 +3000,7 @@ ______________________________________________________________________
     `bn_carrier` (0.01 → 0.05).
 
     The second axis matters as much as the range: `strobe` is the only tap that
-    depends on symbol timing, so `mf_all` and `lo_arm` restore the property the
+    depends on symbol timing, so `mf_out` and `lo_arm` restore the property the
     NDA path exists for — acquiring with no data *and no symbol timing*.
 
     `bn_carrier` keeps its symbol-rate meaning at every tap; the tap widens what
@@ -3268,9 +3296,9 @@ ______________________________________________________________________
     every order.
 
     This also fixed two real behaviours, not just the number. At `m_out = 4`,
-    `mf_all`/8PSK decodes at chance (a `Σ g_k^M` gain collapse) and used to
+    `mf_out`/8PSK decodes at chance (a `Σ g_k^M` gain collapse) and used to
     report lock **+0.94** while doing it — a false lock; it now reports
-    **−0.069**, correctly not locked. And `mf_all` + `acq_to_track` at QPSK
+    **−0.069**, correctly not locked. And `mf_out` + `acq_to_track` at QPSK
     recovered from 2/5 decodes (SER 0.295) to **5/5** (SER 0.0000), because the
     handover is no longer fired by a meaningless statistic.
 
@@ -3363,13 +3391,13 @@ ______________________________________________________________________
 
     The structural objection is the deciding one. A tap that needs timing it
     cannot wait for is a reason to choose a **different tap** — `nda_tap`
-    exists precisely for that, and `mf_all`/`lo_arm` are timing-independent by
+    exists precisely for that, and `mf_out`/`lo_arm` are timing-independent by
     construction. Resolving it inside the receiver hid a real trade behind a
     coupling the caller could neither see nor override, and made the default
     receiver's cold-start behaviour depend on a second loop's lock detector.
     `mpsk_rx_disc()`'s `may_act` parameter is gone with it (every call site
     passed the same value once the gate went). If cold acquisition fails at
-    `m_out=4`, reach for `nda_tap="mf_all"` or `"lo_arm"`.
+    `m_out=4`, reach for `nda_tap="mf_out"` or `"lo_arm"`.
 
 ## [0.37.3] — 2026-07-24
 

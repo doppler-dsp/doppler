@@ -52,8 +52,8 @@ _The receiver's loops: timing, carrier, handover, demapper._
 |  double | [**lock**](#variable-lock)  <br> |
 |  int | [**m**](#variable-m)  <br> |
 |  size\_t | [**m\_out**](#variable-m_out)  <br> |
+|  double | [**mf\_in\_sps**](#variable-mf_in_sps)  <br> |
 |  int | [**nda\_tap**](#variable-nda_tap)  <br> |
-|  double | [**pre\_sps**](#variable-pre_sps)  <br> |
 |  unsigned | [**prev\_idx**](#variable-prev_idx)  <br> |
 |  double | [**sps**](#variable-sps)  <br> |
 |  size\_t | [**sym\_count**](#variable-sym_count)  <br> |
@@ -400,6 +400,24 @@ terminal outputs per symbol.
 
 
 
+### variable mf\_in\_sps 
+
+```C++
+double mpsk_rx_loops_t::mf_in_sps;
+```
+
+
+
+samples per symbol at the AGC's output, ahead of the MFR (`bank_sps`); MF\_IN only. A planner outcome, read from the cascade that planned it rather than configured. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable nda\_tap 
 
 ```C++
@@ -409,24 +427,6 @@ int mpsk_rx_loops_t::nda_tap;
 
 
 MPSK\_RX\_NDA\_TAP\_\* — where the NDA disc reads. 
-
-
-        
-
-<hr>
-
-
-
-### variable pre\_sps 
-
-```C++
-double mpsk_rx_loops_t::pre_sps;
-```
-
-
-
-samples per symbol pre-terminal (`bank_sps`); PRETERM only. A planner outcome, read from the cascade rather than configured. 
- 
 
 
         

@@ -15,6 +15,26 @@ ______________________________________________________________________
 
 ### Added
 
+- **`rx_nda_tap.c` characterises the carrier loop's DYNAMICS, not just its
+    acquisition.** Two additions, both gated against closed forms rather than
+    recorded numbers — a gate fitted to its own output cannot fail for the
+    right reason.
+
+    **Frequency ramps.** The steady-state phase lag under a Doppler rate,
+    checked against `2*pi*r/wn^2` at three ramp rates on every tap. This is
+    the only gate here that can rank loops which all acquire, and it is what
+    found gh-765.
+
+    **Cold-start time.** `lock_time` against the loop filter's own `5/bn`
+    settling budget, with a floor as well as a ceiling — a detector declaring
+    at symbol 0 would otherwise "beat" the budget while reporting nothing.
+
+    Also gated now: joint phase/timing acquisition from cold (a carrier offset
+    AND a half-symbol timing offset), including with the data modulation
+    removed entirely and with the timing loop disabled — the case the
+    timing-independent taps exist for, since the Gardner TED needs transitions
+    and has none.
+
 - **`lock_time` — the acquisition time, as a number.** Symbols from reset to
     the FIRST carrier-lock declaration, or -1 if the receiver has not locked;
     on both receiver types. Dated by the same hysteretic detector `locked`
@@ -530,6 +550,27 @@ ______________________________________________________________________
     for it to pass; clearing the findings alone would not have revived it,
     since the backlog is why it could not be switched on and not why it did
     not run.
+
+- **Every NDA tap now delivers the `bn_carrier` it was given.** `freq_scale`
+    converted the carrier loop filter's output assuming it is radians per
+    SYMBOL, which is true only for `strobe`. A tap updating `upd` times per
+    symbol produces radians per UPDATE, so the LO was under-driven by `upd`
+    and the loop ran narrower than the caller asked for.
+
+    **A frequency STEP could never have shown this** — a type-2 loop nulls a
+    step to zero steady-state error regardless of gain, which is why every
+    acquisition test passed on both sides of the bug. A frequency RAMP holds a
+    constant phase lag with a closed form, and that is where it was visible:
+
+    ```
+      theta_ss = 2*pi*r / wn^2,  wn = 8*zeta*bn/(4*zeta^2+1) = 1.8857*bn
+    ```
+
+    Measured at sps=200, bn=0.005/sym, the lag was that form times exactly
+    `upd` — 1.00 for strobe, 2.00 for mf_out, 1.5625 for mf_in, at every ramp
+    rate. With the fix all three match the form to under 1%, so the maximum
+    trackable Doppler rate is now the same at every tap instead of `1/upd` of
+    it. Closes gh-765.
 
 - **The `mf_in` carrier loop was sized against a placeholder update rate.**
     `config_carrier()` runs inside `mpsk_rx_loops_init()`, which is before

@@ -43,7 +43,7 @@ mpsk_rx_config_carrier (mpsk_rx_loops_t *l)
      is what lets a caller then raise bn_carrier on purpose. */
   double upd = mpsk_rx_updates_per_symbol (l);
   loop_filter_init (&l->car_lf, l->bn_carrier, l->zeta, 1.0 / upd);
-  l->freq_scale = CARRIER_NDA_INV_2PI / l->lo_sps;
+  l->freq_scale = CARRIER_NDA_INV_2PI * upd / l->lo_sps;
 }
 
 void

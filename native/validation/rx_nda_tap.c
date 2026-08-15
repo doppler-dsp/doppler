@@ -96,6 +96,31 @@
  * docstring: 0.4x bn_carrier, and 1/125th of the narrowest tap's ceiling. */
 #define RX_NDA_FOFF_SYM 0.002
 
+/** @brief Timing offset applied to the record, in symbols, so the timing
+ * loop starts genuinely cold rather than nominally so. */
+#define RX_NDA_TOFF_SYM 0.5
+
+/** @brief What the symbol source does — the axis that decides whether the
+ * timing loop has anything to lock to at all. */
+enum
+{
+  RX_NDA_MOD_DATA = 0,    /**< i.i.d. BPSK: transitions to work with.     */
+  RX_NDA_MOD_NONE = 1,    /**< NO data modulation: zero transitions, so
+                               the Gardner TED has no edge and the timing
+                               loop can never lock.                       */
+  RX_NDA_MOD_PREAMBLE = 2 /**< CW preamble, then data.                    */
+};
+
+static const char *RX_NDA_MODS[3]
+    = { "i.i.d. BPSK", "no modulation", "CW preamble" };
+
+/** @brief Taps whose contract is "no symbol timing required". */
+static int
+rx_nda_timing_independent (int tap)
+{
+  return tap == MPSK_RX_NDA_TAP_MF_OUT || tap == MPSK_RX_NDA_TAP_MF_IN;
+}
+
 /** @brief Carrier loop noise bandwidth, per symbol. */
 #define RX_NDA_BN 0.005
 
@@ -175,7 +200,8 @@ rx_nda_gauss (uint32_t *s)
  * @return The outcome; check `.refused` before reading anything else.
  */
 static rx_nda_result_t
-rx_nda_measure (int tap, double sps, double fs, double esn0_db, size_t nsym)
+rx_nda_measure (int tap, double sps, double fs, int mod, double bn_timing,
+                double esn0_db, size_t nsym)
 {
   rx_nda_result_t r;
   double          foff = RX_NDA_FOFF_SYM / sps; /* cycles/sample */
@@ -195,7 +221,7 @@ rx_nda_measure (int tap, double sps, double fs, double esn0_db, size_t nsym)
   memset (&r, 0, sizeof r);
   mpsk_receiver_state_t *rx = mpsk_receiver_create (
       2, sps, RX_NDA_M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, RX_NDA_BN, 0.707,
-      RX_NDA_BN, 0, 0.3, 0.0, 0, MPSK_RX_NUM_PHASES, tap, 1,
+      bn_timing, 0, 0.3, 0.0, 0, MPSK_RX_NUM_PHASES, tap, 1,
       MPSK_RX_AGC_BW_RATIO);
   if (!rx)
     {
@@ -302,6 +328,103 @@ rx_nda_r_accepts (int tap)
   return 1;
 }
 
+/* ── Carrier dynamics: cold-start time, and the ramp law ─────────────────
+ *
+ * A type-2 loop nulls a frequency STEP to zero steady-state phase error,
+ * which is why the acquisition gates above cannot rank taps that all work.
+ * Against a frequency RAMP it holds a CONSTANT phase error, and that error
+ * has a closed form to check against rather than a number to fit:
+ *
+ *     theta_ss = L / wn^2,   L = 2*pi*r  (rad/symbol^2, r in cyc/symbol^2)
+ *     wn       = 8*zeta*bn / (4*zeta^2 + 1)   ->  1.8857*bn at zeta = 0.707
+ *
+ * The loop breaks when theta_ss leaves the M-th-power S-curve's linear
+ * range, ~pi/(2M).
+ *
+ * Every tap matches that form to under 1%, and getting there is what closed
+ * doppler#765. Before the fix the lag was the form times the tap's UPDATE
+ * RATE — `strobe` (upd = 1) matched, every other tap was `upd` times worse at
+ * every ramp rate (2.00 for mf_out, 1.5625 for mf_in) — because `freq_scale`
+ * assumed the loop filter's output is rad per SYMBOL, which is true only for
+ * `strobe`. A step could never have shown it: a type-2 loop nulls a step
+ * regardless of gain. This is the measurement that could, and the gate now
+ * pins the CORRECT law rather than the defect. */
+
+/** @brief Loop natural frequency per symbol, from the shipped gain formula. */
+static double
+rx_nda_wn (double bn, double zeta)
+{
+  return 8.0 * zeta * bn / (4.0 * zeta * zeta + 1.0);
+}
+
+/** @brief Predicted steady-state phase lag (rad) under a ramp of @p r
+ * cycles/symbol^2. Tap-independent BY DESIGN: `bn_carrier` is normalised to
+ * the symbol rate, so every tap must deliver the same loop whatever its
+ * update rate. A tap-dependent answer here is the gh-765 class of defect. */
+static double
+rx_nda_ramp_law (double r)
+{
+  double wn = rx_nda_wn (RX_NDA_BN, 0.707);
+  return 2.0 * M_PI * r / (wn * wn);
+}
+
+/** @brief Drive a frequency ramp; report the settled mean |phase error|. */
+static double
+rx_nda_ramp_lag (int tap, double sps, double r, size_t nsym, double *upd_out,
+                 double *lock_out)
+{
+  uint32_t               st = 12345u;
+  double                 a  = r / (sps * sps); /* cycles/sample^2 */
+  mpsk_receiver_state_t *rx = mpsk_receiver_create (
+      2, sps, RX_NDA_M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, RX_NDA_BN, 0.707,
+      RX_NDA_BN, 0, 0.3, 0.0, 0, MPSK_RX_NUM_PHASES, tap, 1,
+      MPSK_RX_AGC_BW_RATIO);
+  if (!rx)
+    return -1.0;
+  if (upd_out)
+    *upd_out = mpsk_rx_updates_per_symbol (&rx->l);
+  {
+    size_t isps = (size_t)sps;
+    double s1   = 0.0;
+    size_t cnt  = 0;
+    for (size_t k = 0; k < nsym; k++)
+      {
+        double sr = RX_NDA_AMP * ((rx_nda_rng (&st) % 2u) ? -1.0 : 1.0);
+        for (size_t j = 0; j < isps; j++)
+          {
+            double        n  = (double)(k * isps + j);
+            double        ph = 2.0 * M_PI * (a * n * n * 0.5);
+            float complex x
+                = (float)(sr * cos (ph)) + (float)(sr * sin (ph)) * I;
+            float complex y;
+            mpsk_receiver_step_ted (rx, x, &y, RATESYNC_TED_GARDNER);
+          }
+        if (k > nsym / 2)
+          {
+            s1 += fabs (mpsk_receiver_get_last_error (rx));
+            cnt++;
+          }
+      }
+    if (lock_out)
+      *lock_out = mpsk_receiver_get_lock (rx);
+    {
+      double m = cnt ? s1 / (double)cnt : -1.0;
+      mpsk_receiver_destroy (rx);
+      return m;
+    }
+  }
+}
+
+/** @brief Ramp rates the gate checks, cycles/symbol^2. All well inside the
+ * pi/(2M) linear range so the law is being checked, not the breakdown. */
+static const double RX_NDA_RAMPS[] = { 1e-7, 3e-7, 1e-6 };
+
+/** @brief Fractional tolerance on the ramp law. The measurement is a mean of
+ * a noiseless settled tail against a closed form; 0.7% is what `strobe`
+ * achieves, so 10% is loose enough not to chatter and tight enough that a
+ * factor-of-two error in any gain cannot hide. */
+#define RX_NDA_RAMP_TOL 0.10
+
 /* The rate ratios the gate sweeps. `mf_in`'s update rate is `bank_sps`, a
  * planner outcome, so the plan must be re-consulted at more than one ratio:
  * 8 is the ordinary case, 10000 is the ratio the tap was introduced for. */
@@ -332,7 +455,8 @@ main (int argc, char **argv)
              another, so every ratio has to be reported. */
           int unusable = 0;
           for (int t = 0; t < 3; t++)
-            res[t] = rx_nda_measure (t, sps, fs, -1.0, RX_NDA_NSYM);
+            res[t] = rx_nda_measure (t, sps, fs, RX_NDA_MOD_DATA, RX_NDA_BN,
+                                     -1.0, RX_NDA_NSYM);
 
           for (int t = 0; t < 3; t++)
             {
@@ -403,7 +527,121 @@ main (int argc, char **argv)
           }
         }
 
-      /* G3 — BOTH receiver types offer every tap, and `mf_in` on the real
+      /* G2b — joint acquisition with NO DATA MODULATION.
+         The requirement the tap mechanism exists for, and the one your
+         harness cannot reach with an i.i.d. stream. With the modulation
+         removed the Gardner TED has no transition to measure, so the timing
+         loop can never lock — and a tap that claims timing-independence must
+         acquire the carrier anyway. `bn_timing = 0` in one case so the timing
+         offset is not merely hard to correct but impossible. */
+      {
+        const double sps = 10000.0, fs = sps * 1000.0;
+        const struct
+        {
+          int         mod;
+          double      bn_t;
+          const char *what;
+        } cases[] = {
+          { RX_NDA_MOD_NONE, RX_NDA_BN, "no-modulation" },
+          { RX_NDA_MOD_PREAMBLE, RX_NDA_BN, "cw-preamble" },
+          { RX_NDA_MOD_DATA, 0.0, "timing-loop-disabled" },
+        };
+        for (size_t c = 0; c < RX_NDA_N (cases); c++)
+          for (int t = 0; t < 3; t++)
+            {
+              rx_nda_result_t r;
+              if (!rx_nda_timing_independent (t))
+                continue; /* strobe does not promise this; reported only */
+              r = rx_nda_measure (t, sps, fs, cases[c].mod, cases[c].bn_t,
+                                  -1.0, RX_NDA_NSYM);
+              if (r.refused || r.clipped)
+                {
+                  printf ("FAIL %s %s: unusable reading\n", cases[c].what,
+                          RX_NDA_NAMES[t]);
+                  fail = 1;
+                  continue;
+                }
+              if (!(r.acquired >= RX_NDA_ACQ_MIN))
+                {
+                  printf ("FAIL %s %s: acquired %.4f (want >= %.2f) — a "
+                          "timing-independent tap must acquire the carrier "
+                          "with no symbol timing available at all\n",
+                          cases[c].what, RX_NDA_NAMES[t], r.acquired,
+                          RX_NDA_ACQ_MIN);
+                  fail = 1;
+                }
+            }
+      }
+
+      /* G3 — the RAMP law, and the only gate here that can rank loops
+         that all work. A type-2 loop nulls a frequency STEP regardless of
+         gain, so G1/G2 can only catch a DEAD loop; a ramp leaves a constant
+         phase lag with a CLOSED FORM, so it catches a mis-sized one.
+
+         Checked against the form, never against a recorded number — a gate
+         fitted to its own output cannot fail for the right reason. */
+      {
+        const double sps = 200.0;
+        for (size_t i = 0; i < RX_NDA_N (RX_NDA_RAMPS); i++)
+          for (int t = 0; t < 3; t++)
+            {
+              double upd = 0.0, lk = 0.0;
+              double got
+                  = rx_nda_ramp_lag (t, sps, RX_NDA_RAMPS[i], 3000, &upd, &lk);
+              double want = rx_nda_ramp_law (RX_NDA_RAMPS[i]);
+              if (got < 0.0)
+                {
+                  printf ("FAIL ramp %s: create() refused\n", RX_NDA_NAMES[t]);
+                  fail = 1;
+                  continue;
+                }
+              if (!(fabs (got - want) <= RX_NDA_RAMP_TOL * want))
+                {
+                  printf ("FAIL ramp r=%.0e %s: lag %.4f rad, law says %.4f "
+                          "(upd %.4f, tol %.0f%%) -- this tap is not "
+                          "delivering the bn_carrier it was given\n",
+                          RX_NDA_RAMPS[i], RX_NDA_NAMES[t], got, want, upd,
+                          100.0 * RX_NDA_RAMP_TOL);
+                  fail = 1;
+                }
+            }
+      }
+
+      /* G3b — cold-start acquisition TIME against the analytic budget.
+         `lock_time` makes this readable instead of inferable, and the loop
+         filter header gives the reference: a step settles within ~5/bn
+         updates, so a lock declared later than that is not the loop settling.
+         The floor matters as much as the ceiling — a detector that declared
+         at symbol 0 would also "beat" the budget, and would be reporting
+         nothing. */
+      {
+        const double sps    = 200.0;
+        const double budget = 5.0 / RX_NDA_BN; /* symbols */
+        for (int t = 0; t < 3; t++)
+          {
+            rx_nda_result_t r
+                = rx_nda_measure (t, sps, sps * 1000.0, RX_NDA_MOD_DATA,
+                                  RX_NDA_BN, -1.0, RX_NDA_NSYM);
+            if (r.refused || r.clipped)
+              continue; /* G1 already reported it */
+            if (r.lock_time < 1)
+              {
+                printf ("FAIL lock_time %s: %ld — a lock declared before the "
+                        "first symbol is reporting nothing\n",
+                        RX_NDA_NAMES[t], r.lock_time);
+                fail = 1;
+              }
+            else if ((double)r.lock_time > budget)
+              {
+                printf ("FAIL lock_time %s: %ld symbols > the %0.f-symbol "
+                        "5/bn settling budget\n",
+                        RX_NDA_NAMES[t], r.lock_time, budget);
+                fail = 1;
+              }
+          }
+      }
+
+      /* G4 — BOTH receiver types offer every tap, and `mf_in` on the real
          path is the one worth pinning: it needs the cascade's `bank_sps`,
          which `ddcr` publishes only because it carries the same
          RateConverter. Measured, `bank_sps` is identical on both types at
@@ -451,7 +689,8 @@ main (int argc, char **argv)
       double fs  = sps * 1000.0;
       for (int t = 0; t < 3; t++)
         {
-          rx_nda_result_t r = rx_nda_measure (t, sps, fs, -1.0, RX_NDA_NSYM);
+          rx_nda_result_t r = rx_nda_measure (t, sps, fs, RX_NDA_MOD_DATA,
+                                              RX_NDA_BN, -1.0, RX_NDA_NSYM);
           if (r.refused)
             {
               printf ("  %5.0f   %8s   refused\n", sps, RX_NDA_NAMES[t]);
@@ -472,6 +711,42 @@ main (int argc, char **argv)
           "and no\nclaim that it does is gated here (doppler#766). What "
           "mf_in does buy is a tap that\nneeds no symbol timing at all, which "
           "is gated.\n\n");
+
+  printf ("== Frequency RAMP: the measurement that ranks loops which all "
+          "acquire ==\n");
+  printf ("A type-2 loop nulls a frequency STEP regardless of gain, so the "
+          "tables above cannot\nseparate taps that work. Against a ramp it "
+          "holds a CONSTANT phase lag with a closed\nform: theta_ss = 2*pi*r "
+          "/ wn^2, wn = 8*zeta*bn/(4*zeta^2+1) = %.6f/sym here.\n"
+          "It is tap-INDEPENDENT by design — bn_carrier is symbol-rate "
+          "normalised, so every tap\nmust deliver the same loop whatever its "
+          "update rate.\n\n",
+          rx_nda_wn (RX_NDA_BN, 0.707));
+  printf ("   %-14s %10s", "r cyc/sym^2", "law");
+  for (int t = 0; t < 3; t++)
+    printf ("  %16s", RX_NDA_NAMES[t]);
+  printf ("\n   %-14s %10s", "-------------", "-------");
+  for (int t = 0; t < 3; t++)
+    printf ("  %16s", "lag / lock");
+  printf ("\n");
+  {
+    const double rr[] = { 1e-7, 3e-7, 1e-6, 3e-6, 1e-5, 3e-5 };
+    for (size_t i = 0; i < RX_NDA_N (rr); i++)
+      {
+        printf ("   %-14.0e %10.4f", rr[i], rx_nda_ramp_law (rr[i]));
+        for (int t = 0; t < 3; t++)
+          {
+            double upd = 0.0, lk = 0.0;
+            double got = rx_nda_ramp_lag (t, 200.0, rr[i], 3000, &upd, &lk);
+            printf ("  %10.4f/%.2f", got, lk);
+          }
+        printf ("\n");
+      }
+  }
+  printf ("\nThe loop breaks when theta_ss leaves the M-th-power S-curve's "
+          "linear range, ~pi/(2M)\n= %.4f rad at M=2 — visible above as the "
+          "lock column collapsing once the law crosses it.\n\n",
+          M_PI / 4.0);
 
   /* The trap, reproduced. These are the numbers a zero-offset experiment
      prints, and they rank the taps in very nearly the opposite order to the

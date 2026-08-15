@@ -306,11 +306,29 @@ What exists today:
     `frame_valid` (CRC matched), `frame_offset` (sync word symbol offset),
     `n_symbols`, `est_freq_hz`, `est_rate_hz`, `est_snr_db`.
 
-What does not exist: **any accumulation across frames.** A search for
-`frame_stat` / `frame_err` / `fer` matches nothing in `native/`. `burst_demod`
-holds one frame's outcome in its own struct, so the last frame overwrites the
-previous one; there is no frame-error rate, no sync-detection rate, and no
-per-frame trio anywhere in the tree.
+~~What does not exist: **any accumulation across frames.**~~ **`frame_meter`
+now does** (`native/inc/frame_meter/frame_meter_core.h`,
+`doppler.ber.FrameMeter`): frames attempted / sync detected / CRC passed, an
+FER and a sync-MISS rate each with `ber_confidence`'s exact interval, the same
+stop-on-errors rule as `ber_meter`, and the state triplet so a record can be
+split across processes and still add up to one measurement. It was shaped
+after its sibling exactly as this section argued it should be, and it reuses
+that interval rather than growing a second one.
+
+Two things this section did not say, both worth recording. **Sharing the
+interval means sharing the STOPPING RULE**: `ber_confidence` is exact for
+inverse-binomial sampling, so a fixed-frame-count meter would be handing a
+binomial measurement to a Gamma/chi-square interval — the header states the
+convention rather than leaving it to be assumed. And **`ber_confidence` is
+declared in `ber/ber_core.h` but DEFINED in `ber_meter_core.c`**, because jm
+can only return a record from an object method; reusing it therefore means
+depending on the sibling that houses it, which `frame_meter.toml` says out
+loud.
+
+What is still missing is the per-frame trio — `burst_demod` holds one frame's
+outcome in its own struct, so the last frame overwrites the previous one, and
+localising a degradation to a frame rather than smearing it across a record
+needs that series.
 
 The shape it should take is already set by its sibling: `ber_meter_*`
 accumulates symbol outcomes and reports an interval via `ber_confidence (errors, symbols, conf)` — which is a binomial confidence interval and is

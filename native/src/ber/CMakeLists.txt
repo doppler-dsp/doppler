@@ -2,11 +2,12 @@ add_library(ber_core OBJECT ber_core.c ber_theory_ser.c ber_theory_ber.c ber_esn
 target_include_directories(ber_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# ber Python module — aggregates: BerMeter
+# ber Python module — aggregates: BerMeter, FrameMeter
 Python3_add_library(ber MODULE WITH_SOABI ber_ext.c)
 target_link_libraries(ber PRIVATE
     ber_core
     ber_meter_core
+    frame_meter_core
     detection_core
     Python3::NumPy)
 target_include_directories(ber PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

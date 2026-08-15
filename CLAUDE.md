@@ -1115,6 +1115,17 @@ consequence: 21.1.8 locally against 22.1.8 in CI, identical input giving
 different output. clang-tidy was worse — a bare `entry: clang-tidy`, no pin
 anywhere, absent from at least one dev box, so a gate that could not run.
 
+**There is now no clang-tidy hook at all** (gh-737, removed 2026-08-15). Fixing
+the pin left a second defect untouched: it sat at `stages: [pre-push]`, `make setup` runs a plain `pre-commit install` (which installs only the pre-commit
+hook type absent a `default_install_hook_types` declaration, and this repo has
+none), and CI's `make lint` runs pre-commit at the default stage — so it
+executed on no machine and in no pipeline, reporting zero findings because it
+never looked. Deleting it costs no coverage, because there was none; what it
+buys is that the tree no longer advertises a gate it does not have.
+`make lint-clang-tidy` still exists and is still how to run it by hand. Putting
+it back needs an execution home (a CI job, or `default_install_hook_types`) and
+the backlog cleared enough to pass — see gh-720/gh-737.
+
 Versions live in `pyproject.toml`'s dev group (exact pins — these rewrite
 source, so an upgrade is a deliberate commit), the Makefile says how they
 run, and `uv.lock` is the one pin. **This supersedes the old carve-out** that

@@ -486,6 +486,23 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **The clang-tidy pre-commit hook ran nowhere, and is removed** (gh-737).
+    Fixing its missing pin left a second defect untouched: it sat at
+    `stages: [pre-push]`, `make setup` runs a plain `pre-commit install` —
+    which installs only the pre-commit hook type unless the config declares
+    `default_install_hook_types`, and this one does not — and CI's `make lint`
+    runs pre-commit at the default stage. So it executed on no machine and in
+    no pipeline, reporting zero findings because it never looked: a dead gate
+    that happened to be green, which nothing downstream could tell from
+    success. Deleting it costs no coverage, because there was none; what it
+    buys is that the tree stops advertising a gate it does not have.
+    `make lint-clang-tidy` is unchanged and is still how to run it by hand.
+    Restoring the hook needs an execution home — a CI job, or
+    `default_install_hook_types` — **and** the gh-720 backlog cleared enough
+    for it to pass; clearing the findings alone would not have revived it,
+    since the backlog is why it could not be switched on and not why it did
+    not run.
+
 - **The `mf_in` carrier loop was sized against a placeholder update rate.**
     `config_carrier()` runs inside `mpsk_rx_loops_init()`, which is before
     `mpsk_receiver_create()` can read the cascade's real `bank_sps`, so the tap

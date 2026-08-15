@@ -146,20 +146,27 @@ repos:
 
   - repo: local
     hooks:
-      # Push-stage only — needs compile_commands.json (cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON).
-      # Excludes match clang-format: jm-generated headers/aggregators and vendored code
-      # are already covered by the global exclude; add the per-component ext.c glue here.
-      # Was a bare `entry: clang-tidy` — no pin at all, resolved off PATH, and
-      # absent entirely on at least one dev box, which makes it a gate that
-      # cannot run rather than one that passes. Now the same dev-group binary
-      # every other tool uses, with the file list in the Makefile.
-      - id: clang-tidy
-        name: clang-tidy
-        entry: make -s lint-clang-tidy
-        language: system
-        pass_filenames: false
-        types_or: [c]
-        stages: [pre-push]
+      # THERE IS DELIBERATELY NO clang-tidy HOOK HERE. See gh-737.
+      #
+      # There was one, at `stages: [pre-push]`, and it ran NOWHERE. `make setup`
+      # runs a plain `pre-commit install`, which writes `.git/hooks/pre-commit`
+      # and nothing else unless the config declares `default_install_hook_types`
+      # — and this file does not. CI's `make lint` runs pre-commit at the
+      # default stage, so it never reached the hook either. Configured,
+      # dispatching correctly to a real target, passing `hook-dispatch-check`,
+      # and executing on no machine and in no pipeline: zero findings because
+      # it never looked.
+      #
+      # Deleting it costs NOTHING, which is the whole argument — a gate that
+      # runs nowhere has no coverage to lose. What it buys is that the tree
+      # stops claiming a gate it does not have, so the absence is now visible
+      # instead of being a dead entry that reads as protection.
+      #
+      # Re-adding it is not just pasting the block back. It needs an execution
+      # home — `default_install_hook_types: [pre-commit, pre-push]`, or better a
+      # CI job that builds and runs `make lint-clang-tidy` — and the backlog
+      # cleared enough for it to pass. `make lint-clang-tidy` still exists and
+      # is still the way to run it by hand; only the dead wiring is gone.
 
       # Generated-doc drift: the `## Related pages` blocks (docs/api/*.md),
       # README body (from docs/index.md), install scripts (from bootstrap.toml)

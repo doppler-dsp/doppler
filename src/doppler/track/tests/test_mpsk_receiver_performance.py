@@ -26,12 +26,15 @@ import math
 import numpy as np
 import pytest
 
-from doppler.ber import ber_theory_ser
+from doppler.ber import ber_evm_db, ber_theory_ser
+from doppler.snr import snr_m2m4_db
 
 from ._mpsk_rx_harness import (
     IF_FS4,
+    SETTLE_SYMS,
     coherent_errors,
     demod,
+    detect_alignment,
     freq_offset_inside_bw,
     make_signal,
     ser_confidence,
@@ -106,6 +109,111 @@ def test_no_false_declare_on_noise_only(m, real):
         )
 
 
+def test_a_false_lock_hides_from_every_truth_free_metric():
+    """The whole argument for truth-referenced measurement, as a measurement.
+
+    `df = k*Rs/M` is a STABLE false lock at every NDA tap: the M-th power
+    discriminator sees `M*df = k*Rs`, which aliases to zero, so the loop has no
+    error to correct and parks there. The constellation is then stationary --
+    every symbol still lands on a constellation point -- and it is the WRONG
+    one, advancing by `2*pi/M` per symbol. Seeded at the alias rather than
+    asked to acquire it: acquisition across `Bn` is a coin flip, and this test
+    is about what the METRICS report, not about pull-in.
+
+    Measured, k = 1, Es/N0 15 dB:
+
+        M  alias  EVM honest  EVM false  penalty  M2M4 ok/false   align
+        2  Rs/2   -13.43      -9.88      3.56 dB  12.97 / 11.32  refused
+        4  Rs/4   -13.57      -12.52     1.05 dB  13.77 / 12.93  refused
+        8  Rs/8   -14.83      -14.61     0.21 dB  14.70 / 14.46  refused
+
+    Three things, and the third is the point:
+
+    * the receiver DECLARES LOCK at every order -- its own detector is fooled,
+      which is what "stable" means here;
+    * the truth-referenced alignment REFUSES at every order -- it is the only
+      thing that sees the failure;
+    * **the penalty the truth-free pair does show SHRINKS as M rises**, because
+      the alias is `Rs/M` and a smaller offset costs less in the front end. So
+      the metric that could half-see this at BPSK goes blind exactly where the
+      margin is already thinnest -- section 2.4 measures the room between "on
+      the bound" and "completely broken" collapsing 5.4 / 3.3 / 2.8 dB across
+      the same orders. That is the case for goal 4: report EVM or M2M4 alone
+      and this is invisible, most completely at the order that can least
+      afford it.
+    """
+    #: Ceilings on the EVM penalty, from the measured 3.56 / 1.05 / 0.21. Set
+    #: per order because the SHAPE is the claim -- a single loose bound would
+    #: pass while the law inverted.
+    cases = [(2, 16, 4, 4.5), (4, 16, 4, 1.8), (8, 24, 8, 0.8)]
+    nsym, esn0 = 6000, 15.0
+    penalties = []
+    for m, sps, m_out, ceiling in cases:
+        df = 1.0 / (m * sps)  # k = 1: the first alias
+        x, idx = make_signal(
+            sps, nsym, real=False, m=m, fc=IF_FS4, esn0_db=esn0
+        )
+        yg, prg = demod(x, real=False, sps=sps, m_out=m_out, m=m, fc=IF_FS4)
+        settle_g = settle_from(prg)
+        good = symbol_metrics(yg, idx, m=m, settle=settle_g)
+        # The control has to DECODE, which is the contrast the false-lock case
+        # is measured against. The bound is loose on purpose: 8PSK at 15 dB
+        # carries a real differential SER of ~4.5e-3 (coherent ~1.6e-3, and a
+        # differential decision fails if either of its two symbols is wrong),
+        # so a tight bound here would be asserting the coherent bound in the
+        # wrong units. What is tight is the alignment: it must DETECT.
+        assert good.ser < 0.02, f"m={m}: control SER {good.ser}"
+        assert detect_alignment(yg, idx, m, settle_g) is not None, (
+            f"m={m}: the control run must align, or the refusal below proves "
+            f"nothing about the false lock"
+        )
+
+        y, pr = demod(
+            x,
+            real=False,
+            sps=sps,
+            m_out=m_out,
+            m=m,
+            fc=IF_FS4,
+            freq_offset=-df,
+        )
+        assert np.any(pr["car.locked"] > 0.5), (
+            f"m={m}: the receiver must DECLARE lock at the alias, or this is "
+            f"not the false lock the test is about"
+        )
+        settle = settle_from(pr)
+        ys = np.ascontiguousarray(
+            y[settle if settle is not None else SETTLE_SYMS :],
+            dtype=np.complex64,
+        )
+        evm = float(ber_evm_db(ys, 0, len(ys), m))
+        m2m4 = float(snr_m2m4_db(ys))
+
+        penalty = evm - good.evm_db
+        penalties.append(penalty)
+        assert penalty < ceiling, (
+            f"m={m}: EVM {evm:.2f} dB under a false lock against "
+            f"{good.evm_db:.2f} honest -- a {penalty:.2f} dB penalty. If the "
+            f"truth-free metrics started catching this, the argument for "
+            f"truth-referenced measurement would be weaker, not stronger"
+        )
+        assert m2m4 > good.m2m4_db - ceiling, (
+            f"m={m}: M2M4 {m2m4:.2f} dB against {good.m2m4_db:.2f} honest"
+        )
+        if settle is not None:
+            assert detect_alignment(y, idx, m, settle) is None, (
+                f"m={m}: an alignment was DETECTED under a false lock -- the "
+                f"stream rotates by 2*pi/{m} per symbol, so this would mean "
+                f"the detector is not doing what its false-alarm gate claims"
+            )
+
+    assert penalties[0] > penalties[1] > penalties[2], (
+        f"the false lock must become HARDER to see as M rises (alias Rs/M): "
+        f"penalties {penalties[0]:.2f} / {penalties[1]:.2f} / "
+        f"{penalties[2]:.2f} dB at M = 2 / 4 / 8"
+    )
+
+
 @pytest.mark.parametrize("m", ORDERS)
 def test_lock_statistic_h0_sd_matches_the_analytic_value(m):
     """The noise-only sd of the lock EMA must be 0.1132 at EVERY order.
@@ -171,7 +279,8 @@ def test_evm_does_not_track_absolute_level(real):
             m_out=m_out,
             freq_offset=freq_offset_inside_bw(0.01, sps),
         )
-        evm, ser, _ = symbol_metrics(y, idx, settle=settle)
+        r = symbol_metrics(y, idx, settle=settle)
+        evm, ser = r.evm_db, r.ser
         evms[scale] = evm
         # A residual SER is not what this test is about (that is the coherent-
         # bound test); it is here only to catch a scale that stops decoding

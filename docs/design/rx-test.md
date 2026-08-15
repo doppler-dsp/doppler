@@ -750,7 +750,7 @@ does not delegate is the map of what remains:
 | 4 run      | direct calls                                 | no output-rate invariant — and none is wanted, §8.5                                   |
 | 5 settle   | `ber_settle_from` + `ber_lock_symbol`        | needs per-symbol lock flags, which come from telemetry rather than the receiver's API |
 | 6 align    | `BerMeter` everywhere                        | closed, §8.5 — `symbol_metrics` searched its own lag until then                       |
-| 7 score    | SER + EVM                                    | **M2M4 never computed**; no FER                                                       |
+| 7 score    | SER + EVM + M2M4, one record                 | closed for the trio, §8.6; no FER until the frame layer                               |
 | 8 enough   | `ser_confidence()` -> `BerMeter.interval()`  | none — correct, and correct for the right reason (below)                              |
 | 9 anchor   | partial                                      | `ber_theory_ser` available; not applied uniformly                                     |
 | 10 report  | test assertions                              | no standard record                                                                    |
@@ -935,6 +935,36 @@ the harness never calls `bits()`.
 The same reading retired a smaller duplicate: `coherent_errors` was computing
 a scoring window past the marker by hand, and `BerMeter.score()` excludes
 marker symbols itself and reports the count in `skipped`.
+
+### 8.6 The trio, and the false lock that proves why
+
+Stage 7 reported SER and EVM; M2M4 was never computed, so the "trio" was two.
+`symbol_metrics` now returns a `SymbolMetrics` record — `evm_db`, `ser`,
+`lag`, `m2m4_db` — from the library's own estimators (`ber_evm_db`,
+`snr_m2m4_db`) over the SAME window, and the seven call sites name the field
+they mean. Two duplicates died on the way: the harness had been recomputing
+EVM in numpy (it agreed with `ber_evm_db` to four decimals, which is what a
+duplicate looks like right up until one of them changes), and the private EVM
+was invisible to `check_stimulus_sources.py` for the same reason the private
+stimulus was — the marker looks for a FUNCTION, and this was inline.
+
+**§2.4's complementarity claim is now a test rather than a paragraph.** A
+stable false lock at `df = k*Rs/M` — the M-th power discriminator sees
+`M*df = k*Rs`, which aliases to zero, so the loop parks — measured at
+Es/N0 15 dB, k = 1:
+
+| M   | alias | EVM honest | EVM false | penalty | M2M4 honest / false | truth-referenced |
+| --- | ----- | ---------- | --------- | ------- | ------------------- | ---------------- |
+| 2   | Rs/2  | -13.43 dB  | -9.88 dB  | 3.56 dB | 12.97 / 11.32       | **refused**      |
+| 4   | Rs/4  | -13.57 dB  | -12.52 dB | 1.05 dB | 13.77 / 12.93       | **refused**      |
+| 8   | Rs/8  | -14.83 dB  | -14.61 dB | 0.21 dB | 14.70 / 14.46       | **refused**      |
+
+The receiver DECLARES LOCK at every order. The alignment refuses at every
+order. And the penalty the truth-free pair does show **shrinks as M rises**,
+because the alias is `Rs/M` and a smaller offset costs less in the front end —
+so the metric that can half-see this at BPSK goes blind exactly where §2.4
+measures the margin already collapsing (5.4 / 3.3 / 2.8 dB between "on the
+bound" and "completely broken"). That is goal 4 in one measurement.
 
 ## 9. Related
 

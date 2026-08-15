@@ -115,11 +115,12 @@ def _measure(real, sps, m_out, bn, nsym, esn0_db=None):
     settle = settle_from(pr, floor=settle_floor(bn, bn))
     if settle is None or len(y) - settle < 200:
         return None
-    evm, ser, lag = symbol_metrics(y, idx, settle=settle)
+    r = symbol_metrics(y, idx, settle=settle)
     return {
-        "evm": evm,
-        "ser": ser,
-        "lag": lag,
+        "evm": r.evm_db,
+        "m2m4": r.m2m4_db,
+        "ser": r.ser,
+        "lag": r.lag,
         "settle": settle,
         "t_lock": lock_symbol(pr["sync.locked"]),
         "c_lock": lock_symbol(pr["car.locked"]),

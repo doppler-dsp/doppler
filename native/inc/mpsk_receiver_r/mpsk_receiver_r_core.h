@@ -418,7 +418,7 @@ extern "C"
    * >>> rx = MpskReceiverR(m=4, sps=10, m_out=2, init_norm_freq=0.25)
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> len(tlm.probe_names)
-   * 13
+   * 14
    * >>> rng = np.random.default_rng(7)
    * >>> idx = rng.integers(0, 4, 512)
    * >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 10)

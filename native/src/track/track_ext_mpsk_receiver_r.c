@@ -98,11 +98,14 @@ MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
     nda_tap = 0;
   else if (strcmp (nda_tap_str, "mf_out") == 0)
     nda_tap = 1;
+  else if (strcmp (nda_tap_str, "mf_in") == 0)
+    nda_tap = 2;
   else
     {
-      PyErr_Format (PyExc_ValueError,
-                    "nda_tap must be one of \"strobe\", \"mf_out\", got '%s'",
-                    nda_tap_str);
+      PyErr_Format (
+          PyExc_ValueError,
+          "nda_tap must be one of \"strobe\", \"mf_out\", \"mf_in\", got '%s'",
+          nda_tap_str);
       return -1;
     }
   self->handle = mpsk_receiver_r_create (
@@ -791,7 +794,7 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     ">>> rx = MpskReceiverR(m=4, sps=10, m_out=2, init_norm_freq=0.25)\n"
     ">>> rx.set_telemetry(tlm, \"rx\")\n"
     ">>> len(tlm.probe_names)\n"
-    "13\n"
+    "14\n"
     ">>> rng = np.random.default_rng(7)\n"
     ">>> idx = rng.integers(0, 4, 512)\n"
     ">>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 10)\n"
@@ -1186,7 +1189,8 @@ static PyTypeObject MpskReceiverRObjType = {
     "by\n"
     "    the POST-decimation rate, so this costs the same at sps=8 and "
     "sps=256.\n"
-    "nda_tap : Literal[\"strobe\", \"mf_out\"], default \"strobe\"\n"
+    "nda_tap : Literal[\"strobe\", \"mf_out\", \"mf_in\"], default "
+    "\"strobe\"\n"
     "    Where the NDA carrier discriminator reads, which sets its pull-in "
     "range\n"
     "    and whether it needs symbol timing at all. An M-th-power detector\n"
@@ -1199,16 +1203,32 @@ static PyTypeObject MpskReceiverRObjType = {
     "reads\n"
     "    every MFR output at m_out*Rs -- m_out times the range and no timing\n"
     "    dependence, paid for with the ISI the between-symbol outputs carry.\n"
-    "    `mf_in` is not offered on the real-input type: it runs at the "
-    "cascade's\n"
-    "    `bank_sps`, which this front end does not publish, and construction\n"
-    "    refuses it rather than falling back to a rate that would mis-size "
+    "    `mf_in` reads the MFR's input: post-MIX, post-DEC, post-AGC, still\n"
+    "    ahead of the matched filter -- already band-limited by DEC's own\n"
+    "    filters and already levelled by the AGC that sits on that exact "
+    "node,\n"
+    "    which is why it needs no Costas arm filter of its own and why none "
+    "is\n"
+    "    provided. Timing-independent, which is the reason to reach for it: "
+    "a\n"
+    "    signal can carry no data modulation for an extended period, and the\n"
+    "    Gardner TED needs transitions. It is NOT the default, because "
+    "measured\n"
+    "    at QPSK/20 dB it reads a lower lock statistic than `strobe` on the\n"
+    "    real-input type at every geometry tried (0.78/0.64/0.74/0.62 "
+    "against\n"
+    "    0.90/0.95/0.95/0.89 at sps 16/32/64/128) -- and `strobe` was "
+    "measured\n"
+    "    to acquire with the modulation removed anyway. Its update rate is "
     "the\n"
-    "    loop. Fixed at construction: nothing switches underneath you. If "
-    "you\n"
-    "    need more range than any tap gives, put a coarse frequency estimate "
-    "in\n"
-    "    front and pass it as init_norm_freq.\n"
+    "    cascade's `bank_sps`, a planner outcome rather than a construction\n"
+    "    constant, so its pull-in ceiling moves with your rate ratio. Fixed "
+    "at\n"
+    "    construction: nothing switches underneath you. If you need more "
+    "range\n"
+    "    than any tap gives, put a coarse frequency estimate in front and "
+    "pass\n"
+    "    it as init_norm_freq.\n"
     "agc : int, default 1\n"
     "    Level the front-end cascade so the timing detector's construct-time\n"
     "    slope means what it says. The TED normalises by its OWN slope and\n"

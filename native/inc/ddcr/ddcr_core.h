@@ -434,8 +434,21 @@ extern "C"
    * The halfband gates the whole call: on the inputs it swallows there is no
    * LO step and no cascade push, so @p n_lo and @p n_pre both come back 0.
    *
-   * @param pre_out  Receives the MFR-input sample; may be NULL.
-   * @param n_pre    Receives 1 if @p pre_out was written, else 0; may be NULL.
+   * @param s         Must be non-NULL.
+   * @param x          One real input sample.
+   * @param rate_ctrl  Rate deviation for this input (terminal-stage rate).
+   * @param freq_ctrl  Frequency deviation, cycles/sample at the LO's own
+   *                   (halved) intermediate rate.
+   * @param out        Output buffer for any emitted outputs.
+   * @param max_out    Capacity of @p out.
+   * @param lo_out     Receives the post-LO, pre-cascade sample when @p n_lo
+   *                   comes back 1. May be NULL.
+   * @param n_lo       Receives 1 when the halfband emitted and the LO
+   *                   stepped, else 0. May be NULL.
+   * @param pre_out    Receives the MFR-input sample; may be NULL.
+   * @param n_pre      Receives 1 if @p pre_out was written, else 0; may be
+   *                   NULL.
+   * @return Number of terminal outputs written.
    */
   size_t ddcr_execute_ctrl_push_tap2 (ddcr_state_t *s, float x,
                                       double rate_ctrl, double freq_ctrl,

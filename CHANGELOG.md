@@ -15,6 +15,19 @@ ______________________________________________________________________
 
 ### Added
 
+- **just-makeit pin 0.60.1 → 0.60.2.** Pure bugfix upstream, and three of the
+    four fixes are about doppler's own wiring report — this repo is where they
+    were found. `jm status` now reads
+    `add_library(NAME SHARED|STATIC $<TARGET_OBJECTS:X>)`, which is how
+    `libdoppler_stream{,_static}` gets its cores, so a core shipped in a
+    library other than `doppler_lib` is no longer reported UNWIRED
+    (just-buildit/just-makeit#991). It also validates wiring keys in
+    `status_allow` instead of skipping them: a `CMakeLists.txt:<core>` entry is
+    a FINDING key, not a path, and 0.60.1 called those exemptions stale while
+    printing `[status_allow]` beside the finding they were suppressing — advice
+    that pointed at the blanket `CMakeLists.txt` spelling gh-984 exists to
+    avoid.
+
 - **A frame is now a waveform property, not a DSSS one.** `--acq-code` /
     `--acq-reps` / `--sync` / `--crc` describe the bit layout
     `[preamble x reps | sync | payload | CRC-16]`, and they now reach the

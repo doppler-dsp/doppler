@@ -68,6 +68,14 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
                                     float complex *out, size_t max_out,
                                     float complex *lo_out, int *n_lo);
 
+  size_t ddc_execute_ctrl_push_tap2 (ddc_state_t *state, float complex x,
+                                     double rate_ctrl, double freq_ctrl,
+                                     float complex *out, size_t max_out,
+                                     float complex *lo_out, int *n_lo,
+                                     float complex *pre_out, int *n_pre);
+
+  double ddc_get_bank_sps (const ddc_state_t *state);
+
   bool ddc_get_narrow_pulse (const ddc_state_t *state);
 
 bool ddc_get_clipped(const ddc_state_t *state);

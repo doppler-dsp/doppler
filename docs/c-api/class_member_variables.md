@@ -510,6 +510,7 @@
 * **p2\_dbfs** ([**imd\_meas\_t**](structimd__meas__t.md))
 * **pwr** ([**imdmeas\_state\_t**](structimdmeas__state__t.md), [**nprmeas\_state\_t**](structnprmeas__state__t.md), [**psd\_state\_t**](structpsd__state__t.md), [**specan\_state\_t**](structspecan__state__t.md), [**tonemeas\_state\_t**](structtonemeas__state__t.md))
 * **phase\_inc** ([**lo\_state\_t**](structlo__state__t.md), [**nco\_state\_t**](structnco__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
+* **pre\_sps** ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md))
 * **prev\_idx** ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md))
 * **poly** ([**pn\_state\_t**](structpn__state__t.md), [**wfm\_seq\_t**](structwfm__seq__t.md))
 * **prev\_on** ([**ratesync\_loop\_t**](structratesync__loop__t.md))

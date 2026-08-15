@@ -84,8 +84,10 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 |  size\_t | [**RateConverter\_execute\_ctrl\_max\_out**](#function-rateconverter_execute_ctrl_max_out) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_As_ [_**RateConverter\_execute\_max\_out()**_](RateConverter__core_8h.md#function-rateconverter_execute_max_out) _, for the block control form._ |
 |  size\_t | [**RateConverter\_execute\_ctrl\_push**](#function-rateconverter_execute_ctrl_push) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, float \_Complex x, double ctrl, float \_Complex \* out, size\_t max\_out) <br>_Push ONE input sample; emit whatever outputs it completes._  |
 |  size\_t | [**RateConverter\_execute\_ctrl\_push\_max\_out**](#function-rateconverter_execute_ctrl_push_max_out) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Bound for ONE pushed input:_ `ceil(rate) + 1` _output periods. Non-zero because the push form has no input block to size from._ |
+|  size\_t | [**RateConverter\_execute\_ctrl\_push\_tap**](#function-rateconverter_execute_ctrl_push_tap) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, float \_Complex x, double ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* pre\_out, int \* n\_pre) <br>[_**RateConverter\_execute\_ctrl\_push()**_](RateConverter__core_8h.md#function-rateconverter_execute_ctrl_push) _, also emitting the PRE-TERMINAL sample — the cascade's output after every integer stage and after the AGC, but before the terminal matched filter._ |
 |  size\_t | [**RateConverter\_execute\_max\_out**](#function-rateconverter_execute_max_out) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Upper bound on execute output for a standard 65536-sample block._  |
 |  double | [**RateConverter\_gain**](#function-rateconverter_gain) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_The cascade's response to a constant input, from its stages' own coefficients — computed, never measured._  |
+|  double | [**RateConverter\_get\_bank\_sps**](#function-rateconverter_get_bank_sps) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Samples per symbol on the terminal stage's grid — the rate the pre-terminal tap runs at._  |
 |  bool | [**RateConverter\_get\_clipped**](#function-rateconverter_get_clipped) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Has any planned CIC stage clipped its input since the last reset?_  |
 |  bool | [**RateConverter\_get\_narrow\_pulse**](#function-rateconverter_get_narrow_pulse) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Is this converter's rectangular matched filter degenerately narrow?_  |
 |  double | [**RateConverter\_get\_rate**](#function-rateconverter_get_rate) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. Setting rate &lt;= 0 is silently ignored._  |
@@ -744,6 +746,61 @@ size_t RateConverter_execute_ctrl_push_max_out (
 
 
 
+### function RateConverter\_execute\_ctrl\_push\_tap 
+
+[_**RateConverter\_execute\_ctrl\_push()**_](RateConverter__core_8h.md#function-rateconverter_execute_ctrl_push) _, also emitting the PRE-TERMINAL sample — the cascade's output after every integer stage and after the AGC, but before the terminal matched filter._
+```C++
+size_t RateConverter_execute_ctrl_push_tap (
+    RateConverter_state_t * s,
+    float _Complex x,
+    double ctrl,
+    float _Complex * out,
+    size_t max_out,
+    float _Complex * pre_out,
+    int * n_pre
+) 
+```
+
+
+
+This is the tap a non-data-aided carrier discriminator wants, and it is the reason this variant exists (see docs/design/mpsk.md §3.3). It is already band-limited by the cascade's own decimation filters and already levelled by the AGC that sits on this exact node, yet it is ahead of the matched filter — so reading it needs no symbol timing, and it carries none of the matched filter's group delay or its between-symbol ISI.
+
+
+The rate is `bank_sps` samples per symbol, a planner outcome: read it with [**RateConverter\_get\_bank\_sps()**](RateConverter__core_8h.md#function-rateconverter_get_bank_sps) rather than assuming it. A consumer wanting a fixed clock decimates this stream itself.
+
+
+A non-terminal stage swallows inputs between its decimation strobes, so `n_pre` is 0 on those calls — exactly as the return value is.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+* `x` One input sample. 
+* `ctrl` Fractional-rate control for the terminal stage. 
+* `out` Terminal outputs. 
+* `max_out` Capacity of `out`. 
+* `pre_out` Receives the pre-terminal sample; may be NULL. 
+* `n_pre` Receives 1 if `pre_out` was written, else 0; may be NULL. 
+
+
+
+**Returns:**
+
+Number of terminal outputs written, as the non-tap form. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function RateConverter\_execute\_max\_out 
 
 _Upper bound on execute output for a standard 65536-sample block._ 
@@ -805,6 +862,26 @@ printf ("%.4f\n", RateConverter_gain (rc));   // 1.0000
 RateConverter_destroy (rc);
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function RateConverter\_get\_bank\_sps 
+
+_Samples per symbol on the terminal stage's grid — the rate the pre-terminal tap runs at._ 
+```C++
+double RateConverter_get_bank_sps (
+    const RateConverter_state_t * s
+) 
+```
+
+
+
+A planner outcome, not a constant: `bank_sps = pulse_sps / resamp_rate` for whatever integer decimation the plan chose, so it depends on the caller's rate ratio. Reported for the same reason RateConverter::stages is — a caller who can read back what was planned can check it. 
 
 
         

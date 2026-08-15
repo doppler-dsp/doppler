@@ -144,7 +144,8 @@ extern "C"
   {
     MPSK_RX_NDA_TAP_STROBE = 0,
     MPSK_RX_NDA_TAP_MF_ALL = 1,
-    MPSK_RX_NDA_TAP_LO_ARM = 2
+    MPSK_RX_NDA_TAP_LO_ARM = 2,
+    MPSK_RX_NDA_TAP_PRETERM = 3
   };
 
 /* Free-running arm window for MPSK_RX_NDA_TAP_LO_ARM, as a fraction of a
@@ -180,6 +181,7 @@ extern "C"
     int    m;          
     double sps;        
     double lo_sps;     
+    double pre_sps;    
     size_t m_out;      
     double bn_carrier; 
     double bn_agc_ratio; 
@@ -218,6 +220,8 @@ extern "C"
       return (double)l->m_out;
     if (l->nda_tap == MPSK_RX_NDA_TAP_LO_ARM)
       return l->lo_sps;
+    if (l->nda_tap == MPSK_RX_NDA_TAP_PRETERM)
+      return l->pre_sps;
     return 1.0;
   }
 
@@ -263,6 +267,14 @@ extern "C"
     if (l->nda_tap != MPSK_RX_NDA_TAP_LO_ARM)
       return;
     mpsk_rx_disc (l, boxcar_step (&l->arm, z));
+  }
+
+  JM_FORCEINLINE JM_HOT void
+  mpsk_rx_push_preterm (mpsk_rx_loops_t *l, float complex z)
+  {
+    if (l->nda_tap != MPSK_RX_NDA_TAP_PRETERM)
+      return;
+    mpsk_rx_disc (l, z);
   }
 
   JM_FORCEINLINE JM_HOT int

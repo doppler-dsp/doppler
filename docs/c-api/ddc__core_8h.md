@@ -83,7 +83,9 @@ _Digital Down-Converter — composes LO + RateConverter cascade._ [More...](#det
 |  size\_t | [**ddc\_execute\_ctrl\_push**](#function-ddc_execute_ctrl_push) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, float complex x, double rate\_ctrl, double freq\_ctrl, float complex \* out, size\_t max\_out) <br>_Push ONE input sample; emit whatever outputs it completes._  |
 |  size\_t | [**ddc\_execute\_ctrl\_push\_max\_out**](#function-ddc_execute_ctrl_push_max_out) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br> |
 |  size\_t | [**ddc\_execute\_ctrl\_push\_tap**](#function-ddc_execute_ctrl_push_tap) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, float complex x, double rate\_ctrl, double freq\_ctrl, float complex \* out, size\_t max\_out, float complex \* lo\_out, int \* n\_lo) <br>[_**ddc\_execute\_ctrl\_push()**_](ddc__core_8h.md#function-ddc_execute_ctrl_push) _that also hands back the post-LO sample._ |
+|  size\_t | [**ddc\_execute\_ctrl\_push\_tap2**](#function-ddc_execute_ctrl_push_tap2) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, float complex x, double rate\_ctrl, double freq\_ctrl, float complex \* out, size\_t max\_out, float complex \* lo\_out, int \* n\_lo, float complex \* pre\_out, int \* n\_pre) <br>[_**ddc\_execute\_ctrl\_push\_tap()**_](ddc__core_8h.md#function-ddc_execute_ctrl_push_tap) _, plus the PRE-TERMINAL tap._ |
 |  size\_t | [**ddc\_execute\_max\_out**](#function-ddc_execute_max_out) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, size\_t x\_len) <br>_Maximum output samples one execute() of x\_len inputs can produce._  |
+|  double | [**ddc\_get\_bank\_sps**](#function-ddc_get_bank_sps) (const [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br>_Samples per symbol of the pre-terminal tap; a planner outcome._  |
 |  bool | [**ddc\_get\_clipped**](#function-ddc_get_clipped) (const [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br>_Has the cascade's CIC clipped its input since the last reset?_  |
 |  bool | [**ddc\_get\_narrow\_pulse**](#function-ddc_get_narrow_pulse) (const [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br>_Is this object's rectangular matched filter degenerately narrow?_  |
 |  double | [**ddc\_get\_norm\_freq**](#function-ddc_get_norm_freq) (const [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br>_Return the current LO normalised frequency (cycles/sample)._  |
@@ -638,6 +640,82 @@ Number of terminal outputs written (0, 1, or more).
 
 
 
+### function ddc\_execute\_ctrl\_push\_tap2 
+
+[_**ddc\_execute\_ctrl\_push\_tap()**_](ddc__core_8h.md#function-ddc_execute_ctrl_push_tap) _, plus the PRE-TERMINAL tap._
+```C++
+size_t ddc_execute_ctrl_push_tap2 (
+    ddc_state_t * state,
+    float complex x,
+    double rate_ctrl,
+    double freq_ctrl,
+    float complex * out,
+    size_t max_out,
+    float complex * lo_out,
+    int * n_lo,
+    float complex * pre_out,
+    int * n_pre
+) 
+```
+
+
+
+Two taps, at the two points a carrier discriminator can read without symbol timing, and they are not equivalent:
+
+
+
+|tap   |where   |cost    |
+|-----|-----|-----|
+|`lo_out`   |post-LO, pre-cascade   |full input noise BW    |
+|`pre_out`   |post-cascade, post-AGC, pre-MF   |none of the above   |
+
+
+
+
+
+
+`pre_out` is the better-conditioned of the two for the reasons docs/design/mpsk.md §3.3 gives: the cascade's own filters have already band-limited it and the AGC has already levelled it, so a half-symbol arm filter bolted onto `lo_out` is a hand-rolled approximation of what this node gives for free. Its rate is [**ddc\_get\_bank\_sps()**](ddc__core_8h.md#function-ddc_get_bank_sps) samples per symbol.
+
+
+
+
+**Note:**
+
+"Better conditioned" is not "more accurate", and the distinction is measured rather than assumed. native/validation/rx\_nda\_tap.c finds no residual-frequency-error advantage for this node over the symbol-rate strobe — three taps carrying one loop bandwidth over one signal settle to the same jitter. What it buys is a usable discriminator with no symbol timing and no arm filter; see doppler#766 for the pull-in-range question that would actually separate them.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `x` One CF32 input sample. 
+* `rate_ctrl` Rate deviation for this input (terminal-stage rate). 
+* `freq_ctrl` Frequency deviation for this input, cycles/sample at the input rate. 
+* `out` Output buffer for any emitted outputs. 
+* `max_out` Capacity of `out` (emission stops at this bound). 
+* `lo_out` Receives the post-LO, pre-cascade sample when `n_lo` comes back 1. May be NULL. 
+* `n_lo` Receives 1 (this front end mixes every input, so always 1 here). May be NULL. 
+* `pre_out` Receives the pre-terminal sample; may be NULL. 
+* `n_pre` Receives 1 if `pre_out` was written, else 0; may be NULL. A non-terminal stage swallows inputs between its decimation strobes, so this is 0 on those calls. 
+
+
+
+**Returns:**
+
+Number of terminal outputs written (0, 1, or more). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function ddc\_execute\_max\_out 
 
 _Maximum output samples one execute() of x\_len inputs can produce._ 
@@ -672,6 +750,22 @@ x\_len (a safe upper bound on the produced samples).
 
 
         
+
+<hr>
+
+
+
+### function ddc\_get\_bank\_sps 
+
+_Samples per symbol of the pre-terminal tap; a planner outcome._ 
+```C++
+double ddc_get_bank_sps (
+    const ddc_state_t * state
+) 
+```
+
+
+
 
 <hr>
 

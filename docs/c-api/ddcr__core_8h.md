@@ -626,8 +626,23 @@ The halfband gates the whole call: on the inputs it swallows there is no LO step
 **Parameters:**
 
 
+* `s` Must be non-NULL. 
+* `x` One real input sample. 
+* `rate_ctrl` Rate deviation for this input (terminal-stage rate). 
+* `freq_ctrl` Frequency deviation, cycles/sample at the LO's own (halved) intermediate rate. 
+* `out` Output buffer for any emitted outputs. 
+* `max_out` Capacity of `out`. 
+* `lo_out` Receives the post-LO, pre-cascade sample when `n_lo` comes back 1. May be NULL. 
+* `n_lo` Receives 1 when the halfband emitted and the LO stepped, else 0. May be NULL. 
 * `pre_out` Receives the MFR-input sample; may be NULL. 
 * `n_pre` Receives 1 if `pre_out` was written, else 0; may be NULL. 
+
+
+
+**Returns:**
+
+Number of terminal outputs written. 
+
 
 
 

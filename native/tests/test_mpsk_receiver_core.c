@@ -330,14 +330,21 @@ main (void)
     int id_agc_gain = dp_tlm_probe_id (tlm, "rx.agc.gain_db");
     int id_agc_lvl  = dp_tlm_probe_id (tlm, "rx.agc.level_db");
     DP_CHECK (id_agc_gain >= 0 && id_agc_lvl >= 0);
-    DP_CHECK (dp_tlm_probe_count (tlm) == 13);
+    /* 14 with the AGC pair: lock, tracking, car(e, freq, nco, locked),
+       sync(e, ctrl, rate, lock, locked, mu), agc(gain_db, level_db).
+       `car.nco` is the SUM driving the LO; `car.freq` is the integrator
+       alone. Both are published because on a ramp they differ by the
+       proportional term, and only the sum is the applied frequency. */
+    DP_CHECK (dp_tlm_probe_id (tlm, "rx.car.nco") >= 0);
+    DP_CHECK (dp_tlm_probe_count (tlm) == 14);
 
     size_t n_sym = mpsk_receiver_steps (a, tx, 512, out, 80);
     DP_CHECK (n_sym > 0);
     dp_tlm_rec_t recs[2048];
     size_t       n_rec = dp_tlm_read (tlm, 2048, recs, 2048);
-    /* lock + tracking + car(e,freq,locked) + sync(e,ctrl,rate,lock,locked,mu):
-     * eleven records per recovered symbol, all flushed at the strobe. The arm
+    /* lock + tracking + car(e,freq,nco,locked) + sync(e,ctrl,rate,lock,
+     * locked,mu): twelve records per recovered symbol, all flushed at the
+     * strobe. The arm
      * AGC is not attached -- it is an internal normaliser on the
      * discriminator's input, not a receiver diagnostic. The FRONT-END AGC is,
      * and it is deliberately NOT on the symbol grid: it sits pre-terminal in
@@ -351,7 +358,7 @@ main (void)
     DP_CHECK (n_agc > 0);          /* the forward actually reaches the AGC */
     DP_CHECK (n_agc % 2 == 0);     /* both probes emit together, always    */
     DP_CHECK (n_agc / 2 != n_sym); /* a cascade grid, not the symbol grid  */
-    DP_CHECK (n_rec == 11 * n_sym + n_agc);
+    DP_CHECK (n_rec == 12 * n_sym + n_agc);
 
     /* `mu` is the timing NCO's phase, so it is a FRACTION: every record must
        land in [0, 1) whatever the loop is doing, and it must actually vary
@@ -447,7 +454,7 @@ main (void)
     if (noagc && tlm4)
       {
         DP_CHECK (mpsk_receiver_set_telemetry (noagc, tlm4, "rx", 1) == DP_OK);
-        DP_CHECK (dp_tlm_probe_count (tlm4) == 11);
+        DP_CHECK (dp_tlm_probe_count (tlm4) == 12); /* 14 less the AGC pair */
         DP_CHECK (dp_tlm_probe_id (tlm4, "rx.agc.gain_db") < 0);
       }
     dp_tlm_destroy (tlm4);

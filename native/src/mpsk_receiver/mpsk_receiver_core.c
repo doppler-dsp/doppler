@@ -163,6 +163,8 @@ mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l)
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_tracking, (double)l->tracking);
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_e, l->car_error);
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_freq, mpsk_rx_freq_est (l));
+  /* Receiver convention: the front end holds the conjugate. */
+  dp_tlm_emit (l->tlm.ctx, l->tlm.id_nco, -l->freq_ctrl);
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_locked, (double)l->car_lock.locked);
   ratesync_loop_tlm_flush (&l->timing);
 }
@@ -187,9 +189,17 @@ mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
   int id_e = dp_tlm_probe (tlm, name, decim);
   (void)snprintf (name, sizeof (name), "%s.car.freq", p);
   int id_freq = dp_tlm_probe (tlm, name, decim);
+  /* The command that actually drives the LO -- integ + kp*e, not the
+     integrator alone. That sum is the frequency the receiver is APPLYING and
+     is what a consumer watching a Doppler profile wants; `car.freq` is the
+     integrator, i.e. the frequency MEMORY that survives a handover, and on a
+     ramp the two differ by exactly the proportional term. Publishing only the
+     integrator made a correctly-tracking loop look like it was lagging. */
+  (void)snprintf (name, sizeof (name), "%s.car.nco", p);
+  int id_nco = dp_tlm_probe (tlm, name, decim);
   (void)snprintf (name, sizeof (name), "%s.car.locked", p);
   int id_locked = dp_tlm_probe (tlm, name, decim);
-  if (id_lock < 0 || id_tracking < 0 || id_e < 0 || id_freq < 0
+  if (id_lock < 0 || id_tracking < 0 || id_e < 0 || id_freq < 0 || id_nco < 0
       || id_locked < 0)
     return DP_ERR_INVALID;
   /* Forward to the timing loop under "<prefix>.sync"; if it fails the whole
@@ -202,6 +212,7 @@ mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
   l->tlm.id_tracking = id_tracking;
   l->tlm.id_e        = id_e;
   l->tlm.id_freq     = id_freq;
+  l->tlm.id_nco      = id_nco;
   l->tlm.id_locked   = id_locked;
   l->tlm.ctx         = tlm; /* set last: emit sites gate on ctx */
   return DP_OK;

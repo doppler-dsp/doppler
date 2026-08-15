@@ -41,6 +41,7 @@ _Telemetry attachment for the receiver's own two probes; the timing and carrier 
 |  int32\_t | [**id\_freq**](#variable-id_freq)  <br> |
 |  int32\_t | [**id\_lock**](#variable-id_lock)  <br> |
 |  int32\_t | [**id\_locked**](#variable-id_locked)  <br> |
+|  int32\_t | [**id\_nco**](#variable-id_nco)  <br> |
 |  int32\_t | [**id\_tracking**](#variable-id_tracking)  <br> |
 
 
@@ -135,7 +136,7 @@ int32_t mpsk_rx_tlm_t::id_freq;
 
 
 
-"&lt;prefix&gt;.car.freq" — tracked carrier 
+"&lt;prefix&gt;.car.freq" — integrator only 
  
 
 
@@ -171,6 +172,24 @@ int32_t mpsk_rx_tlm_t::id_locked;
 
 
 "&lt;prefix&gt;.car.locked" — lockdet flag 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable id\_nco 
+
+```C++
+int32_t mpsk_rx_tlm_t::id_nco;
+```
+
+
+
+"&lt;prefix&gt;.car.nco" — the SUM that actually drives the LO 
  
 
 

@@ -1192,6 +1192,85 @@ test_matched_recovers_symbols (void)
 }
 
 static void
+test_pre_terminal_tap_on_a_cascade_with_no_fractional_tail (void)
+{
+  /* The pre-terminal tap has two code paths and only one of them runs on a
+     matched cascade: MpskReceiver always plans a fractional terminal stage,
+     so its `preterm` validator never reaches the branch taken when the last
+     stage is an integer decimator. A plain cascade at an integer rate is the
+     shape that does, and the branch is the one where the AGC tap does NOT
+     apply — the pre-terminal sample is the integer cascade's output as it
+     stands.
+
+     The invariant that makes it checkable: with a SINGLE stage there is no
+     earlier stage to run, so `cur` is still the input and the tap must hand
+     back exactly the sample that went in. Anything else means the tap is
+     reading the wrong node.
+
+     A power-of-two rate is what plans an integer tail: 1/12 gets a
+     Resampler(1.3333) and would make this test vacuous. 0.25 is two
+     halfbands, so it also covers the case where a non-terminal stage swallows
+     the input between its decimation strobes and the tap correctly does NOT
+     fire. */
+  static const double rates[] = { 0.5, 0.25, 0.125, 1.0 / 32.0 };
+  for (size_t rc_i = 0; rc_i < 2 * (sizeof rates / sizeof *rates); rc_i++)
+    {
+      size_t r    = rc_i / 2;
+      int    comp = (int)(rc_i % 2); /* comp=1 adds the CIC's FIR trim */
+      RateConverter_state_t *a = RateConverter_create (rates[r], comp);
+      RateConverter_state_t *b = RateConverter_create (rates[r], comp);
+      DP_CHECK (a && b);
+      if (!a || !b)
+        {
+          RateConverter_destroy (a);
+          RateConverter_destroy (b);
+          continue;
+        }
+      /* Non-vacuity: this test means nothing if the planner gave us a
+         fractional tail after all, so say so rather than passing quietly. */
+      DP_CHECK (a->n_stages > 0);
+      DP_CHECK (a->stage_types[a->n_stages - 1] != RC_STAGE_RESAMP);
+
+      {
+        int    saw_tap = 0;
+        size_t single  = (a->n_stages == 1);
+        for (int i = 0; i < 512; i++)
+          {
+            float _Complex x = (float)(0.5 * cos (0.031 * i))
+                               + (float)(0.5 * sin (0.017 * i)) * I;
+            float _Complex ya[4], yb[4], pre = 12345.0f;
+            int    n_pre = -1;
+            size_t na = RateConverter_execute_ctrl_push_tap (a, x, 0.0, ya, 4,
+                                                             &pre, &n_pre);
+            /* The NULL-tap wrapper must be the same filter: same outputs,
+               and no crash when the tap pointers are absent. */
+            size_t nb = RateConverter_execute_ctrl_push (b, x, 0.0, yb, 4);
+            DP_CHECK (na == nb);
+            for (size_t k = 0; k < na; k++)
+              DP_CHECK (ya[k] == yb[k]);
+
+            DP_CHECK (n_pre == 0 || n_pre == 1);
+            /* A terminal output cannot exist without the terminal stage
+               having run, so an emission implies the tap fired. */
+            if (na > 0)
+              DP_CHECK (n_pre == 1);
+            if (n_pre == 1)
+              {
+                saw_tap = 1;
+                if (single)
+                  DP_CHECK (pre == x);
+              }
+            else
+              DP_CHECK (pre == 12345.0f); /* untouched when it did not fire */
+          }
+        DP_CHECK (saw_tap);
+      }
+      RateConverter_destroy (a);
+      RateConverter_destroy (b);
+    }
+}
+
+static void
 test_matched_push_equals_block (void)
 {
   /* The per-input streaming form is the one a closed loop can use; it has to
@@ -1424,6 +1503,7 @@ main (void)
   test_matched_recovers_symbols ();
   test_matched_cascade_returns_the_symbol_amplitude ();
   test_matched_push_equals_block ();
+  test_pre_terminal_tap_on_a_cascade_with_no_fractional_tail ();
   test_agc_is_off_unless_asked_and_needs_a_pulse ();
   test_agc_telemetry_forwards_and_survives_a_replan ();
   test_agc_delivers_unit_symbol_amplitude ();

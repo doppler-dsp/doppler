@@ -15,6 +15,25 @@ ______________________________________________________________________
 
 ### Added
 
+- **A frame is now a waveform property, not a DSSS one.** `--acq-code` /
+    `--acq-reps` / `--sync` / `--crc` describe the bit layout
+    `[preamble x reps | sync | payload | CRC-16]`, and they now reach the
+    samples for `--type bits` (with `--modulation bpsk|qpsk`) on all three
+    faces — the `wfmgen` CLI, `doppler.wfm.Synth`, and `Segment`/`Composer` —
+    through the one construction path they already share. The layout comes from
+    `wfm_frame_bits()`, the same descriptor the DSSS assembler and the receiver
+    read, so TX and RX cannot drift.
+
+    The frame **cycles** to fill the requested length, exactly as a plain
+    pattern does: one description yields a multi-frame record and the repeat
+    count stays out of the descriptor. (A DSSS burst keeps its intrinsic
+    length.)
+
+    `--record` carries the frame for an unspread source too, so `--from-file`
+    rebuilds it byte for byte. `add_dsss_fields` was type-gated in both
+    directions, which meant a framed `bits` record wrote no frame at all and
+    then read back as a different waveform from a file that looked complete.
+
 - **The named starter frame set, and one receiver measured end to end on it.**
     `native/tests/dp_frame_test.h` ships the five frames of the design's §7.4 —
     `RX_FRAME_NONE` / `BURST` / `CONT` / `GOLD` / `ACQ` — as `wfm_frame_t`
@@ -195,6 +214,16 @@ ______________________________________________________________________
     tightly from 12 dB up — where every EVM assertion in the tree actually
     runs — with the flattery pinned separately as its own monotone property.
 
+### Breaking
+
+- **Frame flags on a waveform that cannot carry one now REFUSE instead of
+    being silently ignored.** `--type bpsk|qpsk|pn` (and the Python
+    equivalents) source their symbols from the PN LFSR, so there is no length
+    to bound a payload; they now exit 2 with a message naming the replacement,
+    where before they exited 0 and produced an unframed waveform. `--type bits`
+    with frame flags but no `--bits` refuses for the same reason. This is the
+    defect being fixed, not a new restriction — see below.
+
 ### Changed
 
 - **One SNR conversion, not two.** `wfm_snr_over_fs()` (the composer's
@@ -210,6 +239,42 @@ ______________________________________________________________________
     The arithmetic now lives once, as `wfm_synth_snr_over_fs()` beside the
     generator that owns it, with `wfm_synth_bps()` for the bits-per-symbol rule
     both callers need. What legitimately differs stays an ARGUMENT rather than
+
+- **`wfmgen`, `Synth` and `Segment` silently ignored the frame flags for every
+    unspread type** ([#755](https://github.com/doppler-dsp/doppler/issues/755)).
+    They were parsed, stored in `wfm_source_t` and readable back — `s.sync`
+    returned the sync word — and applied only on `type="dsss"`. Measured before
+    the fix:
+
+    ```console
+    $ wfmgen --type bpsk --sync 1111100110101 --crc crc16 \
+             --acq-code 10101010 --acq-reps 4 --count 256 --output a.dat
+    $ wfmgen --type bpsk --count 256 --output b.dat
+    $ cmp a.dat b.dat && echo IDENTICAL
+    IDENTICAL
+    ```
+
+    So a caller who asked for a framed waveform got an unframed one, at exit 0,
+    with no warning — a plausible result from a state nobody can defend, which
+    is the exact failure `docs/design/rx-test.md` exists to stop.
+
+    One gate caused it (`wfm_synth_bridge.c`'s `if (src->type !=   WFM_SYNTH_DSSS) return 0;`) and nothing else consumed the fields. **What
+    let it ship is that no test asserted a frame kwarg CHANGES the waveform** —
+    the DSSS path was covered and the unspread path had nothing to be wrong
+    about, because nothing looked. The recurrence gate is therefore
+    behavioural, at each face: `test_wfm_compose.c` checks the framed stream IS
+    `wfm_frame_bits()` of its own descriptor symbol for symbol,
+    `test_frame_source.py` checks the composer, the CLI and the record
+    round-trip, `test_wfm_synth.py` checks `Synth`, and the flag matrix pins a
+    framed `bits` record. Four sabotages, each red on target: reverting the
+    attach, silencing the record emitter, silencing the reader, and removing
+    the refusal.
+
+    `crc` is deliberately NOT read as intent to frame — it defaults to `crc16`
+    on every source, so doing so would have appended a trailer to every
+    unframed pattern anyone has ever generated. A preamble or a sync word is
+    what says "framed".
+
     a second formula: the composer resolves `auto` to Es/No for a DSSS source
     and passes the true symbol span, while the generator resolves the same
     source to fs because at `create()` time the codes have not attached yet and

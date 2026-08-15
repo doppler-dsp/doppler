@@ -77,6 +77,48 @@ it is attached with `set_symbols()` after construction. See the
 
 ______________________________________________________________________
 
+## Framing — preamble, sync word, CRC
+
+`--acq-code` / `--sync` / `--crc` describe a frame's **bit layout**:
+
+```text
+[ preamble x acq-reps | sync | payload | CRC-16 ]
+```
+
+Setting `--acq-code` **or** `--sync` is what makes a source framed. `--crc` on
+its own does not — it defaults to `crc16`, so treating it as intent would put a
+trailer on every plain bit pattern ever generated.
+
+For `--type bits` the payload is `--bits*` and `--modulation` maps it to BPSK or
+QPSK, so a framed unspread waveform is one command:
+
+```sh
+wfmgen --type bits --modulation bpsk --bits 10110010 \
+       --acq-code 10101010 --acq-reps 4 --sync 1111100110101 --crc crc16 \
+       --sps 4 --count 8192 -o framed.cf32
+```
+
+The frame then **cycles** to fill `--count`, exactly as a plain pattern does —
+so one description yields a multi-frame record and the repeat count stays out
+of the frame. (A `dsss` burst is the exception: its length is intrinsic and
+`--count` is derived.)
+
+A frame needs a payload, so the types whose symbols come from the PN LFSR —
+`bpsk`, `qpsk`, `pn` — **refuse** these flags and name the replacement rather
+than ignoring them. Until [gh-755](https://github.com/doppler-dsp/doppler/issues/755)
+the whole unspread path ignored them silently, producing an unframed waveform
+at exit 0; that is why the refusal is loud.
+
+The same keywords work on the Python `Synth` and `Segment`
+(`sync=`, `acq_code=`, `acq_reps=`, `crc=`), and `--record` carries them, so
+`--from-file` rebuilds the framed waveform byte for byte.
+
+The layout is one C descriptor (`native/inc/wfm/wfm_frame.h`) read by the
+generator that builds it and the measurer that scores it — see
+[Receiver Test Harness](../../design/rx-test.md) §7.
+
+______________________________________________________________________
+
 ## DSSS — two-code spread-spectrum bursts
 
 A `dsss` waveform is a complete **direct-sequence spread-spectrum burst** —

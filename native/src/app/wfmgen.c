@@ -322,6 +322,17 @@ static const char USAGE[]
       "                    --sps, cycled, and RRC-shaped with --pulse rrc.\n"
       "                    Generalises any modulation (pi/4-QPSK, QAM, ...).\n"
       "\n"
+      "FRAMING  (--type bits, and --type dsss below)\n"
+      "  --acq-code/--sync describe a FRAME:\n"
+      "      [preamble x acq-reps | sync | payload | CRC-16]\n"
+      "  and setting either one is what frames the waveform (--crc alone\n"
+      "  does not -- it defaults to crc16). For --type bits the payload is\n"
+      "  --bits/--bits-hex/--bits-file and --modulation maps it to BPSK or\n"
+      "  QPSK; the frame then CYCLES to fill --count, so one description\n"
+      "  gives a multi-frame record. A frame needs an explicit payload, so\n"
+      "  --type bpsk/qpsk/pn (whose symbols come from the PN LFSR) refuse\n"
+      "  these flags rather than ignoring them.\n"
+      "\n"
       "DSSS BURST  (--type dsss)\n"
       "  One burst = an unmodulated repeated preamble (code A) followed by\n"
       "  the frame [sync | payload | CRC-16], every frame bit spread by a\n"
@@ -1224,6 +1235,26 @@ check_continuous_dsss (const wfmgen_opts_t *o)
   return 0;
 }
 
+/**
+ * @brief Refuse a frame this waveform type cannot carry — with the reason.
+ *
+ * The rule itself is `wfm_source_frame_error()`, shared with the standalone
+ * Synth and the composer so all three faces answer identically. What this adds
+ * is the CLI's half of the contract: a named exit code and the reason on
+ * stderr, rather than the generic build failure a NULL from
+ * `wfm_compose_create()` produces. Both refuse; only one of them tells you
+ * what to do instead.
+ */
+static int
+check_frame (const wfmgen_opts_t *o)
+{
+  const char *why = wfm_source_frame_error (&o->src);
+  if (!why)
+    return 0;
+  (void)fprintf (stderr, "error: %s\n", why);
+  return 2;
+}
+
 /* `wfmgen json-template [FILE]` — emit a ready-to-edit example spec in the
  * canonical --from-file schema. Writes to FILE, or to stdout when FILE is
  * absent or "-". JSON is text, so the binary-to-tty guard the emit paths
@@ -1335,6 +1366,9 @@ doppler_wfmgen (int argc, char *argv[])
   else
     {
       rc = check_continuous_dsss (&o);
+      if (rc)
+        goto done;
+      rc = check_frame (&o);
       if (rc)
         goto done;
       comp = wfm_compose_create (&o.seg, 1, o.repeat, o.continuous);

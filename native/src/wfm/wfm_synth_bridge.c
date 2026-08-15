@@ -15,10 +15,79 @@
 
 #include "wfm/wfm_compose.h" /* wfm_source_t */
 #include "wfm/wfm_dsp.h"     /* wfm_rrc_ntaps / wfm_rrc_taps */
+#include "wfm/wfm_frame.h"   /* the frame descriptor both faces now read */
 #include "wfm_synth/wfm_synth_core.h"
 
 /* Pulse enum index 1 == "rrc" (see the wfm_pulse [[enum]] SSOT). */
 #define WFM_PULSE_RRC 1
+
+int
+wfm_source_has_frame (const wfm_source_t *src)
+{
+  /* Preamble or sync word — never `crc`; see the header on why. */
+  return src
+         && ((src->acq_code && src->n_acq_code && src->acq_reps)
+             || (src->sync && src->n_sync));
+}
+
+const char *
+wfm_source_frame_error (const wfm_source_t *src)
+{
+  if (!wfm_source_has_frame (src))
+    return NULL;
+  if (src->type == WFM_SYNTH_DSSS)
+    return NULL; /* the spread path, unchanged */
+  if (src->type != WFM_SYNTH_BITS)
+    return "--acq-code/--sync frame a waveform, and a frame needs an explicit "
+           "payload: use --type bits with --bits (--modulation bpsk|qpsk), or "
+           "--type dsss to spread it";
+  if (!src->bits || src->n_bits == 0)
+    return "a frame needs a payload: --type bits with --acq-code/--sync also "
+           "needs --bits";
+  return NULL;
+}
+
+int
+wfm_source_attach_frame (wfm_synth_state_t *syn, const wfm_source_t *src)
+{
+  if (src->type != WFM_SYNTH_BITS || !src->bits || !src->n_bits)
+    return 0; /* nothing to attach; mirrors wfm_synth_set_bits */
+  if (!wfm_source_has_frame (src))
+    return wfm_synth_set_bits (syn, src->bits, src->n_bits, src->modulation);
+
+  /* Framed: the pattern is the whole frame, assembled by the one descriptor.
+     Every field is LITERAL here because that is all a source can carry today —
+     the generated PN/Gold kinds `wfm_seq_t` supports have no spelling on any
+     face yet (gh-755). */
+  wfm_frame_t f   = { 0 };
+  f.preamble.kind = WFM_SEQ_LITERAL;
+  f.preamble.bits = src->acq_code;
+  f.preamble.len  = src->n_acq_code;
+  f.preamble_reps = src->acq_reps;
+  f.sync.kind     = WFM_SEQ_LITERAL;
+  f.sync.bits     = src->sync;
+  f.sync.len      = src->n_sync;
+  f.payload.kind  = WFM_SEQ_LITERAL;
+  f.payload.bits  = src->bits;
+  f.payload.len   = src->n_bits;
+  f.crc           = src->crc;
+
+  size_t n = wfm_frame_nbits (&f);
+  if (n == 0)
+    return -1;
+  uint8_t *bits = (uint8_t *)malloc (n);
+  if (!bits)
+    return -1;
+  if (wfm_frame_bits (&f, bits, n) != n)
+    {
+      free (bits);
+      return -1;
+    }
+  /* set_bits copies, so the frame buffer is ours to release. */
+  int rc = wfm_synth_set_bits (syn, bits, n, src->modulation);
+  free (bits);
+  return rc;
+}
 
 int
 wfm_source_attach_dsss (wfm_synth_state_t *syn, const wfm_source_t *src,
@@ -71,6 +140,11 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
   if (src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0
       && (!src->data_code || src->n_data_code == 0))
     return NULL;
+  /* A frame this waveform type cannot carry. Refusing is the whole point:
+     these fields used to be accepted and dropped, so the caller got an
+     unframed waveform and no way to find out. */
+  if (wfm_source_frame_error (src) != NULL)
+    return NULL;
 
   /* Refer a dsss data-symbol Es/N0 to fs before create (the SSOT helper the
      composer also uses, so both faces agree to the bit). */
@@ -82,8 +156,11 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
   if (!eng)
     return NULL;
 
-  if (src->type == WFM_SYNTH_BITS && src->bits && src->n_bits)
-    wfm_synth_set_bits (eng, src->bits, src->n_bits, src->modulation);
+  if (wfm_source_attach_frame (eng, src) != 0)
+    {
+      wfm_synth_destroy (eng);
+      return NULL;
+    }
 
   if (src->type == WFM_SYNTH_SYMBOLS && src->symbols && src->n_symbols)
     wfm_synth_set_symbols (eng, src->symbols, src->n_symbols);

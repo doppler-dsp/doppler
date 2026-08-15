@@ -136,6 +136,12 @@ double wfm_source_create_snr(const wfm_source_t *src, double fs, double snr,
 int wfm_source_attach_dsss(wfm_synth_state_t *syn, const wfm_source_t *src,
                            double fs);
 
+int wfm_source_has_frame(const wfm_source_t *src);
+
+const char *wfm_source_frame_error(const wfm_source_t *src);
+
+int wfm_source_attach_frame(wfm_synth_state_t *syn, const wfm_source_t *src);
+
 wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs,
                                            size_t on_len, double freq,
                                            double snr, double f_end,

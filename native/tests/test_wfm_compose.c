@@ -8,13 +8,21 @@
 #define _GNU_SOURCE
 #include "dp_test.h"
 #include "wfm/wfm_compose.h"
-#include "wfm/wfm_dsp.h" /* wfm_frame_dsss_* for the dsss burst section */
+#include "wfm/wfm_dsp.h"   /* wfm_frame_dsss_* for the dsss burst section */
+#include "wfm/wfm_frame.h" /* the descriptor the unspread frame section reads */
+#include "wfm_synth/wfm_synth_core.h"
 
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* The standalone-Synth half of the shared bridge. It has no header of its own
+   — the Python binding declares it the same way (wfm_compose_ext.c) — and the
+   unspread-frame section below asserts it refuses exactly what the composer's
+   path refuses, which is the only way "they share the attach" is checkable. */
+extern wfm_synth_state_t *wfm_source_to_synth (const wfm_source_t *, double);
 
 int
 main (void)
@@ -1318,9 +1326,169 @@ main (void)
       }
   }
 
+  /* ── an UNSPREAD frame: the descriptor is the waveform ──────────────────
+   *
+   * These fields were accepted, stored, readable back, and applied on no
+   * unspread face at all: `wfm_source_attach_dsss` returned early for every
+   * non-dsss type and nothing else consumed them, so a caller who asked for a
+   * framed BPSK waveform got an unframed one and no way to find out. What made
+   * that survivable is that no test asserted the frame CHANGES anything — so
+   * that is what these assert, at the layer both the CLI and Python cross.  */
+  {
+    static const uint8_t sync_bits[13]
+        = { 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1 }; /* Barker-13 */
+    static const uint8_t acq_bits[8] = { 1, 0, 1, 0, 1, 0, 1, 0 };
+    static const uint8_t payload[16]
+        = { 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0 };
+    wfm_source_t plain  = { .type       = WFM_SYNTH_BITS,
+                            .snr        = 100.0,
+                            .sps        = 1,
+                            .pn_length  = 7,
+                            .bits       = (uint8_t *)payload,
+                            .n_bits     = sizeof payload,
+                            .modulation = 1 /* bpsk */ };
+    wfm_source_t framed = plain;
+    framed.acq_code     = (uint8_t *)acq_bits;
+    framed.n_acq_code   = sizeof acq_bits;
+    framed.acq_reps     = 4;
+    framed.sync         = (uint8_t *)sync_bits;
+    framed.n_sync       = sizeof sync_bits;
+    framed.crc          = 1;
+
+    DP_REQUIRE_MSG (!wfm_source_has_frame (&plain),
+                    "a preamble-less, sync-less source is not framed");
+    DP_REQUIRE_MSG (wfm_source_has_frame (&framed), "this one is");
+    /* `crc` alone must NOT read as a frame: it defaults to crc16 on every
+       source, so treating it as intent would append a trailer to every
+       unframed pattern ever generated. */
+    wfm_source_t crc_only = plain;
+    crc_only.crc          = 1;
+    DP_REQUIRE_MSG (!wfm_source_has_frame (&crc_only),
+                    "crc alone is a default, not an intent to frame");
+
+    /* The frame is honoured where the payload is explicit, and refused with a
+       reason where it is not — never accepted and dropped. */
+    DP_REQUIRE_MSG (wfm_source_frame_error (&framed) == NULL, "bits is fine");
+    wfm_source_t framed_pn = framed;
+    framed_pn.type         = WFM_SYNTH_BPSK; /* symbols from the PN LFSR */
+    DP_REQUIRE_MSG (wfm_source_frame_error (&framed_pn) != NULL,
+                    "a frame on a PN-sourced waveform has no payload length");
+    wfm_source_t framed_empty = framed;
+    framed_empty.bits         = NULL;
+    framed_empty.n_bits       = 0;
+    DP_REQUIRE_MSG (wfm_source_frame_error (&framed_empty) != NULL,
+                    "a frame with no payload is refused");
+
+    /* And the refusal REACHES the caller on both faces. Asserting only that
+       the predicate returns a message would leave the two construction paths
+       free to ignore it — which is precisely the shape of the bug: the fields
+       were validated nowhere and dropped silently. */
+    DP_REQUIRE_MSG (!wfm_source_to_synth (&framed_pn, 1.0),
+                    "the standalone face refuses a frame the waveform type "
+                    "cannot carry");
+    wfm_segment_t bad_seg = { .sources     = &framed_pn,
+                              .n_sources   = 1,
+                              .fs          = 1e6,
+                              .num_samples = 64,
+                              .off_samples = 0 };
+    DP_REQUIRE_MSG (!wfm_compose_create (&bad_seg, 1, 0, 0),
+                    "and the composer refuses the same segment, before it "
+                    "builds anything");
+
+    /* THE assertion whose absence was the bug. */
+    size_t nb        = 32 + 13 + 16 + 16; /* preamble + sync + payload + crc */
+    float complex *a = malloc (nb * sizeof *a);
+    float complex *b = malloc (nb * sizeof *b);
+    DP_REQUIRE_MSG (a && b, "alloc");
+    /* wfm_compose_build_synth is THE single synth-construction path (the
+       standalone Synth reaches the same attach through the shared bridge —
+       covered from Python, where that face actually lives). */
+    wfm_synth_state_t *sp
+        = wfm_compose_build_synth (&plain, 1.0, nb, 0.0, 100.0, 0.0, 0, 0, 0);
+    wfm_synth_state_t *sf
+        = wfm_compose_build_synth (&framed, 1.0, nb, 0.0, 100.0, 0.0, 0, 0, 0);
+    DP_REQUIRE_MSG (sp && sf, "both sources build");
+    wfm_synth_steps (sp, a, nb);
+    wfm_synth_steps (sf, b, nb);
+    DP_REQUIRE_MSG (memcmp (a, b, nb * sizeof *a) != 0,
+                    "a framed source must not emit the unframed waveform");
+
+    /* And it is not merely DIFFERENT — it is the descriptor's own bits, so
+       the layout, the CRC's position and its bit order come from the one
+       place the receiver reads them from too. */
+    wfm_frame_t f   = { 0 };
+    f.preamble.kind = WFM_SEQ_LITERAL;
+    f.preamble.bits = acq_bits;
+    f.preamble.len  = sizeof acq_bits;
+    f.preamble_reps = 4;
+    f.sync.kind     = WFM_SEQ_LITERAL;
+    f.sync.bits     = sync_bits;
+    f.sync.len      = sizeof sync_bits;
+    f.payload.kind  = WFM_SEQ_LITERAL;
+    f.payload.bits  = payload;
+    f.payload.len   = sizeof payload;
+    f.crc           = 1;
+    DP_REQUIRE_MSG (wfm_frame_nbits (&f) == nb, "the frame is nb bits");
+    uint8_t *want = malloc (nb);
+    DP_REQUIRE_MSG (want && wfm_frame_bits (&f, want, nb) == nb, "frame bits");
+    for (size_t i = 0; i < nb; i++)
+      {
+        /* bpsk: bit 0 -> +1, bit 1 -> -1 (wfm_synth's mapping, sps == 1). */
+        float expect = want[i] ? -1.0f : 1.0f;
+        DP_REQUIRE_MSG (fabsf (crealf (b[i]) - expect) < 1e-6f,
+                        "the framed stream IS wfm_frame_bits of its own "
+                        "descriptor, symbol for symbol");
+      }
+    /* One frame, then it CYCLES — which is what turns a one-frame description
+       into a multi-frame record without a repeat count in the descriptor. */
+    float complex     *c2 = malloc (2 * nb * sizeof *c2);
+    wfm_synth_state_t *sc = wfm_compose_build_synth (&framed, 1.0, 2 * nb, 0.0,
+                                                     100.0, 0.0, 0, 0, 0);
+    DP_REQUIRE_MSG (c2 && sc, "cycle alloc");
+    wfm_synth_steps (sc, c2, 2 * nb);
+    DP_REQUIRE_MSG (memcmp (c2, c2 + nb, nb * sizeof *c2) == 0,
+                    "the frame repeats verbatim");
+
+    /* ── an UNBUILDABLE frame must FAIL the build, on both paths ──────────
+     *
+     * wfm_frame_bits() refuses a descriptor it cannot materialise rather than
+     * half-writing one, and the two construction paths have to turn that into
+     * a NULL synth. Without that they would fall through to an unframed
+     * waveform — the very failure the rest of this section exists to pin,
+     * one layer down and this time silent even to a byte comparison, because
+     * there would be nothing to compare against.
+     *
+     * A preamble LENGTH with no preamble ARRAY is that state. No face can
+     * currently spell it — the CLI and wfm_json.c both derive the length FROM
+     * the array — so it is a C-level guard and it is asserted in C. Note it
+     * passes wfm_source_frame_error(): the user-facing rule is about the
+     * payload, and this is the layer under it. */
+    wfm_source_t broken = framed;
+    broken.acq_code     = NULL; /* n_acq_code and acq_reps still set */
+    DP_REQUIRE_MSG (wfm_source_has_frame (&broken), "still reads as framed");
+    DP_REQUIRE_MSG (
+        wfm_source_frame_error (&broken) == NULL,
+        "and passes the payload rule — this is the layer under it");
+    DP_REQUIRE_MSG (
+        !wfm_compose_build_synth (&broken, 1.0, nb, 0.0, 100.0, 0.0, 0, 0, 0),
+        "the composer's build fails rather than emitting an unframed "
+        "waveform");
+    DP_REQUIRE_MSG (!wfm_source_to_synth (&broken, 1.0),
+                    "and the standalone bridge agrees — they share the attach "
+                    "for exactly this reason");
+
+    wfm_synth_destroy (sp);
+    wfm_synth_destroy (sf);
+    wfm_synth_destroy (sc);
+    free (a);
+    free (b);
+    free (c2);
+    free (want);
+  }
+
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "
           "resolve, sum-json, headroom, seed_advance, ranged fields, "
-          "dsss burst, repeats)\n",
+          "dsss burst, unspread frame, repeats)\n",
           total);
   return 0;
 }

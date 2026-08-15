@@ -743,3 +743,124 @@ def test_rrc_shaper_lives_at_every_power_of_two_sps(sps: int) -> None:
     # values; a stalled delay line yields exactly one.
     assert len(np.unique(np.round(y, 6))) > 64
     assert 0.5 < np.sqrt((abs(y) ** 2).mean()) < 1.5
+
+
+# ── The unspread frame ───────────────────────────────────────────────────────
+#
+# `sync` / `acq_code` / `acq_reps` / `crc` were accepted on every face, stored,
+# and readable back — and applied only on `type="dsss"`. A caller who asked for
+# a framed BPSK waveform got an unframed one, exit 0, no warning. What let that
+# ship is that nothing asserted a frame kwarg CHANGES the waveform, so that is
+# what these assert. A flag-presence check would have passed throughout.
+
+BARKER13 = np.array([1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1], np.uint8)
+ACQ8 = np.array([1, 0] * 4, np.uint8)
+PAYLOAD = np.array([0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0], np.uint8)
+
+
+def _framed_kwargs():
+    return {"sync": BARKER13, "acq_code": ACQ8, "acq_reps": 4, "crc": "crc16"}
+
+
+def test_a_frame_changes_the_waveform():
+    """The assertion whose absence was the defect.
+
+    Not "the kwargs are accepted" — they always were. The frame has to reach
+    the samples, and the only way to say that is to compare against the
+    unframed twin built from the same payload and seed.
+    """
+    common = {
+        "type": "bits",
+        "fs": 1e6,
+        "sps": 4,
+        "bits": PAYLOAD,
+        "modulation": "bpsk",
+    }
+    plain = np.asarray(Synth(**common).steps(512))
+    framed = np.asarray(Synth(**common, **_framed_kwargs()).steps(512))
+
+    assert not np.array_equal(plain, framed)
+
+
+def test_a_framed_stream_carries_the_frames_bits():
+    """It is the DESCRIPTOR's bits, not merely different ones.
+
+    `[preamble x 4 | Barker-13 | payload | CRC-16]` at one sample per symbol,
+    BPSK-mapped (0 -> +1, 1 -> -1). Checking the head pins the layout and the
+    order; checking the period pins that the frame is what cycles.
+    """
+    s = Synth(
+        type="bits",
+        fs=1.0,
+        sps=1,
+        bits=PAYLOAD,
+        modulation="bpsk",
+        **_framed_kwargs(),
+    )
+    nbits = 4 * len(ACQ8) + len(BARKER13) + len(PAYLOAD) + 16
+    y = np.asarray(s.steps(2 * nbits)).real
+
+    head = np.concatenate([np.tile(ACQ8, 4), BARKER13, PAYLOAD])
+    np.testing.assert_allclose(y[: len(head)], 1.0 - 2.0 * head, atol=1e-6)
+    # The 16-bit CRC trailer occupies the rest of the frame...
+    assert len(y[:nbits]) == nbits
+    # ...and then the whole frame repeats, which is what turns a one-frame
+    # description into a multi-frame record with no repeat count in it.
+    np.testing.assert_allclose(y[:nbits], y[nbits : 2 * nbits], atol=1e-6)
+
+
+def test_the_frame_survives_a_reset():
+    s = Synth(
+        type="bits",
+        fs=1.0,
+        sps=1,
+        bits=PAYLOAD,
+        modulation="bpsk",
+        **_framed_kwargs(),
+    )
+    first = np.asarray(s.steps(96))
+    s.reset()
+    np.testing.assert_array_equal(first, np.asarray(s.steps(96)))
+
+
+@pytest.mark.parametrize("wtype", ["bpsk", "qpsk", "pn", "tone"])
+def test_a_frame_a_waveform_cannot_carry_is_refused(wtype):
+    """Refused, never accepted and dropped.
+
+    These types source their symbols from the PN LFSR, so there is no length
+    to bound a payload. Silently ignoring the request is what this whole
+    change exists to stop, so the refusal is the feature — and the message
+    names the replacement.
+    """
+    s = Synth(type=wtype, fs=1e6, sps=4, **_framed_kwargs())
+    with pytest.raises((RuntimeError, ValueError)):
+        s.steps(64)
+
+
+def test_a_frame_with_no_payload_is_refused():
+    s = Synth(
+        type="bits", fs=1e6, sps=4, modulation="bpsk", **_framed_kwargs()
+    )
+    with pytest.raises((RuntimeError, ValueError)):
+        s.steps(64)
+
+
+def test_crc_alone_does_not_frame_an_unframed_pattern():
+    """`crc` defaults to crc16 on EVERY source.
+
+    So reading it as intent to frame would have appended a 16-bit trailer to
+    every unframed bit pattern anyone has ever generated — a silent change to
+    existing waveforms, which is the same class of failure as the one being
+    fixed. A preamble or a sync word is what says "framed".
+    """
+    common = {
+        "type": "bits",
+        "fs": 1.0,
+        "sps": 1,
+        "bits": PAYLOAD,
+        "modulation": "bpsk",
+    }
+    plain = np.asarray(Synth(**common).steps(64))
+    crc_only = np.asarray(Synth(**common, crc="crc16").steps(64))
+
+    np.testing.assert_array_equal(plain, crc_only)

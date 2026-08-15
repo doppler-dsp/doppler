@@ -17,10 +17,13 @@ In particular
 * **Nothing is measured before the loops settle.** A second-order loop needs
   ~5/Bn symbols, which at the default `bn_timing = 0.01` is 500 -- longer than
   many test bursts. Measuring inside that window measures settling.
-* **The lag search must be generous.** Group delay varies with pulse, front end
-  and rate; a window that clips it reports chance SER on a perfect decode.
-  `symbol_metrics` searches +-200 and returns the winning lag so a saturated
-  search is visible to the caller.
+* **The alignment is DETECTED, never searched.** Group delay varies with
+  pulse, front end and rate, so it is not knowable in advance -- but a
+  minimum-over-lag search answers that by optimising over the answer, which
+  false-passes on a lucky alignment over garbage and false-floors when the true
+  lag falls outside its span. `detect_alignment` correlates a known marker and
+  gates the peak on a false-alarm probability, and every metric here that needs
+  to know where the stream sits goes through it.
 * **Lock time comes from the receiver's own verify-counted detectors**
   (`sync.locked` / `car.locked`), not from a threshold applied to a statistic.
   Note the granularity: the timing detector averages `avgs` looks per decision
@@ -278,6 +281,20 @@ def demod(
     `clock_offset` (dimensionless) scales the nominal `sps` the receiver is
     told, so the timing loop must absorb it. Use `clock_offset_inside_bw`.
 
+    **No output-rate check lives here, and that is a finding rather than an
+    omission.** A receiver emits one symbol per symbol period, so the count is
+    `len(x)/sps` -- not `m_out` times it (the terminal cascade rate), and not
+    half of it (a real front end's internal decimation counted twice). Getting
+    that wrong does not raise anywhere by itself: the symbols are real symbols,
+    they are simply not the sequence the truth array describes. The instinct is
+    to add a count invariant here; measured, `BerMeter.align()` already refuses
+    every one of those cases downstream, because a stream at the wrong rate
+    cannot correlate against the truth -- half rate reads -2.5 dB of margin,
+    double rate reads -inf, and `m_out` outputs mistaken for symbols reads
+    -5.6 dB, against +10.5 dB for the healthy run. A second gate with its own
+    tolerance would be a second convention for a question `ber` already
+    answers. See `detect_alignment`.
+
     Returns `(symbols, probes)` where `probes` maps a probe suffix to its
     per-symbol series -- `sync.locked`, `car.locked`, `sync.mu`, and the rest
     of the eleven the receivers publish.
@@ -350,6 +367,46 @@ def settle_from(probes, floor=SETTLE_SYMS):
     return int(ber_settle_from(floor, t, c, -1 if h is None else h))
 
 
+def detect_alignment(y, idx, m, settle, lag_span=40, n_marker=256):
+    """The one alignment recipe: a `BerMeter` with a DETECTED lag, or `None`.
+
+    Every number in this harness that needs to know which transmitted symbol a
+    received one corresponds to comes through here, so there is exactly one
+    answer to "where does the stream sit" per measurement rather than one per
+    metric. `None` means no alignment was detected and nothing may be scored --
+    the second refusal point.
+
+    **Detected, not searched.** `BerMeter.align()` correlates a known marker --
+    a stretch of the truth sequence, taken from the FRONT of the settled window
+    so the symbols that fix the alignment can be kept out of what is scored --
+    and gates the peak on a false-alarm probability, returning `align_ok`:
+    detected, unambiguous (>= 3 dB over the runner-up) and unsaturated. A
+    minimum-over-lag search is an optimisation over the answer instead: it
+    false-passes on a lucky alignment over garbage, and false-floors when the
+    true lag falls outside its span, and in both cases it returns a number.
+
+    `rx` is NOT sliced. The meter's convention is `rx[i] <-> truth[i + lag]`,
+    so slicing `settle` off one side only would make the true lag `settle`
+    itself -- thousands of symbols outside any sane search.
+
+    **It refuses a wrong-rate stream too**, which is why no separate
+    output-rate invariant exists here (see `demod`): a stream carrying half,
+    double or `m_out` times the symbols it should cannot correlate against the
+    truth, and reports -2.5, -inf and -5.6 dB of margin respectively where a
+    healthy run reports +10.5 dB.
+    """
+    t0 = settle + lag_span
+    if t0 + n_marker >= idx.size:
+        return None
+    rx = np.ascontiguousarray(y, dtype=np.complex64)
+    truth = np.ascontiguousarray(idx, dtype=np.uint8)
+    meter = BerMeter(m=m, target_errors=10**9)
+    meter.set_truth(truth)
+    if not meter.align(rx, t0=t0, n_marker=n_marker, lag_span=lag_span):
+        return None
+    return meter
+
+
 def coherent_errors(y, idx, m, settle, lag_span=40):
     """Coherent symbol errors over the settled window: `(errors, symbols)`.
 
@@ -358,37 +415,26 @@ def coherent_errors(y, idx, m, settle, lag_span=40):
     the random variable -- and a rate alone cannot be accumulated across
     bursts. See `ser_confidence()`.
 
-    **The alignment is DETECTED, not searched.** This used to take the minimum
-    error count over a lag and rotation search, which is an optimisation over
-    the answer rather than a measurement: it can find a lucky alignment on
-    garbage, and it can miss the true one on a healthy stream and report
-    chance. `BerMeter.align()` correlates a known marker -- here a stretch of
-    the truth sequence, taken from the FRONT of the window so the symbols that
-    fix the alignment are disjoint from the ones scored -- and gates the peak
-    on a false-alarm probability.
+    The alignment comes from `detect_alignment` -- detected, never searched --
+    and this returns `None` rather than a number when it is unavailable.
 
     Returns `None` if the window is too short to judge, or if no alignment
     could be detected in it.
     """
     if y.size - settle < 500:
         return None
+    meter = detect_alignment(y, idx, m, settle, lag_span=lag_span)
+    if meter is None:
+        return None
+    # The marker symbols are held out by `score()` itself -- they are known, so
+    # scoring them would flatter the rate with symbols that had no chance of
+    # being wrong, and the count lands in `meter.skipped`. This used to compute
+    # a `lo` past the marker by hand, which is the same guarantee written a
+    # second time in a second convention: it assumed one occurrence at a lag
+    # sign the meter defines, and it silently dropped every symbol between the
+    # window start and the marker's end instead of just the marker's own.
     rx = np.ascontiguousarray(y, dtype=np.complex64)
-    truth = np.ascontiguousarray(idx, dtype=np.uint8)
-    # `rx` is NOT sliced: the meter's convention is rx[i] <-> truth[i + lag],
-    # so slicing off `settle` from one side only would make the true lag
-    # `settle` itself -- thousands of symbols outside any sane search.
-    t0 = settle + lag_span
-    n_marker = 256
-    if t0 + n_marker >= truth.size:
-        return None
-    meter = BerMeter(m=m, target_errors=10**9)
-    meter.set_truth(truth)
-    if not meter.align(rx, t0=t0, n_marker=n_marker, lag_span=lag_span):
-        return None
-    # Score from just past the marker: the symbols that fixed the alignment
-    # must not also be scored, or they flatter the rate.
-    lo = t0 + n_marker - meter.lag
-    meter.score(rx, lo=lo, hi=rx.size)
+    meter.score(rx, lo=settle, hi=rx.size)
     return (int(meter.errors), int(meter.symbols)) if meter.symbols else None
 
 
@@ -435,27 +481,55 @@ def symbol_metrics(y, idx, m=4, settle=SETTLE_SYMS):
     coherent measurement is 1.2-2.4x, i.e. 0.3-1.0 dB. Use `coherent_errors()`
     when the reference is a coherent curve.
 
-    Returns `(evm_db, ser, lag)`. `lag` is the winning offset; if it sits at
-    either end of the +-200 search the search saturated and the SER is not
-    trustworthy.
+    **The lag is DETECTED, and this is the second refusal point.** It used to
+    be the argmin of a +-200 lag search, with the winning lag returned so the
+    caller could notice a saturated search for itself -- two of seven call
+    sites did, by hand, with a literal `abs(lag) < 190`. That is the refusal
+    goal 1 asks for, implemented five times in five places and therefore not
+    implemented. `detect_alignment()` now supplies the lag, gated on
+    `align_ok`, and this RAISES rather than returning a number when no
+    alignment is available. The detected lag agrees with the old search's
+    (opposite sign, `rx[i] <-> truth[i + lag]`) in every configuration these
+    tests run, so the numbers are unchanged where the search was right; where
+    it was wrong, there is now no number.
+
+    Returns `(evm_db, ser, lag)`, `lag` in the meter's convention.
     """
     ys = y[settle:]
     if len(ys) < 200:
-        return float("nan"), float("nan"), None
+        raise AssertionError(
+            f"only {len(ys)} symbols after settling at {settle} of "
+            f"{len(y)}: too short to measure, so nothing is reported"
+        )
     step = 2.0 * np.pi / m
     yr = ys * np.exp(-1j * np.angle(np.mean(ys**m)) / m)
     yr = yr / np.sqrt(np.mean(np.abs(yr) ** 2))
     ideal = np.exp(1j * step * np.round(np.angle(yr) / step))
     evm = 10 * np.log10(np.mean(np.abs(yr - ideal) ** 2))
 
+    meter = detect_alignment(y, idx, m, settle)
+    if meter is None:
+        raise AssertionError(
+            f"no alignment detected over {len(ys)} settled symbols (EVM "
+            f"{evm:.1f} dB, scatter floor {evm_scatter_floor_db(m):.1f} dB): "
+            f"there is no lag at which an SER means anything, so none is "
+            f"reported"
+        )
+    lag = int(meter.lag)
+
+    # Differences, so no absolute rotation is needed -- only the lag. The
+    # decisions are taken on the settled slice, whose element k is y[settle+k]
+    # and therefore truth[settle+k+lag].
     dec = np.round(np.angle(yr) / step).astype(int) % m
     dd, dt = np.diff(dec) % m, np.diff(idx) % m
-    ser, best = 1.0, None
-    for lag in range(-200, 201):
-        a0, b0 = max(0, lag), max(0, -lag) + settle
-        k = min(len(dd) - a0, len(dt) - b0)
-        if k >= 200:
-            s = float(np.mean(dd[a0 : a0 + k] != dt[b0 : b0 + k]))
-            if s < ser:
-                ser, best = s, lag
-    return evm, ser, best
+    base = settle + lag
+    a0 = max(0, -base)
+    b0 = max(0, base)
+    k = min(len(dd) - a0, len(dt) - b0)
+    if k < 200:
+        raise AssertionError(
+            f"only {k} symbols overlap at the detected lag {lag}: too few to "
+            f"report an SER"
+        )
+    ser = float(np.mean(dd[a0 : a0 + k] != dt[b0 : b0 + k]))
+    return evm, ser, lag

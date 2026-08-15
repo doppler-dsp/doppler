@@ -153,7 +153,10 @@ def test_noiseless_decode_is_error_free(
         f"(EVM {r['evm']:.1f} dB, window from {r['settle']})"
     )
     assert r["evm"] < -18.0, f"{path} sps={sps}: EVM {r['evm']:.1f} dB"
-    assert abs(r["lag"]) < 190, f"lag search saturated at {r['lag']}"
+    # A saturated or undetected alignment used to be checked here, by hand,
+    # against the lag the harness returned. `symbol_metrics` now refuses to
+    # return an SER at all in that case, so reaching this line means an
+    # alignment was detected.
 
 
 @pytest.mark.parametrize(

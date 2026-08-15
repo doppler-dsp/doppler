@@ -225,6 +225,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**wfm\_sink.h**](wfm__sink_8h.md) _NATS PUB sink for generated IQ (Phase B)._     
             * **file** [**wfm\_time.h**](wfm__time_8h.md)     
             * **file** [**wfmgen.h**](wfmgen_8h.md)     
+        * **dir** [**wfm\_compose**](dir_cd921e547fe04d2978fad26e616ea160.md)     
+            * **file** [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md)     
         * **dir** [**wfm\_reader**](dir_01018a3d11538c9aca2db4daa45a442f.md)     
             * **file** [**wfm\_reader\_core.h**](wfm__reader__core_8h.md) _Input file types for generated IQ — the dual of wfm\_writer._     
         * **dir** [**wfm\_synth**](dir_0493917d169dff974fa9eaf690c8d4c9.md)     

@@ -1363,6 +1363,7 @@
 * **wfm\_j1950\_to\_unix\_sec** ([**wfm\_time.h**](wfm__time_8h.md))
 * **wfm\_timecode\_is\_set** ([**wfm\_time.h**](wfm__time_8h.md))
 * **wfm\_unix\_to\_j1950\_sec** ([**wfm\_time.h**](wfm__time_8h.md))
+* **wfm\_source\_to\_synth** ([**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))
 * **wfm\_reader\_create** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **wfm\_reader\_destroy** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **wfm\_reader\_find\_header\_field** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))

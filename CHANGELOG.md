@@ -15,6 +15,35 @@ ______________________________________________________________________
 
 ### Added
 
+- **just-makeit pin 0.60.2 → 0.61.0.** Adopted for **gh-998**, the only one of
+    the three that moves a file here: a composer source's project-written
+    straight-C seams (`[module.X.source.generates] bridge_fn` and each
+    `[[module.X.source.computed]] fn`) were declared *only* as `extern` lines
+    inside the generated binding, so no other translation unit could see them —
+    a C test or benchmark could reach a signature jm already owns only by
+    writing a second copy of it, which is the duplication the generated
+    declaration exists to prevent. They are published now in a generated
+    `native/inc/wfm_compose/wfm_compose_bridge.h`, included by
+    `wfm_compose_ext.c` instead of re-declared there, so there is exactly one
+    of each. The definitions are untouched: still doppler's hand-written C.
+
+    **gh-994 and gh-996 produced no codegen change here, which is the
+    interesting part.** gh-994 is the one this repo provoked: an object's
+    Python surface is written as `[[<obj>.methods]]` entries, doppler names one
+    of them `reset` in 28 places (27 `objects/*.toml` fragments plus one in
+    `just-makeit.toml`), and that used to emit the built-in's body *and* the
+    method's stub into a create-only `_core.c` — `redefinition of   '<obj>_reset'` on a brand-new object, at the moment a contributor is
+    trusting the generator rather than reading it.
+
+    Checked rather than assumed, because the guess went the wrong way: all 27
+    are the **naming** kind, not the replacing kind — `arg_type = "void"`,
+    `return_type = "void"`, no `params`, so the prototype they imply is
+    byte-identical to the built-in's and jm keeps the built-in, whose body
+    restores the declared defaults. They carry a `doc` and nothing else, which
+    is exactly why they were written. So the fix changes nothing for the
+    existing objects and protects the next new one — which is where the
+    redefinition actually bit.
+
 - **`doppler.wfm.Frame` — the frame descriptor, reachable from Python.** The
     measurement half of the frame story shipped first (`wfm_frame_t` in C, and
     `doppler.ber.FrameMeter` with a Python face); the descriptor half did not,

@@ -178,6 +178,42 @@ main (void)
     DP_CHECK (bad == NULL);
     mpsk_receiver_r_destroy (bad);
 
+    /* lock_time is the acquisition time as a NUMBER, and it has to agree
+       with the flag it dates. Cold it is -1; after a record the receiver
+       locks on it is a symbol index inside that record; and reset() puts it
+       back to -1, because a reset receiver has not locked. Checking it
+       against `locked` is the point — a lock_time that disagreed with the
+       detector reporting it would be a second, competing answer. */
+    make_mpsk_real (tx, idx, 4, SPS, NSYM, FC_CENTRE, 30.0, 11u, phi0_for (4));
+    mpsk_receiver_r_state_t *lt
+        = RXR (4, SPS, M_OUT, 0, 0.005, 0, 0.5, FC_CENTRE);
+    if (lt)
+      {
+        DP_CHECK (mpsk_receiver_r_get_lock_time (lt) == -1);
+        DP_CHECK (mpsk_receiver_r_get_locked (lt) == 0);
+        size_t  n  = mpsk_receiver_r_steps (lt, tx, NSAMP, out, NSYM);
+        int64_t at = mpsk_receiver_r_get_lock_time (lt);
+        DP_CHECK (mpsk_receiver_r_get_locked (lt) == 1);
+        DP_CHECK (at >= 0);
+        DP_CHECK ((size_t)at < n);
+        mpsk_receiver_r_reset (lt);
+        DP_CHECK (mpsk_receiver_r_get_lock_time (lt) == -1);
+        /* And it is the FIRST declaration, not the latest. Re-running the
+           record and comparing is NOT enough — a stamp rewritten on every
+           locked symbol is equally reproducible, it just lands at the END of
+           the record. What separates them is WHERE it lands: acquisition
+           finishes early, so a first-declaration stamp sits in the opening
+           part of the record and a restamped one sits at the last symbol.
+           (Verified by sabotage: dropping the `lock_time < 0` guard leaves
+           every other assertion here passing.) */
+        DP_CHECK ((size_t)at < n / 2);
+        (void)mpsk_receiver_r_steps (lt, tx, NSAMP, out, NSYM);
+        DP_CHECK (mpsk_receiver_r_get_lock_time (lt) == at);
+        mpsk_receiver_r_destroy (lt);
+      }
+  }
+
+  {
     /* reset() returns the receiver to a cold start: the same input twice
        across a reset must give byte-identical symbols. */
     make_mpsk_real (tx, idx, 4, SPS, NSYM, FC_CENTRE, 30.0, 11u, phi0_for (4));

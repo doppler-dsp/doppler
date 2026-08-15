@@ -3773,10 +3773,10 @@ class MpskReceiverR:
         Warnings
         --------
         As on the complex twin, the two AGC probes are on the cascade's
-        pre-terminal grid rather than the symbol grid, so their record count
+        MFR-input grid rather than the symbol grid, so their record count
         differs from the other eleven — compare by time, not by index. See
-        mpsk_receiver_set_telemetry() for why, and for why that AGC is the loop
-        that sets the receiver's warmup.
+        mpsk_receiver_set_telemetry() for why, and for why that AGC is the
+        slowest loop in the receiver.
 
         Examples
         --------

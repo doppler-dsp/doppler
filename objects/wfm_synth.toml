@@ -3,7 +3,7 @@ arg_type = "void"
 return_type = "float _Complex"
 mutable = "true"
 class_name = "_SynthEngine"
-depends_on = [{ name = "lo", link = true }, { name = "awgn", link = true }, "pn", { name = "fir", link = true }, { name = "resamp", link = true }, "wfm_dsp"]
+depends_on = [{ name = "lo", link = true }, { name = "awgn", link = true }, "pn", { name = "fir", link = true }, { name = "resamp", link = true }, "wfm_dsp", { name = "wfm_frame", link = true }, { name = "gold", link = true }]
 impl = """
 float complex sym;
 if (state->shaper) {

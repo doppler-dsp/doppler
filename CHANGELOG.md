@@ -15,6 +15,39 @@ ______________________________________________________________________
 
 ### Added
 
+- **A frame descriptor: one bit layout, read from both ends.** `wfm_frame_t`
+    (`native/inc/wfm/wfm_frame.h`) describes a frame as
+    `[preamble × reps | sync | payload | crc]` in BITS — spreading, pulse
+    shaping, oversampling and SNR stay `wfm_synth`'s job — with
+    `wfm_frame_layout()` / `wfm_frame_nbits()` / `wfm_frame_bits()` /
+    `wfm_frame_crc_ok()`. Every field is a `wfm_seq_t`, so a Gold sync is a
+    configuration rather than a feature, and the generated kinds call
+    `pn_create()` / `gold_create()` rather than adding a generator: a receiver
+    regenerates a long record's truth from a handful of numbers instead of
+    carrying the array.
+
+    `wfm_frame_crc_ok()` is the point of the exercise. It needs the layout and
+    the received bits and **no payload truth at all**, which makes a frame
+    error rate the one metric usable on a real capture that still catches a
+    false lock — the failure the previous commit measured EVM and M2M4 going
+    blind to.
+
+    `wfm_frame_dsss_chips()` keeps its signature and now builds its frame
+    through the descriptor and spreads it, so the layout (and the CRC's
+    position, width and bit order) stops being expressed twice. The existing
+    DSSS round-trips are the regression test the design asked them to be —
+    `test_wfm_dsp`, `test_burst_demod_core`, `test_async_dsss_receiver_core`
+    and 703 Python wfm/dsss tests all pass unchanged.
+
+    **The build split follows the FUNCTION, not the file.** The DSSS burst
+    assembler moved out of `wfm_dsp.c` into `wfm_frame.c`, because assembling a
+    frame is what it does — and because `wfm_dsp_core` is spreading and RRC
+    taps, which every receiver links for a matched filter and which must not
+    start dragging in a Gold LFSR. Measured before choosing: folding them
+    together put `gold_create` into eight targets, four of them jm-generated.
+    The four consumers that genuinely assemble frames declare it in the
+    manifest (`depends_on … link = true`), not by hand.
+
 - **The M-PSK harness reports the whole trio, and a false lock proves why it
     must.** `symbol_metrics` returned SER and EVM; M2M4 was never computed, so
     the trio the design asks for was two of three. It now returns a

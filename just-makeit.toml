@@ -251,6 +251,12 @@ link = true
 name = "wfm_dsp"
 link = true
 [[module.wfm_plan.depends_on]]
+name = "wfm_frame"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "gold"
+link = true
+[[module.wfm_plan.depends_on]]
 name = "wfm_synth"
 link = true
 [[module.wfm_plan.depends_on]]
@@ -860,6 +866,14 @@ link = true
 
 [[module.wfm_compose.depends_on]]
 name = "wfm_dsp"
+link = true
+
+[[module.wfm_compose.depends_on]]
+name = "wfm_frame"
+link = true
+
+[[module.wfm_compose.depends_on]]
+name = "gold"
 link = true
 
 [[module.wfm_compose.depends_on]]

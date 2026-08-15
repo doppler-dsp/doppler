@@ -73,8 +73,9 @@ add_executable(test_wfm_compose
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_compose.c)
 # the composer reuses synth, which pulls in lo/awgn/pn
 target_link_libraries(test_wfm_compose PRIVATE
-    wfm_compose_core wfm_draw_core wfm_dsp_core wfm_cjson_core wfm_synth_core lo_core awgn_core
-    pn_core fir_core resamp_core
+    wfm_compose_core wfm_draw_core wfm_dsp_core wfm_frame_core wfm_cjson_core
+    wfm_synth_core lo_core awgn_core
+    pn_core gold_core fir_core resamp_core
     m)
 target_include_directories(test_wfm_compose PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
@@ -85,12 +86,32 @@ add_test(NAME test_wfm_compose COMMAND test_wfm_compose)
 add_executable(test_wfm_plan
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_plan.c)
 target_link_libraries(test_wfm_plan PRIVATE
-    wfm_compose_core wfm_draw_core wfm_dsp_core wfm_cjson_core wfm_synth_core lo_core awgn_core
-    pn_core fir_core resamp_core
+    wfm_compose_core wfm_draw_core wfm_dsp_core wfm_frame_core wfm_cjson_core
+    wfm_synth_core lo_core awgn_core
+    pn_core gold_core fir_core resamp_core
     m)
 target_include_directories(test_wfm_plan PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_plan COMMAND test_wfm_plan)
+
+# ── The frame descriptor, and the DSSS burst that is one ────────────────────
+# Its own OBJECT library, NOT folded into wfm_dsp_core, and the split follows
+# the FUNCTION rather than the file: assembling a frame is what these do, while
+# wfm_dsp_core is spreading and RRC taps -- which every receiver links for a
+# matched filter and which must not start dragging in a Gold LFSR because a
+# frame somewhere might use one. (Measured: folding them together put
+# gold_create into eight targets, four of them jm-generated.)
+#
+# pn/gold are here because the generated sequence kinds ARE pn_create /
+# gold_create -- the descriptor references the generators rather than adding
+# one, which is what lets a receiver regenerate a long record's truth from a
+# handful of numbers instead of carrying the array.
+add_library(wfm_frame_core OBJECT
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_frame.c)
+target_include_directories(wfm_frame_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/inc/wfm)
+target_link_libraries(wfm_frame_core PUBLIC pn_core gold_core m)
 
 # ── DSSS spreading + RRC pulse-shaping taps (pure DSP, no deps) ──────────────
 add_library(wfm_dsp_core OBJECT
@@ -100,9 +121,17 @@ target_include_directories(wfm_dsp_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc/wfm)
 target_link_libraries(wfm_dsp_core PUBLIC m)
 
+add_executable(test_wfm_frame
+    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_frame.c)
+target_link_libraries(test_wfm_frame PRIVATE wfm_frame_core pn_core gold_core m)
+target_include_directories(test_wfm_frame PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_wfm_frame COMMAND test_wfm_frame)
+
 add_executable(test_wfm_dsp
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_dsp.c)
-target_link_libraries(test_wfm_dsp PRIVATE wfm_dsp_core m)
+target_link_libraries(test_wfm_dsp PRIVATE wfm_dsp_core wfm_frame_core
+    pn_core gold_core m)
 target_include_directories(test_wfm_dsp
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_wfm_dsp COMMAND test_wfm_dsp)
@@ -226,7 +255,7 @@ if(NOT WIN32)
     target_link_libraries(wfmgen_cli PRIVATE
         wfmgen_core
         wfm_compose_core wfm_draw_core wfm_writer_core wfm_keywords_core wfm_sink_core timing_core wfm_cjson_core
-        wfm_dsp_core wfm_synth_core lo_core awgn_core pn_core fir_core resamp_core
+        wfm_dsp_core wfm_frame_core wfm_synth_core lo_core awgn_core pn_core gold_core fir_core resamp_core
         $<TARGET_OBJECTS:stream_core_obj>
         dp_tlm_core
         nats_vendor_static

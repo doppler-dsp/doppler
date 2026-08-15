@@ -1,7 +1,7 @@
 /*
  * wfm_ext.c — Python extension module wfm
  *
- * Objects: PN, _SynthEngine, Gold
+ * Objects: PN, _SynthEngine, Gold, Frame
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -13,6 +13,7 @@
 
 #include "wfm/wfm_core.h"
 
+#include "wfm_ext_frame.c"
 #include "wfm_ext_gold.c"
 #include "wfm_ext_pn.c"
 #include "wfm_ext_wfm_synth.c"
@@ -451,6 +452,8 @@ PyInit_wfm (void)
     return NULL;
   if (PyType_Ready (&GoldObjType) < 0)
     return NULL;
+  if (PyType_Ready (&FrameObjType) < 0)
+    return NULL;
   PyObject *m = PyModule_Create (&wfm_moduledef);
   if (!m)
     return NULL;
@@ -473,6 +476,13 @@ PyInit_wfm (void)
   if (PyModule_AddObject (m, "Gold", (PyObject *)&GoldObjType) < 0)
     {
       Py_DECREF (&GoldObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&FrameObjType);
+  if (PyModule_AddObject (m, "Frame", (PyObject *)&FrameObjType) < 0)
+    {
+      Py_DECREF (&FrameObjType);
       Py_DECREF (m);
       return NULL;
     }

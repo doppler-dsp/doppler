@@ -690,7 +690,7 @@ Examples
 [0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1]
 
 """
-objects = ["pn", "wfm_synth", "gold"]
+objects = ["pn", "wfm_synth", "gold", "frame"]
 # wfm_synth.toml's depends_on link=true (gh-225) links lo/awgn/fir _core into the
 # wfm .so; pn is in-module (linked via objects). Replaces extra_link_libs.
 # wfm_dsp_core (the rrc/dsss kernels in wfm_dsp.c) backs the rrc_taps/dsss_spread
@@ -2398,6 +2398,13 @@ values = ["auto", "fs", "ebno", "esno"]
 [[enum]]
 name = "wfm_lfsr"
 values = ["galois", "fibonacci"]
+
+# Where a frame field's bits come from. Order IS wfm_seq_kind_t
+# (native/inc/wfm/wfm_frame.h): literal = 0, then the three generated kinds.
+# The C enum stays the SSOT — this names its indices for the Python face.
+[[enum]]
+name = "wfm_seq_kind"
+values = ["literal", "pn", "gold", "dotted"]
 
 [[enum]]
 name = "bitmod"

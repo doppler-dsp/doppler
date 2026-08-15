@@ -39,3 +39,12 @@ dp_tlm
 # context at open. A resumed capture would carry a verdict that means nothing.
 # Capture a new one instead.
 dp_tlm_capture
+# A by-value DESCRIPTOR, not a stage: it is fully determined by its
+# constructor arguments and nothing about it advances with the stream. Its one
+# heap buffer is the materialised frame, which is a pure function of those
+# arguments — so a blob would carry exactly what the constructor already
+# carries, and "resume" means construct the same Frame again. Note this is not
+# the usual no-running-state argument alone: even the generated PN/Gold fields
+# hold no live register here, because the frame is materialised once at create
+# and repeated, never re-generated.
+frame

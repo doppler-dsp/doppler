@@ -1234,6 +1234,90 @@ main (void)
     free (j1);
   }
 
+  /* ── the resolved floor reproduces the bundled noise power ──────────────
+   *
+   * wfm_snr_over_fs() decides where a multi-source segment's shared noise
+   * floor sits; wfm_synth_create() decides how much noise a single bundled
+   * source makes. If those two disagree, the same requested SNR means two
+   * different things depending on how many sources happen to share a segment
+   * — and nothing else in the tree would say so, because each is internally
+   * consistent. That claim used to be a comment ("mirrors the conversion in
+   * wfm_synth_core.c"), over a second copy of the formula.
+   *
+   * The expected noise powers below are LITERALS, derived by hand, and that
+   * is the whole point of the test. The first version of it computed the
+   * expectation by calling wfm_snr_over_fs() and compared that against the
+   * noise the generator made — but both now route through one shared
+   * conversion, so the two sides moved together: dropping the bits-per-symbol
+   * term from the Eb/No branch left the test green. A known answer cannot
+   * follow the code it checks.
+   */
+  {
+    /* Unit-power sources, so P_total - 1 IS the noise power. N = 10^(-snr_fs
+       /10) with snr_fs = snr - 10log10(span) for Es/No, plus 10log10(bps)
+       first for Eb/No, and snr itself over fs. At snr = 9 dB:
+
+         tone  fs    sps=8    snr_fs = +9.0000   N = 0.125893
+         bpsk  Es/No sps=8    snr_fs = -0.0309   N = 1.007140
+         bpsk  Eb/No sps=8    snr_fs = -0.0309   N = 1.007140  (bps=1)
+         qpsk  Es/No sps=4    snr_fs = +2.9794   N = 0.503570
+         qpsk  Eb/No sps=4    snr_fs = +5.9897   N = 0.251785  (bps=2)
+         bpsk  auto  sps=16   snr_fs = -3.0412   N = 2.014281  (auto->Es/No)
+         tone  auto  sps=16   snr_fs = +9.0000   N = 0.125893  (auto->fs) */
+    const struct
+    {
+      int    type, mode, sps;
+      double expect;
+    } cases[] = {
+      { 0, 1, 8, 0.125893 },  { 3, 3, 8, 1.007140 }, { 3, 2, 8, 1.007140 },
+      { 4, 3, 4, 0.503570 },  { 4, 2, 4, 0.251785 }, { 3, 0, 16, 2.014281 },
+      { 0, 0, 16, 0.125893 },
+    };
+    const double snr_db = 9.0;
+    for (size_t k = 0; k < sizeof cases / sizeof cases[0]; k++)
+      {
+        wfm_source_t         s  = { .type      = cases[k].type,
+                                    .freq      = 0.0,
+                                    .snr       = snr_db,
+                                    .snr_mode  = cases[k].mode,
+                                    .seed      = 11,
+                                    .sps       = cases[k].sps,
+                                    .pn_length = 9,
+                                    .pn_poly   = 0 };
+        wfm_segment_t        g  = { .sources     = &s,
+                                    .n_sources   = 1,
+                                    .fs          = 1e6,
+                                    .num_samples = 200000,
+                                    .off_samples = 0 };
+        wfm_compose_state_t *cc = wfm_compose_create (&g, 1, 0, 0);
+        DP_REQUIRE_MSG (cc, "floor/bundled: create");
+        double        p   = 0.0;
+        size_t        got = 0, nn;
+        float complex b[4096];
+        while ((nn = wfm_compose_execute (cc, b, 4096)) > 0)
+          {
+            for (size_t i = 0; i < nn; i++)
+              p += (double)(crealf (b[i]) * crealf (b[i])
+                            + cimagf (b[i]) * cimagf (b[i]));
+            got += nn;
+          }
+        wfm_compose_destroy (cc);
+        DP_REQUIRE_MSG (got == 200000, "floor/bundled: sample count");
+        double measured = p / (double)got - 1.0; /* minus the unit signal */
+        char   msg[160];
+        snprintf (msg, sizeof msg,
+                  "type=%d mode=%d sps=%d: carries noise %.4f, the requested "
+                  "%.0f dB means %.4f",
+                  cases[k].type, cases[k].mode, cases[k].sps, measured, snr_db,
+                  cases[k].expect);
+        /* 3% covers the statistical spread at 200k samples; the errors this
+           catches are factors (a missing 10log10(sps) is 9 dB at sps=8, and a
+           dropped bits-per-symbol term is 3 dB at QPSK). */
+        DP_REQUIRE_MSG (
+            fabs (measured - cases[k].expect) < 0.03 * cases[k].expect, msg);
+      }
+  }
+
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "
           "resolve, sum-json, headroom, seed_advance, ranged fields, "
           "dsss burst, repeats)\n",

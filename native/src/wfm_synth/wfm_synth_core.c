@@ -103,20 +103,20 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
     {
       int mode = snr_mode;
       if (mode == 0)
-        mode = (type == WFM_SYNTH_BPSK || type == WFM_SYNTH_QPSK)
-                   ? 3
-                   : 1; /* *psk → esno; tone/pn/chirp/bits → fs */
-      int    bps = (type == WFM_SYNTH_QPSK) ? 2 : 1;
-      double snr_fs;
-      if (mode == 2) /* Eb/No → SNR over fs */
-        snr_fs = snr + 10.0 * log10 ((double)bps)
-                 - 10.0 * log10 ((double)obj->nsps);
-      else if (mode == 3) /* Es/No → SNR over fs (Es spans nsps samples) */
-        snr_fs = snr - 10.0 * log10 ((double)obj->nsps);
-      else /* over fs */
-        snr_fs = snr;
-      float amp = sqrtf (1.0f / (2.0f * powf (10.0f, (float)snr_fs / 10.0f)));
-      obj->awgn = awgn_create ((uint64_t)seed, amp);
+        /* *psk → esno; tone/pn/chirp/bits → fs. DSSS stays fs HERE and is
+           pre-referred by the composer instead: its Es spans one DATA symbol,
+           and the codes that set the spreading factor attach after create(),
+           so this is the best that can be said at this point. */
+        mode = (type == WFM_SYNTH_BPSK || type == WFM_SYNTH_QPSK) ? 3 : 1;
+      /* The conversion itself is wfm_synth_snr_over_fs() — shared with the
+         composer's per-segment noise floor and with the Plan stimulus engine,
+         so a bundled noisy source and a resolved one cannot place different
+         noise for the same requested SNR. Only the auto mapping above and the
+         span below are ours; both legitimately differ per caller. */
+      double snr_fs = wfm_synth_snr_over_fs (mode, wfm_synth_bps (type),
+                                             (double)obj->nsps, snr);
+      float  amp = sqrtf (1.0f / (2.0f * powf (10.0f, (float)snr_fs / 10.0f)));
+      obj->awgn  = awgn_create ((uint64_t)seed, amp);
     }
   if (want_noise && !obj->awgn)
     {

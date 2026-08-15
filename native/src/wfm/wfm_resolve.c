@@ -29,23 +29,31 @@
 #include <math.h>
 #include <stdlib.h>
 
-/* SNR (dB) over fs from snr/snr_mode/sps/type — mirrors the conversion in
- * wfm_synth_core.c so the resolved floor reproduces the bundled noise power
- * exactly. Public (declared in wfm_compose.h) so the Plan stimulus engine
- * recomputes floor(snr) at an arbitrary swept SNR using the identical formula
- * (single source of truth — no drift). */
+/* SNR (dB) over fs from snr/snr_mode/sps/type — the SEGMENT-level view, whose
+ * job is to pick the auto mode and work out the symbol span. The arithmetic
+ * itself is wfm_synth_snr_over_fs() in wfm_synth_core.h, shared with the
+ * generator so the resolved floor reproduces the bundled noise power exactly.
+ *
+ * That sharing used to be a comment claiming "single source of truth — no
+ * drift" over a second copy of the formula. It was true only by inspection,
+ * and only for the modes both copies implemented the same way. Public
+ * (declared in wfm_compose.h) so the Plan stimulus engine recomputes
+ * floor(snr) at an arbitrary swept SNR through the same call. */
 double
 wfm_snr_over_fs (int snr_mode, int type, int sps, size_t sf, double sym_span,
                  double snr)
 {
   int mode = snr_mode;
-  if (mode == 0) /* auto: *psk/dsss → Es/No, tone/noise/pn/chirp/bits → fs */
+  /* auto: *psk/dsss → Es/No, tone/noise/pn/chirp/bits → fs. DSSS differs from
+     the generator's own auto (which says fs) on purpose: only here is the
+     spreading factor known, so only here can a data-symbol Es/N0 be referred
+     to fs correctly. */
+  if (mode == 0)
     mode = (type == WFM_SYNTH_BPSK || type == WFM_SYNTH_QPSK
             || type == WFM_SYNTH_DSSS)
                ? 3
                : 1;
   int nsps = (sps < 1) ? 1 : sps;
-  int bps  = (type == WFM_SYNTH_QPSK) ? 2 : 1;
   /* dsss: Es spans one DATA symbol. For a BURST that is the outer data symbol
    * — sf chips × sps samples/chip. For a CONTINUOUS async stream the symbol
    * clock is independent of the code, so the span is fs/symbol_rate samples
@@ -58,11 +66,7 @@ wfm_snr_over_fs (int snr_mode, int type, int sps, size_t sf, double sym_span,
                             : (double)nsps * (double)(sf < 1 ? 1 : sf);
   else
     span = (double)nsps;
-  if (mode == 2) /* Eb/No */
-    return snr + 10.0 * log10 ((double)bps) - 10.0 * log10 (span);
-  if (mode == 3) /* Es/No */
-    return snr - 10.0 * log10 (span);
-  return snr; /* over fs */
+  return wfm_synth_snr_over_fs (mode, wfm_synth_bps (type), span, snr);
 }
 
 /* Continuous-DSSS symbol span in samples (fs/symbol_rate), or 0 for a burst /

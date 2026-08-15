@@ -106,8 +106,12 @@ add_test(NAME test_wfm_plan COMMAND test_wfm_plan)
 # gold_create -- the descriptor references the generators rather than adding
 # one, which is what lets a receiver regenerate a long record's truth from a
 # handful of numbers instead of carrying the array.
+# wfm_seq_parse.c is here rather than beside the CLI because the grammar is
+# the DESCRIPTOR's text form, and three faces read it. It replaced a parser in
+# wfmgen and a second one in wfm_json that disagreed on a stray character.
 add_library(wfm_frame_core OBJECT
-    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_frame.c)
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_frame.c
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_seq_parse.c)
 target_include_directories(wfm_frame_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/wfm)
@@ -120,6 +124,12 @@ target_include_directories(wfm_dsp_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/wfm)
 target_link_libraries(wfm_dsp_core PUBLIC m)
+
+add_executable(test_wfm_seq_parse
+    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_seq_parse.c)
+target_link_libraries(test_wfm_seq_parse PRIVATE wfm_frame_core pn_core gold_core m)
+target_include_directories(test_wfm_seq_parse PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_wfm_seq_parse COMMAND test_wfm_seq_parse)
 
 add_executable(test_wfm_frame
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_frame.c)

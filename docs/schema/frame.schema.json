@@ -1,0 +1,404 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "frame.schema.json",
+  "title": "frame (PROTOTYPE — not implemented)",
+  "description": "The full surface of a framed waveform, enumerated so the shape can be argued about before any of it is built. NOTHING here is wired to code yet; `wfmgen.schema.json` is the shipped spec and carries a much smaller frame (acq_code/acq_reps/sync/crc on a source). Every property carries `x-status`: `shipped` means the capability exists today in some form, `prototype` means it does not exist anywhere in the tree. Grep the file for `\"x-status\": \"prototype\"` to get the honest gap list.\n\nThe one structural decision everything else follows from: a frame is an ORDERED LIST OF FIELDS, not a fixed set of named ones. Today's C descriptor (`wfm_frame_t`) is the fixed form — preamble, sync, payload, crc, in that order and no other — which cannot express a header, a mid-frame pilot, a second CRC, or a protocol that orders them differently. A list costs nothing extra for the simple case and is the only version that grows.",
+
+  "type": "object",
+  "required": ["fields"],
+  "additionalProperties": false,
+
+  "properties": {
+    "$comment": {
+      "type": "string",
+      "description": "Free prose on an instance. Permitted because the examples below are annotated, and an example that cannot carry its own explanation gets explained somewhere that drifts from it."
+    },
+    "fields": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The frame, in transmission order. A field's POSITION is its place in this array; what it is COMPUTED OVER (a CRC, an FEC block) is a separate `covers` reference, which is what lets a trailer protect a subset and lets two CRCs coexist.\n\nTHIS IS A SCENE-FILE MODEL AND DELIBERATELY NOT A COMMAND LINE ONE. Nobody builds a six-field coded frame out of flags, and a CLI spelling for an arbitrary field list (`--field name=sync,source=pn:len=127`, repeated) would be a second grammar carrying the same meaning — the kind of duplication that drifts. So the split is:\n\n  - the CLI keeps ONE flag per common field — `--preamble`, `--sync`, `--payload`, each taking a single `wfm_seq_parse()` spec, plus `--crc`. That covers a three-field frame with no ceremony, which is the overwhelmingly common case;\n  - anything past that is `--from-file scene.json`, where this model lives.\n\nThe CLI form is therefore SUGAR, defined as what it records. That is not a convention anyone has to maintain: `--record` already writes the fully-resolved run and `--from-file` already reproduces it byte-for-byte, and both are gated (`test_schema.py`). So a flag-built frame must serialize into this general form, and the CLI cannot grow a capability the scene lacks — the round-trip fails first.",
+      "x-status": "prototype",
+      "items": { "$ref": "#/$defs/field" }
+    },
+
+    "coding": {
+      "type": "array",
+      "description": "FEC blocks. An array rather than a single encoder because real links protect the header and the payload differently — DVB-S2 is the canonical case. Each block names the fields it encodes, so the frame stays a list and coding is a view over it.",
+      "x-status": "prototype",
+      "items": { "$ref": "#/$defs/coding_block" }
+    },
+
+    "scrambler": {
+      "$ref": "#/$defs/scrambler",
+      "description": "Randomization applied after coding, before modulation. CCSDS and DVB both mandate one, and its ABSENCE is a measurement hazard rather than a missing feature: a PN payload is maximally random by construction, so no test built on the named frame set can reproduce the timing-recovery failure that a real low-entropy payload (ASCII, mostly-zero telemetry) causes.",
+      "x-status": "prototype"
+    },
+
+    "bit_order": {
+      "type": "string",
+      "enum": ["msb", "lsb"],
+      "default": "msb",
+      "description": "Bit significance within a byte wherever this frame meets bytes — a `file` literal, a packed payload, a CRC trailer. Today MSB-first is hardcoded in three places (wfm_frame.c's CRC emit, wfmgen's --bits-hex, the file reader) and agrees by luck rather than by a shared constant.",
+      "x-status": "prototype"
+    },
+
+    "packing": {
+      "type": "string",
+      "enum": ["unpacked", "packed"],
+      "default": "unpacked",
+      "description": "`unpacked` is one bit per byte, which is what every kernel here takes today (dp_crc16_ccitt, wfm_frame_bits, the spreader). `packed` is eight bits per byte, which is what a caller with a real payload has and what a 1 MB file costs 8x without. Listed as open in docs/design/rx-test.md section 7.5.",
+      "x-status": "prototype"
+    },
+
+    "modulation": {
+      "type": "string",
+      "enum": ["none", "bpsk", "qpsk", "8psk", "16qam"],
+      "default": "bpsk",
+      "description": "Default symbol mapping for fields that do not override it. Per-field override is the thing that matters (see field.modulation) — a preamble is routinely BPSK while the payload is 8PSK, because the preamble has to be acquirable at an SNR the payload does not have to survive.",
+      "x-status": "partial"
+    }
+  },
+
+  "$defs": {
+
+    "field": {
+      "type": "object",
+      "required": ["name", "source"],
+      "additionalProperties": false,
+      "description": "One run of bits in the frame. `source` is the 'selection or user-defined pattern' distinction: every field takes every kind, which is the property that lets a new kind reach every field at once and a new field reach every kind at once.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Unique within the frame. This is what `covers` references, so it is an identifier rather than a label.",
+          "x-status": "prototype"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["preamble", "sync", "header", "payload", "crc", "pilot", "tail", "guard"],
+          "description": "What the field is FOR. Not decoration: it decides the default for `advance` (see below), it tells a receiver which field to correlate against versus which to demodulate, and it is what a future receiver-side descriptor would key on. A frame may carry several fields of one role (two pilots, two CRCs).",
+          "x-status": "prototype"
+        },
+        "source": {
+          "$ref": "#/$defs/source",
+          "description": "Where the bits come from.",
+          "x-status": "partial"
+        },
+        "repeat": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Repetitions of this field, emitted VERBATIM — a generated field must not be re-drawn per repetition or it stops being a periodic acquisition target and coherent integration across repeats is void. Today this exists only for the preamble (`acq_reps`).",
+          "x-status": "partial"
+        },
+        "modulation": {
+          "type": "string",
+          "enum": ["none", "bpsk", "qpsk", "8psk", "16qam"],
+          "description": "Per-field mapping override. Absent means the frame default.",
+          "x-status": "prototype"
+        },
+        "advance": {
+          "type": "boolean",
+          "description": "Whether this field is re-drawn on each frame when the record's `seed_advance` is `all`. THE DEFAULT IS DERIVED FROM `role` AND THAT IS THE POINT: a payload advances, a preamble and a sync word never do, because they are exactly what the receiver correlates against and a sync word that changed per frame would be undetectable by construction. Set it explicitly only to contradict the role.\n\nThis is the field that fixes the single biggest realism gap for free: today every frame in a record is byte-identical, because the frame is materialised once and memcpy'd.",
+          "x-status": "prototype"
+        },
+        "scramble": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the frame's scrambler covers this field. Normally false for preamble and sync (a receiver must find them before it can de-scramble) and true for everything after.",
+          "x-status": "prototype"
+        }
+      }
+    },
+
+    "source": {
+      "description": "A selection or a user-defined pattern. The four `shipped` kinds exist in C today as `wfm_seq_kind_t`; `wfm_seq_parse()` gives them a text spelling. The rest are the enumeration this document exists to produce.",
+      "oneOf": [
+        { "$ref": "#/$defs/src_literal" },
+        { "$ref": "#/$defs/src_pn" },
+        { "$ref": "#/$defs/src_gold" },
+        { "$ref": "#/$defs/src_dotted" },
+        { "$ref": "#/$defs/src_constant" },
+        { "$ref": "#/$defs/src_counter" },
+        { "$ref": "#/$defs/src_crc" },
+        { "$ref": "#/$defs/src_barker" },
+        { "$ref": "#/$defs/src_zadoff_chu" }
+      ]
+    },
+
+    "src_literal": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "description": "A user-defined pattern: the caller has the bits. Exactly one of bits/hex/file.\n\nNOTE the text/JSON correspondence, which is not one-to-one and caught the author writing this file's own example wrong: the text spellings `1011…`, `hex:AA55`, `0xAA55` and `file:PATH` are four spellings of ONE kind. `hex:` and `file:` look like kind prefixes and are not — they are how a literal says where its bits came from. Three kinds would have tripled the kind list to describe one concept.",
+      "x-status": "shipped",
+      "properties": {
+        "kind": { "const": "literal" },
+        "bits": { "type": "string", "pattern": "^[01]*$" },
+        "hex": { "type": "string", "pattern": "^[0-9a-fA-F]*$" },
+        "file": { "type": "string", "description": "Path; bits consumed MSB-first per byte." }
+      },
+      "oneOf": [
+        { "required": ["bits"] }, { "required": ["hex"] }, { "required": ["file"] }
+      ]
+    },
+
+    "src_pn": {
+      "type": "object",
+      "required": ["kind", "len", "reg_bits"],
+      "additionalProperties": false,
+      "description": "An m-sequence a receiver REGENERATES. This is what makes a long capture reproducible from metadata: truth for a million symbols without a million-symbol array. Text: `pn:len=1024,reg=10`.",
+      "x-status": "shipped",
+      "properties": {
+        "kind": { "const": "pn" },
+        "len": { "type": "integer", "minimum": 1, "description": "OUTPUT bits — independent of the register width, and conflating the two is the mistake wfm_frame.h names explicitly." },
+        "reg_bits": { "type": "integer", "minimum": 1, "maximum": 64, "description": "Register width; period 2^reg_bits - 1." },
+        "poly": { "type": "integer", "default": 0, "description": "0 selects the maximal-length polynomial for this width. A literal 0 reaching pn_create() would be a register with no feedback." },
+        "seed": { "type": "integer", "default": 0, "description": "0 selects 1; an all-zero register is a fixed point." },
+        "lfsr": { "type": "string", "enum": ["galois", "fibonacci"], "default": "galois" }
+      }
+    },
+
+    "src_gold": {
+      "type": "object",
+      "required": ["kind", "len", "reg_bits"],
+      "additionalProperties": false,
+      "description": "Two registers, a Gold family — bounded cross-correlation, so a distinct sync per frame, user or channel. Text: `gold:len=127,reg=10`.",
+      "x-status": "shipped",
+      "properties": {
+        "kind": { "const": "gold" },
+        "len": { "type": "integer", "minimum": 1 },
+        "reg_bits": { "type": "integer", "minimum": 1, "maximum": 64 },
+        "taps_a": { "type": "integer", "default": 0 },
+        "seed_a": { "type": "integer", "default": 0 },
+        "taps_b": { "type": "integer", "default": 0 },
+        "seed_b": { "type": "integer", "default": 0 }
+      }
+    },
+
+    "src_dotted": {
+      "type": "object",
+      "required": ["kind", "len"],
+      "additionalProperties": false,
+      "description": "Alternating 1010…, a line at Rs/2 for an AGC or timing loop to settle on. Starts high, so a one-bit field is not silently indistinguishable from zeros. Text: `dotted:len=64`.",
+      "x-status": "shipped",
+      "properties": {
+        "kind": { "const": "dotted" },
+        "len": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "src_constant": {
+      "type": "object",
+      "required": ["kind", "len"],
+      "additionalProperties": false,
+      "description": "A run of one value. Needed for tail/flush bits after a convolutional encoder, and for a guard field.",
+      "x-status": "prototype",
+      "properties": {
+        "kind": { "const": "constant" },
+        "len": { "type": "integer", "minimum": 1 },
+        "value": { "type": "integer", "enum": [0, 1], "default": 0 }
+      }
+    },
+
+    "src_counter": {
+      "type": "object",
+      "required": ["kind", "width"],
+      "additionalProperties": false,
+      "description": "A frame counter — the smallest thing that makes consecutive frames DIFFER, and the reason a header is worth having at all. Also the cheapest possible test of a receiver's frame alignment: a decoded counter that skips says a frame was dropped, which no BER number tells you.",
+      "x-status": "prototype",
+      "properties": {
+        "kind": { "const": "counter" },
+        "width": { "type": "integer", "minimum": 1, "maximum": 64, "description": "Bits; wraps at 2^width." },
+        "start": { "type": "integer", "default": 0 },
+        "step": { "type": "integer", "default": 1 }
+      }
+    },
+
+    "src_crc": {
+      "type": "object",
+      "required": ["kind", "covers"],
+      "additionalProperties": false,
+      "description": "A check field. Position in `fields` is where the trailer sits; `covers` is what it protects — the two are independent, which is what today's fixed struct cannot express. `crc16-ccitt` over the payload alone is the shipped behaviour and stays the default.",
+      "x-status": "partial",
+      "properties": {
+        "kind": { "const": "crc" },
+        "algorithm": {
+          "type": "string",
+          "enum": ["crc16-ccitt", "crc32", "crc8", "none"],
+          "default": "crc16-ccitt",
+          "description": "Only crc16-ccitt exists (dp_crc16.h). The rest are prototype."
+        },
+        "covers": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Field names, in order. Today's implicit value is [payload]; a header-bearing frame usually wants [header, payload]."
+        }
+      }
+    },
+
+    "src_barker": {
+      "type": "object",
+      "required": ["kind", "len"],
+      "additionalProperties": false,
+      "description": "A named constant, spelled as a selection so a caller does not paste 1111100110101 and get one bit wrong. Sugar over `literal`, and the reason `role` and `source` are separate axes.",
+      "x-status": "prototype",
+      "properties": {
+        "kind": { "const": "barker" },
+        "len": { "type": "integer", "enum": [2, 3, 4, 5, 7, 11, 13] }
+      }
+    },
+
+    "src_zadoff_chu": {
+      "type": "object",
+      "required": ["kind", "len", "root"],
+      "additionalProperties": false,
+      "description": "Constant-amplitude zero-autocorrelation. Listed to prove the shape holds for a kind that is NOT binary — and it does not, quite: this produces complex symbols, not bits, so it cannot ride `wfm_frame_bits()`. Kept in the enumeration as the honest boundary of a bit-level descriptor.",
+      "x-status": "prototype",
+      "properties": {
+        "kind": { "const": "zadoff-chu" },
+        "len": { "type": "integer", "minimum": 1 },
+        "root": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "coding_block": {
+      "type": "object",
+      "required": ["encoder", "covers"],
+      "additionalProperties": false,
+      "description": "FEC over a named span. Nothing in doppler encodes anything today — there is no convolutional, RS, LDPC or turbo code, and no interleaver, anywhere in the tree. This is the single largest gap between a test-vector generator and a link waveform.",
+      "x-status": "prototype",
+      "properties": {
+        "encoder": {
+          "type": "object",
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["type", "constraint", "rate"],
+              "additionalProperties": false,
+              "properties": {
+                "type": { "const": "convolutional" },
+                "constraint": { "type": "integer", "minimum": 3, "maximum": 9 },
+                "rate": { "type": "string", "enum": ["1/2", "1/3", "2/3", "3/4", "5/6", "7/8"] },
+                "polys": { "type": "array", "items": { "type": "integer" } },
+                "puncture": { "type": "string" }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "n", "k"],
+              "additionalProperties": false,
+              "properties": {
+                "type": { "const": "reed-solomon" },
+                "n": { "type": "integer" },
+                "k": { "type": "integer" },
+                "symbol_bits": { "type": "integer", "default": 8 }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "rate"],
+              "additionalProperties": false,
+              "properties": {
+                "type": { "const": "ldpc" },
+                "rate": { "type": "string" },
+                "block": { "type": "integer" }
+              }
+            }
+          ]
+        },
+        "covers": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "interleaver": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": { "type": "string", "enum": ["none", "block", "convolutional"], "default": "none" },
+            "rows": { "type": "integer" },
+            "cols": { "type": "integer" },
+            "depth": { "type": "integer" }
+          }
+        },
+        "tail": {
+          "type": "string",
+          "enum": ["none", "zero", "tailbiting"],
+          "default": "none",
+          "description": "How the encoder is terminated. `zero` appends constraint-1 zeros; `tailbiting` initialises from the last bits instead. Getting this wrong costs a fraction of a dB and is invisible without a decoder."
+        }
+      }
+    },
+
+    "sigmf_annotation": {
+      "type": "object",
+      "description": "THE DUAL. A frame description has two serializations and they must not drift: the SCENE (`wfmgen.schema.json`) is the input — 'generate this' — and the SigMF sidecar is the output — 'here is what this capture contains'. doppler already writes the second (`wfm_writer_core.c` emits one annotation per segment with core:sample_start / core:sample_count / core:label), and it says nothing about framing, so a framed capture is not self-describing: an analyst holding the .sigmf-data and .sigmf-meta cannot recover the sync word, and a receiver cannot score frames without also being handed the scene file that made them.\n\nThis is the projection that closes it, and it is why the list-of-fields model is not merely tidier: a SigMF annotation IS a span (`sample_start` + `sample_count`), so a list of fields maps onto a list of annotations one-for-one. A fixed struct of named members does not map onto it at all.\n\nTwo levels are worth emitting and they answer different questions:\n  - GLOBAL, under SigMF's `core:extensions` mechanism — the generative descriptor, so the whole capture is reproducible from its metadata. This is the same object `fields` above defines, carried verbatim, which is what keeps it one definition rather than two.\n  - PER-FRAME or PER-FIELD annotations — the located form, so a tool that knows nothing about doppler can still draw the sync word on a spectrogram.\n\nOPEN, and to be checked before anything is emitted: whether a community SigMF extension for packet/frame structure already exists. Inventing `doppler:frame` when a standard namespace is available would be the same mistake as a second CRC — a wire-format decision made by not looking.",
+      "x-status": "prototype",
+      "additionalProperties": true,
+      "properties": {
+        "core:sample_start": { "type": "integer" },
+        "core:sample_count": { "type": "integer" },
+        "core:label": { "type": "string", "description": "The field `name`, so an off-the-shelf SigMF viewer labels the span." },
+        "doppler:role": { "type": "string", "description": "The field `role` — what a receiver keys on." },
+        "doppler:source": { "$ref": "#/$defs/source", "description": "The generative form, carried verbatim so the span is REPRODUCIBLE and not merely located. This is the whole argument for the generated kinds: a PN payload's truth travels as (poly, seed, reg_bits) in a sidecar, where a literal one could not travel at all." },
+        "doppler:frame_index": { "type": "integer", "description": "Which frame of the record this span belongs to — the thing that makes per-frame annotations navigable once `advance` makes consecutive frames differ." }
+      }
+    },
+
+    "scrambler": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "x-status": "prototype",
+      "properties": {
+        "type": { "type": "string", "enum": ["none", "additive", "multiplicative"], "default": "none" },
+        "poly": { "type": "integer" },
+        "seed": { "type": "integer", "default": 1 },
+        "reset": {
+          "type": "string",
+          "enum": ["per_frame", "continuous"],
+          "default": "per_frame",
+          "description": "`per_frame` re-seeds at each frame start, so a frame is self-contained and a receiver that misses one still decodes the next. `continuous` runs across frames and is what a stream-oriented link does."
+        },
+        "covers": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Field names. Absent means every field whose `scramble` is true."
+        }
+      }
+    }
+  },
+
+  "examples": [
+    {
+      "$comment": "Today's shipped frame, expressed in the new model — RX_FRAME_BURST from the named set. This is the compatibility check: the model must say what we can already say, without ceremony.",
+      "fields": [
+        { "name": "pre",     "role": "preamble", "source": { "kind": "dotted", "len": 64 }, "repeat": 1 },
+        { "name": "sync",    "role": "sync",     "source": { "kind": "literal", "bits": "1111100110101" } },
+        { "name": "payload", "role": "payload",  "source": { "kind": "pn", "len": 128, "reg_bits": 7 } },
+        { "name": "fcs",     "role": "crc",      "source": { "kind": "crc", "algorithm": "crc16-ccitt", "covers": ["payload"] } }
+      ]
+    },
+    {
+      "$comment": "A link frame — everything the model can express and almost none of which exists. The header carries a counter, so consecutive frames differ; the CRC covers header AND payload; the payload is coded and the header is not; the preamble and sync are outside the scrambler because a receiver must find them before it can de-scramble.",
+      "fields": [
+        { "name": "pre",     "role": "preamble", "source": { "kind": "dotted", "len": 32 }, "repeat": 8, "scramble": false, "advance": false },
+        { "name": "sync",    "role": "sync",     "source": { "kind": "barker", "len": 13 }, "scramble": false, "advance": false },
+        { "name": "hdr",     "role": "header",   "source": { "kind": "counter", "width": 16 }, "modulation": "bpsk" },
+        { "name": "payload", "role": "payload",  "source": { "kind": "literal", "file": "data.bin" }, "modulation": "8psk", "advance": true },
+        { "name": "tail",    "role": "tail",     "source": { "kind": "constant", "len": 6, "value": 0 } },
+        { "name": "fcs",     "role": "crc",      "source": { "kind": "crc", "algorithm": "crc32", "covers": ["hdr", "payload"] } }
+      ],
+      "coding": [
+        {
+          "encoder": { "type": "convolutional", "constraint": 7, "rate": "1/2" },
+          "covers": ["payload", "tail"],
+          "interleaver": { "type": "block", "rows": 16, "cols": 64 },
+          "tail": "zero"
+        }
+      ],
+      "scrambler": { "type": "additive", "poly": 289, "seed": 1, "reset": "per_frame" },
+      "bit_order": "msb",
+      "packing": "packed",
+      "modulation": "qpsk"
+    }
+  ]
+}

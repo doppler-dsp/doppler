@@ -131,23 +131,25 @@ main (void)
                     "omitted means the descriptor's own default, not a "
                     "value invented here");
 
-    wfm_seq_t t = { 0 };
-    uint8_t *ot = NULL;
+    wfm_seq_t t  = { 0 };
+    uint8_t  *ot = NULL;
     DP_REQUIRE_MSG (
-        parses ("pn:len=8,reg=5,poly=0x12,seed=3,lfsr=fibonacci", &t, &ot) == 0,
+        parses ("pn:len=8,reg=5,poly=0x12,seed=3,lfsr=fibonacci", &t, &ot)
+            == 0,
         "pn with every key");
     DP_REQUIRE_MSG (t.poly == 0x12, "hex value");
     DP_REQUIRE_MSG (t.seed == 3 && t.lfsr == 1, "seed and realization");
 
-    wfm_seq_t g = { 0 };
-    uint8_t *og = NULL;
-    DP_REQUIRE_MSG (
-        parses ("gold:len=127,reg=10,taps_a=5,seed_b=9", &g, &og) == 0, "gold");
+    wfm_seq_t g  = { 0 };
+    uint8_t  *og = NULL;
+    DP_REQUIRE_MSG (parses ("gold:len=127,reg=10,taps_a=5,seed_b=9", &g, &og)
+                        == 0,
+                    "gold");
     DP_REQUIRE_MSG (g.kind == WFM_SEQ_GOLD, "gold");
     DP_REQUIRE_MSG (g.taps_a == 5 && g.seed_b == 9, "both registers");
 
-    wfm_seq_t d = { 0 };
-    uint8_t *od = NULL;
+    wfm_seq_t d  = { 0 };
+    uint8_t  *od = NULL;
     DP_REQUIRE_MSG (parses ("dotted:len=64", &d, &od) == 0, "dotted");
     DP_REQUIRE_MSG (d.kind == WFM_SEQ_DOTTED && d.len == 64,
                     "dotted — the kind every named test frame's preamble "
@@ -182,23 +184,29 @@ main (void)
   {
     /* The divergence this parser exists to end: one face skipped the stray
        character and shortened the word, the other refused it. */
-    DP_REQUIRE_MSG (refuses ("1O11"), "1O11");      /* letter O */
-    DP_REQUIRE_MSG (refuses ("10 11"), "10 11");     /* a space */
-    DP_REQUIRE_MSG (refuses ("hex:zz"), "hex:zz");    /* not hex */
+    DP_REQUIRE_MSG (refuses ("1O11"), "1O11");     /* letter O */
+    DP_REQUIRE_MSG (refuses ("10 11"), "10 11");   /* a space */
+    DP_REQUIRE_MSG (refuses ("hex:zz"), "hex:zz"); /* not hex */
     DP_REQUIRE_MSG (refuses ("0xZZ"), "0xZZ");
-    DP_REQUIRE_MSG (refuses ("file:/nonexistent/definitely/not/here.bin"), "file:/nonexistent/definitely/not/here.bin");
+    DP_REQUIRE_MSG (refuses ("file:/nonexistent/definitely/not/here.bin"),
+                    "file:/nonexistent/definitely/not/here.bin");
 
-    DP_REQUIRE_MSG (refuses ("barker:13"), "barker:13");            /* an unknown kind */
-    DP_REQUIRE_MSG (refuses ("pn:reg=7"), "pn:reg=7");             /* no len */
-    DP_REQUIRE_MSG (refuses ("pn:len=127"), "pn:len=127");           /* no register width */
-    DP_REQUIRE_MSG (refuses ("pn:len=127,reg=65"), "pn:len=127,reg=65");    /* wider than the struct allows */
+    DP_REQUIRE_MSG (refuses ("barker:13"), "barker:13"); /* an unknown kind */
+    DP_REQUIRE_MSG (refuses ("pn:reg=7"), "pn:reg=7");   /* no len */
+    DP_REQUIRE_MSG (refuses ("pn:len=127"),
+                    "pn:len=127"); /* no register width */
+    DP_REQUIRE_MSG (refuses ("pn:len=127,reg=65"),
+                    "pn:len=127,reg=65"); /* wider than the struct allows */
     /* The typo cases assert the MESSAGE: see refuses_saying() for why
        asserting the refusal alone proves nothing here. */
     DP_REQUIRE_MSG (refuses_saying ("pn:len=127,reg_bits=7", "unknown key"),
                     "a misspelled key names the KEY, not the register");
-    DP_REQUIRE_MSG (refuses ("pn:len=127,reg=7x"), "pn:len=127,reg=7x");    /* a trailing character */
-    DP_REQUIRE_MSG (refuses ("pn:len=127,reg=7,lfsr=galoise"), "pn:len=127,reg=7,lfsr=galoise");
-    DP_REQUIRE_MSG (refuses ("gold:len=127"), "gold:len=127");         /* no register width */
+    DP_REQUIRE_MSG (refuses ("pn:len=127,reg=7x"),
+                    "pn:len=127,reg=7x"); /* a trailing character */
+    DP_REQUIRE_MSG (refuses ("pn:len=127,reg=7,lfsr=galoise"),
+                    "pn:len=127,reg=7,lfsr=galoise");
+    DP_REQUIRE_MSG (refuses ("gold:len=127"),
+                    "gold:len=127"); /* no register width */
     DP_REQUIRE_MSG (refuses ("dotted:len=0"), "dotted:len=0");
     DP_REQUIRE_MSG (refuses_saying ("dotted:count=64", "unknown key"),
                     "and so does dotted's");

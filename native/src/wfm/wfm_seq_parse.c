@@ -45,16 +45,16 @@ kv_u64 (const char *args, const char *key, uint64_t dflt, int *ok)
   const char *v    = kv_find (args, key, &vlen);
   if (!v || vlen == 0)
     return dflt;
-  char  buf[32];
+  char buf[32];
   if (vlen >= sizeof buf)
     {
       *ok = 0;
       return 0;
     }
   memcpy (buf, v, vlen);
-  buf[vlen] = '\0';
-  char     *end = NULL;
-  uint64_t  n   = strtoull (buf, &end, 0);
+  buf[vlen]    = '\0';
+  char    *end = NULL;
+  uint64_t n   = strtoull (buf, &end, 0);
   if (end == buf || *end != '\0')
     *ok = 0;
   return n;
@@ -202,23 +202,23 @@ wfm_seq_parse (const char *spec, wfm_seq_t *out, uint8_t **owned,
   size_t      klen  = colon ? (size_t)(colon - spec) : 0;
   int         ok    = 1;
 
-#define KIND_IS(name) (colon && klen == strlen (name) \
-                       && strncmp (spec, name, klen) == 0)
+#define KIND_IS(name)                                                         \
+  (colon && klen == strlen (name) && strncmp (spec, name, klen) == 0)
 
   if (KIND_IS ("pn"))
     {
-      static const char *const keys[] = { "len",  "reg",  "poly",
-                                          "seed", "lfsr" };
+      static const char *const keys[]
+          = { "len", "reg", "poly", "seed", "lfsr" };
       if (!kv_only (args, keys, sizeof keys / sizeof keys[0]))
         {
           *err = "pn: unknown key (want len, reg, poly, seed, lfsr)";
           return -1;
         }
-      out->kind     = WFM_SEQ_PN;
-      out->len      = (size_t)kv_u64 (args, "len", 0, &ok);
-      out->reg_bits = (uint32_t)kv_u64 (args, "reg", 0, &ok);
-      out->poly     = kv_u64 (args, "poly", 0, &ok);
-      out->seed     = kv_u64 (args, "seed", 0, &ok);
+      out->kind      = WFM_SEQ_PN;
+      out->len       = (size_t)kv_u64 (args, "len", 0, &ok);
+      out->reg_bits  = (uint32_t)kv_u64 (args, "reg", 0, &ok);
+      out->poly      = kv_u64 (args, "poly", 0, &ok);
+      out->seed      = kv_u64 (args, "seed", 0, &ok);
       size_t      lv = 0;
       const char *l  = kv_find (args, "lfsr", &lv);
       if (l)
@@ -248,8 +248,8 @@ wfm_seq_parse (const char *spec, wfm_seq_t *out, uint8_t **owned,
 
   if (KIND_IS ("gold"))
     {
-      static const char *const keys[] = { "len",    "reg",    "taps_a",
-                                          "seed_a", "taps_b", "seed_b" };
+      static const char *const keys[]
+          = { "len", "reg", "taps_a", "seed_a", "taps_b", "seed_b" };
       if (!kv_only (args, keys, sizeof keys / sizeof keys[0]))
         {
           *err = "gold: unknown key (want len, reg, taps_a, seed_a, taps_b, "

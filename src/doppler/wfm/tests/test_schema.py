@@ -544,3 +544,72 @@ def test_static_invalid(case_id: str, instance: dict, validator):
 
     with pytest.raises(ValidationError):
         validator.validate(instance)
+
+
+# ── the frame prototype ──────────────────────────────────────────────────────
+#
+# `docs/schema/frame.schema.json` enumerates the full surface of a framed
+# waveform so the shape can be argued about before it is built. It is a design
+# artifact, not a wired spec — but it carries annotated examples, and a schema
+# whose own examples stop validating is worse than no schema: it reads as
+# settled while being wrong.
+#
+# This is here because it already happened. The first draft's examples were
+# both invalid — `$comment` fell foul of `additionalProperties: false`, and one
+# used `{"kind": "file"}` where the model spells that as a literal carrying a
+# `file`. Both were found by running the check, neither by reading it.
+
+_FRAME_SCHEMA_PATH = (
+    Path(__file__).parents[4] / "docs/schema/frame.schema.json"
+)
+
+
+def test_frame_prototype_schema_is_itself_valid():
+    from jsonschema import Draft202012Validator
+
+    schema = json.loads(_FRAME_SCHEMA_PATH.read_text())
+    Draft202012Validator.check_schema(schema)
+
+
+def test_frame_prototype_examples_validate():
+    """Every annotated example in the prototype validates against it."""
+    from jsonschema import Draft202012Validator
+
+    schema = json.loads(_FRAME_SCHEMA_PATH.read_text())
+    validator = Draft202012Validator(schema)
+    examples = schema.get("examples", [])
+    assert examples, "the prototype must carry examples or it is prose"
+    for i, example in enumerate(examples):
+        errors = sorted(
+            validator.iter_errors(example), key=lambda e: list(e.path)
+        )
+        assert not errors, (
+            f"examples[{i}] ({example.get('$comment', '')[:60]}...) "
+            f"does not validate: "
+            + "; ".join(f"{list(e.path)}: {e.message}" for e in errors[:3])
+        )
+
+
+def test_frame_prototype_marks_every_property_with_a_status():
+    """`x-status` is the honest gap list, so it may not be omitted.
+
+    The file's whole claim is that you can grep it for what does not exist.
+    A property added without a status silently joins the 'shipped' side of
+    that reading.
+    """
+    schema = json.loads(_FRAME_SCHEMA_PATH.read_text())
+    allowed = {"shipped", "partial", "prototype"}
+
+    missing = [
+        name
+        for name, prop in schema["properties"].items()
+        if name != "$comment" and "x-status" not in prop
+    ]
+    assert not missing, f"top-level properties with no x-status: {missing}"
+
+    bad = [
+        (name, prop["x-status"])
+        for name, prop in schema["properties"].items()
+        if prop.get("x-status", "shipped") not in allowed
+    ]
+    assert not bad, f"unknown x-status values: {bad}"

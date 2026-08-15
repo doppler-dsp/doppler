@@ -15,6 +15,31 @@ ______________________________________________________________________
 
 ### Added
 
+- **A text spelling for a frame field, and one parser for it**
+    (`wfm_seq_parse()`). A field is either a *selection* — a generated
+    sequence named by a handful of numbers — or a *user-defined pattern*, and
+    `wfm_seq_t` has said so since the descriptor landed while every face threw
+    the distinction away. `pn:len=127,reg=7`, `gold:len=127,reg=10`,
+    `dotted:len=64`, `hex:AA55`, `file:PATH`, and the bare `1011…` form, which
+    is unprefixed and parsed last so this is a strict superset: every existing
+    flag and every committed scene parses unchanged.
+
+    It **replaces two parsers that disagreed** — `wfmgen`'s
+    `parse_bit_string()` refused a stray character while `wfm_json`'s
+    `string_to_bits()` silently skipped it, so `--sync 1O11` (letter O) was an
+    error on the command line and a three-bit sync word in a scene file. It
+    now refuses on both.
+
+- **`docs/schema/frame.schema.json` — the full surface of a framed waveform,
+    enumerated.** A design artifact, wired to nothing: every property carries
+    `x-status`, so grepping for `prototype` is the honest gap list (currently
+    17 prototype, 4 partial, 4 shipped). It exists because the shipped frame
+    is a *measurement* frame — `[preamble | sync | payload | CRC-16]` is
+    exactly what `wfm_frame_crc_ok()` needs and nothing more — and growing a
+    link-layer frame into it one flag at a time is how the shape goes wrong.
+    Its examples are gated (`test_schema.py`), because both examples in the
+    first draft were invalid and neither was caught by reading them.
+
 - **just-makeit pin 0.60.2 → 0.61.0.** Adopted for **gh-998**, the only one of
     the three that moves a file here: a composer source's project-written
     straight-C seams (`[module.X.source.generates] bridge_fn` and each

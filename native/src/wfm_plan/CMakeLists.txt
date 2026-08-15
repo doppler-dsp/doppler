@@ -7,6 +7,8 @@ Python3_add_library(wfm_plan MODULE WITH_SOABI wfm_plan_ext.c)
 target_link_libraries(wfm_plan PRIVATE
     wfm_compose_core
     wfm_dsp_core
+    wfm_frame_core
+    gold_core
     wfm_synth_core
     lo_core
     awgn_core

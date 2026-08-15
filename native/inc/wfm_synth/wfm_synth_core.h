@@ -23,6 +23,7 @@
 #include "pn/pn_core.h"
 #include "resamp/resamp_core.h"
 #include <math.h> /* log10/powf/sqrtf in create_impl */
+#include "gold/gold_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

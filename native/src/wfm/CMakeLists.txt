@@ -13,6 +13,7 @@ target_link_libraries(wfm PRIVATE
     awgn_core
     fir_core
     resamp_core
+    wfm_frame_core
     wfm_dsp_core
     Python3::NumPy)
 target_include_directories(wfm PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

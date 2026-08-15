@@ -502,7 +502,7 @@ ______________________________________________________________________
 
 ## 7. The frame descriptor
 
-**Design, not yet built.** One struct describing a frame's *bit layout*, read
+**Built, in part — see §7.6 for what landed and what has not.** One struct describing a frame's *bit layout*, read
 by the generator that builds it and by the measurer that scores it. The
 existing DSSS assembler already states the reason it must be shared — it is
 "assembled in one place so TX and RX can never drift" — and this generalises
@@ -681,6 +681,29 @@ The sync length of 127 is a **placeholder pending the §6 measurement**, not a
 recommendation: it is one register period (`reg_bits = 7`) long enough to be
 plausible at 4 dB, and `dp_ber_sync()`'s `margin_db` is what should actually
 choose it.
+
+### 7.6 What landed
+
+`native/inc/wfm/wfm_frame.h` + `native/src/wfm/wfm_frame.c`: the structs of
+§7.1, the geometry of §7.2 (`wfm_frame_layout` / `nbits` / `bits` /
+`crc_ok`), all four sequence kinds, and the §7.3 refactor —
+`wfm_frame_dsss_chips()` now assembles the frame and spreads it, with the
+existing DSSS round-trips passing unchanged, which is the regression check
+§7.3 promised. `native/tests/test_wfm_frame.c` pins the layout against the
+bits it writes, the repeated preamble, PN regeneration against `pn_generate`
+directly, and the CRC's truth-free reject.
+
+One thing the design did not anticipate, found by building it: **the frame
+layer's dependencies are not the DSSS core's.** The generated kinds call
+`pn_create`/`gold_create`, and folding the frame into `wfm_dsp_core` — the
+"spreading + RRC taps" library every receiver links for a matched filter —
+put `gold_create` into eight link targets, four of them jm-generated. So the
+DSSS burst assembler MOVED to `wfm_frame.c`: assembling a frame is what it
+does, and the split follows the function rather than the file.
+
+**Not yet built:** the §7.4 named starter set, and the frame-statistics
+accumulator of §2.5 (the FER this makes possible). Those are the next two
+increments.
 
 ### 7.5 Open
 

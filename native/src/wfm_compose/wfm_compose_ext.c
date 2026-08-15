@@ -13,11 +13,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "wfm/wfm_compose.h"
-#include "wfm_synth/wfm_synth_core.h"
-/* project bridge (straight C, no CPython): build the generator. */
-extern wfm_synth_state_t *wfm_source_to_synth (const wfm_source_t *, double);
 #include "timing/timing_core.h"
+#include "wfm/wfm_compose.h"
+#include "wfm_compose/wfm_compose_bridge.h"
+#include "wfm_synth/wfm_synth_core.h"
 #include "wfm_writer/wfm_writer_core.h"
 
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */

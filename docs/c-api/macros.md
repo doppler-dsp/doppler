@@ -255,7 +255,6 @@
 * **MPSK\_RECEIVER\_STATE\_VERSION** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **MPSK\_RX\_AGC\_ALPHA** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **MPSK\_RX\_AGC\_BW\_RATIO** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
-* **MPSK\_RX\_ARM\_DIV** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **MPSK\_RX\_EPS** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **MPSK\_RX\_HANDOVER\_DOWN** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **MPSK\_RX\_HANDOVER\_N\_DOWN** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))

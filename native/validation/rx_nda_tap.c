@@ -54,10 +54,11 @@
  * acquisition at these operating points.
  *
  * The claim this file therefore gates is the narrow one that IS true and IS
- * large: `mf_in` acquires at rate ratios where `lo_arm` — the tap §3.3 says
- * it supersedes — cannot acquire at all. Whether `mf_in` earns its place
- * against `strobe` is an open question this harness answers "no evidence yet"
- * (doppler#766); it is not gated in either direction.
+ * large: every tap that claims timing-independence must acquire from cold at
+ * every rate ratio, including with the data modulation removed entirely.
+ * Whether `mf_in` earns its place against `strobe` is an open question this
+ * harness answers "no evidence yet" (doppler#766); it is not gated in either
+ * direction.
  *
  * ## The offset, and why it is quoted per SYMBOL
  *
@@ -112,18 +113,19 @@
  * unacquired one sits at ~1.0 (the spin puts equal energy on both rails). */
 #define RX_NDA_DEROT_MAX 0.05
 
-static const char *RX_NDA_NAMES[4] = { "strobe", "mf_out", "lo_arm", "mf_in" };
+static const char *RX_NDA_NAMES[3] = { "strobe", "mf_out", "mf_in" };
 
 /** @brief One tap's outcome at one geometry. */
 typedef struct
 {
-  double acquired; /**< fraction of the applied offset removed.       */
-  double ferr_hz;  /**< residual |f_err|, Hz, at the quoted Fs.       */
-  double lock;     /**< carrier lock metric at the end of the run.    */
-  double re;       /**< mean |Re| of the settled symbols.             */
-  double im;       /**< mean |Im| of the settled symbols.             */
-  int    clipped;  /**< front end clipped: the reading is worthless.  */
-  int    refused;  /**< create() returned NULL.                       */
+  double acquired;  /**< fraction of the applied offset removed.       */
+  double ferr_hz;   /**< residual |f_err|, Hz, at the quoted Fs.       */
+  double lock;      /**< carrier lock metric at the end of the run.    */
+  double re;        /**< mean |Re| of the settled symbols.             */
+  double im;        /**< mean |Im| of the settled symbols.             */
+  long   lock_time; /**< symbols to first lock declaration, -1 if none. */
+  int    clipped;   /**< front end clipped: the reading is worthless.  */
+  int    refused;   /**< create() returned NULL.                       */
 } rx_nda_result_t;
 
 /* xorshift32 — the symbol source, as in mpsk_ber_common.h. A plain PRNG and
@@ -193,7 +195,7 @@ rx_nda_measure (int tap, double sps, double fs, double esn0_db, size_t nsym)
   memset (&r, 0, sizeof r);
   mpsk_receiver_state_t *rx = mpsk_receiver_create (
       2, sps, RX_NDA_M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, RX_NDA_BN, 0.707,
-      RX_NDA_BN, 0, 0.3, 0.0, 300, 0, MPSK_RX_NUM_PHASES, tap, 1,
+      RX_NDA_BN, 0, 0.3, 0.0, 0, MPSK_RX_NUM_PHASES, tap, 1,
       MPSK_RX_AGC_BW_RATIO);
   if (!rx)
     {
@@ -232,11 +234,12 @@ rx_nda_measure (int tap, double sps, double fs, double esn0_db, size_t nsym)
   }
 
   {
-    double est = mpsk_receiver_get_norm_freq (rx);
-    r.acquired = est / foff;
-    r.ferr_hz  = fabs (est - foff) * fs;
-    r.lock     = mpsk_receiver_get_lock (rx);
-    r.clipped  = mpsk_receiver_get_clipped (rx);
+    double est  = mpsk_receiver_get_norm_freq (rx);
+    r.acquired  = est / foff;
+    r.ferr_hz   = fabs (est - foff) * fs;
+    r.lock      = mpsk_receiver_get_lock (rx);
+    r.lock_time = (long)mpsk_receiver_get_lock_time (rx);
+    r.clipped   = mpsk_receiver_get_clipped (rx);
   }
   mpsk_receiver_destroy (rx);
   return r;
@@ -255,7 +258,7 @@ rx_nda_zero_offset_ferr (int tap, double sps, double fs, double esn0_db,
             : RX_NDA_AMP * sqrt (sps / (2.0 * pow (10.0, esn0_db / 10.0)));
   mpsk_receiver_state_t *rx = mpsk_receiver_create (
       2, sps, RX_NDA_M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, RX_NDA_BN, 0.707,
-      RX_NDA_BN, 0, 0.3, 0.0, 300, 0, MPSK_RX_NUM_PHASES, tap, 1,
+      RX_NDA_BN, 0, 0.3, 0.0, 0, MPSK_RX_NUM_PHASES, tap, 1,
       MPSK_RX_AGC_BW_RATIO);
   if (!rx)
     return -1.0;
@@ -291,7 +294,7 @@ rx_nda_r_accepts (int tap)
 {
   mpsk_receiver_r_state_t *r = mpsk_receiver_r_create (
       2, 8.0, RX_NDA_M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, RX_NDA_BN, 0.707,
-      RX_NDA_BN, 0, 0.3, 0.25, 300, 0, MPSK_RX_NUM_PHASES, tap, 1,
+      RX_NDA_BN, 0, 0.3, 0.25, 0, MPSK_RX_NUM_PHASES, tap, 1,
       MPSK_RX_AGC_BW_RATIO);
   if (!r)
     return 0;
@@ -316,22 +319,22 @@ main (int argc, char **argv)
   if (check)
     {
       /* G1/G2/G3 — at every rate ratio: every tap that claims to work must
-         ACQUIRE, `mf_in` must acquire where `lo_arm` cannot, and `mf_in`
-         must leave a de-rotated constellation. */
+         ACQUIRE, its lock must be dated by `lock_time`, and `mf_in` must
+         leave a de-rotated constellation. */
       for (size_t i = 0; i < RX_NDA_N (RX_NDA_CHECK_SPS); i++)
         {
           double          sps = RX_NDA_CHECK_SPS[i];
           double          fs  = sps * 1000.0; /* Rs = 1 kSps throughout */
-          rx_nda_result_t res[4];
+          rx_nda_result_t res[3];
           /* Per-ITERATION, not the sticky `fail`: a failure at one rate ratio
              must not skip the gates at the next one. The whole point of the
              sweep is that a mis-sized loop can pass at one ratio and fail at
              another, so every ratio has to be reported. */
           int unusable = 0;
-          for (int t = 0; t < 4; t++)
+          for (int t = 0; t < 3; t++)
             res[t] = rx_nda_measure (t, sps, fs, -1.0, RX_NDA_NSYM);
 
-          for (int t = 0; t < 4; t++)
+          for (int t = 0; t < 3; t++)
             {
               if (res[t].refused)
                 {
@@ -349,10 +352,8 @@ main (int argc, char **argv)
           if (unusable)
             continue;
 
-          for (int t = 0; t < 4; t++)
+          for (int t = 0; t < 3; t++)
             {
-              if (t == MPSK_RX_NDA_TAP_LO_ARM)
-                continue; /* the ratchet below owns this one */
               if (!(res[t].acquired >= RX_NDA_ACQ_MIN))
                 {
                   printf ("FAIL sps=%.0f %s: acquired %.4f of the offset "
@@ -363,22 +364,32 @@ main (int argc, char **argv)
                 }
             }
 
-          /* G2 — the claim the tap was actually introduced for: it is what
-             `lo_arm` "approximates by hand" (docs/design/mpsk.md §3.3), so it
-             must succeed where `lo_arm` fails. Deliberately NOT a comparison
-             against `strobe`/`mf_out`: measured, their residuals are the same
-             order as `mf_in`'s, so gating one would pin a coincidence. */
-          {
-            double pt = res[MPSK_RX_NDA_TAP_MF_IN].acquired;
-            double la = res[MPSK_RX_NDA_TAP_LO_ARM].acquired;
-            if (!(pt > la + 0.5))
-              {
-                printf ("FAIL sps=%.0f: mf_in acquired %.4f, lo_arm %.4f — "
-                        "mf_in must clear the tap it supersedes by 0.5\n",
-                        sps, pt, la);
-                fail = 1;
-              }
-          }
+          /* G2 — lock_time is the acquisition time as a NUMBER, and it has
+             to agree with the thing it dates. A tap that acquired must have
+             stamped one; a stamp must be inside the record; and it must be
+             within the analytic settling budget (5/bn symbols) with a wide
+             margin, or the number is measuring something other than lock. */
+          for (int t = 0; t < 3; t++)
+            {
+              long lt = res[t].lock_time;
+              if (!(res[t].acquired >= RX_NDA_ACQ_MIN))
+                continue;
+              if (lt < 0)
+                {
+                  printf ("FAIL rate sps=%.0f %s: acquired %.4f but "
+                          "lock_time is -1 — the loop locked and nothing "
+                          "dated it\n",
+                          sps, RX_NDA_NAMES[t], res[t].acquired);
+                  fail = 1;
+                }
+              else if ((size_t)lt >= RX_NDA_NSYM)
+                {
+                  printf ("FAIL rate sps=%.0f %s: lock_time %ld is past the "
+                          "%u-symbol record\n",
+                          sps, RX_NDA_NAMES[t], lt, (unsigned)RX_NDA_NSYM);
+                  fail = 1;
+                }
+            }
           {
             rx_nda_result_t p = res[MPSK_RX_NDA_TAP_MF_IN];
             if (!(p.re > 0.0) || !(p.im / p.re < RX_NDA_DEROT_MAX))
@@ -390,32 +401,14 @@ main (int argc, char **argv)
                 fail = 1;
               }
           }
-
-          /* G4 — the existing-breakage ratchet. `lo_arm`'s integrator is
-             1/upd too weak per symbol (its per-update ki scales as t^2 while
-             it only gets t^-1 more updates), so it cannot pull in a frequency
-             offset at any realistic rate ratio. That is a SHIPPED defect this
-             harness found, not one the mf_in tap introduced; it is pinned
-             here so it cannot change unnoticed, and tracked upstream. If this
-             line goes red because lo_arm started working, that is the fix
-             landing — tighten the gate to RX_NDA_ACQ_MIN and close it. */
-          if (!(res[MPSK_RX_NDA_TAP_LO_ARM].acquired < 0.5))
-            {
-              printf ("RATCHET sps=%.0f lo_arm: acquired %.4f — this tap was "
-                      "known broken (< 0.5). If it is fixed, tighten this "
-                      "gate to %.2f and close the issue.\n",
-                      sps, res[MPSK_RX_NDA_TAP_LO_ARM].acquired,
-                      RX_NDA_ACQ_MIN);
-              fail = 1;
-            }
         }
 
-      /* G5 — the real-input receiver publishes no bank rate, so it has no
-         pre-terminal node to read and must REFUSE the tap rather than
-         silently fall back to `lo_sps` and mis-size the loop. The other three
+      /* G3 — the real-input receiver publishes no bank rate, so it has no
+         MFR-input node to read and must REFUSE the tap rather than
+         silently fall back to `lo_sps` and mis-size the loop. The other two
          must still construct, or this gate would pass on a receiver that
          refuses everything. */
-      for (int t = 0; t < 4; t++)
+      for (int t = 0; t < 3; t++)
         {
           int got  = rx_nda_r_accepts (t);
           int want = (t != MPSK_RX_NDA_TAP_MF_IN);
@@ -456,7 +449,7 @@ main (int argc, char **argv)
     {
       double sps = RX_NDA_FULL_SPS[i];
       double fs  = sps * 1000.0;
-      for (int t = 0; t < 4; t++)
+      for (int t = 0; t < 3; t++)
         {
           rx_nda_result_t r = rx_nda_measure (t, sps, fs, -1.0, RX_NDA_NSYM);
           if (r.refused)
@@ -477,7 +470,7 @@ main (int argc, char **argv)
           "carrying the same bn_carrier over the same signal\nsettle to the "
           "same loop jitter — the tap point does not buy frequency accuracy, "
           "and no\nclaim that it does is gated here (doppler#766). What "
-          "mf_in does buy is acquiring at\nall where lo_arm cannot, which "
+          "mf_in does buy is a tap that\nneeds no symbol timing at all, which "
           "is gated.\n\n");
 
   /* The trap, reproduced. These are the numbers a zero-offset experiment
@@ -492,13 +485,13 @@ main (int argc, char **argv)
           "|f_err| Hz @ 10 dB Es/N0\n");
   printf ("   --------   -----------------------------   "
           "------------------------\n");
-  for (int t = 0; t < 4; t++)
+  for (int t = 0; t < 3; t++)
     printf ("   %8s   %29.3e   %24.3e\n", RX_NDA_NAMES[t],
             rx_nda_zero_offset_ferr (t, 10000.0, 10e6, -1.0, RX_NDA_NSYM),
             rx_nda_zero_offset_ferr (t, 10000.0, 10e6, 10.0, RX_NDA_NSYM));
 
   printf ("\nMpskReceiverR (real input) accepts: ");
-  for (int t = 0; t < 4; t++)
+  for (int t = 0; t < 3; t++)
     if (rx_nda_r_accepts (t))
       printf ("%s ", RX_NDA_NAMES[t]);
   printf ("\n  mf_in is complex-input only: the real front end publishes no "

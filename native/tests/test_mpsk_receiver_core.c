@@ -136,13 +136,12 @@ tail_ser (const float complex *out, size_t nout, const int *idx, int m,
  * each time buried which ones actually differ. */
 static mpsk_receiver_state_t *
 RX (int m, double sps, size_t m_out, int pulse, double bn_carrier,
-    int acq_to_track, double lock_thresh, double init_norm_freq,
-    size_t warmup_syms)
+    int acq_to_track, double lock_thresh, double init_norm_freq)
 {
   /* The shipped defaults: the front-end AGC on, at the default ratio. */
   return mpsk_receiver_create (
       m, sps, m_out, pulse, 0.35, 8, bn_carrier, 0.707, 0.01, acq_to_track,
-      lock_thresh, init_norm_freq, warmup_syms, 0, MPSK_RX_NUM_PHASES,
+      lock_thresh, init_norm_freq, 0, MPSK_RX_NUM_PHASES,
       MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO);
 }
 
@@ -156,21 +155,17 @@ main (void)
   /* 1. Lifecycle / validation / getters / reset reproducibility */
   {
     /* invalid args -> NULL */
-    DP_CHECK (RX (3, SPS, M_OUT, 0, 0.01, 0, 0.5, 0.0, 100)
-              == NULL); /* bad m  */
-    DP_CHECK (RX (4, SPS, 3, 0, 0.01, 0, 0.5, 0.0, 100)
-              == NULL); /* m_out odd  */
-    DP_CHECK (RX (4, SPS, 16, 0, 0.01, 0, 0.5, 0.0, 100)
-              == NULL); /* m_out > 8 */
-    DP_CHECK (RX (4, 2.0, 4, 0, 0.01, 0, 0.5, 0.0, 100)
+    DP_CHECK (RX (3, SPS, M_OUT, 0, 0.01, 0, 0.5, 0.0) == NULL); /* bad m  */
+    DP_CHECK (RX (4, SPS, 3, 0, 0.01, 0, 0.5, 0.0) == NULL);  /* m_out odd  */
+    DP_CHECK (RX (4, SPS, 16, 0, 0.01, 0, 0.5, 0.0) == NULL); /* m_out > 8 */
+    DP_CHECK (RX (4, 2.0, 4, 0, 0.01, 0, 0.5, 0.0)
               == NULL); /* sps < m_out: the terminal stage would interpolate */
-    DP_CHECK (RX (4, 0.0, 4, 0, 0.01, 0, 0.5, 0.0, 100)
-              == NULL); /* sps == 0  */
-    DP_CHECK (RX (4, SPS, M_OUT, 2, 0.01, 0, 0.5, 0.0, 100)
+    DP_CHECK (RX (4, 0.0, 4, 0, 0.01, 0, 0.5, 0.0) == NULL); /* sps == 0  */
+    DP_CHECK (RX (4, SPS, M_OUT, 2, 0.01, 0, 0.5, 0.0)
               == NULL); /* bad pulse */
 
     mpsk_receiver_state_t *rx
-        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0);
     DP_CHECK (rx != NULL);
     if (!rx)
       return 1;
@@ -206,7 +201,7 @@ main (void)
              is the dominant error term -- the same call the BER validation
              (mpsk_receiver_ber.c) and the Python suite both make. */
           mpsk_receiver_state_t *rx = RX (m, SPS, M_OUT, MPSK_RX_PULSE_IANDD,
-                                          0.005, m == 8, 0.3, fs[fi], 100);
+                                          0.005, m == 8, 0.3, fs[fi]);
           make_mpsk (tx, idx, m, fs[fi], 30.0, 7u + (uint32_t)(mi * 4 + fi));
           size_t k   = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
           double ser = tail_ser (out, k, idx, m, phi0_for (m),
@@ -227,7 +222,7 @@ main (void)
    * pulse-robust; the Python suite drives a true RRC-shaped TX). */
   {
     mpsk_receiver_state_t *rx
-        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_RRC, 0.005, 0, 0.5, 0.0, 200);
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_RRC, 0.005, 0, 0.5, 0.0);
     DP_CHECK (rx != NULL);
     make_mpsk (tx, idx, 4, 0.0, 30.0, 21u);
     size_t k   = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
@@ -253,7 +248,7 @@ main (void)
            would now mean 40% of it. Rescaling here keeps this test at the
            same OPERATING POINT so it still measures the handover rather
            than the units change. */
-        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 1, 0.65, 0.0, 200);
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 1, 0.65, 0.0);
     make_mpsk (tx, idx, 4, 0.0005, 30.0, 33u);
     size_t k = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
     DP_CHECK (mpsk_receiver_get_tracking (rx) == 1); /* handed over */
@@ -291,9 +286,9 @@ main (void)
     for (int i = 0; i < 256; i++)
       tx[i] = (float)(i % 4) - 2.0f + 0.1f * I;
     mpsk_receiver_state_t *a
-        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0);
     mpsk_receiver_state_t *b
-        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0);
     DP_CHECK (a != NULL && b != NULL);
     (void)mpsk_receiver_steps (a, tx, 256, out, 32);
     DP_STATE_ROUNDTRIP_TEST (mpsk_receiver, a, b);
@@ -316,7 +311,7 @@ main (void)
       tx[i] = ((i / 8) % 2 ? 1.0f : -1.0f) + 0.0f * I; /* BPSK, sps=8 */
     dp_tlm_t              *tlm = dp_tlm_create (4096);
     mpsk_receiver_state_t *a
-        = RX (2, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
+        = RX (2, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0);
     DP_CHECK (tlm != NULL && a != NULL);
     DP_CHECK (mpsk_receiver_set_telemetry (a, tlm, "rx", 1) == DP_OK);
     DP_CHECK (dp_tlm_probe_id (tlm, "rx.lock") == a->l.tlm.id_lock);
@@ -398,7 +393,7 @@ main (void)
         (void)dp_tlm_probe (tlm, pname, 1);
       }
     mpsk_receiver_state_t *b
-        = RX (2, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
+        = RX (2, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0);
     DP_CHECK (b != NULL);
     DP_CHECK (mpsk_receiver_set_telemetry (b, tlm, "full", 1)
               == DP_ERR_INVALID);
@@ -445,7 +440,7 @@ main (void)
        receiver was constructed to avoid an error. */
     mpsk_receiver_state_t *noagc = mpsk_receiver_create (
         2, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.01, 0, 0.5,
-        0.0, 100, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 0,
+        0.0, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 0,
         MPSK_RX_AGC_BW_RATIO);
     dp_tlm_t *tlm4 = dp_tlm_create (4096);
     DP_CHECK (noagc != NULL && tlm4 != NULL);
@@ -487,7 +482,7 @@ main (void)
         double                 bn_c = bns[i][0], bn_t = bns[i][1];
         mpsk_receiver_state_t *rx = mpsk_receiver_create (
             4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, bn_c, 0.707, bn_t, 0,
-            0.5, 0.0, 100, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 1,
+            0.5, 0.0, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 1,
             MPSK_RX_AGC_BW_RATIO);
         DP_CHECK (rx != NULL);
         if (!rx)
@@ -519,7 +514,7 @@ main (void)
     make_mpsk (stx, sidx, 4, 0.0, 30.0, 11u);
     float complex         *tx = stx; /* keep the body reading naturally */
     mpsk_receiver_state_t *a
-        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0);
     DP_CHECK (a != NULL);
     if (a)
       {
@@ -537,7 +532,7 @@ main (void)
         mpsk_receiver_get_state (a, blob);
 
         mpsk_receiver_state_t *b
-            = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
+            = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0);
         DP_CHECK (b != NULL && mpsk_receiver_set_state (b, blob) == DP_OK);
 
         /* Resume both on the same remainder; every symbol must match bit for
@@ -588,8 +583,8 @@ main (void)
 
             mpsk_receiver_state_t *rx = mpsk_receiver_create (
                 4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.01,
-                0, 0.5, 0.0, 100, 0, MPSK_RX_NUM_PHASES,
-                MPSK_RX_NDA_TAP_STROBE, use_agc, MPSK_RX_AGC_BW_RATIO);
+                0, 0.5, 0.0, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE,
+                use_agc, MPSK_RX_AGC_BW_RATIO);
             DP_CHECK (rx != NULL);
             if (rx)
               {

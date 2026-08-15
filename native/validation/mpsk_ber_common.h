@@ -167,13 +167,13 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
                  ? (void *)mpsk_receiver_r_create (
                        c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
                        c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track,
-                       0.3, c->fc - c->foff, 300, 0, MPSK_RX_NUM_PHASES,
-                       c->nda_tap, 1, MPSK_RX_AGC_BW_RATIO)
+                       0.3, c->fc - c->foff, 0, MPSK_RX_NUM_PHASES, c->nda_tap,
+                       1, MPSK_RX_AGC_BW_RATIO)
                  : (void *)mpsk_receiver_create (
                        c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
                        c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track,
-                       0.3, c->fc - c->foff, 300, 0, MPSK_RX_NUM_PHASES,
-                       c->nda_tap, 1, MPSK_RX_AGC_BW_RATIO);
+                       0.3, c->fc - c->foff, 0, MPSK_RX_NUM_PHASES, c->nda_tap,
+                       1, MPSK_RX_AGC_BW_RATIO);
   if (!rx)
     return 0;
 

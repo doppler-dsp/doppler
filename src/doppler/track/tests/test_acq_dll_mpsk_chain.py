@@ -146,7 +146,6 @@ def _chain(x, s0, chip_phase, doppler_hz_est, resample: bool):
         acq_to_track=1,
         lock_thresh=0.3,
         init_norm_freq=norm_freq,
-        warmup_syms=30,
     )
     syms = rx.steps(stream)
     return rx, syms

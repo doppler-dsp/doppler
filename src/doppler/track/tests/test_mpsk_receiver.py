@@ -170,7 +170,6 @@ def test_acq_to_track_engages():
         init_norm_freq=0.0008,
         acq_to_track=1,
         lock_thresh=0.4,
-        warmup_syms=200,
         bn_carrier=0.005,
     )
     out = rx.steps(tx)
@@ -217,7 +216,6 @@ def test_acq_to_track_two_way():
         init_norm_freq=foff,
         acq_to_track=1,
         lock_thresh=0.4,
-        warmup_syms=200,
         bn_carrier=0.005,
     )
     rx.steps(tx)
@@ -244,7 +242,6 @@ def test_configure_lock_unreachable_threshold_never_engages():
         m_out=4,
         init_norm_freq=0.0008,
         acq_to_track=1,
-        warmup_syms=200,
         bn_carrier=0.005,
     )
     rx.configure_lock(up_thresh=2.0, down_thresh=1.9, n_up=1, n_down=1)
@@ -262,7 +259,6 @@ def test_configure_lock_low_threshold_engages_fast():
         m_out=4,
         init_norm_freq=0.0008,
         acq_to_track=1,
-        warmup_syms=200,
         bn_carrier=0.005,
     )
     rx.configure_lock(up_thresh=0.1, down_thresh=0.05, n_up=1, n_down=32)
@@ -310,7 +306,6 @@ def test_bits_differential_rotation_invariant(m):
         differential=1,
         acq_to_track=1,
         lock_thresh=0.3,
-        warmup_syms=200,
     )
     rb = rx.bits(tx)
     assert set(np.unique(rb)).issubset({0, 1})

@@ -367,7 +367,6 @@ def test_ser_lands_on_the_coherent_bound(m, real):
             freq_offset=freq_offset_inside_bw(0.01, sps),
             acq_to_track=1,
             lock_thresh=0.3,
-            warmup_syms=300,
         )
         settle = settle_from(pr)
         assert settle is not None, (

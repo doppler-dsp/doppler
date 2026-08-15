@@ -29,10 +29,10 @@ _Pulse-shaped M-PSK receiver: a tuned matched DDC and two loops._ [More...](#det
 * `#include "lockdet/lockdet_core.h"`
 * `#include "symsync/symsync_core.h"`
 * `#include "agc/agc_core.h"`
-* `#include "boxcar/boxcar_core.h"`
 * `#include "dp_tlm/dp_tlm_core.h"`
 * `#include "ber/ber_core.h"`
 * `#include "telemetry/telemetry_core.h"`
+* `#include "boxcar/boxcar_core.h"`
 
 
 
@@ -82,12 +82,13 @@ _Pulse-shaped M-PSK receiver: a tuned matched DDC and two loops._ [More...](#det
 |  size\_t | [**mpsk\_receiver\_bits**](#function-mpsk_receiver_bits) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate a cf32 block and emit hard Gray-coded bits._  |
 |  size\_t | [**mpsk\_receiver\_bits\_max\_out**](#function-mpsk_receiver_bits_max_out) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 |  void | [**mpsk\_receiver\_configure\_lock**](#function-mpsk_receiver_configure_lock) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the acquisition&lt;-&gt;tracking handover detector directly._  |
-|  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create**](#function-mpsk_receiver_create) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, size\_t warmup\_syms, int differential, size\_t num\_phases, int nda\_tap, int agc, double bn\_agc\_ratio) <br>_Create an M-PSK receiver._  |
+|  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create**](#function-mpsk_receiver_create) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, int differential, size\_t num\_phases, int nda\_tap, int agc, double bn\_agc\_ratio) <br>_Create an M-PSK receiver._  |
 |  void | [**mpsk\_receiver\_destroy**](#function-mpsk_receiver_destroy) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Destroy an M-PSK receiver and release all memory._  |
 |  double | [**mpsk\_receiver\_get\_agc\_gain\_db**](#function-mpsk_receiver_get_agc_gain_db) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Gain the front end's AGC is applying, in dB; 0.0 when_ `agc` _= 0._ |
 |  int | [**mpsk\_receiver\_get\_clipped**](#function-mpsk_receiver_get_clipped) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to +-1.0 and clips silently past that, which costs ~25 dB of EVM behind a perfectly healthy lock._  |
 |  double | [**mpsk\_receiver\_get\_last\_error**](#function-mpsk_receiver_get_last_error) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Carrier loop phase discriminator (rad) — the residual phase the loop is trying to null; loop stress._  |
 |  double | [**mpsk\_receiver\_get\_lock**](#function-mpsk_receiver_get_lock) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
+|  int64\_t | [**mpsk\_receiver\_get\_lock\_time**](#function-mpsk_receiver_get_lock_time) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Symbols from reset to the FIRST carrier-lock declaration, or -1 if the receiver has not locked yet._  |
 |  int | [**mpsk\_receiver\_get\_locked**](#function-mpsk_receiver_get_locked) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Binary carrier-lock flag from the loop's hysteretic (up/down verify-counted) lock detector — de-chattered, unlike the raw metric._  |
 |  int | [**mpsk\_receiver\_get\_m**](#function-mpsk_receiver_get_m) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 |  size\_t | [**mpsk\_receiver\_get\_m\_out**](#function-mpsk_receiver_get_m_out) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Terminal outputs per symbol (the old_ `n` _, now the cascade's)._ |
@@ -351,7 +352,6 @@ mpsk_receiver_state_t * mpsk_receiver_create (
     int acq_to_track,
     double lock_thresh,
     double init_norm_freq,
-    size_t warmup_syms,
     int differential,
     size_t num_phases,
     int nda_tap,
@@ -379,13 +379,11 @@ mpsk_receiver_state_t * mpsk_receiver_create (
 * `acq_to_track` Enable the two-way NDA&lt;-&gt;decision-directed handover (default 0). 
 * `lock_thresh` Handover declare threshold on the carrier lock metric (default 0.5); the drop threshold sits at 0.8x for level hysteresis, and both directions are verify-counted (8 symbols up / 32 down). The metric is `Re((z/|z|)^M)` smoothed by an EMA, whose noise-only sd is 0.1132 for **every** M, so the threshold is `0.5 / 0.1132` = 4.42 noise sigmas — a per-look false-alarm probability of 5e-6. Pick a value by dividing your Pfa's z-score into 0.1132 rather than by feel; see [**carrier\_nda\_core.h**](carrier__nda__core_8h.md) for the derivation and the measured verification. 
 * `init_norm_freq` Seed carrier frequency, cycles/sample at the input rate (default 0.0). This is the centre the LO is tuned to; the loop tracks the residual around it. 
-* `warmup_syms` Symbols before the acq-to-track switch is allowed (default 100). 
 * `differential` bits(): differential (rotation-invariant) demap (default 0 = coherent). 
 * `num_phases` Terminal-stage bank arms; a power of two (default 1024). Sets the timing resolution to `1/num_phases` of an output period. 
 * `nda_tap` MPSK\_RX\_NDA\_TAP\_\* — where the NDA carrier discriminator reads, which sets its pull-in range and whether it needs symbol timing at all. An M-th-power detector updating at rate `F` can only observe `|df| < F/(2M)`, so the tap point IS the range:
   * `MPSK_RX_NDA_TAP_STROBE` (0, default) — the on-time strobe, at `Rs`. Cleanest input, narrowest range, and the ONLY tap whose input quality depends on the timing loop — it steers from the first strobe regardless, so pick another tap if the carrier must acquire first.
-  * `MPSK_RX_NDA_TAP_MF_OUT` (1) — every terminal output, at `m_out*Rs`. No timing dependence, paid for with the ISI the between-symbol outputs carry (worst at 8PSK, where the decision margin is smallest).
-  * `MPSK_RX_NDA_TAP_LO_ARM` (2) — ahead of the cascade, through a free-running half-symbol boxcar at the LO rate. Widest range and fully timing-independent, but unmatched, so it pays squaring loss; it does NOT work at 8PSK (the 8th-power gain over a boxcar arm collapses). Measured unaided, QPSK at `sps = 8, m_out = 8`, each at its own best `bn_carrier`: `0.050*Rs` (strobe), `0.033*Rs` (mf\_out), `0.090*Rs` (lo\_arm). Fixed at construction — nothing switches underneath the caller. Note `df = k*F/M` is a stable FALSE lock at every tap, reporting a healthy lock statistic that no self-referenced metric can flag. For more range than any tap gives, put a coarse frequency estimate in front and pass it as `init_norm_freq`. 
+  * `MPSK_RX_NDA_TAP_MF_OUT` (1) — every terminal output, at `m_out*Rs`. No timing dependence, paid for with the ISI the between-symbol outputs carry (worst at 8PSK, where the decision margin is smallest). Measured unaided, QPSK at `sps = 8, m_out = 8`, each at its own best `bn_carrier`: `0.050*Rs` (strobe), `0.033*Rs` (mf\_out). `MF_IN`'s range is not measured yet (gh-766) — its update rate is a planner outcome, so it cannot be derived from the other two. Fixed at construction — nothing switches underneath the caller. Note `df = k*F/M` is a stable FALSE lock at every tap, reporting a healthy lock statistic that no self-referenced metric can flag. For more range than any tap gives, put a coarse frequency estimate in front and pass it as `init_norm_freq`. 
 
 
 * `agc` Non-zero (default) puts the receiver's ONE AGC in the front-end cascade, immediately before the terminal matched stage. **It serves BOTH loops** — carrier and timing both run on its output, so it is a dynamic element inside both, which is why [**mpsk\_rx\_agc\_bn**](mpsk__rx__loops_8h.md#function-mpsk_rx_agc_bn) sizes it against the SLOWER of the two rather than against timing alone. What differs is only why the level matters to each: the timing detector normalises by a slope computed at construction for a unit-amplitude stream ([**symsync\_ted\_slope**](symsync__core_8h.md#function-symsync_ted_slope)), so a level error is a loop-gain error there directly; the carrier detector normalises by its own `|z|^M` ([**carrier\_nda\_disc**](carrier__nda__core_8h.md#function-carrier_nda_disc)), so it is immune to the level itself but still sees the AGC's transient. Pass 0 and the receiver is un-levelled: the timing loop is under-driven by `A^2`, which at an input amplitude of 0.25 is 16x. The reference is derived from the bank's own pulse energy, not chosen. 
@@ -506,6 +504,30 @@ double mpsk_receiver_get_lock (
 
 
 
+
+<hr>
+
+
+
+### function mpsk\_receiver\_get\_lock\_time 
+
+_Symbols from reset to the FIRST carrier-lock declaration, or -1 if the receiver has not locked yet._ 
+```C++
+int64_t mpsk_receiver_get_lock_time (
+    const mpsk_receiver_state_t * state
+) 
+```
+
+
+
+The acquisition time, as a number a caller can read rather than infer by polling `locked` in a loop. Dated by the same hysteretic detector `mpsk_receiver_get_locked()` reports, so the two cannot disagree.
+
+
+In SYMBOLS, not seconds: `bn_carrier` and `bn_timing` are both normalised to the symbol rate, so a settling budget quoted in symbols is comparable across every input rate, and a caller with `Rs` divides once. Only the first declaration is dated — a drop and re-acquire does not restamp it, because the question this answers is "how long did this receiver take to
+lock", not "when did it last hold". [**mpsk\_receiver\_reset()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_reset) clears it to -1. 
+
+
+        
 
 <hr>
 

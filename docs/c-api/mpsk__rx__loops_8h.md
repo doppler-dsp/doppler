@@ -80,12 +80,11 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_disc**](#function-mpsk_rx_disc) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex z) <br>_Run the NDA discriminator on one tapped sample._  |
 |  double | [**mpsk\_rx\_freq\_est**](#function-mpsk_rx_freq_est) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Tracked carrier offset in cycles/sample at the LO's rate — the loop's own estimate, excluding the front end's configured centre._  |
 |  void | [**mpsk\_rx\_loops\_get\_state**](#function-mpsk_rx_loops_get_state) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, void \* blob) <br>_Serialize the loops' mutable state into_ `blob` _._ |
-|  void | [**mpsk\_rx\_loops\_init**](#function-mpsk_rx_loops_init) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, int m, double sps, double lo\_sps, size\_t m\_out, double bn\_carrier, double zeta, double bn\_timing, double bn\_agc\_ratio, int ted, int acq\_to\_track, double lock\_thresh, size\_t warmup\_syms, int differential, int nda\_tap) <br>_Initialise the loops in place (no allocation)._  |
+|  void | [**mpsk\_rx\_loops\_init**](#function-mpsk_rx_loops_init) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, int m, double sps, double lo\_sps, size\_t m\_out, double bn\_carrier, double zeta, double bn\_timing, double bn\_agc\_ratio, int ted, int acq\_to\_track, double lock\_thresh, int differential, int nda\_tap) <br>_Initialise the loops in place (no allocation)._  |
 |  void | [**mpsk\_rx\_loops\_reset**](#function-mpsk_rx_loops_reset) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Re-seed both loops to their post-init state; keep configuration._  |
 |  int | [**mpsk\_rx\_loops\_set\_state**](#function-mpsk_rx_loops_set_state) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, const void \* blob) <br>_Restore the loops' mutable state from_ `blob` _._ |
 |  size\_t | [**mpsk\_rx\_loops\_state\_bytes**](#function-mpsk_rx_loops_state_bytes) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Bytes_ [_**mpsk\_rx\_loops\_get\_state()**_](mpsk__rx__loops_8h.md#function-mpsk_rx_loops_get_state) _writes._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_push\_lo**](#function-mpsk_rx_push_lo) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex z) <br>_Feed one post-LO, pre-cascade sample to the free-running arm._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_push\_mf\_in**](#function-mpsk_rx_push_mf_in) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex z) <br>_Push one PRE-TERMINAL sample into the NDA discriminator._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_push\_mf\_in**](#function-mpsk_rx_push_mf_in) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex z) <br>_Push one MFR-INPUT sample into the NDA discriminator._  |
 |  void | [**mpsk\_rx\_set\_freq\_est**](#function-mpsk_rx_set_freq_est) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double val) <br>_Overwrite the tracked carrier offset (cycles/sample at the LO's rate) so the next output de-rotates by exactly_ `val` _._ |
 |  int | [**mpsk\_rx\_set\_telemetry**](#function-mpsk_rx_set_telemetry) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) telemetry across both loops; see_ [_**mpsk\_receiver\_set\_telemetry()**_](mpsk__receiver__core_8h.md#function-mpsk_receiver_set_telemetry) _, which forwards here._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_steer**](#function-mpsk_rx_steer) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double pe) <br>_Filter a carrier phase error and update_ `freq_ctrl` _._ |
@@ -126,13 +125,12 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 | ---: | :--- |
 | define  | [**MPSK\_RX\_AGC\_ALPHA**](mpsk__rx__loops_8h.md#define-mpsk_rx_agc_alpha)  `0.01`<br> |
 | define  | [**MPSK\_RX\_AGC\_BW\_RATIO**](mpsk__rx__loops_8h.md#define-mpsk_rx_agc_bw_ratio)  `0.05`<br> |
-| define  | [**MPSK\_RX\_ARM\_DIV**](mpsk__rx__loops_8h.md#define-mpsk_rx_arm_div)  `2u`<br> |
 | define  | [**MPSK\_RX\_EPS**](mpsk__rx__loops_8h.md#define-mpsk_rx_eps)  `1e-12`<br> |
 | define  | [**MPSK\_RX\_HANDOVER\_DOWN**](mpsk__rx__loops_8h.md#define-mpsk_rx_handover_down)  `0.8`<br> |
 | define  | [**MPSK\_RX\_HANDOVER\_N\_DOWN**](mpsk__rx__loops_8h.md#define-mpsk_rx_handover_n_down)  `32u`<br> |
 | define  | [**MPSK\_RX\_HANDOVER\_N\_UP**](mpsk__rx__loops_8h.md#define-mpsk_rx_handover_n_up)  `8u`<br> |
 | define  | [**MPSK\_RX\_LOOPS\_STATE\_MAGIC**](mpsk__rx__loops_8h.md#define-mpsk_rx_loops_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('M', 'R', 'X', 'L')`<br> |
-| define  | [**MPSK\_RX\_LOOPS\_STATE\_VERSION**](mpsk__rx__loops_8h.md#define-mpsk_rx_loops_state_version)  `5u`<br> |
+| define  | [**MPSK\_RX\_LOOPS\_STATE\_VERSION**](mpsk__rx__loops_8h.md#define-mpsk_rx_loops_state_version)  `6u`<br> |
 | define  | [**MPSK\_RX\_M\_OUT\_DEFAULT**](mpsk__rx__loops_8h.md#define-mpsk_rx_m_out_default)  `8`<br> |
 | define  | [**MPSK\_RX\_NUM\_PHASES**](mpsk__rx__loops_8h.md#define-mpsk_rx_num_phases)  `1024u`<br> |
 
@@ -188,8 +186,7 @@ _Where the NDA carrier discriminator reads from._
 enum mpsk__rx__loops_8h_1a99fb83031ce9923c84392b4e92f956b5 {
     MPSK_RX_NDA_TAP_STROBE = 0,
     MPSK_RX_NDA_TAP_MF_OUT = 1,
-    MPSK_RX_NDA_TAP_LO_ARM = 2,
-    MPSK_RX_NDA_TAP_MF_IN = 3
+    MPSK_RX_NDA_TAP_MF_IN = 2
 };
 ```
 
@@ -203,14 +200,14 @@ An M-th-power discriminator updating at rate `F` can only observe a frequency er
 |-----|-----|-----|-----|
 |`STROBE`   |`Rs`   |`Rs/(2M)`   |needs symbol timing    |
 |`MF_OUT`   |`m_out*Rs`   |`m_out*Rs/(2M)`   |inter-symbol ISI bias    |
-|`LO_ARM`   |LO rate   |`f_lo/(2M)`   |no matched filtering   |
+|`MF_IN`   |`bank_sps`   |`bank_sps*Rs/(2M)`   |none — see below   |
 
 
 
 
 
 
-There is a second axis, and it is the one the cascade rebuild lost. `STROBE` is the only tap that depends on **symbol timing**: it reads the one output the timing loop nominates, so before timing lock it is reading an arbitrary phase of the pulse. `MF_OUT` consumes every terminal output and so does not care which one is on-time; `LO_ARM` runs a free-running arm filter ahead of the cascade entirely. Both therefore restore the property the NDA path exists for — acquiring with no data _and no symbol timing_ — which is why they are not merely "wider".
+There is a second axis, and it is the one the cascade rebuild lost. `STROBE` is the only tap that depends on **symbol timing**: it reads the one output the timing loop nominates, so before timing lock it is reading an arbitrary phase of the pulse. `MF_OUT` consumes every terminal output and so does not care which one is on-time; `MF_IN` reads the MFR's input entirely ahead of it. Both therefore restore the property the NDA path exists for — acquiring with no data _and no symbol timing_ — which is why they are not merely "wider".
 
 
 No tap waits. `STROBE` steers from its first strobe whether or not the timing loop has declared, so its dependency is a reason to CHOOSE another tap when the carrier must acquire before timing does — not something the receiver resolves behind the caller's back. Gating it was tried and measured: across a 24-cell sweep it moved one cell, because what it really bought was a carrier transient that started at a known instant and was therefore easier to measure.
@@ -366,7 +363,6 @@ void mpsk_rx_loops_init (
     int ted,
     int acq_to_track,
     double lock_thresh,
-    size_t warmup_syms,
     int differential,
     int nda_tap
 ) 
@@ -390,7 +386,6 @@ void mpsk_rx_loops_init (
 * `ted` RATESYNC\_TED\_GARDNER or RATESYNC\_TED\_DTTL. 
 * `acq_to_track` Enable the two-way NDA&lt;-&gt;decision handover. 
 * `lock_thresh` Handover declare threshold on the carrier lock EMA; the drop threshold sits at MPSK\_RX\_HANDOVER\_DOWN x it, and both directions are verify-counted. The EMA's H0 sd is CARRIER\_NDA\_LOCK\_NORM\_SD (0.1132) for every M, so this divided by that is the threshold in noise sigmas and its per-look Pfa is Q(that) — 0.5 is 4.42 sigma, Pfa 5e-6. See [**carrier\_nda\_core.h**](carrier__nda__core_8h.md). 
-* `warmup_syms` Symbols before the handover is allowed. 
 * `differential` bits(): differential (rotation-invariant) demap. 
 * `nda_tap` MPSK\_RX\_NDA\_TAP\_\* — where the NDA discriminator reads, which sets its pull-in range and whether it depends on symbol timing at all. 
 * `bn_agc_ratio` Scales the front end's AGC off the SLOWEST of the two loop bandwidths; must be in (0, 1). See [**mpsk\_rx\_agc\_bn()**](mpsk__rx__loops_8h.md#function-mpsk_rx_agc_bn). 
@@ -475,30 +470,9 @@ size_t mpsk_rx_loops_state_bytes (
 
 
 
-### function mpsk\_rx\_push\_lo 
-
-_Feed one post-LO, pre-cascade sample to the free-running arm._ 
-```C++
-JM_FORCEINLINE  JM_HOT void mpsk_rx_push_lo (
-    mpsk_rx_loops_t * l,
-    float complex z
-) 
-```
-
-
-
-The MPSK\_RX\_NDA\_TAP\_LO\_ARM path, and a no-op for every other tap. Called once per LO step by the owning receiver, ahead of the cascade — which is exactly why this tap needs no symbol timing and reaches the widest frequency range the front end can offer. 
-
-
-        
-
-<hr>
-
-
-
 ### function mpsk\_rx\_push\_mf\_in 
 
-_Push one PRE-TERMINAL sample into the NDA discriminator._ 
+_Push one MFR-INPUT sample into the NDA discriminator._ 
 ```C++
 JM_FORCEINLINE  JM_HOT void mpsk_rx_push_mf_in (
     mpsk_rx_loops_t * l,
@@ -508,7 +482,7 @@ JM_FORCEINLINE  JM_HOT void mpsk_rx_push_mf_in (
 
 
 
-The MPSK\_RX\_NDA\_TAP\_MF\_IN path, and a no-op for every other tap. Unlike [**mpsk\_rx\_push\_lo()**](mpsk__rx__loops_8h.md#function-mpsk_rx_push_lo) there is no arm filter here and none is wanted: the cascade has already band-limited this node and the AGC has already levelled it, which is the whole reason the tap exists. 
+The MPSK\_RX\_NDA\_TAP\_MF\_IN path, and a no-op for every other tap. There is no arm filter here and none is wanted: the cascade has already band-limited this node and the AGC has already levelled it, which is the whole reason the tap exists. 
 
 
         
@@ -711,19 +685,6 @@ The tap's whole point, as one number: it is both the factor by which the discrim
 
 
 
-### define MPSK\_RX\_ARM\_DIV 
-
-```C++
-#define MPSK_RX_ARM_DIV `2u`
-```
-
-
-
-
-<hr>
-
-
-
 ### define MPSK\_RX\_EPS 
 
 ```C++
@@ -792,7 +753,7 @@ The tap's whole point, as one number: it is both the factor by which the discrim
 ### define MPSK\_RX\_LOOPS\_STATE\_VERSION 
 
 ```C++
-#define MPSK_RX_LOOPS_STATE_VERSION `5u`
+#define MPSK_RX_LOOPS_STATE_VERSION `6u`
 ```
 
 

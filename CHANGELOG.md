@@ -13,6 +13,39 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **The M-PSK receiver harness generates with `wfm.Synth` and aligns with
+    `BerMeter`, instead of with its own numpy.** Two duplicates, both of which
+    had invented a convention:
+
+    `make_signal()` oversampled by `np.repeat`, mixed its own carrier and
+    scaled its own AWGN variance under two Es/N0 conventions. It now asks
+    `Synth(type="symbols")` — the same `lo`/`awgn`/sample-and-hold the
+    receivers under test are built against. **Verifying `snr_mode="esno"` on
+    the way through found nothing wrong with it**, which is worth saying
+    plainly: it delivers the Es/N0 it claims to within 0.04 dB across m 2/4/8,
+    sps 1..16 and Es/N0 0..20 dB, read back with `snr.snr_data_aided_db` at the
+    matched-filter output and cross-checked by subtracting the same-seed clean
+    run. Nothing had ever checked it, and the check now runs in CI.
+
+    `symbol_metrics()` searched its lag by minimising the error count over
+    ±200 — an optimisation over the answer, which false-passes on a lucky
+    alignment over garbage and false-floors when the true lag falls outside the
+    span. It now detects with `BerMeter.align()` and REFUSES to return a number
+    when `align_ok` is false, which is what two of its seven call sites were
+    approximating by hand with `abs(lag) < 190`. `coherent_errors()` likewise
+    stopped computing a post-marker scoring window by hand: `score()` excludes
+    marker symbols itself and reports them in `skipped`.
+
+    No output-rate invariant was added, though the design called for one. The
+    detection already refuses every case it would have caught — half rate
+    detects at −2.5 dB of margin, double rate at −inf, `m_out` outputs mistaken
+    for symbols at −5.6 dB, against +10.5 dB healthy — so a count check would
+    have been a second convention for a question `ber` answers. It was written
+    twice, once in Python and once as a C module function with its own
+    tolerance constants, before being measured; both are reverted.
+
 ### Fixed
 
 - **A merged fix no longer leaves its issue open.** GitHub closes an issue only

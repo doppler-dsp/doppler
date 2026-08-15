@@ -103,9 +103,10 @@ def test_decodes_a_real_if_burst_at_the_design_centre():
 
     Noiseless, so the only errors possible are the receiver's own. SER is
     asserted to be EXACTLY zero over the settled window -- with no noise there
-    is no statistical excuse for a single error -- and the lag is checked away
-    from the search bounds, because a saturated lag search reports a plausible
-    SER for the wrong alignment.
+    is no statistical excuse for a single error. The alignment behind that SER
+    is `symbol_metrics`' detected one: it refuses to return a number at all
+    when nothing detects, which is what a hand-written `abs(lag) < 190` used
+    to (partially) check here.
     """
     x, idx = make_signal(32, 2400, real=True)
     y, pr = demod(x, real=True, sps=32, m_out=8)
@@ -115,7 +116,6 @@ def test_decodes_a_real_if_burst_at_the_design_centre():
     assert settle is not None, "both loops must lock before symbols are judged"
     evm, ser, lag = symbol_metrics(y, idx, settle=settle)
     assert ser == 0.0, f"noiseless SER {ser} (lag {lag}, EVM {evm:.1f} dB)"
-    assert lag is not None and abs(lag) < 190, f"lag search saturated at {lag}"
 
 
 def test_noiseless_evm_floor():

@@ -474,10 +474,15 @@ ______________________________________________________________________
     refactor of the library generator, not a test-only feature — a real modem
     sends a framed waveform. The DSSS path should then assemble the frame and
     spread it, rather than carry its own copy of the layout.
-- **An output-rate invariant.** A receiver emitting `m_out` outputs per symbol
-    should be checked against `outputs == m_out * symbols`. An observed
-    disagreement between `steps()` and `bits()` at high oversampling is
-    currently undiagnosed and would have been caught immediately by one.
+- **~~An output-rate invariant~~ — the observed `steps()`/`bits()`
+    disagreement at high oversampling.** Resolved in two halves, and they go to
+    different places (§8.5). As a HARNESS gate the invariant is not needed:
+    `BerMeter.align()` already refuses a stream at half, double or `m_out`
+    times the rate it should carry, measured at -2.5 / -inf / -5.6 dB of
+    detection margin against +10.5 dB healthy. What remains is a claim about
+    the RECEIVER — that its two output faces agree — and that belongs in the
+    receiver's own tests, where `bits()` is actually called. The harness never
+    calls it, so no gate here would ever have seen it.
 - **Whether the trio should be reported together, always.** Reporting one of
     BER / EVM / M2M4 alone is what makes a false lock invisible (§2.4), so the
     harness reporting all three by default — and flagging when they disagree —
@@ -742,9 +747,9 @@ does not delegate is the map of what remains:
 | 1 describe | function arguments                           | no frame descriptor; no named operating points                                        |
 | 2 generate | `make_signal()` -> `wfm.Synth(type=symbols)` | ~~not `wfm_synth`~~ **closed, §8.4**; still unframed by construction                  |
 | 3 impair   | `Synth`'s own `lo` + `awgn`                  | carrier and AWGN come with the generator now; `doppler_channel` still unused here     |
-| 4 run      | direct calls                                 | **no output-rate invariant**                                                          |
+| 4 run      | direct calls                                 | no output-rate invariant — and none is wanted, §8.5                                   |
 | 5 settle   | `ber_settle_from` + `ber_lock_symbol`        | needs per-symbol lock flags, which come from telemetry rather than the receiver's API |
-| 6 align    | `BerMeter`                                   | correct, and already the shipped path                                                 |
+| 6 align    | `BerMeter` everywhere                        | closed, §8.5 — `symbol_metrics` searched its own lag until then                       |
 | 7 score    | SER + EVM                                    | **M2M4 never computed**; no FER                                                       |
 | 8 enough   | `ser_confidence()` -> `BerMeter.interval()`  | none — correct, and correct for the right reason (below)                              |
 | 9 anchor   | partial                                      | `ber_theory_ser` available; not applied uniformly                                     |
@@ -803,6 +808,41 @@ the stimulus actually carries, whoever generated it. A future private
 re-implementation with an invented convention fails it; one that reproduces
 the convention exactly is not the failure mode this is about.
 
+### 8.3 The plan the sequence implies
+
+Ordered so that nothing depends on an unpinned measurement:
+
+1. **Pin the trio** (§5.1). `ber_align_detect`, `ber_evm_db`, `snr_m2m4_db` —
+    known-answer tests plus sabotage, and a `native/tests/test_snr_core.c`
+    where none exists. Nothing below is trustworthy until this is done.
+1. **Test the five untested harness headers** (§5.2), `dp_tx_test.h` and
+    `dp_sym_test.h` first.
+1. ~~**Add the two refusal points**~~ **DONE, and they turned out to be one**
+    (§8.5). `align_ok` is now load-bearing for every metric; the stage-4
+    invariant is not wanted, because the detection it would have preceded
+    already refuses the cases it was for.
+1. **Lift the frame out of DSSS** (§1.3, §7): `wfm_frame_*` over `wfm_seq_t`,
+    `wfm_frame_dsss_chips()` refactored to call it, `wfm_synth_set_bits()`
+    gaining the frame, and `--sync`/`--acq-*`/`--crc` accepted for
+    `--type bpsk/qpsk`. The existing DSSS round-trip tests are the regression
+    check — bit-identical before and after.
+1. **Frame statistics** (§2.5) beside `ber_meter`, reusing `ber_confidence`
+    for the interval. This is what makes FER, and therefore the false-lock
+    detector, available.
+1. **Converge the harness onto the library** — ~~stage 2 to `wfm_synth`~~
+    (**done, §8.4**, and the generator verified with it), stage 8 to
+    `ber_confidence` (already there — §8.1), stage 7 gaining M2M4 and FER. The
+    convergence is held from reversing by the stimulus's own measurements
+    (§8.2), not by a provenance marker.
+1. **Only then** resume the measurements this document interrupted: the tap
+    comparison at Fs = 10 MSa/s / Rs = 1 kSps, the receiver decision it feeds,
+    and a re-examination of the issue filed from the unpinned harness.
+
+Steps 1–3 are what make any number defensible; 4–6 are what make it
+*reproducible and external*; 7 is the work that was actually wanted.
+
+______________________________________________________________________
+
 ### 8.4 Stage 2, closed: the generator is the library's, and it is checked
 
 `make_signal()` now asks `wfm.Synth(type="symbols")` for the waveform — the
@@ -851,39 +891,50 @@ offset; and mutating the C `mode == 3` branch to skip the `sps` term, rebuilt):
     both paths carry, its independence from `m`, the shared waveform and noise
     draw, and that a clean request is actually clean.
 
-### 8.3 The plan the sequence implies
+### 8.5 The two refusals turned out to be one
 
-Ordered so that nothing depends on an unpinned measurement:
+Goal 1 asks the harness never to report a plausible number from an
+untrustworthy state, and §8's storyboard drew that as two REFUSE diamonds: an
+output-rate invariant at stage 4, and `align_ok` at stage 6. Building them
+found that the first is the second.
 
-1. **Pin the trio** (§5.1). `ber_align_detect`, `ber_evm_db`, `snr_m2m4_db` —
-    known-answer tests plus sabotage, and a `native/tests/test_snr_core.c`
-    where none exists. Nothing below is trustworthy until this is done.
-1. **Test the five untested harness headers** (§5.2), `dp_tx_test.h` and
-    `dp_sym_test.h` first.
-1. **Add the two refusal points** — the output-rate invariant at stage 4, and
-    making `align_ok` load-bearing at stage 6. Cheapest change with the
-    largest effect, and both are pure additions to the existing flow.
-1. **Lift the frame out of DSSS** (§1.3, §7): `wfm_frame_*` over `wfm_seq_t`,
-    `wfm_frame_dsss_chips()` refactored to call it, `wfm_synth_set_bits()`
-    gaining the frame, and `--sync`/`--acq-*`/`--crc` accepted for
-    `--type bpsk/qpsk`. The existing DSSS round-trip tests are the regression
-    check — bit-identical before and after.
-1. **Frame statistics** (§2.5) beside `ber_meter`, reusing `ber_confidence`
-    for the interval. This is what makes FER, and therefore the false-lock
-    detector, available.
-1. **Converge the harness onto the library** — ~~stage 2 to `wfm_synth`~~
-    (**done, §8.4**, and the generator verified with it), stage 8 to
-    `ber_confidence` (already there — §8.1), stage 7 gaining M2M4 and FER. The
-    convergence is held from reversing by the stimulus's own measurements
-    (§8.2), not by a provenance marker.
-1. **Only then** resume the measurements this document interrupted: the tap
-    comparison at Fs = 10 MSa/s / Rs = 1 kSps, the receiver decision it feeds,
-    and a re-examination of the issue filed from the unpinned harness.
+**Stage 6 was the real gap, and it was not "not load-bearing" — it was
+absent.** `coherent_errors` already gated on `BerMeter.align()`, whose return
+IS `align_ok` (`ber_meter_core.c:289`: detected, unambiguous by ≥ 3 dB over
+the runner-up, and unsaturated). But `symbol_metrics` — the function seven of
+the eight M-PSK call sites actually use — ran its own ±200 minimum-over-lag
+search and returned the winning lag so the caller could check for saturation
+itself. Two of seven did, by hand, with a literal `abs(lag) < 190`. A refusal
+implemented five times in five places is not implemented. Both scorers now go
+through one `detect_alignment()`, and `symbol_metrics` raises rather than
+returning a number when nothing detects.
 
-Steps 1–3 are what make any number defensible; 4–6 are what make it
-*reproducible and external*; 7 is the work that was actually wanted.
+**Stage 4 should not be built.** The instinct is a count invariant — outputs
+must be `len(x)/sps`, not `m_out` times it, not half of it — and it is wrong
+for a specific reason: the detection at stage 6 already refuses every case it
+would catch. Measured, at `sps = 16`, QPSK, 4000 symbols:
 
-______________________________________________________________________
+| stream                               | detection margin |
+| ------------------------------------ | ---------------- |
+| healthy                              | **+10.5 dB**     |
+| half rate (told `sps = 8`)           | −2.5 dB          |
+| double rate (told `sps = 32`)        | −inf             |
+| `m_out` outputs mistaken for symbols | −5.6 dB          |
+| truth from a different draw          | refused          |
+
+A second gate would need its own tolerance, and that tolerance would be a
+second convention for a question `ber` already answers — the failure mode this
+whole document exists to stop. §2.2's point applies to us as much as to an
+external caller: the alignment decision is shipped, so use it.
+
+What the §6 open question raised alongside it — an observed disagreement
+between `steps()` and `bits()` at high oversampling — is NOT answered by this
+and stays open. It is a claim about the receiver, not about the harness, and
+the harness never calls `bits()`.
+
+The same reading retired a smaller duplicate: `coherent_errors` was computing
+a scoring window past the marker by hand, and `BerMeter.score()` excludes
+marker symbols itself and reports the count in `skipped`.
 
 ## 9. Related
 

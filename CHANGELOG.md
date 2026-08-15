@@ -15,6 +15,32 @@ ______________________________________________________________________
 
 ### Added
 
+- **`nda_tap = "preterm"` — the pre-terminal NDA carrier tap.** Reads the
+    M-th-power discriminator from the cascade's pre-terminal node: after every
+    integer stage and after the AGC, but ahead of the matched filter, so it
+    needs no symbol timing and carries none of the matched filter's group delay.
+    `docs/design/mpsk.md` §3.3 specified this tap and named the existing
+    `lo_arm` as a hand-rolled approximation of it. Complex-input only —
+    `MpskReceiverR` publishes no bank rate, so it has no such node and
+    `create()` refuses the tap rather than silently mis-sizing the loop.
+
+    Additive on every existing path: `RateConverter_execute_ctrl_push_tap()`
+    publishes the node and the old `_push` becomes a NULL-tap wrapper, so every
+    current caller is bit-identical.
+
+- **`native/validation/rx_nda_tap.c` — the four NDA taps, measured.** Nothing
+    in the tree exercised any tap but `strobe`: every C and Python test
+    constructed `MPSK_RX_NDA_TAP_STROBE`, so three of the four were prose. This
+    harness scores each tap on the fraction of a **known** frequency offset it
+    actually removes, across rate ratios from sps=8 to sps=10000.
+
+    The metric is deliberate. Reading `norm_freq` back at the design centre —
+    the obvious experiment — **cannot rank these taps and ranks them
+    confidently anyway**: at zero offset the correct answer is zero, so a
+    carrier loop that never steers scores better than one that works. The
+    harness reproduces that table as a labelled counter-example next to the
+    real one.
+
 - **just-makeit pin 0.60.2 → 0.61.0.** Adopted for **gh-998**, the only one of
     the three that moves a file here: a composer source's project-written
     straight-C seams (`[module.X.source.generates] bridge_fn` and each
@@ -390,6 +416,16 @@ ______________________________________________________________________
     tolerance constants, before being measured; both are reverted.
 
 ### Fixed
+
+- **The `preterm` carrier loop was sized against a placeholder update rate.**
+    `config_carrier()` runs inside `mpsk_rx_loops_init()`, which is before
+    `mpsk_receiver_create()` can read the cascade's real `bank_sps`, so the tap
+    got loop gains designed for `lo_sps` updates per symbol while actually
+    updating `bank_sps` times — `ki` too small by `(lo_sps/bank_sps)^2`, which
+    is 1.7e7 at Fs/Rs = 10000. The integrator never moved: the loop reported a
+    flawless 0 Hz error at 0 Hz offset and acquired **nothing** at any other
+    offset, at any rate ratio above sps=8. The filter is now re-sized once the
+    real rate is known, and `rx_nda_tap.c` gates it at three rate ratios.
 
 - **A `WFM_SEQ_PN` frame field with `poly = 0` was emitting a constant.**
     `wfm_frame.c` passed `poly` straight to `pn_create()`, which takes the tap

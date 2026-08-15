@@ -228,20 +228,21 @@ lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
     construction; measured maxima for QPSK at `sps=8`, unaided, at the default
     `m_out=8` (`m_out=4` in parentheses — it is on this axis too):
 
-    | `nda_tap`            | Update rate | Max acquired `Δf`     | Needs symbol timing? |
-    | -------------------- | ----------- | --------------------- | -------------------- |
-    | `"strobe"` (default) | `Rs`        | `0.050·Rs` (`0.010`)  | yes                  |
-    | `"mf_out"`           | `m_out·Rs`  | `0.033·Rs` (`0.015`)  | no                   |
-    | `"lo_arm"`           | LO rate     | **`0.090·Rs`** (same) | no                   |
+    | `nda_tap`            | Update rate | Max acquired `Δf`    | Needs symbol timing? |
+    | -------------------- | ----------- | -------------------- | -------------------- |
+    | `"strobe"` (default) | `Rs`        | `0.050·Rs` (`0.010`) | yes                  |
+    | `"mf_out"`           | `m_out·Rs`  | `0.033·Rs` (`0.015`) | no                   |
+    | `"mf_in"`            | `bank_sps`  | not yet measured     | no                   |
 
-    `lo_arm` is the one row `m_out` cannot move — it taps ahead of the cascade,
-    so the terminal rate is not in its path.
+    `mf_in` reads the MFR's input, so the terminal rate is not in its path
+    either — but its update rate is the cascade's `bank_sps`, a planner
+    outcome, so its cell cannot be filled in from the others by argument and
+    is left blank rather than guessed (gh-766).
 
     `bn_carrier` keeps its symbol-rate meaning at every tap — the tap widens what
     the discriminator can see and the stability margin, which is what lets you
-    then raise `bn_carrier`. **`lo_arm` does not work at 8PSK** (its unmatched
-    arm's 8th-power gain collapses; measured SER 0.85). Beyond any tap's range,
-    pass a coarse frequency estimate as `init_norm_freq`.
+    then raise `bn_carrier`. Beyond any tap's range, pass a coarse frequency
+    estimate as `init_norm_freq`.
 
     Note `Δf = k·F/M` is a **stable false lock** at every tap, reporting a
     healthy lock statistic on a stationary constellation that no self-referenced

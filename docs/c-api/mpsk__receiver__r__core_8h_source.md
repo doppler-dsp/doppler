@@ -33,10 +33,10 @@
 #include "lockdet/lockdet_core.h"
 #include "symsync/symsync_core.h"
 #include "agc/agc_core.h"
-#include "boxcar/boxcar_core.h"
 #include "dp_tlm/dp_tlm_core.h"
 #include "ber/ber_core.h"
 #include "telemetry/telemetry_core.h"
+#include "boxcar/boxcar_core.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -54,7 +54,7 @@ extern "C"
                           double rrc_beta, int rrc_span, double bn_carrier,
                           double zeta, double bn_timing, int acq_to_track,
                           double lock_thresh, double init_norm_freq,
-                          size_t warmup_syms, int differential,
+                          int differential,
                           size_t num_phases, int nda_tap, int agc,
                           double bn_agc_ratio);
 
@@ -70,15 +70,9 @@ extern "C"
                             float complex *y_out, int ted)
   {
     float complex ys[4];
-    float complex zlo;
-    int           n_lo = 0;
     size_t        n    = ddcr_execute_ctrl_push_tap (
         s->fe, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
-        sizeof (ys) / sizeof (ys[0]), &zlo, &n_lo);
-    /* The halfband gates this: n_lo is 0 on every other input, so the arm and
-       its discriminator run at fs_in/2, the LO's own rate. */
-    if (n_lo)
-      mpsk_rx_push_lo (&s->l, zlo);
+        sizeof (ys) / sizeof (ys[0]), NULL, NULL);
     int           emitted = 0;
     for (size_t oi = 0; oi < n; oi++)
       emitted |= mpsk_rx_take_output (&s->l, ys[oi], y_out, ted);
@@ -100,6 +94,8 @@ extern "C"
                                         double                   val);
   double mpsk_receiver_r_get_lock (const mpsk_receiver_r_state_t *state);
   int    mpsk_receiver_r_get_locked (const mpsk_receiver_r_state_t *state);
+
+  int64_t mpsk_receiver_r_get_lock_time (const mpsk_receiver_r_state_t *state);
   double mpsk_receiver_r_get_last_error (const mpsk_receiver_r_state_t *state);
   void mpsk_receiver_r_configure_lock (mpsk_receiver_r_state_t *state,
                                        double up_thresh, double down_thresh,

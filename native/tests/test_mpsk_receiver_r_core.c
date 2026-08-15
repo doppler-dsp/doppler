@@ -138,12 +138,11 @@ tail_ser (const float complex *out, size_t nout, const int *idx, int m,
  */
 static mpsk_receiver_r_state_t *
 RXR (int m, double sps, size_t m_out, int pulse, double bn_carrier,
-     int acq_to_track, double lock_thresh, double init_norm_freq,
-     size_t warmup_syms)
+     int acq_to_track, double lock_thresh, double init_norm_freq)
 {
   return mpsk_receiver_r_create (
       m, sps, m_out, pulse, 0.35, 8, bn_carrier, 0.707, 0.01, acq_to_track,
-      lock_thresh, init_norm_freq, warmup_syms, 0, MPSK_RX_NUM_PHASES,
+      lock_thresh, init_norm_freq, 0, MPSK_RX_NUM_PHASES,
       MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO);
 }
 
@@ -161,7 +160,7 @@ main (void)
    * ---------------------------------------------------------------- */
   {
     mpsk_receiver_r_state_t *rx
-        = RXR (4, SPS, M_OUT, 0, 0.005, 0, 0.5, FC_CENTRE, 100);
+        = RXR (4, SPS, M_OUT, 0, 0.005, 0, 0.5, FC_CENTRE);
     DP_CHECK (rx != NULL);
     if (rx)
       {
@@ -175,7 +174,7 @@ main (void)
 
     /* An invalid order is rejected, not silently accepted. */
     mpsk_receiver_r_state_t *bad
-        = RXR (3, SPS, M_OUT, 0, 0.005, 0, 0.5, FC_CENTRE, 100);
+        = RXR (3, SPS, M_OUT, 0, 0.005, 0, 0.5, FC_CENTRE);
     DP_CHECK (bad == NULL);
     mpsk_receiver_r_destroy (bad);
 
@@ -183,7 +182,7 @@ main (void)
        across a reset must give byte-identical symbols. */
     make_mpsk_real (tx, idx, 4, SPS, NSYM, FC_CENTRE, 30.0, 11u, phi0_for (4));
     mpsk_receiver_r_state_t *a
-        = RXR (4, SPS, M_OUT, 0, 0.005, 0, 0.5, FC_CENTRE, 100);
+        = RXR (4, SPS, M_OUT, 0, 0.005, 0, 0.5, FC_CENTRE);
     if (a)
       {
         size_t        k1    = mpsk_receiver_r_steps (a, tx, NSAMP, out, NSYM);
@@ -211,7 +210,7 @@ main (void)
            the complex twin does: its decision margin is only +-pi/8, so the
            M-th-power discriminator's own jitter dominates. */
         mpsk_receiver_r_state_t *rx
-            = RXR (m, SPS, M_OUT, 0, 0.005, m == 8, 0.3, FC_CENTRE, 100);
+            = RXR (m, SPS, M_OUT, 0, 0.005, m == 8, 0.3, FC_CENTRE);
         DP_CHECK (rx != NULL);
         if (!rx)
           continue;
@@ -271,17 +270,17 @@ main (void)
    * ---------------------------------------------------------------- */
   {
     /* sps == 2 * m_out exactly: rejected (strictly greater is required). */
-    mpsk_receiver_r_state_t *eq = RXR (4, 8.0, 4, 0, 0.005, 0, 0.5, 0.0, 100);
+    mpsk_receiver_r_state_t *eq = RXR (4, 8.0, 4, 0, 0.005, 0, 0.5, 0.0);
     DP_CHECK (eq == NULL);
     mpsk_receiver_r_destroy (eq);
 
     /* Below it: rejected. */
-    mpsk_receiver_r_state_t *lo = RXR (4, 6.0, 4, 0, 0.005, 0, 0.5, 0.0, 100);
+    mpsk_receiver_r_state_t *lo = RXR (4, 6.0, 4, 0, 0.005, 0, 0.5, 0.0);
     DP_CHECK (lo == NULL);
     mpsk_receiver_r_destroy (lo);
 
     /* Just above it: accepted. */
-    mpsk_receiver_r_state_t *ok = RXR (4, 8.5, 4, 0, 0.005, 0, 0.5, 0.0, 100);
+    mpsk_receiver_r_state_t *ok = RXR (4, 8.5, 4, 0, 0.005, 0, 0.5, 0.0);
     DP_CHECK (ok != NULL);
     mpsk_receiver_r_destroy (ok);
   }
@@ -294,7 +293,7 @@ main (void)
        the declare is unambiguous, and matching the complex twin's handover
        case so the two measure the same operating point. */
     mpsk_receiver_r_state_t *rx
-        = RXR (4, SPS, M_OUT, 0, 0.01, 1, 0.65, FC_CENTRE, 200);
+        = RXR (4, SPS, M_OUT, 0, 0.01, 1, 0.65, FC_CENTRE);
     DP_CHECK (rx != NULL);
     if (rx)
       {
@@ -327,9 +326,9 @@ main (void)
     size_t       settle     = dp_test_settle_syms (0.01, 0.005);
 
     mpsk_receiver_r_state_t *edge
-        = RXR (4, sps_edge, M_OUT, 0, 0.005, 0, 0.5, 0.10, 100);
+        = RXR (4, sps_edge, M_OUT, 0, 0.005, 0, 0.5, 0.10);
     mpsk_receiver_r_state_t *ctr
-        = RXR (4, sps_edge, M_OUT, 0, 0.005, 0, 0.5, FC_CENTRE, 100);
+        = RXR (4, sps_edge, M_OUT, 0, 0.005, 0, 0.5, FC_CENTRE);
     DP_CHECK (edge != NULL && ctr != NULL);
     if (edge && ctr)
       {
@@ -415,11 +414,11 @@ main (void)
     size_t half = NSAMP / 2;
 
     mpsk_receiver_r_state_t *ref
-        = RXR (4, SPS, M_OUT, 0, 0.005, 0, 0.5, FC_CENTRE, 100);
+        = RXR (4, SPS, M_OUT, 0, 0.005, 0, 0.5, FC_CENTRE);
     mpsk_receiver_r_state_t *src
-        = RXR (4, SPS, M_OUT, 0, 0.005, 0, 0.5, FC_CENTRE, 100);
+        = RXR (4, SPS, M_OUT, 0, 0.005, 0, 0.5, FC_CENTRE);
     mpsk_receiver_r_state_t *dst
-        = RXR (4, SPS, M_OUT, 0, 0.005, 0, 0.5, FC_CENTRE, 100);
+        = RXR (4, SPS, M_OUT, 0, 0.005, 0, 0.5, FC_CENTRE);
     DP_CHECK (ref && src && dst);
     if (ref && src && dst)
       {
@@ -490,7 +489,7 @@ main (void)
           rtx[i] *= (float)amps[a];
 
         mpsk_receiver_r_state_t *rx = RXR (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD,
-                                           0.01, 0, 0.5, FC_CENTRE, 100);
+                                           0.01, 0, 0.5, FC_CENTRE);
         DP_CHECK (rx != NULL);
         if (rx)
           {
@@ -504,8 +503,8 @@ main (void)
         /* agc=0 is the bisect handle here too: no gain, ever. */
         mpsk_receiver_r_state_t *off = mpsk_receiver_r_create (
             4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.01, 0,
-            0.5, FC_CENTRE, 100, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE,
-            0, MPSK_RX_AGC_BW_RATIO);
+            0.5, FC_CENTRE, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 0,
+            MPSK_RX_AGC_BW_RATIO);
         DP_CHECK (off != NULL);
         if (off)
           {
@@ -522,12 +521,12 @@ main (void)
        the loop it feeds. */
     DP_CHECK (mpsk_receiver_r_create (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35,
                                       8, 0.01, 0.707, 0.01, 0, 0.5, FC_CENTRE,
-                                      100, 0, MPSK_RX_NUM_PHASES,
+                                      0, MPSK_RX_NUM_PHASES,
                                       MPSK_RX_NDA_TAP_STROBE, 1, 1.0)
               == NULL);
     DP_CHECK (mpsk_receiver_r_create (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35,
                                       8, 0.01, 0.707, 0.01, 0, 0.5, FC_CENTRE,
-                                      100, 0, MPSK_RX_NUM_PHASES,
+                                      0, MPSK_RX_NUM_PHASES,
                                       MPSK_RX_NDA_TAP_STROBE, 1, 0.0)
               == NULL);
     free (rtx);

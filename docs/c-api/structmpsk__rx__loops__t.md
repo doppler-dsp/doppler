@@ -37,7 +37,6 @@ _The receiver's loops: timing, carrier, handover, demapper._
 | Type | Name |
 | ---: | :--- |
 |  int | [**acq\_to\_track**](#variable-acq_to_track)  <br> |
-|  [**boxcar\_state\_t**](structboxcar__state__t.md) | [**arm**](#variable-arm)  <br> |
 |  double | [**bn\_agc\_ratio**](#variable-bn_agc_ratio)  <br> |
 |  double | [**bn\_carrier**](#variable-bn_carrier)  <br> |
 |  double | [**car\_error**](#variable-car_error)  <br> |
@@ -50,6 +49,7 @@ _The receiver's loops: timing, carrier, handover, demapper._
 |  int | [**have\_prev\_idx**](#variable-have_prev_idx)  <br> |
 |  double | [**lo\_sps**](#variable-lo_sps)  <br> |
 |  double | [**lock**](#variable-lock)  <br> |
+|  int64\_t | [**lock\_time**](#variable-lock_time)  <br> |
 |  int | [**m**](#variable-m)  <br> |
 |  size\_t | [**m\_out**](#variable-m_out)  <br> |
 |  double | [**mf\_in\_sps**](#variable-mf_in_sps)  <br> |
@@ -62,7 +62,6 @@ _The receiver's loops: timing, carrier, handover, demapper._
 |  [**ratesync\_loop\_t**](structratesync__loop__t.md) | [**timing**](#variable-timing)  <br> |
 |  [**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  int | [**tracking**](#variable-tracking)  <br> |
-|  size\_t | [**warmup\_syms**](#variable-warmup_syms)  <br> |
 |  double | [**zeta**](#variable-zeta)  <br> |
 
 
@@ -123,23 +122,6 @@ int mpsk_rx_loops_t::acq_to_track;
 
 opt-in two-way handover. 
  
-
-
-        
-
-<hr>
-
-
-
-### variable arm 
-
-```C++
-boxcar_state_t mpsk_rx_loops_t::arm;
-```
-
-
-
-free-running arm filter; LO\_ARM only. 
 
 
         
@@ -364,6 +346,23 @@ EMA of the carrier lock signal.
 
 
 
+### variable lock\_time 
+
+```C++
+int64_t mpsk_rx_loops_t::lock_time;
+```
+
+
+
+sym\_count when carrier lock was first declared, or -1 if never. Running state. 
+
+
+        
+
+<hr>
+
+
+
 ### variable m 
 
 ```C++
@@ -479,7 +478,7 @@ size_t mpsk_rx_loops_t::sym_count;
 
 
 
-symbols emitted (warmup counter). 
+symbols emitted; also dates `lock_time`. 
  
 
 
@@ -570,24 +569,6 @@ int mpsk_rx_loops_t::tracking;
 
 
 0 = NDA acquire, 1 = decision. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable warmup\_syms 
-
-```C++
-size_t mpsk_rx_loops_t::warmup_syms;
-```
-
-
-
-symbols before the switch is allowed. 
  
 
 

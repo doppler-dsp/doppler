@@ -16,9 +16,8 @@ mpsk_receiver_r_create (int m, double sps, size_t m_out, int pulse,
                         double rrc_beta, int rrc_span, double bn_carrier,
                         double zeta, double bn_timing, int acq_to_track,
                         double lock_thresh, double init_norm_freq,
-                        size_t warmup_syms, int differential,
-                        size_t num_phases, int nda_tap, int agc,
-                        double bn_agc_ratio)
+                        int differential, size_t num_phases, int nda_tap,
+                        int agc, double bn_agc_ratio)
 {
   if (m != 2 && m != 4 && m != 8)
     return NULL;
@@ -33,7 +32,7 @@ mpsk_receiver_r_create (int m, double sps, size_t m_out, int pulse,
       || !(bn_timing >= 0.0) || !(zeta > 0.0) || num_phases < 2u
       || (num_phases & (num_phases - 1u)) != 0u
       || nda_tap < MPSK_RX_NDA_TAP_STROBE
-      || nda_tap > MPSK_RX_NDA_TAP_LO_ARM
+      || nda_tap > MPSK_RX_NDA_TAP_MF_OUT
       /* An AGC at or above the bandwidth of a loop it feeds corrects the
          excursions that loop is producing; refused, not warned about. */
       || !(bn_agc_ratio > 0.0) || !(bn_agc_ratio < 1.0))
@@ -64,8 +63,7 @@ mpsk_receiver_r_create (int m, double sps, size_t m_out, int pulse,
      reason mpsk_rx_loops_init takes lo_sps separately from sps. */
   mpsk_rx_loops_init (&rx->l, m, sps, 0.5 * sps, m_out, bn_carrier, zeta,
                       bn_timing, bn_agc_ratio, RATESYNC_TED_GARDNER,
-                      acq_to_track, lock_thresh, warmup_syms, differential,
-                      nda_tap);
+                      acq_to_track, lock_thresh, differential, nda_tap);
   ratesync_loop_bind_cascade (&rx->l.timing, rx->fe->rc);
 
   /* The same wedge the complex twin gets, in the same place: inside the
@@ -202,6 +200,12 @@ int
 mpsk_receiver_r_get_locked (const mpsk_receiver_r_state_t *state)
 {
   return state->l.car_lock.locked;
+}
+
+int64_t
+mpsk_receiver_r_get_lock_time (const mpsk_receiver_r_state_t *state)
+{
+  return state->l.lock_time;
 }
 
 double

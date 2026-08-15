@@ -174,11 +174,9 @@ flowchart TB
     FE["front end<br/>ddc_execute_ctrl_push_tap2()<br/>LO · MIX · DEC · AGC · MFR"]
     X --> FE
 
-    FE -->|"zlo, n_lo"| PLO["mpsk_rx_push_lo()"]
     FE -->|"zpre, n_pre"| PMI["mpsk_rx_push_mf_in()"]
     FE -->|"ys 0..n"| TO["mpsk_rx_take_output()"]
 
-    PLO -->|"nda_tap == LO_ARM<br/>through boxcar l-&gt;arm"| DISC
     PMI -->|"nda_tap == MF_IN"| DISC
     TO -->|"nda_tap == MF_OUT<br/>every output, ahead of the strobe"| DISC
 
@@ -730,16 +728,17 @@ only tap. The three-way `nda_tap` parameter goes away.
 
 Why this tap, stated against the three it replaces:
 
-| tap                        | why not                                                                                                                                                                          |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `strobe` (shipped default) | inside the matched filter's group delay, and the only tap that depends on symbol timing                                                                                          |
-| `mf_out`                   | also inside the matched filter; the between-symbol outputs average two symbols, so their M-th power carries ISI rather than carrier phase                                        |
-| `lo_arm`                   | timing-independent and wide, but a hand-rolled approximation of this tap — a free-running half-symbol boxcar bolted ahead of the cascade to claw back SNR at the full input rate |
+| tap                        | why not                                                                                                                                   |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `strobe` (shipped default) | inside the matched filter's group delay, and the only tap that depends on symbol timing                                                   |
+| `mf_out`                   | also inside the matched filter; the between-symbol outputs average two symbols, so their M-th power carries ISI rather than carrier phase |
 
-The pre-terminal stream is what `lo_arm` was reaching for, done properly:
-band-limited by the cascade's own filters, already levelled by the AGC sitting
-on it, and at a rate the plan reports rather than a rate the input happens to
-have.
+The MFR's input is the node those two are reaching past: band-limited by DEC's
+own filters, already levelled by the AGC sitting on it, and at a rate the plan
+reports rather than a rate the input happens to have. A `lo_arm` tap once
+approximated it with a free-running half-symbol boxcar bolted ahead of the
+cascade; it was removed with that arm (gh-768), because the filters ahead of
+this node already do the job the arm was there for.
 
 **Why 2 samples/symbol specifically, rather than the pre-terminal rate as it
 falls out.** `bank_sps = sps / D` for whatever integer decimation `D` the plan
@@ -810,12 +809,12 @@ measured against the shipped filter rather than quoted from a textbook.
     | -------- | ----------- | ----------- |
     | `strobe` | `0.010·Rs`  | `0.050·Rs`  |
     | `mf_out` | `0.015·Rs`  | `0.033·Rs`  |
-    | `lo_arm` | `0.090·Rs`  | `0.090·Rs`  |
 
-    `lo_arm` is the one number `m_out` cannot move, which is the check on the
-    mechanism: it taps ahead of the cascade, so the terminal rate is not in its
-    path. That it reaches its own Nyquist bound while the strobe follows the
-    loop bandwidth is the clearest evidence for §3.4's claim.
+    Both rows move with `m_out`, which is the mechanism showing through: both
+    taps sit on the terminal stage's grid. The tap that does NOT move with it
+    is `mf_in`, which reads ahead of the MFR — but its number is not measured
+    yet (gh-766), so the check on §3.4's claim is currently the shape of these
+    two rows rather than a third.
 
 ### 3.5 Stable false lock at `Δf = k·F/M`
 

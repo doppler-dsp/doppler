@@ -40,7 +40,6 @@ target_link_libraries(dsss PRIVATE
     symsync_core
     nco_core
     farrow_core
-    boxcar_core
     gold_core
     snr_core
     carrier_acq_core

@@ -49,7 +49,6 @@ rx = MpskReceiver(
     # per-M (QPSK peaked at 0.619), where 0.4 meant 0.4/0.619 = 65% of the
     # ceiling -- so 0.65 here is the SAME operating point, not a retune.
     lock_thresh=0.65,
-    warmup_syms=200,
 )
 sym = rx.steps(iq)  # recovered symbols (~ len(iq) / sps)
 bits = rx.bits(iq)  # hard Gray bits, LSB-first per symbol
@@ -222,7 +221,6 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
                 bn_timing=0.005,
                 acq_to_track=1,
                 lock_thresh=0.3,
-                warmup_syms=300,
             )
             out2 = rxm.steps(tx2)
             ser = _ser(out2, idx2, m, _settle_floor(0.005, 0.005))

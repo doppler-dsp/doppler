@@ -161,6 +161,84 @@ filter at all, so it has no `mf` to be the input of.
 - **DSSS-MPSK** is the downstream pipeline `Dll(segments) → MpskReceiver`; the
     despreader removes the PN code and hands symbols to this modem. Not fused.
 
+### The internal signals, and what gates what
+
+The figure above is the architecture. This one is the same receiver drawn in
+its own identifiers, so a reader can put a finger on a block and find the
+symbol in the source. Nothing here is a second design — it is the first one
+with the wires named.
+
+```mermaid
+flowchart TB
+    X(["x — one input sample"])
+    FE["front end<br/>ddc_execute_ctrl_push_tap2()<br/>LO · MIX · DEC · AGC · MFR"]
+    X --> FE
+
+    FE -->|"zlo, n_lo"| PLO["mpsk_rx_push_lo()"]
+    FE -->|"zpre, n_pre"| PMI["mpsk_rx_push_mf_in()"]
+    FE -->|"ys 0..n"| TO["mpsk_rx_take_output()"]
+
+    PLO -->|"nda_tap == LO_ARM<br/>through boxcar l-&gt;arm"| DISC
+    PMI -->|"nda_tap == MF_IN"| DISC
+    TO -->|"nda_tap == MF_OUT<br/>every output, ahead of the strobe"| DISC
+
+    TO --> RL["ratesync_loop_take_output()<br/>gates to the on-time sample `on`"]
+    RL -->|"nda_tap == STROBE"| DISC
+
+    subgraph D["mpsk_rx_disc() — runs in BOTH modes, always"]
+        direction TB
+        DISC["carrier_nda_disc(z, m) → pe, lk"]
+        LKE["lock += CARRIER_NDA_LOCK_ALPHA · (lk − lock)"]
+        CLD["lockdet_step(&amp;car_lock, lock)"]
+        DISC --> LKE --> CLD
+    end
+
+    RL --> ROT["y_rot = on · sym_rot"]
+    DISC -->|"pe, only when !tracking"| STEER
+    ROT -->|"only when tracking"| DD["decision-directed error<br/>Im(y_rot · conj(ahat)) / abs(y_rot)"]
+    DD --> STEER
+
+    STEER["mpsk_rx_steer(pe)<br/>car_error = pe<br/>freq_ctrl = −loop_filter_step(car_lf, pe) · freq_scale"]
+
+    ROT --> HO{"sym_count++<br/>acq_to_track and<br/>sym_count ≥ warmup_syms?"}
+    HO -->|"yes"| HOS["tracking = lockdet_step(&amp;handover, lock)"]
+    LKE -.->|"lock"| HOS
+    HOS -.->|"tracking selects WHICH discriminator steers"| STEER
+
+    STEER -.->|"freq_ctrl"| FE
+    RL -.->|"timing.ctrl — the rate_ctrl port"| FE
+    ROT --> OUT(["*sym = y_rot"])
+```
+
+**Three couplings here are chosen rather than inherited, and each was measured
+before being left alone.** They are the reason this diagram is worth having:
+in every case the gate a reader would expect is deliberately absent.
+
+- **The steer is gated on `!tracking`; the discriminator and its lock EMA are
+    not.** `mpsk_rx_disc()` runs on every sample it is handed in both modes.
+    Freezing it while tracking would make the drop-back unreachable — the
+    metric could never fall back through the threshold it rose above. Measured
+    exactly that way: a receiver fed pure noise stayed in `tracking` for ever.
+
+- **The `strobe` tap is NOT gated on the timing loop's lock detector.** It
+    steers from its first strobe, locked or not. An earlier revision gated it,
+    on the sound reasoning that a pre-lock strobe is an arbitrary phase of the
+    pulse — and the transient is real (QPSK, sps = 8, 20 dB, 5 seeds: timing
+    declares at symbol 185 on average, and across that window the lock
+    statistic swings −0.947 to +0.888 where a settled lock reads +0.906).
+    But across a 24-cell sweep the gate changed exactly one cell, and what it
+    really bought was making carrier acquisition easier to *measure*, not
+    easier to *achieve*. A tap that needs timing it cannot wait for is a
+    reason to choose a different tap — which is what `nda_tap` is for. Gating
+    the default hid that choice behind a coupling the caller could neither see
+    nor override.
+
+- **`warmup_syms` is the only guard on the handover, and it is sized from the
+    TIMING loop's bandwidth (~`5/bn_timing`), not the carrier's.** The pre-lock
+    lock EMA overshoots its own ceiling (0.9–1.7 against 0.62), so a warmup
+    shorter than the timing loop's settling can declare on garbage and hand the
+    carrier to a decision-directed loop with no valid decisions to make.
+
 ### 1.1 The two domains, and why the split is the design
 
 Everything above divides into two domains that run at **different clocks**,

@@ -202,11 +202,11 @@ The carrier discriminator's tap point sets how much frequency error it can even
 narrowest range; two wider taps trade signal quality for range, and both are
 also **timing-independent**, which the strobe tap is not.
 
-| `nda_tap`         | Update rate | Max acquired `Δf` (QPSK, `sps=8`) | Needs timing? |
-| ----------------- | ----------- | --------------------------------- | ------------- |
-| `strobe`          | `Rs`        | `0.01·Rs`                         | yes           |
-| `mf_out`          | `m_out·Rs`  | `0.02·Rs`                         | no            |
-| `mf_in` (default) | `bank_sps`  | not yet measured                  | no            |
+| `nda_tap`          | Update rate | Max acquired `Δf` (QPSK, `sps=8`) | Needs timing? |
+| ------------------ | ----------- | --------------------------------- | ------------- |
+| `strobe` (default) | `Rs`        | `0.01·Rs`                         | yes           |
+| `mf_out`           | `m_out·Rs`  | `0.02·Rs`                         | no            |
+| `mf_in`            | `bank_sps`  | not yet measured                  | no            |
 
 The tap is fixed at construction, so nothing switches underneath you:
 

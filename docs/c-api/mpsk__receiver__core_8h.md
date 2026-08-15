@@ -797,11 +797,11 @@ DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take the probes (the att
 >>> import numpy as np
 >>> from doppler.track import MpskReceiver
 >>> from doppler.telemetry import Telemetry
->>> tlm = Telemetry(1 << 14)   # 13 probes x ~512 syms + headroom
+>>> tlm = Telemetry(1 << 14)   # 14 probes x ~512 syms + headroom
 >>> rx = MpskReceiver(m=4, sps=4, m_out=2)
 >>> rx.set_telemetry(tlm, "rx")
 >>> len(tlm.probe_names)
-13
+14
 >>> rng = np.random.default_rng(7)
 >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
 >>> x = np.repeat(syms, 4)

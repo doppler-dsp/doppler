@@ -176,7 +176,7 @@ test-fast: ## Run tests, stopping at the first failure
 # `lint` is the gate — CI runs exactly this and nothing else. The three
 # consistency gates come first because they are near-free and catch the class
 # of rot that review demonstrably does not.
-lint: standard-check help-check ghost-check hook-dispatch-check gates-check ## Run the full lint gate (CI runs this)
+lint: standard-check help-check ghost-check hook-dispatch-check hook-stage-check gates-check ## Run the full lint gate (CI runs this)
 	@hook=$$(git rev-parse --git-path hooks/pre-commit 2>/dev/null); \
 	 if [ -n "$$hook" ] && [ ! -f "$$hook" ]; then \
 	     $(PRE_COMMIT) install >/dev/null 2>&1 \
@@ -672,6 +672,7 @@ endif
 # than warning. A gate that cannot run has not passed.
 
 STD_TARGETS += standard-check help-check ghost-check hook-dispatch-check
+STD_TARGETS += hook-stage-check
 
 # A temp file, portably: bare `mktemp` is a GNU extension, and the BSD one
 # macOS ships requires a template. The gates parse make's own database, which
@@ -725,7 +726,7 @@ _STD_SECTION = case "$$t" in \
     bump-version|version-check|release-branch|tag-release|release-watch \
         |ship) tsec="Release";; \
     test-examples) tsec="Examples";; \
-    standard-check|help-check|ghost-check|hook-dispatch-check) \
+    standard-check|help-check|ghost-check|hook-dispatch-check|hook-stage-check) \
         tsec="Gates";; \
     *) tsec="Local";; \
 esac
@@ -927,6 +928,123 @@ hook-dispatch-check: ## Verify every pre-commit `make` dispatch names a real tar
 	     exit 1; \
 	 fi; \
 	 echo "hook-dispatch-check: $$n make dispatch(es) resolve"
+
+# ── hook-stage-check ────────────────────────────────────────────────────────
+#
+# `hook-dispatch-check` above proves each hook names a real target. It says
+# NOTHING about whether the hook is ever reached, and that is the hole that let
+# two of doppler's gates run nowhere for months (doppler#737).
+#
+# The mechanism, which is worth stating because every part of it reads healthy
+# on its own:
+#
+#   * a hook at `stages: [pre-push]` is installed by `pre-commit install` ONLY
+#     when the config also declares `default_install_hook_types`. Without it,
+#     plain `pre-commit install` writes `.git/hooks/pre-commit` and nothing
+#     else, so the pre-push hook has no git hook to fire from;
+#   * `make lint` runs pre-commit at the DEFAULT stage, so CI does not reach it
+#     either.
+#
+# Both halves are individually reasonable. Together they produce a hook that is
+# configured, dispatches correctly, passes `hook-dispatch-check`, and executes
+# on no machine and in no pipeline. Its findings count is zero because it never
+# looked -- a dead gate that happens to be green, which is the one failure mode
+# nothing downstream can distinguish from success.
+#
+# THE TRAP, recorded because it cost a wrong plan once: clearing a backlog does
+# not revive such a gate. The backlog is why it cannot be switched on; it is
+# not why it does not run. A repo that fixes every finding still runs the tool
+# nowhere.
+#
+# Checked STATICALLY, from the config alone, because that is the property that
+# survives a fresh clone: CI has no `.git/hooks` to inspect, and a check that
+# passes only on a developer machine that happens to have run `make setup` is
+# the same class of illusion being fixed.
+#
+# `manual` is exempt and deliberately so: it means "never run automatically",
+# which is a choice rather than an accident. A `manual` hook that no target
+# invokes is still dead, but that is not knowable from this file.
+hook-stage-check: ## Verify every pre-commit hook stage is actually installed
+	@cfg=.pre-commit-config.yaml; \
+	 if [ ! -f "$$cfg" ]; then \
+	     echo "hook-stage-check: no $$cfg — nothing to check"; \
+	     exit 0; \
+	 fi; \
+	 : "Both YAML spellings, because either is valid and a gate that reads"; \
+	 : "only one goes quietly blind the day someone reformats the file --"; \
+	 : "which is exactly how hook-dispatch-check lost all 8 dispatches."; \
+	 parsed=$$(awk ' \
+	   function emit(kind, list,   n, i, arr) { \
+	     gsub(/[][]/, " ", list); gsub(/,/, " ", list); \
+	     n = split(list, arr, /[[:space:]]+/); \
+	     for (i = 1; i <= n; i++) if (arr[i] != "") print kind "\t" arr[i]; \
+	   } \
+	   /^[[:space:]]*#/ { next } \
+	   /^[[:space:]]*$$/ { next } \
+	   /^[[:space:]]*default_install_hook_types:/ { \
+	     v = $$0; sub(/^[^:]*:[[:space:]]*/, "", v); sub(/[[:space:]]*#.*/, "", v); \
+	     if (v ~ /[[]/) { emit("install", v); mode = "" } else { mode = "install" } \
+	     next \
+	   } \
+	   /^[[:space:]]*stages:/ { \
+	     v = $$0; sub(/^[^:]*:[[:space:]]*/, "", v); sub(/[[:space:]]*#.*/, "", v); \
+	     if (v ~ /[[]/) { emit("stage", v); mode = "" } else { mode = "stage" } \
+	     next \
+	   } \
+	   mode != "" && /^[[:space:]]*-[[:space:]]*/ { \
+	     v = $$0; sub(/^[[:space:]]*-[[:space:]]*/, "", v); sub(/[[:space:]]*#.*/, "", v); \
+	     if (v != "") print mode "\t" v; \
+	     next \
+	   } \
+	   { mode = "" } \
+	 ' "$$cfg"); \
+	 : "Old pre-commit spelled these without the prefix, and a config using"; \
+	 : "the legacy name is correctly wired -- normalise rather than fail it."; \
+	 norm() { \
+	     case "$$1" in \
+	         commit) echo pre-commit ;; \
+	         push) echo pre-push ;; \
+	         merge-commit) echo pre-merge-commit ;; \
+	         *) echo "$$1" ;; \
+	     esac; \
+	 }; \
+	 installed=$$(printf '%s\n' "$$parsed" | sed -n 's/^install\t//p'); \
+	 : "No declaration means pre-commit installs the pre-commit type ALONE."; \
+	 : "That default is the whole bug: it is silent, and it is not nothing."; \
+	 if [ -z "$$installed" ]; then installed=pre-commit; declared=0; else declared=1; fi; \
+	 inst=""; for s in $$installed; do inst="$$inst $$(norm $$s)"; done; \
+	 n=0; orphan=""; \
+	 for s in $$(printf '%s\n' "$$parsed" | sed -n 's/^stage\t//p' | sort -u); do \
+	     s=$$(norm "$$s"); \
+	     [ "$$s" = manual ] && continue; \
+	     n=$$((n + 1)); \
+	     case " $$inst " in *" $$s "*) ;; *) orphan="$$orphan $$s" ;; esac; \
+	 done; \
+	 if [ -n "$$orphan" ]; then \
+	     echo "ERROR: pre-commit hooks are configured at a stage nothing installs:"; \
+	     printf '  %s\n' $$orphan; \
+	     echo ""; \
+	     if [ "$$declared" = 0 ]; then \
+	         echo "  $$cfg declares no \`default_install_hook_types\`, so"; \
+	         echo "  \`pre-commit install\` writes .git/hooks/pre-commit and nothing"; \
+	         echo "  else. \`make lint\` runs the default stage, so CI does not reach"; \
+	         echo "  these either. They run NOWHERE — zero findings because they"; \
+	         echo "  never looked."; \
+	     else \
+	         echo "  $$cfg declares default_install_hook_types ($$inst )"; \
+	         echo "  but not the stage(s) above, so nothing installs them."; \
+	     fi; \
+	     echo ""; \
+	     echo "  Fix by giving them an execution home, then PROVE IT BY SABOTAGE:"; \
+	     echo "    default_install_hook_types: [pre-commit,$$orphan]"; \
+	     echo "  or run the stage from a make target CI invokes:"; \
+	     echo "    \$$(PRE_COMMIT) run --all-files --hook-stage <stage>"; \
+	     echo ""; \
+	     echo "  Clearing the tool's findings does NOT fix this. A backlog is why"; \
+	     echo "  a gate cannot be switched on; it is not why it does not run."; \
+	     exit 1; \
+	 fi; \
+	 echo "hook-stage-check: $$n non-default stage(s) have an execution home"
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 # Generated from the `## description` on each active target's rule line. Never

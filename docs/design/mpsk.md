@@ -741,55 +741,72 @@ property of the design rather than an edge case.
 
 ### 3.3 Where the discriminator reads — the Nyquist tap
 
-**Design, not yet built.** In Mode 1 the NDA discriminator reads the
-pre-terminal stream **decimated to 2 samples per symbol**, and that is the
-only tap. The three-way `nda_tap` parameter goes away.
+**Built, as `MPSK_RX_NDA_TAP_MF_IN`.** The NDA discriminator can read the
+MFR's input — post-MIX, post-DEC, post-AGC, entirely ahead of the matched
+filter — which is the node this section argued for. What did *not* happen is
+the rest of the original plan, and the difference is recorded below rather
+than quietly dropped.
 
-Why this tap, stated against the three `nda_tap` offers today:
+The three taps, and why `mf_in` is the one for a continuous receiver:
 
-| tap                        | why not                                                                                                                                                                           |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `strobe` (shipped default) | inside the matched filter's group delay, and the only tap that depends on symbol timing                                                                                           |
-| `mf_out`                   | also inside the matched filter; the between-symbol outputs average two symbols, so their M-th power carries ISI rather than carrier phase                                         |
-| `mf_in`                    | the right **node** — this is the one Mode 1 keeps — but at the wrong **rate**: it reads at `bank_sps`, a planner outcome, so its clock and its pull-in ceiling move with the plan |
-
-`mf_in` is the closest of the three and the distinction is worth being exact
-about, because "Mode 1 reads the MFR's input" and "Mode 1 uses `mf_in`" are not
-the same statement. Same node; Mode 1 fixes the *rate* at 2 samples/symbol
-instead of inheriting `bank_sps`, which is what the rest of this section is
-about.
+| tap                        | update rate | ceiling `F/(2M)`   | why not                                                                                                                     |
+| -------------------------- | ----------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `strobe` (shipped default) | `Rs`        | `Rs/(2M)`          | inside the matched filter's group delay, and the only tap whose input quality depends on symbol timing                      |
+| `mf_out`                   | `m_out·Rs`  | `m_out·Rs/(2M)`    | also inside the matched filter; the between-symbol outputs average two symbols, so their M-th power carries an ISI bias     |
+| **`mf_in`**                | `bank_sps`  | `bank_sps·Rs/(2M)` | **none for this purpose** — ahead of the matched filter, so it needs no symbol timing and carries no inter-symbol averaging |
 
 That node is what the other two are reaching past: band-limited by DEC's own
-filters, already levelled by the AGC sitting on it, and at a rate the plan
-reports rather than a rate the input happens to have. A fourth tap, `lo_arm`,
+filters, already levelled by the AGC sitting on it. A fourth tap, `lo_arm`,
 once approximated it with a free-running half-symbol boxcar bolted ahead of the
 cascade; it was removed with that arm (gh-768), because the filters ahead of
-this node already do the job the arm was there for.
+this node already do the job the arm was there for. `mf_in` is where a Costas
+arm filter would go, and the reason there is none.
 
-**Why 2 samples/symbol specifically, rather than the pre-terminal rate as it
-falls out.** `bank_sps = sps / D` for whatever integer decimation `D` the plan
-uses (`RateConverter_core.c`), so the pre-terminal rate is a *planner outcome*:
-at the shipped default (8 samples/symbol, `m_out = 8`, terminal rate 1.0) the
-planner decimates by nothing and the stream sits at **8 samples/symbol**, four
-times past Nyquist with heavily correlated neighbours.
+**`nda_tap` did not go away, and that is the decision.** This section used to
+say the three-way parameter disappears into one fixed tap. It is instead
+**fixed at construction** — the caller picks the trade once and nothing
+switches underneath them — because the three taps are genuinely different
+trades and only the caller knows which they are buying. `tap_timed` records
+which of them depends on timing; it is `strobe` alone.
 
-The matched filter wants that fine grid — it integrates the pulse across
-`bank_sps·span` taps, which is the same argument the `m_out = 8` default rests
-on, applied to the input side. The discriminator does not: it gains nothing
-from eight correlated looks per symbol and pays for all of them. **They do not
-have to share a rate.** Decimating the pre-terminal stream to 2 samples/symbol
-for the carrier loop alone needs no new filtering — the signal occupies
-`±(1+β)/2·Rs`, comfortably inside the `±Rs` a 2-sps grid supports — and buys
-three things:
+**No tap waits**, which is the property that matters for a receiver with no
+gating: `strobe` steers from its first strobe whether or not the timing loop
+has declared. Its timing dependency is a reason to *choose* another tap when
+the carrier must acquire first — not something the receiver resolves behind
+the caller's back. Gating it was tried and measured: across a 24-cell sweep it
+moved one cell, and what it really bought was a carrier transient that started
+at a known instant and was therefore easier to *measure*, which is not a
+property of a working receiver.
 
-- the loop's clock is a **construction constant**, not a planner outcome;
-- the pull-in ceiling is a stated `Rs/M`, quotable in Hz because nothing in
-    the cascade can move it;
-- the looks are approximately independent, so the discriminator's noise
-    behaviour matches the theory §4 derives its detector from.
+### The 2-samples/symbol decimation, considered and declined
 
-The decimation factor is derived from `bank_sps`, not hard-coded: at large
-oversampling the plan already decimates and the residual factor may be 1 or 2.
+The original argument stands on its own terms and is kept because the
+trade is live: `bank_sps = sps / D` for whatever integer decimation `D` the
+plan chooses (`RateConverter_core.c`), so `mf_in`'s clock is a **planner
+outcome**. At the default (8 samples/symbol, `m_out = 8`, terminal rate 1.0)
+the planner decimates by nothing and the stream sits at 8 samples/symbol —
+four times past Nyquist, with heavily correlated neighbours. The matched
+filter wants that fine grid; the discriminator gains nothing from eight
+correlated looks per symbol and pays for all of them. Decimating to 2 sps for
+the carrier loop alone needs no new filtering (the signal occupies
+`±(1+β)/2·Rs`, inside the `±Rs` a 2-sps grid supports) and would have bought a
+construction-constant clock, a pull-in ceiling of a stated `Rs/M`, and
+approximately independent looks.
+
+**It was not built, for a reason this document did not anticipate: a
+decimator carries state.** The tap takes the raw stream so that it costs no
+serialized state at all — which matters because every stateful thing in this
+receiver has to appear in the state blob, be packed, be versioned, and resume
+bit-exactly (`docs/design/state-serialization.md`). A decimator on the carrier
+path buys a tidier clock and pays for it in the one place this project is
+strictest about.
+
+So the consequence is real and stands: **`mf_in`'s pull-in ceiling moves with
+the caller's rate ratio** rather than being quotable as a constant.
+`mpsk_rx_updates_per_symbol()` reports what the rate actually came out as,
+which is the honest substitute for a number the architecture will not fix.
+Whether that trade should be revisited is open; it is not a gap left by
+accident.
 
 ### 3.4 Pull-in is a loop-bandwidth property, not a tap property
 

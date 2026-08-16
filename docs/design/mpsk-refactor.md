@@ -164,51 +164,75 @@ already solved — and §5 is the solution.
 
 ### 4.3 State the link and the requirement; derive the loops
 
+**The units are already specified** — [`mpsk.md` §7](mpsk.md#7-rates-and-units)
+takes `sample_rate_hz` and `symbol_rate_hz`, makes `sps` the derived double
+`sample_rate_hz / symbol_rate_hz` and removes it from every API, and converts
+everything normalized along with it (`center_freq_hz`, `pull_in_hz`,
+`freq_hz`, timing offset in ppm). That page owns the rule — *an object that
+owns a complete signal chain takes physical units; a stream processor takes
+normalized ones* — and eleven objects, `carrier_acq` among them, already sit on
+the physical side. This page does not restate it.
+
+Taking a user's two rates rather than their ratio has a second effect worth
+noting here, because it is about this refactor: **the irrational-`sps`
+headline claim stops being exotic and becomes the ordinary case.** A caller
+with a free-running ADC against a symbol clock supplies two rates and never
+computes their ratio; `17.33389` is what the division happens to produce, not
+something anyone typed.
+
+So the constructor:
+
 ```text
 /* the LINK — what is on the wire */
-m               constellation order
-sps             samples per symbol (any double)
-pulse           iandd | rrc   (+ rrc_beta when rrc)
-center_freq     where the carrier sits
+m                  constellation order
+sample_rate_hz     required; no sane default (S7)
+symbol_rate_hz     required
+pulse              iandd | rrc   (+ rrc_beta when rrc)
+center_freq_hz     where the carrier sits
 
-/* the REQUIREMENT — in the caller's units, all optional */
-pull_in_hz      the frequency uncertainty it must acquire
-acquire_syms    how quickly lock is needed
-doppler_rate    how fast the carrier moves, Hz/s
-coherent        whether anything downstream pins absolute phase
+/* the REQUIREMENT — the caller's units, all optional */
+pull_in_hz         the frequency uncertainty it must acquire
+acquire_time_s     how quickly lock is needed
+doppler_rate_hz_s  how fast the carrier moves
+coherent           whether anything downstream pins absolute phase
 ```
 
-Everything else is derived, and each derivation is an equation already in §5
-rather than a new invention:
+**Where this extends §7 rather than applying it.** §7 converts `bn_carrier`
+and `bn_timing` to Hz — still supplied, in better units. This page argues they
+should not be supplied at all: a loop bandwidth is not a fact a caller has, it
+is the answer to a requirement they do have. Each derivation is an equation
+already in §5 rather than a new invention:
 
-| derived                                                      | from                                          | equation                                                          |
-| ------------------------------------------------------------ | --------------------------------------------- | ----------------------------------------------------------------- |
-| `bn_carrier`                                                 | the **binding** constraint of the three below | max of them                                                       |
-| … seeding                                                    | `pull_in_hz`                                  | `bn ≥ M·\|Δf\|` per symbol                                        |
-| … acquisition                                                | `acquire_syms`                                | lock time scales as `~1/bn`, at 5–10% of `5/bn`                   |
-| … ramp headroom                                              | `doppler_rate`                                | `θ_ss = 2π·r/wn² < π/(2M)` ⇒ `wn² > 4M·r`                         |
-| `nda_tap`                                                    | `pull_in_hz`                                  | smallest `F ∈ {Rs, m_out·Rs, bank_sps·Rs}` with `F/(2M) ≥ \|Δf\|` |
-| `bn_timing`                                                  | `bn_carrier`                                  | the AGC must stay slower than both (§5.6)                         |
-| `acq_to_track`                                               | `m`                                           | on at M = 8, whose ±π/8 margin the NDA jitter would cross         |
-| `differential`                                               | `coherent`                                    | the M-fold ambiguity is permanent without a sync word             |
-| `m_out`, `zeta`, `lock_thresh`, `num_phases`, `bn_agc_ratio` | `sps`, M, Pfa                                 | §5.6                                                              |
+| derived                                                      | from                                   | equation                                                          |
+| ------------------------------------------------------------ | -------------------------------------- | ----------------------------------------------------------------- |
+| `bn_carrier`                                                 | the **binding** one of the three below | max of them                                                       |
+| … seeding                                                    | `pull_in_hz`                           | `bn ≥ M·\|Δf\|` per symbol                                        |
+| … acquisition                                                | `acquire_time_s`                       | lock time scales `~1/bn`, at 5–10% of `5/bn`                      |
+| … ramp headroom                                              | `doppler_rate_hz_s`                    | `θ_ss = 2π·r/wn² < π/(2M)` ⇒ `wn² > 4M·r`                         |
+| `nda_tap`                                                    | `pull_in_hz`                           | smallest `F ∈ {Rs, m_out·Rs, bank_sps·Rs}` with `F/(2M) ≥ \|Δf\|` |
+| `bn_timing`                                                  | `bn_carrier`                           | the AGC must stay slower than both (§5.6)                         |
+| `acq_to_track`                                               | `m`                                    | on at M = 8, whose ±π/8 margin the NDA jitter would cross         |
+| `differential`                                               | `coherent`                             | the M-fold ambiguity is permanent without a sync word             |
+| `m_out`, `zeta`, `lock_thresh`, `num_phases`, `bn_agc_ratio` | rates, M, Pfa                          | §5.6                                                              |
 
-Two properties of this shape are worth stating because they are what make it
-better rather than merely smaller.
+Two properties of this shape are what make it better rather than merely
+smaller.
 
 **A requirement the receiver cannot meet becomes a refusal, not a bad lock.**
-`pull_in_hz` beyond `bank_sps·Rs/(2M)` has no tap that can see it — today that
-is a silent false lock at `k·F/M`; derived, it is a `create()` returning NULL
-with the reason. The same for a `doppler_rate` whose `θ_ss` leaves the linear
-range: that is `5/bn` arithmetic, and the object can do it before the caller
-loses a pass.
+A `pull_in_hz` beyond `bank_sps·Rs/(2M)` has no tap that can see it. Today
+that is a **stable false lock at `k·F/M`** — §3.5's "single quiet failure",
+invisible to EVM, blind M2M4 and the lock statistic alike, and detectable only
+with an external frequency reference. Derived, it is a `create()` returning
+NULL with the reason, before the caller loses a pass. The same for a
+`doppler_rate_hz_s` whose `θ_ss` leaves the linear range: that is arithmetic
+the object can do up front.
 
 **Every derived value stays readable.** The getters already exist, so a caller
-who wants to know what they got asks — `rx.bn_carrier`, `rx.nda_tap` — rather
-than having had to supply it. That is the pattern §8.1 established for the
-five, applied to the rest.
+asks what they got — `rx.bn_carrier`, `rx.nda_tap`, `rx.sps` — rather than
+having had to supply it. That is the pattern §8.1 established for five
+parameters, applied to the rest.
 
-The escape hatch stays, and stops being the default path: a post-construction
+The escape hatch stays and stops being the default path: a post-construction
 setter, legal before the first sample, for the caller who genuinely must pin
 one. Pinning becomes a named call rather than a zero in a positional slot —
 which is what let the real twin pin three values wrong (§4.1).

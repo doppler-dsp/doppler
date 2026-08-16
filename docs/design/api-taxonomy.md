@@ -9,8 +9,10 @@ whatever felt right at the time. All five concrete rename proposals in §4
 (the one that motivated this doc,
 [`Channel` → `Despreader`](#41-trackchannel-dsssdespreader-continuous-dsssdespreader-dsssburstdespreader),
 plus four more surfaced by applying the same hierarchy) have landed — see
-each subsection's `Landed:` link. §4.6 and §5 remain open: flagged overlaps
-and lower-confidence ideas not yet actioned.
+each subsection's `Landed:` link. §4.7 is a decision rather than a rename: it
+files the composite receivers under layer 5 and picks **framing** as their
+axis, which required no rename because the names already agreed. §4.6 and §5
+remain open: flagged overlaps and lower-confidence ideas not yet actioned.
 
 ______________________________________________________________________
 
@@ -59,32 +61,32 @@ are a packaging/build concern — see [`repository-map.md`](../dev/repository-ma
 — not a naming one, though closer alignment between the two is a nice side
 effect where it's cheap).
 
-| #   | Layer                                | What it does                                                          | Current members                                                                                                           |
-| --- | ------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **Sources**                          | produce samples from nothing                                          | `LO`, `NCO`, `PN`, `AWGN`, the `wfm_compose` family                                                                       |
-| 2   | **Filtering & rate conversion**      | reshape a stream's spectrum/rate                                      | `FIR`, `CIC`, `Resampler`, `RateConverter`, `HalfbandDecimator`, `HalfbandDecimatorQ15`, `Farrow`, `DDC`, `MovingAverage` |
-| 3   | **Detection & acquisition**          | find presence/timing/frequency *once*, no persistent feedback         | `Corr`, `Corr2D`, `CorrDetector`, `CorrDetector2D`, `Acquisition`, `PolynomialPhaseEstimator`                             |
-| 4   | **Tracking & synchronization loops** | continuously refine an estimate via feedback, sample-by-sample        | `LoopFilter`, `Costas`, `Dll`, `CarrierMpsk`, `CarrierNda`, `SymbolSync`, `MpskReceiver`                                  |
-| 5   | **DSSS composite receivers**         | combine layers 3+4 into one PN-aware receiver, in exactly two flavors | continuous: `dsss.Despreader`; burst: `dsss.BurstDespreader`, `BurstDemod`                                                |
-| 6   | **Measurement & analysis**           | characterize signal quality                                           | `PSD`, `ToneMeasure`, `NPRMeasure`, `IMDMeasure`, `Specan`                                                                |
-| 7   | **Quantization & fixed-point**       | model/convert numeric representations                                 | `ADC`, the `cvt` family, Q15/UQ15                                                                                         |
-| 8   | **Support**                          | gain control, accumulation, plumbing                                  | `AGC`, `AccF32`/`AccCf64`/`AccQ15`/`AccQ8`/`AccTrace`, `Buffer`, `DelayCf64`                                              |
+| #   | Layer                                | What it does                                                    | Current members                                                                                                           |
+| --- | ------------------------------------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Sources**                          | produce samples from nothing                                    | `LO`, `NCO`, `PN`, `AWGN`, the `wfm_compose` family                                                                       |
+| 2   | **Filtering & rate conversion**      | reshape a stream's spectrum/rate                                | `FIR`, `CIC`, `Resampler`, `RateConverter`, `HalfbandDecimator`, `HalfbandDecimatorQ15`, `Farrow`, `DDC`, `MovingAverage` |
+| 3   | **Detection & acquisition**          | find presence/timing/frequency *once*, no persistent feedback   | `Corr`, `Corr2D`, `CorrDetector`, `CorrDetector2D`, `Acquisition`, `PolynomialPhaseEstimator`                             |
+| 4   | **Tracking & synchronization loops** | continuously refine an estimate via feedback, sample-by-sample  | `LoopFilter`, `Costas`, `Dll`, `CarrierMpsk`, `CarrierNda`, `SymbolSync`                                                  |
+| 5   | **Composite receivers**              | combine layers 2+3+4 into one receiver, in exactly two framings | continuous: `dsss.Despreader`, `track.ContinuousMpskReceiver`; burst: `dsss.BurstDespreader`, `BurstDemod`                |
+| 6   | **Measurement & analysis**           | characterize signal quality                                     | `PSD`, `ToneMeasure`, `NPRMeasure`, `IMDMeasure`, `Specan`                                                                |
+| 7   | **Quantization & fixed-point**       | model/convert numeric representations                           | `ADC`, the `cvt` family, Q15/UQ15                                                                                         |
+| 8   | **Support**                          | gain control, accumulation, plumbing                            | `AGC`, `AccF32`/`AccCf64`/`AccQ15`/`AccQ8`/`AccTrace`, `Buffer`, `DelayCf64`                                              |
 
 ## 3. The naming axis per layer
 
 Most layers already hold one naming axis consistently — the trouble is
 concentrated in layers 3–5, which never had one written down:
 
-| Layer             | Axis                                                                      | Holds today?           |
-| ----------------- | ------------------------------------------------------------------------- | ---------------------- |
-| 1 Sources         | mechanism (`NCO`, `PN`)                                                   | yes                    |
-| 2 Filtering       | mechanism (`FIR`, `CIC`, `Corr`-adjacent)                                 | yes, since §4.2 landed |
-| 3 Detection       | mechanism (`CorrDetector`, `CorrDetector2D`)                              | yes, since §4.4 landed |
-| 4 Tracking loops  | *should be* one of {mechanism, target-signal-type} — currently mixes both | **no** — see §4.6      |
-| 5 DSSS composites | framing (continuous/burst) + role (despread/demod)                        | yes, since §4.1 landed |
-| 6 Measurement     | what it measures (`ToneMeasure`)                                          | yes                    |
-| 7 Quantization    | representation (`Q15`, `UQ15`)                                            | yes                    |
-| 8 Support         | role                                                                      | yes                    |
+| Layer            | Axis                                                                      | Holds today?           |
+| ---------------- | ------------------------------------------------------------------------- | ---------------------- |
+| 1 Sources        | mechanism (`NCO`, `PN`)                                                   | yes                    |
+| 2 Filtering      | mechanism (`FIR`, `CIC`, `Corr`-adjacent)                                 | yes, since §4.2 landed |
+| 3 Detection      | mechanism (`CorrDetector`, `CorrDetector2D`)                              | yes, since §4.4 landed |
+| 4 Tracking loops | *should be* one of {mechanism, target-signal-type} — currently mixes both | **no** — see §4.6      |
+| 5 Composites     | framing (continuous/burst) + role (despread/demod/receive)                | yes — §4.1, §4.7       |
+| 6 Measurement    | what it measures (`ToneMeasure`)                                          | yes                    |
+| 7 Quantization   | representation (`Q15`, `UQ15`)                                            | yes                    |
+| 8 Support        | role                                                                      | yes                    |
 
 ## 4. Rename proposals
 
@@ -188,6 +190,55 @@ tracking-mode loop once locked. Same flavor of leak as `nav_period`.
     axis deliberately once the `Costas`/`CarrierMpsk` overlap above is
     resolved, since the axis choice and the overlap are the same underlying
     question.
+
+### 4.7 Composite receivers are layer 5, and **framing** is the axis
+
+**Decided; no rename required.** The M-PSK receivers were filed under layer 4,
+and that was the misfiling behind the question. `MpskReceiver` is a matched DDC
+plus two loops — it *combines* layers 2, 3 and 4, which is layer 5's own
+definition. Only `dsss` had composites when this doc was written, so layer 5
+was described as "DSSS composite receivers" and phrased around PN; the shape
+was never DSSS-specific. Layer 5 is now **Composite receivers**, and the M-PSK
+family sits in it.
+
+That matters because layer 5's axis is the one that **holds** (§4.1), while
+layer 4's is the one that does not (§4.6). Moving the composites out removes
+one of layer 4's two confusions for free.
+
+**Three axes are available, and exactly one earns a class name.**
+
+| axis            | earns a name? | why                                                                                                                                                                      |
+| --------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **framing**     | **yes**       | continuous and burst are different *objects* — different acquisition, different latency contract. It is already `mpsk.md` §0's own division, and §4.1's landed precedent |
+| **modulation**  | no            | `m ∈ {2,4,8}` is one constructor argument over one implementation. Naming it forces three classes per framing over a single core, or makes the name a lie at `m = 4`     |
+| **input dtype** | already does  | `MpskReceiverR` is a separate type because `steps()` takes `f32` rather than `cf32` — a *method-signature* difference, which `mpsk.md` §1.2 makes the type/flavor test   |
+
+So `BpskStream` / `BpskBurst` — naming the modulation, dropping the role — is
+rejected on two counts. It splits an axis that is a working parameter, and
+`Stream` collides with **layer 1**, whose members produce samples from
+nothing: doppler ships a BPSK *source* (`wfm.bits(modulation="bpsk")`), so
+`BpskStream` reads as a generator rather than a receiver.
+
+**Spelling: mark both framings explicitly.**
+
+| framing    | name                     |
+| ---------- | ------------------------ |
+| continuous | `ContinuousMpskReceiver` |
+| burst      | `BurstMpskReceiver`      |
+| (general)  | `MpskReceiver`           |
+
+This deliberately **diverges from §4.1's unmarked-continuous**, and the reason
+is local rather than a change of mind: in the DSSS pair the plain name was
+free, so `Despreader`/`BurstDespreader` could carry the distinction with one
+prefix. Here the plain name is taken — `MpskReceiver` is the general,
+two-mode-capable object, and the continuous flavor is a *view* that pins its
+gating (`acq_to_track = 0`, `nda_tap = mf_in`). Reusing the plain name for the
+continuous flavor would mean renaming or retiring the general object, which is
+a breaking change bought for symmetry alone. Marking both is longer and asks
+the reader to know nothing.
+
+`BurstMpskReceiver` does not exist yet. It is named here so that when it does,
+the name is a consequence of a written axis rather than a fresh argument.
 
 ## 5. Lower-confidence / not actioned
 

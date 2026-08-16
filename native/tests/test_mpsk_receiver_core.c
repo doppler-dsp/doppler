@@ -4,6 +4,7 @@
  *
  * Tests:
  *   1. Lifecycle / argument validation / getters / reset reproducibility
+ *   1b. Zero means derive: the five derived parameters and their readbacks
  *   2. Locks + recovers symbols under a carrier offset (I&D), every M -> SER 0
  *   3. RRC matched filter locks + recovers
  *   4. acq_to_track flips the loop from NDA acquisition to decision tracking
@@ -185,6 +186,50 @@ main (void)
     DP_CHECK (mpsk_receiver_get_norm_freq (rx)
               == f1); /* reset is reproducible */
     mpsk_receiver_destroy (rx);
+  }
+
+  /* 1b. Zero means derive, and every derived value is READ BACK.
+     design/mpsk.md §8.1. That the object CONSTRUCTS proves nothing on its
+     own: zero used to be a rejection, so "it built" is equally satisfied by a
+     receiver that quietly kept the zero. The five readbacks are the whole
+     mechanism by which a caller can check what was chosen, so the test that
+     they exist has to be the test that they are right.
+
+     The expected values are written as literals, not as a second call to
+     mpsk_rx_derive_m_out() or a repeat of the MPSK_RX_*_DEFAULT arithmetic --
+     an expectation computed by the code under test agrees with it by
+     construction. At sps = 8 with an inclusive bound the rule reaches its
+     cap. */
+  {
+    mpsk_receiver_state_t *d = mpsk_receiver_create (
+        4, SPS, 0u, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.0, 0.01, 0, 0.0, 0.0,
+        0, 0u, MPSK_RX_NDA_TAP_STROBE, 1, 0.0);
+    DP_CHECK (d != NULL);
+    if (d)
+      {
+        DP_CHECK (mpsk_receiver_get_m_out (d) == 8u);
+        DP_CHECK (
+            dp_near (mpsk_receiver_get_zeta (d), 0.70710678118654752, 1e-15));
+        DP_CHECK (mpsk_receiver_get_num_phases (d) == 64u);
+        DP_CHECK (dp_near (mpsk_receiver_get_lock_thresh (d), 0.4999, 1e-15));
+        DP_CHECK (dp_near (mpsk_receiver_get_bn_agc_ratio (d), 0.05, 1e-15));
+        mpsk_receiver_destroy (d);
+      }
+    /* A supplied value still wins -- the derivation is a fallback, not a
+       policy that overrides the caller. */
+    mpsk_receiver_state_t *p = mpsk_receiver_create (
+        4, SPS, 4u, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.9, 0.01, 0, 0.6, 0.0,
+        0, 128u, MPSK_RX_NDA_TAP_STROBE, 1, 0.02);
+    DP_CHECK (p != NULL);
+    if (p)
+      {
+        DP_CHECK (mpsk_receiver_get_m_out (p) == 4u);
+        DP_CHECK (dp_near (mpsk_receiver_get_zeta (p), 0.9, 1e-15));
+        DP_CHECK (mpsk_receiver_get_num_phases (p) == 128u);
+        DP_CHECK (dp_near (mpsk_receiver_get_lock_thresh (p), 0.6, 1e-15));
+        DP_CHECK (dp_near (mpsk_receiver_get_bn_agc_ratio (p), 0.02, 1e-15));
+        mpsk_receiver_destroy (p);
+      }
   }
 
   /* 2. Lock + recover under a carrier offset (I&D), every M -> SER 0 */

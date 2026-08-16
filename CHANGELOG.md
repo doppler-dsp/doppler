@@ -130,6 +130,18 @@ ______________________________________________________________________
     you" should not assert the results in prose — both were proven to go red on
     a wrong number before this landed.
 
+    The five readbacks are pinned in **C** as well, on both twins, at their
+    derived values and at supplied ones — the derivation is a fallback, not a
+    policy that overrides a caller. The expectations are literals rather than a
+    second call to `mpsk_rx_derive_m_out()`, since an expectation computed by
+    the code under test agrees with it by construction. That the object merely
+    CONSTRUCTS is not the test: zero used to be a rejection, so "it built" is
+    equally satisfied by a receiver that quietly kept the zero. The real twin
+    also pins the **refusal**: behind the halfband, `sps = 4` leaves a strict
+    bound of 2, no even `m_out ≥ 2` fits under it, and `create()` returns NULL
+    rather than clamping to a receiver whose detector has nothing to detect
+    with.
+
 - **`mf_in` now works on `MpskReceiverR` too — the restriction was unwired
     code, not architecture.** `ddcr_state_t` carries the same
     `RateConverter`, so `ddcr_get_bank_sps()` is a delegate and the tap

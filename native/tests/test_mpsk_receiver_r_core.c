@@ -583,6 +583,44 @@ main (void)
                                       0, MPSK_RX_NUM_PHASES,
                                       MPSK_RX_NDA_TAP_STROBE, 1, -0.05)
               == NULL);
+
+    /* All five derived at once, read back. The real twin's ONE difference is
+       the rate the m_out rule sees: this cascade sits behind the R2C halfband
+       so the bound is sps/2, STRICTLY (Ddcr needs a ratio below 0.5). At
+       sps = 16 that is a bound of 8 exclusive, which lands on 6 -- not the 8
+       the complex twin reaches at sps = 8, and not the 8 that
+       min(8, 2*floor(sps/4)) used to claim and mpsk_receiver_r_create()
+       rejects. Literals, so the expectation does not agree with the rule by
+       construction. */
+    {
+      mpsk_receiver_r_state_t *d = mpsk_receiver_r_create (
+          4, SPS, 0u, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.0, 0.01, 0, 0.0,
+          FC_CENTRE, 0, 0u, MPSK_RX_NDA_TAP_STROBE, 1, 0.0);
+      DP_CHECK (d != NULL);
+      if (d)
+        {
+          DP_CHECK (mpsk_receiver_r_get_m_out (d) == 6u);
+          DP_CHECK (dp_near (mpsk_receiver_r_get_zeta (d), 0.70710678118654752,
+                             1e-15));
+          DP_CHECK (mpsk_receiver_r_get_num_phases (d) == 64u);
+          DP_CHECK (
+              dp_near (mpsk_receiver_r_get_lock_thresh (d), 0.4999, 1e-15));
+          DP_CHECK (
+              dp_near (mpsk_receiver_r_get_bn_agc_ratio (d), 0.05, 1e-15));
+          mpsk_receiver_r_destroy (d);
+        }
+    }
+
+    /* The rule REFUSES rather than clamps when the bound cannot carry even
+       two outputs per symbol: behind the halfband, sps = 4 leaves a strict
+       bound of 2, so there is no even m_out >= 2 below it and create() has to
+       return NULL. A clamp here would hand back a receiver whose detector has
+       nothing to detect with, which is the failure mode deriving exists to
+       remove -- so the refusal is the behaviour, not an edge case. */
+    DP_CHECK (mpsk_receiver_r_create (4, 4.0, 0u, MPSK_RX_PULSE_IANDD, 0.35, 8,
+                                      0.01, 0.0, 0.01, 0, 0.0, FC_CENTRE, 0,
+                                      0u, MPSK_RX_NDA_TAP_STROBE, 1, 0.0)
+              == NULL);
     free (rtx);
     free (ridx);
     free (rout);

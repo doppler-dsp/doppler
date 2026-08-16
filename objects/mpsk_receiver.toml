@@ -128,6 +128,38 @@ type = "double"
 default = "0"
 doc = "**0 (the default) derives it** -- see docs/design/mpsk.md §8.1; pass a value only to pin one. The one AGC's noise bandwidth as a fraction of the SLOWEST loop it feeds -- min(bn_carrier, bn_timing), not the carrier's alone, since the AGC feeds the timing loop directly. Must be in (0, 1) and construction refuses otherwise, because an AGC at or above the bandwidth of a loop it feeds corrects the excursions that loop is itself producing and the two integrate against each other; the signal LEVEL is a slow property of the channel, not a disturbance to reject at loop speed. Exposed rather than fixed because the right separation depends on how fast the channel's level moves against how fast its phase and timing do, which is a property of the link. The cold start is not the loop's job either way -- the AGC seeds its gain from a direct measurement -- so slow is cheap here."
 
+# The continuous flavor (docs/design/mpsk.md §2.1). A VIEW, not a second
+# type: same core, same state, same methods -- only the constructor differs,
+# which is the axis that makes something a flavor here (a difference in
+# METHOD SIGNATURE would make it a separate type, which is why the real-input
+# twin is one and this is not). Nothing is removed from mpsk_receiver; every
+# knob is still reachable through it.
+#
+# What this view pins is the gating: acq_to_track=0 (no handover), and
+# nda_tap=mf_in, the only tap with neither a symbol-timing dependency nor an
+# inter-symbol ISI bias -- so the carrier loop acquires without waiting for
+# anything. agc=1 because the AGC is load-bearing, and the five derived
+# parameters go as 0 (a request, not an omission).
+#
+# lock_thresh is excluded rather than defaulted: with no handover it gates
+# nothing, so it is telemetry. It stays READABLE (`lock_thresh` reads back
+# the derived 0.4999) and stops being settable, which is the honest shape for
+# a number that no longer controls anything.
+[[mpsk_receiver.views]]
+class_name = "ContinuousMpskReceiver"
+create_fn = "mpsk_receiver_create_continuous"
+init_params = [
+  { name = "m", type = "int", default = "2" },
+  { name = "sps", type = "double", default = "8.0" },
+  { name = "pulse", type = "string_enum:iandd,rrc", default = "iandd" },
+  { name = "rrc_beta", type = "double", default = "0.35" },
+  { name = "rrc_span", type = "int", default = "8" },
+  { name = "bn_carrier", type = "double", default = "0.01" },
+  { name = "bn_timing", type = "double", default = "0.01" },
+  { name = "init_norm_freq", type = "double", default = "0.0" },
+  { name = "differential", type = "int", default = "1" },
+]
+
 [[mpsk_receiver.properties]]
 name = "agc_gain_db"
 type = "double"

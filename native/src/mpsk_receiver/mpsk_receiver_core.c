@@ -414,6 +414,29 @@ mpsk_receiver_get_agc_gain_db (const mpsk_receiver_state_t *state)
   return RateConverter_agc_gain_db (state->fe->rc);
 }
 
+/* The continuous flavor. A pure delegate -- every argument it does not take
+   is a literal here and nothing else differs, so there is no second
+   construction path to keep in step with mpsk_receiver_create(). The zeros
+   are requests, not omissions: each one asks create() for the derived answer
+   (see its @note), which is why this constructor can be short without being
+   opinionated about values it has no business choosing. */
+mpsk_receiver_state_t *
+mpsk_receiver_create_continuous (int m, double sps, int pulse, double rrc_beta,
+                                 int rrc_span, double bn_carrier,
+                                 double bn_timing, double init_norm_freq,
+                                 int differential)
+{
+  return mpsk_receiver_create (
+      m, sps, 0u, /* m_out        -> derived      */
+      pulse, rrc_beta, rrc_span, bn_carrier, 0.0, /* zeta         -> derived */
+      bn_timing, 0,                     /* acq_to_track -- NO handover */
+      0.0,                              /* lock_thresh  -> derived      */
+      init_norm_freq, differential, 0u, /* num_phases   -> derived      */
+      MPSK_RX_NDA_TAP_MF_IN,            /* no timing dep.    */
+      1,                                /* agc -- load-bearing, not opt */
+      0.0);                             /* bn_agc_ratio -> derived      */
+}
+
 void
 mpsk_receiver_destroy (mpsk_receiver_state_t *state)
 {

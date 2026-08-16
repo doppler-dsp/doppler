@@ -15,6 +15,47 @@ ______________________________________________________________________
 
 ### Added
 
+- **`track.ContinuousMpskReceiver` — the continuous flavor, and nothing
+    waits.** A **view** over `MpskReceiver`, not a second type: same core, same
+    state, the identical 25-member surface, and only the constructor differs —
+    which is the axis that makes something a flavor in this project (a
+    difference in *method signature* is what makes the real-input twin a
+    separate type instead). Nothing is removed; `MpskReceiver` still reaches
+    every knob.
+
+    ```python
+    ContinuousMpskReceiver(m=2, sps=8.0)      # BPSK, continuous
+    ```
+
+    **There is no handover, no warmup, no lock gate and no timing gate.** The
+    NDA M-th-power error steers the LO from the first output to the last. That
+    is a reliability argument rather than a simplicity one: there is no state
+    in which the receiver can be wrong about which mode it is in, because
+    there is one — no declaring on garbage, no drop-back that never fires, no
+    metric that has to be trusted before the loop may act
+    (`docs/design/mpsk.md` §2.1).
+
+    What it pins, and why none of them is a choice here: `acq_to_track = 0`
+    (the handover **is** the gate this flavor removes); `nda_tap = mf_in`, the
+    only tap with neither a symbol-timing dependency nor an inter-symbol ISI
+    bias, so the carrier loop acquires without waiting; `agc = 1`, which is
+    load-bearing rather than optional; and the five gh-644 parameters as `0`,
+    which is a *request* for the derived answer, not an omission.
+
+    `lock_thresh` is **excluded rather than defaulted**: with no handover it
+    gates nothing, so it is telemetry. It stays readable — `rx.lock_thresh`
+    reports the derived `0.4999` — and stops being settable, which is the
+    honest shape for a number that no longer controls anything.
+
+    Evidence is C-first and non-vacuous. The C test pins the construct-time
+    values **and** runs the receiver, because "there is no handover" is a claim
+    about a receiver that has run; a handover-enabled twin on the *same*
+    stimulus is carried as the control, without which `tracking == 0` would be
+    equally satisfied by a signal that never locked. Proven by sabotage:
+    pinning `strobe` instead of `mf_in` takes the tap and `tap_timed`
+    assertions red, and pinning `acq_to_track = 1` takes both the construction
+    check and the post-run `tracking == 0` red.
+
 - **The receiver instrument — one harness, every receiver.**
     `native/tests/dp_rx_test.h` measures a receiver; `native/validation/rx_battery.c`
     is the standard battery run on `MpskReceiver`, and the adapter in it is the

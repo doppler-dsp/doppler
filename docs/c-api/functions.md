@@ -948,6 +948,7 @@
 * **mpsk\_receiver\_bits\_max\_out** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **mpsk\_receiver\_configure\_lock** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **mpsk\_receiver\_create** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
+* **mpsk\_receiver\_create\_continuous** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **mpsk\_receiver\_destroy** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **mpsk\_receiver\_get\_agc\_gain\_db** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **mpsk\_receiver\_get\_bn\_agc\_ratio** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))

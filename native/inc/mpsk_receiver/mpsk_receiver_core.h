@@ -327,6 +327,77 @@ extern "C"
   double mpsk_receiver_get_agc_gain_db (const mpsk_receiver_state_t *state);
 
   /**
+   * @brief The continuous flavor: one discriminator, and nothing waits.
+   *
+   * Same object, same state, same methods — a second constructor that PINS
+   * the parameters a continuous receiver has no reason to vary, so the caller
+   * states the link and not the loops (docs/design/mpsk.md §2.1, §8).
+   * Nothing is removed: `mpsk_receiver_create()` still reaches every knob,
+   * and this is a @ref ddc_create_matched -style flavor over the identical
+   * core rather than a second type.
+   *
+   * **There is no handover, no warmup, no lock gate and no timing gate.** The
+   * NDA M-th-power error steers the LO from the first output to the last.
+   * That is a reliability argument rather than a simplicity one: there is no
+   * state in which the receiver can be wrong about which mode it is in,
+   * because there is one. No declaring on garbage, no drop-back that never
+   * fires, no metric that has to be trusted before the loop may act.
+   *
+   * What it pins, and why each is not a choice here:
+   *
+   * | pinned                   | to                       | because                                                   |
+   * | ------------------------ | ------------------------ | --------------------------------------------------------- |
+   * | `acq_to_track`           | 0                        | the handover IS the gate this flavor exists to remove     |
+   * | `nda_tap`                | MPSK_RX_NDA_TAP_MF_IN    | the only tap with no symbol-timing dependency AND no ISI  |
+   * | `agc`                    | 1                        | load-bearing, not optional — it defines the level both loops run on |
+   * | `m_out`, `zeta`,         | 0 (derive)               | not design axes; see the create() @note                   |
+   * | `lock_thresh`,           |                          | with no handover it gates nothing — it is telemetry, so   |
+   * | `num_phases`,            |                          | it is read back (mpsk_receiver_get_lock_thresh()) rather  |
+   * | `bn_agc_ratio`           |                          | than set                                                  |
+   *
+   * `mf_in` reads post-MIX, post-DEC, post-AGC and ahead of the MFR, so it
+   * needs no symbol timing — which is what lets the carrier loop acquire
+   * without waiting for anything. Its update rate is `bank_sps`, a PLANNER
+   * outcome, so its pull-in ceiling `bank_sps*Rs/(2M)` moves with the rate
+   * ratio; read mpsk_rx_updates_per_symbol() for what it came out as.
+   *
+   * The M-fold ambiguity is **permanent** here — no decision-directed stage
+   * ever pins the absolute phase — so @p differential defaults to 1. Coherent
+   * demapping without a downstream sync word is a misconfiguration, not a
+   * choice.
+   *
+   * @param m              Constellation order M, 2/4/8 (default 2 = BPSK).
+   * @param sps            Samples per symbol; any double (default 8.0).
+   * @param pulse          Matched-filter shape (default MPSK_RX_PULSE_IANDD).
+   * @param rrc_beta       RRC roll-off in `[0, 1]` (default 0.35; RRC only).
+   * @param rrc_span       RRC one-sided span in symbols (default 8; RRC only).
+   * @param bn_carrier     Carrier loop noise bandwidth, normalised to the
+   *                        symbol rate (default 0.01). A design axis.
+   * @param bn_timing      Symbol-timing loop noise bandwidth, normalised to
+   *                        the symbol rate (default 0.01). A design axis.
+   * @param init_norm_freq Seed carrier frequency, cycles/sample at the input
+   *                        rate (default 0.0). The centre the LO is tuned to;
+   *                        the loop tracks the residual around it.
+   * @param differential   bits(): differential (rotation-invariant) demap
+   *                        (default 1 — see above).
+   * @return Heap-allocated state, or NULL on invalid args / allocation
+   * failure. Destroy with mpsk_receiver_destroy() like any other.
+   *
+   * @code
+   * >>> from doppler.track import ContinuousMpskReceiver
+   * >>> rx = ContinuousMpskReceiver(m=2, sps=8.0)
+   * >>> rx.tracking          # one discriminator, forever
+   * 0
+   * >>> rx.m_out             # derived, not defaulted
+   * 8
+   * @endcode
+   */
+  mpsk_receiver_state_t *mpsk_receiver_create_continuous (
+      int m, double sps, int pulse, double rrc_beta, int rrc_span,
+      double bn_carrier, double bn_timing, double init_norm_freq,
+      int differential);
+
+  /**
    * @brief Destroy an M-PSK receiver and release all memory.
    * @param state  May be NULL.
    */

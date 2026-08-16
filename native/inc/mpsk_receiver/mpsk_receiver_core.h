@@ -580,6 +580,19 @@ extern "C"
   double mpsk_receiver_get_sps (const mpsk_receiver_state_t *state);
   /** @brief Terminal outputs per symbol (the old `n`, now the cascade's). */
   size_t mpsk_receiver_get_m_out (const mpsk_receiver_state_t *state);
+
+  /** @brief Loop damping in use — derived `1/sqrt(2)` unless pinned (§8.1). */
+  double mpsk_receiver_get_zeta (const mpsk_receiver_state_t *state);
+
+  /** @brief AGC bandwidth ratio in use — derived unless pinned (§8.1). */
+  double mpsk_receiver_get_bn_agc_ratio (const mpsk_receiver_state_t *state);
+
+  /** @brief Handover lock threshold in use — derived unless pinned (§8.1). */
+  double mpsk_receiver_get_lock_thresh (const mpsk_receiver_state_t *state);
+
+  /** @brief Matched-filter bank arms in use — derived unless pinned (§8.1). */
+  size_t mpsk_receiver_get_num_phases (const mpsk_receiver_state_t *state);
+
   /** @brief Has the cascade's CIC stage clipped its input since the last
    *  reset? A CIC bounds its input to +-1.0 and clips silently past that,
    *  which costs ~25 dB of EVM behind a perfectly healthy lock. */

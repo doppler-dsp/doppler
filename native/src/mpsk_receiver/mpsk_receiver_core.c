@@ -323,6 +323,22 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
     return NULL; /* only BPSK / QPSK / 8PSK */
   if (pulse != MPSK_RX_PULSE_IANDD && pulse != MPSK_RX_PULSE_RRC)
     return NULL;
+
+  /* Derive what is not a design axis (doppler#644). Zero asks for the
+     object's own answer; every validator below previously REJECTED zero, so
+     no working call site can be relying on it. The derivation runs BEFORE the
+     validation so a derived value is checked by the same guards a supplied
+     one is — a rule that produced an invalid answer must still be caught. */
+  if (m_out == 0u)
+    m_out = mpsk_rx_derive_m_out (sps, 0); /* sps >= m_out */
+  if (zeta == 0.0)
+    zeta = MPSK_RX_ZETA_DEFAULT;
+  if (num_phases == 0u)
+    num_phases = MPSK_RX_NUM_PHASES_DEFAULT;
+  if (lock_thresh == 0.0)
+    lock_thresh = MPSK_RX_LOCK_THRESH_DEFAULT;
+  if (bn_agc_ratio == 0.0)
+    bn_agc_ratio = MPSK_RX_AGC_RATIO_DEFAULT;
   /* Written as !(x >= y) so a NaN parameter is rejected, not accepted. */
   if (m_out < 2u || m_out > (size_t)RATESYNC_MAX_M || (m_out & 1u) != 0u
       || !(sps >= (double)m_out) || !(rrc_beta >= 0.0) || !(rrc_beta <= 1.0)
@@ -590,6 +606,34 @@ size_t
 mpsk_receiver_get_m_out (const mpsk_receiver_state_t *state)
 {
   return state->l.m_out;
+}
+
+/* The derived-parameter readbacks. design/mpsk.md §8.1: everything derived is
+   REPORTED, on the same argument as RateConverter.stages — a caller who can
+   read back what was chosen can check it. Without these, `0` would be an
+   instruction whose result nobody can see. */
+double
+mpsk_receiver_get_zeta (const mpsk_receiver_state_t *state)
+{
+  return state->l.zeta;
+}
+
+double
+mpsk_receiver_get_bn_agc_ratio (const mpsk_receiver_state_t *state)
+{
+  return state->l.bn_agc_ratio;
+}
+
+double
+mpsk_receiver_get_lock_thresh (const mpsk_receiver_state_t *state)
+{
+  return state->l.handover.up_thresh;
+}
+
+size_t
+mpsk_receiver_get_num_phases (const mpsk_receiver_state_t *state)
+{
+  return state->fe->rc->num_phases;
 }
 
 int

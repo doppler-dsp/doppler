@@ -560,10 +560,28 @@ main (void)
                                       0, MPSK_RX_NUM_PHASES,
                                       MPSK_RX_NDA_TAP_STROBE, 1, 1.0)
               == NULL);
+    /* Zero is no longer a rejection: it asks for the derived ratio
+       (design/mpsk.md §8.1). The invariant it used to guard is unchanged and
+       still checked above at 1.0 — what moved is only the meaning of 0, which
+       previously could not construct anything and so had no caller to break.
+       Assert the DERIVED value rather than merely that it builds, or this
+       reads as a weaker version of the reject it replaced. */
+    {
+      mpsk_receiver_r_state_t *d = mpsk_receiver_r_create (
+          4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.01, 0,
+          0.5, FC_CENTRE, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 1,
+          0.0);
+      DP_CHECK (d != NULL);
+      DP_CHECK (dp_near (mpsk_receiver_r_get_bn_agc_ratio (d),
+                         MPSK_RX_AGC_RATIO_DEFAULT, 1e-12));
+      if (d)
+        mpsk_receiver_r_destroy (d);
+    }
+    /* Negative is still refused — a ratio below zero is not a slower AGC. */
     DP_CHECK (mpsk_receiver_r_create (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35,
                                       8, 0.01, 0.707, 0.01, 0, 0.5, FC_CENTRE,
                                       0, MPSK_RX_NUM_PHASES,
-                                      MPSK_RX_NDA_TAP_STROBE, 1, 0.0)
+                                      MPSK_RX_NDA_TAP_STROBE, 1, -0.05)
               == NULL);
     free (rtx);
     free (ridx);

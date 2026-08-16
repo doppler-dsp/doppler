@@ -573,6 +573,37 @@ target_link_libraries(bench_util_core PRIVATE util_core m)
 target_include_directories(bench_util_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 
+# native/tests/dp_mf_test.h supplies the down-converter suites' stimulus AND
+# their verdict. Its mf_evm_db() takes a MIN over strobe alignment -- the shape
+# dp_ber_test.h calls "the historic footgun", legitimate here because the loop
+# is open and the strobe phase is arbitrary, but exposed to the false-PASS the
+# footgun names. The self-test measures that: a stream carrying the WRONG
+# sequence must read badly at every alignment the search tries.
+add_executable(test_dp_mf native/tests/test_dp_mf.c)
+target_link_libraries(test_dp_mf PRIVATE m)
+target_include_directories(test_dp_mf
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_mf PRIVATE -O2)
+add_test(NAME test_dp_mf COMMAND test_dp_mf)
+
+# native/tests/dp_dsss_test.h carries a KNOWN DEFECT in its own docstring
+# (doppler#689): the noise is scaled for the wrong complex-Gaussian
+# convention, so every capture is 3.01 dB quieter than it claims. It is
+# deliberately unfixed -- correcting it makes an async BER sweep go
+# non-monotonic, which is a receiver investigation rather than a constant --
+# and until now it was held in place by prose alone. The self-test makes it a
+# CHARACTERIZATION: the 3.01 dB is measured and asserted, so the magnitude is
+# a fact, the level cannot drift further unnoticed, and a one-character "fix"
+# turns the test red ON PURPOSE rather than quietly re-tuning two BER sweeps.
+add_executable(test_dp_dsss native/tests/test_dp_dsss.c)
+target_link_libraries(test_dp_dsss PRIVATE m)
+target_include_directories(test_dp_dsss
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_dsss PRIVATE -O2)
+add_test(NAME test_dp_dsss COMMAND test_dp_dsss)
+
 # native/tests/dp_state_test.h is 12 lines and 31 test files call it -- the
 # highest leverage per line in the family, and the only evidence most
 # serializable objects have that their state interface works. Its macro pastes

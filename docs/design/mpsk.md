@@ -747,13 +747,13 @@ filter — which is the node this section argued for. What did *not* happen is
 the rest of the original plan, and the difference is recorded below rather
 than quietly dropped.
 
-The three taps, and why `mf_in` is the one for a continuous receiver:
+The three taps, and what each buys:
 
-| tap                        | update rate | ceiling `F/(2M)`   | why not                                                                                                                     |
-| -------------------------- | ----------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `strobe` (shipped default) | `Rs`        | `Rs/(2M)`          | inside the matched filter's group delay, and the only tap whose input quality depends on symbol timing                      |
-| `mf_out`                   | `m_out·Rs`  | `m_out·Rs/(2M)`    | also inside the matched filter; the between-symbol outputs average two symbols, so their M-th power carries an ISI bias     |
-| **`mf_in`**                | `bank_sps`  | `bank_sps·Rs/(2M)` | **none for this purpose** — ahead of the matched filter, so it needs no symbol timing and carries no inter-symbol averaging |
+| tap                        | update rate | ceiling `F/(2M)`   | why not                                                                                                                                                                                    |
+| -------------------------- | ----------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `strobe` (shipped default) | `Rs`        | `Rs/(2M)`          | inside the matched filter's group delay, and the only tap whose input quality depends on symbol timing                                                                                     |
+| `mf_out`                   | `m_out·Rs`  | `m_out·Rs/(2M)`    | also inside the matched filter; the between-symbol outputs average two symbols, so their M-th power carries an ISI bias                                                                    |
+| **`mf_in`**                | `bank_sps`  | `bank_sps·Rs/(2M)` | ahead of the matched filter, so it needs no symbol timing and carries no inter-symbol averaging — but it updates faster than `Rs`, which is what §2.1's second and third defects are about |
 
 That node is what the other two are reaching past: band-limited by DEC's own
 filters, already levelled by the AGC sitting on it. A fourth tap, `lo_arm`,
@@ -761,6 +761,30 @@ once approximated it with a free-running half-symbol boxcar bolted ahead of the
 cascade; it was removed with that arm (gh-768), because the filters ahead of
 this node already do the job the arm was there for. `mf_in` is where a Costas
 arm filter would go, and the reason there is none.
+
+**The continuous flavor pins `strobe`, and §2.1 is why.** `ContinuousMpskReceiver`
+shipped pinning `mf_in`, for exactly the timing independence this section
+argues for. §2.1 lists three defects that follow from a discriminator clock
+faster than `Rs` and asserts "Mode 1 has one clock on the steering path and one
+on the reporting path… none of the three can arise" — but pinning a tap whose
+update rate is `bank_sps` is what made the second one arise. Measured
+([#791](https://github.com/doppler-dsp/doppler/issues/791)): `mf_in`
+demodulates on the matched-filter bound, EVM −7.32 dB against `strobe`'s −7.31
+at `sps` 4/8/16/32, while its lock statistic settles at 0.23–0.51 against a
+`lock_thresh` derived per-`m` as 0.4999 — so the flavor's one remaining metric
+read as a permanent no-lock, and the standard battery refused a working
+receiver on it.
+
+At `strobe` the tapped-sample clock *is* the symbol clock, so §2.1's second and
+third defects collapse rather than being repaired, which is the shape that
+section asks for. The trade is that the flavor gives up timing independence:
+`strobe` couples the discriminator's input quality to the timing loop's
+convergence. That is a coupling and not a gate — "no tap waits", below — and
+the timing-independent taps remain one `mpsk_receiver_create()` call away for a
+caller who needs them and can calibrate the statistic themselves. Normalising
+the lock statistic for the tap's update rate is the fix that would make `mf_in`
+pinnable here; it is not done, and until it is, this flavor reports a lock
+statistic that means what its threshold says.
 
 **`nda_tap` did not go away, and that is the decision.** This section used to
 say the three-way parameter disappears into one fixed tap. It is instead

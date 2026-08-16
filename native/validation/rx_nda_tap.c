@@ -85,6 +85,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /** @brief Transmit amplitude. A cascade that plans a CIC bounds its input to
@@ -200,8 +201,8 @@ rx_nda_gauss (uint32_t *s)
  * @return The outcome; check `.refused` before reading anything else.
  */
 static rx_nda_result_t
-rx_nda_measure (int tap, double sps, double fs, int mod, double bn_timing,
-                double esn0_db, size_t nsym)
+rx_nda_measure_ex (int tap, double sps, double fs, int mod, double bn_timing,
+                   double esn0_db, size_t nsym, size_t m_out)
 {
   rx_nda_result_t r;
   double          foff = RX_NDA_FOFF_SYM / sps; /* cycles/sample */
@@ -220,9 +221,8 @@ rx_nda_measure (int tap, double sps, double fs, int mod, double bn_timing,
 
   memset (&r, 0, sizeof r);
   mpsk_receiver_state_t *rx = mpsk_receiver_create (
-      2, sps, RX_NDA_M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, RX_NDA_BN, 0.707,
-      bn_timing, 0, 0.3, 0.0, 0, MPSK_RX_NUM_PHASES, tap, 1,
-      MPSK_RX_AGC_BW_RATIO);
+      2, sps, m_out, MPSK_RX_PULSE_IANDD, 0.35, 8, RX_NDA_BN, 0.707, bn_timing,
+      0, 0.3, 0.0, 0, MPSK_RX_NUM_PHASES, tap, 1, MPSK_RX_AGC_BW_RATIO);
   if (!rx)
     {
       r.refused = 1;
@@ -415,6 +415,20 @@ rx_nda_ramp_lag (int tap, double sps, double r, size_t nsym, double *upd_out,
   }
 }
 
+/** @brief The original signature: `RX_NDA_M_OUT` terminal outputs, which is
+ * every caller above. `m_out` became a parameter only so the noise table can
+ * ask for a non-degenerate geometry -- at `m_out = 2` an I&D matched filter
+ * degenerates to a two-tap sum and flattens every tap onto the same reading
+ * (docs/design/mpsk.md S5), which is a property of the geometry and not of
+ * the taps. */
+static rx_nda_result_t
+rx_nda_measure (int tap, double sps, double fs, int mod, double bn_timing,
+                double esn0_db, size_t nsym)
+{
+  return rx_nda_measure_ex (tap, sps, fs, mod, bn_timing, esn0_db, nsym,
+                            RX_NDA_M_OUT);
+}
+
 /** @brief Ramp rates the gate checks, cycles/symbol^2. All well inside the
  * pi/(2M) linear range so the law is being checked, not the breakdown. */
 static const double RX_NDA_RAMPS[] = { 1e-7, 3e-7, 1e-6 };
@@ -432,6 +446,65 @@ static const double RX_NDA_CHECK_SPS[] = { 8.0, 200.0, 10000.0 };
 static const double RX_NDA_FULL_SPS[]  = { 8.0, 40.0, 200.0, 1000.0, 10000.0 };
 
 #define RX_NDA_N(a) (sizeof (a) / sizeof ((a)[0]))
+
+/* ── Under NOISE — the one condition every sweep above removes ────────────
+ *
+ * Every sweep above runs NOISELESS (`esn0_db < 0` -> sigma = 0), and that is
+ * the condition, singular, that hides what `mf_in` costs. Its node carries
+ * `10*log10(bank_sps)` dB of EXCESS NOISE BANDWIDTH -- DEC band-limits to its
+ * own Nyquist, not to the signal (mpsk_rx_loops.h's tap table has the
+ * measurement) -- and with no noise there is no excess bandwidth to pay for,
+ * so the tap looks free and this harness said so at every rate ratio.
+ *
+ * What fails first is the M-th-power LOCK statistic, because it is an SNR
+ * measure and not a phase measure, while the loop itself still ACQUIRES.
+ * The taps are compared under DYNAMICS -- a data onset under a Doppler ramp,
+ * on the continuous flavor's own waveform -- in `rx_dynamics.c`; this table
+ * is the static Es/N0 sweep that sits underneath it. That
+ * asymmetry is the finding, and it is why the two columns below are printed
+ * side by side: a tap that pulls a known offset in fully and cannot report it
+ * is a working loop with an unusable lock indicator, which is a different
+ * defect from a loop that does not work.
+ *
+ * ISOLATED, because the first version of this note was not. It claimed TWO
+ * conditions were needed -- no noise AND a rectangular pulse, on the argument
+ * that an NRZ symbol *is* the constellation held across the symbol so a
+ * pre-MFR tap loses nothing to shaping. The premise is true and the
+ * conclusion did not follow. Measured with the pulse held fixed
+ * and only Es/N0 moving, in both directions: the RRC-shaped stimulus of
+ * `rx_battery` gives mf_in a mean lock EMA of 0.24 / 0.52 / 0.85 / 0.95 at
+ * 6.79 / 12 / 20 / 30 dB, and the NRZ stimulus below gives 0.19 / 0.48 / 0.91
+ * / 0.99 at the same points. The pulse does not separate them. NOISE ALONE
+ * DOES, and the earlier two-condition story was an explanation asserted
+ * without varying the variable it named.
+ *
+ * NRZ BPSK is also the waveform the CONTINUOUS flavor actually targets
+ * (`docs/design/mpsk.md` S0 -- RRC is the burst flavor), so this table is the
+ * tap measured on its own design flavor rather than on a neighbouring one. */
+
+/** @brief Es/N0 points, dB at the matched-filter output. 6.79 is the
+ * battery's SER=1e-3 BPSK anchor; the rest walk up to where the tap's cost
+ * disappears, which is the shape of the finding rather than one number. */
+/** @brief Terminal outputs per symbol for the noise table: 0 asks the object
+ * to DERIVE it (gh-644), which is what `rx_battery` does and what reaches 8 at
+ * sps = 8. The rest of this file pins 2, and at 2 an I&D matched filter is a
+ * two-tap sum whose eye barely opens -- every tap then reads the same
+ * degraded lock and the comparison says nothing. */
+#define RX_NDA_NOISE_M_OUT 0u
+
+static const double RX_NDA_ESN0[] = { 6.79, 12.0, 20.0, 30.0 };
+
+/** @brief The Es/N0 at which the gate requires every tap to acquire. Well
+ * above the anchor on purpose: the gate's claim is that a tap which CLAIMS a
+ * pull-in range delivers it once it can see the signal at all, not that it
+ * does so at the noisiest point the battery visits. */
+#define RX_NDA_NOISE_GATE_ESN0 20.0
+
+/** @brief Acquisition tolerance under noise. The noiseless sweep holds 1e-3;
+ * at 20 dB Es/N0 the loop's own jitter is the floor, and `strobe` measures
+ * 6e-4 while `mf_in` measures 3.5e-3, so 5% is loose enough not to chatter
+ * and tight enough that a tap which did not steer (0.0) cannot pass. */
+#define RX_NDA_NOISE_ACQ_TOL 0.05
 
 int
 main (int argc, char **argv)
@@ -661,6 +734,42 @@ main (int argc, char **argv)
             }
         }
 
+      /* G5 — UNDER NOISE, every tap still acquires. This is the gate the
+         file did not have, and its absence is what let `mf_in` be adopted as
+         a default: every sweep above runs sigma = 0, where forgoing the
+         matched filter's processing gain costs exactly nothing.
+
+         What is gated is ACQUISITION and deliberately not the lock
+         statistic. `mf_in`'s lock is degraded at every Es/N0 here (0.19 at
+         the battery's anchor against `strobe`'s 0.79) and that is a real
+         open defect, doppler#790 -- so gating it would either pin the defect
+         as correct or land red on main. The table below REPORTS both columns
+         so the asymmetry is reproducible; the gate asserts only the half
+         that holds, which is the honest split. */
+      {
+        double sps = 8.0, fs = 8000.0;
+        for (int t = 0; t < 3; t++)
+          {
+            rx_nda_result_t r = rx_nda_measure_ex (
+                t, sps, fs, RX_NDA_MOD_DATA, RX_NDA_BN, RX_NDA_NOISE_GATE_ESN0,
+                RX_NDA_NSYM, RX_NDA_NOISE_M_OUT);
+            if (r.refused || r.clipped)
+              {
+                printf ("FAIL noise %s: %s\n", RX_NDA_NAMES[t],
+                        r.refused ? "create() refused" : "front end clipped");
+                fail = 1;
+              }
+            else if (fabs (r.acquired - 1.0) > RX_NDA_NOISE_ACQ_TOL)
+              {
+                printf ("FAIL noise %s: acquired %.4f at %.0f dB Es/N0 — a "
+                        "tap that claims a pull-in range must deliver it "
+                        "once it can see the signal\n",
+                        RX_NDA_NAMES[t], r.acquired, RX_NDA_NOISE_GATE_ESN0);
+                fail = 1;
+              }
+          }
+      }
+
       printf (fail ? "rx_nda_tap FAILED\n" : "rx_nda_tap: OK\n");
       return fail;
     }
@@ -764,6 +873,50 @@ main (int argc, char **argv)
     printf ("   %8s   %29.3e   %24.3e\n", RX_NDA_NAMES[t],
             rx_nda_zero_offset_ferr (t, 10000.0, 10e6, -1.0, RX_NDA_NSYM),
             rx_nda_zero_offset_ferr (t, 10000.0, 10e6, 10.0, RX_NDA_NSYM));
+
+  /* The table the file was missing. Everything above is noiseless; this is
+     the same taps once noise exists, on the CONTINUOUS flavor's own waveform
+     (NRZ BPSK -- docs/design/mpsk.md S0). Two columns because they separate:
+     the loop acquires and the lock statistic does not follow it. */
+  printf ("\n== Under NOISE: the condition every table above removes ==\n");
+  printf ("Continuous NRZ BPSK + AWGN through the I&D matched filter, "
+          "sps = 8, the same\n");
+  printf ("%.4f cyc/sym offset. Reading ahead of the matched filter forgoes "
+          "10*log10(sps)\n= %.1f dB of processing gain, and the M-th-power "
+          "lock statistic is an SNR measure,\nso it collapses while the loop "
+          "still pulls the offset in. ACQUISITION is gated;\nthe lock column "
+          "is reported and NOT gated -- it is an open defect (doppler#790),\n"
+          "and a gate on it would either pin the defect as correct or land "
+          "red on main.\n\n",
+          RX_NDA_FOFF_SYM, 10.0 * log10 (8.0));
+  printf ("  Es/N0 dB   per-sample     %8s          %8s          %8s\n",
+          RX_NDA_NAMES[0], RX_NDA_NAMES[1], RX_NDA_NAMES[2]);
+  printf ("             SNR dB        acq / lock       acq / lock"
+          "       acq / lock\n");
+  for (size_t e = 0; e < RX_NDA_N (RX_NDA_ESN0); e++)
+    {
+      printf ("  %7.2f    %+7.2f   ", RX_NDA_ESN0[e],
+              RX_NDA_ESN0[e] - 10.0 * log10 (8.0));
+      for (int t = 0; t < 3; t++)
+        {
+          rx_nda_result_t r = rx_nda_measure_ex (
+              t, 8.0, 8000.0, RX_NDA_MOD_DATA, RX_NDA_BN, RX_NDA_ESN0[e],
+              RX_NDA_NSYM, RX_NDA_NOISE_M_OUT);
+          if (r.refused || r.clipped)
+            printf ("      refused ");
+          else
+            printf ("   %6.4f/%+.2f", r.acquired, r.lock);
+        }
+      printf ("\n");
+    }
+  printf ("\nThe pulse is NOT the variable, and the first version of this "
+          "note said it was.\nHolding the pulse fixed and moving only Es/N0, "
+          "in both directions: mf_in's mean\nlock EMA is 0.24/0.52/0.85/0.95 "
+          "on rx_battery's RRC-shaped stimulus and\n0.19/0.48/0.91/0.99 on "
+          "the NRZ stimulus above, at 6.79/12/20/30 dB. An NRZ\nsymbol IS "
+          "the constellation held across the symbol, so a pre-MFR tap loses "
+          "nothing\nto SHAPING -- and it loses the processing gain either "
+          "way. Noise alone separates\nthese taps.\n");
 
   printf ("\nMpskReceiverR (real input) accepts: ");
   for (int t = 0; t < 3; t++)

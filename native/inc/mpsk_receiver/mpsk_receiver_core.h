@@ -355,28 +355,38 @@ extern "C"
    * | `num_phases`,            |                          | it is read back (mpsk_receiver_get_lock_thresh()) rather  |
    * | `bn_agc_ratio`           |                          | than set                                                  |
    *
-   * **`mf_in` was pinned here first, and the standard battery withdrew it.**
-   * The argument was structural — a tap ahead of the matched filter needs no
-   * symbol timing, so nothing waits — and the structure is right; what was
-   * wrong is the claim that it costs nothing. It costs the matched filter's
-   * processing gain, `10*log10(sps)` dB, because that is exactly what the
-   * matched filter is for and this tap reads upstream of it. At the battery's
-   * anchor (BPSK, sps = 8, Es/N0 = 6.79 dB) the pre-MFR node therefore sits at
-   * -2.2 dB per sample, and the M-th-power lock statistic — which is an SNR
-   * measure, not a phase measure — settles at 0.20 where `strobe` reads 0.79.
-   * The carrier loop still acquires (measured `acq_frac` 1.0035, full), but
-   * the receiver can no longer SAY it did: the lock EMA never crosses the
-   * detector's threshold, so all 9 battery points refuse with "no burst
-   * settled". A flavor that exists to remove knobs cannot pin a tap whose
-   * lock indicator is unusable, whatever its pull-in range. See doppler#790,
-   * and doppler#766 for the separate finding that `mf_in` shows no measured
-   * advantage over `strobe` even where it does work.
+   * **`mf_in` was pinned here first, and it was withdrawn on measurement.**
+   * The argument was structural -- a tap ahead of the matched filter needs no
+   * symbol timing, so nothing waits -- and that structure is sound. What was
+   * wrong is that it was never measured on THIS flavor's waveform. The
+   * standard battery runs RRC with dense transitions throughout, which is the
+   * BURST flavor's signal; S0 describes this one as NRZ BPSK with periods of
+   * data modulation off but carrier on.
    *
-   * `strobe` costs a symbol-timing dependency and nothing else, and that
-   * dependency is not a wait: it steers from its first strobe whether or not
-   * the timing loop has declared (see the `nda_tap` enum). "Nothing waits" is
-   * a statement about GATES — the handover, the lock gate, the warmup — and
-   * `acq_to_track = 0` is what delivers it.
+   * Measured on that scenario -- `native/validation/rx_dynamics.c`, a coupled
+   * Doppler ramp across a data onset, NRZ/I&D/`m_out = 4`/DTTL at 12 dB
+   * Es/N0 -- `strobe` wins on every axis:
+   *
+   * | tap      | lock, modulation OFF | min at the data onset | end    |
+   * | -------- | -------------------- | --------------------- | ------ |
+   * | `strobe` | +0.935               | **+0.860**            | +0.920 |
+   * | `mf_out` | +0.934               | +0.478                | +0.802 |
+   * | `mf_in`  | +0.761               | +0.417                | +0.714 |
+   *
+   * **`strobe`'s timing dependency costs nothing in the half where timing is
+   * impossible**, and the reason is worth stating because it reads backwards:
+   * an unmodulated NRZ carrier is SAMPLING-PHASE INVARIANT. Every sample is
+   * the same constellation point, so the M-th-power discriminator does not
+   * care which one the timing loop would have nominated. Timing closure gates
+   * DEMODULATION, not carrier acquisition -- so the tap that depends on it is
+   * free exactly where it looked most exposed. `mf_out` instead takes the
+   * largest hit the moment transitions exist, which is its ISI bias arriving
+   * on schedule, and `mf_in` reads lowest throughout (the excess noise
+   * bandwidth at its node -- see the `nda_tap` enum, and doppler#790).
+   *
+   * "Nothing waits" is untouched by the pin: it is a statement about GATES --
+   * the handover, the lock gate, the warmup -- and `acq_to_track = 0` is what
+   * delivers it.
    *
    * The M-fold ambiguity is **permanent** here — no decision-directed stage
    * ever pins the absolute phase — so @p differential defaults to 1. Coherent

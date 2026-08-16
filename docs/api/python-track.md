@@ -239,16 +239,18 @@ lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
     outcome, so its cell cannot be filled in from the others by argument and
     is left blank rather than guessed (gh-766).
 
-    !!! warning "`mf_in` gives up the matched filter's processing gain"
+    !!! warning "`mf_in`'s node carries excess noise bandwidth"
 
-        Reading ahead of the matched filter costs `10·log10(sps)` dB — 9 dB at
-        `sps=8`. The carrier loop still acquires, but the M-th-power **lock
-        statistic** is an SNR measure, so it collapses: measured at the
-        standard battery's anchor (BPSK, `sps=8`, Es/N0 6.79 dB) the lock EMA
-        settles at 0.20 against `strobe`'s 0.79, never crosses the detector's
-        threshold, and every operating point refuses. Prefer `"strobe"` or
-        `"mf_out"` unless you need the pull-in range and can tolerate a lock
-        indicator that does not read. Tracked in doppler#790.
+        Not lost signal energy — a Nyquist-sampled band-limited signal loses
+        nothing. Measured at the node: it sits `10·log10(bank_sps)` dB below
+        Es/N0 (**6.0 dB** at `bank_sps=4`), identically at every Es/N0, because
+        DEC band-limits to its *own* Nyquist while the signal occupies ~±Rs.
+        The loop still acquires everywhere; what degrades is the M-th-power
+        **lock statistic**, which is an SNR measure. `bank_sps` is a planner
+        outcome, so the cost is bounded by the plan (still 9.0 dB at
+        `sps=64`, not 18) and is recoverable. Prefer `"strobe"`: on the
+        continuous flavor's own waveform it wins on every axis measured.
+        Tracked in doppler#790.
 
     `bn_carrier` keeps its symbol-rate meaning at every tap — the tap widens what
     the discriminator can see and the stability margin, which is what lets you

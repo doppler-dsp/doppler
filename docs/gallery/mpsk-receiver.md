@@ -214,7 +214,7 @@ The tap is fixed at construction, so nothing switches underneath you:
 rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.05, nda_tap="mf_in")
 ```
 
-!!! warning "`mf_in` gives up the matched filter's processing gain"
+!!! warning "`mf_in`'s node carries excess noise bandwidth"
 
     It reads the MFR's input and replaced `lo_arm`, which was removed with the
     Costas arm filter it depended on (gh-768). Its update rate is the
@@ -222,16 +222,20 @@ rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.05, nda_tap="mf_in")
     `Rs` — so its row cannot be filled in from the others by argument, and it
     is left blank rather than guessed (gh-766).
 
-    What *is* measured is the cost the table above does not have a column for:
-    reading ahead of the matched filter forgoes `10·log10(sps)` dB, 9 dB at
-    `sps=8`. The carrier loop still acquires, but the M-th-power **lock
-    statistic** is an SNR measure and collapses with it — at the standard
-    battery's anchor the lock EMA settles at 0.20 against `strobe`'s 0.79, so
-    every one of the 9 operating points refuses with *"the loops never
-    locked"*. `native/validation/rx_nda_tap.c` gates that `mf_in` acquires at
-    every rate ratio and misses this, because it sweeps **noiseless** through
-    a rectangular pulse — the one corner where a pre-MFR tap loses nothing.
-    Tracked in doppler#790.
+    What *is* measured is the cost the table above has no column for, and it
+    is **not** lost signal energy: a Nyquist-sampled band-limited signal loses
+    nothing. Measured at the node (AGC off, so the path is linear), `mf_in`
+    sits `10·log10(bank_sps)` dB below Es/N0 — **6.0 dB** at `bank_sps=4` —
+    identically at 6.79, 12 and 20 dB Es/N0, which is the signature of a pure
+    bandwidth ratio. DEC band-limits to its *own* Nyquist, `±bank_sps·Rs/2`,
+    while the signal occupies ~`±Rs`, and the terminal filter is downstream of
+    this tap. The loop acquires everywhere; the M-th-power **lock statistic**
+    is what degrades, being an SNR measure.
+
+    `native/validation/rx_nda_tap.c` missed it because it sweeps **noiseless**;
+    `native/validation/rx_dynamics.c` is where the taps are compared on the
+    continuous flavor's own waveform. The cost is bounded by the plan and is
+    recoverable — doppler#790.
 
 `bn_carrier` keeps its meaning at every tap (symbol-rate normalised). The tap
 does not widen the loop by itself — it widens what the discriminator can see and

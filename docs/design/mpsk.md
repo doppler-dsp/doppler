@@ -762,64 +762,93 @@ cascade; it was removed with that arm (gh-768), because the filters ahead of
 this node already do the job the arm was there for. `mf_in` is where a Costas
 arm filter would go, and the reason there is none.
 
-**That third row read "none for this purpose", and the standard battery
-withdrew it.** This section argued `mf_in` was the tap for a continuous
-receiver and `ContinuousMpskReceiver` shipped pinning it; `native/validation/rx_battery.c`
-then refused on all 9 operating points with *"no burst settled — the loops
-never locked"*, under both pulses, isolated by changing only `nda_tap` on the
-base receiver.
+**That third row read "none for this purpose", and it was wrong.** This
+section argued `mf_in` was the tap for a continuous receiver and
+`ContinuousMpskReceiver` shipped pinning it. It is now pinned to `strobe`, on
+a measurement taken on **this flavor's own waveform** rather than on a
+neighbouring one — which is the mistake worth recording, because every
+harness that touched `mf_in` before had the same shape of gap:
 
-The structural argument above is right and the cost claim was wrong.
-Band-limiting is not matched filtering and levelling is not SNR: a tap ahead
-of the matched filter forgoes exactly the gain the matched filter exists to
-provide, `10·log10(sps)` dB — 9 dB at `sps = 8`, 40 dB at the battery's
-`Fs/Rs = 10000` point. At the anchor (BPSK, `sps = 8`, Es/N0 6.79 dB) the
-pre-MFR node therefore sits at **−2.2 dB per sample**.
+| harness                     | waveform                          | noise                  | dynamics                    |
+| --------------------------- | --------------------------------- | ---------------------- | --------------------------- |
+| `rx_battery.c`              | RRC, dense transitions throughout | yes                    | none — settles, then scores |
+| `rx_nda_tap.c`              | NRZ                               | **none** (`sigma = 0`) | none                        |
+| `test_mpsk_receiver_core.c` | NRZ, I&D at 30 dB                 | negligible             | none                        |
+| **`rx_dynamics.c`**         | **NRZ, modulation off → dense**   | yes                    | **coupled Doppler ramp**    |
 
-What fails first is not the loop but the *lock statistic*, because the
-M-th-power lock signal is an SNR measure and not a phase measure. Measured at
-the anchor, the carrier loop still acquires fully — `acq_frac` **1.0035**
-against a known offset — while the lock EMA settles at **0.20** where `strobe`
-reads **0.79** and `mf_out` reads 0.70. It never crosses the detector's
-threshold, so the receiver cannot report the lock it achieved; and since every
-lock detector, handover and settle window in the tree is built on that EMA, a
-working carrier loop is indistinguishable from a dead one downstream.
+§0 calls the continuous flavor *NRZ BPSK, periods of data modulation off but
+carrier on*. RRC with dense transitions is the **burst** flavor's signal, so
+the battery was judging one flavor with the other's stimulus.
 
-Two consequences, both recorded rather than repaired here (doppler#790):
+### What the dynamics measure
 
-- **`ContinuousMpskReceiver` pins `strobe`.** A flavor whose purpose is to
-    remove knobs cannot pin a tap whose lock indicator is unusable, whatever
-    its pull-in range — and `mf_in` shows no measured advantage over `strobe`
-    even where it *does* work (doppler#766).
-- **The two harnesses that did exercise `mf_in` both hid the cost, the same
-    way.** `native/validation/rx_nda_tap.c` sweeps it noiseless (`sigma = 0`)
-    through an I&D pulse, and `test_mpsk_receiver_core.c`'s continuous check
-    runs I&D at 30 dB. A rectangular pulse *is* the constellation held across
-    the symbol, so the pre-MFR node loses nothing; with no noise there is no
-    SNR to lose either. Both conditions have to be absent before the tap's
-    real cost appears, and the only harness carrying both is the battery.
+`native/validation/rx_dynamics.c` runs the scenario §0 describes: NRZ BPSK,
+I&D, `m_out = 4`, DTTL, 12 dB Es/N0, half the record with modulation **off**
+(carrier on, so the TED has no edge and timing cannot close), then dense
+transitions arriving as a step — all under a Doppler ramp through
+`doppler_channel`, which moves the carrier and every clock together because a
+Doppler shift dilates the whole received time base.
 
-Restoring the arm filter — or the 2-sps decimation the next section declines —
-is what would make `mf_in` deliver on the structural argument. Note that the
-`carrier_nda` primitive keeps a boxcar arm (`carrier_nda_step`) for exactly
-this reason; the receiver's tap dropped it on the band-limiting argument
-above.
+![The receiver under a coupled Doppler ramp across a data onset](../assets/rx-dynamics.png)
 
-**`nda_tap` did not go away, and that is the decision.** This section used to
-say the three-way parameter disappears into one fixed tap. It is instead
-**fixed at construction** — the caller picks the trade once and nothing
-switches underneath them — because the three taps are genuinely different
-trades and only the caller knows which they are buying. `tap_timed` records
-which of them depends on timing; it is `strobe` alone.
+| tap          | lock, modulation OFF | min at the onset | recovered | end    |
+| ------------ | -------------------- | ---------------- | --------- | ------ |
+| **`strobe`** | +0.935               | **+0.860**       | +0.921    | +0.920 |
+| `mf_out`     | +0.934               | +0.478           | +0.714    | +0.802 |
+| `mf_in`      | +0.761               | +0.417           | +0.635    | +0.714 |
 
-**No tap waits**, which is the property that matters for a receiver with no
-gating: `strobe` steers from its first strobe whether or not the timing loop
-has declared. Its timing dependency is a reason to *choose* another tap when
-the carrier must acquire first — not something the receiver resolves behind
-the caller's back. Gating it was tried and measured: across a 24-cell sweep it
-moved one cell, and what it really bought was a carrier transient that started
-at a known instant and was therefore easier to *measure*, which is not a
-property of a working receiver.
+**`strobe`'s symbol-timing dependency costs nothing in the half where timing
+is impossible**, and the reason reads backwards until you see it: an
+unmodulated NRZ carrier is **sampling-phase invariant**. Every sample is the
+same constellation point, so the M-th-power discriminator does not care which
+one the timing loop would have nominated. *Timing closure gates demodulation,
+not carrier acquisition* — so the tap that depends on it is free exactly where
+it looked most exposed. The bottom panel shows this directly: the tracked rate
+is unconstrained through the quiet half and snaps to 8.000 samples/symbol the
+moment transitions exist.
+
+`mf_out` takes the largest hit (0.46 of lock against `strobe`'s 0.08) and has
+not recovered by the end — its between-symbol outputs average two symbols, so
+its ISI bias appears the moment transitions exist and not one symbol before.
+
+**The TED is the largest single effect on this page.** The same record through
+Gardner — the wrong detector for a rectangular pulse — deepens `strobe`'s
+onset dip from 0.075 to 0.306, four times, on its own. The harness prints both
+passes; only DTTL is gated, because Gardner on NRZ is a misconfiguration
+rather than a receiver defect.
+
+### What `mf_in` actually costs
+
+Not the matched filter's processing gain. A Nyquist-sampled band-limited
+signal loses nothing by being sampled fast, so that framing — which an earlier
+revision of this section and of `mpsk_rx_loops.h` both used, with a
+`10·log10(sps)` law that grows without bound — is wrong.
+
+Measured **at the node**, with the AGC off so the path is linear and signal
+and noise superpose exactly:
+
+|               | `bank_sps` | SNR @`mf_in` | SNR @terminal | vs Es/N0     |
+| ------------- | ---------- | ------------ | ------------- | ------------ |
+| Es/N0 6.79 dB | 4.0        | +0.78 dB     | +5.07 dB      | **−6.01 dB** |
+| Es/N0 12 dB   | 4.0        | +5.99        | +10.28        | **−6.01**    |
+| Es/N0 20 dB   | 4.0        | +13.99       | +18.28        | **−6.01**    |
+
+`10·log10(bank_sps) = 6.02 dB`, and the deficit is **identical at every
+Es/N0** — a pure bandwidth ratio, not an SNR-dependent effect. The mechanism
+is that **DEC band-limits to its own Nyquist, `±bank_sps·Rs/2`, while the
+signal occupies ~`±Rs`**, and the terminal filter — the first thing in the
+cascade matched to the signal — is downstream of this tap. So `mf_in` reads a
+node carrying several times the noise bandwidth it needs.
+
+Two consequences. It is **bounded by the plan** rather than by the input rate:
+`bank_sps` is a planner outcome, still 8 at `sps = 64`, so the cost is 9.0 dB
+there and not 18. And it is **recoverable** — the 2-sps decimation the next
+section declines, or an arm filter, would remove most of it. That is
+[doppler#790](https://github.com/doppler-dsp/doppler/issues/790), and it is an
+argument that the node is *unfinished*, not that the tap's position is wrong.
+Note that the `carrier_nda` primitive keeps a boxcar arm for exactly this
+reason; the receiver's tap dropped it on the band-limiting argument above,
+which is directionally right and 6 dB short.
 
 ### The 2-samples/symbol decimation, considered and declined
 

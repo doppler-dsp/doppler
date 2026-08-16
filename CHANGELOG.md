@@ -15,42 +15,63 @@ ______________________________________________________________________
 
 ### Changed
 
-- **`nda_tap = mf_in` costs the matched filter's processing gain, and
-    `ContinuousMpskReceiver` no longer pins it.** The tap's documented cost was
-    *"none"*; it is `10·log10(sps)` dB — 9 dB at `sps = 8`, 40 dB at the
-    battery's `Fs/Rs = 10000` point — because a tap ahead of the matched filter
-    forgoes exactly the gain the matched filter exists to provide.
-    Band-limiting is not matched filtering and levelling is not SNR, which is
-    what the "DEC has already band-limited this node, the AGC has already
-    levelled it" argument conflated.
+- **`ContinuousMpskReceiver` pins `nda_tap = strobe`, measured on its own
+    waveform.** It shipped pinning `mf_in`, and every harness that had touched
+    that tap shared the same gap: `rx_battery` runs RRC with dense transitions
+    throughout (the **burst** flavor's signal), `rx_nda_tap` sweeps NRZ but
+    **noiseless**, and the C test runs I&D at 30 dB. `docs/design/mpsk.md` §0
+    calls the continuous flavor *NRZ BPSK, periods of data modulation off but
+    carrier on*, and nothing measured that.
 
-    What fails is **not the loop but the lock statistic**, because an M-th-power
-    lock signal is an SNR measure and not a phase measure. Measured at the
-    battery's anchor (BPSK, `sps = 8`, Es/N0 6.79 dB, RRC pair), the pre-MFR
-    node sits at −2.2 dB per sample; the carrier loop still acquires a known
-    offset **fully** (`acq_frac` 1.0035) while the lock EMA settles at **0.20**
-    against `strobe`'s 0.79 and `mf_out`'s 0.70. It never crosses the
-    detector's threshold, so a working carrier loop is indistinguishable from a
-    dead one to every lock detector, handover and settle window downstream —
-    which is why all 9 battery points refused with *"no burst settled"*.
+    New: **`native/validation/rx_dynamics.c`** — NRZ BPSK, I&D, `m_out = 4`,
+    DTTL, 12 dB Es/N0, half the record with modulation **off** (carrier on, so
+    the TED has no edge and timing cannot close), then dense transitions as a
+    step, all under a Doppler ramp through `doppler_channel` so the carrier and
+    every clock move together. It captures every telemetry probe
+    (`--out DIR`), and `make plot-rx-dynamics` renders
+    `docs/assets/rx-dynamics.png` from that capture — the figure plots the
+    receiver's own records, never a Python re-derivation.
 
-    `ContinuousMpskReceiver` therefore pins `nda_tap = strobe`: a flavor whose
-    purpose is to remove knobs cannot pin a tap whose lock indicator is
-    unusable, and `mf_in` shows no measured advantage over `strobe` even where
-    it works (gh-766). The flavor's *"nothing waits"* claim is untouched — it
-    is about GATES (`acq_to_track = 0`), and `strobe` steers from its first
-    strobe whether or not the timing loop has declared.
+    | tap          | lock, modulation OFF | min at the onset | end    |
+    | ------------ | -------------------- | ---------------- | ------ |
+    | **`strobe`** | +0.935               | **+0.860**       | +0.920 |
+    | `mf_out`     | +0.934               | +0.478           | +0.802 |
+    | `mf_in`      | +0.761               | +0.417           | +0.714 |
 
-    **Both harnesses that exercised `mf_in` hid the cost the same way.**
-    `rx_nda_tap.c` sweeps it **noiseless** (`sigma = 0`) through an **I&D**
-    pulse, and `test_mpsk_receiver_core.c`'s continuous check runs I&D at
-    30 dB. A rectangular pulse *is* the constellation held across the symbol,
-    so the pre-MFR node loses nothing; with no noise there is no SNR to lose
-    either. Both conditions have to be absent before the real cost appears, and
-    the battery is the only harness carrying both. Remaining work — an arm
-    filter or the 2-sps decimation `docs/design/mpsk.md` §3.3 declines, and a
-    battery point that exercises `acq_to_track` so the two receivers differ —
-    is gh-790.
+    **`strobe`'s timing dependency costs nothing in the half where timing is
+    impossible**, because an unmodulated NRZ carrier is *sampling-phase
+    invariant* — every sample is the same constellation point, so the
+    M-th-power discriminator does not care which one the timing loop would have
+    nominated. Timing closure gates demodulation, not carrier acquisition.
+    `mf_out` takes the largest hit the moment transitions exist (its ISI bias,
+    on schedule). The **TED** is the largest single effect on the page: the
+    same record through Gardner deepens `strobe`'s onset dip from 0.075 to
+    0.306, four times, on its own.
+
+- **What `mf_in` costs is excess noise bandwidth, not processing gain.** A
+    Nyquist-sampled band-limited signal loses nothing by being sampled fast.
+    Measured at the node with the AGC off so the path is linear, `mf_in` sits
+    **6.01 dB** below Es/N0 at `bank_sps = 4` while the terminal node sits
+    1.7 dB below it — and `10·log10(4) = 6.02 dB`, *identical at 6.79, 12 and
+    20 dB Es/N0*, which is the signature of a pure bandwidth ratio rather than
+    an SNR-dependent effect. DEC band-limits to **its own** Nyquist,
+    `±bank_sps·Rs/2`, while the signal occupies ~`±Rs`, and the terminal filter
+    — the first thing in the cascade matched to the signal — is downstream of
+    this tap.
+
+    So the cost is **bounded by the plan** (`bank_sps` is a planner outcome:
+    still 8 at `sps = 64`, so 9.0 dB there, not 18) and **recoverable** — the
+    2-sps decimation `docs/design/mpsk.md` §3.3 declines, or an arm filter,
+    which the `carrier_nda` primitive keeps for exactly this reason. gh-790 is
+    an argument that the node is unfinished, not that the tap's position is
+    wrong. The loop acquires at every operating point measured; what degrades
+    is the M-th-power lock statistic, which is an SNR measure.
+
+- **`rx_battery --check` fails a receiver that refuses EVERY point.** A
+    per-point refusal is a result and stays uncounted — a `qpsk`/`psk8`
+    frame-geometry refusal is the harness working — but nine of them is a
+    receiver that does not work. No threshold and no allowlist: zero
+    defensible records is never legitimate for something in this battery.
 
 ### Added
 
@@ -67,11 +88,12 @@ ______________________________________________________________________
     What it found immediately, and none of it was visible to the Python
     harness it replaces:
 
-    - **`nda_tap = mf_in` refuses on all 9 points**, under either pulse, on
-        the BASE receiver — isolated by changing only that one argument.
-        `strobe` locks at every point with 0.07 dB implementation loss.
-        `5281a172` had already withdrawn `mf_in` as the default on the same
-        evidence. Diagnosed below; `ContinuousMpskReceiver` now pins `strobe`.
+    - **`nda_tap = mf_in` refuses on all 9 points** of the battery, under
+        either pulse, on the BASE receiver — isolated by changing only that
+        one argument. Diagnosed under Changed: the tap acquires everywhere,
+        and it is its LOCK STATISTIC that falls under the detector's
+        threshold, so the refusals are the settle gate reading a degraded
+        indicator rather than a loop that never moved.
     - **Implementation loss grows with irrational oversampling**: 0.07 dB at
         `sps = 8`, **4.34 dB** at 17.33389, **7.41 dB** at 31.7 — a trend, not
         a cliff, and defensible because the harness's four gates passed.

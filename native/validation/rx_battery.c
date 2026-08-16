@@ -37,7 +37,8 @@
 #include <stdio.h>
 #include <string.h>
 
-/* ── The adapter: the only receiver-specific code in the battery ─────────── */
+/* ── The adapter: the only receiver-specific code in the battery ───────────
+ */
 
 static void *
 rx_mpsk_create (const dp_rx_point_t *pt)
@@ -45,19 +46,17 @@ rx_mpsk_create (const dp_rx_point_t *pt)
   /* Five construction parameters are 0 on purpose — that asks the object to
      DERIVE them (doppler#644, design/mpsk.md §8.1). The battery states the
      link; it does not re-derive what the receiver already knows. */
-  return mpsk_receiver_create (pt->m, pt->sps, pt->m_out, MPSK_RX_PULSE_RRC,
-                               pt->beta, pt->span, pt->bn_carrier,
-                               0.0 /* zeta */, pt->bn_timing,
-                               pt->acq_to_track, 0.0 /* lock_thresh */,
-                               /* foff is cycles per SYMBOL (so one value
-                                  means one thing at every rate); the ctor
-                                  wants cycles per SAMPLE. Mixing them is an
-                                  sps-sized error, and at sps=8 it asked the
-                                  loop for 8x its design envelope. */
-                               pt->fc - pt->foff / pt->sps,
-                               0 /* differential */,
-                               0 /* num_phases */, pt->nda_tap, 1 /* agc */,
-                               0.0 /* bn_agc_ratio */);
+  return mpsk_receiver_create (
+      pt->m, pt->sps, pt->m_out, MPSK_RX_PULSE_RRC, pt->beta, pt->span,
+      pt->bn_carrier, 0.0 /* zeta */, pt->bn_timing, pt->acq_to_track,
+      0.0 /* lock_thresh */,
+      /* foff is cycles per SYMBOL (so one value
+         means one thing at every rate); the ctor
+         wants cycles per SAMPLE. Mixing them is an
+         sps-sized error, and at sps=8 it asked the
+         loop for 8x its design envelope. */
+      pt->fc - pt->foff / pt->sps, 0 /* differential */, 0 /* num_phases */,
+      pt->nda_tap, 1 /* agc */, 0.0 /* bn_agc_ratio */);
 }
 
 static void
@@ -104,11 +103,10 @@ rx_mpsk_clipped (const void *h)
   return mpsk_receiver_get_clipped ((const mpsk_receiver_state_t *)h);
 }
 
-static const dp_rx_iface_t RX_MPSK = {
-  "MpskReceiver",   DP_RX_IN_COMPLEX,  rx_mpsk_create,     rx_mpsk_destroy,
-  rx_mpsk_step,     rx_mpsk_norm_freq, rx_mpsk_last_error, rx_mpsk_lock,
-  rx_mpsk_locked,   rx_mpsk_lock_time, rx_mpsk_clipped
-};
+static const dp_rx_iface_t RX_MPSK
+    = { "MpskReceiver", DP_RX_IN_COMPLEX,  rx_mpsk_create,     rx_mpsk_destroy,
+        rx_mpsk_step,   rx_mpsk_norm_freq, rx_mpsk_last_error, rx_mpsk_lock,
+        rx_mpsk_locked, rx_mpsk_lock_time, rx_mpsk_clipped };
 
 /* ── The battery ────────────────────────────────────────────────────────── */
 

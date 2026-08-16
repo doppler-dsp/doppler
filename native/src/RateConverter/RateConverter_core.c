@@ -157,7 +157,7 @@ rc_plan (double rate, int compensate, int force_terminal,
           /* n >= 3: CIC(R), capped at CIC_R_MAX. Past the cap the residual
              goes to the resampler stage below, which is what makes a lower
              cap cost a slightly larger residual and nothing else. */
-          R = (n <= 11) ? (1 << n) : (int)CIC_R_MAX;
+          R                   = (n <= 11) ? (1 << n) : (int)CIC_R_MAX;
           plan[ns].type       = RC_STAGE_CIC;
           plan[ns].R          = R;
           plan[ns].compensate = compensate;
@@ -189,7 +189,7 @@ rc_plan (double rate, int compensate, int force_terminal,
   if (D >= DP_CIC_MIN_D)
     {
       /* Non-power-of-2, large D: CIC + Resampler correction. */
-      int    n_lo  = (int)floor (log2_D);
+      int n_lo = (int)floor (log2_D);
       /* BOTH candidates are capped, not just the upper one: at D = 5000,
          n_lo = 12, so the LOW candidate is 4096 and would be refused by
          cic_create() on its own. Capping one and not the other turns a cap

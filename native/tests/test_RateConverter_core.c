@@ -1484,7 +1484,6 @@ test_matched_set_rate_keeps_pulse (void)
     }
 }
 
-
 /* A capped CIC must not cost the cascade its RATE.
  *
  * The plan caps a single CIC stage at CIC_R_MAX and hands the residual to a
@@ -1535,8 +1534,7 @@ test_capped_cic_still_delivers_the_requested_rate (void)
       /* 2% covers the cascade's startup transient at these lengths; the
          defect was a factor of 2, 4 and 8, so the tolerance is nowhere near
          it. Verified by sabotage: re-gating the residual takes this red. */
-      DP_CHECK_MSG (fabs (got - 1.0 / D) <= 0.02 / D,
-                    "capped CIC lost rate");
+      DP_CHECK_MSG (fabs (got - 1.0 / D) <= 0.02 / D, "capped CIC lost rate");
       free (x);
       free (o);
       RateConverter_destroy (rc);

@@ -109,7 +109,7 @@ ______________________________________________________________________
 
 ## 4. The final API surface
 
-jm#1012 is being implemented, so the faces can share one method **name** with
+jm#1012 shipped in jm 0.62.0 (§6), so the faces share one method **name** with
 per-face dtypes. The surface below is what the collapsed object exposes.
 
 ### 4.1 The constructor: 17 params, and most of them are derivable
@@ -559,13 +559,36 @@ the S-curve's linear range, ≈`π/(2M)`.
 
 ______________________________________________________________________
 
-## 6. The blocker, and what was measured about it
+## 6. The blocker — RESOLVED in jm 0.62.0
 
-A jm view shares its parent's methods **verbatim**. It can ADD a method with
-its own `arg_type`, or override a parent method's **doc** — and nothing else.
-So a per-face `steps()` dtype is precisely what it cannot express.
+**This section is kept as the record of what was measured; the constraint it
+describes no longer holds.** jm **0.62.0** (2026-08-16) ships both filed
+issues; doppler adopts it on #806. A view method restating a parent's name
+may now declare its own `arg_type`/`return_type`, bound to its own C symbol
+via **`fn`** — which is the discriminator, and not as a convenience: the
+parent's C symbol carries the parent's prototype, so a different signature is
+only callable through a different symbol.
 
-Scaffolded against jm **0.61.0 and 0.61.1**, three routes:
+```toml
+[[mpsk_receiver.views.methods]]
+name        = "steps"                     # same Python name
+fn          = "mpsk_receiver_steps_real"  # its own C symbol
+arg_type    = "float"                     # honoured, not discarded
+return_type = "float _Complex"
+```
+
+Verified on doppler's exact shape before the pin moved, rather than from the
+release notes — a scaffold with a `cf32` `steps` and a view overriding it to
+`f32` gave `NPY_COMPLEX64`/`rx_steps` on the parent and `NPY_FLOAT`/
+`rx_steps_real` on the view, same Python name, both prototypes in the shared
+header, the parent untouched. **So §4's per-face `steps()` is real, and the
+`steps_r()` fallback below is retired.**
+
+### What was measured while it was a blocker
+
+A jm view used to share its parent's methods **verbatim**: it could ADD a
+method with its own `arg_type`, or override a parent method's **doc**, and
+nothing else. Scaffolded against jm **0.61.0 and 0.61.1**, three routes:
 
 | route                                          | result                                                                                                                        |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -573,17 +596,19 @@ Scaffolded against jm **0.61.0 and 0.61.1**, three routes:
 | a view `steps` with no exclude                 | **accepted, `arg_type` silently ignored** — the `.pyi` *and* the view's own C fragment both keep the parent's `NPY_COMPLEX64` |
 | a view method with a **new** name (`steps_r`)  | **works end to end** — own `arg_type`, own binding, own `_max_out`                                                            |
 
-jm#1012 is **being implemented**; §4 is written against it. Filed upstream as **just-makeit#1011** (the silent ignore — jm already detects
-this exact collision on the exclude path, so the check simply is not applied
+Filed upstream as **just-makeit#1011** (the silent ignore — jm already detects
+this exact collision on the exclude path, so the check simply was not applied
 here) and **just-makeit#1012** (the feature: let a view override a *signature*,
-not just a doc). They are linked, and #1011 closes either way: implement the
-override, or error as the exclude path already does.
+not just a doc). They were linked, and #1011 closed either way: implement the
+override, or error as the exclude path already does. jm did the first, so
+route 2 is now honoured with `fn` and refused by name without it.
 
-**The fallback is real.** Route 3 means the collapse is possible today, with
-`steps_r()` / `bits_r()` on the real face. It costs an asymmetric public
-surface — two classes with the same semantics, one spelling its block API
-differently — which is most of the way back to being a second type. That is a
-trade, not a blocker.
+Route 3 was the fallback — `steps_r()` / `bits_r()` on the real face, possible
+even then, at the cost of an asymmetric public surface: two classes with the
+same semantics, one spelling its block API differently, which is most of the
+way back to being a second type. **It is no longer needed.** It is recorded
+because it is what made this a trade rather than a hard blocker, and that is
+why §4 could be written before the fix shipped.
 
 ______________________________________________________________________
 
@@ -625,14 +650,48 @@ ______________________________________________________________________
 
 1. The `strobe` pin, `native/validation/rx_dynamics.c` and the corrected
     `nda_tap` cost — landed separately, already green.
+
 1. The C tests the inventory found missing, each proven by sabotage, in
     priority order: the `m_out = 2` + `IANDD` degeneracy; `m_out = 8` at
     M = 8 against the bound; **the handover carrying the frequency estimate
     across a drop-back** — the one whose failure is silent and expensive; and
     `bn_carrier`'s symbol-rate normalisation. The `σ_H0` / Pfa row belongs to
     `carrier_nda`'s own test, not here.
-1. This collapse, once just-makeit#1012 lands — or on `steps_r()` if it does
-    not.
+
+1. This collapse. **Unblocked** — just-makeit#1012 shipped in jm 0.62.0 (§6),
+    which doppler adopts on #806, so it uses a real per-face `steps()`. That
+    pin is this step's only prerequisite.
+
+1. **Give the shared header its test home — the step that cashes §2.** The
+    collapse *permits* one home; it does not create one. Left here, the merged
+    object simply inherits whichever twin's test file survives, and §2's
+    asymmetry persists silently into it — the refactor delivering everything
+    except the thing that motivated it. So the collapse is not done until each
+    row of §2's second table has a single owner:
+
+    | shared claim                         | today             | after                       |
+    | ------------------------------------ | ----------------- | --------------------------- |
+    | `set_telemetry`                      | complex only      | migrate onto the one object |
+    | level invariance                     | complex (real: 1) | migrate                     |
+    | the AGC is slower than every loop    | complex only      | migrate                     |
+    | "the LO runs at half the input rate" | **neither**       | **new test**                |
+
+    The first three are migrations and carry no new risk: they already pass on
+    one side, and the point is that one object cannot have a side. The fourth
+    is the one that matters, because it is not a migration — nothing has ever
+    asserted it, and it is where the gh-765 `freq_scale` bug lived (fixed in
+    #772, merged 2026-08-15, with **no guard left behind**). It gets a
+    regression test with a named sabotage target: **revert #772's `freq_scale`
+    and it must go red.** A test for that row which passes against the
+    pre-#772 loop is not testing the convention — recall that the bug survived
+    every step test in the tree, because a type-2 loop nulls a frequency step
+    regardless of gain, so the stimulus has to be a **ramp** (see
+    `docs/design/mpsk.md` §5.8).
+
+    And the claim §2 ends on — *the loops behave identically regardless of
+    front end* — becomes writable for the first time here, because one object
+    with two faces can run the same vector through both and compare.
+
 1. The validation report, written against the collapsed object, so one object
     has one report.
 

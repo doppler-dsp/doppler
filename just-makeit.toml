@@ -47,7 +47,7 @@ perf = "true"
 pytest = "true"
 pytest_benchmark = "true"
 schema = "7"
-c_deps = ["hbdecim", "resamp", "wfmcompose"]
+c_deps = ["hbdecim", "resamp", "wfmcompose", "fec"]
 # dsss.pyi came OFF this list in jm 0.28.3 (gh-428): its ten hand-maintained
 # has_params-single-array-param members (despreader.steps/bits,
 # burst_despreader.steps/bits, burst_demod.demod, + each *_max_out()) are now

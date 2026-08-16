@@ -136,14 +136,16 @@ doc = "**0 (the default) derives it** -- see docs/design/mpsk.md §8.1; pass a v
 # knob is still reachable through it.
 #
 # What this view pins is the gating: acq_to_track=0 (no handover), and
-# nda_tap=strobe, the only tap whose lock statistic means what the derived
-# lock_thresh says. "Nothing waits" is about the GATES, not the tap -- the
+# nda_tap=strobe, the only tap that acquires AND reports it at every point of
+# the standard battery. "Nothing waits" is about the GATES, not the tap -- the
 # discriminator steers from its first strobe whether or not timing has
 # declared, so what strobe adds is a coupling and not a gate. This pinned
-# mf_in when it shipped, for its timing independence; measured, mf_in
-# demodulates identically (EVM -7.32 vs -7.31 dB) but its lock statistic
-# settles at 0.23-0.51 against a derived threshold of 0.4999, so the one
-# metric this flavor still reports could not be trusted (doppler#791).
+# mf_in when it shipped, for its timing independence; measured, the pre-MFR
+# node carries excess noise bandwidth, and since an M-th-power lock signal is
+# an SNR measure rather than a phase measure, the loop still acquired fully
+# while the lock EMA settled at 0.20 against strobe's 0.79 -- never crossing
+# its own threshold, so a working carrier loop was indistinguishable from a
+# dead one to every detector downstream (doppler#791).
 # agc=1 because the AGC is load-bearing, and the five derived parameters go
 # as 0 (a request, not an omission).
 #

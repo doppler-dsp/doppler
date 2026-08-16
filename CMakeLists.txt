@@ -573,6 +573,26 @@ target_link_libraries(bench_util_core PRIVATE util_core m)
 target_include_directories(bench_util_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 
+# native/tests/dp_state_test.h is 12 lines and 31 test files call it -- the
+# highest leverage per line in the family, and the only evidence most
+# serializable objects have that their state interface works. Its macro pastes
+# a PREFIX, so it cannot be tested against a real object without also testing
+# that object; the self-test defines a fake one over the real dp_state.h
+# envelope whose set_state can be switched between correct and three broken
+# implementations, and reads whether the macro noticed from dp_test.h's
+# counters rather than from an exit status.
+#
+# That is how the missing FIDELITY half was found: the macro asserted what
+# set_state RETURNS and never that the restored object carries the state, so a
+# set_state that validated the envelope and restored nothing passed at all 31
+# sites.
+add_executable(test_dp_state native/tests/test_dp_state.c)
+target_include_directories(test_dp_state
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_state PRIVATE -O2)
+add_test(NAME test_dp_state COMMAND test_dp_state)
+
 # native/tests/dp_tx_test.h is the harness STIMULUS SSOT, and docs/design/
 # rx-test.md section 5.4 records it as the ONE place the stimulus rule cannot
 # reach: check_stimulus_sources.py requires every test, validator and example

@@ -1,11 +1,25 @@
 # MPSK Receiver
 
 **Status:** `track.MpskReceiver` and `track.MpskReceiverR` are shipped and
-built on the matched DDC cascade (§1.4). **§2, §3.3, §3.4, §4.1, §7 and §8
-are the design of Mode 1 — agreed and being built, not yet shipped.** Every
-measured table in this document is from the shipped code unless its caption
-says otherwise; where the design changes what a number will be, it says so
-rather than quietly restating it.
+built on the matched DDC cascade (§1.4). Every measured table in this document
+is from the shipped code unless its caption says otherwise; where the design
+changes what a number will be, it says so rather than quietly restating it.
+
+**Mode 1 is agreed and partly built.** Each section states its own status, and
+this table is the index — if the two ever disagree, the section is right and
+this row is stale:
+
+| section            | status                                                                      |
+| ------------------ | --------------------------------------------------------------------------- |
+| §2 the modes       | **design.** The shipped receiver still has `acq_to_track` and a handover    |
+| §3.3 the tap       | **design.** `nda_tap` is still a three-way shipped parameter                |
+| §3.4 pull-in       | **design.** Corrects the shipped prose; `pull_in_hz` is not a surface yet   |
+| §4.1 detector spec | **partly built.** The threshold's `Pfa` half landed with gh-644 (§8.1)      |
+| §7 rates and units | **design.** Nothing takes `sample_rate_hz`/`symbol_rate_hz` yet             |
+| §8 construction    | **partly built.** Five parameters derive today (§8.1); §8.2 is what remains |
+
+A section marked **design** describes a receiver that does not exist yet, and
+nothing in the shipped code should be read as implementing it.
 
 **Scope:** a streaming **M-PSK receiver** (`track.MpskReceiver` for complex
 baseband, `track.MpskReceiverR` for a real IF, M = BPSK / QPSK / 8PSK) that
@@ -480,8 +494,13 @@ else Mode 1 does wrong, it does visibly.
     C**, the way `dsss_receiver` already composes this receiver — a C object
     exposed to Python, not a Python pipeline.
 - **It does not hand over to a decision-directed loop.** Mode 2 will define
-    that; until it does, `acq_to_track`, `warmup_syms` and the handover
-    `lockdet` are not part of this receiver's surface.
+    that. Stated against today's surface rather than a future one, because the
+    two differ: `acq_to_track` **is** a shipped `mpsk_receiver_create()`
+    parameter and the handover `lockdet` is shipped with it
+    (`mpsk_receiver_configure_lock()` re-tunes it, `get_tracking()` reports
+    it) — Mode 1 removes both. `warmup_syms` is already gone: it was removed
+    with the Costas arm (`1f417e97`), so it survives only on
+    `dsss_receiver`, and Mode 1 has nothing to do there.
 
 ### 2.3 The invariant
 
@@ -726,17 +745,24 @@ property of the design rather than an edge case.
 pre-terminal stream **decimated to 2 samples per symbol**, and that is the
 only tap. The three-way `nda_tap` parameter goes away.
 
-Why this tap, stated against the three it replaces:
+Why this tap, stated against the three `nda_tap` offers today:
 
-| tap                        | why not                                                                                                                                   |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `strobe` (shipped default) | inside the matched filter's group delay, and the only tap that depends on symbol timing                                                   |
-| `mf_out`                   | also inside the matched filter; the between-symbol outputs average two symbols, so their M-th power carries ISI rather than carrier phase |
+| tap                        | why not                                                                                                                                                                           |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `strobe` (shipped default) | inside the matched filter's group delay, and the only tap that depends on symbol timing                                                                                           |
+| `mf_out`                   | also inside the matched filter; the between-symbol outputs average two symbols, so their M-th power carries ISI rather than carrier phase                                         |
+| `mf_in`                    | the right **node** — this is the one Mode 1 keeps — but at the wrong **rate**: it reads at `bank_sps`, a planner outcome, so its clock and its pull-in ceiling move with the plan |
 
-The MFR's input is the node those two are reaching past: band-limited by DEC's
-own filters, already levelled by the AGC sitting on it, and at a rate the plan
-reports rather than a rate the input happens to have. A `lo_arm` tap once
-approximated it with a free-running half-symbol boxcar bolted ahead of the
+`mf_in` is the closest of the three and the distinction is worth being exact
+about, because "Mode 1 reads the MFR's input" and "Mode 1 uses `mf_in`" are not
+the same statement. Same node; Mode 1 fixes the *rate* at 2 samples/symbol
+instead of inheriting `bank_sps`, which is what the rest of this section is
+about.
+
+That node is what the other two are reaching past: band-limited by DEC's own
+filters, already levelled by the AGC sitting on it, and at a rate the plan
+reports rather than a rate the input happens to have. A fourth tap, `lo_arm`,
+once approximated it with a free-running half-symbol boxcar bolted ahead of the
 cascade; it was removed with that arm (gh-768), because the filters ahead of
 this node already do the job the arm was there for.
 
@@ -854,9 +880,17 @@ with the steering clock.
 
 ### 4.1 The detector spec
 
-**Design, not yet built.** `lock_thresh` stops being a raw number the caller
-picks. The indicator is specified as a detection problem, with adjustable
-defaults:
+**Partly built.** `lock_thresh` stops being a raw number the caller picks —
+and as of gh-644 it already is one the caller need not pick: passing `0` gets
+the derived `σ_H0·η(Pfa)` = 0.4999 at `Pfa = 5e-6`, reported back by
+`get_lock_thresh()` (§8.1). That is the **`Pfa` half only**. The rest of this
+section — deriving `α` and the verify counts alongside the threshold, and
+coupling all three to a `Pd` at a stated Es/N0 — is still design. So the
+shipped receiver derives a threshold from a false-alarm budget it does not
+tie to any detection probability, which is the same criticism made below,
+one parameter smaller.
+
+The indicator is specified as a detection problem, with adjustable defaults:
 
 ```text
 esn0_floor_db = 4.0     the operating point the indicator must still work at
@@ -867,8 +901,10 @@ pfa           = 1e-5    probability of declaring when not
 From those, three things are **derived together** rather than set
 independently: the EMA `α`, the threshold, and the `lockdet` verify counts.
 The shipped code sets the first two from unrelated criteria — `α = 0.05` from
-a 15.9 dB estimator-SNR target, `lock_thresh = 0.5` from a Pfa budget — and
-ties neither to a Pd at any operating point.
+a 15.9 dB estimator-SNR target, `lock_thresh` from a Pfa budget alone — and
+ties neither to a Pd at any operating point. gh-644 moved the threshold from
+picked (`0.5`) to derived (`0.4999`); it did not couple it to `α`, so this
+paragraph still describes the shipped code.
 
 The equations already exist; this is composition, not derivation:
 
@@ -888,6 +924,14 @@ The equations already exist; this is composition, not derivation:
     already quotes. So the existing default was computed on the Gaussian tail,
     and `detection` has no primitive for it. That quantile belongs in
     `detection` beside the others, not hand-rolled at the call site.
+
+    **This came true rather than being heeded.** gh-644 derived the threshold
+    and carried `η = 4.4159` as a literal in `MPSK_RX_LOCK_THRESH_DEFAULT`'s
+    comment, with the product pre-multiplied into `0.4999` — so the derivation
+    is now written down in two places (here and that comment) and computed in
+    none. Adding the Gaussian quantile to `detection` is still the open work,
+    and is now the difference between a derived default and a hard-coded one
+    that is merely *described* as derived.
 
 **Publish the latency.** `det_verify_delay(pd_look, n_up)` × the look period is
 how long the indicator takes to light up. That number is the difference
@@ -918,8 +962,15 @@ statistic is bounded in ±1 and its H0 law is M-independent, which is precisely
 what lets a single threshold mean a single false-alarm probability at every
 constellation order. With `α = 0.05` (`N_eff = 39` looks),
 `σ_H0 = sqrt(½·α/(2−α)) = 0.1132` analytically and 0.1132 measured, so the
-shipped threshold of 0.5 is 4.42 σ — a per-look Pfa of 5e-6. Measured end to
-end, 100 noise-only runs × 20 000 symbols: **0/100 false declares at every M**.
+shipped threshold is 4.42 σ — a per-look Pfa of 5e-6. Measured end to end, 100
+noise-only runs × 20 000 symbols: **0/100 false declares at every M**.
+
+That threshold is now **derived rather than picked**: gh-644 made `0` request
+`MPSK_RX_LOCK_THRESH_DEFAULT = σ_H0·η = 0.1132 · 4.4159 = 0.4999`, which is
+the `0.5` that shipped. The measurements above therefore stand unchanged — the
+two values differ by 1e-4 — and that is the point of recording it here rather
+than silently substituting the new number: a value that was picked and a value
+that was derived look identical right up until one of them has to move.
 
 **That derivation assumes independent looks**, which is a property of the tap
 rather than of the statistic — and is why §4 computes it on the strobe.
@@ -1119,10 +1170,32 @@ Both rates are **required**; there is no sane default sample rate, so the
     property this architecture advertises stops being silently lost on every
     DSSS-composed receiver.
 
-    The same file carries a hand-written `_derive_m_out()`, which is §8's
-    `m_out` rule implemented in the wrong place. It has already drifted once,
-    returning an illegal `m_out` for odd `sps` and turning a `create()` failure
-    into a process abort.
+    The same file carries a hand-written `dsss_rx_derive_m_out()`, which is
+    §8's `m_out` rule implemented in the wrong place. It has already drifted
+    once, returning an illegal `m_out` for odd `sps` and turning a `create()`
+    failure into a process abort.
+
+    **That is now a duplicate of a shipped primitive, not merely a misplaced
+    rule.** gh-644 gave the rule a canonical home —
+    `mpsk_rx_derive_m_out(cap, strict)` in `mpsk_rx_loops.h`, which both
+    receivers call — and `dsss_receiver_core.c` was not migrated onto it, so
+    the tree carries two implementations of one rule. Their return values
+    already differ below `sps = 2`: the shared rule refuses (0), while
+    `dsss_rx_derive_m_out()` floors at 2.
+
+    **The outcome is the same, and that is worth saying rather than
+    implying otherwise** — measured, both `m_out = 0` and `m_out = 2` at
+    `sps = 1` are rejected by `mpsk_receiver_create()`, so migrating changes
+    which rule refuses, not whether it does. The duplication is a
+    drift hazard, not today's bug.
+
+    Today's bug is next to it: `dsss_receiver_create()` guards only
+    `sps < 1`, so `sps = 1` is accepted, reaches that rejection, and is fed
+    to `dp_xnn()` — an **abort-on-OOM** helper — on a NULL that means
+    "invalid argument". `DsssReceiver(sps=1)` therefore **SIGABRTs the
+    interpreter** with no exception and no message, which is the same
+    failure this note already records for odd `sps`, still live at one
+    value. Both are [#782](https://github.com/doppler-dsp/doppler/issues/782).
 
 ______________________________________________________________________
 
@@ -1513,6 +1586,18 @@ ______________________________________________________________________
     at the rebuild, and → Hz in §7. The first was a silent break; the second is
     not, because both rates become required arguments.
 - **Real-input support** — *resolved, shipped.* `track.MpskReceiverR` (§1.2).
+- **Which construction parameters are design axes** — *resolved and shipped
+    for five of them* ([gh-644](https://github.com/doppler-dsp/doppler/issues/644),
+    §8.1). `m_out`, `zeta`, `num_phases`, `lock_thresh` and `bn_agc_ratio`
+    derive when passed `0`, and each is reported back by a getter — the
+    readback is the half that makes `0` an instruction rather than a
+    mystery. Additive, because every one of those validators previously
+    *rejected* `0`, so no working call site could depend on it. Two things
+    changed value rather than only gaining a derivation: `num_phases`
+    1024 → **64** (the measured saturation point) and `lock_thresh`
+    0.5 → **0.4999** (the same number, now derived — see §4.2). `bn_carrier`,
+    `bn_timing` and the waveform parameters stay supplied: they are the
+    design axes, which is the line this decision drew.
 - **Cold carrier pull-in on the strobe tap** — *resolved by §3.3, superseding
     the previous answer.* The strobe tap made carrier acquisition depend on
     symbol timing, costing roughly a third of data seeds at `m_out = 4`.

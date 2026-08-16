@@ -823,8 +823,17 @@ dp_rx_check (const dp_rx_result_t *r)
      `mf_out` (upd 2.0) and `mf_in` (upd 1.5625) and none on `strobe`. So
      this gate pins the gain of the loop the battery actually runs; it does
      not pin the tap-rate conversion, and a battery point at a non-unity tap
-     is what would. That choice is entangled with the open `nda_tap` question
-     (doppler#791) and is deliberately not made here. */
+     is what would.
+
+     That is a SETTLED boundary, not a gap awaiting a decision. The battery is
+     STROBE-only on purpose: `ContinuousMpskReceiver` was measured pinning a
+     tap whose update rate is not 1 and its lock statistic no longer meant
+     what its threshold said, so the flavor moved to `strobe` too
+     (doppler#791). The tap-rate conversion is therefore `rx_nda_tap.c`'s to
+     pin, permanently, and that file sweeps all three taps precisely because
+     nothing else does. Do not add a fast-tap point here to close the gap —
+     it would import a lock statistic this harness's settling gate cannot
+     read, which is the defect that started it. */
   if (r->ramp_law_rad > 0.0
       && !(fabs (r->ramp_lag_rad - r->ramp_law_rad)
            <= DP_RX_RAMP_TOL * r->ramp_law_rad))

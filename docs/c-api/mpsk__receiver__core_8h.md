@@ -85,19 +85,23 @@ _Pulse-shaped M-PSK receiver: a tuned matched DDC and two loops._ [More...](#det
 |  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create**](#function-mpsk_receiver_create) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, int differential, size\_t num\_phases, int nda\_tap, int agc, double bn\_agc\_ratio) <br>_Create an M-PSK receiver._  |
 |  void | [**mpsk\_receiver\_destroy**](#function-mpsk_receiver_destroy) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Destroy an M-PSK receiver and release all memory._  |
 |  double | [**mpsk\_receiver\_get\_agc\_gain\_db**](#function-mpsk_receiver_get_agc_gain_db) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Gain the front end's AGC is applying, in dB; 0.0 when_ `agc` _= 0._ |
+|  double | [**mpsk\_receiver\_get\_bn\_agc\_ratio**](#function-mpsk_receiver_get_bn_agc_ratio) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_AGC bandwidth ratio in use — derived unless pinned (§8.1)._  |
 |  int | [**mpsk\_receiver\_get\_clipped**](#function-mpsk_receiver_get_clipped) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to +-1.0 and clips silently past that, which costs ~25 dB of EVM behind a perfectly healthy lock._  |
 |  double | [**mpsk\_receiver\_get\_last\_error**](#function-mpsk_receiver_get_last_error) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Carrier loop phase discriminator (rad) — the residual phase the loop is trying to null; loop stress._  |
 |  double | [**mpsk\_receiver\_get\_lock**](#function-mpsk_receiver_get_lock) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
+|  double | [**mpsk\_receiver\_get\_lock\_thresh**](#function-mpsk_receiver_get_lock_thresh) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Handover lock threshold in use — derived unless pinned (§8.1)._  |
 |  int64\_t | [**mpsk\_receiver\_get\_lock\_time**](#function-mpsk_receiver_get_lock_time) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Symbols from reset to the FIRST carrier-lock declaration, or -1 if the receiver has not locked yet._  |
 |  int | [**mpsk\_receiver\_get\_locked**](#function-mpsk_receiver_get_locked) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Binary carrier-lock flag from the loop's hysteretic (up/down verify-counted) lock detector — de-chattered, unlike the raw metric._  |
 |  int | [**mpsk\_receiver\_get\_m**](#function-mpsk_receiver_get_m) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 |  size\_t | [**mpsk\_receiver\_get\_m\_out**](#function-mpsk_receiver_get_m_out) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Terminal outputs per symbol (the old_ `n` _, now the cascade's)._ |
 |  double | [**mpsk\_receiver\_get\_nco\_freq**](#function-mpsk_receiver_get_nco_freq) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Instantaneous NCO frequency command (carrier loop filter output, cycles/sample): mean tracks a ramp with no lag, variance is loop stress._  |
 |  double | [**mpsk\_receiver\_get\_norm\_freq**](#function-mpsk_receiver_get_norm_freq) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Carrier frequency the receiver is tracking, cycles/sample at the input rate: the create-time centre plus the loop's own estimate._  |
+|  size\_t | [**mpsk\_receiver\_get\_num\_phases**](#function-mpsk_receiver_get_num_phases) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Matched-filter bank arms in use — derived unless pinned (§8.1)._  |
 |  double | [**mpsk\_receiver\_get\_sps**](#function-mpsk_receiver_get_sps) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 |  void | [**mpsk\_receiver\_get\_state**](#function-mpsk_receiver_get_state) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, void \* blob) <br> |
 |  double | [**mpsk\_receiver\_get\_timing\_rate**](#function-mpsk_receiver_get_timing_rate) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Smoothed tracked samples per symbol — departs from the nominal_ `sps` _by exactly the sample-clock offset the timing loop is tracking._ |
 |  int | [**mpsk\_receiver\_get\_tracking**](#function-mpsk_receiver_get_tracking) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
+|  double | [**mpsk\_receiver\_get\_zeta**](#function-mpsk_receiver_get_zeta) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Loop damping in use — derived_ `1/sqrt(2)` _unless pinned (§8.1)._ |
 |  void | [**mpsk\_receiver\_reset**](#function-mpsk_receiver_reset) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Re-seed the front end and both loops to their create-time state._  |
 |  void | [**mpsk\_receiver\_set\_norm\_freq**](#function-mpsk_receiver_set_norm_freq) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, double val) <br>_Retune to_ `val` _cycles/sample: moves the LO centre there and zeroes the loop's residual estimate, so norm\_freq reads back exactly._ |
 |  int | [**mpsk\_receiver\_set\_state**](#function-mpsk_receiver_set_state) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const void \* blob) <br> |
@@ -462,6 +466,22 @@ Separate from the cascade's filter response ([**RateConverter\_gain()**](RateCon
 
 
 
+### function mpsk\_receiver\_get\_bn\_agc\_ratio 
+
+_AGC bandwidth ratio in use — derived unless pinned (§8.1)._ 
+```C++
+double mpsk_receiver_get_bn_agc_ratio (
+    const mpsk_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function mpsk\_receiver\_get\_clipped 
 
 _Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to +-1.0 and clips silently past that, which costs ~25 dB of EVM behind a perfectly healthy lock._ 
@@ -498,6 +518,22 @@ double mpsk_receiver_get_last_error (
 
 ```C++
 double mpsk_receiver_get_lock (
+    const mpsk_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function mpsk\_receiver\_get\_lock\_thresh 
+
+_Handover lock threshold in use — derived unless pinned (§8.1)._ 
+```C++
+double mpsk_receiver_get_lock_thresh (
     const mpsk_receiver_state_t * state
 ) 
 ```
@@ -612,6 +648,22 @@ double mpsk_receiver_get_norm_freq (
 
 
 
+### function mpsk\_receiver\_get\_num\_phases 
+
+_Matched-filter bank arms in use — derived unless pinned (§8.1)._ 
+```C++
+size_t mpsk_receiver_get_num_phases (
+    const mpsk_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function mpsk\_receiver\_get\_sps 
 
 ```C++
@@ -663,6 +715,22 @@ double mpsk_receiver_get_timing_rate (
 
 ```C++
 int mpsk_receiver_get_tracking (
+    const mpsk_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function mpsk\_receiver\_get\_zeta 
+
+_Loop damping in use — derived_ `1/sqrt(2)` _unless pinned (§8.1)._
+```C++
+double mpsk_receiver_get_zeta (
     const mpsk_receiver_state_t * state
 ) 
 ```

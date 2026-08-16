@@ -868,7 +868,27 @@ dp_rx_check (const dp_rx_result_t *r)
      channel's ppm-to-Hz conversion, the discriminator, the loop filter's
      gains, and whatever turns the filter's output into the LO's control port.
      A gain error anywhere in that chain moves the lag by its own factor, and
-     that is the gh-765 class of defect. */
+     that is the gh-765 class of defect.
+
+     Measured, both ways: scaling `freq_scale` by 2 reads +101.4% and fails,
+     by 1.25 reads -19.4% and fails, and the trio stays GREEN through both —
+     SER 1.09e-3, EVM -7.35 dB, unmoved. A carrier loop running at twice its
+     stated bandwidth is invisible to every other number this instrument
+     produces, which is the whole argument for the point.
+
+     WHAT IT DOES NOT COVER, and the reason is structural rather than a
+     tolerance. gh-765 itself was `freq_scale` missing its `* upd` factor —
+     the loop filter's output taken as radians per UPDATE rather than per
+     symbol. Every point in this battery runs `nda_tap = 0` (STROBE), whose
+     update rate is exactly 1, so that factor IS 1 and removing it changes
+     nothing: applied here it leaves this gate byte-identical and green.
+     `rx_nda_tap.c` is what catches it, because it sweeps the taps whose
+     update rate is not 1 — under the same sabotage it fails six ramp rows on
+     `mf_out` (upd 2.0) and `mf_in` (upd 1.5625) and none on `strobe`. So
+     this gate pins the gain of the loop the battery actually runs; it does
+     not pin the tap-rate conversion, and a battery point at a non-unity tap
+     is what would. That choice is entangled with the open `nda_tap` question
+     (doppler#791) and is deliberately not made here. */
   if (r->ramp_law_rad > 0.0
       && !(fabs (r->ramp_lag_rad - r->ramp_law_rad)
            <= DP_RX_RAMP_TOL * r->ramp_law_rad))

@@ -808,7 +808,7 @@ dp_ber_measure (dp_ber_t *b, const float complex *rx, size_t n_rx,
 {
   dp_ber_marker_t local;
   dp_ber_sync_t   sy;
-  size_t          lo;
+  size_t          lo, hi;
 
   if (!mk)
     {
@@ -840,15 +840,36 @@ dp_ber_measure (dp_ber_t *b, const float complex *rx, size_t n_rx,
          (every occurrence is then excluded uniformly) and is what
          `rx_frame_fer.c` already did by hand. */
   lo = settle;
+  hi = n_rx;
   if (sy.ok)
     {
       size_t mn = mk->n ? mk->n : DP_BER_SYNC_SYMS;
       long   e  = (long)(mk->period ? mk->t0 : mk->t0 + mn) - sy.lag;
       if (e > 0 && (size_t)e > lo)
         lo = (size_t)e;
-      dp_ber_score (b, rx, lo, n_rx, truth, n_truth, mk, &sy);
+      /* And the SAME argument at the other end of the window. `in_marker`
+         bounds exclusion at both ends — `t < t0` above, and
+         `off / period >= occurrences` here — so scoring past the last
+         EXCLUDED occurrence reintroduces the identical defect at the tail:
+         sync words counted as data, flattering the denominator in the same
+         direction.
+
+         Measured on both named frames it does not currently bite — exclusion
+         already reaches 44 symbols past the scored top at period 285 and 824
+         at period 1679 — but that margin is a function of the LAG, which is
+         detected rather than chosen: on the 285 geometry a lag beyond ~245
+         turns it positive, and `DP_BER_LAG_SPAN` is 200. So it is bounded
+         rather than left to a coincidence that holds at the two geometries
+         anyone has looked at. Today this changes no number. */
+      if (mk->period && sy.occurrences)
+        {
+          long cover = (long)(mk->t0 + sy.occurrences * mk->period) - sy.lag;
+          if (cover > (long)lo && (size_t)cover < hi)
+            hi = (size_t)cover;
+        }
+      dp_ber_score (b, rx, lo, hi, truth, n_truth, mk, &sy);
     }
-  return dp_ber_report (b, esn0_db, &sy, lo, n_rx, settled, DP_BER_CONF);
+  return dp_ber_report (b, esn0_db, &sy, lo, hi, settled, DP_BER_CONF);
 }
 
 #endif /* DP_BER_TEST_H */

@@ -1,5 +1,6 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
+#include "mpsk/mpsk_core.h"
 #include "wfm_synth/wfm_synth_core.h"
 #include <complex.h>
 #include <math.h>
@@ -163,6 +164,54 @@ main (void)
 
     wfm_synth_destroy (bs);
     wfm_synth_destroy (bs2);
+  }
+
+  /* ── the bits->symbol map is the LIBRARY's, at every order ───────────────
+     The property no agreement between two copies can establish. `set_bits`
+     had four inlined copies of this map and the QPSK one disagreed with
+     `mpsk_constellation()` on two of its four labels -- same constellation,
+     swapped assignment. Every copy agreed with every other, so a consistency
+     check passed; what fails is a round trip through the CANONICAL demapper,
+     which is the thing that actually scores bit errors (dp_ber_score).
+     Sabotage `wfm_synth_bit_symbol`'s label packing and this goes red. */
+  {
+    const int mods[3] = { 1, 2, 3 }; /* bits/symbol: BPSK, QPSK, 8PSK */
+    for (int mi = 0; mi < 3; mi++)
+      {
+        int bmod = mods[mi];
+        int m    = 1 << bmod;
+        /* 24 bits divides by 1, 2 and 3, so the pattern is a whole number of
+           symbols at every order and the cycling never straddles one. The
+           bits COUNT UP so every one of the M labels is exercised -- an
+           alternating pattern makes each order emit one or two labels for
+           ever, and a label the test never produces is a label the mapping
+           can get wrong undetected. */
+        uint8_t bp[24];
+        for (int i = 0; i < 24; i++)
+          bp[i] = (uint8_t)((i / bmod >> (bmod - 1 - i % bmod)) & 1);
+        wfm_synth_state_t *b = wfm_synth_create (WFM_SYNTH_BITS, 1e6, 0.0,
+                                                 100.0, 0, 1, 1, 7, 0, 0, 0.0);
+        DP_CHECK (b != NULL);
+        DP_CHECK (wfm_synth_set_bits (b, bp, 24, bmod) == 0);
+        {
+          size_t        nsym = 24u / (size_t)bmod;
+          float complex y[24];
+          wfm_synth_steps (b, y, nsym); /* sps = 1: one sample per symbol */
+          for (size_t k = 0; k < nsym; k++)
+            {
+              unsigned g = 0u;
+              for (int t = 0; t < bmod; t++) /* MSB-first, as documented */
+                g = (g << 1) | (unsigned)bp[k * (size_t)bmod + (size_t)t];
+              {
+                float complex ahat;
+                unsigned      got = mpsk_slice (y[k], m, &ahat);
+                DP_CHECK (got == g);
+                DP_CHECK (dp_nearf (cabsf (y[k]), 1.0f, 1e-5f));
+              }
+            }
+        }
+        wfm_synth_destroy (b);
+      }
   }
 
   /* ── bits + RRC: set_rrc shapes the bit stream, step()==steps() ───────────

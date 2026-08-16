@@ -1,6 +1,7 @@
 #include "wfm_synth/wfm_synth_core.h"
 
-#include "wfm/wfm_dsp.h" /* wfm_frame_dsss_chips — the DSSS burst builder */
+#include "mpsk/mpsk_core.h" /* mpsk_constellation — the ONE map */
+#include "wfm/wfm_dsp.h"    /* wfm_frame_dsss_chips — the DSSS burst builder */
 
 wfm_synth_state_t *
 wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
@@ -211,7 +212,7 @@ wfm_synth_set_bits (wfm_synth_state_t *state, const uint8_t *bits, size_t n,
 {
   if (state->wtype != WFM_SYNTH_BITS)
     return 0; /* no-op for every other type */
-  if (!bits || n == 0 || modulation < 0 || modulation > 2)
+  if (!bits || n == 0 || modulation < 0 || modulation > 3)
     return -1;
   uint8_t *copy = malloc (n);
   if (!copy)
@@ -618,26 +619,10 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
                         }
                       else if (bits && nb)
                         {
-                          if (bmod == 2)
-                            {
-                              uint8_t b0 = bits[bit_idx];
-                              uint8_t b1 = bits[(bit_idx + 1) % nb];
-                              cre        = b0 ? -s : s;
-                              cim        = b1 ? -s : s;
-                              bit_idx    = (bit_idx + 2) % nb;
-                            }
-                          else if (bmod == 1)
-                            {
-                              cre     = bits[bit_idx] ? -1.0f : 1.0f;
-                              cim     = 0.0f;
-                              bit_idx = (bit_idx + 1) % nb;
-                            }
-                          else
-                            {
-                              cre     = bits[bit_idx] ? 1.0f : 0.0f;
-                              cim     = 0.0f;
-                              bit_idx = (bit_idx + 1) % nb;
-                            }
+                          float complex bs = wfm_synth_bit_symbol (state);
+                          bit_idx          = state->bit_idx;
+                          cre              = crealf (bs);
+                          cim              = cimagf (bs);
                         }
                     }
                   out[i]
@@ -668,26 +653,10 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
                       }
                     else if (bits && nb)
                       {
-                        if (bmod == 2)
-                          {
-                            uint8_t b0 = bits[bit_idx];
-                            uint8_t b1 = bits[(bit_idx + 1) % nb];
-                            cre        = b0 ? -s : s;
-                            cim        = b1 ? -s : s;
-                            bit_idx    = (bit_idx + 2) % nb;
-                          }
-                        else if (bmod == 1)
-                          {
-                            cre     = bits[bit_idx] ? -1.0f : 1.0f;
-                            cim     = 0.0f;
-                            bit_idx = (bit_idx + 1) % nb;
-                          }
-                        else
-                          {
-                            cre     = bits[bit_idx] ? 1.0f : 0.0f;
-                            cim     = 0.0f;
-                            bit_idx = (bit_idx + 1) % nb;
-                          }
+                        float complex bs = wfm_synth_bit_symbol (state);
+                        bit_idx          = state->bit_idx;
+                        cre              = crealf (bs);
+                        cim              = cimagf (bs);
                       }
                   }
                 if (++sym_pos >= nsps)

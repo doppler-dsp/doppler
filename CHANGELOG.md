@@ -36,11 +36,38 @@ ______________________________________________________________________
     (`docs/design/mpsk.md` §2.1).
 
     What it pins, and why none of them is a choice here: `acq_to_track = 0`
-    (the handover **is** the gate this flavor removes); `nda_tap = mf_in`, the
-    only tap with neither a symbol-timing dependency nor an inter-symbol ISI
-    bias, so the carrier loop acquires without waiting; `agc = 1`, which is
-    load-bearing rather than optional; and the five gh-644 parameters as `0`,
-    which is a *request* for the derived answer, not an omission.
+    (the handover **is** the gate this flavor removes); `nda_tap = strobe`,
+    the only tap whose lock statistic means what the derived `lock_thresh`
+    says; `agc = 1`, which is load-bearing rather than optional; and the five
+    gh-644 parameters as `0`, which is a *request* for the derived answer, not
+    an omission.
+
+    **The tap was `mf_in` in an earlier draft of this entry, and measurement
+    moved it.** `mf_in` is timing-independent, which is a real argument for a
+    receiver with no gating — but its update rate is `bank_sps`, faster than
+    `Rs`, and `docs/design/mpsk.md` §2.1 lists exactly what follows: the lock
+    EMA's `α` is per-*update*, so at a fast tap the metric's memory is shorter
+    in symbols and its looks are correlated, breaking the independent-look
+    assumption its threshold is derived from. §2.1 claims this flavor cannot
+    have that defect; pinning `mf_in` is what gave it one. Measured
+    ([#791](https://github.com/doppler-dsp/doppler/issues/791)): `mf_in`
+    demodulates on the matched-filter bound — EVM −7.32 dB against `strobe`'s
+    −7.31, within 0.07 dB at `sps` 4/8/16/32 — while its lock statistic
+    settles at 0.23–0.51 against a `lock_thresh` of 0.4999, so the receiver
+    worked and its own lock readout said otherwise.
+
+    A flavor whose headline is that *no metric has to be trusted before the
+    loop may act* must not ship the one metric it still reports in a state
+    where it cannot be. At `strobe` the discriminator's clock **is** the
+    symbol clock, so §2.1's defects collapse rather than being repaired — the
+    C test asserts that as `updates_per_symbol == 1.0`, a property an enum
+    check would not have caught. What is given up is timing independence:
+    `strobe` couples the discriminator's input quality to the timing loop's
+    convergence. That is a **coupling, not a gate** — it steers from its first
+    strobe whether or not timing has declared — and the timing-independent
+    taps stay one `MpskReceiver(...)` call away. Normalising the lock
+    statistic for the tap's update rate is what would make `mf_in` pinnable
+    here.
 
     `lock_thresh` is **excluded rather than defaulted**: with no handover it
     gates nothing, so it is telemetry. It stays readable — `rx.lock_thresh`

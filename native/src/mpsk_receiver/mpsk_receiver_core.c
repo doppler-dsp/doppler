@@ -432,7 +432,8 @@ mpsk_receiver_create_continuous (int m, double sps, int pulse, double rrc_beta,
       bn_timing, 0,                     /* acq_to_track -- NO handover */
       0.0,                              /* lock_thresh  -> derived      */
       init_norm_freq, differential, 0u, /* num_phases   -> derived      */
-      MPSK_RX_NDA_TAP_MF_IN,            /* no timing dep.    */
+      MPSK_RX_NDA_TAP_STROBE,           /* the lock stat the thresh is
+                                           calibrated for -- see the header */
       1,                                /* agc -- load-bearing, not opt */
       0.0);                             /* bn_agc_ratio -> derived      */
 }

@@ -223,7 +223,10 @@ matched filter's processing gain" story is wrong  an earlier revision of this co
 The mechanism: DEC band-limits to ITS OWN Nyquist, `+-bank_sps*Rs/2`, while the signal occupies ~`+-Rs`. Nothing between them removes the difference, and the terminal filter  the first thing in the cascade matched to the signal  is downstream of this tap. So the tap reads a node carrying several times the noise bandwidth it needs.
 
 
-Two consequences. It is **bounded by the plan**, not by the input rate: `bank_sps` is a planner outcome, and at `sps = 64` it is still 8, so the cost is 9.0 dB there and not 18. And it is **recoverable**  decimating this stream to 2 sps (docs/design/mpsk.md S3.3) or restoring an arm filter would remove most of it, which is doppler#790. What fails first is the M-th-power LOCK statistic, because that is an SNR measure and not a phase measure; the loop itself acquires at every operating point measured.
+It is **bounded by the plan**, not by the input rate: `bank_sps` is a planner outcome, and at `sps = 64` it is still 8, so the cost is 9.0 dB there and not 18.
+
+
+**This is the tap's price, not a defect awaiting a fix.** Band-limiting the node to the signal  an arm filter, or the 2 sps decimation S3.3 considers  would recover most of it and is deliberately NOT planned: both cost serialized state on every object that carries this tap, and `STROBE` already reads the node that IS matched to the signal, for free. A caller choosing `MF_IN` is buying `bank_sps/(2M)` of pull-in range and paying `10*log10(bank_sps)` dB of lock sensitivity for it. What degrades is the M-th-power LOCK statistic, because that is an SNR measure and not a phase measure; the loop itself acquires at every operating point measured.
 
 
 There is a second axis, and it is the one the cascade rebuild lost. `STROBE` is the only tap that depends on **symbol timing**: it reads the one output the timing loop nominates, so before timing lock it is reading an arbitrary phase of the pulse. `MF_OUT` consumes every terminal output and so does not care which one is on-time; `MF_IN` reads the MFR's input entirely ahead of it. Both therefore restore the property the NDA path exists for — acquiring with no data _and no symbol timing_ — which is why they are not merely "wider".

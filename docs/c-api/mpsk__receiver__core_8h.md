@@ -493,7 +493,7 @@ Measured on that scenario  `native/validation/rx_dynamics.c`, a coupled Doppler 
 
 
 
-\*\*`strobe`'s timing dependency costs nothing in the half where timing is impossible\*\*, and the reason is worth stating because it reads backwards: an unmodulated NRZ carrier is SAMPLING-PHASE INVARIANT. Every sample is the same constellation point, so the M-th-power discriminator does not care which one the timing loop would have nominated. Timing closure gates DEMODULATION, not carrier acquisition  so the tap that depends on it is free exactly where it looked most exposed. `mf_out` instead takes the largest hit the moment transitions exist, which is its ISI bias arriving on schedule, and `mf_in` reads lowest throughout (the excess noise bandwidth at its node  see the `nda_tap` enum, and doppler#790).
+\*\*`strobe`'s timing dependency costs nothing in the half where timing is impossible\*\*, and the reason is worth stating because it reads backwards: an unmodulated NRZ carrier is SAMPLING-PHASE INVARIANT. Every sample is the same constellation point, so the M-th-power discriminator does not care which one the timing loop would have nominated. Timing closure gates DEMODULATION, not carrier acquisition  so the tap that depends on it is free exactly where it looked most exposed. `mf_out` instead takes the largest hit the moment transitions exist, which is its ISI bias arriving on schedule, and `mf_in` reads lowest throughout (the excess noise bandwidth at its node  see the `nda_tap` enum, where that cost is measured and stated as the tap's price).
 
 
 "Nothing waits" is untouched by the pin: it is a statement about GATES  the handover, the lock gate, the warmup  and `acq_to_track = 0` is what delivers it.

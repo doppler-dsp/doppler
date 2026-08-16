@@ -665,6 +665,39 @@ target_include_directories(test_dp_sym
 target_compile_options(test_dp_sym PRIVATE -O2)
 add_test(NAME test_dp_sym COMMAND test_dp_sym)
 
+# native/tests/dp_test.h is the assertion foundation 97 C test files include.
+# It is the worst place in the tree for an untested thing to sit: a DP_CHECK
+# that stops recording failures does not turn the suite red, it turns it
+# GREEN, and ctest reports 100%. The header replaced 90 hand-rolled CHECK
+# macros in six variants -- one with its condition inverted, twenty whose
+# failure gate had drifted so 75 checks printed FAIL and still exited 0 --
+# and nothing had been watching the replacement.
+#
+# The self-test observes dp_test.h's own counters rather than its exit status,
+# which is how it can assert that a check FAILS without failing itself, and it
+# captures stderr so a deliberate failure never puts a fake FAIL line in a
+# passing test's log.
+add_executable(test_dp_test native/tests/test_dp_test.c)
+target_include_directories(test_dp_test
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_test PRIVATE -O2)
+add_test(NAME test_dp_test COMMAND test_dp_test)
+
+# DP_TEST_END returns, so its three exit paths cannot be tested in-process.
+# Each gets a process, and CTest asserts the status. `nothing` is the one that
+# matters: the zero-assertion floor is the only guard between this suite and a
+# test whose body never ran reading as a pass forever, and nothing had ever
+# run a zero-assertion program to check that the floor fires.
+add_executable(test_dp_test_end native/tests/test_dp_test_end.c)
+target_include_directories(test_dp_test_end
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_test_end PRIVATE -O2)
+add_test(NAME test_dp_test_end_nothing COMMAND test_dp_test_end nothing)
+add_test(NAME test_dp_test_end_fail COMMAND test_dp_test_end fail)
+add_test(NAME test_dp_test_end_pass COMMAND test_dp_test_end pass)
+set_tests_properties(test_dp_test_end_nothing test_dp_test_end_fail
+                     PROPERTIES WILL_FAIL TRUE)
+
 # native/tests/dp_ber_test.h is the error-rate measurement harness every
 # receiver test scores through -- the settling window, the Pfa-gated alignment,
 # inverse binomial sampling and the exact confidence interval. It is header-

@@ -80,6 +80,7 @@ ______________________________________________________________________
     what the "DEC has already band-limited this node, the AGC has already
     levelled it" argument conflated.
 
+
 - **`ContinuousMpskReceiver` pins `nda_tap = strobe`, measured on its own
     waveform.** It shipped pinning `mf_in`, and every harness that had touched
     that tap shared the same gap: `rx_battery` runs RRC with dense transitions

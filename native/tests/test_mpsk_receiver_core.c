@@ -287,7 +287,13 @@ main (void)
            still has SNR. The standard battery, at the anchor's 6.79 dB
            through an RRC pair, refuses on all 9 points (doppler#790). */
         DP_CHECK (c->l.nda_tap == MPSK_RX_NDA_TAP_STROBE);
-        DP_CHECK (c->l.tap_timed == 1);    /* and it is the one timed tap */
+        DP_CHECK (c->l.tap_timed == 1); /* and it is the one timed tap */
+        /* The PROPERTY behind the enum: this flavor's discriminator clock IS
+           the symbol clock. docs/design/mpsk.md S2.1 lists three defects that
+           follow from a tap faster than Rs and claims Mode 1 cannot have them,
+           which is only true at an update rate of exactly 1. An enum check
+           alone would survive a swap to another fast tap; this does not. */
+        DP_CHECK (dp_near (mpsk_rx_updates_per_symbol (&c->l), 1.0, 1e-15));
         DP_CHECK (c->fe->rc->agc != NULL); /* the AGC is not optional */
         /* Derived, not defaulted -- the same five §8.1 rows as 1b. */
         DP_CHECK (mpsk_receiver_get_m_out (c) == 8u);

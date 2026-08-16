@@ -60,12 +60,16 @@ ______________________________________________________________________
     this tap.
 
     So the cost is **bounded by the plan** (`bank_sps` is a planner outcome:
-    still 8 at `sps = 64`, so 9.0 dB there, not 18) and **recoverable** — the
-    2-sps decimation `docs/design/mpsk.md` §3.3 declines, or an arm filter,
-    which the `carrier_nda` primitive keeps for exactly this reason. gh-790 is
-    an argument that the node is unfinished, not that the tap's position is
-    wrong. The loop acquires at every operating point measured; what degrades
-    is the M-th-power lock statistic, which is an SNR measure.
+    still 8 at `sps = 64`, so 9.0 dB there, not 18) — and it is the tap's
+    **stated price rather than a defect**. Band-limiting the node (an arm
+    filter, or the 2-sps decimation `docs/design/mpsk.md` §3.3 considers)
+    would recover most of it and is **declined**: both cost serialized state
+    on every object carrying the tap, and `strobe` already reads the node
+    matched to the signal for free — and measures better on this flavor's own
+    waveform. So `mf_in`'s trade is stated, not repaired: `bank_sps/(2M)` of
+    pull-in range for `10·log10(bank_sps)` dB of lock sensitivity. The loop
+    acquires at every operating point measured; what degrades is the
+    M-th-power lock statistic, which is an SNR measure.
 
 - **`rx_battery --check` fails a receiver that refuses EVERY point.** A
     per-point refusal is a result and stays uncounted — a `qpsk`/`psk8`

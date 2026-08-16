@@ -742,10 +742,11 @@ main (int argc, char **argv)
          What is gated is ACQUISITION and deliberately not the lock
          statistic. `mf_in`'s lock is degraded at every Es/N0 here (0.19 at
          the battery's anchor against `strobe`'s 0.79) and that is a real
-         open defect, doppler#790 -- so gating it would either pin the defect
-         as correct or land red on main. The table below REPORTS both columns
-         so the asymmetry is reproducible; the gate asserts only the half
-         that holds, which is the honest split. */
+         a stated characteristic of the tap rather than a contract -- gating
+         it would pin a caller's trade as if it were the receiver's promise.
+         The table below REPORTS both columns so the asymmetry is reproducible;
+         the gate asserts only the half that holds, which is the honest split.
+       */
       {
         double sps = 8.0, fs = 8000.0;
         for (int t = 0; t < 3; t++)
@@ -885,9 +886,8 @@ main (int argc, char **argv)
           "10*log10(sps)\n= %.1f dB of processing gain, and the M-th-power "
           "lock statistic is an SNR measure,\nso it collapses while the loop "
           "still pulls the offset in. ACQUISITION is gated;\nthe lock column "
-          "is reported and NOT gated -- it is an open defect (doppler#790),\n"
-          "and a gate on it would either pin the defect as correct or land "
-          "red on main.\n\n",
+          "is reported and NOT gated -- it is the tap's stated price, a\n"
+          "caller's trade rather than the receiver's contract.\n\n",
           RX_NDA_FOFF_SYM, 10.0 * log10 (8.0));
   printf ("  Es/N0 dB   per-sample     %8s          %8s          %8s\n",
           RX_NDA_NAMES[0], RX_NDA_NAMES[1], RX_NDA_NAMES[2]);

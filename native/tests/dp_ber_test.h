@@ -592,11 +592,18 @@ typedef struct
   double loss_db;      /**< Implementation loss: `esn0_db - esn0(measured)`. */
   size_t window_lo;    /**< First symbol measured. */
   size_t window_hi;    /**< One past the last. */
-  int    settled;      /**< The window cleared every settling budget. */
-  int    aligned;      /**< The marker detection passed its Pfa gate. */
-  int    enough;       /**< The error target was reached. */
-  int    sane;         /**< EVM / M2M4 / theory all agree with the rate. */
-  int    ok;           /**< All four gates. Anything less is not a result. */
+  /* The alignment that fixed the record. It is part of DEFENDING the rate,
+     not a by-product of computing it: a caller scoring anything else against
+     the same record — per-frame outcomes, a telemetry series — has to place
+     it in the same coordinates, and recomputing the detection to find out
+     where it sat is a second copy of the decision. */
+  long        lag;     /**< rx index = truth index - lag. 0 if unaligned. */
+  double      phase;   /**< Residual constellation rotation, radians. */
+  int         settled; /**< The window cleared every settling budget. */
+  int         aligned; /**< The marker detection passed its Pfa gate. */
+  int         enough;  /**< The error target was reached. */
+  int         sane;    /**< EVM / M2M4 / theory all agree with the rate. */
+  int         ok;      /**< All four gates. Anything less is not a result. */
   const char *why;     /**< The first failing gate. */
 } dp_ber_report_t;
 
@@ -659,6 +666,8 @@ dp_ber_report (const dp_ber_t *b, double esn0_db, const dp_ber_sync_t *sy,
   r.theory_ber   = dp_ber_theory_ber (b->m, esn0);
   r.window_lo    = lo;
   r.window_hi    = hi;
+  r.lag          = (sy && sy->ok) ? sy->lag : 0;
+  r.phase        = (sy && sy->ok) ? sy->phase : 0.0;
   r.settled      = settled ? 1 : 0;
   r.aligned      = (sy && sy->ok) ? 1 : 0;
   r.enough       = dp_ber_enough (b);
@@ -816,15 +825,26 @@ dp_ber_measure (dp_ber_t *b, const float complex *rx, size_t n_rx,
   sy = dp_ber_sync (rx, n_rx, truth, n_truth, mk, b->m, DP_BER_LAG_SPAN,
                     DP_BER_SYNC_PFA);
 
-  /* Score from the settled point, but never before the marker ends: the
-     symbols that fixed the alignment must not also be scored. */
+  /* Where scoring may begin, in rx coordinates. The two marker shapes want
+     different answers and the difference is not cosmetic:
+
+       - a BLIND marker (period 0) is a stretch of truth borrowed to fix the
+         alignment, so scoring starts past its END — those symbols must not
+         also be scored;
+       - a PERIODIC marker recurs for the whole record, so scoring starts at
+         its FIRST OCCURRENCE. `ber_meter`'s exclusion reads an index before
+         `t0` as "not a marker" (`ber_meter_core.c:122`), so a window opening
+         earlier scores the sync words that precede `t0` as if they were
+         data — known symbols that had no chance of being wrong, quietly
+         flattering the denominator. Starting at `t0` costs no leading block
+         (every occurrence is then excluded uniformly) and is what
+         `rx_frame_fer.c` already did by hand. */
   lo = settle;
   if (sy.ok)
     {
-      size_t mn  = mk->n ? mk->n : DP_BER_SYNC_SYMS;
-      size_t end = mk->t0 + mn;
-      long   e   = (long)end - sy.lag;
-      if (!mk->period && e > 0 && (size_t)e > lo)
+      size_t mn = mk->n ? mk->n : DP_BER_SYNC_SYMS;
+      long   e  = (long)(mk->period ? mk->t0 : mk->t0 + mn) - sy.lag;
+      if (e > 0 && (size_t)e > lo)
         lo = (size_t)e;
       dp_ber_score (b, rx, lo, n_rx, truth, n_truth, mk, &sy);
     }

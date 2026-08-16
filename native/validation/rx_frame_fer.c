@@ -271,7 +271,8 @@ done:
  * @param n      How many.
  * @param truth  Transmitted symbol indices, the frame bits cycled.
  * @param nsym   How many.
- * @param sy     The RECORD alignment; every frame's position follows from it.
+ * @param lag    The RECORD alignment; every frame's position follows from it.
+ * @param phase  The record's residual constellation rotation, radians.
  * @param lo     First symbol of the scored window.
  * @param fm     The accumulator.
  * @param rxbits Scratch, at least `l.total_bits` bytes.
@@ -279,15 +280,15 @@ done:
 static void
 rx_frame_score_frames (const rx_frame_cfg_t *c, const wfm_frame_t *f,
                        const wfm_frame_layout_t *l, const float complex *out,
-                       size_t n, const uint8_t *truth, size_t nsym,
-                       const dp_ber_sync_t *sy, size_t lo,
-                       frame_meter_state_t *fm, uint8_t *rxbits)
+                       size_t n, const uint8_t *truth, size_t nsym, long lag,
+                       double phase, size_t lo, frame_meter_state_t *fm,
+                       uint8_t *rxbits)
 {
   /* Shift whichever array needs it so the residual lag is zero, because
      ber_align_detect searches around lag 0 and has no centre argument. After
      this, `rxa[i]` carries `tra[i]`. */
-  size_t               rx_skip = (sy->lag < 0) ? (size_t)(-sy->lag) : 0;
-  size_t               tr_skip = (sy->lag > 0) ? (size_t)(sy->lag) : 0;
+  size_t               rx_skip = (lag < 0) ? (size_t)(-lag) : 0;
+  size_t               tr_skip = (lag > 0) ? (size_t)(lag) : 0;
   const float complex *rxa     = out + rx_skip;
   size_t               n_rxa   = (n > rx_skip) ? n - rx_skip : 0;
   const uint8_t       *tra     = truth + tr_skip;
@@ -295,13 +296,13 @@ rx_frame_score_frames (const rx_frame_cfg_t *c, const wfm_frame_t *f,
   size_t               nbits   = l->total_bits;
   /* One rotation for the whole record, from the marker — not re-estimated per
      frame, which would be a per-frame minimisation over the answer. */
-  float complex derot = (float)cos (-sy->phase) + (float)sin (-sy->phase) * I;
+  float complex derot = (float)cos (-phase) + (float)sin (-phase) * I;
 
   for (size_t k = 0; (k + 1) * nbits <= nsym; k++)
     {
-      size_t t_start = k * nbits;               /* truth index of the frame  */
-      long   i0      = (long)t_start - sy->lag; /* its index in `out`       */
-      size_t t0_a, a0;
+      size_t          t_start = k * nbits;      /* truth index of the frame  */
+      long            i0 = (long)t_start - lag; /* its index in `out`       */
+      size_t          t0_a, a0;
       dp_ber_marker_t m1;
       dp_ber_sync_t   s1;
       int             crc;
@@ -366,7 +367,6 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
   unsigned char       *lc = NULL, *tk = NULL;
   size_t               lo = 0, hi = 0;
   int                  settled_any = 0;
-  dp_ber_sync_t        last_sync;
 
   memset (&r, 0, sizeof r);
   wfm_frame_layout (&f, &l);
@@ -418,7 +418,6 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
       int             clip = 0, ok = 0;
       size_t          n, settle;
       dp_ber_marker_t mk;
-      dp_ber_sync_t   sy;
 
       n = rx_frame_burst (c, bits, nbits, esn0_db,
                           seed0 + 7919u * (uint32_t)r.bursts, nsym, out, lc,
@@ -472,32 +471,32 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
           continue;
         }
 
-      sy = dp_ber_sync (out, n, truth, nsym, &mk, c->m, DP_BER_LAG_SPAN,
-                        DP_BER_SYNC_PFA);
-      if (!sy.ok)
-        {
-          /* Refused, not guessed. The reason is worth carrying separately
-             from a settling failure: "the loops never locked" and "the marker
-             never detected" call for different repairs, and a single counter
-             would have said neither. */
-          r.unaligned++;
-          continue;
-        }
-
-      /* Scoring starts at the first marker occurrence, so every sync word in
-         the window is a marker occurrence and is excluded uniformly. A
-         periodic marker costs no leading block: with an unframed stimulus the
-         256 symbols that fixed the alignment have to be given up. */
+      /* dp_ber_measure() is the sanctioned one-call path: it wires sync ->
+         window -> score -> report in the one order that is correct, including
+         the `lo` rule that has to respect BOTH the settled point and the
+         marker's shape. This file used to hand-roll that sequence, which made
+         it a second copy of a subtle ordering — and the copy was the one that
+         had the periodic-marker rule right. That rule now lives in
+         dp_ber_measure() and this is a caller. */
       {
-        long e = (long)(mk.period ? mk.t0 : mk.t0 + mk.n) - sy.lag;
-        lo     = (e > 0 && (size_t)e > settle) ? (size_t)e : settle;
-        hi     = n;
-        dp_ber_score (&acc, out, lo, hi, truth, nsym, &mk, &sy);
-        last_sync   = sy;
+        dp_ber_report_t rep = dp_ber_measure (&acc, out, n, truth, nsym,
+                                              esn0_db, settle, ok, &mk);
+        if (!rep.aligned)
+          {
+            /* Refused, not guessed. The reason is worth carrying separately
+               from a settling failure: "the loops never locked" and "the
+               marker never detected" call for different repairs, and a single
+               counter would have said neither. */
+            r.unaligned++;
+            continue;
+          }
+        r.rep       = rep;
+        lo          = rep.window_lo;
+        hi          = rep.window_hi;
         settled_any = 1;
         if (r.framed)
-          rx_frame_score_frames (c, &f, &l, out, n, truth, nsym, &sy, lo, fm,
-                                 rxbits);
+          rx_frame_score_frames (c, &f, &l, out, n, truth, nsym, rep.lag,
+                                 rep.phase, lo, fm, rxbits);
       }
     }
 
@@ -509,8 +508,12 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
   r.sync_miss     = frame_meter_sync_miss (fm);
 
 done:
-  r.rep = dp_ber_report (&acc, esn0_db, settled_any ? &last_sync : NULL, lo,
-                         hi, settled_any, DP_BER_CONF);
+  /* Every scored burst left its report in `r.rep`; a run that never scored one
+     still owes a verdict, and an empty accumulator reports it honestly (not
+     settled, not aligned, `sane = 0`) rather than leaving a zeroed struct that
+     reads as a measurement of zero. */
+  if (!settled_any)
+    r.rep = dp_ber_report (&acc, esn0_db, NULL, 0, 0, 0, DP_BER_CONF);
   r.crc_fail = r.sync_detected ? (double)(r.sync_detected - r.crc_passed)
                                      / (double)r.sync_detected
                                : NAN;

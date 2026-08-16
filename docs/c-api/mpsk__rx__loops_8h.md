@@ -78,6 +78,7 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_rx\_agc\_bn**](#function-mpsk_rx_agc_bn) (double bn\_carrier, double bn\_timing, double ratio) <br> |
 |  void | [**mpsk\_rx\_config\_carrier**](#function-mpsk_rx_config_carrier) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_(Re-)size the carrier loop filter for the tap's update rate._  |
 |  void | [**mpsk\_rx\_configure\_lock**](#function-mpsk_rx_configure_lock) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the handover detector; see_ [_**mpsk\_receiver\_configure\_lock()**_](mpsk__receiver__core_8h.md#function-mpsk_receiver_configure_lock) _, which forwards here. A live handover survives; the verify run restarts._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) size\_t | [**mpsk\_rx\_derive\_m\_out**](#function-mpsk_rx_derive_m_out) (double cap, int strict) <br>_Terminal outputs per symbol, derived: the largest even count in 2..8 the caller's own rate constraint allows._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_disc**](#function-mpsk_rx_disc) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex z) <br>_Run the NDA discriminator on one tapped sample._  |
 |  double | [**mpsk\_rx\_freq\_est**](#function-mpsk_rx_freq_est) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Tracked carrier offset in cycles/sample at the LO's rate — the loop's own estimate, excluding the front end's configured centre._  |
 |  void | [**mpsk\_rx\_loops\_get\_state**](#function-mpsk_rx_loops_get_state) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, void \* blob) <br>_Serialize the loops' mutable state into_ `blob` _._ |
@@ -126,14 +127,18 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 | ---: | :--- |
 | define  | [**MPSK\_RX\_AGC\_ALPHA**](mpsk__rx__loops_8h.md#define-mpsk_rx_agc_alpha)  `0.01`<br> |
 | define  | [**MPSK\_RX\_AGC\_BW\_RATIO**](mpsk__rx__loops_8h.md#define-mpsk_rx_agc_bw_ratio)  `0.05`<br> |
+| define  | [**MPSK\_RX\_AGC\_RATIO\_DEFAULT**](mpsk__rx__loops_8h.md#define-mpsk_rx_agc_ratio_default)  `[**MPSK\_RX\_AGC\_BW\_RATIO**](mpsk__rx__loops_8h.md#define-mpsk_rx_agc_bw_ratio)`<br>_AGC bandwidth ratio, derived: 20x slower than the slowest loop it feeds. The RATIO is the part that is not negotiable (see the block above); the value is_ `MPSK_RX_AGC_BW_RATIO` _, and it is a parameter only because the right separation depends on how fast the channel's LEVEL moves against its phase and timing. Zero asks for the default rather than being rejected._ |
 | define  | [**MPSK\_RX\_EPS**](mpsk__rx__loops_8h.md#define-mpsk_rx_eps)  `1e-12`<br> |
 | define  | [**MPSK\_RX\_HANDOVER\_DOWN**](mpsk__rx__loops_8h.md#define-mpsk_rx_handover_down)  `0.8`<br> |
 | define  | [**MPSK\_RX\_HANDOVER\_N\_DOWN**](mpsk__rx__loops_8h.md#define-mpsk_rx_handover_n_down)  `32u`<br> |
 | define  | [**MPSK\_RX\_HANDOVER\_N\_UP**](mpsk__rx__loops_8h.md#define-mpsk_rx_handover_n_up)  `8u`<br> |
+| define  | [**MPSK\_RX\_LOCK\_THRESH\_DEFAULT**](mpsk__rx__loops_8h.md#define-mpsk_rx_lock_thresh_default)  `0.4999`<br>_Lock threshold, derived:_ `sigma_H0 * eta(Pfa)` _at_`Pfa = 5e-6` _._ |
 | define  | [**MPSK\_RX\_LOOPS\_STATE\_MAGIC**](mpsk__rx__loops_8h.md#define-mpsk_rx_loops_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('M', 'R', 'X', 'L')`<br> |
 | define  | [**MPSK\_RX\_LOOPS\_STATE\_VERSION**](mpsk__rx__loops_8h.md#define-mpsk_rx_loops_state_version)  `6u`<br> |
 | define  | [**MPSK\_RX\_M\_OUT\_DEFAULT**](mpsk__rx__loops_8h.md#define-mpsk_rx_m_out_default)  `8`<br> |
 | define  | [**MPSK\_RX\_NUM\_PHASES**](mpsk__rx__loops_8h.md#define-mpsk_rx_num_phases)  `1024u`<br> |
+| define  | [**MPSK\_RX\_NUM\_PHASES\_DEFAULT**](mpsk__rx__loops_8h.md#define-mpsk_rx_num_phases_default)  `64u`<br>_Matched-filter bank arms, derived: the measured saturation point._  |
+| define  | [**MPSK\_RX\_ZETA\_DEFAULT**](mpsk__rx__loops_8h.md#define-mpsk_rx_zeta_default)  `0.70710678118654752`<br>_Loop damping, derived:_ `1/sqrt(2)` _, critically damped._ |
 
 ## Detailed Description
 
@@ -294,6 +299,48 @@ void mpsk_rx_configure_lock (
 
 
 
+
+<hr>
+
+
+
+### function mpsk\_rx\_derive\_m\_out 
+
+_Terminal outputs per symbol, derived: the largest even count in 2..8 the caller's own rate constraint allows._ 
+```C++
+JM_FORCEINLINE size_t mpsk_rx_derive_m_out (
+    double cap,
+    int strict
+) 
+```
+
+
+
+Even by construction (the Gardner detector needs an on-time strobe and a transition gate `m_out/2` back), capped at 8 because that is where an I&D matched filter reaches the coherent bound — past it the extra outputs buy nothing. The floor matters more than the cap: at low oversampling the shipped constant 8 is simply not available, and `m_out = 2` with `pulse="iandd"` degenerates the matched filter to a two-tap sum that barely opens the eye (measured lock statistic −0.34, acquisition failing about half the time). Deriving it is what stops a caller pairing a rate and an `m_out` that cannot work together.
+
+
+**It is parameterised by the CONSTRAINT, not by the rate**, because the two twins do not share one. The complex path requires `sps >= m_out`; the real path requires `sps > 2*m_out`, strictly, because Ddcr needs a decimation ratio below 0.5. design/mpsk.md §8 states the real rule as `min(8, 2*floor(sps/4))` and that rule contradicts the constructor it feeds: at `sps = 8` it yields 4 (needs `8 > 8`) and at `sps = 16` it yields 8 (needs `16 > 16`) — both REJECTED by `mpsk_receiver_r_create()`. A derivation whose answer cannot be built is worse than a default, so the bound is passed in and honoured here.
+
+
+
+
+**Parameters:**
+
+
+* `cap` Upper bound on `m_out` from the caller's constraint: `sps` for the complex twin, `sps/2` for the real one. 
+* `strict` Non-zero when the bound is strict (`m_out < cap`) rather than inclusive (`m_out <= cap`) — the real twin's case. 
+
+
+
+**Returns:**
+
+An even count in 2..8, or 0 when the bound cannot carry even 2 — a refusal, not a clamp, because a receiver that cannot hand the detector two outputs per symbol has nothing to detect with. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -706,6 +753,20 @@ The tap's whole point, as one number: it is both the factor by which the discrim
 
 
 
+### define MPSK\_RX\_AGC\_RATIO\_DEFAULT 
+
+_AGC bandwidth ratio, derived: 20x slower than the slowest loop it feeds. The RATIO is the part that is not negotiable (see the block above); the value is_ `MPSK_RX_AGC_BW_RATIO` _, and it is a parameter only because the right separation depends on how fast the channel's LEVEL moves against its phase and timing. Zero asks for the default rather than being rejected._
+```C++
+#define MPSK_RX_AGC_RATIO_DEFAULT `MPSK_RX_AGC_BW_RATIO`
+```
+
+
+
+
+<hr>
+
+
+
 ### define MPSK\_RX\_EPS 
 
 ```C++
@@ -758,6 +819,24 @@ The tap's whole point, as one number: it is both the factor by which the discrim
 
 
 
+### define MPSK\_RX\_LOCK\_THRESH\_DEFAULT 
+
+_Lock threshold, derived:_ `sigma_H0 * eta(Pfa)` _at_`Pfa = 5e-6` _._
+```C++
+#define MPSK_RX_LOCK_THRESH_DEFAULT `0.4999`
+```
+
+
+
+`0.1132 * 4.4159 = 0.4999`, which is the 0.5 that shipped — so this row changes no behaviour and is here because a number that was picked and a number that was derived look identical until one of them has to move. The limited statistic reads ~1.0 at lock for EVERY M (§4), so no per-M correction is carried. 
+
+
+        
+
+<hr>
+
+
+
 ### define MPSK\_RX\_LOOPS\_STATE\_MAGIC 
 
 ```C++
@@ -805,6 +884,42 @@ The tap's whole point, as one number: it is both the factor by which the discrim
 
 
 
+
+<hr>
+
+
+
+### define MPSK\_RX\_NUM\_PHASES\_DEFAULT 
+
+_Matched-filter bank arms, derived: the measured saturation point._ 
+```C++
+#define MPSK_RX_NUM_PHASES_DEFAULT `64u`
+```
+
+
+
+64 against a shipped 1024 — a 16x bank for no measurable gain. The arms set the fractional-timing resolution to 1/N of an output period, and the measurement (design/mpsk.md §8) finds it saturating at 64 on RRC and inert at every value on I&D. 
+
+
+        
+
+<hr>
+
+
+
+### define MPSK\_RX\_ZETA\_DEFAULT 
+
+_Loop damping, derived:_ `1/sqrt(2)` _, critically damped._
+```C++
+#define MPSK_RX_ZETA_DEFAULT `0.70710678118654752`
+```
+
+
+
+A constant, not a computation — nothing in this receiver moves the optimal damping, and both loops already share one value. It is a parameter only because it was once thought to be one. 
+
+
+        
 
 <hr>
 

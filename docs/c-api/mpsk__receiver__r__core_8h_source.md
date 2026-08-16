@@ -114,6 +114,15 @@ extern "C"
   int    mpsk_receiver_r_get_m (const mpsk_receiver_r_state_t *state);
   double mpsk_receiver_r_get_sps (const mpsk_receiver_r_state_t *state);
   size_t mpsk_receiver_r_get_m_out (const mpsk_receiver_r_state_t *state);
+
+  double mpsk_receiver_r_get_zeta (const mpsk_receiver_r_state_t *state);
+
+  double mpsk_receiver_r_get_bn_agc_ratio (const mpsk_receiver_r_state_t *state);
+
+  double mpsk_receiver_r_get_lock_thresh (const mpsk_receiver_r_state_t *state);
+
+  size_t mpsk_receiver_r_get_num_phases (const mpsk_receiver_r_state_t *state);
+
   int mpsk_receiver_r_get_clipped (const mpsk_receiver_r_state_t *state);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────

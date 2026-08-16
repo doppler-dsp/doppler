@@ -129,6 +129,42 @@ extern "C"
  * what the Python binding uses. */
 #define MPSK_RX_M_OUT_DEFAULT 8
 
+/* ── Derived construction parameters (doppler#644, design/mpsk.md §8) ──────
+ *
+ * §8's principle is that **the caller states the link, not the loops**. Four
+ * of the constructor's parameters are not design axes at all — they are a
+ * constant, a false-alarm probability and two rates the object already knows —
+ * so the receiver derives them and REPORTS them back, on the same argument as
+ * `RateConverter.stages`: a caller who can read what was chosen can check it.
+ *
+ * **Zero means derive.** Each parameter keeps its place in the signature, so
+ * a caller who wants to pin one still can; passing 0 — which every one of
+ * these validators previously REJECTED, so no working call site can be
+ * relying on it — asks the object for its own answer. That is what makes this
+ * additive rather than a break.
+ *
+ * These live here, beside the loop bandwidths, because BOTH twins need them
+ * and a rule that exists twice is a rule free to drift.
+ */
+
+JM_FORCEINLINE size_t
+mpsk_rx_derive_m_out (double cap, int strict)
+{
+  double lim = strict ? nextafter (cap, 0.0) : cap;
+  double h   = floor (lim / 2.0); /* m_out = 2*h */
+  if (!(h >= 1.0))
+    return 0u;
+  return (h >= 4.0) ? 8u : (size_t)(2.0 * h);
+}
+
+#define MPSK_RX_ZETA_DEFAULT 0.70710678118654752
+
+#define MPSK_RX_NUM_PHASES_DEFAULT 64u
+
+#define MPSK_RX_AGC_RATIO_DEFAULT MPSK_RX_AGC_BW_RATIO
+
+#define MPSK_RX_LOCK_THRESH_DEFAULT 0.4999
+
 /* Two-way handover rule (see mpsk_rx_loops_init's lock_thresh doc).
  * Declare fast / drop reluctantly: 8 straight above-threshold symbols hand
  * the carrier to the decision-directed discriminator; 32 straight below the

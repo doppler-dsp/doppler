@@ -24,22 +24,14 @@ if (state->shaper) {
             state->cur_re = wfm_synth_cont_dsss_chip(state);
             state->cur_im = 0.0f;
         } else if (state->bits && state->n_bits) {
-            if (state->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
-                uint8_t b0 = state->bits[state->bit_idx];
-                uint8_t b1 = state->bits[(state->bit_idx + 1) % state->n_bits];
-                const float s = 0.70710678118654752f;
-                state->cur_re = b0 ? -s : s;
-                state->cur_im = b1 ? -s : s;
-                state->bit_idx = (state->bit_idx + 2) % state->n_bits;
-            } else if (state->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
-                state->cur_re = state->bits[state->bit_idx] ? -1.0f : 1.0f;
-                state->cur_im = 0.0f;
-                state->bit_idx = (state->bit_idx + 1) % state->n_bits;
-            } else { /* none: unmodulated 0/1 amplitude */
-                state->cur_re = state->bits[state->bit_idx] ? 1.0f : 0.0f;
-                state->cur_im = 0.0f;
-                state->bit_idx = (state->bit_idx + 1) % state->n_bits;
-            }
+            /* ONE bits->symbol map for every order, shared with
+             * wfm_synth_next_symbol() and wfm_synth_steps(). Inlining it
+             * here is what let the QPSK copy drift into a different label
+             * assignment than mpsk_constellation() -- see
+             * wfm_synth_bit_symbol(). */
+            float _Complex bs = wfm_synth_bit_symbol(state);
+            state->cur_re     = crealf(bs);
+            state->cur_im     = cimagf(bs);
         }
     }
     if (state->fir) {

@@ -678,6 +678,11 @@ wfm_synth_step(wfm_synth_state_t *state)
                 state->cur_re = wfm_synth_cont_dsss_chip(state);
                 state->cur_im = 0.0f;
             } else if (state->bits && state->n_bits) {
+                /* ONE bits->symbol map for every order, shared with
+                 * wfm_synth_next_symbol() and wfm_synth_steps(). Inlining it
+                 * here is what let the QPSK copy drift into a different label
+                 * assignment than mpsk_constellation() -- see
+                 * wfm_synth_bit_symbol(). */
                 float _Complex bs = wfm_synth_bit_symbol(state);
                 state->cur_re     = crealf(bs);
                 state->cur_im     = cimagf(bs);

@@ -72,6 +72,7 @@
 #include "ber/ber_core.h"
 #include "doppler_channel/doppler_channel_core.h"
 #include "frame_meter/frame_meter_core.h"
+#include "loop_filter/loop_filter_core.h"
 #include "mpsk/mpsk_core.h"
 #include "wfm/wfm_dsp.h"
 #include "wfm/wfm_frame.h"
@@ -118,6 +119,14 @@ struct dp_rx_point;
  * visible at the DISCRIMINATOR: `norm_freq` is the integrator downstream of
  * the loop filter and buries it. That was learned by measuring the wrong one
  * first.
+ *
+ * `zeta` is here rather than on the point for the same reason `m_out` is left
+ * 0 there: the adapter asks the receiver to DERIVE its damping, so the only
+ * honest source for it is the constructed object. The ramp law is written in
+ * `wn = loop_filter_wn(bn, zeta)`, and reading it against a damping the
+ * receiver was not built at is a silent ~30% error — restating the default as
+ * a harness constant would have been a second copy of exactly the number the
+ * receiver is free to change.
  */
 typedef struct
 {
@@ -139,6 +148,7 @@ typedef struct
   int (*locked) (const void *);        /**< lock declared                  */
   long (*lock_time) (const void *);    /**< symbols to first lock, -1 none */
   int (*clipped) (const void *);       /**< front end clipped: reading dead */
+  double (*zeta) (const void *);       /**< carrier damping, as BUILT       */
 } dp_rx_iface_t;
 
 /* ── 2. The operating point ─────────────────────────────────────────────── */
@@ -307,6 +317,60 @@ dp_rx_amp (const dp_rx_point_t *pt)
 #define DP_RX_TARGET_FRAME_ERRORS 50u
 
 /**
+ * @brief The frequency RAMP a point presents to the carrier loop, in cycles
+ * per symbol squared.
+ *
+ * `doppler_channel` states the impairment as a dilation of the whole time
+ * base, in ppm and ppm/s, because that is what a Doppler shift physically is.
+ * The ramp law is written in the CARRIER loop's own units, so the two have to
+ * be reconciled exactly once, here.
+ *
+ * The channel puts the carrier at `carrier_hz * (d0 + d_dot*t) * 1e-6` Hz, so
+ * the ramp is `carrier_hz * d_dot * 1e-6` Hz/s; dividing by the symbol rate
+ * squared converts Hz per second into cycles per symbol squared. `d0` does not
+ * appear: a type-2 loop nulls a frequency STEP regardless of gain, which is
+ * exactly why the ramp is the disturbance a gain can be checked against.
+ */
+static inline double
+dp_rx_ramp_rate (const dp_rx_point_t *pt)
+{
+  double rs;
+  if (pt->doppler_rate_ppm_s == 0.0 || pt->fs_hz <= 0.0 || pt->sps <= 0.0)
+    return 0.0;
+  rs = pt->fs_hz / pt->sps;
+  return pt->carrier_hz * pt->doppler_rate_ppm_s * 1e-6 / (rs * rs);
+}
+
+/**
+ * @brief The steady-state phase lag that ramp implies, radians.
+ *
+ * `2*pi*r / wn^2`, with `wn` from `loop_filter_wn()` — the library's own
+ * formula, so the harness is not carrying a sixth copy of it. Zero when the
+ * point sets no rate: there is then no lag to predict, and a point that
+ * measured one would be measuring its own noise.
+ *
+ * @param pt    The point — supplies the ramp and `bn_carrier`.
+ * @param zeta  The damping the receiver was BUILT at, read back from it.
+ */
+static inline double
+dp_rx_ramp_law (const dp_rx_point_t *pt, double zeta)
+{
+  double r  = dp_rx_ramp_rate (pt);
+  double wn = (zeta > 0.0) ? loop_filter_wn (pt->bn_carrier, zeta) : 0.0;
+  return (r != 0.0 && wn > 0.0) ? 2.0 * M_PI * r / (wn * wn) : 0.0;
+}
+
+/** @brief Fractional tolerance on the ramp law — the same bar
+ * `rx_nda_tap.c` sets, and for the same reason: the settled mean of a
+ * noiseless tail lands within 1% of the closed form there, so 10% is loose
+ * enough not to chatter and tight enough that a factor-of-two error in any
+ * gain on the path cannot hide inside it. Here the tail is NOT noiseless, so
+ * the width also has to cover the mean's own standard error — measured at
+ * roughly 2% of the lag over a settled window, which fits with room to
+ * spare. */
+#define DP_RX_RAMP_TOL 0.10
+
+/**
  * @brief Generate one impaired burst and run it through the receiver.
  *
  * Stages 2-4 of the §8 sequence. Every sample the receiver sees comes from
@@ -321,7 +385,8 @@ static inline size_t
 dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
              const uint8_t *bits, size_t nbits, uint32_t seed, size_t nsym,
              float complex *out, unsigned char *lock_c, unsigned char *track,
-             double *err, double *nf_out, long *lt_out, int *clipped)
+             double *err, double *nf_out, long *lt_out, double *zeta_out,
+             int *clipped)
 {
   int                      isps  = (int)pt->sps;
   double                   beta  = pt->beta > 0.0 ? pt->beta : DP_RX_BETA;
@@ -399,8 +464,21 @@ dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
                returns. Reducing early scored the acquisition transient and
                read a flat 1.0000 at every point — the maximum the
                discriminator can output, which is what a peak taken across a
-               cold start always finds. */
-            err[nout] = fabs (rx->last_error (r));
+               cold start always finds.
+
+               SIGNED, and that is load-bearing. The disturbance numbers want
+               the magnitude and take it themselves, but the ramp lag is a
+               MEAN, and at these Es/N0 the discriminator's own noise dwarfs
+               the lag being measured: at the anchor, |e| has an RMS of 0.54
+               against a lag of order 0.1, so `mean |e|` reads the noise and
+               is nearly identical at every point in the battery — which is
+               precisely how the Doppler point came to be indistinguishable
+               from the anchor. The mean of the SIGNED series is not: the
+               loop's own integrator forces it to the value that sustains the
+               ramp, so the noise averages out of it and what is left is the
+               lag. Reducing to |e| here would throw that away before the
+               window is even known. */
+            err[nout] = rx->last_error (r);
             nout++;
           }
       }
@@ -409,6 +487,8 @@ dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
       *nf_out = rx->norm_freq (r);
     if (lt_out)
       *lt_out = rx->lock_time (r);
+    if (zeta_out)
+      *zeta_out = rx->zeta (r);
   }
 
 done:
@@ -451,6 +531,10 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
   r.point    = pt;
   r.rx       = rx;
   r.acq_frac = r.acq_time_bl = -1.0;
+  /* 0, not -1: an unimpaired point HAS no ramp, and the law for it is exactly
+     zero rather than absent. `ramp_law_rad > 0` is therefore the honest test
+     for "this point measures the ramp", and the gate uses it. */
+  r.ramp_lag_rad = r.ramp_law_rad = 0.0;
 
   if (nbits == 0 || wfm_frame_layout (&f, &l) != 0)
     {
@@ -509,10 +593,11 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
       {
         dp_ber_marker_t mk;
         double          nf      = 0.0;
+        double          zeta    = 0.0;
         long            lt      = -1;
         int             clipped = 0, ok = 0;
         size_t n = dp_rx_burst (rx, pt, bits, nbits, pt->seed + burst, nsym,
-                                out, lc, tk, err, &nf, &lt, &clipped);
+                                out, lc, tk, err, &nf, &lt, &zeta, &clipped);
         if (n == 0)
           {
             r.refused = "burst produced no output";
@@ -583,18 +668,28 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
         /* The loop numbers, over the SAME settled window the trio used —
            which the report hands back rather than the caller recomputing. */
         {
-          double s2 = 0.0, pk = 0.0;
-          size_t k, cnt       = 0;
+          double s1 = 0.0, s2 = 0.0, pk = 0.0;
+          size_t k, cnt = 0;
           for (k = r.rep.window_lo; k < r.rep.window_hi && k < n; k++)
             {
-              if (err[k] > pk)
-                pk = err[k];
-              s2 += err[k] * err[k];
+              double e = err[k];
+              if (fabs (e) > pk)
+                pk = fabs (e);
+              s1 += e; /* SIGNED — the lag; see dp_rx_burst()       */
+              s2 += e * e;
               cnt++;
             }
           if (pk > r.disturb_peak_rad)
             r.disturb_peak_rad = pk;
           r.disturb_rms_rad = cnt ? sqrt (s2 / (double)cnt) : -1.0;
+          /* The ramp lag, and only where a ramp exists. The magnitude is
+             taken at the END, of the MEAN — the sign is the direction the
+             Doppler happens to run and says nothing about the loop, but
+             taking it per sample first is what turns the measurement into a
+             reading of the discriminator's noise. */
+          r.ramp_law_rad = dp_rx_ramp_law (pt, zeta);
+          if (r.ramp_law_rad > 0.0 && cnt)
+            r.ramp_lag_rad = fabs (s1 / (double)cnt);
         }
         /* Acquisition, reported only where the answer is not trivially zero:
            at foff = 0 the correct answer IS zero, so a loop that never steers
@@ -654,10 +749,25 @@ dp_rx_point (dp_rx_point_name_t name)
     /* DOPPLER — a RATE, not an offset: a type-2 loop nulls a step regardless
        of gain, so only a ramp leaves a constant lag with a closed form. It
        comes through doppler_channel, so the carrier and every clock move
-       together as they physically must. */
+       together as they physically must.
+
+       The RATE IS THE POINT, and it is sized from the answer it has to make
+       observable rather than from a plausible-looking geometry. At 0.02 ppm/s
+       — where this sat until the lag was first computed rather than assumed —
+       the law predicts 2.2e-4 rad against a linear range of pi/4, so the
+       measurement was three and a half decades below anything the loop does,
+       and every number this point produced was byte-identical to `anchor`'s.
+       A point that reproduces the reference is not measuring the thing it was
+       named for. 9.2 ppm/s puts the predicted lag at ~0.1 rad: a comfortable
+       eighth of the range, so the S-curve is still linear and the LAW rather
+       than its breakdown is what is being checked, and two decades clear of
+       the settled mean's own standard error. The static `d0` stays where it
+       is — a type-2 loop nulls it, `acquire` is the point that scores an
+       offset, and moving it here would only blur which disturbance the lag
+       came from. */
     { "doppler", RX_FRAME_CONT, 2,    8.0,   0,     DP_RX_BETA, DP_RX_SPAN,
       0.0,       0.0,           0.01, 0.005, 0,     0,          6.79,
-      1.0e6,     2.4e9,         0.02, 0.02,  -10.0, 7u },
+      1.0e6,     2.4e9,         0.02, 9.2,   -10.0, 7u },
     /* RUNBURST — the timing loop coasts through a transition-starved stretch
        and then slews. The question is whether that reaches the CARRIER loop,
        which is the whole reason a pre-terminal tap exists. */
@@ -751,6 +861,26 @@ dp_rx_check (const dp_rx_result_t *r)
               r->rep.why ? r->rep.why : "a gate failed");
       return 1;
     }
+  /* The ramp law, at any point that presents a ramp — the ONE closed form a
+     tracking loop's gain can be checked against end to end, because a type-2
+     loop nulls a frequency step regardless of gain and therefore cannot tell
+     a correct gain from a wrong one. Everything on the path is inside it: the
+     channel's ppm-to-Hz conversion, the discriminator, the loop filter's
+     gains, and whatever turns the filter's output into the LO's control port.
+     A gain error anywhere in that chain moves the lag by its own factor, and
+     that is the gh-765 class of defect. */
+  if (r->ramp_law_rad > 0.0
+      && !(fabs (r->ramp_lag_rad - r->ramp_law_rad)
+           <= DP_RX_RAMP_TOL * r->ramp_law_rad))
+    {
+      printf ("FAIL %s @ %s: settled lag %.4g rad against %.4g predicted by "
+              "2*pi*r/wn^2 (r %.4g cyc/sym^2, bn %.4g, tol %.0f%%) — the "
+              "carrier loop's gain is not what its bandwidth says\n",
+              r->rx->name, r->point->name, r->ramp_lag_rad, r->ramp_law_rad,
+              dp_rx_ramp_rate (r->point), r->point->bn_carrier,
+              100.0 * DP_RX_RAMP_TOL);
+      return 1;
+    }
   return 0;
 }
 
@@ -770,6 +900,17 @@ dp_rx_print (const dp_rx_result_t *r)
           r->rep.m2m4_db, r->rep.loss_db, r->disturb_peak_rad,
           r->disturb_rms_rad, r->acq_frac, r->acq_time_bl,
           r->rep.ok ? "ok" : (r->rep.why ? r->rep.why : "not ok"));
+  /* Printed only where a ramp exists. An unimpaired point has a law of
+     exactly zero, and a row of zeros beside a gate that cannot fire reads as
+     a measurement when it is an absence. */
+  if (r->ramp_law_rad > 0.0)
+    printf ("  %-12s %-11s   ramp lag %.4g rad vs %.4g predicted "
+            "(%+.1f%%, tol %.0f%%)  r %.4g cyc/sym^2, %.3f of the pi/%d "
+            "linear range\n",
+            r->rx->name, r->point->name, r->ramp_lag_rad, r->ramp_law_rad,
+            100.0 * (r->ramp_lag_rad - r->ramp_law_rad) / r->ramp_law_rad,
+            100.0 * DP_RX_RAMP_TOL, dp_rx_ramp_rate (r->point),
+            r->ramp_lag_rad / (M_PI / (2.0 * r->point->m)), 2 * r->point->m);
 }
 
 #endif /* DP_RX_TEST_H */

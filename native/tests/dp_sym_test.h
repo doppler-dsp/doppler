@@ -108,6 +108,14 @@ dp_test_evm_db_hard_range (const float complex *syms, size_t lo, size_t hi,
  * @param n_syms  How many; the back half is scored.
  * @param m       Constellation order (2, 4, 8, ...); < 2 is treated as 2.
  * @return        EVM in dB, or 0.0 ("no lock") if the stream is too short.
+ *
+ * @note "Too short" is **39 symbols, not the 20 the guard below names.** The
+ *       scored window is `n_syms - n_syms/2`, i.e. `ceil(n_syms/2)`, and
+ *       ber_evm_db() needs 20 of those — so a 30-symbol stream clears this
+ *       function's own check and returns the sentinel from the layer beneath
+ *       it. The range form's floor is the honest 20, because it scores
+ *       exactly the window it is handed, which is one more reason to prefer
+ *       it. Pinned in test_dp_sym.c.
  */
 static inline double
 dp_test_evm_db_hard_m (const float complex *syms, size_t n_syms, int m)
@@ -173,7 +181,9 @@ dp_test_m2m4_snr_db_range (const float complex *syms, size_t lo, size_t hi)
   return snr_m2m4_db (syms + lo, hi - lo);
 }
 
-/* Blind M2M4 Es/N0 (dB) over the back half. */
+/* Blind M2M4 Es/N0 (dB) over the back half. Same doubling as the EVM twin:
+ * the effective floor is 39 symbols, not the 20 named below, because only
+ * `ceil(n_syms/2)` of them are scored. */
 static inline double
 dp_test_m2m4_snr_db (const float complex *syms, size_t n_syms)
 {

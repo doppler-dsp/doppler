@@ -175,6 +175,97 @@ extern "C"
  * what the Python binding uses. */
 #define MPSK_RX_M_OUT_DEFAULT 8
 
+/* ── Derived construction parameters (doppler#644, design/mpsk.md §8) ──────
+ *
+ * §8's principle is that **the caller states the link, not the loops**. Four
+ * of the constructor's parameters are not design axes at all — they are a
+ * constant, a false-alarm probability and two rates the object already knows —
+ * so the receiver derives them and REPORTS them back, on the same argument as
+ * `RateConverter.stages`: a caller who can read what was chosen can check it.
+ *
+ * **Zero means derive.** Each parameter keeps its place in the signature, so
+ * a caller who wants to pin one still can; passing 0 — which every one of
+ * these validators previously REJECTED, so no working call site can be
+ * relying on it — asks the object for its own answer. That is what makes this
+ * additive rather than a break.
+ *
+ * These live here, beside the loop bandwidths, because BOTH twins need them
+ * and a rule that exists twice is a rule free to drift.
+ */
+
+/**
+ * @brief Terminal outputs per symbol, derived: the largest even count in
+ *        2..8 the caller's own rate constraint allows.
+ *
+ * Even by construction (the Gardner detector needs an on-time strobe and a
+ * transition gate `m_out/2` back), capped at 8 because that is where an I&D
+ * matched filter reaches the coherent bound — past it the extra outputs buy
+ * nothing. The floor matters more than the cap: at low oversampling the
+ * shipped constant 8 is simply not available, and `m_out = 2` with
+ * `pulse="iandd"` degenerates the matched filter to a two-tap sum that barely
+ * opens the eye (measured lock statistic −0.34, acquisition failing about half
+ * the time). Deriving it is what stops a caller pairing a rate and an `m_out`
+ * that cannot work together.
+ *
+ * **It is parameterised by the CONSTRAINT, not by the rate**, because the two
+ * twins do not share one. The complex path requires `sps >= m_out`; the real
+ * path requires `sps > 2*m_out`, strictly, because Ddcr needs a decimation
+ * ratio below 0.5. design/mpsk.md §8 states the real rule as
+ * `min(8, 2*floor(sps/4))` and that rule contradicts the constructor it feeds:
+ * at `sps = 8` it yields 4 (needs `8 > 8`) and at `sps = 16` it yields 8
+ * (needs `16 > 16`) — both REJECTED by `mpsk_receiver_r_create()`. A
+ * derivation whose answer cannot be built is worse than a default, so the
+ * bound is passed in and honoured here.
+ *
+ * @param cap    Upper bound on `m_out` from the caller's constraint: `sps` for
+ *               the complex twin, `sps/2` for the real one.
+ * @param strict Non-zero when the bound is strict (`m_out < cap`) rather than
+ *               inclusive (`m_out <= cap`) — the real twin's case.
+ * @return An even count in 2..8, or 0 when the bound cannot carry even 2 — a
+ *         refusal, not a clamp, because a receiver that cannot hand the
+ *         detector two outputs per symbol has nothing to detect with.
+ */
+JM_FORCEINLINE size_t
+mpsk_rx_derive_m_out (double cap, int strict)
+{
+  double lim = strict ? nextafter (cap, 0.0) : cap;
+  double h   = floor (lim / 2.0); /* m_out = 2*h */
+  if (!(h >= 1.0))
+    return 0u;
+  return (h >= 4.0) ? 8u : (size_t)(2.0 * h);
+}
+
+/** @brief Loop damping, derived: `1/sqrt(2)`, critically damped.
+ *
+ * A constant, not a computation — nothing in this receiver moves the optimal
+ * damping, and both loops already share one value. It is a parameter only
+ * because it was once thought to be one. */
+#define MPSK_RX_ZETA_DEFAULT 0.70710678118654752
+
+/** @brief Matched-filter bank arms, derived: the measured saturation point.
+ *
+ * 64 against a shipped 1024 — a 16x bank for no measurable gain. The arms set
+ * the fractional-timing resolution to 1/N of an output period, and the
+ * measurement (design/mpsk.md §8) finds it saturating at 64 on RRC and inert
+ * at every value on I&D. */
+#define MPSK_RX_NUM_PHASES_DEFAULT 64u
+
+/** @brief AGC bandwidth ratio, derived: 20x slower than the slowest loop it
+ * feeds. The RATIO is the part that is not negotiable (see the block above);
+ * the value is `MPSK_RX_AGC_BW_RATIO`, and it is a parameter only because the
+ * right separation depends on how fast the channel's LEVEL moves against its
+ * phase and timing. Zero asks for the default rather than being rejected. */
+#define MPSK_RX_AGC_RATIO_DEFAULT MPSK_RX_AGC_BW_RATIO
+
+/** @brief Lock threshold, derived: `sigma_H0 * eta(Pfa)` at `Pfa = 5e-6`.
+ *
+ * `0.1132 * 4.4159 = 0.4999`, which is the 0.5 that shipped — so this row
+ * changes no behaviour and is here because a number that was picked and a
+ * number that was derived look identical until one of them has to move. The
+ * limited statistic reads ~1.0 at lock for EVERY M (§4), so no per-M
+ * correction is carried. */
+#define MPSK_RX_LOCK_THRESH_DEFAULT 0.4999
+
 /* Two-way handover rule (see mpsk_rx_loops_init's lock_thresh doc).
  * Declare fast / drop reluctantly: 8 straight above-threshold symbols hand
  * the carrier to the decision-directed discriminator; 32 straight below the

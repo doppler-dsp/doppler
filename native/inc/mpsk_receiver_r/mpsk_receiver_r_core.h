@@ -447,6 +447,19 @@ extern "C"
   int    mpsk_receiver_r_get_m (const mpsk_receiver_r_state_t *state);
   double mpsk_receiver_r_get_sps (const mpsk_receiver_r_state_t *state);
   size_t mpsk_receiver_r_get_m_out (const mpsk_receiver_r_state_t *state);
+
+  /** @brief Loop damping in use — derived `1/sqrt(2)` unless pinned (§8.1). */
+  double mpsk_receiver_r_get_zeta (const mpsk_receiver_r_state_t *state);
+
+  /** @brief AGC bandwidth ratio in use — derived unless pinned (§8.1). */
+  double mpsk_receiver_r_get_bn_agc_ratio (const mpsk_receiver_r_state_t *state);
+
+  /** @brief Handover lock threshold in use — derived unless pinned (§8.1). */
+  double mpsk_receiver_r_get_lock_thresh (const mpsk_receiver_r_state_t *state);
+
+  /** @brief Matched-filter bank arms in use — derived unless pinned (§8.1). */
+  size_t mpsk_receiver_r_get_num_phases (const mpsk_receiver_r_state_t *state);
+
   /** @brief Has the cascade's CIC clipped its input since the last reset? */
   int mpsk_receiver_r_get_clipped (const mpsk_receiver_r_state_t *state);
 

@@ -1128,9 +1128,107 @@ ______________________________________________________________________
 
 ## 8. The construction surface
 
-**Design, not yet built.** The principle: **the caller states the link, not
+**Partly built — the derivations landed ([gh-644](https://github.com/doppler-dsp/doppler/issues/644)); the units and
+`esn0_floor_db` have not.** §8.1 is the surface as it stands today and §8.2 is
+what remains. The principle is unchanged: **the caller states the link, not
 the loops.** One number they possess — the Es/N0 they must still work at —
 drives both the loop bandwidths and the lock indicator.
+
+### 8.1 What is derived today, and the mapping
+
+**Zero means derive.** Each parameter keeps its place in the signature, so a
+caller who wants to pin one still can; passing `0` — which every one of these
+validators previously **rejected**, so no working call site can be relying on
+it — asks the object for its own answer. That is what makes this additive
+rather than a break, and it is why the surface still lists seventeen
+parameters while a caller supplies four.
+
+The minimal call, with every derivable knob left at zero:
+
+```c
+mpsk_receiver_state_t *rx = mpsk_receiver_create (
+    4, 8.0,                    /* m, sps — the signal                      */
+    0,                         /* m_out       -> derived                   */
+    MPSK_RX_PULSE_IANDD, 0.35, 8,
+    0.01,                      /* bn_carrier — a design axis               */
+    0.0,                       /* zeta        -> derived                   */
+    0.01,                      /* bn_timing  — a design axis               */
+    0, 0.0,                    /* acq_to_track, lock_thresh -> derived     */
+    0.0, 0,                    /* init_norm_freq, differential             */
+    0,                         /* num_phases  -> derived                   */
+    MPSK_RX_NDA_TAP_STROBE, 1,
+    0.0);                      /* bn_agc_ratio -> derived                  */
+```
+
+```python
+MpskReceiver(m=4, sps=8.0, bn_carrier=0.01, bn_timing=0.01)
+```
+
+| parameter                             | today                                                        |
+| ------------------------------------- | ------------------------------------------------------------ |
+| `m`, `sps`                            | **supplied** — the signal description                        |
+| `pulse`, `rrc_beta`, `rrc_span`       | **supplied** — the waveform, and only when it is not NRZ     |
+| `bn_carrier`, `bn_timing`             | **supplied** — the two real design axes (§8.2 derives these) |
+| `init_norm_freq`                      | **supplied** — the carrier seed                              |
+| `m_out`                               | **derived** — the largest even count in 2..8 the rate allows |
+| `zeta`                                | **derived** — `1/√2`; a constant, not a computation          |
+| `num_phases`                          | **derived** — 64, the measured saturation, against 1024      |
+| `lock_thresh`                         | **derived** — `σ_H0·η(Pfa)` = 0.4999 at `Pfa = 5e-6`         |
+| `bn_agc_ratio`                        | **derived** — 20× slower than the slowest loop it feeds      |
+| `acq_to_track`, `differential`, `agc` | **supplied** — §8.2 removes them                             |
+| `nda_tap`                             | **supplied** — deferred until re-measured (§3.3)             |
+
+**Everything derived is reported**, on the same argument as
+`RateConverter.stages`: a caller who can read back what was chosen can check
+it. `get_m_out`, `get_zeta`, `get_num_phases`, `get_lock_thresh` and
+`get_bn_agc_ratio` are those readbacks.
+
+!!! warning "The real twin's nominal carrier is `fs/4`, and its default is not"
+
+    `MpskReceiverR` is designed for a real IF at **`fc ≈ fs/4`**, and the
+    reason is structural: the fs/4 shift is **embedded in the R2C halfband's
+    coefficients**, so the down-conversion is free and the LO only removes the
+    *residual* offset from `fs/4`. That is what
+    `ddcr_create_matched(-(2·init_norm_freq + 0.5))` says — the `+0.5` is the
+    filter's shift, so `init_norm_freq = 0.25` tunes the LO to exactly zero.
+    Every worked example in the header uses `0.25`.
+
+    **The shipped default is `0.0`**, which asks the LO to undo the filter's
+    own shift and puts the signal where the halfband folds. Measured, BPSK at
+    Es/N0 30 dB, `sps = 32`, mean `|Im|/|Re|` on the settled constellation
+    (0 is perfectly de-rotated):
+
+    | stimulus     | tuned to      | lock   | `\|Im\|/\|Re\|` |
+    | ------------ | ------------- | ------ | --------------- |
+    | IF at `fs/4` | **0.25**      | +0.998 | **0.026**       |
+    | IF at `fs/4` | 0.0 (default) | +0.463 | 0.276           |
+    | IF at DC     | 0.0 (default) | +0.943 | 0.164           |
+    | IF at 0.2·fs | 0.20          | +0.996 | 0.029           |
+
+    So the default is **off-design rather than broken** — it demodulates a
+    real signal at DC, at ~6× worse constellation quality than the point the
+    architecture was built for. Unlike the five parameters above, `0.0` cannot
+    become a "derive" sentinel: it is a legal value today with call sites
+    relying on it, so moving the default to `0.25` is a behaviour change and
+    belongs in its own step, not folded in with the additive derivations.
+
+!!! warning "The real twin's `m_out` rule contradicted the constructor it feeds"
+
+    This section previously gave the real twin `min(8, 2·floor(sps/4))`. That
+    rule yields a value `mpsk_receiver_r_create()` **rejects** at exactly the
+    rates where deriving would help most: `sps = 8` yields 4 (needs `8 > 8`)
+    and `sps = 16` yields 8 (needs `16 > 16`), against its `sps > 2·m_out`
+    constraint — Ddcr needs a decimation ratio below 0.5.
+
+    A derivation whose answer cannot be built is worse than a default, so the
+    rule is now stated against the **constraint** rather than the rate:
+    `mpsk_rx_derive_m_out(cap, strict)` takes `sps` inclusively for the
+    complex twin and `sps/2` strictly for the real one, and both twins call
+    the one function. Measured after the fix, every derived value constructs
+    at `sps` 6…256, and `sps = 4` on the real twin refuses — correctly, since
+    behind the halfband it cannot carry even two outputs per symbol.
+
+### 8.2 What remains
 
 **The surface is a C surface.** Every derivation below happens inside
 `mpsk_receiver_create()`, calling `detection`'s C primitives; the readbacks are
@@ -1158,22 +1256,25 @@ transmitter is not NRZ, `center_freq_hz` when the signal is not centred
 (required on the real twin), and `esn0_floor_db`/`pd`/`pfa` to move the
 indicator's design point off 4.0 dB / 0.99 / 1e-5.
 
-| parameter                                         | Mode 1                                                                                     |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `bn_carrier`, `bn_timing`, `zeta`, `bn_agc_ratio` | **derived** — bandwidths from `esn0_floor_db` via the loop-SNR rule; `zeta = 1/√2`         |
-| `lock_thresh`                                     | **derived** — an output of (Es/N0, Pd, Pfa) together with `α` and the verify counts (§4.1) |
-| `m_out`                                           | **derived** — `min(8, 2·floor(sps/2))`; the real twin needs `min(8, 2·floor(sps/4))`       |
-| `num_phases`                                      | **derived** — 64 is the measured saturation point at `m_out = 8` against a shipped 1024    |
-| `nda_tap`                                         | **gone** — one tap (§3.3)                                                                  |
-| `acq_to_track`, `warmup_syms`                     | **gone** — no second mode to gate                                                          |
-| `agc`, `bn_agc_ratio`                             | **gone** — the AGC is load-bearing (§1.1); the ratio stays derived off the slowest loop    |
-| `differential`                                    | moves to `bits()`, defaulting **on** (§2.1)                                                |
+Three changes remain, and only the first two touch the signature. §8.1's
+derivations are deliberately independent of all of them — they are
+dimensionless and read identically whichever units the rates arrive in, which
+is why they could land first.
 
-**Everything derived is reported**, on the same argument as
-`RateConverter.stages`: a caller who can read back what was chosen can check
-it. Two readbacks earn their place beyond the parameters themselves —
-`pull_in_hz` (§3.4), which tells a caller how accurately they must tune, and
-the declare latency (§4.1), which tells them how long the indicator takes.
+| parameter                     | what remains                                                                             |
+| ----------------------------- | ---------------------------------------------------------------------------------------- |
+| `sps`, `init_norm_freq`       | become `sample_rate_hz` / `symbol_rate_hz` / `center_freq_hz` — the units change, §7     |
+| `bn_carrier`, `bn_timing`     | **derived** from `esn0_floor_db` via the loop-SNR rule, rather than supplied             |
+| `lock_thresh`                 | derived from (Es/N0, Pd, Pfa) rather than from `Pfa` alone — §8.1 derives the `Pfa` half |
+| `nda_tap`                     | **gone** — one tap (§3.3), pending the re-measurement that decides which                 |
+| `acq_to_track`, `warmup_syms` | **gone** — no second mode to gate. `warmup_syms` already is (`1f417e97`)                 |
+| `agc`                         | **gone** — the AGC is load-bearing (§1.1); its ratio is already derived (§8.1)           |
+| `differential`                | moves to `bits()`, defaulting **on** (§2.1)                                              |
+
+Two readbacks earn their place beyond the parameters themselves once those
+land — `pull_in_hz` (§3.4), which tells a caller how accurately they must
+tune, and the declare latency (§4.1), which tells them how long the indicator
+takes. Neither ships today.
 
 !!! note "`esn0_floor_db` is a design floor, not a measurement"
 

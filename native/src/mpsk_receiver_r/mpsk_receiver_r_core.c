@@ -23,6 +23,23 @@ mpsk_receiver_r_create (int m, double sps, size_t m_out, int pulse,
     return NULL;
   if (pulse != MPSK_RX_PULSE_IANDD && pulse != MPSK_RX_PULSE_RRC)
     return NULL;
+
+  /* Derive what is not a design axis (doppler#644) — see the complex twin.
+     The ONE difference is the rate handed to the m_out rule: this cascade
+     sits behind the R2C halfband and therefore sees `sps/2`, which is how
+     design/mpsk.md §8's second rule falls out of the shared one instead of
+     being a second rule to keep in step with it. */
+  if (m_out == 0u)
+    m_out = mpsk_rx_derive_m_out (0.5 * sps, 1); /* sps > 2*m_out */
+  if (zeta == 0.0)
+    zeta = MPSK_RX_ZETA_DEFAULT;
+  if (num_phases == 0u)
+    num_phases = MPSK_RX_NUM_PHASES_DEFAULT;
+  if (lock_thresh == 0.0)
+    lock_thresh = MPSK_RX_LOCK_THRESH_DEFAULT;
+  if (bn_agc_ratio == 0.0)
+    bn_agc_ratio = MPSK_RX_AGC_RATIO_DEFAULT;
+
   /* Written as !(x > y) so a NaN parameter is rejected, not accepted. The
      bound is 2*m_out, not m_out: the cascade behind the R2C halfband runs at
      twice the overall rate, and Ddcr requires that below 0.5. */
@@ -279,6 +296,34 @@ size_t
 mpsk_receiver_r_get_m_out (const mpsk_receiver_r_state_t *state)
 {
   return state->l.m_out;
+}
+
+/* The derived-parameter readbacks. design/mpsk.md §8.1: everything derived is
+   REPORTED, on the same argument as RateConverter.stages — a caller who can
+   read back what was chosen can check it. Without these, `0` would be an
+   instruction whose result nobody can see. */
+double
+mpsk_receiver_r_get_zeta (const mpsk_receiver_r_state_t *state)
+{
+  return state->l.zeta;
+}
+
+double
+mpsk_receiver_r_get_bn_agc_ratio (const mpsk_receiver_r_state_t *state)
+{
+  return state->l.bn_agc_ratio;
+}
+
+double
+mpsk_receiver_r_get_lock_thresh (const mpsk_receiver_r_state_t *state)
+{
+  return state->l.handover.up_thresh;
+}
+
+size_t
+mpsk_receiver_r_get_num_phases (const mpsk_receiver_r_state_t *state)
+{
+  return state->fe->rc->num_phases;
 }
 
 int

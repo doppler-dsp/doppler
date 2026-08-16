@@ -280,6 +280,7 @@ ______________________________________________________________________
     series — has to be placed in the same coordinates, and re-running the
     detection to find out where it sat is a second copy of the decision, free
     to disagree with the first.
+
 - **The receiver instrument declared six frame-statistics fields and measured
     none of them.** `native/tests/dp_rx_test.h` carried `frames`,
     `sync_detected`, `crc_passed`, `fer`, `sync_miss` and `prot_bits`,

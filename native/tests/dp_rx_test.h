@@ -1278,6 +1278,61 @@ dp_rx_witness_check (const dp_rx_witness_t *w)
   return 1;
 }
 
+/**
+ * @brief Did this receiver produce ANY defensible record?
+ *
+ * The second run-level gate, and it exists for the same reason as
+ * `dp_rx_witness_t`: a property that is true of every point individually and
+ * false of the run.
+ *
+ * `dp_rx_check()` returns 0 for a refusal, deliberately — a refusal is the
+ * harness declining to defend a number, which is goal 1 working, and a
+ * `qpsk`/`psk8` frame-geometry refusal is the design doing its job. But
+ * **`--check` therefore exits 0 when a receiver refuses EVERY point**, and
+ * that is how `ContinuousMpskReceiver` shipped pinning `nda_tap = mf_in`:
+ * nine `no burst settled` lines, exit 0, on a receiver whose EVM is on the
+ * matched-filter bound (doppler#791). Each line was individually correct.
+ * The aggregate was a receiver that does not work.
+ *
+ * Nine refusals is not nine refusals. It is one result.
+ *
+ * No threshold and no per-point allowlist, because none is needed: zero
+ * defensible records is never legitimate for something in the standard
+ * battery, so there is nothing to tune. A receiver that scores even one point
+ * is measured, and its refusals stay uncounted exactly as the header argues.
+ */
+typedef struct
+{
+  const char *name;    /**< the receiver, for the message          */
+  unsigned    scored;  /**< points that produced a record          */
+  unsigned    refused; /**< points that declined to                */
+} dp_rx_tally_t;
+
+/** @brief Fold one record into the tally. */
+static inline void
+dp_rx_tally_add (dp_rx_tally_t *t, const dp_rx_result_t *r)
+{
+  if (!t->name)
+    t->name = r->rx->name;
+  if (r->refused)
+    t->refused++;
+  else
+    t->scored++;
+}
+
+/** @brief Apply the tally. @return 0 pass, 1 fail. */
+static inline int
+dp_rx_tally_check (const dp_rx_tally_t *t)
+{
+  if (t->scored > 0 || t->refused == 0)
+    return 0;
+  printf ("FAIL %s: refused every point (%u/%u) — a receiver in the standard "
+          "battery that scores nothing does not work\n",
+          t->name ? t->name : "(receiver)", t->refused,
+          t->refused + t->scored);
+  return 1;
+}
+
 /** @brief Print the standard record — one point, every number, one block. */
 static inline void
 dp_rx_print (const dp_rx_result_t *r)

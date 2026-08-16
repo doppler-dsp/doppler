@@ -107,7 +107,186 @@ today.
 
 ______________________________________________________________________
 
-## 4. The blocker, and what was measured about it
+## 4. The final API surface
+
+jm#1012 is being implemented, so the faces can share one method **name** with
+per-face dtypes. The surface below is what the collapsed object exposes.
+
+### C — one core, two entry points, one set of accessors
+
+```text
+/* lifecycle: one create per front end, everything else shared */
+mpsk_receiver_state_t *mpsk_receiver_create        (...);   /* complex */
+mpsk_receiver_state_t *mpsk_receiver_create_real   (...);   /* real IF */
+mpsk_receiver_state_t *mpsk_receiver_create_continuous (...);
+void                   mpsk_receiver_destroy       (mpsk_receiver_state_t *);
+void                   mpsk_receiver_reset         (mpsk_receiver_state_t *);
+
+/* the hot path: the input type differs, the body does not */
+int  mpsk_receiver_step_ted      (s, float complex x, float complex *y, int ted);
+int  mpsk_receiver_step_real_ted (s, float         x, float complex *y, int ted);
+
+/* block API, per input type */
+size_t mpsk_receiver_steps      (s, const float complex *x, ...);
+size_t mpsk_receiver_steps_real (s, const float         *x, ...);
+size_t mpsk_receiver_bits       (s, const float complex *x, ...);
+size_t mpsk_receiver_bits_real  (s, const float         *x, ...);
+
+/* state: one triplet over the tagged front end */
+size_t mpsk_receiver_state_bytes (const mpsk_receiver_state_t *);
+void   mpsk_receiver_get_state   (const mpsk_receiver_state_t *, void *);
+int    mpsk_receiver_set_state   (mpsk_receiver_state_t *, const void *);
+```
+
+**Every accessor collapses to one implementation**, which is the 16 pure
+delegations disappearing: `get_m`, `get_sps`, `get_m_out`, `get_zeta`,
+`get_num_phases`, `get_lock_thresh`, `get_bn_agc_ratio`, `get_lock`,
+`get_locked`, `get_lock_time`, `get_last_error`, `get_tracking`,
+`get_timing_rate`, `get_clipped`, `configure_lock`, `set_telemetry`.
+
+Four stay front-end aware, and each carries the rate convention rather than
+hiding it: `get_norm_freq`, `get_nco_freq`, `set_norm_freq`,
+`get_agc_gain_db`.
+
+### Python — three faces, one surface
+
+| face                     | `steps(x)`           | pins                               |
+| ------------------------ | -------------------- | ---------------------------------- |
+| `MpskReceiver`           | `NDArray[complex64]` | —                                  |
+| `MpskReceiverR`          | `NDArray[float32]`   | real front end                     |
+| `ContinuousMpskReceiver` | `NDArray[complex64]` | `acq_to_track=0`, `strobe`, AGC on |
+
+All three return `NDArray[complex64]`, share every property and method
+verbatim, and differ only in their constructor and — for the real face —
+`steps`/`bits` input dtype. That last part is jm#1012.
+
+______________________________________________________________________
+
+## 5. Governing equations
+
+Read from the source, not from prose; each names where it lives.
+
+### 5.1 Loop filter (both loops) — `loop_filter_core.c`
+
+```text
+wn  = 8·ζ·bn / (4·ζ² + 1)          rad per update
+θ   = wn·t                          t = the update period, in symbols
+den = 4 + 4·ζ·θ + θ²
+kp  = 8·ζ·θ / den
+ki  = 4·θ²   / den
+```
+
+`control = integ + kp·e`, and `integ += ki·e`, so **the integrator is the
+frequency memory** and `kp·e` is the instantaneous phase nudge. This is why
+`mpsk_rx_freq_est()` reads `integ` alone and not the control.
+
+### 5.2 The carrier loop's update period and scale — `mpsk_rx_config_carrier()`
+
+```text
+upd        = 1        (STROBE)
+           = m_out    (MF_OUT)
+           = bank_sps (MF_IN)
+
+t          = 1 / upd                       symbols per update
+freq_scale = (1 / 2π) · upd / lo_sps       rad/symbol -> cycles/LO-sample
+lo_sps     = sps      (complex front end)
+           = sps / 2  (real front end — the R2C halfband decimates 2:1)
+```
+
+`bn_carrier` keeps its **symbol-rate** meaning at every tap: the tap changes
+how often the loop is updated (`t`), not the loop. Getting `freq_scale` wrong
+is gh-765, and it is invisible to a step test because a type-2 loop nulls a
+step regardless of gain — only a **ramp** separates them.
+
+### 5.3 Discriminators — `carrier_nda_disc()`, `mpsk_rx_take_output()`
+
+With `p = |z|² = I² + Q²`, one divide at the first squaring so every later
+squaring is of a unit vector:
+
+```text
+NDA, M = 2:   e = Im((z/|z|)²) = 2IQ/p          lock = Re((z/|z|)²) = (I²−Q²)/p
+NDA, M = 4:   e = Im((z/|z|)⁴)/2                lock = Re((z/|z|)⁴)
+NDA, M = 8:   e = Im((z/|z|)⁸)/4                lock = Re((z/|z|)⁸)
+
+decision-directed:  e = Im(y·conj(â)) / |y|
+```
+
+The `{1, ½, ¼}` phase-error scaling equalises the S-curve slope across M, so
+one `bn` means one loop at every constellation order. The **lock** signal is
+left unscaled so it reads ≈1.0 at lock for every M.
+
+### 5.4 Pull-in range, and what a tap costs
+
+```text
+|Δf| < F / (2M)          F = the tap's update rate
+
+STROBE:  Rs/(2M)                   MF_OUT: m_out·Rs/(2M)
+MF_IN:   bank_sps·Rs/(2M)          and costs 10·log10(bank_sps) dB
+```
+
+An M-th-power detector updating at `F` folds any error beyond `F/(2M)`, so the
+tap point **is** the pull-in range. `MF_IN`'s cost is excess noise bandwidth,
+not lost signal energy: DEC band-limits to its own Nyquist `±bank_sps·Rs/2`
+while the signal occupies ~`±Rs`. Measured 6.01 dB at `bank_sps = 4`, identical
+at 6.79 / 12 / 20 dB Es/N0 — a pure bandwidth ratio.
+
+### 5.5 Lock detector — `carrier_nda_core.h`
+
+Under H0 the phase is uniform, so `Var[Re(e^{jMθ})] = ½` for **every** M:
+
+```text
+σ_H0        = sqrt(½·α / (2−α)) = 0.11322770341445956   at α = 0.05
+lock_thresh = η · σ_H0                                   per-look Pfa = Q(η)
+              0.5 ⇒ η = 4.416 ⇒ Pfa = 5.0e-6
+```
+
+One threshold is therefore one false-alarm probability at every M — which is
+the property that makes `lock_thresh` a plain fraction of what a locked
+constellation reads.
+
+### 5.6 Derived parameters — §8.1's "zero means derive"
+
+```text
+m_out        = 8 if h ≥ 4 else 2·h,   h = floor(lim/2),  lim from
+               cap = sps (complex) or sps/2 (real), strict for the real twin
+ζ            = 1/√2
+num_phases   = 64
+lock_thresh  = σ_H0 · η(Pfa = 5e-6)  = 0.4999
+bn_agc       = ratio · min(bn_carrier, bn_timing),  ratio = 0.05
+```
+
+The AGC is derived off the **slowest** loop it feeds, so it cannot integrate
+against either one.
+
+### 5.7 Rate conventions — the real face
+
+```text
+ddcr tuning law:  norm_freq = −(2·f_c + 0.5)
+get_norm_freq  =  centre_freq + 0.5 · mpsk_rx_freq_est(l)
+get_nco_freq   =  centre_freq − 0.5 · l.freq_ctrl
+constraint     :  sps > 2·m_out          (the cascade behind the halfband
+                                          runs at twice the overall rate)
+```
+
+The `0.5` is the halfband's 2:1 decimation seen from the input rate. It belongs
+to the **face**, not to the loops — which is exactly why the loops can be
+shared and why "the LO runs at half the input rate" needs a test that neither
+receiver currently has.
+
+### 5.8 Ramp response — the measurement that ranks loops
+
+```text
+θ_ss = 2π·r / wn²        r = the Doppler rate, cycles/symbol²
+```
+
+A type-2 loop nulls a frequency **step** to zero steady-state error regardless
+of gain, so a step test cannot size a loop. Against a ramp it holds a constant
+phase lag with the closed form above, and the loop breaks when `θ_ss` leaves
+the S-curve's linear range, ≈`π/(2M)`.
+
+______________________________________________________________________
+
+## 6. The blocker, and what was measured about it
 
 A jm view shares its parent's methods **verbatim**. It can ADD a method with
 its own `arg_type`, or override a parent method's **doc** — and nothing else.
@@ -121,7 +300,7 @@ Scaffolded against jm **0.61.0 and 0.61.1**, three routes:
 | a view `steps` with no exclude                 | **accepted, `arg_type` silently ignored** — the `.pyi` *and* the view's own C fragment both keep the parent's `NPY_COMPLEX64` |
 | a view method with a **new** name (`steps_r`)  | **works end to end** — own `arg_type`, own binding, own `_max_out`                                                            |
 
-Filed upstream as **just-makeit#1011** (the silent ignore — jm already detects
+jm#1012 is **being implemented**; §4 is written against it. Filed upstream as **just-makeit#1011** (the silent ignore — jm already detects
 this exact collision on the exclude path, so the check simply is not applied
 here) and **just-makeit#1012** (the feature: let a view override a *signature*,
 not just a doc). They are linked, and #1011 closes either way: implement the
@@ -135,7 +314,7 @@ trade, not a blocker.
 
 ______________________________________________________________________
 
-## 5. Why now — the claim inventory
+## 7. Why now — the claim inventory
 
 `dev/validation.md` opens the certification process with a claim inventory, and
 running it over both receivers produced the finding that motivates this page.
@@ -169,7 +348,7 @@ ever read it back.
 
 ______________________________________________________________________
 
-## 6. Sequence
+## 8. Sequence
 
 1. The `strobe` pin, `native/validation/rx_dynamics.c` and the corrected
     `nda_tap` cost — landed separately, already green.
@@ -186,7 +365,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 7. Decisions this page records
+## 9. Decisions this page records
 
 - **`strobe` is the continuous flavor's tap.** Measured on that flavor's own
     waveform — NRZ, modulation off then dense, under a coupled Doppler ramp:

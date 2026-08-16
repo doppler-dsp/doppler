@@ -19,7 +19,6 @@
 * **dp\_tlm\_t** ([**dp\_tlm\_core.h**](dp__tlm__core_8h.md))
 * **dp\_tlm\_capture\_state\_t** ([**dp\_tlm\_capture\_core.h**](dp__tlm__capture__core_8h.md))
 * **dp\_tlm\_sink\_t** ([**tlm\_sink.h**](tlm__sink_8h.md))
-* **dp\_tlm\_recorder\_t** ([**tlm\_recorder.h**](tlm__recorder_8h.md))
 
 
 ## f

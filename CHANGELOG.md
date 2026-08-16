@@ -32,6 +32,45 @@ ______________________________________________________________________
     wholesale and kept only `doc`. It is now honoured (with `fn`) or refused
     by name. A doc-only override — same name, same signature — is unchanged.
 
+### Removed
+
+- **Two installed public headers that declared an API the library does not
+    define** (#801). Both were installed by the `native/inc/**` rule and
+    published to `docs/c-api/`, so a downstream C user could read them,
+    include them, and fail at link time.
+
+    **`native/inc/telemetry/tlm_recorder.h`** declared seven
+    `dp_tlm_recorder_*` functions with full Doxygen; all seven were absent
+    from every first-party artifact (`libdoppler.a`, `libdoppler.so`,
+    `libdoppler_stream.a`, `libdoppler_stream.so`) and no implementation
+    existed anywhere.
+
+    It was **superseded, not unbuilt** — the capability ships as
+    `dp_tlm_capture_*` (`open`/`open_memory`, `close`, `count`, `dropped`,
+    `records`, `destroy`, plus `read`/`read_max_out`) with a Python face
+    (`Telemetry`, `MemoryCapture`, `Capture`) and a worked example in
+    `src/doppler/examples/mpsk_telemetry_capture_demo.py`, which answers the
+    header's own rationale directly: the capture sizes its own ring and drains
+    at every block boundary, so a drop is impossible rather than unlikely.
+
+    The shapes differ because **telemetry is attach-on-demand**. Probes attach
+    at runtime and one attach forwards to an object's children — a single
+    `MpskReceiver` attach registers 13 — so the ring can only be sized once
+    the probe table exists. That is why the shipped API opens a capture
+    *after* the attach; `dp_tlm_recorder_create(t, path, block)` sizes at
+    construction and structurally cannot express it. Keeping it would have
+    pointed readers away from a working API toward a shape the model rules
+    out.
+
+    **`native/inc/stream/stream_core.h`** was a 21-line jm scaffold whose only
+    content was `/* Declare module-level functions here. */`. The `stream`
+    module is real (`stream_core.c`, `stream_nats.c`, `tlm_sink.c`); this was
+    the per-module public header nobody filled in, and `[module.stream]` is
+    `no_generate`, so jm does not put it back.
+
+    Their four generated `docs/c-api/` pages go with them, via
+    `make gen-c-api`. Nothing in the tree included either header.
+
 ### Added
 
 - **`track.ContinuousMpskReceiver` — the continuous flavor, and nothing

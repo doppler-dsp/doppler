@@ -22,6 +22,7 @@
 #include "resamp/resamp_core.h"
 #include <math.h> /* log10/powf/sqrtf in create_impl */
 #include "gold/gold_core.h"
+#include "mpsk/mpsk_core.h" /* mpsk_constellation — the ONE bit->symbol map */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -118,6 +119,23 @@ typedef struct {
     pn_state_t * pn;
 } wfm_synth_state_t;
 
+JM_FORCEINLINE float _Complex
+wfm_synth_bit_symbol(wfm_synth_state_t *s)
+{
+    unsigned g = 0u;
+    int      k;
+    if (s->bit_mod <= 0) {
+        float a    = s->bits[s->bit_idx] ? 1.0f : 0.0f;
+        s->bit_idx = (s->bit_idx + 1) % s->n_bits;
+        return a + 0.0f * I;
+    }
+    for (k = 0; k < s->bit_mod; k++) { /* MSB-first within the symbol */
+        g          = (g << 1) | (unsigned)(s->bits[s->bit_idx] ? 1u : 0u);
+        s->bit_idx = (s->bit_idx + 1) % s->n_bits;
+    }
+    return mpsk_constellation(g, 1 << s->bit_mod);
+}
+
 JM_FORCEINLINE float
 wfm_synth_cont_dsss_chip(wfm_synth_state_t *s)
 {
@@ -155,21 +173,7 @@ wfm_synth_next_symbol(wfm_synth_state_t *s)
         if (s->chips_per_symbol > 0.0) /* continuous DSSS: lazy chip */
             return wfm_synth_cont_dsss_chip(s) + 0.0f * I;
         if (s->bits && s->n_bits) {
-            if (s->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
-                uint8_t b0     = s->bits[s->bit_idx];
-                uint8_t b1     = s->bits[(s->bit_idx + 1) % s->n_bits];
-                s->bit_idx     = (s->bit_idx + 2) % s->n_bits;
-                return (b0 ? -q : q) + (b1 ? -q : q) * I;
-            }
-            if (s->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
-                float re   = s->bits[s->bit_idx] ? -1.0f : 1.0f;
-                s->bit_idx = (s->bit_idx + 1) % s->n_bits;
-                return re + 0.0f * I;
-            }
-            /* none: unmodulated 0/1 amplitude */
-            float re   = s->bits[s->bit_idx] ? 1.0f : 0.0f;
-            s->bit_idx = (s->bit_idx + 1) % s->n_bits;
-            return re + 0.0f * I;
+            return wfm_synth_bit_symbol(s);
         }
         return 0.0f + 0.0f * I;
     }
@@ -266,22 +270,14 @@ wfm_synth_step(wfm_synth_state_t *state)
                 state->cur_re = wfm_synth_cont_dsss_chip(state);
                 state->cur_im = 0.0f;
             } else if (state->bits && state->n_bits) {
-                if (state->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
-                    uint8_t b0 = state->bits[state->bit_idx];
-                    uint8_t b1 = state->bits[(state->bit_idx + 1) % state->n_bits];
-                    const float s = 0.70710678118654752f;
-                    state->cur_re = b0 ? -s : s;
-                    state->cur_im = b1 ? -s : s;
-                    state->bit_idx = (state->bit_idx + 2) % state->n_bits;
-                } else if (state->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
-                    state->cur_re = state->bits[state->bit_idx] ? -1.0f : 1.0f;
-                    state->cur_im = 0.0f;
-                    state->bit_idx = (state->bit_idx + 1) % state->n_bits;
-                } else { /* none: unmodulated 0/1 amplitude */
-                    state->cur_re = state->bits[state->bit_idx] ? 1.0f : 0.0f;
-                    state->cur_im = 0.0f;
-                    state->bit_idx = (state->bit_idx + 1) % state->n_bits;
-                }
+                /* ONE bits->symbol map for every order, shared with
+                 * wfm_synth_next_symbol() and wfm_synth_steps(). Inlining it
+                 * here is what let the QPSK copy drift into a different label
+                 * assignment than mpsk_constellation() -- see
+                 * wfm_synth_bit_symbol(). */
+                float _Complex bs = wfm_synth_bit_symbol(state);
+                state->cur_re     = crealf(bs);
+                state->cur_im     = cimagf(bs);
             }
         }
         if (state->fir) {

@@ -1399,6 +1399,7 @@
 * **wfm\_reader\_read** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **wfm\_reader\_read\_max\_out** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **wfm\_reader\_reset** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
+* **wfm\_synth\_bit\_symbol** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_synth\_bps** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_synth\_cont\_dsss\_chip** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_synth\_create** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))

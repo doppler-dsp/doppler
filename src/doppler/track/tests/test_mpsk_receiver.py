@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from doppler.track import MpskReceiver
+from doppler.track import ContinuousMpskReceiver, MpskReceiver
 
 PHI0 = {2: 0.0, 4: np.pi / 4, 8: 0.0}
 
@@ -354,3 +354,83 @@ def test_reset_reproducible():
     assert rx.tracking == 0
     second = rx.steps(tx)
     assert np.array_equal(first, second)
+
+
+# ── ContinuousMpskReceiver — the continuous flavor (design/mpsk.md §2.1) ──
+
+
+def test_continuous_view_pins_the_gating():
+    """The flavor's whole claim: no handover, no gate, nothing to wait for.
+
+    It is a jm VIEW over the same core, so the surface must be identical and
+    only the constructor may differ -- that is what separates a flavor from a
+    second type in this project. Checked both ways round: every knob the view
+    pins must be REFUSED by its constructor, and every method/property the
+    base has must still be reachable.
+    """
+    rx = ContinuousMpskReceiver(m=2, sps=8.0)
+
+    # The pinned knobs are gone from the constructor, not merely defaulted.
+    for kw in (
+        "lock_thresh",
+        "acq_to_track",
+        "nda_tap",
+        "agc",
+        "m_out",
+        "zeta",
+        "num_phases",
+        "bn_agc_ratio",
+    ):
+        with pytest.raises(TypeError):
+            ContinuousMpskReceiver(m=2, sps=8.0, **{kw: 1})
+
+    # ... but every one is still READABLE, which is what makes a pinned value
+    # checkable rather than hidden. These are the derived §8.1 answers.
+    assert rx.m_out == 8
+    assert rx.num_phases == 64
+    assert rx.zeta == pytest.approx(0.70710678118654752, abs=1e-15)
+    assert rx.lock_thresh == pytest.approx(0.4999, abs=1e-15)
+    assert rx.bn_agc_ratio == pytest.approx(0.05, abs=1e-15)
+
+    # Same object, same surface. A view shares its parent's methods verbatim.
+    base = {d for d in dir(MpskReceiver) if not d.startswith("_")}
+    view = {d for d in dir(ContinuousMpskReceiver) if not d.startswith("_")}
+    assert base == view, f"surface differs: {base ^ view}"
+
+
+def test_continuous_view_never_hands_over():
+    """`tracking` is 0 from the first output to the last.
+
+    The handover-enabled receiver on the SAME stimulus is the control. Without
+    it this asserts nothing: `tracking == 0` is equally satisfied by a signal
+    that never locked at all, or by a handover that is simply broken.
+    """
+    tx, idx = _signal(2, foff=0.0008, snr_db=30, seed=21)
+
+    rx = ContinuousMpskReceiver(m=2, sps=8.0, bn_carrier=0.02, bn_timing=0.01)
+    out = rx.steps(tx)
+    assert out.size > 0
+    assert rx.lock > 0.5  # it genuinely locked
+    assert rx.tracking == 0  # and never flipped
+    assert _ser(out, idx, 2) < 0.01
+
+    # The control: this stimulus DOES drive a handover when one is enabled.
+    handover = MpskReceiver(
+        m=2,
+        sps=8.0,
+        m_out=8,
+        bn_carrier=0.02,
+        bn_timing=0.01,
+        acq_to_track=1,
+        lock_thresh=0.65,
+    )
+    handover.steps(tx)
+    assert handover.tracking == 1, "control failed — the stimulus cannot lock"
+
+
+def test_continuous_view_tracks_the_carrier():
+    """Acquires with no timing gate: mf_in needs no symbol timing."""
+    tx, _ = _signal(2, foff=0.0008, snr_db=30, seed=5)
+    rx = ContinuousMpskReceiver(m=2, sps=8.0, bn_carrier=0.02, bn_timing=0.01)
+    rx.steps(tx)
+    assert rx.norm_freq == pytest.approx(0.0008, abs=1e-4)

@@ -250,6 +250,60 @@ lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
 
 ______________________________________________________________________
 
+## ContinuousMpskReceiver — the continuous flavor, and nothing waits
+
+`ContinuousMpskReceiver` is a **view** over `MpskReceiver`: the same core, the
+same state, the identical method surface, and only the constructor differs.
+That is what makes it a *flavor* rather than a second type here — a difference
+in constructor is a view, a difference in method signature is a separate class
+(which is why `MpskReceiverR` below is one and this is not). Nothing is
+removed: `MpskReceiver` still reaches every knob.
+
+**There is no handover, no warmup, no lock gate and no timing gate.** The NDA
+M-th-power error steers the LO from the first output to the last. That is a
+reliability argument rather than a simplicity one: there is no state in which
+the receiver can be wrong about which mode it is in, because there is one — no
+declaring on garbage, no drop-back that never fires, and no metric that has to
+be trusted before the loop is allowed to act. See
+[MPSK Receiver §2.1](../design/mpsk.md).
+
+```python
+from doppler.track import ContinuousMpskReceiver
+
+# Continuous BPSK at 8 samples/symbol. The caller states the link,
+# not the loops.
+rx = ContinuousMpskReceiver(m=2, sps=8.0, bn_carrier=0.02, bn_timing=0.01)
+sym = rx.steps(iq)          # recovered symbols
+bits = rx.bits(iq)          # differential by default — see below
+assert rx.tracking == 0     # one discriminator, forever
+```
+
+What it pins, and why none of them is a choice here:
+
+| pinned                                                       | to      | because                                                                                   |
+| ------------------------------------------------------------ | ------- | ----------------------------------------------------------------------------------------- |
+| `acq_to_track`                                               | `0`     | the handover **is** the gate this flavor exists to remove                                 |
+| `nda_tap`                                                    | `mf_in` | the only tap with neither a symbol-timing dependency nor an inter-symbol ISI bias         |
+| `agc`                                                        | `1`     | load-bearing, not optional — it defines the level both loops run on                       |
+| `m_out`, `zeta`, `lock_thresh`, `num_phases`, `bn_agc_ratio` | `0`     | not design axes; `0` requests the derived answer, and each is still read back by a getter |
+
+Every pinned value stays **readable** even though it is not settable — a
+pinned number you cannot check is a hidden one:
+
+```python
+rx.m_out, rx.num_phases, rx.lock_thresh   # 8, 64, 0.4999 — all derived
+```
+
+`lock_thresh` is excluded rather than defaulted for the same reason it is
+still readable: with no handover it gates nothing, so it is telemetry. `lock`
+and `lock_thresh` report; nothing acts on them.
+
+The M-fold phase ambiguity is **permanent** here — no decision-directed stage
+ever pins the absolute phase — so `differential` defaults to `1`. Coherent
+demapping without a downstream sync word is a misconfiguration, not a choice.
+
+______________________________________________________________________
+
 ## MpskReceiverR — the real-input twin
 
 `MpskReceiverR` is `MpskReceiver` for a **real IF**: `steps()` and `bits()` take

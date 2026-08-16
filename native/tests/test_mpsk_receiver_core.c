@@ -232,6 +232,59 @@ main (void)
       }
   }
 
+  /* 1c. The continuous flavor pins the gating, and it STAYS pinned.
+     docs/design/mpsk.md §2.1. Asserting the construct-time values is only
+     half of it: `acq_to_track` is the handover, so the claim "there is no
+     handover" is a claim about a receiver that has RUN, on a signal good
+     enough that a handover-enabled twin would have taken it. Both are
+     checked below, and the twin is the control -- without it, `tracking == 0`
+     is equally satisfied by a signal that simply never locked. */
+  {
+    mpsk_receiver_state_t *c = mpsk_receiver_create_continuous (
+        2, SPS, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.02, 0.01, 0.0, 1);
+    DP_CHECK (c != NULL);
+    if (c)
+      {
+        /* Pinned at construction. */
+        DP_CHECK (c->l.acq_to_track == 0);
+        DP_CHECK (c->l.nda_tap == MPSK_RX_NDA_TAP_MF_IN);
+        DP_CHECK (c->l.tap_timed == 0);    /* mf_in needs no symbol timing */
+        DP_CHECK (c->fe->rc->agc != NULL); /* the AGC is not optional */
+        /* Derived, not defaulted -- the same five §8.1 rows as 1b. */
+        DP_CHECK (mpsk_receiver_get_m_out (c) == 8u);
+        DP_CHECK (
+            dp_near (mpsk_receiver_get_zeta (c), 0.70710678118654752, 1e-15));
+        DP_CHECK (mpsk_receiver_get_num_phases (c) == 64u);
+        DP_CHECK (dp_near (mpsk_receiver_get_lock_thresh (c), 0.4999, 1e-15));
+        DP_CHECK (dp_near (mpsk_receiver_get_bn_agc_ratio (c), 0.05, 1e-15));
+
+        /* It runs, it locks, and it never hands over. */
+        make_mpsk (tx, idx, 2, 0.0008, 30.0, 21u);
+        size_t n = mpsk_receiver_steps (c, tx, NSAMP, out, NSYM);
+        DP_CHECK (n > 0);
+        DP_CHECK (mpsk_receiver_get_lock (c) > 0.5);    /* it did lock */
+        DP_CHECK (mpsk_receiver_get_tracking (c) == 0); /* and never flipped */
+        DP_CHECK (tail_ser (out, n, idx, 2, phi0_for (2),
+                            dp_test_settle_syms (0.02, 0.01))
+                  < 0.01);
+
+        /* The control: the SAME stimulus through a handover-enabled receiver
+           DOES flip. Without this the assertion above is vacuous -- it would
+           pass on a receiver that never locked, and on one whose handover was
+           simply broken. */
+        mpsk_receiver_state_t *h
+            = RX (2, SPS, 8, MPSK_RX_PULSE_IANDD, 0.02, 1, 0.65, 0.0);
+        DP_CHECK (h != NULL);
+        if (h)
+          {
+            (void)mpsk_receiver_steps (h, tx, NSAMP, out, NSYM);
+            DP_CHECK (mpsk_receiver_get_tracking (h) == 1);
+            mpsk_receiver_destroy (h);
+          }
+        mpsk_receiver_destroy (c);
+      }
+  }
+
   /* 2. Lock + recover under a carrier offset (I&D), every M -> SER 0 */
   {
     int    ms[3] = { 2, 4, 8 };

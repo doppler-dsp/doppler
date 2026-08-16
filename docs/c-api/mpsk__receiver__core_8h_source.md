@@ -62,6 +62,11 @@ extern "C"
 
   double mpsk_receiver_get_agc_gain_db (const mpsk_receiver_state_t *state);
 
+  mpsk_receiver_state_t *mpsk_receiver_create_continuous (
+      int m, double sps, int pulse, double rrc_beta, int rrc_span,
+      double bn_carrier, double bn_timing, double init_norm_freq,
+      int differential);
+
   void mpsk_receiver_destroy (mpsk_receiver_state_t *state);
 
   void mpsk_receiver_reset (mpsk_receiver_state_t *state);

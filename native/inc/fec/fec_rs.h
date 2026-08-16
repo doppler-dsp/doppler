@@ -83,6 +83,47 @@ extern "C"
   const uint8_t *fec_rs_generator (void);
 
   /**
+   * @brief Is this a valid codeword? — all 32 syndromes zero.
+   *
+   * The DEFINING property of the code: a codeword polynomial evaluates to
+   * zero at every root of `g(x)`. Checking it needs no decoder and is not a
+   * round trip against the encoder's own logic, which is what makes it usable
+   * as a test oracle and, later, as a receiver's error detector.
+   *
+   * @param codeword  255 symbols in the dual basis: 223 information
+   *                  followed by 32 parity, exactly as transmitted.
+   * @return Non-zero when every syndrome is zero.
+   */
+  int fec_rs_codeword_ok (const uint8_t *codeword);
+
+  /**
+   * @brief Encode an interleaved codeblock (4.3.5, 4.4.1).
+   *
+   * Depth @p depth means @p depth codewords are encoded in parallel, with
+   * switch S1 handing successive input symbols to successive encoders. Two
+   * consequences worth stating because they are what the tests assert:
+   *
+   * - the information section comes out **unchanged** — 4.4.1 has S2
+   *   reassembling the information "in the same way as they entered", so only
+   *   the check symbols are rearranged;
+   * - `depth == 1` is the un-interleaved code, which 4.3.5.1 notes outright.
+   *
+   * Interleaving is what makes the outer code burst-tolerant: a contiguous
+   * burst of `B` symbols lands as `ceil(B / depth)` errors in each codeword,
+   * so depth trades no rate at all for a `depth`-fold longer correctable
+   * burst.
+   *
+   * @param info   `FEC_RS_K * depth` information symbols, dual basis.
+   * @param depth  Interleaving depth; 4.3.5.1 allows 1, 2, 3, 4, 5 and 8.
+   * @param out    Receives `FEC_RS_N * depth` symbols: the information
+   *               verbatim, then `FEC_RS_2E * depth` interleaved check
+   *               symbols.
+   * @return The number of symbols written, or 0 if @p depth is not allowed.
+   */
+  size_t fec_rs_encode_block (const uint8_t *info, unsigned depth,
+                              uint8_t *out);
+
+  /**
    * @brief Encode one codeword: 223 information symbols in, 32 parity out.
    *
    * Both @p info and @p parity are in the **dual basis**, i.e. exactly what

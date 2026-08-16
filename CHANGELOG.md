@@ -191,6 +191,36 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **A periodic marker's sync words were scored as DATA.** `dp_ber_measure()`
+    opened its scored window at the settled point and bounded it past the
+    marker's end only for a *blind* marker. For a **periodic** one — a frame's
+    sync word, recurring for the whole record — `ber_meter`'s exclusion reads
+    an index before `t0` as "not a marker" (`ber_meter_core.c:122`), so every
+    sync word *preceding* `t0` was scored as payload: known symbols that had
+    no chance of being wrong, quietly flattering the denominator. The window
+    now opens at the marker's **first occurrence** for the periodic shape and
+    past its **end** for the blind one, which is what `rx_frame_fer.c` had
+    already been doing by hand.
+
+    The same argument holds at the **other** end and is now enforced there
+    too: `in_marker` bounds exclusion at both ends
+    (`off / period >= occurrences`), so scoring past the last excluded
+    occurrence reintroduces the identical defect at the tail. Measured, it
+    does not currently bite — exclusion already reaches 44 symbols past the
+    scored top at period 285 and 824 at period 1679 — but that margin is a
+    function of the detected **lag**, not a chosen constant: on the 285
+    geometry a lag beyond ~245 turns it positive, and `DP_BER_LAG_SPAN` is
+    200\. Bounded rather than left to a coincidence that holds at the only two
+    geometries anyone has looked at. Today it changes no number.
+
+- **`dp_ber_report_t` threw away the alignment it had just computed.** The
+    `lag` and `phase` that fixed the record are now returned. They are part of
+    *defending* the rate rather than a by-product of computing it: anything
+    else scored against the same record — per-frame outcomes, a telemetry
+    series — has to be placed in the same coordinates, and re-running the
+    detection to find out where it sat is a second copy of the decision, free
+    to disagree with the first.
+
 - **`mpsk_receiver_core.h` said the old defaults for the five parameters that
     now derive.** gh-644 made `0` request a derived value for `m_out`, `zeta`,
     `lock_thresh`, `num_phases` and `bn_agc_ratio`, and updated

@@ -449,20 +449,51 @@ So **none of the trio (§2.4) has a direct C test**, and the `snr` module has no
 `src/doppler/snr/tests/test_snr.py`). Every receiver number this project
 quotes rests on three primitives that are checked only by their own consumers.
 
-### 5.2 Five of seven harness headers have no test of their own
+### 5.2 ~~Five of seven harness headers have no test of their own~~
 
-| header            | lines | own test              |
-| ----------------- | ----- | --------------------- |
-| `dp_ber_test.h`   | 834   | `test_dp_ber.c` (637) |
-| `dp_rng_test.h`   | 312   | `test_dp_rng.c` (273) |
-| `dp_tx_test.h`    | 307   | **none**              |
-| `dp_sym_test.h`   | 220   | **none**              |
-| `dp_dsss_test.h`  | 211   | **none**              |
-| `dp_mf_test.h`    | 109   | **none**              |
-| `dp_state_test.h` | 37    | **none**              |
+~~Five of seven have no test of their own.~~ **CLOSED — all of them do now**,
+and `dp_test.h`, the foundation the whole family rests on, which the original
+table did not even list:
 
-`dp_tx_test.h` and `dp_sym_test.h` are the two that silently shape every
-measurement — the stimulus and the symbol-quality scoring.
+| header            | lines | own test                                             |
+| ----------------- | ----- | ---------------------------------------------------- |
+| `dp_ber_test.h`   | 834   | `test_dp_ber.c`                                      |
+| `dp_rng_test.h`   | 312   | `test_dp_rng.c`                                      |
+| `dp_tx_test.h`    | 307   | `test_dp_tx.c`                                       |
+| `dp_test.h`       | 306   | `test_dp_test.c` + `test_dp_test_end.c`              |
+| `dp_sym_test.h`   | 220   | `test_dp_sym.c`                                      |
+| `dp_dsss_test.h`  | 211   | `test_dp_dsss.c`                                     |
+| `dp_mf_test.h`    | 109   | `test_dp_mf.c`                                       |
+| `dp_state_test.h` | 37    | `test_dp_state.c`                                    |
+| `dp_frame_test.h` | 228   | `test_dp_frame.c`                                    |
+| `dp_rx_test.h`    | 1004  | **none** — the instrument, exercised only end to end |
+
+`dp_tx_test.h` and `dp_sym_test.h` were called out here as "the two that
+silently shape every measurement", and that was right — but the header the
+list omitted turned out to matter more. **`dp_test.h` is the assertion
+foundation 97 C test files include**, and its failure mode is not a red suite
+but a green one: a `DP_CHECK` that stops recording failures turns all 97 into
+programs that run to completion and report success.
+
+**What writing them found**, none of which a review had:
+
+- `DP_STATE_ROUNDTRIP_TEST` — called by **31 files** — asserted what
+    `set_state` RETURNS and never that the restored object CARRIES the state,
+    so a `set_state` that validated the envelope and restored nothing passed
+    everywhere. Closed generically (restore, re-serialize, compare); no object
+    was cheating.
+- `dp_sym_test.h`'s back-half forms guard on `n_syms < 20` and then score
+    `ceil(n_syms/2)`, so the real short-stream floor is **39**, not 20.
+- `dp_test.h` called component-wise comparison "the stricter of the two"; it
+    is the looser — a square of side `2*tol` against a disc of radius `tol`
+    inside it.
+- `dp_dsss_test.h`'s documented 3.01 dB defect (#689) was held in place by
+    prose; it is now a characterization that goes red if the `/sqrt(2)` is
+    removed without the receiver investigation the issue asks for.
+
+`dp_rx_test.h` is the one left, and deliberately: it is in flight, and its
+only exercise is `validate_rx_battery`, whose gates were measured to go
+vacuous under sabotage (#796).
 
 ### 5.3 The framed generator and the frame-aware measurer have never met
 
@@ -952,8 +983,10 @@ Ordered so that nothing depends on an unpinned measurement:
 1. **Pin the trio** (§5.1). `ber_align_detect`, `ber_evm_db`, `snr_m2m4_db` —
     known-answer tests plus sabotage, and a `native/tests/test_snr_core.c`
     where none exists. Nothing below is trustworthy until this is done.
-1. **Test the five untested harness headers** (§5.2), `dp_tx_test.h` and
-    `dp_sym_test.h` first.
+1. ~~**Test the five untested harness headers**~~ **DONE** (§5.2) — all five,
+    plus `dp_test.h`, the foundation the original list did not include and the
+    one that mattered most. `dp_rx_test.h` is the only member still without a
+    self-test, and it is deliberate: the instrument is in flight.
 1. ~~**Add the two refusal points**~~ **DONE, and they turned out to be one**
     (§8.5). `align_ok` is now load-bearing for every metric; the stage-4
     invariant is not wanted, because the detection it would have preceded

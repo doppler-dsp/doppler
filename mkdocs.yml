@@ -302,6 +302,7 @@ nav:
       - Error Convention: dev/error-convention.md
       - "DSSS acquisition use cases": dev/dsss-use-cases.md
       - Benchmarking: dev/benchmarking.md
+      - Measuring a Receiver: dev/measuring-a-receiver.md
       - Object Validation: dev/validation.md
       - Validation Log: dev/validation-log.md
       - Doc Examples (tested): dev/doc-examples.md

@@ -17,6 +17,7 @@ so you can find the one that owns your question.
 - [Error Convention](error-convention.md) — how errors are returned across the C ABI
 - [DSSS Acquisition Use Cases](dsss-use-cases.md) — the two wide-Doppler operating regimes driving the acquisition design
 - [Benchmarking](benchmarking.md) — running and interpreting benchmark results
+- [Measuring a Receiver](measuring-a-receiver.md) — the path from a receiver to a number you can defend: the adapter, the four metrics together, how to read a refusal, and what to gate on
 - [Object Validation](validation.md) — how an object is certified: header claims → C tests proven by sabotage → the generated evidence report and its two gates
 - [Validation Log](validation-log.md) — which objects are certified, their limit and finding counts, and a link straight to each object's evidence
 - [Doc Examples](doc-examples.md) — every docs code snippet is discovered and tested, no opt-in list

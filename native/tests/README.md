@@ -6,19 +6,62 @@ shared parts live in the `dp_*_test.h` family rather than in each file.
 
 ## The family
 
-| header            | owns                                                          |
-| ----------------- | ------------------------------------------------------------- |
-| `dp_test.h`       | **assertions, the counters, the epilogue** — everything below |
-| `dp_rng_test.h`   | **randomness**: the generator, the uniforms, the Gaussians    |
-| `dp_state_test.h` | the serialize → restore → reject-a-clobbered-blob round trip  |
-| `dp_tx_test.h`    | stimulus: one shaped symbol stream, one place                 |
-| `dp_dsss_test.h`  | stimulus: the code-spread BPSK capture, fixed or ramped       |
-| `dp_sym_test.h`   | truth-free symbol-quality verdicts for receiver tests         |
-| `dp_ber_test.h`   | error-rate measurement: settling, alignment, sampling, the CI |
-| `dp_mf_test.h`    | matched-filter fixtures (RRC-BPSK on a carrier, EVM)          |
+| header            | owns                                                             |
+| ----------------- | ---------------------------------------------------------------- |
+| `dp_test.h`       | **assertions, the counters, the epilogue** — everything below    |
+| `dp_rng_test.h`   | **randomness**: the generator, the uniforms, the Gaussians       |
+| `dp_state_test.h` | the serialize → restore → reject-a-clobbered-blob round trip     |
+| `dp_tx_test.h`    | stimulus: one shaped symbol stream, one place                    |
+| `dp_dsss_test.h`  | stimulus: the code-spread BPSK capture, fixed or ramped          |
+| `dp_sym_test.h`   | truth-free symbol-quality verdicts for receiver tests            |
+| `dp_ber_test.h`   | error-rate measurement: settling, alignment, sampling, the CI    |
+| `dp_mf_test.h`    | matched-filter fixtures (RRC-BPSK on a carrier, EVM)             |
+| `dp_frame_test.h` | the named frame set — what a framed stimulus transmits           |
+| `dp_rx_test.h`    | **the receiver instrument**: one struct, one run, every receiver |
 
 `dp_test.h` is the one every other member depends on. Include it first;
 include the others as the test needs them.
+
+`dp_rx_test.h` is the odd one out and is used differently from the rest: it
+does not supply a piece, it runs the whole measurement. If what you have is a
+receiver, start at
+[Measuring a Receiver](../../docs/dev/measuring-a-receiver.md) rather than
+here — you write an adapter, not a harness.
+
+## The family tests itself
+
+Every member has a self-test, registered in CTest and run by `make test`:
+
+| member            | its own test                             |
+| ----------------- | ---------------------------------------- |
+| `dp_test.h`       | `test_dp_test.c`, `test_dp_test_end.c`   |
+| `dp_rng_test.h`   | `test_dp_rng.c`                          |
+| `dp_state_test.h` | `test_dp_state.c`                        |
+| `dp_tx_test.h`    | `test_dp_tx.c`                           |
+| `dp_dsss_test.h`  | `test_dp_dsss.c`                         |
+| `dp_sym_test.h`   | `test_dp_sym.c`                          |
+| `dp_ber_test.h`   | `test_dp_ber.c`                          |
+| `dp_mf_test.h`    | `test_dp_mf.c`                           |
+| `dp_frame_test.h` | `test_dp_frame.c`                        |
+| `dp_rx_test.h`    | **none yet** — exercised only end to end |
+
+This is not symmetry for its own sake. These headers decide what every other
+test in the directory *means*, so their failure mode is not a red suite but a
+**green** one: a `DP_CHECK` that stops recording failures turns 97 files into
+programs that run to completion and report success. Writing the self-tests
+found four defects that review had not — among them a `DP_STATE_ROUNDTRIP_TEST`
+that checked what `set_state` returned and never that the restored object
+carried the state, which 31 call sites rested on.
+
+Two techniques recur, and are worth copying if you add a member:
+
+- **To assert that an assertion FAILS**, observe `dp_test.h`'s counters rather
+    than an exit status — snapshot, run the check that is meant to fail,
+    measure the deltas, restore. The deliberate failure never reaches the
+    verdict.
+- **Capture stderr rather than muting it.** Muting keeps fake `FAIL` lines out
+    of a passing test's log; capturing also pins the diagnostic, and a check
+    that records a failure but prints nothing useful is still broken.
 
 ## Assertions
 

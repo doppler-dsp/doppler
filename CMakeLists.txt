@@ -573,6 +573,26 @@ target_link_libraries(bench_util_core PRIVATE util_core m)
 target_include_directories(bench_util_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 
+# native/tests/dp_tx_test.h is the harness STIMULUS SSOT, and docs/design/
+# rx-test.md section 5.4 records it as the ONE place the stimulus rule cannot
+# reach: check_stimulus_sources.py requires every test, validator and example
+# to source stimulus from the library, and this file IS the test layer's
+# stimulus. The gate that polices everyone else is structurally blind to it,
+# and has nowhere to point -- so the conventions it would have checked are
+# asserted here instead.
+#
+# The conventions are the product, not the loop: three C copies and four
+# Python ones differed only in amplitude and level convention, and since a
+# TED's slope goes as A^2 two of them were measuring loop bandwidths ~16x
+# apart while both read as "the RRC BPSK test".
+add_executable(test_dp_tx native/tests/test_dp_tx.c)
+target_link_libraries(test_dp_tx PRIVATE pn_core wfm_dsp_core m)
+target_include_directories(test_dp_tx
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_tx PRIVATE -O2)
+add_test(NAME test_dp_tx COMMAND test_dp_tx)
+
 # native/tests/dp_sym_test.h is the truth-free symbol-quality layer five test
 # files score every receiver through. It is thin -- most entries forward to
 # ber_core/snr_core -- so what is load-bearing is not its arithmetic but the

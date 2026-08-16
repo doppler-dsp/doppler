@@ -132,9 +132,14 @@ extern "C"
    * @param m              Constellation order M, 2/4/8 (default 4 = QPSK).
    * @param sps            Samples per symbol; any double >= @p m_out (8.0
    *                        by default, but 17.33389 is equally valid).
-   * @param m_out          Terminal outputs per symbol: even, 2..8 (default
-   *                        8). Gardner needs the half-symbol gate. The
-   *                        default is 8 for two reasons. The matched
+   * @param m_out          Terminal outputs per symbol: even, 2..8. **0 (the
+   *                        default) derives it** — the largest even count in
+   *                        2..8 the rate allows, via
+   *                        @ref mpsk_rx_derive_m_out, which is `8` at the
+   *                        default `sps = 8`; pass a value only to pin one.
+   *                        Read it back with mpsk_receiver_get_m_out().
+   *                        Gardner needs the half-symbol gate. The derived
+   *                        answer reaches 8 for two reasons. The matched
    *                        filter: the rectangle is one symbol wide, so its
    *                        filter is an m_out-tap sum spanning it, and a
    *                        smaller m_out samples the same integral more
@@ -175,30 +180,50 @@ extern "C"
    *                        is that filter's group delay — keep it a small
    *                        fraction of the symbol rate, as a real receiver
    *                        does.
-   * @param zeta           Damping factor for both loops (default 0.707).
+   * @param zeta           Damping factor for both loops. **0 (the default)
+   *                        derives it** as `1/sqrt(2)`
+   *                        (@ref MPSK_RX_ZETA_DEFAULT) — a constant rather
+   *                        than a computation, since nothing in this receiver
+   *                        moves the optimal damping and both loops already
+   *                        share one value. Read it back with
+   *                        mpsk_receiver_get_zeta().
    * @param bn_timing      Symbol-timing loop noise bandwidth, normalised to
    *                        the symbol rate (default 0.01).
    * @param acq_to_track   Enable the two-way NDA<->decision-directed
    *                        handover (default 0).
    * @param lock_thresh    Handover declare threshold on the carrier lock
-   *                        metric (default 0.5); the drop threshold sits at
-   *                        0.8x for level hysteresis, and both directions
-   *                        are verify-counted (8 symbols up / 32 down).
+   *                        metric. **0 (the default) derives it** as
+   *                        `sigma_H0 * eta(Pfa)` = `0.1132 * 4.4159` =
+   *                        `0.4999` (@ref MPSK_RX_LOCK_THRESH_DEFAULT), which
+   *                        is the 0.5 that used to be hand-picked — so the
+   *                        derivation changed no behaviour, and is here
+   *                        because a number that was picked and a number that
+   *                        was derived look identical until one has to move.
+   *                        Read it back with
+   *                        mpsk_receiver_get_lock_thresh(). The drop
+   *                        threshold sits at 0.8x for level hysteresis, and
+   *                        both directions are verify-counted (8 symbols up /
+   *                        32 down).
    *                        The metric is `Re((z/|z|)^M)` smoothed by an EMA,
    *                        whose noise-only sd is 0.1132 for **every** M, so
-   *                        the threshold is `0.5 / 0.1132` = 4.42 noise sigmas
-   *                        — a per-look false-alarm probability of 5e-6. Pick
-   *                        a value by dividing your Pfa's z-score into 0.1132
-   *                        rather than by feel; see carrier_nda_core.h for the
+   *                        the threshold is 4.42 noise sigmas — a per-look
+   *                        false-alarm probability of 5e-6. To pin your own,
+   *                        divide your Pfa's z-score into 0.1132 rather than
+   *                        picking by feel; see carrier_nda_core.h for the
    *                        derivation and the measured verification.
    * @param init_norm_freq Seed carrier frequency, cycles/sample at the input
    *                        rate (default 0.0). This is the centre the LO is
    *                        tuned to; the loop tracks the residual around it.
    * @param differential   bits(): differential (rotation-invariant) demap
    *                        (default 0 = coherent).
-   * @param num_phases     Terminal-stage bank arms; a power of two (default
-   *                        1024). Sets the timing resolution to
-   *                        `1/num_phases` of an output period.
+   * @param num_phases     Terminal-stage bank arms; a power of two. **0 (the
+   *                        default) derives it** as 64
+   *                        (@ref MPSK_RX_NUM_PHASES_DEFAULT), the measured
+   *                        saturation point — against the 1024 that used to
+   *                        be the default, a 16x bank for no measurable gain.
+   *                        Read it back with
+   *                        mpsk_receiver_get_num_phases(). Sets the timing
+   *                        resolution to `1/num_phases` of an output period.
    * @param nda_tap        MPSK_RX_NDA_TAP_* — where the NDA carrier
    *                        discriminator reads, which sets its pull-in range
    *                        and whether it needs symbol timing at all. An
@@ -255,10 +280,24 @@ extern "C"
    *                        warning, because at 1 the AGC is exactly as fast
    *                        as a loop it feeds and past that it is faster,
    *                        and two level-correcting loops at the same speed
-   *                        integrate against each other.
-   *                        `MPSK_RX_AGC_BW_RATIO` (0.05) is the default.
+   *                        integrate against each other. **0 (the default)
+   *                        derives it** as `MPSK_RX_AGC_BW_RATIO` = 0.05,
+   *                        20x slower than the slowest loop it feeds
+   *                        (@ref MPSK_RX_AGC_RATIO_DEFAULT); 0 is the one
+   *                        value below 1 that is a request rather than a
+   *                        rejection. Read it back with
+   *                        mpsk_receiver_get_bn_agc_ratio().
    * @return Heap-allocated state, or NULL on invalid args / allocation
    * failure.
+   *
+   * @note **Zero means derive**, for `m_out`, `zeta`, `lock_thresh`,
+   * `num_phases` and `bn_agc_ratio` (gh-644). Every one of those validators
+   * previously REJECTED zero, so no working call site can be relying on it,
+   * which is what makes the derivation additive rather than a break. The
+   * derivation runs BEFORE the validation, so a derived answer faces the same
+   * guards a supplied one does. Each is reported back by a getter — without
+   * that, `0` would be an instruction whose result nobody can see. See
+   * docs/design/mpsk.md §8.1.
    * @note Caller must call mpsk_receiver_destroy() when done.
    */
   mpsk_receiver_state_t *

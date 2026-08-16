@@ -44,8 +44,9 @@ log2_pow2 (uint32_t x)
 static int
 valid_R (uint32_t R)
 {
-  /* Power of two in [2, 4096]: CIC_N * log2(R) <= 48. */
-  return R >= 2 && R <= 4096 && (R & (R - 1)) == 0;
+  /* Power of two in [2, CIC_R_MAX]: CIC_N * log2(R) <= 44, which is 16x
+     inside the 64-bit accumulator. See CIC_R_MAX. */
+  return R >= 2 && R <= CIC_R_MAX && (R & (R - 1)) == 0;
 }
 
 /* ── lifecycle ─────────────────────────────────────────────────────────── */

@@ -13,6 +13,39 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Fixed
+
+- **A capped CIC silently cost the cascade its rate** — `RateConverter` at a
+    power-of-two decimation past the CIC cap decimated by `R` and claimed `D`.
+    Measured: `RateConverter_create(1/8192)` delivered `1/4096`, twice the rate
+    asked for, and `1/16384` delivered four times it — with no error, no NaN,
+    and an output that looks entirely plausible.
+
+    The planner already hands whatever a capped CIC leaves to a `Resampler`
+    stage. That residual was gated on the matched-terminal flag alone, so the
+    plain constructor never got it. It is now emitted whenever the integer
+    stages did not complete the decimation, which is the condition that
+    actually decides whether it is needed.
+
+- **The CIC decimation cap is `CIC_R_MAX` (2048), one halving below where the
+    accumulator fills.** The 64-bit accumulator holds `65535 · R^4`; at
+    `R = 4096` that is `2^64 - 2^48`, which fits and fills it to within one
+    part in 65536. "Fits exactly" is not headroom — it is the value at which
+    any further term overflows, and the CIC's exactness argument (every
+    intermediate overflow cancels in the combs) holds only while the true
+    result fits in 64 bits. 2048 leaves **16×**.
+
+    The cap costs no rate, because of the fix above; past it the residual goes
+    to the resampler, exactly as the non-power-of-two path already did. Both
+    layers enforce it — `cic_create()` refuses beyond `CIC_R_MAX` and the
+    planner never asks — because a cap the planner honours and the constructor
+    does not is one bad call site away from the accumulator it protects.
+
+    Lowering the cap is what exposed the rate defect: it moved the first
+    affected geometry from `D = 8192` down to `D = 4096`, where a receiver can
+    actually reach it. Both are pinned by
+    `test_capped_cic_still_delivers_the_requested_rate`, proven by sabotage.
+
 ### Added
 
 - **`mf_in` now works on `MpskReceiverR` too — the restriction was unwired

@@ -11,10 +11,18 @@
  *   rate >= 1.0 or D < 2           `[Resampler(rate)]`
  *   D ~= 2^1                        `[HalfbandDecimator]`
  *   D ~= 2^2                        `[HalfbandDecimator, HalfbandDecimator]`
- *   D ~= 2^n, n>=3, D<=4096         `[CIC(D)]`
+ *   D ~= 2^n, n>=3, D<=CIC_R_MAX    `[CIC(D)]`
+ *   D ~= 2^n, D > CIC_R_MAX         `[CIC(CIC_R_MAX), Resampler(R/D)]`
  *   D >= 8, non-power-of-2          `[CIC(R*), Resampler correction]`
- *                                    R* = nearest power-of-2 to D
+ *                                    R* = nearest power-of-2 to D, capped
  *   otherwise (2 <= D < 8, non-int) `[Resampler(rate)]`
+ *
+ * A single CIC stage is capped at `CIC_R_MAX` (2048) — see cic_core.h for the
+ * accumulator budget that sets it.  **The cap costs no rate**: whatever the
+ * capped CIC leaves is handed to a Resampler stage, so the cascade still
+ * delivers the D it was asked for.  That was not always true — gating the
+ * residual on the matched-terminal flag alone meant a capped plan silently
+ * decimated by R and claimed D (see the CHANGELOG for the measurement).
  *
  * **INPUT AMPLITUDE IS BOUNDED whenever the plan contains a CIC stage** —
  * that is, any decimation by 8 or more: |Re| and |Im| <= 2.0, clipped beyond

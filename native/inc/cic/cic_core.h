@@ -38,9 +38,11 @@
  * Input/output boundary: CF32 (`float _Complex`), matching the doppler
  * default signal type.  Internally, each sample is converted to UQ16 —
  * offset-binary: v_q15 + 32768 → `[0, 65535]` in a uint64_t — giving 48
- * bits of headroom for the pipeline gain of N * log2(R) bits.  For R <= 4096
- * (log2 = 12) the gain is 48 bits; max accumulation = 65535 * R^N =
- * (2^16 - 1) * 2^48 = 2^64 - 2^48 < 2^64, so no overflow occurs.
+ * bits of headroom for the pipeline gain of N * log2(R) bits.  At the cap
+ * `CIC_R_MAX` (2048, log2 = 11) the gain is 44 bits; max accumulation =
+ * 65535 * R^N = (2^16 - 1) * 2^44, which is 16x inside 2^64.  R = 4096 also
+ * fits, but to within one part in 65536 — see CIC_R_MAX for why the cap is
+ * a halving below it.
  *
  * All arithmetic is unsigned: inputs are non-negative `[0, 65535]`, wrapping
  * is defined (mod 2^64), and the output decode subtracts the offset in
@@ -82,6 +84,24 @@ extern "C" {
 #define CIC_N 4
 
 /**
+ * @brief Largest decimation ratio a CIC will be built at.
+ *
+ * The 64-bit accumulator holds `65535 * R^CIC_N`. At R = 4096 that is
+ * `(2^16 - 1) * 2^48 = 2^64 - 2^48` — it fits, and fills the accumulator to
+ * **within one part in 65536**. "Fits exactly" is not headroom: it is the
+ * value at which any further term overflows, and the CIC's exactness argument
+ * (every intermediate overflow cancels in the combs) holds only while the
+ * TRUE result fits in 64 bits.
+ *
+ * 2048 gives `2^60 - 2^44` — **16x margin** — for one halving of the largest
+ * single-stage ratio. Nothing in the tree asked for more: the planner is the
+ * only thing that can reach the cap, and past it it already hands the residual
+ * to the resampler stage, so a lower cap costs a slightly larger residual and
+ * nothing else.
+ */
+#define CIC_R_MAX 2048u
+
+/**
  * @brief CIC filter state.
  *
  * Allocate with cic_create(); free with cic_destroy().
@@ -110,8 +130,8 @@ typedef struct {
  * Unlike doppler's floating-point blocks this one is not scale-free --
  * scale the input into range first.
  *
- * @param R  Decimation ratio.  Must be a power of two in `[2, 4096]`.
- *           Returns NULL for R=0, non-power-of-two, or R > 4096.
+ * @param R  Decimation ratio.  Must be a power of two in `[2, CIC_R_MAX]`.
+ *           Returns NULL for R=0, non-power-of-two, or R > CIC_R_MAX.
  * @return   Heap-allocated state, or NULL on invalid R or OOM.
  *
  * @code
@@ -159,7 +179,8 @@ void cic_reset(cic_state_t *state);
  *
  * A fixed-point CIC has TWO input-budget terms, and only one of them is the
  * accumulator's. The **DC gain** `R^N` is budgeted there — 16-bit input plus
- * 48 bits of pipeline gain fills the 64-bit accumulator exactly at R = 4096.
+ * 48 bits of pipeline gain would fill the 64-bit accumulator exactly at
+ * R = 4096, which is why CIC_R_MAX sits a halving below it.
  * The **PAPR** is budgeted here, at the encoder, because a signal's peak is
  * not its symbol amplitude: a root-raised-cosine symbol stream peaks at
  * **1.582x** its symbol amplitude (measured, and a pulse property — identical
@@ -325,7 +346,7 @@ cic_decimate(cic_state_t *state, const float complex *in,
  * Recomputes the normalisation shift (CIC_N * log2(R)) and zeros all
  * accumulators so the filter behaves exactly like a freshly created
  * one with the new R. Silently ignores R values that are not a
- * power-of-two in `[2, 4096]` — the state is left unchanged in that case.
+ * power-of-two in `[2, CIC_R_MAX]` — the state is left unchanged in that case.
  *
  * @param state  Pointer to a valid cic_state_t.
  * @param R      New decimation ratio.  Same constraints as cic_create().

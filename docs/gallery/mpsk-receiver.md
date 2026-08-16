@@ -234,8 +234,10 @@ rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.05, nda_tap="mf_in")
 
     `native/validation/rx_nda_tap.c` missed it because it sweeps **noiseless**;
     `native/validation/rx_dynamics.c` is where the taps are compared on the
-    continuous flavor's own waveform. The cost is bounded by the plan and is
-    recoverable — doppler#790.
+    continuous flavor's own waveform. The cost is bounded by the plan (still
+    9.0 dB at `sps=64`) and is the tap's stated price: an arm filter would
+    recover it and is declined, since `strobe` reads the matched node for
+    free.
 
 `bn_carrier` keeps its meaning at every tap (symbol-rate normalised). The tap
 does not widen the loop by itself — it widens what the discriminator can see and

@@ -840,15 +840,18 @@ signal occupies ~`±Rs`**, and the terminal filter — the first thing in the
 cascade matched to the signal — is downstream of this tap. So `mf_in` reads a
 node carrying several times the noise bandwidth it needs.
 
-Two consequences. It is **bounded by the plan** rather than by the input rate:
-`bank_sps` is a planner outcome, still 8 at `sps = 64`, so the cost is 9.0 dB
-there and not 18. And it is **recoverable** — the 2-sps decimation the next
-section declines, or an arm filter, would remove most of it. That is
-[doppler#790](https://github.com/doppler-dsp/doppler/issues/790), and it is an
-argument that the node is *unfinished*, not that the tap's position is wrong.
-Note that the `carrier_nda` primitive keeps a boxcar arm for exactly this
-reason; the receiver's tap dropped it on the band-limiting argument above,
-which is directionally right and 6 dB short.
+It is **bounded by the plan** rather than by the input rate: `bank_sps` is a
+planner outcome, still 8 at `sps = 64`, so the cost is 9.0 dB there and not 18.
+
+**And it is the tap's price rather than a defect.** Band-limiting the node to
+the signal — an arm filter, or the 2-sps decimation the next section considers
+— would recover most of the 6 dB, and is **declined**: both cost serialized
+state on every object carrying the tap, and `strobe` already reads the node
+that *is* matched to the signal, at no cost and with the better lock statistic
+on this flavor's own waveform. So the trade `mf_in` offers is stated rather
+than repaired: `bank_sps/(2M)` of pull-in range, for `10·log10(bank_sps)` dB of
+lock sensitivity. The `carrier_nda` primitive keeps a boxcar arm because it has
+no matched-filter node to read; this receiver does.
 
 ### The 2-samples/symbol decimation, considered and declined
 

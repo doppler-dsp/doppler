@@ -382,7 +382,8 @@ extern "C"
    * free exactly where it looked most exposed. `mf_out` instead takes the
    * largest hit the moment transitions exist, which is its ISI bias arriving
    * on schedule, and `mf_in` reads lowest throughout (the excess noise
-   * bandwidth at its node -- see the `nda_tap` enum, and doppler#790).
+   * bandwidth at its node -- see the `nda_tap` enum, where that cost is
+   * measured and stated as the tap's price).
    *
    * "Nothing waits" is untouched by the pin: it is a statement about GATES --
    * the handover, the lock gate, the warmup -- and `acq_to_track = 0` is what

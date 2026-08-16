@@ -64,9 +64,10 @@
  * not a loss of signal energy: a Nyquist-sampled band-limited signal loses
  * nothing, and this node is not band-limited to the signal. DEC filters to
  * ITS OWN Nyquist -- +-bank_sps*Rs/2 -- while the signal occupies ~+-Rs, and
- * nothing between them removes the difference. It is recoverable (the 2 sps
- * decimation `docs/design/mpsk.md` S3.3 declines, or an arm filter), which is
- * doppler#790.
+ * nothing between them removes the difference. That is the tap's PRICE, not a
+ * defect: an arm filter would recover it and is declined, because `strobe`
+ * reads the node already matched to the signal for free and measures better
+ * here anyway.
  *
  * ## Telemetry is the deliverable, not a side effect
  *

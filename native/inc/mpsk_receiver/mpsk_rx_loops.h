@@ -313,13 +313,20 @@ mpsk_rx_derive_m_out (double cap, int strict)
    * matched to the signal -- is downstream of this tap. So the tap reads a
    * node carrying several times the noise bandwidth it needs.
    *
-   * Two consequences. It is **bounded by the plan**, not by the input rate:
-   * `bank_sps` is a planner outcome, and at `sps = 64` it is still 8, so the
-   * cost is 9.0 dB there and not 18. And it is **recoverable** -- decimating
-   * this stream to 2 sps (docs/design/mpsk.md S3.3) or restoring an arm
-   * filter would remove most of it, which is doppler#790. What fails first is
-   * the M-th-power LOCK statistic, because that is an SNR measure and not a
-   * phase measure; the loop itself acquires at every operating point measured.
+   * It is **bounded by the plan**, not by the input rate: `bank_sps` is a
+   * planner outcome, and at `sps = 64` it is still 8, so the cost is 9.0 dB
+   * there and not 18.
+   *
+   * **This is the tap's price, not a defect awaiting a fix.** Band-limiting
+   * the node to the signal -- an arm filter, or the 2 sps decimation S3.3
+   * considers -- would recover most of it and is deliberately NOT planned:
+   * both cost serialized state on every object that carries this tap, and
+   * `STROBE` already reads the node that IS matched to the signal, for free.
+   * A caller choosing `MF_IN` is buying `bank_sps/(2M)` of pull-in range and
+   * paying `10*log10(bank_sps)` dB of lock sensitivity for it. What degrades
+   * is the M-th-power LOCK statistic, because that is an SNR measure and not
+   * a phase measure; the loop itself acquires at every operating point
+   * measured.
    *
    * There is a second axis, and it is the one the cascade rebuild lost.
    * `STROBE` is the only tap that depends on **symbol timing**: it reads the
@@ -363,10 +370,12 @@ mpsk_rx_derive_m_out (double cap, int strict)
      *  Nyquist, not to the signal, so the node carries `10*log10(bank_sps)`
      *  dB of excess noise bandwidth (see the tap table above). The
      *  `carrier_nda` primitive keeps a boxcar arm for exactly this reason
-     *  (`carrier_nda_step`). Restoring one here -- or the 2 sps decimation
-     *  S3.3 declines -- is doppler#790; it costs serialized state, which is
-     *  why the tap has neither today. (`lo_arm`, a free-running arm ahead of
-     *  the cascade, was removed on the same wrong argument -- gh-768.)
+     *  (`carrier_nda_step`). Restoring one here is DECLINED rather than
+     *  deferred: it costs serialized state on every object carrying the tap,
+     *  and `STROBE` already reads the node matched to the signal at no cost.
+     *  The 6 dB is the tap's stated price, and the caller picks accordingly.
+     *  (`lo_arm`, a free-running arm ahead of the cascade, was removed on the
+     *  same wrong band-limiting argument -- gh-768.)
      *
      *  Its update rate is `bank_sps`, a PLANNER OUTCOME rather than a
      *  construction constant, so both the pull-in ceiling `bank_sps*Rs/(2M)`

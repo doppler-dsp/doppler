@@ -204,6 +204,26 @@ target_compile_options(validate_rx_battery PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_rx_battery
          COMMAND validate_rx_battery --check)
 
+# The receiver under a COUPLED Doppler ramp across a data onset -- the
+# continuous flavor's own scenario (NRZ BPSK, modulation off then dense), which
+# neither rx_battery (RRC, dense throughout) nor rx_nda_tap (NRZ, noiseless, no
+# dynamics) covers. Writes a dp_tlm capture per tap with --out, so the report
+# plots the dynamics instead of restating a table.
+add_executable(validate_rx_dynamics
+               ${CMAKE_CURRENT_SOURCE_DIR}/rx_dynamics.c)
+target_include_directories(validate_rx_dynamics
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+# Threads::Threads explicitly: dp_tlm_capture's writer thread is the only
+# pthread user any validator pulls in, and doppler_lib_static aggregates it as
+# OBJECT sources, which carry no usage requirement to propagate. On glibc >=
+# 2.34 pthread_create lives in libc proper so this links by accident; the
+# glibc 2.28 gate is where the missing -lpthread actually shows up.
+target_link_libraries(validate_rx_dynamics PRIVATE doppler_lib_static
+                                                   Threads::Threads m)
+target_compile_options(validate_rx_dynamics PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_rx_dynamics
+         COMMAND validate_rx_dynamics --check)
+
 add_executable(validate_rx_nda_tap
                ${CMAKE_CURRENT_SOURCE_DIR}/rx_nda_tap.c)
 target_include_directories(validate_rx_nda_tap

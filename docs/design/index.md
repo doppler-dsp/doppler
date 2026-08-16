@@ -35,6 +35,7 @@ instead.)
 - [Timing Lock Detector](timing_lock_detector.md) — SymbolSync's Gardner/DTTL lock statistic and sizing formula
 - [Symbol Timing on a Rate Cascade](ratesync-timing.md) — RateSync: why the matched filter and the interpolator are one dot product, why `ctrl` is referenced to the terminal stage's rate, and why the T/2 parity resolves itself
 - [MPSK Receiver](mpsk.md) — streaming M-PSK receiver architecture and carrier-recovery design
+- [MPSK Receiver Refactor](mpsk-refactor.md) — collapsing the complex and real receivers into one object with three faces, and why the shared loops header needs a test home
 - [Receiver Test Harness](rx-test.md) — inventory of the stimulus, measurement and gate layers a receiver measurement rests on, and where they do not yet meet
 - [Corr2D Interpolated Inverse](corr2d-interpolated-inverse.md) — decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation
 - [Spectral & Measurement API Map](spectral-api-map.md) — module dependency graph

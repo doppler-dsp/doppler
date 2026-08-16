@@ -696,6 +696,7 @@ endef
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 jm-apply changelog-assemble changelog-assembled-check \
+                plot-rx-dynamics \
                 gen-c-api-check \
                 gen-c-api-run doxygen-pin-image \
                 package-c package-c-tarball sdist release-notes \
@@ -1243,6 +1244,13 @@ jm-apply: ## Regenerate jm-owned glue from the manifest (then run drift-check)
 	@echo "    reconciled member-by-member, never re-rendered -- read the diff"
 	@echo "  - the downstream example has its own manifest; 'make drift-check'"
 	@echo "    is what covers both. Run it now."
+
+# The receiver-dynamics figure. NOT a gallery script: the measurement is C
+# (validate_rx_dynamics) and this only renders the telemetry that harness
+# captured, so it depends on `build` rather than on the Python examples and it
+# writes straight to docs/assets/ instead of the gallery's mv dance.
+plot-rx-dynamics: build ## Render docs/assets/rx-dynamics.png from the C harness's telemetry
+	uv run python scripts/plot_rx_dynamics.py
 
 # The jm manifest drift gate. --no-install-project because the gate only reads
 # the manifest, so there is no reason to build the C extension for it.

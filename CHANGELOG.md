@@ -15,6 +15,25 @@ ______________________________________________________________________
 
 ### Changed
 
+- **What `mf_in` costs is excess noise bandwidth, not processing gain.** A
+    Nyquist-sampled band-limited signal loses nothing by being sampled fast, so
+    the "it forgoes the matched filter's processing gain" story — and the
+    `10·log10(sps)` law that grows without bound — was wrong. Measured at the
+    node with the AGC off so the path is linear, `mf_in` sits **6.01 dB** below
+    Es/N0 at `bank_sps = 4` while the terminal node sits 1.7 dB below it, and
+    `10·log10(4) = 6.02 dB` — *identical at 6.79, 12 and 20 dB Es/N0*, the
+    signature of a pure bandwidth ratio rather than an SNR-dependent effect.
+
+    So the cost is **bounded by the plan** (`bank_sps` is a planner outcome:
+    still 8 at `sps = 64`, so 9.0 dB there, not 18) and it is the tap's
+    **stated price rather than a defect**. Band-limiting the node — an arm
+    filter, or the 2-sps decimation `docs/design/mpsk.md` §3.3 considers —
+    would recover most of it and is **declined**: both cost serialized state on
+    every object carrying the tap, and `strobe` already reads the node matched
+    to the signal for free. The loop acquires at every operating point
+    measured; what degrades is the M-th-power lock statistic, which is an SNR
+    measure and not a phase measure.
+
 - **just-makeit pin 0.61.0 → 0.62.0.** Adopts the two doppler-filed fixes that
     the `MpskReceiver`/`MpskReceiverR` collapse
     (`docs/design/mpsk-refactor.md` §6) was blocked on, skipping 0.61.1 (a
@@ -121,6 +140,43 @@ ______________________________________________________________________
     of 324 tries: a measurement that cannot refuse will invent a finding
     rather than decline one. Two earlier results did not survive the swap and
     are now printed as refusals (8PSK at 8 and 12 dB, and `sps = 31.7`).
+
+- **`native/validation/rx_dynamics.c` — the receiver under a coupled Doppler
+    ramp across a data onset.** The continuous flavor's own scenario, which no
+    existing harness covered: NRZ BPSK, I&D, `m_out = 4`, DTTL, 12 dB Es/N0,
+    half the record with modulation **off** (carrier on, so the TED has no edge
+    and timing cannot close), then dense transitions as a step, all under a
+    ramp through `doppler_channel` so the carrier and every clock move
+    together. `rx_battery` runs RRC with dense transitions throughout — the
+    *burst* flavor's signal — and `rx_nda_tap` sweeps NRZ but **noiseless**.
+
+    It captures every telemetry probe (`--out DIR`), and `make   plot-rx-dynamics` renders `docs/assets/rx-dynamics.png` from that capture,
+    so the figure plots the receiver's own records rather than a Python
+    re-derivation.
+
+    | tap          | lock, modulation OFF | min at the onset | end    |
+    | ------------ | -------------------- | ---------------- | ------ |
+    | **`strobe`** | +0.935               | **+0.860**       | +0.920 |
+    | `mf_out`     | +0.934               | +0.478           | +0.802 |
+    | `mf_in`      | +0.761               | +0.417           | +0.714 |
+
+    **`strobe`'s timing dependency costs nothing in the half where timing is
+    impossible**, because an unmodulated NRZ carrier is *sampling-phase
+    invariant* — every sample is the same constellation point, so the
+    M-th-power discriminator does not care which one the timing loop would
+    have nominated. Timing closure gates demodulation, not carrier
+    acquisition. The **TED** is the largest single effect on the page: the same
+    record through Gardner deepens `strobe`'s onset dip from 0.075 to 0.306.
+
+- **`docs/design/mpsk-refactor.md` — the design for collapsing `MpskReceiver`
+    and `MpskReceiverR` into one object with three faces.** Planned, not built.
+    The argument is a measurement: the two differ only in a front-end pointer
+    and one rate convention, and `mpsk_receiver_r_core.c` is 372 lines of which
+    16 functions are pure delegations — but the cost of the split is not the
+    duplication, it is that their shared 784-line `mpsk_rx_loops.h` **has no
+    test home**, so its claims are pinned only where one twin's tests happen to
+    reach them. "The LO runs at half the input rate" is pinned by neither, and
+    that is where the gh-765 `freq_scale` bug lived.
 
 - **`track.ContinuousMpskReceiver` — the continuous flavor, and nothing
     waits.** A **view** over `MpskReceiver`, not a second type: same core, same

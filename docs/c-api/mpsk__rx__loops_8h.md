@@ -206,11 +206,27 @@ An M-th-power discriminator updating at rate `F` can only observe a frequency er
 |-----|-----|-----|-----|
 |`STROBE`   |`Rs`   |`Rs/(2M)`   |needs symbol timing    |
 |`MF_OUT`   |`m_out*Rs`   |`m_out*Rs/(2M)`   |inter-symbol ISI bias    |
-|`MF_IN`   |`bank_sps`   |`bank_sps*Rs/(2M)`   |none — see below   |
+|`MF_IN`   |`bank_sps`   |`bank_sps*Rs/(2M)`   |~`10*log10(bank_sps)` dB of EXCESS NOISE BANDWIDTH   |
 
 
 
 
+
+
+That third row read "none -- see below" until it was measured, and the omission was load-bearing: it is what made `MF_IN` look free and got it pinned as the continuous flavor's tap.
+
+
+**The cost is not lost signal energy, and it is not intrinsic to reading ahead of the matched filter.** A Nyquist-sampled band-limited signal loses nothing by being sampled fast, so the obvious "it forgoes the
+matched filter's processing gain" story is wrong  an earlier revision of this comment told it, with a `10*log10(sps)` law that grows without bound. Measured at the node with the AGC off so the path is linear (`native/validation/rx_dynamics.c` documents the run): the `MF_IN` node sits **6.01 dB** below Es/N0 at `bank_sps = 4` while the terminal node sits 1.7 dB below it, and `10*log10(4) = 6.02 dB`. The deficit is IDENTICAL at 6.79, 12 and 20 dB Es/N0  a pure bandwidth ratio, not an SNR-dependent effect.
+
+
+The mechanism: DEC band-limits to ITS OWN Nyquist, `+-bank_sps*Rs/2`, while the signal occupies ~`+-Rs`. Nothing between them removes the difference, and the terminal filter  the first thing in the cascade matched to the signal  is downstream of this tap. So the tap reads a node carrying several times the noise bandwidth it needs.
+
+
+It is **bounded by the plan**, not by the input rate: `bank_sps` is a planner outcome, and at `sps = 64` it is still 8, so the cost is 9.0 dB there and not 18.
+
+
+**This is the tap's price, not a defect awaiting a fix.** Band-limiting the node to the signal  an arm filter, or the 2 sps decimation S3.3 considers  would recover most of it and is deliberately NOT planned: both cost serialized state on every object that carries this tap, and `STROBE` already reads the node that IS matched to the signal, for free. A caller choosing `MF_IN` is buying `bank_sps/(2M)` of pull-in range and paying `10*log10(bank_sps)` dB of lock sensitivity for it. What degrades is the M-th-power LOCK statistic, because that is an SNR measure and not a phase measure; the loop itself acquires at every operating point measured.
 
 
 There is a second axis, and it is the one the cascade rebuild lost. `STROBE` is the only tap that depends on **symbol timing**: it reads the one output the timing loop nominates, so before timing lock it is reading an arbitrary phase of the pulse. `MF_OUT` consumes every terminal output and so does not care which one is on-time; `MF_IN` reads the MFR's input entirely ahead of it. Both therefore restore the property the NDA path exists for — acquiring with no data _and no symbol timing_ — which is why they are not merely "wider".

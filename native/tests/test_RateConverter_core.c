@@ -15,6 +15,7 @@
  */
 
 #include "RateConverter/RateConverter_core.h"
+#include "cic/cic_core.h"
 #include "dp_test.h"
 
 #include "resamp/resamp_core.h"
@@ -1483,10 +1484,87 @@ test_matched_set_rate_keeps_pulse (void)
     }
 }
 
+
+/* A capped CIC must not cost the cascade its RATE.
+ *
+ * The plan caps a single CIC stage at CIC_R_MAX and hands the residual to a
+ * Resampler. That residual was gated on the matched-terminal flag alone, so a
+ * plain RateConverter at a power-of-two D past the cap decimated by R and
+ * claimed D -- twice the rate asked for at D = 8192, four times at 16384, with
+ * no error and a plausible-looking output. Exactly the shape of failure that
+ * cannot be seen from the sample stream.
+ *
+ * Checked as a RATIO of outputs to inputs against 1/D, which is the property
+ * a caller depends on and the one the defect broke. The rates below straddle
+ * the cap deliberately: at and under it the CIC does the whole job, past it
+ * the residual stage has to exist. */
+static void
+test_capped_cic_still_delivers_the_requested_rate (void)
+{
+  static const double Ds[] = { 512.0, 2048.0, 4096.0, 8192.0, 16384.0 };
+  size_t              i;
+
+  for (i = 0; i < sizeof Ds / sizeof *Ds; i++)
+    {
+      double                 D  = Ds[i];
+      RateConverter_state_t *rc = RateConverter_create (1.0 / D, 1);
+      size_t                 n  = (size_t)(D * 40.0);
+      float complex         *x, *o;
+      size_t                 m;
+      double                 got;
+
+      DP_CHECK (rc != NULL);
+      if (!rc)
+        continue;
+      x = (float complex *)malloc (n * sizeof *x);
+      o = (float complex *)malloc (n * sizeof *o);
+      DP_CHECK (x != NULL && o != NULL);
+      if (!x || !o)
+        {
+          free (x);
+          free (o);
+          RateConverter_destroy (rc);
+          continue;
+        }
+      /* Well inside the CIC's +-2.0 input bound, so this measures the RATE
+         and not the clip. */
+      for (m = 0; m < n; m++)
+        x[m] = 0.25f + 0.0f * I;
+      m   = RateConverter_execute (rc, x, n, o, n);
+      got = (double)m / (double)n;
+      /* 2% covers the cascade's startup transient at these lengths; the
+         defect was a factor of 2, 4 and 8, so the tolerance is nowhere near
+         it. Verified by sabotage: re-gating the residual takes this red. */
+      DP_CHECK_MSG (fabs (got - 1.0 / D) <= 0.02 / D,
+                    "capped CIC lost rate");
+      free (x);
+      free (o);
+      RateConverter_destroy (rc);
+    }
+}
+
+/* The cap itself: cic_create refuses past CIC_R_MAX, and the planner never
+ * asks. Both halves matter -- a cap the planner honours while the constructor
+ * does not is one bad call site away from the accumulator it protects. */
+static void
+test_cic_ratio_is_capped_at_both_layers (void)
+{
+  DP_CHECK (cic_create (CIC_R_MAX) != NULL);
+  {
+    cic_state_t *c = cic_create (CIC_R_MAX);
+    if (c)
+      cic_destroy (c);
+  }
+  DP_CHECK (cic_create (CIC_R_MAX * 2u) == NULL);
+  DP_CHECK (cic_create (CIC_R_MAX * 4u) == NULL);
+}
+
 int
 main (void)
 {
   test_invalid_rate ();
+  test_capped_cic_still_delivers_the_requested_rate ();
+  test_cic_ratio_is_capped_at_both_layers ();
   test_stage_labels ();
   test_output_length ();
   test_plain_cascade_is_unity_gain ();

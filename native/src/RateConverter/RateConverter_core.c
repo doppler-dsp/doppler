@@ -154,22 +154,35 @@ rc_plan (double rate, int compensate, int force_terminal,
         }
       else
         {
-          /* n >= 3: CIC(R), capped at 4096. */
-          R                   = (n <= 12) ? (1 << n) : 4096;
+          /* n >= 3: CIC(R), capped at CIC_R_MAX. Past the cap the residual
+             goes to the resampler stage below, which is what makes a lower
+             cap cost a slightly larger residual and nothing else. */
+          R = (n <= 11) ? (1 << n) : (int)CIC_R_MAX;
           plan[ns].type       = RC_STAGE_CIC;
           plan[ns].R          = R;
           plan[ns].compensate = compensate;
           ns++;
         }
-      if (force_terminal)
-        {
-          /* Whatever the integer stages left over — 1.0 for n <= 12, the
-             residual D/4096 for a capped CIC. */
-          int R_done           = R ? R : (1 << n);
-          plan[ns].type        = RC_STAGE_RESAMP;
-          plan[ns].resamp_rate = (double)R_done / D;
-          ns++;
-        }
+      {
+        /* Whatever the integer stages left over: 1.0 when they completed the
+           decimation, the residual D/R when the CIC was capped.
+
+           The residual stage is NOT optional when the CIC was capped, and
+           gating it on `force_terminal` alone was a silent rate error: a
+           capped CIC decimates by R and the cascade then claimed the full D,
+           so RateConverter_create(1/8192) delivered 1/4096 — twice the rate
+           asked for, with no error and a plausible-looking output. Measured
+           at D = 8192 and 16384 against the old 4096 cap, and lowering the
+           cap to CIC_R_MAX would have brought it down to D = 4096 where a
+           receiver can actually reach it. */
+        int R_done = R ? R : (1 << n);
+        if (force_terminal || (double)R_done != D)
+          {
+            plan[ns].type        = RC_STAGE_RESAMP;
+            plan[ns].resamp_rate = (double)R_done / D;
+            ns++;
+          }
+      }
       return ns;
     }
 
@@ -177,8 +190,13 @@ rc_plan (double rate, int compensate, int force_terminal,
     {
       /* Non-power-of-2, large D: CIC + Resampler correction. */
       int    n_lo  = (int)floor (log2_D);
-      int    R_lo  = 1 << n_lo;
-      int    R_hi  = (n_lo + 1 <= 12) ? (1 << (n_lo + 1)) : 4096;
+      /* BOTH candidates are capped, not just the upper one: at D = 5000,
+         n_lo = 12, so the LOW candidate is 4096 and would be refused by
+         cic_create() on its own. Capping one and not the other turns a cap
+         into a construction failure at exactly the rates it is meant to
+         protect. */
+      int    R_lo  = (n_lo <= 11) ? (1 << n_lo) : (int)CIC_R_MAX;
+      int    R_hi  = (n_lo + 1 <= 11) ? (1 << (n_lo + 1)) : (int)CIC_R_MAX;
       double co_lo = (double)R_lo / D;
       double co_hi = (double)R_hi / D;
       int    R;

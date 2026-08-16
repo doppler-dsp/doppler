@@ -1146,22 +1146,63 @@ parameters while a caller supplies four.
 The minimal call, with every derivable knob left at zero:
 
 ```c
-mpsk_receiver_state_t *rx = mpsk_receiver_create (
-    4, 8.0,                    /* m, sps — the signal                      */
-    0,                         /* m_out       -> derived                   */
-    MPSK_RX_PULSE_IANDD, 0.35, 8,
-    0.01,                      /* bn_carrier — a design axis               */
-    0.0,                       /* zeta        -> derived                   */
-    0.01,                      /* bn_timing  — a design axis               */
-    0, 0.0,                    /* acq_to_track, lock_thresh -> derived     */
-    0.0, 0,                    /* init_norm_freq, differential             */
-    0,                         /* num_phases  -> derived                   */
-    MPSK_RX_NDA_TAP_STROBE, 1,
-    0.0);                      /* bn_agc_ratio -> derived                  */
+#include "mpsk_receiver/mpsk_receiver_core.h"
+#include <math.h>
+#include <stdio.h>
+
+int
+main (void)
+{
+  mpsk_receiver_state_t *rx = mpsk_receiver_create (
+      4, 8.0,                  /* m, sps — the signal                      */
+      0,                       /* m_out       -> derived                   */
+      MPSK_RX_PULSE_IANDD, 0.35, 8,
+      0.01,                    /* bn_carrier — a design axis               */
+      0.0,                     /* zeta        -> derived                   */
+      0.01,                    /* bn_timing  — a design axis               */
+      0, 0.0,                  /* acq_to_track, lock_thresh -> derived     */
+      0.0, 0,                  /* init_norm_freq, differential             */
+      0,                       /* num_phases  -> derived                   */
+      MPSK_RX_NDA_TAP_STROBE, 1,
+      0.0);                    /* bn_agc_ratio -> derived                  */
+  if (!rx)
+    return 1;                  /* every zero above is a request, not a
+                                  rejected argument — which is the whole
+                                  claim this section makes */
+  printf ("m_out=%zu zeta=%.4f num_phases=%zu lock_thresh=%.4f "
+          "bn_agc_ratio=%.4f\n",
+          mpsk_receiver_get_m_out (rx), mpsk_receiver_get_zeta (rx),
+          mpsk_receiver_get_num_phases (rx),
+          mpsk_receiver_get_lock_thresh (rx),
+          mpsk_receiver_get_bn_agc_ratio (rx));
+
+  /* The doc gate compiles this and requires exit 0, so the five numbers
+     printed above are CHECKED here rather than transcribed below. */
+  int ok = mpsk_receiver_get_m_out (rx) == 8
+           && fabs (mpsk_receiver_get_zeta (rx) - 0.7071) < 1e-4
+           && mpsk_receiver_get_num_phases (rx) == 64
+           && fabs (mpsk_receiver_get_lock_thresh (rx) - 0.4999) < 1e-4
+           && fabs (mpsk_receiver_get_bn_agc_ratio (rx) - 0.05) < 1e-4;
+  mpsk_receiver_destroy (rx);
+  return ok ? 0 : 1;
+}
 ```
 
-```python
-MpskReceiver(m=4, sps=8.0, bn_carrier=0.01, bn_timing=0.01)
+which prints what it chose:
+
+```text
+m_out=8 zeta=0.7071 num_phases=64 lock_thresh=0.4999 bn_agc_ratio=0.0500
+```
+
+The Python face is the same call, and — this is the point of the readbacks —
+reports the same five numbers:
+
+```pycon
+>>> from doppler.track import MpskReceiver
+>>> rx = MpskReceiver(m=4, sps=8.0, bn_carrier=0.01, bn_timing=0.01)
+>>> (rx.m_out, round(rx.zeta, 4), rx.num_phases,
+...  round(rx.lock_thresh, 4), round(rx.bn_agc_ratio, 4))
+(8, 0.7071, 64, 0.4999, 0.05)
 ```
 
 | parameter                             | today                                                        |

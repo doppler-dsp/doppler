@@ -35,7 +35,8 @@
  *     -> convolutional K=7 r=1/2                expands               (4.1)
  * ```
  *
- * The ASM is the reason `covers` exists rather than a stage order. The
+ * The ASM is the reason the assembler reports a span per stage
+ * (@ref fec_frame_layout_t, in fec_frame.h) rather than a stage order. The
  * randomiser is scoped to "the codeblock, codeword, or Transfer Frame"
  * (10.4.2) and the ASM merely *precedes* the codeblock (9.4.1), so it falls
  * outside — stated outright in a NOTE: *"The ASM was not randomized and is
@@ -61,7 +62,8 @@
  * (and wanted) representation; conflating them silently is how MSB-first came
  * to be hardcoded in three places that agree by luck.
  *
- * @see docs/design/framing.md
+ * @see fec_frame.h for the assembler, which is where the four stages meet
+ * and where the packed/unpacked boundary is crossed.
  */
 #ifndef FEC_CCSDS_H
 #define FEC_CCSDS_H
@@ -85,6 +87,22 @@ extern "C"
 
   /** @brief Length of @ref FEC_CCSDS_ASM in bits. */
 #define FEC_CCSDS_ASM_BITS 32
+
+  /**
+   * @brief Write the ASM as @ref FEC_CCSDS_ASM_BITS unpacked bits.
+   *
+   * Figure 9-1 numbers the first transmitted bit of the marker as the most
+   * significant bit of `0x1A`, so `out[0]` is that bit and `out[31]` is the
+   * least significant bit of `0x1D`.
+   *
+   * It is a function rather than a table because the marker is wanted at both
+   * ends — the assembler prepends it, a receiver correlates against it — and
+   * an MSB-first expansion written out twice is a transcription that can
+   * disagree with itself. One expression, one direction.
+   *
+   * @param out  Receives @ref FEC_CCSDS_ASM_BITS bits, one per byte.
+   */
+  void fec_ccsds_asm_bits (uint8_t *out);
 
   /**
    * @brief Apply the CCSDS pseudo-randomiser to a bit run, in place.

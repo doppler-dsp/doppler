@@ -52,6 +52,8 @@ extern "C"
 #define FEC_RS_K 223
 /** @brief Parity symbols per codeword, `2E` (4.3.2c). */
 #define FEC_RS_2E 32
+/** @brief Largest interleaving depth 4.3.5.1 allows. */
+#define FEC_RS_MAX_DEPTH 8
 
   /**
    * @brief Convert one symbol from the conventional basis to the dual basis.

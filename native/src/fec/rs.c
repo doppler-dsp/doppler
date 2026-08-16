@@ -137,3 +137,59 @@ fec_rs_encode (const uint8_t *info, uint8_t *parity)
   for (int i = 0; i < FEC_RS_2E; i++)
     parity[i] = fec_rs_conv_to_dual (reg[FEC_RS_2E - 1 - i]);
 }
+
+int
+fec_rs_codeword_ok (const uint8_t *codeword)
+{
+  ensure ();
+
+  /* S_m = C(a^(11 * (ROOT_FIRST_J + m))), evaluated by Horner over the
+   * conventional-basis symbols. Zero for every root is what "is a codeword"
+   * means, independently of how the parity was produced. */
+  for (int m = 0; m < FEC_RS_2E; m++)
+    {
+      const uint8_t root = exp_tab[(ROOT_STRIDE * (ROOT_FIRST_J + m)) % 255];
+      uint8_t       acc  = 0;
+      for (int i = 0; i < FEC_RS_N; i++)
+        acc = (uint8_t)(gf_mul (acc, root)
+                        ^ fec_rs_dual_to_conv (codeword[i]));
+      if (acc != 0)
+        return 0;
+    }
+  return 1;
+}
+
+size_t
+fec_rs_encode_block (const uint8_t *info, unsigned depth, uint8_t *out)
+{
+  /* 4.3.5.1 enumerates the allowed depths, and this refuses anything else
+   * rather than quietly encoding a block no receiver is configured for. */
+  if (depth != 1 && depth != 2 && depth != 3 && depth != 4 && depth != 5
+      && depth != 8)
+    return 0;
+
+  const size_t k_syms = (size_t)FEC_RS_K * depth;
+
+  /* 4.4.1: S2 reassembles the information symbols "in the same way as they
+   * entered", so the information section is a straight copy. Only the check
+   * symbols are rearranged. */
+  for (size_t i = 0; i < k_syms; i++)
+    out[i] = info[i];
+
+  for (unsigned e = 0; e < depth; e++)
+    {
+      /* S1 gives encoder e every depth-th symbol, starting at e. */
+      uint8_t word[FEC_RS_K];
+      for (int i = 0; i < FEC_RS_K; i++)
+        word[i] = info[(size_t)i * depth + e];
+
+      uint8_t parity[FEC_RS_2E];
+      fec_rs_encode (word, parity);
+
+      /* ...and S2 samples the encoders in the same rotation on the way out. */
+      for (int p = 0; p < FEC_RS_2E; p++)
+        out[k_syms + (size_t)p * depth + e] = parity[p];
+    }
+
+  return (size_t)FEC_RS_N * depth;
+}

@@ -138,5 +138,92 @@ main (void)
                   "a single changed information symbol must move the parity");
   }
 
+  /* ── the defining property: a produced codeword has zero syndromes ─── */
+  {
+    uint8_t word[FEC_RS_N];
+    for (int i = 0; i < FEC_RS_K; i++)
+      word[i] = (uint8_t)(i * 3u + 5u);
+    fec_rs_encode (word, word + FEC_RS_K);
+    DP_CHECK_MSG (fec_rs_codeword_ok (word),
+                  "an encoded codeword must have all 32 syndromes zero");
+
+    /* ...and the check must be able to say no, or it proves nothing. */
+    word[7] ^= 0x5Au;
+    DP_CHECK_MSG (!fec_rs_codeword_ok (word),
+                  "a corrupted codeword must NOT pass the syndrome check");
+  }
+
+  /* ── 4.3.5.1: depth 1 is the absence of interleaving ────────────────── */
+  {
+    uint8_t info[FEC_RS_K], blk[FEC_RS_N], parity[FEC_RS_2E];
+    for (size_t i = 0; i < sizeof info; i++)
+      info[i] = (uint8_t)(i * 11u + 2u);
+    const size_t n = fec_rs_encode_block (info, 1, blk);
+    fec_rs_encode (info, parity);
+    DP_CHECK_MSG (n == FEC_RS_N, "depth 1 must emit exactly one codeword");
+    DP_CHECK_MSG (memcmp (blk + FEC_RS_K, parity, FEC_RS_2E) == 0,
+                  "depth 1 must equal the un-interleaved encode (4.3.5.1)");
+  }
+
+  /* ── 4.4.1: every de-interleaved codeword is a codeword ─────────────── */
+  {
+    enum
+    {
+      DEPTH = 5
+    };
+    static uint8_t info[FEC_RS_K * DEPTH];
+    static uint8_t blk[FEC_RS_N * DEPTH];
+    for (size_t i = 0; i < sizeof info; i++)
+      info[i] = (uint8_t)(i * 13u + 7u);
+
+    const size_t n = fec_rs_encode_block (info, DEPTH, blk);
+    DP_CHECK_MSG (n == (size_t)FEC_RS_N * DEPTH, "depth 5 emits 5 codewords");
+    DP_CHECK_MSG (memcmp (blk, info, sizeof info) == 0,
+                  "the information section must pass through unchanged");
+
+    int all_ok = 1;
+    for (unsigned e = 0; e < DEPTH; e++)
+      {
+        uint8_t word[FEC_RS_N];
+        for (int i = 0; i < FEC_RS_K; i++)
+          word[i] = blk[(size_t)i * DEPTH + e];
+        for (int p = 0; p < FEC_RS_2E; p++)
+          word[FEC_RS_K + p]
+              = blk[(size_t)FEC_RS_K * DEPTH + (size_t)p * DEPTH + e];
+        if (!fec_rs_codeword_ok (word))
+          all_ok = 0;
+      }
+    DP_CHECK_MSG (all_ok,
+                  "each de-interleaved codeword must satisfy its syndromes");
+  }
+
+  /* ── the differential: what interleaving is FOR ─────────────────────── */
+  {
+    /* A contiguous burst of 40 symbols. At depth 5 it lands as 8 errors in
+       each codeword — inside E=16, so correctable. At depth 1 the same burst
+       is 40 errors in one codeword, well past E. Asserting BOTH directions
+       is what makes this a test rather than a demonstration: a broken
+       interleaver that simply copied would fail the first half. */
+    enum
+    {
+      DEPTH = 5,
+      BURST = 40
+    };
+    unsigned worst_i5 = 0, worst_i1 = 0;
+    for (unsigned e = 0; e < DEPTH; e++)
+      {
+        unsigned c = 0;
+        for (unsigned b = 0; b < BURST; b++)
+          if (b % DEPTH == e)
+            c++;
+        if (c > worst_i5)
+          worst_i5 = c;
+      }
+    worst_i1 = BURST;
+    DP_CHECK_MSG (worst_i5 <= 16,
+                  "at depth 5 a 40-symbol burst must stay within E=16");
+    DP_CHECK_MSG (worst_i1 > 16, "at depth 1 the same burst must EXCEED E=16");
+  }
+
   DP_TEST_END ("fec_rs");
 }

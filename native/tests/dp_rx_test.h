@@ -185,6 +185,17 @@ typedef struct dp_rx_point
   double doppler_ppm;        /**< d0, ppm of nominal                      */
   double doppler_rate_ppm_s; /**< d-dot, ppm/s                            */
 
+  /** Transmit level in dBFS (<= 0), the same unit `wfm_compose` states a
+      source's level in. It is part of the OPERATING POINT rather than a
+      harness constant because the level a geometry can carry is a property of
+      the geometry: a cascade that plans a CIC bounds its input to
+      `CIC_PAPR_HEADROOM`, and the stimulus RMS grows as `sqrt(sps)` at fixed
+      matched-filter Es/N0 — per-sample noise does — so one constant cannot
+      serve every rate. Measured: RMS 1.63 at sps=8 against 5.27 at sps=128.
+      0 means unit power and no gain. `clipped` is the check, and it is
+      asserted rather than trusted. */
+  double level_dbfs;
+
   uint32_t seed; /**< the only randomness, and it belongs to wfm_synth    */
 } dp_rx_point_t;
 
@@ -268,10 +279,13 @@ typedef enum
 #define DP_RX_NSYM 40000u
 #define DP_RX_BETA 0.35
 #define DP_RX_SPAN 8
-/** @brief Transmit amplitude, matching mpsk_ber_common.h: a cascade that plans
- * a CIC bounds its input to +-1 and clips silently past it, so the level is
- * asserted through `clipped` rather than trusted. */
-#define DP_RX_AMP 0.5
+/** @brief Amplitude for a point's level, as a linear gain on a unit-power
+ * stream — the same `10^(dBFS/20)` `wfm_compose` applies to a source. */
+static inline double
+dp_rx_amp (const dp_rx_point_t *pt)
+{
+  return pow (10.0, pt->level_dbfs / 20.0);
+}
 #define DP_RX_MAX_BURSTS 60
 #define DP_RX_TARGET_FRAME_ERRORS 50u
 
@@ -290,7 +304,7 @@ static inline size_t
 dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
              const uint8_t *bits, size_t nbits, uint32_t seed, size_t nsym,
              float complex *out, unsigned char *lock_c, unsigned char *track,
-             double *err_peak, double *err_rms, int *clipped)
+             double *err, double *nf_out, long *lt_out, int *clipped)
 {
   int                      isps  = (int)pt->sps;
   double                   beta  = pt->beta > 0.0 ? pt->beta : DP_RX_BETA;
@@ -303,12 +317,12 @@ dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
   wfm_synth_state_t       *tx    = NULL;
   doppler_channel_state_t *ch    = NULL;
   void                    *r     = NULL;
-  size_t                   nout = 0, navail = nsamp, cnt = 0;
-  double                   s2 = 0.0, pk = 0.0;
+  size_t                   nout = 0, navail = nsamp;
   /* A real front end takes Re{}, halving signal AND noise, but its convention
      counts the real noise against the halved Es — 3 dB less noise. Asking the
      complex generator for 3 dB more delivers what was requested (§8.4). */
   double esn0 = pt->esn0_db + (rx->domain == DP_RX_IN_REAL ? 3.0 : 0.0);
+  double amp  = dp_rx_amp (pt);
 
   *clipped = 0;
   if (!taps || !x)
@@ -349,33 +363,36 @@ dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
     const float complex *src = imp ? imp : x;
     for (size_t n = 0; n < navail; n++)
       {
-        float complex in = src[n] * (float)DP_RX_AMP;
+        float complex in = src[n] * (float)amp;
         float complex y;
         if (rx->domain == DP_RX_IN_REAL)
           in = crealf (in) + 0.0f * I;
         if (rx->step (r, in, &y) && nout < nsym)
           {
-            double e;
             out[nout]    = y;
             lock_c[nout] = (unsigned char)rx->locked (r);
             track[nout]  = (unsigned char)(rx->lock (r) > 0.0);
             /* The DISCRIMINATOR, not the frequency estimate: a timing
                transient enters here, and norm_freq is the integrator
-               downstream of the loop filter and buries it. */
-            e = fabs (rx->last_error (r));
-            if (e > pk)
-              pk = e;
-            s2 += e * e;
-            cnt++;
+               downstream of the loop filter and buries it.
+
+               Kept as a SERIES rather than reduced here, because the window
+               it has to be scored over is not known yet: dp_ber_settle()
+               computes it from these very lock flags after the burst
+               returns. Reducing early scored the acquisition transient and
+               read a flat 1.0000 at every point — the maximum the
+               discriminator can output, which is what a peak taken across a
+               cold start always finds. */
+            err[nout] = fabs (rx->last_error (r));
             nout++;
           }
       }
     *clipped = rx->clipped (r);
+    if (nf_out)
+      *nf_out = rx->norm_freq (r);
+    if (lt_out)
+      *lt_out = rx->lock_time (r);
   }
-  if (err_peak)
-    *err_peak = pk;
-  if (err_rms)
-    *err_rms = cnt ? sqrt (s2 / (double)cnt) : -1.0;
 
 done:
   if (r)
@@ -409,12 +426,11 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
   uint8_t           *bits = NULL, *truth = NULL;
   float complex     *out = NULL;
   unsigned char     *lc = NULL, *tk = NULL;
+  double            *err = NULL;
   size_t             lo = 0, hi = 0, settle = 0;
-  dp_ber_sync_t      sy;
   int                settled = 0;
 
   memset (&r, 0, sizeof r);
-  memset (&sy, 0, sizeof sy);
   r.point    = pt;
   r.rx       = rx;
   r.acq_frac = r.acq_time_bl = -1.0;
@@ -447,8 +463,9 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
   out   = (float complex *)malloc (nsym * sizeof *out);
   lc    = (unsigned char *)malloc (nsym);
   tk    = (unsigned char *)malloc (nsym);
+  err   = (double *)malloc (nsym * sizeof *err);
   dp_ber_init (&acc, pt->m, DP_BER_TARGET_ERRORS);
-  if (!bits || !truth || !out || !lc || !tk || !acc.meter
+  if (!bits || !truth || !out || !lc || !tk || !err || !acc.meter
       || wfm_frame_bits (&f, bits, nbits) != nbits)
     {
       r.refused = "allocation failed";
@@ -474,10 +491,11 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
     for (burst = 0; burst < DP_RX_MAX_BURSTS && !dp_ber_enough (&acc); burst++)
       {
         dp_ber_marker_t mk;
-        double          pk = 0.0, rms = 0.0;
+        double          nf      = 0.0;
+        long            lt      = -1;
         int             clipped = 0, ok = 0;
         size_t n = dp_rx_burst (rx, pt, bits, nbits, pt->seed + burst, nsym,
-                                out, lc, tk, &pk, &rms, &clipped);
+                                out, lc, tk, err, &nf, &lt, &clipped);
         if (n == 0)
           {
             r.refused = "burst produced no output";
@@ -489,10 +507,6 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
             r.refused = "front end clipped — the reading is worthless";
             goto done;
           }
-        if (pk > r.disturb_peak_rad)
-          r.disturb_peak_rad = pk;
-        r.disturb_rms_rad = rms;
-
         settle = dp_ber_settle (pt->bn_timing, pt->bn_carrier, NULL, lc,
                                 pt->acq_to_track ? tk : NULL, n, &ok);
         if (!ok
@@ -531,31 +545,60 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
             continue;
           }
 
-        sy = dp_ber_sync (out, n, truth, nsym, &mk, pt->m, DP_BER_LAG_SPAN,
-                          DP_BER_SYNC_PFA);
-        if (!sy.ok)
+        /* dp_ber_measure() is the sanctioned one-call path: it "wires the
+           three gates together in the only order that is correct, and it
+           places the marker so the alignment is fixed on symbols DISJOINT
+           from the ones scored". This harness hand-rolled sync -> lag -> lo
+           -> score -> report by copying rx_frame_fer.c's inline version,
+           which is a second copy of a subtle ordering — including the
+           `lo` computation that has to respect BOTH the settled point and
+           the end of the marker. What stays here is only the marker itself,
+           because that comes from the FRAME layout and nothing in the
+           library knows about frames. */
+        r.rep = dp_ber_measure (&acc, out, n, truth, nsym, pt->esn0_db, settle,
+                                ok, &mk);
+        if (!r.rep.aligned)
           {
             r.unaligned++;
             continue;
           }
+
+        /* The loop numbers, over the SAME settled window the trio used —
+           which the report hands back rather than the caller recomputing. */
         {
-          long e = (long)(mk.period ? mk.t0 : mk.t0 + mk.n) - sy.lag;
-          lo     = (e > 0 && (size_t)e > settle) ? (size_t)e : settle;
-          hi     = n;
-          /* score() accumulates the trio AND increments the burst counter the
-             report divides by. Calling dp_ber_evm_m2m4() as well double-counts
-             EVM and M2M4 without a matching divisor — which reads as a
-             receiver beating the matched-filter bound, and the `sane` gate
-             caught exactly that. */
-          dp_ber_score (&acc, out, lo, hi, truth, nsym, &mk, &sy);
+          double s2 = 0.0, pk = 0.0;
+          size_t k, cnt       = 0;
+          for (k = r.rep.window_lo; k < r.rep.window_hi && k < n; k++)
+            {
+              if (err[k] > pk)
+                pk = err[k];
+              s2 += err[k] * err[k];
+              cnt++;
+            }
+          if (pk > r.disturb_peak_rad)
+            r.disturb_peak_rad = pk;
+          r.disturb_rms_rad = cnt ? sqrt (s2 / (double)cnt) : -1.0;
         }
+        /* Acquisition, reported only where the answer is not trivially zero:
+           at foff = 0 the correct answer IS zero, so a loop that never steers
+           scores perfectly and a working one shows its own jitter — the
+           inversion this file's design notes open with. */
+        if (pt->foff != 0.0)
+          {
+            double want = pt->foff / pt->sps; /* cycles/sample */
+            r.acq_frac  = (nf - (pt->fc - want)) / want;
+          }
+        if (lt >= 0)
+          r.acq_time_bl = (double)lt * pt->bn_carrier;
       }
   }
 
-  r.rep = dp_ber_report (&acc, pt->esn0_db, &sy, lo, hi, settled, DP_BER_CONF);
+  /* Read the REPORT, not a local sync result: dp_ber_measure() owns the
+     alignment now, so a stale `sy` here stamped "never detected" on every
+     record including the ones that aligned. */
   if (!settled)
     r.refused = "no burst settled — the loops never locked";
-  else if (!sy.ok)
+  else if (!r.rep.aligned)
     r.refused = "no burst aligned — the marker never detected";
 
 done:
@@ -565,6 +608,7 @@ done:
   free (out);
   free (lc);
   free (tk);
+  free (err);
   return r;
 }
 
@@ -581,28 +625,40 @@ dp_rx_point (dp_rx_point_name_t name)
 {
   static const dp_rx_point_t pts[DP_RX_POINT_COUNT] = {
     /* ANCHOR — unimpaired; the reference the others are read against. */
-    { "anchor", RX_FRAME_CONT, 2, 8.0, 0, DP_RX_BETA, DP_RX_SPAN, 0.0, 0.0,
-      0.01, 0.005, 0, 0, 6.79, 0.0, 0.0, 0.0, 0.0, 7u },
+    { "anchor", RX_FRAME_CONT, 2,    8.0,   0,     DP_RX_BETA, DP_RX_SPAN,
+      0.0,      0.0,           0.01, 0.005, 0,     0,          6.79,
+      0.0,      0.0,           0.0,  0.0,   -10.0, 7u },
     /* ACQUIRE — a static offset at half the design envelope B_l/M. Inside it
        the loop is linear and settles; beyond it pull-in is nonlinear and
        depends on initial conditions, which is why nothing asks for more. */
-    { "acquire", RX_FRAME_CONT, 2, 8.0, 0, DP_RX_BETA, DP_RX_SPAN, 0.0, 0.0025,
-      0.01, 0.005, 0, 0, 6.79, 0.0, 0.0, 0.0, 0.0, 7u },
+    { "acquire", RX_FRAME_CONT, 2,    8.0,   0,     DP_RX_BETA, DP_RX_SPAN,
+      0.0,       0.0025,        0.01, 0.005, 0,     0,          6.79,
+      0.0,       0.0,           0.0,  0.0,   -10.0, 7u },
     /* DOPPLER — a RATE, not an offset: a type-2 loop nulls a step regardless
        of gain, so only a ramp leaves a constant lag with a closed form. It
        comes through doppler_channel, so the carrier and every clock move
        together as they physically must. */
-    { "doppler", RX_FRAME_CONT, 2, 8.0, 0, DP_RX_BETA, DP_RX_SPAN, 0.0, 0.0,
-      0.01, 0.005, 0, 0, 6.79, 1.0e6, 2.4e9, 0.02, 0.02, 7u },
+    { "doppler", RX_FRAME_CONT, 2,    8.0,   0,     DP_RX_BETA, DP_RX_SPAN,
+      0.0,       0.0,           0.01, 0.005, 0,     0,          6.79,
+      1.0e6,     2.4e9,         0.02, 0.02,  -10.0, 7u },
     /* RUNBURST — the timing loop coasts through a transition-starved stretch
        and then slews. The question is whether that reaches the CARRIER loop,
        which is the whole reason a pre-terminal tap exists. */
-    { "runburst", RX_FRAME_BURST, 2, 8.0, 0, DP_RX_BETA, DP_RX_SPAN, 0.0, 0.0,
-      0.01, 0.005, 0, 0, 6.79, 1.0e6, 2.4e9, 0.02, 0.0, 7u },
+    { "runburst", RX_FRAME_BURST,
+      2,          8.0,
+      0,          DP_RX_BETA,
+      DP_RX_SPAN, 0.0,
+      0.0,        0.01,
+      0.005,      0,
+      0,          6.79,
+      1.0e6,      2.4e9,
+      0.02,       0.0,
+      -10.0,      7u },
     /* OVERSAMPLED — where m_out and the bank rate stop being construction
        constants and become planner outcomes. */
-    { "oversampled", RX_FRAME_CONT, 2, 64.0, 0, DP_RX_BETA, DP_RX_SPAN, 0.0,
-      0.0, 0.01, 0.005, 0, 0, 6.79, 0.0, 0.0, 0.0, 0.0, 7u },
+    { "oversampled", RX_FRAME_CONT, 2,    64.0,  0,     DP_RX_BETA, DP_RX_SPAN,
+      0.0,           0.0,           0.01, 0.005, 0,     0,          6.79,
+      0.0,           0.0,           0.0,  0.0,   -18.0, 7u },
   };
   if ((int)name < 0 || (int)name >= DP_RX_POINT_COUNT)
     return NULL;
@@ -645,9 +701,10 @@ dp_rx_print (const dp_rx_result_t *r)
       return;
     }
   printf ("  %-12s %-11s SER %.3e  EVM %6.2f dB  M2M4 %5.2f dB  loss %5.2f dB"
-          "  peak|e| %.4f  %s\n",
+          "  |e| pk %.3f rms %.4f  acq %.3f t %.2f/Bl  %s\n",
           r->rx->name, r->point->name, r->rep.ser.p_hat, r->rep.evm_db,
           r->rep.m2m4_db, r->rep.loss_db, r->disturb_peak_rad,
+          r->disturb_rms_rad, r->acq_frac, r->acq_time_bl,
           r->rep.ok ? "ok" : (r->rep.why ? r->rep.why : "not ok"));
 }
 

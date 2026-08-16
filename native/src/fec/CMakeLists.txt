@@ -16,7 +16,8 @@
 # else.
 add_library(fec_ccsds_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/fec/ccsds_rand.c
-    ${CMAKE_SOURCE_DIR}/native/src/fec/ccsds_conv.c)
+    ${CMAKE_SOURCE_DIR}/native/src/fec/ccsds_conv.c
+    ${CMAKE_SOURCE_DIR}/native/src/fec/rs.c)
 target_include_directories(fec_ccsds_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc)
 
@@ -36,3 +37,11 @@ target_include_directories(test_fec_ccsds_conv PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_fec_ccsds_conv COMMAND test_fec_ccsds_conv)
+
+add_executable(test_fec_rs
+    ${CMAKE_SOURCE_DIR}/native/tests/test_fec_rs.c)
+target_link_libraries(test_fec_rs PRIVATE fec_ccsds_core)
+target_include_directories(test_fec_rs PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_fec_rs COMMAND test_fec_rs)

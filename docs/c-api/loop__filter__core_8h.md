@@ -69,6 +69,7 @@ _Second-order proportional-integral loop filter — the shared engine of every t
 |  size\_t | [**loop\_filter\_state\_bytes**](#function-loop_filter_state_bytes) (const [**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) double | [**loop\_filter\_step**](#function-loop_filter_step) ([**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state, double x) <br>_Advance the loop one update with error_ `x` _and return the control value the tracker should apply._ |
 |  void | [**loop\_filter\_steps**](#function-loop_filter_steps) ([**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state, const double \* x, double \* out, size\_t n) <br>_Filter a whole block of loop errors, returning the control value for each update._  |
+|  double | [**loop\_filter\_wn**](#function-loop_filter_wn) (double bn, double zeta) <br>_Natural frequency implied by a loop bandwidth and damping._  |
 
 
 
@@ -488,6 +489,54 @@ Equivalent to calling [**loop\_filter\_step()**](loop__filter__core_8h.md#functi
 0.0541
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function loop\_filter\_wn 
+
+_Natural frequency implied by a loop bandwidth and damping._ 
+```C++
+double loop_filter_wn (
+    double bn,
+    double zeta
+) 
+```
+
+
+
+`wn = 8*zeta*bn / (4*zeta^2 + 1)`, which at `zeta = 0.707` is `1.8857*bn`. In the same units as `bn:` pass a `bn` normalised to the symbol rate and `wn` is per symbol; pass one normalised to the sample rate and it is per sample.
+
+
+Public because it is the number every closed form about this loop is written in, and callers were re-deriving it rather than asking. The steady-state phase lag under a frequency RAMP of `r` (cycles per unit time squared) is `2*pi*r / wn^2` — the only one of the two standard disturbances that a type-2 loop does NOT null, and therefore the one a measurement can check a gain against. A frequency STEP is nulled regardless of gain, so it cannot.
+
+
+The formula had five copies (this file, the loop's own C test, a validation harness, an example and a validation script) and no home; a gain error that moved `wn` would have had to be found five times.
+
+
+Unguarded, like [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init) and for the same reason: this is the trusting path, and [**loop\_filter\_create()**](loop__filter__core_8h.md#function-loop_filter_create) is the boundary that rejects the domain. `zeta = 0` divides by zero here exactly as it always has.
+
+
+
+
+**Parameters:**
+
+
+* `bn` Loop noise bandwidth, normalized (&gt;= 0). 
+* `zeta` Damping factor (typically 0.707), &gt; 0. 
+
+
+
+**Returns:**
+
+The natural frequency, in `bn's` units. 
+
+
+
 
 
         

@@ -102,11 +102,20 @@ rx_mpsk_clipped (const void *h)
 {
   return mpsk_receiver_get_clipped ((const mpsk_receiver_state_t *)h);
 }
+/* Read back rather than restated. `create()` above passes 0 and asks the
+   receiver to DERIVE its damping; the ramp law is a function of it, so the
+   harness asks the object what it settled on instead of carrying a second
+   copy of the default that would go stale the moment the receiver changed. */
+static double
+rx_mpsk_zeta (const void *h)
+{
+  return mpsk_receiver_get_zeta ((const mpsk_receiver_state_t *)h);
+}
 
 static const dp_rx_iface_t RX_MPSK
     = { "MpskReceiver", DP_RX_IN_COMPLEX,  rx_mpsk_create,     rx_mpsk_destroy,
         rx_mpsk_step,   rx_mpsk_norm_freq, rx_mpsk_last_error, rx_mpsk_lock,
-        rx_mpsk_locked, rx_mpsk_lock_time, rx_mpsk_clipped };
+        rx_mpsk_locked, rx_mpsk_lock_time, rx_mpsk_clipped,    rx_mpsk_zeta };
 
 /* ── The second adapter, and the whole point of goal 6 ──────────────────────
  *

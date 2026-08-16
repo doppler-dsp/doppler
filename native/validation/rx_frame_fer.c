@@ -490,6 +490,16 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
             r.unaligned++;
             continue;
           }
+        /* Keeping only the LAST burst's report is correct because
+           `dp_ber_measure()` reports over the CUMULATIVE accumulator: `acc`
+           carries every burst scored so far, so the final call describes the
+           whole run, not the burst that produced it. That is the invariant
+           this line rests on, and it is worth stating because both readings
+           are self-consistent -- if `dp_ber_measure` ever reported per-call,
+           `r.rep` would quietly become "the last burst's rate" and no gate
+           here would notice. `window_hi` is the observable: it is
+           non-decreasing across bursts precisely because the accumulator is.
+         */
         r.rep       = rep;
         lo          = rep.window_lo;
         hi          = rep.window_hi;

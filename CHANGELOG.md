@@ -221,6 +221,40 @@ ______________________________________________________________________
     detection to find out where it sat is a second copy of the decision, free
     to disagree with the first.
 
+- **`native/validation/` was running its own random number generators.**
+    `native/tests/dp_rng_test.h` is the declared SSOT and
+    `scripts/check_tests_ssot.py` enforces it *absolutely* — in
+    `native/tests/` only. The other directory is the one whose numbers get
+    **published**, and five harnesses there carried private xorshift32 and
+    Box-Muller copies. They now use the SSOT.
+
+    **Bit-exact, proven per file rather than argued**: every harness's full
+    sweep was captured before and after, and all 19 outputs are byte-identical
+    (the only line that moves anywhere in the tree is `ber_despreader`'s
+    wall-clock `elapsed`, in a file this does not touch).
+
+    Getting there required the draw **order** to be measured, and that is the
+    part worth recording. Three of these files drew both Box-Muller components
+    inside one expression, which is **indeterminately sequenced** (C11
+    6.5.2.2p10) — so the stream each had was the compiler's choice, not the
+    author's. `dp_rng_test.h` states that gcc takes the imaginary operand
+    first; that is true of the bare `a + b*I` shape it was measured on and
+    **not** of these. `carrier_nda_pullin`'s `cexp(...) + s*g + s*g*I` needed
+    **real** first to reproduce its stream, and imaginary-first moved every
+    number in the file. The order is a property of the **expression**, not a
+    rule — which is an argument for named locals, not against them.
+    `rx_nda_gauss`'s own two uniforms were in one expression too; sequencing
+    them in `dp_gauss`'s order left the file byte-identical, so gcc had been
+    drawing the logarithm's uniform first there.
+
+    Migrated: `carrier_mpsk_jitter`, `carrier_nda_step_response` (xorshift
+    only), `carrier_nda_pullin`, `rx_nda_tap`, and `mpsk_ber_common.h` with
+    both BER twins. The gate is **not** widened to the directory yet: the
+    sweep found **four more** files carrying private generators
+    (`dll_jitter`, `symsync_lock`, `ber_despreader`, `ratesync_scurve`) that
+    #802 did not list, so the ratchet would fail on unmigrated files. The
+    directory having grown again is exactly what gh-687 predicted it would.
+
 - **`mpsk_receiver_core.h` said the old defaults for the five parameters that
     now derive.** gh-644 made `0` request a derived value for `m_out`, `zeta`,
     `lock_thresh`, `num_phases` and `bn_agc_ratio`, and updated

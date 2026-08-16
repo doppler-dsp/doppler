@@ -24,6 +24,8 @@
  *
  * Usage:  carrier_mpsk_jitter [--check]
  */
+#include "dp_rng_test.h"
+
 #include "awgn/awgn_core.h"
 #include "carrier_mpsk/carrier_mpsk_core.h"
 #include <complex.h>
@@ -39,18 +41,6 @@ static double
 phi_rad (uint32_t p)
 {
   return (double)(int32_t)p / 4294967296.0 * TWOPI;
-}
-
-/* xorshift32 symbol-index source. */
-static uint32_t
-xs (uint32_t *st)
-{
-  uint32_t x = *st;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *st = x;
-  return x;
 }
 
 /* Analytic loop noise gain G = sum phi[k]^2 for a unit measurement-noise
@@ -93,7 +83,8 @@ disc_var (int m, double snr, awgn_state_t *g, float *nb, long n)
           have = 2 * NB;
           pos  = 0;
         }
-      float complex a = mpsk_constellation ((int)(xs (&sym) % (uint32_t)m), m);
+      float complex a
+          = mpsk_constellation ((int)(dp_xs32 (&sym) % (uint32_t)m), m);
       float complex x = a + nb[pos] + nb[pos + 1] * I;
       pos += 2;
       carrier_mpsk_update (&s, carrier_mpsk_wipeoff (&s, x));
@@ -123,7 +114,8 @@ phase_var (int m, double snr, double bn, awgn_state_t *g, float *nb, long n)
           have = 2 * NB;
           pos  = 0;
         }
-      float complex a = mpsk_constellation ((int)(xs (&sym) % (uint32_t)m), m);
+      float complex a
+          = mpsk_constellation ((int)(dp_xs32 (&sym) % (uint32_t)m), m);
       float complex x = a + nb[pos] + nb[pos + 1] * I;
       pos += 2;
       carrier_mpsk_update (&s, carrier_mpsk_wipeoff (&s, x));
@@ -150,7 +142,8 @@ acquires (int m, double f0, double bn_fll, long nsym, size_t tsamps)
   uint32_t sym = 0x55aa55aau;
   for (long k = 0; k < nsym; k++)
     {
-      float complex a = mpsk_constellation ((int)(xs (&sym) % (uint32_t)m), m);
+      float complex a
+          = mpsk_constellation ((int)(dp_xs32 (&sym) % (uint32_t)m), m);
       for (size_t i = 0; i < tsamps; i++)
         {
           float complex x = a * (float complex)cexp (I * phase);

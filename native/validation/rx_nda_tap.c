@@ -79,6 +79,8 @@
  *   rx_nda_tap            full sweep, prints the tables
  *   rx_nda_tap --check    fast CI gate
  */
+#include "dp_rng_test.h"
+
 #include "mpsk_receiver/mpsk_receiver_core.h"
 #include "mpsk_receiver_r/mpsk_receiver_r_core.h"
 #include <complex.h>
@@ -157,29 +159,6 @@ typedef struct
  * deliberately not pn_core: an MLS contains a run of L identical bits, and at
  * 1 bit/symbol BPSK that stalls the Gardner TED. Bounded run length is what a
  * timing loop needs, and i.i.d. uniform symbols are what provide it. */
-static uint32_t
-rx_nda_rng (uint32_t *s)
-{
-  uint32_t x = *s;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *s = x;
-  return x;
-}
-
-static double
-rx_nda_uni (uint32_t *s)
-{
-  return ((double)rx_nda_rng (s) + 1.0) / 4294967297.0;
-}
-
-static double
-rx_nda_gauss (uint32_t *s)
-{
-  return sqrt (-2.0 * log (rx_nda_uni (s)))
-         * cos (2.0 * M_PI * rx_nda_uni (s));
-}
 
 /**
  * @brief Run one tap at one rate ratio against a known offset.
@@ -236,13 +215,14 @@ rx_nda_measure (int tap, double sps, double fs, int mod, double bn_timing,
     for (size_t k = 0; k < nsym; k++)
       {
         /* NRZ BPSK: one antipodal level held across the whole symbol. */
-        double sr = RX_NDA_AMP * ((rx_nda_rng (&st) % 2u) ? -1.0 : 1.0);
+        double sr = RX_NDA_AMP * ((dp_xs32 (&st) % 2u) ? -1.0 : 1.0);
         for (size_t j = 0; j < isps; j++)
           {
-            double        ph = 2.0 * M_PI * foff * (double)(k * isps + j);
-            float complex x
-                = (float)(sr * cos (ph) + sigma * rx_nda_gauss (&st))
-                  + (float)(sr * sin (ph) + sigma * rx_nda_gauss (&st)) * I;
+            double        ph   = 2.0 * M_PI * foff * (double)(k * isps + j);
+            double        n_re = dp_gauss (&st);
+            double        n_im = dp_gauss (&st);
+            float complex x    = (float)(sr * cos (ph) + sigma * n_re)
+                                 + (float)(sr * sin (ph) + sigma * n_im) * I;
             float complex y;
             /* Score only the settled half: the first half is acquisition, and
                averaging it in would report the transient as de-rotation. */
@@ -292,11 +272,13 @@ rx_nda_zero_offset_ferr (int tap, double sps, double fs, double esn0_db,
     size_t isps = (size_t)sps;
     for (size_t k = 0; k < nsym; k++)
       {
-        double sr = RX_NDA_AMP * ((rx_nda_rng (&st) % 2u) ? -1.0 : 1.0);
+        double sr = RX_NDA_AMP * ((dp_xs32 (&st) % 2u) ? -1.0 : 1.0);
         for (size_t j = 0; j < isps; j++)
           {
-            float complex x = (float)(sr + sigma * rx_nda_gauss (&st))
-                              + (float)(sigma * rx_nda_gauss (&st)) * I;
+            double        n_re = dp_gauss (&st);
+            double        n_im = dp_gauss (&st);
+            float complex x
+                = (float)(sr + sigma * n_re) + (float)(sigma * n_im) * I;
             float complex y;
             mpsk_receiver_step_ted (rx, x, &y, RATESYNC_TED_GARDNER);
           }
@@ -389,7 +371,7 @@ rx_nda_ramp_lag (int tap, double sps, double r, size_t nsym, double *upd_out,
     size_t cnt  = 0;
     for (size_t k = 0; k < nsym; k++)
       {
-        double sr = RX_NDA_AMP * ((rx_nda_rng (&st) % 2u) ? -1.0 : 1.0);
+        double sr = RX_NDA_AMP * ((dp_xs32 (&st) % 2u) ? -1.0 : 1.0);
         for (size_t j = 0; j < isps; j++)
           {
             double        n  = (double)(k * isps + j);

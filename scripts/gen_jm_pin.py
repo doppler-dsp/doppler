@@ -69,6 +69,7 @@ SSOT = ROOT / "just-makeit.toml"
 PYPROJECT = ROOT / "pyproject.toml"
 DOWNSTREAM = ROOT / "examples" / "downstream-jm" / "just-makeit.toml"
 CHANGELOG = ROOT / "CHANGELOG.md"
+FRAGMENTS = ROOT / "changelog.d"
 
 # A line that is talking about the jm pin. Deliberately loose about the
 # surrounding markdown (bold, backticks, "Carried by the ...") and strict about
@@ -101,15 +102,28 @@ def ssot_version() -> str:
 
 
 def recorded_versions() -> set[str]:
-    """Every jm version the CHANGELOG names on a jm-pin line.
+    """Every jm version the changelog names on a jm-pin line.
 
     Whole file, not just ``[Unreleased]``: a release moves entries into a
     versioned section, and a bump recorded then is still recorded.
+
+    ``changelog.d/`` is read too, and it has to be. An entry now lands as a
+    FRAGMENT and is only folded into ``CHANGELOG.md`` at release
+    (``changelog.d/README.md``), so a bump PR records its pin in a file this
+    check would otherwise never open — and would then report a pin nothing
+    documents, on a branch that documents it perfectly well.
     """
     out: set[str] = set()
-    for line in CHANGELOG.read_text(encoding="utf-8").splitlines():
-        if PIN_LINE_RE.search(line):
-            out.update(SEMVER_RE.findall(line))
+    texts = [CHANGELOG.read_text(encoding="utf-8")]
+    if FRAGMENTS.is_dir():
+        texts += [
+            f.read_text(encoding="utf-8")
+            for f in sorted(FRAGMENTS.glob("*/*.md"))
+        ]
+    for text in texts:
+        for line in text.splitlines():
+            if PIN_LINE_RE.search(line):
+                out.update(SEMVER_RE.findall(line))
     return out
 
 

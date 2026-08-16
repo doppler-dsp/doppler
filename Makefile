@@ -695,7 +695,7 @@ endef
 # gates cover them: criterion 2 is "help lists EVERY target", not "every
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
-                jm-apply \
+                jm-apply changelog-assemble changelog-assembled-check \
                 gen-c-api-check \
                 gen-c-api-run doxygen-pin-image \
                 package-c package-c-tarball sdist release-notes \
@@ -1328,7 +1328,13 @@ issue-link-check: ## A branch changing code must declare Closes #N or No-issue:
 # must NOT exist yet, which is what stops it becoming permanent. It applies to
 # question 2 only; a release PR still touches CHANGELOG.md, so question 1 needs
 # no exemption at all.
-changelog-check: ## A branch changing code must touch CHANGELOG.md
+changelog-assemble: ## Promote changelog.d/ fragments into [Unreleased]
+	@$(UV) run python scripts/changelog-assemble.py
+
+changelog-assembled-check: ## Fail if any fragment is still unassembled
+	@$(UV) run python scripts/changelog-assemble.py --check
+
+changelog-check: ## A branch changing code must add a changelog entry
 	@base=$$(git merge-base HEAD $(CHANGELOG_BASE) 2>/dev/null) || { \
 	  echo "changelog-check: no merge base with $(CHANGELOG_BASE) —"; \
 	  echo "  fetch it (CI needs fetch-depth: 0) or set CHANGELOG_BASE."; \
@@ -1342,15 +1348,21 @@ changelog-check: ## A branch changing code must touch CHANGELOG.md
 	  code=$$(printf '%s\n' "$$files" | grep -E "$$pat" || true); \
 	  if [ -z "$$code" ]; then \
 	    echo "changelog-check: no code changes on this branch"; \
-	  elif printf '%s\n' "$$files" | grep -qx 'CHANGELOG.md'; then \
-	    echo "changelog-check: $$(printf '%s\n' "$$code" | grep -c .) code file(s) on this branch, CHANGELOG.md touched — OK"; \
+	  elif printf '%s\n' "$$files" | grep -qE '^(CHANGELOG\.md|changelog\.d/.+\.md)$$'; then \
+	    echo "changelog-check: $$(printf '%s\n' "$$code" | grep -c .) code file(s) on this branch, changelog touched — OK"; \
 	  else \
-	    echo "changelog-check: this branch changes code but not CHANGELOG.md — FAIL"; \
+	    echo "changelog-check: this branch changes code and says nothing — FAIL"; \
 	    printf '%s\n' "$$code" | sed 's/^/  /' | head -20; \
 	    echo ""; \
-	    echo "  Add an entry under ## [Unreleased] ON THIS BRANCH, so the"; \
-	    echo "  release is a promotion rather than an archaeology exercise."; \
-	    echo "  A purely internal change still gets one honest line."; \
+	    echo "  Write ONE FILE naming what changed, so the release is a"; \
+	    echo "  promotion rather than an archaeology exercise:"; \
+	    echo ""; \
+	    echo "    changelog.d/<added|changed|fixed|removed|breaking>/<slug>.md"; \
+	    echo ""; \
+	    echo "  The directory IS the section heading; the content is the"; \
+	    echo "  entry, starting with '- '. See changelog.d/README.md for why"; \
+	    echo "  it is a file and not a line in CHANGELOG.md."; \
+	    echo "  A purely internal change still gets one honest entry."; \
 	    exit 1; \
 	  fi; \
 	fi; \
@@ -1358,6 +1370,8 @@ changelog-check: ## A branch changing code must touch CHANGELOG.md
 	n=$$(git log --oneline $${t:+$$t..}HEAD -- $(CHANGELOG_CODE_PATHS) 2>/dev/null | wc -l); \
 	e=$$(awk '/^## \[Unreleased\]/{f=1;next} f&&/^## /{exit} f' CHANGELOG.md \
 	     | grep -c '^- ' || true); \
+	frag=$$(find changelog.d -mindepth 2 -name '*.md' 2>/dev/null | wc -l); \
+	e=$$((e + frag)); \
 	v=$$(awk -F'"' '/^version = /{print $$2; exit}' pyproject.toml); \
 	if [ "$$n" -gt 0 ] && [ "$$e" -eq 0 ] \
 	   && grep -q "^## \[$$v\]" CHANGELOG.md \
@@ -1366,10 +1380,10 @@ changelog-check: ## A branch changing code must touch CHANGELOG.md
 	  exit 0; \
 	fi; \
 	if [ "$$n" -gt 0 ] && [ "$$e" -eq 0 ]; then \
-	  echo "changelog-check: $$n code commit(s) since $${t:-repo start}, [Unreleased] is empty — FAIL"; \
+	  echo "changelog-check: $$n code commit(s) since $${t:-repo start}, [Unreleased] is empty and changelog.d/ holds nothing — FAIL"; \
 	  exit 1; \
 	fi; \
-	echo "changelog-check: $$e entry/entries for $$n code commit(s) since $${t:-repo start}"
+	echo "changelog-check: $$e entry/entries ($$frag unassembled) for $$n code commit(s) since $${t:-repo start}"
 
 # The doxygen gate proper. Split out so doxygen-check's Docker branch can
 # re-enter it with the pinned doxygen on PATH. Writes NOTHING into the tree:

@@ -13,6 +13,32 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **The receiver instrument — one harness, every receiver.**
+    `native/tests/dp_rx_test.h` measures a receiver; `native/validation/rx_battery.c`
+    is the standard battery run on `MpskReceiver`, and the adapter in it is the
+    entire receiver-specific fork. A second receiver design costs an adapter
+    and nothing else, which is `docs/design/rx-test.md` goal 6 — two receivers
+    comparable **by construction** rather than by hoping two harnesses agree.
+
+    Five operating points (anchor, acquire, doppler, runburst, oversampled),
+    each reporting SER, EVM, blind M2M4 SNR, implementation loss against the
+    matched-filter bound, the timing error's peak and rms, and acquisition time
+    in units of the loop's own bandwidth.
+
+    **A refusal is not a failure.** `dp_rx_run()` declining to report a number
+    it cannot defend is the design working, and it prints rather than counting
+    against the gate. `--check` gates that every point *claiming* to be
+    measurable produces a defensible record — including the `sane` check that
+    catches an EVM beating the bound — and deliberately does **not** gate the
+    loop numbers as values: a pull-in ceiling moves with the record length
+    allowed, so pinning one would pin the observation window rather than the
+    receiver.
+
+    The battery's five construction parameters are `0` on purpose: it states
+    the link and lets the object derive what it already knows (gh-644).
+
 ### Fixed
 
 - **`mpsk_receiver_core.h` said the old defaults for the five parameters that

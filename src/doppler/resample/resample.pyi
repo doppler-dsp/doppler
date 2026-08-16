@@ -497,8 +497,8 @@ class CIC:
     Parameters
     ----------
     R : int, default 16
-        Decimation ratio. Must be a power of two in `[2, 4096]`. Returns NULL
-        for R=0, non-power-of-two, or R > 4096.
+        Decimation ratio. Must be a power of two in `[2, 2048]` (`CIC_R_MAX`).
+        Returns NULL for R=0, non-power-of-two, or a ratio above that cap.
 
     Examples
     --------
@@ -531,7 +531,8 @@ class CIC:
         Recomputes the normalisation shift (CIC_N * log2(R)) and zeros all
         accumulators so the filter behaves exactly like a freshly created one
         with the new R. Silently ignores R values that are not a power-of-two
-        in `[2, 4096]` — the state is left unchanged in that case.
+        in `[2, 2048]` (`CIC_R_MAX`) — the state is left unchanged in that
+        case.
 
         Parameters
         ----------

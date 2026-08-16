@@ -74,6 +74,7 @@
 * **CARRIER\_NDA\_STATE\_VERSION** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CIC\_N** ([**cic\_core.h**](cic__core_8h.md))
 * **CIC\_PAPR\_HEADROOM** ([**cic\_core.h**](cic__core_8h.md))
+* **CIC\_R\_MAX** ([**cic\_core.h**](cic__core_8h.md))
 * **CIC\_STATE\_MAGIC** ([**cic\_core.h**](cic__core_8h.md))
 * **CIC\_STATE\_VERSION** ([**cic\_core.h**](cic__core_8h.md))
 * **CORR\_STATE\_MAGIC** ([**corr\_core.h**](corr__core_8h.md))

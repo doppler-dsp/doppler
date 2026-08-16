@@ -33,6 +33,8 @@ extern "C"
   void loop_filter_init(loop_filter_state_t *state, double bn, double zeta,
                         double t);
 
+  double loop_filter_wn(double bn, double zeta);
+
   loop_filter_state_t *loop_filter_create(double bn, double zeta, double t);
 
   void loop_filter_destroy(loop_filter_state_t *state);

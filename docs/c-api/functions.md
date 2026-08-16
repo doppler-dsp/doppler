@@ -914,6 +914,7 @@
 * **loop\_filter\_state\_bytes** ([**loop\_filter\_core.h**](loop__filter__core_8h.md))
 * **loop\_filter\_step** ([**loop\_filter\_core.h**](loop__filter__core_8h.md))
 * **loop\_filter\_steps** ([**loop\_filter\_core.h**](loop__filter__core_8h.md))
+* **loop\_filter\_wn** ([**loop\_filter\_core.h**](loop__filter__core_8h.md))
 
 
 ## m

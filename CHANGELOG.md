@@ -15,6 +15,36 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **One bits→symbol map, and it is the library's.** `wfm_synth`'s bit pattern
+    had **four inlined copies** of the mapping — two in `wfm_synth_core.h`
+    (`wfm_synth_next_symbol`, `wfm_synth_step`) and two in
+    `wfm_synth_steps()`. The first of those carries a comment saying the
+    kernel is shared "so the single-sample and block paths cannot diverge —
+    they call the SAME function rather than each inlining the arithmetic", and
+    the arithmetic was inlined four times anyway.
+
+    All four now call `wfm_synth_bit_symbol()`, which hands a Gray label to
+    `mpsk_constellation()` — the library's canonical map, and the one
+    `dp_ber_score()` inverts to score bit errors.
+
+    That mattered, latently: the QPSK copies put `b0` on the I sign and `b1`
+    on the Q sign — the same *constellation*, but two of the four labels
+    swapped against `mpsk_constellation()`. Nothing in the tree scored a QPSK
+    bit pattern against truth, so it never produced a wrong number. A framed
+    QPSK stream measured through the canonical scorer would have read about
+    **half its symbols wrong on a working receiver**.
+
+    `modulation` already meant BITS PER SYMBOL (1 = BPSK, 2 = QPSK), so 3 =
+    8PSK extends the numbering rather than reinterpreting it.
+
+    The gate is a round trip through the canonical demapper — a property no
+    agreement between two copies can establish, since the old copies agreed
+    with each other perfectly. The bit pattern counts up so every one of the M
+    labels is exercised; an alternating pattern emits one or two labels for
+    ever, and a label the test never produces is one the mapping can get wrong
+    undetected. Proven by sabotage: LSB-first packing, the original I/Q-sign
+    QPSK mapping restored, and Gray skipped each take it red.
+
 - **A capped CIC silently cost the cascade its rate** — `RateConverter` at a
     power-of-two decimation past the CIC cap decimated by `R` and claimed `D`.
     Measured: `RateConverter_create(1/8192)` delivered `1/4096`, twice the rate

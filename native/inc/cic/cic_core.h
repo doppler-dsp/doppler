@@ -130,8 +130,9 @@ typedef struct {
  * Unlike doppler's floating-point blocks this one is not scale-free --
  * scale the input into range first.
  *
- * @param R  Decimation ratio.  Must be a power of two in `[2, CIC_R_MAX]`.
- *           Returns NULL for R=0, non-power-of-two, or R > CIC_R_MAX.
+ * @param R  Decimation ratio.  Must be a power of two in `[2, 2048]`
+ *           (`CIC_R_MAX`).  Returns NULL for R=0, non-power-of-two, or a
+ *           ratio above that cap.
  * @return   Heap-allocated state, or NULL on invalid R or OOM.
  *
  * @code
@@ -346,7 +347,8 @@ cic_decimate(cic_state_t *state, const float complex *in,
  * Recomputes the normalisation shift (CIC_N * log2(R)) and zeros all
  * accumulators so the filter behaves exactly like a freshly created
  * one with the new R. Silently ignores R values that are not a
- * power-of-two in `[2, CIC_R_MAX]` — the state is left unchanged in that case.
+ * power-of-two in `[2, 2048]` (`CIC_R_MAX`) — the state is left unchanged in
+ * that case.
  *
  * @param state  Pointer to a valid cic_state_t.
  * @param R      New decimation ratio.  Same constraints as cic_create().

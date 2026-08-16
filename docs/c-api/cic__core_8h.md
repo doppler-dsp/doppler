@@ -65,7 +65,7 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 |  size\_t | [**cic\_decimate\_max\_out**](#function-cic_decimate_max_out) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Upper bound on decimate output — returns 0 (lazy-alloc signal)._  |
 |  void | [**cic\_destroy**](#function-cic_destroy) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br> |
 |  void | [**cic\_get\_state**](#function-cic_get_state) (const [**cic\_state\_t**](structcic__state__t.md) \* state, void \* blob) <br>_Serialize the integrator/comb/phase state into_ `blob` _._ |
-|  void | [**cic\_reconfigure**](#function-cic_reconfigure) ([**cic\_state\_t**](structcic__state__t.md) \* state, uint32\_t R) <br>_Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC\_N \* log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in_ `[2, 4096]` _— the state is left unchanged in that case._ |
+|  void | [**cic\_reconfigure**](#function-cic_reconfigure) ([**cic\_state\_t**](structcic__state__t.md) \* state, uint32\_t R) <br>_Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC\_N \* log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in_ `[2, 2048]` _(_`CIC_R_MAX` _) — the state is left unchanged in that case._ |
 |  void | [**cic\_reset**](#function-cic_reset) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Zero all integrator and comb accumulators; preserve R and shift. The first output sample after reset arrives after R more input samples, matching post-create behaviour. Use between signal bursts to eliminate transient artefacts caused by residual pipeline state._  |
 |  int | [**cic\_set\_state**](#function-cic_set_state) ([**cic\_state\_t**](structcic__state__t.md) \* state, const void \* blob) <br>_Restore the integrator/comb/phase state from_ `blob` _._ |
 |  size\_t | [**cic\_state\_bytes**](#function-cic_state_bytes) (const [**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Bytes_ [_**cic\_get\_state()**_](cic__core_8h.md#function-cic_get_state) _writes (envelope + payload)._ |
@@ -102,6 +102,7 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 | ---: | :--- |
 | define  | [**CIC\_N**](cic__core_8h.md#define-cic_n)  `4`<br> |
 | define  | [**CIC\_PAPR\_HEADROOM**](cic__core_8h.md#define-cic_papr_headroom)  `2.0f`<br>_Peak-to-average headroom the input encoding reserves, as a voltage ratio (2.0 = 6 dB)._  |
+| define  | [**CIC\_R\_MAX**](cic__core_8h.md#define-cic_r_max)  `2048u`<br>_Largest decimation ratio a CIC will be built at._  |
 | define  | [**CIC\_STATE\_MAGIC**](cic__core_8h.md#define-cic_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('C', 'I', 'C', '\_')`<br> |
 | define  | [**CIC\_STATE\_VERSION**](cic__core_8h.md#define-cic_state_version)  `2u`<br> |
 
@@ -123,7 +124,7 @@ The bound is `CIC_PAPR_HEADROOM` (2.0, i.e. 6 dB) and not 1.0 because that headr
 Fixed design parameters: N = 4 stages (~77 dB alias rejection at f\_p = 0.1 \* f\_out) M = 1 (differential delay — one-sample comb) R = power-of-two decimation ratio (enforced at create time)
 
 
-Input/output boundary: CF32 (`float _Complex`), matching the doppler default signal type. Internally, each sample is converted to UQ16 — offset-binary: v\_q15 + 32768 → `[0, 65535]` in a uint64\_t — giving 48 bits of headroom for the pipeline gain of N \* log2(R) bits. For R &lt;= 4096 (log2 = 12) the gain is 48 bits; max accumulation = 65535 \* R^N = (2^16 - 1) \* 2^48 = 2^64 - 2^48 &lt; 2^64, so no overflow occurs.
+Input/output boundary: CF32 (`float _Complex`), matching the doppler default signal type. Internally, each sample is converted to UQ16 — offset-binary: v\_q15 + 32768 → `[0, 65535]` in a uint64\_t — giving 48 bits of headroom for the pipeline gain of N \* log2(R) bits. At the cap `CIC_R_MAX` (2048, log2 = 11) the gain is 44 bits; max accumulation = 65535 \* R^N = (2^16 - 1) \* 2^44, which is 16x inside 2^64. R = 4096 also fits, but to within one part in 65536 — see CIC\_R\_MAX for why the cap is a halving below it.
 
 
 All arithmetic is unsigned: inputs are non-negative `[0, 65535]`, wrapping is defined (mod 2^64), and the output decode subtracts the offset in floating-point — no signed integer casts anywhere in the hot path.
@@ -169,7 +170,7 @@ cic_state_t * cic_create (
 **Parameters:**
 
 
-* `R` Decimation ratio. Must be a power of two in `[2, 4096]`. Returns NULL for R=0, non-power-of-two, or R &gt; 4096. 
+* `R` Decimation ratio. Must be a power of two in `[2, 2048]` (`CIC_R_MAX`). Returns NULL for R=0, non-power-of-two, or a ratio above that cap. 
 
 
 
@@ -355,7 +356,7 @@ void cic_get_state (
 
 ### function cic\_reconfigure 
 
-_Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC\_N \* log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in_ `[2, 4096]` _— the state is left unchanged in that case._
+_Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC\_N \* log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in_ `[2, 2048]` _(_`CIC_R_MAX` _) — the state is left unchanged in that case._
 ```C++
 void cic_reconfigure (
     cic_state_t * state,
@@ -491,13 +492,34 @@ _Peak-to-average headroom the input encoding reserves, as a voltage ratio (2.0 =
 
 
 
-A fixed-point CIC has TWO input-budget terms, and only one of them is the accumulator's. The **DC gain** `R^N` is budgeted there — 16-bit input plus 48 bits of pipeline gain fills the 64-bit accumulator exactly at R = 4096. The **PAPR** is budgeted here, at the encoder, because a signal's peak is not its symbol amplitude: a root-raised-cosine symbol stream peaks at **1.582x** its symbol amplitude (measured, and a pulse property — identical at every samples-per-symbol).
+A fixed-point CIC has TWO input-budget terms, and only one of them is the accumulator's. The **DC gain** `R^N` is budgeted there — 16-bit input plus 48 bits of pipeline gain would fill the 64-bit accumulator exactly at R = 4096, which is why CIC\_R\_MAX sits a halving below it. The **PAPR** is budgeted here, at the encoder, because a signal's peak is not its symbol amplitude: a root-raised-cosine symbol stream peaks at **1.582x** its symbol amplitude (measured, and a pulse property — identical at every samples-per-symbol).
 
 
 Encoding at full scale therefore clipped any signal presented at its natural amplitude, and the caller had to back off by the PAPR — 4 dB that nothing downstream restored, leaving a timing loop under-driven by the square of it, 2.5x. Reserving the headroom here instead lets a unit- amplitude signal through unclipped and costs 2 dB of quantisation SNR against a caller who backs off perfectly, which no caller did.
 
 
 This changes only the encode/decode scale PAIR, never the normalising shift, so the DC gain stays exactly one — see [**cic\_dc\_gain()**](cic__core_8h.md#function-cic_dc_gain). 
+
+
+        
+
+<hr>
+
+
+
+### define CIC\_R\_MAX 
+
+_Largest decimation ratio a CIC will be built at._ 
+```C++
+#define CIC_R_MAX `2048u`
+```
+
+
+
+The 64-bit accumulator holds `65535 * R^CIC_N`. At R = 4096 that is `(2^16 - 1) * 2^48 = 2^64 - 2^48` — it fits, and fills the accumulator to **within one part in 65536**. "Fits exactly" is not headroom: it is the value at which any further term overflows, and the CIC's exactness argument (every intermediate overflow cancels in the combs) holds only while the TRUE result fits in 64 bits.
+
+
+2048 gives `2^60 - 2^44` — **16x margin** — for one halving of the largest single-stage ratio. Nothing in the tree asked for more: the planner is the only thing that can reach the cap, and past it it already hands the residual to the resampler stage, so a lower cap costs a slightly larger residual and nothing else. 
 
 
         

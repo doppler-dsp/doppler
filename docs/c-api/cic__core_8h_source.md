@@ -22,6 +22,8 @@ extern "C" {
 
 #define CIC_N 4
 
+#define CIC_R_MAX 2048u
+
 typedef struct {
     uint64_t integ_re[CIC_N]; /* integrator accumulators, real path    */
     uint64_t integ_im[CIC_N]; /* integrator accumulators, imag path    */

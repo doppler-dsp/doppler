@@ -145,7 +145,10 @@ Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampl
 Stage selection (D = 1/rate):
 
 
-rate &gt;= 1.0 or D &lt; 2 `[Resampler(rate)]` D ~= 2^1 `[HalfbandDecimator]` D ~= 2^2 `[HalfbandDecimator, HalfbandDecimator]` D ~= 2^n, n&gt;=3, D&lt;=4096 `[CIC(D)]` D &gt;= 8, non-power-of-2 `[CIC(R*), Resampler correction]` R\* = nearest power-of-2 to D otherwise (2 &lt;= D &lt; 8, non-int) `[Resampler(rate)]`
+rate &gt;= 1.0 or D &lt; 2 `[Resampler(rate)]` D ~= 2^1 `[HalfbandDecimator]` D ~= 2^2 `[HalfbandDecimator, HalfbandDecimator]` D ~= 2^n, n&gt;=3, D&lt;=CIC\_R\_MAX `[CIC(D)]` D ~= 2^n, D &gt; CIC\_R\_MAX `[CIC(CIC_R_MAX), Resampler(R/D)]` D &gt;= 8, non-power-of-2 `[CIC(R*), Resampler correction]` R\* = nearest power-of-2 to D, capped otherwise (2 &lt;= D &lt; 8, non-int) `[Resampler(rate)]`
+
+
+A single CIC stage is capped at `CIC_R_MAX` (2048) — see [**cic\_core.h**](cic__core_8h.md) for the accumulator budget that sets it. **The cap costs no rate**: whatever the capped CIC leaves is handed to a Resampler stage, so the cascade still delivers the D it was asked for. That was not always true — gating the residual on the matched-terminal flag alone meant a capped plan silently decimated by R and claimed D (see the CHANGELOG for the measurement).
 
 
 **INPUT AMPLITUDE IS BOUNDED whenever the plan contains a CIC stage** — that is, any decimation by 8 or more: \|Re\| and \|Im\| &lt;= 2.0, clipped beyond that, before any filtering. The bound is `CIC_PAPR_HEADROOM` (6 dB above unity), which is there so a pulse-shaped waveform's PEAKS have somewhere to sit above its unit average; see [**cic\_core.h**](cic__core_8h.md). `stages` is how you tell: a plan naming `CIC(...)` is not scale-free, every other plan is. This is the one property of this object a caller cannot infer from an output that is finite and looks plausible — an overdriven RRC-BPSK waveform matched-filters to -25 dB EVM where the same waveform well inside the bound reaches -50 dB.

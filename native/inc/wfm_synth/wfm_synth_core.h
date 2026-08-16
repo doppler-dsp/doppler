@@ -24,6 +24,7 @@
 #include "resamp/resamp_core.h"
 #include <math.h> /* log10/powf/sqrtf in create_impl */
 #include "gold/gold_core.h"
+#include "mpsk/mpsk_core.h" /* mpsk_constellation — the ONE bit->symbol map */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -177,6 +178,54 @@ typedef struct {
 } wfm_synth_state_t;
 
 /**
+ * @brief Next symbol from the user bit pattern, cycled — one mapping, every M.
+ *
+ * **The single home for the bits->symbol map.** It had four copies: two in
+ * this header (`wfm_synth_next_symbol` and `wfm_synth_step`) and two in
+ * `wfm_synth_steps()`. `wfm_synth_next_symbol`'s own comment says the kernel
+ * is shared "so the single-sample and block paths cannot diverge -- they call
+ * the SAME function rather than each inlining the arithmetic", and the
+ * arithmetic was inlined four times anyway.
+ *
+ * `bit_mod` is BITS PER SYMBOL, which is what its existing values already mean
+ * (1 = BPSK, 2 = QPSK), so M = 1 << bit_mod and 3 = 8PSK extends the numbering
+ * rather than reinterpreting it. One symbol's bits are read **MSB-first** into
+ * a Gray label and handed to `mpsk_constellation()` -- the library's canonical
+ * mapping, and the one `dp_ber_score()` inverts to score bit errors.
+ *
+ * That shared mapping is the point. The QPSK branches this replaces put `b0`
+ * on the I sign and `b1` on the Q sign: the same CONSTELLATION, but two of the
+ * four labels swapped against `mpsk_constellation()`. Nothing scored a QPSK
+ * bit pattern against truth, so it never produced a wrong number -- but a
+ * framed QPSK stream read through the canonical scorer would have shown about
+ * half its symbols wrong on a perfectly working receiver, which is the
+ * plausible-number failure docs/design/rx-test.md exists to stop.
+ *
+ * `bit_mod == 0` is not PSK -- it is the 0/1 amplitude line this type has
+ * always emitted -- so it keeps its own branch.
+ *
+ * @param s  Synth state; `bits`/`n_bits` must be non-empty, `bit_idx` advances.
+ * @return Unit-modulus constellation point (a unit-amplitude line at
+ *         `bit_mod == 0`), which is what Synth's unit-power SNR reference needs.
+ */
+JM_FORCEINLINE float _Complex
+wfm_synth_bit_symbol(wfm_synth_state_t *s)
+{
+    unsigned g = 0u;
+    int      k;
+    if (s->bit_mod <= 0) {
+        float a    = s->bits[s->bit_idx] ? 1.0f : 0.0f;
+        s->bit_idx = (s->bit_idx + 1) % s->n_bits;
+        return a + 0.0f * I;
+    }
+    for (k = 0; k < s->bit_mod; k++) { /* MSB-first within the symbol */
+        g          = (g << 1) | (unsigned)(s->bits[s->bit_idx] ? 1u : 0u);
+        s->bit_idx = (s->bit_idx + 1) % s->n_bits;
+    }
+    return mpsk_constellation(g, 1 << s->bit_mod);
+}
+
+/**
  * @brief One continuous-DSSS chip: `code[n % n_code] ^ data`, as a BPSK sign.
  *
  * The per-chip kernel shared by `wfm_synth_step` and `wfm_synth_steps` (and the
@@ -241,21 +290,7 @@ wfm_synth_next_symbol(wfm_synth_state_t *s)
         if (s->chips_per_symbol > 0.0) /* continuous DSSS: lazy chip */
             return wfm_synth_cont_dsss_chip(s) + 0.0f * I;
         if (s->bits && s->n_bits) {
-            if (s->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
-                uint8_t b0     = s->bits[s->bit_idx];
-                uint8_t b1     = s->bits[(s->bit_idx + 1) % s->n_bits];
-                s->bit_idx     = (s->bit_idx + 2) % s->n_bits;
-                return (b0 ? -q : q) + (b1 ? -q : q) * I;
-            }
-            if (s->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
-                float re   = s->bits[s->bit_idx] ? -1.0f : 1.0f;
-                s->bit_idx = (s->bit_idx + 1) % s->n_bits;
-                return re + 0.0f * I;
-            }
-            /* none: unmodulated 0/1 amplitude */
-            float re   = s->bits[s->bit_idx] ? 1.0f : 0.0f;
-            s->bit_idx = (s->bit_idx + 1) % s->n_bits;
-            return re + 0.0f * I;
+            return wfm_synth_bit_symbol(s);
         }
         return 0.0f + 0.0f * I;
     }
@@ -643,22 +678,9 @@ wfm_synth_step(wfm_synth_state_t *state)
                 state->cur_re = wfm_synth_cont_dsss_chip(state);
                 state->cur_im = 0.0f;
             } else if (state->bits && state->n_bits) {
-                if (state->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
-                    uint8_t b0 = state->bits[state->bit_idx];
-                    uint8_t b1 = state->bits[(state->bit_idx + 1) % state->n_bits];
-                    const float s = 0.70710678118654752f;
-                    state->cur_re = b0 ? -s : s;
-                    state->cur_im = b1 ? -s : s;
-                    state->bit_idx = (state->bit_idx + 2) % state->n_bits;
-                } else if (state->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
-                    state->cur_re = state->bits[state->bit_idx] ? -1.0f : 1.0f;
-                    state->cur_im = 0.0f;
-                    state->bit_idx = (state->bit_idx + 1) % state->n_bits;
-                } else { /* none: unmodulated 0/1 amplitude */
-                    state->cur_re = state->bits[state->bit_idx] ? 1.0f : 0.0f;
-                    state->cur_im = 0.0f;
-                    state->bit_idx = (state->bit_idx + 1) % state->n_bits;
-                }
+                float _Complex bs = wfm_synth_bit_symbol(state);
+                state->cur_re     = crealf(bs);
+                state->cur_im     = cimagf(bs);
             }
         }
         if (state->fir) {

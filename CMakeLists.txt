@@ -573,6 +573,27 @@ target_link_libraries(bench_util_core PRIVATE util_core m)
 target_include_directories(bench_util_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 
+# native/tests/dp_sym_test.h is the truth-free symbol-quality layer five test
+# files score every receiver through. It is thin -- most entries forward to
+# ber_core/snr_core -- so what is load-bearing is not its arithmetic but the
+# NUMBERS its docstrings state: the -1.4/-7.0/-12.9 dB scatter floors, the
+# EVM ~ -(Es/N0) anchor with no factor of two, and the 2*(5/bn_t + 5/bn_c)
+# settling budget. Other files write fixed thresholds against those, so a
+# drift keeps them passing and changes what they mean.
+#
+# The Monte-Carlo half is the part a closed form cannot establish: a stream at
+# uniformly random phase is generated and measured against the floor, and then
+# against the `< -12.0 dB` assertion the header records as live in
+# test_mpsk_receiver_r_core.c until 2026-07-27 -- which a fully scattered 8PSK
+# stream passes.
+add_executable(test_dp_sym native/tests/test_dp_sym.c)
+target_link_libraries(test_dp_sym PRIVATE ber_core snr_core mpsk_core m)
+target_include_directories(test_dp_sym
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_sym PRIVATE -O2)
+add_test(NAME test_dp_sym COMMAND test_dp_sym)
+
 # native/tests/dp_ber_test.h is the error-rate measurement harness every
 # receiver test scores through -- the settling window, the Pfa-gated alignment,
 # inverse binomial sampling and the exact confidence interval. It is header-

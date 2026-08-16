@@ -1200,6 +1200,55 @@ dp_rx_check (const dp_rx_result_t *r)
   return 0;
 }
 
+/* ── 7. Was the sync detector actually ASKED? ───────────────────────────── */
+
+/**
+ * @brief Run-level witness that the per-frame sync detection is real.
+ *
+ * Measured, not reasoned. Hard-wiring `sync_ok = 1` — a harness that stops
+ * consulting the detector and asserts every frame was found — leaves EVERY
+ * per-point gate in `dp_rx_check()` green, because an invented miss rate is
+ * still perfectly self-consistent with the FER computed from it. The FER, the
+ * prediction and the anchor all move together and agree.
+ *
+ * No single point can catch that, and that is the whole reason this is
+ * separate: a point may legitimately miss nothing (a PN-127 sync word) or
+ * almost everything (Barker-13 at an Es/N0 floor), so neither outcome is
+ * evidence on its own. The RUN can. Across the battery the detector must be
+ * observed both to ACCEPT and to REFUSE, and the standard point set supplies
+ * both by construction — which is part of why `runburst` carries the short
+ * sync word.
+ */
+typedef struct
+{
+  size_t detected; /**< frames whose sync the detector accepted */
+  size_t missed;   /**< frames whose sync it refused            */
+} dp_rx_witness_t;
+
+/** @brief Fold one record into the witness. Refused and unframed points
+ * contribute nothing, because neither ran the detector. */
+static inline void
+dp_rx_witness_add (dp_rx_witness_t *w, const dp_rx_result_t *r)
+{
+  if (r->refused || !r->framed)
+    return;
+  w->detected += r->sync_detected;
+  w->missed += r->frames - r->sync_detected;
+}
+
+/** @brief Apply the witness. @return 0 pass, 1 fail. */
+static inline int
+dp_rx_witness_check (const dp_rx_witness_t *w)
+{
+  if (w->detected && w->missed)
+    return 0;
+  printf ("FAIL: the per-frame sync detector was never observed to %s "
+          "(%zu detected, %zu missed) — a detector that refused nothing, or "
+          "accepted nothing, is not a measurement\n",
+          w->missed ? "accept" : "refuse", w->detected, w->missed);
+  return 1;
+}
+
 /** @brief Print the standard record — one point, every number, one block. */
 static inline void
 dp_rx_print (const dp_rx_result_t *r)

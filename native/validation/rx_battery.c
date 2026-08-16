@@ -164,8 +164,9 @@ static const dp_rx_iface_t *const RECEIVERS[] = { &RX_MPSK, &RX_CONT };
 int
 main (int argc, char **argv)
 {
-  int check = (argc > 1 && strcmp (argv[1], "--check") == 0);
-  int fail  = 0;
+  int             check   = (argc > 1 && strcmp (argv[1], "--check") == 0);
+  int             fail    = 0;
+  dp_rx_witness_t witness = { 0, 0 };
 
   if (!check)
     printf ("The standard receiver battery — one harness, every receiver.\n"
@@ -182,24 +183,24 @@ main (int argc, char **argv)
           if (!pt)
             continue;
           r = dp_rx_run (RECEIVERS[k], pt);
+          /* Every point, both receivers: the witness is a RUN-level fact and
+             a per-receiver counter would let one working receiver excuse a
+             dead one. */
+          dp_rx_witness_add (&witness, &r);
           if (check)
             fail |= dp_rx_check (&r);
           else
             dp_rx_print (&r);
         }
-
-      /* A per-point refusal is a result and is not counted (see the header),
-         so nothing here gates a receiver that refuses EVERY point -- and that
-         is a real hole: the tap regression that pinned `mf_in` on the
-         continuous flavor printed nine "no burst settled" lines and exited 0,
-         because each line individually was the harness declining to defend a
-         number. Nine of them is not nine refusals, it is a receiver that does
-         not work. Closing it needs a RUN-level gate rather than a per-point
-         one, which is what doppler#794 is adding to this same loop as
-         `dp_rx_witness_t`; the counter that proved the shape is handed over
-         there with its sabotage evidence rather than landed here, where it
-         would only conflict. */
     }
+
+  /* Run-level, because no single point can establish it — see
+     dp_rx_witness_t. The standard set supplies both outcomes by construction:
+     RX_FRAME_CONT's PN-127 misses nothing and `runburst`'s Barker-13 misses
+     most, so a harness that stopped asking the detector fails here even
+     though every per-point gate above stays green. */
+  if (check)
+    fail |= dp_rx_witness_check (&witness);
 
   if (check)
     printf ("rx_battery: %s\n", fail ? "FAILED" : "OK");

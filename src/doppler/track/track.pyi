@@ -2936,24 +2936,28 @@ class MpskReceiver:
         because the front end plans its own cascade and the terminal stage's
         accumulator is a double. That is the real-world case whenever the ADC
         clock is free-running against the symbol clock.
-    m_out : int, default 8
-        Terminal outputs per symbol: even, 2..8. The Gardner detector takes
-        every m_out-th output as the on-time strobe and the one m_out/2 back as
-        the transition gate, so the oversampled matched-filtered stream falls
-        out for free. **The default is 8 because that is where the I&D matched
-        filter reaches the coherent bound.** The rectangle is one symbol wide,
-        so its matched filter is an m_out-tap sum spanning it, and a smaller
-        m_out samples that same integral more coarsely. Measured on QPSK at the
-        default sps=8 against the coherent bound EVM_dB = -(Es/N0)_dB: at 18 dB
-        Es/N0, m_out=8 lands 0.41 dB off the bound where m_out=4 loses 3.11 dB;
-        at 14 dB it is 0.25 dB against 1.71 dB -- the gap widens as noise stops
-        hiding it. **Never pair 2 with pulse="iandd"**: the matched filter
-        degenerates to a two-tap sum, the eye barely opens (measured lock
-        statistic -0.34 at 2 against +0.95 at 4 on the same NRZ stream) and
-        acquisition itself fails about half the time (4/8 seeds locked at 14 dB
-        Es/N0, against 8/8 at both 4 and 8). Replaces the old `n` (NDA arm
-        dumps per symbol): the cascade's own outputs now feed the carrier
-        discriminator, so there is no separate arm to size.
+    m_out : int, default 0
+        **0 (the default) derives it** -- see docs/design/mpsk.md §8.1; pass a
+        value only to pin one. The rule is the largest even count in 2..8 the
+        rate allows, so a caller cannot pair an `sps` and an `m_out` that will
+        not work together. Terminal outputs per symbol: even, 2..8. The Gardner
+        detector takes every m_out-th output as the on-time strobe and the one
+        m_out/2 back as the transition gate, so the oversampled
+        matched-filtered stream falls out for free. **The default is 8 because
+        that is where the I&D matched filter reaches the coherent bound.** The
+        rectangle is one symbol wide, so its matched filter is an m_out-tap sum
+        spanning it, and a smaller m_out samples that same integral more
+        coarsely. Measured on QPSK at the default sps=8 against the coherent
+        bound EVM_dB = -(Es/N0)_dB: at 18 dB Es/N0, m_out=8 lands 0.41 dB off
+        the bound where m_out=4 loses 3.11 dB; at 14 dB it is 0.25 dB against
+        1.71 dB -- the gap widens as noise stops hiding it. **Never pair 2 with
+        pulse="iandd"**: the matched filter degenerates to a two-tap sum, the
+        eye barely opens (measured lock statistic -0.34 at 2 against +0.95 at 4
+        on the same NRZ stream) and acquisition itself fails about half the
+        time (4/8 seeds locked at 14 dB Es/N0, against 8/8 at both 4 and 8).
+        Replaces the old `n` (NDA arm dumps per symbol): the cascade's own
+        outputs now feed the carrier discriminator, so there is no separate arm
+        to size.
     pulse : Literal["iandd", "rrc"], default "iandd"
         Matched-filter shape (default MPSK_RX_PULSE_IANDD).
     rrc_beta : float, default 0.35
@@ -2965,32 +2969,36 @@ class MpskReceiver:
         (default 0.01). A carrier loop here closes around the matched filter,
         so its dead time is that filter's group delay — keep it a small
         fraction of the symbol rate, as a real receiver does.
-    zeta : float, default 0.707
-        Damping factor for both loops (default 0.707).
+    zeta : float, default 0.0
+        Damping factor for both loops. **0 (the default) derives it** as
+        `1/sqrt(2)`, critically damped -- a constant, not a computation, and a
+        parameter only because it was once thought to be one
+        (docs/design/mpsk.md §8.1).
     bn_timing : float, default 0.01
         Symbol-timing loop noise bandwidth, normalised to the symbol rate
         (default 0.01).
     acq_to_track : int, default 0
         Enable the two-way NDA<->decision-directed handover (default 0).
-    lock_thresh : float, default 0.5
-        Handover declare threshold on the carrier lock metric (default 0.5);
-        the drop threshold sits at 0.8x for level hysteresis, and both
-        directions are verify-counted (8 symbols up / 32 down). The metric is
-        `Re((z/|z|)^M)` smoothed by an EMA, whose noise-only sd is 0.1132 for
-        **every** M, so the threshold is `0.5 / 0.1132` = 4.42 noise sigmas — a
-        per-look false-alarm probability of 5e-6. Pick a value by dividing your
-        Pfa's z-score into 0.1132 rather than by feel; see carrier_nda_core.h
-        for the derivation and the measured verification.
+    lock_thresh : float, default 0.0
+        Handover declare threshold on the carrier lock EMA. **0 (the default)
+        derives it** as `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6`; the
+        limited statistic reads ~1.0 at lock for every M, so no per-M
+        correction is carried (docs/design/mpsk.md §8.1).
     init_norm_freq : float, default 0.0
         Seed carrier frequency, cycles/sample at the input rate (default 0.0).
         This is the centre the LO is tuned to; the loop tracks the residual
         around it.
     differential : int, default 0
         bits(): differential (rotation-invariant) demap (default 0 = coherent).
-    num_phases : int, default 1024
-        Matched-filter bank arms; a power of two. Sets the fractional-timing
-        resolution to 1/num_phases of an output period. The bank is sized by
-        the POST-decimation rate, so this costs the same at sps=8 and sps=256.
+    num_phases : int, default 0
+        Matched-filter bank arms, a power of two; sets the fractional-timing
+        resolution to 1/num_phases of an output period. **0 (the default)
+        derives it** as 64, the measured saturation point -- against the 1024
+        that shipped, a 16x bank for no measurable gain (docs/design/mpsk.md
+        §8.1). Matched-filter bank arms; a power of two. Sets the
+        fractional-timing resolution to 1/num_phases of an output period. The
+        bank is sized by the POST-decimation rate, so this costs the same at
+        sps=8 and sps=256.
     nda_tap : Literal["strobe", "mf_out", "mf_in"], default "strobe"
         Where the NDA carrier discriminator reads, which sets its pull-in range
         and whether it needs symbol timing at all. An M-th-power detector
@@ -3030,19 +3038,20 @@ class MpskReceiver:
         attributing any measurement that moves. This is the receiver's ONLY AGC
         -- the carrier discriminator normalises by its own |z|^M and needs
         none. Read the applied gain back with `agc_gain_db`.
-    bn_agc_ratio : float, default 0.05
-        The one AGC's noise bandwidth as a fraction of the SLOWEST loop it
-        feeds -- min(bn_carrier, bn_timing), not the carrier's alone, since the
-        AGC feeds the timing loop directly. Must be in (0, 1) and construction
-        refuses otherwise, because an AGC at or above the bandwidth of a loop
-        it feeds corrects the excursions that loop is itself producing and the
-        two integrate against each other; the signal LEVEL is a slow property
-        of the channel, not a disturbance to reject at loop speed. Exposed
-        rather than fixed because the right separation depends on how fast the
-        channel's level moves against how fast its phase and timing do, which
-        is a property of the link. The cold start is not the loop's job either
-        way -- the AGC seeds its gain from a direct measurement -- so slow is
-        cheap here.
+    bn_agc_ratio : float, default 0.0
+        **0 (the default) derives it** -- see docs/design/mpsk.md §8.1; pass a
+        value only to pin one. The one AGC's noise bandwidth as a fraction of
+        the SLOWEST loop it feeds -- min(bn_carrier, bn_timing), not the
+        carrier's alone, since the AGC feeds the timing loop directly. Must be
+        in (0, 1) and construction refuses otherwise, because an AGC at or
+        above the bandwidth of a loop it feeds corrects the excursions that
+        loop is itself producing and the two integrate against each other; the
+        signal LEVEL is a slow property of the channel, not a disturbance to
+        reject at loop speed. Exposed rather than fixed because the right
+        separation depends on how fast the channel's level moves against how
+        fast its phase and timing do, which is a property of the link. The cold
+        start is not the loop's job either way -- the AGC seeds its gain from a
+        direct measurement -- so slow is cheap here.
 
     Raises
     ------
@@ -3060,21 +3069,21 @@ class MpskReceiver:
     >>> obj = MpskReceiver(
     ...     m=4,
     ...     sps=8.0,
-    ...     m_out=8,
+    ...     m_out=0,
     ...     pulse="iandd",
     ...     rrc_beta=0.35,
     ...     rrc_span=8,
     ...     bn_carrier=0.01,
-    ...     zeta=0.707,
+    ...     zeta=0.0,
     ...     bn_timing=0.01,
     ...     acq_to_track=0,
-    ...     lock_thresh=0.5,
+    ...     lock_thresh=0.0,
     ...     init_norm_freq=0.0,
     ...     differential=0,
-    ...     num_phases=1024,
+    ...     num_phases=0,
     ...     nda_tap="strobe",
     ...     agc=1,
-    ...     bn_agc_ratio=0.05,
+    ...     bn_agc_ratio=0.0,
     ... )
 
     """
@@ -3478,6 +3487,37 @@ class MpskReceiver:
     @property
     def lock(self) -> float:
         """EMA of the carrier lock signal."""
+
+    @property
+    def zeta(self) -> float:
+        """Loop damping actually in use. Reads back the DERIVED `1/sqrt(2)`
+        when the constructor was given 0, or whatever was pinned instead.
+        Everything derived is reported (docs/design/mpsk.md §8.1), on the same
+        argument as `RateConverter.stages`: without the readback, passing 0 is
+        an instruction whose result nobody can see.
+        """
+
+    @property
+    def num_phases(self) -> int:
+        """Matched-filter bank arms actually in use. Reads back the DERIVED 64
+        -- the measured saturation point, against the 1024 that shipped -- when
+        the constructor was given 0. See `zeta` for why every derived value is
+        reported.
+        """
+
+    @property
+    def lock_thresh(self) -> float:
+        """Handover declare threshold actually in use. Reads back the DERIVED
+        `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the constructor was
+        given 0. See `zeta` for why every derived value is reported.
+        """
+
+    @property
+    def bn_agc_ratio(self) -> float:
+        """AGC bandwidth as a fraction of the slowest loop it feeds, actually
+        in use. Reads back the DERIVED 0.05 when the constructor was given 0.
+        See `zeta` for why every derived value is reported.
+        """
 
     @property
     def lock_time(self) -> int:

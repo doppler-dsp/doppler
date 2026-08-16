@@ -19,6 +19,8 @@
  *
  * Usage:  carrier_nda_step_response [--check]
  */
+#include "dp_rng_test.h"
+
 #include "carrier_nda/carrier_nda_core.h"
 #include "mpsk/mpsk_core.h"
 #include <complex.h>
@@ -31,17 +33,6 @@
 #define SPS 8
 #define RRC_BETA 0.35
 #define RRC_SPAN 8
-
-static uint32_t
-xs (uint32_t *s)
-{
-  uint32_t x = *s;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *s = x;
-  return x;
-}
 
 /* Normalized root-raised-cosine taps, length span*sps + 1. */
 static void
@@ -83,7 +74,7 @@ build_sig (int kind, int m, double f0, size_t nsym, float complex *rx,
       for (size_t s = 0; s < nsym; s++)
         {
           float complex a
-              = mpsk_constellation ((int)(xs (&ds) % (uint32_t)m), m);
+              = mpsk_constellation ((int)(dp_xs32 (&ds) % (uint32_t)m), m);
           for (int i = 0; i < SPS; i++)
             rx[s * (size_t)SPS + (size_t)i] = a;
         }
@@ -96,7 +87,7 @@ build_sig (int kind, int m, double f0, size_t nsym, float complex *rx,
       float complex *up = calloc (N, sizeof (*up));
       for (size_t s = 0; s < nsym; s++)
         up[s * (size_t)SPS]
-            = mpsk_constellation ((int)(xs (&ds) % (uint32_t)m), m);
+            = mpsk_constellation ((int)(dp_xs32 (&ds) % (uint32_t)m), m);
       for (size_t k = 0; k < N; k++)
         {
           float complex acc = 0.0f;

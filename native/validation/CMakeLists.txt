@@ -54,7 +54,8 @@ add_test(NAME validate_carrier_mpsk_scurve
 add_executable(validate_carrier_mpsk_jitter
                ${CMAKE_CURRENT_SOURCE_DIR}/carrier_mpsk_jitter.c)
 target_include_directories(validate_carrier_mpsk_jitter
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_carrier_mpsk_jitter PRIVATE doppler_lib_static m)
 target_compile_options(validate_carrier_mpsk_jitter PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_carrier_mpsk_jitter
@@ -72,7 +73,8 @@ add_test(NAME validate_carrier_nda_scurve
 add_executable(validate_carrier_nda_pullin
                ${CMAKE_CURRENT_SOURCE_DIR}/carrier_nda_pullin.c)
 target_include_directories(validate_carrier_nda_pullin
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_carrier_nda_pullin PRIVATE doppler_lib_static m)
 target_compile_options(validate_carrier_nda_pullin PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_carrier_nda_pullin
@@ -81,7 +83,8 @@ add_test(NAME validate_carrier_nda_pullin
 add_executable(validate_carrier_nda_step_response
                ${CMAKE_CURRENT_SOURCE_DIR}/carrier_nda_step_response.c)
 target_include_directories(validate_carrier_nda_step_response
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_carrier_nda_step_response
                       PRIVATE doppler_lib_static m)
 target_compile_options(validate_carrier_nda_step_response PRIVATE -O3)
@@ -204,7 +207,8 @@ add_test(NAME validate_rx_battery
 add_executable(validate_rx_nda_tap
                ${CMAKE_CURRENT_SOURCE_DIR}/rx_nda_tap.c)
 target_include_directories(validate_rx_nda_tap
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_rx_nda_tap PRIVATE doppler_lib_static m)
 target_compile_options(validate_rx_nda_tap PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_rx_nda_tap

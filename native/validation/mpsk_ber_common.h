@@ -64,6 +64,7 @@
 #define MPSK_BER_COMMON_H
 
 #include "dp_ber_test.h"
+#include "dp_rng_test.h"
 #include "mpsk_receiver/mpsk_receiver_core.h"
 #include "mpsk_receiver_r/mpsk_receiver_r_core.h"
 #include <complex.h>
@@ -99,32 +100,6 @@ typedef struct
   int    acq_to_track; /**< Two-way NDA -> decision-directed handover.    */
   int    nda_tap;      /**< MPSK_RX_NDA_TAP_* -- where the M-th power runs. */
 } mpsk_ber_cfg_t;
-
-/* xorshift32 — the same generator the receiver tests use. Adequate for a
- * symbol source and a Box-Muller pair; nothing here is cryptographic. */
-static inline uint32_t
-mpsk_ber_rng (uint32_t *s)
-{
-  uint32_t x = *s;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *s = x;
-  return x;
-}
-
-static inline double
-mpsk_ber_uni (uint32_t *s)
-{
-  return ((double)mpsk_ber_rng (s) + 1.0) / 4294967297.0;
-}
-
-static inline double
-mpsk_ber_gauss (uint32_t *s)
-{
-  return sqrt (-2.0 * log (mpsk_ber_uni (s)))
-         * cos (2.0 * MPSK_PI * mpsk_ber_uni (s));
-}
 
 /**
  * @brief Run one burst: build the stimulus, demodulate, capture the locks.
@@ -179,7 +154,7 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
 
   for (size_t k = 0; k < nsym; k++)
     {
-      int    ki = (int)(mpsk_ber_rng (&st) % (uint32_t)c->m);
+      int    ki = (int)(dp_xs32 (&st) % (uint32_t)c->m);
       double th = 2.0 * MPSK_PI * (double)ki / (double)c->m + phi0;
       double sr = MPSK_BER_AMP * cos (th), si = MPSK_BER_AMP * sin (th);
       truth[k] = ki;
@@ -194,17 +169,18 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
               /* Re{(sr + j si) e^{j ph}} — what an ADC behind an analogue
                  mixer actually delivers. */
               float x = (float)(sr * cos (ph) - si * sin (ph)
-                                + sigma * mpsk_ber_gauss (&st));
+                                + sigma * dp_gauss (&st));
               got = mpsk_receiver_r_step_ted ((mpsk_receiver_r_state_t *)rx, x,
                                               &y, RATESYNC_TED_GARDNER);
             }
           else
             {
-              double        re = sr * cos (ph) - si * sin (ph);
-              double        im = sr * sin (ph) + si * cos (ph);
-              float complex x
-                  = (float)(re + sigma * mpsk_ber_gauss (&st))
-                    + (float)(im + sigma * mpsk_ber_gauss (&st)) * I;
+              double        re   = sr * cos (ph) - si * sin (ph);
+              double        im   = sr * sin (ph) + si * cos (ph);
+              double        n_re = dp_gauss (&st);
+              double        n_im = dp_gauss (&st);
+              float complex x    = (float)(re + sigma * n_re)
+                                   + (float)(im + sigma * n_im) * I;
               got = mpsk_receiver_step_ted ((mpsk_receiver_state_t *)rx, x, &y,
                                             RATESYNC_TED_GARDNER);
             }

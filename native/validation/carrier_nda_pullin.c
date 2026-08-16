@@ -16,6 +16,8 @@
  *
  * Usage:  carrier_nda_pullin [--check]
  */
+#include "dp_rng_test.h"
+
 #include "carrier_nda/carrier_nda_core.h"
 #include "mpsk/mpsk_core.h"
 #include <complex.h>
@@ -26,24 +28,6 @@
 
 #define TWOPI 6.283185307179586
 
-static uint32_t
-xs (uint32_t *s)
-{
-  uint32_t x = *s;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *s = x;
-  return x;
-}
-static float
-gauss (uint32_t *s)
-{
-  double r1 = (xs (s) + 1.0) / 4294967297.0;
-  double r2 = (xs (s) + 1.0) / 4294967297.0;
-  return (float)(sqrt (-2.0 * log (r1)) * cos (TWOPI * r2));
-}
-
 /* Acquire an unmodulated carrier step f0? (cold start, light noise). */
 static int
 acq_unmod (int m, double f0, double bn, size_t n, float sigma, uint32_t seed)
@@ -53,8 +37,10 @@ acq_unmod (int m, double f0, double bn, size_t n, float sigma, uint32_t seed)
   float complex        d;
   for (size_t k = 0; k < n; k++)
     {
-      float complex x = (float complex)cexp (I * TWOPI * f0 * (double)k)
-                        + sigma * gauss (&ns) + sigma * gauss (&ns) * I;
+      float         n_re = (float)dp_gauss (&ns);
+      float         n_im = (float)dp_gauss (&ns);
+      float complex x    = (float complex)cexp (I * TWOPI * f0 * (double)k)
+                           + sigma * n_re + sigma * n_im * I;
       double        pe, lk;
       d = carrier_nda_wipeoff (c, x);
       if (carrier_nda_arm_step (c, d, &pe, &lk))
@@ -95,13 +81,16 @@ acq_moddata (int m, double f0, float sigma, double *out_lock)
   uint32_t             ds = 3u, ns = 9u;
   for (size_t s = 0; s < nsym; s++)
     {
-      float complex a = mpsk_constellation ((int)(xs (&ds) % (uint32_t)m), m);
+      float complex a
+          = mpsk_constellation ((int)(dp_xs32 (&ds) % (uint32_t)m), m);
       for (int i = 0; i < sps; i++)
         {
-          size_t        k = s * (size_t)sps + (size_t)i;
+          size_t        k    = s * (size_t)sps + (size_t)i;
+          float         n_re = (float)dp_gauss (&ns);
+          float         n_im = (float)dp_gauss (&ns);
           float complex x
               = a * (float complex)cexp (I * TWOPI * f0 * (double)k)
-                + sigma * gauss (&ns) + sigma * gauss (&ns) * I;
+                + sigma * n_re + sigma * n_im * I;
           double        pe, lk;
           float complex d = carrier_nda_wipeoff (c, x);
           if (carrier_nda_arm_step (c, d, &pe, &lk))
@@ -128,8 +117,10 @@ freq_var (int m, double bn, float sigma, size_t n)
   long                 cnt = 0;
   for (size_t k = 0; k < n; k++)
     {
-      float complex x = (float complex)cexp (I * TWOPI * 0.002 * (double)k)
-                        + sigma * gauss (&ns) + sigma * gauss (&ns) * I;
+      float         n_re = (float)dp_gauss (&ns);
+      float         n_im = (float)dp_gauss (&ns);
+      float complex x    = (float complex)cexp (I * TWOPI * 0.002 * (double)k)
+                           + sigma * n_re + sigma * n_im * I;
       double        pe, lk;
       float complex d = carrier_nda_wipeoff (c, x);
       if (carrier_nda_arm_step (c, d, &pe, &lk))

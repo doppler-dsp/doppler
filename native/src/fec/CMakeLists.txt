@@ -15,7 +15,8 @@
 # them — a receiver derandomising a capture needs the randomiser and nothing
 # else.
 add_library(fec_ccsds_core OBJECT
-    ${CMAKE_SOURCE_DIR}/native/src/fec/ccsds_rand.c)
+    ${CMAKE_SOURCE_DIR}/native/src/fec/ccsds_rand.c
+    ${CMAKE_SOURCE_DIR}/native/src/fec/ccsds_conv.c)
 target_include_directories(fec_ccsds_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc)
 
@@ -27,3 +28,11 @@ target_include_directories(test_fec_ccsds_rand PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_fec_ccsds_rand COMMAND test_fec_ccsds_rand)
+
+add_executable(test_fec_ccsds_conv
+    ${CMAKE_SOURCE_DIR}/native/tests/test_fec_ccsds_conv.c)
+target_link_libraries(test_fec_ccsds_conv PRIVATE fec_ccsds_core)
+target_include_directories(test_fec_ccsds_conv PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_fec_ccsds_conv COMMAND test_fec_ccsds_conv)

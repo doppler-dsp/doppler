@@ -174,6 +174,12 @@ main (int argc, char **argv)
 
   for (size_t k = 0; k < RECEIVER_COUNT; k++)
     {
+      /* PER RECEIVER, not per run: one tally across both would let a working
+         receiver excuse a dead one, which is the aggregate this gate exists
+         to notice. The witness above is genuinely run-level -- "was the sync
+         detector ever asked" is a fact about the harness, not a receiver. */
+      dp_rx_tally_t tally = { NULL, 0u, 0u };
+
       if (!check && k)
         printf ("\n");
       for (int i = 0; i < DP_RX_POINT_COUNT; i++)
@@ -183,15 +189,20 @@ main (int argc, char **argv)
           if (!pt)
             continue;
           r = dp_rx_run (RECEIVERS[k], pt);
-          /* Every point, both receivers: the witness is a RUN-level fact and
-             a per-receiver counter would let one working receiver excuse a
-             dead one. */
           dp_rx_witness_add (&witness, &r);
+          dp_rx_tally_add (&tally, &r);
           if (check)
             fail |= dp_rx_check (&r);
           else
             dp_rx_print (&r);
         }
+
+      /* A refusal does not fail the per-point gate, so without this a
+         receiver that refuses EVERY point exits 0 -- which is how a receiver
+         pinning a tap whose lock statistic never clears its own threshold
+         shipped green (doppler#791). */
+      if (check)
+        fail |= dp_rx_tally_check (&tally);
     }
 
   /* Run-level, because no single point can establish it — see

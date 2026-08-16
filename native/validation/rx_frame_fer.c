@@ -36,7 +36,7 @@
  *   never clear the threshold alone clears it comfortably 130 times over.
  * - **The per-frame sync detection is a CONFIRMATION.** A tracking receiver
  *   does not re-acquire every frame; it looks in a narrow window where the
- *   frame is due. So that detection searches +-RX_FRAME_SYNC_SPAN, which is
+ *   frame is due. So that detection searches +-DP_RX_SYNC_SPAN, which is
  *   also what makes it a fair question: the Bonferroni correction over 25 lags
  *   is a very different bar from the one over 401, and quoting a sync miss
  *   rate from a full re-acquisition would be measuring the search, not the
@@ -84,7 +84,7 @@
  *
  * @see docs/design/rx-test.md sections 2.5, 7.4, 8
  */
-#include "dp_frame_test.h"
+#include "dp_rx_test.h"      /* dp_rx_score_frames -- the per-frame scorer  */
 #include "mpsk_ber_common.h" /* MPSK_BER_AMP, MPSK_BER_MAX_BURSTS */
 
 #include "frame_meter/frame_meter_core.h"
@@ -102,12 +102,6 @@
 /** @brief Symbols per burst. Long enough that the settling budget costs a
  * couple of frames rather than most of them. */
 #define RX_FRAME_NSYM 40000u
-
-/** @brief Per-frame sync confirmation half-width, symbols. See the file
- * docstring: this is a tracking-mode window, not a re-acquisition. It is also
- * bounded below by `ber_align_detect`'s CFAR, which needs at least 8 reference
- * cells outside its 3-lag guard band. */
-#define RX_FRAME_SYNC_SPAN 12L
 
 /** @brief Frame errors before `enough`. ~14% relative (`1/sqrt(r)`). */
 #define RX_FRAME_TARGET_FRAME_ERRORS 50u
@@ -257,90 +251,6 @@ done:
   free (taps);
   free (x);
   return nout;
-}
-
-/**
- * @brief Score every whole frame in the settled window into @p fm.
- *
- * @param c      Geometry.
- * @param f      The frame descriptor — the SAME one the transmitter built
- *               from, which is the entire point: the layout, the CRC's
- *               position and its bit order are stated once.
- * @param l      Its layout.
- * @param out    Recovered symbols.
- * @param n      How many.
- * @param truth  Transmitted symbol indices, the frame bits cycled.
- * @param nsym   How many.
- * @param lag    The RECORD alignment; every frame's position follows from it.
- * @param phase  The record's residual constellation rotation, radians.
- * @param lo     First symbol of the scored window.
- * @param fm     The accumulator.
- * @param rxbits Scratch, at least `l.total_bits` bytes.
- */
-static void
-rx_frame_score_frames (const rx_frame_cfg_t *c, const wfm_frame_t *f,
-                       const wfm_frame_layout_t *l, const float complex *out,
-                       size_t n, const uint8_t *truth, size_t nsym, long lag,
-                       double phase, size_t lo, frame_meter_state_t *fm,
-                       uint8_t *rxbits)
-{
-  /* Shift whichever array needs it so the residual lag is zero, because
-     ber_align_detect searches around lag 0 and has no centre argument. After
-     this, `rxa[i]` carries `tra[i]`. */
-  size_t               rx_skip = (lag < 0) ? (size_t)(-lag) : 0;
-  size_t               tr_skip = (lag > 0) ? (size_t)(lag) : 0;
-  const float complex *rxa     = out + rx_skip;
-  size_t               n_rxa   = (n > rx_skip) ? n - rx_skip : 0;
-  const uint8_t       *tra     = truth + tr_skip;
-  size_t               n_tra   = (nsym > tr_skip) ? nsym - tr_skip : 0;
-  size_t               nbits   = l->total_bits;
-  /* One rotation for the whole record, from the marker — not re-estimated per
-     frame, which would be a per-frame minimisation over the answer. */
-  float complex derot = (float)cos (-phase) + (float)sin (-phase) * I;
-
-  for (size_t k = 0; (k + 1) * nbits <= nsym; k++)
-    {
-      size_t          t_start = k * nbits;      /* truth index of the frame  */
-      long            i0 = (long)t_start - lag; /* its index in `out`       */
-      size_t          t0_a, a0;
-      dp_ber_marker_t m1;
-      dp_ber_sync_t   s1;
-      int             crc;
-
-      if (i0 < (long)lo || (size_t)i0 + nbits > n)
-        continue;
-      if (t_start < tr_skip || t_start + nbits > nsym)
-        continue;
-      t0_a = t_start + l->sync_off - tr_skip; /* marker, aligned coords */
-      a0   = (size_t)i0 - rx_skip;
-      if (t0_a + l->sync_bits > n_tra || a0 + nbits > n_rxa)
-        continue;
-
-      /* Sync: the DETECTOR's own decision, in a tracking-mode window. Never a
-         threshold applied afterwards to a statistic — that is what
-         `frame_meter_add` asks for and what makes the miss rate a
-         measurement of the sync word rather than of our post-processing. */
-      m1.sym    = NULL;
-      m1.n      = l->sync_bits;
-      m1.t0     = t0_a;
-      m1.period = 0;
-      m1.reps   = 0;
-      s1 = dp_ber_sync (rxa, n_rxa, tra, n_tra, &m1, c->m, RX_FRAME_SYNC_SPAN,
-                        DP_BER_SYNC_PFA);
-
-      /* CRC: hard decisions over the frame, checked against nothing but the
-         frame's own trailer. No payload truth is consulted here, which is the
-         property that makes this usable on a real capture. */
-      for (size_t j = 0; j < nbits; j++)
-        {
-          float complex ahat;
-          rxbits[j]
-              = (uint8_t)(mpsk_slice (out[(size_t)i0 + j] * derot, c->m, &ahat)
-                          & 1u);
-        }
-      crc = wfm_frame_crc_ok (f, rxbits);
-      frame_meter_add (fm, s1.ok, crc);
-    }
 }
 
 /**
@@ -505,8 +415,8 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
         hi          = rep.window_hi;
         settled_any = 1;
         if (r.framed)
-          rx_frame_score_frames (c, &f, &l, out, n, truth, nsym, rep.lag,
-                                 rep.phase, lo, fm, rxbits);
+          dp_rx_score_frames (c->m, &f, &l, out, n, truth, nsym, rep.lag,
+                              rep.phase, lo, fm, rxbits);
       }
     }
 
@@ -586,7 +496,7 @@ rx_frame_print (const rx_frame_cfg_t *c, const rx_frame_result_t *r)
   printf ("%-24s   sync miss %.4g  [%.4g, %.4g]   (marker %zu symbols, "
           "+-%ld lag)\n",
           "", r->sync_miss.p_hat, r->sync_miss.lo, r->sync_miss.hi,
-          r->sync_bits, RX_FRAME_SYNC_SPAN);
+          r->sync_bits, DP_RX_SYNC_SPAN);
   printf ("%-24s   crc fail among synced %.4g vs %.4g predicted from BER "
           "over %zu protected bits\n",
           "", r->crc_fail, r->crc_fail_pred, r->prot_bits);

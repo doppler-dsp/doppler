@@ -229,8 +229,18 @@ typedef struct
   /* Frame statistics — `frame_meter`, exact intervals, absent when the
      point's frame carries no CRC (reported as `framed == 0`, never as 0.0). */
   int            framed;
+  int            frame_enough; /**< the FRAME error target was reached     */
   size_t         frames, sync_detected, crc_passed;
+  size_t         prot_bits; /**< bits the CRC protects (payload + CRC)     */
   ber_interval_t fer, sync_miss;
+  /* The FER anchor. A rate is only defensible against a closed form, and
+     FER's is the measured BER: if payload bit errors were independent, a
+     frame protecting `L` bits fails with probability `1-(1-p)^L`. Errors that
+     CLUSTER hit fewer frames for the same `p`, so that is an UPPER bound and
+     the gate built on it is one-sided. */
+  double crc_fail;      /**< CRC failures among DETECTED frames            */
+  double crc_fail_pred; /**< `1-(1-BER)^prot_bits`                         */
+  double fer_pred;      /**< what the miss rate and that term imply        */
 
   /* Loop behaviour, from the SAME record as the trio. */
   double acq_frac;     /**< fraction of `foff` removed; 1.0 is acquired    */
@@ -315,6 +325,31 @@ dp_rx_amp (const dp_rx_point_t *pt)
 }
 #define DP_RX_MAX_BURSTS 60
 #define DP_RX_TARGET_FRAME_ERRORS 50u
+
+/** @brief Per-frame sync confirmation half-width, symbols.
+ *
+ * A tracking receiver does not re-acquire every frame; it looks in a narrow
+ * window where the frame is due. That is also what makes the question fair —
+ * a Bonferroni correction over 25 lags is a very different bar from one over
+ * 401, and quoting a sync miss rate from a full re-acquisition would measure
+ * the SEARCH rather than the sync word. Bounded below by `ber_align_detect`'s
+ * CFAR, which needs 8 reference cells outside its 3-lag guard band. */
+#define DP_RX_SYNC_SPAN 12L
+
+/** @brief How far the measured FER's LOWER limit may sit above the predicted
+ * FER before the measurement is disbelieved.
+ *
+ * Small on purpose. The tolerance is not absorbing counting noise — the lower
+ * limit already does that — only the CRC-16 alias (2^-16) and the prediction
+ * resting on a BER point estimate. At 1.5 the gate was measured to still PASS
+ * with the CRC check sabotaged to always fail, which is a gate that cannot
+ * fail for the reason it exists. */
+#define DP_RX_FER_TOL 1.15
+
+/** @brief Below this share of the predicted FER coming from CRC failures, the
+ * anchor is testing the sync miss rate it was handed and nothing else. It is
+ * then SKIPPED with the reason printed, rather than passed vacuously. */
+#define DP_RX_FER_ANCHOR_SHARE 0.5
 
 /**
  * @brief The frequency RAMP a point presents to the carrier loop, in cycles
@@ -546,6 +581,102 @@ dp_rx_iface_missing (const dp_rx_iface_t *rx)
 }
 
 /**
+ * @brief Score every whole frame in the settled window into @p fm.
+ *
+ * The truth-free half of goal 4. A CRC-checked frame needs no payload truth —
+ * it either checks or it does not — so this is the one outcome that survives
+ * on a real capture and still catches a stable false lock, which EVM and M2M4
+ * cannot see and BER can only see with truth AND an alignment.
+ *
+ * Two detections are in play and they are deliberately different. The RECORD
+ * alignment (`lag`, `phase`, from `dp_ber_measure`) is an ACQUISITION over
+ * +-DP_BER_LAG_SPAN. The per-frame sync detection here is a CONFIRMATION over
+ * +-DP_RX_SYNC_SPAN, because a tracking receiver looks where the frame is due
+ * rather than re-acquiring. Accumulating the second is what turns "is this
+ * sync word long enough at this Es/N0" into a number.
+ *
+ * @param m      Constellation order.
+ * @param f      The frame descriptor — the SAME one the transmitter built
+ *               from, which is the entire point: the layout, the CRC's
+ *               position and its bit order are stated once.
+ * @param l      Its layout.
+ * @param out    Recovered symbols.
+ * @param n      How many.
+ * @param truth  Transmitted symbol indices, the frame bits cycled.
+ * @param nsym   How many.
+ * @param lag    The RECORD alignment; every frame's position follows from it.
+ * @param phase  The record's residual constellation rotation, radians.
+ * @param lo     First symbol of the scored window.
+ * @param fm     The accumulator.
+ * @param rxbits Scratch, at least `l->total_bits` bytes.
+ */
+static inline void
+dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
+                    const float complex *out, size_t n, const uint8_t *truth,
+                    size_t nsym, long lag, double phase, size_t lo,
+                    frame_meter_state_t *fm, uint8_t *rxbits)
+{
+  /* Shift whichever array needs it so the residual lag is zero, because
+     ber_align_detect searches around lag 0 and has no centre argument. After
+     this, `rxa[i]` carries `tra[i]`. */
+  size_t               rx_skip = (lag < 0) ? (size_t)(-lag) : 0;
+  size_t               tr_skip = (lag > 0) ? (size_t)(lag) : 0;
+  const float complex *rxa     = out + rx_skip;
+  size_t               n_rxa   = (n > rx_skip) ? n - rx_skip : 0;
+  const uint8_t       *tra     = truth + tr_skip;
+  size_t               n_tra   = (nsym > tr_skip) ? nsym - tr_skip : 0;
+  size_t               nbits   = l->total_bits;
+  /* One rotation for the whole record, from the marker — not re-estimated per
+     frame, which would be a per-frame minimisation over the answer. */
+  float complex derot = (float)cos (-phase) + (float)sin (-phase) * I;
+  size_t        k;
+
+  for (k = 0; (k + 1) * nbits <= nsym; k++)
+    {
+      size_t          t_start = k * nbits; /* truth index of the frame */
+      long            i0      = (long)t_start - lag; /* its index in `out` */
+      size_t          t0_a, a0, j;
+      dp_ber_marker_t m1;
+      dp_ber_sync_t   s1;
+      int             crc;
+
+      if (i0 < (long)lo || (size_t)i0 + nbits > n)
+        continue;
+      if (t_start < tr_skip || t_start + nbits > nsym)
+        continue;
+      t0_a = t_start + l->sync_off - tr_skip; /* marker, aligned coords */
+      a0   = (size_t)i0 - rx_skip;
+      if (t0_a + l->sync_bits > n_tra || a0 + nbits > n_rxa)
+        continue;
+
+      /* Sync: the DETECTOR's own decision, in a tracking-mode window. Never a
+         threshold applied afterwards to a statistic — that is what
+         `frame_meter_add` asks for and what makes the miss rate a measurement
+         of the sync word rather than of our post-processing. */
+      m1.sym    = NULL;
+      m1.n      = l->sync_bits;
+      m1.t0     = t0_a;
+      m1.period = 0;
+      m1.reps   = 0;
+      s1        = dp_ber_sync (rxa, n_rxa, tra, n_tra, &m1, m, DP_RX_SYNC_SPAN,
+                               DP_BER_SYNC_PFA);
+
+      /* CRC: hard decisions over the frame, checked against nothing but the
+         frame's own trailer. No payload truth is consulted here, which is the
+         property that makes this usable on a real capture. */
+      for (j = 0; j < nbits; j++)
+        {
+          float complex ahat;
+          rxbits[j]
+              = (uint8_t)(mpsk_slice (out[(size_t)i0 + j] * derot, m, &ahat)
+                          & 1u);
+        }
+      crc = wfm_frame_crc_ok (f, rxbits);
+      frame_meter_add (fm, s1.ok, crc);
+    }
+}
+
+/**
  * @brief Run one receiver at one operating point — stages 5-10 of §8.
  *
  * The two REFUSE paths are intact and they name themselves: "the loops never
@@ -560,18 +691,19 @@ dp_rx_iface_missing (const dp_rx_iface_t *rx)
 static inline dp_rx_result_t
 dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
 {
-  dp_rx_result_t     r;
-  wfm_frame_t        f = dp_frame_named (pt->frame);
-  wfm_frame_layout_t l;
-  dp_ber_t           acc;
-  size_t             nbits = wfm_frame_nbits (&f), nsym;
-  size_t             bps   = (size_t)mpsk_bps (pt->m);
-  uint8_t           *bits = NULL, *truth = NULL;
-  float complex     *out = NULL;
-  unsigned char     *lc = NULL, *tk = NULL;
-  double            *err = NULL;
-  size_t             lo = 0, hi = 0, settle = 0;
-  int                settled = 0;
+  dp_rx_result_t       r;
+  wfm_frame_t          f = dp_frame_named (pt->frame);
+  wfm_frame_layout_t   l;
+  dp_ber_t             acc;
+  size_t               nbits = wfm_frame_nbits (&f), nsym;
+  size_t               bps   = (size_t)mpsk_bps (pt->m);
+  uint8_t             *bits = NULL, *truth = NULL, *rxbits = NULL;
+  float complex       *out = NULL;
+  unsigned char       *lc = NULL, *tk = NULL;
+  double              *err = NULL;
+  frame_meter_state_t *fm  = NULL;
+  size_t               lo = 0, hi = 0, settle = 0;
+  int                  settled = 0;
 
   memset (&r, 0, sizeof r);
   r.point    = pt;
@@ -613,19 +745,26 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
       return r;
     }
 
-  nsym         = DP_RX_NSYM;
-  r.framed     = (l.crc_bits > 0);
+  nsym = DP_RX_NSYM;
+  /* Frame statistics need BOTH halves: a sync word to detect and a CRC to
+     check. Without either there is no truth-free outcome, and reporting one
+     anyway is the failure this instrument exists to refuse — which is why
+     `framed == 0` prints n/a rather than an FER of 0.0. */
+  r.framed     = (l.sync_bits >= 8 && l.crc_bits > 0);
+  r.prot_bits  = l.payload_bits + l.crc_bits;
   r.frame_bits = nbits;
 
-  bits  = (uint8_t *)malloc (nbits);
-  truth = (uint8_t *)malloc (nsym);
-  out   = (float complex *)malloc (nsym * sizeof *out);
-  lc    = (unsigned char *)malloc (nsym);
-  tk    = (unsigned char *)malloc (nsym);
-  err   = (double *)malloc (nsym * sizeof *err);
+  fm     = frame_meter_create (DP_RX_TARGET_FRAME_ERRORS, DP_BER_CONF);
+  rxbits = (uint8_t *)malloc (nbits);
+  bits   = (uint8_t *)malloc (nbits);
+  truth  = (uint8_t *)malloc (nsym);
+  out    = (float complex *)malloc (nsym * sizeof *out);
+  lc     = (unsigned char *)malloc (nsym);
+  tk     = (unsigned char *)malloc (nsym);
+  err    = (double *)malloc (nsym * sizeof *err);
   dp_ber_init (&acc, pt->m, DP_BER_TARGET_ERRORS);
-  if (!bits || !truth || !out || !lc || !tk || !err || !acc.meter
-      || wfm_frame_bits (&f, bits, nbits) != nbits)
+  if (!bits || !truth || !out || !lc || !tk || !err || !rxbits || !fm
+      || !acc.meter || wfm_frame_bits (&f, bits, nbits) != nbits)
     {
       r.refused = "allocation failed";
       goto done;
@@ -647,7 +786,15 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
 
   {
     unsigned burst;
-    for (burst = 0; burst < DP_RX_MAX_BURSTS && !dp_ber_enough (&acc); burst++)
+    /* Both accumulators have to be satisfied, not just the symbol one: the
+       frame meter shares `ber_confidence` and therefore shares its STOPPING
+       RULE, so an FER interval quoted from a handful of frame errors is a
+       number whose width is set by luck. An unframed point has no second
+       target and stops on the first. */
+    for (burst = 0; burst < DP_RX_MAX_BURSTS
+                    && !(dp_ber_enough (&acc)
+                         && (!r.framed || frame_meter_get_enough (fm)));
+         burst++)
       {
         dp_ber_marker_t mk;
         double          nf      = 0.0;
@@ -722,6 +869,15 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
             r.unaligned++;
             continue;
           }
+        lo = r.rep.window_lo;
+        hi = r.rep.window_hi;
+
+        /* The fourth metric, over the SAME record — goal 4 asks for the four
+           together because they fail differently, and FER is the only one of
+           them that is truth-free AND sees a false lock. */
+        if (r.framed)
+          dp_rx_score_frames (pt->m, &f, &l, out, n, truth, nsym, r.rep.lag,
+                              r.rep.phase, lo, fm, rxbits);
 
         /* The loop numbers, over the SAME settled window the trio used —
            which the report hands back rather than the caller recomputing. */
@@ -771,14 +927,36 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
   else if (!r.rep.aligned)
     r.refused = "no burst aligned — the marker never detected";
 
+  r.frames        = frame_meter_get_frames (fm);
+  r.sync_detected = frame_meter_get_sync_detected (fm);
+  r.crc_passed    = frame_meter_get_crc_passed (fm);
+  r.frame_enough  = frame_meter_get_enough (fm);
+  r.fer           = frame_meter_fer (fm);
+  r.sync_miss     = frame_meter_sync_miss (fm);
+
 done:
+  /* The anchor's two terms. A frame is delivered when its sync was found AND
+     its CRC checked, so the FER those imply is the miss rate plus what the bit
+     errors do to the frames that WERE found. Both halves are needed: gating on
+     the CRC term alone would let a sync word that misses most frames pass. */
+  r.crc_fail = r.sync_detected ? (double)(r.sync_detected - r.crc_passed)
+                                     / (double)r.sync_detected
+                               : NAN;
+  r.crc_fail_pred
+      = (r.rep.ber.symbols && r.prot_bits)
+            ? 1.0 - pow (1.0 - r.rep.ber.p_hat, (double)r.prot_bits)
+            : NAN;
+  r.fer_pred = r.sync_miss.p_hat + (1.0 - r.sync_miss.p_hat) * r.crc_fail_pred;
+
   dp_ber_free (&acc);
+  frame_meter_destroy (fm);
   free (bits);
   free (truth);
   free (out);
   free (lc);
   free (tk);
   free (err);
+  free (rxbits);
   return r;
 }
 
@@ -968,6 +1146,57 @@ dp_rx_check (const dp_rx_result_t *r)
               100.0 * DP_RX_RAMP_TOL);
       return 1;
     }
+  /* An unframed point has no truth-free frame outcome and says so; there is
+     nothing here to gate and pretending otherwise would invent a number. */
+  if (!r->framed)
+    return 0;
+  if (!r->frame_enough)
+    {
+      printf ("FAIL %s @ %s: only %zu of %u frame errors in %zu frames\n",
+              r->rx->name, r->point->name, r->frames - r->crc_passed,
+              DP_RX_TARGET_FRAME_ERRORS, r->frames);
+      return 1;
+    }
+  /* Whatever the anchor goes on to say, the machinery must have RUN: frames
+     attempted, frames detected, frames checked. Without this a configuration
+     that produced no frames at all reaches the OK line, and an invented miss
+     rate is still self-consistent with the FER computed from it. */
+  if (!(r->frames > 0 && r->sync_detected > 0 && r->crc_passed > 0))
+    {
+      printf ("FAIL %s @ %s: %zu frames, %zu synced, %zu crc-ok — the frame "
+              "path did not run\n",
+              r->rx->name, r->point->name, r->frames, r->sync_detected,
+              r->crc_passed);
+      return 1;
+    }
+  /* The FER anchor, on the interval's LOWER limit so counting noise cannot
+     flake it, and one-sided because clustered errors hit FEWER frames for the
+     same BER — the independent-bit expression is an upper bound. */
+  {
+    /* How much of the predicted FER the CRC term actually accounts for. When
+       most of it is sync miss, the "prediction" is dominated by a number the
+       harness MEASURED and handed to itself, so comparing against it tests
+       nothing — say that instead of passing. */
+    double crc_share
+        = (r->fer_pred > 0.0)
+              ? (1.0 - r->sync_miss.p_hat) * r->crc_fail_pred / r->fer_pred
+              : 0.0;
+    if (crc_share < DP_RX_FER_ANCHOR_SHARE)
+      printf ("  %-12s %-11s NOTE: FER anchor skipped — only %.0f%% of the "
+              "predicted FER is CRC failure, the rest is a sync miss of %.4g "
+              "that this gate would merely be handing back to itself\n",
+              r->rx->name, r->point->name, 100.0 * crc_share,
+              r->sync_miss.p_hat);
+    else if (!(r->fer.lo <= r->fer_pred * DP_RX_FER_TOL))
+      {
+        printf ("FAIL %s @ %s: FER lower limit %.4g exceeds %.4g predicted "
+                "from sync miss %.4g and BER over %zu protected bits "
+                "(x%.2f tolerance)\n",
+                r->rx->name, r->point->name, r->fer.lo, r->fer_pred,
+                r->sync_miss.p_hat, r->prot_bits, DP_RX_FER_TOL);
+        return 1;
+      }
+  }
   return 0;
 }
 
@@ -998,6 +1227,21 @@ dp_rx_print (const dp_rx_result_t *r)
             100.0 * (r->ramp_lag_rad - r->ramp_law_rad) / r->ramp_law_rad,
             100.0 * DP_RX_RAMP_TOL, dp_rx_ramp_rate (r->point),
             r->ramp_lag_rad / (M_PI / (2.0 * r->point->m)), 2 * r->point->m);
+  /* n/a, never 0.0: an unprotected stream having no truth-free error detector
+     is the gap a frame closes, and printing a zero would hide the only thing
+     the baseline has to say. */
+  if (!r->framed)
+    printf ("  %-12s %-11s   FER n/a — no sync word and no CRC: no "
+            "truth-free frame outcome\n",
+            r->rx->name, r->point->name);
+  else
+    printf ("  %-12s %-11s   FER %.4g [%.4g, %.4g]  %zu frames, %zu synced, "
+            "%zu crc-ok  sync miss %.4g [%.4g, %.4g]  crc fail %.4g vs %.4g "
+            "predicted over %zu bits\n",
+            r->rx->name, r->point->name, r->fer.p_hat, r->fer.lo, r->fer.hi,
+            r->frames, r->sync_detected, r->crc_passed, r->sync_miss.p_hat,
+            r->sync_miss.lo, r->sync_miss.hi, r->crc_fail, r->crc_fail_pred,
+            r->prot_bits);
 }
 
 #endif /* DP_RX_TEST_H */

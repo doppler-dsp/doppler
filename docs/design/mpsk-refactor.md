@@ -191,7 +191,6 @@ pulse              iandd | rrc   (+ rrc_beta when rrc)
 center_freq_hz     where the carrier sits
 
 /* the REQUIREMENT — the caller's units, all optional */
-pull_in_hz         the frequency uncertainty it must acquire
 acquire_time_s     how quickly lock is needed
 doppler_rate_hz_s  how fast the carrier moves
 coherent           whether anything downstream pins absolute phase
@@ -219,11 +218,11 @@ Two properties of this shape are what make it better rather than merely
 smaller.
 
 **A requirement the receiver cannot meet becomes a refusal, not a bad lock.**
-A `pull_in_hz` beyond `bank_sps·Rs/(2M)` has no tap that can see it. Today
-that is a **stable false lock at `k·F/M`** — §3.5's "single quiet failure",
-invisible to EVM, blind M2M4 and the lock statistic alike, and detectable only
-with an external frequency reference. Derived, it is a `create()` returning
-NULL with the reason, before the caller loses a pass. The same for a
+A residual beyond `bank_sps·Rs/(2M)` has no tap that can see it. Today that is
+a **stable false lock at `k·F/M`** — §3.5's "single quiet failure", invisible
+to EVM, blind M2M4 and the lock statistic alike, and detectable only with an
+external frequency reference. Derived, it is a `create()` returning NULL with
+the reason, before the caller loses a pass. The same for a
 `doppler_rate_hz_s` whose `θ_ss` leaves the linear range: that is arithmetic
 the object can do up front.
 
@@ -237,7 +236,96 @@ setter, legal before the first sample, for the caller who genuinely must pin
 one. Pinning becomes a named call rather than a zero in a positional slot —
 which is what let the real twin pin three values wrong (§4.1).
 
-### 4.4 What stays per-face
+### 4.4 Acquisition goes in front; its job is to land inside the loop
+
+`CarrierAcquisition` (`carrier_acq`) cascades ahead of the receiver, and
+already takes `sample_rate_hz` / `symbol_rate_hz`, so the two agree on units
+without conversion.
+
+**`pull_in_hz` is not a receiver parameter.** The frequency uncertainty is the
+*search*, and the search belongs to the stage that does it. `carrier_acq` has
+no range knob at all — it searches the band it is given at a granularity set by
+`resolution_hz` (0 derives `symbol_rate_hz/10`). Out of the box it should
+therefore acquire and track anywhere in the **flat input bandwidth**, which is
+a front-end property rather than something a caller states.
+
+**The contract is exactly one thing: get the residual inside the carrier
+loop's pull-in.** Not "be accurate" — the loop does the rest. That bound is the
+seeding rule:
+
+```text
+|Δf| ≤ bn_carrier / M      cycles/symbol
+     = bn_carrier · Rs / M  Hz
+
+acq residual ≈ resolution_hz / 2
+
+⇒  resolution_hz  ≤  2 · bn_carrier · symbol_rate_hz / M
+```
+
+With `bn_carrier = 0.01` as the standard, that is `Rs/200` at M = 4.
+
+!!! warning "The two objects' defaults do not compose"
+
+    `carrier_acq` derives `resolution_hz = symbol_rate_hz/10`, so its residual
+    is `±Rs/20`. The seeding bound at `bn_carrier = 0.01` is `Rs/400` at
+    M = 4. The default acquisition is therefore **20× too coarse to hand off**
+    — 10× at M = 2 and 40× at M = 8, because the bound scales as `1/M` while
+    the resolution does not.
+
+    Nothing has caught this because nothing cascades them yet. It is the first
+    thing the cascade has to fix, and it fixes itself: **`resolution_hz` is
+    derived from the receiver's loop**, not defaulted independently.
+
+### 4.5 The taps go away
+
+`nda_tap` should be deleted, not defaulted. Three arguments, and the third is
+the one that settles it.
+
+**It offers no better option.** `strobe` wins on every axis measured — node
+SNR, steady-state lock, transient depth at a data onset, recovery, and
+insensitivity to a band-limited transmitter. `mf_in` costs
+`10·log10(bank_sps)` dB and loses everywhere; `mf_out` carries an ISI bias that
+appears the moment transitions exist and is documented as fatal at M = 8. A
+knob whose alternatives are all worse is not a knob.
+
+**Its stated benefit was never the binding constraint.** A tap buys pull-in
+range `F/(2M)`. But the loop cannot *seed* beyond `bn·Rs/M`, and
+
+```text
+(F/(2M)) / (bn·Rs/M)  =  1/(2·bn)  =  50   at bn = 0.01
+```
+
+— independent of M. **The loop bandwidth binds fifty times before the tap's
+ambiguity limit does**, so widening the tap solves a constraint that was never
+active. That is why `rx_nda_tap.c` measured `mf_in`'s residual error as the
+same order as `strobe`'s at every rate ratio and recorded "no evidence yet"
+(gh-766): it was sweeping the wrong axis. With an acq in front the point is
+moot twice over.
+
+**And it is the sole cause of all three invariant violations in [§2.3](mpsk.md#23-the-invariant).**
+That section records three places where a rate-keyed constant is declared in
+the wrong clock's units, and every one of them exists *because a tap can run
+faster than `Rs`*:
+
+| §2.3 defect                                                                                                  | why deleting `nda_tap` removes it          |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| the carrier loop filter's update period is set from the acquisition tap's clock and never re-set at handover | with one tap there is one clock, `upd = 1` |
+| the lock EMA's `α` is per-update, so a fast tap shortens its memory in symbols and correlates its looks      | no tap is faster than `Rs`                 |
+| the two `lockdet`s carry the same 8/32 counts on different clocks                                            | both are the symbol clock                  |
+
+§2.3 already says the resolution: *"Mode 1 has one clock on the steering path
+and one on the reporting path, and both are fixed at construction. None of the
+three can arise."* Deleting the tap **is** that property, made structural.
+
+What goes with it: `mpsk_rx_updates_per_symbol()` (always 1), the re-run of
+`mpsk_rx_config_carrier()` after `create()` publishes `bank_sps`, `mf_in_sps`,
+`tap_timed`, `mpsk_rx_push_mf_in()`, the `MF_OUT` branch in
+`mpsk_rx_take_output()`, the `zpre`/`n_pre` tap-2 outputs threaded through
+`ddc_execute_ctrl_push_tap2()`, and `rx_nda_tap.c` entirely. `freq_scale`
+reduces to `(1/2π)/lo_sps` — the expression gh-765 got wrong, with its variable
+term removed.
+
+### 4.5 What stays per-face
 
 Three things, and each is the rate convention rather than a parameter:
 

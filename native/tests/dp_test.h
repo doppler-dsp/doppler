@@ -286,8 +286,16 @@ dp_near (double a, double b, double tol)
 }
 
 /** Both components within tol, single precision. Compared per-component
- *  rather than by cabsf(a-b): a component-wise bound is what every copy in
- *  the suite implemented, and it is the stricter of the two. */
+ *  rather than by cabsf(a-b), because a component-wise bound is what every
+ *  copy in the suite implemented.
+ *
+ *  It is the LOOSER of the two, not the stricter — this comment said stricter
+ *  until `test_dp_test.c` asserted the difference and had to be written the
+ *  other way round. The component test accepts a square of side `2*tol`; the
+ *  magnitude test accepts a disc of radius `tol`, which sits strictly inside
+ *  it. A diagonal error of `(0.4, 0.4)` has magnitude 0.566 and passes here at
+ *  `tol = 0.5`. That matters for exactly the errors this suite measures most —
+ *  a carrier phase error moves both rails at once. */
 static inline int
 dp_cnearf (float complex a, float complex b, float tol)
 {

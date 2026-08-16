@@ -36,17 +36,17 @@ Measured from the shipped C through its own binding. No verdicts here — sectio
 
 The anchor, and it is anchored to THEORY rather than to another configuration: `ber_theory_ser` is the closed form, so "every M agrees" can never be mistaken for "every M is correct" (`docs/design/rx-test.md` goal 3). Implementation loss is the dB the measured rate sits behind the bound, read by inverting the same closed form.
 
-| M | Es/N0 dB | SER measured | SER theory | lock |
-|---|---|---|---|---|
-| 2 | 8 | 1.936e-04 | 3.167e-05 | 0.821 |
-| 2 | 12 | 0.000e+00 | 4.817e-07 | 0.925 |
-| 2 | 16 | 0.000e+00 | 7.709e-09 | 0.970 |
-| 4 | 8 | 1.561e-02 | 4.678e-03 | 0.523 |
-| 4 | 12 | 2.581e-04 | 5.320e-04 | 0.760 |
-| 4 | 16 | 0.000e+00 | 6.334e-05 | 0.904 |
-| 8 | 8 | 8.649e-01 | 1.258e-01 | -0.031 |
-| 8 | 12 | 5.856e-01 | 6.083e-02 | 0.439 |
-| 8 | 16 | 7.033e-03 | 3.040e-02 | 0.708 |
+| M | Es/N0 dB | SER measured | SER theory | lock | align dB |
+|---|---|---|---|---|---|
+| 2 | 8 | 1.312e-04 | 3.167e-05 | 0.821 | +9.6 |
+| 2 | 12 | 0.000e+00 | 4.817e-07 | 0.925 | +10.0 |
+| 2 | 16 | 0.000e+00 | 7.709e-09 | 0.970 | +10.2 |
+| 4 | 8 | 1.489e-02 | 4.678e-03 | 0.523 | +11.0 |
+| 4 | 12 | 1.968e-04 | 5.320e-04 | 0.760 | +11.5 |
+| 4 | 16 | 0.000e+00 | 6.334e-05 | 0.904 | +11.7 |
+| 8 | 8 | refused | 1.258e-01 | -0.031 | -3.0 |
+| 8 | 12 | refused | 6.083e-02 | 0.439 | -5.6 |
+| 8 | 16 | 6.981e-02 | 3.040e-02 | 0.708 | +12.2 |
 
 
 ### 2.2 EVM against the matched-filter bound (C §2)
@@ -67,8 +67,8 @@ The anchor, and it is anchored to THEORY rather than to another configuration: `
 
 | Es/N0 dB asked | M2M4 dB | error dB | SER |
 |---|---|---|---|
-| 8 | 7.77 | -0.23 | 1.665e-02 |
-| 12 | 11.77 | -0.23 | 2.581e-04 |
+| 8 | 7.77 | -0.23 | 1.666e-02 |
+| 12 | 11.77 | -0.23 | 1.312e-04 |
 | 16 | 15.69 | -0.31 | 0.000e+00 |
 | 20 | 19.61 | -0.39 | 0.000e+00 |
 
@@ -94,7 +94,7 @@ The header's headline claim — a modem at **any** input rate, where "17.33389 i
 |---|---|---|---|---|
 | 8 | 5998 | 6000 | 0.03 | 0.000e+00 |
 | 17.3339 | 5996 | 6000 | 0.07 | 0.000e+00 |
-| 31.7 | 5995 | 6000 | 0.08 | 3.050e-01 |
+| 31.7 | 5995 | 6000 | 0.08 | refused |
 
 
 ### 2.6 The continuous flavor never hands over (C §1c)
@@ -103,7 +103,7 @@ The header's headline claim — a modem at **any** input rate, where "17.33389 i
 
 | receiver | tracking | lock | SER |
 |---|---|---|---|
-| ContinuousMpskReceiver | 0 | 0.799 | 0.000e+00 |
+| ContinuousMpskReceiver | 0 | 0.971 | 0.000e+00 |
 | MpskReceiver (control) | 1 | — | — |
 
 

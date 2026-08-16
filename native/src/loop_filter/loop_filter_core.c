@@ -2,6 +2,23 @@
 #include <math.h>
 #include <stdlib.h>
 
+double
+loop_filter_wn (double bn, double zeta)
+{
+  /* The one definition. See the header for why it is public: every closed
+     form about this loop is written in wn, and a measurement harness was
+     re-deriving it rather than asking.
+
+     Deliberately UNGUARDED, so extracting it changes loop_filter_init()'s
+     behaviour by exactly nothing — including the non-finite case that
+     function's own docstring documents ("a non-finite argument yields NaN
+     gains that never recover"). loop_filter_create() is the boundary that
+     rejects that domain, and test_loop_filter_core.c pins it doing so;
+     a second guard here would make the header's statement false and buy
+     nothing. */
+  return 8.0 * zeta * bn / (4.0 * zeta * zeta + 1.0);
+}
+
 void
 loop_filter_init (loop_filter_state_t *state, double bn, double zeta, double t)
 {
@@ -10,7 +27,7 @@ loop_filter_init (loop_filter_state_t *state, double bn, double zeta, double t)
    * in samples. wn is the natural frequency; the discrete kp/ki follow the
    * canonical bilinear-mapped form (e.g. Stephens & Thomas). integ is left
    * untouched so a reconfigure preserves lock. */
-  double wn   = 8.0 * zeta * bn / (4.0 * zeta * zeta + 1.0);
+  double wn   = loop_filter_wn (bn, zeta);
   double th   = wn * t;
   double den  = 4.0 + 4.0 * zeta * th + th * th;
   state->bn   = bn;

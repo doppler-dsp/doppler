@@ -51,6 +51,29 @@ rice_gains (double bn, double zeta, double t, double *kp, double *ki)
   *ki          = 4.0 * theta * theta / den;
 }
 
+/**
+ * @brief loop_filter_wn() against this file's INDEPENDENT derivation.
+ *
+ * `rice_gains` above derives `theta = 4*zeta*bn*t / (4*zeta^2 + 1)` from the
+ * published form, deliberately without re-typing the implementation's
+ * expression — and `theta` is exactly `wn*t/2`. So tying the new public
+ * `loop_filter_wn()` to it checks the primitive against a derivation that was
+ * already independent, rather than against a copy of itself.
+ *
+ * The alternative — asserting `loop_filter_wn(bn, zeta) == 8*zeta*bn /
+ * (4*zeta^2 + 1)` — would be re-typing the implementation beside itself and
+ * would prove only that the file had been copied correctly, which is the trap
+ * this test file's own header calls out.
+ */
+static void
+check_wn (double bn, double zeta, double t)
+{
+  double kp, ki, theta;
+  rice_gains (bn, zeta, t, &kp, &ki);
+  theta = 4.0 * zeta * bn * t / (4.0 * zeta * zeta + 1.0);
+  DP_CHECK_NEAR (loop_filter_wn (bn, zeta) * t / 2.0, theta, 1e-12);
+}
+
 int
 main (void)
 {
@@ -415,6 +438,33 @@ main (void)
     loop_filter_destroy (c);
 
     loop_filter_destroy (a);
+  }
+
+  /* The natural frequency, now public because every closed form about this
+     loop is written in it (loop_filter_core.h). */
+  check_wn (bn, zeta, t);
+  check_wn (0.005, 0.707, 1.0);
+  check_wn (0.05, 1.0, 4.0);
+
+  /* The number the header quotes: wn = 1.8857*bn at zeta = 0.707. Callers
+     size ramp tolerances against it, so it is pinned as a value and not only
+     as a relationship. */
+  DP_CHECK_NEAR (loop_filter_wn (0.005, 0.707), 1.8857 * 0.005, 1e-6);
+
+  /* Linear in bn, which is what makes a symbol-rate-normalised bn give a
+     per-symbol wn — the property every ramp law here depends on. */
+  DP_CHECK_NEAR (loop_filter_wn (0.02, 0.707),
+                 4.0 * loop_filter_wn (0.005, 0.707), 1e-12);
+
+  /* And it is the SAME number loop_filter_init() used: theta = wn*t/2 drives
+     the gains, so a wn that drifted from the gains would break this. */
+  {
+    loop_filter_state_t s;
+    double              kp, ki;
+    loop_filter_init (&s, bn, zeta, t);
+    rice_gains (bn, zeta, t, &kp, &ki);
+    DP_CHECK_NEAR (s.kp, kp, 1e-12);
+    DP_CHECK_NEAR (s.ki, ki, 1e-12);
   }
 
   DP_TEST_END ("test_loop_filter_core");

@@ -81,6 +81,7 @@
  */
 #include "dp_rng_test.h"
 
+#include "loop_filter/loop_filter_core.h"
 #include "mpsk_receiver/mpsk_receiver_core.h"
 #include "mpsk_receiver_r/mpsk_receiver_r_core.h"
 #include <complex.h>
@@ -332,13 +333,6 @@ rx_nda_r_accepts (int tap)
  * regardless of gain. This is the measurement that could, and the gate now
  * pins the CORRECT law rather than the defect. */
 
-/** @brief Loop natural frequency per symbol, from the shipped gain formula. */
-static double
-rx_nda_wn (double bn, double zeta)
-{
-  return 8.0 * zeta * bn / (4.0 * zeta * zeta + 1.0);
-}
-
 /** @brief Predicted steady-state phase lag (rad) under a ramp of @p r
  * cycles/symbol^2. Tap-independent BY DESIGN: `bn_carrier` is normalised to
  * the symbol rate, so every tap must deliver the same loop whatever its
@@ -346,7 +340,7 @@ rx_nda_wn (double bn, double zeta)
 static double
 rx_nda_ramp_law (double r)
 {
-  double wn = rx_nda_wn (RX_NDA_BN, 0.707);
+  double wn = loop_filter_wn (RX_NDA_BN, 0.707);
   return 2.0 * M_PI * r / (wn * wn);
 }
 
@@ -813,7 +807,7 @@ main (int argc, char **argv)
           "It is tap-INDEPENDENT by design — bn_carrier is symbol-rate "
           "normalised, so every tap\nmust deliver the same loop whatever its "
           "update rate.\n\n",
-          rx_nda_wn (RX_NDA_BN, 0.707));
+          loop_filter_wn (RX_NDA_BN, 0.707));
   printf ("   %-14s %10s", "r cyc/sym^2", "law");
   for (int t = 0; t < 3; t++)
     printf ("  %16s", RX_NDA_NAMES[t]);

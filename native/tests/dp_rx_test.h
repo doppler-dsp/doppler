@@ -121,7 +121,8 @@ typedef struct
   void (*destroy) (void *);
 
   /** One input sample in, 0 or more terminal outputs out. A real receiver
-   *  takes `crealf(x)`; the instrument does that conversion, not the caller. */
+   *  takes `crealf(x)`; the instrument does that conversion, not the caller.
+   */
   int (*step) (void *, float complex x, float complex *y);
 
   double (*norm_freq) (const void *);  /**< tracked carrier, cycles/sample */
@@ -203,17 +204,17 @@ typedef struct
   ber_interval_t fer, sync_miss;
 
   /* Loop behaviour, from the SAME record as the trio. */
-  double acq_frac;    /**< fraction of `foff` removed; 1.0 is acquired    */
-  double acq_time_bl; /**< symbols to lock, in units of 1/bn_carrier —
-                           the loop's own clock, so the number is
-                           comparable across every point in the set      */
+  double acq_frac;     /**< fraction of `foff` removed; 1.0 is acquired    */
+  double acq_time_bl;  /**< symbols to lock, in units of 1/bn_carrier —
+                            the loop's own clock, so the number is
+                            comparable across every point in the set      */
   double ramp_lag_rad; /**< settled phase lag under a Doppler RATE       */
   double ramp_law_rad; /**< what `2*pi*r/wn^2` says it should be         */
   double disturb_peak_rad; /**< peak |discriminator| excursion           */
   double disturb_rms_rad;  /**< and its RMS                              */
 
-  int         clipped;  /**< the front end clipped: nothing here is real  */
-  const char *refused;  /**< non-NULL: not measurable, and WHY            */
+  int         clipped; /**< the front end clipped: nothing here is real  */
+  const char *refused; /**< non-NULL: not measurable, and WHY            */
 } dp_rx_result_t;
 
 /* ── 4. The named points — the battery ──────────────────────────────────── */

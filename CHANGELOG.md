@@ -94,6 +94,35 @@ ______________________________________________________________________
 
 ### Added
 
+- **`MpskReceiver` derives the construction parameters that are not design
+    axes, on both faces** (gh-644, `docs/design/mpsk.md` §8.1). Five of its
+    seventeen parameters are a constant, a false-alarm probability and two
+    rates the object already knows, so it computes them and reports them back:
+
+    ```python
+    MpskReceiver(m=4, sps=8.0, bn_carrier=0.01, bn_timing=0.01)
+    # m_out 8 · zeta 0.7071067811865476 · num_phases 64
+    # lock_thresh 0.4999 · bn_agc_ratio 0.05
+    ```
+
+    **Zero means derive**, which is what keeps it additive: every one of these
+    validators previously REJECTED zero, so no working call site can be relying
+    on it, and a caller who wants to pin one still passes a value. The
+    derivation runs before the validation, so a derived answer faces the same
+    guards a supplied one does. `zeta`, `num_phases`, `lock_thresh` and
+    `bn_agc_ratio` join `m_out` as readbacks — without them, `0` is an
+    instruction whose result nobody can see.
+
+    `num_phases` moves 1024 → **64**, the measured saturation point: a 16×
+    bank for no measurable gain, and it changed nothing across 117 C and 334
+    Python tests, which is the point.
+
+    §8's real-twin `m_out` rule was wrong where deriving helps most — it gave
+    `min(8, 2·floor(sps/4))`, which `mpsk_receiver_r_create()` **rejects** at
+    `sps = 8` and `sps = 16` against its `sps > 2·m_out` bound. The rule is now
+    stated against the CONSTRAINT rather than the rate, and both twins call one
+    function instead of keeping two in step.
+
 - **`mf_in` now works on `MpskReceiverR` too — the restriction was unwired
     code, not architecture.** `ddcr_state_t` carries the same
     `RateConverter`, so `ddcr_get_bank_sps()` is a delegate and the tap

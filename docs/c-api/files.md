@@ -196,13 +196,11 @@ Here is a list of all files with brief descriptions:
             * **file** [**spectral\_core.h**](spectral__core_8h.md) _Spectral module — public C API._     
         * **dir** [**stream**](dir_21b896cdbc030a0ded493211142b7733.md)     
             * **file** [**stream.h**](stream_8h.md) _Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP._     
-            * **file** [**stream\_core.h**](stream__core_8h.md) _Stream module — public C API._ 
             * **file** [**tlm\_sink.h**](tlm__sink_8h.md) _NATS PUB sink for telemetry records._     
         * **dir** [**symsync**](dir_bee143323fe2e99a30a6d3a881f82f29.md)     
             * **file** [**symsync\_core.h**](symsync__core_8h.md) _SymbolSync component API._     
         * **dir** [**telemetry**](dir_d4543964ddc0423cd91d16ab74a4089e.md)     
             * **file** [**telemetry\_core.h**](telemetry__core_8h.md) _Telemetry module — public C API._ 
-            * **file** [**tlm\_recorder.h**](tlm__recorder_8h.md) _Lossless capture: computed sizing, ping-pong staging, flush to file._     
         * **dir** [**timing**](dir_0a8cc616bc028a416e339204953e39da.md)     
             * **file** [**timing\_core.h**](timing__core_8h.md)     
         * **dir** [**tonemeas**](dir_78c9bf326243d2be956f1c1b5de2ee56.md)     

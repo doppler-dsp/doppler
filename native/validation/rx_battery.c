@@ -179,16 +179,17 @@ main (int argc, char **argv)
             dp_rx_print (&r);
         }
 
-      /* A per-point refusal is a result and is not counted (see the header).
-         A receiver that refuses EVERY point is a different thing, and the
-         distinction is the whole reason this counter exists: the tap
-         regression that pinned `mf_in` on the continuous flavor printed nine
-         "no burst settled" lines and exited 0, because each line individually
-         was the harness declining to defend a number. Nine of them is not
-         nine refusals, it is a receiver that does not work -- and zero
-         defensible records is never a legitimate outcome for something in the
-         standard battery, whatever its geometry, so no threshold and no
-         per-point list is needed to say so. */
+      /* A per-point refusal is a result and is not counted (see the header),
+         so nothing here gates a receiver that refuses EVERY point -- and that
+         is a real hole: the tap regression that pinned `mf_in` on the
+         continuous flavor printed nine "no burst settled" lines and exited 0,
+         because each line individually was the harness declining to defend a
+         number. Nine of them is not nine refusals, it is a receiver that does
+         not work. Closing it needs a RUN-level gate rather than a per-point
+         one, which is what doppler#794 is adding to this same loop as
+         `dp_rx_witness_t`; the counter that proved the shape is handed over
+         there with its sabotage evidence rather than landed here, where it
+         would only conflict. */
     }
 
   if (check)

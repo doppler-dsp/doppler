@@ -432,9 +432,12 @@ mpsk_receiver_create_continuous (int m, double sps, int pulse, double rrc_beta,
       bn_timing, 0,                     /* acq_to_track -- NO handover */
       0.0,                              /* lock_thresh  -> derived      */
       init_norm_freq, differential, 0u, /* num_phases   -> derived      */
-      MPSK_RX_NDA_TAP_MF_IN,            /* no timing dep.    */
-      1,                                /* agc -- load-bearing, not opt */
-      0.0);                             /* bn_agc_ratio -> derived      */
+      /* The one tap measured to work at every battery point. MF_IN was
+         pinned here first, on the claim that being ahead of the matched
+         filter costs nothing; it costs the matched filter's processing gain
+         and the flavor's own lock indicator with it (doppler#790). */
+      MPSK_RX_NDA_TAP_STROBE, 1, /* agc -- load-bearing, not opt */
+      0.0);                      /* bn_agc_ratio -> derived      */
 }
 
 void

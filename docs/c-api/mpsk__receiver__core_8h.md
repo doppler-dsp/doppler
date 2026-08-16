@@ -456,7 +456,7 @@ What it pins, and why each is not a choice here:
 |pinned   |to   |because    |
 |-----|-----|-----|
 |`acq_to_track`   |0   |the handover IS the gate this flavor exists to remove    |
-|`nda_tap`   |MPSK\_RX\_NDA\_TAP\_MF\_IN   |the only tap with no symbol-timing dependency AND no ISI    |
+|`nda_tap`   |MPSK\_RX\_NDA\_TAP\_STROBE   |the only tap that acquires AND reports it at every point of the standard battery    |
 |`agc`   |1   |load-bearing, not optional — it defines the level both loops run on    |
 |`m_out`, `zeta`,   |0 (derive)   |not design axes; see the create() 
 
@@ -475,7 +475,11 @@ What it pins, and why each is not a choice here:
 
 
 
-`mf_in` reads post-MIX, post-DEC, post-AGC and ahead of the MFR, so it needs no symbol timing — which is what lets the carrier loop acquire without waiting for anything. Its update rate is `bank_sps`, a PLANNER outcome, so its pull-in ceiling `bank_sps*Rs/(2M)` moves with the rate ratio; read [**mpsk\_rx\_updates\_per\_symbol()**](mpsk__rx__loops_8h.md#function-mpsk_rx_updates_per_symbol) for what it came out as.
+\*\*`mf_in` was pinned here first, and the standard battery withdrew it.\*\* The argument was structural — a tap ahead of the matched filter needs no symbol timing, so nothing waits — and the structure is right; what was wrong is the claim that it costs nothing. It costs the matched filter's processing gain, `10*log10(sps)` dB, because that is exactly what the matched filter is for and this tap reads upstream of it. At the battery's anchor (BPSK, sps = 8, Es/N0 = 6.79 dB) the pre-MFR node therefore sits at -2.2 dB per sample, and the M-th-power lock statistic — which is an SNR measure, not a phase measure — settles at 0.20 where `strobe` reads 0.79. The carrier loop still acquires (measured `acq_frac` 1.0035, full), but the receiver can no longer SAY it did: the lock EMA never crosses the detector's threshold, so all 9 battery points refuse with "no burst
+settled". A flavor that exists to remove knobs cannot pin a tap whose lock indicator is unusable, whatever its pull-in range. See doppler#790, and doppler#766 for the separate finding that `mf_in` shows no measured advantage over `strobe` even where it does work.
+
+
+`strobe` costs a symbol-timing dependency and nothing else, and that dependency is not a wait: it steers from its first strobe whether or not the timing loop has declared (see the `nda_tap` enum). "Nothing waits" is a statement about GATES — the handover, the lock gate, the warmup — and `acq_to_track = 0` is what delivers it.
 
 
 The M-fold ambiguity is **permanent** here — no decision-directed stage ever pins the absolute phase — so `differential` defaults to 1. Coherent demapping without a downstream sync word is a misconfiguration, not a choice.

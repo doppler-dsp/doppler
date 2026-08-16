@@ -239,6 +239,17 @@ lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
     outcome, so its cell cannot be filled in from the others by argument and
     is left blank rather than guessed (gh-766).
 
+    !!! warning "`mf_in` gives up the matched filter's processing gain"
+
+        Reading ahead of the matched filter costs `10·log10(sps)` dB — 9 dB at
+        `sps=8`. The carrier loop still acquires, but the M-th-power **lock
+        statistic** is an SNR measure, so it collapses: measured at the
+        standard battery's anchor (BPSK, `sps=8`, Es/N0 6.79 dB) the lock EMA
+        settles at 0.20 against `strobe`'s 0.79, never crosses the detector's
+        threshold, and every operating point refuses. Prefer `"strobe"` or
+        `"mf_out"` unless you need the pull-in range and can tolerate a lock
+        indicator that does not read. Tracked in doppler#790.
+
     `bn_carrier` keeps its symbol-rate meaning at every tap — the tap widens what
     the discriminator can see and the stability margin, which is what lets you
     then raise `bn_carrier`. Beyond any tap's range, pass a coarse frequency
@@ -280,12 +291,12 @@ assert rx.tracking == 0     # one discriminator, forever
 
 What it pins, and why none of them is a choice here:
 
-| pinned                                                       | to      | because                                                                                   |
-| ------------------------------------------------------------ | ------- | ----------------------------------------------------------------------------------------- |
-| `acq_to_track`                                               | `0`     | the handover **is** the gate this flavor exists to remove                                 |
-| `nda_tap`                                                    | `mf_in` | the only tap with neither a symbol-timing dependency nor an inter-symbol ISI bias         |
-| `agc`                                                        | `1`     | load-bearing, not optional — it defines the level both loops run on                       |
-| `m_out`, `zeta`, `lock_thresh`, `num_phases`, `bn_agc_ratio` | `0`     | not design axes; `0` requests the derived answer, and each is still read back by a getter |
+| pinned                                                       | to         | because                                                                                   |
+| ------------------------------------------------------------ | ---------- | ----------------------------------------------------------------------------------------- |
+| `acq_to_track`                                               | `0`        | the handover **is** the gate this flavor exists to remove                                 |
+| `nda_tap`                                                    | `"strobe"` | the only tap that acquires **and reports it** at every point of the standard battery      |
+| `agc`                                                        | `1`        | load-bearing, not optional — it defines the level both loops run on                       |
+| `m_out`, `zeta`, `lock_thresh`, `num_phases`, `bn_agc_ratio` | `0`        | not design axes; `0` requests the derived answer, and each is still read back by a getter |
 
 Every pinned value stays **readable** even though it is not settable — a
 pinned number you cannot check is a hidden one:

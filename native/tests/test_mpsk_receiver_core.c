@@ -247,8 +247,14 @@ main (void)
       {
         /* Pinned at construction. */
         DP_CHECK (c->l.acq_to_track == 0);
-        DP_CHECK (c->l.nda_tap == MPSK_RX_NDA_TAP_MF_IN);
-        DP_CHECK (c->l.tap_timed == 0);    /* mf_in needs no symbol timing */
+        /* STROBE, not MF_IN. The flavor pinned MF_IN first, on the claim
+           that a tap ahead of the matched filter costs nothing; it costs the
+           matched filter's processing gain, and this very check passed only
+           because it runs I&D at 30 dB -- the one corner where a pre-MFR tap
+           still has SNR. The standard battery, at the anchor's 6.79 dB
+           through an RRC pair, refuses on all 9 points (doppler#790). */
+        DP_CHECK (c->l.nda_tap == MPSK_RX_NDA_TAP_STROBE);
+        DP_CHECK (c->l.tap_timed == 1);    /* and it is the one timed tap */
         DP_CHECK (c->fe->rc->agc != NULL); /* the AGC is not optional */
         /* Derived, not defaulted -- the same five §8.1 rows as 1b. */
         DP_CHECK (mpsk_receiver_get_m_out (c) == 8u);

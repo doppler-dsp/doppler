@@ -747,13 +747,13 @@ filter — which is the node this section argued for. What did *not* happen is
 the rest of the original plan, and the difference is recorded below rather
 than quietly dropped.
 
-The three taps, and why `mf_in` is the one for a continuous receiver:
+The three taps, and what each one costs:
 
-| tap                        | update rate | ceiling `F/(2M)`   | why not                                                                                                                     |
-| -------------------------- | ----------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `strobe` (shipped default) | `Rs`        | `Rs/(2M)`          | inside the matched filter's group delay, and the only tap whose input quality depends on symbol timing                      |
-| `mf_out`                   | `m_out·Rs`  | `m_out·Rs/(2M)`    | also inside the matched filter; the between-symbol outputs average two symbols, so their M-th power carries an ISI bias     |
-| **`mf_in`**                | `bank_sps`  | `bank_sps·Rs/(2M)` | **none for this purpose** — ahead of the matched filter, so it needs no symbol timing and carries no inter-symbol averaging |
+| tap                        | update rate | ceiling `F/(2M)`   | cost                                                                                                                    |
+| -------------------------- | ----------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `strobe` (shipped default) | `Rs`        | `Rs/(2M)`          | inside the matched filter's group delay, and the only tap whose input quality depends on symbol timing                  |
+| `mf_out`                   | `m_out·Rs`  | `m_out·Rs/(2M)`    | also inside the matched filter; the between-symbol outputs average two symbols, so their M-th power carries an ISI bias |
+| `mf_in`                    | `bank_sps`  | `bank_sps·Rs/(2M)` | **the matched filter's processing gain, `10·log10(sps)` dB** — see below                                                |
 
 That node is what the other two are reaching past: band-limited by DEC's own
 filters, already levelled by the AGC sitting on it. A fourth tap, `lo_arm`,
@@ -761,6 +761,49 @@ once approximated it with a free-running half-symbol boxcar bolted ahead of the
 cascade; it was removed with that arm (gh-768), because the filters ahead of
 this node already do the job the arm was there for. `mf_in` is where a Costas
 arm filter would go, and the reason there is none.
+
+**That third row read "none for this purpose", and the standard battery
+withdrew it.** This section argued `mf_in` was the tap for a continuous
+receiver and `ContinuousMpskReceiver` shipped pinning it; `native/validation/rx_battery.c`
+then refused on all 9 operating points with *"no burst settled — the loops
+never locked"*, under both pulses, isolated by changing only `nda_tap` on the
+base receiver.
+
+The structural argument above is right and the cost claim was wrong.
+Band-limiting is not matched filtering and levelling is not SNR: a tap ahead
+of the matched filter forgoes exactly the gain the matched filter exists to
+provide, `10·log10(sps)` dB — 9 dB at `sps = 8`, 40 dB at the battery's
+`Fs/Rs = 10000` point. At the anchor (BPSK, `sps = 8`, Es/N0 6.79 dB) the
+pre-MFR node therefore sits at **−2.2 dB per sample**.
+
+What fails first is not the loop but the *lock statistic*, because the
+M-th-power lock signal is an SNR measure and not a phase measure. Measured at
+the anchor, the carrier loop still acquires fully — `acq_frac` **1.0035**
+against a known offset — while the lock EMA settles at **0.20** where `strobe`
+reads **0.79** and `mf_out` reads 0.70. It never crosses the detector's
+threshold, so the receiver cannot report the lock it achieved; and since every
+lock detector, handover and settle window in the tree is built on that EMA, a
+working carrier loop is indistinguishable from a dead one downstream.
+
+Two consequences, both recorded rather than repaired here (doppler#790):
+
+- **`ContinuousMpskReceiver` pins `strobe`.** A flavor whose purpose is to
+    remove knobs cannot pin a tap whose lock indicator is unusable, whatever
+    its pull-in range — and `mf_in` shows no measured advantage over `strobe`
+    even where it *does* work (doppler#766).
+- **The two harnesses that did exercise `mf_in` both hid the cost, the same
+    way.** `native/validation/rx_nda_tap.c` sweeps it noiseless (`sigma = 0`)
+    through an I&D pulse, and `test_mpsk_receiver_core.c`'s continuous check
+    runs I&D at 30 dB. A rectangular pulse *is* the constellation held across
+    the symbol, so the pre-MFR node loses nothing; with no noise there is no
+    SNR to lose either. Both conditions have to be absent before the tap's
+    real cost appears, and the only harness carrying both is the battery.
+
+Restoring the arm filter — or the 2-sps decimation the next section declines —
+is what would make `mf_in` deliver on the structural argument. Note that the
+`carrier_nda` primitive keeps a boxcar arm (`carrier_nda_step`) for exactly
+this reason; the receiver's tap dropped it on the band-limiting argument
+above.
 
 **`nda_tap` did not go away, and that is the decision.** This section used to
 say the three-way parameter disappears into one fixed tap. It is instead

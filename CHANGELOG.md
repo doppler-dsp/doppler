@@ -45,6 +45,13 @@ ______________________________________________________________________
     undetected. Proven by sabotage: LSB-first packing, the original I/Q-sign
     QPSK mapping restored, and Gray skipped each take it red.
 
+    There was a **fifth** copy, in Python:
+    `test_rrc_bits_matches_matched_filter` hand-built its QPSK reference from
+    the same I/Q-sign formula, so the matched-filter check passed by comparing
+    the generator against a restatement of the generator. Its reference now
+    comes from `doppler.mpsk.mpsk_map` — the binding over the one map — which
+    is why that test had to move with the fix rather than the fix move to it.
+
 - **A capped CIC silently cost the cascade its rate** — `RateConverter` at a
     power-of-two decimation past the CIC cap decimated by `R` and claimed `D`.
     Measured: `RateConverter_create(1/8192)` delivered `1/4096`, twice the rate

@@ -8,6 +8,7 @@ sweep, and the auto-resolved SNR (Es/No for the modulated types).
 import numpy as np
 import pytest
 
+from doppler.mpsk import mpsk_map
 from doppler.snr import snr_data_aided_db
 from doppler.wfm import PN, Synth, bits, chirp, mls_poly, rrc_taps
 
@@ -300,8 +301,12 @@ def test_rrc_bits_matches_matched_filter():
     pat = np.array([1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0], np.uint8)
     taps = rrc_taps(beta, sps, span)
 
-    # bpsk: 0 -> +1, 1 -> -1
-    syms = np.where(pat == 1, -1.0, 1.0).astype(np.complex64)
+    # The reference symbols come from the library's own bits->symbol map
+    # (mpsk_map, the inverse dp_ber_score() applies), NOT from a formula
+    # rewritten here: a hand-built map is a second copy that can — and did —
+    # disagree with the canonical label assignment while both sides looked
+    # self-consistent. One symbol's bits are read MSB-first into a Gray label.
+    syms = mpsk_map(pat, 2)  # bpsk: 1 bit/symbol, the bit IS the label
     nsym = n // sps + span + 4
     imp = np.zeros(nsym * sps, dtype=np.complex64)
     imp[::sps] = syms[np.arange(nsym) % len(syms)]
@@ -316,13 +321,9 @@ def test_rrc_bits_matches_matched_filter():
     ).steps(n)
     assert np.allclose(got, ref, atol=1e-5)
 
-    # qpsk: Gray-mapped 2 bits/symbol, legs at +-1/sqrt(2)
-    s = 1.0 / np.sqrt(2.0)
+    # qpsk: 2 bits/symbol, MSB first -> the same Gray label mpsk_map takes
     pairs = pat.reshape(-1, 2)
-    qsym = np.array(
-        [(-s if p[0] else s) + 1j * (-s if p[1] else s) for p in pairs],
-        dtype=np.complex64,
-    )
+    qsym = mpsk_map(((pairs[:, 0] << 1) | pairs[:, 1]).astype(np.uint8), 4)
     impq = np.zeros(nsym * sps, dtype=np.complex64)
     impq[::sps] = qsym[np.arange(nsym) % len(qsym)]
     refq = np.convolve(impq, taps * np.sqrt(sps))[:n]

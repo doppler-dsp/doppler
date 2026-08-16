@@ -77,6 +77,13 @@ ______________________________________________________________________
     stated against the CONSTRAINT rather than the rate, and both twins call one
     function instead of keeping two in step.
 
+    §8.1's minimal call is a **complete program** the C doc-fence gate compiles
+    `-Werror` and runs, and it checks the five derived numbers itself rather
+    than printing them for a reader to trust; the Python face states the same
+    five as a doctest. A section whose whole claim is "these are computed for
+    you" should not assert the results in prose — both were proven to go red on
+    a wrong number before this landed.
+
 - **`mf_in` now works on `MpskReceiverR` too — the restriction was unwired
     code, not architecture.** `ddcr_state_t` carries the same
     `RateConverter`, so `ddcr_get_bank_sps()` is a delegate and the tap

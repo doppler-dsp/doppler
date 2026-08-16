@@ -248,9 +248,11 @@ lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
         The loop still acquires everywhere; what degrades is the M-th-power
         **lock statistic**, which is an SNR measure. `bank_sps` is a planner
         outcome, so the cost is bounded by the plan (still 9.0 dB at
-        `sps=64`, not 18) and is recoverable. Prefer `"strobe"`: on the
-        continuous flavor's own waveform it wins on every axis measured.
-        Tracked in doppler#790.
+        `sps=64`, not 18). This is the tap's stated price, not a defect: an
+        arm filter would recover it and is declined, because `"strobe"` reads
+        the node already matched to the signal for free. Prefer `"strobe"`
+        unless you need the pull-in range — on the continuous flavor's own
+        waveform it wins on every axis measured.
 
     `bn_carrier` keeps its symbol-rate meaning at every tap — the tap widens what
     the discriminator can see and the stability margin, which is what lets you

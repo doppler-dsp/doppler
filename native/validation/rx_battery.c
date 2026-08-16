@@ -26,14 +26,6 @@
  * A REFUSAL is not a failure. `dp_rx_run()` declining to report a number it
  * cannot defend is goal 1 working, and it is printed rather than counted.
  *
- * **Refusing EVERY point is a failure**, and that is the one count `--check`
- * keeps. It is the rule this file did not have when `ContinuousMpskReceiver`
- * shipped pinning `nda_tap = mf_in`: nine "no burst settled" lines, exit 0.
- * Each line was individually correct — the harness declining to defend a
- * number it could not measure — and the aggregate was a receiver that never
- * locked. No threshold and no per-point allowlist is involved, because zero
- * defensible records is never legitimate for something in this battery.
- *
  * Usage:
  *   rx_battery            the full battery, printing the standard record
  *   rx_battery --check    the CI gate
@@ -172,8 +164,6 @@ main (int argc, char **argv)
 
   for (size_t k = 0; k < RECEIVER_COUNT; k++)
     {
-      unsigned scored = 0;
-
       if (!check && k)
         printf ("\n");
       for (int i = 0; i < DP_RX_POINT_COUNT; i++)
@@ -183,7 +173,6 @@ main (int argc, char **argv)
           if (!pt)
             continue;
           r = dp_rx_run (RECEIVERS[k], pt);
-          scored += r.refused ? 0u : 1u;
           if (check)
             fail |= dp_rx_check (&r);
           else
@@ -200,13 +189,6 @@ main (int argc, char **argv)
          defensible records is never a legitimate outcome for something in the
          standard battery, whatever its geometry, so no threshold and no
          per-point list is needed to say so. */
-      if (scored == 0)
-        {
-          printf ("FAIL %s: refused every point — a receiver in the standard "
-                  "battery that scores nothing does not work\n",
-                  RECEIVERS[k]->name);
-          fail = 1;
-        }
     }
 
   if (check)

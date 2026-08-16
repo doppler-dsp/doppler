@@ -269,6 +269,10 @@ ______________________________________________________________________
     200\. Bounded rather than left to a coincidence that holds at the only two
     geometries anyone has looked at. Today it changes no number.
 
+    The battery's SER rises accordingly — anchor 1.087e-03 → 1.090e-03 —
+    which is the only direction it could move: symbols that could not be
+    wrong stopped being counted as symbols that merely happened not to be.
+
 - **`dp_ber_report_t` threw away the alignment it had just computed.** The
     `lag` and `phase` that fixed the record are now returned. They are part of
     *defending* the rate rather than a by-product of computing it: anything
@@ -276,6 +280,23 @@ ______________________________________________________________________
     series — has to be placed in the same coordinates, and re-running the
     detection to find out where it sat is a second copy of the decision, free
     to disagree with the first.
+- **The receiver instrument declared six frame-statistics fields and measured
+    none of them.** `native/tests/dp_rx_test.h` carried `frames`,
+    `sync_detected`, `crc_passed`, `fer`, `sync_miss` and `prot_bits`,
+    documented FER in its own composition table, included
+    `frame_meter_core.h` — and never called `frame_meter_create`. The
+    instrument built to report goal 4's four metrics *together* reported
+    three, and the missing one is the only truth-free metric that sees a
+    false lock.
+
+    The machinery already existed in `native/validation/rx_frame_fer.c`, so
+    this **moves** it rather than writing a second one: `dp_rx_score_frames()`
+    with the per-frame sync CONFIRMATION at ±`DP_RX_SYNC_SPAN` (a tracking
+    window, not a re-acquisition), the truth-free CRC check, and the
+    one-sided FER anchor asserted on the interval's **lower** limit.
+    `rx_frame_fer.c` is now a caller and its copy is gone; it reproduces its
+    committed table **bit for bit**, which is how a move is told apart from a
+    rewrite. `framed == 0` prints **n/a**, never `0.0`.
 
 - **`native/validation/` was running its own random number generators.**
     `native/tests/dp_rng_test.h` is the declared SSOT and

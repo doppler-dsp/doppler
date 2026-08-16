@@ -52,6 +52,15 @@ ______________________________________________________________________
     comes from `doppler.mpsk.mpsk_map` — the binding over the one map — which
     is why that test had to move with the fix rather than the fix move to it.
 
+    That test is now parametrized over `sps`, because `sps` is what selects the
+    shaping implementation: a power of two shapes with the polyphase `resamp`
+    bank, anything else falls back to a dense FIR, and those are two separate
+    block loops in `wfm_synth_steps()`. Every existing test used `sps` 4 or 8,
+    so the **dense-FIR bits loop had no test on any path** — one of the four
+    copies could have been fixed and the other not, with nothing to say so.
+    `sps = 3` covers it; sabotaging that loop alone takes `[3]` red and leaves
+    `[4]` green, which is how the split was checked rather than assumed.
+
 - **A capped CIC silently cost the cascade its rate** — `RateConverter` at a
     power-of-two decimation past the CIC cap decimated by `R` and claimed `D`.
     Measured: `RateConverter_create(1/8192)` delivered `1/4096`, twice the rate

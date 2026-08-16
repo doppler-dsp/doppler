@@ -294,10 +294,20 @@ def test_rrc_shapes_bits():
     assert _occupied_bw(rrc) < 0.5 * _occupied_bw(rect)
 
 
-def test_rrc_bits_matches_matched_filter():
+@pytest.mark.parametrize("sps", [4, 3])
+def test_rrc_bits_matches_matched_filter(sps):
     """Definitive check: the bits RRC output equals the symbol-rate impulse
-    train convolved with the sqrt(sps)-scaled taps — for both bpsk and qpsk."""
-    sps, span, beta, n = 4, 8, 0.35, 200
+    train convolved with the sqrt(sps)-scaled taps — for both bpsk and qpsk.
+
+    ``sps`` selects the shaping implementation, and that is why it is
+    parametrized rather than fixed: ``wfm_synth_set_rrc`` shapes a
+    **power-of-two** ``sps`` with a polyphase ``resamp`` bank and falls back
+    to a **dense FIR** for anything else. Same convolution, two separate
+    block loops in ``wfm_synth_steps()`` — and the dense-FIR bits loop had no
+    test on any path, so the four-copy bits→symbol map it carried could have
+    been fixed in one branch and not the other with nothing to say so.
+    """
+    span, beta, n = 8, 0.35, 200
     pat = np.array([1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0], np.uint8)
     taps = rrc_taps(beta, sps, span)
 

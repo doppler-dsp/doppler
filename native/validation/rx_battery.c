@@ -108,6 +108,38 @@ static const dp_rx_iface_t RX_MPSK
         rx_mpsk_step,   rx_mpsk_norm_freq, rx_mpsk_last_error, rx_mpsk_lock,
         rx_mpsk_locked, rx_mpsk_lock_time, rx_mpsk_clipped };
 
+/* ── The second adapter, and the whole point of goal 6 ──────────────────────
+ *
+ * `ContinuousMpskReceiver` is the continuous flavor: a view over the same
+ * core that PINS the gating (`acq_to_track = 0`, `nda_tap = mf_in`, `agc`
+ * on) and the five derived parameters. Everything past construction is
+ * shared verbatim, so this adapter is one function long and the other ten
+ * entries are reused unchanged -- which is "a second receiver design costs
+ * an adapter and nothing else" being cashed rather than asserted.
+ *
+ * It deliberately IGNORES `pt->acq_to_track` and `pt->nda_tap`. That is not
+ * the adapter taking a liberty: those are the knobs the flavor exists to
+ * remove, so a point that sets them is asking for a receiver this one is
+ * not. The battery therefore reads the two side by side at every point,
+ * and where they differ the difference is the gating and nothing else.
+ */
+static void *
+rx_cont_create (const dp_rx_point_t *pt)
+{
+  return mpsk_receiver_create_continuous (
+      pt->m, pt->sps, MPSK_RX_PULSE_RRC, pt->beta, pt->span, pt->bn_carrier,
+      pt->bn_timing, pt->fc - pt->foff / pt->sps, 0 /* differential */);
+}
+
+static const dp_rx_iface_t RX_CONT
+    = { "ContinuousMpskReceiver", DP_RX_IN_COMPLEX, rx_cont_create,
+        rx_mpsk_destroy,          rx_mpsk_step,     rx_mpsk_norm_freq,
+        rx_mpsk_last_error,       rx_mpsk_lock,     rx_mpsk_locked,
+        rx_mpsk_lock_time,        rx_mpsk_clipped };
+
+static const dp_rx_iface_t *const RECEIVERS[] = { &RX_MPSK, &RX_CONT };
+#define RECEIVER_COUNT (sizeof RECEIVERS / sizeof RECEIVERS[0])
+
 /* ── The battery ────────────────────────────────────────────────────────── */
 
 int
@@ -120,17 +152,22 @@ main (int argc, char **argv)
     printf ("The standard receiver battery — one harness, every receiver.\n"
             "Each row is one operating point; a refusal names itself.\n\n");
 
-  for (int i = 0; i < DP_RX_POINT_COUNT; i++)
+  for (size_t k = 0; k < RECEIVER_COUNT; k++)
     {
-      const dp_rx_point_t *pt = dp_rx_point ((dp_rx_point_name_t)i);
-      dp_rx_result_t       r;
-      if (!pt)
-        continue;
-      r = dp_rx_run (&RX_MPSK, pt);
-      if (check)
-        fail |= dp_rx_check (&r);
-      else
-        dp_rx_print (&r);
+      if (!check && k)
+        printf ("\n");
+      for (int i = 0; i < DP_RX_POINT_COUNT; i++)
+        {
+          const dp_rx_point_t *pt = dp_rx_point ((dp_rx_point_name_t)i);
+          dp_rx_result_t       r;
+          if (!pt)
+            continue;
+          r = dp_rx_run (RECEIVERS[k], pt);
+          if (check)
+            fail |= dp_rx_check (&r);
+          else
+            dp_rx_print (&r);
+        }
     }
 
   if (check)

@@ -15,6 +15,25 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **`mpsk_receiver_core.h` said the old defaults for the five parameters that
+    now derive.** gh-644 made `0` request a derived value for `m_out`, `zeta`,
+    `lock_thresh`, `num_phases` and `bn_agc_ratio`, and updated
+    `objects/mpsk_receiver.toml` so the Python face said so — while the C
+    header, which is the SSOT, went on documenting `(default 8)`,
+    `(default 0.707)`, `(default 0.5)` and `(default 1024)`, and mentioned the
+    derivation nowhere. The one face that is the source of truth was the one
+    face that did not know about the feature.
+
+    Each `@param` now states that `0` derives, what it derives to, and the
+    getter that reads it back; a `@note` on `create()` carries the rule once.
+    Documentation only — no behaviour change.
+
+    Same class as the `burst_despreader_core.h` drift already recorded in
+    `CLAUDE.md`, where hand-written `(default: X)` annotations went 5x out of
+    step with the manifest, and which just-makeit#442 is the open ask to lint
+    for. It recurred anyway, in the change that introduced the feature, which
+    argues for that lint rather than against it.
+
 - **One bits→symbol map, and it is the library's.** `wfm_synth`'s bit pattern
     had **four inlined copies** of the mapping — two in `wfm_synth_core.h`
     (`wfm_synth_next_symbol`, `wfm_synth_step`) and two in

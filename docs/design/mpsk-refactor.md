@@ -112,6 +112,117 @@ ______________________________________________________________________
 jm#1012 is being implemented, so the faces can share one method **name** with
 per-face dtypes. The surface below is what the collapsed object exposes.
 
+### 4.1 The constructor: 17 params, and most of them are derivable
+
+The two full constructors are **already byte-identical in signature** — same
+17 parameters, same order, same types. That is the thesis at the API level.
+
+But their declared *defaults* diverge in six places, and the pattern is one
+finding rather than six:
+
+| param          | complex        | real      | what the complex twin DERIVES |
+| -------------- | -------------- | --------- | ----------------------------- |
+| `sps`          | 8.0            | 32.0      | — (a link parameter)          |
+| `m_out`        | **0** (derive) | **8**     | 8 at `sps = 8`                |
+| `zeta`         | **0** (derive) | **0.707** | 0.70710678118654752           |
+| `lock_thresh`  | **0** (derive) | **0.5**   | 0.4999                        |
+| `num_phases`   | **0** (derive) | **1024**  | 64                            |
+| `bn_agc_ratio` | **0** (derive) | **0.05**  | 0.05                          |
+
+**The real twin never adopted §8.1's "zero means derive".** It pins five
+values the complex twin computes — and three of them disagree with the
+computed answer: `num_phases` is the legacy `MPSK_RX_NUM_PHASES` (1024) rather
+than `MPSK_RX_NUM_PHASES_DEFAULT` (64), a 16× bank; `lock_thresh` is a round
+0.5 rather than the `σ_H0·η(Pfa)` result; `zeta` is a typed-out 0.707 rather
+than `1/√2`. `m_out = 8` happens to equal the derivation at `sps = 32` and
+stops doing so anywhere else — at `sps = 16` the strict `sps/2` cap derives 6.
+
+That is the argument for cutting the signature rather than unifying it as-is:
+**a parameter that can be pinned, gets pinned — and drifts.**
+
+### 4.2 A user does not know a loop bandwidth
+
+The tier that survives scrutiny is smaller than "link plus axes", because most
+of what is called an axis is stated in the receiver's units rather than the
+caller's.
+
+Nobody integrating a modem knows what `bn_carrier` should be. They do not pick
+an M-th-power tap, and they have never heard of a handover. What they know is
+their **link** and their **requirement**:
+
+| they know                        | they do not know                      |
+| -------------------------------- | ------------------------------------- |
+| the modulation is QPSK           | `m_out`, `num_phases`                 |
+| 8 samples per symbol             | `zeta`, `lock_thresh`, `bn_agc_ratio` |
+| the transmitter is RRC, β = 0.35 | `nda_tap`                             |
+| the carrier is within ±2 kHz     | `bn_carrier`, `bn_timing`             |
+| it Dopplers at ~500 Hz/s         | `acq_to_track`                        |
+| lock within ~2000 symbols        |                                       |
+
+Both columns are the same information. The right-hand one is the left-hand one
+already solved — and §5 is the solution.
+
+### 4.3 State the link and the requirement; derive the loops
+
+```text
+/* the LINK — what is on the wire */
+m               constellation order
+sps             samples per symbol (any double)
+pulse           iandd | rrc   (+ rrc_beta when rrc)
+center_freq     where the carrier sits
+
+/* the REQUIREMENT — in the caller's units, all optional */
+pull_in_hz      the frequency uncertainty it must acquire
+acquire_syms    how quickly lock is needed
+doppler_rate    how fast the carrier moves, Hz/s
+coherent        whether anything downstream pins absolute phase
+```
+
+Everything else is derived, and each derivation is an equation already in §5
+rather than a new invention:
+
+| derived                                                      | from                                          | equation                                                          |
+| ------------------------------------------------------------ | --------------------------------------------- | ----------------------------------------------------------------- |
+| `bn_carrier`                                                 | the **binding** constraint of the three below | max of them                                                       |
+| … seeding                                                    | `pull_in_hz`                                  | `bn ≥ M·\|Δf\|` per symbol                                        |
+| … acquisition                                                | `acquire_syms`                                | lock time scales as `~1/bn`, at 5–10% of `5/bn`                   |
+| … ramp headroom                                              | `doppler_rate`                                | `θ_ss = 2π·r/wn² < π/(2M)` ⇒ `wn² > 4M·r`                         |
+| `nda_tap`                                                    | `pull_in_hz`                                  | smallest `F ∈ {Rs, m_out·Rs, bank_sps·Rs}` with `F/(2M) ≥ \|Δf\|` |
+| `bn_timing`                                                  | `bn_carrier`                                  | the AGC must stay slower than both (§5.6)                         |
+| `acq_to_track`                                               | `m`                                           | on at M = 8, whose ±π/8 margin the NDA jitter would cross         |
+| `differential`                                               | `coherent`                                    | the M-fold ambiguity is permanent without a sync word             |
+| `m_out`, `zeta`, `lock_thresh`, `num_phases`, `bn_agc_ratio` | `sps`, M, Pfa                                 | §5.6                                                              |
+
+Two properties of this shape are worth stating because they are what make it
+better rather than merely smaller.
+
+**A requirement the receiver cannot meet becomes a refusal, not a bad lock.**
+`pull_in_hz` beyond `bank_sps·Rs/(2M)` has no tap that can see it — today that
+is a silent false lock at `k·F/M`; derived, it is a `create()` returning NULL
+with the reason. The same for a `doppler_rate` whose `θ_ss` leaves the linear
+range: that is `5/bn` arithmetic, and the object can do it before the caller
+loses a pass.
+
+**Every derived value stays readable.** The getters already exist, so a caller
+who wants to know what they got asks — `rx.bn_carrier`, `rx.nda_tap` — rather
+than having had to supply it. That is the pattern §8.1 established for the
+five, applied to the rest.
+
+The escape hatch stays, and stops being the default path: a post-construction
+setter, legal before the first sample, for the caller who genuinely must pin
+one. Pinning becomes a named call rather than a zero in a positional slot —
+which is what let the real twin pin three values wrong (§4.1).
+
+### 4.4 What stays per-face
+
+Three things, and each is the rate convention rather than a parameter:
+
+|                        | complex           | real                                                  |
+| ---------------------- | ----------------- | ----------------------------------------------------- |
+| `m_out` derivation cap | `sps`, inclusive  | `sps/2`, **strict**                                   |
+| `sps` constraint       | `sps ≥ m_out`     | `sps > 2·m_out`                                       |
+| `init_norm_freq` means | baseband residual | the real IF centre; the LO tunes via `−(2·f_c + 0.5)` |
+
 ### C — one core, two entry points, one set of accessors
 
 ```text

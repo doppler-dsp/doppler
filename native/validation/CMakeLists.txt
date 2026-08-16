@@ -192,6 +192,15 @@ add_test(NAME validate_loop_filter_noise_bw
 # removes. Nothing exercised any tap but STROBE before this harness, and the
 # obvious zero-offset experiment ranks them backwards (a loop that never
 # steers reports a perfect error) -- see the file docstring.
+add_executable(validate_rx_battery
+               ${CMAKE_CURRENT_SOURCE_DIR}/rx_battery.c)
+target_include_directories(validate_rx_battery
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_rx_battery PRIVATE doppler_lib_static m)
+target_compile_options(validate_rx_battery PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_rx_battery
+         COMMAND validate_rx_battery --check)
+
 add_executable(validate_rx_nda_tap
                ${CMAKE_CURRENT_SOURCE_DIR}/rx_nda_tap.c)
 target_include_directories(validate_rx_nda_tap

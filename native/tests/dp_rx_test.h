@@ -1328,6 +1328,23 @@ dp_rx_print (const dp_rx_result_t *r)
   printf ("  %-12s %-11s   %u/%u burst(s), %d unsettled, %d unaligned\n",
           r->rx->name, r->point->name, r->bursts, (unsigned)DP_RX_MAX_BURSTS,
           r->unsettled, r->unaligned);
+  /* The FER anchor's POWER, printed beside the anchor itself.
+     `fer.lo <= fer_pred * DP_RX_FER_TOL` is one-sided and asserted on the
+     interval's lower limit, which is right -- but at 120 frames around an FER
+     of 0.65 the exact interval is nearly half the unit interval, so the lower
+     limit sits far below the prediction and the test passes for almost any
+     measurement. Measured: corrupting every other frame's CRC leaves this
+     gate GREEN (doppler#796). The slack is therefore reported rather than
+     left implicit, so nobody reads the anchor as load-bearing where it is
+     not. Under 1.0 means the gate has no headroom to spend and is doing
+     work; well over 1.0 means it cannot currently fail. */
+  if (r->framed && r->fer_pred > 0.0)
+    printf ("  %-12s %-11s   FER anchor slack %.2fx (lower limit %.4g vs "
+            "%.4g allowed)\n",
+            r->rx->name, r->point->name,
+            (r->fer_pred * DP_RX_FER_TOL)
+                / (r->fer.lo > 0.0 ? r->fer.lo : 1e-9),
+            r->fer.lo, r->fer_pred * DP_RX_FER_TOL);
 }
 
 #endif /* DP_RX_TEST_H */

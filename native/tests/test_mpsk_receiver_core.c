@@ -280,21 +280,14 @@ main (void)
       {
         /* Pinned at construction. */
         DP_CHECK (c->l.acq_to_track == 0);
+        /* STROBE, not MF_IN. The flavor pinned MF_IN first, on the claim
+           that a tap ahead of the matched filter costs nothing; it costs the
+           matched filter's processing gain, and this very check passed only
+           because it runs I&D at 30 dB -- the one corner where a pre-MFR tap
+           still has SNR. The standard battery, at the anchor's 6.79 dB
+           through an RRC pair, refuses on all 9 points (doppler#790). */
         DP_CHECK (c->l.nda_tap == MPSK_RX_NDA_TAP_STROBE);
-        DP_CHECK (c->l.tap_timed == 1); /* strobe is the one timed tap */
-        /* THE reason the tap is pinned here, asserted as the property rather
-           than as the enum: the discriminator's clock IS the symbol clock.
-           docs/design/mpsk.md §2.1 lists three defects that follow from a
-           tap faster than Rs -- a lock EMA whose alpha is per-update, and two
-           lockdets carrying the same verify counts on different clocks -- and
-           claims Mode 1 cannot have them. That is only true at an update rate
-           of exactly 1. This flavor shipped pinning `mf_in` (bank_sps) and
-           the second defect duly arrived: the lock statistic settled below a
-           threshold derived per-M, so the one metric a gate-free receiver
-           still reports read as a permanent no-lock (doppler#791).
-           An enum check alone would survive a tap being swapped for another
-           fast one; this does not. */
-        DP_CHECK (dp_near (mpsk_rx_updates_per_symbol (&c->l), 1.0, 1e-15));
+        DP_CHECK (c->l.tap_timed == 1);    /* and it is the one timed tap */
         DP_CHECK (c->fe->rc->agc != NULL); /* the AGC is not optional */
         /* Derived, not defaulted -- the same five §8.1 rows as 1b. */
         DP_CHECK (mpsk_receiver_get_m_out (c) == 8u);

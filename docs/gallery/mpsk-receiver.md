@@ -214,15 +214,24 @@ The tap is fixed at construction, so nothing switches underneath you:
 rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.05, nda_tap="mf_in")
 ```
 
-!!! note "`mf_in` is not characterised on this page yet"
+!!! warning "`mf_in` gives up the matched filter's processing gain"
 
     It reads the MFR's input and replaced `lo_arm`, which was removed with the
     Costas arm filter it depended on (gh-768). Its update rate is the
     cascade's `bank_sps` — a planner outcome rather than a fixed multiple of
     `Rs` — so its row cannot be filled in from the others by argument, and it
-    is left blank rather than guessed. `native/validation/rx_nda_tap.c` gates
-    that it acquires at every rate ratio; the pull-in **range** measurement
-    that would fill this cell is gh-766.
+    is left blank rather than guessed (gh-766).
+
+    What *is* measured is the cost the table above does not have a column for:
+    reading ahead of the matched filter forgoes `10·log10(sps)` dB, 9 dB at
+    `sps=8`. The carrier loop still acquires, but the M-th-power **lock
+    statistic** is an SNR measure and collapses with it — at the standard
+    battery's anchor the lock EMA settles at 0.20 against `strobe`'s 0.79, so
+    every one of the 9 operating points refuses with *"the loops never
+    locked"*. `native/validation/rx_nda_tap.c` gates that `mf_in` acquires at
+    every rate ratio and misses this, because it sweeps **noiseless** through
+    a rectangular pulse — the one corner where a pre-MFR tap loses nothing.
+    Tracked in doppler#790.
 
 `bn_carrier` keeps its meaning at every tap (symbol-rate normalised). The tap
 does not widen the loop by itself — it widens what the discriminator can see and

@@ -429,14 +429,7 @@ def test_continuous_view_never_hands_over():
 
 
 def test_continuous_view_tracks_the_carrier():
-    """Acquires with no gate in the way — the tap is coupled, not gated.
-
-    `strobe` reads the on-time output, so its input quality depends on the
-    timing loop converging; what it does NOT do is wait for it. The
-    discriminator steers from the first strobe whether or not timing has
-    declared anything, which is the property "nothing waits" actually names
-    (docs/design/mpsk.md §3.3).
-    """
+    """Acquires with no gate of any kind: no handover, no lock gate."""
     tx, _ = _signal(2, foff=0.0008, snr_db=30, seed=5)
     rx = ContinuousMpskReceiver(m=2, sps=8.0, bn_carrier=0.02, bn_timing=0.01)
     rx.steps(tx)

@@ -285,11 +285,24 @@ mpsk_rx_derive_m_out (double cap, int strict)
    * advances more than pi per update and the error folds. So the tap point IS
    * the pull-in range, and it trades directly against signal quality:
    *
-   * | tap        | update rate | unambiguous \|df\|  | cost                  |
-   * | ---------- | ----------- | ------------------- | --------------------- |
-   * | `STROBE`   | `Rs`        | `Rs/(2M)`           | needs symbol timing   |
-   * | `MF_OUT`   | `m_out*Rs`  | `m_out*Rs/(2M)`     | inter-symbol ISI bias |
-   * | `MF_IN`    | `bank_sps`  | `bank_sps*Rs/(2M)`  | none — see below      |
+   * | tap        | update rate | unambiguous \|df\|  | cost                            |
+   * | ---------- | ----------- | ------------------- | ------------------------------- |
+   * | `STROBE`   | `Rs`        | `Rs/(2M)`           | needs symbol timing             |
+   * | `MF_OUT`   | `m_out*Rs`  | `m_out*Rs/(2M)`     | inter-symbol ISI bias           |
+   * | `MF_IN`    | `bank_sps`  | `bank_sps*Rs/(2M)`  | the matched filter's processing gain, `10*log10(sps)` dB |
+   *
+   * That third row read "none — see below" until the standard battery was
+   * pointed at it, and the omission was load-bearing: it is what made `MF_IN`
+   * look like a free win and got it pinned as the continuous flavor's tap.
+   * A tap ahead of the matched filter reads a node the matched filter has not
+   * yet acted on, so it forgoes exactly the gain the matched filter exists to
+   * provide — 9 dB at `sps = 8`, 40 dB at the battery's `Fs/Rs = 10000` point.
+   * The M-th-power lock statistic is an SNR measure, so it collapses first:
+   * measured at the battery's anchor it settles at 0.20 against `STROBE`'s
+   * 0.79, while the carrier loop itself still acquires fully. Both the
+   * frequency estimate and the lock statistic are affected; only the second
+   * one is visible, because it is what every lock detector and every settle
+   * window in the tree is built on. See doppler#790.
    *
    * There is a second axis, and it is the one the cascade rebuild lost.
    * `STROBE` is the only tap that depends on **symbol timing**: it reads the
@@ -326,11 +339,19 @@ mpsk_rx_derive_m_out (double cap, int strict)
      *  about: being ahead of the matched filter is what makes it need no
      *  symbol timing.
      *
-     *  This is where a Costas ARM FILTER would go, and the reason there is
-     *  none: DEC's own filters have already band-limited this node and the
-     *  AGC has already levelled it, so a boxcar bolted on here would be
-     *  re-filtering an already-filtered signal. (`lo_arm`, which did exactly
-     *  that ahead of the cascade, was removed for this reason — gh-768.)
+     *  This is where a Costas ARM FILTER would go, and there is none. The
+     *  argument was that DEC's own filters have already band-limited this
+     *  node and the AGC has already levelled it, so a boxcar bolted on here
+     *  would be re-filtering an already-filtered signal. (`lo_arm`, which did
+     *  exactly that ahead of the cascade, was removed for this reason —
+     *  gh-768.) **Measured, that argument does not hold**: band-limiting is
+     *  not matched filtering and levelling is not SNR, and this node is
+     *  `10*log10(sps)` dB down on the one the other two taps read. The
+     *  `carrier_nda` primitive keeps a boxcar arm for precisely this reason
+     *  (`carrier_nda_step`). Restoring one here — or decimating this stream
+     *  to a fixed 2 sps, which §3.3 of docs/design/mpsk.md argues for — is
+     *  the open work in doppler#790; it costs serialized state, which is why
+     *  the tap does not do it today.
      *
      *  Its update rate is `bank_sps`, a PLANNER OUTCOME rather than a
      *  construction constant, so the pull-in ceiling `bank_sps*Rs/(2M)`

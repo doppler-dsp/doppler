@@ -456,7 +456,7 @@ What it pins, and why each is not a choice here:
 |pinned   |to   |because    |
 |-----|-----|-----|
 |`acq_to_track`   |0   |the handover IS the gate this flavor exists to remove    |
-|`nda_tap`   |MPSK\_RX\_NDA\_TAP\_STROBE   |the only tap whose lock statistic means what `lock_thresh` says    |
+|`nda_tap`   |MPSK\_RX\_NDA\_TAP\_STROBE   |the only tap that acquires AND reports it at every point of the standard battery    |
 |`agc`   |1   |load-bearing, not optional — it defines the level both loops run on    |
 |`m_out`, `zeta`,   |0 (derive)   |not design axes; see the create() 
 
@@ -475,13 +475,11 @@ What it pins, and why each is not a choice here:
 
 
 
-\*\*`nothing waits` is about the GATES, not the tap.\*\* There is still no handover, no warmup and no lock gate: the discriminator steers from its first strobe whether or not the timing loop has declared anything. What `strobe` adds is a COUPLING — the on-time output's quality depends on how well timing has converged — not a gate, and a coupling costs nothing here because no gate is waiting on the result.
+\*\*`mf_in` was pinned here first, and the standard battery withdrew it.\*\* The argument was structural — a tap ahead of the matched filter needs no symbol timing, so nothing waits — and the structure is right; what was wrong is the claim that it costs nothing. It costs the matched filter's processing gain, `10*log10(sps)` dB, because that is exactly what the matched filter is for and this tap reads upstream of it. At the battery's anchor (BPSK, sps = 8, Es/N0 = 6.79 dB) the pre-MFR node therefore sits at -2.2 dB per sample, and the M-th-power lock statistic — which is an SNR measure, not a phase measure — settles at 0.20 where `strobe` reads 0.79. The carrier loop still acquires (measured `acq_frac` 1.0035, full), but the receiver can no longer SAY it did: the lock EMA never crosses the detector's threshold, so all 9 battery points refuse with "no burst
+settled". A flavor that exists to remove knobs cannot pin a tap whose lock indicator is unusable, whatever its pull-in range. See doppler#790, and doppler#766 for the separate finding that `mf_in` shows no measured advantage over `strobe` even where it does work.
 
 
-This flavor pinned `mf_in` when it shipped, for its timing independence, and that was measured to be the wrong trade. `mf_in` demodulates fine — EVM -7.32 dB against `strobe`'s -7.31, identical to 0.07 dB at sps 4/8/16/32 — but its LOCK STATISTIC settles at 0.23-0.51 against a derived `lock_thresh` of 0.4999, because [**mpsk\_rx\_disc()**](mpsk__rx__loops_8h.md#function-mpsk_rx_disc) runs one fixed-alpha EMA per TAPPED SAMPLE: at `mf_in` that averages across the whole RRC pulse rather than sampling at the decision instant. The statistic is tap-dependent and the threshold is derived per-M only, so the flavor's own `lock` readout was unusable and anything gating on it — the standard battery included — refused a receiver that was working (doppler#791).
-
-
-A flavor whose headline is that no metric has to be trusted must not ship the one metric it still reports in a state where it cannot be. The timing-independent taps stay one `mpsk_receiver_create()` call away, and `mpsk_receiver_get_lock()` on this flavor now means what it says.
+`strobe` costs a symbol-timing dependency and nothing else, and that dependency is not a wait: it steers from its first strobe whether or not the timing loop has declared (see the `nda_tap` enum). "Nothing waits" is a statement about GATES — the handover, the lock gate, the warmup — and `acq_to_track = 0` is what delivers it.
 
 
 The M-fold ambiguity is **permanent** here — no decision-directed stage ever pins the absolute phase — so `differential` defaults to 1. Coherent demapping without a downstream sync word is a misconfiguration, not a choice.

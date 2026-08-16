@@ -20,6 +20,7 @@ _Synth component API._ [More...](#detailed-description)
 * `#include "resamp/resamp_core.h"`
 * `#include <math.h>`
 * `#include "gold/gold_core.h"`
+* `#include "mpsk/mpsk_core.h"`
 
 
 
@@ -72,6 +73,7 @@ _Synth component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**wfm\_synth\_bit\_symbol**](#function-wfm_synth_bit_symbol) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* s) <br>_Next symbol from the user bit pattern, cycled — one mapping, every M._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**wfm\_synth\_bps**](#function-wfm_synth_bps) (int type) <br>_Bits carried by one symbol of_ `type` _— the_`bps` _an Eb/No needs._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**wfm\_synth\_cont\_dsss\_chip**](#function-wfm_synth_cont_dsss_chip) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* s) <br>_One continuous-DSSS chip:_ `code[n % n_code] ^ data` _, as a BPSK sign._ |
 |  [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* | [**wfm\_synth\_create**](#function-wfm_synth_create) (int type, double fs, double freq, double snr, int snr\_mode, uint32\_t seed, int sps, int pn\_length, uint64\_t pn\_poly, int lfsr, double f\_end) <br>_Allocate and configure a waveform synthesiser. The synthesiser combines a local oscillator (LO), optional AWGN, and an optional PN LFSR into a single streaming source. One call to_ [_**wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-wfm_synth_step) _or_[_**wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-wfm_synth_steps) _advances all sub-components in lock-step. SNR &gt;= WFM\_SYNTH\_SNR\_CLEAN (100 dB) skips AWGN entirely — clean waveforms pay no noise overhead. When_`snr_mode` _is "auto" the library picks the natural reference: Es/No for modulated types (BPSK, QPSK), fs-band SNR for tone/noise/PN._ |
@@ -208,6 +210,53 @@ Continuous-DSSS data-symbol source (wfm\_synth\_set\_dsss\_cont's data\_mode).
 <hr>
 ## Public Functions Documentation
 
+
+
+
+### function wfm\_synth\_bit\_symbol 
+
+_Next symbol from the user bit pattern, cycled — one mapping, every M._ 
+```C++
+JM_FORCEINLINE float _Complex wfm_synth_bit_symbol (
+    wfm_synth_state_t * s
+) 
+```
+
+
+
+**The single home for the bits-&gt;symbol map.** It had four copies: two in this header (`wfm_synth_next_symbol` and `wfm_synth_step`) and two in `wfm_synth_steps()`. `wfm_synth_next_symbol`'s own comment says the kernel is shared "so the single-sample and block paths cannot diverge -- they call
+the SAME function rather than each inlining the arithmetic", and the arithmetic was inlined four times anyway.
+
+
+`bit_mod` is BITS PER SYMBOL, which is what its existing values already mean (1 = BPSK, 2 = QPSK), so M = 1 &lt;&lt; bit\_mod and 3 = 8PSK extends the numbering rather than reinterpreting it. One symbol's bits are read **MSB-first** into a Gray label and handed to `mpsk_constellation()`  the library's canonical mapping, and the one `dp_ber_score()` inverts to score bit errors.
+
+
+That shared mapping is the point. The QPSK branches this replaces put `b0` on the I sign and `b1` on the Q sign: the same CONSTELLATION, but two of the four labels swapped against `mpsk_constellation()`. Nothing scored a QPSK bit pattern against truth, so it never produced a wrong number  but a framed QPSK stream read through the canonical scorer would have shown about half its symbols wrong on a perfectly working receiver, which is the plausible-number failure docs/design/rx-test.md exists to stop.
+
+
+`bit_mod == 0` is not PSK  it is the 0/1 amplitude line this type has always emitted  so it keeps its own branch.
+
+
+
+
+**Parameters:**
+
+
+* `s` Synth state; `bits`/`n_bits` must be non-empty, `bit_idx` advances. 
+
+
+
+**Returns:**
+
+Unit-modulus constellation point (a unit-amplitude line at `bit_mod == 0`), which is what Synth's unit-power SNR reference needs. 
+
+
+
+
+
+        
+
+<hr>
 
 
 

@@ -13,6 +13,25 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **just-makeit pin 0.61.0 → 0.62.0.** Adopts the two doppler-filed fixes that
+    the `MpskReceiver`/`MpskReceiverR` collapse
+    (`docs/design/mpsk-refactor.md` §6) was blocked on, skipping 0.61.1 (a
+    release-notes repair with no template change).
+
+    **jm gh-1012** lets a `[[<obj>.views.methods]]` entry restating a parent's
+    name declare its own `arg_type`/`return_type`, bound to its own C symbol
+    via `fn` — so two objects differing in one method's dtype and nothing else
+    can become one object and one view, under the *same* Python name.
+    Previously the only way to express it was a differently-named method
+    (`steps_r`), which gives the two faces an asymmetric public surface —
+    most of the way back to being a second type. **jm gh-1011** is the fix for
+    what made that silent: such a declaration was accepted, written to the
+    manifest, then discarded, because the replay copied the parent's entry
+    wholesale and kept only `doc`. It is now honoured (with `fn`) or refused
+    by name. A doc-only override — same name, same signature — is unchanged.
+
 ### Added
 
 - **`track.ContinuousMpskReceiver` — the continuous flavor, and nothing

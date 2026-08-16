@@ -695,6 +695,7 @@ endef
 # gates cover them: criterion 2 is "help lists EVERY target", not "every
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
+                jm-apply \
                 gen-c-api-check \
                 gen-c-api-run doxygen-pin-image \
                 package-c package-c-tarball sdist release-notes \
@@ -1215,6 +1216,33 @@ characterize: ## Run every characterization sweep (MINUTES — deliberate, not p
 
 characterization-check: ## Verify every characterization subject is runnable and has a fast twin
 	@uv run python scripts/check_characterization.py
+
+# The write half of the drift gate. `drift-check` was the only jm invocation
+# the Makefile carried, so the routine action -- REGENERATING after a manifest
+# edit or a pin bump -- had no target and got typed as a bare
+# `.venv/bin/just-makeit apply`, which the make-SSOT hook then blocks. A gate
+# with no matching write target teaches people to reach around the gate.
+#
+# `uv run` rather than the venv binary, and after the sync, so apply and
+# drift-check cannot run different jms -- the skew this repo has been bitten by
+# is a bare console script left over from an older pin.
+#
+# JM_APPLY_ARGS exists because arguments must travel through a variable, but
+# note what a path argument does NOT do: `jm apply objects/x.toml` is a FULL
+# regeneration that merely starts from that fragment, not a scoped one. Nothing
+# here can limit the blast radius, which is why the reminder below is printed
+# every time rather than written down somewhere.
+JM_APPLY_ARGS ?=
+
+jm-apply: ## Regenerate jm-owned glue from the manifest (then run drift-check)
+	uv sync --group dev --no-install-project
+	uv run just-makeit apply $(JM_APPLY_ARGS)
+	@echo
+	@echo "jm-apply: regenerated. Two things this does NOT do for you:"
+	@echo "  - a sacred native/src/<mod>/<mod>_ext_<obj>.c fragment is"
+	@echo "    reconciled member-by-member, never re-rendered -- read the diff"
+	@echo "  - the downstream example has its own manifest; 'make drift-check'"
+	@echo "    is what covers both. Run it now."
 
 # The jm manifest drift gate. --no-install-project because the gate only reads
 # the manifest, so there is no reason to build the C extension for it.

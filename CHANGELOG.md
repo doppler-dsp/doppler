@@ -15,6 +15,30 @@ ______________________________________________________________________
 
 ### Added
 
+- **[Measuring a Receiver](docs/dev/measuring-a-receiver.md) — the missing
+    HOW.** `docs/design/rx-test.md` says why the receiver harness is shaped as
+    it is, `native/tests/README.md` is the reference for the family, and
+    `docs/dev/validation.md` is the certification process — but nothing said
+    *"you have a receiver, here is how you get a number you can defend"*.
+
+    The page is the task path: give the battery an adapter rather than writing
+    a harness (eleven entries, all of which a receiver worth measuring already
+    exposes); read the four metrics **together**, because they fail
+    differently and the disagreement is the diagnostic; read a refusal as a
+    result rather than a failure, including the case where it is about your
+    lock indicator rather than your receiver (#791); gate on an interval's
+    limit and never on a point estimate; and check that your gate can fail,
+    because one that has never been seen to is not evidence (#796). It ends
+    with the seven traps that were each paid for once, naming the header that
+    owns each so a reader lands on the reasoning rather than on a rule.
+
+    `native/tests/README.md` gains the two family members its table was
+    missing (`dp_frame_test.h`, `dp_rx_test.h`) and a section on the family
+    now testing itself — including the two techniques worth copying: assert
+    that an assertion FAILS by observing the counters rather than an exit
+    status, and capture stderr rather than muting it so the diagnostic is
+    pinned too.
+
 - **`track.ContinuousMpskReceiver` — the continuous flavor, and nothing
     waits.** A **view** over `MpskReceiver`, not a second type: same core, same
     state, the identical 25-member surface, and only the constructor differs —

@@ -206,11 +206,14 @@ An M-th-power discriminator updating at rate `F` can only observe a frequency er
 |-----|-----|-----|-----|
 |`STROBE`   |`Rs`   |`Rs/(2M)`   |needs symbol timing    |
 |`MF_OUT`   |`m_out*Rs`   |`m_out*Rs/(2M)`   |inter-symbol ISI bias    |
-|`MF_IN`   |`bank_sps`   |`bank_sps*Rs/(2M)`   |none — see below   |
+|`MF_IN`   |`bank_sps`   |`bank_sps*Rs/(2M)`   |the matched filter's processing gain, `10*log10(sps)` dB   |
 
 
 
 
+
+
+That third row read "none — see below" until the standard battery was pointed at it, and the omission was load-bearing: it is what made `MF_IN` look like a free win and got it pinned as the continuous flavor's tap. A tap ahead of the matched filter reads a node the matched filter has not yet acted on, so it forgoes exactly the gain the matched filter exists to provide — 9 dB at `sps = 8`, 40 dB at the battery's `Fs/Rs = 10000` point. The M-th-power lock statistic is an SNR measure, so it collapses first: measured at the battery's anchor it settles at 0.20 against `STROBE`'s 0.79, while the carrier loop itself still acquires fully. Both the frequency estimate and the lock statistic are affected; only the second one is visible, because it is what every lock detector and every settle window in the tree is built on. See doppler#790.
 
 
 There is a second axis, and it is the one the cascade rebuild lost. `STROBE` is the only tap that depends on **symbol timing**: it reads the one output the timing loop nominates, so before timing lock it is reading an arbitrary phase of the pulse. `MF_OUT` consumes every terminal output and so does not care which one is on-time; `MF_IN` reads the MFR's input entirely ahead of it. Both therefore restore the property the NDA path exists for — acquiring with no data _and no symbol timing_ — which is why they are not merely "wider".

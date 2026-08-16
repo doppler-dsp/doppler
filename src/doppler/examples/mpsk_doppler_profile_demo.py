@@ -85,9 +85,9 @@ tx = np.repeat(tx, SPS)
 ph = 2.0 * np.pi * np.cumsum(freq)
 iq = (tx * np.exp(1j * ph)).astype(np.complex64)
 
-# `mf_in` is the default tap: it reads the matched filter's INPUT, so it needs
-# no symbol timing. Nothing here depends on that choice — the loop stress
-# below is a property of bn_carrier, not of where the detector reads.
+# `strobe` is the default tap: it reads the on-time strobe, at the full
+# post-matched-filter SNR. Nothing here depends on that choice — the loop
+# stress below is a property of bn_carrier, not of where the detector reads.
 rx = MpskReceiver(m=M, sps=SPS, m_out=4, bn_carrier=BN, bn_timing=0.005)
 
 tlm = Telemetry()

@@ -239,6 +239,17 @@ lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
     outcome, so its cell cannot be filled in from the others by argument and
     is left blank rather than guessed (gh-766).
 
+    !!! warning "`mf_in` gives up the matched filter's processing gain"
+
+        Reading ahead of the matched filter costs `10·log10(sps)` dB — 9 dB at
+        `sps=8`. The carrier loop still acquires, but the M-th-power **lock
+        statistic** is an SNR measure, so it collapses: measured at the
+        standard battery's anchor (BPSK, `sps=8`, Es/N0 6.79 dB) the lock EMA
+        settles at 0.20 against `strobe`'s 0.79, never crosses the detector's
+        threshold, and every operating point refuses. Prefer `"strobe"` or
+        `"mf_out"` unless you need the pull-in range and can tolerate a lock
+        indicator that does not read. Tracked in doppler#790.
+
     `bn_carrier` keeps its symbol-rate meaning at every tap — the tap widens what
     the discriminator can see and the stability margin, which is what lets you
     then raise `bn_carrier`. Beyond any tap's range, pass a coarse frequency
@@ -280,12 +291,12 @@ assert rx.tracking == 0     # one discriminator, forever
 
 What it pins, and why none of them is a choice here:
 
-| pinned                                                       | to       | because                                                                                   |
-| ------------------------------------------------------------ | -------- | ----------------------------------------------------------------------------------------- |
-| `acq_to_track`                                               | `0`      | the handover **is** the gate this flavor exists to remove                                 |
-| `nda_tap`                                                    | `strobe` | the only tap whose lock statistic means what the derived `lock_thresh` says               |
-| `agc`                                                        | `1`      | load-bearing, not optional — it defines the level both loops run on                       |
-| `m_out`, `zeta`, `lock_thresh`, `num_phases`, `bn_agc_ratio` | `0`      | not design axes; `0` requests the derived answer, and each is still read back by a getter |
+| pinned                                                       | to         | because                                                                                   |
+| ------------------------------------------------------------ | ---------- | ----------------------------------------------------------------------------------------- |
+| `acq_to_track`                                               | `0`        | the handover **is** the gate this flavor exists to remove                                 |
+| `nda_tap`                                                    | `"strobe"` | the only tap that acquires **and reports it** at every point of the standard battery      |
+| `agc`                                                        | `1`        | load-bearing, not optional — it defines the level both loops run on                       |
+| `m_out`, `zeta`, `lock_thresh`, `num_phases`, `bn_agc_ratio` | `0`        | not design axes; `0` requests the derived answer, and each is still read back by a getter |
 
 Every pinned value stays **readable** even though it is not settable — a
 pinned number you cannot check is a hidden one:
@@ -297,22 +308,6 @@ rx.m_out, rx.num_phases, rx.lock_thresh   # 8, 64, 0.4999 — all derived
 `lock_thresh` is excluded rather than defaulted for the same reason it is
 still readable: with no handover it gates nothing, so it is telemetry. `lock`
 and `lock_thresh` report; nothing acts on them.
-
-**Why `strobe`, when "nothing waits" sounds like it wants a timing-independent
-tap.** *Nothing waits* is about the **gates**, not the tap: the discriminator
-steers from its first strobe whether or not the timing loop has declared
-anything, so `strobe` adds a **coupling** — the on-time output's quality
-depends on how well timing has converged — and not a gate. This flavor pinned
-`mf_in` when it shipped, for its timing independence, and that was measured to
-be the wrong trade. `mf_in` demodulates identically (EVM −7.32 dB against
-`strobe`'s −7.31, within 0.07 dB at `sps` 4/8/16/32), but its **lock statistic**
-settles at 0.23–0.51 against a derived `lock_thresh` of 0.4999: the statistic
-is a fixed-alpha EMA per *tapped sample*, so at `mf_in` it averages across the
-whole pulse instead of sampling at the decision instant, while the threshold is
-derived per-`m` only ([#791](https://github.com/doppler-dsp/doppler/issues/791)).
-A flavor whose headline is that no metric has to be trusted must not ship the
-one metric it still reports in a state where it cannot be. The
-timing-independent taps stay one `MpskReceiver(...)` call away.
 
 The M-fold phase ambiguity is **permanent** here — no decision-directed stage
 ever pins the absolute phase — so `differential` defaults to `1`. Coherent

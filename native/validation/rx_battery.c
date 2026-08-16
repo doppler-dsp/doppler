@@ -26,6 +26,14 @@
  * A REFUSAL is not a failure. `dp_rx_run()` declining to report a number it
  * cannot defend is goal 1 working, and it is printed rather than counted.
  *
+ * **Refusing EVERY point is a failure**, and that is the one count `--check`
+ * keeps. It is the rule this file did not have when `ContinuousMpskReceiver`
+ * shipped pinning `nda_tap = mf_in`: nine "no burst settled" lines, exit 0.
+ * Each line was individually correct — the harness declining to defend a
+ * number it could not measure — and the aggregate was a receiver that never
+ * locked. No threshold and no per-point allowlist is involved, because zero
+ * defensible records is never legitimate for something in this battery.
+ *
  * Usage:
  *   rx_battery            the full battery, printing the standard record
  *   rx_battery --check    the CI gate
@@ -111,7 +119,7 @@ static const dp_rx_iface_t RX_MPSK
 /* ── The second adapter, and the whole point of goal 6 ──────────────────────
  *
  * `ContinuousMpskReceiver` is the continuous flavor: a view over the same
- * core that PINS the gating (`acq_to_track = 0`, `nda_tap = mf_in`, `agc`
+ * core that PINS the gating (`acq_to_track = 0`, `nda_tap = strobe`, `agc`
  * on) and the five derived parameters. Everything past construction is
  * shared verbatim, so this adapter is one function long and the other ten
  * entries are reused unchanged -- which is "a second receiver design costs
@@ -120,8 +128,18 @@ static const dp_rx_iface_t RX_MPSK
  * It deliberately IGNORES `pt->acq_to_track` and `pt->nda_tap`. That is not
  * the adapter taking a liberty: those are the knobs the flavor exists to
  * remove, so a point that sets them is asking for a receiver this one is
- * not. The battery therefore reads the two side by side at every point,
- * and where they differ the difference is the gating and nothing else.
+ * not.
+ *
+ * AND AT EVERY POINT IN THE CURRENT SET THE TWO ROWS COINCIDE EXACTLY, which
+ * is worth stating rather than leaving to be noticed. Every named point sets
+ * `acq_to_track = 0` and `nda_tap = strobe`, so what the flavor pins is what
+ * the point already asked for and the two receivers construct identically.
+ * The second row therefore proves the ADAPTER — that a second receiver design
+ * costs one function and reuses the other ten entries verbatim — and not a
+ * behavioural difference, because at these points there is none to prove. The
+ * battery does not exercise the handover on either receiver; a point that
+ * turns `acq_to_track` on is what would separate them, and it is not here yet
+ * (doppler#790).
  */
 static void *
 rx_cont_create (const dp_rx_point_t *pt)
@@ -154,6 +172,8 @@ main (int argc, char **argv)
 
   for (size_t k = 0; k < RECEIVER_COUNT; k++)
     {
+      unsigned scored = 0;
+
       if (!check && k)
         printf ("\n");
       for (int i = 0; i < DP_RX_POINT_COUNT; i++)
@@ -163,10 +183,29 @@ main (int argc, char **argv)
           if (!pt)
             continue;
           r = dp_rx_run (RECEIVERS[k], pt);
+          scored += r.refused ? 0u : 1u;
           if (check)
             fail |= dp_rx_check (&r);
           else
             dp_rx_print (&r);
+        }
+
+      /* A per-point refusal is a result and is not counted (see the header).
+         A receiver that refuses EVERY point is a different thing, and the
+         distinction is the whole reason this counter exists: the tap
+         regression that pinned `mf_in` on the continuous flavor printed nine
+         "no burst settled" lines and exited 0, because each line individually
+         was the harness declining to defend a number. Nine of them is not
+         nine refusals, it is a receiver that does not work -- and zero
+         defensible records is never a legitimate outcome for something in the
+         standard battery, whatever its geometry, so no threshold and no
+         per-point list is needed to say so. */
+      if (scored == 0)
+        {
+          printf ("FAIL %s: refused every point — a receiver in the standard "
+                  "battery that scores nothing does not work\n",
+                  RECEIVERS[k]->name);
+          fail = 1;
         }
     }
 

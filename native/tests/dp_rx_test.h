@@ -262,6 +262,23 @@ typedef enum
   DP_RX_OVERSAMPLED, /**< Fs/Rs = 10000 — the §8.3 step-7 geometry, where
                           a planner outcome replaces a construction
                           constant                                       */
+  DP_RX_QPSK,        /**< the anchor at M = 4, at ITS OWN SER=1e-3 Es/N0 —
+                          10.35 dB, not BPSK's 6.79. One Es/N0 across M
+                          compares constellations, not receivers         */
+  DP_RX_PSK8,        /**< the anchor at M = 8 (15.68 dB). The M-th-power
+                          squaring loss grows with M and the decision
+                          margin falls to +-pi/8, so this is where the
+                          NDA path is worst and the number matters most  */
+  DP_RX_IRRATIONAL,  /**< sps = 17.33389 — the header's own example of an
+                          input rate with no integer relationship to the
+                          symbol clock. The symbol boundary falls BETWEEN
+                          samples, which the terminal accumulator's being
+                          a double is what makes free                    */
+  DP_RX_RATE_ODD,    /**< sps = 31.7 — high AND irrational together. This
+                          point exists because a Python harness measured
+                          it as a receiver defect when its own alignment
+                          had failed; the instrument either defends a
+                          number here or refuses, and either answers it  */
   DP_RX_POINT_COUNT
 } dp_rx_point_name_t;
 
@@ -659,6 +676,53 @@ dp_rx_point (dp_rx_point_name_t name)
     { "oversampled", RX_FRAME_CONT, 2,    64.0,  0,     DP_RX_BETA, DP_RX_SPAN,
       0.0,           0.0,           0.01, 0.005, 0,     0,          6.79,
       0.0,           0.0,           0.0,  0.0,   -18.0, 7u },
+    /* QPSK — the anchor at M = 4, at ITS OWN SER=1e-3 Es/N0. Holding one
+       Es/N0 across M would compare constellations rather than receivers:
+       the same 6.79 dB that anchors BPSK at 1e-3 leaves QPSK at ~4e-2, so
+       every M is read at the Es/N0 where it means the same thing.
+       ber_esn0_db_for_ser(4, 1e-3) = 10.3453. */
+    { "qpsk", RX_FRAME_CONT, 4,    8.0,   0,     DP_RX_BETA, DP_RX_SPAN,
+      0.0,    0.0,           0.01, 0.005, 0,     0,          10.3453,
+      0.0,    0.0,           0.0,  0.0,   -10.0, 7u },
+    /* PSK8 — ber_esn0_db_for_ser(8, 1e-3) = 15.6782. The worst case for
+       an NDA path: the M-th-power squaring loss grows with M while the
+       decision margin shrinks to +-pi/8. m_out is left DERIVED, which the
+       header says reaches 8 and calls non-optional at M = 8. */
+    { "psk8", RX_FRAME_CONT, 8,    8.0,   0,     DP_RX_BETA, DP_RX_SPAN,
+      0.0,    0.0,           0.01, 0.005, 0,     0,          15.6782,
+      0.0,    0.0,           0.0,  0.0,   -10.0, 7u },
+    /* IRRATIONAL — the header's own 17.33389. Not a round rate and not a
+       ratio of small integers, so the symbol boundary lands between
+       samples on almost every symbol. */
+    { "irrational",
+      RX_FRAME_CONT,
+      2,
+      17.33389,
+      0,
+      DP_RX_BETA,
+      DP_RX_SPAN,
+      0.0,
+      0.0,
+      0.01,
+      0.005,
+      0,
+      0,
+      6.79,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      -10.0,
+      7u },
+    /* RATE_ODD — high and irrational at once. Kept as its own point
+       because it is where a hand-rolled Python estimator reported a
+       receiver defect while its OWN alignment had failed (align_ok = 0,
+       margin -3.4 dB, a lag outside the window it searched). The
+       instrument's four gates either defend a number here or refuse, and
+       a refusal is a result rather than a failure. */
+    { "rate_odd", RX_FRAME_CONT, 2,    31.7,  0,     DP_RX_BETA, DP_RX_SPAN,
+      0.0,        0.0,           0.01, 0.005, 0,     0,          6.79,
+      0.0,        0.0,           0.0,  0.0,   -14.0, 7u },
   };
   if ((int)name < 0 || (int)name >= DP_RX_POINT_COUNT)
     return NULL;

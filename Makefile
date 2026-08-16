@@ -696,6 +696,7 @@ endef
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 jm-apply changelog-assemble changelog-assembled-check \
+                plot-rx-dynamics \
                 gen-c-api-check \
                 gen-c-api-run doxygen-pin-image \
                 package-c package-c-tarball sdist release-notes \
@@ -842,6 +843,13 @@ GALLERY_SCRIPTS := \
     src/doppler/examples/carrier_acq_rrc_demo.py \
     src/doppler/examples/mpsk_receiver_demo.py \
     src/doppler/examples/mpsk_receiver_performance_demo.py
+
+# The receiver-dynamics figure. NOT a gallery script: the measurement is C
+# (validate_rx_dynamics) and this only renders the telemetry that harness
+# captured, so it depends on `build` rather than on the Python examples and it
+# writes straight to docs/assets/ instead of the gallery's mv dance.
+plot-rx-dynamics: build ## Render docs/assets/rx-dynamics.png from the C harness's telemetry
+	uv run python scripts/plot_rx_dynamics.py
 
 gallery: ## Run the plot examples and copy their PNGs to docs/assets/
 	@echo "Regenerating gallery plots..."

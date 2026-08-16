@@ -45,8 +45,13 @@ from pathlib import Path
 
 import numpy as np
 
-from doppler.ber import ber_evm_db, ber_settle_syms, ber_theory_ser
-from doppler.mpsk import mpsk_demap, mpsk_map
+from doppler.ber import (
+    BerMeter,
+    ber_evm_db,
+    ber_settle_syms,
+    ber_theory_ser,
+)
+from doppler.mpsk import mpsk_map
 from doppler.snr import snr_m2m4_db
 from doppler.tests._validation_common import Report, clamp_evm_db, cli
 from doppler.track import ContinuousMpskReceiver, MpskReceiver
@@ -60,6 +65,19 @@ DATA = HERE / "data"
 #: EVM that no lock metric reveals. A unit-amplitude constellation plus
 #: noise sits right on that edge.
 TX_AMP = 0.5
+
+#: The blind alignment's marker length, lag span and false-alarm probability.
+#: These are the meter's own gate, not a tolerance chosen here: 256 symbols of
+#: truth fix the lag and the M-fold phase, +-64 covers the cascade's group
+#: delay, and 1e-6 is the per-detection Pfa the C harnesses use.
+ALIGN_SYMS = 256
+ALIGN_LAG_SPAN = 64
+ALIGN_PFA = 1e-6
+
+#: The meter's stopping rule, shared with every other harness so an interval
+#: quoted here means what it means everywhere else.
+TARGET_ERRORS = 100
+CONF = 0.95
 
 #: Symbols per Es/N0 cell. 20 000 puts a 1e-3 SER's own standard error near
 #: 7%, so the tolerances below are about the receiver rather than about how
@@ -103,42 +121,115 @@ def _signal(m, esn0_db, sps=SPS, nsym=NSYM, foff=0.0, seed=0, amp=TX_AMP):
     return np.ascontiguousarray(x.astype(np.complex64)), lab
 
 
-def _ser(out, lab, m, lo):
-    """Genie SER over a settled window, tolerant of the M-fold rotation.
+def _gray_to_index(lab, m):
+    """Gray label -> constellation index, which is what `BerMeter` scores on.
 
-    The decision is `mpsk_demap` — the library's own hard-decider, and the
-    exact inverse of the `mpsk_map` the stimulus used. It is NOT a
-    `round(angle)` written here, and that distinction is the whole reason
-    this helper is worth a docstring: the byte `mpsk_map` takes is a
-    **Gray label**, while `round(angle · m / 2π)` recovers the
-    **constellation index**. Those agree only at M = 2, so a hand-rolled
-    demapper reads a clean BPSK rate and ~50% on QPSK — which is exactly
-    what it did here before this was fixed, and exactly the defect
-    `wfm_synth`'s four-copy bits→symbol map produced.
+    `mpsk_map` takes a **Gray label**; `BerMeter.set_truth` documents its
+    argument as "the transmitted symbol INDICES (0..m-1, not Gray labels)".
+    They agree only at M = 2, and feeding labels straight in does not fail
+    loudly -- it reads SER 0.504 on QPSK and 0.753 on 8PSK at 20 dB Es/N0,
+    which looks like a receiver that cannot demodulate rather than a harness
+    comparing two different alphabets. It also costs the ALIGNMENT 6 dB of
+    margin (+5.2 dB against +11.5), so the detector degrades quietly first.
+    """
+    b = lab.astype(np.int32).copy()
+    sh = 1
+    while sh < 8:
+        b ^= b >> sh
+        sh <<= 1
+    return np.ascontiguousarray((b % m).astype(np.uint8))
 
-    The rotation search is not a convenience: the NDA loop locks to one of
-    `m` phases by construction (F3), so an absolute-phase comparison would
-    measure the ambiguity rather than the receiver. It is applied to the
-    SYMBOLS before demapping, because a rotation in the constellation is
-    not an offset in Gray-label space. The lag search covers the cascade's
-    group delay, which is not a round number of symbols.
+
+def _score(out, lab, m, lo):
+    """SER over a settled window, through the SHIPPED meter.
+
+    This replaces a genie estimator that searched `m` rotations x 81 lags for
+    the MINIMUM error rate. That helper could not refuse: handed a record with
+    no alignment at all it still returned the best of 324 tries, so a receiver
+    that never locked scored a plausible number instead of declining to be
+    measured, and findings were written against numbers produced that way.
+
+    `BerMeter` is the library's own alignment and scorer, and the difference
+    that matters is `align_ok`: its detection carries a false-alarm gate, so
+    "not aligned" is an OUTCOME rather than the largest of a pile of guesses.
+
+    **The marker goes past the settling point, not at index 0.** A blind
+    marker borrows a stretch of truth to fix the lag and the M-fold phase, and
+    at `t0 = 0` that stretch lands in the cold-start transient where there is
+    no constellation to correlate against -- measured, every cell then refuses
+    at about -5 dB margin while `lock` reads 0.82 to 0.97, which is the
+    harness failing and looking like the receiver failing. Placed at `lo` it
+    detects at +10.9 dB with `lag = 1`, the cascade's group delay.
+
+    Returns
+    -------
+    (ser, meter)
+        `ser` is None when the meter refused to align, or when the record is
+        too short to hold a marker and a scored window. The meter comes back
+        either way so the caller can report `align_margin_db` rather than just
+        the verdict.
     """
     hi = out.size - out.size // 8
-    if lo + 400 >= hi:
-        return 1.0
-    seg = np.ascontiguousarray(out[lo:hi].astype(np.complex64))
-    best = 1.0
-    for rot in range(m):
-        turn = np.exp(-2j * np.pi * rot / m)
-        got = mpsk_demap(
-            np.ascontiguousarray((seg * turn).astype(np.complex64)), m
+    t0 = int(lo)
+    if t0 + ALIGN_SYMS + 400 >= hi:
+        return None, None
+    seg = np.ascontiguousarray(out.astype(np.complex64))
+    mtr = BerMeter(m=m, target_errors=TARGET_ERRORS, conf=CONF)
+    mtr.set_truth(_gray_to_index(lab, m))
+    mtr.align(seg, t0, ALIGN_SYMS, 0, ALIGN_LAG_SPAN, ALIGN_PFA)
+    if not mtr.align_ok:
+        return None, mtr
+    # Past the marker's END: the symbols that fixed the alignment must not
+    # also be scored.
+    mtr.score(seg, t0 + ALIGN_SYMS, hi)
+    return (mtr.ser().p_hat if mtr.symbols else None), mtr
+
+
+def _limit_ser(R, ser, thresh, subject, claim_fn):
+    """Record one SER limit, where a REFUSAL fails instead of vanishing.
+
+    Every SER in this report can come back `None` — `_score` returns it
+    when `BerMeter` will not defend an alignment — and a limit written as
+    a bare `ser < thresh` does one of two wrong things with that: raises
+    `TypeError`, or, if the caller guards with `if ser is not None`,
+    silently drops the row so the tally still reports every limit holding.
+    The second is worse, because it reads as coverage.
+
+    A refusal is neither a pass nor a regression. It is a claim the meter
+    declined to establish, so it is recorded as a FAILING limit whose text
+    says exactly that — the certified envelope is not established until
+    something measures the cell.
+
+    This is the only place that decides it, so the three call sites cannot
+    drift into three different answers.
+
+    Parameters
+    ----------
+    R : Report
+        The report accumulating limits.
+    ser : float or None
+        The measured symbol error rate, or None if the meter refused.
+    thresh : float
+        The upper bound the SER must sit under.
+    subject : str
+        Names the cell, e.g. ``"sps=31.7"``. Used to word the refusal.
+    claim_fn : callable
+        ``claim_fn(ser) -> str``, the claim text when there IS a number.
+        A callable rather than a string because the text embeds the value,
+        which does not exist on the refusal path.
+
+    Returns
+    -------
+    bool
+        Whether the limit holds.
+    """
+    if ser is None:
+        return R.limit(
+            False,
+            f"{subject}: the meter REFUSED this cell, so the claim is "
+            f"unestablished rather than met",
         )
-        for lag in range(-40, 41):
-            base = np.arange(lo, hi) + lag
-            if base.min() < 0 or base.max() >= lab.size:
-                continue
-            best = min(best, float(np.mean(got != lab[base])))
-    return best
+    return R.limit(ser < thresh, claim_fn(ser))
 
 
 def _csv(path, header, rows):
@@ -185,20 +276,27 @@ def characterise(R, write):
             rx = MpskReceiver(m=m, sps=SPS, bn_carrier=0.01, bn_timing=0.01)
             out = rx.steps(x)
             lo = ber_settle_syms(0.01, 0.01)
-            ser = _ser(out, lab, m, lo)
+            ser, mtr = _score(out, lab, m, lo)
             theory = float(ber_theory_ser(m, esn0))
+            # A refusal is a RESULT and is printed as one. The estimator this
+            # replaced could not produce this row: it returned the best of 324
+            # rotation/lag tries whether or not the record had an alignment.
             rows.append(
                 [
                     f"{m}",
                     f"{esn0:.0f}",
-                    f"{ser:.3e}",
+                    f"{ser:.3e}" if ser is not None else "refused",
                     f"{theory:.3e}",
                     f"{rx.lock:.3f}",
+                    f"{mtr.align_margin_db:+.1f}" if mtr else "n/a",
                 ]
             )
             sweep.append([m, esn0, ser, theory, rx.lock])
     d["ser"] = sweep
-    R.table(["M", "Es/N0 dB", "SER measured", "SER theory", "lock"], rows)
+    R.table(
+        ["M", "Es/N0 dB", "SER measured", "SER theory", "lock", "align dB"],
+        rows,
+    )
     R.md()
     if write:
         _csv(
@@ -265,13 +363,13 @@ def characterise(R, write):
         lo = ber_settle_syms(0.01, 0.01)
         tail = np.ascontiguousarray(out[lo:])
         blind = float(snr_m2m4_db(tail))
-        ser = _ser(out, lab, 4, lo)
+        ser, mtr = _score(out, lab, 4, lo)
         rows.append(
             [
                 f"{esn0:.0f}",
                 f"{blind:.2f}",
                 f"{blind - esn0:+.2f}",
-                f"{ser:.3e}",
+                f"{ser:.3e}" if ser is not None else "refused",
             ]
         )
         m2m4.append([esn0, blind, blind - esn0, ser])
@@ -334,7 +432,7 @@ def characterise(R, write):
         rx = MpskReceiver(m=4, sps=sps, bn_carrier=0.01, bn_timing=0.01)
         out = rx.steps(x)
         lo = ber_settle_syms(0.01, 0.01)
-        ser = _ser(out, lab, 4, lo)
+        ser, mtr = _score(out, lab, 4, lo)
         expect = x.size / sps
         rows.append(
             [
@@ -342,7 +440,7 @@ def characterise(R, write):
                 f"{out.size}",
                 f"{expect:.0f}",
                 f"{100 * abs(out.size - expect) / expect:.2f}",
-                f"{ser:.3e}",
+                f"{ser:.3e}" if ser is not None else "refused",
             ]
         )
         irr.append([sps, out.size, expect, ser])
@@ -387,7 +485,7 @@ def characterise(R, write):
     d["cont"] = {
         "tracking": cont.tracking,
         "lock": cont.lock,
-        "ser": _ser(out_c, lab, 2, lo),
+        "ser": _score(out_c, lab, 2, lo)[0],
         "control_tracking": hand.tracking,
     }
     R.table(
@@ -397,7 +495,11 @@ def characterise(R, write):
                 "ContinuousMpskReceiver",
                 f"{cont.tracking}",
                 f"{cont.lock:.3f}",
-                f"{d['cont']['ser']:.3e}",
+                (
+                    f"{d['cont']['ser']:.3e}"
+                    if d["cont"]["ser"] is not None
+                    else "refused"
+                ),
             ],
             ["MpskReceiver (control)", f"{hand.tracking}", "—", "—"],
         ],
@@ -545,10 +647,19 @@ def limits(R, d):
     # §2.1's table as characterisation, and F4 judges them.
     for m, esn0, ser, theory, _lock in d["ser"]:
         if theory < 1e-2:
-            R.limit(
-                ser < max(10 * theory, 3e-3),
-                f"M={int(m)} at Es/N0 {esn0:.0f} dB: SER {ser:.2e} is "
-                f"within 10x the coherent bound {theory:.2e}",
+            # Today no refusal reaches this branch, because every one
+            # lands where `theory` is too large to pass the guard above --
+            # but that guard is about the BOUND being tight, not about the
+            # meter having succeeded, so the two are independent.
+            _limit_ser(
+                R,
+                ser,
+                max(10 * theory, 3e-3),
+                f"M={int(m)} at Es/N0 {esn0:.0f} dB",
+                lambda s, m=m, e=esn0, t=theory: (
+                    f"M={int(m)} at Es/N0 {e:.0f} dB: SER {s:.2e} is "
+                    f"within 10x the coherent bound {t:.2e}"
+                ),
             )
 
     for esn0, evm, bound, excess in d["evm"]:
@@ -598,10 +709,15 @@ def limits(R, d):
             f"({int(got)} vs {expect:.0f})",
         )
         if sps <= 24.0:
-            R.limit(
-                ser < 3e-3,
-                f"sps={sps:g}: recovers symbols (SER {ser:.2e}) — an "
-                f"irrational rate is no harder than an integer one",
+            _limit_ser(
+                R,
+                ser,
+                3e-3,
+                f"sps={sps:g}",
+                lambda s, sp=sps: (
+                    f"sps={sp:g}: recovers symbols (SER {s:.2e}) — an "
+                    f"irrational rate is no harder than an integer one"
+                ),
             )
 
     c = d["cont"]
@@ -615,9 +731,12 @@ def limits(R, d):
         "above is not satisfied by a signal that never locked",
     )
     R.limit(c["lock"] > 0.5, "ContinuousMpskReceiver locks")
-    R.limit(
-        c["ser"] < 3e-3,
-        f"ContinuousMpskReceiver recovers BPSK (SER {c['ser']:.2e})",
+    _limit_ser(
+        R,
+        c["ser"],
+        3e-3,
+        "ContinuousMpskReceiver",
+        lambda s: f"ContinuousMpskReceiver recovers BPSK (SER {s:.2e})",
     )
 
     fl = d["false_lock"]
@@ -642,9 +761,18 @@ def plots(d):
 
     for m, mark in ((2, "o"), (4, "s"), (8, "^")):
         pts = [(e, s, t) for mm, e, s, t, _ in d["ser"] if mm == m]
+        # A refused cell has no SER, and it must not be drawn as one. The
+        # floor this used to apply would have put `None` -> 1e-6 at the
+        # BOTTOM of a log axis, rendering "the meter would not defend a
+        # number here" as the best result on the plot. Dropping the point
+        # leaves a visible gap in the line, which is the honest picture,
+        # and the theory curve stays whole so the gap is legible against
+        # it. The tick marks are per-point, so a gap does not shift any
+        # remaining marker.
+        meas = [(p[0], p[1]) for p in pts if p[1] is not None]
         ax[0].semilogy(
-            [p[0] for p in pts],
-            [max(p[1], 1e-6) for p in pts],
+            [e for e, _ in meas],
+            [max(s, 1e-6) for _, s in meas],
             mark + "-",
             label=f"M={m} measured",
         )

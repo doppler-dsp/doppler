@@ -122,6 +122,37 @@ ______________________________________________________________________
     rather than decline one. Two earlier results did not survive the swap and
     are now printed as refusals (8PSK at 8 and 12 dB, and `sps = 31.7`).
 
+- **`MpskReceiver`'s claim inventory, and the C tests for what it found
+    absent** (`docs/dev/validation.md` step 1→2). Reading the header as the SSOT
+    and grepping `test_mpsk_receiver_core.c` for each prose claim turned up
+    five with **zero** mentions anywhere in the file. Four now have tests:
+
+    - **An irrational `sps`.** The header's headline claim — a modem "at
+        **any** input rate", where "17.33389 is equally valid" — and every test
+        ran at `sps = 8.0`, so no symbol boundary had ever fallen between
+        samples. Now measured at the header's own 17.33389: the output count
+        tracks the integral of the rate to 2%, `sps` round-trips exactly, and
+        it locks and recovers. Sabotage: truncating `sps` to an integer inside
+        `create()` reddens both the round-trip **and the lock**, so this
+        exercises the irrational path rather than merely accepting a double.
+    - **`num_phases` a power of two, `bn_agc_ratio` in (0, 1).** Neither had a
+        reject case on this twin, though the real twin pinned the ratio.
+    - **The stable false lock at `Δf = k·F/M`** — what `design/mpsk.md` §2.1
+        calls Mode 1's "one quiet failure". Pinned as *behaviour*, not asserted
+        away: the test requires a healthy lock statistic to **coexist** with a
+        completely wrong tracked frequency, which is precisely what no
+        self-referenced metric can separate.
+
+    One result worth recording: **deleting the receiver's `num_phases`
+    power-of-two guard changes nothing** — `RateConverter_core.c:830` carries
+    the same check and the front end is built first, so the receiver's copy is
+    fail-fast (it produces the named `create_error_message` rather than a bare
+    NULL from a composed core), not the enforcement. A reject test is exactly
+    where that hides, because the assertion is true either way; only the
+    sabotage distinguishes "this guard works" from "something else catches
+    it". The `bn_agc_ratio` guard, by contrast, is the sole enforcer and
+    reddens when removed.
+
 - **`track.ContinuousMpskReceiver` — the continuous flavor, and nothing
     waits.** A **view** over `MpskReceiver`, not a second type: same core, same
     state, the identical 25-member surface, and only the constructor differs —

@@ -81,6 +81,39 @@ make_mpsk (float complex *tx, int *idx, int m, double foff, double snr_db,
     }
 }
 
+/* As make_mpsk(), but at an ARBITRARY `sps` -- including an irrational one.
+ * Separate from make_mpsk() rather than a parameter on it because the symbol
+ * boundary stops landing on the sample grid: the symbol index is
+ * `floor(n / sps)`, so transitions fall BETWEEN samples and no resampling is
+ * involved on the stimulus side. That is the whole point of the claim it
+ * exists to test -- a generator that rounded sps to an integer would test
+ * nothing. Writes `nsym * sps` samples (floor), and returns that count. */
+static size_t
+make_mpsk_sps (float complex *tx, int *idx, int m, double sps, size_t nsym,
+               double foff, double snr_db, uint32_t seed)
+{
+  uint32_t st    = seed;
+  double   phi0  = phi0_for (m);
+  double   sigma = TX_AMP * sqrt (0.5 / pow (10.0, snr_db / 10.0));
+  size_t   n     = (size_t)((double)nsym * sps);
+  for (size_t k = 0; k < nsym; k++)
+    idx[k] = (int)(dp_xs32 (&st) & 0xFFFFu) % m;
+  for (size_t i = 0; i < n; i++)
+    {
+      size_t k = (size_t)((double)i / sps);
+      if (k >= nsym)
+        k = nsym - 1;
+      double        th = 2.0 * M_PI * (double)idx[k] / (double)m + phi0;
+      float complex s  = TX_AMP * ((float)cos (th) + (float)sin (th) * I);
+      double        ph = 2.0 * M_PI * foff * (double)i;
+      float complex c  = (float)cos (ph) + (float)sin (ph) * I;
+      double        wi = sigma * dp_gauss (&st);
+      double        wr = sigma * dp_gauss (&st);
+      tx[i]            = s * c + ((float)wr + (float)wi * I);
+    }
+  return n;
+}
+
 /* Decide the constellation index of a recovered symbol (mpsk convention). */
 static int
 decide (float complex y, int m, double phi0)
@@ -295,6 +328,124 @@ main (void)
             mpsk_receiver_destroy (h);
           }
         mpsk_receiver_destroy (c);
+      }
+  }
+
+  /* 1d. The validation the header states and nothing checked.
+     `num_phases` "a power of two" and `bn_agc_ratio` "must be in (0, 1);
+     construction refuses 1 or above rather than warning". Both were prose
+     here -- the real twin pins the ratio, this one did not, which is the
+     asymmetry a claim inventory is for. Zero is deliberately NOT in this
+     list: for both of these it is the derive request (§8.1), which 1b
+     covers, and asserting a reject for it would contradict that.
+
+     These pin the CONTRACT, and the two halves are not equally deep --
+     established by sabotage rather than assumed:
+
+       - deleting `mpsk_receiver_create`'s `bn_agc_ratio` guard takes both
+         ratio lines below RED. That guard is the sole enforcer.
+       - deleting its `num_phases` power-of-two guard changes NOTHING: these
+         still refuse, because `RateConverter_core.c:830` carries the same
+         check and the front end is built before the loops. The receiver's
+         copy is fail-fast (it produces the named `create_error_message`
+         instead of a bare NULL from a composed core), not the enforcement.
+
+     Worth writing down because a reject test is exactly where a redundant
+     guard hides: the assertion is true either way, so nothing distinguishes
+     "this guard works" from "something else catches it" without the
+     sabotage. */
+  {
+    /* num_phases: a power of two, >= 2. */
+    DP_CHECK (mpsk_receiver_create (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35,
+                                    8, 0.01, 0.707, 0.01, 0, 0.5, 0.0, 0, 3u,
+                                    MPSK_RX_NDA_TAP_STROBE, 1, 0.05)
+              == NULL); /* 3 is not a power of two */
+    DP_CHECK (mpsk_receiver_create (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35,
+                                    8, 0.01, 0.707, 0.01, 0, 0.5, 0.0, 0, 1u,
+                                    MPSK_RX_NDA_TAP_STROBE, 1, 0.05)
+              == NULL); /* 1 is a power of two but below the floor of 2 */
+    /* bn_agc_ratio: strictly inside (0, 1). At 1 the AGC is exactly as fast
+       as a loop it feeds; past that it is faster, and two level-correcting
+       loops at the same speed integrate against each other. */
+    DP_CHECK (mpsk_receiver_create (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35,
+                                    8, 0.01, 0.707, 0.01, 0, 0.5, 0.0, 0, 64u,
+                                    MPSK_RX_NDA_TAP_STROBE, 1, 1.0)
+              == NULL);
+    DP_CHECK (mpsk_receiver_create (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35,
+                                    8, 0.01, 0.707, 0.01, 0, 0.5, 0.0, 0, 64u,
+                                    MPSK_RX_NDA_TAP_STROBE, 1, -0.05)
+              == NULL);
+    /* Non-vacuity: the SAME call with only the offending argument made legal
+       must construct, or every line above passes for the wrong reason. */
+    mpsk_receiver_state_t *ok = mpsk_receiver_create (
+        4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.01, 0, 0.5,
+        0.0, 0, 64u, MPSK_RX_NDA_TAP_STROBE, 1, 0.05);
+    DP_CHECK (ok != NULL);
+    mpsk_receiver_destroy (ok);
+  }
+
+  /* 1e. An IRRATIONAL sps is no harder than an integer one.
+     The header's headline claim -- "a complete inline modem ... at **any**
+     input rate", "17.33389 is equally valid", "because the terminal
+     accumulator is a double and the loop only has to steer the strobe" --
+     and every test in this file ran at sps = 8.0, so nothing had ever
+     exercised a symbol boundary that does not land on the sample grid.
+     17.33389 is the header's own example, used deliberately. */
+  {
+    const double sps_odd = 17.33389;
+    size_t       nsym    = (size_t)((double)NSAMP / sps_odd) - 4;
+    size_t n = make_mpsk_sps (tx, idx, 4, sps_odd, nsym, 0.0005, 30.0, 77u);
+    mpsk_receiver_state_t *rx
+        = RX (4, sps_odd, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0);
+    DP_CHECK (rx != NULL);
+    if (rx)
+      {
+        size_t k = mpsk_receiver_steps (rx, tx, n, out, NSYM);
+        /* The output count is the integral of the rate, not a rounded sps:
+           an implementation that truncated sps to 17 would emit ~2% more
+           symbols over this record, which is hundreds. */
+        double expect = (double)n / sps_odd;
+        DP_CHECK (fabs ((double)k - expect) < 0.02 * expect);
+        DP_CHECK (mpsk_receiver_get_sps (rx) == sps_odd); /* stored exactly */
+        DP_CHECK (mpsk_receiver_get_lock (rx) > 0.5);
+        DP_CHECK (tail_ser (out, k, idx, 4, phi0_for (4),
+                            dp_test_settle_syms (0.01, 0.01))
+                  < 0.02);
+        mpsk_receiver_destroy (rx);
+      }
+  }
+
+  /* 1f. The stable FALSE lock at `df = k*F/M`, pinned as behaviour.
+     design/mpsk.md §2.1 calls this Mode 1's "one quiet failure" and §3.5
+     measures it: F/M is exactly where an M-th power at update rate F aliases
+     onto zero, so the loop sits still and reports a HEALTHY statistic on a
+     stationary constellation that no self-referenced metric can flag.
+
+     This is a documented defect, not a bug to fix here, so the test pins the
+     behaviour rather than asserting it away -- if it ever changes, that is a
+     result worth seeing rather than a silent one. The value of pinning it is
+     that `lock` alone is proven insufficient: the assertion is that a high
+     lock statistic COEXISTS with a completely wrong frequency. */
+  {
+    /* Strobe tap: F = Rs, so the alias sits at Rs/M = 1/(M*sps) cyc/sample.
+       QPSK at sps = 8 -> 0.03125. */
+    const double alias = 1.0 / (4.0 * SPS);
+    make_mpsk (tx, idx, 4, alias, 40.0, 5u);
+    mpsk_receiver_state_t *rx
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0);
+    DP_CHECK (rx != NULL);
+    if (rx)
+      {
+        (void)mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
+        double f  = mpsk_receiver_get_norm_freq (rx);
+        double lk = mpsk_receiver_get_lock (rx);
+        /* It did NOT find the true offset -- it is parked at the alias. */
+        DP_CHECK (fabs (f - alias) > 0.5 * alias);
+        /* ...while reporting a lock statistic a caller would trust. THIS is
+           the finding: the two together are what no self-referenced metric
+           can separate. */
+        DP_CHECK (lk > 0.5);
+        mpsk_receiver_destroy (rx);
       }
   }
 

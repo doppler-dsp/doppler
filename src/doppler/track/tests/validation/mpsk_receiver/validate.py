@@ -495,7 +495,11 @@ def characterise(R, write):
                 "ContinuousMpskReceiver",
                 f"{cont.tracking}",
                 f"{cont.lock:.3f}",
-                f"{d['cont']['ser']:.3e}",
+                (
+                    f"{d['cont']['ser']:.3e}"
+                    if d["cont"]["ser"] is not None
+                    else "refused"
+                ),
             ],
             ["MpskReceiver (control)", f"{hand.tracking}", "—", "—"],
         ],

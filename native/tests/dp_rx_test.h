@@ -252,6 +252,7 @@ typedef struct
   double disturb_peak_rad; /**< peak |discriminator| excursion           */
   double disturb_rms_rad;  /**< and its RMS                              */
 
+  unsigned    bursts;     /**< bursts consumed — the headroom, see below    */
   int         clipped;    /**< the front end clipped: nothing here is real  */
   int         unsettled;  /**< bursts whose window never settled             */
   int         unaligned;  /**< bursts settled, marker never detected         */
@@ -626,27 +627,49 @@ dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
   const uint8_t       *tra     = truth + tr_skip;
   size_t               n_tra   = (nsym > tr_skip) ? nsym - tr_skip : 0;
   size_t               nbits   = l->total_bits;
+  /* The frame layout is stated in BITS; `out` and `truth` hold SYMBOLS. At
+     BPSK the two coincide, which is why this arithmetic survived unnoticed in
+     `rx_frame_fer.c` — its geometry struct says "BPSK only for now" and every
+     point it runs is M = 2. Lifting it here dropped that constraint: this
+     function takes `m`, slices with `m`, and `dp_rx_run()` may hand it a point
+     carrying M = 4 or 8. So the conversion is explicit, and it now matches
+     what `dp_rx_run()` already does for the RECORD marker (`sync_off / bps`,
+     `sync_bits / bps`, `nbits / bps`) — the two disagreeing was the tell. */
+  size_t bps  = (size_t)mpsk_bps (m);
+  size_t fsym = bps ? nbits / bps : 0;        /* symbols per frame */
+  size_t soff = bps ? l->sync_off / bps : 0;  /* sync, in symbols  */
+  size_t slen = bps ? l->sync_bits / bps : 0; /* ditto, length     */
   /* One rotation for the whole record, from the marker — not re-estimated per
      frame, which would be a per-frame minimisation over the answer. */
   float complex derot = (float)cos (-phase) + (float)sin (-phase) * I;
   size_t        k;
 
-  for (k = 0; (k + 1) * nbits <= nsym; k++)
+  /* A geometry whose fields do not land on symbol boundaries cannot be scored
+     per frame at all, and guessing would produce confident garbage that is
+     self-consistent with the FER computed from it — the failure mode the
+     witness exists to catch, in a place the witness does not look. Score
+     NOTHING instead: the caller's `frames > 0 && sync_detected > 0 &&
+     crc_passed > 0` gate then fails loudly rather than reporting an invented
+     rate. */
+  if (!bps || !fsym || nbits % bps || l->sync_off % bps || l->sync_bits % bps)
+    return;
+
+  for (k = 0; (k + 1) * fsym <= nsym; k++)
     {
-      size_t          t_start = k * nbits; /* truth index of the frame */
+      size_t          t_start = k * fsym; /* truth index of the frame */
       long            i0      = (long)t_start - lag; /* its index in `out` */
-      size_t          t0_a, a0, j;
+      size_t          t0_a, a0, s, t;
       dp_ber_marker_t m1;
       dp_ber_sync_t   s1;
       int             crc;
 
-      if (i0 < (long)lo || (size_t)i0 + nbits > n)
+      if (i0 < (long)lo || (size_t)i0 + fsym > n)
         continue;
-      if (t_start < tr_skip || t_start + nbits > nsym)
+      if (t_start < tr_skip || t_start + fsym > nsym)
         continue;
-      t0_a = t_start + l->sync_off - tr_skip; /* marker, aligned coords */
+      t0_a = t_start + soff - tr_skip; /* marker, aligned coords */
       a0   = (size_t)i0 - rx_skip;
-      if (t0_a + l->sync_bits > n_tra || a0 + nbits > n_rxa)
+      if (t0_a + slen > n_tra || a0 + fsym > n_rxa)
         continue;
 
       /* Sync: the DETECTOR's own decision, in a tracking-mode window. Never a
@@ -654,7 +677,7 @@ dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
          `frame_meter_add` asks for and what makes the miss rate a measurement
          of the sync word rather than of our post-processing. */
       m1.sym    = NULL;
-      m1.n      = l->sync_bits;
+      m1.n      = slen;
       m1.t0     = t0_a;
       m1.period = 0;
       m1.reps   = 0;
@@ -663,13 +686,18 @@ dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
 
       /* CRC: hard decisions over the frame, checked against nothing but the
          frame's own trailer. No payload truth is consulted here, which is the
-         property that makes this usable on a real capture. */
-      for (j = 0; j < nbits; j++)
+         property that makes this usable on a real capture.
+         Each symbol carries `bps` bits MSB-first — the same packing
+         `dp_rx_run()` builds `truth` with, and the same one
+         `wfm_synth_bit_symbol()` transmits, so the two halves of the
+         measurement cannot disagree about bit order. */
+      for (s = 0; s < fsym; s++)
         {
           float complex ahat;
-          rxbits[j]
-              = (uint8_t)(mpsk_slice (out[(size_t)i0 + j] * derot, m, &ahat)
-                          & 1u);
+          unsigned      lab
+              = (unsigned)mpsk_slice (out[(size_t)i0 + s] * derot, m, &ahat);
+          for (t = 0; t < bps; t++)
+            rxbits[s * bps + t] = (uint8_t)((lab >> (bps - 1u - t)) & 1u);
         }
       crc = wfm_frame_crc_ok (f, rxbits);
       frame_meter_add (fm, s1.ok, crc);
@@ -869,8 +897,9 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
             r.unaligned++;
             continue;
           }
-        lo = r.rep.window_lo;
-        hi = r.rep.window_hi;
+        lo       = r.rep.window_lo;
+        hi       = r.rep.window_hi;
+        r.bursts = burst + 1u;
 
         /* The fourth metric, over the SAME record — goal 4 asks for the four
            together because they fail differently, and FER is the only one of
@@ -1291,6 +1320,14 @@ dp_rx_print (const dp_rx_result_t *r)
             r->frames, r->sync_detected, r->crc_passed, r->sync_miss.p_hat,
             r->sync_miss.lo, r->sync_miss.hi, r->crc_fail, r->crc_fail_pred,
             r->prot_bits);
+  /* The headroom, printed rather than left to be discovered when it runs out.
+     Requiring BOTH error targets is right -- an FER interval from a handful of
+     frame errors is set by luck -- but it converts a headroom question into a
+     red gate, so a point approaching DP_RX_MAX_BURSTS is visible here before
+     it flakes in CI rather than after. */
+  printf ("  %-12s %-11s   %u/%u burst(s), %d unsettled, %d unaligned\n",
+          r->rx->name, r->point->name, r->bursts, (unsigned)DP_RX_MAX_BURSTS,
+          r->unsettled, r->unaligned);
 }
 
 #endif /* DP_RX_TEST_H */

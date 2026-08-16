@@ -319,11 +319,61 @@ three can arise."* Deleting the tap **is** that property, made structural.
 
 What goes with it: `mpsk_rx_updates_per_symbol()` (always 1), the re-run of
 `mpsk_rx_config_carrier()` after `create()` publishes `bank_sps`, `mf_in_sps`,
-`tap_timed`, `mpsk_rx_push_mf_in()`, the `MF_OUT` branch in
-`mpsk_rx_take_output()`, the `zpre`/`n_pre` tap-2 outputs threaded through
-`ddc_execute_ctrl_push_tap2()`, and `rx_nda_tap.c` entirely. `freq_scale`
-reduces to `(1/2π)/lo_sps` — the expression gh-765 got wrong, with its variable
-term removed.
+`tap_timed`, the `MF_OUT` branch in `mpsk_rx_take_output()`, and
+`rx_nda_tap.c` entirely. `freq_scale` reduces to `(1/2π)/lo_sps` — the
+expression gh-765 got wrong, with its variable term removed.
+
+### 4.6 The pre-matched-filter node stays — as telemetry, not as a knob
+
+**The node survives; the knob does not.** Deleting `nda_tap` removes a *control*
+choice. It should not remove the only observation point between the front end
+and the symbols, because that node is where a receiver is diagnosed when
+something is wrong upstream of the loops: a pulse that is not the shape
+declared, a rate that is not the rate stated, an AGC riding an interferer, a
+band with nothing in it at all. By the time a signal reaches the strobe it has
+been matched-filtered and strobed — both of which *hide* those faults by
+design.
+
+So `zpre` keeps its place in `ddc_execute_ctrl_push_tap2()`, and the receiver
+publishes it as a **fixed-rate** decimated pair of probes alongside the ones it
+already has:
+
+```text
+rx.mf_in.i   post-MIX, post-DEC, post-AGC, ahead of the MFR
+rx.mf_in.q
+```
+
+**Fixed rate is the point.** `bank_sps` is a planner outcome, so the raw node
+arrives at a rate that moves with the caller's geometry — fine for a
+discriminator that only wants phase, useless for a human comparing two
+captures. Decimating to a stated 2 samples/symbol is what
+[§3.3](mpsk.md#the-2-samplessymbol-decimation-considered-and-declined)
+proposed and declined, and the objection there was **serialized state**: a
+decimator on the carrier path has to be packed, versioned and resumed
+bit-exactly.
+
+That objection does not apply to an observation path. Telemetry is already
+excluded from the state blob by rule — `mpsk_rx_tlm_t` is documented as *"live
+attachment; zeroed in state blobs"* — so a telemetry decimator's phase is
+zeroed on restore like every other telemetry field. §3.3's trade was real for a
+tap that steers, and simply is not the same trade for one that reports.
+
+The shape has precedent in this very object: the AGC's two probes already sit
+**pre-terminal on their own grid**, and the C test pins that they do
+(`n_agc / 2 != n_sym`). Records carry sample indices, so `read_dict(index=True)`
+puts a 2-sps pair and a 1-per-symbol probe on one time axis without either
+knowing about the other.
+
+And this is what the 6 dB finding was always describing. A node
+`10·log10(bank_sps)` dB down on the terminal is a poor place to *steer* from
+and a perfectly good place to *look* — the excess bandwidth that ruins an SNR
+measure is exactly the wider view a diagnostic wants. It stops being a defect,
+or even a price, and becomes the characteristic of an observation point.
+
+Critically, **none of §2.3's three defects come back.** Every one of them is
+about the clock on the *steering* path: the loop filter's update period, the
+lock EMA's `α`, the two `lockdet` counts. A probe that steers nothing has no
+say in any of them.
 
 ### 4.5 What stays per-face
 

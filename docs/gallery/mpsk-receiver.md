@@ -73,6 +73,34 @@ NDA acquisition instead of sitting in `tracking` forever on stale data.
 --8<-- "src/doppler/examples/mpsk_receiver_demo.py:receiver"
 ```
 
+## Diagnosing a level problem — read `agc_gain_db`, never `lock`
+
+The receiver publishes two health readouts with **disjoint blind spots**, and
+the one most callers reach for first is blind to the level.
+
+`agc_gain_db` is absolute. The front end's AGC applies the exact reciprocal of
+the input level, so each 4× step in amplitude moves the reading by exactly
+`20·log10(4) = 12.04 dB` — measured 12.04 and 12.04 across a 16× span, and
+constant to under 0.01 dB across 32× in the
+[validation report](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/mpsk_receiver/results.md)'s
+§2.9. So a reading far from 0 dB means what it says: *the input is this far from
+the level the cascade was built for.*
+
+`lock` cannot see a level error **at all**. It is the M-th-power carrier
+statistic, and `carrier_nda_disc` divides out its own `|z|^M`, so it is
+invariant to amplitude by construction — 0.936 / 0.948 / 0.950 across the same
+16× span below. That invariance is a feature of the carrier loop (it needs no
+AGC in front of it) and a trap for a caller using `lock` as a general health
+metric.
+
+```python
+--8<-- "src/doppler/examples/mpsk_receiver_demo.py:level"
+```
+
+At 20 dB Es/N0 the error rate cannot see it either — every level above decodes
+cleanly. The pattern generalises across this object: **its lock statistic moves
+before its error rate, and its level readout moves before either.**
+
 ## Resolving the M-fold ambiguity — differential bits
 
 The carrier loop locks to one of `m` phases, so the absolute constellation

@@ -204,6 +204,70 @@ anything a receiver can be driven through — see
 
 ______________________________________________________________________
 
+## 9. Node synchronization — the decoder's other input question
+
+A rate-1/n decoder needs to know **which symbol starts a branch**. Nothing in
+the waveform says so: a capture opens wherever the receiver settled, and the
+answer changes mid-stream whenever the receiver slips by an odd number of
+symbols. It lives here, in `conv`, for the same reason the decoder does —
+every rate-1/n code has the question and CCSDS is not what supplies the
+answer.
+
+### The statistic is the decoder's own disagreement with itself
+
+`node_sync_score` decodes the window, **re-encodes the decisions**, and counts
+where the result differs from the received hard decisions. It references no
+truth, no marker and no training sequence, so it works on a live capture:
+
+| alignment | what the count is                                                                                                  |
+| --------- | ------------------------------------------------------------------------------------------------------------------ |
+| right     | the CHANNEL's symbol errors — the decoder corrected them, and a corrected symbol still disagrees with what arrived |
+| wrong     | the best a maximum-likelihood search can do against a stream that is not on its trellis                            |
+
+**The wrong hypothesis does not score a half**, and the difference matters
+because a half is what a coin-flip argument predicts. Measured on clean
+streams: **24 %** of symbols for CCSDS K = 7 r = 1/2, **23 %** for the same
+code uninverted, **18 %** for a K = 5 r = 1/3 — against **0 %** for the right
+one. The decision rests on that separation, not on an absolute level.
+
+### Three properties, and each is a test
+
+- **Blind to polarity, exactly.** A transparent code decodes an inverted
+    stream to the complement, which re-encodes to the inverted symbols, so the
+    count is identical. §6 is why that is the correct behaviour rather than a
+    limitation: polarity does not separate under ANY statistic, and the ASM
+    resolves it downstream.
+- **The head of a window must be discarded.** Two cold starts overlap there —
+    the comparison encoder begins at a zero register while the transmitter's
+    was mid-stream (`k-1` bits), and the decoder begins from its own all-zero
+    prior, which is simply wrong when the window opens mid-capture. Measured,
+    the second dominates: skipping only `k-1` left three disagreements in
+    1598 symbols on a CLEAN stream and broke the polarity equality. The skip
+    is `viterbi_depth`, the decoder's own answer to how long its survivors
+    take to be data-determined.
+- **Re-runnable, and scored on the window you are about to decode.** An
+    alignment is valid until the next slip. Scoring the whole remaining record
+    answers "which phase fits most of it" when the question is "which phase
+    fits the part I am about to decode" — measured, at Es/N0 = +1 dB a slip
+    early in a record made a whole-record scan prefer the phase that was right
+    for the tail, and frame sync then found no marker at the head. A few
+    hundred scored symbols decide it.
+
+### What it replaced
+
+`native/validation/rx_coding_gain.c` used to pick the phase by which parity
+put an **ASM** where an ASM could be. That worked and was the harness doing
+the library's job with a statistic that exists only because CCSDS supplies a
+marker. Swapping it for the re-encoding metric changed no measured number in
+the coding-gain sweep — same frames, same bits, same bound — which is the
+evidence that the general statistic is at least as good as the special one.
+
+The two questions stay separate, and both are still asked: node sync says
+which symbol starts a branch, the marker says where a FRAME starts and in
+which polarity.
+
+______________________________________________________________________
+
 ## See also
 
 - [The FEC Receive Half](fec-receive.md) — the chain, node sync, lock detection

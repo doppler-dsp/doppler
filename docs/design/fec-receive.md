@@ -3,9 +3,11 @@
 The decoder, the synchronization it needs first, and the lock it owes its
 caller.
 
-`fec/` encodes today and decodes nothing, so nothing can measure a coded link
-and coding gain is unquotable. This page is phase 1 of
-[Adding an Algorithm](../dev/adding-algorithms.md) for the other half.
+When this page was written `ccsds_tm/` encoded and decoded nothing, so nothing
+could measure a coded link and coding gain was unquotable. It is phase 1 of
+[Adding an Algorithm](../dev/adding-algorithms.md) for the other half; §7 is
+the sequence and **every step of it is now built**, with §8 holding what the
+last one measured.
 
 It exists because the receive chain is **not the encoder run backwards**. Two
 things about it were guessed wrong in a first sketch and corrected by
@@ -19,14 +21,17 @@ A CADU arrives as channel symbols and a caller wants frames. Between those two
 points sit four stages, and only one of them is arithmetic anybody argues
 about:
 
-| stage          | what it needs                                          | exists?                     |
-| -------------- | ------------------------------------------------------ | --------------------------- |
-| soft demapping | per-bit LLRs from the constellation                    | **yes** — `mpsk_soft_demap` |
-| node sync      | which symbol starts a `(C1, C2)` pair                  | no                          |
-| inner decode   | soft-decision Viterbi, K = 7, r = 1/2                  | no                          |
-| ASM search     | the marker in the **decoded** bits, and its complement | no                          |
-| derandomise    | XOR the published sequence                             | **yes** — involutive        |
-| outer decode   | R-S (255,223) E = 16, de-interleaved                   | no                          |
+| stage          | what it needs                                          | exists?                             |
+| -------------- | ------------------------------------------------------ | ----------------------------------- |
+| soft demapping | per-bit LLRs from the constellation                    | `mpsk_soft_demap`                   |
+| node sync      | which symbol starts a `(C1, C2)` pair                  | `node_sync_scan` (§9 of viterbi.md) |
+| inner decode   | soft-decision Viterbi, K = 7, r = 1/2                  | `viterbi_decode`                    |
+| ASM search     | the marker in the **decoded** bits, and its complement | `ccsds_tm_asm_find`                 |
+| derandomise    | XOR the published sequence                             | involutive — the same call          |
+| outer decode   | R-S (255,223) E = 16, de-interleaved                   | `ccsds_tm_rs_decode_block`          |
+
+Every row was a "no" when this table was written. They landed bottom-up in the
+order §7 gives, and the whole chain is `ccsds_tm_frame_decode`.
 
 The order is not the encoder's reversed, and the reason is the ASM: it is
 inserted *third* on transmit and covered by the inner code, so a receiver must
@@ -357,15 +362,17 @@ no counter in the tree could previously see. Across the whole sweep,
 including the two points below threshold where most codewords fail:
 **zero**.
 
-### What is still the harness's job and should not be
+### Node synchronization moved into the library
 
-Node synchronization. `fec-receive.md` §3 designs it and nothing implements
-it, so `rx_coding_gain.c` decodes both parities and keeps the one whose ASM
-correlation is better. That is the harness doing the library's work with a
-statistic §3 did not choose (the marker rather than the re-encoding metric),
-and it is filed as
-[#834](https://github.com/doppler-dsp/doppler/issues/834) rather than
-explained away.
+It was the harness's job for exactly one measurement.
+[#834](https://github.com/doppler-dsp/doppler/issues/834) is closed: `conv`
+owns it now (`node_sync_score` / `node_sync_scan`,
+[The Viterbi Decoder](viterbi.md) §9), it uses §3's re-encoding metric rather
+than the marker correlation the harness had improvised, and it is scored over
+a WINDOW because a slip ends an alignment's validity. Swapping the harness
+onto it changed no measured number above — same frames, same bits, same bound
+— which is the evidence that the general statistic is at least as good as the
+special one.
 
 ______________________________________________________________________
 

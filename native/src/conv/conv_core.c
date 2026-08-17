@@ -383,3 +383,141 @@ viterbi_set_state (viterbi_state_t *s, const void *blob)
   s->fill = (size_t)extra.fill;
   return DP_OK;
 }
+
+/* ── node synchronization ───────────────────────────────────────────────────
+ *
+ * The re-encoding metric: decode, re-encode the decisions, and count where
+ * the result disagrees with what arrived. In sync the disagreements ARE the
+ * channel's symbol errors; out of sync the decoder's output is unrelated to
+ * its input and the count runs at about half the symbols. See conv_core.h and
+ * docs/design/viterbi.md section 9.
+ *
+ * Chunked so that nothing is allocated and the window may be any length. The
+ * decoder and the encoder both carry state across calls, so a chunk boundary
+ * is not a discontinuity -- which is the same property the streaming decode
+ * relies on and is worth stating, because a re-encode that restarted its
+ * register per chunk would inject k-1 wrong symbols at every boundary and
+ * read as a worse alignment.
+ */
+#define NODE_SYNC_CHUNK 256u
+
+size_t
+node_sync_scored_symbols (const viterbi_state_t *v, size_t n_llr)
+{
+  const conv_code_t *c    = viterbi_code (v);
+  const size_t       nb   = viterbi_decode_max_out (v, (n_llr / c->n) * c->n);
+  const size_t       warm = viterbi_depth (v);
+  return nb > warm ? (nb - warm) * c->n : 0;
+}
+
+size_t
+node_sync_score (viterbi_state_t *v, const float *llr, size_t n_llr)
+{
+  if (v == NULL || llr == NULL)
+    return 0;
+
+  const conv_code_t *c      = viterbi_code (v);
+  const size_t       n      = c->n;
+  const size_t       usable = (n_llr / n) * n;
+
+  uint8_t    bits[NODE_SYNC_CHUNK];
+  uint8_t    sym[NODE_SYNC_CHUNK * CONV_N_MAX];
+  conv_enc_t enc;
+  size_t     errors = 0, consumed = 0, decoded = 0;
+
+  /* The warm-up, and it is the DECODER's number rather than the encoder's.
+     Two cold starts overlap at the head of a window: the comparison encoder
+     begins at a zero register while the transmitter's was mid-stream (k-1
+     bits), and the decoder begins from its own all-zero prior, which is
+     simply wrong when the window opens mid-capture -- measured, that second
+     one is the larger of the two and k-1 does not cover it. The traceback
+     depth is the decoder's own answer to how long its survivors take to be
+     determined by the data rather than by where it started, so it is the
+     honest quantity to skip. */
+  const size_t warm = viterbi_depth (v);
+
+  viterbi_reset (v);
+  conv_enc_init (&enc);
+
+  while (consumed < usable)
+    {
+      size_t take = usable - consumed;
+      if (take > (size_t)NODE_SYNC_CHUNK * n)
+        take = (size_t)NODE_SYNC_CHUNK * n;
+
+      const size_t nb
+          = viterbi_decode (v, llr + consumed, take, bits, NODE_SYNC_CHUNK);
+      consumed += take;
+      if (nb == 0)
+        continue;
+
+      conv_encode (&enc, c, bits, nb, sym, nb * n);
+
+      for (size_t i = 0; i < nb; i++)
+        {
+          /* The decoder's output is aligned with its input and merely stops
+             short, so decoded bit `decoded + i` came from the branch at
+             symbol `(decoded + i) * n` of the window. */
+          const size_t base = (decoded + i) * n;
+
+          if (decoded + i < warm)
+            continue;
+
+          for (size_t j = 0; j < n; j++)
+            {
+              const unsigned got = llr[base + j] < 0.0f ? 1u : 0u;
+              errors += (sym[i * n + j] != got);
+            }
+        }
+      decoded += nb;
+    }
+
+  return errors;
+}
+
+int
+node_sync_scan (viterbi_state_t *v, const float *llr, size_t n_llr,
+                node_sync_t *out)
+{
+  if (v == NULL || llr == NULL)
+    return 0;
+
+  const conv_code_t *c = viterbi_code (v);
+  const size_t       n = c->n;
+  if (n_llr < n)
+    return 0;
+
+  /* Every hypothesis is scored over the SAME number of symbols, or the
+     comparison would be between counts of different lengths -- which reads
+     as a margin and is arithmetic. */
+  const size_t span = ((n_llr - (n - 1u)) / n) * n;
+  if (span == 0)
+    return 0;
+
+  size_t   best = SIZE_MAX, second = SIZE_MAX;
+  unsigned best_p = 0;
+
+  for (unsigned p = 0; p < (unsigned)n; p++)
+    {
+      const size_t e = node_sync_score (v, llr + p, span);
+      if (e < best)
+        {
+          second = best;
+          best   = e;
+          best_p = p;
+        }
+      else if (e < second)
+        second = e;
+    }
+
+  node_sync_t r = { best_p, best, second == SIZE_MAX ? best : second,
+                    node_sync_scored_symbols (v, span), 0u };
+  /* A window too short to emit a decision past the traceback scores zero
+     everywhere, which is not a decision -- it reports as a margin of 0
+     rather than as a confident phase 0. */
+  r.margin = r.next > r.errors ? r.next - r.errors : 0u;
+
+  if (out != NULL)
+    *out = r;
+  return 1;
+}

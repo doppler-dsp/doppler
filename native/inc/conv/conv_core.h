@@ -236,6 +236,122 @@ extern "C"
   /** @brief Its traceback depth, in input bits. */
   size_t viterbi_depth (const viterbi_state_t *s);
 
+  /* ── node synchronization ────────────────────────────────────────────── */
+
+  /**
+   * @brief What one alignment hypothesis scored, and what the runner-up did.
+   *
+   * `errors` against `symbols` IS the channel symbol error rate when the
+   * hypothesis is right, because in sync the decoder corrects the channel and
+   * the re-encoded stream differs from the received one exactly where the
+   * channel put an error.
+   *
+   * Out of sync the decoder is searching a trellis its input does not lie on.
+   * The count then runs at a large fraction of the symbols — but **not at a
+   * half**, and the difference is worth stating because a half is what a
+   * coin-flip argument predicts and it is wrong: the decoder is a maximum
+   * LIKELIHOOD search, so it finds the codeword that agrees with the
+   * misaligned stream as well as any codeword can. Measured on a clean
+   * stream: **24 % of symbols for CCSDS K=7 r=1/2, 23 % for the same code
+   * uninverted, 18 % for a K=5 r=1/3** — against 0 % for the right
+   * alignment, which is the separation the decision actually rests on.
+   *
+   * @c margin is what a caller acts on. The absolute count moves with Es/N0
+   * and says nothing on its own; the DIFFERENCE between the best and the next
+   * best is the evidence that the search decided.
+   */
+  typedef struct
+  {
+    unsigned phase;   /**< winning offset, `0 .. c->n-1`               */
+    size_t   errors;  /**< its disagreements                           */
+    size_t   next;    /**< the best competing hypothesis's             */
+    size_t   symbols; /**< symbols SCORED per hypothesis, which is
+                           fewer than the window — see
+                           @ref node_sync_scored_symbols               */
+    size_t   margin;  /**< `next - errors`; 0 when nothing separated   */
+  } node_sync_t;
+
+  /**
+   * @brief Score the alignment as given: decode, re-encode, count
+   *        disagreements against the received hard decisions.
+   *
+   * The **re-encoding metric**. It needs no truth, no marker and no training
+   * sequence — it compares the decoder's own output against the decoder's own
+   * input — so it works on a live capture, which is what makes it the
+   * statistic a receiver can carry. `docs/design/viterbi.md` §9 derives what
+   * it reads in and out of sync, and why a marker correlation is the wrong
+   * tool for this even when a marker exists.
+   *
+   * **It is blind to polarity, and that is correct.** A transparent code
+   * (every generator of odd weight, which CCSDS's are) decodes an inverted
+   * stream to the complement of the bits, which re-encodes to the inverted
+   * symbols — so the disagreement count is identical. Polarity is resolved
+   * downstream by something that knows what the bits mean; this resolves
+   * only which symbol starts a branch.
+   *
+   * The first `k - 1` decoded bits are excluded from the count: the encoder
+   * used for the comparison starts from a zero register while the real one
+   * was mid-stream, so those bits are re-encoded from the wrong state and
+   * would bias every hypothesis by a few symbols.
+   *
+   * @param v      A decoder for the code being synchronized. It is RESET, and
+   *               left holding this scoring run's state — a caller decoding
+   *               with it afterwards must reset it again.
+   * @param llr    Soft symbols, `mpsk_soft_demap`'s convention.
+   * @param n_llr  Number of symbols; the tail beyond a whole number of
+   *               branches is ignored.
+   * @return       Disagreements, or 0 if the window is too short to decode
+   *               anything past the traceback and the encoder fill.
+   */
+  size_t node_sync_score (viterbi_state_t *v, const float *llr, size_t n_llr);
+
+  /**
+   * @brief Symbols @ref node_sync_score will actually score for a window of
+   *        @p n_llr, which is fewer than @p n_llr.
+   *
+   * The head of a window is skipped: the decoder starts from its own
+   * all-zero prior, which is wrong whenever the window opens mid-capture, and
+   * the comparison encoder starts from a zero register while the
+   * transmitter's was mid-stream. A caller reading `errors / symbols` as a
+   * channel symbol error rate wants this denominator rather than the window
+   * length.
+   */
+  size_t node_sync_scored_symbols (const viterbi_state_t *v, size_t n_llr);
+
+  /**
+   * @brief Try every branch alignment and report which one the stream is on.
+   *
+   * `c->n` hypotheses for a rate-1/n code — the offsets `0 .. n-1` — each
+   * scored by @ref node_sync_score over the same window.
+   *
+   * **Re-runnable, and it has to be.** A symbol slip moves the stream by an
+   * odd number of symbols and the alignment changes mid-capture; measured
+   * through a real receiver at Es/N0 = 0 dB, that happened three times in
+   * forty-six frame slots (`docs/design/fec-receive.md` §8). A one-shot at
+   * start of stream would decode noise from the first slip onward, so this
+   * takes its window as an argument and holds no state between calls.
+   *
+   * @param v      A decoder for the code; reset per hypothesis.
+   * @param llr    Soft symbols.
+   * @param n_llr  Window length. It buys the separation: the counts differ by
+   *               about `0.5 - SER` per symbol, so a window of a few hundred
+   *               symbols decides at any Es/N0 a coded link runs at.
+   * @param out    Receives the outcome; may be `NULL`.
+   * @return       Non-zero when a hypothesis was scored. Zero — with @p out
+   *               untouched — when the window is too short.
+   *
+   * @code
+   * node_sync_t ns;
+   * if (node_sync_scan (v, llr, 1000, &ns) && ns.margin > 100)
+   *   {
+   *     viterbi_reset (v);
+   *     viterbi_decode (v, llr + ns.phase, n - ns.phase, bits, cap);
+   *   }
+   * @endcode
+   */
+  int node_sync_scan (viterbi_state_t *v, const float *llr, size_t n_llr,
+                      node_sync_t *out);
+
 /* ── the state bytes interface ───────────────────────────────────────────
  *
  * The decoder carries running state across calls — a path metric per state,

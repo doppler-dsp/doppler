@@ -31,6 +31,7 @@ through it in one afternoon and were caught by hand.
 
 from __future__ import annotations
 
+import difflib
 import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -105,6 +106,14 @@ VERDICTS = ("BY DESIGN", "GAP", "CONFIRMED", "FIXED", "C-ONLY")
 #: The subset that counts against the object. Derived from nothing else --
 #: every consumer reads it here.
 OPEN_VERDICTS = ("GAP", "CONFIRMED")
+
+#: Diff lines `--check` prints before truncating.
+#:
+#: Enough to characterise the difference -- a handful of changed numbers
+#: reads as a machine difference, a changed section reads as a real edit --
+#: without a wall of output when a generator changed shape. `n=0` context,
+#: so every line shown is a changed one.
+_DIFF_LINES = 40
 
 
 def clamp_evm_db(evm: float) -> float:
@@ -572,8 +581,36 @@ def cli(build, here: Path) -> int:
 
     if check:
         current = out.read_text() if out.exists() else ""
-        if current != report.render():
-            print(f"  STALE: {out} differs from a fresh run — re-run it")
+        fresh = report.render()
+        if current != fresh:
+            # SAY WHAT DIFFERS. "STALE" alone costs a round trip to answer
+            # the first question anyone asks, and on a machine that is not
+            # the author's -- CI, another contributor's box -- re-running
+            # `make validate` is not the fix if the cause is the machine.
+            # Measured: four reports came back STALE in CI's first run of
+            # this gate with no way to tell a genuine edit from a
+            # last-digit libm difference, which are opposite problems.
+            diff = list(
+                difflib.unified_diff(
+                    current.splitlines(),
+                    fresh.splitlines(),
+                    fromfile=f"{out.name} (committed)",
+                    tofile=f"{out.name} (fresh)",
+                    lineterm="",
+                    n=0,
+                )
+            )
+            print(f"  STALE: {out} differs from a fresh run")
+            shown = diff[:_DIFF_LINES]
+            for line in shown:
+                print(f"    {line}")
+            if len(diff) > len(shown):
+                print(f"    … {len(diff) - len(shown)} more diff line(s)")
+            print(
+                "  If these are last-digit numeric differences, this "
+                "machine is not the one that generated the report and "
+                "`make validate` will only move the problem."
+            )
             return 1
         print(f"  up to date: {out.relative_to(here.parents[5])}")
 

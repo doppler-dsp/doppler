@@ -13,9 +13,17 @@ and a chain is the wrong home for the algebra of one of its links.
 — five numbers — and it is held in `ccsds_tm` beside the randomiser and the
 ASM,
 with the dual basis and the interleaver that are the standard's and not the
-code's. Point this at RS(204,188) for DVB, at RS(15,11) to check something by
-hand, or at whatever a caller brings; the arithmetic is identical and only the
-table changes.
+code's. Point this at RS(255,239) — the mother code DVB shortens — at
+RS(15,11) to check something by hand, or at whatever a caller brings; the
+arithmetic is identical and only the table changes.
+
+What the table does **not** change is `n = 2^J - 1`, so a *shortened* code is
+not expressible: DVB's RS(204,188) and CCSDS 4.4.2's codeblock are the mother
+codes with leading zeros the sender never transmits, and that virtual fill is
+§7's [#813](https://github.com/doppler-dsp/doppler/issues/813). This page and
+`rs_core.h` both offered RS(204,188) as a configuration to point the file at
+until `rs`'s certification enumerated the header's claims and checked that
+one.
 
 ______________________________________________________________________
 

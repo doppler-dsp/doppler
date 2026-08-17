@@ -60,11 +60,12 @@ ______________________________________________________________________
     every consumer has to agree with, so it is fixed here and pinned by a
     test rather than described in a comment.
 
-1. **Match the sibling's shape.** `mpsk` already splits its surface two ways:
-    inline per-symbol helpers in the header for a receiver to compose
-    (`mpsk_slice`, `mpsk_constellation`), and array free functions for the
-    Python face (`mpsk_map`, `mpsk_demap`). The soft path gets both, for the
-    same reasons, with the same names.
+1. **Match the sibling's shape — where the sibling's reason applies.** `mpsk`
+    splits its surface two ways: inline per-symbol helpers for a receiver to
+    compose (`mpsk_slice`, `mpsk_constellation`), and array free functions for
+    the Python face (`mpsk_map`, `mpsk_demap`). The soft path takes the array
+    half. §6 is where the other half is declined, and it is declined on the
+    sibling's own reasoning rather than in spite of it.
 
 1. **No allocation, no state.** Memoryless and element-wise, like `mpsk_demap`
     — so no state triplet, no telemetry, and phase 6 of the lifecycle is
@@ -180,23 +181,41 @@ re-deriving the grid — the exact defect
 nearest-point search meant a test scored against its own slicer.
 
 ```c
-/* inline, per symbol -- what a receiver or a decoder composes */
-JM_FORCEINLINE void
-mpsk_soft_slice (float complex y, int m, float n0, float *llr);
-
-/* array face -- the Python function, sibling of mpsk_demap */
-void mpsk_soft_demap (const float complex *x, size_t x_len, float *out,
-                      int m, float n0);
+void mpsk_soft_demap (const float complex *x, size_t x_len, float *llr,
+                      size_t llr_len, int m, float n0);
 ```
 
-- `llr` receives `mpsk_bps(m)` floats, LSB-first. The array form writes
-    `x_len * mpsk_bps(m)`, symbol-major — the layout `wfm_frame_bits` and the
-    `fec` kernels already pass bits around in.
-- **Three cases, one of which is the general one.** M = 2 and M = 4 take the
-    closed forms of Q2 directly; M = 8 walks the eight points. Not an
-    optimisation — it is what Q2 *proved* the answer to be, and a search that
-    returns the same number more slowly would be the same expression written
-    twice.
+**One function, not two, and the general path only.** Goal 3 said "match the
+sibling's shape", which for `mpsk_slice`/`mpsk_demap` means an inline
+per-symbol helper *and* an array face. Writing it out killed both halves of
+that:
+
+- **No inline form, because no caller composes one.** `mpsk_slice` is inline
+    because a carrier loop calls it per symbol inside a hot loop. The caller
+    here is a decoder, which consumes a block. Worse, an inline per-symbol
+    form would have to rebuild the constellation on every call —
+    `mpsk_constellation` is a `cos`/`sin` pair per point — where the array
+    form builds the M points **once per call** and then walks them. Adding it
+    now would be filling a hole nobody is standing in, with the slow shape.
+- **No closed-form fast paths, because that is two implementations of one
+    primitive.** The repository's hardest rule is that two peer
+    implementations of the same thing must not exist side by side; they drift,
+    and a fix applied to one silently leaves the other wrong. Q2's closed
+    forms are worth more as **test assertions than as code**: as code they are
+    a second expression to keep in step, and as a test they are external truth
+    that proves the general path right and pins `phi0 = pi/4` as the reason
+    QPSK separates at all.
+
+So the shipped path walks the M points for every M, and Q2 becomes evidence
+rather than a branch. M ≤ 8, so the walk is at most eight squared distances
+per symbol against a table built once.
+
+- `llr` receives `x_len * mpsk_bps(m)` floats, symbol-major and LSB-first
+    within each symbol — the layout `wfm_frame_bits` and the `fec` kernels
+    already pass bits around in. It is a caller-provided **out-param** with
+    its own length, following `kaiser_window`, because jm's `out_type` binding
+    sizes a function's output array 1:1 with its input and this one expands by
+    `log2(M)`. `llr_len` is a capacity: too small and nothing is written.
 - No state, no allocation, no error path: `m` outside {2, 4, 8} gives
     `mpsk_bps(m) == 0`, so the caller writes nothing, which is the existing
     convention in this header rather than a new one.

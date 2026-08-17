@@ -117,6 +117,10 @@ Here is a list of all files with brief descriptions:
             * **file** [**f32\_to\_uq15\_core.h**](f32__to__uq15__core_8h.md) _Scale-and-saturate float-to-UQ15 (offset-binary uint16) converter._     
         * **dir** [**farrow**](dir_3474bb67440308cdab2155867b5160e7.md)     
             * **file** [**farrow\_core.h**](farrow__core_8h.md) _Farrow fractional-delay interpolator — linear / parabolic / cubic._     
+        * **dir** [**fec**](dir_df2a893a07d8c9ef377268dabdb4859f.md)     
+            * **file** [**fec\_ccsds.h**](fec__ccsds_8h.md) _CCSDS TM channel coding — the transforms a transfer frame passes through on its way to symbols._     
+            * **file** [**fec\_frame.h**](fec__frame_8h.md) _The CCSDS frame assembler — where the ASM goes, and the one place the stages' disagreements about what they cover become visible._     
+            * **file** [**fec\_rs.h**](fec__rs_8h.md) _CCSDS Reed-Solomon (255,223) — the outer code, and the one with the conventions that only a published value catches._     
         * **dir** [**fft**](dir_5dc24668fb1cbe963321608da9e9d4ca.md)     
             * **file** [**fft\_core.h**](fft__core_8h.md) _Per-instance 1-D FFT using pocketfft directly._     
         * **dir** [**fft2d**](dir_9009a3f6624dc57956402cd0407c056b.md)     

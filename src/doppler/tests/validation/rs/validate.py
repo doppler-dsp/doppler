@@ -154,6 +154,11 @@ def _p(value: float) -> str:
     return f"{value:.4f}" if value >= 1e-3 else f"{value:.1e}"
 
 
+def _rule_error(row: dict) -> float:
+    """How far the textbook `1/E!` sits above the exact form, as a fraction."""
+    return 1.0 / math.factorial(int(row["e"])) / _sphere_model(row) - 1.0
+
+
 def _small_field(d) -> tuple[float, float, float, float]:
     """RS(15,11)'s measured rate, its model, the textbook rule, the error.
 
@@ -287,15 +292,34 @@ def characterise(d) -> None:
     )
     R.md()
     meas, model, rule, err = _small_field(d)
+    ccsds = _rule_error(codes["RS(255,223) E=16"][0])
+    small_e = _rule_error(codes["RS(255,251) E=2"][0])
     R.md(
-        f"Second, that model is exact and `1/E!` is not. The probability is "
-        f"the fraction of the space the decoding spheres fill, "
-        f"`V(E) / q^(n-k)`; `1/E!` is its large-field limit, reached by "
-        f"substituting `C(n,E) ~ n^E/E!` and `n ~ q`. The two agree to a "
-        f"couple of percent at `q = 256` and part company at `q = 16`, where "
-        f"RS(15,11) measures {meas:.3f} against a model of {model:.3f} and a "
-        f"textbook {rule:.2f} — the rule is **{100 * err:.0f} % high** on "
-        f"the small field (F4)."
+        "Second, that model is exact and `1/E!` is not. The probability is "
+        "the fraction of the space the decoding spheres fill, "
+        "`V(E) / q^(n-k)`; `1/E!` is what is left after substituting "
+        "`C(n,E) ~ n^E/E!` and `n ~ q`, and **both substitutions cost "
+        "something.** The rule runs high on two independent axes, and the "
+        "lower panel above is the only place either is visible:"
+    )
+    R.md()
+    R.md(
+        f"- **With E**, because `C(n,E) ~ n^E/E!` decays as `E` grows "
+        f"against `n`. At `q = 256` the rule is {100 * small_e:.0f} % high "
+        f"at `E = 2` and **{100 * ccsds:.0f} % high at CCSDS's `E = 16`** — "
+        f"the configuration the tree actually ships.\n"
+        f"- **With a small field**, because `n ~ q` is `255/256` at `J = 8` "
+        f"and `15/16` at `J = 4`. RS(15,11) measures {meas:.3f} against a "
+        f"model of {model:.3f} and a textbook {rule:.2f}: "
+        f"{100 * err:.0f} % high at an `E` where the first axis costs only "
+        f"{100 * small_e:.0f} % (F4)."
+    )
+    R.md()
+    R.md(
+        "Neither error changes a decision on its own — a factor of two on a "
+        "probability of 2.6e-14 is still never — but the rule is quoted as "
+        "though it were the answer, and it is the kind of number that gets "
+        "carried into a budget where the exponent is smaller."
     )
     R.md()
     unseen = sorted(
@@ -427,9 +451,11 @@ def characterise(d) -> None:
     mis = sum(int(r["cw_miscorrected"]) for r in d["channel"])
     R.md(
         f"Silent failures on this channel: **{mis}** in "
-        f"{7 * 200} codewords. At `E = 16` the sphere model puts a "
-        f"miscorrection at 5e-14, so a run that produced one would be "
-        f"evidence of a defect rather than of bad luck (§2.2)."
+        f"{len(d['channel']) * 200} codewords. At `E = 16` the sphere model "
+        f"puts a miscorrection at "
+        f"{_p(_sphere_model(codes['RS(255,223) E=16'][0]))}, so a run that "
+        f"produced one would be evidence of a defect rather than of bad "
+        f"luck (§2.2)."
     )
     R.md()
 
@@ -460,27 +486,52 @@ def plots(d) -> None:
         model.append((e, _sphere_model(pts[0])))
         fact.append((e, 1.0 / math.factorial(e)))
 
-    fig, ax = plt.subplots(figsize=(6.2, 4.2))
+    sm_meas, sm_model, sm_rule, _ = _small_field(d)
+
+    # Two panels, because one cannot carry both claims. The top spans
+    # fourteen decades, where a 37 % disagreement is a line width; the
+    # bottom divides that span out and is the only place the small field's
+    # departure from 1/E! is visible at all.
+    fig, (ax, bx) = plt.subplots(
+        2, 1, figsize=(6.2, 5.6), sharex=True, height_ratios=[2, 1]
+    )
     mx = sorted(set(model))
     ax.semilogy(
-        [p[0] for p in mx], [p[1] for p in mx], "k-", label="sphere model"
+        [p[0] for p in mx],
+        [p[1] for p in mx],
+        "k-",
+        label="sphere model, q = 256",
     )
     fx = sorted(set(fact))
     ax.semilogy(
         [p[0] for p in fx], [p[1] for p in fx], "k--", alpha=0.5, label="1/E!"
     )
-    ax.semilogy(es, meas, "o", ms=8, label="measured (q = 256)")
+    ax.semilogy(es, meas, "o", ms=8, label="measured, q = 256")
     if be:
         ax.semilogy(be, bounds, "v", ms=8, label="0 events, 3/N bound")
-    small = codes["RS(15,11) E=2"]
-    hits = sum(r["miscorrected"] for r in small if int(r["errors"]) > 2)
-    trials = sum(r["trials"] for r in small if int(r["errors"]) > 2)
-    ax.semilogy([2], [hits / trials], "s", ms=8, label="measured (q = 16)")
-    ax.set_xlabel("E, correctable symbols")
+    ax.semilogy([2], [sm_meas], "s", ms=8, label="measured, q = 16")
     ax.set_ylabel("P(miscorrect | beyond the radius)")
     ax.set_title("A failure past E is silent with probability V(E)/q^(n-k)")
     ax.grid(True, which="both", alpha=0.3)
-    ax.legend()
+    ax.legend(fontsize=8)
+
+    by_e = dict(model)
+    bx.axhline(1.0, color="k", lw=1)
+    bx.plot(
+        [p[0] for p in fx],
+        [p[1] / by_e[p[0]] for p in fx],
+        "k--",
+        alpha=0.5,
+        label="1/E! over the model",
+    )
+    bx.plot(es, [m / by_e[e] for e, m in zip(es, meas)], "o", ms=8)
+    bx.plot([2], [sm_meas / sm_model], "s", ms=8)
+    bx.plot([2], [sm_rule / sm_model], "d", ms=8, label="1/E! at q = 16")
+    bx.set_xlabel("E, correctable symbols")
+    bx.set_ylabel("÷ sphere model")
+    bx.set_ylim(0.8, 1.6)
+    bx.grid(True, alpha=0.3)
+    bx.legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(HERE / "miscorrect.png", dpi=110)
     plt.close(fig)
@@ -571,22 +622,26 @@ def review(d) -> None:
         "correction, and the protection is accounting one layer up.",
     )
     meas, model, rule, err = _small_field(d)
+    codes = _by_code(d)
+    ccsds = _rule_error(codes["RS(255,223) E=16"][0])
     R.find(
         "F4",
         "FIXED",
         f"`test_rs_core.c`'s refusal gate carried its rationale as *with "
         f"probability ~1/E! for random errors ... at E = 2 it is a coin "
-        f"toss*. `1/E!` is the large-field limit of the exact "
-        f"`V(E)/q^(n-k)`, and at RS(15,11) it is {100 * err:.0f} % high: "
-        f"the miscorrection rate there is {meas:.3f}, against {rule:.2f} "
-        f"from the rule and {model:.3f} from the exact form the measurement "
-        f"lands on (§2.2). The gate's own floor was never in danger — it "
-        f"sits at 32 of 64, which the exact model puts more than two "
-        f"standard deviations away — but the number a reader takes from that "
-        f"comment was wrong for the one configuration where the two models "
-        f"differ, and it is the configuration the comment used as its "
-        f"example. The comment now carries the exact form, both "
-        f"measurements, and why they diverge.",
+        f"toss*, and cited `1/16! ~ 5e-14` for the CCSDS code. `1/E!` is "
+        f"what is left of the exact `V(E)/q^(n-k)` after two "
+        f"approximations, and each costs more than the comment implies: it "
+        f"is {100 * err:.0f} % high at RS(15,11), the configuration the "
+        f"comment used as its example (the rate there is {meas:.3f}, "
+        f"against {rule:.2f} from the rule and {model:.3f} from the exact "
+        f"form the measurement lands on), and {100 * ccsds:.0f} % high at "
+        f"`E = 16`, the configuration the tree ships — 5e-14 against an "
+        f"exact 2.6e-14. The gate's own floor was never in danger; it sits "
+        f"at 32 of 64, which the exact model puts more than two standard "
+        f"deviations away. What was wrong was the number a reader takes "
+        f"away, at both ends of the table. The comment now carries the "
+        f"exact form and points here for the measurement (§2.2).",
     )
 
 
@@ -914,10 +969,12 @@ def build(write: bool = True) -> Report:
             f"miscorrected ({worst_e:.2f}); at `E = 16` it is "
             f"{_p(best_e)}. Choose the parity count for the detection you "
             f"need, not only for the correction (§2.2, F3).",
-            f"**Do not read `1/E!` off a textbook for a small field.** It is "
-            f"the large-field limit of the exact form and is "
-            f"{100 * sm_err:.0f} % high at RS(15,11), where the exact value "
-            f"is {sm_model:.3f} (§2.2, F4).",
+            f"**Do not read `1/E!` off a textbook — use `V(E)/q^(n-k)`.** "
+            f"The rule is high by {100 * sm_err:.0f} % on a small field "
+            f"(RS(15,11), exact value {sm_model:.3f}) and by "
+            f"{100 * _rule_error(codes['RS(255,223) E=16'][0]):.0f} % at "
+            f"CCSDS's `E = 16`, which is the configuration this tree ships "
+            f"(§2.2, F4).",
             "**Below the knee the outer code's product is detection, not "
             "repair.** At Es/N0 = 4.0 dB RS(255,223) fixes about 2 % of the "
             "broken symbols, delivers a worse symbol error rate than no "

@@ -56,11 +56,12 @@ static const struct
      At RS(15,11) it is 0.364, so a third of these miscorrect and demanding
      many more refusals would be pinning the seed rather than the code.
 
-     Note what the textbook `~1/E!` would have said there: 0.5, which is
-     37 % high. It is the large-field limit of the expression above (take
-     C(n,E) ~ n^E/E! and n ~ q), so it is a percent off at q = 256 and no
-     use at q = 16. The certification measured both:
-     src/doppler/tests/validation/rs/results.md §2.2.
+     Note what the textbook `~1/E!` would have said: 0.5 at RS(15,11),
+     which is 37 % high, and 4.8e-14 at E = 16, which is 83 % high. It is
+     what is left of the expression above after two approximations --
+     C(n,E) ~ n^E/E! and n ~ q -- and BOTH cost something, the first growing
+     with E and the second with a small field. The certification measured
+     all of it: src/doppler/tests/validation/rs/results.md §2.2.
 
      Measured here: 64/64, 64/64, 46/64. */
   unsigned min_refusals;

@@ -101,6 +101,34 @@ main (void)
                   "randomise twice must be the identity");
   }
 
+  /* ── a 255-entry table, indexed mod the period, IS the generator ─────
+   *
+   * fec_frame_decode derandomises while it packs, so it cannot hand a
+   * mutable bit run to fec_ccsds_randomise and cannot hold a sequence the
+   * size of the data either. It indexes a FEC_CCSDS_RAND_PERIOD table by
+   * `k % FEC_CCSDS_RAND_PERIOD` instead. That is only the same sequence if
+   * the period really is 255 and the phase really does restart at zero, so
+   * the equivalence is pinned here rather than left as arithmetic in a
+   * comment two files away -- and over a length that spans several periods
+   * and does not end on one, because a length that is a whole number of
+   * periods cannot tell a wrong period from a right one.
+   */
+  {
+    enum
+    {
+      N = 3u * FEC_CCSDS_RAND_PERIOD + 91u
+    };
+    uint8_t seq[FEC_CCSDS_RAND_PERIOD];
+    uint8_t direct[N] = { 0 }, table[N];
+    fec_ccsds_rand_seq (seq, sizeof seq);
+    fec_ccsds_randomise (direct, N);
+    for (size_t i = 0; i < N; i++)
+      table[i] = seq[i % FEC_CCSDS_RAND_PERIOD];
+    DP_CHECK_MSG (memcmp (direct, table, N) == 0,
+                  "a period-length table indexed mod 255 must reproduce the "
+                  "generator exactly");
+  }
+
   /* ── each call restarts at the all-ones preset (10.4.2) ─────────────── */
   {
     uint8_t a[16] = { 0 }, b[16] = { 0 };

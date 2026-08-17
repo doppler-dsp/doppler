@@ -212,6 +212,86 @@ extern "C"
                            const uint8_t *frame, size_t frame_len,
                            uint8_t *out, size_t max_out);
 
+  /**
+   * @brief What @ref fec_frame_decode found on the way through.
+   *
+   * The outer code is a **check** here and not a correction: doppler has
+   * `fec_rs_codeword_ok`'s syndrome test and not yet the Berlekamp-Massey /
+   * Chien / Forney chain that would repair a codeword. So @ref rs_ok is
+   * evidence about the link rather than a repair count, and a decode with
+   * `rs_ok < rs_codewords` returned a frame that is **wrong in a way this
+   * function knows about** — which is exactly why it is reported rather than
+   * folded into the return value.
+   */
+  typedef struct
+  {
+    size_t   frame_len;    /**< Transfer Frame octets written             */
+    unsigned rs_codewords; /**< Codewords checked; 0 with no outer code   */
+    unsigned rs_ok;        /**< How many passed the syndrome test         */
+  } fec_frame_rx_t;
+
+  /**
+   * @brief Recover a Transfer Frame from the bits of one CADU.
+   *
+   * The mirror of @ref fec_frame_encode, over the same spans and reading the
+   * same @ref fec_frame_cfg_t — so the two cannot disagree about which stage
+   * covered what, which is the failure `fec_frame.h` opens by describing.
+   *
+   * ## Where the inner code is, and why it is not here
+   *
+   * This begins **after** the inner decode and after frame synchronisation:
+   * @p cadu is one marker-plus-codeblock, already Viterbi-decoded and already
+   * aligned by @ref fec_ccsds_asm_find. That is not an omission, it is the
+   * only place the boundary can go. A Viterbi is streaming and emits its
+   * decisions `depth` bits late, so the bits of one CADU are not a function
+   * of that CADU's symbols alone; and the marker that says where a CADU
+   * *starts* is only readable once the inner code has been undone. A function
+   * taking channel symbols would therefore have to own a decoder, a search
+   * window and a buffer — that is a streaming receiver object, and this is
+   * the pure per-frame chain it would call.
+   *
+   * Consistent with the encoder, where @ref conv_enc_t belongs to the caller
+   * for the same reason: the inner code is continuous and the frame is not.
+   *
+   * ## What it undoes
+   *
+   * The marker is skipped, the randomiser is re-applied over the block span
+   * (10.3.4 — it is involutive, so the same call serves both directions), the
+   * block is packed back to octets MSB-first, and with an outer code each of
+   * the @c rs_depth interleaved codewords is checked. The Transfer Frame is
+   * the information section, which 4.4.1 keeps in the order it entered.
+   *
+   * @param cfg       The coding that was applied. Must match the transmitter.
+   * @param cadu      @p n_cadu unpacked CADU bits, one per byte.
+   * @param n_cadu    Number of CADU bits; must equal the layout's
+   *                  `cadu_bits` for this configuration.
+   * @param frame     Receives the recovered Transfer Frame, packed octets.
+   * @param max_frame Capacity of @p frame in octets.
+   * @param rx        Receives what was found; may be `NULL`.
+   * @return          Transfer Frame octets written, or 0 if the configuration
+   *                  is refused, @p n_cadu is not the layout's CADU length,
+   *                  or @p max_frame is too small — in which case @p frame is
+   *                  untouched.
+   *
+   * @code
+   * const fec_frame_cfg_t cfg
+   *     = { .rs_depth = 5, .randomise = 1, .attach_asm = 1,
+   *         .convolutional = 1 };
+   * fec_frame_layout_t lay;
+   * fec_frame_layout (&cfg, 223 * 5, &lay);
+   *
+   * uint8_t        frame[223 * 5];
+   * fec_frame_rx_t rx;
+   * // `cadu` is lay.cadu_bits of Viterbi output, ASM-aligned.
+   * const size_t n = fec_frame_decode (&cfg, cadu, lay.cadu_bits, frame,
+   *                                    sizeof frame, &rx);
+   * printf ("%zu octets, R-S %u/%u\n", n, rx.rs_ok, rx.rs_codewords);
+   * @endcode
+   */
+  size_t fec_frame_decode (const fec_frame_cfg_t *cfg, const uint8_t *cadu,
+                           size_t n_cadu, uint8_t *frame, size_t max_frame,
+                           fec_frame_rx_t *rx);
+
 #ifdef __cplusplus
 }
 #endif

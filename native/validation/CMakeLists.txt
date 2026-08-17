@@ -234,6 +234,20 @@ target_compile_options(validate_rx_nda_tap PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_rx_nda_tap
          COMMAND validate_rx_nda_tap --check)
 
+# conv_certify has no `--check` and registers no CTest, and that is the
+# design rather than an omission: it MEASURES and the limits are asserted in
+# src/doppler/tests/validation/conv/, by the same Report machinery every other
+# certified object uses. Two places deciding what an acceptable BER is would
+# be two envelopes. `make validate-c` still runs it (it discovers harnesses
+# from git, so this needs no registration), and `make build` builds it, which
+# is what the Python limits test depends on.
+add_executable(validate_conv_certify
+               ${CMAKE_CURRENT_SOURCE_DIR}/conv_certify.c)
+target_include_directories(validate_conv_certify
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_conv_certify PRIVATE doppler_lib_static m)
+target_compile_options(validate_conv_certify PRIVATE -O3 -funroll-loops)
+
 add_executable(validate_rx_coding_gain
                ${CMAKE_CURRENT_SOURCE_DIR}/rx_coding_gain.c)
 target_include_directories(validate_rx_coding_gain

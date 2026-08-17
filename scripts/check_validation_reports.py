@@ -76,7 +76,16 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-GLOB = "src/doppler/*/tests/validation/*/results.md"
+# Two shapes, because a component with no Python face is certified by a C
+# harness rendered by a validator under `src/doppler/tests/validation/`
+# (docs/dev/validation.md, "certifying a component with no binding"). The
+# first pattern is the per-module one every bound object uses; the second is
+# the tree-wide home. Both are globs rather than a list, so a new object is
+# gated the moment its folder exists.
+GLOBS = (
+    "src/doppler/*/tests/validation/*/results.md",
+    "src/doppler/tests/validation/*/results.md",
+)
 
 # A delimiter row: | --- | :--- | ---: | etc. Its presence is what turns the
 # preceding line into a table header, per GitHub-flavoured markdown.
@@ -352,13 +361,13 @@ def check_lifecycle(path: Path) -> list[str]:
 
 
 def main() -> int:
-    reports = sorted(ROOT.glob(GLOB))
+    reports = sorted({p for g in GLOBS for p in ROOT.glob(g)})
     if not reports:
         # Vacuity guard: a glob that matches nothing would pass silently and
         # this gate would be decoration. The tree always has reports.
         print(
             "check_validation_tables: no report matched "
-            f"{GLOB} — the gate would be vacuous",
+            f"{' or '.join(GLOBS)} — the gate would be vacuous",
             file=sys.stderr,
         )
         return 1

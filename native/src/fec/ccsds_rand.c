@@ -1,5 +1,5 @@
 /*
- * ccsds_rand.c — the CCSDS pseudo-randomiser (CCSDS 131.0-B, section 8).
+ * ccsds_rand.c — the CCSDS pseudo-randomiser (131.0-B-3, section 10).
  *
  * Eight stages over h(x) = x^8 + x^7 + x^5 + x^3 + 1, preset to all ones.
  * The sequence is fixed and published, so the tap arrangement is not a design

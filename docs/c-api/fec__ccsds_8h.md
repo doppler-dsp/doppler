@@ -101,6 +101,7 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 | ---: | :--- |
 | define  | [**FEC\_CCSDS\_ASM**](fec__ccsds_8h.md#define-fec_ccsds_asm)  `0x1ACFFC1DuL`<br>_The CCSDS Attached Sync Marker,_ `0x1ACFFC1D` _._ |
 | define  | [**FEC\_CCSDS\_ASM\_BITS**](fec__ccsds_8h.md#define-fec_ccsds_asm_bits)  `32`<br>_Length of_ [_**FEC\_CCSDS\_ASM**_](fec__ccsds_8h.md#define-fec_ccsds_asm) _in bits._ |
+| define  | [**FEC\_CONV\_K**](fec__ccsds_8h.md#define-fec_conv_k)  `7`<br>_Constraint length of the inner code (3.3.1): 7._  |
 
 ## Detailed Description
 
@@ -381,6 +382,24 @@ _Length of_ [_**FEC\_CCSDS\_ASM**_](fec__ccsds_8h.md#define-fec_ccsds_asm) _in b
 
 
 
+
+<hr>
+
+
+
+### define FEC\_CONV\_K 
+
+_Constraint length of the inner code (3.3.1): 7._ 
+```C++
+#define FEC_CONV_K `7`
+```
+
+
+
+`K - 1` is the encoder's memory in bits, and that is the quantity a caller reasons with: it is how far into a frame a restarted register can still be wrong, and how much of a stream a decoder needs before its state is determined by the data rather than by where it started. 
+
+
+        
 
 <hr>
 

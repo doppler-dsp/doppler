@@ -89,6 +89,16 @@ extern "C"
 #define FEC_CCSDS_ASM_BITS 32
 
   /**
+   * @brief Constraint length of the inner code (3.3.1): 7.
+   *
+   * `K - 1` is the encoder's memory in bits, and that is the quantity a
+   * caller reasons with: it is how far into a frame a restarted register can
+   * still be wrong, and how much of a stream a decoder needs before its state
+   * is determined by the data rather than by where it started.
+   */
+#define FEC_CONV_K 7
+
+  /**
    * @brief Write the ASM as @ref FEC_CCSDS_ASM_BITS unpacked bits.
    *
    * Figure 9-1 numbers the first transmitted bit of the marker as the most

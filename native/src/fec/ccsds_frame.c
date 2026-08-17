@@ -94,12 +94,13 @@ fec_frame_layout (const fec_frame_cfg_t *cfg, size_t frame_len,
 }
 
 size_t
-fec_frame_encode (const fec_frame_cfg_t *cfg, const uint8_t *frame,
-                  size_t frame_len, uint8_t *out)
+fec_frame_encode (const fec_frame_cfg_t *cfg, fec_conv_t *conv,
+                  const uint8_t *frame, size_t frame_len, uint8_t *out,
+                  size_t max_out)
 {
   fec_frame_layout_t lay;
   const size_t       out_bits = fec_frame_layout (cfg, frame_len, &lay);
-  if (out_bits == 0)
+  if (out_bits == 0 || max_out < out_bits)
     return 0;
 
   /* The CADU is built in the TAIL of the caller's buffer and the inner code
@@ -138,9 +139,20 @@ fec_frame_encode (const fec_frame_cfg_t *cfg, const uint8_t *frame,
 
   if (cfg->convolutional)
     {
-      fec_conv_t s;
-      fec_conv_init (&s);
-      fec_conv_encode (&s, cadu, lay.cadu_bits, out);
+      /* 3.3.2 fixes the output as one uninterrupted sequence, so the register
+         carries from the last bit of one CADU into the first bit of the next.
+         Owning it here would restart it every frame -- a discontinuity in the
+         first 6 symbols of every frame after the first, landing on the ASM,
+         and invisible to a matched decoder. It is the caller's, and a NULL
+         says "this frame stands alone" rather than "I forgot". */
+      fec_conv_t  own;
+      fec_conv_t *s = conv;
+      if (s == NULL)
+        {
+          fec_conv_init (&own);
+          s = &own;
+        }
+      fec_conv_encode (s, cadu, lay.cadu_bits, out);
     }
 
   return out_bits;

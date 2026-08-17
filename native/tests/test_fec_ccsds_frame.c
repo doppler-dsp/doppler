@@ -120,7 +120,8 @@ main (void)
     };
     uint8_t      frame[64] = { 0 };
     uint8_t      out[32 + 64 * 8];
-    const size_t n = fec_frame_encode (&cfg, frame, sizeof frame, out);
+    const size_t n
+        = fec_frame_encode (&cfg, NULL, frame, sizeof frame, out, sizeof out);
 
     DP_REQUIRE (n == sizeof out);
     DP_CHECK_MSG (memcmp (out, asm_published, sizeof asm_published) == 0,
@@ -145,7 +146,8 @@ main (void)
       frame[i] = (uint8_t)(i * 7u + 1u);
 
     uint8_t      out[32 + FEC_RS_N * 8];
-    const size_t n = fec_frame_encode (&cfg, frame, sizeof frame, out);
+    const size_t n
+        = fec_frame_encode (&cfg, NULL, frame, sizeof frame, out, sizeof out);
     DP_REQUIRE (n == sizeof out);
 
     /* The information section is systematic and unrandomised here, so it is
@@ -177,7 +179,8 @@ main (void)
     };
     uint8_t      frame[32] = { 0 };
     uint8_t      out[(32 + 32 * 8) * 2];
-    const size_t n = fec_frame_encode (&cfg, frame, sizeof frame, out);
+    const size_t n
+        = fec_frame_encode (&cfg, NULL, frame, sizeof frame, out, sizeof out);
     DP_REQUIRE (n == sizeof out);
 
     /* Rebuild the CADU from published pieces: the marker as figure 9-1
@@ -216,7 +219,8 @@ main (void)
       frame[i] = (uint8_t)(i * 31u + 11u);
     uint8_t out[32 + FEC_RS_N * 5 * 8];
 
-    const size_t n = fec_frame_encode (&cfg, frame, sizeof frame, out);
+    const size_t n
+        = fec_frame_encode (&cfg, NULL, frame, sizeof frame, out, sizeof out);
     DP_REQUIRE (n == sizeof out);
     DP_CHECK_MSG (memcmp (out, asm_published, sizeof asm_published) == 0,
                   "a fully concatenated CADU still opens with the marker");
@@ -251,7 +255,7 @@ main (void)
     const fec_frame_cfg_t cfg      = { 0 };
     const uint8_t         frame[2] = { 0x1Au, 0xCFu };
     uint8_t               out[16];
-    const size_t          n = fec_frame_encode (&cfg, frame, 2, out);
+    const size_t n = fec_frame_encode (&cfg, NULL, frame, 2, out, sizeof out);
 
     DP_REQUIRE (n == 16);
     DP_CHECK_MSG (memcmp (out, asm_published, 16) == 0,
@@ -291,19 +295,122 @@ main (void)
     DP_CHECK_MSG (fec_frame_layout (&d3, (size_t)FEC_RS_K * 2, NULL) == 0,
                   "a frame that is not K*I octets must be refused, not "
                   "padded — virtual fill is not implemented");
-    DP_CHECK_MSG (fec_frame_encode (&d3, frame, (size_t)FEC_RS_K * 2, out)
+    DP_CHECK_MSG (fec_frame_encode (&d3, NULL, frame, (size_t)FEC_RS_K * 2,
+                                    out, sizeof out)
                       == 0,
                   "encode must refuse whatever layout refuses");
 
     const fec_frame_cfg_t none = { 0 };
     DP_CHECK (fec_frame_layout (&none, 0, NULL) == 0);
-    DP_CHECK (fec_frame_encode (&none, frame, 0, out) == 0);
+    DP_CHECK (fec_frame_encode (&none, NULL, frame, 0, out, sizeof out) == 0);
 
     int untouched = 1;
     for (size_t i = 0; i < sizeof out; i++)
       if (out[i] != 0xAAu)
         untouched = 0;
     DP_CHECK_MSG (untouched, "a refused encode must not write to out");
+
+    /* The CADU is assembled in the TAIL of `out`, so a short buffer is a
+       write past the end rather than a truncated answer. Refusing on capacity
+       is what makes that unreachable, and it is checked with a buffer one
+       symbol short of sufficient rather than a wildly small one. */
+    const fec_frame_cfg_t ok1 = { .rs_depth = 1, .attach_asm = 1 };
+    uint8_t               room[32 + 255 * 8];
+    memset (room, 0xAAu, sizeof room);
+    const size_t need = fec_frame_layout (&ok1, FEC_RS_K, NULL);
+    DP_REQUIRE (need == sizeof room);
+    DP_CHECK_MSG (
+        fec_frame_encode (&ok1, NULL, frame, FEC_RS_K, room, need - 1u) == 0,
+        "a buffer one symbol short must be refused, not written");
+    for (size_t i = 0; i < sizeof room; i++)
+      if (room[i] != 0xAAu)
+        untouched = 0;
+    DP_CHECK_MSG (untouched, "and it must not have written anything");
+    DP_CHECK (fec_frame_encode (&ok1, NULL, frame, FEC_RS_K, room, need)
+              == need);
+  }
+
+  /* ── a STREAM of frames: the inner code does not restart ────────────────
+   *
+   * 3.3.2 fixes the output as one uninterrupted symbol sequence. The kernel
+   * test already proves chunked == whole when the register is carried
+   * (test_fec_ccsds_conv, "split"); this is the same claim one layer up,
+   * where the assembler is the caller that has to carry it.
+   *
+   * It is asserted as an EQUALITY against the continuous encoding of the two
+   * CADUs, and the NULL form is measured beside it rather than merely being
+   * different — 6 symbols, all inside the first 7 of frame 2, which is the
+   * K-1 = 6 bits of register memory and lands on the ASM. Without the
+   * equality this is invisible: every other test in this file encodes one
+   * frame, and one frame is exactly the case that cannot see it. */
+  {
+    const unsigned        depth = 1;
+    const size_t          flen  = (size_t)FEC_RS_K * depth;
+    const fec_frame_cfg_t coded = {
+      .rs_depth = depth, .randomise = 1, .attach_asm = 1, .convolutional = 1
+    };
+    const fec_frame_cfg_t bare = {
+      .rs_depth = depth, .randomise = 1, .attach_asm = 1, .convolutional = 0
+    };
+
+    uint8_t a[FEC_RS_K], b[FEC_RS_K];
+    for (size_t i = 0; i < flen; i++)
+      {
+        a[i] = (uint8_t)(i * 7u + 1u);
+        b[i] = (uint8_t)(i * 31u + 5u);
+      }
+
+    const size_t nsym = fec_frame_layout (&coded, flen, NULL);
+    const size_t ncad = fec_frame_layout (&bare, flen, NULL);
+    DP_REQUIRE (nsym == 2u * ncad);
+
+    static uint8_t carried[2 * (32 + 255 * 8) * 2];
+    static uint8_t restart[2 * (32 + 255 * 8) * 2];
+    static uint8_t cadu[2 * (32 + 255 * 8)];
+    static uint8_t cont[2 * (32 + 255 * 8) * 2];
+
+    /* (1) a transmitter's loop, carrying the register */
+    fec_conv_t s;
+    fec_conv_init (&s);
+    fec_frame_encode (&coded, &s, a, flen, carried, nsym);
+    fec_frame_encode (&coded, &s, b, flen, carried + nsym, nsym);
+
+    /* (2) the same two CADUs as ONE continuous encode — the external truth,
+           built from the uncoded assembler and the kernel, neither of which
+           knows anything about frames */
+    fec_frame_encode (&bare, NULL, a, flen, cadu, ncad);
+    fec_frame_encode (&bare, NULL, b, flen, cadu + ncad, ncad);
+    fec_conv_t t;
+    fec_conv_init (&t);
+    fec_conv_encode (&t, cadu, 2u * ncad, cont);
+
+    DP_CHECK_MSG (memcmp (carried, cont, 2u * nsym) == 0,
+                  "3.3.2: a stream of frames must equal one continuous "
+                  "encode of the same CADUs");
+
+    /* (3) and NULL is the single-frame form, which restarts — measured, so
+           the cost of getting this wrong is a number in the record */
+    fec_frame_encode (&coded, NULL, a, flen, restart, nsym);
+    fec_frame_encode (&coded, NULL, b, flen, restart + nsym, nsym);
+    DP_CHECK_MSG (memcmp (restart, cont, nsym) == 0,
+                  "frame 1 is identical either way — only the seam moves");
+
+    /* The BOUND is the physics and the count is not: how many of the symbols
+       inside the seam actually differ depends on which register states the
+       two encodings hold, i.e. on the payload. So the assertion is the span —
+       K-1 = 6 bits of memory at rate 1/2 is 12 symbols — with "at least one"
+       to keep it from passing vacuously if the two ever became identical.
+       Measured here: 6 differing symbols, the last at offset 7. */
+    size_t diff = 0, last = 0;
+    for (size_t i = nsym; i < 2u * nsym; i++)
+      if (restart[i] != cont[i])
+        {
+          diff++;
+          last = i - nsym;
+        }
+    DP_CHECK_MSG (diff > 0 && last < 2u * (FEC_CONV_K - 1u),
+                  "restarting costs the K-1 bits of register memory and no "
+                  "more: every difference inside the first 12 symbols");
   }
 
   DP_TEST_END ("fec_ccsds_frame");

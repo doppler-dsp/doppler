@@ -1526,28 +1526,41 @@ def review(R, d):
         "assertions is the same error the campaign calls "
         "pinned-only-at-literals, committed by the auditor instead of "
         "the author.\n\n"
-        "Of what remains, the worst is C9, the `@warning`'s own headline "
-        "— "
-        '`bn_carrier` is now normalised to the SYMBOL rate, so *"at the '
-        'old default `sps = 8` the same number is now an 8x wider loop"* '
-        "— which nothing measures, so a regression to input-rate "
-        "normalisation would look correct at `sps = 8` and be wrong "
-        "everywhere else. It was attempted here and abandoned rather than "
-        "faked: `lock_time` is too noisy across the rate axis to carry it "
-        "(955 at `sps = 4` against 51 at 16 for one `bn`), and a law "
-        "fitted to that would be a curve fit presented as a "
-        "certification. Then C13's documented sharp edge that "
-        "construction still permits, C21's `A^2` under-drive law, C16's "
-        "claim that 64 is the SATURATION point rather than merely the "
-        "derived value, and C15's remaining half (the 0.8x level ratio). "
-        "Each needs an axis "
-        "this validator does not sweep, a stimulus it does not build, or "
-        "a construction it has no reason to attempt, so the home is "
-        "`make characterize` or `native/validation/` rather than here "
-        "(`docs/dev/adding-algorithms.md` phase 7). Filed as "
-        "[gh-814](https://github.com/doppler-dsp/doppler/issues/814); "
-        "none is a regression, and the object is certified on what IS "
-        "measured.",
+        "**C9 and C13 are closed too, and C9 is the one that mattered "
+        "most.** `bn_carrier`'s symbol-rate normalisation is the "
+        "`@warning`'s own headline — *\"at the old default `sps = 8` the "
+        'same number is now an 8x wider loop"* — and a regression to '
+        "input-rate normalisation would have looked correct at `sps = 8`, "
+        "the rate every other test in the C file uses, and been wrong "
+        "everywhere else. It is now C §14: settling time in SYMBOLS is "
+        "invariant across a 4x span of `sps` at one `bn` (measured 320 "
+        "symbols at `sps` 8, 16 and 32), where an input-rate `bn` would "
+        "scale it by 4. The earlier attempt through `lock_time` was "
+        "abandoned rather than faked — 955 symbols at `sps = 4` against 51 "
+        "at 16 — and the fix was to read `get_norm_freq` directly instead "
+        "of a statistic with its own EMA and verify counts. C13's sharp "
+        "edge is C §15, pinned as the degeneracy it is (+11 dB of EVM "
+        'against `m_out = 8`) rather than as *"fails about half the '
+        'time"*, which is a distribution over seeds and not an '
+        "assertion.\n\n"
+        "**What is left is left because it was measured and did not "
+        "hold**, which is a different statement from unmeasured. C21's "
+        "`A^2` under-drive: §2.9 shows a level error reaching "
+        "`timing_rate`, but the proxy is not monotone — at 25 dB and "
+        "amplitude 0.25 the un-levelled receiver reads BETTER (4 ppm "
+        "against 5), so an assertion on it would have been true at one "
+        "operating point and false at another. C16's saturation claim is "
+        "worse than unmeasured: swept 4 to 1024 arms at an off-grid rate "
+        "the EVM is flat to 0.08 dB, so this geometry saturates below 4 "
+        "and does not locate 64 as the knee at all. Both need a harsher "
+        "stimulus than a validator builds — a larger clock offset, a lower "
+        "Es/N0, trials — so the home is `make characterize` or "
+        "`native/validation/` "
+        "(`docs/dev/adding-algorithms.md` phase 7). With C15's 0.8x level "
+        "ratio, that is what "
+        "[gh-814](https://github.com/doppler-dsp/doppler/issues/814) still "
+        "tracks; none is a regression, and the object is certified on what "
+        "IS measured.",
     )
 
     R.find(
@@ -2135,7 +2148,9 @@ def build(write: bool = True) -> Report:
             "C9",
             "`bn_carrier` is now normalised to the SYMBOL rate, not the "
             "input rate (the @warning's behaviour change)",
-            "**absent** — not isolated by any sweep here (F7)",
+            "C §14 NEW — settling in SYMBOLS is invariant across a 4x "
+            "span of `sps` at one `bn`; an input-rate `bn` would scale "
+            "it 4x, which is what makes the invariance the test",
         ],
         [
             "C10",
@@ -2160,7 +2175,9 @@ def build(write: bool = True) -> Report:
             "C13",
             "never pair `m_out = 2` with I&D — acquisition fails about "
             "half the time",
-            "**absent** in both languages (F7)",
+            "C §15 NEW — pinned as the DEGENERACY (+11 dB of EVM against "
+            "`m_out = 8`) rather than as the failure RATE, which is a "
+            "distribution over seeds and not a unit test",
         ],
         [
             "C14",
@@ -2180,7 +2197,10 @@ def build(write: bool = True) -> Report:
             "C16",
             "`num_phases` derives to 64, the measured saturation point "
             "against the old 1024",
-            "§2.4 pins 64; SATURATION is **absent**",
+            "§2.4 pins that it derives to 64. SATURATION is **absent** "
+            "and not merely unmeasured: swept 4 to 1024 at an off-grid "
+            "rate the EVM is flat to 0.08 dB, so this geometry saturates "
+            "BELOW 4 and does not locate 64 as the knee at all (F7)",
         ],
         [
             "C17",
@@ -2211,7 +2231,11 @@ def build(write: bool = True) -> Report:
         [
             "C21",
             "with `agc = 0` the timing loop is under-driven by `A^2`",
-            "§2.9 — the level error is visible; the `A^2` LAW is **absent**",
+            "§2.9 shows a level error reaching `timing_rate`; the `A^2` "
+            "LAW is **absent**, and the rate-error proxy does not carry "
+            "it — at 25 dB and amplitude 0.25 the un-levelled receiver "
+            "reads BETTER (4 ppm against 5), so the effect is not "
+            "monotone in level (F7)",
         ],
         [
             "C22",

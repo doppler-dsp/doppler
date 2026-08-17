@@ -982,6 +982,128 @@ main (void)
       DP_CHECK ((double)(t_long - t_short) > 62.0 * SPS * 0.5);
     }
 
+    /* 14. `bn_carrier` is normalised to the SYMBOL rate, not the input rate.
+       gh-814, and the @warning's own headline: "bn_carrier also changed units:
+       it is now normalised to the symbol rate, like bn_timing, rather than to
+       the input sample rate -- at the old default sps = 8 the same number is
+       now an 8x wider loop." Nothing measured it, so a regression to
+       input-rate normalisation would look correct at sps = 8 -- the rate
+       every other test in this file uses -- and be wrong everywhere else.
+
+       Measured as SETTLING TIME IN SYMBOLS at one `bn` across a 4x span of
+       `sps`, with the carrier offset held constant in SYMBOL-RATE units so
+       the loop is asked the same question each time. If `bn` means cycles per
+       symbol, the answer does not depend on `sps`; if it means cycles per
+       input sample, settling in symbols scales WITH `sps` -- 4x across this
+       span, which is what makes the invariance the discriminator rather than
+       a coincidence.
+
+       Read off get_norm_freq rather than the lock detector: the statistic has
+       its own EMA and verify counts, so it measures the DETECTOR's settling
+       as much as the loop's, and it was too noisy across this axis to carry
+       the claim (955 symbols at sps = 4 against 51 at 16, in an earlier
+       attempt through `lock_time`). */
+    {
+      const double CYC_PER_SYM = 0.004; /* the offset, in cycles per SYMBOL */
+      const double BN          = 0.01;
+      double       settle_sym[3];
+      size_t       ns = 0;
+      for (double sps = 8.0; sps <= 32.0; sps *= 2.0, ns++)
+        {
+          float complex *vtx  = malloc (NSAMP * sizeof (*vtx));
+          int           *vid  = malloc (NSYM * sizeof (int));
+          double         foff = CYC_PER_SYM / sps;
+          size_t         nsym = (size_t)((double)NSAMP / sps) - 4;
+          size_t n = make_mpsk_sps (vtx, vid, 4, sps, nsym, foff, 30.0, 81u);
+          mpsk_receiver_state_t *rx
+              = RX (4, sps, M_OUT, MPSK_RX_PULSE_IANDD, BN, 0, 0.5, 0.0);
+          DP_CHECK (rx != NULL);
+          float complex y;
+          size_t        at = 0;
+          for (size_t i = 0; i < n; i++)
+            {
+              (void)mpsk_receiver_step_ted (rx, vtx[i], &y,
+                                            RATESYNC_TED_GARDNER);
+              if (fabs (mpsk_receiver_get_norm_freq (rx) - foff)
+                  < 0.1 * fabs (foff))
+                {
+                  at = i + 1;
+                  break;
+                }
+            }
+          DP_CHECK (at > 0); /* it settled at all, at every rate */
+          settle_sym[ns] = (double)at / sps;
+          mpsk_receiver_destroy (rx);
+          free (vtx);
+          free (vid);
+        }
+      /* One bn, three rates, one answer in symbols. The bound is generous
+         against the 4x an input-rate `bn` would produce: anything under 2x
+         cannot be that mistake, and the measured spread is far tighter. */
+      double lo = settle_sym[0], hi = settle_sym[0];
+      for (size_t i = 1; i < 3; i++)
+        {
+          lo = (settle_sym[i] < lo) ? settle_sym[i] : lo;
+          hi = (settle_sym[i] > hi) ? settle_sym[i] : hi;
+        }
+      DP_CHECK (lo > 0.0 && hi / lo < 2.0);
+      /* And it is a real settling time rather than the first sample: at
+         bn = 0.01 a second-order loop needs O(1/bn) symbols, so a test that
+         passed at ~1 symbol would be measuring nothing. */
+      DP_CHECK (lo > 10.0);
+    }
+
+    /* 15. Never pair `m_out = 2` with MPSK_RX_PULSE_IANDD. gh-814.
+       The header says "never", explains why -- "the filter degenerates to a
+       two-tap sum, the eye barely opens and acquisition itself fails about
+       half the time" -- and construction permits it anyway, so the failure
+       was a caller's to discover.
+
+       Pinned as the DEGENERACY rather than as the acquisition failure. "Fails
+       about half the time" is a statement about a distribution over seeds,
+       which a unit test cannot assert without becoming a Monte Carlo; the
+       mechanism behind it is a filter that cannot open the eye, and that is
+       deterministic and cheap. Measured at 20 dB Es/N0, BPSK, where nothing
+       else is marginal.
+
+       The `lock` reading is asserted too, and in the direction that surprises:
+       it stays healthy while the eye collapses. That is the third instance in
+       this file of the receiver's lock statistic moving last, and it is why
+       the header's "never" cannot be left to a caller noticing at runtime. */
+    {
+      float complex *dtx = malloc (NSAMP * sizeof (*dtx));
+      int           *did = malloc (NSYM * sizeof (int));
+      /* Its own output buffer: the shared `out` is freed after section 4. */
+      float complex *dou = malloc (NSYM * sizeof (*dou));
+      double         excess[2];
+      double         lk[2];
+      const size_t   mo[2] = { M_OUT * 2, 2 }; /* 8 (derived-equivalent), 2 */
+      for (int c = 0; c < 2; c++)
+        {
+          size_t n
+              = make_mpsk_sps (dtx, did, 2, SPS, NSYM - 4, 0.0, 20.0, 91u);
+          mpsk_receiver_state_t *rx
+              = RX (2, SPS, mo[c], MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0);
+          DP_CHECK (rx != NULL);
+          size_t k = mpsk_receiver_steps (rx, dtx, n, dou, NSYM);
+          DP_CHECK (k > 0);
+          size_t settle = dp_test_settle_syms (0.01, 0.01);
+          excess[c]     = dp_test_evm_db_hard_range (dou, settle, k, 2) + 20.0;
+          lk[c]         = mpsk_receiver_get_lock (rx);
+          mpsk_receiver_destroy (rx);
+        }
+      /* m_out = 8 sits close to the matched-filter bound; m_out = 2 is many dB
+         off it. The gap is the two-tap sum, and it is not subtle. */
+      DP_CHECK (excess[0] < 2.0);
+      DP_CHECK (excess[1] > excess[0] + 5.0);
+      /* And the lock statistic does NOT report the collapse: it stays above
+         the shipped declare threshold at BOTH geometries, so a caller who
+         pairs 2 with I&D and watches `lock` sees nothing wrong. */
+      DP_CHECK (lk[0] > 0.5 && lk[1] > 0.5);
+      free (dtx);
+      free (did);
+      free (dou);
+    }
     free (ftx);
     free (fid);
   }

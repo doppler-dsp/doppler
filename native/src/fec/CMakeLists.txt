@@ -23,14 +23,16 @@ add_library(fec_ccsds_core OBJECT
 target_include_directories(fec_ccsds_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc)
 
-# The CCSDS pick is a conv_code_t, and the assembler encodes through
-# conv_encode -- fec holds the configuration, conv owns the arithmetic.
-target_link_libraries(fec_ccsds_core PUBLIC conv_core)
+# The CCSDS picks are a conv_code_t and an rs_code_t, and the assembler codes
+# through conv_encode and rs_encode/rs_decode -- fec holds the configurations,
+# conv and rs own the arithmetic.
+target_link_libraries(fec_ccsds_core PUBLIC conv_core rs_core)
 
 # ── tests ───────────────────────────────────────────────────────────────────
 add_executable(test_fec_ccsds_rand
     ${CMAKE_SOURCE_DIR}/native/tests/test_fec_ccsds_rand.c)
-target_link_libraries(test_fec_ccsds_rand PRIVATE fec_ccsds_core conv_core)
+target_link_libraries(test_fec_ccsds_rand PRIVATE
+    fec_ccsds_core conv_core rs_core)
 target_include_directories(test_fec_ccsds_rand PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
@@ -38,7 +40,8 @@ add_test(NAME test_fec_ccsds_rand COMMAND test_fec_ccsds_rand)
 
 add_executable(test_fec_ccsds_conv
     ${CMAKE_SOURCE_DIR}/native/tests/test_fec_ccsds_conv.c)
-target_link_libraries(test_fec_ccsds_conv PRIVATE fec_ccsds_core conv_core)
+target_link_libraries(test_fec_ccsds_conv PRIVATE
+    fec_ccsds_core conv_core rs_core)
 target_include_directories(test_fec_ccsds_conv PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
@@ -46,7 +49,8 @@ add_test(NAME test_fec_ccsds_conv COMMAND test_fec_ccsds_conv)
 
 add_executable(test_fec_rs
     ${CMAKE_SOURCE_DIR}/native/tests/test_fec_rs.c)
-target_link_libraries(test_fec_rs PRIVATE fec_ccsds_core conv_core)
+target_link_libraries(test_fec_rs PRIVATE
+    fec_ccsds_core conv_core rs_core)
 target_include_directories(test_fec_rs PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
@@ -54,7 +58,8 @@ add_test(NAME test_fec_rs COMMAND test_fec_rs)
 
 add_executable(test_fec_ccsds_asm
     ${CMAKE_SOURCE_DIR}/native/tests/test_fec_ccsds_asm.c)
-target_link_libraries(test_fec_ccsds_asm PRIVATE fec_ccsds_core conv_core)
+target_link_libraries(test_fec_ccsds_asm PRIVATE
+    fec_ccsds_core conv_core rs_core)
 target_include_directories(test_fec_ccsds_asm PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
@@ -62,7 +67,8 @@ add_test(NAME test_fec_ccsds_asm COMMAND test_fec_ccsds_asm)
 
 add_executable(test_fec_ccsds_frame
     ${CMAKE_SOURCE_DIR}/native/tests/test_fec_ccsds_frame.c)
-target_link_libraries(test_fec_ccsds_frame PRIVATE fec_ccsds_core conv_core)
+target_link_libraries(test_fec_ccsds_frame PRIVATE
+    fec_ccsds_core conv_core rs_core)
 target_include_directories(test_fec_ccsds_frame PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)

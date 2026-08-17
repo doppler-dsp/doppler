@@ -197,6 +197,92 @@ main (void)
                   "each de-interleaved codeword must satisfy its syndromes");
   }
 
+  /* ── correction happens in the CONVENTIONAL basis ───────────────────── */
+  {
+    /* The wire carries dual-basis symbols and the algebra is conventional,
+       so fec_rs_decode has to transform both ways around rs_decode. Skip
+       either transform and the syndromes of a damaged word are garbage: the
+       decoder refuses, or repairs a position that was never hit. Neither
+       shows up in a round trip against a decoder making the same mistake,
+       which is why the check is EXACT RECOVERY of a word damaged on the
+       wire, not "it decoded".
+
+       rs_core's own test proves the correction arithmetic at this exact
+       configuration; what is being tested here is the basis. */
+    uint8_t sent[FEC_RS_N], rx[FEC_RS_N];
+    for (int i = 0; i < FEC_RS_K; i++)
+      sent[i] = (uint8_t)(i * 29u + 17u);
+    fec_rs_encode (sent, sent + FEC_RS_K);
+
+    memcpy (rx, sent, sizeof rx);
+    for (int c = 0; c < FEC_RS_E; c++)
+      rx[(c * 13 + 4) % FEC_RS_N] ^= (uint8_t)(0x1Fu + c * 7u);
+
+    DP_CHECK_MSG (fec_rs_decode (rx) == FEC_RS_E,
+                  "E symbol errors on the wire must be repaired, all E");
+    DP_CHECK_MSG (memcmp (rx, sent, sizeof rx) == 0,
+                  "...and the repair must land in the DUAL basis symbols "
+                  "that were actually damaged");
+
+    /* One past the radius: refused, and the caller's buffer left alone. */
+    memcpy (rx, sent, sizeof rx);
+    for (int c = 0; c <= FEC_RS_E; c++)
+      rx[(c * 13 + 4) % FEC_RS_N] ^= (uint8_t)(0x1Fu + c * 7u);
+    uint8_t before[FEC_RS_N];
+    memcpy (before, rx, sizeof rx);
+    DP_CHECK_MSG (fec_rs_decode (rx) == -1, "E+1 errors must be refused");
+    DP_CHECK_MSG (memcmp (rx, before, sizeof rx) == 0,
+                  "...leaving the buffer untouched");
+  }
+
+  /* ── decode_block undoes exactly the rotation encode_block applied ──── */
+  {
+    enum
+    {
+      DEPTH = 5
+    };
+    static uint8_t info[FEC_RS_K * DEPTH];
+    static uint8_t blk[FEC_RS_N * DEPTH];
+    static uint8_t sent[FEC_RS_N * DEPTH];
+
+    /* Structured, because R-S of zeros has zero parity: every interleaved
+       column is then identical and a rotated de-interleave is the identity
+       map. That trap has hidden two defects in this slice already. */
+    for (size_t i = 0; i < sizeof info; i++)
+      info[i] = (uint8_t)(i * 13u + 7u);
+    fec_rs_encode_block (info, DEPTH, blk);
+    memcpy (sent, blk, sizeof sent);
+
+    /* A contiguous burst of DEPTH*E symbols: exactly E in each codeword,
+       the boundary of what the interleaving buys. */
+    for (unsigned s = 0; s < DEPTH * FEC_RS_E; s++)
+      blk[s] ^= (uint8_t)(0x53u + s);
+
+    fec_rs_block_rx_t rx;
+    DP_CHECK_MSG (fec_rs_decode_block (blk, DEPTH, &rx)
+                      == (size_t)FEC_RS_K * DEPTH,
+                  "decode_block must report the information length");
+    DP_CHECK_MSG (rx.codewords == DEPTH && rx.uncorrectable == 0u
+                      && rx.corrected == DEPTH
+                      && rx.symbols == DEPTH * FEC_RS_E,
+                  "a burst of DEPTH*E must be exactly E in each codeword");
+    DP_CHECK_MSG (memcmp (blk, sent, sizeof sent) == 0,
+                  "...and the whole block must be restored, check symbols "
+                  "included");
+
+    /* The same burst one symbol longer puts E+1 into codeword 0 alone. */
+    memcpy (blk, sent, sizeof sent);
+    for (unsigned s = 0; s < DEPTH * FEC_RS_E + 1u; s++)
+      blk[s] ^= (uint8_t)(0x53u + s);
+    DP_CHECK (fec_rs_decode_block (blk, DEPTH, &rx)
+              == (size_t)FEC_RS_K * DEPTH);
+    DP_CHECK_MSG (rx.uncorrectable == 1u && rx.corrected == DEPTH - 1u,
+                  "one symbol more must cost exactly one codeword");
+
+    DP_CHECK_MSG (fec_rs_decode_block (blk, 6, NULL) == 0,
+                  "4.3.5.1 does not allow depth 6");
+  }
+
   /* ── the differential: what interleaving is FOR ─────────────────────── */
   {
     /* A contiguous burst of 40 symbols. At depth 5 it lands as 8 errors in

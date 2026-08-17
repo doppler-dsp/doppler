@@ -263,10 +263,15 @@ ______________________________________________________________________
     this whole slice refuses — but `d_free = 10` and the BER curves
     **CCSDS 130.1-G prints**.
 
-1. **R-S decode** — syndromes (already in `fec_rs_codeword_ok`), then
-    Berlekamp-Massey, Chien and Forney, over the same field, roots and dual
-    basis the encoder uses. External truth: corrects exactly 16 symbol errors
-    and fails at 17.
+1. **R-S decode** — DONE, and it came out one layer lower than this line
+    assumed: the algebra is a general Reed-Solomon kernel (`rs/rs_core.h`)
+    and CCSDS is a *configuration* of it, the same split `conv` already has.
+    Syndromes, Berlekamp-Massey, Chien and Forney, over whatever field, roots
+    and stride the code names; `fec` keeps the dual basis and the interleaver,
+    which are the standard's and not the code's. External truth is the code's
+    own distance — corrects exactly `E`, never recovers the sent word at
+    `E+1` — checked at three configurations. See
+    [Reed-Solomon](reed-solomon.md).
 
 1. **`fec_frame_decode`** — the chain, mirroring `fec_frame_encode`'s spans,
     with the ASM search resolving polarity.
@@ -291,6 +296,7 @@ ______________________________________________________________________
 
 ## See also
 
+- [Reed-Solomon](reed-solomon.md) — the outer code, step 2 of the sequence
 - [Soft Decisions for M-PSK](mpsk-soft.md) — the LLRs this consumes
 - [Lock Detection](lock-detect.md) — the detector this feeds
 - [Adding an Algorithm](../dev/adding-algorithms.md) — the lifecycle

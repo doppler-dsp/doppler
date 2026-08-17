@@ -1,10 +1,19 @@
 /**
  * @file fec_rs.h
- * @brief CCSDS Reed-Solomon (255,223) — the outer code, and the one with the
- * conventions that only a published value catches.
+ * @brief CCSDS Reed-Solomon (255,223) — the outer code as a CONFIGURATION,
+ * and the conventions that only a published value catches.
  *
  * CCSDS 131.0-B-3 section 4.3. `J = 8` bits per symbol, `E = 16` correctable
  * symbols, so `n = 255`, `2E = 32` parity symbols and `k = 223`. Systematic.
+ *
+ * **The algebra is not here.** `rs/rs_core.h` owns the field, the encoder,
+ * the syndromes and the Berlekamp-Massey / Chien / Forney decoder, for any
+ * Reed-Solomon code; this file holds @ref FEC_CCSDS_RS — the five numbers
+ * 131.0-B-3 picked — plus the two things the standard adds that are *not*
+ * properties of the code: the **dual basis** symbols travel in (4.3.9) and
+ * the **interleaver** (4.4.1). A standard choosing a code is a different
+ * fact from the code existing, and keeping them apart is what stops the
+ * conventions below from being written down twice.
  *
  * Three things here are NOT the textbook Reed-Solomon a reader will expect,
  * and each is invisible to an encode/decode round trip because a matched
@@ -34,9 +43,13 @@
  * hidden inside a kernel.
  *
  * @see fec_ccsds.h for the randomiser, the ASM and the inner code.
+ * @see rs/rs_core.h for the code family this configures.
+ * @see docs/design/reed-solomon.md for the decoder's algebra.
  */
 #ifndef FEC_RS_H
 #define FEC_RS_H
+
+#include "rs/rs_core.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -50,10 +63,26 @@ extern "C"
 #define FEC_RS_N 255
 /** @brief Information symbols per codeword when `E = 16` (4.3.2d). */
 #define FEC_RS_K 223
+/** @brief Correctable symbols per codeword (4.3.2d). */
+#define FEC_RS_E 16
 /** @brief Parity symbols per codeword, `2E` (4.3.2c). */
 #define FEC_RS_2E 32
 /** @brief Largest interleaving depth 4.3.5.1 allows. */
 #define FEC_RS_MAX_DEPTH 8
+
+  /**
+   * @brief The five numbers 131.0-B-3 section 4.3 picks.
+   *
+   * The field polynomial (4.3.3), the parity count (4.3.2c), and the roots'
+   * first index and stride (4.3.4). Everything the code *does* comes from
+   * `rs/rs_core.h` reading this; nothing in that file knows what CCSDS is.
+   *
+   * `test_fec_rs.c` holds it to Annex G, which publishes every coefficient
+   * of the `g(x)` these five numbers produce — a value this repository
+   * cannot choose, and the only kind of check a code with a matched decoder
+   * cannot pass by agreeing with itself.
+   */
+  extern const rs_code_t FEC_CCSDS_RS;
 
   /**
    * @brief Convert one symbol from the conventional basis to the dual basis.
@@ -97,6 +126,62 @@ extern "C"
    * @return Non-zero when every syndrome is zero.
    */
   int fec_rs_codeword_ok (const uint8_t *codeword);
+
+  /**
+   * @brief Correct up to `E = 16` symbol errors in one codeword, in place.
+   *
+   * The decode is `rs_decode`'s; this transforms the codeword out of the
+   * dual basis on the way in and back on the way out (4.3.9, figure F-1).
+   * Correcting in the transmitted basis instead would produce a decoder that
+   * repairs its own encoder's output perfectly and interoperates with
+   * nothing — the same failure the field polynomial and the root stride each
+   * offer, and the reason this transform is not optional.
+   *
+   * It either refuses or returns a codeword; see `rs_decode` for what a
+   * refusal does and does not mean.
+   *
+   * @param codeword  255 symbols in the dual basis, corrected in place on
+   *                  success and left untouched on refusal.
+   * @return          Symbols corrected, 0 if the codeword was already valid,
+   *                  or -1 if it could not be decoded.
+   */
+  int fec_rs_decode (uint8_t *codeword);
+
+  /**
+   * @brief What @ref fec_rs_decode_block found in one codeblock.
+   *
+   * `codewords - uncorrectable` is how many are good afterwards, and
+   * @ref symbols is the repair work the outer code actually did — the
+   * quantity that says whether the inner code is delivering what the outer
+   * one was sized for.
+   */
+  typedef struct
+  {
+    unsigned codewords;     /**< Codewords in the block, i.e. the depth   */
+    unsigned corrected;     /**< How many needed and received repair      */
+    unsigned uncorrectable; /**< How many the decoder refused             */
+    unsigned symbols;       /**< Symbol errors repaired across the block  */
+  } fec_rs_block_rx_t;
+
+  /**
+   * @brief Decode an interleaved codeblock in place (4.3.5, 4.4.1).
+   *
+   * The mirror of @ref fec_rs_encode_block, over the same S1/S2 rotation —
+   * written once, here, so the two directions cannot come to disagree about
+   * which symbol belongs to which codeword. A rotated de-interleave is
+   * invisible against an all-zero payload, whose codewords are identical, so
+   * the test that pins this uses structured data.
+   *
+   * @param block  `FEC_RS_N * depth` symbols, dual basis, corrected in
+   *               place: both the information and the check sections of any
+   *               codeword that was repaired.
+   * @param depth  Interleaving depth; 4.3.5.1 allows 1, 2, 3, 4, 5 and 8.
+   * @param rx     Receives the per-codeword outcomes; may be `NULL`.
+   * @return       The number of information symbols, `FEC_RS_K * depth`, or
+   *               0 if @p depth is not allowed.
+   */
+  size_t fec_rs_decode_block (uint8_t *block, unsigned depth,
+                              fec_rs_block_rx_t *rx);
 
   /**
    * @brief Encode an interleaved codeblock (4.3.5, 4.4.1).

@@ -1,22 +1,24 @@
 /*
- * rs.c — CCSDS Reed-Solomon (255,223), the E=16 code of 131.0-B-3 section 4.3.
+ * rs.c — the CCSDS configuration of the outer code: 131.0-B-3 section 4.3.
  *
- * The arithmetic is ordinary GF(2^8) Reed-Solomon. What is not ordinary, and
- * what this file exists to get right, is which field, which roots, and which
- * basis — see fec_rs.h. Each of the three is a choice a reader would make
- * differently from habit, and each produces a self-consistent code that no
- * CCSDS receiver can decode.
+ * The arithmetic is `rs/rs_core.h`'s and none of it is here. What IS here is
+ * everything 131.0-B-3 adds that is not a property of the code: which field,
+ * which roots, which basis, and the interleaver. Each of the first three is a
+ * choice a reader would make differently from habit, and each produces a
+ * self-consistent code that no CCSDS receiver can decode — which is why they
+ * are a configuration a test can hold to Annex G rather than constants inside
+ * an encoder.
  */
 #include "fec/fec_rs.h"
 
-/* 4.3.3: F(x) = x^8 + x^7 + x^2 + x + 1. Held as the low eight bits, the
- * x^8 term being implicit in the reduction. */
-#define FIELD_POLY 0x87u
-
-/* 4.3.4: the roots are a^(11j). 11 rather than 1 is the whole point. */
-#define ROOT_STRIDE 11
-/* j runs 128-E .. 127+E; with E=16 that is 112..143. */
-#define ROOT_FIRST_J (128 - 16)
+/* 4.3.3: F(x) = x^8 + x^7 + x^2 + x + 1, held as the low eight bits, the x^8
+ * term being implicit in the reduction. 4.3.4: the roots are a^(11j) with j
+ * running 128-E .. 127+E. 11 rather than 1 is the whole point. */
+const rs_code_t FEC_CCSDS_RS = { .symbol_bits = 8,
+                                 .field_poly  = 0x87u,
+                                 .nroots      = FEC_RS_2E,
+                                 .first_root  = 128u - FEC_RS_E,
+                                 .root_stride = 11u };
 
 /* 4.3.9.3, first equation, one row per u bit from u7 down to u0. Each row is
  * packed with z0 in bit 7, matching 4.3.9.2's transmission order. */
@@ -28,59 +30,18 @@ static const uint8_t T_CONV_TO_DUAL[8]
 static const uint8_t T_DUAL_TO_CONV[8]
     = { 0xC5u, 0x42u, 0x2Eu, 0xFDu, 0xF0u, 0x79u, 0xACu, 0xCCu };
 
-static uint8_t exp_tab[512];
-static uint8_t log_tab[256];
-static uint8_t gen[FEC_RS_2E + 1];
-static int     ready = 0;
+static rs_t ccsds;
+static int  ready = 0;
 
-static uint8_t
-gf_mul (uint8_t a, uint8_t b)
-{
-  if (a == 0 || b == 0)
-    return 0;
-  return exp_tab[log_tab[a] + log_tab[b]];
-}
-
-static void
-build (void)
-{
-  /* a = x = 0x02 generates the field: 4.3.4's note that a^11 is primitive
-   * requires a to be primitive too, since gcd(11, 255) = 1. */
-  unsigned v = 1;
-  for (int i = 0; i < 255; i++)
-    {
-      exp_tab[i]          = (uint8_t)v;
-      log_tab[(uint8_t)v] = (uint8_t)i;
-      v <<= 1;
-      if (v & 0x100u)
-        v ^= 0x100u | FIELD_POLY;
-    }
-  for (int i = 255; i < 512; i++)
-    exp_tab[i] = exp_tab[i - 255];
-
-  /* g(x) = prod_{j} (x - a^(11j)). Over GF(2) subtraction is addition, so
-   * each factor is (x + root) and the product is built by convolution. */
-  gen[0]  = 1;
-  int deg = 0;
-  for (int m = 0; m < FEC_RS_2E; m++)
-    {
-      const uint8_t root = exp_tab[(ROOT_STRIDE * (ROOT_FIRST_J + m)) % 255];
-      /* multiply the current gen(x) by (x + root), high term first so the
-         in-place update never reads a coefficient it has already written */
-      gen[deg + 1] = gen[deg];
-      for (int i = deg; i > 0; i--)
-        gen[i] = (uint8_t)(gen[i - 1] ^ gf_mul (gen[i], root));
-      gen[0] = gf_mul (gen[0], root);
-      deg++;
-    }
-  ready = 1;
-}
-
-static void
+static const rs_t *
 ensure (void)
 {
   if (!ready)
-    build ();
+    {
+      rs_init (&ccsds, &FEC_CCSDS_RS);
+      ready = 1;
+    }
+  return &ccsds;
 }
 
 uint8_t
@@ -110,69 +71,80 @@ fec_rs_dual_to_conv (uint8_t z)
 const uint8_t *
 fec_rs_generator (void)
 {
-  ensure ();
-  return gen;
+  return rs_generator (ensure ());
 }
 
 void
 fec_rs_encode (const uint8_t *info, uint8_t *parity)
 {
-  ensure ();
+  const rs_t *rs = ensure ();
 
   /* Figure F-1: transform in, encode conventionally, transform out. */
-  uint8_t reg[FEC_RS_2E] = { 0 };
-
+  uint8_t conv[FEC_RS_K];
   for (int i = 0; i < FEC_RS_K; i++)
-    {
-      const uint8_t u  = fec_rs_dual_to_conv (info[i]);
-      const uint8_t fb = (uint8_t)(u ^ reg[FEC_RS_2E - 1]);
+    conv[i] = fec_rs_dual_to_conv (info[i]);
 
-      for (int j = FEC_RS_2E - 1; j > 0; j--)
-        reg[j] = (uint8_t)(reg[j - 1] ^ gf_mul (fb, gen[j]));
-      reg[0] = gf_mul (fb, gen[0]);
-    }
+  uint8_t check[FEC_RS_2E];
+  rs_encode (rs, conv, check);
 
-  /* The register holds the remainder, highest-order coefficient last; parity
-     is transmitted highest-order first, immediately after the information. */
   for (int i = 0; i < FEC_RS_2E; i++)
-    parity[i] = fec_rs_conv_to_dual (reg[FEC_RS_2E - 1 - i]);
+    parity[i] = fec_rs_conv_to_dual (check[i]);
 }
 
 int
 fec_rs_codeword_ok (const uint8_t *codeword)
 {
-  ensure ();
+  const rs_t *rs = ensure ();
 
-  /* S_m = C(a^(11 * (ROOT_FIRST_J + m))), evaluated by Horner over the
-   * conventional-basis symbols. Zero for every root is what "is a codeword"
-   * means, independently of how the parity was produced. */
-  for (int m = 0; m < FEC_RS_2E; m++)
-    {
-      const uint8_t root = exp_tab[(ROOT_STRIDE * (ROOT_FIRST_J + m)) % 255];
-      uint8_t       acc  = 0;
-      for (int i = 0; i < FEC_RS_N; i++)
-        acc = (uint8_t)(gf_mul (acc, root)
-                        ^ fec_rs_dual_to_conv (codeword[i]));
-      if (acc != 0)
-        return 0;
-    }
-  return 1;
+  uint8_t conv[FEC_RS_N];
+  for (int i = 0; i < FEC_RS_N; i++)
+    conv[i] = fec_rs_dual_to_conv (codeword[i]);
+
+  return rs_codeword_ok (rs, conv);
+}
+
+int
+fec_rs_decode (uint8_t *codeword)
+{
+  const rs_t *rs = ensure ();
+
+  /* 4.3.9: the wire carries dual-basis symbols and the algebra is
+     conventional. Correcting in the transmitted basis would produce a
+     decoder that repairs its own encoder's output perfectly and nothing
+     else, which is the failure this whole file exists to prevent. */
+  uint8_t conv[FEC_RS_N];
+  for (int i = 0; i < FEC_RS_N; i++)
+    conv[i] = fec_rs_dual_to_conv (codeword[i]);
+
+  const int fixed = rs_decode (rs, conv);
+  if (fixed <= 0)
+    return fixed;
+
+  for (int i = 0; i < FEC_RS_N; i++)
+    codeword[i] = fec_rs_conv_to_dual (conv[i]);
+  return fixed;
+}
+
+/* 4.3.5.1 enumerates the allowed depths; anything else is refused rather
+ * than quietly coded as a block no receiver is configured for. */
+static int
+depth_ok (unsigned depth)
+{
+  return depth == 1 || depth == 2 || depth == 3 || depth == 4 || depth == 5
+         || depth == 8;
 }
 
 size_t
 fec_rs_encode_block (const uint8_t *info, unsigned depth, uint8_t *out)
 {
-  /* 4.3.5.1 enumerates the allowed depths, and this refuses anything else
-   * rather than quietly encoding a block no receiver is configured for. */
-  if (depth != 1 && depth != 2 && depth != 3 && depth != 4 && depth != 5
-      && depth != 8)
+  if (!depth_ok (depth))
     return 0;
 
   const size_t k_syms = (size_t)FEC_RS_K * depth;
 
   /* 4.4.1: S2 reassembles the information symbols "in the same way as they
-   * entered", so the information section is a straight copy. Only the check
-   * symbols are rearranged. */
+     entered", so the information section is a straight copy. Only the check
+     symbols are rearranged. */
   for (size_t i = 0; i < k_syms; i++)
     out[i] = info[i];
 
@@ -192,4 +164,49 @@ fec_rs_encode_block (const uint8_t *info, unsigned depth, uint8_t *out)
     }
 
   return (size_t)FEC_RS_N * depth;
+}
+
+size_t
+fec_rs_decode_block (uint8_t *block, unsigned depth, fec_rs_block_rx_t *rx)
+{
+  if (!depth_ok (depth))
+    return 0;
+
+  const size_t      k_syms = (size_t)FEC_RS_K * depth;
+  fec_rs_block_rx_t out    = { depth, 0u, 0u, 0u };
+
+  for (unsigned e = 0; e < depth; e++)
+    {
+      /* Undo S1/S2: encoder e saw every depth-th symbol starting at e, in
+         both sections. This is the same rotation fec_rs_encode_block wrote,
+         read from the one description rather than a second one. */
+      uint8_t word[FEC_RS_N];
+      for (int i = 0; i < FEC_RS_K; i++)
+        word[i] = block[(size_t)i * depth + e];
+      for (int p = 0; p < FEC_RS_2E; p++)
+        word[FEC_RS_K + p] = block[k_syms + (size_t)p * depth + e];
+
+      const int fixed = fec_rs_decode (word);
+      if (fixed < 0)
+        {
+          out.uncorrectable++;
+          continue;
+        }
+      if (fixed == 0)
+        continue;
+
+      out.corrected++;
+      out.symbols += (unsigned)fixed;
+
+      /* Only a repaired codeword is written back, so a block that decodes
+         clean is not rewritten symbol by symbol. */
+      for (int i = 0; i < FEC_RS_K; i++)
+        block[(size_t)i * depth + e] = word[i];
+      for (int p = 0; p < FEC_RS_2E; p++)
+        block[k_syms + (size_t)p * depth + e] = word[FEC_RS_K + p];
+    }
+
+  if (rx != NULL)
+    *rx = out;
+  return k_syms;
 }

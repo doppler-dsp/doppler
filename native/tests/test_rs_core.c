@@ -47,10 +47,22 @@ static const struct
   rs_code_t   code;
   /* Refusals demanded out of TRIALS at E+1 errors. A bounded-distance
      decoder miscorrects when the received word lands inside another
-     codeword's sphere, with probability ~1/E! for random errors -- so at
-     E = 16 refusing is the only outcome ever seen (1/16! ~ 5e-14), while at
-     E = 2 it is a coin toss and demanding more would be pinning the seed
-     rather than the code. Measured here: 64/64, 64/64, 46/64. */
+     codeword's sphere, and since the spheres are disjoint that probability
+     is the fraction of the space they fill:
+
+         P = V(E) / q^(n-k),   V(E) = sum_{i<=E} C(n,i) (q-1)^i
+
+     At E = 16 that is 2.6e-14, so refusing is the only outcome ever seen.
+     At RS(15,11) it is 0.364, so a third of these miscorrect and demanding
+     many more refusals would be pinning the seed rather than the code.
+
+     Note what the textbook `~1/E!` would have said there: 0.5, which is
+     37 % high. It is the large-field limit of the expression above (take
+     C(n,E) ~ n^E/E! and n ~ q), so it is a percent off at q = 256 and no
+     use at q = 16. The certification measured both:
+     src/doppler/tests/validation/rs/results.md §2.2.
+
+     Measured here: 64/64, 64/64, 46/64. */
   unsigned min_refusals;
 } CODES[] = {
   { "textbook RS(255,223)",
@@ -599,7 +611,8 @@ main (void)
         DP_CHECK_MSG (!ever_wrong,
                       "E+1 errors must never recover the sent word");
         DP_CHECK_MSG (refusals >= CODES[ci].min_refusals,
-                      "E+1 errors must be REFUSED as often as ~1/E! says");
+                      "E+1 errors must be REFUSED as often as the sphere "
+                      "model says");
       }
 
       /* ── 4b. "up to E", meaning every count below it too ──────────────

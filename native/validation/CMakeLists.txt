@@ -248,6 +248,19 @@ target_include_directories(validate_conv_certify
 target_link_libraries(validate_conv_certify PRIVATE doppler_lib_static m)
 target_compile_options(validate_conv_certify PRIVATE -O3 -funroll-loops)
 
+# rs_certify is conv_certify's shape, for the same reason: it MEASURES, and
+# the limits are asserted in src/doppler/tests/validation/rs/. No `--check`,
+# no CTest. It reaches native/tests for dp_rng_test.h — the error PATTERNS the
+# sphere sweep places are the experiment's independent variable, not a signal,
+# and it places them with the generator test_rs_core.c places them with.
+add_executable(validate_rs_certify
+               ${CMAKE_CURRENT_SOURCE_DIR}/rs_certify.c)
+target_include_directories(validate_rs_certify
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_rs_certify PRIVATE doppler_lib_static m)
+target_compile_options(validate_rs_certify PRIVATE -O3 -funroll-loops)
+
 add_executable(validate_rx_coding_gain
                ${CMAKE_CURRENT_SOURCE_DIR}/rx_coding_gain.c)
 target_include_directories(validate_rx_coding_gain

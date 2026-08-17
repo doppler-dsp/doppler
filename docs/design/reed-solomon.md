@@ -161,6 +161,22 @@ That is a property of the code, not of this implementation, and the protection
 against it is frame accounting — which is why `ccsds_tm_frame_rx_t` reports counts
 rather than folding them into a single verdict.
 
+**How often, exactly.** The decoding spheres are disjoint, so a word past the
+radius is miscorrected with the probability that an arbitrary point of the
+space falls in one of them:
+
+```text
+P = V(E) / q^(n-k),        V(E) = sum_{i<=E} C(n, i) (q-1)^i
+```
+
+0.99 at `E = 1`, 0.49 at `E = 2`, 0.039 at `E = 4`, 2.6e-14 at CCSDS's
+`E = 16`. Two consequences a caller acts on, both measured in
+[`rs`'s certification report](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/rs/results.md)
+§2.2: the rate depends on `E` and **not** on how far past the radius the word
+is, so a badly broken frame is no more likely to be caught than a marginal
+one; and the textbook `1/E!` is the large-field limit of the expression above,
+37 % high already at `q = 16`.
+
 One thing it cannot do, and this **is** assertable: when it corrects, the
 result is a codeword. The key equation zeroes every one of the `nroots`
 syndromes by construction, so `rs_decode` either returns `-1` or returns a

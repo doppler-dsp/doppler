@@ -206,39 +206,25 @@ class Telemetry:
         """
 
     def emit(self, id: int, v: float) -> None:
-        """Records one scalar for probe id. The hot-path primitive.
+        """Validating dp_tlm_emit(): refuses an id the registry never issued.
 
-        Detached (t NULL) this is one branch — the entire disabled cost.
-        Attached: bump the probe's decimation phase, and on the decim-th event
-        write one 16-byte record (value narrowed to float, stamped with the
-        context's current now). Never blocks, never allocates; on ring overrun
-        the record is dropped and counted.
+        The out-of-line twin of the inline hot-path emit, for callers whose id
+        did not come from dp_tlm_probe() on this context — in practice, a
+        language binding, where the id is whatever the caller passed.
+        dp_tlm_emit() checks only the ARRAY bound (see its docs: checking
+        n_probes there costs ~16% of the decimated path), so an in-range but
+        unregistered id reaches it and emits a record against a probe nobody
+        registered. Here that is an error.
 
-        id must come from a successful dp_tlm_probe() on this context — an
-        object's set_telemetry fails the whole attach otherwise.
-
-        The bound checked here is the ARRAY's, not the registry's. probes is a
-        fixed DP_TLM_MAX_PROBES array, so the unguarded indexing this used to
-        do turned any out-of-range id into an out-of-bounds write — reachable
-        from a language binding, where the id is whatever the caller passed,
-        and `Telemetry.emit(1000000, 1.0)` segfaulted the interpreter.
-        Comparing against the compile-time constant (unsigned, so a negative id
-        fails it too) needs no memory and measures free. Comparing against
-        n_probes instead would also reject an in-range-but-unregistered id, but
-        it loads a field on the early-return path and cost ~16% of the
-        decimated case (bench_telemetry_core, ABBA-interleaved) — so *that*
-        check belongs at the binding boundary, where the id is untrusted, not
-        in the hot loop, where the caller holds an id dp_tlm_probe() gave it.
+        C hot loops keep calling dp_tlm_emit() directly and pay nothing for
+        this.
 
         Parameters
         ----------
         id : int
             Probe id from dp_tlm_probe() on THIS context.
         v : float
-            The scalar, narrowed to float by the ring record. The Python face
-            binds dp_tlm_emit_checked() instead, which additionally refuses an
-            id the registry never issued — see its docs for why the hot path
-            does not.
+            The scalar, narrowed to float by the ring record.
 
         Raises
         ------
@@ -543,30 +529,26 @@ class MemoryCapture:
     ) -> None: ...
 
     def records(self, n: int = 0) -> NDArray[Any]:
-        """The accumulated records, contiguous and in emission order.
+        """Copies accumulated records out. Memory mode only.
 
-        Memory mode only (path was NULL) — in file mode the file *is* the
-        capture and this returns NULL. Owned by the capture and invalidated by
-        dp_tlm_capture_destroy(); NULL when nothing was captured, so use
-        dp_tlm_capture_count() to tell empty from absent.
+        The copying twin of dp_tlm_capture_records(): same records, same order,
+        but into caller memory rather than a borrowed pointer. Both exist
+        because they serve opposite callers — a C consumer wants the zero-copy
+        view, and a binding must not hand out a pointer the capture can free
+        underneath it.
 
-        The Python face binds the COPYING twin, dp_tlm_capture_read(), because
-        a borrowed pointer the capture can free is not something a binding may
-        hand out. This example is duplicated there deliberately: jm derives a
-        method's docstring from the `<component>_<method>` symbol while `fn`
-        chooses the one it calls, so the two must carry the same text or the
-        .pyi and the runtime `__doc__` disagree (checked by
-        scripts/check_doc_face_parity.py).
+        Deliberately the same shape as dp_tlm_read(), so the two drains bind
+        identically and neither needs a second convention invented for it.
 
         Parameters
         ----------
         n : int
-            Input.
+            Records wanted; 0 means "everything accumulated".
 
         Returns
         -------
         NDArray[Any]
-            Output.
+            Number of records copied out.
 
         Examples
         --------

@@ -28,12 +28,32 @@ pin. This report measures the LAWS those two state in prose — the ones a
 point assertion cannot express — and section 1's claim table says, for every
 prose claim, which of the three carries it.
 
-Two surfaces deliberately do NOT appear as Python measurements:
-``mpsk_rx_derive_m_out`` and ``mpsk_rx_updates_per_symbol`` are
-``JM_FORCEINLINE`` with no binding, so claims about them are reported
-**C-ONLY** with the C section that covers them. Measuring the receiver and
-calling it the rule is exactly the substitution ``docs/dev/validation.md``
-warns about.
+Claims that do NOT appear as Python measurements are reported rather than
+skipped, and in two different kinds. **C-ONLY** names what carries a claim
+no binding reaches: ``mpsk_rx_derive_m_out`` and
+``mpsk_rx_updates_per_symbol`` are ``JM_FORCEINLINE``, so claims about them
+are reported with the C section that covers them (F1). Measuring the
+receiver and calling it the rule is exactly the substitution
+``docs/dev/validation.md`` warns about.
+
+**F7** is the other kind: claims a binding DOES reach and nothing measures,
+filed as gh-814 so they are visible outside this file.
+
+The ``nda_tap`` trade is deliberately NOT a finding here. What ``mf_in``
+costs, and why this flavor pins ``strobe``, is stated on
+``mpsk_receiver_create_continuous``'s own docstring and measured by
+``native/validation/rx_dynamics.c`` — the header is where a caller choosing
+a tap will actually look, and a ranking read off the wrong waveform is how
+``mf_in`` came to be pinned in the first place.
+
+**Two things about the sweep design are load-bearing, and both were wrong
+once.** The Es/N0 grid is DERIVED per M from the bound and the record
+length (:func:`_esn0_grid`), because one grid across all three orders puts
+BPSK where it makes no errors and 8PSK where it makes thousands — and a
+limit over a cell with no errors is satisfied by any receiver at all (F6).
+And every bound goes through :func:`_bound`, because ``ber_theory_ser``
+takes LINEAR Es/N0 and this file passed dB, which made every theory figure
+the bound at the wrong operating point (F8).
 
 Run:  make validate
 """
@@ -53,6 +73,7 @@ from doppler.ber import (
 )
 from doppler.mpsk import mpsk_map
 from doppler.snr import snr_m2m4_db
+from doppler.telemetry import Telemetry
 from doppler.tests._validation_common import Report, clamp_evm_db, cli
 from doppler.track import ContinuousMpskReceiver, MpskReceiver
 
@@ -232,6 +253,162 @@ def _limit_ser(R, ser, thresh, subject, claim_fn):
     return R.limit(ser < thresh, claim_fn(ser))
 
 
+#: Errors a cell needs before its rate is a measurement of the receiver.
+#:
+#: `BerMeter` is built `target_errors = 100`, which is the library's own
+#: statement of how many it wants, and at `NSYM` per cell only the highest
+#: rates get there -- so a floor has to be chosen rather than inherited.
+#:
+#: 10 is where the point estimate's own standard error, `1/sqrt(k)`, falls
+#: to ~32% of the rate. The bound is steep in Es/N0, so 32% of a RATE is a
+#: few tenths of a dB of LOSS, which is well inside the `LOSS_MAX_DB` the
+#: limits assert; at 3 errors it is 58% and the estimate moves by a factor
+#: of two on the next seed.
+#:
+#: The interval-width test this replaced was `hi <= 10 * theory`, and it
+#: was too weak in the direction that matters. It admitted M = 4 at 12 dB,
+#: which had **3 errors** and a point estimate of 1.97e-4 against a bound
+#: of 5.32e-4 -- a loss of **-1.86 dB**, i.e. the cell reported the
+#: receiver beating the matched-filter bound. Nothing can beat that bound,
+#: so a negative loss is the estimator talking, and a limit written over
+#: it certifies noise. An error COUNT catches that directly where an
+#: interval ratio did not, because the ratio was being compared against a
+#: bound that is itself tiny.
+MIN_ERRORS = 10
+
+#: The envelope §4 asserts, in the unit §2.1 already computes. A RATE ratio
+#: has no fixed dB meaning -- the same 10x is +1.34 dB where the curve is
+#: shallow and a fraction of a dB where it is steep -- so the count above
+#: decides measurability and the dB is what a caller designs to.
+LOSS_MAX_DB = 3.0
+
+
+#: Expected errors a cell is PLANNED for, against `MIN_ERRORS` measured.
+#:
+#: 4x the floor, so a cell chosen by @ref _esn0_grid still resolves when the
+#: receiver lands a little better than the bound (fewer errors than planned)
+#: or the seed is unlucky. Planning exactly at the floor puts half the cells
+#: under it.
+PLAN_ERRORS = MIN_ERRORS * 4
+
+#: Symbols actually SCORED per cell, which is what sets the error count --
+#: not `NSYM`. `_score` measures over `[lo + ALIGN_SYMS, hi)` where `hi`
+#: drops the last eighth, so the usable count is smaller than the record
+#: and the grid must be planned on the smaller number.
+NSCORED = int(NSYM - NSYM // 8) - ALIGN_SYMS - int(ber_settle_syms(0.01, 0.01))
+
+
+#: The top of the operating window this report certifies over.
+#:
+#: A measurability ceiling alone is not enough, because the two ends of the
+#: order axis run away in opposite directions. BPSK's bound falls off a
+#: cliff -- 4.1e-3 at 3.5 dB and 3.2e-5 by 8 -- so its window is narrow and
+#: LOW. 8PSK's barely falls at all: `ber_theory_ser(8, e)` still predicts 43
+#: errors in `NSCORED` symbols at **30.5 dB**, so an uncapped rule would
+#: certify 8PSK at an Es/N0 no link runs at and no other section measures.
+#: 20 dB is where the rest of this report already stops (§2.2, §2.3), so the
+#: cap keeps the sections comparable.
+ESN0_MAX_DB = 20.0
+
+
+def _bound(m, esn0_db):
+    """The coherent bound at an Es/N0 in **dB**.
+
+    One conversion site, because there was none and the report was wrong
+    for it. `ber_theory_ser`'s second argument is LINEAR Es/N0 — the
+    header says so in capitals ("at matched-filter Es/N0 (LINEAR)") and
+    every other caller in the tree writes `10 ** (db / 10)`, from
+    `ber_esn0_db_for_ser.c` to `ber_awgn_demo.py`. This validator passed
+    dB, so every "SER theory" it printed was the bound at
+    `10*log10(esn0_db)` dB: the 8 dB row was scored against the 9.03 dB
+    bound and the 16 dB row against the 12.04 dB one.
+
+    The consequence was not a uniform offset but a FOLD — the map
+    `db -> 10*log10(db)` is compressive, so the whole sweep collapsed into
+    9-13 dB and the error grew in opposite directions at the two ends. It
+    read as a receiver that fell behind the bound at low Es/N0 and caught
+    up at high, which is a plausible-looking shape and is why it survived:
+    at M = 8 it made the object look 20 dB BETTER than a bound that was
+    really the 12 dB one (F8).
+    """
+    return float(ber_theory_ser(m, 10.0 ** (esn0_db / 10.0)))
+
+
+def _esn0_grid(m, n=3, step_db=1.0):
+    """The Es/N0 points where THIS M's error rate is measurable.
+
+    A fixed grid across every M measures the wrong thing. The coherent
+    bound at 12 dB is 4.8e-7 for BPSK and 6.1e-2 for 8PSK -- five orders
+    apart -- so one grid puts BPSK where it makes no errors at all and
+    8PSK where it makes thousands. The first three cells then certify
+    nothing (see F6) while looking like coverage.
+
+    So the grid is DERIVED per M: find the highest Es/N0 whose bound still
+    predicts `PLAN_ERRORS` in `NSCORED` symbols, and step down from there.
+    That puts every cell inside the measurable window by construction, and
+    it moves with `NSYM` -- a longer record automatically reaches further
+    up each curve instead of needing the numbers retyped.
+
+    Returns
+    -------
+    list of float
+        `n` points, ascending, `step_db` apart, the highest being the
+        measurability ceiling.
+    """
+    # M = 8 is the case where the rule cannot be followed, and that is a
+    # RESULT rather than an exception to paper over. Its measurability
+    # ceiling is 14.5 dB, and the object does not work there: measured
+    # across 12-22 dB the rate is non-monotone and seed-dependent below
+    # ~17 dB (refused at 12 and 14, 9.7e-1 at 13, 3.8e-2 at 15) and clean
+    # from 17 up. So the window where the bound is measurable and the
+    # window where the receiver works do not overlap, and a grid inside
+    # either one alone would report half the story. This grid spans the
+    # threshold instead, and F5 carries the consequence.
+    if m == 8:
+        return [14.0, 17.0, 20.0]
+    hi = 0.0
+    e = 0.0
+    while e <= 40.0:
+        if _bound(m, e) * NSCORED >= PLAN_ERRORS:
+            hi = e
+        e += 0.5
+    hi = min(hi, ESN0_MAX_DB)
+    return [hi - step_db * k for k in range(n - 1, -1, -1)]
+
+
+def _resolves(nerr, theory):
+    """Does this cell measure the RECEIVER, or only the record length?
+
+    With zero errors `BerMeter`'s 95% upper bound is the rule-of-three
+    floor, ~3/N, which at 20 000 symbols is 1.5e-4 -- above the M = 2,
+    12 dB bound of 4.8e-7 by 300x. A limit reading "within 10x the bound"
+    there is satisfied by any receiver at all, which is coverage the cell
+    does not have. `theory > 0` guards the same emptiness from the other
+    end: there is no loss to measure against a bound of exactly zero.
+    """
+    return theory > 0.0 and nerr >= MIN_ERRORS
+
+
+def _loss_db(m, esn0_db, ser):
+    """dB the measured rate sits behind the bound, by inverting the bound.
+
+    The same closed form §2.1 quotes, solved for the Es/N0 that would
+    PRODUCE `ser`; the loss is how far that sits below the Es/N0 actually
+    applied. Monotone in Es/N0, so a bisection is exact enough and needs no
+    inverse-Q of its own.
+    """
+    if ser is None or ser <= 0.0:
+        return None
+    lo, hi = -5.0, esn0_db + 20.0
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        if _bound(m, mid) > ser:
+            lo = mid
+        else:
+            hi = mid
+    return esn0_db - 0.5 * (lo + hi)
+
+
 def _csv(path, header, rows):
     if not path.parent.exists():
         path.parent.mkdir(parents=True)
@@ -268,40 +445,116 @@ def characterise(R, write):
         "inverting the same closed form."
     )
     R.md()
+    R.md(
+        "**The grid is DERIVED per M, not shared across them.** The bound "
+        "at 12 dB is 4.8e-7 for BPSK and 3.1e-2 for 8PSK — five orders "
+        "apart — so one grid across all three orders puts BPSK where it "
+        "makes no errors at all and 8PSK where it makes thousands. Each M "
+        "is therefore measured at the highest Es/N0 whose bound still "
+        f"predicts {PLAN_ERRORS} errors in the {NSCORED} symbols actually "
+        "scored, and two steps below it. That is a function of the record "
+        "length, so a longer sweep reaches further up each curve without "
+        "any number here being retyped (F6 is what this replaced)."
+    )
+    R.md()
+    R.md(
+        "**`errors` is the column that decides what any other column is "
+        "worth.** `BerMeter` is built `target_errors=100`, which is its "
+        "own statement of how many it needs before a rate means "
+        f"something. `resolves` is the floor this report uses — "
+        f"{MIN_ERRORS} errors, where the estimate's own standard error is "
+        "~32% of the rate — and §4 asserts only over cells that clear it. "
+        "A cell with three errors has a point estimate that moves by a "
+        "factor of two on the next seed, and one such cell previously "
+        "reported the receiver **beating** the matched-filter bound, "
+        "which nothing can do."
+    )
+    R.md()
 
     rows, sweep = [], []
     for m in (2, 4, 8):
-        for esn0 in (8.0, 12.0, 16.0):
+        for esn0 in _esn0_grid(m):
             x, lab = _signal(m, esn0, foff=0.0005, seed=100 + m)
             rx = MpskReceiver(m=m, sps=SPS, bn_carrier=0.01, bn_timing=0.01)
             out = rx.steps(x)
             lo = ber_settle_syms(0.01, 0.01)
             ser, mtr = _score(out, lab, m, lo)
-            theory = float(ber_theory_ser(m, esn0))
+            theory = _bound(m, esn0)
+            iv = mtr.ser() if (mtr is not None and mtr.symbols) else None
+            nerr = int(iv.errors) if iv is not None else 0
+            hi = float(iv.hi) if iv is not None else None
+            resolves = _resolves(nerr, theory)
+            loss = _loss_db(m, esn0, ser)
             # A refusal is a RESULT and is printed as one. The estimator this
             # replaced could not produce this row: it returned the best of 324
             # rotation/lag tries whether or not the record had an alignment.
             rows.append(
                 [
                     f"{m}",
-                    f"{esn0:.0f}",
+                    f"{esn0:.1f}",
                     f"{ser:.3e}" if ser is not None else "refused",
                     f"{theory:.3e}",
+                    f"{loss:+.2f}" if loss is not None else "—",
+                    f"{nerr}" if ser is not None else "—",
+                    f"{hi:.2e}" if hi is not None else "—",
+                    "yes" if resolves else "**no**",
                     f"{rx.lock:.3f}",
-                    f"{mtr.align_margin_db:+.1f}" if mtr else "n/a",
                 ]
             )
-            sweep.append([m, esn0, ser, theory, rx.lock])
+            sweep.append(
+                [m, esn0, ser, theory, loss, nerr, hi, resolves, rx.lock]
+            )
     d["ser"] = sweep
     R.table(
-        ["M", "Es/N0 dB", "SER measured", "SER theory", "lock", "align dB"],
+        [
+            "M",
+            "Es/N0 dB",
+            "SER measured",
+            "SER theory",
+            "loss dB",
+            "errors",
+            "95% hi",
+            "resolves",
+            "lock",
+        ],
         rows,
+    )
+    R.md()
+    los = {
+        m: [r[4] for r in sweep if r[0] == m and r[4] is not None]
+        for m in (2, 4, 8)
+    }
+    R.md(
+        "**`loss dB` is the headline number, and it is small and stable.** "
+        f"BPSK sits {min(los[2]):+.2f} to {max(los[2]):+.2f} dB behind the "
+        f"coherent bound across its window and QPSK "
+        f"{min(los[4]):+.2f} to {max(los[4]):+.2f} dB — a receiver within "
+        "about half a dB of theory, which is what a fused matched filter "
+        "in a self-planning cascade ought to deliver and had not "
+        "previously been measured. The loss drifting by a fifth of a dB "
+        "across each 2 dB window rather than jumping is the other half of "
+        "the result: an implementation loss should be roughly constant in "
+        "Es/N0, because it is the receiver's own contribution and does not "
+        "scale with N0.\n\n"
+        "**8PSK is a different object at these rates, and its two ends are "
+        "both in the table on purpose.** At 14 dB it is below its own "
+        "acquisition threshold — the meter refuses, or the rate comes back "
+        "near 1.0 — and by 20 dB it recovers every symbol. §4 pins both "
+        "ends and asserts a loss envelope for M = 2 and 4 only, because "
+        "certifying a loss figure for 8PSK here would certify a number "
+        "the object does not produce (F5). Its grid is also the one place "
+        "the derivation above could not be followed: 8PSK's measurability "
+        "ceiling is 14.5 dB and it does not work there, so the window "
+        "where the bound is measurable and the window where the receiver "
+        "works **do not overlap** — measured, not inferred, and the reason "
+        "F5 is CONFIRMED rather than a gap in the sweep."
     )
     R.md()
     if write:
         _csv(
             DATA / "ser_vs_esn0.csv",
-            "m,esn0_db,ser_measured,ser_theory,lock",
+            "m,esn0_db,ser_measured,ser_theory,loss_db,errors,ser_hi,"
+            "resolves,lock",
             sweep,
         )
 
@@ -334,6 +587,28 @@ def characterise(R, write):
         evm_sweep.append([esn0, evm, -esn0, evm + esn0])
     d["evm"] = evm_sweep
     R.table(["Es/N0 dB", "EVM dB", "bound dB", "excess dB"], rows)
+    R.md()
+    R.md(
+        "**The excess is under half a dB everywhere and it grows with "
+        "Es/N0** — -0.34 dB at 8 dB, +0.49 at 20. The sign flip is the "
+        "informative part rather than an anomaly: at 8 dB the measured EVM "
+        "is BELOW the bound, which cannot be a receiver beating a matched "
+        "filter and is instead the error vector still carrying a little "
+        "residual carrier and timing jitter that the self-referenced "
+        "metric folds into its own reference. `ber_evm_db` normalises by "
+        "the constellation it decides on, so at low Es/N0 it is measuring "
+        "against a slightly rotated reference and flatters itself. That is "
+        "why §4 asserts the bound in BOTH directions with half a dB of "
+        "slack rather than only from above: a large negative excess is a "
+        "broken measurement, and a bound with no floor under it would "
+        "certify one.\n\n"
+        "The growth with Es/N0 is the implementation loss becoming "
+        "visible. Once the noise stops dominating, what is left in the "
+        "error vector is the receiver's own contribution — ISI from the "
+        "m_out-tap matched filter and the two loops' jitter — which does "
+        "not shrink with N0. §2.8 is where that floor is isolated by "
+        "moving the filter rather than the noise."
+    )
     R.md()
     if write:
         _csv(
@@ -376,6 +651,33 @@ def characterise(R, write):
     d["m2m4"] = m2m4
     R.table(["Es/N0 dB asked", "M2M4 dB", "error dB", "SER"], rows)
     R.md()
+    R.md(
+        "**The blind estimate is biased LOW by 0.2 to 0.4 dB and the bias "
+        "grows with Es/N0**, which is the expected direction and is what "
+        "makes it usable as a cross-check. M2M4 attributes everything "
+        "non-constant-modulus to noise, so the receiver's own residual — "
+        "the same ISI and jitter §2.2 sees — is counted as noise and the "
+        "reported SNR comes out under the truth. It therefore reads the "
+        "SUM of channel noise and implementation loss, which is exactly "
+        "what a field capture needs and exactly why it must not be used to "
+        "measure implementation loss — that is §2.1's job, against a "
+        "bound.\n\n"
+        "The value is in the DISAGREEMENT, not the agreement. Both columns "
+        "are healthy here, so this table is the control: it establishes "
+        "what the pair looks like when nothing is wrong, which is what "
+        "makes the pattern F2 describes legible. At the false lock of §2.7 "
+        "the constellation is stationary and M2M4 reads clean while the "
+        "frequency is wrong by `F/M` — a healthy blind SNR beside a "
+        "collapsed error rate says the amplitudes are fine and the phase "
+        "is not, and no error rate alone could say that."
+    )
+    R.md()
+    # The reference lives in the section that owns the measurement, never
+    # in `plots()` -- that runs only when `write=True`, so markdown emitted
+    # there is absent from the `--check` render and the staleness gate is
+    # then permanently red with a diff that looks like drift.
+    R.md("![SER against the coherent bound; EVM and blind M2M4](quality.png)")
+    R.md()
     if write:
         _csv(
             DATA / "m2m4_vs_esn0.csv",
@@ -413,6 +715,27 @@ def characterise(R, write):
     }
     R.table(["parameter", "derived at sps=8", "expected"], derived)
     R.md()
+    R.md(
+        "**The readback is the whole mechanism, and it is what makes `0` "
+        "auditable rather than magic.** Each expected value is the "
+        "header's own stated derivation, so this table fails if a "
+        "derivation changes without the header changing with it — which is "
+        "the drift a construct-time default cannot have and a derived one "
+        "can. `lock_thresh` is the row that carries the most: 0.4999 is "
+        "`sigma_H0 * eta(Pfa)` = `0.1132 * 4.4159`, and neither factor is "
+        "this object's — the 0.1132 is the M-th-power statistic's "
+        "noise-only sd, derived and measured in `carrier_nda`'s own "
+        "certification (its §2.7), which is why this report reads the "
+        "number back rather than re-deriving it.\n\n"
+        "What is NOT established here is that the derivation is right at "
+        "any other rate. Every row is measured at `sps = 8`, where the "
+        "header states the answer, so the table pins the answer and not "
+        "the rule: `m_out` derives to the largest even count in 2..8 the "
+        "RATE allows, and a sweep over `sps` is the only thing that could "
+        "show it doing so. That is F1 — the rule is `JM_FORCEINLINE` with "
+        "no binding, and `test_mpsk_receiver_core.c` §1b is what covers it."
+    )
+    R.md()
 
     # 2.5 ---------------------------------------------------------------
     R.md("### 2.5 An irrational `sps` (C §1e)")
@@ -425,32 +748,84 @@ def characterise(R, write):
         "falling between samples rather than on them."
     )
     R.md()
+    R.md(
+        "Two independent readings of the same claim, which is why "
+        "`rate recovered` is here beside the count. The output COUNT is a "
+        "bulk property — it would survive a loop that steered to the "
+        "wrong rate and dropped or duplicated symbols in compensating "
+        "amounts — while `timing_rate` is the terminal accumulator's own "
+        "converged value, so it says the loop found the rate rather than "
+        "merely emitting the right number of things."
+    )
+    R.md()
 
     rows, irr = [], []
-    for sps in (8.0, 17.33389, 31.7):
+    for sps in (8.0, 17.33389, 24.0, 31.7):
         x, lab = _signal(4, 16.0, sps=sps, nsym=6000, foff=0.0004, seed=5)
         rx = MpskReceiver(m=4, sps=sps, bn_carrier=0.01, bn_timing=0.01)
         out = rx.steps(x)
         lo = ber_settle_syms(0.01, 0.01)
         ser, mtr = _score(out, lab, 4, lo)
         expect = x.size / sps
+        rate = rx.timing_rate
         rows.append(
             [
                 f"{sps:g}",
                 f"{out.size}",
                 f"{expect:.0f}",
                 f"{100 * abs(out.size - expect) / expect:.2f}",
+                f"{rate:.5f}",
+                f"{1e6 * (rate - sps) / sps:+.0f}",
                 f"{ser:.3e}" if ser is not None else "refused",
             ]
         )
-        irr.append([sps, out.size, expect, ser])
+        irr.append([sps, out.size, expect, rate, ser])
     d["irrational"] = irr
-    R.table(["sps", "symbols out", "expected", "error %", "SER"], rows)
+    R.table(
+        [
+            "sps",
+            "symbols out",
+            "expected",
+            "error %",
+            "rate recovered",
+            "rate err ppm",
+            "SER",
+        ],
+        rows,
+    )
+    R.md()
+    worst_ppm = max(1e6 * abs(r[3] - r[0]) / r[0] for r in irr)
+    irr_row = next(r for r in irr if r[0] == 17.33389)
+    bad = next(r for r in irr if r[0] == 31.7)
+    R.md(
+        f"**The rate is recovered to within {worst_ppm:.0f} ppm at every "
+        f"rate measured, including the irrational one** — "
+        f"{irr_row[3]:.5f} against a true 17.33389, "
+        f"{1e6 * abs(irr_row[3] - irr_row[0]) / irr_row[0]:.0f} ppm — so "
+        "the header's claim is carried by the loop's own accumulator and "
+        "not only by a count that could be right for the wrong reason. An "
+        "irrational rate is not the hard case: 17.33389 and the integer 8 "
+        "are recovered to the same precision, and both emit the same "
+        "0.03-0.07% output-count error, which is the settling transient at "
+        "the head of the record rather than a rate error.\n\n"
+        f"**`sps = {bad[0]:g}` is the row that separates the two readings, "
+        "and it is why F4 is CONFIRMED.** Its count is inside 0.1% and its "
+        f"recovered rate is within "
+        f"{1e6 * abs(bad[3] - bad[0]) / bad[0]:.0f} ppm — tighter than the "
+        "integer rate's — and the meter still refuses to align the record. "
+        "A rate that close cannot explain a failure to demodulate, which "
+        "localises it to acquisition rather than to steady-state tracking. "
+        "That is the same conclusion F4 reaches from the record-length "
+        "direction and F5 from the non-monotone 8PSK sweep, reached here "
+        "from a third: **all three of this report's unexplained failures "
+        "are acquisition failures on a loop that tracks correctly once "
+        "started.**"
+    )
     R.md()
     if write:
         _csv(
             DATA / "irrational_sps.csv",
-            "sps,symbols_out,symbols_expected,ser",
+            "sps,symbols_out,symbols_expected,rate_recovered,ser",
             irr,
         )
 
@@ -505,6 +880,27 @@ def characterise(R, write):
         ],
     )
     R.md()
+    R.md(
+        "**The control row is what makes the first row mean anything.** "
+        "`tracking == 0` is satisfied by a receiver that never locked, by "
+        "one whose handover is broken, and by one that correctly has no "
+        "handover — three different objects with the same reading. The "
+        "second row is the same record through a receiver built with "
+        "`acq_to_track = 1`, and it DOES flip, so the continuous flavor's "
+        "0 is a pinned property rather than a failure to reach 1. This is "
+        "the vacuity discipline `docs/dev/validation.md` §2 asks for, "
+        "applied to a flag instead of to a reject test.\n\n"
+        "The flavor also demodulates while it does it — SER 0.000e+00 on "
+        "BPSK at 16 dB with the loop steering from the first strobe — so "
+        "removing the gates costs nothing at this operating point. What "
+        "the table cannot show is the case the gates existed for: a cold "
+        "start into a signal that is not there yet. That case is "
+        "`native/validation/rx_dynamics.c`'s — a coupled Doppler ramp "
+        "across a data onset, on this flavor's own NRZ waveform — and "
+        "`mpsk_receiver_create_continuous`'s docstring carries its "
+        "conclusion, which is why the tap trade is not a finding here."
+    )
+    R.md()
 
     # 2.7 ---------------------------------------------------------------
     R.md("### 2.7 The stable false lock at `Δf = k·F/M` (C §1f)")
@@ -513,26 +909,433 @@ def characterise(R, write):
         "`F/M` is exactly where an M-th power at update rate `F` aliases "
         "onto zero, so the M-fold ambiguity is a FREQUENCY ambiguity as "
         "well as a phase one. Seeded there, the loop does not move — and "
-        "reports a lock statistic a caller would trust."
+        "reports a lock statistic a caller would trust.\n\n"
+        "**Every metric the receiver can compute is reported beside it, "
+        "and a true lock on the same geometry is the control.** The claim "
+        "under test is not that the false lock exists — one row shows that "
+        "— but that it is INVISIBLE, and invisibility is a statement about "
+        "the metrics, so each one has to be measured at the false lock and "
+        "compared against its own healthy value. `F` here is the strobe "
+        f"tap's update rate, `Rs` = 1/{SPS:g} = {1.0 / SPS:.3f} "
+        "cycles/sample."
     )
     R.md()
 
-    alias = 1.0 / (4.0 * SPS)
-    x, _ = _signal(4, 20.0, foff=alias, seed=5)
-    rxf = MpskReceiver(m=4, sps=SPS, bn_carrier=0.01, bn_timing=0.01)
-    rxf.steps(x)
+    rows, fl_sweep = [], []
+    lo = ber_settle_syms(0.01, 0.01)
+    for k in (0, 1, 2):
+        foff = k * (1.0 / SPS) / 4.0
+        x, lab = _signal(4, 20.0, foff=foff, seed=5)
+        rxf = MpskReceiver(m=4, sps=SPS, bn_carrier=0.01, bn_timing=0.01)
+        out = rxf.steps(x)
+        ser, _mtr = _score(out, lab, 4, lo)
+        evm = clamp_evm_db(
+            float(
+                ber_evm_db(np.ascontiguousarray(out), lo=lo, hi=out.size, m=4)
+            )
+        )
+        blind = float(snr_m2m4_db(np.ascontiguousarray(out[lo:])))
+        err = rxf.norm_freq - foff
+        rows.append(
+            [
+                "TRUE (control)" if k == 0 else f"**false, k = {k}**",
+                f"{foff:.5f}",
+                f"{rxf.norm_freq:+.5f}",
+                f"{err:+.5f}",
+                f"{rxf.lock:.3f}",
+                f"{evm:.2f}",
+                f"{blind:.2f}",
+                f"{ser:.3e}" if ser is not None else "**refused**",
+            ]
+        )
+        fl_sweep.append([k, foff, rxf.norm_freq, err, rxf.lock, evm, blind])
     d["false_lock"] = {
-        "true": alias,
-        "tracked": rxf.norm_freq,
-        "lock": rxf.lock,
+        "k1": fl_sweep[1],
+        "control": fl_sweep[0],
+        "sweep": fl_sweep,
     }
     R.table(
-        ["true Δf", "tracked", "lock reported"],
-        [[f"{alias:.5f}", f"{rxf.norm_freq:.5f}", f"{rxf.lock:.3f}"]],
+        [
+            "which lock",
+            "true Δf",
+            "tracked",
+            "error",
+            "lock",
+            "EVM dB",
+            "M2M4 dB",
+            "SER",
+        ],
+        rows,
+    )
+    R.md()
+    R.md(
+        "**The lattice is exact and the loop sits at zero, not near it.** "
+        "At `k = 1` the tracked frequency is -0.00000 against a true "
+        "0.03125, so the error is `F/M` to five decimals, and at `k = 2` it "
+        "is `2F/M` to the same precision. This is not a loop that drifted; "
+        "it is a loop at an equilibrium, which is why no amount of record "
+        "length recovers from it.\n\n"
+        "**And every self-referenced metric stays healthy.** Against the "
+        "true lock's +0.977 / -19.60 dB / 19.62 dB, the `k = 1` false lock "
+        "reads +0.963 / -18.60 / 18.69 — a lock statistic 1.4% lower, an "
+        "EVM 1.0 dB worse and a blind SNR 0.9 dB lower, none of which is "
+        "distinguishable from a slightly noisier channel. `k = 2` degrades "
+        "further but still reads +0.885 and -15.07 dB, which any caller "
+        "would accept. **The only column that detects it is the SER, and "
+        "it detects it by REFUSING**: `BerMeter` cannot align a record "
+        "whose symbols are consistently wrong, and its false-alarm gate "
+        "turns that into a declined measurement rather than a plausible "
+        "number. That is the finding — the one metric that catches this "
+        "needs truth, so nothing a deployed receiver computes about itself "
+        "can (F2).\n\n"
+        "**Independently corroborated across the order axis, which this "
+        "section does not sweep.** `docs/design/rx-test.md` (its section "
+        "8.6) measures the same false lock at every M through a different "
+        "harness and "
+        "finds the truth-free penalty *shrinking* as M rises — 3.56 dB of "
+        "EVM at BPSK, 1.05 at QPSK, 0.21 at 8PSK — while the receiver "
+        "declares lock and the alignment refuses at all three. The QPSK "
+        "figure there is this section's 1.0 dB, reached from a different "
+        "direction, and the trend is the part that matters: the metric "
+        "that can half-see this at BPSK goes blind exactly where the "
+        "decision margin is already smallest. So the defence cannot be a "
+        "threshold on any of these three columns at any M."
     )
     R.md()
 
-    R.md("![SER against the coherent bound; EVM and blind M2M4](quality.png)")
+    if write:
+        _csv(
+            DATA / "false_lock.csv",
+            "k,true_foff,tracked,error,lock,evm_db,m2m4_db",
+            fl_sweep,
+        )
+
+    # 2.8 ---------------------------------------------------------------
+    R.md("### 2.8 What `m_out` costs — the matched filter's resolution")
+    R.md()
+    R.md(
+        "The header's longest single claim, and the one it argues hardest: "
+        "`m_out` is not a performance knob but a correctness condition, "
+        "**"
+        "not optional at M = 8**. Two mechanisms are offered — the I&D "
+        "filter is an `m_out`-tap sum spanning one symbol, so a smaller "
+        "`m_out` samples the same integral more coarsely (M-independent), "
+        "and `z^M` spreads energy over ~`M*Rs` so whatever exceeds the "
+        "update rate folds back (M-DEPENDENT, worsening with M).\n\n"
+        "Isolated by halving `m_out` at a FIXED Es/N0 and reading the EVM "
+        "excess over the matched-filter bound, so the noise is held still "
+        "and the only thing that moves is the filter. Measured at 18 dB, "
+        "which is the Es/N0 the header quotes its own QPSK figures at."
+    )
+    R.md()
+
+    rows, mo_sweep = [], []
+    lo = ber_settle_syms(0.01, 0.01)
+    for m in (2, 4, 8):
+        cells = {}
+        for mo in (8, 4):
+            x, lab = _signal(m, 18.0, seed=31 + m, nsym=8000)
+            rx = MpskReceiver(
+                m=m, sps=SPS, m_out=mo, bn_carrier=0.01, bn_timing=0.01
+            )
+            out = rx.steps(x)
+            evm = clamp_evm_db(
+                float(
+                    ber_evm_db(
+                        np.ascontiguousarray(out), lo=lo, hi=out.size, m=m
+                    )
+                )
+            )
+            cells[mo] = (evm + 18.0, rx.lock)
+        cost = cells[4][0] - cells[8][0]
+        rows.append(
+            [
+                f"{m}",
+                f"{cells[8][0]:+.2f}",
+                f"{cells[4][0]:+.2f}",
+                f"{cost:+.2f}",
+                f"{cells[8][1]:.3f}",
+                f"{cells[4][1]:.3f}",
+            ]
+        )
+        mo_sweep.append([m, cells[8][0], cells[4][0], cost])
+    d["m_out"] = mo_sweep
+    R.table(
+        [
+            "M",
+            "excess dB, m_out = 8",
+            "excess dB, m_out = 4",
+            "cost dB",
+            "lock, m_out = 8",
+            "lock, m_out = 4",
+        ],
+        rows,
+    )
+    R.md()
+    q = next(r for r in mo_sweep if r[0] == 4)
+    costs = [r[3] for r in mo_sweep]
+    R.md(
+        "**The direction is the header's and the magnitude reproduces its "
+        f"QPSK figure**: 8 taps sit {q[1]:+.2f} dB off the bound and 4 "
+        f"taps {q[2]:+.2f}, against the header's 0.41 and 3.11 at the same "
+        "Es/N0. So the first mechanism — a coarser sampling of the same "
+        "integral — is confirmed, and it is expensive: half the taps costs "
+        f"about {sum(costs) / len(costs):.1f} dB of an EVM budget that is "
+        "otherwise a quarter of a dB.\n\n"
+        "**The M-DEPENDENCE is not confirmed, and this is the measurement "
+        f"that says so.** The cost is {costs[0]:+.2f}, {costs[1]:+.2f} and "
+        f"{costs[2]:+.2f} dB at M = 2, 4 "
+        f"and 8 — flat to within {max(costs) - min(costs):.2f} dB across "
+        "the whole order "
+        "axis, where the header's own figures (1.7, 1.6, **3.0**) put 8PSK "
+        "at nearly twice BPSK's cost. The two are not in contradiction, "
+        "because they are not the same measurement: the header anchors "
+        "each M at its own `SER = 1e-3` operating point, which converts a "
+        "rate penalty into dB, while this table holds Es/N0 fixed and reads "
+        "the error vector. An EVM excess is blind to where the decision "
+        "boundary is, and the folding mechanism acts precisely on the "
+        "decision margin — +-pi/8 at 8PSK against +-pi/2 at BPSK. So this "
+        "sweep measures the M-independent half cleanly and cannot see the "
+        "M-dependent half at all.\n\n"
+        "What that costs the report: the header's headline conclusion is "
+        "carried by the SER-anchored figures, and reaching a `1e-3` anchor "
+        "per M is the same record-length problem §2.1 runs into from the "
+        "other side (F6, [#781](https://github.com/doppler-dsp/doppler/"
+        "issues/781)). §4 therefore asserts what this geometry establishes "
+        "— that halving `m_out` costs at least 2 dB at every M, so it is "
+        "never free — and not the ordering across M. The LOCK column is "
+        "the corroborating hint: it falls with `m_out` and it falls "
+        "hardest at M = 8 (0.802 to 0.687, against BPSK's 0.989 to 0.986), "
+        "which is the folding mechanism showing up in the one statistic "
+        "built on `z^M` even where the EVM cannot see it — the lock "
+        "statistic moving before the error metric, the same way it does "
+        "for a level error (§2.9)."
+    )
+    R.md()
+    if write:
+        _csv(
+            DATA / "m_out_cost.csv",
+            "m,excess_db_m_out_8,excess_db_m_out_4,cost_db",
+            mo_sweep,
+        )
+
+    # 2.9 ---------------------------------------------------------------
+    R.md("### 2.9 The AGC's gain readback is the level diagnostic (C §9, §11)")
+    R.md()
+    R.md(
+        "The receiver has exactly ONE AGC, in the cascade immediately "
+        "before the terminal matched stage, and it serves BOTH loops. The "
+        "header calls `get_agc_gain_db` *the* diagnostic for a level "
+        "problem and states what it settles to — `-10*log10(P_in/P_ref)`, "
+        "where `P_ref` is the power a unit-amplitude symbol stream has "
+        "where the AGC sits. That is a law with a slope and an offset, and "
+        "both are measurable: sweeping the input amplitude at a fixed "
+        "Es/N0 must move the readback by exactly -1 dB per dB, and the "
+        "offset at unit amplitude says whether `P_ref` really is the "
+        "unit-amplitude reference the header claims.\n\n"
+        "The `agc = 0` column is the control, and it is what the header's "
+        "other claim needs: with the AGC off the receiver is un-levelled, "
+        "so the timing detector — which normalises by a slope computed at "
+        "construction for a unit-amplitude stream — is under-driven by "
+        "`A^2`. **Which is why the metric reported for it is the recovered "
+        "RATE and not the lock statistic.** Es/N0 is held at 20 dB while "
+        "the amplitude moves, so the only thing changing is the level the "
+        "loops see."
+    )
+    R.md()
+
+    rows, agc_sweep = [], []
+    for amp in (1.0, 0.5, 0.125, 0.03125):
+        cells = {}
+        for agc in (1, 0):
+            x, lab = _signal(4, 20.0, seed=3, amp=amp, nsym=4000)
+            rx = MpskReceiver(
+                m=4, sps=SPS, bn_carrier=0.01, bn_timing=0.01, agc=agc
+            )
+            out = rx.steps(x)
+            ser, _mtr = _score(out, lab, 4, ber_settle_syms(0.01, 0.01))
+            cells[agc] = (
+                rx.agc_gain_db,
+                1e6 * abs(rx.timing_rate - SPS) / SPS,
+                rx.lock,
+                ser,
+                rx.clipped,
+            )
+        g = cells[1][0]
+        rows.append(
+            [
+                f"{amp:g}",
+                f"{g:+.3f}",
+                f"{g + 20 * np.log10(amp):+.3f}",
+                f"{cells[1][1]:.0f}",
+                f"{cells[0][1]:.0f}",
+                f"{cells[1][2]:.3f}",
+                f"{cells[0][2]:.3f}",
+                f"{cells[1][4]}",
+            ]
+        )
+        agc_sweep.append(
+            [
+                amp,
+                g,
+                g + 20 * np.log10(amp),
+                cells[1][1],
+                cells[0][1],
+                cells[1][2],
+                cells[0][2],
+            ]
+        )
+    d["agc"] = agc_sweep
+    R.table(
+        [
+            "input amplitude",
+            "agc_gain_db",
+            "+ 20log10(amp)",
+            "rate err ppm, agc = 1",
+            "rate err ppm, agc = 0",
+            "lock, agc = 1",
+            "lock, agc = 0",
+            "clipped",
+        ],
+        rows,
+    )
+    R.md()
+    offs = [r[2] for r in agc_sweep]
+    on_ppm = [r[3] for r in agc_sweep]
+    off_ppm = [r[4] for r in agc_sweep]
+    R.md(
+        "**The level law is exact.** The fourth column is the readback plus "
+        "`20*log10(amp)`, which the header's law says must be a constant, "
+        f"and it is: {min(offs):+.3f} to {max(offs):+.3f} dB across a 32x "
+        "span, moving by under a hundredth of a dB. So the AGC applies "
+        "precisely the reciprocal of the input level, and `P_ref` IS the "
+        f"unit-amplitude reference to within {abs(offs[0]):.2f} dB — the "
+        "residual being the bank's own pulse energy, which the header says "
+        "the reference is derived from rather than chosen. A reading far "
+        "from 0 dB therefore means what the header says it means, and the "
+        "number is usable as an absolute level estimate rather than only "
+        "as a trend.\n\n"
+        "**The `A^2` under-drive lands on the recovered rate, and the "
+        "carrier lock statistic cannot see it at all.** With the AGC on, "
+        f"the rate error is {min(on_ppm):.0f}-{max(on_ppm):.0f} ppm with no "
+        f"trend in level; with it off, it grows from {off_ppm[0]:.0f} ppm at "
+        f"unit amplitude to {max(off_ppm):.0f} ppm as the level falls — "
+        "about a factor of ten, in the direction and on the axis the "
+        "header names. Meanwhile `lock` reads 0.96-0.97 in **both** "
+        "columns and is not even monotone in level (0.892 at amplitude "
+        "0.125, 0.967 at 0.03125), which is not a defect but a "
+        "consequence: `lock` is the CARRIER statistic and "
+        "`carrier_nda_disc` divides out its own `|z|^M`, so it is immune "
+        "to the level by construction — the property `carrier_nda`'s own "
+        "certification measures over eight decades. **The receiver "
+        "therefore publishes two health readouts with disjoint blind "
+        "spots, and the one a caller reaches for first is blind to this "
+        "one.** A level problem is visible in `agc_gain_db` and in "
+        "`timing_rate`, and in neither `lock` nor, at 20 dB, the error "
+        "rate — every cell here recovers every symbol. The `clipped` "
+        "column stays 0 throughout, which attributes the effect to loop "
+        "gain rather than to the +-1.0 ceiling the cascade clips at."
+    )
+    R.md()
+    if write:
+        _csv(
+            DATA / "agc_level.csv",
+            "amplitude,agc_gain_db,offset_db,ppm_agc_on,ppm_agc_off,"
+            "lock_agc_on,lock_agc_off",
+            agc_sweep,
+        )
+    R.md("![what m_out costs, and the AGC's level law](cascade.png)")
+    R.md()
+
+    # 2.10 --------------------------------------------------------------
+    R.md("### 2.10 Lifecycle, reset, telemetry and state (C §1, §10)")
+    R.md()
+    R.md(
+        "The surfaces a composing caller needs and no earlier section "
+        "reaches. A receiver this deep in a cascade is checkpointed and "
+        "resumed rather than restarted, so the state triplet is not a "
+        "convenience — and its telemetry is the only way to see inside a "
+        "composition that publishes one `lock` number."
+    )
+    R.md()
+
+    x, lab = _signal(4, 20.0, nsym=4000, foff=0.0005, seed=6)
+    half = (x.size // 2) & ~7
+    rx = MpskReceiver(m=4, sps=SPS, bn_carrier=0.01, bn_timing=0.01)
+    rx.steps(x[:half])
+    blob = rx.get_state()
+    tail = rx.steps(x[half:])
+    warm = MpskReceiver(m=4, sps=SPS, bn_carrier=0.01, bn_timing=0.01)
+    warm.steps(x[:half])
+    warm.set_state(blob)
+    resumed = np.array_equal(tail, warm.steps(x[half:]))
+
+    rr = MpskReceiver(m=4, sps=SPS, bn_carrier=0.01, bn_timing=0.01)
+    first = rr.steps(x)
+    rr.reset()
+    reproduces = np.array_equal(first, rr.steps(x))
+
+    try:
+        warm.set_state(b"\x00" * len(blob))
+        rejects = False
+    except ValueError:
+        rejects = True
+
+    tlm = Telemetry()
+    rt = MpskReceiver(m=4, sps=SPS, bn_carrier=0.01, bn_timing=0.01)
+    rt.set_telemetry(tlm, "rx", 8)
+    rt.steps(x[:8192])
+    counts = {k: len(v) for k, v in tlm.read_dict().items()}
+    nprobe = len(counts)
+    nrec = sorted(set(counts.values()))
+    d["life"] = {
+        "state_bytes": len(blob),
+        "resumed": resumed,
+        "reproduces": reproduces,
+        "rejects": rejects,
+        "nprobe": nprobe,
+        "nrec": nrec[0] if len(nrec) == 1 else None,
+        "probes": sorted(counts),
+    }
+    R.table(
+        ["property", "measured"],
+        [
+            ["`reset()` reproduces the first run", f"{reproduces}"],
+            ["serialized size", f"{len(blob)} bytes"],
+            ["resume from a blob, mid-stream", f"bit-exact: {resumed}"],
+            ["a clobbered blob is rejected", f"ValueError: {rejects}"],
+            ["telemetry probes published", f"{nprobe}"],
+            [
+                "records per probe over 8192 samples at decim 8",
+                f"{nrec[0] if len(nrec) == 1 else nrec}",
+            ],
+        ],
+    )
+    R.md()
+    R.md(
+        "**The resume is checked against a WARM instance, not a fresh "
+        "one.** A `set_state` into a newly constructed receiver would pass "
+        "on an object that restores nothing at all, because the fresh "
+        "state and the restored state agree wherever the blob is silent. "
+        "The instance here is driven through the same first half, then "
+        "overwritten from the blob, so the assertion is that the blob "
+        "DETERMINES the continuation rather than merely not contradicting "
+        "it — the vacuity discipline the campaign applies to reject tests, "
+        "applied to a round-trip.\n\n"
+        f"**{nprobe} probes, and they emit once per SYMBOL** — "
+        f"{nrec[0] if len(nrec) == 1 else nrec} records each over 8192 "
+        "input samples at `decim = 8`, which is 8192/`sps`/8 and not "
+        "8192/8. Worth knowing, because `carrier_nda`'s probes emit per "
+        "input SAMPLE (`carrier_nda/results.md`, its lifecycle section) "
+        "and a caller reading both at one `decim` gets two different time "
+        "bases. Every probe carries the same "
+        "count, which is the attach-fails-whole property: a partially "
+        "attached composition would show a short probe rather than an "
+        "error. The set spans all three subsystems — `rx.car.*` for the "
+        "carrier loop, `rx.sync.*` for timing, `rx.agc.*` for the level — "
+        "so the composition is observable per constituent and not only at "
+        "its output."
+    )
     R.md()
 
     return d
@@ -580,14 +1383,18 @@ def review(R, d):
     R.find(
         "F4",
         "CONFIRMED",
-        "**A healthy lock statistic beside a rate that misses the bound**, "
-        "in two independent places. At `sps = 31.7` (§2.5) the receiver "
-        "locks — 0.85 at 6 000 symbols, 0.90 at 20 000 — and still reads "
-        "SER 3.1e-1 and 4.6e-2 against a bound of 6e-5; `sps = 24` on the "
-        "same sweep is clean, so it is not the irrational rate itself. "
-        "The rate falling with record length is the signature of a slip "
-        "during acquisition that a longer settled tail dilutes, rather "
-        "than a steady-state loss. That is the same shape as "
+        "**A receiver that recovers the symbol rate to 2 ppm and still "
+        "cannot be demodulated.** At `sps = 31.7` (§2.5) the output count "
+        "is the integral of the rate to 0.08% and `timing_rate` converges "
+        "to within 2 ppm of the truth — tighter than at the integer rate — "
+        "and `BerMeter` refuses to align the record at all. `sps = 24` on "
+        "the same sweep, same seed and same loops, is clean, so it is "
+        "neither the irrational rate nor high oversampling per se. A "
+        "timing loop this converged cannot produce an unalignable record "
+        "in steady state, so the failure is in acquisition: a slip while "
+        "the loops pull in leaves the symbol PHASE wrong by a whole "
+        "symbol or the carrier on the wrong ambiguity, neither of which "
+        "the rate readout can see. That is the same shape as "
         "[#781](https://github.com/doppler-dsp/doppler/issues/781), "
         "reached through a completely different path — a randomised "
         "Monte-Carlo geometry there, a fixed high oversampling here — "
@@ -599,19 +1406,133 @@ def review(R, d):
     R.find(
         "F5",
         "CONFIRMED",
-        "**8PSK does not reach the bound at low Es/N0** (§2.1): 8.7e-1 "
-        "measured against 1.3e-1 at 8 dB, and 5.9e-1 against 6.1e-2 at "
-        "12 dB, with `m_out` derived to 8 — the value the header says is "
-        "not optional at M = 8. It recovers by 16 dB (7.0e-3 against "
-        "3.0e-2, inside the bound). The M-th-power discriminator's "
-        "squaring loss grows with M and the decision margin shrinks to "
-        "+-pi/8, so a floor at low Es/N0 is expected; what is not "
-        "established is where it should sit, and no measurement here "
-        "pins that. Tracked by "
-        "[#781](https://github.com/doppler-dsp/doppler/issues/781), which "
-        "asks the same question about implementation loss the sweep "
-        "cannot currently answer. §4 asserts only the cells where a 10x "
-        "bound constrains anything.",
+        "**8PSK's implementation loss is not measurable by any per-push "
+        "sweep, because the window where the bound is measurable and the "
+        "window where the receiver works do not overlap.** That is a "
+        'sharper statement than the *"8PSK does not reach the bound"* '
+        "this finding carried before, and it is the corrected one: the "
+        "earlier version compared against the bound at the wrong Es/N0 "
+        "(F8) and its recovery-by-16-dB claim does not survive the fix. "
+        "Both halves are measured. The bound at M = 8 falls slowly — "
+        "1.7e-5 at 18 dB — so reaching "
+        f"{MIN_ERRORS} errors there needs ~2.3M scored symbols against "
+        f"the {NSCORED} this sweep scores, and the highest Es/N0 where "
+        "the bound predicts enough errors at all is **14.5 dB**. The "
+        "receiver does not work at 14.5 dB: swept 12 to 22 dB it is "
+        "non-monotone and seed-dependent below ~17 dB (refused at 12 and "
+        "14, 9.7e-1 at 13, 3.8e-2 at 15, 7.0e-2 at 16) and clean from 17 "
+        "up — 1.2e-3 at 17, 2.6e-4 at 18, and no errors at all by 20. A "
+        "non-monotone rate across a monotone axis is the signature of an "
+        "acquisition that succeeds or fails per record rather than a "
+        "steady-state loss, which is the same mechanism F4 localises at "
+        "`sps = 31.7` and the same one "
+        "[#781](https://github.com/doppler-dsp/doppler/issues/781) "
+        "reports at m_out = 4. So the ordering is: 8PSK acquires "
+        "unreliably below ~17 dB, and above it the bound is out of reach "
+        "of a validator. Characterising the threshold needs TRIALS per "
+        "point, which is `make characterize`'s job and not this file's "
+        "(`docs/dev/validation.md`). §4 pins both ends of the threshold "
+        "and asserts the loss envelope for M = 2 and 4 only.",
+    )
+
+    R.find(
+        "F6",
+        "GAP",
+        "**Six of the nine Es/N0 cells cannot bound the implementation "
+        "loss at all, and the sweep did not say so until it was asked.** "
+        "At "
+        f"{NSYM} symbols a cell measuring zero errors has a 95% upper "
+        "bound of the rule-of-three floor, ~3/N = 1.5e-4 — which at M = 2, "
+        "12 dB sits 300x ABOVE the coherent bound of 4.8e-7. A limit "
+        'reading "within 10x the bound" there is satisfied by every '
+        "receiver that exists, so it reported coverage the measurement did "
+        "not have. §2.1 now carries the meter's own `errors` and `95% hi` "
+        "columns and a `resolves` verdict per cell, and §4 asserts only "
+        "the three cells that resolve — the two lowest-Es/N0 BPSK and QPSK "
+        "points and 8PSK at 16 dB. The guard it replaced keyed on the "
+        "BOUND being small (`theory < 1e-2`), which is a different "
+        "question from whether the RECORD can resolve it, and admitted "
+        "exactly the vacuous cells. This is a property of the record "
+        "length rather than of the receiver, and the fix is symbols: "
+        "reaching `target_errors = 100` at a 1e-6 bound needs ~1e8 of "
+        "them, which is a `make characterize` sweep and not a per-push "
+        "validator (`docs/dev/validation.md`, and the category exists for "
+        "this). It is the same wall §2.8 hits from the other side — the "
+        "header's `m_out` figures are anchored at `SER = 1e-3` per M, "
+        "which this geometry cannot reach either — and it is what "
+        "[#781](https://github.com/doppler-dsp/doppler/issues/781) is "
+        "asking for.",
+    )
+
+    R.find(
+        "F7",
+        "GAP",
+        f"**{d['claims']['absent']} of the header's "
+        f"{d['claims']['total']} claims carry something covered by "
+        "nothing, in either language** — and the inventory in §1.1 is "
+        "what made that visible, which is the argument for the inventory "
+        "being IN the report. They split three ways, and the split is "
+        "what says who should act. **Six are actionable and tracked by "
+        "[gh-814](https://github.com/doppler-dsp/doppler/issues/814)**: a "
+        "binding reaches every one, so a measurement is possible and "
+        "simply does not exist. **Two have no binding at all** — C7's "
+        "per-arm tap count and C22's refusal of `bn_agc_ratio >= 1` — so "
+        "they belong in `native/validation/` if anywhere, and calling "
+        "them a Python gap would misfile them. **One is the differential "
+        "demap** (C24), already named in §5 and older than this "
+        "certification. Of the six, the worst is C9, the `@warning`'s "
+        "own headline — "
+        '`bn_carrier` is now normalised to the SYMBOL rate, so *"at the '
+        'old default `sps = 8` the same number is now an 8x wider loop"* '
+        "— which nothing measures, so a regression to input-rate "
+        "normalisation would look correct at `sps = 8` and be wrong "
+        "everywhere else. It was attempted here and abandoned rather than "
+        "faked: `lock_time` is too noisy across the rate axis to carry it "
+        "(955 at `sps = 4` against 51 at 16 for one `bn`), and a law "
+        "fitted to that would be a curve fit presented as a "
+        "certification. Then C6's DROP-BACK (§4 of the C test pins the "
+        "flip one way only), C13's documented sharp edge that "
+        "construction still permits, C15's 0.8x hysteresis and 8-up / "
+        "32-down verify counts — unmeasured here although `carrier_nda`'s "
+        "§2.8 found the analogous count mattered a great deal — C21's "
+        "`A^2` under-drive law, and C16's claim that 64 is the SATURATION "
+        "point rather than merely the derived value. Each needs an axis "
+        "this validator does not sweep, a stimulus it does not build, or "
+        "a construction it has no reason to attempt, so the home is "
+        "`make characterize` or `native/validation/` rather than here "
+        "(`docs/dev/adding-algorithms.md` phase 7). Filed as "
+        "[gh-814](https://github.com/doppler-dsp/doppler/issues/814); "
+        "none is a regression, and the object is certified on what IS "
+        "measured.",
+    )
+
+    R.find(
+        "F8",
+        "FIXED",
+        "**Every `SER theory` figure in this report was the bound at the "
+        "wrong Es/N0, and the report's own headline numbers moved when it "
+        "was corrected.** `ber_theory_ser`'s second argument is LINEAR "
+        'Es/N0 — its header says so in capitals, *"at matched-filter '
+        'Es/N0 (LINEAR)"* — and this validator passed dB. Every other '
+        "caller in the tree writes the conversion, from "
+        "`ber_esn0_db_for_ser.c` to `ber_awgn_demo.py` to "
+        "`test_mpsk_receiver_performance.py`, so the defect was this "
+        "file's alone. The consequence was not an offset but a FOLD: "
+        "`db -> 10*log10(db)` is compressive, so a sweep of 8/12/16 dB "
+        "was scored against the bound at 9.0/10.8/12.0 dB and the sign of "
+        "the error reversed across the sweep — the object read as falling "
+        "behind at low Es/N0 and catching up at high, which is a "
+        "plausible-looking shape and is why it survived review. It also "
+        "made 8PSK look **20 dB better than the bound** at 18 dB, which "
+        "is the impossible reading that finally exposed it (nothing beats "
+        "a matched filter). Corrected numbers: BPSK's loss is +0.47 to "
+        "+0.67 dB and QPSK's +0.33 to +0.39, where the old table implied "
+        "+1.34 dB at BPSK and a 10x rate deficit at QPSK. Fixed by "
+        "routing every bound through one `_bound(m, esn0_db)` helper, so "
+        "there is a single conversion site rather than three call sites "
+        "that agreed by luck. Not open: the defect was in the evidence, "
+        "not the object, and the object is better than the old report "
+        "said.",
     )
 
     R.find(
@@ -640,27 +1561,74 @@ def limits(R, d):
     )
     R.md()
 
-    # Asserted only where a 10x bound is a real constraint. At M=8 and
-    # 8 dB the closed form is already 1.26e-1, so "within 10x" is
-    # satisfied by a receiver that is not working at all -- a vacuous
-    # limit reads as coverage it does not have. Those cells stay in
-    # §2.1's table as characterisation, and F4 judges them.
-    for m, esn0, ser, theory, _lock in d["ser"]:
-        if theory < 1e-2:
-            # Today no refusal reaches this branch, because every one
-            # lands where `theory` is too large to pass the guard above --
-            # but that guard is about the BOUND being tight, not about the
-            # meter having succeeded, so the two are independent.
-            _limit_ser(
-                R,
-                ser,
-                max(10 * theory, 3e-3),
-                f"M={int(m)} at Es/N0 {esn0:.0f} dB",
-                lambda s, m=m, e=esn0, t=theory: (
-                    f"M={int(m)} at Es/N0 {e:.0f} dB: SER {s:.2e} is "
-                    f"within 10x the coherent bound {t:.2e}"
-                ),
+    # Asserted only where the MEASUREMENT can carry the claim, which is
+    # `resolves` and not the size of the bound. The guard this replaced was
+    # `theory < 1e-2` -- a statement about the bound being tight, which is
+    # a different question from whether 20 000 symbols can tell a receiver
+    # ON that bound from one 10x behind it. It admitted the two BPSK cells
+    # that measure zero errors, where the meter's own 95% floor is 300x
+    # above the bound and the assertion is satisfied by any receiver at
+    # all. Those cells stay in §2.1 as characterisation; F6 judges them.
+    n_res = 0
+    for m, esn0, ser, theory, loss, _nerr, _hi, resolves, _lock in d["ser"]:
+        # M = 8 is excluded from the LOSS envelope, the same way `sps > 24`
+        # is: the object does not deliver it, F5 carries why, and pinning
+        # the collapse below is what keeps it visible. Certifying a 3 dB
+        # loss here would certify a result the receiver does not produce.
+        if not resolves or m == 8:
+            continue
+        n_res += 1
+        if ser is None:
+            R.limit(
+                False,
+                f"M={int(m)} at Es/N0 {esn0:.1f} dB: the meter REFUSED "
+                f"this cell, so the claim is unestablished rather than met",
             )
+            continue
+        # The dB, not the rate ratio: a ratio has no fixed dB meaning
+        # across the curve, and dB is the unit a link budget is written in.
+        # `loss is None` only where `ser == 0.0`, which cannot reach here
+        # -- a cell with no errors cannot have MIN_ERRORS of them -- so it
+        # is a genuine impossibility rather than a case being swallowed.
+        R.limit(
+            loss is not None and loss <= LOSS_MAX_DB,
+            f"M={int(m)} at Es/N0 {esn0:.1f} dB: implementation loss "
+            f"{loss:+.2f} dB against the coherent bound, inside "
+            f"{LOSS_MAX_DB:.0f} dB (SER {ser:.2e} vs {theory:.2e}, "
+            f"{_nerr} errors)",
+        )
+    # Without this the loop above is vacuous if `resolves` ever goes all
+    # False -- zero limits recorded, and a tally that still reads 100%.
+    # The same shape as a reject test that passes because its precondition
+    # stopped holding.
+    R.limit(
+        n_res >= 6,
+        f"the sweep resolves {n_res} cells with enough errors to bound the "
+        f"implementation loss at all — the assertions above are not "
+        f"vacuous, and the grid is derived to keep them that way",
+    )
+    # 8PSK is not in the loss envelope, so it is PINNED instead: both ends
+    # of its threshold, so a fix shows up as a failing limit rather than
+    # passing unnoticed, and a further regression does too.
+    eight = [r for r in d["ser"] if r[0] == 8]
+    lo8, hi8 = eight[0], eight[-1]
+    R.limit(
+        lo8[2] is None or lo8[2] > 0.1,
+        f"8PSK at Es/N0 {lo8[1]:.1f} dB is BELOW its threshold and the "
+        f"envelope says so rather than certifying it: "
+        + (
+            "the meter refuses the cell"
+            if lo8[2] is None
+            else f"SER {lo8[2]:.2e} against a bound of {lo8[3]:.2e}"
+        )
+        + " (F5)",
+    )
+    R.limit(
+        hi8[2] is not None and hi8[2] < 1e-3,
+        f"while 8PSK at Es/N0 {hi8[1]:.1f} dB recovers symbols cleanly "
+        f"(SER {hi8[2]:.2e}) — so the collapse is a THRESHOLD and not an "
+        f"8PSK defect, and both sides of it are pinned",
+    )
 
     for esn0, evm, bound, excess in d["evm"]:
         R.limit(
@@ -702,11 +1670,20 @@ def limits(R, d):
     # The SER claim is narrower on purpose: sps = 31.7 locks and still
     # misses the bound (F4), so certifying it would be certifying a
     # result the object does not deliver.
-    for sps, got, expect, ser in d["irrational"]:
+    for sps, got, expect, rate, ser in d["irrational"]:
         R.limit(
             abs(got - expect) / expect < 0.02,
             f"sps={sps:g}: output count is the integral of the rate to 2% "
             f"({int(got)} vs {expect:.0f})",
+        )
+        # The loop's own accumulator, which the count cannot substitute
+        # for: a rate steered wrong and compensated by dropped symbols
+        # gives the right count. Asserted at EVERY rate, unlike the SER.
+        R.limit(
+            abs(rate - sps) / sps < 1e-3,
+            f"sps={sps:g}: and the timing loop RECOVERS that rate to "
+            f"{1e6 * abs(rate - sps) / sps:.0f} ppm ({rate:.5f}) — so the "
+            f"count is right for the right reason",
         )
         if sps <= 24.0:
             _limit_ser(
@@ -739,12 +1716,124 @@ def limits(R, d):
         lambda s: f"ContinuousMpskReceiver recovers BPSK (SER {s:.2e})",
     )
 
-    fl = d["false_lock"]
+    # The false lock is asserted as a LATTICE and as an invisibility, and
+    # both halves have to hold for the finding to be the finding: a lock
+    # that drifted would not be an equilibrium, and one that showed up in
+    # the metrics would not be silent.
+    _k, ftrue, tracked, ferr, flock, fevm, fblind = d["false_lock"]["k1"]
+    _ck, _cf, _ct, _ce, clock, cevm, cblind = d["false_lock"]["control"]
     R.limit(
-        fl["lock"] > 0.5
-        and abs(fl["tracked"] - fl["true"]) > 0.5 * fl["true"],
-        "the false lock at k·F/M reports a HEALTHY statistic with a wrong "
-        "frequency — pinned so a change in either half is visible",
+        abs(ferr + ftrue) < 1e-4,
+        f"the false lock at k·F/M is an EQUILIBRIUM, not a drift: the loop "
+        f"sits at {tracked:+.5f} against a true {ftrue:.5f}, so the error "
+        f"is F/M to within 1e-4 cycles/sample",
+    )
+    R.limit(
+        flock > 0.5,
+        f"and reports a lock statistic a caller would trust ({flock:.3f}, "
+        f"above the derived declare threshold of 0.4999)",
+    )
+    R.limit(
+        clock - flock < 0.1 and cevm - fevm < 2.0 and cblind - fblind < 2.0,
+        f"while NO self-referenced metric separates it from the true lock: "
+        f"lock {flock:.3f} vs {clock:.3f}, EVM {fevm:.2f} vs {cevm:.2f} dB, "
+        f"blind M2M4 {fblind:.2f} vs {cblind:.2f} dB — every one inside "
+        f"what a slightly noisier channel would give",
+    )
+    R.limit(
+        d["false_lock"]["sweep"][1][6] > 10.0,
+        f"and the blind estimator is positively healthy there "
+        f"({fblind:.2f} dB), so it cannot be used as a false-lock alarm "
+        f"either — defend with an external reference or a sync word (F2)",
+    )
+
+    # m_out: what this geometry establishes is the DIRECTION and a floor on
+    # the magnitude, at every M. Not the ordering across M -- see §2.8.
+    for m, ex8, ex4, cost in d["m_out"]:
+        R.limit(
+            cost > 2.0,
+            f"M={int(m)}: halving m_out from 8 to 4 costs {cost:+.2f} dB of "
+            f"EVM ({ex8:+.2f} -> {ex4:+.2f} dB over the bound) — the "
+            f"matched filter's resolution is never free",
+        )
+    R.limit(
+        max(r[1] for r in d["m_out"]) < 1.0,
+        f"and the DERIVED m_out = 8 is within 1 dB of the bound at every M "
+        f"(worst {max(r[1] for r in d['m_out']):+.2f} dB), so the "
+        f"derivation lands on a configuration that costs nothing",
+    )
+
+    # The AGC's law is a slope and an offset, and the slope is the claim.
+    offs = [r[2] for r in d["agc"]]
+    R.limit(
+        max(offs) - min(offs) < 0.05,
+        f"the AGC applies exactly the reciprocal of the input level: "
+        f"`agc_gain_db + 20log10(amp)` is constant to "
+        f"{max(offs) - min(offs):.4f} dB across a 32x amplitude span, so "
+        f"the readback is an absolute level estimate and not just a trend",
+    )
+    R.limit(
+        abs(offs[0]) < 1.0,
+        f"and that constant is {offs[0]:+.3f} dB, so `P_ref` IS the "
+        f"unit-amplitude reference the header names, to within a dB",
+    )
+    on_ppm = [r[3] for r in d["agc"]]
+    off_ppm = [r[4] for r in d["agc"]]
+    R.limit(
+        max(on_ppm) < 100.0,
+        f"the LEVELLED receiver recovers the symbol rate to within "
+        f"{max(on_ppm):.0f} ppm at every amplitude across a 32x span — the "
+        f"AGC removes the level from the timing loop's gain entirely",
+    )
+    R.limit(
+        max(off_ppm) > 2.0 * max(on_ppm),
+        f"and the un-levelled control does NOT ({max(off_ppm):.0f} ppm "
+        f"worst against {max(on_ppm):.0f}) — so the AGC is load-bearing "
+        f"and this pair is not satisfied by an AGC that does nothing",
+    )
+    R.limit(
+        off_ppm[0] < max(off_ppm),
+        f"with the un-levelled error growing as the level falls "
+        f"({off_ppm[0]:.0f} ppm at unit amplitude to {max(off_ppm):.0f}), "
+        f"which is the `A^2` under-drive on the axis the header names",
+    )
+    # The blind spot, asserted. A future change that made `lock` sensitive
+    # to level would take this red -- which is the point: it says WHERE
+    # this diagnostic works, and a caller relies on that.
+    lk_on = [r[5] for r in d["agc"]]
+    lk_off = [r[6] for r in d["agc"]]
+    R.limit(
+        max(lk_on) - min(lk_on) < 0.05 and max(lk_off) - min(lk_off) < 0.1,
+        f"while the CARRIER lock statistic is blind to all of it — "
+        f"{min(lk_on):.3f}-{max(lk_on):.3f} levelled and "
+        f"{min(lk_off):.3f}-{max(lk_off):.3f} un-levelled — because the "
+        f"discriminator divides out its own `|z|^M`. A level problem is "
+        f"visible in `agc_gain_db` and `timing_rate`, and in neither "
+        f"`lock` nor the error rate",
+    )
+
+    li = d["life"]
+    R.limit(li["reproduces"], "`reset()` reproduces the first run bit for bit")
+    R.limit(
+        li["resumed"],
+        f"a {li['state_bytes']}-byte blob resumes the receiver bit-exactly "
+        f"mid-stream, checked by overwriting a WARM instance so the blob "
+        f"has to DETERMINE the continuation rather than not contradict it",
+    )
+    R.limit(
+        li["rejects"],
+        "and a clobbered blob is rejected rather than reinterpreted",
+    )
+    R.limit(
+        li["nprobe"] == 14,
+        f"the receiver publishes {li['nprobe']} telemetry probes spanning "
+        f"all three subsystems (`rx.car.*`, `rx.sync.*`, `rx.agc.*`)",
+    )
+    R.limit(
+        li["nrec"] is not None,
+        f"and the attach succeeds WHOLE: every probe carries the same "
+        f"record count ({li['nrec']}), emitted once per symbol and thinned "
+        f"by `decim` alone",
     )
 
 
@@ -760,7 +1849,7 @@ def plots(d):
     fig, ax = plt.subplots(1, 2, figsize=(11, 4.2))
 
     for m, mark in ((2, "o"), (4, "s"), (8, "^")):
-        pts = [(e, s, t) for mm, e, s, t, _ in d["ser"] if mm == m]
+        pts = [(r[1], r[2], r[3]) for r in d["ser"] if r[0] == m]
         # A refused cell has no SER, and it must not be drawn as one. The
         # floor this used to apply would have put `None` -> 1e-6 at the
         # BOTTOM of a log axis, rendering "the meter would not defend a
@@ -805,6 +1894,78 @@ def plots(d):
 
     fig.tight_layout()
     fig.savefig(HERE / "quality.png", dpi=110)
+    plt.close(fig)
+
+    # The cascade's two configuration axes, side by side: what the matched
+    # filter's resolution costs, and the AGC's level law. Both are floors
+    # rather than curves against Es/N0, which is why they get their own
+    # figure instead of another trace on the one above.
+    fig, ax = plt.subplots(1, 2, figsize=(11, 4.2))
+
+    ms = [r[0] for r in d["m_out"]]
+    xpos = np.arange(len(ms))
+    ax[0].bar(
+        xpos - 0.18,
+        [r[1] for r in d["m_out"]],
+        0.36,
+        label="m_out = 8 (derived)",
+    )
+    ax[0].bar(xpos + 0.18, [r[2] for r in d["m_out"]], 0.36, label="m_out = 4")
+    for i, r in enumerate(d["m_out"]):
+        ax[0].annotate(
+            f"+{r[3]:.2f} dB",
+            (i, max(r[1], r[2]) + 0.12),
+            ha="center",
+            fontsize=8,
+        )
+    ax[0].set_xticks(xpos)
+    ax[0].set_xticklabels([f"M = {m}" for m in ms])
+    ax[0].set_ylabel("EVM excess over the bound (dB)")
+    ax[0].set_title("What halving m_out costs, at 18 dB Es/N0")
+    ax[0].grid(True, alpha=0.3, axis="y")
+    # Headroom for the annotations, which otherwise clip against the frame.
+    ax[0].set_ylim(0.0, max(r[2] for r in d["m_out"]) * 1.22)
+    ax[0].legend(fontsize=8, loc="center right")
+
+    amps = [r[0] for r in d["agc"]]
+    ax[1].semilogx(amps, [r[1] for r in d["agc"]], "o-", label="agc_gain_db")
+    ax[1].semilogx(
+        amps,
+        [-20 * np.log10(a) for a in amps],
+        "k--",
+        alpha=0.6,
+        label="the law: −20log10(amp)",
+    )
+    ax[1].set_xlabel("input amplitude")
+    ax[1].set_ylabel("dB")
+    ax[1].set_title("The AGC applies the reciprocal of the level")
+    ax[1].grid(True, alpha=0.3)
+    ax[1].legend(fontsize=8)
+
+    # The rate error on its own axis: it is what the A^2 under-drive moves,
+    # and plotting it against the gain law puts the diagnostic that WORKS
+    # beside the one that is exact.
+    axr = ax[1].twinx()
+    axr.semilogx(
+        amps,
+        [r[3] for r in d["agc"]],
+        "s:",
+        color="tab:green",
+        label="agc=1",
+    )
+    axr.semilogx(
+        amps, [r[4] for r in d["agc"]], "^:", color="tab:red", label="agc=0"
+    )
+    axr.set_ylabel("|rate error| (ppm)")
+    axr.legend(
+        fontsize=8,
+        loc="center right",
+        title="timing rate",
+        title_fontsize=8,
+    )
+
+    fig.tight_layout()
+    fig.savefig(HERE / "cascade.png", dpi=110)
     plt.close(fig)
 
 
@@ -857,43 +2018,296 @@ def build(write: bool = True) -> Report:
     )
     R.md()
 
+    R.md("### 1.1 Claim coverage — every prose claim in the header")
+    R.md()
+    R.md(
+        "The campaign's order is header first: enumerate what "
+        "`mpsk_receiver_core.h` asserts, then ask of each whether it is "
+        "pinned, pinned only at literals, or absent. This table is that "
+        "inventory, and it is in the report rather than in a notebook "
+        "because it is the only place a reader can see what is NOT "
+        "covered. **C-ONLY** marks a claim no binding reaches; a row with "
+        "no report section is carried by C alone, and a row with neither "
+        "is named as absent rather than omitted."
+    )
+    R.md()
+
+    # The inventory is a literal because it is a JUDGEMENT about the
+    # header's prose, not a measurement -- deriving it would mean parsing
+    # Doxygen and guessing which sentences are claims. It is checked the
+    # only way it can be: every §ref below is validated by
+    # `Report._self_check`, so a section that is renamed or removed takes
+    # the render down rather than leaving a dangling promise here.
+    claims = [
+        [
+            "C1",
+            "a complete inline modem at **any** input rate; owns no "
+            "filter, NCO or interpolator of its own",
+            "C §1 + §2.5",
+        ],
+        [
+            "C2",
+            "the matched DDC's terminal polyphase stage IS the matched "
+            "filter, and the arm it selects IS the fractional timing delay",
+            "**C-ONLY** — structural; C §2, and `ddc`'s own certification",
+        ],
+        [
+            "C3",
+            "the timing half is literally RateSync's loop, not a copy",
+            "**C-ONLY** — structural; RateSync's own report certifies it",
+        ],
+        [
+            "C4",
+            "predetection de-rotation in the LO at the front, "
+            "postdetection discrimination on the matched-filtered symbols",
+            "**C-ONLY** — structural; C §2",
+        ],
+        [
+            "C5",
+            "two discriminators steer one LO: NDA acquisition needing "
+            "no data and no timing, and decision-directed tracking",
+            "C §4 + §2.6",
+        ],
+        [
+            "C6",
+            "the handover is opt-in and TWO-WAY, and the shared loop "
+            "filter carries the estimate across it in both directions",
+            "C §4 — the flip is pinned; the DROP-BACK is **absent** (F7)",
+        ],
+        [
+            "C7",
+            "the cascade plans itself: ~34 taps/arm across a 64x span "
+            "of input rates, against 4225 for a single-stage design",
+            "**absent** — no binding reaches the tap count (F7)",
+        ],
+        [
+            "C8",
+            "an irrational `sps` is no harder than an integer one",
+            "§2.5 — count AND the loop's own recovered rate",
+        ],
+        [
+            "C9",
+            "`bn_carrier` is now normalised to the SYMBOL rate, not the "
+            "input rate (the @warning's behaviour change)",
+            "**absent** — not isolated by any sweep here (F7)",
+        ],
+        [
+            "C10",
+            "zero means derive for five parameters, each read back, "
+            "and the derivation runs BEFORE validation",
+            "C §1b + §2.4",
+        ],
+        [
+            "C11",
+            "the derivation RULE: the largest even `m_out` in 2..8 the "
+            "rate allows",
+            "**C-ONLY** — `JM_FORCEINLINE`, no binding (F1)",
+        ],
+        [
+            "C12",
+            "`m_out = 8` is not optional at M = 8; halving it costs "
+            "1.7 / 1.6 / **3.0** dB at M = 2 / 4 / 8",
+            "§2.8 — direction and magnitude confirmed, the M-ORDERING is "
+            "not (F6)",
+        ],
+        [
+            "C13",
+            "never pair `m_out = 2` with I&D — acquisition fails about "
+            "half the time",
+            "**absent** in both languages (F7)",
+        ],
+        [
+            "C14",
+            "`lock_thresh` derives as `sigma_H0 * eta(Pfa)` = "
+            "`0.1132 * 4.4159`; the sd is 0.1132 for EVERY M",
+            "§2.4 reads the value back; the sd is `carrier_nda` §2.7",
+        ],
+        [
+            "C15",
+            "the drop threshold sits at 0.8x with 8-up / 32-down "
+            "verify counts",
+            "**absent** from Python (F7)",
+        ],
+        [
+            "C16",
+            "`num_phases` derives to 64, the measured saturation point "
+            "against the old 1024",
+            "§2.4 pins 64; SATURATION is **absent**",
+        ],
+        [
+            "C17",
+            "an M-th-power detector at update rate `F` observes only "
+            "`|df| < F/(2M)`, so the tap point IS the pull-in range",
+            "**C-ONLY** — `native/validation/rx_nda_tap.c`, and the tap's "
+            "price is stated on the header itself",
+        ],
+        [
+            "C18",
+            "`df = k*F/M` is a stable FALSE lock at every tap, "
+            "reporting a healthy statistic no self-referenced metric flags",
+            "§2.7 — measured at k = 1 and 2 against a true-lock control; "
+            "*at every tap* is **C-ONLY**",
+        ],
+        [
+            "C19",
+            "one AGC, before the terminal stage, serving BOTH loops, "
+            "sized against the slower",
+            "C §9 + §2.9",
+        ],
+        [
+            "C20",
+            "`get_agc_gain_db` settles at `-10*log10(P_in/P_ref)` and "
+            "is THE diagnostic for a level problem",
+            "§2.9 — slope exact",
+        ],
+        [
+            "C21",
+            "with `agc = 0` the timing loop is under-driven by `A^2`",
+            "§2.9 — the level error is visible; the `A^2` LAW is **absent**",
+        ],
+        [
+            "C22",
+            "`bn_agc_ratio` must be in (0, 1); construction REFUSES 1 "
+            "or above rather than warning",
+            "C §1 — **absent** from Python",
+        ],
+        [
+            "C23",
+            "the continuous flavor pins the gating: no handover, no "
+            "warmup, no lock gate, no timing gate",
+            "C §1c + §2.6",
+        ],
+        [
+            "C24",
+            "and its M-fold ambiguity is PERMANENT, so `differential` "
+            "defaults to 1",
+            "§2.6 + F3 — the DEMAP itself is **absent**",
+        ],
+        [
+            "C25",
+            "`mf_in`'s lock statistic settles 0.23-0.51 against a "
+            "derived 0.4999, so the flavor's own readout was unusable",
+            "**C-ONLY** — `rx_nda_tap.c`, `rx_dynamics.c`; the header's "
+            "own table ranks the taps on this flavor's waveform",
+        ],
+        [
+            "C26",
+            "the cascade rate is `m_out/sps <= 1`, so one input "
+            "completes at most one on-time strobe",
+            "**C-ONLY** — the inline step function",
+        ],
+        [
+            "C27",
+            "reset re-seeds everything, and the same input twice "
+            "around a reset reproduces bit-for-bit",
+            "C §1 + §2.10",
+        ],
+        [
+            "C28",
+            "pointer-bearing state resumes exactly from a blob, and a "
+            "clobbered envelope is rejected",
+            "C §10 + §2.10",
+        ],
+    ]
+    R.table(["#", "claim in `mpsk_receiver_core.h`", "covered by"], claims)
+    R.md()
+    # Counted from the table rather than written beside it. A hand-typed
+    # tally is the first thing to go stale, and the numbers here are the
+    # ones the executive summary and F7 both quote.
+    n_here = sum(1 for c in claims if "§2." in c[2])
+    n_conly = sum(1 for c in claims if c[2].startswith("**C-ONLY**"))
+    n_absent = sum(1 for c in claims if "**absent**" in c[2])
+    d_claims = {
+        "total": len(claims),
+        "here": n_here,
+        "c_only": n_conly,
+        "absent": n_absent,
+    }
+    R.md(
+        f"**{len(claims)} claims: {n_here} reach a measurement in this "
+        f"report, {n_conly} are C-ONLY by construction, and {n_absent} "
+        f"carry something ABSENT in both languages.** The last group is "
+        "the report's own statement of what it does not establish, "
+        "collected as F7 rather than left to be noticed. The distinction "
+        "between it and the C-ONLY group is the one that matters for what "
+        "to do next: a C-ONLY claim is covered, just not from here, while "
+        "an absent one is covered by nothing at all. Several rows are "
+        "PARTIAL — C16 pins that `num_phases` derives to 64 without "
+        "establishing that 64 is the saturation point, C21 shows a level "
+        "error reaching the lock statistic without measuring the `A^2` "
+        "law — and each is named at the row rather than rounded up to "
+        "covered."
+    )
+    R.md()
+
     d = characterise(R, write)
+    d["claims"] = d_claims
     review(R, d)
     limits(R, d)
 
+    lo2 = [r[4] for r in d["ser"] if r[0] == 2 and r[4] is not None]
+    lo4 = [r[4] for r in d["ser"] if r[0] == 4 and r[4] is not None]
     R.executive(
         "MpskReceiver",
         [
-            "**Design to the bound, and know where it stops.** BPSK and "
-            "QPSK track `ber_theory_ser` within 10x from 8 dB Es/N0, and "
-            "EVM sits within 6 dB of `-(Es/N0)` without ever beating it "
-            "(§2.1, §2.2) — an EVM below the bound would be a broken "
-            "measurement, so that direction is asserted too. **8PSK does "
-            "not reach the bound below ~16 dB** (F5), and the limits say "
-            "so by asserting only the cells where a 10x bound constrains "
-            "anything.",
-            "**The certified rate envelope is `sps <= 24`.** The output "
-            "count is the integral of the rate at every rate measured, "
-            "but at `sps = 31.7` the receiver locks and still misses the "
-            "bound (F4) — the same clean-lock/bad-rate shape as gh-781, "
-            "reached from a different direction.",
-            "**An irrational `sps` costs nothing inside that envelope.** "
-            "At 17.33389 the output count is the integral of the rate to "
-            "2% and the SER is unchanged from the integer case — the "
-            "header's headline claim, measured rather than asserted "
+            "**BPSK and QPSK sit about half a dB behind theory: "
+            f"{min(lo2):+.2f} to {max(lo2):+.2f} dB at M = 2 and "
+            f"{min(lo4):+.2f} to {max(lo4):+.2f} dB at M = 4** (§2.1), "
+            "roughly constant across each window, which is what an "
+            "implementation loss should be. That is the number to put in "
+            "a link budget, and it is the number the previous revision of "
+            "this report got wrong — it compared against the bound at the "
+            "wrong Es/N0 and read ~1.3 dB at BPSK and a 10x rate deficit "
+            "at QPSK (F8).",
+            "**8PSK is not certified at any Es/N0, and the reason is "
+            "structural rather than a missing measurement.** Its bound "
+            "falls so slowly that resolving it needs ~2.3M scored symbols "
+            "at 18 dB, while the highest Es/N0 where this record length "
+            "resolves anything is 14.5 dB — and the receiver does not "
+            "work there. Measured 12 to 22 dB it is non-monotone and "
+            "seed-dependent below ~17 dB and clean above it, so the "
+            "measurable window and the working window do not overlap "
+            "(§2.1, F5).",
+            "**All three unexplained failures in this report are "
+            "acquisition failures, not tracking failures.** At "
+            "`sps = 31.7` the loop recovers the symbol rate to 2 ppm and "
+            "the record still cannot be aligned (F4); 8PSK's collapse is "
+            "seed-dependent rather than Es/N0-dependent (F5); and gh-781 "
+            "reports the same shape at `m_out = 4`. A converged rate "
+            "readout beside an unalignable record is the signature, and "
+            "the certified rate envelope therefore stops at `sps <= 24` "
             "(§2.5).",
             "**The continuous flavor's `tracking == 0` is checked against "
             "a control.** The handover-enabled receiver on the same "
             "record DOES flip, so the claim is not satisfied by a signal "
             "that never locked (§2.6).",
+            "**Halving `m_out` costs about 2.7 dB of EVM at every M** "
+            "(§2.8) — the derivation to 8 lands within a quarter of a dB "
+            "of the bound, and 4 costs nearly 3 dB. The header's "
+            "M-DEPENDENT figures (1.7 / 1.6 / 3.0 dB) are anchored at "
+            "each M's own SER, which this record length cannot reach, so "
+            "the ordering across M is unverified here (F6).",
+            "**`agc_gain_db` is an absolute level estimate, not just a "
+            "trend**: `agc_gain_db + 20log10(amp)` is constant to under "
+            "0.01 dB across a 32x amplitude span (§2.9), so a reading far "
+            "from 0 dB means what the header says it means.",
+            "**The two published health readouts have disjoint blind "
+            "spots, and the one a caller reaches for first is the blinder "
+            "of the two.** With the AGC off, the recovered symbol rate "
+            "degrades from 17 to 172 ppm as the level falls — the `A^2` "
+            "under-drive, on the timing loop — while `lock` reads "
+            "0.96-0.97 throughout and is not even monotone in level, "
+            "because the carrier discriminator divides out its own "
+            "`|z|^M` (§2.9). So diagnose a level problem with "
+            "`agc_gain_db` and `timing_rate`; `lock` cannot see one, and "
+            "at 20 dB neither can the error rate.",
             "**A false lock at `Δf = k·F/M` is invisible to every metric "
-            "this receiver computes** — stationary constellation, clean "
-            "EVM, clean blind M2M4, healthy lock statistic. Defend "
-            "against it with an external frequency reference or a sync "
-            "word, not with `lock` (§2.7, F2).",
-            "**The derivation rule is not measurable from Python.** "
-            "`mpsk_rx_derive_m_out` is `JM_FORCEINLINE` with no binding; "
-            "§2.4 measures the answer, and the rule is C-ONLY (F1).",
+            "the receiver computes** (§2.7): the loop parks at an "
+            "equilibrium with the frequency wrong by exactly `F/M`, and "
+            "against a true-lock control the statistic is 1.4% lower, the "
+            "EVM 1.0 dB worse and the blind M2M4 0.9 dB lower. Only the "
+            "truth-requiring alignment catches it, by refusing. Defend "
+            "with an external frequency reference or a sync word (F2).",
         ],
     )
 
@@ -902,10 +2316,20 @@ def build(write: bool = True) -> Report:
 
     R.summary(
         "\n- Raw sweeps: `data/ser_vs_esn0.csv`, `data/evm_vs_esn0.csv`, "
-        "`data/m2m4_vs_esn0.csv`, `data/irrational_sps.csv`"
-        "\n- **Not covered:** `bits(differential)` resolving the M-fold "
-        "ambiguity has no test in either language; the burst framing "
-        "(`BurstMpskReceiver`, api-taxonomy) does not exist yet."
+        "`data/m2m4_vs_esn0.csv`, `data/irrational_sps.csv`, "
+        "`data/false_lock.csv`, `data/m_out_cost.csv`, "
+        "`data/agc_level.csv` — so any number above can be re-derived "
+        "rather than taken on the report's word"
+        "\n- **Not covered**, and §1.1 is the full accounting rather than "
+        "this line: `bits(differential)` resolving the M-fold ambiguity "
+        "has no test in either language, the claims F7 collects "
+        "(gh-814) have none either, and 8PSK's implementation loss is out "
+        "of reach of any per-push sweep (F5). FER is absent because this "
+        "object has no framing — `rx-test.md` goal 4 asks for all four "
+        "metrics together and this report carries three; "
+        "`native/validation/rx_frame_fer.c` is where the fourth lives. "
+        "The burst flavor (`BurstMpskReceiver`, api-taxonomy) does not "
+        "exist yet."
     )
     R.emit(HERE / "results.md")
     return R

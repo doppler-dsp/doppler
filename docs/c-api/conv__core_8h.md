@@ -35,6 +35,7 @@ _Convolutional codes: the code description, the encoder, and the maximum-likelih
 | ---: | :--- |
 | struct | [**conv\_code\_t**](structconv__code__t.md) <br>_A rate-1/n convolutional code._  |
 | struct | [**conv\_enc\_t**](structconv__enc__t.md) <br>_Encoder state: the shift register, and nothing else._  |
+| struct | [**node\_sync\_t**](structnode__sync__t.md) <br>_What one alignment hypothesis scored, and what the runner-up did._  |
 
 
 ## Public Types
@@ -72,6 +73,9 @@ _Convolutional codes: the code description, the encoder, and the maximum-likelih
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint32\_t | [**conv\_next\_state**](#function-conv_next_state) (const [**conv\_code\_t**](structconv__code__t.md) \* c, uint32\_t state, unsigned bit) <br>_The state reached from_ `state` _on_`bit` _._ |
 |  unsigned | [**conv\_outputs**](#function-conv_outputs) (const [**conv\_code\_t**](structconv__code__t.md) \* c, uint32\_t state, unsigned bit) <br>_The output word for one branch —_ **the** _expression of the code._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint32\_t | [**conv\_states**](#function-conv_states) (const [**conv\_code\_t**](structconv__code__t.md) \* c) <br>_Number of trellis states,_ `2^(k-1)` _._ |
+|  int | [**node\_sync\_scan**](#function-node_sync_scan) ([**viterbi\_state\_t**](conv__core_8h.md#typedef-viterbi_state_t) \* v, const float \* llr, size\_t n\_llr, [**node\_sync\_t**](structnode__sync__t.md) \* out) <br>_Try every branch alignment and report which one the stream is on._  |
+|  size\_t | [**node\_sync\_score**](#function-node_sync_score) ([**viterbi\_state\_t**](conv__core_8h.md#typedef-viterbi_state_t) \* v, const float \* llr, size\_t n\_llr) <br>_Score the alignment as given: decode, re-encode, count disagreements against the received hard decisions._  |
+|  size\_t | [**node\_sync\_scored\_symbols**](#function-node_sync_scored_symbols) (const [**viterbi\_state\_t**](conv__core_8h.md#typedef-viterbi_state_t) \* v, size\_t n\_llr) <br>_Symbols_ [_**node\_sync\_score**_](conv__core_8h.md#function-node_sync_score) _will actually score for a window of_`n_llr` _, which is fewer than_`n_llr` _._ |
 |  const [**conv\_code\_t**](structconv__code__t.md) \* | [**viterbi\_code**](#function-viterbi_code) (const [**viterbi\_state\_t**](conv__core_8h.md#typedef-viterbi_state_t) \* s) <br>_The code this decoder was built for._  |
 |  [**viterbi\_state\_t**](conv__core_8h.md#typedef-viterbi_state_t) \* | [**viterbi\_create**](#function-viterbi_create) (const [**conv\_code\_t**](structconv__code__t.md) \* c, size\_t depth) <br>_Build a decoder for_ `c` _with traceback depth_`depth` _._ |
 |  size\_t | [**viterbi\_decode**](#function-viterbi_decode) ([**viterbi\_state\_t**](conv__core_8h.md#typedef-viterbi_state_t) \* s, const float \* llr, size\_t n\_llr, uint8\_t \* out, size\_t max\_out) <br>_Decode soft symbols into bits._  |
@@ -352,6 +356,129 @@ JM_FORCEINLINE uint32_t conv_states (
 
 
 
+
+<hr>
+
+
+
+### function node\_sync\_scan 
+
+_Try every branch alignment and report which one the stream is on._ 
+```C++
+int node_sync_scan (
+    viterbi_state_t * v,
+    const float * llr,
+    size_t n_llr,
+    node_sync_t * out
+) 
+```
+
+
+
+`c->n` hypotheses for a rate-1/n code — the offsets `0 .. n-1` — each scored by [**node\_sync\_score**](conv__core_8h.md#function-node_sync_score) over the same window.
+
+
+**Re-runnable, and it has to be.** A symbol slip moves the stream by an odd number of symbols and the alignment changes mid-capture; measured through a real receiver at Es/N0 = 0 dB, that happened three times in forty-six frame slots (`docs/design/fec-receive.md` §8). A one-shot at start of stream would decode noise from the first slip onward, so this takes its window as an argument and holds no state between calls.
+
+
+
+
+**Parameters:**
+
+
+* `v` A decoder for the code; reset per hypothesis. 
+* `llr` Soft symbols. 
+* `n_llr` Window length. It buys the separation: the counts differ by about `0.5 - SER` per symbol, so a window of a few hundred symbols decides at any Es/N0 a coded link runs at. 
+* `out` Receives the outcome; may be `NULL`. 
+
+
+
+**Returns:**
+
+Non-zero when a hypothesis was scored. Zero — with `out` untouched — when the window is too short.
+
+
+
+```C++
+node_sync_t ns;
+if (node_sync_scan (v, llr, 1000, &ns) && ns.margin > 100)
+  {
+    viterbi_reset (v);
+    viterbi_decode (v, llr + ns.phase, n - ns.phase, bits, cap);
+  }
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function node\_sync\_score 
+
+_Score the alignment as given: decode, re-encode, count disagreements against the received hard decisions._ 
+```C++
+size_t node_sync_score (
+    viterbi_state_t * v,
+    const float * llr,
+    size_t n_llr
+) 
+```
+
+
+
+The **re-encoding metric**. It needs no truth, no marker and no training sequence — it compares the decoder's own output against the decoder's own input — so it works on a live capture, which is what makes it the statistic a receiver can carry. `docs/design/viterbi.md` §9 derives what it reads in and out of sync, and why a marker correlation is the wrong tool for this even when a marker exists.
+
+
+**It is blind to polarity, and that is correct.** A transparent code (every generator of odd weight, which CCSDS's are) decodes an inverted stream to the complement of the bits, which re-encodes to the inverted symbols — so the disagreement count is identical. Polarity is resolved downstream by something that knows what the bits mean; this resolves only which symbol starts a branch.
+
+
+The first `k - 1` decoded bits are excluded from the count: the encoder used for the comparison starts from a zero register while the real one was mid-stream, so those bits are re-encoded from the wrong state and would bias every hypothesis by a few symbols.
+
+
+
+
+**Parameters:**
+
+
+* `v` A decoder for the code being synchronized. It is RESET, and left holding this scoring run's state — a caller decoding with it afterwards must reset it again. 
+* `llr` Soft symbols, `mpsk_soft_demap`'s convention. 
+* `n_llr` Number of symbols; the tail beyond a whole number of branches is ignored. 
+
+
+
+**Returns:**
+
+Disagreements, or 0 if the window is too short to decode anything past the traceback and the encoder fill. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function node\_sync\_scored\_symbols 
+
+_Symbols_ [_**node\_sync\_score**_](conv__core_8h.md#function-node_sync_score) _will actually score for a window of_`n_llr` _, which is fewer than_`n_llr` _._
+```C++
+size_t node_sync_scored_symbols (
+    const viterbi_state_t * v,
+    size_t n_llr
+) 
+```
+
+
+
+The head of a window is skipped: the decoder starts from its own all-zero prior, which is wrong whenever the window opens mid-capture, and the comparison encoder starts from a zero register while the transmitter's was mid-stream. A caller reading `errors / symbols` as a channel symbol error rate wants this denominator rather than the window length. 
+
+
+        
 
 <hr>
 

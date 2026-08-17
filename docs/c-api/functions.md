@@ -1050,6 +1050,9 @@
 
 ## n
 
+* **node\_sync\_scan** ([**conv\_core.h**](conv__core_8h.md))
+* **node\_sync\_score** ([**conv\_core.h**](conv__core_8h.md))
+* **node\_sync\_scored\_symbols** ([**conv\_core.h**](conv__core_8h.md))
 * **next\_pow2** ([**det\_private.h**](det__private_8h.md))
 * **nco\_add\_ovf\_** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_create** ([**nco\_core.h**](nco__core_8h.md))

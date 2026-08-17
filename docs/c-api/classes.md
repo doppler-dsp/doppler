@@ -138,6 +138,7 @@
 ## n
 
 * [**nco\_state\_t**](structnco__state__t.md)
+* [**node\_sync\_t**](structnode__sync__t.md)
 * [**npr\_meas\_t**](structnpr__meas__t.md)
 * [**nprmeas\_state\_t**](structnprmeas__state__t.md)
 

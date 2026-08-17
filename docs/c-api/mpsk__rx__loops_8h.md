@@ -844,7 +844,38 @@ _Lock threshold, derived:_ `sigma_H0 * eta(Pfa)` _at_`Pfa = 5e-6` _._
 
 
 
-`0.1132 * 4.4159 = 0.4999`, which is the 0.5 that shipped — so this row changes no behaviour and is here because a number that was picked and a number that was derived look identical until one of them has to move. The limited statistic reads ~1.0 at lock for EVERY M (§4), so no per-M correction is carried. 
+`0.1132 * 4.4159 = 0.4999`, which is the 0.5 that shipped — so this row changes no behaviour and is here because a number that was picked and a number that was derived look identical until one of them has to move. The limited statistic reads ~1.0 at lock for EVERY M (§4), so no per-M correction is carried.
+
+
+### It is sized against H0 alone, and that bounds where it means anything
+
+
+
+`sigma_H0 * eta(Pfa)` is a FALSE-ALARM threshold: it answers "how high must
+the statistic be before noise alone rarely reaches it". The other half of a detector's sizing — how often the statistic clears it when the receiver IS locked — depends on Es/N0, and "reads ~1.0 at lock" carried no Es/N0 with it until this block. Measured over the scored window, at the geometry the standard battery uses (`docs/design/rx-test.md`; the duty cycles are in the standard record, `dp_rx_result_t::lock_duty`):
+
+
+
+|Es/N0 (BPSK)   ||`locked` duty   |statistic &gt; 0    |
+|-----|-----|-----|-----|
+|6.79 dB   |SER = 1e-3   |**100 %**   |100 %    |
+|+1 dB   ||69 %   |100 %    |
+|0 dB   ||**24 %**   |100 %    |
+|−3 dB   ||0.2 %   |95 %   |
+
+
+
+
+
+
+At 0 dB the loops are tracking — the statistic is positive throughout, and a concatenated link over that same record delivers **error-free frames** (`docs/design/fec-receive.md` §8). What refuses is the threshold.
+
+
+**So this default is an UNCODED-link indicator.** A caller running below its own SER = 1e-3 anchor — which is where forward error correction exists to put you — must not gate on `mpsk_receiver_get_locked()`. Pass a threshold sized for the link, or gate on something that works there: frame synchronization, or the node-sync statistic (`node_sync_score`), which in lock reads the channel symbol error rate directly.
+
+
+doppler#835 carries the measurement and the options; nothing here has changed behaviour, because a threshold that moves silently is worse than one whose scope is written down. 
+
 
 
         

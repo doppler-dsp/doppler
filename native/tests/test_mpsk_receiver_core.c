@@ -8,6 +8,18 @@
  *   2. Locks + recovers symbols under a carrier offset (I&D), every M -> SER 0
  *   3. RRC matched filter locks + recovers
  *   4. acq_to_track flips the loop from NDA acquisition to decision tracking
+ *   ...
+ *   15-21. The same object through its REAL-input constructor
+ *   22. Telemetry reaches the real front end's AGC
+ *   23. The LO runs at HALF the input rate (the ramp, and the readback)
+ *
+ * **One object, two faces, one test home.** Sections 1-14 drive the complex
+ * front end and 15-23 the real one, because they are the same receiver behind
+ * a different matched front end (docs/design/mpsk-refactor.md). That is not
+ * an organisational choice: the shared header mpsk_rx_loops.h has no test
+ * file of its own, so while the two faces were two types its claims were
+ * pinned only where one of the two tests happened to reach them -- and the
+ * two did not overlap. Section 23 is the claim that reached neither.
  *
  * The receiver is a matched DDC plus two loops now, so nothing here pins an
  * exact output: the matched filter is a polyphase bank rather than a dense FIR
@@ -37,6 +49,16 @@
 #define TX_AMP 0.5f
 /* Terminal outputs per symbol: the old `n`, now the cascade's own. */
 #define M_OUT 4
+
+/* The REAL face's geometry (sections 15-23). `sps` must clear 2*m_out
+ * STRICTLY there -- the cascade behind the R2C halfband runs at twice the
+ * overall rate -- so 16 rather than the complex face's 8. RFC is the design
+ * centre: the halfband's +fs/4 shift makes fs/4 the symmetric,
+ * best-rejection point of that front end. */
+#define RSPS 16.0
+#define RM_OUT 4u
+#define RNSAMP ((size_t)(NSYM * (size_t)RSPS))
+#define RFC 0.25
 
 /* Constellation phase offset matching the mpsk convention (pi/4 for QPSK). */
 static double
@@ -140,7 +162,12 @@ tail_ser (const float complex *out, size_t nout, const int *idx, int m,
     return 1.0; /* record too short to hold a settled window */
   size_t lo = settle, hi = nout - nout / 8;
   double best = 1.0;
-  for (int lag = -40; lag <= 40; lag++)
+  /* +-60, not +-40: the real face's R2C halfband adds group delay of its own,
+     and one function serving both faces is the point of the fold. Widening
+     cannot manufacture a pass -- a wrong lag scores ~1-1/m with a standard
+     error under 0.01 over a settled window, so the minimum over 60*m tries
+     still sits two orders of magnitude above the 0.01 gate. */
+  for (int lag = -60; lag <= 60; lag++)
     {
       for (int rot = 0; rot < m; rot++)
         {
@@ -174,6 +201,53 @@ RX (int m, double sps, size_t m_out, int pulse, double bn_carrier,
 {
   /* The shipped defaults: the front-end AGC on, at the default ratio. */
   return mpsk_receiver_create (
+      m, sps, m_out, pulse, 0.35, 8, bn_carrier, 0.707, 0.01, acq_to_track,
+      lock_thresh, init_norm_freq, 0, MPSK_RX_NUM_PHASES,
+      MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO);
+}
+
+/* Build a REAL rectangular-pulse M-PSK IF at `fc` cycles/sample with AWGN.
+ * The passband signal is Re{s(t) e^{j2pi fc n}} -- taking the real part is the
+ * whole difference from make_mpsk()'s stimulus, and it is what an ADC
+ * downstream of an analogue mixer actually delivers.
+ *
+ * `sps` is a PARAMETER, not the RSPS macro: section 19 builds at a different
+ * oversampling than the rest, and a hardcoded macro here silently hands the
+ * receiver a signal at the wrong symbol rate (a 1.6x clock error, which
+ * measures as ~-10 dB EVM and reads exactly like a front-end fault). Writes
+ * `nsym * sps` samples -- the caller sizes the buffer. */
+static void
+make_mpsk_real (float *tx, int *idx, int m, double sps, size_t nsym, double fc,
+                double snr_db, uint32_t seed, double phi0)
+{
+  uint32_t st    = seed;
+  double   sigma = TX_AMP * sqrt (0.5 / pow (10.0, snr_db / 10.0));
+  size_t   isps  = (size_t)sps;
+  for (size_t k = 0; k < nsym; k++)
+    {
+      int ki    = (int)(dp_xs32 (&st) & 0xFFFFu) % m;
+      idx[k]    = ki;
+      double th = 2.0 * M_PI * (double)ki / (double)m + phi0;
+      double sr = TX_AMP * cos (th);
+      double si = TX_AMP * sin (th);
+      for (size_t j = 0; j < isps; j++)
+        {
+          size_t n  = k * isps + j;
+          double ph = 2.0 * M_PI * fc * (double)n;
+          /* Re{(sr + j si) e^{j ph}} = sr cos(ph) - si sin(ph) */
+          tx[n] = (float)(sr * cos (ph) - si * sin (ph)
+                          + sigma * dp_gauss (&st));
+        }
+    }
+}
+
+/* RX()'s real-input twin: the same nine knobs through the other
+ * constructor, so a section that runs on both faces differs in one letter. */
+static mpsk_receiver_state_t *
+RXR (int m, double sps, size_t m_out, int pulse, double bn_carrier,
+     int acq_to_track, double lock_thresh, double init_norm_freq)
+{
+  return mpsk_receiver_create_real (
       m, sps, m_out, pulse, 0.35, 8, bn_carrier, 0.707, 0.01, acq_to_track,
       lock_thresh, init_norm_freq, 0, MPSK_RX_NUM_PHASES,
       MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO);
@@ -294,7 +368,7 @@ main (void)
            which is only true at an update rate of exactly 1. An enum check
            alone would survive a swap to another fast tap; this does not. */
         DP_CHECK (dp_near (mpsk_rx_updates_per_symbol (&c->l), 1.0, 1e-15));
-        DP_CHECK (c->fe->rc->agc != NULL); /* the AGC is not optional */
+        DP_CHECK (c->fe.c->rc->agc != NULL); /* the AGC is not optional */
         /* Derived, not defaulted -- the same five §8.1 rows as 1b. */
         DP_CHECK (mpsk_receiver_get_m_out (c) == 8u);
         DP_CHECK (
@@ -850,7 +924,7 @@ main (void)
           continue;
         /* The receiver's ONE AGC, in the front-end cascade; bn is per symbol
            on both sides of the comparison. */
-        double bn_agc = rx->fe->rc->agc_bn_sym;
+        double bn_agc = rx->fe.c->rc->agc_bn_sym;
         DP_CHECK (bn_agc < bn_c && bn_agc < bn_t);
         /* And it is the ratio, off the slowest — not merely "smaller". */
         double slowest = bn_c < bn_t ? bn_c : bn_t;
@@ -884,7 +958,7 @@ main (void)
         float complex y[512];
         size_t        n_pre = (size_t)SPS * 200u;
         (void)mpsk_receiver_steps (a, tx, n_pre, y, 512);
-        DP_CHECK (a->fe->rc->agc != NULL);
+        DP_CHECK (a->fe.c->rc->agc != NULL);
         /* Non-vacuous: the gain is genuinely mid-flight at the split. */
         DP_CHECK (mpsk_receiver_get_agc_gain_db (a) != 0.0);
 
@@ -1170,6 +1244,836 @@ main (void)
     }
     free (ftx);
     free (fid);
+  }
+
+  /* ================================================================== *
+   * The REAL face — mpsk_receiver_create_real()
+   *
+   * Sections 15-22 exercise the same object through its other constructor.
+   * They were `test_mpsk_receiver_r_core.c` until the two receivers became
+   * one (docs/design/mpsk-refactor.md); folding them in is not tidying. The
+   * shared header mpsk_rx_loops.h had NO test file of its own, so every
+   * claim it makes was pinned only where one of the two receivers' tests
+   * happened to reach it -- and the two did not overlap. `set_telemetry` was
+   * asserted seven times on the complex side and zero on the real one; "the
+   * LO runs at half the input rate" was asserted by NEITHER, which is where
+   * the gh-765 `freq_scale` defect lived. Section 22 is that missing claim.
+   *
+   * **Everything is measured at the design centre `fc = 0.25` unless the
+   * section is specifically about placement.** The R2C halfband bakes in a
+   * +fs/4 shift, so fs/4 is where the front end is symmetric and its image
+   * rejection is best (past -100 dB across roughly 0.06..0.44, but only -7 dB
+   * at 0.01). Measuring off-centre and blaming the receiver is a mistake this
+   * project has already made and retracted -- section 19 pins the real
+   * behaviour so it is not repeated.
+   * ================================================================== */
+  {
+    /* 15. Lifecycle / validation / getters / reset reproducibility. */
+    float         *rtx = malloc (RNSAMP * sizeof (*rtx));
+    int           *rid = malloc (NSYM * sizeof (int));
+    float complex *rou = malloc (NSYM * sizeof (*rou));
+    DP_CHECK (rtx && rid && rou);
+    if (rtx && rid && rou)
+      {
+        {
+          mpsk_receiver_state_t *rx
+              = RXR (4, RSPS, RM_OUT, 0, 0.005, 0, 0.5, RFC);
+          DP_CHECK (rx != NULL);
+          if (rx)
+            {
+              DP_CHECK (mpsk_receiver_get_m (rx) == 4);
+              DP_CHECK (fabs (mpsk_receiver_get_sps (rx) - RSPS) < 1e-12);
+              DP_CHECK (mpsk_receiver_get_m_out (rx) == RM_OUT);
+              DP_CHECK (mpsk_receiver_get_tracking (rx) == 0);
+              DP_CHECK (mpsk_receiver_get_clipped (rx) == 0);
+              mpsk_receiver_destroy (rx);
+            }
+
+          /* An invalid order is rejected, not silently accepted. */
+          mpsk_receiver_state_t *bad
+              = RXR (3, RSPS, RM_OUT, 0, 0.005, 0, 0.5, RFC);
+          DP_CHECK (bad == NULL);
+          mpsk_receiver_destroy (bad);
+
+          /* lock_time is the acquisition time as a NUMBER, and it has to
+             agree with the flag it dates. Cold it is -1; after a record the
+             receiver locks on it is a symbol index inside that record; and
+             reset() puts it back to -1, because a reset receiver has not
+             locked. Checking it against `locked` is the point -- a lock_time
+             that disagreed with the detector reporting it would be a second,
+             competing answer. */
+          make_mpsk_real (rtx, rid, 4, RSPS, NSYM, RFC, 30.0, 11u,
+                          phi0_for (4));
+          mpsk_receiver_state_t *lt
+              = RXR (4, RSPS, RM_OUT, 0, 0.005, 0, 0.5, RFC);
+          if (lt)
+            {
+              DP_CHECK (mpsk_receiver_get_lock_time (lt) == -1);
+              DP_CHECK (mpsk_receiver_get_locked (lt) == 0);
+              size_t n = mpsk_receiver_steps_real (lt, rtx, RNSAMP, rou, NSYM);
+              int64_t at = mpsk_receiver_get_lock_time (lt);
+              DP_CHECK (mpsk_receiver_get_locked (lt) == 1);
+              DP_CHECK (at >= 0);
+              DP_CHECK ((size_t)at < n);
+              mpsk_receiver_reset (lt);
+              DP_CHECK (mpsk_receiver_get_lock_time (lt) == -1);
+              /* And it is the FIRST declaration, not the latest. Re-running
+                 the record and comparing is NOT enough -- a stamp rewritten
+                 on every locked symbol is equally reproducible, it just lands
+                 at the END of the record. What separates them is WHERE it
+                 lands: acquisition finishes early, so a first-declaration
+                 stamp sits in the opening part of the record and a restamped
+                 one sits at the last symbol. (Verified by sabotage: dropping
+                 the `lock_time < 0` guard leaves every other assertion here
+                 passing.) */
+              DP_CHECK ((size_t)at < n / 2);
+              (void)mpsk_receiver_steps_real (lt, rtx, RNSAMP, rou, NSYM);
+              DP_CHECK (mpsk_receiver_get_lock_time (lt) == at);
+              mpsk_receiver_destroy (lt);
+            }
+        }
+
+        {
+          /* reset() returns the receiver to a cold start: the same input
+             twice across a reset must give byte-identical symbols. */
+          make_mpsk_real (rtx, rid, 4, RSPS, NSYM, RFC, 30.0, 11u,
+                          phi0_for (4));
+          mpsk_receiver_state_t *a
+              = RXR (4, RSPS, RM_OUT, 0, 0.005, 0, 0.5, RFC);
+          if (a)
+            {
+              size_t k1 = mpsk_receiver_steps_real (a, rtx, RNSAMP, rou, NSYM);
+              double f1 = mpsk_receiver_get_norm_freq (a);
+              float complex first = rou[k1 / 2];
+              mpsk_receiver_reset (a);
+              size_t k2 = mpsk_receiver_steps_real (a, rtx, RNSAMP, rou, NSYM);
+              DP_CHECK (k1 == k2);
+              DP_CHECK (rou[k2 / 2] == first);
+              DP_CHECK (mpsk_receiver_get_norm_freq (a) == f1);
+              mpsk_receiver_destroy (a);
+            }
+        }
+
+        /* 16. Locks + recovers from a real IF at the design centre, every M.
+         */
+        {
+          int ms[3] = { 2, 4, 8 };
+          for (int mi = 0; mi < 3; mi++)
+            {
+              int m = ms[mi];
+              /* Seeded ON the centre, the loop tracking the residual around
+                 it. 8PSK hands over to the decision-directed loop for the
+                 same reason the complex face does: its decision margin is
+                 only +-pi/8, so the M-th-power discriminator's own jitter
+                 dominates. */
+              mpsk_receiver_state_t *rx
+                  = RXR (m, RSPS, RM_OUT, 0, 0.005, m == 8, 0.3, RFC);
+              DP_CHECK (rx != NULL);
+              if (!rx)
+                continue;
+              make_mpsk_real (rtx, rid, m, RSPS, NSYM, RFC, 30.0,
+                              7u + (uint32_t)mi, phi0_for (m));
+              size_t k = mpsk_receiver_steps_real (rx, rtx, RNSAMP, rou, NSYM);
+              size_t settle = dp_test_settle_syms (0.01, 0.005);
+              double ser    = tail_ser (rou, k, rid, m, phi0_for (m), settle);
+              DP_CHECK (ser < 0.01);
+              /* The lock EMA's noise-only sd is CARRIER_NDA_LOCK_NORM_SD
+                 (0.1132) at every m, so state the threshold in sigmas: 0.5 is
+                 4.42 sigma, i.e. the shipped default's per-look Pfa of 5e-6.
+               */
+              DP_CHECK (mpsk_receiver_get_lock (rx) > 0.5);
+              /* Truth-free corroboration -- a BER alone can false-pass
+                 through its own lag/rotation search (see dp_sym_test.h).
+
+                 TWO assertions, because one of them used to be vacuous. This
+                 read `evm < -12.0` for every M until 2026-07-27, and the 8PSK
+                 scatter floor is **-12.9 dB**
+                 (dp_test_evm_scatter_floor_db) -- so a constellation with no
+                 carrier recovery whatsoever satisfied it, and the check had
+                 no discriminating power at M = 8 at all.
+
+                   - the absolute gate is the quality bar (measured -18.1 /
+                     -17.7 / -18.2 dB at M = 2 / 4 / 8, so ~2 dB of margin);
+                   - the floor-relative gate is what makes the absolute one
+                     provably non-vacuous, and it is the one that fires first
+                     if another M is ever added -- at M = 16 the floor rises
+                     to -19.0 dB and a fixed -16.0 would silently go vacuous
+                     again.
+
+                 Note how little room there is at M = 8: 5.3 dB between a
+                 healthy receiver and pure noise. The self-referenced EVM
+                 cannot carry this verdict alone at high M, which is why
+                 `ser < 0.01` above is the primary check and this is
+                 corroboration. */
+              if (k > settle)
+                {
+                  double evm
+                      = dp_test_evm_db_hard_m (rou + settle, k - settle, m);
+                  double flr = dp_test_evm_scatter_floor_db (m);
+                  printf ("  real M=%d: evm=%6.1f dB (scatter floor %5.1f, "
+                          "margin %4.1f dB)\n",
+                          m, evm, flr, flr - evm);
+                  DP_CHECK (evm < -16.0);
+                  DP_CHECK (evm < flr - 3.0);
+                }
+              DP_CHECK (mpsk_receiver_get_clipped (rx) == 0);
+              mpsk_receiver_destroy (rx);
+            }
+        }
+
+        /* 17. `sps > 2 * m_out` is enforced on the real face.
+         *
+         * The cascade behind the R2C halfband runs at twice the overall rate,
+         * so the terminal stage needs rate = m_out/sps < 0.5. This is the one
+         * constraint the real path has that the complex path does not (which
+         * needs only sps >= m_out), and a documented-but-unenforced
+         * constraint is how a caller gets a silently wrong receiver instead
+         * of an error. */
+        {
+          /* sps == 2 * m_out exactly: rejected (strictly greater required). */
+          mpsk_receiver_state_t *eq = RXR (4, 8.0, 4, 0, 0.005, 0, 0.5, 0.0);
+          DP_CHECK (eq == NULL);
+          mpsk_receiver_destroy (eq);
+
+          /* Below it: rejected. */
+          mpsk_receiver_state_t *lo = RXR (4, 6.0, 4, 0, 0.005, 0, 0.5, 0.0);
+          DP_CHECK (lo == NULL);
+          mpsk_receiver_destroy (lo);
+
+          /* Just above it: accepted. */
+          mpsk_receiver_state_t *ok = RXR (4, 8.5, 4, 0, 0.005, 0, 0.5, 0.0);
+          DP_CHECK (ok != NULL);
+          mpsk_receiver_destroy (ok);
+
+          /* And the SAME geometry the complex face accepts: `sps == m_out`
+             is legal there and refused here. Asserting both halves is what
+             makes this a difference between the faces rather than a bound
+             that happens to be true of both. */
+          mpsk_receiver_state_t *cx = RX (4, 8.0, 8, 0, 0.005, 0, 0.5, 0.0);
+          DP_CHECK (cx != NULL);
+          mpsk_receiver_destroy (cx);
+          DP_CHECK (RXR (4, 8.0, 8, 0, 0.005, 0, 0.5, 0.0) == NULL);
+        }
+
+        /* 18. acq_to_track flips NDA acquisition -> decision-directed
+         * tracking on the real face too. */
+        {
+          /* lock_thresh 0.65 is 5.74 sigma -- deliberately above the 0.5
+             default so the declare is unambiguous, and matching the complex
+             face's handover case so the two measure the same operating
+             point. */
+          mpsk_receiver_state_t *rx
+              = RXR (4, RSPS, RM_OUT, 0, 0.01, 1, 0.65, RFC);
+          DP_CHECK (rx != NULL);
+          if (rx)
+            {
+              make_mpsk_real (rtx, rid, 4, RSPS, NSYM, RFC + 0.0005, 30.0, 33u,
+                              phi0_for (4));
+              size_t k = mpsk_receiver_steps_real (rx, rtx, RNSAMP, rou, NSYM);
+              DP_CHECK (mpsk_receiver_get_tracking (rx) == 1);
+              double ser = tail_ser (rou, k, rid, 4, phi0_for (4),
+                                     dp_test_settle_syms (0.01, 0.01));
+              DP_CHECK (ser < 0.01);
+              mpsk_receiver_destroy (rx);
+            }
+        }
+
+        /* 19. The usable band constrains the OCCUPIED band, not the centre.
+         *
+         * The R2C halfband's image rejection collapses at the band edges, and
+         * a rectangular pulse spans fc +- 1/sps to its first null. So a
+         * centre that looks comfortably inside the band can still have its
+         * skirt reach an edge, where the folded image lands on the wanted
+         * signal. THIS is what a "receiver bug at low oversampling" actually
+         * is; pinning both halves is what stops it being misdiagnosed
+         * again. */
+        {
+          /* sps = 10 -> the pulse is +-0.1 wide, so an IF at 0.10 puts its
+             lower skirt on DC, where rejection is only about -7 dB. */
+          const double sps_edge   = 10.0;
+          size_t       nsamp_edge = (size_t)(NSYM * (size_t)sps_edge);
+          size_t       settle     = dp_test_settle_syms (0.01, 0.005);
+
+          mpsk_receiver_state_t *edge
+              = RXR (4, sps_edge, RM_OUT, 0, 0.005, 0, 0.5, 0.10);
+          mpsk_receiver_state_t *ctr
+              = RXR (4, sps_edge, RM_OUT, 0, 0.005, 0, 0.5, RFC);
+          DP_CHECK (edge != NULL && ctr != NULL);
+          if (edge && ctr)
+            {
+              /* Effectively noiseless (50 dB), because this section isolates
+                 PLACEMENT: at 30 dB the AWGN swamps the very effect being
+                 measured and both cases read the same -10 dB. Enough noise
+                 remains to break the measure-zero unstable equilibrium an
+                 M-th-power loop would sit at on a perfectly clean,
+                 zero-offset input. The Python twin
+                 (test_usable_band_is_the_input_constraint) is fully noiseless
+                 for the same reason. */
+              /* phi0 = 0, NOT the pi/4 QPSK convention, and the choice is
+                 load-bearing. The leaked image is the signal's CONJUGATE, so
+                 how much it hurts depends on whether each symbol's conjugate
+                 is itself or a different symbol. Unrotated QPSK {0, pi/2, pi,
+                 3pi/2} pairs two symbols with themselves and the image adds
+                 coherently; the pi/4-rotated set maps every symbol onto a
+                 DIFFERENT one and the damage largely averages out. Measured
+                 at this geometry: -4.4 dB EVM unrotated vs -20.1 dB rotated
+                 -- a 16 dB difference from the constellation phase alone.
+                 Unrotated is both the worst case and what the Python twin
+                 uses, so the two pin the same thing. */
+              make_mpsk_real (rtx, rid, 4, sps_edge, NSYM, 0.10, 50.0, 51u,
+                              0.0);
+              size_t ke = mpsk_receiver_steps_real (edge, rtx, nsamp_edge, rou,
+                                                    NSYM);
+              double evm_edge
+                  = (ke > settle)
+                        ? dp_test_evm_db_hard_m (rou + settle, ke - settle, 4)
+                        : 0.0;
+
+              make_mpsk_real (rtx, rid, 4, sps_edge, NSYM, RFC, 50.0, 51u,
+                              0.0);
+              size_t kc
+                  = mpsk_receiver_steps_real (ctr, rtx, nsamp_edge, rou, NSYM);
+              double evm_ctr
+                  = (kc > settle)
+                        ? dp_test_evm_db_hard_m (rou + settle, kc - settle, 4)
+                        : 0.0;
+
+              /* The SAME geometry -- only the placement differs. The centre
+                 must be clean and the edge visibly degraded.
+
+                 The MAGNITUDE here is deliberately weak (2 dB), and the
+                 reason is NOT the receiver. The leaked image is the signal's
+                 own conjugate, so the resulting ISI is a deterministic
+                 function of the symbol SEQUENCE, and the penalty varies
+                 enormously with it. Measured over 8 seeds at this exact
+                 geometry, noiseless, identical receiver:
+
+                     symbol source              min   median    max
+                     pn_core MLS, length 64     2.7     11.9   18.5   dB
+                     numpy PCG64              -11.1      2.8   18.6   dB
+                     this file's xorshift32      --       2.9     --   dB
+
+                 So NO symbol source reliably excites it, and a test asserting
+                 a large penalty on one sequence is asserting a property of
+                 that sequence. An earlier version of this comment claimed the
+                 xorshift source under-excited the impairment by 15 dB
+                 relative to PCG64; that compared ONE seed against ONE seed
+                 and the PCG64 draw happened to be favourable -- on medians
+                 PCG64 is the worse source. Corrected.
+
+                 Likely mechanism, if this is ever tightened: an m-sequence is
+                 white to SECOND order but its higher-order joint statistics
+                 are constrained by the linear recurrence, and this impairment
+                 depends on symbol PAIRS -- so second-order whiteness is not
+                 the property that matters, which is why "uniform,
+                 decorrelated at lag 1" says nothing here.
+
+                 This section therefore pins the always-true form: the centre
+                 is clean, the edge is worse. **The Python twin
+                 (test_usable_band_is_the_input_constraint) asserts 10 dB on a
+                 single seed and is fragile for exactly this reason** -- it
+                 should average over seeds. If the edge ever matches the
+                 centre, the halfband's edge behaviour changed and the
+                 documented input constraint needs re-measuring, not
+                 deleting. */
+              DP_CHECK (evm_ctr < -15.0);
+              DP_CHECK (evm_edge > evm_ctr + 2.0);
+              printf ("  real usable band: EVM %.1f dB at fc=0.10 vs "
+                      "%.1f dB at fs/4\n",
+                      evm_edge, evm_ctr);
+              mpsk_receiver_destroy (edge);
+              mpsk_receiver_destroy (ctr);
+            }
+        }
+
+        /* 20. Serialized state resumes bit-for-bit; a bad envelope rejects;
+         * and a blob from the OTHER face is refused by name.
+         *
+         * The cross-face reject is what one object buys and one type could
+         * not: the two faces now share `mpsk_receiver_set_state`, so the only
+         * thing standing between a DDC blob and a DDCR's cascade is the
+         * envelope magic being keyed on the face. Reinterpreting one as the
+         * other would restore a plausible-looking receiver with the wrong
+         * front-end memory -- the exact failure dp_state.h's validate exists
+         * to make impossible. */
+        {
+          make_mpsk_real (rtx, rid, 4, RSPS, NSYM, RFC, 30.0, 71u,
+                          phi0_for (4));
+          size_t half = RNSAMP / 2;
+
+          mpsk_receiver_state_t *ref
+              = RXR (4, RSPS, RM_OUT, 0, 0.005, 0, 0.5, RFC);
+          mpsk_receiver_state_t *src
+              = RXR (4, RSPS, RM_OUT, 0, 0.005, 0, 0.5, RFC);
+          mpsk_receiver_state_t *dst
+              = RXR (4, RSPS, RM_OUT, 0, 0.005, 0, 0.5, RFC);
+          DP_CHECK (ref && src && dst);
+          if (ref && src && dst)
+            {
+              float complex *ref_out = malloc (NSYM * sizeof (*ref_out));
+              if (ref_out)
+                {
+                  /* Reference: both halves through one instance. */
+                  (void)mpsk_receiver_steps_real (ref, rtx, half, ref_out,
+                                                  NSYM);
+                  size_t rn = mpsk_receiver_steps_real (
+                      ref, rtx + half, RNSAMP - half, ref_out, NSYM);
+
+                  /* Split: first half through `src`, hand its state to `dst`,
+                     finish there. The second halves must be identical. */
+                  (void)mpsk_receiver_steps_real (src, rtx, half, rou, NSYM);
+                  size_t nb   = mpsk_receiver_state_bytes (src);
+                  void  *blob = malloc (nb);
+                  DP_CHECK (nb > 0 && blob != NULL);
+                  if (blob)
+                    {
+                      mpsk_receiver_get_state (src, blob);
+                      DP_CHECK (mpsk_receiver_set_state (dst, blob) == DP_OK);
+                      size_t dn = mpsk_receiver_steps_real (
+                          dst, rtx + half, RNSAMP - half, rou, NSYM);
+                      DP_CHECK (dn == rn);
+                      int same = (dn == rn);
+                      for (size_t i = 0; same && i < dn; i++)
+                        if (rou[i] != ref_out[i])
+                          same = 0;
+                      DP_CHECK (same); /* bit-for-bit resume */
+
+                      /* A COMPLEX receiver must refuse this real blob, and
+                         the refusal must be the envelope's -- not a size
+                         accident. Built at the same sps/m_out so the two
+                         disagree about the face and nothing else. */
+                      mpsk_receiver_state_t *cx
+                          = RX (4, RSPS, RM_OUT, 0, 0.005, 0, 0.5, RFC);
+                      DP_CHECK (cx != NULL);
+                      if (cx)
+                        {
+                          DP_CHECK (mpsk_receiver_set_state (cx, blob)
+                                    == DP_ERR_INVALID);
+                          /* And the other direction, so neither face is
+                             merely lucky about its blob size. */
+                          size_t cnb = mpsk_receiver_state_bytes (cx);
+                          void  *cbl = malloc (cnb);
+                          if (cbl)
+                            {
+                              mpsk_receiver_get_state (cx, cbl);
+                              DP_CHECK (mpsk_receiver_set_state (dst, cbl)
+                                        == DP_ERR_INVALID);
+                              free (cbl);
+                            }
+                          mpsk_receiver_destroy (cx);
+                        }
+
+                      /* A clobbered envelope must be REJECTED, never
+                         reinterpreted. */
+                      ((unsigned char *)blob)[0] ^= 0xFFu;
+                      DP_CHECK (mpsk_receiver_set_state (dst, blob)
+                                == DP_ERR_INVALID);
+                      free (blob);
+                    }
+                  free (ref_out);
+                }
+              mpsk_receiver_destroy (ref);
+              mpsk_receiver_destroy (src);
+              mpsk_receiver_destroy (dst);
+            }
+        }
+
+        /* 21. The real face's front-end AGC: level-invariant, slower than
+         * both loops, and the five derived parameters read back.
+         *
+         * Section 11 carries the reasoning for the complex face. This pins
+         * that the wedge actually reached the OTHER front end -- a different
+         * cascade, behind the R2C halfband. Nothing in section 11 would fail
+         * if `agc` were quietly ignored here. */
+        {
+          static const double amps[]  = { 0.25, 1.0, 4.0 };
+          double              gain[3] = { 0, 0, 0 };
+          size_t              nsym[3] = { 0, 0, 0 };
+          for (size_t a = 0; a < 3; a++)
+            {
+              make_mpsk_real (rtx, rid, 4, RSPS, NSYM, RFC, 30.0, 5u,
+                              phi0_for (4));
+              for (size_t i = 0; i < RNSAMP; i++)
+                rtx[i] *= (float)amps[a];
+
+              mpsk_receiver_state_t *rx = RXR (
+                  4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, RFC);
+              DP_CHECK (rx != NULL);
+              if (rx)
+                {
+                  size_t k
+                      = mpsk_receiver_steps_real (rx, rtx, RNSAMP, rou, NSYM);
+                  DP_CHECK (k > 0);
+                  gain[a] = mpsk_receiver_get_agc_gain_db (rx);
+                  nsym[a] = k;
+                  mpsk_receiver_destroy (rx);
+                }
+
+              /* agc=0 is the bisect handle here too: no gain, ever. */
+              mpsk_receiver_state_t *off = mpsk_receiver_create_real (
+                  4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
+                  0.01, 0, 0.5, RFC, 0, MPSK_RX_NUM_PHASES,
+                  MPSK_RX_NDA_TAP_STROBE, 0, MPSK_RX_AGC_BW_RATIO);
+              DP_CHECK (off != NULL);
+              if (off)
+                {
+                  (void)mpsk_receiver_steps_real (off, rtx, RNSAMP, rou, NSYM);
+                  DP_CHECK (mpsk_receiver_get_agc_gain_db (off) == 0.0);
+                  mpsk_receiver_destroy (off);
+                }
+            }
+          DP_CHECK (nsym[0] == nsym[1] && nsym[1] == nsym[2]);
+          /* Non-vacuous: the gain tracked the input across the full 24 dB. */
+          DP_CHECK (gain[0] - gain[1] > 10.0 && gain[1] - gain[2] > 10.0);
+
+          /* The AGC is slower than BOTH loops on this face too, and by the
+             declared ratio off the slowest -- the same claim section 9 makes
+             through the complex front end's cascade, reached through the
+             other one. */
+          {
+            const double bns[][2] = {
+              { 0.01, 0.01 },
+              { 0.05, 0.001 },
+              { 0.001, 0.05 },
+            };
+            for (size_t i = 0; i < sizeof (bns) / sizeof (bns[0]); i++)
+              {
+                double                 bn_c = bns[i][0], bn_t = bns[i][1];
+                mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
+                    4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, bn_c, 0.707,
+                    bn_t, 0, 0.5, RFC, 0, MPSK_RX_NUM_PHASES,
+                    MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO);
+                DP_CHECK (rx != NULL);
+                if (!rx)
+                  continue;
+                double bn_agc  = rx->fe.r->rc->agc_bn_sym;
+                double slowest = bn_c < bn_t ? bn_c : bn_t;
+                DP_CHECK (bn_agc < bn_c && bn_agc < bn_t);
+                DP_CHECK (fabs (bn_agc - MPSK_RX_AGC_BW_RATIO * slowest)
+                          < 1e-15 * slowest + 1e-18);
+                mpsk_receiver_destroy (rx);
+              }
+          }
+
+          /* The ratio is refused at or above 1, where the AGC would be as
+             fast as the loop it feeds. */
+          DP_CHECK (mpsk_receiver_create_real (
+                        4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
+                        0.707, 0.01, 0, 0.5, RFC, 0, MPSK_RX_NUM_PHASES,
+                        MPSK_RX_NDA_TAP_STROBE, 1, 1.0)
+                    == NULL);
+          /* Zero is no longer a rejection: it asks for the derived ratio
+             (design/mpsk.md §8.1). The invariant it used to guard is
+             unchanged and still checked above at 1.0 -- what moved is only
+             the meaning of 0, which previously could not construct anything
+             and so had no caller to break. Assert the DERIVED value rather
+             than merely that it builds, or this reads as a weaker version of
+             the reject it replaced. */
+          {
+            mpsk_receiver_state_t *d = mpsk_receiver_create_real (
+                4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
+                0.01, 0, 0.5, RFC, 0, MPSK_RX_NUM_PHASES,
+                MPSK_RX_NDA_TAP_STROBE, 1, 0.0);
+            DP_CHECK (d != NULL);
+            DP_CHECK (dp_near (mpsk_receiver_get_bn_agc_ratio (d),
+                               MPSK_RX_AGC_RATIO_DEFAULT, 1e-12));
+            if (d)
+              mpsk_receiver_destroy (d);
+          }
+          /* Negative is still refused -- a ratio below zero is not a slower
+             AGC. */
+          DP_CHECK (mpsk_receiver_create_real (
+                        4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
+                        0.707, 0.01, 0, 0.5, RFC, 0, MPSK_RX_NUM_PHASES,
+                        MPSK_RX_NDA_TAP_STROBE, 1, -0.05)
+                    == NULL);
+
+          /* All five derived at once, read back. The real face's ONE
+             difference is the rate the m_out rule sees: this cascade sits
+             behind the R2C halfband so the bound is sps/2, STRICTLY (Ddcr
+             needs a ratio below 0.5). At sps = 16 that is a bound of 8
+             exclusive, which lands on 6 -- not the 8 the complex face
+             reaches at sps = 8, and not the 8 that min(8, 2*floor(sps/4))
+             used to claim and mpsk_receiver_create_real() rejects. Literals,
+             so the expectation does not agree with the rule by
+             construction. */
+          {
+            mpsk_receiver_state_t *d = mpsk_receiver_create_real (
+                4, RSPS, 0u, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.0, 0.01, 0,
+                0.0, RFC, 0, 0u, MPSK_RX_NDA_TAP_STROBE, 1, 0.0);
+            DP_CHECK (d != NULL);
+            if (d)
+              {
+                DP_CHECK (mpsk_receiver_get_m_out (d) == 6u);
+                DP_CHECK (dp_near (mpsk_receiver_get_zeta (d),
+                                   0.70710678118654752, 1e-15));
+                DP_CHECK (mpsk_receiver_get_num_phases (d) == 64u);
+                DP_CHECK (dp_near (mpsk_receiver_get_lock_thresh (d), 0.4999,
+                                   1e-15));
+                DP_CHECK (
+                    dp_near (mpsk_receiver_get_bn_agc_ratio (d), 0.05, 1e-15));
+                mpsk_receiver_destroy (d);
+              }
+          }
+
+          /* The rule REFUSES rather than clamps when the bound cannot carry
+             even two outputs per symbol: behind the halfband, sps = 4 leaves
+             a strict bound of 2, so there is no even m_out >= 2 below it and
+             create() has to return NULL. A clamp here would hand back a
+             receiver whose detector has nothing to detect with, which is the
+             failure mode deriving exists to remove -- so the refusal is the
+             behaviour, not an edge case. */
+          DP_CHECK (mpsk_receiver_create_real (4, 4.0, 0u, MPSK_RX_PULSE_IANDD,
+                                               0.35, 8, 0.01, 0.0, 0.01, 0,
+                                               0.0, RFC, 0, 0u,
+                                               MPSK_RX_NDA_TAP_STROBE, 1, 0.0)
+                    == NULL);
+        }
+      }
+    free (rtx);
+    free (rid);
+    free (rou);
+  }
+
+  /* 22. Telemetry reaches the REAL front end's AGC.
+   *
+   * §2 of docs/design/mpsk-refactor.md: `set_telemetry` was asserted seven
+   * times against the complex front end and ZERO times against the real one,
+   * so the forward into `ddcr_set_telemetry()` was carried by nothing. The
+   * loops' half is shared code and section 8 covers it; what is unique here
+   * is the third attachment, and the assertion that separates them is the
+   * AGC pair being on the CASCADE's grid rather than the symbol grid --
+   * which is only observable if the forward actually happened. */
+  {
+    float         *ttx = malloc (RNSAMP * sizeof (*ttx));
+    int           *tid = malloc (NSYM * sizeof (int));
+    float complex *tou = malloc (NSYM * sizeof (*tou));
+    dp_tlm_t      *tlm = dp_tlm_create (1 << 16);
+    DP_CHECK (ttx && tid && tou && tlm);
+    if (ttx && tid && tou && tlm)
+      {
+        mpsk_receiver_state_t *rx
+            = RXR (4, RSPS, RM_OUT, 0, 0.01, 0, 0.5, RFC);
+        DP_CHECK (rx != NULL);
+        if (rx)
+          {
+            DP_CHECK (mpsk_receiver_set_telemetry (rx, tlm, "rr", 1) == DP_OK);
+            /* Fourteen: the receiver's two, the carrier loop's four, the
+               timing loop's six, and the front end's AGC pair. */
+            DP_CHECK (dp_tlm_probe_count (tlm) == 14);
+            int id_car = dp_tlm_probe_id (tlm, "rr.car.e");
+            int id_syn = dp_tlm_probe_id (tlm, "rr.sync.e");
+            int id_agc = dp_tlm_probe_id (tlm, "rr.agc.gain_db");
+            int id_lvl = dp_tlm_probe_id (tlm, "rr.agc.level_db");
+            DP_CHECK (id_car >= 0 && id_syn >= 0 && id_agc >= 0
+                      && id_lvl >= 0);
+
+            make_mpsk_real (ttx, tid, 4, RSPS, 1024u, RFC, 30.0, 17u,
+                            phi0_for (4));
+            size_t n = mpsk_receiver_steps_real (rx, ttx, 1024u * (size_t)RSPS,
+                                                 tou, NSYM);
+            DP_CHECK (n > 0);
+
+            dp_tlm_rec_t *recs = malloc (65536 * sizeof (*recs));
+            DP_CHECK (recs != NULL);
+            if (recs)
+              {
+                size_t n_rec = dp_tlm_read (tlm, 65536, recs, 65536);
+                DP_CHECK (dp_tlm_dropped (tlm) == 0);
+                size_t n_car = 0, n_syn = 0, n_agc = 0;
+                for (size_t i = 0; i < n_rec; i++)
+                  {
+                    if (recs[i].probe == (uint16_t)id_car)
+                      n_car++;
+                    else if (recs[i].probe == (uint16_t)id_syn)
+                      n_syn++;
+                    else if (recs[i].probe == (uint16_t)id_agc
+                             || recs[i].probe == (uint16_t)id_lvl)
+                      n_agc++;
+                  }
+                /* The loops are on the symbol grid and agree with each
+                   other. */
+                DP_CHECK (n_car == n && n_syn == n);
+                /* The AGC forward reached ddcr_set_telemetry(), and its pair
+                   is on the cascade's own grid -- both probes always
+                   together, and NOT one per symbol. A forward that silently
+                   did nothing reads n_agc == 0; one wired to the symbol
+                   strobe reads n_agc / 2 == n. */
+                DP_CHECK (n_agc > 0);
+                DP_CHECK (n_agc % 2 == 0);
+                DP_CHECK (n_agc / 2 != n);
+                free (recs);
+              }
+            /* Detach reaches everything, including the front end. */
+            DP_CHECK (mpsk_receiver_set_telemetry (rx, NULL, "rr", 1)
+                      == DP_OK);
+            DP_CHECK (rx->l.tlm.ctx == NULL && rx->l.timing.tlm.ctx == NULL);
+            mpsk_receiver_destroy (rx);
+          }
+      }
+    dp_tlm_destroy (tlm);
+    free (ttx);
+    free (tid);
+    free (tou);
+  }
+
+  /* 23. THE LO RUNS AT HALF THE INPUT RATE.
+   *
+   * The claim mpsk_rx_loops.h makes that NOTHING in this repository asserted
+   * (docs/design/mpsk-refactor.md §2, last row): the R2C halfband decimates
+   * 2:1 before the mix, so `lo_sps = sps/2` and every caller-facing frequency
+   * is converted back to the input rate on the way out. It is where the
+   * gh-765 `freq_scale` defect lived, and it went through every step test in
+   * the tree because **a type-2 loop nulls a frequency STEP to zero
+   * steady-state error regardless of gain**. Only a RAMP separates a loop
+   * from a mis-scaled one.
+   *
+   * Two halves, because `lo_sps` enters in two places:
+   *
+   *   (a) the LOOP GAIN, through `freq_scale = (1/2pi) * upd / lo_sps`.
+   *       Measured against the closed form, which is face-independent BY
+   *       DESIGN -- `bn_carrier` is normalised to the symbol rate, so both
+   *       faces must hold the same lag under the same ramp in cycles per
+   *       SYMBOL squared:
+   *
+   *           theta_ss = 2*pi*r / wn^2,   wn = loop_filter_wn(bn, zeta)
+   *
+   *       Sabotage target: pass `sps` instead of `0.5 * sps` for `lo_sps` in
+   *       mpsk_rx_create_impl(). `freq_scale` then halves, the loop gain
+   *       halves with it and the lag DOUBLES -- measured 0.0429 and 0.1424
+   *       rad against a law of 0.0212 and 0.0707, i.e. 2.00x at both ramp
+   *       rates, while the complex face and the readback below stay green.
+   *
+   *   (b) the READBACK, through mpsk_rx_lo_to_input(). A residual of `d`
+   *       cycles/sample at the intermediate rate is `d/2` at the real input
+   *       rate. Sabotage target: return 1.0 there. `norm_freq` then reads
+   *       twice the residual -- measured 0.25008 against a true 0.25004, an
+   *       error of exactly `df` and five times this tolerance -- while EVERY
+   *       other assertion in this file, including (a) above, stays green.
+   *       Nothing else moves: the receiver still locks, still demodulates,
+   *       still reports a healthy statistic. It just lies about where the
+   *       carrier is. */
+  {
+    const double LO_BN   = 0.005;
+    const double LO_SPS  = 32.0; /* > 2*m_out on the real face      */
+    const size_t LO_NSYM = 3000u;
+    const double wn      = loop_filter_wn (LO_BN, 0.707);
+
+    /* (a) The ramp law, on both faces, against one prediction. */
+    static const double ramps[] = { 3e-7, 1e-6 };
+    for (size_t ri = 0; ri < sizeof (ramps) / sizeof (ramps[0]); ri++)
+      {
+        double r    = ramps[ri];             /* cycles/symbol^2      */
+        double a    = r / (LO_SPS * LO_SPS); /* cycles/sample^2      */
+        double want = 2.0 * M_PI * r / (wn * wn);
+        double got[2];
+        for (int real = 0; real < 2; real++)
+          {
+            mpsk_receiver_state_t *rx
+                = real ? mpsk_receiver_create_real (
+                             2, LO_SPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8,
+                             LO_BN, 0.707, LO_BN, 0, 0.3, RFC, 0,
+                             MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 1,
+                             MPSK_RX_AGC_BW_RATIO)
+                       : mpsk_receiver_create (
+                             2, LO_SPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8,
+                             LO_BN, 0.707, LO_BN, 0, 0.3, 0.0, 0,
+                             MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 1,
+                             MPSK_RX_AGC_BW_RATIO);
+            DP_CHECK (rx != NULL);
+            if (!rx)
+              continue;
+            uint32_t st   = 12345u;
+            size_t   isps = (size_t)LO_SPS;
+            double   s1   = 0.0;
+            size_t   cnt  = 0;
+            for (size_t k = 0; k < LO_NSYM; k++)
+              {
+                double sr = TX_AMP * ((dp_xs32 (&st) % 2u) ? -1.0 : 1.0);
+                for (size_t j = 0; j < isps; j++)
+                  {
+                    double n = (double)(k * isps + j);
+                    /* The ramp, plus the real face's IF centre. Integrating
+                       f(n) = fc + a*n gives the instantaneous phase. */
+                    double ph = 2.0 * M_PI
+                                * ((real ? RFC * n : 0.0) + a * n * n * 0.5);
+                    float complex y;
+                    if (real)
+                      (void)mpsk_receiver_step_real_ted (
+                          rx, (float)(sr * cos (ph)), &y,
+                          RATESYNC_TED_GARDNER);
+                    else
+                      (void)mpsk_receiver_step_ted (
+                          rx,
+                          (float)(sr * cos (ph)) + (float)(sr * sin (ph)) * I,
+                          &y, RATESYNC_TED_GARDNER);
+                  }
+                if (k > LO_NSYM / 2)
+                  {
+                    /* SIGNED, then |mean| -- not mean|e|. Under a ramp the
+                       lag is a CONSTANT offset the loop is holding, so the
+                       signed mean estimates it and the loop's own jitter
+                       averages out; mean|e| adds a positive bias that grows
+                       as the lag approaches the jitter, and at r = 3e-7 on
+                       this face that bias alone read 44% high. */
+                    s1 += mpsk_receiver_get_last_error (rx);
+                    cnt++;
+                  }
+              }
+            got[real] = cnt ? fabs (s1 / (double)cnt) : -1.0;
+            mpsk_receiver_destroy (rx);
+          }
+        printf ("  lo_sps ramp r=%.0e: law %.4f rad, complex %.4f, "
+                "real %.4f\n",
+                ramps[ri], want, got[0], got[1]);
+        /* 8% on BOTH faces. Measured 0.5% / 1.4% (complex) and 1.4% / 0.4%
+           (real) across the two ramps, so this is ~5x the observed spread and
+           an order of magnitude inside the factor of TWO a wrong `lo_sps`
+           costs -- tight enough to be a gate, loose enough to survive another
+           toolchain's floating point. */
+        DP_CHECK (fabs (got[0] - want) <= 0.08 * want);
+        DP_CHECK (fabs (got[1] - want) <= 0.08 * want);
+      }
+
+    /* (b) The readback converts the intermediate rate back to the input
+       rate. A STEP is the right stimulus here -- what is being measured is
+       the reported number, not the settling -- and the offset is held well
+       inside the seeding bound bn/(M*sps) so the loop pulls it in. */
+    {
+      const double   df  = 4.0e-5; /* cycles/sample at the REAL input rate */
+      float         *ltx = malloc ((size_t)(6000.0 * LO_SPS) * sizeof (*ltx));
+      int           *lid = malloc (6000 * sizeof (int));
+      float complex *lou = malloc (6000 * sizeof (*lou));
+      DP_CHECK (ltx && lid && lou);
+      if (ltx && lid && lou)
+        {
+          size_t n = (size_t)(6000.0 * LO_SPS);
+          make_mpsk_real (ltx, lid, 2, LO_SPS, 6000u, RFC + df, 30.0, 23u,
+                          0.0);
+          mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
+              2, LO_SPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, LO_BN, 0.707,
+              0.01, 0, 0.3, RFC, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE,
+              1, MPSK_RX_AGC_BW_RATIO);
+          DP_CHECK (rx != NULL);
+          if (rx)
+            {
+              (void)mpsk_receiver_steps_real (rx, ltx, n, lou, 6000);
+              double got = mpsk_receiver_get_norm_freq (rx);
+              printf ("  lo_sps readback: norm_freq %.8f, true %.8f "
+                      "(err %.2f%% of df)\n",
+                      got, RFC + df, 100.0 * fabs (got - (RFC + df)) / df);
+              DP_CHECK (mpsk_receiver_get_lock (rx) > 0.5);
+              /* Within 20% of the offset itself. Dropping the 0.5 makes this
+                 read RFC + 2*df -- an error of exactly df, five times this
+                 bound. */
+              DP_CHECK (fabs (got - (RFC + df)) < 0.2 * df);
+              mpsk_receiver_destroy (rx);
+            }
+        }
+      free (ltx);
+      free (lid);
+      free (lou);
+    }
   }
 
   DP_TEST_END ("test_mpsk_receiver_core");

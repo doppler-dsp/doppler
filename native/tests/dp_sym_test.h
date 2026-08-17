@@ -148,7 +148,9 @@ dp_test_evm_db_hard (const float complex *syms, size_t n_syms)
  * **Any fixed EVM threshold MUST be stated against this, never against 0 dB.**
  * A `< -12.0` assertion is meaningless at 8PSK — a stream with no carrier
  * recovery at all passes it — and that is not hypothetical: it was live in
- * test_mpsk_receiver_r_core.c's every-M loop until 2026-07-27. The room
+ * the real receiver's every-M loop until 2026-07-27 (then
+ * test_mpsk_receiver_r_core.c, since folded into
+ * test_mpsk_receiver_core.c section 16). The room
  * between "on the bound at the SER=1e-3 anchor" and "completely broken"
  * shrinks fast with M:
  *

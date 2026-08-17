@@ -53,6 +53,7 @@
 #define CONV_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -234,6 +235,57 @@ extern "C"
 
   /** @brief Its traceback depth, in input bits. */
   size_t viterbi_depth (const viterbi_state_t *s);
+
+/* ── the state bytes interface ───────────────────────────────────────────
+ *
+ * The decoder carries running state across calls — a path metric per state,
+ * the traceback ring, and where the ring is — so it speaks the standard
+ * bytes interface like every other stateful object in the tree. A decoder
+ * sits inside a chain (behind the receiver, in front of the R-S decoder),
+ * and one link that cannot be checkpointed is enough to make the chain
+ * un-resumable. See docs/design/state-serialization.md.
+ */
+
+/** @brief Blob type tag: "VTRB". */
+#define VITERBI_STATE_MAGIC DP_FOURCC ('V', 'T', 'R', 'B')
+/** @brief Blob format version. */
+#define VITERBI_STATE_VERSION 1u
+
+  /**
+   * @brief Bytes @ref viterbi_get_state writes: envelope, code identity,
+   *        ring cursor, the path metrics and the traceback ring.
+   *
+   * Depends on the configuration (`2^(k-1)` metrics and a
+   * `depth x 2^(k-1)` ring), so it is not a constant across decoders.
+   */
+  size_t viterbi_state_bytes (const viterbi_state_t *s);
+
+  /**
+   * @brief Serialize @p s into @p blob, which must hold
+   *        @ref viterbi_state_bytes bytes.
+   *
+   * The ring travels in its stored order with the cursor beside it rather
+   * than rotated into a canonical one — the rotation would cost a pass and
+   * buy nothing, since only @ref viterbi_set_state reads it back.
+   */
+  void viterbi_get_state (const viterbi_state_t *s, void *blob);
+
+  /**
+   * @brief Restore @p s from @p blob.
+   *
+   * The code and the depth are configuration, restored by
+   * @ref viterbi_create rather than carried in the payload — but they are
+   * *stamped* in it and checked here, because a size match is not a
+   * configuration match: two codes with the same `k` and `n` differing only
+   * in a polynomial or in @c invert produce blobs of identical length, and
+   * reinterpreting one as the other yields a decoder that is confidently
+   * wrong rather than one that refuses.
+   *
+   * @return @c DP_OK, or @c DP_ERR_INVALID if the envelope, the code, the
+   *         depth, or the ring cursor does not match this decoder — in which
+   *         case @p s is untouched.
+   */
+  int viterbi_set_state (viterbi_state_t *s, const void *blob);
 
 #ifdef __cplusplus
 }

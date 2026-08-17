@@ -8,12 +8,13 @@
  *   transfer frame --> [R-S (255,223) I=5] --> [randomiser] --> [+ASM]
  *                  --> [conv K=7 r=1/2] --> BPSK --> AWGN
  *                  --> soft demap --> [Viterbi] --> [ASM search]
- *                  --> [derandomise] --> [de-interleave + R-S check]
+ *                  --> [derandomise] --> [de-interleave + R-S decode]
  *                  --> transfer frame
  *
  * §1 sweeps Es/N0 and prints what each stage saw: the channel's own symbol
  *    error rate, what survived the inner code, and what the outer code made
- *    of the result.
+ *    of the result -- including the symbols it REPAIRED, which is the margin
+ *    the concatenation is spending before it starts losing frames.
  * §2 runs one link at 3 dB and prints the recovered text.
  *
  * ## Three things this demonstrates that a round trip would not
@@ -150,7 +151,7 @@ transmit (void)
    reports what each stage saw. */
 static unsigned
 receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
-         unsigned *rs_words, unsigned *rs_ok, int verbose)
+         unsigned *rs_words, unsigned *rs_ok, unsigned *rs_syms, int verbose)
 {
   /* One place answers "per rail or total power?", so a 3 dB error cannot be
      introduced here by deriving sigma by hand. */
@@ -205,6 +206,7 @@ receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
     {
       *rs_words = 0;
       *rs_ok    = 0;
+      *rs_syms  = 0;
       return 0;
     }
   if (verbose)
@@ -213,6 +215,7 @@ receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
 
   *rs_words       = 0;
   *rs_ok          = 0;
+  *rs_syms        = 0;
   unsigned frames = 0;
   for (size_t at = hit.offset; at + CADU_BITS <= n_rx; at += CADU_BITS)
     {
@@ -223,6 +226,7 @@ receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
         break;
       *rs_words += rx.rs_codewords;
       *rs_ok += rx.rs_ok;
+      *rs_syms += rx.rs_symbols;
       frames++;
       /* Which transmitted frame this CADU is, from where it sits in the
          stream -- the capture did not start at frame 0. */
@@ -232,8 +236,10 @@ receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
           char text[73];
           memcpy (text, g_back, sizeof text - 1u);
           text[sizeof text - 1u] = '\0';
-          printf ("  frame %u   %zu octets, R-S %u/%u codewords OK, %s\n",
+          printf ("  frame %u   %zu octets, R-S %u/%u OK (%u symbol(s) "
+                  "repaired), %s\n",
                   which, rx.frame_len, rx.rs_ok, rx.rs_codewords,
+                  rx.rs_symbols,
                   which < NFRAMES
                           && memcmp (g_back, g_frame[which], FRAME_LEN) == 0
                       ? "byte-exact"
@@ -267,29 +273,33 @@ main (void)
 
   /* ── 1. what each stage sees, against Es/N0 ─────────────────────────── */
   printf ("§1  Es/N0 sweep (BPSK, rate 1/2, so Eb/N0 = Es/N0 + 3 dB)\n\n");
-  printf ("   Es/N0   channel SER   post-Viterbi BER   R-S OK   frames\n");
-  printf ("   -----   -----------   ----------------   ------   ------\n");
+  printf ("   Es/N0   channel SER   post-Viterbi BER   R-S OK   repaired   "
+          "frames\n");
+  printf ("   -----   -----------   ----------------   ------   --------   "
+          "------\n");
   for (int i = 0; i <= 4; i++)
     {
       const float    esn0 = (float)i;
       size_t         ce = 0, be = 0;
-      unsigned       words = 0, ok = 0;
-      const unsigned frames
-          = receive (esn0, 20260817u + (uint64_t)i, &ce, &be, &words, &ok, 0);
-      printf ("   %4.1f     %8.4f%%   %14.2e   %3u/%-3u   %4u\n", (double)esn0,
-              100.0 * (double)ce / (double)RX_SYM,
-              (double)be / (double)RX_BITS, ok, words, frames);
+      unsigned       words = 0, ok = 0, syms = 0;
+      const unsigned frames = receive (esn0, 20260817u + (uint64_t)i, &ce, &be,
+                                       &words, &ok, &syms, 0);
+      printf ("   %4.1f     %8.4f%%   %14.2e   %3u/%-3u   %8u   %4u\n",
+              (double)esn0, 100.0 * (double)ce / (double)RX_SYM,
+              (double)be / (double)RX_BITS, ok, words, syms, frames);
     }
 
   /* ── 2. the contents, at an operating point that works ──────────────── */
   printf ("\n§2  One link at 3.0 dB, end to end\n\n");
   size_t         ce = 0, be = 0;
-  unsigned       words = 0, ok = 0;
+  unsigned       words = 0, ok = 0, syms = 0;
   const unsigned frames
-      = receive (3.0f, 20260817u + 3u, &ce, &be, &words, &ok, 1);
+      = receive (3.0f, 20260817u + 3u, &ce, &be, &words, &ok, &syms, 1);
   printf ("  channel   %zu of %d symbols wrong (%.4f%%)\n", ce, RX_SYM,
           100.0 * (double)ce / (double)RX_SYM);
   printf ("  Viterbi   %zu bit error(s) in %d decoded bits\n", be, RX_BITS);
+  printf ("  R-S       %u of %u codewords good, %u symbol(s) repaired\n", ok,
+          words, syms);
   printf ("  frames    %u whole CADUs in a capture starting %d symbols late\n",
           frames, SKIP_SYM);
 

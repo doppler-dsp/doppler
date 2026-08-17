@@ -215,19 +215,26 @@ extern "C"
   /**
    * @brief What @ref fec_frame_decode found on the way through.
    *
-   * The outer code is a **check** here and not a correction: doppler has
-   * `fec_rs_codeword_ok`'s syndrome test and not yet the Berlekamp-Massey /
-   * Chien / Forney chain that would repair a codeword. So @ref rs_ok is
-   * evidence about the link rather than a repair count, and a decode with
-   * `rs_ok < rs_codewords` returned a frame that is **wrong in a way this
-   * function knows about** — which is exactly why it is reported rather than
-   * folded into the return value.
+   * The outer code **corrects** (`rs/rs_core.h`), so @ref rs_ok counts the
+   * codewords that are good *afterwards* — clean or repaired — and
+   * `rs_ok < rs_codewords` means the returned frame is **wrong in a way this
+   * function knows about**: at least one codeword was too far from any
+   * codeword to name. That is reported rather than folded into the return
+   * value because a caller doing frame accounting wants the count, and a
+   * caller wanting only good frames can compare the two.
+   *
+   * @ref rs_corrected and @ref rs_symbols are the work the outer code
+   * actually did. They are the honest measure of how hard the link is
+   * running: `rs_ok == rs_codewords` with a rising @ref rs_symbols is a
+   * margin being spent, and it is spent before it is lost.
    */
   typedef struct
   {
     size_t   frame_len;    /**< Transfer Frame octets written             */
-    unsigned rs_codewords; /**< Codewords checked; 0 with no outer code   */
-    unsigned rs_ok;        /**< How many passed the syndrome test         */
+    unsigned rs_codewords; /**< Codewords decoded; 0 with no outer code   */
+    unsigned rs_ok;        /**< How many are valid after decoding         */
+    unsigned rs_corrected; /**< How many of those needed repair           */
+    unsigned rs_symbols;   /**< Symbol errors repaired across the block   */
   } fec_frame_rx_t;
 
   /**
@@ -258,8 +265,10 @@ extern "C"
    * The marker is skipped, the randomiser is re-applied over the block span
    * (10.3.4 — it is involutive, so the same call serves both directions), the
    * block is packed back to octets MSB-first, and with an outer code each of
-   * the @c rs_depth interleaved codewords is checked. The Transfer Frame is
-   * the information section, which 4.4.1 keeps in the order it entered.
+   * the @c rs_depth interleaved codewords is **decoded** — up to `E = 16`
+   * symbol errors per codeword repaired, in place, before anything reads the
+   * frame. The Transfer Frame is the information section, which 4.4.1 keeps
+   * in the order it entered.
    *
    * @param cfg       The coding that was applied. Must match the transmitter.
    * @param cadu      @p n_cadu unpacked CADU bits, one per byte.
@@ -285,7 +294,8 @@ extern "C"
    * // `cadu` is lay.cadu_bits of Viterbi output, ASM-aligned.
    * const size_t n = fec_frame_decode (&cfg, cadu, lay.cadu_bits, frame,
    *                                    sizeof frame, &rx);
-   * printf ("%zu octets, R-S %u/%u\n", n, rx.rs_ok, rx.rs_codewords);
+   * printf ("%zu octets, R-S %u/%u ok, %u symbols repaired\n", n, rx.rs_ok,
+   *         rx.rs_codewords, rx.rs_symbols);
    * @endcode
    */
   size_t fec_frame_decode (const fec_frame_cfg_t *cfg, const uint8_t *cadu,

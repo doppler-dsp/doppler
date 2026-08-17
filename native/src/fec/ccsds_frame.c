@@ -237,7 +237,7 @@ fec_frame_decode (const fec_frame_cfg_t *cfg, const uint8_t *cadu,
      the marker, exactly as lay.randomised.first says it did on the way out. */
   const uint8_t *block = cadu + lay.marker.n;
 
-  fec_frame_rx_t out = { frame_len, 0u, 0u };
+  fec_frame_rx_t out = { frame_len, 0u, 0u, 0u, 0u };
 
   if (cfg->rs_depth == 0)
     {
@@ -250,24 +250,23 @@ fec_frame_decode (const fec_frame_cfg_t *cfg, const uint8_t *cadu,
   uint8_t codeblock[FEC_RS_N * FEC_RS_MAX_DEPTH];
   pack_derand (block, block_bytes, pn, codeblock);
 
+  /* The outer code CORRECTS here, in place, before anything reads the
+     information section -- so the copy below is of the repaired block. The
+     de-interleave belongs to fec_rs_decode_block rather than to this
+     function, because it is the same S1/S2 rotation the encoder wrote and
+     one description of it is the point. */
+  fec_rs_block_rx_t rs;
+  fec_rs_decode_block (codeblock, cfg->rs_depth, &rs);
+
   /* 4.4.1: S2 reassembles the information symbols "in the same way as they
      entered", so the Transfer Frame is the information section verbatim and
      only the CHECK symbols were rotated. */
   memcpy (frame, codeblock, frame_len);
 
-  out.rs_codewords = cfg->rs_depth;
-  for (unsigned e = 0; e < cfg->rs_depth; e++)
-    {
-      /* Undo S1/S2: encoder e saw every depth-th symbol starting at e, in
-         both sections. */
-      uint8_t word[FEC_RS_N];
-      for (int i = 0; i < FEC_RS_K; i++)
-        word[i] = codeblock[(size_t)i * cfg->rs_depth + e];
-      for (int p = 0; p < FEC_RS_2E; p++)
-        word[FEC_RS_K + p]
-            = codeblock[frame_len + (size_t)p * cfg->rs_depth + e];
-      out.rs_ok += (unsigned)(fec_rs_codeword_ok (word) != 0);
-    }
+  out.rs_codewords = rs.codewords;
+  out.rs_ok        = rs.codewords - rs.uncorrectable;
+  out.rs_corrected = rs.corrected;
+  out.rs_symbols   = rs.symbols;
 
   if (rx != NULL)
     *rx = out;

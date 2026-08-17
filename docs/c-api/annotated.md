@@ -69,8 +69,10 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) _F32ToI16U64 state._     
 * **struct** [**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) _F32ToUQ15 state._     
 * **struct** [**farrow\_state\_t**](structfarrow__state__t.md) _Farrow interpolator state (4-tap delay line + order)._     
+* **struct** [**fec\_asm\_hit\_t**](structfec__asm__hit__t.md) _Where an ASM was found, and in which polarity._     
 * **struct** [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md) _Which coding is applied to one Transfer Frame._     
 * **struct** [**fec\_frame\_layout\_t**](structfec__frame__layout__t.md) _The shape of one CADU, and what each stage covered._     
+* **struct** [**fec\_frame\_rx\_t**](structfec__frame__rx__t.md) _What_ [_**fec\_frame\_decode**_](fec__frame_8h.md#function-fec_frame_decode) _found on the way through._    
 * **struct** [**fec\_frame\_span\_t**](structfec__frame__span__t.md) _A run of CADU bits, as a half-open range_ `[first, first + n)` _._    
 * **struct** [**fft2d\_state\_t**](structfft2d__state__t.md)     
 * **struct** [**fft\_state\_t**](structfft__state__t.md)     

@@ -55,6 +55,17 @@ extern "C"
                            const uint8_t *frame, size_t frame_len,
                            uint8_t *out, size_t max_out);
 
+  typedef struct
+  {
+    size_t   frame_len;    
+    unsigned rs_codewords; 
+    unsigned rs_ok;        
+  } fec_frame_rx_t;
+
+  size_t fec_frame_decode (const fec_frame_cfg_t *cfg, const uint8_t *cadu,
+                           size_t n_cadu, uint8_t *frame, size_t max_frame,
+                           fec_frame_rx_t *rx);
+
 #ifdef __cplusplus
 }
 #endif

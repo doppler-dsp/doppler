@@ -28,6 +28,11 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 
 
 
+## Classes
+
+| Type | Name |
+| ---: | :--- |
+| struct | [**fec\_asm\_hit\_t**](structfec__asm__hit__t.md) <br>_Where an ASM was found, and in which polarity._  |
 
 
 
@@ -60,6 +65,7 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 | Type | Name |
 | ---: | :--- |
 |  void | [**fec\_ccsds\_asm\_bits**](#function-fec_ccsds_asm_bits) (uint8\_t \* out) <br>_Write the ASM as_ [_**FEC\_CCSDS\_ASM\_BITS**_](fec__ccsds_8h.md#define-fec_ccsds_asm_bits) _unpacked bits._ |
+|  int | [**fec\_ccsds\_asm\_find**](#function-fec_ccsds_asm_find) (const uint8\_t \* bits, size\_t n\_bits, unsigned max\_errors, [**fec\_asm\_hit\_t**](structfec__asm__hit__t.md) \* hit) <br>_Find the first ASM in a run of unpacked bits, either polarity._  |
 |  void | [**fec\_ccsds\_rand\_seq**](#function-fec_ccsds_rand_seq) (uint8\_t \* out, size\_t n) <br>_Generate the first_ `n` _bits of the randomiser sequence._ |
 |  void | [**fec\_ccsds\_randomise**](#function-fec_ccsds_randomise) (uint8\_t \* bits, size\_t n) <br>_Apply the CCSDS pseudo-randomiser to a bit run, in place._  |
 
@@ -100,6 +106,7 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 | ---: | :--- |
 | define  | [**FEC\_CCSDS\_ASM**](fec__ccsds_8h.md#define-fec_ccsds_asm)  `0x1ACFFC1DuL`<br>_The CCSDS Attached Sync Marker,_ `0x1ACFFC1D` _._ |
 | define  | [**FEC\_CCSDS\_ASM\_BITS**](fec__ccsds_8h.md#define-fec_ccsds_asm_bits)  `32`<br>_Length of_ [_**FEC\_CCSDS\_ASM**_](fec__ccsds_8h.md#define-fec_ccsds_asm) _in bits._ |
+| define  | [**FEC\_CCSDS\_RAND\_PERIOD**](fec__ccsds_8h.md#define-fec_ccsds_rand_period)  `255`<br>_Period of the pseudo-randomising sequence, in bits (10.4.2)._  |
 | define  | [**FEC\_CONV\_K**](fec__ccsds_8h.md#define-fec_conv_k)  `7`<br>_Constraint length of the inner code (3.3.1): 7._  |
 
 ## Detailed Description
@@ -222,6 +229,60 @@ It is a function rather than a table because the marker is wanted at both ends �
 * `out` Receives [**FEC\_CCSDS\_ASM\_BITS**](fec__ccsds_8h.md#define-fec_ccsds_asm_bits) bits, one per byte. 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function fec\_ccsds\_asm\_find 
+
+_Find the first ASM in a run of unpacked bits, either polarity._ 
+```C++
+int fec_ccsds_asm_find (
+    const uint8_t * bits,
+    size_t n_bits,
+    unsigned max_errors,
+    fec_asm_hit_t * hit
+) 
+```
+
+
+
+Correlates [**FEC\_CCSDS\_ASM**](fec__ccsds_8h.md#define-fec_ccsds_asm) against every bit offset and against its complement, and reports the **first** offset whose Hamming distance is at most `max_errors`.
+
+
+First rather than best, and the difference matters: a best-match search has to see the whole stream before it can answer, which a frame synchroniser reading a live capture cannot do. First-below-threshold is what is implementable in both settings, so it is what this promises. `max_errors` is the whole of the trade — 0 finds only a clean marker and misses a frame the channel touched, while a value near half the marker length invites a false hit on random data.
+
+
+
+
+**Parameters:**
+
+
+* `bits` Unpacked bits, one per byte. 
+* `n_bits` Number of bits. 
+* `max_errors` Largest tolerated Hamming distance, in bits. 
+* `hit` Receives the location; untouched when nothing matched. 
+
+
+
+**Returns:**
+
+Non-zero if a marker was found.
+
+
+
+```C++
+uint8_t       cadu[32 + 64] = { 0 };
+fec_asm_hit_t hit;
+fec_ccsds_asm_bits (cadu);
+if (fec_ccsds_asm_find (cadu, sizeof cadu, 4u, &hit))
+  printf ("marker at bit %zu\n", hit.offset);   // marker at bit 0
+```
+ 
 
 
         
@@ -354,6 +415,24 @@ _Length of_ [_**FEC\_CCSDS\_ASM**_](fec__ccsds_8h.md#define-fec_ccsds_asm) _in b
 
 
 
+
+<hr>
+
+
+
+### define FEC\_CCSDS\_RAND\_PERIOD 
+
+_Period of the pseudo-randomising sequence, in bits (10.4.2)._ 
+```C++
+#define FEC_CCSDS_RAND_PERIOD `255`
+```
+
+
+
+An 8-stage maximal-length generator, so 255 and not 256. It is named because it is what lets a consumer XOR the sequence onto a run of any length from a fixed 255-entry table instead of holding one the size of the data — `test_fec_ccsds_rand.c` pins that equivalence against [**fec\_ccsds\_randomise**](fec__ccsds_8h.md#function-fec_ccsds_randomise) rather than leaving it as arithmetic a reader has to trust. 
+
+
+        
 
 <hr>
 

@@ -35,6 +35,7 @@ _The CCSDS frame assembler — where the ASM goes, and the one place the stages'
 | ---: | :--- |
 | struct | [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md) <br>_Which coding is applied to one Transfer Frame._  |
 | struct | [**fec\_frame\_layout\_t**](structfec__frame__layout__t.md) <br>_The shape of one CADU, and what each stage covered._  |
+| struct | [**fec\_frame\_rx\_t**](structfec__frame__rx__t.md) <br>_What_ [_**fec\_frame\_decode**_](fec__frame_8h.md#function-fec_frame_decode) _found on the way through._ |
 | struct | [**fec\_frame\_span\_t**](structfec__frame__span__t.md) <br>_A run of CADU bits, as a half-open range_ `[first, first + n)` _._ |
 
 
@@ -62,6 +63,7 @@ _The CCSDS frame assembler — where the ASM goes, and the one place the stages'
 
 | Type | Name |
 | ---: | :--- |
+|  size\_t | [**fec\_frame\_decode**](#function-fec_frame_decode) (const [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md) \* cfg, const uint8\_t \* cadu, size\_t n\_cadu, uint8\_t \* frame, size\_t max\_frame, [**fec\_frame\_rx\_t**](structfec__frame__rx__t.md) \* rx) <br>_Recover a Transfer Frame from the bits of one CADU._  |
 |  size\_t | [**fec\_frame\_encode**](#function-fec_frame_encode) (const [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md) \* cfg, [**conv\_enc\_t**](structconv__enc__t.md) \* conv, const uint8\_t \* frame, size\_t frame\_len, uint8\_t \* out, size\_t max\_out) <br>_Encode one Transfer Frame into channel symbols._  |
 |  size\_t | [**fec\_frame\_layout**](#function-fec_frame_layout) (const [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md) \* cfg, size\_t frame\_len, [**fec\_frame\_layout\_t**](structfec__frame__layout__t.md) \* out) <br>_Work out the CADU shape for a config, without encoding anything._  |
 
@@ -162,6 +164,87 @@ Virtual fill (4.4.2's shortened codeblock) is not implemented, so a frame whose 
     
 ## Public Functions Documentation
 
+
+
+
+### function fec\_frame\_decode 
+
+_Recover a Transfer Frame from the bits of one CADU._ 
+```C++
+size_t fec_frame_decode (
+    const fec_frame_cfg_t * cfg,
+    const uint8_t * cadu,
+    size_t n_cadu,
+    uint8_t * frame,
+    size_t max_frame,
+    fec_frame_rx_t * rx
+) 
+```
+
+
+
+The mirror of [**fec\_frame\_encode**](fec__frame_8h.md#function-fec_frame_encode), over the same spans and reading the same [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md) — so the two cannot disagree about which stage covered what, which is the failure `fec_frame.h` opens by describing.
+
+
+### Where the inner code is, and why it is not here
+
+
+
+This begins **after** the inner decode and after frame synchronisation: `cadu` is one marker-plus-codeblock, already Viterbi-decoded and already aligned by [**fec\_ccsds\_asm\_find**](fec__ccsds_8h.md#function-fec_ccsds_asm_find). That is not an omission, it is the only place the boundary can go. A Viterbi is streaming and emits its decisions `depth` bits late, so the bits of one CADU are not a function of that CADU's symbols alone; and the marker that says where a CADU _starts_ is only readable once the inner code has been undone. A function taking channel symbols would therefore have to own a decoder, a search window and a buffer — that is a streaming receiver object, and this is the pure per-frame chain it would call.
+
+
+Consistent with the encoder, where [**conv\_enc\_t**](structconv__enc__t.md) belongs to the caller for the same reason: the inner code is continuous and the frame is not.
+
+
+
+### What it undoes
+
+
+
+The marker is skipped, the randomiser is re-applied over the block span (10.3.4 — it is involutive, so the same call serves both directions), the block is packed back to octets MSB-first, and with an outer code each of the `rs_depth` interleaved codewords is checked. The Transfer Frame is the information section, which 4.4.1 keeps in the order it entered.
+
+
+
+
+**Parameters:**
+
+
+* `cfg` The coding that was applied. Must match the transmitter. 
+* `cadu` `n_cadu` unpacked CADU bits, one per byte. 
+* `n_cadu` Number of CADU bits; must equal the layout's `cadu_bits` for this configuration. 
+* `frame` Receives the recovered Transfer Frame, packed octets. 
+* `max_frame` Capacity of `frame` in octets. 
+* `rx` Receives what was found; may be `NULL`. 
+
+
+
+**Returns:**
+
+Transfer Frame octets written, or 0 if the configuration is refused, `n_cadu` is not the layout's CADU length, or `max_frame` is too small — in which case `frame` is untouched.
+
+
+
+```C++
+const fec_frame_cfg_t cfg
+    = { .rs_depth = 5, .randomise = 1, .attach_asm = 1,
+        .convolutional = 1 };
+fec_frame_layout_t lay;
+fec_frame_layout (&cfg, 223 * 5, &lay);
+
+uint8_t        frame[223 * 5];
+fec_frame_rx_t rx;
+// `cadu` is lay.cadu_bits of Viterbi output, ASM-aligned.
+const size_t n = fec_frame_decode (&cfg, cadu, lay.cadu_bits, frame,
+                                   sizeof frame, &rx);
+printf ("%zu octets, R-S %u/%u\n", n, rx.rs_ok, rx.rs_codewords);
+```
+ 
+
+
+
+        
+
+<hr>
 
 
 

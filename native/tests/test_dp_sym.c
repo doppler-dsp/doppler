@@ -97,8 +97,16 @@ make_psk (float complex *dst, size_t n, int m, double esn0_db, uint32_t *st)
   double sigma = pow (10.0, -esn0_db / 20.0);
   size_t i;
   for (i = 0; i < n; i++)
-    dst[i] = psk_point ((int)(dp_xs32 (st) % (uint32_t)m), m)
-             + (float)sigma * dp_cgauss (st);
+    {
+      /* Sequenced deliberately: two draws from one state inside a single
+         expression are indeterminately sequenced (C11 6.5.2.2p10) and gcc
+         and clang pick opposite orders, so the same seed would carry a
+         different stream per compiler. `make lint` rejects the one-line
+         form; this is the shape it asks for. */
+      unsigned      idx = (unsigned)(dp_xs32 (st) % (uint32_t)m);
+      float complex nz  = dp_cgauss (st);
+      dst[i]            = psk_point ((int)idx, m) + (float)sigma * nz;
+    }
 }
 
 /** @brief A destroyed constant-modulus stream: unit modulus, phase uniform on

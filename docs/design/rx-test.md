@@ -362,7 +362,7 @@ Two things this buys that the symbol-level metrics cannot:
 
 | header            | lines | role                                                                                                                                                          |
 | ----------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dp_test.h`       | —     | foundation: `DP_CHECK`, `DP_CHECK_NEAR`, `DP_CHECK_MSG`, `DP_TEST_END`                                                                                        |
+| `dp_test.h`       | —     | foundation: `DP_CHECK`, `DP_CHECK_NEAR`, `DP_CHECK_MSG`, `DP_TEST_END`, `dp_bit_distance`                                                                     |
 | `dp_sym_test.h`   | 220   | truth-free symbol quality: `dp_test_evm_db_hard`, `dp_test_evm_db_hard_m`, `dp_test_evm_db_hard_range`, `dp_test_evm_scatter_floor_db`, `dp_test_settle_syms` |
 | `dp_mf_test.h`    | 109   | matched-filter fixtures: RRC-BPSK on a carrier + EVM                                                                                                          |
 | `dp_dsss_test.h`  | 211   | DSSS fixtures                                                                                                                                                 |
@@ -370,6 +370,18 @@ Two things this buys that the symbol-level metrics cannot:
 | `dp_tx_test.h`    | 307   | stimulus (§1.5)                                                                                                                                               |
 | `dp_rng_test.h`   | 312   | randomness (§1.5)                                                                                                                                             |
 | `dp_ber_test.h`   | 834   | statistics (§2.3)                                                                                                                                             |
+| `dp_frame_test.h` | 228   | the named frame set (§7.4)                                                                                                                                    |
+| `dp_rx_test.h`    | —     | the instrument: the point, the burst, the standard record, the gates                                                                                          |
+| `dp_rx_mpsk.h`    | 146   | the two `MpskReceiver` adapters — a SECOND harness is why they are a header and not a copy                                                                    |
+
+**A harness that needs a helper adds it here rather than privately.** Two
+landed with the coding-gain measurement, and both had been about to become
+private copies: `dp_bit_distance` (bits differing between two packed-octet
+buffers — the question `ber_meter` answers for a symbol stream and cannot be
+pointed at two byte arrays) and `dp_rx_duty` (the share of a window where a
+per-symbol flag is set). The second is evidence about a THRESHOLD, and a
+threshold claim measured two different ways in two harnesses is a claim about
+neither.
 
 ______________________________________________________________________
 
@@ -1154,6 +1166,40 @@ because the alias is `Rs/M` and a smaller offset costs less in the front end —
 so the metric that can half-see this at BPSK goes blind exactly where §2.4
 measures the margin already collapsing (5.4 / 3.3 / 2.8 dB between "on the
 bound" and "completely broken"). That is goal 4 in one measurement.
+
+### 8.6b The lock flag's DETECTION side, which nothing had measured
+
+The standard record carries `lock_duty` and `lock_stat_duty` — the share of
+the scored window where the receiver asserted `locked`, and where its lock
+STATISTIC was merely positive. They are printed with every row.
+
+`MPSK_RX_LOCK_THRESH_DEFAULT` is derived as `sigma_H0 * eta(Pfa)`: a
+false-alarm threshold, sized entirely against the no-signal distribution. The
+other half of a detector's sizing — how often the statistic clears it when the
+receiver IS locked — is a function of Es/N0, and the header's claim that the
+statistic "reads ~1.0 at lock" carried no Es/N0 with it. Now measured:
+
+| Es/N0 (BPSK)       | `locked` duty | statistic > 0 |
+| ------------------ | ------------- | ------------- |
+| 6.79 dB (SER 1e-3) | **100 %**     | 100 %         |
+| +1 dB              | 69 %          | 100 %         |
+| 0 dB               | **24 %**      | 100 %         |
+| −3 dB              | 0.2 %         | 95 %          |
+
+At 0 dB the loops are tracking and a concatenated link over that same record
+delivers error-free frames ([The FEC Receive Half](fec-receive.md) §8); what
+refuses is the threshold. So the default is an **uncoded-link indicator**, and
+`docs/design/lock-detect.md`'s sizing chain has a missing rung here rather
+than a wrong number — [#835](https://github.com/doppler-dsp/doppler/issues/835).
+
+**It is reported and not gated, and that is a decision rather than an
+omission.** A `lock_duty >= 0.9` gate was written into `dp_rx_check` and
+removed after sabotage: `dp_ber_settle` already requires the flag to hold
+90 % over 200 symbols before a window opens, so raising the threshold and
+dropping lock mid-record both redden the tally gate first and neither could
+make the duty gate fire on its own. The claim at the design point is
+therefore already enforced — by settling, which every named point must pass —
+and what was missing was the NUMBER and the statement of scope.
 
 ### 8.7 All four metrics, on a receiver, from one record
 

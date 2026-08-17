@@ -32,71 +32,6 @@ ______________________________________________________________________
     wholesale and kept only `doc`. It is now honoured (with `fn`) or refused
     by name. A doc-only override — same name, same signature — is unchanged.
 
-- **`ContinuousMpskReceiver` pins `nda_tap = strobe`, measured on its own
-    waveform.** It shipped pinning `mf_in`, and every harness that had touched
-    that tap shared the same gap: `rx_battery` runs RRC with dense transitions
-    throughout (the **burst** flavor's signal), `rx_nda_tap` sweeps NRZ but
-    **noiseless**, and the C test runs I&D at 30 dB. `docs/design/mpsk.md` §0
-    calls the continuous flavor *NRZ BPSK, periods of data modulation off but
-    carrier on*, and nothing measured that.
-
-    New: **`native/validation/rx_dynamics.c`** — NRZ BPSK, I&D, `m_out = 4`,
-    DTTL, 12 dB Es/N0, half the record with modulation **off** (carrier on, so
-    the TED has no edge and timing cannot close), then dense transitions as a
-    step, all under a Doppler ramp through `doppler_channel` so the carrier and
-    every clock move together. It captures every telemetry probe
-    (`--out DIR`), and `make plot-rx-dynamics` renders
-    `docs/assets/rx-dynamics.png` from that capture — the figure plots the
-    receiver's own records, never a Python re-derivation.
-
-    | tap          | lock, modulation OFF | min at the onset | end    |
-    | ------------ | -------------------- | ---------------- | ------ |
-    | **`strobe`** | +0.935               | **+0.860**       | +0.920 |
-    | `mf_out`     | +0.934               | +0.478           | +0.802 |
-    | `mf_in`      | +0.761               | +0.417           | +0.714 |
-
-    **`strobe`'s timing dependency costs nothing in the half where timing is
-    impossible**, because an unmodulated NRZ carrier is *sampling-phase
-    invariant* — every sample is the same constellation point, so the
-    M-th-power discriminator does not care which one the timing loop would have
-    nominated. Timing closure gates demodulation, not carrier acquisition.
-    `mf_out` takes the largest hit the moment transitions exist (its ISI bias,
-    on schedule). The **TED** is the largest single effect on the page: the
-    same record through Gardner deepens `strobe`'s onset dip from 0.075 to
-    0.306, four times, on its own.
-
-- **What `mf_in` costs is excess noise bandwidth, not processing gain.** A
-    Nyquist-sampled band-limited signal loses nothing by being sampled fast.
-    Measured at the node with the AGC off so the path is linear, `mf_in` sits
-    **6.01 dB** below Es/N0 at `bank_sps = 4` while the terminal node sits
-    1.7 dB below it — and `10·log10(4) = 6.02 dB`, *identical at 6.79, 12 and
-    20 dB Es/N0*, which is the signature of a pure bandwidth ratio rather than
-    an SNR-dependent effect. DEC band-limits to **its own** Nyquist,
-    `±bank_sps·Rs/2`, while the signal occupies ~`±Rs`, and the terminal filter
-    — the first thing in the cascade matched to the signal — is downstream of
-    this tap.
-
-    So the cost is **bounded by the plan** (`bank_sps` is a planner outcome:
-    still 8 at `sps = 64`, so 9.0 dB there, not 18) — and it is the tap's
-    **stated price rather than a defect**. Band-limiting the node (an arm
-    filter, or the 2-sps decimation `docs/design/mpsk.md` §3.3 considers)
-    would recover most of it and is **declined**: both cost serialized state
-    on every object carrying the tap, and `strobe` already reads the node
-    matched to the signal for free — and measures better on this flavor's own
-    waveform. So `mf_in`'s trade is stated, not repaired: `bank_sps/(2M)` of
-    pull-in range for `10·log10(bank_sps)` dB of lock sensitivity. The loop
-    acquires at every operating point measured; what degrades is the
-    M-th-power lock statistic, which is an SNR measure.
-
-- **`rx_battery --check` still does not gate a receiver that refuses EVERY
-    point**, and the file now says so where the gate would go. A per-point
-    refusal is a result and stays uncounted — a `qpsk`/`psk8` frame-geometry
-    refusal is the harness working — but nine of them is a receiver that does
-    not work, which is precisely how the `mf_in` pin exited 0 while measuring
-    nothing. Closing it needs a run-level rather than a per-point gate, so it
-    is being added to this same loop as `dp_rx_witness_t` by doppler#794
-    rather than raced here.
-
 ### Removed
 
 - **Two installed public headers that declared an API the library does not
@@ -218,32 +153,6 @@ ______________________________________________________________________
     it". The `bn_agc_ratio` guard, by contrast, is the sole enforcer and
     reddens when removed.
 
-- **The receiver battery is a complete suite, and it runs on two receivers.**
-    Four operating points added (`qpsk`, `psk8`, `irrational` at
-    `sps = 17.33389`, `rate_odd` at `sps = 31.7`), and a second adapter for
-    `ContinuousMpskReceiver` — which is `docs/design/rx-test.md` goal 6 cashed
-    rather than asserted: the second receiver costs one function and reuses the
-    other ten interface entries unchanged. Each M is read at **its own**
-    SER=1e-3 Es/N0 (6.79 / 10.35 / 15.68 dB from `ber_esn0_db_for_ser`),
-    because holding one Es/N0 across M compares constellations rather than
-    receivers.
-
-    What it found immediately, and none of it was visible to the Python
-    harness it replaces:
-
-    - **`nda_tap = mf_in` refuses on all 9 points** of the battery, under
-        either pulse, on the BASE receiver — isolated by changing only that
-        one argument. Diagnosed under Changed: the tap acquires everywhere,
-        and it is its LOCK STATISTIC that falls under the detector's
-        threshold, so the refusals are the settle gate reading a degraded
-        indicator rather than a loop that never moved.
-    - **Implementation loss grows with irrational oversampling**: 0.07 dB at
-        `sps = 8`, **4.34 dB** at 17.33389, **7.41 dB** at 31.7 — a trend, not
-        a cliff, and defensible because the harness's four gates passed.
-    - `qpsk`/`psk8` **refuse** on frame geometry (the frame's bit count does
-        not divide into whole symbols at M = 4/8). A refusal is a result: the
-        frame set is BPSK-shaped and the M sweep needs a length that divides.
-
 - **`track.ContinuousMpskReceiver` — the continuous flavor, and nothing
     waits.** A **view** over `MpskReceiver`, not a second type: same core, same
     state, the identical 25-member surface, and only the constructor differs —
@@ -265,16 +174,38 @@ ______________________________________________________________________
     (`docs/design/mpsk.md` §2.1).
 
     What it pins, and why none of them is a choice here: `acq_to_track = 0`
-    (the handover **is** the gate this flavor removes); `nda_tap = strobe`, the
-    only tap that acquires **and reports it** at every point of the standard
-    battery (this shipped as `mf_in` and was corrected in the same cycle — see
-    Changed); `agc = 1`, which is load-bearing rather than optional; and the
-    five gh-644 parameters as `0`, which is a *request* for the derived answer,
-    not an omission.
+    (the handover **is** the gate this flavor removes); `nda_tap = strobe`,
+    the only tap whose lock statistic means what the derived `lock_thresh`
+    says; `agc = 1`, which is load-bearing rather than optional; and the five
+    gh-644 parameters as `0`, which is a *request* for the derived answer, not
+    an omission.
 
-    At `strobe` the discriminator's clock **is** the symbol clock, and the C
-    test asserts that as `updates_per_symbol == 1.0` — the property rather
-    than the enum, so a swap to another fast tap cannot pass it.
+    **The tap was `mf_in` in an earlier draft of this entry, and measurement
+    moved it.** `mf_in` is timing-independent, which is a real argument for a
+    receiver with no gating — but its update rate is `bank_sps`, faster than
+    `Rs`, and `docs/design/mpsk.md` §2.1 lists exactly what follows: the lock
+    EMA's `α` is per-*update*, so at a fast tap the metric's memory is shorter
+    in symbols and its looks are correlated, breaking the independent-look
+    assumption its threshold is derived from. §2.1 claims this flavor cannot
+    have that defect; pinning `mf_in` is what gave it one. Measured
+    ([#791](https://github.com/doppler-dsp/doppler/issues/791)): `mf_in`
+    demodulates on the matched-filter bound — EVM −7.32 dB against `strobe`'s
+    −7.31, within 0.07 dB at `sps` 4/8/16/32 — while its lock statistic
+    settles at 0.23–0.51 against a `lock_thresh` of 0.4999, so the receiver
+    worked and its own lock readout said otherwise.
+
+    A flavor whose headline is that *no metric has to be trusted before the
+    loop may act* must not ship the one metric it still reports in a state
+    where it cannot be. At `strobe` the discriminator's clock **is** the
+    symbol clock, so §2.1's defects collapse rather than being repaired — the
+    C test asserts that as `updates_per_symbol == 1.0`, a property an enum
+    check would not have caught. What is given up is timing independence:
+    `strobe` couples the discriminator's input quality to the timing loop's
+    convergence. That is a **coupling, not a gate** — it steers from its first
+    strobe whether or not timing has declared — and the timing-independent
+    taps stay one `MpskReceiver(...)` call away. Normalising the lock
+    statistic for the tap's update rate is what would make `mf_in` pinnable
+    here.
 
     `lock_thresh` is **excluded rather than defaulted**: with no handover it
     gates nothing, so it is telemetry. It stays readable — `rx.lock_thresh`
@@ -286,9 +217,9 @@ ______________________________________________________________________
     about a receiver that has run; a handover-enabled twin on the *same*
     stimulus is carried as the control, without which `tracking == 0` would be
     equally satisfied by a signal that never locked. Proven by sabotage:
-    pinning a different tap takes the `nda_tap` and `tap_timed` assertions red,
-    and pinning `acq_to_track = 1` takes both the construction check and the
-    post-run `tracking == 0` red.
+    pinning `strobe` instead of `mf_in` takes the tap and `tap_timed`
+    assertions red, and pinning `acq_to_track = 1` takes both the construction
+    check and the post-run `tracking == 0` red.
 
 - **The receiver instrument — one harness, every receiver.**
     `native/tests/dp_rx_test.h` measures a receiver; `native/validation/rx_battery.c`

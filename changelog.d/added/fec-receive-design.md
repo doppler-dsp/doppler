@@ -30,3 +30,19 @@
     **P_false_unlock**, dropping lock on a working link. At a 0.30 threshold a
     Gaussian puts it at 5.17e-5 where the measurement says 2.50e-3: **48×
     optimistic**, in the direction that promises a link that does not drop.
+
+    **The lock operating point is recorded with what it buys**: window = 500
+    channel symbols, threshold = 100 (20 %). The in-sync statistic tracks the
+    theoretical channel symbol error rate to within a count (66.6 against 65.5
+    predicted at 1 dB; 18.8 against 18.8 at 5 dB), so "sync metric, lock
+    statistic and channel quality" really are one quantity. Against false
+    *unlock* the threshold is excellent — 1.5 % at 1 dB, below 1e-3 from 2 dB
+    up. Against false *lock* a single window is marginal at 12.7–18.8 %,
+    because the out-of-sync distribution is ~125 ± 25 and the threshold sits
+    about 1σ below its mean; that is the argument for `lockdet`'s hysteresis
+    rather than against the threshold.
+
+    The measurement home is settled too, and it is **not a new sweep**: the
+    receiver instrument built on `docs/design/rx-test.md` already owns the
+    stimulus, the statistics and the frame outcomes, so a coded link is an
+    adapter and an operating point — the way `ContinuousMpskReceiver` was.

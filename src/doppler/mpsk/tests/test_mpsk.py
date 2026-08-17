@@ -11,6 +11,7 @@ from doppler.mpsk import (
     mpsk_diff_demap,
     mpsk_diff_map,
     mpsk_map,
+    mpsk_soft_demap,
 )
 
 M_ALL = (2, 4, 8)
@@ -108,3 +109,53 @@ def test_differential_phase_invariant(m):
     for j in range(m):
         rot = (pts * np.exp(2j * np.pi * j / m)).astype(np.complex64)
         assert np.array_equal(mpsk_diff_demap(rot, m)[1:], sym[1:])
+
+
+# ── soft demapping ────────────────────────────────────────────────────────
+#
+# The C test owns the properties (sign vs mpsk_demap, the closed forms,
+# linearity in n0, confidence, the refusals). What only the binding can be
+# wrong about is the binding: the out-param shape, the dtype it demands, and
+# whether the default `m` matches its hard sibling's.
+
+
+@pytest.mark.parametrize("m", M_ALL)
+def test_soft_demap_sign_is_the_hard_decision(m):
+    # The one property worth restating on this side too, because it is the
+    # one a caller relies on: the soft path decides what mpsk_demap decides.
+    bps = mpsk_bits_per_symbol(m)
+    rng = np.random.default_rng(11)
+    n = 20_000
+    tx = rng.integers(0, m, n).astype(np.uint8)
+    n0 = 10 ** (-3.0 / 10.0)  # a deliberately bad 3 dB, near the coin toss
+    noise = np.sqrt(n0 / 2) * (
+        rng.standard_normal(n) + 1j * rng.standard_normal(n)
+    )
+    rx = (mpsk_map(tx, m) + noise).astype(np.complex64)
+
+    llr = np.empty(n * bps, dtype=np.float32)
+    mpsk_soft_demap(rx, llr, m, n0)
+
+    bits = (llr < 0).astype(np.uint8).reshape(n, bps)
+    decided = np.zeros(n, dtype=np.uint8)
+    for b in range(bps):
+        decided |= bits[:, b] << b
+    assert np.array_equal(decided, mpsk_demap(rx, m))
+
+
+def test_soft_demap_writes_the_whole_out_param():
+    # x_len * bps, not x_len -- the shape the out-param exists for, and the
+    # one a caller sizing from len(x) would get wrong.
+    x = np.array([1 + 0j, 1j, -1 + 0j], dtype=np.complex64)
+    llr = np.full(3 * 3, np.nan, dtype=np.float32)
+    mpsk_soft_demap(x, llr, 8, 1.0)
+    assert np.isfinite(llr).all()
+
+
+def test_soft_demap_default_m_matches_its_hard_sibling():
+    x = np.array([0.7 + 0.7j, -0.6 + 0.5j], dtype=np.complex64)
+    a = np.empty(4, dtype=np.float32)
+    b = np.empty(4, dtype=np.float32)
+    mpsk_soft_demap(x, a)  # m defaults to 4, like mpsk_demap
+    mpsk_soft_demap(x, b, 4)
+    assert np.array_equal(a, b)

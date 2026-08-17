@@ -66,6 +66,7 @@ _M-PSK constellation: Gray-coded map / demap for BPSK, QPSK, 8PSK._ [More...](#d
 |  void | [**mpsk\_map**](#function-mpsk_map) (const uint8\_t \* sym, size\_t sym\_len, float complex \* out, int m) <br>_Map Gray-coded M-PSK labels to unit-amplitude constellation points._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_phi0**](#function-mpsk_phi0) (int m) <br>_Constellation phase offset (radians): pi/4 for QPSK, else 0._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) unsigned | [**mpsk\_slice**](#function-mpsk_slice) (float complex y, int m, float complex \* ahat) <br>_Hard-decide_ `y` _to the nearest M-PSK point; return its Gray label._ |
+|  void | [**mpsk\_soft\_demap**](#function-mpsk_soft_demap) (const float complex \* x, size\_t x\_len, float \* llr, size\_t llr\_len, int m, float n0) <br>_Soft-demap M-PSK symbols to per-bit log-likelihood ratios._  |
 
 
 
@@ -493,6 +494,70 @@ Gray-coded label (0..M-1).
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function mpsk\_soft\_demap 
+
+_Soft-demap M-PSK symbols to per-bit log-likelihood ratios._ 
+```C++
+void mpsk_soft_demap (
+    const float complex * x,
+    size_t x_len,
+    float * llr,
+    size_t llr_len,
+    int m,
+    float n0
+) 
+```
+
+
+
+The soft counterpart of [**mpsk\_demap()**](mpsk__core_8h.md#function-mpsk_demap): instead of one label byte per symbol it writes `log2(M)` LLRs, one per bit, which is what a soft-input decoder (a Viterbi, for the CCSDS inner code) needs. A hard decision throws away roughly 2 dB of the coding gain such a decoder exists to deliver.
+
+
+The convention, which every consumer has to agree with:  so **positive means bit 0** and the hard decision is `L < 0`. That is not a separate rule: `mpsk_demap()` is what this reproduces, and the sign agreeing with it at every M and every SNR is asserted in test\_mpsk\_core.c rather than assumed. The repository has ONE decision rule; this is a second view of it, not a second copy.
+
+
+Bits are LSB-first within a symbol, matching how the Gray label packs them, and symbols run in order: `llr[i * log2(M) + b]` is bit `b` of symbol `i`.
+
+
+Computed by the max-log rule over the constellation `L_i = (min_{b_i=1} |y-a|^2 - min_{b_i=0} |y-a|^2) / n0`. For BPSK and QPSK this is EXACT — QPSK's `phi0 = pi/4` grid is axis-separable, so its two bits are independent BPSK decisions and each subset holds one point. Only 8PSK is an approximation; what that costs in dB is not measured yet and is therefore not claimed here (docs/design/mpsk-soft.md section 5).
+
+
+`n0` is the noise power `E[|n|^2]` for unit-amplitude symbols, and it scales the output exactly: `L(n0) = L(1) / n0`. A **Viterbi is invariant to it**, since scaling every branch metric by a positive constant cannot move the maximum-likelihood path — so a caller with no SNR estimate may pass 1.0 and get correctly ordered, unscaled soft values.
+
+
+
+
+**Parameters:**
+
+
+* `x` Received symbols (amplitude matters here — unlike the hard path, which uses phase only). 
+* `x_len` Number of symbols. 
+* `llr` Out: `x_len` \* log2(M) LLRs. 
+* `llr_len` Capacity of `llr`. Nothing is written if it is short, or if `m` is unsupported. 
+* `m` M in {2,4,8}. 
+* `n0` Noise power `E[|n|^2]`; must be positive.
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.mpsk import mpsk_soft_demap, mpsk_demap
+>>> x = np.array([0.9+0.1j, -0.8-0.2j], dtype=np.complex64)   # BPSK
+>>> llr = np.empty(2, dtype=np.float32)
+>>> mpsk_soft_demap(x, llr, 2, 1.0)
+>>> np.round(llr, 3)                       # 4*Re(y)/n0
+array([ 3.6, -3.2], dtype=float32)
+>>> np.array_equal((llr < 0).astype(np.uint8), mpsk_demap(x, 2))
+True
+```
+ 
 
 
         

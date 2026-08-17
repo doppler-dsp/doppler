@@ -133,6 +133,53 @@ _bind_mpsk_diff_demap (PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+_bind_mpsk_soft_demap (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "x", "llr", "m", "n0", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *llr_obj   = NULL;
+  int          m         = 4;
+  float        n0        = 1.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO|if", _kwlist, &x_obj,
+                                    &llr_obj, &m, &n0))
+    return NULL;
+  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  if (!x_arr)
+    {
+      return NULL;
+    }
+  const float complex *x     = (const float complex *)PyArray_DATA (x_arr);
+  size_t               x_len = (size_t)PyArray_SIZE (x_arr);
+  /* Require the exact dtype AND C-contiguity — either mismatch makes
+   * the marshal write into a temp copy, not the caller's buffer. */
+  if (!PyArray_Check (llr_obj)
+      || PyArray_TYPE ((PyArrayObject *)llr_obj) != NPY_FLOAT
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)llr_obj)
+      || !PyArray_ISWRITEABLE ((PyArrayObject *)llr_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "llr must be a writable, C-contiguous"
+                                        " ndarray of the output dtype");
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  PyArrayObject *llr_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      llr_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  if (!llr_arr)
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  float *llr     = (float *)PyArray_DATA (llr_arr);
+  size_t llr_len = (size_t)PyArray_SIZE (llr_arr);
+  mpsk_soft_demap (x, x_len, llr, llr_len, m, n0);
+  Py_DECREF (x_arr);
+  Py_DECREF (llr_arr);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 _bind_mpsk_bits_per_symbol (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
@@ -272,6 +319,67 @@ static PyMethodDef mpsk_module_methods[] = {
     ">>> from doppler.mpsk import mpsk_diff_demap, mpsk_diff_map\n"
     ">>> sym = np.array([2, 2, 1, 0], dtype=np.uint8)\n"
     ">>> np.array_equal(mpsk_diff_demap(mpsk_diff_map(sym, 8), 8), sym)\n"
+    "True\n" },
+  { "mpsk_soft_demap", (PyCFunction)(void *)_bind_mpsk_soft_demap,
+    METH_VARARGS | METH_KEYWORDS,
+    "Soft-demap M-PSK symbols to per-bit log-likelihood ratios.\n"
+    "\n"
+    "The soft counterpart of mpsk_demap(): instead of one label byte per\n"
+    "symbol it writes `log2(M)` LLRs, one per bit, which is what a\n"
+    "soft-input decoder (a Viterbi, for the CCSDS inner code) needs. A hard\n"
+    "decision throws away roughly 2 dB of the coding gain such a decoder\n"
+    "exists to deliver.\n"
+    "\n"
+    "The convention, which every consumer has to agree with:\n"
+    "\n"
+    "L_i = log( P(bit i = 0 | y) / P(bit i = 1 | y) )\n"
+    "\n"
+    "so **positive means bit 0** and the hard decision is `L < 0`. That is\n"
+    "not a separate rule: `mpsk_demap()` is what this reproduces, and the\n"
+    "sign agreeing with it at every M and every SNR is asserted in\n"
+    "test_mpsk_core.c rather than assumed. The repository has ONE decision\n"
+    "rule; this is a second view of it, not a second copy.\n"
+    "\n"
+    "Bits are LSB-first within a symbol, matching how the Gray label packs\n"
+    "them, and symbols run in order: `llr[i * log2(M) + b]` is bit b of\n"
+    "symbol i.\n"
+    "\n"
+    "Computed by the max-log rule over the constellation `L_i = (min_{b_i=1}\n"
+    "|y-a|^2 - min_{b_i=0} |y-a|^2) / n0`. For BPSK and QPSK this is EXACT —\n"
+    "QPSK's `phi0 = pi/4` grid is axis-separable, so its two bits are\n"
+    "independent BPSK decisions and each subset holds one point. Only 8PSK\n"
+    "is an approximation; what that costs in dB is not measured yet and is\n"
+    "therefore not claimed here (docs/design/mpsk-soft.md section 5).\n"
+    "\n"
+    "n0 is the noise power `E[|n|^2]` for unit-amplitude symbols, and it\n"
+    "scales the output exactly: `L(n0) = L(1) / n0`. A **Viterbi is\n"
+    "invariant to it**, since scaling every branch metric by a positive\n"
+    "constant cannot move the maximum-likelihood path — so a caller with no\n"
+    "SNR estimate may pass 1.0 and get correctly ordered, unscaled soft\n"
+    "values.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.complex64]\n"
+    "    Received symbols (amplitude matters here — unlike the hard path,\n"
+    "    which uses phase only).\n"
+    "llr : NDArray[np.float32]\n"
+    "    Out: x_len * log2(M) LLRs.\n"
+    "m : int\n"
+    "    M in {2,4,8}.\n"
+    "n0 : float\n"
+    "    Noise power `E[|n|^2]`; must be positive.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.mpsk import mpsk_soft_demap, mpsk_demap\n"
+    ">>> x = np.array([0.9+0.1j, -0.8-0.2j], dtype=np.complex64)   # BPSK\n"
+    ">>> llr = np.empty(2, dtype=np.float32)\n"
+    ">>> mpsk_soft_demap(x, llr, 2, 1.0)\n"
+    ">>> np.round(llr, 3)                       # 4*Re(y)/n0\n"
+    "array([ 3.6, -3.2], dtype=float32)\n"
+    ">>> np.array_equal((llr < 0).astype(np.uint8), mpsk_demap(x, 2))\n"
     "True\n" },
   { "mpsk_bits_per_symbol", (PyCFunction)(void *)_bind_mpsk_bits_per_symbol,
     METH_VARARGS | METH_KEYWORDS,

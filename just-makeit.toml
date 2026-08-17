@@ -2034,6 +2034,33 @@ name = "m"
 type = "int"
 default = "4"
 
+# Soft (LLR) demapping -- the constellation's other decision, and the input a
+# Viterbi wants. `llr` is a caller-provided out-param rather than a returned
+# array because jm's `out_type` binding sizes a function's output 1:1 with its
+# input array and this one expands by log2(M); `kaiser_window` is the existing
+# precedent for that shape. See docs/design/mpsk-soft.md.
+[[module.mpsk.functions]]
+name = "mpsk_soft_demap"
+
+[[module.mpsk.functions.params]]
+name = "x"
+type = "float _Complex[]"
+
+[[module.mpsk.functions.params]]
+name = "llr"
+type = "float[]"
+out = true
+
+[[module.mpsk.functions.params]]
+name = "m"
+type = "int"
+default = "4"
+
+[[module.mpsk.functions.params]]
+name = "n0"
+type = "float"
+default = "1.0"
+
 [[module.mpsk.functions]]
 name = "mpsk_bits_per_symbol"
 return_type = "int"

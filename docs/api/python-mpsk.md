@@ -26,6 +26,30 @@ amplitude-invariant).
 
 ::: doppler.mpsk.mpsk_demap
 
+## Soft demapping
+
+`mpsk_soft_demap` is the same decision seen differently: instead of one label
+byte per symbol it writes `log2(M)` log-likelihood ratios, one per bit, which
+is what a soft-input decoder (a Viterbi, for a convolutional code) needs — a
+hard decision throws away most of the coding gain such a decoder exists to
+deliver.
+
+`L = log(P(bit = 0) / P(bit = 1))`, so **positive means bit 0** and the hard
+decision is `L < 0`. That is not a second decision rule: its sign reproduces
+`mpsk_demap`'s label at every M and every SNR, which is asserted rather than
+assumed. Bits are LSB-first within a symbol and symbols run in order, so
+`llr[i * log2(M) + b]` is bit `b` of symbol `i`.
+
+`llr` is a caller-provided output array rather than a returned one, because the
+output expands by `log2(M)` — size it as `len(x) * mpsk_bits_per_symbol(m)`.
+`n0` scales the result exactly and a Viterbi is invariant to it, so a caller
+with no SNR estimate may pass `1.0`.
+
+See [Soft Decisions for M-PSK](../design/mpsk-soft.md) for the derivation, the
+closed forms BPSK and QPSK turn out to have, and what max-log costs at 8PSK.
+
+::: doppler.mpsk.mpsk_soft_demap
+
 ## Differential map / demap
 
 The differential variants carry phase state across the array — information rides

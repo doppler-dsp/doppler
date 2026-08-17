@@ -174,8 +174,9 @@ P = V(E) / q^(n-k),        V(E) = sum_{i<=E} C(n, i) (q-1)^i
 [`rs`'s certification report](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/rs/results.md)
 §2.2: the rate depends on `E` and **not** on how far past the radius the word
 is, so a badly broken frame is no more likely to be caught than a marginal
-one; and the textbook `1/E!` is the large-field limit of the expression above,
-37 % high already at `q = 16`.
+one; and the textbook `1/E!` is what is left of the expression above after
+approximating `C(n,E) ~ n^E/E!` and `n ~ q`, which puts it 37 % high at
+`q = 16` and 83 % high at CCSDS's `E = 16`.
 
 One thing it cannot do, and this **is** assertable: when it corrects, the
 result is a codeword. The key equation zeroes every one of the `nroots`

@@ -14,6 +14,7 @@
 
 #include "clib_common.h"
 #include "ddc/ddc_core.h"
+#include "ddcr/ddcr_core.h"
 #include "dp_state.h"
 #include "jm_perf.h"
 #include "mpsk_receiver/mpsk_rx_loops.h"
@@ -42,12 +43,17 @@ extern "C"
 
   typedef struct
   {
-    ddc_state_t    *fe; 
-    mpsk_rx_loops_t l;  
+    union
+    {
+      ddc_state_t  *c; 
+      ddcr_state_t *r; 
+    } fe;
+    mpsk_rx_loops_t l; 
     /* ── config (restored by create(), never packed in a state blob) ── */
     /* The pulse geometry lives in the front end, which is the only thing
        that uses it; keeping a second copy here would be a shadow of the
        cascade's own configuration, free to drift out of step with it. */
+    int    real;        
     double centre_freq; 
   } mpsk_receiver_state_t;
 
@@ -59,6 +65,14 @@ extern "C"
                         int differential,
                         size_t num_phases, int nda_tap, int agc,
                         double bn_agc_ratio);
+
+  mpsk_receiver_state_t *
+  mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
+                             double rrc_beta, int rrc_span, double bn_carrier,
+                             double zeta, double bn_timing, int acq_to_track,
+                             double lock_thresh, double init_norm_freq,
+                             int differential, size_t num_phases, int nda_tap,
+                             int agc, double bn_agc_ratio);
 
   double mpsk_receiver_get_agc_gain_db (const mpsk_receiver_state_t *state);
 
@@ -79,16 +93,22 @@ extern "C"
     float complex zpre;
     int           n_pre = 0;
     size_t        n     = ddc_execute_ctrl_push_tap2 (
-        s->fe, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
+        s->fe.c, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
         sizeof (ys) / sizeof (ys[0]), NULL, NULL, &zpre, &n_pre);
-    /* The timing-independent NDA tap reads here, at the MFR's input. A no-op
-       unless MF_IN is the configured tap. */
-    if (n_pre)
-      mpsk_rx_push_mf_in (&s->l, zpre);
-    int           emitted = 0;
-    for (size_t oi = 0; oi < n; oi++)
-      emitted |= mpsk_rx_take_output (&s->l, ys[oi], y_out, ted);
-    return emitted;
+    return mpsk_rx_fold (&s->l, ys, n, zpre, n_pre, y_out, ted);
+  }
+
+  JM_FORCEINLINE JM_HOT int
+  mpsk_receiver_step_real_ted (mpsk_receiver_state_t *s, float x,
+                               float complex *y_out, int ted)
+  {
+    float complex ys[4];
+    float complex zpre;
+    int           n_pre = 0;
+    size_t        n     = ddcr_execute_ctrl_push_tap2 (
+        s->fe.r, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
+        sizeof (ys) / sizeof (ys[0]), NULL, NULL, &zpre, &n_pre);
+    return mpsk_rx_fold (&s->l, ys, n, zpre, n_pre, y_out, ted);
   }
 
   size_t mpsk_receiver_steps_max_out (mpsk_receiver_state_t *state);
@@ -100,6 +120,15 @@ extern "C"
   size_t mpsk_receiver_bits (mpsk_receiver_state_t *state,
                              const float complex *x, size_t x_len,
                              uint8_t *out, size_t max_out);
+
+  size_t mpsk_receiver_steps_real_max_out (mpsk_receiver_state_t *state);
+  size_t mpsk_receiver_steps_real (mpsk_receiver_state_t *state,
+                                   const float *x, size_t x_len,
+                                   float complex *out, size_t max_out);
+
+  size_t mpsk_receiver_bits_real_max_out (mpsk_receiver_state_t *state);
+  size_t mpsk_receiver_bits_real (mpsk_receiver_state_t *state, const float *x,
+                                  size_t x_len, uint8_t *out, size_t max_out);
 
   double mpsk_receiver_get_norm_freq (const mpsk_receiver_state_t *state);
   double mpsk_receiver_get_nco_freq (const mpsk_receiver_state_t *state);
@@ -134,9 +163,18 @@ extern "C"
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * composition: the front end's and the loops' self-validating child blobs.
  * Every scalar this object carries across inputs lives in one of them; the
- * cascade, its banks and the LO centre are restored by create. */
+ * cascade, its banks, the LO centre and the `real` tag are restored by create.
+ *
+ * The MAGIC is keyed on the face. The two faces hold genuinely different
+ * state — a DDC's cascade against a DDCR's halfband plus cascade — so a blob
+ * taken from one must be REFUSED by the other rather than reinterpreted, and
+ * refused at the envelope by name rather than three levels down in a child.
+ * The layouts are otherwise identical, which is why one triplet serves both.
+ */
 #define MPSK_RECEIVER_STATE_MAGIC DP_FOURCC ('M', 'P', 'S', 'K')
 #define MPSK_RECEIVER_STATE_VERSION 6u /* v5: rebuilt on the matched DDC */
+#define MPSK_RECEIVER_R_STATE_MAGIC DP_FOURCC ('M', 'P', 'S', 'R')
+#define MPSK_RECEIVER_R_STATE_VERSION 2u
   size_t mpsk_receiver_state_bytes (const mpsk_receiver_state_t *state);
   void   mpsk_receiver_get_state (const mpsk_receiver_state_t *state,
                                   void                        *blob);

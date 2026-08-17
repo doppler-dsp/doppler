@@ -171,10 +171,8 @@ Here is a list of all files with brief descriptions:
         * **dir** [**mpsk**](dir_ca9d413705226c109a44c5982d79aa0f.md)     
             * **file** [**mpsk\_core.h**](mpsk__core_8h.md) _M-PSK constellation: Gray-coded map / demap for BPSK, QPSK, 8PSK._     
         * **dir** [**mpsk\_receiver**](dir_a1dc26622ebd32726f4fc723db7ccb3b.md)     
-            * **file** [**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md) _Pulse-shaped M-PSK receiver: a tuned matched DDC and two loops._     
+            * **file** [**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md) _Pulse-shaped M-PSK receiver: a tuned matched front end and two loops._     
             * **file** [**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md) _The two loops an M-PSK receiver closes, independent of its front end._     
-        * **dir** [**mpsk\_receiver\_r**](dir_2235ea4ae040991d93c0b2870a03660e.md)     
-            * **file** [**mpsk\_receiver\_r\_core.h**](mpsk__receiver__r__core_8h.md) _Real-input M-PSK receiver: the complex twin behind an R2C front end._     
         * **dir** [**nco**](dir_2f9ed967bc16fefd26d0244d883adb58.md)     
             * **file** [**nco\_core.h**](nco__core_8h.md) _Phase-accumulator NCO, and the one float-&gt;integer boundary everything that steers one has to pass through._     
         * **dir** [**nprmeas**](dir_2ffe7a00bca5d7665b823d0b8c1040c3.md)     

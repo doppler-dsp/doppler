@@ -22,11 +22,13 @@ irrational samples-per-symbol — a free-running ADC clock against the symbol cl
 `sps = 8` and at `sps = 256` alike, against the ~4225 taps/arm a single-stage
 design would need at the top of that range.
 
-[`track.MpskReceiverR`](../api/python-track.md) is the **real-input twin**: same
+[`track.MpskReceiverR`](../api/python-track.md) is the **real-input face**: same
 loops, same handover, same demapper — literally the same implementation — with a
 `MatchedDdcr` front end so it takes a real IF (`f32`) instead of complex
-baseband. It is a separate type rather than a flavor because `steps()` takes a
-different dtype, and a shared class would have to name the dtype in a method.
+baseband. It is a view over the same core, not a second type: `steps()` takes a
+different dtype, which used to force a separate class and no longer does
+(just-makeit#1012 lets a view bind its own C symbol under the parent's Python
+name).
 
 **Left — Constellation pull-in.** A QPSK signal with a `0.0015` cycles/sample
 carrier offset, with the loop seeded at zero. During acquisition (red) the

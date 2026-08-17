@@ -1,8 +1,15 @@
 # M-PSK receiver: collapsing two objects into one
 
-A design record for a refactor that is planned but not yet built. It exists
-because the argument for it is a **measurement**, and the measurement is worth
-writing down whether or not the refactor happens.
+A design record for a refactor that is **built**. Sections 1-7 are kept as
+written — the argument for the collapse is a *measurement*, and a measurement
+does not stop being worth reading once it has been acted on. §8 is the
+sequence, and it now says which steps landed.
+
+Steps 3 and 4 shipped together: `MpskReceiverR` is a jm view over one
+`mpsk_receiver_state_t` with a tagged front end, `native/{inc,src}/ mpsk_receiver_r/` is gone, and the shared header has one test home. What is
+NOT built is §4.1's default fix (gh-829), §4.3's constructor (gh-831) and
+§4.5's tap deletion (gh-832) — each is a behaviour change and the collapse
+deliberately was not.
 
 The receiver itself is [`mpsk.md`](mpsk.md); this page does not restate it.
 
@@ -69,6 +76,10 @@ because **a type-2 loop nulls a frequency step regardless of gain**.
 **Nothing anywhere asserts that the loops behave identically regardless of
 front end** — which is the one claim that makes a shared header worth having.
 One object gives those 784 lines a single home.
+
+*(As of §8 step 4 they have one: `test_mpsk_receiver_core.c` §15-23. Every
+row of the table above is owned, and the last one — pinned by neither test
+when this section was written — is §23.)*
 
 ______________________________________________________________________
 
@@ -559,10 +570,10 @@ the S-curve's linear range, ≈`π/(2M)`.
 
 ______________________________________________________________________
 
-## 6. The blocker — RESOLVED in jm 0.62.0
+## 6. The blocker — RESOLVED in jm 0.62.0, and adopted
 
 **This section is kept as the record of what was measured; the constraint it
-describes no longer holds.** jm **0.62.0** (2026-08-16) ships both filed
+describes no longer holds, and §8 step 3 has since used the fix.** jm **0.62.0** (2026-08-16) ships both filed
 issues; doppler adopts it on #806. A view method restating a parent's name
 may now declare its own `arg_type`/`return_type`, bound to its own C symbol
 via **`fn`** — which is the discriminator, and not as a convenience: the
@@ -658,42 +669,94 @@ ______________________________________________________________________
     `bn_carrier`'s symbol-rate normalisation. The `σ_H0` / Pfa row belongs to
     `carrier_nda`'s own test, not here.
 
-1. This collapse. **Unblocked** — just-makeit#1012 shipped in jm 0.62.0 (§6),
-    which doppler adopts on #806, so it uses a real per-face `steps()`. That
-    pin is this step's only prerequisite.
+1. This collapse. **LANDED.** just-makeit#1012 shipped in jm 0.62.0 (§6) and
+    doppler adopted it on #806, so the faces share one Python method name with
+    per-face dtypes, discriminated by `fn`:
 
-1. **Give the shared header its test home — the step that cashes §2.** The
-    collapse *permits* one home; it does not create one. Left here, the merged
-    object simply inherits whichever twin's test file survives, and §2's
-    asymmetry persists silently into it — the refactor delivering everything
-    except the thing that motivated it. So the collapse is not done until each
-    row of §2's second table has a single owner:
+    ```toml
+    [[mpsk_receiver.views.methods]]
+    name     = "steps"
+    fn       = "mpsk_receiver_steps_real"
+    params   = [{ name = "x", type = "float[]" }]
+    ```
 
-    | shared claim                         | today             | after                       |
-    | ------------------------------------ | ----------------- | --------------------------- |
-    | `set_telemetry`                      | complex only      | migrate onto the one object |
-    | level invariance                     | complex (real: 1) | migrate                     |
-    | the AGC is slower than every loop    | complex only      | migrate                     |
-    | "the LO runs at half the input rate" | **neither**       | **new test**                |
+    The core carries `union { ddc_state_t *c; ddcr_state_t *r; } fe` plus an
+    `int real`, and the tag is read on COLD paths only — create, destroy,
+    reset, telemetry, the frequency accessors and the state triplet. The hot
+    path has two `step` entry points, each force-inlined onto the one shared
+    `mpsk_rx_fold()`, so the front end is a compile-time fact inside the sample
+    loop and the tag costs nothing there. Sixteen pure delegations became one
+    implementation each; `mpsk_ber_common.h`'s `void *` + cast-per-call
+    harness became one typed pointer.
 
-    The first three are migrations and carry no new risk: they already pass on
-    one side, and the point is that one object cannot have a side. The fourth
-    is the one that matters, because it is not a migration — nothing has ever
-    asserted it, and it is where the gh-765 `freq_scale` bug lived (fixed in
-    #772, merged 2026-08-15, with **no guard left behind**). It gets a
-    regression test with a named sabotage target: **revert #772's `freq_scale`
-    and it must go red.** A test for that row which passes against the
-    pre-#772 loop is not testing the convention — recall that the bug survived
-    every step test in the tree, because a type-2 loop nulls a frequency step
-    regardless of gain, so the stimulus has to be a **ramp** (see
-    `docs/design/mpsk.md` §5.8).
+    Two things worth knowing for the next view of this kind:
+
+    - **The state MAGIC is keyed on the face** (`MPSK`/`MPSR`), so a blob from
+        one is refused by the other at the envelope rather than reinterpreted
+        or caught three levels down in a child. The layouts are otherwise
+        identical, which is why one triplet serves both and neither version
+        needed a bump.
+    - **A view's own `create_error_message` does not reach the binding yet**
+        — the accessor resolves it (gh-580) but `jm apply`'s view replay does
+        not carry the key into the scratch tree the fragment is rendered from.
+        Filed as just-makeit#1017; worked around by widening the parent's
+        message to state both faces' `sps` bound.
+
+1. **Give the shared header its test home — the step that cashes §2. LANDED.**
+    The collapse *permits* one home; it does not create one. Left there, the
+    merged object would simply inherit whichever twin's test file survived and
+    §2's asymmetry would persist silently into it — the refactor delivering
+    everything except the thing that motivated it. `test_mpsk_receiver_r_core.c`
+    is therefore folded into `test_mpsk_receiver_core.c` (§15-23) rather than
+    deleted, and every row of §2's second table now has a single owner:
+
+    | shared claim                         | before            | now                                    |
+    | ------------------------------------ | ----------------- | -------------------------------------- |
+    | `set_telemetry`                      | complex only      | §22 — the real front end's AGC forward |
+    | level invariance                     | complex (real: 1) | §11 + §21                              |
+    | the AGC is slower than every loop    | complex only      | §9 + §21, both front ends              |
+    | "the LO runs at half the input rate" | **neither**       | **§23, two halves, both sabotaged**    |
+
+    The first three were migrations and carried no new risk: they already
+    passed on one side, and the point is that one object cannot have a side.
+    The fourth is the one that mattered, because it was not a migration —
+    nothing had ever asserted it, and it is where the gh-765 `freq_scale` bug
+    lived (fixed in #772, merged 2026-08-15, with **no guard left behind**).
+
+    §23 pins it in two halves, because `lo_sps` enters in two places, and each
+    half names its own sabotage target and was measured against it:
+
+    | half      | stimulus | gate                              | sabotage                            | measured                                                                  |
+    | --------- | -------- | --------------------------------- | ----------------------------------- | ------------------------------------------------------------------------- |
+    | loop GAIN | **ramp** | `θ_ss = 2πr/wn²`, both faces, ±8% | `lo_sps = sps` on the real face     | lag **2.00×** the law at both ramp rates (0.0429/0.1424 vs 0.0212/0.0707) |
+    | READBACK  | step     | `norm_freq` within 20% of `df`    | `mpsk_rx_lo_to_input()` returns 1.0 | off by **exactly `df`** (0.25008 vs 0.25004), 5× the tolerance            |
+
+    Each sabotage leaves the other half green, so the two are independent
+    rather than one claim asserted twice. The stimulus for the first has to be
+    a **ramp**: the bug survived every step test in the tree because a type-2
+    loop nulls a frequency step regardless of gain (`docs/design/mpsk.md`
+    §5.8).
+
+    One measurement lesson came out of building it. The estimator is the
+    **signed mean** of the discriminator output, then `|·|` — not the mean of
+    `|e|`. Under a ramp the lag is a constant offset the loop is holding, so
+    the signed mean estimates it and the loop's own jitter averages out;
+    `mean|e|` carries a positive bias that grows as the lag approaches the
+    jitter, and at `r = 3e-7` on the real face that bias alone read **44%
+    high** and failed a correct receiver.
 
     And the claim §2 ends on — *the loops behave identically regardless of
     front end* — becomes writable for the first time here, because one object
     with two faces can run the same vector through both and compare.
 
 1. The validation report, written against the collapsed object, so one object
-    has one report.
+    has one report. **Partly landed.** The report's claim inventory now
+    enumerates the real face's header claims as C29-C33, each naming the C
+    section that carries it, and §1 states plainly that section 2's
+    characterisation runs through the complex face only. Sweeping both faces
+    from Python — the SER curve, the rate envelope, the false-lock geometry
+    and the level diagnostics, every one of which could differ behind an R2C
+    halfband — is gh-830.
 
 ______________________________________________________________________
 

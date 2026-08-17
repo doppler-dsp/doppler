@@ -129,7 +129,6 @@
 
 ## m
 
-* [**mpsk\_receiver\_r\_state\_t**](structmpsk__receiver__r__state__t.md)
 * [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md)
 * [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md)
 * [**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md)

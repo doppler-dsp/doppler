@@ -413,5 +413,158 @@ main (void)
                   "more: every difference inside the first 12 symbols");
   }
 
+  /* ── the decoder undoes the encoder, over the SAME spans ─────────────
+   *
+   * A round trip is weak evidence on its own -- it is what this whole slice
+   * refuses to rely on -- so it is not the claim here. The claim is that
+   * `fec_frame_decode` reads the same span table `fec_frame_encode` wrote,
+   * and the checks below are chosen to fail if it does not:
+   *
+   *   - the payload is ZEROS, so a decoder that skipped the randomiser
+   *     returns the sequence instead of the frame, loudly (a PN payload
+   *     would hide it, per test_fec_ccsds_rand's opening);
+   *   - the marker is CLOBBERED before decoding, so a decoder that
+   *     derandomised or R-S-checked from bit 0 instead of from behind it
+   *     cannot pass -- and one that reads the spans correctly cannot even
+   *     notice.
+   */
+  {
+    const fec_frame_cfg_t cfg = {
+      .rs_depth = 5, .randomise = 1, .attach_asm = 1, .convolutional = 0
+    };
+    fec_frame_layout_t lay;
+    const size_t       n = fec_frame_layout (&cfg, FEC_RS_K * 5, &lay);
+    DP_REQUIRE (n != 0 && n == lay.cadu_bits);
+
+    static uint8_t frame[FEC_RS_K * 5] = { 0 };
+    static uint8_t cadu[(32 + FEC_RS_N * 5 * 8)];
+    DP_REQUIRE (
+        fec_frame_encode (&cfg, NULL, frame, sizeof frame, cadu, sizeof cadu)
+        == lay.cadu_bits);
+
+    /* Nothing after this point may depend on the marker's contents. */
+    for (size_t i = 0; i < lay.marker.n; i++)
+      cadu[i] ^= 1u;
+
+    static uint8_t back[FEC_RS_K * 5];
+    fec_frame_rx_t rx = { 999u, 999u, 999u };
+    memset (back, 0xAA, sizeof back);
+    DP_REQUIRE (
+        fec_frame_decode (&cfg, cadu, lay.cadu_bits, back, sizeof back, &rx)
+        == sizeof back);
+    DP_CHECK_MSG (memcmp (back, frame, sizeof frame) == 0,
+                  "the decoder must recover the frame from behind a marker "
+                  "it does not read");
+    DP_CHECK_MSG (rx.rs_codewords == 5u && rx.rs_ok == 5u,
+                  "every interleaved codeword must pass its syndrome check");
+    DP_CHECK (rx.frame_len == sizeof back);
+  }
+
+  /* ── a corrupted symbol is REPORTED, not silently carried ────────────
+   *
+   * The outer code is a check here and not a correction, so the only honest
+   * thing it can do with damage is say so. One flipped bit inside codeword 2
+   * must drop exactly that codeword's syndrome test and leave the other four
+   * alone -- which also proves the DE-INTERLEAVE, since a wrong rotation
+   * pairs one column's information with another's check symbols.
+   *
+   * The payload here is STRUCTURED, and that is load-bearing. Everywhere
+   * else in this file it is zeros so a missing randomiser cannot hide; but
+   * R-S of an all-zero block is all-zero parity, so every interleaved column
+   * is identical and a rotated de-interleave is the IDENTITY. Zeros make one
+   * defect visible and another one invisible, so this section pays for the
+   * second with data whose columns differ.
+   */
+  {
+    const fec_frame_cfg_t cfg = {
+      .rs_depth = 5, .randomise = 1, .attach_asm = 1, .convolutional = 0
+    };
+    fec_frame_layout_t lay;
+    fec_frame_layout (&cfg, FEC_RS_K * 5, &lay);
+
+    static uint8_t frame[FEC_RS_K * 5];
+    static uint8_t cadu[(32 + FEC_RS_N * 5 * 8)];
+    static uint8_t back[FEC_RS_K * 5];
+    for (size_t i = 0; i < sizeof frame; i++)
+      frame[i] = (uint8_t)(i * 37u + 11u);
+    fec_frame_encode (&cfg, NULL, frame, sizeof frame, cadu, sizeof cadu);
+
+    /* Clean first: with columns that differ, this is what fails the moment
+       the de-interleave rotates. */
+    fec_frame_rx_t rx = { 0, 0, 0 };
+    DP_REQUIRE (
+        fec_frame_decode (&cfg, cadu, lay.cadu_bits, back, sizeof back, &rx)
+        == sizeof back);
+    DP_CHECK_MSG (memcmp (back, frame, sizeof frame) == 0,
+                  "structured data must round-trip byte for byte");
+    DP_CHECK_MSG (rx.rs_ok == 5u && rx.rs_codewords == 5u,
+                  "every codeword must check out when the de-interleave "
+                  "pairs each column with its own parity");
+
+    /* Symbol index 2 of the block is codeword 2 at depth 5 (S1 hands encoder
+       e every 5th symbol starting at e). Its first bit is block bit 16. */
+    cadu[lay.randomised.first + 16u] ^= 1u;
+    DP_REQUIRE (
+        fec_frame_decode (&cfg, cadu, lay.cadu_bits, back, sizeof back, &rx)
+        == sizeof back);
+    DP_CHECK_MSG (rx.rs_codewords == 5u && rx.rs_ok == 4u,
+                  "one damaged symbol must fail exactly one codeword");
+  }
+
+  /* ── with no outer code the frame is the block ───────────────────────── */
+  {
+    const fec_frame_cfg_t cfg = {
+      .rs_depth = 0, .randomise = 1, .attach_asm = 1, .convolutional = 0
+    };
+    fec_frame_layout_t lay;
+    uint8_t            frame[64] = { 0 };
+    uint8_t            cadu[32 + 64 * 8];
+    uint8_t            back[64];
+    fec_frame_rx_t     rx = { 0, 9u, 9u };
+
+    fec_frame_layout (&cfg, sizeof frame, &lay);
+    for (size_t i = 0; i < sizeof frame; i++)
+      frame[i] = (uint8_t)(i * 7u + 3u);
+    DP_REQUIRE (
+        fec_frame_encode (&cfg, NULL, frame, sizeof frame, cadu, sizeof cadu)
+        == lay.cadu_bits);
+    DP_REQUIRE (
+        fec_frame_decode (&cfg, cadu, lay.cadu_bits, back, sizeof back, &rx)
+        == sizeof frame);
+    DP_CHECK (memcmp (back, frame, sizeof frame) == 0);
+    DP_CHECK_MSG (rx.rs_codewords == 0u && rx.rs_ok == 0u,
+                  "no outer code means no codewords to report");
+  }
+
+  /* ── the refusals, each verified by a poisoned buffer ───────────────── */
+  {
+    const fec_frame_cfg_t cfg = {
+      .rs_depth = 5, .randomise = 1, .attach_asm = 1, .convolutional = 0
+    };
+    fec_frame_layout_t lay;
+    fec_frame_layout (&cfg, FEC_RS_K * 5, &lay);
+
+    static uint8_t frame[FEC_RS_K * 5] = { 0 };
+    static uint8_t cadu[(32 + FEC_RS_N * 5 * 8)];
+    static uint8_t back[FEC_RS_K * 5];
+    fec_frame_encode (&cfg, NULL, frame, sizeof frame, cadu, sizeof cadu);
+
+    memset (back, 0xAA, sizeof back);
+    DP_CHECK_MSG (fec_frame_decode (&cfg, cadu, lay.cadu_bits - 8u, back,
+                                    sizeof back, NULL)
+                      == 0,
+                  "a CADU that is not the layout's length must refuse");
+    DP_CHECK_MSG (fec_frame_decode (&cfg, cadu, lay.cadu_bits - 1u, back,
+                                    sizeof back, NULL)
+                      == 0,
+                  "a block that is not a whole number of octets must refuse");
+    DP_CHECK_MSG (fec_frame_decode (&cfg, cadu, lay.cadu_bits, back,
+                                    sizeof back - 1u, NULL)
+                      == 0,
+                  "a short frame buffer must refuse");
+    for (size_t i = 0; i < sizeof back; i++)
+      DP_CHECK (back[i] == 0xAAu);
+  }
+
   DP_TEST_END ("fec_ccsds_frame");
 }

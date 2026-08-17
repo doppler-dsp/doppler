@@ -91,6 +91,18 @@ extern "C"
 #define FEC_CCSDS_ASM_BITS 32
 
   /**
+   * @brief Period of the pseudo-randomising sequence, in bits (10.4.2).
+   *
+   * An 8-stage maximal-length generator, so 255 and not 256. It is named
+   * because it is what lets a consumer XOR the sequence onto a run of any
+   * length from a fixed 255-entry table instead of holding one the size of
+   * the data — `test_fec_ccsds_rand.c` pins that equivalence against
+   * @ref fec_ccsds_randomise rather than leaving it as arithmetic a reader
+   * has to trust.
+   */
+#define FEC_CCSDS_RAND_PERIOD 255
+
+  /**
    * @brief Constraint length of the inner code (3.3.1): 7.
    *
    * `K - 1` is the encoder's memory in bits, and that is the quantity a
@@ -115,6 +127,54 @@ extern "C"
    * @param out  Receives @ref FEC_CCSDS_ASM_BITS bits, one per byte.
    */
   void fec_ccsds_asm_bits (uint8_t *out);
+
+  /**
+   * @brief Where an ASM was found, and in which polarity.
+   *
+   * @c inverted is not a curiosity. A BPSK carrier recovered by a loop with a
+   * 180-degree ambiguity delivers the whole stream complemented, and the
+   * marker is the only thing in a CADU that can say so — the randomiser does
+   * not cover it, so it looks the same in every frame and in exactly one
+   * polarity.
+   */
+  typedef struct
+  {
+    size_t   offset;   /**< Bit index where the marker starts       */
+    int      inverted; /**< The stream is complemented              */
+    unsigned errors;   /**< Hamming distance to the marker there    */
+  } fec_asm_hit_t;
+
+  /**
+   * @brief Find the first ASM in a run of unpacked bits, either polarity.
+   *
+   * Correlates @ref FEC_CCSDS_ASM against every bit offset and against its
+   * complement, and reports the **first** offset whose Hamming distance is at
+   * most @p max_errors.
+   *
+   * First rather than best, and the difference matters: a best-match search
+   * has to see the whole stream before it can answer, which a frame
+   * synchroniser reading a live capture cannot do. First-below-threshold is
+   * what is implementable in both settings, so it is what this promises.
+   * @p max_errors is the whole of the trade — 0 finds only a clean marker and
+   * misses a frame the channel touched, while a value near half the marker
+   * length invites a false hit on random data.
+   *
+   * @param bits        Unpacked bits, one per byte.
+   * @param n_bits      Number of bits.
+   * @param max_errors  Largest tolerated Hamming distance, in bits.
+   * @param hit         Receives the location; untouched when nothing matched.
+   * @return            Non-zero if a marker was found.
+   *
+   * @code
+   * uint8_t       cadu[32 + 64] = { 0 };
+   * fec_asm_hit_t hit;
+   * fec_ccsds_asm_bits (cadu);
+   * if (fec_ccsds_asm_find (cadu, sizeof cadu, 4u, &hit))
+   *   printf ("marker at bit %zu\n", hit.offset);   // marker at bit 0
+   * @endcode
+   */
+  int fec_ccsds_asm_find (const uint8_t *bits, size_t n_bits,
+                          unsigned max_errors, fec_asm_hit_t *hit);
 
   /**
    * @brief Apply the CCSDS pseudo-randomiser to a bit run, in place.

@@ -52,6 +52,14 @@ target_include_directories(test_fec_rs PRIVATE
     ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_fec_rs COMMAND test_fec_rs)
 
+add_executable(test_fec_ccsds_asm
+    ${CMAKE_SOURCE_DIR}/native/tests/test_fec_ccsds_asm.c)
+target_link_libraries(test_fec_ccsds_asm PRIVATE fec_ccsds_core conv_core)
+target_include_directories(test_fec_ccsds_asm PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_fec_ccsds_asm COMMAND test_fec_ccsds_asm)
+
 add_executable(test_fec_ccsds_frame
     ${CMAKE_SOURCE_DIR}/native/tests/test_fec_ccsds_frame.c)
 target_link_libraries(test_fec_ccsds_frame PRIVATE fec_ccsds_core conv_core)

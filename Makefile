@@ -1425,7 +1425,8 @@ DOWNSTREAM_BUILD_DIR := $(BUILD_DIR)/downstream-jm
 test-examples-c: build ## Smoke-test every standalone C example
 	@echo "Running C example smoke tests..."
 	@for ex in nco_demo fir_demo hbdecim_demo fft_demo \
-	           agc_demo cic_demo corr_demo rate_converter_demo; do \
+	           agc_demo cic_demo corr_demo rate_converter_demo \
+	           ccsds_link_demo; do \
 	    printf "  %-20s" "$$ex"; \
 	    if $(EXAMPLE_BIN_DIR)/$$ex > /dev/null 2>&1; then \
 	        echo "PASS"; \

@@ -8,6 +8,8 @@
  */
 #include "fec/fec_frame.h"
 
+#include <string.h>
+
 /* 4.3.5.1 enumerates the allowed depths. fec_rs_encode_block refuses the
  * others too — the check is repeated here because the layout has to be
  * computable without encoding anything, and a caller sizing a buffer from a
@@ -158,4 +160,116 @@ fec_frame_encode (const fec_frame_cfg_t *cfg, conv_enc_t *conv,
     }
 
   return out_bits;
+}
+
+/* ── the receive direction ─────────────────────────────────────────────────
+ */
+
+/* Bits to octets MSB-first, optionally XORing the randomising sequence on the
+ * way through. The inverse of `unpack`, and the same sentence in figure 9-1
+ * and 4.3.9.2 that justifies that one.
+ *
+ * Derandomising HERE rather than in a separate pass is what keeps this
+ * O(1) in scratch memory for a frame of any length: fec_ccsds_randomise wants
+ * a mutable bit run, and the CADU belongs to the caller. Indexing a
+ * 255-entry table by `k % FEC_CCSDS_RAND_PERIOD` is the same sequence
+ * (10.4.2), which test_fec_ccsds_rand.c holds against the generator itself so
+ * that this is a pinned equivalence rather than an assumption. */
+static void
+pack_derand (const uint8_t *bits, size_t nbytes, const uint8_t *seq,
+             uint8_t *bytes)
+{
+  for (size_t i = 0; i < nbytes; i++)
+    {
+      uint8_t v = 0;
+      for (unsigned b = 0; b < 8u; b++)
+        {
+          const size_t k = i * 8u + b;
+          unsigned     x = bits[k] & 1u;
+          if (seq != NULL)
+            x ^= seq[k % (size_t)FEC_CCSDS_RAND_PERIOD];
+          v = (uint8_t)((v << 1) | x);
+        }
+      bytes[i] = v;
+    }
+}
+
+size_t
+fec_frame_decode (const fec_frame_cfg_t *cfg, const uint8_t *cadu,
+                  size_t n_cadu, uint8_t *frame, size_t max_frame,
+                  fec_frame_rx_t *rx)
+{
+  const size_t marker_bits = cfg->attach_asm ? (size_t)FEC_CCSDS_ASM_BITS : 0u;
+  if (n_cadu <= marker_bits || (n_cadu - marker_bits) % 8u != 0u)
+    return 0;
+
+  /* Work back to the Transfer Frame length the CADU implies, then let
+     fec_frame_layout confirm it. Deriving the shape twice -- once forwards in
+     the encoder and once backwards here -- is how the two directions come to
+     disagree about a span, so the backward derivation produces only a
+     frame_len and the FORWARD function remains the single description. */
+  const size_t block_bytes = (n_cadu - marker_bits) / 8u;
+  size_t       frame_len;
+  if (cfg->rs_depth != 0)
+    {
+      if (block_bytes != (size_t)FEC_RS_N * cfg->rs_depth)
+        return 0;
+      frame_len = (size_t)FEC_RS_K * cfg->rs_depth;
+    }
+  else
+    frame_len = block_bytes;
+
+  fec_frame_layout_t lay;
+  if (fec_frame_layout (cfg, frame_len, &lay) == 0 || lay.cadu_bits != n_cadu
+      || max_frame < frame_len)
+    return 0;
+
+  uint8_t        seq[FEC_CCSDS_RAND_PERIOD];
+  const uint8_t *pn = NULL;
+  if (cfg->randomise)
+    {
+      fec_ccsds_rand_seq (seq, sizeof seq);
+      pn = seq;
+    }
+
+  /* 10.3.2 starts the sequence at the first bit of the CODEBLOCK, and 10.3.4
+     note 1 says the marker was never randomised -- so the span begins behind
+     the marker, exactly as lay.randomised.first says it did on the way out. */
+  const uint8_t *block = cadu + lay.marker.n;
+
+  fec_frame_rx_t out = { frame_len, 0u, 0u };
+
+  if (cfg->rs_depth == 0)
+    {
+      pack_derand (block, frame_len, pn, frame);
+      if (rx != NULL)
+        *rx = out;
+      return frame_len;
+    }
+
+  uint8_t codeblock[FEC_RS_N * FEC_RS_MAX_DEPTH];
+  pack_derand (block, block_bytes, pn, codeblock);
+
+  /* 4.4.1: S2 reassembles the information symbols "in the same way as they
+     entered", so the Transfer Frame is the information section verbatim and
+     only the CHECK symbols were rotated. */
+  memcpy (frame, codeblock, frame_len);
+
+  out.rs_codewords = cfg->rs_depth;
+  for (unsigned e = 0; e < cfg->rs_depth; e++)
+    {
+      /* Undo S1/S2: encoder e saw every depth-th symbol starting at e, in
+         both sections. */
+      uint8_t word[FEC_RS_N];
+      for (int i = 0; i < FEC_RS_K; i++)
+        word[i] = codeblock[(size_t)i * cfg->rs_depth + e];
+      for (int p = 0; p < FEC_RS_2E; p++)
+        word[FEC_RS_K + p]
+            = codeblock[frame_len + (size_t)p * cfg->rs_depth + e];
+      out.rs_ok += (unsigned)(fec_rs_codeword_ok (word) != 0);
+    }
+
+  if (rx != NULL)
+    *rx = out;
+  return frame_len;
 }

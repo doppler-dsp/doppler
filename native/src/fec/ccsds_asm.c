@@ -16,3 +16,41 @@ fec_ccsds_asm_bits (uint8_t *out)
   for (unsigned i = 0; i < FEC_CCSDS_ASM_BITS; i++)
     out[i] = (uint8_t)((FEC_CCSDS_ASM >> (FEC_CCSDS_ASM_BITS - 1u - i)) & 1u);
 }
+
+int
+fec_ccsds_asm_find (const uint8_t *bits, size_t n_bits, unsigned max_errors,
+                    fec_asm_hit_t *hit)
+{
+  if (n_bits < (size_t)FEC_CCSDS_ASM_BITS)
+    return 0;
+
+  /* The pattern comes from fec_ccsds_asm_bits rather than from a second
+     expansion of the constant, for the reason that function exists: an
+     MSB-first expansion written out twice is a transcription that can
+     disagree with itself, and a receiver that disagrees with the assembler
+     about the marker syncs to nothing. */
+  uint8_t marker[FEC_CCSDS_ASM_BITS];
+  fec_ccsds_asm_bits (marker);
+
+  const size_t last = n_bits - (size_t)FEC_CCSDS_ASM_BITS;
+  for (size_t off = 0; off <= last; off++)
+    {
+      /* Both polarities in one pass: a bit that disagrees with the marker
+         agrees with its complement, so the two distances sum to the marker
+         length and one comparison yields both. */
+      unsigned d = 0;
+      for (unsigned i = 0; i < FEC_CCSDS_ASM_BITS; i++)
+        d += (unsigned)((bits[off + i] & 1u) ^ marker[i]);
+
+      const unsigned dinv = (unsigned)FEC_CCSDS_ASM_BITS - d;
+      if (d <= max_errors || dinv <= max_errors)
+        {
+          const int inv = dinv < d;
+          hit->offset   = off;
+          hit->inverted = inv;
+          hit->errors   = inv ? dinv : d;
+          return 1;
+        }
+    }
+  return 0;
+}

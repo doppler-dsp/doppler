@@ -95,6 +95,7 @@
 
 #include <complex.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 
 /* Failure and check counters. `dp_test_checks_` exists so the epilogue can
@@ -272,6 +273,37 @@ static int dp_test_checks_ = 0;
  * should not be written eighteen times. */
 
 /** |a-b| <= tol, single precision. */
+/**
+ * @brief Bits that differ between two packed-octet buffers.
+ *
+ * The distance a harness scoring RECOVERED PAYLOAD needs: a frame comes back
+ * as octets and the question is how many bits of it are wrong. `ber_meter`
+ * answers the same question for a symbol stream against a truth sequence and
+ * is the right tool there; it cannot be pointed at two byte buffers, and a
+ * private popcount loop in each harness that wants one is how two harnesses
+ * come to disagree about what a bit error is.
+ *
+ * @param a  First buffer.
+ * @param b  Second buffer.
+ * @param n  Octets to compare.
+ * @return   Bits that differ, in `[0, 8n]`.
+ */
+static inline size_t
+dp_bit_distance (const uint8_t *a, const uint8_t *b, size_t n)
+{
+  size_t d = 0;
+  for (size_t i = 0; i < n; i++)
+    {
+      uint8_t x = (uint8_t)(a[i] ^ b[i]);
+      while (x)
+        {
+          d += (size_t)(x & 1u);
+          x = (uint8_t)(x >> 1);
+        }
+    }
+  return d;
+}
+
 static inline int
 dp_nearf (float a, float b, float tol)
 {

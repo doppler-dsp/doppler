@@ -136,6 +136,10 @@
  *  coding-gain bound. */
 #define MIN_FRAMES 8u
 
+/** @brief Symbols node sync is scored over, at the head of each segment.
+ *  See decode_segment for why this is a window and not the whole record. */
+#define NODE_SYNC_WIN 2000u
+
 /** @brief Segments a record may be decoded in. A slip ends a segment; this
  *  bounds the loop rather than expressing a belief about how many there are,
  *  and `resync` reports how many actually happened. */
@@ -171,8 +175,10 @@ typedef struct
 
   const char *refused; /**< non-NULL: nothing here is a number, and why  */
 
-  unsigned node_phase; /**< the parity the ASM search preferred        */
-  unsigned asm_err[2]; /**< marker distance for each hypothesis        */
+  unsigned node_phase; /**< the branch alignment node sync chose       */
+  size_t   ns_errors;  /**< its re-encode disagreements                */
+  size_t   ns_next;    /**< the runner-up hypothesis's                 */
+  size_t   ns_symbols; /**< symbols node sync scored                   */
   int      inverted;   /**< the carrier locked to the other phase      */
 
   double lock_duty;  /**< share of symbols the binary lock flag was set */
@@ -237,22 +243,6 @@ build_frames (uint8_t *frames)
 /* ── Scoring one point ─────────────────────────────────────────────────────
  */
 
-static size_t
-hamming_bytes (const uint8_t *a, const uint8_t *b, size_t n)
-{
-  size_t d = 0;
-  for (size_t i = 0; i < n; i++)
-    {
-      uint8_t x = (uint8_t)(a[i] ^ b[i]);
-      while (x)
-        {
-          d += (size_t)(x & 1u);
-          x = (uint8_t)(x >> 1);
-        }
-    }
-  return d;
-}
-
 /* Which transmitted frame is this, by minimum distance over the known set.
    Identification by CONTENT rather than by counting CADUs from the start,
    because the capture begins wherever the receiver settled and nothing in
@@ -267,8 +257,8 @@ identify (const uint8_t *got, const uint8_t *frames, size_t *dist_out)
 
   for (int f = 0; f < NCADU; f++)
     {
-      size_t d = hamming_bytes (got, frames + (size_t)f * FRAME_OCTETS,
-                                FRAME_OCTETS);
+      size_t d = dp_bit_distance (got, frames + (size_t)f * FRAME_OCTETS,
+                                  FRAME_OCTETS);
       if (d < best)
         {
           best = d;
@@ -280,74 +270,65 @@ identify (const uint8_t *got, const uint8_t *frames, size_t *dist_out)
   return (double)best > ID_MAX_FRAC * (double)(FRAME_OCTETS * 8) ? -1 : idx;
 }
 
-/* Decode one SEGMENT of the settled symbol stream: choose the node phase by
-   which parity puts a marker where a marker can be, then Viterbi-decode that
-   parity over the rest of the record.
+/* Decode one SEGMENT of the settled symbol stream: ask the library which
+   branch alignment the stream is on, then decode that one.
 
-   This is node synchronization, and it is the harness doing the library's
-   job -- doppler#834. The statistic is the ASM correlation rather than the
-   re-encoding metric `fec-receive.md` §3 specifies, chosen because the
-   marker is already there and already resolves polarity; both hypotheses'
-   distances are returned so a wrong choice is visible rather than silent. */
+   Node synchronization is `conv`'s (doppler#834, closed): `node_sync_scan`
+   scores every hypothesis by the RE-ENCODING metric -- decode, re-encode,
+   count disagreements against what arrived -- which needs no marker and no
+   truth, so it works on a live capture. This harness used to pick the parity
+   by which one put an ASM where an ASM could be, which was the harness doing
+   the library's job with a statistic that only exists because CCSDS supplies
+   a marker.
+
+   The ASM search stays, and is a different question: node sync says which
+   symbol starts a branch, the marker says where a FRAME starts and in which
+   polarity. */
 static size_t
 decode_segment (viterbi_state_t *v, const float complex *sym, size_t nsym,
-                float *llr, uint8_t *bits, size_t cap, unsigned *phase_out,
-                unsigned err_out[2])
+                float *llr, uint8_t *bits, size_t cap, node_sync_t *ns_out)
 {
-  unsigned best   = 0;
-  size_t   nbits  = 0;
-  unsigned err[2] = { 99u, 99u };
+  node_sync_t ns;
 
-  for (unsigned phase = 0; phase < 2u; phase++)
-    {
-      if (nsym <= phase)
-        break;
-      size_t n_llr = nsym - phase;
-      n_llr -= n_llr % 2u;
-      if (n_llr < (size_t)2 * CADU_BITS)
-        break;
+  if (nsym < (size_t)2 * CADU_BITS)
+    return 0;
 
-      /* The path metric is a SUM of LLRs, so a global scale cannot change
-         which path wins -- which is what makes `n0 = 1` right here rather
-         than lazy. The AGC has already moved the output scale, so any
-         "calibrated" n0 would be a fiction with the same effect. */
-      mpsk_soft_demap (sym + phase, n_llr, llr, n_llr, 2, 1.0f);
-      size_t nb = viterbi_decode (v, llr, n_llr, bits, cap);
-      viterbi_reset (v);
+  /* Demapped ONCE, at offset 0: the scan indexes into this window itself,
+     which is what lets it try n hypotheses without n demaps.
 
-      ccsds_tm_asm_hit_t h;
-      size_t win = nb < (size_t)2 * CADU_BITS ? nb : (size_t)2 * CADU_BITS;
-      err[phase] = ccsds_tm_asm_find (bits, win, ASM_TOL, &h) ? h.errors : 99u;
+     The path metric is a SUM of LLRs, so a global scale cannot change which
+     path wins -- which is what makes `n0 = 1` right here rather than lazy.
+     The AGC has already moved the output scale, so any "calibrated" n0 would
+     be a fiction with the same effect. */
+  mpsk_soft_demap (sym, nsym, llr, nsym, 2, 1.0f);
 
-      if (err[phase] < err[best] || phase == 0)
-        {
-          if (err[phase] <= err[best] || phase == 0)
-            {
-              best  = phase;
-              nbits = nb;
-            }
-        }
-    }
+  /* Scored over the HEAD of the segment, not the whole of it, and that is
+     load-bearing: an alignment is only valid until the next slip, so a scan
+     over the entire remaining record answers "which phase fits most of it"
+     when the question is "which phase fits the part I am about to decode".
+     Measured, that is not academic — at Es/N0 = +1 dB a slip early in the
+     record made the whole-record scan prefer the phase that was right for
+     the tail, and the frame sync then found no marker in the first two CADUs
+     because they were on the other one. The window is short enough to lie
+     inside one alignment and long enough to separate: the wrong hypothesis
+     sits ~20 % of symbols away (conv_core.h), so a few hundred scored
+     symbols decide it. */
+  const size_t win = nsym < NODE_SYNC_WIN ? nsym : NODE_SYNC_WIN;
+  if (!node_sync_scan (v, llr, win, &ns))
+    return 0;
+  if (ns_out)
+    *ns_out = ns;
 
-  /* `bits` currently holds whichever parity was decoded LAST, so re-decode
-     the winner when it was not. */
-  if (best == 0u)
-    {
-      size_t n_llr = nsym;
-      n_llr -= n_llr % 2u;
-      mpsk_soft_demap (sym, n_llr, llr, n_llr, 2, 1.0f);
-      nbits = viterbi_decode (v, llr, n_llr, bits, cap);
-      viterbi_reset (v);
-    }
+  /* A margin of zero is a coin toss dressed as a decision. */
+  if (ns.margin == 0)
+    return 0;
 
-  if (phase_out)
-    *phase_out = best;
-  if (err_out)
-    {
-      err_out[0] = err[0];
-      err_out[1] = err[1];
-    }
-  return err[best] <= ASM_TOL ? nbits : 0;
+  size_t n_llr = nsym - ns.phase;
+  n_llr -= n_llr % 2u;
+  viterbi_reset (v);
+  size_t nb = viterbi_decode (v, llr + ns.phase, n_llr, bits, cap);
+  viterbi_reset (v);
+  return nb;
 }
 
 static cg_result_t
@@ -413,16 +394,8 @@ run_point (double esn0_db, const uint8_t *frames, const uint8_t *tx_cadu,
   int    settled = 0;
   size_t settle = dp_ber_settle (pt.bn_timing, pt.bn_carrier, NULL, NULL, NULL,
                                  nout, &settled);
-  {
-    size_t nl = 0, nt = 0;
-    for (size_t i = 0; i < nout; i++)
-      {
-        nl += lock_c[i];
-        nt += track[i];
-      }
-    res.lock_duty  = (double)nl / (double)(nout ? nout : 1);
-    res.track_duty = (double)nt / (double)(nout ? nout : 1);
-  }
+  res.lock_duty = dp_rx_duty (lock_c, settle, nout);
+  res.track_duty = dp_rx_duty (track, settle, nout);
   if (settle + (size_t)2 * CADU_BITS >= nout)
     {
       res.refused = "record too short for a CADU past the settling budget";
@@ -439,18 +412,20 @@ run_point (double esn0_db, const uint8_t *frames, const uint8_t *tx_cadu,
   size_t seg_sym = settle;
   for (unsigned seg = 0; seg < MAX_SEGMENTS; seg++)
     {
-      unsigned phase = 0, aerr[2] = { 99u, 99u };
-      size_t   nsym = nout - seg_sym;
+      node_sync_t ns   = { 0u, 0u, 0u, 0u, 0u };
+      size_t      nsym = nout - seg_sym;
       if (nsym < (size_t)2 * CADU_BITS)
         break;
 
-      size_t nbits = decode_segment (v, out + seg_sym, nsym, llr, bits,
-                                     TOTAL_SYM, &phase, aerr);
+      size_t nbits
+          = decode_segment (v, out + seg_sym, nsym, llr, bits, TOTAL_SYM, &ns);
+      const unsigned phase = ns.phase;
       if (seg == 0)
         {
-          res.asm_err[0] = aerr[0];
-          res.asm_err[1] = aerr[1];
-          res.node_phase = phase;
+          res.ns_errors  = ns.errors;
+          res.ns_next    = ns.next;
+          res.ns_symbols = ns.symbols;
+          res.node_phase = ns.phase;
         }
       else
         res.resync++;
@@ -749,13 +724,20 @@ main (int argc, char **argv)
                     r->gain_db);
             fail = 1;
           }
-        /* The node-sync hypothesis test has to have DECIDED, or the phase
-           this record decoded was picked by a coin. */
-        if (r->asm_err[0] == r->asm_err[1])
+        /* Node sync has to have DECIDED, and by a margin that is not noise.
+           In sync the re-encode disagreements ARE the channel's symbol
+           errors; the loser sits at a quarter of the symbols, so a tenth is
+           a floor both ends clear by a wide margin at any Es/N0 where the
+           code delivers. */
+        const double margin
+            = r->ns_symbols
+                  ? (double)(r->ns_next - r->ns_errors) / (double)r->ns_symbols
+                  : 0.0;
+        if (margin < 0.10)
           {
-            printf ("rx_coding_gain: FAIL — both node phases scored %u; the "
-                    "hypothesis test did not decide\n",
-                    r->asm_err[0]);
+            printf ("rx_coding_gain: FAIL — node sync margin %.1f%% of "
+                    "symbols; the hypothesis test did not decide\n",
+                    100.0 * margin);
             fail = 1;
           }
       }
@@ -777,6 +759,8 @@ main (int argc, char **argv)
             "%.1f dB (Eb/N0 %.2f dB).\n"
             "  channel SER there   %.2f%% — one symbol in %.0f wrong "
             "before decoding\n"
+            "  node sync           %zu vs %zu disagreements in %zu symbols "
+            "(margin %.0f%%)\n"
             "  frames delivered    %u of %u slots (%u re-sync, %u "
             "re-acquisition)\n"
             "  payload             0 errors in %zu bits\n"
@@ -787,6 +771,10 @@ main (int argc, char **argv)
             r->esn0_db, r->ebn0_db,
             100.0 * (double)r->chan_errs / (double)r->chan_syms,
             (double)r->chan_syms / (double)(r->chan_errs ? r->chan_errs : 1),
+            r->ns_errors, r->ns_next, r->ns_symbols,
+            r->ns_symbols ? 100.0 * (double)(r->ns_next - r->ns_errors)
+                                / (double)r->ns_symbols
+                          : 0.0,
             r->cadus_id, r->cadus_due, r->resync, r->reacq, r->payload_bits,
             r->gain_db, r->payload_bits, (int)(100.0 * CONF));
         printf ("\nCCSDS 130.1-G quotes the concatenated code at roughly 7-8 "

@@ -300,6 +300,158 @@ main (void)
     viterbi_destroy (v);
   }
 
+  /* ── 6b. node synchronization: the re-encoding metric ──────────────────
+   *
+   * The claims here are the ones a metric cannot satisfy by agreeing with
+   * itself, because none of them mentions the transmitted bits:
+   *
+   *   - the RIGHT alignment scores the channel's errors and nothing else, so
+   *     on a clean stream it scores ZERO;
+   *   - a wrong alignment scores a large fraction of the symbols, because
+   *     the decoder is searching a trellis its input does not lie on. NOT a
+   *     half: the decoder is a maximum LIKELIHOOD search and finds whatever
+   *     codeword agrees best with the misaligned stream, so measured it is
+   *     24 % for CCSDS, 23 % uninverted and 18 % at rate 1/3. The floor
+   *     below is a tenth, which every code clears with room and which no
+   *     broken metric would;
+   *   - the metric is BLIND TO POLARITY, exactly and not approximately: a
+   *     transparent code decodes an inverted stream to the complement, which
+   *     re-encodes to the inverted symbols. The counts must be equal, and if
+   *     they are not the metric is reading something other than alignment;
+   *   - it works at every rate, so the scan runs over n hypotheses and not
+   *     over two.
+   */
+  {
+    enum
+    {
+      N = 800
+    };
+    static uint8_t in[N], sym[3 * N];
+    static float   llr[3 * N + 4];
+
+    /* Three codes: CCSDS, an uninverted rate 1/2, and a rate 1/3 -- the last
+       is what makes "n hypotheses" a test rather than a spelling. */
+    const conv_code_t codes[3]
+        = { CCSDS,
+            { .k = 7u, .n = 2u, .poly = { 0171u, 0133u }, .invert = 0u },
+            { .k = 5u, .n = 3u, .poly = { 025u, 033u, 037u }, .invert = 0u } };
+
+    for (size_t ci = 0; ci < 3u; ci++)
+      {
+        const conv_code_t *c  = &codes[ci];
+        uint32_t           st = 24601u + (uint32_t)ci;
+        for (int i = 0; i < N; i++)
+          in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
+
+        conv_enc_t e;
+        conv_enc_init (&e);
+        const size_t ns = conv_encode (&e, c, in, N, sym, sizeof sym);
+        to_llr (sym, ns, llr, 4.0f);
+
+        viterbi_state_t *v = viterbi_create (c, 60u);
+        DP_REQUIRE (v != NULL);
+
+        /* On a clean stream the aligned score is the channel's error count,
+           which is none. */
+        DP_CHECK_MSG (node_sync_score (v, llr, ns) == 0,
+                      "in sync on a clean stream, the re-encode must agree "
+                      "with the received symbols exactly");
+
+        /* Every OTHER alignment must be far away — see the note above on
+           why the floor is a tenth and not a half. */
+        node_sync_t ns_res;
+        DP_REQUIRE (node_sync_scan (v, llr, ns, &ns_res));
+        DP_CHECK_MSG (ns_res.phase == 0u,
+                      "the scan must pick the alignment the stream is on");
+        DP_CHECK_MSG (ns_res.errors == 0u, "...at zero errors");
+        DP_CHECK_MSG (ns_res.next > ns_res.symbols / 10u,
+                      "...and every other hypothesis must be far off");
+        DP_CHECK_MSG (ns_res.margin == ns_res.next,
+                      "the margin is what separates them");
+
+        /* Shift the stream by one symbol and the answer must move by one,
+           for every rate -- this is the slip case, and it is why the scan
+           takes its window rather than holding state. */
+        node_sync_t shifted;
+        DP_REQUIRE (node_sync_scan (v, llr + 1, ns - 1u, &shifted));
+        DP_CHECK_MSG (shifted.phase == c->n - 1u,
+                      "a one-symbol slip must move the winning phase by one");
+        DP_CHECK_MSG (shifted.errors == 0u, "...and still score zero");
+
+        /* Polarity: invert every symbol. The code is transparent only when
+           every generator has odd weight, which is a property of the code
+           rather than of the metric -- so this asserts EQUALITY where that
+           holds and only that the phase still wins where it does not. */
+        for (size_t i = 0; i < ns; i++)
+          llr[i] = -llr[i];
+        const size_t inv         = node_sync_score (v, llr, ns);
+        int          transparent = 1;
+        for (unsigned j = 0; j < c->n; j++)
+          {
+            unsigned w = 0, poly = c->poly[j];
+            while (poly)
+              {
+                w += poly & 1u;
+                poly >>= 1;
+              }
+            if ((w & 1u) == 0u)
+              transparent = 0;
+          }
+        if (transparent)
+          DP_CHECK_MSG (inv == 0u,
+                        "a transparent code's metric must be blind to "
+                        "polarity -- exactly, not approximately");
+        for (size_t i = 0; i < ns; i++)
+          llr[i] = -llr[i];
+
+        viterbi_destroy (v);
+      }
+  }
+
+  /* ── 6c. in sync, the metric IS the channel symbol error rate ──────────
+   *
+   * The claim the design rests on (`docs/design/viterbi.md` §9): a caller
+   * reads the aligned count as a channel statistic, not merely as a
+   * comparator. So put a KNOWN number of symbol errors in and require the
+   * count back. It cannot be exact -- the decoder corrects, and a corrected
+   * error still disagrees with the received symbol while a MIScorrection
+   * adds disagreements the channel did not put there -- so the assertion is
+   * that it tracks within a fifth, which is far tighter than the half-window
+   * separation the decision rests on.
+   */
+  {
+    enum
+    {
+      N     = 2000,
+      EVERY = 40
+    };
+    static uint8_t in[N], sym[2 * N];
+    static float   llr[2 * N];
+    uint32_t       st = 777u;
+    for (int i = 0; i < N; i++)
+      in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
+
+    conv_enc_t e;
+    conv_enc_init (&e);
+    conv_encode (&e, &CCSDS, in, N, sym, sizeof sym);
+    to_llr (sym, 2u * N, llr, 4.0f);
+
+    size_t put = 0;
+    for (size_t i = 7; i < 2u * N; i += EVERY)
+      {
+        llr[i] = -llr[i];
+        put++;
+      }
+
+    viterbi_state_t *v = viterbi_create (&CCSDS, 60u);
+    DP_REQUIRE (v != NULL);
+    const size_t got = node_sync_score (v, llr, 2u * N);
+    viterbi_destroy (v);
+
+    DP_CHECK_MSG (got * 5u >= put * 4u && got * 4u <= put * 5u,
+                  "the aligned count must track the channel's symbol errors");
+  }
+
   /* ── 7. the refusals, each verified by a poisoned buffer ───────────────*/
   {
     uint8_t     in[8] = { 0 }, out[16];

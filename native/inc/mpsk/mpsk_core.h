@@ -223,6 +223,66 @@ void mpsk_diff_map(const uint8_t *sym, size_t sym_len, float complex *out,
 void mpsk_diff_demap(const float complex *x, size_t x_len, uint8_t *out, int m);
 
 /**
+ * @brief Soft-demap M-PSK symbols to per-bit log-likelihood ratios.
+ *
+ * The soft counterpart of mpsk_demap(): instead of one label byte per symbol
+ * it writes `log2(M)` LLRs, one per bit, which is what a soft-input decoder
+ * (a Viterbi, for the CCSDS inner code) needs. A hard decision throws away
+ * roughly 2 dB of the coding gain such a decoder exists to deliver.
+ *
+ * The convention, which every consumer has to agree with:
+ *
+ *     L_i = log( P(bit i = 0 | y) / P(bit i = 1 | y) )
+ *
+ * so **positive means bit 0** and the hard decision is `L < 0`. That is not a
+ * separate rule: `mpsk_demap()` is what this reproduces, and the sign
+ * agreeing with it at every M and every SNR is asserted in test_mpsk_core.c
+ * rather than assumed. The repository has ONE decision rule; this is a second
+ * view of it, not a second copy.
+ *
+ * Bits are LSB-first within a symbol, matching how the Gray label packs them,
+ * and symbols run in order:
+ * `llr[i * log2(M) + b]` is bit @c b of symbol @c i.
+ *
+ * Computed by the max-log rule over the constellation
+ * `L_i = (min_{b_i=1} |y-a|^2 - min_{b_i=0} |y-a|^2) / n0`. For BPSK and QPSK
+ * this is EXACT — QPSK's `phi0 = pi/4` grid is axis-separable, so its two
+ * bits are independent BPSK decisions and each subset holds one point. Only
+ * 8PSK is an approximation; what that costs in dB is not measured yet and is
+ * therefore not claimed here (docs/design/mpsk-soft.md section 5).
+ *
+ * @p n0 is the noise power `E[|n|^2]` for unit-amplitude symbols, and it
+ * scales the output exactly: `L(n0) = L(1) / n0`. A **Viterbi is invariant to
+ * it**, since scaling every branch metric by a positive constant cannot move
+ * the maximum-likelihood path — so a caller with no SNR estimate may pass 1.0
+ * and get correctly ordered, unscaled soft values.
+ *
+ * @param x        Received symbols (amplitude matters here — unlike the hard
+ *                 path, which uses phase only).
+ * @param x_len    Number of symbols.
+ * @param llr      Out: @p x_len * log2(M) LLRs.
+ * @param llr_len  Capacity of @p llr. Nothing is written if it is short, or
+ *                 if @p m is unsupported.
+ * @param m        M in {2,4,8}.
+ * @param n0       Noise power `E[|n|^2]`; must be positive.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.mpsk import mpsk_soft_demap, mpsk_demap
+ * >>> x = np.array([0.9+0.1j, -0.8-0.2j], dtype=np.complex64)   # BPSK
+ * >>> llr = np.empty(2, dtype=np.float32)
+ * >>> mpsk_soft_demap(x, llr, 2, 1.0)
+ * >>> np.round(llr, 3)                       # 4*Re(y)/n0
+ * array([ 3.6, -3.2], dtype=float32)
+ * >>> np.array_equal((llr < 0).astype(np.uint8), mpsk_demap(x, 2))
+ * True
+ *
+ * @endcode
+ */
+void mpsk_soft_demap(const float complex *x, size_t x_len, float *llr,
+                     size_t llr_len, int m, float n0);
+
+/**
  * @brief Bits per M-PSK symbol = log2(M).
  *
  * @param m  M in {2,4,8}.

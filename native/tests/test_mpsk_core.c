@@ -540,5 +540,264 @@ main (void)
       }
   }
 
+  /*
+   * ── Soft demapping ──────────────────────────────────────────────────────
+   *
+   * mpsk_soft_demap is a second VIEW of the decision above, and must never
+   * become a second RULE. Every section here is written against something
+   * outside the function: mpsk_demap for the sign, a closed form for the
+   * value, and the geometry for the magnitude. Design:
+   * docs/design/mpsk-soft.md.
+   */
+
+  /*
+   * (a) The sign reproduces mpsk_demap. EVERYWHERE.
+   *
+   * This is the one whose failure would be structural rather than numeric:
+   * a soft demapper that disagrees anywhere is a fork of the library's one
+   * decision rule, and forks drift. Swept down to -3 dB Es/N0 deliberately,
+   * because a sign disagreement is likeliest exactly where the decision is
+   * nearly a coin toss, and a sweep that only ran at high SNR would be
+   * asserting that two functions agree where nothing is in doubt.
+   */
+  {
+    enum
+    {
+      N = 4000
+    };
+    static float complex y[N];
+    static float         llr[N * 3];
+    static uint8_t       hard[N];
+    const double         esn0_db[] = { -3.0, 0.0, 6.0, 20.0 };
+
+    for (int mi = 0; mi < NM; mi++)
+      {
+        const int m  = M_ALL[mi];
+        const int nb = mpsk_bps (m);
+        for (unsigned e = 0; e < sizeof esn0_db / sizeof esn0_db[0]; e++)
+          {
+            const double n0    = pow (10.0, -esn0_db[e] / 10.0);
+            uint32_t     st    = 20260817u + 7u * (uint32_t)m + e;
+            int          flips = 0;
+
+            for (int i = 0; i < N; i++)
+              {
+                const unsigned g = (unsigned)(dp_xs32 (&st) % (uint32_t)m);
+                y[i]             = mpsk_constellation (g, m)
+                                   + (float)sqrt (n0) * dp_cgauss (&st);
+              }
+            mpsk_demap (y, N, hard, m);
+            mpsk_soft_demap (y, N, llr, (size_t)N * (size_t)nb, m, (float)n0);
+
+            for (int i = 0; i < N; i++)
+              {
+                unsigned from_llr = 0u;
+                for (int b = 0; b < nb; b++)
+                  if (llr[i * nb + b] < 0.0f)
+                    from_llr |= 1u << b;
+                if (from_llr != (unsigned)hard[i])
+                  flips++;
+              }
+            DP_CHECK_MSG (flips == 0,
+                          "the LLR's sign must reproduce mpsk_demap's label "
+                          "at every M and every Es/N0");
+          }
+      }
+  }
+
+  /*
+   * (b) The closed forms — and what they pin is the GRID.
+   *
+   * BPSK and QPSK are exact under the max-log rule, because each bit subset
+   * holds exactly one point: `4*Re(y)/n0`, and for QPSK the same on each
+   * axis scaled by the point's projection cos(pi/4) = 1/sqrt(2). That second
+   * one only holds BECAUSE phi0 = pi/4 makes the QPSK grid axis-separable,
+   * which is what turns the separability from a coincidence into an asserted
+   * value. Measured rather than claimed: rotating phi0 by 0.05 rad reddens
+   * 128 assertions here and 9 elsewhere in this file, so this section is not
+   * the only guard on the grid — it is the only one that says WHY the grid
+   * is that one.
+   *
+   * These live here rather than in the implementation on purpose: as code
+   * they would be a second expression of the general path, to be kept in
+   * step forever; as a test they are external truth (docs/design/mpsk-soft.md
+   * section 6).
+   */
+  {
+    enum
+    {
+      N = 64
+    };
+    float complex y[N];
+    float         llr[N * 2];
+    uint32_t      st  = 99991u;
+    const float   n0  = 0.37f;
+    const float   inv = 1.0f / n0;
+    const float   axq = (float)(4.0 / sqrt (2.0));
+
+    for (int i = 0; i < N; i++)
+      y[i] = 1.7f * dp_cgauss (&st); /* well off the unit circle, on purpose */
+
+    mpsk_soft_demap (y, N, llr, N, 2, n0);
+    for (int i = 0; i < N; i++)
+      DP_CHECK_NEAR ((double)llr[i], (double)(4.0f * crealf (y[i]) * inv),
+                     2e-4);
+
+    mpsk_soft_demap (y, N, llr, (size_t)N * 2u, 4, n0);
+    for (int i = 0; i < N; i++)
+      {
+        DP_CHECK_NEAR ((double)llr[2 * i], (double)(axq * crealf (y[i]) * inv),
+                       2e-4);
+        DP_CHECK_NEAR ((double)llr[2 * i + 1],
+                       (double)(axq * cimagf (y[i]) * inv), 2e-4);
+      }
+  }
+
+  /*
+   * (c) Exactly linear in 1/n0, so the scaling convention cannot drift.
+   *
+   * A caller with no SNR estimate passes 1.0 and rescales later; a Viterbi
+   * ignores the scale entirely. Both of those are only true if this holds.
+   */
+  {
+    enum
+    {
+      N = 48
+    };
+    float complex y[N];
+    float         a[N * 3], b[N * 3];
+    uint32_t      st = 5150u;
+    for (int i = 0; i < N; i++)
+      y[i] = 1.3f * dp_cgauss (&st);
+
+    for (int mi = 0; mi < NM; mi++)
+      {
+        const int m  = M_ALL[mi];
+        const int nb = mpsk_bps (m);
+        mpsk_soft_demap (y, N, a, (size_t)N * (size_t)nb, m, 1.0f);
+        mpsk_soft_demap (y, N, b, (size_t)N * (size_t)nb, m, 0.25f);
+        for (int i = 0; i < N * nb; i++)
+          DP_CHECK_NEAR ((double)b[i], 4.0 * (double)a[i], 1e-4);
+      }
+  }
+
+  /*
+   * (d) Magnitude means confidence, and section (a) alone cannot say so.
+   *
+   * A demapper that returned the hard decision as +-1 satisfies (a) in full
+   * — it decides identically — and is worthless to a decoder, because the
+   * magnitude is the entire difference between soft and hard. Measured: that
+   * impostor reddens (b) and (c) as well, so this section is not the only
+   * thing standing between here and it; it is the one that states the
+   * property in its own terms rather than as a side effect of a closed form.
+   * Two ends of the scale, both geometric rather than fitted:
+   *
+   *   - the origin is equidistant from every constellation point, so every
+   *     bit's two subsets tie and the LLR is exactly ZERO. No information,
+   *     and it is the one input for which that is true at every M;
+   *   - along the ray from the origin to a constellation point the nearest
+   *     point in each subset does not change, so the LLR grows strictly with
+   *     the distance travelled.
+   */
+  {
+    float llr[3];
+
+    for (int mi = 0; mi < NM; mi++)
+      {
+        const int     m  = M_ALL[mi];
+        const int     nb = mpsk_bps (m);
+        float complex o  = 0.0f + 0.0f * I;
+
+        mpsk_soft_demap (&o, 1, llr, (size_t)nb, m, 1.0f);
+        for (int b = 0; b < nb; b++)
+          DP_CHECK_MSG (llr[b] == 0.0f,
+                        "the origin is equidistant from every point: no bit "
+                        "may claim information there");
+
+        for (unsigned g = 0u; g < (unsigned)m; g++)
+          {
+            const float complex a = mpsk_constellation (g, m);
+            float               prev[3];
+            for (int b = 0; b < nb; b++)
+              prev[b] = 0.0f;
+
+            /* strictly increasing along the ray, and correct at the end */
+            for (int s = 1; s <= 4; s++)
+              {
+                float complex ys = (float)(0.25 * s) * a;
+                mpsk_soft_demap (&ys, 1, llr, (size_t)nb, m, 1.0f);
+                for (int b = 0; b < nb; b++)
+                  {
+                    DP_CHECK_MSG (fabsf (llr[b]) > prev[b],
+                                  "confidence must grow with distance from "
+                                  "the decision boundary");
+                    prev[b] = fabsf (llr[b]);
+                  }
+              }
+            unsigned decided = 0u;
+            for (int b = 0; b < nb; b++)
+              if (llr[b] < 0.0f)
+                decided |= 1u << b;
+            DP_CHECK (decided == g);
+          }
+      }
+  }
+
+  /*
+   * (e) The refusals, and the assertion that they wrote NOTHING.
+   *
+   * A capacity that is merely documented is a capacity nobody checks. Each
+   * case is verified against a poisoned buffer rather than against the
+   * return value, because this function has none — silence is the whole
+   * contract, and "wrote nothing" is the only observable form of it.
+   */
+  {
+    enum
+    {
+      N = 4
+    };
+    float complex y[N];
+    float         llr[N * 3];
+    uint32_t      st = 424242u;
+    for (int i = 0; i < N; i++)
+      y[i] = dp_cgauss (&st);
+
+    struct
+    {
+      const char *what;
+      size_t      cap;
+      int         m;
+      float       n0;
+    } bad[] = {
+      { "one float short of the 8PSK output", (size_t)N * 3u - 1u, 8, 1.0f },
+      { "an unsupported M", (size_t)N * 3u, 6, 1.0f },
+      { "a zero n0", (size_t)N * 3u, 4, 0.0f },
+      { "a negative n0", (size_t)N * 3u, 4, -1.0f },
+    };
+
+    for (unsigned c = 0; c < sizeof bad / sizeof bad[0]; c++)
+      {
+        for (int i = 0; i < N * 3; i++)
+          llr[i] = -12345.0f;
+        mpsk_soft_demap (y, N, llr, bad[c].cap, bad[c].m, bad[c].n0);
+        int untouched = 1;
+        for (int i = 0; i < N * 3; i++)
+          if (llr[i] != -12345.0f)
+            untouched = 0;
+        DP_CHECK_MSG (untouched, bad[c].what);
+      }
+
+    /* ...and the exactly-sufficient capacity is NOT refused, so the guard is
+       a bound rather than a wall. */
+    for (int i = 0; i < N * 3; i++)
+      llr[i] = -12345.0f;
+    mpsk_soft_demap (y, N, llr, (size_t)N * 3u, 8, 1.0f);
+    int wrote = 0;
+    for (int i = 0; i < N * 3; i++)
+      if (llr[i] != -12345.0f)
+        wrote = 1;
+    DP_CHECK_MSG (wrote, "an exactly-sufficient buffer must be accepted");
+  }
+
   DP_TEST_END ("test_mpsk_core");
 }

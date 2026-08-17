@@ -80,6 +80,9 @@ void mpsk_diff_map(const uint8_t *sym, size_t sym_len, float complex *out,
 
 void mpsk_diff_demap(const float complex *x, size_t x_len, uint8_t *out, int m);
 
+void mpsk_soft_demap(const float complex *x, size_t x_len, float *llr,
+                     size_t llr_len, int m, float n0);
+
 int mpsk_bits_per_symbol(int m);
 
 #ifdef __cplusplus

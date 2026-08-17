@@ -16,6 +16,6 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .mpsk import mpsk_map, mpsk_demap, mpsk_diff_map, mpsk_diff_demap, mpsk_bits_per_symbol  # noqa: E402
+from .mpsk import mpsk_map, mpsk_demap, mpsk_diff_map, mpsk_diff_demap, mpsk_bits_per_symbol, mpsk_soft_demap  # noqa: E402
 
-__all__ = ["mpsk_map", "mpsk_demap", "mpsk_diff_map", "mpsk_diff_demap", "mpsk_bits_per_symbol"]
+__all__ = ["mpsk_map", "mpsk_demap", "mpsk_diff_map", "mpsk_diff_demap", "mpsk_bits_per_symbol", "mpsk_soft_demap"]

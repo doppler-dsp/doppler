@@ -185,10 +185,15 @@ ______________________________________________________________________
     are ours; the Green Book prints the reference performance, and agreeing
     with it is external truth that no round trip can provide. Until then this
     page does not claim a coding gain in dB.
-1. **Whether `d_free = 10` is exhibited.** The code's free distance is a
-    property of the code, so it is checkable against the implementation rather
-    than against another implementation — the strongest kind of assertion
-    available here.
+1. ~~**Whether `d_free = 10` is exhibited.**~~ **MEASURED**, and it is —
+    `test_conv_core.c` §6d walks the trellis the DESCRIPTION defines
+    (`conv_outputs` and `conv_next_state`) for the lightest path that leaves
+    the all-zero state and returns to it, and reproduces the published free
+    distance of three codes: **10** for CCSDS's (171,133) K = 7, 5 for the
+    K = 3 (7,5), 6 for the K = 4 (15,17). The inversion is taken back out
+    first — a constant XOR on every branch cancels in the difference between
+    two codewords, so it cannot move a distance, and leaving it in measures
+    the weight of the all-zero path instead.
 1. **The cost of depth in a real budget.** §4 gives BER against depth; what a
     caller trades is latency and memory, and neither is measured yet.
 1. **Whether depth 60 travels.** §4 measured it for K = 7 rate 1/2. The rule

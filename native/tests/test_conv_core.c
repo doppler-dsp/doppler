@@ -123,6 +123,81 @@ main (void)
       }
   }
 
+  /* ── 2b. conv_outputs and conv_next_state, the two the trellis is built
+   *      from — and which nothing here had ever called ─────────────────────
+   *
+   * The file docstring calls `conv_outputs` "the only place that says what
+   * this family of codes emits", and the register convention "load-bearing"
+   * — a trellis derived the other way round is self-consistent and decodes
+   * nothing a conforming encoder produced. Both were exercised only THROUGH
+   * `conv_encode`, which is the caller that happens to agree with them; a
+   * user building a trellis (which is what `viterbi_create` does, and what
+   * anyone extending this must do) reads them directly.
+   *
+   * So: run the description BY HAND — `conv_outputs` for the symbols,
+   * `conv_next_state` for the state — and require the result to equal what
+   * `conv_encode` produced for the same bits. Two independent expressions of
+   * the same code, which is what the docstring claims this file pins.
+   */
+  {
+    enum
+    {
+      N = 200
+    };
+    uint8_t  in[N], sym[3 * N];
+    uint32_t st = 90210u;
+
+    const conv_code_t codes[3] = {
+      CCSDS,
+      { .k = 3u, .n = 2u, .poly = { 07u, 05u }, .invert = 0u },
+      { .k = 5u, .n = 3u, .poly = { 025u, 033u, 037u }, .invert = 0x5u }
+    };
+
+    for (size_t ci = 0; ci < 3u; ci++)
+      {
+        const conv_code_t *c = &codes[ci];
+        for (int i = 0; i < N; i++)
+          in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
+
+        conv_enc_t e;
+        conv_enc_init (&e);
+        const size_t ns = conv_encode (&e, c, in, N, sym, sizeof sym);
+        DP_REQUIRE (ns == (size_t)N * c->n);
+
+        /* The hand-run trellis. It starts where conv_enc_init does — the
+           all-zero state — which is the only thing this borrows from the
+           encoder. */
+        uint32_t state = 0u;
+        int      same  = 1;
+        for (int i = 0; i < N; i++)
+          {
+            const unsigned w = conv_outputs (c, state, in[i]);
+            for (unsigned j = 0; j < c->n; j++)
+              {
+                /* Output j is BIT j of the word and the j-th symbol emitted
+                   — the ordering claim, which is the half a round trip
+                   cannot see because both ends would move together. */
+                if (((w >> j) & 1u) != sym[(size_t)i * c->n + j])
+                  same = 0;
+              }
+            state = conv_next_state (c, state, in[i]);
+          }
+        DP_CHECK_MSG (same,
+                      "the trellis run by hand from conv_outputs and "
+                      "conv_next_state must reproduce conv_encode exactly");
+
+        /* And the state is genuinely the k-1 previous inputs, newest in the
+           high stage — read back rather than inferred, because this is the
+           convention the docstring says a reader gets backwards. */
+        uint32_t expect = 0u;
+        for (unsigned b = 0; b < c->k - 1u; b++)
+          expect |= (uint32_t)(in[N - 1 - b] & 1u) << (c->k - 2u - b);
+        DP_CHECK_MSG (state == expect,
+                      "a state must BE the k-1 previous inputs, newest in "
+                      "the high stage");
+      }
+  }
+
   /* ── 3. continuity: the register carries across calls ──────────────────
    *
    * 3.3.2 fixes the output as one uninterrupted sequence. A caller encoding
@@ -253,6 +328,77 @@ main (void)
     DP_CHECK_MSG (memcmp (d1, d2, g1) == 0,
                   "scaling every LLR cannot move the maximum-likelihood path");
     viterbi_destroy (v);
+  }
+
+  /* ── 5b. the LLR sign convention, against something outside this file ──
+   *
+   * `viterbi_decode`'s header fixes the convention — "positive means symbol
+   * 0" — and claims the decoder "agrees with `mpsk_demap` on hard decisions
+   * by construction". Nothing here could see that: every section above feeds
+   * LLRs through this file's own `to_llr`, which shares the convention, so a
+   * decoder and a helper that flipped TOGETHER would pass all of them. That
+   * is the same shared-convention blind spot the encoder's impulse-response
+   * test exists to avoid on the other side.
+   *
+   * The IDENTITY code closes it without importing anything: `k = 2, n = 1,
+   * poly = {0b10}` taps only the newest input, so the encoder is the identity
+   * and a maximum-likelihood decode of it is precisely a hard slicer. The
+   * decoded bits must therefore equal `llr < 0` element for element — a
+   * statement about the LLR definition alone, which is what `mpsk_demap`
+   * also implements and why the two agree by construction rather than by
+   * coincidence.
+   */
+  {
+    enum
+    {
+      N     = 500,
+      DEPTH = 8
+    };
+    const conv_code_t ident
+        = { .k = 2u, .n = 1u, .poly = { 2u }, .invert = 0u };
+    DP_REQUIRE (conv_code_valid (&ident));
+
+    float    llr[N];
+    uint8_t  dec[N];
+    uint32_t st = 31337u;
+    for (int i = 0; i < N; i++)
+      {
+        /* Magnitudes vary so the test is about the SIGN and not about a
+           decoder that happens to threshold at some level. */
+        const double u = dp_uni (&st);
+        llr[i]         = (float)((u - 0.5) * (0.2 + 4.0 * dp_uni (&st)));
+        if (llr[i] == 0.0f)
+          llr[i] = 0.25f;
+      }
+
+    viterbi_state_t *v = viterbi_create (&ident, DEPTH);
+    DP_REQUIRE (v != NULL);
+    const size_t got = viterbi_decode (v, llr, N, dec, sizeof dec);
+    viterbi_destroy (v);
+
+    /* The latency, against a LITERAL rather than against the sizing
+       function. §4 already pins `viterbi_decode == viterbi_decode_max_out`,
+       so the two agree with each other by construction and neither could
+       see that the header's prose said `depth` where the traceback walks
+       `depth - 1` — measured here as 493 bits from 500 symbols at depth 8,
+       and the prose is what moved. */
+    DP_CHECK_MSG (got == (size_t)N - (DEPTH - 1),
+                  "a decision needs depth-1 branches behind it, and the "
+                  "header says so");
+    int agree = 1, both = 0;
+    for (size_t i = 0; i < got; i++)
+      {
+        const uint8_t hard = llr[i] < 0.0f ? 1u : 0u;
+        if (dec[i] != hard)
+          agree = 0;
+        both |= (dec[i] ? 2 : 1);
+      }
+    DP_CHECK_MSG (agree,
+                  "positive LLR means symbol 0: the identity code's decode "
+                  "must equal the hard slice, bit for bit");
+    /* ...and both symbols must occur, or a decoder stuck at 0 would pass a
+       stream that happened to be all zeros. */
+    DP_CHECK_MSG (both == 3, "the check must have seen both symbols");
   }
 
   /* ── 6. it CORRECTS, which is the only reason it exists ────────────────
@@ -450,6 +596,104 @@ main (void)
 
     DP_CHECK_MSG (got * 5u >= put * 4u && got * 4u <= put * 5u,
                   "the aligned count must track the channel's symbol errors");
+  }
+
+  /* ── 6d. the free distance, which is the code's own published number ───
+   *
+   * `docs/design/viterbi.md` §8 lists this as an UNKNOWN: "whether
+   * `d_free = 10` is exhibited... a property of the code, so it is checkable
+   * against the implementation rather than against another implementation —
+   * the strongest kind of assertion available here". This is that check.
+   *
+   * `d_free` is the minimum Hamming weight of a nonzero codeword, which for a
+   * convolutional code is the lightest path that leaves the all-zero state
+   * and returns to it. Computed here by relaxation over the trellis the
+   * DESCRIPTION defines — `conv_outputs` and `conv_next_state`, the same two
+   * a decoder builds from — and compared against values the literature
+   * publishes for these codes. Nothing in doppler can choose them.
+   *
+   * The inversion is removed first, and that is not a convenience: a
+   * constant XOR on every branch cancels in the DIFFERENCE between two
+   * codewords, so it cannot move a distance. Leaving it in would measure the
+   * weight of the all-zero path instead, which is `n` per branch and is not
+   * a distance at all.
+   */
+  {
+    const struct
+    {
+      conv_code_t code;
+      unsigned    d_free;
+      const char *who;
+    } known[3] = {
+      /* CCSDS 131.0-B-3 §3.3's inner code: the (171, 133) K=7, and 10 is the
+         number 130.1-G quotes when it prints the curves. */
+      { CCSDS, 10u, "CCSDS K=7 (171,133) must have d_free = 10" },
+      /* The textbook K=3 (7,5), d_free = 5. */
+      { { .k = 3u, .n = 2u, .poly = { 07u, 05u }, .invert = 0u },
+        5u,
+        "K=3 (7,5) must have d_free = 5" },
+      /* K=4 (15,17), d_free = 6. */
+      { { .k = 4u, .n = 2u, .poly = { 015u, 017u }, .invert = 0u },
+        6u,
+        "K=4 (15,17) must have d_free = 6" },
+    };
+
+    for (size_t ki = 0; ki < 3u; ki++)
+      {
+        const conv_code_t *c = &known[ki].code;
+        const uint32_t     S = conv_states (c);
+        unsigned           w[1u << (CONV_K_MAX - 1)];
+
+        /* Weight of a branch, with the inversion taken back out. */
+#define BRANCH_W(st, b)                                                       \
+  (unsigned)__builtin_popcount ((conv_outputs (c, (st), (b)) ^ c->invert)     \
+                                & ((1u << c->n) - 1u))
+
+        const unsigned INF = 0xFFFFu;
+        for (uint32_t st = 0; st < S; st++)
+          w[st] = INF;
+
+        /* Leave the all-zero state on a 1 — every nonzero codeword starts
+           that way — and relax until nothing moves. */
+        w[conv_next_state (c, 0u, 1u)] = BRANCH_W (0u, 1u);
+        for (uint32_t pass = 0; pass < S + 2u; pass++)
+          {
+            int moved = 0;
+            for (uint32_t st = 0; st < S; st++)
+              {
+                if (w[st] == INF)
+                  continue;
+                for (unsigned b = 0; b < 2u; b++)
+                  {
+                    const uint32_t ns = conv_next_state (c, st, b);
+                    if (ns == 0u && b == 0u)
+                      continue; /* the merge itself is scored below */
+                    const unsigned cand = w[st] + BRANCH_W (st, b);
+                    if (cand < w[ns])
+                      {
+                        w[ns] = cand;
+                        moved = 1;
+                      }
+                  }
+              }
+            if (!moved)
+              break;
+          }
+
+        /* The merge back to zero, on a 0, from wherever is cheapest. */
+        unsigned d = INF;
+        for (uint32_t st = 0; st < S; st++)
+          {
+            if (w[st] == INF || conv_next_state (c, st, 0u) != 0u)
+              continue;
+            const unsigned cand = w[st] + BRANCH_W (st, 0u);
+            if (cand < d)
+              d = cand;
+          }
+#undef BRANCH_W
+
+        DP_CHECK_MSG (d == known[ki].d_free, known[ki].who);
+      }
   }
 
   /* ── 7. the refusals, each verified by a poisoned buffer ───────────────*/

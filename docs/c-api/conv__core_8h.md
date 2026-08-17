@@ -518,7 +518,7 @@ viterbi_state_t * viterbi_create (
 
 
 * `c` The code. Copied, so the caller's may be temporary. 
-* `depth` Traceback depth in input bits. A decision is emitted only after this many further bits have been seen, which is the decoder's latency and the dominant term in its memory. **60 is the measured choice for CCSDS's K = 7 rate-1/2 code** — `5*K = 35`, the textbook number, sits 33 % above the achievable BER (docs/design/viterbi.md section 4). It is a default for other codes, not a law. 
+* `depth` Traceback depth in input bits. A decision is emitted only after `depth - 1` further bits have been seen, which is the decoder's latency and the dominant term in its memory. **60 is the measured choice for CCSDS's K = 7 rate-1/2 code** — `5*K = 35`, the textbook number, sits 33 % above the achievable BER (docs/design/viterbi.md section 4). It is a default for other codes, not a law. 
 
 
 
@@ -557,7 +557,7 @@ size_t viterbi_decode (
 A maximum-likelihood path cannot move when every metric is scaled by a positive constant, so **the LLRs need no accurate scaling** — a caller with no SNR estimate may pass unscaled values.
 
 
-Streaming: the first `depth` bits of a stream produce no output, and thereafter one bit is emitted per `n` symbols consumed.
+Streaming: the first `depth - 1` branches of a stream produce no output — the traceback walks `depth - 1` steps back, so a decision needs that many branches BEHIND it — and thereafter one bit is emitted per `n` symbols consumed. [**viterbi\_decode\_max\_out**](conv__core_8h.md#function-viterbi_decode_max_out) is the same statement as arithmetic, and is what a caller should size a buffer with rather than repeating this sentence: they disagreed by one until a test asserted the count against a literal.
 
 
 

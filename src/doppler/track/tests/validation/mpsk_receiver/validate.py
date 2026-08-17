@@ -1508,8 +1508,26 @@ def review(R, d):
         "they belong in `native/validation/` if anywhere, and calling "
         "them a Python gap would misfile them. **One is the differential "
         "demap** (C24), already named in §5 and older than this "
-        "certification. Of the six, the worst is C9, the `@warning`'s "
-        "own headline — "
+        "certification.\n\n"
+        "**Two of the six have since been closed in C, and one of the six "
+        "was this table being wrong.** C15's verify counts are now pinned "
+        "by `test_mpsk_receiver_core.c` §13 as TIME hysteresis — on one "
+        "record a shorter `n_up` must declare strictly earlier, and by at "
+        "least the extra symbols asked for, which a count wired to "
+        "nothing fails. And **C6 was never as absent as this row "
+        "claimed**: §4 pins the flip, the drop-back AND the re-declare, "
+        "so the inventory understated it. What §4 genuinely cannot test "
+        "is the part the header actually argues — that the estimate is "
+        "carried across rather than re-acquired — because §4 re-seeds the "
+        "carrier by hand across the outage, and would therefore pass "
+        "against a receiver that cleared it. §12 tests that instant "
+        "directly, one sample at a time. The lesson is the inventory's "
+        "own: a row read from a test's HEADLINE rather than its "
+        "assertions is the same error the campaign calls "
+        "pinned-only-at-literals, committed by the auditor instead of "
+        "the author.\n\n"
+        "Of what remains, the worst is C9, the `@warning`'s own headline "
+        "— "
         '`bn_carrier` is now normalised to the SYMBOL rate, so *"at the '
         'old default `sps = 8` the same number is now an 8x wider loop"* '
         "— which nothing measures, so a regression to input-rate "
@@ -1518,13 +1536,11 @@ def review(R, d):
         "faked: `lock_time` is too noisy across the rate axis to carry it "
         "(955 at `sps = 4` against 51 at 16 for one `bn`), and a law "
         "fitted to that would be a curve fit presented as a "
-        "certification. Then C6's DROP-BACK (§4 of the C test pins the "
-        "flip one way only), C13's documented sharp edge that "
-        "construction still permits, C15's 0.8x hysteresis and 8-up / "
-        "32-down verify counts — unmeasured here although `carrier_nda`'s "
-        "§2.8 found the analogous count mattered a great deal — C21's "
-        "`A^2` under-drive law, and C16's claim that 64 is the SATURATION "
-        "point rather than merely the derived value. Each needs an axis "
+        "certification. Then C13's documented sharp edge that "
+        "construction still permits, C21's `A^2` under-drive law, C16's "
+        "claim that 64 is the SATURATION point rather than merely the "
+        "derived value, and C15's remaining half (the 0.8x level ratio). "
+        "Each needs an axis "
         "this validator does not sweep, a stimulus it does not build, or "
         "a construction it has no reason to attempt, so the home is "
         "`make characterize` or `native/validation/` rather than here "
@@ -2100,7 +2116,9 @@ def build(write: bool = True) -> Report:
             "C6",
             "the handover is opt-in and TWO-WAY, and the shared loop "
             "filter carries the estimate across it in both directions",
-            "C §4 — the flip is pinned; the DROP-BACK is **absent** (F7)",
+            "C §4 (flip, drop-back and re-declare) + C §12 NEW (the "
+            "estimate is CONTINUOUS across the flip — §4 re-seeds the "
+            "carrier by hand, so it cannot test that)",
         ],
         [
             "C7",
@@ -2154,7 +2172,9 @@ def build(write: bool = True) -> Report:
             "C15",
             "the drop threshold sits at 0.8x with 8-up / 32-down "
             "verify counts",
-            "**absent** from Python (F7)",
+            "C §13 NEW — the counts are pinned as TIME hysteresis "
+            "(a shorter `n_up` declares strictly earlier); the 0.8x "
+            "level ratio itself is **absent** (F7)",
         ],
         [
             "C16",

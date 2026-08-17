@@ -4590,15 +4590,14 @@ class MpskReceiverR:
         bits(differential) or a sync word. Read norm_freq for the tracked
         carrier and lock for the carrier lock metric.
 
-        Runs the per-sample loop (mix + cascade + matched filter, then the
-        carrier and timing loops) over x and writes one cf32 symbol per
-        recovered symbol period — roughly `x_len / sps` outputs. Read norm_freq
-        for the tracked carrier and lock for the carrier lock metric.
+        mpsk_receiver_steps() taking real samples: the R2C halfband makes them
+        complex before anything else touches them, and the per-sample body is
+        the same one. Requires a state built by mpsk_receiver_create_real().
 
         Parameters
         ----------
         x : NDArray[np.float32]
-            Input cf32 samples.
+            Real f32 input samples.
 
         Returns
         -------
@@ -4608,15 +4607,17 @@ class MpskReceiverR:
         Examples
         --------
         >>> import numpy as np
-        >>> from doppler.track import MpskReceiver
-        >>> rng = np.random.default_rng(0)
-        >>> idx = rng.integers(0, 4, 3000)                  # QPSK symbols
-        >>> tx = np.repeat(np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4)), 8)
-        >>> tx = tx.astype(np.complex64)                    # 8 samples/symbol
-        >>> rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.02)
-        >>> sym = rx.steps(tx)                              # blind NDA acquire
+        >>> from doppler.track import MpskReceiverR
+        >>> rng = np.random.default_rng(3)
+        >>> idx = rng.integers(0, 4, 2400)                  # QPSK symbols
+        >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 32)  # 32 sps
+        >>> n = np.arange(bb.size)
+        >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real  # IF at fs/4
+        >>> x = np.ascontiguousarray(x.astype(np.float32))
+        >>> rx = MpskReceiverR(m=4, sps=32, m_out=8, init_norm_freq=0.25)
+        >>> sym = rx.steps(x)
         >>> sym.size                                        # ~ x_len / sps
-        2998
+        2398
         >>> rx.lock > 0.8                                   # carrier locked
         True
 
@@ -4648,17 +4649,13 @@ class MpskReceiverR:
         (rotation-invariant — resolves the m-fold carrier ambiguity at ~2x the
         symbol-error rate). Same per-sample carrier/timing recovery as steps().
 
-        Like mpsk_receiver_steps(), but each recovered symbol is sliced to its
-        nearest M-PSK point and unpacked to log2(M) hard bits (LSB-first). With
-        the differential option set at create time, the Gray label is taken
-        from the phase *difference* between consecutive symbols
-        (rotation-invariant — it resolves the M-fold carrier ambiguity), else
-        from the absolute (coherent) decision.
+        mpsk_receiver_bits() taking real samples. Requires a state built by
+        mpsk_receiver_create_real().
 
         Parameters
         ----------
         x : NDArray[np.float32]
-            Input cf32 samples.
+            Real f32 input samples.
 
         Returns
         -------
@@ -4668,17 +4665,21 @@ class MpskReceiverR:
         Examples
         --------
         >>> import numpy as np
-        >>> from doppler.track import MpskReceiver
+        >>> from doppler.track import MpskReceiverR
         >>> rng = np.random.default_rng(3)
-        >>> idx = rng.integers(0, 2, 3000)                  # BPSK payload bits
-        >>> tx = np.repeat(np.exp(1j * np.pi * idx), 8).astype(np.complex64)
-        >>> rx = MpskReceiver(m=2, sps=8, m_out=4, bn_carrier=0.005)
-        >>> b = rx.bits(tx)                                 # 1 hard bit/symbol
+        >>> idx = rng.integers(0, 2, 2400)                  # BPSK payload bits
+        >>> bb = np.repeat(np.exp(1j * np.pi * idx), 32)
+        >>> n = np.arange(bb.size)
+        >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real  # IF at fs/4
+        >>> x = np.ascontiguousarray(x.astype(np.float32))
+        >>> rx = MpskReceiverR(m=2, sps=32, m_out=8, init_norm_freq=0.25,
+        ...                    bn_carrier=0.005)
+        >>> b = rx.bits(x)                                  # 1 hard bit/symbol
         >>> b.size
-        2998
+        2398
         >>> # settled tail matches the payload, up to the BPSK
-        >>> # inversion ambiguity and the pipeline's one-symbol lead
-        >>> tail = np.mean(b[1001:2001] != idx[1000:2000])
+        >>> # inversion ambiguity
+        >>> tail = np.mean(b[1500:2300] != idx[1500:2300])
         >>> round(float(min(tail, 1 - tail)), 3)
         0.0
 

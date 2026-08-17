@@ -314,5 +314,5 @@ main (void)
     DP_CHECK_MSG (worst_i1 > 16, "at depth 1 the same burst must EXCEED E=16");
   }
 
-  DP_TEST_END ("fec_rs");
+  DP_TEST_END ("ccsds_tm_rs");
 }

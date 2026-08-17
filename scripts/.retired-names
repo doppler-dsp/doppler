@@ -1,0 +1,14 @@
+# Retired identifiers: <regex><TAB><what to use instead>
+#
+# A row is added by the commit that retires the name, and it only ever holds
+# at zero occurrences -- see scripts/check_retired_names.py for why this is
+# data rather than vigilance.
+#
+# doppler#828: `fec` named the CCSDS-specific half of the coding chain, which
+# read as FEC == CCSDS once `conv` and `rs` held the general codes. The
+# component is `ccsds_tm` (131.0-B-3) and the prefix follows it. FEC remains
+# the honest word for the general subject in prose -- these patterns match the
+# IDENTIFIER forms only, which is why `docs/design/fec-receive.md` and "no
+# FEC" in a docstring are untouched.
+\bfec_[a-z0-9_]+	the ccsds_tm_ prefix (or conv_/rs_ for the general codes)
+\bFEC_[A-Z0-9_]+	the CCSDS_TM_ prefix (or CONV_/RS_ for the general codes)

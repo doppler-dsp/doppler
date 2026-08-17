@@ -417,7 +417,7 @@ main (void)
           diff++;
           last = i - nsym;
         }
-    DP_CHECK_MSG (diff > 0 && last < 2u * (FEC_CONV_K - 1u),
+    DP_CHECK_MSG (diff > 0 && last < 2u * (CCSDS_TM_CONV_K - 1u),
                   "restarting costs the K-1 bits of register memory and no "
                   "more: every difference inside the first 12 symbols");
   }
@@ -611,5 +611,5 @@ main (void)
       DP_CHECK (back[i] == 0xAAu);
   }
 
-  DP_TEST_END ("fec_ccsds_frame");
+  DP_TEST_END ("ccsds_tm_frame");
 }

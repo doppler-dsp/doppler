@@ -109,5 +109,5 @@ main (void)
                   "max_out must agree with what encode actually wrote");
   }
 
-  DP_TEST_END ("fec_ccsds_conv");
+  DP_TEST_END ("ccsds_tm_conv");
 }

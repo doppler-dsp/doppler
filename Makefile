@@ -118,7 +118,7 @@ SYNC_CMD   = $(UV) sync
 # environment" class of drift: the tool comes from `--group dev` and uv.lock
 # owns the version, so there is no `additional_dependencies` left to drift.
 LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format clang-tidy \
-               phase-conversion stimulus-sources
+               phase-conversion stimulus-sources retired-names
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -216,6 +216,13 @@ LINT_conflict = ./scripts/conflict-check.sh
 # already drifted once (one truncated while a sibling rounded). A rule with
 # no gate behind it is how that happened; this is the gate.
 LINT_phase-conversion = $(UV) run python scripts/check_phase_conversion_sites.py
+
+# A rename is finished when the old name appears NOWHERE, and that is a
+# different event from the build going green. fec_ -> ccsds_tm_ (#828) went
+# green with eleven occurrences of the retired prefix still in the tree --
+# five of them the NAME a C test prints, which no compiler can notice. The
+# list is data, added by the commit that retires a name.
+LINT_retired-names = $(UV) run python scripts/check_retired_names.py
 
 # Stimulus and its measurement have ONE home, and it is the library: wfmgen
 # (wfm_synth_*/Synth) generates signal, ber_* measures it. A private copy in a

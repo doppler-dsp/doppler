@@ -167,5 +167,5 @@ main (void)
                   "a miss must leave the caller's hit untouched");
   }
 
-  DP_TEST_END ("fec_ccsds_asm");
+  DP_TEST_END ("ccsds_tm_asm");
 }

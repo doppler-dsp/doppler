@@ -82,6 +82,24 @@ extern "C"
 
   size_t viterbi_depth (const viterbi_state_t *s);
 
+  /* ── node synchronization ────────────────────────────────────────────── */
+
+  typedef struct
+  {
+    unsigned phase;   
+    size_t   errors;  
+    size_t   next;    
+    size_t   symbols; 
+    size_t   margin;  
+  } node_sync_t;
+
+  size_t node_sync_score (viterbi_state_t *v, const float *llr, size_t n_llr);
+
+  size_t node_sync_scored_symbols (const viterbi_state_t *v, size_t n_llr);
+
+  int node_sync_scan (viterbi_state_t *v, const float *llr, size_t n_llr,
+                      node_sync_t *out);
+
 /* ── the state bytes interface ───────────────────────────────────────────
  *
  * The decoder carries running state across calls — a path metric per state,

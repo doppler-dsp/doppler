@@ -490,6 +490,24 @@ target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:wfm_reader_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:wfm_reader_core>)
 add_subdirectory(native/src/buffer)
 add_subdirectory(native/src/stream)
+
+# fec is a hand-owned c_dep, so jm knows its core exists (and says so when it
+# reaches no library) but generates no wiring for it — that line is ours, and
+# it goes HERE rather than beside `add_subdirectory(native/src/fec)` because
+# the block above is jm's splice region and an extra line inside it reads as
+# drift.
+#
+# It has to reach both libraries: native/inc/fec/*.h are installed headers,
+# and every function they declare is out-of-line. Measured rather than
+# assumed, which is the standard `status_allow` sets for the three exempted
+# wfmcompose cores — `nm` over fec_ccsds_core's objects lists 13 defined `T`
+# symbols against zero occurrences of `fec_` in libdoppler.a, so before this
+# line a C consumer could include the header and link none of it. Python was
+# unaffected throughout, since the extension links each core directly, which
+# is exactly why it went unnoticed until jm 0.62.0's wiring check.
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:fec_ccsds_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:fec_ccsds_core>)
+
 # The capture's block bound is claimed from a code audit of every emit site.
 # This drives a REAL object -- carrier_nda, the only unconditional per-input
 # emitter -- and measures what it actually emits, so the audit is checked

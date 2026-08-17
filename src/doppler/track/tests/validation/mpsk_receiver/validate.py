@@ -376,8 +376,9 @@ def _esn0_grid(m, n=3, step_db=1.0):
     return [hi - step_db * k for k in range(n - 1, -1, -1)]
 
 
-def _resolves(nerr, theory):
-    """Does this cell measure the RECEIVER, or only the record length?
+def _resolves(theory):
+    """Can this cell's DESIGN resolve the loss? Asked of the bound, not
+    of the outcome.
 
     With zero errors `BerMeter`'s 95% upper bound is the rule-of-three
     floor, ~3/N, which at 20 000 symbols is 1.5e-4 -- above the M = 2,
@@ -385,8 +386,30 @@ def _resolves(nerr, theory):
     there is satisfied by any receiver at all, which is coverage the cell
     does not have. `theory > 0` guards the same emptiness from the other
     end: there is no loss to measure against a bound of exactly zero.
+
+    **Keyed on the expected count, `theory * NSCORED`, not the measured
+    one.** Two reasons, and the second is what forced the change:
+
+    1. It is the correct statistical statement. Whether an experiment can
+       resolve an effect is a property of its DESIGN -- the bound and the
+       record length -- fixed before any data arrives. Deciding it from
+       the observed count conditions the criterion on the outcome, so a
+       receiver that happened to make a few extra errors would be judged
+       measurable *because* it did worse.
+    2. The measured count is machine-dependent and this verdict was
+       therefore machine-dependent too. Measured across two toolchains
+       (gcc 15.2/glibc 2.43 against 13.3/2.39, one CPU): 8PSK at 17 dB
+       gave 20 errors on one and 6 on the other, straddling `MIN_ERRORS`,
+       so `resolves` read `yes` on one machine and `no` on the other --
+       and with it, the SET OF ASSERTED LIMITS changed. A cell dropped out
+       of the certified envelope depending on which compiler built it.
+       `ber_theory_ser` is a closed form over `erfc`, which is bit-
+       identical across those toolchains, so the expected count is not.
+
+    The measured `errors` column stays in the table: it is what tells a
+    reader whether the design's expectation was borne out.
     """
-    return theory > 0.0 and nerr >= MIN_ERRORS
+    return theory > 0.0 and theory * NSCORED >= MIN_ERRORS
 
 
 def _loss_db(m, esn0_db, ser):
@@ -462,8 +485,13 @@ def characterise(R, write):
         "worth.** `BerMeter` is built `target_errors=100`, which is its "
         "own statement of how many it needs before a rate means "
         f"something. `resolves` is the floor this report uses — "
-        f"{MIN_ERRORS} errors, where the estimate's own standard error is "
-        "~32% of the rate — and §4 asserts only over cells that clear it. "
+        f"{MIN_ERRORS} errors — and §4 asserts only over cells whose "
+        "**design** clears it (`theory * scored symbols`), never the "
+        "measured count. Two reasons: a criterion read off the outcome "
+        "would call a receiver measurable *because* it did worse, and the "
+        "measured count is machine-dependent, so keying on it made this "
+        "verdict — and with it the set of asserted limits — differ between "
+        "toolchains (F8).\n\n"
         "A cell with three errors has a point estimate that moves by a "
         "factor of two on the next seed, and one such cell previously "
         "reported the receiver **beating** the matched-filter bound, "
@@ -483,7 +511,7 @@ def characterise(R, write):
             iv = mtr.ser() if (mtr is not None and mtr.symbols) else None
             nerr = int(iv.errors) if iv is not None else 0
             hi = float(iv.hi) if iv is not None else None
-            resolves = _resolves(nerr, theory)
+            resolves = _resolves(theory)
             loss = _loss_db(m, esn0, ser)
             # A refusal is a RESULT and is printed as one. The estimator this
             # replaced could not produce this row: it returned the best of 324

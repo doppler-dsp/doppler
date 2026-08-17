@@ -78,7 +78,9 @@ The anchor, and it is anchored to THEORY rather than to another configuration: `
 
 **The grid is DERIVED per M, not shared across them.** The bound at 12 dB is 4.8e-7 for BPSK and 3.1e-2 for 8PSK — five orders apart — so one grid across all three orders puts BPSK where it makes no errors at all and 8PSK where it makes thousands. Each M is therefore measured at the highest Es/N0 whose bound still predicts 40 errors in the 15244 symbols actually scored, and two steps below it. That is a function of the record length, so a longer sweep reaches further up each curve without any number here being retyped (F6 is what this replaced).
 
-**`errors` is the column that decides what any other column is worth.** `BerMeter` is built `target_errors=100`, which is its own statement of how many it needs before a rate means something. `resolves` is the floor this report uses — 10 errors, where the estimate's own standard error is ~32% of the rate — and §4 asserts only over cells that clear it. A cell with three errors has a point estimate that moves by a factor of two on the next seed, and one such cell previously reported the receiver **beating** the matched-filter bound, which nothing can do.
+**`errors` is the column that decides what any other column is worth.** `BerMeter` is built `target_errors=100`, which is its own statement of how many it needs before a rate means something. `resolves` is the floor this report uses — 10 errors — and §4 asserts only over cells whose **design** clears it (`theory * scored symbols`), never the measured count. Two reasons: a criterion read off the outcome would call a receiver measurable *because* it did worse, and the measured count is machine-dependent, so keying on it made this verdict — and with it the set of asserted limits — differ between toolchains (F8).
+
+A cell with three errors has a point estimate that moves by a factor of two on the next seed, and one such cell previously reported the receiver **beating** the matched-filter bound, which nothing can do.
 
 | M | Es/N0 dB | SER measured | SER theory | loss dB | errors | 95% hi | resolves | lock |
 |---|---|---|---|---|---|---|---|---|
@@ -88,8 +90,8 @@ The anchor, and it is anchored to THEORY rather than to another configuration: `
 | 4 | 7.5 | 2.244e-02 | 1.772e-02 | +0.33 | 343 | 2.49e-02 | yes | 0.495 |
 | 4 | 8.5 | 1.069e-02 | 7.797e-03 | +0.36 | 164 | 1.25e-02 | yes | 0.566 |
 | 4 | 9.5 | 4.330e-03 | 2.832e-03 | +0.39 | 67 | 5.51e-03 | yes | 0.624 |
-| 8 | 14.0 | refused | 6.680e-03 | — | — | — | **no** | 0.573 |
-| 8 | 17.0 | 1.247e-03 | 1.274e-04 | +1.49 | 20 | 1.95e-03 | yes | 0.743 |
+| 8 | 14.0 | refused | 6.680e-03 | — | — | — | yes | 0.573 |
+| 8 | 17.0 | 1.247e-03 | 1.274e-04 | +1.49 | 20 | 1.95e-03 | **no** | 0.743 |
 | 8 | 20.0 | 0.000e+00 | 6.234e-08 | — | 0 | 1.97e-04 | **no** | 0.875 |
 
 

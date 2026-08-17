@@ -107,6 +107,30 @@ VERDICTS = ("BY DESIGN", "GAP", "CONFIRMED", "FIXED", "C-ONLY")
 #: every consumer reads it here.
 OPEN_VERDICTS = ("GAP", "CONFIRMED")
 
+#: Spans `_structural` must NOT mask, because they are structure written with
+#: digits. A section heading's number IS the section numbering, a `§N.M` is a
+#: cross-reference to it, and `#N` / `gh-N` / `issues/N` is the issue an open
+#: finding is required to cite -- masking any of them would let a renumbered
+#: section or a re-pointed citation through the gate silently.
+_PROTECTED = (
+    re.compile(r"§\d+(?:\.\d+)?"),
+    re.compile(r"gh-\d+"),
+    re.compile(r"#\d+"),
+    re.compile(r"issues/\d+"),
+)
+
+#: A numeric literal, as a report prints one: `8`, `-0.35`, `.5`, `1.29e-02`.
+_NUMBER = re.compile(r"[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?")
+
+#: What a masked number becomes. Any fixed string works; this one cannot occur
+#: in a report, so a diff of masked text is unambiguous.
+_MASK = "«n»"
+
+#: Stand-in for a protected span while numbers are masked around it.
+#: DIGIT-FREE, deliberately: an index-numbered placeholder gets masked by
+#: `_NUMBER` itself, which silently destroys every protected span.
+_HOLD = "\x01"
+
 #: Diff lines `--check` prints before truncating.
 #:
 #: Enough to characterise the difference -- a handful of changed numbers
@@ -130,6 +154,125 @@ def clamp_evm_db(evm: float) -> float:
         `evm`, or `EVM_FLOOR_DB` when it is below the floor.
     """
     return max(float(evm), EVM_FLOOR_DB)
+
+
+def _structural(text: str) -> str:
+    """`text` with measured numbers masked, so structure can be compared.
+
+    This is what `--check` actually gates, and the split is the whole
+    design. **A validation report's numbers are measurements and its
+    structure is code**, so they need different contracts:
+
+    - the STRUCTURE -- which sections exist and in what order, the prose,
+      each limit's claim wording, every verdict and finding tag, the shape
+      of every table -- is determined by `validate.py`, so a difference
+      means the committed report no longer matches the code. That is
+      staleness, and it is byte-exact here.
+    - the NUMBERS are the output of stochastic measurements over finite
+      records, so they carry their own uncertainty and differ between
+      toolchains without anything being wrong.
+
+    Why numbers are not compared with a tolerance instead, which is the
+    obvious idea and was the plan until it was measured. The observed
+    toolchain differences, gcc 15.2/glibc 2.43 against gcc 13.3/glibc 2.39
+    on one CPU:
+
+        mpsk BPSK SER    1.332e-02 -> 1.292e-02      3.0%
+        mpsk errors            204 -> 198            2.9%
+        mpsk QPSK loss        0.39 -> 0.35 dB       10.3%
+        ratesync spread        0.3 -> 0.2 dB        33.3%
+        ratesync rate            5 -> 6 ppm         16.7%
+        carrier_nda freq  -3.45e-8 -> -1.22e-9      96.5%
+
+    A single relative tolerance would have to exceed **96%** to accept all
+    of them, which gates nothing. The reason is structural, not a bad
+    choice of number: relative deviation grows without bound as a quantity
+    approaches zero, and these reports deliberately measure quantities that
+    converge to zero. Per-quantity tolerances would work, but the compared
+    artifact is markdown -- at this point a `0.3` in a table has no units
+    and no provenance, so there is nothing to key a tolerance on.
+
+    So the numbers are gated where they have both: each object's
+    `test_validation_limits.py`, which asserts them through the same
+    `build()` with thresholds the report's author chose per quantity, in
+    the units they belong to. `--check` answers "does the committed report
+    still describe this code", and the limits gate answers "are the numbers
+    still inside the envelope". Two gates, two questions -- the same split
+    `cli()` already documents for the limits themselves.
+
+    What this deliberately does NOT catch: a behaviour change that moves a
+    number without moving any structure and without breaching any limit.
+    That is not a gap -- a number that moved inside the certified envelope
+    is the definition of "not a regression".
+
+    Parameters
+    ----------
+    text : str
+        A rendered report.
+
+    Returns
+    -------
+    str
+        `text` with every numeric literal replaced by `_MASK`, except in
+        headings and in the protected reference forms.
+    """
+    out = []
+    for line in text.split("\n"):
+        if re.match(r"^#{1,6} ", line):
+            # A heading's digits ARE the section numbering. Keep them.
+            out.append(line)
+            continue
+        held: list[str] = []
+
+        def _hold(m: re.Match[str], _h: list[str] = held) -> str:
+            _h.append(m.group(0))
+            # The sentinel must contain NO DIGITS. An index-numbered
+            # placeholder was tried and `_NUMBER` promptly masked the index,
+            # so every protected span was destroyed and the two misses this
+            # caught -- a changed `§2.5` and a re-pointed `gh-733` -- sailed
+            # through the gate. Order is preserved instead, and restored by
+            # consuming the list in the same order.
+            return _HOLD
+
+        for pat in _PROTECTED:
+            line = pat.sub(_hold, line)
+        line = _NUMBER.sub(_MASK, line)
+        if held:
+            it = iter(held)
+            line = re.sub(_HOLD, lambda _m, _i=it: next(_i), line)
+        out.append(line)
+    return "\n".join(out)
+
+
+def _numeric_drift(committed: str, fresh: str) -> tuple[int, float]:
+    """How many masked numbers differ, and the worst relative deviation.
+
+    Reported but never gated -- see `_structural`. It is here so a
+    structurally-identical report that drifted numerically says so out
+    loud: silence would leave a reader unable to tell "this machine agrees"
+    from "this machine was never compared".
+
+    Returns
+    -------
+    (int, float)
+        Count of differing numbers, and the largest relative difference
+        (1.0 when a value moved to or from zero). `(0, 0.0)` when the two
+        texts carry a different COUNT of numbers, which `_structural`
+        catches on its own and reports better.
+    """
+    a = _NUMBER.findall(committed)
+    b = _NUMBER.findall(fresh)
+    if len(a) != len(b):
+        return 0, 0.0
+    n, worst = 0, 0.0
+    for x, y in zip(a, b):
+        if x == y:
+            continue
+        n += 1
+        fx, fy = float(x), float(y)
+        scale = max(abs(fx), abs(fy))
+        worst = max(worst, abs(fx - fy) / scale if scale else 0.0)
+    return n, worst
 
 
 def _cell(value: object) -> str:
@@ -582,37 +725,42 @@ def cli(build, here: Path) -> int:
     if check:
         current = out.read_text() if out.exists() else ""
         fresh = report.render()
-        if current != fresh:
+        if _structural(current) != _structural(fresh):
             # SAY WHAT DIFFERS. "STALE" alone costs a round trip to answer
-            # the first question anyone asks, and on a machine that is not
-            # the author's -- CI, another contributor's box -- re-running
-            # `make validate` is not the fix if the cause is the machine.
-            # Measured: four reports came back STALE in CI's first run of
-            # this gate with no way to tell a genuine edit from a
-            # last-digit libm difference, which are opposite problems.
+            # the first question anyone asks. Diffed on the MASKED text, so
+            # what prints is the structural change itself rather than that
+            # change buried in numeric noise -- masked numbers show as the
+            # same token on both sides and drop out of the diff.
             diff = list(
                 difflib.unified_diff(
-                    current.splitlines(),
-                    fresh.splitlines(),
-                    fromfile=f"{out.name} (committed)",
-                    tofile=f"{out.name} (fresh)",
+                    _structural(current).splitlines(),
+                    _structural(fresh).splitlines(),
+                    fromfile=f"{out.name} (committed, numbers masked)",
+                    tofile=f"{out.name} (fresh, numbers masked)",
                     lineterm="",
                     n=0,
                 )
             )
-            print(f"  STALE: {out} differs from a fresh run")
+            print(f"  STALE: {out} no longer matches its generator")
             shown = diff[:_DIFF_LINES]
             for line in shown:
                 print(f"    {line}")
             if len(diff) > len(shown):
                 print(f"    … {len(diff) - len(shown)} more diff line(s)")
-            print(
-                "  If these are last-digit numeric differences, this "
-                "machine is not the one that generated the report and "
-                "`make validate` will only move the problem."
-            )
+            print("  Re-run 'make validate'.")
             return 1
+
         print(f"  up to date: {out.relative_to(here.parents[5])}")
+        # Numeric drift is reported and NOT gated -- see `_structural`. Said
+        # out loud because silence cannot distinguish "this machine agrees"
+        # from "nothing compared the numbers".
+        ndiff, worst = _numeric_drift(current, fresh)
+        if ndiff:
+            print(
+                f"    (structure matches; {ndiff} number(s) differ, worst "
+                f"{100 * worst:.1f}% — measurement noise, gated by "
+                f"test_validation_limits.py rather than here)"
+            )
 
     failed = list(report.failures())
     npass = len(report.limits) - len(failed)

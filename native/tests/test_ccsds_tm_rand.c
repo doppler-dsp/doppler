@@ -138,5 +138,5 @@ main (void)
                   "the generator must preset per call, not carry state");
   }
 
-  DP_TEST_END ("fec_ccsds_rand");
+  DP_TEST_END ("ccsds_tm_rand");
 }

@@ -157,7 +157,7 @@ ______________________________________________________________________
 
 - **Streaming, with carried state**, matching the encoder: 3.3.2 fixes the
     output as one uninterrupted sequence, so a decoder that restarts per block
-    has the same defect the assembler had before it carried `fec_conv_t`.
+    has the same defect the assembler had before it carried `conv_enc_t`.
 - **64 path metrics, a decision bit per state per time**, and a traceback
     window of `depth` (§4). Storage is `depth × 64` bits for the decisions —
     a few hundred bytes at depth 60, so the window is a fixed allocation

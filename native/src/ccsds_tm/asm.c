@@ -14,7 +14,7 @@ ccsds_tm_asm_bits (uint8_t *out)
      the leading 0001 of 0x1A, so bit 0 of the marker is bit 31 of the
      constant. Shifting down from the top is that statement written once. */
   for (unsigned i = 0; i < CCSDS_TM_ASM_BITS; i++)
-    out[i] = (uint8_t)((FEC_CCSDS_ASM >> (CCSDS_TM_ASM_BITS - 1u - i)) & 1u);
+    out[i] = (uint8_t)((CCSDS_TM_ASM >> (CCSDS_TM_ASM_BITS - 1u - i)) & 1u);
 }
 
 int

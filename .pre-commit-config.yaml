@@ -100,6 +100,15 @@ repos:
         pass_filenames: false
         types_or: [c]
 
+      # A retired identifier stays retired. Fires on every text type the
+      # scan covers, because the stragglers a rename leaves are as often in
+      # a test's printed name or a design page as in code.
+      - id: retired-names
+        name: retired names
+        entry: make -s lint-retired-names
+        language: system
+        pass_filenames: false
+
       # Stimulus and metrics come from the library (wfmgen, ber), not from a
       # private copy in a test or example. Fires on C and Python, since the
       # consuming layers span both.

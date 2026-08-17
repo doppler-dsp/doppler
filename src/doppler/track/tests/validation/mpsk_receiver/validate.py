@@ -2399,7 +2399,7 @@ def build(write: bool = True) -> Report:
         "(gh-814) have none either, and 8PSK's implementation loss is out "
         "of reach of any per-push sweep (F5). FER is absent because THIS "
         "OBJECT carries no framing — the tree does: `wfm.Frame`, "
-        "`fec_frame.h` and the CCSDS chain sit a layer up, and "
+        "`ccsds_tm_frame.h` and the CCSDS chain sit a layer up, and "
         "`native/validation/rx_frame_fer.c` already measures FER on a "
         "receiver through them. So `rx-test.md` goal 4's fourth metric is "
         "reachable, just not from a report scoped to one object. Soft "

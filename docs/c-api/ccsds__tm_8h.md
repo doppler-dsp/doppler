@@ -104,10 +104,10 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**CCSDS\_TM\_ASM\_BITS**](ccsds__tm_8h.md#define-ccsds_tm_asm_bits)  `32`<br>_Length of_ [_**FEC\_CCSDS\_ASM**_](ccsds__tm_8h.md#define-fec_ccsds_asm) _in bits._ |
+| define  | [**CCSDS\_TM\_ASM**](ccsds__tm_8h.md#define-ccsds_tm_asm)  `0x1ACFFC1DuL`<br>_The CCSDS Attached Sync Marker,_ `0x1ACFFC1D` _._ |
+| define  | [**CCSDS\_TM\_ASM\_BITS**](ccsds__tm_8h.md#define-ccsds_tm_asm_bits)  `32`<br>_Length of_ [_**CCSDS\_TM\_ASM**_](ccsds__tm_8h.md#define-ccsds_tm_asm) _in bits._ |
+| define  | [**CCSDS\_TM\_CONV\_K**](ccsds__tm_8h.md#define-ccsds_tm_conv_k)  `7`<br>_Constraint length of the inner code (3.3.1): 7._  |
 | define  | [**CCSDS\_TM\_RAND\_PERIOD**](ccsds__tm_8h.md#define-ccsds_tm_rand_period)  `255`<br>_Period of the pseudo-randomising sequence, in bits (10.4.2)._  |
-| define  | [**FEC\_CCSDS\_ASM**](ccsds__tm_8h.md#define-fec_ccsds_asm)  `0x1ACFFC1DuL`<br>_The CCSDS Attached Sync Marker,_ `0x1ACFFC1D` _._ |
-| define  | [**FEC\_CONV\_K**](ccsds__tm_8h.md#define-fec_conv_k)  `7`<br>_Constraint length of the inner code (3.3.1): 7._  |
 
 ## Detailed Description
 
@@ -251,7 +251,7 @@ int ccsds_tm_asm_find (
 
 
 
-Correlates [**FEC\_CCSDS\_ASM**](ccsds__tm_8h.md#define-fec_ccsds_asm) against every bit offset and against its complement, and reports the **first** offset whose Hamming distance is at most `max_errors`.
+Correlates [**CCSDS\_TM\_ASM**](ccsds__tm_8h.md#define-ccsds_tm_asm) against every bit offset and against its complement, and reports the **first** offset whose Hamming distance is at most `max_errors`.
 
 
 First rather than best, and the difference matters: a best-match search has to see the whole stream before it can answer, which a frame synchroniser reading a live capture cannot do. First-below-threshold is what is implementable in both settings, so it is what this promises. `max_errors` is the whole of the trade — 0 finds only a clean marker and misses a frame the channel touched, while a value near half the marker length invites a false hit on random data.
@@ -388,15 +388,51 @@ static inline size_t ccsds_tm_conv_max_out (
 
 
 
+### define CCSDS\_TM\_ASM 
+
+_The CCSDS Attached Sync Marker,_ `0x1ACFFC1D` _._
+```C++
+#define CCSDS_TM_ASM `0x1ACFFC1DuL`
+```
+
+
+
+32 bits, transmitted MSB-first, prepended AFTER randomisation. A receiver correlates against it to find the frame, which is precisely why it must not be randomised — it has to look the same in every frame. 
+
+
+        
+
+<hr>
+
+
+
 ### define CCSDS\_TM\_ASM\_BITS 
 
-_Length of_ [_**FEC\_CCSDS\_ASM**_](ccsds__tm_8h.md#define-fec_ccsds_asm) _in bits._
+_Length of_ [_**CCSDS\_TM\_ASM**_](ccsds__tm_8h.md#define-ccsds_tm_asm) _in bits._
 ```C++
 #define CCSDS_TM_ASM_BITS `32`
 ```
 
 
 
+
+<hr>
+
+
+
+### define CCSDS\_TM\_CONV\_K 
+
+_Constraint length of the inner code (3.3.1): 7._ 
+```C++
+#define CCSDS_TM_CONV_K `7`
+```
+
+
+
+`K - 1` is the encoder's memory in bits, and that is the quantity a caller reasons with: it is how far into a frame a restarted register can still be wrong, and how much of a stream a decoder needs before its state is determined by the data rather than by where it started. 
+
+
+        
 
 <hr>
 
@@ -412,42 +448,6 @@ _Period of the pseudo-randomising sequence, in bits (10.4.2)._
 
 
 An 8-stage maximal-length generator, so 255 and not 256. It is named because it is what lets a consumer XOR the sequence onto a run of any length from a fixed 255-entry table instead of holding one the size of the data — `test_ccsds_tm_rand.c` pins that equivalence against [**ccsds\_tm\_randomise**](ccsds__tm_8h.md#function-ccsds_tm_randomise) rather than leaving it as arithmetic a reader has to trust. 
-
-
-        
-
-<hr>
-
-
-
-### define FEC\_CCSDS\_ASM 
-
-_The CCSDS Attached Sync Marker,_ `0x1ACFFC1D` _._
-```C++
-#define FEC_CCSDS_ASM `0x1ACFFC1DuL`
-```
-
-
-
-32 bits, transmitted MSB-first, prepended AFTER randomisation. A receiver correlates against it to find the frame, which is precisely why it must not be randomised — it has to look the same in every frame. 
-
-
-        
-
-<hr>
-
-
-
-### define FEC\_CONV\_K 
-
-_Constraint length of the inner code (3.3.1): 7._ 
-```C++
-#define FEC_CONV_K `7`
-```
-
-
-
-`K - 1` is the encoder's memory in bits, and that is the quantity a caller reasons with: it is how far into a frame a restarted register can still be wrong, and how much of a stream a decoder needs before its state is determined by the data rather than by where it started. 
 
 
         

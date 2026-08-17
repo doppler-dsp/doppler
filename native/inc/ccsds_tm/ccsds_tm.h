@@ -86,9 +86,9 @@ extern "C"
    * correlates against it to find the frame, which is precisely why it must
    * not be randomised — it has to look the same in every frame.
    */
-#define FEC_CCSDS_ASM 0x1ACFFC1DuL
+#define CCSDS_TM_ASM 0x1ACFFC1DuL
 
-  /** @brief Length of @ref FEC_CCSDS_ASM in bits. */
+  /** @brief Length of @ref CCSDS_TM_ASM in bits. */
 #define CCSDS_TM_ASM_BITS 32
 
   /**
@@ -111,7 +111,7 @@ extern "C"
    * still be wrong, and how much of a stream a decoder needs before its state
    * is determined by the data rather than by where it started.
    */
-#define FEC_CONV_K 7
+#define CCSDS_TM_CONV_K 7
 
   /**
    * @brief Write the ASM as @ref CCSDS_TM_ASM_BITS unpacked bits.
@@ -148,7 +148,7 @@ extern "C"
   /**
    * @brief Find the first ASM in a run of unpacked bits, either polarity.
    *
-   * Correlates @ref FEC_CCSDS_ASM against every bit offset and against its
+   * Correlates @ref CCSDS_TM_ASM against every bit offset and against its
    * complement, and reports the **first** offset whose Hamming distance is at
    * most @p max_errors.
    *

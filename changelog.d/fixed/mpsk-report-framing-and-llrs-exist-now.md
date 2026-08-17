@@ -1,7 +1,7 @@
 - **The `MpskReceiver` report's "not covered" note no longer reads as if the tree
     lacks framing.** It said *"FER is absent because this object has no framing"*,
     which was true of the object and became misleading once `wfm.Frame`,
-    `fec_frame.h` and the CCSDS chain landed a layer up — and
+    `ccsds_tm_frame.h` and the CCSDS chain landed a layer up — and
     `native/validation/rx_frame_fer.c` already measures FER on a receiver through
     them. So `rx-test.md` goal 4's fourth metric is reachable; it is just not
     reachable from a report scoped to one object, which is a different statement.

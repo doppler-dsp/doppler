@@ -72,7 +72,9 @@
 * **CARRIER\_NDA\_LOCK\_NORM\_SD** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_STATE\_MAGIC** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_STATE\_VERSION** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
+* **CCSDS\_TM\_ASM** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **CCSDS\_TM\_ASM\_BITS** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
+* **CCSDS\_TM\_CONV\_K** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **CCSDS\_TM\_RAND\_PERIOD** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **CCSDS\_TM\_RS\_2E** ([**ccsds\_tm\_rs.h**](ccsds__tm__rs_8h.md))
 * **CCSDS\_TM\_RS\_E** ([**ccsds\_tm\_rs.h**](ccsds__tm__rs_8h.md))
@@ -160,8 +162,6 @@
 
 ## f
 
-* **FEC\_CCSDS\_ASM** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
-* **FEC\_CONV\_K** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **F32\_TO\_I16\_STATE\_MAGIC** ([**f32\_to\_i16\_core.h**](f32__to__i16__core_8h.md))
 * **F32\_TO\_I16\_STATE\_VERSION** ([**f32\_to\_i16\_core.h**](f32__to__i16__core_8h.md))
 * **F32\_TO\_I16U32\_STATE\_MAGIC** ([**f32\_to\_i16u32\_core.h**](f32__to__i16u32__core_8h.md))

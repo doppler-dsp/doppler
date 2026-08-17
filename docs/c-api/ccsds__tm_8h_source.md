@@ -22,13 +22,13 @@ extern "C"
 {
 #endif
 
-#define FEC_CCSDS_ASM 0x1ACFFC1DuL
+#define CCSDS_TM_ASM 0x1ACFFC1DuL
 
 #define CCSDS_TM_ASM_BITS 32
 
 #define CCSDS_TM_RAND_PERIOD 255
 
-#define FEC_CONV_K 7
+#define CCSDS_TM_CONV_K 7
 
   void ccsds_tm_asm_bits (uint8_t *out);
 

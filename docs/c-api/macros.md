@@ -263,6 +263,8 @@
 * **MEASURE\_PAD** ([**measure\_core.h**](measure__core_8h.md))
 * **MEASURE\_SPUR\_SIDELOBES** ([**measure\_core.h**](measure__core_8h.md))
 * **MPSK\_PI** ([**mpsk\_core.h**](mpsk__core_8h.md))
+* **MPSK\_RECEIVER\_R\_STATE\_MAGIC** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
+* **MPSK\_RECEIVER\_R\_STATE\_VERSION** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **MPSK\_RECEIVER\_STATE\_MAGIC** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **MPSK\_RECEIVER\_STATE\_VERSION** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **MPSK\_RX\_AGC\_ALPHA** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
@@ -279,8 +281,6 @@
 * **MPSK\_RX\_NUM\_PHASES** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **MPSK\_RX\_NUM\_PHASES\_DEFAULT** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **MPSK\_RX\_ZETA\_DEFAULT** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
-* **MPSK\_RECEIVER\_R\_STATE\_MAGIC** ([**mpsk\_receiver\_r\_core.h**](mpsk__receiver__r__core_8h.md))
-* **MPSK\_RECEIVER\_R\_STATE\_VERSION** ([**mpsk\_receiver\_r\_core.h**](mpsk__receiver__r__core_8h.md))
 * **M\_PI** ([**wfm\_dsp.h**](wfm__dsp_8h.md))
 
 

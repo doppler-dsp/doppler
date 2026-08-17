@@ -295,20 +295,32 @@ have them:
     the loop, a fraction of a symbol. That is the change that buys back loop
     bandwidth, and with it the ability to track real dynamics.
 
-### 1.2 Two types, not one — and why
+### 1.2 One object, two faces — and why it took a jm feature
 
 `MpskReceiver` takes complex baseband; `MpskReceiverR` takes a real IF. They
-are **separate types rather than one type with a flavor**, by the same rule
-the down-converters follow: a difference in *constructor* is a flavor (a jm
-view), a difference in *method signature* is a separate type. `steps(x)` takes
-`cf32` on one and `f32` on the other, so a shared view is not available — one
-class would have to name the dtype in a method name.
+are **one object with two constructors**, and the real face is a jm view over
+the same core — the same shape the continuous flavor already had.
 
-Everything behind the front end is genuinely shared, not duplicated:
+They were separate *types* until the collapse (`mpsk-refactor.md`), by the
+rule the down-converters follow: a difference in *constructor* is a flavor (a
+jm view), a difference in *method signature* is a separate type. `steps(x)`
+takes `cf32` on one and `f32` on the other, and a view shared its parent's
+methods verbatim, so one class could not have both. **That constraint was
+jm's, not the rule's.** just-makeit#1012 removed it — a view method restating
+a parent's NAME may declare its own signature when it binds its own C symbol
+via `fn`, which is the discriminator and not a convenience (the parent's
+symbol carries the parent's prototype, so a different signature is only
+callable through a different symbol). The type/flavor test stands; what
+changed is that the answer became expressible.
+
+Everything behind the front end was already shared rather than duplicated:
 `mpsk_rx_loops_t` (both loops, the discriminator, the demapper) is one
-implementation that both types embed. `MpskReceiverR` adds only the front end
-(`MatchedDdcr` instead of `MatchedDDC`) and the rate conversion its halfband
-forces — its LO runs at the *intermediate* rate `fs/2`, and the R2C halfband
+implementation. What the collapse added is that it now has ONE test home —
+while there were two types, the shared header's claims were pinned only where
+one of the two tests happened to reach them, and "the LO runs at half the
+input rate" was pinned by neither, which is where the gh-765 `freq_scale`
+defect lived. The real face adds only the front end (`MatchedDdcr` instead of
+`MatchedDDC`) and the rate conversion its halfband forces — its LO runs at the *intermediate* rate `fs/2`, and the R2C halfband
 has an `fs/4` shift baked in. That also sets its one extra constraint:
 `sps > 2·m_out`, because the cascade behind the halfband runs at twice the
 overall rate.
@@ -1421,7 +1433,7 @@ it. `get_m_out`, `get_zeta`, `get_num_phases`, `get_lock_thresh` and
 !!! warning "The real twin's `m_out` rule contradicted the constructor it feeds"
 
     This section previously gave the real twin `min(8, 2·floor(sps/4))`. That
-    rule yields a value `mpsk_receiver_r_create()` **rejects** at exactly the
+    rule yields a value `mpsk_receiver_create_real()` **rejects** at exactly the
     rates where deriving would help most: `sps = 8` yields 4 (needs `8 > 8`)
     and `sps = 16` yields 8 (needs `16 > 16`), against its `sps > 2·m_out`
     constraint — Ddcr needs a decimation ratio below 0.5.

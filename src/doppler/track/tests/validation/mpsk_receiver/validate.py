@@ -2044,6 +2044,30 @@ def build(write: bool = True) -> Report:
     )
     R.md()
     R.md(
+        "**One object, three faces.** `track.MpskReceiverR` is the same "
+        "core reached through `mpsk_receiver_create_real()` — a matched "
+        "DDCR instead of a matched DDC — and is a view rather than a "
+        "second type as of the collapse "
+        "([`docs/design/mpsk-refactor.md`]"
+        "(../../../../../../docs/design/mpsk-refactor.md)). Every loop, "
+        "discriminator, handover rule and demapper decision below the "
+        "front end is one implementation, which is what makes a claim "
+        "about the loops a claim about all three faces."
+    )
+    R.md()
+    R.md(
+        "**This report measures the COMPLEX face.** The three rate "
+        "conventions the real face changes are pinned in C and named as "
+        "C29-C33 below, each with the section that carries it; the "
+        "characterisation in section 2 has NOT been re-run through "
+        "`MpskReceiverR`, and saying so is the point of this paragraph "
+        "rather than an apology for it. What that leaves unmeasured from "
+        "Python — the SER-against-bound curve, the false-lock geometry "
+        "and the level diagnostics, all of which could differ behind an "
+        "R2C halfband — is gh-830."
+    )
+    R.md()
+    R.md(
         "- Design: [`docs/design/mpsk.md`]"
         "(../../../../../../docs/design/mpsk.md)"
     )
@@ -2280,6 +2304,53 @@ def build(write: bool = True) -> Report:
             "pointer-bearing state resumes exactly from a blob, and a "
             "clobbered envelope is rejected",
             "C §10 + §2.10",
+        ],
+        [
+            "C29",
+            "the real face is the SAME object behind an R2C halfband — "
+            "every loop, discriminator, handover rule and demapper is "
+            "one implementation over one `mpsk_rx_loops_t`",
+            "C §15-21 (the real face through every lifecycle, SER, "
+            "handover and state claim) + C §22 (telemetry reaches the "
+            "OTHER front end's AGC) + C §20 (a blob from one face is "
+            "refused by the other, by envelope magic)",
+        ],
+        [
+            "C30",
+            "the LO runs at HALF the input rate, and every caller-facing "
+            "frequency is converted back to the input rate",
+            "C §23 NEW — both halves, each proven by sabotage: the loop "
+            "GAIN against `theta_ss = 2*pi*r/wn^2` on a RAMP (a step "
+            "cannot see it — a type-2 loop nulls a step regardless of "
+            "gain, which is how gh-765 survived every test in the tree), "
+            "and the READBACK against a known offset. Asserted by "
+            "NEITHER receiver's test before the collapse",
+        ],
+        [
+            "C31",
+            "`sps` must exceed `2 * m_out` STRICTLY on the real face, "
+            "against `sps >= m_out` on the complex one, and a derived "
+            "`m_out` honours the same bound",
+            "C §17 — both directions on one geometry (`sps == m_out` "
+            "accepted by the complex face, refused by the real), plus "
+            "C §21's derived `m_out = 6` at `sps = 16` and the REFUSAL "
+            "at `sps = 4`",
+        ],
+        [
+            "C32",
+            "`init_norm_freq` is the real IF CENTRE, and the usable band "
+            "constrains the OCCUPIED band rather than that centre",
+            "C §19 — the centre is clean and an IF whose skirt reaches "
+            "the halfband's edge is visibly worse. *This face does not "
+            "acquire from a cold zero* is **absent**",
+        ],
+        [
+            "C33",
+            "the hot path is not tagged: two `step` entry points, so the "
+            "front end is a compile-time fact and `real` is read only on "
+            "cold paths",
+            "**C-ONLY** — structural, and visible in the header rather "
+            "than measurable from either language",
         ],
     ]
     R.table(["#", "claim in `mpsk_receiver_core.h`", "covered by"], claims)

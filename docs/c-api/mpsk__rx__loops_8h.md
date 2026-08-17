@@ -49,8 +49,8 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**mpsk\_\_rx\_\_loops\_8h\_1a99fb83031ce9923c84392b4e92f956b5**](#enum-mpsk__rx__loops_8h_1a99fb83031ce9923c84392b4e92f956b5)  <br>_Where the NDA carrier discriminator reads from._  |
-| enum  | [**mpsk\_\_rx\_\_loops\_8h\_1adf764cbdea00d65edcd07bb9953ad2b7**](#enum-mpsk__rx__loops_8h_1adf764cbdea00d65edcd07bb9953ad2b7)  <br>_Matched-filter pulse shape. Aliases of the cascade's own vocabulary so one set of names covers the whole family._  |
+| enum  | [**mpsk\_\_rx\_\_loops\_8h\_1a99fb83031ce9923c84392b4e92f956b5**](#enum-mpsk__rx__loops_8h_1a99fb83031ce9923c84392b4e92f956b5)  <br>_Matched-filter pulse shape. Aliases of the cascade's own vocabulary so one set of names covers the whole family._  |
+| enum  | [**mpsk\_\_rx\_\_loops\_8h\_1abc6126af1d45847bc59afa0aa3216b04**](#enum-mpsk__rx__loops_8h_1abc6126af1d45847bc59afa0aa3216b04)  <br>_Where the NDA carrier discriminator reads from._  |
 
 
 
@@ -80,6 +80,7 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 |  void | [**mpsk\_rx\_configure\_lock**](#function-mpsk_rx_configure_lock) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the handover detector; see_ [_**mpsk\_receiver\_configure\_lock()**_](mpsk__receiver__core_8h.md#function-mpsk_receiver_configure_lock) _, which forwards here. A live handover survives; the verify run restarts._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) size\_t | [**mpsk\_rx\_derive\_m\_out**](#function-mpsk_rx_derive_m_out) (double cap, int strict) <br>_Terminal outputs per symbol, derived: the largest even count in 2..8 the caller's own rate constraint allows._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_disc**](#function-mpsk_rx_disc) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex z) <br>_Run the NDA discriminator on one tapped sample._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_rx\_fold**](#function-mpsk_rx_fold) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, const float complex \* ys, size\_t n, float complex zpre, int n\_pre, float complex \* y\_out, int ted) <br>_Fold one front end's burst of outputs into both loops._  |
 |  double | [**mpsk\_rx\_freq\_est**](#function-mpsk_rx_freq_est) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Tracked carrier offset in cycles/sample at the LO's rate — the loop's own estimate, excluding the front end's configured centre._  |
 |  void | [**mpsk\_rx\_loops\_get\_state**](#function-mpsk_rx_loops_get_state) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, void \* blob) <br>_Serialize the loops' mutable state into_ `blob` _._ |
 |  void | [**mpsk\_rx\_loops\_init**](#function-mpsk_rx_loops_init) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, int m, double sps, double lo\_sps, size\_t m\_out, double bn\_carrier, double zeta, double bn\_timing, double bn\_agc\_ratio, int ted, int acq\_to\_track, double lock\_thresh, int differential, int nda\_tap) <br>_Initialise the loops in place (no allocation)._  |
@@ -187,9 +188,26 @@ This costs less than it appears to. The strobe fires every `m_out`-th output wha
 
 ### enum mpsk\_\_rx\_\_loops\_8h\_1a99fb83031ce9923c84392b4e92f956b5 
 
-_Where the NDA carrier discriminator reads from._ 
+_Matched-filter pulse shape. Aliases of the cascade's own vocabulary so one set of names covers the whole family._ 
 ```C++
 enum mpsk__rx__loops_8h_1a99fb83031ce9923c84392b4e92f956b5 {
+    MPSK_RX_PULSE_IANDD = RC_PULSE_IANDD,
+    MPSK_RX_PULSE_RRC = RC_PULSE_RRC
+};
+```
+
+
+
+
+<hr>
+
+
+
+### enum mpsk\_\_rx\_\_loops\_8h\_1abc6126af1d45847bc59afa0aa3216b04 
+
+_Where the NDA carrier discriminator reads from._ 
+```C++
+enum mpsk__rx__loops_8h_1abc6126af1d45847bc59afa0aa3216b04 {
     MPSK_RX_NDA_TAP_STROBE = 0,
     MPSK_RX_NDA_TAP_MF_OUT = 1,
     MPSK_RX_NDA_TAP_MF_IN = 2
@@ -239,23 +257,6 @@ Fixed at construction: the caller picks the trade once, and nothing switches und
 
 
         
-
-<hr>
-
-
-
-### enum mpsk\_\_rx\_\_loops\_8h\_1adf764cbdea00d65edcd07bb9953ad2b7 
-
-_Matched-filter pulse shape. Aliases of the cascade's own vocabulary so one set of names covers the whole family._ 
-```C++
-enum mpsk__rx__loops_8h_1adf764cbdea00d65edcd07bb9953ad2b7 {
-    MPSK_RX_PULSE_IANDD = RC_PULSE_IANDD,
-    MPSK_RX_PULSE_RRC = RC_PULSE_RRC
-};
-```
-
-
-
 
 <hr>
 ## Public Functions Documentation
@@ -335,7 +336,7 @@ JM_FORCEINLINE size_t mpsk_rx_derive_m_out (
 Even by construction (the Gardner detector needs an on-time strobe and a transition gate `m_out/2` back), capped at 8 because that is where an I&D matched filter reaches the coherent bound — past it the extra outputs buy nothing. The floor matters more than the cap: at low oversampling the shipped constant 8 is simply not available, and `m_out = 2` with `pulse="iandd"` degenerates the matched filter to a two-tap sum that barely opens the eye (measured lock statistic −0.34, acquisition failing about half the time). Deriving it is what stops a caller pairing a rate and an `m_out` that cannot work together.
 
 
-**It is parameterised by the CONSTRAINT, not by the rate**, because the two twins do not share one. The complex path requires `sps >= m_out`; the real path requires `sps > 2*m_out`, strictly, because Ddcr needs a decimation ratio below 0.5. design/mpsk.md §8 states the real rule as `min(8, 2*floor(sps/4))` and that rule contradicts the constructor it feeds: at `sps = 8` it yields 4 (needs `8 > 8`) and at `sps = 16` it yields 8 (needs `16 > 16`) — both REJECTED by `mpsk_receiver_r_create()`. A derivation whose answer cannot be built is worse than a default, so the bound is passed in and honoured here.
+**It is parameterised by the CONSTRAINT, not by the rate**, because the two twins do not share one. The complex path requires `sps >= m_out`; the real path requires `sps > 2*m_out`, strictly, because Ddcr needs a decimation ratio below 0.5. design/mpsk.md §8 states the real rule as `min(8, 2*floor(sps/4))` and that rule contradicts the constructor it feeds: at `sps = 8` it yields 4 (needs `8 > 8`) and at `sps = 16` it yields 8 (needs `16 > 16`) — both REJECTED by `mpsk_receiver_create_real()`. A derivation whose answer cannot be built is worse than a default, so the bound is passed in and honoured here.
 
 
 
@@ -387,6 +388,56 @@ The discriminator and its lock EMA run on every sample it is handed — the drop
 
 * `l` Loops. 
 * `z` The tapped sample. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function mpsk\_rx\_fold 
+
+_Fold one front end's burst of outputs into both loops._ 
+```C++
+JM_FORCEINLINE  JM_HOT int mpsk_rx_fold (
+    mpsk_rx_loops_t * l,
+    const float complex * ys,
+    size_t n,
+    float complex zpre,
+    int n_pre,
+    float complex * y_out,
+    int ted
+) 
+```
+
+
+
+The whole per-sample body below the front end, and the reason the receiver is one object with two `step` entry points rather than two types: a complex DDC and a real DDCR differ in what they hand over, and in nothing they hand it to. Both entry points reduce to this call, so "the loops
+behave identically regardless of front end" is a property of one function rather than a claim about two copies of one.
+
+
+
+
+**Parameters:**
+
+
+* `l` Loops. Must be non-NULL. 
+* `ys` The terminal-stage outputs the front end just produced. 
+* `n` How many. 
+* `zpre` The MFR-input sample, when the front end produced one. 
+* `n_pre` Non-zero when `zpre` is live. 
+* `y_out` Receives the recovered symbol when the return is 1. 
+* `ted` RATESYNC\_TED\_GARDNER or RATESYNC\_TED\_DTTL — pass a literal for a specialised (branch-free) instantiation. 
+
+
+
+**Returns:**
+
+1 if a symbol was emitted (into `y_out`), 0 otherwise. 
+
 
 
 

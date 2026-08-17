@@ -54,8 +54,8 @@ _RateSync — symbol-timing recovery on a matched-filter rate cascade._ [More...
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**ratesync\_\_core\_8h\_1a61dadd085c1777f559549e05962b2c9e**](#enum-ratesync__core_8h_1a61dadd085c1777f559549e05962b2c9e)  <br>_Timing-error-detector selection for ratesync\_state\_t::ted._  |
-| enum  | [**ratesync\_\_core\_8h\_1a726ca809ffd3d67ab4b8476646f26635**](#enum-ratesync__core_8h_1a726ca809ffd3d67ab4b8476646f26635)  <br>_Matched-filter pulse shape._  |
+| enum  | [**ratesync\_\_core\_8h\_1a0411cd49bb5b71852cecd93bcbf0ca2d**](#enum-ratesync__core_8h_1a0411cd49bb5b71852cecd93bcbf0ca2d)  <br>_Matched-filter pulse shape._  |
+| enum  | [**ratesync\_\_core\_8h\_1a726ca809ffd3d67ab4b8476646f26635**](#enum-ratesync__core_8h_1a726ca809ffd3d67ab4b8476646f26635)  <br>_Timing-error-detector selection for ratesync\_state\_t::ted._  |
 
 
 
@@ -222,28 +222,11 @@ ratesync_destroy (rx);
 
 
 
-### enum ratesync\_\_core\_8h\_1a61dadd085c1777f559549e05962b2c9e 
-
-_Timing-error-detector selection for ratesync\_state\_t::ted._ 
-```C++
-enum ratesync__core_8h_1a61dadd085c1777f559549e05962b2c9e {
-    RATESYNC_TED_GARDNER = 0,
-    RATESYNC_TED_DTTL = 1
-};
-```
-
-
-
-
-<hr>
-
-
-
-### enum ratesync\_\_core\_8h\_1a726ca809ffd3d67ab4b8476646f26635 
+### enum ratesync\_\_core\_8h\_1a0411cd49bb5b71852cecd93bcbf0ca2d 
 
 _Matched-filter pulse shape._ 
 ```C++
-enum ratesync__core_8h_1a726ca809ffd3d67ab4b8476646f26635 {
+enum ratesync__core_8h_1a0411cd49bb5b71852cecd93bcbf0ca2d {
     RATESYNC_PULSE_IANDD = RC_PULSE_IANDD,
     RATESYNC_PULSE_RRC = RC_PULSE_RRC
 };
@@ -255,6 +238,23 @@ Aliases of the cascade's own vocabulary (`rc_pulse_t`) so one set of names cover
 
 
         
+
+<hr>
+
+
+
+### enum ratesync\_\_core\_8h\_1a726ca809ffd3d67ab4b8476646f26635 
+
+_Timing-error-detector selection for ratesync\_state\_t::ted._ 
+```C++
+enum ratesync__core_8h_1a726ca809ffd3d67ab4b8476646f26635 {
+    RATESYNC_TED_GARDNER = 0,
+    RATESYNC_TED_DTTL = 1
+};
+```
+
+
+
 
 <hr>
 ## Public Functions Documentation

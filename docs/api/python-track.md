@@ -270,8 +270,10 @@ ______________________________________________________________________
 `ContinuousMpskReceiver` is a **view** over `MpskReceiver`: the same core, the
 same state, the identical method surface, and only the constructor differs.
 That is what makes it a *flavor* rather than a second type here — a difference
-in constructor is a view, a difference in method signature is a separate class
-(which is why `MpskReceiverR` below is one and this is not). Nothing is
+in constructor is a view, a difference in method signature is a separate class.
+`MpskReceiverR` below is a view too, on the strength of just-makeit#1012: a
+view method may now declare its own signature when it binds its own C symbol,
+so a differing input dtype no longer forces a second class. Nothing is
 removed: `MpskReceiver` still reaches every knob.
 
 **There is no handover, no warmup, no lock gate and no timing gate.** The NDA
@@ -319,19 +321,24 @@ demapping without a downstream sync word is a misconfiguration, not a choice.
 
 ______________________________________________________________________
 
-## MpskReceiverR — the real-input twin
+## MpskReceiverR — the real-input face
 
 `MpskReceiverR` is `MpskReceiver` for a **real IF**: `steps()` and `bits()` take
 `float32` samples of a real bandpass signal instead of complex baseband, and a
 `MatchedDdcr` front end tunes and converts it to complex internally. Every loop,
 discriminator, handover rule and demapper is the *same implementation* shared
-with the complex type — only the front end and the two rate conversions its
+with the complex face — only the front end and the two rate conversions its
 halfband forces differ.
 
-It is a separate class rather than a constructor flavor of `MpskReceiver` for the
-usual reason: a difference in **constructor** is a flavor, a difference in
-**method signature** is a separate type, and `steps()` takes a different dtype
-here.
+It is a **view** over `MpskReceiver`, like `ContinuousMpskReceiver` above: one
+core, one state, one set of loops, reached through a second constructor. It was
+a separate class until just-makeit#1012, because a view shared its parent's
+methods verbatim and `steps()` takes a different dtype here; a view may now
+bind its own C symbol under the parent's Python name and declare its own
+signature. So the type/flavor rule is unchanged — a difference in
+**constructor** is a flavor, a difference in **method signature** is a separate
+type — and the dtype difference now sits on the flavor side of it because jm
+can express it.
 
 Its one extra constraint is **`sps > 2 * m_out`** — the cascade behind the R2C
 halfband runs at twice the overall rate. `init_norm_freq` and `norm_freq` are

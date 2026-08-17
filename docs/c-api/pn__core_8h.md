@@ -39,7 +39,7 @@ _PN component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**pn\_\_core\_8h\_1abc6126af1d45847bc59afa0aa3216b04**](#enum-pn__core_8h_1abc6126af1d45847bc59afa0aa3216b04)  <br>_PN state._  |
+| enum  | [**pn\_\_core\_8h\_1adc29c2ff13d900c2f185ee95427fb06c**](#enum-pn__core_8h_1adc29c2ff13d900c2f185ee95427fb06c)  <br>_PN state._  |
 
 
 
@@ -129,11 +129,11 @@ pn_destroy(obj);
 
 
 
-### enum pn\_\_core\_8h\_1abc6126af1d45847bc59afa0aa3216b04 
+### enum pn\_\_core\_8h\_1adc29c2ff13d900c2f185ee95427fb06c 
 
 _PN state._ 
 ```C++
-enum pn__core_8h_1abc6126af1d45847bc59afa0aa3216b04 {
+enum pn__core_8h_1adc29c2ff13d900c2f185ee95427fb06c {
     PN_GALOIS = 0,
     PN_FIBONACCI = 1
 };

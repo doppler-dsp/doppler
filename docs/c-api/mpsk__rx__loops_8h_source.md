@@ -400,6 +400,20 @@ mpsk_rx_derive_m_out (double cap, int strict)
     return 1;
   }
 
+  JM_FORCEINLINE JM_HOT int
+  mpsk_rx_fold (mpsk_rx_loops_t *l, const float complex *ys, size_t n,
+                float complex zpre, int n_pre, float complex *y_out, int ted)
+  {
+    /* The timing-independent NDA tap reads at the MFR's input. A no-op unless
+       MF_IN is the configured tap. */
+    if (n_pre)
+      mpsk_rx_push_mf_in (l, zpre);
+    int emitted = 0;
+    for (size_t oi = 0; oi < n; oi++)
+      emitted |= mpsk_rx_take_output (l, ys[oi], y_out, ted);
+    return emitted;
+  }
+
   int mpsk_rx_symbol_to_bits (mpsk_rx_loops_t *l, float complex y,
                               uint8_t *bits);
 

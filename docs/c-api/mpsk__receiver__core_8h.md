@@ -8,10 +8,11 @@
 
 [Go to the source code of this file](mpsk__receiver__core_8h_source.md)
 
-_Pulse-shaped M-PSK receiver: a tuned matched DDC and two loops._ [More...](#detailed-description)
+_Pulse-shaped M-PSK receiver: a tuned matched front end and two loops._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
 * `#include "ddc/ddc_core.h"`
+* `#include "ddcr/ddcr_core.h"`
 * `#include "dp_state.h"`
 * `#include "jm_perf.h"`
 * `#include "mpsk_receiver/mpsk_rx_loops.h"`
@@ -81,9 +82,12 @@ _Pulse-shaped M-PSK receiver: a tuned matched DDC and two loops._ [More...](#det
 | ---: | :--- |
 |  size\_t | [**mpsk\_receiver\_bits**](#function-mpsk_receiver_bits) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate a cf32 block and emit hard Gray-coded bits._  |
 |  size\_t | [**mpsk\_receiver\_bits\_max\_out**](#function-mpsk_receiver_bits_max_out) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
+|  size\_t | [**mpsk\_receiver\_bits\_real**](#function-mpsk_receiver_bits_real) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate a real f32 block and emit hard Gray-coded bits._  |
+|  size\_t | [**mpsk\_receiver\_bits\_real\_max\_out**](#function-mpsk_receiver_bits_real_max_out) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 |  void | [**mpsk\_receiver\_configure\_lock**](#function-mpsk_receiver_configure_lock) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the acquisition&lt;-&gt;tracking handover detector directly._  |
 |  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create**](#function-mpsk_receiver_create) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, int differential, size\_t num\_phases, int nda\_tap, int agc, double bn\_agc\_ratio) <br>_Create an M-PSK receiver._  |
 |  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create\_continuous**](#function-mpsk_receiver_create_continuous) (int m, double sps, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double bn\_timing, double init\_norm\_freq, int differential) <br>_The continuous flavor: one discriminator, and nothing waits._  |
+|  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create\_real**](#function-mpsk_receiver_create_real) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, int differential, size\_t num\_phases, int nda\_tap, int agc, double bn\_agc\_ratio) <br>_Create the same receiver behind an R2C halfband: a real IF in._  |
 |  void | [**mpsk\_receiver\_destroy**](#function-mpsk_receiver_destroy) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Destroy an M-PSK receiver and release all memory._  |
 |  double | [**mpsk\_receiver\_get\_agc\_gain\_db**](#function-mpsk_receiver_get_agc_gain_db) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Gain the front end's AGC is applying, in dB; 0.0 when_ `agc` _= 0._ |
 |  double | [**mpsk\_receiver\_get\_bn\_agc\_ratio**](#function-mpsk_receiver_get_bn_agc_ratio) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_AGC bandwidth ratio in use — derived unless pinned (§8.1)._  |
@@ -108,9 +112,12 @@ _Pulse-shaped M-PSK receiver: a tuned matched DDC and two loops._ [More...](#det
 |  int | [**mpsk\_receiver\_set\_state**](#function-mpsk_receiver_set_state) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const void \* blob) <br> |
 |  int | [**mpsk\_receiver\_set\_telemetry**](#function-mpsk_receiver_set_telemetry) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "&lt;prefix&gt;.lock" probe (the carrier lock EMA) and "&lt;prefix&gt;.tracking" (the two-way handover decision, 0/1 — so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then the carrier loop's "&lt;prefix&gt;.car.e" / ".freq" / ".locked" and the symbol-timing loop's "&lt;prefix&gt;.sync.e" / ".ctrl" / ".rate" / ".lock" / ".locked" / ".mu"_  _eleven probes emitted once per recovered symbol_ _then the front end's AGC under "&lt;prefix&gt;.agc" ("&lt;prefix&gt;.agc.gain\_db" and "&lt;prefix&gt;.agc.level\_db"; see_[_**agc\_set\_telemetry()**_](agc__core_8h.md#function-agc_set_telemetry) _). Thirteen probes total, all thinned by_`decim` _. Passing NULL detaches everything._ |
 |  size\_t | [**mpsk\_receiver\_state\_bytes**](#function-mpsk_receiver_state_bytes) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_receiver\_step\_real\_ted**](#function-mpsk_receiver_step_real_ted) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* s, float x, float complex \* y\_out, int ted) <br>_Push one REAL input sample; emit a symbol if it completed one._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_receiver\_step\_ted**](#function-mpsk_receiver_step_ted) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* s, float complex x, float complex \* y\_out, int ted) <br>_Push one input sample; emit a symbol if it completed one._  |
 |  size\_t | [**mpsk\_receiver\_steps**](#function-mpsk_receiver_steps) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Demodulate a cf32 block and emit the recovered symbols._  |
 |  size\_t | [**mpsk\_receiver\_steps\_max\_out**](#function-mpsk_receiver_steps_max_out) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
+|  size\_t | [**mpsk\_receiver\_steps\_real**](#function-mpsk_receiver_steps_real) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Demodulate a real f32 block and emit the recovered symbols._  |
+|  size\_t | [**mpsk\_receiver\_steps\_real\_max\_out**](#function-mpsk_receiver_steps_real_max_out) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 
 
 
@@ -142,6 +149,8 @@ _Pulse-shaped M-PSK receiver: a tuned matched DDC and two loops._ [More...](#det
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**MPSK\_RECEIVER\_R\_STATE\_MAGIC**](mpsk__receiver__core_8h.md#define-mpsk_receiver_r_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('M', 'P', 'S', 'R')`<br> |
+| define  | [**MPSK\_RECEIVER\_R\_STATE\_VERSION**](mpsk__receiver__core_8h.md#define-mpsk_receiver_r_state_version)  `2u`<br> |
 | define  | [**MPSK\_RECEIVER\_STATE\_MAGIC**](mpsk__receiver__core_8h.md#define-mpsk_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('M', 'P', 'S', 'K')`<br> |
 | define  | [**MPSK\_RECEIVER\_STATE\_VERSION**](mpsk__receiver__core_8h.md#define-mpsk_receiver_state_version)  `6u /\* v5: rebuilt on the matched DDC \*/`<br> |
 
@@ -161,6 +170,35 @@ x ──> MatchedDDC ───────────────────�
 
 
 
+### One object, two front ends
+
+
+
+A **real** IF — the usual output of a single-ended ADC — is the same receiver behind an R2C halfband, and it is a `real` flag on this state rather than a second type:
+
+
+
+```C++
+f32 in ──> MatchedDdcr ────────────────────────> y ──> the SAME loops
+            halfband R2C (2:1) · LO mix · cascade · MF
+```
+
+
+
+Every loop, discriminator, handover rule and demapper decision is one implementation over one [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md). What the front end changes is exactly three things, and each is a rate convention rather than an algorithm:
+
+
+
+* **The LO runs at half the input rate.** The R2C halfband decimates 2:1 (with the fs/4 shift baked in) _before_ the mix, so the LO sees `sps/2` samples per symbol — which is why [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) takes `lo_sps` separately from `sps`. `norm_freq` stays caller-facing in cycles/sample at the **input** rate, so the real face halves it on the way in and doubles it on the way out. Ddcr's tuning law is `norm_freq = -(2*f_c + 0.5)`.
+* \*\*`sps` must exceed `2 * m_out`,\*\* strictly, against `sps >= m_out` for the complex face: the cascade behind the halfband runs at twice the overall rate and Ddcr requires that below 0.5.
+* \*\*`init_norm_freq` means the real IF centre\*\* rather than a baseband residual.
+
+
+
+
+The hot path is not tagged. There are two `step` entry points, each force- inlined onto [**mpsk\_rx\_fold**](mpsk__rx__loops_8h.md#function-mpsk_rx_fold), so the front end is a compile-time fact inside the sample loop and `real` is read only on cold paths (destroy, reset, telemetry, the frequency accessors and the state triplet).
+
+
 
 * [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) (the matched flavor) mixes, decimates and matched-filters in the dot products it was already doing. Its terminal polyphase stage IS the matched filter, and the arm that stage selects IS the fractional symbol-timing delay.
 * [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) closes a symbol-timing loop on the cascade's `rate_ctrl` port and a carrier loop on the LO's `freq_ctrl` port. The timing half is [**ratesync\_loop\_t**](structratesync__loop__t.md) — literally RateSync's loop, not a copy of it.
@@ -175,6 +213,7 @@ Carrier recovery follows the project rule, now structurally rather than by conve
 
 
 
+
 ### What the cascade buys
 
 
@@ -182,7 +221,7 @@ Carrier recovery follows the project rule, now structurally rather than by conve
 `sps` is a **double**, and the front end plans itself. At `sps = 8` the plan is a halfband or two and a terminal stage; at `sps = 256` it is a CIC followed by the same terminal stage, so the matched filter costs the same bank either way (~34 taps/arm at both ends of a 64x span of input rates, against the 4225 taps/arm a single-stage design would need). An irrational `sps` — a free-running ADC clock against the symbol clock — is no harder than an integer one, because the terminal accumulator is a double and the loop only has to steer the strobe.
 
 
-The M-fold phase ambiguity is unchanged: resolve it with differential demapping (`bits(..., differential=1)`) or a sync word downstream. The real-input twin lives in [**mpsk\_receiver\_r/mpsk\_receiver\_r\_core.h**](mpsk__receiver__r__core_8h.md); a DSSS-MPSK receiver is still `Dll(segments) -> MpskReceiver`.
+The M-fold phase ambiguity is unchanged: resolve it with differential demapping (`bits(..., differential=1)`) or a sync word downstream. A DSSS-MPSK receiver is still `Dll(segments) -> MpskReceiver`.
 
 
 
@@ -283,6 +322,87 @@ Number of bits written.
 
 ```C++
 size_t mpsk_receiver_bits_max_out (
+    mpsk_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function mpsk\_receiver\_bits\_real 
+
+_Demodulate a real f32 block and emit hard Gray-coded bits._ 
+```C++
+size_t mpsk_receiver_bits_real (
+    mpsk_receiver_state_t * state,
+    const float * x,
+    size_t x_len,
+    uint8_t * out,
+    size_t max_out
+) 
+```
+
+
+
+[**mpsk\_receiver\_bits()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_bits) taking real samples. Requires a state built by [**mpsk\_receiver\_create\_real()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create_real).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `x` Real f32 input samples. 
+* `x_len` Number of input samples. 
+* `out` Output bytes (0/1); caller provides `max_out` capacity. 
+* `max_out` Output capacity. 
+
+
+
+**Returns:**
+
+Number of bits written. 
+```C++
+>>> import numpy as np
+>>> from doppler.track import MpskReceiverR
+>>> rng = np.random.default_rng(3)
+>>> idx = rng.integers(0, 2, 2400)                  # BPSK payload bits
+>>> bb = np.repeat(np.exp(1j * np.pi * idx), 32)
+>>> n = np.arange(bb.size)
+>>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real  # IF at fs/4
+>>> x = np.ascontiguousarray(x.astype(np.float32))
+>>> rx = MpskReceiverR(m=2, sps=32, m_out=8, init_norm_freq=0.25,
+...                    bn_carrier=0.005)
+>>> b = rx.bits(x)                                  # 1 hard bit/symbol
+>>> b.size
+2398
+>>> # settled tail matches the payload, up to the BPSK
+>>> # inversion ambiguity
+>>> tail = np.mean(b[1500:2300] != idx[1500:2300])
+>>> round(float(min(tail, 1 - tail)), 3)
+0.0
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function mpsk\_receiver\_bits\_real\_max\_out 
+
+```C++
+size_t mpsk_receiver_bits_real_max_out (
     mpsk_receiver_state_t * state
 ) 
 ```
@@ -532,6 +652,89 @@ Heap-allocated state, or NULL on invalid args / allocation failure. Destroy with
 0
 >>> rx.m_out             # derived, not defaulted
 8
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function mpsk\_receiver\_create\_real 
+
+_Create the same receiver behind an R2C halfband: a real IF in._ 
+```C++
+mpsk_receiver_state_t * mpsk_receiver_create_real (
+    int m,
+    double sps,
+    size_t m_out,
+    int pulse,
+    double rrc_beta,
+    int rrc_span,
+    double bn_carrier,
+    double zeta,
+    double bn_timing,
+    int acq_to_track,
+    double lock_thresh,
+    double init_norm_freq,
+    int differential,
+    size_t num_phases,
+    int nda_tap,
+    int agc,
+    double bn_agc_ratio
+) 
+```
+
+
+
+The real-input face. **Every parameter means what it means on [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create)** — same names, same order, same types, same derivations, the same "zero means derive" rule — because this is the same object and not a twin of it. Only the three rate conventions in this file's header block differ, and each is named against the parameter it touches below.
+
+
+A real-valued IF is the usual output of a single-ended ADC, so this is the face that takes a digitiser's samples directly. Everything downstream — symbols, bits, telemetry, serialization — is one implementation shared with the complex face.
+
+
+
+
+**Parameters:**
+
+
+* `m` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create). 
+* `sps` Samples per symbol at the REAL input; any double **strictly greater than `2 * m_out`**. The cascade behind the halfband runs at twice the overall rate, and Ddcr requires that rate below 0.5 — so where the complex face accepts `sps >= m_out`, this one needs twice the headroom. Derived `m_out` honours the same bound ([**mpsk\_rx\_derive\_m\_out**](mpsk__rx__loops_8h.md#function-mpsk_rx_derive_m_out) takes the constraint, not the rate), so a caller cannot pair an `sps` and an `m_out` that will not construct. 
+* `m_out` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create); **0 derives** it against the strict `sps/2` cap above rather than `sps`. 
+* `pulse` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create). 
+* `rrc_beta` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create). 
+* `rrc_span` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create). 
+* `bn_carrier` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create). Still normalised to the SYMBOL rate: the halfband moves the LO's clock, not the loop's units. 
+* `zeta` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create); 0 derives. 
+* `bn_timing` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create). 
+* `acq_to_track` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create). 
+* `lock_thresh` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create); 0 derives. 
+* `init_norm_freq` The real IF **centre**, cycles/sample at the real input rate. An IF at `0.2 * fs` is `0.2`; the halved value the LO actually uses is this object's business, not the caller's. A real IF must be tuned near — this face does not acquire from a cold zero the way the complex one does, so the centre is where the tap's pull-in range sits _around_. 
+* `differential` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create). 
+* `num_phases` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create); 0 derives. 
+* `nda_tap` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create), all three taps included: `MF_IN`'s update rate is read from this front end's own cascade (`ddcr_get_bank_sps`), and `bank_sps` measures identical on both faces because it is symbol-relative — the halfband's 2:1 is absorbed by the plan. 
+* `agc` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create). The AGC sits inside the cascade BEHIND the halfband, so it levels the analytic signal at the intermediate rate, which is also where the noise has already been filtered. 
+* `bn_agc_ratio` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create); 0 derives. 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL on invalid args / allocation failure. Destroy with [**mpsk\_receiver\_destroy()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_destroy) like any other.
+
+
+
+```C++
+// QPSK on a real IF at 0.2*fs, 32 samples/symbol, I&D matched filter
+mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
+    4, 32.0, 0, MPSK_RX_PULSE_IANDD, 0.35, 8,
+    0.01, 0.0, 0.01, 0, 0.0, 0.2, 0, 0,
+    MPSK_RX_NDA_TAP_STROBE, 1, 0.0);
+float complex sym[256];
+size_t k = mpsk_receiver_steps_real (rx, rx_in, rx_len, sym, 256);
+mpsk_receiver_destroy (rx);
 ```
  
 
@@ -1038,6 +1241,49 @@ size_t mpsk_receiver_state_bytes (
 
 
 
+### function mpsk\_receiver\_step\_real\_ted 
+
+_Push one REAL input sample; emit a symbol if it completed one._ 
+```C++
+JM_FORCEINLINE  JM_HOT int mpsk_receiver_step_real_ted (
+    mpsk_receiver_state_t * s,
+    float x,
+    float complex * y_out,
+    int ted
+) 
+```
+
+
+
+The real face's composition API — [**mpsk\_receiver\_step\_ted()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_step_ted) behind an R2C halfband. Only the front end and the input type differ; everything after the front end is [**mpsk\_rx\_fold**](mpsk__rx__loops_8h.md#function-mpsk_rx_fold), shared verbatim, which is what makes "the loops behave identically regardless of front end" a claim about one body of code rather than about two.
+
+
+
+
+**Parameters:**
+
+
+* `s` State, built by [**mpsk\_receiver\_create\_real()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create_real). Non-NULL. 
+* `x` One real input sample. 
+* `y_out` Receives the symbol when the return is 1. 
+* `ted` RATESYNC\_TED\_GARDNER or RATESYNC\_TED\_DTTL — pass a literal for a specialised (branch-free) instantiation. 
+
+
+
+**Returns:**
+
+1 if a symbol was emitted (into `y_out`), 0 otherwise. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function mpsk\_receiver\_step\_ted 
 
 _Push one input sample; emit a symbol if it completed one._ 
@@ -1153,9 +1399,112 @@ size_t mpsk_receiver_steps_max_out (
 
 
 <hr>
+
+
+
+### function mpsk\_receiver\_steps\_real 
+
+_Demodulate a real f32 block and emit the recovered symbols._ 
+```C++
+size_t mpsk_receiver_steps_real (
+    mpsk_receiver_state_t * state,
+    const float * x,
+    size_t x_len,
+    float complex * out,
+    size_t max_out
+) 
+```
+
+
+
+[**mpsk\_receiver\_steps()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_steps) taking real samples: the R2C halfband makes them complex before anything else touches them, and the per-sample body is the same one. Requires a state built by [**mpsk\_receiver\_create\_real()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create_real).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `x` Real f32 input samples. 
+* `x_len` Number of input samples. 
+* `out` Output symbols; caller provides `max_out` capacity. 
+* `max_out` Output capacity. 
+
+
+
+**Returns:**
+
+Number of symbols written. 
+```C++
+>>> import numpy as np
+>>> from doppler.track import MpskReceiverR
+>>> rng = np.random.default_rng(3)
+>>> idx = rng.integers(0, 4, 2400)                  # QPSK symbols
+>>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 32)  # 32 sps
+>>> n = np.arange(bb.size)
+>>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real  # IF at fs/4
+>>> x = np.ascontiguousarray(x.astype(np.float32))
+>>> rx = MpskReceiverR(m=4, sps=32, m_out=8, init_norm_freq=0.25)
+>>> sym = rx.steps(x)
+>>> sym.size                                        # ~ x_len / sps
+2398
+>>> rx.lock > 0.8                                   # carrier locked
+True
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function mpsk\_receiver\_steps\_real\_max\_out 
+
+```C++
+size_t mpsk_receiver_steps_real_max_out (
+    mpsk_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
 ## Macro Definition Documentation
 
 
+
+
+
+### define MPSK\_RECEIVER\_R\_STATE\_MAGIC 
+
+```C++
+#define MPSK_RECEIVER_R_STATE_MAGIC `DP_FOURCC ('M', 'P', 'S', 'R')`
+```
+
+
+
+
+<hr>
+
+
+
+### define MPSK\_RECEIVER\_R\_STATE\_VERSION 
+
+```C++
+#define MPSK_RECEIVER_R_STATE_VERSION `2u`
+```
+
+
+
+
+<hr>
 
 
 

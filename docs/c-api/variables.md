@@ -8,6 +8,12 @@
 * **acc\_trace\_mode\_t** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
 
 
+## c
+
+* **CCSDS\_TM\_CONV** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
+* **CCSDS\_TM\_RS** ([**ccsds\_tm\_rs.h**](ccsds__tm__rs_8h.md))
+
+
 ## d
 
 * **ddc\_state\_t** ([**ddc\_core.h**](ddc__core_8h.md))
@@ -24,7 +30,6 @@
 ## f
 
 * **farrow\_\_core\_8h\_1a06fc87d81c62e9abb8790b6e5713c55b** ([**farrow\_core.h**](farrow__core_8h.md))
-* **FEC\_CCSDS\_CONV** ([**fec\_ccsds.h**](fec__ccsds_8h.md))
 
 
 ## h

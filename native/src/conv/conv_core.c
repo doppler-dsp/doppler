@@ -290,3 +290,96 @@ viterbi_decode (viterbi_state_t *s, const float *llr, size_t n_llr,
 
   return nout;
 }
+
+/* ── the state bytes interface ───────────────────────────────────────────
+ *
+ * Running state is the path metrics, the traceback ring, and the cursor into
+ * it. `pm2` is scratch -- it is overwritten before it is read on every step,
+ * so carrying it would serialize noise. The predecessor and output tables are
+ * DERIVED from the code, which viterbi_create rebuilds identically.
+ *
+ * `fill` is part of the answer rather than bookkeeping: a decoder resumed
+ * with `fill < depth` still owes its traceback, and viterbi_decode_max_out
+ * reads it. Dropping it would resume a decoder that emits bits it has not
+ * earned.
+ */
+typedef struct
+{
+  uint64_t depth;
+  uint64_t head;
+  uint64_t fill;
+  uint32_t k;
+  uint32_t n;
+  uint32_t invert;
+  uint32_t poly[CONV_N_MAX];
+} viterbi_extra_t;
+
+size_t
+viterbi_state_bytes (const viterbi_state_t *s)
+{
+  return sizeof (dp_state_hdr_t) + sizeof (viterbi_extra_t)
+         + (size_t)s->nstate * sizeof (float) /* pm            */
+         + s->depth * (size_t)s->nstate;      /* traceback ring */
+}
+
+void
+viterbi_get_state (const viterbi_state_t *s, void *blob)
+{
+  DP_GET_OPEN (VITERBI_STATE_MAGIC, VITERBI_STATE_VERSION,
+               viterbi_state_bytes (s));
+
+  /* memset rather than a designated initializer: the padding a designated
+     initializer leaves unspecified (C11 6.7.9p10) is written to the blob
+     whole, which reads green on one compiler and red on another. Zeroing
+     first defines every byte regardless of what the layout turns out to be.
+     The same reason zeroes poly[n..CONV_N_MAX-1], which conv_code_t does not
+     require a caller to fill -- serializing them would make the blob depend
+     on the caller's stack. */
+  viterbi_extra_t extra;
+  memset (&extra, 0, sizeof extra);
+  extra.depth  = (uint64_t)s->depth;
+  extra.head   = (uint64_t)s->head;
+  extra.fill   = (uint64_t)s->fill;
+  extra.k      = s->code.k;
+  extra.n      = s->code.n;
+  extra.invert = s->code.invert & ((1u << s->code.n) - 1u);
+  for (unsigned j = 0; j < s->code.n; j++)
+    extra.poly[j] = s->code.poly[j];
+
+  dp_w_bytes (&_w, &extra, sizeof extra);
+  dp_w_f32 (&_w, s->pm, s->nstate);
+  dp_w_bytes (&_w, s->dec, s->depth * (size_t)s->nstate);
+}
+
+int
+viterbi_set_state (viterbi_state_t *s, const void *blob)
+{
+  DP_SET_OPEN (VITERBI_STATE_MAGIC, VITERBI_STATE_VERSION,
+               viterbi_state_bytes (s));
+
+  viterbi_extra_t extra;
+  dp_r_bytes (&_r, &extra, sizeof extra);
+
+  /* The envelope's size check does not imply a configuration match: two
+     codes of the same k and n differ in no dimension the length can see, so
+     the code is compared field by field. */
+  if (extra.depth != (uint64_t)s->depth || extra.k != s->code.k
+      || extra.n != s->code.n
+      || extra.invert != (s->code.invert & ((1u << s->code.n) - 1u)))
+    return DP_ERR_INVALID;
+  for (unsigned j = 0; j < s->code.n; j++)
+    if (extra.poly[j] != s->code.poly[j])
+      return DP_ERR_INVALID;
+
+  /* The cursor indexes the ring and `fill` gates emission; a blob claiming
+     either out of range would be traced back through memory it does not
+     own. */
+  if (extra.head >= (uint64_t)s->depth || extra.fill > (uint64_t)s->depth)
+    return DP_ERR_INVALID;
+
+  dp_r_f32 (&_r, s->pm, s->nstate);
+  dp_r_bytes (&_r, s->dec, s->depth * (size_t)s->nstate);
+  s->head = (size_t)extra.head;
+  s->fill = (size_t)extra.fill;
+  return DP_OK;
+}

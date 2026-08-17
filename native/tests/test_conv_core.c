@@ -22,6 +22,7 @@
  * The design is docs/design/viterbi.md.
  */
 #include "dp_rng_test.h"
+#include "dp_state_test.h"
 #include "dp_test.h"
 
 #include "conv/conv_core.h"
@@ -332,6 +333,155 @@ main (void)
     for (size_t i = 0; i < sizeof out; i++)
       DP_CHECK (out[i] == 0xAAu);
     viterbi_destroy (v);
+  }
+
+  /* ── 8. the state bytes interface: resume is bit-exact ─────────────────
+   *
+   * The claim is that a decode split anywhere and resumed from a blob into a
+   * FRESH decoder produces the same bits as one uninterrupted decode. A
+   * decoder is a link in a chain -- behind the receiver, in front of the R-S
+   * decoder -- and a chain is only checkpointable if every link is.
+   *
+   * Two cuts, because they catch different omissions. The steady-state cut
+   * exercises the path metrics and the ring; the cut inside the first
+   * `depth` bits is the only one that can see `fill` being dropped, since a
+   * decoder resumed there still owes its traceback and must emit NOTHING for
+   * the bits it has not yet earned.
+   */
+  {
+    enum
+    {
+      N = 600
+    };
+    const size_t DEPTH = 60u;
+    uint8_t      in[N], sym[2 * N], ref[N], got[N];
+    float        llr[2 * N];
+    uint32_t     st = 90210u;
+    for (int i = 0; i < N; i++)
+      in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
+    conv_enc_t e;
+    conv_enc_init (&e);
+    conv_encode (&e, &CCSDS, in, N, sym, sizeof sym);
+    to_llr (sym, 2u * N, llr, 3.0f);
+
+    viterbi_state_t *a = viterbi_create (&CCSDS, DEPTH);
+    DP_REQUIRE (a != NULL);
+    const size_t n_ref = viterbi_decode (a, llr, 2u * N, ref, sizeof ref);
+    DP_REQUIRE (n_ref == (size_t)N - (DEPTH - 1u));
+
+    /* In SYMBOLS: 200 steps (steady state) and 20 steps (fill < depth). */
+    const size_t cuts[] = { 400u, 40u };
+    for (size_t ci = 0; ci < sizeof cuts / sizeof *cuts; ci++)
+      {
+        const size_t     cut = cuts[ci];
+        viterbi_state_t *b   = viterbi_create (&CCSDS, DEPTH);
+        DP_REQUIRE (b != NULL);
+        const size_t n1 = viterbi_decode (b, llr, cut, got, sizeof got);
+
+        void *blob = malloc (viterbi_state_bytes (b));
+        DP_REQUIRE (blob != NULL);
+        viterbi_get_state (b, blob);
+        viterbi_destroy (b); /* the sender is GONE: only the blob carries it */
+
+        viterbi_state_t *c = viterbi_create (&CCSDS, DEPTH);
+        DP_REQUIRE (c != NULL);
+        DP_CHECK (viterbi_set_state (c, blob) == DP_OK);
+
+        const size_t owed = viterbi_decode_max_out (c, 2u * N - cut);
+        const size_t n2 = viterbi_decode (c, llr + cut, 2u * N - cut, got + n1,
+                                          sizeof got - n1);
+        DP_CHECK_MSG (n2 == owed,
+                      "a resumed decoder must owe exactly what its fill says");
+        DP_CHECK_MSG (n1 + n2 == n_ref,
+                      "a split stream must emit as many bits as one decode");
+        DP_CHECK_MSG (memcmp (got, ref, n_ref) == 0,
+                      "resume from a blob must be bit-exact");
+        viterbi_destroy (c);
+        free (blob);
+      }
+
+    /* The shared round-trip: fidelity (b re-serializes to a's bytes) plus
+       the envelope reject. */
+    viterbi_state_t *r2 = viterbi_create (&CCSDS, DEPTH);
+    DP_REQUIRE (r2 != NULL);
+    DP_STATE_ROUNDTRIP_TEST (viterbi, a, r2);
+
+    /* Config identity, which the envelope's SIZE check cannot supply. Each
+       of these decoders is built for a different code, and the first two
+       produce a blob of exactly the same length as a's. */
+    void *cb = malloc (viterbi_state_bytes (a));
+    DP_REQUIRE (cb != NULL);
+    viterbi_get_state (a, cb);
+
+    conv_code_t uninverted = CCSDS;
+    uninverted.invert      = 0u;
+    conv_code_t otherpoly  = CCSDS;
+    otherpoly.poly[0]      = 0155u; /* still k bits, still non-zero */
+    const conv_code_t K9   = { 9u, 2u, { 0753u, 0561u }, 0u };
+
+    const struct
+    {
+      const conv_code_t *code;
+      size_t             depth;
+      const char        *why;
+    } rejects[] = {
+      { &uninverted, 60u, "a blob from a code differing only in `invert`" },
+      { &otherpoly, 60u, "a blob from a code differing only in a polynomial" },
+      { &CCSDS, 61u, "a blob from a decoder of another depth" },
+      { &K9, 60u, "a K=7 blob restored into a K=9 decoder" },
+    };
+    for (size_t i = 0; i < sizeof rejects / sizeof *rejects; i++)
+      {
+        viterbi_state_t *w
+            = viterbi_create (rejects[i].code, rejects[i].depth);
+        DP_REQUIRE (w != NULL);
+        if (i < 2u)
+          DP_REQUIRE_MSG (viterbi_state_bytes (w) == viterbi_state_bytes (a),
+                          "this reject must be the SAME size, or it proves "
+                          "only that the envelope checks length");
+        DP_CHECK_MSG (viterbi_set_state (w, cb) == DP_ERR_INVALID,
+                      rejects[i].why);
+        viterbi_destroy (w);
+      }
+
+    /* A cursor out of range would be traced back through memory the ring
+       does not own, and the envelope cannot see it -- the blob is the right
+       object, version, endianness and size. The payload opens with
+       `depth, head, fill` as three u64s, which the first assertion PROVES
+       rather than assumes: if the layout ever moves, this reads a number
+       that is not the depth and fails here, instead of quietly testing
+       nothing. */
+    {
+      uint64_t     field[3];
+      const size_t base = sizeof (dp_state_hdr_t);
+      memcpy (field, (const uint8_t *)cb + base, sizeof field);
+      DP_REQUIRE_MSG (field[0] == (uint64_t)DEPTH,
+                      "the payload no longer opens with the depth -- this "
+                      "test's offsets are stale");
+
+      const uint64_t bad_cursor[2] = { (uint64_t)DEPTH, (uint64_t)DEPTH + 1u };
+      const char    *why[2]
+          = { "head must be inside the ring", "fill must not exceed depth" };
+      for (size_t i = 0; i < 2u; i++)
+        {
+          void *poison = malloc (viterbi_state_bytes (a));
+          DP_REQUIRE (poison != NULL);
+          memcpy (poison, cb, viterbi_state_bytes (a));
+          memcpy ((uint8_t *)poison + base + (i + 1u) * sizeof (uint64_t),
+                  &bad_cursor[i], sizeof (uint64_t));
+          DP_CHECK_MSG (viterbi_set_state (r2, poison) == DP_ERR_INVALID,
+                        why[i]);
+          free (poison);
+        }
+    }
+
+    /* And the guard is not simply refusing everything: the same blob still
+       restores into the decoder it came from. */
+    DP_CHECK (viterbi_set_state (r2, cb) == DP_OK);
+
+    free (cb);
+    viterbi_destroy (r2);
+    viterbi_destroy (a);
   }
 
   DP_TEST_END ("test_conv_core");

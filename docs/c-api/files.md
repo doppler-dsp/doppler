@@ -72,6 +72,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**carrier\_nda\_core.h**](carrier__nda__core_8h.md) _Non-data-aided (NDA) M-th-power carrier-tracking loop._     
         * **dir** [**cic**](dir_cf560077cc62991e7289ea57a3d930a1.md)     
             * **file** [**cic\_core.h**](cic__core_8h.md) _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._     
+        * **dir** [**conv**](dir_779d3467bbcde033259ac71c6a9863bb.md)     
+            * **file** [**conv\_core.h**](conv__core_8h.md) _Convolutional codes: the code description, the encoder, and the maximum-likelihood decoder that reads the same description._     
         * **dir** [**corr**](dir_17ecfb211582dadfc5fc9d22d4d97fbd.md)     
             * **file** [**corr\_core.h**](corr__core_8h.md) _1-D FFT-based cross-correlator with coherent integrate-and-dump._     
         * **dir** [**corr2d**](dir_55247951d314f4b4a6db9bf46862b830.md)     

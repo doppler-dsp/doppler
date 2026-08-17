@@ -179,7 +179,8 @@ extern "C"
    * and not what the standard says.
    *
    * @param cfg        The coding to apply.
-   * @param conv       Inner-encoder state carried across frames, or `NULL` to
+   * @param conv       Inner-encoder state (@ref conv_enc_t) carried across
+   *                   frames, or `NULL` to
    *                   start from the all-zero register. Ignored when
    *                   `cfg->convolutional` is 0.
    * @param frame      @p frame_len **packed** octets, MSB-first on the wire.
@@ -200,14 +201,14 @@ extern "C"
    * const fec_frame_cfg_t cfg
    *     = { .rs_depth = 5, .randomise = 1, .attach_asm = 1,
    *         .convolutional = 1 };
-   * fec_conv_t conv;
-   * fec_conv_init (&conv);
+   * conv_enc_t conv;
+   * conv_enc_init (&conv);
    * const size_t n
    *     = fec_frame_encode (&cfg, &conv, frame, sizeof frame, sym,
    *                         sizeof sym);
    * @endcode
    */
-  size_t fec_frame_encode (const fec_frame_cfg_t *cfg, fec_conv_t *conv,
+  size_t fec_frame_encode (const fec_frame_cfg_t *cfg, conv_enc_t *conv,
                            const uint8_t *frame, size_t frame_len,
                            uint8_t *out, size_t max_out);
 

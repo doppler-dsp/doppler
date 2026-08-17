@@ -12,6 +12,8 @@
 #ifndef FEC_CCSDS_H
 #define FEC_CCSDS_H
 
+#include "conv/conv_core.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -30,15 +32,7 @@ extern "C"
 
   void fec_ccsds_randomise (uint8_t *bits, size_t n);
 
-  typedef struct
-  {
-    uint8_t reg; 
-  } fec_conv_t;
-
-  void fec_conv_init (fec_conv_t *s);
-
-  size_t fec_conv_encode (fec_conv_t *s, const uint8_t *in, size_t n,
-                          uint8_t *out);
+  extern const conv_code_t FEC_CCSDS_CONV;
 
   static inline size_t
   fec_conv_max_out (size_t n)

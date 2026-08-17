@@ -190,9 +190,9 @@ main (void)
     fec_ccsds_rand_seq (cadu + 32, 32 * 8);
 
     uint8_t    want[(32 + 32 * 8) * 2];
-    fec_conv_t s;
-    fec_conv_init (&s);
-    fec_conv_encode (&s, cadu, sizeof cadu, want);
+    conv_enc_t s;
+    conv_enc_init (&s);
+    conv_encode (&s, &FEC_CCSDS_CONV, cadu, sizeof cadu, want, sizeof want);
 
     DP_CHECK_MSG (memcmp (out, want, sizeof want) == 0,
                   "the whole CADU, marker included, must be inner-encoded");
@@ -370,8 +370,8 @@ main (void)
     static uint8_t cont[2 * (32 + 255 * 8) * 2];
 
     /* (1) a transmitter's loop, carrying the register */
-    fec_conv_t s;
-    fec_conv_init (&s);
+    conv_enc_t s;
+    conv_enc_init (&s);
     fec_frame_encode (&coded, &s, a, flen, carried, nsym);
     fec_frame_encode (&coded, &s, b, flen, carried + nsym, nsym);
 
@@ -380,9 +380,9 @@ main (void)
            knows anything about frames */
     fec_frame_encode (&bare, NULL, a, flen, cadu, ncad);
     fec_frame_encode (&bare, NULL, b, flen, cadu + ncad, ncad);
-    fec_conv_t t;
-    fec_conv_init (&t);
-    fec_conv_encode (&t, cadu, 2u * ncad, cont);
+    conv_enc_t t;
+    conv_enc_init (&t);
+    conv_encode (&t, &FEC_CCSDS_CONV, cadu, 2u * ncad, cont, sizeof cont);
 
     DP_CHECK_MSG (memcmp (carried, cont, 2u * nsym) == 0,
                   "3.3.2: a stream of frames must equal one continuous "

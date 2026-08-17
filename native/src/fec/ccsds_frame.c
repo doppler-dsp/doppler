@@ -94,7 +94,7 @@ fec_frame_layout (const fec_frame_cfg_t *cfg, size_t frame_len,
 }
 
 size_t
-fec_frame_encode (const fec_frame_cfg_t *cfg, fec_conv_t *conv,
+fec_frame_encode (const fec_frame_cfg_t *cfg, conv_enc_t *conv,
                   const uint8_t *frame, size_t frame_len, uint8_t *out,
                   size_t max_out)
 {
@@ -111,7 +111,7 @@ fec_frame_encode (const fec_frame_cfg_t *cfg, fec_conv_t *conv,
      at `out + cadu_bits`, step i reads out[cadu_bits + i] and writes
      out[2i] and out[2i + 1]. The write can only reach the read when
      2i + 1 >= cadu_bits + i, i.e. i >= cadu_bits - 1 — the final step, where
-     fec_conv_encode has already consumed in[i] before writing either symbol.
+     conv_encode has already consumed in[i] before writing either symbol.
      With no inner code out_bits == cadu_bits, so `cadu` is `out` itself and
      the question does not arise. */
   uint8_t *const cadu  = out + (out_bits - lay.cadu_bits);
@@ -145,14 +145,16 @@ fec_frame_encode (const fec_frame_cfg_t *cfg, fec_conv_t *conv,
          first 6 symbols of every frame after the first, landing on the ASM,
          and invisible to a matched decoder. It is the caller's, and a NULL
          says "this frame stands alone" rather than "I forgot". */
-      fec_conv_t  own;
-      fec_conv_t *s = conv;
+      conv_enc_t  own;
+      conv_enc_t *s = conv;
       if (s == NULL)
         {
-          fec_conv_init (&own);
+          conv_enc_init (&own);
           s = &own;
         }
-      fec_conv_encode (s, cadu, lay.cadu_bits, out);
+      /* The capacity is the WHOLE buffer: the encode reads the CADU from the
+         tail and writes the expanded stream from out[0]. */
+      conv_encode (s, &FEC_CCSDS_CONV, cadu, lay.cadu_bits, out, out_bits);
     }
 
   return out_bits;

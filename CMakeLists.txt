@@ -178,6 +178,7 @@ add_subdirectory(native/src/resamp)
 add_subdirectory(native/src/wfmcompose)
 add_subdirectory(native/src/fec)
 add_subdirectory(native/src/conv)
+add_subdirectory(native/src/rs)
 add_subdirectory(native/src/frame_meter)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:frame_meter_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:frame_meter_core>)
@@ -516,6 +517,13 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:fec_ccsds_core>)
 # wiring check is what named it; the line is ours.
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:conv_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:conv_core>)
+
+# rs_core, the outer code, on the same argument as conv_core: native/inc/rs
+# is an installed header whose every function is out-of-line, and `fec` holds
+# only the CCSDS configuration of it -- so without this line fec_rs_* resolve
+# inside the archive and every field operation they call does not.
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:rs_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:rs_core>)
 
 # The capture's block bound is claimed from a code audit of every emit site.
 # This drives a REAL object -- carrier_nda, the only unconditional per-input

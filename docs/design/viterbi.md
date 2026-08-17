@@ -207,4 +207,5 @@ ______________________________________________________________________
 ## See also
 
 - [The FEC Receive Half](fec-receive.md) — the chain, node sync, lock detection
+- [Reed-Solomon](reed-solomon.md) — the outer code, split the same way
 - [Soft Decisions for M-PSK](mpsk-soft.md) — the LLRs this consumes

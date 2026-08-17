@@ -678,6 +678,10 @@ add_test(NAME test_dp_sym COMMAND test_dp_sym)
 # captures stderr so a deliberate failure never puts a fake FAIL line in a
 # passing test's log.
 add_executable(test_dp_test native/tests/test_dp_test.c)
+# `cabs` on the component-wise-vs-magnitude assertion. gcc at -O2 folds it and
+# needs no libm; the coverage build is clang at -O0 and emits the call, so the
+# omission was invisible to `make test` and red only in `make coverage`.
+target_link_libraries(test_dp_test PRIVATE m)
 target_include_directories(test_dp_test
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/tests)
 target_compile_options(test_dp_test PRIVATE -O2)

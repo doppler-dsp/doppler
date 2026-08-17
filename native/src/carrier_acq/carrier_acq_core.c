@@ -338,6 +338,13 @@ typedef struct
   uint64_t max_n_blocks;
   uint64_t n_blocks;
   uint8_t  ready;
+  /* Explicit, and named on purpose: a designated initializer zeroes members
+     it does not mention, but the PADDING between them keeps unspecified
+     values (C11 6.7.9p10), and this struct is written to the blob whole. The
+     seven bytes here are the same seven the compiler would insert before the
+     double, so the format is byte-identical -- they are simply defined now.
+     Both DSSS receivers already carry this member for this reason. */
+  uint8_t  _pad[7];
   double   residual_hz;
   uint64_t carry_len;
 } carrier_acq_extra_t;

@@ -1,44 +1,68 @@
 # The Viterbi Decoder
 
-The CCSDS inner code decoded: the trellis, the branch metric, and the one
-number the implementation cannot be written without.
+A maximum-likelihood sequence decoder for rate-1/n convolutional codes: the
+trellis, the branch metric, and the one number the implementation cannot be
+written without.
 
-Phase 1 of [Adding an Algorithm](../dev/adding-algorithms.md). The chain this
-sits in — node synchronization, the ASM search, the outer code — is
-[The FEC Receive Half](fec-receive.md); this page owns the decoder itself.
+Phase 1 of [Adding an Algorithm](../dev/adding-algorithms.md). The chain it
+was built for — node synchronization, the ASM search, the outer code — is
+[The FEC Receive Half](fec-receive.md); this page owns the decoder.
+
+**It is a general decoder, and CCSDS is a configuration of it — and the same
+is true of the encoder.** The code that
+motivated it is 131.0-B-3's K = 7, rate 1/2 inner code, and everything below is
+measured on that — but the constraint length, the number of outputs, the
+generator polynomials and which outputs are inverted are all *parameters*. A
+decoder that hard-codes one code is a decoder that cannot be pointed at the
+deep-space rate-1/6 code, at a K = 9 experiment, or at anything a caller brings
+of their own, and the algorithm is identical in every one of those cases. The
+only thing CCSDS-specific in the tree should be the *configuration*, which is
+`fec`'s to hold.
 
 ______________________________________________________________________
 
 ## 1. What it decodes
 
-CCSDS 131.0-B-3 section 3.3: rate 1/2, constraint length K = 7,
-non-systematic, `G1 = 1111001` (171 octal), `G2 = 1011011` (133 octal), with
-**symbol inversion on the G2 output path**. `fec_conv_encode` ships that
-encoder and is pinned against the impulse response; this is its inverse.
+Any rate-1/n convolutional code, given its constraint length, its generator
+polynomials, and a mask saying which outputs are inverted:
 
-The inversion is not a detail. Built without it, the trellis differs from the
-shipped encoder in **400 of 800 symbols**, and a decoder that omits it decodes
-**39.2 % of bits wrong** — measured, not reasoned. It is the same trap the
-encoder's own test was written around, one layer out: a decoder that inverts
-consistently with an encoder that inverts consistently interoperates with
-nothing, and only a comparison against the *other* implementation catches it.
+| parameter |                            | CCSDS 131.0-B-3 §3.3 |
+| --------- | -------------------------- | -------------------- |
+| `k`       | constraint length          | 7                    |
+| `n`       | outputs per input bit      | 2                    |
+| `poly[]`  | generator polynomials      | `0171`, `0133`       |
+| `invert`  | which outputs are inverted | bit 1 — G2 only      |
+| `depth`   | traceback depth            | 60 (§4)              |
+
+`fec_conv_encode` ships that encoder and is pinned against the impulse
+response; this decodes it, and the same object decodes anything else with a
+trellis of the same family.
+
+**The inversion has to be a parameter, not a constant.** CCSDS inverts G2;
+most codes invert nothing. Built without it, the trellis differs from the
+shipped encoder in **400 of 800 symbols** and decodes **39.2 % of bits wrong**
+— measured, not reasoned. It is the same trap the encoder's own test was
+written around, one layer out: a decoder that inverts consistently with an
+encoder that inverts consistently interoperates with nothing, and only a
+comparison against the *other* implementation catches it. Making it a mask
+means the mistake is a wrong argument rather than a wrong decoder.
 
 ______________________________________________________________________
 
 ## 2. The trellis, in the encoder's own terms
 
-`fec_conv_encode` is `reg = ((reg >> 1) | (b << 6)) & 0x7F`, so the 7-bit
-register holds *(the newest bit, the six before it)*. A **state** is therefore
-those six previous inputs:
+The convention must match the encoder being decoded, and doppler's is
+`fec_conv_encode`: `reg = ((reg >> 1) | (b << (k-1))) & mask`, so the k-bit
+register holds *(the newest bit, the k-1 before it)*. A **state** is those
+k-1 previous inputs:
 
 ```text
-state st (6 bits) + new bit b   ->   reg = (b << 6) | st
-                                     C1  = parity(reg & G1)
-                                     C2  = parity(reg & G2) ^ 1
-                                     next state = reg >> 1
+state st (k-1 bits) + new bit b -> reg  = (b << (k-1)) | st
+                                   c[j] = parity(reg & poly[j]) ^ invert_j
+                                   next state = reg >> 1
 ```
 
-64 states, two branches each. Deriving the state convention the other way
+2^(k-1) states, two branches each — 64 for CCSDS. Deriving the state convention the other way
 round — a plausible reading, and the one written first — builds a trellis that
 is perfectly self-consistent and decodes nothing the shipped encoder produced.
 **The check that catches it is encoding through the trellis and comparing
@@ -139,9 +163,17 @@ ______________________________________________________________________
     a few hundred bytes at depth 60, so the window is a fixed allocation
     rather than a growth policy.
 - **The butterfly**: each next state has exactly two predecessors,
-    `(ns << 1) & 63` and `| 1`, both with the same input bit `ns >> 5`. That
-    structure is what makes the update branch-free and is worth writing down
-    because it is easy to rediscover incorrectly.
+    `(ns << 1) & (S-1)` and `| 1` for `S = 2^(k-1)`, both with the same input
+    bit `ns >> (k-2)`. That structure is what makes the update branch-free,
+    holds for every k, and is worth writing down because it is easy to
+    rediscover incorrectly.
+- **Branch metrics once per step, not per state.** For rate 1/n there are only
+    `2^n` distinct output patterns, so the `n` LLRs collapse to a `2^n` table
+    computed once and indexed by each branch's output word. At n = 2 that is
+    four adds for 128 branches.
+- **Path metrics need renormalising.** They grow without bound on a stream;
+    subtracting the running maximum each step keeps them bounded and changes
+    no decision, since a common offset cannot reorder survivors.
 - **No exceptions to the error convention**: a decoder fed a short buffer or
     an unsupported depth writes nothing, as `fec_frame_encode` does.
 
@@ -159,6 +191,10 @@ ______________________________________________________________________
     available here.
 1. **The cost of depth in a real budget.** §4 gives BER against depth; what a
     caller trades is latency and memory, and neither is measured yet.
+1. **Whether depth 60 travels.** §4 measured it for K = 7 rate 1/2. The rule
+    of thumb scales with K, and this decoder takes K as a parameter — so the
+    number is pinned for the code it was measured on and is a default, not a
+    law, for anything else.
 
 **Where all three get measured is settled**: the receiver instrument, not a
 bespoke sweep. `native/validation/` for the C-only surface and the battery for

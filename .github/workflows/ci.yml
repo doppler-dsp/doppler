@@ -192,6 +192,24 @@ jobs:
     - name: Python example smoke tests
       run: make test-examples-python
 
+    # NOT WIRED YET, deliberately: `make validate-check` cannot pass here.
+    #
+    # It was added in this job and run once (#818). Four reports came back
+    # STALE on the runner while all eleven were up to date locally on the same
+    # arch, Python and numpy: resamp, carrier_nda, mpsk_receiver, ratesync.
+    # Two of those render their limits the same way they always have, so their
+    # drift PREDATES anything on that branch -- the committed reports have
+    # never been reproducible on a machine other than the one that generated
+    # them, and nothing noticed because this gate had no CI home.
+    #
+    # So the gate is not what is broken; byte-comparing a report that embeds
+    # the settled state of a long closed-loop simulation is. See #820 for the
+    # diagnosis and the options. Wiring it before that is settled would give
+    # the repo a permanently red job, which is worse than the hole (#816).
+    #
+    # `--check` now prints the unified diff on failure, so whoever picks #820
+    # up learns what differs in one run rather than one round trip.
+
     - name: Upload coverage report
       uses: actions/upload-artifact@v7
       if: matrix.python-version == '3.12'

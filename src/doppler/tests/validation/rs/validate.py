@@ -539,17 +539,42 @@ def plots(d) -> None:
     # ── the channel ─────────────────────────────────────────────────
     ebn0 = [r["esn0_db"] + RATE_DB for r in d["channel"]]
     sin = [r["sym_err_in"] / r["sym_total"] for r in d["channel"]]
-    sout = [
-        max(r["sym_err_out"] / r["sym_total"], 1.0 / (2.0 * r["sym_total"]))
-        for r in d["channel"]
-    ]
     unc = [_uncoded_symbol_ser(e) for e in ebn0]
     good = [r["cw_good"] / 200.0 for r in d["channel"]]
+
+    # Zero errors is not a measurement of a rate, so it is not drawn as one:
+    # the points where the output was clean become the bound 3/N supports,
+    # with their own marker. Drawing them on the curve at a substituted
+    # floor would show a plateau the data does not have.
+    seen = [
+        (e, r["sym_err_out"] / r["sym_total"])
+        for e, r in zip(ebn0, d["channel"])
+        if r["sym_err_out"] > 0
+    ]
+    clean = [
+        (e, 3.0 / r["sym_total"])
+        for e, r in zip(ebn0, d["channel"])
+        if r["sym_err_out"] == 0
+    ]
 
     fig, (ax, bx) = plt.subplots(2, 1, figsize=(6.2, 6.0), sharex=True)
     ax.semilogy(ebn0, unc, "o--", label="uncoded symbol SER")
     ax.semilogy(ebn0, sin, "s-", label="channel symbol SER (in)")
-    ax.semilogy(ebn0, sout, "^-", label="after RS(255,223) (out)")
+    ax.semilogy(
+        [p[0] for p in seen],
+        [p[1] for p in seen],
+        "^-",
+        label="after RS(255,223) (out)",
+    )
+    if clean:
+        ax.semilogy(
+            [p[0] for p in clean],
+            [p[1] for p in clean],
+            "v",
+            mfc="none",
+            ms=8,
+            label="0 errors, 3/N bound",
+        )
     ax.set_ylabel("symbol error rate")
     ax.set_title("RS(255,223) over BPSK — the rate is paid before the knee")
     ax.grid(True, which="both", alpha=0.3)

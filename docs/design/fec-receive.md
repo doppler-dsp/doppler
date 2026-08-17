@@ -276,8 +276,9 @@ ______________________________________________________________________
 1. **`ccsds_tm_frame_decode`** — the chain, mirroring `ccsds_tm_frame_encode`'s spans,
     with the ASM search resolving polarity.
 
-1. **Coding gain, through the harness that already exists.** Coded against
-    uncoded, against 130.1-G. This is the measurement the whole slice is for
+1. **Coding gain, through the harness that already exists — DONE**, and §8
+    is what it found. Coded against uncoded, against 130.1-G. This is the
+    measurement the whole slice is for
     and it is also `fec`'s certification evidence — and it is **not** a new
     sweep. [The Receiver Test Harness](rx-test.md) is the inventory of what a
     receiver measurement rests on, and the instrument built on it
@@ -288,9 +289,83 @@ ______________________________________________________________________
     the same way `ContinuousMpskReceiver` was — not a second harness.
 
     rx-test.md §5.3 names the gap this closes from the other side: *"the
-    framed generator and the frame-aware measurer have never met"*. `fec` is
-    the layer that makes the generator produce something the measurer was
-    built to score.
+    framed generator and the frame-aware measurer have never met"*.
+    `ccsds_tm` is the layer that makes the generator produce something the
+    measurer was built to score.
+
+    It came out as promised: `native/validation/rx_coding_gain.c` is an
+    adapter (`dp_rx_mpsk.h`, shared with `rx_battery.c`) plus an operating
+    point that is `DP_RX_ANCHOR` **with one field changed**, so a difference
+    from the battery's numbers is the coding or the Es/N0 and cannot be the
+    geometry.
+
+______________________________________________________________________
+
+## 8. What the coding gain measurement found
+
+The sweep, at `I = 5` through `MpskReceiver`, 48 CADUs per point:
+
+| Es/N0    | Eb/N0    | channel SER | post-Viterbi BER | frames byte-exact | payload                      |
+| -------- | -------- | ----------- | ---------------- | ----------------- | ---------------------------- |
+| −3 dB    | 0.59     | 17.1 %      | 2.1e-01          | 0 / 46            | 1951 errors                  |
+| −2 dB    | 1.59     | 14.1 %      | 8.2e-02          | 0 / 46            | 802 errors                   |
+| −1 dB    | 2.59     | 11.2 %      | 1.6e-02          | 9 / 47            | 424 errors                   |
+| **0 dB** | **3.59** | **8.4 %**   | **1.8e-03**      | **40 / 46**       | **0 errors in 356 800 bits** |
+| +1 dB    | 4.59     | 6.0 %       | 9.1e-05          | 45 / 46           | 0 errors in 401 400 bits     |
+
+**The gain is quoted as a lower bound, and the bound is the run length rather
+than the code.** Zero errors is not a rate, so the harness takes the exact
+95 % upper limit on the BER from zero errors in 356 800 bits
+(`ber_confidence`), asks what Eb/N0 an uncoded link would have needed to reach
+it (`ber_esn0_db_for_ser`, the library's own closed form inverted), and
+subtracts the Eb/N0 this link actually ran at:
+
+> **≥ 6.1 dB at Eb/N0 = 3.59 dB**, with the channel putting one symbol in 12
+> wrong before decoding.
+
+130.1-G quotes 7–8 dB at BER 1e-5 for an ideal demodulator; a one-sided bound
+from a receiver-in-the-loop run sitting below that is the expected relation,
+not a discrepancy. **The rate is part of the answer**: R = 1/2 × 223/255 =
+0.4373, so the link is charged 3.59 dB for its redundancy before any gain is
+claimed. A coding gain quoted without that term is 3.6 dB that does not exist.
+
+### Three things only a receiver-in-the-loop run could say
+
+**The uncoded lock detector is not a usable gate for a coded link.** The
+binary `locked` flag is asserted 0.2 % of the time at −3 dB, 24 % at 0 dB and
+68 % at +1 dB — while the lock STATISTIC is positive essentially always and
+the frames decode byte-exact. The loops are tracking; the detector's
+threshold was sized for an uncoded link, and a concatenated link runs several
+dB below it by design ([#835](https://github.com/doppler-dsp/doppler/issues/835)).
+So the measurement window is the settling budget and
+the evidence of lock is that the marker appears and the frames decode — which
+is what an attached sync marker is for. Both duty cycles are printed so this
+stays a measurement rather than an assumption.
+
+**Slips are real at these Es/N0, and one of them flips the node phase.** Over
+~46 frame slots at 0 dB: 3 node re-synchronizations and 3 frame-sync
+re-acquisitions. One measured slip moved the stream by an odd number of
+symbols, which flips the `(C1, C2)` parity and turns every subsequent bit
+into noise until node sync is re-run. **A node-sync object therefore cannot
+be a one-shot at start of stream** — a constraint §3's sketch does not state,
+and the reason the harness decodes in segments.
+
+**The outer code never miscorrected.** A CADU that decodes, reports every
+codeword good, and matches no transmitted frame is a Reed-Solomon
+miscorrection — the outcome `rs_core.h` warns is possible past `E` and that
+no counter in the tree could previously see. Across the whole sweep,
+including the two points below threshold where most codewords fail:
+**zero**.
+
+### What is still the harness's job and should not be
+
+Node synchronization. `fec-receive.md` §3 designs it and nothing implements
+it, so `rx_coding_gain.c` decodes both parities and keeps the one whose ASM
+correlation is better. That is the harness doing the library's work with a
+statistic §3 did not choose (the marker rather than the re-encoding metric),
+and it is filed as
+[#834](https://github.com/doppler-dsp/doppler/issues/834) rather than
+explained away.
 
 ______________________________________________________________________
 

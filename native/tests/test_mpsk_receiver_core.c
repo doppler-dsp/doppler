@@ -536,6 +536,99 @@ main (void)
     mpsk_receiver_destroy (rx);
   }
 
+  /* 4b. The shared loop filter CARRIES THE FREQUENCY ESTIMATE across the
+     handover, in both directions.
+
+     mpsk_receiver_core.h states it outright -- "the shared loop filter
+     carries the frequency estimate across it in both directions, so a
+     drop-back is a discriminator swap rather than a cold re-acquisition" --
+     and nothing in this file had ever read the frequency across a
+     transition. `freq_est` appears zero times; case 4 above pins the
+     tracking flag flipping 1 -> 0 -> 1 and never asks what the estimate did.
+
+     It is also MASKED there, not merely missing: case 4's drop-back calls
+     mpsk_receiver_set_norm_freq() immediately after the flip, which
+     overwrites the very quantity this claim is about. That re-seed is
+     correct for what case 4 measures (it survives a long noise outage during
+     which the NCO random-walks), but it means a receiver that cleared its
+     filter on every mode change would pass case 4 unchanged.
+
+     The failure this guards is silent and expensive. A cold re-acquisition
+     still reaches lock, so SER recovers and `tracking` returns to 1 -- it
+     just pays the pull-in again, and at a bn where pull-in is marginal it
+     slips instead. Nothing in a pass/fail sense distinguishes the two.
+
+     Method: step in one-symbol chunks and sample the estimate on either side
+     of each flip, rather than over a block. CONTINUITY is the claim -- the
+     estimate the acquisition steer built must be the one the tracking steer
+     inherits -- so the measurement has to straddle the transition, not
+     bracket it at block boundaries. */
+  {
+    const double           foff = 0.0005;
+    mpsk_receiver_state_t *rx
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 1, 0.65, 0.0);
+    make_mpsk (tx, idx, 4, foff, 30.0, 33u);
+
+    /* --- forward: acquisition -> tracking --------------------------------
+       No noise burst and no re-seed anywhere near this one, so it is the
+       clean direction: whatever the estimate reads either side of the flip
+       came from the loop filter alone. */
+    const size_t chunk = (size_t)SPS; /* one symbol */
+    double       f_pre = 0.0, f_post = 0.0;
+    int          flipped = 0;
+    for (size_t i = 0; i + chunk <= NSAMP; i += chunk)
+      {
+        int    was    = mpsk_receiver_get_tracking (rx);
+        double before = mpsk_receiver_get_norm_freq (rx);
+        (void)mpsk_receiver_steps (rx, tx + i, chunk, out, NSYM);
+        if (!was && mpsk_receiver_get_tracking (rx))
+          {
+            f_pre   = before;
+            f_post  = mpsk_receiver_get_norm_freq (rx);
+            flipped = 1;
+            break;
+          }
+      }
+    DP_CHECK (flipped); /* the case is vacuous if it never hands over */
+
+    /* The estimate is already the offset BEFORE the flip -- that is what
+       acquisition is for -- and the flip does not disturb it. Both halves
+       matter: the first says the loop had something worth carrying, the
+       second says the handover carried it. A filter cleared on the mode
+       change reads ~0 at f_post and fails the second while passing the
+       first. */
+    DP_CHECK (fabs (f_pre - foff) < 0.25 * foff);
+    DP_CHECK (fabs (f_post - f_pre) < 0.05 * foff);
+
+    /* --- reverse: tracking -> acquisition --------------------------------
+       Same question on the drop-back, and deliberately WITHOUT case 4's
+       re-seed. The drop needs 32 consecutive symbols under the threshold, so
+       the loop spends that long steering on noise and the estimate drifts --
+       bounded, and nowhere near the distance to zero. */
+    make_mpsk (tx, idx, 4, foff, -10.0, 44u);
+    double f_drop_pre = 0.0, f_drop_post = 0.0;
+    int    dropped = 0;
+    for (size_t i = 0; i + chunk <= NSAMP / 10; i += chunk)
+      {
+        int    was    = mpsk_receiver_get_tracking (rx);
+        double before = mpsk_receiver_get_norm_freq (rx);
+        (void)mpsk_receiver_steps (rx, tx + i, chunk, out, NSYM);
+        if (was && !mpsk_receiver_get_tracking (rx))
+          {
+            f_drop_pre  = before;
+            f_drop_post = mpsk_receiver_get_norm_freq (rx);
+            dropped     = 1;
+            break;
+          }
+      }
+    DP_CHECK (dropped);
+    DP_CHECK (fabs (f_drop_post - f_drop_pre) < 0.05 * foff);
+
+    printf ("    handover freq_est: fwd %.6f -> %.6f   rev %.6f -> %.6f\n",
+            f_pre, f_post, f_drop_pre, f_drop_post);
+    mpsk_receiver_destroy (rx);
+  }
+
   free (tx);
   free (idx);
   free (out);
@@ -892,50 +985,7 @@ main (void)
     float complex *ftx = malloc (NSAMP * sizeof (*ftx));
     int           *fid = malloc (NSYM * sizeof (int));
 
-    /* 12. The handover carries the FREQUENCY ESTIMATE across, both ways.
-       gh-814. The header's claim is not that the flip happens -- section 4
-       pins that -- but that "the shared loop filter carries the frequency
-       estimate across it in both directions, so a drop-back is a
-       discriminator swap rather than a cold re-acquisition". Nothing tested
-       it, and section 4 cannot: it re-seeds the carrier by hand across the
-       outage, so it would pass against a receiver that cleared the estimate.
-
-       Stepped one sample at a time, because the claim is about the instant
-       of the flip and a block call hides it. The estimate must be CONTINUOUS
-       there -- one loop update's worth of change, not a jump back to the
-       create-time seed, which is what a cleared integrator would give. */
-    {
-      mpsk_receiver_state_t *rx
-          = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 1, 0.65, 0.0);
-      const double  TRUE_F = 0.0005;
-      float complex y;
-      double        f_before = 0.0, f_at = 0.0;
-      int           prev = 0, flips = 0;
-      make_mpsk (ftx, fid, 4, TRUE_F, 30.0, 71u);
-      for (size_t i = 0; i < NSAMP; i++)
-        {
-          double f_pre = mpsk_receiver_get_norm_freq (rx);
-          (void)mpsk_receiver_step_ted (rx, ftx[i], &y, RATESYNC_TED_GARDNER);
-          int now = mpsk_receiver_get_tracking (rx);
-          if (now != prev && now == 1 && flips == 0)
-            {
-              f_before = f_pre;
-              f_at     = mpsk_receiver_get_norm_freq (rx);
-              flips++;
-            }
-          prev = now;
-        }
-      DP_CHECK (flips == 1); /* the handover happened at all      */
-      /* Continuity: the estimate moved by at most one update, and it is
-         NOWHERE NEAR the seed of 0. Both halves matter -- the first fails a
-         cleared integrator, the second fails a test that would pass if the
-         loop had simply never moved. */
-      DP_CHECK (fabs (f_at - f_before) < 0.1 * TRUE_F);
-      DP_CHECK (fabs (f_at - TRUE_F) < 0.2 * TRUE_F);
-      mpsk_receiver_destroy (rx);
-    }
-
-    /* 13. The verify counts are TIME hysteresis, and the defaults are the
+    /* 12. The verify counts are TIME hysteresis, and the defaults are the
        header's. gh-814: "both directions are verify-counted (8 symbols up /
        32 down)" was documented and tested nowhere, and carrier_nda's own
        certification found the analogous count mattered a great deal (its
@@ -982,7 +1032,7 @@ main (void)
       DP_CHECK ((double)(t_long - t_short) > 62.0 * SPS * 0.5);
     }
 
-    /* 14. `bn_carrier` is normalised to the SYMBOL rate, not the input rate.
+    /* 13. `bn_carrier` is normalised to the SYMBOL rate, not the input rate.
        gh-814, and the @warning's own headline: "bn_carrier also changed units:
        it is now normalised to the symbol rate, like bn_timing, rather than to
        the input sample rate -- at the old default sps = 8 the same number is
@@ -1053,7 +1103,7 @@ main (void)
       DP_CHECK (lo > 10.0);
     }
 
-    /* 15. Never pair `m_out = 2` with MPSK_RX_PULSE_IANDD. gh-814.
+    /* 14. Never pair `m_out = 2` with MPSK_RX_PULSE_IANDD. gh-814.
        The header says "never", explains why -- "the filter degenerates to a
        two-tap sum, the eye barely opens and acquisition itself fails about
        half the time" -- and construction permits it anyway, so the failure

@@ -976,6 +976,20 @@ main (void)
     /* And the AGC is what made the levels agree: its gain tracked the input
        across the full 24 dB, which is the non-vacuous half. */
     DP_CHECK (gain[0] - gain[1] > 10.0 && gain[1] - gain[2] > 10.0);
+
+    /* Tighter than "it moved": the gain is the exact RECIPROCAL of the
+       level. Each 4x step in amplitude must move it by 20*log10(4), and
+       measured it does -- 12.0412 dB and 12.0412 dB against the analytic
+       12.0412. That is the difference between a TREND and an absolute
+       level estimate, and it is what lets a caller read
+       get_agc_gain_db() as "the input is this far from the level the
+       cascade was built for" rather than only as "something changed".
+       Carried back from the validation report's §2.9, where the same law
+       holds to under 0.01 dB across a 32x span; the report is evidence
+       and this is what keeps it true. */
+    const double step_db = 20.0 * log10 (4.0);
+    DP_CHECK (fabs ((gain[0] - gain[1]) - step_db) < 0.01);
+    DP_CHECK (fabs ((gain[1] - gain[2]) - step_db) < 0.01);
   }
 
   /* Sections 12 and 13 own their buffers: the file's shared tx/idx/out are

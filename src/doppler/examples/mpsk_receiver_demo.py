@@ -55,6 +55,46 @@ bits = rx.bits(iq)  # hard Gray bits, LSB-first per symbol
 assert rx.tracking == 1  # switched to decision-directed tracking
 # --8<-- [end:receiver]
 
+# --8<-- [start:level]
+# Diagnosing a LEVEL problem: use `agc_gain_db`, not `lock`.
+#
+# The front end's AGC applies the exact reciprocal of the input level, so
+# `agc_gain_db` is an ABSOLUTE reading -- "the input is this far from the
+# level the cascade was built for" -- and not merely a trend. `lock` cannot
+# see a level error at all: it is the M-th-power carrier statistic and
+# `carrier_nda_disc` divides out its own |z|^M, so it is invariant to
+# amplitude by construction. Watching `lock` to find a level problem is
+# watching the one readout that is blind to it.
+levels, gains, locks_by_level = (0.25, 1.0, 4.0), [], []
+for amp in levels:
+    rx_l = MpskReceiver(
+        m=4, sps=8, m_out=4, pulse="iandd", bn_carrier=0.02, bn_timing=0.01
+    )
+    rx_l.steps((iq * amp).astype(np.complex64))
+    gains.append(rx_l.agc_gain_db)
+    locks_by_level.append(rx_l.lock)
+
+# The law: gain + 20*log10(amp) is CONSTANT. Each 4x step must move the gain
+# by exactly 20*log10(4) = 12.04 dB, which is what makes the number absolute.
+offsets = [g + 20 * np.log10(a) for g, a in zip(gains, levels)]
+assert max(offsets) - min(offsets) < 0.05, (
+    f"agc_gain_db is not the reciprocal of the level: offsets {offsets}"
+)
+# And `lock` is unmoved across the same 16x span -- the blind spot, asserted
+# so that a change making `lock` level-sensitive shows up here as a failure
+# rather than as a surprise in the field.
+assert max(locks_by_level) - min(locks_by_level) < 0.05, (
+    f"lock became level-sensitive: {locks_by_level}"
+)
+print(
+    f"level 0.25/1/4 -> agc_gain_db "
+    f"{gains[0]:+.2f}/{gains[1]:+.2f}/{gains[2]:+.2f} dB "
+    f"(steps {gains[0] - gains[1]:.2f}, {gains[1] - gains[2]:.2f}); "
+    f"lock {locks_by_level[0]:.3f}/{locks_by_level[1]:.3f}/"
+    f"{locks_by_level[2]:.3f} -- blind to the level"
+)
+# --8<-- [end:level]
+
 PHI0 = {2: 0.0, 4: np.pi / 4, 8: 0.0}
 
 

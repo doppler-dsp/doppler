@@ -67,6 +67,10 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) _F32ToI16U64 state._ 
 * **struct** [**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) _F32ToUQ15 state._ 
 * **struct** [**farrow\_state\_t**](structfarrow__state__t.md) _Farrow interpolator state (4-tap delay line + order)._ 
+* **struct** [**fec\_conv\_t**](structfec__conv__t.md) _Rate-1/2 constraint-length-7 convolutional encoder state._ 
+* **struct** [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md) _Which coding is applied to one Transfer Frame._ 
+* **struct** [**fec\_frame\_layout\_t**](structfec__frame__layout__t.md) _The shape of one CADU, and what each stage covered._ 
+* **struct** [**fec\_frame\_span\_t**](structfec__frame__span__t.md) _A run of CADU bits, as a half-open range_ `[first, first + n)` _._
 * **struct** [**fft2d\_state\_t**](structfft2d__state__t.md) 
 * **struct** [**fft\_state\_t**](structfft__state__t.md) 
 * **struct** [**fir\_state\_t**](structfir__state__t.md) 

@@ -65,7 +65,13 @@ OBJECTS = ROOT / "objects"
 
 # The same glob `make validate` uses for VALIDATORS, one directory over:
 # discovery is by arrival, not by registration.
-GLOB = "*/tests/validation/*/results.md"
+GLOBS = (
+    "*/tests/validation/*/results.md",
+    # A component with no Python face is certified from `src/doppler/tests/`
+    # instead, because there is no module to sit beside -- see
+    # docs/dev/validation.md, "certifying a component with no binding".
+    "tests/validation/*/results.md",
+)
 
 START_MARKER = "<!-- validation-log:start -->"
 END_MARKER = "<!-- validation-log:end -->"
@@ -152,7 +158,12 @@ def parse(report: Path) -> dict[str, object]:
 
     # .../<module>/tests/validation/<object>/results.md
     obj = report.parent.name
+    # `<module>/tests/validation/<obj>/` for a bound object; for one with no
+    # binding the folder is `tests/validation/<obj>/` and there is no module
+    # to name, which the table says rather than inventing one.
     module = report.parents[3].name
+    if module == "doppler":
+        module = "— (C only)"
     return {
         "object": obj,
         "module": module,
@@ -230,7 +241,7 @@ def main() -> int:
         return 2
     check_only = "--check" in sys.argv
 
-    reports = sorted(SRC.glob(GLOB))
+    reports = sorted({p for g in GLOBS for p in SRC.glob(g)})
     try:
         rows = [parse(r) for r in reports]
     except ParseError as exc:

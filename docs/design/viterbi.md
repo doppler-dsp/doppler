@@ -95,22 +95,33 @@ The rule of thumb is `5·K = 35`. It is not enough for this code at low SNR.
 
 The first sweep was run at 3 dB over 4 000 bits and **every depth read
 `0.00000`**, which answers nothing — a depth sweep has to be run where the
-answer is not zero. At **1 dB Eb/N0 over 30 000 bits**:
+answer is not zero. At **Eb/N0 = 1 dB over 120 000 bits**, measured by
+`native/validation/conv_certify.c` and rendered into
+`src/doppler/tests/validation/conv/results.md`:
 
-| traceback depth | in K    | BER         |
-| --------------- | ------- | ----------- |
-| 12              | 1.7     | 0.09588     |
-| 20              | 2.9     | 0.06555     |
-| 25              | 3.6     | 0.05413     |
-| 30              | 4.3     | 0.04630     |
-| **35**          | **5.0** | **0.04178** |
-| 45              | 6.4     | 0.03542     |
-| 60              | 8.6     | 0.03237     |
-| 90              | 12.9    | 0.03150     |
-| 120             | 17.1    | 0.03137     |
+| traceback depth | in K    | BER         | above the floor |
+| --------------- | ------- | ----------- | --------------- |
+| 15              | 2.1     | 0.08444     | +106 %          |
+| 20              | 2.9     | 0.06812     | +66 %           |
+| 30              | 4.3     | 0.05195     | +27 %           |
+| **35**          | **5.0** | **0.04821** | **+17 %**       |
+| 45              | 6.4     | 0.04420     | +8 %            |
+| 60              | 8.6     | 0.04156     | +1.2 %          |
+| 90              | 12.9    | 0.04106     | —               |
 
-The floor is ≈ 0.0314, and **`5·K` sits 33 % above it**. Depth 60 (8.6·K) is
-within 3 %, depth 90 within 0.5 %.
+The floor is ≈ 0.0411, and **`5·K` sits 17 % above it** while depth 60 is
+within 1.2 %.
+
+**An earlier prototype reported this differently and its numbers are
+superseded.** It measured 0.04178 at depth 35 against a floor of 0.03137 —
+33 % — at a nominally identical Eb/N0 over 30 000 bits. Every level in it
+sits ~30 % below the table above, which is what a fraction of a dB of
+Es/N0 convention is worth on a curve this steep, and the shape differs with
+it. The prototype was explicitly throwaway and uncommitted; the harness
+above is built, gated and re-run on every push, so it is the number of
+record. **The decision it drove is unchanged** — 35 is measurably short of
+the floor and 60 is on it — which is the useful thing to know about a
+disagreement of this kind.
 
 **Design number: 60**, with 90 available where the memory cost is acceptable.
 The cost is linear in depth on both storage and traceback work, which is why

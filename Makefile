@@ -138,7 +138,7 @@ RUFF_PATHS = .
 # each object's results.md, written by that folder's own validate.py, so
 # reformatting it would drift against the next regeneration. vendor/ is not
 # ours.
-MD_EXCLUDE_RE = ^(vendor/|docs/c-api/|docs/benchmarks\.md$$|docs/.*/archive/|examples/[^/]+/docs/|src/doppler/.*/tests/validation/)
+MD_EXCLUDE_RE = ^(vendor/|docs/c-api/|docs/benchmarks\.md$$|docs/.*/archive/|examples/[^/]+/docs/|src/doppler/(.*/)?tests/validation/)
 
 LINT_ruff        = $(RUFF) check --fix --unsafe-fixes $(RUFF_PATHS)
 LINT_ruff-format = $(RUFF) format $(RUFF_PATHS)

@@ -141,6 +141,16 @@ The order matters and is not negotiable — header, then C tests, then the
 Python report. Going the other way produces evidence in the wrong language
 for the gate, and has cost a rewrite before.
 
+**An algorithm with no Python face is still certified, and does not grow a
+binding to become so.** `conv` was the first: a binding built only to be
+measured is one nobody calls, and the campaign would then be certifying an
+artifact of its own process. The substitution is one line long — a C harness
+under `native/validation/` measures and emits, and a validator under
+`src/doppler/tests/validation/<obj>/` renders and asserts through the same
+`Report` — so the report format, both gates and the five sections are
+unchanged. [Object Validation](validation.md#certifying-a-component-with-no-binding)
+has the table.
+
 ### 9 — Carry it back
 
 A finding that reaches only the report reaches nobody. Whatever the

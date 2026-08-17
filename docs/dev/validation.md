@@ -295,6 +295,44 @@ the moment its folder exists** — there is no registration step to forget.
 - [ ] Commit the generated report — it is the deliverable, not a build
     artifact
 
+## Certifying a component with no binding
+
+`conv`, `rs` and `ccsds_tm` have no Python face and are not getting one: a
+binding built only to be certified is a binding nobody calls, and the
+campaign would then be measuring an artifact of its own process. They are
+still certified, on the same terms, with one substitution.
+
+**C measures; Python renders and asserts.**
+
+| piece          | bound object                                   | component with no binding                         |
+| -------------- | ---------------------------------------------- | ------------------------------------------------- |
+| measurement    | `validate.py`, through the binding             | `native/validation/<obj>_certify.c`, emitting CSV |
+| report         | `validate.py` → `results.md`                   | `validate.py` parses the CSV → `results.md`       |
+| folder         | `src/doppler/<module>/tests/validation/<obj>/` | `src/doppler/tests/validation/<obj>/`             |
+| limits gate    | the module's `test_validation_limits.py`       | `src/doppler/tests/test_validation_limits.py`     |
+| staleness gate | `make validate-check`                          | the same, unchanged                               |
+
+Both gates discover by glob, so this needs no registration either. The
+report format is the shared `Report`, so it cannot drift between the two
+kinds of object — which is the whole reason the C harness does not write
+markdown itself.
+
+Three rules that matter more here than for a bound object:
+
+- **The C harness decides nothing.** It sweeps and prints; every threshold
+    lives in `limits()`. Two places deciding what an acceptable BER is
+    would be two envelopes, and the one nobody runs would be the one that
+    is wrong.
+- **A missing binary FAILS, it does not skip.** A skipped measurement and a
+    passing one are indistinguishable in a log, and the report's entire
+    content comes from that binary.
+- **`§1`'s claim table is still the deliverable of step 1.** For `conv` it
+    is what produced four new C sections and caught a header claim that was
+    off by one; the `here` column simply reads `—` for every row the C test
+    already closes, and `What Python cannot reach` reads *all of it*.
+
+______________________________________________________________________
+
 ## Where a long sweep goes instead — characterization
 
 A validator runs on every push, twice: `test_validation_limits.py` executes

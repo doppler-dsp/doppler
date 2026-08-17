@@ -26,7 +26,8 @@
  * matched decoder absorbs it invisibly.
  *
  * **The decoder is streaming, so the tail of the stream has no bits yet.** A
- * Viterbi emits decision `i` only after seeing `depth` further bits, so its
+ * Viterbi emits decision `i` only after seeing `depth - 1` further bits, so
+ * its
  * output is ALIGNED with its input and simply stops `depth - 1` bits short.
  * The final CADU is still inside the traceback and needs its successor before
  * it resolves — which is the reason `ccsds_tm_frame_decode` takes CADU bits
@@ -188,7 +189,7 @@ receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
       v, g_llr + SKIP_SYM, TOTAL_SYM - SKIP_SYM, g_rx_bits, TOTAL_SYM);
   viterbi_destroy (v);
 
-  /* Decision i is emitted after depth further bits, so the output is ALIGNED
+  /* Decision i is emitted after depth-1 further bits, so the output is ALIGNED
      with the decoder's input and merely stops short -- g_rx_bits[i] is the
      transmitted CADU bit i + SKIP_BITS, with no further shift. */
   *bit_errs = 0;

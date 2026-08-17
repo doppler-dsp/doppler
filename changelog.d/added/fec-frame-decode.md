@@ -1,16 +1,16 @@
 - **The CCSDS receive chain, and a link demo that runs it end to end.**
-    `fec_frame_decode` is the mirror of `fec_frame_encode` — it reads the same
-    `fec_frame_cfg_t` and the same span table, so the two directions cannot
+    `ccsds_tm_frame_decode` is the mirror of `ccsds_tm_frame_encode` — it reads the same
+    `ccsds_tm_frame_cfg_t` and the same span table, so the two directions cannot
     come to disagree about which stage covered what, which is the failure
-    `fec_frame.h` opens by describing. It skips the marker, re-applies the
+    `ccsds_tm_frame.h` opens by describing. It skips the marker, re-applies the
     involutive randomiser over the block span, packs back to octets MSB-first,
-    and checks each interleaved codeword; `fec_frame_rx_t` reports what it
-    found. `fec_ccsds_asm_find` correlates for the marker at every offset in
+    and checks each interleaved codeword; `ccsds_tm_frame_rx_t` reports what it
+    found. `ccsds_tm_asm_find` correlates for the marker at every offset in
     **both polarities**, because a BPSK carrier recovered through a 180-degree
     ambiguity delivers the stream complemented and the marker is the only part
     of a CADU that can say so — the randomiser deliberately does not cover it.
 
-    **The outer code is a check, not a correction.** `fec_rs_codeword_ok` is a
+    **The outer code is a check, not a correction.** `ccsds_tm_rs_codeword_ok` is a
     syndrome test; Berlekamp-Massey, Chien and Forney are still
     `docs/design/fec-receive.md` §7 step 2. So `rs_ok < rs_codewords` means the
     returned frame is wrong in a way the function knows about, which is why it

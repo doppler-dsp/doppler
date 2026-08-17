@@ -31,7 +31,7 @@ about:
 The order is not the encoder's reversed, and the reason is the ASM: it is
 inserted *third* on transmit and covered by the inner code, so a receiver must
 **Viterbi-decode first and look for the marker in the decoded bits.** That one
-fact is what `fec_frame_layout_t`'s span-per-stage was built to express, read
+fact is what `ccsds_tm_frame_layout_t`'s span-per-stage was built to express, read
 right to left.
 
 ______________________________________________________________________
@@ -88,7 +88,7 @@ ______________________________________________________________________
 ## 4. What the prototype settled about the CHAIN
 
 Throwaway, in scratch, **not committed**. It decoded symbols dumped from the
-**shipped** `fec_conv_encode` rather than from a re-derivation of it, so every
+**shipped** `conv_encode` rather than from a re-derivation of it, so every
 number below is measured against the encoder that will be on the other end.
 
 The decoder's own results — that the trellis reproduces the shipped encoder,
@@ -273,7 +273,7 @@ ______________________________________________________________________
     `E+1` — checked at three configurations. See
     [Reed-Solomon](reed-solomon.md).
 
-1. **`fec_frame_decode`** — the chain, mirroring `fec_frame_encode`'s spans,
+1. **`ccsds_tm_frame_decode`** — the chain, mirroring `ccsds_tm_frame_encode`'s spans,
     with the ASM search resolving polarity.
 
 1. **Coding gain, through the harness that already exists.** Coded against

@@ -10,9 +10,10 @@
  * perfectly and interoperates with nothing, which is the failure this whole
  * slice is built to refuse.
  *
- * Nothing here includes `fec`. The CCSDS configuration is one row in the
+ * Nothing here includes `ccsds_tm`. The CCSDS configuration is one row in
+ * the
  * table below, and holding it to the STANDARD's printed values is
- * test_fec_ccsds_conv.c's job.
+ * test_ccsds_tm_conv.c's job.
  *
  * Generality is asserted rather than assumed: the sections below run k from 3
  * to 9 and n from 1 to 3, because a decoder that only works at the one

@@ -17,7 +17,8 @@ ______________________________________________________________________
 **A Viterbi decoder fed hard bits throws away most of the coding gain it
 exists to deliver.** That is the whole reason this is being built now.
 
-`fec/` (the CCSDS TM channel-coding slice) encodes today and decodes nothing.
+`ccsds_tm/` (the CCSDS TM channel-coding slice) encodes today and decodes
+nothing.
 The decoder is next, and a rate-1/2 K=7 Viterbi is a soft-input machine: the
 gap between hard-decision and soft-decision decoding of this exact code is
 about **2 dB** of Eb/N0, which is larger than the difference between having
@@ -39,7 +40,8 @@ it away through `mpsk_demap`. Nothing in the tree turns a symbol into per-bit
 soft values, so every consumer would have to write that conversion itself,
 and the second one to do it would write it differently.
 
-That is the argument for putting it in `mpsk` rather than in `fec`: it is a
+That is the argument for putting it in `mpsk` rather than in `ccsds_tm`: it
+is a
 property of the **constellation**, not of the code that consumes it. `mpsk` is
 where the constellation lives and where the library's one decision rule
 (`mpsk_slice`) already is.
@@ -211,7 +213,7 @@ rather than a branch. M ≤ 8, so the walk is at most eight squared distances
 per symbol against a table built once.
 
 - `llr` receives `x_len * mpsk_bps(m)` floats, symbol-major and LSB-first
-    within each symbol — the layout `wfm_frame_bits` and the `fec` kernels
+    within each symbol — the layout `wfm_frame_bits` and the `ccsds_tm` kernels
     already pass bits around in. It is a caller-provided **out-param** with
     its own length, following `kaiser_window`, because jm's `out_type` binding
     sizes a function's output array 1:1 with its input and this one expands by

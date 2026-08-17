@@ -1,5 +1,5 @@
 /**
- * @file fec_ccsds.h
+ * @file ccsds_tm.h
  * @brief CCSDS TM channel coding — the transforms a transfer frame passes
  * through on its way to symbols.
  *
@@ -36,7 +36,8 @@
  * ```
  *
  * The ASM is the reason the assembler reports a span per stage
- * (@ref fec_frame_layout_t, in fec_frame.h) rather than a stage order. The
+ * (@ref ccsds_tm_frame_layout_t, in ccsds_tm_frame.h) rather than a stage
+ * order. The
  * randomiser is scoped to "the codeblock, codeword, or Transfer Frame"
  * (10.4.2) and the ASM merely *precedes* the codeblock (9.4.1), so it falls
  * outside — stated outright in a NOTE: *"The ASM was not randomized and is
@@ -62,11 +63,11 @@
  * (and wanted) representation; conflating them silently is how MSB-first came
  * to be hardcoded in three places that agree by luck.
  *
- * @see fec_frame.h for the assembler, which is where the four stages meet
+ * @see ccsds_tm_frame.h for the assembler, which is where the four stages meet
  * and where the packed/unpacked boundary is crossed.
  */
-#ifndef FEC_CCSDS_H
-#define FEC_CCSDS_H
+#ifndef CCSDS_TM_H
+#define CCSDS_TM_H
 
 #include "conv/conv_core.h"
 
@@ -88,7 +89,7 @@ extern "C"
 #define FEC_CCSDS_ASM 0x1ACFFC1DuL
 
   /** @brief Length of @ref FEC_CCSDS_ASM in bits. */
-#define FEC_CCSDS_ASM_BITS 32
+#define CCSDS_TM_ASM_BITS 32
 
   /**
    * @brief Period of the pseudo-randomising sequence, in bits (10.4.2).
@@ -96,11 +97,11 @@ extern "C"
    * An 8-stage maximal-length generator, so 255 and not 256. It is named
    * because it is what lets a consumer XOR the sequence onto a run of any
    * length from a fixed 255-entry table instead of holding one the size of
-   * the data — `test_fec_ccsds_rand.c` pins that equivalence against
-   * @ref fec_ccsds_randomise rather than leaving it as arithmetic a reader
+   * the data — `test_ccsds_tm_rand.c` pins that equivalence against
+   * @ref ccsds_tm_randomise rather than leaving it as arithmetic a reader
    * has to trust.
    */
-#define FEC_CCSDS_RAND_PERIOD 255
+#define CCSDS_TM_RAND_PERIOD 255
 
   /**
    * @brief Constraint length of the inner code (3.3.1): 7.
@@ -113,7 +114,7 @@ extern "C"
 #define FEC_CONV_K 7
 
   /**
-   * @brief Write the ASM as @ref FEC_CCSDS_ASM_BITS unpacked bits.
+   * @brief Write the ASM as @ref CCSDS_TM_ASM_BITS unpacked bits.
    *
    * Figure 9-1 numbers the first transmitted bit of the marker as the most
    * significant bit of `0x1A`, so `out[0]` is that bit and `out[31]` is the
@@ -124,9 +125,9 @@ extern "C"
    * an MSB-first expansion written out twice is a transcription that can
    * disagree with itself. One expression, one direction.
    *
-   * @param out  Receives @ref FEC_CCSDS_ASM_BITS bits, one per byte.
+   * @param out  Receives @ref CCSDS_TM_ASM_BITS bits, one per byte.
    */
-  void fec_ccsds_asm_bits (uint8_t *out);
+  void ccsds_tm_asm_bits (uint8_t *out);
 
   /**
    * @brief Where an ASM was found, and in which polarity.
@@ -142,7 +143,7 @@ extern "C"
     size_t   offset;   /**< Bit index where the marker starts       */
     int      inverted; /**< The stream is complemented              */
     unsigned errors;   /**< Hamming distance to the marker there    */
-  } fec_asm_hit_t;
+  } ccsds_tm_asm_hit_t;
 
   /**
    * @brief Find the first ASM in a run of unpacked bits, either polarity.
@@ -167,14 +168,14 @@ extern "C"
    *
    * @code
    * uint8_t       cadu[32 + 64] = { 0 };
-   * fec_asm_hit_t hit;
-   * fec_ccsds_asm_bits (cadu);
-   * if (fec_ccsds_asm_find (cadu, sizeof cadu, 4u, &hit))
+   * ccsds_tm_asm_hit_t hit;
+   * ccsds_tm_asm_bits (cadu);
+   * if (ccsds_tm_asm_find (cadu, sizeof cadu, 4u, &hit))
    *   printf ("marker at bit %zu\n", hit.offset);   // marker at bit 0
    * @endcode
    */
-  int fec_ccsds_asm_find (const uint8_t *bits, size_t n_bits,
-                          unsigned max_errors, fec_asm_hit_t *hit);
+  int ccsds_tm_asm_find (const uint8_t *bits, size_t n_bits,
+                          unsigned max_errors, ccsds_tm_asm_hit_t *hit);
 
   /**
    * @brief Apply the CCSDS pseudo-randomiser to a bit run, in place.
@@ -201,11 +202,11 @@ extern "C"
    *
    * @code
    * uint8_t frame[1784] = { 0 };
-   * fec_ccsds_randomise (frame, sizeof frame);   // now the published sequence
-   * fec_ccsds_randomise (frame, sizeof frame);   // ...and back to zeros
+   * ccsds_tm_randomise (frame, sizeof frame);   // now the published sequence
+   * ccsds_tm_randomise (frame, sizeof frame);   // ...and back to zeros
    * @endcode
    */
-  void fec_ccsds_randomise (uint8_t *bits, size_t n);
+  void ccsds_tm_randomise (uint8_t *bits, size_t n);
 
   /**
    * @brief The CCSDS inner code, as a @ref conv_code_t.
@@ -222,20 +223,20 @@ extern "C"
    * twice — once in an encoder and once in a decoder, where the inversion is
    * exactly the detail that would drift.
    *
-   * `test_fec_ccsds_conv.c` holds it to the standard's printed impulse
+   * `test_ccsds_tm_conv.c` holds it to the standard's printed impulse
    * response: C1 must trace `G1`, and C2 the **complement** of `G2`.
    *
    * @code
    * conv_enc_t s;
    * conv_enc_init (&s);
-   * conv_encode (&s, &FEC_CCSDS_CONV, bits, n, sym, sizeof sym);
+   * conv_encode (&s, &CCSDS_TM_CONV, bits, n, sym, sizeof sym);
    * @endcode
    */
-  extern const conv_code_t FEC_CCSDS_CONV;
+  extern const conv_code_t CCSDS_TM_CONV;
 
   /** @brief Symbols the CCSDS inner code writes for @p n input bits. */
   static inline size_t
-  fec_conv_max_out (size_t n)
+  ccsds_tm_conv_max_out (size_t n)
   {
     return 2u * n;
   }
@@ -250,10 +251,10 @@ extern "C"
    * @param out  Receives @p n unpacked bits.
    * @param n    Number of bits to generate.
    */
-  void fec_ccsds_rand_seq (uint8_t *out, size_t n);
+  void ccsds_tm_rand_seq (uint8_t *out, size_t n);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* FEC_CCSDS_H */
+#endif /* CCSDS_TM_H */

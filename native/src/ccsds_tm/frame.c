@@ -1,16 +1,16 @@
 /*
- * ccsds_frame.c — the CCSDS frame assembler (131.0-B-3 section 9, table 9-1).
+ * frame.c — the CCSDS frame assembler (131.0-B-3 section 9, table 9-1).
  *
  * Four transforms, three different coverages. The whole of this file is the
- * bookkeeping that keeps them apart: fec_frame_layout works out which CADU
- * bits each stage owns, and fec_frame_encode runs each stage over exactly
- * that span. See fec_frame.h for the table and the citations.
+ * bookkeeping that keeps them apart: ccsds_tm_frame_layout works out which
+ * CADU bits each stage owns, and ccsds_tm_frame_encode runs each stage over
+ * exactly that span. See ccsds_tm_frame.h for the table and the citations.
  */
-#include "fec/fec_frame.h"
+#include "ccsds_tm/ccsds_tm_frame.h"
 
 #include <string.h>
 
-/* 4.3.5.1 enumerates the allowed depths. fec_rs_encode_block refuses the
+/* 4.3.5.1 enumerates the allowed depths. ccsds_tm_rs_encode_block refuses the
  * others too — the check is repeated here because the layout has to be
  * computable without encoding anything, and a caller sizing a buffer from a
  * depth the encoder will later reject should learn that from the sizing
@@ -36,8 +36,8 @@ unpack (const uint8_t *bytes, size_t nbytes, uint8_t *bits)
 }
 
 size_t
-fec_frame_layout (const fec_frame_cfg_t *cfg, size_t frame_len,
-                  fec_frame_layout_t *out)
+ccsds_tm_frame_layout (const ccsds_tm_frame_cfg_t *cfg, size_t frame_len,
+                       ccsds_tm_frame_layout_t *out)
 {
   if (frame_len == 0)
     return 0;
@@ -54,18 +54,18 @@ fec_frame_layout (const fec_frame_cfg_t *cfg, size_t frame_len,
          other length is refused rather than padded to fit — padding would
          produce a codeblock that encodes and decodes perfectly here and is
          the wrong length for the receiver it was aimed at. */
-      if (frame_len != (size_t)FEC_RS_K * cfg->rs_depth)
+      if (frame_len != (size_t)CCSDS_TM_RS_K * cfg->rs_depth)
         return 0;
-      block_bytes = (size_t)FEC_RS_N * cfg->rs_depth;
+      block_bytes = (size_t)CCSDS_TM_RS_N * cfg->rs_depth;
     }
 
-  fec_frame_layout_t lay;
+  ccsds_tm_frame_layout_t lay;
   lay.block_bits = block_bytes * 8u;
 
   /* 9.4.1: the marker immediately precedes the codeblock, so it occupies the
      front of the CADU and everything else is measured from behind it. */
   lay.marker.first = 0;
-  lay.marker.n     = cfg->attach_asm ? (size_t)FEC_CCSDS_ASM_BITS : 0u;
+  lay.marker.n     = cfg->attach_asm ? (size_t)CCSDS_TM_ASM_BITS : 0u;
   lay.cadu_bits    = lay.marker.n + lay.block_bits;
 
   /* 9.5.1: the ASM "shall NOT be a part of the encoded data space of the
@@ -87,8 +87,8 @@ fec_frame_layout (const fec_frame_cfg_t *cfg, size_t frame_len,
   lay.inner.n     = cfg->convolutional ? lay.cadu_bits : 0u;
   lay.inner.first = 0;
 
-  lay.out_bits
-      = cfg->convolutional ? fec_conv_max_out (lay.cadu_bits) : lay.cadu_bits;
+  lay.out_bits = cfg->convolutional ? ccsds_tm_conv_max_out (lay.cadu_bits)
+                                    : lay.cadu_bits;
 
   if (out != NULL)
     *out = lay;
@@ -96,12 +96,12 @@ fec_frame_layout (const fec_frame_cfg_t *cfg, size_t frame_len,
 }
 
 size_t
-fec_frame_encode (const fec_frame_cfg_t *cfg, conv_enc_t *conv,
-                  const uint8_t *frame, size_t frame_len, uint8_t *out,
-                  size_t max_out)
+ccsds_tm_frame_encode (const ccsds_tm_frame_cfg_t *cfg, conv_enc_t *conv,
+                       const uint8_t *frame, size_t frame_len, uint8_t *out,
+                       size_t max_out)
 {
-  fec_frame_layout_t lay;
-  const size_t       out_bits = fec_frame_layout (cfg, frame_len, &lay);
+  ccsds_tm_frame_layout_t lay;
+  const size_t out_bits = ccsds_tm_frame_layout (cfg, frame_len, &lay);
   if (out_bits == 0 || max_out < out_bits)
     return 0;
 
@@ -121,10 +121,10 @@ fec_frame_encode (const fec_frame_cfg_t *cfg, conv_enc_t *conv,
 
   if (cfg->rs_depth != 0)
     {
-      uint8_t codeblock[FEC_RS_N * FEC_RS_MAX_DEPTH];
-      if (fec_rs_encode_block (frame, cfg->rs_depth, codeblock) == 0)
+      uint8_t codeblock[CCSDS_TM_RS_N * CCSDS_TM_RS_MAX_DEPTH];
+      if (ccsds_tm_rs_encode_block (frame, cfg->rs_depth, codeblock) == 0)
         return 0;
-      unpack (codeblock, (size_t)FEC_RS_N * cfg->rs_depth, block);
+      unpack (codeblock, (size_t)CCSDS_TM_RS_N * cfg->rs_depth, block);
     }
   else
     unpack (frame, frame_len, block);
@@ -134,10 +134,10 @@ fec_frame_encode (const fec_frame_cfg_t *cfg, conv_enc_t *conv,
      inner code is given the CADU. Nothing here depends on the order the two
      lines are written in. */
   if (cfg->randomise)
-    fec_ccsds_randomise (block, lay.block_bits);
+    ccsds_tm_randomise (block, lay.block_bits);
 
   if (cfg->attach_asm)
-    fec_ccsds_asm_bits (cadu);
+    ccsds_tm_asm_bits (cadu);
 
   if (cfg->convolutional)
     {
@@ -156,7 +156,7 @@ fec_frame_encode (const fec_frame_cfg_t *cfg, conv_enc_t *conv,
         }
       /* The capacity is the WHOLE buffer: the encode reads the CADU from the
          tail and writes the expanded stream from out[0]. */
-      conv_encode (s, &FEC_CCSDS_CONV, cadu, lay.cadu_bits, out, out_bits);
+      conv_encode (s, &CCSDS_TM_CONV, cadu, lay.cadu_bits, out, out_bits);
     }
 
   return out_bits;
@@ -170,10 +170,10 @@ fec_frame_encode (const fec_frame_cfg_t *cfg, conv_enc_t *conv,
  * and 4.3.9.2 that justifies that one.
  *
  * Derandomising HERE rather than in a separate pass is what keeps this
- * O(1) in scratch memory for a frame of any length: fec_ccsds_randomise wants
+ * O(1) in scratch memory for a frame of any length: ccsds_tm_randomise wants
  * a mutable bit run, and the CADU belongs to the caller. Indexing a
- * 255-entry table by `k % FEC_CCSDS_RAND_PERIOD` is the same sequence
- * (10.4.2), which test_fec_ccsds_rand.c holds against the generator itself so
+ * 255-entry table by `k % CCSDS_TM_RAND_PERIOD` is the same sequence
+ * (10.4.2), which test_ccsds_tm_rand.c holds against the generator itself so
  * that this is a pinned equivalence rather than an assumption. */
 static void
 pack_derand (const uint8_t *bits, size_t nbytes, const uint8_t *seq,
@@ -187,7 +187,7 @@ pack_derand (const uint8_t *bits, size_t nbytes, const uint8_t *seq,
           const size_t k = i * 8u + b;
           unsigned     x = bits[k] & 1u;
           if (seq != NULL)
-            x ^= seq[k % (size_t)FEC_CCSDS_RAND_PERIOD];
+            x ^= seq[k % (size_t)CCSDS_TM_RAND_PERIOD];
           v = (uint8_t)((v << 1) | x);
         }
       bytes[i] = v;
@@ -195,40 +195,41 @@ pack_derand (const uint8_t *bits, size_t nbytes, const uint8_t *seq,
 }
 
 size_t
-fec_frame_decode (const fec_frame_cfg_t *cfg, const uint8_t *cadu,
-                  size_t n_cadu, uint8_t *frame, size_t max_frame,
-                  fec_frame_rx_t *rx)
+ccsds_tm_frame_decode (const ccsds_tm_frame_cfg_t *cfg, const uint8_t *cadu,
+                       size_t n_cadu, uint8_t *frame, size_t max_frame,
+                       ccsds_tm_frame_rx_t *rx)
 {
-  const size_t marker_bits = cfg->attach_asm ? (size_t)FEC_CCSDS_ASM_BITS : 0u;
+  const size_t marker_bits = cfg->attach_asm ? (size_t)CCSDS_TM_ASM_BITS : 0u;
   if (n_cadu <= marker_bits || (n_cadu - marker_bits) % 8u != 0u)
     return 0;
 
   /* Work back to the Transfer Frame length the CADU implies, then let
-     fec_frame_layout confirm it. Deriving the shape twice -- once forwards in
-     the encoder and once backwards here -- is how the two directions come to
-     disagree about a span, so the backward derivation produces only a
-     frame_len and the FORWARD function remains the single description. */
+     ccsds_tm_frame_layout confirm it. Deriving the shape twice -- once
+     forwards in the encoder and once backwards here -- is how the two
+     directions come to disagree about a span, so the backward derivation
+     produces only a frame_len and the FORWARD function remains the single
+     description. */
   const size_t block_bytes = (n_cadu - marker_bits) / 8u;
   size_t       frame_len;
   if (cfg->rs_depth != 0)
     {
-      if (block_bytes != (size_t)FEC_RS_N * cfg->rs_depth)
+      if (block_bytes != (size_t)CCSDS_TM_RS_N * cfg->rs_depth)
         return 0;
-      frame_len = (size_t)FEC_RS_K * cfg->rs_depth;
+      frame_len = (size_t)CCSDS_TM_RS_K * cfg->rs_depth;
     }
   else
     frame_len = block_bytes;
 
-  fec_frame_layout_t lay;
-  if (fec_frame_layout (cfg, frame_len, &lay) == 0 || lay.cadu_bits != n_cadu
-      || max_frame < frame_len)
+  ccsds_tm_frame_layout_t lay;
+  if (ccsds_tm_frame_layout (cfg, frame_len, &lay) == 0
+      || lay.cadu_bits != n_cadu || max_frame < frame_len)
     return 0;
 
-  uint8_t        seq[FEC_CCSDS_RAND_PERIOD];
+  uint8_t        seq[CCSDS_TM_RAND_PERIOD];
   const uint8_t *pn = NULL;
   if (cfg->randomise)
     {
-      fec_ccsds_rand_seq (seq, sizeof seq);
+      ccsds_tm_rand_seq (seq, sizeof seq);
       pn = seq;
     }
 
@@ -237,7 +238,7 @@ fec_frame_decode (const fec_frame_cfg_t *cfg, const uint8_t *cadu,
      the marker, exactly as lay.randomised.first says it did on the way out. */
   const uint8_t *block = cadu + lay.marker.n;
 
-  fec_frame_rx_t out = { frame_len, 0u, 0u, 0u, 0u };
+  ccsds_tm_frame_rx_t out = { frame_len, 0u, 0u, 0u, 0u };
 
   if (cfg->rs_depth == 0)
     {
@@ -247,16 +248,16 @@ fec_frame_decode (const fec_frame_cfg_t *cfg, const uint8_t *cadu,
       return frame_len;
     }
 
-  uint8_t codeblock[FEC_RS_N * FEC_RS_MAX_DEPTH];
+  uint8_t codeblock[CCSDS_TM_RS_N * CCSDS_TM_RS_MAX_DEPTH];
   pack_derand (block, block_bytes, pn, codeblock);
 
   /* The outer code CORRECTS here, in place, before anything reads the
      information section -- so the copy below is of the repaired block. The
-     de-interleave belongs to fec_rs_decode_block rather than to this
+     de-interleave belongs to ccsds_tm_rs_decode_block rather than to this
      function, because it is the same S1/S2 rotation the encoder wrote and
      one description of it is the point. */
-  fec_rs_block_rx_t rs;
-  fec_rs_decode_block (codeblock, cfg->rs_depth, &rs);
+  ccsds_tm_rs_block_rx_t rs;
+  ccsds_tm_rs_decode_block (codeblock, cfg->rs_depth, &rs);
 
   /* 4.4.1: S2 reassembles the information symbols "in the same way as they
      entered", so the Transfer Frame is the information section verbatim and

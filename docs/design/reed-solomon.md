@@ -10,7 +10,8 @@ and for the same reason: [The FEC Receive Half](fec-receive.md) is a *chain*,
 and a chain is the wrong home for the algebra of one of its links.
 
 **Nothing here is CCSDS.** 131.0-B-3's (255,223) `E = 16` is a *configuration*
-— five numbers — and it is held in `fec` beside the randomiser and the ASM,
+— five numbers — and it is held in `ccsds_tm` beside the randomiser and the
+ASM,
 with the dual basis and the interleaver that are the standard's and not the
 code's. Point this at RS(204,188) for DVB, at RS(15,11) to check something by
 hand, or at whatever a caller brings; the arithmetic is identical and only the
@@ -57,19 +58,20 @@ ______________________________________________________________________
 The split is the whole point of the file boundary, so it is worth stating as a
 table rather than leaving it to be inferred:
 
-| thing                        | whose          | where          |
-| ---------------------------- | -------------- | -------------- |
-| field, roots, stride         | the code's     | `rs_code_t`    |
-| encode / syndromes / correct | the code's     | `rs_core.c`    |
-| the **dual basis** (4.3.9)   | the standard's | `fec/fec_rs.h` |
-| the **interleaver** (4.4.1)  | the standard's | `fec/fec_rs.h` |
-| `E = 16`, `J = 8`, `s = 11`  | the standard's | `FEC_CCSDS_RS` |
+| thing                        | whose          | where                    |
+| ---------------------------- | -------------- | ------------------------ |
+| field, roots, stride         | the code's     | `rs_code_t`              |
+| encode / syndromes / correct | the code's     | `rs_core.c`              |
+| the **dual basis** (4.3.9)   | the standard's | `ccsds_tm/ccsds_tm_rs.h` |
+| the **interleaver** (4.4.1)  | the standard's | `ccsds_tm/ccsds_tm_rs.h` |
+| `E = 16`, `J = 8`, `s = 11`  | the standard's | `CCSDS_TM_RS`            |
 
 The dual basis is the one most likely to be argued into the wrong file,
 because it looks like arithmetic. It is not: it is a **representation of a
 symbol on the wire**, chosen by 4.3.9.1 so that a hardware multiplier over the
 dual basis is cheaper. The code is the same code in either basis. So `rs`
-works in the conventional basis throughout and `fec` transforms at its own
+works in the conventional basis throughout and `ccsds_tm` transforms at its
+own
 boundary — which is also the honest place for it, since a decoder that works
 in the wrong basis decodes its own encoder perfectly and interoperates with
 nothing. That failure has now appeared three times in this slice, in three
@@ -148,7 +150,7 @@ It does **not** mean "more than `E` errors", and the converse does not hold
 either: beyond `E` errors a bounded-distance decoder can land inside another
 codeword's sphere and *miscorrect*, silently and correctly-by-its-own-lights.
 That is a property of the code, not of this implementation, and the protection
-against it is frame accounting — which is why `fec_frame_rx_t` reports counts
+against it is frame accounting — which is why `ccsds_tm_frame_rx_t` reports counts
 rather than folding them into a single verdict.
 
 One thing it cannot do, and this **is** assertable: when it corrects, the
@@ -175,7 +177,7 @@ something the code cannot choose:
 | the two 4.3.9.3 matrices invert across all 256     | a published pair                          |
 | a burst of `B` becomes `ceil(B/I)` per codeword    | what interleaving is *for*                |
 
-The last two live in `test_fec_rs.c`, with the configuration they belong to.
+The last two live in `test_ccsds_tm_rs.c`, with the configuration they belong to.
 The first three are `test_rs_core.c`'s, at both `J = 8` and `J = 4`, where
 RS(15,11) is small enough to sweep every position and every value.
 
@@ -224,7 +226,7 @@ ______________________________________________________________________
     [#813](https://github.com/doppler-dsp/doppler/issues/813); a frame off the
     `223*I` grid is refused rather than padded.
 - **The lazy table build's data race**
-    ([#817](https://github.com/doppler-dsp/doppler/issues/817)) — `fec`'s
+    ([#817](https://github.com/doppler-dsp/doppler/issues/817)) — `ccsds_tm`'s
     CCSDS singleton builds its tables on first use. `rs_init` is explicit and
     has no such state; the race lives in the configuration layer and becomes
     reachable the moment a `nogil` binding or `dp_parallel` calls it.

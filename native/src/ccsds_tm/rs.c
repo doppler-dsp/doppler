@@ -9,16 +9,16 @@
  * are a configuration a test can hold to Annex G rather than constants inside
  * an encoder.
  */
-#include "fec/fec_rs.h"
+#include "ccsds_tm/ccsds_tm_rs.h"
 
 /* 4.3.3: F(x) = x^8 + x^7 + x^2 + x + 1, held as the low eight bits, the x^8
  * term being implicit in the reduction. 4.3.4: the roots are a^(11j) with j
  * running 128-E .. 127+E. 11 rather than 1 is the whole point. */
-const rs_code_t FEC_CCSDS_RS = { .symbol_bits = 8,
-                                 .field_poly  = 0x87u,
-                                 .nroots      = FEC_RS_2E,
-                                 .first_root  = 128u - FEC_RS_E,
-                                 .root_stride = 11u };
+const rs_code_t CCSDS_TM_RS = { .symbol_bits = 8,
+                                .field_poly  = 0x87u,
+                                .nroots      = CCSDS_TM_RS_2E,
+                                .first_root  = 128u - CCSDS_TM_RS_E,
+                                .root_stride = 11u };
 
 /* 4.3.9.3, first equation, one row per u bit from u7 down to u0. Each row is
  * packed with z0 in bit 7, matching 4.3.9.2's transmission order. */
@@ -38,14 +38,14 @@ ensure (void)
 {
   if (!ready)
     {
-      rs_init (&ccsds, &FEC_CCSDS_RS);
+      rs_init (&ccsds, &CCSDS_TM_RS);
       ready = 1;
     }
   return &ccsds;
 }
 
 uint8_t
-fec_rs_conv_to_dual (uint8_t u)
+ccsds_tm_rs_conv_to_dual (uint8_t u)
 {
   uint8_t z = 0;
   for (int i = 0; i < 8; i++)
@@ -57,7 +57,7 @@ fec_rs_conv_to_dual (uint8_t u)
 }
 
 uint8_t
-fec_rs_dual_to_conv (uint8_t z)
+ccsds_tm_rs_dual_to_conv (uint8_t z)
 {
   uint8_t u = 0;
   for (int i = 0; i < 8; i++)
@@ -69,42 +69,42 @@ fec_rs_dual_to_conv (uint8_t z)
 }
 
 const uint8_t *
-fec_rs_generator (void)
+ccsds_tm_rs_generator (void)
 {
   return rs_generator (ensure ());
 }
 
 void
-fec_rs_encode (const uint8_t *info, uint8_t *parity)
+ccsds_tm_rs_encode (const uint8_t *info, uint8_t *parity)
 {
   const rs_t *rs = ensure ();
 
   /* Figure F-1: transform in, encode conventionally, transform out. */
-  uint8_t conv[FEC_RS_K];
-  for (int i = 0; i < FEC_RS_K; i++)
-    conv[i] = fec_rs_dual_to_conv (info[i]);
+  uint8_t conv[CCSDS_TM_RS_K];
+  for (int i = 0; i < CCSDS_TM_RS_K; i++)
+    conv[i] = ccsds_tm_rs_dual_to_conv (info[i]);
 
-  uint8_t check[FEC_RS_2E];
+  uint8_t check[CCSDS_TM_RS_2E];
   rs_encode (rs, conv, check);
 
-  for (int i = 0; i < FEC_RS_2E; i++)
-    parity[i] = fec_rs_conv_to_dual (check[i]);
+  for (int i = 0; i < CCSDS_TM_RS_2E; i++)
+    parity[i] = ccsds_tm_rs_conv_to_dual (check[i]);
 }
 
 int
-fec_rs_codeword_ok (const uint8_t *codeword)
+ccsds_tm_rs_codeword_ok (const uint8_t *codeword)
 {
   const rs_t *rs = ensure ();
 
-  uint8_t conv[FEC_RS_N];
-  for (int i = 0; i < FEC_RS_N; i++)
-    conv[i] = fec_rs_dual_to_conv (codeword[i]);
+  uint8_t conv[CCSDS_TM_RS_N];
+  for (int i = 0; i < CCSDS_TM_RS_N; i++)
+    conv[i] = ccsds_tm_rs_dual_to_conv (codeword[i]);
 
   return rs_codeword_ok (rs, conv);
 }
 
 int
-fec_rs_decode (uint8_t *codeword)
+ccsds_tm_rs_decode (uint8_t *codeword)
 {
   const rs_t *rs = ensure ();
 
@@ -112,16 +112,16 @@ fec_rs_decode (uint8_t *codeword)
      conventional. Correcting in the transmitted basis would produce a
      decoder that repairs its own encoder's output perfectly and nothing
      else, which is the failure this whole file exists to prevent. */
-  uint8_t conv[FEC_RS_N];
-  for (int i = 0; i < FEC_RS_N; i++)
-    conv[i] = fec_rs_dual_to_conv (codeword[i]);
+  uint8_t conv[CCSDS_TM_RS_N];
+  for (int i = 0; i < CCSDS_TM_RS_N; i++)
+    conv[i] = ccsds_tm_rs_dual_to_conv (codeword[i]);
 
   const int fixed = rs_decode (rs, conv);
   if (fixed <= 0)
     return fixed;
 
-  for (int i = 0; i < FEC_RS_N; i++)
-    codeword[i] = fec_rs_conv_to_dual (conv[i]);
+  for (int i = 0; i < CCSDS_TM_RS_N; i++)
+    codeword[i] = ccsds_tm_rs_conv_to_dual (conv[i]);
   return fixed;
 }
 
@@ -135,12 +135,12 @@ depth_ok (unsigned depth)
 }
 
 size_t
-fec_rs_encode_block (const uint8_t *info, unsigned depth, uint8_t *out)
+ccsds_tm_rs_encode_block (const uint8_t *info, unsigned depth, uint8_t *out)
 {
   if (!depth_ok (depth))
     return 0;
 
-  const size_t k_syms = (size_t)FEC_RS_K * depth;
+  const size_t k_syms = (size_t)CCSDS_TM_RS_K * depth;
 
   /* 4.4.1: S2 reassembles the information symbols "in the same way as they
      entered", so the information section is a straight copy. Only the check
@@ -151,42 +151,43 @@ fec_rs_encode_block (const uint8_t *info, unsigned depth, uint8_t *out)
   for (unsigned e = 0; e < depth; e++)
     {
       /* S1 gives encoder e every depth-th symbol, starting at e. */
-      uint8_t word[FEC_RS_K];
-      for (int i = 0; i < FEC_RS_K; i++)
+      uint8_t word[CCSDS_TM_RS_K];
+      for (int i = 0; i < CCSDS_TM_RS_K; i++)
         word[i] = info[(size_t)i * depth + e];
 
-      uint8_t parity[FEC_RS_2E];
-      fec_rs_encode (word, parity);
+      uint8_t parity[CCSDS_TM_RS_2E];
+      ccsds_tm_rs_encode (word, parity);
 
       /* ...and S2 samples the encoders in the same rotation on the way out. */
-      for (int p = 0; p < FEC_RS_2E; p++)
+      for (int p = 0; p < CCSDS_TM_RS_2E; p++)
         out[k_syms + (size_t)p * depth + e] = parity[p];
     }
 
-  return (size_t)FEC_RS_N * depth;
+  return (size_t)CCSDS_TM_RS_N * depth;
 }
 
 size_t
-fec_rs_decode_block (uint8_t *block, unsigned depth, fec_rs_block_rx_t *rx)
+ccsds_tm_rs_decode_block (uint8_t *block, unsigned depth,
+                          ccsds_tm_rs_block_rx_t *rx)
 {
   if (!depth_ok (depth))
     return 0;
 
-  const size_t      k_syms = (size_t)FEC_RS_K * depth;
-  fec_rs_block_rx_t out    = { depth, 0u, 0u, 0u };
+  const size_t           k_syms = (size_t)CCSDS_TM_RS_K * depth;
+  ccsds_tm_rs_block_rx_t out    = { depth, 0u, 0u, 0u };
 
   for (unsigned e = 0; e < depth; e++)
     {
       /* Undo S1/S2: encoder e saw every depth-th symbol starting at e, in
-         both sections. This is the same rotation fec_rs_encode_block wrote,
-         read from the one description rather than a second one. */
-      uint8_t word[FEC_RS_N];
-      for (int i = 0; i < FEC_RS_K; i++)
+         both sections. This is the same rotation ccsds_tm_rs_encode_block
+         wrote, read from the one description rather than a second one. */
+      uint8_t word[CCSDS_TM_RS_N];
+      for (int i = 0; i < CCSDS_TM_RS_K; i++)
         word[i] = block[(size_t)i * depth + e];
-      for (int p = 0; p < FEC_RS_2E; p++)
-        word[FEC_RS_K + p] = block[k_syms + (size_t)p * depth + e];
+      for (int p = 0; p < CCSDS_TM_RS_2E; p++)
+        word[CCSDS_TM_RS_K + p] = block[k_syms + (size_t)p * depth + e];
 
-      const int fixed = fec_rs_decode (word);
+      const int fixed = ccsds_tm_rs_decode (word);
       if (fixed < 0)
         {
           out.uncorrectable++;
@@ -200,10 +201,10 @@ fec_rs_decode_block (uint8_t *block, unsigned depth, fec_rs_block_rx_t *rx)
 
       /* Only a repaired codeword is written back, so a block that decodes
          clean is not rewritten symbol by symbol. */
-      for (int i = 0; i < FEC_RS_K; i++)
+      for (int i = 0; i < CCSDS_TM_RS_K; i++)
         block[(size_t)i * depth + e] = word[i];
-      for (int p = 0; p < FEC_RS_2E; p++)
-        block[k_syms + (size_t)p * depth + e] = word[FEC_RS_K + p];
+      for (int p = 0; p < CCSDS_TM_RS_2E; p++)
+        block[k_syms + (size_t)p * depth + e] = word[CCSDS_TM_RS_K + p];
     }
 
   if (rx != NULL)

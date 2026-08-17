@@ -3,7 +3,7 @@
     polynomial, a parity count, a first root and a root stride — with the
     encoder, the syndromes and a Berlekamp-Massey / Chien / Forney decoder all
     reading the same `rs_code_t`. **Nothing in it is CCSDS.** 131.0-B-3's
-    (255,223) `E = 16` is `FEC_CCSDS_RS`, five numbers in `fec/fec_rs.h`,
+    (255,223) `E = 16` is `CCSDS_TM_RS`, five numbers in `ccsds_tm/ccsds_tm_rs.h`,
     beside the two things the standard adds that are not properties of the
     code: the dual-basis symbol representation (4.3.9) and the interleaver
     (4.4.1). Its own `c_dep`, for the reason `conv` is one — a caller who
@@ -16,7 +16,7 @@
     three symbol errors it lets through used to cost **three of ten
     codewords** and a frame that was wrong-but-known-wrong; they are now
     repaired and all ten codewords are good, frames byte-exact.
-    `fec_frame_rx_t` grew `rs_corrected` and `rs_symbols` to report the repair
+    `ccsds_tm_frame_rx_t` grew `rs_corrected` and `rs_symbols` to report the repair
     work, and `rs_ok` now counts codewords valid **after** decoding.
 
     **Two offsets a textbook will not warn about**, both of which produce a

@@ -10,7 +10,8 @@
  *
  * ## Nothing here is CCSDS
  *
- * The CCSDS configuration lives in `fec/fec_rs.h` as @c FEC_CCSDS_RS, beside
+ * The CCSDS configuration lives in `ccsds_tm/ccsds_tm_rs.h` as
+ * @c CCSDS_TM_RS, beside
  * the two things 131.0-B-3 adds that are *not* properties of the code: the
  * dual-basis symbol representation (4.3.9) and the interleaver (4.4.1). A
  * standard picking a code is not the same fact as the code existing. Point
@@ -35,7 +36,8 @@
  *
  * - **Symbols are packed, one per byte** — a Reed-Solomon symbol *is* a byte
  *   at `J = 8`, and at `J < 8` it is a byte with the top bits clear. This
- *   differs from the bit-oriented `conv` and `fec` kernels, and the boundary
+ *   differs from the bit-oriented `conv` and `ccsds_tm` kernels, and the
+ *   boundary
  *   between the two belongs to the frame assembler.
  * - **A codeword is `k` information symbols followed by `nroots` parity**,
  *   index 0 first on the wire, so index `i` carries `x^(n-1-i)`.
@@ -45,7 +47,7 @@
  *
  * @see docs/design/reed-solomon.md for the algebra, the two offsets a
  * textbook omits, and what a decode refusal does and does not mean.
- * @see fec/fec_rs.h for the CCSDS configuration.
+ * @see ccsds_tm/ccsds_tm_rs.h for the CCSDS configuration.
  */
 #ifndef RS_CORE_H
 #define RS_CORE_H

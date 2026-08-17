@@ -1,10 +1,10 @@
 - **`docs/design/viterbi.md` and `docs/design/fec-receive.md` — the design
     for the FEC receive half.** The decoder gets its own page; the chain page
     owns the synchronization and the lock detector.
-    Planned, not built. `fec/` encodes today and decodes nothing, so nothing
+    Planned, not built. `ccsds_tm/` encodes today and decodes nothing, so nothing
     can measure a coded link and coding gain is unquotable.
 
-    The prototype decoded symbols dumped from the **shipped** `fec_conv_encode`
+    The prototype decoded symbols dumped from the **shipped** `conv_encode`
     rather than from a re-derivation of it, and **refuted two things a first
     sketch had assumed**:
 

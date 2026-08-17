@@ -1,9 +1,9 @@
 /**
- * @file fec_frame.h
+ * @file ccsds_tm_frame.h
  * @brief The CCSDS frame assembler — where the ASM goes, and the one place
  * the stages' disagreements about what they cover become visible.
  *
- * The four kernels in `fec/` are each separately falsifiable against a
+ * The four kernels in `ccsds_tm/` are each separately falsifiable against a
  * published value, and each of them is *right* on its own. What none of them
  * can be wrong about alone is the thing this file exists for: **the stages do
  * not all cover the same bits.**
@@ -30,24 +30,24 @@
  * the inner code but not by the outer code"* — and 10.3.4's first NOTE states
  * the third outright: *"The ASM was not randomized and is not derandomized."*
  *
- * That is why @ref fec_frame_layout_t reports a **span per stage** rather
+ * That is why @ref ccsds_tm_frame_layout_t reports a **span per stage** rather
  * than an order. An order is the representation that cannot express this: any
  * chain of optional transforms applied to "the frame" is right at three stage
  * boundaries and wrong at the fourth, and wrong in the direction that still
  * encodes, still decodes against itself, and syncs to nothing. A span makes
  * the disagreement a value a test can assert, which is what
- * `test_fec_ccsds_frame` does against all three rows above.
+ * `test_ccsds_tm_frame` does against all three rows above.
  *
  * ## The packed/unpacked boundary lives here
  *
- * `fec_rs.h` takes **packed** symbols, because a Reed-Solomon symbol is a
- * byte; `fec_ccsds.h` takes **unpacked** bits, one per byte, because a
+ * `ccsds_tm_rs.h` takes **packed** symbols, because a Reed-Solomon symbol is a
+ * byte; `ccsds_tm.h` takes **unpacked** bits, one per byte, because a
  * randomiser and a convolutional coder are bit machines. Both are right, and
  * the conversion between them belongs to exactly one place rather than being
  * hidden inside a kernel that then only works for one caller.
  *
- * This is that place: @ref fec_frame_encode takes a Transfer Frame as packed
- * octets and returns unpacked channel symbols, the representation
+ * This is that place: @ref ccsds_tm_frame_encode takes a Transfer Frame as
+ * packed octets and returns unpacked channel symbols, the representation
  * `wfm_frame_bits` and the spreader already pass around. Octets go on the
  * wire **MSB-first** — figure 9-1 numbers the first transmitted bit of the
  * ASM as the most significant bit of `0x1A`, and 4.3.9.2 orders an R-S symbol
@@ -61,14 +61,14 @@
  * for the full length cannot parse, which is the failure this whole slice is
  * built to avoid.
  *
- * @see fec_ccsds.h for the ASM pattern, the randomiser and the inner code.
- * @see fec_rs.h for the outer code and the interleaver.
+ * @see ccsds_tm.h for the ASM pattern, the randomiser and the inner code.
+ * @see ccsds_tm_rs.h for the outer code and the interleaver.
  */
-#ifndef FEC_FRAME_H
-#define FEC_FRAME_H
+#ifndef CCSDS_TM_FRAME_H
+#define CCSDS_TM_FRAME_H
 
-#include "fec/fec_ccsds.h"
-#include "fec/fec_rs.h"
+#include "ccsds_tm/ccsds_tm.h"
+#include "ccsds_tm/ccsds_tm_rs.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -94,7 +94,7 @@ extern "C"
     int      randomise;     /**< Apply the section-10 pseudo-randomiser */
     int      attach_asm;    /**< Prepend the ASM, making the unit a CADU */
     int      convolutional; /**< Apply the section-3 inner code */
-  } fec_frame_cfg_t;
+  } ccsds_tm_frame_cfg_t;
 
   /**
    * @brief A run of CADU bits, as a half-open range `[first, first + n)`.
@@ -106,7 +106,7 @@ extern "C"
   {
     size_t first; /**< First CADU bit index the stage covers */
     size_t n;     /**< Bits covered, or 0 if the stage did not run */
-  } fec_frame_span_t;
+  } ccsds_tm_frame_span_t;
 
   /**
    * @brief The shape of one CADU, and what each stage covered.
@@ -119,13 +119,16 @@ extern "C"
   {
     size_t block_bits; /**< The codeblock — or the frame, with no outer code */
     size_t cadu_bits;  /**< Marker plus block, i.e. the whole CADU */
-    size_t out_bits;   /**< Channel symbols @ref fec_frame_encode writes */
+    size_t out_bits; /**< Channel symbols the encode writes         */
 
-    fec_frame_span_t marker;     /**< The ASM itself (9.4.1) */
-    fec_frame_span_t outer;      /**< The R-S encoded data space (9.5.1) */
-    fec_frame_span_t randomised; /**< What the randomiser covered (10.3.2) */
-    fec_frame_span_t inner;      /**< What the inner code covered (3.2.1) */
-  } fec_frame_layout_t;
+    ccsds_tm_frame_span_t marker;     /**< The ASM itself (9.4.1) */
+    /** The R-S encoded data space (9.5.1)   */
+    ccsds_tm_frame_span_t outer;
+    /** What the randomiser covered (10.3.2) */
+    ccsds_tm_frame_span_t randomised;
+    /** What the inner code covered (3.2.1)  */
+    ccsds_tm_frame_span_t inner;
+  } ccsds_tm_frame_layout_t;
 
   /**
    * @brief Work out the CADU shape for a config, without encoding anything.
@@ -139,22 +142,24 @@ extern "C"
    * @param frame_len  Transfer Frame length in **octets**.
    * @param out        Receives the layout; may be `NULL` to ask only for the
    *                   output length.
-   * @return The number of channel symbols @ref fec_frame_encode will write,
+   * @return The number of channel symbols the encode will write,
    *         or 0 if the configuration is refused — an interleaving depth
    *         outside 4.3.5.1's `{1, 2, 3, 4, 5, 8}`, an empty frame, or a
-   *         frame that is not exactly `FEC_RS_K * rs_depth` octets when the
+   *         frame that is not exactly `CCSDS_TM_RS_K * rs_depth` octets when
+   *         the
    *         outer code is in use.
    *
    * @code
-   * const fec_frame_cfg_t cfg
+   * const ccsds_tm_frame_cfg_t cfg
    *     = { .rs_depth = 5, .randomise = 1, .attach_asm = 1,
    *         .convolutional = 1 };
-   * const size_t n = fec_frame_layout (&cfg, 223 * 5, NULL);
+   * const size_t n = ccsds_tm_frame_layout (&cfg, 223 * 5, NULL);
    * uint8_t *sym = malloc (n);          // n == (32 + 255 * 5 * 8) * 2
    * @endcode
    */
-  size_t fec_frame_layout (const fec_frame_cfg_t *cfg, size_t frame_len,
-                           fec_frame_layout_t *out);
+  size_t ccsds_tm_frame_layout (const ccsds_tm_frame_cfg_t *cfg,
+                               size_t              frame_len,
+                           ccsds_tm_frame_layout_t *out);
 
   /**
    * @brief Encode one Transfer Frame into channel symbols.
@@ -190,7 +195,7 @@ extern "C"
    *                   the TAIL of this buffer, so a short one is not a
    *                   truncated result but a write past the end — hence a
    *                   capacity rather than a comment telling you to call
-   *                   @ref fec_frame_layout first.
+   *                   @ref ccsds_tm_frame_layout first.
    * @return The number of symbols written, or 0 if the configuration is
    *         refused or @p max_out is too small — in which case @p out is
    *         untouched.
@@ -198,22 +203,23 @@ extern "C"
    * @code
    * uint8_t frame[223 * 5];
    * uint8_t sym[(32 + 255 * 5 * 8) * 2];
-   * const fec_frame_cfg_t cfg
+   * const ccsds_tm_frame_cfg_t cfg
    *     = { .rs_depth = 5, .randomise = 1, .attach_asm = 1,
    *         .convolutional = 1 };
    * conv_enc_t conv;
    * conv_enc_init (&conv);
    * const size_t n
-   *     = fec_frame_encode (&cfg, &conv, frame, sizeof frame, sym,
+   *     = ccsds_tm_frame_encode (&cfg, &conv, frame, sizeof frame, sym,
    *                         sizeof sym);
    * @endcode
    */
-  size_t fec_frame_encode (const fec_frame_cfg_t *cfg, conv_enc_t *conv,
+  size_t ccsds_tm_frame_encode (const ccsds_tm_frame_cfg_t *cfg,
+                               conv_enc_t               *conv,
                            const uint8_t *frame, size_t frame_len,
                            uint8_t *out, size_t max_out);
 
   /**
-   * @brief What @ref fec_frame_decode found on the way through.
+   * @brief What @ref ccsds_tm_frame_decode found on the way through.
    *
    * The outer code **corrects** (`rs/rs_core.h`), so @ref rs_ok counts the
    * codewords that are good *afterwards* — clean or repaired — and
@@ -235,20 +241,21 @@ extern "C"
     unsigned rs_ok;        /**< How many are valid after decoding         */
     unsigned rs_corrected; /**< How many of those needed repair           */
     unsigned rs_symbols;   /**< Symbol errors repaired across the block   */
-  } fec_frame_rx_t;
+  } ccsds_tm_frame_rx_t;
 
   /**
    * @brief Recover a Transfer Frame from the bits of one CADU.
    *
-   * The mirror of @ref fec_frame_encode, over the same spans and reading the
-   * same @ref fec_frame_cfg_t — so the two cannot disagree about which stage
-   * covered what, which is the failure `fec_frame.h` opens by describing.
+   * The mirror of @ref ccsds_tm_frame_encode, over the same spans and reading
+   * the same @ref ccsds_tm_frame_cfg_t — so the two cannot disagree about
+   * which stage covered what, which is the failure `ccsds_tm_frame.h` opens
+   * by describing.
    *
    * ## Where the inner code is, and why it is not here
    *
    * This begins **after** the inner decode and after frame synchronisation:
    * @p cadu is one marker-plus-codeblock, already Viterbi-decoded and already
-   * aligned by @ref fec_ccsds_asm_find. That is not an omission, it is the
+   * aligned by @ref ccsds_tm_asm_find. That is not an omission, it is the
    * only place the boundary can go. A Viterbi is streaming and emits its
    * decisions `depth` bits late, so the bits of one CADU are not a function
    * of that CADU's symbols alone; and the marker that says where a CADU
@@ -283,27 +290,28 @@ extern "C"
    *                  untouched.
    *
    * @code
-   * const fec_frame_cfg_t cfg
+   * const ccsds_tm_frame_cfg_t cfg
    *     = { .rs_depth = 5, .randomise = 1, .attach_asm = 1,
    *         .convolutional = 1 };
-   * fec_frame_layout_t lay;
-   * fec_frame_layout (&cfg, 223 * 5, &lay);
+   * ccsds_tm_frame_layout_t lay;
+   * ccsds_tm_frame_layout (&cfg, 223 * 5, &lay);
    *
    * uint8_t        frame[223 * 5];
-   * fec_frame_rx_t rx;
+   * ccsds_tm_frame_rx_t rx;
    * // `cadu` is lay.cadu_bits of Viterbi output, ASM-aligned.
-   * const size_t n = fec_frame_decode (&cfg, cadu, lay.cadu_bits, frame,
+   * const size_t n = ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, frame,
    *                                    sizeof frame, &rx);
    * printf ("%zu octets, R-S %u/%u ok, %u symbols repaired\n", n, rx.rs_ok,
    *         rx.rs_codewords, rx.rs_symbols);
    * @endcode
    */
-  size_t fec_frame_decode (const fec_frame_cfg_t *cfg, const uint8_t *cadu,
+  size_t ccsds_tm_frame_decode (const ccsds_tm_frame_cfg_t *cfg,
+                               const uint8_t            *cadu,
                            size_t n_cadu, uint8_t *frame, size_t max_frame,
-                           fec_frame_rx_t *rx);
+                           ccsds_tm_frame_rx_t *rx);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* FEC_FRAME_H */
+#endif /* CCSDS_TM_FRAME_H */

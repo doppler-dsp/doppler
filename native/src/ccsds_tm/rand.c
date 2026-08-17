@@ -1,14 +1,14 @@
 /*
- * ccsds_rand.c — the CCSDS pseudo-randomiser (131.0-B-3, section 10).
+ * rand.c — the CCSDS pseudo-randomiser (131.0-B-3, section 10).
  *
  * Eight stages over h(x) = x^8 + x^7 + x^5 + x^3 + 1, preset to all ones.
  * The sequence is fixed and published, so the tap arrangement is not a design
  * choice here — it is whatever reproduces `FF 48 0E C0 9A ...`, and
- * test_fec_ccsds_rand is what holds it to that. An LFSR is easy to write in
+ * test_ccsds_tm_rand is what holds it to that. An LFSR is easy to write in
  * several self-consistent ways that produce different sequences; only the
  * published prefix separates them.
  */
-#include "fec/fec_ccsds.h"
+#include "ccsds_tm/ccsds_tm.h"
 
 /* One step of the generator: emit the oldest stage, then shift in feedback.
  *
@@ -38,7 +38,7 @@ step (uint8_t *reg)
 }
 
 void
-fec_ccsds_rand_seq (uint8_t *out, size_t n)
+ccsds_tm_rand_seq (uint8_t *out, size_t n)
 {
   uint8_t reg = 0xFFu;
   for (size_t i = 0; i < n; i++)
@@ -46,7 +46,7 @@ fec_ccsds_rand_seq (uint8_t *out, size_t n)
 }
 
 void
-fec_ccsds_randomise (uint8_t *bits, size_t n)
+ccsds_tm_randomise (uint8_t *bits, size_t n)
 {
   uint8_t reg = 0xFFu;
   for (size_t i = 0; i < n; i++)

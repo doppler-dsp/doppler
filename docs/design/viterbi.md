@@ -17,7 +17,7 @@ decoder that hard-codes one code is a decoder that cannot be pointed at the
 deep-space rate-1/6 code, at a K = 9 experiment, or at anything a caller brings
 of their own, and the algorithm is identical in every one of those cases. The
 only thing CCSDS-specific in the tree should be the *configuration*, which is
-`fec`'s to hold.
+`ccsds_tm`'s to hold.
 
 ______________________________________________________________________
 
@@ -34,7 +34,7 @@ polynomials, and a mask saying which outputs are inverted:
 | `invert`  | which outputs are inverted | bit 1 — G2 only      |
 | `depth`   | traceback depth            | 60 (§4)              |
 
-`fec_conv_encode` ships that encoder and is pinned against the impulse
+`conv_encode` ships that encoder and is pinned against the impulse
 response; this decodes it, and the same object decodes anything else with a
 trellis of the same family.
 
@@ -52,7 +52,7 @@ ______________________________________________________________________
 ## 2. The trellis, in the encoder's own terms
 
 The convention must match the encoder being decoded, and doppler's is
-`fec_conv_encode`: `reg = ((reg >> 1) | (b << (k-1))) & mask`, so the k-bit
+`conv_encode`: `reg = ((reg >> 1) | (b << (k-1))) & mask`, so the k-bit
 register holds *(the newest bit, the k-1 before it)*. A **state** is those
 k-1 previous inputs:
 
@@ -66,7 +66,7 @@ state st (k-1 bits) + new bit b -> reg  = (b << (k-1)) | st
 round — a plausible reading, and the one written first — builds a trellis that
 is perfectly self-consistent and decodes nothing the shipped encoder produced.
 **The check that catches it is encoding through the trellis and comparing
-against `fec_conv_encode` symbol for symbol**, which is a phase-4 assertion
+against `conv_encode` symbol for symbol**, which is a phase-4 assertion
 and was a prototype question before that.
 
 ______________________________________________________________________
@@ -175,7 +175,7 @@ ______________________________________________________________________
     subtracting the running maximum each step keeps them bounded and changes
     no decision, since a common offset cannot reorder survivors.
 - **No exceptions to the error convention**: a decoder fed a short buffer or
-    an unsupported depth writes nothing, as `fec_frame_encode` does.
+    an unsupported depth writes nothing, as `ccsds_tm_frame_encode` does.
 
 ______________________________________________________________________
 

@@ -1,5 +1,5 @@
 /*
- * test_fec_ccsds_rand.c — the CCSDS pseudo-randomiser, held to the sequence
+ * test_ccsds_tm_rand.c — the CCSDS pseudo-randomiser, held to the sequence
  * the standard prints.
  *
  * This test exists in the shape it does because coding is unusually easy to
@@ -20,7 +20,7 @@
 #define _GNU_SOURCE
 #include "dp_test.h"
 
-#include "fec/fec_ccsds.h"
+#include "ccsds_tm/ccsds_tm.h"
 
 #include <string.h>
 
@@ -42,7 +42,7 @@ main (void)
   /* ── the sequence itself, against the printed prefix ────────────────── */
   {
     uint8_t seq[40];
-    fec_ccsds_rand_seq (seq, 40);
+    ccsds_tm_rand_seq (seq, 40);
     DP_CHECK_MSG (memcmp (seq, published40, sizeof published40) == 0,
                   "first 40 bits must match CCSDS 131.0-B-3 10.4.2");
   }
@@ -50,7 +50,7 @@ main (void)
   /* ── randomising zeros yields the sequence ──────────────────────────── */
   {
     uint8_t bits[40] = { 0 };
-    fec_ccsds_randomise (bits, 40);
+    ccsds_tm_randomise (bits, 40);
     DP_CHECK_MSG (memcmp (bits, published40, sizeof published40) == 0,
                   "randomising zeros must emit the sequence verbatim");
   }
@@ -58,7 +58,7 @@ main (void)
   /* ── 10.4.2: the sequence repeats after 255 bits ────────────────────── */
   {
     uint8_t seq[300];
-    fec_ccsds_rand_seq (seq, 300);
+    ccsds_tm_rand_seq (seq, 300);
     DP_CHECK_MSG (memcmp (seq, seq + 255, 45) == 0,
                   "the sequence must repeat with period 255");
 
@@ -93,20 +93,20 @@ main (void)
     for (size_t i = 0; i < sizeof data; i++)
       data[i] = (uint8_t)((i * 7u + 3u) & 1u);
     memcpy (copy, data, sizeof data);
-    fec_ccsds_randomise (data, sizeof data);
+    ccsds_tm_randomise (data, sizeof data);
     DP_CHECK_MSG (memcmp (data, copy, sizeof data) != 0,
                   "randomising must actually change the data");
-    fec_ccsds_randomise (data, sizeof data);
+    ccsds_tm_randomise (data, sizeof data);
     DP_CHECK_MSG (memcmp (data, copy, sizeof data) == 0,
                   "randomise twice must be the identity");
   }
 
   /* ── a 255-entry table, indexed mod the period, IS the generator ─────
    *
-   * fec_frame_decode derandomises while it packs, so it cannot hand a
-   * mutable bit run to fec_ccsds_randomise and cannot hold a sequence the
-   * size of the data either. It indexes a FEC_CCSDS_RAND_PERIOD table by
-   * `k % FEC_CCSDS_RAND_PERIOD` instead. That is only the same sequence if
+   * ccsds_tm_frame_decode derandomises while it packs, so it cannot hand a
+   * mutable bit run to ccsds_tm_randomise and cannot hold a sequence the
+   * size of the data either. It indexes a CCSDS_TM_RAND_PERIOD table by
+   * `k % CCSDS_TM_RAND_PERIOD` instead. That is only the same sequence if
    * the period really is 255 and the phase really does restart at zero, so
    * the equivalence is pinned here rather than left as arithmetic in a
    * comment two files away -- and over a length that spans several periods
@@ -116,14 +116,14 @@ main (void)
   {
     enum
     {
-      N = 3u * FEC_CCSDS_RAND_PERIOD + 91u
+      N = 3u * CCSDS_TM_RAND_PERIOD + 91u
     };
-    uint8_t seq[FEC_CCSDS_RAND_PERIOD];
+    uint8_t seq[CCSDS_TM_RAND_PERIOD];
     uint8_t direct[N] = { 0 }, table[N];
-    fec_ccsds_rand_seq (seq, sizeof seq);
-    fec_ccsds_randomise (direct, N);
+    ccsds_tm_rand_seq (seq, sizeof seq);
+    ccsds_tm_randomise (direct, N);
     for (size_t i = 0; i < N; i++)
-      table[i] = seq[i % FEC_CCSDS_RAND_PERIOD];
+      table[i] = seq[i % CCSDS_TM_RAND_PERIOD];
     DP_CHECK_MSG (memcmp (direct, table, N) == 0,
                   "a period-length table indexed mod 255 must reproduce the "
                   "generator exactly");
@@ -132,8 +132,8 @@ main (void)
   /* ── each call restarts at the all-ones preset (10.4.2) ─────────────── */
   {
     uint8_t a[16] = { 0 }, b[16] = { 0 };
-    fec_ccsds_randomise (a, 16);
-    fec_ccsds_randomise (b, 16);
+    ccsds_tm_randomise (a, 16);
+    ccsds_tm_randomise (b, 16);
     DP_CHECK_MSG (memcmp (a, b, sizeof a) == 0,
                   "the generator must preset per call, not carry state");
   }

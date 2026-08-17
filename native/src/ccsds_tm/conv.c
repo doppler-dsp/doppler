@@ -1,5 +1,5 @@
 /*
- * ccsds_conv.c — the CCSDS inner code, as a configuration.
+ * conv.c — the CCSDS inner code, as a configuration.
  *
  * There is no encoder here any more. 131.0-B-3 section 3.3 picks a code out
  * of a family `conv_core.h` already implements, and this is that pick. The
@@ -7,9 +7,9 @@
  * viterbi_decode read -- so the G2 inversion cannot be present in one
  * direction and absent in the other.
  */
-#include "fec/fec_ccsds.h"
+#include "ccsds_tm/ccsds_tm.h"
 
-const conv_code_t FEC_CCSDS_CONV = {
+const conv_code_t CCSDS_TM_CONV = {
   /* .k      */ 7u,
   /* .n      */ 2u,
   /* .poly   */ { 0171u, 0133u },

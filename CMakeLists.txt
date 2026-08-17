@@ -176,7 +176,7 @@ enable_testing()
 add_subdirectory(native/src/hbdecim)
 add_subdirectory(native/src/resamp)
 add_subdirectory(native/src/wfmcompose)
-add_subdirectory(native/src/fec)
+add_subdirectory(native/src/ccsds_tm)
 add_subdirectory(native/src/conv)
 add_subdirectory(native/src/rs)
 add_subdirectory(native/src/frame_meter)
@@ -493,35 +493,36 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:wfm_reader_core>)
 add_subdirectory(native/src/buffer)
 add_subdirectory(native/src/stream)
 
-# fec is a hand-owned c_dep, so jm knows its core exists (and says so when it
-# reaches no library) but generates no wiring for it — that line is ours, and
-# it goes HERE rather than beside `add_subdirectory(native/src/fec)` because
-# the block above is jm's splice region and an extra line inside it reads as
-# drift.
+# ccsds_tm is a hand-owned c_dep, so jm knows its core exists (and says so
+# when it reaches no library) but generates no wiring for it — that line is
+# ours, and it goes HERE rather than beside
+# `add_subdirectory(native/src/ccsds_tm)` because the block above is jm's
+# splice region and an extra line inside it reads as drift.
 #
-# It has to reach both libraries: native/inc/fec/*.h are installed headers,
-# and every function they declare is out-of-line. Measured rather than
+# It has to reach both libraries: native/inc/ccsds_tm/*.h are installed
+# headers, and every function they declare is out-of-line. Measured rather than
 # assumed, which is the standard `status_allow` sets for the three exempted
-# wfmcompose cores — `nm` over fec_ccsds_core's objects lists 13 defined `T`
-# symbols against zero occurrences of `fec_` in libdoppler.a, so before this
+# wfmcompose cores — `nm` over ccsds_tm_core's objects lists 13 defined `T`
+# symbols against zero occurrences of the component's prefix in libdoppler.a,
+# so before this
 # line a C consumer could include the header and link none of it. Python was
 # unaffected throughout, since the extension links each core directly, which
 # is exactly why it went unnoticed until jm 0.62.0's wiring check.
-target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:fec_ccsds_core>)
-target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:fec_ccsds_core>)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:ccsds_tm_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:ccsds_tm_core>)
 
 # conv_core for the same reason, and it is the stronger case: native/inc/conv
-# is an installed header whose every function is out-of-line, and `fec` now
-# reaches the encoder THROUGH it -- so without this line fec's own symbols
-# resolve inside the archive and the codec they call does not. jm 0.62.0's
-# wiring check is what named it; the line is ours.
+# is an installed header whose every function is out-of-line, and `ccsds_tm`
+# now reaches the encoder THROUGH it -- so without this line ccsds_tm's own
+# symbols resolve inside the archive and the codec they call does not.
+# jm 0.62.0's wiring check is what named it; the line is ours.
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:conv_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:conv_core>)
 
 # rs_core, the outer code, on the same argument as conv_core: native/inc/rs
-# is an installed header whose every function is out-of-line, and `fec` holds
-# only the CCSDS configuration of it -- so without this line fec_rs_* resolve
-# inside the archive and every field operation they call does not.
+# is an installed header whose every function is out-of-line, and `ccsds_tm`
+# holds only the CCSDS configuration of it -- so without this line
+# ccsds_tm_rs_* resolve inside the archive and the field operations do not.
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:rs_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:rs_core>)
 

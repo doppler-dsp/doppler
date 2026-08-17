@@ -9,8 +9,8 @@
     them, invisibly, because a matched pair decodes itself perfectly and
     interoperates with nothing.
 
-    **CCSDS is now a configuration, not an implementation.** `FEC_CCSDS_CONV`
-    is `{k=7, n=2, {0171, 0133}, invert G2}` and `fec`'s bespoke encoder is
+    **CCSDS is now a configuration, not an implementation.** `CCSDS_TM_CONV`
+    is `{k=7, n=2, {0171, 0133}, invert G2}` and `ccsds_tm`'s bespoke encoder is
     gone; the frame assembler encodes through `conv_encode`. Point the same
     objects at the deep-space rate-1/6 code, a K = 9 experiment, or anything a
     caller brings.

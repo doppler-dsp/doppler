@@ -29,13 +29,13 @@
  * Viterbi emits decision `i` only after seeing `depth` further bits, so its
  * output is ALIGNED with its input and simply stops `depth - 1` bits short.
  * The final CADU is still inside the traceback and needs its successor before
- * it resolves — which is the reason `fec_frame_decode` takes CADU bits rather
- * than channel symbols.
+ * it resolves — which is the reason `ccsds_tm_frame_decode` takes CADU bits
+ * rather than channel symbols.
  *
  * **The receiver does not start at a frame boundary.** This deliberately
  * throws away the first @ref SKIP_SYM channel symbols before decoding, the
  * way a real capture begins whenever the recorder happened to start. Nothing
- * in the stream says where a frame is; `fec_ccsds_asm_find` correlates for
+ * in the stream says where a frame is; `ccsds_tm_asm_find` correlates for
  * the marker, and the offset it reports is what everything downstream is
  * measured from. The count is EVEN on purpose: an odd one would break the
  * rate-1/2 symbol pairing, and choosing between the two hypotheses is node
@@ -48,9 +48,9 @@
  */
 
 #include <awgn/awgn_core.h>
+#include <ccsds_tm/ccsds_tm.h>
+#include <ccsds_tm/ccsds_tm_frame.h>
 #include <conv/conv_core.h>
-#include <fec/fec_ccsds.h>
-#include <fec/fec_frame.h>
 #include <mpsk/mpsk_core.h>
 
 #include <complex.h>
@@ -62,10 +62,10 @@
    the de-interleave observable: at depth 1 a wrong rotation is the identity.
  */
 #define RS_DEPTH 5
-#define FRAME_LEN (FEC_RS_K * RS_DEPTH)
+#define FRAME_LEN (CCSDS_TM_RS_K * RS_DEPTH)
 #define NFRAMES 4
 
-#define CADU_BITS (FEC_CCSDS_ASM_BITS + FEC_RS_N * RS_DEPTH * 8)
+#define CADU_BITS (CCSDS_TM_ASM_BITS + CCSDS_TM_RS_N * RS_DEPTH * 8)
 #define SYM_PER_FRAME (2 * CADU_BITS)
 #define TOTAL_SYM (NFRAMES * SYM_PER_FRAME)
 #define TOTAL_CADU_BITS (NFRAMES * CADU_BITS)
@@ -86,15 +86,15 @@
 #define RX_SYM (TOTAL_SYM - SKIP_SYM)
 #define RX_BITS (RX_SYM / 2 - (TRACEBACK - 1))
 
-static const fec_frame_cfg_t CODED = {
+static const ccsds_tm_frame_cfg_t CODED = {
   .rs_depth = RS_DEPTH, .randomise = 1, .attach_asm = 1, .convolutional = 1
 };
 
-/* The same coding minus the inner code, which makes fec_frame_encode's output
-   the CADU itself — the reference the receiver is scored against. The CADU
-   does not depend on the inner code, so this is the transmitted truth and not
-   a second encoding of it. */
-static const fec_frame_cfg_t CADU_ONLY = {
+/* The same coding minus the inner code, which makes ccsds_tm_frame_encode's
+   output the CADU itself — the reference the receiver is scored against. The
+   CADU does not depend on the inner code, so this is the transmitted truth and
+   not a second encoding of it. */
+static const ccsds_tm_frame_cfg_t CADU_ONLY = {
   .rs_depth = RS_DEPTH, .randomise = 1, .attach_asm = 1, .convolutional = 0
 };
 
@@ -139,10 +139,11 @@ transmit (void)
   conv_enc_init (&conv);
   for (unsigned f = 0; f < NFRAMES; f++)
     {
-      fec_frame_encode (&CADU_ONLY, NULL, g_frame[f], FRAME_LEN,
-                        g_tx_cadu + (size_t)f * CADU_BITS, CADU_BITS);
-      fec_frame_encode (&CODED, &conv, g_frame[f], FRAME_LEN,
-                        g_tx_sym + (size_t)f * SYM_PER_FRAME, SYM_PER_FRAME);
+      ccsds_tm_frame_encode (&CADU_ONLY, NULL, g_frame[f], FRAME_LEN,
+                             g_tx_cadu + (size_t)f * CADU_BITS, CADU_BITS);
+      ccsds_tm_frame_encode (&CODED, &conv, g_frame[f], FRAME_LEN,
+                             g_tx_sym + (size_t)f * SYM_PER_FRAME,
+                             SYM_PER_FRAME);
     }
   mpsk_map (g_tx_sym, TOTAL_SYM, g_mod, 2);
 }
@@ -182,7 +183,7 @@ receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
      which is simply wrong here. It is a wrong PRIOR rather than a wrong
      answer: the survivor paths are determined by the data within a few
      constraint lengths, long before the first marker this finds. */
-  viterbi_state_t *v    = viterbi_create (&FEC_CCSDS_CONV, TRACEBACK);
+  viterbi_state_t *v    = viterbi_create (&CCSDS_TM_CONV, TRACEBACK);
   const size_t     n_rx = viterbi_decode (
       v, g_llr + SKIP_SYM, TOTAL_SYM - SKIP_SYM, g_rx_bits, TOTAL_SYM);
   viterbi_destroy (v);
@@ -199,10 +200,10 @@ receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
      false-alarm rate is a property of the SEARCH LENGTH: at a tolerance of 2
      a random 32-bit window matches with probability 1058/2^32, which is 0.25%
      over this window and would be several percent over the whole stream.
-     test_fec_ccsds_asm.c carries the arithmetic. */
-  const size_t  win = CADU_BITS + FEC_CCSDS_ASM_BITS;
-  fec_asm_hit_t hit;
-  if (!fec_ccsds_asm_find (g_rx_bits, n_rx < win ? n_rx : win, 2u, &hit))
+     test_ccsds_tm_asm.c carries the arithmetic. */
+  const size_t       win = CADU_BITS + CCSDS_TM_ASM_BITS;
+  ccsds_tm_asm_hit_t hit;
+  if (!ccsds_tm_asm_find (g_rx_bits, n_rx < win ? n_rx : win, 2u, &hit))
     {
       *rs_words = 0;
       *rs_ok    = 0;
@@ -219,9 +220,9 @@ receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
   unsigned frames = 0;
   for (size_t at = hit.offset; at + CADU_BITS <= n_rx; at += CADU_BITS)
     {
-      fec_frame_rx_t rx;
-      if (fec_frame_decode (&CODED, g_rx_bits + at, CADU_BITS, g_back,
-                            sizeof g_back, &rx)
+      ccsds_tm_frame_rx_t rx;
+      if (ccsds_tm_frame_decode (&CODED, g_rx_bits + at, CADU_BITS, g_back,
+                                 sizeof g_back, &rx)
           == 0)
         break;
       *rs_words += rx.rs_codewords;
@@ -257,8 +258,8 @@ main (void)
   build_frames ();
   transmit ();
 
-  fec_frame_layout_t lay;
-  fec_frame_layout (&CODED, FRAME_LEN, &lay);
+  ccsds_tm_frame_layout_t lay;
+  ccsds_tm_frame_layout (&CODED, FRAME_LEN, &lay);
   printf ("transfer frame   %d octets\n", FRAME_LEN);
   printf ("codeblock        %zu bits (R-S 255/223, I=%d)\n", lay.block_bits,
           RS_DEPTH);

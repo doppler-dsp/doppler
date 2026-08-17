@@ -27,7 +27,7 @@
  *
  * ## Nothing here is CCSDS
  *
- * The CCSDS configuration lives in `fec/fec_ccsds.h` as @c FEC_CCSDS_CONV,
+ * The CCSDS configuration lives in `ccsds_tm/ccsds_tm.h` as @c CCSDS_TM_CONV,
  * because a channel-coding standard picking a code is not the same fact as the
  * code existing. Point this at the deep-space rate-1/6 code, at a K = 9
  * experiment, or at whatever a caller brings — the trellis is identical and
@@ -36,7 +36,7 @@
  * ## Conventions
  *
  * - **Bits are unpacked**, one per byte in the LSB, matching `wfm_frame_bits`,
- *   `dp_crc16_ccitt` and the `fec` kernels.
+ *   `dp_crc16_ccitt` and the `ccsds_tm` kernels.
  * - **The register holds the newest input in the high stage**:
  *   `reg = (reg >> 1) | (b << (k-1))`. A *state* is the `k-1` bits that
  *   survive, so `state + bit -> reg = (bit << (k-1)) | state`, and the next

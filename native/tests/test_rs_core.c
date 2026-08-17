@@ -34,7 +34,7 @@
 
 /* The three configurations every property below is checked at. CCSDS's row
  * is here as a CONFIGURATION -- holding its generator to Annex G is
- * test_fec_rs.c's job, with the standard it belongs to. */
+ * test_ccsds_tm_rs.c's job, with the standard it belongs to. */
 static const struct
 {
   const char *name;

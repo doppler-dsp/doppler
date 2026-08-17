@@ -1,4 +1,4 @@
-- **`fec` — channel coding, starting with the CCSDS pseudo-randomiser.**
+- **`ccsds_tm` — CCSDS TM channel coding, starting with the pseudo-randomiser.**
     doppler encoded nothing before this: no convolutional code, no
     Reed-Solomon, no interleaver and no randomiser anywhere in the tree, which
     is the gap between a test-vector generator and a link waveform. The first
@@ -8,7 +8,7 @@
     should not carry the waveform-composition chain on its link line for the
     sake of a randomiser.
 
-    `fec_ccsds_randomise` is its own inverse, so both ends call one function.
+    `ccsds_tm_randomise` is its own inverse, so both ends call one function.
     The published 40-bit prefix is what pins it: a first cut transcribed the
     taps from the polynomial's exponents rather than from the recurrence they
     stand for, drove the register to the all-zero fixed point, and **passed

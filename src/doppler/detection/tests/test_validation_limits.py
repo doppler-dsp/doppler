@@ -27,6 +27,7 @@ import pytest
 from doppler.detection.tests.validation.lockdet import (
     validate as lockdet_validate,
 )
+from doppler.tests._validation_common import assert_renders
 
 OBJECTS = {
     "lockdet": lockdet_validate,
@@ -61,3 +62,17 @@ def test_the_envelope_is_not_empty(report):
     """
     assert len(report.limits) >= 15
     assert report.findings, "a report with no findings has not been reviewed"
+
+
+def test_the_report_renders_coherently(report):
+    """The coherence gate, applied to a real report inside CI.
+
+    `_self_check` runs from `render()`, which a `write=False` build never
+    reaches, and the two targets that do reach it -- `make validate` and
+    `make validate-check` -- are in NO CI workflow. So a report could
+    point at a section it does not have, or count limits it never
+    rendered, and every CI job stayed green. Free to fix here: this
+    module already builds the report, so rendering it is string work on
+    data already in memory. See `assert_renders`.
+    """
+    assert_renders(report)

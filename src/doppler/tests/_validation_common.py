@@ -485,6 +485,47 @@ class Report:
             path.write_text(self.render())
 
 
+def assert_renders(report: Report) -> None:
+    """Assert one report is internally COHERENT, for the limits gate.
+
+    `_self_check` runs from `render()`, and `render()` runs from `emit()`,
+    which a `write=False` build skips -- so every coherence case (a `§N.M`
+    with no such section, a gap in section 2's numbering, a cell truncated
+    mid-reference, a limit counted but never rendered) reached the real
+    reports only through `make validate` and `make validate-check`, and
+    **neither is in any CI workflow**. `validate-check` sits in
+    `GATES_DEPS` and no job runs `make gates`; grep the workflows for
+    "validate" and the only hit is a release-time wheel check.
+
+    So the checks were tested in CI -- `test_validation_report.py` drives
+    them over seeded reports -- and never APPLIED in CI to the eleven
+    reports they exist for. That is the campaign's founding bug one layer
+    out: not a claim nobody executes, but a checker nobody points at the
+    artifact.
+
+    The limits gate is the right home because it already pays the cost:
+    it builds every report to assert the envelope, so rendering one is
+    pure string work on data already in memory. It closes coherence, not
+    staleness -- whether the COMMITTED bytes match is still
+    `make validate-check`'s question, and still not in CI (gh-816).
+
+    Parameters
+    ----------
+    report : Report
+        A built report, from `build(write=False)`.
+
+    Raises
+    ------
+    AssertionError
+        If the report contradicts itself, carrying `_self_check`'s
+        complaint verbatim.
+    """
+    try:
+        report.render()
+    except ValueError as exc:
+        raise AssertionError(str(exc)) from exc
+
+
 def cli(build, here: Path) -> int:
     """Run one object's `build()` as a script, or as a staleness check.
 

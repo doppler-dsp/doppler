@@ -234,6 +234,16 @@ target_compile_options(validate_rx_nda_tap PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_rx_nda_tap
          COMMAND validate_rx_nda_tap --check)
 
+add_executable(validate_rx_coding_gain
+               ${CMAKE_CURRENT_SOURCE_DIR}/rx_coding_gain.c)
+target_include_directories(validate_rx_coding_gain
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_rx_coding_gain PRIVATE doppler_lib_static m)
+target_compile_options(validate_rx_coding_gain PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_rx_coding_gain
+         COMMAND validate_rx_coding_gain --check)
+
 add_executable(validate_rx_frame_fer
                ${CMAKE_CURRENT_SOURCE_DIR}/rx_frame_fer.c)
 target_include_directories(validate_rx_frame_fer

@@ -375,7 +375,7 @@ ______________________________________________________________________
 
 ## 3. Runners — what executes a measurement
 
-### 3.1 C validation harnesses (`native/validation/`, 16 files)
+### 3.1 C validation harnesses (`native/validation/`)
 
 | file                                                                  | measures                                        |
 | --------------------------------------------------------------------- | ----------------------------------------------- |
@@ -390,6 +390,14 @@ ______________________________________________________________________
 | `loop_filter_noise_bw.c`                                              | does `bn` deliver `bn`                          |
 | `lockdet_verify.c`                                                    | verify counts vs theory                         |
 | `mpsk_diff_penalty.c`                                                 | differential M-PSK penalty                      |
+| `rx_battery.c`                                                        | the standard battery, every named point         |
+| `rx_frame_fer.c`                                                      | all four metrics on one receiver, with FER      |
+| `rx_dynamics.c`, `rx_nda_tap.c`                                       | ramp law; where the M-th power runs             |
+| `rx_coding_gain.c`                                                    | **the concatenated code, through a receiver**   |
+
+The directory is the list; the rows above say what each is FOR. A count in
+this heading went stale the first time one was added, which is why it is not
+here any more.
 
 `mpsk_ber_common.h` sets the **matched-filter-output** Es/N0 (not an input
 SNR), with amplitude `A*sqrt(sps/(2*esn0))`, and anchors every measurement at

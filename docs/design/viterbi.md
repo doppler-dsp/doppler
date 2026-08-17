@@ -160,6 +160,12 @@ ______________________________________________________________________
 1. **The cost of depth in a real budget.** §4 gives BER against depth; what a
     caller trades is latency and memory, and neither is measured yet.
 
+**Where all three get measured is settled**: the receiver instrument, not a
+bespoke sweep. `native/validation/` for the C-only surface and the battery for
+anything a receiver can be driven through — see
+[The Receiver Test Harness](rx-test.md) for why that inventory exists and
+[The FEC Receive Half](fec-receive.md) §7 for the sequence.
+
 ______________________________________________________________________
 
 ## See also

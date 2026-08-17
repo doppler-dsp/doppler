@@ -155,24 +155,54 @@ decisions inside the edge transient at 64 bits — the statistic is measuring
 the harness there, not the link. **256 bits is where the separation stops
 being marginal.**
 
-**Both probabilities against the drop threshold, 128-bit window:**
+### The operating point
 
-| threshold | P_false_unlock (gaussian / empirical) | P_false_lock (gaussian / empirical) |
-| --------- | ------------------------------------- | ----------------------------------- |
-| 0.20      | 8.42e-1 / 8.33e-1                     | 2.44e-3 / < 2.5e-3                  |
-| 0.22      | 5.11e-1 / 4.65e-1                     | 8.84e-3 / < 2.5e-3                  |
-| 0.25      | 7.51e-2 / 6.50e-2                     | 4.39e-2 / 2.25e-2                   |
-| 0.30      | **5.17e-5** / **2.50e-3**             | 2.74e-1 / 3.12e-1                   |
+**Window = 500 channel symbols, threshold = 100 disagreements (20 %).** Given
+from operational experience rather than derived here — so what it buys is
+measured, which is what turns a working number into a recorded one. 1000
+trials per cell:
 
-**Do not size the drop threshold from a Gaussian.** At 0.30 the Gaussian
-underestimates P_false_unlock by **48×**, and it errs *optimistically* — it
-promises a link that drops lock once in 20 000 windows where the measurement
-says once in 400. That is the tail behaviour
-[the campaign has hit before](lock-detect.md): a detector lives in its H0
-tail, and the tail is exactly where a Gaussian assumption stops being
-conservative. The empirical floor here is 1/400 = 2.5e-3, so the true number
-at 0.30 is *at most* known to be ≥ that — which is itself the point, and
-resolving it needs the trials a phase-7 sweep can afford.
+| Eb/N0 | theory `p_s`·500 | in-sync count | out-of-sync count | P_false_unlock | P_false_lock |
+| ----- | ---------------- | ------------- | ----------------- | -------------- | ------------ |
+| 1 dB  | 65.5             | 66.6 ± 10.6   | 125.5 ± 22.8      | 0.015          | 0.127        |
+| 2 dB  | 52.0             | 52.5 ± 7.1    | 126.3 ± 24.2      | < 1e-3         | 0.133        |
+| 3 dB  | 39.4             | 39.7 ± 6.0    | 126.8 ± 24.4      | < 1e-3         | 0.155        |
+| 4 dB  | 28.2             | 28.4 ± 5.2    | 125.6 ± 25.1      | < 1e-3         | 0.166        |
+| 5 dB  | 18.8             | 18.8 ± 4.4    | 124.5 ± 26.2      | < 1e-3         | 0.188        |
+
+Three things this says, and only one of them was expected:
+
+1. **The in-sync statistic IS the channel symbol error rate**, to within a
+    count: 66.6 against 65.5 predicted, 18.8 against 18.8. §3's claim that the
+    same number serves as sync metric, lock statistic and channel quality is
+    not a convenience — it is the same quantity three times.
+1. **Against false UNLOCK the threshold is excellent**: 1.5 % at 1 dB and
+    below the 1e-3 resolution from 2 dB up. It sits ~7σ above the in-sync mean
+    at 2 dB, which is why.
+1. **Against false LOCK a single window is marginal** — 12.7 % to 18.8 %,
+    because the out-of-sync distribution is ~125 ± 25 and the threshold is
+    about **1σ below its mean**. Note it barely moves with Es/N0: an
+    out-of-sync decoder is finding a path through what is effectively noise,
+    so its disagreement rate is a property of the code and not of the channel.
+
+**That asymmetry is the argument for hysteresis, not against the threshold.**
+`lockdet` requires a run of consistent looks before it moves, and k
+consecutive windows drive a 15 % per-window false lock to 15 %^k — 0.3 % at
+k = 3. Holding lock and acquiring it are different jobs with different error
+budgets, and this operating point is sized for the first; the second is what
+the up-counter is for.
+
+### A harness artifact that looked like a result
+
+The first run of this table put the in-sync count **45 % above** the
+theoretical symbol error rate (95 against 65.5 at 1 dB, 55 against 18.8 at
+5 dB) and every number was internally consistent. The cause was the
+measurement window overlapping the streaming decoder's **undecided tail** — a
+traceback of 60 leaves the last 60 bits undecided, and they were inside the
+window. It was measuring the harness, not the link, and it would have been
+recorded as "the statistic runs above `p_s`, and the gap widens with SNR",
+which is a plausible-sounding finding about nothing. The assertion that the
+window lies inside the decided region is now part of the measurement.
 
 ______________________________________________________________________
 
@@ -188,8 +218,10 @@ ______________________________________________________________________
     form is not the paper's, and adopting "soft is better" on the strength of
     a title would have made the synchronizer worse. Either implement their
     statistic or keep the hard count and say why.
-1. **P_false_unlock below 2.5e-3**, which needs more trials than a prototype
-    should spend (§5).
+1. **P_false_lock under hysteresis.** §5 measures a single window; what a
+    caller acquires with is `lockdet`'s run-length, and the geometric estimate
+    (15 %^k) assumes independent windows, which consecutive windows of a
+    streaming decoder are not. Measure it rather than multiply it.
 1. **How long node sync takes to declare** — §5's windows say 256 bits
     separates cleanly; what a caller needs is the acquisition time including
     hysteresis.
@@ -210,15 +242,30 @@ ______________________________________________________________________
     re-encode metric. External truth is **not** a round trip — that is what
     this whole slice refuses — but `d_free = 10` and the BER curves
     **CCSDS 130.1-G prints**.
+
 1. **R-S decode** — syndromes (already in `fec_rs_codeword_ok`), then
     Berlekamp-Massey, Chien and Forney, over the same field, roots and dual
     basis the encoder uses. External truth: corrects exactly 16 symbol errors
     and fails at 17.
+
 1. **`fec_frame_decode`** — the chain, mirroring `fec_frame_encode`'s spans,
     with the ASM search resolving polarity.
-1. **Coding gain**, through the receiver battery: coded against uncoded,
-    against 130.1-G. That is the measurement the whole slice is for, and it is
-    also `fec`'s certification evidence.
+
+1. **Coding gain, through the harness that already exists.** Coded against
+    uncoded, against 130.1-G. This is the measurement the whole slice is for
+    and it is also `fec`'s certification evidence — and it is **not** a new
+    sweep. [The Receiver Test Harness](rx-test.md) is the inventory of what a
+    receiver measurement rests on, and the instrument built on it
+    (`dp_rx_test.h`, `rx_battery.c`) already owns the stimulus
+    (`wfm_synth` + `doppler_channel`), the statistics with their refusals and
+    confidence intervals (`dp_ber_test.h`), and the frame outcomes
+    (`frame_meter`). A coded link is a **new operating point and an adapter**,
+    the same way `ContinuousMpskReceiver` was — not a second harness.
+
+    rx-test.md §5.3 names the gap this closes from the other side: *"the
+    framed generator and the frame-aware measurer have never met"*. `fec` is
+    the layer that makes the generator produce something the measurer was
+    built to score.
 
 ______________________________________________________________________
 

@@ -10,6 +10,7 @@
 
 _CCSDS TM channel coding — the transforms a transfer frame passes through on its way to symbols._ [More...](#detailed-description)
 
+* `#include "conv/conv_core.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
 
@@ -27,17 +28,17 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 
 
 
-## Classes
+
+
+
+
+
+
+## Public Attributes
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**fec\_conv\_t**](structfec__conv__t.md) <br>_Rate-1/2 constraint-length-7 convolutional encoder state._  |
-
-
-
-
-
-
+|  const [**conv\_code\_t**](structconv__code__t.md) | [**FEC\_CCSDS\_CONV**](#variable-fec_ccsds_conv)  <br>_The CCSDS inner code, as a_ [_**conv\_code\_t**_](structconv__code__t.md) _._ |
 
 
 
@@ -61,15 +62,13 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 |  void | [**fec\_ccsds\_asm\_bits**](#function-fec_ccsds_asm_bits) (uint8\_t \* out) <br>_Write the ASM as_ [_**FEC\_CCSDS\_ASM\_BITS**_](fec__ccsds_8h.md#define-fec_ccsds_asm_bits) _unpacked bits._ |
 |  void | [**fec\_ccsds\_rand\_seq**](#function-fec_ccsds_rand_seq) (uint8\_t \* out, size\_t n) <br>_Generate the first_ `n` _bits of the randomiser sequence._ |
 |  void | [**fec\_ccsds\_randomise**](#function-fec_ccsds_randomise) (uint8\_t \* bits, size\_t n) <br>_Apply the CCSDS pseudo-randomiser to a bit run, in place._  |
-|  size\_t | [**fec\_conv\_encode**](#function-fec_conv_encode) ([**fec\_conv\_t**](structfec__conv__t.md) \* s, const uint8\_t \* in, size\_t n, uint8\_t \* out) <br>_Encode_ `n` _bits, emitting_`2 * n` _symbols._ |
-|  void | [**fec\_conv\_init**](#function-fec_conv_init) ([**fec\_conv\_t**](structfec__conv__t.md) \* s) <br>_Reset the encoder to the all-zero state._  |
 
 
 ## Public Static Functions
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**fec\_conv\_max\_out**](#function-fec_conv_max_out) (size\_t n) <br>_Symbols_ `fec_conv_encode` _writes for_`n` _input bits._ |
+|  size\_t | [**fec\_conv\_max\_out**](#function-fec_conv_max_out) (size\_t n) <br>_Symbols the CCSDS inner code writes for_ `n` _input bits._ |
 
 
 
@@ -158,6 +157,41 @@ Bit convention: every function here takes and returns **unpacked** bits, one per
 
 
     
+## Public Attributes Documentation
+
+
+
+
+### variable FEC\_CCSDS\_CONV 
+
+_The CCSDS inner code, as a_ [_**conv\_code\_t**_](structconv__code__t.md) _._
+```C++
+const conv_code_t FEC_CCSDS_CONV;
+```
+
+
+
+131.0-B-3 section 3.3.1: the non-systematic rate-1/2 K = 7 code with `G1 = 1111001` (171 octal), `G2 = 1011011` (133 octal), and — the part that is easy to miss — **symbol inversion on the output path of G2**, which is why `invert` is `0x2` and not `0`.
+
+
+This is a **configuration, not an implementation**: `conv_encode` and `viterbi_decode` do the work and neither knows anything about CCSDS. A standard choosing a code is a different fact from the code existing, and keeping them apart is what stops the polynomials from being written down twice — once in an encoder and once in a decoder, where the inversion is exactly the detail that would drift.
+
+
+`test_fec_ccsds_conv.c` holds it to the standard's printed impulse response: C1 must trace `G1`, and C2 the **complement** of `G2`.
+
+
+
+```C++
+conv_enc_t s;
+conv_enc_init (&s);
+conv_encode (&s, &FEC_CCSDS_CONV, bits, n, sym, sizeof sym);
+```
+ 
+
+
+        
+
+<hr>
 ## Public Functions Documentation
 
 
@@ -269,68 +303,6 @@ fec_ccsds_randomise (frame, sizeof frame);   // ...and back to zeros
         
 
 <hr>
-
-
-
-### function fec\_conv\_encode 
-
-_Encode_ `n` _bits, emitting_`2 * n` _symbols._
-```C++
-size_t fec_conv_encode (
-    fec_conv_t * s,
-    const uint8_t * in,
-    size_t n,
-    uint8_t * out
-) 
-```
-
-
-
-CCSDS 131.0-B-3 section 3.3.1: the non-systematic rate-1/2 K=7 code with `G1 = 1111001` (171 octal) and `G2 = 1011011` (133 octal), and — the part that is easy to miss — **symbol inversion on the output path of G2**.
-
-
-That inversion is invisible to a round trip. A matched decoder inverts whatever the encoder did, so an implementation that omits it decodes its own output perfectly and interoperates with nothing. The test pins it against the impulse response, where C1 must trace `G1` and C2 must trace the _complement_ of `G2`.
-
-
-
-
-**Parameters:**
-
-
-* `s` Encoder state, carried across calls. 
-* `in` `n` unpacked input bits. 
-* `n` Number of input bits. 
-* `out` Receives `2 * n` unpacked symbols, `C1, C2` interleaved per 3.3.2. 
-
-
-
-**Returns:**
-
-The number of symbols written, `2 * n`. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function fec\_conv\_init 
-
-_Reset the encoder to the all-zero state._ 
-```C++
-void fec_conv_init (
-    fec_conv_t * s
-) 
-```
-
-
-
-
-<hr>
 ## Public Static Functions Documentation
 
 
@@ -338,7 +310,7 @@ void fec_conv_init (
 
 ### function fec\_conv\_max\_out 
 
-_Symbols_ `fec_conv_encode` _writes for_`n` _input bits._
+_Symbols the CCSDS inner code writes for_ `n` _input bits._
 ```C++
 static inline size_t fec_conv_max_out (
     size_t n

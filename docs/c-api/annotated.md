@@ -32,6 +32,8 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) _NDA M-th-power carrier loop state._     
 * **struct** [**carrier\_nda\_tlm\_t**](structcarrier__nda__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — the probe site is then a single predicted-not-taken branch per block loop. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM)._     
 * **struct** [**cic\_state\_t**](structcic__state__t.md) _CIC filter state._     
+* **struct** [**conv\_code\_t**](structconv__code__t.md) _A rate-1/n convolutional code._     
+* **struct** [**conv\_enc\_t**](structconv__enc__t.md) _Encoder state: the shift register, and nothing else._     
 * **struct** [**corr2d\_state\_t**](structcorr2d__state__t.md) _2-D FFT correlator state._     
 * **struct** [**corr\_state\_t**](structcorr__state__t.md) _1-D FFT correlator state._     
 * **struct** [**costas\_state\_t**](structcostas__state__t.md) _Costas loop state._     
@@ -67,7 +69,6 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) _F32ToI16U64 state._     
 * **struct** [**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) _F32ToUQ15 state._     
 * **struct** [**farrow\_state\_t**](structfarrow__state__t.md) _Farrow interpolator state (4-tap delay line + order)._     
-* **struct** [**fec\_conv\_t**](structfec__conv__t.md) _Rate-1/2 constraint-length-7 convolutional encoder state._     
 * **struct** [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md) _Which coding is applied to one Transfer Frame._     
 * **struct** [**fec\_frame\_layout\_t**](structfec__frame__layout__t.md) _The shape of one CADU, and what each stage covered._     
 * **struct** [**fec\_frame\_span\_t**](structfec__frame__span__t.md) _A run of CADU bits, as a half-open range_ `[first, first + n)` _._    

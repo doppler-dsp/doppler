@@ -68,6 +68,8 @@
 #ifndef FEC_CCSDS_H
 #define FEC_CCSDS_H
 
+#include "conv/conv_core.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -146,47 +148,32 @@ extern "C"
   void fec_ccsds_randomise (uint8_t *bits, size_t n);
 
   /**
-   * @brief Rate-1/2 constraint-length-7 convolutional encoder state.
+   * @brief The CCSDS inner code, as a @ref conv_code_t.
    *
-   * Seven bits of shift register, the current input in the high stage. Held
-   * in a struct rather than passed as a `uint8_t` because the encoder is
-   * **continuous**: 3.3.2 fixes the output sequence as `C1(1), C2(1), C1(2),
-   * C2(2)...` with no per-frame flush, so a caller encoding a long record in
-   * chunks must carry the register across calls or introduce a discontinuity
-   * every chunk boundary that no decoder expects.
+   * 131.0-B-3 section 3.3.1: the non-systematic rate-1/2 K = 7 code with
+   * `G1 = 1111001` (171 octal), `G2 = 1011011` (133 octal), and — the part
+   * that is easy to miss — **symbol inversion on the output path of G2**,
+   * which is why `invert` is `0x2` and not `0`.
+   *
+   * This is a **configuration, not an implementation**: `conv_encode` and
+   * `viterbi_decode` do the work and neither knows anything about CCSDS. A
+   * standard choosing a code is a different fact from the code existing, and
+   * keeping them apart is what stops the polynomials from being written down
+   * twice — once in an encoder and once in a decoder, where the inversion is
+   * exactly the detail that would drift.
+   *
+   * `test_fec_ccsds_conv.c` holds it to the standard's printed impulse
+   * response: C1 must trace `G1`, and C2 the **complement** of `G2`.
+   *
+   * @code
+   * conv_enc_t s;
+   * conv_enc_init (&s);
+   * conv_encode (&s, &FEC_CCSDS_CONV, bits, n, sym, sizeof sym);
+   * @endcode
    */
-  typedef struct
-  {
-    uint8_t reg; /**< 7 stages; bit 6 is the newest input */
-  } fec_conv_t;
+  extern const conv_code_t FEC_CCSDS_CONV;
 
-  /** @brief Reset the encoder to the all-zero state. */
-  void fec_conv_init (fec_conv_t *s);
-
-  /**
-   * @brief Encode @p n bits, emitting `2 * n` symbols.
-   *
-   * CCSDS 131.0-B-3 section 3.3.1: the non-systematic rate-1/2 K=7 code with
-   * `G1 = 1111001` (171 octal) and `G2 = 1011011` (133 octal), and — the part
-   * that is easy to miss — **symbol inversion on the output path of G2**.
-   *
-   * That inversion is invisible to a round trip. A matched decoder inverts
-   * whatever the encoder did, so an implementation that omits it decodes its
-   * own output perfectly and interoperates with nothing. The test pins it
-   * against the impulse response, where C1 must trace `G1` and C2 must trace
-   * the *complement* of `G2`.
-   *
-   * @param s    Encoder state, carried across calls.
-   * @param in   @p n unpacked input bits.
-   * @param n    Number of input bits.
-   * @param out  Receives `2 * n` unpacked symbols, `C1, C2` interleaved per
-   *             3.3.2.
-   * @return The number of symbols written, `2 * n`.
-   */
-  size_t fec_conv_encode (fec_conv_t *s, const uint8_t *in, size_t n,
-                          uint8_t *out);
-
-  /** @brief Symbols `fec_conv_encode` writes for @p n input bits. */
+  /** @brief Symbols the CCSDS inner code writes for @p n input bits. */
   static inline size_t
   fec_conv_max_out (size_t n)
   {

@@ -77,6 +77,8 @@
 * **CIC\_R\_MAX** ([**cic\_core.h**](cic__core_8h.md))
 * **CIC\_STATE\_MAGIC** ([**cic\_core.h**](cic__core_8h.md))
 * **CIC\_STATE\_VERSION** ([**cic\_core.h**](cic__core_8h.md))
+* **CONV\_K\_MAX** ([**conv\_core.h**](conv__core_8h.md))
+* **CONV\_N\_MAX** ([**conv\_core.h**](conv__core_8h.md))
 * **CORR\_STATE\_MAGIC** ([**corr\_core.h**](corr__core_8h.md))
 * **CORR\_STATE\_VERSION** ([**corr\_core.h**](corr__core_8h.md))
 * **CORR2D\_STATE\_MAGIC** ([**corr2d\_core.h**](corr2d__core_8h.md))

@@ -316,6 +316,12 @@
 * **cic\_reset** ([**cic\_core.h**](cic__core_8h.md))
 * **cic\_set\_state** ([**cic\_core.h**](cic__core_8h.md))
 * **cic\_state\_bytes** ([**cic\_core.h**](cic__core_8h.md))
+* **conv\_code\_valid** ([**conv\_core.h**](conv__core_8h.md))
+* **conv\_enc\_init** ([**conv\_core.h**](conv__core_8h.md))
+* **conv\_encode** ([**conv\_core.h**](conv__core_8h.md))
+* **conv\_next\_state** ([**conv\_core.h**](conv__core_8h.md))
+* **conv\_outputs** ([**conv\_core.h**](conv__core_8h.md))
+* **conv\_states** ([**conv\_core.h**](conv__core_8h.md))
 * **corr\_create** ([**corr\_core.h**](corr__core_8h.md))
 * **corr\_destroy** ([**corr\_core.h**](corr__core_8h.md))
 * **corr\_execute** ([**corr\_core.h**](corr__core_8h.md))
@@ -701,8 +707,6 @@
 * **fec\_ccsds\_asm\_bits** ([**fec\_ccsds.h**](fec__ccsds_8h.md))
 * **fec\_ccsds\_rand\_seq** ([**fec\_ccsds.h**](fec__ccsds_8h.md))
 * **fec\_ccsds\_randomise** ([**fec\_ccsds.h**](fec__ccsds_8h.md))
-* **fec\_conv\_encode** ([**fec\_ccsds.h**](fec__ccsds_8h.md))
-* **fec\_conv\_init** ([**fec\_ccsds.h**](fec__ccsds_8h.md))
 * **fec\_conv\_max\_out** ([**fec\_ccsds.h**](fec__ccsds_8h.md))
 * **fec\_frame\_encode** ([**fec\_frame.h**](fec__frame_8h.md))
 * **fec\_frame\_layout** ([**fec\_frame.h**](fec__frame_8h.md))
@@ -1318,6 +1322,17 @@
 * **uq15\_to\_f32\_reset** ([**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md))
 * **uq15\_to\_f32\_step** ([**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md))
 * **uq15\_to\_f32\_steps** ([**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md))
+
+
+## v
+
+* **viterbi\_code** ([**conv\_core.h**](conv__core_8h.md))
+* **viterbi\_create** ([**conv\_core.h**](conv__core_8h.md))
+* **viterbi\_decode** ([**conv\_core.h**](conv__core_8h.md))
+* **viterbi\_decode\_max\_out** ([**conv\_core.h**](conv__core_8h.md))
+* **viterbi\_depth** ([**conv\_core.h**](conv__core_8h.md))
+* **viterbi\_destroy** ([**conv\_core.h**](conv__core_8h.md))
+* **viterbi\_reset** ([**conv\_core.h**](conv__core_8h.md))
 
 
 ## w

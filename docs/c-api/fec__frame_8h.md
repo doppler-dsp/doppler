@@ -62,7 +62,7 @@ _The CCSDS frame assembler — where the ASM goes, and the one place the stages'
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**fec\_frame\_encode**](#function-fec_frame_encode) (const [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md) \* cfg, [**fec\_conv\_t**](structfec__conv__t.md) \* conv, const uint8\_t \* frame, size\_t frame\_len, uint8\_t \* out, size\_t max\_out) <br>_Encode one Transfer Frame into channel symbols._  |
+|  size\_t | [**fec\_frame\_encode**](#function-fec_frame_encode) (const [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md) \* cfg, [**conv\_enc\_t**](structconv__enc__t.md) \* conv, const uint8\_t \* frame, size\_t frame\_len, uint8\_t \* out, size\_t max\_out) <br>_Encode one Transfer Frame into channel symbols._  |
 |  size\_t | [**fec\_frame\_layout**](#function-fec_frame_layout) (const [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md) \* cfg, size\_t frame\_len, [**fec\_frame\_layout\_t**](structfec__frame__layout__t.md) \* out) <br>_Work out the CADU shape for a config, without encoding anything._  |
 
 
@@ -171,7 +171,7 @@ _Encode one Transfer Frame into channel symbols._
 ```C++
 size_t fec_frame_encode (
     const fec_frame_cfg_t * cfg,
-    fec_conv_t * conv,
+    conv_enc_t * conv,
     const uint8_t * frame,
     size_t frame_len,
     uint8_t * out,
@@ -200,7 +200,7 @@ The difference is small and it is exactly where it hurts: measured on depth 1, e
 
 
 * `cfg` The coding to apply. 
-* `conv` Inner-encoder state carried across frames, or `NULL` to start from the all-zero register. Ignored when `cfg->convolutional` is 0. 
+* `conv` Inner-encoder state ([**conv\_enc\_t**](structconv__enc__t.md)) carried across frames, or `NULL` to start from the all-zero register. Ignored when `cfg->convolutional` is 0. 
 * `frame` `frame_len` **packed** octets, MSB-first on the wire. 
 * `frame_len` Transfer Frame length in octets. 
 * `out` Receives the **unpacked** channel symbols, one per byte. 
@@ -220,8 +220,8 @@ uint8_t sym[(32 + 255 * 5 * 8) * 2];
 const fec_frame_cfg_t cfg
     = { .rs_depth = 5, .randomise = 1, .attach_asm = 1,
         .convolutional = 1 };
-fec_conv_t conv;
-fec_conv_init (&conv);
+conv_enc_t conv;
+conv_enc_init (&conv);
 const size_t n
     = fec_frame_encode (&cfg, &conv, frame, sizeof frame, sym,
                         sizeof sym);

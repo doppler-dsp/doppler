@@ -38,9 +38,9 @@ main (void)
   {
     uint8_t    in[7] = { 1, 0, 0, 0, 0, 0, 0 };
     uint8_t    out[14];
-    fec_conv_t s;
-    fec_conv_init (&s);
-    fec_conv_encode (&s, in, 7, out);
+    conv_enc_t s;
+    conv_enc_init (&s);
+    conv_encode (&s, &FEC_CCSDS_CONV, in, 7, out, sizeof out);
 
     int c1_ok = 1, c2_ok = 1;
     for (size_t i = 0; i < 7; i++)
@@ -59,9 +59,9 @@ main (void)
   {
     uint8_t    in[32] = { 0 };
     uint8_t    out[64];
-    fec_conv_t s;
-    fec_conv_init (&s);
-    fec_conv_encode (&s, in, 32, out);
+    conv_enc_t s;
+    conv_enc_init (&s);
+    conv_encode (&s, &FEC_CCSDS_CONV, in, 32, out, sizeof out);
 
     int c1_zero = 1, c2_one = 1;
     for (size_t i = 0; i < 32; i++)
@@ -83,13 +83,14 @@ main (void)
       in[i] = (uint8_t)((i * 5u + 1u) & 1u);
 
     uint8_t    whole[40], split[40];
-    fec_conv_t a, b;
-    fec_conv_init (&a);
-    fec_conv_encode (&a, in, 20, whole);
+    conv_enc_t a, b;
+    conv_enc_init (&a);
+    conv_encode (&a, &FEC_CCSDS_CONV, in, 20, whole, sizeof whole);
 
-    fec_conv_init (&b);
-    fec_conv_encode (&b, in, 8, split);
-    fec_conv_encode (&b, in + 8, 12, split + 16);
+    conv_enc_init (&b);
+    conv_encode (&b, &FEC_CCSDS_CONV, in, 8, split, sizeof split);
+    conv_encode (&b, &FEC_CCSDS_CONV, in + 8, 12, split + 16,
+                 sizeof split - 16);
 
     DP_CHECK_MSG (memcmp (whole, split, sizeof whole) == 0,
                   "encoding in chunks must equal encoding in one call");
@@ -99,9 +100,10 @@ main (void)
   {
     uint8_t    in[9] = { 1, 0, 1, 1, 0, 0, 1, 0, 1 };
     uint8_t    out[18];
-    fec_conv_t s;
-    fec_conv_init (&s);
-    const size_t got = fec_conv_encode (&s, in, 9, out);
+    conv_enc_t s;
+    conv_enc_init (&s);
+    const size_t got
+        = conv_encode (&s, &FEC_CCSDS_CONV, in, 9, out, sizeof out);
     DP_CHECK_MSG (got == 18, "9 bits in must be 18 symbols out");
     DP_CHECK_MSG (got == fec_conv_max_out (9),
                   "max_out must agree with what encode actually wrote");

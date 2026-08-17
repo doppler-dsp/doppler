@@ -177,6 +177,7 @@ add_subdirectory(native/src/hbdecim)
 add_subdirectory(native/src/resamp)
 add_subdirectory(native/src/wfmcompose)
 add_subdirectory(native/src/fec)
+add_subdirectory(native/src/conv)
 add_subdirectory(native/src/frame_meter)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:frame_meter_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:frame_meter_core>)
@@ -507,6 +508,14 @@ add_subdirectory(native/src/stream)
 # is exactly why it went unnoticed until jm 0.62.0's wiring check.
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:fec_ccsds_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:fec_ccsds_core>)
+
+# conv_core for the same reason, and it is the stronger case: native/inc/conv
+# is an installed header whose every function is out-of-line, and `fec` now
+# reaches the encoder THROUGH it -- so without this line fec's own symbols
+# resolve inside the archive and the codec they call does not. jm 0.62.0's
+# wiring check is what named it; the line is ours.
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:conv_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:conv_core>)
 
 # The capture's block bound is claimed from a code audit of every emit site.
 # This drives a REAL object -- carrier_nda, the only unconditional per-input

@@ -51,7 +51,7 @@ extern "C"
   size_t fec_frame_layout (const fec_frame_cfg_t *cfg, size_t frame_len,
                            fec_frame_layout_t *out);
 
-  size_t fec_frame_encode (const fec_frame_cfg_t *cfg, fec_conv_t *conv,
+  size_t fec_frame_encode (const fec_frame_cfg_t *cfg, conv_enc_t *conv,
                            const uint8_t *frame, size_t frame_len,
                            uint8_t *out, size_t max_out);
 

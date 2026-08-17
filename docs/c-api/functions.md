@@ -1333,7 +1333,10 @@
 * **viterbi\_decode\_max\_out** ([**conv\_core.h**](conv__core_8h.md))
 * **viterbi\_depth** ([**conv\_core.h**](conv__core_8h.md))
 * **viterbi\_destroy** ([**conv\_core.h**](conv__core_8h.md))
+* **viterbi\_get\_state** ([**conv\_core.h**](conv__core_8h.md))
 * **viterbi\_reset** ([**conv\_core.h**](conv__core_8h.md))
+* **viterbi\_set\_state** ([**conv\_core.h**](conv__core_8h.md))
+* **viterbi\_state\_bytes** ([**conv\_core.h**](conv__core_8h.md))
 
 
 ## w

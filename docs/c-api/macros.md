@@ -324,6 +324,12 @@
 * **SYMSYNC\_STATE\_VERSION** ([**symsync\_core.h**](symsync__core_8h.md))
 
 
+## v
+
+* **VITERBI\_STATE\_MAGIC** ([**conv\_core.h**](conv__core_8h.md))
+* **VITERBI\_STATE\_VERSION** ([**conv\_core.h**](conv__core_8h.md))
+
+
 ## w
 
 * **WFM\_FRAME\_CRC\_BITS** ([**wfm\_frame.h**](wfm__frame_8h.md))

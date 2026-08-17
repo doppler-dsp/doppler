@@ -192,6 +192,30 @@ k = 3. Holding lock and acquiring it are different jobs with different error
 budgets, and this operating point is sized for the first; the second is what
 the up-counter is for.
 
+### 5.1 The statistic is the plain COUNT, and that is settled
+
+Acquisition is a comparator — decode under both phase hypotheses and take the
+lower count — and it is reliable well before the operating window. Wrong phase
+chosen, 1000 trials, single shot with no hysteresis:
+
+| window          |             | 1 dB   | 2 dB       | 3 dB   |
+| --------------- | ----------- | ------ | ---------- | ------ |
+| 64 symbols      | 32 bits     | 0.1530 | 0.0740     | 0.0310 |
+| 128 symbols     | **64 bits** | 0.0820 | **0.0090** | 0.0010 |
+| 256 symbols     | 128 bits    | 0.0290 | 0.0020     | 0.0000 |
+| **500 symbols** | 250 bits    | 0.0080 | **0.0000** | 0.0000 |
+
+**At the 500-symbol operating point the count picks the right phase in 1000 of
+1000 trials from 2 dB up**, and at 64 bits it is already at 0.9 % single-shot.
+So the soft-decision statistic is **not needed here**: Mengali et al. matter
+where a synchronizer must declare on far less data than this one has, and this
+one has 500 symbols. Three ad-hoc comparators measured within noise of each
+other (§6), and the count is the cheapest — no multiplies, and the same number
+already serves as the lock statistic and the channel quality readout.
+
+Note the units, because they decide the answer: **64 channel symbols is not
+enough** (7.4 % at 2 dB) while **64 decoded bits** — twice the symbols — is.
+
 ### A harness artifact that looked like a result
 
 The first run of this table put the in-sync count **45 % above** the
@@ -208,28 +232,8 @@ ______________________________________________________________________
 
 ## 6. The unknowns — named now, measured in phase 7
 
-1. **The discriminator's exact form, which is UNEVALUATED.** §3 cites Mengali
-    et al. for the soft-decision statistic. This design does not implement it,
-    and nothing here measures it — only the abstract has been read.
-
-    What was measured is three *ad-hoc* comparators over the two phase
-    hypotheses: the hard disagreement count, `mean(s·L)/mean(|L|)`, and the
-    plain correlation `sum(s·L)`. Wrong decisions out of 300 trials at 2 dB:
-
-    | usable bits | hard | `mean(s·L)/mean(|L|)` | `sum(s·L)` |
-    | \--- | --- | --- | --- |
-    | 32 | 17 | 18 | 18 |
-    | 64 | 6 | 7 | 7 |
-    | 128 | 0 | 0 | 0 |
-
-    **No difference this test can resolve.** So the hard count is chosen
-    because it is the cheapest of three that measured the same — no multiplies
-    — and *not* because soft decision loses. An earlier run of this table did
-    show the soft forms losing (18 against 9 at 64 bits) and **that was the
-    undecided-tail artifact of §5**, found and retracted rather than shipped.
-    Whether the paper's derived statistic beats all three at short
-    observations is open, and is the question worth answering if node sync
-    ever needs to declare faster than 64 bits.
+1. ~~**The discriminator's form.**~~ **SETTLED: the plain disagreement
+    count.** §5.1 is the evidence.
 
 1. **P_false_lock under hysteresis.** §5 measures a single window; what a
     caller acquires with is `lockdet`'s run-length, and the geometric estimate

@@ -1175,11 +1175,20 @@ validate-c: ## Run every C validation harness's FULL sweep (not the --check subs
 	 done
 	@echo "validate-c: $(words $(VALIDATORS_C)) harness(es) → $(VALIDATE_C_OUT)/"
 
+# `--check` prints a unified diff when a report is stale, and this target used
+# to send it to /dev/null -- so the ONE caller anyone uses discarded the whole
+# diagnosis and printed a filename. Measured: four reports came back stale in
+# CI and the log said only which files, which is the half that does not
+# distinguish an edited validator (re-run `make validate`) from a machine
+# difference (re-running fixes nothing). Captured and replayed on failure now,
+# from `STALE:` onward so the per-limit PASS lines stay out of it.
 validate-check: ## Fail if any validation report is stale (CI gate)
 	@fail=0; \
 	 for v in $(VALIDATORS); do \
-	     uv run python $$v --check > /dev/null || { \
-	         echo "validate-check: STALE — $$v"; fail=1; }; \
+	     out=$$(uv run python $$v --check 2>&1) || { \
+	         echo "validate-check: STALE — $$v"; \
+	         printf '%s\n' "$$out" | sed -n '/STALE:/,$$p'; \
+	         fail=1; }; \
 	 done; \
 	 if [ "$$fail" = 0 ]; then \
 	     echo "validate-check: OK — $(words $(VALIDATORS)) report(s) up to date"; \

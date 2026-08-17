@@ -157,7 +157,7 @@ ______________________________________________________________________
 <!-- related-pages:start -->
 
 **Gallery** — [Measuring an Error Rate, Defensibly](../gallery/ber-awgn.md), [Gallery](../gallery/index.md)
-**Design** — [Receiver Test Harness](../design/rx-test.md)
+**Design** — [Soft Decisions for M-PSK](../design/mpsk-soft.md), [Receiver Test Harness](../design/rx-test.md)
 **Contributing** — [Measuring a receiver](../dev/measuring-a-receiver.md)
 
 <!-- related-pages:end -->

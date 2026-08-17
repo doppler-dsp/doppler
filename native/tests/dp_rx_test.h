@@ -252,6 +252,23 @@ typedef struct
   double disturb_peak_rad; /**< peak |discriminator| excursion           */
   double disturb_rms_rad;  /**< and its RMS                              */
 
+  /* The lock indicators as DUTY CYCLES over the scored window, which is what
+     makes them evidence rather than a sample. The binary flag is thresholded
+     (`lock_thresh`, sized against the no-signal distribution alone) while
+     `lock_stat_duty` is the share where the statistic was merely positive —
+     so the two together say whether a low duty means the loops are struggling
+     or only that the threshold is not meant for this Es/N0. doppler#835.
+
+     REPORTED, not gated, and deliberately: `dp_ber_settle` already requires
+     the flag to hold 90 % over 200 symbols before a window opens, so a
+     receiver whose duty is poor refuses the point and `dp_rx_tally_check`
+     catches a receiver that refuses everything. A `lock_duty >= 0.9` gate
+     was written here and REMOVED after sabotage — raising the threshold and
+     dropping lock mid-record both redden the tally first, and neither could
+     make the duty gate fire on its own. A gate that cannot fail
+     independently is one nobody can trust the day it goes green. */
+  double      lock_duty;      /**< share where `locked` was asserted        */
+  double      lock_stat_duty; /**< share where the lock statistic was > 0   */
   unsigned    bursts;     /**< bursts consumed — the headroom, see below    */
   int         clipped;    /**< the front end clipped: nothing here is real  */
   int         unsettled;  /**< bursts whose window never settled             */
@@ -405,6 +422,30 @@ dp_rx_ramp_law (const dp_rx_point_t *pt, double zeta)
  * roughly 2% of the lag over a settled window, which fits with room to
  * spare. */
 #define DP_RX_RAMP_TOL 0.10
+
+/**
+ * @brief Share of `[lo, hi)` where a per-symbol flag is set.
+ *
+ * A duty cycle, not a lock decision. Both of the receiver's lock indicators
+ * are per-symbol flags, and a rate over the SCORED window is the only honest
+ * summary of one: a boolean sampled once says whether the last symbol was
+ * lucky, and `dp_ber_settle`'s answer says when a sustained run began, which
+ * is a different question from how much of the record it covered.
+ *
+ * It is here rather than in a harness because the number it produces is
+ * evidence about a THRESHOLD (doppler#835), and a threshold claim measured
+ * two different ways in two harnesses is a claim about neither.
+ */
+static inline double
+dp_rx_duty (const unsigned char *flags, size_t lo, size_t hi)
+{
+  if (flags == NULL || hi <= lo)
+    return 0.0;
+  size_t set = 0;
+  for (size_t i = lo; i < hi; i++)
+    set += (flags[i] != 0);
+  return (double)set / (double)(hi - lo);
+}
 
 /**
  * @brief Generate one impaired burst and run it through the receiver.
@@ -852,6 +893,13 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
           }
         settled = 1;
 
+        /* Over the SCORED window, so it answers "was the receiver's own
+           indicator asserted while these numbers were being taken" rather
+           than "did it ever assert". Accumulated across bursts by the same
+           mean the trio uses. */
+        r.lock_duty += dp_rx_duty (lc, settle, n);
+        r.lock_stat_duty += dp_rx_duty (tk, settle, n);
+
         if (l.sync_bits >= 8)
           {
             /* The sync word IS the marker, repeating with the frame period. */
@@ -962,6 +1010,14 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
   r.frame_enough  = frame_meter_get_enough (fm);
   r.fer           = frame_meter_fer (fm);
   r.sync_miss     = frame_meter_sync_miss (fm);
+
+  /* Accumulated per burst above; a mean over the bursts that produced
+     numbers, so it is a rate over exactly the record the trio scored. */
+  if (r.bursts)
+    {
+      r.lock_duty /= (double)r.bursts;
+      r.lock_stat_duty /= (double)r.bursts;
+    }
 
 done:
   /* The anchor's two terms. A frame is delivered when its sync was found AND
@@ -1344,10 +1400,12 @@ dp_rx_print (const dp_rx_result_t *r)
       return;
     }
   printf ("  %-12s %-11s SER %.3e  EVM %6.2f dB  M2M4 %5.2f dB  loss %5.2f dB"
-          "  |e| pk %.3f rms %.4f  acq %.3f t %.2f/Bl  %s\n",
+          "  |e| pk %.3f rms %.4f  acq %.3f t %.2f/Bl  lock %3.0f%%/%3.0f%%"
+          "  %s\n",
           r->rx->name, r->point->name, r->rep.ser.p_hat, r->rep.evm_db,
           r->rep.m2m4_db, r->rep.loss_db, r->disturb_peak_rad,
           r->disturb_rms_rad, r->acq_frac, r->acq_time_bl,
+          100.0 * r->lock_duty, 100.0 * r->lock_stat_duty,
           r->rep.ok ? "ok" : (r->rep.why ? r->rep.why : "not ok"));
   /* Printed only where a ramp exists. An unimpaired point has a law of
      exactly zero, and a row of zeros beside a gate that cannot fire reads as

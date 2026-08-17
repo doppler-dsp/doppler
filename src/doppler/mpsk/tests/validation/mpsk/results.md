@@ -86,6 +86,34 @@ Every symbol after the first survives an arbitrary constant rotation — not mer
 Claims a caller may rely on. A failure here is a regression, not a new finding.
 
 
+| verdict | claim |
+|---|---|
+| PASS | M=2: every constellation point is unit amplitude to 1e-6 |
+| PASS | M=4: every constellation point is unit amplitude to 1e-6 |
+| PASS | M=8: every constellation point is unit amplitude to 1e-6 |
+| PASS | QPSK is axis-separable: \|\|I\| − \|Q\|\| < 1e-6 at every point |
+| PASS | BPSK points are ±1 on the real axis to 1e-6 |
+| PASS | M=2: cyclically adjacent constellation points differ in exactly one bit |
+| PASS | M=4: cyclically adjacent constellation points differ in exactly one bit |
+| PASS | M=8: cyclically adjacent constellation points differ in exactly one bit |
+| PASS | M=2: demap(map(x)) == x, and is unchanged over 12 decades of amplitude |
+| PASS | M=4: demap(map(x)) == x, and is unchanged over 12 decades of amplitude |
+| PASS | M=8: demap(map(x)) == x, and is unchanged over 12 decades of amplitude |
+| PASS | every demapped label is below M — only the low log2(M) bits are ever set |
+| PASS | mpsk_bits_per_symbol is log2(M) for M in {2, 4, 8} |
+| PASS | mpsk_bits_per_symbol is 0 for an unsupported M, so a caller can reject one |
+| PASS | M=2: differential map/demap round-trips exactly |
+| PASS | M=4: differential map/demap round-trips exactly |
+| PASS | M=8: differential map/demap round-trips exactly |
+| PASS | M=2: differential decoding is invariant to ANY constant carrier phase, past the first symbol |
+| PASS | M=4: differential decoding is invariant to ANY constant carrier phase, past the first symbol |
+| PASS | M=8: differential decoding is invariant to ANY constant carrier phase, past the first symbol |
+| PASS | coherent SER is within 15% of theory at every measured cell (worst 6.4%) |
+| PASS | the differential penalty never exceeds 2.2x (worst 2.17x) — the header's ~2x is an upper bound, not a typical value |
+| PASS | QPSK at 10 dB Es/N0 pays 2.09x for differential mode — the asymptote is reached where a receiver operates |
+| PASS | every error-rate cell collected at least 200 errors (fewest 306) — without this the comparisons above pass vacuously on a starved cell |
+
+
 ## 5. Summary
 
 - **5 findings**, 1 of them gaps or confirmed defects: F3

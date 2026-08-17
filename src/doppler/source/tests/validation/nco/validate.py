@@ -979,10 +979,6 @@ def limits(d: Data) -> None:
         f"{big_n} samples requested, past the advertised 65536",
     )
 
-    R.md()
-    rows = [["PASS" if ok else "**FAIL**", claim] for ok, claim in R.limits]
-    R.table(["verdict", "claim"], rows)
-
 
 def plots(d: Data) -> None:
     import matplotlib

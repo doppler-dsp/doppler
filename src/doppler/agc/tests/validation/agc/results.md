@@ -182,6 +182,28 @@ Claims a caller may rely on. A failure here is a regression, not a new finding �
 
 
 
+| verdict | claim |
+|---|---|
+| PASS | The converged gain cancels the input level to within 0.5 dB across 80 dB of input. |
+| PASS | Inside the rule, a FALLING gain holds decim to under 0.1 dB — measured 0.057 dB. This is the half that responds to the loop gain being compounded (0.146 dB if it is not), so it is the regression detector; the row below is the promise. |
+| PASS | Inside `4*decim*loop_bw <= 0.05`, changing decim costs under 0.3 dB of transient — measured 0.195 dB in the worse (rising-gain) direction. The rule a caller picks decim by. |
+| PASS | Every settling measurement completed within budget, so no did-not-converge sentinel reaches a ratio or a plot. |
+| PASS | The loop settles within budget at every bandwidth measured. |
+| PASS | Settling tracks 1/(4*loop_bw) across a decade of bandwidth: the tau/predicted ratio varies by less than 1.6x. |
+| PASS | A quiet input settles no faster than a loud one — the detector's asymmetry is present and has the documented sign. |
+| PASS | An on-target stream moves the gain by less than 0.5 dB: the seed is the reference power at every reference. |
+| PASS | One malformed input sample leaves the state finite. |
+| PASS | The loop still converges after a malformed sample. |
+| PASS | A silent gap leaves the state finite, at every gap length. |
+| PASS | A returning signal recovers after a silent gap, at every gap length. |
+| PASS | Recovery is bounded and does not grow without limit with the gap. |
+| PASS | gain_update_period does not move the converged gain by more than 0.5 dB across 1, 8 and 32. |
+| PASS | The level_db probe closes on the reference within 0.5 dB. |
+| PASS | level_db is zero-referenced: it ends nearer the reference than it started, which a probe wired to the gain would not. |
+| PASS | gain_db meanwhile settles to a non-zero offset, so the two probes are genuinely different quantities. |
+| PASS | State round-trips bit-exactly into a fresh instance. |
+
+
 ## 5. Summary
 
 - **6 findings**, 2 of them gaps or confirmed defects: F4, F6

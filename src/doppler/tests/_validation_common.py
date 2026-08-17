@@ -315,7 +315,40 @@ class Report:
         return (claim for ok, claim in self.limits if not ok)
 
     def summary(self, extra: str = "") -> None:
-        """Append the closing summary section."""
+        """Close section 4 with the limits table, then append section 5.
+
+        **The table is emitted here rather than by each object's own
+        `limits()`, and that is the whole point.** Section 4 exists to
+        state the envelope a caller may rely on, and four of the eleven
+        certified objects rendered it while seven rendered a heading, the
+        sentence "Claims a caller may rely on", and then nothing at all --
+        agc, ema, resamp, lockdet, mpsk, loop_filter and mpsk_receiver.
+        Every one of them closed with `**33/33 limits** hold` in section
+        5, so the count was right there beside a section that named none
+        of them.
+
+        Neither gate could see it. `test_validation_limits.py` asserts the
+        limits and never reads the report; `make validate-check`
+        re-renders and compares bytes, so a generator that emits an empty
+        section agrees with itself perfectly. It is the same shape as the
+        malformed tables `table()` documents, and it takes the same fix:
+        move it into the one place every report goes through.
+
+        `summary()` is that place -- every validator calls it, and it is
+        the only hook that runs after the last `limit()` -- so the table
+        cannot be forgotten by a new object and the four hand-rolled
+        copies are gone rather than left to drift. `_self_check` pins the
+        outcome: a rendered report must carry one row per recorded limit.
+        """
+        if self.limits:
+            self.md()
+            self.table(
+                ["verdict", "claim"],
+                [
+                    ["PASS" if ok else "**FAIL**", claim]
+                    for ok, claim in self.limits
+                ],
+            )
         gaps = self.open_findings
         # No trailing space when the list is empty: the end-of-line hook
         # would strip it and the next regeneration would put it back,
@@ -381,6 +414,21 @@ class Report:
                     f"to file, it is not open: a result that holds is a "
                     f"limit, not a finding"
                 )
+
+        # Section 4 must STATE the envelope, not just count it. Seven of
+        # eleven reports rendered the heading and no rows while section 5
+        # closed with "N/N limits hold", so the only place a caller could
+        # read what was certified was the source of `validate.py`. Counted
+        # against the rendered text rather than trusting `summary()` to
+        # have run, because that is the artifact a reader gets.
+        pat = r"^\| (?:PASS|\*\*FAIL\*\*) \| "
+        rendered = len(re.findall(pat, text, re.M))
+        if len(self.limits) != rendered:
+            problems.append(
+                f"section 4 renders {rendered} limit rows against "
+                f"{len(self.limits)} recorded — the envelope a caller may "
+                f"rely on has to be IN the report, not only counted by it"
+            )
 
         heads = set(re.findall(r"^#{2,3} (\d+(?:\.\d+)?)\s", text, re.M))
 

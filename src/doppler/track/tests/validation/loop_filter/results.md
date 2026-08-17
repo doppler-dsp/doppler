@@ -168,6 +168,36 @@ A 64-update block split across two calls matches 64 scalar calls to **0.0e+00**,
 Claims a caller may rely on. A failure here is a regression, not a new finding. Every one is asserted by `src/doppler/track/tests/test_validation_limits.py`.
 
 
+| verdict | claim |
+|---|---|
+| PASS | kp and ki match the canonical Rice form across 108 (bn, zeta, t) cells to 0.0e+00 relative |
+| PASS | the delivered bandwidth at bn=0.0005 is never NARROW (measured 0.000500222) |
+| PASS | the bn=0.0005 Parseval sum has converged |
+| PASS | the delivered bandwidth at bn=0.001 is never NARROW (measured 0.00100089) |
+| PASS | the bn=0.001 Parseval sum has converged |
+| PASS | the delivered bandwidth at bn=0.005 is never NARROW (measured 0.00502226) |
+| PASS | the bn=0.005 Parseval sum has converged |
+| PASS | the delivered bandwidth at bn=0.01 is never NARROW (measured 0.0100892) |
+| PASS | the bn=0.01 Parseval sum has converged |
+| PASS | the delivered bandwidth at bn=0.02 is never NARROW (measured 0.020358) |
+| PASS | the bn=0.02 Parseval sum has converged |
+| PASS | the delivered bandwidth at bn=0.05 is never NARROW (measured 0.0522595) |
+| PASS | the bn=0.05 Parseval sum has converged |
+| PASS | the bandwidth excess obeys 16·zeta²/(4·zeta²+1)²·(bn·t) at every damping measured |
+| PASS | the excess depends on bn·t alone; t drops out to 0.0e+00 |
+| PASS | bn·t <= 0.01 at zeta 0.707 delivers the bandwidth within 1% |
+| PASS | a step settles to +-5% within 2.30 loop constants at zeta 0.707, so the 5/bn rule holds |
+| PASS | open-loop on a constant error the control RAMPS (1.842x over 200 updates), it does not converge |
+| PASS | configure retunes and preserves the estimate |
+| PASS | reset clears the estimate and preserves the gains |
+| PASS | bn = 0 freezes the loop: gains zero, estimate held |
+| PASS | every out-of-domain constructor argument raises ValueError (8/8), so a NaN-poisoned loop cannot be built |
+| PASS | a mid-stream state split resumes bit-for-bit |
+| PASS | a restore carries the source's configuration, not only its memory |
+| PASS | steps() split across calls matches scalar step() to 0.0e+00, so the integrator carries |
+| PASS | steps(x, out=x) writes in place and is identical to separate buffers |
+
+
 ## 5. Summary
 
 - **10 findings**, 0 of them gaps or confirmed defects — none left

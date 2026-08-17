@@ -2241,10 +2241,6 @@ def limits(d: Data) -> None:
         f"bit-exactly in a fresh instance",
     )
 
-    R.md()
-    rows = [["PASS" if ok else "**FAIL**", claim] for ok, claim in R.limits]
-    R.table(["verdict", "claim"], rows)
-
 
 # ═════════════════════════════ front matter (written last, read first)
 def executive(d: Data) -> None:

@@ -109,6 +109,32 @@ Verify counts of zero clamp to 1 at construction — a count of 0 is never a mea
 Claims a caller may rely on. A failure here is a regression, not a new finding. Every one is asserted by `src/doppler/detection/tests/test_validation_limits.py`.
 
 
+| verdict | claim |
+|---|---|
+| PASS | the false-declare rate matches p^n_up(1-p)/(1-p^n_up) across 9 cells (worst 6.9%) |
+| PASS | the declare latency matches det_verify_delay (worst 6.5%) |
+| PASS | p=0.5, n_up=1: the detector declares at all (rate 0.501577) |
+| PASS | p=0.5, n_up=2: the detector declares at all (rate 0.167650) |
+| PASS | p=0.5, n_up=3: the detector declares at all (rate 0.072097) |
+| PASS | p=0.3, n_up=1: the detector declares at all (rate 0.301433) |
+| PASS | p=0.3, n_up=2: the detector declares at all (rate 0.069880) |
+| PASS | p=0.3, n_up=3: the detector declares at all (rate 0.019623) |
+| PASS | p=0.1, n_up=1: the detector declares at all (rate 0.100537) |
+| PASS | p=0.1, n_up=2: the detector declares at all (rate 0.009330) |
+| PASS | p=0.1, n_up=3: the detector declares at all (rate 0.000963) |
+| PASS | a hysteresis band chatters less than a single threshold (0 vs 445 transitions) |
+| PASS | the declare lands on the n_up-th look exactly |
+| PASS | an unlocked detector never declares on NaN, however many looks |
+| PASS | a locked detector drops on the n_down-th NaN look (measured 3) |
+| PASS | +inf is an ordinary hit, not a special case |
+| PASS | -inf is an ordinary miss, not a special case |
+| PASS | x == down_thresh is still not a miss; the exclusive edge survives the non-finite rule |
+| PASS | steps() split across calls matches one call, cnt included |
+| PASS | a mid-run state split resumes the verify run |
+| PASS | a restore carries the source's configuration, not only its flag |
+| PASS | verify counts of 0 clamp to 1 at construction |
+
+
 ## 5. Summary
 
 - **6 findings**, 0 of them gaps or confirmed defects — none left

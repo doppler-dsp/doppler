@@ -167,7 +167,15 @@ Then the five numbered sections:
 1. **Review** — findings with verdicts: `BY DESIGN`, `GAP`, `CONFIRMED`,
     `FIXED`, `C-ONLY`. Defined below, because two of them are easy to read
     backwards.
-1. **Limits** — the envelope a caller may rely on, asserted.
+1. **Limits** — the envelope a caller may rely on, asserted. **The table is
+    emitted for you**, by `Report.summary()`, one row per `R.limit()` call —
+    do not write one. Seven of the eleven objects rendered this section as a
+    heading, the sentence "Claims a caller may rely on", and nothing else,
+    while section 5 beside it closed with `N/N limits hold`; neither gate
+    could see it, because the limits test never reads the report and
+    `make validate-check` compares a generator against itself.
+    `_self_check` now refuses a render whose section 4 has fewer rows than
+    the run recorded limits.
 1. **Summary.**
 
 ### The five verdicts

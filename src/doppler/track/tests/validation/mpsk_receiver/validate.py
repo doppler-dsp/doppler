@@ -1511,7 +1511,7 @@ def review(R, d):
         "certification.\n\n"
         "**Two of the six have since been closed in C, and one of the six "
         "was this table being wrong.** C15's verify counts are now pinned "
-        "by `test_mpsk_receiver_core.c` §13 as TIME hysteresis — on one "
+        "by `test_mpsk_receiver_core.c` §12 as TIME hysteresis — on one "
         "record a shorter `n_up` must declare strictly earlier, and by at "
         "least the extra symbols asked for, which a count wired to "
         "nothing fails. And **C6 was never as absent as this row "
@@ -1520,8 +1520,9 @@ def review(R, d):
         "is the part the header actually argues — that the estimate is "
         "carried across rather than re-acquired — because §4 re-seeds the "
         "carrier by hand across the outage, and would therefore pass "
-        "against a receiver that cleared it. §12 tests that instant "
-        "directly, one sample at a time. The lesson is the inventory's "
+        "against a receiver that cleared it. §4b tests BOTH "
+        "transitions directly, in one-symbol steps so the measurement "
+        "straddles each flip. The lesson is the inventory's "
         "own: a row read from a test's HEADLINE rather than its "
         "assertions is the same error the campaign calls "
         "pinned-only-at-literals, committed by the auditor instead of "
@@ -1532,14 +1533,14 @@ def review(R, d):
         'same number is now an 8x wider loop"* — and a regression to '
         "input-rate normalisation would have looked correct at `sps = 8`, "
         "the rate every other test in the C file uses, and been wrong "
-        "everywhere else. It is now C §14: settling time in SYMBOLS is "
+        "everywhere else. It is now C §13: settling time in SYMBOLS is "
         "invariant across a 4x span of `sps` at one `bn` (measured 320 "
         "symbols at `sps` 8, 16 and 32), where an input-rate `bn` would "
         "scale it by 4. The earlier attempt through `lock_time` was "
         "abandoned rather than faked — 955 symbols at `sps = 4` against 51 "
         "at 16 — and the fix was to read `get_norm_freq` directly instead "
         "of a statistic with its own EMA and verify counts. C13's sharp "
-        "edge is C §15, pinned as the degeneracy it is (+11 dB of EVM "
+        "edge is C §14, pinned as the degeneracy it is (+11 dB of EVM "
         'against `m_out = 8`) rather than as *"fails about half the '
         'time"*, which is a distribution over seeds and not an '
         "assertion.\n\n"
@@ -2129,9 +2130,9 @@ def build(write: bool = True) -> Report:
             "C6",
             "the handover is opt-in and TWO-WAY, and the shared loop "
             "filter carries the estimate across it in both directions",
-            "C §4 (flip, drop-back and re-declare) + C §12 NEW (the "
-            "estimate is CONTINUOUS across the flip — §4 re-seeds the "
-            "carrier by hand, so it cannot test that)",
+            "C §4 (flip, drop-back and re-declare) + C §4b NEW (the "
+            "estimate is CONTINUOUS across BOTH transitions — §4 "
+            "re-seeds the carrier by hand, which MASKS the claim)",
         ],
         [
             "C7",
@@ -2148,7 +2149,7 @@ def build(write: bool = True) -> Report:
             "C9",
             "`bn_carrier` is now normalised to the SYMBOL rate, not the "
             "input rate (the @warning's behaviour change)",
-            "C §14 NEW — settling in SYMBOLS is invariant across a 4x "
+            "C §13 NEW — settling in SYMBOLS is invariant across a 4x "
             "span of `sps` at one `bn`; an input-rate `bn` would scale "
             "it 4x, which is what makes the invariance the test",
         ],
@@ -2175,7 +2176,7 @@ def build(write: bool = True) -> Report:
             "C13",
             "never pair `m_out = 2` with I&D — acquisition fails about "
             "half the time",
-            "C §15 NEW — pinned as the DEGENERACY (+11 dB of EVM against "
+            "C §14 NEW — pinned as the DEGENERACY (+11 dB of EVM against "
             "`m_out = 8`) rather than as the failure RATE, which is a "
             "distribution over seeds and not a unit test",
         ],
@@ -2189,7 +2190,7 @@ def build(write: bool = True) -> Report:
             "C15",
             "the drop threshold sits at 0.8x with 8-up / 32-down "
             "verify counts",
-            "C §13 NEW — the counts are pinned as TIME hysteresis "
+            "C §12 NEW — the counts are pinned as TIME hysteresis "
             "(a shorter `n_up` declares strictly earlier); the 0.8x "
             "level ratio itself is **absent** (F7)",
         ],

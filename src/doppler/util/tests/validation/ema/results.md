@@ -179,6 +179,25 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 
 
 
+| verdict | claim |
+|---|---|
+| PASS | alpha = 1 returns the observation bit-exactly (121/121 pairs) |
+| PASS | the guard is load-bearing: the unguarded recursion misses 14 of those pairs |
+| PASS | alpha = 0 leaves the state bit-exactly unchanged |
+| PASS | the fixed point does not move, at any alpha |
+| PASS | the step never passes the observation |
+| PASS | alpha > 1 saturates to pass-through, never overshoots |
+| PASS | ema_alpha_decim(alpha, 1) == alpha bit-exactly, at every coefficient tried |
+| PASS | the cancellation is real: the direct form is up to 136763029 ulps off at d = 1 |
+| PASS | d steps of alpha equal one step of the compounded coefficient (worst residual 1.1e-16) |
+| PASS | the compounded coefficient stays inside [0, 1] |
+| PASS | the compounded coefficient is non-decreasing in d |
+| PASS | the compounded coefficient answers both degenerate alphas directly (0 stays frozen, 1 stays pass-through) |
+| PASS | the shipped form is at least as accurate as the two-product form at every long-average coefficient (alpha <= 1e-3) |
+| PASS | noise reduction matches a/(2-a) within 5% over the measured coefficients |
+| PASS | the state crosses 1 - 1/e on exactly sample ceil(-1/ln(1-alpha)) — the discrete law, not a tolerance |
+
+
 ## 5. Summary
 
 - **6 findings**, 0 of them gaps or confirmed defects — none left

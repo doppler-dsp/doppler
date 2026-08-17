@@ -1296,10 +1296,6 @@ def limits(d: Data) -> None:
         f"({d.loop_lo[ramp_name].control[-1]:.6e} vs {ll.RAMP:g})",
     )
 
-    R.md()
-    rows = [["PASS" if ok else "**FAIL**", claim] for ok, claim in R.limits]
-    R.table(["verdict", "claim"], rows)
-
 
 # ═════════════════════════════════════════════════════════════ plots
 def plots(d: Data) -> None:

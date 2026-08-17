@@ -170,5 +170,56 @@ def test_a_coherent_report_renders():
         ("F1", "GAP", "unfixed, gh-747"),
         ("F2", "BY DESIGN", "intended"),
     )
+    r.summary()
     assert _problems(r) == ""
     assert len(r.open_findings) == 1
+
+
+# ── section 4 must STATE the envelope, not only count it ──────────────
+
+
+def test_summary_renders_one_row_per_limit():
+    """`summary()` is what closes section 4, so it owns the table.
+
+    Seven of the eleven certified objects rendered section 4 as a heading
+    and a sentence with no rows at all, while section 5 beside it closed
+    with `N/N limits hold`. Neither gate could see it: the limits test
+    never reads the report, and `make validate-check` re-renders and
+    compares bytes, so an empty section agrees with itself perfectly.
+    """
+    r = _report(("F1", "BY DESIGN", "intended"))
+    r.limit(True, "a claim that holds")
+    r.limit(False, "one that does not")
+    r.summary()
+    text = r.render()
+    assert "| PASS | a claim that holds |" in text
+    assert "| **FAIL** | one that does not |" in text
+    # The table closes section 4, so it must precede section 5's heading.
+    assert text.index("| PASS |") < text.index("## 5. Summary")
+
+
+def test_recorded_limits_that_reach_no_table_are_rejected():
+    """The shipped defect, reproduced: limits counted but never stated.
+
+    Built by hand rather than through `summary()`, because `summary()` is
+    the fix — this is what every report looked like before it.
+    """
+    r = _report(("F1", "BY DESIGN", "intended"))
+    r.limit(True, "a claim nobody can read")
+    r.md()
+    r.md("## 5. Summary")
+    r.md()
+    r.md("- **1/1 limits** hold")
+    assert "renders 0 limit rows against 1 recorded" in _problems(r)
+
+
+def test_a_report_asserting_no_limits_needs_no_table():
+    """Vacuity guard for the case above, from the other side.
+
+    A report with an empty envelope is a different problem — `executive()`
+    already calls it NOT CERTIFIED — and it must not be reported as a
+    missing table.
+    """
+    r = _report(("F1", "GAP", "unfixed, gh-747"))
+    r.summary()
+    assert _problems(r) == ""

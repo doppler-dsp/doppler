@@ -2277,10 +2277,6 @@ def limits(d: Data) -> None:
         "and they are e / ctrl / rate / lock / locked / mu",
     )
 
-    R.md()
-    rows = [["PASS" if ok else "**FAIL**", claim] for ok, claim in R.limits]
-    R.table(["verdict", "claim"], rows)
-
 
 # ═════════════════════════════════════════════════ plots
 def plots(d: Data) -> None:

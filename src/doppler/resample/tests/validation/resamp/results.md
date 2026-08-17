@@ -221,6 +221,24 @@ Claims a caller may rely on. A failure here is a regression, not a new finding �
 
 
 
+| verdict | claim |
+|---|---|
+| PASS | Where `1/rate` is a whole number the residual is at the float32 floor: worst -142.3 dB < -120 dB |
+| PASS | At every other rate the bank holds the tone above 60 dB clean: worst -67.8 dB < -60 dB |
+| PASS | Output count is the integral of the rate to within one sample: worst +1.0 |
+| PASS | DC gain is unity to 1e-3 at every rate: worst 5.86e-04 |
+| PASS | Decimating, everything from 0.6 of fs_out is rejected by more than 60 dB: worst -66.2 dB |
+| PASS | Interpolating, no artifact anywhere in the rejection band rises above -60 dBc, at fractional rates included: worst -62.3 dBc |
+| PASS | A control deviation inside the old unity window still produces a full output block (the interpolator does not stall) |
+| PASS | ...and the stream stays a pure tone through it: worst -146.5 dB |
+| PASS | `execute_ctrl` accepts any real control numpy can widen to float64 — float32 and a plain list included |
+| PASS | ...and rejects a complex control outright rather than silently discarding its imaginary half |
+| PASS | `ctrl_acc` is observable from Python and lives in [0, 1): 0.0 fresh, 0.0396 under a steer |
+| PASS | `ctrl_acc` reports the CONTROL accumulator, so it stays 0.0 for a caller driving the object through `execute()` |
+| PASS | Serialized state resumes a split stream bit-exactly at every rate |
+| PASS | At and above unity, a zero control reproduces `execute` bit-for-bit |
+
+
 ## 5. Summary
 
 - **9 findings**, 0 of them gaps or confirmed defects — none left

@@ -16,13 +16,13 @@
         the two polarities read 0.1193 and 0.1197, i.e. it would have been
         choosing from noise. **Polarity belongs to the ASM search**, which must
         correlate for the marker and its complement. Phase does separate, ~2–4×.
-    - **A naive soft sync statistic is worse than the plain hard count.**
+    - **The node-sync statistic's form is open, and deliberately unevaluated.**
         Mengali, Pellizzoni & Spalvieri (IEEE T-COMM 43(9), 1995) is the
-        authority on the soft-decision form; the ad-hoc variant tried here
-        separates about 2× wider and yet decides *worse* at short observations
-        — 18 wrong decisions against 9 over 64 bits. Adopting "soft is better"
-        on the strength of a title would have made the synchronizer worse, so
-        the statistic's form is an open item with a named reference.
+        authority on the soft-decision form; this design does not implement it.
+        Three ad-hoc comparators — the hard disagreement count and two soft
+        ones — measured **within noise of each other** (17/18/18 wrong
+        decisions out of 300 at 32 bits, 6/7/7 at 64), so the hard count is
+        chosen for being the cheapest of three that tie, not for winning.
 
     Also measured: **`5·K` traceback is 33 % above the BER floor** (0.04178 vs
     0.03137 at 1 dB); depth 60 is within 3 %. And the detector is sized for

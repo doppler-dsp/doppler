@@ -74,9 +74,9 @@ IEEE Trans. Commun. **43**(9), pp. 2532–2539, September 1995. They derive the
 optimum in-sync/out-of-sync discriminator for a soft received sequence, find
 it too complex for practice, and give a suboptimum algorithm that is a
 modified re-encoding method implementable outside the decoder. **§6 unknown 1
-is that this design does not yet implement their statistic** — and a naive
-soft variant measured *worse* than the plain hard count, which is precisely
-why the form is an open item rather than a guess.
+is that this design does not implement their statistic and has not evaluated
+it** — the hard count is chosen for being the cheapest form that measured no
+worse, not for being better.
 
 `lockdet` is the library's shipped hysteretic detector and this feeds it
 rather than growing a private one, for the reason
@@ -208,27 +208,43 @@ ______________________________________________________________________
 
 ## 6. The unknowns — named now, measured in phase 7
 
-1. **The discriminator's exact form.** §3 cites Mengali et al. for the
-    soft-decision statistic; this design has **not** implemented it. A naive
-    soft variant — `mean(s·L) / mean(|L|)`, the fraction of available soft
-    evidence the survivor collected — was measured against the plain hard
-    count and **separates about 2× wider yet decides worse at short
-    observations**: over 200 trials at 2 dB it got 18 decisions wrong at 64
-    bits against the hard count's 9, and 9 against 4 at 128. So the naive soft
-    form is not the paper's, and adopting "soft is better" on the strength of
-    a title would have made the synchronizer worse. Either implement their
-    statistic or keep the hard count and say why.
+1. **The discriminator's exact form, which is UNEVALUATED.** §3 cites Mengali
+    et al. for the soft-decision statistic. This design does not implement it,
+    and nothing here measures it — only the abstract has been read.
+
+    What was measured is three *ad-hoc* comparators over the two phase
+    hypotheses: the hard disagreement count, `mean(s·L)/mean(|L|)`, and the
+    plain correlation `sum(s·L)`. Wrong decisions out of 300 trials at 2 dB:
+
+    | usable bits | hard | `mean(s·L)/mean(|L|)` | `sum(s·L)` |
+    | \--- | --- | --- | --- |
+    | 32 | 17 | 18 | 18 |
+    | 64 | 6 | 7 | 7 |
+    | 128 | 0 | 0 | 0 |
+
+    **No difference this test can resolve.** So the hard count is chosen
+    because it is the cheapest of three that measured the same — no multiplies
+    — and *not* because soft decision loses. An earlier run of this table did
+    show the soft forms losing (18 against 9 at 64 bits) and **that was the
+    undecided-tail artifact of §5**, found and retracted rather than shipped.
+    Whether the paper's derived statistic beats all three at short
+    observations is open, and is the question worth answering if node sync
+    ever needs to declare faster than 64 bits.
+
 1. **P_false_lock under hysteresis.** §5 measures a single window; what a
     caller acquires with is `lockdet`'s run-length, and the geometric estimate
     (15 %^k) assumes independent windows, which consecutive windows of a
     streaming decoder are not. Measure it rather than multiply it.
+
 1. **How long node sync takes to declare** — §5's windows say 256 bits
     separates cleanly; what a caller needs is the acquisition time including
     hysteresis.
+
 1. **Whether the ASM search wants the soft symbols or the decoded bits.**
     Decoded bits are simpler and are what the layering implies. A soft
     correlation is stronger and would couple the search to the decoder's
     internals. Unmeasured, so undecided.
+
 1. **The R-S decoder's failure behaviour beyond E = 16.** A (255,223) E = 16
     decoder can *miscorrect* rather than refuse. What it does at 17+ errors is
     a property a caller has to know, and it is measurable against the code

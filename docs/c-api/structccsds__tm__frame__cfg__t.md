@@ -1,16 +1,16 @@
 
 
-# Struct fec\_frame\_cfg\_t
+# Struct ccsds\_tm\_frame\_cfg\_t
 
 
 
-[**ClassList**](annotated.md) **>** [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md)
+[**ClassList**](annotated.md) **>** [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md)
 
 
 
 _Which coding is applied to one Transfer Frame._ [More...](#detailed-description)
 
-* `#include <fec_frame.h>`
+* `#include <ccsds_tm_frame.h>`
 
 
 
@@ -99,7 +99,7 @@ Every stage is optional because the standard makes it so: 9.2.1.1 has ASMs betwe
 ### variable attach\_asm 
 
 ```C++
-int fec_frame_cfg_t::attach_asm;
+int ccsds_tm_frame_cfg_t::attach_asm;
 ```
 
 
@@ -116,7 +116,7 @@ Prepend the ASM, making the unit a CADU
 ### variable convolutional 
 
 ```C++
-int fec_frame_cfg_t::convolutional;
+int ccsds_tm_frame_cfg_t::convolutional;
 ```
 
 
@@ -133,7 +133,7 @@ Apply the section-3 inner code
 ### variable randomise 
 
 ```C++
-int fec_frame_cfg_t::randomise;
+int ccsds_tm_frame_cfg_t::randomise;
 ```
 
 
@@ -150,7 +150,7 @@ Apply the section-10 pseudo-randomiser
 ### variable rs\_depth 
 
 ```C++
-unsigned fec_frame_cfg_t::rs_depth;
+unsigned ccsds_tm_frame_cfg_t::rs_depth;
 ```
 
 
@@ -163,5 +163,5 @@ Interleaving depth; 0 for no outer code
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/fec/fec_frame.h`
+The documentation for this class was generated from the following file `native/inc/ccsds_tm/ccsds_tm_frame.h`
 

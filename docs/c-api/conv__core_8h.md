@@ -139,7 +139,7 @@ CCSDS is the worked example and the warning: 131.0-B-3 inverts the second output
 
 
 
-The CCSDS configuration lives in `fec/fec_ccsds.h` as `FEC_CCSDS_CONV`, because a channel-coding standard picking a code is not the same fact as the code existing. Point this at the deep-space rate-1/6 code, at a K = 9 experiment, or at whatever a caller brings — the trellis is identical and only the table changes.
+The CCSDS configuration lives in `ccsds_tm/ccsds_tm.h` as `CCSDS_TM_CONV`, because a channel-coding standard picking a code is not the same fact as the code existing. Point this at the deep-space rate-1/6 code, at a K = 9 experiment, or at whatever a caller brings — the trellis is identical and only the table changes.
 
 
 
@@ -148,7 +148,7 @@ The CCSDS configuration lives in `fec/fec_ccsds.h` as `FEC_CCSDS_CONV`, because 
 
 
 
-* **Bits are unpacked**, one per byte in the LSB, matching `wfm_frame_bits`, `dp_crc16_ccitt` and the `fec` kernels.
+* **Bits are unpacked**, one per byte in the LSB, matching `wfm_frame_bits`, `dp_crc16_ccitt` and the `ccsds_tm` kernels.
 * **The register holds the newest input in the high stage**: `reg = (reg >> 1) | (b << (k-1))`. A _state_ is the `k-1` bits that survive, so `state + bit -> reg = (bit << (k-1)) | state`, and the next state is `reg >> 1`. Deriving this the other way round yields a trellis that is perfectly self-consistent and decodes nothing a conforming encoder produced, which is why `test_conv_core.c` pins the two against each other rather than each against itself.
 * **Polynomials are written as the standard writes them**, left to right with the newest input at the left: CCSDS's `G1 = 1111001` is `0171`.
 

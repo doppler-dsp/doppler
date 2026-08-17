@@ -70,6 +70,10 @@ Here is a list of all files with brief descriptions:
             * **file** [**carrier\_mpsk\_core.h**](carrier__mpsk__core_8h.md) _M-PSK carrier-tracking loop (integer-NCO de-rotation + decision PLL)._     
         * **dir** [**carrier\_nda**](dir_425637d1941eacd8ae8cdd8750b207f0.md)     
             * **file** [**carrier\_nda\_core.h**](carrier__nda__core_8h.md) _Non-data-aided (NDA) M-th-power carrier-tracking loop._     
+        * **dir** [**ccsds\_tm**](dir_c2a51186254da91e75ac1924b4969fdd.md)     
+            * **file** [**ccsds\_tm.h**](ccsds__tm_8h.md) _CCSDS TM channel coding — the transforms a transfer frame passes through on its way to symbols._     
+            * **file** [**ccsds\_tm\_frame.h**](ccsds__tm__frame_8h.md) _The CCSDS frame assembler — where the ASM goes, and the one place the stages' disagreements about what they cover become visible._     
+            * **file** [**ccsds\_tm\_rs.h**](ccsds__tm__rs_8h.md) _CCSDS Reed-Solomon (255,223) — the outer code as a CONFIGURATION, and the conventions that only a published value catches._     
         * **dir** [**cic**](dir_cf560077cc62991e7289ea57a3d930a1.md)     
             * **file** [**cic\_core.h**](cic__core_8h.md) _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._     
         * **dir** [**conv**](dir_779d3467bbcde033259ac71c6a9863bb.md)     
@@ -119,10 +123,6 @@ Here is a list of all files with brief descriptions:
             * **file** [**f32\_to\_uq15\_core.h**](f32__to__uq15__core_8h.md) _Scale-and-saturate float-to-UQ15 (offset-binary uint16) converter._     
         * **dir** [**farrow**](dir_3474bb67440308cdab2155867b5160e7.md)     
             * **file** [**farrow\_core.h**](farrow__core_8h.md) _Farrow fractional-delay interpolator — linear / parabolic / cubic._     
-        * **dir** [**fec**](dir_df2a893a07d8c9ef377268dabdb4859f.md)     
-            * **file** [**fec\_ccsds.h**](fec__ccsds_8h.md) _CCSDS TM channel coding — the transforms a transfer frame passes through on its way to symbols._     
-            * **file** [**fec\_frame.h**](fec__frame_8h.md) _The CCSDS frame assembler — where the ASM goes, and the one place the stages' disagreements about what they cover become visible._     
-            * **file** [**fec\_rs.h**](fec__rs_8h.md) _CCSDS Reed-Solomon (255,223) — the outer code, and the one with the conventions that only a published value catches._     
         * **dir** [**fft**](dir_5dc24668fb1cbe963321608da9e9d4ca.md)     
             * **file** [**fft\_core.h**](fft__core_8h.md) _Per-instance 1-D FFT using pocketfft directly._     
         * **dir** [**fft2d**](dir_9009a3f6624dc57956402cd0407c056b.md)     
@@ -192,6 +192,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**resamp\_impl.h**](resamp__impl_8h.md) _Resamp implementation header._ 
         * **dir** [**resample**](dir_430486ea22038fad478027f2dc6550c6.md)     
             * **file** [**resample\_core.h**](resample__core_8h.md) _Resample module — public C API._     
+        * **dir** [**rs**](dir_a447329db54f84e06767f7e282ab2567.md)     
+            * **file** [**rs\_core.h**](rs__core_8h.md) _Reed-Solomon codes: the code description, the encoder, the syndromes and the decoder that corrects — all reading the same description._     
         * **dir** [**snr**](dir_a0dc77cb6789ae5cf19b2d0651b00ce2.md)     
             * **file** [**snr\_core.h**](snr__core_8h.md) _Stateless SNR / Es-N0 estimators, data-aided and non-data-aided._     
         * **dir** [**source**](dir_ce1f95460e483b5f4e7af3e87d9b090c.md)     

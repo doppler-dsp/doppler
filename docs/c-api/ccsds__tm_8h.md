@@ -1,12 +1,12 @@
 
 
-# File fec\_ccsds.h
+# File ccsds\_tm.h
 
 
 
-[**FileList**](files.md) **>** [**fec**](dir_df2a893a07d8c9ef377268dabdb4859f.md) **>** [**fec\_ccsds.h**](fec__ccsds_8h.md)
+[**FileList**](files.md) **>** [**ccsds\_tm**](dir_c2a51186254da91e75ac1924b4969fdd.md) **>** [**ccsds\_tm.h**](ccsds__tm_8h.md)
 
-[Go to the source code of this file](fec__ccsds_8h_source.md)
+[Go to the source code of this file](ccsds__tm_8h_source.md)
 
 _CCSDS TM channel coding — the transforms a transfer frame passes through on its way to symbols._ [More...](#detailed-description)
 
@@ -32,7 +32,7 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**fec\_asm\_hit\_t**](structfec__asm__hit__t.md) <br>_Where an ASM was found, and in which polarity._  |
+| struct | [**ccsds\_tm\_asm\_hit\_t**](structccsds__tm__asm__hit__t.md) <br>_Where an ASM was found, and in which polarity._  |
 
 
 
@@ -43,7 +43,7 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 
 | Type | Name |
 | ---: | :--- |
-|  const [**conv\_code\_t**](structconv__code__t.md) | [**FEC\_CCSDS\_CONV**](#variable-fec_ccsds_conv)  <br>_The CCSDS inner code, as a_ [_**conv\_code\_t**_](structconv__code__t.md) _._ |
+|  const [**conv\_code\_t**](structconv__code__t.md) | [**CCSDS\_TM\_CONV**](#variable-ccsds_tm_conv)  <br>_The CCSDS inner code, as a_ [_**conv\_code\_t**_](structconv__code__t.md) _._ |
 
 
 
@@ -64,17 +64,17 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**fec\_ccsds\_asm\_bits**](#function-fec_ccsds_asm_bits) (uint8\_t \* out) <br>_Write the ASM as_ [_**FEC\_CCSDS\_ASM\_BITS**_](fec__ccsds_8h.md#define-fec_ccsds_asm_bits) _unpacked bits._ |
-|  int | [**fec\_ccsds\_asm\_find**](#function-fec_ccsds_asm_find) (const uint8\_t \* bits, size\_t n\_bits, unsigned max\_errors, [**fec\_asm\_hit\_t**](structfec__asm__hit__t.md) \* hit) <br>_Find the first ASM in a run of unpacked bits, either polarity._  |
-|  void | [**fec\_ccsds\_rand\_seq**](#function-fec_ccsds_rand_seq) (uint8\_t \* out, size\_t n) <br>_Generate the first_ `n` _bits of the randomiser sequence._ |
-|  void | [**fec\_ccsds\_randomise**](#function-fec_ccsds_randomise) (uint8\_t \* bits, size\_t n) <br>_Apply the CCSDS pseudo-randomiser to a bit run, in place._  |
+|  void | [**ccsds\_tm\_asm\_bits**](#function-ccsds_tm_asm_bits) (uint8\_t \* out) <br>_Write the ASM as_ [_**CCSDS\_TM\_ASM\_BITS**_](ccsds__tm_8h.md#define-ccsds_tm_asm_bits) _unpacked bits._ |
+|  int | [**ccsds\_tm\_asm\_find**](#function-ccsds_tm_asm_find) (const uint8\_t \* bits, size\_t n\_bits, unsigned max\_errors, [**ccsds\_tm\_asm\_hit\_t**](structccsds__tm__asm__hit__t.md) \* hit) <br>_Find the first ASM in a run of unpacked bits, either polarity._  |
+|  void | [**ccsds\_tm\_rand\_seq**](#function-ccsds_tm_rand_seq) (uint8\_t \* out, size\_t n) <br>_Generate the first_ `n` _bits of the randomiser sequence._ |
+|  void | [**ccsds\_tm\_randomise**](#function-ccsds_tm_randomise) (uint8\_t \* bits, size\_t n) <br>_Apply the CCSDS pseudo-randomiser to a bit run, in place._  |
 
 
 ## Public Static Functions
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**fec\_conv\_max\_out**](#function-fec_conv_max_out) (size\_t n) <br>_Symbols the CCSDS inner code writes for_ `n` _input bits._ |
+|  size\_t | [**ccsds\_tm\_conv\_max\_out**](#function-ccsds_tm_conv_max_out) (size\_t n) <br>_Symbols the CCSDS inner code writes for_ `n` _input bits._ |
 
 
 
@@ -104,10 +104,10 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**FEC\_CCSDS\_ASM**](fec__ccsds_8h.md#define-fec_ccsds_asm)  `0x1ACFFC1DuL`<br>_The CCSDS Attached Sync Marker,_ `0x1ACFFC1D` _._ |
-| define  | [**FEC\_CCSDS\_ASM\_BITS**](fec__ccsds_8h.md#define-fec_ccsds_asm_bits)  `32`<br>_Length of_ [_**FEC\_CCSDS\_ASM**_](fec__ccsds_8h.md#define-fec_ccsds_asm) _in bits._ |
-| define  | [**FEC\_CCSDS\_RAND\_PERIOD**](fec__ccsds_8h.md#define-fec_ccsds_rand_period)  `255`<br>_Period of the pseudo-randomising sequence, in bits (10.4.2)._  |
-| define  | [**FEC\_CONV\_K**](fec__ccsds_8h.md#define-fec_conv_k)  `7`<br>_Constraint length of the inner code (3.3.1): 7._  |
+| define  | [**CCSDS\_TM\_ASM\_BITS**](ccsds__tm_8h.md#define-ccsds_tm_asm_bits)  `32`<br>_Length of_ [_**FEC\_CCSDS\_ASM**_](ccsds__tm_8h.md#define-fec_ccsds_asm) _in bits._ |
+| define  | [**CCSDS\_TM\_RAND\_PERIOD**](ccsds__tm_8h.md#define-ccsds_tm_rand_period)  `255`<br>_Period of the pseudo-randomising sequence, in bits (10.4.2)._  |
+| define  | [**FEC\_CCSDS\_ASM**](ccsds__tm_8h.md#define-fec_ccsds_asm)  `0x1ACFFC1DuL`<br>_The CCSDS Attached Sync Marker,_ `0x1ACFFC1D` _._ |
+| define  | [**FEC\_CONV\_K**](ccsds__tm_8h.md#define-fec_conv_k)  `7`<br>_Constraint length of the inner code (3.3.1): 7._  |
 
 ## Detailed Description
 
@@ -143,7 +143,7 @@ transfer frame
 
 
 
-The ASM is the reason the assembler reports a span per stage ([**fec\_frame\_layout\_t**](structfec__frame__layout__t.md), in [**fec\_frame.h**](fec__frame_8h.md)) rather than a stage order. The randomiser is scoped to "the codeblock, codeword, or Transfer Frame" (10.4.2) and the ASM merely _precedes_ the codeblock (9.4.1), so it falls outside — stated outright in a NOTE: \*"The ASM was not randomized and is
+The ASM is the reason the assembler reports a span per stage ([**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md), in [**ccsds\_tm\_frame.h**](ccsds__tm__frame_8h.md)) rather than a stage order. The randomiser is scoped to "the codeblock, codeword, or Transfer Frame" (10.4.2) and the ASM merely _precedes_ the codeblock (9.4.1), so it falls outside — stated outright in a NOTE: \*"The ASM was not randomized and is
 not derandomized."\* A chain of optional stages applied to "the frame" is therefore wrong at exactly one stage boundary and right everywhere else.
 
 
@@ -158,7 +158,7 @@ Bit convention: every function here takes and returns **unpacked** bits, one per
 
 
 
-**See also:** [**fec\_frame.h**](fec__frame_8h.md) for the assembler, which is where the four stages meet and where the packed/unpacked boundary is crossed. 
+**See also:** [**ccsds\_tm\_frame.h**](ccsds__tm__frame_8h.md) for the assembler, which is where the four stages meet and where the packed/unpacked boundary is crossed. 
 
 
 
@@ -169,11 +169,11 @@ Bit convention: every function here takes and returns **unpacked** bits, one per
 
 
 
-### variable FEC\_CCSDS\_CONV 
+### variable CCSDS\_TM\_CONV 
 
 _The CCSDS inner code, as a_ [_**conv\_code\_t**_](structconv__code__t.md) _._
 ```C++
-const conv_code_t FEC_CCSDS_CONV;
+const conv_code_t CCSDS_TM_CONV;
 ```
 
 
@@ -184,14 +184,14 @@ const conv_code_t FEC_CCSDS_CONV;
 This is a **configuration, not an implementation**: `conv_encode` and `viterbi_decode` do the work and neither knows anything about CCSDS. A standard choosing a code is a different fact from the code existing, and keeping them apart is what stops the polynomials from being written down twice — once in an encoder and once in a decoder, where the inversion is exactly the detail that would drift.
 
 
-`test_fec_ccsds_conv.c` holds it to the standard's printed impulse response: C1 must trace `G1`, and C2 the **complement** of `G2`.
+`test_ccsds_tm_conv.c` holds it to the standard's printed impulse response: C1 must trace `G1`, and C2 the **complement** of `G2`.
 
 
 
 ```C++
 conv_enc_t s;
 conv_enc_init (&s);
-conv_encode (&s, &FEC_CCSDS_CONV, bits, n, sym, sizeof sym);
+conv_encode (&s, &CCSDS_TM_CONV, bits, n, sym, sizeof sym);
 ```
  
 
@@ -204,11 +204,11 @@ conv_encode (&s, &FEC_CCSDS_CONV, bits, n, sym, sizeof sym);
 
 
 
-### function fec\_ccsds\_asm\_bits 
+### function ccsds\_tm\_asm\_bits 
 
-_Write the ASM as_ [_**FEC\_CCSDS\_ASM\_BITS**_](fec__ccsds_8h.md#define-fec_ccsds_asm_bits) _unpacked bits._
+_Write the ASM as_ [_**CCSDS\_TM\_ASM\_BITS**_](ccsds__tm_8h.md#define-ccsds_tm_asm_bits) _unpacked bits._
 ```C++
-void fec_ccsds_asm_bits (
+void ccsds_tm_asm_bits (
     uint8_t * out
 ) 
 ```
@@ -226,7 +226,7 @@ It is a function rather than a table because the marker is wanted at both ends �
 **Parameters:**
 
 
-* `out` Receives [**FEC\_CCSDS\_ASM\_BITS**](fec__ccsds_8h.md#define-fec_ccsds_asm_bits) bits, one per byte. 
+* `out` Receives [**CCSDS\_TM\_ASM\_BITS**](ccsds__tm_8h.md#define-ccsds_tm_asm_bits) bits, one per byte. 
 
 
 
@@ -237,21 +237,21 @@ It is a function rather than a table because the marker is wanted at both ends �
 
 
 
-### function fec\_ccsds\_asm\_find 
+### function ccsds\_tm\_asm\_find 
 
 _Find the first ASM in a run of unpacked bits, either polarity._ 
 ```C++
-int fec_ccsds_asm_find (
+int ccsds_tm_asm_find (
     const uint8_t * bits,
     size_t n_bits,
     unsigned max_errors,
-    fec_asm_hit_t * hit
+    ccsds_tm_asm_hit_t * hit
 ) 
 ```
 
 
 
-Correlates [**FEC\_CCSDS\_ASM**](fec__ccsds_8h.md#define-fec_ccsds_asm) against every bit offset and against its complement, and reports the **first** offset whose Hamming distance is at most `max_errors`.
+Correlates [**FEC\_CCSDS\_ASM**](ccsds__tm_8h.md#define-fec_ccsds_asm) against every bit offset and against its complement, and reports the **first** offset whose Hamming distance is at most `max_errors`.
 
 
 First rather than best, and the difference matters: a best-match search has to see the whole stream before it can answer, which a frame synchroniser reading a live capture cannot do. First-below-threshold is what is implementable in both settings, so it is what this promises. `max_errors` is the whole of the trade — 0 finds only a clean marker and misses a frame the channel touched, while a value near half the marker length invites a false hit on random data.
@@ -277,9 +277,9 @@ Non-zero if a marker was found.
 
 ```C++
 uint8_t       cadu[32 + 64] = { 0 };
-fec_asm_hit_t hit;
-fec_ccsds_asm_bits (cadu);
-if (fec_ccsds_asm_find (cadu, sizeof cadu, 4u, &hit))
+ccsds_tm_asm_hit_t hit;
+ccsds_tm_asm_bits (cadu);
+if (ccsds_tm_asm_find (cadu, sizeof cadu, 4u, &hit))
   printf ("marker at bit %zu\n", hit.offset);   // marker at bit 0
 ```
  
@@ -291,11 +291,11 @@ if (fec_ccsds_asm_find (cadu, sizeof cadu, 4u, &hit))
 
 
 
-### function fec\_ccsds\_rand\_seq 
+### function ccsds\_tm\_rand\_seq 
 
 _Generate the first_ `n` _bits of the randomiser sequence._
 ```C++
-void fec_ccsds_rand_seq (
+void ccsds_tm_rand_seq (
     uint8_t * out,
     size_t n
 ) 
@@ -323,11 +323,11 @@ Exposed separately because the sequence itself is what CCSDS 131.0-B publishes (
 
 
 
-### function fec\_ccsds\_randomise 
+### function ccsds\_tm\_randomise 
 
 _Apply the CCSDS pseudo-randomiser to a bit run, in place._ 
 ```C++
-void fec_ccsds_randomise (
+void ccsds_tm_randomise (
     uint8_t * bits,
     size_t n
 ) 
@@ -355,8 +355,8 @@ Its ABSENCE is a measurement hazard rather than a missing feature: a PN payload 
 
 ```C++
 uint8_t frame[1784] = { 0 };
-fec_ccsds_randomise (frame, sizeof frame);   // now the published sequence
-fec_ccsds_randomise (frame, sizeof frame);   // ...and back to zeros
+ccsds_tm_randomise (frame, sizeof frame);   // now the published sequence
+ccsds_tm_randomise (frame, sizeof frame);   // ...and back to zeros
 ```
  
 
@@ -369,11 +369,11 @@ fec_ccsds_randomise (frame, sizeof frame);   // ...and back to zeros
 
 
 
-### function fec\_conv\_max\_out 
+### function ccsds\_tm\_conv\_max\_out 
 
 _Symbols the CCSDS inner code writes for_ `n` _input bits._
 ```C++
-static inline size_t fec_conv_max_out (
+static inline size_t ccsds_tm_conv_max_out (
     size_t n
 ) 
 ```
@@ -388,6 +388,38 @@ static inline size_t fec_conv_max_out (
 
 
 
+### define CCSDS\_TM\_ASM\_BITS 
+
+_Length of_ [_**FEC\_CCSDS\_ASM**_](ccsds__tm_8h.md#define-fec_ccsds_asm) _in bits._
+```C++
+#define CCSDS_TM_ASM_BITS `32`
+```
+
+
+
+
+<hr>
+
+
+
+### define CCSDS\_TM\_RAND\_PERIOD 
+
+_Period of the pseudo-randomising sequence, in bits (10.4.2)._ 
+```C++
+#define CCSDS_TM_RAND_PERIOD `255`
+```
+
+
+
+An 8-stage maximal-length generator, so 255 and not 256. It is named because it is what lets a consumer XOR the sequence onto a run of any length from a fixed 255-entry table instead of holding one the size of the data — `test_ccsds_tm_rand.c` pins that equivalence against [**ccsds\_tm\_randomise**](ccsds__tm_8h.md#function-ccsds_tm_randomise) rather than leaving it as arithmetic a reader has to trust. 
+
+
+        
+
+<hr>
+
+
+
 ### define FEC\_CCSDS\_ASM 
 
 _The CCSDS Attached Sync Marker,_ `0x1ACFFC1D` _._
@@ -398,38 +430,6 @@ _The CCSDS Attached Sync Marker,_ `0x1ACFFC1D` _._
 
 
 32 bits, transmitted MSB-first, prepended AFTER randomisation. A receiver correlates against it to find the frame, which is precisely why it must not be randomised — it has to look the same in every frame. 
-
-
-        
-
-<hr>
-
-
-
-### define FEC\_CCSDS\_ASM\_BITS 
-
-_Length of_ [_**FEC\_CCSDS\_ASM**_](fec__ccsds_8h.md#define-fec_ccsds_asm) _in bits._
-```C++
-#define FEC_CCSDS_ASM_BITS `32`
-```
-
-
-
-
-<hr>
-
-
-
-### define FEC\_CCSDS\_RAND\_PERIOD 
-
-_Period of the pseudo-randomising sequence, in bits (10.4.2)._ 
-```C++
-#define FEC_CCSDS_RAND_PERIOD `255`
-```
-
-
-
-An 8-stage maximal-length generator, so 255 and not 256. It is named because it is what lets a consumer XOR the sequence onto a run of any length from a fixed 255-entry table instead of holding one the size of the data — `test_fec_ccsds_rand.c` pins that equivalence against [**fec\_ccsds\_randomise**](fec__ccsds_8h.md#function-fec_ccsds_randomise) rather than leaving it as arithmetic a reader has to trust. 
 
 
         
@@ -455,5 +455,5 @@ _Constraint length of the inner code (3.3.1): 7._
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/fec/fec_ccsds.h`
+The documentation for this class was generated from the following file `native/inc/ccsds_tm/ccsds_tm.h`
 

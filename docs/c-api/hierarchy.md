@@ -31,6 +31,12 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) _M-PSK carrier loop state._ 
 * **struct** [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) _NDA M-th-power carrier loop state._ 
 * **struct** [**carrier\_nda\_tlm\_t**](structcarrier__nda__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — the probe site is then a single predicted-not-taken branch per block loop. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM)._ 
+* **struct** [**ccsds\_tm\_asm\_hit\_t**](structccsds__tm__asm__hit__t.md) _Where an ASM was found, and in which polarity._ 
+* **struct** [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) _Which coding is applied to one Transfer Frame._ 
+* **struct** [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md) _The shape of one CADU, and what each stage covered._ 
+* **struct** [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md) _What_ [_**ccsds\_tm\_frame\_decode**_](ccsds__tm__frame_8h.md#function-ccsds_tm_frame_decode) _found on the way through._
+* **struct** [**ccsds\_tm\_frame\_span\_t**](structccsds__tm__frame__span__t.md) _A run of CADU bits, as a half-open range_ `[first, first + n)` _._
+* **struct** [**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md) _What_ [_**ccsds\_tm\_rs\_decode\_block**_](ccsds__tm__rs_8h.md#function-ccsds_tm_rs_decode_block) _found in one codeblock._
 * **struct** [**cic\_state\_t**](structcic__state__t.md) _CIC filter state._ 
 * **struct** [**conv\_code\_t**](structconv__code__t.md) _A rate-1/n convolutional code._ 
 * **struct** [**conv\_enc\_t**](structconv__enc__t.md) _Encoder state: the shift register, and nothing else._ 
@@ -69,11 +75,6 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) _F32ToI16U64 state._ 
 * **struct** [**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) _F32ToUQ15 state._ 
 * **struct** [**farrow\_state\_t**](structfarrow__state__t.md) _Farrow interpolator state (4-tap delay line + order)._ 
-* **struct** [**fec\_asm\_hit\_t**](structfec__asm__hit__t.md) _Where an ASM was found, and in which polarity._ 
-* **struct** [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md) _Which coding is applied to one Transfer Frame._ 
-* **struct** [**fec\_frame\_layout\_t**](structfec__frame__layout__t.md) _The shape of one CADU, and what each stage covered._ 
-* **struct** [**fec\_frame\_rx\_t**](structfec__frame__rx__t.md) _What_ [_**fec\_frame\_decode**_](fec__frame_8h.md#function-fec_frame_decode) _found on the way through._
-* **struct** [**fec\_frame\_span\_t**](structfec__frame__span__t.md) _A run of CADU bits, as a half-open range_ `[first, first + n)` _._
 * **struct** [**fft2d\_state\_t**](structfft2d__state__t.md) 
 * **struct** [**fft\_state\_t**](structfft__state__t.md) 
 * **struct** [**fir\_state\_t**](structfir__state__t.md) 
@@ -108,6 +109,8 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**ratesync\_state\_t**](structratesync__state__t.md) _RateSync state: a matched-filter cascade and the timing loop._ 
 * **struct** [**ratesync\_tlm\_t**](structratesync__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then one predicted-not-taken branch per recovered symbol._ 
 * **struct** [**resamp\_state\_t**](structresamp__state__t.md) 
+* **struct** [**rs\_code\_t**](structrs__code__t.md) _A Reed-Solomon code over_ `GF(2^J)` _._
+* **struct** [**rs\_t**](structrs__t.md) _A code plus the tables derived from it._ 
 * **struct** [**specan\_state\_t**](structspecan__state__t.md) _Specan state. Allocate with_ [_**specan\_create()**_](specan__core_8h.md#function-specan_create) _._
 * **struct** [**symsync\_state\_t**](structsymsync__state__t.md) _SymbolSync state._ 
 * **struct** [**symsync\_tlm\_t**](structsymsync__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then a single predicted-not-taken branch per recovered symbol. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM)._ 

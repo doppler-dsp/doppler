@@ -38,6 +38,12 @@
 * [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md)
 * [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md)
 * [**carrier\_nda\_tlm\_t**](structcarrier__nda__tlm__t.md)
+* [**ccsds\_tm\_asm\_hit\_t**](structccsds__tm__asm__hit__t.md)
+* [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md)
+* [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md)
+* [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md)
+* [**ccsds\_tm\_frame\_span\_t**](structccsds__tm__frame__span__t.md)
+* [**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md)
 * [**cic\_state\_t**](structcic__state__t.md)
 * [**conv\_code\_t**](structconv__code__t.md)
 * [**conv\_enc\_t**](structconv__enc__t.md)
@@ -84,11 +90,6 @@
 * [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md)
 * [**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md)
 * [**farrow\_state\_t**](structfarrow__state__t.md)
-* [**fec\_asm\_hit\_t**](structfec__asm__hit__t.md)
-* [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md)
-* [**fec\_frame\_layout\_t**](structfec__frame__layout__t.md)
-* [**fec\_frame\_rx\_t**](structfec__frame__rx__t.md)
-* [**fec\_frame\_span\_t**](structfec__frame__span__t.md)
 * [**fft2d\_state\_t**](structfft2d__state__t.md)
 * [**fft\_state\_t**](structfft__state__t.md)
 * [**fir\_state\_t**](structfir__state__t.md)
@@ -156,6 +157,8 @@
 * [**ratesync\_state\_t**](structratesync__state__t.md)
 * [**ratesync\_tlm\_t**](structratesync__tlm__t.md)
 * [**resamp\_state\_t**](structresamp__state__t.md)
+* [**rs\_code\_t**](structrs__code__t.md)
+* [**rs\_t**](structrs__t.md)
 
 
 ## s

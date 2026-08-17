@@ -1,16 +1,16 @@
 
 
-# Struct fec\_asm\_hit\_t
+# Struct ccsds\_tm\_asm\_hit\_t
 
 
 
-[**ClassList**](annotated.md) **>** [**fec\_asm\_hit\_t**](structfec__asm__hit__t.md)
+[**ClassList**](annotated.md) **>** [**ccsds\_tm\_asm\_hit\_t**](structccsds__tm__asm__hit__t.md)
 
 
 
 _Where an ASM was found, and in which polarity._ [More...](#detailed-description)
 
-* `#include <fec_ccsds.h>`
+* `#include <ccsds_tm.h>`
 
 
 
@@ -98,7 +98,7 @@ _Where an ASM was found, and in which polarity._ [More...](#detailed-description
 ### variable errors 
 
 ```C++
-unsigned fec_asm_hit_t::errors;
+unsigned ccsds_tm_asm_hit_t::errors;
 ```
 
 
@@ -116,7 +116,7 @@ Hamming distance to the marker there
 ### variable inverted 
 
 ```C++
-int fec_asm_hit_t::inverted;
+int ccsds_tm_asm_hit_t::inverted;
 ```
 
 
@@ -134,7 +134,7 @@ The stream is complemented
 ### variable offset 
 
 ```C++
-size_t fec_asm_hit_t::offset;
+size_t ccsds_tm_asm_hit_t::offset;
 ```
 
 
@@ -148,5 +148,5 @@ Bit index where the marker starts
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/fec/fec_ccsds.h`
+The documentation for this class was generated from the following file `native/inc/ccsds_tm/ccsds_tm.h`
 

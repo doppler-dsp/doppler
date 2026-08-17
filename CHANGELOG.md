@@ -89,7 +89,16 @@ ______________________________________________________________________
     against the finished test, one per claim.
 
     Virtual fill (4.4.2's shortened codeblock) is not implemented, so a frame
-    that is not exactly `223 * I` octets is refused rather than padded.
+    that is not exactly `223 * I` octets is refused rather than padded (#813).
+
+    `fec_ccsds_core` now reaches `libdoppler.so` and `libdoppler.a`. It never
+    had, for as long as `fec` has existed: `native/inc/fec/*.h` are installed
+    headers whose every function is out-of-line, and `nm` found 13 defined
+    symbols in the core against zero occurrences of `fec_` in the library — so
+    a C consumer could include the header and link none of it. Python was
+    unaffected the whole time, because the extension links each core directly,
+    which is exactly why nobody noticed. jm 0.62.0's wiring check is what
+    named it.
 
 ### Changed
 

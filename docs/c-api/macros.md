@@ -164,6 +164,7 @@
 * **FARROW\_STATE\_VERSION** ([**farrow\_core.h**](farrow__core_8h.md))
 * **FEC\_CCSDS\_ASM** ([**fec\_ccsds.h**](fec__ccsds_8h.md))
 * **FEC\_CCSDS\_ASM\_BITS** ([**fec\_ccsds.h**](fec__ccsds_8h.md))
+* **FEC\_CONV\_K** ([**fec\_ccsds.h**](fec__ccsds_8h.md))
 * **FEC\_RS\_2E** ([**fec\_rs.h**](fec__rs_8h.md))
 * **FEC\_RS\_K** ([**fec\_rs.h**](fec__rs_8h.md))
 * **FEC\_RS\_MAX\_DEPTH** ([**fec\_rs.h**](fec__rs_8h.md))

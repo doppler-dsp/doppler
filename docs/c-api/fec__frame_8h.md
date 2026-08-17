@@ -62,7 +62,7 @@ _The CCSDS frame assembler — where the ASM goes, and the one place the stages'
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**fec\_frame\_encode**](#function-fec_frame_encode) (const [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md) \* cfg, const uint8\_t \* frame, size\_t frame\_len, uint8\_t \* out) <br>_Encode one Transfer Frame into channel symbols._  |
+|  size\_t | [**fec\_frame\_encode**](#function-fec_frame_encode) (const [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md) \* cfg, [**fec\_conv\_t**](structfec__conv__t.md) \* conv, const uint8\_t \* frame, size\_t frame\_len, uint8\_t \* out, size\_t max\_out) <br>_Encode one Transfer Frame into channel symbols._  |
 |  size\_t | [**fec\_frame\_layout**](#function-fec_frame_layout) (const [**fec\_frame\_cfg\_t**](structfec__frame__cfg__t.md) \* cfg, size\_t frame\_len, [**fec\_frame\_layout\_t**](structfec__frame__layout__t.md) \* out) <br>_Work out the CADU shape for a config, without encoding anything._  |
 
 
@@ -171,9 +171,11 @@ _Encode one Transfer Frame into channel symbols._
 ```C++
 size_t fec_frame_encode (
     const fec_frame_cfg_t * cfg,
+    fec_conv_t * conv,
     const uint8_t * frame,
     size_t frame_len,
-    uint8_t * out
+    uint8_t * out,
+    size_t max_out
 ) 
 ```
 
@@ -182,21 +184,33 @@ size_t fec_frame_encode (
 Runs whichever of the four stages `cfg` selects, each over the bits it covers and no others.
 
 
+### The inner encoder belongs to the CALLER, because it is continuous
+
+
+
+3.3.2 fixes the output as one uninterrupted symbol sequence with no per-frame flush, so the register carries from the last bit of one CADU into the first bit of the next. `conv` is where it lives. Pass the same one to every call in a stream; pass `NULL` for a frame encoded on its own.
+
+
+The difference is small and it is exactly where it hurts: measured on depth 1, encoding two frames with `NULL` differs from the continuous stream in **6 of 8288 symbols**, all of them in the first 7 symbols of frame 2 — the `K - 1 = 6` bits of register memory, landing on the ASM a receiver is trying to correlate. A matched Viterbi absorbs it, which is what makes this the same class as the inversion on G2 and the dual basis: self-consistent, decodes against a receiver of one's own construction, and not what the standard says.
+
+
 
 
 **Parameters:**
 
 
 * `cfg` The coding to apply. 
+* `conv` Inner-encoder state carried across frames, or `NULL` to start from the all-zero register. Ignored when `cfg->convolutional` is 0. 
 * `frame` `frame_len` **packed** octets, MSB-first on the wire. 
 * `frame_len` Transfer Frame length in octets. 
-* `out` Receives the **unpacked** channel symbols, one per byte; must hold at least [**fec\_frame\_layout**](fec__frame_8h.md#function-fec_frame_layout) bytes. 
+* `out` Receives the **unpacked** channel symbols, one per byte. 
+* `max_out` Capacity of `out` in symbols. The CADU is assembled in the TAIL of this buffer, so a short one is not a truncated result but a write past the end — hence a capacity rather than a comment telling you to call [**fec\_frame\_layout**](fec__frame_8h.md#function-fec_frame_layout) first. 
 
 
 
 **Returns:**
 
-The number of symbols written, or 0 if the configuration is refused — in which case `out` is untouched.
+The number of symbols written, or 0 if the configuration is refused or `max_out` is too small — in which case `out` is untouched.
 
 
 
@@ -206,9 +220,14 @@ uint8_t sym[(32 + 255 * 5 * 8) * 2];
 const fec_frame_cfg_t cfg
     = { .rs_depth = 5, .randomise = 1, .attach_asm = 1,
         .convolutional = 1 };
-const size_t n = fec_frame_encode (&cfg, frame, sizeof frame, sym);
+fec_conv_t conv;
+fec_conv_init (&conv);
+const size_t n
+    = fec_frame_encode (&cfg, &conv, frame, sizeof frame, sym,
+                        sizeof sym);
 ```
  
+
 
 
         

@@ -162,13 +162,37 @@ extern "C"
    * Runs whichever of the four stages @p cfg selects, each over the bits it
    * covers and no others.
    *
+   * ## The inner encoder belongs to the CALLER, because it is continuous
+   *
+   * 3.3.2 fixes the output as one uninterrupted symbol sequence with no
+   * per-frame flush, so the register carries from the last bit of one CADU
+   * into the first bit of the next. @p conv is where it lives. Pass the same
+   * one to every call in a stream; pass `NULL` for a frame encoded on its own.
+   *
+   * The difference is small and it is exactly where it hurts: measured on
+   * depth 1, encoding two frames with `NULL` differs from the continuous
+   * stream in **6 of 8288 symbols**, all of them in the first 7 symbols of
+   * frame 2 — the `K - 1 = 6` bits of register memory, landing on the ASM a
+   * receiver is trying to correlate. A matched Viterbi absorbs it, which is
+   * what makes this the same class as the inversion on G2 and the dual basis:
+   * self-consistent, decodes against a receiver of one's own construction,
+   * and not what the standard says.
+   *
    * @param cfg        The coding to apply.
+   * @param conv       Inner-encoder state carried across frames, or `NULL` to
+   *                   start from the all-zero register. Ignored when
+   *                   `cfg->convolutional` is 0.
    * @param frame      @p frame_len **packed** octets, MSB-first on the wire.
    * @param frame_len  Transfer Frame length in octets.
-   * @param out        Receives the **unpacked** channel symbols, one per
-   *                   byte; must hold at least @ref fec_frame_layout bytes.
+   * @param out        Receives the **unpacked** channel symbols, one per byte.
+   * @param max_out    Capacity of @p out in symbols. The CADU is assembled in
+   *                   the TAIL of this buffer, so a short one is not a
+   *                   truncated result but a write past the end — hence a
+   *                   capacity rather than a comment telling you to call
+   *                   @ref fec_frame_layout first.
    * @return The number of symbols written, or 0 if the configuration is
-   *         refused — in which case @p out is untouched.
+   *         refused or @p max_out is too small — in which case @p out is
+   *         untouched.
    *
    * @code
    * uint8_t frame[223 * 5];
@@ -176,11 +200,16 @@ extern "C"
    * const fec_frame_cfg_t cfg
    *     = { .rs_depth = 5, .randomise = 1, .attach_asm = 1,
    *         .convolutional = 1 };
-   * const size_t n = fec_frame_encode (&cfg, frame, sizeof frame, sym);
+   * fec_conv_t conv;
+   * fec_conv_init (&conv);
+   * const size_t n
+   *     = fec_frame_encode (&cfg, &conv, frame, sizeof frame, sym,
+   *                         sizeof sym);
    * @endcode
    */
-  size_t fec_frame_encode (const fec_frame_cfg_t *cfg, const uint8_t *frame,
-                           size_t frame_len, uint8_t *out);
+  size_t fec_frame_encode (const fec_frame_cfg_t *cfg, fec_conv_t *conv,
+                           const uint8_t *frame, size_t frame_len,
+                           uint8_t *out, size_t max_out);
 
 #ifdef __cplusplus
 }

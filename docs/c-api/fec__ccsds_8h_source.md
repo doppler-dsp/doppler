@@ -24,6 +24,8 @@ extern "C"
 
 #define FEC_CCSDS_ASM_BITS 32
 
+#define FEC_CONV_K 7
+
   void fec_ccsds_asm_bits (uint8_t *out);
 
   void fec_ccsds_randomise (uint8_t *bits, size_t n);

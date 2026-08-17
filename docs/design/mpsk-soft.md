@@ -180,7 +180,7 @@ re-deriving the grid — the exact defect
 [the campaign found in `test_carrier_mpsk_core.c`](mpsk.md), where a private
 nearest-point search meant a test scored against its own slicer.
 
-```c
+```text
 void mpsk_soft_demap (const float complex *x, size_t x_len, float *llr,
                       size_t llr_len, int m, float n0);
 ```

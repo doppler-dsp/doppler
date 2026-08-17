@@ -411,7 +411,47 @@ def count_assertions(text: str) -> int:
 
 
 def ratchet(base: str) -> list[str]:
-    """Fail any test file that has fewer assertions than `base` has."""
+    """Fail any test file that has fewer assertions than `base` has.
+
+    `base` is resolved to the **merge base** with the working tree, not
+    taken as given. The question this gate asks is "did THIS branch remove
+    assertions", and the only honest baseline for that is where the branch
+    started. Compared against the tip of `origin/main` instead, a branch
+    that is merely BEHIND fails for assertions someone else ADDED --
+    naming a file the branch never touched, with a message that says a
+    test lost coverage.
+
+    Measured twice on one branch: `test_mpsk_receiver_core.c` at -13 while
+    `main` was 19 commits ahead, then `test_mpsk_core.c` at -10 after a
+    soft-demapping commit landed 30 commits ahead. Neither file had been
+    edited on the branch. Both cleared by rebasing, which is the tell: a
+    gate whose verdict changes when you rebase is measuring the gap to
+    `main`, and `git` already reports that.
+
+    The cost of getting this wrong is not the false alarm, it is the habit
+    it teaches -- a gate that cries wolf for a reason unrelated to the diff
+    trains the reader to rebase-and-ignore, which is exactly how a REAL
+    lost assertion would slip past. The ratchet's own docstring says a
+    suite can go green while covering less; a ratchet can go red while
+    nothing was lost, and that is the same defect from the other side.
+
+    Falls back to `base` itself when no merge base exists (unrelated
+    histories, a shallow clone that fetched only a tip): a baseline that
+    cannot be computed is not silently skipped.
+    """
+    ref = base
+    mb = subprocess.run(
+        ["git", "merge-base", "HEAD", base],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if mb.returncode == 0 and mb.stdout.strip():
+        base = mb.stdout.strip()
+        shown = f"the merge base with {ref} ({base[:9]})"
+    else:
+        shown = ref
+
     rev = subprocess.run(
         ["git", "rev-parse", "--verify", f"{base}^{{commit}}"],
         cwd=ROOT,
@@ -466,7 +506,7 @@ def ratchet(base: str) -> list[str]:
             if key in excused:
                 continue
             bad.append(
-                f"{rel}: {before} assertions at {base}, {after} here "
+                f"{rel}: {before} assertions at {shown}, {after} here "
                 f"(-{before - after})"
             )
     return bad
@@ -587,7 +627,11 @@ def main() -> int:
         f"check_tests_ssot: OK — {scanned} tests, "
         f"{len(macros)} macros and {len(funcs)} helpers owned by "
         f"{len(family())} dp_*.h harness headers; no private RNG"
-        + (f"; no file lost assertions vs {base}" if base else "")
+        + (
+            f"; no file lost assertions vs the merge base with {base}"
+            if base
+            else ""
+        )
     )
     return 0
 

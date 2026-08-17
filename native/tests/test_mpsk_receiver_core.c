@@ -885,5 +885,106 @@ main (void)
     DP_CHECK (gain[0] - gain[1] > 10.0 && gain[1] - gain[2] > 10.0);
   }
 
+  /* Sections 12 and 13 own their buffers: the file's shared tx/idx/out are
+     freed after section 4, and reaching past that free is a use-after-free
+     that segfaults rather than failing an assert. */
+  {
+    float complex *ftx = malloc (NSAMP * sizeof (*ftx));
+    int           *fid = malloc (NSYM * sizeof (int));
+
+    /* 12. The handover carries the FREQUENCY ESTIMATE across, both ways.
+       gh-814. The header's claim is not that the flip happens -- section 4
+       pins that -- but that "the shared loop filter carries the frequency
+       estimate across it in both directions, so a drop-back is a
+       discriminator swap rather than a cold re-acquisition". Nothing tested
+       it, and section 4 cannot: it re-seeds the carrier by hand across the
+       outage, so it would pass against a receiver that cleared the estimate.
+
+       Stepped one sample at a time, because the claim is about the instant
+       of the flip and a block call hides it. The estimate must be CONTINUOUS
+       there -- one loop update's worth of change, not a jump back to the
+       create-time seed, which is what a cleared integrator would give. */
+    {
+      mpsk_receiver_state_t *rx
+          = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 1, 0.65, 0.0);
+      const double  TRUE_F = 0.0005;
+      float complex y;
+      double        f_before = 0.0, f_at = 0.0;
+      int           prev = 0, flips = 0;
+      make_mpsk (ftx, fid, 4, TRUE_F, 30.0, 71u);
+      for (size_t i = 0; i < NSAMP; i++)
+        {
+          double f_pre = mpsk_receiver_get_norm_freq (rx);
+          (void)mpsk_receiver_step_ted (rx, ftx[i], &y, RATESYNC_TED_GARDNER);
+          int now = mpsk_receiver_get_tracking (rx);
+          if (now != prev && now == 1 && flips == 0)
+            {
+              f_before = f_pre;
+              f_at     = mpsk_receiver_get_norm_freq (rx);
+              flips++;
+            }
+          prev = now;
+        }
+      DP_CHECK (flips == 1); /* the handover happened at all      */
+      /* Continuity: the estimate moved by at most one update, and it is
+         NOWHERE NEAR the seed of 0. Both halves matter -- the first fails a
+         cleared integrator, the second fails a test that would pass if the
+         loop had simply never moved. */
+      DP_CHECK (fabs (f_at - f_before) < 0.1 * TRUE_F);
+      DP_CHECK (fabs (f_at - TRUE_F) < 0.2 * TRUE_F);
+      mpsk_receiver_destroy (rx);
+    }
+
+    /* 13. The verify counts are TIME hysteresis, and the defaults are the
+       header's. gh-814: "both directions are verify-counted (8 symbols up /
+       32 down)" was documented and tested nowhere, and carrier_nda's own
+       certification found the analogous count mattered a great deal (its
+       n_up = 8 false-declared 18/60 at one geometry), so an unmeasured count
+       here is not a safe assumption.
+
+       Measured as BEHAVIOUR rather than by reading the counts back: with a
+       declare threshold this receiver clears comfortably, a run of n_up
+       symbols is required before `tracking` flips, so a SHORTER configured
+       count must flip EARLIER on the identical record. That is the property
+       a caller depends on, and it is what a count wired to nothing would
+       fail. */
+    {
+      make_mpsk (ftx, fid, 4, 0.0005, 30.0, 72u);
+      int64_t t_short = 0, t_long = 0;
+      for (int pass = 0; pass < 2; pass++)
+        {
+          mpsk_receiver_state_t *rx
+              = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 1, 0.65, 0.0);
+          /* Same thresholds both passes; only n_up moves. */
+          mpsk_receiver_configure_lock (rx, 0.65, 0.52, pass ? 64u : 2u, 32u);
+          float complex y;
+          int64_t       when = -1;
+          for (size_t i = 0; i < NSAMP && when < 0; i++)
+            {
+              (void)mpsk_receiver_step_ted (rx, ftx[i], &y,
+                                            RATESYNC_TED_GARDNER);
+              if (mpsk_receiver_get_tracking (rx) == 1)
+                when = (int64_t)i;
+            }
+          DP_CHECK (when > 0); /* both configurations do hand over */
+          if (pass)
+            t_long = when;
+          else
+            t_short = when;
+          mpsk_receiver_destroy (rx);
+        }
+      /* n_up = 2 declares strictly earlier than n_up = 64, on ONE record.
+         A count that reached nothing would give the same instant twice. */
+      DP_CHECK (t_short < t_long);
+      /* And the gap is at least the extra symbols asked for, in samples --
+         62 more symbols at SPS samples each, allowing the strobe's own
+         phase. Pins the count as a SYMBOL count rather than merely "more". */
+      DP_CHECK ((double)(t_long - t_short) > 62.0 * SPS * 0.5);
+    }
+
+    free (ftx);
+    free (fid);
+  }
+
   DP_TEST_END ("test_mpsk_receiver_core");
 }

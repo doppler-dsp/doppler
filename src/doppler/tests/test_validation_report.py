@@ -33,6 +33,8 @@ from doppler.tests._validation_common import (
     OPEN_VERDICTS,
     VERDICTS,
     Report,
+    _numeric_drift,
+    _structural,
 )
 
 
@@ -223,3 +225,85 @@ def test_a_report_asserting_no_limits_needs_no_table():
     r = _report(("F1", "GAP", "unfixed, gh-747"))
     r.summary()
     assert _problems(r) == ""
+
+
+# ── what --check gates: structure, not measurements ───────────────────
+
+
+def _rep(body: str) -> str:
+    """A minimal rendered report carrying `body`.
+
+    Carries real `### 2.1` / `### 2.2` headings so a `§2.x` reference in
+    `body` resolves — otherwise `_self_check` refuses the render and the
+    case fails for the wrong reason, which is how the section-reference
+    case first failed.
+    """
+    r = _report(("F1", "GAP", "unfixed, gh-747"))
+    r.md("## 2. Characterisation")
+    r.md("### 2.1 One")
+    r.md("### 2.2 Two")
+    r.md(body)
+    r.limit(True, "a claim about 1.234e-02 at 8 dB")
+    r.summary()
+    return r.render()
+
+
+def test_measurement_drift_is_not_staleness():
+    """The real toolchain difference this exists for, verbatim.
+
+    Measured gcc 15.2/glibc 2.43 against gcc 13.3/glibc 2.39 on one CPU:
+    `carrier_nda`'s already-converged frequency error moved from -3.45e-08
+    to -1.22e-09 — a 96.5% relative change in a quantity whose value is
+    "zero". Byte-comparison called that staleness and sent the reader to
+    `make validate`, which on another machine moves the problem rather
+    than fixing it.
+    """
+    a = _rep("| 2 | 0.001000 | -3.45e-08 | -2.3e-11 |")
+    b = _rep("| 2 | 0.001000 | -1.22e-09 | -2.1e-11 |")
+    assert a != b, "the fixture must differ, or this passes vacuously"
+    assert _structural(a) == _structural(b)
+    n, worst = _numeric_drift(a, b)
+    assert n == 2 and worst > 0.9
+
+
+@pytest.mark.parametrize(
+    ("name", "before", "after"),
+    [
+        ("prose", "the loop settles", "the loop diverges"),
+        ("a table column", "| M | lock |", "| M | lock | extra |"),
+        ("a section reference", "see §2.1", "see §2.2"),
+        ("an issue citation", "filed as gh-733", "filed as gh-999"),
+        ("a hash citation", "tracked by #781", "tracked by #999"),
+    ],
+)
+def test_structural_change_is_staleness(name, before, after):
+    """Everything `validate.py` DETERMINES must still be byte-gated.
+
+    Section references and issue citations are the subtle ones: they are
+    structure written with digits, so a masker that treats every digit as
+    a measurement lets a re-pointed citation through. An earlier version
+    did exactly that — it numbered its own placeholders, `_NUMBER` masked
+    the indices, and both cases silently passed.
+    """
+    assert _structural(_rep(before)) != _structural(_rep(after)), name
+
+
+def test_a_dropped_limit_is_staleness():
+    """The claim TEXT is code, even though it embeds measured numbers."""
+    keep = _report(("F1", "GAP", "unfixed, gh-747"))
+    keep.limit(True, "the first claim")
+    keep.limit(True, "the second claim")
+    keep.summary()
+    drop = _report(("F1", "GAP", "unfixed, gh-747"))
+    drop.limit(True, "the first claim")
+    drop.summary()
+    assert _structural(keep.render()) != _structural(drop.render())
+
+
+def test_a_changed_verdict_is_staleness():
+    """A verdict is a judgement, so it is never measurement noise."""
+    gap = _report(("F1", "GAP", "unfixed, gh-747"))
+    gap.summary()
+    fixed = _report(("F1", "FIXED", "repaired here"))
+    fixed.summary()
+    assert _structural(gap.render()) != _structural(fixed.render())

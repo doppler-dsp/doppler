@@ -505,11 +505,57 @@ done:
 }
 
 /**
+ * @brief Name the first entry an adapter left NULL, or NULL if it is complete.
+ *
+ * Every entry is mandatory — the instrument calls all twelve unconditionally.
+ * A positional initializer that stops short therefore SEGFAULTS at the first
+ * point, before a line is printed, and says nothing about which entry is
+ * missing. That is not hypothetical: `RX_CONT` was written when the interface
+ * had eleven entries, `zeta` was appended as the twelfth, and the two met in a
+ * rebase rather than in either branch's CI.
+ *
+ * @param rx  The adapter to check.
+ * @return The missing entry's name, or NULL if every entry is filled.
+ */
+static inline const char *
+dp_rx_iface_missing (const dp_rx_iface_t *rx)
+{
+  if (!rx->name)
+    return "name";
+  if (!rx->create)
+    return "create";
+  if (!rx->destroy)
+    return "destroy";
+  if (!rx->step)
+    return "step";
+  if (!rx->norm_freq)
+    return "norm_freq";
+  if (!rx->last_error)
+    return "last_error";
+  if (!rx->lock)
+    return "lock";
+  if (!rx->locked)
+    return "locked";
+  if (!rx->lock_time)
+    return "lock_time";
+  if (!rx->clipped)
+    return "clipped";
+  if (!rx->zeta)
+    return "zeta";
+  return NULL;
+}
+
+/**
  * @brief Run one receiver at one operating point — stages 5-10 of §8.
  *
  * The two REFUSE paths are intact and they name themselves: "the loops never
  * locked" and "the marker never detected" call for different repairs, and one
  * counter would say neither.
+ *
+ * An incomplete adapter is neither of those: it is a harness defect, so it
+ * FAILS the record rather than refusing it — a refusal is the instrument
+ * declining a number it cannot defend, and this is the instrument being unable
+ * to run at all.
  */
 static inline dp_rx_result_t
 dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
@@ -535,6 +581,18 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
      zero rather than absent. `ramp_law_rad > 0` is therefore the honest test
      for "this point measures the ramp", and the gate uses it. */
   r.ramp_lag_rad = r.ramp_law_rad = 0.0;
+
+  {
+    const char *gap = dp_rx_iface_missing (rx);
+    if (gap)
+      {
+        static char msg[96];
+        snprintf (msg, sizeof msg, "adapter entry '%s' is NULL", gap);
+        r.rep.ok  = 0;
+        r.rep.why = msg;
+        return r;
+      }
+  }
 
   if (nbits == 0 || wfm_frame_layout (&f, &l) != 0)
     {

@@ -154,7 +154,7 @@ static const dp_rx_iface_t RX_CONT
     = { "ContinuousMpskReceiver", DP_RX_IN_COMPLEX, rx_cont_create,
         rx_mpsk_destroy,          rx_mpsk_step,     rx_mpsk_norm_freq,
         rx_mpsk_last_error,       rx_mpsk_lock,     rx_mpsk_locked,
-        rx_mpsk_lock_time,        rx_mpsk_clipped };
+        rx_mpsk_lock_time,        rx_mpsk_clipped,  rx_mpsk_zeta };
 
 static const dp_rx_iface_t *const RECEIVERS[] = { &RX_MPSK, &RX_CONT };
 #define RECEIVER_COUNT (sizeof RECEIVERS / sizeof RECEIVERS[0])

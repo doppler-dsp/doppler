@@ -36,6 +36,8 @@ instead.)
 - [Symbol Timing on a Rate Cascade](ratesync-timing.md) — RateSync: why the matched filter and the interpolator are one dot product, why `ctrl` is referenced to the terminal stage's rate, and why the T/2 parity resolves itself
 - [MPSK Receiver](mpsk.md) — streaming M-PSK receiver architecture and carrier-recovery design
 - [MPSK Receiver Refactor](mpsk-refactor.md) — collapsing the complex and real receivers into one object with three faces, and why the shared loops header needs a test home
+- [The Viterbi Decoder](viterbi.md) — the CCSDS inner code decoded: the trellis in the encoder's own terms, the branch metric it inherits, and why 5·K traceback is 33 % above the floor
+- [The FEC Receive Half](fec-receive.md) — the Viterbi, the node sync it needs first, and the lock detector's two error probabilities: why the code's transparency means polarity cannot be resolved by the decoder
 - [Soft Decisions for M-PSK](mpsk-soft.md) — LLRs from the constellation: the sign convention tied to the one decision rule, the closed forms BPSK and QPSK turn out to have, and what max-log costs at 8PSK
 - [Receiver Test Harness](rx-test.md) — inventory of the stimulus, measurement and gate layers a receiver measurement rests on, and where they do not yet meet
 - [Corr2D Interpolated Inverse](corr2d-interpolated-inverse.md) — decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation

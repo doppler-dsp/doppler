@@ -1,0 +1,24 @@
+# rs — hand-owned c_dep: Reed-Solomon over GF(2^J), any field, any root set.
+#
+# Its own c_dep rather than a library inside `fec`, for the reason `conv` is:
+# the code family is not CCSDS's. `fec` holds a CONFIGURATION of it
+# (FEC_CCSDS_RS) the way any other caller would, together with the dual basis
+# and the interleaver, which are the standard's and not the code's.
+#
+# Pure-C OBJECT library, no CPython. jm apply only emits the add_subdirectory
+# for this dir (listed in [project].c_deps); this file is hand-maintained.
+
+add_library(rs_core OBJECT
+    ${CMAKE_SOURCE_DIR}/native/src/rs/rs_core.c)
+target_include_directories(rs_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
+
+add_executable(test_rs_core
+    ${CMAKE_SOURCE_DIR}/native/tests/test_rs_core.c)
+# No fec: this test's external truth is the code's own distance -- E errors
+# corrected, E+1 never recovered -- which holds for every configuration.
+# Holding the CCSDS numbers to Annex G is test_fec_rs.c's job.
+target_link_libraries(test_rs_core PRIVATE rs_core m)
+target_include_directories(test_rs_core PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_rs_core COMMAND test_rs_core)

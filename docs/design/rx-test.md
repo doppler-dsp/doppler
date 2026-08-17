@@ -392,7 +392,7 @@ ______________________________________________________________________
 | file                                                                  | measures                                        |
 | --------------------------------------------------------------------- | ----------------------------------------------- |
 | `mpsk_receiver_ber.c`                                                 | SER, complex-baseband M-PSK receiver            |
-| `mpsk_receiver_r_ber.c`                                               | SER, real-IF M-PSK receiver                     |
+| `mpsk_receiver_real_ber.c`                                            | SER, real-IF M-PSK receiver                     |
 | `mpsk_ber_common.h` (15 KB)                                           | **shared stimulus + measurement loop for both** |
 | `ber_despreader.c`                                                    | BER, synchronous coherent despreader            |
 | `carrier_nda_lock.c` / `_pullin.c` / `_scurve.c` / `_step_response.c` | NDA carrier loop                                |

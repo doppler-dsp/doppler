@@ -36,6 +36,7 @@ target_link_libraries(dsss PRIVATE
     hbdecim_r2c_core
     cic_core
     resample_core
+    ddcr_core
     ratesync_core
     symsync_core
     nco_core

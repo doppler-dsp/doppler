@@ -1,5 +1,5 @@
 /**
- * @file mpsk_receiver_r_ber.c
+ * @file mpsk_receiver_real_ber.c
  * @brief Symbol-error-rate validation for the REAL-IF M-PSK receiver.
  *
  * The real-path twin of `mpsk_receiver_ber.c`: the same signal model, the same
@@ -10,8 +10,9 @@
  * is the cost of the real front end and nothing else.
  *
  * Usage:
- *   validate_mpsk_receiver_r_ber           full report at every M
- *   validate_mpsk_receiver_r_ber --check   the same, asserting the loss bound
+ *   validate_mpsk_receiver_real_ber           full report at every M
+ *   validate_mpsk_receiver_real_ber --check   the same, asserting the loss
+ * bound
  *
  * ## Everything is measured at the design centre fc = 0.25
  *
@@ -20,7 +21,7 @@
  * 0.06..0.44, but only -7 dB at 0.01. This is also the realistic case: 40
  * MSa/s with a 10 MHz IF is exactly `fs/4`. Measuring off-centre and
  * attributing the result to the receiver is a mistake this project has already
- * made and retracted; `test_mpsk_receiver_r_core.c` test 5 pins the real
+ * made and retracted; `test_mpsk_receiver_core.c` section 19 pins the real
  * placement behaviour, and this validator does not re-litigate it.
  *
  * ## What the real front end actually costs — measured, over seeds
@@ -168,7 +169,7 @@ main (int argc, char **argv)
     }
 
   if (check)
-    printf (rc ? "mpsk_receiver_r_ber FAILED\n"
-               : "mpsk_receiver_r_ber PASSED\n");
+    printf (rc ? "mpsk_receiver_real_ber FAILED\n"
+               : "mpsk_receiver_real_ber PASSED\n");
   return rc;
 }

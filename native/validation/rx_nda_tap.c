@@ -83,7 +83,6 @@
 
 #include "loop_filter/loop_filter_core.h"
 #include "mpsk_receiver/mpsk_receiver_core.h"
-#include "mpsk_receiver_r/mpsk_receiver_r_core.h"
 #include <complex.h>
 #include <math.h>
 #include <stdint.h>
@@ -295,19 +294,19 @@ rx_nda_zero_offset_ferr (int tap, double sps, double fs, double esn0_db,
 /**
  * @brief Does the REAL-input receiver accept @p tap?
  *
- * Measured at the design centre `fc = 0.25`, as mpsk_receiver_r_ber.c does.
+ * Measured at the design centre `fc = 0.25`, as mpsk_receiver_real_ber.c does.
  * @return 1 if `create()` succeeded.
  */
 static int
 rx_nda_r_accepts (int tap)
 {
-  mpsk_receiver_r_state_t *r = mpsk_receiver_r_create (
+  mpsk_receiver_state_t *r = mpsk_receiver_create_real (
       2, 8.0, RX_NDA_M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, RX_NDA_BN, 0.707,
       RX_NDA_BN, 0, 0.3, 0.25, 0, MPSK_RX_NUM_PHASES, tap, 1,
       MPSK_RX_AGC_BW_RATIO);
   if (!r)
     return 0;
-  mpsk_receiver_r_destroy (r);
+  mpsk_receiver_destroy (r);
   return 1;
 }
 

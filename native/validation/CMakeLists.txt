@@ -106,15 +106,15 @@ target_compile_options(validate_mpsk_receiver_ber PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_mpsk_receiver_ber
          COMMAND validate_mpsk_receiver_ber --check)
 
-add_executable(validate_mpsk_receiver_r_ber
-               ${CMAKE_CURRENT_SOURCE_DIR}/mpsk_receiver_r_ber.c)
-target_include_directories(validate_mpsk_receiver_r_ber
+add_executable(validate_mpsk_receiver_real_ber
+               ${CMAKE_CURRENT_SOURCE_DIR}/mpsk_receiver_real_ber.c)
+target_include_directories(validate_mpsk_receiver_real_ber
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_mpsk_receiver_r_ber PRIVATE doppler_lib_static m)
-target_compile_options(validate_mpsk_receiver_r_ber PRIVATE -O3 -funroll-loops)
-add_test(NAME validate_mpsk_receiver_r_ber
-         COMMAND validate_mpsk_receiver_r_ber --check)
+target_link_libraries(validate_mpsk_receiver_real_ber PRIVATE doppler_lib_static m)
+target_compile_options(validate_mpsk_receiver_real_ber PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_mpsk_receiver_real_ber
+         COMMAND validate_mpsk_receiver_real_ber --check)
 
 add_executable(validate_symsync_lock
                ${CMAKE_CURRENT_SOURCE_DIR}/symsync_lock.c)

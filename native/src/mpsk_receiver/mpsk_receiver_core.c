@@ -1,13 +1,17 @@
 /*
- * mpsk_receiver_core.c — the M-PSK receiver, and the loops both receiver
- * types share.
+ * mpsk_receiver_core.c — the M-PSK receiver: one object, two front ends.
  *
  * Two things live here. The first half is mpsk_rx_loops_t: the carrier loop,
  * the handover and the demapper, plus lifecycle for the timing loop embedded
  * from ratesync. It has no front end of its own, which is exactly why the
- * complex- and real-input receivers can share it verbatim — the real-input
- * twin links this core and supplies only its own front end. The second half is
- * MpskReceiver itself: a matched DDC, those loops, and the block API.
+ * complex- and real-input faces share it verbatim. The second half is
+ * MpskReceiver itself: a matched DDC *or* a matched DDCR, those loops, and the
+ * block API.
+ *
+ * The `real` tag is read on cold paths ONLY — create, destroy, reset,
+ * telemetry, the frequency accessors and the state triplet. The hot path has
+ * two entry points, so the front end is a compile-time fact inside the sample
+ * loop (docs/design/mpsk-refactor.md §3).
  *
  * The per-output work is the force-inlined mpsk_rx_take_output() in
  * mpsk_rx_loops.h, and the design arguments (why the carrier loop runs at two
@@ -308,16 +312,31 @@ mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob)
 }
 
 /* ==================================================================
- * MpskReceiver — the complex-input front end plus those loops
+ * MpskReceiver — one front end (complex or real) plus those loops
  * ================================================================== */
 
-mpsk_receiver_state_t *
-mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
-                      double rrc_beta, int rrc_span, double bn_carrier,
-                      double zeta, double bn_timing, int acq_to_track,
-                      double lock_thresh, double init_norm_freq,
-                      int differential, size_t num_phases, int nda_tap,
-                      int agc, double bn_agc_ratio)
+/* The cascade both front ends own, reached without knowing which one it is.
+   Every accessor that only wants the RateConverter goes through here, so the
+   tag is read in one place rather than copied into each of them. */
+static RateConverter_state_t *
+mpsk_rx_fe_rc (const mpsk_receiver_state_t *s)
+{
+  return s->real ? s->fe.r->rc : s->fe.c->rc;
+}
+
+/* One construction body. `real` decides three things and nothing else: which
+   bound `sps` (and therefore a derived `m_out`) must clear, which front end is
+   built and with what tuning law, and what the LO's own rate is. Every
+   derivation, every validator and the whole loop setup is shared — which is
+   the point of the collapse, because a rule that exists twice is a rule free
+   to drift (docs/design/mpsk-refactor.md §2). */
+static mpsk_receiver_state_t *
+mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
+                     double rrc_beta, int rrc_span, double bn_carrier,
+                     double zeta, double bn_timing, int acq_to_track,
+                     double lock_thresh, double init_norm_freq,
+                     int differential, size_t num_phases, int nda_tap, int agc,
+                     double bn_agc_ratio)
 {
   if (m != 2 && m != 4 && m != 8)
     return NULL; /* only BPSK / QPSK / 8PSK */
@@ -328,9 +347,15 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
      object's own answer; every validator below previously REJECTED zero, so
      no working call site can be relying on it. The derivation runs BEFORE the
      validation so a derived value is checked by the same guards a supplied
-     one is — a rule that produced an invalid answer must still be caught. */
+     one is — a rule that produced an invalid answer must still be caught.
+
+     The ONE difference between the faces is the rate handed to the m_out
+     rule: the real cascade sits behind the R2C halfband and therefore sees
+     `sps/2`, strictly. That is how design/mpsk.md §8's second rule falls out
+     of the shared one instead of being a second rule to keep in step. */
   if (m_out == 0u)
-    m_out = mpsk_rx_derive_m_out (sps, 0); /* sps >= m_out */
+    m_out = real ? mpsk_rx_derive_m_out (0.5 * sps, 1) /* sps > 2*m_out */
+                 : mpsk_rx_derive_m_out (sps, 0);      /* sps >= m_out  */
   if (zeta == 0.0)
     zeta = MPSK_RX_ZETA_DEFAULT;
   if (num_phases == 0u)
@@ -339,12 +364,16 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
     lock_thresh = MPSK_RX_LOCK_THRESH_DEFAULT;
   if (bn_agc_ratio == 0.0)
     bn_agc_ratio = MPSK_RX_AGC_RATIO_DEFAULT;
-  /* Written as !(x >= y) so a NaN parameter is rejected, not accepted. */
+  /* Written as !(x >= y) so a NaN parameter is rejected, not accepted. The
+     real face's bound is 2*m_out and strict: the cascade behind the R2C
+     halfband runs at twice the overall rate, and Ddcr requires that below
+     0.5. */
+  const int sps_ok
+      = real ? (sps > 2.0 * (double)m_out) : (sps >= (double)m_out);
   if (m_out < 2u || m_out > (size_t)RATESYNC_MAX_M || (m_out & 1u) != 0u
-      || !(sps >= (double)m_out) || !(rrc_beta >= 0.0) || !(rrc_beta <= 1.0)
-      || rrc_span < 1 || !(bn_carrier >= 0.0) || !(bn_timing >= 0.0)
-      || !(zeta > 0.0) || num_phases < 2u
-      || (num_phases & (num_phases - 1u)) != 0u
+      || !sps_ok || !(rrc_beta >= 0.0) || !(rrc_beta <= 1.0) || rrc_span < 1
+      || !(bn_carrier >= 0.0) || !(bn_timing >= 0.0) || !(zeta > 0.0)
+      || num_phases < 2u || (num_phases & (num_phases - 1u)) != 0u
       || nda_tap < MPSK_RX_NDA_TAP_STROBE
       || nda_tap > MPSK_RX_NDA_TAP_MF_IN
       /* An AGC at or above the bandwidth of a loop it feeds corrects the
@@ -356,15 +385,28 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
   mpsk_receiver_state_t *rx = calloc (1, sizeof (*rx));
   if (!rx)
     return NULL;
+  rx->real = real ? 1 : 0;
 
-  /* The DDC's LO is the conjugate convention of the old carrier_nda NCO: a
+  /* Both LOs use the conjugate convention of the old carrier_nda NCO: a
      carrier at +f is brought to DC by tuning the LO to -f. init_norm_freq
-     keeps its caller-facing meaning (the carrier offset to remove), so the
-     sign flips exactly here and nowhere else. */
-  rx->fe = ddc_create_matched (-init_norm_freq, (double)m_out / sps, pulse,
-                               rrc_beta, (size_t)rrc_span, (double)m_out,
-                               num_phases);
-  if (!rx->fe)
+     keeps its caller-facing meaning (the carrier offset to remove) on both
+     faces, so the sign flips exactly here and nowhere else.
+
+     Ddcr's law carries two more terms, and they are its contract rather than
+     a guess (ddcr_core.h): its LO runs at the INTERMEDIATE rate (fs_in/2) and
+     the R2C halfband has an fs/4 shift baked in, so tuning a real tone at
+     input-normalised f_c to DC is norm_freq = -(2*f_c + 0.5). Differentiating
+     that gives the 0.5 the readbacks below carry — a deviation of d at the
+     intermediate rate is d/2 in input-normalised terms. */
+  if (real)
+    rx->fe.r = ddcr_create_matched (
+        -(2.0 * init_norm_freq + 0.5), (double)m_out / sps, pulse, rrc_beta,
+        (size_t)rrc_span, (double)m_out, num_phases);
+  else
+    rx->fe.c = ddc_create_matched (-init_norm_freq, (double)m_out / sps, pulse,
+                                   rrc_beta, (size_t)rrc_span, (double)m_out,
+                                   num_phases);
+  if (!(real ? (void *)rx->fe.r : (void *)rx->fe.c))
     {
       free (rx);
       return NULL;
@@ -372,16 +414,20 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
   rx->centre_freq = init_norm_freq;
 
   /* A complex front end mixes at the input rate, so the LO sees `sps` samples
-     per symbol. (The real-input twin's halfband decimates first, which is why
-     lo_sps is a parameter rather than an assumption.) */
-  mpsk_rx_loops_init (&rx->l, m, sps, sps, m_out, bn_carrier, zeta, bn_timing,
-                      bn_agc_ratio, RATESYNC_TED_GARDNER, acq_to_track,
-                      lock_thresh, differential, nda_tap);
-  ratesync_loop_bind_cascade (&rx->l.timing, rx->fe->rc);
+     per symbol; the real one's halfband decimates 2:1 first, so its LO sees
+     `sps/2`. That is the whole reason mpsk_rx_loops_init() takes lo_sps
+     separately from sps rather than assuming they are equal. */
+  mpsk_rx_loops_init (&rx->l, m, sps, real ? 0.5 * sps : sps, m_out,
+                      bn_carrier, zeta, bn_timing, bn_agc_ratio,
+                      RATESYNC_TED_GARDNER, acq_to_track, lock_thresh,
+                      differential, nda_tap);
+  ratesync_loop_bind_cascade (&rx->l.timing, mpsk_rx_fe_rc (rx));
   /* The pre-terminal tap's update rate is the cascade's own bank rate. It is
      a planner outcome, so it is READ from the cascade that planned it rather
      than re-derived here — re-deriving would be a second copy of the plan,
-     free to drift from the one the filters were actually built on.
+     free to drift from the one the filters were actually built on. Measured,
+     `bank_sps` comes out identical on both faces: it is symbol-relative, so
+     the halfband's 2:1 is absorbed by the plan.
 
      It arrives too LATE for mpsk_rx_loops_init(), which has already run
      config_carrier() against the `lo_sps` placeholder — so the carrier filter
@@ -394,24 +440,60 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
      native/validation/rx_nda_tap.c is the gate. `integ` survives
      loop_filter_init() by contract, and every other tap re-derives the same
      gains it already had. */
-  rx->l.mf_in_sps = ddc_get_bank_sps (rx->fe);
+  rx->l.mf_in_sps
+      = real ? ddcr_get_bank_sps (rx->fe.r) : ddc_get_bank_sps (rx->fe.c);
   mpsk_rx_config_carrier (&rx->l);
 
   /* The front end levels itself so the TED's construct-time slope means what
      it says. A zero loop bandwidth leaves nothing to be slower than, so the
      derived AGC bandwidth is zero and enable_agc declines -- the receiver is
-     then simply un-levelled, which is the honest reading of bn = 0. */
+     then simply un-levelled, which is the honest reading of bn = 0.
+
+     The wedge goes in the same place on both faces: inside the cascade,
+     before the terminal matched stage. Behind the halfband on the real face,
+     the AGC therefore sees the analytic signal at the intermediate rate,
+     which is also where the noise has already been filtered -- so the level
+     it sets does not depend on how far the front end oversamples. */
   if (agc)
     (void)RateConverter_enable_agc (
-        rx->fe->rc, mpsk_rx_agc_bn (bn_carrier, bn_timing, bn_agc_ratio),
+        mpsk_rx_fe_rc (rx),
+        mpsk_rx_agc_bn (bn_carrier, bn_timing, bn_agc_ratio),
         MPSK_RX_AGC_ALPHA);
   return rx;
+}
+
+mpsk_receiver_state_t *
+mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
+                      double rrc_beta, int rrc_span, double bn_carrier,
+                      double zeta, double bn_timing, int acq_to_track,
+                      double lock_thresh, double init_norm_freq,
+                      int differential, size_t num_phases, int nda_tap,
+                      int agc, double bn_agc_ratio)
+{
+  return mpsk_rx_create_impl (0, m, sps, m_out, pulse, rrc_beta, rrc_span,
+                              bn_carrier, zeta, bn_timing, acq_to_track,
+                              lock_thresh, init_norm_freq, differential,
+                              num_phases, nda_tap, agc, bn_agc_ratio);
+}
+
+mpsk_receiver_state_t *
+mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
+                           double rrc_beta, int rrc_span, double bn_carrier,
+                           double zeta, double bn_timing, int acq_to_track,
+                           double lock_thresh, double init_norm_freq,
+                           int differential, size_t num_phases, int nda_tap,
+                           int agc, double bn_agc_ratio)
+{
+  return mpsk_rx_create_impl (1, m, sps, m_out, pulse, rrc_beta, rrc_span,
+                              bn_carrier, zeta, bn_timing, acq_to_track,
+                              lock_thresh, init_norm_freq, differential,
+                              num_phases, nda_tap, agc, bn_agc_ratio);
 }
 
 double
 mpsk_receiver_get_agc_gain_db (const mpsk_receiver_state_t *state)
 {
-  return RateConverter_agc_gain_db (state->fe->rc);
+  return RateConverter_agc_gain_db (mpsk_rx_fe_rc (state));
 }
 
 /* The continuous flavor. A pure delegate -- every argument it does not take
@@ -445,15 +527,95 @@ mpsk_receiver_destroy (mpsk_receiver_state_t *state)
 {
   if (!state)
     return;
-  ddc_destroy (state->fe);
+  if (state->real)
+    ddcr_destroy (state->fe.r);
+  else
+    ddc_destroy (state->fe.c);
   free (state);
 }
 
 void
 mpsk_receiver_reset (mpsk_receiver_state_t *state)
 {
-  ddc_reset (state->fe);
+  if (state->real)
+    ddcr_reset (state->fe.r);
+  else
+    ddc_reset (state->fe.c);
   mpsk_rx_loops_reset (&state->l);
+}
+
+/* ── the block API: one body per verb, two input types ─────────────────────
+ *
+ * `real` arrives as a LITERAL from each entry point below, so both the dtype
+ * branch here and the front-end call inside step_ted() fold away — the same
+ * specialisation the `ted` parameter uses. Written once rather than copied
+ * per face because two copies of this loop is exactly the drift the collapse
+ * removes: the previous real-input twin's steps() had already grown its own
+ * telemetry hoist, its own capacity guard and its own comment about both. */
+JM_FORCEINLINE static int
+mpsk_rx_step_at (mpsk_receiver_state_t *s, const void *x, size_t i,
+                 float complex *y, int real)
+{
+  return real ? mpsk_receiver_step_real_ted (s, ((const float *)x)[i], y,
+                                             RATESYNC_TED_GARDNER)
+              : mpsk_receiver_step_ted (s, ((const float complex *)x)[i], y,
+                                        RATESYNC_TED_GARDNER);
+}
+
+JM_FORCEINLINE static size_t
+mpsk_rx_steps_impl (mpsk_receiver_state_t *state, const void *x, size_t x_len,
+                    float complex *out, size_t max_out, int real)
+{
+  size_t emitted = 0;
+  /* Telemetry hoisted to loop entry (attach is setup-time only): the detached
+     loop carries no call site, so the compiler keeps the hot loop state in
+     registers — an extern call per iteration forces everything to memory
+     (measured ~20% slower detached on the previous engine). */
+  if (!state->l.tlm.ctx)
+    {
+      for (size_t i = 0; i < x_len; i++)
+        {
+          float complex y;
+          if (mpsk_rx_step_at (state, x, i, &y, real) && emitted < max_out)
+            out[emitted++] = y;
+        }
+    }
+  else
+    {
+      for (size_t i = 0; i < x_len; i++)
+        {
+          float complex y;
+          if (mpsk_rx_step_at (state, x, i, &y, real))
+            {
+              if (emitted < max_out)
+                out[emitted++] = y;
+              mpsk_rx_tlm_flush (&state->l);
+            }
+        }
+    }
+  return emitted;
+}
+
+JM_FORCEINLINE static size_t
+mpsk_rx_bits_impl (mpsk_receiver_state_t *state, const void *x, size_t x_len,
+                   uint8_t *out, size_t max_out, int real)
+{
+  size_t emitted = 0;
+  /* Guarded in-loop flush (not the steps() split): this loop already makes a
+     per-symbol call, so there is no pristine register-resident fast path. */
+  for (size_t i = 0; i < x_len; i++)
+    {
+      float complex y;
+      if (!mpsk_rx_step_at (state, x, i, &y, real))
+        continue;
+      if (state->l.tlm.ctx)
+        mpsk_rx_tlm_flush (&state->l);
+      uint8_t bits[3];
+      int     nb = mpsk_rx_symbol_to_bits (&state->l, y, bits);
+      for (int b = 0; b < nb && emitted < max_out; b++)
+        out[emitted++] = bits[b];
+    }
+  return emitted;
 }
 
 size_t
@@ -467,35 +629,21 @@ size_t
 mpsk_receiver_steps (mpsk_receiver_state_t *state, const float complex *x,
                      size_t x_len, float complex *out, size_t max_out)
 {
-  size_t emitted = 0;
-  /* Telemetry hoisted to loop entry (attach is setup-time only): the detached
-     loop carries no call site, so the compiler keeps the hot loop state in
-     registers — an extern call per iteration forces everything to memory
-     (measured ~20% slower detached on the previous engine). */
-  if (!state->l.tlm.ctx)
-    {
-      for (size_t i = 0; i < x_len; i++)
-        {
-          float complex y;
-          if (mpsk_receiver_step_ted (state, x[i], &y, RATESYNC_TED_GARDNER)
-              && emitted < max_out)
-            out[emitted++] = y;
-        }
-    }
-  else
-    {
-      for (size_t i = 0; i < x_len; i++)
-        {
-          float complex y;
-          if (mpsk_receiver_step_ted (state, x[i], &y, RATESYNC_TED_GARDNER))
-            {
-              if (emitted < max_out)
-                out[emitted++] = y;
-              mpsk_rx_tlm_flush (&state->l);
-            }
-        }
-    }
-  return emitted;
+  return mpsk_rx_steps_impl (state, x, x_len, out, max_out, 0);
+}
+
+size_t
+mpsk_receiver_steps_real_max_out (mpsk_receiver_state_t *state)
+{
+  (void)state;
+  return 0; /* sps > 2*m_out, so symbols <= inputs */
+}
+
+size_t
+mpsk_receiver_steps_real (mpsk_receiver_state_t *state, const float *x,
+                          size_t x_len, float complex *out, size_t max_out)
+{
+  return mpsk_rx_steps_impl (state, x, x_len, out, max_out, 1);
 }
 
 size_t
@@ -509,28 +657,40 @@ size_t
 mpsk_receiver_bits (mpsk_receiver_state_t *state, const float complex *x,
                     size_t x_len, uint8_t *out, size_t max_out)
 {
-  size_t emitted = 0;
-  /* Guarded in-loop flush (not the steps() split): this loop already makes a
-     per-symbol call, so there is no pristine register-resident fast path. */
-  for (size_t i = 0; i < x_len; i++)
-    {
-      float complex y;
-      if (!mpsk_receiver_step_ted (state, x[i], &y, RATESYNC_TED_GARDNER))
-        continue;
-      if (state->l.tlm.ctx)
-        mpsk_rx_tlm_flush (&state->l);
-      uint8_t bits[3];
-      int     nb = mpsk_rx_symbol_to_bits (&state->l, y, bits);
-      for (int b = 0; b < nb && emitted < max_out; b++)
-        out[emitted++] = bits[b];
-    }
-  return emitted;
+  return mpsk_rx_bits_impl (state, x, x_len, out, max_out, 0);
+}
+
+size_t
+mpsk_receiver_bits_real_max_out (mpsk_receiver_state_t *state)
+{
+  (void)state;
+  return 0; /* one bit per symbol, and symbols <= inputs */
+}
+
+size_t
+mpsk_receiver_bits_real (mpsk_receiver_state_t *state, const float *x,
+                         size_t x_len, uint8_t *out, size_t max_out)
+{
+  return mpsk_rx_bits_impl (state, x, x_len, out, max_out, 1);
+}
+
+/* ── the frequency accessors: the rate convention, and nothing else ────────
+ *
+ * The real face's LO runs at the intermediate rate (fs_in/2), so a deviation
+ * of d there is d/2 in the input-normalised cycles/sample every caller-facing
+ * frequency on this object is quoted in. That factor is the ONLY thing the
+ * tag buys here — the estimate itself is the shared loop's. */
+static double
+mpsk_rx_lo_to_input (const mpsk_receiver_state_t *s)
+{
+  return s->real ? 0.5 : 1.0;
 }
 
 double
 mpsk_receiver_get_norm_freq (const mpsk_receiver_state_t *state)
 {
-  return state->centre_freq + mpsk_rx_freq_est (&state->l);
+  return state->centre_freq
+         + mpsk_rx_lo_to_input (state) * mpsk_rx_freq_est (&state->l);
 }
 
 double
@@ -538,14 +698,17 @@ mpsk_receiver_get_nco_freq (const mpsk_receiver_state_t *state)
 {
   /* The instantaneous command includes the proportional nudge, and is held in
      the front end's (conjugate) convention — report the receiver's. */
-  return state->centre_freq - state->l.freq_ctrl;
+  return state->centre_freq - mpsk_rx_lo_to_input (state) * state->l.freq_ctrl;
 }
 
 void
 mpsk_receiver_set_norm_freq (mpsk_receiver_state_t *state, double val)
 {
   state->centre_freq = val;
-  ddc_set_norm_freq (state->fe, -val);
+  if (state->real)
+    ddcr_set_norm_freq (state->fe.r, -(2.0 * val + 0.5));
+  else
+    ddc_set_norm_freq (state->fe.c, -val);
   mpsk_rx_set_freq_est (&state->l, 0.0);
 }
 
@@ -595,7 +758,8 @@ mpsk_receiver_set_telemetry (mpsk_receiver_state_t *state, dp_tlm_t *tlm,
      the one that sets how long the receiver takes to become usable. */
   char name[DP_TLM_NAME_MAX];
   (void)snprintf (name, sizeof (name), "%s.agc", prefix ? prefix : "rx");
-  int rc_agc = ddc_set_telemetry (state->fe, tlm, name, decim);
+  int rc_agc = state->real ? ddcr_set_telemetry (state->fe.r, tlm, name, decim)
+                           : ddc_set_telemetry (state->fe.c, tlm, name, decim);
   if (rc_agc != DP_OK) /* fails whole: undo the loops we just attached */
     {
       (void)mpsk_rx_set_telemetry (&state->l, NULL, prefix, decim);
@@ -659,22 +823,49 @@ mpsk_receiver_get_lock_thresh (const mpsk_receiver_state_t *state)
 size_t
 mpsk_receiver_get_num_phases (const mpsk_receiver_state_t *state)
 {
-  return state->fe->rc->num_phases;
+  return mpsk_rx_fe_rc (state)->num_phases;
 }
 
 int
 mpsk_receiver_get_clipped (const mpsk_receiver_state_t *state)
 {
-  return ddc_get_clipped (state->fe) ? 1 : 0;
+  return (state->real ? ddcr_get_clipped (state->fe.r)
+                      : ddc_get_clipped (state->fe.c))
+             ? 1
+             : 0;
 }
 
 /* ── Serializable state — two children, no scalars of our own ───────────────
- */
+ *
+ * One triplet over both faces: the layout is [hdr][front end][loops] either
+ * way, and only the front end's own child blob differs in size and content.
+ * The `real` tag is config — create() restores it — so it is not packed; what
+ * carries it across the wire is the ENVELOPE MAGIC, which is keyed on the
+ * face precisely so a complex blob handed to a real receiver is refused by
+ * name here rather than reinterpreted or caught three levels down. */
+
+static size_t
+mpsk_rx_fe_state_bytes (const mpsk_receiver_state_t *s)
+{
+  return s->real ? ddcr_state_bytes (s->fe.r) : ddc_state_bytes (s->fe.c);
+}
+
+static uint32_t
+mpsk_rx_state_magic (const mpsk_receiver_state_t *s)
+{
+  return s->real ? MPSK_RECEIVER_R_STATE_MAGIC : MPSK_RECEIVER_STATE_MAGIC;
+}
+
+static uint16_t
+mpsk_rx_state_version (const mpsk_receiver_state_t *s)
+{
+  return s->real ? MPSK_RECEIVER_R_STATE_VERSION : MPSK_RECEIVER_STATE_VERSION;
+}
 
 size_t
 mpsk_receiver_state_bytes (const mpsk_receiver_state_t *s)
 {
-  return sizeof (dp_state_hdr_t) + ddc_state_bytes (s->fe)
+  return sizeof (dp_state_hdr_t) + mpsk_rx_fe_state_bytes (s)
          + mpsk_rx_loops_state_bytes (&s->l);
 }
 
@@ -683,10 +874,13 @@ mpsk_receiver_get_state (const mpsk_receiver_state_t *s, void *blob)
 {
   const size_t total = mpsk_receiver_state_bytes (s);
   dp_writer_t  w     = dp_writer_init (blob, total);
-  dp_w_hdr (&w, MPSK_RECEIVER_STATE_MAGIC, MPSK_RECEIVER_STATE_VERSION, total);
+  dp_w_hdr (&w, mpsk_rx_state_magic (s), mpsk_rx_state_version (s), total);
   char *p = (char *)blob + w.off;
-  ddc_get_state (s->fe, p);
-  p += ddc_state_bytes (s->fe);
+  if (s->real)
+    ddcr_get_state (s->fe.r, p);
+  else
+    ddc_get_state (s->fe.c, p);
+  p += mpsk_rx_fe_state_bytes (s);
   mpsk_rx_loops_get_state (&s->l, p);
 }
 
@@ -694,14 +888,14 @@ int
 mpsk_receiver_set_state (mpsk_receiver_state_t *s, const void *blob)
 {
   const size_t total = mpsk_receiver_state_bytes (s);
-  int          rc = dp_state_validate (blob, total, MPSK_RECEIVER_STATE_MAGIC,
-                                       MPSK_RECEIVER_STATE_VERSION);
+  int          rc    = dp_state_validate (blob, total, mpsk_rx_state_magic (s),
+                                          mpsk_rx_state_version (s));
   if (rc != DP_OK)
     return rc;
   const char *p = (const char *)blob + sizeof (dp_state_hdr_t);
-  rc            = ddc_set_state (s->fe, p);
+  rc = s->real ? ddcr_set_state (s->fe.r, p) : ddc_set_state (s->fe.c, p);
   if (rc != DP_OK)
     return rc;
-  p += ddc_state_bytes (s->fe);
+  p += mpsk_rx_fe_state_bytes (s);
   return mpsk_rx_loops_set_state (&s->l, p);
 }

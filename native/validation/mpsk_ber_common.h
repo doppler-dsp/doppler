@@ -3,10 +3,10 @@
  * @brief Shared stimulus and measurement loop for the two M-PSK BER
  *        validators.
  *
- * `mpsk_receiver_ber.c` (complex baseband) and `mpsk_receiver_r_ber.c` (real
- * IF) measure the same thing on the same signal model through two front ends,
- * so the stimulus and the measurement live here once and each validator is
- * just a sweep over it. A second copy would drift, and the two would stop
+ * `mpsk_receiver_ber.c` (complex baseband) and `mpsk_receiver_real_ber.c`
+ * (real IF) measure the same thing on the same signal model through two front
+ * ends, so the stimulus and the measurement live here once and each validator
+ * is just a sweep over it. A second copy would drift, and the two would stop
  * being comparable — which is the entire point of running both.
  *
  * Everything statistical is `native/tests/dp_ber_test.h`: the settled window,
@@ -66,7 +66,6 @@
 #include "dp_ber_test.h"
 #include "dp_rng_test.h"
 #include "mpsk_receiver/mpsk_receiver_core.h"
-#include "mpsk_receiver_r/mpsk_receiver_r_core.h"
 #include <complex.h>
 #include <math.h>
 #include <stdint.h>
@@ -138,17 +137,21 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
   double sigma = c->real ? MPSK_BER_AMP * sqrt (c->sps / (4.0 * esn0))
                          : MPSK_BER_AMP * sqrt (c->sps / (2.0 * esn0));
 
-  void *rx = c->real
-                 ? (void *)mpsk_receiver_r_create (
-                       c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
-                       c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track,
-                       0.3, c->fc - c->foff, 0, MPSK_RX_NUM_PHASES, c->nda_tap,
-                       1, MPSK_RX_AGC_BW_RATIO)
-                 : (void *)mpsk_receiver_create (
-                       c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
-                       c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track,
-                       0.3, c->fc - c->foff, 0, MPSK_RX_NUM_PHASES, c->nda_tap,
-                       1, MPSK_RX_AGC_BW_RATIO);
+  /* One type, one set of accessors: the front end is a CONSTRUCTOR choice
+     now, not a second state_t to cast a void* to. Every argument below is
+     identical between the two calls, which is the collapse's thesis stated as
+     code (docs/design/mpsk-refactor.md §4.1). */
+  mpsk_receiver_state_t *rx
+      = c->real ? mpsk_receiver_create_real (
+                      c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
+                      c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track, 0.3,
+                      c->fc - c->foff, 0, MPSK_RX_NUM_PHASES, c->nda_tap, 1,
+                      MPSK_RX_AGC_BW_RATIO)
+                : mpsk_receiver_create (
+                      c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
+                      c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track, 0.3,
+                      c->fc - c->foff, 0, MPSK_RX_NUM_PHASES, c->nda_tap, 1,
+                      MPSK_RX_AGC_BW_RATIO);
   if (!rx)
     return 0;
 
@@ -170,8 +173,8 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
                  mixer actually delivers. */
               float x = (float)(sr * cos (ph) - si * sin (ph)
                                 + sigma * dp_gauss (&st));
-              got = mpsk_receiver_r_step_ted ((mpsk_receiver_r_state_t *)rx, x,
-                                              &y, RATESYNC_TED_GARDNER);
+              got     = mpsk_receiver_step_real_ted (rx, x, &y,
+                                                     RATESYNC_TED_GARDNER);
             }
           else
             {
@@ -181,37 +184,20 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
               double        n_im = dp_gauss (&st);
               float complex x    = (float)(re + sigma * n_re)
                                    + (float)(im + sigma * n_im) * I;
-              got = mpsk_receiver_step_ted ((mpsk_receiver_state_t *)rx, x, &y,
-                                            RATESYNC_TED_GARDNER);
+              got = mpsk_receiver_step_ted (rx, x, &y, RATESYNC_TED_GARDNER);
             }
           if (got && nout < nsym)
             {
-              out[nout] = y;
-              lock_c[nout]
-                  = (unsigned char)(c->real ? mpsk_receiver_r_get_locked ((
-                                                  mpsk_receiver_r_state_t *)rx)
-                                            : mpsk_receiver_get_locked ((
-                                                  mpsk_receiver_state_t *)rx));
-              track[nout]
-                  = (unsigned char)(c->real ? mpsk_receiver_r_get_tracking ((
-                                                  mpsk_receiver_r_state_t *)rx)
-                                            : mpsk_receiver_get_tracking ((
-                                                  mpsk_receiver_state_t *)rx));
+              out[nout]    = y;
+              lock_c[nout] = (unsigned char)mpsk_receiver_get_locked (rx);
+              track[nout]  = (unsigned char)mpsk_receiver_get_tracking (rx);
               nout++;
             }
         }
     }
 
-  if (c->real)
-    {
-      *clipped = mpsk_receiver_r_get_clipped ((mpsk_receiver_r_state_t *)rx);
-      mpsk_receiver_r_destroy ((mpsk_receiver_r_state_t *)rx);
-    }
-  else
-    {
-      *clipped = mpsk_receiver_get_clipped ((mpsk_receiver_state_t *)rx);
-      mpsk_receiver_destroy ((mpsk_receiver_state_t *)rx);
-    }
+  *clipped = mpsk_receiver_get_clipped (rx);
+  mpsk_receiver_destroy (rx);
   return nout;
 }
 

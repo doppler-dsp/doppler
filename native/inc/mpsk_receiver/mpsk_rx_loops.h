@@ -213,7 +213,7 @@ extern "C"
  * ratio below 0.5. design/mpsk.md §8 states the real rule as
  * `min(8, 2*floor(sps/4))` and that rule contradicts the constructor it feeds:
  * at `sps = 8` it yields 4 (needs `8 > 8`) and at `sps = 16` it yields 8
- * (needs `16 > 16`) — both REJECTED by `mpsk_receiver_r_create()`. A
+ * (needs `16 > 16`) — both REJECTED by `mpsk_receiver_create_real()`. A
  * derivation whose answer cannot be built is worse than a default, so the
  * bound is passed in and honoured here.
  *
@@ -754,6 +754,40 @@ mpsk_rx_derive_m_out (double cap, int strict)
       l->tracking = lockdet_step (&l->handover, l->lock);
     *sym = y_rot;
     return 1;
+  }
+
+  /**
+   * @brief Fold one front end's burst of outputs into both loops.
+   *
+   * The whole per-sample body below the front end, and the reason the receiver
+   * is one object with two `step` entry points rather than two types: a
+   * complex DDC and a real DDCR differ in what they hand over, and in nothing
+   * they hand it to. Both entry points reduce to this call, so "the loops
+   * behave identically regardless of front end" is a property of one function
+   * rather than a claim about two copies of one.
+   *
+   * @param l      Loops. Must be non-NULL.
+   * @param ys     The terminal-stage outputs the front end just produced.
+   * @param n      How many.
+   * @param zpre   The MFR-input sample, when the front end produced one.
+   * @param n_pre  Non-zero when @p zpre is live.
+   * @param y_out  Receives the recovered symbol when the return is 1.
+   * @param ted    RATESYNC_TED_GARDNER or RATESYNC_TED_DTTL — pass a literal
+   *               for a specialised (branch-free) instantiation.
+   * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
+   */
+  JM_FORCEINLINE JM_HOT int
+  mpsk_rx_fold (mpsk_rx_loops_t *l, const float complex *ys, size_t n,
+                float complex zpre, int n_pre, float complex *y_out, int ted)
+  {
+    /* The timing-independent NDA tap reads at the MFR's input. A no-op unless
+       MF_IN is the configured tap. */
+    if (n_pre)
+      mpsk_rx_push_mf_in (l, zpre);
+    int emitted = 0;
+    for (size_t oi = 0; oi < n; oi++)
+      emitted |= mpsk_rx_take_output (l, ys[oi], y_out, ted);
+    return emitted;
   }
 
   /** @brief Slice one recovered symbol to its log2(M) hard bits (LSB-first).

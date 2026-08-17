@@ -17,6 +17,7 @@ target_link_libraries(mpsk_receiver_core PUBLIC
     agc_core
     dp_tlm_core
     hbdecim_r2c_core
+    ddcr_core
     ratesync_core
     loop_filter_core
     lockdet_core
@@ -42,6 +43,7 @@ target_link_libraries(test_mpsk_receiver_core
     agc_core
     dp_tlm_core
     hbdecim_r2c_core
+    ddcr_core
     ratesync_core
     loop_filter_core
     lockdet_core
@@ -72,6 +74,7 @@ target_link_libraries(bench_mpsk_receiver_core
     agc_core
     dp_tlm_core
     hbdecim_r2c_core
+    ddcr_core
     ratesync_core
     loop_filter_core
     lockdet_core

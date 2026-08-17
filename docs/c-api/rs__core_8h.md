@@ -111,7 +111,10 @@ A Reed-Solomon code over `GF(2^J)` is five numbers — a symbol width, a field p
 
 
 
-The CCSDS configuration lives in `ccsds_tm/ccsds_tm_rs.h` as `CCSDS_TM_RS`, beside the two things 131.0-B-3 adds that are _not_ properties of the code: the dual-basis symbol representation (4.3.9) and the interleaver (4.4.1). A standard picking a code is not the same fact as the code existing. Point this at RS(204,188) for DVB, at RS(15,11) to check something by hand, or at whatever a caller brings — the arithmetic is identical and only the table changes.
+The CCSDS configuration lives in `ccsds_tm/ccsds_tm_rs.h` as `CCSDS_TM_RS`, beside the two things 131.0-B-3 adds that are _not_ properties of the code: the dual-basis symbol representation (4.3.9) and the interleaver (4.4.1). A standard picking a code is not the same fact as the code existing. Point this at RS(255,239) — the mother code DVB shortens — at RS(15,11) to check something by hand, or at whatever a caller brings: the arithmetic is identical and only the table changes.
+
+
+One thing the table does **not** change is `n`, which is `2^J - 1` by construction. So a SHORTENED code is not expressible here: DVB's own RS(204,188) and CCSDS 4.4.2's shortened codeblock are RS(255,239) and RS(255,223) with leading zeros the sender never transmits, and that virtual fill is [gh-813](https://github.com/doppler-dsp/doppler/issues/813).
 
 
 

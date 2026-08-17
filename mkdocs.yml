@@ -269,6 +269,7 @@ nav:
       - Symbol Timing on a Rate Cascade: design/ratesync-timing.md
       - MPSK Receiver: design/mpsk.md
       - MPSK Receiver Refactor: design/mpsk-refactor.md
+      - Soft Decisions for M-PSK: design/mpsk-soft.md
       - Receiver Test Harness: design/rx-test.md
       - Corr2D Interpolated Inverse: design/corr2d-interpolated-inverse.md
       - Spectral & Measurement API Map: design/spectral-api-map.md

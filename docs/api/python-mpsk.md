@@ -47,6 +47,6 @@ zero-phase reference (the first) is rotation-invariant.
 <!-- related-pages:start -->
 
 **Gallery** — [M-PSK Carrier Loop — Theory Validation](../gallery/carrier-mpsk.md), [M-PSK constellation (Gray-coded map / demap)](../gallery/mpsk.md)
-**Design** — [MPSK Receiver](../design/mpsk.md)
+**Design** — [Soft Decisions for M-PSK](../design/mpsk-soft.md), [MPSK Receiver](../design/mpsk.md)
 
 <!-- related-pages:end -->

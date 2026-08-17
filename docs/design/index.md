@@ -36,6 +36,7 @@ instead.)
 - [Symbol Timing on a Rate Cascade](ratesync-timing.md) — RateSync: why the matched filter and the interpolator are one dot product, why `ctrl` is referenced to the terminal stage's rate, and why the T/2 parity resolves itself
 - [MPSK Receiver](mpsk.md) — streaming M-PSK receiver architecture and carrier-recovery design
 - [MPSK Receiver Refactor](mpsk-refactor.md) — collapsing the complex and real receivers into one object with three faces, and why the shared loops header needs a test home
+- [Soft Decisions for M-PSK](mpsk-soft.md) — LLRs from the constellation: the sign convention tied to the one decision rule, the closed forms BPSK and QPSK turn out to have, and what max-log costs at 8PSK
 - [Receiver Test Harness](rx-test.md) — inventory of the stimulus, measurement and gate layers a receiver measurement rests on, and where they do not yet meet
 - [Corr2D Interpolated Inverse](corr2d-interpolated-inverse.md) — decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation
 - [Spectral & Measurement API Map](spectral-api-map.md) — module dependency graph

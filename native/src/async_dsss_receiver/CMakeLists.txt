@@ -30,6 +30,7 @@ target_link_libraries(async_dsss_receiver_core PUBLIC
     mpsk_receiver_core
     ddc_core
     hbdecim_r2c_core
+    ddcr_core
     ratesync_core
     symsync_core
     nco_core
@@ -70,6 +71,7 @@ target_link_libraries(test_async_dsss_receiver_core
     mpsk_receiver_core
     ddc_core
     hbdecim_r2c_core
+    ddcr_core
     ratesync_core
     symsync_core
     nco_core
@@ -115,6 +117,7 @@ target_link_libraries(bench_async_dsss_receiver_core
     mpsk_receiver_core
     ddc_core
     hbdecim_r2c_core
+    ddcr_core
     ratesync_core
     symsync_core
     nco_core

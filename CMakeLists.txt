@@ -212,9 +212,6 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:burst_despreader_core
 add_subdirectory(native/src/despreader)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:despreader_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:despreader_core>)
-add_subdirectory(native/src/mpsk_receiver_r)
-target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:mpsk_receiver_r_core>)
-target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:mpsk_receiver_r_core>)
 add_subdirectory(native/src/mpsk_receiver)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:mpsk_receiver_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:mpsk_receiver_core>)
@@ -692,7 +689,7 @@ add_test(NAME test_dp_tx COMMAND test_dp_tx)
 # The Monte-Carlo half is the part a closed form cannot establish: a stream at
 # uniformly random phase is generated and measured against the floor, and then
 # against the `< -12.0 dB` assertion the header records as live in
-# test_mpsk_receiver_r_core.c until 2026-07-27 -- which a fully scattered 8PSK
+# the real receiver's every-M loop until 2026-07-27 -- which a fully scattered 8PSK
 # stream passes.
 add_executable(test_dp_sym native/tests/test_dp_sym.c)
 target_link_libraries(test_dp_sym PRIVATE ber_core snr_core mpsk_core m)

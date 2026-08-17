@@ -3057,9 +3057,10 @@ class MpskReceiver:
     ------
     ValueError
         If construction fails. The exception message is ``MpskReceiver: invalid
-        parameter (need m in {2,4,8}, sps >= m_out, m_out even in [2, 8], 0 <=
-        rrc_beta <= 1, rrc_span >= 1, num_phases a power of two >= 2, bn >= 0,
-        zeta > 0, 0 < bn_agc_ratio < 1)``.
+        parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the
+        real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,
+        m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a
+        power of two >= 2, bn >= 0, zeta > 0, 0 < bn_agc_ratio < 1)``.
 
     Examples
     --------
@@ -3648,9 +3649,10 @@ class ContinuousMpskReceiver:
     ------
     ValueError
         If construction fails. The exception message is ``MpskReceiver: invalid
-        parameter (need m in {2,4,8}, sps >= m_out, m_out even in [2, 8], 0 <=
-        rrc_beta <= 1, rrc_span >= 1, num_phases a power of two >= 2, bn >= 0,
-        zeta > 0, 0 < bn_agc_ratio < 1)``.
+        parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the
+        real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,
+        m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a
+        power of two >= 2, bn >= 0, zeta > 0, 0 < bn_agc_ratio < 1)``.
 
     Examples
     --------
@@ -4193,7 +4195,17 @@ class ContinuousMpskReceiver:
 
 @final
 class MpskReceiverR:
-    """Create a real-input M-PSK receiver.
+    """Create the M-PSK receiver behind an R2C halfband: a real IF in. The same
+    object as MpskReceiver -- same loops, same handover, same demapper, same
+    state -- reached through a matched DDCR instead of a matched DDC, so
+    `steps()` and `bits()` take float32 and everything else is shared verbatim.
+    A real-valued IF is the usual output of a single-ended ADC, so this is the
+    face that takes a digitiser's samples directly. Three things follow from
+    the halfband and nothing else differs: the LO runs at HALF the input rate
+    (handled internally -- every frequency on this class stays in cycles/sample
+    at the real input rate), `sps` must exceed `2 * m_out` strictly rather than
+    merely reaching `m_out`, and `init_norm_freq` is the real IF CENTRE rather
+    than a baseband residual.
 
     Parameters
     ----------
@@ -4206,7 +4218,7 @@ class MpskReceiverR:
         the front end plans its own cascade and the terminal stage's
         accumulator is a double. That is the real-world case whenever the ADC
         clock is free-running against the symbol clock. The default is 32
-        rather than the complex twin's 8 purely to clear that bound: `m_out`
+        rather than the complex face's 8 purely to clear that bound: `m_out`
         defaults to 8, so anything at or below 16 cannot construct.
     m_out : int, default 8
         Terminal outputs per symbol: even, 2..8. The Gardner detector takes
@@ -4216,7 +4228,7 @@ class MpskReceiverR:
         filter reaches the coherent bound.** The rectangle is one symbol wide,
         so its matched filter is an m_out-tap sum spanning it, and a smaller
         m_out samples that same integral more coarsely. Measured on the complex
-        twin at its default sps=8 against the coherent bound EVM_dB =
+        face at its default sps=8 against the coherent bound EVM_dB =
         -(Es/N0)_dB: at 18 dB Es/N0, m_out=8 lands 0.41 dB off the bound where
         m_out=4 loses 3.11 dB; at 14 dB it is 0.25 dB against 1.71 dB -- the
         gap widens as noise stops hiding it. Because `sps` must clear `2 *
@@ -4234,22 +4246,38 @@ class MpskReceiverR:
     rrc_span : int, default 8
         RRC one-sided span in symbols (default 8; RRC only).
     bn_carrier : float, default 0.01
-        Carrier loop noise bandwidth, normalised to the symbol rate (default
-        0.005).
+        Carrier loop noise bandwidth, **normalised to the symbol rate**
+        (default 0.01). A carrier loop here closes around the matched filter,
+        so its dead time is that filter's group delay — keep it a small
+        fraction of the symbol rate, as a real receiver does.
     zeta : float, default 0.707
-        Damping factor for both loops (default 0.707).
+        Damping factor for both loops. PINNED here at a typed-out 0.707 where
+        the complex face takes 0 and derives `1/sqrt(2)` = 0.70710678118654752
+        -- the same value to four digits and not the same number. Pass 0 to get
+        the derivation. Read it back with `zeta`.
     bn_timing : float, default 0.01
-        Timing loop noise bandwidth, per symbol (0.01).
+        Symbol-timing loop noise bandwidth, normalised to the symbol rate
+        (default 0.01).
     acq_to_track : int, default 0
-        Enable the two-way handover (default 0).
+        Enable the two-way NDA<->decision-directed handover (default 0).
     lock_thresh : float, default 0.5
-        Handover declare threshold (default 0.5).
+        Handover declare threshold on the carrier lock EMA. PINNED here at a
+        round 0.5 where the complex face takes 0 and derives `sigma_H0 *
+        eta(Pfa)` = 0.4999 at Pfa = 5e-6. Pass 0 to get the derivation. The
+        metric is `Re((z/|z|)^M)` smoothed by an EMA, whose noise-only sd is
+        0.1132 for EVERY M, so 0.5 is 4.42 noise sigmas; to pin your own,
+        divide your Pfa's z-score into 0.1132 rather than picking by feel. The
+        drop threshold sits at 0.8x for level hysteresis and both directions
+        are verify-counted (8 symbols up / 32 down). Read it back with
+        `lock_thresh`.
     init_norm_freq : float, default 0.0
-        Carrier frequency to tune to, cycles/sample **at the real input rate**
-        (default 0.0). A real IF at `0.2 * fs` is `0.2`; the halved value the
-        LO actually uses is this object's business, not the caller's.
+        The real IF **centre**, cycles/sample at the real input rate -- an IF
+        at 0.2*fs is 0.2, and the halved value the LO actually uses is this
+        object's business, not yours. Unlike the complex face, this one does
+        not acquire from a cold zero: a real IF must be tuned near, so this is
+        the centre a tap buys pull-in *around* rather than from nothing.
     differential : int, default 0
-        bits(): differential demap (default 0).
+        bits(): differential (rotation-invariant) demap (default 0 = coherent).
     num_phases : int, default 1024
         Matched-filter bank arms; a power of two. Sets the fractional-timing
         resolution to 1/num_phases of an output period. The bank is sized by
@@ -4271,7 +4299,7 @@ class MpskReceiverR:
         signal can carry no data modulation for an extended period, and the
         Gardner TED needs transitions. It is NOT the default, because measured
         at QPSK/20 dB it reads a lower lock statistic than `strobe` on the
-        real-input type at every geometry tried (0.78/0.64/0.74/0.62 against
+        real-input face at every geometry tried (0.78/0.64/0.74/0.62 against
         0.90/0.95/0.95/0.89 at sps 16/32/64/128) -- and `strobe` was measured
         to acquire with the modulation removed anyway. Its update rate is the
         cascade's `bank_sps`, a planner outcome rather than a construction
@@ -4293,7 +4321,7 @@ class MpskReceiverR:
         reproduce the un-levelled behaviour exactly, which is the handle for
         attributing any measurement that moves. This is the receiver's ONLY AGC
         -- the carrier discriminator normalises by its own |z|^M and needs
-        none. Read the applied gain back with `agc_gain_db`. On this twin the
+        none. Read the applied gain back with `agc_gain_db`. On this face the
         AGC sits behind the R2C halfband, so it levels the analytic signal at
         the intermediate rate rather than the real input.
     bn_agc_ratio : float, default 0.05
@@ -4313,10 +4341,11 @@ class MpskReceiverR:
     Raises
     ------
     ValueError
-        If construction fails. The exception message is ``MpskReceiverR:
-        invalid parameter (need m in {2,4,8}, sps > 2*m_out, m_out even in [2,
-        8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a power of two >= 2,
-        bn >= 0, zeta > 0, 0 < bn_agc_ratio < 1)``.
+        If construction fails. The exception message is ``MpskReceiver: invalid
+        parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the
+        real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,
+        m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a
+        power of two >= 2, bn >= 0, zeta > 0, 0 < bn_agc_ratio < 1)``.
 
     Examples
     --------
@@ -4372,16 +4401,37 @@ class MpskReceiverR:
         decim: int = 1,
     ) -> None:
         """Attach (or detach) a telemetry context across the receiver.
+        Registers the receiver's own "<prefix>.lock" probe (the carrier lock
+        EMA) and "<prefix>.tracking" (the two-way handover decision, 0/1 — so a
+        consumer sees exactly when the carrier was handed to the
+        decision-directed discriminator or dropped back to NDA), then the
+        carrier loop's "<prefix>.car.e" / ".freq" / ".locked" and the
+        symbol-timing loop's "<prefix>.sync.e" / ".ctrl" / ".rate" / ".lock" /
+        ".locked" / ".mu" -- eleven probes emitted once per recovered symbol --
+        then the front end's AGC under "<prefix>.agc" ("<prefix>.agc.gain_db"
+        and "<prefix>.agc.level_db"; see agc_set_telemetry()). Thirteen probes
+        total, all thinned by decim. Passing NULL detaches everything.
 
-        Registers the same thirteen probes as mpsk_receiver_set_telemetry(),
-        whose contract it shares in full: the receiver's own "<prefix>.lock"
-        and "<prefix>.tracking", the carrier loop's "<prefix>.car.e" / ".freq"
-        / ".locked", and the symbol-timing loop's "<prefix>.sync.e" / ".ctrl" /
-        ".rate" / ".lock" / ".locked" / ".mu" — eleven emitted once per
-        recovered symbol — then the front end's AGC under "<prefix>.agc"
-        (".gain_db" and ".level_db"), forwarded through ddcr_set_telemetry().
-        All thinned by decim. Passing NULL detaches everything. Setup path,
-        never hot; the context is borrowed and must outlive the attachment.
+        Instrumenting it matters because it is FIRST in the chain, and a level
+        error is the one kind no downstream loop can correct for itself: a TED
+        normalises by its own construct-time slope, so it reads a level error
+        as a loop-gain error (A^2 Gardner, A DTTL) with no other reference to
+        catch it. This receiver also makes the AGC the slowest of its three
+        loops by construction -- mpsk_rx_agc_bn() derives its bandwidth as a
+        fraction of the slowest loop it feeds, and bn_agc_ratio is validated to
+        (0, 1) -- but that is a choice of THIS composition, and slowest does
+        not by itself mean longest: settling is set by the bandwidth AND by how
+        far the level starts from the reference, which is unknown at
+        construction. Which is exactly why it has to be measured rather than
+        inferred; the zero-referenced "<prefix>.agc.level_db" is what makes
+        that possible.
+
+        With agc = 0 at construction there is no AGC to attach and the two
+        probes are simply absent (eleven, not thirteen); this still returns
+        DP_OK.
+
+        Setup path, never hot; the context is borrowed and must outlive the
+        attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
 
         Parameters
         ----------
@@ -4401,31 +4451,33 @@ class MpskReceiverR:
 
         Warnings
         --------
-        As on the complex twin, the two AGC probes are on the cascade's
-        MFR-input grid rather than the symbol grid, so their record count
-        differs from the other eleven — compare by time, not by index. See
-        mpsk_receiver_set_telemetry() for why, and for why that AGC is the
-        slowest loop in the receiver.
+        The two AGC probes are NOT at the symbol rate the other eleven are.
+        That AGC sits pre-terminal in the cascade (RateConverter's tap, ahead
+        of the stage the timing loop steers) and emits once per gain-update
+        event, i.e. every AGC_DECIM_DEFAULT samples of that fixed-rate stream
+        -- so it reports on a grid that depends on the planned cascade, not on
+        recovered symbols, and a run yields a different number of AGC records
+        than carrier records. Compare the two by TIME, never by record index.
+        This is deliberate: the AGC's bandwidth is quoted in the pre-terminal
+        stream's units precisely so it is not coupled to the loop that is
+        stretching the symbol grid (see RateConverter_enable_agc()).
 
         Examples
         --------
         >>> import numpy as np
-        >>> from doppler.track import MpskReceiverR
+        >>> from doppler.track import MpskReceiver
         >>> from doppler.telemetry import Telemetry
-        >>> tlm = Telemetry(1 << 14)
-        >>> rx = MpskReceiverR(m=4, sps=10, m_out=2, init_norm_freq=0.25)
+        >>> tlm = Telemetry(1 << 14)   # 14 probes x ~512 syms + headroom
+        >>> rx = MpskReceiver(m=4, sps=4, m_out=2)
         >>> rx.set_telemetry(tlm, "rx")
         >>> len(tlm.probe_names)
         14
         >>> rng = np.random.default_rng(7)
-        >>> idx = rng.integers(0, 4, 512)
-        >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 10)
-        >>> n = np.arange(bb.size)
-        >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real
-        >>> x = np.ascontiguousarray(x.astype(np.float32))
+        >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
+        >>> x = np.repeat(syms, 4)
         >>> _ = rx.steps(x)
         >>> recs = tlm.read()
-        >>> tlm.dropped            # size the ring, or the counts below diverge
+        >>> tlm.dropped        # size the ring, or the counts below diverge
         0
         >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
         >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
@@ -4437,6 +4489,78 @@ class MpskReceiverR:
 
         """
 
+    def configure_lock(
+        self,
+        up_thresh: float,
+        down_thresh: float,
+        n_up: int,
+        n_down: int,
+    ) -> None:
+        """Re-tune the acquisition<->tracking handover detector: hands the
+        carrier to the decision-directed discriminator after n_up consecutive
+        symbols with the carrier lock EMA above up_thresh, and falls back to
+        NDA acquisition after n_down consecutive symbols below down_thresh
+        (level + time hysteresis; see detection.LockDet). Previously only
+        settable at construction (lock_thresh, with fixed 0.8x drop / 8-up /
+        32-down constants) -- this is the post-construction re-tune Dll and
+        Costas both already have. A live handover survives the re-tune; the
+        in-flight verify run restarts.
+
+        Full lockdet control over the handover, mirroring
+        costas_configure_lock(): a split declare/drop threshold pair on the
+        carrier lock EMA (level hysteresis) and both verify counts (time
+        hysteresis). A live handover survives the re-tune; the in-flight verify
+        run restarts.
+
+        Parameters
+        ----------
+        up_thresh : float
+            Declare threshold on the carrier lock EMA.
+        down_thresh : float
+            Drop threshold; choose <= up_thresh for level hysteresis.
+        n_up : int
+            Consecutive above-threshold symbols to hand over to the
+            decision-directed discriminator; clamped >= 1.
+        n_down : int
+            Consecutive below-threshold symbols to fall back to NDA
+            acquisition; clamped >= 1.
+
+        Examples
+        --------
+        >>> from doppler.track import MpskReceiver
+        >>> rx = MpskReceiver(m=4, sps=4, m_out=2, acq_to_track=1)
+        >>> rx.tracking
+        0
+        >>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, fast drop
+
+        """
+
+    def reset(self) -> None:
+        """Re-seed the carrier and symbol-timing loops to their create-time
+        state; preserve configuration.
+
+        Clears the cascade's filter memory, the carrier and timing NCOs, the
+        loop-filter integrators and the lock detectors, and returns the carrier
+        estimate to init_norm_freq. The configuration (order, rate, pulse,
+        bandwidths) is untouched, so the same input fed twice around a reset
+        reproduces the same output bit-for-bit.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import MpskReceiver
+        >>> rng = np.random.default_rng(0)
+        >>> idx = rng.integers(0, 4, 300)
+        >>> tx = np.repeat(np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4)), 8)
+        >>> tx = tx.astype(np.complex64)
+        >>> rx = MpskReceiver(m=4, sps=8, m_out=4)
+        >>> first = rx.steps(tx)
+        >>> rx.reset()                                # back to the cold state
+        >>> np.array_equal(first, rx.steps(tx))       # same input, same output
+        True
+
+        """
+
     def steps(
         self,
         x: NDArray[np.float32],
@@ -4444,12 +4568,14 @@ class MpskReceiverR:
     ) -> NDArray[np.complex64]:
         """Demodulate a real f32 block and return the recovered M-PSK symbols
         (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per
-        sample the receiver pushes x through the matched DDCR -- LO mix,
-        decimating cascade, and a terminal polyphase stage whose bank IS the
-        matched filter and whose selected arm IS the fractional symbol-timing
-        delay -- then folds every output that stage produced into two loops: a
-        Gardner symbol-timing loop steering the cascade's rate_ctrl port, and a
-        carrier loop steering the LO's freq_ctrl port. The carrier
+        sample the receiver pushes x through the matched DDCR -- an R2C
+        halfband that decimates 2:1, then LO mix, decimating cascade, and a
+        terminal polyphase stage whose bank IS the matched filter and whose
+        selected arm IS the fractional symbol-timing delay -- then folds every
+        output that stage produced into two loops: a Gardner symbol-timing loop
+        steering the cascade's rate_ctrl port, and a carrier loop steering the
+        LO's freq_ctrl port. That fold is one shared implementation with the
+        complex face; only the front end above it differs. The carrier
         discriminator runs on the on-time strobe only -- a non-strobe output
         straddles two symbols, so its M-th power is intersymbol interference
         rather than carrier phase -- and while acquiring it is the
@@ -4464,13 +4590,15 @@ class MpskReceiverR:
         bits(differential) or a sync word. Read norm_freq for the tracked
         carrier and lock for the carrier lock metric.
 
-        As mpsk_receiver_steps(), taking real samples: the R2C halfband makes
-        them complex before anything else touches them.
+        Runs the per-sample loop (mix + cascade + matched filter, then the
+        carrier and timing loops) over x and writes one cf32 symbol per
+        recovered symbol period — roughly `x_len / sps` outputs. Read norm_freq
+        for the tracked carrier and lock for the carrier lock metric.
 
         Parameters
         ----------
         x : NDArray[np.float32]
-            Real f32 input samples.
+            Input cf32 samples.
 
         Returns
         -------
@@ -4480,17 +4608,15 @@ class MpskReceiverR:
         Examples
         --------
         >>> import numpy as np
-        >>> from doppler.track import MpskReceiverR
-        >>> rng = np.random.default_rng(3)
-        >>> idx = rng.integers(0, 4, 2400)                  # QPSK symbols
-        >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 32)  # 32 sps
-        >>> n = np.arange(bb.size)
-        >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real  # IF at fs/4
-        >>> x = np.ascontiguousarray(x.astype(np.float32))
-        >>> rx = MpskReceiverR(m=4, sps=32, m_out=8, init_norm_freq=0.25)
-        >>> sym = rx.steps(x)
+        >>> from doppler.track import MpskReceiver
+        >>> rng = np.random.default_rng(0)
+        >>> idx = rng.integers(0, 4, 3000)                  # QPSK symbols
+        >>> tx = np.repeat(np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4)), 8)
+        >>> tx = tx.astype(np.complex64)                    # 8 samples/symbol
+        >>> rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.02)
+        >>> sym = rx.steps(tx)                              # blind NDA acquire
         >>> sym.size                                        # ~ x_len / sps
-        2398
+        2998
         >>> rx.lock > 0.8                                   # carrier locked
         True
 
@@ -4522,12 +4648,17 @@ class MpskReceiverR:
         (rotation-invariant — resolves the m-fold carrier ambiguity at ~2x the
         symbol-error rate). Same per-sample carrier/timing recovery as steps().
 
-        As mpsk_receiver_bits(), taking real samples.
+        Like mpsk_receiver_steps(), but each recovered symbol is sliced to its
+        nearest M-PSK point and unpacked to log2(M) hard bits (LSB-first). With
+        the differential option set at create time, the Gray label is taken
+        from the phase *difference* between consecutive symbols
+        (rotation-invariant — it resolves the M-fold carrier ambiguity), else
+        from the absolute (coherent) decision.
 
         Parameters
         ----------
         x : NDArray[np.float32]
-            Real f32 input samples.
+            Input cf32 samples.
 
         Returns
         -------
@@ -4537,21 +4668,17 @@ class MpskReceiverR:
         Examples
         --------
         >>> import numpy as np
-        >>> from doppler.track import MpskReceiverR
+        >>> from doppler.track import MpskReceiver
         >>> rng = np.random.default_rng(3)
-        >>> idx = rng.integers(0, 2, 2400)                  # BPSK payload bits
-        >>> bb = np.repeat(np.exp(1j * np.pi * idx), 32)
-        >>> n = np.arange(bb.size)
-        >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real  # IF at fs/4
-        >>> x = np.ascontiguousarray(x.astype(np.float32))
-        >>> rx = MpskReceiverR(m=2, sps=32, m_out=8, init_norm_freq=0.25,
-        ...                    bn_carrier=0.005)
-        >>> b = rx.bits(x)                                  # 1 hard bit/symbol
+        >>> idx = rng.integers(0, 2, 3000)                  # BPSK payload bits
+        >>> tx = np.repeat(np.exp(1j * np.pi * idx), 8).astype(np.complex64)
+        >>> rx = MpskReceiver(m=2, sps=8, m_out=4, bn_carrier=0.005)
+        >>> b = rx.bits(tx)                                 # 1 hard bit/symbol
         >>> b.size
-        2398
+        2998
         >>> # settled tail matches the payload, up to the BPSK
-        >>> # inversion ambiguity
-        >>> tail = np.mean(b[1500:2300] != idx[1500:2300])
+        >>> # inversion ambiguity and the pipeline's one-symbol lead
+        >>> tail = np.mean(b[1001:2001] != idx[1000:2000])
         >>> round(float(min(tail, 1 - tail)), 3)
         0.0
 
@@ -4569,80 +4696,6 @@ class MpskReceiverR:
         -------
         int
             Upper bound on the output length; the actual call may return fewer.
-        """
-
-    def configure_lock(
-        self,
-        up_thresh: float,
-        down_thresh: float,
-        n_up: int,
-        n_down: int,
-    ) -> None:
-        """Re-tune the acquisition<->tracking handover detector: hands the
-        carrier to the decision-directed discriminator after n_up consecutive
-        symbols with the carrier lock EMA above up_thresh, and falls back to
-        NDA acquisition after n_down consecutive symbols below down_thresh
-        (level + time hysteresis; see detection.LockDet). Previously only
-        settable at construction (lock_thresh, with fixed 0.8x drop / 8-up /
-        32-down constants) -- this is the post-construction re-tune Dll and
-        Costas both already have. A live handover survives the re-tune; the
-        in-flight verify run restarts.
-
-        The real-input twin of mpsk_receiver_configure_lock(), whose contract
-        it shares exactly: a split declare/drop threshold pair on the carrier
-        lock EMA (level hysteresis) plus both verify counts (time hysteresis).
-        A live handover survives the re-tune; the in-flight verify run
-        restarts.
-
-        Parameters
-        ----------
-        up_thresh : float
-            Declare threshold on the carrier lock EMA.
-        down_thresh : float
-            Drop threshold; choose <= up_thresh for level hysteresis.
-        n_up : int
-            Consecutive above-threshold symbols to hand over to the
-            decision-directed discriminator; clamped >= 1.
-        n_down : int
-            Consecutive below-threshold symbols to fall back to NDA
-            acquisition; clamped >= 1.
-
-        Examples
-        --------
-        >>> from doppler.track import MpskReceiverR
-        >>> rx = MpskReceiverR(m=4, sps=10, m_out=2, acq_to_track=1)
-        >>> rx.tracking
-        0
-        >>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, fast drop
-
-        """
-
-    def reset(self) -> None:
-        """Re-seed the carrier and symbol-timing loops to their create-time
-        state; preserve configuration.
-
-        Identical in effect to mpsk_receiver_reset() — clears the R2C halfband
-        and cascade memory, the carrier and timing NCOs, the loop integrators
-        and the lock detectors, and returns the carrier estimate to
-        init_norm_freq. Configuration is untouched, so a burst fed twice around
-        a reset reproduces bit-for-bit.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.track import MpskReceiverR
-        >>> rng = np.random.default_rng(0)
-        >>> idx = rng.integers(0, 4, 300)
-        >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 32)
-        >>> n = np.arange(bb.size)
-        >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real  # IF at fs/4
-        >>> x = np.ascontiguousarray(x.astype(np.float32))
-        >>> rx = MpskReceiverR(m=4, sps=32, m_out=8, init_norm_freq=0.25)
-        >>> first = rx.steps(x)
-        >>> rx.reset()                                # back to the cold state
-        >>> np.array_equal(first, rx.steps(x))        # same input, same output
-        True
-
         """
 
     def state_bytes(self) -> int:
@@ -4715,13 +4768,46 @@ class MpskReceiverR:
 
     @property
     def norm_freq(self) -> float:
-        """Tracked carrier, cycles/sample at the REAL input rate."""
+        """Carrier frequency the receiver is tracking, cycles/sample at the
+        input rate: the create-time centre plus the loop's own estimate.
+        """
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
 
     @property
     def lock(self) -> float:
         """EMA of the carrier lock signal."""
+
+    @property
+    def zeta(self) -> float:
+        """Loop damping actually in use. Reads back the DERIVED `1/sqrt(2)`
+        when the constructor was given 0, or whatever was pinned instead.
+        Everything derived is reported (docs/design/mpsk.md §8.1), on the same
+        argument as `RateConverter.stages`: without the readback, passing 0 is
+        an instruction whose result nobody can see.
+        """
+
+    @property
+    def num_phases(self) -> int:
+        """Matched-filter bank arms actually in use. Reads back the DERIVED 64
+        -- the measured saturation point, against the 1024 that shipped -- when
+        the constructor was given 0. See `zeta` for why every derived value is
+        reported.
+        """
+
+    @property
+    def lock_thresh(self) -> float:
+        """Handover declare threshold actually in use. Reads back the DERIVED
+        `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the constructor was
+        given 0. See `zeta` for why every derived value is reported.
+        """
+
+    @property
+    def bn_agc_ratio(self) -> float:
+        """AGC bandwidth as a fraction of the slowest loop it feeds, actually
+        in use. Reads back the DERIVED 0.05 when the constructor was given 0.
+        See `zeta` for why every derived value is reported.
+        """
 
     @property
     def lock_time(self) -> int:
@@ -4740,7 +4826,9 @@ class MpskReceiverR:
 
     @property
     def timing_rate(self) -> float:
-        """Timing rate."""
+        """Smoothed tracked samples per symbol — departs from the nominal `sps`
+        by exactly the sample-clock offset the timing loop is tracking.
+        """
 
     @property
     def tracking(self) -> int:
@@ -4756,7 +4844,7 @@ class MpskReceiverR:
 
     @property
     def m_out(self) -> int:
-        """terminal outputs per symbol."""
+        """Terminal outputs per symbol (the old `n`, now the cascade's)."""
 
     @property
     def clipped(self) -> int:

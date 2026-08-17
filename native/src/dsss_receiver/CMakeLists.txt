@@ -27,6 +27,7 @@ target_link_libraries(dsss_receiver_core PUBLIC
     mpsk_receiver_core
     ddc_core
     hbdecim_r2c_core
+    ddcr_core
     ratesync_core
     symsync_core
     nco_core
@@ -60,6 +61,7 @@ target_link_libraries(test_dsss_receiver_core
     mpsk_receiver_core
     ddc_core
     hbdecim_r2c_core
+    ddcr_core
     ratesync_core
     symsync_core
     nco_core
@@ -98,6 +100,7 @@ target_link_libraries(bench_dsss_receiver_core
     mpsk_receiver_core
     ddc_core
     hbdecim_r2c_core
+    ddcr_core
     ratesync_core
     symsync_core
     nco_core

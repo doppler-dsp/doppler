@@ -29,11 +29,13 @@
  *
  * The header records a live defect: a `< -12.0 dB` EVM assertion "is
  * meaningless at 8PSK — a stream with no carrier recovery at all passes it",
- * and that assertion was in `test_mpsk_receiver_r_core.c`'s every-M loop until
- * 2026-07-27. That is not a statement about the closed form; it is a statement
- * about what a DESTROYED stream measures. So it is measured: symbols at
- * uniformly random phase, scored, and checked to land on the floor — and then
- * checked to pass the exact threshold the header says it wrongly passes.
+ * and that assertion was in the real receiver's every-M loop until
+ * 2026-07-27 (then `test_mpsk_receiver_r_core.c`, since folded into
+ * `test_mpsk_receiver_core.c` section 16). That is not a statement about the
+ * closed form; it is a statement about what a DESTROYED stream measures. So it
+ * is measured: symbols at uniformly random phase, scored, and checked to land
+ * on the floor — and then checked to pass the exact threshold the header says
+ * it wrongly passes.
  *
  * A closed form agreeing with itself would not have caught that. Generating
  * the scattered stream is the only way the two halves are independent.
@@ -178,9 +180,9 @@ main (void)
 
   /* And the defect the header records, reproduced: at 8PSK a stream with NO
      carrier recovery passes a `< -12.0 dB` assertion. This is the assertion
-     that was live in test_mpsk_receiver_r_core.c's every-M loop until
-     2026-07-27, and it is why any fixed EVM threshold must be stated against
-     the floor rather than against 0 dB. */
+     that was live in the real receiver's every-M loop until 2026-07-27
+     (test_mpsk_receiver_core.c section 16 today), and it is why any fixed EVM
+     threshold must be stated against the floor rather than against 0 dB. */
   DP_CHECK_MSG (dp_test_evm_db_hard_m (buf, NSYM, 8) < -12.0,
                 "a fully scattered 8PSK stream PASSES `< -12.0 dB` — which is "
                 "why a fixed EVM threshold must be read against the floor");

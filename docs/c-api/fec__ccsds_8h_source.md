@@ -26,9 +26,21 @@ extern "C"
 
 #define FEC_CCSDS_ASM_BITS 32
 
+#define FEC_CCSDS_RAND_PERIOD 255
+
 #define FEC_CONV_K 7
 
   void fec_ccsds_asm_bits (uint8_t *out);
+
+  typedef struct
+  {
+    size_t   offset;   
+    int      inverted; 
+    unsigned errors;   
+  } fec_asm_hit_t;
+
+  int fec_ccsds_asm_find (const uint8_t *bits, size_t n_bits,
+                          unsigned max_errors, fec_asm_hit_t *hit);
 
   void fec_ccsds_randomise (uint8_t *bits, size_t n);
 

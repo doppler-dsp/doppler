@@ -13,6 +13,7 @@
 #define CONV_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -80,6 +81,25 @@ extern "C"
   const conv_code_t *viterbi_code (const viterbi_state_t *s);
 
   size_t viterbi_depth (const viterbi_state_t *s);
+
+/* ── the state bytes interface ───────────────────────────────────────────
+ *
+ * The decoder carries running state across calls — a path metric per state,
+ * the traceback ring, and where the ring is — so it speaks the standard
+ * bytes interface like every other stateful object in the tree. A decoder
+ * sits inside a chain (behind the receiver, in front of the R-S decoder),
+ * and one link that cannot be checkpointed is enough to make the chain
+ * un-resumable. See docs/design/state-serialization.md.
+ */
+
+#define VITERBI_STATE_MAGIC DP_FOURCC ('V', 'T', 'R', 'B')
+#define VITERBI_STATE_VERSION 1u
+
+  size_t viterbi_state_bytes (const viterbi_state_t *s);
+
+  void viterbi_get_state (const viterbi_state_t *s, void *blob);
+
+  int viterbi_set_state (viterbi_state_t *s, const void *blob);
 
 #ifdef __cplusplus
 }

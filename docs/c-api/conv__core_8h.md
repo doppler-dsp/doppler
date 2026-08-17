@@ -11,6 +11,7 @@
 _Convolutional codes: the code description, the encoder, and the maximum-likelihood decoder that reads the same description._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
 
@@ -77,7 +78,10 @@ _Convolutional codes: the code description, the encoder, and the maximum-likelih
 |  size\_t | [**viterbi\_decode\_max\_out**](#function-viterbi_decode_max_out) (const [**viterbi\_state\_t**](conv__core_8h.md#typedef-viterbi_state_t) \* s, size\_t n\_llr) <br>_Bits_ [_**viterbi\_decode**_](conv__core_8h.md#function-viterbi_decode) _will emit for_`n_llr` _soft symbols._ |
 |  size\_t | [**viterbi\_depth**](#function-viterbi_depth) (const [**viterbi\_state\_t**](conv__core_8h.md#typedef-viterbi_state_t) \* s) <br>_Its traceback depth, in input bits._  |
 |  void | [**viterbi\_destroy**](#function-viterbi_destroy) ([**viterbi\_state\_t**](conv__core_8h.md#typedef-viterbi_state_t) \* s) <br>_Free a decoder. NULL is a no-op._  |
+|  void | [**viterbi\_get\_state**](#function-viterbi_get_state) (const [**viterbi\_state\_t**](conv__core_8h.md#typedef-viterbi_state_t) \* s, void \* blob) <br>_Serialize_ `s` _into_`blob` _, which must hold_[_**viterbi\_state\_bytes**_](conv__core_8h.md#function-viterbi_state_bytes) _bytes._ |
 |  void | [**viterbi\_reset**](#function-viterbi_reset) ([**viterbi\_state\_t**](conv__core_8h.md#typedef-viterbi_state_t) \* s) <br>_Return to the start state, discarding the traceback history._  |
+|  int | [**viterbi\_set\_state**](#function-viterbi_set_state) ([**viterbi\_state\_t**](conv__core_8h.md#typedef-viterbi_state_t) \* s, const void \* blob) <br>_Restore_ `s` _from_`blob` _._ |
+|  size\_t | [**viterbi\_state\_bytes**](#function-viterbi_state_bytes) (const [**viterbi\_state\_t**](conv__core_8h.md#typedef-viterbi_state_t) \* s) <br>_Bytes_ [_**viterbi\_get\_state**_](conv__core_8h.md#function-viterbi_get_state) _writes: envelope, code identity, ring cursor, the path metrics and the traceback ring._ |
 
 
 
@@ -111,6 +115,8 @@ _Convolutional codes: the code description, the encoder, and the maximum-likelih
 | ---: | :--- |
 | define  | [**CONV\_K\_MAX**](conv__core_8h.md#define-conv_k_max)  `9`<br>_Largest constraint length; 2^(k-1) states, so 256 at k = 9._  |
 | define  | [**CONV\_N\_MAX**](conv__core_8h.md#define-conv_n_max)  `6`<br>_Largest number of outputs per input bit (rate 1/n)._  |
+| define  | [**VITERBI\_STATE\_MAGIC**](conv__core_8h.md#define-viterbi_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('V', 'T', 'R', 'B')`<br>_Blob type tag: "VTRB"._  |
+| define  | [**VITERBI\_STATE\_VERSION**](conv__core_8h.md#define-viterbi_state_version)  `1u`<br>_Blob format version._  |
 
 ## Detailed Description
 
@@ -507,6 +513,27 @@ void viterbi_destroy (
 
 
 
+### function viterbi\_get\_state 
+
+_Serialize_ `s` _into_`blob` _, which must hold_[_**viterbi\_state\_bytes**_](conv__core_8h.md#function-viterbi_state_bytes) _bytes._
+```C++
+void viterbi_get_state (
+    const viterbi_state_t * s,
+    void * blob
+) 
+```
+
+
+
+The ring travels in its stored order with the cursor beside it rather than rotated into a canonical one — the rotation would cost a pass and buy nothing, since only [**viterbi\_set\_state**](conv__core_8h.md#function-viterbi_set_state) reads it back. 
+
+
+        
+
+<hr>
+
+
+
 ### function viterbi\_reset 
 
 _Return to the start state, discarding the traceback history._ 
@@ -519,6 +546,57 @@ void viterbi_reset (
 
 
 The all-zero state is given the winning metric, matching an encoder that starts from a reset register. 
+
+
+        
+
+<hr>
+
+
+
+### function viterbi\_set\_state 
+
+_Restore_ `s` _from_`blob` _._
+```C++
+int viterbi_set_state (
+    viterbi_state_t * s,
+    const void * blob
+) 
+```
+
+
+
+The code and the depth are configuration, restored by [**viterbi\_create**](conv__core_8h.md#function-viterbi_create) rather than carried in the payload — but they are _stamped_ in it and checked here, because a size match is not a configuration match: two codes with the same `k` and `n` differing only in a polynomial or in `invert` produce blobs of identical length, and reinterpreting one as the other yields a decoder that is confidently wrong rather than one that refuses.
+
+
+
+
+**Returns:**
+
+`DP_OK`, or `DP_ERR_INVALID` if the envelope, the code, the depth, or the ring cursor does not match this decoder — in which case `s` is untouched. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function viterbi\_state\_bytes 
+
+_Bytes_ [_**viterbi\_get\_state**_](conv__core_8h.md#function-viterbi_get_state) _writes: envelope, code identity, ring cursor, the path metrics and the traceback ring._
+```C++
+size_t viterbi_state_bytes (
+    const viterbi_state_t * s
+) 
+```
+
+
+
+Depends on the configuration (`2^(k-1)` metrics and a `depth x 2^(k-1)` ring), so it is not a constant across decoders. 
 
 
         
@@ -549,6 +627,34 @@ _Largest constraint length; 2^(k-1) states, so 256 at k = 9._
 _Largest number of outputs per input bit (rate 1/n)._ 
 ```C++
 #define CONV_N_MAX `6`
+```
+
+
+
+
+<hr>
+
+
+
+### define VITERBI\_STATE\_MAGIC 
+
+_Blob type tag: "VTRB"._ 
+```C++
+#define VITERBI_STATE_MAGIC `DP_FOURCC ('V', 'T', 'R', 'B')`
+```
+
+
+
+
+<hr>
+
+
+
+### define VITERBI\_STATE\_VERSION 
+
+_Blob format version._ 
+```C++
+#define VITERBI_STATE_VERSION `1u`
 ```
 
 

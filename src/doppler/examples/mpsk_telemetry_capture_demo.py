@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Capture EVERY telemetry probe an MpskReceiver exposes, losslessly.
+"""Capture EVERY telemetry probe a BpskReceiver exposes, losslessly.
 
-Attaches one `Telemetry` context to an `MpskReceiver` at ``decim=1`` (every
-event on every probe), drives a QPSK carrier pull-in, and lets a
+Attaches one `Telemetry` context to a `BpskReceiver` at ``decim=1`` (every
+event on every probe), drives a BPSK carrier pull-in, and lets a
 `MemoryCapture` own the drain. Nothing here reasons about ring size or drain
 cadence: the capture sizes the ring from the probe count and the block, and
 ``set_now()`` drains at every boundary, so **a drop is impossible rather than
@@ -42,22 +42,34 @@ from pathlib import Path
 import numpy as np
 
 from doppler.telemetry import MemoryCapture, Telemetry
-from doppler.track import MpskReceiver
+from doppler.track import BpskReceiver
 from doppler.wfm import SampleClock
 
 FS = 1e6  # sample rate, and therefore the figure's time axis
+RS = 125e3  # symbol rate — 8 samples/symbol, but nothing here says "8"
 BLOCK = 256  # the step of our own loop — and the capture's whole contract
+BN_CARRIER = 0.02
 
-# A QPSK signal at 8 samples/symbol with a residual carrier offset, cold-
-# started (init_norm_freq=0) so the pull-in is real; 20 dB matched Es/N0.
+# The carrier offset, seeded AT the loop's acquisition bound and not past it.
+# The bound is `bn_carrier / m` cycles per SYMBOL (the m because the NDA
+# discriminator is an M-th power), so it is stated in those units and
+# converted to the cycles per sample the stimulus advances in exactly once.
+# This demo used to seed 0.0015 cyc/sample against a QPSK bound of 0.005
+# cyc/symbol — 2.4x outside it, where acquisition is a coin flip rather than
+# a demonstration (doppler#843).
+OFFSET_SYM = BN_CARRIER / 2  # cycles per symbol, at the bound
+OFFSET = OFFSET_SYM * RS / FS  # cycles per sample, for the stimulus
+
+# A BPSK signal with that residual offset, cold-started so the pull-in is
+# real; 20 dB matched Es/N0.
 rng = np.random.default_rng(1)
-idx = rng.integers(0, 4, 4000)
-tx = np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4)).astype(np.complex64)
-tx = np.repeat(tx, 8).astype(np.complex64)
+idx = rng.integers(0, 2, 4000)
+tx = np.exp(1j * np.pi * idx).astype(np.complex64)
+tx = np.repeat(tx, int(FS / RS)).astype(np.complex64)
 k = np.arange(tx.size)
 sigma = np.sqrt(8 / (2 * 10 ** (20.0 / 10)))
 iq = (
-    tx * np.exp(2j * np.pi * 0.0015 * k)
+    tx * np.exp(2j * np.pi * OFFSET * k)
     + rng.normal(0, sigma, tx.size)
     + 1j * rng.normal(0, sigma, tx.size)
 ).astype(np.complex64)
@@ -67,15 +79,19 @@ iq = (
 # so this is the full set of "all available telemetry". Probes must be
 # attached BEFORE the capture opens: the ring is sized from the probe table.
 tlm = Telemetry()
-rx = MpskReceiver(
-    m=4,
-    sps=8,
-    m_out=4,
-    init_norm_freq=0.0,
-    bn_carrier=0.02,
+# Stated in the units a capture comes with: two rates, in Hz. `sps` is
+# `FS / RS` and the receiver computes it; `m` is carried by the type. Neither
+# appears here, and `m_out` is DERIVED rather than pinned — which is not
+# cosmetic: this demo pinned `m_out=4` against the default I&D pulse, and
+# that pairing is measured at 3.11 dB off the coherent bound where the
+# derived 8 is 0.41 dB off. A parameter nobody needed was costing the demo
+# most of its margin.
+rx = BpskReceiver(
+    sample_rate_hz=FS,
+    symbol_rate_hz=RS,
+    bn_carrier=BN_CARRIER,
     bn_timing=0.01,
     acq_to_track=1,
-    lock_thresh=0.65,
 )
 rx.set_telemetry(tlm, "rx", 1)
 
@@ -123,28 +139,28 @@ def main(out_path: str = "mpsk_telemetry_capture_demo.png") -> None:
     # real time — not an event ordinal standing in for one.
     for ax, name in zip(axes, names):
         n, v = series[name]
-        ax.plot(n / FS * 1e3, v, lw=0.8, color="#1565c0")
+        # Symbols are DISCRETE samples, not a trajectory: one decision per
+        # symbol period, with nothing in between to interpolate through. A
+        # line through them draws a path the receiver never took, and on a
+        # BPSK stream toggling +-1 it fills the panel solid and shows
+        # nothing. Loop state is the opposite -- a continuous quantity
+        # sampled per symbol -- so it stays a line.
+        if ".sym." in name:
+            ax.plot(n / FS * 1e3, v, ".", ms=1.5, color="#1565c0")
+        else:
+            ax.plot(n / FS * 1e3, v, lw=0.8, color="#1565c0")
         ax.set_title(name, fontsize=9, family="monospace")
         ax.grid(alpha=0.3)
         ax.margins(x=0)
 
-    sm = axes[len(names)]
-    sm.axis("off")
-    sm.text(
-        0.5,
-        0.5,
-        f"{len(names)} probes\n{len(recs)} records\n"
-        f"{recs.nbytes:,} bytes  (16 B/record)\nnothing dropped",
-        ha="center",
-        va="center",
-        fontsize=11,
-        family="monospace",
-    )
-    for ax in axes[len(names) + 1 :]:
+    # The counts are printed to stdout and asserted above; a panel restating
+    # them is a caption for the figure's own axes, which the panel titles
+    # already are.
+    for ax in axes[len(names) :]:
         ax.axis("off")
 
     fig.suptitle(
-        "Every MpskReceiver probe, one ring, nothing dropped", fontsize=13
+        "Every BpskReceiver probe, one ring, nothing dropped", fontsize=13
     )
     fig.supxlabel("time (ms)")
     fig.tight_layout()

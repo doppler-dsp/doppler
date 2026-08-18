@@ -432,6 +432,15 @@ mpsk_rx_derive_m_out (double cap, int strict)
     int32_t   id_nco;      /**< "<prefix>.car.nco"  — the SUM that
                                 actually drives the LO                */
     int32_t   id_locked;   /**< "<prefix>.car.locked" — lockdet flag   */
+    /* The recovered symbol itself, as two scalars. A telemetry record
+       carries one `float`, so a complex value cannot be one probe; pairing
+       them by the sample index the format already stamps is the only way to
+       put the OUTPUT in a capture beside the loop state that produced it.
+       Without these a filed capture shows every internal and not the thing
+       they exist to produce -- no constellation, and no EVM or error rate
+       recomputable from the evidence (doppler#846). */
+    int32_t id_sym_i; /**< "<prefix>.sym.i" — recovered symbol, real  */
+    int32_t id_sym_q; /**< "<prefix>.sym.q" — recovered symbol, imag  */
   } mpsk_rx_tlm_t;
 
   /**
@@ -801,7 +810,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
 
   /** @brief Emit the receiver's own probes plus the timing loop's.
    *  Out-of-line on purpose; callers gate on `l->tlm.ctx`. */
-  void mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l);
+  void mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float complex y);
 
   /** @brief Attach (or detach) telemetry across both loops; see
    *  mpsk_receiver_set_telemetry(), which forwards here. */

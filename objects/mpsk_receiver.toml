@@ -167,6 +167,25 @@ doc = "**0 (the default) derives it** -- see docs/design/mpsk.md §8.1; pass a v
 # the derived 0.4999) and stops being settable, which is the honest shape for
 # a number that no longer controls anything.
 [[mpsk_receiver.views]]
+class_name = "BpskReceiver"
+create_fn = "mpsk_receiver_create_bpsk"
+create_error = "ValueError"
+create_error_message = "BpskReceiver: sample_rate_hz and symbol_rate_hz must both be > 0, |carrier_freq_hz| must be under sample_rate_hz/2, and sample_rate_hz/symbol_rate_hz must leave at least the derived m_out samples per symbol"
+init_params = [
+  { name = "sample_rate_hz", type = "double", required = true, doc = "ADC sample rate, Hz. One of the two facts a caller reading a capture actually holds -- `sps` is `sample_rate_hz / symbol_rate_hz`, a ratio this library computes for its own use in selecting a cascade, and asking for it would make the caller derive an internal quantity." },
+  { name = "symbol_rate_hz", type = "double", required = true, doc = "Symbol rate, Hz. Must leave `sample_rate_hz / symbol_rate_hz` at or above the derived `m_out`; a rate that cannot be strobed is refused at construction rather than approximated." },
+  { name = "carrier_freq_hz", type = "double", default = "0.0", doc = "Carrier centre, Hz. 0 is complex baseband. Stated in Hz like everything else here: `MpskReceiver`'s `init_norm_freq` is cycles per SAMPLE, which is a unit a caller can only produce by holding `sps` and `fs` together, and that coupling is what this face removes." },
+  { name = "pulse", type = "string_enum:iandd,rrc", default = "iandd", doc = "Matched-filter shape. Same default as `MpskReceiver` deliberately: one default across both faces beats a face-specific guess at a link property." },
+  { name = "rrc_beta", type = "double", default = "0.35", doc = "RRC roll-off in `[0, 1]`. RRC only." },
+  { name = "rrc_span", type = "int", default = "8", doc = "RRC one-sided span in symbols. RRC only." },
+  { name = "bn_carrier", type = "double", default = "0.01", doc = "Carrier loop noise bandwidth, normalised to the SYMBOL rate. A design axis, and the one the acquisition bound `bn_carrier / m` is stated against." },
+  { name = "bn_timing", type = "double", default = "0.01", doc = "Symbol-timing loop noise bandwidth, normalised to the symbol rate. A design axis." },
+  { name = "acq_to_track", type = "int", default = "0", doc = "Hand the carrier over to a decision-directed discriminator once locked." },
+  { name = "differential", type = "int", default = "0", doc = "bits(): differential (rotation-invariant) demap. Left optional and coherent by default, matching `MpskReceiver` -- it changes what the output bits MEAN and is not derivable from the signal, so it is a link property a caller states rather than one this object guesses." },
+  { name = "agc", type = "int", default = "1", doc = "Front-end AGC. On by default: it levels the cascade so the timing detector's construct-time slope means what it says." },
+]
+
+[[mpsk_receiver.views]]
 class_name = "ContinuousMpskReceiver"
 create_fn = "mpsk_receiver_create_continuous"
 init_params = [

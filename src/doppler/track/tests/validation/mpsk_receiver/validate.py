@@ -1986,7 +1986,7 @@ def limits(R, d):
         "and a clobbered blob is rejected rather than reinterpreted",
     )
     R.limit(
-        li["nprobe"] == 14,
+        li["nprobe"] == 16,
         f"the receiver publishes {li['nprobe']} telemetry probes spanning "
         f"all three subsystems (`rx.car.*`, `rx.sync.*`, `rx.agc.*`)",
     )

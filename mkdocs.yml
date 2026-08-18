@@ -274,6 +274,7 @@ nav:
       - Reed-Solomon: design/reed-solomon.md
       - The FEC Receive Half: design/fec-receive.md
       - Receiver Test Harness: design/rx-test.md
+      - A Frame as a Description: design/frame-description.md
       - Corr2D Interpolated Inverse: design/corr2d-interpolated-inverse.md
       - Spectral & Measurement API Map: design/spectral-api-map.md
       - Waveform Amplitude & Composition: design/wfmgen-composition.md

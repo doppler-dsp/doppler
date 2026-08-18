@@ -40,6 +40,11 @@ instead.)
 - [Reed-Solomon](reed-solomon.md) — the outer code as a description: the two offsets a textbook omits (`j0 != 1`, and a root stride that is not 1), why Chien iterates positions rather than field elements, and what a refusal is not
 - [The FEC Receive Half](fec-receive.md) — the Viterbi, the node sync it needs first, and the lock detector's two error probabilities: why the code's transparency means polarity cannot be resolved by the decoder
 - [Soft Decisions for M-PSK](mpsk-soft.md) — LLRs from the constellation: the sign convention tied to the one decision rule, the closed forms BPSK and QPSK turn out to have, and what max-log costs at 8PSK
+- [A Frame as a Description](frame-description.md) — a frame as a list of
+    fields and a list of stages, each stage carrying the span it covers: why
+    a chain of optional transforms is the representation that cannot express
+    CCSDS, and why the standard is the first configuration rather than the
+    subject
 - [Receiver Test Harness](rx-test.md) — inventory of the stimulus, measurement and gate layers a receiver measurement rests on, and where they do not yet meet
 - [Corr2D Interpolated Inverse](corr2d-interpolated-inverse.md) — decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation
 - [Spectral & Measurement API Map](spectral-api-map.md) — module dependency graph

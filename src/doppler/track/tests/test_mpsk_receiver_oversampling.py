@@ -54,6 +54,7 @@ import numpy as np
 import pytest
 
 from ._mpsk_rx_harness import (
+    DEFAULT_M,
     clock_offset_inside_bw,
     demod,
     freq_offset_inside_bw,
@@ -96,10 +97,11 @@ _AWGN_NSYM = 12000
 def _measure(real, sps, m_out, bn, nsym, esn0_db=None):
     """One case, with BOTH loops given something to acquire.
 
-    Half the loop bandwidth on each: a carrier offset of `bn/2 * Rs` and a
-    sample-clock error of `bn/2`. Seeding the receiver exactly on truth would
-    leave both loops idle in their initial state, and every lock time and EVM
-    measured that way describes a receiver that never had to work.
+    Half of each loop's acquisition bound: a carrier offset of
+    `bn/(2*m) * Rs` -- the `m` because the discriminator is an M-th power --
+    and a sample-clock error of `bn/2`. Seeding the receiver exactly on truth
+    would leave both loops idle in their initial state, and every lock time
+    and EVM measured that way describes a receiver that never had to work.
     """
     x, idx = make_signal(sps, nsym, real=real, esn0_db=esn0_db)
     y, pr = demod(
@@ -109,7 +111,7 @@ def _measure(real, sps, m_out, bn, nsym, esn0_db=None):
         m_out=m_out,
         bn_timing=bn,
         bn_carrier=bn,
-        freq_offset=freq_offset_inside_bw(bn, sps),
+        freq_offset=freq_offset_inside_bw(bn, sps, DEFAULT_M),
         clock_offset=clock_offset_inside_bw(bn),
     )
     settle = settle_from(pr, floor=settle_floor(bn, bn))
@@ -229,7 +231,7 @@ def test_both_loops_lock_within_their_budget(
         m_out=m_out,
         bn_timing=bn,
         bn_carrier=bn,
-        freq_offset=freq_offset_inside_bw(bn, sps),
+        freq_offset=freq_offset_inside_bw(bn, sps, DEFAULT_M),
         clock_offset=clock_offset_inside_bw(bn),
     )
     budget = settle_floor(bn, bn)
@@ -312,7 +314,7 @@ def test_timing_nco_does_not_slip_at_any_ratio():
             m_out=m_out,
             bn_timing=bn,
             bn_carrier=bn,
-            freq_offset=freq_offset_inside_bw(bn, sps),
+            freq_offset=freq_offset_inside_bw(bn, sps, DEFAULT_M),
             clock_offset=clock_offset_inside_bw(bn),
         )
         mu = pr["sync.mu"]

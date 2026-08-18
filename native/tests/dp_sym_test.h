@@ -43,6 +43,13 @@
  * failure mode that once made a healthy eye read -17 dB. For where a settled
  * window may START, use dp_test_settle_syms() below rather than a fraction of
  * the record; a fraction is the other half of that same failure mode.
+ *
+ * And for what the loops are given to ACQUIRE in the first place, use
+ * dp_test_freq_offset_inside_bw() / dp_test_clock_offset_inside_bw(). A bare
+ * cycles-per-sample literal states an offset in units nothing checks: seeded
+ * on truth the loop never moves and the measurement is of nothing, seeded past
+ * the bound it is of the dice. Both are stated in units of the loop's own
+ * acquisition bound so the seed can be read against the rule.
  */
 #ifndef DP_SYM_TEST_H
 #define DP_SYM_TEST_H
@@ -227,6 +234,82 @@ static inline size_t
 dp_test_settle_syms (double bn_timing, double bn_carrier)
 {
   return ber_settle_syms (bn_timing, bn_carrier);
+}
+
+/**
+ * @brief A carrier offset guaranteed INSIDE the loop's acquisition bound,
+ * in cycles per SAMPLE.
+ *
+ * The only kind of offset a lock-time or BER assertion may seed. Seeded on
+ * truth the carrier loop never leaves its initial state, so anything the test
+ * then says about acquisition is void; seeded outside the bound the test
+ * measures which way the transient happened to push the integrator, so a pass
+ * means the dice fell well and a failure means nothing was broken.
+ *
+ * **The `m` is the part that was missing everywhere before this existed.**
+ * The NDA discriminator is an M-th power, so it sees `m` times the offset and
+ * the bound is `bn_carrier / m` cycles per SYMBOL, not `bn_carrier`
+ * (docs/design/mpsk-refactor.md section 4.4). A site that wrote
+ * `0.5 * bn / sps` was therefore seeding `u = 0.5 * m` — reading identically
+ * at every order while landing at 1.0 for BPSK and **4.0 for 8PSK**, which is
+ * exactly the measured reliable limit with no margin left.
+ *
+ * `frac` IS `u`, the offset in units of that bound, at every `m` and `sps`.
+ * **Tests are held to `0 < u <= 1`.**
+ *
+ * Measured 2026-08-17 (6 seeds per point; BPSK/QPSK/8PSK at sps 8, bn 0.01,
+ * 20 dB, 4000 symbols; acquired = locked AND the frequency estimate within
+ * 10% of truth): reliable to `u = 4` at every order, collapsing by `u = 6`.
+ * So `u = 1` carries a 4x margin, which is why it is the rule rather than the
+ * looser bound the same sweep would permit.
+ *
+ * Pull-in BEYOND the bound is a real property and worth measuring — as a
+ * characterization sweep with a reported success fraction (rx_nda_tap.c),
+ * never as a pass/fail assertion.
+ *
+ * The Python twin is `freq_offset_inside_bw()` in
+ * `src/doppler/track/tests/_mpsk_rx_harness.py`; keep them in step.
+ *
+ * @param bn_carrier  Carrier loop noise bandwidth, per symbol.
+ * @param sps         Input samples per symbol.
+ * @param m           Constellation order — the discriminator's power.
+ * @param frac        `u`: the offset in units of the bound. Use <= 1.0.
+ * @return            Carrier offset, cycles per sample.
+ */
+static inline double
+dp_test_freq_offset_inside_bw (double bn_carrier, double sps, int m,
+                               double frac)
+{
+  return frac * bn_carrier / ((double)m * sps);
+}
+
+/**
+ * @brief A fractional sample-clock error inside the timing loop's bandwidth,
+ * dimensionless.
+ *
+ * Applied by telling the receiver a nominal `sps` that differs from the
+ * stimulus by this fraction — what a free-running ADC clock looks like.
+ * `bn_timing` is symbol-rate normalised, so the offset is already in symbols
+ * per symbol and needs no `sps` scaling.
+ *
+ * **No `m` belongs here, and that was measured rather than assumed**: the
+ * timing discriminator is not an M-th power, so `frac` is already `u`. Same
+ * method and date as dp_test_freq_offset_inside_bw() — the timing loop is
+ * reliable to `u = 1.6` and collapses over 1.8-2.0. The shared `0 < u <= 1`
+ * rule therefore buys 1.6x here against 4x on the carrier, which is why the
+ * two bounds are stated separately instead of sharing one fraction.
+ *
+ * The Python twin is `clock_offset_inside_bw()` in
+ * `src/doppler/track/tests/_mpsk_rx_harness.py`; keep them in step.
+ *
+ * @param bn_timing  Timing loop noise bandwidth, per symbol.
+ * @param frac       `u`: the error in units of the bound. Use <= 1.0.
+ * @return           Fractional clock error, dimensionless.
+ */
+static inline double
+dp_test_clock_offset_inside_bw (double bn_timing, double frac)
+{
+  return frac * bn_timing;
 }
 
 #endif /* DP_SYM_TEST_H */

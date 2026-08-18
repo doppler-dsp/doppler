@@ -80,6 +80,16 @@ IF_FS4 = 0.25
 BN_TIMING = 0.01
 BN_CARRIER = 0.01
 
+#: The constellation order both `make_signal` and `demod` fall back to, named
+#: once so a caller can seed a carrier offset without restating it.
+#:
+#: `freq_offset_inside_bw` needs `m` -- the carrier discriminator is an M-th
+#: power, so the acquisition bound is `bn_carrier / m` -- and a call site that
+#: wrote its own `4` beside a `demod()` taking the default would go silently
+#: wrong the day either moved. Two literals for one fact is exactly the
+#: expressible-but-unstated shape the offset seeding rule exists to remove.
+DEFAULT_M = 4
+
 
 def settle_floor(bn_timing=BN_TIMING, bn_carrier=BN_CARRIER):
     """Symbols to allow for settling before any metric is meaningful.
@@ -151,7 +161,9 @@ def agc(x):
     return x if p <= 0.0 else x / np.sqrt(p)
 
 
-def make_signal(sps, nsym, *, real, m=4, fc=IF_FS4, esn0_db=None, seed=3):
+def make_signal(
+    sps, nsym, *, real, m=DEFAULT_M, fc=IF_FS4, esn0_db=None, seed=3
+):
     """One M-PSK stimulus, as either a real IF or complex baseband.
 
     **The waveform comes from the library generator, not from here.**
@@ -233,13 +245,39 @@ def evm_scatter_floor_db(m):
     return ber_evm_scatter_floor_db(m)
 
 
-def freq_offset_inside_bw(bn, sps, frac=0.5):
+def freq_offset_inside_bw(bn, sps, m, frac=0.5):
     """A carrier offset guaranteed INSIDE the loop bandwidth, in cycles/sample.
 
     This is the only kind of offset a lock-time assertion may use. `bn_carrier`
     is normalised to the SYMBOL rate, so a loop bandwidth of `bn` is `bn * Rs`,
-    which at `sps` samples per symbol is `bn / sps` cycles per sample. `frac`
-    scales inside that: 0.5 sits at half the loop bandwidth.
+    which at `sps` samples per symbol is `bn / sps` cycles per sample.
+
+    **`m` is not decoration, and leaving it out is what this function used to
+    get wrong.** The carrier discriminator is an M-th power, so it sees `m`
+    times the offset: the loop's acquisition bound is `bn / m` cycles per
+    SYMBOL, not `bn`. Without the `m` the returned offset carries a hidden
+    `u = frac * m`, which is why the same call was safe at BPSK and past the
+    cliff at 8PSK while reading identically at every order. `docs/design/
+    mpsk-refactor.md` §4.4 states the bound with the `m`; this helper now
+    agrees with it.
+
+    `frac` is therefore exactly `u`, the offset in units of the bound:
+    `frac = 1.0` seeds AT `bn_carrier / m` cycles per symbol, and the default
+    0.5 sits at half of it. **Tests are held to `0 < u <= 1`.**
+
+    Measured 2026-08-17 (6 seeds per point; BPSK/QPSK/8PSK at sps 8,
+    bn 0.01, 20 dB, 4000 symbols; acquired = `lock_time >= 0` and the
+    frequency estimate within 10% of truth):
+
+    ======  ==========================================
+    `u`     outcome
+    ======  ==========================================
+    <= 4    acquires reliably, every order
+    6       collapses
+    ======  ==========================================
+
+    So `u = 1` carries a **4x** margin to the measured cliff, which is why it
+    is the rule rather than the looser bounds the same sweep would allow.
 
     Testing OUTSIDE the loop bandwidth is a coin flip -- acquisition beyond
     `Bn`
@@ -250,7 +288,7 @@ def freq_offset_inside_bw(bn, sps, frac=0.5):
     characterisation sweep with a reported success fraction, never as a
     pass/fail assertion.
     """
-    return frac * bn / sps
+    return frac * bn / (m * sps)
 
 
 def clock_offset_inside_bw(bn, frac=0.5):
@@ -260,6 +298,14 @@ def clock_offset_inside_bw(bn, frac=0.5):
     stimulus by this fraction, which is exactly what a free-running ADC clock
     looks like. `bn_timing` is also symbol-rate normalised, so the offset is
     dimensionless in symbols per symbol and needs no `sps` scaling.
+
+    **This one is correct as written, and was measured rather than assumed**
+    -- the timing discriminator is not an M-th power, so no `m` belongs here
+    and `frac` is already `u`. Same method as `freq_offset_inside_bw`, same
+    date: the timing loop acquires reliably to `u = 1.6` and collapses over
+    1.8-2.0. The `0 < u <= 1` rule therefore carries 1.6x here rather than 4x,
+    which is the reason the two bounds are stated separately instead of one
+    shared fraction.
     """
     return frac * bn
 
@@ -270,7 +316,7 @@ def demod(
     real,
     sps,
     m_out,
-    m=4,
+    m=DEFAULT_M,
     fc=IF_FS4,
     bn_timing=BN_TIMING,
     bn_carrier=BN_CARRIER,

@@ -466,10 +466,15 @@ main (void)
      17.33389 is the header's own example, used deliberately. */
   {
     const double sps_odd = 17.33389;
-    size_t       nsym    = (size_t)((double)NSAMP / sps_odd) - 4;
-    size_t n = make_mpsk_sps (tx, idx, 4, sps_odd, nsym, 0.0005, 30.0, 77u);
+    const double bn      = 0.01;
+    /* Seeded at the bound, not past it: 0.0005 cyc/sample stood here, which
+       at this sps is u = 3.5 -- inside the region where acquisition is a coin
+       flip, so the irrational-rate claim was riding on the dice. */
+    const double foff = dp_test_freq_offset_inside_bw (bn, sps_odd, 4, 1.0);
+    size_t       nsym = (size_t)((double)NSAMP / sps_odd) - 4;
+    size_t n = make_mpsk_sps (tx, idx, 4, sps_odd, nsym, foff, 30.0, 77u);
     mpsk_receiver_state_t *rx
-        = RX (4, sps_odd, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0);
+        = RX (4, sps_odd, M_OUT, MPSK_RX_PULSE_IANDD, bn, 0, 0.5, 0.0);
     DP_CHECK (rx != NULL);
     if (rx)
       {
@@ -524,23 +529,34 @@ main (void)
 
   /* 2. Lock + recover under a carrier offset (I&D), every M -> SER 0 */
   {
-    int    ms[3] = { 2, 4, 8 };
-    double fs[2] = { 0.0, 0.001 };
+    int          ms[3] = { 2, 4, 8 };
+    const double bn    = 0.005;
     for (int mi = 0; mi < 3; mi++)
       for (int fi = 0; fi < 2; fi++)
         {
           int m = ms[mi];
+          /* The offset case is seeded at the bound and the receiver is NOT
+             told it -- `init_norm_freq` stays 0 in both cases. It used to be
+             `fs[fi]`, i.e. the answer, so the loop started on truth and never
+             left its initial state: the "under a carrier offset" half of this
+             case measured nothing about the carrier loop at either value.
+             The bound carries the `m` because the discriminator is an M-th
+             power, so the same cycles/sample literal is a different question
+             at each order -- the old 0.001 was u = 3.2 at BPSK and u = 12.8
+             at 8PSK, both past the measured collapse. */
+          double fs[2]
+              = { 0.0, dp_test_freq_offset_inside_bw (bn, SPS, m, 1.0) };
           /* 8PSK hands the carrier over to the decision-directed loop; the
              other orders stay in NDA the whole way. Its decision margin is
              only +-pi/8, so the M-th-power discriminator's own phase jitter
              is the dominant error term -- the same call the BER validation
              (mpsk_receiver_ber.c) and the Python suite both make. */
-          mpsk_receiver_state_t *rx = RX (m, SPS, M_OUT, MPSK_RX_PULSE_IANDD,
-                                          0.005, m == 8, 0.3, fs[fi]);
+          mpsk_receiver_state_t *rx
+              = RX (m, SPS, M_OUT, MPSK_RX_PULSE_IANDD, bn, m == 8, 0.3, 0.0);
           make_mpsk (tx, idx, m, fs[fi], 30.0, 7u + (uint32_t)(mi * 4 + fi));
           size_t k   = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
           double ser = tail_ser (out, k, idx, m, phi0_for (m),
-                                 dp_test_settle_syms (0.01, 0.005));
+                                 dp_test_settle_syms (0.01, bn));
           DP_CHECK (ser < 0.01); /* clean recovery       */
           /* The lock EMA's noise-only sd is CARRIER_NDA_LOCK_NORM_SD (0.1132)
              at EVERY m, so a threshold is meaningfully stated in sigmas. The
@@ -569,12 +585,15 @@ main (void)
 
   /* 4. acq_to_track flips NDA acquisition -> decision-directed tracking */
   {
-    /* bn_carrier 0.01, not 0.005: this case seeds the LO at 0 and makes the
-       loop ACQUIRE 0.0005 cyc/sample (0.004*Rs), and carrier pull-in range
-       scales with the loop bandwidth. At 0.005 the loop reaches the right
-       frequency but slips -- lock still reads a healthy +0.64 while EVM sits
-       at -8.1 dB against the -18.3 dB the wider loops give, which is exactly
-       why a lock statistic is never read on its own here. */
+    /* This case seeds the LO at 0 and makes the loop ACQUIRE. The offset is
+       stated in units of the bound rather than as a cycles/sample literal:
+       the 0.0005 that stood here was u = 1.6, and the note that used to sit
+       in this comment -- that halving bn_carrier to 0.005 made the loop reach
+       the right frequency and then SLIP, at a healthy +0.64 lock against
+       -8.1 dB EVM -- is that same seed at u = 3.2. The lesson survives its
+       cause: a lock statistic is never read on its own here. */
+    const double bn   = 0.01;
+    const double foff = dp_test_freq_offset_inside_bw (bn, SPS, 4, 1.0);
     mpsk_receiver_state_t *rx
         /* 0.65, not the 0.4 this used before the lock statistic was
            normalised: the statistic now reads ~1.0 at lock for EVERY M
@@ -583,12 +602,12 @@ main (void)
            would now mean 40% of it. Rescaling here keeps this test at the
            same OPERATING POINT so it still measures the handover rather
            than the units change. */
-        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 1, 0.65, 0.0);
-    make_mpsk (tx, idx, 4, 0.0005, 30.0, 33u);
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, bn, 1, 0.65, 0.0);
+    make_mpsk (tx, idx, 4, foff, 30.0, 33u);
     size_t k = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
     DP_CHECK (mpsk_receiver_get_tracking (rx) == 1); /* handed over */
     double ser = tail_ser (out, k, idx, 4, phi0_for (4),
-                           dp_test_settle_syms (0.01, 0.01));
+                           dp_test_settle_syms (0.01, bn));
     DP_CHECK (ser < 0.01);
 
     /* two-way: a sustained lock loss (noise-dominated input collapses the
@@ -600,11 +619,11 @@ main (void)
        acquisition's job, so the test does what a real receiver does on a
        drop-back: re-seed the carrier from the (still valid) acquisition
        estimate before the signal returns. */
-    make_mpsk (tx, idx, 4, 0.0005, -10.0, 44u);
+    make_mpsk (tx, idx, 4, foff, -10.0, 44u);
     (void)mpsk_receiver_steps (rx, tx, (NSAMP / 10), out, NSYM);
     DP_CHECK (mpsk_receiver_get_tracking (rx) == 0); /* dropped back */
-    mpsk_receiver_set_norm_freq (rx, 0.0005);        /* acq re-seed */
-    make_mpsk (tx, idx, 4, 0.0005, 30.0, 45u);
+    mpsk_receiver_set_norm_freq (rx, foff);          /* acq re-seed */
+    make_mpsk (tx, idx, 4, foff, 30.0, 45u);
     (void)mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
     DP_CHECK (mpsk_receiver_get_tracking (rx) == 1); /* re-declared */
     mpsk_receiver_destroy (rx);
@@ -638,9 +657,10 @@ main (void)
      inherits -- so the measurement has to straddle the transition, not
      bracket it at block boundaries. */
   {
-    const double           foff = 0.0005;
+    const double bn   = 0.01;
+    const double foff = dp_test_freq_offset_inside_bw (bn, SPS, 4, 1.0);
     mpsk_receiver_state_t *rx
-        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 1, 0.65, 0.0);
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, bn, 1, 0.65, 0.0);
     make_mpsk (tx, idx, 4, foff, 30.0, 33u);
 
     /* --- forward: acquisition -> tracking --------------------------------
@@ -1087,12 +1107,14 @@ main (void)
        a caller depends on, and it is what a count wired to nothing would
        fail. */
     {
-      make_mpsk (ftx, fid, 4, 0.0005, 30.0, 72u);
+      const double bn = 0.01;
+      make_mpsk (ftx, fid, 4, dp_test_freq_offset_inside_bw (bn, SPS, 4, 1.0),
+                 30.0, 72u);
       int64_t t_short = 0, t_long = 0;
       for (int pass = 0; pass < 2; pass++)
         {
           mpsk_receiver_state_t *rx
-              = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 1, 0.65, 0.0);
+              = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, bn, 1, 0.65, 0.0);
           /* Same thresholds both passes; only n_up moves. */
           mpsk_receiver_configure_lock (rx, 0.65, 0.52, pass ? 64u : 2u, 32u);
           float complex y;
@@ -1142,16 +1164,19 @@ main (void)
        the claim (955 symbols at sps = 4 against 51 at 16, in an earlier
        attempt through `lock_time`). */
     {
-      const double CYC_PER_SYM = 0.004; /* the offset, in cycles per SYMBOL */
-      const double BN          = 0.01;
-      double       settle_sym[3];
-      size_t       ns = 0;
+      const double BN = 0.01;
+      /* The offset is held constant in cycles per SYMBOL across the sweep --
+         which is what the helper gives, since `bn/(m*sps)` cycles per SAMPLE
+         IS `bn/m` per symbol at every rate. It used to be a literal 0.004
+         cyc/sym, i.e. u = 1.6 once the M-th power is counted. */
+      double settle_sym[3];
+      size_t ns = 0;
       for (double sps = 8.0; sps <= 32.0; sps *= 2.0, ns++)
         {
-          float complex *vtx  = malloc (NSAMP * sizeof (*vtx));
-          int           *vid  = malloc (NSYM * sizeof (int));
-          double         foff = CYC_PER_SYM / sps;
-          size_t         nsym = (size_t)((double)NSAMP / sps) - 4;
+          float complex *vtx = malloc (NSAMP * sizeof (*vtx));
+          int           *vid = malloc (NSYM * sizeof (int));
+          double foff        = dp_test_freq_offset_inside_bw (BN, sps, 4, 1.0);
+          size_t nsym        = (size_t)((double)NSAMP / sps) - 4;
           size_t n = make_mpsk_sps (vtx, vid, 4, sps, nsym, foff, 30.0, 81u);
           mpsk_receiver_state_t *rx
               = RX (4, sps, M_OUT, MPSK_RX_PULSE_IANDD, BN, 0, 0.5, 0.0);
@@ -1462,13 +1487,19 @@ main (void)
              default so the declare is unambiguous, and matching the complex
              face's handover case so the two measure the same operating
              point. */
+          const double           RBN = 0.01;
           mpsk_receiver_state_t *rx
-              = RXR (4, RSPS, RM_OUT, 0, 0.01, 1, 0.65, RFC);
+              = RXR (4, RSPS, RM_OUT, 0, RBN, 1, 0.65, RFC);
           DP_CHECK (rx != NULL);
           if (rx)
             {
-              make_mpsk_real (rtx, rid, 4, RSPS, NSYM, RFC + 0.0005, 30.0, 33u,
-                              phi0_for (4));
+              /* RFC + the bound, not RFC + 0.0005: at RSPS = 16 that literal
+                 was u = 3.2, so the real face's handover case was seeded
+                 past the point where acquisition is repeatable. */
+              make_mpsk_real (
+                  rtx, rid, 4, RSPS, NSYM,
+                  RFC + dp_test_freq_offset_inside_bw (RBN, RSPS, 4, 1.0),
+                  30.0, 33u, phi0_for (4));
               size_t k = mpsk_receiver_steps_real (rx, rtx, RNSAMP, rou, NSYM);
               DP_CHECK (mpsk_receiver_get_tracking (rx) == 1);
               double ser = tail_ser (rou, k, rid, 4, phi0_for (4),

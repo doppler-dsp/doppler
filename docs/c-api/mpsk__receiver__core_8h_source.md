@@ -162,6 +162,15 @@ extern "C"
 
   double mpsk_receiver_get_lock_thresh (const mpsk_receiver_state_t *state);
 
+  double
+  mpsk_receiver_get_lock_drop_thresh (const mpsk_receiver_state_t *state);
+
+  double
+  mpsk_receiver_get_sync_lock_thresh (const mpsk_receiver_state_t *state);
+
+  double
+  mpsk_receiver_get_sync_lock_drop_thresh (const mpsk_receiver_state_t *state);
+
   size_t mpsk_receiver_get_num_phases (const mpsk_receiver_state_t *state);
 
   int mpsk_receiver_get_clipped (const mpsk_receiver_state_t *state);

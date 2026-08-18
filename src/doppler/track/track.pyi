@@ -3514,6 +3514,35 @@ class MpskReceiver:
         """
 
     @property
+    def lock_drop_thresh(self) -> float:
+        """Carrier DROP threshold actually in use -- 0.8x `lock_thresh`, the
+        level hysteresis the declare/drop pair is stated with. Exposed for the
+        same reason as the declare side: anything reading `lock` against its
+        decision needs BOTH edges, and computing `0.8 *` at the call site is a
+        second copy of a rule this object owns. Both carrier detectors are
+        initialised from this pair, so one number describes them both.
+        """
+
+    @property
+    def sync_lock_thresh(self) -> float:
+        """Timing DECLARE threshold on the `sync.lock` statistic. Not the
+        carrier's number and not derived the same way: symsync sizes its block
+        length and threshold together from (rolloff, esno_min, pfa, pd), so
+        this reads back that geometry's answer. A caller plotting `sync.lock`
+        needs this rather than `lock_thresh`, which belongs to a different
+        statistic on a different clock.
+        """
+
+    @property
+    def sync_lock_drop_thresh(self) -> float:
+        """Timing DROP threshold on `sync.lock`. Equal to `sync_lock_thresh`
+        when the timing loop carries no level hysteresis (up = down =
+        threshold, the symsync default), so the two reading the same is
+        information, not a bug -- the timing decision's hysteresis is in its
+        verify COUNTS rather than its levels.
+        """
+
+    @property
     def bn_agc_ratio(self) -> float:
         """AGC bandwidth as a fraction of the slowest loop it feeds, actually
         in use. Reads back the DERIVED 0.05 when the constructor was given 0.
@@ -4086,6 +4115,35 @@ class BpskReceiver:
         """Handover declare threshold actually in use. Reads back the DERIVED
         `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the constructor was
         given 0. See `zeta` for why every derived value is reported.
+        """
+
+    @property
+    def lock_drop_thresh(self) -> float:
+        """Carrier DROP threshold actually in use -- 0.8x `lock_thresh`, the
+        level hysteresis the declare/drop pair is stated with. Exposed for the
+        same reason as the declare side: anything reading `lock` against its
+        decision needs BOTH edges, and computing `0.8 *` at the call site is a
+        second copy of a rule this object owns. Both carrier detectors are
+        initialised from this pair, so one number describes them both.
+        """
+
+    @property
+    def sync_lock_thresh(self) -> float:
+        """Timing DECLARE threshold on the `sync.lock` statistic. Not the
+        carrier's number and not derived the same way: symsync sizes its block
+        length and threshold together from (rolloff, esno_min, pfa, pd), so
+        this reads back that geometry's answer. A caller plotting `sync.lock`
+        needs this rather than `lock_thresh`, which belongs to a different
+        statistic on a different clock.
+        """
+
+    @property
+    def sync_lock_drop_thresh(self) -> float:
+        """Timing DROP threshold on `sync.lock`. Equal to `sync_lock_thresh`
+        when the timing loop carries no level hysteresis (up = down =
+        threshold, the symsync default), so the two reading the same is
+        information, not a bug -- the timing decision's hysteresis is in its
+        verify COUNTS rather than its levels.
         """
 
     @property
@@ -4665,6 +4723,35 @@ class ContinuousMpskReceiver:
         """Handover declare threshold actually in use. Reads back the DERIVED
         `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the constructor was
         given 0. See `zeta` for why every derived value is reported.
+        """
+
+    @property
+    def lock_drop_thresh(self) -> float:
+        """Carrier DROP threshold actually in use -- 0.8x `lock_thresh`, the
+        level hysteresis the declare/drop pair is stated with. Exposed for the
+        same reason as the declare side: anything reading `lock` against its
+        decision needs BOTH edges, and computing `0.8 *` at the call site is a
+        second copy of a rule this object owns. Both carrier detectors are
+        initialised from this pair, so one number describes them both.
+        """
+
+    @property
+    def sync_lock_thresh(self) -> float:
+        """Timing DECLARE threshold on the `sync.lock` statistic. Not the
+        carrier's number and not derived the same way: symsync sizes its block
+        length and threshold together from (rolloff, esno_min, pfa, pd), so
+        this reads back that geometry's answer. A caller plotting `sync.lock`
+        needs this rather than `lock_thresh`, which belongs to a different
+        statistic on a different clock.
+        """
+
+    @property
+    def sync_lock_drop_thresh(self) -> float:
+        """Timing DROP threshold on `sync.lock`. Equal to `sync_lock_thresh`
+        when the timing loop carries no level hysteresis (up = down =
+        threshold, the symsync default), so the two reading the same is
+        information, not a bug -- the timing decision's hysteresis is in its
+        verify COUNTS rather than its levels.
         """
 
     @property
@@ -5376,6 +5463,35 @@ class MpskReceiverR:
         """Handover declare threshold actually in use. Reads back the DERIVED
         `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the constructor was
         given 0. See `zeta` for why every derived value is reported.
+        """
+
+    @property
+    def lock_drop_thresh(self) -> float:
+        """Carrier DROP threshold actually in use -- 0.8x `lock_thresh`, the
+        level hysteresis the declare/drop pair is stated with. Exposed for the
+        same reason as the declare side: anything reading `lock` against its
+        decision needs BOTH edges, and computing `0.8 *` at the call site is a
+        second copy of a rule this object owns. Both carrier detectors are
+        initialised from this pair, so one number describes them both.
+        """
+
+    @property
+    def sync_lock_thresh(self) -> float:
+        """Timing DECLARE threshold on the `sync.lock` statistic. Not the
+        carrier's number and not derived the same way: symsync sizes its block
+        length and threshold together from (rolloff, esno_min, pfa, pd), so
+        this reads back that geometry's answer. A caller plotting `sync.lock`
+        needs this rather than `lock_thresh`, which belongs to a different
+        statistic on a different clock.
+        """
+
+    @property
+    def sync_lock_drop_thresh(self) -> float:
+        """Timing DROP threshold on `sync.lock`. Equal to `sync_lock_thresh`
+        when the timing loop carries no level hysteresis (up = down =
+        threshold, the symsync default), so the two reading the same is
+        information, not a bug -- the timing decision's hysteresis is in its
+        verify COUNTS rather than its levels.
         """
 
     @property

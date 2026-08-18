@@ -95,6 +95,7 @@ _Pulse-shaped M-PSK receiver: a tuned matched front end and two loops._ [More...
 |  int | [**mpsk\_receiver\_get\_clipped**](#function-mpsk_receiver_get_clipped) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to +-1.0 and clips silently past that, which costs ~25 dB of EVM behind a perfectly healthy lock._  |
 |  double | [**mpsk\_receiver\_get\_last\_error**](#function-mpsk_receiver_get_last_error) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Carrier loop phase discriminator (rad) — the residual phase the loop is trying to null; loop stress._  |
 |  double | [**mpsk\_receiver\_get\_lock**](#function-mpsk_receiver_get_lock) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
+|  double | [**mpsk\_receiver\_get\_lock\_drop\_thresh**](#function-mpsk_receiver_get_lock_drop_thresh) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Carrier DROP threshold in use —_ `MPSK_RX_HANDOVER_DOWN` _x the declare threshold, the level hysteresis the pair is stated with._ |
 |  double | [**mpsk\_receiver\_get\_lock\_thresh**](#function-mpsk_receiver_get_lock_thresh) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Handover lock threshold in use — derived unless pinned (§8.1)._  |
 |  int64\_t | [**mpsk\_receiver\_get\_lock\_time**](#function-mpsk_receiver_get_lock_time) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Symbols from reset to the FIRST carrier-lock declaration, or -1 if the receiver has not locked yet._  |
 |  int | [**mpsk\_receiver\_get\_locked**](#function-mpsk_receiver_get_locked) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Binary carrier-lock flag from the loop's hysteretic (up/down verify-counted) lock detector — de-chattered, unlike the raw metric._  |
@@ -105,6 +106,8 @@ _Pulse-shaped M-PSK receiver: a tuned matched front end and two loops._ [More...
 |  size\_t | [**mpsk\_receiver\_get\_num\_phases**](#function-mpsk_receiver_get_num_phases) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Matched-filter bank arms in use — derived unless pinned (§8.1)._  |
 |  double | [**mpsk\_receiver\_get\_sps**](#function-mpsk_receiver_get_sps) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 |  void | [**mpsk\_receiver\_get\_state**](#function-mpsk_receiver_get_state) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, void \* blob) <br> |
+|  double | [**mpsk\_receiver\_get\_sync\_lock\_drop\_thresh**](#function-mpsk_receiver_get_sync_lock_drop_thresh) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Timing DROP threshold on_ `sync.lock` _. Equal to the declare threshold when the timing loop carries no level hysteresis._ |
+|  double | [**mpsk\_receiver\_get\_sync\_lock\_thresh**](#function-mpsk_receiver_get_sync_lock_thresh) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Timing DECLARE threshold on_ `sync.lock` _, derived by symsync's own (rolloff, esno\_min, pfa, pd) geometry rather than pinned._ |
 |  double | [**mpsk\_receiver\_get\_timing\_rate**](#function-mpsk_receiver_get_timing_rate) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Smoothed tracked samples per symbol — departs from the nominal_ `sps` _by exactly the sample-clock offset the timing loop is tracking._ |
 |  int | [**mpsk\_receiver\_get\_tracking**](#function-mpsk_receiver_get_tracking) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 |  double | [**mpsk\_receiver\_get\_zeta**](#function-mpsk_receiver_get_zeta) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Loop damping in use — derived_ `1/sqrt(2)` _unless pinned (§8.1)._ |
@@ -934,6 +937,26 @@ double mpsk_receiver_get_lock (
 
 
 
+### function mpsk\_receiver\_get\_lock\_drop\_thresh 
+
+_Carrier DROP threshold in use —_ `MPSK_RX_HANDOVER_DOWN` _x the declare threshold, the level hysteresis the pair is stated with._
+```C++
+double mpsk_receiver_get_lock_drop_thresh (
+    const mpsk_receiver_state_t * state
+) 
+```
+
+
+
+Readable for the same reason the declare side is: a caller plotting the lock statistic needs both edges to know what the decision was reading, and deriving `0.8 *` in a plotting script puts a second copy of the hysteresis rule outside the object that owns it. 
+
+
+        
+
+<hr>
+
+
+
 ### function mpsk\_receiver\_get\_lock\_thresh 
 
 _Handover lock threshold in use — derived unless pinned (§8.1)._ 
@@ -1090,6 +1113,38 @@ double mpsk_receiver_get_sps (
 void mpsk_receiver_get_state (
     const mpsk_receiver_state_t * state,
     void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function mpsk\_receiver\_get\_sync\_lock\_drop\_thresh 
+
+_Timing DROP threshold on_ `sync.lock` _. Equal to the declare threshold when the timing loop carries no level hysteresis._
+```C++
+double mpsk_receiver_get_sync_lock_drop_thresh (
+    const mpsk_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function mpsk\_receiver\_get\_sync\_lock\_thresh 
+
+_Timing DECLARE threshold on_ `sync.lock` _, derived by symsync's own (rolloff, esno\_min, pfa, pd) geometry rather than pinned._
+```C++
+double mpsk_receiver_get_sync_lock_thresh (
+    const mpsk_receiver_state_t * state
 ) 
 ```
 

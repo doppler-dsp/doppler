@@ -2433,6 +2433,13 @@ values = ["galois", "fibonacci"]
 name = "wfm_seq_kind"
 values = ["literal", "pn", "gold", "dotted"]
 
+# What a frame stage does to the fields it covers. Order IS wfm_stage_kind_t
+# (native/inc/wfm/wfm_frame.h); the C enum stays the SSOT and this names its
+# indices for the Python face.
+[[enum]]
+name = "wfm_stage_kind"
+values = ["crc16", "rs", "randomise", "conv"]
+
 [[enum]]
 name = "bitmod"
 values = ["none", "bpsk", "qpsk"]

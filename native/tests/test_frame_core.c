@@ -23,6 +23,8 @@
 #include "frame/frame_core.h"
 #include "wfm/wfm_frame.h"
 
+#include "ccsds_tm/ccsds_tm_frame.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,6 +45,18 @@ lit_frame (const uint8_t *pre, size_t n_pre, size_t reps, const uint8_t *sync,
   return frame_create (0, pre, n_pre, 0, reps, 0, 0, 0, 0, 0, 0, 0, 0, 0, sync,
                        n_sync, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, pay, n_pay, 0, 0,
                        0, 0, 0, 0, 0, 0, 0, crc);
+}
+
+/* An empty description: the same thirty-eight arguments `Frame` takes, with
+   every field left empty. `FrameDesc`'s flavor is that it stops before
+   materialising, so "nothing yet" is a legal starting point here and a
+   refusal in the other constructor. */
+static frame_state_t *
+empty_desc (void)
+{
+  return frame_create_desc (0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0);
 }
 
 int
@@ -211,7 +225,147 @@ main (void)
 
   frame_destroy (NULL); /* NULL is a no-op, as the header says */
 
-  printf ("test_frame_core: OK (descriptor parity, ownership, refusals, "
-          "repeats, generated kinds)\n");
-  return 0;
+  /* ── the builder: the same object, described field by field ──────────
+   *
+   * frame_create() takes the four fields wfm_frame_t names. This takes one
+   * field at a time, and the two must produce the SAME frame where both can
+   * express it -- otherwise there are two descriptors again, which is what
+   * the generalization exists to end.
+   */
+  {
+    frame_state_t *b = empty_desc ();
+    DP_REQUIRE_MSG (b != NULL, "an empty description allocates");
+    DP_CHECK_MSG (frame_n_fields (b) == 0 && frame_n_stages (b) == 0,
+                  "...and starts with nothing in it");
+
+    DP_CHECK (
+        frame_add_field (b, SYNC, 13, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        == 0);
+    DP_CHECK (
+        frame_add_field (b, PAY, 16, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        == 1);
+    /* The trailer: derived by stage 0, hence `derived_by = 0 + 1`. */
+    DP_CHECK (frame_add_field (b, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+                               WFM_FRAME_CRC_BITS)
+              == 2);
+    DP_CHECK (frame_add_stage (b, WFM_STAGE_CRC16, 1, 2, 0, 0, 0) == 0);
+    DP_REQUIRE_MSG (frame_build (b) == 0, "the description builds");
+
+    DP_CHECK_MSG (b->nbits == 13 + 16 + 16, "13 + 16 + 16");
+    DP_CHECK_MSG (frame_field_off (b, 1) == 13
+                      && frame_field_bits (b, 1) == 16,
+                  "the payload lands behind the sync word");
+    DP_CHECK_MSG (frame_stage_first (b, 0) == 13
+                      && frame_stage_bits (b, 0) == 32,
+                  "the CRC stage covers the payload AND its own trailer");
+
+    /* The configured path, same frame, and the bits must agree. */
+    frame_state_t *c = frame_create (0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                     0, SYNC, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                     PAY, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
+    DP_REQUIRE (c != NULL && c->nbits == b->nbits);
+    uint8_t *bb = malloc (b->nbits);
+    uint8_t *cb = malloc (c->nbits);
+    DP_REQUIRE (bb && cb);
+    DP_REQUIRE (frame_bits (b, 1, bb, b->nbits) == b->nbits);
+    DP_REQUIRE (frame_bits (c, 1, cb, c->nbits) == c->nbits);
+    DP_CHECK_MSG (memcmp (bb, cb, b->nbits) == 0,
+                  "described and configured must be the SAME frame");
+    DP_CHECK_MSG (frame_crc_ok (b, bb, b->nbits) == 1,
+                  "a described frame is its own truth, like a configured one");
+
+    /* The named view belongs to the configured path alone: a described frame
+       has no field called "payload", and saying so beats inventing offsets
+       for fields that do not exist. */
+    DP_CHECK_MSG (frame_layout (b).total_bits == 0,
+                  "layout()'s NAMED view is empty for a described frame");
+    DP_CHECK_MSG (frame_layout (c).total_bits == c->nbits,
+                  "...and populated for a configured one");
+
+    /* A description is closed once built. */
+    DP_CHECK (
+        frame_add_field (b, PAY, 16, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        == -1);
+    DP_CHECK (frame_add_stage (b, WFM_STAGE_CRC16, 0, 1, 0, 0, 0) == -1);
+    DP_CHECK_MSG (frame_build (b) == -1, "and cannot be built twice");
+
+    free (bb);
+    free (cb);
+    frame_destroy (b);
+    frame_destroy (c);
+
+    /* An empty description is not a frame. */
+    frame_state_t *e = empty_desc ();
+    DP_REQUIRE (e != NULL);
+    DP_CHECK_MSG (frame_build (e) == -1, "an empty description cannot build");
+    frame_destroy (e);
+  }
+
+  /* ── a CCSDS CADU, described from Python's side of the ABI ───────────
+   *
+   * The point of the whole exercise. `ccsds_tm` has no Python binding and is
+   * not getting one, so this object is the only place a caller can reach the
+   * outer code, the randomiser and the inner code -- and it reaches them by
+   * DESCRIBING a frame, not by a CCSDS entry point being added here.
+   *
+   * Checked against ccsds_tm_frame_encode byte for byte rather than against
+   * itself, which is this slice's rule: the shipped encoder is already
+   * falsified against the values 131.0-B-3 prints, so equalling it inherits
+   * all of that, and agreeing only with itself would prove nothing.
+   */
+  {
+    enum
+    {
+      DEPTH = 2
+    };
+    const size_t   octets = (size_t)CCSDS_TM_RS_K * DEPTH;
+    static uint8_t frame[CCSDS_TM_RS_K * DEPTH];
+    static uint8_t fbits[CCSDS_TM_RS_K * DEPTH * 8];
+    static uint8_t want[(32 + CCSDS_TM_RS_N * DEPTH * 8) * 2];
+    for (size_t i = 0; i < octets; i++)
+      frame[i] = (uint8_t)(i * 29u + 5u);
+    for (size_t i = 0; i < octets; i++)
+      for (unsigned k = 0; k < 8u; k++)
+        fbits[i * 8u + k] = (uint8_t)((frame[i] >> (7u - k)) & 1u);
+
+    const ccsds_tm_frame_cfg_t cfg = {
+      .rs_depth = DEPTH, .randomise = 1, .attach_asm = 1, .convolutional = 1
+    };
+    const size_t n
+        = ccsds_tm_frame_encode (&cfg, NULL, frame, octets, want, sizeof want);
+    DP_REQUIRE (n != 0);
+
+    uint8_t asm_bits[CCSDS_TM_ASM_BITS];
+    ccsds_tm_asm_bits (asm_bits);
+
+    frame_state_t *b = empty_desc ();
+    DP_REQUIRE (b != NULL);
+    /* [ ASM | Transfer Frame | R-S check symbols ] */
+    DP_CHECK (frame_add_field (b, asm_bits, CCSDS_TM_ASM_BITS, 0, 0, 1, 0, 0,
+                               0, 0, 0, 0, 0, 0, 0, 0)
+              == 0);
+    DP_CHECK (frame_add_field (b, fbits, octets * 8u, 0, 0, 1, 0, 0, 0, 0, 0,
+                               0, 0, 0, 0, 0)
+              == 1);
+    DP_CHECK (frame_add_field (b, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+                               (size_t)CCSDS_TM_RS_2E * DEPTH * 8u)
+              == 2);
+    /* The three covers ARE the coverage table: the outer code and the
+       randomiser start behind the marker, the inner code does not. */
+    DP_CHECK (frame_add_stage (b, WFM_STAGE_RS, 1, 2, DEPTH, 0, 0) == 0);
+    DP_CHECK (frame_add_stage (b, WFM_STAGE_RANDOMISE, 1, 2, 0, 0, 0) == 1);
+    DP_CHECK (frame_add_stage (b, WFM_STAGE_CONV, 0, 3, 0, 2, 1) == 2);
+    DP_REQUIRE_MSG (frame_build (b) == 0, "a CADU builds from a description");
+
+    DP_CHECK_MSG (b->nbits == n, "the CADU is the length the encoder says");
+    uint8_t *got = malloc (b->nbits);
+    DP_REQUIRE (got && frame_bits (b, 1, got, b->nbits) == b->nbits);
+    DP_CHECK_MSG (memcmp (got, want, n) == 0,
+                  "...and the SAME bits as ccsds_tm_frame_encode, byte for "
+                  "byte");
+    free (got);
+    frame_destroy (b);
+  }
+
+  DP_TEST_END ("frame_core");
 }

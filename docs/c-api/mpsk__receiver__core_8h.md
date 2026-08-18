@@ -86,6 +86,7 @@ _Pulse-shaped M-PSK receiver: a tuned matched front end and two loops._ [More...
 |  size\_t | [**mpsk\_receiver\_bits\_real\_max\_out**](#function-mpsk_receiver_bits_real_max_out) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 |  void | [**mpsk\_receiver\_configure\_lock**](#function-mpsk_receiver_configure_lock) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the acquisition&lt;-&gt;tracking handover detector directly._  |
 |  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create**](#function-mpsk_receiver_create) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, int differential, size\_t num\_phases, int nda\_tap, int agc, double bn\_agc\_ratio) <br>_Create an M-PSK receiver._  |
+|  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create\_bpsk**](#function-mpsk_receiver_create_bpsk) (double sample\_rate\_hz, double symbol\_rate\_hz, double carrier\_freq\_hz, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double bn\_timing, int acq\_to\_track, int differential, int agc) <br>_A BPSK receiver stated in the units a caller actually holds: Hz._  |
 |  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create\_continuous**](#function-mpsk_receiver_create_continuous) (int m, double sps, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double bn\_timing, double init\_norm\_freq, int differential) <br>_The continuous flavor: one discriminator, and nothing waits._  |
 |  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create\_real**](#function-mpsk_receiver_create_real) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, int differential, size\_t num\_phases, int nda\_tap, int agc, double bn\_agc\_ratio) <br>_Create the same receiver behind an R2C halfband: a real IF in._  |
 |  void | [**mpsk\_receiver\_destroy**](#function-mpsk_receiver_destroy) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Destroy an M-PSK receiver and release all memory._  |
@@ -536,6 +537,81 @@ Caller must call [**mpsk\_receiver\_destroy()**](mpsk__receiver__core_8h.md#func
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function mpsk\_receiver\_create\_bpsk 
+
+_A BPSK receiver stated in the units a caller actually holds: Hz._ 
+```C++
+mpsk_receiver_state_t * mpsk_receiver_create_bpsk (
+    double sample_rate_hz,
+    double symbol_rate_hz,
+    double carrier_freq_hz,
+    int pulse,
+    double rrc_beta,
+    int rrc_span,
+    double bn_carrier,
+    double bn_timing,
+    int acq_to_track,
+    int differential,
+    int agc
+) 
+```
+
+
+
+Same core, same loops, same methods — this differs from [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create) only in what it ASKS FOR, and that is the point. A caller with a capture holds a sample rate, a symbol rate and a carrier frequency, all in Hz. They do not hold `sps`: that is `fs / Rs`, a ratio this library computes for its own use in selecting a cascade and in costing it. Requiring it makes the caller derive an internal quantity, and then it spreads — because `sps` is in the constructor, `init_norm_freq` has to be cycles per SAMPLE, so stating a carrier offset needs `sps` and `fs` both, while the loop bandwidth on the next line is normalised to the SYMBOL rate. One constructor, two normalisations, and the conversion between them is the caller's problem.
+
+
+So the conversion happens here, once: `sps = sample_rate_hz / symbol_rate_hz` and the LO centre is `carrier_freq_hz / sample_rate_hz`. Nothing on this signature is normalised to anything.
+
+
+\*\*`m` is absent because the type says it.\*\* That is the cheapest parameter to remove and the easiest to miss: a fact carried by the class name is not a parameter on that class.
+
+
+Every argument this does not take is a derive-request in the delegate below — `m_out`, `zeta`, `lock_thresh`, `num_phases`, `bn_agc_ratio` all ask create() for the derived answer, and the NDA tap is the one measured to work at every battery point. They are absent because nobody has a use for them here, not because they are unavailable: `MpskReceiver` still takes every one.
+
+
+
+
+**Parameters:**
+
+
+* `sample_rate_hz` ADC sample rate, Hz. Must be &gt; 0. 
+* `symbol_rate_hz` Symbol rate, Hz. Must be &gt; 0, and must leave `sample_rate_hz / symbol_rate_hz` at or above the derived `m_out` — a rate that cannot be strobed is refused rather than approximated. 
+* `carrier_freq_hz` Carrier centre, Hz (default 0 — complex baseband). `|carrier_freq_hz|` must be under `sample_rate_hz / 2`; a centre outside Nyquist is a mis-stated capture, not a tuning request. 
+* `pulse` Matched-filter shape (default MPSK\_RX\_PULSE\_IANDD). 
+* `rrc_beta` RRC roll-off in `[0, 1]` (default 0.35; RRC only). 
+* `rrc_span` RRC one-sided span in symbols (default 8; RRC only). 
+* `bn_carrier` Carrier loop noise bandwidth, normalised to the symbol rate (default 0.01). 
+* `bn_timing` Symbol-timing loop noise bandwidth, normalised to the symbol rate (default 0.01). 
+* `acq_to_track` Hand the carrier over to a decision-directed discriminator once locked (default 0). 
+* `differential` bits(): differential (rotation-invariant) demap (default 0, coherent). 
+* `agc` Front-end AGC (default 1). 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL on invalid args / allocation failure. Destroy with [**mpsk\_receiver\_destroy()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_destroy) like any other.
+
+
+
+```C++
+>>> from doppler.track import BpskReceiver
+>>> rx = BpskReceiver(sample_rate_hz=8e6, symbol_rate_hz=1e6)
+>>> rx.m                 # the type says it
+2
+>>> rx.sps               # derived from the two rates, not asked for
+8.0
+```
+ 
 
 
         
@@ -1172,7 +1248,7 @@ The two AGC probes are NOT at the symbol rate the other eleven are. That AGC sit
 Instrumenting it matters because it is FIRST in the chain, and a level error is the one kind no downstream loop can correct for itself: a TED normalises by its own construct-time slope, so it reads a level error as a loop-gain error (A^2 Gardner, A DTTL) with no other reference to catch it. This receiver also makes the AGC the slowest of its three loops by construction  [**mpsk\_rx\_agc\_bn()**](mpsk__rx__loops_8h.md#function-mpsk_rx_agc_bn) derives its bandwidth as a fraction of the slowest loop it feeds, and bn\_agc\_ratio is validated to (0, 1)  but that is a choice of THIS composition, and slowest does not by itself mean longest: settling is set by the bandwidth AND by how far the level starts from the reference, which is unknown at construction. Which is exactly why it has to be measured rather than inferred; the zero-referenced "&lt;prefix&gt;.agc.level\_db" is what makes that possible.
 
 
-With `agc` = 0 at construction there is no AGC to attach and the two probes are simply absent (eleven, not thirteen); this still returns DP\_OK.
+With `agc` = 0 at construction there is no AGC to attach and the two probes are simply absent (fourteen, not sixteen); this still returns DP\_OK.
 
 
 Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in [**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)). 
@@ -1194,11 +1270,11 @@ DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take the probes (the att
 >>> import numpy as np
 >>> from doppler.track import MpskReceiver
 >>> from doppler.telemetry import Telemetry
->>> tlm = Telemetry(1 << 14)   # 14 probes x ~512 syms + headroom
+>>> tlm = Telemetry(1 << 14)   # 16 probes x ~512 syms + headroom
 >>> rx = MpskReceiver(m=4, sps=4, m_out=2)
 >>> rx.set_telemetry(tlm, "rx")
 >>> len(tlm.probe_names)
-14
+16
 >>> rng = np.random.default_rng(7)
 >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
 >>> x = np.repeat(syms, 4)

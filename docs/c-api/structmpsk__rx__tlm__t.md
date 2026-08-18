@@ -42,6 +42,8 @@ _Telemetry attachment for the receiver's own two probes; the timing and carrier 
 |  int32\_t | [**id\_lock**](#variable-id_lock)  <br> |
 |  int32\_t | [**id\_locked**](#variable-id_locked)  <br> |
 |  int32\_t | [**id\_nco**](#variable-id_nco)  <br> |
+|  int32\_t | [**id\_sym\_i**](#variable-id_sym_i)  <br> |
+|  int32\_t | [**id\_sym\_q**](#variable-id_sym_q)  <br> |
 |  int32\_t | [**id\_tracking**](#variable-id_tracking)  <br> |
 
 
@@ -190,6 +192,42 @@ int32_t mpsk_rx_tlm_t::id_nco;
 
 
 "&lt;prefix&gt;.car.nco" — the SUM that actually drives the LO 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable id\_sym\_i 
+
+```C++
+int32_t mpsk_rx_tlm_t::id_sym_i;
+```
+
+
+
+"&lt;prefix&gt;.sym.i" — recovered symbol, real 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable id\_sym\_q 
+
+```C++
+int32_t mpsk_rx_tlm_t::id_sym_q;
+```
+
+
+
+"&lt;prefix&gt;.sym.q" — recovered symbol, imag 
  
 
 

@@ -165,6 +165,11 @@ stages:  [ rs(255,223,E=16) depth=I  cover={payload, rs_parity}
                                      emits_unit: b -> 2b ]
 ```
 
+A stage's free parameter carries its configuration: `rs`'s `depth` is the
+interleaving depth, and `randomise`'s selects **which** generator, since
+131.0-B-6 specifies two and only the matching receiver derandomises a given
+waveform. That is deliberately not something a kernel picks for itself.
+
 The coverage asymmetry that the whole `ccsds_tm` slice exists to get right —
 outer code no, randomiser no, inner code **yes** — stops being three
 hand-written struct members and becomes a field range a user can write. And

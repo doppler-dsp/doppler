@@ -23,11 +23,16 @@ stages:  outer (R-S)     covers { frame, check }      starts behind the marker
 The stages disagree about what they cover, and that disagreement is the one
 thing no individual kernel can be wrong about:
 
-| stage                 | covers the ASM? | CCSDS 131.0-B-3       |
+| stage                 | covers the ASM? | 131.0-B-3 §           |
 | --------------------- | --------------- | --------------------- |
 | Reed-Solomon (outer)  | no              | 9.5.1, 9.2.1.5        |
 | pseudo-randomiser     | no              | 10.3.2, 10.3.4 note 1 |
 | convolutional (inner) | **yes**         | 3.2.1, 9.2.1.4        |
+
+Those section numbers are **B-3's**, the issue this component was written
+against; 131.0-B-6 (April 2026) is current and renumbered them without
+changing what they say
+([gh-865](https://github.com/doppler-dsp/doppler/issues/865)).
 
 9.2.1.5 states both halves in one sentence — *"the ASM shall be encoded by the
 inner code but not by the outer code"* — and 10.3.4's first NOTE states the
@@ -66,6 +71,12 @@ $ wfmgen --type bits --bits-file transfer_frame.bits \
       --rs-depth 5 --randomise --asm --conv \
       --modulation bpsk --sps 1 --crc none --count 20464 -o cadu.cf32
 ```
+
+`--randomise` takes an optional generator. Bare selects `ccsds` — 131.0-B-6
+10.4.1's 131071-bit sequence, which the standard requires. Passing `legacy`
+selects 10.4.2's 255-bit one, kept for backward compatibility only. The two
+are **not interchangeable on the air**, so `--record` carries which was used
+rather than a bare `true`.
 
 Each flag is a stage, each is optional, and setting any of them frames the
 waveform. All four over a `223 × I`-octet payload with no preamble and no sync
@@ -112,7 +123,14 @@ That gradation is the point. A CRC reports one bit — right or wrong. An outer
 code reports **how much of its budget it spent**, so a margin being consumed
 is visible long before it is lost:
 
-Both frames in the first two lines "pass". Only one of them is healthy.
+```text
+clean frame        : 6/6 ok, 0 repaired
+   80 symbols  6/6 units good   80 repaired  ok
+```
+
+Both lines "pass". Only one of them is healthy: the first spent none of its
+budget, the second spent all 80 symbols of it and had nothing left. A CRC
+cannot tell those apart, and the difference is the whole margin.
 
 `check()` needs the description and the received bits and **no payload truth
 at all**, so it works on a real capture — which is what makes a truth-free

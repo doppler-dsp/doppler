@@ -167,7 +167,7 @@ def mpsk_soft_demap(
     QPSK's `phi0 = pi/4` grid is axis-separable, so its two bits are
     independent BPSK decisions and each subset holds one point. Only 8PSK
     is an approximation; what that costs in dB is not measured yet and is
-    therefore not claimed here (docs/design/mpsk-soft.md section 5).
+    therefore not claimed here (docs/design/mpsk.md §9.7 section 5).
 
     n0 is the noise power `E[|n|^2]` for unit-amplitude symbols, and it
     scales the output exactly: `L(n0) = L(1) / n0`. A **Viterbi is

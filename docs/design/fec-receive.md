@@ -47,7 +47,7 @@ A hard-decision Viterbi throws away most of the gain the code exists to
 deliver — at 3 dB Eb/N0, two orders of magnitude, and below about 3 dB it is
 worse than no coding at all. The measurements are in
 [The Viterbi Decoder](viterbi.md) §5, which owns them; they are the reason
-[Soft Decisions for M-PSK](mpsk-soft.md) landed before this page rather than
+[Soft Decisions for M-PSK](mpsk.md#97-soft-decisions) landed before this page rather than
 after it.
 
 ______________________________________________________________________
@@ -439,6 +439,6 @@ ______________________________________________________________________
 ## See also
 
 - [Reed-Solomon](reed-solomon.md) — the outer code, step 2 of the sequence
-- [Soft Decisions for M-PSK](mpsk-soft.md) — the LLRs this consumes
+- [Soft Decisions for M-PSK](mpsk.md#97-soft-decisions) — the LLRs this consumes
 - [Lock Detection](lock-detect.md) — the detector this feeds
 - [Adding an Algorithm](../dev/adding-algorithms.md) — the lifecycle

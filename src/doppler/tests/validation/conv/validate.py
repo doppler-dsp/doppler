@@ -164,7 +164,8 @@ def characterise(d) -> None:
         f"**A hard-decision Viterbi is worse than no coding at all below "
         f"Eb/N0 ~ {lo:.1f} dB** — the rate-1/2 code spends 3.01 dB of Eb to "
         f"buy back less than that from a quantised input. That is the "
-        f"measurement behind `docs/design/mpsk-soft.md` existing and behind "
+        f"measurement behind the soft-decision design in "
+        f"`docs/design/mpsk.md` existing and behind "
         f"soft demapping landing before the decoder did."
     )
     R.md()

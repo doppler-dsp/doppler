@@ -3,7 +3,7 @@
  *
  * Per-bit log-likelihood ratios by the max-log rule over the constellation.
  * The soft counterpart of mpsk_demap; see mpsk_core.h for the sign convention
- * and docs/design/mpsk-soft.md for why this is one general path rather than a
+ * and docs/design/mpsk.md §9.7 for why this is one general path rather than a
  * closed form per M.
  */
 #include "mpsk/mpsk_core.h"

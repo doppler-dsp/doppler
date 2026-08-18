@@ -45,7 +45,7 @@ output expands by `log2(M)` — size it as `len(x) * mpsk_bits_per_symbol(m)`.
 `n0` scales the result exactly and a Viterbi is invariant to it, so a caller
 with no SNR estimate may pass `1.0`.
 
-See [Soft Decisions for M-PSK](../design/mpsk-soft.md) for the derivation, the
+See [Soft Decisions for M-PSK](../design/mpsk.md#97-soft-decisions) for the derivation, the
 closed forms BPSK and QPSK turn out to have, and what max-log costs at 8PSK.
 
 ::: doppler.mpsk.mpsk_soft_demap
@@ -71,6 +71,6 @@ zero-phase reference (the first) is rotation-invariant.
 <!-- related-pages:start -->
 
 **Gallery** — [M-PSK Carrier Loop — Theory Validation](../gallery/carrier-mpsk.md), [M-PSK constellation (Gray-coded map / demap)](../gallery/mpsk.md)
-**Design** — [The FEC Receive Half](../design/fec-receive.md), [Soft Decisions for M-PSK](../design/mpsk-soft.md), [MPSK Receiver](../design/mpsk.md), [The Viterbi Decoder](../design/viterbi.md)
+**Design** — [The FEC Receive Half](../design/fec-receive.md), [MPSK Receiver](../design/mpsk.md), [The Viterbi Decoder](../design/viterbi.md)
 
 <!-- related-pages:end -->

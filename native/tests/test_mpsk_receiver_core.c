@@ -320,6 +320,23 @@ main (void)
         DP_CHECK (mpsk_receiver_get_num_phases (d) == 64u);
         DP_CHECK (dp_near (mpsk_receiver_get_lock_thresh (d), 0.4999, 1e-15));
         DP_CHECK (dp_near (mpsk_receiver_get_bn_agc_ratio (d), 0.05, 1e-15));
+        /* The DROP side is the declare side times the hysteresis, asserted
+           as that RELATIONSHIP rather than as 0.39992: a literal would still
+           pass if the constant moved and the two stopped being a pair. */
+        DP_CHECK (dp_near (
+            mpsk_receiver_get_lock_drop_thresh (d),
+            MPSK_RX_HANDOVER_DOWN * mpsk_receiver_get_lock_thresh (d), 1e-15));
+        /* The timing loop's pair is NOT the carrier's -- a different
+           statistic, sized by symsync's own (rolloff, esno_min, pfa, pd)
+           geometry and stepped on a different clock. That they DIFFER is
+           why both are exposed, so it is what gets asserted. */
+        DP_CHECK (mpsk_receiver_get_sync_lock_thresh (d)
+                  != mpsk_receiver_get_lock_thresh (d));
+        DP_CHECK (mpsk_receiver_get_sync_lock_thresh (d) > 0.0);
+        /* Equal by design: the timing decision carries no LEVEL hysteresis,
+           its hysteresis living in the verify counts instead. */
+        DP_CHECK (dp_near (mpsk_receiver_get_sync_lock_drop_thresh (d),
+                           mpsk_receiver_get_sync_lock_thresh (d), 1e-15));
         mpsk_receiver_destroy (d);
       }
     /* A supplied value still wins -- the derivation is a fallback, not a
@@ -335,6 +352,11 @@ main (void)
         DP_CHECK (mpsk_receiver_get_num_phases (p) == 128u);
         DP_CHECK (dp_near (mpsk_receiver_get_lock_thresh (p), 0.6, 1e-15));
         DP_CHECK (dp_near (mpsk_receiver_get_bn_agc_ratio (p), 0.02, 1e-15));
+        /* The drop side follows a SUPPLIED declare threshold too, which is
+           what makes it a readback of the pair IN USE rather than of the
+           derivation: 0.8 x 0.6, not 0.8 x 0.4999. */
+        DP_CHECK (dp_near (mpsk_receiver_get_lock_drop_thresh (p),
+                           MPSK_RX_HANDOVER_DOWN * 0.6, 1e-15));
         mpsk_receiver_destroy (p);
       }
   }

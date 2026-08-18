@@ -135,15 +135,23 @@ def main() -> None:
     # A contiguous burst is what interleaving exists for: at depth I it lands
     # as ceil(B/I) errors in each codeword, so depth trades no rate at all for
     # an I-fold longer correctable burst.
-    bursts, repaired, survived = [], [], []
-    for b in range(0, DEPTH * E + DEPTH + 1, DEPTH):
+    #
+    # Swept one symbol at a time THROUGH the boundary, because the interesting
+    # behaviour is not the cliff but the shoulder: 80 symbols is exactly E in
+    # each of the five codewords, and every symbol after that pushes one more
+    # codeword past its radius. A coarse sweep in steps of `depth` jumps from
+    # "all five fine" to "all five refused" and hides the graded failure that
+    # makes the counts worth reporting at all.
+    bursts, repaired, good, survived = [], [], [], []
+    for b in range(0, DEPTH * E + 2 * DEPTH + 1):
         rx = clean.copy()
         for s in range(b):
             rx[blk + s * 8] ^= 1  # one symbol each
         r = cadu.check(rx)
         bursts.append(b)
         repaired.append(r.symbols)
-        survived.append(r.passed)
+        good.append(r.ok)
+        survived.append(bool(r.passed))
 
     edge = max(b for b, ok in zip(bursts, survived) if ok)
     print(f"longest burst held : {edge} symbols  (depth {DEPTH} x E {E})")
@@ -151,38 +159,60 @@ def main() -> None:
         f"interleaving depth {DEPTH} must carry a {DEPTH * E}-symbol burst, "
         f"held {edge}"
     )
+    assert not survived[edge + 1], "one symbol more must fail"
 
-    # One symbol past the radius, in ONE column: that codeword is refused and
-    # the count says which. A CRC would say only "wrong".
-    rx = clean.copy()
-    for c in range(E + 1):
-        rx[blk + (c * DEPTH + 2) * 8] ^= 1
-    r = cadu.check(rx)
-    print(
-        f"E+1 in one codeword: {r.ok}/{r.units} ok "
-        f"-> the frame is refused, and it names the cost"
-    )
-    assert r.passed == 0, "E+1 in one codeword must fail the frame"
-    assert r.ok == r.units - 1, "and exactly one unit must be bad"
+    # The shoulder, as a claim rather than a picture: each extra symbol past
+    # the boundary costs exactly one more codeword, because a contiguous burst
+    # visits the codewords in rotation.
+    print("past the boundary, one symbol at a time:")
+    for k in range(0, DEPTH + 1):
+        b = edge + k
+        verdict = "ok " if survived[b] else "REFUSED"
+        print(
+            f"  {b:>3} symbols  {good[b]}/{DEPTH + 1} units good  "
+            f"{repaired[b]:>3} repaired  {verdict}"
+        )
+    for k in range(1, DEPTH + 1):
+        assert good[edge + k] == (DEPTH - k) + 1, (
+            f"{k} symbols past the boundary must leave {DEPTH - k} codewords "
+            f"good (plus the randomiser), got {good[edge + k]}"
+        )
 
     # ── 3. the plot ──────────────────────────────────────────────────────
-    fig, ax = plt.subplots(figsize=(6.4, 4.0))
+    fig, (ax0, ax1) = plt.subplots(
+        2,
+        1,
+        figsize=(6.8, 5.4),
+        sharex=True,
+        gridspec_kw={"height_ratios": [2, 1]},
+    )
     colour = ["#2b8a3e" if ok else "#c92a2a" for ok in survived]
-    ax.bar(bursts, repaired, width=DEPTH * 0.7, color=colour)
-    ax.axvline(DEPTH * E, color="k", ls=":", lw=1)
-    ax.annotate(
+    ax0.bar(bursts, repaired, width=1.0, color=colour)
+    ax0.axvline(DEPTH * E, color="k", ls=":", lw=1)
+    ax0.annotate(
         f"depth x E = {DEPTH * E}",
-        (DEPTH * E, max(repaired) * 0.75),
+        (DEPTH * E, max(repaired) * 0.55),
         textcoords="offset points",
-        xytext=(-96, 0),
+        xytext=(-104, 0),
     )
-    ax.set_xlabel("contiguous burst (symbols)")
-    ax.set_ylabel("symbol errors repaired")
-    ax.set_title(
+    ax0.set_ylabel("symbol errors repaired")
+    ax0.set_title(
         f"RS(255,223) E={E}, interleaved {DEPTH} deep — "
-        "green survives, red is refused"
+        "a burst costs, then it kills"
     )
-    ax.grid(True, axis="y", alpha=0.3)
+    ax0.grid(True, axis="y", alpha=0.3)
+
+    # The second panel is why the first one alone would mislead: past the
+    # boundary the repair count falls to ZERO, because a refused codeword is
+    # not repaired at all. Height 0 there means "gave up", not "nothing to do".
+    ax1.step(bursts, good, where="mid", color="#1c7ed6", lw=1.6)
+    ax1.axvline(DEPTH * E, color="k", ls=":", lw=1)
+    ax1.axhline(DEPTH + 1, color="#2b8a3e", ls="--", lw=1)
+    ax1.set_ylim(0, DEPTH + 1.6)
+    ax1.set_xlabel("contiguous burst (symbols)")
+    ax1.set_ylabel("units good")
+    ax1.grid(True, alpha=0.3)
+
     fig.tight_layout()
     fig.savefig("ccsds_link_demo.png", dpi=110)
     plt.close(fig)

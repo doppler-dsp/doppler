@@ -268,12 +268,15 @@ def freq_offset_inside_bw(bn_carrier, m, frac=0.5):
     loop never leaves its initial state and measures nothing, seeded past the
     bound it measures the dice.
 
-    Measured 2026-08-17 (6 seeds per point; BPSK/QPSK/8PSK at sps 8,
-    bn 0.01, 20 dB, 4000 symbols; acquired = `lock_time >= 0` and the
-    frequency estimate within 10% of truth): acquisition is reliable out to 4x
-    the bound and collapses by 6x. Seeding at the bound therefore keeps a 4x
-    margin, which is why it is the rule rather than the looser one the same
-    sweep would permit.
+    **The envelope is measured, not quoted here.**
+    `doppler.track.tests.characterization.pull_in` sweeps it — success
+    fraction against multiples of this bound, across every order and two
+    oversampling ratios — and `make characterize` re-derives it. As it stands
+    the carrier loop is reliable out to 4x the bound (3x at 8PSK) and dead by
+    5x, so seeding AT the bound keeps a 3-4x margin. Those figures live in
+    that sweep's output rather than in this docstring because a number
+    nothing re-runs is prose, and two findings were once filed against the
+    receiver on the strength of one (doppler#843, doppler#849).
 
     Acquisition beyond the bound depends on where the transient happens to
     push the integrator, so a pass means the dice fell well and a failure
@@ -293,12 +296,13 @@ def clock_offset_inside_bw(bn_timing, frac=0.5):
     like. `bn_timing` is symbol-rate normalised, so the error is already
     dimensionless in symbols per symbol -- no `sps`, and no `m` either.
 
-    **The absent `m` was measured rather than assumed**: the timing
-    discriminator is not an M-th power. Same method and date as
-    `freq_offset_inside_bw` -- the timing loop is reliable to 1.6x its bound
-    and collapses over 1.8-2.0x. Seeding at the bound buys 1.6x here against
-    4x on the carrier, which is why the two are stated separately rather than
-    sharing one fraction.
+    **The absent `m` is measured rather than assumed**: the timing
+    discriminator is not an M-th power, and the same sweep that establishes
+    the carrier envelope establishes this one
+    (`doppler.track.tests.characterization.pull_in`). It is the tighter of
+    the two — reliable to about 1.6-1.8x its bound and dead by 2.5x, against
+    the carrier's 3-4x — which is why the two are stated separately rather
+    than sharing one fraction.
     """
     return frac * bn_timing
 

@@ -252,6 +252,21 @@ link = true
 [[module.wfm_plan.depends_on]]
 name = "wfm_frame"
 link = true
+
+# ccsds_tm (+ conv/rs, which it configures): wfm_synth_bridge.c assembles a
+# framed source through wfm_frame_assemble, and the coding stages a source may
+# select are CCSDS's picks. wfm_frame.c cannot call them -- ccsds_tm depends
+# on it -- so they arrive as a kernel table and every consumer must carry the
+# objects.
+[[module.wfm_plan.depends_on]]
+name = "ccsds_tm"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "conv"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "rs"
+link = true
 [[module.wfm_plan.depends_on]]
 name = "gold"
 link = true
@@ -869,6 +884,21 @@ link = true
 
 [[module.wfm_compose.depends_on]]
 name = "wfm_frame"
+link = true
+
+# ccsds_tm (+ conv/rs, which it configures): wfm_synth_bridge.c assembles a
+# framed source through wfm_frame_assemble, and the coding stages a source may
+# select are CCSDS's picks. wfm_frame.c cannot call them -- ccsds_tm depends
+# on it -- so they arrive as a kernel table and every consumer must carry the
+# objects.
+[[module.wfm_compose.depends_on]]
+name = "ccsds_tm"
+link = true
+[[module.wfm_compose.depends_on]]
+name = "conv"
+link = true
+[[module.wfm_compose.depends_on]]
+name = "rs"
 link = true
 
 [[module.wfm_compose.depends_on]]

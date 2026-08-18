@@ -70,6 +70,7 @@ COVERAGE: dict[str, str] = {
     "PlanFromFile": "test_plan.py",
     # the frame descriptor — dedicated suite in test_frame.py
     "Frame": "test_frame.py",
+    "FrameDesc": "test_frame.py",
     # transport / IO handles
     "Writer": "TestReaderWriter",
     "Reader": "TestReaderWriter",

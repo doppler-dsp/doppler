@@ -71,6 +71,7 @@ GOLDEN = ROOT / "native" / "tests" / "wfmgen_flag_matrix.json"
 SKIP = {
     # Aliases of a flag already covered; same arm, same field.
     "-o": "alias of --output, covered by out_file",
+    "--randomize": "alias of --randomise, covered by bits_ccsds_cadu",
     # Needs a reachable broker; the stream sink is an optional component
     # and its absence is its own tested path in wfmgen_cli_test.cmake.
     "--detached": "spawns a background process; see wfmgen_cli_test.cmake",
@@ -272,6 +273,64 @@ def cases() -> list[tuple[str, list[str]]]:
                 "crc16",
                 "--sps",
                 "2",
+                "--count",
+                "64",
+            ],
+        ),
+        # ---- channel coding: the stages, and the CADU they configure ----
+        # A 223-octet Transfer Frame with all four stages on and neither a
+        # preamble nor a sync word IS a CCSDS CADU. Pinned as one case rather
+        # than four because the flags are not independent -- the outer code
+        # fixes the payload length, and the interesting property is the
+        # COVERAGE asymmetry between them, which only appears together.
+        (
+            "bits_ccsds_cadu",
+            [
+                "--type",
+                "bits",
+                "--modulation",
+                "bpsk",
+                "--bits",
+                "1" * (223 * 8),
+                "--rs-depth",
+                "1",
+                "--randomise",
+                "--asm",
+                "--conv",
+                "--crc",
+                "none",
+                "--sps",
+                "1",
+                "--count",
+                "4144",
+            ],
+        ),
+        # The outer code refuses a payload off the 223*I grid rather than
+        # padding it -- virtual fill is not implemented (gh-813), and a
+        # silently padded codeblock is the wrong length for the receiver it
+        # was aimed at.
+        (
+            "err_rs_depth_short_payload",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "10110010",
+                "--rs-depth",
+                "1",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "err_rs_depth_not_allowed",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "1" * (223 * 8),
+                "--rs-depth",
+                "7",
                 "--count",
                 "64",
             ],

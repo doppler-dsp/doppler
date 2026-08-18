@@ -308,7 +308,7 @@ rx_dyn_measure (int tap, int ted, const char *path)
             /* The composition API's contract: the flush is the caller's, and
                it is gated on the attachment rather than assumed. */
             if (rx->l.tlm.ctx)
-              mpsk_rx_tlm_flush (&rx->l);
+              mpsk_rx_tlm_flush (&rx->l, sym);
 
             {
               double lk = mpsk_receiver_get_lock (rx);

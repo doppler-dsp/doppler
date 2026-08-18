@@ -175,7 +175,7 @@ Two independent readings of the same claim, which is why `rate recovered` is her
 
 **The rate is recovered to within 60 ppm at every rate measured, including the irrational one** — 17.33296 against a true 17.33389, 54 ppm — so the header's claim is carried by the loop's own accumulator and not only by a count that could be right for the wrong reason. An irrational rate is not the hard case: 17.33389 and the integer 8 are recovered to the same precision, and both emit the same 0.03-0.07% output-count error, which is the settling transient at the head of the record rather than a rate error.
 
-**`sps = 31.7` used to be the row that separated the two readings, and it is why F4 was CONFIRMED against the receiver.** Its count was inside 0.1% and its recovered rate within a few ppm — tighter than the integer rate's — while the meter refused to align the record at all. A rate that close cannot explain a failure to demodulate, so the failure was localised to acquisition, and it was: **this sweep's acquisition, not the receiver's.** The offset was held in cycles per SAMPLE while the axis here is `sps`, so the loop was handed a question that got 4x harder across the sweep and this row sat at 5.07x its acquisition bound, past the 4-5x where acquisition stops being repeatable (doppler#843).
+**`sps = 31.7` used to be the row that separated the two readings, and it is why F4 was CONFIRMED against the receiver.** Its count was inside 0.1% and its recovered rate within a few ppm — tighter than the integer rate's — while the meter refused to align the record at all. A rate that close cannot explain a failure to demodulate, so the failure was localised to acquisition, and it was: **this sweep's acquisition, not the receiver's.** The offset was held in cycles per SAMPLE while the axis here is `sps`, so the loop was handed a question that got 4x harder across the sweep and this row sat at 5.07x its acquisition bound, past the 4x where acquisition stops being repeatable (doppler#843).
 
 Held in cycles per SYMBOL, where the bound lives and where it does not move with `sps`, **every row demodulates**: SER 0.0e+00 at sps 8, 0.0e+00 at sps 17.3339, 0.0e+00 at sps 24, 0.0e+00 at sps 31.7. The irrational rate is not the hard case and neither is the high one; there is no `sps` ceiling in the certified envelope.
 
@@ -261,14 +261,13 @@ The surfaces a composing caller needs and no earlier section reaches. A receiver
 | serialized size | 1012 bytes |
 | resume from a blob, mid-stream | bit-exact: True |
 | a clobbered blob is rejected | ValueError: True |
-| telemetry probes published | 14 |
-| trajectories filed | `data/mpsk_receiver.tlm`, 14 probes |
+| telemetry probes published | 16 |
 | records per probe over 8192 samples at decim 8 | 128 |
 
 
 **The resume is checked against a WARM instance, not a fresh one.** A `set_state` into a newly constructed receiver would pass on an object that restores nothing at all, because the fresh state and the restored state agree wherever the blob is silent. The instance here is driven through the same first half, then overwritten from the blob, so the assertion is that the blob DETERMINES the continuation rather than merely not contradicting it — the vacuity discipline the campaign applies to reject tests, applied to a round-trip.
 
-**14 probes, and they emit once per SYMBOL** — 128 records each over 8192 input samples at `decim = 8`, which is 8192/`sps`/8 and not 8192/8. Worth knowing, because `carrier_nda`'s probes emit per input SAMPLE (`carrier_nda/results.md`, its lifecycle section) and a caller reading both at one `decim` gets two different time bases. Every probe carries the same count, which is the attach-fails-whole property: a partially attached composition would show a short probe rather than an error. The set spans all three subsystems — `rx.car.*` for the carrier loop, `rx.sync.*` for timing, `rx.agc.*` for the level — so the composition is observable per constituent and not only at its output.
+**16 probes, and they emit once per SYMBOL** — 128 records each over 8192 input samples at `decim = 8`, which is 8192/`sps`/8 and not 8192/8. Worth knowing, because `carrier_nda`'s probes emit per input SAMPLE (`carrier_nda/results.md`, its lifecycle section) and a caller reading both at one `decim` gets two different time bases. Every probe carries the same count, which is the attach-fails-whole property: a partially attached composition would show a short probe rather than an error. The set spans all three subsystems — `rx.car.*` for the carrier loop, `rx.sync.*` for timing, `rx.agc.*` for the level — so the composition is observable per constituent and not only at its output.
 
 ## 3. Review
 
@@ -280,7 +279,7 @@ The surfaces a composing caller needs and no earlier section reaches. A receiver
 
 - **F4 · FIXED** — **A receiver that recovered the symbol rate to 2 ppm and could not be demodulated — and the defect was in this report's own stimulus, not in the receiver.** As written, F4 read: at `sps = 31.7` (§2.5) the output count is the integral of the rate to 0.08% and `timing_rate` converges tighter than at the integer rate, yet `BerMeter` refuses to align the record; `sps = 24` on the same sweep is clean; therefore the failure is in acquisition and the certified envelope stops at `sps <= 24`.
 
-The acquisition half was right and the attribution was wrong. `_signal` held the carrier offset in cycles per **sample** while this sweep's axis is `sps`, so the loop was handed `foff * sps` — a different question at every row, varying 4x across the sweep. Against a carrier acquisition bound of `bn_carrier / m` cycles per symbol, the four rows sat at 1.28x, 2.77x, 3.84x and **5.07x** the bound. The pull-in envelope, swept independently by `doppler.track.tests.characterization.pull_in`, puts QPSK reliable out to 4x and dead by 5x — which accounts for this sweep row by row rather than merely in direction: 24 sits at 3.84x, inside, and demodulated; 31.7 sits at 5.07x, past the shoulder, and refused. The `sps = 31.7` row was simply the one seeded past the cliff, and `sps = 24` the last one inside it — which is why the two differed while nothing about the receiver did.
+The acquisition half was right and the attribution was wrong. `_signal` held the carrier offset in cycles per **sample** while this sweep's axis is `sps`, so the loop was handed `foff * sps` — a different question at every row, varying 4x across the sweep. Against a carrier acquisition bound of `bn_carrier / m` cycles per symbol, the four rows sat at 1.28x, 2.77x, 3.84x and **5.07x** the bound; acquisition is measured reliable only out to 4x (doppler#843). The `sps = 31.7` row was simply the one seeded past the cliff, and `sps = 24` the last one inside it — which is why the two differed while nothing about the receiver did.
 
 Both converses were measured before this was believed: 31.7 at 24's offset scores 0.0 SER, and 24 at 31.7's offset refuses. With the offset now held in cycles per SYMBOL, where the bound is stated and where it does not move with `sps`, **all four rows demodulate at SER 0.0** — 8, 17.33389, 24 and 31.7 alike, with the recovered rate inside 60 ppm at every one. There is no `sps <= 24` envelope; §4 asserts the error rate at every rate measured. The corroboration this finding claimed with [#781](https://github.com/doppler-dsp/doppler/issues/781) does not survive either: that report is about `m_out = 4`, reached through a randomised geometry, and shares nothing with this but the symptom.
 
@@ -381,7 +380,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding �
 | PASS | `reset()` reproduces the first run bit for bit |
 | PASS | a 1012-byte blob resumes the receiver bit-exactly mid-stream, checked by overwriting a WARM instance so the blob has to DETERMINE the continuation rather than not contradict it |
 | PASS | and a clobbered blob is rejected rather than reinterpreted |
-| PASS | the receiver publishes 14 telemetry probes spanning all three subsystems (`rx.car.*`, `rx.sync.*`, `rx.agc.*`) |
+| PASS | the receiver publishes 16 telemetry probes spanning all three subsystems (`rx.car.*`, `rx.sync.*`, `rx.agc.*`) |
 | PASS | and the attach succeeds WHOLE: every probe carries the same record count (128), emitted once per symbol and thinned by `decim` alone |
 
 

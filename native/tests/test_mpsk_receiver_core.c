@@ -778,21 +778,32 @@ main (void)
     int id_agc_gain = dp_tlm_probe_id (tlm, "rx.agc.gain_db");
     int id_agc_lvl  = dp_tlm_probe_id (tlm, "rx.agc.level_db");
     DP_CHECK (id_agc_gain >= 0 && id_agc_lvl >= 0);
-    /* 14 with the AGC pair: lock, tracking, car(e, freq, nco, locked),
-       sync(e, ctrl, rate, lock, locked, mu), agc(gain_db, level_db).
-       `car.nco` is the SUM driving the LO; `car.freq` is the integrator
-       alone. Both are published because on a ramp they differ by the
-       proportional term, and only the sum is the applied frequency. */
+    /* 16 with the AGC pair: lock, tracking, car(e, freq, nco, locked),
+       sync(e, ctrl, rate, lock, locked, mu), agc(gain_db, level_db),
+       sym(i, q). `car.nco` is the SUM driving the LO; `car.freq` is the
+       integrator alone. Both are published because on a ramp they differ by
+       the proportional term, and only the sum is the applied frequency.
+
+       `sym.i`/`sym.q` are the recovered SYMBOL, split because a telemetry
+       record carries one float and a complex value cannot be one probe.
+       Without them a capture holds every internal and not the output they
+       exist to produce -- no constellation, and no error rate recomputable
+       from the filed evidence (doppler#846). */
     DP_CHECK (dp_tlm_probe_id (tlm, "rx.car.nco") >= 0);
-    DP_CHECK (dp_tlm_probe_count (tlm) == 14);
+    DP_CHECK (dp_tlm_probe_id (tlm, "rx.sym.i") >= 0);
+    DP_CHECK (dp_tlm_probe_id (tlm, "rx.sym.q") >= 0);
+    DP_CHECK (dp_tlm_probe_count (tlm) == 16);
 
     size_t n_sym = mpsk_receiver_steps (a, tx, 512, out, 80);
     DP_CHECK (n_sym > 0);
     dp_tlm_rec_t recs[2048];
     size_t       n_rec = dp_tlm_read (tlm, 2048, recs, 2048);
     /* lock + tracking + car(e,freq,nco,locked) + sync(e,ctrl,rate,lock,
-     * locked,mu): twelve records per recovered symbol, all flushed at the
-     * strobe. The arm
+     * locked,mu) + sym(i,q): FOURTEEN records per recovered symbol, all
+     * flushed at the strobe -- which is also the rule the symbol pair had to
+     * respect to be addable at all: every probe here fires once per symbol
+     * or less, never per input sample, so the pair lands on the same index
+     * as the loop state that produced it. The arm
      * AGC is not attached -- it is an internal normaliser on the
      * discriminator's input, not a receiver diagnostic. The FRONT-END AGC is,
      * and it is deliberately NOT on the symbol grid: it sits pre-terminal in
@@ -806,7 +817,7 @@ main (void)
     DP_CHECK (n_agc > 0);          /* the forward actually reaches the AGC */
     DP_CHECK (n_agc % 2 == 0);     /* both probes emit together, always    */
     DP_CHECK (n_agc / 2 != n_sym); /* a cascade grid, not the symbol grid  */
-    DP_CHECK (n_rec == 12 * n_sym + n_agc);
+    DP_CHECK (n_rec == 14 * n_sym + n_agc);
 
     /* `mu` is the timing NCO's phase, so it is a FRACTION: every record must
        land in [0, 1) whatever the loop is doing, and it must actually vary
@@ -902,7 +913,8 @@ main (void)
     if (noagc && tlm4)
       {
         DP_CHECK (mpsk_receiver_set_telemetry (noagc, tlm4, "rx", 1) == DP_OK);
-        DP_CHECK (dp_tlm_probe_count (tlm4) == 12); /* 14 less the AGC pair */
+        /* 16 less the AGC pair. */
+        DP_CHECK (dp_tlm_probe_count (tlm4) == 14);
         DP_CHECK (dp_tlm_probe_id (tlm4, "rx.agc.gain_db") < 0);
       }
     dp_tlm_destroy (tlm4);
@@ -1889,9 +1901,12 @@ main (void)
         if (rx)
           {
             DP_CHECK (mpsk_receiver_set_telemetry (rx, tlm, "rr", 1) == DP_OK);
-            /* Fourteen: the receiver's two, the carrier loop's four, the
-               timing loop's six, and the front end's AGC pair. */
-            DP_CHECK (dp_tlm_probe_count (tlm) == 14);
+            /* Sixteen: the receiver's two, the carrier loop's four, the
+               timing loop's six, the front end's AGC pair, and the recovered
+               symbol as a real/imag pair. The REAL face publishes the same
+               set as the complex one, which is the claim -- one core, and a
+               capture from either reconstructs the same constellation. */
+            DP_CHECK (dp_tlm_probe_count (tlm) == 16);
             int id_car = dp_tlm_probe_id (tlm, "rr.car.e");
             int id_syn = dp_tlm_probe_id (tlm, "rr.sync.e");
             int id_agc = dp_tlm_probe_id (tlm, "rr.agc.gain_db");

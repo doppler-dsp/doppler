@@ -1,15 +1,15 @@
 # Capturing All Receiver Telemetry
 
-![Every MpskReceiver probe captured from one ring](../assets/mpsk_telemetry_capture_demo.png)
+![Every BpskReceiver probe captured from one ring](../assets/mpsk_telemetry_capture_demo.png)
 
 ## What you're seeing
 
-Every panel is one telemetry probe an `track.MpskReceiver` exposes, and
+Every panel is one telemetry probe a `track.BpskReceiver` exposes, and
 every trace came out of a **single** `telemetry.MemoryCapture` over a
 **single** `telemetry.Telemetry` ring. One `set_telemetry` attach registers
 the receiver's own carrier probes **and** forwards to both of its
 instrumented children — the symbol-timing loop and the front-end AGC — so a
-cold-start QPSK pull-in leaves a complete record of the whole receiver:
+cold-start BPSK pull-in leaves a complete record of the whole receiver:
 
 - **`rx.lock` / `rx.tracking` / `rx.car.locked`** — the carrier lock EMA
     rises off its cold-start value, and the two verify-counted decisions

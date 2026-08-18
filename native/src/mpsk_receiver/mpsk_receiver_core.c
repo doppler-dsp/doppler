@@ -161,7 +161,7 @@ mpsk_rx_symbol_to_bits (mpsk_rx_loops_t *l, float complex y, uint8_t *bits)
 }
 
 void
-mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l)
+mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float complex y)
 {
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_lock, l->lock);
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_tracking, (double)l->tracking);
@@ -170,6 +170,12 @@ mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l)
   /* Receiver convention: the front end holds the conjugate. */
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_nco, -l->freq_ctrl);
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_locked, (double)l->car_lock.locked);
+  /* The symbol this flush is ABOUT. Every probe here fires once per
+     recovered symbol, so the pair lands on the same sample index as the loop
+     state that produced it and a reader rebuilds the constellation by zipping
+     them -- no separate stream, and no way for the two to disagree. */
+  dp_tlm_emit (l->tlm.ctx, l->tlm.id_sym_i, (double)crealf (y));
+  dp_tlm_emit (l->tlm.ctx, l->tlm.id_sym_q, (double)cimagf (y));
   ratesync_loop_tlm_flush (&l->timing);
 }
 
@@ -203,8 +209,12 @@ mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
   int id_nco = dp_tlm_probe (tlm, name, decim);
   (void)snprintf (name, sizeof (name), "%s.car.locked", p);
   int id_locked = dp_tlm_probe (tlm, name, decim);
+  (void)snprintf (name, sizeof (name), "%s.sym.i", p);
+  int id_sym_i = dp_tlm_probe (tlm, name, decim);
+  (void)snprintf (name, sizeof (name), "%s.sym.q", p);
+  int id_sym_q = dp_tlm_probe (tlm, name, decim);
   if (id_lock < 0 || id_tracking < 0 || id_e < 0 || id_freq < 0 || id_nco < 0
-      || id_locked < 0)
+      || id_locked < 0 || id_sym_i < 0 || id_sym_q < 0)
     return DP_ERR_INVALID;
   /* Forward to the timing loop under "<prefix>.sync"; if it fails the whole
      attach fails, so nothing is left half-armed. */
@@ -212,6 +222,8 @@ mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
   int rc = ratesync_loop_set_telemetry (&l->timing, tlm, name, decim);
   if (rc != DP_OK)
     return rc;
+  l->tlm.id_sym_i    = id_sym_i;
+  l->tlm.id_sym_q    = id_sym_q;
   l->tlm.id_lock     = id_lock;
   l->tlm.id_tracking = id_tracking;
   l->tlm.id_e        = id_e;
@@ -522,6 +534,36 @@ mpsk_receiver_create_continuous (int m, double sps, int pulse, double rrc_beta,
       0.0);                      /* bn_agc_ratio -> derived      */
 }
 
+/* The Hz face. Like the continuous flavor this is a pure delegate -- but the
+   conversion it performs is the whole reason it exists, so it is written out
+   rather than inlined into the call: `sps` is a RATIO the caller should never
+   have had to compute, and the LO centre is a normalised frequency they
+   should never have had to express. Both are derived here, once, from units
+   somebody reading a capture actually has.
+
+   The two refusals are worth their lines. A non-positive rate makes `sps`
+   undefined or negative, and a carrier outside Nyquist is a mis-stated
+   capture rather than a tuning request -- returning NULL for either says so
+   at construction instead of at the first strobe that lands nowhere. */
+mpsk_receiver_state_t *
+mpsk_receiver_create_bpsk (double sample_rate_hz, double symbol_rate_hz,
+                           double carrier_freq_hz, int pulse, double rrc_beta,
+                           int rrc_span, double bn_carrier, double bn_timing,
+                           int acq_to_track, int differential, int agc)
+{
+  if (!(sample_rate_hz > 0.0) || !(symbol_rate_hz > 0.0))
+    return NULL;
+  if (fabs (carrier_freq_hz) >= 0.5 * sample_rate_hz)
+    return NULL;
+  return mpsk_receiver_create (
+      2,                                          /* m -- the type says it */
+      sample_rate_hz / symbol_rate_hz, 0u,        /* m_out        -> derived */
+      pulse, rrc_beta, rrc_span, bn_carrier, 0.0, /* zeta  -> derived */
+      bn_timing, acq_to_track, 0.0,               /* lock_thresh -> derived */
+      carrier_freq_hz / sample_rate_hz, differential, 0u, /* num_phases */
+      MPSK_RX_NDA_TAP_STROBE, agc, 0.0); /* bn_agc_ratio -> derived */
+}
+
 void
 mpsk_receiver_destroy (mpsk_receiver_state_t *state)
 {
@@ -589,7 +631,7 @@ mpsk_rx_steps_impl (mpsk_receiver_state_t *state, const void *x, size_t x_len,
             {
               if (emitted < max_out)
                 out[emitted++] = y;
-              mpsk_rx_tlm_flush (&state->l);
+              mpsk_rx_tlm_flush (&state->l, y);
             }
         }
     }
@@ -609,7 +651,7 @@ mpsk_rx_bits_impl (mpsk_receiver_state_t *state, const void *x, size_t x_len,
       if (!mpsk_rx_step_at (state, x, i, &y, real))
         continue;
       if (state->l.tlm.ctx)
-        mpsk_rx_tlm_flush (&state->l);
+        mpsk_rx_tlm_flush (&state->l, y);
       uint8_t bits[3];
       int     nb = mpsk_rx_symbol_to_bits (&state->l, y, bits);
       for (int b = 0; b < nb && emitted < max_out; b++)

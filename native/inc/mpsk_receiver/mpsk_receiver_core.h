@@ -547,6 +547,76 @@ extern "C"
       int differential);
 
   /**
+   * @brief A BPSK receiver stated in the units a caller actually holds: Hz.
+   *
+   * Same core, same loops, same methods — this differs from
+   * mpsk_receiver_create() only in what it ASKS FOR, and that is the point.
+   * A caller with a capture holds a sample rate, a symbol rate and a carrier
+   * frequency, all in Hz. They do not hold `sps`: that is `fs / Rs`, a ratio
+   * this library computes for its own use in selecting a cascade and in
+   * costing it. Requiring it makes the caller derive an internal quantity,
+   * and then it spreads — because `sps` is in the constructor,
+   * `init_norm_freq` has to be cycles per SAMPLE, so stating a carrier
+   * offset needs `sps` and `fs` both, while the loop bandwidth on the next
+   * line is normalised to the SYMBOL rate. One constructor, two
+   * normalisations, and the conversion between them is the caller's problem.
+   *
+   * So the conversion happens here, once: `sps = sample_rate_hz /
+   * symbol_rate_hz` and the LO centre is `carrier_freq_hz / sample_rate_hz`.
+   * Nothing on this signature is normalised to anything.
+   *
+   * **`m` is absent because the type says it.** That is the cheapest
+   * parameter to remove and the easiest to miss: a fact carried by the class
+   * name is not a parameter on that class.
+   *
+   * Every argument this does not take is a derive-request in the delegate
+   * below — `m_out`, `zeta`, `lock_thresh`, `num_phases`, `bn_agc_ratio` all
+   * ask create() for the derived answer, and the NDA tap is the one measured
+   * to work at every battery point. They are absent because nobody has a use
+   * for them here, not because they are unavailable: `MpskReceiver` still
+   * takes every one.
+   *
+   * @param sample_rate_hz  ADC sample rate, Hz. Must be > 0.
+   * @param symbol_rate_hz  Symbol rate, Hz. Must be > 0, and must leave
+   *                         `sample_rate_hz / symbol_rate_hz` at or above the
+   *                         derived `m_out` — a rate that cannot be strobed
+   *                         is refused rather than approximated.
+   * @param carrier_freq_hz Carrier centre, Hz (default 0 — complex
+   *                         baseband). `|carrier_freq_hz|` must be under
+   *                         `sample_rate_hz / 2`; a centre outside Nyquist is
+   *                         a mis-stated capture, not a tuning request.
+   * @param pulse           Matched-filter shape (default
+   *                         MPSK_RX_PULSE_IANDD).
+   * @param rrc_beta        RRC roll-off in `[0, 1]` (default 0.35; RRC only).
+   * @param rrc_span        RRC one-sided span in symbols (default 8; RRC
+   *                         only).
+   * @param bn_carrier      Carrier loop noise bandwidth, normalised to the
+   *                         symbol rate (default 0.01).
+   * @param bn_timing       Symbol-timing loop noise bandwidth, normalised to
+   *                         the symbol rate (default 0.01).
+   * @param acq_to_track    Hand the carrier over to a decision-directed
+   *                         discriminator once locked (default 0).
+   * @param differential    bits(): differential (rotation-invariant) demap
+   *                         (default 0, coherent).
+   * @param agc             Front-end AGC (default 1).
+   * @return Heap-allocated state, or NULL on invalid args / allocation
+   * failure. Destroy with mpsk_receiver_destroy() like any other.
+   *
+   * @code
+   * >>> from doppler.track import BpskReceiver
+   * >>> rx = BpskReceiver(sample_rate_hz=8e6, symbol_rate_hz=1e6)
+   * >>> rx.m                 # the type says it
+   * 2
+   * >>> rx.sps               # derived from the two rates, not asked for
+   * 8.0
+   * @endcode
+   */
+  mpsk_receiver_state_t *mpsk_receiver_create_bpsk (
+      double sample_rate_hz, double symbol_rate_hz, double carrier_freq_hz,
+      int pulse, double rrc_beta, int rrc_span, double bn_carrier,
+      double bn_timing, int acq_to_track, int differential, int agc);
+
+  /**
    * @brief Destroy an M-PSK receiver and release all memory.
    * @param state  May be NULL.
    */

@@ -69,6 +69,7 @@
 
 #include "ccsds_tm/ccsds_tm.h"
 #include "ccsds_tm/ccsds_tm_rs.h"
+#include "wfm/wfm_frame.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -309,6 +310,53 @@ extern "C"
                                const uint8_t            *cadu,
                            size_t n_cadu, uint8_t *frame, size_t max_frame,
                            ccsds_tm_frame_rx_t *rx);
+
+  /**
+   * @brief This CADU as a @ref wfm_frame_desc_t — the standard as DATA.
+   *
+   * The same fact `CCSDS_TM_CONV` states about the inner code and
+   * `CCSDS_TM_RS` about the outer one, at the level of the frame: 131.0-B-3
+   * section 9 is a CONFIGURATION of a general description, not a framer of
+   * its own. Three fields — the marker, the Transfer Frame, and the check
+   * symbols the outer code derives — and three stages whose covers are the
+   * whole of the coverage table this file opens with.
+   *
+   * The dependency runs THIS way on purpose. `wfm/wfm_frame.h` knows nothing
+   * about CCSDS; if it called this component's kernels the two would form a
+   * cycle, so the kernels travel as @ref ccsds_tm_frame_ops instead.
+   *
+   * @param cfg         the coding to apply.
+   * @param frame_len   Transfer Frame length in **octets**.
+   * @param frame_bits  `frame_len * 8` **unpacked** Transfer Frame bits,
+   *                    MSB-first — the representation the description works
+   *                    in, so the packed/unpacked boundary is crossed by the
+   *                    caller and is visible rather than hidden in a kernel.
+   *                    May be `NULL` to describe the geometry alone.
+   * @param out         receives the description.
+   * @return 0, or -1 if the configuration is refused — the same refusals
+   *         @ref ccsds_tm_frame_layout applies, for the same reasons.
+   */
+  int ccsds_tm_frame_describe (const ccsds_tm_frame_cfg_t *cfg,
+                               size_t frame_len, const uint8_t *frame_bits,
+                               wfm_frame_desc_t *out);
+
+  /**
+   * @brief The kernels a described CADU is assembled with.
+   *
+   * The outer code, the randomiser and the inner code, as the transforms
+   * @ref wfm_frame_assemble calls. Each one is the same function
+   * @ref ccsds_tm_frame_encode calls, so the two paths cannot come to
+   * disagree about what a stage does — only about which bits it is handed,
+   * and that is what the description states.
+   *
+   * @param out   receives the table.
+   * @param conv  inner-encoder state carried across frames, or `NULL` to
+   *              start each frame from the all-zero register. Exactly
+   *              @ref ccsds_tm_frame_encode's @p conv, and it matters for
+   *              the same reason: 3.3.2 fixes one uninterrupted symbol
+   *              sequence.
+   */
+  void ccsds_tm_frame_ops (wfm_frame_ops_t *out, conv_enc_t *conv);
 
 #ifdef __cplusplus
 }

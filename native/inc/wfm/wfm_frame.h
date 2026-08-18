@@ -208,6 +208,87 @@ extern "C"
   } wfm_frame_desc_layout_t;
 
   /**
+   * @brief How one kind of stage actually transforms bits.
+   *
+   * The description is pure data and names a stage by @ref wfm_stage_kind_t;
+   * this is where the arithmetic for that kind comes from. The split is a
+   * LAYERING requirement, not a taste: `ccsds_tm` must depend on this file to
+   * describe a CADU, so this file must not call `ccsds_tm`'s kernels, or the
+   * two components form a cycle. The kernels arrive as a table instead, from
+   * whichever component owns them.
+   *
+   * It is also what makes the description open. A caller with a stage doppler
+   * has never heard of supplies its own entry rather than waiting for an enum
+   * to grow.
+   *
+   * Exactly one of the two is set. @p in_unit rewrites the stage's span where
+   * it lies; @p emit consumes the assembled frame and produces a different
+   * stream.
+   *
+   * **A stage's derived field is the LAST field of its cover**, which is what
+   * lets one in-place signature serve a CRC, an outer code and a randomiser
+   * alike: the op receives the whole span, reads the information at its head
+   * and writes the check symbols into its tail. @ref wfm_frame_desc_layout
+   * refuses a description that breaks it.
+   */
+  typedef struct
+  {
+    wfm_stage_kind_t kind;
+
+    /** Rewrite @p n bits at @p bits, in place. Returns 0 on success. */
+    int (*in_unit) (const wfm_stage_t *st, uint8_t *bits, size_t n,
+                    void *user);
+
+    /** Consume @p n bits at @p in and write the new stream to @p out.
+        Returns the bits written, or 0 on refusal. @p out may overlap @p in:
+        the frame is assembled in the TAIL of the caller's buffer and the
+        stream is written from its head, so an implementation must read each
+        input bit before writing the output bits that displace it — which is
+        the order any expanding code writes in anyway. */
+    size_t (*emit) (const wfm_stage_t *st, const uint8_t *in, size_t n,
+                    uint8_t *out, size_t max_out, void *user);
+  } wfm_stage_op_t;
+
+  /**
+   * @brief The kernels an assembly runs, and whatever state they carry.
+   *
+   * Looked up by kind, and EXTENDS the built-ins rather than replacing them —
+   * so a table supplying an outer code does not have to restate the CRC. A
+   * stage whose kind is in neither table is a **refusal**, never a silent
+   * skip: a stage that quietly did not run produces a frame that still
+   * assembles, still decodes against itself, and syncs to nothing.
+   */
+  typedef struct
+  {
+    const wfm_stage_op_t *op;   /**< table, looked up by kind         */
+    unsigned              n_op; /**< entries in @p op                 */
+    void                 *user; /**< handed to every op it calls      */
+  } wfm_frame_ops_t;
+
+  /**
+   * @brief Materialise a description: run every field, then every stage.
+   *
+   * The general form of @ref wfm_frame_bits. Fields are written in wire
+   * order, then each stage is applied over the span
+   * @ref wfm_frame_desc_layout gave it — over that span and no other, which
+   * is the whole content of the coverage table a standard's framing turns
+   * out to be.
+   *
+   * @param d        the description.
+   * @param ops      kernels for the stage kinds beyond the built-in CRC;
+   *                 may be `NULL` when there are none.
+   * @param out      receives the unpacked output, one bit per byte.
+   * @param max_out  capacity of @p out in bits; must be at least the
+   *                 layout's `out_bits`.
+   * @return The bits written, or 0 if the description is refused, a stage
+   *         has no kernel, a field cannot be built, or @p max_out is too
+   *         small — in which case @p out is untouched.
+   */
+  size_t wfm_frame_assemble (const wfm_frame_desc_t *d,
+                             const wfm_frame_ops_t *ops, uint8_t *out,
+                             size_t max_out);
+
+  /**
    * @brief Derive every field offset, every stage span and both lengths.
    *
    * The one operation both shipped framers already have, widened: this is

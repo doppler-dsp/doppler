@@ -316,6 +316,76 @@ main (void)
 
     DP_CHECK (wfm_frame_desc_layout (NULL, &l) == -1);
     DP_CHECK (wfm_frame_describe (NULL, &d) == -1);
+
+    /* A derived field must be the LAST field of its stage's cover. That is
+       what lets one in-place op signature serve a CRC, an outer code and a
+       randomiser alike -- the kernel reads the information at the head of
+       the span and writes the check symbols into its tail -- so a
+       description that puts the parity in the middle of the data is refused
+       rather than handed to a kernel that cannot know its shape. */
+    memset (&d, 0, sizeof d);
+    d.n_fields             = 2u;
+    d.field[0].bits        = 16u;
+    d.field[0].derived_by  = 1u; /* derived, but FIRST in the cover */
+    d.field[1].seq.kind    = WFM_SEQ_DOTTED;
+    d.field[1].seq.len     = 24u;
+    d.n_stages             = 1u;
+    d.stage[0].first_field = 0u;
+    d.stage[0].n_fields    = 2u;
+    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == -1,
+                  "a derived field must be last in its stage's cover");
+  }
+
+  /* ── assembling a description, and what it refuses ────────────────────
+   *
+   * `wfm_frame_bits` is `wfm_frame_assemble` over the four-field
+   * configuration, so the sections above already exercise the field writing
+   * and the built-in CRC. What is left is the part only a general
+   * description reaches: a stage whose kernel this component does not own.
+   */
+  {
+    uint8_t          buf[256];
+    wfm_frame_desc_t d;
+    memset (&d, 0, sizeof d);
+    d.n_fields             = 1u;
+    d.field[0].seq.kind    = WFM_SEQ_DOTTED;
+    d.field[0].seq.len     = 32u;
+    d.n_stages             = 1u;
+    d.stage[0].kind        = WFM_STAGE_RS; /* nobody here implements it */
+    d.stage[0].depth       = 1u;
+    d.stage[0].first_field = 0u;
+    d.stage[0].n_fields    = 1u;
+
+    /* A stage with no kernel is a REFUSAL, never a silent skip. A skipped
+       stage produces a frame that still assembles, still decodes against
+       itself and syncs to nothing -- and it is indistinguishable in a log
+       from one that ran, which is the same reason the validation harnesses
+       fail rather than skip on a missing binary.
+
+       Found by sabotage: making the assembler `continue` past an unknown
+       kind passed every other test in the tree, because every other test
+       supplies the kernels its description names. */
+    memset (buf, 0xAAu, sizeof buf);
+    DP_CHECK_MSG (wfm_frame_assemble (&d, NULL, buf, sizeof buf) == 0,
+                  "a stage with no kernel must refuse, not run silently");
+    int untouched = 1;
+    for (size_t i = 0; i < sizeof buf; i++)
+      if (buf[i] != 0xAAu)
+        untouched = 0;
+    DP_CHECK_MSG (untouched, "...and must not have written anything");
+
+    /* The same description WITH a kernel must assemble, or the check above
+       is satisfied by an assembler that refuses everything. */
+    d.stage[0].kind = WFM_STAGE_CRC16; /* the built-in, over 32 - 16 bits */
+    d.n_fields      = 2u;
+    d.field[1].bits = WFM_FRAME_CRC_BITS;
+    d.field[1].derived_by = 1u;
+    d.stage[0].n_fields   = 2u;
+    DP_CHECK_MSG (wfm_frame_assemble (&d, NULL, buf, sizeof buf) == 48u,
+                  "...while a stage the built-ins DO cover assembles");
+
+    DP_CHECK (wfm_frame_assemble (NULL, NULL, buf, sizeof buf) == 0);
+    DP_CHECK (wfm_frame_assemble (&d, NULL, buf, 47u) == 0);
   }
 
   DP_TEST_END ("wfm_frame");

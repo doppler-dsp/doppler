@@ -23,14 +23,22 @@ add_library(ccsds_tm_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/ccsds_tm/conv.c
     ${CMAKE_SOURCE_DIR}/native/src/ccsds_tm/asm.c
     ${CMAKE_SOURCE_DIR}/native/src/ccsds_tm/rs.c
-    ${CMAKE_SOURCE_DIR}/native/src/ccsds_tm/frame.c)
+    ${CMAKE_SOURCE_DIR}/native/src/ccsds_tm/frame.c
+    ${CMAKE_SOURCE_DIR}/native/src/ccsds_tm/desc.c)
 target_include_directories(ccsds_tm_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc)
 
 # The CCSDS picks are a conv_code_t and an rs_code_t, and the assembler codes
 # through conv_encode and rs_encode/rs_decode -- ccsds_tm holds the
 # configurations, conv and rs own the arithmetic.
-target_link_libraries(ccsds_tm_core PUBLIC conv_core rs_core)
+#
+# wfm_frame_core is desc.c's: 131.0-B-3 section 9 expressed as a
+# wfm_frame_desc_t. The dependency runs THIS way and must keep doing so --
+# wfm/wfm_frame.h knows nothing about CCSDS, and if it called this
+# component's kernels the two would form a cycle. That is why the kernels
+# travel to the general assembler as a table (ccsds_tm_frame_ops) instead of
+# being called from it.
+target_link_libraries(ccsds_tm_core PUBLIC conv_core rs_core wfm_frame_core)
 
 # ── tests ───────────────────────────────────────────────────────────────────
 add_executable(test_ccsds_tm_rand

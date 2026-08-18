@@ -728,5 +728,121 @@ main (void)
       }
   }
 
+  /* ── the SAME BITS, from the description ─────────────────────────────
+   *
+   * The section above proves the general description reproduces this
+   * component's coverage table. A right coverage table says nothing about
+   * whether the stages were applied to the right bits, so this is the other
+   * half and the one that matters: `wfm_frame_assemble` over
+   * `ccsds_tm_frame_describe`'s description must equal
+   * `ccsds_tm_frame_encode`'s output BYTE FOR BYTE.
+   *
+   * It is the strongest check available here precisely because it is not a
+   * round trip. `ccsds_tm_frame_encode` is already falsified against the
+   * values 131.0-B-3 prints -- the marker as figure 9-1 draws it, the
+   * randomiser's published prefix, Annex G's generator, the impulse response
+   * of the inner code -- so equalling it inherits all of that. A
+   * generalization that agreed only with itself would prove nothing, which is
+   * this whole slice's opening argument applied one level up.
+   *
+   * The payload is STRUCTURED, not zeros: with an all-zero frame the R-S
+   * parity is all-zero too, every interleaved column is identical, and a
+   * description that rotated the codeblock wrongly would still match.
+   */
+  {
+    static const struct
+    {
+      const char          *what;
+      ccsds_tm_frame_cfg_t cfg;
+      size_t               octets;
+    } CASES[] = {
+      { "concatenated, depth 5",
+        { .rs_depth = 5, .randomise = 1, .attach_asm = 1, .convolutional = 1 },
+        (size_t)CCSDS_TM_RS_K * 5 },
+      { "concatenated, depth 1",
+        { .rs_depth = 1, .randomise = 1, .attach_asm = 1, .convolutional = 1 },
+        CCSDS_TM_RS_K },
+      { "outer code and marker, no randomiser, no inner",
+        { .rs_depth = 2, .randomise = 0, .attach_asm = 1, .convolutional = 0 },
+        (size_t)CCSDS_TM_RS_K * 2 },
+      { "marker and randomiser only",
+        { .rs_depth = 0, .randomise = 1, .attach_asm = 1, .convolutional = 0 },
+        64 },
+      { "inner code over a bare frame, no marker",
+        { .rs_depth = 0, .randomise = 0, .attach_asm = 0, .convolutional = 1 },
+        40 },
+    };
+
+    static uint8_t frame[CCSDS_TM_RS_K * 8];
+    static uint8_t fbits[CCSDS_TM_RS_K * 8 * 8];
+    static uint8_t want[(32 + CCSDS_TM_RS_N * 8 * 8) * 2];
+    static uint8_t got[(32 + CCSDS_TM_RS_N * 8 * 8) * 2];
+
+    for (size_t c = 0; c < sizeof CASES / sizeof CASES[0]; c++)
+      {
+        const size_t octets = CASES[c].octets;
+        for (size_t i = 0; i < octets; i++)
+          frame[i] = (uint8_t)(i * 37u + 11u + c);
+        for (size_t i = 0; i < octets; i++)
+          for (unsigned b = 0; b < 8u; b++)
+            fbits[i * 8u + b] = (uint8_t)((frame[i] >> (7u - b)) & 1u);
+
+        const size_t n = ccsds_tm_frame_encode (&CASES[c].cfg, NULL, frame,
+                                                octets, want, sizeof want);
+        DP_REQUIRE_MSG (n != 0, CASES[c].what);
+
+        wfm_frame_desc_t d;
+        DP_REQUIRE_MSG (
+            ccsds_tm_frame_describe (&CASES[c].cfg, octets, fbits, &d) == 0,
+            CASES[c].what);
+        wfm_frame_ops_t ops;
+        ccsds_tm_frame_ops (&ops, NULL);
+
+        memset (got, 0xAAu, sizeof got);
+        const size_t m = wfm_frame_assemble (&d, &ops, got, sizeof got);
+        DP_CHECK_MSG (m == n, "the description must write as many bits");
+        DP_CHECK_MSG (m == n && memcmp (got, want, n) == 0,
+                      "...and the SAME bits, byte for byte");
+      }
+
+    /* The inner code is continuous across frames (3.3.2), and the register
+       is the caller's in both paths. Two frames through one conv_enc_t must
+       agree with two frames through the shipped encoder's -- the seam is
+       where a generalization that quietly owned its own state would differ,
+       and it is exactly the 6 symbols of a CADU's ASM that a receiver is
+       correlating against. */
+    const ccsds_tm_frame_cfg_t cfg = {
+      .rs_depth = 1, .randomise = 1, .attach_asm = 1, .convolutional = 1
+    };
+    const size_t octets = CCSDS_TM_RS_K;
+    for (size_t i = 0; i < octets; i++)
+      frame[i] = (uint8_t)(i * 7u + 1u);
+    for (size_t i = 0; i < octets; i++)
+      for (unsigned b = 0; b < 8u; b++)
+        fbits[i * 8u + b] = (uint8_t)((frame[i] >> (7u - b)) & 1u);
+
+    const size_t nsym = ccsds_tm_frame_layout (&cfg, octets, NULL);
+    conv_enc_t   ca, cb;
+    conv_enc_init (&ca);
+    conv_enc_init (&cb);
+
+    wfm_frame_desc_t d;
+    DP_REQUIRE (ccsds_tm_frame_describe (&cfg, octets, fbits, &d) == 0);
+    wfm_frame_ops_t ops;
+    ccsds_tm_frame_ops (&ops, &cb);
+
+    int seam_ok = 1;
+    for (int f = 0; f < 2; f++)
+      {
+        ccsds_tm_frame_encode (&cfg, &ca, frame, octets, want, nsym);
+        if (wfm_frame_assemble (&d, &ops, got, nsym) != nsym
+            || memcmp (got, want, nsym) != 0)
+          seam_ok = 0;
+      }
+    DP_CHECK_MSG (seam_ok, "3.3.2: a carried register must give the same "
+                           "stream through the description as through the "
+                           "assembler, frame 2 included");
+  }
+
   DP_TEST_END ("ccsds_tm_frame");
 }

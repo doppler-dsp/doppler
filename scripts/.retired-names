@@ -12,3 +12,18 @@
 # FEC" in a docstring are untouched.
 \bfec_[a-z0-9_]+	the ccsds_tm_ prefix (or conv_/rs_ for the general codes)
 \bFEC_[A-Z0-9_]+	the CCSDS_TM_ prefix (or CONV_/RS_ for the general codes)
+
+# doppler: `MpskReceiver` and `MpskReceiverR` collapsed into one object with a
+# tagged front end, so every `mpsk_receiver_r_*` C symbol is gone -- the
+# constructor is `mpsk_receiver_create_real()` and the block API
+# `mpsk_receiver_steps_real()` / `_bits_real()`.
+#
+# The suffix alternation is not verbosity. `mpsk_receiver_r` is a literal
+# prefix of the LIVE `mpsk_receiver_reset`, so a bare `\bmpsk_receiver_r`
+# would condemn twelve working call sites; and `MPSK_RECEIVER_R_STATE_MAGIC`
+# survives DELIBERATELY, keyed on the face so a real blob is refused by the
+# complex receiver at the envelope. Matching the identifier forms only also
+# leaves the design record's own measurement alone -- mpsk-refactor.md S1-7
+# names `mpsk_receiver_r_core.c` because that is what was measured, and a
+# rename must not edit history to satisfy itself.
+\bmpsk_receiver_r_(create|destroy|reset|steps|bits|get_|set_|configure_|state_)	mpsk_receiver_* (create_real / steps_real / bits_real for the real face)

@@ -527,6 +527,30 @@ BENCH_COMPARE_CMD = uv run just-makeit bench --check \
 # the C lines a PR adds aren't covered. clang + matching llvm tools required;
 # override the tool names if they are version-suffixed (e.g. llvm-cov-22).
 COV_DIR       ?= build-cov
+
+# `llvm-cov` consults debuginfod for every object it opens, and Ubuntu turns
+# that on FOR EVERY SHELL in /etc/profile.d/debuginfod.sh
+# (DEBUGINFOD_URLS=https://debuginfod.ubuntu.com). Nothing it could fetch
+# exists — these objects were built here, minutes ago, and carry their own
+# coverage mapping — so each lookup is a network round trip that ends in a
+# timeout.
+#
+# Measured on one extension `.so`: **over 120 s producing no output at all,
+# against 0.105 s with the variable cleared.** This target opens 33 objects
+# and passes over them three times (report, show, export), so the effect is
+# not a slow build, it is a target that never finishes. It presents as a
+# process asleep at 0 % CPU with an open socket, which reads like a hang in
+# llvm-cov and sent one investigation to `-num-threads=1` (no effect —
+# threading was never involved) before an fd listing showed the socket.
+#
+# Cleared for the coverage tools alone, via the recipe rather than a note in
+# a doc: a developer's own debuginfod setup is untouched everywhere else, and
+# a machine that has the variable set — which on Ubuntu is every machine —
+# cannot be the difference between this target working and not.
+# Applied at the CALL SITES, not folded into the tool names below: those are
+# documented as overridable for a version-suffixed toolchain
+# (`LLVM_COV=llvm-cov-22`), and an override must not be able to drop this.
+COV_ENV       ?= env DEBUGINFOD_URLS=
 LLVM_PROFDATA ?= llvm-profdata
 LLVM_COV      ?= llvm-cov
 COV_BASE      ?= origin/main
@@ -626,14 +650,14 @@ cd $(COV_DIR) && LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/c-%p-%m.profraw" \
 # is the gate that exists for exactly that.
 @objs="$(COV_DIR)/libdoppler.so $$(ls $(COV_DIR)/pkg/doppler/*/*.so \
     2>/dev/null | sed 's/^/-object /' | tr '\n' ' ')"; \
-$(LLVM_PROFDATA) merge -sparse -failure-mode=all $(COV_DIR)/prof/*.profraw \
+$(COV_ENV) $(LLVM_PROFDATA) merge -sparse -failure-mode=all $(COV_DIR)/prof/*.profraw \
     -o $(COV_DIR)/doppler.profdata; \
-$(LLVM_COV) report $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
+$(COV_ENV) $(LLVM_COV) report $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
     -ignore-filename-regex='$(COV_IGNORE)'; \
-$(LLVM_COV) show $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
+$(COV_ENV) $(LLVM_COV) show $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
     -ignore-filename-regex='$(COV_IGNORE)' \
     -format=html -output-dir=$(COV_DIR)/html; \
-$(LLVM_COV) export $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
+$(COV_ENV) $(LLVM_COV) export $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
     -ignore-filename-regex='$(COV_IGNORE)' -format=lcov \
     > $(COV_DIR)/coverage.lcov
 sed -i 's|SF:$(CURDIR)/|SF:|' $(COV_DIR)/coverage.lcov

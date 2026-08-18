@@ -1053,6 +1053,232 @@ class Frame:
             shorter than one frame.
         """
 
+    def add_field(
+        self,
+        lit: NDArray[np.uint8],
+        kind: int = 0,
+        gen_len: int = 0,
+        reps: int = 0,
+        poly: int = 0,
+        seed: int = 0,
+        reg_bits: int = 0,
+        lfsr: int = 0,
+        taps_a: int = 0,
+        seed_a: int = 0,
+        taps_b: int = 0,
+        seed_b: int = 0,
+        derived_by: int = 0,
+        derived_bits: int = 0,
+    ) -> int:
+        """Append one field to a description (see `FrameDesc`). `kind` is a
+        `wfm_seq_kind_t` index -- 0 literal, 1 pn, 2 gold, 3 dotted -- and
+        `lfsr` a `wfm_lfsr` one (0 galois, 1 fibonacci); they are ints rather
+        than the strings the constructor takes because a method parameter
+        cannot yet be a string enum (jm gh-1021), and the C enum is the SSOT
+        either way. Either the caller supplies the bits (`lit`, or a generated
+        `kind`) or a stage derives them (`derived_by` non-zero) -- both are
+        fields, because both are on the wire. Returns the new field's index,
+        which is what `derived_by` and a stage's `first_field` are counted in.
+        Refuses once the frame is built.
+
+        Either the caller supplies the bits (lit, or a generated kind) or a
+        stage derives them (derived_by non-zero). Both are fields, because both
+        are on the wire.
+
+        Parameters
+        ----------
+        lit : NDArray[np.uint8]
+            Literal bits, copied here so the description outlives the call; may
+            be NULL.
+        kind : int
+            wfm_seq_kind_t index; 0=literal…3=dotted.
+        gen_len : int
+            Output bits for a GENERATED kind.
+        reps : int
+            Repetitions of the field, verbatim; 0 means one.
+        poly : int
+            PN feedback polynomial; 0 selects the maximal-length.
+        seed : int
+            PN seed; 0 selects 1.
+        reg_bits : int
+            PN/Gold register width.
+        lfsr : int
+            0=galois, 1=fibonacci.
+        taps_a : int
+            Gold: first register's taps.
+        seed_a : int
+            Gold: first register's seed.
+        taps_b : int
+            Gold: second register's taps.
+        seed_b : int
+            Gold: second register's seed.
+        derived_by : int
+            0 when the caller supplies this field; otherwise the index of the
+            producing stage, PLUS ONE.
+        derived_bits : int
+            Length of a derived field, in bits.
+
+        Returns
+        -------
+        int
+            The new field's index, or -1 if the description is full, already
+            built, or the literal could not be copied.
+        """
+
+    def add_stage(
+        self,
+        kind: int = 0,
+        first_field: int = 0,
+        n_fields: int = 0,
+        depth: int = 0,
+        emit_num: int = 0,
+        emit_den: int = 0,
+    ) -> int:
+        """Append one transform and -- the load-bearing part -- the span of
+        fields it covers. `kind` is a `wfm_stage_kind_t` index: 0 crc16, 1 rs,
+        2 randomise, 3 conv (jm gh-1021 -- a method parameter cannot yet be a
+        string enum). `n_fields = 0` means the stage does not run. A stage that
+        inherited whatever ran before it is the representation that cannot
+        express a CCSDS CADU, where the marker is covered by the inner code and
+        by neither the outer code nor the randomiser.
+
+        n_fields is the load-bearing part and 0 means the stage does not run. A
+        stage that inherited "everything before me" instead of declaring its
+        cover is the representation that cannot express a CCSDS CADU — see
+        `wfm/wfm_frame.h`.
+
+        Parameters
+        ----------
+        kind : int
+            wfm_stage_kind_t index; 0=crc16…3=conv.
+        first_field : int
+            First field covered.
+        n_fields : int
+            Fields covered; 0 = the stage does not run.
+        depth : int
+            Interleaving depth, for an outer code.
+        emit_num : int
+            Expansion numerator for a stage that emits a NEW stream; 0 when the
+            stage stays inside the frame.
+        emit_den : int
+            Expansion denominator.
+
+        Returns
+        -------
+        int
+            The new stage's index, or -1 if the description is full or already
+            built.
+        """
+
+    def build(self) -> None:
+        """Lay out and materialise a description. Where a description is
+        checked: one that cannot produce its own bits is not a frame. Separate
+        from the constructor only because the description arrives over several
+        calls and there is no earlier moment at which it is complete. Raises if
+        it is empty, unbuildable, names a stage no kernel here covers, or was
+        already built.
+
+        The point at which a description is checked, which for frame_create
+        happens inside the constructor: a description that cannot produce its
+        own bits is not a frame. It is separate here only because the
+        description arrives over several calls and there is no earlier moment
+        at which it is complete.
+
+        The CRC, the outer code, the randomiser and the inner code are all
+        runnable: `ccsds_tm` has no Python binding and is not getting one, so
+        this object is where a caller meets them. A stage naming a kernel
+        nothing here carries is refused rather than skipped, because a stage
+        that quietly did not run produces a frame that still assembles and
+        syncs to nothing.
+
+        The inner encoder starts from the all-zero register on every build: a
+        description describes ONE frame. A stream of CADUs sharing one register
+        is a transmitter's job and lives in `ccsds_tm_frame_encode`.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``build failed``, with the return code appended (gh-869).
+        """
+
+    def n_fields(self) -> int:
+        """Fields in the description. A `Frame` built the four-field way
+        reports 4 -- `wfm_frame_t` IS a configuration of the general
+        description, so the indexed view below reads it too.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def n_stages(self) -> int:
+        """Stages in the description.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def field_off(self, i: int) -> int:
+        """Bit offset of field `i`, or 0 if there is no such field.
+
+        Parameters
+        ----------
+        i : int
+            Field index.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def field_bits(self, i: int) -> int:
+        """Bits in field `i`, or 0 if there is no such field.
+
+        Parameters
+        ----------
+        i : int
+            Field index.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def stage_first(self, i: int) -> int:
+        """First frame bit stage `i` covers; 0 for a stage that did not run.
+
+        Parameters
+        ----------
+        i : int
+            Stage index.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def stage_bits(self, i: int) -> int:
+        """Bits stage `i` covers; 0 for a stage that did not run -- which is
+        how an optional stage is spelled, and why `first` is 0 there too.
+
+        Parameters
+        ----------
+        i : int
+            Stage index.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
     @property
     def nbits(self) -> int:
         """Nbits."""
@@ -1089,6 +1315,509 @@ class Frame:
         tb: object | None = ...,
     ) -> None:
         """Exit a context manager, releasing the Frame.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
+class FrameDesc:
+    """Create a frame instance.
+
+    Parameters
+    ----------
+    preamble_kind : Literal["literal", "pn", "gold", "dotted"], default "literal"
+        Enum index; 0=literal…3=dotted.
+    preamble : NDArray[np.uint8]
+        Literal preamble bits, one per element. Pass an EMPTY array when the
+        field is absent or generated -- `wfm_seq_t` already spells absence as a
+        zero length, so this is that convention reaching Python rather than a
+        placeholder. (An omittable array init-param is a jm gap; see the module
+        docs.)
+    preamble_nbits : int, default 0
+        Output bits for a GENERATED preamble kind. A literal takes its length
+        from the `preamble` array instead; `wfm_seq_t` names these apart (len
+        vs reg_bits) for the same reason.
+    preamble_reps : int, default 0
+        Repetitions of the preamble; 0 = no preamble (default: 0).
+    preamble_poly : int, default 0
+        PN feedback polynomial; 0 selects the maximal-length one (default: 0).
+    preamble_seed : int, default 0
+        PN seed; 0 selects 1, since an all-zero register is a fixed point
+        (default: 0).
+    preamble_reg_bits : int, default 0
+        PN/Gold register width, 1..64 (default: 0).
+    preamble_lfsr : Literal["galois", "fibonacci"], default "galois"
+        Enum index; 0=galois…1=fibonacci.
+    preamble_taps_a : int, default 0
+        Gold: first register's taps (default: 0).
+    preamble_seed_a : int, default 0
+        Gold: first register's seed (default: 0).
+    preamble_taps_b : int, default 0
+        Gold: second register's taps (default: 0).
+    preamble_seed_b : int, default 0
+        Gold: second register's seed (default: 0).
+    sync_kind : Literal["literal", "pn", "gold", "dotted"], default "literal"
+        Enum index; 0=literal…3=dotted.
+    sync : NDArray[np.uint8]
+        Literal sync word bits, one per element. Pass an EMPTY array when the
+        field is absent or generated -- `wfm_seq_t` already spells absence as a
+        zero length, so this is that convention reaching Python rather than a
+        placeholder. (An omittable array init-param is a jm gap; see the module
+        docs.)
+    sync_nbits : int, default 0
+        Output bits for a GENERATED sync kind (default: 0).
+    sync_poly : int, default 0
+        PN feedback polynomial; 0 selects the maximal-length one (default: 0).
+    sync_seed : int, default 0
+        PN seed; 0 selects 1 (default: 0).
+    sync_reg_bits : int, default 0
+        PN/Gold register width, 1..64 (default: 0).
+    sync_lfsr : Literal["galois", "fibonacci"], default "galois"
+        Enum index; 0=galois…1=fibonacci.
+    sync_taps_a : int, default 0
+        Gold: first register's taps (default: 0).
+    sync_seed_a : int, default 0
+        Gold: first register's seed (default: 0).
+    sync_taps_b : int, default 0
+        Gold: second register's taps (default: 0).
+    sync_seed_b : int, default 0
+        Gold: second register's seed (default: 0).
+    payload_kind : Literal["literal", "pn", "gold", "dotted"], default "literal"
+        Enum index; 0=literal…3=dotted.
+    payload : NDArray[np.uint8]
+        Literal payload bits, one per element. Pass an EMPTY array when the
+        field is absent or generated -- `wfm_seq_t` already spells absence as a
+        zero length, so this is that convention reaching Python rather than a
+        placeholder. (An omittable array init-param is a jm gap; see the module
+        docs.)
+    payload_nbits : int, default 0
+        Output bits for a GENERATED payload kind (default: 0).
+    payload_poly : int, default 0
+        PN feedback polynomial; 0 selects the maximal-length one (default: 0).
+    payload_seed : int, default 0
+        PN seed; 0 selects 1 (default: 0).
+    payload_reg_bits : int, default 0
+        PN/Gold register width, 1..64 (default: 0).
+    payload_lfsr : Literal["galois", "fibonacci"], default "galois"
+        Enum index; 0=galois…1=fibonacci.
+    payload_taps_a : int, default 0
+        Gold: first register's taps (default: 0).
+    payload_seed_a : int, default 0
+        Gold: first register's seed (default: 0).
+    payload_taps_b : int, default 0
+        Gold: second register's taps (default: 0).
+    payload_seed_b : int, default 0
+        Gold: second register's seed (default: 0).
+    crc : Literal["none", "crc16"], default "none"
+        Enum index; 0=none…1=crc16.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``frame geometry is
+        empty or a field is unbuildable (a literal with no array, or a
+        generated field with no register width)``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.wfm import Frame
+    >>> empty = np.empty(0, np.uint8)                    # an absent field
+    >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)   # Barker-13
+    >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+    >>> f = Frame(empty, sync, payload, crc="crc16")
+    >>> f.nbits                                          # 13 + 16 + 16
+    45
+    >>> f.layout().payload_off
+    13
+    >>> f.crc_ok(f.bits())        # its own bits are its own truth
+    1
+
+    A payload a receiver can REGENERATE, rather than one it must be handed:
+
+    >>> g = Frame(empty, sync, empty, payload_kind="pn",
+    ...           payload_nbits=1024, payload_reg_bits=10, crc="crc16")
+    >>> g.nbits
+    1053
+
+    """
+    def __init__(
+        self,
+        preamble: NDArray[np.uint8],
+        sync: NDArray[np.uint8],
+        payload: NDArray[np.uint8],
+        preamble_kind: Literal["literal", "pn", "gold", "dotted"] = "literal",
+        preamble_nbits: int = ...,
+        preamble_reps: int = ...,
+        preamble_poly: int = ...,
+        preamble_seed: int = ...,
+        preamble_reg_bits: int = ...,
+        preamble_lfsr: Literal["galois", "fibonacci"] = "galois",
+        preamble_taps_a: int = ...,
+        preamble_seed_a: int = ...,
+        preamble_taps_b: int = ...,
+        preamble_seed_b: int = ...,
+        sync_kind: Literal["literal", "pn", "gold", "dotted"] = "literal",
+        sync_nbits: int = ...,
+        sync_poly: int = ...,
+        sync_seed: int = ...,
+        sync_reg_bits: int = ...,
+        sync_lfsr: Literal["galois", "fibonacci"] = "galois",
+        sync_taps_a: int = ...,
+        sync_seed_a: int = ...,
+        sync_taps_b: int = ...,
+        sync_seed_b: int = ...,
+        payload_kind: Literal["literal", "pn", "gold", "dotted"] = "literal",
+        payload_nbits: int = ...,
+        payload_poly: int = ...,
+        payload_seed: int = ...,
+        payload_reg_bits: int = ...,
+        payload_lfsr: Literal["galois", "fibonacci"] = "galois",
+        payload_taps_a: int = ...,
+        payload_seed_a: int = ...,
+        payload_taps_b: int = ...,
+        payload_seed_b: int = ...,
+        crc: Literal["none", "crc16"] = "none",
+    ) -> None: ...
+
+    def bits(
+        self,
+        count: int = 1,
+        out: NDArray[np.uint8] | None = None,
+    ) -> NDArray[np.uint8]:
+        """Materialise n consecutive frames, one bit per byte.
+
+        n counts FRAMES, not bits: a descriptor describes one frame, and a
+        capture holds many. Repeating here rather than making the caller tile
+        it is what matches the generator, whose framed source cycles the same
+        frame to fill whatever length was asked for — so a stream compared
+        against this lines up with the one that was transmitted.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            Bits written.
+        """
+
+    def bits_max_out(self, n: int) -> int:
+        """Bits frame_bits will write for n frames — `n * nbits`.
+
+        Parameters
+        ----------
+        n : int
+            Frame repetitions.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def layout(self) -> FrameLayout:
+        """Where each field lands, in bits from the start of the frame.
+
+        The offsets a receiver needs to slice a capture, computed by the same
+        code the generator laid the frame out with.
+
+        Returns
+        -------
+        FrameLayout
+            Output.
+        """
+
+    def crc_ok(self, rx_bits: NDArray[np.uint8]) -> int:
+        """Check one received frame's CRC.
+
+        **This is what makes a truth-free frame error rate possible.** It needs
+        no payload truth at all, so it works on a real capture, and unlike a
+        self-referenced EVM or a blind M2M4 it still catches a false lock — a
+        rotated constellation fails the check rather than looking clean.
+
+        Parameters
+        ----------
+        rx_bits : NDArray[np.uint8]
+            Received bits, one per byte.
+
+        Returns
+        -------
+        int
+            1 pass, 0 fail, -1 if the frame carries no CRC or rx_bits is
+            shorter than one frame.
+        """
+
+    def add_field(
+        self,
+        lit: NDArray[np.uint8],
+        kind: int = 0,
+        gen_len: int = 0,
+        reps: int = 0,
+        poly: int = 0,
+        seed: int = 0,
+        reg_bits: int = 0,
+        lfsr: int = 0,
+        taps_a: int = 0,
+        seed_a: int = 0,
+        taps_b: int = 0,
+        seed_b: int = 0,
+        derived_by: int = 0,
+        derived_bits: int = 0,
+    ) -> int:
+        """Append one field to a description (see `FrameDesc`). `kind` is a
+        `wfm_seq_kind_t` index -- 0 literal, 1 pn, 2 gold, 3 dotted -- and
+        `lfsr` a `wfm_lfsr` one (0 galois, 1 fibonacci); they are ints rather
+        than the strings the constructor takes because a method parameter
+        cannot yet be a string enum (jm gh-1021), and the C enum is the SSOT
+        either way. Either the caller supplies the bits (`lit`, or a generated
+        `kind`) or a stage derives them (`derived_by` non-zero) -- both are
+        fields, because both are on the wire. Returns the new field's index,
+        which is what `derived_by` and a stage's `first_field` are counted in.
+        Refuses once the frame is built.
+
+        Either the caller supplies the bits (lit, or a generated kind) or a
+        stage derives them (derived_by non-zero). Both are fields, because both
+        are on the wire.
+
+        Parameters
+        ----------
+        lit : NDArray[np.uint8]
+            Literal bits, copied here so the description outlives the call; may
+            be NULL.
+        kind : int
+            wfm_seq_kind_t index; 0=literal…3=dotted.
+        gen_len : int
+            Output bits for a GENERATED kind.
+        reps : int
+            Repetitions of the field, verbatim; 0 means one.
+        poly : int
+            PN feedback polynomial; 0 selects the maximal-length.
+        seed : int
+            PN seed; 0 selects 1.
+        reg_bits : int
+            PN/Gold register width.
+        lfsr : int
+            0=galois, 1=fibonacci.
+        taps_a : int
+            Gold: first register's taps.
+        seed_a : int
+            Gold: first register's seed.
+        taps_b : int
+            Gold: second register's taps.
+        seed_b : int
+            Gold: second register's seed.
+        derived_by : int
+            0 when the caller supplies this field; otherwise the index of the
+            producing stage, PLUS ONE.
+        derived_bits : int
+            Length of a derived field, in bits.
+
+        Returns
+        -------
+        int
+            The new field's index, or -1 if the description is full, already
+            built, or the literal could not be copied.
+        """
+
+    def add_stage(
+        self,
+        kind: int = 0,
+        first_field: int = 0,
+        n_fields: int = 0,
+        depth: int = 0,
+        emit_num: int = 0,
+        emit_den: int = 0,
+    ) -> int:
+        """Append one transform and -- the load-bearing part -- the span of
+        fields it covers. `kind` is a `wfm_stage_kind_t` index: 0 crc16, 1 rs,
+        2 randomise, 3 conv (jm gh-1021 -- a method parameter cannot yet be a
+        string enum). `n_fields = 0` means the stage does not run. A stage that
+        inherited whatever ran before it is the representation that cannot
+        express a CCSDS CADU, where the marker is covered by the inner code and
+        by neither the outer code nor the randomiser.
+
+        n_fields is the load-bearing part and 0 means the stage does not run. A
+        stage that inherited "everything before me" instead of declaring its
+        cover is the representation that cannot express a CCSDS CADU — see
+        `wfm/wfm_frame.h`.
+
+        Parameters
+        ----------
+        kind : int
+            wfm_stage_kind_t index; 0=crc16…3=conv.
+        first_field : int
+            First field covered.
+        n_fields : int
+            Fields covered; 0 = the stage does not run.
+        depth : int
+            Interleaving depth, for an outer code.
+        emit_num : int
+            Expansion numerator for a stage that emits a NEW stream; 0 when the
+            stage stays inside the frame.
+        emit_den : int
+            Expansion denominator.
+
+        Returns
+        -------
+        int
+            The new stage's index, or -1 if the description is full or already
+            built.
+        """
+
+    def build(self) -> None:
+        """Lay out and materialise a description. Where a description is
+        checked: one that cannot produce its own bits is not a frame. Separate
+        from the constructor only because the description arrives over several
+        calls and there is no earlier moment at which it is complete. Raises if
+        it is empty, unbuildable, names a stage no kernel here covers, or was
+        already built.
+
+        The point at which a description is checked, which for frame_create
+        happens inside the constructor: a description that cannot produce its
+        own bits is not a frame. It is separate here only because the
+        description arrives over several calls and there is no earlier moment
+        at which it is complete.
+
+        The CRC, the outer code, the randomiser and the inner code are all
+        runnable: `ccsds_tm` has no Python binding and is not getting one, so
+        this object is where a caller meets them. A stage naming a kernel
+        nothing here carries is refused rather than skipped, because a stage
+        that quietly did not run produces a frame that still assembles and
+        syncs to nothing.
+
+        The inner encoder starts from the all-zero register on every build: a
+        description describes ONE frame. A stream of CADUs sharing one register
+        is a transmitter's job and lives in `ccsds_tm_frame_encode`.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``build failed``, with the return code appended (gh-869).
+        """
+
+    def n_fields(self) -> int:
+        """Fields in the description. A `Frame` built the four-field way
+        reports 4 -- `wfm_frame_t` IS a configuration of the general
+        description, so the indexed view below reads it too.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def n_stages(self) -> int:
+        """Stages in the description.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def field_off(self, i: int) -> int:
+        """Bit offset of field `i`, or 0 if there is no such field.
+
+        Parameters
+        ----------
+        i : int
+            Field index.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def field_bits(self, i: int) -> int:
+        """Bits in field `i`, or 0 if there is no such field.
+
+        Parameters
+        ----------
+        i : int
+            Field index.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def stage_first(self, i: int) -> int:
+        """First frame bit stage `i` covers; 0 for a stage that did not run.
+
+        Parameters
+        ----------
+        i : int
+            Stage index.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def stage_bits(self, i: int) -> int:
+        """Bits stage `i` covers; 0 for a stage that did not run -- which is
+        how an optional stage is spelled, and why `first` is 0 there too.
+
+        Parameters
+        ----------
+        i : int
+            Stage index.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    @property
+    def nbits(self) -> int:
+        """Nbits."""
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "FrameDesc":
+        """Enter a context manager, returning this object.
+
+        Lets a FrameDesc be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        FrameDesc
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the FrameDesc.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

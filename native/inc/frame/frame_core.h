@@ -63,6 +63,8 @@
 #include "pn/pn_core.h"
 #include "gold/gold_core.h"
 #include "wfm/wfm_frame.h" /* the descriptor and its layout — the one SSOT */
+#include "conv/conv_core.h"
+#include "rs/rs_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -73,21 +75,32 @@ extern "C" {
  * Allocate with frame_create().
  */
 typedef struct {
-    /** The descriptor, handed to the `wfm_frame_*` calls verbatim. Its three
-        `bits` pointers address the owned copies below, never the caller's
-        arrays — a Python buffer is released the moment the constructor
-        returns. */
+    /** The DESCRIPTION — fields and stages — which is what everything here
+        delegates on. `wfm_frame_t` is one configuration of it, so the
+        thirty-odd-argument constructor and the field-by-field builder produce
+        the same kind of thing and share every method below. Its `bits`
+        pointers address the owned copies, never the caller's arrays: a Python
+        buffer is released the moment the call that supplied it returns. */
+    wfm_frame_desc_t d;
+    /** The general layout, derived at build. */
+    wfm_frame_desc_layout_t dl;
+    /** The four-field configuration, kept only when the object was built that
+        way — it is what `layout()`'s NAMED view reports. A description built
+        field by field has no preamble/sync/payload/crc to name, and
+        `layout()` says so by reporting a zero `total_bits` rather than
+        inventing offsets for fields that do not exist. */
     wfm_frame_t f;
-    /** Computed once, at create. Nothing in this component recomputes a field
-        offset; `layout()` hands this back and `crc_ok()` lets `wfm_frame.c`
-        derive its own from the same descriptor. */
+    /** Computed at create for the configured path; zero otherwise. */
     wfm_frame_layout_t l;
-    /** Owned copies of the literal fields; NULL for a generated kind. */
-    uint8_t *preamble_own, *sync_own, *payload_own;
-    /** One materialised frame, built at create — which is also the proof the
-        descriptor CAN be materialised. `bits()` repeats this rather than
-        regenerating, so every repeat is bit-identical by construction and a
-        PN field cannot advance its register between them. */
+    /** Non-zero once the configured path filled `f` and `l`. */
+    int named;
+    /** Owned copies of every literal field; NULL for a generated kind. */
+    uint8_t *own[WFM_FRAME_MAX_FIELDS];
+    /** One materialised frame, built at create (configured) or at `build()`
+        (described) — which is also the proof the description CAN be
+        materialised. `bits()` repeats this rather than regenerating, so every
+        repeat is bit-identical by construction and a PN field cannot advance
+        its register between them. */
     uint8_t *one;
 /*<<property_struct_fields>>*/
   size_t nbits;
@@ -224,6 +237,159 @@ wfm_frame_layout_t frame_layout(frame_state_t *state);
  *         shorter than one frame.
  */
 int frame_crc_ok(frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len);
+
+/**
+ * @brief The same frame, DEFERRED — a description a caller can extend.
+ *
+ * Every argument @ref frame_create takes, and the flavor is what it does with
+ * them: this one stops before materialising, so the four fields are a
+ * STARTING POINT rather than a finished frame. Append with
+ * @ref frame_add_field and @ref frame_add_stage, then @ref frame_build.
+ * Pass empty arrays for all three to begin from nothing.
+ *
+ * That is what makes a frame doppler has never heard of describable — a
+ * CCSDS CADU among them — without a constructor argument per field of a fixed
+ * list. The thirty-odd arguments both constructors take exist because a field
+ * count baked into a prototype forces every field's every parameter into it;
+ * appending is how a fifth field is added without a signature change.
+ *
+ * It is also what makes the CCSDS coding reachable from Python at all.
+ * `ccsds_tm` has no binding and is not getting one, so a caller meets the
+ * outer code, the randomiser and the inner code by DESCRIBING a CADU rather
+ * than through a CCSDS entry point added here.
+ *
+ * An empty description is legal here and refused by @ref frame_create, and
+ * the difference is where completeness can be judged: that constructor's
+ * description is complete when it returns, and this one is not complete until
+ * @ref frame_build is called.
+ *
+ * @ref frame_layout's NAMED view reports nothing for a description, on
+ * purpose — it would go stale the moment a fifth field is appended, and a
+ * stale offset is worse than an absent one. Read a description through
+ * @ref frame_field_off and its siblings.
+ *
+ * @return An unbuilt description, or NULL on allocation failure or a field
+ *         that cannot be copied.
+ */
+frame_state_t *frame_create_desc(int preamble_kind, const uint8_t *preamble, size_t preamble_len, size_t preamble_nbits, size_t preamble_reps, uint64_t preamble_poly, uint64_t preamble_seed, uint32_t preamble_reg_bits, int preamble_lfsr, uint64_t preamble_taps_a, uint64_t preamble_seed_a, uint64_t preamble_taps_b, uint64_t preamble_seed_b, int sync_kind, const uint8_t *sync, size_t sync_len, size_t sync_nbits, uint64_t sync_poly, uint64_t sync_seed, uint32_t sync_reg_bits, int sync_lfsr, uint64_t sync_taps_a, uint64_t sync_seed_a, uint64_t sync_taps_b, uint64_t sync_seed_b, int payload_kind, const uint8_t *payload, size_t payload_len, size_t payload_nbits, uint64_t payload_poly, uint64_t payload_seed, uint32_t payload_reg_bits, int payload_lfsr, uint64_t payload_taps_a, uint64_t payload_seed_a, uint64_t payload_taps_b, uint64_t payload_seed_b, int crc);
+
+/**
+ * @brief Append one field to a description.
+ *
+ * Either the caller supplies the bits (@p lit, or a generated kind) or a
+ * stage derives them (@p derived_by non-zero). Both are fields, because both
+ * are on the wire.
+ *
+ * @param state        A frame from @ref frame_create_desc.
+ * @param lit          Literal bits, copied here so the description outlives
+ *                     the call; may be NULL.
+ * @param lit_len      Length of @p lit in bits.
+ * @param kind         @ref wfm_seq_kind_t index; 0=literal…3=dotted.
+ * @param gen_len      Output bits for a GENERATED kind.
+ * @param reps         Repetitions of the field, verbatim; 0 means one.
+ * @param poly         PN feedback polynomial; 0 selects the maximal-length.
+ * @param seed         PN seed; 0 selects 1.
+ * @param reg_bits     PN/Gold register width.
+ * @param lfsr         0=galois, 1=fibonacci.
+ * @param taps_a       Gold: first register's taps.
+ * @param seed_a       Gold: first register's seed.
+ * @param taps_b       Gold: second register's taps.
+ * @param seed_b       Gold: second register's seed.
+ * @param derived_by   0 when the caller supplies this field; otherwise the
+ *                     index of the producing stage, PLUS ONE.
+ * @param derived_bits Length of a derived field, in bits.
+ * @return The new field's index, or -1 if the description is full, already
+ *         built, or the literal could not be copied.
+ */
+int frame_add_field(frame_state_t *state, const uint8_t *lit, size_t lit_len,
+                    int kind, size_t gen_len, size_t reps, uint64_t poly,
+                    uint64_t seed, uint32_t reg_bits, int lfsr,
+                    uint64_t taps_a, uint64_t seed_a, uint64_t taps_b,
+                    uint64_t seed_b, uint32_t derived_by,
+                    size_t derived_bits);
+
+/**
+ * @brief Append one stage, and the span of fields it covers.
+ *
+ * @p n_fields is the load-bearing part and 0 means the stage does not run.
+ * A stage that inherited "everything before me" instead of declaring its
+ * cover is the representation that cannot express a CCSDS CADU — see
+ * `wfm/wfm_frame.h`.
+ *
+ * @param state        A frame from @ref frame_create_desc.
+ * @param kind         @ref wfm_stage_kind_t index; 0=crc16…3=conv.
+ * @param first_field  First field covered.
+ * @param n_fields     Fields covered; 0 = the stage does not run.
+ * @param depth        Interleaving depth, for an outer code.
+ * @param emit_num     Expansion numerator for a stage that emits a NEW
+ *                     stream; 0 when the stage stays inside the frame.
+ * @param emit_den     Expansion denominator.
+ * @return The new stage's index, or -1 if the description is full or already
+ *         built.
+ */
+int frame_add_stage(frame_state_t *state, int kind, uint32_t first_field,
+                    uint32_t n_fields, uint32_t depth, uint32_t emit_num,
+                    uint32_t emit_den);
+
+/**
+ * @brief Lay out and materialise a described frame.
+ *
+ * The point at which a description is checked, which for @ref frame_create
+ * happens inside the constructor: a description that cannot produce its own
+ * bits is not a frame. It is separate here only because the description
+ * arrives over several calls and there is no earlier moment at which it is
+ * complete.
+ *
+ * The CRC, the outer code, the randomiser and the inner code are all
+ * runnable: `ccsds_tm` has no Python binding and is not getting one, so this
+ * object is where a caller meets them. A stage naming a kernel nothing here
+ * carries is refused rather than skipped, because a stage that quietly did
+ * not run produces a frame that still assembles and syncs to nothing.
+ *
+ * The inner encoder starts from the all-zero register on every build: a
+ * description describes ONE frame. A stream of CADUs sharing one register is
+ * a transmitter's job and lives in `ccsds_tm_frame_encode`.
+ *
+ * @param state  A frame from @ref frame_create_desc.
+ * @return 0 on success, -1 if the description is empty, unbuildable, names a
+ *         stage with no kernel here, or was already built.
+ */
+int frame_build(frame_state_t *state);
+
+/** @brief Fields in the description. */
+size_t frame_n_fields(frame_state_t *state);
+
+/** @brief Stages in the description. */
+size_t frame_n_stages(frame_state_t *state);
+
+/**
+ * @brief Bit offset of field @p i, or 0 if there is no such field.
+ * @param state  The frame.
+ * @param i      Field index.
+ */
+size_t frame_field_off(frame_state_t *state, size_t i);
+
+/**
+ * @brief Bits in field @p i, or 0 if there is no such field.
+ * @param state  The frame.
+ * @param i      Field index.
+ */
+size_t frame_field_bits(frame_state_t *state, size_t i);
+
+/**
+ * @brief First CADU bit stage @p i covers; 0 for a stage that did not run.
+ * @param state  The frame.
+ * @param i      Stage index.
+ */
+size_t frame_stage_first(frame_state_t *state, size_t i);
+
+/**
+ * @brief Bits stage @p i covers; 0 for a stage that did not run.
+ * @param state  The frame.
+ * @param i      Stage index.
+ */
+size_t frame_stage_bits(frame_state_t *state, size_t i);
+
 #ifdef __cplusplus
 }
 #endif

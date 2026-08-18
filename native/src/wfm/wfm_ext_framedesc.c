@@ -1,12 +1,12 @@
 /*
- * wfm_ext_frame.c — Frame type for the wfm module.
+ * wfm_ext_framedesc.c — FrameDesc type for the wfm module.
  *
  * Included by wfm_ext.c (the module aggregator).
  * Hand-patches to this file are preserved across jm commands.
  * Do NOT compile this file directly — only wfm_ext.c is compiled.
  */
 /* ======================================================== */
-/* FrameObject — wraps frame_state_t *       */
+/* FrameDescObject — wraps frame_state_t *       */
 /* ======================================================== */
 
 #include "frame/frame_core.h"
@@ -14,10 +14,10 @@
 typedef struct
 {
   PyObject_HEAD frame_state_t *handle;
-} FrameObject;
+} FrameDescObject;
 
 static void
-FrameObj_dealloc (FrameObject *self)
+FrameDescObj_dealloc (FrameDescObject *self)
 {
   if (self->handle)
     frame_destroy (self->handle);
@@ -25,16 +25,16 @@ FrameObj_dealloc (FrameObject *self)
 }
 
 static PyObject *
-FrameObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+FrameDescObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  FrameObject *self = (FrameObject *)type->tp_alloc (type, 0);
+  FrameDescObject *self = (FrameDescObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
   return (PyObject *)self;
 }
 
 static int
-FrameObj_init (FrameObject *self, PyObject *args, PyObject *kwds)
+FrameDescObj_init (FrameDescObject *self, PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[]              = { "preamble",
                                                "sync",
@@ -273,7 +273,7 @@ FrameObj_init (FrameObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t payload_len = (size_t)PyArray_SIZE (payload_arr);
-  self->handle       = frame_create (
+  self->handle       = frame_create_desc (
       preamble_kind, (const uint8_t *)PyArray_DATA (preamble_arr),
       preamble_len, preamble_nbits, preamble_reps, preamble_poly,
       preamble_seed, preamble_reg_bits, preamble_lfsr, preamble_taps_a,
@@ -299,7 +299,7 @@ FrameObj_init (FrameObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-FrameObj_bits_max_out (FrameObject *self, PyObject *args)
+FrameDescObj_bits_max_out (FrameDescObject *self, PyObject *args)
 {
   if (!self->handle)
     {
@@ -313,7 +313,7 @@ FrameObj_bits_max_out (FrameObject *self, PyObject *args)
 }
 
 static PyObject *
-FrameObj_bits (FrameObject *self, PyObject *args, PyObject *kwds)
+FrameDescObj_bits (FrameDescObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -409,37 +409,44 @@ FrameObj_bits (FrameObject *self, PyObject *args, PyObject *kwds)
   return arr0;
 }
 
-static PyStructSequence_Field FrameObj_layout_fields[] = {
-  { "preamble_off", NULL }, { "preamble_bits", NULL },
-  { "sync_off", NULL },     { "sync_bits", NULL },
-  { "payload_off", NULL },  { "payload_bits", NULL },
-  { "crc_off", NULL },      { "crc_bits", NULL },
-  { "total_bits", NULL },   { NULL, NULL },
+static PyStructSequence_Field FrameDescObj_layout_fields[] = {
+  { "preamble_off", NULL },
+  { "preamble_bits", NULL },
+  { "sync_off", NULL },
+  { "sync_bits", NULL },
+  { "payload_off", NULL },
+  { "payload_bits", NULL },
+  { "crc_off", NULL },
+  { "crc_bits", "16, or 0 when crc is unset or the payload is empty — a CRC "
+                "over nothing protects nothing" },
+  { "total_bits", NULL },
+  { NULL, NULL },
 };
-static PyStructSequence_Desc FrameObj_layout_desc
+static PyStructSequence_Desc FrameDescObj_layout_desc
     = { "doppler.wfm.FrameLayout",
         "Where each field lands, in bits from the start of the frame. The "
         "offsets a receiver needs to slice a capture -- computed once, by the "
         "same code the generator laid the frame out with.",
-        FrameObj_layout_fields, 9 };
-static PyTypeObject *FrameObj_layout_type = NULL;
+        FrameDescObj_layout_fields, 9 };
+static PyTypeObject *FrameDescObj_layout_type = NULL;
 
 static PyObject *
-FrameObj_layout (FrameObject *self, PyObject *args)
+FrameDescObj_layout (FrameDescObject *self, PyObject *args)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  if (!FrameObj_layout_type)
+  if (!FrameDescObj_layout_type)
     {
-      FrameObj_layout_type = PyStructSequence_NewType (&FrameObj_layout_desc);
-      if (!FrameObj_layout_type)
+      FrameDescObj_layout_type
+          = PyStructSequence_NewType (&FrameDescObj_layout_desc);
+      if (!FrameDescObj_layout_type)
         return NULL;
     }
   wfm_frame_layout_t _r = frame_layout (self->handle);
-  PyObject          *_o = PyStructSequence_New (FrameObj_layout_type);
+  PyObject          *_o = PyStructSequence_New (FrameDescObj_layout_type);
   if (!_o)
     return NULL;
   PyStructSequence_SET_ITEM (
@@ -467,7 +474,7 @@ FrameObj_layout (FrameObject *self, PyObject *args)
 }
 
 static PyObject *
-FrameObj_crc_ok (FrameObject *self, PyObject *args, PyObject *kwds)
+FrameDescObj_crc_ok (FrameDescObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -490,53 +497,9 @@ FrameObj_crc_ok (FrameObject *self, PyObject *args, PyObject *kwds)
   Py_DECREF (rx_bits_arr);
   return PyLong_FromLong ((long)y);
 }
-static PyObject *
-Frame_getprop_nbits (FrameObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->nbits);
-}
-
-static PyGetSetDef Frame_getset[]
-    = { { "nbits", (getter)Frame_getprop_nbits, NULL, "Nbits.\n", NULL },
-        { NULL } };
 
 static PyObject *
-FrameObj_destroy (FrameObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (self->handle)
-    {
-      frame_destroy (self->handle);
-      self->handle = NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-FrameObj_enter (FrameObject *self, PyObject *Py_UNUSED (ignored))
-{
-  Py_INCREF (self);
-  return (PyObject *)self;
-}
-
-static PyObject *
-FrameObj_exit (FrameObject *self, PyObject *args)
-{
-  (void)args;
-  if (self->handle)
-    {
-      frame_destroy (self->handle);
-      self->handle = NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-FrameObj_add_field (FrameObject *self, PyObject *args, PyObject *kwds)
+FrameDescObj_add_field (FrameDescObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -594,7 +557,7 @@ FrameObj_add_field (FrameObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-FrameObj_add_stage (FrameObject *self, PyObject *args, PyObject *kwds)
+FrameDescObj_add_stage (FrameDescObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -624,7 +587,7 @@ FrameObj_add_stage (FrameObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-FrameObj_build (FrameObject *self, PyObject *Py_UNUSED (ignored))
+FrameDescObj_build (FrameDescObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -642,7 +605,7 @@ FrameObj_build (FrameObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-FrameObj_field_off (FrameObject *self, PyObject *args, PyObject *kwds)
+FrameDescObj_field_off (FrameDescObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -659,7 +622,7 @@ FrameObj_field_off (FrameObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-FrameObj_field_bits (FrameObject *self, PyObject *args, PyObject *kwds)
+FrameDescObj_field_bits (FrameDescObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -676,7 +639,8 @@ FrameObj_field_bits (FrameObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-FrameObj_stage_first (FrameObject *self, PyObject *args, PyObject *kwds)
+FrameDescObj_stage_first (FrameDescObject *self, PyObject *args,
+                          PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -693,7 +657,7 @@ FrameObj_stage_first (FrameObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-FrameObj_stage_bits (FrameObject *self, PyObject *args, PyObject *kwds)
+FrameDescObj_stage_bits (FrameDescObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -708,9 +672,53 @@ FrameObj_stage_bits (FrameObject *self, PyObject *args, PyObject *kwds)
   size_t y = frame_stage_bits (self->handle, i);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
+static PyObject *
+FrameDesc_getprop_nbits (FrameDescObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->nbits);
+}
+
+static PyGetSetDef FrameDesc_getset[]
+    = { { "nbits", (getter)FrameDesc_getprop_nbits, NULL, "Nbits.\n", NULL },
+        { NULL } };
 
 static PyObject *
-FrameObj_n_fields (FrameObject *self, PyObject *Py_UNUSED (ignored))
+FrameDescObj_destroy (FrameDescObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (self->handle)
+    {
+      frame_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+FrameDescObj_enter (FrameDescObject *self, PyObject *Py_UNUSED (ignored))
+{
+  Py_INCREF (self);
+  return (PyObject *)self;
+}
+
+static PyObject *
+FrameDescObj_exit (FrameDescObject *self, PyObject *args)
+{
+  (void)args;
+  if (self->handle)
+    {
+      frame_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+FrameDescObj_n_fields (FrameDescObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -722,7 +730,7 @@ FrameObj_n_fields (FrameObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-FrameObj_n_stages (FrameObject *self, PyObject *Py_UNUSED (ignored))
+FrameDescObj_n_stages (FrameDescObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -733,9 +741,10 @@ FrameObj_n_stages (FrameObject *self, PyObject *Py_UNUSED (ignored))
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
 
-static PyMethodDef FrameObj_methods[] = {
+static PyMethodDef FrameDescObj_methods[] = {
 
-  { "bits", (PyCFunction)(void *)FrameObj_bits, METH_VARARGS | METH_KEYWORDS,
+  { "bits", (PyCFunction)(void *)FrameDescObj_bits,
+    METH_VARARGS | METH_KEYWORDS,
     "bits(count=1) -> ndarray\n"
     "\n"
     "Materialise n consecutive frames, one bit per byte.\n"
@@ -754,8 +763,8 @@ static PyMethodDef FrameObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import Frame\n"
-    "    >>> obj = Frame(preamble=np.zeros(1, dtype=np.uint8), "
+    "    >>> from doppler import FrameDesc\n"
+    "    >>> obj = FrameDesc(preamble=np.zeros(1, dtype=np.uint8), "
     "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
     "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
     "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
@@ -770,7 +779,7 @@ static PyMethodDef FrameObj_methods[] = {
     "    >>> y = obj.bits(4)\n"
     "    >>> y.dtype\n"
     "    dtype('uint8')\n" },
-  { "bits_max_out", (PyCFunction)FrameObj_bits_max_out, METH_VARARGS,
+  { "bits_max_out", (PyCFunction)FrameDescObj_bits_max_out, METH_VARARGS,
     "bits_max_out(n) -> int\n"
     "\n"
     "Bits frame_bits will write for n frames — `n * nbits`.\n"
@@ -784,10 +793,10 @@ static PyMethodDef FrameObj_methods[] = {
     "-------\n"
     "int\n"
     "    Output.\n" },
-  { "layout", (PyCFunction)FrameObj_layout, METH_VARARGS,
+  { "layout", (PyCFunction)FrameDescObj_layout, METH_VARARGS,
     "layout() -> FrameLayout record (preamble_off, preamble_bits, sync_off, "
     "sync_bits, payload_off, payload_bits, crc_off, crc_bits, total_bits)." },
-  { "crc_ok", (PyCFunction)(void *)FrameObj_crc_ok,
+  { "crc_ok", (PyCFunction)(void *)FrameDescObj_crc_ok,
     METH_VARARGS | METH_KEYWORDS,
     "crc_ok(rx_bits) -> int\n"
     "\n"
@@ -812,8 +821,8 @@ static PyMethodDef FrameObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import Frame\n"
-    "    >>> obj = Frame(preamble=np.zeros(1, dtype=np.uint8), "
+    "    >>> from doppler import FrameDesc\n"
+    "    >>> obj = FrameDesc(preamble=np.zeros(1, dtype=np.uint8), "
     "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
     "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
     "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
@@ -827,42 +836,7 @@ static PyMethodDef FrameObj_methods[] = {
     "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
     "    >>> obj.crc_ok(np.zeros(4, dtype=np.uint8))\n"
     "    0\n" },
-  { "destroy", (PyCFunction)FrameObj_destroy, METH_NOARGS,
-    "Release the underlying C resources immediately.\n"
-    "\n"
-    "Ordinarily unnecessary: the resources are freed when the object is\n"
-    "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on\n"
-    "exit.\n"
-    "\n"
-    "Idempotent: calling it again on an already-released object does\n"
-    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
-  { "__enter__", (PyCFunction)FrameObj_enter, METH_NOARGS,
-    "Enter a context manager, returning this object.\n"
-    "\n"
-    "Lets a Frame be used in a `with` statement so its C resources are\n"
-    "released deterministically on exit rather than at collection time.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "Frame\n"
-    "    This same object, not a copy.\n" },
-  { "__exit__", (PyCFunction)FrameObj_exit, METH_VARARGS,
-    "Exit a context manager, releasing the Frame.\n"
-    "\n"
-    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never\n"
-    "suppresses one.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "exc_type : object | None\n"
-    "    Exception class, or None. Ignored.\n"
-    "exc : object | None\n"
-    "    Exception instance, or None. Ignored.\n"
-    "tb : object | None\n"
-    "    Traceback object, or None. Ignored.\n" },
-  { "add_field", (PyCFunction)(void *)FrameObj_add_field,
+  { "add_field", (PyCFunction)(void *)FrameDescObj_add_field,
     METH_VARARGS | METH_KEYWORDS,
     "add_field(lit, kind, gen_len, reps, poly, seed, reg_bits, lfsr, taps_a, "
     "seed_a, taps_b, seed_b, derived_by, derived_bits) -> int\n"
@@ -919,8 +893,8 @@ static PyMethodDef FrameObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import Frame\n"
-    "    >>> obj = Frame(preamble=np.zeros(1, dtype=np.uint8), "
+    "    >>> from doppler import FrameDesc\n"
+    "    >>> obj = FrameDesc(preamble=np.zeros(1, dtype=np.uint8), "
     "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
     "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
     "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
@@ -935,7 +909,7 @@ static PyMethodDef FrameObj_methods[] = {
     "    >>> obj.add_field(np.zeros(4, dtype=np.uint8), 0, 0, 0, 0, 0, 0, 0, "
     "0, 0, 0, 0, 0, 0)\n"
     "    0\n" },
-  { "add_stage", (PyCFunction)(void *)FrameObj_add_stage,
+  { "add_stage", (PyCFunction)(void *)FrameDescObj_add_stage,
     METH_VARARGS | METH_KEYWORDS,
     "add_stage(kind, first_field, n_fields, depth, emit_num, emit_den) -> "
     "int\n"
@@ -978,8 +952,8 @@ static PyMethodDef FrameObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import Frame\n"
-    "    >>> obj = Frame(preamble=np.zeros(1, dtype=np.uint8), "
+    "    >>> from doppler import FrameDesc\n"
+    "    >>> obj = FrameDesc(preamble=np.zeros(1, dtype=np.uint8), "
     "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
     "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
     "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
@@ -993,7 +967,7 @@ static PyMethodDef FrameObj_methods[] = {
     "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
     "    >>> obj.add_stage(0, 0, 0, 0, 0, 0)\n"
     "    0\n" },
-  { "build", (PyCFunction)FrameObj_build, METH_NOARGS,
+  { "build", (PyCFunction)FrameDescObj_build, METH_NOARGS,
     "build() -> None\n"
     "\n"
     "Lay out and materialise the description. Where a description is\n"
@@ -1028,8 +1002,8 @@ static PyMethodDef FrameObj_methods[] = {
     "\n"
     "Examples\n"
     "--------\n"
-    "    >>> from doppler import Frame\n"
-    "    >>> obj = Frame(preamble=np.zeros(1, dtype=np.uint8), "
+    "    >>> from doppler import FrameDesc\n"
+    "    >>> obj = FrameDesc(preamble=np.zeros(1, dtype=np.uint8), "
     "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
     "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
     "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
@@ -1042,7 +1016,7 @@ static PyMethodDef FrameObj_methods[] = {
     "payload_lfsr=\"galois\", payload_taps_a=0, payload_seed_a=0, "
     "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
     "    >>> obj.build()\n" },
-  { "field_off", (PyCFunction)(void *)FrameObj_field_off,
+  { "field_off", (PyCFunction)(void *)FrameDescObj_field_off,
     METH_VARARGS | METH_KEYWORDS,
     "field_off(i) -> int\n"
     "\n"
@@ -1061,8 +1035,8 @@ static PyMethodDef FrameObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import Frame\n"
-    "    >>> obj = Frame(preamble=np.zeros(1, dtype=np.uint8), "
+    "    >>> from doppler import FrameDesc\n"
+    "    >>> obj = FrameDesc(preamble=np.zeros(1, dtype=np.uint8), "
     "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
     "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
     "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
@@ -1076,7 +1050,7 @@ static PyMethodDef FrameObj_methods[] = {
     "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
     "    >>> obj.field_off(0)\n"
     "    0\n" },
-  { "field_bits", (PyCFunction)(void *)FrameObj_field_bits,
+  { "field_bits", (PyCFunction)(void *)FrameDescObj_field_bits,
     METH_VARARGS | METH_KEYWORDS,
     "field_bits(i) -> int\n"
     "\n"
@@ -1095,8 +1069,8 @@ static PyMethodDef FrameObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import Frame\n"
-    "    >>> obj = Frame(preamble=np.zeros(1, dtype=np.uint8), "
+    "    >>> from doppler import FrameDesc\n"
+    "    >>> obj = FrameDesc(preamble=np.zeros(1, dtype=np.uint8), "
     "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
     "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
     "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
@@ -1110,7 +1084,7 @@ static PyMethodDef FrameObj_methods[] = {
     "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
     "    >>> obj.field_bits(0)\n"
     "    0\n" },
-  { "stage_first", (PyCFunction)(void *)FrameObj_stage_first,
+  { "stage_first", (PyCFunction)(void *)FrameDescObj_stage_first,
     METH_VARARGS | METH_KEYWORDS,
     "stage_first(i) -> int\n"
     "\n"
@@ -1129,8 +1103,8 @@ static PyMethodDef FrameObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import Frame\n"
-    "    >>> obj = Frame(preamble=np.zeros(1, dtype=np.uint8), "
+    "    >>> from doppler import FrameDesc\n"
+    "    >>> obj = FrameDesc(preamble=np.zeros(1, dtype=np.uint8), "
     "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
     "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
     "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
@@ -1144,7 +1118,7 @@ static PyMethodDef FrameObj_methods[] = {
     "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
     "    >>> obj.stage_first(0)\n"
     "    0\n" },
-  { "stage_bits", (PyCFunction)(void *)FrameObj_stage_bits,
+  { "stage_bits", (PyCFunction)(void *)FrameDescObj_stage_bits,
     METH_VARARGS | METH_KEYWORDS,
     "stage_bits(i) -> int\n"
     "\n"
@@ -1164,8 +1138,8 @@ static PyMethodDef FrameObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import Frame\n"
-    "    >>> obj = Frame(preamble=np.zeros(1, dtype=np.uint8), "
+    "    >>> from doppler import FrameDesc\n"
+    "    >>> obj = FrameDesc(preamble=np.zeros(1, dtype=np.uint8), "
     "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
     "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
     "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
@@ -1179,7 +1153,42 @@ static PyMethodDef FrameObj_methods[] = {
     "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
     "    >>> obj.stage_bits(0)\n"
     "    0\n" },
-  { "n_fields", (PyCFunction)FrameObj_n_fields, METH_NOARGS,
+  { "destroy", (PyCFunction)FrameDescObj_destroy, METH_NOARGS,
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on\n"
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
+  { "__enter__", (PyCFunction)FrameDescObj_enter, METH_NOARGS,
+    "Enter a context manager, returning this object.\n"
+    "\n"
+    "Lets a Frame be used in a `with` statement so its C resources are\n"
+    "released deterministically on exit rather than at collection time.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "Frame\n"
+    "    This same object, not a copy.\n" },
+  { "__exit__", (PyCFunction)FrameDescObj_exit, METH_VARARGS,
+    "Exit a context manager, releasing the Frame.\n"
+    "\n"
+    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "exc_type : object | None\n"
+    "    Exception class, or None. Ignored.\n"
+    "exc : object | None\n"
+    "    Exception instance, or None. Ignored.\n"
+    "tb : object | None\n"
+    "    Traceback object, or None. Ignored.\n" },
+  { "n_fields", (PyCFunction)FrameDescObj_n_fields, METH_NOARGS,
     "n_fields() -> int\n"
     "\n"
     "Fields in the description. A `Frame` built the four-field way\n"
@@ -1193,8 +1202,8 @@ static PyMethodDef FrameObj_methods[] = {
     "\n"
     "Examples\n"
     "--------\n"
-    "    >>> from doppler import Frame\n"
-    "    >>> obj = Frame(preamble=np.zeros(1, dtype=np.uint8), "
+    "    >>> from doppler import FrameDesc\n"
+    "    >>> obj = FrameDesc(preamble=np.zeros(1, dtype=np.uint8), "
     "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
     "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
     "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
@@ -1208,7 +1217,7 @@ static PyMethodDef FrameObj_methods[] = {
     "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
     "    >>> obj.n_fields()\n"
     "    0\n" },
-  { "n_stages", (PyCFunction)FrameObj_n_stages, METH_NOARGS,
+  { "n_stages", (PyCFunction)FrameDescObj_n_stages, METH_NOARGS,
     "n_stages() -> int\n"
     "\n"
     "Stages in the description.\n"
@@ -1220,8 +1229,8 @@ static PyMethodDef FrameObj_methods[] = {
     "\n"
     "Examples\n"
     "--------\n"
-    "    >>> from doppler import Frame\n"
-    "    >>> obj = Frame(preamble=np.zeros(1, dtype=np.uint8), "
+    "    >>> from doppler import FrameDesc\n"
+    "    >>> obj = FrameDesc(preamble=np.zeros(1, dtype=np.uint8), "
     "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
     "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
     "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
@@ -1238,145 +1247,14 @@ static PyMethodDef FrameObj_methods[] = {
   { NULL }
 };
 
-static PyTypeObject FrameObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "wfm.Frame",
-  .tp_basicsize                           = sizeof (FrameObject),
-  .tp_dealloc                             = (destructor)FrameObj_dealloc,
+static PyTypeObject FrameDescObjType = {
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "wfm.FrameDesc",
+  .tp_basicsize                           = sizeof (FrameDescObject),
+  .tp_dealloc                             = (destructor)FrameDescObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc
-  = "Frame component.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "preamble_kind : Literal[\"literal\", \"pn\", \"gold\", \"dotted\"], "
-    "default \"literal\"\n"
-    "    preamble_kind constructor parameter.\n"
-    "preamble : NDArray[np.uint8]\n"
-    "    preamble constructor parameter.\n"
-    "preamble_nbits : int, default 0\n"
-    "    Output bits for a GENERATED preamble kind. A literal takes its "
-    "length\n"
-    "    from the `preamble` array instead; `wfm_seq_t` names these apart "
-    "(len\n"
-    "    vs reg_bits) for the same reason.\n"
-    "preamble_reps : int, default 0\n"
-    "    preamble_reps constructor parameter.\n"
-    "preamble_poly : int, default 0\n"
-    "    preamble_poly constructor parameter.\n"
-    "preamble_seed : int, default 0\n"
-    "    preamble_seed constructor parameter.\n"
-    "preamble_reg_bits : int, default 0\n"
-    "    preamble_reg_bits constructor parameter.\n"
-    "preamble_lfsr : Literal[\"galois\", \"fibonacci\"], default \"galois\"\n"
-    "    preamble_lfsr constructor parameter.\n"
-    "preamble_taps_a : int, default 0\n"
-    "    preamble_taps_a constructor parameter.\n"
-    "preamble_seed_a : int, default 0\n"
-    "    preamble_seed_a constructor parameter.\n"
-    "preamble_taps_b : int, default 0\n"
-    "    preamble_taps_b constructor parameter.\n"
-    "preamble_seed_b : int, default 0\n"
-    "    preamble_seed_b constructor parameter.\n"
-    "sync_kind : Literal[\"literal\", \"pn\", \"gold\", \"dotted\"], default "
-    "\"literal\"\n"
-    "    sync_kind constructor parameter.\n"
-    "sync : NDArray[np.uint8]\n"
-    "    sync constructor parameter.\n"
-    "sync_nbits : int, default 0\n"
-    "    sync_nbits constructor parameter.\n"
-    "sync_poly : int, default 0\n"
-    "    sync_poly constructor parameter.\n"
-    "sync_seed : int, default 0\n"
-    "    sync_seed constructor parameter.\n"
-    "sync_reg_bits : int, default 0\n"
-    "    sync_reg_bits constructor parameter.\n"
-    "sync_lfsr : Literal[\"galois\", \"fibonacci\"], default \"galois\"\n"
-    "    sync_lfsr constructor parameter.\n"
-    "sync_taps_a : int, default 0\n"
-    "    sync_taps_a constructor parameter.\n"
-    "sync_seed_a : int, default 0\n"
-    "    sync_seed_a constructor parameter.\n"
-    "sync_taps_b : int, default 0\n"
-    "    sync_taps_b constructor parameter.\n"
-    "sync_seed_b : int, default 0\n"
-    "    sync_seed_b constructor parameter.\n"
-    "payload_kind : Literal[\"literal\", \"pn\", \"gold\", \"dotted\"], "
-    "default \"literal\"\n"
-    "    payload_kind constructor parameter.\n"
-    "payload : NDArray[np.uint8]\n"
-    "    payload constructor parameter.\n"
-    "payload_nbits : int, default 0\n"
-    "    payload_nbits constructor parameter.\n"
-    "payload_poly : int, default 0\n"
-    "    payload_poly constructor parameter.\n"
-    "payload_seed : int, default 0\n"
-    "    payload_seed constructor parameter.\n"
-    "payload_reg_bits : int, default 0\n"
-    "    payload_reg_bits constructor parameter.\n"
-    "payload_lfsr : Literal[\"galois\", \"fibonacci\"], default \"galois\"\n"
-    "    payload_lfsr constructor parameter.\n"
-    "payload_taps_a : int, default 0\n"
-    "    payload_taps_a constructor parameter.\n"
-    "payload_seed_a : int, default 0\n"
-    "    payload_seed_a constructor parameter.\n"
-    "payload_taps_b : int, default 0\n"
-    "    payload_taps_b constructor parameter.\n"
-    "payload_seed_b : int, default 0\n"
-    "    payload_seed_b constructor parameter.\n"
-    "crc : Literal[\"none\", \"crc16\"], default \"none\"\n"
-    "    crc constructor parameter.\n"
-    "\n"
-    "Raises\n"
-    "------\n"
-    "ValueError\n"
-    "    If construction fails. The exception message is ``frame geometry is\n"
-    "    empty or a field is unbuildable (a literal with no array, or a\n"
-    "    generated field with no register width)``.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Create with defaults:\n"
-    "\n"
-    ">>> from doppler import Frame\n"
-    ">>> obj = Frame(\n"
-    "...     preamble=np.zeros(1, dtype=np.uint8),\n"
-    "...     sync=np.zeros(1, dtype=np.uint8),\n"
-    "...     payload=np.zeros(1, dtype=np.uint8),\n"
-    "...     preamble_kind=\"literal\",\n"
-    "...     preamble_nbits=0,\n"
-    "...     preamble_reps=0,\n"
-    "...     preamble_poly=0,\n"
-    "...     preamble_seed=0,\n"
-    "...     preamble_reg_bits=0,\n"
-    "...     preamble_lfsr=\"galois\",\n"
-    "...     preamble_taps_a=0,\n"
-    "...     preamble_seed_a=0,\n"
-    "...     preamble_taps_b=0,\n"
-    "...     preamble_seed_b=0,\n"
-    "...     sync_kind=\"literal\",\n"
-    "...     sync_nbits=0,\n"
-    "...     sync_poly=0,\n"
-    "...     sync_seed=0,\n"
-    "...     sync_reg_bits=0,\n"
-    "...     sync_lfsr=\"galois\",\n"
-    "...     sync_taps_a=0,\n"
-    "...     sync_seed_a=0,\n"
-    "...     sync_taps_b=0,\n"
-    "...     sync_seed_b=0,\n"
-    "...     payload_kind=\"literal\",\n"
-    "...     payload_nbits=0,\n"
-    "...     payload_poly=0,\n"
-    "...     payload_seed=0,\n"
-    "...     payload_reg_bits=0,\n"
-    "...     payload_lfsr=\"galois\",\n"
-    "...     payload_taps_a=0,\n"
-    "...     payload_seed_a=0,\n"
-    "...     payload_taps_b=0,\n"
-    "...     payload_seed_b=0,\n"
-    "...     crc=\"none\",\n"
-    "... )\n",
-  .tp_methods = FrameObj_methods,
-  .tp_getset  = Frame_getset,
-  .tp_new     = FrameObj_new,
-  .tp_init    = (initproc)FrameObj_init,
+  .tp_doc                                 = "FrameDesc type.\n",
+  .tp_methods                             = FrameDescObj_methods,
+  .tp_getset                              = FrameDesc_getset,
+  .tp_new                                 = FrameDescObj_new,
+  .tp_init                                = (initproc)FrameDescObj_init,
 };

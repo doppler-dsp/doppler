@@ -401,6 +401,25 @@ extern "C"
   size_t wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out);
 
   /**
+   * @brief Check a received frame's CRC against any description that has one.
+   *
+   * The general form of @ref wfm_frame_crc_ok, and the same truth-free claim:
+   * it needs the description and the received bits and no payload truth at
+   * all. What the CRC protects is everything its stage covers except the
+   * trailer that stage derived — read back from the same rule the assembler
+   * writes by, so the two cannot disagree about where the trailer is.
+   *
+   * @param d        the description the bits are laid out by.
+   * @param rx_bits  received bits, the layout's `frame_bits` of them.
+   * @return 1 pass, 0 fail, -1 if the description carries no CRC stage (or on
+   *         NULL). The three are distinct on purpose: an FER that read
+   *         "carries no check" as "the check failed" would count every
+   *         unprotected frame as an error.
+   */
+  int wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d,
+                             const uint8_t          *rx_bits);
+
+  /**
    * @brief Check a received frame's CRC in place.
    *
    * **This is what makes a truth-free frame error rate possible.** It needs

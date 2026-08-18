@@ -2,7 +2,7 @@ add_library(wfm_core OBJECT wfm_core.c bpsk_map.c qpsk_map.c wfm_awgn_amplitude.
 target_include_directories(wfm_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# wfm Python module — aggregates: PN, _SynthEngine, Gold, Frame
+# wfm Python module — aggregates: PN, _SynthEngine, Gold, Frame, FrameDesc
 Python3_add_library(wfm MODULE WITH_SOABI wfm_ext.c)
 target_link_libraries(wfm PRIVATE
     wfm_core
@@ -15,6 +15,9 @@ target_link_libraries(wfm PRIVATE
     fir_core
     resamp_core
     wfm_frame_core
+    ccsds_tm_core
+    conv_core
+    rs_core
     wfm_dsp_core
     Python3::NumPy)
 target_include_directories(wfm PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

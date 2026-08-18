@@ -26,7 +26,7 @@ import numpy as np
 import pytest
 
 from doppler.ber import FrameMeter
-from doppler.wfm import Composer, Frame, Segment, crc16
+from doppler.wfm import Composer, Frame, FrameDesc, Segment, crc16
 
 EMPTY = np.empty(0, np.uint8)
 # Barker-13 — the sync word the named RX_FRAME_BURST carries.
@@ -230,3 +230,121 @@ def test_frames_scored_into_a_frame_meter():
     # Asserting the naive ratio would be asserting the wrong estimator.
     fer = m.fer()
     assert fer.lo <= 0.2 <= fer.hi
+
+
+# ── the description a Frame is one configuration of ─────────────────────────
+#
+# `Frame` names four fields. `FrameDesc` takes the SAME arguments and stops
+# before materialising, so the four are a starting point a caller extends.
+# That is what lets Python describe a frame doppler has never heard of --
+# including a CCSDS CADU, whose coding has no binding of its own and would
+# otherwise be unreachable from here.
+
+
+def test_framedesc_is_the_same_frame_deferred():
+    """The two constructors differ in WHEN, not in what they produce."""
+    f = _frame()
+    d = FrameDesc(ACQ, SYNC, PAYLOAD, preamble_reps=REPS, crc="crc16")
+    d.build()
+
+    assert d.nbits == f.nbits
+    assert np.array_equal(np.asarray(d.bits(1)), np.asarray(f.bits(1)))
+    assert d.crc_ok(d.bits(1)) == 1
+
+
+def test_the_indexed_view_reads_a_configured_frame_too():
+    """`wfm_frame_t` IS a configuration, so the general accessors reach it.
+
+    Checked against the NAMED view rather than against literals: the two are
+    the same layout read two ways, and a description that disagreed with the
+    struct it was built from would be two descriptors again.
+    """
+    f = _frame()
+    lay = f.layout()
+
+    assert f.n_fields() == 4
+    assert f.n_stages() == 1
+    assert (f.field_off(0), f.field_bits(0)) == (
+        lay.preamble_off,
+        lay.preamble_bits,
+    )
+    assert (f.field_off(2), f.field_bits(2)) == (
+        lay.payload_off,
+        lay.payload_bits,
+    )
+    assert (f.field_off(3), f.field_bits(3)) == (lay.crc_off, lay.crc_bits)
+    # The CRC stage covers the payload AND the trailer it derives -- the rule
+    # that lets one kernel signature serve every check-symbol stage.
+    assert f.stage_first(0) == lay.payload_off
+    assert f.stage_bits(0) == lay.payload_bits + lay.crc_bits
+
+
+def test_an_empty_description_starts_empty_and_refuses_to_build():
+    """Empty arrays begin from nothing, and nothing is not a frame."""
+    d = FrameDesc(EMPTY, EMPTY, EMPTY)
+    assert d.n_fields() == 0
+    assert d.n_stages() == 0
+    with pytest.raises(ValueError):
+        d.build()
+
+
+def test_a_ccsds_cadu_can_be_described_from_python():
+    """The point of the generalization, reached through the binding.
+
+    `ccsds_tm` has no Python face and is not getting one, so the outer code,
+    the randomiser and the inner code are reachable only by DESCRIBING a CADU.
+    The three covers ARE 131.0-B-3's coverage table: the inner code reaches
+    over the marker and neither of the other two does, which is the one thing
+    no kernel can be wrong about alone.
+
+    The bits are checked byte-for-byte against `ccsds_tm_frame_encode` in
+    `native/tests/test_frame_core.c`, where both sides are reachable. What is
+    checked here is that the description survives the binding.
+    """
+    K, N, E2, DEPTH = 223, 255, 32, 2
+    _CRC16, RS, RANDOMISE, CONV = 0, 1, 2, 3
+    ASM = 0x1ACFFC1D
+
+    octets = np.array(
+        [(i * 29 + 5) & 0xFF for i in range(K * DEPTH)], np.uint8
+    )
+    fbits = np.unpackbits(octets).astype(np.uint8)
+    asm_bits = np.array([(ASM >> (31 - i)) & 1 for i in range(32)], np.uint8)
+
+    d = FrameDesc(EMPTY, EMPTY, EMPTY)
+    assert d.add_field(asm_bits) == 0
+    assert d.add_field(fbits) == 1
+    assert d.add_field(EMPTY, derived_by=1, derived_bits=E2 * DEPTH * 8) == 2
+    assert d.add_stage(RS, first_field=1, n_fields=2, depth=DEPTH) == 0
+    assert d.add_stage(RANDOMISE, first_field=1, n_fields=2) == 1
+    assert (
+        d.add_stage(CONV, first_field=0, n_fields=3, emit_num=2, emit_den=1)
+        == 2
+    )
+    d.build()
+
+    # (ASM + codeblock) * 2, the rate-1/2 inner code doubling the CADU.
+    assert d.nbits == (32 + N * DEPTH * 8) * 2
+
+    # 9.2.1.4: the inner code covers everything, marker included.
+    assert (d.stage_first(2), d.stage_bits(2)) == (0, 32 + N * DEPTH * 8)
+    # 9.5.1 and 10.3.4: the other two start behind the marker.
+    assert (d.stage_first(0), d.stage_bits(0)) == (32, N * DEPTH * 8)
+    assert (d.stage_first(1), d.stage_bits(1)) == (32, N * DEPTH * 8)
+
+    sym = np.asarray(d.bits(1))
+    assert sym.size == d.nbits
+    assert set(np.unique(sym)) <= {0, 1}
+    # The marker is inside the inner code, so it does NOT survive verbatim --
+    # the direct falsification of the other stage order.
+    assert not np.array_equal(sym[:32], asm_bits)
+
+
+def test_a_description_is_closed_once_built():
+    """A built frame is finished: extending it would strand its own bits."""
+    d = FrameDesc(EMPTY, SYNC, PAYLOAD, crc="crc16")
+    d.build()
+    assert d.add_field(PAYLOAD) == -1
+    assert d.add_stage(0, first_field=0, n_fields=1) == -1
+    with pytest.raises(ValueError):
+        d.build()

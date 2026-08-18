@@ -369,16 +369,45 @@ wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out)
 }
 
 int
+wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d, const uint8_t *rx_bits)
+{
+  wfm_frame_desc_layout_t l;
+  if (!d || !rx_bits || wfm_frame_desc_layout (d, &l) != 0)
+    return -1;
+
+  for (unsigned s = 0; s < d->n_stages; s++)
+    {
+      if (d->stage[s].kind != WFM_STAGE_CRC16 || l.stage[s].n == 0)
+        continue;
+
+      /* The trailer is the last field of the cover — the rule that lets one
+         in-place kernel signature serve every check-symbol stage, read back
+         here from the other side. What the CRC protects is everything the
+         stage covers except the trailer it derived. */
+      const unsigned last
+          = d->stage[s].first_field + d->stage[s].n_fields - 1u;
+      const size_t tr = l.field_bits[last];
+      if (tr == 0 || tr > l.stage[s].n)
+        return -1;
+      const size_t prot = l.stage[s].n - tr;
+
+      const uint16_t want = dp_crc16_ccitt (rx_bits + l.stage[s].first, prot);
+      uint16_t       got  = 0;
+      for (size_t i = 0; i < tr; i++)
+        got = (uint16_t)((got << 1)
+                         | (rx_bits[l.stage[s].first + prot + i] & 1u));
+      return want == got;
+    }
+  return -1; /* no CRC stage: "carries no check" is not "the check failed" */
+}
+
+int
 wfm_frame_crc_ok (const wfm_frame_t *f, const uint8_t *rx_bits)
 {
-  wfm_frame_layout_t l;
-  if (!rx_bits || wfm_frame_layout (f, &l) != 0 || l.crc_bits == 0)
+  wfm_frame_desc_t d;
+  if (!f || wfm_frame_describe (f, &d) != 0)
     return -1;
-  uint16_t want = dp_crc16_ccitt (rx_bits + l.payload_off, l.payload_bits);
-  uint16_t got  = 0;
-  for (size_t i = 0; i < l.crc_bits; i++)
-    got = (uint16_t)((got << 1) | (rx_bits[l.crc_off + i] & 1u));
-  return want == got;
+  return wfm_frame_desc_crc_ok (&d, rx_bits);
 }
 
 /* ── the DSSS burst: a FRAME, then spread ──────────────────────────────

@@ -34,8 +34,19 @@ create_error = "ValueError"
 create_error_message = "frame geometry is empty or a field is unbuildable (a literal with no array, or a generated field with no register width)"
 # wfm_frame_core holds wfm_frame_bits/_layout/_crc_ok; pn/gold back the
 # generated sequence kinds it calls into.
+# ccsds_tm: `build()` runs the coded stages a description may name, and
+# ccsds_tm has no binding of its own -- so this object is where a Python
+# caller meets the outer code, the randomiser and the inner code. The
+# dependency runs frame -> ccsds_tm -> wfm_frame, which is the direction
+# ccsds_tm's own CMakeLists anticipated ("BOTH ends want it: wfmgen encodes,
+# and frame/ber_meter will decode"). conv/rs come with it: an OBJECT library
+# propagates usage requirements but not its objects, so every consumer must
+# name them.
 depends_on = [
     { name = "wfm_frame", link = true },
+    { name = "ccsds_tm", link = true },
+    { name = "conv", link = true },
+    { name = "rs", link = true },
     { name = "pn", link = true },
     { name = "gold", link = true },
 ]
@@ -229,6 +240,27 @@ variable_output = true
 pass_capacity = true
 nogil = true
 
+# ── the OTHER constructor: the same frame, DEFERRED ────────────────────────
+#
+# `Frame(...)` materialises at construction. `FrameDesc(...)` takes the SAME
+# arguments and stops before materialising, so the four fields are a starting
+# point a caller extends with `add_field` / `add_stage` before `build()`.
+# Empty arrays for all three begin from nothing.
+#
+# A view rather than a second object, by the rule this repo already uses (see
+# the `ddc` section of CLAUDE.md): a difference in CONSTRUCTOR is a flavor, a
+# difference in METHOD SIGNATURE is a separate type. Every method is shared
+# verbatim, so it is a flavor -- and the init_params are the parent's, which
+# is what a view inheriting them is FOR.
+#
+# It is what makes CCSDS reachable from Python at all. `ccsds_tm` has no
+# binding and is not getting one, so a caller meets the outer code, the
+# randomiser and the inner code by DESCRIBING a CADU -- three fields and three
+# covers -- rather than by a CCSDS entry point being added to this object.
+[[frame.views]]
+class_name = "FrameDesc"
+create_fn = "frame_create_desc"
+
 [[frame.methods]]
 name = "layout"
 arg_type = "void"
@@ -255,6 +287,90 @@ arg_type = "void"
 return_type = "int"
 params = [{ name = "rx_bits", type = "uint8_t[]" }]
 nogil = true
+
+[[frame.methods]]
+name = "add_field"
+doc = "Append one field to a description (see `FrameDesc`). `kind` is a `wfm_seq_kind_t` index -- 0 literal, 1 pn, 2 gold, 3 dotted -- and `lfsr` a `wfm_lfsr` one (0 galois, 1 fibonacci); they are ints rather than the strings the constructor takes because a method parameter cannot yet be a string enum (jm gh-1021), and the C enum is the SSOT either way. Either the caller supplies the bits (`lit`, or a generated `kind`) or a stage derives them (`derived_by` non-zero) -- both are fields, because both are on the wire. Returns the new field's index, which is what `derived_by` and a stage's `first_field` are counted in. Refuses once the frame is built."
+arg_type = "void"
+return_type = "int"
+params = [
+    { name = "lit", type = "uint8_t[]" },
+    { name = "kind", type = "int", default = "0" },
+    { name = "gen_len", type = "size_t", default = "0" },
+    { name = "reps", type = "size_t", default = "0" },
+    { name = "poly", type = "uint64_t", default = "0" },
+    { name = "seed", type = "uint64_t", default = "0" },
+    { name = "reg_bits", type = "uint32_t", default = "0" },
+    { name = "lfsr", type = "int", default = "0" },
+    { name = "taps_a", type = "uint64_t", default = "0" },
+    { name = "seed_a", type = "uint64_t", default = "0" },
+    { name = "taps_b", type = "uint64_t", default = "0" },
+    { name = "seed_b", type = "uint64_t", default = "0" },
+    { name = "derived_by", type = "uint32_t", default = "0" },
+    { name = "derived_bits", type = "size_t", default = "0" },
+]
+
+[[frame.methods]]
+name = "add_stage"
+doc = "Append one transform and -- the load-bearing part -- the span of fields it covers. `kind` is a `wfm_stage_kind_t` index: 0 crc16, 1 rs, 2 randomise, 3 conv (jm gh-1021 -- a method parameter cannot yet be a string enum). `n_fields = 0` means the stage does not run. A stage that inherited whatever ran before it is the representation that cannot express a CCSDS CADU, where the marker is covered by the inner code and by neither the outer code nor the randomiser."
+arg_type = "void"
+return_type = "int"
+params = [
+    { name = "kind", type = "int", default = "0" },
+    { name = "first_field", type = "uint32_t", default = "0" },
+    { name = "n_fields", type = "uint32_t", default = "0" },
+    { name = "depth", type = "uint32_t", default = "0" },
+    { name = "emit_num", type = "uint32_t", default = "0" },
+    { name = "emit_den", type = "uint32_t", default = "0" },
+]
+
+[[frame.methods]]
+name = "build"
+doc = "Lay out and materialise a description. Where a description is checked: one that cannot produce its own bits is not a frame. Separate from the constructor only because the description arrives over several calls and there is no earlier moment at which it is complete. Raises if it is empty, unbuildable, names a stage no kernel here covers, or was already built."
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+
+[[frame.methods]]
+name = "n_fields"
+doc = "Fields in the description. A `Frame` built the four-field way reports 4 -- `wfm_frame_t` IS a configuration of the general description, so the indexed view below reads it too."
+arg_type = "void"
+return_type = "size_t"
+
+[[frame.methods]]
+name = "n_stages"
+doc = "Stages in the description."
+arg_type = "void"
+return_type = "size_t"
+
+[[frame.methods]]
+name = "field_off"
+doc = "Bit offset of field `i`, or 0 if there is no such field."
+arg_type = "void"
+return_type = "size_t"
+params = [{ name = "i", type = "size_t" }]
+
+[[frame.methods]]
+name = "field_bits"
+doc = "Bits in field `i`, or 0 if there is no such field."
+arg_type = "void"
+return_type = "size_t"
+params = [{ name = "i", type = "size_t" }]
+
+[[frame.methods]]
+name = "stage_first"
+doc = "First frame bit stage `i` covers; 0 for a stage that did not run."
+arg_type = "void"
+return_type = "size_t"
+params = [{ name = "i", type = "size_t" }]
+
+[[frame.methods]]
+name = "stage_bits"
+doc = "Bits stage `i` covers; 0 for a stage that did not run -- which is how an optional stage is spelled, and why `first` is 0 there too."
+arg_type = "void"
+return_type = "size_t"
+params = [{ name = "i", type = "size_t" }]
 
 [[frame.properties]]
 name = "nbits"

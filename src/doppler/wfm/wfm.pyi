@@ -46,6 +46,66 @@ class FrameLayout(tuple[int, int, int, int, int, int, int, int, int]):
     def total_bits(self) -> int: ...
 
 @final
+class FrameCheck(tuple[int, int, int, int, int, int, int]):
+    """What checking one received frame found. `ok == units` is the verdict;
+    `symbols` is what it cost, which is margin being spent and is visible
+    before it is lost.
+
+    Attributes
+    ----------
+    passed : int
+        Every check good: 1 yes, 0 no. Also 0 when nothing was checked -- see `checked`. Named `passed` rather than `pass` because the obvious name is a Python keyword and `r.pass` will not parse.
+    stages : int
+        Stages in the description.
+    checked : int
+        How many were reversed here. 0 means the description carries no reversible stage, which is why `pass` is 0: carrying no check is not the same answer as passing one.
+    units : int
+        Checks performed: one for a CRC, one per codeword for an interleaved outer code.
+    ok : int
+        How many came out good -- clean or repaired.
+    corrected : int
+        How many needed and received repair.
+    symbols : int
+        Symbol errors repaired across the frame.
+    """
+
+    @property
+    def passed(self) -> int:
+        """Every check good: 1 yes, 0 no. Also 0 when nothing was checked --
+        see `checked`. Named `passed` rather than `pass` because the obvious
+        name is a Python keyword and `r.pass` will not parse.
+        """
+
+    @property
+    def stages(self) -> int:
+        """Stages in the description."""
+
+    @property
+    def checked(self) -> int:
+        """How many were reversed here. 0 means the description carries no
+        reversible stage, which is why `pass` is 0: carrying no check is not
+        the same answer as passing one.
+        """
+
+    @property
+    def units(self) -> int:
+        """Checks performed: one for a CRC, one per codeword for an interleaved
+        outer code.
+        """
+
+    @property
+    def ok(self) -> int:
+        """How many came out good -- clean or repaired."""
+
+    @property
+    def corrected(self) -> int:
+        """How many needed and received repair."""
+
+    @property
+    def symbols(self) -> int:
+        """Symbol errors repaired across the frame."""
+
+@final
 class PN:
     """Allocate and initialise a maximal-length-sequence LFSR. The register is
     seeded from ``seed`` and will produce a pseudo-random binary sequence with
@@ -1202,6 +1262,48 @@ class Frame:
             ``build failed``, with the return code appended (gh-869).
         """
 
+    def check(self, rx_bits: NDArray[np.uint8]) -> FrameCheck:
+        """Undo the description's stages over a received frame and report what
+        was found -- the receive mirror of `bits()`, reading the same
+        description, so a transmitter and a receiver holding the same `Frame`
+        cannot disagree about which stage covered what. This is the truth-free
+        frame error rate on a CODED link: it needs no payload truth, so it
+        works on a real capture, and an outer code is a strictly better
+        detector than a CRC because it reports how much repair it took rather
+        than one bit of right-or-wrong. `checked` is smaller than `stages` when
+        the description names a stage the receiver does not reverse here -- the
+        inner code is the case, being undone before frame synchronisation --
+        and such a stage is reported as not checked, never as passed.
+
+        The receive mirror of frame_bits, reading the same description — so a
+        transmitter and a receiver holding the same `Frame` cannot disagree
+        about which stage covered what.
+
+        **This is the truth-free frame error rate on a coded link.** It needs
+        the description and the received bits and no payload truth at all, so
+        it works on a real capture, and unlike a self-referenced EVM it still
+        catches a false lock.
+
+        checked is smaller than stages when the description names a stage the
+        receiver does not reverse here — the inner code is the case, since it
+        is undone before frame synchronisation and a frame checker never sees
+        channel symbols. Such a stage is reported as not checked, never as
+        passed.
+
+        Parameters
+        ----------
+        rx_bits : NDArray[np.uint8]
+            Received bits, one per byte. Copied, not modified.
+
+        Returns
+        -------
+        FrameCheck
+            The outcome. passed is 0 and checked is 0 when the description
+            carries no reversible stage at all — "carries no check" is not "the
+            check passed", and an FER conflating them would score every
+            unprotected frame as perfect.
+        """
+
     def n_fields(self) -> int:
         """Fields in the description. A `Frame` built the four-field way
         reports 4 -- `wfm_frame_t` IS a configuration of the general
@@ -1703,6 +1805,48 @@ class FrameDesc:
         ValueError
             If the C call returns a non-zero status. The exception message is
             ``build failed``, with the return code appended (gh-869).
+        """
+
+    def check(self, rx_bits: NDArray[np.uint8]) -> FrameCheck:
+        """Undo the description's stages over a received frame and report what
+        was found -- the receive mirror of `bits()`, reading the same
+        description, so a transmitter and a receiver holding the same `Frame`
+        cannot disagree about which stage covered what. This is the truth-free
+        frame error rate on a CODED link: it needs no payload truth, so it
+        works on a real capture, and an outer code is a strictly better
+        detector than a CRC because it reports how much repair it took rather
+        than one bit of right-or-wrong. `checked` is smaller than `stages` when
+        the description names a stage the receiver does not reverse here -- the
+        inner code is the case, being undone before frame synchronisation --
+        and such a stage is reported as not checked, never as passed.
+
+        The receive mirror of frame_bits, reading the same description — so a
+        transmitter and a receiver holding the same `Frame` cannot disagree
+        about which stage covered what.
+
+        **This is the truth-free frame error rate on a coded link.** It needs
+        the description and the received bits and no payload truth at all, so
+        it works on a real capture, and unlike a self-referenced EVM it still
+        catches a false lock.
+
+        checked is smaller than stages when the description names a stage the
+        receiver does not reverse here — the inner code is the case, since it
+        is undone before frame synchronisation and a frame checker never sees
+        channel symbols. Such a stage is reported as not checked, never as
+        passed.
+
+        Parameters
+        ----------
+        rx_bits : NDArray[np.uint8]
+            Received bits, one per byte. Copied, not modified.
+
+        Returns
+        -------
+        FrameCheck
+            The outcome. passed is 0 and checked is 0 when the description
+            carries no reversible stage at all — "carries no check" is not "the
+            check passed", and an FER conflating them would score every
+            unprotected frame as perfect.
         """
 
     def n_fields(self) -> int:

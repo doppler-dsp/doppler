@@ -333,6 +333,27 @@ status_return = true
 error = "ValueError"
 
 [[frame.methods]]
+name = "check"
+doc = "Undo the description's stages over a received frame and report what was found -- the receive mirror of `bits()`, reading the same description, so a transmitter and a receiver holding the same `Frame` cannot disagree about which stage covered what. This is the truth-free frame error rate on a CODED link: it needs no payload truth, so it works on a real capture, and an outer code is a strictly better detector than a CRC because it reports how much repair it took rather than one bit of right-or-wrong. `checked` is smaller than `stages` when the description names a stage the receiver does not reverse here -- the inner code is the case, being undone before frame synchronisation -- and such a stage is reported as not checked, never as passed."
+arg_type = "void"
+return_type = "frame_check_t"
+single = true
+record_name = "FrameCheck"
+record_doc = "What checking one received frame found. `ok == units` is the verdict; `symbols` is what it cost, which is margin being spent and is visible before it is lost."
+record_module = "doppler.wfm"
+params = [{ name = "rx_bits", type = "uint8_t[]" }]
+result_fields = [
+    { name = "passed", type = "int", doc = "Every check good: 1 yes, 0 no. Also 0 when nothing was checked -- see `checked`. Named `passed` rather than `pass` because the obvious name is a Python keyword and `r.pass` will not parse." },
+    { name = "stages", type = "uint32_t", doc = "Stages in the description." },
+    { name = "checked", type = "uint32_t", doc = "How many were reversed here. 0 means the description carries no reversible stage, which is why `pass` is 0: carrying no check is not the same answer as passing one." },
+    { name = "units", type = "uint32_t", doc = "Checks performed: one for a CRC, one per codeword for an interleaved outer code." },
+    { name = "ok", type = "uint32_t", doc = "How many came out good -- clean or repaired." },
+    { name = "corrected", type = "uint32_t", doc = "How many needed and received repair." },
+    { name = "symbols", type = "uint32_t", doc = "Symbol errors repaired across the frame." },
+]
+nogil = true
+
+[[frame.methods]]
 name = "n_fields"
 doc = "Fields in the description. A `Frame` built the four-field way reports 4 -- `wfm_frame_t` IS a configuration of the general description, so the indexed view below reads it too."
 arg_type = "void"

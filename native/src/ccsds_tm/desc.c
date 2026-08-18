@@ -151,10 +151,70 @@ inner_emit (const wfm_stage_t *st, const uint8_t *in, size_t n, uint8_t *out,
   return conv_encode (s, &CCSDS_TM_CONV, in, n, out, max_out);
 }
 
+/* ── the receive direction ────────────────────────────────────────────
+ *
+ * The same spans, read from the same description, which is the property that
+ * matters: an encoder and a decoder that work out their own coverage cannot
+ * be checked against each other, only against a third thing. Here there is no
+ * third thing to disagree with.
+ */
+
+/* 4.3, 4.4.1 in reverse: de-interleave, decode each codeword up to E = 16
+ * symbol errors, write the repairs back. The counts are the point -- an outer
+ * code that is correcting is a margin being spent, and that is visible long
+ * before the link fails. */
+static int
+outer_undo (const wfm_stage_t *st, uint8_t *bits, size_t n,
+            wfm_frame_stage_rx_t *rx, void *user)
+{
+  (void)user;
+  if (st->depth == 0 || st->depth > CCSDS_TM_RS_MAX_DEPTH
+      || n != (size_t)CCSDS_TM_RS_N * st->depth * 8u)
+    return -1;
+
+  uint8_t block[CCSDS_TM_RS_N * CCSDS_TM_RS_MAX_DEPTH];
+  pack (bits, (size_t)CCSDS_TM_RS_N * st->depth, block);
+
+  ccsds_tm_rs_block_rx_t br;
+  if (ccsds_tm_rs_decode_block (block, st->depth, &br) == 0)
+    return -1;
+  unpack (block, (size_t)CCSDS_TM_RS_N * st->depth, bits);
+
+  rx->units     = br.codewords;
+  rx->ok        = br.codewords - br.uncorrectable;
+  rx->corrected = br.corrected;
+  rx->symbols   = br.symbols;
+  rx->checked   = 1;
+  return 0;
+}
+
+/* Section 10, and it is its OWN inverse -- 10.3.4 has the receiver run the
+ * identical call over the identical span, which is why this is the same
+ * function the transmit side uses. It detects nothing, so it reports one unit
+ * that is always good: a derandomiser cannot fail, it can only be pointed at
+ * the wrong bits, and the stage that catches THAT is the one after it. */
+static int
+rand_undo (const wfm_stage_t *st, uint8_t *bits, size_t n,
+           wfm_frame_stage_rx_t *rx, void *user)
+{
+  (void)st;
+  (void)user;
+  ccsds_tm_randomise (bits, n);
+  rx->units   = 1u;
+  rx->ok      = 1u;
+  rx->checked = 1;
+  return 0;
+}
+
 static const wfm_stage_op_t OPS[] = {
-  { WFM_STAGE_RS, outer_in_unit, NULL },
-  { WFM_STAGE_RANDOMISE, rand_in_unit, NULL },
-  { WFM_STAGE_CONV, NULL, inner_emit },
+  { WFM_STAGE_RS, outer_in_unit, NULL, outer_undo },
+  { WFM_STAGE_RANDOMISE, rand_in_unit, NULL, rand_undo },
+  /* No undo for the inner code, deliberately. It is streaming and emits its
+     decisions `depth` bits late, so it is undone before frame synchronisation
+     and a frame checker never sees channel symbols -- the boundary
+     ccsds_tm_frame.h argues at length is the only place it can go.
+     wfm_frame_check reports it as NOT CHECKED rather than as passed. */
+  { WFM_STAGE_CONV, NULL, inner_emit, NULL },
 };
 
 void

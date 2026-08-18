@@ -356,6 +356,58 @@ int frame_add_stage(frame_state_t *state, int kind, uint32_t first_field,
  */
 int frame_build(frame_state_t *state);
 
+/**
+ * @brief What @ref frame_check found, summed across the stages it reversed.
+ *
+ * One record rather than one per stage, because a caller doing frame
+ * accounting wants a verdict and a cost. @p units and @p ok count CHECKS —
+ * one for a CRC, one per codeword for an interleaved outer code — so
+ * `ok == units` is the verdict and @p symbols is what it cost to get there.
+ *
+ * @p corrected and @p symbols are the honest measure of how hard a link is
+ * running: `ok == units` with a rising @p symbols is margin being spent, and
+ * it is spent before it is lost. A CRC cannot report that at all, which is
+ * why an outer code is a strictly better detector and not merely a stronger
+ * one.
+ */
+typedef struct {
+    int      passed;    /**< every check good: 1 yes, 0 no. `passed`, not
+                             `pass`: the obvious name is a Python keyword  */
+    uint32_t stages;    /**< stages in the description                     */
+    uint32_t checked;   /**< how many were reversed HERE (see below)       */
+    uint32_t units;     /**< checks performed across them                  */
+    uint32_t ok;        /**< how many came out good                        */
+    uint32_t corrected; /**< how many needed and received repair           */
+    uint32_t symbols;   /**< symbol errors repaired                        */
+} frame_check_t;
+
+/**
+ * @brief Undo the description's stages over a received frame, and report.
+ *
+ * The receive mirror of @ref frame_bits, reading the same description — so a
+ * transmitter and a receiver holding the same `Frame` cannot disagree about
+ * which stage covered what.
+ *
+ * **This is the truth-free frame error rate on a coded link.** It needs the
+ * description and the received bits and no payload truth at all, so it works
+ * on a real capture, and unlike a self-referenced EVM it still catches a
+ * false lock.
+ *
+ * @p checked is smaller than @p stages when the description names a stage the
+ * receiver does not reverse here — the inner code is the case, since it is
+ * undone before frame synchronisation and a frame checker never sees channel
+ * symbols. Such a stage is reported as not checked, never as passed.
+ *
+ * @param state        The frame the bits are laid out by.
+ * @param rx_bits      Received bits, one per byte. Copied, not modified.
+ * @param rx_bits_len  How many; must be at least one frame.
+ * @return The outcome. @p passed is 0 and @p checked is 0 when the description
+ *         carries no reversible stage at all — "carries no check" is not "the
+ *         check passed", and an FER conflating them would score every
+ *         unprotected frame as perfect.
+ */
+frame_check_t frame_check(frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len);
+
 /** @brief Fields in the description. */
 size_t frame_n_fields(frame_state_t *state);
 

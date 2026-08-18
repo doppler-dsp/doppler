@@ -348,3 +348,97 @@ def test_a_description_is_closed_once_built():
     assert d.add_stage(0, first_field=0, n_fields=1) == -1
     with pytest.raises(ValueError):
         d.build()
+
+
+# ── the scoring path: what a coded frame reports, and why it beats a CRC ────
+
+
+def _cadu(depth=5):
+    """A CCSDS codeblock behind a marker, described field by field.
+
+    No inner code: a frame checker begins after the Viterbi and after frame
+    synchronisation, which is where `check()` begins too.
+    """
+    K, E2, ASM = 223, 32, 0x1ACFFC1D
+    RS, RANDOMISE = 1, 2
+    octets = np.array(
+        [(i * 37 + 11) & 0xFF for i in range(K * depth)], np.uint8
+    )
+    fbits = np.unpackbits(octets).astype(np.uint8)
+    asm_bits = np.array([(ASM >> (31 - i)) & 1 for i in range(32)], np.uint8)
+
+    d = FrameDesc(EMPTY, EMPTY, EMPTY)
+    d.add_field(asm_bits)
+    d.add_field(fbits)
+    d.add_field(EMPTY, derived_by=1, derived_bits=E2 * depth * 8)
+    d.add_stage(RS, first_field=1, n_fields=2, depth=depth)
+    d.add_stage(RANDOMISE, first_field=1, n_fields=2)
+    d.build()
+    return d
+
+
+def test_a_clean_coded_frame_checks_out_with_nothing_repaired():
+    """Asserted because a checker crying damage on a clean frame is as wrong
+    as one missing damage, and only the second shows up in the tests below."""
+    d = _cadu()
+    r = d.check(d.bits(1))
+    assert r.passed == 1
+    assert r.ok == r.units
+    assert r.corrected == 0 and r.symbols == 0
+    # Two stages declared, two reversed here.
+    assert r.stages == 2 and r.checked == 2
+
+
+def test_the_outer_code_reports_the_margin_it_spent():
+    """The property a CRC cannot have.
+
+    A contiguous burst of ``depth*E`` symbols is exactly ``E`` in each of the
+    ``depth`` codewords — the boundary each can repair. The frame still
+    passes, and the interesting number is that it took 80 symbol repairs to
+    do it: margin being spent, visible before it is lost. A CRC reports one
+    bit and would say only "fine".
+    """
+    E, DEPTH = 16, 5
+    d = _cadu(DEPTH)
+    rx = np.asarray(d.bits(1)).copy()
+    blk = d.stage_first(0)
+    for s in range(DEPTH * E):
+        rx[blk + s * 8] ^= 1
+
+    r = d.check(rx)
+    assert r.ok == r.units, "a burst of depth*E must still pass"
+    assert r.corrected == DEPTH, "every codeword needed repair"
+    assert r.symbols == DEPTH * E, "and each spent exactly E of its budget"
+
+
+def test_one_symbol_past_the_radius_fails_and_says_which():
+    """E+1 in ONE column is past what that codeword can repair.
+
+    The frame fails and the count says how badly — one bad unit out of six,
+    not "the frame is wrong". That distinction is the whole reason this
+    reports counts rather than a verdict.
+    """
+    E, DEPTH = 16, 5
+    d = _cadu(DEPTH)
+    rx = np.asarray(d.bits(1)).copy()
+    blk = d.stage_first(0)
+    for c in range(E + 1):
+        rx[blk + (c * DEPTH + 2) * 8] ^= 1
+
+    r = d.check(rx)
+    assert r.ok == r.units - 1, "exactly one unit bad"
+    assert r.units == DEPTH + 1, "five codewords plus the randomiser"
+
+
+def test_a_frame_with_no_reversible_stage_reports_nothing_checked():
+    """ "Carries no check" is not "the check passed".
+
+    An FER that conflated them would score every unprotected frame as
+    perfect, which is the same defect ``crc_ok`` returning -1 exists to
+    avoid, one layer up.
+    """
+    d = FrameDesc(EMPTY, SYNC, PAYLOAD, crc="none")
+    d.build()
+    r = d.check(d.bits(1))
+    assert r.checked == 0
+    assert r.units == 0

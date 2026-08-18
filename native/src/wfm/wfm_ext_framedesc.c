@@ -572,7 +572,7 @@ FrameDescObj_add_stage (FrameDescObject *self, PyObject *args, PyObject *kwds)
   unsigned long depth_raw       = 0;
   unsigned long emit_num_raw    = 0;
   unsigned long emit_den_raw    = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "i|kkkkk", _kwlist, &kind,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ikkkkk", _kwlist, &kind,
                                     &first_field_raw, &n_fields_raw,
                                     &depth_raw, &emit_num_raw, &emit_den_raw))
     return NULL;
@@ -602,6 +602,111 @@ FrameDescObj_build (FrameDescObject *self, PyObject *Py_UNUSED (ignored))
       return NULL;
     }
   Py_RETURN_NONE;
+}
+
+static PyStructSequence_Field FrameDescObj_check_fields[] = {
+  { "passed",
+    "Every check good: 1 yes, 0 no. Also 0 when nothing was checked -- see "
+    "`checked`. Named `passed` rather than `pass` because the obvious name is "
+    "a Python keyword and `r.pass` will not parse." },
+  { "stages", "Stages in the description." },
+  { "checked", "How many were reversed here. 0 means the description carries "
+               "no reversible stage, which is why `pass` is 0: carrying no "
+               "check is not the same answer as passing one." },
+  { "units", "Checks performed: one for a CRC, one per codeword for an "
+             "interleaved outer code." },
+  { "ok", "How many came out good -- clean or repaired." },
+  { "corrected", "How many needed and received repair." },
+  { "symbols", "Symbol errors repaired across the frame." },
+  { NULL, NULL },
+};
+static PyStructSequence_Desc FrameDescObj_check_desc
+    = { "doppler.wfm.FrameCheck",
+        "What checking one received frame found. `ok == units` is the "
+        "verdict; `symbols` is what it cost, which is margin being spent and "
+        "is visible before it is lost.",
+        FrameDescObj_check_fields, 7 };
+static PyTypeObject *FrameDescObj_check_type = NULL;
+
+static PyObject *
+FrameDescObj_check (FrameDescObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]   = { "rx_bits", NULL };
+  PyObject    *rx_bits_obj = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &rx_bits_obj))
+    return NULL;
+  PyArrayObject *rx_bits_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      rx_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  if (!rx_bits_arr)
+    {
+      return NULL;
+    }
+  const uint8_t *rx_bits     = (const uint8_t *)PyArray_DATA (rx_bits_arr);
+  size_t         rx_bits_len = (size_t)PyArray_SIZE (rx_bits_arr);
+  if (!FrameDescObj_check_type)
+    {
+      FrameDescObj_check_type
+          = PyStructSequence_NewType (&FrameDescObj_check_desc);
+      if (!FrameDescObj_check_type)
+        {
+          Py_DECREF (rx_bits_arr);
+          return NULL;
+        }
+    }
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream). */
+  frame_check_t _r;
+  Py_BEGIN_ALLOW_THREADS
+    _r = frame_check (self->handle, rx_bits, rx_bits_len);
+  Py_END_ALLOW_THREADS
+  Py_DECREF (rx_bits_arr);
+  PyObject *_o = PyStructSequence_New (FrameDescObj_check_type);
+  if (!_o)
+    return NULL;
+  PyStructSequence_SET_ITEM (_o, 0, PyLong_FromLong ((long)_r.passed));
+  PyStructSequence_SET_ITEM (
+      _o, 1, PyLong_FromUnsignedLong ((unsigned long)_r.stages));
+  PyStructSequence_SET_ITEM (
+      _o, 2, PyLong_FromUnsignedLong ((unsigned long)_r.checked));
+  PyStructSequence_SET_ITEM (
+      _o, 3, PyLong_FromUnsignedLong ((unsigned long)_r.units));
+  PyStructSequence_SET_ITEM (_o, 4,
+                             PyLong_FromUnsignedLong ((unsigned long)_r.ok));
+  PyStructSequence_SET_ITEM (
+      _o, 5, PyLong_FromUnsignedLong ((unsigned long)_r.corrected));
+  PyStructSequence_SET_ITEM (
+      _o, 6, PyLong_FromUnsignedLong ((unsigned long)_r.symbols));
+  return _o;
+}
+
+static PyObject *
+FrameDescObj_n_fields (FrameDescObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t y = frame_n_fields (self->handle);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
+}
+
+static PyObject *
+FrameDescObj_n_stages (FrameDescObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t y = frame_n_stages (self->handle);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
 
 static PyObject *
@@ -717,30 +822,6 @@ FrameDescObj_exit (FrameDescObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-FrameDescObj_n_fields (FrameDescObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  size_t y = frame_n_fields (self->handle);
-  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
-}
-
-static PyObject *
-FrameDescObj_n_stages (FrameDescObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  size_t y = frame_n_stages (self->handle);
-  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
-}
-
 static PyMethodDef FrameDescObj_methods[] = {
 
   { "bits", (PyCFunction)(void *)FrameDescObj_bits,
@@ -841,11 +922,16 @@ static PyMethodDef FrameDescObj_methods[] = {
     "add_field(lit, kind, gen_len, reps, poly, seed, reg_bits, lfsr, taps_a, "
     "seed_a, taps_b, seed_b, derived_by, derived_bits) -> int\n"
     "\n"
-    "Append one field. Either the caller supplies the bits (`lit`, or a\n"
-    "generated `kind`) or a stage derives them (`derived_by` non-zero) --\n"
-    "both are fields, because both are on the wire. Returns the new field's\n"
-    "index, which is what `derived_by` and a stage's `first_field` are\n"
-    "counted in.\n"
+    "Append one field to a description (see `FrameDesc`). `kind` is a\n"
+    "`wfm_seq_kind_t` index -- 0 literal, 1 pn, 2 gold, 3 dotted -- and\n"
+    "`lfsr` a `wfm_lfsr` one (0 galois, 1 fibonacci); they are ints rather\n"
+    "than the strings the constructor takes because a method parameter\n"
+    "cannot yet be a string enum (jm gh-1021), and the C enum is the SSOT\n"
+    "either way. Either the caller supplies the bits (`lit`, or a generated\n"
+    "`kind`) or a stage derives them (`derived_by` non-zero) -- both are\n"
+    "fields, because both are on the wire. Returns the new field's index,\n"
+    "which is what `derived_by` and a stage's `first_field` are counted in.\n"
+    "Refuses once the frame is built.\n"
     "\n"
     "Either the caller supplies the bits (lit, or a generated kind) or a\n"
     "stage derives them (derived_by non-zero). Both are fields, because both\n"
@@ -970,7 +1056,7 @@ static PyMethodDef FrameDescObj_methods[] = {
   { "build", (PyCFunction)FrameDescObj_build, METH_NOARGS,
     "build() -> None\n"
     "\n"
-    "Lay out and materialise the description. Where a description is\n"
+    "Lay out and materialise a description. Where a description is\n"
     "checked: one that cannot produce its own bits is not a frame. Separate\n"
     "from the constructor only because the description arrives over several\n"
     "calls and there is no earlier moment at which it is complete. Raises if\n"
@@ -1016,6 +1102,66 @@ static PyMethodDef FrameDescObj_methods[] = {
     "payload_lfsr=\"galois\", payload_taps_a=0, payload_seed_a=0, "
     "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
     "    >>> obj.build()\n" },
+  { "check", (PyCFunction)(void *)FrameDescObj_check,
+    METH_VARARGS | METH_KEYWORDS,
+    "check(rx_bits) -> FrameCheck record (passed, stages, checked, units, ok, "
+    "corrected, symbols)." },
+  { "n_fields", (PyCFunction)FrameDescObj_n_fields, METH_NOARGS,
+    "n_fields() -> int\n"
+    "\n"
+    "Fields in the description. A `Frame` built the four-field way\n"
+    "reports 4 -- `wfm_frame_t` IS a configuration of the general\n"
+    "description, so the indexed view below reads it too.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "    >>> from doppler import FrameDesc\n"
+    "    >>> obj = FrameDesc(preamble=np.zeros(1, dtype=np.uint8), "
+    "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
+    "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
+    "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
+    "preamble_lfsr=\"galois\", preamble_taps_a=0, preamble_seed_a=0, "
+    "preamble_taps_b=0, preamble_seed_b=0, sync_kind=\"literal\", "
+    "sync_nbits=0, sync_poly=0, sync_seed=0, sync_reg_bits=0, "
+    "sync_lfsr=\"galois\", sync_taps_a=0, sync_seed_a=0, sync_taps_b=0, "
+    "sync_seed_b=0, payload_kind=\"literal\", payload_nbits=0, "
+    "payload_poly=0, payload_seed=0, payload_reg_bits=0, "
+    "payload_lfsr=\"galois\", payload_taps_a=0, payload_seed_a=0, "
+    "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
+    "    >>> obj.n_fields()\n"
+    "    0\n" },
+  { "n_stages", (PyCFunction)FrameDescObj_n_stages, METH_NOARGS,
+    "n_stages() -> int\n"
+    "\n"
+    "Stages in the description.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "    >>> from doppler import FrameDesc\n"
+    "    >>> obj = FrameDesc(preamble=np.zeros(1, dtype=np.uint8), "
+    "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
+    "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
+    "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
+    "preamble_lfsr=\"galois\", preamble_taps_a=0, preamble_seed_a=0, "
+    "preamble_taps_b=0, preamble_seed_b=0, sync_kind=\"literal\", "
+    "sync_nbits=0, sync_poly=0, sync_seed=0, sync_reg_bits=0, "
+    "sync_lfsr=\"galois\", sync_taps_a=0, sync_seed_a=0, sync_taps_b=0, "
+    "sync_seed_b=0, payload_kind=\"literal\", payload_nbits=0, "
+    "payload_poly=0, payload_seed=0, payload_reg_bits=0, "
+    "payload_lfsr=\"galois\", payload_taps_a=0, payload_seed_a=0, "
+    "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
+    "    >>> obj.n_stages()\n"
+    "    0\n" },
   { "field_off", (PyCFunction)(void *)FrameDescObj_field_off,
     METH_VARARGS | METH_KEYWORDS,
     "field_off(i) -> int\n"
@@ -1188,62 +1334,6 @@ static PyMethodDef FrameDescObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { "n_fields", (PyCFunction)FrameDescObj_n_fields, METH_NOARGS,
-    "n_fields() -> int\n"
-    "\n"
-    "Fields in the description. A `Frame` built the four-field way\n"
-    "reports 4 -- `wfm_frame_t` IS a configuration of the general\n"
-    "description, so the indexed view below reads it too.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    Output.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "    >>> from doppler import FrameDesc\n"
-    "    >>> obj = FrameDesc(preamble=np.zeros(1, dtype=np.uint8), "
-    "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
-    "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
-    "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
-    "preamble_lfsr=\"galois\", preamble_taps_a=0, preamble_seed_a=0, "
-    "preamble_taps_b=0, preamble_seed_b=0, sync_kind=\"literal\", "
-    "sync_nbits=0, sync_poly=0, sync_seed=0, sync_reg_bits=0, "
-    "sync_lfsr=\"galois\", sync_taps_a=0, sync_seed_a=0, sync_taps_b=0, "
-    "sync_seed_b=0, payload_kind=\"literal\", payload_nbits=0, "
-    "payload_poly=0, payload_seed=0, payload_reg_bits=0, "
-    "payload_lfsr=\"galois\", payload_taps_a=0, payload_seed_a=0, "
-    "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
-    "    >>> obj.n_fields()\n"
-    "    0\n" },
-  { "n_stages", (PyCFunction)FrameDescObj_n_stages, METH_NOARGS,
-    "n_stages() -> int\n"
-    "\n"
-    "Stages in the description.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    Output.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "    >>> from doppler import FrameDesc\n"
-    "    >>> obj = FrameDesc(preamble=np.zeros(1, dtype=np.uint8), "
-    "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
-    "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
-    "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
-    "preamble_lfsr=\"galois\", preamble_taps_a=0, preamble_seed_a=0, "
-    "preamble_taps_b=0, preamble_seed_b=0, sync_kind=\"literal\", "
-    "sync_nbits=0, sync_poly=0, sync_seed=0, sync_reg_bits=0, "
-    "sync_lfsr=\"galois\", sync_taps_a=0, sync_seed_a=0, sync_taps_b=0, "
-    "sync_seed_b=0, payload_kind=\"literal\", payload_nbits=0, "
-    "payload_poly=0, payload_seed=0, payload_reg_bits=0, "
-    "payload_lfsr=\"galois\", payload_taps_a=0, payload_seed_a=0, "
-    "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
-    "    >>> obj.n_stages()\n"
-    "    0\n" },
   { NULL }
 };
 

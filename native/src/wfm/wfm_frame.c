@@ -270,8 +270,32 @@ crc16_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
   return 0;
 }
 
+/* The receive side of the same rule: what the CRC protects is everything the
+ * span covers except the trailer it derived, so recompute over the head and
+ * compare with the tail. Nothing is corrected -- a CRC detects and cannot
+ * repair -- so `corrected` and `symbols` stay zero and `ok` is the verdict. */
+static int
+crc16_undo (const wfm_stage_t *st, uint8_t *bits, size_t n,
+            wfm_frame_stage_rx_t *rx, void *user)
+{
+  (void)st;
+  (void)user;
+  if (n <= WFM_FRAME_CRC_BITS)
+    return -1;
+  const size_t   prot = n - WFM_FRAME_CRC_BITS;
+  const uint16_t want = dp_crc16_ccitt (bits, prot);
+  uint16_t       got  = 0;
+  for (size_t i = 0; i < WFM_FRAME_CRC_BITS; i++)
+    got = (uint16_t)((got << 1) | (bits[prot + i] & 1u));
+
+  rx->units   = 1u;
+  rx->ok      = (want == got) ? 1u : 0u;
+  rx->checked = 1;
+  return 0;
+}
+
 static const wfm_stage_op_t BUILTIN[] = {
-  { WFM_STAGE_CRC16, crc16_in_unit, NULL },
+  { WFM_STAGE_CRC16, crc16_in_unit, NULL, crc16_undo },
 };
 
 static const wfm_stage_op_t *
@@ -366,6 +390,50 @@ wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out)
   if (!f || wfm_frame_describe (f, &d) != 0)
     return 0;
   return wfm_frame_assemble (&d, NULL, out, max_out);
+}
+
+int
+wfm_frame_check (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
+                 uint8_t *bits, wfm_frame_rx_t *rx)
+{
+  wfm_frame_desc_layout_t l;
+  wfm_frame_rx_t          out;
+  if (!d || !bits || wfm_frame_desc_layout (d, &l) != 0)
+    return -1;
+
+  memset (&out, 0, sizeof out);
+  out.n_stages = d->n_stages;
+
+  /* REVERSE order. The stages were applied in declaration order, each over
+     its own span, so undoing them in the same order would hand a kernel bits
+     a later stage is still sitting on top of. */
+  for (unsigned k = d->n_stages; k-- > 0;)
+    {
+      if (l.stage[k].n == 0)
+        continue; /* declared but not running */
+
+      const wfm_stage_op_t *op = find_op (ops, d->stage[k].kind);
+      if (!op || !op->undo)
+        continue; /* not reversed here -- reported as unchecked, not passed */
+
+      if (op->undo (&d->stage[k], bits + l.stage[k].first, l.stage[k].n,
+                    &out.stage[k], ops ? ops->user : NULL)
+          != 0)
+        return -1;
+      out.checked++;
+    }
+
+  if (rx != NULL)
+    *rx = out;
+  if (out.checked == 0)
+    return -1; /* carries no check != the check passed */
+
+  for (unsigned k = 0; k < d->n_stages; k++)
+    {
+      if (out.stage[k].checked && out.stage[k].ok != out.stage[k].units)
+        return 0;
+    }
+  return 1;
 }
 
 int

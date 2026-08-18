@@ -17,6 +17,10 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 - [Waveform Scenes](wfm-composition.md) — sum, add, headroom; a SoI under a CW interferer over one noise floor.
 - [Waveform I/O](wfm-io.md) — one capture written to raw / CSV / BLUE / SigMF and read back.
 - [Waveform JSON Round-Trip](wfm-json.md) — `--record` a scene to JSON and replay it byte-identically.
+- [A CCSDS CADU](ccsds-link.md) — a frame as a list of fields and a list of
+    stages, each carrying the span it covers: why a pipeline cannot express
+    the one thing CCSDS's stages disagree about, and what an outer code
+    reports on the receive side that a CRC cannot
 - [Waveform Write](wfm-write.md) — the shortest path from a `Composer` to a file and back.
 - [WCDMA Carriers](wcdma-carriers.md) — four RRC channels measured with `PSD` and `AccTrace`.
 - [Prepare Once, Sweep Many (Plan)](plan.md) — one declarative scene evaluated at many SNR operating points via the `Plan` stimulus engine.

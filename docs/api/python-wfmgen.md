@@ -488,6 +488,83 @@ data.
 
 ::: doppler.wfm.Frame
 
+## `FrameDesc` — the same frame, deferred
+
+`Frame` names four fields and materialises them in the constructor. `FrameDesc`
+takes **the same arguments** and stops before laying anything out, so those four
+are a *starting point* a caller extends with `add_field()` and `add_stage()`
+before calling `build()`. Pass empty arrays for all three to begin from nothing.
+
+That is what makes a frame doppler has never heard of describable from Python.
+The two axes it adds over the named layout are:
+
+- **A field is anything on the wire**, whether the caller supplies it or a stage
+    produces it. A parity block nobody passes in is still a field — declare it with
+    `derived_by`, which names the producing stage *plus one*.
+- **A stage declares the span it covers**, as `first_field` / `n_fields`, rather
+    than inheriting "everything before me". A stage covering no fields does not
+    run. This is the part a pipeline representation cannot express, and it is
+    exactly what a CCSDS CADU needs: the inner code covers the attached sync
+    marker, while the outer code and the randomiser start *behind* it.
+
+A CADU — attached sync marker, RS(255,223) parity, randomiser — described
+end to end, with no `ccsds_tm` binding involved:
+
+```python
+import numpy as np
+
+from doppler.wfm import FrameDesc
+
+empty = np.empty(0, np.uint8)
+K, E2 = 223, 32                      # RS(255,223): 223 data, 32 parity octets
+_CRC16, RS, RANDOMISE, _CONV = 0, 1, 2, 3
+
+asm = np.array([(0x1ACFFC1D >> (31 - i)) & 1 for i in range(32)], np.uint8)
+octets = np.array([(i * 29 + 5) & 0xFF for i in range(K)], np.uint8)
+data = np.unpackbits(octets).astype(np.uint8)
+
+d = FrameDesc(empty, empty, empty)               # begin from nothing
+assert d.add_field(asm) == 0                     # attached sync marker
+assert d.add_field(data) == 1                    # the transfer frame
+assert d.add_field(empty, derived_by=1, derived_bits=E2 * 8) == 2  # parity
+
+# Both stages start at field 1, so both skip the marker -- declared, not
+# inherited.
+assert d.add_stage(RS, first_field=1, n_fields=2, depth=1) == 0
+assert d.add_stage(RANDOMISE, first_field=1, n_fields=2) == 1
+d.build()
+
+assert d.nbits == 32 + 255 * 8                   # marker + one RS codeblock
+assert (d.stage_first(0), d.stage_bits(0)) == (32, 2040)
+
+r = d.check(d.bits(1))
+assert (r.passed, r.ok, r.units) == (1, 2, 2)   # one check per stage reversed
+```
+
+`check()` is the receive mirror of `bits()`, reading the same description — so a
+transmitter and a receiver holding one `FrameDesc` cannot disagree about which
+stage covered what. On a coded link it reports **more than a verdict**: an outer
+code says how much repair a frame took, and that is margin being spent while it
+is still there to spend. A CRC cannot report it at all, which is why an outer
+code is a strictly *better* detector and not merely a stronger one:
+
+```python
+rx = np.asarray(d.bits(1)).copy()
+rx[100] ^= 1                            # two bit errors inside one RS symbol
+rx[101] ^= 1
+
+r = d.check(rx)
+assert r.passed == 1                    # still good ...
+assert (r.corrected, r.symbols) == (1, 1)   # ... and it cost one symbol
+```
+
+Read a built description with `n_fields()` / `n_stages()` and the indexed
+`field_off()`, `field_bits()`, `stage_first()`, `stage_bits()`. `layout()` is the
+**named** view and reports zeros for a description assembled this way; a `Frame`
+is one configuration of the same object, so the indexed accessors read it too.
+
+::: doppler.wfm.FrameDesc
+
 ## Related pages
 
 <!-- related-pages:start -->

@@ -14,6 +14,7 @@
 
 #include "ccsds_tm/ccsds_tm.h"
 #include "ccsds_tm/ccsds_tm_rs.h"
+#include "wfm/wfm_frame.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -70,6 +71,12 @@ extern "C"
                                const uint8_t            *cadu,
                            size_t n_cadu, uint8_t *frame, size_t max_frame,
                            ccsds_tm_frame_rx_t *rx);
+
+  int ccsds_tm_frame_describe (const ccsds_tm_frame_cfg_t *cfg,
+                               size_t frame_len, const uint8_t *frame_bits,
+                               wfm_frame_desc_t *out);
+
+  void ccsds_tm_frame_ops (wfm_frame_ops_t *out, conv_enc_t *conv);
 
 #ifdef __cplusplus
 }

@@ -88,7 +88,10 @@ _A frame's bit layout:_ `[preamble × reps | sync | payload | crc]` _._[More...]
 ## Detailed Description
 
 
-The preamble sits OUTSIDE the sync/payload/CRC group, matching the DSSS contract this generalises: it is unmodulated, it is not covered by the CRC, and in the spread case it is not spread. It is the coherent-integration target. 
+The preamble sits OUTSIDE the sync/payload/CRC group, matching the DSSS contract this generalises: it is unmodulated, it is not covered by the CRC, and in the spread case it is not spread. It is the coherent-integration target.
+
+
+This is a **configuration** of [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) — four fields and one stage — not a second descriptor. [**wfm\_frame\_layout**](wfm__frame_8h.md#function-wfm_frame_layout) builds it through [**wfm\_frame\_describe**](wfm__frame_8h.md#function-wfm_frame_describe) and reads the general layout back, so there is one implementation of the arithmetic and the two cannot drift. 
 
 
     

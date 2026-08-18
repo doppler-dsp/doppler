@@ -1065,6 +1065,21 @@ class Frame:
         -------
         NDArray[np.uint8]
             Bits written.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> len(d.bits())        # one frame: 13 + 16 + 16
+        45
+        >>> len(d.bits(2))       # n counts FRAMES, tiled the way a capture is
+        90
+
         """
 
     def bits_max_out(self, n: int) -> int:
@@ -1090,7 +1105,25 @@ class Frame:
         Returns
         -------
         FrameLayout
-            Output.
+            Where each named field lands.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import Frame
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> lay = Frame(empty, sync, payload, crc="crc16").layout()
+        >>> lay.sync_off, lay.payload_off, lay.crc_off
+        (0, 13, 29)
+        >>> lay.total_bits
+        45
+
+        This is the NAMED view, so it reports the four fields a `Frame` is built
+        from. A description assembled with `add_field` reports zeros here and is
+        read with `field_off()` / `field_bits()` instead.
+
         """
 
     def crc_ok(self, rx_bits: NDArray[np.uint8]) -> int:
@@ -1111,6 +1144,23 @@ class Frame:
         int
             1 pass, 0 fail, -1 if the frame carries no CRC or rx_bits is
             shorter than one frame.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> d.crc_ok(d.bits())           # its own bits are its own truth
+        1
+        >>> rx = np.asarray(d.bits()).copy()
+        >>> rx[d.field_off(2)] ^= 1      # flip one payload bit
+        >>> d.crc_ok(rx)
+        0
+
         """
 
     def add_field(
@@ -1183,6 +1233,28 @@ class Frame:
         int
             The new field's index, or -1 if the description is full, already
             built, or the literal could not be copied.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> asm = np.array([(0x1ACFFC1D >> (31 - i)) & 1 for i in range(32)],
+        ...                np.uint8)
+        >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)], np.uint8)
+        >>> data = np.unpackbits(octets).astype(np.uint8)
+        >>> d = FrameDesc(empty, empty, empty)   # begin from nothing
+        >>> d.add_field(asm)                     # the attached sync marker
+        0
+        >>> d.add_field(data)                    # the transfer frame
+        1
+
+        A field the CALLER does not supply is still a field, because it is still
+        on the wire -- `derived_by` names the stage that fills it, PLUS ONE:
+
+        >>> d.add_field(empty, derived_by=1, derived_bits=32 * 8)
+        2
+
         """
 
     def add_stage(
@@ -1228,6 +1300,31 @@ class Frame:
         int
             The new stage's index, or -1 if the description is full or already
             built.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> asm = np.array([(0x1ACFFC1D >> (31 - i)) & 1 for i in range(32)],
+        ...                np.uint8)
+        >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)], np.uint8)
+        >>> data = np.unpackbits(octets).astype(np.uint8)
+        >>> d = FrameDesc(empty, empty, empty)
+        >>> _ = d.add_field(asm), d.add_field(data)
+        >>> _ = d.add_field(empty, derived_by=1, derived_bits=32 * 8)
+        >>> d.add_stage(1, first_field=1, n_fields=2, depth=1)   # RS(255,223)
+        0
+        >>> d.add_stage(2, first_field=1, n_fields=2)            # randomiser
+        1
+
+        Both start at field 1, so both skip the marker -- the cover is DECLARED,
+        which is the whole reason a CADU is describable here:
+
+        >>> d.build()
+        >>> d.stage_first(0), d.stage_bits(0)
+        (32, 2040)
+
         """
 
     def build(self) -> None:
@@ -1260,6 +1357,27 @@ class Frame:
         ValueError
             If the C call returns a non-zero status. The exception message is
             ``build failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> d.nbits                     # 13 + 16 + 16, laid out by build()
+        45
+
+        A description that cannot produce bits is not a frame, and is refused
+        rather than half-built:
+
+        >>> FrameDesc(empty, empty, empty).build()
+        Traceback (most recent call last):
+            ...
+        ValueError: build failed (rc=-1)
+
         """
 
     def check(self, rx_bits: NDArray[np.uint8]) -> FrameCheck:
@@ -1302,6 +1420,35 @@ class Frame:
             carries no reversible stage at all — "carries no check" is not "the
             check passed", and an FER conflating them would score every
             unprotected frame as perfect.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> r = d.check(d.bits(1))
+        >>> r.passed, r.ok, r.units
+        (1, 1, 1)
+
+        Flip a bit the CRC covers and the verdict turns over:
+
+        >>> rx = np.asarray(d.bits(1)).copy()
+        >>> rx[d.field_off(2)] ^= 1
+        >>> d.check(rx).passed
+        0
+
+        Carrying no check is NOT passing one -- both are reported, separately:
+
+        >>> n = FrameDesc(empty, sync, payload, crc="none")
+        >>> n.build()
+        >>> c = n.check(n.bits(1))
+        >>> c.passed, c.checked
+        (0, 0)
+
         """
 
     def n_fields(self) -> int:
@@ -1312,7 +1459,19 @@ class Frame:
         Returns
         -------
         int
-            Output.
+            How many fields the description carries.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.n_fields()          # the four named fields, absent ones included
+        4
+
         """
 
     def n_stages(self) -> int:
@@ -1321,7 +1480,20 @@ class Frame:
         Returns
         -------
         int
-            Output.
+            How many stages the description carries.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> d.n_stages()         # the CRC is a stage like any other
+        1
+
         """
 
     def field_off(self, i: int) -> int:
@@ -1335,7 +1507,26 @@ class Frame:
         Returns
         -------
         int
-            Output.
+            Bits from the start of the frame.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> d.field_off(1), d.field_off(2), d.field_off(3)
+        (0, 13, 29)
+
+        Field 0 is the absent preamble: an empty field still HAS an index, so the
+        indices a caller passed to `add_field` keep meaning what they meant.
+
+        >>> d.field_off(0), d.field_bits(0)
+        (0, 0)
+
         """
 
     def field_bits(self, i: int) -> int:
@@ -1349,7 +1540,20 @@ class Frame:
         Returns
         -------
         int
-            Output.
+            The field's length in bits.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> d.field_bits(1), d.field_bits(2), d.field_bits(3)
+        (13, 16, 16)
+
         """
 
     def stage_first(self, i: int) -> int:
@@ -1363,7 +1567,20 @@ class Frame:
         Returns
         -------
         int
-            Output.
+            Bits from the start of the frame.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> d.stage_first(0)     # the CRC starts at the payload, not at bit 0
+        13
+
         """
 
     def stage_bits(self, i: int) -> int:
@@ -1378,7 +1595,20 @@ class Frame:
         Returns
         -------
         int
-            Output.
+            The covered span, in bits.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> d.stage_bits(0)      # payload and CRC: what crc16 was computed over
+        32
+
         """
 
     @property
@@ -1610,6 +1840,21 @@ class FrameDesc:
         -------
         NDArray[np.uint8]
             Bits written.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> len(d.bits())        # one frame: 13 + 16 + 16
+        45
+        >>> len(d.bits(2))       # n counts FRAMES, tiled the way a capture is
+        90
+
         """
 
     def bits_max_out(self, n: int) -> int:
@@ -1635,7 +1880,25 @@ class FrameDesc:
         Returns
         -------
         FrameLayout
-            Output.
+            Where each named field lands.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import Frame
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> lay = Frame(empty, sync, payload, crc="crc16").layout()
+        >>> lay.sync_off, lay.payload_off, lay.crc_off
+        (0, 13, 29)
+        >>> lay.total_bits
+        45
+
+        This is the NAMED view, so it reports the four fields a `Frame` is built
+        from. A description assembled with `add_field` reports zeros here and is
+        read with `field_off()` / `field_bits()` instead.
+
         """
 
     def crc_ok(self, rx_bits: NDArray[np.uint8]) -> int:
@@ -1656,6 +1919,23 @@ class FrameDesc:
         int
             1 pass, 0 fail, -1 if the frame carries no CRC or rx_bits is
             shorter than one frame.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> d.crc_ok(d.bits())           # its own bits are its own truth
+        1
+        >>> rx = np.asarray(d.bits()).copy()
+        >>> rx[d.field_off(2)] ^= 1      # flip one payload bit
+        >>> d.crc_ok(rx)
+        0
+
         """
 
     def add_field(
@@ -1728,6 +2008,28 @@ class FrameDesc:
         int
             The new field's index, or -1 if the description is full, already
             built, or the literal could not be copied.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> asm = np.array([(0x1ACFFC1D >> (31 - i)) & 1 for i in range(32)],
+        ...                np.uint8)
+        >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)], np.uint8)
+        >>> data = np.unpackbits(octets).astype(np.uint8)
+        >>> d = FrameDesc(empty, empty, empty)   # begin from nothing
+        >>> d.add_field(asm)                     # the attached sync marker
+        0
+        >>> d.add_field(data)                    # the transfer frame
+        1
+
+        A field the CALLER does not supply is still a field, because it is still
+        on the wire -- `derived_by` names the stage that fills it, PLUS ONE:
+
+        >>> d.add_field(empty, derived_by=1, derived_bits=32 * 8)
+        2
+
         """
 
     def add_stage(
@@ -1773,6 +2075,31 @@ class FrameDesc:
         int
             The new stage's index, or -1 if the description is full or already
             built.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> asm = np.array([(0x1ACFFC1D >> (31 - i)) & 1 for i in range(32)],
+        ...                np.uint8)
+        >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)], np.uint8)
+        >>> data = np.unpackbits(octets).astype(np.uint8)
+        >>> d = FrameDesc(empty, empty, empty)
+        >>> _ = d.add_field(asm), d.add_field(data)
+        >>> _ = d.add_field(empty, derived_by=1, derived_bits=32 * 8)
+        >>> d.add_stage(1, first_field=1, n_fields=2, depth=1)   # RS(255,223)
+        0
+        >>> d.add_stage(2, first_field=1, n_fields=2)            # randomiser
+        1
+
+        Both start at field 1, so both skip the marker -- the cover is DECLARED,
+        which is the whole reason a CADU is describable here:
+
+        >>> d.build()
+        >>> d.stage_first(0), d.stage_bits(0)
+        (32, 2040)
+
         """
 
     def build(self) -> None:
@@ -1805,6 +2132,27 @@ class FrameDesc:
         ValueError
             If the C call returns a non-zero status. The exception message is
             ``build failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> d.nbits                     # 13 + 16 + 16, laid out by build()
+        45
+
+        A description that cannot produce bits is not a frame, and is refused
+        rather than half-built:
+
+        >>> FrameDesc(empty, empty, empty).build()
+        Traceback (most recent call last):
+            ...
+        ValueError: build failed (rc=-1)
+
         """
 
     def check(self, rx_bits: NDArray[np.uint8]) -> FrameCheck:
@@ -1847,6 +2195,35 @@ class FrameDesc:
             carries no reversible stage at all — "carries no check" is not "the
             check passed", and an FER conflating them would score every
             unprotected frame as perfect.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> r = d.check(d.bits(1))
+        >>> r.passed, r.ok, r.units
+        (1, 1, 1)
+
+        Flip a bit the CRC covers and the verdict turns over:
+
+        >>> rx = np.asarray(d.bits(1)).copy()
+        >>> rx[d.field_off(2)] ^= 1
+        >>> d.check(rx).passed
+        0
+
+        Carrying no check is NOT passing one -- both are reported, separately:
+
+        >>> n = FrameDesc(empty, sync, payload, crc="none")
+        >>> n.build()
+        >>> c = n.check(n.bits(1))
+        >>> c.passed, c.checked
+        (0, 0)
+
         """
 
     def n_fields(self) -> int:
@@ -1857,7 +2234,19 @@ class FrameDesc:
         Returns
         -------
         int
-            Output.
+            How many fields the description carries.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.n_fields()          # the four named fields, absent ones included
+        4
+
         """
 
     def n_stages(self) -> int:
@@ -1866,7 +2255,20 @@ class FrameDesc:
         Returns
         -------
         int
-            Output.
+            How many stages the description carries.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> d.n_stages()         # the CRC is a stage like any other
+        1
+
         """
 
     def field_off(self, i: int) -> int:
@@ -1880,7 +2282,26 @@ class FrameDesc:
         Returns
         -------
         int
-            Output.
+            Bits from the start of the frame.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> d.field_off(1), d.field_off(2), d.field_off(3)
+        (0, 13, 29)
+
+        Field 0 is the absent preamble: an empty field still HAS an index, so the
+        indices a caller passed to `add_field` keep meaning what they meant.
+
+        >>> d.field_off(0), d.field_bits(0)
+        (0, 0)
+
         """
 
     def field_bits(self, i: int) -> int:
@@ -1894,7 +2315,20 @@ class FrameDesc:
         Returns
         -------
         int
-            Output.
+            The field's length in bits.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> d.field_bits(1), d.field_bits(2), d.field_bits(3)
+        (13, 16, 16)
+
         """
 
     def stage_first(self, i: int) -> int:
@@ -1908,7 +2342,20 @@ class FrameDesc:
         Returns
         -------
         int
-            Output.
+            Bits from the start of the frame.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> d.stage_first(0)     # the CRC starts at the payload, not at bit 0
+        13
+
         """
 
     def stage_bits(self, i: int) -> int:
@@ -1923,7 +2370,20 @@ class FrameDesc:
         Returns
         -------
         int
-            Output.
+            The covered span, in bits.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> empty = np.empty(0, np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d.build()
+        >>> d.stage_bits(0)      # payload and CRC: what crc16 was computed over
+        32
+
         """
 
     @property

@@ -38,8 +38,10 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 | ---: | :--- |
 |  uint8\_t \* | [**acq\_code**](#variable-acq_code)  <br> |
 |  size\_t | [**acq\_reps**](#variable-acq_reps)  <br> |
+|  int | [**attach\_asm**](#variable-attach_asm)  <br> |
 |  int | [**background**](#variable-background)  <br> |
 |  uint8\_t \* | [**bits**](#variable-bits)  <br> |
+|  int | [**convolutional**](#variable-convolutional)  <br> |
 |  int | [**crc**](#variable-crc)  <br> |
 |  uint8\_t \* | [**data\_code**](#variable-data_code)  <br> |
 |  int | [**dsss\_code\_only**](#variable-dsss_code_only)  <br> |
@@ -59,9 +61,11 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  int | [**pn\_length**](#variable-pn_length)  <br> |
 |  uint64\_t | [**pn\_poly**](#variable-pn_poly)  <br> |
 |  int | [**pulse**](#variable-pulse)  <br> |
+|  int | [**randomise**](#variable-randomise)  <br> |
 |  unsigned | [**ranged**](#variable-ranged)  <br> |
 |  double | [**rrc\_beta**](#variable-rrc_beta)  <br> |
 |  int | [**rrc\_span**](#variable-rrc_span)  <br> |
+|  unsigned | [**rs\_depth**](#variable-rs_depth)  <br> |
 |  uint32\_t | [**seed**](#variable-seed)  <br> |
 |  double | [**snr**](#variable-snr)  <br> |
 |  double | [**snr\_hi**](#variable-snr_hi)  <br> |
@@ -156,6 +160,19 @@ size_t wfm_source_t::acq_reps;
 
 
 
+### variable attach\_asm 
+
+```C++
+int wfm_source_t::attach_asm;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable background 
 
 ```C++
@@ -173,6 +190,19 @@ int wfm_source_t::background;
 
 ```C++
 uint8_t* wfm_source_t::bits;
+```
+
+
+
+
+<hr>
+
+
+
+### variable convolutional 
+
+```C++
+int wfm_source_t::convolutional;
 ```
 
 
@@ -429,6 +459,19 @@ int wfm_source_t::pulse;
 
 
 
+### variable randomise 
+
+```C++
+int wfm_source_t::randomise;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable ranged 
 
 ```C++
@@ -459,6 +502,19 @@ double wfm_source_t::rrc_beta;
 
 ```C++
 int wfm_source_t::rrc_span;
+```
+
+
+
+
+<hr>
+
+
+
+### variable rs\_depth 
+
+```C++
+unsigned wfm_source_t::rs_depth;
 ```
 
 

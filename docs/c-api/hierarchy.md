@@ -78,6 +78,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**fft2d\_state\_t**](structfft2d__state__t.md) 
 * **struct** [**fft\_state\_t**](structfft__state__t.md) 
 * **struct** [**fir\_state\_t**](structfir__state__t.md) 
+* **struct** [**frame\_check\_t**](structframe__check__t.md) _What_ [_**frame\_check**_](frame__core_8h.md#function-frame_check) _found, summed across the stages it reversed._
 * **struct** [**frame\_meter\_state\_t**](structframe__meter__state__t.md) _Frame-outcome accumulator. Allocate with_ [_**frame\_meter\_create()**_](frame__meter__core_8h.md#function-frame_meter_create) _._
 * **struct** [**frame\_state\_t**](structframe__state__t.md) _Frame state._ 
 * **struct** [**gold\_state\_t**](structgold__state__t.md) _Gold state._ 
@@ -118,7 +119,14 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**tone\_meas\_t**](structtone__meas__t.md) _Single-tone dynamic-measurement bag._ 
 * **struct** [**tonemeas\_state\_t**](structtonemeas__state__t.md) _ToneMeasure state: owned window, FFT plan and analysis scratch._ 
 * **struct** [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) _UQ15ToF32 state._ 
+* **struct** [**wfm\_field\_t**](structwfm__field__t.md) _One field of a frame — a run of bits that appears on the wire._ 
+* **struct** [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) _Where every field and every stage landed._ 
+* **struct** [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) _A frame as a description: what is on the wire, and what covers it._ 
 * **struct** [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) _Where each field lands, in bits from the start of the frame._ 
+* **struct** [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) _The kernels an assembly runs, and whatever state they carry._ 
+* **struct** [**wfm\_frame\_rx\_t**](structwfm__frame__rx__t.md) _What_ [_**wfm\_frame\_check**_](wfm__frame_8h.md#function-wfm_frame_check) _found, stage by stage._
+* **struct** [**wfm\_frame\_span\_t**](structwfm__frame__span__t.md) _A run of bits inside the assembled frame,_ `[first, first + n)` _._
+* **struct** [**wfm\_frame\_stage\_rx\_t**](structwfm__frame__stage__rx__t.md) _What undoing one stage found._ 
 * **struct** [**wfm\_frame\_t**](structwfm__frame__t.md) _A frame's bit layout:_ `[preamble × reps | sync | payload | crc]` _._
 * **struct** [**wfm\_keyword\_t**](structwfm__keyword__t.md) 
 * **struct** [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md) 
@@ -126,5 +134,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**wfm\_seq\_t**](structwfm__seq__t.md) _A run of bits, however it is produced._ 
 * **struct** [**wfm\_source\_t**](structwfm__source__t.md) _One additive source within a segment: a_ `synth` _config + its level._
 * **struct** [**wfm\_span\_t**](structwfm__span__t.md) _One rendered segment instance's exact timing: where it lands in the composed stream and how its_ `delay | on | off` _spans divide it._
+* **struct** [**wfm\_stage\_op\_t**](structwfm__stage__op__t.md) _How one kind of stage actually transforms bits._ 
+* **struct** [**wfm\_stage\_t**](structwfm__stage__t.md) _One transform, and — the whole point — the fields it covers._ 
 * **struct** [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) _Synth state._ 
 

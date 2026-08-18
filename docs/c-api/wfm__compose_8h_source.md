@@ -79,6 +79,27 @@ typedef struct {
     int dsss_code_only;  /* continuous dsss: 1 = code-only (--data none), no
                             data modulation; 0 = data-modulated (payload if
                             supplied, else the seeded PN). Ignored for burst. */
+    /* Channel coding over the frame, as STAGES with the spans they cover
+       (wfm/wfm_frame.h). Each is optional and they do not all cover the same
+       bits, which is the whole reason the frame is a description rather than
+       a pipeline: the outer code and the randomiser reach over the payload
+       group, and the inner code reaches over everything including a marker
+       neither of the other two touches.
+
+       Set all four with a Transfer Frame payload and no preamble or sync word
+       and the result is a CCSDS CADU. That is the point -- CCSDS is the
+       configuration these flags reach, not a mode they switch into. */
+    unsigned rs_depth;   /* outer code interleaving depth; 0 = no outer code.
+                            4.3.5.1 allows 1,2,3,4,5,8 and the payload must be
+                            exactly 223*depth octets -- virtual fill is not
+                            implemented (gh-813), so any other length is
+                            refused rather than padded. */
+    int randomise;       /* XOR the section-10 pseudo-random sequence over the
+                            payload group -- not over a marker, which has to
+                            look the same in every frame to be found. */
+    int attach_asm;      /* prepend the 0x1ACFFC1D marker as a FIELD */
+    int convolutional;   /* inner code over the whole frame, marker included;
+                            doubles the bit count (rate 1/2, K=7) */
 } wfm_source_t;
 
 typedef struct {

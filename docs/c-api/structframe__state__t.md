@@ -36,13 +36,14 @@ _Frame state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) | [**d**](#variable-d)  <br> |
+|  [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) | [**dl**](#variable-dl)  <br> |
 |  [**wfm\_frame\_t**](structwfm__frame__t.md) | [**f**](#variable-f)  <br> |
 |  [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) | [**l**](#variable-l)  <br> |
+|  int | [**named**](#variable-named)  <br> |
 |  size\_t | [**nbits**](#variable-nbits)  <br> |
 |  uint8\_t \* | [**one**](#variable-one)  <br> |
-|  uint8\_t \* | [**payload\_own**](#variable-payload_own)  <br> |
-|  uint8\_t \* | [**preamble\_own**](#variable-preamble_own)  <br> |
-|  uint8\_t \* | [**sync\_own**](#variable-sync_own)  <br> |
+|  uint8\_t \* | [**own**](#variable-own)  <br> |
 
 
 
@@ -99,6 +100,40 @@ Allocate with [**frame\_create()**](frame__core_8h.md#function-frame_create).
 
 
 
+### variable d 
+
+```C++
+wfm_frame_desc_t frame_state_t::d;
+```
+
+
+
+The DESCRIPTION — fields and stages — which is what everything here delegates on. `wfm_frame_t` is one configuration of it, so the thirty-odd-argument constructor and the field-by-field builder produce the same kind of thing and share every method below. Its `bits` pointers address the owned copies, never the caller's arrays: a Python buffer is released the moment the call that supplied it returns. 
+
+
+        
+
+<hr>
+
+
+
+### variable dl 
+
+```C++
+wfm_frame_desc_layout_t frame_state_t::dl;
+```
+
+
+
+The general layout, derived at build. 
+
+
+        
+
+<hr>
+
+
+
 ### variable f 
 
 ```C++
@@ -107,7 +142,7 @@ wfm_frame_t frame_state_t::f;
 
 
 
-The descriptor, handed to the `wfm_frame_*` calls verbatim. Its three `bits` pointers address the owned copies below, never the caller's arrays — a Python buffer is released the moment the constructor returns. 
+The four-field configuration, kept only when the object was built that way — it is what `layout()`'s NAMED view reports. A description built field by field has no preamble/sync/payload/crc to name, and `layout()` says so by reporting a zero `total_bits` rather than inventing offsets for fields that do not exist. 
 
 
         
@@ -124,7 +159,24 @@ wfm_frame_layout_t frame_state_t::l;
 
 
 
-Computed once, at create. Nothing in this component recomputes a field offset; `layout()` hands this back and `crc_ok()` lets `wfm_frame.c` derive its own from the same descriptor. 
+Computed at create for the configured path; zero otherwise. 
+
+
+        
+
+<hr>
+
+
+
+### variable named 
+
+```C++
+int frame_state_t::named;
+```
+
+
+
+Non-zero once the configured path filled `f` and `l`. 
 
 
         
@@ -154,7 +206,7 @@ uint8_t* frame_state_t::one;
 
 
 
-One materialised frame, built at create — which is also the proof the descriptor CAN be materialised. `bits()` repeats this rather than regenerating, so every repeat is bit-identical by construction and a PN field cannot advance its register between them. 
+One materialised frame, built at create (configured) or at `build()` (described) — which is also the proof the description CAN be materialised. `bits()` repeats this rather than regenerating, so every repeat is bit-identical by construction and a PN field cannot advance its register between them. 
 
 
         
@@ -163,44 +215,18 @@ One materialised frame, built at create — which is also the proof the descript
 
 
 
-### variable payload\_own 
+### variable own 
 
 ```C++
-uint8_t * frame_state_t::payload_own;
+uint8_t* frame_state_t::own[WFM_FRAME_MAX_FIELDS];
 ```
 
 
 
-
-<hr>
-
-
-
-### variable preamble\_own 
-
-```C++
-uint8_t* frame_state_t::preamble_own;
-```
-
-
-
-Owned copies of the literal fields; NULL for a generated kind. 
+Owned copies of every literal field; NULL for a generated kind. 
 
 
         
-
-<hr>
-
-
-
-### variable sync\_own 
-
-```C++
-uint8_t * frame_state_t::sync_own;
-```
-
-
-
 
 <hr>
 

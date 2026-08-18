@@ -123,8 +123,19 @@ wfm_frame_desc_layout (const wfm_frame_desc_t *d, wfm_frame_desc_layout_t *out)
       if (si >= d->n_stages)
         return -1;
 
-      const wfm_stage_t *st  = &d->stage[si];
-      size_t             src = 0;
+      const wfm_stage_t *st = &d->stage[si];
+
+      /* A derived field must be the LAST field of its producing stage's
+         cover. That is what lets one in-place op signature serve a CRC, an
+         outer code and a randomiser alike — the kernel gets the whole span,
+         reads the information at its head and writes the check symbols into
+         its tail. A description that breaks it would hand a kernel a span
+         whose shape it cannot know, so it is refused here rather than
+         producing a frame with the parity in the middle of the data. */
+      if (st->n_fields && (unsigned)(st->first_field + st->n_fields - 1u) != i)
+        return -1;
+
+      size_t src = 0;
       for (unsigned c = 0; c < st->n_fields; c++)
         src += supplied_bits (&d->field[st->first_field + c]);
       out->field_bits[i] = src ? f->bits : 0u;
@@ -236,42 +247,125 @@ wfm_frame_nbits (const wfm_frame_t *f)
   return l.total_bits;
 }
 
+/* CRC-16-CCITT over the head of the span, written MSB-first into its tail.
+ *
+ * The built-in, because `dp_crc16.h` is already a dependency of this file and
+ * a CRC is not a property of any one standard. Everything else -- an outer
+ * code, a randomiser, an inner code -- belongs to the component that
+ * configures it and arrives through wfm_frame_ops_t.
+ *
+ * `n` is the whole cover, information followed by the 16-bit trailer this
+ * derives, so the protected length is `n - WFM_FRAME_CRC_BITS`. */
+static int
+crc16_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
+{
+  (void)st;
+  (void)user;
+  if (n <= WFM_FRAME_CRC_BITS)
+    return -1;
+  const size_t   prot = n - WFM_FRAME_CRC_BITS;
+  const uint16_t c    = dp_crc16_ccitt (bits, prot);
+  for (size_t i = 0; i < WFM_FRAME_CRC_BITS; i++)
+    bits[prot + i] = (uint8_t)((c >> (15 - i)) & 1u); /* MSB-first */
+  return 0;
+}
+
+static const wfm_stage_op_t BUILTIN[] = {
+  { WFM_STAGE_CRC16, crc16_in_unit, NULL },
+};
+
+static const wfm_stage_op_t *
+find_op (const wfm_frame_ops_t *ops, wfm_stage_kind_t kind)
+{
+  if (ops)
+    {
+      for (unsigned i = 0; i < ops->n_op; i++)
+        {
+          if (ops->op[i].kind == kind)
+            return &ops->op[i];
+        }
+    }
+  for (size_t i = 0; i < sizeof BUILTIN / sizeof BUILTIN[0]; i++)
+    {
+      if (BUILTIN[i].kind == kind)
+        return &BUILTIN[i];
+    }
+  return NULL;
+}
+
+size_t
+wfm_frame_assemble (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
+                    uint8_t *out, size_t max_out)
+{
+  wfm_frame_desc_layout_t l;
+  if (!d || !out || wfm_frame_desc_layout (d, &l) != 0)
+    return 0;
+  if (l.out_bits == 0 || l.out_bits > max_out)
+    return 0;
+
+  /* Every stage must have a kernel BEFORE anything is written. A stage
+     discovered to be unrunnable half way through would leave a partly coded
+     frame in the caller's buffer, which is the shape `seq_bits` already
+     refuses for a field: a frame that half-materialises is scored against a
+     truth nobody can reproduce. */
+  for (unsigned s = 0; s < d->n_stages; s++)
+    {
+      if (l.stage[s].n == 0)
+        continue; /* declared but not running -- nothing to look up */
+      const wfm_stage_op_t *op = find_op (ops, d->stage[s].kind);
+      if (!op || (op->in_unit == NULL) == (op->emit == NULL))
+        return 0;
+    }
+
+  /* The frame is assembled in the TAIL of the buffer when a stage expands it
+     into a different stream, so the stream can be written from the head with
+     no scratch allocation. With no such stage the tail IS the buffer. */
+  uint8_t *frame = out + (l.out_bits - l.frame_bits);
+
+  for (unsigned i = 0; i < d->n_fields; i++)
+    {
+      const wfm_field_t *f = &d->field[i];
+      const size_t       n = l.field_bits[i];
+      if (n == 0 || f->derived_by)
+        continue; /* absent, or written by the stage that derives it */
+
+      /* One period, then repeated verbatim — a generated field must repeat
+         the SAME bits, not draw fresh ones, or it is not a periodic
+         acquisition target and coherent integration across reps is void. */
+      if (seq_bits (&f->seq, frame + l.field_off[i], f->seq.len) != f->seq.len)
+        return 0;
+      for (size_t r = 1; r * f->seq.len < n; r++)
+        memcpy (frame + l.field_off[i] + r * f->seq.len,
+                frame + l.field_off[i], f->seq.len);
+    }
+
+  for (unsigned s = 0; s < d->n_stages; s++)
+    {
+      if (l.stage[s].n == 0)
+        continue;
+      const wfm_stage_op_t *op = find_op (ops, d->stage[s].kind);
+      void                 *u  = ops ? ops->user : NULL;
+      if (op->in_unit)
+        {
+          if (op->in_unit (&d->stage[s], frame + l.stage[s].first,
+                           l.stage[s].n, u)
+              != 0)
+            return 0;
+        }
+      else if (op->emit (&d->stage[s], frame, l.frame_bits, out, max_out, u)
+               != l.out_bits)
+        return 0;
+    }
+  return l.out_bits;
+}
+
 size_t
 wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out)
 {
-  wfm_frame_layout_t l;
-  if (!out || wfm_frame_layout (f, &l) != 0)
+  wfm_frame_desc_t d;
+  if (!f || wfm_frame_describe (f, &d) != 0)
     return 0;
-  if (l.total_bits == 0 || l.total_bits > max_out)
-    return 0;
-
-  if (l.preamble_bits)
-    {
-      /* One period, then repeated verbatim — a generated preamble must repeat
-         the SAME bits, not draw fresh ones, or it is not a periodic
-         acquisition target and coherent integration across reps is void. */
-      size_t n
-          = seq_bits (&f->preamble, out + l.preamble_off, f->preamble.len);
-      if (n != f->preamble.len)
-        return 0;
-      for (size_t r = 1; r < f->preamble_reps; r++)
-        memcpy (out + l.preamble_off + r * f->preamble.len,
-                out + l.preamble_off, f->preamble.len);
-    }
-  if (l.sync_bits
-      && seq_bits (&f->sync, out + l.sync_off, l.sync_bits) != l.sync_bits)
-    return 0;
-  if (l.payload_bits
-      && seq_bits (&f->payload, out + l.payload_off, l.payload_bits)
-             != l.payload_bits)
-    return 0;
-  if (l.crc_bits)
-    {
-      uint16_t c = dp_crc16_ccitt (out + l.payload_off, l.payload_bits);
-      for (size_t i = 0; i < l.crc_bits; i++)
-        out[l.crc_off + i] = (uint8_t)((c >> (15 - i)) & 1u); /* MSB-first */
-    }
-  return l.total_bits;
+  return wfm_frame_assemble (&d, NULL, out, max_out);
 }
 
 int

@@ -1,5 +1,5 @@
 {
-  "records": 1792,
+  "records": 2048,
   "dropped": 0,
   "capacity": 1048576,
   "block_samples": 8192,
@@ -11,13 +11,15 @@
     "rx.car.freq": 3,
     "rx.car.nco": 4,
     "rx.car.locked": 5,
-    "rx.sync.e": 6,
-    "rx.sync.ctrl": 7,
-    "rx.sync.rate": 8,
-    "rx.sync.lock": 9,
-    "rx.sync.locked": 10,
-    "rx.sync.mu": 11,
-    "rx.agc.gain_db": 12,
-    "rx.agc.level_db": 13
+    "rx.sym.i": 6,
+    "rx.sym.q": 7,
+    "rx.sync.e": 8,
+    "rx.sync.ctrl": 9,
+    "rx.sync.rate": 10,
+    "rx.sync.lock": 11,
+    "rx.sync.locked": 12,
+    "rx.sync.mu": 13,
+    "rx.agc.gain_db": 14,
+    "rx.agc.level_db": 15
   }
 }

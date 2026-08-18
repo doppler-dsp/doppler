@@ -19,9 +19,17 @@
     so both transcriptions are covered. Measured, `c_1 = α^117`, which is
     **not** primitive (`gcd(117, 255) = 3`) and does not need to be.
 
-    What that still cannot catch — the standard specifying a different
-    generator — is [gh-861](https://github.com/doppler-dsp/doppler/issues/861),
-    and the header no longer claims otherwise.
+    **And the published oracle, which the derived check could not supply.**
+    4.3.9.3's two matrices are now transcribed into the test as printed bit
+    rows — the way `asm_published` and the randomiser's `published40` prefix
+    already are — and checked row by row and across all 256 values. Both
+    match the shipped pair exactly, all sixteen rows.
+
+    The two are kept side by side and are not redundant. The transcription
+    says these are *CCSDS's* matrices; the derivation says they are a dual
+    basis *at all*, and would still catch a pair mis-transcribed the same way
+    in both the implementation and the test — which a second transcription
+    cannot. Closes gh-861.
 
     **`asm_find` promises FIRST below threshold, not best**, and nothing
     tested it: every case put one marker in a zero background, where the two

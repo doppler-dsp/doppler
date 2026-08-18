@@ -544,3 +544,103 @@ def test_static_invalid(case_id: str, instance: dict, validator):
 
     with pytest.raises(ValidationError):
         validator.validate(instance)
+
+
+# ---------------------------------------------------------------------------
+# Channel coding — the record has to carry it, or a capture cannot be rebuilt
+# ---------------------------------------------------------------------------
+
+
+def test_coded_record_validates_and_round_trips(validator, tmp_path):
+    """A coded capture must be reproducible from its own record.
+
+    The record is what makes a capture reproducible, so a stage the record
+    does not carry is a capture nobody can rebuild — and worse, the omission
+    reads as a plain uncoded waveform rather than as missing information.
+    Checked in both directions: the record validates against the schema, and
+    rebuilding from it alone reproduces the samples byte for byte.
+
+    The payload is 223 octets so the outer code has a whole codeword to work
+    on; with all four stages on and neither a preamble nor a sync word, this
+    IS a CCSDS CADU.
+    """
+    bits = "1" * (223 * 8)
+    rec = _record(
+        tmp_path,
+        "--type",
+        "bits",
+        "--bits",
+        bits,
+        "--rs-depth",
+        "1",
+        "--randomise",
+        "--asm",
+        "--conv",
+        "--crc",
+        "none",
+        "--sps",
+        "1",
+        "--count",
+        "4144",
+    )
+    validator.validate(rec)
+
+    seg = rec["segments"][0]
+    assert seg["rs_depth"] == 1
+    assert seg["randomise"] is True
+    assert seg["asm"] is True
+    assert seg["conv"] is True
+
+    # And the round trip, which is the property the record exists for.
+    src = tmp_path / "a.cf32"
+    dst = tmp_path / "b.cf32"
+    rec_path = tmp_path / "rec.json"
+    subprocess.run(
+        [
+            _bin(),
+            "--type",
+            "bits",
+            "--bits",
+            bits,
+            "--rs-depth",
+            "1",
+            "--randomise",
+            "--asm",
+            "--conv",
+            "--crc",
+            "none",
+            "--sps",
+            "1",
+            "--count",
+            "4144",
+            "--output",
+            str(src),
+            "--record",
+            str(rec_path),
+        ],
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        [_bin(), "--from-file", str(rec_path), "--output", str(dst)],
+        capture_output=True,
+        check=True,
+    )
+    assert src.read_bytes() == dst.read_bytes()
+    # (32 + 255*8) * 2 channel symbols, one sample each.
+    assert src.stat().st_size == 4144 * 8
+
+
+def test_an_uncoded_record_carries_no_coding_keys(tmp_path):
+    """Absent means off, so an uncoded record is unchanged by all of this.
+
+    Asserted from the other side because a writer that always emitted the
+    four keys would satisfy the test above and silently change every record
+    that existed before coding did.
+    """
+    rec = _record(
+        tmp_path, "--type", "bits", "--bits", "10110010", "--count", "64"
+    )
+    seg = rec["segments"][0]
+    for key in ("rs_depth", "randomise", "asm", "conv"):
+        assert key not in seg

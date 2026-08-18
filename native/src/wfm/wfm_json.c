@@ -101,6 +101,19 @@ add_bits_fields (cJSON *o, const wfm_source_t *src)
     return;
   int bm = (src->modulation >= 0 && src->modulation < 3) ? src->modulation : 1;
   cJSON_AddStringToObject (o, "modulation", BITMOD_NAMES[bm]);
+  /* The coding stages, and only when one is on: a record is what makes a
+     capture reproducible, so a stage the record does not carry is a capture
+     nobody can rebuild -- and the omission would look exactly like a plain
+     uncoded waveform. Written conditionally so an uncoded record is
+     byte-identical to what it was before coding existed. */
+  if (src->rs_depth)
+    cJSON_AddNumberToObject (o, "rs_depth", (double)src->rs_depth);
+  if (src->randomise)
+    cJSON_AddBoolToObject (o, "randomise", 1);
+  if (src->attach_asm)
+    cJSON_AddBoolToObject (o, "asm", 1);
+  if (src->convolutional)
+    cJSON_AddBoolToObject (o, "conv", 1);
   if (src->bits && src->n_bits)
     {
       char *bs = bits_to_string (src->bits, src->n_bits);
@@ -316,6 +329,16 @@ read_frame_fields (const cJSON *so, wfm_source_t *out)
       cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (so, "crc")),
       CRC_NAMES, 2);
   out->crc = (c < 0) ? 1 : c;
+
+  /* The coding stages. Absent means off, which is what a record written
+     before these existed says -- and what an uncoded one still says. */
+  out->rs_depth = (unsigned)num (so, "rs_depth", 0);
+  out->randomise
+      = cJSON_IsTrue (cJSON_GetObjectItemCaseSensitive (so, "randomise"));
+  out->attach_asm
+      = cJSON_IsTrue (cJSON_GetObjectItemCaseSensitive (so, "asm"));
+  out->convolutional
+      = cJSON_IsTrue (cJSON_GetObjectItemCaseSensitive (so, "conv"));
   return 0;
 }
 

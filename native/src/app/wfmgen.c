@@ -333,6 +333,28 @@ static const char USAGE[]
       "  --type bpsk/qpsk/pn (whose symbols come from the PN LFSR) refuse\n"
       "  these flags rather than ignoring them.\n"
       "\n"
+      "CHANNEL CODING  (--type bits)\n"
+      "  Stages over the frame's fields, each optional, and they do NOT all\n"
+      "  cover the same bits -- which is the point. A marker, a preamble and\n"
+      "  a sync word are things a receiver FINDS, so they must look the same\n"
+      "  in every frame: the outer code and the randomiser reach over the\n"
+      "  data group only, and the inner code reaches over everything.\n"
+      "  Setting any of them frames the waveform, as --sync does.\n"
+      "  --rs-depth I    Reed-Solomon (255,223) E=16, interleaved I deep;\n"
+      "                  1, 2, 3, 4, 5 or 8. The payload plus its CRC must\n"
+      "                  be exactly 223*I octets -- a short frame is "
+      "refused,\n"
+      "                  not padded (virtual fill is not implemented).\n"
+      "  --randomise     The section-10 pseudo-randomiser over the data\n"
+      "                  group. Its own inverse, so the receiver runs it "
+      "too.\n"
+      "  --asm           Prepend the 0x1ACFFC1D attached sync marker.\n"
+      "  --conv          Convolutional K=7 rate-1/2, over the WHOLE frame\n"
+      "                  including the marker; doubles the bit count.\n"
+      "  All four, with a 223*I-octet payload and no preamble or sync word,\n"
+      "  is a CCSDS CADU. That is a configuration of these flags, not a mode\n"
+      "  they switch into.\n"
+      "\n"
       "DSSS BURST  (--type dsss)\n"
       "  One burst = an unmodulated repeated preamble (code A) followed by\n"
       "  the frame [sync | payload | CRC-16], every frame bit spread by a\n"
@@ -622,6 +644,17 @@ static const opt_t OPTS[] = {
     .kind = OPT_CHOICE,
     .off  = OFF (src.crc),
     CHOICES (CRCS) },
+  /* Channel coding, as STAGES over the frame's fields. Each is separately
+     optional because the standard makes it so, and they do not all cover the
+     same bits -- which is the whole reason the frame is a description rather
+     than a chain. See wfm/wfm_frame.h. */
+  { .name = "--rs-depth", .kind = OPT_U32, .off = OFF (src.rs_depth) },
+  { .name  = "--randomise",
+    .alias = "--randomize",
+    .kind  = OPT_SET,
+    .off   = OFF (src.randomise) },
+  { .name = "--asm", .kind = OPT_SET, .off = OFF (src.attach_asm) },
+  { .name = "--conv", .kind = OPT_SET, .off = OFF (src.convolutional) },
   { .name = "--symbol-rate",
     .kind = OPT_DOUBLE,
     .off  = OFF (src.symbol_rate),

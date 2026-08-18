@@ -60,7 +60,7 @@ There is no list here to update.
 
 <!-- validation-log:start -->
 
-**12 objects certified** — 8 of the 73 `objects/*.toml` jm fragments, plus 4 with no object manifest at all (`conv`, `ema`, `mpsk`, `resamp`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
+**12 objects certified** — 8 of the 72 `objects/*.toml` jm fragments, plus 4 with no object manifest at all (`conv`, `ema`, `mpsk`, `resamp`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
 
 | object                                                                                                                       | module       | limits | findings | still open                 |
 | ---------------------------------------------------------------------------------------------------------------------------- | ------------ | ------ | -------- | -------------------------- |

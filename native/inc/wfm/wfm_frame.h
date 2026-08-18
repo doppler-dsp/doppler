@@ -89,6 +89,144 @@ extern "C"
     uint64_t taps_a, seed_a, taps_b, seed_b;
   } wfm_seq_t;
 
+  /** @brief Fields one description may carry. */
+#define WFM_FRAME_MAX_FIELDS 8
+  /** @brief Stages one description may carry. */
+#define WFM_FRAME_MAX_STAGES 6
+
+  /**
+   * @brief A run of bits inside the assembled frame, `[first, first + n)`.
+   *
+   * A stage that did not run reports `n == 0`, and its @p first is then zero
+   * as well; @p first is meaningful only for a stage that ran.
+   */
+  typedef struct
+  {
+    size_t first; /**< first frame-bit index the stage covers */
+    size_t n;     /**< bits covered, or 0 if the stage did not run */
+  } wfm_frame_span_t;
+
+  /**
+   * @brief One field of a frame — a run of bits that appears on the wire.
+   *
+   * Either the caller supplies the bits (@p seq, any @ref wfm_seq_kind_t) or
+   * a stage produces them (@p derived_by non-zero: a CRC trailer, a block of
+   * Reed-Solomon check symbols). Both are fields, because both are on the
+   * wire, and making the second one a field is what removes the need for a
+   * stage to expand the field it covers.
+   */
+  typedef struct
+  {
+    wfm_seq_t seq;  /**< the bits, when the caller supplies them        */
+    size_t    reps; /**< repetitions of @p seq, verbatim; 0 means one   */
+    size_t    bits; /**< derived only: length in bits, sized by its stage */
+    /** 0 when the caller supplies this field; otherwise the index of the
+        producing stage, plus one. The `+1` is so a zero-initialised field is
+        a caller-supplied one rather than silently the output of stage 0. */
+    unsigned derived_by;
+  } wfm_field_t;
+
+  /** @brief What a stage does to the fields it covers. */
+  typedef enum
+  {
+    WFM_STAGE_CRC16     = 0, /**< dp_crc16_ccitt over the covered input  */
+    WFM_STAGE_RS        = 1, /**< a Reed-Solomon code, interleaved       */
+    WFM_STAGE_RANDOMISE = 2, /**< XOR a pseudo-random sequence, in place */
+    WFM_STAGE_CONV      = 3  /**< a convolutional code                   */
+  } wfm_stage_kind_t;
+
+  /**
+   * @brief One transform, and — the whole point — the fields it covers.
+   *
+   * **@p n_fields is load-bearing, not a refinement.** `ccsds_tm_frame.h`
+   * states the failure this prevents: *"any chain of optional transforms
+   * applied to 'the frame' is right at three stage boundaries and wrong at
+   * the fourth, and wrong in the direction that still encodes, still decodes
+   * against itself, and syncs to nothing."* A stage that inherited "whatever
+   * ran before me" would be that chain. CCSDS is the case that proves it —
+   * the marker is covered by the inner code and by neither the outer code nor
+   * the randomiser — and any frame with a sync word has the same shape.
+   *
+   * The cover is what the stage OCCUPIES on the wire, so for a code it is the
+   * information *and* the check symbols it derives. What the stage reads is
+   * the cover minus the fields it derives, which is why both are one
+   * declaration rather than two that can disagree.
+   */
+  typedef struct
+  {
+    wfm_stage_kind_t kind;
+    unsigned         first_field; /**< first field covered                */
+    unsigned         n_fields;    /**< fields covered; 0 = does not run   */
+    unsigned         depth;       /**< RS: interleaving depth             */
+
+    /** A stage that consumes the assembled frame and emits a DIFFERENT
+        stream sets these: the output is `n * emit_num / emit_den` bits.
+        `emit_num == 0` means the stage stays inside the frame. Only the
+        inner code does the former today, and it is exactly why
+        @ref wfm_frame_desc_layout_t reports @p frame_bits and @p out_bits as
+        two numbers rather than one. */
+    unsigned emit_num, emit_den;
+  } wfm_stage_t;
+
+  /**
+   * @brief A frame as a description: what is on the wire, and what covers it.
+   *
+   * Two lists, ordered independently, because order and coverage are
+   * independent axes: @p field is ordered by POSITION on the wire and
+   * @p stage by APPLICATION. In a CCSDS CADU the marker is inserted third and
+   * covered by the stage applied fourth, which a single ordered list cannot
+   * say.
+   *
+   * A standard's framing is a CONFIGURATION of this, in the same way
+   * `CCSDS_TM_CONV` configures `conv_code_t` and `CCSDS_TM_RS` configures
+   * `rs_code_t`. @ref wfm_frame_t is the first such configuration and is
+   * built by @ref wfm_frame_describe.
+   *
+   * @see docs/design/frame-description.md
+   */
+  typedef struct
+  {
+    wfm_field_t field[WFM_FRAME_MAX_FIELDS];
+    unsigned    n_fields;
+    wfm_stage_t stage[WFM_FRAME_MAX_STAGES];
+    unsigned    n_stages;
+  } wfm_frame_desc_t;
+
+  /** @brief Where every field and every stage landed. */
+  typedef struct
+  {
+    size_t   field_off[WFM_FRAME_MAX_FIELDS];  /**< bit offset per field  */
+    size_t   field_bits[WFM_FRAME_MAX_FIELDS]; /**< bits per field        */
+    unsigned n_fields;
+
+    wfm_frame_span_t stage[WFM_FRAME_MAX_STAGES]; /**< what each stage covers   */
+    unsigned   n_stages;
+
+    size_t frame_bits; /**< the assembled frame, every field end to end   */
+    size_t out_bits;   /**< what leaves the last stage that emits a new
+                            stream; equals @p frame_bits when none does   */
+  } wfm_frame_desc_layout_t;
+
+  /**
+   * @brief Derive every field offset, every stage span and both lengths.
+   *
+   * The one operation both shipped framers already have, widened: this is
+   * `wfm_frame_layout()`'s arithmetic and `ccsds_tm_frame_layout()`'s, with
+   * the field and stage lists supplied rather than fixed.
+   *
+   * A derived field whose producing stage covers no caller-supplied bits is
+   * dropped to zero length — which is the general form of the rule
+   * @ref wfm_frame_layout has always applied, that a CRC over an empty
+   * payload protects nothing and is not emitted.
+   *
+   * @param d    the description.
+   * @param out  receives the layout.
+   * @return 0, or -1 if @p d or @p out is NULL, or a count or a cover runs
+   *         past its array.
+   */
+  int wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
+                             wfm_frame_desc_layout_t *out);
+
   /**
    * @brief A frame's bit layout: `[preamble × reps | sync | payload | crc]`.
    *
@@ -96,6 +234,11 @@ extern "C"
    * contract this generalises: it is unmodulated, it is not covered by the
    * CRC, and in the spread case it is not spread. It is the
    * coherent-integration target.
+   *
+   * This is a **configuration** of @ref wfm_frame_desc_t — four fields and
+   * one stage — not a second descriptor. @ref wfm_frame_layout builds it
+   * through @ref wfm_frame_describe and reads the general layout back, so
+   * there is one implementation of the arithmetic and the two cannot drift.
    */
   typedef struct
   {
@@ -118,6 +261,30 @@ extern "C"
                                    protects nothing                        */
     size_t total_bits;
   } wfm_frame_layout_t;
+
+  /** @brief Field indices @ref wfm_frame_describe writes, in wire order. */
+  enum
+  {
+    WFM_FRAME_FIELD_PREAMBLE = 0,
+    WFM_FRAME_FIELD_SYNC     = 1,
+    WFM_FRAME_FIELD_PAYLOAD  = 2,
+    WFM_FRAME_FIELD_CRC      = 3
+  };
+
+  /**
+   * @brief Express a @ref wfm_frame_t as a @ref wfm_frame_desc_t.
+   *
+   * The bridge that makes the closed struct a configuration rather than a
+   * rival: four fields in wire order, plus one CRC stage covering the payload
+   * and the trailer it derives. Exported because it is also the worked
+   * example — the shortest complete answer to "what does a description of my
+   * frame look like".
+   *
+   * @param f    the frame.
+   * @param out  receives the description.
+   * @return 0, or -1 if either argument is NULL.
+   */
+  int wfm_frame_describe (const wfm_frame_t *f, wfm_frame_desc_t *out);
 
   /**
    * @brief Total frame bits, or 0 if the geometry is empty.

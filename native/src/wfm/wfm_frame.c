@@ -69,37 +69,161 @@ seq_bits (const wfm_seq_t *s, uint8_t *out, size_t cap)
   return 0;
 }
 
+/* ── the general description ──────────────────────────────────────────
+ *
+ * Everything below the divider is the arithmetic BOTH framers in the tree
+ * were carrying separately. See docs/design/frame-description.md; the two
+ * rules that are easy to lose are that a derived field is a field (which is
+ * what removes any need for a stage to expand what it covers), and that a
+ * stage's cover is declared rather than inherited from what ran before it.
+ */
+
+/* A caller-supplied field's length. A derived one is sized by its stage and
+   is resolved separately, because that resolution depends on this. */
+static size_t
+supplied_bits (const wfm_field_t *f)
+{
+  if (f->derived_by || f->seq.len == 0)
+    return 0;
+  const size_t reps = f->reps ? f->reps : 1u;
+  return f->seq.len * reps;
+}
+
 int
-wfm_frame_layout (const wfm_frame_t *f, wfm_frame_layout_t *out)
+wfm_frame_desc_layout (const wfm_frame_desc_t *d, wfm_frame_desc_layout_t *out)
+{
+  if (!d || !out)
+    return -1;
+  if (d->n_fields > WFM_FRAME_MAX_FIELDS || d->n_stages > WFM_FRAME_MAX_STAGES)
+    return -1;
+  memset (out, 0, sizeof *out);
+  out->n_fields = d->n_fields;
+  out->n_stages = d->n_stages;
+
+  for (unsigned s = 0; s < d->n_stages; s++)
+    {
+      const wfm_stage_t *st = &d->stage[s];
+      if (st->n_fields && (size_t)st->first_field + st->n_fields > d->n_fields)
+        return -1;
+    }
+
+  /* 1. what the caller supplied */
+  for (unsigned i = 0; i < d->n_fields; i++)
+    out->field_bits[i] = supplied_bits (&d->field[i]);
+
+  /* 2. size the derived fields. A stage that covers no supplied bits derives
+        nothing — the general form of "a CRC over an empty payload protects
+        nothing", which this file has always applied to that one case. */
+  for (unsigned i = 0; i < d->n_fields; i++)
+    {
+      const wfm_field_t *f = &d->field[i];
+      if (!f->derived_by)
+        continue;
+      const unsigned si = f->derived_by - 1u;
+      if (si >= d->n_stages)
+        return -1;
+
+      const wfm_stage_t *st  = &d->stage[si];
+      size_t             src = 0;
+      for (unsigned c = 0; c < st->n_fields; c++)
+        src += supplied_bits (&d->field[st->first_field + c]);
+      out->field_bits[i] = src ? f->bits : 0u;
+    }
+
+  /* 3. offsets, in wire order */
+  size_t off = 0;
+  for (unsigned i = 0; i < d->n_fields; i++)
+    {
+      out->field_off[i] = off;
+      off += out->field_bits[i];
+    }
+  out->frame_bits = off;
+
+  /* 4. each stage's span, from its DECLARED cover */
+  for (unsigned s = 0; s < d->n_stages; s++)
+    {
+      const wfm_stage_t *st = &d->stage[s];
+      size_t             n  = 0;
+      for (unsigned c = 0; c < st->n_fields; c++)
+        n += out->field_bits[st->first_field + c];
+      if (n)
+        {
+          out->stage[s].first = out->field_off[st->first_field];
+          out->stage[s].n     = n;
+        }
+    }
+
+  /* 5. a stage that emits a different stream sets the output length; the
+        bits it does not cover pass through at their own width. */
+  out->out_bits = out->frame_bits;
+  for (unsigned s = 0; s < d->n_stages; s++)
+    {
+      const wfm_stage_t *st = &d->stage[s];
+      if (!st->emit_num || !st->emit_den || out->stage[s].n == 0)
+        continue;
+      const size_t cov = out->stage[s].n;
+      out->out_bits
+          = (out->frame_bits - cov) + cov * st->emit_num / st->emit_den;
+    }
+  return 0;
+}
+
+int
+wfm_frame_describe (const wfm_frame_t *f, wfm_frame_desc_t *out)
 {
   if (!f || !out)
     return -1;
   memset (out, 0, sizeof *out);
 
-  size_t off         = 0;
-  out->preamble_bits = (f->preamble.len && f->preamble_reps)
-                           ? f->preamble.len * f->preamble_reps
-                           : 0;
-  out->preamble_off  = off;
-  off += out->preamble_bits;
+  /* `preamble_reps == 0` means NO preamble, which is this struct's rule and
+     not the general one — a field that simply does not repeat leaves `reps`
+     zero and is emitted once. So the repetition count is what decides here,
+     and a zero one leaves the field empty rather than emitting one period. */
+  if (f->preamble_reps)
+    {
+      out->field[WFM_FRAME_FIELD_PREAMBLE].seq  = f->preamble;
+      out->field[WFM_FRAME_FIELD_PREAMBLE].reps = f->preamble_reps;
+    }
+  out->field[WFM_FRAME_FIELD_SYNC].seq    = f->sync;
+  out->field[WFM_FRAME_FIELD_PAYLOAD].seq = f->payload;
 
-  out->sync_bits = f->sync.len;
-  out->sync_off  = off;
-  off += out->sync_bits;
+  /* The CRC is a field AND a stage: a trailer on the wire, derived by a
+     transform covering the payload it protects and the trailer it wrote.
+     Both are ALWAYS declared, and `f->crc` unset switches the stage off by
+     giving it nothing to cover — which is what an optional stage is in this
+     representation, and what `ccsds_tm_frame_layout()` already reports for a
+     stage that did not run. Declaring the field either way is also what
+     keeps `crc_off` at the end of the payload when the trailer is absent. */
+  out->field[WFM_FRAME_FIELD_CRC].bits       = WFM_FRAME_CRC_BITS;
+  out->field[WFM_FRAME_FIELD_CRC].derived_by = 1u; /* stage 0, plus one */
+  out->n_fields                              = 4u;
 
-  out->payload_bits = f->payload.len;
-  out->payload_off  = off;
-  off += out->payload_bits;
+  out->stage[0].kind        = WFM_STAGE_CRC16;
+  out->stage[0].first_field = WFM_FRAME_FIELD_PAYLOAD;
+  out->stage[0].n_fields    = f->crc ? 2u : 0u; /* payload + its own trailer */
+  out->n_stages             = 1u;
+  return 0;
+}
 
-  /* The CRC protects the payload, so with no payload there is nothing to
-     protect and it is dropped rather than emitting crc16 of nothing. Same
-     rule wfm_frame_dsss_nchips() has always applied. */
-  out->crc_bits
-      = (f->crc && out->payload_bits) ? WFM_FRAME_CRC_BITS : (size_t)0;
-  out->crc_off = off;
-  off += out->crc_bits;
+int
+wfm_frame_layout (const wfm_frame_t *f, wfm_frame_layout_t *out)
+{
+  wfm_frame_desc_t        d;
+  wfm_frame_desc_layout_t l;
+  if (!f || !out || wfm_frame_describe (f, &d) != 0
+      || wfm_frame_desc_layout (&d, &l) != 0)
+    return -1;
+  memset (out, 0, sizeof *out);
 
-  out->total_bits = off;
+  out->preamble_off  = l.field_off[WFM_FRAME_FIELD_PREAMBLE];
+  out->preamble_bits = l.field_bits[WFM_FRAME_FIELD_PREAMBLE];
+  out->sync_off      = l.field_off[WFM_FRAME_FIELD_SYNC];
+  out->sync_bits     = l.field_bits[WFM_FRAME_FIELD_SYNC];
+  out->payload_off   = l.field_off[WFM_FRAME_FIELD_PAYLOAD];
+  out->payload_bits  = l.field_bits[WFM_FRAME_FIELD_PAYLOAD];
+  out->crc_off       = l.field_off[WFM_FRAME_FIELD_CRC];
+  out->crc_bits      = l.field_bits[WFM_FRAME_FIELD_CRC];
+  out->total_bits    = l.frame_bits;
   return 0;
 }
 

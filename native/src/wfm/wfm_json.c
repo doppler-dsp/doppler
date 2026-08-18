@@ -20,6 +20,9 @@ static const char *const LFSR_NAMES[]   = { "galois", "fibonacci" };
 static const char *const BITMOD_NAMES[] = { "none", "bpsk", "qpsk" };
 static const char *const PULSE_NAMES[]  = { "rect", "rrc" };
 static const char *const CRC_NAMES[]    = { "none", "crc16" };
+/* Index order IS wfm_source_t.randomise: 0 off, 1 the 131.0-B-6 default,
+   2 the legacy 255-bit sequence. Same table as wfmgen's RANDS. */
+static const char *const RAND_NAMES[] = { "off", "ccsds", "legacy" };
 /* Continuous-dsss data source: index 0 = code-only, 1 = prbs (the default). */
 static const char *const DATA_NAMES[] = { "none", "prbs" };
 /* Ordered to match wfm_seed_advance_t (NONE=0, NOISE=1, ALL=2). */
@@ -108,8 +111,12 @@ add_bits_fields (cJSON *o, const wfm_source_t *src)
      byte-identical to what it was before coding existed. */
   if (src->rs_depth)
     cJSON_AddNumberToObject (o, "rs_depth", (double)src->rs_depth);
+  /* WHICH generator, not merely that one ran: 131.0-B-6 specifies two and
+     only the matching receiver derandomises a given waveform, so a record
+     carrying a bare `true` could not rebuild the capture it describes. */
   if (src->randomise)
-    cJSON_AddBoolToObject (o, "randomise", 1);
+    cJSON_AddStringToObject (o, "randomise",
+                             RAND_NAMES[src->randomise == 2 ? 2 : 1]);
   if (src->attach_asm)
     cJSON_AddBoolToObject (o, "asm", 1);
   if (src->convolutional)
@@ -333,8 +340,19 @@ read_frame_fields (const cJSON *so, wfm_source_t *out)
   /* The coding stages. Absent means off, which is what a record written
      before these existed says -- and what an uncoded one still says. */
   out->rs_depth = (unsigned)num (so, "rs_depth", 0);
-  out->randomise
-      = cJSON_IsTrue (cJSON_GetObjectItemCaseSensitive (so, "randomise"));
+  {
+    /* A string names the generator; a bare `true` is read as the default,
+       so a record written before the choice existed still loads. */
+    const cJSON *rnd = cJSON_GetObjectItemCaseSensitive (so, "randomise");
+    const char  *rn  = cJSON_GetStringValue (rnd);
+    if (rn != NULL)
+      {
+        const int idx  = name_index (rn, RAND_NAMES, 3);
+        out->randomise = (idx < 0) ? 0 : idx;
+      }
+    else
+      out->randomise = cJSON_IsTrue (rnd) ? 1 : 0;
+  }
   out->attach_asm
       = cJSON_IsTrue (cJSON_GetObjectItemCaseSensitive (so, "asm"));
   out->convolutional

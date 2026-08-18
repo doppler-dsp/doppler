@@ -122,12 +122,22 @@ outer_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
 
 /* Section 10. Its own inverse and length-preserving, so the receive side runs
  * the identical call over the identical span. */
+/* `depth` carries WHICH generator, because B-6 specifies two: 1 (or 0, the
+ * unset default) selects 10.4.1's, 2 selects 10.4.2's legacy sequence. A
+ * kernel that picked for itself would produce a waveform the transmitter and
+ * the receiver could disagree about, which is the failure this component is
+ * shaped around. */
+static const ccsds_tm_rand_t *
+rand_choice (const wfm_stage_t *st)
+{
+  return (st->depth == 2u) ? &CCSDS_TM_RAND_LEGACY : &CCSDS_TM_RAND;
+}
+
 static int
 rand_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
 {
-  (void)st;
   (void)user;
-  ccsds_tm_randomise (bits, n);
+  ccsds_tm_randomise_with (rand_choice (st), bits, n);
   return 0;
 }
 
@@ -197,9 +207,8 @@ static int
 rand_undo (const wfm_stage_t *st, uint8_t *bits, size_t n,
            wfm_frame_stage_rx_t *rx, void *user)
 {
-  (void)st;
   (void)user;
-  ccsds_tm_randomise (bits, n);
+  ccsds_tm_randomise_with (rand_choice (st), bits, n);
   rx->units   = 1u;
   rx->ok      = 1u;
   rx->checked = 1;

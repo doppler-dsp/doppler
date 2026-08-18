@@ -305,6 +305,33 @@ def cases() -> list[tuple[str, list[str]]]:
                 "4144",
             ],
         ),
+        # The SAME CADU with the legacy randomiser. Its own case because
+        # "which generator" is the axis --record has to carry: B-6 specifies
+        # two, and only the matching receiver derandomises a given waveform,
+        # so a record that recorded a bare `true` could not rebuild either.
+        (
+            "bits_ccsds_cadu_legacy_rand",
+            [
+                "--type",
+                "bits",
+                "--modulation",
+                "bpsk",
+                "--bits",
+                "1" * (223 * 8),
+                "--rs-depth",
+                "1",
+                "--randomise",
+                "legacy",
+                "--asm",
+                "--conv",
+                "--crc",
+                "none",
+                "--sps",
+                "1",
+                "--count",
+                "4144",
+            ],
+        ),
         # The outer code refuses a payload off the 223*I grid rather than
         # padding it -- virtual fill is not implemented (gh-813), and a
         # silently padded codeblock is the wrong length for the receiver it

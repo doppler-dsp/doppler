@@ -10,18 +10,31 @@
  *
  * ## Normative references
  *
- * - **CCSDS 131.0-B-5**, *TM Synchronization and Channel Coding*, Blue Book,
- *   September 2023 — the current issue, and what this implements.
- * - **CCSDS 130.1-G**, *TM Synchronization and Channel Coding—Summary of
- *   Concept and Rationale*, Green Book — the worked examples.
+ * - **CCSDS 131.0-B-6**, *TM Synchronization and Channel Coding*, Blue Book,
+ *   April 2026 (errata corrected 1) — the current issue.
+ * - **CCSDS 130.1-G-3**, *TM Synchronization and Channel Coding—Summary of
+ *   Concept and Rationale*, Green Book, June 2020 — the rationale, and three
+ *   issues behind the Blue Book it explains.
  *
- * Section numbers below are cited from **131.0-B-3** (September 2017), which
- * is the issue that could be read in full while writing this; it is marked
- * HISTORICAL and superseded by B-5. The coding itself is unchanged between
- * them — B-5's additions are a turbo channel interleaver and a reorganisation
- * of slicing — but **a section number is not a value to trust across an
- * issue.** Re-check any citation here against the issue in hand before
- * relying on it.
+ * Most section numbers below are still cited from **131.0-B-3** (September
+ * 2017), which is the issue this component was written against. That is a
+ * known debt, tracked as gh-865, and it is exactly what the next paragraph
+ * warns about: **a section number is not a value to trust across an issue.**
+ *
+ * B-6 has been read, and the numbers moved while the content did not —
+ * 4.3.9 became 5.3.9, 4.4.1 became 5.4.1, 4.4.2 became 5.3.8.2, while figure
+ * 9-1 and section 10.3 held. What was checked against it directly and found
+ * unchanged: both dual-basis matrices, the sync marker pattern, the legacy
+ * randomiser's published prefix, and the field polynomial.
+ *
+ * Two things B-6 DID change, and only one is adopted here:
+ *
+ * - **the randomiser default is now the 131071-bit sequence** (10.4.1), and
+ *   the 255-bit one is kept only "for backward compatibility with legacy
+ *   systems" (10.4.2). Both ship; see @ref CCSDS_TM_RAND.
+ * - **the ASM is called the CSM** (Code Sync Marker) throughout. The pattern
+ *   is unchanged; the naming here is not, and renaming reaches a CLI flag
+ *   and a Python surface. gh-865.
  *
  * CCSDS is the prototype because one frame exercises every element at once,
  * and because its stages disagree about what they cover — which is the
@@ -92,16 +105,95 @@ extern "C"
 #define CCSDS_TM_ASM_BITS 32
 
   /**
-   * @brief Period of the pseudo-randomising sequence, in bits (10.4.2).
+   * @brief A pseudo-randomiser: a maximal-length generator and its preset.
    *
-   * An 8-stage maximal-length generator, so 255 and not 256. It is named
-   * because it is what lets a consumer XOR the sequence onto a run of any
-   * length from a fixed 255-entry table instead of holding one the size of
-   * the data — `test_ccsds_tm_rand.c` pins that equivalence against
-   * @ref ccsds_tm_randomise rather than leaving it as arithmetic a reader
-   * has to trust.
+   * 131.0-B-6 section 10.4 specifies **two**, and which one a mission uses is
+   * a choice rather than a property of the coding — so it is a configuration,
+   * exactly as the inner code and the outer code are. One implementation
+   * serves both; only the table changes.
+   *
+   * @p taps is a mask over the register: bit `i` set means stage `i` feeds
+   * back. The mask is DERIVED from the characteristic polynomial rather than
+   * transcribed from its exponents, and the difference is not cosmetic —
+   * `rand.c` records that writing the exponents produced a generator which
+   * walked to the all-zero fixed point and passed every structural check
+   * except the published prefix.
    */
-#define CCSDS_TM_RAND_PERIOD 255
+  typedef struct
+  {
+    uint32_t taps;   /**< feedback mask over @p stages bits           */
+    uint32_t seed;   /**< preset, loaded at the start of every run    */
+    unsigned stages; /**< register width                              */
+    size_t   period; /**< `2^stages - 1`, since both are maximal      */
+  } ccsds_tm_rand_t;
+
+  /**
+   * @brief The randomiser 131.0-B-6 10.4.1 requires: 131071 bits, degree 17.
+   *
+   * `h(x) = x^17 + x^14 + 1`, preset `11000111000111000`, and it is the
+   * `shall`. **This is the default and what @ref ccsds_tm_randomise applies.**
+   *
+   * The preset is loaded so the LAST bit of that printed string is emitted
+   * FIRST — the string reads along the register in figure 10-2, and the stage
+   * that leaves first is the far end. Nothing forced that question before,
+   * because the legacy preset is all ones and reads the same either way; the
+   * published 40-bit prefix is what settles it, and is what
+   * `test_ccsds_tm_rand.c` holds it to.
+   */
+  extern const ccsds_tm_rand_t CCSDS_TM_RAND;
+
+  /**
+   * @brief The randomiser 10.4.2 keeps: 255 bits, degree 8.
+   *
+   * `h(x) = x^8 + x^7 + x^5 + x^3 + 1`, preset all ones — what every issue
+   * through B-3 specified outright, and what B-6 keeps only *"for backward
+   * compatibility with legacy systems"*.
+   *
+   * B-6 says why it stopped being the default, and it is a link-budget
+   * matter rather than a coding one: the short period *"may introduce
+   * spectral lines at 1/255 of the symbol rate"* and *"could not guarantee
+   * full compliance with ITU power flux density limits"*. Reach for it to
+   * talk to something old, not to build something new.
+   */
+  extern const ccsds_tm_rand_t CCSDS_TM_RAND_LEGACY;
+
+  /** @brief Period of the DEFAULT sequence, in bits (10.4.1). */
+#define CCSDS_TM_RAND_PERIOD 131071
+
+  /**
+   * @brief A generator part-way through a run.
+   *
+   * Exposed because a consumer that is already walking the data — the frame
+   * decoder packs bits to octets and derandomises in the same pass — cannot
+   * hand a mutable run to @ref ccsds_tm_randomise, and must not hold a
+   * sequence the size of the data either. Stepping the generator alongside
+   * costs one word and works for any period; the alternative was a table
+   * indexed modulo the period, which is 128 KB at 10.4.1's and is longer than
+   * any CADU.
+   */
+  typedef struct
+  {
+    uint32_t reg;
+    uint32_t taps;
+    unsigned stages;
+  } ccsds_tm_rand_state_t;
+
+  /**
+   * @brief Load @p r's preset, ready to emit its first bit.
+   *
+   * @param s  Receives the state.
+   * @param r  The randomiser; `NULL` selects @ref CCSDS_TM_RAND.
+   */
+  void ccsds_tm_rand_init (ccsds_tm_rand_state_t *s,
+                           const ccsds_tm_rand_t *r);
+
+  /**
+   * @brief Emit one bit and advance.
+   *
+   * @param s  A state from @ref ccsds_tm_rand_init.
+   * @return   The next sequence bit, 0 or 1.
+   */
+  uint8_t ccsds_tm_rand_step (ccsds_tm_rand_state_t *s);
 
   /**
    * @brief Constraint length of the inner code (3.3.1): 7.
@@ -209,6 +301,16 @@ extern "C"
   void ccsds_tm_randomise (uint8_t *bits, size_t n);
 
   /**
+   * @brief @ref ccsds_tm_randomise with a chosen randomiser.
+   *
+   * @param r     The randomiser; `NULL` selects @ref CCSDS_TM_RAND.
+   * @param bits  Unpacked bits (one per byte, LSB); modified in place.
+   * @param n     Number of bits.
+   */
+  void ccsds_tm_randomise_with (const ccsds_tm_rand_t *r, uint8_t *bits,
+                                size_t n);
+
+  /**
    * @brief The CCSDS inner code, as a @ref conv_code_t.
    *
    * 131.0-B-3 section 3.3.1: the non-systematic rate-1/2 K = 7 code with
@@ -252,6 +354,16 @@ extern "C"
    * @param n    Number of bits to generate.
    */
   void ccsds_tm_rand_seq (uint8_t *out, size_t n);
+
+  /**
+   * @brief @ref ccsds_tm_rand_seq with a chosen randomiser.
+   *
+   * @param r    The randomiser; `NULL` selects @ref CCSDS_TM_RAND.
+   * @param out  Receives @p n unpacked bits.
+   * @param n    Number of bits to generate.
+   */
+  void ccsds_tm_rand_seq_with (const ccsds_tm_rand_t *r, uint8_t *out,
+                               size_t n);
 
 #ifdef __cplusplus
 }

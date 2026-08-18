@@ -50,6 +50,14 @@ static const char *const GAPNOISE[] = { "auto", "off" };
    than to match the usage text: "prbs" is the seeded PN (code_only 0) and
    "none" is code-only (code_only 1), so the chosen index IS the field. */
 static const char *const DATA_SRC[] = { "prbs", "none" };
+/* --randomise: WHICH section-10 generator, because 131.0-B-6 specifies two
+   and they produce waveforms only the matching receiver derandomises.
+   Index 0 is "off" so an absent flag and an explicit off are one value, and
+   index 1 is B-6 10.4.1's -- the `shall` -- which is what OPT_CHOICE_OPT
+   selects when the flag is given with no value. "legacy" is 10.4.2's 255-bit
+   sequence, kept for backward compatibility and carrying spectral lines at
+   1/255 of the symbol rate. */
+static const char *const RANDS[] = { "off", "ccsds", "legacy" };
 
 /* Look name up in a NULL-free table of n entries; -1 if absent. */
 static int
@@ -345,9 +353,17 @@ static const char USAGE[]
       "                  be exactly 223*I octets -- a short frame is "
       "refused,\n"
       "                  not padded (virtual fill is not implemented).\n"
-      "  --randomise     The section-10 pseudo-randomiser over the data\n"
-      "                  group. Its own inverse, so the receiver runs it "
-      "too.\n"
+      "  --randomise [G] A section-10 pseudo-randomiser over the data group.\n"
+      "                  Its own inverse, so the receiver runs it too.\n"
+      "                    ccsds   131071-bit, h(x)=x^17+x^14+1 -- the\n"
+      "                            default, and what 131.0-B-6 10.4.1 needs\n"
+      "                    legacy  255-bit, h(x)=x^8+x^7+x^5+x^3+1, kept by\n"
+      "                            10.4.2 for legacy systems only; it puts\n"
+      "                            spectral lines at 1/255 of the symbol "
+      "rate\n"
+      "                    off     the same as omitting the flag\n"
+      "                  NOT interchangeable on the air: only the matching\n"
+      "                  receiver derandomises a given waveform.\n"
       "  --asm           Prepend the 0x1ACFFC1D attached sync marker.\n"
       "  --conv          Convolutional K=7 rate-1/2, over the WHOLE frame\n"
       "                  including the marker; doubles the bit count.\n"
@@ -523,20 +539,24 @@ typedef struct
    parse_args, instead of it silently falling through as a no-op. */
 enum opt_kind
 {
-  OPT_SET,       /* takes no value; the destination int becomes 1        */
-  OPT_STR,       /* the raw token, stored verbatim (NULL is tolerated)   */
-  OPT_CHOICE,    /* one name from `tbl`; the destination int gets its index */
-  OPT_DOUBLE,    /* strtod                                               */
-  OPT_INT,       /* strtol                                               */
-  OPT_SIZE,      /* strtoull -> size_t                                   */
-  OPT_U32,       /* strtoul  -> uint32_t                                 */
-  OPT_U64,       /* strtoull -> uint64_t                                 */
-  OPT_RANGE_D,   /* LO[:HI] -> double at off, hi at aux, bit in src.ranged */
-  OPT_RANGE_N,   /* LO[:HI] -> size_t at off, hi at aux, bit in seg.ranged */
-  OPT_BITS,      /* "0101" -> uint8_t * at off, its length at aux        */
-  OPT_HEX,       /* "a5"   -> uint8_t * at off, its bit count at aux     */
-  OPT_BITS_FILE, /* a file holding a "0101" string                       */
-  OPT_SYMBOLS,   /* a raw cf32 file -> float _Complex * at off           */
+  OPT_SET,        /* takes no value; the destination int becomes 1        */
+  OPT_STR,        /* the raw token, stored verbatim (NULL is tolerated)   */
+  OPT_CHOICE,     /* one name from `tbl`; the destination int gets its index */
+  OPT_CHOICE_OPT, /* OPT_CHOICE whose value may be OMITTED, and then means
+                     index 1 -- so `--flag` and `--flag <name>` both work.
+                     The table must therefore be ordered with the "off" or
+                     absent sense at 0 and the default ON sense at 1. */
+  OPT_DOUBLE,     /* strtod                                               */
+  OPT_INT,        /* strtol                                               */
+  OPT_SIZE,       /* strtoull -> size_t                                   */
+  OPT_U32,        /* strtoul  -> uint32_t                                 */
+  OPT_U64,        /* strtoull -> uint64_t                                 */
+  OPT_RANGE_D,    /* LO[:HI] -> double at off, hi at aux, bit in src.ranged */
+  OPT_RANGE_N,    /* LO[:HI] -> size_t at off, hi at aux, bit in seg.ranged */
+  OPT_BITS,       /* "0101" -> uint8_t * at off, its length at aux        */
+  OPT_HEX,        /* "a5"   -> uint8_t * at off, its bit count at aux     */
+  OPT_BITS_FILE,  /* a file holding a "0101" string                       */
+  OPT_SYMBOLS,    /* a raw cf32 file -> float _Complex * at off           */
 };
 
 /* One flag.
@@ -651,8 +671,9 @@ static const opt_t OPTS[] = {
   { .name = "--rs-depth", .kind = OPT_U32, .off = OFF (src.rs_depth) },
   { .name  = "--randomise",
     .alias = "--randomize",
-    .kind  = OPT_SET,
-    .off   = OFF (src.randomise) },
+    .kind  = OPT_CHOICE_OPT,
+    .off   = OFF (src.randomise),
+    CHOICES (RANDS) },
   { .name = "--asm", .kind = OPT_SET, .off = OFF (src.attach_asm) },
   { .name = "--conv", .kind = OPT_SET, .off = OFF (src.convolutional) },
   { .name = "--symbol-rate",
@@ -815,9 +836,18 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
          must reject it rather than hand it to strtod, which is undefined and
          segfaults in practice. */
       const char *v = NULL;
-      if (opt->kind != OPT_SET)
+      if (opt->kind == OPT_CHOICE_OPT)
+        {
+          /* PEEK. The value is optional, so a following token is only ours
+             if it is not another flag -- otherwise `--randomise --asm` would
+             eat `--asm` and report it as a bad value. */
+          if (i + 1 < argc && argv[i + 1][0] != '-')
+            v = argv[++i];
+        }
+      else if (opt->kind != OPT_SET)
         v = (i + 1 < argc) ? argv[++i] : NULL;
-      if (!v && opt->kind != OPT_SET && opt->kind != OPT_STR)
+      if (!v && opt->kind != OPT_SET && opt->kind != OPT_STR
+          && opt->kind != OPT_CHOICE_OPT)
         {
           (void)fprintf (stderr, "error: %s requires a value\n", a);
           return 2;
@@ -838,6 +868,14 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
           *(const char **)dst = v;
           break;
 
+        case OPT_CHOICE_OPT:
+          if (v == NULL)
+            {
+              *(int *)dst = 1; /* the flag alone means its default ON sense */
+              break;
+            }
+          /* fall through: with a value it is an ordinary choice */
+          /* FALLTHROUGH */
         case OPT_CHOICE:
           {
             int idx = lookup (v, opt->tbl, opt->ntbl);

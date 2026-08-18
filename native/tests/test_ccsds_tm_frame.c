@@ -48,13 +48,16 @@ static const uint8_t asm_published[32] = {
   0, 0, 0, 1, 1, 1, 0, 1  /* 1D */
 };
 
-/* 131.0-B-3 10.4.2, the printed prefix of the pseudo-random sequence. */
+/* 131.0-B-6 10.4.3 note 2, the printed prefix of the DEFAULT pseudo-random
+ * sequence -- 10.4.1's 131071-bit generator, not the 255-bit one B-6 keeps
+ * for legacy systems. The assembler applies whichever ccsds_tm_randomise
+ * applies, so this is also what pins WHICH randomiser the frame path used. */
 static const uint8_t rand_published40[40] = {
-  1, 1, 1, 1, 1, 1, 1, 1, /* FF */
-  0, 1, 0, 0, 1, 0, 0, 0, /* 48 */
-  0, 0, 0, 0, 1, 1, 1, 0, /* 0E */
-  1, 1, 0, 0, 0, 0, 0, 0, /* C0 */
-  1, 0, 0, 1, 1, 0, 1, 0  /* 9A */
+  0, 0, 0, 1, 1, 1, 0, 0, /* 1C */
+  0, 1, 1, 1, 0, 0, 0, 1, /* 71 */
+  1, 0, 1, 1, 1, 0, 0, 1, /* B9 */
+  0, 0, 0, 1, 1, 0, 1, 1, /* 1B */
+  1, 0, 1, 0, 1, 0, 0, 1  /* A9 */
 };
 
 /* Unpacked bits back to octets, MSB-first — the inverse of what the
@@ -134,8 +137,8 @@ main (void)
 
     /* Both halves above fail for the same wrong implementation, in opposite
        ways, which is why both are here: a randomiser given the whole CADU
-       emits the marker XORed with FF 48 0E C0, and hands the block the
-       sequence from bit 32 (1001 1010...) rather than from bit 0. */
+       emits the marker XORed with the sequence's first 32 bits, and hands
+       the block the sequence from bit 32 rather than from bit 0. */
   }
 
   /* ── 9.5.1: the ASM was never presented to the R-S encoder ──────────── */
@@ -951,6 +954,72 @@ main (void)
                   "the inner code is not reversed by a frame checker");
     DP_CHECK_MSG (rc.checked == 2u,
                   "...so two of the three stages are, not three");
+  }
+
+  /* ── the randomiser stage carries WHICH generator ────────────────────
+   *
+   * 131.0-B-6 specifies two (10.4.1's 131071-bit sequence and 10.4.2's
+   * legacy 255-bit one) and only the matching receiver derandomises a given
+   * waveform, so the choice cannot be the kernel's to make. It rides on the
+   * stage, and this is what stops a kernel quietly picking for itself.
+   *
+   * Found by sabotage: making `rand_choice` ignore the stage passed every
+   * other test in the tree and every case in the wfmgen flag matrix, because
+   * the matrix pins the record and the byte COUNT rather than the bytes.
+   */
+  {
+    enum
+    {
+      NB = 64
+    };
+    static uint8_t fbits[NB * 8];
+    for (size_t i = 0; i < sizeof fbits; i++)
+      fbits[i] = 0; /* zeros: the sequence itself becomes the output */
+
+    const ccsds_tm_frame_cfg_t cfg = {
+      .rs_depth = 0, .randomise = 1, .attach_asm = 0, .convolutional = 0
+    };
+    wfm_frame_desc_t d;
+    DP_REQUIRE (ccsds_tm_frame_describe (&cfg, NB, fbits, &d) == 0);
+    wfm_frame_ops_t ops;
+    ccsds_tm_frame_ops (&ops, NULL);
+
+    /* The default: depth unset selects 10.4.1's. */
+    static uint8_t dflt[NB * 8];
+    DP_REQUIRE (wfm_frame_assemble (&d, &ops, dflt, sizeof dflt)
+                == sizeof dflt);
+    uint8_t want[40];
+    ccsds_tm_rand_seq_with (&CCSDS_TM_RAND, want, sizeof want);
+    DP_CHECK_MSG (memcmp (dflt, want, sizeof want) == 0,
+                  "an unset choice must apply 10.4.1's sequence");
+
+    /* depth = 2 selects the legacy generator, and the two must DIFFER --
+       otherwise the choice is decoration and a caller asking for legacy
+       gets a waveform no legacy receiver can read. */
+    d.stage[1].depth = 2u;
+    static uint8_t legacy[NB * 8];
+    DP_REQUIRE (wfm_frame_assemble (&d, &ops, legacy, sizeof legacy)
+                == sizeof legacy);
+    ccsds_tm_rand_seq_with (&CCSDS_TM_RAND_LEGACY, want, sizeof want);
+    DP_CHECK_MSG (memcmp (legacy, want, sizeof want) == 0,
+                  "depth = 2 must apply 10.4.2's legacy sequence");
+    DP_CHECK_MSG (memcmp (dflt, legacy, sizeof dflt) != 0,
+                  "...and the two must not be the same waveform");
+
+    /* And the receive side reverses whichever was APPLIED, reading the same
+       stage -- so a frame coded one way and checked the other cannot happen.
+       wfm_frame_check derandomises in place, and the payload was zeros, so
+       what comes back is zeros. */
+    wfm_frame_check (&d, &ops, legacy, NULL);
+    int back = 1;
+    for (size_t i = 0; i < sizeof legacy; i++)
+      {
+        if (legacy[i] != 0u)
+          back = 0;
+      }
+    DP_CHECK_MSG (back, "the legacy-coded frame derandomises back to zeros, "
+                        "because the check reads the same stage the assemble "
+                        "wrote");
   }
 
   DP_TEST_END ("ccsds_tm_frame");

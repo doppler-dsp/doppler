@@ -203,8 +203,11 @@
           "description": "Channel coding: Reed-Solomon (255,223) E=16 over the frame's data group, interleaved this many codewords deep (CCSDS 131.0-B-3 4.3.5.1). The payload plus its CRC must be exactly 223*rs_depth octets — virtual fill is not implemented, so a short frame is refused rather than padded. Absent means no outer code."
         },
         "randomise": {
-          "type": "boolean",
-          "description": "Channel coding: XOR the section-10 pseudo-random sequence over the frame's DATA group — not over a marker, preamble or sync word, all of which a receiver has to find and which therefore must look the same in every frame. Its own inverse, so the receive side runs the identical call."
+          "oneOf": [
+            { "type": "string", "enum": ["off", "ccsds", "legacy"] },
+            { "type": "boolean" }
+          ],
+          "description": "Channel coding: WHICH section-10 pseudo-random sequence to XOR over the frame's DATA group — not over a marker, preamble or sync word, all of which a receiver has to find and which therefore must look the same in every frame. Its own inverse, so the receive side runs the identical call. \"ccsds\" is 131.0-B-6 10.4.1's 131071-bit generator (h(x)=x^17+x^14+1), which the standard requires; \"legacy\" is 10.4.2's 255-bit one (h(x)=x^8+x^7+x^5+x^3+1), kept for backward compatibility only and carrying spectral lines at 1/255 of the symbol rate. The two are not interchangeable on the air: only the matching receiver derandomises a given waveform. A bare boolean is accepted on input and read as \"ccsds\", so a record written before the choice existed still loads."
         },
         "asm": {
           "type": "boolean",

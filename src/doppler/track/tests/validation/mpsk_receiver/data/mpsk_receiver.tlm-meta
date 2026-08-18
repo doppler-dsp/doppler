@@ -1,0 +1,23 @@
+{
+  "records": 1792,
+  "dropped": 0,
+  "capacity": 1048576,
+  "block_samples": 8192,
+  "dtype": [["n", "<u8"], ["value", "<f4"], ["probe", "<u2"], ["flags", "<u2"]],
+  "probes": {
+    "rx.lock": 0,
+    "rx.tracking": 1,
+    "rx.car.e": 2,
+    "rx.car.freq": 3,
+    "rx.car.nco": 4,
+    "rx.car.locked": 5,
+    "rx.sync.e": 6,
+    "rx.sync.ctrl": 7,
+    "rx.sync.rate": 8,
+    "rx.sync.lock": 9,
+    "rx.sync.locked": 10,
+    "rx.sync.mu": 11,
+    "rx.agc.gain_db": 12,
+    "rx.agc.level_db": 13
+  }
+}

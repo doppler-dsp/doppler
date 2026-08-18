@@ -73,7 +73,6 @@ from doppler.ber import (
 )
 from doppler.mpsk import mpsk_map
 from doppler.snr import snr_m2m4_db
-from doppler.telemetry import Telemetry
 from doppler.tests._validation_common import Report, clamp_evm_db, cli
 from doppler.track import ContinuousMpskReceiver, MpskReceiver
 from doppler.track.tests._mpsk_rx_harness import freq_offset_inside_bw
@@ -1360,11 +1359,16 @@ def characterise(R, write):
     except ValueError:
         rejects = True
 
-    tlm = Telemetry()
-    rt = MpskReceiver(m=4, sps=SPS, bn_carrier=0.01, bn_timing=0.01)
-    rt.set_telemetry(tlm, "rx", 8)
-    rt.steps(x[:8192])
-    counts = {k: len(v) for k, v in tlm.read_dict().items()}
+    # The trajectories behind every number above, FILED as evidence rather
+    # than measured and discarded (doppler#846). `Report.capture` owns the
+    # order — attach, then arm, then run — and refuses to file a capture the
+    # ring lost a record from, so what lands in `data/` is whole.
+    with R.capture(DATA, "mpsk_receiver", ring_records=1 << 20) as cap:
+        rt = MpskReceiver(m=4, sps=SPS, bn_carrier=0.01, bn_timing=0.01)
+        rt.set_telemetry(cap.telemetry, "rx", 8)
+        cap.arm(8192)
+        rt.steps(x[:8192])
+    counts = {k: len(v) for k, v in cap.probes.items()}
     nprobe = len(counts)
     nrec = sorted(set(counts.values()))
     d["life"] = {
@@ -1384,6 +1388,10 @@ def characterise(R, write):
             ["resume from a blob, mid-stream", f"bit-exact: {resumed}"],
             ["a clobbered blob is rejected", f"ValueError: {rejects}"],
             ["telemetry probes published", f"{nprobe}"],
+            [
+                "trajectories filed",
+                f"`data/mpsk_receiver.tlm`, {nprobe} probes",
+            ],
             [
                 "records per probe over 8192 samples at decim 8",
                 f"{nrec[0] if len(nrec) == 1 else nrec}",

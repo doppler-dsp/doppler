@@ -33,12 +33,13 @@ from __future__ import annotations
 
 import difflib
 import re
+from contextlib import contextmanager
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from pathlib import Path
 
 
 #: Below this, an EVM is not a measurement -- it is "essentially zero".
@@ -645,6 +646,166 @@ class Report:
         """Write the report, unless this run is measurement-only."""
         if self.write:
             path.write_text(self.render())
+
+    @contextmanager
+    def capture(
+        self, data_dir: Path, name: str, clock=None, ring_records=1 << 22
+    ):
+        """Attach telemetry, capture the run, and FILE it as evidence.
+
+        A report hands a reader settled numbers — an EVM, a lock time, an
+        error rate — and the trajectories that produced them are not in it.
+        This is where they land: the capture goes into the object's own
+        `data/` folder beside the CSVs, committed like every other artifact
+        there, so the scene behind a number is re-openable without re-running
+        anything (doppler#846).
+
+        **`Report` owns this because it already owns the folder.** It is the
+        single writer of `results.md`, the plots and `data/*.csv`; a
+        per-validator convention would let the layout drift between objects
+        the way the report format would without this module.
+
+        The ORDER is the part worth encapsulating, and it is the same reason
+        `dp_ber_measure()` exists on the C side: probes must be registered
+        BEFORE the capture opens, because the ring is sized from the probe
+        table and a capture opened first has no bound to size to. So the
+        sequence is attach, then `arm`, then run — and getting it wrong is a
+        `ValueError` from the library rather than a silent truncation.
+
+        Completeness is not this method's invention either: `close()` raises
+        if the ring lost a record, and that is what makes a filed capture
+        evidence rather than a recording.
+
+        **Be precise about where the guarantee comes from, though.** The
+        library's own is that a ring sized to `probe_count * block_samples`
+        and drained at every boundary CANNOT overflow — but neither factor is
+        known until the probes are attached and `arm` is called, and the
+        context has to exist before either. So the ring is allocated
+        generously (`ring_records`, defaulting to the size the receiver
+        harness has run on for a year) and `close()`'s refusal is the
+        BACKSTOP, not the mechanism. Measured: a ring genuinely under the
+        bound raises *"the capture has a hole: records were dropped, which
+        the block bound makes impossible unless..."*, so an under-allocation
+        is loud rather than a short file. Raise `ring_records` if it fires.
+
+        `write=False` still captures — every measurement runs, exactly as the
+        limits gate expects — but files nothing, because a test must never
+        write into the repo.
+
+        Parameters
+        ----------
+        data_dir : Path
+            The object's `data/` folder. Created if absent.
+        name : str
+            Basename for the capture; `<name>.tlm` and its `-meta` sidecar.
+        clock : Any, optional
+            The pipeline's sample clock, borrowed for the sidecar's time
+            base. None states there is no time base.
+        ring_records : int, optional
+            Ring capacity, a power of two. The default is what the M-PSK
+            receiver harness uses; a capture that outgrows it refuses rather
+            than truncating.
+
+        Yields
+        ------
+        _Capture
+            Carries `.telemetry` to attach, `.arm(block_samples)` to open,
+            and — after the block exits — `.probes`, the per-probe series by
+            name, and `.path`, the filed capture or None.
+
+        Examples
+        --------
+        >>> from pathlib import Path
+        >>> from doppler.tests._validation_common import Report
+        >>> R = Report(write=False)
+        >>> with R.capture(Path("data"), "demo") as cap:
+        ...     pid = cap.telemetry.probe("demo.x")
+        ...     cap.arm(64)
+        ...     cap.telemetry.emit(pid, 1.0)
+        >>> [float(v) for v in cap.probes["demo.x"]]
+        [1.0]
+        """
+        import tempfile
+
+        from doppler.telemetry import Capture, Telemetry
+
+        cap = _Capture(Telemetry(ring_records))
+        # A capture that is not going to be committed still gets WRITTEN,
+        # to a temp file, so the measurement path is byte-identical between
+        # `make validate` and the limits gate. Two code paths here would be
+        # two things to keep in step, and the one nobody runs would rot.
+        tmp = None
+        if self.write:
+            data_dir.mkdir(parents=True, exist_ok=True)
+            target = data_dir / f"{name}.tlm"
+        else:
+            tmp = tempfile.TemporaryDirectory()
+            target = Path(tmp.name) / f"{name}.tlm"
+        try:
+            cap._open = lambda blk: Capture(
+                cap.telemetry, blk, str(target), clock
+            )
+            yield cap
+            if cap._cap is None:
+                raise ValueError(
+                    f"capture {name!r}: arm() was never called, so nothing "
+                    f"was captured — attach the probes, then arm(), then run"
+                )
+            cap.telemetry.set_now(cap._block)
+            cap._cap.close()  # raises if the ring lost a record
+            cap.probes = read_capture(target)
+            cap.path = target if self.write else None
+        finally:
+            if tmp is not None:
+                tmp.cleanup()
+
+
+@dataclass
+class _Capture:
+    """Handle yielded by `Report.capture`. See that method."""
+
+    telemetry: object
+    probes: dict = field(default_factory=dict)
+    path: object = None
+    _cap: object = None
+    _open: object = None
+    _block: int = 0
+
+    def arm(self, block_samples: int) -> None:
+        """Open the capture, AFTER every probe is attached."""
+        self._block = int(block_samples)
+        self._cap = self._open(self._block)
+
+
+def read_capture(path: Path) -> dict:
+    """Per-probe series by name, read back from a filed capture.
+
+    Reads the file rather than the in-memory records on purpose: it is the
+    same path a plotting utility takes, so a capture that cannot be read back
+    fails here — in the run that produced it — instead of later, in whatever
+    reads it next.
+    """
+    import json
+
+    import numpy as np
+
+    dt = np.dtype(
+        {
+            "names": ["n", "value", "probe", "flags"],
+            "formats": ["<u8", "<f4", "<u2", "<u2"],
+            "offsets": [0, 8, 12, 14],
+            "itemsize": 16,
+        }
+    )
+    rec = np.fromfile(path, dtype=dt)
+    meta = json.loads(Path(str(path) + "-meta").read_text())
+    names = meta.get("probes", meta.get("probe_names", {}))
+    if isinstance(names, list):
+        names = {p["name"]: p.get("id", i) for i, p in enumerate(names)}
+    return {
+        n: rec[rec["probe"] == int(pid)]["value"].astype(float)
+        for n, pid in names.items()
+    }
 
 
 def assert_renders(report: Report) -> None:

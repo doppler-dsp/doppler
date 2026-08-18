@@ -410,11 +410,17 @@ FrameObj_bits (FrameObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyStructSequence_Field FrameObj_layout_fields[] = {
-  { "preamble_off", NULL }, { "preamble_bits", NULL },
-  { "sync_off", NULL },     { "sync_bits", NULL },
-  { "payload_off", NULL },  { "payload_bits", NULL },
-  { "crc_off", NULL },      { "crc_bits", NULL },
-  { "total_bits", NULL },   { NULL, NULL },
+  { "preamble_off", NULL },
+  { "preamble_bits", NULL },
+  { "sync_off", NULL },
+  { "sync_bits", NULL },
+  { "payload_off", NULL },
+  { "payload_bits", NULL },
+  { "crc_off", NULL },
+  { "crc_bits", "16, or 0 when crc is unset or the payload is empty — a CRC "
+                "over nothing protects nothing" },
+  { "total_bits", NULL },
+  { NULL, NULL },
 };
 static PyStructSequence_Desc FrameObj_layout_desc
     = { "doppler.wfm.FrameLayout",
@@ -489,50 +495,6 @@ FrameObj_crc_ok (FrameObject *self, PyObject *args, PyObject *kwds)
   int            y = frame_crc_ok (self->handle, rx_bits, rx_bits_len);
   Py_DECREF (rx_bits_arr);
   return PyLong_FromLong ((long)y);
-}
-static PyObject *
-Frame_getprop_nbits (FrameObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->nbits);
-}
-
-static PyGetSetDef Frame_getset[]
-    = { { "nbits", (getter)Frame_getprop_nbits, NULL, "Nbits.\n", NULL },
-        { NULL } };
-
-static PyObject *
-FrameObj_destroy (FrameObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (self->handle)
-    {
-      frame_destroy (self->handle);
-      self->handle = NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-FrameObj_enter (FrameObject *self, PyObject *Py_UNUSED (ignored))
-{
-  Py_INCREF (self);
-  return (PyObject *)self;
-}
-
-static PyObject *
-FrameObj_exit (FrameObject *self, PyObject *args)
-{
-  (void)args;
-  if (self->handle)
-    {
-      frame_destroy (self->handle);
-      self->handle = NULL;
-    }
-  Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -609,7 +571,7 @@ FrameObj_add_stage (FrameObject *self, PyObject *args, PyObject *kwds)
   unsigned long depth_raw       = 0;
   unsigned long emit_num_raw    = 0;
   unsigned long emit_den_raw    = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "i|kkkkk", _kwlist, &kind,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ikkkkk", _kwlist, &kind,
                                     &first_field_raw, &n_fields_raw,
                                     &depth_raw, &emit_num_raw, &emit_den_raw))
     return NULL;
@@ -639,6 +601,110 @@ FrameObj_build (FrameObject *self, PyObject *Py_UNUSED (ignored))
       return NULL;
     }
   Py_RETURN_NONE;
+}
+
+static PyStructSequence_Field FrameObj_check_fields[] = {
+  { "passed",
+    "Every check good: 1 yes, 0 no. Also 0 when nothing was checked -- see "
+    "`checked`. Named `passed` rather than `pass` because the obvious name is "
+    "a Python keyword and `r.pass` will not parse." },
+  { "stages", "Stages in the description." },
+  { "checked", "How many were reversed here. 0 means the description carries "
+               "no reversible stage, which is why `pass` is 0: carrying no "
+               "check is not the same answer as passing one." },
+  { "units", "Checks performed: one for a CRC, one per codeword for an "
+             "interleaved outer code." },
+  { "ok", "How many came out good -- clean or repaired." },
+  { "corrected", "How many needed and received repair." },
+  { "symbols", "Symbol errors repaired across the frame." },
+  { NULL, NULL },
+};
+static PyStructSequence_Desc FrameObj_check_desc
+    = { "doppler.wfm.FrameCheck",
+        "What checking one received frame found. `ok == units` is the "
+        "verdict; `symbols` is what it cost, which is margin being spent and "
+        "is visible before it is lost.",
+        FrameObj_check_fields, 7 };
+static PyTypeObject *FrameObj_check_type = NULL;
+
+static PyObject *
+FrameObj_check (FrameObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]   = { "rx_bits", NULL };
+  PyObject    *rx_bits_obj = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &rx_bits_obj))
+    return NULL;
+  PyArrayObject *rx_bits_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      rx_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  if (!rx_bits_arr)
+    {
+      return NULL;
+    }
+  const uint8_t *rx_bits     = (const uint8_t *)PyArray_DATA (rx_bits_arr);
+  size_t         rx_bits_len = (size_t)PyArray_SIZE (rx_bits_arr);
+  if (!FrameObj_check_type)
+    {
+      FrameObj_check_type = PyStructSequence_NewType (&FrameObj_check_desc);
+      if (!FrameObj_check_type)
+        {
+          Py_DECREF (rx_bits_arr);
+          return NULL;
+        }
+    }
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream). */
+  frame_check_t _r;
+  Py_BEGIN_ALLOW_THREADS
+    _r = frame_check (self->handle, rx_bits, rx_bits_len);
+  Py_END_ALLOW_THREADS
+  Py_DECREF (rx_bits_arr);
+  PyObject *_o = PyStructSequence_New (FrameObj_check_type);
+  if (!_o)
+    return NULL;
+  PyStructSequence_SET_ITEM (_o, 0, PyLong_FromLong ((long)_r.passed));
+  PyStructSequence_SET_ITEM (
+      _o, 1, PyLong_FromUnsignedLong ((unsigned long)_r.stages));
+  PyStructSequence_SET_ITEM (
+      _o, 2, PyLong_FromUnsignedLong ((unsigned long)_r.checked));
+  PyStructSequence_SET_ITEM (
+      _o, 3, PyLong_FromUnsignedLong ((unsigned long)_r.units));
+  PyStructSequence_SET_ITEM (_o, 4,
+                             PyLong_FromUnsignedLong ((unsigned long)_r.ok));
+  PyStructSequence_SET_ITEM (
+      _o, 5, PyLong_FromUnsignedLong ((unsigned long)_r.corrected));
+  PyStructSequence_SET_ITEM (
+      _o, 6, PyLong_FromUnsignedLong ((unsigned long)_r.symbols));
+  return _o;
+}
+
+static PyObject *
+FrameObj_n_fields (FrameObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t y = frame_n_fields (self->handle);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
+}
+
+static PyObject *
+FrameObj_n_stages (FrameObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t y = frame_n_stages (self->handle);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
 
 static PyObject *
@@ -708,29 +774,49 @@ FrameObj_stage_bits (FrameObject *self, PyObject *args, PyObject *kwds)
   size_t y = frame_stage_bits (self->handle, i);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
-
 static PyObject *
-FrameObj_n_fields (FrameObject *self, PyObject *Py_UNUSED (ignored))
+Frame_getprop_nbits (FrameObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t y = frame_n_fields (self->handle);
-  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->nbits);
+}
+
+static PyGetSetDef Frame_getset[]
+    = { { "nbits", (getter)Frame_getprop_nbits, NULL, "Nbits.\n", NULL },
+        { NULL } };
+
+static PyObject *
+FrameObj_destroy (FrameObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (self->handle)
+    {
+      frame_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
 }
 
 static PyObject *
-FrameObj_n_stages (FrameObject *self, PyObject *Py_UNUSED (ignored))
+FrameObj_enter (FrameObject *self, PyObject *Py_UNUSED (ignored))
 {
-  if (!self->handle)
+  Py_INCREF (self);
+  return (PyObject *)self;
+}
+
+static PyObject *
+FrameObj_exit (FrameObject *self, PyObject *args)
+{
+  (void)args;
+  if (self->handle)
     {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
+      frame_destroy (self->handle);
+      self->handle = NULL;
     }
-  size_t y = frame_n_stages (self->handle);
-  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
+  Py_RETURN_NONE;
 }
 
 static PyMethodDef FrameObj_methods[] = {
@@ -827,51 +913,21 @@ static PyMethodDef FrameObj_methods[] = {
     "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
     "    >>> obj.crc_ok(np.zeros(4, dtype=np.uint8))\n"
     "    0\n" },
-  { "destroy", (PyCFunction)FrameObj_destroy, METH_NOARGS,
-    "Release the underlying C resources immediately.\n"
-    "\n"
-    "Ordinarily unnecessary: the resources are freed when the object is\n"
-    "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on\n"
-    "exit.\n"
-    "\n"
-    "Idempotent: calling it again on an already-released object does\n"
-    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
-  { "__enter__", (PyCFunction)FrameObj_enter, METH_NOARGS,
-    "Enter a context manager, returning this object.\n"
-    "\n"
-    "Lets a Frame be used in a `with` statement so its C resources are\n"
-    "released deterministically on exit rather than at collection time.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "Frame\n"
-    "    This same object, not a copy.\n" },
-  { "__exit__", (PyCFunction)FrameObj_exit, METH_VARARGS,
-    "Exit a context manager, releasing the Frame.\n"
-    "\n"
-    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never\n"
-    "suppresses one.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "exc_type : object | None\n"
-    "    Exception class, or None. Ignored.\n"
-    "exc : object | None\n"
-    "    Exception instance, or None. Ignored.\n"
-    "tb : object | None\n"
-    "    Traceback object, or None. Ignored.\n" },
   { "add_field", (PyCFunction)(void *)FrameObj_add_field,
     METH_VARARGS | METH_KEYWORDS,
     "add_field(lit, kind, gen_len, reps, poly, seed, reg_bits, lfsr, taps_a, "
     "seed_a, taps_b, seed_b, derived_by, derived_bits) -> int\n"
     "\n"
-    "Append one field. Either the caller supplies the bits (`lit`, or a\n"
-    "generated `kind`) or a stage derives them (`derived_by` non-zero) --\n"
-    "both are fields, because both are on the wire. Returns the new field's\n"
-    "index, which is what `derived_by` and a stage's `first_field` are\n"
-    "counted in.\n"
+    "Append one field to a description (see `FrameDesc`). `kind` is a\n"
+    "`wfm_seq_kind_t` index -- 0 literal, 1 pn, 2 gold, 3 dotted -- and\n"
+    "`lfsr` a `wfm_lfsr` one (0 galois, 1 fibonacci); they are ints rather\n"
+    "than the strings the constructor takes because a method parameter\n"
+    "cannot yet be a string enum (jm gh-1021), and the C enum is the SSOT\n"
+    "either way. Either the caller supplies the bits (`lit`, or a generated\n"
+    "`kind`) or a stage derives them (`derived_by` non-zero) -- both are\n"
+    "fields, because both are on the wire. Returns the new field's index,\n"
+    "which is what `derived_by` and a stage's `first_field` are counted in.\n"
+    "Refuses once the frame is built.\n"
     "\n"
     "Either the caller supplies the bits (lit, or a generated kind) or a\n"
     "stage derives them (derived_by non-zero). Both are fields, because both\n"
@@ -996,7 +1052,7 @@ static PyMethodDef FrameObj_methods[] = {
   { "build", (PyCFunction)FrameObj_build, METH_NOARGS,
     "build() -> None\n"
     "\n"
-    "Lay out and materialise the description. Where a description is\n"
+    "Lay out and materialise a description. Where a description is\n"
     "checked: one that cannot produce its own bits is not a frame. Separate\n"
     "from the constructor only because the description arrives over several\n"
     "calls and there is no earlier moment at which it is complete. Raises if\n"
@@ -1042,6 +1098,65 @@ static PyMethodDef FrameObj_methods[] = {
     "payload_lfsr=\"galois\", payload_taps_a=0, payload_seed_a=0, "
     "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
     "    >>> obj.build()\n" },
+  { "check", (PyCFunction)(void *)FrameObj_check, METH_VARARGS | METH_KEYWORDS,
+    "check(rx_bits) -> FrameCheck record (passed, stages, checked, units, ok, "
+    "corrected, symbols)." },
+  { "n_fields", (PyCFunction)FrameObj_n_fields, METH_NOARGS,
+    "n_fields() -> int\n"
+    "\n"
+    "Fields in the description. A `Frame` built the four-field way\n"
+    "reports 4 -- `wfm_frame_t` IS a configuration of the general\n"
+    "description, so the indexed view below reads it too.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "    >>> from doppler import Frame\n"
+    "    >>> obj = Frame(preamble=np.zeros(1, dtype=np.uint8), "
+    "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
+    "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
+    "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
+    "preamble_lfsr=\"galois\", preamble_taps_a=0, preamble_seed_a=0, "
+    "preamble_taps_b=0, preamble_seed_b=0, sync_kind=\"literal\", "
+    "sync_nbits=0, sync_poly=0, sync_seed=0, sync_reg_bits=0, "
+    "sync_lfsr=\"galois\", sync_taps_a=0, sync_seed_a=0, sync_taps_b=0, "
+    "sync_seed_b=0, payload_kind=\"literal\", payload_nbits=0, "
+    "payload_poly=0, payload_seed=0, payload_reg_bits=0, "
+    "payload_lfsr=\"galois\", payload_taps_a=0, payload_seed_a=0, "
+    "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
+    "    >>> obj.n_fields()\n"
+    "    0\n" },
+  { "n_stages", (PyCFunction)FrameObj_n_stages, METH_NOARGS,
+    "n_stages() -> int\n"
+    "\n"
+    "Stages in the description.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "    >>> from doppler import Frame\n"
+    "    >>> obj = Frame(preamble=np.zeros(1, dtype=np.uint8), "
+    "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
+    "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
+    "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
+    "preamble_lfsr=\"galois\", preamble_taps_a=0, preamble_seed_a=0, "
+    "preamble_taps_b=0, preamble_seed_b=0, sync_kind=\"literal\", "
+    "sync_nbits=0, sync_poly=0, sync_seed=0, sync_reg_bits=0, "
+    "sync_lfsr=\"galois\", sync_taps_a=0, sync_seed_a=0, sync_taps_b=0, "
+    "sync_seed_b=0, payload_kind=\"literal\", payload_nbits=0, "
+    "payload_poly=0, payload_seed=0, payload_reg_bits=0, "
+    "payload_lfsr=\"galois\", payload_taps_a=0, payload_seed_a=0, "
+    "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
+    "    >>> obj.n_stages()\n"
+    "    0\n" },
   { "field_off", (PyCFunction)(void *)FrameObj_field_off,
     METH_VARARGS | METH_KEYWORDS,
     "field_off(i) -> int\n"
@@ -1179,62 +1294,41 @@ static PyMethodDef FrameObj_methods[] = {
     "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
     "    >>> obj.stage_bits(0)\n"
     "    0\n" },
-  { "n_fields", (PyCFunction)FrameObj_n_fields, METH_NOARGS,
-    "n_fields() -> int\n"
+  { "destroy", (PyCFunction)FrameObj_destroy, METH_NOARGS,
+    "Release the underlying C resources immediately.\n"
     "\n"
-    "Fields in the description. A `Frame` built the four-field way\n"
-    "reports 4 -- `wfm_frame_t` IS a configuration of the general\n"
-    "description, so the indexed view below reads it too.\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on\n"
+    "exit.\n"
     "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    Output.\n"
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
+  { "__enter__", (PyCFunction)FrameObj_enter, METH_NOARGS,
+    "Enter a context manager, returning this object.\n"
     "\n"
-    "Examples\n"
-    "--------\n"
-    "    >>> from doppler import Frame\n"
-    "    >>> obj = Frame(preamble=np.zeros(1, dtype=np.uint8), "
-    "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
-    "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
-    "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
-    "preamble_lfsr=\"galois\", preamble_taps_a=0, preamble_seed_a=0, "
-    "preamble_taps_b=0, preamble_seed_b=0, sync_kind=\"literal\", "
-    "sync_nbits=0, sync_poly=0, sync_seed=0, sync_reg_bits=0, "
-    "sync_lfsr=\"galois\", sync_taps_a=0, sync_seed_a=0, sync_taps_b=0, "
-    "sync_seed_b=0, payload_kind=\"literal\", payload_nbits=0, "
-    "payload_poly=0, payload_seed=0, payload_reg_bits=0, "
-    "payload_lfsr=\"galois\", payload_taps_a=0, payload_seed_a=0, "
-    "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
-    "    >>> obj.n_fields()\n"
-    "    0\n" },
-  { "n_stages", (PyCFunction)FrameObj_n_stages, METH_NOARGS,
-    "n_stages() -> int\n"
-    "\n"
-    "Stages in the description.\n"
+    "Lets a Frame be used in a `with` statement so its C resources are\n"
+    "released deterministically on exit rather than at collection time.\n"
     "\n"
     "Returns\n"
     "-------\n"
-    "int\n"
-    "    Output.\n"
+    "Frame\n"
+    "    This same object, not a copy.\n" },
+  { "__exit__", (PyCFunction)FrameObj_exit, METH_VARARGS,
+    "Exit a context manager, releasing the Frame.\n"
     "\n"
-    "Examples\n"
-    "--------\n"
-    "    >>> from doppler import Frame\n"
-    "    >>> obj = Frame(preamble=np.zeros(1, dtype=np.uint8), "
-    "sync=np.zeros(1, dtype=np.uint8), payload=np.zeros(1, dtype=np.uint8), "
-    "preamble_kind=\"literal\", preamble_nbits=0, preamble_reps=0, "
-    "preamble_poly=0, preamble_seed=0, preamble_reg_bits=0, "
-    "preamble_lfsr=\"galois\", preamble_taps_a=0, preamble_seed_a=0, "
-    "preamble_taps_b=0, preamble_seed_b=0, sync_kind=\"literal\", "
-    "sync_nbits=0, sync_poly=0, sync_seed=0, sync_reg_bits=0, "
-    "sync_lfsr=\"galois\", sync_taps_a=0, sync_seed_a=0, sync_taps_b=0, "
-    "sync_seed_b=0, payload_kind=\"literal\", payload_nbits=0, "
-    "payload_poly=0, payload_seed=0, payload_reg_bits=0, "
-    "payload_lfsr=\"galois\", payload_taps_a=0, payload_seed_a=0, "
-    "payload_taps_b=0, payload_seed_b=0, crc=\"none\")\n"
-    "    >>> obj.n_stages()\n"
-    "    0\n" },
+    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "exc_type : object | None\n"
+    "    Exception class, or None. Ignored.\n"
+    "exc : object | None\n"
+    "    Exception instance, or None. Ignored.\n"
+    "tb : object | None\n"
+    "    Traceback object, or None. Ignored.\n" },
   { NULL }
 };
 
@@ -1244,15 +1338,23 @@ static PyTypeObject FrameObjType = {
   .tp_dealloc                             = (destructor)FrameObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Frame component.\n"
+  = "Create a frame instance.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "preamble_kind : Literal[\"literal\", \"pn\", \"gold\", \"dotted\"], "
     "default \"literal\"\n"
-    "    preamble_kind constructor parameter.\n"
+    "    Enum index; 0=literal…3=dotted.\n"
     "preamble : NDArray[np.uint8]\n"
-    "    preamble constructor parameter.\n"
+    "    Literal preamble bits, one per element. Pass an EMPTY array when "
+    "the\n"
+    "    field is absent or generated -- `wfm_seq_t` already spells absence "
+    "as a\n"
+    "    zero length, so this is that convention reaching Python rather than "
+    "a\n"
+    "    placeholder. (An omittable array init-param is a jm gap; see the "
+    "module\n"
+    "    docs.)\n"
     "preamble_nbits : int, default 0\n"
     "    Output bits for a GENERATED preamble kind. A literal takes its "
     "length\n"
@@ -1260,71 +1362,90 @@ static PyTypeObject FrameObjType = {
     "(len\n"
     "    vs reg_bits) for the same reason.\n"
     "preamble_reps : int, default 0\n"
-    "    preamble_reps constructor parameter.\n"
+    "    Repetitions of the preamble; 0 = no preamble (default: 0).\n"
     "preamble_poly : int, default 0\n"
-    "    preamble_poly constructor parameter.\n"
+    "    PN feedback polynomial; 0 selects the maximal-length one (default: "
+    "0).\n"
     "preamble_seed : int, default 0\n"
-    "    preamble_seed constructor parameter.\n"
+    "    PN seed; 0 selects 1, since an all-zero register is a fixed point\n"
+    "    (default: 0).\n"
     "preamble_reg_bits : int, default 0\n"
-    "    preamble_reg_bits constructor parameter.\n"
+    "    PN/Gold register width, 1..64 (default: 0).\n"
     "preamble_lfsr : Literal[\"galois\", \"fibonacci\"], default \"galois\"\n"
-    "    preamble_lfsr constructor parameter.\n"
+    "    Enum index; 0=galois…1=fibonacci.\n"
     "preamble_taps_a : int, default 0\n"
-    "    preamble_taps_a constructor parameter.\n"
+    "    Gold: first register's taps (default: 0).\n"
     "preamble_seed_a : int, default 0\n"
-    "    preamble_seed_a constructor parameter.\n"
+    "    Gold: first register's seed (default: 0).\n"
     "preamble_taps_b : int, default 0\n"
-    "    preamble_taps_b constructor parameter.\n"
+    "    Gold: second register's taps (default: 0).\n"
     "preamble_seed_b : int, default 0\n"
-    "    preamble_seed_b constructor parameter.\n"
+    "    Gold: second register's seed (default: 0).\n"
     "sync_kind : Literal[\"literal\", \"pn\", \"gold\", \"dotted\"], default "
     "\"literal\"\n"
-    "    sync_kind constructor parameter.\n"
+    "    Enum index; 0=literal…3=dotted.\n"
     "sync : NDArray[np.uint8]\n"
-    "    sync constructor parameter.\n"
+    "    Literal sync word bits, one per element. Pass an EMPTY array when "
+    "the\n"
+    "    field is absent or generated -- `wfm_seq_t` already spells absence "
+    "as a\n"
+    "    zero length, so this is that convention reaching Python rather than "
+    "a\n"
+    "    placeholder. (An omittable array init-param is a jm gap; see the "
+    "module\n"
+    "    docs.)\n"
     "sync_nbits : int, default 0\n"
-    "    sync_nbits constructor parameter.\n"
+    "    Output bits for a GENERATED sync kind (default: 0).\n"
     "sync_poly : int, default 0\n"
-    "    sync_poly constructor parameter.\n"
+    "    PN feedback polynomial; 0 selects the maximal-length one (default: "
+    "0).\n"
     "sync_seed : int, default 0\n"
-    "    sync_seed constructor parameter.\n"
+    "    PN seed; 0 selects 1 (default: 0).\n"
     "sync_reg_bits : int, default 0\n"
-    "    sync_reg_bits constructor parameter.\n"
+    "    PN/Gold register width, 1..64 (default: 0).\n"
     "sync_lfsr : Literal[\"galois\", \"fibonacci\"], default \"galois\"\n"
-    "    sync_lfsr constructor parameter.\n"
+    "    Enum index; 0=galois…1=fibonacci.\n"
     "sync_taps_a : int, default 0\n"
-    "    sync_taps_a constructor parameter.\n"
+    "    Gold: first register's taps (default: 0).\n"
     "sync_seed_a : int, default 0\n"
-    "    sync_seed_a constructor parameter.\n"
+    "    Gold: first register's seed (default: 0).\n"
     "sync_taps_b : int, default 0\n"
-    "    sync_taps_b constructor parameter.\n"
+    "    Gold: second register's taps (default: 0).\n"
     "sync_seed_b : int, default 0\n"
-    "    sync_seed_b constructor parameter.\n"
+    "    Gold: second register's seed (default: 0).\n"
     "payload_kind : Literal[\"literal\", \"pn\", \"gold\", \"dotted\"], "
     "default \"literal\"\n"
-    "    payload_kind constructor parameter.\n"
+    "    Enum index; 0=literal…3=dotted.\n"
     "payload : NDArray[np.uint8]\n"
-    "    payload constructor parameter.\n"
+    "    Literal payload bits, one per element. Pass an EMPTY array when the\n"
+    "    field is absent or generated -- `wfm_seq_t` already spells absence "
+    "as a\n"
+    "    zero length, so this is that convention reaching Python rather than "
+    "a\n"
+    "    placeholder. (An omittable array init-param is a jm gap; see the "
+    "module\n"
+    "    docs.)\n"
     "payload_nbits : int, default 0\n"
-    "    payload_nbits constructor parameter.\n"
+    "    Output bits for a GENERATED payload kind (default: 0).\n"
     "payload_poly : int, default 0\n"
-    "    payload_poly constructor parameter.\n"
+    "    PN feedback polynomial; 0 selects the maximal-length one (default: "
+    "0).\n"
     "payload_seed : int, default 0\n"
-    "    payload_seed constructor parameter.\n"
+    "    PN seed; 0 selects 1 (default: 0).\n"
     "payload_reg_bits : int, default 0\n"
-    "    payload_reg_bits constructor parameter.\n"
+    "    PN/Gold register width, 1..64 (default: 0).\n"
     "payload_lfsr : Literal[\"galois\", \"fibonacci\"], default \"galois\"\n"
-    "    payload_lfsr constructor parameter.\n"
+    "    Enum index; 0=galois…1=fibonacci.\n"
     "payload_taps_a : int, default 0\n"
-    "    payload_taps_a constructor parameter.\n"
+    "    Gold: first register's taps (default: 0).\n"
     "payload_seed_a : int, default 0\n"
-    "    payload_seed_a constructor parameter.\n"
+    "    Gold: first register's seed (default: 0).\n"
     "payload_taps_b : int, default 0\n"
-    "    payload_taps_b constructor parameter.\n"
+    "    Gold: second register's taps (default: 0).\n"
     "payload_seed_b : int, default 0\n"
-    "    payload_seed_b constructor parameter.\n"
+    "    Gold: second register's seed (default: 0).\n"
     "crc : Literal[\"none\", \"crc16\"], default \"none\"\n"
-    "    crc constructor parameter.\n"
+    "    Enum index; 0=none…1=crc16.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -1335,46 +1456,26 @@ static PyTypeObject FrameObjType = {
     "\n"
     "Examples\n"
     "--------\n"
-    "Create with defaults:\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import Frame\n"
+    ">>> empty = np.empty(0, np.uint8)                    # an absent field\n"
+    ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)   # "
+    "Barker-13\n"
+    ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
+    ">>> f = Frame(empty, sync, payload, crc=\"crc16\")\n"
+    ">>> f.nbits                                          # 13 + 16 + 16\n"
+    "45\n"
+    ">>> f.layout().payload_off\n"
+    "13\n"
+    ">>> f.crc_ok(f.bits())        # its own bits are its own truth\n"
+    "1\n"
     "\n"
-    ">>> from doppler import Frame\n"
-    ">>> obj = Frame(\n"
-    "...     preamble=np.zeros(1, dtype=np.uint8),\n"
-    "...     sync=np.zeros(1, dtype=np.uint8),\n"
-    "...     payload=np.zeros(1, dtype=np.uint8),\n"
-    "...     preamble_kind=\"literal\",\n"
-    "...     preamble_nbits=0,\n"
-    "...     preamble_reps=0,\n"
-    "...     preamble_poly=0,\n"
-    "...     preamble_seed=0,\n"
-    "...     preamble_reg_bits=0,\n"
-    "...     preamble_lfsr=\"galois\",\n"
-    "...     preamble_taps_a=0,\n"
-    "...     preamble_seed_a=0,\n"
-    "...     preamble_taps_b=0,\n"
-    "...     preamble_seed_b=0,\n"
-    "...     sync_kind=\"literal\",\n"
-    "...     sync_nbits=0,\n"
-    "...     sync_poly=0,\n"
-    "...     sync_seed=0,\n"
-    "...     sync_reg_bits=0,\n"
-    "...     sync_lfsr=\"galois\",\n"
-    "...     sync_taps_a=0,\n"
-    "...     sync_seed_a=0,\n"
-    "...     sync_taps_b=0,\n"
-    "...     sync_seed_b=0,\n"
-    "...     payload_kind=\"literal\",\n"
-    "...     payload_nbits=0,\n"
-    "...     payload_poly=0,\n"
-    "...     payload_seed=0,\n"
-    "...     payload_reg_bits=0,\n"
-    "...     payload_lfsr=\"galois\",\n"
-    "...     payload_taps_a=0,\n"
-    "...     payload_seed_a=0,\n"
-    "...     payload_taps_b=0,\n"
-    "...     payload_seed_b=0,\n"
-    "...     crc=\"none\",\n"
-    "... )\n",
+    "A payload a receiver can REGENERATE, rather than one it must be handed:\n"
+    "\n"
+    ">>> g = Frame(empty, sync, empty, payload_kind=\"pn\",\n"
+    "...           payload_nbits=1024, payload_reg_bits=10, crc=\"crc16\")\n"
+    ">>> g.nbits\n"
+    "1053\n",
   .tp_methods = FrameObj_methods,
   .tp_getset  = Frame_getset,
   .tp_new     = FrameObj_new,

@@ -208,6 +208,41 @@ extern "C"
   } wfm_frame_desc_layout_t;
 
   /**
+   * @brief What undoing one stage found.
+   *
+   * One shape for every checking stage, because a caller doing frame
+   * accounting wants to compare them rather than learn a struct per code. A
+   * CRC reports one unit that is either good or not; an interleaved outer
+   * code reports one unit per codeword, with the repair work it did.
+   *
+   * @p corrected and @p symbols are the honest measure of how hard the link
+   * is running: `ok == units` with a rising @p symbols is a margin being
+   * spent, and it is spent before it is lost.
+   */
+  typedef struct
+  {
+    unsigned units;     /**< things checked: codewords, or 1 for a CRC     */
+    unsigned ok;        /**< how many are good AFTERWARDS — clean or fixed */
+    unsigned corrected; /**< how many needed and received repair           */
+    unsigned symbols;   /**< symbol errors repaired across the span        */
+    int      checked;   /**< 0 when the receiver does not reverse this
+                             stage here; its counts are then meaningless  */
+  } wfm_frame_stage_rx_t;
+
+  /**
+   * @brief What @ref wfm_frame_check found, stage by stage.
+   *
+   * Indexed the same as the description's stages, so a caller reads the
+   * result beside the declaration that produced it.
+   */
+  typedef struct
+  {
+    wfm_frame_stage_rx_t stage[WFM_FRAME_MAX_STAGES];
+    unsigned             n_stages;
+    unsigned             checked; /**< stages actually reversed here       */
+  } wfm_frame_rx_t;
+
+  /**
    * @brief How one kind of stage actually transforms bits.
    *
    * The description is pure data and names a stage by @ref wfm_stage_kind_t;
@@ -247,6 +282,19 @@ extern "C"
         the order any expanding code writes in anyway. */
     size_t (*emit) (const wfm_stage_t *st, const uint8_t *in, size_t n,
                     uint8_t *out, size_t max_out, void *user);
+
+    /** Undo the stage over its span on the RECEIVE side, correcting @p bits
+        in place and reporting what was found. Returns 0 on success, -1 if
+        the span is the wrong shape for this stage.
+
+        A stage with no @p undo is not an error — it is a stage the receiver
+        does not reverse HERE. The inner code is the case: it is streaming
+        and emits its decisions `depth` bits late, so it is undone before
+        frame synchronisation and a frame checker never sees channel symbols.
+        @ref wfm_frame_check reports such a stage as not-checked rather than
+        as passed, which are different answers. */
+    int (*undo) (const wfm_stage_t *st, uint8_t *bits, size_t n,
+                 wfm_frame_stage_rx_t *rx, void *user);
   } wfm_stage_op_t;
 
   /**
@@ -399,6 +447,44 @@ extern "C"
    *         width), or @p max_out is too small.
    */
   size_t wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out);
+
+  /**
+   * @brief Undo a description's stages over a received frame, and report.
+   *
+   * The receive mirror of @ref wfm_frame_assemble, reading the same
+   * description — so the two cannot disagree about which stage covered what,
+   * which is the failure the whole representation exists to prevent. Stages
+   * are reversed in the OPPOSITE order to the one they were applied in, each
+   * over the span the layout gives it.
+   *
+   * **This is what makes a truth-free frame error rate possible on a coded
+   * link, and it is a strictly better detector than a CRC.** A CRC says one
+   * bit: right or wrong. An outer code says *how much repair it took* —
+   * `ok == units` with a rising @c symbols is margin being spent, visible
+   * before it is lost. A caller wanting only good frames compares @c ok with
+   * @c units; one doing accounting reads the rest.
+   *
+   * It begins AFTER the inner code and after frame synchronisation, for the
+   * reason `ccsds_tm_frame.h` gives at length: a Viterbi is streaming and
+   * emits its decisions `depth` bits late, so the bits of one frame are not a
+   * function of that frame's symbols alone, and the marker that says where a
+   * frame starts is only readable once the inner code is undone. A stage with
+   * no @c undo kernel is reported as **not checked**, never as passed.
+   *
+   * @param d        the description the bits are laid out by.
+   * @param ops      kernels for the stage kinds beyond the built-in CRC;
+   *                 may be `NULL`.
+   * @param bits     the layout's `frame_bits` received bits, one per byte,
+   *                 CORRECTED IN PLACE by any stage that repairs.
+   * @param rx       receives the per-stage outcome; may be `NULL`.
+   * @return 1 when every stage that was checked came out good, 0 when one did
+   *         not, or -1 if the description is refused. **A description with no
+   *         checking stage at all returns -1**, not 1: "carries no check" and
+   *         "the check passed" are different answers, and an FER that
+   *         conflated them would score every unprotected frame as perfect.
+   */
+  int wfm_frame_check (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
+                       uint8_t *bits, wfm_frame_rx_t *rx);
 
   /**
    * @brief Check a received frame's CRC against any description that has one.

@@ -844,5 +844,114 @@ main (void)
                            "assembler, frame 2 included");
   }
 
+  /* ── the scoring path: undo the same spans, and report ───────────────
+   *
+   * `wfm_frame_check` reads the description `wfm_frame_assemble` wrote by, so
+   * the two cannot disagree about which stage covered what. What is asserted
+   * here is what a receiver does with the answer: the outer code's counts,
+   * which are a strictly better detector than a CRC because they say how much
+   * repair it took rather than one bit of right-or-wrong.
+   *
+   * Damage is placed at the SYMBOL level and its effect is predicted, not
+   * observed: at depth 5 a contiguous burst of 5*E symbols is exactly E in
+   * each of the five codewords, the boundary each can repair, and one symbol
+   * more is past it in exactly one column.
+   */
+  {
+    enum
+    {
+      DEPTH = 5
+    };
+    const ccsds_tm_frame_cfg_t cfg
+        = { /* No inner code: this begins where a frame checker begins, after
+               the Viterbi and after frame sync. */
+            .rs_depth      = DEPTH,
+            .randomise     = 1,
+            .attach_asm    = 1,
+            .convolutional = 0
+          };
+    const size_t   octets = (size_t)CCSDS_TM_RS_K * DEPTH;
+    static uint8_t frame[CCSDS_TM_RS_K * DEPTH];
+    static uint8_t fbits[CCSDS_TM_RS_K * DEPTH * 8];
+    static uint8_t cadu[32 + CCSDS_TM_RS_N * DEPTH * 8];
+    for (size_t i = 0; i < octets; i++)
+      frame[i] = (uint8_t)(i * 37u + 11u);
+    for (size_t i = 0; i < octets; i++)
+      for (unsigned b = 0; b < 8u; b++)
+        fbits[i * 8u + b] = (uint8_t)((frame[i] >> (7u - b)) & 1u);
+
+    wfm_frame_desc_t d;
+    DP_REQUIRE (ccsds_tm_frame_describe (&cfg, octets, fbits, &d) == 0);
+    wfm_frame_ops_t ops;
+    ccsds_tm_frame_ops (&ops, NULL);
+
+    wfm_frame_desc_layout_t lay;
+    DP_REQUIRE (wfm_frame_desc_layout (&d, &lay) == 0);
+    DP_REQUIRE (wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
+                == lay.frame_bits);
+
+    /* Clean: every codeword good, nothing repaired. Asserted because a
+       checker that reported damage on a clean frame would be as wrong as one
+       that missed damage, and only one of those shows up below. */
+    wfm_frame_rx_t rx;
+    DP_CHECK_MSG (wfm_frame_check (&d, &ops, cadu, &rx) == 1,
+                  "a clean CADU must pass its own check");
+    DP_CHECK_MSG (rx.stage[0].units == DEPTH && rx.stage[0].ok == DEPTH
+                      && rx.stage[0].corrected == 0
+                      && rx.stage[0].symbols == 0,
+                  "...with nothing repaired");
+    /* The randomiser is involutive, so undoing it left the frame derandomised
+       -- re-assemble before damaging it. */
+    DP_REQUIRE (wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
+                == lay.frame_bits);
+
+    /* A burst of DEPTH*E symbols: exactly E in each codeword, all repaired,
+       and the COUNT is the margin that was spent. */
+    const size_t blk = lay.stage[0].first;
+    for (unsigned s = 0; s < DEPTH * CCSDS_TM_RS_E; s++)
+      cadu[blk + (size_t)s * 8u] ^= 1u;
+    DP_CHECK_MSG (wfm_frame_check (&d, &ops, cadu, &rx) == 1,
+                  "a burst of DEPTH*E symbols must still pass");
+    DP_CHECK_MSG (rx.stage[0].ok == DEPTH && rx.stage[0].corrected == DEPTH
+                      && rx.stage[0].symbols == DEPTH * CCSDS_TM_RS_E,
+                  "...having repaired exactly E in each of the five");
+    DP_REQUIRE (wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
+                == lay.frame_bits);
+
+    /* E+1 in ONE column is past the radius: that codeword is refused, the
+       frame fails, and the caller is told which -- the whole reason this
+       reports counts rather than a verdict. */
+    for (unsigned c = 0; c <= CCSDS_TM_RS_E; c++)
+      cadu[blk + ((size_t)c * DEPTH + 2u) * 8u] ^= 1u;
+    DP_CHECK_MSG (wfm_frame_check (&d, &ops, cadu, &rx) == 0,
+                  "E+1 errors in one column must FAIL the frame");
+    DP_CHECK_MSG (rx.stage[0].units == DEPTH && rx.stage[0].ok == DEPTH - 1u,
+                  "...as exactly one bad codeword out of five");
+
+    /* The inner code is reported as NOT CHECKED rather than as passed: a
+       frame checker never sees channel symbols, and "we did not look" is a
+       different answer from "it was fine". */
+    const ccsds_tm_frame_cfg_t coded = {
+      .rs_depth = DEPTH, .randomise = 1, .attach_asm = 1, .convolutional = 1
+    };
+    wfm_frame_desc_t dc;
+    DP_REQUIRE (ccsds_tm_frame_describe (&coded, octets, fbits, &dc) == 0);
+
+    /* Re-assembled through the UNCODED description, because the coded one
+       emits twice as many symbols as this buffer holds -- and because that is
+       the input a frame checker really gets: the inner code is already
+       undone by the time anything looks for a frame. The check below is about
+       which stages get reversed, not about the bits. */
+    DP_REQUIRE (wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
+                == lay.frame_bits);
+    wfm_frame_rx_t rc;
+    DP_CHECK_MSG (wfm_frame_check (&dc, &ops, cadu, &rc) == 1,
+                  "the coded description checks the frame it is handed");
+    DP_CHECK_MSG (!rc.stage[2].checked,
+                  "the inner code is not reversed by a frame checker");
+    DP_CHECK_MSG (rc.checked == 2u,
+                  "...so two of the three stages are, not three");
+  }
+
   DP_TEST_END ("ccsds_tm_frame");
 }

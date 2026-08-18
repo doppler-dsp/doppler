@@ -398,3 +398,42 @@ frame_stage_bits (frame_state_t *state, size_t i)
 {
   return (state && i < state->dl.n_stages) ? state->dl.stage[i].n : 0u;
 }
+
+frame_check_t
+frame_check (frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len)
+{
+  frame_check_t out;
+  memset (&out, 0, sizeof out);
+  if (!state || !rx_bits || rx_bits_len < state->dl.frame_bits
+      || state->dl.frame_bits == 0)
+    return out;
+
+  /* A copy, because the stages CORRECT in place and the caller's buffer is a
+     capture -- scoring a frame must not rewrite the evidence. */
+  uint8_t *work = (uint8_t *)malloc (state->dl.frame_bits);
+  if (!work)
+    return out;
+  memcpy (work, rx_bits, state->dl.frame_bits);
+
+  wfm_frame_ops_t ops;
+  ccsds_tm_frame_ops (&ops, NULL);
+  wfm_frame_rx_t rx;
+  const int      verdict = wfm_frame_check (&state->d, &ops, work, &rx);
+  free (work);
+  if (verdict < 0)
+    return out; /* no reversible stage: pass = 0, checked = 0 */
+
+  out.passed  = verdict;
+  out.stages  = rx.n_stages;
+  out.checked = rx.checked;
+  for (unsigned k = 0; k < rx.n_stages; k++)
+    {
+      if (!rx.stage[k].checked)
+        continue;
+      out.units += rx.stage[k].units;
+      out.ok += rx.stage[k].ok;
+      out.corrected += rx.stage[k].corrected;
+      out.symbols += rx.stage[k].symbols;
+    }
+  return out;
+}

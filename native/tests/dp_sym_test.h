@@ -264,12 +264,15 @@ dp_test_settle_syms (double bn_timing, double bn_carrier)
  * @p frac is the fraction of the bound: 1.0 seeds exactly at
  * `bn_carrier / m`. **Tests seed at or under the bound.**
  *
- * Measured 2026-08-17 (6 seeds per point; BPSK/QPSK/8PSK at sps 8, bn 0.01,
- * 20 dB, 4000 symbols; acquired = locked AND the frequency estimate within
- * 10% of truth): acquisition is reliable out to 4x the bound at every order
- * and collapses by 6x. Seeding at the bound therefore keeps a 4x margin,
- * which is why that is the rule rather than the looser one the same sweep
- * would permit.
+ * **The envelope is measured, not quoted here.** The Python subject
+ * `doppler.track.tests.characterization.pull_in` sweeps the success fraction
+ * against multiples of this bound across every order and two oversampling
+ * ratios, and `make characterize` re-derives it. As it stands the carrier
+ * loop is reliable out to 4x the bound (3x at 8PSK) and dead by 5x, so
+ * seeding AT the bound keeps a 3-4x margin. The figures live in that sweep
+ * rather than in this comment because a number nothing re-runs is prose, and
+ * two findings were once filed against the receiver on the strength of one
+ * (doppler#843, doppler#849).
  *
  * Pull-in BEYOND the bound is a real property and worth measuring — as a
  * characterization sweep with a reported success fraction (rx_nda_tap.c),
@@ -298,12 +301,12 @@ dp_test_freq_offset_inside_bw (double bn_carrier, int m, double frac)
  * `bn_timing` is symbol-rate normalised, so the error is already in symbols
  * per symbol: no @c sps scaling, and no @p m either.
  *
- * **The absent @p m was measured rather than assumed**: the timing
- * discriminator is not an M-th power. Same method and date as
- * dp_test_freq_offset_inside_bw() — the timing loop is reliable to 1.6x its
- * bound and collapses over 1.8-2.0x. Seeding at the bound buys 1.6x here
- * against 4x on the carrier, which is why the two are stated separately
- * rather than sharing one fraction.
+ * **The absent @p m is measured rather than assumed**: the timing
+ * discriminator is not an M-th power, and the same subject that establishes
+ * the carrier envelope establishes this one. It is the tighter of the two —
+ * reliable to about 1.6-1.8x its bound and dead by 2.5x, against the
+ * carrier's 3-4x — which is why the two are stated separately rather than
+ * sharing one fraction.
  *
  * The Python twin is `clock_offset_inside_bw()` in
  * `src/doppler/track/tests/_mpsk_rx_harness.py`; keep them in step.

@@ -33,11 +33,13 @@ Before any code, write `docs/design/<algo>.md`:
 - **a sketch of the implementation plan** — the object's shape, its state,
     and which existing primitive it composes rather than re-implements.
 
-**This is the only phase with no gate.** Everything below is enforced by
-something; a design doc is enforced by review alone, which is precisely why
-it goes first — it is the cheapest place to be wrong. The design page is
-also what section 1 of the eventual validation report links to, rather than
-restating.
+**This phase has no gate**, and a design doc is enforced by review alone —
+which is precisely why it goes first: it is the cheapest place to be wrong.
+The design page is also what section 1 of the eventual validation report links
+to, rather than restating.
+
+It is not, however, the *only* ungated phase — phase 4's sabotage is the
+other, and that one is a gap rather than a design.
 
 ______________________________________________________________________
 
@@ -93,6 +95,17 @@ red**. A test you have not seen fail is not evidence. [Object
 Validation](validation.md) owns this rule and its two failure modes
 (consistency tests that are blind to a shared defect; reject tests that pass
 vacuously).
+
+**Nothing executes this, and you have to supply the discipline.** `ctest`
+proves a test passes; no gate proves it can fail. The rule is stated on this
+page, in [Object Validation](validation.md) step 2, and again in
+[Measuring a Receiver](measuring-a-receiver.md) — and enforced on none of
+them, which is the shape `validation.md` opens by warning about. The cost is
+measurable: six tests in an already-certified object were later found to pass
+against a receiver whose carrier discriminator did nothing at all
+([gh-843](https://github.com/doppler-dsp/doppler/issues/843)). Until a gate
+exists, treat the sabotage as part of writing the test, not as a review step
+somebody else performs.
 
 Do this *before* the Python face exists. A test written through the binding
 measures whatever the binding happens to expose, and the surfaces that matter

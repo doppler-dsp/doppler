@@ -35,6 +35,7 @@
 #include "dp_test.h"
 
 #include "ccsds_tm/ccsds_tm_frame.h"
+#include "wfm/wfm_frame.h"
 
 #include <string.h>
 
@@ -609,6 +610,122 @@ main (void)
                   "a short frame buffer must refuse");
     for (size_t i = 0; i < sizeof back; i++)
       DP_CHECK (back[i] == 0xAAu);
+  }
+
+  /* ── the coverage table as a wfm_frame_desc_t (docs/design/…) ─────────
+   *
+   * `ccsds_tm_frame_layout_t` reports a span per stage because a stage ORDER
+   * cannot express what covers the marker. `wfm_frame_desc_t` is that same
+   * idea with the fields and stages supplied rather than fixed, and this is
+   * the check that the general form really does express this one: a
+   * description built here must reproduce the shipped layout's four spans and
+   * both lengths EXACTLY, for a configuration with every stage on and for one
+   * with two of them off.
+   *
+   * It is the layout half of the generalization's falsification. The other
+   * half is byte-for-byte output, which needs a general assembler and is not
+   * claimed here -- a right coverage table says nothing about whether the
+   * stages were applied to the right bits.
+   */
+  {
+    /* Fields in wire order; the check symbols are a FIELD, derived by the
+       outer code, which is what removes any need for a stage to expand what
+       it covers. Indices are named because every cover below is a range of
+       them and an off-by-one would silently move a span. */
+    enum
+    {
+      F_ASM = 0,
+      F_PAYLOAD,
+      F_PARITY,
+      N_FIELD
+    };
+    enum
+    {
+      S_OUTER = 0,
+      S_RAND,
+      S_INNER,
+      N_STAGE
+    };
+
+    static const struct
+    {
+      const char          *what;
+      ccsds_tm_frame_cfg_t cfg;
+      size_t               frame_octets;
+    } CASES[] = {
+      { "concatenated, depth 5",
+        { .rs_depth = 5, .randomise = 1, .attach_asm = 1, .convolutional = 1 },
+        (size_t)CCSDS_TM_RS_K * 5 },
+      { "marker and randomiser only",
+        { .rs_depth = 0, .randomise = 1, .attach_asm = 1, .convolutional = 0 },
+        64 },
+      { "outer code only, no marker",
+        { .rs_depth = 2, .randomise = 0, .attach_asm = 0, .convolutional = 0 },
+        (size_t)CCSDS_TM_RS_K * 2 },
+    };
+
+    for (size_t c = 0; c < sizeof CASES / sizeof CASES[0]; c++)
+      {
+        const ccsds_tm_frame_cfg_t *cfg = &CASES[c].cfg;
+        ccsds_tm_frame_layout_t     want;
+        const size_t                n
+            = ccsds_tm_frame_layout (cfg, CASES[c].frame_octets, &want);
+        DP_REQUIRE_MSG (n != 0, CASES[c].what);
+
+        wfm_frame_desc_t d;
+        memset (&d, 0, sizeof d);
+        d.n_fields = N_FIELD;
+        d.n_stages = N_STAGE;
+
+        /* The marker is a literal field, and it is field ZERO -- which is the
+           whole content of 9.2.1.5 once the covers below are read. */
+        d.field[F_ASM].seq.kind     = WFM_SEQ_LITERAL;
+        d.field[F_ASM].seq.len      = cfg->attach_asm ? CCSDS_TM_ASM_BITS : 0u;
+        d.field[F_PAYLOAD].seq.kind = WFM_SEQ_LITERAL;
+        d.field[F_PAYLOAD].seq.len  = CASES[c].frame_octets * 8u;
+        d.field[F_PARITY].bits = (size_t)CCSDS_TM_RS_2E * cfg->rs_depth * 8u;
+        d.field[F_PARITY].derived_by = S_OUTER + 1u;
+
+        /* 9.5.1: the outer code's data space is the payload and the check
+           symbols it derives -- and NOT the marker. */
+        d.stage[S_OUTER].kind        = WFM_STAGE_RS;
+        d.stage[S_OUTER].depth       = cfg->rs_depth;
+        d.stage[S_OUTER].first_field = F_PAYLOAD;
+        d.stage[S_OUTER].n_fields    = cfg->rs_depth ? 2u : 0u;
+
+        /* 10.3.4 note 1: the randomiser covers the codeblock, same span. */
+        d.stage[S_RAND].kind        = WFM_STAGE_RANDOMISE;
+        d.stage[S_RAND].first_field = F_PAYLOAD;
+        d.stage[S_RAND].n_fields    = cfg->randomise ? 2u : 0u;
+
+        /* 9.2.1.4: the inner code covers everything, marker included, and it
+           is the one stage that emits a different stream. */
+        d.stage[S_INNER].kind        = WFM_STAGE_CONV;
+        d.stage[S_INNER].first_field = F_ASM;
+        d.stage[S_INNER].n_fields    = cfg->convolutional ? N_FIELD : 0u;
+        d.stage[S_INNER].emit_num    = 2u;
+        d.stage[S_INNER].emit_den    = 1u;
+
+        wfm_frame_desc_layout_t got;
+        DP_REQUIRE (wfm_frame_desc_layout (&d, &got) == 0);
+
+        DP_CHECK_MSG (got.frame_bits == want.cadu_bits,
+                      "the description's frame is the CADU");
+        DP_CHECK_MSG (got.out_bits == want.out_bits,
+                      "...and its output is the channel symbols");
+        DP_CHECK_MSG (got.field_off[F_ASM] == want.marker.first
+                          && got.field_bits[F_ASM] == want.marker.n,
+                      "the marker field must land where the ASM does");
+        DP_CHECK_MSG (got.stage[S_OUTER].first == want.outer.first
+                          && got.stage[S_OUTER].n == want.outer.n,
+                      "9.5.1: the outer cover must be the R-S data space");
+        DP_CHECK_MSG (got.stage[S_RAND].first == want.randomised.first
+                          && got.stage[S_RAND].n == want.randomised.n,
+                      "10.3.4: the randomised cover must exclude the ASM");
+        DP_CHECK_MSG (got.stage[S_INNER].first == want.inner.first
+                          && got.stage[S_INNER].n == want.inner.n,
+                      "9.2.1.4: the inner cover must include the ASM");
+      }
   }
 
   DP_TEST_END ("ccsds_tm_frame");

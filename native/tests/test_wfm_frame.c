@@ -205,6 +205,117 @@ main (void)
 
     DP_REQUIRE_MSG (wfm_frame_layout (NULL, &l) == -1, "NULL frame");
     DP_REQUIRE_MSG (wfm_frame_crc_ok (NULL, buf) == -1, "NULL frame, crc");
+
+    /* `preamble_reps = 0` means NO preamble, which this struct documents and
+       nothing asserted -- found by sabotage: making a zero count emit one
+       period instead of nothing passed every test in this file, in
+       test_dp_frame and in test_frame_core. It matters because a preamble is
+       the coherent-integration target, so an unasked-for one is 8 bits a
+       receiver would try to acquire on. */
+    wfm_frame_t norep   = { 0 };
+    norep.preamble.kind = WFM_SEQ_DOTTED;
+    norep.preamble.len  = 8;
+    norep.preamble_reps = 0;
+    norep.payload.kind  = WFM_SEQ_DOTTED;
+    norep.payload.len   = 16;
+    DP_REQUIRE (wfm_frame_layout (&norep, &l) == 0);
+    DP_CHECK_MSG (l.preamble_bits == 0,
+                  "preamble_reps = 0 must emit no preamble at all");
+    DP_CHECK_MSG (l.payload_off == 0 && l.total_bits == 16,
+                  "...so the payload starts at bit 0");
+  }
+
+  /* ── the description the geometry above is a CONFIGURATION of ─────────
+   *
+   * `wfm_frame_t` is four fields and one stage of `wfm_frame_desc_t`, and
+   * `wfm_frame_layout()` is `wfm_frame_desc_layout()` read back through named
+   * members. What is checked here is the general form's own rules, on
+   * descriptions the closed struct cannot express -- because those are the
+   * rules every future configuration rests on, and none of them is reachable
+   * through the four-field face.
+   *
+   * See docs/design/frame-description.md. The CCSDS coverage table is the
+   * other configuration and is checked in test_ccsds_tm_frame.c, beside the
+   * standard it comes from.
+   */
+  {
+    /* A stage's cover is DECLARED, never inherited from what ran before it.
+       Two stages over the same fields, reaching different distances: if a
+       stage took "everything so far", both spans would be equal. That is the
+       failure ccsds_tm_frame.h predicts for any chain of optional transforms,
+       and it is a property of ordinary frames too, not a CCSDS curiosity. */
+    wfm_frame_desc_t d;
+    memset (&d, 0, sizeof d);
+    d.n_fields = 3u;
+    for (unsigned i = 0; i < 3u; i++)
+      {
+        d.field[i].seq.kind = WFM_SEQ_DOTTED;
+        d.field[i].seq.len  = 8u * (i + 1u); /* 8, 16, 24 */
+      }
+    d.n_stages             = 2u;
+    d.stage[0].first_field = 1u; /* fields 1..2: 16 + 24 = 40 bits at 8  */
+    d.stage[0].n_fields    = 2u;
+    d.stage[1].first_field = 0u; /* fields 0..2: the whole 48 bits at 0  */
+    d.stage[1].n_fields    = 3u;
+
+    wfm_frame_desc_layout_t l;
+    DP_REQUIRE (wfm_frame_desc_layout (&d, &l) == 0);
+    DP_CHECK (l.frame_bits == 48u && l.out_bits == 48u);
+    DP_CHECK_MSG (l.stage[0].first == 8u && l.stage[0].n == 40u,
+                  "a stage covers what it declares, starting where it says");
+    DP_CHECK_MSG (l.stage[1].first == 0u && l.stage[1].n == 48u,
+                  "...and a wider stage over the same fields reaches wider");
+
+    /* A stage that did not run reports n == 0 AND first == 0. Both halves:
+       an implementation that left `first` at the field offset would report a
+       plausible-looking span for a stage that never ran, which a caller
+       reading the spans to decide what to undo would act on. */
+    d.stage[0].n_fields = 0u;
+    DP_REQUIRE (wfm_frame_desc_layout (&d, &l) == 0);
+    DP_CHECK_MSG (l.stage[0].n == 0u && l.stage[0].first == 0u,
+                  "a stage that did not run reports first = 0 and n = 0");
+
+    /* A derived field is dropped when its stage covers nothing supplied --
+       the general form of "a CRC over an empty payload protects nothing".
+       Asserted from BOTH sides, because a rule that only ever zeroes is
+       satisfied by a field that is always zero. */
+    memset (&d, 0, sizeof d);
+    d.n_fields             = 2u;
+    d.field[0].seq.kind    = WFM_SEQ_DOTTED;
+    d.field[0].seq.len     = 24u;
+    d.field[1].bits        = 16u;
+    d.field[1].derived_by  = 1u;
+    d.n_stages             = 1u;
+    d.stage[0].first_field = 0u;
+    d.stage[0].n_fields    = 2u;
+    DP_REQUIRE (wfm_frame_desc_layout (&d, &l) == 0);
+    DP_CHECK_MSG (l.field_bits[1] == 16u && l.frame_bits == 40u,
+                  "a derived field is emitted when its stage covers data");
+
+    d.field[0].seq.len = 0u; /* nothing left to protect */
+    DP_REQUIRE (wfm_frame_desc_layout (&d, &l) == 0);
+    DP_CHECK_MSG (l.field_bits[1] == 0u && l.frame_bits == 0u,
+                  "...and dropped when it covers nothing");
+
+    /* Refusals: a cover past the end of the field list, and a derived field
+       naming a stage that is not there. Both are descriptions a caller can
+       write, and neither may be read as a layout. */
+    memset (&d, 0, sizeof d);
+    d.n_fields          = 1u;
+    d.field[0].seq.kind = WFM_SEQ_DOTTED;
+    d.field[0].seq.len  = 8u;
+    d.n_stages          = 1u;
+    d.stage[0].n_fields = 2u; /* one past the single field */
+    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == -1,
+                  "a cover running past the field list must refuse");
+
+    d.stage[0].n_fields   = 1u;
+    d.field[0].derived_by = 9u; /* no such stage */
+    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == -1,
+                  "a derived field naming no stage must refuse");
+
+    DP_CHECK (wfm_frame_desc_layout (NULL, &l) == -1);
+    DP_CHECK (wfm_frame_describe (NULL, &d) == -1);
   }
 
   DP_TEST_END ("wfm_frame");

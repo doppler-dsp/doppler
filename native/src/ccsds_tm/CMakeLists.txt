@@ -71,8 +71,12 @@ add_test(NAME test_ccsds_tm_asm COMMAND test_ccsds_tm_asm)
 
 add_executable(test_ccsds_tm_frame
     ${CMAKE_SOURCE_DIR}/native/tests/test_ccsds_tm_frame.c)
+# wfm_frame_core: the frame-description cross-check asserts that the general
+# descriptor reproduces this component's own coverage table. The dependency
+# points the way docs/design/frame-description.md has it -- CCSDS is a
+# configuration of the general frame, not a peer of it.
 target_link_libraries(test_ccsds_tm_frame PRIVATE
-    ccsds_tm_core conv_core rs_core)
+    ccsds_tm_core conv_core rs_core wfm_frame_core pn_core gold_core m)
 target_include_directories(test_ccsds_tm_frame PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)

@@ -38,8 +38,21 @@ RUN printf '%s\n' \
 # the GitHub release. TARGETARCH is supplied by buildkit; Kitware's asset
 # names differ from Docker's arch names, hence the mapping. Failing loudly on
 # an unmapped arch beats downloading a 404 and installing nothing.
+#
+# TARGETARCH is REDECLARED WITH NO VALUE, and that is load-bearing. BuildKit
+# only populates a predefined platform ARG when the stage redeclares it empty;
+# writing `ARG TARGETARCH=amd64` shadows the real value with the default, so
+# the case below always took the amd64 branch. On an aarch64 host that put an
+# x86_64 cmake into an arm64 image, and every build in it died with
+#
+#   /bin/sh: 1: cmake: Exec format error
+#
+# which made `make glibc-gate` — the floor gate itself — unrunnable on arm64
+# while looking perfectly correct in review. Leaving it valueless also keeps
+# the loud-failure promise above: a non-BuildKit builder supplies nothing, so
+# the `*)` arm fires instead of silently guessing amd64.
 ARG CMAKE_VERSION=3.28.6
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 RUN set -eu; \
     case "$TARGETARCH" in \
       amd64) karch=x86_64  ;; \

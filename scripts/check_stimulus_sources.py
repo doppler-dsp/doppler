@@ -18,13 +18,24 @@ lock assertion with nothing pointing at the level. wfmgen already defines unit
 transmit power and an Es/N0 mode; the hand-rolled generator is what made the
 level expressible-but-unstated.
 
-Three signatures, each with a canonical primitive that already exists:
+Four signatures, each with a canonical primitive that already exists:
 
   pulse      a private raised-cosine / RRC  ->  wfm_synth_set_rrc, rrc_taps
   level      normalising a generated stream by its PEAK  ->  Synth(level=,
              snr=, snr_mode=), wfm_snr_over_fs, wfm_source_create_snr
+  offset     a loop residual as a bare cycles/sample number  ->
+             freq_offset_inside_bw / clock_offset_inside_bw in Python,
+             dp_test_freq_offset_inside_bw in C (native/tests/dp_sym_test.h)
   evm        a private error-vector magnitude  ->  ber_evm_db, over a window
              from ber_settle_syms / ber_settle_from
+
+Second measured cost, 2026-08-17 (doppler#843): `MpskReceiver`'s tests seeded
+the carrier loop either ON the answer (`init_norm_freq` == the stimulus's own
+offset, so the loop never left its initial state) or PAST its pull-in cliff.
+A receiver whose carrier discriminator was wired to nothing passed six of
+them. The bound is `bn_carrier / m` cycles per symbol -- the `m` because the
+discriminator is an M-th power -- and nothing in the tree said the `m` out
+loud, so the same literal was a 4x harder question at 8PSK than at BPSK.
 
 This scans only the TEST, VALIDATION and EXAMPLE layers. The library itself is
 the sanctioned home -- `wfm_synth_core.c` implementing an RRC is the point.
@@ -92,6 +103,47 @@ MARKERS: dict[str, tuple[re.Pattern[str], str]] = {
         "object receives a level nobody stated. wfmgen owns this: Synth's "
         "`level`, `snr` and `snr_mode` (auto/fs/ebno/esno), with sqrt(sps) "
         "scaling for unit transmit power.",
+    ),
+    # An offset seeded into a tracking loop without saying what it is a
+    # fraction OF.
+    #
+    # `bn_carrier` and `bn_timing` are normalised to the SYMBOL rate, and the
+    # carrier discriminator is an M-th power, so the carrier loop's
+    # acquisition bound is `bn_carrier / m` cycles per symbol. A bare
+    # `foff = 0.0008` therefore says nothing checkable: the same number is a
+    # different question at every `m` and every `sps`. Both ends of the range
+    # read as a passing test -- seeded on truth the loop never leaves its
+    # initial state, seeded past the bound the result is which way the
+    # transient happened to push the integrator. doppler#843 found both, in
+    # the same object, on the same day.
+    #
+    # Matched where the value is a NUMBER, and only on the quantity the LOOP
+    # is handed. Those two restrictions are what keep it sharp, and both were
+    # arrived at by running the alternatives:
+    #
+    #   - The RESIDUAL is the thing that has to be bounded, not the stimulus's
+    #     absolute carrier error. A real link's offset is whatever the Doppler
+    #     is; what the loop must acquire is `foff - init_norm_freq`. So the
+    #     harness's `freq_offset=` / `clock_offset=` kwargs and the C rx
+    #     configs' `.foff` / `->foff` FIELDS are matched (in all three the
+    #     receiver is seeded at the centre, so the field IS the residual),
+    #     while a local `foff = 0.0015` naming the stimulus is not. Gating the
+    #     stimulus fired on 20 correct lines, which is how that came out.
+    #   - A hand-rolled `0.5 * bn / sps` is the same defect as `0.0008` -- it
+    #     was the shape that reached the C BER certification -- so the match
+    #     is on a leading numeric literal, not on a bare one. Anything routed
+    #     through `freq_offset_inside_bw` / `dp_test_freq_offset_inside_bw`
+    #     names `u` and passes: there is nothing to allowlist for correct code.
+    "offset": (
+        re.compile(
+            r"(?:(?:\.|->)\s*foff|\bfreq_offset|\bclock_offset)\s*=\s*"
+            r"[-+]?(?:\d+\.?\d*|\.\d+)"
+        ),
+        "state the offset in units of the loop's own acquisition bound -- "
+        "freq_offset_inside_bw(bn, sps, m, u) in Python, "
+        "dp_test_freq_offset_inside_bw(bn, sps, m, u) in C (dp_sym_test.h), "
+        "and clock_offset_inside_bw(bn, u) for the timing loop. Tests are "
+        "held to 0 < u <= 1; see doppler#843 for the measured cliffs.",
     ),
     "evm": (
         re.compile(
@@ -226,6 +278,34 @@ def delegating_defs(src: str) -> set[tuple[str, int]]:
     }
 
 
+def signature_default_lines(src: str) -> set[int]:
+    """Lines holding a function PARAMETER's default value.
+
+    A signature default is the API declaring its own zero -- "no offset unless
+    you ask for one" -- not a site that seeds a loop. `freq_offset=0.0` on
+    `demod()` is the harness saying the caller must opt in, and its docstring
+    already says so in as many words; reporting it would put an allowlist entry
+    against correct code, which this file's own README warns dilutes the
+    ratchet.
+
+    Read from the AST rather than by eye: a default may sit on the `def` line
+    or on any continuation line inside the parens, and both spellings appear
+    here.
+    """
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return set()
+    lines: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        a = node.args
+        for default in (*a.defaults, *(d for d in a.kw_defaults if d)):
+            lines.update(range(default.lineno, (default.end_lineno or 0) + 1))
+    return lines
+
+
 def occurrences() -> list[tuple[str, str, int, str]]:
     """Every (marker, file, line-no, line) in the consuming layers."""
     found: list[tuple[str, str, int, str]] = []
@@ -241,11 +321,28 @@ def occurrences() -> list[tuple[str, str, int, str]]:
             delegating = (
                 delegating_defs(text) if path.suffix == ".py" else set()
             )
+            sig_defaults = (
+                signature_default_lines(text)
+                if path.suffix == ".py"
+                else set()
+            )
             for n, line in enumerate(text.splitlines(), 1):
+                # PROSE is not code. The `offset` marker reads an ordinary
+                # assignment, which is a shape that also turns up in the
+                # sentence describing it -- `rx_nda_tap.c` explains its
+                # `foff = 0` row in a docblock, and reporting that comment as
+                # a violation would teach authors to stop explaining their
+                # stimulus. The earlier three markers match `def`/declaration
+                # syntax and were never affected either way.
+                stripped = line.lstrip()
+                if stripped.startswith(("*", "//", "#", "/*")):
+                    continue
                 for marker, (rx, _) in MARKERS.items():
                     if not rx.search(line):
                         continue
                     if (marker, n) in delegating:
+                        continue
+                    if marker == "offset" and n in sig_defaults:
                         continue
                     found.append((marker, rel, n, line.strip()))
     return found

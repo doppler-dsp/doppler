@@ -5,7 +5,35 @@ import pytest
 
 from doppler.track import ContinuousMpskReceiver, MpskReceiver
 
+from ._mpsk_rx_harness import freq_offset_inside_bw
+
 PHI0 = {2: 0.0, 4: np.pi / 4, 8: 0.0}
+
+
+def _seed(foff, m, bn_carrier, sps=8):
+    """The `init_norm_freq` that leaves exactly one bound of RESIDUAL.
+
+    Every construction in this file used to be seeded with `init_norm_freq`
+    set to the stimulus's own `foff`, i.e. handed the answer. The carrier loop
+    then starts on truth and never leaves its initial state, so the acquisition
+    half of each of those tests -- "acquires the carrier (NDA)", "flips from
+    NDA acquisition to DD tracking", "re-declares after a re-seed" -- was
+    asserted against a loop that had nothing to acquire. A receiver whose
+    carrier discriminator was wired to nothing passes all of them.
+
+    So seed one acquisition bound BELOW truth: `bn_carrier / m` cycles per
+    symbol, the `m` because the NDA discriminator is an M-th power. That is
+    the same `u = 1` rule the C tests and the validation harnesses hold to,
+    and `freq_offset_inside_bw` is the one place it is computed. Measured
+    2026-08-17, acquisition is reliable out to `u = 4` and collapses by 6, so
+    `u = 1` keeps a 4x margin -- these tests must not be the ones that turn a
+    receiver change into a coin flip.
+
+    `bn_carrier` is passed rather than read back off the receiver because the
+    seed has to be known BEFORE construction; state it at the call site and
+    hand the same value to the constructor, so the two cannot drift.
+    """
+    return foff - freq_offset_inside_bw(bn_carrier, sps, m, 1.0)
 
 
 def _signal(m, sps=8, foff=0.0, snr_db=30.0, nsym=5000, seed=0):
@@ -42,14 +70,15 @@ def _ser(out, idx, m):
 @pytest.mark.parametrize("m", [2, 4, 8])
 def test_steps_recovers_symbols(m):
     """Acquires the carrier (NDA) + timing and recovers symbols, every M."""
-    tx, idx = _signal(m, foff=0.0008, snr_db=30, seed=m)
+    bn, foff = 0.005, 0.0008
+    tx, idx = _signal(m, foff=foff, snr_db=30, seed=m)
     rx = MpskReceiver(
         m=m,
         sps=8,
         m_out=4,
-        bn_carrier=0.005,
+        bn_carrier=bn,
         bn_timing=0.01,
-        init_norm_freq=0.0008,
+        init_norm_freq=_seed(foff, m, bn),
     )
     out = rx.steps(tx)
     assert out.dtype == np.complex64
@@ -162,15 +191,16 @@ def test_rrc_pulse_recovers():
 
 def test_acq_to_track_engages():
     """acq_to_track flips the loop from NDA acquisition to DD tracking."""
-    tx, idx = _signal(4, foff=0.0008, snr_db=25, seed=4)
+    bn, foff = 0.005, 0.0008
+    tx, idx = _signal(4, foff=foff, snr_db=25, seed=4)
     rx = MpskReceiver(
         m=4,
         sps=8,
         m_out=4,
-        init_norm_freq=0.0008,
+        init_norm_freq=_seed(foff, 4, bn),
         acq_to_track=1,
         lock_thresh=0.4,
-        bn_carrier=0.005,
+        bn_carrier=bn,
     )
     out = rx.steps(tx)
     assert rx.tracking == 1
@@ -206,17 +236,17 @@ def test_acq_to_track_two_way():
     the transition itself tests the documented behaviour and is immune to
     where the walk happens to end.
     """
-    foff = 0.0008
+    bn, foff = 0.005, 0.0008
     tx, _ = _signal(4, foff=foff, snr_db=25, seed=4)
     noise, _ = _signal(4, foff=foff, snr_db=-10, seed=6)
     rx = MpskReceiver(
         m=4,
         sps=8,
         m_out=4,
-        init_norm_freq=foff,
+        init_norm_freq=_seed(foff, 4, bn),
         acq_to_track=1,
         lock_thresh=0.4,
-        bn_carrier=0.005,
+        bn_carrier=bn,
     )
     rx.steps(tx)
     assert rx.tracking == 1
@@ -229,20 +259,24 @@ def test_acq_to_track_two_way():
         dropped = dropped or rx.tracking == 0
     assert dropped, "a sustained lock loss never dropped back to the NDA steer"
 
-    rx.norm_freq = foff  # acquisition re-seed
+    # The acquisition re-seed is what a real drop-back gets from the outer
+    # acquisition: an estimate, not the exact truth. Re-seed it one bound
+    # short, so the re-declare has the same work to do as the first declare.
+    rx.norm_freq = _seed(foff, 4, bn)
     rx.steps(tx)
     assert rx.tracking == 1  # re-declared
 
 
 def test_configure_lock_unreachable_threshold_never_engages():
-    tx, _ = _signal(4, foff=0.0008, snr_db=25, seed=4)
+    bn, foff = 0.005, 0.0008
+    tx, _ = _signal(4, foff=foff, snr_db=25, seed=4)
     rx = MpskReceiver(
         m=4,
         sps=8,
         m_out=4,
-        init_norm_freq=0.0008,
+        init_norm_freq=_seed(foff, 4, bn),
         acq_to_track=1,
-        bn_carrier=0.005,
+        bn_carrier=bn,
     )
     rx.configure_lock(up_thresh=2.0, down_thresh=1.9, n_up=1, n_down=1)
     rx.steps(tx)
@@ -252,14 +286,15 @@ def test_configure_lock_unreachable_threshold_never_engages():
 def test_configure_lock_low_threshold_engages_fast():
     # n_up=1 with an easily-reachable threshold hands over on the first
     # above-threshold symbol once warmup has elapsed.
-    tx, idx = _signal(4, foff=0.0008, snr_db=25, seed=4)
+    bn, foff = 0.005, 0.0008
+    tx, idx = _signal(4, foff=foff, snr_db=25, seed=4)
     rx = MpskReceiver(
         m=4,
         sps=8,
         m_out=4,
-        init_norm_freq=0.0008,
+        init_norm_freq=_seed(foff, 4, bn),
         acq_to_track=1,
-        bn_carrier=0.005,
+        bn_carrier=bn,
     )
     rx.configure_lock(up_thresh=0.1, down_thresh=0.05, n_up=1, n_down=32)
     out = rx.steps(tx)
@@ -331,9 +366,17 @@ def test_bits_differential_rotation_invariant(m):
 
 def test_block_size_invariance():
     """Streaming over chunks == one block (state carries across calls)."""
-    tx, _ = _signal(4, foff=0.0005, snr_db=30, nsym=3000, seed=7)
-    whole = MpskReceiver(m=4, sps=8, m_out=4, init_norm_freq=0.0005).steps(tx)
-    rx = MpskReceiver(m=4, sps=8, m_out=4, init_norm_freq=0.0005)
+    bn, foff = 0.01, 0.0005
+    tx, _ = _signal(4, foff=foff, snr_db=30, nsym=3000, seed=7)
+    kw = {
+        "m": 4,
+        "sps": 8,
+        "m_out": 4,
+        "bn_carrier": bn,
+        "init_norm_freq": _seed(foff, 4, bn),
+    }
+    whole = MpskReceiver(**kw).steps(tx)
+    rx = MpskReceiver(**kw)
     parts = [rx.steps(tx[i : i + 1000]) for i in range(0, tx.size, 1000)]
     chunked = np.concatenate(parts)
     assert chunked.size == whole.size
@@ -347,8 +390,11 @@ def test_empty_input():
 
 
 def test_reset_reproducible():
-    tx, _ = _signal(4, foff=0.0008, snr_db=30, seed=9)
-    rx = MpskReceiver(m=4, sps=8, m_out=4, init_norm_freq=0.0008)
+    bn, foff = 0.01, 0.0008
+    tx, _ = _signal(4, foff=foff, snr_db=30, seed=9)
+    rx = MpskReceiver(
+        m=4, sps=8, m_out=4, bn_carrier=bn, init_norm_freq=_seed(foff, 4, bn)
+    )
     first = rx.steps(tx)
     rx.reset()
     assert rx.tracking == 0

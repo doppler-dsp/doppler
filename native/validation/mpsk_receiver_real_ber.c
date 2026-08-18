@@ -123,9 +123,10 @@ main (int argc, char **argv)
       c.fc         = 0.25;
       c.bn_timing  = 0.01;
       c.bn_carrier = 0.005;
-      /* Inside the loop bandwidth — see the complex twin for why an offset
-         outside Bn measures luck rather than the receiver. */
-      c.foff         = 0.5 * c.bn_carrier / c.sps;
+      /* Inside the loop's acquisition bound — see the complex twin for why
+         an offset outside it measures luck rather than the receiver, and why
+         the bound carries the `m`. */
+      c.foff = dp_test_freq_offset_inside_bw (c.bn_carrier, c.sps, c.m, 1.0);
       c.acq_to_track = (c.m == 8);
       c.nda_tap      = MPSK_RX_NDA_TAP_STROBE;
 

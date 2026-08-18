@@ -30,6 +30,7 @@ from doppler.ber import ber_evm_db, ber_theory_ser
 from doppler.snr import snr_m2m4_db
 
 from ._mpsk_rx_harness import (
+    DEFAULT_M,
     IF_FS4,
     SETTLE_SYMS,
     coherent_errors,
@@ -277,7 +278,7 @@ def test_evm_does_not_track_absolute_level(real):
             real=real,
             sps=sps,
             m_out=m_out,
-            freq_offset=freq_offset_inside_bw(0.01, sps),
+            freq_offset=freq_offset_inside_bw(0.01, sps, DEFAULT_M),
         )
         r = symbol_metrics(y, idx, settle=settle)
         evm, ser = r.evm_db, r.ser
@@ -364,7 +365,7 @@ def test_ser_lands_on_the_coherent_bound(m, real):
             sps=sps,
             m_out=m_out,
             m=m,
-            freq_offset=freq_offset_inside_bw(0.01, sps),
+            freq_offset=freq_offset_inside_bw(0.01, sps, m),
             acq_to_track=1,
             lock_thresh=0.3,
         )

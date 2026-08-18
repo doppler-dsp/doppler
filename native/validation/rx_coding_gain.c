@@ -602,9 +602,20 @@ print_row (const cg_result_t *r)
       printf ("REFUSED — %s\n", r->refused);
       return;
     }
-  printf ("%8.4f%%  %9.2e  %3u/%-3u  %5u  %2u/%-2u  %4.0f%%  ",
-          100.0 * (double)r->chan_errs / (double)r->chan_syms,
-          (double)r->vit_errs / (double)r->vit_bits, r->rs_ok, r->rs_words,
+  /* A point where nothing synchronised has no symbols to compare, so both
+     rates would divide by zero and print `-nan`. That reads as a broken
+     MEASUREMENT when the honest answer is "no data" -- and the table is
+     evidence quoted in docs/design/fec-receive.md, so it has to say which
+     one it means. */
+  if (r->chan_syms == 0)
+    printf ("%9s  ", "--");
+  else
+    printf ("%8.4f%%  ", 100.0 * (double)r->chan_errs / (double)r->chan_syms);
+  if (r->vit_bits == 0)
+    printf ("%9s  ", "--");
+  else
+    printf ("%9.2e  ", (double)r->vit_errs / (double)r->vit_bits);
+  printf ("%3u/%-3u  %5u  %2u/%-2u  %4.0f%%  ", r->rs_ok, r->rs_words,
           r->rs_repaired, r->cadus_exact, r->cadus_due, 100.0 * r->lock_duty);
   printf ("%2u %+4ld %2u  ", r->reacq, r->drift, r->cadus_bogus);
   if (r->payload_errs == 0)
@@ -659,7 +670,7 @@ main (int argc, char **argv)
 
   if (!check)
     {
-      printf ("Coding gain — CCSDS 131.0-B-3 concatenated coding, I=%d,\n"
+      printf ("Coding gain — CCSDS concatenated coding (131.0-B-6), I=%d,\n"
               "through MpskReceiver at the DP_RX_ANCHOR geometry.\n"
               "Rate %.4f, so Eb/N0 = Es/N0 + %.2f dB before any gain.\n\n",
               RS_DEPTH, CODE_RATE, -10.0 * log10 (CODE_RATE));

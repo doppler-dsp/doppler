@@ -32,9 +32,21 @@
  *    matches no spacecraft.
  *
  * The oracle for the first two is Annex G, which prints every coefficient of
- * `g(x)`; for the third it is the pair of matrices in 4.3.9.3, whose
- * transcription is checked by requiring the two transforms to invert each
- * other across all 256 symbols.
+ * `g(x)`. **The third has no published oracle here, and that is a gap rather
+ * than a choice** (gh-861): requiring the two transforms to invert each other
+ * is a consistency test, and any invertible matrix and its inverse pass it —
+ * including the two equations of 4.3.9.3 read the wrong way round, which is
+ * the transcription error a reader is most likely to make.
+ *
+ * What is checked instead is DERIVED. Every GF(2)-linear functional on the
+ * field is `u -> Tr(c*u)` for a unique `c`, so the eight output bits are
+ * eight field elements; `test_ccsds_tm_rs.c` solves for them and asserts the
+ * structure a dual basis has — `c_0 = 1`, `c_j = c_1^j`, and
+ * `Tr(c_i * beta_j) = delta_ij` read through the other matrix. Measured,
+ * `c_1 = a^117`, which is not primitive (`gcd(117, 255) = 3`) and does not
+ * need to be. That proves the pair IS a trace-dual basis map; it cannot
+ * prove it is CCSDS's, which needs 4.3.9.3's printed matrices or a published
+ * codeword.
  *
  * Bit convention follows the rest of `ccsds_tm/`: **packed symbols**, one
  * byte per
@@ -99,9 +111,10 @@ extern "C"
    * @brief Convert one symbol from the dual basis back to conventional.
    *
    * 4.3.9.3, second equation. Exact inverse of
-   * @ref ccsds_tm_rs_conv_to_dual, and
-   * the test asserts that across all 256 values — which is what catches a
-   * single mis-transcribed bit in either matrix.
+   * @ref ccsds_tm_rs_conv_to_dual across all 256 values — which catches a
+   * single mis-transcribed bit, and NOT a wrong pair that is consistent with
+   * itself. The check that separates those is the derived one described at
+   * the top of this file.
    */
   uint8_t ccsds_tm_rs_dual_to_conv (uint8_t z);
 

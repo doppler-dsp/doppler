@@ -157,6 +157,54 @@ main (void)
                   "random data must not produce a sync hit");
   }
 
+  /* ── FIRST below threshold, not BEST ─────────────────────────────────
+   *
+   * The header spends a paragraph on this and nothing asserted it: every
+   * other case here puts ONE marker in a zero background, where first and
+   * best are the same offset, so a best-match search passes all of them.
+   *
+   * It is not a style choice. A best-match search has to see the whole
+   * stream before it can answer, which a frame synchroniser reading a live
+   * capture cannot do -- so first-below-threshold is what is implementable
+   * in both settings, and it is therefore what the function promises.
+   *
+   * Two markers, and the EARLIER one is the worse match. A search that
+   * returned the better one would be reporting the second frame.
+   */
+  {
+    enum
+    {
+      N     = 300,
+      FIRST = 40, /* 3 errors -- inside a tolerance of 3 */
+      BEST  = 180 /* clean */
+    };
+    uint8_t            bits[N] = { 0 };
+    ccsds_tm_asm_hit_t hit     = { 999u, -1, 999u };
+
+    memcpy (bits + FIRST, marker, sizeof marker);
+    bits[FIRST + 2] ^= 1u;
+    bits[FIRST + 13] ^= 1u;
+    bits[FIRST + 27] ^= 1u;
+    memcpy (bits + BEST, marker, sizeof marker);
+
+    DP_REQUIRE (ccsds_tm_asm_find (bits, N, 3u, &hit));
+    DP_CHECK_MSG (hit.offset == FIRST,
+                  "the FIRST marker within tolerance wins, even though a "
+                  "cleaner one follows it");
+    DP_CHECK_MSG (hit.errors == 3u,
+                  "...and its own distance is reported, not the better one's");
+
+    /* Tighten the tolerance below the first marker's damage and the second
+       one becomes the first acceptable: the search is a threshold, not a
+       ranking. Without this, a search hard-wired to return offset FIRST
+       would satisfy the check above. */
+    hit.offset = 999u;
+    DP_REQUIRE (ccsds_tm_asm_find (bits, N, 2u, &hit));
+    DP_CHECK_MSG (hit.offset == BEST && hit.errors == 0u,
+                  "at a tighter tolerance the later clean marker is the "
+                  "first one that qualifies");
+  }
+
   /* ── the refusals ───────────────────────────────────────────────────── */
   {
     uint8_t            bits[CCSDS_TM_ASM_BITS - 1] = { 0 };

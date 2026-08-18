@@ -14,9 +14,13 @@
  *   - ANNEX G publishes all 33 coefficients of g(x) for E=16. Reproducing
  *     them exercises the field polynomial (4.3.3) and the a^11 root stride
  *     (4.3.4) together — get either wrong and the coefficients move.
- *   - 4.3.9.3 gives the two basis matrices. Requiring them to invert each
- *     other across all 256 symbols catches a single mis-transcribed bit,
- *     which reading them twice does not.
+ *   - 4.3.9.3 gives the two basis matrices, and this is the one convention
+ *     with NO published oracle here (gh-861). Requiring them to invert each
+ *     other catches a single mis-transcribed bit and nothing more: a wrong
+ *     pair consistent with itself passes, and reading the two equations the
+ *     wrong way round is exactly such a pair. What separates them is derived
+ *     instead — the transform is solved back into eight field elements and
+ *     held to the structure a dual basis has.
  *   - the code is SYSTEMATIC (4.3.4 note 2), so the information symbols must
  *     survive encoding unchanged.
  */
@@ -44,6 +48,46 @@ static const uint8_t annex_g[CCSDS_TM_RS_2E + 1]
     = { 0x01, 0x5B, 0x7F, 0x56, 0x10, 0x1E, 0x0D, 0xEB, 0x61, 0xA5, 0x08,
         0x2A, 0x36, 0x56, 0xAB, 0x20, 0x71, 0x20, 0xAB, 0x56, 0x36, 0x2A,
         0x08, 0xA5, 0x61, 0xEB, 0x0D, 0x1E, 0x10, 0x56, 0x7F, 0x5B, 0x01 };
+
+/* GF(2^8) multiply and trace, over the field 4.3.3 picks.
+ *
+ * The tables are rs_core's, built by rs_init from CCSDS_TM_RS -- so the
+ * arithmetic below is the code's own field, not a second implementation of
+ * it. That matters for what the dual-basis section claims: it derives a
+ * property FROM the shipped field, and a private multiply would let the two
+ * drift and the derivation prove nothing. */
+static const rs_t *
+ccsds_field (void)
+{
+  static rs_t rs;
+  static int  ready = 0;
+  if (!ready)
+    {
+      ready = rs_init (&rs, &CCSDS_TM_RS);
+    }
+  return ready ? &rs : NULL;
+}
+
+static uint8_t
+gf_mul (const rs_t *rs, uint8_t a, uint8_t b)
+{
+  if (a == 0 || b == 0)
+    return 0;
+  return rs->exp[(unsigned)rs->log[a] + (unsigned)rs->log[b]];
+}
+
+/* Tr(a) = a + a^2 + a^4 + ... + a^128, which lands in {0, 1}. */
+static uint8_t
+gf_trace (const rs_t *rs, uint8_t a)
+{
+  uint8_t t = 0, x = a;
+  for (int i = 0; i < 8; i++)
+    {
+      t ^= x;
+      x = gf_mul (rs, x, x);
+    }
+  return t;
+}
 
 int
 main (void)
@@ -87,6 +131,115 @@ main (void)
     /* ...and must not be the identity, which a matrix of zeros would also
        satisfy the check above with. */
     DP_CHECK_MSG (nontrivial, "the dual basis must not be the identity map");
+  }
+
+  /* ── the dual basis is a DUAL BASIS, not merely an invertible pair ────
+   *
+   * The section above asks only that the two transforms invert each other.
+   * ANY invertible 8x8 GF(2) matrix and its inverse satisfy that, so it is
+   * exactly the consistency test docs/dev/validation.md names as
+   * structurally blind: it cannot see a defect the two halves share, and a
+   * mis-transcribed matrix PAIR is precisely such a defect.
+   *
+   * What follows is derived instead of transcribed. Every GF(2)-linear
+   * functional on GF(2^8) is `u -> Tr(c*u)` for a unique c, so the eight bits
+   * of the transform are eight field elements -- solved for here, from the
+   * shipped matrix and the shipped field, with no constant written down.
+   *
+   * A dual basis is then the claim that those functionals are the powers of
+   * ONE element: `c_j = g^j` with `c_0 = 1`. Eight arbitrary independent
+   * functionals are not a geometric progression, and a single flipped bit in
+   * either matrix destroys it -- which is what makes this a check the mutual
+   * inversion above cannot be.
+   *
+   * Demonstrated rather than argued: reading 4.3.9.3's two equations the
+   * WRONG WAY ROUND -- the transcription error a reader is most likely to
+   * make -- leaves an exact inverse pair, so the section above stays green
+   * and every check below goes red.
+   *
+   * What it still cannot catch: the standard specifying a different g. That
+   * needs 4.3.9.3's printed matrices or a published codeword, and is
+   * gh-861.
+   */
+  {
+    const rs_t *rs = ccsds_field ();
+    DP_REQUIRE_MSG (rs != NULL, "the CCSDS field must initialise");
+
+    /* Solve for the functional behind each output bit. z0 is the MOST
+       significant bit of the returned byte (4.3.9.2 fixes it as the first
+       bit transmitted), so bit 7-j carries z_j. */
+    uint8_t c[8];
+    int     solved = 1;
+    for (int j = 0; j < 8; j++)
+      {
+        int found = -1, count = 0;
+        for (int cand = 0; cand < 256; cand++)
+          {
+            int ok = 1;
+            for (int v = 0; v < 256 && ok; v++)
+              {
+                const uint8_t z   = ccsds_tm_rs_conv_to_dual ((uint8_t)v);
+                const uint8_t bit = (uint8_t)((z >> (7 - j)) & 1u);
+                if (gf_trace (rs, gf_mul (rs, (uint8_t)cand, (uint8_t)v))
+                    != bit)
+                  ok = 0;
+              }
+            if (ok)
+              {
+                found = cand;
+                count++;
+              }
+          }
+        /* Uniqueness is part of the claim: a linear functional has exactly
+           one such element, so two would mean the map is not linear and none
+           would mean it is not a functional at all. */
+        if (count != 1)
+          solved = 0;
+        c[j] = (uint8_t)(found < 0 ? 0 : found);
+      }
+    DP_REQUIRE_MSG (solved,
+                    "each output bit must be Tr(c*u) for exactly one c");
+
+    DP_CHECK_MSG (c[0] == 1,
+                  "z0 must be Tr(u): the first dual coordinate is the trace");
+
+    /* The geometric progression -- the property that makes it a DUAL BASIS
+       of a polynomial basis rather than eight unrelated functionals. */
+    int     geometric = 1;
+    uint8_t p         = 1;
+    for (int j = 0; j < 8; j++)
+      {
+        if (c[j] != p)
+          geometric = 0;
+        p = gf_mul (rs, p, c[1]);
+      }
+    DP_CHECK_MSG (geometric,
+                  "4.3.9.1: the transform must be the trace-dual of a "
+                  "polynomial basis, i.e. c_j = c_1^j");
+
+    /* ...and the defining delta property, read through the OTHER matrix, so
+       both transcriptions are covered rather than just the forward one. */
+    int delta = 1;
+    for (int i = 0; i < 8; i++)
+      {
+        for (int j = 0; j < 8; j++)
+          {
+            const uint8_t beta
+                = ccsds_tm_rs_dual_to_conv ((uint8_t)(1u << (7 - j)));
+            const uint8_t want = (uint8_t)(i == j);
+            if (gf_trace (rs, gf_mul (rs, c[i], beta)) != want)
+              delta = 0;
+          }
+      }
+    DP_CHECK_MSG (delta, "Tr(c_i * beta_j) must be delta_ij -- the definition "
+                         "of a dual basis, checked across both matrices");
+
+    /* The generator is not primitive, and saying so is the point: it is a
+       fact about the standard's choice that a reader would guess wrong.
+       gcd(117, 255) = 3, so a^117 has order 85 -- the eight powers are still
+       independent, which is all a basis needs. */
+    DP_CHECK_MSG (rs->log[c[1]] == 117,
+                  "the dual basis is generated by a^117");
   }
 
   /* ── the code is systematic, and parity is not trivial ──────────────── */
@@ -286,33 +439,116 @@ main (void)
                   "4.3.5.1 does not allow depth 6");
   }
 
-  /* ── the differential: what interleaving is FOR ─────────────────────── */
+  /* ── what interleaving is FOR, run through the CODE ──────────────────
+   *
+   * This section used to compute `b % DEPTH` in a loop and assert arithmetic
+   * about its own loop -- it called nothing in the library, so it held for
+   * any interleaver, including one that did not interleave. A claim nothing
+   * runs is prose (docs/dev/validation.md), and that is as true inside a
+   * test file as it is in a report.
+   *
+   * The property, measured instead: a contiguous burst of B symbols lands as
+   * ceil(B / depth) errors in each codeword, so depth buys a `depth`-fold
+   * longer correctable burst AT NO COST IN RATE. Asserted at the boundary
+   * from BOTH sides, for every depth 4.3.5.1 allows -- which is also what
+   * closes depths 2, 3, 4 and 8, exercised nowhere before.
+   */
   {
-    /* A contiguous burst of 40 symbols. At depth 5 it lands as 8 errors in
-       each codeword — inside E=16, so correctable. At depth 1 the same burst
-       is 40 errors in one codeword, well past E. Asserting BOTH directions
-       is what makes this a test rather than a demonstration: a broken
-       interleaver that simply copied would fail the first half. */
-    enum
-    {
-      DEPTH = 5,
-      BURST = 40
-    };
-    unsigned worst_i5 = 0, worst_i1 = 0;
-    for (unsigned e = 0; e < DEPTH; e++)
-      {
-        unsigned c = 0;
-        for (unsigned b = 0; b < BURST; b++)
-          if (b % DEPTH == e)
-            c++;
-        if (c > worst_i5)
-          worst_i5 = c;
-      }
-    worst_i1 = BURST;
-    DP_CHECK_MSG (worst_i5 <= 16,
-                  "at depth 5 a 40-symbol burst must stay within E=16");
-    DP_CHECK_MSG (worst_i1 > 16, "at depth 1 the same burst must EXCEED E=16");
-  }
+    static const unsigned DEPTHS[] = { 1, 2, 3, 4, 5, 8 };
 
+    for (size_t di = 0; di < sizeof DEPTHS / sizeof DEPTHS[0]; di++)
+      {
+        const unsigned depth = DEPTHS[di];
+        const size_t   ksym  = (size_t)CCSDS_TM_RS_K * depth;
+        const size_t   nsym  = (size_t)CCSDS_TM_RS_N * depth;
+
+        static uint8_t info[CCSDS_TM_RS_K * CCSDS_TM_RS_MAX_DEPTH];
+        static uint8_t sent[CCSDS_TM_RS_N * CCSDS_TM_RS_MAX_DEPTH];
+        static uint8_t blk[CCSDS_TM_RS_N * CCSDS_TM_RS_MAX_DEPTH];
+
+        /* Structured, because R-S of zeros has zero parity: every
+           interleaved column is then identical and a rotated de-interleave
+           is the identity map. */
+        for (size_t i = 0; i < ksym; i++)
+          info[i] = (uint8_t)(i * 13u + 7u + depth);
+
+        DP_REQUIRE (ccsds_tm_rs_encode_block (info, depth, sent) == nsym);
+        DP_CHECK_MSG (memcmp (sent, info, ksym) == 0,
+                      "4.4.1: the information section passes through "
+                      "unchanged at every allowed depth");
+
+        /* The boundary: depth * E contiguous symbols is exactly E in each
+           codeword, which every one of them can repair. */
+        const unsigned         edge = depth * CCSDS_TM_RS_E;
+        ccsds_tm_rs_block_rx_t rx;
+
+        memcpy (blk, sent, nsym);
+        for (unsigned b = 0; b < edge; b++)
+          blk[b] ^= (uint8_t)(0x53u + b);
+        DP_REQUIRE (ccsds_tm_rs_decode_block (blk, depth, &rx) == ksym);
+        DP_CHECK_MSG (rx.codewords == depth && rx.uncorrectable == 0u
+                          && rx.symbols == edge,
+                      "a burst of depth*E must be repaired in full");
+        DP_CHECK_MSG (memcmp (blk, sent, nsym) == 0,
+                      "...restoring the block exactly, check symbols "
+                      "included");
+
+        /* And one symbol more is past the radius in exactly one codeword.
+           Both sides, because a decoder that refused everything would
+           satisfy this half alone and one that accepted everything would
+           satisfy the half above. */
+        memcpy (blk, sent, nsym);
+        for (unsigned b = 0; b < edge + 1u; b++)
+          blk[b] ^= (uint8_t)(0x53u + b);
+        DP_REQUIRE (ccsds_tm_rs_decode_block (blk, depth, &rx) == ksym);
+        DP_CHECK_MSG (rx.uncorrectable == 1u,
+                      "one symbol past depth*E must cost exactly one "
+                      "codeword");
+      }
+
+    /* The differential the old section was reaching for, now measured: the
+       SAME burst that depth 5 carries is fatal at depth 1. Without this the
+       loop above is satisfied by an interleaver that simply copies -- each
+       depth would meet its own boundary while buying nothing. */
+    {
+      const unsigned         burst = 5u * CCSDS_TM_RS_E; /* 80 symbols */
+      static uint8_t         info[CCSDS_TM_RS_K * 5];
+      static uint8_t         blk[CCSDS_TM_RS_N * 5];
+      ccsds_tm_rs_block_rx_t rx;
+
+      for (size_t i = 0; i < sizeof info; i++)
+        info[i] = (uint8_t)(i * 17u + 3u);
+
+      ccsds_tm_rs_encode_block (info, 5, blk);
+      for (unsigned b = 0; b < burst; b++)
+        blk[b] ^= (uint8_t)(0x91u + b);
+      DP_REQUIRE (ccsds_tm_rs_decode_block (blk, 5, &rx) != 0);
+      DP_CHECK_MSG (rx.uncorrectable == 0u,
+                    "at depth 5 an 80-symbol burst is 16 per codeword and "
+                    "survives");
+
+      ccsds_tm_rs_encode_block (info, 1, blk);
+      for (unsigned b = 0; b < burst; b++)
+        blk[b] ^= (uint8_t)(0x91u + b);
+      DP_REQUIRE (ccsds_tm_rs_decode_block (blk, 1, &rx) != 0);
+      DP_CHECK_MSG (rx.uncorrectable == 1u,
+                    "...and at depth 1 the SAME burst is 80 in one codeword "
+                    "and is refused -- the rate is identical either way");
+    }
+
+    /* 4.3.5.1 allows six depths and no others, in both directions. */
+    static const unsigned BAD[] = { 0, 6, 7, 9, CCSDS_TM_RS_MAX_DEPTH + 1u };
+    static uint8_t        scratch[CCSDS_TM_RS_N * CCSDS_TM_RS_MAX_DEPTH];
+    int                   refused = 1;
+    for (size_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++)
+      {
+        if (ccsds_tm_rs_encode_block (scratch, BAD[i], scratch) != 0
+            || ccsds_tm_rs_decode_block (scratch, BAD[i], NULL) != 0)
+          refused = 0;
+      }
+    DP_CHECK_MSG (refused,
+                  "4.3.5.1 allows 1, 2, 3, 4, 5 and 8 — every other depth "
+                  "must be refused by BOTH directions");
+  }
   DP_TEST_END ("ccsds_tm_rs");
 }

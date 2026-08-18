@@ -19,9 +19,11 @@
 
 - **Adopting it costs ~2 dB, and the reason is worth knowing (gh-866).**
     `validate_rx_coding_gain`'s cleanest point moves Es/N0 0.0 → 2.0 dB and
-    its bound 6.1 → 4.1 dB, so the gate is re-baselined to 4.0 dB with the
-    measurement recorded beside it. The earlier ≥6.1 dB figure was measured
-    on the legacy waveform and is not comparable.
+    its bound 6.1 → 4.1 dB on the same chain, same seeds, same code — so the
+    gate is re-baselined to 4.0 dB with the measurement recorded beside it.
+    The ≥6.1 dB half of that pair was only ever measured on the legacy
+    waveform, so it is the figure this release does **not** ship, and
+    `docs/design/fec-receive.md` §8 reports the B-6 sweep throughout.
 
     The loss is **before the decoder** — channel SER is worse at the same
     Es/N0 — and the mechanism is a hard guarantee rather than a drift. A

@@ -512,12 +512,16 @@ rx_frame_default_cfg (rx_frame_cfg_t *c, dp_frame_name_t frame)
   c->sps   = 8.0;
   c->m_out = 8;
   c->fc    = 0.0;
-  /* An offset INSIDE the loop bandwidth, so the carrier loop has real work to
-     do. `bn_carrier` is symbol-rate normalised, so half the loop bandwidth is
-     `0.5 * bn / sps` cycles/sample. */
-  c->bn_timing    = 0.01;
-  c->bn_carrier   = 0.005;
-  c->foff         = 0.5 * c->bn_carrier / c->sps;
+  /* An offset INSIDE the loop's acquisition bound, so the carrier loop has
+     real work to do. The bound carries the `m` -- the NDA discriminator is an
+     M-th power, so it is `bn_carrier / m` per symbol. At the BPSK this file
+     measures, `0.5 * bn / sps` happened to be exactly that, so this is the
+     same number it always was; written through the helper because the
+     coincidence is only true at m = 2 and nothing here said so (doppler#843).
+   */
+  c->bn_timing  = 0.01;
+  c->bn_carrier = 0.005;
+  c->foff = dp_test_freq_offset_inside_bw (c->bn_carrier, c->sps, c->m, 1.0);
   c->acq_to_track = 0;
   c->nda_tap      = MPSK_RX_NDA_TAP_STROBE;
 }

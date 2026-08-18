@@ -14,13 +14,15 @@
  *   - ANNEX G publishes all 33 coefficients of g(x) for E=16. Reproducing
  *     them exercises the field polynomial (4.3.3) and the a^11 root stride
  *     (4.3.4) together — get either wrong and the coefficients move.
- *   - 4.3.9.3 gives the two basis matrices, and this is the one convention
- *     with NO published oracle here (gh-861). Requiring them to invert each
- *     other catches a single mis-transcribed bit and nothing more: a wrong
- *     pair consistent with itself passes, and reading the two equations the
- *     wrong way round is exactly such a pair. What separates them is derived
- *     instead — the transform is solved back into eight field elements and
- *     held to the structure a dual basis has.
+ *   - 4.3.9.3 PRINTS the two basis matrices, and both are transcribed here
+ *     and checked row by row and across all 256 values. Requiring them
+ *     merely to invert each other would catch a single mis-transcribed bit
+ *     and nothing more — a wrong pair consistent with itself passes, and
+ *     reading the two equations the wrong way round is exactly such a pair.
+ *     A second, DERIVED check sits beside the published one: the transform
+ *     is solved back into eight field elements and held to the structure a
+ *     dual basis has, which would survive even a matrix mis-transcribed the
+ *     same way in both the code and this file.
  *   - the code is SYSTEMATIC (4.3.4 note 2), so the information symbols must
  *     survive encoding unchanged.
  */
@@ -48,6 +50,45 @@ static const uint8_t annex_g[CCSDS_TM_RS_2E + 1]
     = { 0x01, 0x5B, 0x7F, 0x56, 0x10, 0x1E, 0x0D, 0xEB, 0x61, 0xA5, 0x08,
         0x2A, 0x36, 0x56, 0xAB, 0x20, 0x71, 0x20, 0xAB, 0x56, 0x36, 0x2A,
         0x08, 0xA5, 0x61, 0xEB, 0x0D, 0x1E, 0x10, 0x56, 0x7F, 0x5B, 0x01 };
+
+/* Both basis matrices, transcribed as PRINTED — one row per line, one char
+ * per bit, in the order the standard sets them out.
+ *
+ * Read from **131.0-B-6 (April 2026), section 5.3.9.3** — the current issue,
+ * checked against the document rather than against a memory of it. B-3 numbers
+ * the same equations 4.3.9.3, and the matrices are identical between the two;
+ * the SECTION moved and the content did not, which is exactly why
+ * `ccsds_tm.h` warns that a section number is not a value to trust across an
+ * issue.
+ *
+ *
+ *   [z0, ..., z7] = [u7, ..., u0] T        (row i is selected by u(7-i))
+ *   [u7, ..., u0] = [z0, ..., z7] T'       (row i is selected by z_i)
+ *
+ * Written as bit rows rather than as the bytes rs.c holds, for the reason
+ * `asm_published` is spelled out rather than shifted: a transcription of the
+ * standard is evidence, and a second copy of the implementation is not. The
+ * rows read left to right, so the leftmost printed bit is the FIRST output
+ * coordinate and therefore the most significant bit of the packed row.
+ */
+static const char *const PUB_CONV_TO_DUAL[8] = {
+  "10001101", "11101111", "11101100", "10000110",
+  "11111010", "10011001", "10101111", "01111011",
+};
+static const char *const PUB_DUAL_TO_CONV[8] = {
+  "11000101", "01000010", "00101110", "11111101",
+  "11110000", "01111001", "10101100", "11001100",
+};
+
+/* One printed row as the byte the transform XORs, first bit at the top. */
+static uint8_t
+row_byte (const char *row)
+{
+  uint8_t v = 0;
+  for (unsigned b = 0; b < 8u; b++)
+    v = (uint8_t)((v << 1) | (row[b] == '1'));
+  return v;
+}
 
 /* GF(2^8) multiply and trace, over the field 4.3.3 picks.
  *
@@ -133,6 +174,57 @@ main (void)
     DP_CHECK_MSG (nontrivial, "the dual basis must not be the identity map");
   }
 
+  /* ── 5.3.9.3 (B-6), against the matrices the standard PRINTS ──────────
+   *
+   * The published oracle, and the one thing the derived check below cannot
+   * supply: it proves the transform is a trace-dual basis map, but not that
+   * it is CCSDS's. This proves that, and it is the same kind of check the
+   * marker and the randomiser already get.
+   *
+   * Verified against 131.0-B-6 itself: all sixteen rows match what ships.
+   *
+   * Each matrix row IS the transform of one basis vector, so feeding the
+   * eight of them reads the shipped matrix straight back out and names the
+   * row that disagrees. The full 256-value map is then checked against the
+   * transcription too, which is what covers linearity rather than just the
+   * eight rows.
+   */
+  {
+    int rows_ok = 1, map_ok = 1;
+    for (int i = 0; i < 8; i++)
+      {
+        /* Row i is selected by u(7-i), i.e. by bit 7-i of the byte. */
+        const uint8_t basis = (uint8_t)(1u << (7 - i));
+        if (ccsds_tm_rs_conv_to_dual (basis) != row_byte (PUB_CONV_TO_DUAL[i]))
+          rows_ok = 0;
+        /* ...and row i of the second equation is selected by z_i. */
+        if (ccsds_tm_rs_dual_to_conv (basis) != row_byte (PUB_DUAL_TO_CONV[i]))
+          rows_ok = 0;
+      }
+    DP_CHECK_MSG (rows_ok,
+                  "4.3.9.3: every row of BOTH printed matrices must be what "
+                  "the transform does to that basis vector");
+
+    for (int v = 0; v < 256; v++)
+      {
+        uint8_t z = 0, u = 0;
+        for (int i = 0; i < 8; i++)
+          {
+            if ((v >> (7 - i)) & 1)
+              {
+                z ^= row_byte (PUB_CONV_TO_DUAL[i]);
+                u ^= row_byte (PUB_DUAL_TO_CONV[i]);
+              }
+          }
+        if (ccsds_tm_rs_conv_to_dual ((uint8_t)v) != z
+            || ccsds_tm_rs_dual_to_conv ((uint8_t)v) != u)
+          map_ok = 0;
+      }
+    DP_CHECK_MSG (map_ok,
+                  "...and the whole 256-value map must equal the printed "
+                  "matrices applied as the standard applies them");
+  }
+
   /* ── the dual basis is a DUAL BASIS, not merely an invertible pair ────
    *
    * The section above asks only that the two transforms invert each other.
@@ -154,12 +246,14 @@ main (void)
    *
    * Demonstrated rather than argued: reading 4.3.9.3's two equations the
    * WRONG WAY ROUND -- the transcription error a reader is most likely to
-   * make -- leaves an exact inverse pair, so the section above stays green
-   * and every check below goes red.
+   * make -- leaves an exact inverse pair, so the inversion section stays
+   * green and every check below goes red.
    *
-   * What it still cannot catch: the standard specifying a different g. That
-   * needs 4.3.9.3's printed matrices or a published codeword, and is
-   * gh-861.
+   * The printed matrices above now settle which basis this is, so this
+   * section is no longer the only evidence -- but it is not redundant with
+   * them either. A transcription can be wrong the SAME way twice, in rs.c
+   * and in this file; a derivation from the shipped field cannot be, because
+   * it writes down no matrix at all.
    */
   {
     const rs_t *rs = ccsds_field ();

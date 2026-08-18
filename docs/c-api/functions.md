@@ -967,6 +967,7 @@
 * **mpsk\_receiver\_bits\_real\_max\_out** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **mpsk\_receiver\_configure\_lock** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **mpsk\_receiver\_create** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
+* **mpsk\_receiver\_create\_bpsk** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **mpsk\_receiver\_create\_continuous** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **mpsk\_receiver\_create\_real** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **mpsk\_receiver\_destroy** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))

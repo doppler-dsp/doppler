@@ -329,6 +329,8 @@
 * **imd3\_lo\_freq** ([**imd\_meas\_t**](structimd__meas__t.md))
 * **integ** ([**loop\_filter\_state\_t**](structloop__filter__state__t.md))
 * **id\_nco** ([**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md))
+* **id\_sym\_i** ([**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md))
+* **id\_sym\_q** ([**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md))
 * **id\_tracking** ([**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md))
 * **inband\_psd\_dbfs** ([**npr\_meas\_t**](structnpr__meas__t.md))
 * **id\_ctrl** ([**ratesync\_tlm\_t**](structratesync__tlm__t.md))

@@ -81,6 +81,11 @@ extern "C"
       double bn_carrier, double bn_timing, double init_norm_freq,
       int differential);
 
+  mpsk_receiver_state_t *mpsk_receiver_create_bpsk (
+      double sample_rate_hz, double symbol_rate_hz, double carrier_freq_hz,
+      int pulse, double rrc_beta, int rrc_span, double bn_carrier,
+      double bn_timing, int acq_to_track, int differential, int agc);
+
   void mpsk_receiver_destroy (mpsk_receiver_state_t *state);
 
   void mpsk_receiver_reset (mpsk_receiver_state_t *state);

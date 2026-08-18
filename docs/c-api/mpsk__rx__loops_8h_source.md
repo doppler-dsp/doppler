@@ -193,6 +193,15 @@ mpsk_rx_derive_m_out (double cap, int strict)
     int32_t   id_freq;     
     int32_t   id_nco;      
     int32_t   id_locked;   
+    /* The recovered symbol itself, as two scalars. A telemetry record
+       carries one `float`, so a complex value cannot be one probe; pairing
+       them by the sample index the format already stamps is the only way to
+       put the OUTPUT in a capture beside the loop state that produced it.
+       Without these a filed capture shows every internal and not the thing
+       they exist to produce -- no constellation, and no EVM or error rate
+       recomputable from the evidence (doppler#846). */
+    int32_t id_sym_i; 
+    int32_t id_sym_q; 
   } mpsk_rx_tlm_t;
 
   typedef struct
@@ -421,7 +430,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
    * Telemetry
    * ------------------------------------------------------------------ */
 
-  void mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l);
+  void mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float complex y);
 
   int mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm,
                              const char *prefix, uint32_t decim);

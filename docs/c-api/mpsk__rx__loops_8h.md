@@ -93,7 +93,7 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_steer**](#function-mpsk_rx_steer) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double pe) <br>_Filter a carrier phase error and update_ `freq_ctrl` _._ |
 |  int | [**mpsk\_rx\_symbol\_to\_bits**](#function-mpsk_rx_symbol_to_bits) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex y, uint8\_t \* bits) <br>_Slice one recovered symbol to its log2(M) hard bits (LSB-first)._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_rx\_take\_output**](#function-mpsk_rx_take_output) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex y, float complex \* sym, int ted) <br>_Fold one terminal-stage output into both loops._  |
-|  void | [**mpsk\_rx\_tlm\_flush**](#function-mpsk_rx_tlm_flush) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Emit the receiver's own probes plus the timing loop's. Out-of-line on purpose; callers gate on_ `l->tlm.ctx` _._ |
+|  void | [**mpsk\_rx\_tlm\_flush**](#function-mpsk_rx_tlm_flush) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex y) <br>_Emit the receiver's own probes plus the timing loop's. Out-of-line on purpose; callers gate on_ `l->tlm.ctx` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_rx\_updates\_per\_symbol**](#function-mpsk_rx_updates_per_symbol) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_How many times per symbol the chosen tap updates the carrier loop._  |
 
 
@@ -760,7 +760,8 @@ The receiver's whole per-output body, shared verbatim by the complex- and real-i
 _Emit the receiver's own probes plus the timing loop's. Out-of-line on purpose; callers gate on_ `l->tlm.ctx` _._
 ```C++
 void mpsk_rx_tlm_flush (
-    const mpsk_rx_loops_t * l
+    const mpsk_rx_loops_t * l,
+    float complex y
 ) 
 ```
 

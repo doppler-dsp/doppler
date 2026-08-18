@@ -197,6 +197,11 @@ describe_source_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
       d->stage[s_rand].kind        = WFM_STAGE_RANDOMISE;
       d->stage[s_rand].first_field = i_data;
       d->stage[s_rand].n_fields    = data_end - i_data;
+      /* WHICH generator, carried on the stage: 131.0-B-6 specifies two and
+         they produce waveforms only the matching receiver derandomises, so
+         this is not a detail the kernel may pick for itself. `depth` is the
+         stage's free parameter and the randomiser has no other use for it. */
+      d->stage[s_rand].depth = (unsigned)src->randomise;
     }
   if (src->convolutional)
     {

@@ -171,12 +171,16 @@ ccsds_tm_frame_encode (const ccsds_tm_frame_cfg_t *cfg, conv_enc_t *conv,
  *
  * Derandomising HERE rather than in a separate pass is what keeps this
  * O(1) in scratch memory for a frame of any length: ccsds_tm_randomise wants
- * a mutable bit run, and the CADU belongs to the caller. Indexing a
- * 255-entry table by `k % CCSDS_TM_RAND_PERIOD` is the same sequence
- * (10.4.2), which test_ccsds_tm_rand.c holds against the generator itself so
- * that this is a pinned equivalence rather than an assumption. */
+ * a mutable bit run, and the CADU belongs to the caller.
+ *
+ * The generator is STEPPED alongside the pack rather than pre-computed into a
+ * table. It used to be a 255-entry table indexed by `k % 255`, which was the
+ * same sequence and free; at 10.4.1's period that table is 128 KB and is
+ * LONGER THAN ANY CADU, so it would never wrap and every byte of it would be
+ * a byte of the sequence held for no reason. One word of state serves both
+ * randomisers and any frame length. */
 static void
-pack_derand (const uint8_t *bits, size_t nbytes, const uint8_t *seq,
+pack_derand (const uint8_t *bits, size_t nbytes, ccsds_tm_rand_state_t *pn,
              uint8_t *bytes)
 {
   for (size_t i = 0; i < nbytes; i++)
@@ -184,10 +188,9 @@ pack_derand (const uint8_t *bits, size_t nbytes, const uint8_t *seq,
       uint8_t v = 0;
       for (unsigned b = 0; b < 8u; b++)
         {
-          const size_t k = i * 8u + b;
-          unsigned     x = bits[k] & 1u;
-          if (seq != NULL)
-            x ^= seq[k % (size_t)CCSDS_TM_RAND_PERIOD];
+          unsigned x = bits[i * 8u + b] & 1u;
+          if (pn != NULL)
+            x ^= ccsds_tm_rand_step (pn);
           v = (uint8_t)((v << 1) | x);
         }
       bytes[i] = v;
@@ -225,12 +228,12 @@ ccsds_tm_frame_decode (const ccsds_tm_frame_cfg_t *cfg, const uint8_t *cadu,
       || lay.cadu_bits != n_cadu || max_frame < frame_len)
     return 0;
 
-  uint8_t        seq[CCSDS_TM_RAND_PERIOD];
-  const uint8_t *pn = NULL;
+  ccsds_tm_rand_state_t  rand_state;
+  ccsds_tm_rand_state_t *pn = NULL;
   if (cfg->randomise)
     {
-      ccsds_tm_rand_seq (seq, sizeof seq);
-      pn = seq;
+      ccsds_tm_rand_init (&rand_state, NULL);
+      pn = &rand_state;
     }
 
   /* 10.3.2 starts the sequence at the first bit of the CODEBLOCK, and 10.3.4

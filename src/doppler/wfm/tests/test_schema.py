@@ -587,7 +587,7 @@ def test_coded_record_validates_and_round_trips(validator, tmp_path):
 
     seg = rec["segments"][0]
     assert seg["rs_depth"] == 1
-    assert seg["randomise"] is True
+    assert seg["randomise"] == "ccsds"
     assert seg["asm"] is True
     assert seg["conv"] is True
 

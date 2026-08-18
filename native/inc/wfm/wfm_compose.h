@@ -138,9 +138,15 @@ typedef struct {
                             exactly 223*depth octets -- virtual fill is not
                             implemented (gh-813), so any other length is
                             refused rather than padded. */
-    int randomise;       /* XOR the section-10 pseudo-random sequence over the
+    int randomise;       /* XOR a section-10 pseudo-random sequence over the
                             payload group -- not over a marker, which has to
-                            look the same in every frame to be found. */
+                            look the same in every frame to be found.
+                            0 = off, 1 = 131.0-B-6 10.4.1's 131071-bit
+                            sequence (the `shall`), 2 = 10.4.2's 255-bit one,
+                            which B-6 keeps only for legacy systems. It is a
+                            CHOICE rather than a flag because B-6 makes it
+                            one, and because the two produce waveforms only
+                            the matching receiver derandomises. */
     int attach_asm;      /* prepend the 0x1ACFFC1D marker as a FIELD */
     int convolutional;   /* inner code over the whole frame, marker included;
                             doubles the bit count (rate 1/2, K=7) */

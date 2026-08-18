@@ -140,10 +140,10 @@ MARKERS: dict[str, tuple[re.Pattern[str], str]] = {
             r"[-+]?(?:\d+\.?\d*|\.\d+)"
         ),
         "state the offset in units of the loop's own acquisition bound -- "
-        "freq_offset_inside_bw(bn, sps, m, u) in Python, "
-        "dp_test_freq_offset_inside_bw(bn, sps, m, u) in C (dp_sym_test.h), "
-        "and clock_offset_inside_bw(bn, u) for the timing loop. Tests are "
-        "held to 0 < u <= 1; see doppler#843 for the measured cliffs.",
+        "freq_offset_inside_bw(bn, m, frac) in Python, "
+        "dp_test_freq_offset_inside_bw(bn, m, frac) in C (dp_sym_test.h), "
+        "and clock_offset_inside_bw(bn, frac) for the timing loop. Tests are "
+        "held to at or under the bound; see doppler#843 for the cliffs.",
     ),
     "evm": (
         re.compile(

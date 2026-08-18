@@ -237,8 +237,8 @@ dp_test_settle_syms (double bn_timing, double bn_carrier)
 }
 
 /**
- * @brief A carrier offset guaranteed INSIDE the loop's acquisition bound,
- * in cycles per SAMPLE.
+ * @brief A carrier offset inside the loop's acquisition bound, in cycles per
+ * SYMBOL.
  *
  * The only kind of offset a lock-time or BER assertion may seed. Seeded on
  * truth the carrier loop never leaves its initial state, so anything the test
@@ -246,22 +246,30 @@ dp_test_settle_syms (double bn_timing, double bn_carrier)
  * measures which way the transient happened to push the integrator, so a pass
  * means the dice fell well and a failure means nothing was broken.
  *
- * **The `m` is the part that was missing everywhere before this existed.**
- * The NDA discriminator is an M-th power, so it sees `m` times the offset and
- * the bound is `bn_carrier / m` cycles per SYMBOL, not `bn_carrier`
- * (docs/design/mpsk-refactor.md section 4.4). A site that wrote
- * `0.5 * bn / sps` was therefore seeding `u = 0.5 * m` — reading identically
- * at every order while landing at 1.0 for BPSK and **4.0 for 8PSK**, which is
- * exactly the measured reliable limit with no margin left.
+ * **Returned in the same units the loop bandwidth is stated in, and there is
+ * no @c sps in it.** `bn_carrier` is normalised to the symbol rate, so the
+ * bound is `bn_carrier / m` cycles per symbol and this returns a fraction of
+ * it. Converting to cycles per SAMPLE happens once, at the constructor that
+ * wants it — `dp_rx_mpsk.h` states why: *"foff is cycles per SYMBOL (so one
+ * value means one thing at every rate); the ctor wants cycles per SAMPLE.
+ * Mixing them is an sps-sized error, and at sps=8 it asked the loop for 8x
+ * its design envelope."*
  *
- * `frac` IS `u`, the offset in units of that bound, at every `m` and `sps`.
- * **Tests are held to `0 < u <= 1`.**
+ * **The @p m is the part that was missing everywhere before this existed.**
+ * The NDA discriminator is an M-th power, so it sees @p m times the offset and
+ * the bound carries the divide (docs/design/mpsk-refactor.md section 4.4). A
+ * site that wrote `0.5 * bn / sps` was seeding half the bound at BPSK and
+ * twice it at 8PSK, while reading identically at every order.
+ *
+ * @p frac is the fraction of the bound: 1.0 seeds exactly at
+ * `bn_carrier / m`. **Tests seed at or under the bound.**
  *
  * Measured 2026-08-17 (6 seeds per point; BPSK/QPSK/8PSK at sps 8, bn 0.01,
  * 20 dB, 4000 symbols; acquired = locked AND the frequency estimate within
- * 10% of truth): reliable to `u = 4` at every order, collapsing by `u = 6`.
- * So `u = 1` carries a 4x margin, which is why it is the rule rather than the
- * looser bound the same sweep would permit.
+ * 10% of truth): acquisition is reliable out to 4x the bound at every order
+ * and collapses by 6x. Seeding at the bound therefore keeps a 4x margin,
+ * which is why that is the rule rather than the looser one the same sweep
+ * would permit.
  *
  * Pull-in BEYOND the bound is a real property and worth measuring — as a
  * characterization sweep with a reported success fraction (rx_nda_tap.c),
@@ -271,39 +279,37 @@ dp_test_settle_syms (double bn_timing, double bn_carrier)
  * `src/doppler/track/tests/_mpsk_rx_harness.py`; keep them in step.
  *
  * @param bn_carrier  Carrier loop noise bandwidth, per symbol.
- * @param sps         Input samples per symbol.
  * @param m           Constellation order — the discriminator's power.
- * @param frac        `u`: the offset in units of the bound. Use <= 1.0.
- * @return            Carrier offset, cycles per sample.
+ * @param frac        Fraction of the bound. Use <= 1.0.
+ * @return            Carrier offset, cycles per SYMBOL.
  */
 static inline double
-dp_test_freq_offset_inside_bw (double bn_carrier, double sps, int m,
-                               double frac)
+dp_test_freq_offset_inside_bw (double bn_carrier, int m, double frac)
 {
-  return frac * bn_carrier / ((double)m * sps);
+  return frac * bn_carrier / (double)m;
 }
 
 /**
  * @brief A fractional sample-clock error inside the timing loop's bandwidth,
  * dimensionless.
  *
- * Applied by telling the receiver a nominal `sps` that differs from the
+ * Applied by telling the receiver a nominal @c sps that differs from the
  * stimulus by this fraction — what a free-running ADC clock looks like.
- * `bn_timing` is symbol-rate normalised, so the offset is already in symbols
- * per symbol and needs no `sps` scaling.
+ * `bn_timing` is symbol-rate normalised, so the error is already in symbols
+ * per symbol: no @c sps scaling, and no @p m either.
  *
- * **No `m` belongs here, and that was measured rather than assumed**: the
- * timing discriminator is not an M-th power, so `frac` is already `u`. Same
- * method and date as dp_test_freq_offset_inside_bw() — the timing loop is
- * reliable to `u = 1.6` and collapses over 1.8-2.0. The shared `0 < u <= 1`
- * rule therefore buys 1.6x here against 4x on the carrier, which is why the
- * two bounds are stated separately instead of sharing one fraction.
+ * **The absent @p m was measured rather than assumed**: the timing
+ * discriminator is not an M-th power. Same method and date as
+ * dp_test_freq_offset_inside_bw() — the timing loop is reliable to 1.6x its
+ * bound and collapses over 1.8-2.0x. Seeding at the bound buys 1.6x here
+ * against 4x on the carrier, which is why the two are stated separately
+ * rather than sharing one fraction.
  *
  * The Python twin is `clock_offset_inside_bw()` in
  * `src/doppler/track/tests/_mpsk_rx_harness.py`; keep them in step.
  *
  * @param bn_timing  Timing loop noise bandwidth, per symbol.
- * @param frac       `u`: the error in units of the bound. Use <= 1.0.
+ * @param frac       Fraction of the bound. Use <= 1.0.
  * @return           Fractional clock error, dimensionless.
  */
 static inline double

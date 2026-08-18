@@ -23,17 +23,19 @@ def _seed(foff, m, bn_carrier, sps=8):
 
     So seed one acquisition bound BELOW truth: `bn_carrier / m` cycles per
     symbol, the `m` because the NDA discriminator is an M-th power. That is
-    the same `u = 1` rule the C tests and the validation harnesses hold to,
-    and `freq_offset_inside_bw` is the one place it is computed. Measured
-    2026-08-17, acquisition is reliable out to `u = 4` and collapses by 6, so
-    `u = 1` keeps a 4x margin -- these tests must not be the ones that turn a
-    receiver change into a coin flip.
+    the same seed-at-the-bound rule the C tests and the validation harnesses
+    hold to, and `freq_offset_inside_bw` is the one place it is computed.
+    Measured 2026-08-17, acquisition is reliable out to 4x the bound and
+    collapses by 6x, so seeding at the bound keeps a 4x margin -- these tests
+    must not be the ones that turn a receiver change into a coin flip.
 
     `bn_carrier` is passed rather than read back off the receiver because the
     seed has to be known BEFORE construction; state it at the call site and
     hand the same value to the constructor, so the two cannot drift.
     """
-    return foff - freq_offset_inside_bw(bn_carrier, sps, m, 1.0)
+    # The helper answers in cycles per SYMBOL; `foff` and `init_norm_freq`
+    # are cycles per SAMPLE, so the conversion happens here, once.
+    return foff - freq_offset_inside_bw(bn_carrier, m, 1.0) / sps
 
 
 def _signal(m, sps=8, foff=0.0, snr_db=30.0, nsym=5000, seed=0):

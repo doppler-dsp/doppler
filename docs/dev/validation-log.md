@@ -72,7 +72,7 @@ There is no list here to update.
 | [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)                   | `source`     | 18/18  | 9        | none                       |
 | [CarrierNda](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/carrier_nda/results.md)     | `track`      | 43/43  | 12       | 6 — F4, F5, F6, F7, F8, F9 |
 | [LoopFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/loop_filter/results.md)     | `track`      | 26/26  | 10       | none                       |
-| [MpskReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/mpsk_receiver/results.md) | `track`      | 60/60  | 8        | 4 — F4, F5, F6, F7         |
+| [MpskReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/mpsk_receiver/results.md) | `track`      | 61/61  | 8        | 2 — F6, F7                 |
 | [RateSync](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/ratesync/results.md)          | `track`      | 36/36  | 17       | 2 — F7, F17                |
 | [EMA](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/util/tests/validation/ema/results.md)                     | `util`       | 15/15  | 6        | none                       |
 | [conv](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/conv/results.md)                        | `— (C only)` | 7/7    | 3        | none                       |

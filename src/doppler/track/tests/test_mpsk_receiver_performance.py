@@ -150,7 +150,10 @@ def test_a_false_lock_hides_from_every_truth_free_metric():
     nsym, esn0 = 6000, 15.0
     penalties = []
     for m, sps, m_out, ceiling in cases:
-        df = 1.0 / (m * sps)  # k = 1: the first alias
+        # k = 1: the first alias, `Rs/M`. In cycles per SYMBOL -- the
+        # units both loop bandwidths and `demod`'s `freq_offset` use --
+        # that is just `1/M`, with no `sps` in it at all.
+        df = 1.0 / m
         x, idx = make_signal(
             sps, nsym, real=False, m=m, fc=IF_FS4, esn0_db=esn0
         )
@@ -278,7 +281,7 @@ def test_evm_does_not_track_absolute_level(real):
             real=real,
             sps=sps,
             m_out=m_out,
-            freq_offset=freq_offset_inside_bw(0.01, sps, DEFAULT_M),
+            freq_offset=freq_offset_inside_bw(0.01, DEFAULT_M),
         )
         r = symbol_metrics(y, idx, settle=settle)
         evm, ser = r.evm_db, r.ser
@@ -365,7 +368,7 @@ def test_ser_lands_on_the_coherent_bound(m, real):
             sps=sps,
             m_out=m_out,
             m=m,
-            freq_offset=freq_offset_inside_bw(0.01, sps, m),
+            freq_offset=freq_offset_inside_bw(0.01, m),
             acq_to_track=1,
             lock_thresh=0.3,
         )

@@ -470,7 +470,7 @@ main (void)
     /* Seeded at the bound, not past it: 0.0005 cyc/sample stood here, which
        at this sps is u = 3.5 -- inside the region where acquisition is a coin
        flip, so the irrational-rate claim was riding on the dice. */
-    const double foff = dp_test_freq_offset_inside_bw (bn, sps_odd, 4, 1.0);
+    const double foff = dp_test_freq_offset_inside_bw (bn, 4, 1.0) / sps_odd;
     size_t       nsym = (size_t)((double)NSAMP / sps_odd) - 4;
     size_t n = make_mpsk_sps (tx, idx, 4, sps_odd, nsym, foff, 30.0, 77u);
     mpsk_receiver_state_t *rx
@@ -545,7 +545,7 @@ main (void)
              at each order -- the old 0.001 was u = 3.2 at BPSK and u = 12.8
              at 8PSK, both past the measured collapse. */
           double fs[2]
-              = { 0.0, dp_test_freq_offset_inside_bw (bn, SPS, m, 1.0) };
+              = { 0.0, dp_test_freq_offset_inside_bw (bn, m, 1.0) / SPS };
           /* 8PSK hands the carrier over to the decision-directed loop; the
              other orders stay in NDA the whole way. Its decision margin is
              only +-pi/8, so the M-th-power discriminator's own phase jitter
@@ -593,7 +593,7 @@ main (void)
        -8.1 dB EVM -- is that same seed at u = 3.2. The lesson survives its
        cause: a lock statistic is never read on its own here. */
     const double bn   = 0.01;
-    const double foff = dp_test_freq_offset_inside_bw (bn, SPS, 4, 1.0);
+    const double foff = dp_test_freq_offset_inside_bw (bn, 4, 1.0) / SPS;
     mpsk_receiver_state_t *rx
         /* 0.65, not the 0.4 this used before the lock statistic was
            normalised: the statistic now reads ~1.0 at lock for EVERY M
@@ -658,7 +658,7 @@ main (void)
      bracket it at block boundaries. */
   {
     const double bn   = 0.01;
-    const double foff = dp_test_freq_offset_inside_bw (bn, SPS, 4, 1.0);
+    const double foff = dp_test_freq_offset_inside_bw (bn, 4, 1.0) / SPS;
     mpsk_receiver_state_t *rx
         = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, bn, 1, 0.65, 0.0);
     make_mpsk (tx, idx, 4, foff, 30.0, 33u);
@@ -1108,7 +1108,7 @@ main (void)
        fail. */
     {
       const double bn = 0.01;
-      make_mpsk (ftx, fid, 4, dp_test_freq_offset_inside_bw (bn, SPS, 4, 1.0),
+      make_mpsk (ftx, fid, 4, dp_test_freq_offset_inside_bw (bn, 4, 1.0) / SPS,
                  30.0, 72u);
       int64_t t_short = 0, t_long = 0;
       for (int pass = 0; pass < 2; pass++)
@@ -1175,8 +1175,8 @@ main (void)
         {
           float complex *vtx = malloc (NSAMP * sizeof (*vtx));
           int           *vid = malloc (NSYM * sizeof (int));
-          double foff        = dp_test_freq_offset_inside_bw (BN, sps, 4, 1.0);
-          size_t nsym        = (size_t)((double)NSAMP / sps) - 4;
+          double foff = dp_test_freq_offset_inside_bw (BN, 4, 1.0) / sps;
+          size_t nsym = (size_t)((double)NSAMP / sps) - 4;
           size_t n = make_mpsk_sps (vtx, vid, 4, sps, nsym, foff, 30.0, 81u);
           mpsk_receiver_state_t *rx
               = RX (4, sps, M_OUT, MPSK_RX_PULSE_IANDD, BN, 0, 0.5, 0.0);
@@ -1498,7 +1498,7 @@ main (void)
                  past the point where acquisition is repeatable. */
               make_mpsk_real (
                   rtx, rid, 4, RSPS, NSYM,
-                  RFC + dp_test_freq_offset_inside_bw (RBN, RSPS, 4, 1.0),
+                  RFC + dp_test_freq_offset_inside_bw (RBN, 4, 1.0) / RSPS,
                   30.0, 33u, phi0_for (4));
               size_t k = mpsk_receiver_steps_real (rx, rtx, RNSAMP, rou, NSYM);
               DP_CHECK (mpsk_receiver_get_tracking (rx) == 1);

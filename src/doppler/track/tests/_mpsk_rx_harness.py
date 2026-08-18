@@ -245,69 +245,62 @@ def evm_scatter_floor_db(m):
     return ber_evm_scatter_floor_db(m)
 
 
-def freq_offset_inside_bw(bn, sps, m, frac=0.5):
-    """A carrier offset guaranteed INSIDE the loop bandwidth, in cycles/sample.
+def freq_offset_inside_bw(bn_carrier, m, frac=0.5):
+    """A carrier offset inside the loop's acquisition bound, cycles/SYMBOL.
 
-    This is the only kind of offset a lock-time assertion may use. `bn_carrier`
-    is normalised to the SYMBOL rate, so a loop bandwidth of `bn` is `bn * Rs`,
-    which at `sps` samples per symbol is `bn / sps` cycles per sample.
+    The only kind of offset a lock-time assertion may seed. Returned in the
+    same units the loop bandwidth is stated in, because that is what makes the
+    two comparable at a glance: `bn_carrier` is normalised to the symbol rate,
+    so the bound is `bn_carrier / m` cycles per symbol and this returns a
+    fraction of it. **There is no `sps` here.** Converting to cycles per sample
+    happens once, at the constructor that wants it -- `demod` does it, and
+    doing it anywhere else is the sps-sized error `dp_rx_mpsk.h` warns about.
 
-    **`m` is not decoration, and leaving it out is what this function used to
-    get wrong.** The carrier discriminator is an M-th power, so it sees `m`
-    times the offset: the loop's acquisition bound is `bn / m` cycles per
-    SYMBOL, not `bn`. Without the `m` the returned offset carries a hidden
-    `u = frac * m`, which is why the same call was safe at BPSK and past the
-    cliff at 8PSK while reading identically at every order. `docs/design/
-    mpsk-refactor.md` §4.4 states the bound with the `m`; this helper now
-    agrees with it.
+    **The `m` is the part that was missing, and it hid a factor of m.** The
+    NDA discriminator is an M-th power, so it sees `m` times the offset; the
+    bound is `bn_carrier / m`, not `bn_carrier` (docs/design/mpsk-refactor.md
+    section 4.4). A helper without it returns the same number at every order
+    while asking a 4x harder question at 8PSK than at BPSK.
 
-    `frac` is therefore exactly `u`, the offset in units of the bound:
-    `frac = 1.0` seeds AT `bn_carrier / m` cycles per symbol, and the default
-    0.5 sits at half of it. **Tests are held to `0 < u <= 1`.**
+    `frac` is the fraction of the bound: 1.0 seeds exactly at
+    `bn_carrier / m`, and the default 0.5 at half of it. **Tests seed at or
+    under the bound**, and both ends of that matter -- seeded on truth the
+    loop never leaves its initial state and measures nothing, seeded past the
+    bound it measures the dice.
 
     Measured 2026-08-17 (6 seeds per point; BPSK/QPSK/8PSK at sps 8,
     bn 0.01, 20 dB, 4000 symbols; acquired = `lock_time >= 0` and the
-    frequency estimate within 10% of truth):
+    frequency estimate within 10% of truth): acquisition is reliable out to 4x
+    the bound and collapses by 6x. Seeding at the bound therefore keeps a 4x
+    margin, which is why it is the rule rather than the looser one the same
+    sweep would permit.
 
-    ======  ==========================================
-    `u`     outcome
-    ======  ==========================================
-    <= 4    acquires reliably, every order
-    6       collapses
-    ======  ==========================================
-
-    So `u = 1` carries a **4x** margin to the measured cliff, which is why it
-    is the rule rather than the looser bounds the same sweep would allow.
-
-    Testing OUTSIDE the loop bandwidth is a coin flip -- acquisition beyond
-    `Bn`
-    depends on where the transient happens to push the integrator, so a pass
-    means the dice fell well and a failure means nothing was broken. Neither
-    outcome is a test. Pull-in range beyond `Bn` is what `nda_tap` and a coarse
-    frequency estimate are for; if it needs measuring, measure it as a
-    characterisation sweep with a reported success fraction, never as a
-    pass/fail assertion.
+    Acquisition beyond the bound depends on where the transient happens to
+    push the integrator, so a pass means the dice fell well and a failure
+    means nothing was broken -- neither is a test. Pull-in range beyond it is
+    what `nda_tap` and a coarse frequency estimate are for; if it needs
+    measuring, measure it as a characterisation sweep with a reported success
+    fraction, never as a pass/fail assertion.
     """
-    return frac * bn / (m * sps)
+    return frac * bn_carrier / m
 
 
-def clock_offset_inside_bw(bn, frac=0.5):
+def clock_offset_inside_bw(bn_timing, frac=0.5):
     """A fractional sample-clock error inside the timing loop's bandwidth.
 
     Applied by telling the receiver a nominal `sps` that differs from the
-    stimulus by this fraction, which is exactly what a free-running ADC clock
-    looks like. `bn_timing` is also symbol-rate normalised, so the offset is
-    dimensionless in symbols per symbol and needs no `sps` scaling.
+    stimulus by this fraction, which is what a free-running ADC clock looks
+    like. `bn_timing` is symbol-rate normalised, so the error is already
+    dimensionless in symbols per symbol -- no `sps`, and no `m` either.
 
-    **This one is correct as written, and was measured rather than assumed**
-    -- the timing discriminator is not an M-th power, so no `m` belongs here
-    and `frac` is already `u`. Same method as `freq_offset_inside_bw`, same
-    date: the timing loop acquires reliably to `u = 1.6` and collapses over
-    1.8-2.0. The `0 < u <= 1` rule therefore carries 1.6x here rather than 4x,
-    which is the reason the two bounds are stated separately instead of one
-    shared fraction.
+    **The absent `m` was measured rather than assumed**: the timing
+    discriminator is not an M-th power. Same method and date as
+    `freq_offset_inside_bw` -- the timing loop is reliable to 1.6x its bound
+    and collapses over 1.8-2.0x. Seeding at the bound buys 1.6x here against
+    4x on the carrier, which is why the two are stated separately rather than
+    sharing one fraction.
     """
-    return frac * bn
+    return frac * bn_timing
 
 
 def demod(
@@ -330,7 +323,7 @@ def demod(
     the receiver's actual loops cannot drift apart -- pair every call with
     `settle_floor(bn_timing, bn_carrier)`.
 
-    `freq_offset` (cycles/sample) is subtracted from the seeded
+    `freq_offset` (cycles per SYMBOL) is subtracted from the seeded
     `init_norm_freq`,
     so the carrier loop must acquire it. **Pass a non-zero value whenever the
     test says anything about the carrier loop**: seeded exactly on truth the
@@ -367,7 +360,12 @@ def demod(
         m_out=m_out,
         bn_timing=bn_timing,
         bn_carrier=bn_carrier,
-        init_norm_freq=fc - freq_offset,
+        # THE conversion, and the only one: `freq_offset` and both loop
+        # bandwidths are symbol-rate normalised, while `init_norm_freq` is
+        # cycles per SAMPLE. Dividing here means no caller has to hold `sps`
+        # to state a frequency -- doing it at the call site instead is the
+        # sps-sized error `dp_rx_mpsk.h` records.
+        init_norm_freq=fc - freq_offset / float(sps),
         **kw,
     )
     rx.set_telemetry(tlm, "rx")

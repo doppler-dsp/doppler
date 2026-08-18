@@ -111,7 +111,7 @@ def _measure(real, sps, m_out, bn, nsym, esn0_db=None):
         m_out=m_out,
         bn_timing=bn,
         bn_carrier=bn,
-        freq_offset=freq_offset_inside_bw(bn, sps, DEFAULT_M),
+        freq_offset=freq_offset_inside_bw(bn, DEFAULT_M),
         clock_offset=clock_offset_inside_bw(bn),
     )
     settle = settle_from(pr, floor=settle_floor(bn, bn))
@@ -231,7 +231,7 @@ def test_both_loops_lock_within_their_budget(
         m_out=m_out,
         bn_timing=bn,
         bn_carrier=bn,
-        freq_offset=freq_offset_inside_bw(bn, sps, DEFAULT_M),
+        freq_offset=freq_offset_inside_bw(bn, DEFAULT_M),
         clock_offset=clock_offset_inside_bw(bn),
     )
     budget = settle_floor(bn, bn)
@@ -314,7 +314,7 @@ def test_timing_nco_does_not_slip_at_any_ratio():
             m_out=m_out,
             bn_timing=bn,
             bn_carrier=bn,
-            freq_offset=freq_offset_inside_bw(bn, sps, DEFAULT_M),
+            freq_offset=freq_offset_inside_bw(bn, DEFAULT_M),
             clock_offset=clock_offset_inside_bw(bn),
         )
         mu = pr["sync.mu"]

@@ -76,6 +76,7 @@ from doppler.snr import snr_m2m4_db
 from doppler.telemetry import Telemetry
 from doppler.tests._validation_common import Report, clamp_evm_db, cli
 from doppler.track import ContinuousMpskReceiver, MpskReceiver
+from doppler.track.tests._mpsk_rx_harness import freq_offset_inside_bw
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
@@ -112,7 +113,9 @@ PHI0 = {2: 0.0, 4: np.pi / 4, 8: 0.0}
 # ── stimulus ─────────────────────────────────────────────────────────────
 
 
-def _signal(m, esn0_db, sps=SPS, nsym=NSYM, foff=0.0, seed=0, amp=TX_AMP):
+def _signal(
+    m, esn0_db, sps=SPS, nsym=NSYM, freq_offset=0.0, seed=0, amp=TX_AMP
+):
     """One M-PSK record at a stated matched-filter Es/N0.
 
     The constellation comes from ``mpsk_map`` rather than from an exp()
@@ -131,8 +134,11 @@ def _signal(m, esn0_db, sps=SPS, nsym=NSYM, foff=0.0, seed=0, amp=TX_AMP):
     n = int(nsym * sps)
     idx = np.minimum((np.arange(n) / sps).astype(int), nsym - 1)
     x = syms[idx].astype(np.complex64)
-    if foff:
-        x = x * np.exp(2j * np.pi * foff * np.arange(n))
+    if freq_offset:
+        # Stated in cycles per SYMBOL, like both loop bandwidths; the
+        # stimulus advances per SAMPLE, so it is converted here and
+        # nowhere else.
+        x = x * np.exp(2j * np.pi * (freq_offset / sps) * np.arange(n))
 
     es = amp**2 * sps
     var = es / 10 ** (esn0_db / 10.0)
@@ -502,7 +508,12 @@ def characterise(R, write):
     rows, sweep = [], []
     for m in (2, 4, 8):
         for esn0 in _esn0_grid(m):
-            x, lab = _signal(m, esn0, foff=0.0005, seed=100 + m)
+            x, lab = _signal(
+                m,
+                esn0,
+                freq_offset=freq_offset_inside_bw(0.01, m, 1.0),
+                seed=100 + m,
+            )
             rx = MpskReceiver(m=m, sps=SPS, bn_carrier=0.01, bn_timing=0.01)
             out = rx.steps(x)
             lo = ber_settle_syms(0.01, 0.01)
@@ -564,18 +575,20 @@ def characterise(R, write):
         "the result: an implementation loss should be roughly constant in "
         "Es/N0, because it is the receiver's own contribution and does not "
         "scale with N0.\n\n"
-        "**8PSK is a different object at these rates, and its two ends are "
-        "both in the table on purpose.** At 14 dB it is below its own "
-        "acquisition threshold — the meter refuses, or the rate comes back "
-        "near 1.0 — and by 20 dB it recovers every symbol. §4 pins both "
-        "ends and asserts a loss envelope for M = 2 and 4 only, because "
-        "certifying a loss figure for 8PSK here would certify a number "
-        "the object does not produce (F5). Its grid is also the one place "
-        "the derivation above could not be followed: 8PSK's measurability "
-        "ceiling is 14.5 dB and it does not work there, so the window "
-        "where the bound is measurable and the window where the receiver "
-        "works **do not overlap** — measured, not inferred, and the reason "
-        "F5 is CONFIRMED rather than a gap in the sweep."
+        "**8PSK used to be a different object at these rates, and it was "
+        "the stimulus that made it one.** This report previously recorded "
+        "it as below its own acquisition threshold at 14 dB — the meter "
+        "refusing, or the rate coming back near 1.0 — and excluded it "
+        "from the loss envelope on the grounds that certifying a figure "
+        "there would certify a number the object does not produce. The "
+        "number it does not produce was ours: the offset was held in "
+        "cycles per SAMPLE while this sweep's axis is `M`, and the "
+        "carrier bound is `bn_carrier / m`, so BPSK was asked for 0.8x "
+        "its bound and 8PSK for 3.2x (doppler#843). Seeded at the bound, "
+        "8PSK resolves at 14 dB with the tightest loss in this grid, and "
+        "§4 asserts the envelope at every order. Its measurability "
+        "ceiling of 14.5 dB is real and unchanged — that half of F5 "
+        "stands — but the working window now reaches under it."
     )
     R.md()
     if write:
@@ -600,7 +613,12 @@ def characterise(R, write):
 
     rows, evm_sweep = [], []
     for esn0 in (8.0, 12.0, 16.0, 20.0):
-        x, _lab = _signal(4, esn0, foff=0.0005, seed=7)
+        x, _lab = _signal(
+            4,
+            esn0,
+            freq_offset=freq_offset_inside_bw(0.01, 4, 1.0),
+            seed=7,
+        )
         rx = MpskReceiver(m=4, sps=SPS, bn_carrier=0.01, bn_timing=0.01)
         out = rx.steps(x)
         lo = ber_settle_syms(0.01, 0.01)
@@ -660,7 +678,12 @@ def characterise(R, write):
 
     rows, m2m4 = [], []
     for esn0 in (8.0, 12.0, 16.0, 20.0):
-        x, lab = _signal(4, esn0, foff=0.0005, seed=11)
+        x, lab = _signal(
+            4,
+            esn0,
+            freq_offset=freq_offset_inside_bw(0.01, 4, 1.0),
+            seed=11,
+        )
         rx = MpskReceiver(m=4, sps=SPS, bn_carrier=0.01, bn_timing=0.01)
         out = rx.steps(x)
         lo = ber_settle_syms(0.01, 0.01)
@@ -789,7 +812,14 @@ def characterise(R, write):
 
     rows, irr = [], []
     for sps in (8.0, 17.33389, 24.0, 31.7):
-        x, lab = _signal(4, 16.0, sps=sps, nsym=6000, foff=0.0004, seed=5)
+        x, lab = _signal(
+            4,
+            16.0,
+            sps=sps,
+            nsym=6000,
+            freq_offset=freq_offset_inside_bw(0.01, 4, 1.0),
+            seed=5,
+        )
         rx = MpskReceiver(m=4, sps=sps, bn_carrier=0.01, bn_timing=0.01)
         out = rx.steps(x)
         lo = ber_settle_syms(0.01, 0.01)
@@ -836,18 +866,25 @@ def characterise(R, write):
         "are recovered to the same precision, and both emit the same "
         "0.03-0.07% output-count error, which is the settling transient at "
         "the head of the record rather than a rate error.\n\n"
-        f"**`sps = {bad[0]:g}` is the row that separates the two readings, "
-        "and it is why F4 is CONFIRMED.** Its count is inside 0.1% and its "
-        f"recovered rate is within "
-        f"{1e6 * abs(bad[3] - bad[0]) / bad[0]:.0f} ppm — tighter than the "
-        "integer rate's — and the meter still refuses to align the record. "
-        "A rate that close cannot explain a failure to demodulate, which "
-        "localises it to acquisition rather than to steady-state tracking. "
-        "That is the same conclusion F4 reaches from the record-length "
-        "direction and F5 from the non-monotone 8PSK sweep, reached here "
-        "from a third: **all three of this report's unexplained failures "
-        "are acquisition failures on a loop that tracks correctly once "
-        "started.**"
+        f"**`sps = {bad[0]:g}` used to be the row that separated the two "
+        "readings, and it is why F4 was CONFIRMED against the receiver.** "
+        "Its count was inside 0.1% and its recovered rate within a few ppm "
+        "— tighter than the integer rate's — while the meter refused to "
+        "align the record at all. A rate that close cannot explain a "
+        "failure to demodulate, so the failure was localised to "
+        "acquisition, and it was: **this sweep's acquisition, not the "
+        "receiver's.** The offset was held in cycles per SAMPLE while the "
+        "axis here is `sps`, so the loop was handed a question that got "
+        "4x harder across the sweep and this row sat at 5.07x its "
+        "acquisition bound, past the 4x where acquisition stops being "
+        "repeatable (doppler#843).\n\n"
+        f"Held in cycles per SYMBOL, where the bound lives and where it "
+        "does not move with `sps`, **every row demodulates**: SER "
+        + ", ".join(
+            f"{r[4]:.1e} at sps {r[0]:g}" for r in irr if r[4] is not None
+        )
+        + ". The irrational rate is not the hard case and neither is the "
+        "high one; there is no `sps` ceiling in the certified envelope."
     )
     R.md()
     if write:
@@ -869,7 +906,9 @@ def characterise(R, write):
     )
     R.md()
 
-    x, lab = _signal(2, 16.0, foff=0.0008, seed=21)
+    x, lab = _signal(
+        2, 16.0, freq_offset=freq_offset_inside_bw(0.02, 2, 1.0), seed=21
+    )
     cont = ContinuousMpskReceiver(
         m=2, sps=SPS, bn_carrier=0.02, bn_timing=0.01
     )
@@ -952,8 +991,14 @@ def characterise(R, write):
     rows, fl_sweep = [], []
     lo = ber_settle_syms(0.01, 0.01)
     for k in (0, 1, 2):
-        foff = k * (1.0 / SPS) / 4.0
-        x, lab = _signal(4, 20.0, foff=foff, seed=5)
+        # The M-th-power alias grid, `k*Rs/M`, stated where it is simplest:
+        # in cycles per SYMBOL it is just `k/M`, with no `sps` in it. The
+        # cycles-per-sample value below is for the report and for comparing
+        # against `norm_freq`, which is the one quantity here still in
+        # sample-rate units.
+        foff_sym = k / 4.0
+        foff = foff_sym / SPS
+        x, lab = _signal(4, 20.0, freq_offset=foff_sym, seed=5)
         rxf = MpskReceiver(m=4, sps=SPS, bn_carrier=0.01, bn_timing=0.01)
         out = rxf.steps(x)
         ser, _mtr = _score(out, lab, 4, lo)
@@ -1287,7 +1332,13 @@ def characterise(R, write):
     )
     R.md()
 
-    x, lab = _signal(4, 20.0, nsym=4000, foff=0.0005, seed=6)
+    x, lab = _signal(
+        4,
+        20.0,
+        nsym=4000,
+        freq_offset=freq_offset_inside_bw(0.01, 4, 1.0),
+        seed=6,
+    )
     half = (x.size // 2) & ~7
     rx = MpskReceiver(m=4, sps=SPS, bn_carrier=0.01, bn_timing=0.01)
     rx.steps(x[:half])
@@ -1410,57 +1461,86 @@ def review(R, d):
 
     R.find(
         "F4",
-        "CONFIRMED",
-        "**A receiver that recovers the symbol rate to 2 ppm and still "
-        "cannot be demodulated.** At `sps = 31.7` (§2.5) the output count "
-        "is the integral of the rate to 0.08% and `timing_rate` converges "
-        "to within 2 ppm of the truth — tighter than at the integer rate — "
-        "and `BerMeter` refuses to align the record at all. `sps = 24` on "
-        "the same sweep, same seed and same loops, is clean, so it is "
-        "neither the irrational rate nor high oversampling per se. A "
-        "timing loop this converged cannot produce an unalignable record "
-        "in steady state, so the failure is in acquisition: a slip while "
-        "the loops pull in leaves the symbol PHASE wrong by a whole "
-        "symbol or the carrier on the wrong ambiguity, neither of which "
-        "the rate readout can see. That is the same shape as "
-        "[#781](https://github.com/doppler-dsp/doppler/issues/781), "
-        "reached through a completely different path — a randomised "
-        "Monte-Carlo geometry there, a fixed high oversampling here — "
-        "which is corroboration rather than a second defect. The certified "
-        "envelope therefore stops at `sps <= 24`; §4 asserts the output "
-        "count at every rate measured and the error rate only inside it.",
+        "FIXED",
+        "**A receiver that recovered the symbol rate to 2 ppm and could "
+        "not be demodulated — and the defect was in this report's own "
+        "stimulus, not in the receiver.** As written, F4 read: at "
+        "`sps = 31.7` (§2.5) the output count is the integral of the rate "
+        "to 0.08% and `timing_rate` converges tighter than at the integer "
+        "rate, yet `BerMeter` refuses to align the record; `sps = 24` on "
+        "the same sweep is clean; therefore the failure is in acquisition "
+        "and the certified envelope stops at `sps <= 24`.\n\n"
+        "The acquisition half was right and the attribution was wrong. "
+        "`_signal` held the carrier offset in cycles per **sample** while "
+        "this sweep's axis is `sps`, so the loop was handed `foff * sps` "
+        "— a different question at every row, varying 4x across the "
+        "sweep. Against a carrier acquisition bound of `bn_carrier / m` "
+        "cycles per symbol, the four rows sat at 1.28x, 2.77x, 3.84x and "
+        "**5.07x** the bound; acquisition is measured reliable only out "
+        "to 4x (doppler#843). The `sps = 31.7` row was simply the one "
+        "seeded past the cliff, and `sps = 24` the last one inside it — "
+        "which is why the two differed while nothing about the receiver "
+        "did.\n\n"
+        "Both converses were measured before this was believed: 31.7 at "
+        "24's offset scores 0.0 SER, and 24 at 31.7's offset refuses. "
+        "With the offset now held in cycles per SYMBOL, where the bound "
+        "is stated and where it does not move with `sps`, **all four "
+        "rows demodulate at SER 0.0** — 8, 17.33389, 24 and 31.7 alike, "
+        "with the recovered rate inside 60 ppm at every one. There is no "
+        "`sps <= 24` envelope; §4 asserts the error rate at every rate "
+        "measured. The corroboration this finding claimed with "
+        "[#781](https://github.com/doppler-dsp/doppler/issues/781) does "
+        "not survive either: that report is about `m_out = 4`, reached "
+        "through a randomised geometry, and shares nothing with this but "
+        "the symptom.",
     )
 
     R.find(
         "F5",
-        "CONFIRMED",
-        "**8PSK's implementation loss is not measurable by any per-push "
-        "sweep, because the window where the bound is measurable and the "
-        "window where the receiver works do not overlap.** That is a "
-        'sharper statement than the *"8PSK does not reach the bound"* '
-        "this finding carried before, and it is the corrected one: the "
-        "earlier version compared against the bound at the wrong Es/N0 "
-        "(F8) and its recovery-by-16-dB claim does not survive the fix. "
-        "Both halves are measured. The bound at M = 8 falls slowly — "
+        "FIXED",
+        "**8PSK's implementation loss was reported unmeasurable, and the "
+        "reason was that 8PSK alone was being seeded past its acquisition "
+        "bound.** As written, F5 read: the bound at M = 8 falls slowly — "
         "1.7e-5 at 18 dB — so reaching "
-        f"{MIN_ERRORS} errors there needs ~2.3M scored symbols against "
-        f"the {NSCORED} this sweep scores, and the highest Es/N0 where "
-        "the bound predicts enough errors at all is **14.5 dB**. The "
-        "receiver does not work at 14.5 dB: swept 12 to 22 dB it is "
-        "non-monotone and seed-dependent below ~17 dB (refused at 12 and "
-        "14, 9.7e-1 at 13, 3.8e-2 at 15, 7.0e-2 at 16) and clean from 17 "
-        "up — 1.2e-3 at 17, 2.6e-4 at 18, and no errors at all by 20. A "
+        f"{MIN_ERRORS} errors needs ~2.3M scored symbols against the "
+        f"{NSCORED} this sweep scores, putting the highest usable Es/N0 "
+        "at **14.5 dB**; while the receiver was non-monotone and "
+        "seed-dependent below ~17 dB, so the window where the bound is "
+        "measurable and the window where the receiver works did not "
+        "overlap.\n\n"
+        "The first half stands: the bound really does fall too slowly to "
+        "resolve above ~14.5 dB with this record length. The second half "
+        "was the stimulus. `_signal` held the offset in cycles per "
+        "**sample** while this sweep's axis is `M`, and the carrier "
+        "acquisition bound is `bn_carrier / m` — so the same literal put "
+        "BPSK at 0.8x its bound and **8PSK at 3.2x**, asking one order a "
+        "four times harder question than another and calling the "
+        "difference a property of 8PSK.\n\n"
+        "F5's own diagnosis named the mechanism and missed the cause: *a "
         "non-monotone rate across a monotone axis is the signature of an "
         "acquisition that succeeds or fails per record rather than a "
-        "steady-state loss, which is the same mechanism F4 localises at "
-        "`sps = 31.7` and the same one "
-        "[#781](https://github.com/doppler-dsp/doppler/issues/781) "
-        "reports at m_out = 4. So the ordering is: 8PSK acquires "
-        "unreliably below ~17 dB, and above it the bound is out of reach "
-        "of a validator. Characterising the threshold needs TRIALS per "
-        "point, which is `make characterize`'s job and not this file's "
-        "(`docs/dev/validation.md`). §4 pins both ends of the threshold "
-        "and asserts the loss envelope for M = 2 and 4 only.",
+        "steady-state loss*. Exactly so — the marginal acquisition was "
+        "this report's, not the receiver's. Controlled comparison, same "
+        "code and same seeds, only the offset differing (three seeds per "
+        "cell):\n\n"
+        "| Es/N0 | at 3.2x the bound | at the bound |\n"
+        "|---|---|---|\n"
+        "| 12 dB | refused / 9.75e-1 / refused "
+        "| 3.94e-2 / 4.22e-2 / 3.73e-2 |\n"
+        "| 14 dB | refused / 9.92e-1 / refused "
+        "| 7.87e-3 / 1.02e-2 / 9.25e-3 |\n"
+        "| 16 dB | refused / 9.91e-1 / 9.94e-1 "
+        "| 1.31e-3 / 1.51e-3 / 1.44e-3 |\n"
+        "| 17 dB | 1.00 / 1.00 / 1.00 | 6.56e-5 / 7.22e-4 / 5.90e-4 |\n\n"
+        "Seeded at the bound, 8PSK is strictly monotone from 12 to 20 dB "
+        "with a seed spread that is counting noise. The two windows "
+        "overlap comfortably: **14.0 dB resolves at +0.41 dB of "
+        "implementation loss**, the tightest cell in §2.1's grid, against "
+        "+0.54 to +0.58 for BPSK and +0.43 to +0.52 for QPSK. §4 asserts "
+        "the loss envelope at every order, 8PSK included.\n\n"
+        "F4 was the same defect on the `sps` axis. One stimulus error "
+        "produced two findings, each blamed on the receiver, and neither "
+        "survived being asked in the loop's own units (doppler#843).",
     )
 
     R.find(
@@ -1629,11 +1709,14 @@ def limits(R, d):
     # all. Those cells stay in §2.1 as characterisation; F6 judges them.
     n_res = 0
     for m, esn0, ser, theory, loss, _nerr, _hi, resolves, _lock in d["ser"]:
-        # M = 8 is excluded from the LOSS envelope, the same way `sps > 24`
-        # is: the object does not deliver it, F5 carries why, and pinning
-        # the collapse below is what keeps it visible. Certifying a 3 dB
-        # loss here would certify a result the receiver does not produce.
-        if not resolves or m == 8:
+        # M = 8 used to be EXCLUDED here, on F5's reading that the object
+        # did not deliver a measurable loss at that order. It does: F5's
+        # collapse was this report seeding 8PSK at 3.2x its acquisition
+        # bound while BPSK sat at 0.8x, and at the bound the 14 dB cell
+        # resolves at +0.41 dB -- the tightest in this grid. Every order
+        # that resolves is now certified on the same terms, which is what
+        # the exclusion was costing.
+        if not resolves:
             continue
         n_res += 1
         if ser is None:
@@ -1665,27 +1748,27 @@ def limits(R, d):
         f"implementation loss at all — the assertions above are not "
         f"vacuous, and the grid is derived to keep them that way",
     )
-    # 8PSK is not in the loss envelope, so it is PINNED instead: both ends
-    # of its threshold, so a fix shows up as a failing limit rather than
-    # passing unnoticed, and a further regression does too.
+    # 8PSK's two limits used to PIN a collapse -- one asserting the low
+    # cell was broken, one that the high cell was clean, so that a fix
+    # would show up as a failing limit. The fix arrived (F5) and they did
+    # exactly that. What replaces them is the claim the pinning stood in
+    # for: 8PSK is MONOTONE across its axis, which is the property whose
+    # absence F5 read as a receiver defect and which a per-cell loss bound
+    # does not capture. A rate that rises with Es/N0 anywhere is the
+    # signature of an acquisition failing per record, and that is the
+    # thing worth a gate rather than any single cell's value.
     eight = [r for r in d["ser"] if r[0] == 8]
-    lo8, hi8 = eight[0], eight[-1]
-    R.limit(
-        lo8[2] is None or lo8[2] > 0.1,
-        f"8PSK at Es/N0 {lo8[1]:.1f} dB is BELOW its threshold and the "
-        f"envelope says so rather than certifying it: "
-        + (
-            "the meter refuses the cell"
-            if lo8[2] is None
-            else f"SER {lo8[2]:.2e} against a bound of {lo8[3]:.2e}"
-        )
-        + " (F5)",
+    rates = [(r[1], r[2]) for r in eight if r[2] is not None]
+    mono = len(rates) == len(eight) and all(
+        b[1] <= a[1] for a, b in zip(rates, rates[1:])
     )
     R.limit(
-        hi8[2] is not None and hi8[2] < 1e-3,
-        f"while 8PSK at Es/N0 {hi8[1]:.1f} dB recovers symbols cleanly "
-        f"(SER {hi8[2]:.2e}) — so the collapse is a THRESHOLD and not an "
-        f"8PSK defect, and both sides of it are pinned",
+        mono,
+        "8PSK's error rate falls monotonically across its Es/N0 sweep "
+        "with no refusals ("
+        + ", ".join(f"{e:.0f} dB {v:.2e}" for e, v in rates)
+        + ") — a non-monotone rate on a monotone axis is how an "
+        "acquisition that fails per record shows itself (F5)",
     )
 
     for esn0, evm, bound, excess in d["evm"]:
@@ -1743,17 +1826,20 @@ def limits(R, d):
             f"{1e6 * abs(rate - sps) / sps:.0f} ppm ({rate:.5f}) — so the "
             f"count is right for the right reason",
         )
-        if sps <= 24.0:
-            _limit_ser(
-                R,
-                ser,
-                3e-3,
-                f"sps={sps:g}",
-                lambda s, sp=sps: (
-                    f"sps={sp:g}: recovers symbols (SER {s:.2e}) — an "
-                    f"irrational rate is no harder than an integer one"
-                ),
-            )
+        # No `sps <= 24` guard any more. It stood because F4 read the
+        # 31.7 row as a receiver limit; that row was seeded past its
+        # acquisition bound, and at the bound every rate here demodulates.
+        _limit_ser(
+            R,
+            ser,
+            3e-3,
+            f"sps={sps:g}",
+            lambda s, sp=sps: (
+                f"sps={sp:g}: recovers symbols (SER {s:.2e}) — an "
+                f"irrational rate is no harder than an integer one, and "
+                f"neither is a high one"
+            ),
+        )
 
     c = d["cont"]
     R.limit(
@@ -2403,24 +2489,31 @@ def build(write: bool = True) -> Report:
             "this report got wrong — it compared against the bound at the "
             "wrong Es/N0 and read ~1.3 dB at BPSK and a 10x rate deficit "
             "at QPSK (F8).",
-            "**8PSK is not certified at any Es/N0, and the reason is "
-            "structural rather than a missing measurement.** Its bound "
+            "**8PSK is certified, at the one Es/N0 where its bound is "
+            "resolvable at all — and the window is narrow for a reason "
+            "that is about the BOUND, not the receiver.** The M = 8 curve "
             "falls so slowly that resolving it needs ~2.3M scored symbols "
-            "at 18 dB, while the highest Es/N0 where this record length "
-            "resolves anything is 14.5 dB — and the receiver does not "
-            "work there. Measured 12 to 22 dB it is non-monotone and "
-            "seed-dependent below ~17 dB and clean above it, so the "
-            "measurable window and the working window do not overlap "
-            "(§2.1, F5).",
-            "**All three unexplained failures in this report are "
-            "acquisition failures, not tracking failures.** At "
-            "`sps = 31.7` the loop recovers the symbol rate to 2 ppm and "
-            "the record still cannot be aligned (F4); 8PSK's collapse is "
-            "seed-dependent rather than Es/N0-dependent (F5); and gh-781 "
-            "reports the same shape at `m_out = 4`. A converged rate "
-            "readout beside an unalignable record is the signature, and "
-            "the certified rate envelope therefore stops at `sps <= 24` "
-            "(§2.5).",
+            "at 18 dB, so the highest Es/N0 this record length can resolve "
+            "anything at is 14.5 dB. The receiver reaches under that "
+            "comfortably: 14 dB resolves at **+0.41 dB** of loss, the "
+            "tightest cell in the grid, against +0.54 to +0.58 at BPSK and "
+            "+0.43 to +0.52 at QPSK (§2.1). Anything above 14.5 dB needs "
+            "trials per point, which is `make characterize`'s job.",
+            "**This report's two unexplained failures were one defect, "
+            "and it was in the stimulus.** F4 (`sps = 31.7` recovers the "
+            "rate to 2 ppm and cannot be aligned) and F5 (8PSK "
+            "non-monotone and seed-dependent) were both the carrier "
+            "offset held in cycles per SAMPLE while the sweep's axis "
+            "moved — `sps` in one case, `M` in the other — so the loop "
+            "was asked a different question at every point and the "
+            "hardest ones sat past its acquisition bound. Stated in "
+            "cycles per SYMBOL, all four `sps` rows demodulate at SER 0 "
+            "and 8PSK is monotone from 12 to 20 dB. Both are now FIXED, "
+            "there is no `sps <= 24` ceiling, and the diagnosis both "
+            "findings reached — that a converged rate beside an "
+            "unalignable record means acquisition, not tracking — was "
+            "correct about the mechanism and wrong about whose it was "
+            "(§2.5, doppler#843).",
             "**The continuous flavor's `tracking == 0` is checked against "
             "a control.** The handover-enabled receiver on the same "
             "record DOES flip, so the claim is not satisfied by a signal "

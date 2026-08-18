@@ -97,7 +97,17 @@ def main(argv=None):
         squeeze=False,
     )
     for ax, name in zip(axes[:, 0], names):
-        ax.plot(series[name], lw=0.9)
+        # A probe carrying recovered SYMBOLS is a set of discrete decisions,
+        # one per symbol period, with nothing in between to interpolate
+        # through. A line draws a path the object never took -- on a BPSK
+        # stream toggling +-1 it fills the panel solid and shows nothing,
+        # where dots show the rails, the acquisition transient and the noise
+        # cloud collapsing as the carrier locks. Loop state is the opposite: a
+        # continuous quantity sampled per symbol, so it stays a line.
+        if ".sym." in name or name.endswith((".i", ".q")):
+            ax.plot(series[name], ".", ms=1.5)
+        else:
+            ax.plot(series[name], lw=0.9)
         ax.set_ylabel(name.split(".", 1)[-1], fontsize=8)
         ax.grid(alpha=0.3)
     axes[-1, 0].set_xlabel("record index (per probe)")

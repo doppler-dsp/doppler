@@ -207,7 +207,5 @@ main (void)
     DP_REQUIRE_MSG (wfm_frame_crc_ok (NULL, buf) == -1, "NULL frame, crc");
   }
 
-  printf ("test_wfm_frame: OK (layout/bits agreement, repeated preamble, "
-          "PN regeneration, truth-free CRC, empty/invalid geometry)\n");
-  return 0;
+  DP_TEST_END ("wfm_frame");
 }

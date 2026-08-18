@@ -401,6 +401,56 @@ NEW_ASSERT = re.compile(
 )
 
 
+def unreported_checks() -> list[str]:
+    """Fail a test that accumulates failures and never reports them.
+
+    `DP_CHECK` counts into `dp_test_fails_` and returns; only `DP_TEST_END`
+    turns that counter into a non-zero exit. A file that ends with its own
+    `printf ("... OK ...")` and `return 0` therefore runs every check,
+    records every failure, and exits 0 — so each of its `DP_CHECK`s is
+    decoration, and `ctest` reports the test as passing while it asserts
+    nothing that can fail.
+
+    Measured, not hypothetical, and in both of the ways it bites.
+    `test_frame_meter_core.c` shipped 3 `DP_CHECK`s that could not fail.
+    `test_wfm_frame.c` had none — it asserted entirely through `DP_REQUIRE`,
+    which does return 1 — so its epilogue was latent rather than broken, and
+    it went off the moment 12 `DP_CHECK`s were added to it. That is the worse
+    half: the file looked fine, and writing an ordinary assertion into it
+    produced an assertion that could not fail.
+
+    Found by sabotage, not by review — making `preamble_reps = 0` emit a
+    preamble instead of nothing changed the layout and every test still
+    passed. It is exactly the shape `DP_TEST_END`'s own "ASSERTED NOTHING"
+    guard exists to catch and cannot, because a file that never calls it
+    never runs that guard either.
+
+    `DP_REQUIRE` is not affected: it returns 1 on the spot. So the rule is
+    narrow — a file using the ACCUMULATING flavour must end by reporting the
+    accumulator — and it is absolute rather than a ratchet, because after
+    the fix the count is zero.
+
+    Registration-free: derived by scanning, so a new test written from an old
+    template is covered the moment it lands.
+    """
+    bad: list[str] = []
+    for path in sources():
+        if path.suffix != ".c":
+            continue
+        text = strip_comments(path.read_text())
+        if not re.search(r"\bDP_CHECK\w*\s*\(", text):
+            continue
+        if "DP_TEST_END" in text:
+            continue
+        n = len(re.findall(r"\bDP_CHECK\w*\s*\(", text))
+        bad.append(
+            f"{path.relative_to(ROOT)}: {n} DP_CHECK(s) and no "
+            f"DP_TEST_END — the failure counter is never reported, so "
+            f"none of them can fail the test"
+        )
+    return bad
+
+
 def count_assertions(text: str) -> int:
     n = 0
     for line in text.splitlines():
@@ -596,6 +646,7 @@ def main() -> int:
 
     bad += generators()
     bad += double_draws()
+    bad += unreported_checks()
 
     if bad:
         print("check_tests_ssot: the shared harness is the single definition.")

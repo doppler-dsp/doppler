@@ -321,6 +321,56 @@ demapping without a downstream sync word is a misconfiguration, not a choice.
 
 ______________________________________________________________________
 
+## BpskReceiver — stated in the units a capture comes with
+
+`BpskReceiver` is a **view** over the same core, and what makes it worth having
+is what it does *not* ask for. A caller holding a capture knows its sample
+rate, its symbol rate and its carrier frequency, in Hz. They do not know `sps`:
+that is `fs / Rs`, a ratio the library computes for its own use in planning a
+cascade. Requiring it makes the caller derive an internal quantity — and it
+does not stop at one parameter, because with `sps` in the constructor
+`init_norm_freq` has to be cycles per **sample**, so stating a carrier offset
+needs `sps` *and* `fs` together while the loop bandwidth on the next line is
+normalised to the **symbol** rate. One constructor, two normalisations, and the
+conversion between them is the caller's problem.
+
+```python
+from doppler.track import BpskReceiver
+
+rx = BpskReceiver(sample_rate_hz=8e6, symbol_rate_hz=1e6)
+rx.m        # 2   — the type says it, so it is not a parameter
+rx.sps      # 8.0 — computed from the two rates
+rx.m_out    # 8   — derived, not chosen
+```
+
+Two required arguments against `MpskReceiver`'s seventeen. `m` is carried by
+the class name; `sps`, `m_out`, `num_phases`, `bn_agc_ratio` and `nda_tap` are
+internal choices the object makes for itself; and `carrier_freq_hz` defaults to
+0 for complex baseband. Everything a caller has a real reason to pin — the
+pulse, both loop bandwidths, `acq_to_track`, `differential`, `agc` — is still
+there as a keyword.
+
+**`m_out` deriving rather than defaulting is not cosmetic.** Pinning `m_out=4`
+against the default I&D pulse is measured **3.11 dB** off the coherent bound
+where the derived 8 is 0.41 dB off — the rectangle's matched filter is an
+`m_out`-tap sum, and four taps sample that integral too coarsely. A parameter
+nobody needed was a way to lose most of the link's margin quietly.
+
+An impossible geometry is refused at construction rather than approximated: a
+non-positive rate makes `sps` meaningless, and a carrier outside Nyquist is a
+mis-stated capture rather than a tuning request. Both raise `ValueError`.
+
+<!-- docs-snippet: raises=ValueError -->
+
+```python
+from doppler.track import BpskReceiver
+
+# The carrier is past Nyquist for that sample rate.
+BpskReceiver(sample_rate_hz=8e6, symbol_rate_hz=1e6, carrier_freq_hz=9e6)
+```
+
+______________________________________________________________________
+
 ## MpskReceiverR — the real-input face
 
 `MpskReceiverR` is `MpskReceiver` for a **real IF**: `steps()` and `bits()` take

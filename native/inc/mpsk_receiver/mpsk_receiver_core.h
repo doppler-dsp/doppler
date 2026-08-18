@@ -957,7 +957,7 @@ extern "C"
    * "<prefix>.agc.level_db" is what makes that possible.
    *
    * With @c agc = 0 at construction there is no AGC to attach and the two
-   * probes are simply absent (eleven, not thirteen); this still returns
+   * probes are simply absent (fourteen, not sixteen); this still returns
    * DP_OK.
    *
    * Setup path, never hot; the context is borrowed and must outlive the
@@ -973,11 +973,11 @@ extern "C"
    * >>> import numpy as np
    * >>> from doppler.track import MpskReceiver
    * >>> from doppler.telemetry import Telemetry
-   * >>> tlm = Telemetry(1 << 14)   # 14 probes x ~512 syms + headroom
+   * >>> tlm = Telemetry(1 << 14)   # 16 probes x ~512 syms + headroom
    * >>> rx = MpskReceiver(m=4, sps=4, m_out=2)
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> len(tlm.probe_names)
-   * 14
+   * 16
    * >>> rng = np.random.default_rng(7)
    * >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
    * >>> x = np.repeat(syms, 4)

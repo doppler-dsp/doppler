@@ -146,7 +146,5 @@ main (void)
   }
 
   frame_meter_destroy (m);
-  printf ("test_frame_meter_core: OK (delivery rules, no-CRC frames, "
-          "stop-on-errors, reset, state round-trip + envelope reject)\n");
-  return 0;
+  DP_TEST_END ("frame_meter_core");
 }

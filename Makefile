@@ -551,6 +551,23 @@ COV_DIR       ?= build-cov
 # documented as overridable for a version-suffixed toolchain
 # (`LLVM_COV=llvm-cov-22`), and an override must not be able to drop this.
 COV_ENV       ?= env DEBUGINFOD_URLS=
+
+# The coverage tree keeps Debug's ASSERTIONS and drops Debug's -O0.
+#
+# This target runs the whole suite twice — `ctest`, then `pytest` over the
+# instrumented extensions — and at -O0 that is dominated by a handful of
+# Monte-Carlo validators: `validate_rx_battery` alone took 270 s of a 353 s
+# ctest, against 28 s in the release build, and it is the entire wall clock
+# even under `ctest -j`. Measured end to end: **ctest 353 s -> 77 s and
+# `make coverage` 10m47 -> 4m30**, with the report unmoved (86.38 % -> 86.40 %
+# region, 88.82 % -> 88.85 % line) because source-based coverage instruments
+# before optimisation and the regions are the same regions.
+#
+# `RelWithDebInfo` reaches the same speed and was REJECTED: it defines NDEBUG,
+# which compiles out every `assert`, so the tree being measured would stop
+# running code the tested tree runs. Overriding the Debug flags changes only
+# `-O` and leaves assertions exactly as they are.
+COV_CFLAGS    ?= -g -O2
 LLVM_PROFDATA ?= llvm-profdata
 LLVM_COV      ?= llvm-cov
 COV_BASE      ?= origin/main
@@ -609,6 +626,7 @@ define COVERAGE_CMD
 @rm -f $(COV_DIR)-probe.c $(COV_DIR)-probe
 $(CMAKE) -B $(COV_DIR) -S . \
     -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_C_FLAGS_DEBUG="$(COV_CFLAGS)" \
     -DCMAKE_C_COMPILER=clang \
     -DDOPPLER_COVERAGE=ON -DBUILD_PYTHON=ON \
     -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) \

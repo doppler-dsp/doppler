@@ -338,6 +338,8 @@
 ## w
 
 * **WFM\_FRAME\_CRC\_BITS** ([**wfm\_frame.h**](wfm__frame_8h.md))
+* **WFM\_FRAME\_MAX\_FIELDS** ([**wfm\_frame.h**](wfm__frame_8h.md))
+* **WFM\_FRAME\_MAX\_STAGES** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **WFM\_KW\_MAX\_TAG** ([**wfm\_keywords.h**](wfm__keywords_8h.md))
 * **WFM\_J1950\_UNIX\_OFFSET\_SEC** ([**wfm\_time.h**](wfm__time_8h.md))
 * **WFM\_TIMECODE\_UNSET** ([**wfm\_time.h**](wfm__time_8h.md))

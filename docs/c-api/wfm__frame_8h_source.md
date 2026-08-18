@@ -44,6 +44,105 @@ extern "C"
     uint64_t taps_a, seed_a, taps_b, seed_b;
   } wfm_seq_t;
 
+#define WFM_FRAME_MAX_FIELDS 8
+#define WFM_FRAME_MAX_STAGES 6
+
+  typedef struct
+  {
+    size_t first; 
+    size_t n;     
+  } wfm_frame_span_t;
+
+  typedef struct
+  {
+    wfm_seq_t seq;  
+    size_t    reps; 
+    size_t    bits; 
+    unsigned derived_by;
+  } wfm_field_t;
+
+  typedef enum
+  {
+    WFM_STAGE_CRC16     = 0, 
+    WFM_STAGE_RS        = 1, 
+    WFM_STAGE_RANDOMISE = 2, 
+    WFM_STAGE_CONV      = 3  
+  } wfm_stage_kind_t;
+
+  typedef struct
+  {
+    wfm_stage_kind_t kind;
+    unsigned         first_field; 
+    unsigned         n_fields;    
+    unsigned         depth;       
+    unsigned emit_num, emit_den;
+  } wfm_stage_t;
+
+  typedef struct
+  {
+    wfm_field_t field[WFM_FRAME_MAX_FIELDS];
+    unsigned    n_fields;
+    wfm_stage_t stage[WFM_FRAME_MAX_STAGES];
+    unsigned    n_stages;
+  } wfm_frame_desc_t;
+
+  typedef struct
+  {
+    size_t   field_off[WFM_FRAME_MAX_FIELDS];  
+    size_t   field_bits[WFM_FRAME_MAX_FIELDS]; 
+    unsigned n_fields;
+
+    wfm_frame_span_t stage[WFM_FRAME_MAX_STAGES]; 
+    unsigned   n_stages;
+
+    size_t frame_bits; 
+    size_t out_bits;   
+  } wfm_frame_desc_layout_t;
+
+  typedef struct
+  {
+    unsigned units;     
+    unsigned ok;        
+    unsigned corrected; 
+    unsigned symbols;   
+    int      checked;   
+  } wfm_frame_stage_rx_t;
+
+  typedef struct
+  {
+    wfm_frame_stage_rx_t stage[WFM_FRAME_MAX_STAGES];
+    unsigned             n_stages;
+    unsigned             checked; 
+  } wfm_frame_rx_t;
+
+  typedef struct
+  {
+    wfm_stage_kind_t kind;
+
+    int (*in_unit) (const wfm_stage_t *st, uint8_t *bits, size_t n,
+                    void *user);
+
+    size_t (*emit) (const wfm_stage_t *st, const uint8_t *in, size_t n,
+                    uint8_t *out, size_t max_out, void *user);
+
+    int (*undo) (const wfm_stage_t *st, uint8_t *bits, size_t n,
+                 wfm_frame_stage_rx_t *rx, void *user);
+  } wfm_stage_op_t;
+
+  typedef struct
+  {
+    const wfm_stage_op_t *op;   
+    unsigned              n_op; 
+    void                 *user; 
+  } wfm_frame_ops_t;
+
+  size_t wfm_frame_assemble (const wfm_frame_desc_t *d,
+                             const wfm_frame_ops_t *ops, uint8_t *out,
+                             size_t max_out);
+
+  int wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
+                             wfm_frame_desc_layout_t *out);
+
   typedef struct
   {
     wfm_seq_t preamble;      
@@ -62,11 +161,27 @@ extern "C"
     size_t total_bits;
   } wfm_frame_layout_t;
 
+  enum
+  {
+    WFM_FRAME_FIELD_PREAMBLE = 0,
+    WFM_FRAME_FIELD_SYNC     = 1,
+    WFM_FRAME_FIELD_PAYLOAD  = 2,
+    WFM_FRAME_FIELD_CRC      = 3
+  };
+
+  int wfm_frame_describe (const wfm_frame_t *f, wfm_frame_desc_t *out);
+
   size_t wfm_frame_nbits (const wfm_frame_t *f);
 
   int wfm_frame_layout (const wfm_frame_t *f, wfm_frame_layout_t *out);
 
   size_t wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out);
+
+  int wfm_frame_check (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
+                       uint8_t *bits, wfm_frame_rx_t *rx);
+
+  int wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d,
+                             const uint8_t          *rx_bits);
 
   int wfm_frame_crc_ok (const wfm_frame_t *f, const uint8_t *rx_bits);
 

@@ -26,7 +26,31 @@ extern "C"
 
 #define CCSDS_TM_ASM_BITS 32
 
-#define CCSDS_TM_RAND_PERIOD 255
+  typedef struct
+  {
+    uint32_t taps;   
+    uint32_t seed;   
+    unsigned stages; 
+    size_t   period; 
+  } ccsds_tm_rand_t;
+
+  extern const ccsds_tm_rand_t CCSDS_TM_RAND;
+
+  extern const ccsds_tm_rand_t CCSDS_TM_RAND_LEGACY;
+
+#define CCSDS_TM_RAND_PERIOD 131071
+
+  typedef struct
+  {
+    uint32_t reg;
+    uint32_t taps;
+    unsigned stages;
+  } ccsds_tm_rand_state_t;
+
+  void ccsds_tm_rand_init (ccsds_tm_rand_state_t *s,
+                           const ccsds_tm_rand_t *r);
+
+  uint8_t ccsds_tm_rand_step (ccsds_tm_rand_state_t *s);
 
 #define CCSDS_TM_CONV_K 7
 
@@ -44,6 +68,9 @@ extern "C"
 
   void ccsds_tm_randomise (uint8_t *bits, size_t n);
 
+  void ccsds_tm_randomise_with (const ccsds_tm_rand_t *r, uint8_t *bits,
+                                size_t n);
+
   extern const conv_code_t CCSDS_TM_CONV;
 
   static inline size_t
@@ -53,6 +80,9 @@ extern "C"
   }
 
   void ccsds_tm_rand_seq (uint8_t *out, size_t n);
+
+  void ccsds_tm_rand_seq_with (const ccsds_tm_rand_t *r, uint8_t *out,
+                               size_t n);
 
 #ifdef __cplusplus
 }

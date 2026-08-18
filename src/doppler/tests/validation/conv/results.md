@@ -78,7 +78,7 @@ The soft column is what the decoder is for. The hard column is the same decoder 
 
 Hard decisions cost between 2.5x and 81x the error rate over the measured range, the ratio growing with Eb/N0 because soft information is worth more where the decoder is nearly right.
 
-**A hard-decision Viterbi is worse than no coding at all below Eb/N0 ~ 4.0 dB** — the rate-1/2 code spends 3.01 dB of Eb to buy back less than that from a quantised input. That is the measurement behind `docs/design/mpsk-soft.md` existing and behind soft demapping landing before the decoder did.
+**A hard-decision Viterbi is worse than no coding at all below Eb/N0 ~ 4.0 dB** — the rate-1/2 code spends 3.01 dB of Eb to buy back less than that from a quantised input. That is the measurement behind the soft-decision design in `docs/design/mpsk.md` existing and behind soft demapping landing before the decoder did.
 
 ### 2.3 Traceback depth, where the parameter can be seen
 

@@ -74,7 +74,7 @@ ______________________________________________________________________
 ## 3. The branch metric is inherited, not restated
 
 Input is one LLR per channel symbol in the convention
-[`mpsk_soft_demap`](mpsk-soft.md) ships: `L = log(P(0)/P(1))`, positive means
+[`mpsk_soft_demap`](mpsk.md#97-soft-decisions) ships: `L = log(P(0)/P(1))`, positive means
 symbol 0. For an expected symbol `e` the metric is `+L` when `e == 0` and `-L`
 otherwise, and the survivor **maximises** the sum.
 
@@ -82,7 +82,7 @@ Two consequences worth stating because they remove decisions:
 
 - **Scale does not matter.** A maximum-likelihood path cannot move when every
     branch metric is multiplied by a positive constant, so the decoder does
-    not need an accurate `n0` — the caller may pass 1.0 (mpsk-soft §4, Q4).
+    not need an accurate `n0` — the caller may pass 1.0 (`mpsk.md` §9.7).
 - **The sign convention is the library's**, so a decoder that agrees with
     `mpsk_demap` on hard decisions agrees with the demapper by construction
     rather than by a second convention that has to be kept in step.
@@ -143,7 +143,7 @@ Measured on this code, streaming decisions at depth 100:
 At 3 dB the soft decoder is **two orders of magnitude** better than the hard
 one. And the hard-decision column is **worse than uncoded below about 3 dB** —
 the well-known low-SNR breakdown, and the sharpest available argument for
-[soft demapping](mpsk-soft.md) having been built first rather than bolted on.
+[soft demapping](mpsk.md#97-soft-decisions) having been built first rather than bolted on.
 
 ______________________________________________________________________
 
@@ -288,4 +288,4 @@ ______________________________________________________________________
 
 - [The FEC Receive Half](fec-receive.md) — the chain, node sync, lock detection
 - [Reed-Solomon](reed-solomon.md) — the outer code, split the same way
-- [Soft Decisions for M-PSK](mpsk-soft.md) — the LLRs this consumes
+- [Soft Decisions for M-PSK](mpsk.md#97-soft-decisions) — the LLRs this consumes

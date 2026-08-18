@@ -547,7 +547,7 @@ main (void)
    * become a second RULE. Every section here is written against something
    * outside the function: mpsk_demap for the sign, a closed form for the
    * value, and the geometry for the magnitude. Design:
-   * docs/design/mpsk-soft.md.
+   * docs/design/mpsk.md §9.7.
    */
 
   /*
@@ -620,7 +620,7 @@ main (void)
    *
    * These live here rather than in the implementation on purpose: as code
    * they would be a second expression of the general path, to be kept in
-   * step forever; as a test they are external truth (docs/design/mpsk-soft.md
+   * step forever; as a test they are external truth (docs/design/mpsk.md §9.7
    * section 6).
    */
   {

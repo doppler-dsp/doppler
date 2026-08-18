@@ -258,7 +258,7 @@ def freq_offset_inside_bw(bn_carrier, m, frac=0.5):
 
     **The `m` is the part that was missing, and it hid a factor of m.** The
     NDA discriminator is an M-th power, so it sees `m` times the offset; the
-    bound is `bn_carrier / m`, not `bn_carrier` (docs/design/mpsk-refactor.md
+    bound is `bn_carrier / m`, not `bn_carrier` (docs/design/mpsk.md §12
     section 4.4). A helper without it returns the same number at every order
     while asking a 4x harder question at 8PSK than at BPSK.
 

@@ -98,7 +98,7 @@ main (int argc, char **argv)
          this very sweep at u = 4.0, the measured limit with no margin. */
       c.bn_timing  = 0.01;
       c.bn_carrier = 0.005;
-      c.foff = dp_test_freq_offset_inside_bw (c.bn_carrier, c.sps, c.m, 1.0);
+      c.foff = dp_test_freq_offset_inside_bw (c.bn_carrier, c.m, 1.0) / c.sps;
       /* 8PSK hands over to decision-directed tracking, because its decision
          margin is only +-pi/8 and the M-th-power discriminator's own phase
          noise eats into it. Measured, though, the handover is worth far less

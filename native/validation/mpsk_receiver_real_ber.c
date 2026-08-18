@@ -126,7 +126,7 @@ main (int argc, char **argv)
       /* Inside the loop's acquisition bound — see the complex twin for why
          an offset outside it measures luck rather than the receiver, and why
          the bound carries the `m`. */
-      c.foff = dp_test_freq_offset_inside_bw (c.bn_carrier, c.sps, c.m, 1.0);
+      c.foff = dp_test_freq_offset_inside_bw (c.bn_carrier, c.m, 1.0) / c.sps;
       c.acq_to_track = (c.m == 8);
       c.nda_tap      = MPSK_RX_NDA_TAP_STROBE;
 

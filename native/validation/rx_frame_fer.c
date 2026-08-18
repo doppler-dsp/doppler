@@ -521,7 +521,7 @@ rx_frame_default_cfg (rx_frame_cfg_t *c, dp_frame_name_t frame)
    */
   c->bn_timing  = 0.01;
   c->bn_carrier = 0.005;
-  c->foff = dp_test_freq_offset_inside_bw (c->bn_carrier, c->sps, c->m, 1.0);
+  c->foff = dp_test_freq_offset_inside_bw (c->bn_carrier, c->m, 1.0) / c->sps;
   c->acq_to_track = 0;
   c->nda_tap      = MPSK_RX_NDA_TAP_STROBE;
 }

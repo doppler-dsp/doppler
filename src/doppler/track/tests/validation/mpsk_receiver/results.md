@@ -262,6 +262,7 @@ The surfaces a composing caller needs and no earlier section reaches. A receiver
 | resume from a blob, mid-stream | bit-exact: True |
 | a clobbered blob is rejected | ValueError: True |
 | telemetry probes published | 14 |
+| trajectories filed | `data/mpsk_receiver.tlm`, 14 probes |
 | records per probe over 8192 samples at decim 8 | 128 |
 
 

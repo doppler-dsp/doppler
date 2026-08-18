@@ -10,3 +10,13 @@
     runs in **0.275 s**. The coverage recipe clears the variable for the LLVM
     tools only, so a developer's own debuginfod setup is untouched everywhere
     else.
+- `make coverage` is roughly twice as fast, from a clean tree: the coverage
+    build now keeps Debug's assertions and drops Debug's `-O0`
+    (`COV_CFLAGS ?= -g -O2`). The target runs the whole suite twice, and at
+    `-O0` that was dominated by the Monte-Carlo validators —
+    `validate_rx_battery` alone took 270 s of a 353 s `ctest`, against 28 s in
+    the release build. Measured: **ctest 353 s → 77 s, the whole target 10m47
+    (incremental) → 4m52 (clean)**, with the report unmoved at 86.40 % region /
+    88.85 % line. `RelWithDebInfo` reaches the same speed and was rejected — it
+    defines `NDEBUG` and would compile out every `assert`, so the measured tree
+    would stop running code the tested tree runs.

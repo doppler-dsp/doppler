@@ -1015,6 +1015,28 @@ extern "C"
   /** @brief Handover lock threshold in use — derived unless pinned (§8.1). */
   double mpsk_receiver_get_lock_thresh (const mpsk_receiver_state_t *state);
 
+  /**
+   * @brief Carrier DROP threshold in use — `MPSK_RX_HANDOVER_DOWN` x the
+   *        declare threshold, the level hysteresis the pair is stated with.
+   *
+   * Readable for the same reason the declare side is: a caller plotting the
+   * lock statistic needs both edges to know what the decision was reading,
+   * and deriving `0.8 *` in a plotting script puts a second copy of the
+   * hysteresis rule outside the object that owns it.
+   */
+  double
+  mpsk_receiver_get_lock_drop_thresh (const mpsk_receiver_state_t *state);
+
+  /** @brief Timing DECLARE threshold on `sync.lock`, derived by symsync's
+   *         own (rolloff, esno_min, pfa, pd) geometry rather than pinned. */
+  double
+  mpsk_receiver_get_sync_lock_thresh (const mpsk_receiver_state_t *state);
+
+  /** @brief Timing DROP threshold on `sync.lock`. Equal to the declare
+   *         threshold when the timing loop carries no level hysteresis. */
+  double
+  mpsk_receiver_get_sync_lock_drop_thresh (const mpsk_receiver_state_t *state);
+
   /** @brief Matched-filter bank arms in use — derived unless pinned (§8.1). */
   size_t mpsk_receiver_get_num_phases (const mpsk_receiver_state_t *state);
 

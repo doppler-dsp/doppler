@@ -86,12 +86,17 @@ tlm = Telemetry()
 # that pairing is measured at 3.11 dB off the coherent bound where the
 # derived 8 is 0.41 dB off. A parameter nobody needed was costing the demo
 # most of its margin.
+# No `acq_to_track`: there is no handover. One M-th-power NDA discriminator
+# steers the LO from the first output to the last, which is Mode 1 in
+# `docs/design/mpsk.md` -- nothing here waits for anything, and the transient
+# is simply the cost of starting cold. The parameter is still on the shipped
+# constructor and is left at its default rather than enabled; retiring it is
+# doppler#831's job, not this demo's.
 rx = BpskReceiver(
     sample_rate_hz=FS,
     symbol_rate_hz=RS,
     bn_carrier=BN_CARRIER,
     bn_timing=0.01,
-    acq_to_track=1,
 )
 rx.set_telemetry(tlm, "rx", 1)
 
@@ -113,11 +118,20 @@ recs = cap.records()  # the same data, still 16-byte wire records
 store = Path(tempfile.mkdtemp()) / "mpsk_tlm.tlm16"
 recs.tofile(store)
 
-assert rx.tracking == 1  # the receiver handed over to decision-directed track
+assert rx.tracking == 0  # no handover: the NDA steer runs start to finish
 assert set(series) == set(tlm.probe_names)  # every probe came back by name
 assert sum(v.size for _, v in series.values()) == len(recs)  # nothing lost
 assert store.stat().st_size == recs.nbytes == 16 * len(recs)
 assert np.array_equal(np.fromfile(store, dtype=recs.dtype), recs)
+
+# A BPSK decision is REAL, so a locked carrier loop leaves essentially
+# nothing in Q -- measured over the settled half, mean|I| is ~17x mean|Q|.
+# That is the claim the shared I/Q panel exists to make visible, and it is
+# asserted here rather than left to the eye.
+settled = len(series["rx.sym.i"][1]) // 2
+mean_i = np.abs(series["rx.sym.i"][1][settled:]).mean()
+mean_q = np.abs(series["rx.sym.q"][1][settled:]).mean()
+assert mean_i > 8 * mean_q, f"carrier unresolved: {mean_i=:.3f} {mean_q=:.3f}"
 # --8<-- [end:capture]
 
 
@@ -127,9 +141,55 @@ def main(out_path: str = "mpsk_telemetry_capture_demo.png") -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    names = sorted(series)
+    # One panel per probe, EXCEPT the recovered symbol. `sym.i` and `sym.q`
+    # are two halves of one complex number and the thing worth seeing is
+    # their RELATIVE size: on a locked BPSK receiver the decision is all in
+    # I and Q sits at zero, which is a claim about the carrier loop, not
+    # about the symbol. On separate panels each axis autoscales to its own
+    # range, so a Q of pure noise renders exactly like a Q carrying signal
+    # -- the one reading the pair is there to distinguish. Sharing an axis
+    # is what makes the comparison honest.
+    panels = []
+    for name in sorted(series):
+        if name.endswith(".sym.q"):
+            continue  # drawn beside its .sym.i partner, below
+        if name.endswith(".sym.i"):
+            stem = name[: -len(".i")]
+            panels.append((f"{stem}.i / {stem}.q", [name, f"{stem}.q"]))
+        else:
+            panels.append((name, [name]))
+
+    # What each trace is meant to be READ AGAINST. Two kinds, kept visually
+    # distinct because they answer different questions:
+    #
+    #   * a DECISION threshold (red) -- read off the receiver, never retyped,
+    #     so the line and the decision it drives cannot drift apart; and
+    #   * the ACTUAL value an estimator is estimating (green), which this
+    #     script knows because it generated the stimulus.
+    #
+    # Without them a panel shows a trace settling onto some number and leaves
+    # the reader to decide whether it is the RIGHT number -- which is the one
+    # thing the panel is there to answer.
+    THRESH, ACTUAL = "#c62828", "#2e7d32"
+    refs = {
+        "rx.lock": [
+            (rx.lock_thresh, "declare", THRESH),
+            (rx.lock_drop_thresh, "drop", THRESH),
+        ],
+        "rx.sync.lock": [
+            (rx.sync_lock_thresh, "declare", THRESH),
+            (rx.sync_lock_drop_thresh, "drop", THRESH),
+        ],
+        "rx.car.freq": [(OFFSET, "actual", ACTUAL)],
+        "rx.car.nco": [(OFFSET, "actual", ACTUAL)],
+        "rx.sync.rate": [(FS / RS, "actual", ACTUAL)],
+        "rx.agc.level_db": [(0.0, "reference", ACTUAL)],
+        "rx.sym.i": [(1.0, "ideal", ACTUAL), (-1.0, "ideal", ACTUAL)],
+        "rx.sym.q": [(0.0, "ideal", ACTUAL)],
+    }
+
     ncol = 3
-    nrow = -(-(len(names) + 1) // ncol)  # +1 cell for the capture summary
+    nrow = -(-(len(panels) + 1) // ncol)  # +1 cell for the capture summary
     fig, axes = plt.subplots(
         nrow, ncol, figsize=(12.0, 2.2 * nrow), sharex=True
     )
@@ -137,26 +197,76 @@ def main(out_path: str = "mpsk_telemetry_capture_demo.png") -> None:
 
     # `n` is the sample index the record was stamped with, so the x-axis is
     # real time — not an event ordinal standing in for one.
-    for ax, name in zip(axes, names):
-        n, v = series[name]
-        # Symbols are DISCRETE samples, not a trajectory: one decision per
-        # symbol period, with nothing in between to interpolate through. A
-        # line through them draws a path the receiver never took, and on a
-        # BPSK stream toggling +-1 it fills the panel solid and shows
-        # nothing. Loop state is the opposite -- a continuous quantity
-        # sampled per symbol -- so it stays a line.
-        if ".sym." in name:
-            ax.plot(n / FS * 1e3, v, ".", ms=1.5, color="#1565c0")
-        else:
-            ax.plot(n / FS * 1e3, v, lw=0.8, color="#1565c0")
-        ax.set_title(name, fontsize=9, family="monospace")
+    for ax, (title, members) in zip(axes, panels):
+        for member, color in zip(members, ("#1565c0", "#ef6c00")):
+            n, v = series[member]
+            # Symbols are DISCRETE samples, not a trajectory: one decision
+            # per symbol period, with nothing in between to interpolate
+            # through. A line through them draws a path the receiver never
+            # took, and on a BPSK stream toggling +-1 it fills the panel
+            # solid and shows nothing. Loop state is the opposite -- a
+            # continuous quantity sampled per symbol -- so it stays a line.
+            if ".sym." in member:
+                ax.plot(
+                    n / FS * 1e3,
+                    v,
+                    ".",
+                    ms=1.5,
+                    color=color,
+                    label=member.rsplit(".", 1)[1].upper(),
+                )
+            else:
+                ax.plot(n / FS * 1e3, v, lw=0.8, color=color)
+        # Drawn after the traces so a reference sits ON the data, and
+        # de-duplicated by VALUE: the timing loop's declare and drop levels
+        # are equal (its hysteresis is in the verify counts, not the
+        # levels), and two identical lines would imply a gap that is not
+        # there. One line, labelled with both names, says the true thing.
+        drawn = {}
+        for member in members:
+            for value, label, color in refs.get(member, ()):
+                drawn.setdefault((round(value, 12), color), []).append(label)
+        for (value, color), labels in drawn.items():
+            ax.axhline(value, color=color, lw=0.8, ls="--", alpha=0.75)
+            ax.annotate(
+                " = ".join(dict.fromkeys(labels)),
+                xy=(1.0, value),
+                xycoords=("axes fraction", "data"),
+                xytext=(2, 0),
+                textcoords="offset points",
+                va="center",
+                fontsize=6,
+                color=color,
+            )
+
+        if len(members) > 1:
+            # Above the axes, not on them: I fills the +-1 bands edge to
+            # edge, so any in-axes corner sits on data.
+            ax.legend(
+                loc="lower right",
+                bbox_to_anchor=(1.0, 1.0),
+                ncol=2,
+                fontsize=7,
+                markerscale=6,
+                frameon=False,
+                handletextpad=0.2,
+                columnspacing=0.8,
+            )
+        # A 0/1 decision gets a 0/1 axis. Autoscale gives a probe that never
+        # leaves 0 a +-0.05 range, which draws pure axis noise as though it
+        # were signal -- `rx.tracking` is exactly that here, and reading it
+        # as "never declared" rather than as a wandering trace is the whole
+        # point of the panel.
+        if title.endswith((".locked", ".tracking")):
+            ax.set_ylim(-0.05, 1.05)
+        ax.set_title(title, fontsize=9, family="monospace")
         ax.grid(alpha=0.3)
         ax.margins(x=0)
 
     # The counts are printed to stdout and asserted above; a panel restating
     # them is a caption for the figure's own axes, which the panel titles
     # already are.
-    for ax in axes[len(names) :]:
+    for ax in axes[len(panels) :]:
         ax.axis("off")
 
     fig.suptitle(
@@ -166,7 +276,7 @@ def main(out_path: str = "mpsk_telemetry_capture_demo.png") -> None:
     fig.tight_layout()
     fig.savefig(out_path, dpi=110)
     print(
-        f"captured {len(recs)} records over {len(names)} probes "
+        f"captured {len(recs)} records over {len(series)} probes "
         f"({recs.nbytes:,} bytes, nothing dropped) -> {out_path}"
     )
 

@@ -1,6 +1,6 @@
 # A CCSDS CADU, as a Frame Description
 
-![burst tolerance against interleaving depth](../assets/ccsds_link_demo.png)
+![what an outer code repairs, and what it refuses](../assets/ccsds_link_demo.png)
 
 A frame is a list of **fields** that appear on the wire and a list of
 **stages** that transform them — each stage carrying the **span it covers**.
@@ -79,40 +79,38 @@ aimed at.
 
 ## What the receive side buys — the plot
 
-The bars are what a **coded** frame reports that a CRC cannot.
-
 A contiguous burst of `B` symbols lands as `ceil(B / I)` errors in each
 codeword, so interleaving depth `I` trades **no rate at all** for an `I`-fold
 longer correctable burst. At `I = 5` and `E = 16` the boundary is exactly 80
-symbols: green bars survive, and the bar height is the repair work it took.
-One symbol more concentrates `E + 1` into a single codeword and the frame is
-refused (red).
+symbols.
 
-That height is the point. A CRC reports one bit — right or wrong. An outer
+**Top panel** — symbol errors repaired, green while the frame survives and red
+once it does not. The ramp is the outer code spending its budget one symbol at
+a time.
+
+**Bottom panel** — units still good, and it is what keeps the top panel
+honest. Past 80 the repair count **falls**, and on its own that would read as
+"less damage". It is the opposite: a refused codeword is not repaired at all,
+so it contributes nothing to the height. The step down from 6 to 1 is what
+actually happened.
+
+```text
+   80 symbols  6/6 units good   80 repaired  ok
+   81 symbols  5/6 units good   64 repaired  REFUSED
+   82 symbols  4/6 units good   48 repaired  REFUSED
+   83 symbols  3/6 units good   32 repaired  REFUSED
+   84 symbols  2/6 units good   16 repaired  REFUSED
+   85 symbols  1/6 units good    0 repaired  REFUSED
+```
+
+Each symbol past the boundary costs exactly one more codeword, because a
+contiguous burst visits the codewords in rotation — so the failure is
+**graded**, not a cliff. The last row is five refused codewords plus the
+randomiser, which cannot fail and is the one unit left.
+
+That gradation is the point. A CRC reports one bit — right or wrong. An outer
 code reports **how much of its budget it spent**, so a margin being consumed
 is visible long before it is lost:
-
-```pycon
->>> payload = transfer_frame()
->>> cadu = describe_cadu(payload, DEPTH, inner=False)
->>> clean = np.asarray(cadu.bits(1)).copy()
->>> blk = cadu.stage_first(0)
-
->>> cadu.check(clean)
-doppler.wfm.FrameCheck(passed=1, stages=2, checked=2, units=6, ok=6, corrected=0, symbols=0)
-
->>> rx = clean.copy()                      # a burst of exactly E per codeword
->>> for s in range(DEPTH * 16):
-...     rx[blk + s * 8] ^= 1
->>> cadu.check(rx)
-doppler.wfm.FrameCheck(passed=1, stages=2, checked=2, units=6, ok=6, corrected=5, symbols=80)
-
->>> rx = clean.copy()                      # E+1 concentrated in ONE codeword
->>> for c in range(17):
-...     rx[blk + (c * DEPTH + 2) * 8] ^= 1
->>> cadu.check(rx)
-doppler.wfm.FrameCheck(passed=0, stages=2, checked=2, units=6, ok=5, corrected=0, symbols=0)
-```
 
 Both frames in the first two lines "pass". Only one of them is healthy.
 

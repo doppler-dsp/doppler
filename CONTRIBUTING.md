@@ -441,6 +441,15 @@ ______________________________________________________________________
 | `make docs`        | Build documentation site                  |
 | `make gates`       | every gate CI requires — run before push  |
 
+**Two pre-commit hooks cover the generated tree**, which `make lint` cannot
+see: `gen-c-api-drift` regenerates `docs/c-api` when a staged file matches the
+Doxyfile's inputs (19 s, headers only), and `docs-invariants` runs the 13 fast
+checks from `docs-check` — API-doc coverage, the docstring ratchet, nav index,
+doc/face parity — in about 1.6 s on every commit. Both are the same commands
+CI runs, so a local pass means a CI pass. `make gates` remains the full
+contract; the expensive half of it (coverage, the site build, docker, Rust) is
+CI's job.
+
 ______________________________________________________________________
 
 ## Code style

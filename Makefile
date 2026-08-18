@@ -447,6 +447,33 @@ uv run python scripts/check_doc_face_parity.py
 uv run python scripts/check_init_param_optionality.py
 endef
 
+# docs-check's invariants WITHOUT the site build, so pre-commit can run them.
+#
+# The whole gate is ~11 s and most of that is zensical building the site; the
+# 13 checks above are 1.6 s together. That is cheap enough to run on every
+# commit, which matters because two of them -- check_api_docs and
+# check_docstring_coverage --check -- are what caught a new class arriving
+# undocumented in doppler#858, after a local run came back clean.
+#
+# Iterates DOCS_CHECK_PRE_CMDS itself rather than restating any of it, so this
+# target and docs-check cannot disagree about what an invariant is: adding a
+# line above puts it in both. Reports every failure rather than stopping at the
+# first, the same as docs-check.
+docs-invariants: ## docs-check's fast invariants, no site build (pre-commit)
+	@tmp=$$(mktemp); trap 'rm -f "$$tmp"' EXIT; fail=0; \
+	 printf '%s\n' "$$DOCS_CHECK_PRE_CMDS" >"$$tmp"; \
+	 while IFS= read -r c; do \
+	     [ -n "$$c" ] || continue; \
+	     echo "=== $$c ==="; \
+	     sh -c "$$c" || { echo "docs-invariants: FAILED: $$c"; fail=1; }; \
+	 done <"$$tmp"; \
+	 if [ "$$fail" != 0 ]; then \
+	     echo "docs-invariants: FAILURES above — every check ran, all reported"; \
+	     exit 1; \
+	 fi; \
+	 echo "docs-invariants: OK — $$(printf '%s\n' "$$DOCS_CHECK_PRE_CMDS" \
+	     | grep -c .) invariant(s)"
+
 define DOCS_CHECK_POST_CMDS
 uv run python scripts/check_site_links.py
 endef
@@ -726,6 +753,7 @@ endef
 # gates cover them: criterion 2 is "help lists EVERY target", not "every
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
+                docs-invariants \
                 jm-apply changelog-assemble changelog-assembled-check \
                 plot-rx-dynamics \
                 gen-c-api-check \

@@ -649,12 +649,33 @@ mkdir -p $(COV_DIR)/pkg/doppler
 (cd src/doppler && tar cf - --exclude='*.so' .) \
     | (cd $(COV_DIR)/pkg/doppler && tar xf -)
 rm -rf $(COV_DIR)/prof && mkdir -p $(COV_DIR)/prof
+# -j, because this suite is the single biggest block of the coverage job:
+# 682s serial in CI against 135 tests. Source-based coverage is per-PROCESS
+# (LLVM_PROFILE_FILE's %p), so concurrent tests each write their own .profraw
+# and the merge below is unaffected -- the profile format is what makes this
+# safe, not luck.
 cd $(COV_DIR) && LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/c-%p-%m.profraw" \
-    $(CTEST) --output-on-failure
+    $(CTEST) --output-on-failure -j $(NPROC)
+# -n auto for the same reason as ctest above: 486s serial in CI, 102s here.
+# The per-process profile argument is identical -- xdist workers are separate
+# processes and %p gives each its own .profraw.
+#
+# THE LEADING `-` STAYS, FOR NOW, AND IT SHOULD NOT. make ignores this
+# command's exit code, and it is failing: 89 results (27 failed, 62 errors)
+# against 2631 passed, permanently tolerated in the one job that produces the
+# coverage number. Every one is an artifact of running against the COPIED
+# tree -- `Path(__file__).parents[N]` lands in `build-cov/` instead of the
+# repo root, so `docs/schema/*.json`, `scripts/*.sh` and `native/inc/*.h` are
+# all missing. They pass from `src/`, so nothing real is hidden today; what
+# is hidden is any FUTURE regression, among 89 tolerated results.
+#
+# Removing the `-` requires fixing that resolution first (17 files share the
+# fixed-depth idiom), which is a test-infrastructure change and not this
+# branch's subject. Done separately, then the `-` goes.
 -LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/py-%p-%m.profraw" \
     PYTHONPATH="$(CURDIR)/$(COV_DIR)/pkg" \
     $(PYTHON_EXECUTABLE) -m pytest $(COV_DIR)/pkg/doppler \
-    -q -p no:cacheprovider --ignore-glob='*/benchmarks/*'
+    -q -p no:cacheprovider --ignore-glob='*/benchmarks/*' -n auto
 -DOPPLER_BUILD_DIR="$(CURDIR)/$(COV_DIR)" \
     LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/rs-%p-%m.profraw" \
     cargo test --manifest-path $(RUST_DIR)/Cargo.toml

@@ -139,6 +139,20 @@ RUN arch="$(dpkg --print-architecture)" \
  && rm -rf /tmp/nats.tar.gz "/tmp/nats-server-v${NATS_VERSION}-linux-${arch}" \
  && nats-server --version
 
+# A cache directory any UID can write, because this image is run as more than
+# one. A container job runs as root; `make ci-image`, `make ci-run` and the
+# publish smoke all run as the CALLER, so the bind-mounted checkout does not
+# fill with root-owned files. That user has no passwd entry and therefore no
+# HOME, so ccache resolved its default to `//.cache/ccache` and died with
+# "Permission denied" -- which surfaced as every compile failing, not as a
+# cache problem. Same lesson as CARGO_HOME above: an image used by an
+# arbitrary UID cannot keep its state under $HOME.
+#
+# CI overrides this to a workspace path so actions/cache can persist it; the
+# default only has to be writable and correct for a one-off run.
+ENV CCACHE_DIR=/tmp/ccache
+RUN mkdir -p /tmp/ccache && chmod 1777 /tmp/ccache
+
 # Actions check out as root into a directory git then refuses to touch
 # ("dubious ownership"), which surfaces as every git-dependent gate failing
 # for a reason that has nothing to do with them.

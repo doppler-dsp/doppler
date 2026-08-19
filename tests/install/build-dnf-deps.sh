@@ -7,6 +7,6 @@ set -euo pipefail
 # `make docs-relink`.
 # Fedora, RHEL, CentOS Stream, Rocky, AlmaLinux.
 # --8<-- [start:install]
-sudo dnf install gcc make cmake pkgconf-pkg-config python3-devel \
+sudo dnf install gcc make ccache cmake pkgconf-pkg-config python3-devel \
   python3-numpy
 # --8<-- [end:install]

@@ -86,9 +86,21 @@ config = "just-makeit.toml"
 # build in a scratch directory, because the box had neither. It is listed for
 # the four Linux managers only; see the brew and msys2 notes below for why they
 # are excluded rather than forgotten.
+# ccache: the C core is compiled ~7 times per CI run with the SAME compiler
+# and the SAME flags -- once per Python job (only the extension differs per
+# ABI), plus the ubuntu-24.04 build leg. Measured on one run: 59-80s of "Build
+# C library" x6, ~7 minutes of identical work. The rebuilds that are NOT
+# duplicated stay that way and must: the 22.04 leg is a different glibc, the
+# coverage tree is clang with -fprofile-instr-generate, glibc-228 is the
+# floor's toolchain. ccache tells them apart by hashing the compiler and the
+# flags, so it shares what is genuinely shared and nothing else.
+#
+# It is here rather than in the CI image alone because a dev box rebuilds the
+# same tree far more often than CI does.
 [dev.apt]
 packages = [
     "build-essential",
+    "ccache",
     "cmake",
     "pkg-config",
     "python3-dev",
@@ -103,6 +115,7 @@ packages = [
 [dev.pacman]
 packages = [
     "base-devel",
+    "ccache",
     "cmake",
     "pkgconf",
     "python",
@@ -132,6 +145,7 @@ packages = [
 [dev.brew]
 packages = [
     "cmake",
+    "ccache",
     "pkg-config",
     "python",
     "numpy",
@@ -142,6 +156,7 @@ packages = [
 packages = [
     "gcc",
     "make",
+    "ccache",
     "cmake",
     "pkgconf-pkg-config",
     "python3-devel",
@@ -157,6 +172,7 @@ packages = [
 packages = [
     "gcc",
     "make",
+    "ccache",
     "cmake",
     "pkg-config",
     "python3-devel",

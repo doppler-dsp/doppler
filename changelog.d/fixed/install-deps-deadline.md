@@ -41,18 +41,27 @@
     curl exiting non-zero, a transient resolver error) leave no lock and *are*
     still retried.
 
-    **The stall is a mirror going quiet mid-download, so apt is the layer that
-    can actually fix it.** The log shows `azure.archive.ubuntu.com` producing
-    nothing for 229 seconds partway through a 114 MB fetch. A wall-clock
-    deadline cannot tell that from a large download over a slow link; apt can,
-    and its own retry *resumes* rather than restarting and leaves no dpkg lock.
-    `make apt-stall-config` drops
-    `Acquire::http::Timeout "30"` / `Acquire::Retries "3"` into
-    `/etc/apt/apt.conf.d/` before provisioning — best-effort and Linux-only, a
-    no-op where there is no apt or sudo. The deadline moves to **600s**
-    accordingly: the 9 samples it was first sized from were all fast ones, so
-    ~3.4x the worst observed is the honest margin, and a true hang is still
-    bounded at ten minutes against the 360 it used to get.
+    **The stall is a mirror going quiet mid-download.** The log shows
+    `azure.archive.ubuntu.com` producing nothing for 229 seconds partway
+    through a 114 MB fetch, on the same package (`cmake-data`) across separate
+    runs — a broken path, not random noise. `make apt-stall-config` sets
+    `Acquire::http::Timeout "30"` / `Acquire::Retries "3"` before provisioning
+    (Linux-only, best-effort, a no-op without apt or sudo). **Measured, that
+    did not stop it**: apt carried the config and still sat nine minutes on the
+    same package, so the deadline is what bounds this, not apt. The setting
+    stays because it costs nothing and covers stall modes apt *can* see, but it
+    is not the thing that works here.
+
+    **What makes the retry viable is reclaiming the lock.** The holder is
+    root-owned, and a CI runner gives us root — so on a deadline expiry the
+    script kills it, removes the dpkg/apt lock files, runs `dpkg --configure   -a`, and retries, quite possibly against a different mirror node. That is
+    gated on `CI` *and* sudo: clearing dpkg locks is reasonable for a
+    disposable VM and unreasonable for a laptop, so off a runner a deadline
+    expiry stays terminal.
+
+    The deadline moves to **600s**: the 9 samples it was first sized from were
+    all fast ones, so ~3.4x the worst observed is the honest margin, and a true
+    hang is still bounded at ten minutes against the 360 it used to get.
 
     Also measured on that run: **GitHub's macOS runner has neither
     `timeout(1)` nor `gtimeout`**, so the script carries a POSIX watchdog

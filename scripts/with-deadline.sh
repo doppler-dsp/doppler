@@ -49,12 +49,22 @@
 # the group faithfully and the root child simply ignores it. It then holds the
 # dpkg lock forever, because the reason it was killed is that it was hung.
 #
-# So after a deadline expiry the environment is POISONED, and retrying is not
+# So after a deadline expiry the environment is POISONED. Retrying blind is not
 # merely wasteful — it is guaranteed to fail and it buries the real cause under
-# two lock errors. A deadline expiry therefore fails immediately and says why.
+# two lock errors.
+#
+# **Unless the lock can be RECLAIMED, which on a CI runner it can.** The holder
+# is root-owned and a runner gives us root: kill it, remove the lock files, let
+# dpkg finish any half-completed transaction, and the next attempt starts
+# clean — quite possibly against a different mirror node, which is the whole
+# reason a retry is worth having against a stall localised to one path. Gated
+# on `CI` being set and on sudo existing, because clearing dpkg locks is a
+# reasonable thing to do to a disposable VM and an unreasonable thing to do to
+# somebody's laptop. Off a runner a deadline expiry stays terminal.
+#
 # Ordinary failures (a curl that exits non-zero, a transient resolver error)
-# leave no lock behind and ARE retried, which is the 2026-08-07-class flake
-# this repo already knows about.
+# leave no lock behind and are retried without any of this, which is the
+# 2026-08-07-class flake this repo already knows about.
 #
 # The earlier reasoning here was that GNU timeout kills the whole process
 # group, verified against a `make` over a `sleep`. That verification was sound
@@ -145,6 +155,27 @@ run_with_watchdog() {
     esac
 }
 
+# Reclaim a package manager that outlived its kill. Disposable CI only; see
+# the header. Non-zero means "not safe or not possible here", which leaves a
+# deadline expiry terminal.
+reclaim_pkg_manager() {
+    [ -n "${CI:-}" ] || return 1
+    command -v sudo    >/dev/null 2>&1 || return 1
+    command -v apt-get >/dev/null 2>&1 || return 1
+
+    echo "with-deadline: reclaiming the package manager (CI, root available)" >&2
+    sudo pkill -KILL -x apt-get 2>/dev/null || :
+    sudo pkill -KILL -x apt     2>/dev/null || :
+    sudo pkill -KILL -x dpkg    2>/dev/null || :
+    sudo rm -f /var/lib/dpkg/lock-frontend \
+               /var/lib/dpkg/lock \
+               /var/lib/apt/lists/lock \
+               /var/cache/apt/archives/lock 2>/dev/null || :
+    # Finish whatever the kill interrupted, or the next apt-get refuses to run.
+    sudo dpkg --configure -a >/dev/null 2>&1 || :
+    return 0
+}
+
 attempt=1
 while :; do
     # `set -e` must not kill us on a failed attempt: the retry IS the point.
@@ -166,17 +197,18 @@ while :; do
         why="failed (rc=$rc)"
     fi
 
-    # A deadline expiry is terminal: whatever was killed may still hold a
-    # package-manager lock (it is root-owned under sudo and outlived the
-    # signal), so every further attempt would fail on that lock and hide the
-    # real cause. Fail now, and name it.
-    if [ "$rc" -eq 124 ]; then
-        echo "with-deadline: attempt $attempt/$tries $why — NOT retrying." >&2
-        echo "  A killed package manager keeps its lock (root-owned under" \
-             "sudo, so it outlives the signal), which would make every" \
-             "further attempt fail on the lock instead of on the real" \
-             "cause. Re-run the job." >&2
-        exit "$rc"
+    # A deadline expiry leaves a root-owned package manager holding the dpkg
+    # lock, so a blind retry cannot succeed. Reclaim first; where that is not
+    # possible, stop rather than pile lock errors on top of the real cause.
+    if [ "$rc" -eq 124 ] && [ "$attempt" -lt "$tries" ]; then
+        if ! reclaim_pkg_manager; then
+            echo "with-deadline: attempt $attempt/$tries $why — NOT retrying." >&2
+            echo "  A killed package manager keeps its lock (root-owned, so" \
+                 "it outlives the signal) and this is not a CI runner where" \
+                 "it can be reclaimed, so every further attempt would fail on" \
+                 "the lock instead of on the real cause." >&2
+            exit "$rc"
+        fi
     fi
 
     if [ "$attempt" -ge "$tries" ]; then

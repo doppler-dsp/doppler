@@ -869,6 +869,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 compile_commands.json \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
                 apt-stall-config deps-budget-check \
+                ci-image ci-image-check ci-image-shell ci-image-source-hash \
                 wheel-check wheel-smoke release-smoke \
                 bench-interleaved bench-publish bench-docs bench-stream \
                 bench-report \
@@ -896,7 +897,7 @@ include standard.mk
 # long as it has existed. Being inert (#705) was only half the problem; not
 # running was the other half, and `gates` is a local convenience, not CI.
 lint: tests-ssot characterization-check validation-report-check changelog-check \
-      issue-link-check deps-budget-check
+      issue-link-check deps-budget-check ci-image-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -2086,7 +2087,7 @@ CI_IMAGE_PIN   := .github/ci-images.env
 # developer can actually cause. Whether UPSTREAM packages moved is a different
 # question, and the nightly rebuild in ci-image.yml is what asks it -- it
 # compares the package fingerprint baked into the image, not this.
-ci-image-source-hash:
+ci-image-source-hash: ## Print the hash of the CI image's inputs (plumbing)
 	@cat bootstrap.toml $(CI_DOCKERFILE) | sha256sum | cut -d' ' -f1
 
 ci-image: ## Build the CI toolchain image locally, one per base
@@ -2131,6 +2132,14 @@ ci-image-check: ## Fail when the pinned CI image no longer matches its inputs
 	 refs=$$(grep -rhoE '^[[:space:]]*image:[[:space:]]*\S+' \
 	     .github/workflows/*.yml | awk '{print $$2}' | sort -u); \
 	 for r in $$refs; do \
+	     case "$$r" in \
+	     *'$${{'*) \
+	         : "A workflow expression rather than a literal ref. What it" ; \
+	         : "resolves to is a matrix image: line, which this same scan" ; \
+	         : "sees and checks as a literal -- so the pin is still gated," ; \
+	         : "and a per-leg image stays expressible." ; \
+	         continue;; \
+	     esac; \
 	     case "$$r" in \
 	     *@sha256:*) ;; \
 	     *) echo "ci-image-check: a container: names '$$r', which is not a"; \

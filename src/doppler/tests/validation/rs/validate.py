@@ -36,13 +36,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-from doppler.tests._repo import repo_root
+from doppler.tests._repo import build_dir, repo_root
 from doppler.tests._validation_common import Report, cli
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
 ROOT = repo_root(__file__)
-HARNESS = ROOT / "build/native/validation/validate_rs_certify"
+HARNESS = build_dir(__file__) / "native/validation/validate_rs_certify"
 
 R = Report()
 

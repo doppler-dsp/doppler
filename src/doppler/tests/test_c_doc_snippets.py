@@ -42,6 +42,7 @@ port. Run locally with ``pytest -m docs_snippets test_c_doc_snippets.py``
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -53,9 +54,24 @@ from doppler.tests._docs_snippet_common import iter_fences as _iter_fences_raw
 from doppler.tests._docs_snippet_common import (
     resolve_snippets as _resolve_snippets,
 )
+from doppler.tests._repo import build_dir
 
 IGNORE_FILE = DOCS / ".c-doc-snippet-ignore"
-BUILD_DIR = REPO / "build"
+# NOT `REPO / "build"`: the coverage job builds only `build-cov`, so a
+# hard-coded ordinary build tree made this gate pass on a developer's box and
+# fail on a runner with "build the C library first" -- 33 blocks of it,
+# invisible while the recipe discarded pytest's exit code.
+BUILD_DIR = build_dir()
+
+# The coverage run exports LLVM_PROFILE_FILE for the whole pytest process, so
+# its presence is what says "the archive we are about to link is clang
+# source-based instrumented". A snippet compiled without these flags fails to
+# link against it (the profile runtime's symbols are unresolved); compiled
+# WITH them it links, runs, and writes its own .profraw into the same
+# directory the recipe merges -- so the 33 documented C snippets contribute
+# to the number instead of being an exclusion.
+_INSTRUMENTED = bool(os.environ.get("LLVM_PROFILE_FILE"))
+_COVERAGE_CFLAGS = ["-fprofile-instr-generate", "-fcoverage-mapping"]
 
 # Per-snippet wall-clock budget (compile + run combined).
 SNIPPET_TIMEOUT_S = 30
@@ -115,7 +131,11 @@ CASES = [(p, i) for p in GATED_PAGES for i in range(_page_fence_count(p))]
 
 
 def _cc() -> str:
-    for candidate in ("cc", "gcc", "clang"):
+    # clang FIRST when instrumented, and not merely preferred: only clang
+    # understands -fprofile-instr-generate, and gcc cannot link the archive
+    # this run built.
+    order = ("clang", "cc", "gcc") if _INSTRUMENTED else ("cc", "gcc", "clang")
+    for candidate in order:
         found = shutil.which(candidate)
         if found:
             return found
@@ -170,6 +190,7 @@ def _compile_and_run(blockid, code, tmp_path, run=True):
         # hits. Matching the library's actual, tested standard, not a
         # stricter one the codebase doesn't use.
         "-std=gnu99",
+        *(_COVERAGE_CFLAGS if _INSTRUMENTED else []),
         "-Wall",
         "-Wextra",
         "-Werror",

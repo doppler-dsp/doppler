@@ -713,8 +713,26 @@ cd $(COV_DIR) && LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/c-%p-%m.profraw" \
 # resolving the repo root by walking up, 7 by installing the instrumented
 # wfmgen above, and 1 by withholding a scaling assertion that profiling
 # invalidates. A failure here is now a failure.
+#
+# DOPPLER_BUILD_DIR and PATH are what make this run self-sufficient, and both
+# were supplied by the DEVELOPER'S MACHINE until the exit code started being
+# read. This job builds only $(COV_DIR), yet three gates asked for `build/`
+# (the C doc-snippet compiler, the conv/rs certify harnesses) and four asked
+# for console scripts on PATH (`wfmgen` in the sh doc fences, `doppler-source`
+# / `doppler-fir` / `doppler-specan` in the cli block tests). A dev box has an
+# ordinary build tree and an activated venv, so all of it passed here and
+# failed on a runner -- 44 failures and 6 errors, none of them about the code
+# under test.
+#
+# The instrumented wfmgen goes FIRST, ahead of the venv's console script, so
+# the fences drive the binary this run built and their work lands in the
+# report. The variable is jm's own name for this, already used by the cargo
+# leg below and by ffi/rust/build.rs; `build_dir()` in doppler.tests._repo is
+# the single reader on the Python side.
 LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/py-%p-%m.profraw" \
     PYTHONPATH="$(CURDIR)/$(COV_DIR)/pkg" \
+    DOPPLER_BUILD_DIR="$(CURDIR)/$(COV_DIR)" \
+    PATH="$(CURDIR)/$(COV_DIR)/pkg/doppler/wfm/_bin:$(dir $(PYTHON_EXECUTABLE)):$$PATH" \
     $(PYTHON_EXECUTABLE) -m pytest $(COV_DIR)/pkg/doppler \
     -q -p no:cacheprovider --ignore-glob='*/benchmarks/*' -n auto
 -DOPPLER_BUILD_DIR="$(CURDIR)/$(COV_DIR)" \

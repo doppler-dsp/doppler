@@ -26,6 +26,7 @@ import sys
 import numpy as np
 
 from doppler.track import SymbolSync
+from doppler.wfm import rc_h, wfm_awgn_amplitude
 
 SPS = 4
 BETA = 0.35
@@ -35,20 +36,27 @@ OFFSET = 1.7  # static fractional-sample timing offset
 SNR_DB = 14.0
 
 
-def rc_pulse(t, beta, T):
-    """Raised-cosine pulse shape, evaluated at sample offsets ``t``."""
-    t = np.asarray(t, float)
-    s = np.sinc(t / T)
-    denom = 1 - (2 * beta * t / T) ** 2
-    cos = np.cos(np.pi * beta * t / T)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        s = s * np.where(np.abs(denom) < 1e-8, np.pi / 4, cos / denom)
-    return s
-
-
 def make_signal(seed=7):
     """RC-shaped BPSK whose symbol clock runs CLOCK_RATE fast, offset by
-    OFFSET samples, at SNR_DB — asynchronous to the sample clock."""
+    OFFSET samples, at SNR_DB — asynchronous to the sample clock.
+
+    **This is the one stimulus in the gallery `wfmgen` cannot build**, and
+    the reason is the thing being demonstrated: `Segment.sps` is an integer,
+    so a composer scene has no way to say "the symbol clock runs 1.004x fast
+    and starts 1.7 samples late". That offset IS the question a
+    `SymbolSync` answers, so it is placed here by hand.
+
+    What does NOT get written by hand is the pulse or the level. Both are
+    library primitives and both were transcribed here before:
+
+    - `rc_h` is the analytic raised cosine at **arbitrary, non-grid times**,
+      which is precisely the shape a drifting clock needs — its docstring
+      says to use it rather than a transcription of the formula, and the
+      private `rc_pulse` this replaces was that transcription. It takes `t`
+      in SYMBOL periods where the old one took samples, hence the `/ SPS`.
+    - `wfm_awgn_amplitude` is the per-component sigma for a target SNR over
+      fs, replacing `sqrt(10 ** (-SNR_DB / 10)) * p / sqrt(2)`.
+    """
     rng = np.random.default_rng(seed)
     a = rng.integers(0, 2, NSYM) * 2 - 1
     n = NSYM * SPS
@@ -59,14 +67,12 @@ def make_signal(seed=7):
         if c + span >= n:
             break
         idx = np.arange(max(0, int(c - span)), min(n, int(c + span)))
-        s[idx] += ak * rc_pulse(idx - c, BETA, SPS)
+        s[idx] += ak * rc_h((idx - c) / SPS, BETA)
     s = s.astype(np.complex64)
-    p = np.sqrt(np.mean(np.abs(s) ** 2))
-    std = np.sqrt(10 ** (-SNR_DB / 10)) * p
-    s = s + (
-        rng.normal(0, std / np.sqrt(2), n)
-        + 1j * rng.normal(0, std / np.sqrt(2), n)
-    ).astype(np.complex64)
+    std = wfm_awgn_amplitude(SNR_DB, np.mean(np.abs(s) ** 2))
+    s = s + (rng.normal(0, std, n) + 1j * rng.normal(0, std, n)).astype(
+        np.complex64
+    )
     return s, a
 
 

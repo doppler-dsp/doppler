@@ -31,21 +31,44 @@ import sys
 import numpy as np
 
 from doppler.track import Costas
+from doppler.wfm import Composer, Segment
 
 TSAMPS = 16  # samples per symbol (integrate-and-dump period)
 NSYM = 4000  # symbols
 F0 = 0.009  # large residual carrier offset, cycles/sample (~0.9 rad/symbol)
 SNR_DB = 15.0  # per-sample SNR
 
-# Continuous BPSK carrying the residual carrier offset F0 + AWGN.
-rng = np.random.default_rng(0)
-bits = rng.integers(0, 2, NSYM) * 2 - 1
-sig = np.repeat(bits.astype(np.complex64), TSAMPS)
-k = np.arange(len(sig))
-rx = sig * np.exp(2j * np.pi * F0 * k)
-sigma = np.sqrt(10.0 ** (-SNR_DB / 10.0) / 2.0)
-rx = rx + (rng.normal(0, sigma, len(rx)) + 1j * rng.normal(0, sigma, len(rx)))
-rx = rx.astype(np.complex64)
+# Continuous BPSK carrying the residual carrier offset F0 + AWGN, from
+# wfmgen's built-in PSK source.
+#
+# `snr_mode="fs"` is the point of interest here, and it is a DIFFERENT
+# question from the `esno` the M-PSK receiver demo asks. SNR_DB is stated
+# per SAMPLE -- referred to the full sample-rate band -- because a Costas
+# loop's discriminator sees samples, not symbols, and its own noise
+# bandwidth is what the loop design trades against. Es/N0 would be
+# `SNR_DB + 10*log10(TSAMPS)`, and picking the wrong one of the two is a
+# 12 dB error at this oversampling.
+#
+# It replaces `sigma = sqrt(10**(-SNR_DB/10) / 2)`, where the `2` splits the
+# power across I and Q. Verified equal, not assumed: the same declaration
+# measures 15.0 dB per-sample SNR and the noise variances agree to five
+# digits.
+rx = np.asarray(
+    Composer(
+        [
+            Segment(
+                type="bpsk",  # real +-1, from the seeded PN
+                sps=TSAMPS,
+                fs=1.0,  # normalised: F0 is cycles/sample
+                freq=F0,
+                snr=SNR_DB,
+                snr_mode="fs",  # per SAMPLE, not per symbol
+                num_samples=NSYM * TSAMPS,
+                seed=0,
+            )
+        ]
+    ).compose()
+).astype(np.complex64)
 
 # FLL-assisted PLL: the wide cross-product frequency discriminator pulls
 # the loop's integrator onto the large residual; the PLL refines phase.

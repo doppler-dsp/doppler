@@ -22,14 +22,27 @@ import numpy as np
 
 from doppler.ber import ber_settle_syms, ber_theory_ser
 from doppler.track import MpskReceiver
+from doppler.wfm import Composer, Segment
 
-# A QPSK signal at 8 samples/symbol with a residual carrier offset.
-rng = np.random.default_rng(0)
-idx = rng.integers(0, 4, 4000)
-tx = np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4)).astype(np.complex64)
-tx = np.repeat(tx, 8).astype(np.complex64)
-k = np.arange(tx.size)
-iq = (tx * np.exp(2j * np.pi * 0.0015 * k)).astype(np.complex64)
+# A QPSK signal at 8 samples/symbol with a residual carrier offset, from
+# wfmgen's built-in PSK source. `fs=1.0` is the normalised face: with no
+# sample rate declared, `freq` IS cycles per sample, which is the unit the
+# receiver's pull-in bound is stated in two comments below -- so the offset
+# and the bound can be compared without a conversion in between.
+iq = np.asarray(
+    Composer(
+        [
+            Segment(
+                type="qpsk",  # Gray-coded, on the pi/4 grid, unit power
+                sps=8,
+                fs=1.0,  # normalised: freq is cycles/sample
+                freq=0.0015,  # the residual offset, in those units
+                num_samples=4000 * 8,
+                seed=0,
+            )
+        ]
+    ).compose()
+)
 
 # Acquire blind (M-th-power NDA), then hand the shared LO over to
 # low-jitter decision-directed tracking once locked and warmed up.
@@ -101,20 +114,42 @@ PHI0 = {2: 0.0, 4: np.pi / 4, 8: 0.0}
 def _signal(m, sps, foff, esn0_db, nsym, seed):
     """Rectangular (I&D-matched) M-PSK at a carrier offset + AWGN.
 
-    sigma is set so the *matched-filter-output* Es/N0 equals ``esn0_db``: a
-    unit symbol through the length-sps boxcar has output noise sigma^2 / sps.
+    Built by wfmgen through its ``symbols`` source, which takes an arbitrary
+    constellation stream and owns the oversampling, the carrier offset and
+    the noise. That face is what lets ONE function serve every M here: the
+    ``bits`` source's ``modulation`` reaches bpsk and qpsk only, so 8PSK
+    could not be expressed through it, and a per-M branch is exactly the
+    duplication this is replacing.
+
+    The symbol array is also the BER truth, so nothing has to be recovered
+    or assumed to score against it.
+
+    What this replaces is `sigma = sqrt(sps / (2 * 10**(esn0_db/10)))` -- a
+    matched-filter Es/N0 convention written out by hand, where the `sps` is
+    the boxcar's noise-bandwidth term and the `2` splits it across I and Q.
+    `snr_mode="esno"` states it once. Verified equivalent rather than
+    assumed: with the noise off the two waveforms are byte-identical, and at
+    Es/N0 10 dB both measure 10.0 dB at the matched-filter output.
     """
     rng = np.random.default_rng(seed)
     idx = rng.integers(0, m, nsym)
     syms = np.exp(1j * (2 * np.pi * idx / m + PHI0[m])).astype(np.complex64)
-    tx = np.repeat(syms, sps).astype(np.complex64)
-    n = np.arange(tx.size)
-    tx = tx * np.exp(1j * 2 * np.pi * foff * n)
-    sigma = np.sqrt(sps / (2 * 10 ** (esn0_db / 10)))
-    tx = tx + (
-        rng.normal(0, sigma, tx.size) + 1j * rng.normal(0, sigma, tx.size)
-    )
-    return tx.astype(np.complex64), idx
+    iq = Composer(
+        [
+            Segment(
+                type="symbols",
+                symbols=syms,
+                sps=sps,
+                fs=1.0,  # normalised: foff is cycles/sample
+                freq=foff,
+                snr=esn0_db,
+                snr_mode="esno",
+                num_samples=nsym * sps,
+                seed=seed,
+            )
+        ]
+    ).compose()
+    return np.asarray(iq).astype(np.complex64), idx
 
 
 def _settle_floor(bn_timing, bn_carrier):

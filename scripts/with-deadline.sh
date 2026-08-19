@@ -56,11 +56,30 @@
 # **Unless the lock can be RECLAIMED, which on a CI runner it can.** The holder
 # is root-owned and a runner gives us root: kill it, remove the lock files, let
 # dpkg finish any half-completed transaction, and the next attempt starts
-# clean — quite possibly against a different mirror node, which is the whole
-# reason a retry is worth having against a stall localised to one path. Gated
-# on `CI` being set and on sudo existing, because clearing dpkg locks is a
-# reasonable thing to do to a disposable VM and an unreasonable thing to do to
-# somebody's laptop. Off a runner a deadline expiry stays terminal.
+# clean. Gated on `CI` being set and on sudo existing, because clearing dpkg
+# locks is a reasonable thing to do to a disposable VM and an unreasonable
+# thing to do to somebody's laptop. Off a runner a deadline expiry stays
+# terminal.
+#
+# ## What the retry actually buys, measured
+#
+# The reasoning above used to end "quite possibly against a different mirror
+# node, which is the whole reason a retry is worth having against a stall
+# localised to one path." Measured on 2026-08-19 (run 32250340944), that is
+# NOT what happens. Python 3.9 stalled on `Get:7 … cmake … [11.2 MB]`, the
+# reclaim ran, and attempt 2 stalled on THE SAME cmake from the same host.
+# The retry does not move nodes.
+#
+# What it does buy is that apt keeps its partial downloads across the kill:
+# attempt 2 opened with `Need to get 97.4 MB/114 MB` rather than 114 MB. That
+# is real and it is why the reclaim is worth having, but it is a weaker claim
+# than the one it replaces, and the retry cannot rescue a mirror path that
+# stays bad.
+#
+# The failure is also STOCHASTIC PER RUNNER, which is the sizing fact: in that
+# same run 16 of 19 jobs passed this step untouched, and re-running the two
+# failures passed clean with no deadline message at all. So a small try count
+# is not obviously wrong -- it just cannot help a runner that drew a bad path.
 #
 # Ordinary failures (a curl that exits non-zero, a transient resolver error)
 # leave no lock behind and are retried without any of this, which is the

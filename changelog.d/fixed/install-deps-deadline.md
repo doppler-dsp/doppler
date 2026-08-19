@@ -55,10 +55,28 @@
 
     **What makes the retry viable is reclaiming the lock.** The holder is
     root-owned, and a CI runner gives us root — so on a deadline expiry the
-    script kills it, removes the dpkg/apt lock files, runs `dpkg --configure   -a`, and retries, quite possibly against a different mirror node. That is
-    gated on `CI` *and* sudo: clearing dpkg locks is reasonable for a
-    disposable VM and unreasonable for a laptop, so off a runner a deadline
-    expiry stays terminal.
+    script kills it, removes the dpkg/apt lock files, runs `dpkg --configure -a`, and retries. That is gated on `CI` *and* sudo: clearing dpkg locks is
+    reasonable for a disposable VM and unreasonable for a laptop, so off a
+    runner a deadline expiry stays terminal.
+
+    **What the retry buys is the partial-progress resume, not a fresh mirror.**
+    This entry claimed the clean attempt would land "quite possibly against a
+    different mirror node", the only thing that helps against a stall localised
+    to one path. Measured 2026-08-19 (run 32250340944): Python 3.9 stalled on
+    `Get:7 … cmake … [11.2 MB]`, the reclaim ran, and attempt 2 stalled on
+    **the same cmake from the same host**. The retry does not move nodes. What
+    it does keep is apt's partial downloads across the kill — attempt 2 opened
+    with `Need to get 97.4 MB/114 MB` — which is real, and weaker than the
+    claim it replaces. The same run also puts apt's own timeout beyond doubt:
+    **591 seconds** of silence on a single `Get:` with
+    `Acquire::http::Timeout "30"` demonstrably applied.
+
+    **The stall is stochastic per runner, and that is the sizing fact.** In
+    that run 16 of 19 jobs passed this step untouched, and re-running the two
+    failures passed clean with no deadline message at all. So two tries is not
+    obviously the wrong number; it simply cannot rescue a runner that drew a
+    bad path, and the honest bound is that a persistent stall now costs ~20
+    minutes and a clear message instead of 3h45m and a `pending` spinner.
 
     The deadline moves to **600s**: the 9 samples it was first sized from were
     all fast ones, so ~3.4x the worst observed is the honest margin, and a true

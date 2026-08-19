@@ -646,8 +646,6 @@ mpsk_rx_derive_m_out (double cap, int strict)
    * @param l      Loops. Must be non-NULL.
    * @param ys     The terminal-stage outputs the front end just produced.
    * @param n      How many.
-   * @param zpre   The MFR-input sample, when the front end produced one.
-   * @param n_pre  Non-zero when @p zpre is live.
    * @param y_out  Receives the recovered symbol when the return is 1.
    * @param ted    RATESYNC_TED_GARDNER or RATESYNC_TED_DTTL — pass a literal
    *               for a specialised (branch-free) instantiation.

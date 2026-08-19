@@ -19,27 +19,36 @@ jobs:
   # ------------------------------------------------------------------
   # Native C build + CTest on Ubuntu and macOS
   # ------------------------------------------------------------------
-  build-and-test:
+  # Split from the macOS leg because `container:` is Linux-only and a
+  # job-level container cannot be switched off for one matrix leg. The STEPS
+  # are not split -- both jobs run .github/actions/build-test-suite -- and
+  # neither are the check NAMES, which branch protection requires by string.
+  build-and-test-linux:
     name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        # Windows is intentionally unsupported: signal-processing users on
-        # Windows run under WSL2, a VM, or a container. Dropping it removes the
-        # flaky MSYS2 toolchain setup and the MinGW build/test matrix.
-        os: [ubuntu-22.04, ubuntu-24.04, macos-latest]
+        # Two images, not one, and that is the point: these legs exist to
+        # test two glibcs (2.35 and 2.39). Pointing both at a single image
+        # would leave the matrix naming two environments while testing one.
+        # (The 2.28 FLOOR is a different question, answered by the glibc-228
+        # job below and by manylinux_2_28 wheels at release.)
+        include:
+          - os: ubuntu-22.04
+            image: ghcr.io/doppler-dsp/doppler-ci@sha256:9d2f06308cbbf12782ad4055f2b6b76c6845ea1a324457b6dbcd7a65d5cd8bb3
+          - os: ubuntu-24.04
+            image: ghcr.io/doppler-dsp/doppler-ci@sha256:cf8da6b3e24d3299768622b7a55a7556bdf961150c6da3addacd13551c26d622
+    container:
+      image: ${{ matrix.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
     - uses: actions/checkout@v7
-
-    # `make install-deps` is the one dep command a developer also runs: it
-    # self-bootstraps jbx and installs bootstrap.toml's runtime+dev groups, auto-
-    # detecting apt vs brew — so one step covers Ubuntu and macOS both.
-    - name: Install system dependencies
-      timeout-minutes: 25
-      run: make install-deps-ci
+    # No provisioning step: the toolchain is the image.
 
     - name: Build
       run: make build
@@ -87,8 +96,74 @@ jobs:
       # leaked into the default build -- a wheel that SIGILLs on a user's CPU.
       # The C++ check keeps the library pure C: no libstdc++, no CXXABI, -lm
       # only. Both read ELF, hence Linux only; the link smoke below is not.
-      if: startsWith(matrix.os, 'ubuntu')
       run: make abi-check
+
+    - name: Smoke-test static link (libdoppler.a -lm)
+      # The question a downstream actually asks, answered on every platform.
+      run: make link-check
+
+    - name: Smoke-test the three consumer faces (cc / CMake / pkg-config)
+      # Installs the fresh build to a scratch prefix and builds the
+      # core+stream consumer via all three documented faces, asserting
+      # identical output. The docs' "Compile it — three ways" snippets
+      # are --8<-- included from build-three-ways.sh itself, so this
+      # proves exactly what readers copy. Same target a dev runs;
+      # release-smoke.sh runs the same script against the published
+      # tarball on every release (x86_64, aarch64, macOS).
+      run: make consumer-faces-check
+
+  # Windows is intentionally unsupported: signal-processing users on Windows
+  # run under WSL2, a VM, or a container. Dropping it removed the flaky MSYS2
+  # toolchain setup and the MinGW build/test matrix.
+  #
+  # macOS still provisions with brew, because there is no macOS container to
+  # bake: `make install-deps` is the one dep command a developer also runs and
+  # it auto-detects apt vs brew, so this stays exactly as it was.
+  build-and-test-macos:
+    name: Build on macos-latest
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Install system dependencies
+      timeout-minutes: 25
+      run: make install-deps-ci
+
+    - name: Build
+      run: make build
+
+    - name: Test
+      run: make test
+
+    # dp_isotime.h follows just-bashit's `iso-8601-basic` rather than defining
+    # the format itself, so the reference has to be present for the agreement
+    # to be checkable at all. Clone it and set ISOTIME_REQUIRE=1: without the
+    # flag a missing checkout would SKIP, and a gate that skips in CI is a
+    # gate that stopped gating without saying so.
+    - name: Check ISO 8601 parity with just-bashit
+      run: |
+        # macOS ships BSD date, and BOTH sides of this comparison want GNU:
+        # just-bashit's own helper picks `gdate` when it is there, and this
+        # gate needs it to split an instant into the (seconds, nanoseconds)
+        # pair the C API takes. Installing it keeps the check REQUIRED on
+        # every platform doppler ships a wheel for, rather than quietly
+        # Linux-only -- the C side formats through the platform libc's
+        # gmtime_r, so parity on Linux does not prove parity on macOS.
+        if [ "$RUNNER_OS" = "macOS" ]; then
+            brew install coreutils
+        fi
+        git clone --depth 1 https://github.com/just-buildit/just-bashit.git \
+            "$RUNNER_TEMP/just-bashit"
+        make check-isotime-parity ISOTIME_REQUIRE=1 \
+            JUST_BASHIT="$RUNNER_TEMP/just-bashit"
+
+    - name: Example smoke tests
+      run: make test-examples
+
+    - name: Rust FFI tests
+      run: make test-rust
 
     - name: Smoke-test static link (libdoppler.a -lm)
       # The question a downstream actually asks, answered on every platform.
@@ -111,6 +186,13 @@ jobs:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # No provisioning step: the toolchain is the image. See
+    # deploy/docker/Dockerfile.ci and .github/ci-images.env.
+    container:
+      image: ghcr.io/doppler-dsp/doppler-ci@sha256:cf8da6b3e24d3299768622b7a55a7556bdf961150c6da3addacd13551c26d622
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -118,10 +200,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
-
-    - name: Install system dependencies
-      timeout-minutes: 25
-      run: make install-deps-ci
 
     - name: Install uv + Python + package deps
       uses: ./.github/actions/setup-uv
@@ -257,13 +335,16 @@ jobs:
     name: Doxygen
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # doxygen + graphviz come from the image's `docs` group, which is the
+    # same bootstrap.toml group `make install-docs-deps` installs.
+    container:
+      image: ghcr.io/doppler-dsp/doppler-ci@sha256:cf8da6b3e24d3299768622b7a55a7556bdf961150c6da3addacd13551c26d622
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
     - uses: actions/checkout@v7
-
-    - name: Install doxygen
-      timeout-minutes: 25
-      run: make install-docs-deps-ci
 
     # gen-c-api-check needs the docs Python group (mkdoxy) as well as doxygen.
     # It lives in THIS job rather than in `docs` because doxygen is already
@@ -458,22 +539,20 @@ jobs:
     name: coverage (C + Python + Rust)
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # clang, llvm-profdata/llvm-cov, cargo and the profile runtime all come
+    # from the image -- including libclang-rt, which bootstrap.toml cannot
+    # name because the package is per-release and that file is not.
+    container:
+      image: ghcr.io/doppler-dsp/doppler-ci@sha256:cf8da6b3e24d3299768622b7a55a7556bdf961150c6da3addacd13551c26d622
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
     - uses: actions/checkout@v7
       with:
         # Full history so the patch gate can diff against origin/main.
         fetch-depth: 0
-
-    - name: Install system deps
-      # clang + the matching llvm tools (llvm-profdata / llvm-cov) used to be
-      # an inline `sudo apt-get install -y clang llvm` here, on the grounds
-      # that they were coverage tooling rather than build deps. They are in
-      # bootstrap.toml's dev group now: `make gates` runs `coverage`, so a box that
-      # cannot install them cannot run the gate set, and a second dependency
-      # list outside bootstrap.toml is the thing that file exists to prevent.
-      timeout-minutes: 25
-      run: make install-deps-ci
 
     - name: Install uv + Python + package deps
       uses: ./.github/actions/setup-uv
@@ -536,7 +615,8 @@ jobs:
   ci-passed:
     name: CI passed
     needs:
-      - build-and-test
+      - build-and-test-linux
+      - build-and-test-macos
       - python
       - glibc-228
       - doxygen

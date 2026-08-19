@@ -309,113 +309,6 @@ mpsk_rx_derive_m_out (double cap, int strict)
 #define MPSK_RX_HANDOVER_N_UP 8u
 #define MPSK_RX_HANDOVER_N_DOWN 32u
 
-  /**
-   * @brief Where the NDA carrier discriminator reads from.
-   *
-   * An M-th-power discriminator updating at rate `F` can only observe a
-   * frequency error of `|df| < F/(2M)` — above that its M-th-power phase
-   * advances more than pi per update and the error folds. So the tap point IS
-   * the pull-in range, and it trades directly against signal quality:
-   *
-   * | tap        | update rate | unambiguous \|df\|  | cost                            |
-   * | ---------- | ----------- | ------------------- | ------------------------------- |
-   * | `STROBE`   | `Rs`        | `Rs/(2M)`           | needs symbol timing             |
-   * | `MF_OUT`   | `m_out*Rs`  | `m_out*Rs/(2M)`     | inter-symbol ISI bias           |
-   * | `MF_IN`    | `bank_sps`  | `bank_sps*Rs/(2M)`  | ~`10*log10(bank_sps)` dB of EXCESS NOISE BANDWIDTH |
-   *
-   * That third row read "none -- see below" until it was measured, and the
-   * omission was load-bearing: it is what made `MF_IN` look free and got it
-   * pinned as the continuous flavor's tap.
-   *
-   * **The cost is not lost signal energy, and it is not intrinsic to reading
-   * ahead of the matched filter.** A Nyquist-sampled band-limited signal
-   * loses nothing by being sampled fast, so the obvious "it forgoes the
-   * matched filter's processing gain" story is wrong -- an earlier revision
-   * of this comment told it, with a `10*log10(sps)` law that grows without
-   * bound. Measured at the node with the AGC off so the path is linear
-   * (`native/validation/rx_dynamics.c` documents the run): the `MF_IN` node
-   * sits **6.01 dB** below Es/N0 at `bank_sps = 4` while the terminal node
-   * sits 1.7 dB below it, and `10*log10(4) = 6.02 dB`. The deficit is
-   * IDENTICAL at 6.79, 12 and 20 dB Es/N0 -- a pure bandwidth ratio, not an
-   * SNR-dependent effect.
-   *
-   * The mechanism: DEC band-limits to ITS OWN Nyquist, `+-bank_sps*Rs/2`,
-   * while the signal occupies ~`+-Rs`. Nothing between them removes the
-   * difference, and the terminal filter -- the first thing in the cascade
-   * matched to the signal -- is downstream of this tap. So the tap reads a
-   * node carrying several times the noise bandwidth it needs.
-   *
-   * It is **bounded by the plan**, not by the input rate: `bank_sps` is a
-   * planner outcome, and at `sps = 64` it is still 8, so the cost is 9.0 dB
-   * there and not 18.
-   *
-   * **This is the tap's price, not a defect awaiting a fix.** Band-limiting
-   * the node to the signal -- an arm filter, or the 2 sps decimation S3.3
-   * considers -- would recover most of it and is deliberately NOT planned:
-   * both cost serialized state on every object that carries this tap, and
-   * `STROBE` already reads the node that IS matched to the signal, for free.
-   * A caller choosing `MF_IN` is buying `bank_sps/(2M)` of pull-in range and
-   * paying `10*log10(bank_sps)` dB of lock sensitivity for it. What degrades
-   * is the M-th-power LOCK statistic, because that is an SNR measure and not
-   * a phase measure; the loop itself acquires at every operating point
-   * measured.
-   *
-   * There is a second axis, and it is the one the cascade rebuild lost.
-   * `STROBE` is the only tap that depends on **symbol timing**: it reads the
-   * one output the timing loop nominates, so before timing lock it is reading
-   * an arbitrary phase of the pulse. `MF_OUT` consumes every terminal output
-   * and so does not care which one is on-time; `MF_IN` reads the MFR's input
-   * entirely ahead of it. Both therefore restore the
-   * property the NDA path exists for — acquiring with no data *and no symbol
-   * timing* — which is why they are not merely "wider".
-   *
-   * No tap waits. `STROBE` steers from its first strobe whether or not the
-   * timing loop has declared, so its dependency is a reason to CHOOSE another
-   * tap when the carrier must acquire before timing does — not something the
-   * receiver resolves behind the caller's back. Gating it was tried and
-   * measured: across a 24-cell sweep it moved one cell, because what it
-   * really bought was a carrier transient that started at a known instant and
-   * was therefore easier to measure.
-   *
-   * Fixed at construction: the caller picks the trade once, and nothing
-   * switches underneath it.
-   */
-  enum
-  {
-    /** On-time strobe only. Cleanest input, narrowest pull-in, and the only
-     *  tap whose input quality depends on symbol timing. */
-    MPSK_RX_NDA_TAP_STROBE = 0,
-    /** Every terminal output. `m_out`x the range, timing-independent, but the
-     *  outputs between symbols are averaging two of them, so their M-th power
-     *  carries an ISI bias — worst where the decision margin is smallest. */
-    MPSK_RX_NDA_TAP_MF_OUT = 1,
-    /** PRE-MATCHED-FILTER: the AGC's output — post-MIX, post-DEC, post-AGC,
-     *  and ahead of the MFR. Named for where it reads rather than for its
-     *  position in the cascade, because that is the property a caller cares
-     *  about: being ahead of the matched filter is what makes it need no
-     *  symbol timing.
-     *
-     *  This is where a Costas ARM FILTER would go, and there is none. The
-     *  argument was that DEC's own filters have already band-limited this
-     *  node and the AGC has already levelled it. Measured, that argument is
-     *  directionally right and **6 dB short**: DEC band-limits to its own
-     *  Nyquist, not to the signal, so the node carries `10*log10(bank_sps)`
-     *  dB of excess noise bandwidth (see the tap table above). The
-     *  `carrier_nda` primitive keeps a boxcar arm for exactly this reason
-     *  (`carrier_nda_step`). Restoring one here is DECLINED rather than
-     *  deferred: it costs serialized state on every object carrying the tap,
-     *  and `STROBE` already reads the node matched to the signal at no cost.
-     *  The 6 dB is the tap's stated price, and the caller picks accordingly.
-     *  (`lo_arm`, a free-running arm ahead of the cascade, was removed on the
-     *  same wrong band-limiting argument -- gh-768.)
-     *
-     *  Its update rate is `bank_sps`, a PLANNER OUTCOME rather than a
-     *  construction constant, so both the pull-in ceiling `bank_sps*Rs/(2M)`
-     *  and the excess-bandwidth cost move with the caller's rate ratio -- and
-     *  both are bounded by the plan rather than by `sps`. Read
-     *  mpsk_rx_updates_per_symbol() for what the rate actually came out as. */
-    MPSK_RX_NDA_TAP_MF_IN = 2
-  };
 
 
   /**
@@ -464,17 +357,11 @@ mpsk_rx_derive_m_out (double cap, int strict)
     int    m;          /**< constellation order M (2, 4, 8).             */
     double sps;        /**< samples per symbol at the receiver's input.  */
     double lo_sps;     /**< samples per symbol at the LO's own rate.     */
-    double mf_in_sps; /**< samples per symbol at the AGC's output, ahead of
-                            the MFR (`bank_sps`); MF_IN only. A planner
-                            outcome, read from the cascade that planned it
-                            rather than configured.                      */
     size_t m_out;      /**< terminal outputs per symbol.                 */
     double bn_carrier; /**< carrier loop noise bandwidth (per symbol).   */
     double bn_agc_ratio; /**< AGC bandwidth as a fraction of the slowest
                               loop; see mpsk_rx_agc_bn().                 */
     double zeta;       /**< damping factor for both loops.               */
-    int    nda_tap;    /**< MPSK_RX_NDA_TAP_* — where the NDA disc reads. */
-    int    tap_timed;  /**< tap depends on symbol timing (STROBE only).  */
 
     /* ── acquisition <-> tracking handover ───────────────────────────── */
     int    acq_to_track; /**< opt-in two-way handover.                   */
@@ -520,9 +407,6 @@ mpsk_rx_derive_m_out (double cap, int strict)
    *                      sigmas and its per-look Pfa is Q(that) — 0.5 is
    *                      4.42 sigma, Pfa 5e-6. See carrier_nda_core.h.
    * @param differential  bits(): differential (rotation-invariant) demap.
-   * @param nda_tap       MPSK_RX_NDA_TAP_* — where the NDA discriminator
-   *                      reads, which sets its pull-in range and whether it
-   *                      depends on symbol timing at all.
    * @param bn_agc_ratio  Scales the front end's AGC off the SLOWEST of the
    *                      two loop bandwidths; must be in (0, 1). See
    *                      mpsk_rx_agc_bn().
@@ -532,7 +416,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
                            double zeta, double bn_timing, double bn_agc_ratio,
                            int ted,
                            int acq_to_track, double lock_thresh,
-                           int differential, int nda_tap);
+                           int differential);
 
   /**
    * @brief How many times per symbol the chosen tap updates the carrier loop.
@@ -544,10 +428,12 @@ mpsk_rx_derive_m_out (double cap, int strict)
   JM_FORCEINLINE double
   mpsk_rx_updates_per_symbol (const mpsk_rx_loops_t *l)
   {
-    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_OUT)
-      return (double)l->m_out;
-    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_IN)
-      return l->mf_in_sps;
+    (void)l;
+    /* The discriminator reads the on-time strobe, which is one output per
+       symbol, so the carrier loop updates once per symbol. Kept as a function
+       rather than folded into the caller because it is the quantity
+       mpsk_rx_config_carrier() sizes the loop filter against, and naming it
+       is what makes that sizing legible. */
     return 1.0;
   }
 
@@ -637,21 +523,6 @@ mpsk_rx_derive_m_out (double cap, int strict)
       mpsk_rx_steer (l, pe);
   }
 
-  /**
-   * @brief Push one MFR-INPUT sample into the NDA discriminator.
-   *
-   * The MPSK_RX_NDA_TAP_MF_IN path, and a no-op for every other tap.
-   * There is no arm filter here and none is wanted:
-   * the cascade has already band-limited this node and the AGC has already
-   * levelled it, which is the whole reason the tap exists.
-   */
-  JM_FORCEINLINE JM_HOT void
-  mpsk_rx_push_mf_in (mpsk_rx_loops_t *l, float complex z)
-  {
-    if (l->nda_tap != MPSK_RX_NDA_TAP_MF_IN)
-      return;
-    mpsk_rx_disc (l, z);
-  }
 
   /**
    * @brief Fold one terminal-stage output into both loops.
@@ -671,14 +542,6 @@ mpsk_rx_derive_m_out (double cap, int strict)
   mpsk_rx_take_output (mpsk_rx_loops_t *l, float complex y, float complex *sym,
                        int ted)
   {
-    /* MPSK_RX_NDA_TAP_MF_OUT discriminates on EVERY terminal output, so it
-       runs before the strobe test and needs no timing: it does not care which
-       output the timing loop would have nominated. That is the trade — m_out
-       times the frequency range and no timing dependence, paid for with the
-       ISI those between-symbol outputs carry. */
-    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_OUT)
-      mpsk_rx_disc (l, y);
-
     float complex on;
     if (!ratesync_loop_take_output (&l->timing, y, &on, ted))
       return 0;
@@ -698,9 +561,16 @@ mpsk_rx_derive_m_out (double cap, int strict)
        (Measured exactly that way: a receiver fed pure noise stayed in
        `tracking` forever.) */
 
-    /* MPSK_RX_NDA_TAP_STROBE: the cleanest input there is, and the one tap
-       whose quality depends on symbol timing — see the tap enum. It acts on
-       every strobe from the first, locked or not.
+    /* The discriminator reads the ON-TIME STROBE: the cleanest input there
+       is, and the only node already matched to the signal. It acts on every
+       strobe from the first, locked or not.
+
+       It depends on symbol timing, and that costs nothing where it would
+       matter most. A carrier with its modulation off is SAMPLING-PHASE
+       INVARIANT -- every sample is the same constellation point -- so the
+       M-th-power discriminator does not care which phase the timing loop
+       nominated, which is why NDA is the implicit answer when there is no
+       data to be aided by (docs/design/mpsk.md §3.3).
 
        An earlier revision gated the steer, the AGC seed and the handover on
        the timing loop's lock detector, on the grounds that a pre-lock strobe
@@ -717,12 +587,10 @@ mpsk_rx_derive_m_out (double cap, int strict)
        achieve — with the steer frozen until timing declares, the carrier's
        transient starts from a known instant.
 
-       A tap that needs timing it cannot wait for is a reason to pick a
-       different tap, which is what nda_tap is for: MF_OUT and MF_IN are
-       timing-independent by construction. Gating the default hid that choice
-       behind a coupling the caller could not see or override. */
-    if (l->nda_tap == MPSK_RX_NDA_TAP_STROBE)
-      mpsk_rx_disc (l, on);
+       Gating the steer on the timing loop hid that behind a coupling the
+       caller could neither see nor override, for one cell of a 24-cell
+       sweep. */
+    mpsk_rx_disc (l, on);
 
     /* The NDA loop's stable points are the 0-grid (z^m = +1), but the QPSK
        constellation sits on the pi/4-offset grid, so a raw strobe would land
@@ -789,10 +657,6 @@ mpsk_rx_derive_m_out (double cap, int strict)
   mpsk_rx_fold (mpsk_rx_loops_t *l, const float complex *ys, size_t n,
                 float complex zpre, int n_pre, float complex *y_out, int ted)
   {
-    /* The timing-independent NDA tap reads at the MFR's input. A no-op unless
-       MF_IN is the configured tap. */
-    if (n_pre)
-      mpsk_rx_push_mf_in (l, zpre);
     int emitted = 0;
     for (size_t oi = 0; oi < n; oi++)
       emitted |= mpsk_rx_take_output (l, ys[oi], y_out, ted);

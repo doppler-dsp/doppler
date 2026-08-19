@@ -428,7 +428,7 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
    * node gives for free. Its rate is ddc_get_bank_sps() samples per symbol.
    *
    * @note "Better conditioned" is not "more accurate", and the distinction is
-   * measured rather than assumed. native/validation/rx_nda_tap.c finds no
+   * measured rather than assumed. The retired tap sweep found no
    * residual-frequency-error advantage for this node over the symbol-rate
    * strobe — three taps carrying one loop bandwidth over one signal settle to
    * the same jitter. What it buys is a usable discriminator with no symbol

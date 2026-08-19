@@ -54,23 +54,19 @@ void
 mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
                     size_t m_out, double bn_carrier, double zeta,
                     double bn_timing, double bn_agc_ratio, int ted,
-                    int acq_to_track, double lock_thresh, int differential,
-                    int nda_tap)
+                    int acq_to_track, double lock_thresh, int differential)
 {
   l->m      = m;
   l->sps    = sps;
   l->lo_sps = lo_sps;
   /* Overwritten by any front end that publishes a real bank rate; this
      default only keeps mpsk_rx_updates_per_symbol() non-zero. */
-  l->mf_in_sps    = lo_sps;
   l->m_out        = m_out;
   l->bn_carrier   = bn_carrier;
   l->bn_agc_ratio = bn_agc_ratio;
   l->zeta         = zeta;
-  l->nda_tap      = nda_tap;
   /* Only the strobe tap reads an output the timing loop had to nominate; the
      other two are timing-independent by construction. */
-  l->tap_timed = (nda_tap == MPSK_RX_NDA_TAP_STROBE);
 
   l->acq_to_track = acq_to_track ? 1 : 0;
   l->differential = differential ? 1 : 0;
@@ -237,7 +233,7 @@ mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
 /* ── Serializable state — the loops ────────────────────────────────────────
  *
  * Scalars, then two self-validating children (timing loop, carrier loop
- * filter). `freq_scale` and `nda_tap` are pure config — restored by the
+ * filter). `freq_scale` is pure config — restored by the
  * owner's create() and never packed.
  *
  * There used to be a third child, the Costas arm's boxcar, packed
@@ -347,7 +343,7 @@ mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
                      double rrc_beta, int rrc_span, double bn_carrier,
                      double zeta, double bn_timing, int acq_to_track,
                      double lock_thresh, double init_norm_freq,
-                     int differential, size_t num_phases, int nda_tap, int agc,
+                     int differential, size_t num_phases, int agc,
                      double bn_agc_ratio)
 {
   if (m != 2 && m != 4 && m != 8)
@@ -385,9 +381,8 @@ mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
   if (m_out < 2u || m_out > (size_t)RATESYNC_MAX_M || (m_out & 1u) != 0u
       || !sps_ok || !(rrc_beta >= 0.0) || !(rrc_beta <= 1.0) || rrc_span < 1
       || !(bn_carrier >= 0.0) || !(bn_timing >= 0.0) || !(zeta > 0.0)
-      || num_phases < 2u || (num_phases & (num_phases - 1u)) != 0u
-      || nda_tap < MPSK_RX_NDA_TAP_STROBE
-      || nda_tap > MPSK_RX_NDA_TAP_MF_IN
+      || num_phases < 2u
+      || (num_phases & (num_phases - 1u)) != 0u
       /* An AGC at or above the bandwidth of a loop it feeds corrects the
          excursions that loop is producing; the two then integrate against
          each other. The invariant is structural rather than advisory. */
@@ -432,29 +427,8 @@ mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
   mpsk_rx_loops_init (&rx->l, m, sps, real ? 0.5 * sps : sps, m_out,
                       bn_carrier, zeta, bn_timing, bn_agc_ratio,
                       RATESYNC_TED_GARDNER, acq_to_track, lock_thresh,
-                      differential, nda_tap);
+                      differential);
   ratesync_loop_bind_cascade (&rx->l.timing, mpsk_rx_fe_rc (rx));
-  /* The pre-terminal tap's update rate is the cascade's own bank rate. It is
-     a planner outcome, so it is READ from the cascade that planned it rather
-     than re-derived here — re-deriving would be a second copy of the plan,
-     free to drift from the one the filters were actually built on. Measured,
-     `bank_sps` comes out identical on both faces: it is symbol-relative, so
-     the halfband's 2:1 is absorbed by the plan.
-
-     It arrives too LATE for mpsk_rx_loops_init(), which has already run
-     config_carrier() against the `lo_sps` placeholder — so the carrier filter
-     must be re-sized now that the real rate is known. Skipping this is not a
-     tuning nicety: MF_IN would keep gains designed for `lo_sps` updates per
-     symbol while actually updating `bank_sps` times, i.e. ki too small by
-     (lo_sps/bank_sps)^2 — 1.7e7 at Fs/Rs = 10000, an integrator that never
-     moves. The loop then reads a perfect 0 Hz error at 0 Hz offset and
-     acquires nothing at any other, which is exactly as wrong as it sounds.
-     native/validation/rx_nda_tap.c is the gate. `integ` survives
-     loop_filter_init() by contract, and every other tap re-derives the same
-     gains it already had. */
-  rx->l.mf_in_sps
-      = real ? ddcr_get_bank_sps (rx->fe.r) : ddc_get_bank_sps (rx->fe.c);
-  mpsk_rx_config_carrier (&rx->l);
 
   /* The front end levels itself so the TED's construct-time slope means what
      it says. A zero loop bandwidth leaves nothing to be slower than, so the
@@ -479,13 +453,13 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
                       double rrc_beta, int rrc_span, double bn_carrier,
                       double zeta, double bn_timing, int acq_to_track,
                       double lock_thresh, double init_norm_freq,
-                      int differential, size_t num_phases, int nda_tap,
-                      int agc, double bn_agc_ratio)
+                      int differential, size_t num_phases, int agc,
+                      double bn_agc_ratio)
 {
   return mpsk_rx_create_impl (0, m, sps, m_out, pulse, rrc_beta, rrc_span,
                               bn_carrier, zeta, bn_timing, acq_to_track,
                               lock_thresh, init_norm_freq, differential,
-                              num_phases, nda_tap, agc, bn_agc_ratio);
+                              num_phases, agc, bn_agc_ratio);
 }
 
 mpsk_receiver_state_t *
@@ -493,13 +467,13 @@ mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
                            double rrc_beta, int rrc_span, double bn_carrier,
                            double zeta, double bn_timing, int acq_to_track,
                            double lock_thresh, double init_norm_freq,
-                           int differential, size_t num_phases, int nda_tap,
-                           int agc, double bn_agc_ratio)
+                           int differential, size_t num_phases, int agc,
+                           double bn_agc_ratio)
 {
   return mpsk_rx_create_impl (1, m, sps, m_out, pulse, rrc_beta, rrc_span,
                               bn_carrier, zeta, bn_timing, acq_to_track,
                               lock_thresh, init_norm_freq, differential,
-                              num_phases, nda_tap, agc, bn_agc_ratio);
+                              num_phases, agc, bn_agc_ratio);
 }
 
 double
@@ -530,8 +504,8 @@ mpsk_receiver_create_continuous (int m, double sps, int pulse, double rrc_beta,
          pinned here first, on the claim that being ahead of the matched
          filter costs nothing; it costs the matched filter's processing gain
          and the flavor's own lock indicator with it (doppler#790). */
-      MPSK_RX_NDA_TAP_STROBE, 1, /* agc -- load-bearing, not opt */
-      0.0);                      /* bn_agc_ratio -> derived      */
+      1,    /* agc -- load-bearing, not opt */
+      0.0); /* bn_agc_ratio -> derived      */
 }
 
 /* The Hz face. Like the continuous flavor this is a pure delegate -- but the
@@ -561,7 +535,7 @@ mpsk_receiver_create_bpsk (double sample_rate_hz, double symbol_rate_hz,
       pulse, rrc_beta, rrc_span, bn_carrier, 0.0, /* zeta  -> derived */
       bn_timing, acq_to_track, 0.0,               /* lock_thresh -> derived */
       carrier_freq_hz / sample_rate_hz, differential, 0u, /* num_phases */
-      MPSK_RX_NDA_TAP_STROBE, agc, 0.0); /* bn_agc_ratio -> derived */
+      agc, 0.0); /* bn_agc_ratio -> derived */
 }
 
 void

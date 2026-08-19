@@ -39,12 +39,11 @@ receiver and calling it the rule is exactly the substitution
 **F7** is the other kind: claims a binding DOES reach and nothing measures,
 filed as gh-814 so they are visible outside this file.
 
-The ``nda_tap`` trade is deliberately NOT a finding here. What ``mf_in``
-costs, and why this flavor pins ``strobe``, is stated on
-``mpsk_receiver_create_continuous``'s own docstring and measured by
-``native/validation/rx_dynamics.c`` — the header is where a caller choosing
-a tap will actually look, and a ranking read off the wrong waveform is how
-``mf_in`` came to be pinned in the first place.
+The ``nda_tap`` trade is no longer a trade: the discriminator reads the
+on-time strobe and there is no other node to choose. What ``mf_in`` cost, and
+how a ranking read off the wrong waveform came to pin it in the first place,
+is recorded in ``docs/design/mpsk.md`` §3.3 rather than measured here — the
+measurement ranked three taps, and two of them no longer exist.
 
 **Two things about the sweep design are load-bearing, and both were wrong
 once.** The Es/N0 grid is DERIVED per M from the bound and the record
@@ -2333,9 +2332,10 @@ def build(write: bool = True) -> Report:
         [
             "C17",
             "an M-th-power detector at update rate `F` observes only "
-            "`|df| < F/(2M)`, so the tap point IS the pull-in range",
-            "**C-ONLY** — `native/validation/rx_nda_tap.c`, and the tap's "
-            "price is stated on the header itself",
+            "`|df| < F/(2M)`; the discriminator updates once per symbol, "
+            "so the range is `Rs/(2M)`",
+            "**C-ONLY** — the relation governs the derived pull-in; the "
+            "three-tap ranking that measured it is retired with the taps",
         ],
         [
             "C18",
@@ -2382,13 +2382,6 @@ def build(write: bool = True) -> Report:
             "and its M-fold ambiguity is PERMANENT, so `differential` "
             "defaults to 1",
             "§2.6 + F3 — the DEMAP itself is **absent**",
-        ],
-        [
-            "C25",
-            "`mf_in`'s lock statistic settles 0.23-0.51 against a "
-            "derived 0.4999, so the flavor's own readout was unusable",
-            "**C-ONLY** — `rx_nda_tap.c`, `rx_dynamics.c`; the header's "
-            "own table ranks the taps on this flavor's waveform",
         ],
         [
             "C26",

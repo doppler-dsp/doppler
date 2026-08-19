@@ -281,7 +281,7 @@ def freq_offset_inside_bw(bn_carrier, m, frac=0.5):
     Acquisition beyond the bound depends on where the transient happens to
     push the integrator, so a pass means the dice fell well and a failure
     means nothing was broken -- neither is a test. Pull-in range beyond it is
-    what `nda_tap` and a coarse frequency estimate are for; if it needs
+    what a wider loop and a coarse frequency estimate are for; if it needs
     measuring, measure it as a characterisation sweep with a reported success
     fraction, never as a pass/fail assertion.
     """

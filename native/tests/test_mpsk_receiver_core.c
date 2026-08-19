@@ -200,10 +200,10 @@ RX (int m, double sps, size_t m_out, int pulse, double bn_carrier,
     int acq_to_track, double lock_thresh, double init_norm_freq)
 {
   /* The shipped defaults: the front-end AGC on, at the default ratio. */
-  return mpsk_receiver_create (
-      m, sps, m_out, pulse, 0.35, 8, bn_carrier, 0.707, 0.01, acq_to_track,
-      lock_thresh, init_norm_freq, 0, MPSK_RX_NUM_PHASES,
-      MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO);
+  return mpsk_receiver_create (m, sps, m_out, pulse, 0.35, 8, bn_carrier,
+                               0.707, 0.01, acq_to_track, lock_thresh,
+                               init_norm_freq, 0, MPSK_RX_NUM_PHASES, 1,
+                               MPSK_RX_AGC_BW_RATIO);
 }
 
 /* Build a REAL rectangular-pulse M-PSK IF at `fc` cycles/sample with AWGN.
@@ -247,10 +247,10 @@ static mpsk_receiver_state_t *
 RXR (int m, double sps, size_t m_out, int pulse, double bn_carrier,
      int acq_to_track, double lock_thresh, double init_norm_freq)
 {
-  return mpsk_receiver_create_real (
-      m, sps, m_out, pulse, 0.35, 8, bn_carrier, 0.707, 0.01, acq_to_track,
-      lock_thresh, init_norm_freq, 0, MPSK_RX_NUM_PHASES,
-      MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO);
+  return mpsk_receiver_create_real (m, sps, m_out, pulse, 0.35, 8, bn_carrier,
+                                    0.707, 0.01, acq_to_track, lock_thresh,
+                                    init_norm_freq, 0, MPSK_RX_NUM_PHASES, 1,
+                                    MPSK_RX_AGC_BW_RATIO);
 }
 
 int
@@ -308,9 +308,9 @@ main (void)
      construction. At sps = 8 with an inclusive bound the rule reaches its
      cap. */
   {
-    mpsk_receiver_state_t *d = mpsk_receiver_create (
-        4, SPS, 0u, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.0, 0.01, 0, 0.0, 0.0,
-        0, 0u, MPSK_RX_NDA_TAP_STROBE, 1, 0.0);
+    mpsk_receiver_state_t *d
+        = mpsk_receiver_create (4, SPS, 0u, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
+                                0.0, 0.01, 0, 0.0, 0.0, 0, 0u, 1, 0.0);
     DP_CHECK (d != NULL);
     if (d)
       {
@@ -341,9 +341,9 @@ main (void)
       }
     /* A supplied value still wins -- the derivation is a fallback, not a
        policy that overrides the caller. */
-    mpsk_receiver_state_t *p = mpsk_receiver_create (
-        4, SPS, 4u, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.9, 0.01, 0, 0.6, 0.0,
-        0, 128u, MPSK_RX_NDA_TAP_STROBE, 1, 0.02);
+    mpsk_receiver_state_t *p
+        = mpsk_receiver_create (4, SPS, 4u, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
+                                0.9, 0.01, 0, 0.6, 0.0, 0, 128u, 1, 0.02);
     DP_CHECK (p != NULL);
     if (p)
       {
@@ -382,8 +382,9 @@ main (void)
            because it runs I&D at 30 dB -- the one corner where a pre-MFR tap
            still has SNR. The standard battery, at the anchor's 6.79 dB
            through an RRC pair, refuses on all 9 points (doppler#790). */
-        DP_CHECK (c->l.nda_tap == MPSK_RX_NDA_TAP_STROBE);
-        DP_CHECK (c->l.tap_timed == 1); /* and it is the one timed tap */
+        /* The tap was a pinned CHOICE here; it is now the only node the
+           discriminator reads, so there is nothing left to assert -- the
+           claim is carried by the absence of an alternative in the type. */
         /* The PROPERTY behind the enum: this flavor's discriminator clock IS
            the symbol clock. docs/design/mpsk.md S2.1 lists three defects that
            follow from a tap faster than Rs and claims Mode 1 cannot have them,
@@ -453,28 +454,28 @@ main (void)
     /* num_phases: a power of two, >= 2. */
     DP_CHECK (mpsk_receiver_create (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35,
                                     8, 0.01, 0.707, 0.01, 0, 0.5, 0.0, 0, 3u,
-                                    MPSK_RX_NDA_TAP_STROBE, 1, 0.05)
+                                    1, 0.05)
               == NULL); /* 3 is not a power of two */
     DP_CHECK (mpsk_receiver_create (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35,
                                     8, 0.01, 0.707, 0.01, 0, 0.5, 0.0, 0, 1u,
-                                    MPSK_RX_NDA_TAP_STROBE, 1, 0.05)
+                                    1, 0.05)
               == NULL); /* 1 is a power of two but below the floor of 2 */
     /* bn_agc_ratio: strictly inside (0, 1). At 1 the AGC is exactly as fast
        as a loop it feeds; past that it is faster, and two level-correcting
        loops at the same speed integrate against each other. */
     DP_CHECK (mpsk_receiver_create (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35,
                                     8, 0.01, 0.707, 0.01, 0, 0.5, 0.0, 0, 64u,
-                                    MPSK_RX_NDA_TAP_STROBE, 1, 1.0)
+                                    1, 1.0)
               == NULL);
     DP_CHECK (mpsk_receiver_create (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35,
                                     8, 0.01, 0.707, 0.01, 0, 0.5, 0.0, 0, 64u,
-                                    MPSK_RX_NDA_TAP_STROBE, 1, -0.05)
+                                    1, -0.05)
               == NULL);
     /* Non-vacuity: the SAME call with only the offending argument made legal
        must construct, or every line above passes for the wrong reason. */
     mpsk_receiver_state_t *ok = mpsk_receiver_create (
         4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.01, 0, 0.5,
-        0.0, 0, 64u, MPSK_RX_NDA_TAP_STROBE, 1, 0.05);
+        0.0, 0, 64u, 1, 0.05);
     DP_CHECK (ok != NULL);
     mpsk_receiver_destroy (ok);
   }
@@ -928,8 +929,7 @@ main (void)
        receiver was constructed to avoid an error. */
     mpsk_receiver_state_t *noagc = mpsk_receiver_create (
         2, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.01, 0, 0.5,
-        0.0, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 0,
-        MPSK_RX_AGC_BW_RATIO);
+        0.0, 0, MPSK_RX_NUM_PHASES, 0, MPSK_RX_AGC_BW_RATIO);
     dp_tlm_t *tlm4 = dp_tlm_create (4096);
     DP_CHECK (noagc != NULL && tlm4 != NULL);
     if (noagc && tlm4)
@@ -971,8 +971,7 @@ main (void)
         double                 bn_c = bns[i][0], bn_t = bns[i][1];
         mpsk_receiver_state_t *rx = mpsk_receiver_create (
             4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, bn_c, 0.707, bn_t, 0,
-            0.5, 0.0, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 1,
-            MPSK_RX_AGC_BW_RATIO);
+            0.5, 0.0, 0, MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO);
         DP_CHECK (rx != NULL);
         if (!rx)
           continue;
@@ -1072,8 +1071,8 @@ main (void)
 
             mpsk_receiver_state_t *rx = mpsk_receiver_create (
                 4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.01,
-                0, 0.5, 0.0, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE,
-                use_agc, MPSK_RX_AGC_BW_RATIO);
+                0, 0.5, 0.0, 0, MPSK_RX_NUM_PHASES, use_agc,
+                MPSK_RX_AGC_BW_RATIO);
             DP_CHECK (rx != NULL);
             if (rx)
               {
@@ -1777,8 +1776,8 @@ main (void)
               /* agc=0 is the bisect handle here too: no gain, ever. */
               mpsk_receiver_state_t *off = mpsk_receiver_create_real (
                   4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
-                  0.01, 0, 0.5, RFC, 0, MPSK_RX_NUM_PHASES,
-                  MPSK_RX_NDA_TAP_STROBE, 0, MPSK_RX_AGC_BW_RATIO);
+                  0.01, 0, 0.5, RFC, 0, MPSK_RX_NUM_PHASES, 0,
+                  MPSK_RX_AGC_BW_RATIO);
               DP_CHECK (off != NULL);
               if (off)
                 {
@@ -1806,8 +1805,8 @@ main (void)
                 double                 bn_c = bns[i][0], bn_t = bns[i][1];
                 mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
                     4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, bn_c, 0.707,
-                    bn_t, 0, 0.5, RFC, 0, MPSK_RX_NUM_PHASES,
-                    MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO);
+                    bn_t, 0, 0.5, RFC, 0, MPSK_RX_NUM_PHASES, 1,
+                    MPSK_RX_AGC_BW_RATIO);
                 DP_CHECK (rx != NULL);
                 if (!rx)
                   continue;
@@ -1822,10 +1821,10 @@ main (void)
 
           /* The ratio is refused at or above 1, where the AGC would be as
              fast as the loop it feeds. */
-          DP_CHECK (mpsk_receiver_create_real (
-                        4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
-                        0.707, 0.01, 0, 0.5, RFC, 0, MPSK_RX_NUM_PHASES,
-                        MPSK_RX_NDA_TAP_STROBE, 1, 1.0)
+          DP_CHECK (mpsk_receiver_create_real (4, RSPS, RM_OUT,
+                                               MPSK_RX_PULSE_IANDD, 0.35, 8,
+                                               0.01, 0.707, 0.01, 0, 0.5, RFC,
+                                               0, MPSK_RX_NUM_PHASES, 1, 1.0)
                     == NULL);
           /* Zero is no longer a rejection: it asks for the derived ratio
              (design/mpsk.md §8.1). The invariant it used to guard is
@@ -1837,8 +1836,7 @@ main (void)
           {
             mpsk_receiver_state_t *d = mpsk_receiver_create_real (
                 4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
-                0.01, 0, 0.5, RFC, 0, MPSK_RX_NUM_PHASES,
-                MPSK_RX_NDA_TAP_STROBE, 1, 0.0);
+                0.01, 0, 0.5, RFC, 0, MPSK_RX_NUM_PHASES, 1, 0.0);
             DP_CHECK (d != NULL);
             DP_CHECK (dp_near (mpsk_receiver_get_bn_agc_ratio (d),
                                MPSK_RX_AGC_RATIO_DEFAULT, 1e-12));
@@ -1847,10 +1845,10 @@ main (void)
           }
           /* Negative is still refused -- a ratio below zero is not a slower
              AGC. */
-          DP_CHECK (mpsk_receiver_create_real (
-                        4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
-                        0.707, 0.01, 0, 0.5, RFC, 0, MPSK_RX_NUM_PHASES,
-                        MPSK_RX_NDA_TAP_STROBE, 1, -0.05)
+          DP_CHECK (mpsk_receiver_create_real (4, RSPS, RM_OUT,
+                                               MPSK_RX_PULSE_IANDD, 0.35, 8,
+                                               0.01, 0.707, 0.01, 0, 0.5, RFC,
+                                               0, MPSK_RX_NUM_PHASES, 1, -0.05)
                     == NULL);
 
           /* All five derived at once, read back. The real face's ONE
@@ -1865,7 +1863,7 @@ main (void)
           {
             mpsk_receiver_state_t *d = mpsk_receiver_create_real (
                 4, RSPS, 0u, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.0, 0.01, 0,
-                0.0, RFC, 0, 0u, MPSK_RX_NDA_TAP_STROBE, 1, 0.0);
+                0.0, RFC, 0, 0u, 1, 0.0);
             DP_CHECK (d != NULL);
             if (d)
               {
@@ -1890,8 +1888,7 @@ main (void)
              behaviour, not an edge case. */
           DP_CHECK (mpsk_receiver_create_real (4, 4.0, 0u, MPSK_RX_PULSE_IANDD,
                                                0.35, 8, 0.01, 0.0, 0.01, 0,
-                                               0.0, RFC, 0, 0u,
-                                               MPSK_RX_NDA_TAP_STROBE, 1, 0.0)
+                                               0.0, RFC, 0, 0u, 1, 0.0)
                     == NULL);
         }
       }
@@ -2041,13 +2038,11 @@ main (void)
                 = real ? mpsk_receiver_create_real (
                              2, LO_SPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8,
                              LO_BN, 0.707, LO_BN, 0, 0.3, RFC, 0,
-                             MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 1,
-                             MPSK_RX_AGC_BW_RATIO)
+                             MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO)
                        : mpsk_receiver_create (
                              2, LO_SPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8,
                              LO_BN, 0.707, LO_BN, 0, 0.3, 0.0, 0,
-                             MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 1,
-                             MPSK_RX_AGC_BW_RATIO);
+                             MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO);
             DP_CHECK (rx != NULL);
             if (!rx)
               continue;
@@ -2120,8 +2115,8 @@ main (void)
                           0.0);
           mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
               2, LO_SPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, LO_BN, 0.707,
-              0.01, 0, 0.3, RFC, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE,
-              1, MPSK_RX_AGC_BW_RATIO);
+              0.01, 0, 0.3, RFC, 0, MPSK_RX_NUM_PHASES, 1,
+              MPSK_RX_AGC_BW_RATIO);
           DP_CHECK (rx != NULL);
           if (rx)
             {

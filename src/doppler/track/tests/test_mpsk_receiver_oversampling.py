@@ -39,7 +39,7 @@ inside the budget but takes six times longer; beyond `2 * Bn` neither path
 acquires at all -- and that is correct behaviour, not a defect, because pull-in
 range is set by loop bandwidth. An assertion out there would pass or fail on
 where the transient happened to push the integrator, which is why this table is
-documentation and not a test. Widening pull-in is `nda_tap`'s job (a
+documentation and not a test. Widening pull-in is the loop bandwidth's job (a
 higher-rate tap sees a proportionally wider range) or a coarse frequency
 estimate's, passed in as `init_norm_freq`.
 
@@ -217,7 +217,7 @@ def test_both_loops_lock_within_their_budget(
     transient happens to push the integrator, and both outcomes are silent
     about
     correctness. Pull-in beyond `Bn` belongs in a characterisation sweep with a
-    reported success fraction (and is what `nda_tap` and a coarse frequency
+    reported success fraction (and is what a wider loop and a coarse frequency
     estimate exist to address), never here.
 
     Timing lock is quantised to the detector's `avgs` (133 looks per decision),

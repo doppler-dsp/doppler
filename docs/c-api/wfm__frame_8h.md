@@ -49,7 +49,7 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**wfm\_\_frame\_8h\_1abc5c98fcc1211af2b80116dd6e0a035d**](#enum-wfm__frame_8h_1abc5c98fcc1211af2b80116dd6e0a035d)  <br>_Field indices_ [_**wfm\_frame\_describe**_](wfm__frame_8h.md#function-wfm_frame_describe) _writes, in wire order._ |
+| enum  | [**wfm\_\_frame\_8h\_1a385c44f6fb256e5716a2302a5b940388**](#enum-wfm__frame_8h_1a385c44f6fb256e5716a2302a5b940388)  <br>_Field indices_ [_**wfm\_frame\_describe**_](wfm__frame_8h.md#function-wfm_frame_describe) _writes, in wire order._ |
 | enum  | [**wfm\_seq\_kind\_t**](#enum-wfm_seq_kind_t)  <br>_Where a run of bits comes from._  |
 | enum  | [**wfm\_stage\_kind\_t**](#enum-wfm_stage_kind_t)  <br>_What a stage does to the fields it covers._  |
 
@@ -167,11 +167,11 @@ sync" is a configuration rather than a feature, and `pn_create()` / `gold_create
 
 
 
-### enum wfm\_\_frame\_8h\_1abc5c98fcc1211af2b80116dd6e0a035d 
+### enum wfm\_\_frame\_8h\_1a385c44f6fb256e5716a2302a5b940388 
 
 _Field indices_ [_**wfm\_frame\_describe**_](wfm__frame_8h.md#function-wfm_frame_describe) _writes, in wire order._
 ```C++
-enum wfm__frame_8h_1abc5c98fcc1211af2b80116dd6e0a035d {
+enum wfm__frame_8h_1a385c44f6fb256e5716a2302a5b940388 {
     WFM_FRAME_FIELD_PREAMBLE = 0,
     WFM_FRAME_FIELD_SYNC = 1,
     WFM_FRAME_FIELD_PAYLOAD = 2,

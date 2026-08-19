@@ -52,13 +52,10 @@ _The receiver's loops: timing, carrier, handover, demapper._
 |  int64\_t | [**lock\_time**](#variable-lock_time)  <br> |
 |  int | [**m**](#variable-m)  <br> |
 |  size\_t | [**m\_out**](#variable-m_out)  <br> |
-|  double | [**mf\_in\_sps**](#variable-mf_in_sps)  <br> |
-|  int | [**nda\_tap**](#variable-nda_tap)  <br> |
 |  unsigned | [**prev\_idx**](#variable-prev_idx)  <br> |
 |  double | [**sps**](#variable-sps)  <br> |
 |  size\_t | [**sym\_count**](#variable-sym_count)  <br> |
 |  float complex | [**sym\_rot**](#variable-sym_rot)  <br> |
-|  int | [**tap\_timed**](#variable-tap_timed)  <br> |
 |  [**ratesync\_loop\_t**](structratesync__loop__t.md) | [**timing**](#variable-timing)  <br> |
 |  [**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  int | [**tracking**](#variable-tracking)  <br> |
@@ -399,41 +396,6 @@ terminal outputs per symbol.
 
 
 
-### variable mf\_in\_sps 
-
-```C++
-double mpsk_rx_loops_t::mf_in_sps;
-```
-
-
-
-samples per symbol at the AGC's output, ahead of the MFR (`bank_sps`); MF\_IN only. A planner outcome, read from the cascade that planned it rather than configured. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable nda\_tap 
-
-```C++
-int mpsk_rx_loops_t::nda_tap;
-```
-
-
-
-MPSK\_RX\_NDA\_TAP\_\* — where the NDA disc reads. 
-
-
-        
-
-<hr>
-
-
-
 ### variable prev\_idx 
 
 ```C++
@@ -497,24 +459,6 @@ float complex mpsk_rx_loops_t::sym_rot;
 
 
 exp(j\*phi0): NDA grid -&gt; slicer. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable tap\_timed 
-
-```C++
-int mpsk_rx_loops_t::tap_timed;
-```
-
-
-
-tap depends on symbol timing (STROBE only). 
  
 
 

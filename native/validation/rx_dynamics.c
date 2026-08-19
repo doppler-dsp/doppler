@@ -8,8 +8,8 @@
  * periods of data modulation off but carrier on**. Nothing in the tree
  * measured that. `rx_battery.c` runs `RX_FRAME_CONT` -- i.i.d. bits, dense
  * transitions from the first symbol to the last -- through an RRC pair, which
- * is the BURST flavor's waveform; `rx_nda_tap.c` sweeps NRZ but NOISELESS and
- * with no dynamics at all. So the flavor shipped with a pinned `nda_tap`
+ * is the BURST flavor's waveform; the retired tap sweep ran NRZ but NOISELESS
+ * and with no dynamics at all. So the flavor shipped with a tap
  * chosen against evidence taken from a neighbouring waveform.
  *
  * This harness is that scenario:
@@ -164,7 +164,9 @@
  * type-2 loop's steady-state lag against a ramp, which measures ~1% here. */
 #define RX_DYN_ACQ_TOL 0.10
 
-static const char *RX_DYN_NAMES[3] = { "strobe", "mf_out", "mf_in" };
+/* One tap remains; the array shape is kept so the print sites read
+   unchanged and the loop bound is the only thing that moved. */
+static const char *RX_DYN_NAMES[1] = { "strobe" };
 
 /** @brief One tap's dynamics over the record. */
 typedef struct
@@ -211,7 +213,7 @@ rx_dyn_gauss (uint32_t *s)
  * @return The dynamics; check `.refused` and `.clipped` before reading.
  */
 static rx_dyn_result_t
-rx_dyn_measure (int tap, int ted, const char *path)
+rx_dyn_measure (int ted, const char *path)
 {
   rx_dyn_result_t r;
   size_t          isps  = (size_t)RX_DYN_SPS;
@@ -273,8 +275,7 @@ rx_dyn_measure (int tap, int ted, const char *path)
     dp_sample_clock_t      clk;
     mpsk_receiver_state_t *rx = mpsk_receiver_create (
         2, RX_DYN_SPS, RX_DYN_M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8,
-        RX_DYN_BN_CARRIER, 0.0, RX_DYN_BN_TIMING, 0, 0.0, 0.0, 0, 0, tap, 1,
-        0.0);
+        RX_DYN_BN_CARRIER, 0.0, RX_DYN_BN_TIMING, 0, 0.0, 0.0, 0, 0, 1, 0.0);
     size_t nsym_seen = 0;
     double s_quiet   = 0.0;
     size_t n_quiet   = 0;
@@ -386,7 +387,7 @@ main (int argc, char **argv)
               "      rate end   nco end\n");
     }
 
-  for (int t = 0; t < 3; t++)
+  for (int t = 0; t < 1; t++)
     {
       char            path[512];
       const char     *p = NULL;
@@ -398,7 +399,7 @@ main (int argc, char **argv)
                           RX_DYN_NAMES[t]);
           p = path;
         }
-      r = rx_dyn_measure (t, RATESYNC_TED_DTTL, p);
+      r = rx_dyn_measure (RATESYNC_TED_DTTL, p);
 
       if (r.refused)
         {
@@ -485,9 +486,9 @@ main (int argc, char **argv)
       printf ("\n  The same record through GARDNER -- the wrong TED for a "
               "rectangular pulse:\n\n");
       printf ("  tap       lock quiet   MIN post-onset   recovered   end\n");
-      for (int t = 0; t < 3; t++)
+      for (int t = 0; t < 1; t++)
         {
-          rx_dyn_result_t g = rx_dyn_measure (t, RATESYNC_TED_GARDNER, NULL);
+          rx_dyn_result_t g = rx_dyn_measure (RATESYNC_TED_GARDNER, NULL);
           if (g.refused || g.clipped)
             continue;
           printf ("  %-8s  %+9.3f   %+12.3f   %+9.3f   %+6.3f\n",

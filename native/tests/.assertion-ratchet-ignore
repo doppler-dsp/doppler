@@ -17,3 +17,10 @@
 # motivated this gate — 43 assertions across test_RateConverter_core.c,
 # test_mpsk_receiver_core.c and test_agc_core.c, from a branch cut before
 # feat(telemetry) reached main — was fixed by rebasing, not by an entry here.
+
+test_mpsk_receiver_core.c  -2: two enum checks on `nda_tap`/`tap_timed`, whose
+  enum was deleted with the two taps it selected (doppler#832). The PROPERTY
+  they approximated is asserted two lines below, unchanged and stronger --
+  `mpsk_rx_updates_per_symbol() == 1.0`, whose own comment already said "an
+  enum check alone would survive a swap to another fast tap; this does not".
+  Nothing measured stopped being measured; a weaker restatement of it went.

@@ -85,10 +85,10 @@ _Pulse-shaped M-PSK receiver: a tuned matched front end and two loops._ [More...
 |  size\_t | [**mpsk\_receiver\_bits\_real**](#function-mpsk_receiver_bits_real) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate a real f32 block and emit hard Gray-coded bits._  |
 |  size\_t | [**mpsk\_receiver\_bits\_real\_max\_out**](#function-mpsk_receiver_bits_real_max_out) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 |  void | [**mpsk\_receiver\_configure\_lock**](#function-mpsk_receiver_configure_lock) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the acquisition&lt;-&gt;tracking handover detector directly._  |
-|  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create**](#function-mpsk_receiver_create) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, int differential, size\_t num\_phases, int nda\_tap, int agc, double bn\_agc\_ratio) <br>_Create an M-PSK receiver._  |
+|  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create**](#function-mpsk_receiver_create) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, int differential, size\_t num\_phases, int agc, double bn\_agc\_ratio) <br>_Create an M-PSK receiver._  |
 |  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create\_bpsk**](#function-mpsk_receiver_create_bpsk) (double sample\_rate\_hz, double symbol\_rate\_hz, double carrier\_freq\_hz, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double bn\_timing, int acq\_to\_track, int differential, int agc) <br>_A BPSK receiver stated in the units a caller actually holds: Hz._  |
 |  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create\_continuous**](#function-mpsk_receiver_create_continuous) (int m, double sps, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double bn\_timing, double init\_norm\_freq, int differential) <br>_The continuous flavor: one discriminator, and nothing waits._  |
-|  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create\_real**](#function-mpsk_receiver_create_real) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, int differential, size\_t num\_phases, int nda\_tap, int agc, double bn\_agc\_ratio) <br>_Create the same receiver behind an R2C halfband: a real IF in._  |
+|  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create\_real**](#function-mpsk_receiver_create_real) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, int differential, size\_t num\_phases, int agc, double bn\_agc\_ratio) <br>_Create the same receiver behind an R2C halfband: a real IF in._  |
 |  void | [**mpsk\_receiver\_destroy**](#function-mpsk_receiver_destroy) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Destroy an M-PSK receiver and release all memory._  |
 |  double | [**mpsk\_receiver\_get\_agc\_gain\_db**](#function-mpsk_receiver_get_agc_gain_db) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Gain the front end's AGC is applying, in dB; 0.0 when_ `agc` _= 0._ |
 |  double | [**mpsk\_receiver\_get\_bn\_agc\_ratio**](#function-mpsk_receiver_get_bn_agc_ratio) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_AGC bandwidth ratio in use — derived unless pinned (§8.1)._  |
@@ -244,7 +244,7 @@ Lifecycle: `mpsk_receiver_create -> (steps / bits / reset)* -> _destroy`.
 mpsk_receiver_state_t *rx = mpsk_receiver_create (
     4, 8.0, 4, MPSK_RX_PULSE_IANDD, 0.35, 8,
     0.01, 0.707, 0.01, 0, 0.5, 0.0, 100, 0, 1024,
-    MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO);
+    1, MPSK_RX_AGC_BW_RATIO);
 float complex sym[256];
 size_t k = mpsk_receiver_steps (rx, rx_in, rx_len, sym, 256);
 double f = mpsk_receiver_get_norm_freq (rx);  // tracked residual carrier
@@ -483,7 +483,6 @@ mpsk_receiver_state_t * mpsk_receiver_create (
     double init_norm_freq,
     int differential,
     size_t num_phases,
-    int nda_tap,
     int agc,
     double bn_agc_ratio
 ) 
@@ -498,7 +497,7 @@ mpsk_receiver_state_t * mpsk_receiver_create (
 
 * `m` Constellation order M, 2/4/8 (default 4 = QPSK). 
 * `sps` Samples per symbol; any double &gt;= `m_out` (8.0 by default, but 17.33389 is equally valid). 
-* `m_out` Terminal outputs per symbol: even, 2..8. **0 (the default) derives it** — the largest even count in 2..8 the rate allows, via [**mpsk\_rx\_derive\_m\_out**](mpsk__rx__loops_8h.md#function-mpsk_rx_derive_m_out), which is `8` at the default `sps = 8`; pass a value only to pin one. Read it back with [**mpsk\_receiver\_get\_m\_out()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_get_m_out). Gardner needs the half-symbol gate. The derived answer reaches 8 for two reasons. The matched filter: the rectangle is one symbol wide, so its filter is an m\_out-tap sum spanning it, and a smaller m\_out samples the same integral more coarsely. Measured on QPSK at sps = 8 against EVM\_dB = -(Es/N0)\_dB, at 18 dB Es/N0: 0.41 dB off the bound at 8, 3.11 dB at 4. And the M-th-power discriminator: `z^M` auto-convolves the spectrum M times, spreading energy over ~`M*Rs`, and whatever exceeds the update rate folds back onto itself. A clean strobe raises to a constant with nothing to fold, but every departure from clean (ISI, timing error, noise) is splattered M-fold and aliased — so the nonlinearity's tolerance for a coarse matched filter COLLAPSES as M grows. The first reason is M-independent; the second is not. Measured (halving m\_out from 8 to 4, each M at its own SER=1e-3 anchor): BPSK 1.7 dB, QPSK 1.6 dB, **8PSK 3.0 dB** — the last also sitting 0.87 dB from the fully-scattered EVM floor, i.e. barely distinguishable from noise. **So m\_out = 8 is not optional at M = 8.** At `MPSK_RX_NDA_TAP_MF_OUT`, where the M-th power runs on the oversampled pulse rather than the strobe, the requirement is the blunt `m_out >= M`; since m\_out maxes at 8, 8PSK there is exactly critically sampled. **Never pair 2 with MPSK\_RX\_PULSE\_IANDD** — the filter degenerates to a two-tap sum, the eye barely opens and acquisition itself fails about half the time. Replaces the old `n` (NDA arm dumps/symbol), which the cascade's own outputs now serve. 
+* `m_out` Terminal outputs per symbol: even, 2..8. **0 (the default) derives it** — the largest even count in 2..8 the rate allows, via [**mpsk\_rx\_derive\_m\_out**](mpsk__rx__loops_8h.md#function-mpsk_rx_derive_m_out), which is `8` at the default `sps = 8`; pass a value only to pin one. Read it back with [**mpsk\_receiver\_get\_m\_out()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_get_m_out). Gardner needs the half-symbol gate. The derived answer reaches 8 for two reasons. The matched filter: the rectangle is one symbol wide, so its filter is an m\_out-tap sum spanning it, and a smaller m\_out samples the same integral more coarsely. Measured on QPSK at sps = 8 against EVM\_dB = -(Es/N0)\_dB, at 18 dB Es/N0: 0.41 dB off the bound at 8, 3.11 dB at 4. And the M-th-power discriminator: `z^M` auto-convolves the spectrum M times, spreading energy over ~`M*Rs`, and whatever exceeds the update rate folds back onto itself. A clean strobe raises to a constant with nothing to fold, but every departure from clean (ISI, timing error, noise) is splattered M-fold and aliased — so the nonlinearity's tolerance for a coarse matched filter COLLAPSES as M grows. The first reason is M-independent; the second is not. Measured (halving m\_out from 8 to 4, each M at its own SER=1e-3 anchor): BPSK 1.7 dB, QPSK 1.6 dB, **8PSK 3.0 dB** — the last also sitting 0.87 dB from the fully-scattered EVM floor, i.e. barely distinguishable from noise. **So m\_out = 8 is not optional at M = 8.** **Never pair 2 with MPSK\_RX\_PULSE\_IANDD** — the filter degenerates to a two-tap sum, the eye barely opens and acquisition itself fails about half the time. Replaces the old `n` (NDA arm dumps/symbol), which the cascade's own outputs now serve. 
 * `pulse` Matched-filter shape (default MPSK\_RX\_PULSE\_IANDD). 
 * `rrc_beta` RRC roll-off in `[0, 1]` (default 0.35; RRC only). 
 * `rrc_span` RRC one-sided span in symbols (default 8; RRC only). 
@@ -510,11 +509,6 @@ mpsk_receiver_state_t * mpsk_receiver_create (
 * `init_norm_freq` Seed carrier frequency, cycles/sample at the input rate (default 0.0). This is the centre the LO is tuned to; the loop tracks the residual around it. 
 * `differential` bits(): differential (rotation-invariant) demap (default 0 = coherent). 
 * `num_phases` Terminal-stage bank arms; a power of two. **0 (the default) derives it** as 64 ([**MPSK\_RX\_NUM\_PHASES\_DEFAULT**](mpsk__rx__loops_8h.md#define-mpsk_rx_num_phases_default)), the measured saturation point — against the 1024 that used to be the default, a 16x bank for no measurable gain. Read it back with [**mpsk\_receiver\_get\_num\_phases()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_get_num_phases). Sets the timing resolution to `1/num_phases` of an output period. 
-* `nda_tap` MPSK\_RX\_NDA\_TAP\_\* — where the NDA carrier discriminator reads, which sets its pull-in range and whether it needs symbol timing at all. An M-th-power detector updating at rate `F` can only observe `|df| < F/(2M)`, so the tap point IS the range:
-  * `MPSK_RX_NDA_TAP_STROBE` (0) — the on-time strobe, at `Rs`. Cleanest input, narrowest range, and the ONLY tap whose input quality depends on the timing loop — it steers from the first strobe regardless, so pick another tap if the carrier must acquire first.
-  * `MPSK_RX_NDA_TAP_MF_OUT` (1) — every terminal output, at `m_out*Rs`. No timing dependence, paid for with the ISI the between-symbol outputs carry (worst at 8PSK, where the decision margin is smallest). Measured unaided, QPSK at `sps = 8, m_out = 8`, each at its own best `bn_carrier`: `0.050*Rs` (strobe), `0.033*Rs` (mf\_out). `MF_IN`'s range is not measured yet (gh-766) — its update rate is a planner outcome, so it cannot be derived from the other two. Fixed at construction — nothing switches underneath the caller. Note `df = k*F/M` is a stable FALSE lock at every tap, reporting a healthy lock statistic that no self-referenced metric can flag. For more range than any tap gives, put a coarse frequency estimate in front and pass it as `init_norm_freq`. 
-
-
 * `agc` Non-zero (default) puts the receiver's ONE AGC in the front-end cascade, immediately before the terminal matched stage. **It serves BOTH loops** — carrier and timing both run on its output, so it is a dynamic element inside both, which is why [**mpsk\_rx\_agc\_bn**](mpsk__rx__loops_8h.md#function-mpsk_rx_agc_bn) sizes it against the SLOWER of the two rather than against timing alone. What differs is only why the level matters to each: the timing detector normalises by a slope computed at construction for a unit-amplitude stream ([**symsync\_ted\_slope**](symsync__core_8h.md#function-symsync_ted_slope)), so a level error is a loop-gain error there directly; the carrier detector normalises by its own `|z|^M` ([**carrier\_nda\_disc**](carrier__nda__core_8h.md#function-carrier_nda_disc)), so it is immune to the level itself but still sees the AGC's transient. Pass 0 and the receiver is un-levelled: the timing loop is under-driven by `A^2`, which at an input amplitude of 0.25 is 16x. The reference is derived from the bank's own pulse energy, not chosen. 
 * `bn_agc_ratio` That AGC's bandwidth as a fraction of the SLOWEST loop it feeds, `min(bn_carrier, bn_timing)` — see [**mpsk\_rx\_agc\_bn**](mpsk__rx__loops_8h.md#function-mpsk_rx_agc_bn). Must be in (0, 1); construction refuses 1 or above rather than warning, because at 1 the AGC is exactly as fast as a loop it feeds and past that it is faster, and two level-correcting loops at the same speed integrate against each other. **0 (the default) derives it** as `MPSK_RX_AGC_BW_RATIO` = 0.05, 20x slower than the slowest loop it feeds ([**MPSK\_RX\_AGC\_RATIO\_DEFAULT**](mpsk__rx__loops_8h.md#define-mpsk_rx_agc_ratio_default)); 0 is the one value below 1 that is a request rather than a rejection. Read it back with [**mpsk\_receiver\_get\_bn\_agc\_ratio()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_get_bn_agc_ratio). 
 
@@ -655,7 +649,6 @@ What it pins, and why each is not a choice here:
 |pinned   |to   |because    |
 |-----|-----|-----|
 |`acq_to_track`   |0   |the handover IS the gate this flavor exists to remove    |
-|`nda_tap`   |MPSK\_RX\_NDA\_TAP\_STROBE   |the only tap that acquires AND reports it at every point of the standard battery    |
 |`agc`   |1   |load-bearing, not optional — it defines the level both loops run on    |
 |`m_out`, `zeta`,   |0 (derive)   |not design axes; see the create() 
 
@@ -692,7 +685,7 @@ Measured on that scenario  `native/validation/rx_dynamics.c`, a coupled Doppler 
 
 
 
-\*\*`strobe`'s timing dependency costs nothing in the half where timing is impossible\*\*, and the reason is worth stating because it reads backwards: an unmodulated NRZ carrier is SAMPLING-PHASE INVARIANT. Every sample is the same constellation point, so the M-th-power discriminator does not care which one the timing loop would have nominated. Timing closure gates DEMODULATION, not carrier acquisition  so the tap that depends on it is free exactly where it looked most exposed. `mf_out` instead takes the largest hit the moment transitions exist, which is its ISI bias arriving on schedule, and `mf_in` reads lowest throughout (the excess noise bandwidth at its node  see the `nda_tap` enum, where that cost is measured and stated as the tap's price).
+\*\*`strobe`'s timing dependency costs nothing in the half where timing is impossible\*\*, and the reason is worth stating because it reads backwards: an unmodulated NRZ carrier is SAMPLING-PHASE INVARIANT. Every sample is the same constellation point, so the M-th-power discriminator does not care which one the timing loop would have nominated. Timing closure gates DEMODULATION, not carrier acquisition  so the tap that depends on it is free exactly where it looked most exposed. `mf_out` instead takes the largest hit the moment transitions exist, which is its ISI bias arriving on schedule, and `mf_in` reads lowest throughout (the excess noise bandwidth at its node  docs/design/mpsk.md §3.3 records that cost and measured and stated as the tap's price).
 
 
 "Nothing waits" is untouched by the pin: it is a statement about GATES  the handover, the lock gate, the warmup  and `acq_to_track = 0` is what delivers it.
@@ -760,7 +753,6 @@ mpsk_receiver_state_t * mpsk_receiver_create_real (
     double init_norm_freq,
     int differential,
     size_t num_phases,
-    int nda_tap,
     int agc,
     double bn_agc_ratio
 ) 
@@ -793,7 +785,6 @@ A real-valued IF is the usual output of a single-ended ADC, so this is the face 
 * `init_norm_freq` The real IF **centre**, cycles/sample at the real input rate. An IF at `0.2 * fs` is `0.2`; the halved value the LO actually uses is this object's business, not the caller's. A real IF must be tuned near — this face does not acquire from a cold zero the way the complex one does, so the centre is where the tap's pull-in range sits _around_. 
 * `differential` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create). 
 * `num_phases` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create); 0 derives. 
-* `nda_tap` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create), all three taps included: `MF_IN`'s update rate is read from this front end's own cascade (`ddcr_get_bank_sps`), and `bank_sps` measures identical on both faces because it is symbol-relative — the halfband's 2:1 is absorbed by the plan. 
 * `agc` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create). The AGC sits inside the cascade BEHIND the halfband, so it levels the analytic signal at the intermediate rate, which is also where the noise has already been filtered. 
 * `bn_agc_ratio` As [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create); 0 derives. 
 
@@ -810,7 +801,7 @@ Heap-allocated state, or NULL on invalid args / allocation failure. Destroy with
 mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
     4, 32.0, 0, MPSK_RX_PULSE_IANDD, 0.35, 8,
     0.01, 0.0, 0.01, 0, 0.0, 0.2, 0, 0,
-    MPSK_RX_NDA_TAP_STROBE, 1, 0.0);
+    1, 0.0);
 float complex sym[256];
 size_t k = mpsk_receiver_steps_real (rx, rx_in, rx_len, sym, 256);
 mpsk_receiver_destroy (rx);

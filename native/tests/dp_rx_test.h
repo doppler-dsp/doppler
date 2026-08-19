@@ -183,7 +183,6 @@ typedef struct dp_rx_point
   double bn_timing;    /**< timing loop noise bandwidth, per symbol       */
   double bn_carrier;   /**< carrier loop noise bandwidth, per symbol      */
   int    acq_to_track; /**< NDA -> decision-directed handover             */
-  int    nda_tap;      /**< MPSK_RX_NDA_TAP_*                             */
 
   double esn0_db; /**< matched-filter-output Es/N0 the stimulus carries   */
 
@@ -414,7 +413,7 @@ dp_rx_ramp_law (const dp_rx_point_t *pt, double zeta)
 }
 
 /** @brief Fractional tolerance on the ramp law — the same bar
- * `rx_nda_tap.c` sets, and for the same reason: the settled mean of a
+ * the retired tap sweep set, and for the same reason: the settled mean of a
  * noiseless tail lands within 1% of the closed form there, so 10% is loose
  * enough not to chatter and tight enough that a factor-of-two error in any
  * gain on the path cannot hide inside it. Here the tail is NOT noiseless, so
@@ -1058,15 +1057,13 @@ dp_rx_point (dp_rx_point_name_t name)
 {
   static const dp_rx_point_t pts[DP_RX_POINT_COUNT] = {
     /* ANCHOR — unimpaired; the reference the others are read against. */
-    { "anchor", RX_FRAME_CONT, 2,    8.0,   0,     DP_RX_BETA, DP_RX_SPAN,
-      0.0,      0.0,           0.01, 0.005, 0,     0,          6.79,
-      0.0,      0.0,           0.0,  0.0,   -10.0, 7u },
+    { "anchor", RX_FRAME_CONT, 2, 8.0, 0, DP_RX_BETA, DP_RX_SPAN, 0.0, 0.0,
+      0.01, 0.005, 0, 6.79, 0.0, 0.0, 0.0, 0.0, -10.0, 7u },
     /* ACQUIRE — a static offset at half the design envelope B_l/M. Inside it
        the loop is linear and settles; beyond it pull-in is nonlinear and
        depends on initial conditions, which is why nothing asks for more. */
-    { "acquire", RX_FRAME_CONT, 2,    8.0,   0,     DP_RX_BETA, DP_RX_SPAN,
-      0.0,       0.0025,        0.01, 0.005, 0,     0,          6.79,
-      0.0,       0.0,           0.0,  0.0,   -10.0, 7u },
+    { "acquire", RX_FRAME_CONT, 2, 8.0, 0, DP_RX_BETA, DP_RX_SPAN, 0.0, 0.0025,
+      0.01, 0.005, 0, 6.79, 0.0, 0.0, 0.0, 0.0, -10.0, 7u },
     /* DOPPLER — a RATE, not an offset: a type-2 loop nulls a step regardless
        of gain, so only a ramp leaves a constant lag with a closed form. It
        comes through doppler_channel, so the carrier and every clock move
@@ -1086,74 +1083,43 @@ dp_rx_point (dp_rx_point_name_t name)
        is — a type-2 loop nulls it, `acquire` is the point that scores an
        offset, and moving it here would only blur which disturbance the lag
        came from. */
-    { "doppler", RX_FRAME_CONT, 2,    8.0,   0,     DP_RX_BETA, DP_RX_SPAN,
-      0.0,       0.0,           0.01, 0.005, 0,     0,          6.79,
-      1.0e6,     2.4e9,         0.02, 9.2,   -10.0, 7u },
+    { "doppler", RX_FRAME_CONT, 2, 8.0, 0, DP_RX_BETA, DP_RX_SPAN, 0.0, 0.0,
+      0.01, 0.005, 0, 6.79, 1.0e6, 2.4e9, 0.02, 9.2, -10.0, 7u },
     /* RUNBURST — the timing loop coasts through a transition-starved stretch
        and then slews. The question is whether that reaches the CARRIER loop,
        which is the whole reason a pre-terminal tap exists. */
-    { "runburst", RX_FRAME_BURST,
-      2,          8.0,
-      0,          DP_RX_BETA,
-      DP_RX_SPAN, 0.0,
-      0.0,        0.01,
-      0.005,      0,
-      0,          6.79,
-      1.0e6,      2.4e9,
-      0.02,       0.0,
-      -10.0,      7u },
+    { "runburst", RX_FRAME_BURST, 2, 8.0, 0, DP_RX_BETA, DP_RX_SPAN, 0.0, 0.0,
+      0.01, 0.005, 0, 6.79, 1.0e6, 2.4e9, 0.02, 0.0, -10.0, 7u },
     /* OVERSAMPLED — where m_out and the bank rate stop being construction
        constants and become planner outcomes. */
-    { "oversampled", RX_FRAME_CONT, 2,    64.0,  0,     DP_RX_BETA, DP_RX_SPAN,
-      0.0,           0.0,           0.01, 0.005, 0,     0,          6.79,
-      0.0,           0.0,           0.0,  0.0,   -18.0, 7u },
+    { "oversampled", RX_FRAME_CONT, 2, 64.0, 0, DP_RX_BETA, DP_RX_SPAN, 0.0,
+      0.0, 0.01, 0.005, 0, 6.79, 0.0, 0.0, 0.0, 0.0, -18.0, 7u },
     /* QPSK — the anchor at M = 4, at ITS OWN SER=1e-3 Es/N0. Holding one
        Es/N0 across M would compare constellations rather than receivers:
        the same 6.79 dB that anchors BPSK at 1e-3 leaves QPSK at ~4e-2, so
        every M is read at the Es/N0 where it means the same thing.
        ber_esn0_db_for_ser(4, 1e-3) = 10.3453. */
-    { "qpsk", RX_FRAME_CONT, 4,    8.0,   0,     DP_RX_BETA, DP_RX_SPAN,
-      0.0,    0.0,           0.01, 0.005, 0,     0,          10.3453,
-      0.0,    0.0,           0.0,  0.0,   -10.0, 7u },
+    { "qpsk", RX_FRAME_CONT, 4, 8.0, 0, DP_RX_BETA, DP_RX_SPAN, 0.0, 0.0, 0.01,
+      0.005, 0, 10.3453, 0.0, 0.0, 0.0, 0.0, -10.0, 7u },
     /* PSK8 — ber_esn0_db_for_ser(8, 1e-3) = 15.6782. The worst case for
        an NDA path: the M-th-power squaring loss grows with M while the
        decision margin shrinks to +-pi/8. m_out is left DERIVED, which the
        header says reaches 8 and calls non-optional at M = 8. */
-    { "psk8", RX_FRAME_CONT, 8,    8.0,   0,     DP_RX_BETA, DP_RX_SPAN,
-      0.0,    0.0,           0.01, 0.005, 0,     0,          15.6782,
-      0.0,    0.0,           0.0,  0.0,   -10.0, 7u },
+    { "psk8", RX_FRAME_CONT, 8, 8.0, 0, DP_RX_BETA, DP_RX_SPAN, 0.0, 0.0, 0.01,
+      0.005, 0, 15.6782, 0.0, 0.0, 0.0, 0.0, -10.0, 7u },
     /* IRRATIONAL — the header's own 17.33389. Not a round rate and not a
        ratio of small integers, so the symbol boundary lands between
        samples on almost every symbol. */
-    { "irrational",
-      RX_FRAME_CONT,
-      2,
-      17.33389,
-      0,
-      DP_RX_BETA,
-      DP_RX_SPAN,
-      0.0,
-      0.0,
-      0.01,
-      0.005,
-      0,
-      0,
-      6.79,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      -10.0,
-      7u },
+    { "irrational", RX_FRAME_CONT, 2, 17.33389, 0, DP_RX_BETA, DP_RX_SPAN, 0.0,
+      0.0, 0.01, 0.005, 0, 6.79, 0.0, 0.0, 0.0, 0.0, -10.0, 7u },
     /* RATE_ODD — high and irrational at once. Kept as its own point
        because it is where a hand-rolled Python estimator reported a
        receiver defect while its OWN alignment had failed (align_ok = 0,
        margin -3.4 dB, a lag outside the window it searched). The
        instrument's four gates either defend a number here or refuse, and
        a refusal is a result rather than a failure. */
-    { "rate_odd", RX_FRAME_CONT, 2,    31.7,  0,     DP_RX_BETA, DP_RX_SPAN,
-      0.0,        0.0,           0.01, 0.005, 0,     0,          6.79,
-      0.0,        0.0,           0.0,  0.0,   -14.0, 7u },
+    { "rate_odd", RX_FRAME_CONT, 2, 31.7, 0, DP_RX_BETA, DP_RX_SPAN, 0.0, 0.0,
+      0.01, 0.005, 0, 6.79, 0.0, 0.0, 0.0, 0.0, -14.0, 7u },
   };
   if ((int)name < 0 || (int)name >= DP_RX_POINT_COUNT)
     return NULL;

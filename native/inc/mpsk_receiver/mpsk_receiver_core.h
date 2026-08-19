@@ -101,7 +101,7 @@
  * mpsk_receiver_state_t *rx = mpsk_receiver_create (
  *     4, 8.0, 4, MPSK_RX_PULSE_IANDD, 0.35, 8,
  *     0.01, 0.707, 0.01, 0, 0.5, 0.0, 100, 0, 1024,
- *     MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO);
+ *     1, MPSK_RX_AGC_BW_RATIO);
  * float complex sym[256];
  * size_t k = mpsk_receiver_steps (rx, rx_in, rx_len, sym, 256);
  * double f = mpsk_receiver_get_norm_freq (rx);  // tracked residual carrier
@@ -203,11 +203,7 @@ extern "C"
    *                        3.0 dB** — the last also sitting 0.87 dB from the
    *                        fully-scattered EVM floor, i.e. barely
    *                        distinguishable from noise. **So m_out = 8 is not
-   *                        optional at M = 8.** At `MPSK_RX_NDA_TAP_MF_OUT`,
-   *                        where the M-th power runs on the oversampled pulse
-   *                        rather than the strobe, the requirement is the
-   *                        blunt `m_out >= M`; since m_out maxes at 8, 8PSK
-   *                        there is exactly critically sampled. **Never pair 2 with
+   *                        optional at M = 8.** **Never pair 2 with
    *                        MPSK_RX_PULSE_IANDD** — the filter degenerates to
    *                        a two-tap sum, the eye barely opens and
    *                        acquisition itself fails about half the time.
@@ -266,35 +262,6 @@ extern "C"
    *                        Read it back with
    *                        mpsk_receiver_get_num_phases(). Sets the timing
    *                        resolution to `1/num_phases` of an output period.
-   * @param nda_tap        MPSK_RX_NDA_TAP_* — where the NDA carrier
-   *                        discriminator reads, which sets its pull-in range
-   *                        and whether it needs symbol timing at all. An
-   *                        M-th-power detector updating at rate `F` can only
-   *                        observe `|df| < F/(2M)`, so the tap point IS the
-   *                        range:
-   *                        - `MPSK_RX_NDA_TAP_STROBE` (0) — the
-   *                          on-time strobe, at `Rs`. Cleanest input,
-   *                          narrowest range, and the ONLY tap whose input
-   *                          quality depends on the timing loop — it steers
-   *                          from the first strobe regardless, so pick
-   *                          another tap if the carrier must acquire first.
-   *                        - `MPSK_RX_NDA_TAP_MF_OUT` (1) — every terminal
-   *                          output, at `m_out*Rs`. No timing dependence,
-   *                          paid for with the ISI the between-symbol
-   *                          outputs carry (worst at 8PSK, where the
-   *                          decision margin is smallest).
-   *                        Measured unaided, QPSK at `sps = 8, m_out = 8`,
-   *                        each at its own best `bn_carrier`: `0.050*Rs`
-   *                        (strobe), `0.033*Rs` (mf_out). `MF_IN`'s range is
-   *                        not measured yet (gh-766) — its update rate is a
-   *                        planner outcome, so it cannot be derived from the
-   *                        other two. Fixed at construction — nothing
-   *                        switches underneath the caller. Note `df = k*F/M`
-   *                        is a stable FALSE lock at every tap, reporting a
-   *                        healthy lock statistic that no self-referenced
-   *                        metric can flag. For more range than any tap
-   *                        gives, put a coarse frequency estimate in front
-   *                        and pass it as @p init_norm_freq.
    * @param agc            Non-zero (default) puts the receiver's ONE AGC in
    *                        the front-end cascade, immediately before the
    *                        terminal matched stage. **It serves BOTH loops**
@@ -348,7 +315,7 @@ extern "C"
                         double zeta, double bn_timing, int acq_to_track,
                         double lock_thresh, double init_norm_freq,
                         int differential,
-                        size_t num_phases, int nda_tap, int agc,
+                        size_t num_phases, int agc,
                         double bn_agc_ratio);
 
   /**
@@ -397,12 +364,6 @@ extern "C"
    *                        where the tap's pull-in range sits *around*.
    * @param differential   As mpsk_receiver_create().
    * @param num_phases     As mpsk_receiver_create(); 0 derives.
-   * @param nda_tap        As mpsk_receiver_create(), all three taps included:
-   *                        `MF_IN`'s update rate is read from this front end's
-   *                        own cascade (`ddcr_get_bank_sps`), and `bank_sps`
-   *                        measures identical on both faces because it is
-   *                        symbol-relative — the halfband's 2:1 is absorbed by
-   *                        the plan.
    * @param agc            As mpsk_receiver_create(). The AGC sits inside the
    *                        cascade BEHIND the halfband, so it levels the
    *                        analytic signal at the intermediate rate, which is
@@ -416,7 +377,7 @@ extern "C"
    * mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
    *     4, 32.0, 0, MPSK_RX_PULSE_IANDD, 0.35, 8,
    *     0.01, 0.0, 0.01, 0, 0.0, 0.2, 0, 0,
-   *     MPSK_RX_NDA_TAP_STROBE, 1, 0.0);
+   *     1, 0.0);
    * float complex sym[256];
    * size_t k = mpsk_receiver_steps_real (rx, rx_in, rx_len, sym, 256);
    * mpsk_receiver_destroy (rx);
@@ -427,7 +388,7 @@ extern "C"
                              double rrc_beta, int rrc_span, double bn_carrier,
                              double zeta, double bn_timing, int acq_to_track,
                              double lock_thresh, double init_norm_freq,
-                             int differential, size_t num_phases, int nda_tap,
+                             int differential, size_t num_phases,
                              int agc, double bn_agc_ratio);
 
   /**
@@ -469,7 +430,6 @@ extern "C"
    * | pinned                   | to                       | because                                                   |
    * | ------------------------ | ------------------------ | --------------------------------------------------------- |
    * | `acq_to_track`           | 0                        | the handover IS the gate this flavor exists to remove     |
-   * | `nda_tap`                | MPSK_RX_NDA_TAP_STROBE   | the only tap that acquires AND reports it at every point of the standard battery |
    * | `agc`                    | 1                        | load-bearing, not optional — it defines the level both loops run on |
    * | `m_out`, `zeta`,         | 0 (derive)               | not design axes; see the create() @note                   |
    * | `lock_thresh`,           |                          | with no handover it gates nothing — it is telemetry, so   |
@@ -503,7 +463,7 @@ extern "C"
    * free exactly where it looked most exposed. `mf_out` instead takes the
    * largest hit the moment transitions exist, which is its ISI bias arriving
    * on schedule, and `mf_in` reads lowest throughout (the excess noise
-   * bandwidth at its node -- see the `nda_tap` enum, where that cost is
+   * bandwidth at its node -- docs/design/mpsk.md §3.3 records that cost and
    * measured and stated as the tap's price).
    *
    * "Nothing waits" is untouched by the pin: it is a statement about GATES --

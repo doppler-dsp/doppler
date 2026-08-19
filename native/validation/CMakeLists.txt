@@ -206,7 +206,7 @@ add_test(NAME validate_rx_battery
 
 # The receiver under a COUPLED Doppler ramp across a data onset -- the
 # continuous flavor's own scenario (NRZ BPSK, modulation off then dense), which
-# neither rx_battery (RRC, dense throughout) nor rx_nda_tap (NRZ, noiseless, no
+# neither rx_battery (RRC, dense throughout) nor the retired tap sweep (NRZ, noiseless, no
 # dynamics) covers. Writes a dp_tlm capture per tap with --out, so the report
 # plots the dynamics instead of restating a table.
 add_executable(validate_rx_dynamics
@@ -224,15 +224,6 @@ target_compile_options(validate_rx_dynamics PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_rx_dynamics
          COMMAND validate_rx_dynamics --check)
 
-add_executable(validate_rx_nda_tap
-               ${CMAKE_CURRENT_SOURCE_DIR}/rx_nda_tap.c)
-target_include_directories(validate_rx_nda_tap
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
-                                   ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_rx_nda_tap PRIVATE doppler_lib_static m)
-target_compile_options(validate_rx_nda_tap PRIVATE -O3 -funroll-loops)
-add_test(NAME validate_rx_nda_tap
-         COMMAND validate_rx_nda_tap --check)
 
 # conv_certify has no `--check` and registers no CTest, and that is the
 # design rather than an omission: it MEASURES and the limits are asserted in

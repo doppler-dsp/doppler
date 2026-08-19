@@ -221,49 +221,19 @@ lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
     (polyphase bank instead of a dense FIR, bank arm instead of a Farrow).
     Detection performance is unchanged; exact-output pins are not.
 
-!!! tip "`nda_tap` — where the carrier discriminator reads"
+!!! tip "Pull-in range — set by the loop, not by a tap"
 
     An M-th-power discriminator updating at rate `F` can only observe
-    `|Δf| < F/(2M)`, so its tap point *is* its pull-in range. Fixed at
-    construction; measured maxima for QPSK at `sps=8`, unaided, at the default
-    `m_out=8` (`m_out=4` in parentheses — it is on this axis too):
+    `|Δf| < F/(2M)`. It reads the **on-time strobe**, so `F = Rs` and the range
+    is `Rs/(2M)` — measured `0.050·Rs` for QPSK at `sps=8` with the default
+    `m_out=8`, and `0.010·Rs` at `m_out=4`.
 
-    | `nda_tap`            | Update rate | Max acquired `Δf`    | Needs symbol timing? |
-    | -------------------- | ----------- | -------------------- | -------------------- |
-    | `"strobe"` (default) | `Rs`        | `0.050·Rs` (`0.010`) | yes                  |
-    | `"mf_out"`           | `m_out·Rs`  | `0.033·Rs` (`0.015`) | no                   |
-    | `"mf_in"`            | `bank_sps`  | not yet measured     | no                   |
-
-    `mf_in` reads the MFR's input, so the terminal rate is not in its path
-    either — but its update rate is the cascade's `bank_sps`, a planner
-    outcome, so its cell cannot be filled in from the others by argument and
-    is left blank rather than guessed (gh-766).
-
-    !!! warning "`mf_in`'s node carries excess noise bandwidth"
-
-        Not lost signal energy — a Nyquist-sampled band-limited signal loses
-        nothing. Measured at the node: it sits `10·log10(bank_sps)` dB below
-        Es/N0 (**6.0 dB** at `bank_sps=4`), identically at every Es/N0, because
-        DEC band-limits to its *own* Nyquist while the signal occupies ~±Rs.
-        The loop still acquires everywhere; what degrades is the M-th-power
-        **lock statistic**, which is an SNR measure. `bank_sps` is a planner
-        outcome, so the cost is bounded by the plan (still 9.0 dB at
-        `sps=64`, not 18). This is the tap's stated price, not a defect: an
-        arm filter would recover it and is declined, because `"strobe"` reads
-        the node already matched to the signal for free. Prefer `"strobe"`
-        unless you need the pull-in range — on the continuous flavor's own
-        waveform it wins on every axis measured.
-
-    `bn_carrier` keeps its symbol-rate meaning at every tap — the tap widens what
-    the discriminator can see and the stability margin, which is what lets you
-    then raise `bn_carrier`. Beyond any tap's range, pass a coarse frequency
-    estimate as `init_norm_freq`.
-
-    Note `Δf = k·F/M` is a **stable false lock** at every tap, reporting a
-    healthy lock statistic on a stationary constellation that no self-referenced
-    metric can flag — resolving it needs an external reference or a sync word.
-
-______________________________________________________________________
+    `nda_tap` used to select among three nodes and is **gone**
+    ([#832](https://github.com/doppler-dsp/doppler/issues/832)); the strobe won
+    on every axis measured on the receiver's own waveform. See
+    [the design](../design/mpsk.md#33-where-the-discriminator-reads-the-strobe-and-why-the-menu-closed)
+    for the numbers and for the measurement trap that nearly enshrined the
+    wrong answer.
 
 ## ContinuousMpskReceiver — the continuous flavor, and nothing waits
 
@@ -297,12 +267,11 @@ assert rx.tracking == 0     # one discriminator, forever
 
 What it pins, and why none of them is a choice here:
 
-| pinned                                                       | to         | because                                                                                   |
-| ------------------------------------------------------------ | ---------- | ----------------------------------------------------------------------------------------- |
-| `acq_to_track`                                               | `0`        | the handover **is** the gate this flavor exists to remove                                 |
-| `nda_tap`                                                    | `"strobe"` | the only tap that acquires **and reports it** at every point of the standard battery      |
-| `agc`                                                        | `1`        | load-bearing, not optional — it defines the level both loops run on                       |
-| `m_out`, `zeta`, `lock_thresh`, `num_phases`, `bn_agc_ratio` | `0`        | not design axes; `0` requests the derived answer, and each is still read back by a getter |
+| pinned                                                       | to  | because                                                                                   |
+| ------------------------------------------------------------ | --- | ----------------------------------------------------------------------------------------- |
+| `acq_to_track`                                               | `0` | the handover **is** the gate this flavor exists to remove                                 |
+| `agc`                                                        | `1` | load-bearing, not optional — it defines the level both loops run on                       |
+| `m_out`, `zeta`, `lock_thresh`, `num_phases`, `bn_agc_ratio` | `0` | not design axes; `0` requests the derived answer, and each is still read back by a getter |
 
 Every pinned value stays **readable** even though it is not settable — a
 pinned number you cannot check is a hidden one:
@@ -344,7 +313,7 @@ rx.m_out    # 8   — derived, not chosen
 ```
 
 Two required arguments against `MpskReceiver`'s seventeen. `m` is carried by
-the class name; `sps`, `m_out`, `num_phases`, `bn_agc_ratio` and `nda_tap` are
+the class name; `sps`, `m_out`, `num_phases` and `bn_agc_ratio` are
 internal choices the object makes for itself; and `carrier_freq_hz` defaults to
 0 for complex baseband. Everything a caller has a real reason to pin — the
 pulse, both loop bandwidths, `acq_to_track`, `differential`, `agc` — is still

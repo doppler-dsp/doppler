@@ -29,6 +29,7 @@ import numpy as np
 
 from doppler.ber import BerMeter, ber_esn0_db_for_ser, ber_theory_ser
 from doppler.source import AWGN
+from doppler.wfm import wfm_awgn_amplitude
 
 #: Symbols per block handed to the meter at a time.
 BLOCK = 50_000
@@ -61,8 +62,14 @@ def measure(m, esn0_db, target_errors=200, max_symbols=8_000_000, seed=1):
     """
     rng = np.random.default_rng(seed)
     lag, phase = 9, 0.7  # unknown to the meter
-    sigma = np.sqrt(0.5 / 10 ** (esn0_db / 10.0))
-    noise = AWGN(seed=seed, amplitude=float(sigma))
+    # The amplitude comes from the library's own law rather than a
+    # transcription. At sps = 1 there is no pulse and no oversampling, so
+    # Es/N0 and the per-sample SNR are the SAME number -- which is why one
+    # call with unit signal power serves an Es/N0 axis here and would not in
+    # an oversampled demo. `sqrt(0.5 / 10**(esn0/10))` said that implicitly,
+    # in an expression where the 0.5 is the I/Q split and nothing names the
+    # sps = 1 assumption at all.
+    noise = AWGN(seed=seed, amplitude=wfm_awgn_amplitude(esn0_db, 1.0))
     meter = BerMeter(m=m, target_errors=target_errors, conf=0.99)
 
     while not meter.enough and meter.symbols < max_symbols:
@@ -90,8 +97,7 @@ def measure_fixed_n(m, esn0_db, n_symbols=FIXED_SYMBOLS, seed=1):
     """The same measurement stopped on a fixed SYMBOL count, for contrast."""
     rng = np.random.default_rng(seed)
     lag, phase = 9, 0.7
-    sigma = np.sqrt(0.5 / 10 ** (esn0_db / 10.0))
-    noise = AWGN(seed=seed, amplitude=float(sigma))
+    noise = AWGN(seed=seed, amplitude=wfm_awgn_amplitude(esn0_db, 1.0))
     # target_errors is unreachable, so `enough` never trips and the loop is
     # bounded by the symbol budget instead -- exactly the fixed-N habit.
     meter = BerMeter(m=m, target_errors=10**9, conf=0.99)

@@ -25,6 +25,7 @@ Run:
 
 from __future__ import annotations
 
+import json
 import math
 
 import matplotlib
@@ -36,11 +37,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from doppler.resample import RateConverter
+from doppler.wfm import Composer, Segment
 
 rc = RateConverter(0.1)
 print(rc.stages)  # ['CIC(8)', 'Resampler(0.8)']
 
-x = np.random.default_rng(0).standard_normal(4096).astype(np.complex64)
+x = np.asarray(Composer([Segment(type="noise", num_samples=4096)]).compose())
 y = rc.execute(x)  # len(y) ≈ 410
 print(len(y))
 
@@ -55,15 +57,59 @@ print(rc.stages)  # ['HalfbandDecimator', 'HalfbandDecimator']
 
 
 def _tone(freq_norm: float, n: int) -> np.ndarray:
-    """Complex exponential at freq_norm (cycles/sample, −0.5…+0.5)."""
-    t = np.arange(n)
-    return np.exp(2j * np.pi * freq_norm * t).astype(np.complex64)
+    """Complex exponential at freq_norm (cycles/sample, −0.5…+0.5).
+
+    Built through wfmgen's JSON face rather than its Python kwargs, because
+    that is the face a RECORD has: `--record` writes this document,
+    `--from-file` reads it back, and `Composer.from_json` is the same door
+    from Python. A scene that round-trips through text is one a bug report
+    can carry, and it is the only face that reaches fields the `Segment`
+    constructor does not expose.
+
+    **`fs` must be stated here, and that is a trap worth knowing.** The CLI
+    documents `--fs` as defaulting to 1.0 with `freq` then treated as
+    normalised, but that default belongs to the FLAG PARSER, not to the JSON
+    reader: omit `fs` from a scene and the tone comes out at DC with no
+    error. Measured, after this demo failed its own frequency check with the
+    tone 1245 bins off — `{"freq": 0.08}` alone gives 0.0, and
+    `{"freq": 0.08, "fs": 1.0}` gives 0.08.
+    """
+    scene = {
+        "segments": [
+            {
+                "type": "tone",
+                "freq": float(freq_norm),
+                "fs": 1.0,  # REQUIRED: no CLI default reaches a JSON scene
+                "num_samples": int(n),
+            }
+        ]
+    }
+    return np.asarray(Composer.from_json(json.dumps(scene)).compose()).astype(
+        np.complex64
+    )
 
 
 def _noise(n: int, rng: np.random.Generator) -> np.ndarray:
-    re = rng.standard_normal(n).astype(np.float32)
-    im = rng.standard_normal(n).astype(np.float32)
-    return (re + 1j * im).astype(np.complex64) * 0.3
+    """Complex AWGN at -10.46 dBFS — wfmgen's `noise` type.
+
+    `level` states the 0.3 amplitude this used to apply as a bare multiply:
+    20*log10(0.3) = -10.46 dBFS. The `rng` argument survives so the callers
+    need no edit, but it now only supplies a SEED, which is what makes the
+    stream reproducible from the declaration alone.
+    """
+    seed = int(rng.integers(0, 2**31 - 1))
+    return np.asarray(
+        Composer(
+            [
+                Segment(
+                    type="noise",
+                    level=-10.4576,  # 20*log10(0.3)
+                    num_samples=n,
+                    seed=seed,
+                )
+            ]
+        ).compose()
+    ).astype(np.complex64)
 
 
 def _rms_db(x: np.ndarray) -> float:

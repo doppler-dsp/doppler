@@ -1775,6 +1775,29 @@ glibc-gate: glibc-image ## Build in a glibc $(GLIBC_MAX) container, then run gli
 	    make build test-examples glibc-check \
 	        BUILD_DIR=$(GLIBC_BUILD_DIR) \
 	        STANDALONE_BUILD_DIR=$(GLIBC_BUILD_DIR)/standalone
+# Repoint the compilation database at the normal build tree. The isolation
+# above is about the CMake cache; this is the OTHER thing a BUILD_DIR override
+# leaks into the checkout, and it was missed. `build` depends on the
+# `compile_commands.json` target, whose recipe is
+# `ln -sfn $(BUILD_DIR)/compile_commands.json $@` — so the sub-make above
+# repoints the repo-root symlink at build-glibc228/ and LEAVES it there.
+#
+# What that database contains is the problem: it was generated inside the
+# container under `-w /w`, so every entry names `/w/native/src/...`. Measured
+# after a gate run: 434 entries, and ZERO of them exist on the host.
+#
+# doppler's own `make lint-clang-tidy` is unaffected — it overrides
+# LINT_clang-tidy to pass `-p $(BUILD_DIR)` and takes its file list from
+# `git ls-files`, so it never reads this symlink. The consumers that DO are
+# clangd (every C file in the editor resolves against a database of paths that
+# do not exist) and standard.mk's default `-p .` recipe, which any repo not
+# overriding it would hit.
+#
+# $(BUILD_DIR) here is the OUTER value (the override applies only to the
+# sub-make), so this restores whatever the developer actually builds into.
+# Unconditional rather than guarded: re-linking to where it already points is
+# a no-op, and a conditional would have to re-derive the default it is fixing.
+	@ln -sfn $(BUILD_DIR)/compile_commands.json compile_commands.json
 
 # The recorded specan demo frames are a projection of the specan source, so a
 # change to one without the other ships a demo that no longer matches the code.

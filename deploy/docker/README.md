@@ -105,17 +105,44 @@ flowchart TD
     binaries straight out of the builder onto a slim base — no toolchain, no
     Python, ~116 MB.
 
+## Sizes
+
+Measured 2026-08-19, x86_64. **On disk** is `docker images` (uncompressed);
+**pull** is the compressed download, which is what a CI job or a first `docker run` actually pays.
+
+| Image                       | On disk | Pull    | What dominates it                                        |
+| --------------------------- | ------- | ------- | -------------------------------------------------------- |
+| `doppler-stream-services`   | 116 MB  | —       | static binaries on a slim base — no toolchain, no Python |
+| `doppler` (CLI)             | —       | 163 MB  | wheel + ~70 demos                                        |
+| `doppler-glibc228`          | 657 MB  | —       | Debian 10 + build toolchain                              |
+| `doppler-sdk`               | 1.08 GB | 266 MB  | toolchain + uv + jm + the installed C SDK                |
+| `doppler-downstream-jm`     | 1.08 GB | 266 MB  | the same base, plus iqtools built and tested             |
+| `doppler-ci` (ubuntu:24.04) | 2.31 GB | ~571 MB | llvm/clang for coverage (~500 MB), distro Rust (~380 MB) |
+| `doppler-ci` (ubuntu:22.04) | 2.05 GB | —       | the same, on an older base                               |
+
+The CI image is roughly twice the SDK image, and the gap is exactly what CI
+needs and a downstream does not: the coverage job's llvm/clang, and the Rust
+toolchain `make test-rust` links against. `libllvm17t64` (121 MB) arrives
+under `libstd-rust-1.75` rather than on its own account, so it is the Rust
+floor's cost rather than slack.
+
+It was **3.17 GB** until an entire rustup toolchain came out of it — 613 MB
+carried only to work around a lockfile format the distro cargo cannot read
+(gh-887). Worth restating as a rule, because it is the cheapest 27% anyone
+will ever find here: **a workaround baked into an image is one nobody sees
+again.** Ask of anything added whether it is a requirement or a workaround.
+
 ## Files
 
-| File                  | Role                                                 |
-| --------------------- | ---------------------------------------------------- |
-| `Dockerfile.cli`      | runtime "try it" image (wheel + demos)               |
-| `Dockerfile.examples` | the shared-base multi-target build-on-doppler images |
-| `Dockerfile`          | k8s `stream_tool` (produce/consume)                  |
-| `Dockerfile.glibc228` | Debian 10 build toolchain for the `glibc-gate` gate  |
-| `Dockerfile.ci`       | the toolchain every Linux CI job runs inside         |
-| `stream_tool.c`       | its source                                           |
-| `*-README.md`         | the in-image guide COPYed into each image            |
+| File                  | Role                                                                                                                                      |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `Dockerfile.cli`      | runtime "try it" image (wheel + demos)                                                                                                    |
+| `Dockerfile.examples` | the shared-base multi-target build-on-doppler images                                                                                      |
+| `Dockerfile`          | k8s `stream_tool` (produce/consume)                                                                                                       |
+| `Dockerfile.glibc228` | Debian 10 build toolchain for the `glibc-gate` gate                                                                                       |
+| `Dockerfile.ci`       | the toolchain every Linux CI job runs inside — and the pinned doxygen `make doxygen-check` / `gen-c-api` shim in when a dev box's differs |
+| `stream_tool.c`       | its source                                                                                                                                |
+| `*-README.md`         | the in-image guide COPYed into each image                                                                                                 |
 
 See [`docs/install/docker.md`](../../docs/install/docker.md) for the user-facing
 walkthrough.

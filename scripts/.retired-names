@@ -27,3 +27,11 @@
 # names `mpsk_receiver_r_core.c` because that is what was measured, and a
 # rename must not edit history to satisfy itself.
 \bmpsk_receiver_r_(create|destroy|reset|steps|bits|get_|set_|configure_|state_)	mpsk_receiver_* (create_real / steps_real / bits_real for the real face)
+
+# doppler#887 follow-through: the bespoke pinned-doxygen image is retired in
+# favour of $(CI_IMAGE), which CI's doxygen job actually runs inside. Two
+# things answered "give me CI's doxygen" and only one could answer it by
+# construction; keeping the loser around invites a second, drifting pin.
+doxygen-pin-image	make doxygen-check / gen-c-api, which shim $(CI_IMAGE)
+DOXYGEN_PIN_IMAGE	CI_IMAGE (.github/ci-images.env)
+doppler-doxygen:	the CI image — see deploy/docker/README.md

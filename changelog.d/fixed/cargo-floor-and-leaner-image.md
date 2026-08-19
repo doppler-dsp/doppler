@@ -37,3 +37,14 @@
     `make test-rust`. `deploy/docker/README.md` now carries `doppler-ci`
     beside `doppler-glibc228` — the two images that bake nothing in — with the
     size breakdown and why it is one image rather than one per job shape.
+
+    **The bespoke pinned-doxygen image is retired with it.** That image
+    (556 MB) existed to hand `make gen-c-api` and `doxygen-check` a doxygen
+    matching CI's — a question the CI image answers *by construction*, since
+    CI's doxygen job runs inside it. The `doxygen-check` fallback was worse
+    than redundant: it ran `apt-get install doxygen` inside `ubuntu:24.04` on
+    every invocation, the same provision-at-runtime pattern the image removed
+    from CI. Both paths now shim `$(CI_IMAGE)`, the version assertion moved
+    with them (an upstream bump fails loudly instead of quietly changing
+    generated output), and the retired names are registered so they cannot
+    creep back.

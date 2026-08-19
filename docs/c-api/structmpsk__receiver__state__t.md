@@ -158,7 +158,7 @@ mpsk_rx_loops_t mpsk_receiver_state_t::l;
 
 
 
-carrier + timing loops, handover, demapper. 
+carrier + timing loops, demapper. 
  
 
 

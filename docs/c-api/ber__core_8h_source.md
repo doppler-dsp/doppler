@@ -83,8 +83,7 @@ extern "C"
   double ber_evm_db (const float complex *rx, size_t rx_len, size_t lo,
                      size_t hi, int m);
 
-  size_t ber_settle_from (size_t budget, int timing_lock, int carrier_lock,
-                          int handover);
+  size_t ber_settle_from (size_t budget, int timing_lock, int carrier_lock);
 
   ber_interval_t ber_confidence (size_t errors, size_t symbols, double conf);
 

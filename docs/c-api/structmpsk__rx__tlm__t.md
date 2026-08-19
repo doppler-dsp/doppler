@@ -44,7 +44,6 @@ _Telemetry attachment for the receiver's own two probes; the timing and carrier 
 |  int32\_t | [**id\_nco**](#variable-id_nco)  <br> |
 |  int32\_t | [**id\_sym\_i**](#variable-id_sym_i)  <br> |
 |  int32\_t | [**id\_sym\_q**](#variable-id_sym_q)  <br> |
-|  int32\_t | [**id\_tracking**](#variable-id_tracking)  <br> |
 
 
 
@@ -228,24 +227,6 @@ int32_t mpsk_rx_tlm_t::id_sym_q;
 
 
 "&lt;prefix&gt;.sym.q" — recovered symbol, imag 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable id\_tracking 
-
-```C++
-int32_t mpsk_rx_tlm_t::id_tracking;
-```
-
-
-
-"&lt;prefix&gt;.tracking" — handover 0/1 
  
 
 

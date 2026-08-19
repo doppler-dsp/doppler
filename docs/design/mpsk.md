@@ -11,8 +11,8 @@ this row is stale:
 
 | section            | status                                                                      |
 | ------------------ | --------------------------------------------------------------------------- |
-| §2 the modes       | **design.** The shipped receiver still has `acq_to_track` and a handover    |
-| §3.3 the tap       | **design.** `nda_tap` is still a three-way shipped parameter                |
+| §2 the modes       | **BUILT.** The handover and `acq_to_track` are gone (#877)                  |
+| §3.3 the tap       | **BUILT.** One tap: the discriminator reads the strobe (#832)               |
 | §3.4 pull-in       | **design.** Corrects the shipped prose; `pull_in_hz` is not a surface yet   |
 | §4.1 detector spec | **partly built.** The threshold's `Pfa` half landed with gh-644 (§8.1)      |
 | §7 rates and units | **design.** Nothing takes `sample_rate_hz`/`symbol_rate_hz` yet             |
@@ -206,31 +206,33 @@ flowchart TB
     end
 
     RL --> ROT["y_rot = on · sym_rot"]
-    DISC -->|"pe, only when !tracking"| STEER
-    ROT -->|"only when tracking"| DD["decision-directed error<br/>Im(y_rot · conj(ahat)) / abs(y_rot)"]
-    DD --> STEER
+    DISC -->|"pe, unconditionally"| STEER
 
     STEER["mpsk_rx_steer(pe)<br/>car_error = pe<br/>freq_ctrl = −loop_filter_step(car_lf, pe) · freq_scale"]
 
-    ROT --> HO{"sym_count++<br/>acq_to_track and<br/>sym_count ≥ warmup_syms?"}
-    HO -->|"yes"| HOS["tracking = lockdet_step(&amp;handover, lock)"]
-    LKE -.->|"lock"| HOS
-    HOS -.->|"tracking selects WHICH discriminator steers"| STEER
+    ROT --> CNT["sym_count++"]
+    LKE -.->|"lock"| CLD
 
     STEER -.->|"freq_ctrl"| FE
     RL -.->|"timing.ctrl — the rate_ctrl port"| FE
     ROT --> OUT(["*sym = y_rot"])
 ```
 
-**Three couplings here are chosen rather than inherited, and each was measured
+**The couplings here are chosen rather than inherited, and each was measured
 before being left alone.** They are the reason this diagram is worth having:
 in every case the gate a reader would expect is deliberately absent.
 
-- **The steer is gated on `!tracking`; the discriminator and its lock EMA are
-    not.** `mpsk_rx_disc()` runs on every sample it is handed in both modes.
-    Freezing it while tracking would make the drop-back unreachable — the
-    metric could never fall back through the threshold it rose above. Measured
-    exactly that way: a receiver fed pure noise stayed in `tracking` for ever.
+- **Nothing gates the steer.** `mpsk_rx_disc()` runs on every strobe it is
+    handed and steers on every one, from the first symbol to the last. The
+    lock EMA and its verify-counted decision (`car_lock`) are computed beside
+    it and read by nobody inside the receiver. Measured where that could still
+    fail: at the last symbol before the decision declares, the loop has
+    already acquired a non-zero fraction of the true offset — 0.376 at
+    `bn_carrier = 0.02`, and 0.72–1.06 across M at 0.02 with the derived
+    threshold — where a steer gated on the decision would read exactly 0.0.
+    Do not read those fractions as a statement about convergence: the
+    statistic's H1 mean is a function of Es/N0 alone, so the decision instant
+    carries no frequency information (`docs/design/lock-detect.md` §1).
 
 - **The `strobe` tap is NOT gated on the timing loop's lock detector.** It
     steers from its first strobe, locked or not. An earlier revision gated it,
@@ -244,12 +246,6 @@ in every case the gate a reader would expect is deliberately absent.
     reason to choose a different tap — which is what `nda_tap` is for. Gating
     the default hid that choice behind a coupling the caller could neither see
     nor override.
-
-- **`warmup_syms` is the only guard on the handover, and it is sized from the
-    TIMING loop's bandwidth (~`5/bn_timing`), not the carrier's.** The pre-lock
-    lock EMA overshoots its own ceiling (0.9–1.7 against 0.62), so a warmup
-    shorter than the timing loop's settling can declare on garbage and hand the
-    carrier to a decision-directed loop with no valid decisions to make.
 
 ### 1.1 The two domains, and why the split is the design
 
@@ -506,21 +502,20 @@ else Mode 1 does wrong, it does visibly.
     C**, the way `dsss_receiver` already composes this receiver — a C object
     exposed to Python, not a Python pipeline.
 - **It does not hand over to a decision-directed loop.** Mode 2 will define
-    that. Stated against today's surface rather than a future one, because the
-    two differ: `acq_to_track` **is** a shipped `mpsk_receiver_create()`
-    parameter and the handover `lockdet` is shipped with it
-    (`mpsk_receiver_configure_lock()` re-tunes it, `get_tracking()` reports
-    it) — Mode 1 removes both. `warmup_syms` is already gone: it was removed
-    with the Costas arm (`1f417e97`), so it survives only on
-    `dsss_receiver`, and Mode 1 has nothing to do there.
+    that if it returns. This is now the shipped surface rather than a target:
+    `acq_to_track`, the handover `lockdet`, `mpsk_receiver_configure_lock()`
+    and `get_tracking()` were all removed in #877, on the measurement recorded
+    in §2.4. `warmup_syms` went earlier, with the Costas arm (`1f417e97`), so
+    it survives only on `dsss_receiver`.
 
 ### 2.3 The invariant
 
 **A mode is defined by *when* it reads, not *where*.** Every rate-keyed
 constant must be declared in the units of the clock it actually runs on.
 
-The shipped code violates this in three places, all of which Mode 1 removes
-rather than repairs — recorded here because Mode 2 will have to face them:
+The shipped code violated this in three places, all of which Mode 1 removed
+rather than repaired — recorded here because Mode 2 will have to face them
+again if a second discriminator ever returns:
 
 1. **The carrier loop filter's update period is set once, from the
     acquisition tap's clock, and never re-set when the decision-directed
@@ -532,12 +527,15 @@ rather than repairs — recorded here because Mode 2 will have to face them:
     which breaks the independent-look assumption its `σ_H0` is derived from
     (§4.2).
 1. **The two `lockdet`s carry the same 8/32 verify counts on different
-    clocks** — `handover` is stepped once per symbol, `car_lock` once per
-    tapped sample. So `locked` means "8 symbols" at one tap and "1 symbol" at
+    clocks** — `handover` was stepped once per symbol, `car_lock` once per
+    tapped sample. So `locked` meant "8 symbols" at one tap and "1 symbol" at
     another.
 
 Mode 1 has one clock on the steering path and one on the reporting path, and
-both are fixed at construction. None of the three can arise.
+both are fixed at construction. None of the three can arise — and all three
+are now closed in the shipped code rather than only in this section: one tap
+(#832) removed the rate spread, and one discriminator (#877) removed the
+second `lockdet` entirely.
 
 ______________________________________________________________________
 
@@ -1066,8 +1064,9 @@ Two changes from the shipped surface, both consequences of §3.3:
     moves its telemetry with it. This is exactly the situation the AGC probes
     are already in, and the same warning now covers both — which is why the
     capture demo plots real seconds rather than record indices.
-- **`rx.tracking` goes.** With no handover it is a constant 0, and a probe that
-    cannot vary is not a diagnostic. It returns with Mode 2.
+- **`rx.tracking` is GONE** (#877). With no handover it was a constant 0, and
+    a probe that cannot vary is not a diagnostic. It returns with Mode 2, if
+    Mode 2 does. The receiver publishes 15 probes, not 16.
 
 ______________________________________________________________________
 
@@ -1288,7 +1287,7 @@ main (void)
       0.01,                    /* bn_carrier — a design axis               */
       0.0,                     /* zeta        -> derived                   */
       0.01,                    /* bn_timing  — a design axis               */
-      0, 0.0,                  /* acq_to_track, lock_thresh -> derived     */
+      0.0,                     /* lock_thresh -> derived                   */
       0.0, 0,                  /* init_norm_freq, differential             */
       0,                       /* num_phases  -> derived                   */
       1,
@@ -1333,19 +1332,19 @@ reports the same five numbers:
 (8, 0.7071, 64, 0.4999, 0.05)
 ```
 
-| parameter                             | today                                                        |
-| ------------------------------------- | ------------------------------------------------------------ |
-| `m`, `sps`                            | **supplied** — the signal description                        |
-| `pulse`, `rrc_beta`, `rrc_span`       | **supplied** — the waveform, and only when it is not NRZ     |
-| `bn_carrier`, `bn_timing`             | **supplied** — the two real design axes (§8.2 derives these) |
-| `init_norm_freq`                      | **supplied** — the carrier seed                              |
-| `m_out`                               | **derived** — the largest even count in 2..8 the rate allows |
-| `zeta`                                | **derived** — `1/√2`; a constant, not a computation          |
-| `num_phases`                          | **derived** — 64, the measured saturation, against 1024      |
-| `lock_thresh`                         | **derived** — `σ_H0·η(Pfa)` = 0.4999 at `Pfa = 5e-6`         |
-| `bn_agc_ratio`                        | **derived** — 20× slower than the slowest loop it feeds      |
-| `acq_to_track`, `differential`, `agc` | **supplied** — §8.2 removes them                             |
-| `nda_tap`                             | **supplied** — deferred until re-measured (§3.3)             |
+| parameter                       | today                                                        |
+| ------------------------------- | ------------------------------------------------------------ |
+| `m`, `sps`                      | **supplied** — the signal description                        |
+| `pulse`, `rrc_beta`, `rrc_span` | **supplied** — the waveform, and only when it is not NRZ     |
+| `bn_carrier`, `bn_timing`       | **supplied** — the two real design axes (§8.2 derives these) |
+| `init_norm_freq`                | **supplied** — the carrier seed                              |
+| `m_out`                         | **derived** — the largest even count in 2..8 the rate allows |
+| `zeta`                          | **derived** — `1/√2`; a constant, not a computation          |
+| `num_phases`                    | **derived** — 64, the measured saturation, against 1024      |
+| `lock_thresh`                   | **derived** — `σ_H0·η(Pfa)` = 0.4999 at `Pfa = 5e-6`         |
+| `bn_agc_ratio`                  | **derived** — 20× slower than the slowest loop it feeds      |
+| `differential`, `agc`           | **supplied** — §8.2 removes them                             |
+| `acq_to_track`, `nda_tap`       | **GONE** — #877 and #832                                     |
 
 **Everything derived is reported**, on the same argument as
 `RateConverter.stages`: a caller who can read back what was chosen can check
@@ -1452,8 +1451,8 @@ is why they could land first.
 | `bn_carrier`                  | **derived** — the max of the three binding constraints below                             |
 | `bn_timing`                   | **derived** from `bn_carrier`; the AGC must stay slower than both (§8.1)                 |
 | `lock_thresh`                 | derived from (Es/N0, Pd, Pfa) rather than from `Pfa` alone — §8.1 derives the `Pfa` half |
-| `nda_tap`                     | **gone** — one tap (§3.3), pending the re-measurement that decides which                 |
-| `acq_to_track`, `warmup_syms` | **gone** — no second mode to gate. `warmup_syms` already is (`1f417e97`)                 |
+| `nda_tap`                     | **DONE** — one tap, the strobe (§3.3, #832)                                              |
+| `acq_to_track`, `warmup_syms` | **DONE** — no second mode to gate (#877); `warmup_syms` went with the Costas arm         |
 | `agc`                         | **gone** — the AGC is load-bearing (§1.1); its ratio is already derived (§8.1)           |
 | `differential`                | moves to `bits()`, defaulting **on** (§2.1)                                              |
 
@@ -1771,13 +1770,17 @@ ______________________________________________________________________
     reads ~1.0 at lock for every M. It used to carry a per-M `lock_scale` of
     1 / 0.619 / 0.412, which made the statistic's ceiling M-dependent and the
     default threshold **unreachable at 8PSK**.
+
 - **Arm normalization** — *resolved, twice.* There is no arm AGC and no clip:
     the discriminator normalizes by its own `|z|^M`, which removes the
     constructive-ISI peaks the clip used to bound approximately.
+
 - **`bn_carrier` normalisation** — *changed twice.* Sample-rate → symbol-rate
     at the rebuild, and → Hz in §7. The first was a silent break; the second is
     not, because both rates become required arguments.
+
 - **Real-input support** — *resolved, shipped.* `track.MpskReceiverR` (§1.2).
+
 - **Which construction parameters are design axes** — *resolved and shipped
     for five of them* ([gh-644](https://github.com/doppler-dsp/doppler/issues/644),
     §8.1). `m_out`, `zeta`, `num_phases`, `lock_thresh` and `bn_agc_ratio`
@@ -1790,6 +1793,7 @@ ______________________________________________________________________
     0.5 → **0.4999** (the same number, now derived — see §4.2). `bn_carrier`,
     `bn_timing` and the waveform parameters stay supplied: they are the
     design axes, which is the line this decision drew.
+
 - **Cold carrier pull-in on the strobe tap** — *resolved by §3.3, superseding
     the previous answer.* The strobe tap made carrier acquisition depend on
     symbol timing, costing roughly a third of data seeds at `m_out = 4`.
@@ -1801,11 +1805,25 @@ ______________________________________________________________________
     working receiver. The previous remedy was "choose another tap"; Mode 1's is
     structural — the carrier loop no longer reads a timed sample at all
     ([#536](https://github.com/doppler-dsp/doppler/issues/536)).
-- **The handover's update-period defect** — *open, and Mode 2's to resolve.*
-    The carrier loop filter's update period is set once from the acquisition
-    tap's clock and never re-set when the decision-directed discriminator takes
-    over at the symbol rate (§2.3). Unreachable in Mode 1, which has no
-    handover.
+
+- **The handover's update-period defect** — *closed by deletion, and Mode 2's
+    to face again if it returns.* The carrier loop filter's update period was
+    set once from the acquisition tap's clock and never re-set when the
+    decision-directed discriminator took over at the symbol rate (§2.3). Both
+    the second tap (#832) and the second discriminator (#877) are gone, so
+    there is one clock and no transition at which it could go stale.
+
+- **What the handover was worth** — *measured, and the reason it went.* On the
+    same record with `acq_to_track` off and on, it moved ~99% of the recovered
+    symbols by up to 0.37 on a unit-radius constellation, and changed the
+    symbol error rate by a mean factor of **0.9999** (t = 0.28) across the ten
+    cells where it engaged, winning 6 of 10. At the 8PSK anchor in
+    `mpsk_receiver_ber.c` — the one operating point where it shipped enabled,
+    on the ±π/8 margin argument — it was worth **0.09 dB** (0.44 → 0.53 dB of
+    loss) against a settling window it more than doubled. The reasoning for it
+    was sound and the measurement did not support it
+    ([#877](https://github.com/doppler-dsp/doppler/issues/877)).
+
 - **An above-ceiling lock statistic as a free diagnostic** — *retired,
     2026-07-27, by limiting the lock signal.* The idea was that `lock > 1` is
     impossible for a valid constellation, so it detects "discriminator input is
@@ -1813,6 +1831,7 @@ ______________________________________________________________________
     in ±1, so the condition can no longer arise — in exchange for a threshold
     that maps to a false-alarm probability at every M. A future AGC gain fault
     has to be caught from the AGC's own gain, not from this statistic.
+
 - **DSSS re-measurement** — *open.* Both DSSS receivers sit downstream of this
     engine and have not been re-tuned for it. The localisation says the fault
     is unrecovered carrier phase in the pre-despread Costas loop, which is that
@@ -1824,6 +1843,7 @@ ______________________________________________________________________
     carries the diagnosis: a healthy M2M4 beside a collapsed EVM says "the
     amplitudes are fine, the phase is not", which no error rate could have told
     us.
+
 - **Mode 2** — *undefined.* Whether a decision-directed handover returns, and
     on what terms, is open. §2.3 records what it must face.
 

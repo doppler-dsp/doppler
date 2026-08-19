@@ -7,7 +7,7 @@
  *   1b. Zero means derive: the five derived parameters and their readbacks
  *   2. Locks + recovers symbols under a carrier offset (I&D), every M -> SER 0
  *   3. RRC matched filter locks + recovers
- *   4. acq_to_track flips the loop from NDA acquisition to decision tracking
+ *   4. The estimate the NDA steer builds survives a lock edge, both ways
  *   ...
  *   15-21. The same object through its REAL-input constructor
  *   22. Telemetry reaches the real front end's AGC
@@ -413,11 +413,13 @@ main (void)
         DP_CHECK (saw_declare); /* vacuous if it never declares */
         /* Measured 0.376 of the offset at the last undeclared symbol. The
            bound is 0.25 rather than something tighter because the number
-           being defended is DISTANCE FROM ZERO, not closeness to the answer:
-           a steer gated on the indicator reads exactly 0.0 here. It is worth
-           noticing that 0.376 is nowhere near settled -- the indicator
-           declares long before the loop converges, at bn_carrier = 0.02 --
-           which is precisely why it must not be a gate on anything. */
+           being defended is DISTANCE FROM ZERO: a steer gated on the
+           indicator reads exactly 0.0 here, and that is the only thing this
+           compares against. Nothing is asserted about the SIZE of the
+           fraction. `car_lock` is a threshold test with hysteresis on the
+           M-th-power lock EMA, which measures phase coherence rather than
+           frequency error, so the declaration instant carries no
+           convergence information and 0.376 is not "early". */
         DP_CHECK (fabs (f_undeclared) > 0.25 * FOFF);
         DP_CHECK (f_undeclared * FOFF > 0.0); /* toward it, not away */
 

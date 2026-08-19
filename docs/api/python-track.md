@@ -165,15 +165,18 @@ rather than copied, steers the terminal accumulator (`rate_ctrl`).
 
 Carrier recovery follows the project rule — **predetection de-rotation** (in the
 LO, at the front of the chain) and **postdetection discrimination** (on the
-matched-filtered symbols at the end of it). The NDA M-th-power loop acquires with
-no data; when `acq_to_track=1` (opt-in) and the loop has locked, the receiver
-switches the shared LO to a lower-jitter **decision-directed** loop on the
-recovered symbols (essential for 8PSK, whose M-th-power phase noise would
-otherwise cross the ±π/8 margins). Both discriminators run on the same on-time
-strobe, so the handover is a plain swap and the shared loop filter carries the
-frequency estimate across it in both directions. The loop locks to one of `m`
-phases (M-fold ambiguity); resolve it with `bits(..., differential=1)` or a sync
-word.
+matched-filtered symbols at the end of it). **One discriminator** does the work:
+the NDA M-th-power error on the on-time strobe, needing no data and no symbol
+timing, running from the first symbol to the last. Nothing gates it — `lock` and
+`locked` are indicators a caller reads, not inputs the loop obeys. The loop locks
+to one of `m` phases (M-fold ambiguity); resolve it with
+`bits(..., differential=1)` or a sync word.
+
+There used to be a second, decision-directed discriminator behind an opt-in
+`acq_to_track`, on the reasoning that 8PSK's ±π/8 margin needs the lower-jitter
+error. Measured, it was worth 0.09 dB at the 8PSK anchor while moving ~99% of the
+recovered samples, so it is gone
+([#877](https://github.com/doppler-dsp/doppler/issues/877)).
 
 Because the front end plans its own cascade, **`sps` is a `float`** — an
 irrational samples-per-symbol (a free-running ADC clock against the symbol clock)
@@ -190,10 +193,10 @@ from doppler.wfm import Synth
 
 iq = Synth(type="qpsk", sps=8, snr=20).steps(4096)  # received IQ
 
-# QPSK, 8 samples/symbol, I&D matched filter; NDA acquisition + opt-in switch
+# QPSK, 8 samples/symbol, I&D matched filter; NDA from the first strobe
 rx = MpskReceiver(m=4, sps=8, m_out=4, pulse="iandd",
                   bn_carrier=0.005, bn_timing=0.01,
-                  acq_to_track=1, lock_thresh=0.4)
+                  lock_thresh=0.4)
 sym  = rx.steps(iq)          # recovered symbols (~ len(iq) / sps)
 bits = rx.bits(iq)           # hard Gray bits (LSB-first per symbol)
 f    = rx.norm_freq          # tracked carrier (cycles/sample)
@@ -235,16 +238,7 @@ lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
     for the numbers and for the measurement trap that nearly enshrined the
     wrong answer.
 
-## ContinuousMpskReceiver — the continuous flavor, and nothing waits
-
-`ContinuousMpskReceiver` is a **view** over `MpskReceiver`: the same core, the
-same state, the identical method surface, and only the constructor differs.
-That is what makes it a *flavor* rather than a second type here — a difference
-in constructor is a view, a difference in method signature is a separate class.
-`MpskReceiverR` below is a view too, on the strength of just-makeit#1012: a
-view method may now declare its own signature when it binds its own C symbol,
-so a differing input dtype no longer forces a second class. Nothing is
-removed: `MpskReceiver` still reaches every knob.
+## One discriminator, and nothing waits
 
 **There is no handover, no warmup, no lock gate and no timing gate.** The NDA
 M-th-power error steers the LO from the first output to the last. That is a
@@ -254,39 +248,44 @@ declaring on garbage, no drop-back that never fires, and no metric that has to
 be trusted before the loop is allowed to act. See
 [MPSK Receiver §2.1](../design/mpsk.md).
 
+`ContinuousMpskReceiver` used to be a separate view here, existing only to pin
+`acq_to_track = 0`. With the handover deleted it pinned nothing and was a
+duplicate of `MpskReceiver`, so it is gone
+([#877](https://github.com/doppler-dsp/doppler/issues/877)) — as is
+`configure_lock`, which retuned the handover's detector and never the lock
+indicator's, so it desynced the two detectors it appeared to configure.
+
 ```python
-from doppler.track import ContinuousMpskReceiver
+from doppler.track import MpskReceiver
 
 # Continuous BPSK at 8 samples/symbol. The caller states the link,
 # not the loops.
-rx = ContinuousMpskReceiver(m=2, sps=8.0, bn_carrier=0.02, bn_timing=0.01)
+rx = MpskReceiver(m=2, sps=8.0, bn_carrier=0.02, bn_timing=0.01)
 sym = rx.steps(iq)          # recovered symbols
-bits = rx.bits(iq)          # differential by default — see below
-assert rx.tracking == 0     # one discriminator, forever
+f = rx.norm_freq            # tracked carrier (cycles/sample)
 ```
 
-What it pins, and why none of them is a choice here:
+**`lock` and `locked` are indicators, not gates.** `lock` is the M-th-power
+statistic `Re((z/|z|)^M)` smoothed by an EMA; `locked` is a threshold test on
+it with hysteresis — 8 consecutive symbols above `lock_thresh` to declare, 32
+below `lock_drop_thresh` to withdraw. Neither steers a loop or gates an
+output, so a wrong reading costs a caller their measurement window and costs
+the demodulator nothing.
 
-| pinned                                                       | to  | because                                                                                   |
-| ------------------------------------------------------------ | --- | ----------------------------------------------------------------------------------------- |
-| `acq_to_track`                                               | `0` | the handover **is** the gate this flavor exists to remove                                 |
-| `agc`                                                        | `1` | load-bearing, not optional — it defines the level both loops run on                       |
-| `m_out`, `zeta`, `lock_thresh`, `num_phases`, `bn_agc_ratio` | `0` | not design axes; `0` requests the derived answer, and each is still read back by a getter |
-
-Every pinned value stays **readable** even though it is not settable — a
-pinned number you cannot check is a hidden one:
+That statistic measures **phase coherence, not frequency error**, so the
+instant `locked` declares says nothing about how converged the carrier
+estimate is — do not read it as "the estimate is good now". `lock_time` (the
+symbol of the first declaration) plus a settling budget is the question that
+actually asks about convergence.
 
 ```python
 rx.m_out, rx.num_phases, rx.lock_thresh   # 8, 64, 0.4999 — all derived
 ```
 
-`lock_thresh` is excluded rather than defaulted for the same reason it is
-still readable: with no handover it gates nothing, so it is telemetry. `lock`
-and `lock_thresh` report; nothing acts on them.
-
-The M-fold phase ambiguity is **permanent** here — no decision-directed stage
-ever pins the absolute phase — so `differential` defaults to `1`. Coherent
-demapping without a downstream sync word is a misconfiguration, not a choice.
+The M-fold phase ambiguity is **permanent** — no decision-directed stage
+anywhere pins the absolute phase — so a caller wanting bits rather than
+symbols needs either `bits(..., differential=1)` or a downstream sync word.
+Coherent demapping with neither is a misconfiguration, not a choice.
 
 ______________________________________________________________________
 
@@ -316,8 +315,8 @@ Two required arguments against `MpskReceiver`'s seventeen. `m` is carried by
 the class name; `sps`, `m_out`, `num_phases` and `bn_agc_ratio` are
 internal choices the object makes for itself; and `carrier_freq_hz` defaults to
 0 for complex baseband. Everything a caller has a real reason to pin — the
-pulse, both loop bandwidths, `acq_to_track`, `differential`, `agc` — is still
-there as a keyword.
+pulse, both loop bandwidths, `differential`, `agc` — is still there as a
+keyword.
 
 **`m_out` deriving rather than defaulting is not cosmetic.** Pinning `m_out=4`
 against the default I&D pulse is measured **3.11 dB** off the coherent bound
@@ -349,7 +348,7 @@ discriminator, handover rule and demapper is the *same implementation* shared
 with the complex face — only the front end and the two rate conversions its
 halfband forces differ.
 
-It is a **view** over `MpskReceiver`, like `ContinuousMpskReceiver` above: one
+It is a **view** over `MpskReceiver`, like `BpskReceiver` above: one
 core, one state, one set of loops, reached through a second constructor. It was
 a separate class until just-makeit#1012, because a view shared its parent's
 methods verbatim and `steps()` takes a different dtype here; a view may now

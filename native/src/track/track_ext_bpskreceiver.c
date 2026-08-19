@@ -672,6 +672,19 @@ BpskReceiver_getprop_clipped (BpskReceiverObject *self,
   return PyLong_FromLong ((long)mpsk_receiver_get_clipped (self->handle));
 }
 
+static PyObject *
+BpskReceiver_getprop_locked (BpskReceiverObject *self,
+                             void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromLong ((long)mpsk_receiver_get_locked (self->handle));
+}
+
 static PyGetSetDef BpskReceiver_getset[] = {
   { "agc_gain_db", (getter)BpskReceiver_getprop_agc_gain_db, NULL,
     "Gain the front-end AGC is applying, in dB; 0.0 when `agc=0`. The "
@@ -767,6 +780,18 @@ static PyGetSetDef BpskReceiver_getset[] = {
     "-- the output stays finite and plausible, merely distorted, at a cost of "
     "~25 dB of EVM that no lock metric reveals. Always 0 for a plan with no "
     "CIC stage.\n",
+    NULL },
+  { "locked", (getter)BpskReceiver_getprop_locked, NULL,
+    "Binary carrier-lock flag from the hysteretic (verify-counted) detector "
+    "on `lock` -- de-chattered, unlike the raw metric. It declares after 8 "
+    "consecutive symbols above `lock_thresh` and withdraws after 32 below "
+    "`lock_drop_thresh`, so it answers 'is this receiver locked' rather than "
+    "'was the statistic above the line on this symbol'. **It is an INDICATOR "
+    "and nothing else**: it steers no loop, gates no output, and the "
+    "M-th-power NDA discriminator runs from the first strobe whether or not "
+    "this has declared. So a caller uses it to size a measurement window, and "
+    "a wrong reading costs them that window and costs the demodulator "
+    "nothing. `lock_time` dates its first declaration.\n",
     NULL },
   { NULL }
 };

@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from doppler.track import ContinuousMpskReceiver, MpskReceiver
+from doppler.track import MpskReceiver
 
 from ._mpsk_rx_harness import freq_offset_inside_bw
 
@@ -91,7 +91,7 @@ def test_steps_recovers_symbols(m):
 def test_defaults_and_keywords():
     """All ctor params default; keyword construction (no forced positional)."""
     rx = MpskReceiver()  # QPSK, sps=8, m_out=8, I&D
-    assert rx.m == 4 and rx.sps == 8 and rx.m_out == 8 and rx.tracking == 0
+    assert rx.m == 4 and rx.sps == 8 and rx.m_out == 8 and rx.locked == 0
     rx2 = MpskReceiver(m=2, sps=4, m_out=2, pulse="iandd")
     assert rx2.m == 2 and rx2.sps == 4 and rx2.m_out == 2
 
@@ -113,7 +113,7 @@ def test_properties():
     """Read-only metrics and the writable norm_freq round-trip."""
     rx = MpskReceiver(m=8, sps=8, m_out=4)
     assert rx.m == 8 and rx.m_out == 4 and rx.sps == 8
-    assert rx.lock == 0.0 and rx.tracking == 0
+    assert rx.lock == 0.0 and rx.locked == 0 and rx.lock_time == -1
     assert rx.timing_rate == pytest.approx(8.0)  # seeded at nominal sps
     rx.norm_freq = 0.01
     assert rx.norm_freq == pytest.approx(0.01)
@@ -191,8 +191,16 @@ def test_rrc_pulse_recovers():
     assert _ser(out, idx, m) < 0.02
 
 
-def test_acq_to_track_engages():
-    """acq_to_track flips the loop from NDA acquisition to DD tracking."""
+def test_carrier_lock_declares_and_demodulates():
+    """The lock indicator declares on a signal the receiver demodulates.
+
+    This was `test_acq_to_track_engages` until doppler#877 deleted the
+    handover. The observable that replaces `tracking` is the indicator the
+    receiver still publishes -- and pairing it with the SER is the point: a
+    declaration on a stream that does not demodulate would be a false alarm,
+    and a demodulating stream that never declares would make the indicator
+    useless to a caller sizing a measurement window.
+    """
     bn, foff = 0.005, 0.0008
     tx, idx = _signal(4, foff=foff, snr_db=25, seed=4)
     rx = MpskReceiver(
@@ -200,43 +208,36 @@ def test_acq_to_track_engages():
         sps=8,
         m_out=4,
         init_norm_freq=_seed(foff, 4, bn),
-        acq_to_track=1,
         lock_thresh=0.4,
         bn_carrier=bn,
     )
     out = rx.steps(tx)
-    assert rx.tracking == 1
+    assert rx.locked == 1
+    assert rx.lock > 0.4
     assert _ser(out, idx, 4) < 0.02
 
 
-def test_acq_to_track_off_by_default():
-    tx, _ = _signal(4, snr_db=30, seed=5)
-    rx = MpskReceiver(m=4, sps=8, m_out=4)
-    rx.steps(tx)
-    assert rx.tracking == 0  # opt-in: stays in NDA tracking
+def test_carrier_lock_withdraws_and_re_declares():
+    """A sustained lock loss withdraws the declaration; a signal restores it.
 
+    The indicator is verify-counted both ways (8 symbols up, 32 down with a
+    0.8x drop threshold). This was `test_acq_to_track_two_way`, which asked
+    the same question of the handover's detector; the two were stepped on the
+    same statistic with the same constants, so the surviving one inherits the
+    case unchanged.
 
-def test_acq_to_track_two_way():
-    """A sustained lock loss drops back to the NDA acquisition steer.
-
-    The handover is verify-counted both ways (8 symbols up, 32 down with a
-    0.8x drop threshold), so a noise-dominated stretch drops tracking; a
-    returning signal re-declares after the carrier is re-seeded (on a real
-    drop-back the outer acquisition supplies that seed — during the outage
-    the discriminators see only noise and random-walk the shared NCO).
-
-    **The drop-back is asserted as an EVENT, not as the state at the end of
-    the noise.** What the design promises is that a sustained loss drops
-    tracking; it does not promise the receiver then *stays* dropped while
-    being fed noise, and it cannot: with nothing but noise in, the M-th-power
-    lock metric random-walks, and 8 consecutive samples above `lock_thresh`
-    is a bar noise clears from time to time. Measured over this stretch it
-    reaches +0.52 against a 0.4 declare threshold. So the final state after
-    5000 noise symbols is a sample of that walk — it was asserted as 0 here
-    and held only until the arm-AGC seeding changed by a few LSBs, after
-    which it still held on one machine's libm and flipped on CI's. Asserting
-    the transition itself tests the documented behaviour and is immune to
-    where the walk happens to end.
+    **The withdrawal is asserted as an EVENT, not as the state at the end of
+    the noise.** What the design promises is that a sustained loss withdraws
+    the declaration; it does not promise the receiver then *stays* withdrawn
+    while being fed noise, and it cannot: with nothing but noise in, the
+    M-th-power lock metric random-walks, and 8 consecutive samples above
+    `lock_thresh` is a bar noise clears from time to time. Measured over this
+    stretch it reaches +0.52 against a 0.4 declare threshold. So the final
+    state after 5000 noise symbols is a sample of that walk -- it was
+    asserted as 0 here and held only until the arm-AGC seeding changed by a
+    few LSBs, after which it still held on one machine's libm and flipped on
+    CI's. Asserting the transition itself tests the documented behaviour and
+    is immune to where the walk happens to end.
     """
     bn, foff = 0.005, 0.0008
     tx, _ = _signal(4, foff=foff, snr_db=25, seed=4)
@@ -246,62 +247,61 @@ def test_acq_to_track_two_way():
         sps=8,
         m_out=4,
         init_norm_freq=_seed(foff, 4, bn),
-        acq_to_track=1,
         lock_thresh=0.4,
         bn_carrier=bn,
     )
     rx.steps(tx)
-    assert rx.tracking == 1
+    assert rx.locked == 1
 
-    # Feed the outage in blocks and watch for the drop-back.
+    # Feed the outage in blocks and watch for the withdrawal.
     blk = len(noise) // 10
     dropped = False
     for i in range(10):
         rx.steps(noise[i * blk : (i + 1) * blk])
-        dropped = dropped or rx.tracking == 0
-    assert dropped, "a sustained lock loss never dropped back to the NDA steer"
+        dropped = dropped or rx.locked == 0
+    assert dropped, "a sustained lock loss never withdrew the declaration"
 
-    # The acquisition re-seed is what a real drop-back gets from the outer
-    # acquisition: an estimate, not the exact truth. Re-seed it one bound
-    # short, so the re-declare has the same work to do as the first declare.
+    # Re-seed the carrier the way a real outer acquisition would: an
+    # estimate, not the exact truth. During the outage the discriminator saw
+    # only noise and random-walked the shared NCO.
     rx.norm_freq = _seed(foff, 4, bn)
     rx.steps(tx)
-    assert rx.tracking == 1  # re-declared
+    assert rx.locked == 1  # re-declared
 
 
-def test_configure_lock_unreachable_threshold_never_engages():
+def test_lock_time_dates_the_first_declaration_only():
+    """`lock_time` answers "how long did this take", not "when last held".
+
+    A drop and re-declare must not restamp it; `reset()` clears it to -1.
+    Paired with the withdrawal case above because that is the only way to
+    reach a second declaration and so the only way this can be wrong.
+    """
     bn, foff = 0.005, 0.0008
     tx, _ = _signal(4, foff=foff, snr_db=25, seed=4)
+    noise, _ = _signal(4, foff=foff, snr_db=-10, seed=6)
     rx = MpskReceiver(
         m=4,
         sps=8,
         m_out=4,
         init_norm_freq=_seed(foff, 4, bn),
-        acq_to_track=1,
+        lock_thresh=0.4,
         bn_carrier=bn,
     )
-    rx.configure_lock(up_thresh=2.0, down_thresh=1.9, n_up=1, n_down=1)
+    assert rx.lock_time == -1  # nothing has been declared yet
     rx.steps(tx)
-    assert rx.tracking == 0
+    assert rx.locked == 1
+    first = rx.lock_time
+    assert first >= 0
 
+    blk = len(noise) // 10
+    for i in range(10):
+        rx.steps(noise[i * blk : (i + 1) * blk])
+    rx.norm_freq = _seed(foff, 4, bn)
+    rx.steps(tx)
+    assert rx.lock_time == first, "a re-declaration must not restamp it"
 
-def test_configure_lock_low_threshold_engages_fast():
-    # n_up=1 with an easily-reachable threshold hands over on the first
-    # above-threshold symbol once warmup has elapsed.
-    bn, foff = 0.005, 0.0008
-    tx, idx = _signal(4, foff=foff, snr_db=25, seed=4)
-    rx = MpskReceiver(
-        m=4,
-        sps=8,
-        m_out=4,
-        init_norm_freq=_seed(foff, 4, bn),
-        acq_to_track=1,
-        bn_carrier=bn,
-    )
-    rx.configure_lock(up_thresh=0.1, down_thresh=0.05, n_up=1, n_down=32)
-    out = rx.steps(tx)
-    assert rx.tracking == 1
-    assert _ser(out, idx, 4) < 0.02
+    rx.reset()
+    assert rx.lock_time == -1
 
 
 @pytest.mark.parametrize("m", [2, 4, 8])
@@ -328,12 +328,12 @@ def test_bits_differential_rotation_invariant(m):
     tx = (
         tx + rng.normal(0, sigma, tx.size) + 1j * rng.normal(0, sigma, tx.size)
     ).astype(np.complex64)
-    # acq_to_track for 8PSK: differential demapping roughly doubles the
-    # symbol-error rate, and 8PSK's decision margin is only +-pi/8, so the
-    # NDA M-th-power discriminator's own phase jitter is the dominant error
-    # term. Handing the carrier to the low-jitter decision-directed loop is
-    # the documented remedy (mpsk_receiver_ber.c makes the same call), and
-    # it is free for the lower orders.
+    # 8PSK is the hard case here: differential demapping roughly doubles
+    # the symbol-error rate and 8PSK's decision margin is only +-pi/8, so the
+    # NDA discriminator's own phase jitter is the dominant error term. This
+    # used to hand the carrier to a decision-directed loop for that reason;
+    # measured, the handover was worth 0.09 dB at the 8PSK anchor and it is
+    # gone (doppler#877), so the NDA loop carries this case on its own.
     rx = MpskReceiver(
         m=m,
         sps=8,
@@ -341,7 +341,6 @@ def test_bits_differential_rotation_invariant(m):
         bn_carrier=0.005,
         bn_timing=0.01,
         differential=1,
-        acq_to_track=1,
         lock_thresh=0.3,
     )
     rb = rx.bits(tx)
@@ -399,86 +398,77 @@ def test_reset_reproducible():
     )
     first = rx.steps(tx)
     rx.reset()
-    assert rx.tracking == 0
+    assert rx.locked == 0 and rx.lock == 0.0 and rx.lock_time == -1
     second = rx.steps(tx)
     assert np.array_equal(first, second)
 
 
-# ── ContinuousMpskReceiver — the continuous flavor (design/mpsk.md §2.1) ──
+# ── The surface that is GONE, and the behaviour that replaced it ─────────
 
 
-def test_continuous_view_pins_the_gating():
-    """The flavor's whole claim: no handover, no gate, nothing to wait for.
+def test_removed_knobs_are_gone_not_defaulted():
+    """`acq_to_track` and friends are refused, not silently accepted.
 
-    It is a jm VIEW over the same core, so the surface must be identical and
-    only the constructor may differ -- that is what separates a flavor from a
-    second type in this project. Checked both ways round: every knob the view
-    pins must be REFUSED by its constructor, and every method/property the
-    base has must still be reachable.
+    `ContinuousMpskReceiver` existed to pin exactly these off; with the
+    handover deleted (doppler#877) it pinned nothing and was a duplicate of
+    `MpskReceiver`, so it is gone too. What remains worth testing is that the
+    removed knobs are REFUSED rather than quietly ignored -- a constructor
+    that swallows `acq_to_track=1` and does nothing with it is the worst of
+    the three possible outcomes, because the caller's code keeps working and
+    stops meaning what it says.
     """
-    rx = ContinuousMpskReceiver(m=2, sps=8.0)
+    import doppler.track as track
 
-    # The pinned knobs are gone from the constructor, not merely defaulted.
-    for kw in (
-        "lock_thresh",
-        "acq_to_track",
-        "nda_tap",
-        "agc",
-        "m_out",
-        "zeta",
-        "num_phases",
-        "bn_agc_ratio",
-    ):
+    assert not hasattr(track, "ContinuousMpskReceiver")
+
+    for kw in ("acq_to_track", "nda_tap"):
         with pytest.raises(TypeError):
-            ContinuousMpskReceiver(m=2, sps=8.0, **{kw: 1})
+            MpskReceiver(m=2, sps=8.0, **{kw: 1})
 
-    # ... but every one is still READABLE, which is what makes a pinned value
-    # checkable rather than hidden. These are the derived §8.1 answers.
-    assert rx.m_out == 8
-    assert rx.num_phases == 64
-    assert rx.zeta == pytest.approx(0.70710678118654752, abs=1e-15)
-    assert rx.lock_thresh == pytest.approx(0.4999, abs=1e-15)
-    assert rx.bn_agc_ratio == pytest.approx(0.05, abs=1e-15)
-
-    # Same object, same surface. A view shares its parent's methods verbatim.
-    base = {d for d in dir(MpskReceiver) if not d.startswith("_")}
-    view = {d for d in dir(ContinuousMpskReceiver) if not d.startswith("_")}
-    assert base == view, f"surface differs: {base ^ view}"
+    # `configure_lock` retuned only the handover's detector, never the lock
+    # indicator's, so it desynced the two detectors it appeared to configure.
+    assert not hasattr(MpskReceiver(m=2, sps=8.0), "configure_lock")
+    assert not hasattr(MpskReceiver(m=2, sps=8.0), "tracking")
 
 
-def test_continuous_view_never_hands_over():
-    """`tracking` is 0 from the first output to the last.
+def test_the_nda_steer_is_ungated():
+    """The loop steers from the first strobe, not from the lock declaration.
 
-    The handover-enabled receiver on the SAME stimulus is the control. Without
-    it this asserts nothing: `tracking == 0` is equally satisfied by a signal
-    that never locked at all, or by a handover that is simply broken.
+    This is what `ContinuousMpskReceiver` used to assert as `tracking == 0`,
+    stated as the property that actually matters and can actually fail. The
+    failure mode is an `if (locked)` in front of the steer, which leaves the
+    estimate at exactly 0.0 until the indicator declares -- and which every
+    end-of-run assertion in this file would still pass. So the estimate is
+    read at the last block before the declaration, not at the end.
     """
-    tx, idx = _signal(2, foff=0.0008, snr_db=30, seed=21)
+    foff = 0.0008
+    tx, _idx = _signal(2, foff=foff, snr_db=30, seed=21)
+    rx = MpskReceiver(m=2, sps=8.0, m_out=8, bn_carrier=0.02, bn_timing=0.01)
 
-    rx = ContinuousMpskReceiver(m=2, sps=8.0, bn_carrier=0.02, bn_timing=0.01)
+    blk = 8  # one symbol
+    f_undeclared, declared = 0.0, False
+    for i in range(0, tx.size - blk, blk):
+        rx.steps(tx[i : i + blk])
+        if rx.locked:
+            declared = True
+            break
+        f_undeclared = rx.norm_freq
+    assert declared, "the indicator never declared — the case would be vacuous"
+    # Non-zero and toward the offset rather than away from it. A gated steer
+    # reads exactly 0.0 here, and that is the whole comparison -- the SIZE of
+    # the fraction is not asserted, because `locked` is a threshold test with
+    # hysteresis on a phase-coherence statistic and its declaration instant
+    # carries no information about how converged the loop is.
+    assert abs(f_undeclared) > 0.25 * foff
+    assert f_undeclared * foff > 0.0
+
+
+def test_receiver_tracks_the_carrier_and_demodulates():
+    """Acquires with no gate of any kind: one discriminator, always running."""
+    tx, idx = _signal(2, foff=0.0008, snr_db=30, seed=5)
+    rx = MpskReceiver(m=2, sps=8.0, m_out=8, bn_carrier=0.02, bn_timing=0.01)
     out = rx.steps(tx)
     assert out.size > 0
-    assert rx.lock > 0.5  # it genuinely locked
-    assert rx.tracking == 0  # and never flipped
-    assert _ser(out, idx, 2) < 0.01
-
-    # The control: this stimulus DOES drive a handover when one is enabled.
-    handover = MpskReceiver(
-        m=2,
-        sps=8.0,
-        m_out=8,
-        bn_carrier=0.02,
-        bn_timing=0.01,
-        acq_to_track=1,
-        lock_thresh=0.65,
-    )
-    handover.steps(tx)
-    assert handover.tracking == 1, "control failed — the stimulus cannot lock"
-
-
-def test_continuous_view_tracks_the_carrier():
-    """Acquires with no gate of any kind: no handover, no lock gate."""
-    tx, _ = _signal(2, foff=0.0008, snr_db=30, seed=5)
-    rx = ContinuousMpskReceiver(m=2, sps=8.0, bn_carrier=0.02, bn_timing=0.01)
-    rx.steps(tx)
     assert rx.norm_freq == pytest.approx(0.0008, abs=1e-4)
+    assert rx.lock > 0.5
+    assert _ser(out, idx, 2) < 0.01

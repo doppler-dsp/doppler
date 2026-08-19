@@ -143,7 +143,6 @@ def _chain(x, s0, chip_phase, doppler_hz_est, resample: bool):
         # to close that; 0.02 is the measured knee, 0.04 leaves margin.
         bn_carrier=0.04,
         bn_timing=0.01,
-        acq_to_track=1,
         lock_thresh=0.3,
         init_norm_freq=norm_freq,
     )
@@ -173,7 +172,7 @@ def test_resampled_chain_decodes():
     rx, syms = _chain(x, s0, chip_phase, doppler_hz_est, resample=True)
     ber = _decode_ber(syms, data, data_start)
     assert ber < 0.01, f"expected the resampled chain to decode (ber={ber})"
-    assert rx.tracking == 1, "MpskReceiver never handed over to tracking"
+    assert rx.locked == 1, "MpskReceiver never declared carrier lock"
 
 
 def test_unresampled_chain_fails():

@@ -179,20 +179,24 @@ def test_absolute_level_invariance(db):
     **What this asserts is invariant DECISIONS and an invariant output
     LEVEL, not a bit-identical constellation** -- it used to assert the
     latter, and the cascade rebuild made that unachievable rather than
-    merely untrue. A hysteretic ``acq_to_track`` handover now sits
-    downstream of a float32 polyphase datapath, and a non-power-of-two gain
-    perturbs that datapath in its last bits. Wherever the lock metric
-    passes close to ``lock_thresh``, those last bits decide which symbol
-    the handover fires on, and the two runs then follow slightly different
-    loop trajectories for the rest of the stream. Measured at Es/N0 = 20 dB:
-    the streams agree to ~1e-6 up to a divergence symbol (~450 at -30 dB,
+    merely untrue. A hysteretic lock decision sits downstream of a float32
+    polyphase datapath, and a non-power-of-two gain perturbs that datapath
+    in its last bits. Wherever the lock metric passes close to
+    ``lock_thresh``, those last bits decide which symbol the decision fires
+    on, and the two runs then follow slightly different loop trajectories
+    for the rest of the stream. (This described the ``acq_to_track``
+    handover when it was written; that is gone, but the DSSS receiver's own
+    search-vs-track routing is the same shape and the argument stands.)
+
+    Measured at Es/N0 = 20 dB: the streams agree to ~1e-6 up to a
+    divergence symbol (~450 at -30 dB,
     ~2025 at +15 dB, none within the stream at +30 dB -- the timing is
     chaotic, not monotone in gain), and differ by up to ~0.25 of the
     constellation radius after it, while **every** real-part sign still
     matches and the mean magnitude moves by ~1e-3 relative. So the physical
     property holds exactly and only exact reproducibility is gone. Do not
-    re-tighten this to ``allclose`` without first making the handover
-    decision itself level-exact."""
+    re-tighten this to ``allclose`` without first making the decision
+    itself level-exact."""
     esn0_db = 20.0
     cn0_dbhz = esn0_db + 10.0 * np.log10(SYM_RATE)
     x, _data = _make_ramp_signal(cn0_dbhz, seed=21)

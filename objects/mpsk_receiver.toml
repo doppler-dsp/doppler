@@ -253,6 +253,11 @@ type = "double"
 doc = "AGC bandwidth as a fraction of the slowest loop it feeds, actually in use. Reads back the DERIVED 0.05 when the constructor was given 0. See `zeta` for why every derived value is reported."
 
 [[mpsk_receiver.properties]]
+name = "locked"
+type = "int"
+doc = "Binary carrier-lock flag from the hysteretic (verify-counted) detector on `lock` -- de-chattered, unlike the raw metric. It declares after 8 consecutive symbols above `lock_thresh` and withdraws after 32 below `lock_drop_thresh`, so it answers 'is this receiver locked' rather than 'was the statistic above the line on this symbol'. **It is an INDICATOR and nothing else**: it steers no loop, gates no output, and the M-th-power NDA discriminator runs from the first strobe whether or not this has declared. So a caller uses it to size a measurement window, and a wrong reading costs them that window and costs the demodulator nothing. `lock_time` dates its first declaration."
+
+[[mpsk_receiver.properties]]
 name = "lock_time"
 type = "int64_t"
 doc = "Symbols from reset to the FIRST carrier-lock declaration, or -1 if the receiver has not locked yet -- the acquisition time as a number, rather than something a caller has to infer by polling `locked` in a loop. Dated by the same hysteretic detector `locked` reports, so the two cannot disagree. In SYMBOLS, not seconds: `bn_carrier` and `bn_timing` are both normalised to the symbol rate, so a settling budget quoted in symbols is comparable across every input rate, and a caller holding Rs divides once. Only the FIRST declaration is dated -- a drop and re-acquire does not restamp it, because the question this answers is 'how long did this receiver take to lock', not 'when did it last hold'. `reset()` clears it to -1."

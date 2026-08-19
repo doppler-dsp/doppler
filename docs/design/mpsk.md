@@ -301,7 +301,7 @@ have them:
 are **one object with two constructors**, and the real face is a jm view over
 the same core — the same shape the continuous flavor already had.
 
-They were separate *types* until the collapse (`mpsk-refactor.md`), by the
+They were separate *types* until the collapse (`mpsk.md` §12), by the
 rule the down-converters follow: a difference in *constructor* is a flavor (a
 jm view), a difference in *method signature* is a separate type. `steps(x)`
 takes `cf32` on one and `f32` on the other, and a view shared its parent's
@@ -1408,22 +1408,38 @@ restating here because a construction surface that *derives* things is exactly
 where a convenience wrapper starts to look reasonable.
 
 ```text
-mpsk_receiver_create (m, sample_rate_hz, symbol_rate_hz,
-                      pulse, rrc_beta, rrc_span,
-                      center_freq_hz, esn0_floor_db, pd, pfa)
+mpsk_receiver_create (sample_rate_hz, symbol_rate_hz,     /* the LINK        */
+                      m, pulse, rrc_beta, rrc_span, carrier_freq_hz,
+                      acquire_time_s, doppler_rate_hz_s,  /* the REQUIREMENT */
+                      coherent,
+                      esn0_floor_db, pd, pfa)             /* the DETECTOR    */
 ```
+
+**Exactly two arguments are required — `sample_rate_hz` and
+`symbol_rate_hz`.** Everything else defaults, `m` included, and `m` defaults to
+**2**: the first target is a continuous BPSK receiver (§0), so
+`MpskReceiver(fs, rs)` *is* that receiver rather than a special case of it.
 
 The Python face is that signature, keyword-capable, with the defaults jm reads
 from `objects/mpsk_receiver.toml`:
 
 ```text
-MpskReceiver(m=2, sample_rate_hz=..., symbol_rate_hz=...)
+MpskReceiver(sample_rate_hz=8e6, symbol_rate_hz=1e6)      # a BPSK receiver
+MpskReceiver(sample_rate_hz=8e6, symbol_rate_hz=1e6, m=4) # ... and a QPSK one
 ```
 
-Optional, and only when the waveform demands it: `pulse`/`rrc_beta` when the
-transmitter is not NRZ, `center_freq_hz` when the signal is not centred
-(required on the real twin), and `esn0_floor_db`/`pd`/`pfa` to move the
-indicator's design point off 4.0 dB / 0.99 / 1e-5.
+The three groups are the three questions a caller can actually answer:
+
+| group           | what it states                             | when to pass it                                                                                                                  |
+| --------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| **link**        | what is on the wire                        | `pulse`/`rrc_beta` when the transmitter is not NRZ; `carrier_freq_hz` when the signal is not centred (required on the real face) |
+| **requirement** | how fast lock is needed, how fast it moves | `acquire_time_s`, `doppler_rate_hz_s` when the dynamics are known; `coherent=False` when nothing downstream pins absolute phase  |
+| **detector**    | the indicator's design point               | `esn0_floor_db`/`pd`/`pfa` to move it off 4.0 dB / 0.99 / 1e-5                                                                   |
+
+**`carrier_freq_hz`, not `center_freq_hz`.** An earlier draft of this section
+used the latter and no manifest ever did: `dll`, `async_dsss_receiver` and
+`mpsk_receiver` all ship `carrier_freq_hz`. The code was right and this page
+now follows it.
 
 Three changes remain, and only the first two touch the signature. §8.1's
 derivations are deliberately independent of all of them — they are
@@ -1432,13 +1448,47 @@ is why they could land first.
 
 | parameter                     | what remains                                                                             |
 | ----------------------------- | ---------------------------------------------------------------------------------------- |
-| `sps`, `init_norm_freq`       | become `sample_rate_hz` / `symbol_rate_hz` / `center_freq_hz` — the units change, §7     |
-| `bn_carrier`, `bn_timing`     | **derived** from `esn0_floor_db` via the loop-SNR rule, rather than supplied             |
+| `sps`, `init_norm_freq`       | become `sample_rate_hz` / `symbol_rate_hz` / `carrier_freq_hz` — the units change, §7    |
+| `bn_carrier`                  | **derived** — the max of the three binding constraints below                             |
+| `bn_timing`                   | **derived** from `bn_carrier`; the AGC must stay slower than both (§8.1)                 |
 | `lock_thresh`                 | derived from (Es/N0, Pd, Pfa) rather than from `Pfa` alone — §8.1 derives the `Pfa` half |
 | `nda_tap`                     | **gone** — one tap (§3.3), pending the re-measurement that decides which                 |
 | `acq_to_track`, `warmup_syms` | **gone** — no second mode to gate. `warmup_syms` already is (`1f417e97`)                 |
 | `agc`                         | **gone** — the AGC is load-bearing (§1.1); its ratio is already derived (§8.1)           |
 | `differential`                | moves to `bits()`, defaulting **on** (§2.1)                                              |
+
+`bn_carrier` is the max of three constraints, each an equation already in §5
+rather than a new invention — a loop bandwidth is not a fact a caller has, it
+is the answer to a requirement they do have:
+
+| constraint    | from                | rule                                                |
+| ------------- | ------------------- | --------------------------------------------------- |
+| seeding       | `pull_in_hz` (§3.4) | `bn ≥ M·\|Δf\|` per symbol                          |
+| acquisition   | `acquire_time_s`    | lock time scales `~1/bn`, at 5–10% of `5/bn` (§4.1) |
+| ramp headroom | `doppler_rate_hz_s` | `θ_ss = 2π·r/wn² < π/(2M)` ⇒ `wn² > 4M·r` (§5.8)    |
+
+**Every derived value stays readable** — `rx.bn_carrier`, `rx.sps`,
+`rx.lock_thresh` — so a caller asks what they got rather than having had to
+supply it. That is the pattern §8.1 established for five parameters, applied to
+the rest, and it is what keeps "derived" from meaning "hidden".
+
+!!! note "Three rows this table used to disagree with itself about"
+
+    `docs/design/mpsk.md §12` §4.3 specified the same constructor and
+    derived `nda_tap` from `pull_in_hz`, `acq_to_track` from `m` (on at M = 8)
+    and `differential` from `coherent`. That page has been folded into this one
+    (§10), and where the two disagreed **this section is the answer**:
+
+    - **`nda_tap` is gone, not derived.** One tap
+        ([#832](https://github.com/doppler-dsp/doppler/issues/832)); a
+        derivation that can select a tap keeps three taps alive to select from.
+    - **`acq_to_track` is gone, not derived.** There is no second mode to gate
+        (§2.1), so there is nothing for a derivation to choose. M = 8's ±π/8
+        margin is a reason to reconsider the *discriminator*, not to keep a
+        handover.
+    - **`differential` moves to `bits()`.** `coherent` stays as a construction
+        input because it is a fact about the link, but what it selects is the
+        demap default, not a second constructor parameter.
 
 Two readbacks earn their place beyond the parameters themselves once those
 land — `pull_in_hz` (§3.4), which tells a caller how accurately they must
@@ -1603,6 +1653,93 @@ right.
 
 ______________________________________________________________________
 
+### 9.7 Soft decisions
+
+**Shipped** as `mpsk_soft_demap(x, llr, m, n0)`. This subsection is folded in
+from the `mpsk.md` §9.7 page that designed it — which opened *"there is no soft
+anything in it: five functions, all hard-decision"*, a sentence the
+implementation has since made false.
+
+The convention, for each bit `i` of a symbol's Gray label:
+
+```text
+L_i = log( P(b_i = 0 | y) / P(b_i = 1 | y) )
+```
+
+**Positive means bit 0**, so the hard decision is `bit = (L < 0)` and agreement
+with `mpsk_demap` is a testable identity rather than a hope. Bits are
+**LSB-first**, matching how the label byte already packs them (§9.3).
+
+Under AWGN with `y = a + n`, `E[|n|²] = N0` and unit-amplitude points, the
+shipped form is **max-log**:
+
+```text
+L_i = ( min_{a: b_i(a)=1} |y - a|²  -  min_{a: b_i(a)=0} |y - a|² ) / N0
+```
+
+`n0` is a parameter, and has to be for the value to be an LLR rather than a
+monotone score. At M = 2 this collapses to `4·Re(y)/n0`, which is what the
+header's doctest pins.
+
+**Two things are open, and neither is a paragraph that can be written from
+theory:**
+
+1. **What max-log costs at 8PSK, in dB.** The prototype measured it in nats of
+    LLR error, which is not a unit anyone sizes a link in. The honest number is
+    an Eb/N0 offset on a decoded BER curve, measurable now that `conv` and `rs`
+    ship. Literature says 0.1–0.2 dB for Gray-mapped 8PSK; **this repository
+    does not ship literature numbers**, so the header claims no figure until it
+    is measured here.
+1. **Whether exact-LLR should be selectable.** Follows from the first: adding a
+    switch before knowing whether the difference is 0.05 dB or 0.5 dB is
+    designing for a hypothetical.
+
+A soft *differential* demapper is **out of scope** — `mpsk_diff_demap` decides
+from a phase difference, and the two symbols' noise is correlated through the
+shared reference, which is a genuinely different derivation. It becomes an
+issue if a caller appears, not a paragraph here.
+
+#### Soft decisions are an OUTPUT, not a telemetry-only view
+
+The receiver already produces soft decisions in two places, and neither is an
+output a caller can compose with:
+
+- `steps()` returns the recovered **symbol**, which is soft in the sense that
+    matters — unquantized — but it is a constellation point, not an LLR;
+- the `sym.i` / `sym.q` probes emit `Re(y)` / `Im(y)` per recovered symbol
+    (§4.3), which is the same value on the telemetry plane.
+
+What is missing is the one a decoder consumes. `conv_core.h` **already
+documents that it takes `mpsk_soft_demap`'s convention** (its `llr` parameter,
+"positive means bit 0"), so the seam between this receiver and the shipped
+Viterbi decoder is specified on the decoder's side and unimplemented on the
+receiver's. Today the bridge is hand-wired: `native/validation/rx_coding_gain.c`
+calls `mpsk_soft_demap(sym, nsym, llr, nsym, 2, 1.0f)` itself — with `n0`
+**hard-coded to 1.0** — which is how the ≥6.1 dB coding-gain result is
+obtained. From Python there is no path at all; `mpsk_soft_demap` appears only
+in `mpsk`'s own tests.
+
+**So the receiver owes a soft-bit output beside `bits()`** — the same shape,
+returning `float` LLRs rather than packed hard bits, delegating to
+`mpsk_soft_demap` rather than reimplementing it. That also answers the `n0`
+question this design deferred: the receiver carries the AGC that normalises
+amplitude (§1.1), so it is the one object in the chain that knows the scale its
+symbols arrive at, and a caller hand-passing `1.0` is doing so because nothing
+offered them better.
+
+Until that lands, `bits()` is the only composable output and it throws away
+exactly the information an outer code is there to use.
+
+!!! warning "The shipped soft path has no certified envelope"
+
+    `mpsk`'s validation report is 24 limits over the hard-decision surface and
+    mentions soft **zero times**, so `mpsk_soft_demap` is public API that no
+    certification covers. That is a gap in the report, not a claim about the
+    code — the C tests do exercise it. It is the first thing to fix the next
+    time `mpsk` is re-certified.
+
+______________________________________________________________________
+
 ## 10. Component reuse
 
 Everything here is reused, not reimplemented:
@@ -1689,3 +1826,130 @@ ______________________________________________________________________
     us.
 - **Mode 2** — *undefined.* Whether a decision-directed handover returns, and
     on what terms, is open. §2.3 records what it must face.
+
+______________________________________________________________________
+
+## 12. The collapse — one object, two faces
+
+**Landed.** `MpskReceiverR` was a separate *type* until
+[#806](https://github.com/doppler-dsp/doppler/pull/806); it is now a view over
+this object. This section is the record of that change, folded in from the
+`mpsk.md` §12 page that specified it, because a page that has done its job
+is a section rather than a peer.
+
+### 12.1 What the split cost, measured
+
+`mpsk_rx_loops_t` — both loops, the demapper, the telemetry attachment and all
+five §8.1 derivations — was already one struct in one header, embedded in both
+twins by value. The twins differed in exactly two places:
+
+- the **front end**, `ddc_state_t *` against `ddcr_state_t *`;
+- one **rate convention** — the real face's LO runs at half the input rate,
+    because its R2C halfband decimates 2:1, so `ddcr`'s tuning law
+    `norm_freq = -(2·f_c + 0.5)` puts a `0.5` in its accessor.
+
+Everything else was duplication, and it was measured rather than asserted:
+`mpsk_receiver_r_core.c` was **372 lines and 30 public functions, 16 of them
+pure delegations**. Only `create`, `destroy`, `reset`, the two `norm_freq`
+accessors, `set_norm_freq`, `get_clipped` and the state triplet genuinely
+differed — each by a front-end call or a factor of two, never by algorithm.
+
+### 12.2 Why it could not be done sooner, and what unblocked it
+
+The project's own axis is that a difference in **constructor** is a flavor and
+a difference in **method signature** is a separate type — and `steps()`/`bits()`
+take `cf32` against `f32`. That made the dtype a type difference by rule.
+
+[just-makeit#1012](https://github.com/just-buildit/just-makeit/issues/1012),
+shipped in jm 0.62.0, removed the constraint that forced it: a view method
+restating a parent's *name* may now declare its own signature when it binds its
+own C symbol via `fn`. The dtype became expressible as a flavor, so it became
+one:
+
+```toml
+[[mpsk_receiver.views.methods]]
+name   = "steps"
+fn     = "mpsk_receiver_steps_real"
+params = [{ name = "x", type = "float[]" }]
+```
+
+The core carries `union { ddc_state_t *c; ddcr_state_t *r; } fe` plus an
+`int real`, and the tag is read on **cold paths only** — create, destroy,
+reset, telemetry, the frequency accessors and the state triplet. The hot path
+has two `step` entry points, each force-inlined onto one shared
+`mpsk_rx_fold()`, so the front end is a compile-time fact inside the sample
+loop and the tag costs nothing there.
+
+Two things worth knowing before the next view of this kind:
+
+- **The state MAGIC is keyed on the face** (`MPSK`/`MPSR`), so a blob from one
+    is refused by the other at the envelope rather than reinterpreted or caught
+    three levels down in a child. The layouts are otherwise identical, which is
+    why one triplet serves both and neither version needed a bump.
+- **A view's own `create_error_message` does not reach the binding yet.** The
+    accessor resolves it (gh-580) but `jm apply`'s view replay does not carry
+    the key into the scratch tree the fragment renders from — filed as
+    [just-makeit#1017](https://github.com/just-buildit/just-makeit/issues/1017),
+    worked around by widening the parent's message to state both faces' `sps`
+    bound.
+
+### 12.3 The step that cashed it
+
+The collapse *permits* one test home; it does not create one. Left alone the
+merged object would simply have inherited whichever twin's test file survived,
+and the asymmetry would have persisted silently — the refactor delivering
+everything except the thing that motivated it. `test_mpsk_receiver_r_core.c`
+was therefore **folded into** `test_mpsk_receiver_core.c` (§15–23) rather than
+deleted, and every shared claim now has one owner:
+
+| shared claim                         | before            | now                                    |
+| ------------------------------------ | ----------------- | -------------------------------------- |
+| `set_telemetry`                      | complex only      | §22 — the real front end's AGC forward |
+| level invariance                     | complex (real: 1) | §11 + §21                              |
+| the AGC is slower than every loop    | complex only      | §9 + §21, both front ends              |
+| "the LO runs at half the input rate" | **neither**       | **§23, two halves, both sabotaged**    |
+
+The first three were migrations and carried no new risk. **The fourth is the
+one that mattered**: nothing had ever asserted it, and it is where the gh-765
+`freq_scale` bug lived (fixed in #772 with no guard left behind). §23 pins it
+in two halves because `lo_sps` enters in two places, each with its own
+sabotage:
+
+| half      | stimulus | gate                              | sabotage                        | measured                                  |
+| --------- | -------- | --------------------------------- | ------------------------------- | ----------------------------------------- |
+| loop GAIN | **ramp** | `θ_ss = 2πr/wn²`, both faces, ±8% | `lo_sps = sps` on the real face | lag **2.00×** the law at both ramp rates  |
+| READBACK  | step     | `norm_freq` within 20% of `df`    | `mpsk_rx_lo_to_input()` → 1.0   | off by **exactly `df`**, 5× the tolerance |
+
+Each sabotage leaves the other half green, so the two are independent claims
+rather than one asserted twice. The stimulus for the first **has to be a
+ramp**: the bug survived every step test in the tree because a type-2 loop
+nulls a frequency step regardless of gain (§5.8).
+
+One measurement lesson came out of building it. The estimator is the **signed
+mean** of the discriminator output, then `|·|` — not the mean of `|e|`. Under a
+ramp the lag is a constant offset the loop is holding, so the signed mean
+estimates it and the loop's own jitter averages out; `mean|e|` carries a
+positive bias that grows as the lag approaches the jitter, and at `r = 3e-7` on
+the real face that bias alone read **44% high** and failed a correct receiver.
+
+And §2's claim — *the loops behave identically regardless of front end* —
+became writable for the first time here, because one object with two faces can
+run the same vector through both and compare.
+
+### 12.4 What the collapse decided
+
+- **`strobe` is the tap.** Measured on the continuous flavor's own waveform —
+    NRZ, modulation off then dense, under a coupled Doppler ramp: lock 0.935
+    quiet, **0.860** at the data onset, 0.920 at the end, against `mf_out`'s
+    0.478 and `mf_in`'s 0.417 at the onset. An unmodulated NRZ carrier is
+    **sampling-phase invariant**, so the strobe tap's timing dependency costs
+    nothing exactly where timing is impossible.
+- **`mf_in`'s cost is a stated price, and the arm filter is declined.** Its
+    node carries `10·log10(bank_sps)` dB of excess noise bandwidth — measured
+    6.01 dB at `bank_sps = 4`, *identical* at 6.79, 12 and 20 dB Es/N0, which is
+    a pure bandwidth ratio rather than an SNR-dependent effect. Recovering it
+    costs serialized state on every object carrying the tap, and `strobe` reads
+    the node already matched to the signal for free.
+- **The TED is not cosmetic.** On a rectangular pulse, Gardner deepens the
+    data-onset lock dip from 0.075 to 0.306 — four times, from the detector
+    choice alone. Use DTTL with I&D.

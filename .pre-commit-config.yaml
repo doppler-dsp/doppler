@@ -203,9 +203,51 @@ repos:
       # the generator's check. A filter that has to be kept in step with four
       # generators' input sets is a second source of truth for what they read.
       # The whole target is 0.67s, so there is nothing to buy by narrowing it.
-      - id: docs-drift
-        name: docs-drift (related-pages / README / install-scripts)
-        entry: make -s docs-drift-check
+      # Supersedes the older `docs-drift` hook, whose four generator --check
+      # calls are a strict SUBSET of DOCS_CHECK_PRE_CMDS. Running both would
+      # be two hooks disagreeing about what a docs invariant is; this is one,
+      # and it iterates the same list docs-check does, so adding a check
+      # there adds it here with no edit.
+      #
+      # 1.6s for all thirteen. That buys the two that caught doppler#858 --
+      # check_api_docs and the docstring-coverage ratchet -- at commit time
+      # rather than in CI, plus nav-index, doc/face parity, version strings
+      # and the generator drift the old hook covered.
+      #
+      # always_run, like the hook it replaces: these read every docstring,
+      # stub, manifest and page, so a `files:` filter would be a second
+      # source of truth for thirteen scripts' input sets. That is the trade
+      # the gen-c-api hook below makes the other way, and the reason is the
+      # cost -- 1.6s can be unconditional, 19s cannot.
+      - id: docs-invariants
+        name: docs invariants (api coverage, docstring ratchet, parity, drift)
+        entry: make -s docs-invariants
         language: system
         pass_filenames: false
         always_run: true
+
+      # docs/c-api is mkdoxy output over the C sources, and it is COMMITTED.
+      # Nothing regenerates it as a side effect of anything else, so "edited a
+      # header, forgot the tree" is exactly how it goes stale -- twice in one
+      # afternoon (doppler#854, #858), each caught by CI rather than here.
+      #
+      # Unlike docs-drift above, this one is NARROWED, because it is not free:
+      # 19s against that hook's 0.4s, and on any box whose doxygen is not the
+      # pinned 1.9.8 it shells out to a container. The filter is the Doxyfile's
+      # own INPUT (`native/inc native/src`) and FILE_PATTERNS (`*.h *.c`), so
+      # it fires exactly when the generator's declared inputs move and stays
+      # out of the way of every commit that cannot affect it.
+      #
+      # That filter IS a second copy of the Doxyfile's input set, which
+      # docs-drift's comment rightly warns about. It is accepted here because
+      # the failure mode is benign and bounded: if INPUT widens and this does
+      # not, the hook under-fires and CI's Doxygen job catches it -- today's
+      # behaviour, not a worse one. The hook regenerates IN PLACE, so a
+      # failure leaves the tree in the state the fix requires; re-stage and
+      # commit again.
+      - id: gen-c-api-drift
+        name: docs/c-api regenerated (mkdoxy over native/**)
+        entry: make -s gen-c-api-check
+        language: system
+        pass_filenames: false
+        files: ^native/(inc|src)/.*\.[ch]$

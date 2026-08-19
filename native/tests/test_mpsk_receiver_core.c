@@ -15,7 +15,7 @@
  *
  * **One object, two faces, one test home.** Sections 1-14 drive the complex
  * front end and 15-23 the real one, because they are the same receiver behind
- * a different matched front end (docs/design/mpsk-refactor.md). That is not
+ * a different matched front end (docs/design/mpsk.md §12). That is not
  * an organisational choice: the shared header mpsk_rx_loops.h has no test
  * file of its own, so while the two faces were two types its claims were
  * pinned only where one of the two tests happened to reach them -- and the
@@ -1309,7 +1309,7 @@ main (void)
    *
    * Sections 15-22 exercise the same object through its other constructor.
    * They were `test_mpsk_receiver_r_core.c` until the two receivers became
-   * one (docs/design/mpsk-refactor.md); folding them in is not tidying. The
+   * one (docs/design/mpsk.md §12); folding them in is not tidying. The
    * shared header mpsk_rx_loops.h had NO test file of its own, so every
    * claim it makes was pinned only where one of the two receivers' tests
    * happened to reach it -- and the two did not overlap. `set_telemetry` was
@@ -1899,7 +1899,7 @@ main (void)
 
   /* 22. Telemetry reaches the REAL front end's AGC.
    *
-   * §2 of docs/design/mpsk-refactor.md: `set_telemetry` was asserted seven
+   * §2 of docs/design/mpsk.md §12: `set_telemetry` was asserted seven
    * times against the complex front end and ZERO times against the real one,
    * so the forward into `ddcr_set_telemetry()` was carried by nothing. The
    * loops' half is shared code and section 8 covers it; what is unique here
@@ -1985,7 +1985,7 @@ main (void)
   /* 23. THE LO RUNS AT HALF THE INPUT RATE.
    *
    * The claim mpsk_rx_loops.h makes that NOTHING in this repository asserted
-   * (docs/design/mpsk-refactor.md §2, last row): the R2C halfband decimates
+   * (docs/design/mpsk.md §12.3, last row): the R2C halfband decimates
    * 2:1 before the mix, so `lo_sps = sps/2` and every caller-facing frequency
    * is converted back to the input rate on the way out. It is where the
    * gh-765 `freq_scale` defect lived, and it went through every step test in

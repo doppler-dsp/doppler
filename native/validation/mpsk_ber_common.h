@@ -139,7 +139,7 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
   /* One type, one set of accessors: the front end is a CONSTRUCTOR choice
      now, not a second state_t to cast a void* to. Every argument below is
      identical between the two calls, which is the collapse's thesis stated as
-     code (docs/design/mpsk-refactor.md §4.1). */
+     code (docs/design/mpsk.md §8). */
   mpsk_receiver_state_t *rx
       = c->real ? mpsk_receiver_create_real (
                       c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,

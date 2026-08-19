@@ -11,7 +11,7 @@
  * The `real` tag is read on cold paths ONLY — create, destroy, reset,
  * telemetry, the frequency accessors and the state triplet. The hot path has
  * two entry points, so the front end is a compile-time fact inside the sample
- * loop (docs/design/mpsk-refactor.md §3).
+ * loop (docs/design/mpsk.md §12).
  *
  * The per-output work is the force-inlined mpsk_rx_take_output() in
  * mpsk_rx_loops.h, and the design arguments (why the carrier loop runs at two
@@ -337,7 +337,7 @@ mpsk_rx_fe_rc (const mpsk_receiver_state_t *s)
    built and with what tuning law, and what the LO's own rate is. Every
    derivation, every validator and the whole loop setup is shared — which is
    the point of the collapse, because a rule that exists twice is a rule free
-   to drift (docs/design/mpsk-refactor.md §2). */
+   to drift (docs/design/mpsk.md §12.1). */
 static mpsk_receiver_state_t *
 mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
                      double rrc_beta, int rrc_span, double bn_carrier,

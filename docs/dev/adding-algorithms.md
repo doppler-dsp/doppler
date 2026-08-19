@@ -45,18 +45,18 @@ ______________________________________________________________________
 
 ## The lifecycle at a glance
 
-| #   | phase          | produces                                                 | the how lives in                                                                 | proven by                                          |
-| --- | -------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------- |
-| 1   | **Why**        | `docs/design/<algo>.md`                                  | this page                                                                        | review only                                        |
-| 2   | **Declare**    | `objects/<obj>.toml`, a `just-makeit.toml` entry         | [Adding a Module](adding-a-module.md)                                            | `make drift-check`                                 |
-| 3   | **Implement**  | `native/inc/<obj>/<obj>_core.h` + `_core.c`              | [Adding a Module](adding-a-module.md), [Error Convention](error-convention.md)   | `ctest`                                            |
-| 4   | **Pin**        | `native/tests/test_<obj>_core.c`                         | [Object Validation](validation.md) step 2                                        | `ctest`, `make tests-ssot`                         |
-| 5   | **Bind**       | `.pyi`, `__init__.py`, the `_ext` fragment               | [Module Layout](module-layout.md), [Docstring Authoring](docstring-authoring.md) | `make drift-check`, `make test-stubs`              |
-| 6   | **Instrument** | the state triplet, telemetry probes                      | [state serialization](../design/state-serialization.md)                          | `check_serializable.py`, the state matrix          |
-| 7   | **Explore**    | `native/validation/<obj>_*.c`, `tests/characterization/` | [Object Validation](validation.md)                                               | `make validate-c`, `make characterize`             |
-| 8   | **Certify**    | `tests/validation/<obj>/results.md`                      | [Object Validation](validation.md)                                               | `make validate-check`, `test_validation_limits.py` |
-| 9   | **Carry back** | a C section, an example, a gallery page                  | [Doc Examples](doc-examples.md)                                                  | `ctest`, `test_examples.py`                        |
-| 10  | **Land**       | CHANGELOG entry, issues for what is left                 | [Release](release.md)                                                            | `make changelog-check`                             |
+| #   | phase          | produces                                                 | the how lives in                                                                 | proven by                                               |
+| --- | -------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| 1   | **Why**        | `docs/design/<algo>.md`                                  | this page                                                                        | review only                                             |
+| 2   | **Declare**    | `objects/<obj>.toml`, a `just-makeit.toml` entry         | [Adding a Module](adding-a-module.md)                                            | `make drift-check`                                      |
+| 3   | **Implement**  | `native/inc/<obj>/<obj>_core.h` + `_core.c`              | [Adding a Module](adding-a-module.md), [Error Convention](error-convention.md)   | `ctest`                                                 |
+| 4   | **Pin**        | `native/tests/test_<obj>_core.c`                         | [Object Validation](validation.md) step 2                                        | `ctest`, `make tests-ssot`                              |
+| 5   | **Bind**       | `.pyi`, `__init__.py`, the `_ext` fragment               | [Module Layout](module-layout.md), [Docstring Authoring](docstring-authoring.md) | `make drift-check`, `make test-stubs`                   |
+| 6   | **Instrument** | the state triplet, telemetry probes                      | [state serialization](../design/state-serialization.md)                          | `check_serializable.py`, the state matrix               |
+| 7   | **Explore**    | `native/validation/<obj>_*.c`, `tests/characterization/` | [Object Validation](validation.md)                                               | `make validate-c`, `make characterize`                  |
+| 8   | **Certify**    | `tests/validation/<obj>/results.md`                      | [Object Validation](validation.md)                                               | `make validate-check`, `test_validation_limits.py`      |
+| 9   | **Document**   | header `@code`, a guide if needed, benchmarks, examples  | [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md)   | `make test-stubs`, `make test-examples-c`, `make bench` |
+| 10  | **Land**       | CHANGELOG entry, issues for what is left                 | [Release](release.md)                                                            | `make changelog-check`                                  |
 
 `make gates` runs the merge-guarding set; the per-phase targets above are how
 you find out sooner.
@@ -87,6 +87,13 @@ The header you write here is a deliverable, not a comment. Its Doxygen
 becomes the Python docstring on both faces, so writing it well is cheaper
 than fixing it twice — [Docstring Authoring](docstring-authoring.md) is the
 home for that.
+
+**Its `@code` blocks are tests.** `jm` flows each one into the `.pyi` as an
+`Examples` section and `make test-stubs` executes it, so an example that
+drifts fails a gate rather than misleading a reader quietly. Write them
+against a real run — pin the expected output by running the thing, never by
+reasoning about what it should print. That is phase 9's first deliverable and
+it is cheapest to write here, while the behaviour is in front of you.
 
 ### 4 — Pin, and prove the pin
 
@@ -164,12 +171,50 @@ under `native/validation/` measures and emits, and a validator under
 unchanged. [Object Validation](validation.md#certifying-a-component-with-no-binding)
 has the table.
 
-### 9 — Carry it back
+### 9 — Document it, and carry it back
 
-A finding that reaches only the report reaches nobody. Whatever the
-certification established — a new limit, a corrected rule, a number a caller
-has to choose by — goes back into the C test and into an example, because
-those are the two things that keep it true and put it in front of someone.
+A finding that reaches only the report reaches nobody, and an object nobody
+can find is an object nobody uses. Five deliverables, each with the gate that
+keeps it honest — none of them optional except where the table says so:
+
+| you owe                                               | it lives in                                           | kept true by                                        |
+| ----------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
+| a `@code` example on each public function             | `native/inc/<obj>/<obj>_core.h`                       | `make test-stubs`                                   |
+| a markdown guide, **when** prose outgrows a docstring | `docs/design/<algo>.md`, or `docs/guide/`             | `make docs-check`, `check_nav_index.py`             |
+| a benchmark, C **and** Python                         | `native/benchmarks/`, `src/doppler/<mod>/benchmarks/` | `make bench`, `make bench-compare`                  |
+| a runnable example, C **or** Python                   | `examples/c/`, `src/doppler/examples/`                | `make test-examples-c`, `make test-examples-python` |
+| a gallery page, **when** there is a figure worth it   | `docs/gallery/`                                       | `make test-snippets`, `check_nav_index.py`          |
+
+Three things about that table are worth knowing before you trip over them.
+
+**The two `when`s are the only judgement calls.** A guide earns its place when
+the object needs prose a docstring cannot hold — a derivation, a comparison,
+a decision a caller has to make. A gallery page earns its place when there is
+a figure that shows something a number cannot. Everything else on the list is
+owed unconditionally, and "it is obvious from the code" has never once been
+true for the person reading it six months later.
+
+**A benchmark is a claim, and an unmeasured claim is a guess.** `jm apply`
+scaffolds both files for you, so the deliverable is filling them in, not
+creating them. Doing it now is also the only cheap moment: a number nobody
+took before the algorithm was tuned cannot be recovered afterwards.
+
+**A C example is REGISTERED; a Python example is DISCOVERED**, and the
+difference decides whether forgetting is survivable. `src/doppler/examples/*.py`
+is globbed, so a new script is gated the moment it exists; opting one out means
+an entry in `.examples-skip` with a **mandatory reason**, and an entry naming a
+deleted script fails a meta-test. `make test-examples-c` instead iterates a
+hand-written list of binary names, so a C example absent from it compiles,
+ships, and is executed by nothing — silently, and with no reason recorded
+anywhere. Today that list holds 9 of the 13 programs in `examples/c/`; the four
+it omits all need a live NATS broker, which is a real reason that is written
+down nowhere ([gh-863](https://github.com/doppler-dsp/doppler/issues/863)).
+Add your example to the list, or you have written documentation nothing runs.
+
+Then carry the findings back. Whatever the certification established — a new
+limit, a corrected rule, a number a caller has to choose by — goes into the C
+test and into one of the artifacts above, because those are the two things
+that keep it true and put it in front of someone.
 
 ### 10 — Land it
 

@@ -257,7 +257,7 @@ dp_test_settle_syms (double bn_timing, double bn_carrier)
  *
  * **The @p m is the part that was missing everywhere before this existed.**
  * The NDA discriminator is an M-th power, so it sees @p m times the offset and
- * the bound carries the divide (docs/design/mpsk-refactor.md section 4.4). A
+ * the bound carries the divide (docs/design/mpsk.md §8). A
  * site that wrote `0.5 * bn / sps` was seeding half the bound at BPSK and
  * twice it at 8PSK, while reading identically at every order.
  *

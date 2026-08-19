@@ -73,7 +73,7 @@ from doppler.ber import (
 from doppler.mpsk import mpsk_map
 from doppler.snr import snr_m2m4_db
 from doppler.tests._validation_common import Report, clamp_evm_db, cli
-from doppler.track import ContinuousMpskReceiver, MpskReceiver
+from doppler.track import MpskReceiver
 from doppler.track.tests._mpsk_rx_harness import freq_offset_inside_bw
 
 HERE = Path(__file__).resolve().parent
@@ -893,77 +893,121 @@ def characterise(R, write):
         )
 
     # 2.6 ---------------------------------------------------------------
-    R.md("### 2.6 The continuous flavor never hands over (C §1c)")
+    R.md("### 2.6 One discriminator, and nothing gates it (C §1c)")
     R.md()
     R.md(
-        "`ContinuousMpskReceiver` pins the gating: no handover, no "
-        "warmup, no lock gate, no timing gate. Measured against the "
-        "handover-enabled receiver on the SAME record, because "
-        "`tracking == 0` alone is equally satisfied by a signal that "
-        "never locked."
+        "The header claims the M-th-power NDA error steers the LO from the "
+        "first strobe to the last, and that the carrier lock indicator "
+        "steers no loop and gates no output. Half of that is now structural "
+        "and half is still falsifiable, and they are reported separately "
+        "because only one of them can be measured.\n\n"
+        "**Structural half.** There is no second discriminator to hand over "
+        "to. `acq_to_track`, `tracking`, `configure_lock` and "
+        "`ContinuousMpskReceiver` — the view whose entire purpose was to pin "
+        "the handover off — are gone (doppler#877), so no construction "
+        "reachable from this API can enable one. This section used to build "
+        "its control row with `acq_to_track = 1` precisely so that "
+        "`tracking == 0` read as a pinned property rather than as a failure "
+        "to reach 1; that falsifier cannot be built any more, and a claim "
+        "whose falsifier is unbuildable is a claim about the TYPE, so it is "
+        "stated rather than measured. The row below replaces it with one "
+        "that can still fail.\n\n"
+        "**Falsifiable half.** An ungated steer is not a type fact: an "
+        "`if (locked)` in front of it would compile, would still reach lock, "
+        "and would pass every end-of-run number in this report. It has one "
+        "signature — the tracked frequency sits at exactly 0.0 until the "
+        "indicator declares — so the estimate is read at the LAST symbol "
+        "before the declaration rather than at the end of the record."
     )
     R.md()
 
-    x, lab = _signal(
-        2, 16.0, freq_offset=freq_offset_inside_bw(0.02, 2, 1.0), seed=21
-    )
-    cont = ContinuousMpskReceiver(
-        m=2, sps=SPS, bn_carrier=0.02, bn_timing=0.01
-    )
-    out_c = cont.steps(x)
-    hand = MpskReceiver(
-        m=2,
-        sps=SPS,
-        m_out=8,
-        bn_carrier=0.02,
-        bn_timing=0.01,
-        acq_to_track=1,
-        lock_thresh=0.65,
-    )
-    hand.steps(x)
-    lo = ber_settle_syms(0.01, 0.02)
-    d["cont"] = {
-        "tracking": cont.tracking,
-        "lock": cont.lock,
-        "ser": _score(out_c, lab, 2, lo)[0],
-        "control_tracking": hand.tracking,
-    }
+    ungated = []
+    for m, esn0, seed in ((2, 20.0, 21), (4, 20.0, 3), (8, 24.0, 5)):
+        foff = freq_offset_inside_bw(0.02, m, 1.0)
+        x, _lab = _signal(m, esn0, freq_offset=foff, seed=seed)
+        rxu = MpskReceiver(
+            m=m, sps=SPS, m_out=8, bn_carrier=0.02, bn_timing=0.01
+        )
+        blk = int(SPS)  # one symbol
+        f_und, at, declared = 0.0, 0, False
+        for i in range(0, x.size - blk, blk):
+            rxu.steps(x[i : i + blk])
+            if rxu.locked:
+                declared, at = True, i // blk
+                break
+            f_und = rxu.norm_freq
+        # `freq_offset` is cycles per SYMBOL; `norm_freq` is per SAMPLE.
+        truth = foff / SPS
+        ungated.append(
+            {
+                "m": m,
+                "declared_at": at if declared else None,
+                "f_undeclared": f_und,
+                "truth": truth,
+                "frac": f_und / truth if truth else 0.0,
+            }
+        )
+    d["ungated"] = ungated
+
     R.table(
-        ["receiver", "tracking", "lock", "SER"],
+        ["M", "declared at (sym)", "f before declare", "true offset", "frac"],
         [
             [
-                "ContinuousMpskReceiver",
-                f"{cont.tracking}",
-                f"{cont.lock:.3f}",
-                (
-                    f"{d['cont']['ser']:.3e}"
-                    if d["cont"]["ser"] is not None
-                    else "refused"
-                ),
-            ],
-            ["MpskReceiver (control)", f"{hand.tracking}", "—", "—"],
+                f"{u['m']}",
+                "never" if u["declared_at"] is None else f"{u['declared_at']}",
+                f"{u['f_undeclared']:.3e}",
+                f"{u['truth']:.3e}",
+                f"{u['frac']:.3f}",
+            ]
+            for u in ungated
         ],
     )
     R.md()
     R.md(
-        "**The control row is what makes the first row mean anything.** "
-        "`tracking == 0` is satisfied by a receiver that never locked, by "
-        "one whose handover is broken, and by one that correctly has no "
-        "handover — three different objects with the same reading. The "
-        "second row is the same record through a receiver built with "
-        "`acq_to_track = 1`, and it DOES flip, so the continuous flavor's "
-        "0 is a pinned property rather than a failure to reach 1. This is "
-        "the vacuity discipline `docs/dev/validation.md` §2 asks for, "
-        "applied to a flag instead of to a reject test.\n\n"
-        "The flavor also demodulates while it does it — SER 0.000e+00 on "
-        "BPSK at 16 dB with the loop steering from the first strobe — so "
-        "removing the gates costs nothing at this operating point. What "
-        "the table cannot show is the case the gates existed for: a cold "
-        "start into a signal that is not there yet. That case is "
-        "`native/validation/rx_dynamics.c`'s — a coupled Doppler ramp "
-        "across a data onset, on this flavor's own NRZ waveform — and "
-        "`mpsk_receiver_create_continuous`'s docstring carries its "
-        "conclusion, which is why the tap trade is not a finding here."
+        "**Every row is a non-zero fraction of the true offset, acquired "
+        "before anything declared.** That is the whole measurement: a steer "
+        "gated on the indicator reads 0.000 in that column at every order.\n\n"
+        "The fraction itself is reported and NOT interpreted. `locked` is a "
+        "threshold test with hysteresis on the M-th-power lock statistic, "
+        "whose H1 mean is a function of Es/N0 alone — so the detector never "
+        "sees frequency error and its declaration instant is not evidence "
+        "about convergence in either direction "
+        "([lock detection §1](../../../../../../docs/design/lock-detect.md)). "
+        "The numbers above are two quantities sampled at a common instant, "
+        "not a relationship; a reader wanting convergence asks for it "
+        "directly, with `lock_time` plus a settling budget (§2.4)."
+    )
+    R.md()
+    R.md(
+        "**What the deleted handover was worth**, since this section "
+        "previously certified that a flag existed rather than that it "
+        "helped. Measured on the shipped receiver immediately before the "
+        "deletion, same record through `MpskReceiver` twice at operating "
+        "points where the meter is not saturated (SER 1.5e-2 to 7.1e-2):"
+    )
+    R.md()
+    R.table(
+        ["axis", "result"],
+        [
+            ["recovered symbols that differ", "19764–19928 of 19998 (~99%)"],
+            ["largest difference", "0.30–0.48 (unit-radius constellation)"],
+            ["SER over 10 engaged cells", "mean ratio 0.9999, t = 0.28"],
+            ["cells where the handover won", "6 of 10"],
+            [
+                "8PSK anchor, from `mpsk_receiver_ber.c`",
+                "0.09 dB (0.44 → 0.53)",
+            ],
+        ],
+    )
+    R.md()
+    R.md(
+        "So it perturbed essentially the whole sample path and moved the "
+        "decisions by scatter with no sign. Those numbers are a RECORD, not "
+        "a re-measurement — the construction that produced them no longer "
+        "exists, which is the point of deleting it. They are here because a "
+        "reader of this report is entitled to know that the branch this "
+        "section used to certify was removed on evidence rather than on "
+        "taste; the issue carries the full table."
     )
     R.md()
 
@@ -1692,12 +1736,12 @@ def review(R, d):
     R.find(
         "F3",
         "BY DESIGN",
-        "The M-fold phase ambiguity is **permanent** in the continuous "
-        "flavor (§2.6): with no decision-directed stage, nothing ever "
-        "pins absolute phase. That is why `_ser()` here searches the "
-        "rotation, and why `bits()` defaults to the differential demap "
-        "on `ContinuousMpskReceiver`. Coherent demapping without a "
-        "downstream sync word is a misconfiguration, not a choice.",
+        "The M-fold phase ambiguity is **permanent** (§2.6): there is "
+        "no decision-directed stage anywhere in this receiver, so nothing "
+        "ever pins absolute phase. That is why `_ser()` here searches the "
+        "rotation, and why a caller wanting bits rather than symbols needs "
+        "either `differential=1` or a downstream sync word. Coherent "
+        "demapping with neither is a misconfiguration, not a choice.",
     )
 
 
@@ -1857,24 +1901,28 @@ def limits(R, d):
             ),
         )
 
-    c = d["cont"]
-    R.limit(
-        c["tracking"] == 0,
-        "ContinuousMpskReceiver never hands over (tracking stays 0)",
-    )
-    R.limit(
-        c["control_tracking"] == 1,
-        "the control DOES hand over on the same record — so the line "
-        "above is not satisfied by a signal that never locked",
-    )
-    R.limit(c["lock"] > 0.5, "ContinuousMpskReceiver locks")
-    _limit_ser(
-        R,
-        c["ser"],
-        3e-3,
-        "ContinuousMpskReceiver",
-        lambda s: f"ContinuousMpskReceiver recovers BPSK (SER {s:.2e})",
-    )
+    # The steer is UNGATED, at every order. Stated per row rather than as
+    # an aggregate: a single M passing would be equally satisfied by a
+    # receiver that gated the steer everywhere except there.
+    for u in d["ungated"]:
+        R.limit(
+            u["declared_at"] is not None,
+            f"M={u['m']}: the lock indicator declares at all (symbol "
+            f"{u['declared_at']}) — without a declaration the row below "
+            f"would be vacuous",
+        )
+        R.limit(
+            abs(u["frac"]) > 0.25 and u["frac"] > 0.0,
+            f"M={u['m']}: the NDA steer is UNGATED — it had already "
+            f"acquired {u['frac']:.3f} of the true offset, toward it, at "
+            f"the last symbol before the indicator declared. A steer gated "
+            f"on the indicator reads exactly 0.000 here",
+        )
+    # NOTHING is asserted about the SIZE of that fraction. The detector is
+    # a threshold test on the M-th-power lock statistic, which measures
+    # phase coherence and not frequency error, so the declaration instant
+    # carries no convergence information and a bound in either direction
+    # would gate on an incidental correlation.
 
     # The false lock is asserted as a LATTICE and as an invisibility, and
     # both halves have to hold for the finding to be the finding: a lock
@@ -1985,7 +2033,7 @@ def limits(R, d):
         "and a clobbered blob is rejected rather than reinterpreted",
     )
     R.limit(
-        li["nprobe"] == 16,
+        li["nprobe"] == 15,
         f"the receiver publishes {li['nprobe']} telemetry probes spanning "
         f"all three subsystems (`rx.car.*`, `rx.sync.*`, `rx.agc.*`)",
     )
@@ -2140,9 +2188,7 @@ def build(write: bool = True) -> Report:
     R.md(
         "`track.MpskReceiver` — a streaming M-PSK receiver that owns no "
         "filter, no NCO and no interpolator of its own: a matched DDC "
-        "with two loops closed around its two control ports. "
-        "`track.ContinuousMpskReceiver` is its continuous flavor, a view "
-        "over the same core that pins the gating."
+        "with two loops closed around its two control ports."
     )
     R.md()
     R.md(
@@ -2153,7 +2199,7 @@ def build(write: bool = True) -> Report:
         "([`docs/design/mpsk.md`, the collapse]"
         "(../../../../../../docs/design/mpsk.md"
         "#12-the-collapse-one-object-two-faces)). Every loop, "
-        "discriminator, handover rule and demapper decision below the "
+        "discriminator and demapper decision below the "
         "front end is one implementation, which is what makes a claim "
         "about the loops a claim about all three faces."
     )
@@ -2249,17 +2295,18 @@ def build(write: bool = True) -> Report:
         ],
         [
             "C5",
-            "two discriminators steer one LO: NDA acquisition needing "
-            "no data and no timing, and decision-directed tracking",
-            "C §4 + §2.6",
+            "ONE discriminator steers the LO: the NDA M-th-power error, "
+            "needing no data and no timing, on every strobe",
+            "C §1c + §4 + §2.6",
         ],
         [
             "C6",
-            "the handover is opt-in and TWO-WAY, and the shared loop "
-            "filter carries the estimate across it in both directions",
-            "C §4 (flip, drop-back and re-declare) + C §4b NEW (the "
-            "estimate is CONTINUOUS across BOTH transitions — §4 "
-            "re-seeds the carrier by hand, which MASKS the claim)",
+            "nothing gates it — the steer runs whether or not the lock "
+            "indicator has declared, and the estimate it builds survives "
+            "a declaration and a withdrawal",
+            "C §1c (0.376 of the offset acquired before the declaration; "
+            "a gated steer reads 0.0) + C §4 (the estimate is CONTINUOUS "
+            "across both lock edges)",
         ],
         [
             "C7",
@@ -2374,9 +2421,9 @@ def build(write: bool = True) -> Report:
         ],
         [
             "C23",
-            "the continuous flavor pins the gating: no handover, no "
-            "warmup, no lock gate, no timing gate",
-            "C §1c + §2.6",
+            "there is no handover, no warmup, no lock gate and no timing "
+            "gate anywhere in the receiver — structurally, not by default",
+            "C §1c + §2.6 (the knobs are REFUSED, not defaulted)",
         ],
         [
             "C24",
@@ -2405,10 +2452,10 @@ def build(write: bool = True) -> Report:
         [
             "C29",
             "the real face is the SAME object behind an R2C halfband — "
-            "every loop, discriminator, handover rule and demapper is "
+            "every loop, discriminator and demapper is "
             "one implementation over one `mpsk_rx_loops_t`",
             "C §15-21 (the real face through every lifecycle, SER, "
-            "handover and state claim) + C §22 (telemetry reaches the "
+            "lock and state claim) + C §22 (telemetry reaches the "
             "OTHER front end's AGC) + C §20 (a blob from one face is "
             "refused by the other, by envelope magic)",
         ],
@@ -2525,10 +2572,13 @@ def build(write: bool = True) -> Report:
             "unalignable record means acquisition, not tracking — was "
             "correct about the mechanism and wrong about whose it was "
             "(§2.5, doppler#843).",
-            "**The continuous flavor's `tracking == 0` is checked against "
-            "a control.** The handover-enabled receiver on the same "
-            "record DOES flip, so the claim is not satisfied by a signal "
-            "that never locked (§2.6).",
+            "**The NDA steer is UNGATED, measured where it could still "
+            "fail.** At every order the loop has already acquired a "
+            "non-zero fraction of the true offset — toward it — at the "
+            "last symbol before the lock indicator declares, where a "
+            "steer gated on that indicator would read exactly 0.0. The "
+            "handover this section used to certify is gone, on the "
+            "measurement recorded in §2.6 (doppler#877).",
             "**Halving `m_out` costs about 2.7 dB of EVM at every M** "
             "(§2.8) — the derivation to 8 lands within a quarter of a dB "
             "of the bound, and 4 costs nearly 3 dB. The header's "

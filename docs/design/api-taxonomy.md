@@ -67,7 +67,7 @@ effect where it's cheap).
 | 2   | **Filtering & rate conversion**      | reshape a stream's spectrum/rate                                | `FIR`, `CIC`, `Resampler`, `RateConverter`, `HalfbandDecimator`, `HalfbandDecimatorQ15`, `Farrow`, `DDC`, `MovingAverage` |
 | 3   | **Detection & acquisition**          | find presence/timing/frequency *once*, no persistent feedback   | `Corr`, `Corr2D`, `CorrDetector`, `CorrDetector2D`, `Acquisition`, `PolynomialPhaseEstimator`                             |
 | 4   | **Tracking & synchronization loops** | continuously refine an estimate via feedback, sample-by-sample  | `LoopFilter`, `Costas`, `Dll`, `CarrierMpsk`, `CarrierNda`, `SymbolSync`                                                  |
-| 5   | **Composite receivers**              | combine layers 2+3+4 into one receiver, in exactly two framings | continuous: `dsss.Despreader`, `track.ContinuousMpskReceiver`; burst: `dsss.BurstDespreader`, `BurstDemod`                |
+| 5   | **Composite receivers**              | combine layers 2+3+4 into one receiver, in exactly two framings | continuous: `dsss.Despreader`, `track.MpskReceiver`; burst: `dsss.BurstDespreader`, `BurstDemod`                          |
 | 6   | **Measurement & analysis**           | characterize signal quality                                     | `PSD`, `ToneMeasure`, `NPRMeasure`, `IMDMeasure`, `Specan`                                                                |
 | 7   | **Quantization & fixed-point**       | model/convert numeric representations                           | `ADC`, the `cvt` family, Q15/UQ15                                                                                         |
 | 8   | **Support**                          | gain control, accumulation, plumbing                            | `AGC`, `AccF32`/`AccCf64`/`AccQ15`/`AccQ8`/`AccTrace`, `Buffer`, `DelayCf64`                                              |
@@ -221,21 +221,20 @@ nothing: doppler ships a BPSK *source* (`wfm.bits(modulation="bpsk")`), so
 
 **Spelling: mark both framings explicitly.**
 
-| framing    | name                     |
-| ---------- | ------------------------ |
-| continuous | `ContinuousMpskReceiver` |
-| burst      | `BurstMpskReceiver`      |
-| (general)  | `MpskReceiver`           |
+| framing    | name                |
+| ---------- | ------------------- |
+| continuous | `MpskReceiver`      |
+| burst      | `BurstMpskReceiver` |
 
-This deliberately **diverges from §4.1's unmarked-continuous**, and the reason
-is local rather than a change of mind: in the DSSS pair the plain name was
-free, so `Despreader`/`BurstDespreader` could carry the distinction with one
-prefix. Here the plain name is taken — `MpskReceiver` is the general,
-two-mode-capable object, and the continuous flavor is a *view* that pins its
-gating (`acq_to_track = 0`). Reusing the plain name for the
-continuous flavor would mean renaming or retiring the general object, which is
-a breaking change bought for symmetry alone. Marking both is longer and asks
-the reader to know nothing.
+**This now FOLLOWS §4.1's unmarked-continuous, and it did not always.** The
+divergence was real while it lasted, and the reason it ended is worth keeping:
+`MpskReceiver` used to be a general, two-mode-capable object, so the plain
+name was taken and the continuous framing needed a marked one —
+`ContinuousMpskReceiver`, a view that pinned `acq_to_track = 0`. Deleting the
+handover (#877) removed the second mode, so the general object and the
+continuous one became the same object and the marked name became a duplicate
+of the plain one. The naming question dissolved rather than being decided:
+there is one framing to name, so it takes the unmarked name.
 
 `BurstMpskReceiver` does not exist yet. It is named here so that when it does,
 the name is a consequence of a written axis rather than a fresh argument.

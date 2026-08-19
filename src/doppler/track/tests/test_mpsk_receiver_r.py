@@ -43,6 +43,13 @@ CTOR = {"m": 4, "sps": 32.0, "m_out": 8}
 
 
 def test_create():
+    # Deliberately POSITIONAL: this is the one test that pins the constructor's
+    # argument ORDER, which keyword calls everywhere else cannot catch. The
+    # order is m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta,
+    # bn_timing, lock_thresh, init_norm_freq, differential, num_phases.
+    # Removing a parameter silently re-binds every later argument here, so if
+    # this file is edited for a signature change, check it element by element
+    # rather than deleting the one that went.
     obj = MpskReceiverR(
         4,
         16.0,
@@ -53,13 +60,17 @@ def test_create():
         0.01,
         0.707,
         0.01,
-        0,
         0.5,
         0.0,
         0,
         1024,
     )
     assert obj is not None
+    # Read back the tail of the list, so a shift by one is a failure rather
+    # than a construction that quietly meant something else.
+    assert obj.m == 4 and obj.sps == 16.0 and obj.m_out == 4
+    assert obj.lock_thresh == pytest.approx(0.5)
+    assert obj.num_phases == 1024
 
 
 def test_context_manager():

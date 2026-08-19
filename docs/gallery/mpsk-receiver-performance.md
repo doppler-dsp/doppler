@@ -104,14 +104,16 @@ compare trials with different loop bandwidths.
     times the bound. Two independent truth-free validators agreed with each
     other and both were blind to it.
 
-    The cause was the window, and specifically the **handover**: with
-    `acq_to_track` enabled it fires on carrier lock plus a warmup, which is later
-    than the analytic `5/Bn` budget *and* later than every lock indicator, and
-    the decision-directed loop then has its own transient. The handover landed at
-    symbol 2525 against a 2000-symbol budget; measuring from 2000 read 5.95× the
-    bound where the settled answer is **1.68×**. Localise a suspected window
-    fault by asking **where** the errors are — an error rate per block across the
-    record — not by adding another truth-free metric.
+    The cause was the window, and specifically the **handover** the receiver
+    carried at the time: with `acq_to_track` enabled it fired on carrier lock
+    plus a warmup, later than the analytic `5/Bn` budget *and* later than every
+    lock indicator, and the decision-directed loop then had its own transient.
+    It landed at symbol 2525 against a 2000-symbol budget; measuring from 2000
+    read 5.95× the bound where the settled answer is **1.68×**. The handover is
+    gone ([#877](https://github.com/doppler-dsp/doppler/issues/877)) and this
+    particular trap with it, but the lesson is not about handovers: localise a
+    suspected window fault by asking **where** the errors are — an error rate
+    per block across the record — not by adding another truth-free metric.
 
 ## Streaming a real capture in
 

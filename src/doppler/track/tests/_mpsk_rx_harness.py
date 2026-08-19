@@ -407,15 +407,17 @@ def lock_symbol(flag, sustain=200, min_frac=0.9):
 def settle_from(probes, floor=SETTLE_SYMS):
     """Where the measurement window may start, from the receiver's own locks.
 
-    `max(budget, timing lock, carrier lock, handover + budget)` -- the
-    analytic budget and the reported locks are both fallible in the SAME
-    direction, so whichever settles last decides. **With `acq_to_track` on the
-    handover is what settles last**: it fires on carrier lock plus a warmup,
-    strictly after everything else, and the decision-directed loop then has
-    its own transient, so it contributes its instant PLUS the budget again.
-    Measured on 8PSK at its SER=1e-3 anchor: handover at symbol 2525 against a
-    2000-symbol budget, SER 5.9x the coherent bound from 2000 versus 1.7x from
-    4525.
+    `max(budget, timing lock, carrier lock)` -- the analytic budget and the
+    reported locks are both fallible in the SAME direction, so whichever
+    settles last decides.
+
+    There was a fourth term until doppler#877. A receiver that handed the
+    carrier from an NDA discriminator to a decision-directed one settled last
+    of all, contributing its instant PLUS the budget again (measured on 8PSK
+    at its SER=1e-3 anchor: handover at symbol 2525 against a 2000-symbol
+    budget, and 5.9x the coherent bound if the window started at 2000 rather
+    than 4525). No receiver here hands over any more, and the `tracking`
+    probe it was read from no longer exists.
 
     Delegates the policy to `ber.ber_settle_from`. Returns `None` when either
     loop is not locked at the end of the burst -- there is no valid
@@ -425,8 +427,7 @@ def settle_from(probes, floor=SETTLE_SYMS):
     c = lock_symbol(probes["car.locked"])
     if t is None or c is None:
         return None
-    h = lock_symbol(probes["tracking"]) if "tracking" in probes else None
-    return int(ber_settle_from(floor, t, c, -1 if h is None else h))
+    return int(ber_settle_from(floor, t, c))
 
 
 def detect_alignment(y, idx, m, settle, lag_span=40, n_marker=256):

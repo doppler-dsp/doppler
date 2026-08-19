@@ -15,10 +15,10 @@ page for the NATS fan-in pattern that unifies those).
 The scenario is built so every stream has a story:
 
   * ``rx``   — QPSK with a mid-stream outage: the carrier lock EMA
-    (``rx.lock``) collapses, the two-way handover (``rx.tracking``)
-    drops back to NDA acquisition, and re-declares when the signal
-    returns (the carrier is re-seeded on drop-back, as a real outer
-    acquisition would).
+    (``rx.lock``) collapses, the verify-counted decision on it
+    (``rx.car.locked``) withdraws, and both recover when the signal
+    returns (the carrier is re-seeded during the outage, as a real
+    outer acquisition would).
   * ``code0`` — PN-31 DSSS BPSK seeded half a chip off into a
     partial-correlation Dll: the code-lock CFAR statistic
     (``code0.lock``) climbs through pull-in and the verify-counted
@@ -97,7 +97,6 @@ def main(out_path="telemetry_fanin_demo.png"):
         m=4,
         sps=SPS,
         init_norm_freq=FOFF,
-        acq_to_track=1,
         lock_thresh=0.4,
         bn_carrier=0.03,
     )
@@ -177,7 +176,7 @@ def main(out_path="telemetry_fanin_demo.png"):
     # gain update), so the event ordinal maps back to sample time; the
     # block-level `n` stamp (set_now) keeps the sources aligned.
     lock = series("rx.lock")
-    trk = series("rx.tracking")
+    trk = series("rx.car.locked")
     clk = series("code0.lock")
     cld = series("code0.locked")
     gdb = series("agc.gain_db")
@@ -192,7 +191,7 @@ def main(out_path="telemetry_fanin_demo.png"):
         trk * 0.9,
         lw=1.4,
         color="#1565c0",
-        label="rx.tracking (scaled)",
+        label="rx.car.locked (scaled)",
     )
     ax0.axvspan(N_CLEAN, N_CLEAN + N_OUT, color="#b71c1c", alpha=0.08)
     ax0.text(N_CLEAN + N_OUT / 2, 0.98, "outage", ha="center", color="#b71c1c")

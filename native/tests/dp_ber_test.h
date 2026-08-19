@@ -9,9 +9,8 @@
  *
  * 1. **Is it SETTLED?** A second-order loop needs ~5/Bn symbols, the two loops
  *    are cascaded so their budgets ADD, and joint tracking DOUBLES the sum —
- *    `2*(5/bn_timing + 5/bn_carrier)`, plus the handover instant again if
- *    `acq_to_track` is on. And the analytic budget alone is not enough: take
- *    `max(budget, timing lock, carrier lock, handover + budget)` from the
+ *    `2*(5/bn_timing + 5/bn_carrier)`. And the analytic budget alone is not
+ *    enough: take `max(budget, timing lock, carrier lock)` from the
  *    receiver's own verify-counted indicators. Measuring inside that window
  *    measures settling and reports it as steady state (measured cost: -9.0 dB
  *    EVM where the settled answer is -23.2 dB; SER 5.9x the bound where the

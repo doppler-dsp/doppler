@@ -7,8 +7,8 @@ Generates ``docs/assets/mpsk_receiver_demo.png`` (committed gallery asset):
              (a phase-rotating cloud collapses onto the 4 clusters).
   - Middle — the tracked carrier frequency and lock metric converging.
   - Right  — symbol error rate vs matched-filter Es/N0 for BPSK / QPSK / 8PSK,
-             measured (NDA acquire + decision-directed handover) against the
-             coherent M-PSK bound, ~1-2 dB implementation loss.
+             measured (M-th-power NDA throughout) against the coherent
+             M-PSK bound, ~1-2 dB implementation loss.
 
 Run:  uv run python src/doppler/examples/mpsk_receiver_demo.py
 """
@@ -44,8 +44,8 @@ iq = np.asarray(
     ).compose()
 )
 
-# Acquire blind (M-th-power NDA), then hand the shared LO over to
-# low-jitter decision-directed tracking once locked and warmed up.
+# One discriminator, blind from the first strobe: the M-th-power NDA error
+# steers the shared LO whether or not anything has declared lock.
 # bn_carrier is normalised to the SYMBOL rate, not the sample rate, and
 # carrier PULL-IN range scales with it: acquiring a 0.0015 cyc/sample offset
 # from a cold start (init_norm_freq defaults to 0) needs ~0.02 here.
@@ -56,7 +56,6 @@ rx = MpskReceiver(
     pulse="iandd",
     bn_carrier=0.02,
     bn_timing=0.01,
-    acq_to_track=1,
     # The lock statistic is normalised: ~1.0 at lock for every M, so this is a
     # plain fraction of what a locked constellation reads. It used to be scaled
     # per-M (QPSK peaked at 0.619), where 0.4 meant 0.4/0.619 = 65% of the
@@ -65,7 +64,7 @@ rx = MpskReceiver(
 )
 sym = rx.steps(iq)  # recovered symbols (~ len(iq) / sps)
 bits = rx.bits(iq)  # hard Gray bits, LSB-first per symbol
-assert rx.tracking == 1  # switched to decision-directed tracking
+assert rx.locked == 1  # the carrier lock indicator declared
 # --8<-- [end:receiver]
 
 # --8<-- [start:level]
@@ -166,8 +165,8 @@ def _ser(out, idx, m, settle):
     """Steady-state symbol error rate, measured after ``settle`` symbols.
 
     Searches lag and constellation rotation because neither is observable from
-    the output alone: the group delay depends on the pulse, the front end and
-    the handover instant, and an NDA receiver locks to any of the M rotations.
+    the output alone: the group delay depends on the pulse and the front
+    end, and an NDA receiver locks to any of the M rotations.
     """
     th = np.angle(out) - PHI0[m]
     oi = np.round(th * m / (2 * np.pi)).astype(int) % m
@@ -266,7 +265,7 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
     ax_l.set_title("Carrier acquisition + lock", fontsize=10)
     ax_l.grid(alpha=0.3)
 
-    # ── Right: BER vs Es/N0 per M (NDA acquire + DD handover) ──────────────
+    # ── Right: BER vs Es/N0 per M (M-th-power NDA throughout) ─────────────
     orders = [
         (2, "BPSK", "tab:blue"),
         (4, "QPSK", "tab:orange"),
@@ -294,7 +293,6 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
                 init_norm_freq=0.0005,
                 bn_carrier=0.005,
                 bn_timing=0.005,
-                acq_to_track=1,
                 lock_thresh=0.3,
             )
             out2 = rxm.steps(tx2)
@@ -327,7 +325,7 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
     ax_b.set_xlabel("matched-filter Es/N0 (dB)")
     ax_b.set_ylabel("BER")
     ax_b.set_ylim(1e-5, 1)
-    ax_b.set_title("BER vs Es/N0 (acquire + handover)", fontsize=10)
+    ax_b.set_title("BER vs Es/N0 (NDA throughout)", fontsize=10)
     ax_b.legend(fontsize=7, ncol=3, loc="lower left")
     ax_b.grid(alpha=0.3, which="both")
 

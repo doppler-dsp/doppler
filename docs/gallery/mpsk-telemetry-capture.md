@@ -26,13 +26,14 @@ cold-start BPSK pull-in leaves a complete record of the whole receiver:
     **declare and drop thresholds** the decision actually used, read off the
     receiver (`lock_thresh`, `lock_drop_thresh`) rather than retyped here, so
     the line and the decision it drives cannot drift apart.
-- **`rx.tracking`** — flat at 0, and that is the point: **there is no
-    handover.** One M-th-power NDA discriminator steers the LO from the first
-    output to the last (Mode 1 in [the design](../design/mpsk.md)), so nothing
-    waits for anything and the transient is simply the cost of starting cold.
-    `acq_to_track` is still on the shipped constructor and this demo leaves it
-    at its default; a probe that cannot vary is not a diagnostic, and retiring
-    it is [#831](https://github.com/doppler-dsp/doppler/issues/831).
+- **`rx.car.locked`** — the verify-counted decision on that statistic. It is
+    an indicator and nothing more: **there is no handover**, so one M-th-power
+    NDA discriminator steers the LO from the first output to the last (Mode 1
+    in [the design](../design/mpsk.md)), nothing waits for anything, and the
+    transient is simply the cost of starting cold. The `rx.tracking` probe
+    that used to sit here was flat at 0 by construction — a probe that cannot
+    vary is not a diagnostic — and it went with the handover in
+    [#877](https://github.com/doppler-dsp/doppler/issues/877).
 - **`rx.car.freq`** — the tracked NCO frequency pulls in to the injected
     0.0015 cyc/sample offset.
 - **`rx.car.e` / `rx.sync.e` / `rx.sync.ctrl`** — the carrier discriminator

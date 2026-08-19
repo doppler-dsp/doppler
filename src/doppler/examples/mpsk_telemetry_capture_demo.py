@@ -9,15 +9,14 @@ cadence: the capture sizes the ring from the probe count and the block, and
 merely unlikely** — and `close()` raises if one happened anyway.
 
 The receiver forwards to its child loops, so one attach registers every
-probe it and they own — its own carrier set
-(``rx.lock``/``rx.tracking``/``rx.car.*``), the symbol-timing loop
-(``rx.sync.*``, including ``rx.sync.lock``, the Gardner eye-opening ratio,
-and its de-chattered ``rx.sync.locked``), the recovered symbol
-(``rx.sym.*``), and the front-end AGC (``rx.agc.*``). The count is
-deliberately not written down here — it was stated as 13 while the real
-figure was 16, and nothing read it back. What pins the set is the assert
-below, ``set(series) == set(tlm.probe_names)``, which fails if a probe
-appears or disappears.
+probe it and they own — its own carrier set (``rx.lock``/``rx.car.*``),
+the symbol-timing loop (``rx.sync.*``, including ``rx.sync.lock``, the
+Gardner eye-opening ratio, and its de-chattered ``rx.sync.locked``), the
+recovered symbol (``rx.sym.*``), and the front-end AGC (``rx.agc.*``). The
+count is deliberately not written down here — it was stated as 13 while the
+real figure was 16, and nothing read it back. What pins the set is the
+assert below, ``set(series) == set(tlm.probe_names)``, which fails if a
+probe appears or disappears.
 The AGC pair does not share the others' grid: it is tapped pre-terminal,
 ahead of the stage the timing loop steers, and emits once per gain update
 rather than once per recovered symbol. That is what makes `read_dict`
@@ -112,12 +111,11 @@ tlm = Telemetry()
 # that pairing is measured at 3.11 dB off the coherent bound where the
 # derived 8 is 0.41 dB off. A parameter nobody needed was costing the demo
 # most of its margin.
-# No `acq_to_track`: there is no handover. One M-th-power NDA discriminator
-# steers the LO from the first output to the last, which is Mode 1 in
-# `docs/design/mpsk.md` -- nothing here waits for anything, and the transient
-# is simply the cost of starting cold. The parameter is still on the shipped
-# constructor and is left at its default rather than enabled; retiring it is
-# doppler#831's job, not this demo's.
+# There is no handover: one M-th-power NDA discriminator steers the LO from
+# the first output to the last, which is Mode 1 in `docs/design/mpsk.md` --
+# nothing here waits for anything, and the transient is simply the cost of
+# starting cold. `acq_to_track` was retired in doppler#877 along with the
+# second discriminator it selected.
 rx = BpskReceiver(
     sample_rate_hz=FS,
     symbol_rate_hz=RS,
@@ -144,7 +142,7 @@ recs = cap.records()  # the same data, still 16-byte wire records
 store = Path(tempfile.mkdtemp()) / "mpsk_tlm.tlm16"
 recs.tofile(store)
 
-assert rx.tracking == 0  # no handover: the NDA steer runs start to finish
+assert rx.lock_time >= 0  # it declared, and lock_time dates the first one
 assert set(series) == set(tlm.probe_names)  # every probe came back by name
 assert sum(v.size for _, v in series.values()) == len(recs)  # nothing lost
 assert store.stat().st_size == recs.nbytes == 16 * len(recs)
@@ -278,12 +276,11 @@ def main(out_path: str = "mpsk_telemetry_capture_demo.png") -> None:
                 handletextpad=0.2,
                 columnspacing=0.8,
             )
-        # A 0/1 decision gets a 0/1 axis. Autoscale gives a probe that never
-        # leaves 0 a +-0.05 range, which draws pure axis noise as though it
-        # were signal -- `rx.tracking` is exactly that here, and reading it
-        # as "never declared" rather than as a wandering trace is the whole
-        # point of the panel.
-        if title.endswith((".locked", ".tracking")):
+        # A 0/1 decision gets a 0/1 axis. Autoscale gives a probe that sits
+        # at one level a +-0.05 range, which draws pure axis noise as though
+        # it were signal -- reading a flat decision as flat rather than as a
+        # wandering trace is the whole point of the panel.
+        if title.endswith(".locked"):
             ax.set_ylim(-0.05, 1.05)
         ax.set_title(title, fontsize=9, family="monospace")
         ax.grid(alpha=0.3)

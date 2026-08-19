@@ -3467,6 +3467,20 @@ class MpskReceiver:
         """
 
     @property
+    def locked(self) -> int:
+        """Binary carrier-lock flag from the hysteretic (verify-counted)
+        detector on `lock` -- de-chattered, unlike the raw metric. It declares
+        after 8 consecutive symbols above `lock_thresh` and withdraws after 32
+        below `lock_drop_thresh`, so it answers 'is this receiver locked'
+        rather than 'was the statistic above the line on this symbol'. **It is
+        an INDICATOR and nothing else**: it steers no loop, gates no output,
+        and the M-th-power NDA discriminator runs from the first strobe whether
+        or not this has declared. So a caller uses it to size a measurement
+        window, and a wrong reading costs them that window and costs the
+        demodulator nothing. `lock_time` dates its first declaration.
+        """
+
+    @property
     def lock_time(self) -> int:
         """Symbols from reset to the FIRST carrier-lock declaration, or -1 if
         the receiver has not locked yet -- the acquisition time as a number,
@@ -4008,6 +4022,20 @@ class BpskReceiver:
         """AGC bandwidth as a fraction of the slowest loop it feeds, actually
         in use. Reads back the DERIVED 0.05 when the constructor was given 0.
         See `zeta` for why every derived value is reported.
+        """
+
+    @property
+    def locked(self) -> int:
+        """Binary carrier-lock flag from the hysteretic (verify-counted)
+        detector on `lock` -- de-chattered, unlike the raw metric. It declares
+        after 8 consecutive symbols above `lock_thresh` and withdraws after 32
+        below `lock_drop_thresh`, so it answers 'is this receiver locked'
+        rather than 'was the statistic above the line on this symbol'. **It is
+        an INDICATOR and nothing else**: it steers no loop, gates no output,
+        and the M-th-power NDA discriminator runs from the first strobe whether
+        or not this has declared. So a caller uses it to size a measurement
+        window, and a wrong reading costs them that window and costs the
+        demodulator nothing. `lock_time` dates its first declaration.
         """
 
     @property
@@ -4659,6 +4687,20 @@ class MpskReceiverR:
         """AGC bandwidth as a fraction of the slowest loop it feeds, actually
         in use. Reads back the DERIVED 0.05 when the constructor was given 0.
         See `zeta` for why every derived value is reported.
+        """
+
+    @property
+    def locked(self) -> int:
+        """Binary carrier-lock flag from the hysteretic (verify-counted)
+        detector on `lock` -- de-chattered, unlike the raw metric. It declares
+        after 8 consecutive symbols above `lock_thresh` and withdraws after 32
+        below `lock_drop_thresh`, so it answers 'is this receiver locked'
+        rather than 'was the statistic above the line on this symbol'. **It is
+        an INDICATOR and nothing else**: it steers no loop, gates no output,
+        and the M-th-power NDA discriminator runs from the first strobe whether
+        or not this has declared. So a caller uses it to size a measurement
+        window, and a wrong reading costs them that window and costs the
+        demodulator nothing. `lock_time` dates its first declaration.
         """
 
     @property

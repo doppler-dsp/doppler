@@ -291,7 +291,7 @@ ______________________________________________________________________
     (`wfm_synth` + `doppler_channel`), the statistics with their refusals and
     confidence intervals (`dp_ber_test.h`), and the frame outcomes
     (`frame_meter`). A coded link is a **new operating point and an adapter**,
-    the same way `ContinuousMpskReceiver` was — not a second harness.
+    the same way a second receiver flavor is — not a second harness.
 
     rx-test.md §5.3 names the gap this closes from the other side: *"the
     framed generator and the frame-aware measurer have never met"*.

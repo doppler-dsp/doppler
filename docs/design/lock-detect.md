@@ -26,6 +26,15 @@ above a threshold, drop after `m` below a lower one" is the same rule
 whatever the statistic means, which is why eleven consumers share one
 implementation of it.
 
+**A consequence that is easy to forget once the lamp is on the dashboard:** a
+decision of this shape reports on the STATISTIC and on nothing else. It has no
+input carrying loop convergence, settling time or frequency error, so the
+instant it declares is not evidence about any of them. The carrier case makes
+that concrete — §4's H1 mean is a function of Es/N0 alone
+(`E[cos(Mθ)] = exp(−M²/(4ρ))`), so a caller reading "locked" as "the estimate
+has converged" is reading a quantity the detector never saw. Convergence is
+asked for directly: an acquisition instant plus a settling budget.
+
 **The interface between them is three numbers**: the statistic's H0 law, its
 H1 mean at the operating point, and whether successive looks are independent.
 A new loop does not write a lock detector — it characterises those three and
@@ -208,15 +217,18 @@ ______________________________________________________________________
 
 ## 7. What this is built on, and what it is not
 
-|                                                                 | evidence                                                                    |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| the decision rule                                               | `test_lockdet_core.c`, `native/validation/lockdet_verify.c`                 |
-| the sizing chain                                                | `test_detection_core.c`                                                     |
-| `SymbolSync`'s statistic                                        | `native/validation/symsync_lock.c` + values pinned in `test_symsync_core.c` |
-| the carrier statistic                                           | `native/validation/carrier_nda_lock.c`                                      |
-| **`CarrierNda`, `Costas`, `carrier_mpsk`, both MPSK receivers** | **not certified**                                                           |
+|                                  | evidence                                                                    |
+| -------------------------------- | --------------------------------------------------------------------------- |
+| the decision rule                | `test_lockdet_core.c`, `native/validation/lockdet_verify.c`                 |
+| the sizing chain                 | `test_detection_core.c`                                                     |
+| `SymbolSync`'s statistic         | `native/validation/symsync_lock.c` + values pinned in `test_symsync_core.c` |
+| the carrier statistic            | `native/validation/carrier_nda_lock.c`                                      |
+| `CarrierNda`                     | `src/doppler/track/tests/validation/carrier_nda/results.md`                 |
+| `MpskReceiver` / `MpskReceiverR` | `src/doppler/track/tests/validation/mpsk_receiver/results.md`               |
+| **`Costas`, `carrier_mpsk`**     | **not certified**                                                           |
 
-`ratesync` — the timing half of the MPSK receiver — is certified; its carrier
-half is not. Every number in §4 describes a statistic whose *object* has never
-been through the validation process, and that asymmetry is the reason to
-finish the carrier side before building anything else on top of it.
+The asymmetry this section used to record — every number in §4 describing a
+statistic whose *object* had never been through validation — is closed on the
+NDA side: `CarrierNda` and the MPSK receivers are both certified, alongside
+`ratesync`, the timing half. `Costas` and `carrier_mpsk` remain, and are the
+reason to keep reading this row rather than assuming it.

@@ -23,7 +23,7 @@ irrational samples-per-symbol — a free-running ADC clock against the symbol cl
 design would need at the top of that range.
 
 [`track.MpskReceiverR`](../api/python-track.md) is the **real-input face**: same
-loops, same handover, same demapper — literally the same implementation — with a
+loops, same demapper — literally the same implementation — with a
 `MatchedDdcr` front end so it takes a real IF (`f32`) instead of complex
 baseband. It is a view over the same core, not a second type: `steps()` takes a
 different dtype, which used to force a separate class and no longer does
@@ -44,32 +44,34 @@ zero onto the true offset (black dashed) within tens of symbols, and the lock
 metric (purple) rises and holds. The metric is `Re(z^M)` on the de-rotated
 symbols, normalised so that **it reads ≈ 1.0 at lock for every M** (measured
 1.00 / 1.02 / 1.05) — one threshold means one thing at every order, and
-`lock_thresh` is a plain fraction of what a locked constellation reads. That is
-what the opt-in `acq_to_track` switch thresholds on.
+`lock_thresh` is a plain fraction of what a locked constellation reads. It is
+an **indicator**: nothing in the receiver reads it, so a wrong reading costs a
+caller their measurement window and costs the demodulator nothing.
 
-**Right — BER vs Es/N0.** Bit error rate against the coherent M-PSK bound, using
-NDA acquisition followed by decision-directed tracking (`acq_to_track=1`). BPSK
-and QPSK track the bound within ~1–2 dB. **8PSK shows an acquisition threshold**:
-the 8th-power discriminator's phase noise is large at low SNR, so the loop does
-not pull in until ~13–14 dB — above which decision-directed tracking takes over
-and it falls to the bound. This is the fundamental cost of non-data-aided 8PSK
-acquisition; a known preamble or external frequency aid removes the threshold.
+**Right — BER vs Es/N0.** Bit error rate against the coherent M-PSK bound, on
+the M-th-power NDA discriminator throughout. BPSK and QPSK track the bound
+within ~1–2 dB. **8PSK shows an acquisition threshold**: the 8th-power
+discriminator's phase noise is large at low SNR, so the loop does not pull in
+until ~13–14 dB — above which it falls to the bound. This is the fundamental
+cost of non-data-aided 8PSK acquisition; a known preamble or external frequency
+aid removes the threshold.
 
-## Acquisition-to-tracking switch — acquire blind, track clean
+## One discriminator, from the first strobe
 
-By default (`acq_to_track=0`) the receiver stays in robust NDA tracking the
-whole time. Enabling the switch hands the **shared LO** from the M-th-power
-discriminator to a lower-jitter **decision-directed** error `e = Im(y·conj(â))/|y|`
-on the recovered symbols once the loop has locked and a warmup has elapsed —
-essential for 8PSK, whose M-th-power phase noise would otherwise cross the ±π/8
-decision margins. Both discriminators run on the same on-time strobe at the
-symbol rate, so the handover is a plain discriminator swap: the shared loop
-filter carries the frequency estimate across it in both directions, which makes a
-drop-back a swap rather than a cold re-acquisition.
+The M-th-power NDA error steers the LO for the whole record. Nothing gates it:
+the discriminator runs before any detector has declared, and `lock` / `locked`
+are readouts rather than inputs.
 
-The drop-back is real, not decorative — the discriminator and the lock metric
-keep running while tracking, so a receiver that loses its signal falls back to
-NDA acquisition instead of sitting in `tracking` forever on stale data.
+There was an opt-in `acq_to_track` switch here until
+[#877](https://github.com/doppler-dsp/doppler/issues/877), handing the shared
+LO to a lower-jitter decision-directed error once the loop had locked — on the
+reasoning that 8PSK's ±π/8 decision margin needs it. Measured before deleting
+it, on the same record with the flag on and off: it moved ~99% of the recovered
+symbols by up to 0.37, and changed the symbol error rate by a mean factor of
+**0.9999** (t = 0.28) across the ten cells where it engaged. At the 8PSK anchor
+in `mpsk_receiver_ber.c` it was worth **0.09 dB** against a settling window it
+more than doubled. A branch that changes everything and improves nothing is a
+divergence source, so it is gone.
 
 ```python
 --8<-- "src/doppler/examples/mpsk_receiver_demo.py:receiver"
@@ -194,9 +196,12 @@ Measured on noise only, 200 trials × 4000 symbols, against that analytic
 | QPSK | +0.004     | **0.1071** | +0.292   | 0 / 200  |
 | 8PSK | −0.009     | **0.1138** | +0.358   | 0 / 200  |
 
-and end to end, with `acq_to_track=1` over 100 noise-only runs of 20 000 symbols
-each, `tracking` went high **0/100 times at every order** — peak lock 0.371 /
-0.467 / 0.376 against the 0.5 threshold.
+and end to end, over 100 noise-only runs of 20 000 symbols each, the
+verify-counted decision on that statistic went high **0/100 times at every
+order** — peak lock 0.371 / 0.467 / 0.376 against the 0.5 threshold. (That run
+read the flag through the handover's detector, which no longer exists; it was
+initialised from the same thresholds and counts as the surviving `locked`, so
+the number describes the detector rather than the flag it was read from.)
 
 !!! note "What the limiter bought"
 

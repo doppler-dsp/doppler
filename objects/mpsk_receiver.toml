@@ -97,15 +97,10 @@ type = "double"
 default = "0.01"
 
 [[mpsk_receiver.init_params]]
-name = "acq_to_track"
-type = "int"
-default = "0"
-
-[[mpsk_receiver.init_params]]
 name = "lock_thresh"
 type = "double"
 default = "0"
-doc = "Handover declare threshold on the carrier lock EMA. **0 (the default) derives it** as `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6`; the limited statistic reads ~1.0 at lock for every M, so no per-M correction is carried (docs/design/mpsk.md §8.1)."
+doc = "Declare threshold for the carrier lock indicator, on the carrier lock EMA. **0 (the default) derives it** as `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6`; the limited statistic reads ~1.0 at lock for every M, so no per-M correction is carried (docs/design/mpsk.md §8.1)."
 
 [[mpsk_receiver.init_params]]
 name = "init_norm_freq"
@@ -135,29 +130,18 @@ type = "double"
 default = "0"
 doc = "**0 (the default) derives it** -- see docs/design/mpsk.md §8.1; pass a value only to pin one. The one AGC's noise bandwidth as a fraction of the SLOWEST loop it feeds -- min(bn_carrier, bn_timing), not the carrier's alone, since the AGC feeds the timing loop directly. Must be in (0, 1) and construction refuses otherwise, because an AGC at or above the bandwidth of a loop it feeds corrects the excursions that loop is itself producing and the two integrate against each other; the signal LEVEL is a slow property of the channel, not a disturbance to reject at loop speed. Exposed rather than fixed because the right separation depends on how fast the channel's level moves against how fast its phase and timing do, which is a property of the link. The cold start is not the loop's job either way -- the AGC seeds its gain from a direct measurement -- so slow is cheap here."
 
-# The continuous flavor (docs/design/mpsk.md §2.1). A VIEW, not a second
-# type: same core, same state, same methods -- only the constructor differs,
-# which is the axis that makes something a flavor here (a difference in
-# METHOD SIGNATURE would make it a separate type, which is why the real-input
-# twin is one and this is not). Nothing is removed from mpsk_receiver; every
-# knob is still reachable through it.
+# The Hz face (docs/design/mpsk.md §7). A VIEW, not a second type: same core,
+# same state, same methods -- only the constructor differs, which is the axis
+# that makes something a flavor here (a difference in METHOD SIGNATURE would
+# make it a separate type, which is why the real-input twin is one and this is
+# not). Nothing is removed from mpsk_receiver; every knob is still reachable
+# through it.
 #
-# What this view pins is the gating: acq_to_track=0 (no handover). The tap is
-# no longer a choice anywhere -- the discriminator reads the on-time strobe,
-# full stop -- so it is not something this view pins. This pinned
-# mf_in when it shipped, for its timing independence; measured, the pre-MFR
-# node carries excess noise bandwidth, and since an M-th-power lock signal is
-# an SNR measure rather than a phase measure, the loop still acquired fully
-# while the lock EMA settled at 0.20 against strobe's 0.79 -- never crossing
-# its own threshold, so a working carrier loop was indistinguishable from a
-# dead one to every detector downstream (doppler#791).
-# agc=1 because the AGC is load-bearing, and the five derived parameters go
-# as 0 (a request, not an omission).
-#
-# lock_thresh is excluded rather than defaulted: with no handover it gates
-# nothing, so it is telemetry. It stays READABLE (`lock_thresh` reads back
-# the derived 0.4999) and stops being settable, which is the honest shape for
-# a number that no longer controls anything.
+# lock_thresh is excluded rather than defaulted: it gates nothing -- the
+# carrier lock indicator steers no loop and no output -- so it is telemetry.
+# It stays READABLE (`lock_thresh` reads back the derived 0.4999) and stops
+# being settable, which is the honest shape for a number that does not
+# control anything.
 [[mpsk_receiver.views]]
 class_name = "BpskReceiver"
 create_fn = "mpsk_receiver_create_bpsk"
@@ -172,24 +156,8 @@ init_params = [
   { name = "rrc_span", type = "int", default = "8", doc = "RRC one-sided span in symbols. RRC only." },
   { name = "bn_carrier", type = "double", default = "0.01", doc = "Carrier loop noise bandwidth, normalised to the SYMBOL rate. A design axis, and the one the acquisition bound `bn_carrier / m` is stated against." },
   { name = "bn_timing", type = "double", default = "0.01", doc = "Symbol-timing loop noise bandwidth, normalised to the symbol rate. A design axis." },
-  { name = "acq_to_track", type = "int", default = "0", doc = "Hand the carrier over to a decision-directed discriminator once locked." },
   { name = "differential", type = "int", default = "0", doc = "bits(): differential (rotation-invariant) demap. Left optional and coherent by default, matching `MpskReceiver` -- it changes what the output bits MEAN and is not derivable from the signal, so it is a link property a caller states rather than one this object guesses." },
   { name = "agc", type = "int", default = "1", doc = "Front-end AGC. On by default: it levels the cascade so the timing detector's construct-time slope means what it says." },
-]
-
-[[mpsk_receiver.views]]
-class_name = "ContinuousMpskReceiver"
-create_fn = "mpsk_receiver_create_continuous"
-init_params = [
-  { name = "m", type = "int", default = "2" },
-  { name = "sps", type = "double", default = "8.0" },
-  { name = "pulse", type = "string_enum:iandd,rrc", default = "iandd" },
-  { name = "rrc_beta", type = "double", default = "0.35" },
-  { name = "rrc_span", type = "int", default = "8" },
-  { name = "bn_carrier", type = "double", default = "0.01" },
-  { name = "bn_timing", type = "double", default = "0.01" },
-  { name = "init_norm_freq", type = "double", default = "0.0" },
-  { name = "differential", type = "int", default = "1" },
 ]
 
 [[mpsk_receiver.properties]]
@@ -198,12 +166,11 @@ type = "double"
 doc = "Gain the front-end AGC is applying, in dB; 0.0 when `agc=0`. The diagnostic for a level problem: a receiver that will not lock with a healthy `lock` statistic, or one whose timing loop behaves differently at two input levels, is asking about this number. It settles at -10*log10(P_in / P_ref), where P_ref is the power a unit-amplitude symbol stream has where the AGC sits, so a reading far from 0 dB says the input is far from the level the cascade was built for -- which is fine, and is what the AGC is for, but is worth knowing. Distinct from the cascade's filter response, which stays unity; the two multiply."
 
 # Telemetry attach (jm gh-432; mirrors objects/agc.toml): registers the
-# receiver's "<prefix>.lock" + "<prefix>.tracking" probes (the latter is
-# the two-way handover lockdet decision, 0/1) and forwards to both embedded
-# loops — "<prefix>.car.lock/.e/.freq/.locked" (carrier) and
-# "<prefix>.sync.e/.freq/.rate/.lock/.locked" (timing) — eleven probes per
-# attach (the carrier AGC's gain probe went with the carrier AGC). None detaches everything; the int status
-# binds -> None / ValueError.
+# receiver's "<prefix>.lock" probe and forwards to both embedded loops —
+# "<prefix>.car.lock/.e/.freq/.locked" (carrier) and
+# "<prefix>.sync.e/.freq/.rate/.lock/.locked" (timing) — ten probes per
+# attach (the carrier AGC's gain probe went with the carrier AGC). None
+# detaches everything; the int status binds -> None / ValueError.
 [[mpsk_receiver.methods]]
 name = "set_telemetry"
 arg_type = "void"
@@ -217,7 +184,7 @@ params = [
 
 [[mpsk_receiver.methods]]
 name = "steps"
-doc = "Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver pushes x through the matched DDC -- LO mix, decimating cascade, and a terminal polyphase stage whose bank IS the matched filter and whose selected arm IS the fractional symbol-timing delay -- then folds every output that stage produced into two loops: a Gardner symbol-timing loop steering the cascade's rate_ctrl port, and a carrier loop steering the LO's freq_ctrl port. The carrier discriminator runs on the on-time strobe only -- a non-strobe output straddles two symbols, so its M-th power is intersymbol interference rather than carrier phase -- and while acquiring it is the non-data-aided M-th-power error, needing no data and no symbol timing. With acq_to_track enabled a verify-counted two-way handover steps on the carrier lock metric each symbol: it switches to a lower-jitter decision-directed carrier loop after 8 consecutive above-lock_thresh symbols, and on a sustained lock loss (32 consecutive symbols below 0.8*lock_thresh) drops back to the NDA acquisition steer, the shared loop filter carrying the frequency estimate both ways. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric."
+doc = "Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver pushes x through the matched DDC -- LO mix, decimating cascade, and a terminal polyphase stage whose bank IS the matched filter and whose selected arm IS the fractional symbol-timing delay -- then folds every output that stage produced into two loops: a Gardner symbol-timing loop steering the cascade's rate_ctrl port, and a carrier loop steering the LO's freq_ctrl port. The carrier discriminator runs on the on-time strobe only -- a non-strobe output straddles two symbols, so its M-th power is intersymbol interference rather than carrier phase -- and it is the non-data-aided M-th-power error throughout, needing no data and no symbol timing: there is one discriminator, running from the first symbol to the last. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric."
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
@@ -234,18 +201,6 @@ variable_output = true
 pass_capacity = true
 nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
-
-[[mpsk_receiver.methods]]
-name = "configure_lock"
-doc = "Re-tune the acquisition<->tracking handover detector: hands the carrier to the decision-directed discriminator after n_up consecutive symbols with the carrier lock EMA above up_thresh, and falls back to NDA acquisition after n_down consecutive symbols below down_thresh (level + time hysteresis; see detection.LockDet). Previously only settable at construction (lock_thresh, with fixed 0.8x drop / 8-up / 32-down constants) -- this is the post-construction re-tune Dll and Costas both already have. A live handover survives the re-tune; the in-flight verify run restarts."
-arg_type = "void"
-return_type = "void"
-params = [
-  { name = "up_thresh", type = "double" },
-  { name = "down_thresh", type = "double" },
-  { name = "n_up", type = "uint32_t" },
-  { name = "n_down", type = "uint32_t" },
-]
 
 [[mpsk_receiver.methods]]
 name = "reset"
@@ -307,10 +262,6 @@ name = "timing_rate"
 type = "double"
 
 [[mpsk_receiver.properties]]
-name = "tracking"
-type = "int"
-
-[[mpsk_receiver.properties]]
 name = "m"
 type = "int"
 
@@ -356,7 +307,7 @@ doc = "Has the cascade's CIC stage clipped its input since the last reset? A CIC
 [[mpsk_receiver.views]]
 class_name = "MpskReceiverR"
 create_fn = "mpsk_receiver_create_real"
-doc = "Create the M-PSK receiver behind an R2C halfband: a real IF in. The same object as MpskReceiver -- same loops, same handover, same demapper, same state -- reached through a matched DDCR instead of a matched DDC, so `steps()` and `bits()` take float32 and everything else is shared verbatim. A real-valued IF is the usual output of a single-ended ADC, so this is the face that takes a digitiser's samples directly. Three things follow from the halfband and nothing else differs: the LO runs at HALF the input rate (handled internally -- every frequency on this class stays in cycles/sample at the real input rate), `sps` must exceed `2 * m_out` strictly rather than merely reaching `m_out`, and `init_norm_freq` is the real IF CENTRE rather than a baseband residual."
+doc = "Create the M-PSK receiver behind an R2C halfband: a real IF in. The same object as MpskReceiver -- same loops, same demapper, same state -- reached through a matched DDCR instead of a matched DDC, so `steps()` and `bits()` take float32 and everything else is shared verbatim. A real-valued IF is the usual output of a single-ended ADC, so this is the face that takes a digitiser's samples directly. Three things follow from the halfband and nothing else differs: the LO runs at HALF the input rate (handled internally -- every frequency on this class stays in cycles/sample at the real input rate), `sps` must exceed `2 * m_out` strictly rather than merely reaching `m_out`, and `init_norm_freq` is the real IF CENTRE rather than a baseband residual."
 create_error = "ValueError"
 create_error_message = "MpskReceiverR: invalid parameter (need m in {2,4,8}, sps > 2*m_out, m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a power of two >= 2, bn >= 0, zeta > 0, 0 < bn_agc_ratio < 1)"
 init_params = [
@@ -369,8 +320,7 @@ init_params = [
   { name = "bn_carrier", type = "double", default = "0.01" },
   { name = "zeta", type = "double", default = "0.707", doc = "Damping factor for both loops. PINNED here at a typed-out 0.707 where the complex face takes 0 and derives `1/sqrt(2)` = 0.70710678118654752 -- the same value to four digits and not the same number. Pass 0 to get the derivation. Read it back with `zeta`." },
   { name = "bn_timing", type = "double", default = "0.01" },
-  { name = "acq_to_track", type = "int", default = "0" },
-  { name = "lock_thresh", type = "double", default = "0.5", doc = "Handover declare threshold on the carrier lock EMA. PINNED here at a round 0.5 where the complex face takes 0 and derives `sigma_H0 * eta(Pfa)` = 0.4999 at Pfa = 5e-6. Pass 0 to get the derivation. The metric is `Re((z/|z|)^M)` smoothed by an EMA, whose noise-only sd is 0.1132 for EVERY M, so 0.5 is 4.42 noise sigmas; to pin your own, divide your Pfa's z-score into 0.1132 rather than picking by feel. The drop threshold sits at 0.8x for level hysteresis and both directions are verify-counted (8 symbols up / 32 down). Read it back with `lock_thresh`." },
+  { name = "lock_thresh", type = "double", default = "0.5", doc = "Declare threshold for the carrier lock indicator, on the carrier lock EMA. PINNED here at a round 0.5 where the complex face takes 0 and derives `sigma_H0 * eta(Pfa)` = 0.4999 at Pfa = 5e-6. Pass 0 to get the derivation. The metric is `Re((z/|z|)^M)` smoothed by an EMA, whose noise-only sd is 0.1132 for EVERY M, so 0.5 is 4.42 noise sigmas; to pin your own, divide your Pfa's z-score into 0.1132 rather than picking by feel. The drop threshold sits at 0.8x for level hysteresis and both directions are verify-counted (8 symbols up / 32 down). Read it back with `lock_thresh`." },
   { name = "init_norm_freq", type = "double", default = "0.0", doc = "The real IF **centre**, cycles/sample at the real input rate -- an IF at 0.2*fs is 0.2, and the halved value the LO actually uses is this object's business, not yours. Unlike the complex face, this one does not acquire from a cold zero: a real IF must be tuned near, so this is the centre a tap buys pull-in *around* rather than from nothing." },
   { name = "differential", type = "int", default = "0" },
   { name = "num_phases", type = "size_t", default = "1024", doc = "Matched-filter bank arms; a power of two. Sets the fractional-timing resolution to 1/num_phases of an output period. The bank is sized by the POST-decimation rate, so this costs the same at sps=8 and sps=256." },
@@ -383,7 +333,7 @@ init_params = [
 [[mpsk_receiver.views.methods]]
 name = "steps"
 fn = "mpsk_receiver_steps_real"
-doc = "Demodulate a real f32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver pushes x through the matched DDCR -- an R2C halfband that decimates 2:1, then LO mix, decimating cascade, and a terminal polyphase stage whose bank IS the matched filter and whose selected arm IS the fractional symbol-timing delay -- then folds every output that stage produced into two loops: a Gardner symbol-timing loop steering the cascade's rate_ctrl port, and a carrier loop steering the LO's freq_ctrl port. That fold is one shared implementation with the complex face; only the front end above it differs. The carrier discriminator runs on the on-time strobe only -- a non-strobe output straddles two symbols, so its M-th power is intersymbol interference rather than carrier phase -- and while acquiring it is the non-data-aided M-th-power error, needing no data and no symbol timing. With acq_to_track enabled a verify-counted two-way handover steps on the carrier lock metric each symbol: it switches to a lower-jitter decision-directed carrier loop after 8 consecutive above-lock_thresh symbols, and on a sustained lock loss (32 consecutive symbols below 0.8*lock_thresh) drops back to the NDA acquisition steer, the shared loop filter carrying the frequency estimate both ways. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric."
+doc = "Demodulate a real f32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver pushes x through the matched DDCR -- an R2C halfband that decimates 2:1, then LO mix, decimating cascade, and a terminal polyphase stage whose bank IS the matched filter and whose selected arm IS the fractional symbol-timing delay -- then folds every output that stage produced into two loops: a Gardner symbol-timing loop steering the cascade's rate_ctrl port, and a carrier loop steering the LO's freq_ctrl port. That fold is one shared implementation with the complex face; only the front end above it differs. The carrier discriminator runs on the on-time strobe only -- a non-strobe output straddles two symbols, so its M-th power is intersymbol interference rather than carrier phase -- and it is the non-data-aided M-th-power error throughout, needing no data and no symbol timing: there is one discriminator, running from the first symbol to the last. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric."
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true

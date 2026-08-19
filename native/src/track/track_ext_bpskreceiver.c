@@ -44,7 +44,6 @@ BpskReceiverObj_init (BpskReceiverObject *self, PyObject *args, PyObject *kwds)
                                    "rrc_span",
                                    "bn_carrier",
                                    "bn_timing",
-                                   "acq_to_track",
                                    "differential",
                                    "agc",
                                    NULL };
@@ -56,14 +55,13 @@ BpskReceiverObj_init (BpskReceiverObject *self, PyObject *args, PyObject *kwds)
   int          rrc_span        = 8;
   double       bn_carrier      = 0.01;
   double       bn_timing       = 0.01;
-  int          acq_to_track    = 0;
   int          differential    = 0;
   int          agc             = 1;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "dd|dsdiddiii", kwlist, &sample_rate_hz, &symbol_rate_hz,
+          args, kwds, "dd|dsdiddii", kwlist, &sample_rate_hz, &symbol_rate_hz,
           &carrier_freq_hz, &pulse_str, &rrc_beta, &rrc_span, &bn_carrier,
-          &bn_timing, &acq_to_track, &differential, &agc))
+          &bn_timing, &differential, &agc))
     return -1;
   int pulse = 0;
   if (strcmp (pulse_str, "iandd") == 0)
@@ -79,7 +77,7 @@ BpskReceiverObj_init (BpskReceiverObject *self, PyObject *args, PyObject *kwds)
     }
   self->handle = mpsk_receiver_create_bpsk (
       sample_rate_hz, symbol_rate_hz, carrier_freq_hz, pulse, rrc_beta,
-      rrc_span, bn_carrier, bn_timing, acq_to_track, differential, agc);
+      rrc_span, bn_carrier, bn_timing, differential, agc);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
@@ -398,31 +396,6 @@ BpskReceiverObj_bits (BpskReceiverObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-BpskReceiverObj_configure_lock (BpskReceiverObject *self, PyObject *args,
-                                PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char *_kwlist[]
-      = { "up_thresh", "down_thresh", "n_up", "n_down", NULL };
-  double        up_thresh   = 0.0;
-  double        down_thresh = 0.0;
-  unsigned long n_up_raw    = 0UL;
-  unsigned long n_down_raw  = 0UL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddkk", _kwlist, &up_thresh,
-                                    &down_thresh, &n_up_raw, &n_down_raw))
-    return NULL;
-  uint32_t n_up   = (uint32_t)n_up_raw;
-  uint32_t n_down = (uint32_t)n_down_raw;
-  mpsk_receiver_configure_lock (self->handle, up_thresh, down_thresh, n_up,
-                                n_down);
-  Py_RETURN_NONE;
-}
-
-static PyObject *
 BpskReceiverObj_reset (BpskReceiverObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
@@ -576,6 +549,45 @@ BpskReceiver_getprop_lock_thresh (BpskReceiverObject *self,
   return PyFloat_FromDouble (mpsk_receiver_get_lock_thresh (self->handle));
 }
 static PyObject *
+BpskReceiver_getprop_lock_drop_thresh (BpskReceiverObject *self,
+                                       void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (
+      mpsk_receiver_get_lock_drop_thresh (self->handle));
+}
+static PyObject *
+BpskReceiver_getprop_sync_lock_thresh (BpskReceiverObject *self,
+                                       void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (
+      mpsk_receiver_get_sync_lock_thresh (self->handle));
+}
+static PyObject *
+BpskReceiver_getprop_sync_lock_drop_thresh (BpskReceiverObject *self,
+                                            void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (
+      mpsk_receiver_get_sync_lock_drop_thresh (self->handle));
+}
+static PyObject *
 BpskReceiver_getprop_bn_agc_ratio (BpskReceiverObject *self,
                                    void               *Py_UNUSED (closure))
 {
@@ -611,18 +623,6 @@ BpskReceiver_getprop_timing_rate (BpskReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (mpsk_receiver_get_timing_rate (self->handle));
-}
-static PyObject *
-BpskReceiver_getprop_tracking (BpskReceiverObject *self,
-                               void               *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)mpsk_receiver_get_tracking (self->handle));
 }
 static PyObject *
 BpskReceiver_getprop_m (BpskReceiverObject *self, void *Py_UNUSED (closure))
@@ -672,48 +672,6 @@ BpskReceiver_getprop_clipped (BpskReceiverObject *self,
   return PyLong_FromLong ((long)mpsk_receiver_get_clipped (self->handle));
 }
 
-static PyObject *
-BpskReceiver_getprop_lock_drop_thresh (BpskReceiverObject *self,
-                                       void               *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (
-      mpsk_receiver_get_lock_drop_thresh (self->handle));
-}
-
-static PyObject *
-BpskReceiver_getprop_sync_lock_thresh (BpskReceiverObject *self,
-                                       void               *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (
-      mpsk_receiver_get_sync_lock_thresh (self->handle));
-}
-
-static PyObject *
-BpskReceiver_getprop_sync_lock_drop_thresh (BpskReceiverObject *self,
-                                            void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (
-      mpsk_receiver_get_sync_lock_drop_thresh (self->handle));
-}
-
 static PyGetSetDef BpskReceiver_getset[] = {
   { "agc_gain_db", (getter)BpskReceiver_getprop_agc_gain_db, NULL,
     "Gain the front-end AGC is applying, in dB; 0.0 when `agc=0`. The "
@@ -751,43 +709,6 @@ static PyGetSetDef BpskReceiver_getset[] = {
     "`sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the constructor was "
     "given 0. See `zeta` for why every derived value is reported.\n",
     NULL },
-  { "bn_agc_ratio", (getter)BpskReceiver_getprop_bn_agc_ratio, NULL,
-    "AGC bandwidth as a fraction of the slowest loop it feeds, actually in "
-    "use. Reads back the DERIVED 0.05 when the constructor was given 0. See "
-    "`zeta` for why every derived value is reported.\n",
-    NULL },
-  { "lock_time", (getter)BpskReceiver_getprop_lock_time, NULL,
-    "Symbols from reset to the FIRST carrier-lock declaration, or -1 if the "
-    "receiver has not locked yet -- the acquisition time as a number, rather "
-    "than something a caller has to infer by polling `locked` in a loop. "
-    "Dated by the same hysteretic detector `locked` reports, so the two "
-    "cannot disagree. In SYMBOLS, not seconds: `bn_carrier` and `bn_timing` "
-    "are both normalised to the symbol rate, so a settling budget quoted in "
-    "symbols is comparable across every input rate, and a caller holding Rs "
-    "divides once. Only the FIRST declaration is dated -- a drop and "
-    "re-acquire does not restamp it, because the question this answers is "
-    "'how long did this receiver take to lock', not 'when did it last hold'. "
-    "`reset()` clears it to -1.\n",
-    NULL },
-  { "timing_rate", (getter)BpskReceiver_getprop_timing_rate, NULL,
-    "Smoothed tracked samples per symbol — departs from the nominal `sps` by "
-    "exactly the sample-clock offset the timing loop is tracking.\n",
-    NULL },
-  { "tracking", (getter)BpskReceiver_getprop_tracking, NULL,
-    "0 = NDA acquire, 1 = decision.\n", NULL },
-  { "m", (getter)BpskReceiver_getprop_m, NULL,
-    "constellation order M (2, 4, 8).\n", NULL },
-  { "sps", (getter)BpskReceiver_getprop_sps, NULL,
-    "samples per symbol at the receiver's input.\n", NULL },
-  { "m_out", (getter)BpskReceiver_getprop_m_out, NULL,
-    "Terminal outputs per symbol (the old `n`, now the cascade's).\n", NULL },
-  { "clipped", (getter)BpskReceiver_getprop_clipped, NULL,
-    "Has the cascade's CIC stage clipped its input since the last reset? A "
-    "CIC bounds its input to |Re|, |Im| <= 1.0 and clips silently past that "
-    "-- the output stays finite and plausible, merely distorted, at a cost of "
-    "~25 dB of EVM that no lock metric reveals. Always 0 for a plan with no "
-    "CIC stage.\n",
-    NULL },
   { "lock_drop_thresh", (getter)BpskReceiver_getprop_lock_drop_thresh, NULL,
     "Carrier DROP threshold actually in use -- 0.8x `lock_thresh`, the level "
     "hysteresis the declare/drop pair is stated with. Exposed for the same "
@@ -811,6 +732,41 @@ static PyGetSetDef BpskReceiver_getset[] = {
     "symsync default), so the two reading the same is information, not a bug "
     "-- the timing decision's hysteresis is in its verify COUNTS rather than "
     "its levels.\n",
+    NULL },
+  { "bn_agc_ratio", (getter)BpskReceiver_getprop_bn_agc_ratio, NULL,
+    "AGC bandwidth as a fraction of the slowest loop it feeds, actually in "
+    "use. Reads back the DERIVED 0.05 when the constructor was given 0. See "
+    "`zeta` for why every derived value is reported.\n",
+    NULL },
+  { "lock_time", (getter)BpskReceiver_getprop_lock_time, NULL,
+    "Symbols from reset to the FIRST carrier-lock declaration, or -1 if the "
+    "receiver has not locked yet -- the acquisition time as a number, rather "
+    "than something a caller has to infer by polling `locked` in a loop. "
+    "Dated by the same hysteretic detector `locked` reports, so the two "
+    "cannot disagree. In SYMBOLS, not seconds: `bn_carrier` and `bn_timing` "
+    "are both normalised to the symbol rate, so a settling budget quoted in "
+    "symbols is comparable across every input rate, and a caller holding Rs "
+    "divides once. Only the FIRST declaration is dated -- a drop and "
+    "re-acquire does not restamp it, because the question this answers is "
+    "'how long did this receiver take to lock', not 'when did it last hold'. "
+    "`reset()` clears it to -1.\n",
+    NULL },
+  { "timing_rate", (getter)BpskReceiver_getprop_timing_rate, NULL,
+    "Smoothed tracked samples per symbol — departs from the nominal `sps` by "
+    "exactly the sample-clock offset the timing loop is tracking.\n",
+    NULL },
+  { "m", (getter)BpskReceiver_getprop_m, NULL,
+    "constellation order M (2, 4, 8).\n", NULL },
+  { "sps", (getter)BpskReceiver_getprop_sps, NULL,
+    "samples per symbol at the receiver's input.\n", NULL },
+  { "m_out", (getter)BpskReceiver_getprop_m_out, NULL,
+    "Terminal outputs per symbol (the old `n`, now the cascade's).\n", NULL },
+  { "clipped", (getter)BpskReceiver_getprop_clipped, NULL,
+    "Has the cascade's CIC stage clipped its input since the last reset? A "
+    "CIC bounds its input to |Re|, |Im| <= 1.0 and clips silently past that "
+    "-- the output stays finite and plausible, merely distorted, at a cost of "
+    "~25 dB of EVM that no lock metric reveals. Always 0 for a plan with no "
+    "CIC stage.\n",
     NULL },
   { NULL }
 };
@@ -854,20 +810,16 @@ static PyMethodDef BpskReceiverObj_methods[] = {
     "\n"
     "Attach (or detach) a telemetry context across the receiver.\n"
     "Registers the receiver's own \"<prefix>.lock\" probe (the carrier lock\n"
-    "EMA) and \"<prefix>.tracking\" (the two-way handover decision, 0/1 — so "
-    "a\n"
-    "consumer sees exactly when the carrier was handed to the\n"
-    "decision-directed discriminator or dropped back to NDA), then the\n"
-    "carrier loop's \"<prefix>.car.e\" / \".freq\" / \".locked\" and the\n"
-    "symbol-timing loop's \"<prefix>.sync.e\" / \".ctrl\" / \".rate\" / "
-    "\".lock\" /\n"
-    "\".locked\" / \".mu\" -- eleven probes emitted once per recovered symbol "
-    "--\n"
-    "then the front end's AGC under \"<prefix>.agc\" "
-    "(\"<prefix>.agc.gain_db\"\n"
-    "and \"<prefix>.agc.level_db\"; see agc_set_telemetry()). Thirteen "
-    "probes\n"
-    "total, all thinned by decim. Passing NULL detaches everything.\n"
+    "EMA), then the carrier loop's \"<prefix>.car.e\" / \".freq\" / "
+    "\".locked\"\n"
+    "and the symbol-timing loop's \"<prefix>.sync.e\" / \".ctrl\" / \".rate\" "
+    "/\n"
+    "\".lock\" / \".locked\" / \".mu\" -- ten probes emitted once per "
+    "recovered\n"
+    "symbol -- then the front end's AGC under \"<prefix>.agc\"\n"
+    "(\"<prefix>.agc.gain_db\" and \"<prefix>.agc.level_db\"; see\n"
+    "agc_set_telemetry()). Twelve probes total, all thinned by decim.\n"
+    "Passing NULL detaches everything.\n"
     "\n"
     "Instrumenting it matters because it is FIRST in the chain, and a level\n"
     "error is the one kind no downstream loop can correct for itself: a TED\n"
@@ -908,14 +860,14 @@ static PyMethodDef BpskReceiverObj_methods[] = {
     "\n"
     "Warnings\n"
     "--------\n"
-    "The two AGC probes are NOT at the symbol rate the other eleven are.\n"
-    "That AGC sits pre-terminal in the cascade (RateConverter's tap, ahead\n"
-    "of the stage the timing loop steers) and emits once per gain-update\n"
-    "event, i.e. every AGC_DECIM_DEFAULT samples of that fixed-rate stream\n"
-    "-- so it reports on a grid that depends on the planned cascade, not on\n"
-    "recovered symbols, and a run yields a different number of AGC records\n"
-    "than carrier records. Compare the two by TIME, never by record index.\n"
-    "This is deliberate: the AGC's bandwidth is quoted in the pre-terminal\n"
+    "The two AGC probes are NOT at the symbol rate the other ten are. That\n"
+    "AGC sits pre-terminal in the cascade (RateConverter's tap, ahead of the\n"
+    "stage the timing loop steers) and emits once per gain-update event,\n"
+    "i.e. every AGC_DECIM_DEFAULT samples of that fixed-rate stream -- so it\n"
+    "reports on a grid that depends on the planned cascade, not on recovered\n"
+    "symbols, and a run yields a different number of AGC records than\n"
+    "carrier records. Compare the two by TIME, never by record index. This\n"
+    "is deliberate: the AGC's bandwidth is quoted in the pre-terminal\n"
     "stream's units precisely so it is not coupled to the loop that is\n"
     "stretching the symbol grid (see RateConverter_enable_agc()).\n"
     "\n"
@@ -958,15 +910,10 @@ static PyMethodDef BpskReceiverObj_methods[] = {
     "loop steering the LO's freq_ctrl port. The carrier discriminator runs\n"
     "on the on-time strobe only -- a non-strobe output straddles two\n"
     "symbols, so its M-th power is intersymbol interference rather than\n"
-    "carrier phase -- and while acquiring it is the non-data-aided\n"
-    "M-th-power error, needing no data and no symbol timing. With\n"
-    "acq_to_track enabled a verify-counted two-way handover steps on the\n"
-    "carrier lock metric each symbol: it switches to a lower-jitter\n"
-    "decision-directed carrier loop after 8 consecutive above-lock_thresh\n"
-    "symbols, and on a sustained lock loss (32 consecutive symbols below\n"
-    "0.8*lock_thresh) drops back to the NDA acquisition steer, the shared\n"
-    "loop filter carrying the frequency estimate both ways. The loop locks\n"
-    "to one of m phases (M-fold ambiguity); resolve it with\n"
+    "carrier phase -- and it is the non-data-aided M-th-power error\n"
+    "throughout, needing no data and no symbol timing: there is one\n"
+    "discriminator, running from the first symbol to the last. The loop\n"
+    "locks to one of m phases (M-fold ambiguity); resolve it with\n"
     "bits(differential) or a sync word. Read norm_freq for the tracked\n"
     "carrier and lock for the carrier lock metric.\n"
     "\n"
@@ -1073,47 +1020,6 @@ static PyMethodDef BpskReceiverObj_methods[] = {
     "int\n"
     "    Upper bound on the output length; the actual call may return "
     "fewer.\n" },
-  { "configure_lock", (PyCFunction)(void *)BpskReceiverObj_configure_lock,
-    METH_VARARGS | METH_KEYWORDS,
-    "configure_lock(up_thresh, down_thresh, n_up, n_down) -> None\n"
-    "\n"
-    "Re-tune the acquisition<->tracking handover detector: hands the\n"
-    "carrier to the decision-directed discriminator after n_up consecutive\n"
-    "symbols with the carrier lock EMA above up_thresh, and falls back to\n"
-    "NDA acquisition after n_down consecutive symbols below down_thresh\n"
-    "(level + time hysteresis; see detection.LockDet). Previously only\n"
-    "settable at construction (lock_thresh, with fixed 0.8x drop / 8-up /\n"
-    "32-down constants) -- this is the post-construction re-tune Dll and\n"
-    "Costas both already have. A live handover survives the re-tune; the\n"
-    "in-flight verify run restarts.\n"
-    "\n"
-    "Full lockdet control over the handover, mirroring\n"
-    "costas_configure_lock(): a split declare/drop threshold pair on the\n"
-    "carrier lock EMA (level hysteresis) and both verify counts (time\n"
-    "hysteresis). A live handover survives the re-tune; the in-flight verify\n"
-    "run restarts.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "up_thresh : float\n"
-    "    Declare threshold on the carrier lock EMA.\n"
-    "down_thresh : float\n"
-    "    Drop threshold; choose <= up_thresh for level hysteresis.\n"
-    "n_up : int\n"
-    "    Consecutive above-threshold symbols to hand over to the\n"
-    "    decision-directed discriminator; clamped >= 1.\n"
-    "n_down : int\n"
-    "    Consecutive below-threshold symbols to fall back to NDA\n"
-    "    acquisition; clamped >= 1.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> from doppler.track import MpskReceiver\n"
-    ">>> rx = MpskReceiver(m=4, sps=4, m_out=2, acq_to_track=1)\n"
-    ">>> rx.tracking\n"
-    "0\n"
-    ">>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, fast "
-    "drop\n" },
   { "reset", (PyCFunction)BpskReceiverObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

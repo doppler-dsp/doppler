@@ -88,15 +88,14 @@
 /** @brief One measurement geometry. */
 typedef struct
 {
-  int    real;         /**< 0 = complex baseband, 1 = real IF.            */
-  int    m;            /**< Constellation order.                          */
-  double sps;          /**< Samples per symbol at the receiver's input.   */
-  size_t m_out;        /**< Terminal outputs per symbol.                  */
-  double fc;           /**< Carrier, cycles/sample at the input rate.     */
-  double foff;         /**< Offset the carrier loop must acquire.         */
-  double bn_timing;    /**< Timing loop noise bandwidth, per symbol.      */
-  double bn_carrier;   /**< Carrier loop noise bandwidth, per symbol.     */
-  int    acq_to_track; /**< Two-way NDA -> decision-directed handover.    */
+  int    real;       /**< 0 = complex baseband, 1 = real IF.            */
+  int    m;          /**< Constellation order.                          */
+  double sps;        /**< Samples per symbol at the receiver's input.   */
+  size_t m_out;      /**< Terminal outputs per symbol.                  */
+  double fc;         /**< Carrier, cycles/sample at the input rate.     */
+  double foff;       /**< Offset the carrier loop must acquire.         */
+  double bn_timing;  /**< Timing loop noise bandwidth, per symbol.      */
+  double bn_carrier; /**< Carrier loop noise bandwidth, per symbol.     */
 } mpsk_ber_cfg_t;
 
 /**
@@ -105,10 +104,9 @@ typedef struct
  * Steps SAMPLE BY SAMPLE through the composition API rather than calling
  * `steps()` on the whole block, because the settling gate needs the receiver's
  * own lock indicators PER SYMBOL and the block API only exposes their final
- * value. That is not an optimisation to undo: `max(budget, carrier lock,
- * handover + budget)` is the difference between measuring the steady state and
- * measuring the acquisition transient, and on 8PSK it was worth 5.95x versus
- * 1.68x of the coherent bound.
+ * value. That is not an optimisation to undo: `max(budget, carrier lock)` is
+ * the difference between measuring the steady state and measuring the
+ * acquisition transient.
  *
  * @param c        Geometry.
  * @param esn0_db  Matched-filter-output Es/N0.
@@ -117,14 +115,13 @@ typedef struct
  * @param truth    Out: `nsym` transmitted symbol indices (0..m-1).
  * @param out      Out: recovered symbols, capacity `nsym`.
  * @param lock_c   Out: per-recovered-symbol carrier lock flag.
- * @param track    Out: per-recovered-symbol handover flag.
  * @param clipped  Out: non-zero if the front end clipped.
  * @return         Symbols recovered.
  */
 static inline size_t
 mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
                 size_t nsym, uint8_t *truth, float complex *out,
-                unsigned char *lock_c, unsigned char *track, int *clipped)
+                unsigned char *lock_c, int *clipped)
 {
   double   esn0 = pow (10.0, esn0_db / 10.0);
   double   phi0 = mpsk_phi0 (c->m);
@@ -143,14 +140,12 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
   mpsk_receiver_state_t *rx
       = c->real ? mpsk_receiver_create_real (
                       c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
-                      c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track, 0.3,
-                      c->fc - c->foff, 0, MPSK_RX_NUM_PHASES, 1,
-                      MPSK_RX_AGC_BW_RATIO)
+                      c->bn_carrier, 0.707, c->bn_timing, 0.3, c->fc - c->foff,
+                      0, MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO)
                 : mpsk_receiver_create (
                       c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
-                      c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track, 0.3,
-                      c->fc - c->foff, 0, MPSK_RX_NUM_PHASES, 1,
-                      MPSK_RX_AGC_BW_RATIO);
+                      c->bn_carrier, 0.707, c->bn_timing, 0.3, c->fc - c->foff,
+                      0, MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO);
   if (!rx)
     return 0;
 
@@ -189,7 +184,6 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
             {
               out[nout]    = y;
               lock_c[nout] = (unsigned char)mpsk_receiver_get_locked (rx);
-              track[nout]  = (unsigned char)mpsk_receiver_get_tracking (rx);
               nout++;
             }
         }
@@ -240,7 +234,7 @@ mpsk_ber_measure (const mpsk_ber_cfg_t *c, double esn0_db,
   size_t            nsym  = MPSK_BER_NSYM;
   uint8_t          *truth = malloc (nsym);
   float complex    *out   = malloc (nsym * sizeof (*out));
-  unsigned char    *lc = malloc (nsym), *tk = malloc (nsym);
+  unsigned char    *lc    = malloc (nsym);
   size_t            lo = 0, hi = 0;
   int               settled_any = 0;
   /* The alignment of the LAST scored burst, carried out so dp_ber_report()
@@ -256,12 +250,11 @@ mpsk_ber_measure (const mpsk_ber_cfg_t *c, double esn0_db,
   r.clipped   = 0;
   r.unsettled = 0;
   dp_ber_init (&acc, c->m, target_errors);
-  if (!truth || !out || !lc || !tk)
+  if (!truth || !out || !lc)
     {
       free (truth);
       free (out);
       free (lc);
-      free (tk);
       r.rep = dp_ber_report (&acc, esn0_db, NULL, 0, 0, 0, DP_BER_CONF);
       return r;
     }
@@ -271,7 +264,7 @@ mpsk_ber_measure (const mpsk_ber_cfg_t *c, double esn0_db,
       int    clip = 0, ok = 0;
       size_t n
           = mpsk_ber_burst (c, esn0_db, seed0 + 7919u * (uint32_t)r.bursts,
-                            nsym, truth, out, lc, tk, &clip);
+                            nsym, truth, out, lc, &clip);
       r.bursts++;
       r.clipped |= clip;
       if (n < 1000)
@@ -280,8 +273,8 @@ mpsk_ber_measure (const mpsk_ber_cfg_t *c, double esn0_db,
           continue;
         }
       {
-        size_t settle = dp_ber_settle (c->bn_timing, c->bn_carrier, NULL, lc,
-                                       c->acq_to_track ? tk : NULL, n, &ok);
+        size_t settle
+            = dp_ber_settle (c->bn_timing, c->bn_carrier, NULL, lc, n, &ok);
         dp_ber_marker_t mk;
         dp_ber_sync_t   sy;
         if (!ok || settle + DP_BER_LAG_SPAN + DP_BER_SYNC_SYMS + 500 >= n)
@@ -319,7 +312,6 @@ mpsk_ber_measure (const mpsk_ber_cfg_t *c, double esn0_db,
   free (truth);
   free (out);
   free (lc);
-  free (tk);
   r.rep = dp_ber_report (&acc, esn0_db, settled_any ? &last_sync : NULL, lo,
                          hi, settled_any, DP_BER_CONF);
   return r;

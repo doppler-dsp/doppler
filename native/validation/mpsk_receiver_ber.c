@@ -99,16 +99,15 @@ main (int argc, char **argv)
       c.bn_timing  = 0.01;
       c.bn_carrier = 0.005;
       c.foff = dp_test_freq_offset_inside_bw (c.bn_carrier, c.m, 1.0) / c.sps;
-      /* 8PSK hands over to decision-directed tracking, because its decision
-         margin is only +-pi/8 and the M-th-power discriminator's own phase
-         noise eats into it. Measured, though, the handover is worth far less
-         at this operating point than that reasoning suggests: turning it off
-         moves 8PSK from 0.44 dB to 0.53 dB of loss. It is kept on because it
-         is the shipped configuration for M=8 and because the margin only
-         narrows at lower Es/N0 -- not because the number here demands it.
-         (Its real cost is the WINDOW: the handover fires around symbol 8500,
-         so it more than doubles the settling budget.) */
-      c.acq_to_track = (c.m == 8);
+      /* 8PSK used to hand over to a decision-directed discriminator here,
+         on the reasoning that its decision margin is only +-pi/8 and the
+         M-th-power discriminator's own phase noise eats into it. This
+         harness is where that reasoning was measured and did not survive:
+         turning the handover off moved 8PSK from 0.44 dB to 0.53 dB of loss
+         -- 0.09 dB, against a settling window it MORE THAN DOUBLED, since
+         the handover fired around symbol 8500. The receiver no longer has
+         one (doppler#877), so the M=8 row below is the NDA discriminator's
+         own number and should read ~0.53 dB. */
 
       esn0_db = dp_ber_esn0_db_for_ser (c.m, DP_BER_TARGET_SER);
       r = mpsk_ber_measure (&c, esn0_db, TARGET_ERRORS, 2024u + (unsigned)mi);

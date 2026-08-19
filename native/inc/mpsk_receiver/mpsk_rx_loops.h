@@ -3,8 +3,8 @@
  * @brief The two loops an M-PSK receiver closes, independent of its front end.
  *
  * Everything a receiver does *after* its down-converter emits a terminal-stage
- * output: the symbol-timing loop, the carrier loop, the acquisition/tracking
- * handover, and the slicer/demapper state. It owns no filter, no NCO and no
+ * output: the symbol-timing loop, the carrier loop, and the slicer/demapper
+ * state. It owns no filter, no NCO and no
  * cascade — it consumes matched-filtered outputs and produces the two control
  * values that steer whatever produced them.
  *
@@ -25,22 +25,28 @@
  * so a fix to the TED or its normaliser reaches RateSync and both receivers at
  * once.
  *
- * ## Both discriminators live on the symbol strobe
+ * ## One discriminator, on the symbol strobe
  *
- * **Acquisition** uses the M-th-power NDA error (@ref carrier_nda_disc) and
- * **tracking** uses a decision-directed one, but both read the same sample:
- * the on-time strobe. Only that sample is a constellation point — the other
- * terminal outputs fall between symbols, where the matched filter is averaging
- * two of them, so their M-th power carries ISI rather than carrier phase.
+ * The carrier loop runs the M-th-power NDA error (@ref carrier_nda_disc) on
+ * the on-time strobe, from the first symbol to the last. Only that sample is a
+ * constellation point — the other terminal outputs fall between symbols, where
+ * the matched filter is averaging two of them, so their M-th power carries ISI
+ * rather than carrier phase.
  *
  * This costs less than it appears to. The strobe fires every `m_out`-th output
  * whatever the timing loop currently believes, so the NDA loop still pulls in
  * before timing lock — it just does so on one consistent phase of the pulse
- * instead of all of them. And because both discriminators then share one
- * update rate, the handover is a pure discriminator swap: no update period
- * changes, so the loop filter's integrator — which holds a phase command per
- * update — carries the frequency estimate across untouched, in both
- * directions.
+ * instead of all of them.
+ *
+ * There is no second, decision-directed discriminator to hand over to. One sat
+ * behind an opt-in flag until doppler#877, and measurement is why it is gone:
+ * across the ten paired cells where it engaged at all it moved 99% of the
+ * recovered symbols — by up to 0.37 on a unit-radius constellation — while
+ * changing the symbol error rate by a mean factor of 0.9999, t = 0.28. That is
+ * scatter, not a gain. A live branch that buys nothing measurable can only be
+ * a source of divergence between two receivers that should agree, so NDA is
+ * what this receiver does rather than what it does first (docs/design/mpsk.md
+ * §3.3).
  *
  * ## Units
  *
@@ -298,16 +304,17 @@ mpsk_rx_derive_m_out (double cap, int strict)
  * one whose scope is written down. */
 #define MPSK_RX_LOCK_THRESH_DEFAULT 0.4999
 
-/* Two-way handover rule (see mpsk_rx_loops_init's lock_thresh doc).
- * Declare fast / drop reluctantly: 8 straight above-threshold symbols hand
- * the carrier to the decision-directed discriminator; 32 straight below the
- * 0.8x drop threshold fall back to the NDA acquisition steer. The asymmetry
- * reflects the cost asymmetry — a premature declare on a bad lock derails the
- * NCO (decision errors feed back), while a late drop merely keeps a noisier
- * discriminator a few symbols longer. */
-#define MPSK_RX_HANDOVER_DOWN 0.8
-#define MPSK_RX_HANDOVER_N_UP 8u
-#define MPSK_RX_HANDOVER_N_DOWN 32u
+/* Carrier lock rule (see mpsk_rx_loops_init's lock_thresh doc). Declare fast,
+ * drop reluctantly: 8 straight above-threshold symbols declare lock, and 32
+ * straight below the 0.8x drop threshold withdraw it. The asymmetry reflects
+ * what the indicator is FOR — a caller sizing a measurement window wants the
+ * declaration promptly, and wants a momentary dip in a noisy statistic not to
+ * retract it. Nothing inside the receiver reads it: it steers no loop and
+ * gates no output, so a wrong reading costs a caller its window and costs the
+ * demodulator nothing. */
+#define MPSK_RX_LOCK_DOWN 0.8
+#define MPSK_RX_LOCK_N_UP 8u
+#define MPSK_RX_LOCK_N_DOWN 32u
 
 
 
@@ -319,7 +326,6 @@ mpsk_rx_derive_m_out (double cap, int strict)
   {
     dp_tlm_t *ctx;         /**< NULL = detached                        */
     int32_t   id_lock;     /**< "<prefix>.lock"     — carrier lock EMA */
-    int32_t   id_tracking; /**< "<prefix>.tracking" — handover 0/1     */
     int32_t   id_e;        /**< "<prefix>.car.e"    — carrier disc     */
     int32_t   id_freq;     /**< "<prefix>.car.freq" — integrator only  */
     int32_t   id_nco;      /**< "<prefix>.car.nco"  — the SUM that
@@ -337,7 +343,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
   } mpsk_rx_tlm_t;
 
   /**
-   * @brief The receiver's loops: timing, carrier, handover, demapper.
+   * @brief The receiver's loops: timing, carrier, demapper.
    */
   typedef struct
   {
@@ -363,13 +369,10 @@ mpsk_rx_derive_m_out (double cap, int strict)
                               loop; see mpsk_rx_agc_bn().                 */
     double zeta;       /**< damping factor for both loops.               */
 
-    /* ── acquisition <-> tracking handover ───────────────────────────── */
-    int    acq_to_track; /**< opt-in two-way handover.                   */
-    size_t sym_count;    /**< symbols emitted; also dates `lock_time`.   */
-    int64_t lock_time;    /**< sym_count when carrier lock was first
-                              declared, or -1 if never. Running state. */
-    lockdet_state_t handover; /**< verify-counted declare/drop rule.     */
-    int             tracking; /**< 0 = NDA acquire, 1 = decision.        */
+    /* ── carrier lock indicator ──────────────────────────────────────── */
+    size_t  sym_count; /**< symbols emitted; also dates `lock_time`.     */
+    int64_t lock_time; /**< sym_count when carrier lock was first
+                            declared, or -1 if never. Running state.     */
 
     /* ── demapper ────────────────────────────────────────────────────── */
     int           differential;  /**< bits(): differential demap.        */
@@ -398,10 +401,10 @@ mpsk_rx_derive_m_out (double cap, int strict)
    * @param zeta          Damping factor for both loops.
    * @param bn_timing     Timing loop noise bandwidth, per symbol.
    * @param ted           RATESYNC_TED_GARDNER or RATESYNC_TED_DTTL.
-   * @param acq_to_track  Enable the two-way NDA<->decision handover.
-   * @param lock_thresh   Handover declare threshold on the carrier lock EMA;
-   *                      the drop threshold sits at MPSK_RX_HANDOVER_DOWN x
-   *                      it, and both directions are verify-counted. The EMA's
+   * @param lock_thresh   Declare threshold for the carrier lock indicator,
+   *                      on the lock EMA; the drop threshold sits at
+   *                      MPSK_RX_LOCK_DOWN x it, and both directions are
+   *                      verify-counted. The EMA's
    *                      H0 sd is CARRIER_NDA_LOCK_NORM_SD (0.1132) for every
    *                      M, so this divided by that is the threshold in noise
    *                      sigmas and its per-look Pfa is Q(that) — 0.5 is
@@ -414,9 +417,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
   void mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps,
                            double lo_sps, size_t m_out, double bn_carrier,
                            double zeta, double bn_timing, double bn_agc_ratio,
-                           int ted,
-                           int acq_to_track, double lock_thresh,
-                           int differential);
+                           int ted, double lock_thresh, int differential);
 
   /**
    * @brief How many times per symbol the chosen tap updates the carrier loop.
@@ -451,12 +452,6 @@ mpsk_rx_derive_m_out (double cap, int strict)
   /** @brief Re-seed both loops to their post-init state; keep configuration.
    *  @param l  Must be non-NULL. */
   void mpsk_rx_loops_reset (mpsk_rx_loops_t *l);
-
-  /** @brief Re-tune the handover detector; see mpsk_receiver_configure_lock(),
-   *  which forwards here. A live handover survives; the verify run restarts. */
-  void mpsk_rx_configure_lock (mpsk_rx_loops_t *l, double up_thresh,
-                               double down_thresh, uint32_t n_up,
-                               uint32_t n_down);
 
   /** @brief Tracked carrier offset in cycles/sample at the LO's rate — the
    *  loop's own estimate, excluding the front end's configured centre. */
@@ -496,9 +491,9 @@ mpsk_rx_derive_m_out (double cap, int strict)
    * Shared by all three tap points so the discriminator, its AGC and its lock
    * statistic exist exactly once however the caller chose to feed them.
    *
-   * The discriminator and its lock EMA run on every sample it is handed — the
-   * drop-back rule needs them, and `lock` must stay observable throughout
-   * acquisition. The steer runs whenever the loop is not already tracking.
+   * The discriminator, its lock EMA and the steer all run on every sample it
+   * is handed, from the first strobe to the last. Nothing gates them: `lock`
+   * is an indicator the caller reads, not an input the loop obeys.
    *
    * @param l        Loops.
    * @param z        The tapped sample.
@@ -519,8 +514,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
        last hold". Reset clears it back to -1. */
     if (lockdet_step (&l->car_lock, l->lock) && l->lock_time < 0)
       l->lock_time = (int64_t)l->sym_count;
-    if (!l->tracking)
-      mpsk_rx_steer (l, pe);
+    mpsk_rx_steer (l, pe);
   }
 
 
@@ -552,14 +546,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
        points at all; their M-th power is ISI, not carrier phase. Feeding them
        in costs nothing visible at QPSK (the loop averages through it) and is
        fatal at 8PSK, whose decision margin is +-pi/8: measured 0.85 symbol
-       error rate, i.e. chance, against 0 on the strobe alone.
-
-       Note also that the discriminator runs in BOTH modes and only the STEER
-       is gated. Its lock signal is the handover's input in both directions,
-       so freezing it while tracking would make the drop-back unreachable —
-       the metric could never fall back through the threshold it rose above.
-       (Measured exactly that way: a receiver fed pure noise stayed in
-       `tracking` forever.) */
+       error rate, i.e. chance, against 0 on the strobe alone. */
 
     /* The discriminator reads the ON-TIME STROBE: the cleanest input there
        is, and the only node already matched to the signal. It acts on every
@@ -572,8 +559,8 @@ mpsk_rx_derive_m_out (double cap, int strict)
        nominated, which is why NDA is the implicit answer when there is no
        data to be aided by (docs/design/mpsk.md §3.3).
 
-       An earlier revision gated the steer, the AGC seed and the handover on
-       the timing loop's lock detector, on the grounds that a pre-lock strobe
+       An earlier revision gated the steer and the AGC seed on the timing
+       loop's lock detector, on the grounds that a pre-lock strobe
        is an arbitrary phase of the pulse and its M-th power is nothing in
        particular. The reasoning is sound and the transient is real (measured
        QPSK, sps = 8, Es/N0 20 dB, 5 seeds: the timing loop declares at symbol
@@ -601,34 +588,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
        discriminator above still sees the unrotated stream it locks. */
     float complex y_rot = on * l->sym_rot;
 
-    if (l->tracking)
-      {
-        /* Postdetection decision-directed error on the full-SNR symbol; m == 2
-           reduces to the BPSK Costas discriminator. */
-        float complex ahat;
-        mpsk_slice (y_rot, l->m, &ahat);
-        double ay = (double)cabsf (y_rot) + MPSK_RX_EPS;
-        mpsk_rx_steer (l, (double)cimagf (y_rot * conjf (ahat)) / ay);
-      }
-
     l->sym_count++;
-    /* Opt-in two-way handover, on the lock detector and NOTHING ELSE. The
-       verify-counted detector already carries both hysteresis axes — a split
-       declare/drop threshold pair and a consecutive-symbol count in each
-       direction — so a warmup counter in front of it was a second, cruder
-       de-chatterer for the same job.
-
-       It used to be there, guarding an overshoot that gh-657 made
-       impossible. Its comment claimed the pre-lock lock EMA reaches 0.9-1.7
-       against 0.62 settled, but carrier_nda_disc() now divides by |z| at the
-       FIRST squaring, so every later value is a unit vector and `lock` is an
-       EMA of a quantity bounded in [-1, 1] -- it cannot exceed 1 at all.
-       Measured on the shipped receiver (QPSK, sps = 8, 20 dB, 5 seeds), the
-       pre-lock peak is 0.900-0.916 and settled is 0.947-0.968: both numbers
-       in that comment described the pre-normalisation detector, when an
-       upstream AGC still had to manufacture |z| = 1. */
-    if (l->acq_to_track)
-      l->tracking = lockdet_step (&l->handover, l->lock);
     *sym = y_rot;
     return 1;
   }
@@ -680,7 +640,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
                              const char *prefix, uint32_t decim);
 
 /* ── Serializable state — the loops alone (nested by every owner) ──────────
- * Envelope, the carrier/handover/demapper running scalars, then the timing
+ * Envelope, the carrier/demapper running scalars, then the timing
  * loop's and the carrier loop filter's self-validating sub-blobs. The arm AGC
  * is running state too. Config is restored by the owner's create(). */
 #define MPSK_RX_LOOPS_STATE_MAGIC DP_FOURCC ('M', 'R', 'X', 'L')
@@ -703,8 +663,12 @@ mpsk_rx_derive_m_out (double cap, int strict)
  * v6: the Costas ARM is gone (gh-768) -- there is no free-running boxcar to
  * pack, so the blob loses that child entirely. It also gains `lock_time`, the
  * symbol at which carrier lock was first declared, which is running state and
- * so has to survive a hand-off. Two shape changes at once, one version. */
-#define MPSK_RX_LOOPS_STATE_VERSION 6u
+ * so has to survive a hand-off. Two shape changes at once, one version.
+ * v7: the acquisition/tracking handover is gone (doppler#877) -- the blob
+ * loses that lock detector's `cnt`/`locked` pair and the `tracking` bit of
+ * the flags word, so `have_prev_idx` moves down to bit 0. The surviving
+ * `car_lock` detector is an indicator, not a discriminator switch. */
+#define MPSK_RX_LOOPS_STATE_VERSION 7u
 
   /** @brief Bytes mpsk_rx_loops_get_state() writes. */
   size_t mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l);

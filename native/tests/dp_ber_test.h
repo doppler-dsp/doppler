@@ -361,13 +361,15 @@ dp_ber_lock_symbol (const unsigned char *flag, size_t n, size_t sustain,
  * can be optimistic because a detector declares on a statistic that crossed a
  * threshold, not on a settled loop.
  *
- * **A handover settles last of all.** With `acq_to_track` on it fires on
- * carrier lock plus a warmup — strictly after the budget and after every lock
- * indicator — and the decision-directed loop then has its own transient. So a
- * handover contributes `its instant + the budget again`. Measured on 8PSK at
- * its SER=1e-3 anchor: handover at symbol 2525 against a 2000-symbol budget,
- * SER 5.95x the coherent bound measured from 2000 and 1.68x from 4525, with
- * essentially every error in the one pre-handover block.
+ * There used to be a third term. A receiver that handed the carrier from an
+ * NDA discriminator to a decision-directed one settled LAST of all — the
+ * handover fired after every lock indicator and the new loop then had its own
+ * transient, so it contributed `its instant + the budget again` (measured on
+ * 8PSK at its SER=1e-3 anchor: handover at symbol 2525 against a 2000-symbol
+ * budget, and 5.95x the coherent bound if you measured from 2000 instead of
+ * 4525). No receiver in this library has a handover any more (doppler#877),
+ * so the term went with it rather than staying as a parameter that could only
+ * be passed -1.
  *
  * Pass NULL for any indicator the receiver does not publish. Pass a loop's
  * `bn` as 0 if it is not running.
@@ -376,7 +378,6 @@ dp_ber_lock_symbol (const unsigned char *flag, size_t n, size_t sustain,
  * @param bn_carrier   Carrier loop noise bandwidth per symbol (0 if none).
  * @param lock_timing  Per-symbol timing lock flag, or NULL.
  * @param lock_carrier Per-symbol carrier lock flag, or NULL.
- * @param tracking     Per-symbol handover flag, or NULL.
  * @param n            Length of whichever flag arrays were passed.
  * @param ok           Out: 0 when a supplied indicator never sustained lock,
  *                     meaning there is NO valid steady-state window. May be
@@ -386,20 +387,18 @@ dp_ber_lock_symbol (const unsigned char *flag, size_t n, size_t sustain,
 static inline size_t
 dp_ber_settle (double bn_timing, double bn_carrier,
                const unsigned char *lock_timing,
-               const unsigned char *lock_carrier,
-               const unsigned char *tracking, size_t n, int *ok)
+               const unsigned char *lock_carrier, size_t n, int *ok)
 {
   size_t budget = ber_settle_syms (bn_timing, bn_carrier);
-  /* An indicator the receiver does not publish is "not required", which is
-     what ber_settle_from() reads a -1 as for the handover. For timing and
-     carrier a -1 means the loop never locked, so distinguish "absent" from
-     "never locked" here and let the core own the max/handover policy. */
+  /* An indicator the receiver does not publish is "not required", so it
+     contributes 0. A -1 means the loop never locked, which is a different
+     answer entirely -- distinguish the two here and let the core own the
+     max policy. */
   int t = lock_timing ? (int)ber_lock_symbol (lock_timing, n, 200, 0.9) : 0;
   int c = lock_carrier ? (int)ber_lock_symbol (lock_carrier, n, 200, 0.9) : 0;
-  int h = tracking ? (int)ber_lock_symbol (tracking, n, 200, 0.9) : -1;
   if (ok)
     *ok = (t >= 0 && c >= 0);
-  return ber_settle_from (budget, t, c, h);
+  return ber_settle_from (budget, t, c);
 }
 
 /* --- 4. Counting - inverse binomial sampling ----------------------------- */
@@ -772,7 +771,7 @@ dp_ber_print (const char *label, const dp_ber_report_t *r)
  * for (unsigned seed = 0; !dp_ber_enough (&acc) && seed < 200; seed++)
  *   {
  *     size_t nout   = run_receiver (seed, rx, truth, lock_t, lock_c);
- *     size_t settle = dp_ber_settle (bn_t, bn_c, lock_t, lock_c, NULL,
+ *     size_t settle = dp_ber_settle (bn_t, bn_c, lock_t, lock_c,
  *                                    nout, &ok);
  *     r = dp_ber_measure (&acc, rx, nout, truth, nsym, esn0_db, settle, ok,
  *                         NULL);

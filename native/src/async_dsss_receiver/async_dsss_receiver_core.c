@@ -210,7 +210,7 @@ adr_build_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
      BER-optimal 0.001 is ~8 dB worse in EVM). */
   mpsk_receiver_state_t *rx = dp_xnn (mpsk_receiver_create (
       s->m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
-      0.005, 1, 0.3, 0.0, s->differential, MPSK_RX_NUM_PHASES, 1,
+      0.005, 0.3, 0.0, s->differential, MPSK_RX_NUM_PHASES, 1,
       MPSK_RX_AGC_BW_RATIO));
 
   /* Per-CODE-PERIOD cadence (tsamps = one whole period), matching

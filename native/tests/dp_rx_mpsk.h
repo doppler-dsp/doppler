@@ -32,8 +32,7 @@ dp_rx_mpsk_create (const dp_rx_point_t *pt)
      link; it does not re-derive what the receiver already knows. */
   return mpsk_receiver_create (
       pt->m, pt->sps, pt->m_out, MPSK_RX_PULSE_RRC, pt->beta, pt->span,
-      pt->bn_carrier, 0.0 /* zeta */, pt->bn_timing, pt->acq_to_track,
-      0.0 /* lock_thresh */,
+      pt->bn_carrier, 0.0 /* zeta */, pt->bn_timing, 0.0 /* lock_thresh */,
       /* foff is cycles per SYMBOL (so one value
          means one thing at every rate); the ctor
          wants cycles per SAMPLE. Mixing them is an
@@ -103,44 +102,17 @@ static const dp_rx_iface_t DP_RX_MPSK
         dp_rx_mpsk_last_error, dp_rx_mpsk_lock,    dp_rx_mpsk_locked,
         dp_rx_mpsk_lock_time,  dp_rx_mpsk_clipped, dp_rx_mpsk_zeta };
 
-/* ── The second adapter, and the whole point of goal 6 ──────────────────────
+/* There is no second adapter here any more. `ContinuousMpskReceiver` was
+ * one -- a view over this same core that pinned the gating -- and it is gone
+ * (doppler#877), because with the handover deleted it pinned nothing and was
+ * a duplicate of `MpskReceiver`. Its row cost the battery no coverage: the
+ * harness recorded, at the time, that every named point already set
+ * `acq_to_track = 0`, so the two receivers constructed identically and the
+ * second row proved the ADAPTER rather than any behavioural difference.
  *
- * `ContinuousMpskReceiver` is the continuous flavor: a view over the same
- * core that PINS the gating (`acq_to_track = 0`, `agc`
- * on) and the five derived parameters. Everything past construction is
- * shared verbatim, so this adapter is one function long and the other ten
- * entries are reused unchanged -- which is "a second receiver design costs
- * an adapter and nothing else" being cashed rather than asserted.
- *
- * It deliberately IGNORES `pt->acq_to_track`. That is not
- * the adapter taking a liberty: those are the knobs the flavor exists to
- * remove, so a point that sets them is asking for a receiver this one is
- * not.
- *
- * AND AT EVERY POINT IN THE CURRENT SET THE TWO ROWS COINCIDE EXACTLY, which
- * is worth stating rather than leaving to be noticed. Every named point sets
- * `acq_to_track = 0`, so what the flavor pins is what
- * the point already asked for and the two receivers construct identically.
- * The second row therefore proves the ADAPTER — that a second receiver design
- * costs one function and reuses the other ten entries verbatim — and not a
- * behavioural difference, because at these points there is none to prove. The
- * battery does not exercise the handover on either receiver; a point that
- * turns `acq_to_track` on is what would separate them, and it is not here yet
- * (doppler#790).
+ * The adapter claim is worth re-proving on a receiver that genuinely differs,
+ * and the real-input face is the candidate the battery does not yet cover --
+ * see doppler#802.
  */
-static void *
-dp_rx_cont_create (const dp_rx_point_t *pt)
-{
-  return mpsk_receiver_create_continuous (
-      pt->m, pt->sps, MPSK_RX_PULSE_RRC, pt->beta, pt->span, pt->bn_carrier,
-      pt->bn_timing, pt->fc - pt->foff / pt->sps, 0 /* differential */);
-}
-
-/** @brief `ContinuousMpskReceiver`: the same core with the gating pinned. */
-static const dp_rx_iface_t DP_RX_CONT
-    = { "ContinuousMpskReceiver", DP_RX_IN_COMPLEX,   dp_rx_cont_create,
-        dp_rx_mpsk_destroy,       dp_rx_mpsk_step,    dp_rx_mpsk_norm_freq,
-        dp_rx_mpsk_last_error,    dp_rx_mpsk_lock,    dp_rx_mpsk_locked,
-        dp_rx_mpsk_lock_time,     dp_rx_mpsk_clipped, dp_rx_mpsk_zeta };
 
 #endif /* DP_RX_MPSK_H */

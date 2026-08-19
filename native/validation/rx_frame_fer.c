@@ -135,17 +135,16 @@
 typedef struct
 {
   dp_frame_name_t frame;
-  int             m;   /**< Constellation order. BPSK only for now — the
-                            frame is BITS, and `wfm_synth_set_bits` maps
-                            one bit to one symbol at `modulation = 1`,
-                            which makes the truth mapping the identity. */
-  double sps;          /**< Samples per symbol at the receiver's input. */
-  size_t m_out;        /**< Terminal outputs per symbol.                */
-  double fc;           /**< Carrier, cycles/sample.                     */
-  double foff;         /**< Offset the carrier loop must acquire.       */
-  double bn_timing;    /**< Timing loop noise bandwidth, per symbol.    */
-  double bn_carrier;   /**< Carrier loop noise bandwidth, per symbol.   */
-  int    acq_to_track; /**< NDA -> decision-directed handover.          */
+  int             m; /**< Constellation order. BPSK only for now — the
+                          frame is BITS, and `wfm_synth_set_bits` maps
+                          one bit to one symbol at `modulation = 1`,
+                          which makes the truth mapping the identity. */
+  double sps;        /**< Samples per symbol at the receiver's input. */
+  size_t m_out;      /**< Terminal outputs per symbol.                */
+  double fc;         /**< Carrier, cycles/sample.                     */
+  double foff;       /**< Offset the carrier loop must acquire.       */
+  double bn_timing;  /**< Timing loop noise bandwidth, per symbol.    */
+  double bn_carrier; /**< Carrier loop noise bandwidth, per symbol.   */
 } rx_frame_cfg_t;
 
 /** @brief Everything needed to defend all four numbers at one point. */
@@ -185,7 +184,7 @@ typedef struct
 static size_t
 rx_frame_burst (const rx_frame_cfg_t *c, const uint8_t *bits, size_t nbits,
                 double esn0_db, uint32_t seed, size_t nsym, float complex *out,
-                unsigned char *lock_c, unsigned char *track, int *clipped)
+                unsigned char *lock_c, int *clipped)
 {
   int                    isps  = (int)c->sps;
   size_t                 ntaps = wfm_rrc_ntaps (isps, RX_FRAME_SPAN);
@@ -219,10 +218,10 @@ rx_frame_burst (const rx_frame_cfg_t *c, const uint8_t *bits, size_t nbits,
      not carry (section 7.5) falls out of the generator instead. */
   wfm_synth_steps (tx, x, nsamp);
 
-  rx = mpsk_receiver_create (
-      c->m, c->sps, c->m_out, MPSK_RX_PULSE_RRC, RX_FRAME_BETA, RX_FRAME_SPAN,
-      c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track, 0.3,
-      c->fc - c->foff, 0, MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO);
+  rx = mpsk_receiver_create (c->m, c->sps, c->m_out, MPSK_RX_PULSE_RRC,
+                             RX_FRAME_BETA, RX_FRAME_SPAN, c->bn_carrier,
+                             0.707, c->bn_timing, 0.3, c->fc - c->foff, 0,
+                             MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO);
   if (!rx)
     goto done;
 
@@ -235,7 +234,6 @@ rx_frame_burst (const rx_frame_cfg_t *c, const uint8_t *bits, size_t nbits,
         {
           out[nout]    = y;
           lock_c[nout] = (unsigned char)mpsk_receiver_get_locked (rx);
-          track[nout]  = (unsigned char)mpsk_receiver_get_tracking (rx);
           nout++;
         }
     }
@@ -272,7 +270,7 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
   size_t               nsym = RX_FRAME_NSYM, nbits;
   uint8_t             *bits = NULL, *truth = NULL, *rxbits = NULL;
   float complex       *out = NULL;
-  unsigned char       *lc = NULL, *tk = NULL;
+  unsigned char       *lc  = NULL;
   size_t               lo = 0, hi = 0;
   int                  settled_any = 0;
 
@@ -306,9 +304,8 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
   truth  = malloc (nsym);
   out    = malloc (nsym * sizeof *out);
   lc     = malloc (nsym);
-  tk     = malloc (nsym);
   fm     = frame_meter_create (RX_FRAME_TARGET_FRAME_ERRORS, DP_BER_CONF);
-  if (!bits || !rxbits || !truth || !out || !lc || !tk || !fm
+  if (!bits || !rxbits || !truth || !out || !lc || !fm
       || wfm_frame_bits (&f, bits, nbits) != nbits)
     goto done;
 
@@ -329,7 +326,7 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
 
       n = rx_frame_burst (c, bits, nbits, esn0_db,
                           seed0 + 7919u * (uint32_t)r.bursts, nsym, out, lc,
-                          tk, &clip);
+                          &clip);
       r.bursts++;
       r.clipped |= clip;
       if (n < 1000)
@@ -338,8 +335,7 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
           continue;
         }
 
-      settle = dp_ber_settle (c->bn_timing, c->bn_carrier, NULL, lc,
-                              c->acq_to_track ? tk : NULL, n, &ok);
+      settle = dp_ber_settle (c->bn_timing, c->bn_carrier, NULL, lc, n, &ok);
       if (!ok || settle + DP_BER_LAG_SPAN + DP_BER_SYNC_SYMS + 500 >= n)
         {
           r.unsettled++;
@@ -452,7 +448,6 @@ done:
   free (truth);
   free (out);
   free (lc);
-  free (tk);
   return r;
 }
 
@@ -520,7 +515,6 @@ rx_frame_default_cfg (rx_frame_cfg_t *c, dp_frame_name_t frame)
   c->bn_timing  = 0.01;
   c->bn_carrier = 0.005;
   c->foff = dp_test_freq_offset_inside_bw (c->bn_carrier, c->m, 1.0) / c->sps;
-  c->acq_to_track = 0;
 }
 
 /** @brief The gates, for one point. @return 0 pass, 1 fail. */

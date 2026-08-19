@@ -411,7 +411,7 @@ test_settle (void)
 
   /* The analytic budget: 2*(5/0.01 + 5/0.01) = 2000, never 500. */
   DP_CHECK (dp_test_settle_syms (0.01, 0.01) == 2000);
-  DP_CHECK (dp_ber_settle (0.01, 0.01, NULL, NULL, NULL, 0, NULL) == 2000);
+  DP_CHECK (dp_ber_settle (0.01, 0.01, NULL, NULL, 0, NULL) == 2000);
 
   /* A flag that goes high at 800 and stays high: lock at 800. */
   memset (f, 0, sizeof f);
@@ -438,7 +438,7 @@ test_settle (void)
   DP_CHECK (dp_ber_lock_symbol (f, N, 200, 0.9) == -1);
   {
     int ok = 1;
-    dp_ber_settle (0.01, 0.01, f, NULL, NULL, N, &ok);
+    dp_ber_settle (0.01, 0.01, f, NULL, N, &ok);
     DP_CHECK (!ok);
   }
 
@@ -449,23 +449,30 @@ test_settle (void)
     memset (t, 0, sizeof t);
     for (int i = 2400; i < N; i++)
       t[i] = 1;
-    DP_CHECK (dp_ber_settle (0.01, 0.01, t, NULL, NULL, N, &ok) == 2400);
+    DP_CHECK (dp_ber_settle (0.01, 0.01, t, NULL, N, &ok) == 2400);
     DP_CHECK (ok);
   }
 
-  /* A handover contributes its instant PLUS the budget again -- the rule that
-     took 8PSK from 5.95x the bound to 1.68x. */
+  /* The LATEST indicator decides, and the budget is a floor under all of
+     them. The handover term this case used to check is gone with the
+     handover itself (doppler#877); what remains is that two indicators are
+     combined by max, which is checked with them DIFFERING so an
+     implementation that read only one would fail. */
   {
-    static unsigned char t[N], h[N];
+    static unsigned char t[N], c[N];
     size_t               s;
+    int                  ok = 0;
     memset (t, 0, sizeof t);
-    memset (h, 0, sizeof h);
+    memset (c, 0, sizeof c);
     for (int i = 500; i < N; i++)
       t[i] = 1;
-    for (int i = 900; i < N; i++)
-      h[i] = 1;
-    s = dp_ber_settle (0.005, 0.005, t, t, h, N, NULL);
-    DP_CHECK (s == 900 + dp_test_settle_syms (0.005, 0.005));
+    for (int i = 2600; i < N; i++)
+      c[i] = 1;
+    s = dp_ber_settle (0.01, 0.01, t, c, N, &ok);
+    DP_CHECK (ok);
+    /* 2600 > the 2000-symbol budget and > the timing lock at 500. */
+    DP_CHECK (s == 2600);
+    DP_CHECK (s > dp_test_settle_syms (0.01, 0.01));
   }
 }
 

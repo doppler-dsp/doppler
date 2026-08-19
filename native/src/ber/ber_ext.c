@@ -132,18 +132,16 @@ static PyObject *
 _bind_ber_settle_from (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
-  static char *_kwlist[]
-      = { "budget", "timing_lock", "carrier_lock", "handover", NULL };
+  static char *_kwlist[] = { "budget", "timing_lock", "carrier_lock", NULL };
   unsigned long long budget_raw   = 0ULL;
   int                timing_lock  = -1;
   int                carrier_lock = -1;
-  int                handover     = -1;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K|iii", _kwlist, &budget_raw,
-                                    &timing_lock, &carrier_lock, &handover))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K|ii", _kwlist, &budget_raw,
+                                    &timing_lock, &carrier_lock))
     return NULL;
   size_t budget = (size_t)budget_raw;
-  return PyLong_FromUnsignedLongLong ((unsigned long long)ber_settle_from (
-      budget, timing_lock, carrier_lock, handover));
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)ber_settle_from (budget, timing_lock, carrier_lock));
 }
 
 /* ======================================================== */
@@ -272,8 +270,7 @@ static PyMethodDef ber_module_methods[] = {
     "carrier discriminator reads the on-time strobe, so it cannot converge\n"
     "until timing has); and the sum DOUBLES for joint tracking. This is a\n"
     "FLOOR, not the answer: take the max of it and every lock indicator the\n"
-    "receiver publishes, plus the handover instant again if one is enabled.\n"
-    "Pass a loop's bn as 0 if it is not running.\n"
+    "receiver publishes. Pass a loop's bn as 0 if it is not running.\n"
     "\n"
     "`2 * (5/bn_timing + 5/bn_carrier)`. Three factors, and skipping any of\n"
     "them produces a confident wrong number: 5/Bn per loop is the standard\n"
@@ -382,39 +379,40 @@ static PyMethodDef ber_module_methods[] = {
   { "ber_settle_from", (PyCFunction)(void *)_bind_ber_settle_from,
     METH_VARARGS | METH_KEYWORDS,
     "Where a steady-state measurement may start: max(budget, timing lock,\n"
-    "carrier lock, handover + budget). The analytic budget and the\n"
-    "receiver's own indicators are both fallible in the SAME direction, so\n"
-    "whichever settles last decides. A handover settles last of all -- it\n"
-    "fires on carrier lock plus a warmup, strictly after every other term,\n"
-    "and the decision-directed loop then has its own transient, so it\n"
-    "contributes its instant PLUS the budget again (measured on 8PSK:\n"
-    "handover at symbol 2525 against a 2000-symbol budget, SER 5.95x the\n"
-    "coherent bound from 2000 versus 1.68x from 4525). Pass -1 for an\n"
-    "indicator the receiver does not publish, which is what\n"
-    "ber_lock_symbol() returns for 'never locked'. A -1 timing or carrier\n"
-    "lock means there is NO valid steady-state window -- check that yourself\n"
-    "before trusting the return; a -1 handover is not a failure, since a\n"
-    "pure-NDA receiver never publishes one.\n"
+    "carrier lock). The analytic budget and the receiver's own indicators\n"
+    "are both fallible in the SAME direction, so whichever settles last\n"
+    "decides. There was a fourth term until doppler#877: a receiver that\n"
+    "handed the carrier from an NDA discriminator to a decision-directed one\n"
+    "settled last of all, contributing its instant PLUS the budget again\n"
+    "(measured on 8PSK: handover at symbol 2525 against a 2000-symbol\n"
+    "budget, and 5.95x the coherent bound if the window started at 2000\n"
+    "rather than 4525). No receiver in this library hands over any more, so\n"
+    "the term went with the handover rather than remaining as an argument\n"
+    "that could only be passed -1. Pass -1 for an indicator the receiver\n"
+    "does not publish, which is what ber_lock_symbol() returns for 'never\n"
+    "locked'. A -1 timing or carrier lock means there is NO valid\n"
+    "steady-state window -- check that yourself before trusting the return.\n"
     "\n"
     "The POLICY for where a steady-state window may start, in one place:\n"
-    "`max(budget, timing lock, carrier lock, handover + budget)`. The\n"
-    "analytic budget and the receiver's own indicators are both fallible in\n"
-    "the SAME direction, so whichever settles last decides.\n"
+    "`max(budget, timing lock, carrier lock)`. The analytic budget and the\n"
+    "receiver's own indicators are both fallible in the SAME direction, so\n"
+    "whichever settles last decides.\n"
     "\n"
-    "**A handover settles last of all.** With `acq_to_track` on it fires on\n"
-    "carrier lock plus a warmup — strictly after the budget and after every\n"
-    "lock indicator — and the decision-directed loop then has its own\n"
-    "transient, so it contributes `its instant + the budget again`. Measured\n"
-    "on 8PSK at its SER=1e-3 anchor: handover at symbol 2525 against a\n"
-    "2000-symbol budget, SER 5.95x the coherent bound measured from 2000 and\n"
-    "1.68x from 4525.\n"
+    "There was a fourth term until doppler#877. A receiver that handed the\n"
+    "carrier from an NDA discriminator to a decision-directed one settled\n"
+    "last of all — the handover fired after every lock indicator and the new\n"
+    "loop then had its own transient, so it contributed `its instant + the\n"
+    "budget again` (measured on 8PSK at its SER=1e-3 anchor: handover at\n"
+    "symbol 2525 against a 2000-symbol budget, and 5.95x the coherent bound\n"
+    "if the window started at 2000 rather than 4525). No receiver in this\n"
+    "library hands over any more, so the term went with the handover rather\n"
+    "than remaining as an argument that could only be passed -1.\n"
     "\n"
     "Pass -1 for any indicator the receiver does not publish (which is what\n"
     "ber_lock_symbol() returns for \"never locked\"). **A -1 timing or "
     "carrier\n"
     "lock means there is NO valid steady-state window** — check that\n"
-    "yourself before trusting the return; a -1 handover is not a failure,\n"
-    "because a pure-NDA receiver never publishes one.\n"
+    "yourself before trusting the return.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -424,8 +422,6 @@ static PyMethodDef ber_module_methods[] = {
     "    ber_lock_symbol() of the timing flag, or -1.\n"
     "carrier_lock : int\n"
     "    ber_lock_symbol() of the carrier flag, or -1.\n"
-    "handover : int\n"
-    "    ber_lock_symbol() of the tracking flag, or -1.\n"
     "\n"
     "Returns\n"
     "-------\n"

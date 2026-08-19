@@ -37,23 +37,11 @@ static int
 MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
                        PyObject *kwds)
 {
-  static char       *kwlist[]       = { "m",
-                                        "sps",
-                                        "m_out",
-                                        "pulse",
-                                        "rrc_beta",
-                                        "rrc_span",
-                                        "bn_carrier",
-                                        "zeta",
-                                        "bn_timing",
-                                        "acq_to_track",
-                                        "lock_thresh",
-                                        "init_norm_freq",
-                                        "differential",
-                                        "num_phases",
-                                        "agc",
-                                        "bn_agc_ratio",
-                                        NULL };
+  static char *kwlist[]
+      = { "m",          "sps",         "m_out",          "pulse",
+          "rrc_beta",   "rrc_span",    "bn_carrier",     "zeta",
+          "bn_timing",  "lock_thresh", "init_norm_freq", "differential",
+          "num_phases", "agc",         "bn_agc_ratio",   NULL };
   int                m              = 4;
   double             sps            = 32.0;
   unsigned long long m_out_raw      = 8;
@@ -63,7 +51,6 @@ MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
   double             bn_carrier     = 0.01;
   double             zeta           = 0.707;
   double             bn_timing      = 0.01;
-  int                acq_to_track   = 0;
   double             lock_thresh    = 0.5;
   double             init_norm_freq = 0.0;
   int                differential   = 0;
@@ -72,10 +59,10 @@ MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
   double             bn_agc_ratio   = 0.05;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "|idKsdidddiddiKid", kwlist, &m, &sps, &m_out_raw,
+          args, kwds, "|idKsdidddddiKid", kwlist, &m, &sps, &m_out_raw,
           &pulse_str, &rrc_beta, &rrc_span, &bn_carrier, &zeta, &bn_timing,
-          &acq_to_track, &lock_thresh, &init_norm_freq, &differential,
-          &num_phases_raw, &agc, &bn_agc_ratio))
+          &lock_thresh, &init_norm_freq, &differential, &num_phases_raw, &agc,
+          &bn_agc_ratio))
     return -1;
   size_t m_out = (size_t)m_out_raw;
   int    pulse = 0;
@@ -93,7 +80,7 @@ MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
   size_t num_phases = (size_t)num_phases_raw;
   self->handle      = mpsk_receiver_create_real (
       m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta, bn_timing,
-      acq_to_track, lock_thresh, init_norm_freq, differential, num_phases, agc,
+      lock_thresh, init_norm_freq, differential, num_phases, agc,
       bn_agc_ratio);
   if (!self->handle)
     {
@@ -151,31 +138,6 @@ MpskReceiverRObj_set_telemetry (MpskReceiverRObject *self, PyObject *args,
                     (long long)_rc);
       return NULL;
     }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-MpskReceiverRObj_configure_lock (MpskReceiverRObject *self, PyObject *args,
-                                 PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char *_kwlist[]
-      = { "up_thresh", "down_thresh", "n_up", "n_down", NULL };
-  double        up_thresh   = 0.0;
-  double        down_thresh = 0.0;
-  unsigned long n_up_raw    = 0UL;
-  unsigned long n_down_raw  = 0UL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddkk", _kwlist, &up_thresh,
-                                    &down_thresh, &n_up_raw, &n_down_raw))
-    return NULL;
-  uint32_t n_up   = (uint32_t)n_up_raw;
-  uint32_t n_down = (uint32_t)n_down_raw;
-  mpsk_receiver_configure_lock (self->handle, up_thresh, down_thresh, n_up,
-                                n_down);
   Py_RETURN_NONE;
 }
 
@@ -672,18 +634,6 @@ MpskReceiverR_getprop_timing_rate (MpskReceiverRObject *self,
   return PyFloat_FromDouble (mpsk_receiver_get_timing_rate (self->handle));
 }
 static PyObject *
-MpskReceiverR_getprop_tracking (MpskReceiverRObject *self,
-                                void                *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)mpsk_receiver_get_tracking (self->handle));
-}
-static PyObject *
 MpskReceiverR_getprop_m (MpskReceiverRObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
@@ -815,8 +765,6 @@ static PyGetSetDef MpskReceiverR_getset[] = {
     "Smoothed tracked samples per symbol — departs from the nominal `sps` by "
     "exactly the sample-clock offset the timing loop is tracking.\n",
     NULL },
-  { "tracking", (getter)MpskReceiverR_getprop_tracking, NULL,
-    "0 = NDA acquire, 1 = decision.\n", NULL },
   { "m", (getter)MpskReceiverR_getprop_m, NULL,
     "constellation order M (2, 4, 8).\n", NULL },
   { "sps", (getter)MpskReceiverR_getprop_sps, NULL,
@@ -873,20 +821,16 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "\n"
     "Attach (or detach) a telemetry context across the receiver.\n"
     "Registers the receiver's own \"<prefix>.lock\" probe (the carrier lock\n"
-    "EMA) and \"<prefix>.tracking\" (the two-way handover decision, 0/1 — so "
-    "a\n"
-    "consumer sees exactly when the carrier was handed to the\n"
-    "decision-directed discriminator or dropped back to NDA), then the\n"
-    "carrier loop's \"<prefix>.car.e\" / \".freq\" / \".locked\" and the\n"
-    "symbol-timing loop's \"<prefix>.sync.e\" / \".ctrl\" / \".rate\" / "
-    "\".lock\" /\n"
-    "\".locked\" / \".mu\" -- eleven probes emitted once per recovered symbol "
-    "--\n"
-    "then the front end's AGC under \"<prefix>.agc\" "
-    "(\"<prefix>.agc.gain_db\"\n"
-    "and \"<prefix>.agc.level_db\"; see agc_set_telemetry()). Thirteen "
-    "probes\n"
-    "total, all thinned by decim. Passing NULL detaches everything.\n"
+    "EMA), then the carrier loop's \"<prefix>.car.e\" / \".freq\" / "
+    "\".locked\"\n"
+    "and the symbol-timing loop's \"<prefix>.sync.e\" / \".ctrl\" / \".rate\" "
+    "/\n"
+    "\".lock\" / \".locked\" / \".mu\" -- ten probes emitted once per "
+    "recovered\n"
+    "symbol -- then the front end's AGC under \"<prefix>.agc\"\n"
+    "(\"<prefix>.agc.gain_db\" and \"<prefix>.agc.level_db\"; see\n"
+    "agc_set_telemetry()). Twelve probes total, all thinned by decim.\n"
+    "Passing NULL detaches everything.\n"
     "\n"
     "Instrumenting it matters because it is FIRST in the chain, and a level\n"
     "error is the one kind no downstream loop can correct for itself: a TED\n"
@@ -927,14 +871,14 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "\n"
     "Warnings\n"
     "--------\n"
-    "The two AGC probes are NOT at the symbol rate the other eleven are.\n"
-    "That AGC sits pre-terminal in the cascade (RateConverter's tap, ahead\n"
-    "of the stage the timing loop steers) and emits once per gain-update\n"
-    "event, i.e. every AGC_DECIM_DEFAULT samples of that fixed-rate stream\n"
-    "-- so it reports on a grid that depends on the planned cascade, not on\n"
-    "recovered symbols, and a run yields a different number of AGC records\n"
-    "than carrier records. Compare the two by TIME, never by record index.\n"
-    "This is deliberate: the AGC's bandwidth is quoted in the pre-terminal\n"
+    "The two AGC probes are NOT at the symbol rate the other ten are. That\n"
+    "AGC sits pre-terminal in the cascade (RateConverter's tap, ahead of the\n"
+    "stage the timing loop steers) and emits once per gain-update event,\n"
+    "i.e. every AGC_DECIM_DEFAULT samples of that fixed-rate stream -- so it\n"
+    "reports on a grid that depends on the planned cascade, not on recovered\n"
+    "symbols, and a run yields a different number of AGC records than\n"
+    "carrier records. Compare the two by TIME, never by record index. This\n"
+    "is deliberate: the AGC's bandwidth is quoted in the pre-terminal\n"
     "stream's units precisely so it is not coupled to the loop that is\n"
     "stretching the symbol grid (see RateConverter_enable_agc()).\n"
     "\n"
@@ -963,47 +907,6 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "tlm.probe_id(\"rx.agc.gain_db\")])\n"
     ">>> n_agc > 0 and n_agc != n_sync   # cascade grid, not symbol grid\n"
     "True\n" },
-  { "configure_lock", (PyCFunction)(void *)MpskReceiverRObj_configure_lock,
-    METH_VARARGS | METH_KEYWORDS,
-    "configure_lock(up_thresh, down_thresh, n_up, n_down) -> None\n"
-    "\n"
-    "Re-tune the acquisition<->tracking handover detector: hands the\n"
-    "carrier to the decision-directed discriminator after n_up consecutive\n"
-    "symbols with the carrier lock EMA above up_thresh, and falls back to\n"
-    "NDA acquisition after n_down consecutive symbols below down_thresh\n"
-    "(level + time hysteresis; see detection.LockDet). Previously only\n"
-    "settable at construction (lock_thresh, with fixed 0.8x drop / 8-up /\n"
-    "32-down constants) -- this is the post-construction re-tune Dll and\n"
-    "Costas both already have. A live handover survives the re-tune; the\n"
-    "in-flight verify run restarts.\n"
-    "\n"
-    "Full lockdet control over the handover, mirroring\n"
-    "costas_configure_lock(): a split declare/drop threshold pair on the\n"
-    "carrier lock EMA (level hysteresis) and both verify counts (time\n"
-    "hysteresis). A live handover survives the re-tune; the in-flight verify\n"
-    "run restarts.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "up_thresh : float\n"
-    "    Declare threshold on the carrier lock EMA.\n"
-    "down_thresh : float\n"
-    "    Drop threshold; choose <= up_thresh for level hysteresis.\n"
-    "n_up : int\n"
-    "    Consecutive above-threshold symbols to hand over to the\n"
-    "    decision-directed discriminator; clamped >= 1.\n"
-    "n_down : int\n"
-    "    Consecutive below-threshold symbols to fall back to NDA\n"
-    "    acquisition; clamped >= 1.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> from doppler.track import MpskReceiver\n"
-    ">>> rx = MpskReceiver(m=4, sps=4, m_out=2, acq_to_track=1)\n"
-    ">>> rx.tracking\n"
-    "0\n"
-    ">>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, fast "
-    "drop\n" },
   { "reset", (PyCFunction)MpskReceiverRObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
@@ -1045,15 +948,10 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "complex face; only the front end above it differs. The carrier\n"
     "discriminator runs on the on-time strobe only -- a non-strobe output\n"
     "straddles two symbols, so its M-th power is intersymbol interference\n"
-    "rather than carrier phase -- and while acquiring it is the\n"
-    "non-data-aided M-th-power error, needing no data and no symbol timing.\n"
-    "With acq_to_track enabled a verify-counted two-way handover steps on\n"
-    "the carrier lock metric each symbol: it switches to a lower-jitter\n"
-    "decision-directed carrier loop after 8 consecutive above-lock_thresh\n"
-    "symbols, and on a sustained lock loss (32 consecutive symbols below\n"
-    "0.8*lock_thresh) drops back to the NDA acquisition steer, the shared\n"
-    "loop filter carrying the frequency estimate both ways. The loop locks\n"
-    "to one of m phases (M-fold ambiguity); resolve it with\n"
+    "rather than carrier phase -- and it is the non-data-aided M-th-power\n"
+    "error throughout, needing no data and no symbol timing: there is one\n"
+    "discriminator, running from the first symbol to the last. The loop\n"
+    "locks to one of m phases (M-fold ambiguity); resolve it with\n"
     "bits(differential) or a sync word. Read norm_freq for the tracked\n"
     "carrier and lock for the carrier lock metric.\n"
     "\n"
@@ -1256,17 +1154,16 @@ static PyTypeObject MpskReceiverRObjType = {
   .tp_flags   = Py_TPFLAGS_DEFAULT,
   .tp_doc
   = "Create the M-PSK receiver behind an R2C halfband: a real IF in. The same "
-    "object as MpskReceiver -- same loops, same handover, same demapper, same "
-    "state -- reached through a matched DDCR instead of a matched DDC, so "
-    "`steps()` and `bits()` take float32 and everything else is shared "
-    "verbatim. A real-valued IF is the usual output of a single-ended ADC, so "
-    "this is the face that takes a digitiser's samples directly. Three things "
-    "follow from the halfband and nothing else differs: the LO runs at HALF "
-    "the input rate (handled internally -- every frequency on this class "
-    "stays in cycles/sample at the real input rate), `sps` must exceed `2 * "
-    "m_out` strictly rather than merely reaching `m_out`, and "
-    "`init_norm_freq` is the real IF CENTRE rather than a baseband "
-    "residual.\n",
+    "object as MpskReceiver -- same loops, same demapper, same state -- "
+    "reached through a matched DDCR instead of a matched DDC, so `steps()` "
+    "and `bits()` take float32 and everything else is shared verbatim. A "
+    "real-valued IF is the usual output of a single-ended ADC, so this is the "
+    "face that takes a digitiser's samples directly. Three things follow from "
+    "the halfband and nothing else differs: the LO runs at HALF the input "
+    "rate (handled internally -- every frequency on this class stays in "
+    "cycles/sample at the real input rate), `sps` must exceed `2 * m_out` "
+    "strictly rather than merely reaching `m_out`, and `init_norm_freq` is "
+    "the real IF CENTRE rather than a baseband residual.\n",
   .tp_methods = MpskReceiverRObj_methods,
   .tp_getset  = MpskReceiverR_getset,
   .tp_new     = MpskReceiverRObj_new,

@@ -1988,7 +1988,7 @@ main (void)
   /* 23. THE LO RUNS AT HALF THE INPUT RATE.
    *
    * The claim mpsk_rx_loops.h makes that NOTHING in this repository asserted
-   * (docs/design/mpsk.md §12 §2, last row): the R2C halfband decimates
+   * (docs/design/mpsk.md §12.3, last row): the R2C halfband decimates
    * 2:1 before the mix, so `lo_sps = sps/2` and every caller-facing frequency
    * is converted back to the input rate on the way out. It is where the
    * gh-765 `freq_scale` defect lived, and it went through every step test in

@@ -349,7 +349,7 @@ static PyMethodDef mpsk_module_methods[] = {
     "QPSK's `phi0 = pi/4` grid is axis-separable, so its two bits are\n"
     "independent BPSK decisions and each subset holds one point. Only 8PSK\n"
     "is an approximation; what that costs in dB is not measured yet and is\n"
-    "therefore not claimed here (docs/design/mpsk.md §9.7 section 5).\n"
+    "therefore not claimed here (docs/design/mpsk.md §9.7).\n"
     "\n"
     "n0 is the noise power `E[|n|^2]` for unit-amplitude symbols, and it\n"
     "scales the output exactly: `L(n0) = L(1) / n0`. A **Viterbi is\n"

@@ -103,7 +103,23 @@ def main(out_path: str = "ddc_fn_scaling.png") -> None:
     # execute, two threads would aggregate ≈1× base throughput.  Genuine
     # parallelism must clear that by a wide margin on any 2+ core box
     # (measured ≈1.9×; the memory-bandwidth ceiling only bites later).
-    if ncpu >= 2 and 2 in counts:
+    # ...but NOT under profile instrumentation, where the number is not the
+    # receiver's. `make coverage` builds with -fprofile-instr-generate, and
+    # every counter update is an atomic on a page shared between threads, so
+    # two threads serialise on the profiling runtime rather than on the GIL:
+    # measured 0.98x here against ~1.9x uninstrumented. Asserting anyway
+    # would make a threading claim out of a measurement of llvm's counters.
+    #
+    # Keyed on LLVM_PROFILE_FILE, which the coverage recipe sets and nothing
+    # else does -- a precise precondition, not a guess about the environment.
+    # Everything above still runs and still contributes coverage; only the
+    # claim that cannot hold is withheld, and it says so out loud.
+    if os.environ.get("LLVM_PROFILE_FILE"):
+        print(
+            "  scaling assertion skipped: LLVM_PROFILE_FILE is set, so the "
+            "profiling runtime's atomics dominate the threading it measures"
+        )
+    elif ncpu >= 2 and 2 in counts:
         su2 = speedups[counts.index(2)]
         assert su2 > 1.25, (
             f"2-thread speedup {su2:.2f}x — execute appears GIL-bound"

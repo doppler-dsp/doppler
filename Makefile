@@ -646,8 +646,32 @@ $(CMAKE) -B $(COV_DIR) -S . \
     $(CMAKE_ARGS)
 $(CMAKE) --build $(COV_DIR) --parallel $(NPROC)
 mkdir -p $(COV_DIR)/pkg/doppler
+# The extract below is ADDITIVE -- it overwrites what it carries and leaves
+# everything else -- so a test deleted or renamed in src/ lingered here and
+# kept running, forever. Found by sabotage: a temporary failing test removed
+# from src/ still failed the next run from this copy.
+#
+# A deleted test that keeps passing is worse than one that keeps failing: it
+# reports coverage for source that no longer exists. So the python half is
+# cleared first, by name rather than by wiping the directory -- the freshly
+# built *.so live here too (PYTHON_PACKAGE_DIR points at it) and removing
+# those would force a relink on every run.
+find $(COV_DIR)/pkg/doppler -type f ! -name '*.so' -delete 2>/dev/null || true
+find $(COV_DIR)/pkg/doppler -type d -empty -delete 2>/dev/null || true
 (cd src/doppler && tar cf - --exclude='*.so' .) \
     | (cd $(COV_DIR)/pkg/doppler && tar xf -)
+# The tar above excludes *.so but NOT executables, so `_bin/wfmgen` rode
+# along from the NORMAL build -- gcc, optimised -- while `import doppler`
+# resolved to the instrumented clang/Debug library beside it. Every test
+# asserting byte parity between the CLI and the library then compared two
+# different builds of the same source and failed on floating-point output:
+# 8 of them, invisible under the leading `-` on pytest below.
+#
+# Installing the instrumented binary makes them RUN and contribute coverage,
+# which is the same reasoning as resolving the repo root by walking up
+# rather than skipping the tests that could not find it.
+install -m 755 $(COV_DIR)/native/src/wfmcompose/wfmgen \
+    $(COV_DIR)/pkg/doppler/wfm/_bin/wfmgen
 rm -rf $(COV_DIR)/prof && mkdir -p $(COV_DIR)/prof
 # -j, because this suite is the single biggest block of the coverage job:
 # 682s serial in CI against 135 tests. Source-based coverage is per-PROCESS
@@ -660,19 +684,14 @@ cd $(COV_DIR) && LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/c-%p-%m.profraw" \
 # The per-process profile argument is identical -- xdist workers are separate
 # processes and %p gives each its own .profraw.
 #
-# THE LEADING `-` STAYS, FOR NOW, AND IT SHOULD NOT. make ignores this
-# command's exit code, and it is failing: 89 results (27 failed, 62 errors)
-# against 2631 passed, permanently tolerated in the one job that produces the
-# coverage number. Every one is an artifact of running against the COPIED
-# tree -- `Path(__file__).parents[N]` lands in `build-cov/` instead of the
-# repo root, so `docs/schema/*.json`, `scripts/*.sh` and `native/inc/*.h` are
-# all missing. They pass from `src/`, so nothing real is hidden today; what
-# is hidden is any FUTURE regression, among 89 tolerated results.
-#
-# Removing the `-` requires fixing that resolution first (17 files share the
-# fixed-depth idiom), which is a test-infrastructure change and not this
-# branch's subject. Done separately, then the `-` goes.
--LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/py-%p-%m.profraw" \
+# NO LEADING `-`. This ran with make ignoring pytest's exit code, hiding 89
+# results (27 failed, 62 errors) in the one job that produces the coverage
+# number -- the "a gate that cannot fail" shape where it can least afford to
+# be. All 89 are now fixed at their cause rather than tolerated: 81 by
+# resolving the repo root by walking up, 7 by installing the instrumented
+# wfmgen above, and 1 by withholding a scaling assertion that profiling
+# invalidates. A failure here is now a failure.
+LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/py-%p-%m.profraw" \
     PYTHONPATH="$(CURDIR)/$(COV_DIR)/pkg" \
     $(PYTHON_EXECUTABLE) -m pytest $(COV_DIR)/pkg/doppler \
     -q -p no:cacheprovider --ignore-glob='*/benchmarks/*' -n auto

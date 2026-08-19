@@ -27,7 +27,7 @@ about:
 | node sync      | which symbol starts a `(C1, C2)` pair                  | `node_sync_scan` (§9 of viterbi.md) |
 | inner decode   | soft-decision Viterbi, K = 7, r = 1/2                  | `viterbi_decode`                    |
 | ASM search     | the marker in the **decoded** bits, and its complement | `ccsds_tm_asm_find`                 |
-| derandomise    | XOR the published sequence                             | involutive — the same call          |
+| derandomise    | XOR the sequence the link chose (10.4.1 or 10.4.2)     | involutive — the same call          |
 | outer decode   | R-S (255,223) E = 16, de-interleaved                   | `ccsds_tm_rs_decode_block`          |
 
 Every row was a "no" when this table was written. They landed bottom-up in the
@@ -308,24 +308,26 @@ ______________________________________________________________________
 
 ## 8. What the coding gain measurement found
 
-The sweep, at `I = 5` through `MpskReceiver`, 48 CADUs per point:
+The sweep, at `I = 5` through `MpskReceiver`, 48 CADUs per point, under the
+randomiser 131.0-B-6 makes the default (10.4.1, the 131071-bit sequence):
 
-| Es/N0    | Eb/N0    | channel SER | post-Viterbi BER | frames byte-exact | payload                      |
-| -------- | -------- | ----------- | ---------------- | ----------------- | ---------------------------- |
-| −3 dB    | 0.59     | 17.1 %      | 2.1e-01          | 0 / 46            | 1951 errors                  |
-| −2 dB    | 1.59     | 14.1 %      | 8.2e-02          | 0 / 46            | 802 errors                   |
-| −1 dB    | 2.59     | 11.2 %      | 1.6e-02          | 9 / 47            | 424 errors                   |
-| **0 dB** | **3.59** | **8.4 %**   | **1.8e-03**      | **40 / 46**       | **0 errors in 356 800 bits** |
-| +1 dB    | 4.59     | 6.0 %       | 9.1e-05          | 45 / 46           | 0 errors in 401 400 bits     |
+| Es/N0     | Eb/N0    | channel SER | post-Viterbi BER | frames byte-exact | payload                      |
+| --------- | -------- | ----------- | ---------------- | ----------------- | ---------------------------- |
+| −3 dB     | 0.59     | —           | —                | 0 / 47            | nothing synchronised         |
+| −2 dB     | 1.59     | —           | —                | 0 / 46            | nothing synchronised         |
+| −1 dB     | 2.59     | 12.6 %      | 3.2e-02          | 26 / 46           | 3951 errors                  |
+| 0 dB      | 3.59     | 8.7 %       | 4.5e-03          | 40 / 46           | 465 errors                   |
+| +1 dB     | 4.59     | 6.2 %       | 2.5e-03          | 44 / 46           | 435 errors                   |
+| **+2 dB** | **5.59** | **4.0 %**   | **8.5e-06**      | **46 / 46**       | **0 errors in 410 320 bits** |
 
 **The gain is quoted as a lower bound, and the bound is the run length rather
 than the code.** Zero errors is not a rate, so the harness takes the exact
-95 % upper limit on the BER from zero errors in 356 800 bits
+95 % upper limit on the BER from zero errors in 410 320 bits
 (`ber_confidence`), asks what Eb/N0 an uncoded link would have needed to reach
 it (`ber_esn0_db_for_ser`, the library's own closed form inverted), and
 subtracts the Eb/N0 this link actually ran at:
 
-> **≥ 6.1 dB at Eb/N0 = 3.59 dB**, with the channel putting one symbol in 12
+> **≥ 4.1 dB at Eb/N0 = 5.59 dB**, with the channel putting one symbol in 25
 > wrong before decoding.
 
 130.1-G quotes 7–8 dB at BER 1e-5 for an ideal demodulator; a one-sided bound
@@ -334,33 +336,91 @@ not a discrepancy. **The rate is part of the answer**: R = 1/2 × 223/255 =
 0.4373, so the link is charged 3.59 dB for its redundancy before any gain is
 claimed. A coding gain quoted without that term is 3.6 dB that does not exist.
 
+### Why the reported bound moved, and why it is NOT a receiver defect
+
+This section read **≥ 6.1 dB at Eb/N0 3.59 dB** until the randomiser moved.
+131.0-B-6 makes 10.4.1's 131071-bit sequence the `shall` and keeps the 255-bit
+one only for legacy systems; adopting it moved the cleanest point from 0 dB to
++2 dB and the reported bound with it.
+
+**That is mostly the sweep's grid, not the receiver.** The mechanism was
+measured directly ([#866](https://github.com/doppler-dsp/doppler/issues/866),
+closed) and it is much smaller than the 2 dB step suggests:
+
+| what                                   | legacy  | B-6         |
+| -------------------------------------- | ------- | ----------- |
+| transition density, full period        | 50.00 % | **50.00 %** |
+| maximum run                            | 8       | 15–16       |
+| runs longer than 8, per CADU           | 0       | 20          |
+| implementation loss, uncoded isolation | 0.10 dB | 0.12 dB     |
+
+The two sequences have the **same** transition density and the same
+run-length distribution below 8 — legacy's is simply truncated there, because
+a maximal-length sequence of degree `D` has a maximum run of exactly `D`. The
+whole difference is ~20 events per CADU where the timing loop coasts 9–15
+symbols instead of ≤ 8, which is **0.2 % of symbols**. Isolated at the anchor
+geometry, that costs about **0.02 dB** of implementation loss — B-6 worse in
+four of four measured pairs, so the effect is real and its sign is right, but
+it is two orders of magnitude short of 2 dB.
+
+What inflates it here is the operating point, and both halves are the
+measurement's own shape rather than the receiver's:
+
+- a **concatenated code on its cliff** turns the ~3 % relative change in
+    channel SER into a large change in payload errors — the code behaving
+    correctly;
+- the sweep is sampled on a **1 dB grid**, so the reported clean point moves
+    two whole steps. B-6 at +1 dB was already at 1.08e-3 payload BER, so the
+    true threshold shift is well under 2 dB and this grid cannot say where.
+
+So the ≥ 4.1 dB below is the receiver's real bound at this geometry, and the
+right reading of the move is "a cliff measured coarsely", not "the timing loop
+was drawing 2 dB from a randomiser". A finer sweep through the threshold is
+what would pin the actual shift; nothing here waits on it.
+
 ### Three things only a receiver-in-the-loop run could say
 
 **The uncoded lock detector is not a usable gate for a coded link.** The
-binary `locked` flag is asserted 0.2 % of the time at −3 dB, 24 % at 0 dB and
-68 % at +1 dB — while the lock STATISTIC is positive essentially always and
-the frames decode byte-exact. The loops are tracking; the detector's
-threshold was sized for an uncoded link, and a concatenated link runs several
-dB below it by design ([#835](https://github.com/doppler-dsp/doppler/issues/835)).
+binary `locked` flag is asserted 0 % of the time at −3 dB, 23 % at 0 dB, 68 %
+at +1 dB and 96 % at +2 dB — while the lock STATISTIC is positive essentially
+always and the frames decode byte-exact. The loops are tracking; the
+detector's threshold was sized for an uncoded link, and a concatenated link
+runs several dB below it by design
+([#835](https://github.com/doppler-dsp/doppler/issues/835)).
 So the measurement window is the settling budget and
 the evidence of lock is that the marker appears and the frames decode — which
 is what an attached sync marker is for. Both duty cycles are printed so this
 stays a measurement rather than an assumption.
 
-**Slips are real at these Es/N0, and one of them flips the node phase.** Over
-~46 frame slots at 0 dB: 3 node re-synchronizations and 3 frame-sync
-re-acquisitions. One measured slip moved the stream by an odd number of
-symbols, which flips the `(C1, C2)` parity and turns every subsequent bit
-into noise until node sync is re-run. **A node-sync object therefore cannot
-be a one-shot at start of stream** — a constraint §3's sketch does not state,
-and the reason the harness decodes in segments.
+That the duty barely moved across the randomiser change — 24 % → 23 % at 0 dB,
+68 % → 68 % at +1 dB — while the payload went from error-free to 465 errors
+looks like the detector missing something, and #866 was opened on that
+reading. It is not. The carrier lock statistic is `Re((z/|z|)^M)`, normalised
+by its own amplitude law so the loop can run with no AGC in front of it, and
+the **timing** loop has its own detector besides. Both are means, and the two
+waveforms have identical means: measured on the timing loop's own telemetry,
+`rx.sync.lock` moves 0.4–0.5 % between them while its *minimum* — a tail
+statistic — moves up to 5.4 %, and the de-chattered `rx.sync.locked` stays at
+100 % throughout.
+
+So the duty is not failing to report a problem; there is no problem of that
+size to report, and the one statistic that saw anything is the one nobody
+summarises. A tail-sensitive timing indicator is a reasonable thing to want,
+but it is a separate idea from this threshold.
+
+**Slips are real at these Es/N0, and one of them flips the node phase.** Frame
+sync loses the marker where it expected it 10 times at −1 dB, 4 at 0 dB and
+once at +1 dB, falling to **zero** only at the clean point. A measured slip
+moved the stream by an odd number of symbols, which flips the `(C1, C2)` parity and
+turns every subsequent bit into noise until node sync is re-run. **A node-sync
+object therefore cannot be a one-shot at start of stream** — a constraint §3's
+sketch does not state, and the reason the harness decodes in segments.
 
 **The outer code never miscorrected.** A CADU that decodes, reports every
 codeword good, and matches no transmitted frame is a Reed-Solomon
 miscorrection — the outcome `rs_core.h` warns is possible past `E` and that
 no counter in the tree could previously see. Across the whole sweep,
-including the two points below threshold where most codewords fail:
-**zero**.
+including the two points where nothing synchronised at all: **zero**.
 
 ### Node synchronization moved into the library
 

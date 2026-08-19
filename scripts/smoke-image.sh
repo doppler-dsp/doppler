@@ -50,8 +50,21 @@ downstream)
                   print('iqtools ok:', Capture.__name__, RawCapture.__name__)"
   ;;
 stream)
-  run sh -c 'command -v transmitter && command -v receiver && \
-     command -v spectrum_analyzer'
+# EXECUTE each binary, do not merely locate it. This was `command -v` on all
+# three, which passes on a binary that can never run: the loader is not
+# involved in resolving a name on PATH. That is exactly what happened — the
+# binaries were compiled on glibc 2.39 and shipped onto a 2.36 runtime, so
+# every one of them died at startup with
+#
+#   transmitter: libm.so.6: version `GLIBC_2.38' not found
+#
+# while this smoke, and therefore CI's Docker job, stayed green. `--help` is
+# the cheapest thing that forces a real exec: the dynamic linker resolves
+# every DT_NEEDED and every versioned symbol before main() is entered, so an
+# ABI mismatch fails here even though nothing connects to a broker.
+  run sh -c 'transmitter --help >/dev/null && receiver --help >/dev/null && \
+     spectrum_analyzer --help >/dev/null && \
+     echo "stream: all three binaries exec cleanly"'
   ;;
 *)
   echo "smoke-image.sh: unknown kind '${kind}'" >&2

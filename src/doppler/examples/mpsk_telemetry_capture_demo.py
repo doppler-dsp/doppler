@@ -8,9 +8,16 @@ cadence: the capture sizes the ring from the probe count and the block, and
 ``set_now()`` drains at every boundary, so **a drop is impossible rather than
 merely unlikely** — and `close()` raises if one happened anyway.
 
-The receiver forwards to its child loops, so one attach registers all 13
-probes — its own carrier set (``rx.lock``/``rx.tracking``/``rx.car.*``), the
-symbol-timing loop (``rx.sync.*``), and the front-end AGC (``rx.agc.*``).
+The receiver forwards to its child loops, so one attach registers every
+probe it and they own — its own carrier set
+(``rx.lock``/``rx.tracking``/``rx.car.*``), the symbol-timing loop
+(``rx.sync.*``, including ``rx.sync.lock``, the Gardner eye-opening ratio,
+and its de-chattered ``rx.sync.locked``), the recovered symbol
+(``rx.sym.*``), and the front-end AGC (``rx.agc.*``). The count is
+deliberately not written down here — it was stated as 13 while the real
+figure was 16, and nothing read it back. What pins the set is the assert
+below, ``set(series) == set(tlm.probe_names)``, which fails if a probe
+appears or disappears.
 The AGC pair does not share the others' grid: it is tapped pre-terminal,
 ahead of the stage the timing loop steers, and emits once per gain update
 rather than once per recovered symbol. That is what makes `read_dict`
@@ -43,7 +50,7 @@ import numpy as np
 
 from doppler.telemetry import MemoryCapture, Telemetry
 from doppler.track import BpskReceiver
-from doppler.wfm import SampleClock
+from doppler.wfm import Composer, SampleClock, Segment
 
 FS = 1e6  # sample rate, and therefore the figure's time axis
 RS = 125e3  # symbol rate — 8 samples/symbol, but nothing here says "8"
@@ -60,19 +67,38 @@ BN_CARRIER = 0.02
 OFFSET_SYM = BN_CARRIER / 2  # cycles per symbol, at the bound
 OFFSET = OFFSET_SYM * RS / FS  # cycles per sample, for the stimulus
 
-# A BPSK signal with that residual offset, cold-started so the pull-in is
-# real; 20 dB matched Es/N0.
-rng = np.random.default_rng(1)
-idx = rng.integers(0, 2, 4000)
-tx = np.exp(1j * np.pi * idx).astype(np.complex64)
-tx = np.repeat(tx, int(FS / RS)).astype(np.complex64)
-k = np.arange(tx.size)
-sigma = np.sqrt(8 / (2 * 10 ** (20.0 / 10)))
-iq = (
-    tx * np.exp(2j * np.pi * OFFSET * k)
-    + rng.normal(0, sigma, tx.size)
-    + 1j * rng.normal(0, sigma, tx.size)
-).astype(np.complex64)
+# The stimulus is built by `wfmgen`'s composer, not by numpy. Source
+# generation is C-first, and this is the same path the CLI and the JSON
+# record drive -- so the demo exercises the shipped transmitter instead of a
+# second one written to resemble it.
+#
+# What that replaces is worth naming, because each line was a copy of
+# something the library already owns: `np.repeat` for a rectangular pulse,
+# `exp(2j*pi*OFFSET*k)` for the carrier offset, and
+# `sqrt(8 / (2 * 10**(20/10)))` for the noise level -- an Es/N0 conversion
+# that is `snr_mode="esno"` here and `wfm_snr_over_fs()` in C. A demo that
+# re-derives the transmitter cannot catch a transmitter bug.
+NSYM = 4000
+SPS = int(FS / RS)
+iq = np.asarray(
+    Composer(
+        [
+            Segment(
+                type="pn",  # maximal-length payload; no numpy RNG
+                pn_length=15,  # period 32767 >> NSYM, so it never repeats
+                seed=1,
+                modulation="bpsk",
+                pulse="rect",  # NRZ, matching the I&D the receiver derives
+                sps=SPS,
+                snr=20.0,
+                snr_mode="esno",  # 20 dB MATCHED Es/N0, by the library's law
+                freq=OFFSET * FS,  # cycles/sample -> Hz, converted once
+                fs=FS,
+                num_samples=NSYM * SPS,
+            )
+        ]
+    ).compose()
+)
 
 # ONE ring; attach the receiver at decim=1 = EVERY event on EVERY probe. The
 # attach registers the receiver's own probes AND forwards to its child loops,

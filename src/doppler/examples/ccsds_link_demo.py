@@ -8,10 +8,14 @@ except the numbers CCSDS picked.
 The point is the coverage asymmetry. The four stages do **not** all cover the
 same bits:
 
-    stage                  covers the marker?   131.0-B-3
+    stage                  covers the marker?   131.0-B-3 section
     Reed-Solomon (outer)   no                   9.5.1, 9.2.1.5
     pseudo-randomiser      no                   10.3.2, 10.3.4 note 1
     convolutional (inner)  YES                  3.2.1, 9.2.1.4
+
+Those sections are numbered as B-3 has them, the issue this was written
+against. 131.0-B-6 is current and moved the numbers without changing what
+they say (gh-865).
 
 An assembler that gets any one of those backwards still encodes, still
 decodes against a receiver of its own construction, and syncs to nothing.

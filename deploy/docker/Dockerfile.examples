@@ -32,6 +32,14 @@
 #                     that docker-compose.yml runs. No toolchain, no Python.
 # ---------------------------------------------------------------------------
 
+# The glibc-floor toolchain, by tag. Declared before the first FROM so it is
+# a global build ARG usable in a later FROM. It is NOT pulled from a registry:
+# `make docker-stream` builds it from deploy/docker/Dockerfile.glibc228 first,
+# which is why that Makefile target — not a bare `docker compose up` — is the
+# entry point for the stream image. Keep the default in step with the
+# Makefile's GLIBC_IMAGE (= $(DOCKER_IMAGE)-glibc228:$(DOCKER_TAG)).
+ARG GLIBC_BASE=doppler-glibc228:dev
+
 # ── Stage 1: build + install doppler from this checkout ────────────────────
 # BUILD_PYTHON=OFF: none of these images need doppler's own Python extension
 # (the SDK builds downstream *bindings*, not doppler's), so the builder stays
@@ -103,16 +111,50 @@ ENV PYTHONPATH=/iqtools/src
 RUN make test
 CMD ["/bin/bash"]
 
+# ── Stage 1b: the streaming binaries, built AT THE GLIBC FLOOR ─────────────
+# A second builder, deliberately not the ubuntu:24.04 one above. Those three
+# binaries are the only artifacts here that get shipped and RUN on a base other
+# than the one that compiled them, so they are the only ones that have to hold
+# doppler's glibc floor (Makefile GLIBC_MAX, 2.28).
+#
+# They did not. Built on ubuntu:24.04 (glibc 2.39) and shipped onto
+# debian:bookworm-slim (2.36), every compose service died on startup with
+#
+#   transmitter: libm.so.6: version `GLIBC_2.38' not found
+#
+# Three symbols pulled the floor up: fmod, re-versioned in libm at 2.38, plus
+# __isoc23_sscanf / __isoc23_strtol, which glibc's own headers silently
+# redirect sscanf/strtol to from 2.38 onward. None of that is
+# architecture-specific — the target was broken everywhere; it just took
+# someone actually running `docker compose up` to find out. Static doppler
+# linkage does not make a binary static against libc.
+#
+# The fix is to compile them where the floor lives rather than to raise the
+# runtime to meet them, so the base is the SAME toolchain image the
+# `glibc-gate` gate uses. One definition of "glibc 2.28", in
+# Dockerfile.glibc228, consumed twice — moving the floor means moving that
+# base image, and both consumers follow.
+FROM ${GLIBC_BASE} AS stream-build
+WORKDIR /src
+COPY . .
+RUN cmake -B build-stream -S . -DBUILD_PYTHON=OFF -DCMAKE_BUILD_TYPE=Release \
+ && cmake --build build-stream -j"$(nproc)" \
+        --target transmitter receiver spectrum_analyzer
+
 # ── Target: streaming services for docker-compose ──────────────────────────
 # The examples/c streaming binaries link doppler statically (doppler_lib_static
-# + the folded-in stream tier + nats.c), so they are self-contained — this
-# runtime needs only libc/libm/pthread from the slim base. Binaries land on
-# PATH; docker-compose.yml invokes them by bare name.
+# + the folded-in stream tier + nats.c), so this runtime needs no doppler and
+# no toolchain — only libc/libm/pthread from the slim base. That holds now
+# because stream-build above targets glibc 2.28, comfortably under this base's
+# 2.36; the invariant is runtime glibc >= builder glibc, and `make glibc-check`
+# now enforces the builder half across every example binary, not just
+# libdoppler.so. Binaries land on PATH; docker-compose.yml invokes them by
+# bare name.
 FROM debian:bookworm-slim AS stream-services
-COPY --from=doppler-build \
-        /src/build/examples/c/transmitter \
-        /src/build/examples/c/receiver \
-        /src/build/examples/c/spectrum_analyzer \
+COPY --from=stream-build \
+        /src/build-stream/examples/c/transmitter \
+        /src/build-stream/examples/c/receiver \
+        /src/build-stream/examples/c/spectrum_analyzer \
         /usr/local/bin/
 WORKDIR /app
 # No ENTRYPOINT: docker-compose sets each service's command explicitly.

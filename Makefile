@@ -743,7 +743,8 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 test-ubsan \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
-                glibc-check glibc-gate specan-check check-isotime-parity \
+                glibc-check glibc-gate glibc-image specan-check \
+                check-isotime-parity \
                 tests-ssot validation-report-check \
                 compile_commands.json \
                 install-docs-deps \
@@ -1668,38 +1669,69 @@ consumer-faces-check: build ## Build a consumer via cc/CMake/pkg-config, assert 
 	 && bash tests/install/stream-consumer/build-three-ways.sh "$$t/pfx"; \
 	 rc=$$?; rm -rf "$$t"; exit $$rc
 
-# The oldest glibc a released .so may reference. Pure inspection, and only
+# The oldest glibc a released ARTIFACT may reference. Pure inspection, and only
 # meaningful against a build MADE on that glibc: pointed at a modern distro's
 # build it fails on that build's legitimately newer symbols, which is the
 # check working, not a bug. `glibc-gate` below supplies the old-glibc input;
 # this target is what it (and nothing else now) runs against the result.
+#
+# It inspects libdoppler.so AND every example binary, because the .so alone was
+# not the whole shipped surface. deploy/docker/Dockerfile.examples ships three
+# of those binaries (transmitter/receiver/spectrum_analyzer) in the compose
+# image, and they had drifted to GLIBC_2.38 — fmod plus the __isoc23_sscanf /
+# __isoc23_strtol redirects glibc's own headers apply from 2.38 onward — while
+# this gate stayed green, because it only ever opened one file. `glibc-gate`
+# was already BUILDING those binaries at the floor and then throwing the
+# evidence away. The list is globbed, never enumerated, so a new example is
+# covered the moment it builds.
 GLIBC_MAX ?= 2.28
+GLIBC_EXAMPLE_DIR = $(BUILD_DIR)/examples/c
 glibc-check: ## Verify no glibc symbol newer than $(GLIBC_MAX) (needs an old-glibc build)
 # Fail-closed on BOTH ways of reading nothing, because "no bad symbols found"
 # and "no symbols found" produced the identical green line: pointed at a dir
 # with no .so, objdump wrote its error to stderr, $$BAD came back empty and
 # this printed ALL SYMBOLS OK. Harmless while a human ran it right after a
-# build; a false pass once `glibc-gate` made it a gate in GATES_DEPS.
+# build; a false pass once `glibc-gate` made it a gate in GATES_DEPS. The same
+# trap has two more mouths now that the input is a globbed list: an empty glob,
+# and a single file in the list that objdump reads nothing from.
 	@so=$(BUILD_DIR)/libdoppler.so; \
 	 if [ ! -f "$$so" ]; then \
 	     echo "glibc-check: no $$so to inspect — build it first," \
 	          "or run 'make glibc-gate' to build one on glibc $(GLIBC_MAX)"; \
 	     exit 1; \
 	 fi; \
-	 SEEN=$$(objdump -T "$$so" | grep -oP 'GLIBC_\K[0-9.]+' | sort -Vu); \
-	 if [ -z "$$SEEN" ]; then \
-	     echo "glibc-check: $$so references no versioned glibc symbol at all —" \
-	          "objdump read nothing, so nothing was asserted"; \
+	 examples=$$(find $(GLIBC_EXAMPLE_DIR) -maxdepth 1 -type f -perm -u+x \
+	             2>/dev/null | sort); \
+	 if [ -z "$$examples" ]; then \
+	     echo "glibc-check: no example binaries under $(GLIBC_EXAMPLE_DIR) —" \
+	          "the compose image ships three of these, so an empty list is a" \
+	          "broken build, not a clean run"; \
 	     exit 1; \
 	 fi; \
-	 BAD=$$(printf '%s\n' "$$SEEN" \
-	        | awk -F. -v mx="$(GLIBC_MAX)" \
-	            'BEGIN{split(mx,m,".")} $$1 > m[1] || ($$1 == m[1] && $$2 > m[2])'); \
-	 if [ -n "$$BAD" ]; then \
-	     echo "glibc-check: libdoppler.so references glibc > $(GLIBC_MAX): $$BAD"; \
-	     exit 1; \
-	 fi; \
-	 echo "glibc-check: all glibc symbols <= $(GLIBC_MAX) (highest: $$(printf '%s\n' "$$SEEN" | tail -1))"
+	 rc=0; high=; n=0; \
+	 for f in "$$so" $$examples; do \
+	     n=$$((n + 1)); \
+	     seen=$$(objdump -T "$$f" 2>/dev/null \
+	             | grep -oP 'GLIBC_\K[0-9.]+' | sort -Vu); \
+	     if [ -z "$$seen" ]; then \
+	         echo "glibc-check: $$f references no versioned glibc symbol at" \
+	              "all — objdump read nothing, so nothing was asserted"; \
+	         rc=1; continue; \
+	     fi; \
+	     bad=$$(printf '%s\n' "$$seen" \
+	            | awk -F. -v mx="$(GLIBC_MAX)" \
+	                'BEGIN{split(mx,m,".")} $$1 > m[1] || ($$1 == m[1] && $$2 > m[2])'); \
+	     if [ -n "$$bad" ]; then \
+	         echo "glibc-check: $$f references glibc > $(GLIBC_MAX):" \
+	              "$$(printf '%s ' $$bad)"; \
+	         rc=1; \
+	     fi; \
+	     high=$$(printf '%s\n%s\n' "$$high" "$$seen" \
+	             | grep -v '^$$' | sort -Vu | tail -1); \
+	 done; \
+	 [ $$rc -eq 0 ] || exit 1; \
+	 echo "glibc-check: all glibc symbols <= $(GLIBC_MAX) across $$n files" \
+	      "(highest: $$high)"
 
 # The missing half: a way to PRODUCE an old-glibc build anywhere. Without it
 # the floor was answerable only by pushing and reading CI, and `glibc-check`
@@ -1724,8 +1756,16 @@ GLIBC_BUILD_DIR  ?= build-glibc228
 GLIBC_IMAGE      ?= $(DOCKER_IMAGE)-glibc228:$(DOCKER_TAG)
 GLIBC_DOCKERFILE := deploy/docker/Dockerfile.glibc228
 
-glibc-gate: ## Build in a glibc $(GLIBC_MAX) container, then run glibc-check on it
+# The toolchain image is its own target because it now has TWO consumers:
+# this gate, and `docker-stream`, which compiles the compose image's three
+# streaming binaries at the floor rather than on the modern builder. Inlining
+# the `docker build` in both would be two definitions of "glibc $(GLIBC_MAX)"
+# free to drift — the exact thing Dockerfile.glibc228's own header says moving
+# it out of ci.yml was meant to stop.
+glibc-image: ## Build the glibc $(GLIBC_MAX) toolchain image (shared: glibc-gate, docker-stream)
 	docker build -f $(GLIBC_DOCKERFILE) -t $(GLIBC_IMAGE) deploy/docker
+
+glibc-gate: glibc-image ## Build in a glibc $(GLIBC_MAX) container, then run glibc-check on it
 # Run as the caller, not root: the build tree lands in the bind-mounted
 # checkout, and a root-owned build-glibc228/ is one `make clean` away from
 # needing sudo. One `make` invocation, three goals — command-line overrides
@@ -1735,6 +1775,29 @@ glibc-gate: ## Build in a glibc $(GLIBC_MAX) container, then run glibc-check on 
 	    make build test-examples glibc-check \
 	        BUILD_DIR=$(GLIBC_BUILD_DIR) \
 	        STANDALONE_BUILD_DIR=$(GLIBC_BUILD_DIR)/standalone
+# Repoint the compilation database at the normal build tree. The isolation
+# above is about the CMake cache; this is the OTHER thing a BUILD_DIR override
+# leaks into the checkout, and it was missed. `build` depends on the
+# `compile_commands.json` target, whose recipe is
+# `ln -sfn $(BUILD_DIR)/compile_commands.json $@` — so the sub-make above
+# repoints the repo-root symlink at build-glibc228/ and LEAVES it there.
+#
+# What that database contains is the problem: it was generated inside the
+# container under `-w /w`, so every entry names `/w/native/src/...`. Measured
+# after a gate run: 434 entries, and ZERO of them exist on the host.
+#
+# doppler's own `make lint-clang-tidy` is unaffected — it overrides
+# LINT_clang-tidy to pass `-p $(BUILD_DIR)` and takes its file list from
+# `git ls-files`, so it never reads this symlink. The consumers that DO are
+# clangd (every C file in the editor resolves against a database of paths that
+# do not exist) and standard.mk's default `-p .` recipe, which any repo not
+# overriding it would hit.
+#
+# $(BUILD_DIR) here is the OUTER value (the override applies only to the
+# sub-make), so this restores whatever the developer actually builds into.
+# Unconditional rather than guarded: re-linking to where it already points is
+# a no-op, and a conditional would have to re-derive the default it is fixing.
+	@ln -sfn $(BUILD_DIR)/compile_commands.json compile_commands.json
 
 # The recorded specan demo frames are a projection of the specan source, so a
 # change to one without the other ships a demo that no longer matches the code.
@@ -1976,8 +2039,15 @@ docker-downstream: ## Build+smoke the iqtools showcase image (doppler-downstream
 	bash scripts/smoke-image.sh downstream \
 	    $(DOCKER_IMAGE)-downstream-jm:$(DOCKER_TAG)
 
-docker-stream: ## Build+smoke the lean compose streaming-services image
+# Depends on glibc-image because this is the one image whose binaries RUN on a
+# different base than the one that compiled them, so they are built at the
+# floor (see Dockerfile.examples' stream-build stage). That dependency is also
+# why `docker compose up` on a clean checkout cannot be the entry point for
+# this image: the FROM in stream-build names a local tag nothing pulls.
+# docker-compose.yml says so at the top.
+docker-stream: glibc-image ## Build+smoke the lean compose streaming-services image
 	docker build -f $(EXAMPLES_DOCKERFILE) --target stream-services \
+	    --build-arg GLIBC_BASE=$(GLIBC_IMAGE) \
 	    -t $(DOCKER_IMAGE)-stream-services:$(DOCKER_TAG) .
 	bash scripts/smoke-image.sh stream \
 	    $(DOCKER_IMAGE)-stream-services:$(DOCKER_TAG)

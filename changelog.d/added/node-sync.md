@@ -28,7 +28,7 @@
     put an ASM where an ASM could be — the harness doing the library's job
     with a statistic that exists only because CCSDS supplies a marker.
     Swapping it onto the re-encoding metric changed **no measured number**:
-    same frames, same bits, same ≥ 6.1 dB bound. That is the evidence the
+    same frames, same bits, same bound. That is the evidence the
     general statistic is at least as good as the special one.
 
 - **The standard test harness gained the two helpers this needed**, rather

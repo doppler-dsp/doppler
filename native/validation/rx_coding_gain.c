@@ -602,9 +602,20 @@ print_row (const cg_result_t *r)
       printf ("REFUSED — %s\n", r->refused);
       return;
     }
-  printf ("%8.4f%%  %9.2e  %3u/%-3u  %5u  %2u/%-2u  %4.0f%%  ",
-          100.0 * (double)r->chan_errs / (double)r->chan_syms,
-          (double)r->vit_errs / (double)r->vit_bits, r->rs_ok, r->rs_words,
+  /* A point where nothing synchronised has no symbols to compare, so both
+     rates would divide by zero and print `-nan`. That reads as a broken
+     MEASUREMENT when the honest answer is "no data" -- and the table is
+     evidence quoted in docs/design/fec-receive.md, so it has to say which
+     one it means. */
+  if (r->chan_syms == 0)
+    printf ("%9s  ", "--");
+  else
+    printf ("%8.4f%%  ", 100.0 * (double)r->chan_errs / (double)r->chan_syms);
+  if (r->vit_bits == 0)
+    printf ("%9s  ", "--");
+  else
+    printf ("%9.2e  ", (double)r->vit_errs / (double)r->vit_bits);
+  printf ("%3u/%-3u  %5u  %2u/%-2u  %4.0f%%  ", r->rs_ok, r->rs_words,
           r->rs_repaired, r->cadus_exact, r->cadus_due, 100.0 * r->lock_duty);
   printf ("%2u %+4ld %2u  ", r->reacq, r->drift, r->cadus_bogus);
   if (r->payload_errs == 0)
@@ -659,7 +670,7 @@ main (int argc, char **argv)
 
   if (!check)
     {
-      printf ("Coding gain — CCSDS 131.0-B-3 concatenated coding, I=%d,\n"
+      printf ("Coding gain — CCSDS concatenated coding (131.0-B-6), I=%d,\n"
               "through MpskReceiver at the DP_RX_ANCHOR geometry.\n"
               "Rate %.4f, so Eb/N0 = Es/N0 + %.2f dB before any gain.\n\n",
               RS_DEPTH, CODE_RATE, -10.0 * log10 (CODE_RATE));
@@ -727,20 +738,27 @@ main (int argc, char **argv)
 
            Adopting 131.0-B-6's randomiser (10.4.1, the 131071-bit sequence)
            in place of the legacy 255-bit one moved the cleanest point from
-           Es/N0 0.0 dB to 2.0 dB and the bound with it, 6.1 -> 4.1. The
-           cause is measured and is not the code: a maximal-length sequence
-           of degree D has a maximum run of exactly D, so the legacy
-           randomiser GUARANTEED a transition at least every 8 symbols and
-           B-6's guarantees only every 17. Twenty times per CADU the timing
-           loop now coasts longer than it used to, and the loss shows up in
-           the channel SER -- before the decoder sees anything.
+           Es/N0 0.0 dB to 2.0 dB and the reported bound with it, 6.1 -> 4.1.
 
-           So the receiver was drawing ~2 dB from a property of a randomiser
-           chosen for unrelated reasons, and B-6 removed it deliberately (the
-           short period puts spectral lines at 1/255 of the symbol rate).
-           That is gh-866, and this threshold is deliberately NOT waiting for
-           it: the bound this harness reports is the receiver's, and the
-           receiver is what it is today. */
+           THAT STEP IS MOSTLY THIS SWEEP'S GRID, NOT THE RECEIVER, and the
+           distinction was measured rather than reasoned (gh-866, closed).
+           Both sequences have the same 50.00% transition density and the
+           same run distribution below 8 -- legacy's is simply truncated
+           there, since a maximal-length sequence of degree D has a maximum
+           run of exactly D. The whole difference is ~20 events per CADU
+           where the timing loop coasts 9-15 symbols instead of <= 8, which
+           is 0.2% of symbols, and isolated at this geometry it costs about
+           0.02 dB of implementation loss.
+
+           What moves the reported clean point two whole steps is a
+           concatenated code on its cliff amplifying a ~3% relative change in
+           channel SER, sampled on a 1 dB grid: B-6 at +1 dB was already at
+           1.08e-3 payload BER, so the true threshold shift is well under
+           2 dB and ESN0[] cannot resolve where. Re-run on a finer grid if
+           that number is ever needed.
+
+           The 4.0 dB here is still the receiver's real bound at this
+           geometry, which is what this gate defends. */
         if (r->gain_db < 4.0)
           {
             printf ("rx_coding_gain: FAIL — gain bound %.1f dB < 4.0 dB\n",

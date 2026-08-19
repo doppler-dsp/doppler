@@ -9,10 +9,10 @@
     field changed, so a difference from the battery's numbers is the coding
     or the Es/N0 and cannot be the geometry.
 
-    At Es/N0 = 0 dB (Eb/N0 3.59 dB), with the channel putting **one symbol in
-    12** wrong before decoding, the link delivered **40 of 46 frame slots,
-    every one byte-exact, 0 payload errors in 356 800 bits** — a coding gain
-    of **≥ 6.1 dB**, where the bound is the run length rather than the code:
+    At Es/N0 = +2 dB (Eb/N0 5.59 dB), with the channel putting **one symbol in
+    25** wrong before decoding, the link delivered **46 of 46 frame slots,
+    every one byte-exact, 0 payload errors in 410 320 bits** — a coding gain
+    of **≥ 4.1 dB**, where the bound is the run length rather than the code:
     zero errors is not a rate, so it is the exact 95 % upper limit
     (`ber_confidence`) turned into the Eb/N0 an uncoded link would have
     needed (`ber_esn0_db_for_ser`), minus the Eb/N0 this link ran at. The
@@ -21,17 +21,18 @@
 
     **Three things only a receiver-in-the-loop run could say**, all now in
     `docs/design/fec-receive.md` §8. The uncoded lock detector is not a
-    usable gate for a coded link: the binary `locked` flag reads 24 % at 0 dB
+    usable gate for a coded link: the binary `locked` flag reads 23 % at 0 dB
     while the loops track throughout and every delivered frame is byte-exact,
     so the window is the settling budget and the evidence of lock is that the
-    marker appears. Slips are real at these Es/N0 — 3 node re-synchronizations
-    and 3 frame-sync re-acquisitions over ~46 slots — and one of them moved
-    the stream by an ODD number of symbols, which flips the `(C1, C2)` parity
-    and makes every subsequent bit noise, so node sync cannot be a one-shot at
-    start of stream. And the outer code **never miscorrected**: a CADU that
+    marker appears. Slips are real at these Es/N0 — frame sync loses the
+    marker where it expected it 4 times over ~46 slots at 0 dB, falling to
+    zero only at the clean point — and a measured slip moved the stream by an
+    ODD number of symbols, which flips the `(C1, C2)` parity and makes every
+    subsequent bit noise, so node sync cannot be a one-shot at start of
+    stream. And the outer code **never miscorrected**: a CADU that
     decodes, reports every codeword good and matches no transmitted frame is
     the failure `rs_core.h` warns is possible past `E`, and across the whole
-    sweep including the points below threshold there were zero.
+    sweep including the points where nothing synchronised there were zero.
 
     Five gates, each proven by sabotage: disabling R-S correction, sweeping
     only an easy link (which fires the channel-SER, gain-bound and

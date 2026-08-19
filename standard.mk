@@ -263,7 +263,7 @@ gates-check: ## Verify `gates` runs every make target CI invokes
 	 ci_targets=$$(sed -E 's/(^|[[:space:]])#.*$$//' "$$ci" \
 	     | grep -hoE '(^[[:space:]]*(- )?run:[[:space:]]*make|^[[:space:]]*make|[;&|][[:space:]]*make)[[:space:]]+[a-zA-Z_][a-zA-Z0-9_-]*' \
 	     | grep -oE 'make[[:space:]]+[a-zA-Z_][a-zA-Z0-9_-]*$$' \
-	     | sed -E 's/make[[:space:]]+//' | sort -u); \
+	     | sed -E 's/make[[:space:]]+//' | LC_ALL=C sort -u); \
 	 if [ -z "$$ci_targets" ]; then \
 	     echo "ERROR: gates-check matched no 'make <target>' in $$ci —"; \
 	     echo "  the scan found nothing, so it did not run, so it has not passed."; \
@@ -326,7 +326,7 @@ COMPILE_DB    ?= copy
 # to lint its C, and cmake writes compile_commands.json one "file" key per
 # line. Override it if your generator emits something denser.
 TIDY_FILES    ?= sed -n 's/.*"file": *"\([^"]*\)".*/\1/p' \
-                     compile_commands.json | sort -u
+                     compile_commands.json | LC_ALL=C sort -u
 PYEXT_CMD     ?=
 
 # The in-place extension build belongs to the OVERLAP of the two flags, not to
@@ -823,7 +823,7 @@ help-check: ## Verify help documents every target, and every target is listed
 	                                          b = 1; r = 0; next } \
 	      b && / to execute/ { r = 1 } \
 	      b && /^$$/ { if (r) print n; b = 0 } \
-	      END { if (b && r) print n }' "$$db" | sort -u); \
+	      END { if (b && r) print n }' "$$db" | LC_ALL=C sort -u); \
 	 if [ -z "$$withrecipe" ]; then \
 	     echo "ERROR: parsed no rules out of make's database"; \
 	     echo "  This half of the gate did not run, so it has not passed."; \
@@ -849,20 +849,44 @@ help-check: ## Verify help documents every target, and every target is listed
 # The prerequisite half of that test is what keeps the aggregates legitimate:
 # `all: test`, `test-all: ...` and `ship: ...` carry no recipe by design and do
 # their work entirely through what they depend on.
+#
+# EVERY `sort` AND THE `comm` BELOW PIN LC_ALL=C, AND THAT IS LOAD-BEARING.
+# Target names are hyphen- and underscore-heavy, and a UTF-8 collation ignores
+# punctuation at the primary weight — so this gate broke two ways at once on a
+# developer box running en_US.UTF-8 (doppler, 2026-08-18):
+#
+#   `sort -u` DROPS DISTINCT NAMES. Under en_US, `test-stubs`, `teststubs` and
+#   `test_stubs` all compare equal, so three targets dedup to one and two
+#   vanish from the gate's input before anything is compared.
+#
+#   `comm` DESYNCS. It compares byte-wise while `sort` ordered by locale, so it
+#   printed `comm: input is not in sorted order` on every run and silently
+#   skipped matches in the disordered window.
+#
+# Net effect: a genuine ghost (`.PHONY`, no recipe, `make X` says "Nothing to
+# be done" and exits 0) sailed through as `ghost-check: no ghost targets`,
+# exit 0. Two of four probe names were missed — unreliable rather than
+# uniformly broken, which is why it looked fine for so long. CI mostly runs
+# C.UTF-8, so the gate was WEAKER on a workstation than in CI, backwards from
+# what a pre-commit gate should be.
+#
+# The same reasoning applies to the other pinned sites in this file: any
+# `sort -u` deduping names or paths can silently drop entries, so the gates
+# that dedup CI targets, tidy file lists and hook stages pin it too.
 ghost-check: ## Verify every .PHONY target has a recipe
 	@db=$$($(_STD_TMP)); phony=$$($(_STD_TMP)); norecipe=$$($(_STD_TMP)); \
 	 trap 'rm -f "$$db" "$$phony" "$$norecipe"' EXIT; \
 	 $(MAKE) -rpn --no-print-directory .std-db-goal >"$$db" 2>/dev/null; \
 	 sed -n 's/^\.PHONY:[ ]*//p' "$$db" | tr ' ' '\n' | sed '/^$$/d' \
-	     | sort -u >"$$phony"; \
+	     | LC_ALL=C sort -u >"$$phony"; \
 	 awk '/^[a-zA-Z0-9_.-]+:/ { n = $$0; sub(/:.*/, "", n); \
 	                            p = $$0; sub(/^[^:]*:/, "", p); \
 	                            b = 1; r = 0; next } \
 	      b && / to execute/ { r = 1 } \
 	      b && /^$$/ { if (!r && p !~ /[^[:space:]]/) print n; b = 0 } \
 	      END { if (b && !r && p !~ /[^[:space:]]/) print n }' "$$db" \
-	     | sort -u >"$$norecipe"; \
-	 ghosts=$$(comm -12 "$$phony" "$$norecipe"); \
+	     | LC_ALL=C sort -u >"$$norecipe"; \
+	 ghosts=$$(LC_ALL=C comm -12 "$$phony" "$$norecipe"); \
 	 if [ -n "$$ghosts" ]; then \
 	     echo "ERROR: .PHONY targets with no recipe behind them:"; \
 	     printf '  %s\n' $$ghosts; \
@@ -1014,7 +1038,7 @@ hook-stage-check: ## Verify every pre-commit hook stage is actually installed
 	 if [ -z "$$installed" ]; then installed=pre-commit; declared=0; else declared=1; fi; \
 	 inst=""; for s in $$installed; do inst="$$inst $$(norm $$s)"; done; \
 	 n=0; orphan=""; \
-	 for s in $$(printf '%s\n' "$$parsed" | sed -n 's/^stage\t//p' | sort -u); do \
+	 for s in $$(printf '%s\n' "$$parsed" | sed -n 's/^stage\t//p' | LC_ALL=C sort -u); do \
 	     s=$$(norm "$$s"); \
 	     [ "$$s" = manual ] && continue; \
 	     n=$$((n + 1)); \
@@ -1069,7 +1093,7 @@ help: ## Show this message
 	     [ -z "$$ts" ] && continue; \
 	     echo ""; \
 	     echo "$${c_title}$$s:$${c_reset}"; \
-	     for t in $$(printf '%s\n' $$ts | sort); do \
+	     for t in $$(printf '%s\n' $$ts | LC_ALL=C sort); do \
 	         $(_STD_DESC); \
 	         printf "  $${c_target}%-*s$${c_reset}  %s\n" "$$w" "$$t" "$$d"; \
 	     done; \

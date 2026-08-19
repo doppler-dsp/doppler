@@ -1291,7 +1291,7 @@ main (void)
       0, 0.0,                  /* acq_to_track, lock_thresh -> derived     */
       0.0, 0,                  /* init_norm_freq, differential             */
       0,                       /* num_phases  -> derived                   */
-      MPSK_RX_NDA_TAP_STROBE, 1,
+      1,
       0.0);                    /* bn_agc_ratio -> derived                  */
   if (!rx)
     return 1;                  /* every zero above is a request, not a

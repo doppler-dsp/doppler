@@ -50,6 +50,10 @@ jobs:
     - uses: actions/checkout@v7
     # No provisioning step: the toolchain is the image.
 
+    - uses: ./.github/actions/ccache
+      with:
+        key: build-${{ matrix.os }}
+
     - name: Build
       run: make build
 
@@ -83,6 +87,11 @@ jobs:
 
     - name: Rust FFI tests
       run: make test-rust
+
+    - name: Compiler-cache statistics
+      # In the log on purpose: a cache that stops hitting has no symptom
+      # other than builds slowly getting longer.
+      run: make ccache-stats
 
     # Early portability signal: the release pipeline already objdumps every
     # wheel .so for leaked AVX (release.yml), but only on tags — too late to
@@ -201,6 +210,10 @@ jobs:
     steps:
     - uses: actions/checkout@v7
 
+    - uses: ./.github/actions/ccache
+      with:
+        key: python
+
     - name: Install uv + Python + package deps
       uses: ./.github/actions/setup-uv
       with:
@@ -225,6 +238,11 @@ jobs:
 
     - name: Build Python C extensions
       run: make pyext
+
+    - name: Compiler-cache statistics
+      # In the log on purpose: a cache that stops hitting has no symptom
+      # other than builds slowly getting longer.
+      run: make ccache-stats
 
     - name: Doctest generated stubs
       # The .pyi docstrings are derived from each _core.h's Doxygen by jm.
@@ -554,6 +572,10 @@ jobs:
         # Full history so the patch gate can diff against origin/main.
         fetch-depth: 0
 
+    - uses: ./.github/actions/ccache
+      with:
+        key: coverage
+
     - name: Install uv + Python + package deps
       uses: ./.github/actions/setup-uv
       with:
@@ -577,6 +599,10 @@ jobs:
       shell: bash
       run: make coverage | tee coverage.txt
 
+    - name: Compiler-cache statistics
+      # In the log on purpose: a cache that stops hitting has no symptom
+      # other than builds slowly getting longer.
+      run: make ccache-stats
     - name: Stop NATS broker
       if: always()
       run: make nats-down

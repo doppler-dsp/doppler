@@ -7,5 +7,6 @@ set -euo pipefail
 # `make docs-relink`.
 # openSUSE Leap and Tumbleweed.
 # --8<-- [start:install]
-sudo zypper install gcc make cmake pkg-config python3-devel python3-numpy
+sudo zypper install gcc make ccache cmake pkg-config python3-devel \
+  python3-numpy
 # --8<-- [end:install]

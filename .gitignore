@@ -66,6 +66,13 @@ build-ubsan/
 # `make glibc-gate` builds here, inside the bind-mounted checkout, so the
 # container's Debian 10 tree never collides with the dev's own build/.
 build-glibc228/
+# `make ci-run` / `make ci-gates` build here for the same reason: the CI image
+# and the host target different glibcs, so one shared build/ produces link
+# errors that read like code bugs. Missing this line cost a `git add -A` that
+# swept 20k generated files into the index and set the end-of-file fixer
+# loose on them -- an ignore rule is not bookkeeping, it is what keeps a
+# bind-mounted build tree out of the repository.
+build-ci/
 .mkdoxy/
 
 # jm materialises its own create-only assertion harness on every `jm apply`.

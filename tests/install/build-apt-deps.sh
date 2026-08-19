@@ -7,6 +7,6 @@ set -euo pipefail
 # `make docs-relink`.
 # Ubuntu, Debian, and derivatives (Mint, Pop!_OS, ...).
 # --8<-- [start:install]
-sudo apt-get install build-essential cmake pkg-config python3-dev \
+sudo apt-get install build-essential ccache cmake pkg-config python3-dev \
   python3-numpy
 # --8<-- [end:install]

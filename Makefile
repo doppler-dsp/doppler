@@ -362,8 +362,12 @@ nats-down: ## Stop and remove the NATS JetStream broker
 # here after its cp refused outright against the symlink doppler already had).
 COMPILE_DB = symlink
 
+# ccache-stats prints a hit rate; it asserts nothing and cannot fail the
+# build, so it is provisioning/reporting rather than a gate. gates-check is
+# what noticed -- CI called a target `gates` could not reach, and said so.
 GATES_PROVISION = install-deps install-docs-deps build pyext nats-up \
                   nats-down install-deps-ci install-docs-deps-ci \
+                  ccache-stats \
                   apt-stall-config
 GATES_DEPS    = lint changelog-check drift-check doxygen-check docs-check \
                 gen-c-api-check \
@@ -374,8 +378,21 @@ GATES_DEPS    = lint changelog-check drift-check doxygen-check docs-check \
                 docker-examples
 
 # ── Build ────────────────────────────────────────────────────────────────────
+# Compile through ccache when it is installed, and silently not when it is
+# not: bootstrap.toml lists it, but a checkout predating that, or a box
+# provisioned another way, must still build. DERIVED rather than declared for
+# the same reason the coverage target derives its profile runtime -- asking
+# whether the tool is there beats asserting that it is.
+#
+# CMake caches the launcher in CMakeCache.txt, so an existing build tree keeps
+# whatever it was configured with until it is reconfigured. That is why this
+# reaches CONFIGURE, not the build step.
+CCACHE_BIN   := $(shell command -v ccache 2>/dev/null)
+CCACHE_FLAGS := $(if $(CCACHE_BIN),-DCMAKE_C_COMPILER_LAUNCHER=ccache,)
+
 CMAKE_FLAGS = -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-              -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) $(CMAKE_ARGS)
+              -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) $(CCACHE_FLAGS) \
+              $(CMAKE_ARGS)
 
 # `CMAKE_FLAGS` reaches the CONFIGURE step only, and the standard's `build`
 # ends with a bare `cmake --build $(BUILD_DIR)` — so there is no flag surface
@@ -659,6 +676,7 @@ define COVERAGE_CMD
 $(CMAKE) -B $(COV_DIR) -S . \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_C_COMPILER=clang \
+    $(CCACHE_FLAGS) \
     -DDOPPLER_COVERAGE=ON -DBUILD_PYTHON=ON \
     -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) \
     -DPYTHON_PACKAGE_DIR=$(CURDIR)/$(COV_DIR)/pkg/doppler \
@@ -870,6 +888,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
                 apt-stall-config deps-budget-check \
                 ci-image ci-image-check ci-image-shell ci-image-source-hash \
+                ci-shell ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke \
                 bench-interleaved bench-publish bench-docs bench-stream \
                 bench-report \
@@ -2087,6 +2106,18 @@ CI_IMAGE_PIN   := .github/ci-images.env
 # developer can actually cause. Whether UPSTREAM packages moved is a different
 # question, and the nightly rebuild in ci-image.yml is what asks it -- it
 # compares the package fingerprint baked into the image, not this.
+# Make the cache's effect VISIBLE. CI calls this after its build steps, so
+# the hit rate is in the log rather than being an assumption about a tool
+# nobody can see working -- if the cache silently stopped hitting, the only
+# other symptom would be builds slowly getting longer.
+ccache-stats: ## Print compiler-cache hit statistics (no-op without ccache)
+	@if [ -n "$(CCACHE_BIN)" ]; then \
+	    $(CCACHE_BIN) --show-stats --verbose 2>/dev/null \
+	        || $(CCACHE_BIN) --show-stats; \
+	 else \
+	    echo "ccache-stats: ccache not installed — builds are uncached"; \
+	 fi
+
 ci-image-source-hash: ## Print the hash of the CI image's inputs (plumbing)
 	@cat bootstrap.toml $(CI_DOCKERFILE) | sha256sum | cut -d' ' -f1
 
@@ -2098,7 +2129,64 @@ ci-image: ## Build the CI toolchain image locally, one per base
 	         || exit 1; \
 	 done
 
-ci-image-shell: ## A shell in the CI image, this checkout bind-mounted at /w
+# Run it like CI runs it, in the SAME image CI pins -- by digest, not by a
+# local tag that happens to share a name. This is the payoff of baking the
+# toolchain: "works on my machine" and "works in CI" become the same
+# sentence, and today's two failures are both cases it would have caught
+# before a push. `make test-rust` died in CI on a cargo old enough to reject
+# the repo's own lockfile, invisible on a box carrying rustup; and a build
+# tree from THIS host, handed to the container, failed to link with
+# atan2f@GLIBC_2.43 because the host's glibc is newer than the image's.
+#
+# Hence CI_BUILD_DIR, and it is not a nicety: the container and the host
+# produce objects for different glibcs, so sharing one build/ is how you get
+# a link error that looks like a code bug. Same separation, same reason, as
+# glibc-gate's build-glibc228.
+CI_IMAGE     ?= $(CI_IMAGE_2404)
+CI_BUILD_DIR ?= build-ci
+CI_DOCKER_RUN = docker run --rm -u $$(id -u):$$(id -g) \
+                    -v "$(CURDIR)":/w -w /w
+
+ci-shell: ## Interactive shell in the PINNED CI image, checkout at /w
+	@docker run --rm -it -u $$(id -u):$$(id -g) \
+	    -v "$(CURDIR)":/w -w /w $(CI_IMAGE) bash
+
+ci-run: ## Run `make TARGET=<goals>` inside the PINNED CI image
+	@if [ -z "$(TARGET)" ]; then \
+	    echo "ci-run: name what to run, e.g."; \
+	    echo "    make ci-run TARGET='build test-rust'"; \
+	    echo "    make ci-run TARGET=lint"; \
+	    exit 2; \
+	 fi
+	$(CI_DOCKER_RUN) -e DOPPLER_BUILD_DIR=/w/$(CI_BUILD_DIR) $(CI_IMAGE) \
+	    make $(TARGET) BUILD_DIR=$(CI_BUILD_DIR) \
+	        STANDALONE_BUILD_DIR=$(CI_BUILD_DIR)/standalone
+# DOPPLER_BUILD_DIR as well as BUILD_DIR, because they are read by different
+# consumers and missing the second one fails in a way that reads as a code
+# bug: ffi/rust/build.rs locates the library itself, defaulting to ../../build
+# -- the HOST tree -- so `ci-run TARGET=test-rust` linked this box's
+# glibc-2.43 .so inside a 2.39 container and died on
+# `undefined reference: atan2f@GLIBC_2.43`. Pointing both at the container
+# tree is what makes "run it like CI" true rather than nearly true.
+# Repoint the compilation database at the HOST build tree, for the same
+# reason glibc-gate does: `build` symlinks it at $(BUILD_DIR), so a container
+# run leaves the repo root pointing into $(CI_BUILD_DIR), whose every entry
+# names /w/... — paths that do not exist here, which breaks clangd silently.
+	@ln -sfn $(BUILD_DIR)/compile_commands.json compile_commands.json
+
+# The composition a developer actually wants before pushing: the gate set
+# CI runs, in the environment CI runs it in. `gates` is already "every gate CI
+# runs" (gates-check enforces that against ci.yml); this is that list with the
+# environment question removed too.
+#
+# Deliberately NOT a git pre-push hook. `gates` includes `coverage`, which is
+# ~10 minutes -- a hook that slow is one people pass --no-verify to, and a
+# gate routinely bypassed is decoration. It is a target you run when you mean
+# it, and CI remains the thing that is not optional.
+ci-gates: ## Run the full gate set inside the PINNED CI image (pre-push check)
+	@$(MAKE) --no-print-directory ci-run TARGET=gates
+
+ci-image-shell: ## A shell in the LOCALLY BUILT CI image (see ci-image)
 	@docker run --rm -it -u $$(id -u):$$(id -g) \
 	    -v "$(CURDIR)":/w -w /w doppler-ci:ubuntu-24.04 bash
 

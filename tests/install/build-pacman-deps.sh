@@ -7,5 +7,5 @@ set -euo pipefail
 # `make docs-relink`.
 # Arch Linux and derivatives (Manjaro, EndeavourOS, CachyOS, ...).
 # --8<-- [start:install]
-sudo pacman -S --needed base-devel cmake pkgconf python python-numpy
+sudo pacman -S --needed base-devel ccache cmake pkgconf python python-numpy
 # --8<-- [end:install]

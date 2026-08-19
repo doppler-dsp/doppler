@@ -1,0 +1,60 @@
+name: Restore the compiler cache
+description: >
+  One home for how doppler persists ccache across CI runs — where the cache
+  lives, how its key rolls, and how big it may get.
+
+# Why a cache at all, measured rather than assumed: on one run the C core was
+# compiled seven times with the SAME compiler and the SAME flags -- once per
+# Python job (only the ~11s extension build differs per ABI), plus the
+# ubuntu-24.04 build leg -- at 59-80s each. That is ~7 minutes of identical
+# work per run.
+#
+# Why ccache rather than building once and sharing an artifact: an artifact
+# forces the six Python jobs to WAIT on a build job (a serialization point
+# that did not exist before) and adds an upload plus six downloads, to share
+# something they can each reproduce in seconds from cache. ccache also spans
+# RUNS, which an artifact cannot: the second push to a branch hits a warm
+# cache, and that is the case a developer actually feels.
+#
+# What it must NOT do is collapse builds that only look alike. The 22.04 leg
+# is a different glibc and compiler, the coverage tree is clang with
+# -fprofile-instr-generate, glibc-228 is the floor's toolchain. ccache hashes
+# the compiler binary and the full flag set, so those land in different
+# entries by construction rather than by our being careful.
+
+inputs:
+  key:
+    description: >
+      Job-shaped cache key segment (e.g. "python", "build-linux-24.04").
+      Distinct keys keep one job's churn from evicting another's entries.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Point ccache at a cacheable directory
+      shell: bash
+      run: |
+        # Under $GITHUB_WORKSPACE because that path exists identically on the
+        # host and inside a container job, which $HOME does not: a container
+        # job's HOME is /github/home, and a cache saved there by one job shape
+        # is awkward to restore into another.
+        echo "CCACHE_DIR=$GITHUB_WORKSPACE/.ccache" >> "$GITHUB_ENV"
+        # 500M is well above what one job produces and well under the 10G
+        # repository cache budget shared by every key here.
+        echo "CCACHE_MAXSIZE=500M" >> "$GITHUB_ENV"
+        # Compilers land at different absolute paths across images; hashing
+        # the content instead keeps a hit when only the path moved.
+        echo "CCACHE_COMPILERCHECK=content" >> "$GITHUB_ENV"
+
+    - name: Restore ccache
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/.ccache
+        # Rolling key: every run saves under its own SHA, and the prefix
+        # restores the most recent previous entry. A fixed key would freeze
+        # the cache at whatever populated it first and slowly stop hitting as
+        # the tree moved away from it.
+        key: ccache-${{ inputs.key }}-${{ github.sha }}
+        restore-keys: |
+          ccache-${{ inputs.key }}-

@@ -7,5 +7,5 @@ set -euo pipefail
 # `make docs-relink`.
 # macOS (Homebrew).
 # --8<-- [start:install]
-brew install cmake pkg-config python numpy
+brew install cmake ccache pkg-config python numpy
 # --8<-- [end:install]

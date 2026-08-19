@@ -63,6 +63,15 @@
     all fast ones, so ~3.4x the worst observed is the honest margin, and a true
     hang is still bounded at ten minutes against the 360 it used to get.
 
+    **The retry budget has to fit the step ceiling, and the first version did
+    not.** 600s x 3 tries is 30 minutes against a `timeout-minutes: 15`, so the
+    retry — which the reclaim had just made work, apt restarting cleanly with
+    no lock error — was killed mid-download four minutes later. Now 2 tries
+    against a 25-minute ceiling (~20.2 min of budget), and `make   deps-budget-check` derives both sides from the real numbers and fails if
+    they ever stop fitting. Sabotage-proven: it reddens on the exact 600x3
+    against-15 pairing that shipped, and refuses rather than passing silently
+    if it can find no `timeout-minutes:` to check against.
+
     Also measured on that run: **GitHub's macOS runner has neither
     `timeout(1)` nor `gtimeout`**, so the script carries a POSIX watchdog
     fallback with the same contract rather than leaving a whole platform on the

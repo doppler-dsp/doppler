@@ -202,7 +202,7 @@ jobs:
           python-version: ${{ matrix.python }}
 
       - name: Install system dependencies
-        timeout-minutes: 15
+        timeout-minutes: 25
         run: make install-deps-ci
 
       - name: Build wheel (Python ${{ matrix.python }})
@@ -298,7 +298,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install system dependencies
-        timeout-minutes: 15
+        timeout-minutes: 25
         run: make install-deps-ci
 
       - name: Build + tar the C library

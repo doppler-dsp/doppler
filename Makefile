@@ -778,7 +778,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 tests-ssot validation-report-check \
                 compile_commands.json \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
-                apt-stall-config \
+                apt-stall-config deps-budget-check \
                 wheel-check wheel-smoke release-smoke \
                 bench-interleaved bench-publish bench-docs bench-stream \
                 bench-report \
@@ -806,7 +806,7 @@ include standard.mk
 # long as it has existed. Being inert (#705) was only half the problem; not
 # running was the other half, and `gates` is a local convenience, not CI.
 lint: tests-ssot characterization-check validation-report-check changelog-check \
-      issue-link-check
+      issue-link-check deps-budget-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -872,8 +872,19 @@ install-docs-deps: ## Install the docs system deps (bootstrap.toml `docs` group)
 # observed healthy run and still bounds a true hang at ten minutes against the
 # 360 it used to get. The apt-level timeout below is what actually makes that
 # distinction; this is the backstop for everything it does not cover.
+#
+# THE BUDGET MUST FIT THE STEP CEILING, and the first version of this did not:
+# 600s x 3 tries is 30 minutes against a `timeout-minutes: 15`, so a retry
+# after a full-deadline attempt was killed mid-download every time. Measured
+# exactly that way -- the reclaim worked, apt restarted cleanly with no lock
+# error, and the step ceiling ended it four minutes later. Keep
+#
+#     DEPS_DEADLINE x DEPS_TRIES + backoff  <  the workflow's timeout-minutes
+#
+# true whenever either number moves: 600 x 2 + 10s is ~20.2 min, under the 25
+# the steps now allow.
 DEPS_DEADLINE ?= 600
-DEPS_TRIES    ?= 3
+DEPS_TRIES    ?= 2
 
 # Teach apt to fail a STALLED connection fast and retry it itself.
 #
@@ -907,6 +918,44 @@ apt-stall-config: ## Make apt fail a stalled mirror fast (CI, Linux, no-op elsew
 	 else \
 	    echo "apt-stall-config: no apt-get/sudo — skipped (not an error)"; \
 	 fi
+
+# The budget rule above, as a gate rather than a comment, because it already
+# drifted once: 600x3 shipped against a 15-minute ceiling and every retry died
+# mid-download. Derived from the real numbers on both sides -- DEPS_* here, the
+# `timeout-minutes:` the workflows actually carry -- so moving either one
+# without the other fails here instead of four minutes into a CI retry.
+deps-budget-check: ## Verify DEPS_DEADLINE x DEPS_TRIES fits the workflow ceiling
+	@budget=$$(( $(DEPS_DEADLINE) * $(DEPS_TRIES) )); \
+	 backoff=0; i=1; \
+	 while [ $$i -lt $(DEPS_TRIES) ]; do \
+	     backoff=$$(( backoff + i * 10 )); i=$$(( i + 1 )); \
+	 done; \
+	 need=$$(( budget + backoff )); \
+	 ceilings=$$(grep -rhoE '^[[:space:]]*timeout-minutes: [0-9]+' \
+	     .github/workflows/*.yml | grep -oE '[0-9]+' | LC_ALL=C sort -un); \
+	 if [ -z "$$ceilings" ]; then \
+	     echo "ERROR: deps-budget-check found no timeout-minutes in"; \
+	     echo "  .github/workflows — the scan found nothing, so it did not"; \
+	     echo "  run, so it has not passed."; \
+	     exit 1; \
+	 fi; \
+	 rc=0; \
+	 for c in $$ceilings; do \
+	     have=$$(( c * 60 )); \
+	     if [ $$need -ge $$have ]; then \
+	         echo "ERROR: provisioning can need $${need}s"; \
+	         echo "  ($(DEPS_DEADLINE)s x $(DEPS_TRIES) tries + $${backoff}s"; \
+	         echo "  backoff) against a $${c}-minute step ceiling ($${have}s)."; \
+	         echo "  A retry after a full-deadline attempt would be killed"; \
+	         echo "  mid-download, which is the bug this pairing exists to"; \
+	         echo "  avoid. Lower DEPS_DEADLINE/DEPS_TRIES or raise"; \
+	         echo "  timeout-minutes."; \
+	         rc=1; \
+	     fi; \
+	 done; \
+	 [ $$rc -eq 0 ] || exit 1; \
+	 echo "deps-budget-check: $${need}s budget fits every step ceiling" \
+	      "($$(echo $$ceilings | tr '\n' ' ')min)"
 
 install-deps-ci: apt-stall-config ## install-deps under a per-attempt deadline + retries (CI)
 	@./scripts/with-deadline.sh $(DEPS_DEADLINE) $(DEPS_TRIES) \

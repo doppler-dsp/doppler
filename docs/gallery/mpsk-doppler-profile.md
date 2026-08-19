@@ -83,7 +83,7 @@ passes every step test unchanged. That is not hypothetical: it is how
 `freq_scale` under-drove every non-`strobe` NDA tap in this library until a
 ramp measurement found it
 ([gh-765](https://github.com/doppler-dsp/doppler/issues/765)).
-`native/validation/rx_nda_tap.c` now gates the closed form on every tap.
+`native/validation/rx_dynamics.c` now gates the closed form.
 
 ## Telemetry, not reconstruction
 

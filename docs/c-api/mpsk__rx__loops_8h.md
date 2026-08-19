@@ -50,7 +50,6 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 | Type | Name |
 | ---: | :--- |
 | enum  | [**mpsk\_\_rx\_\_loops\_8h\_1a99fb83031ce9923c84392b4e92f956b5**](#enum-mpsk__rx__loops_8h_1a99fb83031ce9923c84392b4e92f956b5)  <br>_Matched-filter pulse shape. Aliases of the cascade's own vocabulary so one set of names covers the whole family._  |
-| enum  | [**mpsk\_\_rx\_\_loops\_8h\_1abc6126af1d45847bc59afa0aa3216b04**](#enum-mpsk__rx__loops_8h_1abc6126af1d45847bc59afa0aa3216b04)  <br>_Where the NDA carrier discriminator reads from._  |
 
 
 
@@ -83,11 +82,10 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_rx\_fold**](#function-mpsk_rx_fold) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, const float complex \* ys, size\_t n, float complex zpre, int n\_pre, float complex \* y\_out, int ted) <br>_Fold one front end's burst of outputs into both loops._  |
 |  double | [**mpsk\_rx\_freq\_est**](#function-mpsk_rx_freq_est) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Tracked carrier offset in cycles/sample at the LO's rate — the loop's own estimate, excluding the front end's configured centre._  |
 |  void | [**mpsk\_rx\_loops\_get\_state**](#function-mpsk_rx_loops_get_state) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, void \* blob) <br>_Serialize the loops' mutable state into_ `blob` _._ |
-|  void | [**mpsk\_rx\_loops\_init**](#function-mpsk_rx_loops_init) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, int m, double sps, double lo\_sps, size\_t m\_out, double bn\_carrier, double zeta, double bn\_timing, double bn\_agc\_ratio, int ted, int acq\_to\_track, double lock\_thresh, int differential, int nda\_tap) <br>_Initialise the loops in place (no allocation)._  |
+|  void | [**mpsk\_rx\_loops\_init**](#function-mpsk_rx_loops_init) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, int m, double sps, double lo\_sps, size\_t m\_out, double bn\_carrier, double zeta, double bn\_timing, double bn\_agc\_ratio, int ted, int acq\_to\_track, double lock\_thresh, int differential) <br>_Initialise the loops in place (no allocation)._  |
 |  void | [**mpsk\_rx\_loops\_reset**](#function-mpsk_rx_loops_reset) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Re-seed both loops to their post-init state; keep configuration._  |
 |  int | [**mpsk\_rx\_loops\_set\_state**](#function-mpsk_rx_loops_set_state) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, const void \* blob) <br>_Restore the loops' mutable state from_ `blob` _._ |
 |  size\_t | [**mpsk\_rx\_loops\_state\_bytes**](#function-mpsk_rx_loops_state_bytes) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Bytes_ [_**mpsk\_rx\_loops\_get\_state()**_](mpsk__rx__loops_8h.md#function-mpsk_rx_loops_get_state) _writes._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_push\_mf\_in**](#function-mpsk_rx_push_mf_in) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex z) <br>_Push one MFR-INPUT sample into the NDA discriminator._  |
 |  void | [**mpsk\_rx\_set\_freq\_est**](#function-mpsk_rx_set_freq_est) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double val) <br>_Overwrite the tracked carrier offset (cycles/sample at the LO's rate) so the next output de-rotates by exactly_ `val` _._ |
 |  int | [**mpsk\_rx\_set\_telemetry**](#function-mpsk_rx_set_telemetry) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) telemetry across both loops; see_ [_**mpsk\_receiver\_set\_telemetry()**_](mpsk__receiver__core_8h.md#function-mpsk_receiver_set_telemetry) _, which forwards here._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_steer**](#function-mpsk_rx_steer) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double pe) <br>_Filter a carrier phase error and update_ `freq_ctrl` _._ |
@@ -198,65 +196,6 @@ enum mpsk__rx__loops_8h_1a99fb83031ce9923c84392b4e92f956b5 {
 
 
 
-
-<hr>
-
-
-
-### enum mpsk\_\_rx\_\_loops\_8h\_1abc6126af1d45847bc59afa0aa3216b04 
-
-_Where the NDA carrier discriminator reads from._ 
-```C++
-enum mpsk__rx__loops_8h_1abc6126af1d45847bc59afa0aa3216b04 {
-    MPSK_RX_NDA_TAP_STROBE = 0,
-    MPSK_RX_NDA_TAP_MF_OUT = 1,
-    MPSK_RX_NDA_TAP_MF_IN = 2
-};
-```
-
-
-
-An M-th-power discriminator updating at rate `F` can only observe a frequency error of `|df| < F/(2M)` — above that its M-th-power phase advances more than pi per update and the error folds. So the tap point IS the pull-in range, and it trades directly against signal quality:
-
-
-
-|tap   |update rate   |unambiguous \|df\|   |cost    |
-|-----|-----|-----|-----|
-|`STROBE`   |`Rs`   |`Rs/(2M)`   |needs symbol timing    |
-|`MF_OUT`   |`m_out*Rs`   |`m_out*Rs/(2M)`   |inter-symbol ISI bias    |
-|`MF_IN`   |`bank_sps`   |`bank_sps*Rs/(2M)`   |~`10*log10(bank_sps)` dB of EXCESS NOISE BANDWIDTH   |
-
-
-
-
-
-
-That third row read "none -- see below" until it was measured, and the omission was load-bearing: it is what made `MF_IN` look free and got it pinned as the continuous flavor's tap.
-
-
-**The cost is not lost signal energy, and it is not intrinsic to reading ahead of the matched filter.** A Nyquist-sampled band-limited signal loses nothing by being sampled fast, so the obvious "it forgoes the
-matched filter's processing gain" story is wrong  an earlier revision of this comment told it, with a `10*log10(sps)` law that grows without bound. Measured at the node with the AGC off so the path is linear (`native/validation/rx_dynamics.c` documents the run): the `MF_IN` node sits **6.01 dB** below Es/N0 at `bank_sps = 4` while the terminal node sits 1.7 dB below it, and `10*log10(4) = 6.02 dB`. The deficit is IDENTICAL at 6.79, 12 and 20 dB Es/N0  a pure bandwidth ratio, not an SNR-dependent effect.
-
-
-The mechanism: DEC band-limits to ITS OWN Nyquist, `+-bank_sps*Rs/2`, while the signal occupies ~`+-Rs`. Nothing between them removes the difference, and the terminal filter  the first thing in the cascade matched to the signal  is downstream of this tap. So the tap reads a node carrying several times the noise bandwidth it needs.
-
-
-It is **bounded by the plan**, not by the input rate: `bank_sps` is a planner outcome, and at `sps = 64` it is still 8, so the cost is 9.0 dB there and not 18.
-
-
-**This is the tap's price, not a defect awaiting a fix.** Band-limiting the node to the signal  an arm filter, or the 2 sps decimation S3.3 considers  would recover most of it and is deliberately NOT planned: both cost serialized state on every object that carries this tap, and `STROBE` already reads the node that IS matched to the signal, for free. A caller choosing `MF_IN` is buying `bank_sps/(2M)` of pull-in range and paying `10*log10(bank_sps)` dB of lock sensitivity for it. What degrades is the M-th-power LOCK statistic, because that is an SNR measure and not a phase measure; the loop itself acquires at every operating point measured.
-
-
-There is a second axis, and it is the one the cascade rebuild lost. `STROBE` is the only tap that depends on **symbol timing**: it reads the one output the timing loop nominates, so before timing lock it is reading an arbitrary phase of the pulse. `MF_OUT` consumes every terminal output and so does not care which one is on-time; `MF_IN` reads the MFR's input entirely ahead of it. Both therefore restore the property the NDA path exists for — acquiring with no data _and no symbol timing_ — which is why they are not merely "wider".
-
-
-No tap waits. `STROBE` steers from its first strobe whether or not the timing loop has declared, so its dependency is a reason to CHOOSE another tap when the carrier must acquire before timing does — not something the receiver resolves behind the caller's back. Gating it was tried and measured: across a 24-cell sweep it moved one cell, because what it really bought was a carrier transient that started at a known instant and was therefore easier to measure.
-
-
-Fixed at construction: the caller picks the trade once, and nothing switches underneath it. 
-
-
-        
 
 <hr>
 ## Public Functions Documentation
@@ -498,8 +437,7 @@ void mpsk_rx_loops_init (
     int ted,
     int acq_to_track,
     double lock_thresh,
-    int differential,
-    int nda_tap
+    int differential
 ) 
 ```
 
@@ -522,7 +460,6 @@ void mpsk_rx_loops_init (
 * `acq_to_track` Enable the two-way NDA&lt;-&gt;decision handover. 
 * `lock_thresh` Handover declare threshold on the carrier lock EMA; the drop threshold sits at MPSK\_RX\_HANDOVER\_DOWN x it, and both directions are verify-counted. The EMA's H0 sd is CARRIER\_NDA\_LOCK\_NORM\_SD (0.1132) for every M, so this divided by that is the threshold in noise sigmas and its per-look Pfa is Q(that) — 0.5 is 4.42 sigma, Pfa 5e-6. See [**carrier\_nda\_core.h**](carrier__nda__core_8h.md). 
 * `differential` bits(): differential (rotation-invariant) demap. 
-* `nda_tap` MPSK\_RX\_NDA\_TAP\_\* — where the NDA discriminator reads, which sets its pull-in range and whether it depends on symbol timing at all. 
 * `bn_agc_ratio` Scales the front end's AGC off the SLOWEST of the two loop bandwidths; must be in (0, 1). See [**mpsk\_rx\_agc\_bn()**](mpsk__rx__loops_8h.md#function-mpsk_rx_agc_bn). 
 
 
@@ -600,27 +537,6 @@ size_t mpsk_rx_loops_state_bytes (
 
 
 
-
-<hr>
-
-
-
-### function mpsk\_rx\_push\_mf\_in 
-
-_Push one MFR-INPUT sample into the NDA discriminator._ 
-```C++
-JM_FORCEINLINE  JM_HOT void mpsk_rx_push_mf_in (
-    mpsk_rx_loops_t * l,
-    float complex z
-) 
-```
-
-
-
-The MPSK\_RX\_NDA\_TAP\_MF\_IN path, and a no-op for every other tap. There is no arm filter here and none is wanted: the cascade has already band-limited this node and the AGC has already levelled it, which is the whole reason the tap exists. 
-
-
-        
 
 <hr>
 

@@ -20,7 +20,7 @@
  * check that catches an EVM beating the matched-filter bound. It does NOT gate
  * the loop numbers as values: a pull-in ceiling moves with the record length
  * allowed, so pinning one would pin the observation window rather than the
- * receiver (see `docs/design/mpsk.md` §8.1 and the `nda_tap` history).
+ * receiver (see `docs/design/mpsk.md` §8.1 and §3.3).
  *
  * A REFUSAL is not a failure. `dp_rx_run()` declining to report a number it
  * cannot defend is goal 1 working, and it is printed rather than counted.

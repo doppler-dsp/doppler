@@ -63,7 +63,7 @@ extern "C"
                         double zeta, double bn_timing, int acq_to_track,
                         double lock_thresh, double init_norm_freq,
                         int differential,
-                        size_t num_phases, int nda_tap, int agc,
+                        size_t num_phases, int agc,
                         double bn_agc_ratio);
 
   mpsk_receiver_state_t *
@@ -71,7 +71,7 @@ extern "C"
                              double rrc_beta, int rrc_span, double bn_carrier,
                              double zeta, double bn_timing, int acq_to_track,
                              double lock_thresh, double init_norm_freq,
-                             int differential, size_t num_phases, int nda_tap,
+                             int differential, size_t num_phases,
                              int agc, double bn_agc_ratio);
 
   double mpsk_receiver_get_agc_gain_db (const mpsk_receiver_state_t *state);

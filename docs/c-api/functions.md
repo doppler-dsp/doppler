@@ -1032,7 +1032,6 @@
 * **mpsk\_rx\_loops\_reset** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **mpsk\_rx\_loops\_set\_state** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **mpsk\_rx\_loops\_state\_bytes** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
-* **mpsk\_rx\_push\_mf\_in** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **mpsk\_rx\_set\_freq\_est** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **mpsk\_rx\_set\_telemetry** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **mpsk\_rx\_steer** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))

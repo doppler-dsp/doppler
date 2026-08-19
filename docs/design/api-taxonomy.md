@@ -232,7 +232,7 @@ is local rather than a change of mind: in the DSSS pair the plain name was
 free, so `Despreader`/`BurstDespreader` could carry the distinction with one
 prefix. Here the plain name is taken — `MpskReceiver` is the general,
 two-mode-capable object, and the continuous flavor is a *view* that pins its
-gating (`acq_to_track = 0`, `nda_tap = mf_in`). Reusing the plain name for the
+gating (`acq_to_track = 0`). Reusing the plain name for the
 continuous flavor would mean renaming or retiring the general object, which is
 a breaking change bought for symmetry alone. Marking both is longer and asks
 the reader to know nothing.

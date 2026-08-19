@@ -681,7 +681,7 @@ Two taps, at the two points a carrier discriminator can read without symbol timi
 
 **Note:**
 
-"Better conditioned" is not "more accurate", and the distinction is measured rather than assumed. native/validation/rx\_nda\_tap.c finds no residual-frequency-error advantage for this node over the symbol-rate strobe — three taps carrying one loop bandwidth over one signal settle to the same jitter. What it buys is a usable discriminator with no symbol timing and no arm filter; see doppler#766 for the pull-in-range question that would actually separate them.
+"Better conditioned" is not "more accurate", and the distinction is measured rather than assumed. The retired tap sweep found no residual-frequency-error advantage for this node over the symbol-rate strobe — three taps carrying one loop bandwidth over one signal settle to the same jitter. What it buys is a usable discriminator with no symbol timing and no arm filter; see doppler#766 for the pull-in-range question that would actually separate them.
 
 
 

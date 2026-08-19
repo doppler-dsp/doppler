@@ -275,7 +275,7 @@ dp_test_settle_syms (double bn_timing, double bn_carrier)
  * (doppler#843, doppler#849).
  *
  * Pull-in BEYOND the bound is a real property and worth measuring — as a
- * characterization sweep with a reported success fraction (rx_nda_tap.c),
+ * characterization sweep with a reported success fraction,
  * never as a pass/fail assertion.
  *
  * The Python twin is `freq_offset_inside_bw()` in

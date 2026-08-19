@@ -40,7 +40,7 @@ dp_rx_mpsk_create (const dp_rx_point_t *pt)
          sps-sized error, and at sps=8 it asked the
          loop for 8x its design envelope. */
       pt->fc - pt->foff / pt->sps, 0 /* differential */, 0 /* num_phases */,
-      pt->nda_tap, 1 /* agc */, 0.0 /* bn_agc_ratio */);
+      1 /* agc */, 0.0 /* bn_agc_ratio */);
 }
 
 static void
@@ -106,20 +106,20 @@ static const dp_rx_iface_t DP_RX_MPSK
 /* ── The second adapter, and the whole point of goal 6 ──────────────────────
  *
  * `ContinuousMpskReceiver` is the continuous flavor: a view over the same
- * core that PINS the gating (`acq_to_track = 0`, `nda_tap = strobe`, `agc`
+ * core that PINS the gating (`acq_to_track = 0`, `agc`
  * on) and the five derived parameters. Everything past construction is
  * shared verbatim, so this adapter is one function long and the other ten
  * entries are reused unchanged -- which is "a second receiver design costs
  * an adapter and nothing else" being cashed rather than asserted.
  *
- * It deliberately IGNORES `pt->acq_to_track` and `pt->nda_tap`. That is not
+ * It deliberately IGNORES `pt->acq_to_track`. That is not
  * the adapter taking a liberty: those are the knobs the flavor exists to
  * remove, so a point that sets them is asking for a receiver this one is
  * not.
  *
  * AND AT EVERY POINT IN THE CURRENT SET THE TWO ROWS COINCIDE EXACTLY, which
  * is worth stating rather than leaving to be noticed. Every named point sets
- * `acq_to_track = 0` and `nda_tap = strobe`, so what the flavor pins is what
+ * `acq_to_track = 0`, so what the flavor pins is what
  * the point already asked for and the two receivers construct identically.
  * The second row therefore proves the ADAPTER — that a second receiver design
  * costs one function and reuses the other ten entries verbatim — and not a

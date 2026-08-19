@@ -51,7 +51,6 @@ MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
                                         "init_norm_freq",
                                         "differential",
                                         "num_phases",
-                                        "nda_tap",
                                         "agc",
                                         "bn_agc_ratio",
                                         NULL };
@@ -69,15 +68,14 @@ MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
   double             init_norm_freq = 0.0;
   int                differential   = 0;
   unsigned long long num_phases_raw = 1024;
-  const char        *nda_tap_str    = "strobe";
   int                agc            = 1;
   double             bn_agc_ratio   = 0.05;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "|idKsdidddiddiKsid", kwlist, &m, &sps, &m_out_raw,
+          args, kwds, "|idKsdidddiddiKid", kwlist, &m, &sps, &m_out_raw,
           &pulse_str, &rrc_beta, &rrc_span, &bn_carrier, &zeta, &bn_timing,
           &acq_to_track, &lock_thresh, &init_norm_freq, &differential,
-          &num_phases_raw, &nda_tap_str, &agc, &bn_agc_ratio))
+          &num_phases_raw, &agc, &bn_agc_ratio))
     return -1;
   size_t m_out = (size_t)m_out_raw;
   int    pulse = 0;
@@ -93,25 +91,10 @@ MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
       return -1;
     }
   size_t num_phases = (size_t)num_phases_raw;
-  int    nda_tap    = 0;
-  if (strcmp (nda_tap_str, "strobe") == 0)
-    nda_tap = 0;
-  else if (strcmp (nda_tap_str, "mf_out") == 0)
-    nda_tap = 1;
-  else if (strcmp (nda_tap_str, "mf_in") == 0)
-    nda_tap = 2;
-  else
-    {
-      PyErr_Format (
-          PyExc_ValueError,
-          "nda_tap must be one of \"strobe\", \"mf_out\", \"mf_in\", got '%s'",
-          nda_tap_str);
-      return -1;
-    }
-  self->handle = mpsk_receiver_create_real (
+  self->handle      = mpsk_receiver_create_real (
       m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta, bn_timing,
-      acq_to_track, lock_thresh, init_norm_freq, differential, num_phases,
-      nda_tap, agc, bn_agc_ratio);
+      acq_to_track, lock_thresh, init_norm_freq, differential, num_phases, agc,
+      bn_agc_ratio);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
@@ -613,6 +596,45 @@ MpskReceiverR_getprop_lock_thresh (MpskReceiverRObject *self,
   return PyFloat_FromDouble (mpsk_receiver_get_lock_thresh (self->handle));
 }
 static PyObject *
+MpskReceiverR_getprop_lock_drop_thresh (MpskReceiverRObject *self,
+                                        void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (
+      mpsk_receiver_get_lock_drop_thresh (self->handle));
+}
+static PyObject *
+MpskReceiverR_getprop_sync_lock_thresh (MpskReceiverRObject *self,
+                                        void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (
+      mpsk_receiver_get_sync_lock_thresh (self->handle));
+}
+static PyObject *
+MpskReceiverR_getprop_sync_lock_drop_thresh (MpskReceiverRObject *self,
+                                             void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (
+      mpsk_receiver_get_sync_lock_drop_thresh (self->handle));
+}
+static PyObject *
 MpskReceiverR_getprop_bn_agc_ratio (MpskReceiverRObject *self,
                                     void                *Py_UNUSED (closure))
 {
@@ -710,48 +732,6 @@ MpskReceiverR_getprop_clipped (MpskReceiverRObject *self,
   return PyLong_FromLong ((long)mpsk_receiver_get_clipped (self->handle));
 }
 
-static PyObject *
-MpskReceiverR_getprop_lock_drop_thresh (MpskReceiverRObject *self,
-                                        void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (
-      mpsk_receiver_get_lock_drop_thresh (self->handle));
-}
-
-static PyObject *
-MpskReceiverR_getprop_sync_lock_thresh (MpskReceiverRObject *self,
-                                        void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (
-      mpsk_receiver_get_sync_lock_thresh (self->handle));
-}
-
-static PyObject *
-MpskReceiverR_getprop_sync_lock_drop_thresh (MpskReceiverRObject *self,
-                                             void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (
-      mpsk_receiver_get_sync_lock_drop_thresh (self->handle));
-}
-
 static PyGetSetDef MpskReceiverR_getset[] = {
   { "agc_gain_db", (getter)MpskReceiverR_getprop_agc_gain_db, NULL,
     "Gain the front-end AGC is applying, in dB; 0.0 when `agc=0`. The "
@@ -789,6 +769,30 @@ static PyGetSetDef MpskReceiverR_getset[] = {
     "`sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the constructor was "
     "given 0. See `zeta` for why every derived value is reported.\n",
     NULL },
+  { "lock_drop_thresh", (getter)MpskReceiverR_getprop_lock_drop_thresh, NULL,
+    "Carrier DROP threshold actually in use -- 0.8x `lock_thresh`, the level "
+    "hysteresis the declare/drop pair is stated with. Exposed for the same "
+    "reason as the declare side: anything reading `lock` against its decision "
+    "needs BOTH edges, and computing `0.8 *` at the call site is a second "
+    "copy of a rule this object owns. Both carrier detectors are initialised "
+    "from this pair, so one number describes them both.\n",
+    NULL },
+  { "sync_lock_thresh", (getter)MpskReceiverR_getprop_sync_lock_thresh, NULL,
+    "Timing DECLARE threshold on the `sync.lock` statistic. Not the carrier's "
+    "number and not derived the same way: symsync sizes its block length and "
+    "threshold together from (rolloff, esno_min, pfa, pd), so this reads back "
+    "that geometry's answer. A caller plotting `sync.lock` needs this rather "
+    "than `lock_thresh`, which belongs to a different statistic on a "
+    "different clock.\n",
+    NULL },
+  { "sync_lock_drop_thresh",
+    (getter)MpskReceiverR_getprop_sync_lock_drop_thresh, NULL,
+    "Timing DROP threshold on `sync.lock`. Equal to `sync_lock_thresh` when "
+    "the timing loop carries no level hysteresis (up = down = threshold, the "
+    "symsync default), so the two reading the same is information, not a bug "
+    "-- the timing decision's hysteresis is in its verify COUNTS rather than "
+    "its levels.\n",
+    NULL },
   { "bn_agc_ratio", (getter)MpskReceiverR_getprop_bn_agc_ratio, NULL,
     "AGC bandwidth as a fraction of the slowest loop it feeds, actually in "
     "use. Reads back the DERIVED 0.05 when the constructor was given 0. See "
@@ -825,30 +829,6 @@ static PyGetSetDef MpskReceiverR_getset[] = {
     "-- the output stays finite and plausible, merely distorted, at a cost of "
     "~25 dB of EVM that no lock metric reveals. Always 0 for a plan with no "
     "CIC stage.\n",
-    NULL },
-  { "lock_drop_thresh", (getter)MpskReceiverR_getprop_lock_drop_thresh, NULL,
-    "Carrier DROP threshold actually in use -- 0.8x `lock_thresh`, the level "
-    "hysteresis the declare/drop pair is stated with. Exposed for the same "
-    "reason as the declare side: anything reading `lock` against its decision "
-    "needs BOTH edges, and computing `0.8 *` at the call site is a second "
-    "copy of a rule this object owns. Both carrier detectors are initialised "
-    "from this pair, so one number describes them both.\n",
-    NULL },
-  { "sync_lock_thresh", (getter)MpskReceiverR_getprop_sync_lock_thresh, NULL,
-    "Timing DECLARE threshold on the `sync.lock` statistic. Not the carrier's "
-    "number and not derived the same way: symsync sizes its block length and "
-    "threshold together from (rolloff, esno_min, pfa, pd), so this reads back "
-    "that geometry's answer. A caller plotting `sync.lock` needs this rather "
-    "than `lock_thresh`, which belongs to a different statistic on a "
-    "different clock.\n",
-    NULL },
-  { "sync_lock_drop_thresh",
-    (getter)MpskReceiverR_getprop_sync_lock_drop_thresh, NULL,
-    "Timing DROP threshold on `sync.lock`. Equal to `sync_lock_thresh` when "
-    "the timing loop carries no level hysteresis (up = down = threshold, the "
-    "symsync default), so the two reading the same is information, not a bug "
-    "-- the timing decision's hysteresis is in its verify COUNTS rather than "
-    "its levels.\n",
     NULL },
   { NULL }
 };

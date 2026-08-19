@@ -109,7 +109,6 @@ main (int argc, char **argv)
          (Its real cost is the WINDOW: the handover fires around symbol 8500,
          so it more than doubles the settling budget.) */
       c.acq_to_track = (c.m == 8);
-      c.nda_tap      = MPSK_RX_NDA_TAP_STROBE;
 
       esn0_db = dp_ber_esn0_db_for_ser (c.m, DP_BER_TARGET_SER);
       r = mpsk_ber_measure (&c, esn0_db, TARGET_ERRORS, 2024u + (unsigned)mi);

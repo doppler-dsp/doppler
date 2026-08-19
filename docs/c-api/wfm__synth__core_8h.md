@@ -47,7 +47,7 @@ _Synth component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**wfm\_\_synth\_\_core\_8h\_1a05589fbab0657f08285ebdfe93f5ec9e**](#enum-wfm__synth__core_8h_1a05589fbab0657f08285ebdfe93f5ec9e)  <br> |
+| enum  | [**wfm\_\_synth\_\_core\_8h\_1abc5c98fcc1211af2b80116dd6e0a035d**](#enum-wfm__synth__core_8h_1abc5c98fcc1211af2b80116dd6e0a035d)  <br> |
 | enum  | [**wfm\_\_synth\_\_core\_8h\_1ac36f475ca5b446f4fde4c9b90bec77c8**](#enum-wfm__synth__core_8h_1ac36f475ca5b446f4fde4c9b90bec77c8)  <br> |
 
 
@@ -163,31 +163,10 @@ wfm_synth_destroy(obj);
 
 
 
-### enum wfm\_\_synth\_\_core\_8h\_1a05589fbab0657f08285ebdfe93f5ec9e 
+### enum wfm\_\_synth\_\_core\_8h\_1abc5c98fcc1211af2b80116dd6e0a035d 
 
 ```C++
-enum wfm__synth__core_8h_1a05589fbab0657f08285ebdfe93f5ec9e {
-    WFM_DSSS_DATA_NONE = 0,
-    WFM_DSSS_DATA_BITS = 1,
-    WFM_DSSS_DATA_PRBS = 2
-};
-```
-
-
-
-Continuous-DSSS data-symbol source (wfm\_synth\_set\_dsss\_cont's data\_mode). 
-
-
-        
-
-<hr>
-
-
-
-### enum wfm\_\_synth\_\_core\_8h\_1ac36f475ca5b446f4fde4c9b90bec77c8 
-
-```C++
-enum wfm__synth__core_8h_1ac36f475ca5b446f4fde4c9b90bec77c8 {
+enum wfm__synth__core_8h_1abc5c98fcc1211af2b80116dd6e0a035d {
     WFM_SYNTH_TONE = 0,
     WFM_SYNTH_NOISE = 1,
     WFM_SYNTH_PN = 2,
@@ -203,6 +182,27 @@ enum wfm__synth__core_8h_1ac36f475ca5b446f4fde4c9b90bec77c8 {
 
 
 Waveform type discriminant (the `type` create argument / type choice). 
+
+
+        
+
+<hr>
+
+
+
+### enum wfm\_\_synth\_\_core\_8h\_1ac36f475ca5b446f4fde4c9b90bec77c8 
+
+```C++
+enum wfm__synth__core_8h_1ac36f475ca5b446f4fde4c9b90bec77c8 {
+    WFM_DSSS_DATA_NONE = 0,
+    WFM_DSSS_DATA_BITS = 1,
+    WFM_DSSS_DATA_PRBS = 2
+};
+```
+
+
+
+Continuous-DSSS data-symbol source (wfm\_synth\_set\_dsss\_cont's data\_mode). 
 
 
         

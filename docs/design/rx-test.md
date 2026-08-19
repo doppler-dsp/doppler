@@ -404,7 +404,7 @@ ______________________________________________________________________
 | `mpsk_diff_penalty.c`                                                 | differential M-PSK penalty                      |
 | `rx_battery.c`                                                        | the standard battery, every named point         |
 | `rx_frame_fer.c`                                                      | all four metrics on one receiver, with FER      |
-| `rx_dynamics.c`, `rx_nda_tap.c`                                       | ramp law; where the M-th power runs             |
+| `rx_dynamics.c`                                                       | ramp law; the dynamics of the shipped tap       |
 | `rx_coding_gain.c`                                                    | **the concatenated code, through a receiver**   |
 
 The directory is the list; the rows above say what each is FOR. A count in

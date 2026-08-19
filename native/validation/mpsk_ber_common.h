@@ -97,7 +97,6 @@ typedef struct
   double bn_timing;    /**< Timing loop noise bandwidth, per symbol.      */
   double bn_carrier;   /**< Carrier loop noise bandwidth, per symbol.     */
   int    acq_to_track; /**< Two-way NDA -> decision-directed handover.    */
-  int    nda_tap;      /**< MPSK_RX_NDA_TAP_* -- where the M-th power runs. */
 } mpsk_ber_cfg_t;
 
 /**
@@ -145,12 +144,12 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
       = c->real ? mpsk_receiver_create_real (
                       c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
                       c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track, 0.3,
-                      c->fc - c->foff, 0, MPSK_RX_NUM_PHASES, c->nda_tap, 1,
+                      c->fc - c->foff, 0, MPSK_RX_NUM_PHASES, 1,
                       MPSK_RX_AGC_BW_RATIO)
                 : mpsk_receiver_create (
                       c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
                       c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track, 0.3,
-                      c->fc - c->foff, 0, MPSK_RX_NUM_PHASES, c->nda_tap, 1,
+                      c->fc - c->foff, 0, MPSK_RX_NUM_PHASES, 1,
                       MPSK_RX_AGC_BW_RATIO);
   if (!rx)
     return 0;

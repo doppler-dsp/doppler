@@ -233,99 +233,27 @@ each, `tracking` went high **0/100 times at every order** — peak lock 0.371 /
     Scale `lock_thresh` by the reading for your tap and order — the Pfa mapping
     (`thresh / 0.1132` in σ) is unchanged; you are only trading margin.
 
-### `nda_tap` — buying pull-in range back
+### Pull-in range, and why there is no tap to choose
 
-The carrier discriminator's tap point sets how much frequency error it can even
-*see*: an M-th-power detector updating at rate `F` is unambiguous only for
-`|Δf| < F/(2M)`. Reading the on-time strobe is the cleanest input and the
-narrowest range; two wider taps trade signal quality for range, and both are
-also **timing-independent**, which the strobe tap is not.
+The carrier discriminator's update rate sets how much frequency error it can
+even *see*: an M-th-power detector updating at rate `F` is unambiguous only for
+`|Δf| < F/(2M)`. It reads the **on-time strobe**, so `F = Rs` and the range is
+`Rs/(2M)` — `0.01·Rs` at QPSK.
 
-| `nda_tap`          | Update rate | Max acquired `Δf` (QPSK, `sps=8`) | Needs timing? |
-| ------------------ | ----------- | --------------------------------- | ------------- |
-| `strobe` (default) | `Rs`        | `0.01·Rs`                         | yes           |
-| `mf_out`           | `m_out·Rs`  | `0.02·Rs`                         | no            |
-| `mf_in`            | `bank_sps`  | not yet measured                  | no            |
+`nda_tap` used to be a knob offering two wider, timing-independent taps in
+exchange for signal quality. It is **gone**
+([#832](https://github.com/doppler-dsp/doppler/issues/832)): measured on the
+receiver's own waveform the strobe won on every axis, and the wider taps bought
+range against a cost — `mf_out` averages the M-th power over *all* `m_out`
+matched-filter outputs, badly-timed ones included, which at 8PSK and
+`m_out = 4` decoded at chance. The reasoning, the numbers, and the measurement
+trap that nearly enshrined the wrong answer are in
+[the design](../design/mpsk.md#33-where-the-discriminator-reads-the-strobe-and-why-the-menu-closed).
 
-The tap is fixed at construction, so nothing switches underneath you:
-
-```python
-rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.05, nda_tap="mf_in")
-```
-
-!!! warning "`mf_in`'s node carries excess noise bandwidth"
-
-    It reads the MFR's input and replaced `lo_arm`, which was removed with the
-    Costas arm filter it depended on (gh-768). Its update rate is the
-    cascade's `bank_sps` — a planner outcome rather than a fixed multiple of
-    `Rs` — so its row cannot be filled in from the others by argument, and it
-    is left blank rather than guessed (gh-766).
-
-    What *is* measured is the cost the table above has no column for, and it
-    is **not** lost signal energy: a Nyquist-sampled band-limited signal loses
-    nothing. Measured at the node (AGC off, so the path is linear), `mf_in`
-    sits `10·log10(bank_sps)` dB below Es/N0 — **6.0 dB** at `bank_sps=4` —
-    identically at 6.79, 12 and 20 dB Es/N0, which is the signature of a pure
-    bandwidth ratio. DEC band-limits to its *own* Nyquist, `±bank_sps·Rs/2`,
-    while the signal occupies ~`±Rs`, and the terminal filter is downstream of
-    this tap. The loop acquires everywhere; the M-th-power **lock statistic**
-    is what degrades, being an SNR measure.
-
-    `native/validation/rx_nda_tap.c` missed it because it sweeps **noiseless**;
-    `native/validation/rx_dynamics.c` is where the taps are compared on the
-    continuous flavor's own waveform. The cost is bounded by the plan (still
-    9.0 dB at `sps=64`) and is the tap's stated price: an arm filter would
-    recover it and is declined, since `strobe` reads the matched node for
-    free.
-
-`bn_carrier` keeps its meaning at every tap (symbol-rate normalised). The tap
-does not widen the loop by itself — it widens what the discriminator can see and
-improves the stability margin, which is what lets you then raise `bn_carrier`.
-
-!!! warning "`mf_out` needs `m_out = 8` — it is the tap that pays for a coarse strobe"
-
-    Measured at Es/N0 20 dB, `sps = 8`, `bn_carrier = 0.005`, median SER / EVM over
-    5 seeds, with and without the handover:
-
-    | tap      | `m_out=8` (default), any M | `m_out=4`, QPSK | `m_out=4`, 8PSK         |
-    | -------- | -------------------------- | --------------- | ----------------------- |
-    | `strobe` | SER 0, −19.7 dB            | SER 0, −15.9 dB | SER 0.002, −15.9 dB     |
-    | `mf_out` | SER 0, −19.7 dB            | SER 0, −16.0 dB | **SER 0.851, −11.9 dB** |
-
-    **At the default `m_out = 8` all three taps decode every order cleanly.** Every
-    failure in this table lives at `m_out = 4`, and it is `mf_out` that fails —
-    which is what the `Σ g_k^M` gain-collapse argument actually predicts, because
-    `mf_out` is the tap that averages the M-th power over **all `m_out`
-    matched-filter outputs**, including the badly-timed ones. Halving `m_out`
-    halves how much of each symbol those arms cover, and at 8th power that is
-    fatal.
-
-    The decode failure is `Σ g_k^M`; it used to come with a **false lock** on top,
-    and that part is fixed. At `m_out = 4`, `mf_out`/8PSK reported +0.94 (+3.90 at
-    `bn_carrier = 0.05`) while decoding at chance; since the lock statistic was
-    limited it reports **−0.069** on the identical failure — correctly not locked.
-    `mf_out` + `acq_to_track` at *QPSK* recovered with it, from 2/5 decodes (SER
-    0.295) to **5/5** (SER 0.0000), because the handover is no longer triggered by
-    a statistic that meant nothing.
-
-    This box once named a different tap as the failing one, on numbers taken
-    with a lag search clipped to ±30 and a window inside the settling transient
-    — the two defects fixed in `30c76c6d`. Both report chance SER on a healthy
-    decode, which is how a measurement bug comes to read as a DSP defect.
-
-!!! danger "`Δf = k·F/M` is a stable false lock, at every tap"
-
-    `F/M` is where the M-th power aliases onto zero, so the M-fold ambiguity is a
-    **frequency** ambiguity as well as a phase one. Measured on QPSK with an
-    initial error of `Rs/4`: the loop never moves (tracked frequency 2e-6 against
-    a true 0.03125) and still reports a lock of **+0.83** against the ≈ 1.0 it
-    reads at a real lock, with a stationary constellation — so EVM and blind M2M4
-    both look clean too. **No self-referenced metric catches
-    this**; it takes an external frequency reference or a sync word. A faster tap
-    pushes the alias out proportionally.
-
-    Beyond any tap's range, put a coarse frequency estimate in front (an FFT
-    sweep, or `dsss.Ppe`) and pass it as `init_norm_freq`.
+**If you need more range, do not reach for a node — state the requirement.**
+The receiver derives the loop that meets it, or refuses to construct rather
+than locking somewhere plausible and wrong. A coarse frequency estimate in
+front, handed over as the carrier centre, is the other half of the answer.
 
 ## Don't trust one metric — least of all a bit error rate
 

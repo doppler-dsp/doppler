@@ -176,12 +176,6 @@ mpsk_rx_derive_m_out (double cap, int strict)
 #define MPSK_RX_HANDOVER_N_UP 8u
 #define MPSK_RX_HANDOVER_N_DOWN 32u
 
-  enum
-  {
-    MPSK_RX_NDA_TAP_STROBE = 0,
-    MPSK_RX_NDA_TAP_MF_OUT = 1,
-    MPSK_RX_NDA_TAP_MF_IN = 2
-  };
 
 
   typedef struct
@@ -218,13 +212,10 @@ mpsk_rx_derive_m_out (double cap, int strict)
     int    m;          
     double sps;        
     double lo_sps;     
-    double mf_in_sps; 
     size_t m_out;      
     double bn_carrier; 
     double bn_agc_ratio; 
     double zeta;       
-    int    nda_tap;    
-    int    tap_timed;  
     /* ── acquisition <-> tracking handover ───────────────────────────── */
     int    acq_to_track; 
     size_t sym_count;    
@@ -248,15 +239,17 @@ mpsk_rx_derive_m_out (double cap, int strict)
                            double zeta, double bn_timing, double bn_agc_ratio,
                            int ted,
                            int acq_to_track, double lock_thresh,
-                           int differential, int nda_tap);
+                           int differential);
 
   JM_FORCEINLINE double
   mpsk_rx_updates_per_symbol (const mpsk_rx_loops_t *l)
   {
-    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_OUT)
-      return (double)l->m_out;
-    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_IN)
-      return l->mf_in_sps;
+    (void)l;
+    /* The discriminator reads the on-time strobe, which is one output per
+       symbol, so the carrier loop updates once per symbol. Kept as a function
+       rather than folded into the caller because it is the quantity
+       mpsk_rx_config_carrier() sizes the loop filter against, and naming it
+       is what makes that sizing legible. */
     return 1.0;
   }
 
@@ -303,26 +296,11 @@ mpsk_rx_derive_m_out (double cap, int strict)
       mpsk_rx_steer (l, pe);
   }
 
-  JM_FORCEINLINE JM_HOT void
-  mpsk_rx_push_mf_in (mpsk_rx_loops_t *l, float complex z)
-  {
-    if (l->nda_tap != MPSK_RX_NDA_TAP_MF_IN)
-      return;
-    mpsk_rx_disc (l, z);
-  }
 
   JM_FORCEINLINE JM_HOT int
   mpsk_rx_take_output (mpsk_rx_loops_t *l, float complex y, float complex *sym,
                        int ted)
   {
-    /* MPSK_RX_NDA_TAP_MF_OUT discriminates on EVERY terminal output, so it
-       runs before the strobe test and needs no timing: it does not care which
-       output the timing loop would have nominated. That is the trade — m_out
-       times the frequency range and no timing dependence, paid for with the
-       ISI those between-symbol outputs carry. */
-    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_OUT)
-      mpsk_rx_disc (l, y);
-
     float complex on;
     if (!ratesync_loop_take_output (&l->timing, y, &on, ted))
       return 0;
@@ -342,9 +320,16 @@ mpsk_rx_derive_m_out (double cap, int strict)
        (Measured exactly that way: a receiver fed pure noise stayed in
        `tracking` forever.) */
 
-    /* MPSK_RX_NDA_TAP_STROBE: the cleanest input there is, and the one tap
-       whose quality depends on symbol timing — see the tap enum. It acts on
-       every strobe from the first, locked or not.
+    /* The discriminator reads the ON-TIME STROBE: the cleanest input there
+       is, and the only node already matched to the signal. It acts on every
+       strobe from the first, locked or not.
+
+       It depends on symbol timing, and that costs nothing where it would
+       matter most. A carrier with its modulation off is SAMPLING-PHASE
+       INVARIANT -- every sample is the same constellation point -- so the
+       M-th-power discriminator does not care which phase the timing loop
+       nominated, which is why NDA is the implicit answer when there is no
+       data to be aided by (docs/design/mpsk.md §3.3).
 
        An earlier revision gated the steer, the AGC seed and the handover on
        the timing loop's lock detector, on the grounds that a pre-lock strobe
@@ -361,12 +346,10 @@ mpsk_rx_derive_m_out (double cap, int strict)
        achieve — with the steer frozen until timing declares, the carrier's
        transient starts from a known instant.
 
-       A tap that needs timing it cannot wait for is a reason to pick a
-       different tap, which is what nda_tap is for: MF_OUT and MF_IN are
-       timing-independent by construction. Gating the default hid that choice
-       behind a coupling the caller could not see or override. */
-    if (l->nda_tap == MPSK_RX_NDA_TAP_STROBE)
-      mpsk_rx_disc (l, on);
+       Gating the steer on the timing loop hid that behind a coupling the
+       caller could neither see nor override, for one cell of a 24-cell
+       sweep. */
+    mpsk_rx_disc (l, on);
 
     /* The NDA loop's stable points are the 0-grid (z^m = +1), but the QPSK
        constellation sits on the pi/4-offset grid, so a raw strobe would land
@@ -413,10 +396,6 @@ mpsk_rx_derive_m_out (double cap, int strict)
   mpsk_rx_fold (mpsk_rx_loops_t *l, const float complex *ys, size_t n,
                 float complex zpre, int n_pre, float complex *y_out, int ted)
   {
-    /* The timing-independent NDA tap reads at the MFR's input. A no-op unless
-       MF_IN is the configured tap. */
-    if (n_pre)
-      mpsk_rx_push_mf_in (l, zpre);
     int emitted = 0;
     for (size_t oi = 0; oi < n; oi++)
       emitted |= mpsk_rx_take_output (l, ys[oi], y_out, ted);

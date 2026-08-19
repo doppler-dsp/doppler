@@ -113,10 +113,17 @@ unknown constant carrier phase:
 ```python
 import numpy as np
 from doppler.track import MpskReceiver
+from doppler.wfm import Composer, Segment
 
-rng = np.random.default_rng(0)
-syms = np.exp(2j * np.pi * rng.integers(0, 8, 2000) / 8)
-iq = np.repeat(syms, 8).astype(np.complex64) * 0.5   # 8PSK, 8 samples/symbol
+# 8PSK via wfmgen's `symbols` source: it takes any constellation stream, which
+# is how a modulation the built-in types do not name is still one declaration.
+# `level` is dBFS, so the old `* 0.5` amplitude is -6.02 dB.
+idx = (np.arange(2000) * 3) % 8      # gcd(3, 8) = 1, so all 8 phases appear
+syms = np.exp(2j * np.pi * idx / 8).astype(np.complex64)
+iq = np.asarray(Composer([Segment(
+    type="symbols", symbols=syms, sps=8, fs=1.0,
+    level=-6.0206, num_samples=2000 * 8,
+)]).compose())
 
 rx = MpskReceiver(m=8, sps=8, differential=1)
 bits = rx.bits(iq)           # rotation-invariant; survives any fixed phase slip
@@ -135,13 +142,15 @@ R2C halfband runs at twice the overall rate.
 ```python
 import numpy as np
 from doppler.track import MpskReceiverR
+from doppler.wfm import Composer, Segment
 
 m, sps, fc = 4, 24.0, 0.10          # QPSK, real IF at 0.10 cycles/sample
-rng = np.random.default_rng(3)
-syms = np.exp(2j * np.pi * rng.integers(0, m, 4000) / m)
-bb = np.repeat(syms, int(sps))                      # I&D (rectangular) pulses
-n = np.arange(len(bb))
-rf = (bb * np.exp(2j * np.pi * fc * n)).real.astype(np.float32) * 0.5
+# wfmgen carries the QPSK, the IF offset and the level; `.real` is the only
+# step left, because taking the real part IS what makes it a real IF.
+rf = np.asarray(Composer([Segment(
+    type="qpsk", sps=int(sps), fs=1.0, freq=fc,
+    level=-6.0206, num_samples=4000 * int(sps), seed=3,
+)]).compose()).real.astype(np.float32)
 
 rx = MpskReceiverR(m=m, sps=sps, m_out=4, init_norm_freq=fc, bn_carrier=0.002)
 out = rx.steps(rf)

@@ -22,6 +22,7 @@ import sys
 import numpy as np
 
 from doppler.track import Dll
+from doppler.wfm import PN
 
 SF, SPS = 127, 8  # code length (chips), samples per chip
 NPER = 1000  # code periods
@@ -29,14 +30,27 @@ OFFSET = 0.5  # initial replica offset, chips
 DELTA = 2e-4  # code Doppler (chip rate error)
 BN = 0.004  # loop noise bandwidth
 
-# code: 0/1 chips for one period, and its +1/-1 spreading signs.
-code = np.random.default_rng(1).integers(0, 2, SF).astype(np.uint8)
+# The code is a MAXIMAL-LENGTH SEQUENCE from the library, not a coin flip.
+# SF = 127 is 2^7 - 1, so `PN(length=7)` fills the period exactly, and the
+# difference is the property a delay lock loop runs on: an m-sequence's
+# off-peak autocorrelation is a flat -1 at every non-zero lag, while the
+# `default_rng(1).integers(0, 2, 127)` this replaces wandered between -13
+# and +3. A DLL discriminator reads that sidelobe structure directly, so a
+# random code was quietly handing this demo a worse S-curve than any real
+# spreading code would have.
+code = np.asarray(PN(length=7, seed=1).generate(SF)).astype(np.uint8)
 csign = np.where(code & 1, -1.0, 1.0)
 
-# Carrier-wiped PN-spread BPSK whose chip clock runs (1 + DELTA) fast,
-# with one random BPSK data sign per code period.
-rng = np.random.default_rng(9)
-data = rng.integers(0, 2, NPER) * 2 - 1
+# Carrier-wiped PN-spread BPSK whose chip clock runs (1 + DELTA) fast, with
+# one BPSK data sign per code period — also from the library's generator, so
+# nothing in this file invents a sequence.
+#
+# The CHIP CLOCK OFFSET stays hand-built, and deliberately: `Segment.sps` is
+# an integer, so a composer scene cannot say "the chip clock runs 1.0002x
+# fast and the replica starts half a chip late". That offset is the whole
+# question a `Dll` answers, so it is the one thing here that is not a
+# wfmgen call.
+data = np.asarray(PN(length=13, seed=9).generate(NPER)).astype(int) * 2 - 1
 cph = np.arange(SF * SPS * NPER) * (1 + DELTA) / SPS  # running chip phase
 rx = (np.repeat(data, SF * SPS) * csign[(cph % SF).astype(int)]).astype(
     np.complex64

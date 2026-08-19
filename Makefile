@@ -961,10 +961,25 @@ install-docs-deps: ## Install the docs system deps (bootstrap.toml `docs` group)
 #
 #     DEPS_DEADLINE x DEPS_TRIES + backoff  <  the workflow's timeout-minutes
 #
-# true whenever either number moves: 600 x 2 + 10s is ~20.2 min, under the 25
+# true whenever either number moves: 420 x 3 + 30s is ~21.5 min, under the 25
 # the steps now allow.
-DEPS_DEADLINE ?= 600
-DEPS_TRIES    ?= 2
+#
+# THREE SHORTER ATTEMPTS, NOT TWO LONG ONES, and the split is measured rather
+# than guessed. On 2026-08-19 the runners' azure mirror was answering `Ign` and
+# apt was falling back to archive.ubuntu.com, where the same 112 MB sometimes
+# trickled. What the timings show is that the RETRY IS THE THING THAT WORKS:
+#
+#   Build on ubuntu-24.04   831s = 600 (attempt 1 killed) + 10 + 221 -> PASSED
+#   Python 3.13 (re-run)    119s                                     -> PASSED
+#   coverage, Python 3.11  1210s = 600 + 10 + 600, both exhausted    -> FAILED
+#
+# A healthy attempt is 120-220s, so 600s was buying nothing after the first
+# few minutes -- a stalled attempt spends the rest of its deadline stalled.
+# Three 420s attempts give the mirror lottery three rolls with ~2x headroom
+# over a healthy install, inside the SAME step ceiling that two 600s attempts
+# used. deps-budget-check enforces the inequality above either way.
+DEPS_DEADLINE ?= 420
+DEPS_TRIES    ?= 3
 
 # Teach apt to fail a STALLED connection fast and retry it itself.
 #

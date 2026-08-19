@@ -37,6 +37,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       pages: write
       id-token: write
@@ -101,6 +102,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       pages: write
       id-token: write

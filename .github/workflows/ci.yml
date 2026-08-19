@@ -22,6 +22,7 @@ jobs:
   build-and-test:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -109,6 +110,7 @@ jobs:
   python:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -237,6 +239,7 @@ jobs:
     # too, instead of a hand-rolled apt/cmake bootstrap that only ever
     # executed here and could only be debugged by pushing.
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
     - uses: actions/checkout@v7
@@ -253,6 +256,7 @@ jobs:
   doxygen:
     name: Doxygen
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
     - uses: actions/checkout@v7
@@ -293,6 +297,7 @@ jobs:
   specan-demo:
     name: Specan demo frames
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
     - uses: actions/checkout@v7
@@ -310,6 +315,7 @@ jobs:
   docs:
     name: Docs
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
     - uses: actions/checkout@v7
@@ -340,6 +346,7 @@ jobs:
   docker:
     name: Docker
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
     - uses: actions/checkout@v7
@@ -368,6 +375,7 @@ jobs:
   pre-commit:
     name: pre-commit (lint + format)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
     - uses: actions/checkout@v7
@@ -423,6 +431,7 @@ jobs:
   manifest-drift:
     name: jm manifest drift gate
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
     - uses: actions/checkout@v7
@@ -448,6 +457,7 @@ jobs:
   coverage:
     name: coverage (C + Python + Rust)
     runs-on: ubuntu-latest
+    timeout-minutes: 90
 
     steps:
     - uses: actions/checkout@v7
@@ -528,6 +538,7 @@ jobs:
       - manifest-drift
       - coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     if: always()
     steps:
       - name: Require all jobs to have succeeded

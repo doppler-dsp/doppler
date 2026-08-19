@@ -34,7 +34,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static const dp_rx_iface_t *const RECEIVERS[] = { &DP_RX_MPSK, &DP_RX_CONT };
+static const dp_rx_iface_t *const RECEIVERS[] = { &DP_RX_MPSK };
 #define RECEIVER_COUNT (sizeof RECEIVERS / sizeof RECEIVERS[0])
 
 /* ── The battery ────────────────────────────────────────────────────────── */

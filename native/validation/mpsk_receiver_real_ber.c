@@ -127,7 +127,6 @@ main (int argc, char **argv)
          an offset outside it measures luck rather than the receiver, and why
          the bound carries the `m`. */
       c.foff = dp_test_freq_offset_inside_bw (c.bn_carrier, c.m, 1.0) / c.sps;
-      c.acq_to_track = (c.m == 8);
 
       esn0_db = dp_ber_esn0_db_for_ser (c.m, DP_BER_TARGET_SER);
       r = mpsk_ber_measure (&c, esn0_db, TARGET_ERRORS, 4096u + (unsigned)mi);

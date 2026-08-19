@@ -2655,7 +2655,7 @@ type = "int"
 
 [[module.ber.functions]]
 name = "ber_settle_syms"
-doc = "Symbols to discard before a steady-state measurement means anything: 2*(5/bn_timing + 5/bn_carrier). Three factors, and skipping any produces a confident wrong number -- 5/Bn per loop is the standard second-order settling time (in SYMBOLS, since both bn are symbol-rate normalised); the two budgets ADD because the loops are cascaded (the carrier discriminator reads the on-time strobe, so it cannot converge until timing has); and the sum DOUBLES for joint tracking. This is a FLOOR, not the answer: take the max of it and every lock indicator the receiver publishes, plus the handover instant again if one is enabled. Pass a loop's bn as 0 if it is not running."
+doc = "Symbols to discard before a steady-state measurement means anything: 2*(5/bn_timing + 5/bn_carrier). Three factors, and skipping any produces a confident wrong number -- 5/Bn per loop is the standard second-order settling time (in SYMBOLS, since both bn are symbol-rate normalised); the two budgets ADD because the loops are cascaded (the carrier discriminator reads the on-time strobe, so it cannot converge until timing has); and the sum DOUBLES for joint tracking. This is a FLOOR, not the answer: take the max of it and every lock indicator the receiver publishes. Pass a loop's bn as 0 if it is not running."
 return_type = "size_t"
 
 [[module.ber.functions.params]]
@@ -2711,7 +2711,7 @@ default = "4"
 
 [[module.ber.functions]]
 name = "ber_settle_from"
-doc = "Where a steady-state measurement may start: max(budget, timing lock, carrier lock, handover + budget). The analytic budget and the receiver's own indicators are both fallible in the SAME direction, so whichever settles last decides. A handover settles last of all -- it fires on carrier lock plus a warmup, strictly after every other term, and the decision-directed loop then has its own transient, so it contributes its instant PLUS the budget again (measured on 8PSK: handover at symbol 2525 against a 2000-symbol budget, SER 5.95x the coherent bound from 2000 versus 1.68x from 4525). Pass -1 for an indicator the receiver does not publish, which is what ber_lock_symbol() returns for 'never locked'. A -1 timing or carrier lock means there is NO valid steady-state window -- check that yourself before trusting the return; a -1 handover is not a failure, since a pure-NDA receiver never publishes one."
+doc = "Where a steady-state measurement may start: max(budget, timing lock, carrier lock). The analytic budget and the receiver's own indicators are both fallible in the SAME direction, so whichever settles last decides. There was a fourth term until doppler#877: a receiver that handed the carrier from an NDA discriminator to a decision-directed one settled last of all, contributing its instant PLUS the budget again (measured on 8PSK: handover at symbol 2525 against a 2000-symbol budget, and 5.95x the coherent bound if the window started at 2000 rather than 4525). No receiver in this library hands over any more, so the term went with the handover rather than remaining as an argument that could only be passed -1. Pass -1 for an indicator the receiver does not publish, which is what ber_lock_symbol() returns for 'never locked'. A -1 timing or carrier lock means there is NO valid steady-state window -- check that yourself before trusting the return."
 return_type = "size_t"
 
 [[module.ber.functions.params]]
@@ -2725,10 +2725,5 @@ default = "-1"
 
 [[module.ber.functions.params]]
 name = "carrier_lock"
-type = "int"
-default = "-1"
-
-[[module.ber.functions.params]]
-name = "handover"
 type = "int"
 default = "-1"

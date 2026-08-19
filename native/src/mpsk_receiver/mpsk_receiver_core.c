@@ -2,7 +2,8 @@
  * mpsk_receiver_core.c — the M-PSK receiver: one object, two front ends.
  *
  * Two things live here. The first half is mpsk_rx_loops_t: the carrier loop,
- * the handover and the demapper, plus lifecycle for the timing loop embedded
+ * the lock indicator and the demapper, plus lifecycle for the timing loop
+ * embedded
  * from ratesync. It has no front end of its own, which is exactly why the
  * complex- and real-input faces share it verbatim. The second half is
  * MpskReceiver itself: a matched DDC *or* a matched DDCR, those loops, and the
@@ -54,7 +55,7 @@ void
 mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
                     size_t m_out, double bn_carrier, double zeta,
                     double bn_timing, double bn_agc_ratio, int ted,
-                    int acq_to_track, double lock_thresh, int differential)
+                    double lock_thresh, int differential)
 {
   l->m      = m;
   l->sps    = sps;
@@ -68,7 +69,6 @@ mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
   /* Only the strobe tap reads an output the timing loop had to nominate; the
      other two are timing-independent by construction. */
 
-  l->acq_to_track = acq_to_track ? 1 : 0;
   l->differential = differential ? 1 : 0;
 
   /* The NDA M-th-power loop's stable points are the 0-grid (z^m = +1), but
@@ -80,13 +80,11 @@ mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
 
   ratesync_loop_init (&l->timing, sps, m_out, bn_timing, zeta, ted);
 
-  /* Two-way handover rule on the carrier lock EMA: declare fast, drop
-     reluctantly — level + time hysteresis so metric wobble at the threshold
-     cannot chatter the discriminator choice. */
-  lockdet_init (&l->handover, lock_thresh, MPSK_RX_HANDOVER_DOWN * lock_thresh,
-                MPSK_RX_HANDOVER_N_UP, MPSK_RX_HANDOVER_N_DOWN);
-  lockdet_init (&l->car_lock, lock_thresh, MPSK_RX_HANDOVER_DOWN * lock_thresh,
-                MPSK_RX_HANDOVER_N_UP, MPSK_RX_HANDOVER_N_DOWN);
+  /* Carrier lock indicator on the lock EMA: declare fast, drop reluctantly
+     — level + time hysteresis so metric wobble at the threshold cannot
+     chatter the reading a caller sizes its measurement window from. */
+  lockdet_init (&l->car_lock, lock_thresh, MPSK_RX_LOCK_DOWN * lock_thresh,
+                MPSK_RX_LOCK_N_UP, MPSK_RX_LOCK_N_DOWN);
 
   mpsk_rx_config_carrier (l);
   mpsk_rx_loops_reset (l);
@@ -100,20 +98,11 @@ mpsk_rx_loops_reset (mpsk_rx_loops_t *l)
   l->freq_ctrl     = 0.0;
   l->car_error     = 0.0;
   l->lock          = 0.0;
-  l->tracking      = 0;
   l->sym_count     = 0;
   l->lock_time     = -1;
   l->have_prev_idx = 0;
   l->prev_idx      = 0;
-  lockdet_reset (&l->handover);
   lockdet_reset (&l->car_lock);
-}
-
-void
-mpsk_rx_configure_lock (mpsk_rx_loops_t *l, double up_thresh,
-                        double down_thresh, uint32_t n_up, uint32_t n_down)
-{
-  lockdet_configure (&l->handover, up_thresh, down_thresh, n_up, n_down);
 }
 
 double
@@ -160,7 +149,6 @@ void
 mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float complex y)
 {
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_lock, l->lock);
-  dp_tlm_emit (l->tlm.ctx, l->tlm.id_tracking, (double)l->tracking);
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_e, l->car_error);
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_freq, mpsk_rx_freq_est (l));
   /* Receiver convention: the front end holds the conjugate. */
@@ -189,8 +177,6 @@ mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
   char        name[DP_TLM_NAME_MAX];
   (void)snprintf (name, sizeof (name), "%s.lock", p);
   int id_lock = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.tracking", p);
-  int id_tracking = dp_tlm_probe (tlm, name, decim);
   (void)snprintf (name, sizeof (name), "%s.car.e", p);
   int id_e = dp_tlm_probe (tlm, name, decim);
   (void)snprintf (name, sizeof (name), "%s.car.freq", p);
@@ -198,7 +184,7 @@ mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
   /* The command that actually drives the LO -- integ + kp*e, not the
      integrator alone. That sum is the frequency the receiver is APPLYING and
      is what a consumer watching a Doppler profile wants; `car.freq` is the
-     integrator, i.e. the frequency MEMORY that survives a handover, and on a
+     integrator, i.e. the frequency MEMORY the loop carries, and on a
      ramp the two differ by exactly the proportional term. Publishing only the
      integrator made a correctly-tracking loop look like it was lagging. */
   (void)snprintf (name, sizeof (name), "%s.car.nco", p);
@@ -209,8 +195,8 @@ mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
   int id_sym_i = dp_tlm_probe (tlm, name, decim);
   (void)snprintf (name, sizeof (name), "%s.sym.q", p);
   int id_sym_q = dp_tlm_probe (tlm, name, decim);
-  if (id_lock < 0 || id_tracking < 0 || id_e < 0 || id_freq < 0 || id_nco < 0
-      || id_locked < 0 || id_sym_i < 0 || id_sym_q < 0)
+  if (id_lock < 0 || id_e < 0 || id_freq < 0 || id_nco < 0 || id_locked < 0
+      || id_sym_i < 0 || id_sym_q < 0)
     return DP_ERR_INVALID;
   /* Forward to the timing loop under "<prefix>.sync"; if it fails the whole
      attach fails, so nothing is left half-armed. */
@@ -218,15 +204,14 @@ mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
   int rc = ratesync_loop_set_telemetry (&l->timing, tlm, name, decim);
   if (rc != DP_OK)
     return rc;
-  l->tlm.id_sym_i    = id_sym_i;
-  l->tlm.id_sym_q    = id_sym_q;
-  l->tlm.id_lock     = id_lock;
-  l->tlm.id_tracking = id_tracking;
-  l->tlm.id_e        = id_e;
-  l->tlm.id_freq     = id_freq;
-  l->tlm.id_nco      = id_nco;
-  l->tlm.id_locked   = id_locked;
-  l->tlm.ctx         = tlm; /* set last: emit sites gate on ctx */
+  l->tlm.id_sym_i  = id_sym_i;
+  l->tlm.id_sym_q  = id_sym_q;
+  l->tlm.id_lock   = id_lock;
+  l->tlm.id_e      = id_e;
+  l->tlm.id_freq   = id_freq;
+  l->tlm.id_nco    = id_nco;
+  l->tlm.id_locked = id_locked;
+  l->tlm.ctx       = tlm; /* set last: emit sites gate on ctx */
   return DP_OK;
 }
 
@@ -243,7 +228,7 @@ mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
 
 /* freq_ctrl, car_error, lock */
 #define DP_MRX_DOUBLES 3
-/* sym_count, tracking|have_prev_idx, prev_idx, lock_time */
+/* sym_count, have_prev_idx, prev_idx, lock_time */
 #define DP_MRX_U64S 4
 
 size_t
@@ -251,7 +236,7 @@ mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l)
 {
   return sizeof (dp_state_hdr_t) + DP_MRX_DOUBLES * sizeof (double)
          + DP_MRX_U64S * sizeof (uint64_t)
-         + 4 * sizeof (uint32_t) /* handover + car_lock cnt/locked */
+         + 2 * sizeof (uint32_t) /* car_lock cnt/locked */
          + ratesync_loop_state_bytes (&l->timing)
          + loop_filter_state_bytes (&l->car_lf);
 }
@@ -266,13 +251,10 @@ mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob)
   dp_w_f64 (&w, l->car_error);
   dp_w_f64 (&w, l->lock);
   dp_w_u64 (&w, (uint64_t)l->sym_count);
-  dp_w_u64 (
-      &w, (uint64_t)((l->tracking ? 1u : 0u) | (l->have_prev_idx ? 2u : 0u)));
+  dp_w_u64 (&w, (uint64_t)(l->have_prev_idx ? 1u : 0u));
   dp_w_u64 (&w, (uint64_t)l->prev_idx);
   /* -1 (never locked) round-trips as a two's-complement u64. */
   dp_w_u64 (&w, (uint64_t)l->lock_time);
-  dp_w_u32 (&w, l->handover.cnt);
-  dp_w_u32 (&w, (uint32_t)l->handover.locked);
   dp_w_u32 (&w, l->car_lock.cnt);
   dp_w_u32 (&w, (uint32_t)l->car_lock.locked);
 
@@ -300,11 +282,8 @@ mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob)
   uint64_t flags   = dp_r_u64 (&r);
   l->prev_idx      = (unsigned)dp_r_u64 (&r);
   l->lock_time     = (int64_t)dp_r_u64 (&r);
-  l->tracking      = (flags & 1u) ? 1 : 0;
-  l->have_prev_idx = (flags & 2u) ? 1 : 0;
+  l->have_prev_idx = (flags & 1u) ? 1 : 0;
 
-  l->handover.cnt    = dp_r_u32 (&r);
-  l->handover.locked = (int)dp_r_u32 (&r);
   l->car_lock.cnt    = dp_r_u32 (&r);
   l->car_lock.locked = (int)dp_r_u32 (&r);
 
@@ -341,10 +320,9 @@ mpsk_rx_fe_rc (const mpsk_receiver_state_t *s)
 static mpsk_receiver_state_t *
 mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
                      double rrc_beta, int rrc_span, double bn_carrier,
-                     double zeta, double bn_timing, int acq_to_track,
-                     double lock_thresh, double init_norm_freq,
-                     int differential, size_t num_phases, int agc,
-                     double bn_agc_ratio)
+                     double zeta, double bn_timing, double lock_thresh,
+                     double init_norm_freq, int differential,
+                     size_t num_phases, int agc, double bn_agc_ratio)
 {
   if (m != 2 && m != 4 && m != 8)
     return NULL; /* only BPSK / QPSK / 8PSK */
@@ -426,8 +404,7 @@ mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
      separately from sps rather than assuming they are equal. */
   mpsk_rx_loops_init (&rx->l, m, sps, real ? 0.5 * sps : sps, m_out,
                       bn_carrier, zeta, bn_timing, bn_agc_ratio,
-                      RATESYNC_TED_GARDNER, acq_to_track, lock_thresh,
-                      differential);
+                      RATESYNC_TED_GARDNER, lock_thresh, differential);
   ratesync_loop_bind_cascade (&rx->l.timing, mpsk_rx_fe_rc (rx));
 
   /* The front end levels itself so the TED's construct-time slope means what
@@ -451,29 +428,27 @@ mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
 mpsk_receiver_state_t *
 mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
                       double rrc_beta, int rrc_span, double bn_carrier,
-                      double zeta, double bn_timing, int acq_to_track,
-                      double lock_thresh, double init_norm_freq,
-                      int differential, size_t num_phases, int agc,
-                      double bn_agc_ratio)
+                      double zeta, double bn_timing, double lock_thresh,
+                      double init_norm_freq, int differential,
+                      size_t num_phases, int agc, double bn_agc_ratio)
 {
   return mpsk_rx_create_impl (0, m, sps, m_out, pulse, rrc_beta, rrc_span,
-                              bn_carrier, zeta, bn_timing, acq_to_track,
-                              lock_thresh, init_norm_freq, differential,
-                              num_phases, agc, bn_agc_ratio);
+                              bn_carrier, zeta, bn_timing, lock_thresh,
+                              init_norm_freq, differential, num_phases, agc,
+                              bn_agc_ratio);
 }
 
 mpsk_receiver_state_t *
 mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
                            double rrc_beta, int rrc_span, double bn_carrier,
-                           double zeta, double bn_timing, int acq_to_track,
-                           double lock_thresh, double init_norm_freq,
-                           int differential, size_t num_phases, int agc,
-                           double bn_agc_ratio)
+                           double zeta, double bn_timing, double lock_thresh,
+                           double init_norm_freq, int differential,
+                           size_t num_phases, int agc, double bn_agc_ratio)
 {
   return mpsk_rx_create_impl (1, m, sps, m_out, pulse, rrc_beta, rrc_span,
-                              bn_carrier, zeta, bn_timing, acq_to_track,
-                              lock_thresh, init_norm_freq, differential,
-                              num_phases, agc, bn_agc_ratio);
+                              bn_carrier, zeta, bn_timing, lock_thresh,
+                              init_norm_freq, differential, num_phases, agc,
+                              bn_agc_ratio);
 }
 
 double
@@ -482,34 +457,8 @@ mpsk_receiver_get_agc_gain_db (const mpsk_receiver_state_t *state)
   return RateConverter_agc_gain_db (mpsk_rx_fe_rc (state));
 }
 
-/* The continuous flavor. A pure delegate -- every argument it does not take
-   is a literal here and nothing else differs, so there is no second
-   construction path to keep in step with mpsk_receiver_create(). The zeros
-   are requests, not omissions: each one asks create() for the derived answer
-   (see its @note), which is why this constructor can be short without being
-   opinionated about values it has no business choosing. */
-mpsk_receiver_state_t *
-mpsk_receiver_create_continuous (int m, double sps, int pulse, double rrc_beta,
-                                 int rrc_span, double bn_carrier,
-                                 double bn_timing, double init_norm_freq,
-                                 int differential)
-{
-  return mpsk_receiver_create (
-      m, sps, 0u, /* m_out        -> derived      */
-      pulse, rrc_beta, rrc_span, bn_carrier, 0.0, /* zeta         -> derived */
-      bn_timing, 0,                     /* acq_to_track -- NO handover */
-      0.0,                              /* lock_thresh  -> derived      */
-      init_norm_freq, differential, 0u, /* num_phases   -> derived      */
-      /* The one tap measured to work at every battery point. MF_IN was
-         pinned here first, on the claim that being ahead of the matched
-         filter costs nothing; it costs the matched filter's processing gain
-         and the flavor's own lock indicator with it (doppler#790). */
-      1,    /* agc -- load-bearing, not opt */
-      0.0); /* bn_agc_ratio -> derived      */
-}
-
-/* The Hz face. Like the continuous flavor this is a pure delegate -- but the
-   conversion it performs is the whole reason it exists, so it is written out
+/* The Hz face. A pure delegate -- but the conversion it performs is the
+   whole reason it exists, so it is written out
    rather than inlined into the call: `sps` is a RATIO the caller should never
    have had to compute, and the LO centre is a normalised frequency they
    should never have had to express. Both are derived here, once, from units
@@ -523,7 +472,7 @@ mpsk_receiver_state_t *
 mpsk_receiver_create_bpsk (double sample_rate_hz, double symbol_rate_hz,
                            double carrier_freq_hz, int pulse, double rrc_beta,
                            int rrc_span, double bn_carrier, double bn_timing,
-                           int acq_to_track, int differential, int agc)
+                           int differential, int agc)
 {
   if (!(sample_rate_hz > 0.0) || !(symbol_rate_hz > 0.0))
     return NULL;
@@ -533,7 +482,7 @@ mpsk_receiver_create_bpsk (double sample_rate_hz, double symbol_rate_hz,
       2,                                          /* m -- the type says it */
       sample_rate_hz / symbol_rate_hz, 0u,        /* m_out        -> derived */
       pulse, rrc_beta, rrc_span, bn_carrier, 0.0, /* zeta  -> derived */
-      bn_timing, acq_to_track, 0.0,               /* lock_thresh -> derived */
+      bn_timing, 0.0,                             /* lock_thresh -> derived */
       carrier_freq_hz / sample_rate_hz, differential, 0u, /* num_phases */
       agc, 0.0); /* bn_agc_ratio -> derived */
 }
@@ -752,14 +701,6 @@ mpsk_receiver_get_last_error (const mpsk_receiver_state_t *state)
   return state->l.car_error;
 }
 
-void
-mpsk_receiver_configure_lock (mpsk_receiver_state_t *state, double up_thresh,
-                              double down_thresh, uint32_t n_up,
-                              uint32_t n_down)
-{
-  mpsk_rx_configure_lock (&state->l, up_thresh, down_thresh, n_up, n_down);
-}
-
 int
 mpsk_receiver_set_telemetry (mpsk_receiver_state_t *state, dp_tlm_t *tlm,
                              const char *prefix, uint32_t decim)
@@ -788,12 +729,6 @@ double
 mpsk_receiver_get_timing_rate (const mpsk_receiver_state_t *state)
 {
   return state->l.timing.rate_est;
-}
-
-int
-mpsk_receiver_get_tracking (const mpsk_receiver_state_t *state)
-{
-  return state->l.tracking;
 }
 
 int
@@ -833,13 +768,13 @@ mpsk_receiver_get_bn_agc_ratio (const mpsk_receiver_state_t *state)
 double
 mpsk_receiver_get_lock_thresh (const mpsk_receiver_state_t *state)
 {
-  return state->l.handover.up_thresh;
+  return state->l.car_lock.up_thresh;
 }
 
 double
 mpsk_receiver_get_lock_drop_thresh (const mpsk_receiver_state_t *state)
 {
-  return state->l.handover.down_thresh;
+  return state->l.car_lock.down_thresh;
 }
 
 double

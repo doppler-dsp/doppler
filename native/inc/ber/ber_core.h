@@ -251,32 +251,31 @@ extern "C"
    * @brief Combine an analytic settling budget with measured lock instants.
    *
    * The POLICY for where a steady-state window may start, in one place:
-   * `max(budget, timing lock, carrier lock, handover + budget)`. The analytic
-   * budget and the receiver's own indicators are both fallible in the SAME
-   * direction, so whichever settles last decides.
+   * `max(budget, timing lock, carrier lock)`. The analytic budget and the
+   * receiver's own indicators are both fallible in the SAME direction, so
+   * whichever settles last decides.
    *
-   * **A handover settles last of all.** With `acq_to_track` on it fires on
-   * carrier lock plus a warmup — strictly after the budget and after every
-   * lock indicator — and the decision-directed loop then has its own
-   * transient, so it contributes `its instant + the budget again`. Measured on
-   * 8PSK at its SER=1e-3 anchor: handover at symbol 2525 against a
-   * 2000-symbol budget, SER 5.95x the coherent bound measured from 2000 and
-   * 1.68x from 4525.
+   * There was a fourth term until doppler#877. A receiver that handed the
+   * carrier from an NDA discriminator to a decision-directed one settled last
+   * of all — the handover fired after every lock indicator and the new loop
+   * then had its own transient, so it contributed `its instant + the budget
+   * again` (measured on 8PSK at its SER=1e-3 anchor: handover at symbol 2525
+   * against a 2000-symbol budget, and 5.95x the coherent bound if the window
+   * started at 2000 rather than 4525). No receiver in this library hands over
+   * any more, so the term went with the handover rather than remaining as an
+   * argument that could only be passed -1.
    *
    * Pass -1 for any indicator the receiver does not publish (which is what
    * ber_lock_symbol() returns for "never locked"). **A -1 timing or carrier
    * lock means there is NO valid steady-state window** — check that yourself
-   * before trusting the return; a -1 handover is not a failure, because a
-   * pure-NDA receiver never publishes one.
+   * before trusting the return.
    *
    * @param budget       ber_settle_syms() of the loops in use.
    * @param timing_lock  ber_lock_symbol() of the timing flag, or -1.
    * @param carrier_lock ber_lock_symbol() of the carrier flag, or -1.
-   * @param handover     ber_lock_symbol() of the tracking flag, or -1.
    * @return             First symbol of the measurement window.
    */
-  size_t ber_settle_from (size_t budget, int timing_lock, int carrier_lock,
-                          int handover);
+  size_t ber_settle_from (size_t budget, int timing_lock, int carrier_lock);
 
   /**
    * @brief Exact confidence interval for a run stopped on an ERROR count.

@@ -275,7 +275,7 @@ rx_dyn_measure (int ted, const char *path)
     dp_sample_clock_t      clk;
     mpsk_receiver_state_t *rx = mpsk_receiver_create (
         2, RX_DYN_SPS, RX_DYN_M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8,
-        RX_DYN_BN_CARRIER, 0.0, RX_DYN_BN_TIMING, 0, 0.0, 0.0, 0, 0, 1, 0.0);
+        RX_DYN_BN_CARRIER, 0.0, RX_DYN_BN_TIMING, 0.0, 0.0, 0, 0, 1, 0.0);
     size_t nsym_seen = 0;
     double s_quiet   = 0.0;
     size_t n_quiet   = 0;

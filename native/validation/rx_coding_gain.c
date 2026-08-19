@@ -392,8 +392,8 @@ run_point (double esn0_db, const uint8_t *frames, const uint8_t *tx_cadu,
      marker is for; both duty cycles are reported so the claim stays visible.
    */
   int    settled = 0;
-  size_t settle = dp_ber_settle (pt.bn_timing, pt.bn_carrier, NULL, NULL, NULL,
-                                 nout, &settled);
+  size_t settle = dp_ber_settle (pt.bn_timing, pt.bn_carrier, NULL, NULL, nout,
+                                 &settled);
   res.lock_duty = dp_rx_duty (lock_c, settle, nout);
   res.track_duty = dp_rx_duty (track, settle, nout);
   if (settle + (size_t)2 * CADU_BITS >= nout)

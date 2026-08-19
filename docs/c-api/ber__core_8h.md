@@ -67,7 +67,7 @@ _Error-rate measurement: settled windows, detected alignment, and an exact confi
 |  double | [**ber\_evm\_scatter\_floor\_db**](#function-ber_evm_scatter_floor_db) (int m) <br>_EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation._  |
 |  int | [**ber\_lock\_symbol**](#function-ber_lock_symbol) (const uint8\_t \* flags, size\_t flags\_len, size\_t sustain, double min\_frac) <br>_First symbol from which a verify-counted flag is SUSTAINED._  |
 |  double | [**ber\_qfunc**](#function-ber_qfunc) (double x) <br>_Gaussian tail_ `Q(x) = P(N(0,1) > x)` _._ |
-|  size\_t | [**ber\_settle\_from**](#function-ber_settle_from) (size\_t budget, int timing\_lock, int carrier\_lock, int handover) <br>_Combine an analytic settling budget with measured lock instants._  |
+|  size\_t | [**ber\_settle\_from**](#function-ber_settle_from) (size\_t budget, int timing\_lock, int carrier\_lock) <br>_Combine an analytic settling budget with measured lock instants._  |
 |  size\_t | [**ber\_settle\_syms**](#function-ber_settle_syms) (double bn\_timing, double bn\_carrier) <br>_Symbols to discard before a steady-state measurement means anything._  |
 |  double | [**ber\_theory\_ber**](#function-ber_theory_ber) (int m, double esn0) <br>_Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR). BPSK and Gray QPSK are exactly_ `Q(sqrt(2 Eb/N0))` _; 8PSK uses_`SER/log2 M` _, exact in the high-Es/N0 limit where an error lands on a neighbour._ |
 |  double | [**ber\_theory\_ser**](#function-ber_theory_ser) (int m, double esn0) <br>_Coherent M-PSK symbol error rate at matched-filter Es/N0 (LINEAR)._  |
@@ -314,20 +314,19 @@ _Combine an analytic settling budget with measured lock instants._
 size_t ber_settle_from (
     size_t budget,
     int timing_lock,
-    int carrier_lock,
-    int handover
+    int carrier_lock
 ) 
 ```
 
 
 
-The POLICY for where a steady-state window may start, in one place: `max(budget, timing lock, carrier lock, handover + budget)`. The analytic budget and the receiver's own indicators are both fallible in the SAME direction, so whichever settles last decides.
+The POLICY for where a steady-state window may start, in one place: `max(budget, timing lock, carrier lock)`. The analytic budget and the receiver's own indicators are both fallible in the SAME direction, so whichever settles last decides.
 
 
-**A handover settles last of all.** With `acq_to_track` on it fires on carrier lock plus a warmup — strictly after the budget and after every lock indicator — and the decision-directed loop then has its own transient, so it contributes `its instant + the budget again`. Measured on 8PSK at its SER=1e-3 anchor: handover at symbol 2525 against a 2000-symbol budget, SER 5.95x the coherent bound measured from 2000 and 1.68x from 4525.
+There was a fourth term until doppler#877. A receiver that handed the carrier from an NDA discriminator to a decision-directed one settled last of all — the handover fired after every lock indicator and the new loop then had its own transient, so it contributed `its instant + the budget again` (measured on 8PSK at its SER=1e-3 anchor: handover at symbol 2525 against a 2000-symbol budget, and 5.95x the coherent bound if the window started at 2000 rather than 4525). No receiver in this library hands over any more, so the term went with the handover rather than remaining as an argument that could only be passed -1.
 
 
-Pass -1 for any indicator the receiver does not publish (which is what [**ber\_lock\_symbol()**](ber__core_8h.md#function-ber_lock_symbol) returns for "never locked"). **A -1 timing or carrier lock means there is NO valid steady-state window** — check that yourself before trusting the return; a -1 handover is not a failure, because a pure-NDA receiver never publishes one.
+Pass -1 for any indicator the receiver does not publish (which is what [**ber\_lock\_symbol()**](ber__core_8h.md#function-ber_lock_symbol) returns for "never locked"). **A -1 timing or carrier lock means there is NO valid steady-state window** — check that yourself before trusting the return.
 
 
 
@@ -338,7 +337,6 @@ Pass -1 for any indicator the receiver does not publish (which is what [**ber\_l
 * `budget` [**ber\_settle\_syms()**](ber__core_8h.md#function-ber_settle_syms) of the loops in use. 
 * `timing_lock` [**ber\_lock\_symbol()**](ber__core_8h.md#function-ber_lock_symbol) of the timing flag, or -1. 
 * `carrier_lock` [**ber\_lock\_symbol()**](ber__core_8h.md#function-ber_lock_symbol) of the carrier flag, or -1. 
-* `handover` [**ber\_lock\_symbol()**](ber__core_8h.md#function-ber_lock_symbol) of the tracking flag, or -1. 
 
 
 

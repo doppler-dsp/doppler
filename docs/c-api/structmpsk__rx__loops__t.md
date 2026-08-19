@@ -8,7 +8,7 @@
 
 
 
-_The receiver's loops: timing, carrier, handover, demapper._ 
+_The receiver's loops: timing, carrier, demapper._ 
 
 * `#include <mpsk_rx_loops.h>`
 
@@ -36,7 +36,6 @@ _The receiver's loops: timing, carrier, handover, demapper._
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**acq\_to\_track**](#variable-acq_to_track)  <br> |
 |  double | [**bn\_agc\_ratio**](#variable-bn_agc_ratio)  <br> |
 |  double | [**bn\_carrier**](#variable-bn_carrier)  <br> |
 |  double | [**car\_error**](#variable-car_error)  <br> |
@@ -45,7 +44,6 @@ _The receiver's loops: timing, carrier, handover, demapper._
 |  int | [**differential**](#variable-differential)  <br> |
 |  double | [**freq\_ctrl**](#variable-freq_ctrl)  <br> |
 |  double | [**freq\_scale**](#variable-freq_scale)  <br> |
-|  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**handover**](#variable-handover)  <br> |
 |  int | [**have\_prev\_idx**](#variable-have_prev_idx)  <br> |
 |  double | [**lo\_sps**](#variable-lo_sps)  <br> |
 |  double | [**lock**](#variable-lock)  <br> |
@@ -58,7 +56,6 @@ _The receiver's loops: timing, carrier, handover, demapper._
 |  float complex | [**sym\_rot**](#variable-sym_rot)  <br> |
 |  [**ratesync\_loop\_t**](structratesync__loop__t.md) | [**timing**](#variable-timing)  <br> |
 |  [**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
-|  int | [**tracking**](#variable-tracking)  <br> |
 |  double | [**zeta**](#variable-zeta)  <br> |
 
 
@@ -106,24 +103,6 @@ _The receiver's loops: timing, carrier, handover, demapper._
 
 ## Public Attributes Documentation
 
-
-
-
-### variable acq\_to\_track 
-
-```C++
-int mpsk_rx_loops_t::acq_to_track;
-```
-
-
-
-opt-in two-way handover. 
- 
-
-
-        
-
-<hr>
 
 
 
@@ -271,24 +250,6 @@ loop-filter output -&gt; freq\_ctrl; rad/symbol to cycles per LO sample, set onc
 
 
 
-### variable handover 
-
-```C++
-lockdet_state_t mpsk_rx_loops_t::handover;
-```
-
-
-
-verify-counted declare/drop rule. 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable have\_prev\_idx 
 
 ```C++
@@ -352,6 +313,7 @@ int64_t mpsk_rx_loops_t::lock_time;
 
 
 sym\_count when carrier lock was first declared, or -1 if never. Running state. 
+ 
 
 
         
@@ -495,24 +457,6 @@ mpsk_rx_tlm_t mpsk_rx_loops_t::tlm;
 
 
 live attachment; zeroed in state blobs. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable tracking 
-
-```C++
-int mpsk_rx_loops_t::tracking;
-```
-
-
-
-0 = NDA acquire, 1 = decision. 
  
 
 

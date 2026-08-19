@@ -60,31 +60,24 @@ extern "C"
   mpsk_receiver_state_t *
   mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
                         double rrc_beta, int rrc_span, double bn_carrier,
-                        double zeta, double bn_timing, int acq_to_track,
-                        double lock_thresh, double init_norm_freq,
-                        int differential,
-                        size_t num_phases, int agc,
-                        double bn_agc_ratio);
+                        double zeta, double bn_timing, double lock_thresh,
+                        double init_norm_freq, int differential,
+                        size_t num_phases, int agc, double bn_agc_ratio);
 
   mpsk_receiver_state_t *
   mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
                              double rrc_beta, int rrc_span, double bn_carrier,
-                             double zeta, double bn_timing, int acq_to_track,
+                             double zeta, double bn_timing,
                              double lock_thresh, double init_norm_freq,
-                             int differential, size_t num_phases,
-                             int agc, double bn_agc_ratio);
+                             int differential, size_t num_phases, int agc,
+                             double bn_agc_ratio);
 
   double mpsk_receiver_get_agc_gain_db (const mpsk_receiver_state_t *state);
-
-  mpsk_receiver_state_t *mpsk_receiver_create_continuous (
-      int m, double sps, int pulse, double rrc_beta, int rrc_span,
-      double bn_carrier, double bn_timing, double init_norm_freq,
-      int differential);
 
   mpsk_receiver_state_t *mpsk_receiver_create_bpsk (
       double sample_rate_hz, double symbol_rate_hz, double carrier_freq_hz,
       int pulse, double rrc_beta, int rrc_span, double bn_carrier,
-      double bn_timing, int acq_to_track, int differential, int agc);
+      double bn_timing, int differential, int agc);
 
   void mpsk_receiver_destroy (mpsk_receiver_state_t *state);
 
@@ -140,14 +133,9 @@ extern "C"
   int64_t mpsk_receiver_get_lock_time (const mpsk_receiver_state_t *state);
   double mpsk_receiver_get_last_error (const mpsk_receiver_state_t *state);
 
-  void mpsk_receiver_configure_lock (mpsk_receiver_state_t *state,
-                                     double up_thresh, double down_thresh,
-                                     uint32_t n_up, uint32_t n_down);
-
   int mpsk_receiver_set_telemetry (mpsk_receiver_state_t *state, dp_tlm_t *tlm,
                                    const char *prefix, uint32_t decim);
   double mpsk_receiver_get_timing_rate (const mpsk_receiver_state_t *state);
-  int    mpsk_receiver_get_tracking (const mpsk_receiver_state_t *state);
   int    mpsk_receiver_get_m (const mpsk_receiver_state_t *state);
   double mpsk_receiver_get_sps (const mpsk_receiver_state_t *state);
   size_t mpsk_receiver_get_m_out (const mpsk_receiver_state_t *state);

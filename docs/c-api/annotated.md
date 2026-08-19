@@ -98,7 +98,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**lockdet\_state\_t**](structlockdet__state__t.md) _Lock-detector state (embeddable by value; pointer-free POD)._     
 * **struct** [**loop\_filter\_state\_t**](structloop__filter__state__t.md) _Second-order PI loop filter state (embeddable by value)._     
 * **struct** [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) _M-PSK receiver state._     
-* **struct** [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) _The receiver's loops: timing, carrier, handover, demapper._     
+* **struct** [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) _The receiver's loops: timing, carrier, demapper._     
 * **struct** [**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md) _Telemetry attachment for the receiver's own two probes; the timing and carrier probes ride their own sub-attachments._     
 * **struct** [**nco\_state\_t**](structnco__state__t.md) _NCO state._     
 * **struct** [**node\_sync\_t**](structnode__sync__t.md) _What one alignment hypothesis scored, and what the runner-up did._     

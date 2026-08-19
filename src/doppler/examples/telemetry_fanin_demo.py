@@ -42,6 +42,7 @@ from doppler.agc import AGC
 from doppler.detection import det_threshold_noncoherent
 from doppler.telemetry import Telemetry
 from doppler.track import Dll, MpskReceiver
+from doppler.wfm import PN, Composer, Segment
 
 SPS = 8  # rx samples/symbol
 FOFF = 8e-4  # rx carrier offset, cycles/sample
@@ -52,36 +53,44 @@ N = 2 * N_CLEAN + N_OUT  # common stream length for all three
 BLK = 512  # producer block size (one set_now per block)
 
 
-def _qpsk(n_samples, snr_db, seed):
-    """Rectangular-pulse QPSK at SPS samples/symbol with AWGN + FOFF."""
-    rng = np.random.default_rng(seed)
-    nsym = n_samples // SPS
-    idx = rng.integers(0, 4, nsym)
-    syms = np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4))
-    tx = np.repeat(syms, SPS)
-    tx *= np.exp(2j * np.pi * FOFF * np.arange(tx.size))
-    sigma = np.sqrt(0.5 / 10 ** (snr_db / 10))
-    tx += rng.normal(0, sigma, tx.size) + 1j * rng.normal(0, sigma, tx.size)
-    return tx.astype(np.complex64)
+def _qpsk_seg(n_samples, snr_db, seed):
+    """One wfmgen SEGMENT of rectangular-pulse QPSK with AWGN + FOFF.
+
+    Returns the declaration rather than samples, because the three spans this
+    demo needs — clean, outage, clean — are one scene rather than three
+    waveforms that happen to be adjacent. See `sig_rx` below.
+
+    `snr_mode="fs"` is per SAMPLE: the outage arm runs at -10 dB, which is
+    only a sensible number when it means "noise is 10 dB above the signal in
+    the full band". As an Es/N0 it would be a different, milder impairment.
+    """
+    return Segment(
+        type="qpsk",
+        sps=SPS,
+        fs=1.0,  # normalised: FOFF is cycles/sample
+        freq=FOFF,
+        snr=snr_db,
+        snr_mode="fs",
+        num_samples=n_samples,
+        seed=seed,
+    )
 
 
 def _mseq31():
-    """Length-31 m-sequence (x^5 + x^2 + 1) — a low-sidelobe PN code.
+    """Length-31 m-sequence — a low-sidelobe PN code, from the library.
 
     The code-lock detector's CFAR reference correlates at a random
     off-peak chip offset, which is only signal-free for a code with low
     periodic autocorrelation sidelobes (an m-sequence's are -1/31); a
     degenerate code (e.g. alternating 0/1, whose autocorrelation is
     2-periodic) would put signal in the noise tap and kill the ratio.
+
+    `PN(length=5)` is that sequence and 2^5 - 1 = 31 fills the period
+    exactly, so the five-line LFSR this replaces was a second implementation
+    of a generator the library already owns. Checked rather than trusted:
+    its off-peak autocorrelation is -1 at every one of the 30 non-zero lags.
     """
-    reg = np.ones(5, dtype=int)
-    out = np.empty(31, dtype=np.uint8)
-    for i in range(31):
-        out[i] = reg[-1]
-        fb = reg[4] ^ reg[1]
-        reg[1:] = reg[:-1]
-        reg[0] = fb
-    return out
+    return np.asarray(PN(length=5, seed=1).generate(31)).astype(np.uint8)
 
 
 def main(out_path="telemetry_fanin_demo.png"):
@@ -116,13 +125,21 @@ def main(out_path="telemetry_fanin_demo.png"):
         print(f"  {pid:3d}  {name}")
 
     # ── per-emitter input streams (same length, shared sample clock) ─
-    sig_rx = np.concatenate(
-        [
-            _qpsk(N_CLEAN, 25.0, seed=4),
-            _qpsk(N_OUT, -10.0, seed=6),  # outage: noise-dominated
-            _qpsk(N_CLEAN, 25.0, seed=5),
-        ]
-    )
+    # ONE SCENE, three segments — not three waveforms concatenated. A
+    # composer plays its segments back to back on a shared sample clock,
+    # which is exactly what "the link degrades for a while and recovers"
+    # is, so the outage becomes a declared span rather than an array seam.
+    # The np.concatenate this replaces had to be told the lengths twice:
+    # once to build each piece and again to know where the outage sat.
+    sig_rx = np.asarray(
+        Composer(
+            [
+                _qpsk_seg(N_CLEAN, 25.0, seed=4),
+                _qpsk_seg(N_OUT, -10.0, seed=6),  # outage: noise-dominated
+                _qpsk_seg(N_CLEAN, 25.0, seed=5),
+            ]
+        ).compose()
+    ).astype(np.complex64)
     rng_ch = np.random.default_rng(11)
     chips = (1.0 - 2.0 * (code % 2)).astype(np.complex64)
     sig_ch = np.tile(

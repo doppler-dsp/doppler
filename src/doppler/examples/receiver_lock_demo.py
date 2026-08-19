@@ -29,6 +29,7 @@ import numpy as np
 
 from doppler.telemetry import Telemetry
 from doppler.track import Costas, Dll, SymbolSync
+from doppler.wfm import PN, Composer, Segment
 
 SF, SPS, K = 127, 2, 8  # code chips, samples/chip, partials/epoch
 TE = SF * SPS  # code-epoch length, samples
@@ -38,21 +39,39 @@ NSYM = 600
 
 
 def make_signal(seed=7):
-    """Async-data DSSS-BPSK, cold start: no code/carrier/timing knowledge."""
-    rng = np.random.default_rng(seed)
-    code = rng.integers(0, 2, SF).astype(np.uint8)
-    csign = np.where(code & 1, -1.0, 1.0)
+    """Async-data DSSS-BPSK, cold start: no code/carrier/timing knowledge.
+
+    wfmgen has this waveform as a first-class type. `--type dsss` with a
+    `symbol_rate` selects the CONTINUOUS form, where the code repeats
+    forever and the data rides it at a rate that is deliberately not a
+    whole number of chips — which is the asynchronicity this whole demo
+    exists to lock onto, and exactly what the hand-built index arithmetic
+    (`si = floor((idx - 0.37*TE) / tsym)`) was expressing.
+
+    The code is an m-sequence rather than a coin flip. SF = 127 is 2^7 - 1,
+    so `PN(length=7)` fills the period exactly, and a DLL reads periodic
+    autocorrelation sidelobes directly: an m-sequence's are a flat -1 at
+    every non-zero lag, where `default_rng(7).integers(0, 2, 127)` had no
+    such guarantee.
+    """
     tsym = TE * (1.0 + DSYM)
-    n = int(NSYM * tsym) + 2 * TE
-    data = (rng.integers(0, 2, NSYM + 6) * 2 - 1).astype(float)
-    idx = np.arange(n)
-    si = np.clip(
-        np.floor((idx - 0.37 * TE) / tsym).astype(int), 0, len(data) - 1
-    )
-    cph = (idx // SPS) % SF
-    rx = (data[si] * csign[cph] * np.exp(2j * np.pi * F0 * idx)).astype(
-        np.complex64
-    )
+    code = np.asarray(PN(length=7, seed=seed).generate(SF)).astype(np.uint8)
+    rx = np.asarray(
+        Composer(
+            [
+                Segment(
+                    type="dsss",
+                    data_code=code,  # code B, repeating forever
+                    symbol_rate=1.0 / tsym,  # > 0 selects CONTINUOUS dsss
+                    sps=SPS,  # samples per CHIP here, not per symbol
+                    fs=1.0,  # normalised: F0 is cycles/sample
+                    freq=F0,
+                    num_samples=int(NSYM * tsym) + 2 * TE,
+                    seed=seed,
+                )
+            ]
+        ).compose()
+    ).astype(np.complex64)
     return code, rx
 
 

@@ -28,11 +28,16 @@ mdformat has rewritten it there is nothing left to search for.
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
-REPO = Path(__file__).resolve().parents[3]
+from doppler.tests._repo import repo_root
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+REPO = repo_root(__file__)
 SCRIPT = REPO / "scripts" / "conflict-check.sh"
 
 

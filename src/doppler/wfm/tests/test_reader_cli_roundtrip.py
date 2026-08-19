@@ -9,13 +9,13 @@ helper returned a zero-copy ``complex128`` view).
 """
 
 import os
-import pathlib
 import shutil
 import subprocess
 
 import numpy as np
 import pytest
 
+from doppler.tests._repo import repo_root
 from doppler.wfm import Reader
 
 
@@ -24,7 +24,7 @@ def _wfmgen_bin():
     p = shutil.which("wfmgen")
     if p:
         return p
-    root = pathlib.Path(__file__).resolve().parents[4]
+    root = repo_root(__file__)
     for cand in root.glob("build*/**/wfmgen"):
         if cand.is_file() and os.access(cand, os.X_OK):
             return str(cand)

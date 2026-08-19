@@ -10,10 +10,10 @@ Factored out once so the two gates cannot drift apart on this shared rule.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
-# repo layout: .../doppler/src/doppler/tests/ -> parents[3] == repo root.
-REPO = Path(__file__).resolve().parents[3]
+from doppler.tests._repo import repo_root
+
+REPO = repo_root(__file__)
 DOCS = REPO / "docs"
 
 # `--8<-- "path"` (whole file) or `--8<-- "path:section"` (the lines between

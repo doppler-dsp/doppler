@@ -18,18 +18,21 @@ from __future__ import annotations
 
 import json
 import subprocess
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from doppler.tests._repo import repo_root
 from doppler.wfm import cli
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Schema fixture
 # ---------------------------------------------------------------------------
 
-_SCHEMA_PATH = Path(__file__).parents[4] / "docs/schema/wfmgen.schema.json"
+_SCHEMA_PATH = repo_root(__file__) / "docs/schema/wfmgen.schema.json"
 
 
 @pytest.fixture(scope="module")

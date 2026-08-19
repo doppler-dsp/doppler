@@ -138,6 +138,7 @@ import numpy as np
 
 from doppler.dsss import BurstAcquisition, BurstDemod, BurstDespreader
 from doppler.snr import snr_data_aided_db, snr_data_aided_db_series
+from doppler.tests._repo import repo_root
 from doppler.wfm import Composer, Segment, crc16
 
 # ── waveform geometry ────────────────────────────────────────────────────────
@@ -199,7 +200,7 @@ def wfmgen_available():
     exe = shutil.which("wfmgen")
     if exe:
         return exe
-    root = Path(__file__).resolve().parents[3]  # repo root
+    root = repo_root(__file__)
     for cand in root.glob("build*/**/wfmgen"):
         if cand.is_file():
             return str(cand)

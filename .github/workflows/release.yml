@@ -81,11 +81,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
+        # `shell: bash` for pipefail: the `| head -n1` below otherwise
+        # reports head's status and a failed `gh api` reads as an empty
+        # answer. The `|| line=""` keeps that tolerance DELIBERATE rather
+        # than accidental -- this is a poll loop, so one API blip should
+        # cost a retry, not the release; with pipefail and `-e` and no
+        # `||`, the assignment itself would end the step.
+        shell: bash
         run: |
           for i in $(seq 1 60); do
             line="$(gh api "repos/$REPO/commits/$SHA/check-runs" --paginate \
               --jq '.check_runs[] | select(.name == "CI passed")
-                    | "\(.status) \(.conclusion)"' | head -n1)"
+                    | "\(.status) \(.conclusion)"' | head -n1)" || line=""
             status="${line%% *}"; conclusion="${line#* }"
             if [[ "$status" == "completed" && "$conclusion" == "success" ]]; then
               echo "CI passed on $SHA."; exit 0
@@ -413,6 +420,11 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Wait for the version to be resolvable on PyPI
+        # `shell: bash` for pipefail. The `pip index | grep -q` below is a
+        # condition, so the only change is the honest one: when pip itself
+        # fails, the answer is "not resolvable yet" and the loop waits,
+        # instead of the result resting on grep alone.
+        shell: bash
         run: |
           VERSION="${{ needs.verify-version.outputs.version }}"
           for i in $(seq 1 30); do

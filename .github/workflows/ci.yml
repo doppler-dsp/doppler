@@ -487,6 +487,15 @@ jobs:
       run: make nats-up
 
     - name: Coverage (clang source-based; C ∪ Python ∪ Rust)
+      # `shell: bash` for the `-o pipefail` it carries. The default shell is
+      # `bash -e`, where a pipeline's status is the LAST command's -- so `make
+      # coverage | tee` reported tee's 0 and this step went green over a recipe
+      # that had failed. It did: the install of the instrumented wfmgen died on
+      # a missing directory, no report was ever written, and the failure only
+      # surfaced one step later as `coverage-gate` opening a coverage.lcov that
+      # did not exist. Same shape as the leading `-` this branch removed from
+      # pytest, one layer out: the exit code was produced and then discarded.
+      shell: bash
       run: make coverage | tee coverage.txt
 
     - name: Stop NATS broker

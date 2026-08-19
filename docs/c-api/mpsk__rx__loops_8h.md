@@ -364,8 +364,6 @@ behave identically regardless of front end" is a property of one function rather
 * `l` Loops. Must be non-NULL. 
 * `ys` The terminal-stage outputs the front end just produced. 
 * `n` How many. 
-* `zpre` The MFR-input sample, when the front end produced one. 
-* `n_pre` Non-zero when `zpre` is live. 
 * `y_out` Receives the recovered symbol when the return is 1. 
 * `ted` RATESYNC\_TED\_GARDNER or RATESYNC\_TED\_DTTL — pass a literal for a specialised (branch-free) instantiation. 
 

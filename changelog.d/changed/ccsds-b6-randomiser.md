@@ -17,23 +17,26 @@
     would be 128 KB at the new one — and longer than any CADU, so it would
     never wrap.
 
-- **Adopting it costs ~2 dB, and the reason is worth knowing (gh-866).**
-    `validate_rx_coding_gain`'s cleanest point moves Es/N0 0.0 → 2.0 dB and
-    its bound 6.1 → 4.1 dB on the same chain, same seeds, same code — so the
-    gate is re-baselined to 4.0 dB with the measurement recorded beside it.
-    The ≥6.1 dB half of that pair was only ever measured on the legacy
-    waveform, so it is the figure this release does **not** ship, and
-    `docs/design/fec-receive.md` §8 reports the B-6 sweep throughout.
+- **The reported coding-gain bound moves 6.1 → 4.1 dB, and the reason is the
+    measurement's shape rather than the receiver's.**
+    `validate_rx_coding_gain`'s cleanest point moves Es/N0 0.0 → 2.0 dB on the
+    same chain, same seeds, same code, so the gate is re-baselined to 4.0 dB
+    with the measurement recorded beside it. The ≥6.1 dB half of that pair was
+    only ever measured on the legacy waveform, so it is the figure this
+    release does **not** ship, and `docs/design/fec-receive.md` §8 reports the
+    B-6 sweep throughout.
 
-    The loss is **before the decoder** — channel SER is worse at the same
-    Es/N0 — and the mechanism is a hard guarantee rather than a drift. A
-    maximal-length sequence of degree *D* has a maximum run of exactly *D*,
-    so the legacy randomiser **guaranteed a transition at least every 8
-    symbols** and B-6's guarantees only every 17. Measured over one CADU: max
-    run 8 → 15, with 20 runs longer than 8 where there were none.
-
-    B-6 made that trade deliberately, to remove the 255-bit sequence's
+    B-6 changed the sequence deliberately, to remove the 255-bit one's
     spectral lines at 1/255 of the symbol rate and its ITU power-flux-density
-    problem. doppler's timing loop was drawing ~2 dB from a property of a
-    randomiser chosen for unrelated reasons; gh-866 is that finding, and
-    reverting would only make it invisible again.
+    problem. A maximal-length sequence of degree *D* has a maximum run of
+    exactly *D*, so the legacy randomiser guaranteed a transition every ≤ 8
+    symbols and B-6's only every ≤ 17 — but both have the **same 50.00 %
+    transition density** and the same run distribution below 8, and the whole
+    difference is ~20 events per CADU, or 0.2 % of symbols.
+
+    Isolated, that costs about **0.02 dB** of implementation loss, not 2 dB
+    (gh-866, closed with the data). What moves the reported clean point two
+    whole grid steps is a concatenated code on its cliff amplifying a ~3 %
+    relative change in channel SER, read on a 1 dB sweep grid — B-6 at +1 dB
+    was already at 1.08e-3 payload BER, so the true threshold shift is well
+    under 2 dB.

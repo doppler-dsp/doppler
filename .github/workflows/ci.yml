@@ -275,11 +275,22 @@ jobs:
       if: matrix.python-version == '3.12'
       run: make test-snippets
 
-    - name: Test with coverage
+    - name: Test
       # The fence gates are version-independent and have their own step above
       # (3.12 only); `make test-python` excludes those markers by definition, so
-      # local and CI select exactly the same tests. PYTEST_ARGS adds only the
-      # coverage REPORTING, which is CI's business, not a different test run.
+      # local and CI select exactly the same tests.
+      #
+      # No PYTEST_ARGS here: this is every version except the one that keeps a
+      # report, and coverage that is computed and discarded is just a slower
+      # test run. The Python line coverage is uploaded from 3.12 (below), and
+      # the number the patch gate actually reads comes from the `coverage` job,
+      # which measures C ∪ Python ∪ Rust against one instrumented build.
+      if: matrix.python-version != '3.12'
+      run: make test-python
+
+    - name: Test with coverage
+      # 3.12 only -- the version whose coverage.xml is uploaded.
+      if: matrix.python-version == '3.12'
       run: |
         make test-python PYTEST_ARGS="--cov \
           --cov-report=term-missing \

@@ -336,23 +336,47 @@ not a discrepancy. **The rate is part of the answer**: R = 1/2 × 223/255 =
 0.4373, so the link is charged 3.59 dB for its redundancy before any gain is
 claimed. A coding gain quoted without that term is 3.6 dB that does not exist.
 
-### The bound is the RECEIVER's, and ~2 dB of it is a randomiser artifact
+### Why the reported bound moved, and why it is NOT a receiver defect
 
-This section read **≥ 6.1 dB at Eb/N0 3.59 dB** until the randomiser moved,
-and the difference is not the code — it is the same chain measured on a
-different waveform. 131.0-B-6 makes 10.4.1's 131071-bit sequence the `shall`
-and keeps the 255-bit one only for legacy systems; adopting it moved the
-cleanest point from 0 dB to +2 dB and the bound with it.
+This section read **≥ 6.1 dB at Eb/N0 3.59 dB** until the randomiser moved.
+131.0-B-6 makes 10.4.1's 131071-bit sequence the `shall` and keeps the 255-bit
+one only for legacy systems; adopting it moved the cleanest point from 0 dB to
++2 dB and the reported bound with it.
 
-**The loss lands before the decoder.** Channel SER is measured at the
-demodulator output and is worse at the *same* Es/N0. A maximal-length sequence
-of degree `D` has a maximum run of exactly `D`, so the legacy randomiser
-*guaranteed* a transition at least every 8 symbols and B-6's guarantees only
-every 17 — a property the timing loop had been drawing on for as long as this
-code has existed, from a generator chosen for unrelated reasons.
-[#866](https://github.com/doppler-dsp/doppler/issues/866) is that finding.
-The number here is deliberately the receiver's as it stands, not a figure held
-back until #866 closes.
+**That is mostly the sweep's grid, not the receiver.** The mechanism was
+measured directly ([#866](https://github.com/doppler-dsp/doppler/issues/866),
+closed) and it is much smaller than the 2 dB step suggests:
+
+| what                                   | legacy  | B-6         |
+| -------------------------------------- | ------- | ----------- |
+| transition density, full period        | 50.00 % | **50.00 %** |
+| maximum run                            | 8       | 15–16       |
+| runs longer than 8, per CADU           | 0       | 20          |
+| implementation loss, uncoded isolation | 0.10 dB | 0.12 dB     |
+
+The two sequences have the **same** transition density and the same
+run-length distribution below 8 — legacy's is simply truncated there, because
+a maximal-length sequence of degree `D` has a maximum run of exactly `D`. The
+whole difference is ~20 events per CADU where the timing loop coasts 9–15
+symbols instead of ≤ 8, which is **0.2 % of symbols**. Isolated at the anchor
+geometry, that costs about **0.02 dB** of implementation loss — B-6 worse in
+four of four measured pairs, so the effect is real and its sign is right, but
+it is two orders of magnitude short of 2 dB.
+
+What inflates it here is the operating point, and both halves are the
+measurement's own shape rather than the receiver's:
+
+- a **concatenated code on its cliff** turns the ~3 % relative change in
+    channel SER into a large change in payload errors — the code behaving
+    correctly;
+- the sweep is sampled on a **1 dB grid**, so the reported clean point moves
+    two whole steps. B-6 at +1 dB was already at 1.08e-3 payload BER, so the
+    true threshold shift is well under 2 dB and this grid cannot say where.
+
+So the ≥ 4.1 dB below is the receiver's real bound at this geometry, and the
+right reading of the move is "a cliff measured coarsely", not "the timing loop
+was drawing 2 dB from a randomiser". A finer sweep through the threshold is
+what would pin the actual shift; nothing here waits on it.
 
 ### Three things only a receiver-in-the-loop run could say
 
@@ -369,9 +393,20 @@ is what an attached sync marker is for. Both duty cycles are printed so this
 stays a measurement rather than an assumption.
 
 That the duty barely moved across the randomiser change — 24 % → 23 % at 0 dB,
-68 % → 68 % at +1 dB — while the payload went from error-free to 465 errors is
-the sharpest form of the same point, and is why #866 starts at the detector:
-the loop reports that it is fine.
+68 % → 68 % at +1 dB — while the payload went from error-free to 465 errors
+looks like the detector missing something, and #866 was opened on that
+reading. It is not. The carrier lock statistic is `Re((z/|z|)^M)`, normalised
+by its own amplitude law so the loop can run with no AGC in front of it, and
+the **timing** loop has its own detector besides. Both are means, and the two
+waveforms have identical means: measured on the timing loop's own telemetry,
+`rx.sync.lock` moves 0.4–0.5 % between them while its *minimum* — a tail
+statistic — moves up to 5.4 %, and the de-chattered `rx.sync.locked` stays at
+100 % throughout.
+
+So the duty is not failing to report a problem; there is no problem of that
+size to report, and the one statistic that saw anything is the one nobody
+summarises. A tail-sensitive timing indicator is a reasonable thing to want,
+but it is a separate idea from this threshold.
 
 **Slips are real at these Es/N0, and one of them flips the node phase.** Frame
 sync loses the marker where it expected it 10 times at −1 dB, 4 at 0 dB and

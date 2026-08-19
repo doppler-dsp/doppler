@@ -61,13 +61,12 @@ runs the same two `jbx install-deps` commands `make install-deps` and
 exists to prevent, and it would rot in the way hardest to notice: the image
 would keep working while no longer being what a developer gets.
 
-Three things are installed *outside* that list, each for a reason one
+Two things are installed *outside* that list, each for a reason one
 cross-distro package list cannot express:
 
 | what                  | why it cannot come from `bootstrap.toml`                                                                                                                                                                                                                                                                                 |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `libclang-rt-<n>-dev` | Whether clang bundles its profile runtime is a property of the distro *release*. 22.04 bundles it and has no such package at all — naming one fails apt outright — while 24.04 splits it out and clang does not depend on it. The image asks apt, tolerates a miss, and then *compiles the probe* as the real assertion. |
-| a rustup toolchain    | apt ships cargo 1.75 on both LTSes, and `ffi/rust/Cargo.lock` is lockfile v4, which cargo refuses below 1.78. See [#887](https://github.com/doppler-dsp/doppler/issues/887) — the dev path is still affected.                                                                                                            |
 | `nats-server`         | `make nats-up` shells out to `docker run`, and there is no docker daemon inside a container job.                                                                                                                                                                                                                         |
 
 That last one matters more than it looks. The `nats://` stream tests
@@ -76,6 +75,24 @@ suite would stay green while silently dropping the whole NATS path — and the
 coverage number with it. `scripts/start-nats.sh` prefers the binary and falls
 back to docker, so a dev box without docker *gains* those tests rather than
 skipping them.
+
+### What is deliberately *not* in it
+
+A rustup toolchain was, briefly — 613 MB, the single largest thing in the
+image — carried only because `ffi/rust/Cargo.lock` had drifted to format v4,
+which cargo refuses below 1.78 while apt ships 1.75 on both LTSes. That was a
+workaround for a defect, not a requirement: the crate is edition 2021 with two
+dependencies, and 1.75 compiles the whole tree in under four seconds.
+
+The lockfile is back at v3, `Cargo.toml` declares `rust-version = "1.75"`, and
+`make cargo-floor-check` fails if either leaves the floor — because cargo
+rewrites the lockfile to v4 the first time a modern one resolves anything, and
+a lockfile is not a file anyone reads. Removing the workaround took the image
+from 3.17 GB to 2.31 GB.
+
+That is the shape to copy when this image grows: ask whether the thing being
+added is a *requirement* or a *workaround*, because a workaround baked into
+the environment is one nobody sees again.
 
 ### Two bases, on purpose
 

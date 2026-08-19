@@ -2,6 +2,15 @@
 name = "doppler"
 version = "0.42.0"
 edition = "2021"
+# The floor is what Ubuntu's LTSes ship, and it is declared rather than
+# implied: cargo 1.75 is what apt gives on BOTH 22.04 and 24.04, which is what
+# `make install-deps` provisions and therefore what the documented dev path
+# has. Measured, not guessed -- 1.75 compiles this crate and its whole
+# dependency tree. See gh-887: the lockfile had drifted to format v4 (written
+# by a modern cargo, needing >= 1.78), so `make test-rust` could not run on a
+# box provisioned from bootstrap.toml at all. CI only looked fine because the
+# hosted runner carried a rustup toolchain that shadowed apt's.
+rust-version = "1.75"
 description = "Rust FFI bindings for the doppler C library"
 license = "MIT"
 

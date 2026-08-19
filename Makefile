@@ -118,7 +118,7 @@ SYNC_CMD   = $(UV) sync
 # environment" class of drift: the tool comes from `--group dev` and uv.lock
 # owns the version, so there is no `additional_dependencies` left to drift.
 LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format clang-tidy \
-               phase-conversion stimulus-sources retired-names
+               phase-conversion stimulus-sources retired-names ci-pipefail
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -223,6 +223,16 @@ LINT_phase-conversion = $(UV) run python scripts/check_phase_conversion_sites.py
 # five of them the NAME a C test prints, which no compiler can notice. The
 # list is data, added by the commit that retires a name.
 LINT_retired-names = $(UV) run python scripts/check_retired_names.py
+
+# A CI step may not throw away the exit code it just produced. The default
+# Actions shell is `bash -e`, where a PIPELINE reports the last command's
+# status -- so `make coverage | tee coverage.txt` was green over a recipe that
+# had failed, and the missing report only surfaced one step later as the patch
+# gate opening an lcov that was never written. Same shape as the leading `-`
+# this repo removed from the coverage pytest: the code is computed and then
+# discarded. Registration-free -- it walks every workflow and composite action,
+# so a new file is covered the moment it exists.
+LINT_ci-pipefail = $(UV) run python scripts/check_workflow_pipelines.py
 
 # Stimulus and its measurement have ONE home, and it is the library: wfmgen
 # (wfm_synth_*/Synth) generates signal, ber_* measures it. A private copy in a
@@ -670,6 +680,18 @@ find $(COV_DIR)/pkg/doppler -type d -empty -delete 2>/dev/null || true
 # Installing the instrumented binary makes them RUN and contribute coverage,
 # which is the same reasoning as resolving the repo root by walking up
 # rather than skipping the tests that could not find it.
+#
+# `mkdir -p` FIRST, and it is load-bearing rather than defensive. The build
+# itself already bundles wfmgen here (wfmcompose/CMakeLists.txt's POST_BUILD
+# copy into PYTHON_PACKAGE_DIR), and the purge above then deletes it -- it is
+# not a `*.so` -- and takes the emptied `wfm/_bin/` with it. The directory
+# came back only from the tar, i.e. only on a box whose `src/doppler/wfm/_bin/`
+# already held a binary from a NORMAL build; that path is .gitignored, so it
+# exists on a developer's tree and never in CI. This target therefore passed
+# locally and died in CI on `install: cannot create regular file`, which is
+# the whole "works here" class -- a recipe reaching for an artifact no clean
+# checkout has.
+mkdir -p $(COV_DIR)/pkg/doppler/wfm/_bin
 install -m 755 $(COV_DIR)/native/src/wfmcompose/wfmgen \
     $(COV_DIR)/pkg/doppler/wfm/_bin/wfmgen
 rm -rf $(COV_DIR)/prof && mkdir -p $(COV_DIR)/prof

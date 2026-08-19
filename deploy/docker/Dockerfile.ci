@@ -98,6 +98,30 @@ RUN clang_major="$(clang --version | grep -oE 'version [0-9]+' | head -1 \
 # runs. An image that cannot link it is never published, instead of failing
 # the coverage job later with a message about a missing package.
 
+# A modern cargo, ahead of apt's on PATH. Same shape as the profile runtime
+# above: a truth about the RELEASE that one cross-distro package list cannot
+# carry. bootstrap.toml lists `cargo`, and apt ships 1.75.0 on BOTH LTSes,
+# while ffi/rust/Cargo.lock is lockfile version 4 -- which cargo refuses
+# below 1.78 with "lock file version 4 requires -Znext-lockfile-bump".
+#
+# This was invisible until CI moved into a container: the hosted runner
+# carries a rustup cargo (1.97.1) that shadows the apt one, so `make
+# test-rust` passed there while the documented Ubuntu dev path -- install
+# bootstrap.toml's dev group, run the gates -- fails on it. Filed as gh-887;
+# the image pins the fix rather than waiting for it.
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+      | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable \
+ && chmod -R a+rX,a+w "$CARGO_HOME" \
+ && cargo --version \
+ && rustc --version
+# ^ world-writable CARGO_HOME on purpose: a container job runs as root, but
+# `make ci-image` and the publish smoke run as the caller (so a bind-mounted
+# checkout does not fill with root-owned files), and cargo writes its
+# registry cache into CARGO_HOME either way.
+
 # nats-server as a BINARY, not a container. `make nats-up` shells out to
 # `docker run`, which is not available inside a container job -- and the
 # stream suite's nats:// tests self-skip when 127.0.0.1:4222 is unreachable,
@@ -125,7 +149,17 @@ RUN git config --system --add safe.directory '*'
 # ordering); this changes only when the CONTENT does, which is the question
 # "is the pinned image still the environment bootstrap.toml describes" —
 # and the one the nightly refresh asks before publishing anything.
-RUN dpkg-query -W -f='${Package}\t${Version}\n' | LC_ALL=C sort \
+# NOT dpkg alone. The first version of this hashed only dpkg's output, and
+# the rustup layer above proved why that is not enough: adding a whole Rust
+# toolchain left the fingerprint BYTE-IDENTICAL, because rustup is not a
+# package. The nightly compares this value to decide whether anything moved,
+# so every tool that arrives outside dpkg has to be in it or the nightly is
+# blind to exactly the parts this file installs by hand.
+RUN { dpkg-query -W -f='${Package}\t${Version}\n'; \
+      printf 'rustup\t%s\n' "$(rustc --version)"; \
+      printf 'cargo\t%s\n'  "$(cargo --version)"; \
+      printf 'nats-server\t%s\n' "$(nats-server --version)"; \
+    } | LC_ALL=C sort \
       > /etc/doppler-ci-packages \
  && sha256sum /etc/doppler-ci-packages | cut -d' ' -f1 \
       > /etc/doppler-ci-fingerprint \

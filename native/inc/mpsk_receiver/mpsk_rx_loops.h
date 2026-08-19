@@ -655,7 +655,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
    */
   JM_FORCEINLINE JM_HOT int
   mpsk_rx_fold (mpsk_rx_loops_t *l, const float complex *ys, size_t n,
-                float complex zpre, int n_pre, float complex *y_out, int ted)
+                float complex *y_out, int ted)
   {
     int emitted = 0;
     for (size_t oi = 0; oi < n; oi++)

@@ -630,12 +630,10 @@ extern "C"
                           float complex *y_out, int ted)
   {
     float complex ys[4];
-    float complex zpre;
-    int           n_pre = 0;
     size_t        n     = ddc_execute_ctrl_push_tap2 (
         s->fe.c, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
-        sizeof (ys) / sizeof (ys[0]), NULL, NULL, &zpre, &n_pre);
-    return mpsk_rx_fold (&s->l, ys, n, zpre, n_pre, y_out, ted);
+        sizeof (ys) / sizeof (ys[0]), NULL, NULL, NULL, NULL);
+    return mpsk_rx_fold (&s->l, ys, n, y_out, ted);
   }
 
   /**
@@ -659,12 +657,10 @@ extern "C"
                                float complex *y_out, int ted)
   {
     float complex ys[4];
-    float complex zpre;
-    int           n_pre = 0;
     size_t        n     = ddcr_execute_ctrl_push_tap2 (
         s->fe.r, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
-        sizeof (ys) / sizeof (ys[0]), NULL, NULL, &zpre, &n_pre);
-    return mpsk_rx_fold (&s->l, ys, n, zpre, n_pre, y_out, ted);
+        sizeof (ys) / sizeof (ys[0]), NULL, NULL, NULL, NULL);
+    return mpsk_rx_fold (&s->l, ys, n, y_out, ted);
   }
 
   size_t mpsk_receiver_steps_max_out (mpsk_receiver_state_t *state);

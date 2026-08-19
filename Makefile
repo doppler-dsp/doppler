@@ -343,7 +343,8 @@ nats-down: ## Stop and remove the NATS JetStream broker
 COMPILE_DB = symlink
 
 GATES_PROVISION = install-deps install-docs-deps build pyext nats-up \
-                  nats-down install-deps-ci install-docs-deps-ci
+                  nats-down install-deps-ci install-docs-deps-ci \
+                  apt-stall-config
 GATES_DEPS    = lint changelog-check drift-check doxygen-check docs-check \
                 gen-c-api-check \
                 validate-check \
@@ -777,6 +778,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 tests-ssot validation-report-check \
                 compile_commands.json \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
+                apt-stall-config \
                 wheel-check wheel-smoke release-smoke \
                 bench-interleaved bench-publish bench-docs bench-stream \
                 bench-report \
@@ -862,14 +864,55 @@ install-docs-deps: ## Install the docs system deps (bootstrap.toml `docs` group)
 # samples (median 18), so 300s is ~1.7x the worst observed. The workflow steps
 # carry `timeout-minutes` too — the backstop for a shell with no `timeout(1)`,
 # and the half that cannot be bypassed.
-DEPS_DEADLINE ?= 300
+# 600, not 300. The first live run caught a REAL stall at 300s — apt sat 229
+# seconds with zero output midway through a 114 MB download from
+# azure.archive.ubuntu.com — so the deadline works. But the 9 healthy samples
+# it was sized from (16-179s) were all fast ones, and a wall-clock deadline
+# CANNOT tell a stalled mirror from a slow one. 600s is ~3.4x the worst
+# observed healthy run and still bounds a true hang at ten minutes against the
+# 360 it used to get. The apt-level timeout below is what actually makes that
+# distinction; this is the backstop for everything it does not cover.
+DEPS_DEADLINE ?= 600
 DEPS_TRIES    ?= 3
 
-install-deps-ci: ## install-deps under a per-attempt deadline + retries (CI)
+# Teach apt to fail a STALLED connection fast and retry it itself.
+#
+# This is the layer the problem actually lives at. A wall-clock deadline can
+# only ask "has the whole step taken too long", which conflates a hung mirror
+# with a large download over a slow link. apt can ask the question that
+# matters — "has this connection produced no bytes for 30 seconds" — and its
+# own retry RESUMES rather than restarting, with no dpkg lock left behind,
+# which is exactly what the outer retry cannot do (see with-deadline.sh).
+#
+# Written as a config drop-in because `jbx install-deps` invokes apt-get
+# itself and takes no pass-through options. Linux only: `sudo`/apt may not
+# exist (macOS runners use brew), so the whole thing is best-effort and never
+# fails provisioning by itself.
+APT_STALL_CONF = /etc/apt/apt.conf.d/99-doppler-stall
+define APT_STALL_CONFIG
+Acquire::http::Timeout "30";
+Acquire::https::Timeout "30";
+Acquire::ftp::Timeout "30";
+Acquire::Retries "3";
+endef
+export APT_STALL_CONFIG
+
+apt-stall-config: ## Make apt fail a stalled mirror fast (CI, Linux, no-op elsewhere)
+	@if command -v apt-get >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1; \
+	 then \
+	    printf '%s\n' "$$APT_STALL_CONFIG" \
+	        | sudo tee $(APT_STALL_CONF) >/dev/null \
+	        && echo "apt-stall-config: 30s connection timeout, 3 retries" \
+	        || echo "apt-stall-config: could not write $(APT_STALL_CONF) — skipped"; \
+	 else \
+	    echo "apt-stall-config: no apt-get/sudo — skipped (not an error)"; \
+	 fi
+
+install-deps-ci: apt-stall-config ## install-deps under a per-attempt deadline + retries (CI)
 	@./scripts/with-deadline.sh $(DEPS_DEADLINE) $(DEPS_TRIES) \
 	    $(MAKE) --no-print-directory install-deps
 
-install-docs-deps-ci: ## install-docs-deps under a deadline + retries (CI)
+install-docs-deps-ci: apt-stall-config ## install-docs-deps under a deadline + retries (CI)
 	@./scripts/with-deadline.sh $(DEPS_DEADLINE) $(DEPS_TRIES) \
 	    $(MAKE) --no-print-directory install-docs-deps
 

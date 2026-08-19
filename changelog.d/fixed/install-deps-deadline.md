@@ -41,6 +41,19 @@
     curl exiting non-zero, a transient resolver error) leave no lock and *are*
     still retried.
 
+    **The stall is a mirror going quiet mid-download, so apt is the layer that
+    can actually fix it.** The log shows `azure.archive.ubuntu.com` producing
+    nothing for 229 seconds partway through a 114 MB fetch. A wall-clock
+    deadline cannot tell that from a large download over a slow link; apt can,
+    and its own retry *resumes* rather than restarting and leaves no dpkg lock.
+    `make apt-stall-config` drops
+    `Acquire::http::Timeout "30"` / `Acquire::Retries "3"` into
+    `/etc/apt/apt.conf.d/` before provisioning — best-effort and Linux-only, a
+    no-op where there is no apt or sudo. The deadline moves to **600s**
+    accordingly: the 9 samples it was first sized from were all fast ones, so
+    ~3.4x the worst observed is the honest margin, and a true hang is still
+    bounded at ten minutes against the 360 it used to get.
+
     Also measured on that run: **GitHub's macOS runner has neither
     `timeout(1)` nor `gtimeout`**, so the script carries a POSIX watchdog
     fallback with the same contract rather than leaving a whole platform on the

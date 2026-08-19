@@ -202,7 +202,8 @@ jobs:
           python-version: ${{ matrix.python }}
 
       - name: Install system dependencies
-        run: make install-deps
+        timeout-minutes: 15
+        run: make install-deps-ci
 
       - name: Build wheel (Python ${{ matrix.python }})
         # Build through the make target, the same way CI builds the extension
@@ -297,7 +298,8 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install system dependencies
-        run: make install-deps
+        timeout-minutes: 15
+        run: make install-deps-ci
 
       - name: Build + tar the C library
         # Same target the Linux legs run in their container, and the same one a

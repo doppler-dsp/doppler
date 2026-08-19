@@ -342,7 +342,8 @@ nats-down: ## Stop and remove the NATS JetStream broker
 # here after its cp refused outright against the symlink doppler already had).
 COMPILE_DB = symlink
 
-GATES_PROVISION = install-deps install-docs-deps build pyext nats-up nats-down
+GATES_PROVISION = install-deps install-docs-deps build pyext nats-up \
+                  nats-down install-deps-ci install-docs-deps-ci
 GATES_DEPS    = lint changelog-check drift-check doxygen-check docs-check \
                 gen-c-api-check \
                 validate-check \
@@ -775,7 +776,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 check-isotime-parity \
                 tests-ssot validation-report-check \
                 compile_commands.json \
-                install-docs-deps \
+                install-docs-deps install-deps-ci install-docs-deps-ci \
                 wheel-check wheel-smoke release-smoke \
                 bench-interleaved bench-publish bench-docs bench-stream \
                 bench-report \
@@ -835,6 +836,42 @@ install-docs-deps: ## Install the docs system deps (bootstrap.toml `docs` group)
 	@command -v jbx >/dev/null 2>&1 \
 	    || curl -sSL https://just-buildit.github.io/get-jb.sh | bash
 	PATH="$$HOME/.local/bin:$$PATH" jbx install-deps -g docs
+
+# ── Provisioning with a deadline (doppler#879) ───────────────────────────────
+# Both targets above reach the network three times — the jbx bootstrap curl,
+# then jbx's own apt/brew — and none of those calls carries a timeout. So a
+# stalled mirror does not fail provisioning, it HANGS it, until GitHub's
+# 360-minute job limit, reporting `pending` the whole way where a reader
+# cannot tell it from slow CI. Measured 2026-08-19: one commit hung 3h45m and
+# then 2h42m at `Install system dependencies` while a sibling branch passed
+# the identical step ninety seconds later.
+#
+# A RETRY ALONE WOULD HAVE BEEN DECORATION. The retry-on-failure pattern this
+# repo already runs (.github/actions/setup-uv) keys on a step EXITING
+# non-zero — correct for the 2026-08-07 fetch that timed out and *returned* an
+# error, and inert against a hang, which never exits at all. The deadline is
+# what converts the hang into a failure; the retry is what then recovers
+# instead of merely failing faster. scripts/with-deadline.sh carries both, in
+# that order, and says so.
+#
+# These wrap rather than replace `install-deps` so there is still ONE spelling
+# of how the tool runs: a developer keeps the plain target, CI reaches for the
+# bounded one, and neither is a second copy of the invocation.
+#
+# Sized from measurement rather than feel: healthy runs took 16–179s across 9
+# samples (median 18), so 300s is ~1.7x the worst observed. The workflow steps
+# carry `timeout-minutes` too — the backstop for a shell with no `timeout(1)`,
+# and the half that cannot be bypassed.
+DEPS_DEADLINE ?= 300
+DEPS_TRIES    ?= 3
+
+install-deps-ci: ## install-deps under a per-attempt deadline + retries (CI)
+	@./scripts/with-deadline.sh $(DEPS_DEADLINE) $(DEPS_TRIES) \
+	    $(MAKE) --no-print-directory install-deps
+
+install-docs-deps-ci: ## install-docs-deps under a deadline + retries (CI)
+	@./scripts/with-deadline.sh $(DEPS_DEADLINE) $(DEPS_TRIES) \
+	    $(MAKE) --no-print-directory install-docs-deps
 
 specan: ## Launch the live spectrum analyzer in a browser
 	uv run doppler-specan

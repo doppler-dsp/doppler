@@ -293,16 +293,29 @@ PYTEST_ARGS     ?=
 PYTEST_SELECT   = -m "not docs_snippets and not examples"
 # Every src/doppler/<mod>/benchmarks directory, derived not listed.
 PYTEST_BENCH_DIRS = $(wildcard src/doppler/*/benchmarks)
-# TWO passes, and the split is the whole point (see the note above): the bulk
-# runs under xdist, and the benchmark tests run SERIALLY afterwards so
-# pytest-benchmark still measures instead of disabling itself. `--cov-append`
-# on the second pass is what keeps CI's single coverage report complete: pass
-# one erases and writes, pass two appends, so the report emitted at the end of
-# pass two carries both.
+# ONE pass, and the benchmark directories are IN it -- as tests, not as
+# measurements. `--benchmark-disable` says so EXPLICITLY: the fixture stays
+# (so the 138 benchmark tests still run, and a broken benchmark script fails
+# here, where it should) and nothing is timed.
+#
+# Explicit, because the alternative is implicit and conditional: pytest-
+# benchmark also disables itself whenever xdist is active, which would leave
+# this depending on `-n auto`. `PYTEST_ARGS="-n 0"` is a DOCUMENTED override
+# (see the note above), and under it the timing would quietly switch back on
+# inside the step everyone runs -- slower, and taking measurements nobody
+# reads. `-p no:benchmark` is the wrong knob: it removes the fixture, and all
+# 138 tests error with "fixture 'benchmark' not found". Both measured.
+#
+# MEASURING is `make bench-python`, and the separation is the point: tests are
+# run constantly, benchmarks occasionally, and they answer different
+# questions. This target used to do both -- a second, SERIAL pass over the
+# benchmark dirs so pytest-benchmark would measure -- which put a measurement
+# nobody was reading inside the step everyone runs. Measured in CI: 139s of a
+# 268s step, on all SIX Python versions, ~14 minutes a run spent timing code
+# on a shared runner and discarding the numbers. Timing on a shared runner is
+# also the thing doppler#543 already deleted perf-regression.yml over.
 TEST_PYTHON_CMD = uv run pytest src/ -v $(PYTEST_SELECT) \
-                      --ignore-glob='*/benchmarks/*' -n auto $(PYTEST_ARGS) \
-                  && uv run pytest $(PYTEST_BENCH_DIRS) -v $(PYTEST_SELECT) \
-                      --cov-append $(PYTEST_ARGS)
+                      --benchmark-disable -n auto $(PYTEST_ARGS)
 TEST_RUST_CMD   = cargo test --manifest-path $(RUST_DIR)/Cargo.toml
 
 # Fail-closed: every src/doppler/examples/*.py (plus the standalone example) is
@@ -906,6 +919,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 ci-image ci-image-check ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke \
+                bench-python \
                 bench-interleaved bench-publish bench-docs bench-stream \
                 bench-report \
                 docker-runtime docker-sdk docker-downstream docker-stream \
@@ -2465,6 +2479,18 @@ test-example-downstream-python: ## Build + test the downstream example (Python)
 # git worktrees and runs them alternately K times (K=5; override with K=N),
 # keeping the per-benchmark best so the *from src* column isn't corrupted by
 # cross-run drift. bench-publish stamps a single build by hand if you need it.
+# The Python microbenchmarks, MEASURED -- serially, because pytest-benchmark
+# disables itself under xdist and a number it refuses to produce is better
+# than one taken on eight busy cores.
+#
+# It is its own target because it is its own activity: `make test-python` runs
+# constantly and runs these files as TESTS (xdist, no timing); this runs
+# occasionally and is the only thing that times them. Folding the two put a
+# 139s measurement inside every test run, six times over in CI, feeding
+# nothing -- see TEST_PYTHON_CMD.
+bench-python: ## Time the Python microbenchmarks (serial; pytest-benchmark)
+	uv run pytest $(PYTEST_BENCH_DIRS) -v $(PYTEST_SELECT) $(PYTEST_ARGS)
+
 bench-interleaved: ## Measure portable + native alternately, denoised (VERSION=)
 ifndef VERSION
 	@echo "usage: make bench-interleaved VERSION=X.Y.Z [K=5]"; exit 1

@@ -58,6 +58,32 @@ via `pytest --benchmark-only` in the project's own virtualenv, and saves
 a dated JSON snapshot. Each `test_*` function is one entry in the JSON
 with full summary stats (min, max, mean, stddev, median, IQR, ops).
 
+### Testing them vs timing them
+
+These files are exercised by **both** targets, answering different questions:
+
+| target              | what it does with `src/doppler/*/benchmarks/`                                         |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| `make test-python`  | runs them as **tests** — `--benchmark-disable`, under xdist, no timing                |
+| `make bench-python` | **times** them — serially, because a timing taken on eight busy cores is not a timing |
+
+So a broken benchmark script fails in the test run, where it should, and a
+number is only ever produced when you asked for one.
+
+`--benchmark-disable` is explicit rather than relied upon: pytest-benchmark
+*also* disables itself whenever xdist is active, which would make the test
+run's behaviour depend on `-n auto` — and `PYTEST_ARGS="-n 0"` is a supported
+override, under which timing would quietly switch back on. (`-p no:benchmark`
+is the wrong knob: it removes the fixture, and every benchmark test errors
+with "fixture 'benchmark' not found".)
+
+This used to be one target doing both — a second, serial pass inside
+`make test-python`. In CI that was **139 s of a 268 s step on all six Python
+versions**, timing code on a shared runner and discarding the numbers.
+Runner timings are not trustworthy anyway; that is what
+[#543](https://github.com/doppler-dsp/doppler/issues/543) deleted
+`perf-regression.yml` over, and why `make bench-interleaved` exists.
+
 ### Writing a Python benchmark
 
 ```text

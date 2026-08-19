@@ -328,7 +328,17 @@ nats-up: ## Start the NATS JetStream broker the nats:// stream tests need
 	@docker rm -f nats >/dev/null 2>&1 || true
 	@bash scripts/start-nats.sh
 
+# Symmetric with start-nats.sh's two paths: kill the binary by its pidfile,
+# remove the container if there is one. Both unconditionally and both quietly,
+# because `nats-down` runs with `if: always()` after a failed job and must not
+# turn "the tests failed" into "the cleanup failed too".
 nats-down: ## Stop and remove the NATS JetStream broker
+	@pidfile="$${NATS_PIDFILE:-$${TMPDIR:-/tmp}/doppler-nats.pid}"; \
+	 if [ -f "$$pidfile" ]; then \
+	     kill "$$(cat "$$pidfile")" 2>/dev/null || true; \
+	     rm -f "$$pidfile"; \
+	 fi
+	@rm -rf "$${TMPDIR:-/tmp}/doppler-nats-store"
 	@docker rm -f nats >/dev/null 2>&1 || true
 	@echo "nats-down: broker stopped"
 
@@ -2050,6 +2060,94 @@ glibc-gate: glibc-image ## Build in a glibc $(GLIBC_MAX) container, then run gli
 # Unconditional rather than guarded: re-linking to where it already points is
 # a no-op, and a conditional would have to re-derive the default it is fixing.
 	@ln -sfn $(BUILD_DIR)/compile_commands.json compile_commands.json
+
+# ── The CI toolchain image (gh-885) ──────────────────────────────────────────
+# Beside the glibc image above and for the same reason: this is a build
+# ENVIRONMENT for gates, not one of the images doppler ships. Every Linux CI
+# job used to open by apt-installing the dev group -- ~112 MB per job, ten
+# jobs a run, and most of it already on the runner outside dpkg. That download
+# was the whole exposure to mirror weather; baking it removes the step.
+#
+# TWO BASES, and the pair is load-bearing rather than thorough: build-and-test
+# runs ubuntu-22.04 and ubuntu-24.04 on purpose. One image for both would
+# leave the matrix naming two environments while testing one.
+CI_IMAGE_REPO  ?= ghcr.io/doppler-dsp/doppler-ci
+CI_IMAGE_BASES ?= ubuntu:22.04 ubuntu:24.04
+CI_DOCKERFILE  := deploy/docker/Dockerfile.ci
+# The pin. `include`d rather than parsed so make reads the digests directly,
+# and `-` so a fresh clone before the first publish is a clear gate failure
+# rather than a parse error.
+CI_IMAGE_PIN   := .github/ci-images.env
+-include $(CI_IMAGE_PIN)
+
+# What the pinned image was built FROM. Hashing the two inputs is what makes
+# the gate offline and instant: it answers "has anyone changed the dependency
+# list or the image recipe since this digest was taken", which is the drift a
+# developer can actually cause. Whether UPSTREAM packages moved is a different
+# question, and the nightly rebuild in ci-image.yml is what asks it -- it
+# compares the package fingerprint baked into the image, not this.
+ci-image-source-hash:
+	@cat bootstrap.toml $(CI_DOCKERFILE) | sha256sum | cut -d' ' -f1
+
+ci-image: ## Build the CI toolchain image locally, one per base
+	@for b in $(CI_IMAGE_BASES); do \
+	     tag="doppler-ci:$$(echo $$b | tr ':' '-')"; \
+	     echo "=== $$b -> $$tag"; \
+	     docker build -f $(CI_DOCKERFILE) --build-arg BASE=$$b -t "$$tag" . \
+	         || exit 1; \
+	 done
+
+ci-image-shell: ## A shell in the CI image, this checkout bind-mounted at /w
+	@docker run --rm -it -u $$(id -u):$$(id -g) \
+	    -v "$(CURDIR)":/w -w /w doppler-ci:ubuntu-24.04 bash
+
+# The gate. Two questions, both answerable with no network and no docker:
+#
+#   1. Do the workflows and the pin file agree? A `container:` naming anything
+#      other than a pinned digest is how a run stops being reproducible --
+#      including a tag, which is mutable by definition.
+#   2. Is the pin still describing the current inputs? bootstrap.toml gaining
+#      a package with no rebuild means CI provisions an environment the repo
+#      no longer describes, and the failure would land later, somewhere else,
+#      as a missing tool.
+ci-image-check: ## Fail when the pinned CI image no longer matches its inputs
+	@rc=0; \
+	 if [ ! -f "$(CI_IMAGE_PIN)" ]; then \
+	     echo "ci-image-check: $(CI_IMAGE_PIN) is missing — the CI image has"; \
+	     echo "  never been published, or the pin was deleted. Run the"; \
+	     echo "  ci-image workflow and commit the pin it prints."; \
+	     exit 1; \
+	 fi; \
+	 have=$$($(MAKE) -s ci-image-source-hash); \
+	 if [ "$$have" != "$(CI_IMAGE_SOURCE_HASH)" ]; then \
+	     echo "ci-image-check: bootstrap.toml or $(CI_DOCKERFILE) changed"; \
+	     echo "  since the pinned image was built."; \
+	     echo "    pinned inputs: $(CI_IMAGE_SOURCE_HASH)"; \
+	     echo "    this tree:     $$have"; \
+	     echo "  Push the branch (ci-image.yml builds on those paths), then"; \
+	     echo "  commit the pin block it prints into $(CI_IMAGE_PIN)."; \
+	     rc=1; \
+	 fi; \
+	 refs=$$(grep -rhoE '^[[:space:]]*image:[[:space:]]*\S+' \
+	     .github/workflows/*.yml | awk '{print $$2}' | sort -u); \
+	 for r in $$refs; do \
+	     case "$$r" in \
+	     *@sha256:*) ;; \
+	     *) echo "ci-image-check: a container: names '$$r', which is not a"; \
+	        echo "  digest — a tag is mutable, so the image a PR passed on"; \
+	        echo "  need not be the one it merges with."; \
+	        rc=1;; \
+	     esac; \
+	     case "$$r" in \
+	     $(CI_IMAGE_2204)|$(CI_IMAGE_2404)) ;; \
+	     *@sha256:*) echo "ci-image-check: '$$r' is pinned but is not one of"; \
+	                 echo "  the two digests in $(CI_IMAGE_PIN)."; \
+	                 rc=1;; \
+	     esac; \
+	 done; \
+	 [ $$rc -eq 0 ] || exit 1; \
+	 echo "ci-image-check: OK — pin matches its inputs;" \
+	      "$$(echo "$$refs" | grep -c . ) container ref(s), all digest-pinned"
 
 # The recorded specan demo frames are a projection of the specan source, so a
 # change to one without the other ships a demo that no longer matches the code.

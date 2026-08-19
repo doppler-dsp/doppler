@@ -1,0 +1,135 @@
+# syntax=docker/dockerfile:1
+# deploy/docker/Dockerfile.ci — the CI toolchain, baked once instead of
+# apt-installed ten times per run.
+#
+# WHAT THIS FIXES. Every Linux job used to open with `make install-deps-ci`,
+# which apt-installs the dev group. On GitHub's runner that is ~112 MB of
+# archives, and most of it is already ON the image under a different owner:
+# cmake 3.31.6 and cargo 1.97.1 live in /usr/local, outside dpkg, so apt does
+# not know they are there and fetches the distro copies anyway. That download
+# is the whole exposure to mirror weather — 2026-08-19 it stalled five runs of
+# one PR, one job trickling 21m30s against a 25-minute ceiling (gh-885).
+#
+# WHY A DOCKERFILE AND NOT A SNAPSHOT OF THE RUNNER. The hosted runner image
+# is a VM image; GitHub does not publish it as a container you can FROM. So
+# "snapshot the environment after it installs everything" is, concretely,
+# ubuntu:24.04 plus exactly the provisioning the runner step already ran —
+# which is what this file is. ubuntu:24.04 because that is what ubuntu-latest
+# resolves to; moving that base is moving what CI tests on.
+#
+# ONE DOCKERFILE, ONE IMAGE PER BASE, AND THAT IS LOAD-BEARING. The
+# build-and-test matrix runs ubuntu-22.04 AND ubuntu-24.04 on purpose: two
+# glibcs (2.35 and 2.39), and doppler supports a floor of 2.28. Pointing both
+# legs at a single 24.04 image would leave the matrix still NAMING two
+# environments while testing one — a gate that stopped gating without saying
+# so. So BASE is an argument and the workflow builds both.
+#
+# What this image does NOT decide is the floor itself. glibc 2.28 stays
+# answered where it always was: `make glibc-gate` builds the tree in Debian 10
+# (glibc 2.28) and runs glibc-check over the result, and release.yml builds
+# wheels in manylinux_2_28. Neither is touched here, and neither may be
+# replaced by this image — a modern base cannot answer a floor question.
+#
+# WHERE THE PACKAGE LIST COMES FROM. bootstrap.toml, via jbx, the same two
+# commands `make install-deps` and `make install-docs-deps` run. There is no
+# list in this file, deliberately: a second list is the thing bootstrap.toml
+# exists to prevent, and it would go stale in exactly the way that is hardest
+# to notice — the image would keep working while no longer being what a dev
+# box provisions.
+#
+# Build and use it through make, never by hand:
+#
+#   make ci-image          # build both locally (doppler-ci:ubuntu-XX.04)
+#   make ci-image-check    # gate: is the pinned digest still current
+#   make ci-image-shell    # a shell in it, with the checkout bind-mounted
+ARG BASE=ubuntu:24.04
+FROM ${BASE}
+
+# Non-interactive apt for every layer below; a tzdata prompt in a build with
+# no tty hangs until the job ceiling rather than failing.
+ENV DEBIAN_FRONTEND=noninteractive
+
+# The bootstrap for the bootstrap. jbx installs with `sudo apt-get`, and a
+# stock ubuntu image has neither sudo nor ca-certificates, so its curl cannot
+# fetch and its apt cannot elevate. git is here for actions/checkout: without
+# it the action silently falls back to downloading a tarball over REST, which
+# has no history — and `coverage` needs `fetch-depth: 0` to diff against
+# origin/main, so that fallback would break the patch gate rather than the
+# checkout, several steps later.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        ca-certificates curl git make sudo xz-utils \
+ && rm -rf /var/lib/apt/lists/*
+
+# The dependency list, from the one file that carries it. Both groups: `dev`
+# is what every build/test job needs, `docs` is doxygen + graphviz for the
+# doxygen job, and baking both means one image rather than one per job shape.
+COPY bootstrap.toml /tmp/bootstrap.toml
+WORKDIR /tmp
+RUN curl -sSL https://just-buildit.github.io/get-jb.sh | bash \
+ && PATH="$HOME/.local/bin:$PATH" jbx install-deps \
+ && PATH="$HOME/.local/bin:$PATH" jbx install-deps -g docs \
+ && rm -f /tmp/bootstrap.toml \
+ && rm -rf /var/lib/apt/lists/*
+
+# clang's profile runtime, which bootstrap.toml deliberately cannot name.
+# Whether `clang` already carries libclang_rt.profile.a is a property of the
+# distro RELEASE (22.04 bundles it and has no such package at all; 24.04+
+# splits it into libclang-rt-<major>-dev, which clang does not depend on), so
+# one cross-distro package list cannot express it and `make coverage` derives
+# it at run time instead. An image IS pinned to a release, so here it is
+# simply installable — and the major comes from the clang that just landed,
+# not from a number typed into this file.
+RUN clang_major="$(clang --version | grep -oE 'version [0-9]+' | head -1 \
+                   | grep -oE '[0-9]+')" \
+ && apt-get update \
+ && { apt-get install -y --no-install-recommends "libclang-rt-$clang_major-dev" \
+      || echo "no libclang-rt-$clang_major-dev on this release —" \
+              "clang bundles the runtime here; the probe below decides"; } \
+ && rm -rf /var/lib/apt/lists/* \
+ && printf 'int main(void){return 0;}\n' > /tmp/probe.c \
+ && clang -fprofile-instr-generate -fcoverage-mapping /tmp/probe.c -o /tmp/probe \
+ && rm -f /tmp/probe.c /tmp/probe
+# ^ the link is the assertion, and it is why the install above may fail
+# harmlessly. 22.04 bundles the runtime inside clang and has NO libclang-rt
+# package at all -- naming one fails apt outright -- while 24.04 splits it out
+# and clang does not depend on it. Asking apt is a best effort; compiling the
+# probe is the answer, and it is the same probe `make coverage`'s preflight
+# runs. An image that cannot link it is never published, instead of failing
+# the coverage job later with a message about a missing package.
+
+# nats-server as a BINARY, not a container. `make nats-up` shells out to
+# `docker run`, which is not available inside a container job -- and the
+# stream suite's nats:// tests self-skip when 127.0.0.1:4222 is unreachable,
+# so without this the coverage number would quietly drop the whole nats path
+# instead of failing. scripts/start-nats.sh prefers this binary when it is on
+# PATH and falls back to docker, so a dev box behaves the same either way and
+# one without docker gains the tests rather than skipping them.
+ARG NATS_VERSION=2.10.22
+RUN arch="$(dpkg --print-architecture)" \
+ && curl -sSLo /tmp/nats.tar.gz \
+      "https://github.com/nats-io/nats-server/releases/download/v${NATS_VERSION}/nats-server-v${NATS_VERSION}-linux-${arch}.tar.gz" \
+ && tar -xzf /tmp/nats.tar.gz -C /tmp \
+ && install -m 755 "/tmp/nats-server-v${NATS_VERSION}-linux-${arch}/nats-server" \
+      /usr/local/bin/nats-server \
+ && rm -rf /tmp/nats.tar.gz "/tmp/nats-server-v${NATS_VERSION}-linux-${arch}" \
+ && nats-server --version
+
+# Actions check out as root into a directory git then refuses to touch
+# ("dubious ownership"), which surfaces as every git-dependent gate failing
+# for a reason that has nothing to do with them.
+RUN git config --system --add safe.directory '*'
+
+# The fingerprint the drift gate compares: every installed package and its
+# exact version, hashed. A digest changes on every rebuild (timestamps, layer
+# ordering); this changes only when the CONTENT does, which is the question
+# "is the pinned image still the environment bootstrap.toml describes" —
+# and the one the nightly refresh asks before publishing anything.
+RUN dpkg-query -W -f='${Package}\t${Version}\n' | LC_ALL=C sort \
+      > /etc/doppler-ci-packages \
+ && sha256sum /etc/doppler-ci-packages | cut -d' ' -f1 \
+      > /etc/doppler-ci-fingerprint \
+ && echo "doppler CI image: $(wc -l < /etc/doppler-ci-packages) packages," \
+         "fingerprint $(cat /etc/doppler-ci-fingerprint)"
+
+WORKDIR /w

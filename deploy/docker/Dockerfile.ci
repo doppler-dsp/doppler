@@ -98,29 +98,16 @@ RUN clang_major="$(clang --version | grep -oE 'version [0-9]+' | head -1 \
 # runs. An image that cannot link it is never published, instead of failing
 # the coverage job later with a message about a missing package.
 
-# A modern cargo, ahead of apt's on PATH. Same shape as the profile runtime
-# above: a truth about the RELEASE that one cross-distro package list cannot
-# carry. bootstrap.toml lists `cargo`, and apt ships 1.75.0 on BOTH LTSes,
-# while ffi/rust/Cargo.lock is lockfile version 4 -- which cargo refuses
-# below 1.78 with "lock file version 4 requires -Znext-lockfile-bump".
-#
-# This was invisible until CI moved into a container: the hosted runner
-# carries a rustup cargo (1.97.1) that shadows the apt one, so `make
-# test-rust` passed there while the documented Ubuntu dev path -- install
-# bootstrap.toml's dev group, run the gates -- fails on it. Filed as gh-887;
-# the image pins the fix rather than waiting for it.
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-      | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable \
- && chmod -R a+rX,a+w "$CARGO_HOME" \
- && cargo --version \
- && rustc --version
-# ^ world-writable CARGO_HOME on purpose: a container job runs as root, but
-# `make ci-image` and the publish smoke run as the caller (so a bind-mounted
-# checkout does not fill with root-owned files), and cargo writes its
-# registry cache into CARGO_HOME either way.
+# NO rustup layer here, and its absence is the fix rather than an omission.
+# This image carried an entire rustup toolchain -- 613 MB, the single largest
+# thing in it -- purely because ffi/rust/Cargo.lock had drifted to format v4,
+# which cargo refuses below 1.78 while apt ships 1.75 on both LTSes. That was
+# gh-887, and it was a workaround for a defect rather than a requirement: the
+# crate is edition 2021 with two dependencies, and cargo 1.75 compiles the
+# whole tree. The lockfile is back at v3, Cargo.toml declares
+# `rust-version = "1.75"`, and `make cargo-floor-check` fails if either
+# leaves the floor -- so apt's cargo, which bootstrap.toml already installs,
+# is all this image needs.
 
 # nats-server as a BINARY, not a container. `make nats-up` shells out to
 # `docker run`, which is not available inside a container job -- and the
@@ -145,8 +132,8 @@ RUN arch="$(dpkg --print-architecture)" \
 # fill with root-owned files. That user has no passwd entry and therefore no
 # HOME, so ccache resolved its default to `//.cache/ccache` and died with
 # "Permission denied" -- which surfaced as every compile failing, not as a
-# cache problem. Same lesson as CARGO_HOME above: an image used by an
-# arbitrary UID cannot keep its state under $HOME.
+# cache problem. The lesson generalises past ccache: an image used by an
+# arbitrary UID cannot keep any tool's state under $HOME.
 #
 # CI overrides this to a workspace path so actions/cache can persist it; the
 # default only has to be writable and correct for a one-off run.
@@ -163,12 +150,14 @@ RUN git config --system --add safe.directory '*'
 # ordering); this changes only when the CONTENT does, which is the question
 # "is the pinned image still the environment bootstrap.toml describes" —
 # and the one the nightly refresh asks before publishing anything.
-# NOT dpkg alone. The first version of this hashed only dpkg's output, and
-# the rustup layer above proved why that is not enough: adding a whole Rust
-# toolchain left the fingerprint BYTE-IDENTICAL, because rustup is not a
-# package. The nightly compares this value to decide whether anything moved,
-# so every tool that arrives outside dpkg has to be in it or the nightly is
-# blind to exactly the parts this file installs by hand.
+# NOT dpkg alone. The first version of this hashed only dpkg's output, and a
+# rustup layer that briefly lived here proved why that is not enough: adding
+# an entire Rust toolchain left the fingerprint BYTE-IDENTICAL, because
+# rustup is not a package. The nightly compares this value to decide whether
+# anything moved, so every tool arriving outside dpkg has to be in it or the
+# nightly is blind to exactly the parts this file installs by hand.
+# nats-server is the one that remains; cargo and rustc are still listed
+# because their apt versions ARE the Rust floor gh-887 pinned.
 RUN { dpkg-query -W -f='${Package}\t${Version}\n'; \
       printf 'rustup\t%s\n' "$(rustc --version)"; \
       printf 'cargo\t%s\n'  "$(cargo --version)"; \

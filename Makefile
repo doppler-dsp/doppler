@@ -886,7 +886,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 tests-ssot validation-report-check \
                 compile_commands.json \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
-                apt-stall-config deps-budget-check \
+                apt-stall-config deps-budget-check cargo-floor-check \
                 ci-image ci-image-check ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke \
@@ -916,7 +916,7 @@ include standard.mk
 # long as it has existed. Being inert (#705) was only half the problem; not
 # running was the other half, and `gates` is a local convenience, not CI.
 lint: tests-ssot characterization-check validation-report-check changelog-check \
-      issue-link-check deps-budget-check ci-image-check
+      issue-link-check deps-budget-check ci-image-check cargo-floor-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -1043,6 +1043,40 @@ apt-stall-config: ## Make apt fail a stalled mirror fast (CI, Linux, no-op elsew
 	 else \
 	    echo "apt-stall-config: no apt-get/sudo — skipped (not an error)"; \
 	 fi
+
+# The Rust floor, as a gate rather than a comment. Cargo writes lockfile
+# format v4 from 1.78 onward and will rewrite this file the first time it
+# resolves anything -- silently, since a lockfile is not something anyone
+# reads. The distro cargo on both Ubuntu LTSes is 1.75, which REFUSES v4
+# ("lock file version 4 requires -Znext-lockfile-bump"), so a bump strands
+# every developer who provisioned from bootstrap.toml.
+#
+# That is not hypothetical: it is gh-887, and it went unnoticed because the
+# hosted runner's rustup cargo shadowed apt's, so CI passed while the
+# documented dev path could not run `make test-rust` at all. The bump is
+# invisible, the failure is far from the cause, and both halves are why this
+# is a gate.
+cargo-floor-check: ## Fail if the Rust lockfile or MSRV leaves the distro floor
+	@lock=$(RUST_DIR)/Cargo.lock; toml=$(RUST_DIR)/Cargo.toml; rc=0; \
+	 v=$$(grep -m1 '^version = ' "$$lock" | tr -dc '0-9'); \
+	 if [ "$$v" != "3" ]; then \
+	     echo "cargo-floor-check: $$lock is format v$$v, not v3."; \
+	     echo "  cargo >= 1.78 rewrote it. The distro cargo on both Ubuntu"; \
+	     echo "  LTSes is 1.75 and cannot read v4, so this strands anyone"; \
+	     echo "  provisioned from bootstrap.toml (gh-887)."; \
+	     echo "  Fix: sed -i 's/^version = 4$$/version = 3/' $$lock"; \
+	     echo "  and re-run the Rust tests to confirm nothing needed v4."; \
+	     rc=1; \
+	 fi; \
+	 if ! grep -q '^rust-version = ' "$$toml"; then \
+	     echo "cargo-floor-check: $$toml declares no rust-version."; \
+	     echo "  The MSRV is the floor this gate defends; undeclared, cargo"; \
+	     echo "  cannot enforce it and the next contributor cannot see it."; \
+	     rc=1; \
+	 fi; \
+	 [ $$rc -eq 0 ] || exit 1; \
+	 echo "cargo-floor-check: OK — lockfile v3," \
+	      "MSRV $$(grep -m1 '^rust-version = ' "$$toml" | cut -d'"' -f2)"
 
 # The budget rule above, as a gate rather than a comment, because it already
 # drifted once: 600x3 shipped against a 15-minute ceiling and every retry died

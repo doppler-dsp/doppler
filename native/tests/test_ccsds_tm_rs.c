@@ -229,7 +229,7 @@ main (void)
    *
    * The section above asks only that the two transforms invert each other.
    * ANY invertible 8x8 GF(2) matrix and its inverse satisfy that, so it is
-   * exactly the consistency test docs/dev/validation.md names as
+   * exactly the consistency test docs/dev/contributing/validation.md names as
    * structurally blind: it cannot see a defect the two halves share, and a
    * mis-transcribed matrix PAIR is precisely such a defect.
    *
@@ -538,8 +538,8 @@ main (void)
    * This section used to compute `b % DEPTH` in a loop and assert arithmetic
    * about its own loop -- it called nothing in the library, so it held for
    * any interleaver, including one that did not interleave. A claim nothing
-   * runs is prose (docs/dev/validation.md), and that is as true inside a
-   * test file as it is in a report.
+   * runs is prose (docs/dev/contributing/validation.md), and that is as true
+   * inside a test file as it is in a report.
    *
    * The property, measured instead: a contiguous burst of B symbols lands as
    * ceil(B / depth) errors in each codeword, so depth buys a `depth`-fold

@@ -1,0 +1,177 @@
+# Continuous Integration
+
+What CI is made of, and how to run it yourself.
+
+The shape is one sentence: **CI runs `make` targets inside a pinned
+container, and every gate it runs is reachable from `make gates`.** Both
+halves are enforced rather than described — `gates-check` fails when CI
+invokes a target `gates` cannot reach, and `ci-image-check` fails when the
+tree stops describing the image CI runs in.
+
+______________________________________________________________________
+
+## Run it the way CI runs it
+
+The toolchain lives in an image, so "works on my machine" and "works in CI"
+can be the same sentence. Three targets:
+
+```sh
+make ci-shell                          # a shell in the pinned image
+make ci-run TARGET='build test-rust'   # any goals, in CI's environment
+make ci-gates                          # the whole gate set, in CI's environment
+```
+
+`ci-gates` is the pre-push check. It composes `gates` rather than listing
+gates again: `gates` is already *every gate CI runs* — `gates-check` enforces
+that against `ci.yml` — so the only thing the container adds is the
+environment.
+
+It is deliberately **not** a git pre-push hook. `gates` includes `coverage` at
+roughly ten minutes, and a hook that slow is one people pass `--no-verify` to.
+A gate that is routinely bypassed is decoration.
+
+!!! warning "Container builds and host builds do not mix"
+
+    `ci-run` builds into `build-ci/`, not `build/`, and sets both `BUILD_DIR`
+    and `DOPPLER_BUILD_DIR`. The container and the host target different
+    glibc versions, so handing one's build tree to the other fails at link
+    time with something like `undefined reference: atan2f@GLIBC_2.43` — which
+    reads as a code bug and is not one. `ffi/rust/build.rs` locates the
+    library itself and defaults to the host tree, which is why the second
+    variable is needed as well as the first. Same separation, same reason, as
+    `glibc-gate`'s `build-glibc228/`.
+
+______________________________________________________________________
+
+## The toolchain image
+
+`deploy/docker/Dockerfile.ci` builds it; `.github/ci-images.env` pins it.
+
+Every Linux job used to open with `make install-deps-ci`, which apt-installs
+the dev group — about 112 MB per job, ten jobs a run. Most of it was already
+on the runner under a different owner: cmake and cargo live in `/usr/local`,
+outside dpkg, so apt did not know they were there and fetched the distro
+copies anyway. That download was the entire exposure to mirror weather, and
+on one bad day it stalled five runs of a single PR, one job trickling for
+21 minutes against a 25-minute ceiling.
+
+**The image has no package list of its own.** It copies `bootstrap.toml` and
+runs the same two `jbx install-deps` commands `make install-deps` and
+`make install-docs-deps` run. A second list is exactly what `bootstrap.toml`
+exists to prevent, and it would rot in the way hardest to notice: the image
+would keep working while no longer being what a developer gets.
+
+Three things are installed *outside* that list, each for a reason one
+cross-distro package list cannot express:
+
+| what                  | why it cannot come from `bootstrap.toml`                                                                                                                                                                                                                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `libclang-rt-<n>-dev` | Whether clang bundles its profile runtime is a property of the distro *release*. 22.04 bundles it and has no such package at all — naming one fails apt outright — while 24.04 splits it out and clang does not depend on it. The image asks apt, tolerates a miss, and then *compiles the probe* as the real assertion. |
+| a rustup toolchain    | apt ships cargo 1.75 on both LTSes, and `ffi/rust/Cargo.lock` is lockfile v4, which cargo refuses below 1.78. See [#887](https://github.com/doppler-dsp/doppler/issues/887) — the dev path is still affected.                                                                                                            |
+| `nats-server`         | `make nats-up` shells out to `docker run`, and there is no docker daemon inside a container job.                                                                                                                                                                                                                         |
+
+That last one matters more than it looks. The `nats://` stream tests
+**self-skip** when 127.0.0.1:4222 is unreachable, so without a broker the
+suite would stay green while silently dropping the whole NATS path — and the
+coverage number with it. `scripts/start-nats.sh` prefers the binary and falls
+back to docker, so a dev box without docker *gains* those tests rather than
+skipping them.
+
+### Two bases, on purpose
+
+`build-and-test` runs ubuntu-22.04 and ubuntu-24.04 because they are two
+different glibcs. One image for both legs would leave that matrix naming two
+environments while testing one, so `BASE` is a build argument and both are
+published.
+
+!!! note "The glibc 2.28 floor is a separate question"
+
+    The floor is not what this image answers. `make glibc-gate` builds the
+    tree in Debian 10 and `glibc-check` reads `libdoppler.so` plus every
+    example binary, failing closed if it reads nothing; release wheels are
+    built in `manylinux_2_28`. A modern base cannot answer a floor question,
+    and the CI image does not try to.
+
+### Pinning, and the nightly refresh
+
+Jobs pin the image **by digest**, so an image rebuild cannot change what an
+in-flight PR was tested against.
+
+`ci-image.yml` rebuilds nightly, compares the *package fingerprint* baked into
+the image, and publishes and opens a repin PR only when the content actually
+moved. Rebuilding nightly is not the same as consuming a nightly image: a run
+stays reproducible, while drift still surfaces within a day.
+
+The fingerprint covers every dpkg package plus `rustc`, `cargo` and
+`nats-server` — the tools that arrive outside dpkg. It did not, at first, and
+adding an entire Rust toolchain left it byte-identical; a fingerprint blind to
+the parts the Dockerfile installs by hand is blind to exactly what it is
+supposed to watch.
+
+To change what is in the image:
+
+```sh
+# edit bootstrap.toml (or Dockerfile.ci), then:
+make ci-image           # build both bases locally
+make ci-image-check     # will FAIL until the pin is updated -- that is the point
+git push                # ci-image.yml rebuilds and prints the pin block
+# commit the printed block into .github/ci-images.env
+```
+
+`ci-image-check` runs inside `make lint`. It is offline and instant: it hashes
+`bootstrap.toml` + `Dockerfile.ci` and compares that to what the pin recorded,
+and it refuses any `container:` naming a mutable tag, because a tag is mutable
+by definition and the image a PR passed on would not have to be the one it
+merges with.
+
+______________________________________________________________________
+
+## The compiler cache
+
+The C core is built several times per run with the same compiler and the same
+flags — once per Python job (only the extension differs per ABI) plus the
+ubuntu-24.04 leg. `ccache` is in every dev group and reaches every configure
+step, including the coverage tree's.
+
+Measured in the image: a cold build is 434 misses, and a rebuild after
+deleting the tree is 434 hits — the whole second build served from cache. In
+CI the `Build` step went from 79 s to 12 s once a cache existed to restore.
+
+What is *not* duplicated stays that way, by construction rather than by our
+being careful: ccache hashes the compiler binary and the full flag set, so the
+22.04 leg's gcc, coverage's instrumented clang and the Debian 10 floor
+toolchain land in separate entries.
+
+`make ccache-stats` runs after each build so the hit rate is in the log. A
+cache that quietly stops hitting has no other symptom than builds slowly
+getting longer.
+
+______________________________________________________________________
+
+## Gates that watch CI itself
+
+These exist because each one failed to hold at least once:
+
+| gate                | what it refuses                                                                                                                                                                                                                                                                         |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gates-check`       | CI running a `make` target that `make gates` cannot reach. It reads one file, so moving steps out of `ci.yml` into a composite action shrinks what it checks *while still reporting OK* — it dropped from 29 targets to 21 that way once, which is why the build/test steps are inline. |
+| `ci-image-check`    | The tree describing an image CI is not running, or a `container:` pinned to a mutable tag.                                                                                                                                                                                              |
+| `deps-budget-check` | `DEPS_DEADLINE × DEPS_TRIES + backoff` exceeding the smallest step ceiling in any workflow, so a retry cannot be killed mid-download.                                                                                                                                                   |
+| `lint-ci-pipefail`  | A workflow step whose shell pipeline discards an exit code. The default Actions shell is `bash -e`, where a pipeline reports the *last* command's status — `make coverage \| tee` was green over a recipe that had failed, and the missing report only surfaced a step later.           |
+
+______________________________________________________________________
+
+## What runs where
+
+| job                                                              | environment                           | notes                                                                                             |
+| ---------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `build-and-test-linux`                                           | pinned image, one per glibc           | split from macOS because `container:` is Linux-only and cannot be switched off for one matrix leg |
+| `build-and-test-macos`                                           | hosted runner, brew                   | no macOS container to bake                                                                        |
+| `python` (3.9–3.14)                                              | pinned image                          | uv supplies the interpreters; only the extension build differs per ABI                            |
+| `coverage`                                                       | pinned image                          | clang source-based, C ∪ Python ∪ Rust — see [Coverage](coverage.md)                               |
+| `glibc-228`                                                      | Debian 10 image via `make glibc-gate` | the floor gate; its own toolchain by necessity                                                    |
+| `doxygen`, `docs`, `pre-commit`, `manifest-drift`, `specan-demo` | pinned image or plain runner          | no system deps beyond the image                                                                   |
+| `docker`                                                         | hosted runner                         | builds the shipped images, so it needs a daemon                                                   |
+
+The check names are load-bearing: branch protection requires them by string,
+so a refactor that renames one silently stops requiring it.

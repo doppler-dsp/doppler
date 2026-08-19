@@ -67,7 +67,7 @@ been met.
 
 ### 0.1 Non-goals
 
-- **Not object certification.** [Object Validation](../dev/validation.md)
+- **Not object certification.** [Object Validation](../dev/contributing/validation.md)
     owns that process; this harness is something certification *uses*.
 - **Not a new generator, and not a new estimator.** Every capability named
     above already exists somewhere in the tree. The work is connecting,
@@ -1263,7 +1263,7 @@ printed** rather than passed.
 
 ## 9. Related
 
-- [Object Validation](../dev/validation.md) — the certification process this
+- [Object Validation](../dev/contributing/validation.md) — the certification process this
     harness feeds
 - [MPSK Receiver](mpsk.md) — §3.3 (the discriminator tap) and §8 (the
     construction surface)

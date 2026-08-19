@@ -14,7 +14,8 @@ reviewed: an inline ``skip=`` marker with a mandatory reason, or a temporary
 entry in the burn-down backlog ``docs/.doc-snippet-ignore`` (which must shrink
 to empty, mirroring ``.api-coverage-ignore`` / ``.serializable-ignore``).
 
-The four sanctioned states for a fence (see ``docs/dev/doc-examples.md``):
+The four sanctioned states for a fence (see
+``docs/dev/contributing/doc-examples.md``):
 
 * **exec** — a plain ```` ```python ```` block; this gate runs it. The floor:
   it proves the snippet still *runs*.

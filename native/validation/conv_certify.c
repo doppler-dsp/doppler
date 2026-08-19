@@ -2,13 +2,13 @@
  * @file conv_certify.c
  * @brief The measurements `conv`'s certification report is built from.
  *
- * `docs/dev/validation.md` puts the evidence layer in Python, because every
- * certified object so far has a Python face and the report is what a caller
- * reads. `conv` has none and is not getting one — a binding built only to be
- * measured is a binding nobody uses. So the split is: **this file measures,
- * and `src/doppler/tests/validation/conv/validate.py` renders and asserts.**
- * Nothing here decides whether a number is acceptable; nothing there computes
- * one.
+ * `docs/dev/contributing/validation.md` puts the evidence layer in Python,
+ * because every certified object so far has a Python face and the report is
+ * what a caller reads. `conv` has none and is not getting one — a binding
+ * built only to be measured is a binding nobody uses. So the split is: **this
+ * file measures, and `src/doppler/tests/validation/conv/validate.py` renders
+ * and asserts.** Nothing here decides whether a number is acceptable; nothing
+ * there computes one.
  *
  * Run with no arguments for a readable sweep (which is what `make validate-c`
  * does), or with `--emit` for the CSV blocks the validator parses.

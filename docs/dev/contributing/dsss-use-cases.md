@@ -18,7 +18,7 @@ non-coherent layer:
 | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ---------------------- | -------------------------------------------------------- |
 | **Column-FFT** (slow-time)                          | `dsss.BurstAcquisition`                                                                                                                                                                                                                                        | `1/(ny·nx)` / `±1/(2nx)`              | ny epochs **coherent** | many coherent reps; need the gain                        |
 | **2-D roll** (2-D code FFT × signal FFT → 2-D IFFT) | `spectral.Corr2D` / `CorrDetector2D` (manual composition); natively via `dsss.BurstAcquisition`'s wideband fallback when `doppler_uncertainty` exceeds the native span, or unconditionally via `dsss.Acquisition` (continuous mode always uses this mechanism) | `1/nx` / `±1/2`                       | **1 epoch**            | wide Δf, few reps, enough SNR — whole grid in one 2-D op |
-| **Mixer bank**                                      | caller loop ([guide](../guide/dsss-acquisition.md))                                                                                                                                                                                                            | tiles either, `1/(2nx)` step          | —                      | widen Δf at a fine resolution; linear cost               |
+| **Mixer bank**                                      | caller loop ([guide](../../guide/dsss-acquisition.md))                                                                                                                                                                                                         | tiles either, `1/(2nx)` step          | —                      | widen Δf at a fine resolution; linear cost               |
 | **Non-coherent**                                    | auto-selected `n_noncoh` (both classes, read-only)                                                                                                                                                                                                             | sensitivity past the coherent ceiling | `N_nc` looks           | data-bit / burst-limited `M_coh`                         |
 
 The two primitives are **exact duals**: the roll's *resolution* (`1/nx`) equals
@@ -72,7 +72,7 @@ column-FFT/mixer when you must buy the coherent gain.**
     the window spans more than a handful of symbols, and a real,
     deterministic mislock (wrong bin wins outright) results — confirmed on
     this project's own continuous receiver. See
-    [Continuous, data-modulated signals](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case).
+    [Continuous, data-modulated signals](../../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case).
     On a data-bearing stretch, `M_coh` is effectively 1 regardless of what
     the decision table above implies — reach for `Acquisition` (continuous)
     instead of `BurstAcquisition`, not a larger `reps` on the same class. The
@@ -141,7 +141,7 @@ the payload.
     2.44 kHz residual, column-FFT over the 5 reps **within** the winning coarse
     bin (one channel) for the fine `1/(5·T_epoch)` ≈ 490 Hz Doppler.
 - **Hand off:** the `(Doppler bin, code phase)` seeds the shipped
-    [`BurstDespreader`](../api/python-dsss.md) on the shorter data code for the
+    [`BurstDespreader`](../../api/python-dsss.md) on the shorter data code for the
     synchronous payload.
 
 Here latency and the wide span dominate; the roll's one-epoch coarse sweep beats
@@ -173,10 +173,10 @@ ______________________________________________________________________
 
 ## See also
 
-- [DSSS acquisition architecture + roadmap](../design/dsss-acquisition.md) — the
+- [DSSS acquisition architecture + roadmap](../../design/dsss-acquisition.md) — the
     CAF framing, the trade space, and the phased plan (P1 non-coherent shipped; P2
     sub-block `K` is the wide-Doppler *widener* that cuts the channel count).
-- [DSSS Burst Acquisition guide](../guide/dsss-acquisition.md) — the mixer-bank
+- [DSSS Burst Acquisition guide](../../guide/dsss-acquisition.md) — the mixer-bank
     loop and worked ±100 kHz example.
-- [corr2d interpolated inverse](../design/corr2d-interpolated-inverse.md) — the
+- [corr2d interpolated inverse](../../design/corr2d-interpolated-inverse.md) — the
     code-phase axis (independent of the Doppler-span choice here).

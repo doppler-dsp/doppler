@@ -35,7 +35,7 @@ already exist, just scattered across three places that mostly agree:
     (Sources & Waveforms, Filters & Resampling, Detection & Acquisition,
     Synchronization Loops, Constellations & Receivers, Measurement,
     Quantization & Fixed-Point, Gain Control).
-- [`dsss-use-cases.md`](../dev/dsss-use-cases.md) states a real design
+- [`dsss-use-cases.md`](../dev/contributing/dsss-use-cases.md) states a real design
     principle explicitly for one slice of the library: DSSS receivers come in
     exactly two flavors — **UC1**, "GPS-like always on" (continuous), and
     **UC2**, "Burst Transmission" (latency-bound) — built from the same
@@ -57,7 +57,7 @@ ______________________________________________________________________
 
 Every class is a DSP building block at one of eight conceptual layers,
 independent of which Python module it currently lives in (module boundaries
-are a packaging/build concern — see [`repository-map.md`](../dev/repository-map.md)
+are a packaging/build concern — see [`repository-map.md`](../dev/contributing/repository-map.md)
 — not a naming one, though closer alignment between the two is a nice side
 effect where it's cheap).
 
@@ -272,8 +272,8 @@ declared object (with a `MatchedDdcr` flavor) and sits on the same axis as
 
 ## 6. See also
 
-- [Repository Map](../dev/repository-map.md) — the vertical file/generation
+- [Repository Map](../dev/contributing/repository-map.md) — the vertical file/generation
     architecture this doc's hierarchy sits orthogonal to.
-- [DSSS Primary Use Cases](../dev/dsss-use-cases.md) — the UC1/UC2 framing
+- [DSSS Primary Use Cases](../dev/contributing/dsss-use-cases.md) — the UC1/UC2 framing
     §4.1's rename is derived from.
 - [Architecture](../architecture.md) — the 4-layer vertical stack.

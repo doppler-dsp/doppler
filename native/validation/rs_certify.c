@@ -2,11 +2,11 @@
  * @file rs_certify.c
  * @brief The measurements `rs`'s certification report is built from.
  *
- * `docs/dev/validation.md` puts the evidence layer in Python, because every
- * certified object with a Python face is measured through it. `rs` has none
- * and is not getting one — a binding built only to be measured is a binding
- * nobody uses. So the split is the one `conv` established: **this file
- * measures, and `src/doppler/tests/validation/rs/validate.py` renders and
+ * `docs/dev/contributing/validation.md` puts the evidence layer in Python,
+ * because every certified object with a Python face is measured through it.
+ * `rs` has none and is not getting one — a binding built only to be measured
+ * is a binding nobody uses. So the split is the one `conv` established: **this
+ * file measures, and `src/doppler/tests/validation/rs/validate.py` renders and
  * asserts.** Nothing here decides whether a number is acceptable; nothing
  * there computes one.
  *

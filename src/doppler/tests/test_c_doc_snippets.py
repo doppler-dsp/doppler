@@ -17,7 +17,8 @@ visible and reviewed: an inline ``skip=`` marker with a mandatory reason, or
 a temporary entry in the burn-down backlog ``docs/.c-doc-snippet-ignore``
 (which must shrink to empty, mirroring ``.doc-snippet-ignore``).
 
-The three sanctioned states for a C fence (see ``docs/dev/doc-examples.md``):
+The three sanctioned states for a C fence (see
+``docs/dev/contributing/doc-examples.md``):
 
 * **exec** — a plain ```` ```c ```` block with its own ``int main(void)``;
   this gate compiles it (``-std=gnu99 -Wall -Wextra -Werror`` — the same
@@ -37,7 +38,8 @@ Unlike the Python gate, fences on one page do **not** share a namespace —
 each is a fully independent compile-and-run (C has no REPL-style carryover
 between top-level programs), so there is no notebook execution model to
 port. Run locally with ``pytest -m docs_snippets test_c_doc_snippets.py``
-(requires ``make build`` first — see ``docs/dev/doc-examples.md``).
+(requires ``make build`` first — see
+``docs/dev/contributing/doc-examples.md``).
 """
 
 from __future__ import annotations
@@ -160,7 +162,7 @@ def _compile_and_run(blockid, code, tmp_path, run=True):
     assert lib.exists(), (
         f"{blockid}: {lib} not found -- build the C library first "
         f"(`make build`) before running this gate; see "
-        f"docs/dev/doc-examples.md"
+        f"docs/dev/contributing/doc-examples.md"
     )
     # libdoppler_stream.a (stream/stream.h's dp_pub_*/dp_sub_*/dp_push_*/
     # dp_pull_* wire layer + vendored nats.c) is a deliberately separate,

@@ -25,7 +25,7 @@ include the others as the test needs them.
 `dp_rx_test.h` is the odd one out and is used differently from the rest: it
 does not supply a piece, it runs the whole measurement. If what you have is a
 receiver, start at
-[Measuring a Receiver](../../docs/dev/measuring-a-receiver.md) rather than
+[Measuring a Receiver](../../docs/dev/contributing/measuring-a-receiver.md) rather than
 here — you write an adapter, not a harness.
 
 ## The family tests itself

@@ -1,5 +1,5 @@
 - **The certification's level-diagnostic finding is now gated by `ctest` and by
-    the examples suite, not only stated in a report.** `docs/dev/validation.md`
+    the examples suite, not only stated in a report.** `docs/dev/contributing/validation.md`
     step 9 — whatever a certification establishes goes back into the C test and
     into an example, because those are what keep it true and what put it in front
     of someone.

@@ -111,7 +111,7 @@ generator can find and replace its own output on every run.
 
 **How to be picked up**: the generator only counts a symbol mention inside
 a backtick span or a markdown link's text — `` `SymbolSync` ``,
-`` [`track.SymbolSync`](../api/python-track.md) ``, or
+`` [`track.SymbolSync`](../../api/python-track.md) ``, or
 `[SymbolSync](...)`. A bare, unformatted prose mention does **not** count.
 This is deliberate, not a bug: several doppler class names double as common
 English words (Plan, Segment, Reader, Writer, Push, Pull, Timeline, Corr,

@@ -103,7 +103,7 @@ EVM_FLOOR_DB = -150.0
 #: `CONFIRMED` is the one that reads backwards -- it means a confirmed
 #: DEFECT, not a confirmed claim. mpsk shipped two positive results under
 #: it for one commit and advertised three open findings against one real
-#: one; see `docs/dev/validation.md`.
+#: one; see `docs/dev/contributing/validation.md`.
 VERDICTS = ("BY DESIGN", "GAP", "CONFIRMED", "FIXED", "C-ONLY")
 
 #: The subset that counts against the object. Derived from nothing else --
@@ -362,7 +362,8 @@ class Report:
         The reports cross-reference into that void: the EMA's claim table
         says "recorded as §3 F6" and the AGC's says "see §3 F4", pointing
         at a section with no content. Phase 2 of
-        ``docs/dev/validation.md`` is the review, and the artifact that is
+        ``docs/dev/contributing/validation.md`` is the review, and the artifact
+        that is
         supposed to carry it carried a heading.
 
         Every ``find()`` is called from a validator's ``review()``, right
@@ -444,7 +445,8 @@ class Report:
         self.head.append("")
         # The provenance sentence is a CLAIM, so a component with no binding
         # must not ship the default one. `conv` is measured by a C harness
-        # this file renders (docs/dev/validation.md, "certifying a component
+        #  this file renders (docs/dev/contributing/validation.md, "certifying
+        # a component
         # with no binding"); saying "through its own binding" there would be
         # the report's first sentence being false.
         self.head.append(

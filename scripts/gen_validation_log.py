@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Generate the validation log's table from the committed reports.
 
-`docs/dev/validation.md` says HOW an object is certified. This generator
+`docs/dev/contributing/validation.md` says HOW an object is certified. This
+generator
 fills the companion page that says WHICH objects are — one row per
 certified object, with its finding and limit counts and a link to its
 report.
@@ -37,7 +38,8 @@ the freshness chain explicit and gate-backed at every link:
 So the log cannot claim a certification the reports do not show, and the
 reports cannot drift from the code. What none of it proves is that a
 limit is the RIGHT limit — that is the sabotage step in
-`docs/dev/validation.md`, and no amount of regeneration substitutes for
+`docs/dev/contributing/validation.md`, and no amount of regeneration
+substitutes for
 it.
 
 A report whose summary does not parse is a hard error, never a blank
@@ -60,7 +62,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src" / "doppler"
-PAGE = ROOT / "docs" / "dev" / "validation-log.md"
+PAGE = ROOT / "docs" / "dev" / "contributing" / "validation-log.md"
 OBJECTS = ROOT / "objects"
 
 # The same glob `make validate` uses for VALIDATORS, one directory over:
@@ -69,7 +71,8 @@ GLOBS = (
     "*/tests/validation/*/results.md",
     # A component with no Python face is certified from `src/doppler/tests/`
     # instead, because there is no module to sit beside -- see
-    # docs/dev/validation.md, "certifying a component with no binding".
+    #  docs/dev/contributing/validation.md, "certifying a component with no
+    # binding".
     "tests/validation/*/results.md",
 )
 

@@ -52,11 +52,11 @@ ______________________________________________________________________
 | 3   | **Implement**  | `native/inc/<obj>/<obj>_core.h` + `_core.c`              | [Adding a Module](adding-a-module.md), [Error Convention](error-convention.md)   | `ctest`                                                 |
 | 4   | **Pin**        | `native/tests/test_<obj>_core.c`                         | [Object Validation](validation.md) step 2                                        | `ctest`, `make tests-ssot`                              |
 | 5   | **Bind**       | `.pyi`, `__init__.py`, the `_ext` fragment               | [Module Layout](module-layout.md), [Docstring Authoring](docstring-authoring.md) | `make drift-check`, `make test-stubs`                   |
-| 6   | **Instrument** | the state triplet, telemetry probes                      | [state serialization](../design/state-serialization.md)                          | `check_serializable.py`, the state matrix               |
+| 6   | **Instrument** | the state triplet, telemetry probes                      | [state serialization](../../design/state-serialization.md)                       | `check_serializable.py`, the state matrix               |
 | 7   | **Explore**    | `native/validation/<obj>_*.c`, `tests/characterization/` | [Object Validation](validation.md)                                               | `make validate-c`, `make characterize`                  |
 | 8   | **Certify**    | `tests/validation/<obj>/results.md`                      | [Object Validation](validation.md)                                               | `make validate-check`, `test_validation_limits.py`      |
 | 9   | **Document**   | header `@code`, a guide if needed, benchmarks, examples  | [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md)   | `make test-stubs`, `make test-examples-c`, `make bench` |
-| 10  | **Land**       | CHANGELOG entry, issues for what is left                 | [Release](release.md)                                                            | `make changelog-check`                                  |
+| 10  | **Land**       | CHANGELOG entry, issues for what is left                 | [Release](../release.md)                                                         | `make changelog-check`                                  |
 
 `make gates` runs the merge-guarding set; the per-phase targets above are how
 you find out sooner.

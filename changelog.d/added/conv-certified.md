@@ -10,8 +10,8 @@
     characterises, reviews and asserts through the same `Report` every other
     object uses, so the format cannot drift between the two kinds. Nothing in
     the C decides whether a number is acceptable; nothing in the Python
-    computes one. `docs/dev/validation.md` and
-    `docs/dev/adding-algorithms.md` carry the track, both gates found it by
+    computes one. `docs/dev/contributing/validation.md` and
+    `docs/dev/contributing/adding-algorithms.md` carry the track, both gates found it by
     glob with no registration, and the validation log reads **12 objects
     certified**.
 

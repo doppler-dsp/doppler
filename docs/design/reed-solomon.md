@@ -4,7 +4,7 @@ A general Reed-Solomon code over `GF(2^J)`: the description, the encoder, the
 syndromes, and the decoder that **corrects** — Berlekamp-Massey, Chien and
 Forney, all reading the same description.
 
-Phase 1 of [Adding an Algorithm](../dev/adding-algorithms.md). This page owns
+Phase 1 of [Adding an Algorithm](../dev/contributing/adding-algorithms.md). This page owns
 the outer code the way [The Viterbi Decoder](viterbi.md) owns the inner one,
 and for the same reason: [The FEC Receive Half](fec-receive.md) is a *chain*,
 and a chain is the wrong home for the algebra of one of its links.
@@ -263,4 +263,4 @@ ______________________________________________________________________
 - [The Viterbi Decoder](viterbi.md) — the inner code, same split: a general
     decoder with CCSDS as a configuration
 - [The FEC Receive Half](fec-receive.md) — the chain this is step 2 of
-- [Adding an Algorithm](../dev/adding-algorithms.md) — the lifecycle
+- [Adding an Algorithm](../dev/contributing/adding-algorithms.md) — the lifecycle

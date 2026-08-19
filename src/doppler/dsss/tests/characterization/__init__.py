@@ -46,7 +46,7 @@ fixed filename, artifacts written beside the script — so `make
 characterize` discovers subjects by glob and **a new subject is covered
 the moment its folder exists**, with no registration step to forget.
 That was the lesson of the validation tree, which was executed by
-nothing for two whole objects (`docs/dev/validation.md`).
+nothing for two whole objects (`docs/dev/contributing/validation.md`).
 
 ## The plot beside the script is a working artifact, not a deliverable
 

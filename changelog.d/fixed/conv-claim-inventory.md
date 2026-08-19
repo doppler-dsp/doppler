@@ -1,5 +1,5 @@
 - **`conv`'s claim inventory, and the four things it found.** The first two
-    steps of `docs/dev/validation.md` — enumerate the header's claims, map
+    steps of `docs/dev/contributing/validation.md` — enumerate the header's claims, map
     each onto `test_conv_core.c` as pinned / pinned-only-at-literals / absent,
     then write and **sabotage** a test for every uncovered row.
 

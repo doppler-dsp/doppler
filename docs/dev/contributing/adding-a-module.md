@@ -217,7 +217,7 @@ elastic resume (checkpoint / migrate / scale across threads, processes,
 pods) depends on *every* stateful object speaking the one bytes
 interface. Only genuinely stateless objects (pure converters, FFT plans,
 by-value analyzers) are exempt. See
-[State Serialization](../design/state-serialization.md) for the full
+[State Serialization](../../design/state-serialization.md) for the full
 design.
 
 1. **C core** — `#include "dp_state.h"` in `<component>_core.h`, declare
@@ -293,7 +293,7 @@ void test_execute_passthrough(void) {
 ```
 
 If Step 4b applies, add the state round-trip test here too (see
-[State Serialization](../design/state-serialization.md)).
+[State Serialization](../../design/state-serialization.md)).
 
 Run the C suite:
 
@@ -585,9 +585,9 @@ ______________________________________________________________________
 ## See also
 
 - [Module Layout](module-layout.md) — file layout rules and rationale
-- [State Serialization](../design/state-serialization.md) — the bit-exact
+- [State Serialization](../../design/state-serialization.md) — the bit-exact
     checkpoint/resume design behind Step 4b
 - [Benchmarking](benchmarking.md) — C and Python benchmark pipelines, history files, comparisons
 - [just-makeit docs](https://just-buildit.github.io/just-makeit/) — full
     command reference
-- [Build from Source](../install/source.md) — cmake flags and make targets
+- [Build from Source](../../install/source.md) — cmake flags and make targets

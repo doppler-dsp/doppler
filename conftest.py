@@ -130,7 +130,8 @@ def _display_name(fullname: str, name: str) -> str:
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     # Doc-snippet burn-down backlog: how many doc pages are not yet gated by
     # the drift gate (docs/.doc-snippet-ignore). Printed every run so the
-    # number stays visible and shrinks to zero. See docs/dev/doc-examples.md.
+    # number stays visible and shrinks to zero. See
+    # docs/dev/contributing/doc-examples.md.
     if _IGNORE.exists():
         pending = [
             ln

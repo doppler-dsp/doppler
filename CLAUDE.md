@@ -221,7 +221,7 @@ could not be trusted either way. The jm pin therefore lives in `ci.yml` alone
 
 Benchmarking did not go away: `make bench-interleaved` is the sound
 comparison (alternating repeats across two worktrees), and `bench-baseline` /
-`bench-check` remain. See `docs/dev/benchmarking.md`.
+`bench-check` remain. See `docs/dev/contributing/benchmarking.md`.
 
 ______________________________________________________________________
 
@@ -864,7 +864,7 @@ wire-format conformance check.
 
 **Use the SCOPED `jm apply objects/<obj>.toml` whenever a sacred fragment
 exists.** A bare `jm apply` can regenerate a *sibling's* fragment and discard
-its hand-patches (documented at `docs/dev/adding-a-module.md:39`). After
+its hand-patches (documented at `docs/dev/contributing/adding-a-module.md:39`). After
 touching a fragment — or the hand-owned `wfm_reader_ext_extra.c` — clang-format
 it: jm emits K&R 4-space, doppler is GNU 2-space.
 
@@ -959,7 +959,7 @@ ______________________________________________________________________
 
 ## Object validation — the certification evidence
 
-**The process has one home: [`docs/dev/validation.md`](docs/dev/validation.md).**
+**The process has one home: [`docs/dev/contributing/validation.md`](docs/dev/contributing/validation.md).**
 Follow it there — the inventory step, the sabotage rule, the report's five
 sections, the two gates and the per-object checklist. It is a contributor
 page rather than a note here precisely so it is followed rather than
@@ -1064,8 +1064,8 @@ exec-with-real-setup; pseudocode/templates are ```` ```text ````, not
 `python`. The docs build is `--strict` (zero warnings) and
 `scripts/check_site_links.py` fails CI on any broken internal
 link/anchor in the built site. Full policy + docs-build gotchas:
-`docs/dev/doc-examples.md`; generated-vs-hand-owned map + all drift
-gates: `docs/dev/docs-conventions.md`.
+`docs/dev/contributing/doc-examples.md`; generated-vs-hand-owned map + all drift
+gates: `docs/dev/contributing/docs-conventions.md`.
 
 ______________________________________________________________________
 
@@ -1086,7 +1086,7 @@ lists by `scripts/gen_install_scripts.py` (same `make docs-relink`);
 are hand-written but their completeness is CI-enforced by
 `scripts/check_nav_index.py` (add a page, add a bullet, same PR). Full
 table of what's generated vs. hand-owned + both gates' details:
-`docs/dev/docs-conventions.md`.
+`docs/dev/contributing/docs-conventions.md`.
 
 ______________________________________________________________________
 

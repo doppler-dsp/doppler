@@ -1,5 +1,5 @@
 - **Four `ccsds_tm` header claims that nothing asserted.** The claim
-    inventory `docs/dev/validation.md` step 1 asks for, run against
+    inventory `docs/dev/contributing/validation.md` step 1 asks for, run against
     `ccsds_tm`'s three headers, found four rows the C tests did not cover —
     two of them the shapes that page warns about by name.
 

@@ -34,7 +34,7 @@ no binding reaches: ``mpsk_rx_derive_m_out`` and
 ``mpsk_rx_updates_per_symbol`` are ``JM_FORCEINLINE``, so claims about them
 are reported with the C section that covers them (F1). Measuring the
 receiver and calling it the rule is exactly the substitution
-``docs/dev/validation.md`` warns about.
+``docs/dev/contributing/validation.md`` warns about.
 
 **F7** is the other kind: claims a binding DOES reach and nothing measures,
 filed as gh-814 so they are visible outside this file.
@@ -1624,8 +1624,9 @@ def review(R, d):
         "length rather than of the receiver, and the fix is symbols: "
         "reaching `target_errors = 100` at a 1e-6 bound needs ~1e8 of "
         "them, which is a `make characterize` sweep and not a per-push "
-        "validator (`docs/dev/validation.md`, and the category exists for "
-        "this). It is the same wall §2.8 hits from the other side — the "
+        "validator (`docs/dev/contributing/validation.md`, and the "
+        "category exists for this). It is the same wall §2.8 hits from "
+        "the other side — the "
         "header's `m_out` figures are anchored at `SER = 1e-3` per M, "
         "which this geometry cannot reach either — and it is what "
         "[#781](https://github.com/doppler-dsp/doppler/issues/781) is "
@@ -1697,8 +1698,8 @@ def review(R, d):
         "stimulus than a validator builds — a larger clock offset, a lower "
         "Es/N0, trials — so the home is `make characterize` or "
         "`native/validation/` "
-        "(`docs/dev/adding-algorithms.md` phase 7). With C15's 0.8x level "
-        "ratio, that is what "
+        "(`docs/dev/contributing/adding-algorithms.md` phase 7). With "
+        "C15's 0.8x level ratio, that is what "
         "[gh-814](https://github.com/doppler-dsp/doppler/issues/814) still "
         "tracks; none is a regression, and the object is certified on what "
         "IS measured.",

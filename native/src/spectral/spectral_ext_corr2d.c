@@ -60,7 +60,7 @@ Corr2DObj_init (Corr2DObject *self, PyObject *args, PyObject *kwds)
   /* Hand-patch (sacred fragment): corr2d_create takes the reference's two
      dimensions split out, which a flat array init-param cannot express, so
      this marshaling stays hand-written. Regenerating this file drops it —
-     see the note in docs/dev/adding-a-module.md. */
+     see the note in docs/dev/contributing/adding-a-module.md. */
   if (PyArray_NDIM (ref_arr) != 2)
     {
       Py_DECREF (ref_arr);

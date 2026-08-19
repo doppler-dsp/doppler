@@ -54,7 +54,8 @@ jobs:
         # the single dependency list, shared with ci.yml's doxygen job. The
         # inline copy had already drifted from it (missing graphviz's companions
         # / the LaTeX set bootstrap.toml declares).
-        run: make install-docs-deps
+        timeout-minutes: 15
+        run: make install-docs-deps-ci
 
       - name: Generate C API docs
         # `make gen-c-api`, not an inline copy. This step WAS a fourth

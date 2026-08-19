@@ -756,9 +756,17 @@ wfm_compose_from_json (const char *json)
     const char *gn     = cJSON_GetStringValue (
         cJSON_GetObjectItemCaseSensitive (s, "gap_noise"));
     segs[i] = (wfm_segment_t){
-      .sources          = srcs,
-      .n_sources        = ns,
-      .fs               = num (s, "fs", 1000000.0),
+      .sources   = srcs,
+      .n_sources = ns,
+      /* 1.0, NOT 1e6, and the difference is a silently wrong waveform.
+         `--fs` is documented as "default 1.0; freq treated as normalised",
+         so a scene written to that contract -- `{"type":"tone","freq":0.08}`
+         -- rendered at 0.08 Hz against an unstated 1 MHz rate, i.e. at DC,
+         with no error anywhere. The flag parser and this reader are two
+         faces of one generator and may not disagree about a default. Found
+         by rate_converter_demo failing its own frequency check with the tone
+         1245 bins off. */
+      .fs               = num (s, "fs", 1.0),
       .num_samples      = (size_t)n_samp,
       .off_samples      = (size_t)o_samp,
       .ranged           = (unsigned)((rn ? WFM_RANGE_NUM_SAMPLES : 0)

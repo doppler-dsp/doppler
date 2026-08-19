@@ -2,7 +2,7 @@
 
 Every Python C extension subpackage in doppler follows an exact layout.
 This page is the authoritative reference — it supersedes
-[`docs/design/archive/PYTHON_EXTENSION_DESIGN.md`](../design/archive/PYTHON_EXTENSION_DESIGN.md).
+[`docs/design/archive/PYTHON_EXTENSION_DESIGN.md`](../../design/archive/PYTHON_EXTENSION_DESIGN.md).
 
 The [just-makeit](https://just-buildit.github.io/just-makeit/) scaffold
 generates this layout automatically. Reading this page tells you *why* each
@@ -69,7 +69,7 @@ delay line, an accumulator), its header **must** declare the ABI triplet —
 `objects/<component>.toml` **must** set `serializable = "true"`. This is
 not optional: elastic resume (checkpoint / migrate / scale across
 processes, pods) depends on every stateful object speaking the same bytes
-interface. See [State Serialization](../design/state-serialization.md) for
+interface. See [State Serialization](../../design/state-serialization.md) for
 the envelope format and [Adding a Module](adding-a-module.md) for the
 step-by-step.
 
@@ -283,4 +283,4 @@ ______________________________________________________________________
     just-makeit to scaffold a new extension module
 - [just-makeit docs](https://just-buildit.github.io/just-makeit/) — scaffold
     tool that generates compliant layouts automatically
-- [Build from Source](../install/source.md) — how to compile extensions
+- [Build from Source](../../install/source.md) — how to compile extensions

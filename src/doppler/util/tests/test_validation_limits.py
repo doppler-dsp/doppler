@@ -30,7 +30,8 @@ C library, so every claim is certified in `native/tests/test_util_core.c`
 §1-§8 first; the report measures the same properties through
 `doppler.util` to prove the binding delivers them, and adds the two
 statistical laws (noise reduction, memory) that no single-step C
-assertion can reach. See `docs/dev/validation.md` for the order and why
+assertion can reach. See `docs/dev/contributing/validation.md` for the order
+and why
 it is not negotiable.
 """
 

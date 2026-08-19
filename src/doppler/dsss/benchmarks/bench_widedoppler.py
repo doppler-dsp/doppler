@@ -1,6 +1,7 @@
 """Wide-Doppler acquisition: 2-D roll vs column-FFT mixer bank.
 
-Backs the method-selection trade in ``docs/dev/dsss-use-cases.md``. For a wide
+Backs the method-selection trade in
+``docs/dev/contributing/dsss-use-cases.md``. For a wide
 Doppler uncertainty spanning ``D`` native windows (``D = Δf / (1/T_epoch)``),
 two methods cover it:
 

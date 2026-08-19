@@ -4,7 +4,7 @@ A maximum-likelihood sequence decoder for rate-1/n convolutional codes: the
 trellis, the branch metric, and the one number the implementation cannot be
 written without.
 
-Phase 1 of [Adding an Algorithm](../dev/adding-algorithms.md). The chain it
+Phase 1 of [Adding an Algorithm](../dev/contributing/adding-algorithms.md). The chain it
 was built for — node synchronization, the ASM search, the outer code — is
 [The FEC Receive Half](fec-receive.md); this page owns the decoder.
 

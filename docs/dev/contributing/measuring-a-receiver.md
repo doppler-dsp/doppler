@@ -3,7 +3,7 @@
 You have a receiver — ours or your own — and you need a number you can defend.
 This page is the path from one to the other.
 
-It is the **how**. [Receiver Test Harness](../design/rx-test.md) is the *why*
+It is the **how**. [Receiver Test Harness](../../design/rx-test.md) is the *why*
 (the ten goals, and the failures that motivated them);
 [`native/tests/README.md`](https://github.com/doppler-dsp/doppler/blob/main/native/tests/README.md)
 is the *reference* for the harness family; [Object Validation](validation.md)
@@ -241,6 +241,6 @@ receiver wants the machinery rather than our choice of `sps = 8`.
 
 ## Related pages
 
-- [Receiver Test Harness](../design/rx-test.md) — the design and the ten goals
+- [Receiver Test Harness](../../design/rx-test.md) — the design and the ten goals
 - [Object Validation](validation.md) — the certification process
-- [MPSK Receiver](../design/mpsk.md) — the receiver this path was built against
+- [MPSK Receiver](../../design/mpsk.md) — the receiver this path was built against

@@ -29,7 +29,8 @@ module's extension to run any object's limits.
 C library, so every claim here is certified in `native/tests/
 test_resamp_core.c` §1-§20 first; the report measures the same properties
 through `doppler.resample.Resampler` to prove the binding delivers them.
-See `docs/dev/validation.md` for the order and why it is not negotiable.
+See `docs/dev/contributing/validation.md` for the order and why it is not
+negotiable.
 """
 
 from __future__ import annotations

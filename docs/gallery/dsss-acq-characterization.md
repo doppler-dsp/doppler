@@ -97,7 +97,7 @@ curves.
 
 This is a **characterization**, not an example: it sweeps a noise floor over
 many trials, so it is run deliberately rather than on every push. See
-[Object Validation](../dev/validation.md#where-a-long-sweep-goes-instead-characterization)
+[Object Validation](../dev/contributing/validation.md#where-a-long-sweep-goes-instead-characterization)
 for the distinction.
 
 <!-- docs-snippet: no-exec=a characterization sweep is deliberate, not per-push — this fence used to execute the whole ~30 s run inside the docs gate -->

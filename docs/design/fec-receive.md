@@ -5,7 +5,7 @@ caller.
 
 When this page was written `ccsds_tm/` encoded and decoded nothing, so nothing
 could measure a coded link and coding gain was unquotable. It is phase 1 of
-[Adding an Algorithm](../dev/adding-algorithms.md) for the other half; §7 is
+[Adding an Algorithm](../dev/contributing/adding-algorithms.md) for the other half; §7 is
 the sequence and **every step of it is now built**, with §8 holding what the
 last one measured.
 
@@ -441,4 +441,4 @@ ______________________________________________________________________
 - [Reed-Solomon](reed-solomon.md) — the outer code, step 2 of the sequence
 - [Soft Decisions for M-PSK](mpsk.md#97-soft-decisions) — the LLRs this consumes
 - [Lock Detection](lock-detect.md) — the detector this feeds
-- [Adding an Algorithm](../dev/adding-algorithms.md) — the lifecycle
+- [Adding an Algorithm](../dev/contributing/adding-algorithms.md) — the lifecycle

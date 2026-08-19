@@ -1252,9 +1252,9 @@ test_sps_equals_m_boundary (void)
  *
  * T5/T6/T7 of the ted claim inventory, all three of which were uncovered
  * here while the report measured them in Python. The inventory is in
- * docs/dev/validation.md's order: header claim -> this file -> only then
- * the report. These three arrived the wrong way round, and this section is
- * the correction.
+ * docs/dev/contributing/validation.md's order: header claim -> this file ->
+ * only then the report. These three arrived the wrong way round, and this
+ * section is the correction.
  *
  * The claims, from symsync_core.h and ratesync_core.h:
  *

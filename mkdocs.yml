@@ -300,20 +300,22 @@ nav:
       - Dopplerfile: cli/dopplerfile.md
   - Contributing:
       - Contributing: dev/index.md
-      - Adding an Algorithm: dev/adding-algorithms.md
-      - Repository Map: dev/repository-map.md
-      - Module Layout: dev/module-layout.md
-      - Adding a Module: dev/adding-a-module.md
-      - Error Convention: dev/error-convention.md
-      - "DSSS acquisition use cases": dev/dsss-use-cases.md
-      - Benchmarking: dev/benchmarking.md
-      - Measuring a Receiver: dev/measuring-a-receiver.md
-      - Object Validation: dev/validation.md
-      - Validation Log: dev/validation-log.md
-      - Doc Examples (tested): dev/doc-examples.md
-      - Docstring Authoring: dev/docstring-authoring.md
-      - Docs Conventions: dev/docs-conventions.md
+      - Contributing guide:
+          - Adding an Algorithm: dev/contributing/adding-algorithms.md
+          - Repository Map: dev/contributing/repository-map.md
+          - Module Layout: dev/contributing/module-layout.md
+          - Adding a Module: dev/contributing/adding-a-module.md
+          - Error Convention: dev/contributing/error-convention.md
+          - "DSSS acquisition use cases": dev/contributing/dsss-use-cases.md
+          - Benchmarking: dev/contributing/benchmarking.md
+          - Measuring a Receiver: dev/contributing/measuring-a-receiver.md
+          - Object Validation: dev/contributing/validation.md
+          - Validation Log: dev/contributing/validation-log.md
+          - Doc Examples (tested): dev/contributing/doc-examples.md
+          - Docstring Authoring: dev/contributing/docstring-authoring.md
+          - Docs Conventions: dev/contributing/docs-conventions.md
       - Maintainer internals:
+          - Continuous Integration: dev/ci.md
           - Release: dev/release.md
           - Build Internals: dev/build-internals.md
           - Coverage: dev/coverage.md

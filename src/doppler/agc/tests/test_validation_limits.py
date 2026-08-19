@@ -29,7 +29,8 @@ limits.
 a C library, so every claim here is certified in
 `native/tests/test_agc_core.c` §1-§24 first; the report measures the same
 properties through `doppler.agc.AGC` to prove the binding delivers them.
-See `docs/dev/validation.md` for the order and why it is not negotiable.
+See `docs/dev/contributing/validation.md` for the order and why it is not
+negotiable.
 """
 
 from __future__ import annotations

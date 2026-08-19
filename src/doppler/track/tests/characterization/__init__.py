@@ -4,7 +4,7 @@ A **characterization** answers "how does this object behave across its whole
 operating envelope", by sweeping until the answer is statistically meaningful.
 That costs minutes, which is why `make characterize` runs it deliberately and
 nothing runs it on a push. The category and its trade are documented once, in
-`doppler.dsss.tests.characterization` and `docs/dev/validation.md`; this module
+`doppler.dsss.tests.characterization` and `docs/dev/contributing/validation.md`; this module
 exists because `track` had nowhere to put an envelope at all.
 
 ## Why this module was missing, and what it cost
@@ -22,7 +22,7 @@ re-run. Both were retracted in doppler#843.
 
 So the rule this module exists to serve is the repository's own: **a claim
 nothing runs is prose.** A number a validator relies on has to be re-derivable,
-and phase 7 (`docs/dev/adding-algorithms.md`) is where a number that takes
+and phase 7 (`docs/dev/contributing/adding-algorithms.md`) is where a number that takes
 minutes to establish belongs.
 
 ## What runs what

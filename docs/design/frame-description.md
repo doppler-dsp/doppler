@@ -7,7 +7,7 @@ than a framer somebody adds.
 
 It is written before the code, which is where a design page belongs: this is
 the phase with no gate, and therefore the cheapest place to be wrong
-([Adding an Algorithm](../dev/adding-algorithms.md), phase 1).
+([Adding an Algorithm](../dev/contributing/adding-algorithms.md), phase 1).
 
 ______________________________________________________________________
 

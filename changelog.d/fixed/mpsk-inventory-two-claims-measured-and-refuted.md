@@ -15,6 +15,6 @@
 
     Both need a harsher stimulus than a per-push validator builds, so they belong
     in `make characterize` or `native/validation/`
-    ([`docs/dev/adding-algorithms.md`](docs/dev/adding-algorithms.md) phase 7).
+    ([`docs/dev/contributing/adding-algorithms.md`](docs/dev/contributing/adding-algorithms.md) phase 7).
     Recorded because "measured and refuted" and "not yet measured" are different
     states, and a reader deciding what to do next needs to know which one applies.

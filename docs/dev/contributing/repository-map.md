@@ -90,4 +90,4 @@ CI fails if any generated file diverges from what the manifest implies. The
 hand-written `_core.c`, the `_ext_<obj>.c` fragments, and the Rust FFI are the
 parts a human edits — the rest is materialised. See
 [Adding a Module](adding-a-module.md) for the per-object workflow and
-[Architecture](../architecture.md) for the C-first rationale.
+[Architecture](../../architecture.md) for the C-first rationale.

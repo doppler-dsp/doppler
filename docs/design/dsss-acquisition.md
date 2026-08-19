@@ -30,7 +30,7 @@ window-tiling mechanism of §4 instead — see the warning immediately below.
     Everything below about pushing `M`/`doppler_bins` up for gain or
     resolution assumes the coherent window is genuinely **code-only** (a
     preamble, or a periodic pilot epoch on an otherwise data-bearing stream —
-    see UC1 in [the use-cases doc](../dev/dsss-use-cases.md)). On a
+    see UC1 in [the use-cases doc](../dev/contributing/dsss-use-cases.md)). On a
     **continuous, data-modulated** signal, growing `M` past the data-bit
     period is not a graceful gain/latency trade — the data's own baseband
     spectrum, sampled at close to one sample per symbol, aliases broadband

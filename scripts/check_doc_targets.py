@@ -9,7 +9,8 @@ because nothing checks prose.
 
 It is not hypothetical. This gate was written after finding three live
 cases in one scan: ``make bench-baseline`` and ``make bench-check`` in
-``docs/dev/benchmarking.md`` (renamed to ``bench-save`` / ``bench-compare``
+``docs/dev/contributing/benchmarking.md`` (renamed to ``bench-save`` /
+``bench-compare``
 by the port itself), and ``make install`` in ``CONTRIBUTING.md``,
 advertised as "System install" for a target that has no rule anywhere.
 

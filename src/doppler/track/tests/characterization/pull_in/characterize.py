@@ -29,7 +29,7 @@ Everything measured comes from the receiver's own telemetry through the shared
 harness — `car.locked` / `car.freq` for the carrier, `sync.locked` /
 `sync.rate` for the timing loop. Nothing here builds a stimulus, a level or an
 estimator; `scripts/check_stimulus_sources.py` gates that, and composing is
-the rule (`docs/dev/measuring-a-receiver.md`).
+the rule (`docs/dev/contributing/measuring-a-receiver.md`).
 
 Run:  make characterize      (this subject, plus every other)
       python -m doppler.track.tests.characterization.pull_in.characterize

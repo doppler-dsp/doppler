@@ -265,7 +265,7 @@ jobs:
       # built build/libdoppler.a; every documented CLI line is parsed against the
       # real argparse parser and the safe ones execute end-to-end under bash -e.
       # Backlogs: docs/.doc-snippet-ignore, docs/.c-doc-snippet-ignore. See
-      # docs/dev/doc-examples.md.
+      # docs/dev/contributing/doc-examples.md.
       #
       # All three are version-independent, so they run once rather than on all
       # six interpreters. One target rather than three steps because they fail

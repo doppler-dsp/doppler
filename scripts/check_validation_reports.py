@@ -78,7 +78,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 # Two shapes, because a component with no Python face is certified by a C
 # harness rendered by a validator under `src/doppler/tests/validation/`
-# (docs/dev/validation.md, "certifying a component with no binding"). The
+# (docs/dev/contributing/validation.md, "certifying a component with no
+# binding"). The
 # first pattern is the per-module one every bound object uses; the second is
 # the tree-wide home. Both are globs rather than a list, so a new object is
 # gated the moment its folder exists.
@@ -291,7 +292,8 @@ def check_artifacts(path: Path) -> list[str]:
 def check_lifecycle(path: Path) -> list[str]:
     """A certified object must have the deliverables the lifecycle names.
 
-    ``docs/dev/adding-algorithms.md`` says what each phase *produces*, and
+    ``docs/dev/contributing/adding-algorithms.md`` says what each phase
+    *produces*, and
     nothing checked that any of it existed. That is not hypothetical: this
     gate was written after an audit found ``lockdet`` certified with 22
     holding limits, ``make gates`` all-pass -- and its phase-1 design page
@@ -393,7 +395,7 @@ def main() -> int:
             "a sweep: emit the '![...](x.png)' from the SECTION, never from"
             "\n  plots() — markdown written there is absent from the "
             "--check render, which\n  leaves validate-check permanently "
-            "stale. See docs/dev/validation.md.",
+            "stale. See docs/dev/contributing/validation.md.",
             file=sys.stderr,
         )
         return 1

@@ -29,7 +29,8 @@ does not verify any envelope. A regression that moves a pull-in boundary while
 every import still succeeds passes this gate and waits for the next `make
 characterize`. Claiming otherwise would be the same mistake the validation
 tree made when 44 claims were asserted by nobody
-(``docs/dev/validation.md``) — so this gate's promise is deliberately narrow
+(``docs/dev/contributing/validation.md``) — so this gate's promise is
+deliberately narrow
 and stated rather than implied.
 
 Parsed with ``ast``, never imported: importing a subject would drag in the

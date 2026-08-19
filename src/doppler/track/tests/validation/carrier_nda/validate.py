@@ -33,7 +33,7 @@ One surface deliberately does NOT appear here: ``carrier_nda_disc()`` is
 ``JM_FORCEINLINE`` with no binding at all, so every claim about the
 discriminator itself is reported **C-ONLY** with the C section that covers it
 (see §2.1's note and F10). Measuring the loop and calling it the detector is
-exactly the substitution `docs/dev/validation.md` warns about.
+exactly the substitution `docs/dev/contributing/validation.md` warns about.
 
 Run:  make validate
 """

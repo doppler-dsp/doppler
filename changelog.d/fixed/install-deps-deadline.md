@@ -21,10 +21,11 @@
     `make install-deps-ci` / `make install-docs-deps-ci` so the Makefile stays
     the one place that says *how* a tool runs — a developer keeps the plain
     target, CI reaches for the bounded one, and neither is a second copy of the
-    invocation. All seven workflow call sites also gain `timeout-minutes: 15`,
-    the backstop for a shell with no `timeout(1)` and the half that cannot be
-    bypassed. `timeout-minutes` is **not supported on composite-action steps**,
-    so unlike `setup-uv` this cannot be folded into a single action.
+    invocation. All seven provisioning call sites also gain a step-level
+    `timeout-minutes: 25`, the backstop for a shell with no `timeout(1)` and
+    the half that cannot be bypassed. `timeout-minutes` is **not supported on
+    composite-action steps**, so unlike `setup-uv` this cannot be folded into a
+    single action.
 
     Sized from measurement, not feel: healthy runs took **16–179s across 9
     samples** (median 18), so the 300s per-attempt deadline is ~1.7x the worst
@@ -64,13 +65,32 @@
     hang is still bounded at ten minutes against the 360 it used to get.
 
     **The retry budget has to fit the step ceiling, and the first version did
-    not.** 600s x 3 tries is 30 minutes against a `timeout-minutes: 15`, so the
+    not.** 600s x 3 tries is 30 minutes against the `timeout-minutes: 15`
+    those sites first carried, so the
     retry — which the reclaim had just made work, apt restarting cleanly with
     no lock error — was killed mid-download four minutes later. Now 2 tries
     against a 25-minute ceiling (~20.2 min of budget), and `make   deps-budget-check` derives both sides from the real numbers and fails if
     they ever stop fitting. Sabotage-proven: it reddens on the exact 600x3
     against-15 pairing that shipped, and refuses rather than passing silently
     if it can find no `timeout-minutes:` to check against.
+
+    **The deadline bounds provisioning; a hang elsewhere was still
+    unbounded.** Measured against a second incident while this branch was
+    open: in PR #880 provisioning succeeded and then `make test-python` hung
+    **70 minutes** inside `Test with coverage`, reporting `pending`
+    throughout — the same symptom, at a step none of the fix's commits touch.
+    It had to be cancelled and re-run by hand, which is the manual recovery
+    the deadline exists to remove. So **all 25 jobs now carry a job-level
+    ceiling**, a different mechanism that does not replace the deadline: a
+    ceiling only kills, where the deadline kills *and retries*, so
+    provisioning keeps the pairing that recovers. Sized from **180 successful
+    jobs** — `coverage` to 90 minutes against a legitimate 54.7-minute run,
+    every other job to 45 against a 30.0-minute worst case. `docs.yml` is 45
+    rather than the 20 its 3-minute work suggests, and `deps-budget-check` is
+    what caught that: at 20 the 1210s provisioning budget no longer fits,
+    because a *job* ceiling bounds the provisioning step inside it just as a
+    step ceiling does. That is the gate doing exactly what it was built for,
+    one commit after it was written, on a value it was not written to police.
 
     Also measured on that run: **GitHub's macOS runner has neither
     `timeout(1)` nor `gtimeout`**, so the script carries a POSIX watchdog

@@ -260,14 +260,15 @@
     "inline_segment": {
       "description": "Single-source segment: source fields appear inline alongside the segment timing fields. Byte-identical to driving that source's synth directly.",
       "type": "object",
-      "required": ["type", "fs"],
+      "required": ["type"],
       "additionalProperties": false,
       "properties": {
         "type":       { "$ref": "#/$defs/source_type" },
         "fs": {
           "type": "number",
           "exclusiveMinimum": 0.0,
-          "description": "Sample rate (Hz)."
+          "default": 1.0,
+          "description": "Sample rate (Hz). Omitted means 1.0, which makes every frequency field normalised (cycles per sample) — the same contract wfmgen's --fs flag documents. State it whenever the scene is in real Hz."
         },
         "freq":       { "$ref": "#/$defs/source/properties/freq" },
         "f_end":      { "$ref": "#/$defs/source/properties/f_end" },
@@ -339,13 +340,14 @@
     "sum_segment": {
       "description": "Multi-source segment: two or more sources are summed over the same time span. Noise resolution (wfm_resolve_noise) requires exactly one source to anchor the noise floor — that source carries snr without level; all other sources use level (dBFS) to place their power relative to the floor.",
       "type": "object",
-      "required": ["fs", "sum"],
+      "required": ["sum"],
       "additionalProperties": false,
       "properties": {
         "fs": {
           "type": "number",
           "exclusiveMinimum": 0.0,
-          "description": "Sample rate (Hz) shared by all sources in this segment."
+          "default": 1.0,
+          "description": "Sample rate (Hz) shared by all sources in this segment. Omitted means 1.0, which makes every frequency field normalised (cycles per sample) — the same contract wfmgen's --fs flag documents."
         },
         "num_samples": {
           "default": 0,

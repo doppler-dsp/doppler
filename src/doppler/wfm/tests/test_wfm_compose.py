@@ -171,3 +171,38 @@ def test_invalid_enum_rejected():
     """Enum fields validate against the SSOT on construction."""
     with pytest.raises((ValueError, TypeError)):
         G.Synth(type="not_a_waveform")
+
+
+def test_json_fs_defaults_to_one_so_freq_is_normalised():
+    """An omitted `fs` means 1.0 — the same contract `--fs` documents.
+
+    The reader used to default it to **1e6**, so a scene written to the
+    flag's documented contract (`freq` normalised, no `fs`) came out at
+    0.08 Hz against an unstated 1 MHz rate — a tone at DC, with no error
+    from anywhere. The flag parser and the JSON reader are two faces of one
+    generator and cannot disagree about a default.
+
+    Asserted on the RENDERED waveform rather than on the parsed struct,
+    because the struct field being 1.0 is not the claim a caller cares
+    about; where the tone lands is. Sabotage check: restoring the 1e6
+    default drops the measured frequency to ~8e-8 and this fails.
+    """
+    import json
+
+    import numpy as np
+
+    scene = {
+        "version": 1,
+        "segments": [{"type": "tone", "freq": 0.08, "num_samples": 512}],
+    }
+    x = np.asarray(G.Composer.from_json(json.dumps(scene)).compose())
+    # One-sample phase advance IS the normalised frequency.
+    got = float(np.angle(x[1] * np.conj(x[0])) / (2.0 * np.pi))
+    assert abs(got - 0.08) < 1e-4, f"tone at {got}, expected 0.08"
+
+    # And an explicit fs still means Hz: 8e4 / 1e6 is the same 0.08.
+    scene["segments"][0]["fs"] = 1e6
+    scene["segments"][0]["freq"] = 8e4
+    y = np.asarray(G.Composer.from_json(json.dumps(scene)).compose())
+    got_hz = float(np.angle(y[1] * np.conj(y[0])) / (2.0 * np.pi))
+    assert abs(got_hz - 0.08) < 1e-4, f"tone at {got_hz}, expected 0.08"

@@ -38,6 +38,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from doppler.tests._repo import repo_root
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
@@ -921,7 +923,7 @@ def cli(build, here: Path) -> int:
             print("  Re-run 'make validate'.")
             return 1
 
-        print(f"  up to date: {out.relative_to(here.parents[5])}")
+        print(f"  up to date: {out.relative_to(repo_root(here))}")
         # Numeric drift is reported and NOT gated -- see `_structural`. Said
         # out loud because silence cannot distinguish "this machine agrees"
         # from "nothing compared the numbers".

@@ -30,12 +30,13 @@ from pathlib import Path
 
 import numpy as np
 
+from doppler.tests._repo import repo_root
 from doppler.tests._validation_common import Report, cli
 from doppler.util import ema_alpha_decim, ema_step
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
-ROOT = HERE.parents[5]
+ROOT = repo_root(__file__)
 
 R = Report()
 

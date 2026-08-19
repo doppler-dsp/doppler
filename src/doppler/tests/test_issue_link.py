@@ -14,11 +14,16 @@ issue asked for and the issue stayed open for a day.
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
-REPO = Path(__file__).resolve().parents[3]
+from doppler.tests._repo import repo_root
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+REPO = repo_root(__file__)
 SCRIPT = REPO / "scripts" / "issue-link-check.sh"
 
 

@@ -41,13 +41,18 @@ import os
 import socket
 import subprocess
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
+from doppler.tests._repo import repo_root
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
 pytestmark = pytest.mark.examples
 
-REPO = Path(__file__).resolve().parents[3]
+REPO = repo_root(__file__)
 EXAMPLES_DIR = REPO / "src" / "doppler" / "examples"
 SKIP_REGISTRY = EXAMPLES_DIR / ".examples-skip"
 

@@ -37,9 +37,9 @@ jobs:
         # job below and by manylinux_2_28 wheels at release.)
         include:
           - os: ubuntu-22.04
-            image: ghcr.io/doppler-dsp/doppler-ci@sha256:be9924e3cca59305aa0499feb8b60b96eb086b012805f4eb952dc7b84fbab65c
+            image: ghcr.io/doppler-dsp/doppler-ci@sha256:7c54277aea9032b0390e9f684cc7b2afdc3c62709e7e7772a23e747a39c2e9d7
           - os: ubuntu-24.04
-            image: ghcr.io/doppler-dsp/doppler-ci@sha256:7c1834c40b26a6b187a58726541368a99055a73673630ee960a41cb993d37bba
+            image: ghcr.io/doppler-dsp/doppler-ci@sha256:1b4737ce48d2667bc1ed89f2e8f2bcc955e25e84b9f4e164f093c7a6c2fe28b5
     container:
       image: ${{ matrix.image }}
       credentials:
@@ -198,7 +198,7 @@ jobs:
     # No provisioning step: the toolchain is the image. See
     # deploy/docker/Dockerfile.ci and .github/ci-images.env.
     container:
-      image: ghcr.io/doppler-dsp/doppler-ci@sha256:7c1834c40b26a6b187a58726541368a99055a73673630ee960a41cb993d37bba
+      image: ghcr.io/doppler-dsp/doppler-ci@sha256:1b4737ce48d2667bc1ed89f2e8f2bcc955e25e84b9f4e164f093c7a6c2fe28b5
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -356,7 +356,7 @@ jobs:
     # doxygen + graphviz come from the image's `docs` group, which is the
     # same bootstrap.toml group `make install-docs-deps` installs.
     container:
-      image: ghcr.io/doppler-dsp/doppler-ci@sha256:7c1834c40b26a6b187a58726541368a99055a73673630ee960a41cb993d37bba
+      image: ghcr.io/doppler-dsp/doppler-ci@sha256:1b4737ce48d2667bc1ed89f2e8f2bcc955e25e84b9f4e164f093c7a6c2fe28b5
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -561,7 +561,7 @@ jobs:
     # from the image -- including libclang-rt, which bootstrap.toml cannot
     # name because the package is per-release and that file is not.
     container:
-      image: ghcr.io/doppler-dsp/doppler-ci@sha256:7c1834c40b26a6b187a58726541368a99055a73673630ee960a41cb993d37bba
+      image: ghcr.io/doppler-dsp/doppler-ci@sha256:1b4737ce48d2667bc1ed89f2e8f2bcc955e25e84b9f4e164f093c7a6c2fe28b5
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}

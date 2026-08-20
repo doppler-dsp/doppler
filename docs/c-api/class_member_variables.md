@@ -635,7 +635,7 @@
 * **r2c** ([**ddcr\_state**](structddcr__state.md))
 * **row** ([**det\_result2d\_t**](structdet__result2d__t.md))
 * **rate\_aid** ([**dll\_state\_t**](structdll__state__t.md))
-* **rs** ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md))
+* **rs** ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md), [**rs\_codec\_state\_t**](structrs__codec__state__t.md))
 * **reserved** ([**dp\_header\_t**](structdp__header__t.md))
 * **resync** ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md))
 * **rtaps** ([**fir\_state\_t**](structfir__state__t.md))

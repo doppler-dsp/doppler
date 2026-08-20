@@ -114,6 +114,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**ratesync\_tlm\_t**](structratesync__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then one predicted-not-taken branch per recovered symbol._ 
 * **struct** [**resamp\_state\_t**](structresamp__state__t.md) 
 * **struct** [**rs\_code\_t**](structrs__code__t.md) _A Reed-Solomon code over_ `GF(2^J)` _._
+* **struct** [**rs\_codec\_state\_t**](structrs__codec__state__t.md) _A code and the tables derived from it._ 
 * **struct** [**rs\_t**](structrs__t.md) _A code plus the tables derived from it._ 
 * **struct** [**specan\_state\_t**](structspecan__state__t.md) _Specan state. Allocate with_ [_**specan\_create()**_](specan__core_8h.md#function-specan_create) _._
 * **struct** [**symsync\_state\_t**](structsymsync__state__t.md) _SymbolSync state._ 

@@ -58,3 +58,9 @@ frame
 # correlation across buffer boundaries -- it will be a different object with
 # genuine running state, and it will need a triplet.)
 syncword
+# A code plus the tables DERIVED from it, and every `rs` kernel takes it
+# const: nothing advances with the stream, and the whole state is a pure
+# function of the five constructor arguments. "Resume" means construct the
+# same ReedSolomon again. (The INTERLEAVER a standard wraps around it does
+# carry position, but that lives in the frame assembler, not here.)
+rs_codec

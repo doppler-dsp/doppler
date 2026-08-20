@@ -1,0 +1,159 @@
+# rs_codec — the Reed-Solomon codec, as an object.
+#
+# doppler#900 (2c), the third and last of the family slices. `rs_encode`,
+# `rs_syndromes` and `rs_codeword_ok` were reachable from Python only through
+# `FrameDesc.add_stage(kind=1)`, which binds to `ccsds_tm_frame_ops` and
+# carries an interleaving depth rather than a code — so Python could run
+# exactly ONE Reed-Solomon code, CCSDS's, and only inside a frame.
+#
+# The same split `conv_enc` and `viterbi` established: `rs` owns the CODE —
+# the field, the tables, the encoder, the syndromes and the
+# Berlekamp-Massey / Chien / Forney decoder, for any RS code — and this owns
+# the object built over one. It is NOT a second implementation; every method
+# here calls the matching `rs_*` kernel.
+#
+# ## Why the component is not called `rs`
+#
+# jm derives a component's C names from its component name, so `[rs]` would
+# generate `rs_encode` — which already exists, is the kernel this wraps, and
+# would be redefined rather than called. `conv`/`conv_enc` is the same pair
+# for the same reason.
+#
+# ## No running state, so no serialization
+#
+# `rs_t` is the code plus tables DERIVED from it, and every kernel takes it
+# `const`: nothing here advances with the stream, and a blob would carry
+# exactly what the five constructor arguments already carry. Declared in
+# `scripts/.serializable-stateless`.
+[rs_codec]
+arg_type = "uint8_t"
+return_type = "uint8_t"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+# Nothing to reset: the tables ARE the configuration, and there is no
+# counter, cursor or register beside them.
+no_reset = "true"
+class_name = "ReedSolomon"
+# A refused code is a bad ARGUMENT, not an allocation failure — `rs_init`
+# rejects a non-primitive field polynomial or a root stride sharing a factor
+# with n long before this reaches malloc (jm gh-482). Both produce arithmetic
+# that is entirely self-consistent, so a round trip cannot see either, which
+# is exactly why the constructor has to.
+create_error = "ValueError"
+create_error_message = "ReedSolomon: not a usable code — need an even nroots in 2..64 leaving at least one information symbol, 2 <= symbol_bits <= 8, a PRIMITIVE field_poly, and a root_stride coprime with 2**symbol_bits - 1"
+depends_on = [{ name = "rs", link = true }]
+
+# The five numbers that ARE the code (rs_code_t). A struct-pointer
+# constructor is not jm-expressible, so the declared form takes them
+# individually and assembles the rs_code_t inside create() -- the shape
+# `viterbi` and `conv_enc` already use for their polynomials.
+
+# Parity symbols, 2E. Required and undefaulted: it is the code's whole
+# strength, there is no conventional value, and a default here would let a
+# caller who never chose one believe they had.
+[[rs_codec.init_params]]
+name = "nroots"
+type = "uint32_t"
+required = true
+doc = "Parity symbols per codeword, `2E` — even, at least 2, and small enough to leave one information symbol. The code corrects `E = nroots / 2` symbol errors."
+
+[[rs_codec.init_params]]
+name = "symbol_bits"
+type = "uint32_t"
+default = "8"
+doc = "`J`, the symbol width in bits, 2..8. A codeword is `n = 2**J - 1` symbols, one per byte, so `J = 8` gives the familiar 255."
+
+# 0x1D is x^8 + x^4 + x^3 + x^2 + 1 -- the polynomial most GF(256)
+# implementations reach for. CCSDS is NOT this one (it uses 0x87); see the
+# class docstring.
+[[rs_codec.init_params]]
+name = "field_poly"
+type = "uint32_t"
+default = "29"
+doc = "`F(x)`, low `J` bits, with `x**J` implicit. Must be PRIMITIVE — a polynomial that generates a subgroup instead of the field produces perfectly self-consistent arithmetic that interoperates with nothing, so the constructor checks rather than trusts. The default 29 is `x**8 + x**4 + x**3 + x**2 + 1`."
+
+[[rs_codec.init_params]]
+name = "first_root"
+type = "uint32_t"
+default = "1"
+doc = "`j0`: the generator's first root is `a**(root_stride * j0)`."
+
+# NOT cosmetic and NOT defaulted away for the same reason conv_enc's `invert`
+# is not: CCSDS uses 11, most codes use 1, and consecutive powers of `a` give
+# a perfectly good code that no CCSDS receiver can decode.
+[[rs_codec.init_params]]
+name = "root_stride"
+type = "uint32_t"
+default = "1"
+doc = "`s`: the roots are powers of `a**s`. Must be coprime with `n`, or the `nroots` roots are not distinct and the code corrects fewer errors than its parity count claims (CCSDS 4.3.4 states this as a note about `a**11`; for a general code it is a condition, and the constructor checks it)."
+
+# ── methods ─────────────────────────────────────────────────────────────────
+
+[[rs_codec.methods]]
+name = "encode"
+arg_type = "uint8_t"
+return_type = "uint8_t"
+variable_output = true
+pass_capacity = true
+
+[[rs_codec.methods]]
+name = "decode"
+arg_type = "void"
+return_type = "int"
+# `out = true` drops the const and marks the numpy array writeable: the
+# kernel corrects IN PLACE, and copying it here to preserve an illusion of
+# immutability would hide which array holds the answer.
+params = [{ name = "codeword", type = "uint8_t[]", out = true }]
+
+[[rs_codec.methods]]
+name = "syndromes"
+arg_type = "uint8_t"
+return_type = "uint8_t"
+variable_output = true
+pass_capacity = true
+
+[[rs_codec.methods]]
+name = "codeword_ok"
+arg_type = "void"
+return_type = "int"
+params = [{ name = "codeword", type = "uint8_t[]" }]
+
+# NOT the self-sizing `variable_output` shape, deliberately. That shape gives
+# every method a `count` parameter meaning "how many outputs do you want",
+# and `g(x)` has exactly `nroots + 1` coefficients -- there is no other
+# number to ask for, so `count` would be a parameter that lies. It is also
+# undocumentable: jm renders no `Parameters` entry for the synthesized
+# `count`, so the surface could never reach the docstring bar
+# (just-makeit#1042, which is why `LO.steps` and every other generator-shaped
+# method in the tree sits at PARTIAL).
+#
+# An explicit buffer costs the caller one line and says exactly what happens.
+[[rs_codec.methods]]
+name = "generator"
+arg_type = "void"
+return_type = "size_t"
+params = [{ name = "out", type = "uint8_t[]", out = true }]
+
+# Derived sizes, read from the one rs_t rather than mirrored into the state
+# struct beside it -- a `field = true` property would need its own copy, and
+# two copies of a derived number is how they come to disagree.
+[[rs_codec.properties]]
+name = "n"
+type = "size_t"
+
+[[rs_codec.properties]]
+name = "k"
+type = "size_t"
+
+[[rs_codec.properties]]
+name = "e"
+type = "size_t"
+
+[[rs_codec.properties]]
+name = "nroots"
+type = "size_t"
+
+[[rs_codec.properties]]
+name = "symbol_bits"
+type = "size_t"

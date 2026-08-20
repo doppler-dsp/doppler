@@ -76,11 +76,96 @@ ______________________________________________________________________
 
 ::: doppler.coding.Viterbi
 
+______________________________________________________________________
+
+## `ReedSolomon` — both directions of a block code
+
+A Reed-Solomon code over `GF(2**J)` is five numbers: a symbol width, a field
+polynomial, a parity count, a first root and a root stride. `ReedSolomon`
+takes all five, so a caller names their own code — and both directions read
+the same description, which is what stops an encoder and a decoder disagreeing
+about what the code is.
+
+```pycon
+>>> import numpy as np
+>>> from doppler.coding import ReedSolomon
+>>> rs = ReedSolomon(nroots=32)          # RS(255,223) over the usual GF(256)
+>>> rs.n, rs.k, rs.e
+(255, 223, 16)
+>>> word = rs.encode(np.arange(rs.k, dtype=np.uint8))
+>>> word.size, rs.codeword_ok(word)
+(255, 1)
+>>> word[3] ^= 0xFF                       # a symbol, however many bits moved
+>>> rs.decode(word)                       # corrected IN PLACE
+1
+
+```
+
+`decode` corrects the array you hand it. That is the C contract reaching
+Python rather than a convenience: a decode that quietly worked on a copy
+would return the right count and leave your data wrong, so the binding
+demands a writable, C-contiguous `uint8` array instead of accepting anything
+convertible.
+
+!!! warning "A refusal is safe. A miscorrection is not."
+
+    `decode` returns `-1` when the word is too far from every codeword to
+    name one — the receiver *knows*. Beyond `E` errors it can instead land
+    inside a **different** codeword's sphere, return a positive count, and
+    pass `codeword_ok`: silently wrong. That is a property of any
+    bounded-distance code, not of this implementation, and the chance of it
+    is about `sum(C(n, i)(q-1)**i for i <= E) / q**(n-k)` — **2e-05** for
+    RS(255,223) and **0.36** for RS(15,11). Parity is what buys the silence;
+    frame-level accounting is what catches the rest. Measured in
+    [the gallery](../gallery/coding.md).
+
+    `-2` is a different fact entirely: the word was not `n` symbols long,
+    which is your bug rather than the channel's.
+
+### Matching the algebra is not matching the wire
+
+The five numbers are the **code**. A standard adds conventions that are not
+properties of it, and CCSDS adds two — symbols travel in the **dual
+(Berlekamp) basis** (131.0-B 4.3.9) and codewords are **interleaved** (4.4.1).
+Construct `ReedSolomon` with CCSDS's five numbers and the arithmetic is right
+while the wire format is not:
+
+```pycon
+>>> ccsds = ReedSolomon(nroots=32, field_poly=0x87, first_root=112,
+...                     root_stride=11)          # 131.0-B 4.3
+>>> g = np.empty(ccsds.nroots + 1, np.uint8)
+>>> ccsds.generator(g)                           # Annex G prints all 33
+33
+>>> int(g[0]), int(g[-1])
+(1, 1)
+>>> textbook = np.empty(33, np.uint8)
+>>> _ = ReedSolomon(nroots=32).generator(textbook)
+>>> bool((g != textbook).any())                  # a different code entirely
+True
+
+```
+
+`generator()` takes the buffer rather than handing you one, because its length
+is a property of the code and not of the call — a self-sizing method would
+carry a `count` parameter that could only mislead. It is there because
+standards publish those coefficients: it is how you check that you read the
+five numbers correctly, against the document rather than against this
+implementation. Two of the five are **validated at
+construction** for the same reason — a non-primitive `field_poly` and a
+`root_stride` sharing a factor with `n` both produce arithmetic that encodes
+and decodes against itself perfectly, so a round trip can never catch either.
+
+For a whole CCSDS CADU — the dual basis, the interleaver and the coverage
+table — describe one with
+[`FrameDesc`](python-wfmgen.md#framedesc-the-same-frame-deferred) instead.
+
+::: doppler.coding.ReedSolomon
+
 ## Related pages
 
 <!-- related-pages:start -->
 
-**Gallery** — [A CCSDS CADU, as a Frame Description](../gallery/ccsds-link.md)
+**Gallery** — [A CCSDS CADU, as a Frame Description](../gallery/ccsds-link.md), [Name Your Own Code — and What Happens Past the Radius](../gallery/coding.md)
 **Design** — [The FEC Receive Half](../design/fec-receive.md), [Design](../design/index.md), [Reed-Solomon](../design/reed-solomon.md)
 
 <!-- related-pages:end -->

@@ -536,6 +536,51 @@ uv run pytest-benchmark compare benchmarks/history/2026-05-01-abc1234.json \
 
 ______________________________________________________________________
 
+## Step 10b — The C benchmark, and when you must write it yourself
+
+For an **object**, this step is free: `jm apply` scaffolds
+`native/benchmarks/bench_<component>_core.c` in Step 3, generates its CMake
+target, and `jm bench` builds and runs it because the object is one of jm's
+components.
+
+For anything that is **not** an object, none of that happens and nothing
+says so. Two shapes in this repo:
+
+- a **`c_deps` entry** — hand-owned C a module links (`conv`, `rs`,
+    `ccsds_tm`);
+- a **function-only module** — one whose surface is free functions
+    (`mpsk`, `ber`, `snr`, `util`, `detection`).
+
+For those you write the benchmark, and you register the target by hand in
+the root `CMakeLists.txt` beside `bench_util_core`:
+
+```cmake
+add_executable(bench_mycomp_core native/benchmarks/bench_mycomp_core.c)
+target_link_libraries(bench_mycomp_core PRIVATE mycomp_core m)
+target_include_directories(bench_mycomp_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+```
+
+`make lint` then holds it: a component with C tests must have a benchmark,
+it must record a measurement, and it must write its JSON under the name a
+collector opens (`jm_bench_write_json(&b, "mycomp")`, not `"mycomp_core"` —
+four files got that wrong and two of them lost real measurements to it).
+
+**It will not run under `make bench` yet.** That needs
+[just-makeit#1023](https://github.com/just-buildit/just-makeit/issues/1023);
+run it by hand meanwhile:
+
+```sh
+cmake --build build --target bench_mycomp_core
+./build/native/src/mycomp/bench_mycomp_core
+```
+
+Background, and the four benchmarks that were compiled by every build and
+run by nothing:
+[Benchmarks jm cannot see](benchmarking.md#benchmarks-jm-cannot-see).
+
+______________________________________________________________________
+
 ## Step 11 — Rebuild, reconcile, and verify
 
 ```sh
@@ -568,6 +613,9 @@ Before opening a PR:
 - [ ] `python -m doctest -v src/doppler/<module>/<module>.pyi` — all examples pass
 - [ ] `make test-python` — all Python tests pass
 - [ ] `make bench` — C and Python benchmarks run and JSON snapshots are saved
+- [ ] The C benchmark exists **and runs**: an object's is scaffolded, a
+    `c_deps` entry's or a function-only module's is hand-written and
+    hand-registered (Step 10b). `make lint` gates both halves
 - [ ] `jm status --check` — zero manifest drift
 - [ ] `__init__.py` contains only re-exports and `__all__`
 - [ ] No Python wrapper classes — C extension types are the public API

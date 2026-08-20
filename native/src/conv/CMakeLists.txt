@@ -24,3 +24,15 @@ target_include_directories(test_conv_core PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_conv_core COMMAND test_conv_core)
+
+# The benchmark. Hand-registered because `conv` is a c_dep and not one of
+# jm's components, so `jm apply` generates no target for it and `jm bench`
+# cannot run it -- just-makeit#1023; run it by hand meanwhile.
+# scripts/check_bench_coverage.py keeps the rest honest: the target exists,
+# it records a measurement, and it writes JSON under a collectable name.
+add_executable(bench_conv_core
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_conv_core.c)
+target_link_libraries(bench_conv_core PRIVATE conv_core m)
+target_include_directories(bench_conv_core PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/benchmarks)

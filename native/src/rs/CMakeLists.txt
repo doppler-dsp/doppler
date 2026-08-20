@@ -23,3 +23,12 @@ target_include_directories(test_rs_core PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_rs_core COMMAND test_rs_core)
+
+# The benchmark. Hand-registered because `rs` is a c_dep and not one of jm's
+# components -- see the note in native/src/conv/CMakeLists.txt.
+add_executable(bench_rs_core
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_rs_core.c)
+target_link_libraries(bench_rs_core PRIVATE rs_core m)
+target_include_directories(bench_rs_core PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/benchmarks)

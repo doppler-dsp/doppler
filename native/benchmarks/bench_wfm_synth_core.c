@@ -133,7 +133,7 @@ main (void)
   bench_cfg_rrc ("qpsk  rrc sps=8", 4, 8, 7, 100.0, 1e5, out, &bench);
   bench_cfg_rrc ("bpsk  rrc sps=16", 3, 16, 7, 100.0, 1e5, out, &bench);
 
-  jm_bench_write_json (&bench, "synth");
+  jm_bench_write_json (&bench, "wfm_synth");
   free (out);
   return 0;
 }

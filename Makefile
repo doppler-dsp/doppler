@@ -609,6 +609,22 @@ BENCH_THRESHOLD ?= 0.30
 #   documentation changes stops being read.
 BENCH_ALLOW ?= test_bench_execute_decim_64k
 
+# `jm bench` covers jm's COMPONENTS — the objects in objects/*.toml — and
+# structurally cannot see anything else. A `c_deps` entry (conv, rs, ccsds_tm)
+# or a function-only module (mpsk, ber, snr, util, detection) is not a
+# component, so its bench binary is built by CMake and run by NOTHING:
+# `just-makeit bench util` answers `unknown component(s): util`.
+#
+# So ten benchmarks in this tree do not run here, and that is a known,
+# tracked gap rather than an oversight — just-makeit#1023 asks jm to run
+# them, and doppler deliberately does not carry a local runner that the fix
+# would immediately retire. Until it ships they are run by hand:
+#
+#     cmake --build build --target bench_conv_core && ./build/.../bench_conv_core
+#
+# scripts/check_bench_coverage.py holds what CAN be held meanwhile — every
+# one of them has a CMake target, records a measurement, and writes its JSON
+# under the name a collector opens. See docs/dev/contributing/benchmarking.md.
 BENCH_CMD         = uv run just-makeit bench
 BENCH_SAVE_CMD    = uv run just-makeit bench --python-only --tag base
 BENCH_COMPARE_CMD = uv run just-makeit bench --check \
@@ -916,6 +932,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 compile_commands.json \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
                 apt-stall-config deps-budget-check cargo-floor-check \
+                bench-coverage-check \
                 ci-image ci-image-check ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke \
@@ -946,7 +963,8 @@ include standard.mk
 # long as it has existed. Being inert (#705) was only half the problem; not
 # running was the other half, and `gates` is a local convenience, not CI.
 lint: tests-ssot characterization-check validation-report-check changelog-check \
-      issue-link-check deps-budget-check ci-image-check cargo-floor-check
+      issue-link-check deps-budget-check ci-image-check cargo-floor-check \
+      bench-coverage-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -956,6 +974,15 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
 ASSERT_BASE ?= origin/main
 tests-ssot: ## Verify no C test re-defines dp_test.h's macros or loses assertions
 	@uv run python scripts/check_tests_ssot.py --base $(ASSERT_BASE)
+
+# On `lint` rather than `bench` deliberately: `bench` is the occasional
+# activity (see bench-python), so a gate hung off it reports a missing
+# benchmark weeks after the component landed, if ever. Both directions are
+# checked -- a tested component with no benchmark, and a benchmark no runner
+# can reach -- because this repo has now had both, and the second one looks
+# fixed from every angle except the snapshot it never appears in.
+bench-coverage-check: ## Verify every tested component has a benchmark that runs
+	@uv run python scripts/check_bench_coverage.py
 
 # Hung off `lint` rather than `validate-check` deliberately. `validate-check`
 # re-runs each validator and compares -- a STALENESS gate, and staleness is

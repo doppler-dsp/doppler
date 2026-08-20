@@ -60,7 +60,10 @@ ViterbiObj_init (ViterbiObject *self, PyObject *args, PyObject *kwds)
   Py_DECREF (poly_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "viterbi_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "Viterbi: not a usable code (need 1 to 6 non-zero "
+                       "polynomials, each under 2**k, 2 <= k <= 9, and depth "
+                       ">= 1)");
       return -1;
     }
   return 0;
@@ -443,6 +446,15 @@ static PyTypeObject ViterbiObjType = {
                 "    invert (default: 0).\n"
                 "depth : int, default 35\n"
                 "    depth (default: 35).\n"
+                "\n"
+                "Raises\n"
+                "------\n"
+                "ValueError\n"
+                "    If construction fails. The exception message is ``Viterbi: "
+                "not a usable\n"
+                "    code (need 1 to 6 non-zero polynomials, each under 2**k, 2 "
+                "<= k <= 9,\n"
+                "    and depth >= 1)``.\n"
                 "\n"
                 "Examples\n"
                 "--------\n"

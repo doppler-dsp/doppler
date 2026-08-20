@@ -519,13 +519,26 @@ def ratchet(base: str) -> list[str]:
             "               +refs/heads/main:refs/remotes/origin/main"
         )
 
-    excused = {}
+    # Two forms, and the difference matters. A bare `<file>  <reason>` is a
+    # permanent, unbounded excuse -- the file's ratchet is off from then on,
+    # for any future drop. A `<file> -> <dest>  <reason>` says the assertions
+    # MOVED, and is checked: `dest` must have gained at least what `file`
+    # lost, over the same base. A move is the common case (splitting one
+    # object's tests out of another's) and it is not a removal, so writing it
+    # as one both lies in the ignore file and disarms a ratchet that should
+    # stay armed.
+    excused: dict[str, tuple[str | None, str]] = {}
     if IGNORE.exists():
         for line in IGNORE.read_text().splitlines():
             line = line.split("#", 1)[0].strip()
-            if line:
-                name, _, why = line.partition(" ")
-                excused[name] = why.strip()
+            if not line:
+                continue
+            name, _, rest = line.partition(" ")
+            rest = rest.strip()
+            dest = None
+            if rest.startswith("-> "):
+                dest, _, rest = rest[3:].partition(" ")
+            excused[name] = (dest, rest.strip())
 
     listing = subprocess.run(
         ["git", "ls-tree", "-r", "--name-only", base, "native/tests/"],
@@ -533,6 +546,18 @@ def ratchet(base: str) -> list[str]:
         capture_output=True,
         text=True,
     ).stdout.split()
+
+    def at_base(rel: str) -> int:
+        """Assertion count for a repo-relative path at the base ref. A file
+        the base does not have counts zero, which is what a move into a
+        brand-new file needs."""
+        r = subprocess.run(
+            ["git", "show", f"{base}:{rel}"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        return count_assertions(r.stdout) if r.returncode == 0 else 0
 
     bad = []
     for rel in (f for f in listing if f.endswith(".c")):
@@ -551,13 +576,32 @@ def ratchet(base: str) -> list[str]:
             count_assertions(was.stdout),
             count_assertions(now.read_text()),
         )
-        if after < before:
-            key = pathlib.Path(rel).name
-            if key in excused:
-                continue
+        if after >= before:
+            continue
+        key = pathlib.Path(rel).name
+        if key not in excused:
             bad.append(
                 f"{rel}: {before} assertions at {shown}, {after} here "
                 f"(-{before - after})"
+            )
+            continue
+        dest, _why = excused[key]
+        if dest is None:
+            continue  # stated, permanent removal
+        drel = f"{TESTS.relative_to(ROOT)}/{dest}"
+        dpath = ROOT / drel
+        if not dpath.exists():
+            bad.append(
+                f"{rel}: excused as moved to {dest}, which does not exist"
+            )
+            continue
+        lost_here = before - after
+        gained = count_assertions(dpath.read_text()) - at_base(drel)
+        if gained < lost_here:
+            bad.append(
+                f"{rel}: -{lost_here} assertions, excused as moved to "
+                f"{dest} — but {dest} gained only {gained} since {shown}, "
+                f"so {lost_here - gained} went nowhere"
             )
     return bad
 

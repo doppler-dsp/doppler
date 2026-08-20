@@ -82,11 +82,6 @@
 * **TYPE\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 
 
-## v
-
-* **viterbi\_state\_t** ([**conv\_core.h**](conv__core_8h.md))
-
-
 ## w
 
 * **wfm\_\_compose\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57** ([**wfm\_compose.h**](wfm__compose_8h.md))

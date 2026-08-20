@@ -13,6 +13,7 @@
 #define CCSDS_TM_H
 
 #include "conv/conv_core.h"
+#include "viterbi/viterbi_core.h"
 
 #include <stddef.h>
 #include <stdint.h>

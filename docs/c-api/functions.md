@@ -1042,9 +1042,6 @@
 
 ## n
 
-* **node\_sync\_scan** ([**conv\_core.h**](conv__core_8h.md))
-* **node\_sync\_score** ([**conv\_core.h**](conv__core_8h.md))
-* **node\_sync\_scored\_symbols** ([**conv\_core.h**](conv__core_8h.md))
 * **next\_pow2** ([**det\_private.h**](det__private_8h.md))
 * **nco\_add\_ovf\_** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_create** ([**nco\_core.h**](nco__core_8h.md))
@@ -1090,6 +1087,9 @@
 * **nprmeas\_spectrum\_dbfs** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
 * **nprmeas\_spectrum\_dbfs\_max\_out** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
 * **noise\_floor\_db** ([**spectral\_core.h**](spectral__core_8h.md))
+* **node\_sync\_scan** ([**viterbi\_core.h**](viterbi__core_8h.md))
+* **node\_sync\_score** ([**viterbi\_core.h**](viterbi__core_8h.md))
+* **node\_sync\_scored\_symbols** ([**viterbi\_core.h**](viterbi__core_8h.md))
 
 
 ## o
@@ -1333,16 +1333,17 @@
 
 ## v
 
-* **viterbi\_code** ([**conv\_core.h**](conv__core_8h.md))
-* **viterbi\_create** ([**conv\_core.h**](conv__core_8h.md))
-* **viterbi\_decode** ([**conv\_core.h**](conv__core_8h.md))
-* **viterbi\_decode\_max\_out** ([**conv\_core.h**](conv__core_8h.md))
-* **viterbi\_depth** ([**conv\_core.h**](conv__core_8h.md))
-* **viterbi\_destroy** ([**conv\_core.h**](conv__core_8h.md))
-* **viterbi\_get\_state** ([**conv\_core.h**](conv__core_8h.md))
-* **viterbi\_reset** ([**conv\_core.h**](conv__core_8h.md))
-* **viterbi\_set\_state** ([**conv\_core.h**](conv__core_8h.md))
-* **viterbi\_state\_bytes** ([**conv\_core.h**](conv__core_8h.md))
+* **viterbi\_code** ([**viterbi\_core.h**](viterbi__core_8h.md))
+* **viterbi\_create** ([**viterbi\_core.h**](viterbi__core_8h.md))
+* **viterbi\_create\_code** ([**viterbi\_core.h**](viterbi__core_8h.md))
+* **viterbi\_decode** ([**viterbi\_core.h**](viterbi__core_8h.md))
+* **viterbi\_decode\_max\_out** ([**viterbi\_core.h**](viterbi__core_8h.md))
+* **viterbi\_depth** ([**viterbi\_core.h**](viterbi__core_8h.md))
+* **viterbi\_destroy** ([**viterbi\_core.h**](viterbi__core_8h.md))
+* **viterbi\_get\_state** ([**viterbi\_core.h**](viterbi__core_8h.md))
+* **viterbi\_reset** ([**viterbi\_core.h**](viterbi__core_8h.md))
+* **viterbi\_set\_state** ([**viterbi\_core.h**](viterbi__core_8h.md))
+* **viterbi\_state\_bytes** ([**viterbi\_core.h**](viterbi__core_8h.md))
 
 
 ## w

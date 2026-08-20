@@ -183,6 +183,11 @@
 * [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md)
 
 
+## v
+
+* [**viterbi\_state\_t**](structviterbi__state__t.md)
+
+
 ## w
 
 * [**wfm\_field\_t**](structwfm__field__t.md)

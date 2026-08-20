@@ -11,6 +11,7 @@
 _The two loops an M-PSK receiver closes, independent of its front end._ [More...](#detailed-description)
 
 * `#include "agc/agc_core.h"`
+* `#include "viterbi/viterbi_core.h"`
 * `#include "carrier_nda/carrier_nda_core.h"`
 * `#include "clib_common.h"`
 * `#include "dp_state.h"`

@@ -4,6 +4,45 @@ import numpy as np
 from numpy.typing import NDArray
 
 @final
+class SyncHit(tuple[int, int, int, int]):
+    """Where a marker was found, and in which polarity. `found` is the verdict:
+    the other three fields mean nothing without it, which is why the record
+    carries it rather than spelling a miss as a sentinel offset.
+
+    Attributes
+    ----------
+    found : int
+        A marker was found: 1 yes, 0 no.
+    offset : int
+        Bit index where the marker starts.
+    inverted : int
+        The stream is complemented — a BPSK carrier recovered through a 180-degree ambiguity delivers every bit inverted, and a marker no randomiser covers is the only thing in a frame that can report it.
+    errors : int
+        Hamming distance to the marker at that offset, in the polarity reported.
+    """
+
+    @property
+    def found(self) -> int:
+        """A marker was found: 1 yes, 0 no."""
+
+    @property
+    def offset(self) -> int:
+        """Bit index where the marker starts."""
+
+    @property
+    def inverted(self) -> int:
+        """The stream is complemented — a BPSK carrier recovered through a
+        180-degree ambiguity delivers every bit inverted, and a marker no
+        randomiser covers is the only thing in a frame that can report it.
+        """
+
+    @property
+    def errors(self) -> int:
+        """Hamming distance to the marker at that offset, in the polarity
+        reported.
+        """
+
+@final
 class LockDet:
     """LockDet component.
 
@@ -271,6 +310,200 @@ class LockDet:
         tb: object | None = ...,
     ) -> None:
         """Exit a context manager, releasing the LockDet.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
+class SyncFinder:
+    """Create a searcher for marker.
+
+    Parameters
+    ----------
+    marker : NDArray[np.uint8]
+        Unpacked bits, one per byte; only the LSB is used.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``SyncFinder: the
+        marker must be a non-empty array of 0/1 bits, one per element``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.detection import SyncFinder
+    >>> from doppler.wfm import ccsds_asm_bits
+    >>> asm = ccsds_asm_bits()   # 0x1ACFFC1D, no transcription
+    >>> f = SyncFinder(asm)
+    >>> f.nbits
+    32
+    >>> rx = np.concatenate([np.zeros(96, np.uint8), asm])
+    >>> hit = f.find(rx, max_errors=f.max_errors_for(96, pfa=1e-3))
+    >>> hit.found, hit.offset, hit.inverted
+    (1, 96, 0)
+
+    """
+    def __init__(self, marker: NDArray[np.uint8]) -> None: ...
+
+    def find(self, bits: NDArray[np.uint8], max_errors: int = 0) -> SyncHit:
+        """Find the first marker in bits, either polarity.
+
+        The FIRST offset whose Hamming distance to the marker, or to its
+        complement, is at most max_errors. First rather than best, because a
+        best-match search has to see the whole stream before it can answer and
+        a synchroniser reading a live capture cannot wait for that.
+
+        Choose max_errors with `max_errors_for`, against the window this caller
+        actually searches — the marker length is the wrong thing to halve.
+
+        Parameters
+        ----------
+        bits : NDArray[np.uint8]
+            Unpacked bits, one per byte.
+        max_errors : int
+            Largest tolerated Hamming distance, in bits.
+
+        Returns
+        -------
+        SyncHit
+            A record whose found says whether the rest of it means anything; a
+            miss returns it zeroed.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.detection import SyncFinder
+        >>> m = np.array([1, 0, 1, 1, 0, 0, 1, 0], dtype=np.uint8)
+        >>> rx = np.concatenate([np.zeros(20, np.uint8), 1 - m])
+        >>> hit = SyncFinder(m).find(rx, max_errors=1)
+        >>> hit.found, hit.offset, hit.inverted
+        (1, 20, 1)
+
+        """
+
+    def pfa(self, max_errors: int) -> float:
+        """Probability that ONE random offset false-hits this marker at a
+        tolerance of max_errors.
+
+        `2 * sum_{i <= max_errors} C(n, i) / 2^n`, the factor of two because
+        `find` searches the complement too. Measured against the 32-bit CCSDS
+        marker, this tracks the observed false-alarm rate to within 20 % at
+        every threshold where the count supports a rate
+        (`src/doppler/tests/validation/ccsds_tm/results.md` §2.2).
+
+        This is the PER-OFFSET number. What a synchroniser cares about is its
+        whole window; `max_errors_for` is this inverted through it.
+
+        Parameters
+        ----------
+        max_errors : int
+            Tolerance in bits.
+
+        Returns
+        -------
+        float
+            Probability in &#91;0, 1&#93;.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.detection import SyncFinder
+        >>> from doppler.wfm import ccsds_asm_bits
+        >>> f = SyncFinder(ccsds_asm_bits())
+        >>> # the marker and its complement, out of 2**32 windows
+        >>> round(f.pfa(0) * 2**32)
+        2
+        >>> # ...plus each one's 32 one-bit neighbours
+        >>> round(f.pfa(1) * 2**32)
+        66
+
+        """
+
+    def max_errors_for(self, window_bits: int, pfa: float) -> int:
+        """The largest tolerance whose false-frame rate over a search window
+        still meets pfa.
+
+        The question `find`'s signature cannot ask. Every offset ahead of the
+        true marker is an independent chance to win the race, so the
+        probability the window produces a false frame is `1 - (1 -
+        pfa(t))^window_bits`, which rises with `t`. The largest `t` that still
+        holds is the most tolerant threshold a caller can afford — and it falls
+        as they search further, which is the whole of doppler#897.
+
+        Parameters
+        ----------
+        window_bits : int
+            Offsets tried AHEAD of the marker: the length of stream searched,
+            not the length of the frame.
+        pfa : float
+            Tolerated probability of a false frame over that window.
+
+        Returns
+        -------
+        int
+            Tolerance in bits, or -1 when even an exact match exceeds pfa over
+            that window.
+
+        Examples
+        --------
+        >>> from doppler.detection import SyncFinder
+        >>> from doppler.wfm import ccsds_asm_bits
+        >>> f = SyncFinder(ccsds_asm_bits())
+        >>> f.max_errors_for(window_bits=96, pfa=1e-3)
+        3
+        >>> f.max_errors_for(window_bits=100000, pfa=1e-3)   # search further
+        0
+
+        """
+
+    @property
+    def nbits(self) -> int:
+        """Marker length in bits."""
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "SyncFinder":
+        """Enter a context manager, returning this object.
+
+        Lets a SyncFinder be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        SyncFinder
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the SyncFinder.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

@@ -33,6 +33,7 @@ void rrc_taps(double beta, int sps, int span, float *out);
 void dsss_spread(const float complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, int sf, float complex *out);
 void rrc_h(const double *t, size_t t_len, double *out, double beta);
 void rc_h(const double *t, size_t t_len, double *out, double beta);
+void ccsds_asm_bits(uint8_t *out);
 #ifdef __cplusplus
 }
 #endif

@@ -21,9 +21,6 @@ int
 ccsds_tm_asm_find (const uint8_t *bits, size_t n_bits, unsigned max_errors,
                    ccsds_tm_asm_hit_t *hit)
 {
-  if (n_bits < (size_t)CCSDS_TM_ASM_BITS)
-    return 0;
-
   /* The pattern comes from ccsds_tm_asm_bits rather than from a second
      expansion of the constant, for the reason that function exists: an
      MSB-first expansion written out twice is a transcription that can
@@ -32,25 +29,11 @@ ccsds_tm_asm_find (const uint8_t *bits, size_t n_bits, unsigned max_errors,
   uint8_t marker[CCSDS_TM_ASM_BITS];
   ccsds_tm_asm_bits (marker);
 
-  const size_t last = n_bits - (size_t)CCSDS_TM_ASM_BITS;
-  for (size_t off = 0; off <= last; off++)
-    {
-      /* Both polarities in one pass: a bit that disagrees with the marker
-         agrees with its complement, so the two distances sum to the marker
-         length and one comparison yields both. */
-      unsigned d = 0;
-      for (unsigned i = 0; i < CCSDS_TM_ASM_BITS; i++)
-        d += (unsigned)((bits[off + i] & 1u) ^ marker[i]);
-
-      const unsigned dinv = (unsigned)CCSDS_TM_ASM_BITS - d;
-      if (d <= max_errors || dinv <= max_errors)
-        {
-          const int inv = dinv < d;
-          hit->offset   = off;
-          hit->inverted = inv;
-          hit->errors   = inv ? dinv : d;
-          return 1;
-        }
-    }
-  return 0;
+  /* And the SEARCH comes from dp_syncword.h for the matching reason one
+     level up: correlating a known pattern against a bit stream in both
+     polarities is not CCSDS's, it is what every framing with a sync word
+     does. This function is the standard's pick of pattern, exactly as
+     CCSDS_TM_CONV is its pick of polynomials. */
+  return dp_syncword_find (bits, n_bits, marker, CCSDS_TM_ASM_BITS, max_errors,
+                           hit);
 }

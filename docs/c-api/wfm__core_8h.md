@@ -53,6 +53,7 @@ _Wfmgen module — public C API._
 | Type | Name |
 | ---: | :--- |
 |  void | [**bpsk\_map**](#function-bpsk_map) (const uint8\_t \* bits, size\_t bits\_len, float complex \* out) <br>_Map binary bits {0, 1} to BPSK constellation symbols (cf32). The mapping is: 0 -&gt; +1 + 0j, 1 -&gt; -1 + 0j. Output is unit-power (each symbol has magnitude 1). The imaginary component is always zero. Typically used before a carrier multiply and noise addition to build a BPSK burst without the full Synth engine._  |
+|  void | [**ccsds\_asm\_bits**](#function-ccsds_asm_bits) (uint8\_t \* out) <br>_The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits._  |
 |  uint16\_t | [**crc16**](#function-crc16) (const uint8\_t \* bits, size\_t bits\_len) <br>_CRC-16-CCITT (poly 0x1021, init 0xFFFF) over a bit stream, MSB-first. The one frame CRC doppler's DSSS burst convention uses: the_ `dsss` _waveform appends it over the payload bits on transmit and_`BurstDemod` _validates it as_`frame_valid` _on receive (both call the same C kernel,_[_**dp\_crc16.h**_](dp__crc16_8h.md) _). Each input byte carries one bit (0/1) in its LSB — an unpacked bit array, not a packed byte-stream CRC. Transmit the result MSB-first._ |
 |  void | [**dsss\_spread**](#function-dsss_spread) (const float complex \* syms, size\_t syms\_len, const uint8\_t \* code, size\_t code\_len, int sf, float complex \* out) <br> |
 |  uint64\_t | [**mls\_poly**](#function-mls_poly) (uint32\_t n) <br>_Maximal-length-sequence primitive polynomial for a length-_ `n` _LFSR. Returns the tap mask (in the same bit convention the synth/PN engine uses for_`pn_poly = 0` _) that drives an_`n-stage` _Fibonacci LFSR through its full 2^n - 1 state period. Thin public alias over the synth engine's MLS table; valid for_`n` _in 2..64 and returns 0 otherwise._ |
@@ -122,6 +123,52 @@ void bpsk_map (
 >>> bits = np.array([0, 1, 0, 1], dtype=np.uint8)
 >>> bpsk_map(bits).tolist()
 [(1+0j), (-1+0j), (1+0j), (-1+0j)]
+```
+ 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function ccsds\_asm\_bits 
+
+_The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits._ 
+```C++
+void ccsds_asm_bits (
+    uint8_t * out
+) 
+```
+
+
+
+`out[0]` is the first bit on the wire — figure 9-1 of 131.0-B numbers the marker's bit 0 as the most significant bit of 0x1A. One bit per byte, the convention every frame path here passes around.
+
+
+The thing a Python receiver ACQUIRES on: pair it with `doppler.detection.SyncFinder` to find where a CADU starts in a bit stream, then slice and `Frame.check()` it. The marker is deliberately NOT randomised (10.4's NOTE: "The ASM was not randomized and is not
+derandomized"), so it reads the same in every frame and in exactly one polarity — which is what makes it the only thing in a CADU that can report a 180-degree carrier ambiguity.
+
+
+A function rather than a constant a caller expands, because an MSB-first expansion written out twice is a transcription that can disagree with itself. This tree's own doctests were the second copy until doppler#900.
+
+
+
+
+**Parameters:**
+
+
+* `out` Receives 32 bits, one per byte. 
+```C++
+>>> from doppler.wfm import ccsds_asm_bits
+>>> b = ccsds_asm_bits()
+>>> b.size, b[:8].tolist()          # 0x1A, first bit at the top
+(32, [0, 0, 0, 1, 1, 0, 1, 0])
+>>> int("".join(map(str, b.tolist())), 2) == 0x1ACFFC1D
+True
 ```
  
 

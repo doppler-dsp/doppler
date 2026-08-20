@@ -26,7 +26,14 @@ import numpy as np
 import pytest
 
 from doppler.ber import FrameMeter
-from doppler.wfm import Composer, Frame, FrameDesc, Segment, crc16
+from doppler.wfm import (
+    Composer,
+    Frame,
+    FrameDesc,
+    Segment,
+    ccsds_asm_bits,
+    crc16,
+)
 
 EMPTY = np.empty(0, np.uint8)
 # Barker-13 — the sync word the named RX_FRAME_BURST carries.
@@ -303,13 +310,14 @@ def test_a_ccsds_cadu_can_be_described_from_python():
     """
     K, N, E2, DEPTH = 223, 255, 32, 2
     _CRC16, RS, RANDOMISE, CONV = 0, 1, 2, 3
-    ASM = 0x1ACFFC1D
 
     octets = np.array(
         [(i * 29 + 5) & 0xFF for i in range(K * DEPTH)], np.uint8
     )
     fbits = np.unpackbits(octets).astype(np.uint8)
-    asm_bits = np.array([(ASM >> (31 - i)) & 1 for i in range(32)], np.uint8)
+    # Not a transcription of 0x1ACFFC1D: a test that spells the marker out
+    # itself agrees with a receiver that spells it out the same wrong way.
+    asm_bits = ccsds_asm_bits()
 
     d = FrameDesc(EMPTY, EMPTY, EMPTY)
     assert d.add_field(asm_bits) == 0
@@ -359,13 +367,13 @@ def _cadu(depth=5):
     No inner code: a frame checker begins after the Viterbi and after frame
     synchronisation, which is where `check()` begins too.
     """
-    K, E2, ASM = 223, 32, 0x1ACFFC1D
+    K, E2 = 223, 32
     RS, RANDOMISE = 1, 2
     octets = np.array(
         [(i * 37 + 11) & 0xFF for i in range(K * depth)], np.uint8
     )
     fbits = np.unpackbits(octets).astype(np.uint8)
-    asm_bits = np.array([(ASM >> (31 - i)) & 1 for i in range(32)], np.uint8)
+    asm_bits = ccsds_asm_bits()
 
     d = FrameDesc(EMPTY, EMPTY, EMPTY)
     d.add_field(asm_bits)

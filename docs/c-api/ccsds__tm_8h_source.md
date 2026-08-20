@@ -13,6 +13,7 @@
 #define CCSDS_TM_H
 
 #include "conv/conv_core.h"
+#include "dp_syncword.h"
 #include "viterbi/viterbi_core.h"
 
 #include <stddef.h>
@@ -57,12 +58,7 @@ extern "C"
 
   void ccsds_tm_asm_bits (uint8_t *out);
 
-  typedef struct
-  {
-    size_t   offset;   
-    int      inverted; 
-    unsigned errors;   
-  } ccsds_tm_asm_hit_t;
+  typedef dp_syncword_hit_t ccsds_tm_asm_hit_t;
 
   int ccsds_tm_asm_find (const uint8_t *bits, size_t n_bits,
                           unsigned max_errors, ccsds_tm_asm_hit_t *hit);

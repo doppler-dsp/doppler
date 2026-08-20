@@ -1,0 +1,89 @@
+# syncword — the frame-sync marker search, as a detector Python can reach.
+#
+# doppler#900 (2b). `ccsds_tm_asm_find` had no Python path at all: a receiver
+# could `Frame.check()` a frame it was handed and could not ACQUIRE one, so
+# everything the ccsds_tm certification measured about choosing that
+# detector's threshold (doppler#897) described a function Python could not
+# call.
+#
+# The binding is over the GENERAL kernel, not over CCSDS's configuration of
+# it. `dp_syncword.h` owns correlate-a-known-pattern-in-both-polarities;
+# `ccsds_tm_asm_find` is that kernel with `0x1ACFFC1D` in it, exactly as
+# `CCSDS_TM_CONV` is `conv_code_t` with the standard's polynomials in it. So
+# this object takes the marker, and CCSDS reaches it by passing
+# `doppler.wfm.ccsds_asm_bits()` — which is also what keeps `detection`
+# free of any one standard.
+#
+# ## Why it is an object and not three free functions
+#
+# `find()` has to answer with a RECORD — offset, polarity and distance are
+# one answer, and a receiver that got the offset without the polarity would
+# hand its frame decoder bits it will silently misread. jm's single-record
+# shape is a method-only feature: `result_fields` on a module function builds
+# a LIST of tuples (`size_t fn(..., T *result, size_t max_results)`), which
+# spells one hit as a one-element list of unnamed tuples. Filed upstream.
+#
+# Holding the marker is then not a contrivance but the point: `pfa()` and
+# `max_errors_for()` answer FOR THE MARKER BEING SEARCHED, so the threshold
+# and the thing it thresholds cannot come from two different declarations.
+[syncword]
+arg_type = "uint8_t"
+return_type = "uint8_t"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+no_reset = "true"
+class_name = "SyncFinder"
+create_error = "ValueError"
+create_error_message = "SyncFinder: the marker must be a non-empty array of 0/1 bits, one per element"
+
+# The marker, unpacked: one bit per element, LSB. The same convention
+# wfm_frame_bits, dp_crc16_ccitt and ccsds_tm_randomise already pass around.
+[[syncword.init_params]]
+name = "marker"
+type = "uint8_t[]"
+
+[[syncword.methods]]
+name = "find"
+arg_type = "void"
+return_type = "syncword_hit_t"
+single = true
+record_name = "SyncHit"
+record_doc = "Where a marker was found, and in which polarity. `found` is the verdict: the other three fields mean nothing without it, which is why the record carries it rather than spelling a miss as a sentinel offset."
+record_module = "doppler.detection"
+params = [
+    { name = "bits", type = "uint8_t[]" },
+    { name = "max_errors", type = "uint32_t", default = "0" },
+]
+result_fields = [
+    { name = "found", type = "int", doc = "A marker was found: 1 yes, 0 no." },
+    { name = "offset", type = "size_t", doc = "Bit index where the marker starts." },
+    { name = "inverted", type = "int", doc = "The stream is complemented — a BPSK carrier recovered through a 180-degree ambiguity delivers every bit inverted, and a marker no randomiser covers is the only thing in a frame that can report it." },
+    { name = "errors", type = "uint32_t", doc = "Hamming distance to the marker at that offset, in the polarity reported." },
+]
+nogil = true
+
+# No `doc` on the methods below: jm emits the manifest doc AND the header
+# docblock, so a `doc` here duplicates the prose rather than replacing it.
+# The header is the SSOT (docs/dev/contributing/validation.md's rule -- it is
+# what the certification reads), so the manifest stays silent.
+[[syncword.methods]]
+name = "pfa"
+arg_type = "void"
+return_type = "double"
+params = [{ name = "max_errors", type = "uint32_t" }]
+
+[[syncword.methods]]
+name = "max_errors_for"
+arg_type = "void"
+return_type = "int"
+params = [
+    { name = "window_bits", type = "size_t" },
+    { name = "pfa", type = "double" },
+]
+
+[[syncword.properties]]
+name = "nbits"
+type = "size_t"
+field = true
+doc = "Marker length in bits."

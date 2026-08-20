@@ -48,3 +48,13 @@ dp_tlm_capture
 # hold no live register here, because the frame is materialised once at create
 # and repeated, never re-generated.
 frame
+# A DETECTOR over its argument, not a stage in a stream: `find(bits)` reads
+# the whole run it is given and nothing carries to the next call. Its one heap
+# buffer is a copy of the marker, which is a pure function of the constructor
+# argument -- so a blob would carry exactly what the constructor already
+# carries, and "resume" means construct the same SyncFinder again. `pfa` and
+# `max_errors_for` are closed forms over the marker length, so the same
+# holds. (When a resumable searcher does arrive -- one that carries partial
+# correlation across buffer boundaries -- it will be a different object with
+# genuine running state, and it will need a triplet.)
+syncword

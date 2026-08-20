@@ -398,6 +398,7 @@
 * **costas\_update** ([**costas\_core.h**](costas__core_8h.md))
 * **costas\_wipeoff** ([**costas\_core.h**](costas__core_8h.md))
 * **ciccompmf** ([**resample\_core.h**](resample__core_8h.md))
+* **ccsds\_asm\_bits** ([**wfm\_core.h**](wfm__core_8h.md))
 * **crc16** ([**wfm\_core.h**](wfm__core_8h.md))
 
 
@@ -430,6 +431,9 @@
 * **dp\_w\_u32** ([**dp\_state.h**](dp__state_8h.md))
 * **dp\_w\_u64** ([**dp\_state.h**](dp__state_8h.md))
 * **dp\_writer\_init** ([**dp\_state.h**](dp__state_8h.md))
+* **dp\_syncword\_find** ([**dp\_syncword.h**](dp__syncword_8h.md))
+* **dp\_syncword\_max\_errors** ([**dp\_syncword.h**](dp__syncword_8h.md))
+* **dp\_syncword\_pfa** ([**dp\_syncword.h**](dp__syncword_8h.md))
 * **dot\_q15** ([**arith\_core.h**](arith__core_8h.md))
 * **dot\_q8** ([**arith\_core.h**](arith__core_8h.md))
 * **dp\_\_buf\_alloc** ([**buffer.h**](buffer_8h.md))
@@ -1314,6 +1318,11 @@
 * **symsync\_steps\_max\_out** ([**symsync\_core.h**](symsync__core_8h.md))
 * **symsync\_ted\_slope** ([**symsync\_core.h**](symsync__core_8h.md))
 * **symsync\_tlm\_flush** ([**symsync\_core.h**](symsync__core_8h.md))
+* **syncword\_create** ([**syncword\_core.h**](syncword__core_8h.md))
+* **syncword\_destroy** ([**syncword\_core.h**](syncword__core_8h.md))
+* **syncword\_find** ([**syncword\_core.h**](syncword__core_8h.md))
+* **syncword\_max\_errors\_for** ([**syncword\_core.h**](syncword__core_8h.md))
+* **syncword\_pfa** ([**syncword\_core.h**](syncword__core_8h.md))
 * **saturate** ([**util\_core.h**](util__core_8h.md))
 * **square\_clip** ([**util\_core.h**](util__core_8h.md))
 

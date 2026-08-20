@@ -13,6 +13,7 @@
 * **CCSDS\_TM\_CONV** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **CCSDS\_TM\_RAND** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **CCSDS\_TM\_RAND\_LEGACY** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
+* **ccsds\_tm\_asm\_hit\_t** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **CCSDS\_TM\_RS** ([**ccsds\_tm\_rs.h**](ccsds__tm__rs_8h.md))
 
 

@@ -58,6 +58,7 @@ COVERAGE: dict[str, str] = {
     "wfm_ebno_to_snr_db": "TestModuleFunctions",
     "mls_poly": "TestModuleFunctions",
     "crc16": "TestModuleFunctions",
+    "ccsds_asm_bits": "TestModuleFunctions",
     "rrc_taps": "TestModuleFunctions",
     "rrc_h": "TestModuleFunctions",
     "rc_h": "TestModuleFunctions",
@@ -273,6 +274,15 @@ class TestModuleFunctions:
         assert w.wfm_ebno_to_snr_db(10.0, 1, 8.0) == pytest.approx(
             10.0 - 10.0 * np.log10(8.0), abs=1e-4
         )
+
+    def test_ccsds_asm_bits(self) -> None:
+        # 0x1ACFFC1D, first transmitted bit at the top of 0x1A (figure 9-1).
+        # Compared as an integer rather than re-expanded bit by bit, so this
+        # is a check against the standard and not against the code under
+        # test -- which is the entire reason the function exists.
+        b = np.asarray(w.ccsds_asm_bits())
+        assert b.dtype == np.uint8 and b.size == 32
+        assert int("".join(map(str, b.tolist())), 2) == 0x1ACFFC1D
 
     def test_crc16(self) -> None:
         # the standard CRC-16-CCITT check vector, "123456789" as MSB-first

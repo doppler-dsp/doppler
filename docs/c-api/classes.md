@@ -38,7 +38,6 @@
 * [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md)
 * [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md)
 * [**carrier\_nda\_tlm\_t**](structcarrier__nda__tlm__t.md)
-* [**ccsds\_tm\_asm\_hit\_t**](structccsds__tm__asm__hit__t.md)
 * [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md)
 * [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md)
 * [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md)
@@ -77,6 +76,7 @@
 * [**dp\_reader\_t**](structdp__reader__t.md)
 * [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md)
 * [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md)
+* [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md)
 * [**dp\_tlm**](structdp__tlm.md)
 * [**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md)
 * [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md)
@@ -170,6 +170,8 @@
 * [**specan\_state\_t**](structspecan__state__t.md)
 * [**symsync\_state\_t**](structsymsync__state__t.md)
 * [**symsync\_tlm\_t**](structsymsync__tlm__t.md)
+* [**syncword\_hit\_t**](structsyncword__hit__t.md)
+* [**syncword\_state\_t**](structsyncword__state__t.md)
 
 
 ## t

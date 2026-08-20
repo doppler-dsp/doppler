@@ -784,6 +784,24 @@ return_type = "uint64_t"
 name = "n"
 type = "uint32_t"
 
+# The CCSDS Attached Sync Marker as bits a Python receiver can search for.
+#
+# doppler#900 (2b). Without it the only Python path to the marker is to
+# transcribe `0x1ACFFC1D` MSB-first by hand -- which is precisely the hazard
+# `ccsds_tm_asm_bits` exists to remove ("an MSB-first expansion written out
+# twice is a transcription that can disagree with itself"), and which this
+# tree's own `.pyi` doctests were doing in four places.
+#
+# Hosted on `wfm` rather than on `detection`, where `SyncFinder` lives,
+# because wfm already links ccsds_tm through `frame`'s `depends_on` and
+# `detection` is a general module that must not learn one standard's picks.
+[[module.wfm.functions]]
+name = "ccsds_asm_bits"
+doc = "The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits — `out[0]` is the first bit on the wire (the top of 0x1A). Pass it to `doppler.detection.SyncFinder` to acquire a CADU in a bit stream; it is NOT randomised, so it reads the same in every frame and in exactly one polarity, which is what makes it the thing that reports a 180-degree carrier ambiguity."
+out_type = "uint8_t"
+variable_output = true
+out_size = "32"
+
 [[module.wfm.functions]]
 name = "crc16"
 doc = "CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit array, MSB-first — the DSSS burst frame trailer wfmgen appends and BurstDemod validates."
@@ -1632,7 +1650,17 @@ Examples
 [0, 1]
 
 """
-objects = ["lockdet"]
+# syncword joins lockdet here rather than in wfm: `det_threshold(pfa)`,
+# `det_pd` and `det_dwell` are this module's existing shape -- a detector and
+# the arithmetic for choosing its threshold -- and a sync-marker correlator
+# is that same family. doppler#897 found the threshold of THIS detector had
+# no arithmetic beside it at all, so `SyncFinder.pfa` / `.max_errors_for`
+# land where a caller already looks for `det_threshold`.
+#
+# It stays free of any one standard: the object takes the marker, and CCSDS
+# reaches it through `doppler.wfm.ccsds_asm_bits()` -- wfm already links
+# ccsds_tm (frame's `depends_on`), and detection must not.
+objects = ["lockdet", "syncword"]
 
 [[module.detection.functions]]
 name = "marcum_q"

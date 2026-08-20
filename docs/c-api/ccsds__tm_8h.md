@@ -11,6 +11,7 @@
 _CCSDS TM channel coding — the transforms a transfer frame passes through on its way to symbols._ [More...](#detailed-description)
 
 * `#include "conv/conv_core.h"`
+* `#include "dp_syncword.h"`
 * `#include "viterbi/viterbi_core.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
@@ -33,11 +34,15 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**ccsds\_tm\_asm\_hit\_t**](structccsds__tm__asm__hit__t.md) <br>_Where an ASM was found, and in which polarity._  |
 | struct | [**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md) <br>_A generator part-way through a run._  |
 | struct | [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) <br>_A pseudo-randomiser: a maximal-length generator and its preset._  |
 
 
+## Public Types
+
+| Type | Name |
+| ---: | :--- |
+| typedef [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md) | [**ccsds\_tm\_asm\_hit\_t**](#typedef-ccsds_tm_asm_hit_t)  <br>_Where an ASM was found, and in which polarity._  |
 
 
 
@@ -70,7 +75,7 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 | Type | Name |
 | ---: | :--- |
 |  void | [**ccsds\_tm\_asm\_bits**](#function-ccsds_tm_asm_bits) (uint8\_t \* out) <br>_Write the ASM as_ [_**CCSDS\_TM\_ASM\_BITS**_](ccsds__tm_8h.md#define-ccsds_tm_asm_bits) _unpacked bits._ |
-|  int | [**ccsds\_tm\_asm\_find**](#function-ccsds_tm_asm_find) (const uint8\_t \* bits, size\_t n\_bits, unsigned max\_errors, [**ccsds\_tm\_asm\_hit\_t**](structccsds__tm__asm__hit__t.md) \* hit) <br>_Find the first ASM in a run of unpacked bits, either polarity._  |
+|  int | [**ccsds\_tm\_asm\_find**](#function-ccsds_tm_asm_find) (const uint8\_t \* bits, size\_t n\_bits, unsigned max\_errors, [**ccsds\_tm\_asm\_hit\_t**](ccsds__tm_8h.md#typedef-ccsds_tm_asm_hit_t) \* hit) <br>_Find the first ASM in a run of unpacked bits, either polarity._  |
 |  void | [**ccsds\_tm\_rand\_init**](#function-ccsds_tm_rand_init) ([**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md) \* s, const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r) <br>_Load_ `r's` _preset, ready to emit its first bit._ |
 |  void | [**ccsds\_tm\_rand\_seq**](#function-ccsds_tm_rand_seq) (uint8\_t \* out, size\_t n) <br>_Generate the first_ `n` _bits of the randomiser sequence._ |
 |  void | [**ccsds\_tm\_rand\_seq\_with**](#function-ccsds_tm_rand_seq_with) (const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r, uint8\_t \* out, size\_t n) <br>[_**ccsds\_tm\_rand\_seq**_](ccsds__tm_8h.md#function-ccsds_tm_rand_seq) _with a chosen randomiser._ |
@@ -187,6 +192,29 @@ Bit convention: every function here takes and returns **unpacked** bits, one per
 
 
     
+## Public Types Documentation
+
+
+
+
+### typedef ccsds\_tm\_asm\_hit\_t 
+
+_Where an ASM was found, and in which polarity._ 
+```C++
+typedef dp_syncword_hit_t ccsds_tm_asm_hit_t;
+```
+
+
+
+An alias for [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md) rather than a struct of its own: two declarations of the same three fields are two things that can drift, and the polarity flag in particular is one a caller reads across the boundary between the general search and this configuration of it.
+
+
+`inverted` is not a curiosity. A BPSK carrier recovered by a loop with a 180-degree ambiguity delivers the whole stream complemented, and the marker is the only thing in a CADU that can say so — the randomiser does not cover it, so it looks the same in every frame and in exactly one polarity. 
+
+
+        
+
+<hr>
 ## Public Attributes Documentation
 
 
@@ -319,10 +347,10 @@ int ccsds_tm_asm_find (
 
 
 
-Correlates [**CCSDS\_TM\_ASM**](ccsds__tm_8h.md#define-ccsds_tm_asm) against every bit offset and against its complement, and reports the **first** offset whose Hamming distance is at most `max_errors`.
+`dp_syncword_find` configured with [**CCSDS\_TM\_ASM**](ccsds__tm_8h.md#define-ccsds_tm_asm) — the standard picks the pattern, and the search is not the standard's. Everything about the search itself, including why it reports the FIRST offset under threshold rather than the best one, is documented there.
 
 
-First rather than best, and the difference matters: a best-match search has to see the whole stream before it can answer, which a frame synchroniser reading a live capture cannot do. First-below-threshold is what is implementable in both settings, so it is what this promises. `max_errors` is the whole of the trade — 0 finds only a clean marker and misses a frame the channel touched, while a value near half the marker length invites a false hit on random data.
+\*\*Choose `max_errors` against the search window, not the marker length.\*\* Half of 32 is 16, so 8 sounds safe, and 8 finds the marker at its true offset only 58 % of the time on a stream with no channel errors at all (doppler#897). Call `dp_syncword_max_errors` with the window the synchroniser actually reads, or reach for the numbers the certification measured for this marker: \*\*`t = 4` survives both tails, and `t = 6` if the link is bad\*\* — over the 96-bit lead-in §2.3 used.
 
 
 

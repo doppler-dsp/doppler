@@ -47,15 +47,7 @@ void viterbi_destroy(viterbi_state_t *state);
 
 void viterbi_reset(viterbi_state_t *state);
 
-
-
-
-
-
-
-
-
-size_t viterbi_decode_max_out(viterbi_state_t *state, size_t n_in);
+size_t viterbi_decode_max_out (const viterbi_state_t *state, size_t n_in);
 
 size_t viterbi_decode(viterbi_state_t *state, const float *in, size_t n_in, uint8_t *out, size_t max_out);
 
@@ -69,29 +61,28 @@ size_t viterbi_decode(viterbi_state_t *state, const float *in, size_t n_in, uint
  */
 
 viterbi_state_t *viterbi_create_code (const conv_code_t *c, size_t depth);
-  /* ── the decoder ─────────────────────────────────────────────────────── */
 
-  const conv_code_t *viterbi_code (const viterbi_state_t *s);
+const conv_code_t *viterbi_code (const viterbi_state_t *s);
 
-  size_t viterbi_depth (const viterbi_state_t *s);
+size_t viterbi_depth (const viterbi_state_t *s);
 
-  /* ── node synchronization ────────────────────────────────────────────── */
+/* ── node synchronization ────────────────────────────────────────────── */
 
-  typedef struct
-  {
-    unsigned phase;   
-    size_t   errors;  
-    size_t   next;    
-    size_t   symbols; 
-    size_t   margin;  
-  } node_sync_t;
+typedef struct
+{
+  unsigned phase;   
+  size_t   errors;  
+  size_t   next;    
+  size_t   symbols; 
+  size_t   margin;  
+} node_sync_t;
 
-  size_t node_sync_score (viterbi_state_t *v, const float *llr, size_t n_llr);
+size_t node_sync_score (viterbi_state_t *v, const float *llr, size_t n_llr);
 
-  size_t node_sync_scored_symbols (const viterbi_state_t *v, size_t n_llr);
+size_t node_sync_scored_symbols (const viterbi_state_t *v, size_t n_llr);
 
-  int node_sync_scan (viterbi_state_t *v, const float *llr, size_t n_llr,
-                      node_sync_t *out);
+int node_sync_scan (viterbi_state_t *v, const float *llr, size_t n_llr,
+                    node_sync_t *out);
 
 /* ── the state bytes interface ───────────────────────────────────────────
  *
@@ -106,12 +97,11 @@ viterbi_state_t *viterbi_create_code (const conv_code_t *c, size_t depth);
 #define VITERBI_STATE_MAGIC DP_FOURCC ('V', 'T', 'R', 'B')
 #define VITERBI_STATE_VERSION 1u
 
-  size_t viterbi_state_bytes (const viterbi_state_t *s);
+size_t viterbi_state_bytes (const viterbi_state_t *s);
 
-  void viterbi_get_state (const viterbi_state_t *s, void *blob);
+void viterbi_get_state (const viterbi_state_t *s, void *blob);
 
-  int viterbi_set_state (viterbi_state_t *s, const void *blob);
-
+int viterbi_set_state (viterbi_state_t *s, const void *blob);
 
 #ifdef __cplusplus
 }

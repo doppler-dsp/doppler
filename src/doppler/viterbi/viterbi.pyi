@@ -10,7 +10,8 @@ class Viterbi:
     Parameters
     ----------
     poly : NDArray[np.uint32]
-        Input uint32_t array (length passed as poly_len).
+        Generator polynomials, one per output. The array IS the code;
+        `poly_len` gives `n`.
     k : int, default 7
         k (default: 7).
     invert : int, default 0
@@ -47,7 +48,9 @@ class Viterbi:
 
         The code and the depth are unchanged — this is the boundary between two
         independent captures, not a reconfiguration. The next decode refills
-        the traceback before it emits, exactly as after create.
+        the traceback before it emits, exactly as after create, and the
+        all-zero state is given the winning metric, matching an encoder that
+        starts from a reset register.
 
         Examples
         --------
@@ -64,12 +67,26 @@ class Viterbi:
     ) -> NDArray[np.uint8]:
         """Decode soft channel symbols into information bits.
 
+        The input carries one value per channel symbol, in the convention
+        `mpsk_soft_demap` produces: `L = log(P(0)/P(1))`, so **positive means
+        symbol 0**. The branch metric for an expected symbol e is `+L` when `e
+        == 0` and `-L` otherwise, and the survivor maximises the sum — which
+        makes the decoder agree with `mpsk_demap` on hard decisions by
+        construction rather than by a second convention.
+
+        A maximum-likelihood path cannot move when every metric is scaled by a
+        positive constant, so **the LLRs need no accurate scaling** — a caller
+        with no SNR estimate may pass unscaled values.
+
         Streaming: state carries across calls, so a long capture may be fed in
-        blocks and the bits come out continuously. A bit is only emitted once
-        the traceback can reach back `depth` steps, so the first call after a
-        reset returns fewer bits than its input implies —
-        viterbi_decode_max_out states exactly how many for a given input
-        length.
+        blocks and the bits come out continuously. The first `depth - 1`
+        branches of a stream produce no output — the traceback walks `depth -
+        1` steps back, so a decision needs that many branches BEHIND it — and
+        thereafter one bit is emitted per `n` symbols consumed.
+        viterbi_decode_max_out is the same statement as arithmetic, and is what
+        a caller should size a buffer with rather than repeating this sentence:
+        they disagreed by one until a test asserted the count against a
+        literal.
 
         Parameters
         ----------
@@ -94,22 +111,22 @@ class Viterbi:
         """
 
     def decode_max_out(self, n_in: int) -> int:
-        """Largest number of samples decode() can return for n_in inputs.
+        """Bits viterbi_decode will emit for n_in soft symbols.
 
-        Size an `out=` buffer with this before calling decode(), or use it to
-        allocate one up front. The bound is this object's own: what it depends
-        on is a property of the algorithm, so a header block on
-        decode_max_out() replaces this text.
+        Accounts for the fill still owed at the start of a stream, so a caller
+        can
+
+        size a buffer exactly rather than conservatively.
 
         Parameters
         ----------
         n_in : int
-            Number of input samples decode() will be given.
+            Number of soft symbols the next call would be given.
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            Bits that call would write.
         """
 
     def state_bytes(self) -> int:

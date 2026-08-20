@@ -342,6 +342,48 @@ jm_bench_add(&bench, name, times, ITERATIONS, TOTAL_PER_ROUND);
 The combined JSON then has one entry per (rate, block) pair, all
 namespaced under the component.
 
+**Interleave the configurations. Do not measure them one after the other.**
+The obvious loop — for each config, warm up, then take `ITERATIONS` timings —
+charges the whole clock ramp to whichever config runs first, and a per-config
+warm-up does not fix it: the *first* config is warming the machine up, and
+0.25 s of it was not enough on at least one dev box. Measured on
+`bench_viterbi_core.c`, which compares two traceback depths over identical
+trellis work: back to back, the same binary reported depth=35 at 229 ns/bit
+on a cold run and 162 ns/bit on the next two, turning a real 1.42x cost for
+the longer traceback into 1.03x, and once into **0.99x** — a 95-step
+traceback reading as cheaper than a 34-step one, which is not a thing that
+can happen.
+
+Settle once before any config is timed, then alternate:
+
+<!-- docs-snippet: skip=illustrative excerpt (v/dec/cap/run undeclared here), not standalone -->
+
+```c
+/* One settle for the process, not one per configuration. */
+clock_gettime(CLOCK_MONOTONIC, &w0);
+do { run(0); clock_gettime(CLOCK_MONOTONIC, &w1); }
+while (elapsed_sec(&w0, &w1) < WARMUP_S);
+
+/* Rounds on the OUTSIDE, configurations on the inside. */
+for (int r = 0; r < ITERATIONS; r++)
+  for (int d = 0; d < NCONFIG; d++)
+    {
+      clock_gettime(CLOCK_MONOTONIC, &t0);
+      run(d);
+      clock_gettime(CLOCK_MONOTONIC, &t1);
+      t[d][r] = elapsed_sec(&t0, &t1);
+    }
+```
+
+Each config still keeps its own **min** over rounds. This is the same
+principle `make bench-interleaved` applies across worktrees, at the scale of
+one process: when two numbers are going to be compared to each other, any
+drift must land on both.
+
+It matters most for a benchmark whose output is a *ratio*. An absolute figure
+that comes out 40% slow is visibly a slow machine; a ratio that comes out
+below 1.0 looks like a finding.
+
 ### Auto-generated bench files
 
 `just-makeit upgrade` (schema 3→4) regenerates `bench_<component>_core.c`

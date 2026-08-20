@@ -85,25 +85,27 @@ main (void)
   const size_t      depths[2] = { 35, 96 };
   const char *const names[2]  = { "decode[depth=35]", "decode[depth=96]" };
   static double     t_dec[2][ITERATIONS];
+  viterbi_state_t  *v[2];
+  uint8_t          *dec[2];
+  size_t            cap[2];
 
   for (int d = 0; d < 2; d++)
     {
-      viterbi_state_t *v = viterbi_create (POLY, 2, K, INVERT, depths[d]);
-      if (!v)
+      v[d] = viterbi_create (POLY, 2, K, INVERT, depths[d]);
+      if (!v[d])
         {
           (void)fprintf (stderr, "bench_viterbi: create(depth=%zu) NULL\n",
                          depths[d]);
           return 1;
         }
-      size_t   max_out = viterbi_decode_max_out (v, n_cod);
-      uint8_t *dec     = malloc (max_out ? max_out : 1);
-      if (!dec)
+      cap[d] = viterbi_decode_max_out (v[d], n_cod);
+      dec[d] = malloc (cap[d] ? cap[d] : 1);
+      if (!dec[d])
         return 1;
 
       /* A decoder that emits nothing would time the refusal, not the
          trellis. */
-      size_t got = viterbi_decode (v, llr, n_cod, dec, max_out);
-      if (got == 0)
+      if (viterbi_decode (v[d], llr, n_cod, dec[d], cap[d]) == 0)
         {
           (void)fprintf (stderr,
                          "bench_viterbi: depth=%zu decoded 0 of %zu symbols "
@@ -111,39 +113,58 @@ main (void)
                          depths[d], n_cod);
           return 1;
         }
+    }
 
-      struct timespec w0, w1;
-      clock_gettime (CLOCK_MONOTONIC, &w0);
-      do
-        {
-          viterbi_reset (v);
-          sink += viterbi_decode (v, llr, n_cod, dec, max_out);
-          clock_gettime (CLOCK_MONOTONIC, &w1);
-        }
-      while (elapsed_sec (&w0, &w1) < WARMUP_S);
+  /* Settle the clock ONCE, before either configuration is timed. A per-config
+     warm-up inside the loop does not do this: whichever config runs first
+     pays the ramp from whatever the machine was doing before the process
+     started, and 0.25 s of it was not enough here. Measured on this file --
+     back to back, the same binary reported depth=35 at 229 ns/bit on a cold
+     run and 162 ns/bit on the next two, turning a real 1.41x into 1.03x and
+     once into 0.99x, which reads as the longer traceback being FREE. */
+  struct timespec w0, w1;
+  clock_gettime (CLOCK_MONOTONIC, &w0);
+  do
+    {
+      viterbi_reset (v[0]);
+      sink += viterbi_decode (v[0], llr, n_cod, dec[0], cap[0]);
+      clock_gettime (CLOCK_MONOTONIC, &w1);
+    }
+  while (elapsed_sec (&w0, &w1) < WARMUP_S);
 
-      for (int r = 0; r < ITERATIONS; r++)
-        {
-          viterbi_reset (v);
-          clock_gettime (CLOCK_MONOTONIC, &t0);
-          sink += viterbi_decode (v, llr, n_cod, dec, max_out);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t_dec[d][r] = elapsed_sec (&t0, &t1);
-        }
+  /* INTERLEAVED, for the same reason `make bench-interleaved` alternates
+     across worktrees: the two configurations are being compared to each
+     other, so any drift the settle did not catch -- a thermal step, another
+     process arriving -- must land on both rather than on whichever was
+     measured first. Each keeps its own min over rounds. */
+  for (int r = 0; r < ITERATIONS; r++)
+    for (int d = 0; d < 2; d++)
+      {
+        viterbi_reset (v[d]);
+        clock_gettime (CLOCK_MONOTONIC, &t0);
+        sink += viterbi_decode (v[d], llr, n_cod, dec[d], cap[d]);
+        clock_gettime (CLOCK_MONOTONIC, &t1);
+        t_dec[d][r] = elapsed_sec (&t0, &t1);
+      }
+
+  for (int d = 0; d < 2; d++)
+    {
       jm_bench_add (&_bench, names[d], t_dec[d], ITERATIONS, (int)n_in);
-      double sec = min_sec (t_dec[d], ITERATIONS);
+      const double sec = min_sec (t_dec[d], ITERATIONS);
       printf ("  %-18s %8.2f ns/info-bit   %7.2f Mbit/s\n", names[d],
               sec / (double)n_in * 1e9, (double)n_in / sec / 1e6);
-      free (dec);
-      viterbi_destroy (v);
+      free (dec[d]);
+      viterbi_destroy (v[d]);
     }
 
   printf ("\n  depth 96 costs %.2fx depth 35 over identical trellis work --\n"
           "  the add-compare-selects do not change, only the traceback walk,\n"
-          "  so that ratio is the price of a decision safe at low Es/N0.\n"
-          "  Against conv::encode in bench_conv_core.c, decoding is the\n"
-          "  expensive direction by more than an order of magnitude.\n",
-          min_sec (t_dec[1], ITERATIONS) / min_sec (t_dec[0], ITERATIONS));
+          "  which is %zu serially dependent ring reads per decision instead\n"
+          "  of %zu. That ratio is the price of a decision safe at low\n"
+          "  Es/N0. Against conv::encode in bench_conv_core.c, decoding is\n"
+          "  the expensive direction by more than an order of magnitude.\n",
+          min_sec (t_dec[1], ITERATIONS) / min_sec (t_dec[0], ITERATIONS),
+          depths[1] - 1u, depths[0] - 1u);
 
   (void)sink;
   free (llr);

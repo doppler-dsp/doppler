@@ -150,7 +150,7 @@ viterbi_depth (const viterbi_state_t *s)
 }
 
 size_t
-viterbi_decode_max_out (viterbi_state_t *s, size_t n_llr)
+viterbi_decode_max_out (const viterbi_state_t *s, size_t n_llr)
 {
   const size_t steps = n_llr / s->code.n;
   const size_t owed

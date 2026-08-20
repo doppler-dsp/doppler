@@ -8,7 +8,7 @@
 
 
 
-_Viterbi state._ [More...](#detailed-description)
+_A streaming maximum-likelihood (Viterbi) decoder._ [More...](#detailed-description)
 
 * `#include <viterbi_core.h>`
 
@@ -94,6 +94,9 @@ _Viterbi state._ [More...](#detailed-description)
 
 
 ## Detailed Description
+
+
+Opaque and heap-allocated: the path metrics and the traceback ring are sized from the code and the depth, and both are wanted contiguous.
 
 
 Allocate with [**viterbi\_create()**](viterbi__core_8h.md#function-viterbi_create). 

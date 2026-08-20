@@ -8,6 +8,7 @@
  * direction and absent in the other.
  */
 #include "ccsds_tm/ccsds_tm.h"
+#include "viterbi/viterbi_core.h"
 
 const conv_code_t CCSDS_TM_CONV = {
   /* .k      */ 7u,

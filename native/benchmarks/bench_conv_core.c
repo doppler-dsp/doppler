@@ -1,4 +1,4 @@
-/* bench_conv_core.c — convolutional coding, both directions.
+/* bench_conv_core.c — convolutional ENCODING, at the code.
  *
  * The two directions of this component differ in cost by orders of
  * magnitude, and the asymmetry is the whole point of measuring it. Encoding
@@ -8,24 +8,10 @@
  * that is 64 states x 2 branches x n_bits add-compare-selects, and it is
  * the most expensive kernel in a receiver chain that uses it.
  *
- * So this measures:
- *
- *   encode              conv_encode over a block of information bits
- *   decode[depth=35]    viterbi_decode at the conventional 5*k traceback
- *   decode[depth=96]    ... and at a depth long enough to be safe at low
- *                       Es/N0, which is what a real link runs
- *
- * Two depths because traceback is the parameter a caller actually chooses,
- * and "how much does a safer depth cost" is not answerable from one number.
- * The ACS work is identical between them -- only the traceback walk grows --
- * so the pair also says how much of the decode is trellis and how much is
- * survivor memory.
- *
- * The code here is the k=7, rate-1/2 (171, 133) octal pair: NASA's standard
- * and CCSDS 131.0-B-3 section 3's inner code. It is declared locally rather
- * than pulled from ccsds_tm on purpose -- conv's CMakeLists deliberately
- * does not link ccsds_tm, because the code family is not CCSDS's (a caller
- * configures it, the way ccsds_tm does).
+ * So this measures `conv_encode` over a block of information bits: a shift
+ * register and a parity lookup per bit. The DECODER moved to
+ * bench_viterbi_core.c when `viterbi` became a declared object -- read the
+ * two together for the asymmetry, which is more than an order of magnitude.
  *
  * Timing is MIN over rounds, not mean: a microbenchmark's noise is one-sided
  * -- an interrupt or a migration only ever adds time -- so the minimum is the
@@ -133,39 +119,11 @@ main (void)
   jm_bench_add (&_bench, "encode", t_enc, ITERATIONS, (int)n_in);
   report ("encode", t_enc, n_in);
 
-  static double     t_d35[ITERATIONS], t_d96[ITERATIONS];
-  const unsigned    depths[2] = { DEPTH_SHORT, DEPTH_LONG };
-  double *const     slots[2]  = { t_d35, t_d96 };
-  const char *const names[2]  = { "decode[depth=35]", "decode[depth=96]" };
-
-  for (int d = 0; d < 2; d++)
-    {
-      viterbi_state_t *v = viterbi_create (&CODE, depths[d]);
-      if (!v)
-        return 1;
-      size_t   max_out = viterbi_decode_max_out (v, n_cod);
-      uint8_t *dec     = malloc (max_out ? max_out : 1);
-      if (!dec)
-        return 1;
-      for (int r = 0; r < ITERATIONS; r++)
-        {
-          viterbi_reset (v);
-          clock_gettime (CLOCK_MONOTONIC, &t0);
-          viterbi_decode (v, llr, n_cod, dec, max_out);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          slots[d][r] = elapsed_sec (&t0, &t1);
-        }
-      jm_bench_add (&_bench, names[d], slots[d], ITERATIONS, (int)n_in);
-      report (names[d], slots[d], n_in);
-      free (dec);
-      viterbi_destroy (v);
-    }
-
-  printf ("\n  decode/encode = %.0fx at depth %d. The trellis is 2^(k-1)=%u\n"
-          "  states x 2 branches per information bit; the encoder is one\n"
-          "  shift and %u parity lookups.\n",
-          min_sec (t_d35, ITERATIONS) / min_sec (t_enc, ITERATIONS),
-          DEPTH_SHORT, 1u << (CODE.k - 1u), CODE.n);
+  printf ("\n  Decoding is measured at its own object, in\n"
+          "  bench_viterbi_core.c: `viterbi` is a declared jm component now\n"
+          "  (doppler#893), so its benchmark, its CMake target and its\n"
+          "  Python face are generated rather than hand-registered here. The\n"
+          "  encoder stays with the code it belongs to.\n");
 
   free (in);
   free (cod);

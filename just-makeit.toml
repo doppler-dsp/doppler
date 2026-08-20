@@ -2551,6 +2551,33 @@ True
 """
 objects = ["loop_filter", "costas", "dll", "symsync", "ratesync", "carrier_mpsk", "carrier_nda", "mpsk_receiver"]
 
+# Collocated: module name == object name, the `ddc` shape. NOT `fec` -- that
+# prefix was retired in doppler#828 (30 symbols, 31 files) in favour of
+# ccsds_tm_ for the standard's picks and conv_/rs_ for the general codes, and
+# a module by that name regenerates the retired prefix straight back into
+# its own generated core and binding filenames.
+[module.viterbi]
+objects = ["viterbi"]
+doc = """
+Soft-decision Viterbi decoding of convolutional codes. The code itself —
+polynomials, encoder, trellis arithmetic — lives in the `conv` component;
+this is the decoder built over one, so a caller names the polynomials and
+gets a decoder for them.
+
+Soft in, hard out: `decode` takes log-likelihood ratios, one per channel
+symbol, and returns information bits. A hard-decision decoder throws away
+most of the gain the code exists to provide, which is why the input is LLRs.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.viterbi import Viterbi
+>>> v = Viterbi([0o171, 0o133], k=7, depth=35)
+>>> bits = v.decode(np.array([2.0, -2.0] * 128, dtype=np.float32))
+>>> bits.dtype
+dtype('uint8')
+"""
+
 [module.dsss]
 doc = """
 Direct-sequence spread-spectrum: the full chain from acquisition (Acquisition, BurstAcquisition) through despreading (Despreader, BurstDespreader) and polynomial-phase estimation to end-to-end receivers (DsssReceiver, AsyncDsssReceiver).

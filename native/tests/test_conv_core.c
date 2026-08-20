@@ -27,6 +27,7 @@
 #include "dp_test.h"
 
 #include "conv/conv_core.h"
+#include "viterbi/viterbi_core.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -265,7 +266,7 @@ main (void)
         DP_REQUIRE (ns == (size_t)N * c->n);
         to_llr (sym, ns, llr, 8.0f);
 
-        viterbi_state_t *v = viterbi_create (c, depth);
+        viterbi_state_t *v = viterbi_create_code (c, depth);
         DP_REQUIRE (v != NULL);
         DP_CHECK (viterbi_depth (v) == depth);
         DP_CHECK (viterbi_code (v)->k == c->k);
@@ -319,7 +320,7 @@ main (void)
         l2[i]             = 137.0f * l1[i];
       }
 
-    viterbi_state_t *v = viterbi_create (&CCSDS, 60u);
+    viterbi_state_t *v = viterbi_create_code (&CCSDS, 60u);
     DP_REQUIRE (v != NULL);
     const size_t g1 = viterbi_decode (v, l1, 2u * N, d1, sizeof d1);
     viterbi_reset (v);
@@ -371,7 +372,7 @@ main (void)
           llr[i] = 0.25f;
       }
 
-    viterbi_state_t *v = viterbi_create (&ident, DEPTH);
+    viterbi_state_t *v = viterbi_create_code (&ident, DEPTH);
     DP_REQUIRE (v != NULL);
     const size_t got = viterbi_decode (v, llr, N, dec, sizeof dec);
     viterbi_destroy (v);
@@ -434,7 +435,7 @@ main (void)
       }
     DP_REQUIRE (flipped > 15);
 
-    viterbi_state_t *v = viterbi_create (&CCSDS, 60u);
+    viterbi_state_t *v = viterbi_create_code (&CCSDS, 60u);
     DP_REQUIRE (v != NULL);
     const size_t got = viterbi_decode (v, llr, 2u * N, dec, sizeof dec);
     int          bad = 0;
@@ -494,7 +495,7 @@ main (void)
         const size_t ns = conv_encode (&e, c, in, N, sym, sizeof sym);
         to_llr (sym, ns, llr, 4.0f);
 
-        viterbi_state_t *v = viterbi_create (c, 60u);
+        viterbi_state_t *v = viterbi_create_code (c, 60u);
         DP_REQUIRE (v != NULL);
 
         /* On a clean stream the aligned score is the channel's error count,
@@ -589,7 +590,7 @@ main (void)
         put++;
       }
 
-    viterbi_state_t *v = viterbi_create (&CCSDS, 60u);
+    viterbi_state_t *v = viterbi_create_code (&CCSDS, 60u);
     DP_REQUIRE (v != NULL);
     const size_t got = node_sync_score (v, llr, 2u * N);
     viterbi_destroy (v);
@@ -713,12 +714,12 @@ main (void)
     for (size_t i = 0; i < sizeof out; i++)
       DP_CHECK (out[i] == 0xAAu);
 
-    DP_CHECK (viterbi_create (&bad, 60u) == NULL);
-    DP_CHECK_MSG (viterbi_create (&CCSDS, 0u) == NULL,
+    DP_CHECK (viterbi_create_code (&bad, 60u) == NULL);
+    DP_CHECK_MSG (viterbi_create_code (&CCSDS, 0u) == NULL,
                   "depth 0 is not a decoder");
     viterbi_destroy (NULL); /* a no-op, not a crash */
 
-    viterbi_state_t *v = viterbi_create (&CCSDS, 4u);
+    viterbi_state_t *v = viterbi_create_code (&CCSDS, 4u);
     DP_REQUIRE (v != NULL);
     for (size_t i = 0; i < 16; i++)
       llr[i] = 1.0f;
@@ -761,7 +762,7 @@ main (void)
     conv_encode (&e, &CCSDS, in, N, sym, sizeof sym);
     to_llr (sym, 2u * N, llr, 3.0f);
 
-    viterbi_state_t *a = viterbi_create (&CCSDS, DEPTH);
+    viterbi_state_t *a = viterbi_create_code (&CCSDS, DEPTH);
     DP_REQUIRE (a != NULL);
     const size_t n_ref = viterbi_decode (a, llr, 2u * N, ref, sizeof ref);
     DP_REQUIRE (n_ref == (size_t)N - (DEPTH - 1u));
@@ -771,7 +772,7 @@ main (void)
     for (size_t ci = 0; ci < sizeof cuts / sizeof *cuts; ci++)
       {
         const size_t     cut = cuts[ci];
-        viterbi_state_t *b   = viterbi_create (&CCSDS, DEPTH);
+        viterbi_state_t *b   = viterbi_create_code (&CCSDS, DEPTH);
         DP_REQUIRE (b != NULL);
         const size_t n1 = viterbi_decode (b, llr, cut, got, sizeof got);
 
@@ -780,7 +781,7 @@ main (void)
         viterbi_get_state (b, blob);
         viterbi_destroy (b); /* the sender is GONE: only the blob carries it */
 
-        viterbi_state_t *c = viterbi_create (&CCSDS, DEPTH);
+        viterbi_state_t *c = viterbi_create_code (&CCSDS, DEPTH);
         DP_REQUIRE (c != NULL);
         DP_CHECK (viterbi_set_state (c, blob) == DP_OK);
 
@@ -799,7 +800,7 @@ main (void)
 
     /* The shared round-trip: fidelity (b re-serializes to a's bytes) plus
        the envelope reject. */
-    viterbi_state_t *r2 = viterbi_create (&CCSDS, DEPTH);
+    viterbi_state_t *r2 = viterbi_create_code (&CCSDS, DEPTH);
     DP_REQUIRE (r2 != NULL);
     DP_STATE_ROUNDTRIP_TEST (viterbi, a, r2);
 
@@ -830,7 +831,7 @@ main (void)
     for (size_t i = 0; i < sizeof rejects / sizeof *rejects; i++)
       {
         viterbi_state_t *w
-            = viterbi_create (rejects[i].code, rejects[i].depth);
+            = viterbi_create_code (rejects[i].code, rejects[i].depth);
         DP_REQUIRE (w != NULL);
         if (i < 2u)
           DP_REQUIRE_MSG (viterbi_state_bytes (w) == viterbi_state_bytes (a),

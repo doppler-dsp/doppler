@@ -15,6 +15,50 @@ ______________________________________________________________________
 
 ### Added
 
+- **The seven function-only modules are measured, in C, for the first
+    time** ([#891](https://github.com/doppler-dsp/doppler/issues/891)).
+    `arith`, `detection`, `filter`, `measure`, `resample`, `spectral` and
+    `wfm` carry their surface as free functions with no object of their
+    own, so `jm bench` never saw them and neither did anything else. Seven
+    new `native/benchmarks/bench_<module>_core.c`, each answering a
+    question rather than printing a rate, and each settling the clock once
+    before interleaving its configurations — the shape
+    `bench_viterbi_core.c` established, now shared through a new
+    doppler-owned `native/benchmarks/dp_bench.h` rather than copied.
+
+    Three of them found something the code does not say:
+
+    - **`measure_min_samples` costs ~25 µs**, 10 000x its neighbours in the
+        same "planning helper" family and more than the FFT it is sizing —
+        it designs a window to hit a dynamic-range target rather than doing
+        arithmetic. Invisible once per capture; it *is* the sweep when a
+        planner calls it per candidate.
+    - **`dp_coherent_freq` is priced by N's factorisation, not N's size**:
+        2.64x more at N = 30030 than at N = 4096, from the walk for a J
+        coprime with N. A capture length chosen for the FFT's sake is
+        choosing this too.
+    - **The Q8 shift kernels are slower than their Q15 twins** — `shr_q8`
+        3.02x, `shl_q8` 1.36x — while `add`/`sub`/`mul`/`dot` all go the
+        right way at 0.50x/0.50x/0.64x/0.20x. Same source transliterated
+        between widths, so it is a codegen result rather than an
+        algorithmic one. Filed as
+        [#905](https://github.com/doppler-dsp/doppler/issues/905), not
+        fixed here: a behaviour change does not belong inside a measurement
+        change. The Python face for these functions is
+        [#906](https://github.com/doppler-dsp/doppler/issues/906).
+
+    `detection` and `wfm` leave `check_bench_coverage.py`'s ALLOW ratchet.
+    That gate's docstring had claimed since it was written that it fails on
+    a stale entry, and for ALLOW it did not — the check existed only for
+    `HOLLOW_ALLOW`, so the list was free to rot in the one direction that
+    matters. It now fails on an ALLOW entry whose component has started
+    measuring, and on one naming a component that no longer exists. Rule 3
+    also learned `dp_bench_record`, and re-derives from `dp_bench.h` on
+    every run that the helper really does call `jm_bench_add` — an alias
+    that stopped recording would otherwise hand every caller a way to look
+    measured while writing an empty array, which is the exact failure the
+    file exists to catch, one level down.
+
 - **`doppler.coding.ConvEncoder` — doppler can encode now**
     ([#900](https://github.com/doppler-dsp/doppler/issues/900)). Until this,
     **no class in the library exposed an `encode()` at all.** `Viterbi`

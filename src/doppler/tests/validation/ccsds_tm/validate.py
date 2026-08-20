@@ -247,13 +247,17 @@ def characterise(d) -> None:
     )
     R.md()
     R.md(
-        "**Depth is free in rate and only in rate.** Every row above is the "
-        "same (255,223) code at the same 87.5 % rate; depth 8 costs eight "
-        "times the latency and eight times the buffer, and buys a burst "
-        f"tolerance of {8 * E} symbols against depth 1's {E}. What the "
-        "rightmost column says is that even at depth 8 the correctable "
-        "burst is half the block — an interleaver does not make the outer "
-        "code stronger, it makes the damage it sees look random."
+        "**Depth is free in rate, and buys absolute burst length rather than "
+        "a bigger fraction.** Every row above is the same (255,223) code at "
+        "the same 87.5 % rate; depth 8 costs eight times the latency and "
+        f"eight times the buffer, and buys a burst tolerance of {8 * E} "
+        f"symbols against depth 1's {E}. But the rightmost column is "
+        "**constant** — the correctable burst is the same 6.3 % of the block "
+        "at every depth, because the block grew by the same factor the "
+        "tolerance did. An interleaver does not make the outer code "
+        "stronger; it makes the damage the code sees look random, and the "
+        "number a caller designs to is the burst in symbols, not the "
+        "proportion of a codeblock."
     )
     R.md()
 
@@ -354,9 +358,15 @@ def characterise(d) -> None:
         "zero errors of it. What fails is the *search*: `asm_find` reports "
         "the FIRST offset under threshold, and at `t = 8` each of the 96 "
         "preceding bits is an independent chance to beat it. "
-        f"`1 - (1 - {_fa_model(8):.3e})^96` is "
-        f"{1 - (1 - _fa_model(8)) ** 96:.2f}, and "
-        f"{1 - clean_hi[1] / clean_hi[0]:.2f} is what was measured."
+        f"Treating those 96 offsets as independent predicts a miss rate of "
+        f"`1 - (1 - {_fa_model(8):.3e})^96` = "
+        f"{1 - (1 - _fa_model(8)) ** 96:.2f}; measured is "
+        f"{1 - clean_hi[1] / clean_hi[0]:.2f}. The model sits high, and it "
+        f"should: consecutive 32-bit windows share 31 bits, so the offsets "
+        f"are heavily correlated and there are fewer independent chances "
+        f"than there are positions. The independent-offset form is an upper "
+        f"bound, which is the right side to be wrong on when it is being "
+        f"used to choose a threshold."
     )
     R.md()
     R.md(

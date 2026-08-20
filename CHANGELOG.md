@@ -13,6 +13,63 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **Eight C benchmarks, and a gate that keeps them honest.** An audit of what
+    landed since v0.42.0 found five new components with C tests and no
+    benchmark at all — `conv` (convolutional encode/Viterbi decode), `rs`
+    (Reed-Solomon), `ccsds_tm`, `mpsk` (the per-symbol map/demap/soft-demap
+    kernels) and `ber` — plus `snr`. All six now have one, and the two
+    benchmarks that shipped with `frame` and `frame_meter` as unfilled jm
+    scaffolds are filled in.
+
+    Three things the new measurements say, none of which the tree had
+    recorded: Viterbi decode runs at **4.8 Mbit/s, 34x the encoder**, at the
+    CCSDS k=7 rate-1/2 code; RS(255,223) costs **1.33x** from a clean
+    codeword to a fully-loaded one, because the 32 syndromes dominate the
+    correction they gate; and in the CCSDS chain the inner code is **40%** of
+    a full `frame_encode` while `asm_find` — the only stage that scales with
+    the sample rate rather than the frame rate — scans at **1.0 ns/bit**.
+
+- **`scripts/check_bench_coverage.py`, on `make lint`.** Three rules, all
+    derived from the tree rather than from a list: a component with C tests
+    has a benchmark; a benchmark is reachable by a runner; a benchmark
+    records a measurement. Both allowlists are ratchets that may only shrink,
+    and the gate fails if an entry is left behind after its benchmark starts
+    measuring.
+
+- **`native/benchmarks/` is now honest about what runs.** `jm bench` walks
+    jm's *component* list, so a `c_deps` entry or a function-only module is
+    invisible to it — `util`, `timing`, `hbdecim` and `resamp` had been
+    compiled by every build and run by nothing for months, appearing in no
+    published snapshot (`just-makeit bench util` answers `unknown   component(s): util`). Ten benchmarks are in that state, including the six
+    added here; they are run by hand until
+    [just-makeit#1023](https://github.com/just-buildit/just-makeit/issues/1023)
+    ships, rather than papered over with a local runner the fix would retire.
+    The gate holds everything checkable without running them.
+
+### Fixed
+
+- **Four benchmarks wrote their results under a name nothing reads.**
+    `jm_bench_write_json(&b, "X")` writes `bench_X_core.json`, and both
+    collectors open `bench_<component>_core.json`. `bench_hbdecim_core.c`
+    passed `"hbdecim_core"`, `bench_resamp_core.c` passed `"resamp_core"`,
+    `bench_awgn_core.c` passed `"bench_awgn_core"` and
+    `bench_wfm_synth_core.c` passed `"synth"` — so each ran, printed its
+    table, and had its JSON silently not found. **`awgn` and `wfm_synth` are
+    real, measuring benchmarks that jm runs on every `make bench`, and
+    neither appears in any published snapshot** — verified against
+    `benchmarks/history/20260724T231732Z-c.json`. Rule 4 of the new gate is
+    what found them, and what keeps them found.
+
+- **`snr_data_aided_db_series` and `snr_m2m4_db_series` are O(n · window)**
+    ([#890](https://github.com/doppler-dsp/doppler/issues/890), filed not
+    fixed). Both re-scan the whole window at every output sample: measured at
+    277x / 898x / 2760x the whole-block estimate for windows of 256 / 1024 /
+    4096, a ratio linear in the window, as an O(n · window) loop must be. Both
+    estimators are sums and slide in O(n). Found by the new `snr` benchmark on
+    its first run, which is what the two rows were written to ask.
+
 ### Changed
 
 - **just-makeit pin 0.61.0 → 0.62.0.** Adopts the two doppler-filed fixes that

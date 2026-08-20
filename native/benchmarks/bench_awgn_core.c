@@ -59,6 +59,6 @@ main (void)
   bench_n (4096, ITERATIONS, &bench);
   bench_n (65536, ITERATIONS, &bench);
 
-  jm_bench_write_json (&bench, "bench_awgn_core");
+  jm_bench_write_json (&bench, "awgn");
   return 0;
 }

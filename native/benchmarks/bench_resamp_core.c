@@ -110,7 +110,7 @@ main (void)
       printf ("\n");
     }
 
-  jm_bench_write_json (&bench, "resamp_core");
+  jm_bench_write_json (&bench, "resamp");
   free (in);
   free (out);
   return 0;

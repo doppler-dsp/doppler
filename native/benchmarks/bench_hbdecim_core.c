@@ -106,7 +106,7 @@ main (void)
       hbdecim_destroy (r);
     }
 
-  jm_bench_write_json (&bench, "hbdecim_core");
+  jm_bench_write_json (&bench, "hbdecim");
   free (in);
   free (out);
   return 0;

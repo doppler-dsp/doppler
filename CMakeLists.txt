@@ -603,6 +603,30 @@ target_include_directories(test_ber_core
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_ber_core COMMAND test_ber_core)
 
+# mpsk, ber and snr: function-only modules, so jm generates no bench target
+# for them and `jm bench` cannot run one either (just-makeit#1023 -- run them
+# by hand meanwhile). Same reason the EMA primitive's benchmark below is
+# registered by hand. scripts/check_bench_coverage.py fails `make lint` if a
+# tested component loses its benchmark, if a benchmark records nothing, or if
+# it writes its JSON under a name no collector opens.
+add_executable(bench_mpsk_core native/benchmarks/bench_mpsk_core.c)
+target_link_libraries(bench_mpsk_core PRIVATE mpsk_core m)
+target_include_directories(bench_mpsk_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+add_executable(bench_ber_core native/benchmarks/bench_ber_core.c)
+target_link_libraries(bench_ber_core PRIVATE ber_core detection_core mpsk_core m)
+target_include_directories(bench_ber_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+add_executable(bench_snr_core native/benchmarks/bench_snr_core.c)
+target_link_libraries(bench_snr_core PRIVATE snr_core m)
+target_include_directories(bench_snr_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
 # The EMA primitive's benchmark, registered here for the same reason its
 # test is: util is function-only, so jm generates no bench target for it.
 # It is a COMPARISON against the bodies the migrated call sites used to

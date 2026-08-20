@@ -89,3 +89,17 @@ target_include_directories(test_ccsds_tm_frame PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_ccsds_tm_frame COMMAND test_ccsds_tm_frame)
+
+# ── benchmark ───────────────────────────────────────────────────────────────
+# Hand-registered for the same reason the tests above are: ccsds_tm is a
+# c_dep, not one of jm's components, so `jm apply` writes no target and
+# `jm bench` cannot run it (just-makeit#1023 -- run it by hand meanwhile).
+# scripts/check_bench_coverage.py fails `make lint` if the target, the
+# measurement, or the JSON name it writes under goes wrong.
+add_executable(bench_ccsds_tm_core
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_ccsds_tm_core.c)
+target_link_libraries(bench_ccsds_tm_core PRIVATE
+    ccsds_tm_core conv_core rs_core wfm_frame_core pn_core gold_core m)
+target_include_directories(bench_ccsds_tm_core PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/benchmarks)

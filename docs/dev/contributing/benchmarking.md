@@ -128,9 +128,98 @@ ______________________________________________________________________
 ## C benchmarks
 
 C benchmarks are standalone executables that write JSON directly to
-disk. `just-makeit bench` builds every `bench_<component>_core`
-executable, runs each one, collects the JSON it writes, and merges them
-into one combined `-c.json` snapshot.
+disk. `just-makeit bench` builds every **component's**
+`bench_<component>_core` executable, runs each one, collects the JSON it
+writes, and merges them into one combined `-c.json` snapshot.
+
+Read that word "component" strictly — it means an object declared in
+`objects/*.toml`, and everything else in the tree is invisible to it. See
+[Benchmarks jm cannot see](#benchmarks-jm-cannot-see) directly below,
+which is not a footnote: it is how four of doppler's benchmarks came to
+be compiled by every build and run by nothing.
+
+### Benchmarks jm cannot see
+
+`jm bench` derives its work list from jm's component list, so a benchmark
+for anything that is **not an object** is never built and never run:
+
+- a **`c_deps` entry** — hand-owned C a module links (`conv`, `rs`,
+    `ccsds_tm`, `hbdecim`, `resamp`, `timing`);
+- a **function-only module** — one whose surface is free functions, with
+    no object of its own (`mpsk`, `ber`, `snr`, `util`, `detection`).
+
+This is silent in every direction. The `.c` file exists, CMake builds the
+target, `jm status --check` is clean (benchmarks are not manifest-owned),
+and a snapshot missing a component looks exactly like one that includes
+it. Four benchmarks — `util`, `timing`, `hbdecim`, `resamp` — sat in that
+state for months, appearing in no published snapshot. Proof, in one
+command:
+
+```console
+$ just-makeit bench util
+error: unknown component(s): util
+```
+
+**Nothing runs them here yet, and that is tracked rather than patched.**
+Making `jm bench` run a non-component benchmark is
+[just-makeit#1023](https://github.com/just-buildit/just-makeit/issues/1023);
+doppler deliberately does not carry a local runner that duplicates jm's
+collector and would be retired the day the fix ships. Ten benchmarks are
+in that state — `conv`, `rs`, `ccsds_tm`, `mpsk`, `ber`, `snr`, `util`,
+`timing`, `hbdecim`, `resamp`. Run one by hand:
+
+```sh
+cmake --build build --target bench_conv_core
+./build/native/src/conv/bench_conv_core
+```
+
+What `scripts/check_bench_coverage.py` (on `make lint`) holds meanwhile is
+everything checkable without running them: each has a CMake target, records
+a measurement, and writes its JSON under the name a collector opens. That
+last one is not a formality — see below.
+
+### A benchmark writing under the wrong name
+
+`jm_bench_write_json(&b, "X")` writes `bench_X_core.json`, and jm's
+collector opens `bench_<component>_core.json`. Pass the wrong `X` and the
+binary builds, runs, prints a perfectly good table, and its JSON is never
+found — `_collect_c` does `if not jf.exists(): continue`.
+
+Four files had this. Two were in the never-run set above, so it had never
+had a chance to surface. **The other two were live**: `bench_awgn_core.c`
+passed `"bench_awgn_core"` and `bench_wfm_synth_core.c` passed `"synth"`,
+so `awgn` and `wfm_synth` were measured on every `make bench` and appear in
+no published snapshot. Both are fixed, and rule 4 of the gate is what keeps
+them fixed.
+
+### A benchmark that records nothing
+
+The reciprocal failure, and the more common one. `jm apply` scaffolds
+`bench_<component>_core.c` for every object, and the scaffold is a
+`main()` with a `TODO` and no `jm_bench_add` call — for a component whose
+`_create()` takes arrays (`fir`, `HalfbandDecimator`) jm cannot generate
+the timing loop and leaves a `/* TODO: _create(...) */` placeholder
+instead. **A scaffold that is never filled in writes
+`"benchmarks": []`**, so its component silently vanishes from the
+snapshot while the file, the target and the `jm bench` run all exist.
+
+Thirty of them are in that state today
+([#891](https://github.com/doppler-dsp/doppler/issues/891)), including
+`fir`, `fft`, `nco` and `ddc`. `jm bench` does say so —
+
+```
+bench_fir_core: recorded 0 measurements -- this target measures nothing.
+  EMPTY   bench_fir_core: no measurements recorded
+```
+
+— but it warns rather than fails, in a long log, from a target that runs
+occasionally by design. So `check_bench_coverage.py` fails `make lint` on
+a benchmark that calls `jm_bench_write_json` and never `jm_bench_add`,
+with the existing thirty carried as a ratchet that may only shrink.
+
+**Filling one in is a good first contribution**: pick a component from
+#891, write the timing loop against its real `_create()`, delete its line
+from the ratchet.
 
 ### How they work
 

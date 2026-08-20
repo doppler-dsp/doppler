@@ -31,18 +31,20 @@ ______________________________________________________________________
     a full `frame_encode` while `asm_find` — the only stage that scales with
     the sample rate rather than the frame rate — scans at **1.0 ns/bit**.
 
-- **`scripts/check_bench_coverage.py`, on `make lint`.** Three rules, all
+- **`scripts/check_bench_coverage.py`, on `make lint`.** Four rules, all
     derived from the tree rather than from a list: a component with C tests
-    has a benchmark; a benchmark is reachable by a runner; a benchmark
-    records a measurement. Both allowlists are ratchets that may only shrink,
-    and the gate fails if an entry is left behind after its benchmark starts
+    has a benchmark; a non-component benchmark has a CMake target; a
+    benchmark records a measurement; and it writes its JSON under the name a
+    collector opens. Both allowlists are ratchets that may only shrink, and
+    the gate fails if an entry is left behind after its benchmark starts
     measuring.
 
 - **`native/benchmarks/` is now honest about what runs.** `jm bench` walks
     jm's *component* list, so a `c_deps` entry or a function-only module is
     invisible to it — `util`, `timing`, `hbdecim` and `resamp` had been
     compiled by every build and run by nothing for months, appearing in no
-    published snapshot (`just-makeit bench util` answers `unknown   component(s): util`). Ten benchmarks are in that state, including the six
+    published snapshot (`just-makeit bench util` answers
+    `unknown component(s): util`). Ten benchmarks are in that state, including the six
     added here; they are run by hand until
     [just-makeit#1023](https://github.com/just-buildit/just-makeit/issues/1023)
     ships, rather than papered over with a local runner the fix would retire.
@@ -58,9 +60,11 @@ ______________________________________________________________________
     `bench_wfm_synth_core.c` passed `"synth"` — so each ran, printed its
     table, and had its JSON silently not found. **`awgn` and `wfm_synth` are
     real, measuring benchmarks that jm runs on every `make bench`, and
-    neither appears in any published snapshot** — verified against
-    `benchmarks/history/20260724T231732Z-c.json`. Rule 4 of the new gate is
-    what found them, and what keeps them found.
+    neither has ever reached a C snapshot** — verified against
+    `benchmarks/history/20260724T231732Z-c.json` and
+    `benchmarks/published/v0.37.3/*-c.json`. Both components do appear in the
+    published *Python* snapshots, so what was lost is the C-level row, not
+    the component. Rule 4 of the new gate is what found them.
 
 - **`snr_data_aided_db_series` and `snr_m2m4_db_series` are O(n · window)**
     ([#890](https://github.com/doppler-dsp/doppler/issues/890), filed not

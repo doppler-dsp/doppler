@@ -74,6 +74,7 @@
 * `#include "mpsk_receiver/mpsk_receiver_core.h"`
 * `#include "conv_enc/conv_enc_core.h"`
 * `#include "viterbi/viterbi_core.h"`
+* `#include "rs_codec/rs_codec_core.h"`
 * `#include "despreader/despreader_core.h"`
 * `#include "burst_despreader/burst_despreader_core.h"`
 * `#include "acq/acq_core.h"`

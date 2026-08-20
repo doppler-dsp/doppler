@@ -197,6 +197,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**resample\_core.h**](resample__core_8h.md) _Resample module — public C API._     
         * **dir** [**rs**](dir_a447329db54f84e06767f7e282ab2567.md)     
             * **file** [**rs\_core.h**](rs__core_8h.md) _Reed-Solomon codes: the code description, the encoder, the syndromes and the decoder that corrects — all reading the same description._     
+        * **dir** [**rs\_codec**](dir_3e7cbca72be4a95038c1797bf5803786.md)     
+            * **file** [**rs\_codec\_core.h**](rs__codec__core_8h.md) _The Reed-Solomon codec, as an object over_ `rs` _._    
         * **dir** [**snr**](dir_a0dc77cb6789ae5cf19b2d0651b00ce2.md)     
             * **file** [**snr\_core.h**](snr__core_8h.md) _Stateless SNR / Es-N0 estimators, data-aided and non-data-aided._     
         * **dir** [**source**](dir_ce1f95460e483b5f4e7af3e87d9b090c.md)     

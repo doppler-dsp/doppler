@@ -145,6 +145,7 @@ nav:
           - Waveform I/O: gallery/wfm-io.md
           - Waveform JSON Round-Trip: gallery/wfm-json.md
           - A CCSDS CADU: gallery/ccsds-link.md
+          - Name Your Own Code: gallery/coding.md
           - Waveform Write: gallery/wfm-write.md
           - WCDMA Carriers: gallery/wcdma-carriers.md
           - "Prepare Once, Sweep Many (Plan)": gallery/plan.md

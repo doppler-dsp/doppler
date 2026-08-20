@@ -162,6 +162,7 @@
 * [**ratesync\_tlm\_t**](structratesync__tlm__t.md)
 * [**resamp\_state\_t**](structresamp__state__t.md)
 * [**rs\_code\_t**](structrs__code__t.md)
+* [**rs\_codec\_state\_t**](structrs__codec__state__t.md)
 * [**rs\_t**](structrs__t.md)
 
 

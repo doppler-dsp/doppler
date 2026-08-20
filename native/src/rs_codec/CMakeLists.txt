@@ -1,0 +1,26 @@
+# OBJECT library — pure C core, no Python dependency.
+add_library(rs_codec_core OBJECT rs_codec_core.c)
+target_include_directories(
+  rs_codec_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
+                            ${CMAKE_SOURCE_DIR}/native/inc/rs_codec)
+target_link_libraries(rs_codec_core PUBLIC
+    rs_core)
+
+add_executable(test_rs_codec_core
+               ${CMAKE_SOURCE_DIR}/native/tests/test_rs_codec_core.c)
+target_link_libraries(test_rs_codec_core
+                      PRIVATE rs_codec_core rs_core
+    m)
+target_include_directories(test_rs_codec_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_rs_codec_core COMMAND test_rs_codec_core)
+
+add_executable(
+  bench_rs_codec_core
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_rs_codec_core.c)
+target_link_libraries(bench_rs_codec_core
+                      PRIVATE rs_codec_core rs_core
+    m)
+target_include_directories(
+  bench_rs_codec_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/benchmarks)

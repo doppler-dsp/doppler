@@ -21,6 +21,10 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
     stages, each carrying the span it covers: why a pipeline cannot express
     the one thing CCSDS's stages disagree about, and what an outer code
     reports on the receive side that a CRC cannot
+- [Name Your Own Code](coding.md) — a Reed-Solomon outer code and a
+    convolutional inner code that are nobody's standard, run end to end; and
+    what a bounded-distance decoder does past its radius, where a refusal is
+    safe and a miscorrection is not
 - [Waveform Write](wfm-write.md) — the shortest path from a `Composer` to a file and back.
 - [WCDMA Carriers](wcdma-carriers.md) — four RRC channels measured with `PSD` and `AccTrace`.
 - [Prepare Once, Sweep Many (Plan)](plan.md) — one declarative scene evaluated at many SNR operating points via the `Plan` stimulus engine.

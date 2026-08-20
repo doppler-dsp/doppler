@@ -15,6 +15,40 @@ ______________________________________________________________________
 
 ### Added
 
+- **`doppler.viterbi.Viterbi` — the soft-decision convolutional decoder now
+    has a Python face**
+    ([#893](https://github.com/doppler-dsp/doppler/issues/893)). It lived
+    inside the `conv` `c_deps` directory, one level below anything jm
+    modelled, so it had no binding, no generated CMake target for its test or
+    its benchmark, and a component string typed by hand. Declaring it as an
+    object in a collocated `viterbi` module produced all four, plus the
+    `.pyi`, for one `objects/viterbi.toml` and one `[module.viterbi]` block:
+
+    ```python
+    v = Viterbi([0o171, 0o133], k=7, depth=35)   # CCSDS 131.0-B-3 §3
+    bits = v.decode(llr)                          # soft in, hard out
+    ```
+
+    The manifest cannot express `viterbi_create(const conv_code_t *, size_t)`,
+    so the declared constructor takes the generator polynomials directly — the
+    array *is* the code, and its length gives `n`, following `fir`'s `taps`.
+    The struct form survives as `viterbi_create_code` for callers that already
+    hold one, and a test asserts the two agree. State carries across calls and
+    serializes, so `Viterbi` joins the shared round-trip matrix; a code the
+    decoder refuses now raises `ValueError` with what it wanted rather than a
+    blanket `MemoryError`. `conv` keeps the code description and the encoder,
+    the same split `rs` and `ccsds_tm` already have.
+
+    The C benchmark moved with it, and now **interleaves** its two traceback
+    depths instead of measuring them one after the other. It had to: the
+    first configuration in a process pays the clock ramp that the 0.25 s
+    settle does not finish absorbing, and back-to-back runs of the same
+    binary reported depth=35 at 229 ns/bit once and 162 ns/bit twice —
+    turning a real **1.42x** cost for depth 96 into 1.03x, and once into
+    0.99x, which reads as a 95-step traceback being cheaper than a 34-step
+    one. Interleaved, three consecutive runs agree to 1.42x, and the Python
+    face measures 1.38x independently.
+
 - **Eight C benchmarks, and a gate that keeps them honest.** An audit of what
     landed since v0.42.0 found five new components with C tests and no
     benchmark at all — `conv` (convolutional encode/Viterbi decode), `rs`
@@ -24,8 +58,10 @@ ______________________________________________________________________
     scaffolds are filled in.
 
     Three things the new measurements say, none of which the tree had
-    recorded: Viterbi decode runs at **4.8 Mbit/s, 34x the encoder**, at the
-    CCSDS k=7 rate-1/2 code; RS(255,223) costs **1.33x** from a clean
+    recorded: at the CCSDS k=7 rate-1/2 code, Viterbi decode runs at
+    **6.2 Mbit/s against the encoder's 160-240**, so decoding is the
+    expensive direction by more than an order of magnitude; RS(255,223) costs
+    **1.33x** from a clean
     codeword to a fully-loaded one, because the 32 syndromes dominate the
     correction they gate; and in the CCSDS chain the inner code is **40%** of
     a full `frame_encode` while `asm_find` — the only stage that scales with

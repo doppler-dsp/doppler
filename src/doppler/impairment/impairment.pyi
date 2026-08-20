@@ -59,6 +59,8 @@ class DopplerChannel:
         ----------
         x : NDArray[np.complex64]
             Input block.
+        out : NDArray[np.complex64] | None
+            Output buffer.
 
         Returns
         -------

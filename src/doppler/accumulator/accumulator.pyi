@@ -787,6 +787,15 @@ class AccTrace:
     ) -> NDArray[np.float32]:
         """Copy the current averaged trace (None before any accumulate).
 
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.float32] | None
+            Destination, at least n float32 elements.
+
         Returns
         -------
         NDArray[np.float32]

@@ -31,3 +31,25 @@ add_custom_command(TARGET wfm POST_BUILD
     VERBATIM
     COMMENT "Copy wfm extension module")
 endif()
+
+add_executable(test_wfm_core
+    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_core.c)
+target_link_libraries(test_wfm_core PRIVATE
+    wfm_core
+    pn_core
+    wfm_synth_core
+    gold_core
+    frame_core
+    lo_core
+    awgn_core
+    fir_core
+    resamp_core
+    wfm_frame_core
+    ccsds_tm_core
+    conv_core
+    rs_core
+    wfm_dsp_core
+    m)
+target_include_directories(test_wfm_core
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_wfm_core COMMAND test_wfm_core)

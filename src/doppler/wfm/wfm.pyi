@@ -179,6 +179,16 @@ class PN:
         buffer; copy the result before calling generate again if you need a
         snapshot.
 
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.uint8] | None
+            Output buffer of at least ``n`` uint8 elements; each element
+            receives 0 or 1.
+
         Returns
         -------
         NDArray[np.uint8]
@@ -756,6 +766,16 @@ class Gold:
         returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy
         the result before calling generate again if you need a snapshot.
 
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.uint8] | None
+            Output buffer of at least ``n`` uint8 elements; each element
+            receives 0 or 1.
+
         Returns
         -------
         NDArray[np.uint8]
@@ -1060,6 +1080,15 @@ class Frame:
         it is what matches the generator, whose framed source cycles the same
         frame to fill whatever length was asked for — so a stream compared
         against this lines up with the one that was transmitted.
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.uint8] | None
+            Output, one bit per byte.
 
         Returns
         -------
@@ -1835,6 +1864,15 @@ class FrameDesc:
         it is what matches the generator, whose framed source cycles the same
         frame to fill whatever length was asked for — so a stream compared
         against this lines up with the one that was transmitted.
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.uint8] | None
+            Output, one bit per byte.
 
         Returns
         -------

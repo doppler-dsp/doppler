@@ -59,6 +59,8 @@ class FFT:
         ----------
         x : NDArray[np.complex128]
             Input.
+        out : NDArray[np.complex128] | None
+            Output buffer of length >= state->n (CF64, caller-allocated).
 
         Returns
         -------
@@ -99,6 +101,8 @@ class FFT:
         ----------
         x : NDArray[np.complex64]
             Input.
+        out : NDArray[np.complex64] | None
+            Output buffer of length >= state->n (CF32, caller-allocated).
 
         Returns
         -------
@@ -140,6 +144,8 @@ class FFT:
         ----------
         x : NDArray[np.complex128]
             Input.
+        out : NDArray[np.complex128] | None
+            Destination buffer, length >= state->n; must not alias in.
 
         Returns
         -------
@@ -180,6 +186,8 @@ class FFT:
         ----------
         x : NDArray[np.complex64]
             Input.
+        out : NDArray[np.complex64] | None
+            Destination buffer, length >= state->n; must not alias in.
 
         Returns
         -------
@@ -349,6 +357,8 @@ class FFT2D:
         ----------
         x : NDArray[np.complex128]
             Input.
+        out : NDArray[np.complex128] | None
+            Flat row-major CF64 output, length >= ny*nx (caller-allocated).
 
         Returns
         -------
@@ -392,6 +402,8 @@ class FFT2D:
         ----------
         x : NDArray[np.complex64]
             Input.
+        out : NDArray[np.complex64] | None
+            Flat row-major CF32 output, length >= ny*nx (caller-allocated).
 
         Returns
         -------
@@ -435,6 +447,8 @@ class FFT2D:
         ----------
         x : NDArray[np.complex128]
             Input.
+        out : NDArray[np.complex128] | None
+            Destination, length >= ny*nx; must not alias in.
 
         Returns
         -------
@@ -475,6 +489,8 @@ class FFT2D:
         ----------
         x : NDArray[np.complex64]
             Input.
+        out : NDArray[np.complex64] | None
+            Destination, length >= ny*nx; must not alias in.
 
         Returns
         -------
@@ -644,6 +660,9 @@ class Corr:
         ----------
         x : NDArray[np.complex64]
             Input.
+        out : NDArray[np.complex64] | None
+            Output buffer for the correlation map (CF32, length n_out); written
+            only on a dump call.
 
         Returns
         -------
@@ -874,6 +893,9 @@ class Corr2D:
         ----------
         x : NDArray[np.complex64]
             Input.
+        out : NDArray[np.complex64] | None
+            Output buffer for the correlation map (CF32, length ny*nx); written
+            only on a dump call.
 
         Returns
         -------
@@ -1618,6 +1640,15 @@ class PSD:
     ) -> NDArray[np.float32]:
         """Averaged power spectrum in dB (None before any accumulate).
 
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.float32] | None
+            Destination, at least n float32 elements.
+
         Returns
         -------
         NDArray[np.float32]
@@ -1640,6 +1671,17 @@ class PSD:
     ) -> NDArray[np.float32]:
         """Averaged power spectral density in dB/Hz (None before any
         accumulate).
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.float32] | None
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
 
         Returns
         -------
@@ -1675,6 +1717,15 @@ class PSD:
         """Averaged linear power, DC-centred two-sided (length nfft);
         cg^2-normalised.
 
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.float32] | None
+            Destination, at least nfft float32 elements.
+
         Returns
         -------
         NDArray[np.float32]
@@ -1697,6 +1748,15 @@ class PSD:
     ) -> NDArray[np.float32]:
         """Averaged linear power, one-sided fold (length nfft/2+1);
         cg^2-normalised.
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.float32] | None
+            Destination, at least nfft/2 + 1 float32 elements.
 
         Returns
         -------
@@ -1724,6 +1784,8 @@ class PSD:
         ----------
         bands : NDArray[np.float64]
             Flat `[lo,hi,...]` band edges, Hz.
+        out : NDArray[np.float32] | None
+            Destination, at least n_bands float32 elements.
 
         Returns
         -------

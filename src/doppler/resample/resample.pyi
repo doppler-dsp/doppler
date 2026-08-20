@@ -44,6 +44,8 @@ class Resampler:
         ----------
         x : NDArray[np.complex64]
             CF32 input samples.
+        out : NDArray[np.complex64] | None
+            Output buffer; must hold at least RESAMPLER_MAX_OUT samples.
 
         Returns
         -------
@@ -317,6 +319,8 @@ class HalfbandDecimator:
         x : NDArray[np.complex64]
             CF32 input array. Length must be even for exact half-rate output;
             odd lengths write floor(x_len/2).
+        out : NDArray[np.complex64] | None
+            Output buffer; must hold at least floor(x_len/2) samples.
 
         Returns
         -------
@@ -566,6 +570,8 @@ class CIC:
         ----------
         x : NDArray[np.complex64]
             Input.
+        out : NDArray[np.complex64] | None
+            Output buffer; must hold at least max_out elements.
 
         Returns
         -------
@@ -775,6 +781,8 @@ class RateConverter:
         ----------
         x : NDArray[np.complex64]
             Input.
+        out : NDArray[np.complex64] | None
+            Output buffer; must hold at least max_out samples.
 
         Returns
         -------
@@ -1135,6 +1143,8 @@ class MatchedRateConverter:
         ----------
         x : NDArray[np.complex64]
             Input.
+        out : NDArray[np.complex64] | None
+            Output buffer; must hold at least max_out samples.
 
         Returns
         -------
@@ -1691,6 +1701,9 @@ class HalfbandDecimatorQ15:
         ----------
         x : NDArray[np.int16]
             Input.
+        out : NDArray[np.int16] | None
+            Output buffer; caller must provide space for 2*max_out int16_t
+            values (one interleaved I/Q pair per output).
 
         Returns
         -------
@@ -1946,7 +1959,8 @@ def kaiser_num_taps(
     Parameters
     ----------
     num_phases : int
-        Number of polyphase branches (power of two).
+        Number of polyphase branches (power of two). A value below 1 is not
+        a bank; the function returns 0.
     atten : float
         Desired stopband attenuation in dB.
     pb : float

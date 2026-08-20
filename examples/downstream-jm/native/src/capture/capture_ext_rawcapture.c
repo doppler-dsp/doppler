@@ -420,7 +420,23 @@ static PyMethodDef RawCaptureObj_methods[] = {
     "    Upper bound on the output length; the actual call may return "
     "fewer.\n" },
   { "summary", (PyCFunction)RawCaptureObj_summary, METH_VARARGS,
-    "summary() -> CaptureSummary record (num_samples, fs_hz, fc_hz)." },
+    "summary() -> CaptureSummary record (num_samples, fs_hz, fc_hz)\n"
+    "\n"
+    "Returns one CaptureSummary record.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "CaptureSummary\n"
+    "    Output.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "    >>> from iqtools import RawCapture\n"
+    "    >>> obj = RawCapture(path=..., sample_type=\"ci16\", endian=\"le\", "
+    "fs=1.0, fc=0.0)\n"
+    "    >>> rec = obj.summary()\n"
+    "    >>> rec.num_samples is not None\n"
+    "    True\n" },
   { "destroy", (PyCFunction)RawCaptureObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"

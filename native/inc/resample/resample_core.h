@@ -41,7 +41,8 @@ double kaiser_beta(double atten);
  * length, then divides by num_phases to give taps per branch. The result
  * is the minimum num_taps argument to pass to Resampler_create_custom().
  *
- * @param num_phases  Number of polyphase branches (power of two).
+ * @param num_phases  Number of polyphase branches (power of two). A value
+ *                    below 1 is not a bank; the function returns 0.
  * @param atten       Desired stopband attenuation in dB.
  * @param pb          Normalised passband edge (0 < pb < sb < 1).
  * @param sb          Normalised stopband edge.

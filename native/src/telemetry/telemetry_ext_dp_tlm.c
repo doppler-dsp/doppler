@@ -822,7 +822,26 @@ static PyMethodDef TelemetryObj_methods[] = {
     ">>> tlm.dropped\n"
     "0\n" },
   { "stats", (PyCFunction)TelemetryObj_stats, METH_VARARGS,
-    "stats() -> TelemetryStats record (dropped, emitted, capacity, probes)." },
+    "stats() -> TelemetryStats record (dropped, emitted, capacity, probes)\n"
+    "\n"
+    "Snapshots the context's counters. Zeroed for a NULL context.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "TelemetryStats\n"
+    "    The four counters as one ::dp_tlm_stats_t value.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.telemetry import Telemetry\n"
+    ">>> tlm = Telemetry(1 << 12)\n"
+    ">>> pid = tlm.probe(\"agc.gain_db\")\n"
+    ">>> tlm.emit(pid, -3.5)\n"
+    ">>> tlm.stats()\n"
+    "doppler.telemetry.TelemetryStats(dropped=0, emitted=1, capacity=4096, "
+    "probes=1)\n"
+    ">>> tlm.stats().emitted\n"
+    "1\n" },
   { "destroy", (PyCFunction)TelemetryObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"

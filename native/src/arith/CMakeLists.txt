@@ -20,3 +20,14 @@ add_custom_command(TARGET arith POST_BUILD
     VERBATIM
     COMMENT "Copy arith extension module")
 endif()
+
+add_executable(test_arith_core
+    ${CMAKE_SOURCE_DIR}/native/tests/test_arith_core.c)
+target_link_libraries(test_arith_core PRIVATE
+    arith_core
+    acc_q15_core
+    acc_q8_core
+    m)
+target_include_directories(test_arith_core
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_arith_core COMMAND test_arith_core)

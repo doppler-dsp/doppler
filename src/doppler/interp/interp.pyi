@@ -70,6 +70,8 @@ class InterpolatedTable:
         ----------
         x : NDArray[np.float64]
             Input.
+        out : NDArray[np.complex128] | None
+            Output buffer; must hold at least n_in values.
 
         Returns
         -------

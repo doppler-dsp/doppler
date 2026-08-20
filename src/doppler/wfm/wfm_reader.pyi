@@ -92,6 +92,15 @@ class Reader:
         file's declared payload — trailing bytes past `data_size` (an extended
         header, X-Midas slack) are not samples.
 
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.complex64] | None
+            destination, at least max_out samples.
+
         Returns
         -------
         NDArray[np.complex64]

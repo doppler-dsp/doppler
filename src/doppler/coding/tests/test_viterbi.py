@@ -24,7 +24,7 @@ mid-stream resume and the envelope rejects for every serializable type at once.
 import numpy as np
 import pytest
 
-from doppler.viterbi import Viterbi
+from doppler.coding import Viterbi
 
 # CCSDS 131.0-B-3 section 3's inner code: G1 = 171, G2 = 133 octal.
 CCSDS_POLY = np.array([0o171, 0o133], dtype=np.uint32)

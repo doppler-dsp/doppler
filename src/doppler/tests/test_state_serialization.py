@@ -42,6 +42,7 @@ from doppler.acquire import CarrierAcquisition
 from doppler.agc import AGC
 from doppler.analyzer import Specan
 from doppler.arith import AccQ8, AccQ15
+from doppler.coding import ConvEncoder, Viterbi
 from doppler.cvt import ADC, F32ToI16, F32ToI16U32, F32ToI16U64, F32ToUQ15
 from doppler.ddc import DDC, Ddcr, MatchedDDC
 from doppler.delay import DelayCf64
@@ -71,7 +72,6 @@ from doppler.track import (
     RateSync,
     SymbolSync,
 )
-from doppler.viterbi import Viterbi
 from doppler.wfm import PN, Gold, _SynthEngine
 
 # A short 0/1 spreading code for the code-tracking compositions.
@@ -431,6 +431,14 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "Viterbi": (
         lambda: Viterbi(_CCSDS_POLY, k=7, depth=35),
         lambda o, seg: np.array(o.decode(seg.real.astype(np.float32))),
+    ),
+    # ConvEncoder — the shift register is the whole running state, and it is
+    # the reason the object exists: an encoder resumed without it emits k-1
+    # wrong symbols at the boundary, which decodes against a receiver of
+    # one's own construction and against nothing else.
+    "ConvEncoder": (
+        lambda: ConvEncoder(_CCSDS_POLY, k=7, invert=0x2),
+        lambda o, seg: np.array(o.encode((seg.real > 0).astype(np.uint8))),
     ),
     # Detectors / analyzer / generator — output is phase/threshold dependent,
     # so the post-block state blob is the resume observable.

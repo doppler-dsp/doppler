@@ -216,7 +216,7 @@ nav:
       - "Python: Spectrum Analyzer (Specan)": api/python-analyzer.md
       - "Python: Detection Statistics": api/python-detection.md
       - "Python: Error-Rate Measurement": api/python-ber.md
-      - "Python: Viterbi Decoder": api/python-viterbi.md
+      - "Python: Channel Coding": api/python-coding.md
       - "Python: M-PSK Constellation": api/python-mpsk.md
       - "Python: Source (NCO / LO / AWGN)": api/python-nco.md
       - "Python: Impairment (DopplerChannel)": api/python-impairment.md

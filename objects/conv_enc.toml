@@ -1,0 +1,61 @@
+# conv_enc — the convolutional encoder, as an object.
+#
+# doppler#900. `Viterbi` accepts any rate-1/n code and, until this, Python
+# could produce symbols for exactly one of them: CCSDS's, and only inside a
+# `FrameDesc`, because that path's stage kinds bind to `ccsds_tm_frame_ops`
+# and carry a depth rather than a polynomial. Nothing in the library exposed
+# an `encode()` at all.
+#
+# The same split `viterbi` established: `conv` owns the CODE — the
+# description, the trellis arithmetic and the `conv_encode` kernel — and this
+# owns the stateful ENCODER built over one. It is not a second
+# implementation; `conv_enc_encode` calls `conv_encode`.
+#
+# Opaque heap state (the code, plus the shift register that must carry across
+# calls) so no_state/no_step; the register is running state, hence
+# serializable.
+[conv_enc]
+arg_type = "uint8_t"
+return_type = "uint8_t"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "ConvEncoder"
+serializable = "true"
+# A refused code is a bad ARGUMENT, not an allocation failure — create()
+# rejects an unusable polynomial set long before it reaches malloc (jm
+# gh-482).
+create_error = "ValueError"
+create_error_message = "ConvEncoder: not a usable code (need 1 to 6 non-zero polynomials, each under 2**k, and 2 <= k <= 9)"
+depends_on = [{ name = "conv", link = true }]
+
+# The generator polynomials, one per output — the array IS the code, and its
+# length gives n. Same shape as viterbi's and as fir's `taps`: a
+# struct-pointer constructor is not jm-expressible, so the declared form takes
+# the polynomials and assembles the conv_code_t inside create().
+[[conv_enc.init_params]]
+name = "poly"
+type = "uint32_t[]"
+
+[[conv_enc.init_params]]
+name = "k"
+type = "uint32_t"
+default = "7"
+
+# Which outputs are complemented, as a bit mask over the n outputs. NOT
+# cosmetic and NOT defaulted away: CCSDS inverts G2, most codes invert
+# nothing, and an encoder built without it interoperates with nothing while
+# round-tripping perfectly against its own decoder.
+[[conv_enc.init_params]]
+name = "invert"
+type = "uint32_t"
+default = "0"
+
+[[conv_enc.methods]]
+name = "encode"
+arg_type = "uint8_t"
+return_type = "uint8_t"
+variable_output = true
+# The kernel is told its write limit — `conv_encode` already takes max_out
+# and refuses rather than truncating (jm gh-138).
+pass_capacity = true

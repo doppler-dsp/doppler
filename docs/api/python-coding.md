@@ -1,7 +1,10 @@
-# Python Viterbi API
+# Python Coding API
 
-The `doppler.viterbi` module is soft-decision maximum-likelihood decoding of
-convolutional codes. The CODE itself — the generator polynomials, the encoder
+The `doppler.coding` module is the general channel codes — the code families
+a standard configures, rather than any standard's picks. `ConvEncoder` and
+`Viterbi` are the two directions of a rate-1/n convolutional code, and both
+take the generator polynomials, so a caller names their own code rather than
+choosing from a menu. The CODE itself — the generator polynomials, the encoder
 and the trellis arithmetic — lives in the C `conv` component; this is the
 DECODER built over one, so a caller names the polynomials and gets a decoder
 for them rather than picking from a fixed menu.
@@ -40,26 +43,38 @@ The design, including how the butterfly and the survivor ring are laid out,
 is [The Viterbi Decoder](../design/viterbi.md); the end-to-end coded link is
 the [CCSDS Link gallery page](../gallery/ccsds-link.md).
 
+Both directions, on a code the caller chose:
+
 ```pycon
 >>> import numpy as np
->>> from doppler.viterbi import Viterbi
+>>> from doppler.coding import ConvEncoder, Viterbi
 >>> # The CCSDS inner code: G1 = 171, G2 = 133 octal, k = 7.
->>> v = Viterbi([0o171, 0o133], k=7, depth=35)
->>> # Soft symbols: positive means 0, negative means 1.
->>> llr = np.array([4.0, -4.0] * 512, dtype=np.float32)
->>> bits = v.decode(llr)
->>> bits.dtype
-dtype('uint8')
->>> len(bits)  # 1024 symbols at rate 1/2, less the traceback still owed
+>>> rng = np.random.default_rng(0)
+>>> bits = rng.integers(0, 2, 512).astype(np.uint8)
+>>> sym = ConvEncoder([0o171, 0o133], k=7).encode(bits)
+>>> sym.size  # rate 1/2: two symbols per information bit, no fill
+1024
+>>> # Positive LLR means symbol 0 -- the convention mpsk_soft_demap produces.
+>>> llr = np.where(sym, -4.0, 4.0).astype(np.float32)
+>>> out = Viterbi([0o171, 0o133], k=7, depth=35).decode(llr)
+>>> out.size  # 1024 symbols at rate 1/2, less the traceback still owed
 478
+>>> bool(np.array_equal(out, bits[: out.size]))
+True
 
 ```
 
 ______________________________________________________________________
 
+## `ConvEncoder` — the encoder
+
+::: doppler.coding.ConvEncoder
+
+______________________________________________________________________
+
 ## `Viterbi` — soft-decision convolutional decoder
 
-::: doppler.viterbi.Viterbi
+::: doppler.coding.Viterbi
 
 ## Related pages
 

@@ -48,6 +48,7 @@
 * [**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md)
 * [**cic\_state\_t**](structcic__state__t.md)
 * [**conv\_code\_t**](structconv__code__t.md)
+* [**conv\_enc\_state\_t**](structconv__enc__state__t.md)
 * [**conv\_enc\_t**](structconv__enc__t.md)
 * [**corr2d\_state\_t**](structcorr2d__state__t.md)
 * [**corr\_state\_t**](structcorr__state__t.md)

@@ -76,8 +76,12 @@ Here is a list of all files with brief descriptions:
             * **file** [**ccsds\_tm\_rs.h**](ccsds__tm__rs_8h.md) _CCSDS Reed-Solomon (255,223) — the outer code as a CONFIGURATION, and the conventions that only a published value catches._     
         * **dir** [**cic**](dir_cf560077cc62991e7289ea57a3d930a1.md)     
             * **file** [**cic\_core.h**](cic__core_8h.md) _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._     
+        * **dir** [**coding**](dir_926dd95c6532485b4c2774b3c84508b0.md)     
+            * **file** [**coding\_core.h**](coding__core_8h.md) _Coding module — public C API._ 
         * **dir** [**conv**](dir_779d3467bbcde033259ac71c6a9863bb.md)     
             * **file** [**conv\_core.h**](conv__core_8h.md) _Convolutional codes: the code description, the encoder, and the maximum-likelihood decoder that reads the same description._     
+        * **dir** [**conv\_enc**](dir_b689baf1ac742b6ceba235289d5a286b.md)     
+            * **file** [**conv\_enc\_core.h**](conv__enc__core_8h.md) _The convolutional encoder, as a stateful object over_ `conv` _._    
         * **dir** [**corr**](dir_17ecfb211582dadfc5fc9d22d4d97fbd.md)     
             * **file** [**corr\_core.h**](corr__core_8h.md) _1-D FFT-based cross-correlator with coherent integrate-and-dump._     
         * **dir** [**corr2d**](dir_55247951d314f4b4a6db9bf46862b830.md)     

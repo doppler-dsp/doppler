@@ -140,34 +140,25 @@ ALLOW: dict[str, str] = {
 #:
 #: RATCHET: may only shrink. Filling one in means deleting its line -- the
 #: gate FAILS on an entry whose benchmark has started measuring, so the list
-#: cannot rot in either direction. Six came off it in the pass that added
-#: this file (acc_trace, gold, interp_table, pn, psd, ratesync).
+#: cannot rot in either direction. SEVENTEEN came off it in the pass that
+#: added this file, leaving the two that need a preamble/sync fixture to
+#: drive (burst_demod, async_dsss_receiver) and the eleven whose kernels are
+#: already measured at the Python face.
 #: Tracked as doppler#891.
 HOLLOW_ALLOW: set[str] = {
     "async_dsss_receiver",
-    "ber_meter",
-    "burst_acq",
     "burst_demod",
-    "burst_despreader",
-    "carrier_acq",
-    "carrier_mpsk",
     "corr",
     "ddc",
     "ddcr",
     "detector",
     "detector2d",
-    "doppler_channel",
     "fft",
     "fft2d",
     "fir",
     "HalfbandDecimator",
     "hbdecim_q15",
-    "imdmeas",
-    "mpsk_receiver",
     "nco",
-    "nprmeas",
-    "specan",
-    "tonemeas",
 }
 
 #: `jm_bench_add` at the start of a line or after whitespace -- not inside a

@@ -118,12 +118,6 @@ ALLOW: dict[str, str] = {
     "buffer": "doppler#891 — the ring buffer's push/pop is a real hot path "
     "and should be measured; pre-dates v0.42.0, tracked rather than fixed "
     "in the PR that introduced this gate.",
-    "detection": "doppler#891 — det_* are scalar design-time helpers with "
-    "Python benchmarks in src/doppler/detection/benchmarks/. A C row is "
-    "still worth having for ber_qfunc's callers; pre-dates v0.42.0.",
-    "wfm": "doppler#891 — six test TUs (dsp, keywords, plan, sink, time, "
-    "frame) and no benchmark. crc16/rrc_taps/dsss_spread are real kernels; "
-    "pre-dates v0.42.0.",
     "hbdecim": "doppler#893 — measured at its composing object instead. "
     "bench_HalfbandDecimator_core.c carries the block sweep this component's "
     "own benchmark used to, capped at the object's real HBDECIM_MAX_OUT "
@@ -165,9 +159,39 @@ HOLLOW_ALLOW: set[str] = {
     "nco",
 }
 
-#: `jm_bench_add` at the start of a line or after whitespace -- not inside a
-#: comment, which is how the scaffolds "mention" it while calling nothing.
-_ADD_CALL = re.compile(r"^[^*/]*\bjm_bench_add\s*\(", re.M)
+#: A recorded measurement, at the start of a line or after whitespace --
+#: not inside a comment, which is how the scaffolds "mention" it while
+#: calling nothing.
+#:
+#: TWO spellings, because there are two ways to record and the gate must
+#: see both: `jm_bench_add` direct, or `dp_bench_record` from doppler's own
+#: native/benchmarks/dp_bench.h, which records AND prints the min-derived
+#: rate. The alias is only safe while it really does record, so
+#: `_alias_records()` below re-derives that from the header on every run
+#: rather than trusting this comment -- a helper that stopped calling
+#: `jm_bench_add` would otherwise hand every caller a way to look measured
+#: while writing an empty array, which is precisely the failure this whole
+#: file exists to catch, reintroduced one level down.
+_ADD_CALL = re.compile(r"^[^*/]*\b(?:jm_bench_add|dp_bench_record)\s*\(", re.M)
+
+#: The helper the alias above trusts.
+_ALIAS_HEADER = BENCH / "dp_bench.h"
+_ALIAS_NAME = "dp_bench_record"
+
+
+def _alias_records() -> bool:
+    """Does `dp_bench_record` actually call `jm_bench_add`?
+
+    Derived, not assumed. If the helper is ever refactored into something
+    that prints without recording, every benchmark routed through it goes
+    hollow at once and rule 3 would wave all of them through.
+    """
+    if not _ALIAS_HEADER.exists():
+        return False
+    text = _ALIAS_HEADER.read_text(encoding="utf-8")
+    body = text.partition(_ALIAS_NAME + " (")[2]
+    return bool(re.search(r"^[^*/]*\bjm_bench_add\s*\(", body, re.M))
+
 
 #: The component name a benchmark writes its JSON under.
 _WRITE_CALL = re.compile(
@@ -313,6 +337,37 @@ def main() -> int:
                 f"bench_{m.group(1)}_core.json — but it is collected as "
                 f"bench_{comp}_core.json and the file is never found. "
                 f'Pass "{comp}".'
+            )
+
+    # The alias rule 3 accepts has to keep its side of the bargain.
+    if not _alias_records():
+        failures.append(
+            f"{_ALIAS_HEADER.relative_to(ROOT)}: rule 3 accepts "
+            f"`{_ALIAS_NAME}` as a recorded measurement, but that function "
+            "no longer calls jm_bench_add. Every benchmark routed through "
+            "it now writes an empty array while still passing this gate. "
+            "Restore the call, or drop the alias from _ADD_CALL."
+        )
+
+    # Same ratchet discipline for ALLOW, which is exempt from rule 1 rather
+    # than from rule 3. The docstring above has claimed since this file was
+    # written that the gate fails on a stale entry -- and for ALLOW it did
+    # not, so the claim was prose and the list was free to rot in the one
+    # direction that matters. A component that starts being measured must
+    # lose its line, and a line naming something that is neither a
+    # component nor a native/inc directory is a rename nobody finished.
+    for comp in sorted(ALLOW):
+        if comp in have_bench:
+            failures.append(
+                f"{comp}: is in ALLOW but native/benchmarks/bench_{comp}"
+                "_*.c now exists. Delete its line — the ratchet may only "
+                "shrink."
+            )
+        elif comp not in names:
+            failures.append(
+                f"{comp}: is in ALLOW but is neither a jm component nor a "
+                "native/inc/ directory, so the entry exempts nothing. "
+                "Delete it, or fix the name."
             )
 
     # A ratchet may only shrink: an entry for a component that now records a

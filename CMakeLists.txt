@@ -652,6 +652,94 @@ target_link_libraries(bench_util_core PRIVATE util_core m)
 target_include_directories(bench_util_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 
+# ── function-only modules: benchmarks jm does not generate (yet) ─────────
+# arith, detection, filter, measure, resample, spectral and wfm carry their
+# surface as free functions in <module>_core.c with no object of their own,
+# so jm generates neither a bench source nor a bench target for them -- the
+# same hole mpsk, ber, snr and util above sit in.
+#
+# DELETE THIS WHOLE BLOCK when the jm pin moves to a release containing
+# just-buildit/just-makeit#1034, which generates these targets itself. The
+# .c files stay either way: jm creates a bench source only when one is
+# missing, so a filled-in benchmark survives the bump and an empty
+# scaffold never lands on top of it.
+#
+# What happens if the block is NOT deleted depends on one more jm fix, so
+# do not rely on a loud failure to remind you:
+#   - without jm#1046, two add_executable calls share a name and the
+#     configure dies -- loud, immediate, unmissable;
+#   - with jm#1046 (in jm main, unreleased at the time of writing), jm
+#     skips emitting a target the project already declares, per target,
+#     and the build is silently fine with the workaround still in place.
+# That fix exists BECAUSE gh-1034 collided with this very block, so the
+# likely release contains both and the deletion is cleanup rather than a
+# repair. Do it anyway: one place should own a target name.
+#
+# Written out one target at a time rather than looped, deliberately. A
+# `foreach(_m ...)` is shorter and it makes the target name INVISIBLE:
+# scripts/check_bench_coverage.py reads `add_executable(<name>` out of the
+# CMake source to answer "can anything build this", and a name assembled
+# from a loop variable is not there to be read. Measured -- the loop
+# version failed rule 2 for all four of its targets while building them
+# perfectly. Anything else grepping for a target has the same problem.
+add_executable(bench_arith_core native/benchmarks/bench_arith_core.c)
+target_link_libraries(bench_arith_core PRIVATE arith_core m)
+target_include_directories(
+  bench_arith_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                               ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+add_executable(bench_detection_core native/benchmarks/bench_detection_core.c)
+target_link_libraries(bench_detection_core PRIVATE detection_core m)
+target_include_directories(
+  bench_detection_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+add_executable(bench_resample_core native/benchmarks/bench_resample_core.c)
+target_link_libraries(bench_resample_core PRIVATE resample_core m)
+target_include_directories(
+  bench_resample_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                  ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+add_executable(bench_spectral_core native/benchmarks/bench_spectral_core.c)
+target_link_libraries(bench_spectral_core PRIVATE spectral_core m)
+target_include_directories(
+  bench_spectral_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                  ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# The three that are not self-contained, each for the reason its module
+# composes rather than reimplements -- which is the doctrine working, and
+# is why the link line is longer than the header suggests:
+#   filter   design_lowpass is SIZED by resample's kaiser_num_taps and
+#            SHAPED by spectral's kaiser_window
+#   measure  measure_min_samples picks a window via spectral's
+#            kaiser_beta_for_sidelobe
+#   wfm      wfm_core is an OBJECT library, so every TU in it arrives
+#            whether the benchmark calls it or not, and four of them
+#            delegate: rrc_taps/dsss_spread to wfm_dsp_core,
+#            wfm_awgn_amplitude to awgn_core, ccsds_asm_bits to
+#            ccsds_tm_core. Not one of those is reimplemented here, which
+#            is the whole reason the link line is longer than the header
+add_executable(bench_measure_core native/benchmarks/bench_measure_core.c)
+target_link_libraries(bench_measure_core PRIVATE measure_core spectral_core m)
+target_include_directories(
+  bench_measure_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                             ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+add_executable(bench_wfm_core native/benchmarks/bench_wfm_core.c)
+target_link_libraries(
+  bench_wfm_core PRIVATE wfm_core wfm_dsp_core awgn_core ccsds_tm_core
+                         conv_core rs_core m)
+target_include_directories(
+  bench_wfm_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                         ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+add_executable(bench_filter_core native/benchmarks/bench_filter_core.c)
+target_link_libraries(bench_filter_core PRIVATE filter_core spectral_core
+                                                resample_core m)
+target_include_directories(
+  bench_filter_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                            ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
 # native/tests/dp_mf_test.h supplies the down-converter suites' stimulus AND
 # their verdict. Its mf_evm_db() takes a MIN over strobe alignment -- the shape
 # dp_ber_test.h calls "the historic footgun", legitimate here because the loop

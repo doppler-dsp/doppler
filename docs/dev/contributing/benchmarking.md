@@ -384,6 +384,15 @@ It matters most for a benchmark whose output is a *ratio*. An absolute figure
 that comes out 40% slow is visibly a slow machine; a ratio that comes out
 below 1.0 looks like a finding.
 
+**Only `bench_viterbi_core.c` does this today.** 38 of the 40 multi-config
+benchmarks still time their configurations one after another with no settle
+at all — [#896](https://github.com/doppler-dsp/doppler/issues/896) has the
+counts and argues the loop belongs in `jm_bench.h` rather than in 38 hand
+edits. Version-over-version comparison (`bench-check`, `bench-interleaved`)
+is largely unaffected, since a consistent first-config penalty cancels
+between snapshots; what it corrupts is the comparison between rows inside
+one snapshot.
+
 ### Auto-generated bench files
 
 `just-makeit upgrade` (schema 3→4) regenerates `bench_<component>_core.c`

@@ -59,6 +59,17 @@ class Capture:
         """Read up to `count` samples as unit-scale complex64; an empty array
         at end of file.
 
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.complex64] | None
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
+
         Returns
         -------
         NDArray[np.complex64]
@@ -202,6 +213,17 @@ class RawCapture:
     ) -> NDArray[np.complex64]:
         """Read up to `count` samples as unit-scale complex64; an empty array
         at end of file.
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.complex64] | None
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
 
         Returns
         -------

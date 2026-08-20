@@ -68,6 +68,8 @@ class FIR:
         ----------
         x : NDArray[np.complex64]
             Input.
+        out : NDArray[np.complex64] | None
+            Output buffer; caller must provide space for n_in CF32 values.
 
         Returns
         -------

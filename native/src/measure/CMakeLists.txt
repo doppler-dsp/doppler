@@ -25,3 +25,19 @@ add_custom_command(TARGET measure POST_BUILD
     VERBATIM
     COMMENT "Copy measure extension module")
 endif()
+
+add_executable(test_measure_core
+    ${CMAKE_SOURCE_DIR}/native/tests/test_measure_core.c)
+target_link_libraries(test_measure_core PRIVATE
+    measure_core
+    tonemeas_core
+    nprmeas_core
+    imdmeas_core
+    fft_core
+    spectral_core
+    psd_core
+    acc_trace_core
+    m)
+target_include_directories(test_measure_core
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_measure_core COMMAND test_measure_core)

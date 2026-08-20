@@ -484,6 +484,8 @@ class ToneMeasure:
         ----------
         x : NDArray[np.float32]
             Real time-domain capture (length x_len).
+        out : NDArray[np.float32] | None
+            Destination buffer (length >= max_out).
 
         Returns
         -------
@@ -729,6 +731,8 @@ class NPRMeasure:
         ----------
         x : NDArray[np.float32]
             Real time-domain capture (length x_len).
+        out : NDArray[np.float32] | None
+            Destination buffer (length >= max_out).
 
         Returns
         -------
@@ -928,6 +932,8 @@ class IMDMeasure:
         ----------
         x : NDArray[np.float32]
             Real time-domain capture (length x_len).
+        out : NDArray[np.float32] | None
+            Destination buffer (length >= max_out).
 
         Returns
         -------

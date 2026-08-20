@@ -74,6 +74,8 @@ class ConvEncoder:
         ----------
         x : NDArray[np.uint8]
             Input.
+        out : NDArray[np.uint8] | None
+            Receives `n_in * n` unpacked symbols, one per byte.
 
         Returns
         -------
@@ -303,6 +305,8 @@ class Viterbi:
         ----------
         x : NDArray[np.float32]
             Input.
+        out : NDArray[np.uint8] | None
+            Receives the decoded information bits, one per byte.
 
         Returns
         -------
@@ -521,6 +525,8 @@ class ReedSolomon:
         ----------
         x : NDArray[np.uint8]
             Input.
+        out : NDArray[np.uint8] | None
+            Receives `n` symbols; may be in.
 
         Returns
         -------
@@ -620,6 +626,8 @@ class ReedSolomon:
         ----------
         x : NDArray[np.uint8]
             Input.
+        out : NDArray[np.uint8] | None
+            Receives `nroots` syndromes.
 
         Returns
         -------

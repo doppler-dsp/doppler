@@ -26,3 +26,20 @@ add_custom_command(TARGET spectral POST_BUILD
     VERBATIM
     COMMENT "Copy spectral extension module")
 endif()
+
+add_executable(test_spectral_core
+    ${CMAKE_SOURCE_DIR}/native/tests/test_spectral_core.c)
+target_link_libraries(test_spectral_core PRIVATE
+    spectral_core
+    fft_core
+    fft2d_core
+    corr_core
+    corr2d_core
+    detector_core
+    detector2d_core
+    psd_core
+    acc_trace_core
+    m)
+target_include_directories(test_spectral_core
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_spectral_core COMMAND test_spectral_core)

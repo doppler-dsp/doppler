@@ -76,6 +76,8 @@ class Specan:
         ----------
         x : NDArray[np.complex64]
             cf32 input block (C-only; the binding passes it).
+        out : NDArray[np.float32] | None
+            Display-spectrum buffer, dB (C-only).
 
         Returns
         -------

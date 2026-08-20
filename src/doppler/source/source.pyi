@@ -63,6 +63,15 @@ class NCO:
         giving the full-resolution integer ramp that the scaled and carry
         variants derive from. Returns n.
 
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.uint32] | None
+            Output buffer; must hold at least n uint32_t values.
+
         Returns
         -------
         NDArray[np.uint32]
@@ -117,6 +126,15 @@ class NCO:
         to nco_steps_u32). Useful for polyphase filter bank indexing and direct
         LUT addressing. Returns n.
 
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.uint32] | None
+            Output buffer; must hold at least n uint32_t values.
+
         Returns
         -------
         NDArray[np.uint32]
@@ -159,6 +177,13 @@ class NCO:
         produced `out[i]`'s post-increment phase wrapped past 2^32, else 0. The
         carry marks the exact boundary of one input period and is the primitive
         for polyphase sample-clock and rational resampling engines. Returns n.
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
 
         Returns
         -------
@@ -225,6 +250,8 @@ class NCO:
             request before the fold ever saw it, so the same commanded rate
             landed on a different phase word depending on which face it entered
             by.
+        out : NDArray[np.uint32] | None
+            Output buffer; must hold at least ctrl_len uint32_t values.
 
         Returns
         -------
@@ -286,6 +313,8 @@ class NCO:
             request before the fold ever saw it, so the same commanded rate
             landed on a different phase word depending on which face it entered
             by.
+        out : NDArray[np.uint32] | None
+            Output buffer; must hold at least ctrl_len uint32_t values.
 
         Returns
         -------
@@ -551,6 +580,15 @@ class LO:
         LUT. SFDR is ≥ 90 dBc at any frequency and ~96 dBc at a typical one —
         see the file header for why those are two different numbers. Returns n.
 
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.complex64] | None
+            Output buffer; must hold at least n float complex values.
+
         Returns
         -------
         NDArray[np.complex64]
@@ -598,6 +636,8 @@ class LO:
             Per-sample normalised-frequency deviations in `double`. Only the
             fractional part of each element contributes. See
             nco_steps_u32_ctrl() on why the port is `double` and not float32.
+        out : NDArray[np.complex64] | None
+            Output buffer; must hold at least ctrl_len float complex values.
 
         Returns
         -------
@@ -815,6 +855,15 @@ class AWGN:
         Im each have zero mean and standard deviation `amplitude`. Total
         complex power = 2 × amplitude². The AVX2 path processes 8 samples in
         parallel when available.
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.complex64] | None
+            Output buffer; must hold at least n float complex values.
 
         Returns
         -------

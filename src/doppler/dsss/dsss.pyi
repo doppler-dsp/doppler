@@ -2182,6 +2182,8 @@ class DsssReceiver:
         ----------
         x : NDArray[np.complex64]
             Input cf32 samples.
+        out : NDArray[np.complex64] | None
+            Output symbols; caller provides max_out capacity.
 
         Returns
         -------
@@ -2703,6 +2705,8 @@ class AsyncDsssReceiver:
         ----------
         x : NDArray[np.complex64]
             Input cf32 samples.
+        out : NDArray[np.complex64] | None
+            Output symbols; caller provides max_out capacity.
 
         Returns
         -------

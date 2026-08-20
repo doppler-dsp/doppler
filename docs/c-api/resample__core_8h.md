@@ -192,7 +192,7 @@ int kaiser_num_taps (
 **Parameters:**
 
 
-* `num_phases` Number of polyphase branches (power of two). 
+* `num_phases` Number of polyphase branches (power of two). A value below 1 is not a bank; the function returns 0. 
 * `atten` Desired stopband attenuation in dB. 
 * `pb` Normalised passband edge (0 &lt; pb &lt; sb &lt; 1). 
 * `sb` Normalised stopband edge. 

@@ -356,6 +356,8 @@ class Costas:
         ----------
         x : NDArray[np.complex64]
             Input samples, one complex baseband sample each.
+        out : NDArray[np.complex64] | None
+            Prompt-symbol output buffer.
 
         Returns
         -------
@@ -785,6 +787,8 @@ class Dll:
         ----------
         x : NDArray[np.complex64]
             Carrier-wiped input samples (one contiguous block).
+        out : NDArray[np.complex64] | None
+            Output buffer for the emitted prompt symbols.
 
         Returns
         -------
@@ -1359,6 +1363,8 @@ class SymbolSync:
         ----------
         x : NDArray[np.complex64]
             Oversampled input samples (~sps samples per symbol).
+        out : NDArray[np.complex64] | None
+            Recovered symbol-rate samples.
 
         Returns
         -------
@@ -1862,6 +1868,8 @@ class RateSync:
         ----------
         x : NDArray[np.complex64]
             Input samples.
+        out : NDArray[np.complex64] | None
+            Recovered symbols.
 
         Returns
         -------
@@ -2288,6 +2296,8 @@ class CarrierMpsk:
         ----------
         x : NDArray[np.complex64]
             Input block, one complex baseband sample per element.
+        out : NDArray[np.complex64] | None
+            Prompt output buffer written by the binding.
 
         Returns
         -------
@@ -2602,6 +2612,8 @@ class CarrierNda:
         ----------
         x : NDArray[np.complex64]
             Input samples (average power at or below unity).
+        out : NDArray[np.complex64] | None
+            De-rotated samples, one per input.
 
         Returns
         -------
@@ -3203,6 +3215,8 @@ class MpskReceiver:
         ----------
         x : NDArray[np.complex64]
             Input cf32 samples.
+        out : NDArray[np.complex64] | None
+            Output symbols; caller provides max_out capacity.
 
         Returns
         -------
@@ -3263,6 +3277,8 @@ class MpskReceiver:
         ----------
         x : NDArray[np.complex64]
             Input cf32 samples.
+        out : NDArray[np.uint8] | None
+            Output bytes (0/1); caller provides max_out capacity.
 
         Returns
         -------
@@ -3761,6 +3777,8 @@ class BpskReceiver:
         ----------
         x : NDArray[np.complex64]
             Input cf32 samples.
+        out : NDArray[np.complex64] | None
+            Output symbols; caller provides max_out capacity.
 
         Returns
         -------
@@ -3821,6 +3839,8 @@ class BpskReceiver:
         ----------
         x : NDArray[np.complex64]
             Input cf32 samples.
+        out : NDArray[np.uint8] | None
+            Output bytes (0/1); caller provides max_out capacity.
 
         Returns
         -------
@@ -4448,6 +4468,8 @@ class MpskReceiverR:
         ----------
         x : NDArray[np.float32]
             Real f32 input samples.
+        out : NDArray[np.complex64] | None
+            Output symbols; caller provides max_out capacity.
 
         Returns
         -------
@@ -4506,6 +4528,8 @@ class MpskReceiverR:
         ----------
         x : NDArray[np.float32]
             Real f32 input samples.
+        out : NDArray[np.uint8] | None
+            Output bytes (0/1); caller provides max_out capacity.
 
         Returns
         -------

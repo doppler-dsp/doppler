@@ -22,3 +22,16 @@ add_custom_command(TARGET filter POST_BUILD
     VERBATIM
     COMMENT "Copy filter extension module")
 endif()
+
+add_executable(test_filter_core
+    ${CMAKE_SOURCE_DIR}/native/tests/test_filter_core.c)
+target_link_libraries(test_filter_core PRIVATE
+    filter_core
+    fir_core
+    boxcar_core
+    spectral_core
+    resample_core
+    m)
+target_include_directories(test_filter_core
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_filter_core COMMAND test_filter_core)

@@ -85,6 +85,15 @@ class DelayCf64:
         binding returns a NumPy array backed directly by the pre-allocated
         output buffer (base object is the DelayCf64 itself).
 
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.complex128] | None
+            Output buffer; must hold at least max_out elements.
+
         Returns
         -------
         NDArray[np.complex128]

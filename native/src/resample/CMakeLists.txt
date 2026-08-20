@@ -31,3 +31,25 @@ add_custom_command(TARGET resample POST_BUILD
     VERBATIM
     COMMENT "Copy resample extension module")
 endif()
+
+add_executable(test_resample_core
+    ${CMAKE_SOURCE_DIR}/native/tests/test_resample_core.c)
+target_link_libraries(test_resample_core PRIVATE
+    resample_core
+    Resampler_core
+    HalfbandDecimator_core
+    cic_core
+    RateConverter_core
+    farrow_core
+    hbdecim_q15_core
+    hbdecim_core
+    hbdecim_r2c_core
+    resamp_core
+    fir_core
+    agc_core
+    dp_tlm_core
+    m
+    m)
+target_include_directories(test_resample_core
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_resample_core COMMAND test_resample_core)

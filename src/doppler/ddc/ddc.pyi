@@ -49,6 +49,8 @@ class DDC:
         ----------
         x : NDArray[np.complex64]
             CF32 input block; accepted as float32 (auto-cast).
+        out : NDArray[np.complex64] | None
+            CF32 output buffer (C-only, hidden from Python).
 
         Returns
         -------
@@ -397,6 +399,8 @@ class MatchedDDC:
         ----------
         x : NDArray[np.complex64]
             CF32 input block; accepted as float32 (auto-cast).
+        out : NDArray[np.complex64] | None
+            CF32 output buffer (C-only, hidden from Python).
 
         Returns
         -------
@@ -731,6 +735,8 @@ class Ddcr:
         ----------
         x : NDArray[np.float32]
             Input.
+        out : NDArray[np.complex64] | None
+            CF32 output buffer (C-only, hidden from Python).
 
         Returns
         -------
@@ -1074,6 +1080,8 @@ class MatchedDdcr:
         ----------
         x : NDArray[np.float32]
             Input.
+        out : NDArray[np.complex64] | None
+            CF32 output buffer (C-only, hidden from Python).
 
         Returns
         -------

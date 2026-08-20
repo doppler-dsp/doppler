@@ -209,6 +209,63 @@ ______________________________________________________________________
     It is `command -v python3`. The root `CMakeLists.txt`'s unconditional
     `if(WIN32 ...)` libwinpthread copy is gone too — `jm status --check`
     confirms its absence is not drift.
+- **just-makeit pinned to 0.63.3, and the tree builds on it.** The bump
+    closes nine doppler-filed issues:
+    [gh-1023](https://github.com/just-buildit/just-makeit/issues/1023)
+    (`jm bench` runs what the tree BUILDS, not what the manifest declares),
+    [gh-1034](https://github.com/just-buildit/just-makeit/issues/1034) (a
+    function-only module gets a C test and a benchmark),
+    [gh-1042](https://github.com/just-buildit/just-makeit/issues/1042) (every
+    parameter in a generated signature gets a `Parameters` entry),
+    [gh-1046](https://github.com/just-buildit/just-makeit/issues/1046) (jm
+    does not emit a CMake target name the project already declares),
+    [gh-1051](https://github.com/just-buildit/just-makeit/issues/1051) (a
+    `count_default` method's `.pyi` no longer hardcodes `count: int = 1`),
+    [gh-1052](https://github.com/just-buildit/just-makeit/issues/1052) (a
+    header-derived `*_max_out` doc is one paragraph, not one per source
+    line), and the three below.
+
+    **0.63.0 through 0.63.2 could not build this tree**, which is why the
+    pin lands three patches downstream of the minor. gh-1034 gave every
+    module with free functions a `test_`/`bench_<name>_core` pair, and each
+    release uncovered the next defect behind the last:
+
+    - **0.63.0/0.63.1 — the pair did not configure.** For a *collocated
+        module-object* (a module whose `objects` list carries its own name)
+        the object already emits `test_<obj>_core` into the same
+        `CMakeLists.txt`, so `cmake` refused outright:
+        `add_executable cannot create target "test_agc_core"`. Fixed by
+        [gh-1055](https://github.com/just-buildit/just-makeit/issues/1055),
+        and under it
+        [gh-1057](https://github.com/just-buildit/just-makeit/issues/1057) —
+        the reason nothing caught it. `_targets.from_manifest()` accumulated
+        into a `set`, so a name emitted twice was indistinguishable from one
+        emitted once; measured on this tree at filing, 365 names emitted
+        against a set of 356, **nine produced twice and the set reporting
+        zero**.
+    - **0.63.2 — the pair configured, then did not compile or link.**
+        Getting past `cmake` is what let anything reach the compiler for the
+        first time. A function declared with `out_type` got a call one
+        argument short of the prototype jm had generated in the same run
+        (`(void)ccsds_asm_bits()` against `void ccsds_asm_bits(uint8_t *)`),
+        and the targets linked `<module>_core m` and nothing else, so a
+        module function calling a sibling core did not resolve. Both are
+        doppler-filed —
+        [gh-1060](https://github.com/just-buildit/just-makeit/issues/1060)
+        and
+        [gh-1061](https://github.com/just-buildit/just-makeit/issues/1061),
+        the latter being gh-254's lesson, which gh-1034 introduced a second
+        target pair without inheriting.
+
+    Six generated module tests land with the bump — `arith`, `filter`,
+    `measure`, `resample`, `spectral`, `wfm`. They are jm scaffolds and say
+    so, reporting `PASSED (0 checks)`; what they do today is prove every
+    symbol links and every all-scalar function survives a call. That is not
+    nothing — see the entry below. Filling them in is
+    [#914](https://github.com/doppler-dsp/doppler/issues/914). The seven
+    module *benchmarks* get no
+    scaffold at all: they exist and are declared in this project's own
+    `CMakeLists.txt`, so gh-1046 stands jm down.
 
 - **`doppler.coding.ConvEncoder` — doppler can encode now**
     ([#900](https://github.com/doppler-dsp/doppler/issues/900)). Until this,
@@ -362,6 +419,27 @@ ______________________________________________________________________
     The gate holds everything checkable without running them.
 
 ### Fixed
+
+- **`kaiser_num_taps(0, …)` crashed the process, and a Python shadow hid
+    it.** Two defects, both found on the first run of the C test jm's
+    gh-1034 now generates for a function-only module.
+
+    The function ends in `htaps / (size_t)num_phases`, an INTEGER divide, so
+    `num_phases == 0` was not a wrong answer but a **SIGFPE** — and this is a
+    public module function, so a Python caller passing 0 took the
+    interpreter down rather than getting an exception. A value below 1 is
+    not a bank; it now returns 0, and the header says so.
+
+    Nobody had seen it because `src/doppler/resample/__init__.py` **imported
+    `kaiser_beta` and `kaiser_num_taps` from the extension on line 20 and
+    then redefined both in pure Python below it.** Every Python caller got
+    the shadow; the C implementations were bound, exported, and unreachable.
+    The two had already drifted in exactly the way duplicated logic does —
+    the C one crashed where the Python one raised `ZeroDivisionError` —
+    while agreeing on every value either was ever asked for, which was
+    verified across a sweep of both before the copies were deleted. The
+    imports now stand alone. A module `__init__.py` is a re-export and
+    nothing else.
 
 - **Four benchmarks wrote their results under a name nothing reads.**
     `jm_bench_write_json(&b, "X")` writes `bench_X_core.json`, and both

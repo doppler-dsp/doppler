@@ -271,6 +271,33 @@ ______________________________________________________________________
     scaffold at all: they exist and are declared in this project's own
     `CMakeLists.txt`, so gh-1046 stands jm down.
 
+- **A repo path named in prose is now gated, and three dead citations
+    fixed.** `check_site_links.py` holds every LINK in the built site and
+    cannot see a path written as a code span, so a page could cite a file
+    that had never existed with every docs gate green. New
+    `scripts/check_doc_paths.py` (on `make lint` via `docs-invariants`)
+    scans **headers as well as docs** — the worst instance was written in a
+    C header and reached the site only because mkdoxy copied it, so gating
+    the generated page would have been gating the copy. Cross-repo
+    citations are excluded by naming the sibling project, derived from the
+    text rather than an allowlist. 587 paths across 876 files check clean.
+
+    What it would have caught: `dsss_receiver_core.h` sent readers to
+    `docs/gallery/dsss-acq-async-data.md` and `dsss-despread-async-data.md`,
+    neither ever committed under those names; and the NATS archive page
+    closed its "read X for the current state" note with
+    `docs/dev/streaming-roadmap.md`, which has never existed in this repo at
+    all.
+
+- **`docs/design/mpsk.md` no longer tells readers they cannot link
+    `mpsk_map`.** §9.6 listed "`mpsk_core` is in no library" as *open*
+    against [#747](https://github.com/doppler-dsp/doppler/issues/747) —
+    which is closed, and both `mpsk_core.c.o` and `util_core.c.o` are in
+    `libdoppler.a` today with `mpsk_map`/`mpsk_demap` defined. The bullet is
+    rewritten as resolved, and the stale "84 component cores" figure (104
+    now) is gone rather than corrected, since a count restated in prose is a
+    number with nothing keeping it true.
+
 - **`doppler.coding.ConvEncoder` — doppler can encode now**
     ([#900](https://github.com/doppler-dsp/doppler/issues/900)). Until this,
     **no class in the library exposed an `encode()` at all.** `Viterbi`

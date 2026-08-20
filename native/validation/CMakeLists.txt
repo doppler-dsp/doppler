@@ -252,6 +252,19 @@ target_include_directories(validate_rs_certify
 target_link_libraries(validate_rs_certify PRIVATE doppler_lib_static m)
 target_compile_options(validate_rs_certify PRIVATE -O3 -funroll-loops)
 
+# ccsds_tm_certify is the third of the C-only certifications, and measures the
+# three things this component adds ON TOP of the code it configures: the
+# interleaver's burst tolerance, the sync marker as a detector, and the
+# spectrum B-6 demoted the legacy randomiser over. No `--check`, no CTest --
+# the limits are asserted in src/doppler/tests/validation/ccsds_tm/.
+add_executable(validate_ccsds_tm_certify
+               ${CMAKE_CURRENT_SOURCE_DIR}/ccsds_tm_certify.c)
+target_include_directories(validate_ccsds_tm_certify
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_ccsds_tm_certify PRIVATE doppler_lib_static m)
+target_compile_options(validate_ccsds_tm_certify PRIVATE -O3 -funroll-loops)
+
 add_executable(validate_rx_coding_gain
                ${CMAKE_CURRENT_SOURCE_DIR}/rx_coding_gain.c)
 target_include_directories(validate_rx_coding_gain

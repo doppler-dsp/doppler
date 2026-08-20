@@ -34,7 +34,7 @@ static const uint8_t g2_bits[7] = { 1, 0, 1, 1, 0, 1, 1 };
 int
 main (void)
 {
-  /* ── impulse response: C1 is G1, C2 is ~G2 ──────────────────────────── */
+  /* ── 1. impulse response: C1 is G1, C2 is ~G2 ─────────────────────────── */
   {
     uint8_t    in[7] = { 1, 0, 0, 0, 0, 0, 0 };
     uint8_t    out[14];
@@ -55,7 +55,7 @@ main (void)
                   "C2 impulse response must trace ~G2, G2 = 1011011 (3.3.1)");
   }
 
-  /* ── the inversion, isolated ────────────────────────────────────────── */
+  /* ── 2. the inversion, isolated ───────────────────────────────────────── */
   {
     uint8_t    in[32] = { 0 };
     uint8_t    out[64];
@@ -76,7 +76,7 @@ main (void)
                           "symbol inversion on the G2 path");
   }
 
-  /* ── 3.3.2: the symbol sequence is continuous across calls ──────────── */
+  /* ── 3. 3.3.2: the symbol sequence is continuous across calls ─────────── */
   {
     uint8_t in[20];
     for (size_t i = 0; i < sizeof in; i++)
@@ -96,7 +96,7 @@ main (void)
                   "encoding in chunks must equal encoding in one call");
   }
 
-  /* ── the rate is 1/2, and max_out says so ───────────────────────────── */
+  /* ── 4. the rate is 1/2, and max_out says so ──────────────────────────── */
   {
     uint8_t    in[9] = { 1, 0, 1, 1, 0, 0, 1, 0, 1 };
     uint8_t    out[18];

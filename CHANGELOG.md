@@ -15,6 +15,47 @@ ______________________________________________________________________
 
 ### Added
 
+- **`ccsds_tm` certified — the 14th object, and the last of the three with
+    no Python face** ([#894](https://github.com/doppler-dsp/doppler/issues/894)
+    context;
+    `src/doppler/tests/validation/ccsds_tm/results.md`). 12 limits, 5
+    findings, 1 open.
+
+    Its claim inventory came out better than any before it — **every public
+    entry point was already pinned against a published value**, because the
+    component was built that way. So the certification measured the three
+    things it adds *on top of* the codes it configures, none of which a
+    single codeword can show:
+
+    - **The interleaver's guarantee is exact and has no tail.** A contiguous
+        burst of `depth * 16` symbols is corrected and `depth * 16 + 1` is
+        not — 200 blocks of 200 either way, at every allowed depth. It is a
+        cliff rather than a curve, because the pigeonhole argument is exact;
+        size the depth from the longest burst the channel produces, not from
+        a probability.
+    - **B-6's reason for demoting the 255-bit randomiser is measurable, and
+        it is 91 dB.** On constant data `CCSDS_TM_RAND_LEGACY` puts a line
+        that far above its own noise floor, at 1/255 of the symbol rate
+        exactly as 10.4.2 warns, where the default 131071-bit sequence puts
+        nothing (1.9 dB, the ordinary fluctuation of an averaged
+        periodogram). Measured through `psd_core`, the shipped meter.
+    - **A looser ASM threshold is a worse detector, not a more sensitive
+        one.** At `max_errors = 8` the marker is found at its right offset
+        only 58 % of the time **with no channel errors at all**, because
+        `asm_find` reports the FIRST match and each of the 96 preceding bits
+        is another chance to beat it. `t = 4` survives both tails. The
+        false-alarm rate itself tracks the binomial closed form to within
+        20 % across five decades.
+
+    Two things the inventory turned up that no gate could:
+    **`ccsds_tm_randomise`'s docblock described the LEGACY generator** — 8
+    stages, all-ones preset, 255-bit period, three facts each belonging to
+    the other randomiser, which the same header states correctly two
+    declarations above. Fixed here. And **`max_errors` has to be chosen
+    against the search window rather than the marker length**, which no
+    interface says
+    ([#897](https://github.com/doppler-dsp/doppler/issues/897)).
+
 - **`doppler.viterbi.Viterbi` — the soft-decision convolutional decoder now
     has a Python face**
     ([#893](https://github.com/doppler-dsp/doppler/issues/893)). It lived

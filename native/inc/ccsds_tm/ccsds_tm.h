@@ -273,14 +273,25 @@ extern "C"
   /**
    * @brief Apply the CCSDS pseudo-randomiser to a bit run, in place.
    *
-   * 131.0-B-3 section 10.4.1: an 8-stage generator over
-   * `h(x) = x^8 + x^7 + x^5 + x^3 + 1`, XORed bit-for-bit onto the data. It
-   * is its own inverse, so the receive side calls the same function.
+   * Applies @ref CCSDS_TM_RAND — 131.0-B-6 section 10.4.1's degree-17
+   * generator, `h(x) = x^17 + x^14 + 1`, preset `11000111000111000`, period
+   * 131071 — XORed bit-for-bit onto the data. It is its own inverse, so the
+   * receive side calls the same function. Use
+   * @ref ccsds_tm_randomise_with to reach 10.4.2's legacy degree-8 sequence
+   * instead; the two are not interchangeable on the wire.
    *
-   * Two properties from 10.4.2 that a caller can get wrong: the generator is
-   * **initialised to all ones at the start of each** codeblock, codeword or
-   * Transfer Frame — not once per stream — and the sequence **repeats after
-   * 255 bits**. Both are handled here because this function owns a whole run;
+   * (This docblock described the LEGACY generator — 8 stages, all-ones
+   * preset, 255-bit period — until the `ccsds_tm` certification read it
+   * against the code. Every one of those three facts belonged to the other
+   * randomiser, and the difference is not academic: measured, the legacy
+   * sequence puts a 91 dB line at 1/255 of the symbol rate on constant data
+   * where this one puts none, which is precisely why B-6 demoted it. See
+   * `src/doppler/tests/validation/ccsds_tm/results.md` §2.4.)
+   *
+   * Two properties a caller can get wrong: the generator is **reloaded from
+   * its preset at the start of each** codeblock, codeword or Transfer Frame
+   * (10.4.3) — not once per stream — and the sequence **repeats after its
+   * period**. Both are handled here because this function owns a whole run;
    * a caller that chunks its data and calls this per chunk would restart the
    * sequence at every chunk boundary and produce a frame no receiver can
    * derandomise.

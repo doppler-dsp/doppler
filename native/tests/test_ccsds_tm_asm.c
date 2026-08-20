@@ -28,7 +28,7 @@ main (void)
   uint8_t marker[CCSDS_TM_ASM_BITS];
   ccsds_tm_asm_bits (marker);
 
-  /* ── the marker is the published constant, MSB-first ────────────────── */
+  /* ── 1. the marker is the published constant, MSB-first ───────────────── */
   {
     /* 0x1ACFFC1D, figure 9-1: the first transmitted bit is the top of 0x1A.
        Spelled out rather than shifted, so this is a transcription of the
@@ -43,7 +43,7 @@ main (void)
                   "the marker must be 0x1ACFFC1D, first bit at the top");
   }
 
-  /* ── it is found where it was put, at any offset ─────────────────────── */
+  /* ── 2. it is found where it was put, at any offset ───────────────────── */
   {
     enum
     {
@@ -74,7 +74,7 @@ main (void)
     DP_CHECK (hit.offset == N - CCSDS_TM_ASM_BITS);
   }
 
-  /* ── a complemented stream is found, and SAID to be complemented ─────
+  /* ── 3. a complemented stream is found, and SAID to be complemented ────────
    *
    * The 180-degree ambiguity of a BPSK carrier delivers the whole stream
    * inverted. The marker is the only part of a CADU that can report it --
@@ -98,7 +98,7 @@ main (void)
     DP_CHECK_MSG (hit.inverted, "an inverted marker must report its polarity");
   }
 
-  /* ── max_errors is honoured from BOTH sides ──────────────────────────
+  /* ── 4. max_errors is honoured from BOTH sides ─────────────────────────────
    *
    * Corrupt exactly three bits of the marker: a tolerance of 3 must find it
    * and a tolerance of 2 must not. One of those alone proves nothing -- a
@@ -123,7 +123,7 @@ main (void)
     DP_CHECK (hit.offset == 32u && hit.errors == 3u && hit.inverted == 0);
   }
 
-  /* ── it does not invent a marker in random data ─────────────────────
+  /* ── 5. it does not invent a marker in random data ─────────────────────────
    *
    * The false-hit side of the threshold, and the arithmetic is the point
    * rather than the assertion. A random 32-bit window lands within `t` of the
@@ -157,7 +157,7 @@ main (void)
                   "random data must not produce a sync hit");
   }
 
-  /* ── FIRST below threshold, not BEST ─────────────────────────────────
+  /* ── 6. FIRST below threshold, not BEST ────────────────────────────────────
    *
    * The header spends a paragraph on this and nothing asserted it: every
    * other case here puts ONE marker in a zero background, where first and
@@ -205,7 +205,7 @@ main (void)
                   "first one that qualifies");
   }
 
-  /* ── the refusals ───────────────────────────────────────────────────── */
+  /* ── 7. the refusals ──────────────────────────────────────────────────── */
   {
     uint8_t            bits[CCSDS_TM_ASM_BITS - 1] = { 0 };
     ccsds_tm_asm_hit_t hit                         = { 999u, -1, 999u };

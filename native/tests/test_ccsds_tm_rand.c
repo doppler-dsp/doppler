@@ -70,7 +70,7 @@ check_generator (const ccsds_tm_rand_t *r, const char *name,
 {
   DP_CHECK_MSG (r->period == period, name);
 
-  /* ── the sequence itself, against the printed prefix ────────────────── */
+  /* ── 1. the sequence itself, against the printed prefix ───────────────── */
   {
     uint8_t seq[40];
     ccsds_tm_rand_seq_with (r, seq, sizeof seq);
@@ -78,7 +78,7 @@ check_generator (const ccsds_tm_rand_t *r, const char *name,
                   "the first 40 bits must match what 10.4.3 prints");
   }
 
-  /* ── randomising zeros yields the sequence ──────────────────────────── */
+  /* ── 2. randomising zeros yields the sequence ─────────────────────────── */
   {
     uint8_t bits[40] = { 0 };
     ccsds_tm_randomise_with (r, bits, 40);
@@ -86,7 +86,7 @@ check_generator (const ccsds_tm_rand_t *r, const char *name,
                   "randomising zeros must emit the sequence verbatim");
   }
 
-  /* ── it repeats after its period, and not before ─────────────────────
+  /* ── 3. it repeats after its period, and not before ────────────────────────
    *
    * The balance check is here because the period checks are not enough on
    * their own, and this test learned that the hard way: an early degree-8
@@ -122,7 +122,7 @@ check_generator (const ccsds_tm_rand_t *r, const char *name,
     DP_CHECK_MSG (!early, "no period shorter than the stated one may appear");
   }
 
-  /* ── its own inverse, over a run that crosses the period boundary ───── */
+  /* ── 4. its own inverse, over a run that crosses the period boundary ──── */
   {
     const size_t n = period + 91u;
     DP_REQUIRE (scratch_len >= 2u * n);
@@ -140,7 +140,7 @@ check_generator (const ccsds_tm_rand_t *r, const char *name,
                   "randomise twice must be the identity");
   }
 
-  /* ── each call restarts at the preset (10.4.3) ──────────────────────── */
+  /* ── 5. each call restarts at the preset (10.4.3) ─────────────────────── */
   {
     uint8_t a[16] = { 0 }, b[16] = { 0 };
     ccsds_tm_randomise_with (r, a, 16);
@@ -149,7 +149,7 @@ check_generator (const ccsds_tm_rand_t *r, const char *name,
                   "the generator must preset per call, not carry state");
   }
 
-  /* ── stepping it one bit at a time IS the sequence ───────────────────
+  /* ── 6. stepping it one bit at a time IS the sequence ──────────────────────
    *
    * ccsds_tm_frame_decode packs bits to octets and derandomises in the same
    * pass, so it cannot hand a mutable run to ccsds_tm_randomise and must not
@@ -192,7 +192,7 @@ main (void)
       != 0)
     return 1;
 
-  /* ── the DEFAULT is 10.4.1's, and that is the point of this change ────
+  /* ── 7. the DEFAULT is 10.4.1's, and that is the point of this change ──────
    *
    * B-6 made the long sequence the `shall` and kept the short one only for
    * legacy systems. A default that silently stayed on the short one would

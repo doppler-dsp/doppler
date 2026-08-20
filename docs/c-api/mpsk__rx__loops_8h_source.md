@@ -13,6 +13,7 @@
 #define MPSK_RX_LOOPS_H
 
 #include "agc/agc_core.h"
+#include "viterbi/viterbi_core.h"
 #include "carrier_nda/carrier_nda_core.h" /* carrier_nda_disc            */
 #include "clib_common.h"
 #include "dp_state.h"

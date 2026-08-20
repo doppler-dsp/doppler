@@ -331,8 +331,8 @@
 
 ## v
 
-* **VITERBI\_STATE\_MAGIC** ([**conv\_core.h**](conv__core_8h.md))
-* **VITERBI\_STATE\_VERSION** ([**conv\_core.h**](conv__core_8h.md))
+* **VITERBI\_STATE\_MAGIC** ([**viterbi\_core.h**](viterbi__core_8h.md))
+* **VITERBI\_STATE\_VERSION** ([**viterbi\_core.h**](viterbi__core_8h.md))
 
 
 ## w

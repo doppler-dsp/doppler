@@ -217,6 +217,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md) _UQ15 (offset-binary uint16) to float converter._     
         * **dir** [**util**](dir_301ecbdb0604927cf0b3895ddfaba60f.md)     
             * **file** [**util\_core.h**](util__core_8h.md) _Util module — public C API._     
+        * **dir** [**viterbi**](dir_abfb52fd33d2d22e092a3b80738d1015.md)     
+            * **file** [**viterbi\_core.h**](viterbi__core_8h.md) _Soft-decision Viterbi decoding of convolutional codes._     
         * **dir** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md)     
             * **file** [**wfm\_compose.h**](wfm__compose_8h.md) _Multi-segment waveform composer (Phase B)._     
             * **file** [**wfm\_core.h**](wfm__core_8h.md) _Wfmgen module — public C API._     

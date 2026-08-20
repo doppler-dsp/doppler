@@ -18,6 +18,13 @@ class Viterbi:
     depth : int, default 35
         depth (default: 35).
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Viterbi: not a usable
+        code (need 1 to 6 non-zero polynomials, each under 2**k, 2 <= k <= 9,
+        and depth >= 1)``.
+
     Examples
     --------
     >>> import numpy as np

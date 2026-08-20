@@ -17,6 +17,12 @@ no_state = "true"
 no_step = "true"
 class_name = "Viterbi"
 serializable = "true"
+# A refused code is a bad ARGUMENT, not an allocation failure: create()
+# returns NULL for an invalid polynomial set or a zero depth long before it
+# reaches malloc, and a blanket MemoryError sends the caller looking at the
+# wrong thing entirely (jm gh-482).
+create_error = "ValueError"
+create_error_message = "Viterbi: not a usable code (need 1 to 6 non-zero polynomials, each under 2**k, 2 <= k <= 9, and depth >= 1)"
 depends_on = [{ name = "conv", link = true }]
 
 # The generator polynomials, one per output — the array IS the code, and its

@@ -63,62 +63,6 @@ extern "C"
   size_t conv_encode (conv_enc_t *s, const conv_code_t *c, const uint8_t *in,
                       size_t n_in, uint8_t *out, size_t max_out);
 
-  /* ── the decoder ─────────────────────────────────────────────────────── */
-
-  typedef struct viterbi_state_t viterbi_state_t;
-
-  viterbi_state_t *viterbi_create (const conv_code_t *c, size_t depth);
-
-  void viterbi_destroy (viterbi_state_t *s);
-
-  void viterbi_reset (viterbi_state_t *s);
-
-  size_t viterbi_decode (viterbi_state_t *s, const float *llr, size_t n_llr,
-                         uint8_t *out, size_t max_out);
-
-  size_t viterbi_decode_max_out (const viterbi_state_t *s, size_t n_llr);
-
-  const conv_code_t *viterbi_code (const viterbi_state_t *s);
-
-  size_t viterbi_depth (const viterbi_state_t *s);
-
-  /* ── node synchronization ────────────────────────────────────────────── */
-
-  typedef struct
-  {
-    unsigned phase;   
-    size_t   errors;  
-    size_t   next;    
-    size_t   symbols; 
-    size_t   margin;  
-  } node_sync_t;
-
-  size_t node_sync_score (viterbi_state_t *v, const float *llr, size_t n_llr);
-
-  size_t node_sync_scored_symbols (const viterbi_state_t *v, size_t n_llr);
-
-  int node_sync_scan (viterbi_state_t *v, const float *llr, size_t n_llr,
-                      node_sync_t *out);
-
-/* ── the state bytes interface ───────────────────────────────────────────
- *
- * The decoder carries running state across calls — a path metric per state,
- * the traceback ring, and where the ring is — so it speaks the standard
- * bytes interface like every other stateful object in the tree. A decoder
- * sits inside a chain (behind the receiver, in front of the R-S decoder),
- * and one link that cannot be checkpointed is enough to make the chain
- * un-resumable. See docs/design/state-serialization.md.
- */
-
-#define VITERBI_STATE_MAGIC DP_FOURCC ('V', 'T', 'R', 'B')
-#define VITERBI_STATE_VERSION 1u
-
-  size_t viterbi_state_bytes (const viterbi_state_t *s);
-
-  void viterbi_get_state (const viterbi_state_t *s, void *blob);
-
-  int viterbi_set_state (viterbi_state_t *s, const void *blob);
-
 #ifdef __cplusplus
 }
 #endif

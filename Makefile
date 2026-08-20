@@ -1364,15 +1364,31 @@ gen-c-api-run: ## gen-c-api proper (re-entered with CI's doxygen on PATH)
 # the duplication this repo keeps paying for. CI's checkout is disposable; a
 # developer is left with the tree REGENERATED, which is the state the failure
 # message would have told them to produce anyway.
+# Compared against the INDEX, not against HEAD, and that distinction is the
+# whole difference between a gate and a wall. `git status --porcelain` reports
+# a STAGED change too, so the pre-commit hook that runs this could never pass
+# on the very commit introducing a regeneration -- you regenerate, `git add`
+# exactly as the hook's own message tells you to, and it fails again on the
+# files you just staged. The documented recovery did not work, so the habit it
+# produced was `--no-verify`, which is worse than the drift.
+#
+# `git diff` (worktree vs index) is right in both callers. In CI's clean
+# checkout the index IS HEAD, so it still asks "does the committed tree match
+# the headers"; under pre-commit it asks "does what you are about to commit
+# match the headers", which is the same question at the only moment it can be
+# answered. Staging a stale tree is still caught: the recipe regenerates in
+# place first, so the worktree holds the truth and a stale index differs from
+# it.
 gen-c-api-check: ## Fail if the committed docs/c-api is stale against the headers
 	@$(MAKE) -s gen-c-api >/dev/null
-	@d=$$(git status --porcelain -- docs/c-api); \
+	@d=$$(git diff --name-only -- docs/c-api; \
+	      git ls-files --others --exclude-standard -- docs/c-api); \
 	 if [ -n "$$d" ]; then \
 	     printf '%s\n' "$$d"; \
 	     echo "gen-c-api-check: docs/c-api is stale — $$(printf '%s\n' "$$d" \
 	         | wc -l | tr -d ' ') file(s) differ from what the headers"; \
-	     echo "  produce. The tree has been regenerated in place: review it"; \
-	     echo "  and commit."; \
+	     echo "  produce. The tree has been regenerated in place: review it,"; \
+	     echo "  'git add docs/c-api', and commit."; \
 	     exit 1; \
 	 fi; \
 	 echo "gen-c-api-check: docs/c-api matches the headers"

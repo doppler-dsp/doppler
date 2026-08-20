@@ -9,9 +9,20 @@
 # library no longer has, or folding two assertions into one stronger one. They
 # are also rare, and they should be *stated*. Silent ones are the bug.
 #
-# Format: `<basename>  <reason>`, one per line. Deleting a whole file is not
-# listed here — a deletion is a visible act in the diff, and the ratchet only
-# looks at files that still exist.
+# Two formats, and they are not the same claim:
+#
+#   `<basename>  <reason>`
+#       A REMOVAL. Permanent and unbounded — that file's ratchet is off from
+#       here on, for any future drop. Rare, and it should stay rare.
+#
+#   `<basename> -> <dest>  <reason>`
+#       A MOVE. Checked, not taken on trust: `dest` must have gained at least
+#       what this file lost, measured over the same base ref. The ratchet
+#       stays armed on both, so a later real deletion here is still caught
+#       unless `dest` grew to match it.
+#
+# Deleting a whole file is not listed here — a deletion is a visible act in
+# the diff, and the ratchet only looks at files that still exist.
 #
 # EMPTY, and the intent is that it stays that way. The regression that
 # motivated this gate — 43 assertions across test_RateConverter_core.c,
@@ -24,3 +35,10 @@ test_mpsk_receiver_core.c  -2: two enum checks on `nda_tap`/`tap_timed`, whose
   `mpsk_rx_updates_per_symbol() == 1.0`, whose own comment already said "an
   enum check alone would survive a swap to another fast tap; this does not".
   Nothing measured stopped being measured; a weaker restatement of it went.
+
+test_conv_core.c -> test_viterbi_core.c  -57: the decoder's sections (the
+  sweep over codes, scale invariance, error correction, node synchronization,
+  the free distance and the state blob) moved to the decoder's own file when
+  `viterbi` became a declared component (doppler#893). Nothing stopped being
+  asserted — checked by this ratchet rather than claimed: the pair went 75 to
+  96 over the same base.

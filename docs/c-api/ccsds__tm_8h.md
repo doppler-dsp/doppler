@@ -11,6 +11,7 @@
 _CCSDS TM channel coding — the transforms a transfer frame passes through on its way to symbols._ [More...](#detailed-description)
 
 * `#include "conv/conv_core.h"`
+* `#include "viterbi/viterbi_core.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
 

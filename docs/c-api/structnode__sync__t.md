@@ -10,7 +10,7 @@
 
 _What one alignment hypothesis scored, and what the runner-up did._ [More...](#detailed-description)
 
-* `#include <conv_core.h>`
+* `#include <viterbi_core.h>`
 
 
 
@@ -183,7 +183,7 @@ size_t node_sync_t::symbols;
 
 
 
-symbols SCORED per hypothesis, which is fewer than the window — see [**node\_sync\_scored\_symbols**](conv__core_8h.md#function-node_sync_scored_symbols) 
+symbols SCORED per hypothesis, which is fewer than the window — see [**node\_sync\_scored\_symbols**](viterbi__core_8h.md#function-node_sync_scored_symbols) 
  
 
 
@@ -192,5 +192,5 @@ symbols SCORED per hypothesis, which is fewer than the window — see [**node\_s
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/conv/conv_core.h`
+The documentation for this class was generated from the following file `native/inc/viterbi/viterbi_core.h`
 

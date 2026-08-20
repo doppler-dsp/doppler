@@ -48,6 +48,7 @@
  *   ./build/examples/c/ccsds_link_demo
  */
 
+#include "viterbi/viterbi_core.h"
 #include <awgn/awgn_core.h>
 #include <ccsds_tm/ccsds_tm.h>
 #include <ccsds_tm/ccsds_tm_frame.h>
@@ -184,7 +185,7 @@ receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
      which is simply wrong here. It is a wrong PRIOR rather than a wrong
      answer: the survivor paths are determined by the data within a few
      constraint lengths, long before the first marker this finds. */
-  viterbi_state_t *v    = viterbi_create (&CCSDS_TM_CONV, TRACEBACK);
+  viterbi_state_t *v    = viterbi_create_code (&CCSDS_TM_CONV, TRACEBACK);
   const size_t     n_rx = viterbi_decode (
       v, g_llr + SKIP_SYM, TOTAL_SYM - SKIP_SYM, g_rx_bits, TOTAL_SYM);
   viterbi_destroy (v);

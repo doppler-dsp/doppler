@@ -1,0 +1,53 @@
+# viterbi — the soft-decision Viterbi decoder, declared rather than hand-owned.
+#
+# doppler#893. This lived inside the `conv` c_deps directory, which meant jm
+# emitted only the add_subdirectory: no Python face, no generated CMake
+# target for its test or its benchmark, and a component string that had to be
+# typed by hand. `conv` owns the CODE — polynomials, encoder, trellis
+# arithmetic — and this owns the DECODER built over one, the same split `rs`
+# and `ccsds_tm` already have.
+#
+# Opaque heap state sized from the code and the depth, so no_state/no_step;
+# the state triplet already exists (VITERBI_STATE_MAGIC), so serializable.
+[viterbi]
+arg_type = "float"
+return_type = "uint8_t"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Viterbi"
+serializable = "true"
+depends_on = [{ name = "conv", link = true }]
+
+# The generator polynomials, one per output — the array IS the code, and its
+# length gives n. Same shape as fir's `taps`: a struct-pointer constructor is
+# not jm-expressible, so the declared form takes the polynomials directly and
+# the conv_code_t is assembled inside create().
+[[viterbi.init_params]]
+name = "poly"
+type = "uint32_t[]"
+
+[[viterbi.init_params]]
+name = "k"
+type = "uint32_t"
+default = "7"
+
+[[viterbi.init_params]]
+name = "invert"
+type = "uint32_t"
+default = "0"
+
+# Traceback depth in input bits. 5*(k-1) is the usual rule of thumb; the
+# benchmark measures what a longer one costs.
+[[viterbi.init_params]]
+name = "depth"
+type = "size_t"
+default = "35"
+
+[[viterbi.methods]]
+name = "decode"
+arg_type = "float"
+return_type = "uint8_t"
+variable_output = true
+# The kernel is told its write limit (jm gh-138) — it already takes max_out.
+pass_capacity = true

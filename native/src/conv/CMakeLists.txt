@@ -19,7 +19,11 @@ add_executable(test_conv_core
 # what a
 # generator polynomial means and is checkable for every configuration. Holding
 # the CCSDS numbers to the standard is test_ccsds_tm_conv.c's job.
-target_link_libraries(test_conv_core PRIVATE conv_core m)
+# viterbi_core because sections 4-8 of the test still exercise the decoder
+# from here. Those belong in test_viterbi_core.c now that `viterbi` is a
+# declared object -- they are one 800-line main(), so the split is tracked as
+# follow-up on doppler#893 rather than rushed.
+target_link_libraries(test_conv_core PRIVATE conv_core viterbi_core m)
 target_include_directories(test_conv_core PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)

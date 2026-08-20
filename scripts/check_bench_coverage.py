@@ -124,6 +124,12 @@ ALLOW: dict[str, str] = {
     "wfm": "doppler#891 — six test TUs (dsp, keywords, plan, sink, time, "
     "frame) and no benchmark. crc16/rrc_taps/dsss_spread are real kernels; "
     "pre-dates v0.42.0.",
+    "hbdecim": "doppler#893 — measured at its composing object instead. "
+    "bench_HalfbandDecimator_core.c carries the block sweep this component's "
+    "own benchmark used to, capped at the object's real HBDECIM_MAX_OUT "
+    "limit; the c_dep beneath has no such limit, so the old file measured a "
+    "block size no caller can request. Not unmeasured — measured one level "
+    "up, where a caller constructs.",
     "wfm_compose": "doppler#891 — the composer's segment assembly is "
     "benchmarked indirectly through wfm_synth only; pre-dates v0.42.0.",
 }
@@ -155,7 +161,6 @@ HOLLOW_ALLOW: set[str] = {
     "fft",
     "fft2d",
     "fir",
-    "HalfbandDecimator",
     "hbdecim_q15",
     "nco",
 }

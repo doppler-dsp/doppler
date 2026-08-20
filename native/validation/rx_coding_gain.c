@@ -80,6 +80,7 @@
 #include "conv/conv_core.h"
 #include "mpsk/mpsk_core.h"
 #include "pn/pn_core.h"
+#include "viterbi/viterbi_core.h"
 #include "wfm_synth/wfm_synth_core.h"
 
 #include <math.h>
@@ -355,7 +356,7 @@ run_point (double esn0_db, const uint8_t *frames, const uint8_t *tx_cadu,
   uint8_t         *bits    = malloc (TOTAL_SYM);
   uint8_t         *cadu    = malloc (CADU_BITS);
   uint8_t         *frame   = malloc (FRAME_OCTETS);
-  viterbi_state_t *v       = viterbi_create (&CCSDS_TM_CONV, TRACEBACK);
+  viterbi_state_t *v       = viterbi_create_code (&CCSDS_TM_CONV, TRACEBACK);
   int              clipped = 0;
   size_t           nout    = 0;
 

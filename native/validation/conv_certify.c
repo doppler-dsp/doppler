@@ -35,6 +35,7 @@
 #include "conv/conv_core.h"
 #include "mpsk/mpsk_core.h"
 #include "pn/pn_core.h"
+#include "viterbi/viterbi_core.h"
 #include "wfm_synth/wfm_synth_core.h"
 
 #include <complex.h>
@@ -108,7 +109,7 @@ ber_point (double esn0_db, unsigned depth, int hard, uint64_t seed,
         llr[i] = llr[i] < 0.0f ? -1.0f : 1.0f;
     }
 
-  viterbi_state_t *v = viterbi_create (&CCSDS, depth);
+  viterbi_state_t *v = viterbi_create_code (&CCSDS, depth);
   if (!v)
     goto done;
   const size_t got = viterbi_decode (v, llr, nsym, dec, nbits);
@@ -178,7 +179,7 @@ node_point (double esn0_db, size_t win, uint64_t seed, double *in_sync,
     mod[i] += nz[i];
   mpsk_soft_demap (mod, nsym, llr, nsym, 2, n0);
 
-  viterbi_state_t *v = viterbi_create (&CCSDS, DEPTH);
+  viterbi_state_t *v = viterbi_create_code (&CCSDS, DEPTH);
   if (!v)
     goto done;
   node_sync_t ns;

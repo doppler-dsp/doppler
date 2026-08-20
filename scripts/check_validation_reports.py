@@ -347,8 +347,18 @@ def check_lifecycle(path: Path) -> list[str]:
         if not (ROOT / d).is_file():
             bad.append(f"{rel}: links '{d}', which does not exist")
 
+    # An `#include "<obj>/..."` from anywhere under native/inc/<obj>/, or a
+    # call to a symbol the object prefixes. The narrower `<obj>_core.h` this
+    # used to require assumed every component's public header is named after
+    # it that way, which held for thirteen objects and then did not:
+    # `ccsds_tm` ships `ccsds_tm.h`, `ccsds_tm_rs.h` and `ccsds_tm_frame.h`,
+    # is referenced by five C test files and 2500 lines of assertions, and
+    # this gate reported it as pinned by nothing at all. A gate that is wrong
+    # about which objects comply is the failure the docstring above already
+    # names; a header NAME is not the fact being checked.
     pat = re.compile(
-        rf"{re.escape(obj)}_core\.h|\b{re.escape(obj)}_(init|step)\b"
+        rf'#include\s*"{re.escape(obj)}/|'
+        rf"\b{re.escape(obj)}_[A-Za-z0-9_]*\s*\("
     )
     tests = ROOT / "native" / "tests"
     if not any(

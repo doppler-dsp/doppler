@@ -77,7 +77,7 @@ pack (const uint8_t *bits, size_t nbytes, uint8_t *bytes)
 int
 main (void)
 {
-  /* ── the coverage table, as spans ───────────────────────────────────── */
+  /* ── 1. the coverage table, as spans ──────────────────────────────────── */
   {
     const ccsds_tm_frame_cfg_t cfg = {
       .rs_depth = 5, .randomise = 1, .attach_asm = 1, .convolutional = 1
@@ -116,7 +116,7 @@ main (void)
                   "only the inner code may start at the first CADU bit");
   }
 
-  /* ── the marker is not randomised, and the sequence starts after it ─── */
+  /* ── 2. the marker is not randomised, and the sequence starts after it ── */
   {
     /* No outer code, so the randomiser's scope is the Transfer Frame itself
        (10.3.2's third case) and the block is readable straight out. */
@@ -141,7 +141,7 @@ main (void)
        the block the sequence from bit 32 rather than from bit 0. */
   }
 
-  /* ── 9.5.1: the ASM was never presented to the R-S encoder ──────────── */
+  /* ── 3. 9.5.1: the ASM was never presented to the R-S encoder ─────────── */
   {
     const ccsds_tm_frame_cfg_t cfg = {
       .rs_depth = 1, .randomise = 0, .attach_asm = 1, .convolutional = 0
@@ -177,7 +177,7 @@ main (void)
                   "255 symbols starting AT the ASM must not be a codeword");
   }
 
-  /* ── 3.2.1 / 9.2.1.4: the inner code covers the marker ──────────────── */
+  /* ── 4. 3.2.1 / 9.2.1.4: the inner code covers the marker ─────────────── */
   {
     const ccsds_tm_frame_cfg_t cfg = {
       .rs_depth = 0, .randomise = 1, .attach_asm = 1, .convolutional = 1
@@ -208,7 +208,7 @@ main (void)
                   "3.2.1: the ASM is inserted BEFORE convolutional encoding");
   }
 
-  /* ── the whole concatenated chain, against the code's own property ──── */
+  /* ── 5. the whole concatenated chain, against the code's own property ─── */
   {
     /* Everything on except the inner code, so the CADU can be read back and
        each interleaved codeword checked without a decoder. */
@@ -255,7 +255,7 @@ main (void)
                           "syndromes after derandomisation");
   }
 
-  /* ── the degenerate config pins the packing convention on its own ───── */
+  /* ── 6. the degenerate config pins the packing convention on its own ──── */
   {
     const ccsds_tm_frame_cfg_t cfg      = { 0 };
     const uint8_t              frame[2] = { 0x1Au, 0xCFu };
@@ -269,7 +269,7 @@ main (void)
                   "bits, so an LSB-first unpack cannot pass this");
   }
 
-  /* ── lengths across every allowed depth ─────────────────────────────── */
+  /* ── 7. lengths across every allowed depth ────────────────────────────── */
   {
     static const unsigned depths[6] = { 1, 2, 3, 4, 5, 8 };
     int                   sizes_ok  = 1;
@@ -288,7 +288,7 @@ main (void)
     DP_CHECK_MSG (sizes_ok, "(ASM + 255*I octets) * 2 for every allowed I");
   }
 
-  /* ── refusals, rather than a codeblock nobody is configured for ─────── */
+  /* ── 8. refusals, rather than a codeblock nobody is configured for ────── */
   {
     uint8_t frame[CCSDS_TM_RS_K * 3] = { 0 };
     uint8_t out[8];
@@ -343,7 +343,7 @@ main (void)
         == need);
   }
 
-  /* ── a STREAM of frames: the inner code does not restart ────────────────
+  /* ── 9. a STREAM of frames: the inner code does not restart ────────────────
    *
    * 3.3.2 fixes the output as one uninterrupted symbol sequence. The kernel
    * test already proves chunked == whole when the register is carried
@@ -426,7 +426,7 @@ main (void)
                   "more: every difference inside the first 12 symbols");
   }
 
-  /* ── the decoder undoes the encoder, over the SAME spans ─────────────
+  /* ── 10. the decoder undoes the encoder, over the SAME spans ───────────────
    *
    * A round trip is weak evidence on its own -- it is what this whole slice
    * refuses to rely on -- so it is not the claim here. The claim is that
@@ -473,7 +473,7 @@ main (void)
     DP_CHECK (rx.frame_len == sizeof back);
   }
 
-  /* ── a corrupted symbol is CORRECTED, and a hopeless one is reported ──
+  /* ── 11. a corrupted symbol is CORRECTED, and a hopeless one is reported ───
    *
    * The outer code corrects up to E = 16 symbols per codeword, so one
    * flipped bit inside codeword 2 must come back repaired -- frame byte for
@@ -560,7 +560,7 @@ main (void)
                   "just reported, not a silently repaired copy");
   }
 
-  /* ── with no outer code the frame is the block ───────────────────────── */
+  /* ── 12. with no outer code the frame is the block ────────────────────── */
   {
     const ccsds_tm_frame_cfg_t cfg = {
       .rs_depth = 0, .randomise = 1, .attach_asm = 1, .convolutional = 0
@@ -585,7 +585,7 @@ main (void)
                   "no outer code means no codewords to report");
   }
 
-  /* ── the refusals, each verified by a poisoned buffer ───────────────── */
+  /* ── 13. the refusals, each verified by a poisoned buffer ─────────────── */
   {
     const ccsds_tm_frame_cfg_t cfg = {
       .rs_depth = 5, .randomise = 1, .attach_asm = 1, .convolutional = 0
@@ -615,7 +615,7 @@ main (void)
       DP_CHECK (back[i] == 0xAAu);
   }
 
-  /* ── the coverage table as a wfm_frame_desc_t (docs/design/…) ─────────
+  /* ── 14. the coverage table as a wfm_frame_desc_t (docs/design/…) ──────────
    *
    * `ccsds_tm_frame_layout_t` reports a span per stage because a stage ORDER
    * cannot express what covers the marker. `wfm_frame_desc_t` is that same
@@ -731,7 +731,7 @@ main (void)
       }
   }
 
-  /* ── the SAME BITS, from the description ─────────────────────────────
+  /* ── 15. the SAME BITS, from the description ───────────────────────────────
    *
    * The section above proves the general description reproduces this
    * component's coverage table. A right coverage table says nothing about
@@ -847,7 +847,7 @@ main (void)
                            "assembler, frame 2 included");
   }
 
-  /* ── the scoring path: undo the same spans, and report ───────────────
+  /* ── 16. the scoring path: undo the same spans, and report ─────────────────
    *
    * `wfm_frame_check` reads the description `wfm_frame_assemble` wrote by, so
    * the two cannot disagree about which stage covered what. What is asserted
@@ -956,7 +956,7 @@ main (void)
                   "...so two of the three stages are, not three");
   }
 
-  /* ── the randomiser stage carries WHICH generator ────────────────────
+  /* ── 17. the randomiser stage carries WHICH generator ──────────────────────
    *
    * 131.0-B-6 specifies two (10.4.1's 131071-bit sequence and 10.4.2's
    * legacy 255-bit one) and only the matching receiver derandomises a given

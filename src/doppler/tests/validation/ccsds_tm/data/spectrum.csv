@@ -1,0 +1,3 @@
+which,period,nfft,frames,peak_db,at_1_255_db
+default,131071.0,4096.0,64.0,1.909,1.189
+legacy,255.0,4096.0,64.0,90.96,90.948

@@ -2,7 +2,8 @@
 
 Every other `test_validation_limits.py` lives beside its module and
 imports that module's objects. This one is tree-wide and imports none,
-because the objects it gates — `conv` and `rs` today — have no binding: the
+because the objects it gates — `conv`, `rs` and `ccsds_tm` — have no
+binding: the
 measurements come from a C harness under `native/validation/`, and the
 validator beside this file renders and asserts them.
 
@@ -25,10 +26,15 @@ from __future__ import annotations
 import pytest
 
 from doppler.tests._validation_common import assert_renders
+from doppler.tests.validation.ccsds_tm import validate as ccsds_tm_validate
 from doppler.tests.validation.conv import validate as conv_validate
 from doppler.tests.validation.rs import validate as rs_validate
 
-OBJECTS = {"conv": conv_validate, "rs": rs_validate}
+OBJECTS = {
+    "ccsds_tm": ccsds_tm_validate,
+    "conv": conv_validate,
+    "rs": rs_validate,
+}
 
 
 @pytest.fixture(scope="module", params=sorted(OBJECTS))

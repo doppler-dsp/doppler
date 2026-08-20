@@ -42,18 +42,25 @@ would have produced nothing even once jm could run them.
 **3. Run, but recording nothing.** An unfilled jm scaffold -- a `main()`
 with a `TODO` and no `jm_bench_add` call -- writes `"benchmarks": []`, so
 its component vanishes from the C snapshot while the file, the target and
-the `jm bench` run all exist. THIRTY of doppler's benchmarks are in that
-state (doppler#891).
+the `jm bench` run all exist. Thirty of doppler's benchmarks were in that
+state when this gate was written (doppler#891).
 
-Read that as a missing C-LEVEL row, not a missing measurement: eleven of
-the thirty -- `fir`, `nco`, `fft`, `fft2d`, `ddc`, `ddcr`, `corr`,
-`detector`, `detector2d`, `hbdecim_q15`, `HalfbandDecimator` -- have Python
-benchmarks that run and publish, and their kernels are on
-`docs/benchmarks.md` today. What the empty C file costs them is the face
-where per-call overhead is not in the number. The other NINETEEN are
-measured in no language at all, and that is the actual hole: `mpsk_receiver`,
-`psd`, `specan`, `ratesync`, `pn`, `gold` and the burst/carrier family
-among them.
+**The current set is `HOLLOW_ALLOW` below, and this paragraph does not
+restate it.** It used to: it named eleven components and a tally of thirty,
+and by the time anyone read it again the tally was ten, `HalfbandDecimator`
+had been filled in and removed, and the "measured in no language at all"
+group the text called *the actual hole* had been closed outright. Every one
+of those numbers was true when written and none of them was kept true by
+anything -- which is the same failure this file exists to gate, committed
+in the file's own docstring. So the list lives in one place, the ratchet,
+and the gate prints what is left rather than asserting it here.
+
+Read a hollow entry as a missing C-LEVEL row, not a missing measurement:
+what survives on the ratchet are components whose kernels DO reach
+`docs/benchmarks.md` through a Python benchmark. What the empty C file
+costs them is the face where per-call overhead is not folded into the
+number -- which matters most for small blocks and per-sample methods, and
+least for the large-block rows already published.
 
 **4. Writing under a name nothing reads.** `jm_bench_write_json(&b, "X")`
 writes `bench_X_core.json`, and both collectors open
@@ -129,22 +136,22 @@ ALLOW: dict[str, str] = {
 }
 
 #: benchmarks that BUILD and RUN but record no measurement -- a `bench_*.c`
-#: with no `jm_bench_add` call writes `"benchmarks": []`, so the component is
-#: silently absent from every C snapshot -- though 11 of them are covered at
-#: the Python face and DO reach the published page, so what the empty file
-#: costs those is the C-level row, not the measurement. All 32 were jm
-#: scaffolds when this gate was written (`/* TODO: benchmark this component
-#: */`, or a `fir_state_t *obj = fir_create(...)` placeholder), and all 32
-#: were verifiably absent from the last real C snapshot -- zero exceptions,
-#: which is what makes the `jm_bench_add` test exact rather than heuristic.
+#: with no recording call writes `"benchmarks": []`, so the component is
+#: silently absent from every C snapshot. Every entry here is covered at the
+#: Python face and DOES reach the published page, so what the empty file
+#: costs it is the C-level row, not the measurement. All were jm scaffolds
+#: when this gate was written (`/* TODO: benchmark this component */`, or a
+#: `fir_state_t *obj = fir_create(...)` placeholder) and all were verifiably
+#: absent from the last real C snapshot -- zero exceptions, which is what
+#: makes the recording test exact rather than heuristic.
 #:
 #: RATCHET: may only shrink. Filling one in means deleting its line -- the
 #: gate FAILS on an entry whose benchmark has started measuring, so the list
-#: cannot rot in either direction. NINETEEN came off it in the pass that
-#: added this file -- every benchmark that was measured in no language at
-#: all. What remains is the eleven whose kernels ARE measured, at the Python
-#: face, and reach the published page today; what their empty C file costs
-#: is the C-level row, not the measurement.
+#: cannot rot in either direction. It has shrunk twice since it was written:
+#: once for the benchmarks measured in no language at all, which is the
+#: group doppler#891 called the actual hole and which is now closed, and
+#: again for `HalfbandDecimator`. The set below is the whole remainder --
+#: count it, do not trust a number written beside it.
 #: Tracked as doppler#891.
 HOLLOW_ALLOW: set[str] = {
     "corr",

@@ -203,24 +203,25 @@ instead. **A scaffold that is never filled in writes
 `"benchmarks": []`**, so its component silently vanishes from the
 snapshot while the file, the target and the `jm bench` run all exist.
 
-Thirty of them are in that state today
-([#891](https://github.com/doppler-dsp/doppler/issues/891)).
+Thirty were in that state when
+[#891](https://github.com/doppler-dsp/doppler/issues/891) was filed.
 
-**This costs a C-level row, not always the measurement.** Eleven of the
-thirty — `fir`, `nco`, `fft`, `fft2d`, `ddc`, `ddcr`, `corr`, `detector`,
-`detector2d`, `hbdecim_q15`, `HalfbandDecimator` — have Python benchmarks
-that run and publish, so those kernels *are* on `docs/benchmarks.md`
+**The current set is the `HOLLOW_ALLOW` ratchet in
+`scripts/check_bench_coverage.py`, and this page deliberately does not
+copy it out.** It used to, and every number in the copy went quietly
+wrong: the tally, the names, and — worst — a group this page called *the
+real gap*, the components measured in no language at all, which has since
+been closed. Read the ratchet; it is nine lines and it cannot be stale,
+because the gate fails on an entry whose benchmark has started measuring.
+
+**A hollow benchmark costs a C-level row, not always the measurement.**
+What survives on the ratchet are components whose kernels DO reach
+`docs/benchmarks.md` through a Python benchmark
 (`fir::…execute[819200]` at 74.0 → 261.4 MSa/s, `nco::…steps_u32_64k` at
 3.44 GSa/s). What their empty C file costs is the face where per-call
 overhead is not folded into the number — which matters most for small
 blocks and per-sample methods, and least for the large-block rows already
 published.
-
-The other **nineteen are measured in no language at all**, and that is the
-real gap: `mpsk_receiver`, `psd`, `specan`, `ratesync`, `pn`, `gold`,
-`carrier_mpsk`, `carrier_acq`, the burst family, `acc_trace`, `ber_meter`,
-`doppler_channel`, `imdmeas`, `nprmeas`, `tonemeas`, `interp_table`,
-`async_dsss_receiver`. Start there.
 
 `jm bench` does say so —
 
@@ -231,12 +232,14 @@ bench_fir_core: recorded 0 measurements -- this target measures nothing.
 
 — but it warns rather than fails, in a long log, from a target that runs
 occasionally by design. So `check_bench_coverage.py` fails `make lint` on
-a benchmark that calls `jm_bench_write_json` and never `jm_bench_add`,
-with the existing thirty carried as a ratchet that may only shrink.
+a benchmark that calls `jm_bench_write_json` and never records, with the
+ones that pre-date the gate carried as a ratchet that may only shrink.
 
-**Filling one in is a good first contribution**: pick a component from
-#891 — one of the nineteen first — write the timing loop against its real
-`_create()`, and delete its line from the ratchet.
+**Filling one in is a good first contribution**: take a name off
+`HOLLOW_ALLOW`, write the timing loop against its real `_create()`, and
+delete its line. The gate will tell you if you delete a line without
+filling the benchmark in, and equally if you fill one in and leave the
+line.
 
 ### How they work
 

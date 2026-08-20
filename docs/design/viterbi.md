@@ -197,7 +197,7 @@ ______________________________________________________________________
     with it is external truth that no round trip can provide. Until then this
     page does not claim a coding gain in dB.
 1. ~~**Whether `d_free = 10` is exhibited.**~~ **MEASURED**, and it is —
-    `test_conv_core.c` §6d walks the trellis the DESCRIPTION defines
+    `test_viterbi_core.c` §6d walks the trellis the DESCRIPTION defines
     (`conv_outputs` and `conv_next_state`) for the lightest path that leaves
     the all-zero state and returns to it, and reproduces the published free
     distance of three codes: **10** for CCSDS's (171,133) K = 7, 5 for the

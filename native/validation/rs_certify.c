@@ -265,7 +265,7 @@ chan_point (const rs_t *rs, double esn0_db, uint64_t seed)
     mod[i] += nz[i];
 
   /* The library's demapper, sliced. A positive LLR means symbol 0 — the
-     convention test_conv_core.c §5b pins — so the hard decision is its
+     convention test_viterbi_core.c §5b pins — so the hard decision is its
      sign and not a second slicer written here. */
   mpsk_soft_demap (mod, nbits, llr, nbits, 2, n0);
   for (size_t s = 0; s < nsym; s++)

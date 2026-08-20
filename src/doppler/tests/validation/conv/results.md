@@ -32,7 +32,9 @@ Design and API, not restated here:
 
 The campaign's order is header first. This table is the inventory that produced four new C sections: `conv_outputs` and `conv_next_state` had **zero** mentions, the LLR sign convention was pinned only against the test's own helper, `d_free` was an open unknown, and one claim was off by one.
 
-| # | claim in `conv_core.h` | C section | here |
+**Two headers and two test files, since doppler#893.** `viterbi` became its own declared component, so the decoder's claims left `conv_core.h` for `viterbi_core.h` and its C sections left `test_conv_core.c` for `test_viterbi_core.c`, keeping their numbers. The `C section` column says which file each row is in. This report still covers both because the encoder and the decoder are only meaningful against each other -- a decoder matched to a wrong encoder decodes perfectly and interoperates with nothing -- but `viterbi` is owed a certification of its own, which is [#894](https://github.com/doppler-dsp/doppler/issues/894).
+
+| # | claim in the header | C section | here |
 |---|---|---|---|
 | C1 | `conv_outputs` is the one expression both directions read | §2b | F2 |
 | C2 | output `j` is bit `j` of the word and the `j`-th symbol emitted | §2b (NEW) | — |
@@ -43,17 +45,17 @@ The campaign's order is header first. This table is the inventory that produced 
 | C7 | `conv_states` is `2^(k-1)` | §1 | — |
 | C8 | the encoder is continuous across calls | §3 | — |
 | C9 | `conv_encode` refuses an invalid code or a short buffer, untouched | §7 | — |
-| C10 | positive LLR means symbol 0, agreeing with a hard slicer | §5b (NEW) | — |
-| C11 | a positive scale cannot move the maximum-likelihood path | §5 | — |
-| C12 | `depth-1` branches are owed, then one bit per `n` symbols | §4, §5b | — |
-| C13 | `viterbi_decode` refuses a non-multiple or a short buffer | §7 | — |
-| C14 | `d_free = 10` for the CCSDS code | §6d (NEW) | F1 |
+| C10 | positive LLR means symbol 0, agreeing with a hard slicer | viterbi §5b | — |
+| C11 | a positive scale cannot move the maximum-likelihood path | viterbi §5 | — |
+| C12 | `depth-1` branches are owed, then one bit per `n` symbols | viterbi §4, §5b | — |
+| C13 | `viterbi_decode` refuses a non-multiple or a short buffer | viterbi §7 | — |
+| C14 | `d_free = 10` for the CCSDS code | viterbi §6d | F1 |
 | C15 | traceback depth 60 is measured, not a rule of thumb | — | §2.3 |
 | C16 | soft decisions are worth about 2 dB | — | §2.1, §2.2 |
-| C17 | in sync, the re-encode disagreement IS the channel SER | §6b, §6c | §2.4 |
-| C18 | the decoder resumes bit-exactly from a blob | §8 | — |
+| C17 | in sync, the re-encode disagreement IS the channel SER | viterbi §6b, §6c | §2.4 |
+| C18 | the decoder resumes bit-exactly from a blob | viterbi §8 | — |
 
-**What Python cannot reach: all of it.** `conv` has no binding, so unlike every other report in this campaign the evidence here is a C harness rendered by Python rather than a binding exercised by it. The `here` column points at what this report adds — the statistical behaviour no single assertion can hold — and `—` means the C section is the whole evidence and needs no help.
+**What Python cannot reach: the encoder.** `conv` has no binding, so unlike every other report in this campaign the evidence here is a C harness rendered by Python rather than a binding exercised by it. That is no longer true of the decoder -- `doppler.viterbi.Viterbi` exists as of doppler#893 -- but this report was built against the C harness and is left that way rather than half converted; the binding's own contract is exercised in `src/doppler/viterbi/tests/` and the state round trip in the shared matrix. The `here` column points at what this report adds — the statistical behaviour no single assertion can hold — and `—` means the C section is the whole evidence and needs no help.
 
 ## 2. Characterisation
 

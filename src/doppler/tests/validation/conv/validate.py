@@ -458,8 +458,21 @@ def build(write: bool = True) -> Report:
         "open unknown, and one claim was off by one."
     )
     R.md()
+    R.md(
+        "**Two headers and two test files, since doppler#893.** `viterbi` "
+        "became its own declared component, so the decoder's claims left "
+        "`conv_core.h` for `viterbi_core.h` and its C sections left "
+        "`test_conv_core.c` for `test_viterbi_core.c`, keeping their "
+        "numbers. The `C section` column says which file each row is in. "
+        "This report still covers both because the encoder and the decoder "
+        "are only meaningful against each other -- a decoder matched to a "
+        "wrong encoder decodes perfectly and interoperates with nothing -- "
+        "but `viterbi` is owed a certification of its own, which is "
+        "[#894](https://github.com/doppler-dsp/doppler/issues/894)."
+    )
+    R.md()
     R.table(
-        ["#", "claim in `conv_core.h`", "C section", "here"],
+        ["#", "claim in the header", "C section", "here"],
         [
             [
                 "C1",
@@ -511,28 +524,28 @@ def build(write: bool = True) -> Report:
             [
                 "C10",
                 "positive LLR means symbol 0, agreeing with a hard slicer",
-                "§5b (NEW)",
+                "viterbi §5b",
                 "—",
             ],
             [
                 "C11",
                 "a positive scale cannot move the maximum-likelihood path",
-                "§5",
+                "viterbi §5",
                 "—",
             ],
             [
                 "C12",
                 "`depth-1` branches are owed, then one bit per `n` symbols",
-                "§4, §5b",
+                "viterbi §4, §5b",
                 "—",
             ],
             [
                 "C13",
                 "`viterbi_decode` refuses a non-multiple or a short buffer",
-                "§7",
+                "viterbi §7",
                 "—",
             ],
-            ["C14", "`d_free = 10` for the CCSDS code", "§6d (NEW)", "F1"],
+            ["C14", "`d_free = 10` for the CCSDS code", "viterbi §6d", "F1"],
             [
                 "C15",
                 "traceback depth 60 is measured, not a rule of thumb",
@@ -543,16 +556,27 @@ def build(write: bool = True) -> Report:
             [
                 "C17",
                 "in sync, the re-encode disagreement IS the channel SER",
-                "§6b, §6c",
+                "viterbi §6b, §6c",
                 "§2.4",
             ],
-            ["C18", "the decoder resumes bit-exactly from a blob", "§8", "—"],
+            [
+                "C18",
+                "the decoder resumes bit-exactly from a blob",
+                "viterbi §8",
+                "—",
+            ],
         ],
     )
     R.md(
-        "**What Python cannot reach: all of it.** `conv` has no binding, so "
-        "unlike every other report in this campaign the evidence here is a C "
-        "harness rendered by Python rather than a binding exercised by it. "
+        "**What Python cannot reach: the encoder.** `conv` has no binding, "
+        "so unlike every other report in this campaign the evidence here is "
+        "a C harness rendered by Python rather than a binding exercised by "
+        "it. That is no longer true of the decoder -- `doppler.viterbi."
+        "Viterbi` exists as of doppler#893 -- but this report was built "
+        "against the C harness and is left that way rather than half "
+        "converted; the binding's own contract is exercised in "
+        "`src/doppler/viterbi/tests/` and the state round trip in the "
+        "shared matrix. "
         "The `here` column points at what this report adds — the statistical "
         "behaviour no single assertion can hold — and `—` means the C "
         "section is the whole evidence and needs no help."

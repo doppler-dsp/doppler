@@ -16,7 +16,7 @@
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.viterbi import Viterbi
+ * >>> from doppler.coding import Viterbi
  * >>> v = Viterbi([0o171, 0o133], k=7, depth=35)
  * >>> llr = np.array([2.0, -2.0] * 64, dtype=np.float32)
  * >>> bits = v.decode(llr)
@@ -80,7 +80,7 @@ typedef struct
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.viterbi import Viterbi
+ * >>> from doppler.coding import Viterbi
  * >>> v = Viterbi([0o171, 0o133], k=7, depth=35)
  * >>> v.decode(np.zeros(8, dtype=np.float32)).dtype
  * dtype('uint8')
@@ -115,7 +115,7 @@ void viterbi_destroy(viterbi_state_t *state);
  * @param state  Must be non-NULL.
  *
  * @code
- * >>> from doppler.viterbi import Viterbi
+ * >>> from doppler.coding import Viterbi
  * >>> v = Viterbi([0o171, 0o133], k=7, depth=35)
  * >>> v.reset()
  * @endcode
@@ -167,7 +167,7 @@ size_t viterbi_decode_max_out (const viterbi_state_t *state, size_t n_in);
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.viterbi import Viterbi
+ * >>> from doppler.coding import Viterbi
  * >>> v = Viterbi([0o171, 0o133], k=7, depth=35)
  * >>> llr = np.array([2.0, -2.0] * 128, dtype=np.float32)
  * >>> bits = v.decode(llr)

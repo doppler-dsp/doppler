@@ -16,14 +16,11 @@ target_include_directories(conv_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 add_executable(test_conv_core
     ${CMAKE_SOURCE_DIR}/native/tests/test_conv_core.c)
 # No ccsds_tm: the test's external truth is the impulse response, which is
-# what a
-# generator polynomial means and is checkable for every configuration. Holding
-# the CCSDS numbers to the standard is test_ccsds_tm_conv.c's job.
-# viterbi_core because sections 4-8 of the test still exercise the decoder
-# from here. Those belong in test_viterbi_core.c now that `viterbi` is a
-# declared object -- they are one 800-line main(), so the split is tracked as
-# follow-up on doppler#893 rather than rushed.
-target_link_libraries(test_conv_core PRIVATE conv_core viterbi_core m)
+# what a generator polynomial means and is checkable for every configuration.
+# Holding the CCSDS numbers to the standard is test_ccsds_tm_conv.c's job.
+# No viterbi_core either, since doppler#895 moved sections 4-8 to
+# test_viterbi_core.c -- this file is the CODE and the encoder now.
+target_link_libraries(test_conv_core PRIVATE conv_core m)
 target_include_directories(test_conv_core PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
@@ -32,6 +29,12 @@ add_test(NAME test_conv_core COMMAND test_conv_core)
 # The benchmark. Hand-registered because `conv` is a c_dep and not one of
 # jm's components, so `jm apply` generates no target for it and `jm bench`
 # cannot run it -- just-makeit#1023; run it by hand meanwhile.
+#
+# It measured 2.1x too slow until doppler#896: two dead buffers left behind
+# when doppler#895 moved the decode rows out were still being allocated and
+# FILLED before the timed loop, evicting the working set, and there was no
+# settle before timing. 6.24 -> 4.89 -> 4.44 -> 2.92 ns/info-bit, which is
+# what bench_conv_enc_core.c independently measures for the same kernel.
 # scripts/check_bench_coverage.py keeps the rest honest: the target exists,
 # it records a measurement, and it writes JSON under a collectable name.
 add_executable(bench_conv_core

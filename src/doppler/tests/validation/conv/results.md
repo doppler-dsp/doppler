@@ -55,7 +55,7 @@ The campaign's order is header first. This table is the inventory that produced 
 | C17 | in sync, the re-encode disagreement IS the channel SER | viterbi §6b, §6c | §2.4 |
 | C18 | the decoder resumes bit-exactly from a blob | viterbi §8 | — |
 
-**What Python cannot reach: the encoder.** `conv` has no binding, so unlike every other report in this campaign the evidence here is a C harness rendered by Python rather than a binding exercised by it. That is no longer true of the decoder -- `doppler.viterbi.Viterbi` exists as of doppler#893 -- but this report was built against the C harness and is left that way rather than half converted; the binding's own contract is exercised in `src/doppler/viterbi/tests/` and the state round trip in the shared matrix. The `here` column points at what this report adds — the statistical behaviour no single assertion can hold — and `—` means the C section is the whole evidence and needs no help.
+**What Python cannot reach: the encoder.** `conv` has no binding, so unlike every other report in this campaign the evidence here is a C harness rendered by Python rather than a binding exercised by it. That is no longer true of either direction -- `doppler.coding.Viterbi` and `ConvEncoder` both exist now -- but this report was built against the C harness and is left that way rather than half converted; the binding's own contract is exercised in `src/doppler/viterbi/tests/` and the state round trip in the shared matrix. The `here` column points at what this report adds — the statistical behaviour no single assertion can hold — and `—` means the C section is the whole evidence and needs no help.
 
 ## 2. Characterisation
 

@@ -77,9 +77,7 @@ main (void)
 
   uint8_t *in  = malloc (n_in);
   uint8_t *cod = malloc (n_cod);
-  uint8_t *out = malloc (n_in + 64);
-  float   *llr = malloc (n_cod * sizeof *llr);
-  if (!in || !cod || !out || !llr)
+  if (!in || !cod)
     return 1;
 
   /* A deterministic, non-trivial bit pattern. The trellis does the same work
@@ -96,16 +94,22 @@ main (void)
   conv_enc_init (&enc);
   conv_encode (&enc, &CODE, in, n_in, cod, n_cod);
 
-  /* Soft LLRs at a healthy operating point: +/-2.0 with the sign carrying
-     the coded bit. A decoder's cost does not depend on the values, but
-     feeding it noise-free input keeps the survivor paths meaningful if
-     anyone reads the decoded output while debugging this file. */
-  for (size_t i = 0; i < n_cod; i++)
-    llr[i] = cod[i] ? -2.0f : 2.0f;
-
   printf ("=== conv benchmark ===\n");
   printf ("k=%u rate 1/%u (0%o, 0%o), %zu info bits/round, %d rounds\n\n",
           CODE.k, CODE.n, CODE.poly[0], CODE.poly[1], n_in, ITERATIONS);
+
+  /* One settle before any timing, then min over rounds. */
+  {
+    struct timespec w0, w1;
+    clock_gettime (CLOCK_MONOTONIC, &w0);
+    do
+      {
+        conv_enc_init (&enc);
+        conv_encode (&enc, &CODE, in, n_in, cod, n_cod);
+        clock_gettime (CLOCK_MONOTONIC, &w1);
+      }
+    while (elapsed_sec (&w0, &w1) < 0.25);
+  }
 
   static double t_enc[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
@@ -127,8 +131,6 @@ main (void)
 
   free (in);
   free (cod);
-  free (out);
-  free (llr);
   jm_bench_write_json (&_bench, "conv");
   return 0;
 }

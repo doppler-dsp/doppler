@@ -41,6 +41,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md) _What_ [_**ccsds\_tm\_rs\_decode\_block**_](ccsds__tm__rs_8h.md#function-ccsds_tm_rs_decode_block) _found in one codeblock._
 * **struct** [**cic\_state\_t**](structcic__state__t.md) _CIC filter state._ 
 * **struct** [**conv\_code\_t**](structconv__code__t.md) _A rate-1/n convolutional code._ 
+* **struct** [**conv\_enc\_state\_t**](structconv__enc__state__t.md) _A code and the register encoding it, together._ 
 * **struct** [**conv\_enc\_t**](structconv__enc__t.md) _Encoder state: the shift register, and nothing else._ 
 * **struct** [**corr2d\_state\_t**](structcorr2d__state__t.md) _2-D FFT correlator state._ 
 * **struct** [**corr\_state\_t**](structcorr__state__t.md) _1-D FFT correlator state._ 

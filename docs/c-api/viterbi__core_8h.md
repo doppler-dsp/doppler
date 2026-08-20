@@ -123,7 +123,7 @@ Lifecycle: `create -> [decode / reset]* -> destroy`.
 
 ```C++
 >>> import numpy as np
->>> from doppler.viterbi import Viterbi
+>>> from doppler.coding import Viterbi
 >>> v = Viterbi([0o171, 0o133], k=7, depth=35)
 >>> llr = np.array([2.0, -2.0] * 64, dtype=np.float32)
 >>> bits = v.decode(llr)
@@ -302,7 +302,7 @@ The array IS the code: its length gives the number of outputs per input bit, so 
 
 ```C++
 >>> import numpy as np
->>> from doppler.viterbi import Viterbi
+>>> from doppler.coding import Viterbi
 >>> v = Viterbi([0o171, 0o133], k=7, depth=35)
 >>> v.decode(np.zeros(8, dtype=np.float32)).dtype
 dtype('uint8')
@@ -428,7 +428,7 @@ Bits written, which may be 0 while the traceback fills.
 
 ```C++
 >>> import numpy as np
->>> from doppler.viterbi import Viterbi
+>>> from doppler.coding import Viterbi
 >>> v = Viterbi([0o171, 0o133], k=7, depth=35)
 >>> llr = np.array([2.0, -2.0] * 128, dtype=np.float32)
 >>> bits = v.decode(llr)
@@ -570,7 +570,7 @@ The code and the depth are unchanged — this is the boundary between two indepe
 
 
 ```C++
->>> from doppler.viterbi import Viterbi
+>>> from doppler.coding import Viterbi
 >>> v = Viterbi([0o171, 0o133], k=7, depth=35)
 >>> v.reset()
 ```

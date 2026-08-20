@@ -1,9 +1,9 @@
 /*
- * viterbi_ext_viterbi.c — Viterbi type for the viterbi module.
+ * coding_ext_viterbi.c — Viterbi type for the coding module.
  *
- * Included by viterbi_ext.c (the module aggregator).
+ * Included by coding_ext.c (the module aggregator).
  * Hand-patches to this file are preserved across jm commands.
- * Do NOT compile this file directly — only viterbi_ext.c is compiled.
+ * Do NOT compile this file directly — only coding_ext.c is compiled.
  */
 /* ======================================================== */
 /* ViterbiObject — wraps viterbi_state_t *       */
@@ -283,11 +283,13 @@ static PyMethodDef ViterbiObj_methods[] = {
     "\n"
     "The code and the depth are unchanged — this is the boundary between two\n"
     "independent captures, not a reconfiguration. The next decode refills\n"
-    "the traceback before it emits, exactly as after create.\n"
+    "the traceback before it emits, exactly as after create, and the\n"
+    "all-zero state is given the winning metric, matching an encoder that\n"
+    "starts from a reset register.\n"
     "\n"
     "Examples\n"
     "--------\n"
-    ">>> from doppler.viterbi import Viterbi\n"
+    ">>> from doppler.coding import Viterbi\n"
     ">>> v = Viterbi([0o171, 0o133], k=7, depth=35)\n"
     ">>> v.reset()\n" },
 
@@ -331,7 +333,7 @@ static PyMethodDef ViterbiObj_methods[] = {
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
-    ">>> from doppler.viterbi import Viterbi\n"
+    ">>> from doppler.coding import Viterbi\n"
     ">>> v = Viterbi([0o171, 0o133], k=7, depth=35)\n"
     ">>> llr = np.array([2.0, -2.0] * 128, dtype=np.float32)\n"
     ">>> bits = v.decode(llr)\n"
@@ -443,39 +445,41 @@ static PyMethodDef ViterbiObj_methods[] = {
 };
 
 static PyTypeObject ViterbiObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "viterbi.Viterbi",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "coding.Viterbi",
   .tp_basicsize                           = sizeof (ViterbiObject),
   .tp_dealloc                             = (destructor)ViterbiObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Build a decoder for the code the polynomials describe.\n"
-                "\n"
-                "Parameters\n"
-                "----------\n"
-                "poly : NDArray[np.uint32]\n"
-                "    Input uint32_t array (length passed as poly_len).\n"
-                "k : int, default 7\n"
-                "    k (default: 7).\n"
-                "invert : int, default 0\n"
-                "    invert (default: 0).\n"
-                "depth : int, default 35\n"
-                "    depth (default: 35).\n"
-                "\n"
-                "Raises\n"
-                "------\n"
-                "ValueError\n"
-                "    If construction fails. The exception message is ``Viterbi: "
-                "not a usable\n"
-                "    code (need 1 to 6 non-zero polynomials, each under 2**k, 2 "
-                "<= k <= 9,\n"
-                "    and depth >= 1)``.\n"
-                "\n"
-                "Examples\n"
-                "--------\n"
-                ">>> import numpy as np\n"
-                ">>> from doppler.viterbi import Viterbi\n"
-                ">>> v = Viterbi([0o171, 0o133], k=7, depth=35)\n"
-                ">>> v.decode(np.zeros(8, dtype=np.float32)).dtype\n"
-                "dtype('uint8')\n",
+  .tp_doc
+  = "Build a decoder for the code the polynomials describe.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "poly : NDArray[np.uint32]\n"
+    "    Generator polynomials, one per output. The array IS the code;\n"
+    "    `poly_len` gives `n`.\n"
+    "k : int, default 7\n"
+    "    k (default: 7).\n"
+    "invert : int, default 0\n"
+    "    invert (default: 0).\n"
+    "depth : int, default 35\n"
+    "    depth (default: 35).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``Viterbi: not a "
+    "usable\n"
+    "    code (need 1 to 6 non-zero polynomials, each under 2**k, 2 <= k <= "
+    "9,\n"
+    "    and depth >= 1)``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.coding import Viterbi\n"
+    ">>> v = Viterbi([0o171, 0o133], k=7, depth=35)\n"
+    ">>> v.decode(np.zeros(8, dtype=np.float32)).dtype\n"
+    "dtype('uint8')\n",
   .tp_methods = ViterbiObj_methods,
   .tp_new     = ViterbiObj_new,
   .tp_init    = (initproc)ViterbiObj_init,

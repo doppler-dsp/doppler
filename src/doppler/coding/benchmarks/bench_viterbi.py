@@ -12,7 +12,7 @@ what a Python caller actually pays, block call overhead included.
 import numpy as np
 import pytest
 
-from doppler.viterbi import Viterbi
+from doppler.coding import Viterbi
 
 BLOCK_8K = 8_192
 BLOCK_64K = 65_536

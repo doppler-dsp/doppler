@@ -15,6 +15,45 @@ ______________________________________________________________________
 
 ### Added
 
+- **`doppler.coding.ConvEncoder` — doppler can encode now**
+    ([#900](https://github.com/doppler-dsp/doppler/issues/900)). Until this,
+    **no class in the library exposed an `encode()` at all.** `Viterbi`
+    accepts any rate-1/n code, and Python could produce symbols for exactly
+    one of them — CCSDS's, and only inside a `FrameDesc`, because that path's
+    stage kinds bind to `ccsds_tm_frame_ops` and carry a depth rather than a
+    polynomial. A decoder whose matching encoder cannot be reached is a
+    decoder that can only be tested against itself.
+
+    ```python
+    from doppler.coding import ConvEncoder, Viterbi
+
+    sym  = ConvEncoder([0o171, 0o133], k=7, invert=0x2).encode(bits)
+    back = Viterbi([0o171, 0o133], k=7, depth=35).decode(llr)
+    ```
+
+    `conv` keeps the CODE — the description, the trellis arithmetic and the
+    kernel — and `conv_enc` is the stateful encoder over one, the same split
+    `viterbi` established. It is not a second implementation:
+    `conv_enc_encode` calls `conv_encode`, and the C benchmark measures the
+    wrapper at **1.001x** the raw kernel.
+
+    Two measurements worth recording. Encoding is **flat in `k`** — 2.92 ns
+    per information bit at every `k` from 3 to 9, because the encoder
+    computes `n` parities per input bit and never walks a trellis — against
+    the decoder's 331 to 1699 µs over the same range, where `2**(k-1)` states
+    set the price. And the register carrying between calls is the whole
+    reason the encoder is an object: a chunked encode is bit-identical to one
+    call, while an encoder restarted per block emits `k - 1` wrong symbols at
+    every boundary.
+
+- **`doppler.viterbi` is now `doppler.coding`** — **BREAKING**, though it
+    breaks nothing released: `Viterbi` shipped in no tag, and is
+    `[Unreleased]` above. A module named after the DECODING algorithm cannot
+    hold the encoder without reading wrong, and jm's `reexports` names
+    submodules of the same package rather than a sibling, so a re-export
+    could not bridge them. `doppler.coding` is the home for the general code
+    families a standard configures; `rs` follows.
+
 - **`ccsds_tm` certified — the 14th object, and the last of the three with
     no Python face** ([#894](https://github.com/doppler-dsp/doppler/issues/894)
     context;
@@ -100,8 +139,8 @@ ______________________________________________________________________
 
     Three things the new measurements say, none of which the tree had
     recorded: at the CCSDS k=7 rate-1/2 code, Viterbi decode runs at
-    **6.2 Mbit/s against the encoder's 160-240**, so decoding is the
-    expensive direction by more than an order of magnitude; RS(255,223) costs
+    **6.2 Mbit/s against the encoder's 342**, so decoding is the expensive
+    direction by more than fifty times; RS(255,223) costs
     **1.33x** from a clean
     codeword to a fully-loaded one, because the 32 syndromes dominate the
     correction they gate; and in the CCSDS chain the inner code is **40%** of

@@ -2556,25 +2556,51 @@ objects = ["loop_filter", "costas", "dll", "symsync", "ratesync", "carrier_mpsk"
 # ccsds_tm_ for the standard's picks and conv_/rs_ for the general codes, and
 # a module by that name regenerates the retired prefix straight back into
 # its own generated core and binding filenames.
-[module.viterbi]
-objects = ["viterbi"]
+# coding — the general channel codes, as one Python home.
+#
+# doppler#900. `conv` and `rs` are code FAMILIES that CCSDS configures; they
+# are not CCSDS's, and their C components are deliberately separate for that
+# reason. What they lacked was a Python home: `Viterbi` shipped in its own
+# module (it is one algorithm over one family) and an encoder had nowhere to
+# go that read correctly — `viterbi.ConvEncoder` names the decoder to reach
+# the encoder, and `[module.conv]` would collide with the hand-owned c_dep
+# CMakeLists that already lives at native/src/conv/.
+#
+# So: one module for the family, holding BOTH directions, with `rs` to
+# follow. The umbrella is justified by the second caller rather than invented
+# ahead of one.
+#
+# `Viterbi` moved here from `[module.viterbi]`, which is gone. A module named
+# after the DECODING algorithm cannot hold the encoder without reading wrong,
+# and jm's `reexports` names submodules of the same package rather than a
+# sibling, so a re-export could not bridge them either. Free to move because
+# `Viterbi` shipped in no tag — it is `[Unreleased]` as of 0.42.0.
+#
+# NOT `fec`: doppler#828 retired that identifier prefix across 30 symbols, and
+# a module by that name regenerates it into its own generated filenames — the
+# retired-names gate catches it, which is the gate working.
+[module.coding]
+objects = ["conv_enc", "viterbi"]
 doc = """
-Soft-decision Viterbi decoding of convolutional codes. The code itself —
-polynomials, encoder, trellis arithmetic — lives in the `conv` component;
-this is the decoder built over one, so a caller names the polynomials and
-gets a decoder for them.
+The general channel codes — the families a standard configures, rather than
+any standard's picks. `ConvEncoder` and `Viterbi` are the two directions of a
+rate-1/n convolutional code, and both take the generator polynomials, so a
+caller names their own code rather than choosing from a menu.
 
-Soft in, hard out: `decode` takes log-likelihood ratios, one per channel
-symbol, and returns information bits. A hard-decision decoder throws away
-most of the gain the code exists to provide, which is why the input is LLRs.
+`ccsds_tm` holds CCSDS 131.0-B's configuration of these, the way any other
+caller would.
 
 Examples
 --------
 >>> import numpy as np
->>> from doppler.viterbi import Viterbi
->>> v = Viterbi([0o171, 0o133], k=7, depth=35)
->>> bits = v.decode(np.array([2.0, -2.0] * 128, dtype=np.float32))
->>> bits.dtype
+>>> from doppler.coding import ConvEncoder, Viterbi
+>>> bits = np.array([1, 0, 1, 1, 0, 0, 1, 0], dtype=np.uint8)
+>>> sym = ConvEncoder([0o171, 0o133], k=7).encode(bits)
+>>> sym.size == 2 * bits.size
+True
+>>> llr = np.where(sym, -8.0, 8.0).astype(np.float32)
+>>> bits_out = Viterbi([0o171, 0o133], k=7, depth=35).decode(llr)
+>>> bits_out.dtype
 dtype('uint8')
 """
 

@@ -15,6 +15,49 @@ ______________________________________________________________________
 
 ### Added
 
+- **just-makeit pinned to 0.63.2.** Not a tooling-only bump — it retires
+    two workarounds this tree carries and closes seven doppler-filed issues:
+    [gh-1023](https://github.com/just-buildit/just-makeit/issues/1023)
+    (`jm bench` runs what the tree BUILDS, not what the manifest declares),
+    [gh-1034](https://github.com/just-buildit/just-makeit/issues/1034) (a
+    function-only module gets a C test and a benchmark),
+    [gh-1042](https://github.com/just-buildit/just-makeit/issues/1042) (every
+    parameter in a generated signature gets a `Parameters` entry),
+    [gh-1046](https://github.com/just-buildit/just-makeit/issues/1046) (jm
+    does not emit a CMake target name the project already declares),
+    [gh-1051](https://github.com/just-buildit/just-makeit/issues/1051) (a
+    `count_default` method's `.pyi` no longer hardcodes `count: int = 1`) and
+    [gh-1052](https://github.com/just-buildit/just-makeit/issues/1052) (a
+    header-derived `*_max_out` doc is one paragraph, not one per source line).
+
+    **0.63.0 and 0.63.1 could not build this tree at all**, which is why the
+    pin skips to the patch. gh-1034 gave every module with free functions a
+    `test_`/`bench_<name>_core` pair, and for a *collocated module-object* —
+    a module whose `objects` list carries its own name — the object already
+    emits `test_<obj>_core` into that same `CMakeLists.txt`. Two names, one
+    file, and `cmake` refuses to configure:
+
+    ```
+    add_executable cannot create target "test_agc_core" because another
+    target with the same name already exists.
+    ```
+
+    `agc` and `wfm_writer` are the two modules here that are both collocated
+    and carry module functions. Nothing was worked around locally: the
+    colliding lines are jm-generated, so a hand-patch would be drift the gate
+    would then have to be told to ignore.
+
+    The fix is
+    [gh-1055](https://github.com/just-buildit/just-makeit/issues/1055), and
+    under it [gh-1057](https://github.com/just-buildit/just-makeit/issues/1057)
+    — the reason nothing caught it. gh-1046 taught jm not to collide with the
+    *project*; nothing taught it not to collide with *itself*, and
+    `_targets.from_manifest()` accumulated into a `set`, so a name emitted
+    twice was indistinguishable from one emitted once. Measured on this tree
+    at filing: 365 names emitted, a set of 356, **nine produced twice and the
+    set reporting zero**. jm now enumerates into a list and gates on the
+    invariant that it emits each target name exactly once.
+
 - **`doppler.coding.ConvEncoder` — doppler can encode now**
     ([#900](https://github.com/doppler-dsp/doppler/issues/900)). Until this,
     **no class in the library exposed an `encode()` at all.** `Viterbi`

@@ -140,14 +140,13 @@ ALLOW: dict[str, str] = {
 #:
 #: RATCHET: may only shrink. Filling one in means deleting its line -- the
 #: gate FAILS on an entry whose benchmark has started measuring, so the list
-#: cannot rot in either direction. SEVENTEEN came off it in the pass that
-#: added this file, leaving the two that need a preamble/sync fixture to
-#: drive (burst_demod, async_dsss_receiver) and the eleven whose kernels are
-#: already measured at the Python face.
+#: cannot rot in either direction. NINETEEN came off it in the pass that
+#: added this file -- every benchmark that was measured in no language at
+#: all. What remains is the eleven whose kernels ARE measured, at the Python
+#: face, and reach the published page today; what their empty C file costs
+#: is the C-level row, not the measurement.
 #: Tracked as doppler#891.
 HOLLOW_ALLOW: set[str] = {
-    "async_dsss_receiver",
-    "burst_demod",
     "corr",
     "ddc",
     "ddcr",

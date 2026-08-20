@@ -1,7 +1,7 @@
 /*
  * detection_ext.c — Python extension module detection
  *
- * Objects: LockDet
+ * Objects: LockDet, SyncFinder
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -14,6 +14,7 @@
 #include "detection/detection_core.h"
 
 #include "detection_ext_lockdet.c"
+#include "detection_ext_syncword.c"
 
 static PyObject *
 _bind_marcum_q (PyObject *self, PyObject *args, PyObject *kwds)
@@ -952,6 +953,8 @@ PyInit_detection (void)
   import_array ();
   if (PyType_Ready (&LockDetObjType) < 0)
     return NULL;
+  if (PyType_Ready (&SyncFinderObjType) < 0)
+    return NULL;
   PyObject *m = PyModule_Create (&detection_moduledef);
   if (!m)
     return NULL;
@@ -959,6 +962,13 @@ PyInit_detection (void)
   if (PyModule_AddObject (m, "LockDet", (PyObject *)&LockDetObjType) < 0)
     {
       Py_DECREF (&LockDetObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&SyncFinderObjType);
+  if (PyModule_AddObject (m, "SyncFinder", (PyObject *)&SyncFinderObjType) < 0)
+    {
+      Py_DECREF (&SyncFinderObjType);
       Py_DECREF (m);
       return NULL;
     }

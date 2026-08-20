@@ -114,6 +114,8 @@ extern "C" {
 
 #include "lockdet/lockdet_core.h"
 
+#include "syncword/syncword_core.h"
+
 #include "agc/agc_core.h"
 
 #include "doppler_channel/doppler_channel_core.h"

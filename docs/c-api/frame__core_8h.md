@@ -231,11 +231,11 @@ The new field's index, or -1 if the description is full, already built, or the l
 
 ```C++
 >>> import numpy as np
->>> from doppler.wfm import FrameDesc
+>>> from doppler.wfm import FrameDesc, ccsds_asm_bits
 >>> empty = np.empty(0, np.uint8)
->>> asm = np.array([(0x1ACFFC1D >> (31 - i)) & 1 for i in range(32)],
-...                np.uint8)
->>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)], np.uint8)
+>>> asm = ccsds_asm_bits()
+>>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
+...                   np.uint8)
 >>> data = np.unpackbits(octets).astype(np.uint8)
 >>> d = FrameDesc(empty, empty, empty)   # begin from nothing
 >>> d.add_field(asm)                     # the attached sync marker
@@ -301,11 +301,11 @@ The new stage's index, or -1 if the description is full or already built.
 
 ```C++
 >>> import numpy as np
->>> from doppler.wfm import FrameDesc
+>>> from doppler.wfm import FrameDesc, ccsds_asm_bits
 >>> empty = np.empty(0, np.uint8)
->>> asm = np.array([(0x1ACFFC1D >> (31 - i)) & 1 for i in range(32)],
-...                np.uint8)
->>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)], np.uint8)
+>>> asm = ccsds_asm_bits()
+>>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
+...                   np.uint8)
 >>> data = np.unpackbits(octets).astype(np.uint8)
 >>> d = FrameDesc(empty, empty, empty)
 >>> _ = d.add_field(asm), d.add_field(data)

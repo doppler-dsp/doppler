@@ -145,6 +145,36 @@ void rrc_taps(double beta, int sps, int span, float *out);
 void dsss_spread(const float complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, int sf, float complex *out);
 void rrc_h(const double *t, size_t t_len, double *out, double beta);
 void rc_h(const double *t, size_t t_len, double *out, double beta);
+/**
+ * @brief The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits.
+ *
+ * `out[0]` is the first bit on the wire — figure 9-1 of 131.0-B numbers the
+ * marker's bit 0 as the most significant bit of 0x1A. One bit per byte, the
+ * convention every frame path here passes around.
+ *
+ * The thing a Python receiver ACQUIRES on: pair it with
+ * `doppler.detection.SyncFinder` to find where a CADU starts in a bit
+ * stream, then slice and `Frame.check()` it. The marker is deliberately NOT
+ * randomised (10.4's NOTE: "The ASM was not randomized and is not
+ * derandomized"), so it reads the same in every frame and in exactly one
+ * polarity — which is what makes it the only thing in a CADU that can report
+ * a 180-degree carrier ambiguity.
+ *
+ * A function rather than a constant a caller expands, because an MSB-first
+ * expansion written out twice is a transcription that can disagree with
+ * itself. This tree's own doctests were the second copy until doppler#900.
+ *
+ * @param out  Receives 32 bits, one per byte.
+ * @code
+ * >>> from doppler.wfm import ccsds_asm_bits
+ * >>> b = ccsds_asm_bits()
+ * >>> b.size, b[:8].tolist()          # 0x1A, first bit at the top
+ * (32, [0, 0, 0, 1, 1, 0, 1, 0])
+ * >>> int("".join(map(str, b.tolist())), 2) == 0x1ACFFC1D
+ * True
+ * @endcode
+ */
+void ccsds_asm_bits(uint8_t *out);
 #ifdef __cplusplus
 }
 #endif

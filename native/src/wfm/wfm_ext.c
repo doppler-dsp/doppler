@@ -120,6 +120,20 @@ _bind_mls_poly (PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+_bind_ccsds_asm_bits (PyObject *self, PyObject *Py_UNUSED (args))
+{
+  (void)self;
+  npy_intp  _dim = (npy_intp)(32);
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_UINT8, 0);
+  if (!_out)
+    {
+      return NULL;
+    }
+  ccsds_asm_bits ((uint8_t *)PyArray_DATA ((PyArrayObject *)_out));
+  return _out;
+}
+
+static PyObject *
 _bind_crc16 (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
@@ -381,6 +395,44 @@ static PyMethodDef wfm_module_methods[] = {
     ">>> from doppler.wfm import mls_poly\n"
     ">>> hex(mls_poly(7))\n"
     "'0x41'\n" },
+  { "ccsds_asm_bits", _bind_ccsds_asm_bits, METH_NOARGS,
+    "The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits —\n"
+    "`out[0]` is the first bit on the wire (the top of 0x1A). Pass it to\n"
+    "`doppler.detection.SyncFinder` to acquire a CADU in a bit stream; it is\n"
+    "NOT randomised, so it reads the same in every frame and in exactly one\n"
+    "polarity, which is what makes it the thing that reports a 180-degree\n"
+    "carrier ambiguity.\n"
+    "\n"
+    "`out[0]` is the first bit on the wire — figure 9-1 of 131.0-B numbers\n"
+    "the marker's bit 0 as the most significant bit of 0x1A. One bit per\n"
+    "byte, the convention every frame path here passes around.\n"
+    "\n"
+    "The thing a Python receiver ACQUIRES on: pair it with\n"
+    "`doppler.detection.SyncFinder` to find where a CADU starts in a bit\n"
+    "stream, then slice and `Frame.check()` it. The marker is deliberately\n"
+    "NOT randomised (10.4's NOTE: \"The ASM was not randomized and is not\n"
+    "derandomized\"), so it reads the same in every frame and in exactly one\n"
+    "polarity — which is what makes it the only thing in a CADU that can\n"
+    "report a 180-degree carrier ambiguity.\n"
+    "\n"
+    "A function rather than a constant a caller expands, because an\n"
+    "MSB-first expansion written out twice is a transcription that can\n"
+    "disagree with itself. This tree's own doctests were the second copy\n"
+    "until doppler#900.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.uint8]\n"
+    "    Output.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.wfm import ccsds_asm_bits\n"
+    ">>> b = ccsds_asm_bits()\n"
+    ">>> b.size, b[:8].tolist()          # 0x1A, first bit at the top\n"
+    "(32, [0, 0, 0, 1, 1, 0, 1, 0])\n"
+    ">>> int(\"\".join(map(str, b.tolist())), 2) == 0x1ACFFC1D\n"
+    "True\n" },
   { "crc16", (PyCFunction)(void *)_bind_crc16, METH_VARARGS | METH_KEYWORDS,
     "CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit\n"
     "array, MSB-first — the DSSS burst frame trailer wfmgen appends and\n"

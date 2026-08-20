@@ -1237,11 +1237,11 @@ class Frame:
         Examples
         --------
         >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
+        >>> from doppler.wfm import FrameDesc, ccsds_asm_bits
         >>> empty = np.empty(0, np.uint8)
-        >>> asm = np.array([(0x1ACFFC1D >> (31 - i)) & 1 for i in range(32)],
-        ...                np.uint8)
-        >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)], np.uint8)
+        >>> asm = ccsds_asm_bits()
+        >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
+        ...                   np.uint8)
         >>> data = np.unpackbits(octets).astype(np.uint8)
         >>> d = FrameDesc(empty, empty, empty)   # begin from nothing
         >>> d.add_field(asm)                     # the attached sync marker
@@ -1304,11 +1304,11 @@ class Frame:
         Examples
         --------
         >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
+        >>> from doppler.wfm import FrameDesc, ccsds_asm_bits
         >>> empty = np.empty(0, np.uint8)
-        >>> asm = np.array([(0x1ACFFC1D >> (31 - i)) & 1 for i in range(32)],
-        ...                np.uint8)
-        >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)], np.uint8)
+        >>> asm = ccsds_asm_bits()
+        >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
+        ...                   np.uint8)
         >>> data = np.unpackbits(octets).astype(np.uint8)
         >>> d = FrameDesc(empty, empty, empty)
         >>> _ = d.add_field(asm), d.add_field(data)
@@ -2012,11 +2012,11 @@ class FrameDesc:
         Examples
         --------
         >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
+        >>> from doppler.wfm import FrameDesc, ccsds_asm_bits
         >>> empty = np.empty(0, np.uint8)
-        >>> asm = np.array([(0x1ACFFC1D >> (31 - i)) & 1 for i in range(32)],
-        ...                np.uint8)
-        >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)], np.uint8)
+        >>> asm = ccsds_asm_bits()
+        >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
+        ...                   np.uint8)
         >>> data = np.unpackbits(octets).astype(np.uint8)
         >>> d = FrameDesc(empty, empty, empty)   # begin from nothing
         >>> d.add_field(asm)                     # the attached sync marker
@@ -2079,11 +2079,11 @@ class FrameDesc:
         Examples
         --------
         >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
+        >>> from doppler.wfm import FrameDesc, ccsds_asm_bits
         >>> empty = np.empty(0, np.uint8)
-        >>> asm = np.array([(0x1ACFFC1D >> (31 - i)) & 1 for i in range(32)],
-        ...                np.uint8)
-        >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)], np.uint8)
+        >>> asm = ccsds_asm_bits()
+        >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
+        ...                   np.uint8)
         >>> data = np.unpackbits(octets).astype(np.uint8)
         >>> d = FrameDesc(empty, empty, empty)
         >>> _ = d.add_field(asm), d.add_field(data)
@@ -2563,6 +2563,47 @@ def mls_poly(n: int) -> int:
     >>> from doppler.wfm import mls_poly
     >>> hex(mls_poly(7))
     '0x41'
+
+    """
+
+def ccsds_asm_bits() -> NDArray[np.uint8]:
+    """The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits —
+    `out[0]` is the first bit on the wire (the top of 0x1A). Pass it to
+    `doppler.detection.SyncFinder` to acquire a CADU in a bit stream; it is
+    NOT randomised, so it reads the same in every frame and in exactly one
+    polarity, which is what makes it the thing that reports a 180-degree
+    carrier ambiguity.
+
+    `out[0]` is the first bit on the wire — figure 9-1 of 131.0-B numbers
+    the marker's bit 0 as the most significant bit of 0x1A. One bit per
+    byte, the convention every frame path here passes around.
+
+    The thing a Python receiver ACQUIRES on: pair it with
+    `doppler.detection.SyncFinder` to find where a CADU starts in a bit
+    stream, then slice and `Frame.check()` it. The marker is deliberately
+    NOT randomised (10.4's NOTE: "The ASM was not randomized and is not
+    derandomized"), so it reads the same in every frame and in exactly one
+    polarity — which is what makes it the only thing in a CADU that can
+    report a 180-degree carrier ambiguity.
+
+    A function rather than a constant a caller expands, because an
+    MSB-first expansion written out twice is a transcription that can
+    disagree with itself. This tree's own doctests were the second copy
+    until doppler#900.
+
+    Returns
+    -------
+    NDArray[np.uint8]
+        Output.
+
+    Examples
+    --------
+    >>> from doppler.wfm import ccsds_asm_bits
+    >>> b = ccsds_asm_bits()
+    >>> b.size, b[:8].tolist()          # 0x1A, first bit at the top
+    (32, [0, 0, 0, 1, 1, 0, 1, 0])
+    >>> int("".join(map(str, b.tolist())), 2) == 0x1ACFFC1D
+    True
 
     """
 

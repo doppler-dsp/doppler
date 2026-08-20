@@ -206,6 +206,77 @@ assert det_threshold_f(1e-3, 16) > det_threshold_f(1e-3, 64) > 1.0
 
 ______________________________________________________________________
 
+## Frame synchronisation
+
+The detectors above threshold a *statistic*. `SyncFinder` thresholds a
+*distance*: it correlates a known marker against every bit offset of a stream,
+in both polarities, and reports the **first** offset within `max_errors` of it.
+First rather than best, because a best-match search has to see the whole stream
+before it can answer and a synchroniser reading a live capture cannot wait.
+
+It is the general kernel, not any one standard's: pass the marker. CCSDS's
+32-bit attached sync marker comes from
+[`ccsds_asm_bits()`](python-wfmgen.md#acquiring-one-where-a-received-frame-starts),
+so nothing transcribes `0x1ACFFC1D` twice.
+
+!!! warning "`max_errors` is not a property of the marker"
+
+    Half of 32 is 16, so 8 "sounds safe". At `t = 8` the marker is found at
+    its true offset only **58 %** of the time on a stream with no channel
+    errors at all — because each of the offsets ahead of it is an independent
+    chance to false-hit *first*, and the search reports the first acceptable
+    offset. The number you need is a function of how much stream you sweep.
+    Measured in
+    [the `ccsds_tm` validation report](../dev/contributing/validation-log.md);
+    the fix is to ask, not to guess.
+
+`pfa` is the per-offset false-alarm probability,
+`2 * sum(C(n, i) for i <= t) / 2**n` — the factor of two because the
+complement is searched too. `max_errors_for` inverts it through the window:
+over `W` offsets the chance a false hit precedes the marker is
+`1 - (1 - pfa)**W`, and it returns the largest tolerance that still meets the
+false-frame rate you name.
+
+```pycon
+>>> from doppler.detection import SyncFinder
+>>> from doppler.wfm import ccsds_asm_bits
+>>> f = SyncFinder(ccsds_asm_bits())
+>>> round(f.pfa(1) * 2**32)     # marker + complement, each with 32 neighbours
+66
+>>> [f.max_errors_for(w, pfa=1e-3) for w in (96, 4096, 100_000)]
+[3, 1, 0]
+
+```
+
+Sweep further and the affordable tolerance falls — which is the whole point,
+and is invisible from the signature alone.
+
+```python
+import numpy as np
+
+from doppler.detection import SyncFinder
+from doppler.wfm import ccsds_asm_bits
+
+asm = ccsds_asm_bits()
+rng = np.random.default_rng(3)
+stream = np.concatenate([rng.integers(0, 2, 96).astype(np.uint8), asm])
+stream = (stream ^ 1).astype(np.uint8)      # a 180-degree carrier ambiguity
+
+hit = SyncFinder(asm).find(stream, max_errors=3)
+assert (hit.found, hit.offset, hit.inverted, hit.errors) == (1, 96, 1, 0)
+```
+
+`inverted` is the reason the marker is not randomised: it looks the same in
+every frame and in exactly one polarity, so it is the only thing in a frame
+that can report that a BPSK carrier locked 180 degrees out. Downstream cannot
+— see
+[the frame-description page](python-wfmgen.md#acquiring-one-where-a-received-frame-starts)
+for why an outer code is blind to a global complement.
+
+::: doppler.detection.SyncFinder
+
+______________________________________________________________________
+
 ## Power-SNR (linear)
 
 ::: doppler.detection.det_threshold_power

@@ -14,6 +14,7 @@ Here is a list of all files with brief descriptions:
         * **file** [**dp\_simd.h**](dp__simd_8h.md) _doppler's own composite SIMD reductions, layered over_ `jm_simd.h` _._    
         * **file** [**dp\_state.h**](dp__state_8h.md)     
         * **file** [**dp\_state\_pyhelp.h**](dp__state__pyhelp_8h.md)     
+        * **file** [**dp\_syncword.h**](dp__syncword_8h.md) _Finding a known bit pattern in an unpacked bit stream — the sync word search, and the arithmetic for choosing its threshold._     
         * **file** [**jm\_perf.h**](jm__perf_8h.md)     
         * **file** [**jm\_simd.h**](jm__simd_8h.md)     
         * **dir** [**HalfbandDecimator**](dir_6ac3f68ee82e011454c15c865a37e192.md)     
@@ -209,6 +210,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**tlm\_sink.h**](tlm__sink_8h.md) _NATS PUB sink for telemetry records._     
         * **dir** [**symsync**](dir_bee143323fe2e99a30a6d3a881f82f29.md)     
             * **file** [**symsync\_core.h**](symsync__core_8h.md) _SymbolSync component API._     
+        * **dir** [**syncword**](dir_8170b734982c9e3c4a0c2955e2cfa64d.md)     
+            * **file** [**syncword\_core.h**](syncword__core_8h.md) _Frame synchronisation: find a known marker in a bit stream, and choose the threshold that decides what counts as finding it._     
         * **dir** [**telemetry**](dir_d4543964ddc0423cd91d16ab74a4089e.md)     
             * **file** [**telemetry\_core.h**](telemetry__core_8h.md) _Telemetry module — public C API._ 
         * **dir** [**timing**](dir_0a8cc616bc028a416e339204953e39da.md)     

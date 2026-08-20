@@ -31,7 +31,6 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) _M-PSK carrier loop state._     
 * **struct** [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) _NDA M-th-power carrier loop state._     
 * **struct** [**carrier\_nda\_tlm\_t**](structcarrier__nda__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — the probe site is then a single predicted-not-taken branch per block loop. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM)._     
-* **struct** [**ccsds\_tm\_asm\_hit\_t**](structccsds__tm__asm__hit__t.md) _Where an ASM was found, and in which polarity._     
 * **struct** [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) _Which coding is applied to one Transfer Frame._     
 * **struct** [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md) _The shape of one CADU, and what each stage covered._     
 * **struct** [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md) _What_ [_**ccsds\_tm\_frame\_decode**_](ccsds__tm__frame_8h.md#function-ccsds_tm_frame_decode) _found on the way through._    
@@ -66,6 +65,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**dp\_reader\_t**](structdp__reader__t.md)     
 * **struct** [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md)     
 * **struct** [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md) _Common 16-byte envelope at the head of every state blob._     
+* **struct** [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md) _Where a marker was found, and in which polarity._     
 * **struct** [**dp\_tlm**](structdp__tlm.md) _Telemetry context: probe registry + SPSC record ring._     
 * **struct** [**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md) _Per-probe registry entry: name, decimation and accounting._     
 * **struct** [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md) _One telemetry sample: a probe's scalar value at sample index_ `n` _._    
@@ -118,6 +118,8 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**specan\_state\_t**](structspecan__state__t.md) _Specan state. Allocate with_ [_**specan\_create()**_](specan__core_8h.md#function-specan_create) _._    
 * **struct** [**symsync\_state\_t**](structsymsync__state__t.md) _SymbolSync state._     
 * **struct** [**symsync\_tlm\_t**](structsymsync__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then a single predicted-not-taken branch per recovered symbol. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM)._     
+* **struct** [**syncword\_hit\_t**](structsyncword__hit__t.md) _What_ [_**syncword\_find**_](syncword__core_8h.md#function-syncword_find) _found._    
+* **struct** [**syncword\_state\_t**](structsyncword__state__t.md) _A searcher for one marker._     
 * **struct** [**time\_stats\_t**](structtime__stats__t.md) _Time-domain capture statistics (AC-coupled crest/PAPR)._     
 * **struct** [**tone\_meas\_t**](structtone__meas__t.md) _Single-tone dynamic-measurement bag._     
 * **struct** [**tonemeas\_state\_t**](structtonemeas__state__t.md) _ToneMeasure state: owned window, FFT plan and analysis scratch._     

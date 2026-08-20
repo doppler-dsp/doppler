@@ -41,13 +41,14 @@ import matplotlib.pyplot as plt
 # --8<-- [start:cadu]
 import numpy as np
 
-from doppler.wfm import FrameDesc
+from doppler.wfm import FrameDesc, ccsds_asm_bits
 
-# The five numbers CCSDS 131.0-B-3 section 4.3 picks, and the marker 9.4.1
-# does. Everything else in this file is general.
+# The four numbers CCSDS 131.0-B-3 section 4.3 picks. The marker 9.4.1 picks
+# comes from `ccsds_asm_bits()` rather than from a constant expanded here:
+# an MSB-first transcription written out twice is one that can disagree with
+# itself. Everything else in this file is general.
 K, N, E = 223, 255, 16  # RS(255,223), 16 correctable symbols
 DEPTH = 5  # interleaving depth (4.3.5.1 allows 1,2,3,4,5,8)
-ASM = 0x1ACFFC1D  # the attached sync marker (figure 9-1)
 
 # Stage kinds — indices of wfm_stage_kind_t.
 CRC16, RS, RANDOMISE, CONV = 0, 1, 2, 3
@@ -71,7 +72,7 @@ def describe_cadu(payload: np.ndarray, depth: int, *, inner: bool):
     undone before frame synchronisation and a frame checker never sees
     channel symbols.
     """
-    marker = np.array([(ASM >> (31 - i)) & 1 for i in range(32)], np.uint8)
+    marker = ccsds_asm_bits()  # 0x1ACFFC1D, figure 9-1
 
     d = FrameDesc(EMPTY, EMPTY, EMPTY)  # start from nothing
     d.add_field(marker)  # 0: the ASM

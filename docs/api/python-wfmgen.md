@@ -513,13 +513,13 @@ end to end, with no `ccsds_tm` binding involved:
 ```python
 import numpy as np
 
-from doppler.wfm import FrameDesc
+from doppler.wfm import FrameDesc, ccsds_asm_bits
 
 empty = np.empty(0, np.uint8)
 K, E2 = 223, 32                      # RS(255,223): 223 data, 32 parity octets
 _CRC16, RS, RANDOMISE, _CONV = 0, 1, 2, 3
 
-asm = np.array([(0x1ACFFC1D >> (31 - i)) & 1 for i in range(32)], np.uint8)
+asm = ccsds_asm_bits()               # 0x1ACFFC1D, never transcribed by hand
 octets = np.array([(i * 29 + 5) & 0xFF for i in range(K)], np.uint8)
 data = np.unpackbits(octets).astype(np.uint8)
 
@@ -564,6 +564,45 @@ Read a built description with `n_fields()` / `n_stages()` and the indexed
 is one configuration of the same object, so the indexed accessors read it too.
 
 ::: doppler.wfm.FrameDesc
+
+______________________________________________________________________
+
+## Acquiring one — where a received frame *starts*
+
+`check()` scores a frame you were **handed**. Finding one in a bit stream is
+the other half, and it lives in `doppler.detection`:
+[`SyncFinder`](python-detection.md#frame-synchronisation) correlates a known
+marker against every offset, in both polarities. `ccsds_asm_bits()` is what
+gives it the CCSDS marker without anyone transcribing `0x1ACFFC1D` a second
+time — an MSB-first expansion written out twice is one that can disagree with
+itself, and a receiver that disagrees with the assembler about the marker
+syncs to nothing.
+
+```python
+from doppler.detection import SyncFinder
+
+rng = np.random.default_rng(7)
+lead = rng.integers(0, 2, 96).astype(np.uint8)      # stream before the frame
+stream = np.concatenate([lead, np.asarray(d.bits(1))])
+stream = (stream ^ 1).astype(np.uint8)             # ...and a 180-degree flip
+
+f = SyncFinder(ccsds_asm_bits())
+hit = f.find(stream, max_errors=f.max_errors_for(96, pfa=1e-3))
+
+assert (hit.found, hit.offset, hit.inverted) == (1, 96, 1)
+
+rx = stream[hit.offset : hit.offset + d.nbits] ^ 1  # undo what it reported
+assert d.check(rx).passed == 1
+```
+
+The polarity flag is not a convenience. **A complemented CADU passes its own
+outer code**: Reed-Solomon is linear and the all-ones vector is itself a
+full-length codeword, so a global flip lands on another codeword and the
+decoder has nothing to object to. A receiver that acquired at the right offset
+and ignored `inverted` would score a clean PASS on a frame whose every payload
+bit is wrong. The marker is what can see it, because no randomiser covers it.
+
+::: doppler.wfm.ccsds_asm_bits
 
 ## Related pages
 

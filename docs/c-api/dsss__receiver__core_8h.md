@@ -131,7 +131,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; Costas(bn\_fll) pre-despre
 ## Detailed Description
 
 
-The single-object form of the chain validated across this repo's "continuous async-DSSS receiver" story (`docs/gallery/dsss-acq-async-data.md`, `docs/gallery/dsss-despread-async-data.md`, `docs/gallery/dsss-receiver.md`): a continuous, non-bursty spreading code whose data-symbol clock need not be synchronous to the code-epoch clock. `steps()` streams raw samples through whichever child is currently active:
+The single-object form of the chain validated across this repo's "continuous async-DSSS receiver" story (`docs/gallery/async-dsss-receiver-spec.md`, `docs/gallery/dsss-acq-characterization.md`, `docs/gallery/dsss-receiver.md`): a continuous, non-bursty spreading code whose data-symbol clock need not be synchronous to the code-epoch clock. `steps()` streams raw samples through whichever child is currently active:
 
 
 

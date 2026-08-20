@@ -1638,13 +1638,16 @@ right.
     rather than the library's, with no gate able to notice a disagreement.
     It now delegates, and the equivalence it silently assumed is proven in
     `test_mpsk_core.c` §5b.
-- **`mpsk_core` is in no library** — *open,
-    [#747](https://github.com/doppler-dsp/doppler/issues/747).* 84 component cores are folded
-    into `libdoppler.a`; `mpsk_core` and `util_core` are not, so
-    `mpsk_map`/`mpsk_demap` cannot be linked by a C caller of doppler and
-    cannot appear in a C doc snippet, which compiles against that archive.
-    The Python face is unaffected (the extension links the core directly),
-    which is exactly why it went unnoticed.
+- **`mpsk_core` is in no library** — *resolved,*
+    [#747](https://github.com/doppler-dsp/doppler/issues/747). `mpsk_core`
+    and `util_core` were the two component cores left out of
+    `libdoppler.a`, so `mpsk_map`/`mpsk_demap` could not be linked by a C
+    caller and could not appear in a C doc snippet, which compiles against
+    that archive. The Python face was unaffected — the extension links the
+    core directly — which is exactly why it went unnoticed. Both are in the
+    archive now (`ar t build/libdoppler.a` lists `mpsk_core.c.o` and
+    `util_core.c.o`; `nm` shows `mpsk_map`/`mpsk_demap` defined), so a C
+    caller and a C doc fence can both reach them.
 - **`LSB-first` bit packing is a claim of the header's, not of this
     module's code.** `mpsk` never packs bits; it deals in whole labels. The
     unpacking lives in the receiver's `bits()` path, and that is where the

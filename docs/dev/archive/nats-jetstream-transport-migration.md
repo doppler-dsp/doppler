@@ -5,8 +5,9 @@
 > been fully removed from doppler, and NATS (core + JetStream) is now the
 > library's sole streaming transport. The design narrative below is kept as
 > the historical record of why NATS was added and how the tiered
-> core/JetStream split was chosen; read `stream/` and `docs/dev/streaming-roadmap.md`
-> for the current, ZMQ-free state.
+> core/JetStream split was chosen; read `src/doppler/stream/` and the
+> [Python Streaming API](../../api/python-streaming.md) for the current,
+> ZMQ-free state.
 
 ## Context
 

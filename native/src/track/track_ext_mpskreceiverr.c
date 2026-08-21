@@ -42,21 +42,30 @@ MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
           "rrc_beta",   "rrc_span",    "bn_carrier",     "zeta",
           "bn_timing",  "lock_thresh", "init_norm_freq", "differential",
           "num_phases", "agc",         "bn_agc_ratio",   NULL };
-  int                m              = 4;
-  double             sps            = 32.0;
-  unsigned long long m_out_raw      = 8;
+  int    m   = 4;
+  double sps = 32.0;
+  /* The five zeros are `derive it` (docs/design/mpsk.md 8.1), not
+     `off`. This face shipped with them pinned because the collapse
+     carried its defaults across UNCHANGED -- a refactor and a retune in
+     one commit is a diff nobody can bisect -- so it never adopted the
+     derivations the complex face gained in gh-644. Three of the pins
+     were not merely redundant: 1024 was the legacy bank against the
+     measured saturation at 64, 0.5 was a round number against the
+     derived 0.4999, and 0.707 was a typed-out constant against
+     1/sqrt(2). (gh-829) */
+  unsigned long long m_out_raw      = 0;
   const char        *pulse_str      = "iandd";
   double             rrc_beta       = 0.35;
   int                rrc_span       = 8;
   double             bn_carrier     = 0.01;
-  double             zeta           = 0.707;
+  double             zeta           = 0;
   double             bn_timing      = 0.01;
-  double             lock_thresh    = 0.5;
+  double             lock_thresh    = 0;
   double             init_norm_freq = 0.0;
   int                differential   = 0;
-  unsigned long long num_phases_raw = 1024;
+  unsigned long long num_phases_raw = 0;
   int                agc            = 1;
-  double             bn_agc_ratio   = 0.05;
+  double             bn_agc_ratio   = 0;
 
   if (!PyArg_ParseTupleAndKeywords (
           args, kwds, "|idKsdidddddiKid", kwlist, &m, &sps, &m_out_raw,

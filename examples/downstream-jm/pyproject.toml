@@ -40,5 +40,9 @@ command = "make just-build"
 [tool.pytest.ini_options]
 # `bench_*.py` as well as `test_*.py`, so pytest collects the benchmark files
 # next to the tests. Without it `make bench` finds no Python benchmarks.
+#
+# It is global, so `make test` would collect them too and need the
+# `benchmark` fixture that only the dev extra provides. That target passes
+# --ignore-glob="*/benchmarks/*" for exactly this reason; see the Makefile.
 python_files = ["test_*.py", "bench_*.py"]
 testpaths = ["src"]

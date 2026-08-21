@@ -58,6 +58,7 @@ ______________________________________________________________________
     that stopped recording would otherwise hand every caller a way to look
     measured while writing an empty array, which is the exact failure the
     file exists to catch, one level down.
+
 - **`examples/downstream-jm` ships as a starter tarball with doppler inside
     it**, published with every release as
     **`doppler-starter-<ver>-<plat>.tar.gz`** for all three platforms.

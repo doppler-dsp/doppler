@@ -1,5 +1,8 @@
 .git
-.venv
+# Any depth, not just the root: the starter's own `make setup` creates
+# examples/downstream-jm/.venv, and a host venv copied into an image wins
+# the Makefile's PYTHON lookup and then has no working interpreter.
+**/.venv
 build
 **/build
 **/__pycache__

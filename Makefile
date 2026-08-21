@@ -895,7 +895,8 @@ RELEASE_WATCH_CMD = @REPO=doppler-dsp/doppler RW_PKG=doppler-dsp \
                         scripts/release-watch.sh "$(VERSION)"
 
 # ── Clean ────────────────────────────────────────────────────────────────────
-CLEAN_PATHS = $(BUILD_DIR) $(PY_BUILD_DIR) $(UBSAN_DIR) $(GLIBC_BUILD_DIR) \
+CLEAN_PATHS = $(BUILD_DIR) $(PY_BUILD_DIR) $(UBSAN_DIR) $(TSAN_DIR) \
+              $(GLIBC_BUILD_DIR) \
               docs/doxygen/ site/ \
               *.png bench_*.json zensical.toml __pycache__
 
@@ -925,7 +926,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 test-example-downstream-python \
                 package-starter-tarball test-starter-tarball \
                 test-stubs test-api-docs test-snippets lint-stubs \
-                test-ubsan \
+                test-ubsan test-tsan \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
                 glibc-check glibc-gate glibc-image specan-check \
@@ -1311,6 +1312,46 @@ test-ubsan: ## Run the C suite under UBSan; any undefined behaviour fails
 	$(CMAKE) --build $(UBSAN_DIR) --parallel $(NPROC)
 	UBSAN_OPTIONS=$(UBSAN_OPTS) \
 		$(CTEST) --test-dir $(UBSAN_DIR) --output-on-failure
+
+# ── ThreadSanitizer ──────────────────────────────────────────────────────────
+# Scoped to the tests that actually run threads, because that is what makes
+# the result readable: a whole-suite TSan run is dominated by single-threaded
+# targets that cannot report anything, and the signal is one line in it.
+#
+# TSAN_TESTS is a ctest -R pattern, not a hand list of binaries -- a new
+# threaded test named for what it is gets picked up with no edit here. That
+# is the same reasoning `check_bench_coverage` applies to benchmarks: a list
+# maintained by hand is a list that goes stale silently.
+#
+# halt_on_error, for exactly the reason UBSAN_OPTS gives above: without it
+# TSan prints a race and the suite still passes, and the gate is decorative.
+TSAN_DIR   ?= build-tsan
+TSAN_TESTS ?= race|parallel|thread
+TSAN_FLAGS  = -fsanitize=thread -fno-omit-frame-pointer -g
+TSAN_OPTS   = halt_on_error=1:second_deadlock_stack=1
+
+test-tsan: ## Run the threaded C tests under TSan; any data race fails
+	$(CMAKE) -B $(TSAN_DIR) -S . \
+		-DCMAKE_BUILD_TYPE=Debug \
+		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+		"-DCMAKE_C_FLAGS=$(TSAN_FLAGS)" \
+		"-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=thread" \
+		"-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=thread" \
+		$(CMAKE_ARGS)
+	$(CMAKE) --build $(TSAN_DIR) --parallel $(NPROC)
+# An empty result set is not a pass. If the pattern matches nothing the gate
+# has not run, so it has not passed -- the same trap the glibc and tarball
+# gates were both caught by.
+	@n=$$($(CTEST) --test-dir $(TSAN_DIR) -R '$(TSAN_TESTS)' -N \
+	      | sed -n 's/^Total Tests: //p'); \
+	 if [ "$$n" = "0" ] || [ -z "$$n" ]; then \
+	   echo "test-tsan: no test matched '$(TSAN_TESTS)' — nothing ran,"; \
+	   echo "  so this gate has not passed."; exit 1; \
+	 fi; \
+	 echo "test-tsan: $$n threaded test(s) under ThreadSanitizer"
+	TSAN_OPTIONS=$(TSAN_OPTS) \
+		$(CTEST) --test-dir $(TSAN_DIR) -R '$(TSAN_TESTS)' \
+		--output-on-failure
 
 blazing: ## Clean + Release + -march=native (max speed; never packaged)
 	@$(MAKE) --no-print-directory clean

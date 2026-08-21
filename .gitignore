@@ -63,6 +63,7 @@ xml/
 /zensical.toml
 build-cov/
 build-ubsan/
+build-tsan/
 # `make glibc-gate` builds here, inside the bind-mounted checkout, so the
 # container's Debian 10 tree never collides with the dev's own build/.
 build-glibc228/

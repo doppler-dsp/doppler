@@ -11,6 +11,8 @@
  */
 #include "ccsds_tm/ccsds_tm_rs.h"
 
+#include <pthread.h>
+
 /* 4.3.3: F(x) = x^8 + x^7 + x^2 + x + 1, held as the low eight bits, the x^8
  * term being implicit in the reduction. 4.3.4: the roots are a^(11j) with j
  * running 128-E .. 127+E. 11 rather than 1 is the whole point. */
@@ -30,17 +32,42 @@ static const uint8_t T_CONV_TO_DUAL[8]
 static const uint8_t T_DUAL_TO_CONV[8]
     = { 0xC5u, 0x42u, 0x2Eu, 0xFDu, 0xF0u, 0x79u, 0xACu, 0xCCu };
 
-static rs_t ccsds;
-static int  ready = 0;
+/* The field tables are derived once, on first use, and every public entry
+ * point below goes through `ensure()` to get them.
+ *
+ * `pthread_once` rather than a `ready` flag, because the flag version was a
+ * DATA RACE and not a benign double-initialisation: two threads reaching any
+ * entry point first would both see `ready == 0`, both call `rs_init`, and --
+ * the part that makes it undefined rather than merely wasteful -- one could
+ * read the half-written tables the other was still filling (gh-817).
+ *
+ * It was unreachable when written, which is why it survived: nothing called
+ * the encoder. Two things already in the tree make the first call the racy
+ * one. `dp_parallel.h` fans independent per-source signal builds across
+ * cores, and a coded source is a per-source build; and every block method in
+ * this project declares `nogil = true`, so a Python encoder driven from a
+ * thread pool is the same race with a different scheduler. A first call is
+ * exactly what a freshly imported module makes.
+ *
+ * Precomputing the tables as `static const` would also be thread-safe, and
+ * was rejected: it moves g(x) from something DERIVED to something
+ * transcribed, and the derivation is what `test_ccsds_tm_rs` holds to Annex
+ * G. Thread safety should not cost the evidence.
+ *
+ * POSIX-only, which matches `[project] platforms = ["linux", "macos"]`. */
+static rs_t           ccsds;
+static pthread_once_t ccsds_once = PTHREAD_ONCE_INIT;
+
+static void
+ccsds_build (void)
+{
+  rs_init (&ccsds, &CCSDS_TM_RS);
+}
 
 static const rs_t *
 ensure (void)
 {
-  if (!ready)
-    {
-      rs_init (&ccsds, &CCSDS_TM_RS);
-      ready = 1;
-    }
+  pthread_once (&ccsds_once, ccsds_build);
   return &ccsds;
 }
 

@@ -1947,18 +1947,25 @@ DOWNSTREAM_DIR := examples/downstream-jm
 # would be scanned on every drift check.
 DOWNSTREAM_BUILD_DIR := $(BUILD_DIR)/downstream-jm
 
+# Wall-clock ceiling per example, mirroring test_examples.py's TIMEOUT_S.
+# It is load-bearing rather than defensive: the failure this gate exists to
+# catch is an example nothing runs, and the cheapest way to reintroduce it
+# is an example that runs forever -- the gate then hangs instead of failing,
+# which reads as "still working" in CI until the job's own ceiling kills it
+# and names the wrong thing. A deadline turns that into a FAIL with the
+# example's name on it.
+C_EXAMPLE_TIMEOUT ?= 120
+C_EXAMPLE_SKIPS   := examples/c/.examples-skip
+
 test-examples-c: build ## Smoke-test every standalone C example
+# DISCOVERED, never listed. This used to iterate a hand-written list of nine
+# names, so the other four compiled, shipped and were executed by nothing --
+# with no reason recorded, nothing failing if a fifth joined them, and
+# nothing noticing if one was deleted (gh-863). Opting one out now costs an
+# entry in $(C_EXAMPLE_SKIPS) with a mandatory reason, the same contract
+# src/doppler/examples/.examples-skip already holds the Python side to.
 	@echo "Running C example smoke tests..."
-	@for ex in nco_demo fir_demo hbdecim_demo fft_demo \
-	           agc_demo cic_demo corr_demo rate_converter_demo \
-	           ccsds_link_demo; do \
-	    printf "  %-20s" "$$ex"; \
-	    if $(EXAMPLE_BIN_DIR)/$$ex > /dev/null 2>&1; then \
-	        echo "PASS"; \
-	    else \
-	        echo "FAIL"; exit 1; \
-	    fi; \
-	done
+	@bash scripts/smoke-c-examples.sh $(EXAMPLE_BIN_DIR) $(C_EXAMPLE_TIMEOUT)
 	@echo "Building standalone example..."
 	@cmake -B $(STANDALONE_BUILD_DIR) examples/standalone \
 	    -DDOPPLER_BUILD_DIR=$(abspath $(BUILD_DIR)) \

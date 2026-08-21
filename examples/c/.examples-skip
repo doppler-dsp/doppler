@@ -1,0 +1,26 @@
+# C examples the smoke gate (`make test-examples-c`) does not run
+# unconditionally, one "example: reason" per line. A reason is mandatory,
+# and an entry naming an example that no longer exists FAILS the gate — so
+# this list cannot rot in either direction. Everything not listed here runs
+# on arrival, which is the half that used to be missing: the exclusions
+# were an absence from a hand-written list of nine, so a tenth example was
+# executed by nothing and nothing said so (gh-863).
+#
+# Same shape and same rules as src/doppler/examples/.examples-skip, which
+# is the mechanism this mirrors.
+#
+# A "broker:" reason is CONDITIONAL, not an exclusion: the example runs
+# whenever a NATS broker answers on 127.0.0.1:4222 (CI starts one with
+# `make nats-up`) and is skipped elsewhere. Only reach for a plain reason
+# when no broker can make the example terminate.
+
+pipeline_demo: broker: PUSH/PULL over JetStream between two IN-PROCESS threads, so it needs a broker but no peer -- it sends NUM_BATCHES and exits, which is what makes it conditional rather than excluded
+
+# The three below are live dashboards: each prints "Press Ctrl+C to stop"
+# and has no exit condition, so no broker makes them terminate and a smoke
+# run can never exercise them. Their wire round-trips are covered by the
+# stream suite (src/doppler/stream/tests/, against CI's live broker) and by
+# `make docker-stream`, which builds and smokes all three binaries.
+receiver: runs until Ctrl+C -- a SUB dashboard with no exit condition, and needs a live transmitter peer as well as a broker
+transmitter: runs until Ctrl+C -- publishes until interrupted; the receiver half of the pair
+spectrum_analyzer: runs until Ctrl+C -- live spectrum display with no exit condition

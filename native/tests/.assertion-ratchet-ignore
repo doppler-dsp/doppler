@@ -42,3 +42,12 @@ test_conv_core.c -> test_viterbi_core.c  -57: the decoder's sections (the
   `viterbi` became a declared component (doppler#893). Nothing stopped being
   asserted — checked by this ratchet rather than claimed: the pair went 75 to
   96 over the same base.
+
+test_doppler_channel_core.c  -25: the per-sample Doppler profile
+  (`execute_profile`) was REVERTED with its five test sections — its carrier
+  was chunk-dependent, so the same stream fed in different block sizes
+  produced different samples (doppler#941, design in #940). The ratchet
+  cannot tell a revert from a silent loss, which is exactly why it is
+  correct to make this entry explicit: nothing that still ships stopped
+  being asserted, because the feature those 25 assertions covered no longer
+  ships. Delete this line when the profile lands again with its tests.

@@ -135,11 +135,6 @@ tier = 5
 title = "feat(telemetry): attaching a pipeline takes one call per object; the one-call form was written then lost to a redesign"
 status = "open"
 
-[issue.687]
-tier = 5
-title = "native/validation/ carries six private copies of the RNG that dp_rng_test.h now owns"
-status = "open"
-
 [issue.689]
 tier = 2
 title = "DSSS test captures inject 3.01 dB less noise than their cn0_dbhz label, and correcting it exposes non-monotonic acquisition"
@@ -188,11 +183,6 @@ status = "open"
 [issue.716]
 tier = 1
 title = "Validation figures and CSVs are gated by nothing \u2014 validate-check only compares rendered markdown"
-status = "open"
-
-[issue.718]
-tier = 1
-title = "check_tests_ssot reports 'no private RNG' but never scans native/validation, where two harnesses have one"
 status = "open"
 
 [issue.720]
@@ -378,7 +368,7 @@ status = "open"
 [issue.896]
 tier = 3
 title = "Multi-config C benchmarks charge the clock ramp to whichever config runs first"
-status = "open"
+status = "in review ([#941](https://github.com/doppler-dsp/doppler/pull/941))"
 
 [issue.898]
 tier = 3
@@ -408,4 +398,34 @@ status = "open"
 [issue.922]
 tier = 5
 title = "Two hand-written out= parameters are invisible to the stub they should be published in"
+status = "open"
+
+[issue.932]
+tier = 2
+title = "symsync_lock's published false-alarm rate moves 1.5x with -ffast-math, and its header states a conclusion neither value supports"
+status = "open"
+
+[issue.933]
+tier = 5
+title = "Migrate the four inline LCG streams off scripts/.private-rng-ratchet"
+status = "open"
+
+[issue.936]
+tier = 1
+title = "check_stimulus_sources: the pulse marker's C branch cannot fire \u2014 it is matched per line against a signature clang-format always splits"
+status = "open"
+
+[issue.937]
+tier = 5
+title = "Four validation harnesses hand-roll AWGN instead of calling the library's awgn, and nothing says they shouldn't"
+status = "open"
+
+[issue.940]
+tier = 4
+title = "DopplerChannel per-sample Doppler profile \u2014 deferred; the carrier needs the warping step, not a chord"
+status = "open"
+
+[issue.942]
+tier = 4
+title = "wfmgen: sources cannot express clock Doppler \u2014 scalar + rate with range draws, over a stateful per-source channel"
 status = "open"

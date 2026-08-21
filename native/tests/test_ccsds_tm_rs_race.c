@@ -33,6 +33,8 @@
 #include "dp_test.h"
 
 #include <pthread.h>
+#include <sched.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -40,10 +42,37 @@
 
 typedef struct
 {
-  pthread_barrier_t *gate;
-  uint8_t            gen[CCSDS_TM_RS_2E + 1];
-  uint8_t            parity[CCSDS_TM_RS_2E];
+  uint8_t gen[CCSDS_TM_RS_2E + 1];
+  uint8_t parity[CCSDS_TM_RS_2E];
 } worker_t;
+
+/* The release gate. Every worker spins here and the main thread opens it
+   only once the whole set exists, so the first calls land as close to
+   simultaneously as the scheduler allows. Without a gate the threads start
+   staggered by their own creation cost and the first is usually finished
+   before the second begins -- which is how a race like this hides from a
+   test that does spawn threads.
+
+   A flag rather than `pthread_barrier_t`, which is an OPTIONAL POSIX
+   feature (_POSIX_BARRIERS) that macOS does not implement: the barrier
+   version built on Linux and failed the macOS job outright with `unknown
+   type name 'pthread_barrier_t'`. `atomic_int` rather than a plain one so
+   the gate itself is not a race -- this binary is run under ThreadSanitizer
+   by `make test-tsan`, and a harness that trips the tool cannot be evidence
+   about the thing it is watching.
+
+   `sched_yield` in the spin is not politeness. Eight spinners on a
+   two-core runner can keep the main thread off the CPU, and the main
+   thread is the one that opens the gate -- a spin with no yield is a
+   deadlock on a small box. */
+static atomic_int gate;
+
+static void
+gate_wait (void)
+{
+  while (!atomic_load (&gate))
+    sched_yield ();
+}
 
 /* One shared information block, so every thread encodes the same input and
  * any disagreement in the output is a disagreement about the FIELD. */
@@ -54,12 +83,7 @@ worker (void *arg)
 {
   worker_t *w = (worker_t *)arg;
 
-  /* Every thread waits here and is released together, so the first calls
-     land as close to simultaneously as the scheduler allows. Without this
-     the threads start staggered by their own creation cost and the first
-     one is usually finished before the second begins -- which is how a
-     race like this hides from a test that does spawn threads. */
-  pthread_barrier_wait (w->gate);
+  gate_wait ();
 
   memcpy (w->gen, ccsds_tm_rs_generator (), sizeof w->gen);
   ccsds_tm_rs_encode (info, w->parity);
@@ -69,31 +93,28 @@ worker (void *arg)
 int
 main (void)
 {
-  pthread_barrier_t gate;
-  pthread_t         th[NTHREADS];
-  static worker_t   w[NTHREADS];
+  pthread_t       th[NTHREADS];
+  static worker_t w[NTHREADS];
 
   for (size_t i = 0; i < sizeof info; i++)
     info[i] = (uint8_t)(i * 7u + 1u);
 
-  if (pthread_barrier_init (&gate, NULL, NTHREADS) != 0)
-    {
-      fprintf (stderr, "barrier init failed\n");
-      return 1;
-    }
+  atomic_init (&gate, 0);
 
   for (int i = 0; i < NTHREADS; i++)
     {
-      w[i].gate = &gate;
       if (pthread_create (&th[i], NULL, worker, &w[i]) != 0)
         {
           fprintf (stderr, "pthread_create failed\n");
           return 1;
         }
     }
+
+  /* Open it only now: every worker exists and is spinning. */
+  atomic_store (&gate, 1);
+
   for (int i = 0; i < NTHREADS; i++)
     pthread_join (th[i], NULL);
-  pthread_barrier_destroy (&gate);
 
   /* Only now does the main thread touch the code -- after every worker has
      already raced for it. */

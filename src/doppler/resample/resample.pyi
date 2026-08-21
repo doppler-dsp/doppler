@@ -287,8 +287,8 @@ class HalfbandDecimator:
     Parameters
     ----------
     h : NDArray[np.float32]
-        Float32 FIR branch coefficients, length num_taps. Must be a symmetric
-        halfband prototype (antisymmetric even-indexed taps zeroed).
+        Float32 FIR branch coefficients. Must be a symmetric halfband prototype
+        (antisymmetric even-indexed taps zeroed).
 
     Examples
     --------

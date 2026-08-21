@@ -43,10 +43,10 @@ extern "C"
    * and scipy or the built-in bank helper to design the prototype.
    * Output length is approximately x_len / 2 per execute() call.
    *
-   * @param h      Float32 FIR branch coefficients, length h_len. Must be
-   *               a symmetric halfband prototype (antisymmetric
-   *               even-indexed taps zeroed).
-   * @param h_len  Number of FIR branch coefficients in h.
+   * @param h      Float32 FIR branch coefficients. Must be a symmetric
+   *               halfband prototype (antisymmetric even-indexed taps
+   *               zeroed).
+   * @param h_len  Number of coefficients in h.
    * @return Non-NULL on success, NULL on invalid args or OOM.
    *
    * @code

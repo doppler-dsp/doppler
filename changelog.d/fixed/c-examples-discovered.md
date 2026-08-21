@@ -25,8 +25,17 @@
     Four properties, each failing rather than warning: a stale waiver, a
     waiver with no reason, a source that produced no binary (the same
     fail-open bug one layer down, in `examples/c/CMakeLists.txt`'s own hand
-    lists), and running nothing at all. Every run is under `timeout`, which
+    lists), and running nothing at all. Every run is under a deadline, which
     is load-bearing rather than defensive — the cheapest way to reintroduce
     "an example nothing runs" is an example that runs forever, and without a
     deadline the gate hangs instead of failing, reading as *still working*
     until CI's own ceiling kills the job and names the wrong thing.
+
+    The deadline runs through `scripts/with-deadline.sh` rather than
+    `timeout(1)` directly. `timeout` is coreutils and is absent from
+    GitHub's macOS runner — `gtimeout` too — which that script already
+    measured and already solves behind one contract, POSIX-watchdog fallback
+    and the 124 exit code included. A bare `timeout` there does not time
+    anything out; it fails with 127 and reports the example as broken. The
+    discovery loop is likewise a `while read` rather than `mapfile`, which
+    is bash 4 against the runner's bash 3.2.

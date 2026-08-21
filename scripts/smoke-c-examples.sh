@@ -23,7 +23,7 @@
 #   4. running nothing at all is not a pass -- the trap the glibc and tarball
 #      gates were both caught by.
 #
-# Every run is under `timeout`. That is load-bearing, not defensive: the
+# Every run is under a deadline. That is load-bearing, not defensive: the
 # failure this gate exists to catch is an example nothing runs, and the
 # cheapest way to reintroduce it is an example that runs forever. Without a
 # deadline the gate HANGS instead of failing, which reads as "still working"
@@ -37,6 +37,16 @@ TIMEOUT=${2:?usage: smoke-c-examples.sh <bin-dir> <timeout-seconds>}
 SRC_DIR=examples/c
 REGISTRY=$SRC_DIR/.examples-skip
 
+# The deadline runs through the repo's own wrapper, not bare `timeout`.
+# `timeout(1)` is coreutils and is MEASURED ABSENT on GitHub's macOS runner
+# -- neither it nor `gtimeout` is on PATH there (scripts/with-deadline.sh
+# says so from its own first live run). A bare `timeout` therefore does not
+# time anything out on macOS; it fails with 127 and reports the example as
+# broken. with-deadline.sh already resolves timeout/gtimeout/a POSIX
+# watchdog behind one contract, 124-on-expiry included, so this gate gets a
+# real deadline on every platform instead of a Linux-only one.
+DEADLINE=$(dirname "$0")/with-deadline.sh
+
 # A "broker:" reason is conditional rather than an exclusion: the example
 # runs wherever a NATS broker answers (CI starts one) and is skipped
 # elsewhere. Probed once, with bash's own /dev/tcp so nothing needs
@@ -46,8 +56,17 @@ if (exec 3<>/dev/tcp/127.0.0.1/4222) 2>/dev/null; then
     broker=1
 fi
 
-mapfile -t examples < <(find "$SRC_DIR" -maxdepth 1 -name '*.c' -print0 |
-                        xargs -0 -n1 basename | sed 's/\.c$//' | sort)
+# A read loop rather than `mapfile`: mapfile is bash 4, and the macOS job
+# this gate runs on ships bash 3.2. It failed there with `mapfile: command
+# not found`, and -- because the failure left `examples` unset rather than
+# empty -- the emptiness check below never got to speak; `set -u` reported
+# `examples: unbound variable` instead, naming the symptom two lines down
+# from the cause.
+examples=()
+while IFS= read -r _name; do
+    examples+=("$_name")
+done < <(find "$SRC_DIR" -maxdepth 1 -name '*.c' | sed 's|.*/||; s|\.c$||' |
+         sort)
 
 if [ ${#examples[@]} -eq 0 ]; then
     echo "  no examples/c/*.c found -- this gate has not run, so it has"
@@ -69,7 +88,7 @@ fi
 
 reason_for() {
     local want=$1 i
-    for i in "${!reg_names[@]}"; do
+    for ((i = 0; i < ${#reg_names[@]}; i++)); do
         if [ "${reg_names[$i]}" = "$want" ]; then
             printf '%s' "${reg_reasons[$i]}"
             return 0
@@ -80,7 +99,7 @@ reason_for() {
 
 # ── 1 + 2: the registry must be honest ──────────────────────────────────────
 bad=0
-for i in "${!reg_names[@]}"; do
+for ((i = 0; i < ${#reg_names[@]}; i++)); do
     name=${reg_names[$i]}
     if [ ! -f "$SRC_DIR/$name.c" ]; then
         echo "  REGISTRY  $name is listed in $REGISTRY but"
@@ -122,7 +141,7 @@ for ex in "${examples[@]}"; do
     fi
 
     printf "  %-20s" "$ex"
-    if timeout "$TIMEOUT" "$BIN_DIR/$ex" > /dev/null 2>&1; then
+    if "$DEADLINE" "$TIMEOUT" 1 "$BIN_DIR/$ex" > /dev/null 2>&1; then
         echo "PASS"
         ran=$((ran + 1))
     else

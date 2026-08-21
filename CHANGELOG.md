@@ -60,6 +60,20 @@ ______________________________________________________________________
     mapping's whole design claim, now pinned by a number rather than
     asserted in a header.
 
+    **`wfm_compose` came off the sibling `ALLOW` list on the same
+    argument**, and it closes #891: its waiver said the composer's segment
+    assembly is "benchmarked indirectly through `wfm_synth` only", which
+    measures the engine underneath and says nothing about the layer on top
+    — the header is explicit that a one-segment spec is byte-identical to
+    calling `synth` directly, so everything the composer adds happens at a
+    boundary a one-segment spec never crosses. Holding the sample count
+    fixed and varying only how many boundaries produce it prices one at
+    **~30–40 ns, or 64–86 samples-equivalent**, agreeing across three
+    independent segment lengths. A burst schedule with segments shorter
+    than that spends more on starting waveforms than on emitting them.
+    `ALLOW` is now one entry: `hbdecim`, the one case where "measured
+    elsewhere" is true rather than a euphemism.
+
     Two predictions written into the files were refuted by their own
     measurements and the files were corrected rather than the readings —
     `hbdecim_q15`'s cost is not the padded SIMD width (34 and 64 taps pad

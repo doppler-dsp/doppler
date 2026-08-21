@@ -45,6 +45,32 @@ shipped was absent from that file and jm's gh-920 was mentioned nowhere.
 generated; the sentence explaining what a bump brought is not, and a gate that
 auto-inserted a placeholder would trade a missing entry for a meaningless one.
 
+Recorded WHEN, not merely somewhere (gh-693)
+--------------------------------------------
+Asking whether the version appears anywhere in the changelog is not enough,
+and the hole is a **rollback**. "0.63.3 regressed us, go back to 0.55.3" moves
+all three sites to a version the file already describes *arriving at*, so any
+whole-file scan finds it and the bump ships announced by nobody.
+
+So when the pin MOVED on this branch -- measured against the MERGE BASE, the
+same question and the same baseline the assertion ratchet uses -- the move must
+be announced by *this change*: the version has to appear as a pin destination
+among the changelog lines the branch ADDS. History does not count, because
+history is what a rollback returns to.
+
+Two scopes were tried first and are wrong, both for the same reason:
+``[Unreleased]`` is 198 KB here (doppler has not released since v0.42.0) and
+holds every pin bump since 0.52.0; ``changelog.d/`` is 109 unassembled
+fragments. Each is this release *cycle's* history, not this *branch's*
+statement, and scoping to either let the rollback pass green.
+
+gh-693 proposed instead taking the LAST semver on a pin line. This file's own
+history refutes it twice: ``pin 0.57.0 -> 0.59.0, and the create-only headers
+0.58.0 ships`` ends on a version that is neither side of the move, and
+``pinned to 0.25.0 (from 0.24.0)`` puts the destination FIRST. The destination
+is therefore read from what the sentence does, not from position -- see
+``_line_destination``.
+
 Usage
 -----
 ::
@@ -58,6 +84,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -74,13 +101,28 @@ FRAGMENTS = ROOT / "changelog.d"
 # A line that is talking about the jm pin. Deliberately loose about the
 # surrounding markdown (bold, backticks, "Carried by the ...") and strict about
 # the subject, so prose mentioning some other 0.x.y cannot satisfy the check.
-#
-# Known gap, gh-692's sibling gh-693: every entry is written "X -> Y", so BOTH
-# versions are harvested and a version that appears only as a left-hand side
-# counts as recorded. A forward bump cannot be pre-recorded, so the common path
-# is safe; a ROLLBACK to a previously-departed pin passes silently.
 PIN_LINE_RE = re.compile(r"just-makeit\s+pin(?:ned)?", re.IGNORECASE)
 SEMVER_RE = re.compile(r"\d+\.\d+\.\d+")
+
+# The version a pin line says the pin moved TO. gh-693: harvesting every semver
+# on the line counted a LEFT-HAND side as recorded, so 17 of 18 "recorded"
+# versions were ones the changelog describes moving AWAY from.
+#
+# gh-693 proposed taking the LAST semver on the line, which this file's own
+# history refutes twice. `pin 0.57.0 -> 0.59.0, and the create-only headers
+# 0.58.0 ships` ends on a version that is neither side of the move, and
+# `pinned to 0.25.0 (from 0.24.0)` puts the destination FIRST. So the
+# destination is found by what the sentence DOES, in the three shapes this
+# changelog actually uses, rather than by position:
+#
+#   `X -> Y`            the pair: the destination is Y
+#   `-> Y` / `to Y`     a bare move with no source named
+#   anything else       the first semver, with an explicit "(from X)" removed
+ARROW_PAIR_RE = re.compile(
+    r"(\d+\.\d+\.\d+)\s*(?:->|\u2192|-->)\s*\**`?(\d+\.\d+\.\d+)"
+)
+ARROW_TO_RE = re.compile(r"(?:->|\u2192|-->|\bto)\s*\**`?(\d+\.\d+\.\d+)")
+FROM_RE = re.compile(r"\(?\bfrom\s+\**`?\d+\.\d+\.\d+\)?")
 
 # Anchored to the start of a line so a version quoted in PROSE cannot match --
 # just-makeit.toml carries commentary naming older jm versions, and a comment
@@ -113,18 +155,142 @@ def recorded_versions() -> set[str]:
     check would otherwise never open — and would then report a pin nothing
     documents, on a branch that documents it perfectly well.
     """
-    out: set[str] = set()
+    return _pin_destinations(_changelog_texts())
+
+
+def _changelog_texts() -> list[str]:
+    """The changelog plus every unassembled fragment."""
     texts = [CHANGELOG.read_text(encoding="utf-8")]
     if FRAGMENTS.is_dir():
         texts += [
             f.read_text(encoding="utf-8")
             for f in sorted(FRAGMENTS.glob("*/*.md"))
         ]
+    return texts
+
+
+def _line_destination(line: str) -> str | None:
+    """The version this pin line says the pin moved TO, or None."""
+    m = ARROW_PAIR_RE.search(line)
+    if m:
+        return m.group(2)
+    m = ARROW_TO_RE.search(line)
+    if m:
+        return m.group(1)
+    found = SEMVER_RE.findall(FROM_RE.sub("", line))
+    return found[0] if found else None
+
+
+def _pin_destinations(texts: list[str]) -> set[str]:
+    out: set[str] = set()
     for text in texts:
         for line in text.splitlines():
             if PIN_LINE_RE.search(line):
-                out.update(SEMVER_RE.findall(line))
+                dest = _line_destination(line)
+                if dest:
+                    out.add(dest)
     return out
+
+
+def branch_added_text(base: str) -> str | None:
+    """The changelog lines THIS BRANCH adds, or None if git cannot say.
+
+    Not the `[Unreleased]` section, which was the obvious scope and is wrong
+    here: doppler has not released since v0.42.0, so `[Unreleased]` is 198 KB
+    of accumulated history holding every pin bump since 0.52.0 -- including
+    the ones a rollback would return to. Scoping to it let the rollback pass
+    green, which is the bug being closed rather than a smaller version of it.
+
+    `changelog.d/` fails the same way for the same reason: 109 unassembled
+    fragments are this release CYCLE's history, not this BRANCH's statement.
+
+    The added lines are the only scope that means "announced by this change",
+    and a new fragment file is entirely added lines, so the ordinary way of
+    recording a bump satisfies it naturally.
+    """
+    ref = merge_base(base)
+    if ref is None:
+        return None
+    diff = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--unified=0",
+            ref,
+            "--",
+            "CHANGELOG.md",
+            "changelog.d/",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if diff.returncode != 0:
+        return None
+    added = [
+        line[1:]
+        for line in diff.stdout.splitlines()
+        if line.startswith("+") and not line.startswith("+++")
+    ]
+    # An UNTRACKED fragment is entirely new and `git diff` cannot see it. The
+    # ordinary way to record a bump is to write a fresh changelog.d/ file, so
+    # without this the gate rejects exactly the workflow it is asking for --
+    # a false positive, which is how a gate gets switched off.
+    untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard", "changelog.d/"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if untracked.returncode == 0:
+        for rel in untracked.stdout.split():
+            f = ROOT / rel
+            if f.is_file():
+                added += f.read_text(encoding="utf-8").splitlines()
+    return "\n".join(added)
+
+
+def merge_base(base: str) -> str | None:
+    """The merge base with @p base, or None if git cannot resolve it."""
+    mb = subprocess.run(
+        ["git", "merge-base", "HEAD", base],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if mb.returncode == 0 and mb.stdout.strip():
+        return mb.stdout.strip()
+    rev = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{base}^{{commit}}"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    return base if rev.returncode == 0 else None
+
+
+def base_pin(base: str) -> str | None:
+    """The pin at the merge base with @p base, or None if git cannot say.
+
+    The merge base rather than the tip, for the reason the assertion ratchet
+    gives: the question is "did THIS branch move the pin", and a branch that
+    is merely BEHIND has not moved anything. Compared against the tip of
+    `origin/main`, every branch cut before someone else's bump would be asked
+    to announce a bump it did not make.
+    """
+    ref = merge_base(base)
+    if ref is None:
+        return None
+    show = subprocess.run(
+        ["git", "show", f"{ref}:{SSOT.name}"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if show.returncode != 0:
+        return None
+    m = JM_VERSION_RE.search(show.stdout)
+    return m.group(2) if m else None
 
 
 def sites(want: str) -> list[tuple[Path, re.Pattern[str], str]]:
@@ -140,6 +306,12 @@ def main() -> int:
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--write", action="store_true")
+    ap.add_argument(
+        "--base",
+        default="origin/main",
+        help="ref whose MERGE BASE decides whether this branch "
+        "moved the pin (default: origin/main)",
+    )
     args = ap.parse_args()
 
     want = ssot_version()
@@ -182,6 +354,36 @@ def main() -> int:
 
     # Applied consistently is not the same as announced. --write cannot fix
     # this one, so it is asserted only in --check.
+    #
+    # When the pin MOVED on this branch, history does not count: the move has
+    # to be announced by THIS change. That is what closes gh-693's rollback --
+    # "0.55.4 regressed us, go back to 0.55.3" moves all three sites to a
+    # version that was legitimately a destination once, so any whole-file scan
+    # finds it and says nothing. Asking whether the pin moved is the only
+    # question that separates the two cases, and it does not depend on parsing
+    # prose at all.
+    was = base_pin(args.base)
+    if was is not None and was != want:
+        added = branch_added_text(args.base)
+        if added is not None and want not in _pin_destinations([added]):
+            print(
+                f"gen_jm_pin: this branch moves the pin {was} -> {want}, "
+                f"and nothing announces it."
+            )
+            print(
+                f"  Add a changelog.d/ fragment naming the move, e.g.\n"
+                f'    "**just-makeit pin {was} → {want}.**" '
+                f"and what it brought."
+            )
+            print(
+                "  A version named anywhere in CHANGELOG.md history does NOT "
+                "count here:\n  a ROLLBACK returns to a version the file "
+                "already describes arriving at,\n  which is how this passed "
+                "green while saying nothing (gh-693)."
+            )
+            return 1
+        return 0
+
     if want not in recorded_versions():
         print(
             f"gen_jm_pin: the pin is {want} in all 3 sites, but "

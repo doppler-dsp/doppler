@@ -2098,6 +2098,15 @@ class DsssReceiver:
         MpskReceiver's differential (rotation- invariant) demap; default 0
         (coherent).
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``DsssReceiver: invalid
+        parameter (need a non-empty code, chip_rate > 0, symbol_rate > 0, spc
+        >= 1, m in {2,4,8}, segments >= 1, sps >= 2 -- sps = 1 cannot carry an
+        m_out, whose smallest legal value is 2 and which MpskReceiver requires
+        sps to reach)``.
+
     Examples
     --------
     >>> import numpy as np

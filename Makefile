@@ -2167,17 +2167,24 @@ abi-check: ## Verify the built libraries are portable and C++-free (Linux)
 	 else echo "abi-check: FAILURES above"; exit 1; fi
 
 # Cross-platform, unlike abi-check: this is the question a downstream actually
-# asks — does libdoppler.a link with nothing but -lm? — and it is answered on
-# Linux and macOS both.
-link-check: ## Smoke-test that a downstream links libdoppler.a with only -lm
+# asks — does libdoppler.a link with the two flags the docs name? — and it is
+# answered on Linux and macOS both.
+# `-lm -lpthread` is the whole documented link line, and it is spelled here
+# by hand ON PURPOSE: this target answers what a downstream typing the
+# command gets, so taking the flags from pkg-config would make it agree with
+# itself rather than with the docs. pthread joined the line when rs.c moved
+# to `pthread_once`; on glibc >= 2.34 it is folded into libc and omitting it
+# still links, which is exactly why a gate that names it is worth having.
+link-check: ## Smoke-test that a downstream links libdoppler.a with -lm -lpthread
 	@t=$$(mktemp -d); \
 	 if cc examples/consumer/main.c -Inative/inc -I$(BUILD_DIR)/native/inc \
-	       $(BUILD_DIR)/libdoppler.a -lm -o "$$t/consumer_smoke" \
+	       $(BUILD_DIR)/libdoppler.a -lm -lpthread -o "$$t/consumer_smoke" \
 	    && ( cd "$$t" && ./consumer_smoke > /dev/null ); then \
-	     echo "link-check: OK — libdoppler.a links with only -lm."; \
+	     echo "link-check: OK — libdoppler.a links with -lm -lpthread."; \
 	     rm -rf "$$t"; \
 	 else \
-	     echo "link-check: FAIL — a downstream cannot link libdoppler.a with -lm"; \
+	     echo "link-check: FAIL — a downstream cannot link libdoppler.a" \
+	          "with -lm -lpthread"; \
 	     rm -rf "$$t"; exit 1; \
 	 fi
 

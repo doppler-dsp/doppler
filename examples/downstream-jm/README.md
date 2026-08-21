@@ -196,12 +196,12 @@ cc myapp.c $(pkg-config --cflags --libs doppler) -o myapp
 
 # static — name the archive to get a binary with no doppler runtime dependency
 cc myapp.c -I$PWD/third_party/doppler/include \
-   $PWD/third_party/doppler/lib/libdoppler.a -lm -o myapp
+   $PWD/third_party/doppler/lib/libdoppler.a -lm -lpthread -o myapp
 ```
 
 `-ldoppler` resolves to the **shared** library when both are present, so naming
-`libdoppler.a` explicitly is how you link it statically. `-lm` is doppler's only
-runtime dependency.
+`libdoppler.a` explicitly is how you link it statically. `-lm` and `-lpthread`
+are doppler's only runtime dependencies.
 
 > **If your doppler is too old, `cmake` says so and stops.** Only reachable when
 > you point at your own doppler — a bundled one is by construction the version

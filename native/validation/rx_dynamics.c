@@ -247,10 +247,21 @@ rx_dyn_measure (int ted, const char *path)
   }
 
   /* Stage 3 -- AWGN at the stated matched-filter-output Es/N0. */
+  /* Named locals, not two calls in one expression: those are
+     indeterminately sequenced (C11 6.5.2.2p10), so which noise stream this
+     harness measured was the compiler's choice rather than a property of
+     the code -- in a file whose table docs/design/mpsk.md quotes.
+
+     The ORDER is load-bearing and was MEASURED, not read off. dp_rng_test.h
+     records gcc taking the imaginary operand first; here, under this
+     target's flags, gcc -O3 and clang -O0 both take the REAL one, and
+     writing the documented order in instead moved the strobe tap's
+     post-onset lock from +0.860 to +0.757. Confirmed by diffing the full
+     sweep -- `--check` cannot see it, because it prints one line. */
   for (size_t n = 0; n < nsamp; n++)
     {
-      double n_im = dp_gauss (&st);
       double n_re = dp_gauss (&st);
+      double n_im = dp_gauss (&st);
       y[n] += (float)(sigma * n_re) + (float)(sigma * n_im) * I;
     }
 

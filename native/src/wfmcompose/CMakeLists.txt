@@ -82,6 +82,23 @@ target_include_directories(test_wfm_compose PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_compose COMMAND test_wfm_compose)
 
+# Benchmark — hand-written here for the same reason the test above is: the
+# composer is a hand-owned c_dep, so `jm apply` writes no target for it. The
+# link line matches the test's; the composer reuses synth, which pulls in
+# lo/awgn/pn.
+add_executable(bench_wfm_compose_core
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_compose_core.c)
+target_link_libraries(bench_wfm_compose_core PRIVATE
+    wfm_compose_core wfm_draw_core wfm_dsp_core wfm_frame_core wfm_cjson_core
+    ccsds_tm_core conv_core rs_core
+    wfm_synth_core lo_core awgn_core
+    pn_core gold_core fir_core resamp_core
+    m)
+target_include_directories(bench_wfm_compose_core PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/benchmarks
+    ${CMAKE_SOURCE_DIR}/vendor/cjson)
+
 # wfm_plan: Gate-0 (render("{}") ≡ full compose, memcmp==0) + per-axis
 # gains/enable/snr/seed vs a full compose of the equivalently-modified spec.
 add_executable(test_wfm_plan

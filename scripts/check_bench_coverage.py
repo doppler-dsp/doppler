@@ -121,11 +121,18 @@ TESTS = ROOT / "native" / "tests"
 BENCH = ROOT / "native" / "benchmarks"
 
 #: component -> why it is legitimately unmeasurable. RATCHET: may only
-#: shrink, and `buffer` came off it once its own benchmark existed: the
-#: entry had said the ring's push/pop "is a real hot path and should be
-#: measured", which is an argument for writing the file rather than for
-#: holding a waiver. What is left are the two whose kernels genuinely run
-#: under another component's benchmark.
+#: shrink, and it is down to ONE. `buffer` and `wfm_compose` both came off
+#: it once their own benchmarks existed, and both waivers had said the
+#: quiet part out loud: the ring's push/pop "is a real hot path and should
+#: be measured", and the composer was "benchmarked indirectly through
+#: wfm_synth only". Indirectly is not a reason, it is the gap -- measuring
+#: the engine underneath says nothing about the layer on top, and the
+#: composer's whole contribution happens at a segment boundary that a
+#: one-segment spec never crosses.
+#:
+#: What is left is the one case where "measured elsewhere" is true rather
+#: than a euphemism: a component whose kernel really does run under another
+#: component's benchmark, at the level where a caller constructs it.
 ALLOW: dict[str, str] = {
     "hbdecim": "doppler#893 — measured at its composing object instead. "
     "bench_HalfbandDecimator_core.c carries the block sweep this component's "
@@ -133,8 +140,6 @@ ALLOW: dict[str, str] = {
     "limit; the c_dep beneath has no such limit, so the old file measured a "
     "block size no caller can request. Not unmeasured — measured one level "
     "up, where a caller constructs.",
-    "wfm_compose": "doppler#891 — the composer's segment assembly is "
-    "benchmarked indirectly through wfm_synth only; pre-dates v0.42.0.",
 }
 
 #: benchmarks that BUILD and RUN but record no measurement -- a `bench_*.c`

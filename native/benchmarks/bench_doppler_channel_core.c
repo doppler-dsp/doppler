@@ -67,9 +67,31 @@ main (void)
   printf ("fs = %.1f MHz, carrier = %.2f GHz, block = %d, %d rounds\n\n",
           FS / 1e6, CARRIER / 1e9, BENCH_N, ITERATIONS);
 
+  /* PROCESS-level warm-up, before any configuration is timed. The per-config
+     warm-up below is not enough on its own: it warms the caches for the
+     config it precedes, but the very first config still absorbs the CPU's
+     frequency ramp out of a cold process, and MIN over rounds cannot remove
+     it because every round in a cold process is equally cold. Charged to
+     whichever config runs first, that produced ratios BELOW 1.0 against the
+     first row -- 0.70x here, read as "a ramp is 30% cheaper than a static
+     offset", beside prose asserting they cost the same. See doppler#896. */
+  {
+    doppler_channel_state_t *w = doppler_channel_create (FS, CARRIER, 3.0, 0);
+    if (w)
+      {
+        for (int i = 0; i < 64; i++)
+          {
+            doppler_channel_reset (w);
+            sink += doppler_channel_execute (w, x, BENCH_N, out, BENCH_N);
+          }
+        doppler_channel_destroy (w);
+      }
+  }
+
   const double      rates[2] = { 0.0, 5.0 };
   const char *const rname[2] = { "execute[static]", "execute[ramp]" };
   static double     t_ex[2][ITERATIONS];
+  static double     t_prof[ITERATIONS];
 
   for (int k = 0; k < 2; k++)
     {
@@ -115,6 +137,62 @@ main (void)
               (double)BENCH_N / min_sec (t_ex[k], ITERATIONS) / 1e6);
       doppler_channel_destroy (c);
     }
+
+  /* The array form. The question a caller actually has is whether driving a
+     real pass from a per-sample profile costs more than the closed form --
+     if it did, a LEO profile would be something you ration rather than
+     something you use. Same block, same warm-up, same MIN over rounds. */
+  {
+    double *ppm = malloc (BENCH_N * sizeof *ppm);
+    if (!ppm)
+      {
+        (void)fprintf (stderr, "bench_doppler_channel: profile alloc\n");
+        return 1;
+      }
+    /* A curved pass rather than a constant: the closed form cannot express
+       it, so this is the shape the array form exists for. */
+    for (int i = 0; i < BENCH_N; i++)
+      ppm[i] = 3.0 * cos (M_PI * (double)i / (double)BENCH_N);
+
+    doppler_channel_state_t *c = doppler_channel_create (FS, CARRIER, 0, 0);
+    if (!c)
+      {
+        (void)fprintf (stderr, "bench_doppler_channel: create NULL\n");
+        return 1;
+      }
+    for (int w = 0; w < 32; w++)
+      {
+        doppler_channel_reset (c);
+        sink += doppler_channel_execute_profile (c, x, BENCH_N, ppm, BENCH_N,
+                                                 out, BENCH_N);
+      }
+    for (int r = 0; r < ITERATIONS; r++)
+      {
+        doppler_channel_reset (c);
+        clock_gettime (CLOCK_MONOTONIC, &t0);
+        sink += doppler_channel_execute_profile (c, x, BENCH_N, ppm, BENCH_N,
+                                                 out, BENCH_N);
+        clock_gettime (CLOCK_MONOTONIC, &t1);
+        t_prof[r] = elapsed_sec (&t0, &t1);
+      }
+    jm_bench_add (&_bench, "execute[profile]", t_prof, ITERATIONS, BENCH_N);
+    printf ("  %-20s %7.2f ns/sample  %8.1f MSa/s\n", "execute[profile]",
+            min_sec (t_prof, ITERATIONS) / BENCH_N * 1e9,
+            (double)BENCH_N / min_sec (t_prof, ITERATIONS) / 1e6);
+    doppler_channel_destroy (c);
+    free (ppm);
+  }
+
+  printf ("\n  profile/static = %.2fx -- the array form is not a more\n"
+          "  expensive stimulus, it is marginally CHEAPER, and reproducibly\n"
+          "  so. Both paths divide once per sample to turn a Doppler into a\n"
+          "  rate, and both feed the same resampler and the same complex\n"
+          "  multiply; what the closed form adds is deriving `t` per sample\n"
+          "  (another divide) on BOTH clocks, where the array reads ppm[i]\n"
+          "  and accumulates. So a measured LEO profile costs no more than a\n"
+          "  scalar and a harness need not ration it -- which is the whole\n"
+          "  question a caller has about the array form.\n",
+          min_sec (t_prof, ITERATIONS) / min_sec (t_ex[0], ITERATIONS));
 
   printf ("\n  ramp/static = %.2fx -- a drifting offset costs the same as a\n"
           "  fixed one. Advancing the phase INCREMENT is one add beside the\n"

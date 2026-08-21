@@ -94,6 +94,85 @@ class DopplerChannel:
             Output.
         """
 
+    def execute_profile(
+        self,
+        x: NDArray[np.complex64],
+        ppm: NDArray[np.float64],
+    ) -> NDArray[np.complex64]:
+        """Apply a per-sample Doppler PROFILE to a block of complex baseband.
+
+        The array form of doppler_channel_execute(): instead of the create-time
+        `(doppler_ppm, doppler_rate_ppm_s)` closed form -- a straight line,
+        which a real pass is not -- the Doppler is supplied as one value per
+        INPUT sample. That length contract is not a convenience; it is the
+        contract `resamp_execute_ctrl()` underneath already has (`ctrl`
+        parallel to `in`), so a profile is handed to the resampler rather than
+        reduced to fit it.
+
+        **The profile is ABSOLUTE.** `ppm[i]` is the total instantaneous
+        Doppler at input sample `i`; the create-time scalars do not add to it.
+        They cancel exactly rather than by convention: the resampler's rate is
+        `base + ctrl`, and this fills `ctrl = ratio(ppm[i]) - base` with the
+        same `base` it was built with. Creating with zeros and supplying a
+        profile is the ordinary use.
+
+        **The carrier is accumulated, not evaluated.**
+        doppler_channel_phase()'s closed form has no counterpart for an
+        arbitrary sequence, so the excess-delay integral is summed as the
+        stream advances (see `excess_s`). Two consequences worth knowing:
+
+        - The sum is over OUTPUT samples while the profile is indexed by INPUT
+          samples, mapped `j*n_in/n_out` within each block. The two clocks
+          differ by the dilation itself, ~1e-5 relative -- the same
+          approximation doppler_channel_execute() already takes and documents
+          where it maps an input index to a receive time.
+        - It is a running total, so it is part of the serialized state
+          (`DOPPLER_CHANNEL_STATE_VERSION` 2) and is zeroed by
+          doppler_channel_reset(), exactly like the two sample clocks.
+
+        Mixing the two calls on one stream is permitted and coherent -- both
+        advance the same clocks -- but a stream that has ever been driven by a
+        profile reports its diagnostics from the profile, since the closed form
+        no longer describes it. See doppler_channel_get_offset_hz().
+
+        A sign change mid-record is the point: no `(doppler_ppm,
+        doppler_rate_ppm_s)` pair produces it, because a ramp through those
+        points would have to pass through them in order and keep going.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input CF32 samples, x_len of them.
+        ppm : NDArray[np.float64]
+            Doppler in ppm, parallel to x.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Samples written. 0 if any pointer is NULL, if ppm_len differs from
+            x_len -- "one value per waveform sample" is the contract, and a
+            separate length is what lets it be checked rather than trusted --
+            or if any profile sample is at or below -1e6 ppm, a scale of zero
+            or less meaning time stopped or ran backwards, which create()
+            already refuses for the scalar. All checked over the whole profile
+            BEFORE any output is produced, so a bad call writes nothing rather
+            than a valid prefix.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.impairment import DopplerChannel
+        >>> ch = DopplerChannel(fs=1e6, carrier_hz=2.5e9)
+        >>> n = 1000
+        >>> ppm = np.where(np.arange(n) < n // 2, 20.0, -20.0)
+        >>> y = ch.execute_profile(np.ones(n, dtype=np.complex64), ppm)
+        >>> y.shape          # closing then opening: the record STRETCHES overall
+        (1001,)
+        >>> round(ch.offset_hz, 1)   # fc * d at the last profile sample
+        -50000.0
+
+        """
+
     def reset(self) -> None:
         """Reset DopplerChannel to its post-create state.
 

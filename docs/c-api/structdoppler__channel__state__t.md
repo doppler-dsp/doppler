@@ -41,9 +41,12 @@ _DopplerChannel state._ [More...](#detailed-description)
 |  size\_t | [**ctrl\_cap**](#variable-ctrl_cap)  <br> |
 |  double | [**doppler\_ppm**](#variable-doppler_ppm)  <br> |
 |  double | [**doppler\_rate\_ppm\_s**](#variable-doppler_rate_ppm_s)  <br> |
+|  double | [**excess\_s**](#variable-excess_s)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
 |  uint64\_t | [**n\_in**](#variable-n_in)  <br> |
 |  uint64\_t | [**n\_out**](#variable-n_out)  <br> |
+|  double | [**prof\_d**](#variable-prof_d)  <br> |
+|  uint8\_t | [**profiled**](#variable-profiled)  <br> |
 |  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**rs**](#variable-rs)  <br> |
 
 
@@ -166,6 +169,19 @@ double doppler_channel_state_t::doppler_rate_ppm_s;
 
 
 
+### variable excess\_s 
+
+```C++
+double doppler_channel_state_t::excess_s;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable fs 
 
 ```C++
@@ -196,6 +212,32 @@ uint64_t doppler_channel_state_t::n_in;
 
 ```C++
 uint64_t doppler_channel_state_t::n_out;
+```
+
+
+
+
+<hr>
+
+
+
+### variable prof\_d 
+
+```C++
+double doppler_channel_state_t::prof_d;
+```
+
+
+
+
+<hr>
+
+
+
+### variable profiled 
+
+```C++
+uint8_t doppler_channel_state_t::profiled;
 ```
 
 

@@ -143,7 +143,8 @@ Raising the arm sample `z` to the Mth power strips the M-PSK data modulation, le
 
 The M-th power is computed by **repeated complex squaring** (`z²`→`z⁴`→`z⁸`) of the **unit-magnitude** sample `z/|z|`. Each level yields a phase error and a lock signal:
 * `phase_error` = `Im((z/|z|)^M)` scaled by `1, ½, ¼` for M = 2, 4, 8 — the scale normalizes the phase-detector gain so the S-curve slope at lock is 2 for every M (one `bn` behaves identically across M).
-* `lock_signal` = `Re((z/|z|)^M)` — the M-th power of a **limited** sample, so it is bounded in ±1 and its H0 variance is 1/2 for **every** M. ~1 when phase-locked, zero-mean with no carrier. That M-independence is what makes one `lock_thresh` mean one Pfa at every order; the threshold chain is derived above `CARRIER_NDA_LOCK_ALPHA`. Its EMA (`lock`) is the carrier lock metric. See `docs/design/mpsk.md` §2.3 for the derivation.
+* `lock_signal` = `Re((z/|z|)^M)` — the M-th power of a **limited** sample, so it is bounded in ±1 and its H0 variance is 1/2 for **every** M. ~1 when phase-locked, zero-mean with no carrier. That M-independence is what makes one `lock_thresh` mean one Pfa at every order; the threshold chain is derived above `CARRIER_NDA_LOCK_ALPHA`. Its EMA (`lock`) is the carrier lock metric. See `docs/design/mpsk.md` §4.2, "Limiting — what makes the
+threshold a Pfa", for the derivation.
 
 
 
@@ -155,7 +156,11 @@ The block API (carrier\_nda\_steps) is the Python face and emits the de-rotated 
 
 **Note:**
 
-**The input level does not matter, and there is no AGC here.** The discriminator divides out its own amplitude law (`|z|^M`) exactly, so both outputs — and with them the loop gain — are invariant to input scale over the whole float range: measured identical to 6.5e-7 relative from an amplitude of 1e-5 to 1e15, at every M  a few float eps, which is the rounding floor a float detector has and not a level dependence. The measurement is test\_carrier\_nda\_core.c section 9; this file carried a tighter 5e-7 that the test itself had already corrected, so the number here now comes from the thing that runs it. This loop used to embed a slow arm AGC whose only job was to manufacture `|z| = 1` so a raw `Im(z^M)` would behave; that condition no longer has to be manufactured, and the AGC is gone. A receiver needs exactly one AGC, for its own signal path, and not one per detector (`docs/design/mpsk.md` §2.3).
+**The input SCALE does not matter, and there is no AGC here.** The discriminator divides out its own amplitude law (`|z|^M`) exactly, so both outputs — and with them the loop gain — are invariant to input scale over the whole float range: measured identical to 6.5e-7 relative from an amplitude of 1e-5 to 1e15, at every M  a few float eps, which is the rounding floor a float detector has and not a level dependence. The measurement is test\_carrier\_nda\_core.c section 9; this file carried a tighter 5e-7 that the test itself had already corrected, so the number here now comes from the thing that runs it. This loop used to embed a slow arm AGC whose only job was to manufacture `|z| = 1` so a raw `Im(z^M)` would behave; that condition no longer has to be manufactured, and the AGC is gone. A receiver needs exactly one AGC, for its own signal path, and not one per detector (`docs/design/mpsk.md` §3.2, "The NDA discriminator +
+lock signal").
+
+
+**SCALE is not Es/N0, and only the first of them is invariant here.** Section 9 scales a clean phasor, so it holds signal and noise in the same ratio; that is homogeneity of degree zero, plus — the reason the test earns its place — a float-RANGE gate, since forming `|z|^M` at the end instead returns 0 below `|z| = 0.032` and NaN above 1e4 at M = 8. It says nothing about level relative to NOISE, and it should not be read as though it did: per-sample division by the instantaneous `|s+n|` is a hard limiter, so the S-curve slope genuinely does depend on Es/N0. That dependence is measured, as loop SNR against the un-normalised form across 0–20 dB and every M, in `docs/design/mpsk.md` §3.2 — the penalty is real at 0–3 dB, where the link cannot be closed anyway, and from ~6 dB up normalising is equal or better. This distinction was read the other way once (gh-795), which is why it is spelled out rather than implied.
 
 
 
@@ -390,7 +395,8 @@ JM_FORCEINLINE void carrier_nda_disc (
 
 
 
-Runs the repeated-squaring recursion `z²`→`z⁴`→`z⁸` on the **unit- magnitude** sample `z/|z|` and writes the phase error (= scaled `Im((z/|z|)^M)`) and the lock signal (`Re((z/|z|)^M)`). Both outputs are therefore invariant to the input's scale, which is what lets this loop run with no AGC in front of it — see the amplitude note at the top of this file, and docs/design/mpsk.md §2.3 for the squaring-loss measurement that says normalizing is equal or better from ~6 dB Es/N0 up.
+Runs the repeated-squaring recursion `z²`→`z⁴`→`z⁸` on the **unit- magnitude** sample `z/|z|` and writes the phase error (= scaled `Im((z/|z|)^M)`) and the lock signal (`Re((z/|z|)^M)`). Both outputs are therefore invariant to the input's scale, which is what lets this loop run with no AGC in front of it — see the amplitude note at the top of this file, and docs/design/mpsk.md §3.2, "The NDA discriminator + lock
+signal", for the squaring-loss measurement that says normalizing is equal or better from ~6 dB Es/N0 up: loop SNR against the raw form, 4e5 samples per point, tabulated over 0–20 dB and M = 2/4/8.
 
 
 

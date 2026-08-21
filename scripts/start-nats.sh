@@ -44,7 +44,18 @@ if command -v nats-server >/dev/null 2>&1; then
   # and the checkout is bind-mounted -- writing stream state into it would
   # show up as untracked files in the tree the gates then lint.
   store="${TMPDIR:-/tmp}/doppler-nats-store"
-  rm -rf "$store" && mkdir -p "$store"
+  # What this needs is an EMPTY store, not one particular unlink succeeding.
+  # A previous broker that is still shutting down keeps writing stream state
+  # for a while after it stops listening, so an `rm -rf` here can lose the
+  # same race `nats-down` does and fail with "Directory not empty" -- and
+  # under `set -e` that aborts the start outright. Retry, then insist.
+  rm -rf "$store" 2>/dev/null || { sleep 1; rm -rf "$store" 2>/dev/null; } || :
+  if [ -e "$store" ]; then
+    echo "start-nats: $store could not be cleared -- something is still" >&2
+    echo "  writing to it. Run 'make nats-down' and try again." >&2
+    exit 1
+  fi
+  mkdir -p "$store"
   nats-server -a 127.0.0.1 -p 4222 -js -sd "$store" \
       >"${TMPDIR:-/tmp}/doppler-nats.log" 2>&1 &
   echo $! >"$PIDFILE"

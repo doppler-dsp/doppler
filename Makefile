@@ -355,14 +355,54 @@ nats-up: ## Start the NATS JetStream broker the nats:// stream tests need
 # remove the container if there is one. Both unconditionally and both quietly,
 # because `nats-down` runs with `if: always()` after a failed job and must not
 # turn "the tests failed" into "the cleanup failed too".
+#
+# EVERY WRITER IS STOPPED AND WAITED FOR BEFORE THE STORE IS REMOVED, and that
+# ordering is the whole point. `kill` returns when the signal is QUEUED, not
+# when the process is gone -- measured here, nats-server stayed alive for ~900
+# further `kill -0` polls after `kill` returned, and a JetStream shutdown
+# spends that window flushing stream state to disk. An `rm -rf` racing it
+# empties a stream's msgs/ directory and then fails its rmdir on a file the
+# server re-created in between:
+#
+#   rm: cannot remove '.../streams/DP_WORK_ep752264292/msgs': Directory not empty
+#
+# which is a cleanup step failing a job whose tests had passed. Reproduced
+# deterministically against a writer that keeps writing through SIGTERM: with
+# the wait it removes clean, without it, that exact message.
+#
+# The container comes down before the store too. It publishes no bind mount
+# today, so it cannot be the writer -- but "stop every writer, then remove" is
+# the invariant, and ordering it the other way would let a future bind mount
+# reintroduce this silently.
+#
+# The removal itself cannot fail the target. That is the `if: always()` rule
+# above: the store is a temp directory, and a surviving one is worth a warning
+# and not worth converting a red test run into a red cleanup.
 nats-down: ## Stop and remove the NATS JetStream broker
 	@pidfile="$${NATS_PIDFILE:-$${TMPDIR:-/tmp}/doppler-nats.pid}"; \
 	 if [ -f "$$pidfile" ]; then \
-	     kill "$$(cat "$$pidfile")" 2>/dev/null || true; \
+	     pid="$$(cat "$$pidfile")"; \
+	     kill "$$pid" 2>/dev/null || true; \
+	     n=0; \
+	     while kill -0 "$$pid" 2>/dev/null; do \
+	         n=$$((n + 1)); \
+	         if [ $$n -eq 100 ]; then kill -9 "$$pid" 2>/dev/null || true; fi; \
+	         if [ $$n -ge 150 ]; then \
+	             echo "nats-down: pid $$pid outlived SIGTERM+SIGKILL"; \
+	             break; \
+	         fi; \
+	         sleep 0.1; \
+	     done; \
 	     rm -f "$$pidfile"; \
 	 fi
-	@rm -rf "$${TMPDIR:-/tmp}/doppler-nats-store"
 	@docker rm -f nats >/dev/null 2>&1 || true
+	@store="$${TMPDIR:-/tmp}/doppler-nats-store"; \
+	 rm -rf "$$store" 2>/dev/null || rm -rf "$$store" 2>/dev/null || true; \
+	 if [ -e "$$store" ]; then \
+	     echo "nats-down: WARNING — $$store survived removal, so something is"; \
+	     echo "  still writing to it. Not failing the target: this runs after a"; \
+	     echo "  job that may already have failed, and the store is a temp dir."; \
+	 fi
 	@echo "nats-down: broker stopped"
 
 # `gates` must run every gate CI does — enforced by `gates-check` (standard.mk),

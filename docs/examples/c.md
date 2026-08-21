@@ -412,7 +412,7 @@ output length is exactly `n_in / 2`.
 static const float H_FIR[N_TAPS] = { -0.2122f, 0.6366f, 0.6366f, -0.2122f };
 
 int main(void) {
-    HalfbandDecimator_state_t *dec = HalfbandDecimator_create(N_TAPS, H_FIR);
+    HalfbandDecimator_state_t *dec = HalfbandDecimator_create(H_FIR, N_TAPS);
 
     float _Complex in[N_IN], out[N_IN / 2];
     /* ... fill in[] with your signal ... */

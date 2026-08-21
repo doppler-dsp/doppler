@@ -12,7 +12,7 @@ main (void)
 {
   /* Minimal 3-tap halfband prototype: [0.25, 0.5, 0.25] */
   static const float         h[] = { 0.25f, 0.5f, 0.25f };
-  HalfbandDecimator_state_t *obj = HalfbandDecimator_create (3, h);
+  HalfbandDecimator_state_t *obj = HalfbandDecimator_create (h, 3);
   DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
@@ -35,18 +35,18 @@ main (void)
       in[i]
           = (float)cos (0.05 * (double)i) + I * (float)sin (0.05 * (double)i);
 
-    HalfbandDecimator_state_t *ra = HalfbandDecimator_create (3, h);
+    HalfbandDecimator_state_t *ra = HalfbandDecimator_create (h, 3);
     size_t nA = HalfbandDecimator_execute (ra, in, L, outA, L);
     HalfbandDecimator_destroy (ra);
 
-    HalfbandDecimator_state_t *r1 = HalfbandDecimator_create (3, h);
+    HalfbandDecimator_state_t *r1 = HalfbandDecimator_create (h, 3);
     size_t nB   = HalfbandDecimator_execute (r1, in, cut, outB, cut);
     size_t sb   = HalfbandDecimator_state_bytes (r1);
     void  *blob = malloc (sb);
     HalfbandDecimator_get_state (r1, blob);
     HalfbandDecimator_destroy (r1);
 
-    HalfbandDecimator_state_t *r2 = HalfbandDecimator_create (3, h);
+    HalfbandDecimator_state_t *r2 = HalfbandDecimator_create (h, 3);
     DP_CHECK (HalfbandDecimator_set_state (r2, blob) == DP_OK);
     ((char *)blob)[0] ^= (char)0xFF; /* clobber envelope -> reject */
     DP_CHECK (HalfbandDecimator_set_state (r2, blob) == DP_ERR_INVALID);
@@ -69,7 +69,7 @@ main (void)
     /* 2:1 decimation: 64 inputs would emit 32, but the caller only has
      * room for 5. The wrapper used to pass a fixed HBDECIM_MAX_OUT. */
     float                      h[3] = { 0.25f, 0.5f, 0.25f };
-    HalfbandDecimator_state_t *d    = HalfbandDecimator_create (3, h);
+    HalfbandDecimator_state_t *d    = HalfbandDecimator_create (h, 3);
     float complex              in[64], out[64];
     DP_CHECK (d != NULL);
     for (int i = 0; i < 64; i++)

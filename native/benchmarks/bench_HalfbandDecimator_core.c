@@ -99,7 +99,7 @@ main (void)
       const size_t block = blocks[k];
       const size_t reps  = TOTAL_PER_ROUND / block;
 
-      HalfbandDecimator_state_t *d = HalfbandDecimator_create (N_TAPS, h);
+      HalfbandDecimator_state_t *d = HalfbandDecimator_create (h, N_TAPS);
       if (!d)
         {
           (void)fprintf (stderr,

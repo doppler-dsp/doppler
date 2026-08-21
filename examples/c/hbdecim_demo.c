@@ -43,7 +43,7 @@ main (void)
 {
   printf ("=== Halfband Decimator Demo ===\n\n");
 
-  HalfbandDecimator_state_t *dec = HalfbandDecimator_create (N_TAPS, H_FIR);
+  HalfbandDecimator_state_t *dec = HalfbandDecimator_create (H_FIR, N_TAPS);
   if (!dec)
     {
       fprintf (stderr, "ERROR: HalfbandDecimator_create failed\n");

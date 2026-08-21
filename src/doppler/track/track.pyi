@@ -4173,26 +4173,27 @@ class MpskReceiverR:
         accumulator is a double. That is the real-world case whenever the ADC
         clock is free-running against the symbol clock. The default is 32
         rather than the complex face's 8 purely to clear that bound: `m_out`
-        defaults to 8, so anything at or below 16 cannot construct.
-    m_out : int, default 8
-        Terminal outputs per symbol: even, 2..8. The Gardner detector takes
-        every m_out-th output as the on-time strobe and the one m_out/2 back as
-        the transition gate, so the oversampled matched-filtered stream falls
-        out for free. **The default is 8 because that is where the I&D matched
-        filter reaches the coherent bound.** The rectangle is one symbol wide,
-        so its matched filter is an m_out-tap sum spanning it, and a smaller
-        m_out samples that same integral more coarsely. Measured on the complex
-        face at its default sps=8 against the coherent bound EVM_dB =
-        -(Es/N0)_dB: at 18 dB Es/N0, m_out=8 lands 0.41 dB off the bound where
-        m_out=4 loses 3.11 dB; at 14 dB it is 0.25 dB against 1.71 dB -- the
-        gap widens as noise stops hiding it. Because `sps` must clear `2 *
-        m_out` here, this default is also what puts the `sps` default at 32.
-        **Never pair 2 with pulse="iandd"**: the matched filter degenerates to
-        a two-tap sum, the eye barely opens (measured lock statistic -0.34 at 2
-        against +0.95 at 4 on the same NRZ stream) and acquisition itself fails
-        about half the time. Replaces the old `n` (NDA arm dumps per symbol):
-        the cascade's own outputs now feed the carrier discriminator, so there
-        is no separate arm to size.
+        derives to 8 here, so anything at or below 16 cannot construct.
+    m_out : int, default 0
+        **0 (the default) derives it** -- see docs/design/mpsk.md 8.1; pass a
+        value only to pin one. Terminal outputs per symbol: even, 2..8. The
+        Gardner detector takes every m_out-th output as the on-time strobe and
+        the one m_out/2 back as the transition gate, so the oversampled
+        matched-filtered stream falls out for free. **The default is 8 because
+        that is where the I&D matched filter reaches the coherent bound.** The
+        rectangle is one symbol wide, so its matched filter is an m_out-tap sum
+        spanning it, and a smaller m_out samples that same integral more
+        coarsely. Measured on the complex face at its default sps=8 against the
+        coherent bound EVM_dB = -(Es/N0)_dB: at 18 dB Es/N0, m_out=8 lands 0.41
+        dB off the bound where m_out=4 loses 3.11 dB; at 14 dB it is 0.25 dB
+        against 1.71 dB -- the gap widens as noise stops hiding it. Because
+        `sps` must clear `2 * m_out` here, this default is also what puts the
+        `sps` default at 32. **Never pair 2 with pulse="iandd"**: the matched
+        filter degenerates to a two-tap sum, the eye barely opens (measured
+        lock statistic -0.34 at 2 against +0.95 at 4 on the same NRZ stream)
+        and acquisition itself fails about half the time. Replaces the old `n`
+        (NDA arm dumps per symbol): the cascade's own outputs now feed the
+        carrier discriminator, so there is no separate arm to size.
     pulse : Literal["iandd", "rrc"], default "iandd"
         Matched-filter shape (default MPSK_RX_PULSE_IANDD).
     rrc_beta : float, default 0.35
@@ -4204,24 +4205,25 @@ class MpskReceiverR:
         (default 0.01). A carrier loop here closes around the matched filter,
         so its dead time is that filter's group delay — keep it a small
         fraction of the symbol rate, as a real receiver does.
-    zeta : float, default 0.707
-        Damping factor for both loops. PINNED here at a typed-out 0.707 where
-        the complex face takes 0 and derives `1/sqrt(2)` = 0.70710678118654752
-        -- the same value to four digits and not the same number. Pass 0 to get
-        the derivation. Read it back with `zeta`.
+    zeta : float, default 0.0
+        Damping factor for both loops. **0 (the default) derives it** as
+        `1/sqrt(2)` (MPSK_RX_ZETA_DEFAULT) — a constant rather than a
+        computation, since nothing in this receiver moves the optimal damping
+        and both loops already share one value. Read it back with
+        mpsk_receiver_get_zeta().
     bn_timing : float, default 0.01
         Symbol-timing loop noise bandwidth, normalised to the symbol rate
         (default 0.01).
-    lock_thresh : float, default 0.5
+    lock_thresh : float, default 0.0
         Declare threshold for the carrier lock indicator, on the carrier lock
-        EMA. PINNED here at a round 0.5 where the complex face takes 0 and
-        derives `sigma_H0 * eta(Pfa)` = 0.4999 at Pfa = 5e-6. Pass 0 to get the
-        derivation. The metric is `Re((z/|z|)^M)` smoothed by an EMA, whose
-        noise-only sd is 0.1132 for EVERY M, so 0.5 is 4.42 noise sigmas; to
-        pin your own, divide your Pfa's z-score into 0.1132 rather than picking
-        by feel. The drop threshold sits at 0.8x for level hysteresis and both
-        directions are verify-counted (8 symbols up / 32 down). Read it back
-        with `lock_thresh`.
+        EMA. **0 (the default) derives it** as `sigma_H0 * eta(Pfa)` = 0.4999
+        at Pfa = 5e-6; pass a value only to pin one. The metric is
+        `Re((z/|z|)^M)` smoothed by an EMA, whose noise-only sd is 0.1132 for
+        EVERY M, so 0.4999 is 4.42 noise sigmas; to pin your own, divide your
+        Pfa's z-score into 0.1132 rather than picking by feel. The drop
+        threshold sits at 0.8x for level hysteresis and both directions are
+        verify-counted (8 symbols up / 32 down). Read it back with
+        `lock_thresh`.
     init_norm_freq : float, default 0.0
         The real IF **centre**, cycles/sample at the real input rate -- an IF
         at 0.2*fs is 0.2, and the halved value the LO actually uses is this
@@ -4230,9 +4232,10 @@ class MpskReceiverR:
         the centre a tap buys pull-in *around* rather than from nothing.
     differential : int, default 0
         bits(): differential (rotation-invariant) demap (default 0 = coherent).
-    num_phases : int, default 1024
+    num_phases : int, default 0
         Matched-filter bank arms; a power of two. Sets the fractional-timing
-        resolution to 1/num_phases of an output period. The bank is sized by
+        resolution to 1/num_phases of an output period. **0 (the default)
+        derives it** as 64, the measured saturation point. The bank is sized by
         the POST-decimation rate, so this costs the same at sps=8 and sps=256.
     agc : int, default 1
         Level the front-end cascade so the timing detector's construct-time
@@ -4251,19 +4254,19 @@ class MpskReceiverR:
         none. Read the applied gain back with `agc_gain_db`. On this face the
         AGC sits behind the R2C halfband, so it levels the analytic signal at
         the intermediate rate rather than the real input.
-    bn_agc_ratio : float, default 0.05
-        The one AGC's noise bandwidth as a fraction of the SLOWEST loop it
-        feeds -- min(bn_carrier, bn_timing), not the carrier's alone, since the
-        AGC feeds the timing loop directly. Must be in (0, 1) and construction
-        refuses otherwise, because an AGC at or above the bandwidth of a loop
-        it feeds corrects the excursions that loop is itself producing and the
-        two integrate against each other; the signal LEVEL is a slow property
-        of the channel, not a disturbance to reject at loop speed. Exposed
-        rather than fixed because the right separation depends on how fast the
-        channel's level moves against how fast its phase and timing do, which
-        is a property of the link. The cold start is not the loop's job either
-        way -- the AGC seeds its gain from a direct measurement -- so slow is
-        cheap here.
+    bn_agc_ratio : float, default 0.0
+        **0 (the default) derives it** as 0.05. The one AGC's noise bandwidth
+        as a fraction of the SLOWEST loop it feeds -- min(bn_carrier,
+        bn_timing), not the carrier's alone, since the AGC feeds the timing
+        loop directly. Must be in (0, 1) and construction refuses otherwise,
+        because an AGC at or above the bandwidth of a loop it feeds corrects
+        the excursions that loop is itself producing and the two integrate
+        against each other; the signal LEVEL is a slow property of the channel,
+        not a disturbance to reject at loop speed. Exposed rather than fixed
+        because the right separation depends on how fast the channel's level
+        moves against how fast its phase and timing do, which is a property of
+        the link. The cold start is not the loop's job either way -- the AGC
+        seeds its gain from a direct measurement -- so slow is cheap here.
 
     Raises
     ------
@@ -4282,19 +4285,19 @@ class MpskReceiverR:
     >>> obj = MpskReceiverR(
     ...     m=4,
     ...     sps=32.0,
-    ...     m_out=8,
+    ...     m_out=0,
     ...     pulse="iandd",
     ...     rrc_beta=0.35,
     ...     rrc_span=8,
     ...     bn_carrier=0.01,
-    ...     zeta=0.707,
+    ...     zeta=0.0,
     ...     bn_timing=0.01,
-    ...     lock_thresh=0.5,
+    ...     lock_thresh=0.0,
     ...     init_norm_freq=0.0,
     ...     differential=0,
-    ...     num_phases=1024,
+    ...     num_phases=0,
     ...     agc=1,
-    ...     bn_agc_ratio=0.05,
+    ...     bn_agc_ratio=0.0,
     ... )
 
     """

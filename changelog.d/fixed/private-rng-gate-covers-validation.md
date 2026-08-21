@@ -39,7 +39,23 @@
     from the `dp_*` names, and this file's generator chain was private all
     the way down. **A private generator does not just risk being wrong; it
     hides the other rules from the code that uses it.** Rewritten into named
-    locals in gcc's order, so the published numbers are unchanged.
+    locals, in the order this build's gcc actually chose, so the published
+    numbers are unchanged — `docs/design/mpsk.md` quotes the strobe tap's
+    `+0.860` at the data onset, and a re-ordering moves it to `+0.757`.
+
+    Which order that is had to be MEASURED, not read off. `dp_rng_test.h`
+    records gcc taking the imaginary operand first; here, under this
+    harness's actual flags, gcc `-O3` and clang `-O0` both take the *real*
+    one, so writing the documented order in produced a silently different
+    table — one that still passed `--check`, because that subset prints a
+    single line. Every one of the four migrations was confirmed by diffing
+    the harness's FULL sweep, compiled before and after with its exact
+    per-target flags.
+
+    The point of the rewrite is not that the two compilers disagreed here;
+    measured, they happened to agree. It is that nothing made them, and the
+    published number had no defence if a flag, a version or a target ever
+    changed the choice.
 
 - **The gate now recognises a linear-congruential generator, which it had
     never looked for.** The scan knew xorshift and Box-Muller only, so it

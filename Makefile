@@ -985,7 +985,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 compile_commands.json \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
                 apt-stall-config deps-budget-check cargo-floor-check \
-                bench-coverage-check kwarg-parity-check \
+                bench-coverage-check kwarg-parity-check issues \
                 ci-image ci-image-check ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke \
@@ -1708,6 +1708,21 @@ endif
 # docs/api/*.md, README.md's synced body from docs/index.md, the per-distro
 # install scripts from bootstrap.toml, and the release version stamped into
 # doc-version regions.
+# NOT part of docs-relink, and not in CI, for one reason: this is the only
+# generator whose input is off the machine. `--write` reads the live issue
+# list through `gh`, so it needs the network and an authenticated CLI, and a
+# CI job built on it would fail on a rate limit rather than on the tree.
+#
+# What IS gated is the half that can be: `--check` re-renders from the
+# committed docs/dev/issue-tiers.toml and diffs the page, offline and
+# deterministic, so a hand-edit of a generated page is caught (docs-check).
+# Freshness against GitHub is not checkable offline, so the page carries the
+# date it was derived and the command that derives it -- the same
+# date-plus-derivation the rest of this repo requires of a recorded live
+# value.
+issues: ## Refresh docs/dev/issues.md from the live issue list (needs gh)
+	uv run python scripts/gen_issue_tracker.py --write
+
 docs-relink: ## Regenerate every generated doc region
 	uv run python scripts/gen_related_pages.py --write
 	uv run python scripts/gen_readme.py --write
@@ -1725,6 +1740,7 @@ docs-drift-check: ## Check the generated doc regions are up to date
 	uv run python scripts/gen_readme.py --check
 	uv run python scripts/gen_install_scripts.py --check
 	uv run python scripts/gen_validation_log.py --check
+	uv run python scripts/gen_issue_tracker.py --check
 
 # Every object certified under the validation campaign owns
 # src/doppler/<module>/tests/validation/<object>/, and `results.md` there is

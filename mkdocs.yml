@@ -317,6 +317,7 @@ nav:
           - Docstring Authoring: dev/contributing/docstring-authoring.md
           - Docs Conventions: dev/contributing/docs-conventions.md
       - Maintainer internals:
+          - Open Issues: dev/issues.md
           - Continuous Integration: dev/ci.md
           - Release: dev/release.md
           - Build Internals: dev/build-internals.md

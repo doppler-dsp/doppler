@@ -58,11 +58,6 @@ doppler_channel_reset (doppler_channel_state_t *state)
   resamp_reset (state->rs);
   state->n_in  = 0;
   state->n_out = 0;
-  /* The profile accumulator is running state, so it resets with the clocks.
-     Leaving it would resume a fresh stream on the previous one's carrier. */
-  state->excess_s = 0.0;
-  state->prof_d   = 0.0;
-  state->profiled = 0u;
 }
 
 size_t
@@ -146,130 +141,6 @@ doppler_channel_execute (doppler_channel_state_t *state,
   return n_out;
 }
 
-/* Smallest scale a profile sample may imply. At or below zero, time has
-   stopped or reversed -- create() already refuses the scalar equivalent, and
-   the array form must not be the way in. */
-static int
-doppler_channel_profile_ok (const double *ppm, size_t n, double *d_min)
-{
-  if (!ppm || n == 0)
-    return 0;
-  double lo = ppm[0];
-  for (size_t i = 0; i < n; i++)
-    {
-      if (!(1.0 + ppm[i] * 1e-6 > 0.0)) /* also catches NaN */
-        return 0;
-      if (ppm[i] < lo)
-        lo = ppm[i];
-    }
-  if (d_min)
-    *d_min = lo;
-  return 1;
-}
-
-size_t
-doppler_channel_profile_max_out (const double *ppm, size_t n)
-{
-  double lo = 0.0;
-  if (!doppler_channel_profile_ok (ppm, n, &lo))
-    return 0;
-  /* +2 for the resampler's carried fractional accumulator, matching the slack
-     doppler_channel_execute_max_out() allows for the same reason. */
-  return (size_t)((double)n / (1.0 + lo * 1e-6)) + 2u;
-}
-
-size_t
-doppler_channel_execute_profile_max_out (doppler_channel_state_t *state,
-                                         size_t                   n)
-{
-  (void)state; /* jm's signature: the binding sizes before it sees ppm[] */
-  /* +2 for the resampler's carried fractional accumulator, the same slack
-     doppler_channel_execute_max_out() allows for the same reason. */
-  return 2u * n + 2u;
-}
-
-size_t
-doppler_channel_execute_profile (doppler_channel_state_t *state,
-                                 const float complex *x, size_t x_len,
-                                 const double *ppm, size_t ppm_len,
-                                 float complex *out, size_t max_out)
-{
-  if (!state || !x || !out)
-    return 0;
-  /* The length contract, enforced rather than documented: one Doppler value
-     per waveform sample. jm gives each array its own length, so a caller
-     that pairs a profile with the wrong stream is a rejected call instead of
-     a silent read past the end of the shorter one. */
-  if (ppm_len != x_len)
-    return 0;
-  /* Validated over the WHOLE profile first: a check folded into the chunk
-     loop would emit a valid prefix and then stop, which reads as a short
-     read rather than a rejected argument. */
-  if (!doppler_channel_profile_ok (ppm, x_len, NULL))
-    return 0;
-
-  size_t n_out = 0;
-  double base  = doppler_channel_ratio (state, 0.0);
-
-  for (size_t off = 0; off < x_len && n_out < max_out;)
-    {
-      size_t m = x_len - off;
-      if (m > state->ctrl_cap)
-        m = state->ctrl_cap;
-
-      /* The profile IS the deviation. resamp's rate is `base + ctrl`, so
-         subtracting the same `base` the resampler was built with makes
-         ppm[] absolute and cancels the create-time scalar exactly. */
-      for (size_t i = 0; i < m; i++)
-        state->ctrl[i] = 1.0 / (1.0 + ppm[off + i] * 1e-6) - base;
-
-      size_t got = resamp_execute_ctrl (state->rs, x + off, state->ctrl, m,
-                                        out + n_out, max_out - n_out);
-
-      /* Carrier for exactly the samples this chunk produced, while the
-         chunk's own profile slice is in hand. Output sample j came from
-         around input j*m/got; the two clocks differ by the dilation itself
-         (~1e-5 relative), the same approximation the scalar path takes.
-
-         The integral advances even with no carrier to apply, or a later
-         carrier-bearing call would resume from a stale excess -- so the
-         multiply is what is conditional here, not the accumulation.
-
-         ORDER IS LOAD-BEARING: `excess_s` is read as the excess AT this
-         sample and advanced afterwards, which is what makes it a left sum
-         starting at zero and therefore equal to the closed form's `d*t` at
-         `t = k/fs`. Advancing first instead gives every sample the NEXT
-         sample's phase -- one increment is `fc*d/fs`, 2.9 degrees at 20 ppm
-         on a 2.5 GHz carrier at 6.138 Msps, which is 0.05 of amplitude and
-         exactly what the flat-profile equivalence test caught. */
-      int turn = (state->carrier_hz != 0.0);
-      for (size_t j = 0; j < got; j++)
-        {
-          size_t src = (size_t)((double)j * (double)m / (double)got);
-          if (src >= m)
-            src = m - 1;
-          if (turn)
-            {
-              double ph = state->carrier_hz * state->excess_s;
-              /* One turn before the float cast: the phase is absolute and
-                 cexpf would lose the fraction that actually matters. */
-              ph -= floor (ph);
-              out[n_out + j] *= cexpf ((float)(2.0 * M_PI * ph) * I);
-            }
-          state->prof_d = ppm[off + src] * 1e-6;
-          state->excess_s += state->prof_d / state->fs;
-        }
-
-      state->n_in += m;
-      n_out += got;
-      off += m;
-    }
-
-  state->profiled = 1u;
-  state->n_out += n_out;
-  return n_out;
-}
-
 double
 doppler_channel_get_elapsed_s (const doppler_channel_state_t *state)
 {
@@ -279,11 +150,6 @@ doppler_channel_get_elapsed_s (const doppler_channel_state_t *state)
 double
 doppler_channel_get_offset_hz (const doppler_channel_state_t *state)
 {
-  /* A stream a profile has driven is no longer described by the create-time
-     ramp, so reporting the closed form would name a frequency the capture
-     does not have. */
-  if (state->profiled)
-    return state->carrier_hz * state->prof_d;
   double t = doppler_channel_get_elapsed_s (state);
   return state->carrier_hz
          * (state->doppler_ppm + state->doppler_rate_ppm_s * t) * 1e-6;
@@ -291,22 +157,14 @@ doppler_channel_get_offset_hz (const doppler_channel_state_t *state)
 
 /* ---- state serialization ------------------------------------------------ */
 
-/* Running state only: the two sample clocks, the profile accumulator, plus
-   the resampler's own blob (delay line + fractional accumulator).
-   Configuration is restored by create(), so none of fs/carrier_hz/doppler_*
-   is packed here.
-
-   The profile accumulator has to be here for the same reason the clocks do:
-   it IS the carrier phase in profile mode, so a blob without it resumes a
-   curved pass at zero excess -- a phase step at the seam, in the one mode
-   whose whole point is that the carrier has no closed form to recover it
-   from. Adding it is why the layout version is 2. */
+/* Running state only: the two sample clocks plus the resampler's own blob
+   (delay line + fractional accumulator). Configuration is restored by
+   create(), so none of fs/carrier_hz/doppler_* is packed here. */
 
 size_t
 doppler_channel_state_bytes (const doppler_channel_state_t *state)
 {
   return sizeof (dp_state_hdr_t) + 2u * sizeof (uint64_t)
-         + 2u * sizeof (double) + sizeof (uint64_t)
          + resamp_state_bytes (state->rs);
 }
 
@@ -319,9 +177,6 @@ doppler_channel_get_state (const doppler_channel_state_t *state, void *blob)
             total);
   dp_w_u64 (&w, state->n_in);
   dp_w_u64 (&w, state->n_out);
-  dp_w_f64 (&w, state->excess_s);
-  dp_w_f64 (&w, state->prof_d);
-  dp_w_u64 (&w, (uint64_t)state->profiled);
   void *child = dp_w_reserve (&w, resamp_state_bytes (state->rs));
   if (child)
     resamp_get_state (state->rs, child);
@@ -339,9 +194,6 @@ doppler_channel_set_state (doppler_channel_state_t *state, const void *blob)
   (void)dp_r_reserve (&r, sizeof (dp_state_hdr_t)); /* skip the envelope */
   state->n_in       = dp_r_u64 (&r);
   state->n_out      = dp_r_u64 (&r);
-  state->excess_s   = dp_r_f64 (&r);
-  state->prof_d     = dp_r_f64 (&r);
-  state->profiled   = (uint8_t)(dp_r_u64 (&r) != 0u);
   const void *child = dp_r_reserve (&r, resamp_state_bytes (state->rs));
   if (!child)
     return DP_ERR_INVALID;

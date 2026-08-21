@@ -32,6 +32,9 @@ so you can find the one that owns your question.
 Release-owner plumbing — a library user or drive-by contributor never
 needs these:
 
+- [Open Issues](issues.md) — the whole backlog, tiered by the kind of harm
+    each issue does rather than by age or label; generated from
+    [`issue-tiers.toml`](issue-tiers.toml) by `make issues`
 - [Continuous Integration](ci.md) — the pinned toolchain image and how to run
     CI's environment yourself (`make ci-gates`), the compiler cache, and the
     gates that watch CI itself

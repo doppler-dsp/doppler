@@ -146,14 +146,15 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* Hand-patched: jm's generic implicit-count default is a static 1;
-   * doppler's n defaults to the full window (num_taps), computed from
-   * instance state at call time -- jm's manifest has no way to express
-   * that, so the default is restored here after each regeneration. Also
-   * renamed jm's default "count" kwarg to "n" to match this method's
-   * long-standing docstring/test naming. */
-  static char *_kwlist[] = { "n", "out", NULL };
-  Py_ssize_t   n         = (Py_ssize_t)self->handle->num_taps;
+  /* The kwarg is `count` and the default is the whole window. Both are
+   * jm's now, not hand-patches: the manifest's `count_default` (jm
+   * gh-1051) is a C expression evaluated here, which is what lets an
+   * instance-derived default be DECLARED rather than restored after every
+   * regeneration. The name was hand-renamed to `n` for years while every
+   * published face -- the stub, the runtime docstring -- said `count`, so
+   * a caller following either got a TypeError (gh-619). */
+  static char *_kwlist[] = { "count", "out", NULL };
+  Py_ssize_t   n         = (Py_ssize_t)(self->handle->num_taps);
   PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|nO", _kwlist, &n, &out_obj))
     return NULL;

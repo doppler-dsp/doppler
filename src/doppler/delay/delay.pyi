@@ -75,7 +75,7 @@ class DelayCf64:
 
     def ptr(
         self,
-        count: int = 1,
+        count: int = ...,
         out: NDArray[np.complex128] | None = None,
     ) -> NDArray[np.complex128]:
         """Return a zero-copy view of the n most recent samples. Copies at most

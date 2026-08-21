@@ -985,7 +985,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 compile_commands.json \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
                 apt-stall-config deps-budget-check cargo-floor-check \
-                bench-coverage-check \
+                bench-coverage-check kwarg-parity-check \
                 ci-image ci-image-check ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke \
@@ -1017,7 +1017,7 @@ include standard.mk
 # running was the other half, and `gates` is a local convenience, not CI.
 lint: tests-ssot characterization-check validation-report-check changelog-check \
       issue-link-check deps-budget-check ci-image-check cargo-floor-check \
-      bench-coverage-check
+      bench-coverage-check kwarg-parity-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -1036,6 +1036,16 @@ tests-ssot: ## Verify no C test re-defines dp_test.h's macros or loses assertion
 # fixed from every angle except the snapshot it never appears in.
 bench-coverage-check: ## Verify every tested component has a benchmark that runs
 	@uv run python scripts/check_bench_coverage.py
+
+# On `lint` rather than `drift-check`, because drift-check structurally
+# CANNOT see this: a `_kwlist` lives in the wrapper body of a sacred
+# `_ext_<obj>.c` fragment, and jm's own output says that part is "yours …
+# not counted as drift". Measured before this target existed -- renaming
+# DelayCf64.ptr's kwarg back to `n` left drift-check reporting exactly what
+# it reported before, and passing, while a caller following the stub got a
+# TypeError (#619). Reads both faces instead, discovering every fragment.
+kwarg-parity-check: ## Verify each binding accepts the keywords its stub publishes
+	@uv run python scripts/check_kwarg_parity.py
 
 # Hung off `lint` rather than `validate-check` deliberately. `validate-check`
 # re-runs each validator and compares -- a STALENESS gate, and staleness is

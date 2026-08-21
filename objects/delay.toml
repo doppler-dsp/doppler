@@ -25,6 +25,10 @@ return_type = "double _Complex"
 variable_output = true
 # Snapshot is truncated to the caller's capacity (jm gh-138).
 pass_capacity = true
+# A bare ptr() snapshots the WHOLE window, not one sample. That default is
+# instance state, not a literal, so it is a C expression (jm gh-1051) --
+# which the stub then renders as `...` rather than inventing a number.
+count_default = "self->handle->num_taps"
 
 [[delay.methods]]
 name = "push_ptr"

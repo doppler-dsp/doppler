@@ -164,9 +164,13 @@ error: unknown component(s): util
 Making `jm bench` run a non-component benchmark is
 [just-makeit#1023](https://github.com/just-buildit/just-makeit/issues/1023);
 doppler deliberately does not carry a local runner that duplicates jm's
-collector and would be retired the day the fix ships. Ten benchmarks are
-in that state — `conv`, `rs`, `ccsds_tm`, `mpsk`, `ber`, `snr`, `util`,
-`timing`, `hbdecim`, `resamp`. Run one by hand:
+collector and would be retired the day the fix ships.
+
+**How many are in that state is printed by the gate, not written here.**
+`make bench-coverage-check` counts them from the tree on every run and
+says so in its OK line; a tally copied into this page would go stale the
+first time a benchmark is added, which is exactly how the numbers in the
+section below came to be wrong. Run one by hand:
 
 ```sh
 cmake --build build --target bench_conv_core
@@ -205,25 +209,23 @@ snapshot while the file, the target and the `jm bench` run all exist.
 
 Thirty were in that state when
 [#891](https://github.com/doppler-dsp/doppler/issues/891) was filed.
+**`HOLLOW_ALLOW` is now empty**, so every benchmark in the tree records
+something. The ratchet stays, and stays enforced, because an empty set is
+what keeps it that way: the gate fails on a benchmark that stops
+recording, and adding a name back has to be argued for.
 
-**The current set is the `HOLLOW_ALLOW` ratchet in
-`scripts/check_bench_coverage.py`, and this page deliberately does not
-copy it out.** It used to, and every number in the copy went quietly
-wrong: the tally, the names, and — worst — a group this page called *the
-real gap*, the components measured in no language at all, which has since
-been closed. Read the ratchet; it is nine lines and it cannot be stale,
-because the gate fails on an entry whose benchmark has started measuring.
+The last ten off it were the library's hottest kernels — `fir`, `fft`,
+`nco`, `ddc`, `ddcr`, `corr`, `fft2d`, `detector`, `detector2d`,
+`hbdecim_q15` — and they had survived because their kernels already reach
+`docs/benchmarks.md` through a Python benchmark, so the empty C file cost
+a row rather than the measurement. What that row is worth is the face
+where per-call overhead is not folded into the number, which is where the
+questions a signature cannot answer live: what a complex tap costs over a
+real one at the same length, what the one-sample-at-a-time form a closed
+loop is obliged to use costs over a block call, whether a 2-D transform is
+priced by its bin count or its shape.
 
-**A hollow benchmark costs a C-level row, not always the measurement.**
-What survives on the ratchet are components whose kernels DO reach
-`docs/benchmarks.md` through a Python benchmark
-(`fir::…execute[819200]` at 74.0 → 261.4 MSa/s, `nco::…steps_u32_64k` at
-3.44 GSa/s). What their empty C file costs is the face where per-call
-overhead is not folded into the number — which matters most for small
-blocks and per-sample methods, and least for the large-block rows already
-published.
-
-`jm bench` does say so —
+`jm bench` does say when a benchmark records nothing —
 
 ```
 bench_fir_core: recorded 0 measurements -- this target measures nothing.
@@ -232,14 +234,19 @@ bench_fir_core: recorded 0 measurements -- this target measures nothing.
 
 — but it warns rather than fails, in a long log, from a target that runs
 occasionally by design. So `check_bench_coverage.py` fails `make lint` on
-a benchmark that calls `jm_bench_write_json` and never records, with the
-ones that pre-date the gate carried as a ratchet that may only shrink.
+a benchmark that calls `jm_bench_write_json` and never records.
 
-**Filling one in is a good first contribution**: take a name off
-`HOLLOW_ALLOW`, write the timing loop against its real `_create()`, and
-delete its line. The gate will tell you if you delete a line without
-filling the benchmark in, and equally if you fill one in and leave the
-line.
+**Write the question down, not just the loop.** A row that reports one
+number for one configuration is a fact nobody can act on. Every benchmark
+here opens by naming something the API does not tell a caller and closes
+by answering it in a printed comparison, which is also why the
+configurations are interleaved rather than run back to back: the output is
+a ratio, and a ratio is only worth reading when both halves saw the same
+machine. Some of those answers are *no* — the detector's chunk size and
+the ring buffer's wrap position both turn out to cost nothing, and a
+measured "this is free" is a result a caller can design against. Write the
+prediction into the file, and if the measurement refutes it, correct the
+file rather than the reading.
 
 ### How they work
 

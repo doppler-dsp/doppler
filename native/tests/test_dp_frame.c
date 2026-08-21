@@ -34,7 +34,7 @@ static uint8_t alt[CAP];
 /* The set's documented totals, in the order of dp_frame_name_t. Repeating the
    header's table here is deliberate: the table is the contract, and a change
    to a length that nobody meant now has to be made twice. */
-static const size_t want_bits[DP_FRAME_COUNT] = { 1024, 285, 1679, 1679, 512 };
+static const size_t want_bits[DP_FRAME_COUNT] = { 304, 285, 959, 959, 512 };
 
 int
 main (void)

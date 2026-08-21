@@ -17,11 +17,11 @@
  *
  * | name             | preamble       | sync        | payload    | crc | bits
  * | | ---------------- | -------------- | ----------- | ---------- | --- |
- * ---- | | `RX_FRAME_NONE`  | —              | —           | PN 1024    | no
- * | 1024 | | `RX_FRAME_BURST` | dotted x 64    | Barker-13   | PN 128     |
- * yes |  285 | | `RX_FRAME_CONT`  | dotted x 256   | PN 127      | PN 1024 |
- * yes | 1679 | | `RX_FRAME_GOLD`  | dotted x 256   | Gold 127    | Gold 1024
- * | yes | 1679 | | `RX_FRAME_ACQ`   | dotted x 256   | —           | — | no  |
+ * ---- | | `RX_FRAME_NONE`  | —              | —           | PN 304     | no
+ * | 304 | | `RX_FRAME_BURST` | dotted x 64    | Barker-13   | PN 128     |
+ * yes |  285 | | `RX_FRAME_CONT`  | dotted x 256   | PN 127      | PN 304 |
+ * yes | 959 | | `RX_FRAME_GOLD`  | dotted x 256   | Gold 127    | Gold 304
+ * | yes | 959 | | `RX_FRAME_ACQ`   | dotted x 256   | —           | — | no  |
  * 512 |
  *
  * ## What each one is FOR, which is what stops the set growing
@@ -40,6 +40,18 @@
  * - **`RX_FRAME_CONT`** is the continuous flavor at an Es/N0 floor, where 13
  *   bits will not do. Its 127-bit sync is one register period (`reg_bits =
  *   7`) and is a PLACEHOLDER pending that same measurement.
+ *
+ *   Its payload is **304 bits, and that length is load-bearing** (gh-796).
+ *   At the 1024 it carried, the CRC protects 1040 bits, so at the battery's
+ *   SER=1e-3 anchor roughly two thirds of frames fail on noise alone --
+ *   and a frame error rate that high HIDES faults rather than exposing
+ *   them. Corrupting every other frame's CRC adds `0.5 * (1 - FER)`, so
+ *   with 0.68 already failing it moved the measurement only 0.68 -> 0.84,
+ *   a factor of 1.23, and `dp_rx_check`'s FER anchor could not see it. At
+ *   304 the baseline is 0.30 and the same sabotage reads 0.65, a factor of
+ *   2.18, which the anchor rejects. Shortening the payload rather than
+ *   raising Es/N0 keeps ONE Es/N0 across all four battery metrics, which
+ *   is what makes them comparable.
  * - **`RX_FRAME_GOLD`** earns its place against `RX_FRAME_CONT` by isolating
  *   ONE variable: same preamble, same sync LENGTH, same payload length, same
  *   CRC — only the sequence family differs. That is what makes the
@@ -161,7 +173,7 @@ dp_frame_named (dp_frame_name_t name)
       f.preamble.len     = 0;
       f.preamble_reps    = 0;
       f.payload.kind     = WFM_SEQ_PN;
-      f.payload.len      = 1024;
+      f.payload.len      = 304;
       f.payload.reg_bits = 11;
       f.payload.seed     = 1;
       f.crc              = 0;
@@ -186,7 +198,7 @@ dp_frame_named (dp_frame_name_t name)
       f.sync.reg_bits    = 7;
       f.sync.seed        = 5;
       f.payload.kind     = WFM_SEQ_PN;
-      f.payload.len      = 1024;
+      f.payload.len      = 304;
       f.payload.reg_bits = 11;
       f.payload.seed     = 1;
       f.crc              = 1;
@@ -204,7 +216,7 @@ dp_frame_named (dp_frame_name_t name)
       f.sync.taps_b      = DP_FRAME_GOLD_TAPS_B;
       f.sync.seed_b      = 73;
       f.payload.kind     = WFM_SEQ_GOLD;
-      f.payload.len      = 1024;
+      f.payload.len      = 304;
       f.payload.reg_bits = DP_FRAME_GOLD_BITS;
       f.payload.taps_a   = DP_FRAME_GOLD_TAPS_A;
       f.payload.seed_a   = 511;

@@ -922,6 +922,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 doxygen-warn-gate \
                 test-examples-c test-examples-python test-example-downstream \
                 test-example-downstream-python \
+                package-example-tarball test-example-tarball \
                 test-stubs test-api-docs test-snippets lint-stubs \
                 test-ubsan \
                 check-docstring-coverage \
@@ -1466,6 +1467,96 @@ endif
 	         exit 1; }; \
 	 done; \
 	 echo "package-c-tarball: $$tb ($$(tar -tzf "$$tb" | wc -l) entries)"
+
+# ── The starter tarball ──────────────────────────────────────────────────────
+# `examples/downstream-jm` shipped as something a newcomer can extract and
+# build, with doppler INSIDE it. The point is that the two commands in its
+# README are the whole story: no doppler checkout, no install step, no
+# CMAKE_PREFIX_PATH, no network.
+#
+# That is why the SDK is bundled rather than fetched. A FetchContent path would
+# have made one platform-independent archive instead of three, and it would
+# have moved the failure a beginner hits from "it built" to "it could not
+# reach github.com" -- on the first command they run, in the artifact whose
+# entire job is to demonstrate that consuming doppler is easy.
+#
+# The project half comes from `git archive`, not from a copy of the working
+# tree: the working tree carries build/, .pytest_cache/ and a
+# compile_commands.json full of absolute paths from this machine, and a
+# starter that ships someone else's paths is a starter that reads as broken.
+EXAMPLE_STAGE ?= $(BUILD_DIR)/example-pkg
+EXAMPLE_NAME  ?= iqtools
+
+package-example-tarball: ## VERSION=x.y.z — tar the starter project with the SDK bundled
+ifndef VERSION
+	@echo "usage: make package-example-tarball VERSION=<x.y.z>"; exit 1
+endif
+	@rm -rf $(EXAMPLE_STAGE)
+	@mkdir -p $(EXAMPLE_STAGE)/$(EXAMPLE_NAME)
+# HEAD, so the archive is a commit rather than whatever is unsaved. A starter
+# built from a dirty tree cannot be reproduced by the person who receives it.
+	@git archive HEAD:$(DOWNSTREAM_DIR) \
+	    | tar -x -C $(EXAMPLE_STAGE)/$(EXAMPLE_NAME) \
+	    || { echo "package-example-tarball: git archive failed — is $(DOWNSTREAM_DIR) committed?"; exit 1; }
+	@$(MAKE) --no-print-directory package-c \
+	    PREFIX=$(abspath $(EXAMPLE_STAGE)/$(EXAMPLE_NAME)/third_party/doppler)
+	@mkdir -p $(DIST_DIR)
+	@tar -czf "$(DIST_DIR)/$(EXAMPLE_NAME)-$(VERSION)-$(C_PLATFORM).tar.gz" \
+	    -C $(EXAMPLE_STAGE) $(EXAMPLE_NAME)
+# Assert the shape the README promises, for the reason package-c-tarball does:
+# a tar of an empty prefix exits 0 and ships nothing. Both halves are checked
+# -- the project AND the doppler it is supposed to carry -- because bundling
+# is the whole claim and a tarball missing it still configures on a machine
+# that happens to have doppler installed.
+	@tb="$(DIST_DIR)/$(EXAMPLE_NAME)-$(VERSION)-$(C_PLATFORM).tar.gz"; \
+	 for want in $(EXAMPLE_NAME)/CMakeLists.txt \
+	             $(EXAMPLE_NAME)/just-makeit.toml \
+	             $(EXAMPLE_NAME)/third_party/doppler/include/ \
+	             $(EXAMPLE_NAME)/third_party/doppler/lib/libdoppler.a \
+	             $(EXAMPLE_NAME)/third_party/doppler/lib/cmake/; do \
+	     tar -tzf "$$tb" | grep -q "^$$want" || { \
+	         echo "package-example-tarball: $$tb has no $$want — refusing to ship it"; \
+	         exit 1; }; \
+	 done; \
+	 echo "package-example-tarball: $$tb ($$(tar -tzf "$$tb" | wc -l) entries)"
+
+# The gate on the artifact, not on the source: extract the tarball somewhere
+# with no relationship to this repo and run EXACTLY the commands the README
+# leads with. `test-example-downstream` builds the same
+# project from the source tree against a build-tree doppler -- a different
+# question (can a consumer link libdoppler.a, answered on glibc 2.28 without
+# Python), and it cannot see a packaging mistake, because nothing it touches
+# comes out of the tarball.
+#
+# Runs in a temp dir OUTSIDE the repo: extracted under $(BUILD_DIR) it would
+# still find this checkout through a relative path and pass while the bundle
+# was empty, which is the failure it exists to catch.
+#
+# BUILD_PYTHON=OFF, and that is the README's headline path rather than a
+# convenience here. The tarball can bundle doppler; it cannot bundle
+# python3-dev and NumPy's headers, and the jm-owned preamble's
+# `find_package(Python3 COMPONENTS Development.Module NumPy)` is REQUIRED --
+# so a genuinely flag-free configure fails on any box without them. Measured:
+# it fails on this one. The C half is what the tarball can promise with
+# nothing installed at all, so the C half is what the README leads with and
+# what this gate runs; the Python half is a documented second step with one
+# prerequisite, already covered by test-example-downstream-python.
+test-example-tarball: ## Extract the starter tarball and build it with no flags
+	@v="$$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)"; \
+	 $(MAKE) --no-print-directory package-example-tarball VERSION="$$v" \
+	   || exit 1; \
+	 tb="$(abspath $(DIST_DIR))/$(EXAMPLE_NAME)-$$v-$(C_PLATFORM).tar.gz"; \
+	 tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
+	 tar xzf "$$tb" -C "$$tmp"; \
+	 printf "  %-22s" "extract + build"; \
+	 if (cd "$$tmp/$(EXAMPLE_NAME)" \
+	     && cmake -B build . -DBUILD_PYTHON=OFF > "$$tmp/log" 2>&1 \
+	     && cmake --build build --parallel $(NPROC) >> "$$tmp/log" 2>&1 \
+	     && $(CTEST) --test-dir build >> "$$tmp/log" 2>&1); then \
+	     echo "PASS"; \
+	 else \
+	     echo "FAIL"; cat "$$tmp/log"; exit 1; \
+	 fi
 
 # Source distribution, sibling of standard.mk's `wheel` (= uv build --wheel).
 # release.yml's build-sdist job calls this instead of hand-rolling a

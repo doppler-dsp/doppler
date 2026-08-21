@@ -12,8 +12,33 @@ dependencies = [
     "numpy",
 ]
 
+# ONE extra, not one per target. A starter should have a single setup command
+# rather than a menu of them, and every name here is a wheel — so `make setup`
+# needs no privileges and touches nothing outside this directory.
+#
+# NumPy is deliberately absent: it is already declared in `[build-system]
+# requires` and `[project] dependencies` above, and naming it again here would
+# be a third place to forget it.
+[project.optional-dependencies]
+dev = [
+    # make test — the suite writes its fixtures with doppler's Python writer
+    # and reads them back through this project's facade. The distribution is
+    # `doppler-dsp`; plain `doppler` on PyPI is an unrelated SQL migration
+    # tool, and installing that one costs a confusing five minutes.
+    "pytest",
+    "doppler-dsp",
+    # make bench — the runner is just-makeit itself, the same tool that
+    # generated the bindings; pytest-benchmark is what the Python half needs,
+    # and without it `jm bench` reports "none found" and moves on.
+    "just-makeit",
+    "pytest-benchmark",
+]
+
 [tool.just-buildit]
 command = "make just-build"
 
 [tool.pytest.ini_options]
+# `bench_*.py` as well as `test_*.py`, so pytest collects the benchmark files
+# next to the tests. Without it `make bench` finds no Python benchmarks.
+python_files = ["test_*.py", "bench_*.py"]
 testpaths = ["src"]

@@ -80,11 +80,11 @@ told the truth, recovers the real length. Both behaviours are pinned by tests
 
 ______________________________________________________________________
 
-## Getting doppler
+## Getting it, and building it
 
-**You need neither doppler's source nor a doppler build.** Every release ships
-a self-contained C SDK for each platform — about 1.8 MB — and that is the
-normal way to consume it:
+**Download the starter, extract it, build it.** That is the whole procedure —
+there is no doppler to install first, nothing to fetch at configure time, and
+no path to point `cmake` at. The tarball ships doppler *inside it*.
 
 <!-- doc-version:start -->
 
@@ -92,100 +92,133 @@ normal way to consume it:
 VER=0.42.0
 PLAT=linux-x86_64          # or linux-aarch64, macos-arm64
 
-curl -fsSL -O https://github.com/doppler-dsp/doppler/releases/download/v$VER/doppler-$VER-$PLAT.tar.gz
-mkdir -p ~/.local/doppler
-tar xzf doppler-$VER-$PLAT.tar.gz -C ~/.local/doppler
+curl -fsSL -O https://github.com/doppler-dsp/doppler/releases/download/v$VER/iqtools-$VER-$PLAT.tar.gz
+tar xzf iqtools-$VER-$PLAT.tar.gz
+cd iqtools
+
+cmake -B build . -DBUILD_PYTHON=OFF
+cmake --build build -j
+ctest --test-dir build
 ```
 
 <!-- doc-version:end -->
 
-(That version is generated from `pyproject.toml` by `make docs-relink` and
-gated by `docs-check`, so it cannot fall behind a release. Prefer not to pin at
-all? `gh release download --repo doppler-dsp/doppler --pattern "doppler-*-$PLAT.tar.gz"` always takes the newest.)
+(That version is generated from doppler's `pyproject.toml` by
+`make docs-relink` and gated by `docs-check`, so it cannot fall behind a
+release.)
 
-What is in it:
+`find_package(doppler REQUIRED)` resolves against the bundled copy because the
+project prepends it to `CMAKE_PREFIX_PATH` — one `if(EXISTS ...)` block in
+`CMakeLists.txt`, above the manifest-owned section. **Rename the directory and
+it is your project**; the manifests, the C core and the tests are all yours to
+edit from there.
+
+What is inside:
 
 ```text
-doppler/
-├── lib/
-│   ├── libdoppler.a          the static library this example links
-│   ├── libdoppler.so         the shared one, if you prefer it
-│   ├── cmake/doppler/        the find_package(doppler) package config
-│   └── pkgconfig/doppler.pc  for builds that are not CMake
-├── include/                  the public headers
-└── bin/wfmgen                the waveform generator CLI
+iqtools/
+├── CMakeLists.txt            yours
+├── just-makeit.toml          the manifests that generate the glue
+├── objects/  modules/
+├── native/                   the C core and tests you write
+├── src/iqtools/              the Python package jm generates
+└── third_party/doppler/
+    ├── lib/libdoppler.a      linked automatically
+    ├── lib/cmake/doppler/    what find_package resolves
+    ├── lib/pkgconfig/        for builds that are not CMake
+    └── include/              doppler's public headers
 ```
 
-Nothing else is required — no Python, no toolchain beyond a C compiler, and no
-doppler checkout.
+### The Python half — also no root, also in-tree
 
-> **If your doppler is too old, `cmake` says so and stops.** This example needs
-> a reader that resolves a capture's centre frequency, which arrived after the
-> release current when this page was written. You do not have to know that: the
-> configure step probes for the capability and fails with both the reason and
-> the fix. Nothing here names a version, so nothing here goes stale — the check
-> starts passing by itself once a release carries the feature.
->
-> The probe is by symbol rather than by version, because a too-old doppler
-> **links perfectly well**: `wfm_reader_get_fc` has existed for ages and simply
-> returns 0.0. Before the check, the example built clean and failed a test at
-> `capture_get_fc (obj) == FC`, which tells a newcomer nothing.
+`-DBUILD_PYTHON=OFF` above keeps the first build dependency-free. The Python
+half needs one more thing, and it is **not** a system `-dev` package:
 
-### Building the example against it
+```bash
+make setup        # in-tree .venv, from pyproject.toml
+make test         # builds the extension, runs CTest and pytest
+```
 
-From this directory:
+`Python.h` ships with the interpreter, so the only thing a stock Python is
+missing to compile this extension is **NumPy's headers** — and NumPy is a
+wheel. Measured, on a machine with no `-dev` package installed:
+
+```text
+Could NOT find Python3 (missing: Python3_NumPy_INCLUDE_DIRS NumPy)
+```
+
+That is the whole gap. `make setup` closes it in `.venv/`, next to the
+project, with no privileges and nothing written outside the directory you
+extracted.
+
+It does that with `pip install -e ".[test]"` rather than a list of package
+names, because the names are already declared and a recipe that repeats them
+is a second place to forget one. NumPy is declared **three times over** —
+`[build-system] requires`, `[project] dependencies`, and
+`find_package(Python3 ... NumPy)` in `CMakeLists.txt`, which is what puts
+`Python3::NumPy` on the extension's link line. The `[test]` extra adds what
+the suite needs and the build does not: `pytest`, and **`doppler-dsp`** — the
+suite writes its fixtures with doppler's Python writer and reads them back
+through this project's façade, which is exactly what makes it worth running.
+(The distribution is `doppler-dsp`. Plain `doppler` on PyPI is an unrelated
+SQL migration tool, and installing it is a confusing five minutes.)
+
+`bootstrap.toml` still declares the apt/brew/pacman names, and
+`jbx install-deps -g dev` still installs them. That path is
+`sudo <package-manager>` by construction, with no notion of a prefix — right
+for a CI image or a machine you administer, wrong for someone who just
+unpacked a tarball.
+
+### Using a doppler you already have
+
+An explicit `-Ddoppler_DIR` beats the bundled copy, and an installed doppler
+found on the default prefixes is used when `third_party/doppler/` is absent —
+which is the case if you took this project from doppler's own source tree
+rather than from a release:
 
 ```bash
 cmake -B build . -DCMAKE_PREFIX_PATH=$HOME/.local/doppler
-cmake --build build -j
 ```
-
-Untar into `/usr/local` instead and even that flag goes away —
-`find_package(doppler REQUIRED)` searches the default prefixes.
-
-### From source, or against a doppler build tree
-
-For doppler developers, and currently the only way to run this example's full
-suite:
-
-```bash
-# an install, from a doppler checkout
-cmake -B build -S . -DCMAKE_INSTALL_PREFIX=$HOME/.local/doppler
-cmake --build build -j && cmake --install build
-
-# or point straight at the build tree — doppler exports a build-tree config
-cmake -B build . -Ddoppler_DIR=/path/to/doppler/build
-```
-
-`CMAKE_PREFIX_PATH` / `doppler_DIR` is all that changes between the modes — the
-manifest, the generated CMake and the code are identical.
 
 ### If your project is not CMake
 
-The tarball ships a pkg-config file, so nothing here is CMake-specific:
+The bundle ships a pkg-config file, so nothing here is CMake-specific:
 
 ```bash
-export PKG_CONFIG_PATH=$HOME/.local/doppler/lib/pkgconfig
+export PKG_CONFIG_PATH=$PWD/third_party/doppler/lib/pkgconfig
 
 # shared
 cc myapp.c $(pkg-config --cflags --libs doppler) -o myapp
 
 # static — name the archive to get a binary with no doppler runtime dependency
-cc myapp.c -I$HOME/.local/doppler/include \
-   $HOME/.local/doppler/lib/libdoppler.a -lm -o myapp
+cc myapp.c -I$PWD/third_party/doppler/include \
+   $PWD/third_party/doppler/lib/libdoppler.a -lm -o myapp
 ```
 
 `-ldoppler` resolves to the **shared** library when both are present, so naming
 `libdoppler.a` explicitly is how you link it statically. `-lm` is doppler's only
 runtime dependency.
 
+> **If your doppler is too old, `cmake` says so and stops.** Only reachable when
+> you point at your own doppler — a bundled one is by construction the version
+> this project was packaged against. The configure step probes for the reader
+> capability this example needs and fails with both the reason and the fix.
+> Nothing here names a version, so nothing here goes stale.
+>
+> The probe is by symbol rather than by version, because a too-old doppler
+> **links perfectly well**: `wfm_reader_get_fc` has existed for ages and simply
+> returns 0.0. Before the check, the example built clean and failed a test at
+> `capture_get_fc (obj) == FC`, which tells a newcomer nothing.
+
 ## Running it
 
 ```bash
 ctest --test-dir build            # the C tests
-PYTHONPATH=src python -m pytest src/iqtools/capture/tests/
 ./build/tools/iq_info capture.blue
 ```
+
+With `make setup` done, `make test` runs both halves — CTest and the Python
+suite — against the in-tree venv, and is the single command worth remembering.
 
 ______________________________________________________________________
 
@@ -316,15 +349,22 @@ ______________________________________________________________________
 
 The example is built and tested by doppler's own CI, so it cannot rot:
 
-| gate                                  | what it covers                                          | where it runs                                                                                      |
-| ------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `make test-example-downstream`        | configure + build + CTest, **`BUILD_PYTHON=OFF`**       | inside `make test-examples` — ubuntu, macOS, **and the glibc 2.28 container**, which has no Python |
-| `make test-example-downstream-python` | builds the extension, runs this project's pytest        | inside `make test-examples-python` — the Python matrix job                                         |
-| `make drift-check`                    | `jm status --check` **for this project's own manifest** | the `jm manifest drift gate` job                                                                   |
+| gate                                  | what it covers                                                                     | where it runs                                                                                      |
+| ------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `make test-example-downstream`        | configure + build + CTest, **`BUILD_PYTHON=OFF`**                                  | inside `make test-examples` — ubuntu, macOS, **and the glibc 2.28 container**, which has no Python |
+| `make test-example-downstream-python` | builds the extension, runs this project's pytest                                   | inside `make test-examples-python` — the Python matrix job                                         |
+| `make drift-check`                    | `jm status --check` **for this project's own manifest**                            | the `jm manifest drift gate` job                                                                   |
+| `make test-example-tarball`           | packs the starter, extracts it **outside the repo**, builds it with no prefix flag | wherever the release artifacts are built                                                           |
 
 The C half is deliberately Python-free so the question that matters most —
 *can a downstream project link `libdoppler.a`?* — is answered on three
 platforms including an ancient glibc, not just where NumPy happens to exist.
+
+`test-example-tarball` answers a different question, which is why it is not a
+duplicate: **does the thing people download work?** It builds nothing from
+this source tree — it unpacks the shipped archive somewhere unrelated and runs
+the README's own commands, so a packaging mistake (a bundle missing its
+`libdoppler.a`, a stale `git archive`) fails there and nowhere else.
 
 The drift gate uses **doppler's pinned jm** (`uv run --project <repo>`), so
 this example cannot silently document a jm version doppler is not on.

@@ -15,6 +15,58 @@ ______________________________________________________________________
 
 ### Added
 
+- **Every benchmark in the tree now records a measurement — the
+    `HOLLOW_ALLOW` ratchet is EMPTY**
+    ([#891](https://github.com/doppler-dsp/doppler/issues/891)). The last
+    ten off it were the library's hottest kernels: `fir`, `fft`, `nco`,
+    `ddc`, `ddcr`, `corr`, `fft2d`, `detector`, `detector2d` and
+    `hbdecim_q15`. Each had a `main()` with a `TODO` and no recording call,
+    so it built, ran, exited 0 and wrote `"benchmarks": []` — present in
+    every build and absent from every snapshot. `buffer` came off the
+    sibling `ALLOW` list the same way: its waiver said the ring's push/pop
+    "is a real hot path and should be measured", which is an argument for
+    writing the file rather than for holding the waiver.
+
+    These ten had survived because their kernels already reach
+    `docs/benchmarks.md` through a Python benchmark, so the empty C file
+    cost a row rather than the measurement. That row is the face where
+    per-call overhead is not folded into the number, and it is where the
+    questions a signature cannot answer live. Each file names one and
+    answers it:
+
+    |                           | the question the API does not answer                                     |
+    | ------------------------- | ------------------------------------------------------------------------ |
+    | `fir`                     | a complex tap against a real one, same coefficients, three lengths       |
+    | `nco`                     | what `scaled` / `ovf` / `ctrl` each cost over the bare phase accumulator |
+    | `fft`                     | whether N log N holds, and what an ADC's `ci16`/`ci8` format costs       |
+    | `fft2d`                   | whether a 2-D transform is priced by its bin count or its SHAPE          |
+    | `corr`                    | the dump call against the accumulate call — what a dwell buys            |
+    | `ddc` / `ddcr`            | what the one-sample form a closed loop must use costs over a block call  |
+    | `detector` / `detector2d` | whether the caller's chunk size, and emitting a detection, are free      |
+    | `hbdecim_q15`             | whether the SIMD tap padding is what you pay for                         |
+    | `buffer`                  | whether a batch straddling the wrap costs more than one that does not    |
+
+    Three answers are worth stating here. **A 2-D FFT is not priced by its
+    bin count**: at a constant 65536 bins, every elongated shape costs
+    ~1.6–1.8x the square one, and the penalty is symmetric in the two
+    elongations, so it is not the column stride on its own. **The
+    per-sample `execute_ctrl_push` form — the only one a carrier or timing
+    loop can use, since it computes each correction from outputs already
+    emitted — costs 4.5x the block call** on `ddc`, while steering itself
+    (`execute_ctrl` against `execute`) is free at 1.02x; so a tracking loop
+    pays for its granularity, not for its steering. And **two answers are
+    "free"**: the detector's chunk size (1.01x across a 256:1 range) and
+    the ring buffer's wrap position (1.01x), the latter being the double
+    mapping's whole design claim, now pinned by a number rather than
+    asserted in a header.
+
+    Two predictions written into the files were refuted by their own
+    measurements and the files were corrected rather than the readings —
+    `hbdecim_q15`'s cost is not the padded SIMD width (34 and 64 taps pad
+    identically and differ by 1.4x), and `fft`'s fixed-point multiple rises
+    with N rather than falling, because per-call overhead amortises faster
+    than the convert does.
+
 - **The seven function-only modules are measured, in C, for the first
     time** ([#891](https://github.com/doppler-dsp/doppler/issues/891)).
     `arith`, `detection`, `filter`, `measure`, `resample`, `spectral` and

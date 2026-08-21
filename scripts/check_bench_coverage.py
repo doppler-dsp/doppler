@@ -120,11 +120,13 @@ INC = ROOT / "native" / "inc"
 TESTS = ROOT / "native" / "tests"
 BENCH = ROOT / "native" / "benchmarks"
 
-#: component -> why it is legitimately unmeasurable. RATCHET: may only shrink.
+#: component -> why it is legitimately unmeasurable. RATCHET: may only
+#: shrink, and `buffer` came off it once its own benchmark existed: the
+#: entry had said the ring's push/pop "is a real hot path and should be
+#: measured", which is an argument for writing the file rather than for
+#: holding a waiver. What is left are the two whose kernels genuinely run
+#: under another component's benchmark.
 ALLOW: dict[str, str] = {
-    "buffer": "doppler#891 — the ring buffer's push/pop is a real hot path "
-    "and should be measured; pre-dates v0.42.0, tracked rather than fixed "
-    "in the PR that introduced this gate.",
     "hbdecim": "doppler#893 — measured at its composing object instead. "
     "bench_HalfbandDecimator_core.c carries the block sweep this component's "
     "own benchmark used to, capped at the object's real HBDECIM_MAX_OUT "
@@ -137,34 +139,23 @@ ALLOW: dict[str, str] = {
 
 #: benchmarks that BUILD and RUN but record no measurement -- a `bench_*.c`
 #: with no recording call writes `"benchmarks": []`, so the component is
-#: silently absent from every C snapshot. Every entry here is covered at the
-#: Python face and DOES reach the published page, so what the empty file
-#: costs it is the C-level row, not the measurement. All were jm scaffolds
-#: when this gate was written (`/* TODO: benchmark this component */`, or a
-#: `fir_state_t *obj = fir_create(...)` placeholder) and all were verifiably
-#: absent from the last real C snapshot -- zero exceptions, which is what
-#: makes the recording test exact rather than heuristic.
+#: silently absent from every C snapshot.
 #:
-#: RATCHET: may only shrink. Filling one in means deleting its line -- the
-#: gate FAILS on an entry whose benchmark has started measuring, so the list
-#: cannot rot in either direction. It has shrunk twice since it was written:
-#: once for the benchmarks measured in no language at all, which is the
-#: group doppler#891 called the actual hole and which is now closed, and
-#: again for `HalfbandDecimator`. The set below is the whole remainder --
-#: count it, do not trust a number written beside it.
+#: RATCHET: may only shrink, and it has reached EMPTY. Every benchmark in
+#: the tree now records something, so this set exists to stay empty rather
+#: than to hold anything: an entry added here would have to be argued for,
+#: and the gate still FAILS on an entry whose benchmark does record, so it
+#: cannot rot in either direction.
+#:
+#: It got here in three passes. First the benchmarks measured in no
+#: language at all -- the group doppler#891 called the actual hole. Then
+#: `HalfbandDecimator`, measured one level up at its composing object.
+#: Last, the ten hottest kernels in the library (`fir`, `fft`, `nco`,
+#: `ddc`, `ddcr`, `corr`, `fft2d`, `detector`, `detector2d`,
+#: `hbdecim_q15`), which had a Python face and so lost only the C-level
+#: row -- the face where per-call overhead is not folded into the number.
 #: Tracked as doppler#891.
-HOLLOW_ALLOW: set[str] = {
-    "corr",
-    "ddc",
-    "ddcr",
-    "detector",
-    "detector2d",
-    "fft",
-    "fft2d",
-    "fir",
-    "hbdecim_q15",
-    "nco",
-}
+HOLLOW_ALLOW: set[str] = set()
 
 #: A recorded measurement, at the start of a line or after whitespace --
 #: not inside a comment, which is how the scaffolds "mention" it while

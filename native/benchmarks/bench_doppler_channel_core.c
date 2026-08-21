@@ -67,6 +67,28 @@ main (void)
   printf ("fs = %.1f MHz, carrier = %.2f GHz, block = %d, %d rounds\n\n",
           FS / 1e6, CARRIER / 1e9, BENCH_N, ITERATIONS);
 
+  /* PROCESS-level warm-up, before any configuration is timed. The per-config
+     warm-up below is not enough on its own: it warms the caches for the
+     config it precedes, but the very first config still absorbs the CPU's
+     frequency ramp out of a cold process, and MIN over rounds cannot remove
+     it because every round in a cold process is equally cold. Charged to
+     whichever config runs first, that produced a ratio BELOW 1.0 against the
+     first row -- ramp/static read 0.70x, i.e. "a drifting offset is 30%
+     cheaper than a fixed one", beside the prose below asserting they cost
+     the same. With this it reads 1.00x. See doppler#896. */
+  {
+    doppler_channel_state_t *w = doppler_channel_create (FS, CARRIER, 3.0, 0);
+    if (w)
+      {
+        for (int i = 0; i < 64; i++)
+          {
+            doppler_channel_reset (w);
+            sink += doppler_channel_execute (w, x, BENCH_N, out, BENCH_N);
+          }
+        doppler_channel_destroy (w);
+      }
+  }
+
   const double      rates[2] = { 0.0, 5.0 };
   const char *const rname[2] = { "execute[static]", "execute[ramp]" };
   static double     t_ex[2][ITERATIONS];

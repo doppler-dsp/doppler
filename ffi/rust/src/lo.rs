@@ -39,7 +39,7 @@ extern "C" {
     ) -> usize;
     pub fn lo_steps_ctrl(
         lo: *mut LoStateRaw,
-        ctrl: *const f32,
+        ctrl: *const f64,
         ctrl_len: usize,
         out: *mut Complex<f32>,
         max_out: usize,
@@ -98,7 +98,7 @@ impl Lo {
     /// Panics if `ctrl` and `out` have different lengths.
     pub fn steps_ctrl(
         &mut self,
-        ctrl: &[f32],
+        ctrl: &[f64],
         out: &mut [Complex<f32>],
     ) {
         assert_eq!(
@@ -181,10 +181,52 @@ mod tests {
         assert!((amp - 1.0).abs() < 1e-3);
     }
 
+    /// A NON-ZERO control signal, which the zero-deviation test above
+    /// cannot substitute for.
+    ///
+    /// All-zero is the one input that hides a control-port type mismatch: the
+    /// bit pattern of `0.0_f32` and `0.0_f64` is zero either way, so a wrapper
+    /// handing C the wrong width still produces the right answer, and the
+    /// over-read walks off the end into memory that happens not to fault.
+    /// A real deviation reinterprets to garbage and the frequency is wrong.
+    #[test]
+    fn fm_ctrl_shifts_the_frequency_by_the_deviation() {
+        const BASE: f64 = 0.10;
+        const DEV: f64 = 0.05;
+        const N: usize = 64;
+
+        let mut lo = Lo::new(BASE);
+        let ctrl = vec![DEV; N];
+        let mut out = vec![Complex::<f32>::default(); N];
+        lo.steps_ctrl(&ctrl, &mut out);
+
+        // Phase advance per sample IS the frequency, in cycles/sample.
+        // Measured across the middle of the block so the first sample's
+        // emit-before-increment convention is not part of the answer.
+        let mut total = 0.0_f64;
+        for w in out[8..N - 8].windows(2) {
+            let d = w[1] * w[0].conj();
+            let mut step = (d.im as f64).atan2(d.re as f64)
+                / std::f64::consts::TAU;
+            if step < 0.0 {
+                step += 1.0;
+            }
+            total += step;
+        }
+        let got = total / ((N - 16 - 1) as f64);
+
+        assert!(
+            (got - (BASE + DEV)).abs() < 1e-3,
+            "ctrl deviation not applied: got {got} cycles/sample, \
+             expected {} (base {BASE} + dev {DEV})",
+            BASE + DEV
+        );
+    }
+
     #[test]
     fn fm_ctrl_modulates_frequency() {
         let mut lo = Lo::new(0.25);
-        let ctrl = vec![0.0_f32; 4]; // zero deviation = same as no ctrl
+        let ctrl = vec![0.0_f64; 4]; // zero deviation = same as no ctrl
         let mut out_ctrl = vec![Complex::<f32>::default(); 4];
         lo.steps_ctrl(&ctrl, &mut out_ctrl);
 

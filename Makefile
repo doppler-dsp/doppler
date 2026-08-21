@@ -118,7 +118,8 @@ SYNC_CMD   = $(UV) sync
 # environment" class of drift: the tool comes from `--group dev` and uv.lock
 # owns the version, so there is no `additional_dependencies` left to drift.
 LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format clang-tidy \
-               phase-conversion stimulus-sources retired-names ci-pipefail
+               phase-conversion stimulus-sources retired-names ci-pipefail \
+               rust-abi
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -233,6 +234,15 @@ LINT_retired-names = $(UV) run python scripts/check_retired_names.py
 # discarded. Registration-free -- it walks every workflow and composite action,
 # so a new file is covered the moment it exists.
 LINT_ci-pipefail = $(UV) run python scripts/check_workflow_pipelines.py
+
+# ffi/rust/ is the one binding jm does not generate, so `jm status --check`
+# has nothing to say about it and an `extern "C"` block is a promise no
+# compiler, linker or runtime ever checks. doppler#911 is what that cost: a
+# control port declared `*const f32` against a C `const double *`, so C read
+# twice the buffer it was handed, from a safe method, and the crate's own test
+# passed because it used an all-zero control — the one input whose bit pattern
+# is identical at both widths. Check-only, so not in FORMAT_TOOLS.
+LINT_rust-abi = $(UV) run python scripts/check_rust_abi.py
 
 # Stimulus and its measurement have ONE home, and it is the library: wfmgen
 # (wfm_synth_*/Synth) generates signal, ber_* measures it. A private copy in a

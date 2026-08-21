@@ -436,7 +436,8 @@ GATES_DEPS    = lint changelog-check drift-check doxygen-check docs-check \
                 gen-c-api-check \
                 validate-check \
                 test-all test-stubs test-api-docs test-snippets test-rust \
-                abi-check link-check consumer-faces-check glibc-gate \
+                abi-check link-check installed-headers-check \
+                consumer-faces-check glibc-gate \
                 specan-check check-isotime-parity coverage coverage-gate \
                 docker-examples
 
@@ -986,6 +987,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
                 apt-stall-config deps-budget-check cargo-floor-check \
                 bench-coverage-check kwarg-parity-check issues \
+                installed-headers-check \
                 ci-image ci-image-check ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke \
@@ -1046,6 +1048,17 @@ bench-coverage-check: ## Verify every tested component has a benchmark that runs
 # TypeError (#619). Reads both faces instead, discovering every fragment.
 kwarg-parity-check: ## Verify each binding accepts the keywords its stub publishes
 	@uv run python scripts/check_kwarg_parity.py
+
+# `build` as a prerequisite, not a note: this reads `nm` output, so without a
+# built archive it has nothing to check -- and a gate that skips when its
+# input is missing is the failure it exists to catch, one level up. It says
+# so and fails rather than passing on an empty set.
+#
+# Absolute, with no allowlist. The two headers #801 named are deleted, so the
+# right number is zero; an allowlist would only be somewhere for a third to
+# hide -- and there WAS a third, which this found on arrival.
+installed-headers-check: build ## Verify installed headers declare only what the libraries define
+	@uv run python scripts/check_installed_headers.py
 
 # Hung off `lint` rather than `validate-check` deliberately. `validate-check`
 # re-runs each validator and compares -- a STALENESS gate, and staleness is

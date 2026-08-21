@@ -688,8 +688,6 @@
 
 ## e
 
-* **esn0\_db\_for\_ser** ([**ber\_meter\_core.h**](ber__meter__core_8h.md))
-* **evm\_scatter\_floor\_db** ([**ber\_meter\_core.h**](ber__meter__core_8h.md))
 * **ema\_alpha\_decim** ([**util\_core.h**](util__core_8h.md))
 * **ema\_step** ([**util\_core.h**](util__core_8h.md))
 
@@ -928,7 +926,6 @@
 
 ## l
 
-* **lock\_symbol** ([**ber\_meter\_core.h**](ber__meter__core_8h.md))
 * **lo\_create** ([**lo\_core.h**](lo__core_8h.md))
 * **lo\_destroy** ([**lo\_core.h**](lo__core_8h.md))
 * **lo\_get\_norm\_freq** ([**lo\_core.h**](lo__core_8h.md))
@@ -1295,7 +1292,6 @@
 * **shr\_q8** ([**arith\_core.h**](arith__core_8h.md))
 * **sub\_q15** ([**arith\_core.h**](arith__core_8h.md))
 * **sub\_q8** ([**arith\_core.h**](arith__core_8h.md))
-* **settle\_syms** ([**ber\_meter\_core.h**](ber__meter__core_8h.md))
 * **snr\_data\_aided\_db** ([**snr\_core.h**](snr__core_8h.md))
 * **snr\_data\_aided\_db\_series** ([**snr\_core.h**](snr__core_8h.md))
 * **snr\_m2m4\_db** ([**snr\_core.h**](snr__core_8h.md))
@@ -1343,8 +1339,6 @@
 
 ## t
 
-* **theory\_ber** ([**ber\_meter\_core.h**](ber__meter__core_8h.md))
-* **theory\_ser** ([**ber\_meter\_core.h**](ber__meter__core_8h.md))
 * **tonemeas\_analyze** ([**tonemeas\_core.h**](tonemeas__core_8h.md))
 * **tonemeas\_analyze\_complex** ([**tonemeas\_core.h**](tonemeas__core_8h.md))
 * **tonemeas\_create** ([**tonemeas\_core.h**](tonemeas__core_8h.md))

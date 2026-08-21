@@ -28,8 +28,8 @@ extern "C"
   /* Lifecycle                                                           */
   /* ------------------------------------------------------------------ */
 
-  HalfbandDecimator_state_t *HalfbandDecimator_create (size_t num_taps,
-                                                       const float *h);
+  HalfbandDecimator_state_t *HalfbandDecimator_create (const float *h,
+                                                       size_t h_len);
 
   void HalfbandDecimator_destroy (HalfbandDecimator_state_t *state);
 

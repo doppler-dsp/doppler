@@ -1,9 +1,13 @@
 #include "HalfbandDecimator/HalfbandDecimator_core.h"
 
 HalfbandDecimator_state_t *
-HalfbandDecimator_create (size_t num_taps, const float *h)
+HalfbandDecimator_create (const float *h, size_t h_len)
 {
-  return hbdecim_create (num_taps, h);
+  /* hbdecim, the primitive underneath, still takes (len, ptr) -- it and its
+     two siblings are the only creates in the tree that do. Swapping here
+     rather than there keeps this change to the jm object's own face; the
+     types differ, so a call that gets the order wrong does not compile. */
+  return hbdecim_create (h_len, h);
 }
 
 void

@@ -61,9 +61,10 @@ HalfbandDecimatorObj_init (HalfbandDecimatorObject *self, PyObject *args,
       return -1;
     }
   size_t h_len = (size_t)PyArray_SIZE (h_arr);
-  /* HalfbandDecimator_create(num_taps, h) — num_taps first */
+  /* HalfbandDecimator_create(h, h_len) — the array first, matching every
+     other create in the tree and the manifest jm renders from */
   self->handle
-      = HalfbandDecimator_create (h_len, (const float *)PyArray_DATA (h_arr));
+      = HalfbandDecimator_create ((const float *)PyArray_DATA (h_arr), h_len);
   Py_DECREF (h_arr);
   if (!self->handle)
     {

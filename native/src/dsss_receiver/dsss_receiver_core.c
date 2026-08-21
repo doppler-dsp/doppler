@@ -3,37 +3,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* MpskReceiver's terminal outputs per symbol (`m_out`).
+/* MpskReceiver's terminal outputs per symbol (`m_out`) comes from
+ * `mpsk_rx_derive_m_out()` in mpsk_rx_loops.h -- the rule's one home since
+ * gh-644. This file used to carry a second implementation of it, and the
+ * two disagreed below sps = 2: the shared rule REFUSES with 0, the local
+ * one floored at 2. Neither value builds at sps = 1, so migrating moved
+ * which rule refuses rather than whether one does -- but a silent value
+ * difference between two copies of a single rule is exactly how the first
+ * drift here happened, and the retired copy's own comment was a monument
+ * to it (gh-782).
  *
- * This used to be "largest divisor of sps in {4, 2, 1}", sized for the old
- * `n`: the NDA arm's dumps per symbol, whose window was sps/n, so dividing
- * sps exactly was the whole point. The cascade rebuild retired that arm --
- * the parameter in this slot is now `m_out`, terminal outputs per symbol,
- * which must be EVEN and in [2, 8] and need NOT divide sps (the front end
- * plans its own cascade from a double sps). The old rule survived the
- * rename and produced values that are wrong under the new meaning:
- *
- *   - `sps=8` gave 4, which does not decode this despread stream at all
- *     (measured BER 0.44 at CN0=110 dB-Hz, i.e. noiseless, where m_out=8
- *     gives 0.0000; Doppler-independent, so not a rate/pull-in effect);
- *   - any ODD sps gave 1, which is not a legal m_out, so create() returned
- *     NULL and dp_xnn() ABORTED the process -- `sps=5` was a SIGABRT with
- *     no exception and no message.
- *
- * So: prefer 8, the coherent-bound default (an m_out-tap sum spans the
- * symbol, and 8 samples that integral finely enough to land ~0.4 dB off
- * the bound where 4 loses ~3 dB -- see mpsk_receiver_create), and step down
- * by 2 only as far as `sps` allows, since MpskReceiver requires
- * sps >= m_out. Every result is even and >= 2 for any sps >= 2, so the
- * abort is structurally gone rather than merely unlikely. */
-static int
-dsss_rx_derive_m_out (size_t sps)
-{
-  int m = MPSK_RX_M_OUT_DEFAULT;
-  while (m > 2 && (size_t)m > sps)
-    m -= 2;
-  return m;
-}
+ * The complex twin's bound is `sps`, inclusive: mpsk_receiver_create()
+ * requires sps >= m_out. */
 
 /* Allocate a fresh Dll/RateConverter/MpskReceiver triple (+ seed the
  * pre-despread carrier loop, by value into *car_out -- costas_init never
@@ -311,7 +292,16 @@ dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
                       size_t segments, size_t sps, int differential)
 {
   if (!code || code_len < 1 || chip_rate <= 0.0 || symbol_rate <= 0.0
-      || spc < 1 || (m != 2 && m != 4 && m != 8) || segments < 1 || sps < 1)
+      || spc < 1 || (m != 2 && m != 4 && m != 8)
+      || segments < 1
+      /* sps < 2 cannot carry an m_out at all: the smallest legal terminal
+         count is 2 and MpskReceiver requires sps >= m_out, so sps = 1 has
+         no receiver to build. It used to pass this guard and reach
+         mpsk_receiver_create(), whose argument-error NULL then went
+         through dp_xnn() and ABORTED the interpreter with no exception and
+         no message (gh-782). Refusing here is the honest answer, and it is
+         the range mpsk_rx_derive_m_out() already documents. */
+      || sps < 2)
     return NULL;
 
   dsss_receiver_state_t *obj = dp_xcalloc (1, sizeof (*obj));
@@ -346,11 +336,11 @@ dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
    * comment for why). */
   dsss_rx_build_chain (chip_rate, symbol_rate, obj->code, code_len, spc, m,
                        differential, 0.0, 0.0, segments, sps,
-                       dsss_rx_derive_m_out (sps), &obj->car, &obj->dll,
-                       &obj->rc, &obj->rx);
+                       mpsk_rx_derive_m_out ((double)sps, 0), &obj->car,
+                       &obj->dll, &obj->rc, &obj->rx);
   obj->segments = segments;
   obj->sps      = sps;
-  obj->n        = dsss_rx_derive_m_out (sps);
+  obj->n        = mpsk_rx_derive_m_out ((double)sps, 0);
   return obj;
 }
 
@@ -461,7 +451,7 @@ int
 dsss_receiver_configure_chain_raw (dsss_receiver_state_t *state,
                                    size_t segments, size_t sps, int n)
 {
-  if (segments < 1 || sps < 1 || n < 1 || (int)(sps % (size_t)n) != 0)
+  if (segments < 1 || sps < 2 || n < 1 || (int)(sps % (size_t)n) != 0)
     return -1;
 
   double chip_phase      = dll_get_code_phase (state->dll);

@@ -6,6 +6,14 @@ no_state = "true"
 no_step = "true"
 class_name = "DsssReceiver"
 serializable = "true"
+# A NULL create() here is an ARGUMENT error, never an allocation one -- the
+# guard rejects a parameter set that cannot build a receiver. Without this it
+# surfaced as a blanket MemoryError, and `sps = 1` did not even get that far:
+# it passed the old `sps < 1` guard, reached mpsk_receiver_create(), and its
+# argument-error NULL went through dp_xnn() and ABORTED the interpreter with
+# no exception at all (gh-782).
+create_error = "ValueError"
+create_error_message = "DsssReceiver: invalid parameter (need a non-empty code, chip_rate > 0, symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2 -- sps = 1 cannot carry an m_out, whose smallest legal value is 2 and which MpskReceiver requires sps to reach)"
 # Composes Acquisition (this module) with Dll/MpskReceiver (track) and
 # RateConverter (resample) -- the same cross-module composition shape
 # despreader.toml already uses for Costas+Dll.

@@ -184,3 +184,39 @@ def test_state_roundtrip_while_searching():
     rx2 = _new_receiver()
     rx2.set_state(blob)
     assert rx2.tracking == 0
+
+
+@pytest.mark.parametrize("sps", [0, 1])
+def test_sps_below_two_is_refused_not_aborted(sps):
+    """An unbuildable ``sps`` raises, and does not take the process with it.
+
+    ``sps = 1`` used to reach ``mpsk_receiver_create()``, whose
+    argument-error NULL went through the abort-on-OOM helper ``dp_xnn()``
+    and **SIGABRTed the interpreter** — exit 134, no exception, no
+    traceback, nothing on stderr (gh-782). A library that aborts its host
+    on a legal-looking argument leaves the caller no way to recover, so
+    the regression worth pinning is not the message but the fact that
+    control comes back at all.
+
+    Two is the floor because it is the smallest legal ``m_out`` and
+    ``MpskReceiver`` requires ``sps >= m_out``; below it there is no
+    receiver to build, which is what the constructor now says.
+    """
+    with pytest.raises(ValueError, match="sps >= 2"):
+        DsssReceiver(
+            code=CODE, chip_rate=CHIP_RATE, symbol_rate=SYM_RATE, sps=sps
+        )
+
+
+def test_odd_sps_still_builds():
+    """The gh-782 fix must not have widened into a parity rule.
+
+    An earlier round of this same bug made every ODD ``sps`` abort, and it
+    was fixed by flooring the derived ``m_out`` at 2. The guard added for
+    ``sps = 1`` is a floor, not a parity test — so 5 must still build,
+    and this is what says the two fixes did not collide.
+    """
+    rx = DsssReceiver(
+        code=CODE, chip_rate=CHIP_RATE, symbol_rate=SYM_RATE, sps=5
+    )
+    assert rx is not None

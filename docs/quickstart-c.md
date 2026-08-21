@@ -22,7 +22,7 @@ from source): [Install → C Library](install/c.md).
 Any `main.c` works; this is the one CI builds — the FFT example plus one
 *optional* streaming call. `dp_pub_*`/`dp_sub_*` live in the optional
 `libdoppler_stream`; drop that call and the `_stream` bits below for a
-core-only app (then the whole link line is `libdoppler.a -lm`):
+core-only app (then the whole link line is `libdoppler.a -lm -lpthread`):
 
 ```c
 --8<-- "tests/install/stream-consumer/app.c:app"

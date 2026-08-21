@@ -131,7 +131,8 @@ int main(void)
 **Compile and run**
 
 ```bash
-cc example.c -I "$HOME/.local/doppler/include" "$HOME/.local/doppler/lib/libdoppler.a" -lm -o example
+cc example.c -I "$HOME/.local/doppler/include" \
+   "$HOME/.local/doppler/lib/libdoppler.a" -lm -lpthread -o example
 ./example
 ```
 

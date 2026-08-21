@@ -186,10 +186,11 @@ int main(void)
 It is the exact code path the `wfmgen` binary runs (which is itself a one-line
 `main` shim over `doppler_wfmgen`), so the output is byte-identical. `wfmgen`
 lives in the **pure-C core**, so the file/raw/csv/BLUE/SigMF output paths link
-with just `libdoppler.a -lm`:
+with just `libdoppler.a -lm -lpthread`:
 
 ```sh
-gcc -o app app.c -I "$PREFIX/include" "$PREFIX/lib/libdoppler.a" -lm
+gcc -o app app.c -I "$PREFIX/include" "$PREFIX/lib/libdoppler.a" \
+    -lm -lpthread
 ```
 
 The `--output nats://…` PUB-sink path additionally needs the optional stream

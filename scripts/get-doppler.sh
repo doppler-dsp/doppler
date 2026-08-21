@@ -199,7 +199,7 @@ fi
 echo ""
 echo "  CMake:      cmake -B build -DCMAKE_PREFIX_PATH=\"${PREFIX}\""
 echo "  pkg-config: export PKG_CONFIG_PATH=\"${PREFIX}/lib/pkgconfig\""
-echo "  Plain cc:   cc example.c -I\"${PREFIX}/include\" \"${PREFIX}/lib/libdoppler.a\" -lm -o example"
+echo "  Plain cc:   cc example.c -I\"${PREFIX}/include\" \"${PREFIX}/lib/libdoppler.a\" -lm -lpthread -o example"
 echo ""
 echo "See https://doppler-dsp.github.io/doppler/install/c/ for the full"
 echo "find_package / pkg-config integration guide."

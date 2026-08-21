@@ -107,7 +107,7 @@ jobs:
       # only. Both read ELF, hence Linux only; the link smoke below is not.
       run: make abi-check
 
-    - name: Smoke-test static link (libdoppler.a -lm)
+    - name: Smoke-test static link (libdoppler.a -lm -lpthread)
       # The question a downstream actually asks, answered on every platform.
       run: make link-check
 
@@ -174,7 +174,7 @@ jobs:
     - name: Rust FFI tests
       run: make test-rust
 
-    - name: Smoke-test static link (libdoppler.a -lm)
+    - name: Smoke-test static link (libdoppler.a -lm -lpthread)
       # The question a downstream actually asks, answered on every platform.
       run: make link-check
 

@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #define DOPPLER_CHANNEL_STATE_MAGIC DP_FOURCC('D', 'P', 'C', 'H')
-#define DOPPLER_CHANNEL_STATE_VERSION 2u
+#define DOPPLER_CHANNEL_STATE_VERSION 1u
 
 #define DOPPLER_CHANNEL_MAX_BLOCK 65536u
 
@@ -43,17 +43,6 @@ typedef struct {
 
     double *ctrl;         /* per-sample rate deviation scratch         */
     size_t ctrl_cap;
-
-    /* Profile mode (doppler_channel_execute_profile). A supplied per-sample
-       Doppler has no closed form, so the excess-delay integral the carrier
-       needs is ACCUMULATED instead of evaluated -- the one thing the closed
-       form buys that a profile cannot have. Accumulating `excess` in seconds
-       rather than phase in cycles is what keeps that affordable: excess stays
-       ~1e-2 s over a long capture while the phase it implies is ~5e7 cycles,
-       so the running sum never carries the large magnitude. */
-    double excess_s;  /* running tau(t)-t, seconds                 */
-    double prof_d;    /* most recent instantaneous d (dimensionless)*/
-    uint8_t profiled; /* a profile has driven this stream          */
 } doppler_channel_state_t;
 
 static inline double
@@ -89,12 +78,6 @@ int doppler_channel_set_state(doppler_channel_state_t *state, const void *blob);
 size_t doppler_channel_execute_max_out(doppler_channel_state_t *state);
 
 size_t doppler_channel_execute(doppler_channel_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
-
-size_t doppler_channel_profile_max_out(const double *ppm, size_t n);
-
-size_t doppler_channel_execute_profile_max_out(doppler_channel_state_t *state, size_t n);
-
-size_t doppler_channel_execute_profile(doppler_channel_state_t *state, const float _Complex *x, size_t x_len, const double *ppm, size_t ppm_len, float _Complex *out, size_t max_out);
 
 double doppler_channel_get_elapsed_s(const doppler_channel_state_t *state);
 

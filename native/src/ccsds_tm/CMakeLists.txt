@@ -38,7 +38,12 @@ target_include_directories(ccsds_tm_core PUBLIC
 # component's kernels the two would form a cycle. That is why the kernels
 # travel to the general assembler as a table (ccsds_tm_frame_ops) instead of
 # being called from it.
-target_link_libraries(ccsds_tm_core PUBLIC conv_core rs_core wfm_frame_core)
+# Threads::Threads because rs.c derives its field tables under
+# `pthread_once` (gh-817). PUBLIC so every consumer -- the tests, the
+# benches, and the .so -- picks up -pthread transitively, the same way
+# wfm_compose_core carries it for dp_parallel.
+target_link_libraries(ccsds_tm_core PUBLIC conv_core rs_core wfm_frame_core
+                                           Threads::Threads)
 
 # ── tests ───────────────────────────────────────────────────────────────────
 add_executable(test_ccsds_tm_rand
@@ -67,6 +72,19 @@ target_include_directories(test_ccsds_tm_rs PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_ccsds_tm_rs COMMAND test_ccsds_tm_rs)
+
+# The first-call race (gh-817). A SEPARATE binary on purpose: the race is on
+# the first call, so a process that has already encoded anything cannot
+# reach it -- registering these cases inside test_ccsds_tm_rs would make
+# them unable to fail.
+add_executable(test_ccsds_tm_rs_race
+    ${CMAKE_SOURCE_DIR}/native/tests/test_ccsds_tm_rs_race.c)
+target_link_libraries(test_ccsds_tm_rs_race PRIVATE
+    ccsds_tm_core conv_core rs_core Threads::Threads)
+target_include_directories(test_ccsds_tm_rs_race PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_ccsds_tm_rs_race COMMAND test_ccsds_tm_rs_race)
 
 add_executable(test_ccsds_tm_asm
     ${CMAKE_SOURCE_DIR}/native/tests/test_ccsds_tm_asm.c)

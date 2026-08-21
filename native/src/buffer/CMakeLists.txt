@@ -12,6 +12,10 @@ add_test(NAME test_buffer_core COMMAND test_buffer_core)
 # no_generate), so the target is written here rather than by `jm apply`.
 add_executable(bench_buffer_core
                ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_buffer_core.c)
+# libm because jm_bench.h's stats take a sqrt for the standard deviation.
+# A Release build folds that call away and links without it; a Debug one
+# (make test-tsan, make test-ubsan) does not, which is where this surfaced.
+target_link_libraries(bench_buffer_core PRIVATE m)
 target_include_directories(bench_buffer_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)

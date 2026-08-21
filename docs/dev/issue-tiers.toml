@@ -290,21 +290,6 @@ tier = 5
 title = "mpsk_receiver_performance_demo: a BPSK trial declares lock with a clean constellation and SER 0.27, and .examples-skip's reason names a different failure"
 status = "open"
 
-[issue.795]
-tier = 1
-title = "carrier_nda: the amplitude-invariance test cannot fail, and two citations point at a section that says neither thing"
-status = "open"
-
-[issue.796]
-tier = 1
-title = "The FER anchor cannot fail at any battery operating point: 1.64x slack, confirmed by sabotage"
-status = "open"
-
-[issue.801]
-tier = 0
-title = "Two installed public headers declare an API the library does not define \u2014 tlm_recorder.h is SUPERSEDED by dp_tlm_capture, plus an empty stream_core.h"
-status = "in review ([#927](https://github.com/doppler-dsp/doppler/pull/927))"
-
 [issue.802]
 tier = 5
 title = "Cleanup plan for the test/measurement layer: a convergence plan, not a deletion plan (measured)"

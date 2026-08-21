@@ -1,6 +1,6 @@
 # Doppler Channel — Clock Doppler as a Propagation Impairment
 
-![DopplerChannel: carrier offset linear in ppm, code slip accumulating at 61.4 chips/s, and a Doppler ramp integrating to 500 Hz/s](../assets/doppler_channel_demo.png)
+![DopplerChannel: carrier offset linear in ppm, code slip accumulating at 61.4 chips/s, a Doppler ramp integrating to 500 Hz/s, and a 550 km LEO pass no ramp can express](../assets/doppler_channel_demo.png)
 
 A Doppler shift is not a frequency offset. Relative motion rescales the
 **entire received time base**, so every clock in the signal changes together —
@@ -20,20 +20,42 @@ carrier-frequency agnostic. At the 2.5 GHz carrier of
 uncertainty is exactly **±20 ppm**. Measured FFT peaks sit on the `fc·d` line
 across the sweep.
 
-**Centre — the time base dilates.** This is the panel a carrier-only model gets
+**Centre-left — the time base dilates.** This is the panel a carrier-only model gets
 wrong: it would be flat on the dotted zero line. The real channel accumulates
 code phase at `Rc·d` — **61.4 chips per second** at 20 ppm on a 3.069 Mcps
 code. Over the 256 ms plotted, that is 16 chips the receiver's code loop has to
 make up. The trace is quantised to an eighth of a chip because slip is counted
 in whole samples at `spc=8`.
 
-**Right — a Doppler ramp is the integral of the rate.** With
+**Centre-right — a Doppler ramp is the integral of the rate.** With
 `doppler_rate_ppm_s = 0.2` (SPEC.md's 500 Hz/s at 2.5 GHz), the instantaneous
 offset climbs as `fc·ḋ·t`. The dotted orange line is the natural wrong
 implementation — accumulating `t·d(t)` instead of `∫d dt` double-counts the
 ramp and lands at exactly twice the truth. It is the one error that passes every
 static-Doppler check, which is why both the C and Python test suites assert
 against it specifically.
+
+**Right — a real pass is not a ramp.** The first three panels are all driven by
+the create-time pair `(doppler_ppm, doppler_rate_ppm_s)`, which is a straight
+line. A satellite pass is not one. This panel takes the Doppler from circular
+orbit geometry for a 550 km overhead pass — the law of cosines for slant range,
+differentiated — and it comes out an S-curve: **+23.3 to −23.3 ppm** (±58.2 kHz
+at 2.5 GHz), steepest at closest approach and flattening toward the horizon.
+The dotted orange line is the best straight line through it, and the profile
+departs from it by **21% of its own range**, so no choice of Doppler rate
+reproduces this.
+
+That is what `execute_profile()` is for: one Doppler value per waveform sample,
+handed to the same resampler the scalar form drives. The blue points are the
+channel's own `offset_hz` read back as the pass plays, sitting on the curve it
+was given.
+
+One number in that panel is worth more than it looks. Over the whole pass the
+**net time dilation is +0.000 ppm** — the record is compressed while the
+satellite closes and stretched by the same amount while it opens, because an
+overhead pass is antisymmetric about closest approach. The instantaneous rate
+error reached 23.3 ppm and the totals cancel, which is precisely why a receiver
+has to *track* a pass rather than fit one clock offset to the capture.
 
 ## How it works
 

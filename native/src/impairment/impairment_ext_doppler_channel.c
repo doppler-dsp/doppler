@@ -382,6 +382,75 @@ DopplerChannelObj_exit (DopplerChannelObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+DopplerChannelObj_execute_profile (DopplerChannelObject *self, PyObject *args,
+                                   PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char   *_kwlist[] = { "x", "ppm", NULL };
+  PyObject      *x_obj     = NULL;
+  PyArrayObject *x_arr     = NULL;
+  PyObject      *ppm_obj   = NULL;
+  PyArrayObject *ppm_arr   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &x_obj,
+                                    &ppm_obj))
+    return NULL;
+  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
+                                             NPY_ARRAY_C_CONTIGUOUS);
+  if (!x_arr)
+    return NULL;
+  ppm_arr = (PyArrayObject *)PyArray_FROM_OTF (ppm_obj, NPY_DOUBLE,
+                                               NPY_ARRAY_C_CONTIGUOUS);
+  if (!ppm_arr)
+    return NULL;
+  size_t _need = (size_t)PyArray_SIZE (x_arr);
+  size_t _cap  = doppler_channel_execute_profile_max_out (
+      self->handle, (size_t)PyArray_SIZE (x_arr));
+  (void)_need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
+    {
+      Py_DECREF (x_arr);
+      Py_DECREF (ppm_arr);
+      return NULL;
+    }
+  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
+  const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
+  size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
+  const double        *_ng2 = (const double *)PyArray_DATA (ppm_arr);
+  size_t               _ng3 = (size_t)PyArray_SIZE (ppm_arr);
+  size_t               n_out;
+  Py_BEGIN_ALLOW_THREADS
+    n_out = doppler_channel_execute_profile (self->handle, _ng0, _ng1, _ng2,
+                                             _ng3, _d0, _cap);
+  Py_END_ALLOW_THREADS
+  Py_DECREF (x_arr);
+  Py_DECREF (ppm_arr);
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+
 static PyMethodDef DopplerChannelObj_methods[] = {
 
   { "execute", (PyCFunction)(void *)DopplerChannelObj_execute,
@@ -531,6 +600,82 @@ static PyMethodDef DopplerChannelObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "execute_profile", (PyCFunction)(void *)DopplerChannelObj_execute_profile,
+    METH_VARARGS | METH_KEYWORDS,
+    "execute_profile(x, ppm) -> ndarray\n"
+    "\n"
+    "Apply a per-sample Doppler PROFILE to a block of complex baseband.\n"
+    "\n"
+    "The array form of doppler_channel_execute(): instead of the create-time\n"
+    "`(doppler_ppm, doppler_rate_ppm_s)` closed form -- a straight line,\n"
+    "which a real pass is not -- the Doppler is supplied as one value per\n"
+    "INPUT sample. That length contract is not a convenience; it is the\n"
+    "contract `resamp_execute_ctrl()` underneath already has (`ctrl`\n"
+    "parallel to `in`), so a profile is handed to the resampler rather than\n"
+    "reduced to fit it.\n"
+    "\n"
+    "**The profile is ABSOLUTE.** `ppm[i]` is the total instantaneous\n"
+    "Doppler at input sample `i`; the create-time scalars do not add to it.\n"
+    "They cancel exactly rather than by convention: the resampler's rate is\n"
+    "`base + ctrl`, and this fills `ctrl = ratio(ppm[i]) - base` with the\n"
+    "same `base` it was built with. Creating with zeros and supplying a\n"
+    "profile is the ordinary use.\n"
+    "\n"
+    "**The carrier is accumulated, not evaluated.**\n"
+    "doppler_channel_phase()'s closed form has no counterpart for an\n"
+    "arbitrary sequence, so the excess-delay integral is summed as the\n"
+    "stream advances (see `excess_s`). Two consequences worth knowing:\n"
+    "\n"
+    "- The sum is over OUTPUT samples while the profile is indexed by INPUT\n"
+    "  samples, mapped `j*n_in/n_out` within each block. The two clocks\n"
+    "  differ by the dilation itself, ~1e-5 relative -- the same\n"
+    "  approximation doppler_channel_execute() already takes and documents\n"
+    "  where it maps an input index to a receive time.\n"
+    "- It is a running total, so it is part of the serialized state\n"
+    "  (`DOPPLER_CHANNEL_STATE_VERSION` 2) and is zeroed by\n"
+    "  doppler_channel_reset(), exactly like the two sample clocks.\n"
+    "\n"
+    "Mixing the two calls on one stream is permitted and coherent -- both\n"
+    "advance the same clocks -- but a stream that has ever been driven by a\n"
+    "profile reports its diagnostics from the profile, since the closed form\n"
+    "no longer describes it. See doppler_channel_get_offset_hz().\n"
+    "\n"
+    "A sign change mid-record is the point: no `(doppler_ppm,\n"
+    "doppler_rate_ppm_s)` pair produces it, because a ramp through those\n"
+    "points would have to pass through them in order and keep going.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.complex64]\n"
+    "    Input CF32 samples, x_len of them.\n"
+    "ppm : NDArray[np.float64]\n"
+    "    Doppler in ppm, parallel to x.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    Samples written. 0 if any pointer is NULL, if ppm_len differs from\n"
+    "    x_len -- \"one value per waveform sample\" is the contract, and a\n"
+    "    separate length is what lets it be checked rather than trusted --\n"
+    "    or if any profile sample is at or below -1e6 ppm, a scale of zero\n"
+    "    or less meaning time stopped or ran backwards, which create()\n"
+    "    already refuses for the scalar. All checked over the whole profile\n"
+    "    BEFORE any output is produced, so a bad call writes nothing rather\n"
+    "    than a valid prefix.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.impairment import DopplerChannel\n"
+    ">>> ch = DopplerChannel(fs=1e6, carrier_hz=2.5e9)\n"
+    ">>> n = 1000\n"
+    ">>> ppm = np.where(np.arange(n) < n // 2, 20.0, -20.0)\n"
+    ">>> y = ch.execute_profile(np.ones(n, dtype=np.complex64), ppm)\n"
+    ">>> y.shape          # closing then opening: the record STRETCHES "
+    "overall\n"
+    "(1001,)\n"
+    ">>> round(ch.offset_hz, 1)   # fc * d at the last profile sample\n"
+    "-50000.0\n" },
   { NULL }
 };
 

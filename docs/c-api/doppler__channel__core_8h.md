@@ -64,9 +64,12 @@ _Clock Doppler as a propagation impairment: dilate the time base and shift the c
 |  void | [**doppler\_channel\_destroy**](#function-doppler_channel_destroy) ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state) <br>_Destroy a doppler\_channel instance and release all memory._  |
 |  size\_t | [**doppler\_channel\_execute**](#function-doppler_channel_execute) ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Apply clock Doppler to a block of complex baseband._  |
 |  size\_t | [**doppler\_channel\_execute\_max\_out**](#function-doppler_channel_execute_max_out) ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state) <br>_Upper bound on the output of one execute() call._  |
+|  size\_t | [**doppler\_channel\_execute\_profile**](#function-doppler_channel_execute_profile) ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, const double \* ppm, size\_t ppm\_len, float \_Complex \* out, size\_t max\_out) <br>_Apply a per-sample Doppler PROFILE to a block of complex baseband._  |
+|  size\_t | [**doppler\_channel\_execute\_profile\_max\_out**](#function-doppler_channel_execute_profile_max_out) ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state, size\_t n) <br>_The BINDING's output bound for execute\_profile() (jm pass\_capacity)._  |
 |  double | [**doppler\_channel\_get\_elapsed\_s**](#function-doppler_channel_get_elapsed_s) (const [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state) <br>_Receive time in seconds produced so far (_ `n_out/fs` _)._ |
 |  double | [**doppler\_channel\_get\_offset\_hz**](#function-doppler_channel_get_offset_hz) (const [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state) <br>_Instantaneous carrier offset_ `fc*d(t)` _in Hz at_`elapsed_s` _._ |
 |  void | [**doppler\_channel\_get\_state**](#function-doppler_channel_get_state) (const [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state, void \* blob) <br>_Serialize the running state (both clocks + the resampler's)._  |
+|  size\_t | [**doppler\_channel\_profile\_max\_out**](#function-doppler_channel_profile_max_out) (const double \* ppm, size\_t n) <br>_Upper bound on the output of one execute\_profile() call._  |
 |  void | [**doppler\_channel\_reset**](#function-doppler_channel_reset) ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state) <br>_Reset DopplerChannel to its post-create state._  |
 |  int | [**doppler\_channel\_set\_state**](#function-doppler_channel_set_state) ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state, const void \* blob) <br>_Restore a blob written by_ [_**doppler\_channel\_get\_state()**_](doppler__channel__core_8h.md#function-doppler_channel_get_state) _._ |
 |  size\_t | [**doppler\_channel\_state\_bytes**](#function-doppler_channel_state_bytes) (const [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state) <br>_Bytes_ [_**doppler\_channel\_get\_state()**_](doppler__channel__core_8h.md#function-doppler_channel_get_state) _writes (envelope + payload)._ |
@@ -110,7 +113,7 @@ _Clock Doppler as a propagation impairment: dilate the time base and shift the c
 | ---: | :--- |
 | define  | [**DOPPLER\_CHANNEL\_MAX\_BLOCK**](doppler__channel__core_8h.md#define-doppler_channel_max_block)  `65536u`<br>_Largest input block one_ `doppler_channel_execute()` _call accepts._ |
 | define  | [**DOPPLER\_CHANNEL\_STATE\_MAGIC**](doppler__channel__core_8h.md#define-doppler_channel_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('D', 'P', 'C', 'H')`<br>_State-blob magic ('DPCH') and layout version._  |
-| define  | [**DOPPLER\_CHANNEL\_STATE\_VERSION**](doppler__channel__core_8h.md#define-doppler_channel_state_version)  `1u`<br> |
+| define  | [**DOPPLER\_CHANNEL\_STATE\_VERSION**](doppler__channel__core_8h.md#define-doppler_channel_state_version)  `2u`<br> |
 
 ## Detailed Description
 
@@ -313,6 +316,139 @@ Assumes an input of at most `DOPPLER_CHANNEL_MAX_BLOCK` samples — see that mac
 
 
 
+### function doppler\_channel\_execute\_profile 
+
+_Apply a per-sample Doppler PROFILE to a block of complex baseband._ 
+```C++
+size_t doppler_channel_execute_profile (
+    doppler_channel_state_t * state,
+    const float _Complex * x,
+    size_t x_len,
+    const double * ppm,
+    size_t ppm_len,
+    float _Complex * out,
+    size_t max_out
+) 
+```
+
+
+
+The array form of [**doppler\_channel\_execute()**](doppler__channel__core_8h.md#function-doppler_channel_execute): instead of the create-time `(doppler_ppm, doppler_rate_ppm_s)` closed form  a straight line, which a real pass is not  the Doppler is supplied as one value per INPUT sample. That length contract is not a convenience; it is the contract `resamp_execute_ctrl()` underneath already has (`ctrl` parallel to `in`), so a profile is handed to the resampler rather than reduced to fit it.
+
+
+**The profile is ABSOLUTE.** `ppm[i]` is the total instantaneous Doppler at input sample `i`; the create-time scalars do not add to it. They cancel exactly rather than by convention: the resampler's rate is `base + ctrl`, and this fills `ctrl = ratio(ppm[i]) - base` with the same `base` it was built with. Creating with zeros and supplying a profile is the ordinary use.
+
+
+**The carrier is accumulated, not evaluated.** doppler\_channel\_phase()'s closed form has no counterpart for an arbitrary sequence, so the excess-delay integral is summed as the stream advances (see `excess_s`). Two consequences worth knowing:
+
+
+
+* The sum is over OUTPUT samples while the profile is indexed by INPUT samples, mapped `j*n_in/n_out` within each block. The two clocks differ by the dilation itself, ~1e-5 relative  the same approximation [**doppler\_channel\_execute()**](doppler__channel__core_8h.md#function-doppler_channel_execute) already takes and documents where it maps an input index to a receive time.
+* It is a running total, so it is part of the serialized state (`DOPPLER_CHANNEL_STATE_VERSION` 2) and is zeroed by [**doppler\_channel\_reset()**](doppler__channel__core_8h.md#function-doppler_channel_reset), exactly like the two sample clocks.
+
+
+
+
+Mixing the two calls on one stream is permitted and coherent  both advance the same clocks  but a stream that has ever been driven by a profile reports its diagnostics from the profile, since the closed form no longer describes it. See [**doppler\_channel\_get\_offset\_hz()**](doppler__channel__core_8h.md#function-doppler_channel_get_offset_hz).
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.impairment import DopplerChannel
+>>> ch = DopplerChannel(fs=1e6, carrier_hz=2.5e9)
+>>> n = 1000
+>>> ppm = np.where(np.arange(n) < n // 2, 20.0, -20.0)
+>>> y = ch.execute_profile(np.ones(n, dtype=np.complex64), ppm)
+>>> y.shape          # closing then opening: the record STRETCHES overall
+(1001,)
+>>> round(ch.offset_hz, 1)   # fc * d at the last profile sample
+-50000.0
+```
+
+
+
+A sign change mid-record is the point: no `(doppler_ppm, doppler_rate_ppm_s)` pair produces it, because a ramp through those points would have to pass through them in order and keep going.
+
+
+
+
+**Parameters:**
+
+
+* `state` channel state. 
+* `x` Input CF32 samples, `x_len` of them. 
+* `x_len` Input sample count. 
+* `ppm` Doppler in ppm, parallel to `x`. 
+* `ppm_len` Profile length; must EQUAL `x_len`. 
+* `out` Output buffer. 
+* `max_out` Capacity of `out` in samples. 
+
+
+
+**Returns:**
+
+Samples written. 0 if any pointer is NULL, if `ppm_len` differs from `x_len`  "one value per waveform sample" is the contract, and a separate length is what lets it be checked rather than trusted  or if any profile sample is at or below -1e6 ppm, a scale of zero or less meaning time stopped or ran backwards, which create() already refuses for the scalar. All checked over the whole profile BEFORE any output is produced, so a bad call writes nothing rather than a valid prefix. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function doppler\_channel\_execute\_profile\_max\_out 
+
+_The BINDING's output bound for execute\_profile() (jm pass\_capacity)._ 
+```C++
+size_t doppler_channel_execute_profile_max_out (
+    doppler_channel_state_t * state,
+    size_t n
+) 
+```
+
+
+
+Two bounds, because there are two callers with different knowledge, and collapsing them would make one of them wrong:
+
+
+
+* [**doppler\_channel\_profile\_max\_out()**](doppler__channel__core_8h.md#function-doppler_channel_profile_max_out) is the EXACT bound, for a C caller that holds the profile and can read its minimum.
+* this one is jm's `pass_capacity` contract. The generated binding knows the INPUT LENGTH  it passes it  but has not looked at the profile array, so it knows how many samples go in and not how far they dilate.
+
+
+
+
+With the profile unseen there is no exact answer, so the bound scales the known length by a floor on the scale and the kernel clamps to the caller's real capacity, as [**Resampler\_execute\_ctrl\_max\_out()**](Resampler__core_8h.md#function-resampler_execute_ctrl_max_out) does for its equally arbitrary `ctrl`. The floor allows a 2x expansion, i.e. a scale of 0.5 or a Doppler of -500000 ppm  half the speed of light closing, six orders of magnitude past any geometry this object models, so a real profile cannot reach it.
+
+
+
+
+**Parameters:**
+
+
+* `state` channel state (unused; the signature is jm's). 
+* `n` Input sample count the binding is about to pass. 
+
+
+
+**Returns:**
+
+The capacity the binding allocates. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function doppler\_channel\_get\_elapsed\_s 
 
 _Receive time in seconds produced so far (_ `n_out/fs` _)._
@@ -357,6 +493,45 @@ void doppler_channel_get_state (
 
 
 
+
+<hr>
+
+
+
+### function doppler\_channel\_profile\_max\_out 
+
+_Upper bound on the output of one execute\_profile() call._ 
+```C++
+size_t doppler_channel_profile_max_out (
+    const double * ppm,
+    size_t n
+) 
+```
+
+
+
+A caller cannot size the output buffer from [**doppler\_channel\_execute\_max\_out()**](doppler__channel__core_8h.md#function-doppler_channel_execute_max_out) in profile mode: that bound reads the create-time ramp, and a profile replaces it. Output count is `sum 1/(1+d_i)`, maximised where `d` is smallest, so the bound is `n / (1 + min(d))` plus slack for the resampler's carried accumulator.
+
+
+
+
+**Parameters:**
+
+
+* `ppm` Profile, `n` samples of Doppler in ppm. 
+* `n` Profile length. 
+
+
+
+**Returns:**
+
+Samples that execute\_profile() can write for this profile, or 0 if `ppm` is NULL, `n` is 0, or any sample is at or below -1e6 ppm. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -614,7 +789,7 @@ _State-blob magic ('DPCH') and layout version._
 ### define DOPPLER\_CHANNEL\_STATE\_VERSION 
 
 ```C++
-#define DOPPLER_CHANNEL_STATE_VERSION `1u`
+#define DOPPLER_CHANNEL_STATE_VERSION `2u`
 ```
 
 

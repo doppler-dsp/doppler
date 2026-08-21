@@ -80,6 +80,14 @@ def apply_doppler(x: np.ndarray, ppm: float, rate_ppm_s: float = 0.0):
 
 # --8<-- [end:channel]
 
+# A 550 km circular orbit, seen on an overhead pass. Real constants, because
+# the panel's whole claim is that the curve is a GEOMETRY and not a shape
+# chosen to look good.
+MU_KM3_S2 = 398600.4418  # Earth GM
+RE_KM = 6371.0  # mean Earth radius
+ALT_KM = 550.0  # a Starlink-ish LEO altitude
+C_KM_S = 299792.458
+
 N = 1 << 18  # one block, ~10.7 ms at this fs (4x samples for 4x-higher spc)
 
 
@@ -90,6 +98,77 @@ def _dc(n: int = N) -> np.ndarray:
 
 def _peak_hz(y: np.ndarray) -> float:
     """Dominant frequency of ``y``, by FFT peak."""
+    sp = np.abs(np.fft.fft(y))
+    f = np.fft.fftfreq(len(y), 1.0 / FS)
+    return float(f[int(np.argmax(sp))])
+
+
+def leo_profile(n: int, span_s: float = 680.0):
+    """Doppler in ppm over an overhead pass, from circular-orbit geometry.
+
+    No fitted constants and no chosen shape: the range to a satellite on a
+    circular orbit is the law of cosines, and the Doppler is what its
+    derivative does.
+
+    ``psi`` is the geocentric angle swept from closest approach, so ``psi=0``
+    is TCA. Range ``R = sqrt(Re^2 + r^2 - 2*Re*r*cos(psi))`` and its rate
+    ``Rdot = Re*r*n*sin(psi)/R``; the Doppler is ``-Rdot/c``, positive while
+    closing.
+
+    The result is the S-curve a real pass has: steepest at TCA, flattening
+    toward the horizon, and **antisymmetric about zero** -- which is exactly
+    the geometry no ``(doppler_ppm, doppler_rate_ppm_s)`` pair can express,
+    since a ramp through those points would keep going.
+
+    Returns ``(ppm, t_s)``.
+    """
+    r = RE_KM + ALT_KM
+    n_orb = np.sqrt(MU_KM3_S2 / r**3)  # mean motion, rad/s
+    t_s = np.linspace(-span_s / 2.0, span_s / 2.0, n)
+    psi = n_orb * t_s
+    rng = np.sqrt(RE_KM**2 + r**2 - 2.0 * RE_KM * r * np.cos(psi))
+    rdot = RE_KM * r * n_orb * np.sin(psi) / rng  # km/s, + = opening
+    return -rdot / C_KM_S * 1e6, t_s
+
+
+def pass_trace(n_seg: int = 24):
+    """Drive one record with a LEO pass profile, chunk by chunk.
+
+    The pass's Doppler is a curve over ~11 minutes and this record is 10.7 ms,
+    so the curve is traversed in one block rather than in real time. That
+    compression is why the offset is read from the channel's own
+    ``offset_hz`` here rather than estimated from a spectrum: under a sweep
+    this steep an FFT segment sees a chirp spanning tens of kHz, and its peak
+    is not the frequency at any particular instant. Panel 1 is where
+    ``offset_hz`` is checked against a measured spectrum; this panel is about
+    the channel FOLLOWING an arbitrary profile.
+
+    Also returns the cumulative sample count, because the dilation is the
+    half a carrier-only model drops -- and over a whole pass it does
+    something worth seeing.
+
+    Returns ``(offs_hz, ends, n_in_total, n_out_total, ppm, t_s)``.
+    """
+    ppm, t_s = leo_profile(N)
+    ch = DopplerChannel(fs=FS, carrier_hz=FC)
+    x = _dc()
+
+    seg = N // n_seg
+    offs, ends, n_out = [], [], 0
+    for k in range(n_seg):
+        lo, hi = k * seg, (k + 1) * seg
+        n_out += len(ch.execute_profile(x[lo:hi], ppm[lo:hi]))
+        offs.append(ch.offset_hz)
+        ends.append(hi - 1)
+    # n_in, not N: `seg` truncates, so the last N % n_seg samples are never
+    # fed. Comparing the output against N instead would book that shortfall
+    # as dilation -- 16 samples reads as 61 ppm here, three times the
+    # profile's own peak.
+    return np.array(offs), np.array(ends), n_seg * seg, n_out, ppm, t_s
+
+
+def _peak_hz_n(y: np.ndarray) -> float:
+    """``_peak_hz`` for a block of any length (the pass panel segments)."""
     sp = np.abs(np.fft.fft(y))
     f = np.fft.fftfreq(len(y), 1.0 / FS)
     return float(f[int(np.argmax(sp))])
@@ -186,16 +265,71 @@ def main(out_path: str = "doppler_channel_demo.png") -> None:
         "offset must not double-count the ramp"
     )
 
+    # --- panel 4: a real pass, which no ramp can express -----------------
+    (pass_off, pass_ends, pass_n_in, pass_n_out, pass_ppm, pass_t) = (
+        pass_trace()
+    )
+    pass_theory = FC * pass_ppm[pass_ends] * 1e-6
+
+    # The channel reports the Doppler it was handed, at the sample it was
+    # handed it. Tolerance is a few of the PROFILE'S OWN steps rather than a
+    # relative epsilon: the carrier runs on the output clock and the profile
+    # is indexed by input, so the reported value can land a sample or two
+    # early -- the ~1e-5 clock difference the header documents, which on this
+    # deliberately steep sweep is a fraction of a Hz.
+    step_hz = FC * np.max(np.abs(np.diff(pass_ppm))) * 1e-6
+    worst = np.max(np.abs(pass_off - pass_theory))
+    assert worst < 5 * step_hz, (
+        "offset_hz must follow the supplied profile "
+        f"(worst {worst:.3f} Hz, one profile step {step_hz:.3f} Hz)"
+    )
+    # The S-curve is antisymmetric about TCA: closing, then opening, with
+    # the crossing at closest approach. Asserted as the symmetry rather than
+    # as a zero at one index -- an even-length grid straddles t=0 and has no
+    # sample exactly on it.
+    assert pass_ppm[0] > 0 and pass_ppm[-1] < 0, "a pass closes then opens"
+    assert np.allclose(pass_ppm, -pass_ppm[::-1], atol=1e-9), (
+        "an overhead pass is antisymmetric about closest approach"
+    )
+
+    # And it is NOT a line -- the reason the array form exists. Fit the best
+    # straight line and show the residual is a large fraction of the range,
+    # so no (doppler_ppm, doppler_rate_ppm_s) reproduces this.
+    fit = np.polyval(np.polyfit(pass_t, pass_ppm, 1), pass_t)
+    resid = np.max(np.abs(pass_ppm - fit)) / np.ptp(pass_ppm)
+    assert resid > 0.05, (
+        "a pass profile must be materially non-linear, or a Doppler RATE "
+        f"would already express it (residual {resid:.1%} of range)"
+    )
+
+    # The dilation over a WHOLE pass nearly cancels: the record is compressed
+    # while closing and stretched while opening, and the profile is
+    # antisymmetric. Net time is conserved to a few ppm even though the
+    # instantaneous rate error reached tens of ppm -- which is why a receiver
+    # must track the pass rather than fit one rate to the capture.
+    net_ppm = (pass_n_in / pass_n_out - 1.0) * 1e6
+    assert abs(net_ppm) < 0.5 * np.max(np.abs(pass_ppm)), (
+        f"an antisymmetric pass should nearly cancel in net dilation "
+        f"(net {net_ppm:+.2f} ppm against a peak of "
+        f"{np.max(np.abs(pass_ppm)):.1f} ppm)"
+    )
+
     print(
         f"offset @ {PPM:.0f} ppm : {meas[-1]:9.1f} Hz  "
         f"(theory {theory[-1]:.1f})\n"
         f"code slip @ {t_slip[-1] * 1e3:.1f} ms: {slip[-1]:7.2f} chips  "
         f"(theory {slip_theory[-1]:.2f})\n"
-        f"ramp slope        : {FC * RATE_PPM_S * 1e-6:9.1f} Hz/s"
+        f"ramp slope        : {FC * RATE_PPM_S * 1e-6:9.1f} Hz/s\n"
+        f"LEO pass          : {pass_ppm[0]:+.1f} to {pass_ppm[-1]:+.1f} ppm "
+        f"({FC * pass_ppm[0] * 1e-6 / 1e3:+.1f} to "
+        f"{FC * pass_ppm[-1] * 1e-6 / 1e3:+.1f} kHz), "
+        f"{resid:.0%} off a straight line\n"
+        f"  net dilation    : {net_ppm:+.3f} ppm over the pass "
+        f"(peak {np.max(np.abs(pass_ppm)):.1f} ppm) — it cancels"
     )
 
     # --- plot -------------------------------------------------------------
-    fig, (a, b, c) = plt.subplots(1, 3, figsize=(15, 4.6))
+    fig, (a, b, c, d) = plt.subplots(1, 4, figsize=(19.5, 4.6))
 
     a.plot(ppms, theory * 1e-3, "k--", lw=1.2, label="fc·d (theory)")
     a.plot(ppms, meas * 1e-3, "o", color="#1f77b4", ms=5, label="measured")
@@ -254,6 +388,42 @@ def main(out_path: str = "doppler_channel_demo.png") -> None:
     c.set_ylabel("instantaneous offset (Hz)")
     c.legend(fontsize=7)
     c.grid(alpha=0.25)
+
+    d.plot(
+        pass_t,
+        pass_ppm,
+        lw=1.4,
+        color="#9467bd",
+        label="pass geometry (profile)",
+    )
+    d.plot(
+        pass_t,
+        np.polyval(np.polyfit(pass_t, pass_ppm, 1), pass_t),
+        ":",
+        color="#ff7f0e",
+        lw=1.2,
+        label="best straight line — a ramp",
+    )
+    d.plot(
+        pass_t[pass_ends],
+        pass_off / FC * 1e6,
+        "o",
+        color="#1f77b4",
+        ms=5,
+        label="offset_hz (execute_profile)",
+    )
+    d.axhline(0.0, color="#7f7f7f", lw=0.8, ls=":")
+    d.set_title(
+        "A real pass is not a ramp\n"
+        f"{ALT_KM:.0f} km overhead pass → "
+        f"{pass_ppm[0]:+.0f} to {pass_ppm[-1]:+.0f} ppm, "
+        f"{resid:.0%} off a line",
+        fontsize=9,
+    )
+    d.set_xlabel("time from TCA (s)")
+    d.set_ylabel("Doppler (ppm)")
+    d.legend(fontsize=7)
+    d.grid(alpha=0.25)
 
     fig.suptitle(
         "DopplerChannel — clock Doppler as a propagation impairment "

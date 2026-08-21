@@ -111,6 +111,14 @@ jobs:
       # The question a downstream actually asks, answered on every platform.
       run: make link-check
 
+    - name: Verify installed headers declare only what the libraries define
+      # `native/inc/` is installed wholesale, so a header there is a
+      # PUBLISHED C API whether or not anything implements it. Two declared
+      # an API that was never built (#801) and a third block survived a
+      # rename; a downstream could read them, include them, and fail at
+      # link time. Reads `nm`, so it needs the build above.
+      run: make installed-headers-check
+
     - name: Smoke-test the three consumer faces (cc / CMake / pkg-config)
       # Installs the fresh build to a scratch prefix and builds the
       # core+stream consumer via all three documented faces, asserting

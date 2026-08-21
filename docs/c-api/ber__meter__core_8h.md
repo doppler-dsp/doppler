@@ -97,12 +97,6 @@ _BerMeter — the error-rate accumulator._ [More...](#detailed-description)
 |  int | [**ber\_meter\_set\_state**](#function-ber_meter_set_state) ([**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state, const void \* blob) <br> |
 |  int | [**ber\_meter\_set\_truth**](#function-ber_meter_set_truth) ([**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state, const uint8\_t \* truth, size\_t truth\_len) <br>_Install the transmitted symbol sequence this meter scores against._  |
 |  size\_t | [**ber\_meter\_state\_bytes**](#function-ber_meter_state_bytes) (const [**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state) <br> |
-|  double | [**esn0\_db\_for\_ser**](#function-esn0_db_for_ser) (int m, double ser) <br> |
-|  double | [**evm\_scatter\_floor\_db**](#function-evm_scatter_floor_db) (int m) <br> |
-|  long | [**lock\_symbol**](#function-lock_symbol) (const uint8\_t \* flags, size\_t flags\_len, size\_t sustain, double min\_frac) <br> |
-|  size\_t | [**settle\_syms**](#function-settle_syms) (double bn\_timing, double bn\_carrier) <br> |
-|  double | [**theory\_ber**](#function-theory_ber) (int m, double esn0) <br> |
-|  double | [**theory\_ser**](#function-theory_ser) (int m, double esn0) <br> |
 
 
 
@@ -1080,103 +1074,6 @@ ValueError: set_truth failed (rc=-4)
 ```C++
 size_t ber_meter_state_bytes (
     const ber_meter_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function esn0\_db\_for\_ser 
-
-```C++
-double esn0_db_for_ser (
-    int m,
-    double ser
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function evm\_scatter\_floor\_db 
-
-```C++
-double evm_scatter_floor_db (
-    int m
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function lock\_symbol 
-
-```C++
-long lock_symbol (
-    const uint8_t * flags,
-    size_t flags_len,
-    size_t sustain,
-    double min_frac
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function settle\_syms 
-
-```C++
-size_t settle_syms (
-    double bn_timing,
-    double bn_carrier
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function theory\_ber 
-
-```C++
-double theory_ber (
-    int m,
-    double esn0
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function theory\_ser 
-
-```C++
-double theory_ser (
-    int m,
-    double esn0
 ) 
 ```
 

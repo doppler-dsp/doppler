@@ -441,13 +441,6 @@ extern "C"
   void   ber_meter_get_state (const ber_meter_state_t *state, void *blob);
   int    ber_meter_set_state (ber_meter_state_t *state, const void *blob);
 
-double theory_ser(int m, double esn0);
-double theory_ber(int m, double esn0);
-double esn0_db_for_ser(int m, double ser);
-double evm_scatter_floor_db(int m);
-size_t settle_syms(double bn_timing, double bn_carrier);
-long lock_symbol(const uint8_t *flags, size_t flags_len, size_t sustain, double min_frac);
-
 #ifdef __cplusplus
 }
 #endif

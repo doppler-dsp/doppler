@@ -65,11 +65,16 @@ int kaiser_num_taps(int num_phases, double atten, double pb, double sb);
    * DC gain is exactly 1.0. Odd M gives symmetric linear-phase taps;
    * even M gives half-sample-shifted linear-phase taps.
    *
-   * @param out  Output buffer; must hold at least M doubles.
-   *             M outside the Bernoulli table range leaves out unmodified.
+   * @param out  Output buffer; must hold at least M doubles. ALWAYS M --
+   *             an out-of-range M is written as M zeros, not left alone,
+   *             so a caller cannot pre-fill a fallback design here and
+   *             expect it to survive. Size by M, never by the table bound.
    * @param N    CIC filter order (number of integrator/comb stages, >= 1).
    * @param R    CIC decimation factor (>= 2).
-   * @param M    Number of compensator taps in `[1, 19]` (odd or even).
+   * @param M    Number of compensator taps: odd M in `[1, 19]`, even M in
+   *             `[1, 18]`. The Bernoulli table is nine entries, so the two
+   *             parities do not reach the same length; anything outside
+   *             its own range yields the all-zero filter above.
    *
    * @code
    * >>> from doppler.resample import ciccompmf

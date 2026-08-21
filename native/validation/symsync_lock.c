@@ -34,6 +34,7 @@
  *
  * Usage: symsync_lock [--check]
  */
+#include "dp_rng_test.h"
 #include "symsync/symsync_core.h"
 #include <complex.h>
 #include <math.h>
@@ -42,35 +43,6 @@
 #include <string.h>
 
 #define SPS 4
-
-static uint32_t
-xorshift32 (uint32_t *st)
-{
-  *st ^= *st << 13;
-  *st ^= *st >> 17;
-  *st ^= *st << 5;
-  return *st;
-}
-
-/* Unit-variance complex Gaussian (Box-Muller); mirrors the awgn module's
- * transform without pulling in a separate generator instance per block. */
-static float complex
-cgauss (uint32_t *st)
-{
-  uint32_t a   = xorshift32 (st);
-  uint32_t b   = xorshift32 (st);
-  double   u1  = ((double)a + 1.0) / 4294967297.0;
-  double   u2  = ((double)b + 1.0) / 4294967297.0;
-  double   mag = sqrt (-log (u1));
-  double   th  = 6.283185307179586 * u2;
-  return (float)(mag * cos (th)) + (float)(mag * sin (th)) * I;
-}
-
-static int
-prbs (uint32_t *st)
-{
-  return (xorshift32 (st) & 1u) ? -1 : 1;
-}
 
 /* Nyquist raised-cosine pulse (matched-filtered), unit symbol period T. */
 static double
@@ -108,7 +80,7 @@ measure_pfa (size_t avgs, double threshold, long n_blocks, uint32_t seed)
   size_t   block_n   = 0;
   while (got < n_blocks)
     {
-      float complex x = cgauss (&st);
+      float complex x = dp_cgauss (&st);
       float complex y;
       if (symsync_step (s, x, &y))
         {
@@ -154,7 +126,7 @@ measure_pd (size_t avgs, double threshold, double esno_db, long n_blocks)
         rx[i] = 0.0f;
       for (size_t k = 0; k < chunk_sym; k++)
         {
-          int b    = prbs (&bit_st);
+          int b    = dp_bit (&bit_st);
           bits[k]  = b;
           double c = (double)k * SPS + 1.3;
           if (c + span >= (double)n)
@@ -171,7 +143,7 @@ measure_pd (size_t avgs, double threshold, double esno_db, long n_blocks)
       p         = sqrt (p / (double)n);
       double sd = sqrt (pow (10.0, -esno_db / 10.0)) * p;
       for (size_t i = 0; i < n; i++)
-        rx[i] += (float complex) (sd / sqrt (2.0)) * cgauss (&noise_st);
+        rx[i] += (float complex) (sd / sqrt (2.0)) * dp_cgauss (&noise_st);
 
       for (size_t i = 0; i < n && got < n_blocks; i++)
         {

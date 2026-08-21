@@ -156,8 +156,18 @@ mean +0.056 and variance 1.115 while claiming N(0, 1). Nothing failed —
 `test_costas_core.c` ran its only AWGN test 0.47 dB hot on biased,
 heavy-tailed noise for as long as the copy existed. A private generator cannot
 be wrong in a way anything notices, so `make lint` rejects a new one: an
-inline xorshift, a hand-written Box-Muller, or either uniform mapping fails
-`tests-ssot` outside `dp_rng_test.h`.
+inline xorshift, an inline linear-congruential step, a hand-written
+Box-Muller, or either uniform mapping fails `tests-ssot` outside
+`dp_rng_test.h`.
+
+That rule covers **`native/validation/` too**, and it did not until it was
+widened — while the gate's summary line said `no private RNG` without
+qualification, over four harnesses that had one. A validation harness is
+where a private generator does the most damage, because it *reports* a
+number rather than asserting a bound: there is no margin to absorb a wrong
+generator, and no failure. All four were bit-exact and were migrated rather
+than excused, so for those shapes the rule stays absolute in both
+directories.
 
 `test_dp_rng.c` pins it. The integer streams are compared bit-for-bit against
 recorded vectors; the Gaussians are checked to a tolerance and then measured
@@ -202,11 +212,27 @@ exists because 90 copies of `CHECK` in six incompatible variants accumulated
 under a convention that was already written down — a note in a README is not a
 control.
 
-**No private randomness.** An inline xorshift, a hand-written Box-Muller, or
-either of the two uniform mappings fails the gate anywhere but
-`dp_rng_test.h`. `check_stimulus_sources.py` deliberately declines this check
+**No private randomness.** An inline xorshift, an inline linear-congruential
+step, a hand-written Box-Muller, or either of the two uniform mappings fails
+the gate anywhere but `dp_rng_test.h` — across `native/tests/` **and**
+`native/validation/`, which is the one rule in this gate that reaches outside
+this directory. `check_stimulus_sources.py` deliberately declines this check
 at repo scale, where hand-rolled noise hits 72 files and a ratchet that large
-is noise; here the count is zero, so it is a rule instead of a ratchet.
+is noise; here the xorshift and Box-Muller count is zero, so it is a rule.
+
+The exception is `scripts/.private-rng-ratchet`, which holds the four inline
+LCG streams the newer idiom found on its first run. Migrating those moves
+their streams and therefore the numbers measured against them, so they are
+listed with a reason. **It may only shrink**, and an entry matching nothing
+is a failure rather than a tidy-up.
+
+**No two draws from one state in one expression.** Also both directories.
+The two calls are indeterminately sequenced, so gcc and clang pick different
+orders and the same seed yields different noise per job. Widening the scan
+found one live in `rx_dynamics.c` — invisible until then, because the check
+follows `dp_*` draws and that file's generator chain was private all the way
+down. A private generator does not just risk being wrong; it hides the other
+rules from the code that uses it.
 
 **No silent loss of coverage.** No `native/tests/*.c` may end up with fewer
 assertions than `$(ASSERT_BASE)` (default `origin/main`) has. A migration or a

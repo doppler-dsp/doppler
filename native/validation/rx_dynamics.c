@@ -91,6 +91,7 @@
  *   rx_dynamics --out DIR    also write DIR/rx-dyn-<tap>.tlm for plotting
  */
 #include "doppler_channel/doppler_channel_core.h"
+#include "dp_rng_test.h"
 #include "dp_tlm_capture/dp_tlm_capture_core.h"
 #include "mpsk_receiver/mpsk_receiver_core.h"
 
@@ -184,26 +185,6 @@ typedef struct
   int    refused;      /**< create() returned NULL.                        */
 } rx_dyn_result_t;
 
-/* xorshift32 -- the symbol source. A plain PRNG rather than pn_core for the
- * reason mpsk_ber_common.h gives: an MLS contains a run of L identical bits,
- * and at 1 bit/symbol BPSK that stalls the TED. */
-static uint32_t
-rx_dyn_rng (uint32_t *s)
-{
-  *s ^= *s << 13;
-  *s ^= *s >> 17;
-  *s ^= *s << 5;
-  return *s;
-}
-
-static double
-rx_dyn_gauss (uint32_t *s)
-{
-  double u1 = (rx_dyn_rng (s) + 1.0) / 4294967297.0;
-  double u2 = (rx_dyn_rng (s) + 1.0) / 4294967297.0;
-  return sqrt (-2.0 * log (u1)) * cos (2.0 * M_PI * u2);
-}
-
 /**
  * @brief Run one tap over the whole scenario.
  *
@@ -236,9 +217,12 @@ rx_dyn_measure (int ted, const char *path)
      zero transitions. The second half is i.i.d. BPSK, arriving as a step. */
   for (size_t k = 0; k < RX_DYN_NSYM; k++)
     {
+      /* A plain PRNG rather than pn_core, for the reason
+         mpsk_ber_common.h gives: an MLS contains a run of L identical
+         bits, and at 1 bit/symbol BPSK that stalls the TED. */
       double sr = (k < RX_DYN_ONSET)
                       ? RX_DYN_AMP
-                      : RX_DYN_AMP * ((rx_dyn_rng (&st) % 2u) ? -1.0 : 1.0);
+                      : RX_DYN_AMP * ((dp_xs32 (&st) % 2u) ? -1.0 : 1.0);
       for (size_t j = 0; j < isps; j++)
         x[k * isps + j] = (float)sr + 0.0f * I;
     }
@@ -264,8 +248,11 @@ rx_dyn_measure (int ted, const char *path)
 
   /* Stage 3 -- AWGN at the stated matched-filter-output Es/N0. */
   for (size_t n = 0; n < nsamp; n++)
-    y[n] += (float)(sigma * rx_dyn_gauss (&st))
-            + (float)(sigma * rx_dyn_gauss (&st)) * I;
+    {
+      double n_im = dp_gauss (&st);
+      double n_re = dp_gauss (&st);
+      y[n] += (float)(sigma * n_re) + (float)(sigma * n_im) * I;
+    }
 
   /* Stage 4 -- the receiver, with its own telemetry attached. */
   {

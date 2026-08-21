@@ -5,7 +5,8 @@
 add_executable(validate_ber_despreader
                ${CMAKE_CURRENT_SOURCE_DIR}/ber_despreader.c)
 target_include_directories(validate_ber_despreader
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_ber_despreader PRIVATE doppler_lib_static m)
 add_test(NAME validate_ber_despreader
          COMMAND validate_ber_despreader --check)
@@ -26,7 +27,8 @@ add_test(NAME validate_costas_jitter
 add_executable(validate_dll_jitter
                ${CMAKE_CURRENT_SOURCE_DIR}/dll_jitter.c)
 target_include_directories(validate_dll_jitter
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_dll_jitter PRIVATE doppler_lib_static m)
 # -ffp-contract=off: the closed-loop integrator (`integ += ki*x` in
 # loop_filter_step, `integ*inv_tsamps + kp*e*inv_tsamps_sf` in dll_update)
@@ -119,7 +121,8 @@ add_test(NAME validate_mpsk_receiver_real_ber
 add_executable(validate_symsync_lock
                ${CMAKE_CURRENT_SOURCE_DIR}/symsync_lock.c)
 target_include_directories(validate_symsync_lock
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_symsync_lock PRIVATE doppler_lib_static m)
 target_compile_options(validate_symsync_lock PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_symsync_lock
@@ -212,7 +215,8 @@ add_test(NAME validate_rx_battery
 add_executable(validate_rx_dynamics
                ${CMAKE_CURRENT_SOURCE_DIR}/rx_dynamics.c)
 target_include_directories(validate_rx_dynamics
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 # Threads::Threads explicitly: dp_tlm_capture's writer thread is the only
 # pthread user any validator pulls in, and doppler_lib_static aggregates it as
 # OBJECT sources, which carry no usage requirement to propagate. On glibc >=

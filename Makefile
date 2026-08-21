@@ -987,6 +987,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
                 apt-stall-config deps-budget-check cargo-floor-check \
                 bench-coverage-check kwarg-parity-check issues \
+                doc-sections-check \
                 installed-headers-check \
                 ci-image ci-image-check ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats \
@@ -1019,7 +1020,7 @@ include standard.mk
 # running was the other half, and `gates` is a local convenience, not CI.
 lint: tests-ssot characterization-check validation-report-check changelog-check \
       issue-link-check deps-budget-check ci-image-check cargo-floor-check \
-      bench-coverage-check kwarg-parity-check
+      bench-coverage-check kwarg-parity-check doc-sections-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -1048,6 +1049,15 @@ bench-coverage-check: ## Verify every tested component has a benchmark that runs
 # TypeError (#619). Reads both faces instead, discovering every fragment.
 kwarg-parity-check: ## Verify each binding accepts the keywords its stub publishes
 	@uv run python scripts/check_kwarg_parity.py
+
+# check_doc_paths.py holds the FILE half of a prose citation; this holds the
+# SECTION half. Neither is covered by check_site_links, which reads links in
+# the built site and cannot see `docs/design/mpsk.md` §3.2 written as prose
+# inside a C comment. Both halves matter for the same reason: a citation
+# reads as authority, so one pointing at the wrong argument is worse than
+# none -- the reader concludes the claim is unsupported (#795).
+doc-sections-check: ## Verify every `docs/x.md` section citation resolves
+	@uv run python scripts/check_doc_sections.py
 
 # `build` as a prerequisite, not a note: this reads `nm` output, so without a
 # built archive it has nothing to check -- and a gate that skips when its

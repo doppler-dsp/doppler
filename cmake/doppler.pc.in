@@ -10,8 +10,10 @@ Name: doppler
 Description: doppler C library
 Version: @PROJECT_VERSION@
 Libs: -L${libdir} -ldoppler
-# libdoppler is pure C and links only -lm. The optional NATS stream layer
+# libdoppler is pure C and links -lm and -lpthread (rs.c derives the CCSDS
+# field tables under pthread_once; on glibc < 2.34 pthread is a separate
+# library and a static link needs it named). The optional NATS stream layer
 # has its own module: `pkg-config --cflags --libs doppler_stream` gives the
 # complete streaming link line (it Requires: this core module).
-Libs.private: -lm
+Libs.private: -lm -lpthread
 Cflags: -I${includedir}

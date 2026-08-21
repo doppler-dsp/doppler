@@ -5,7 +5,7 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # doppler is pure C: every first-party source is C99 and the core libdoppler
-# links only -lm.  The vendored nats.c (the optional libdoppler_stream
+# links -lm and -lpthread.  The vendored nats.c (the optional libdoppler_stream
 # component's transport) is also pure C, so the whole build needs only a C
 # compiler — the top-level project declares no CXX.
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -151,19 +151,29 @@ endforeach()
 # generates fully relocatable imported targets (no hand-rolled paths in the
 # package config). The objects each archive folds in (pocketfft, wfmcompose)
 # are baked into the .a/.so via target_sources — they are NOT export-time
-# dependencies, so the static lib exports cleanly; its only interface dep is
-# m — pocketfft is pure C99 and the networking/stream layer is split into the
-# optional libdoppler_stream component.
+# dependencies, so the static lib exports cleanly; its interface deps are m
+# and Threads — pocketfft is pure C99 and the networking/stream layer is split
+# into the optional libdoppler_stream component.
 set_target_properties(doppler_lib PROPERTIES EXPORT_NAME doppler)
 set_target_properties(doppler_lib_static PROPERTIES EXPORT_NAME doppler-static)
 # pocketfft (pure C99) is compiled into fft_core, which is folded into both libs
 # below with every other component — so no separate pocketfft target to wire here.
-# The core is pure C and links only -lm (the stream layer lives in the
-# optional libdoppler_stream component below). Threads is still located here
-# for that component and the examples.
+# The core is pure C and links -lm and -lpthread (the stream layer lives in
+# the optional libdoppler_stream component below).
+#
+# Threads::Threads is PUBLIC on the ARCHIVE and must stay that way. A component
+# that needs pthread carries it PUBLIC on its own target (ccsds_tm_core for
+# rs.c's `pthread_once`, wfm_compose_core for dp_parallel), but every component
+# is folded in here as $<TARGET_OBJECTS:...> — objects, not a link edge — and
+# that drops the usage requirement on the floor. Nothing else re-stated it, so
+# the archive's link interface carried no pthread and a consumer that pulled a
+# pthread-using member out of libdoppler.a failed to link: on glibc < 2.34
+# pthread is a separate library, so `examples/c/ccsds_link_demo` died on
+# `undefined reference to pthread_once` in CI's Debian 10 job while every
+# glibc >= 2.34 box linked it clean, pthread being folded into libc there.
 find_package(Threads REQUIRED)
-target_link_libraries(doppler_lib        PRIVATE m)
-target_link_libraries(doppler_lib_static PUBLIC  m)
+target_link_libraries(doppler_lib        PRIVATE m Threads::Threads)
+target_link_libraries(doppler_lib_static PUBLIC  m Threads::Threads)
 
 # The core ships weak no-op stubs for the wfm_stream_sink_* symbols wfmgen
 # uses (native/src/wfm/wfm_sink_stub.c, folded in via the wfmcompose subdir),
@@ -1018,7 +1028,7 @@ install(TARGETS doppler_lib
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 # Static lib is a first-class export member → find_package gives consumers
-# `doppler::doppler-static` (pure C, self-contained: only -lm).
+# `doppler::doppler-static` (pure C, self-contained: -lm and -lpthread).
 install(TARGETS doppler_lib_static
     EXPORT doppler-targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})

@@ -168,7 +168,8 @@ Full docs: **[doppler-dsp.github.io/doppler](https://doppler-dsp.github.io/doppl
 
 ## Licensing
 
-MIT. The core C library is pure C99 and links only `-lm`. Its FFT uses the
+MIT. The core C library is pure C99 and links `-lm` and `-lpthread`. Its FFT
+uses the
 vendored pocketfft (BSD-3-Clause) for double precision and arbitrary sizes, and
 the vendored PFFFT (Pommier/FFTPACK, BSD) for the native single-precision SIMD
 path. The optional NATS stream component (`libdoppler_stream`) vendors

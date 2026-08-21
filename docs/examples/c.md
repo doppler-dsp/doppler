@@ -124,7 +124,7 @@ install or an extracted [release tarball](../install/c.md#install-from-a-release
 see [`examples/consumer/`](https://github.com/doppler-dsp/doppler/tree/main/examples/consumer).
 One `CMakeLists.txt` builds against **both** link targets:
 `doppler::doppler` (shared) and `doppler::doppler-static` (the pure-C static
-archive — links only `-lm`, no C++ runtime). The
+archive — links `-lm` and `-lpthread`, no C++ runtime). The
 [C Library install guide](../install/c.md) has the full find_package and
 pkg-config commands.
 

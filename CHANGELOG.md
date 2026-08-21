@@ -209,6 +209,7 @@ ______________________________________________________________________
     It is `command -v python3`. The root `CMakeLists.txt`'s unconditional
     `if(WIN32 ...)` libwinpthread copy is gone too — `jm status --check`
     confirms its absence is not drift.
+
 - **just-makeit pinned to 0.63.3, and the tree builds on it.** The bump
     closes nine doppler-filed issues:
     [gh-1023](https://github.com/just-buildit/just-makeit/issues/1023)
@@ -261,9 +262,12 @@ ______________________________________________________________________
     `measure`, `resample`, `spectral`, `wfm`. They are jm scaffolds and say
     so, reporting `PASSED (0 checks)`; what they do today is prove every
     symbol links and every all-scalar function survives a call. That is not
-    nothing — see the entry below. Filling them in is
-    [#914](https://github.com/doppler-dsp/doppler/issues/914). The seven
-    module *benchmarks* get no
+    nothing — see the entry below. **They are real tests**, not the
+    scaffolds jm generated: `dp_test.h`'s `DP_TEST_END` fails a test that
+    checked nothing, which is doppler's own rule refusing a scaffold
+    outright, so the six were written against the 43 functions' actual
+    properties ([#914](https://github.com/doppler-dsp/doppler/issues/914)).
+    The seven module *benchmarks* get no
     scaffold at all: they exist and are declared in this project's own
     `CMakeLists.txt`, so gh-1046 stands jm down.
 
@@ -419,6 +423,15 @@ ______________________________________________________________________
     The gate holds everything checkable without running them.
 
 ### Fixed
+
+- **`ciccompmf`'s header described a contract it does not have.** It said
+    "M outside the Bernoulli table range leaves out unmodified"; it writes
+    M **zeros**. A caller who pre-filled a fallback design and trusted that
+    sentence got it silently replaced with the all-zero filter — a muted
+    signal path rather than a degraded one. The range is also per-parity —
+    odd M up to 19, even M only up to 18, since the Bernoulli table is nine
+    entries — which the flat `[1, 19]` did not say. The doc now states both,
+    and `test_resample_core.c` pins them.
 
 - **`kaiser_num_taps(0, …)` crashed the process, and a Python shadow hid
     it.** Two defects, both found on the first run of the C test jm's

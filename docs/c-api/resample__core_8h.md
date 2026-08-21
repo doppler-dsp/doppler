@@ -107,10 +107,10 @@ void ciccompmf (
 **Parameters:**
 
 
-* `out` Output buffer; must hold at least M doubles. M outside the Bernoulli table range leaves out unmodified. 
+* `out` Output buffer; must hold at least M doubles. ALWAYS M  an out-of-range M is written as M zeros, not left alone, so a caller cannot pre-fill a fallback design here and expect it to survive. Size by M, never by the table bound. 
 * `N` CIC filter order (number of integrator/comb stages, &gt;= 1). 
 * `R` CIC decimation factor (&gt;= 2). 
-* `M` Number of compensator taps in `[1, 19]` (odd or even).
+* `M` Number of compensator taps: odd M in `[1, 19]`, even M in `[1, 18]`. The Bernoulli table is nine entries, so the two parities do not reach the same length; anything outside its own range yields the all-zero filter above.
 
 
 ```C++

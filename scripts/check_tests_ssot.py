@@ -645,6 +645,29 @@ def main() -> int:
 
     owners = {p.name for p in family()}
     bad: list[str] = []
+
+    # A tracked test may not include the GITIGNORED harness. `jm apply`
+    # materialises `native/tests/jm_test.h` as a create-only file, so a
+    # scaffold that includes it compiles on the machine that ran apply and
+    # nowhere else -- the header is in .gitignore, so CI checks out a tree
+    # where it does not exist. Measured: six generated module tests landed
+    # this way and every build job failed with `jm_test.h: No such file or
+    # directory`, while the full local gate set was green.
+    #
+    # The docstring on _tracked() has claimed since it was written that
+    # "this gate is what makes that true". It was not: _tracked() only
+    # kept the untracked header out of its OWN scan. This is the check
+    # that makes the sentence true.
+    for path in sources():
+        for n, line in enumerate(path.read_text().splitlines(), 1):
+            if re.match(r'\s*#\s*include\s*"jm_test\.h"', line):
+                bad.append(
+                    f"{path.relative_to(ROOT)}:{n}: includes jm_test.h, "
+                    "which is gitignored — it exists only on a machine "
+                    "that ran `jm apply`, so this builds here and fails "
+                    "in CI. Use dp_test.h (DP_CHECK / DP_TEST_END)."
+                )
+
     for path in sources():
         # A family header legitimately defines what it owns. It must still not
         # re-define what a SIBLING owns, so only its own names are skipped.

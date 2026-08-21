@@ -1899,7 +1899,10 @@ def ciccompmf(N: int, R: int, M: int) -> NDArray[np.float64]:
     R : int
         CIC decimation factor (>= 2).
     M : int
-        Number of compensator taps in `[1, 19]` (odd or even).
+        Number of compensator taps: odd M in `[1, 19]`, even M in `[1,
+        18]`. The Bernoulli table is nine entries, so the two parities do
+        not reach the same length; anything outside its own range yields
+        the all-zero filter above.
 
     Returns
     -------

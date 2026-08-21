@@ -25,11 +25,6 @@ tier = 4
 title = "Reading a capture is undiscoverable and undocumented \u2014 enriched view over wfm_reader + a guide"
 status = "open"
 
-[issue.551]
-tier = 0
-title = "HalfbandDecimator's manifest declares one ctor param while the C core takes two \u2014 jm would regenerate a create() that does not compile"
-status = "in review ([#924](https://github.com/doppler-dsp/doppler/pull/924))"
-
 [issue.568]
 tier = 5
 title = "RFC: Doxygen \u2192 docstring derivation \u2014 the jm-side plan, and where the F-series fits"
@@ -308,7 +303,7 @@ status = "open"
 [issue.801]
 tier = 0
 title = "Two installed public headers declare an API the library does not define \u2014 tlm_recorder.h is SUPERSEDED by dp_tlm_capture, plus an empty stream_core.h"
-status = "open"
+status = "in review ([#927](https://github.com/doppler-dsp/doppler/pull/927))"
 
 [issue.802]
 tier = 5
@@ -323,11 +318,6 @@ status = "open"
 [issue.814]
 tier = 2
 title = "MpskReceiver: six header claims are covered by nothing in either language (F9)"
-status = "open"
-
-[issue.829]
-tier = 0
-title = "MpskReceiverR pins five parameters the object derives, and three of them disagree with the derivation"
 status = "open"
 
 [issue.830]

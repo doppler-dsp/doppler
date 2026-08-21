@@ -92,8 +92,8 @@ no path to point `cmake` at. The tarball ships doppler *inside it*.
 VER=0.42.0
 PLAT=linux-x86_64          # or linux-aarch64, macos-arm64
 
-curl -fsSL -O https://github.com/doppler-dsp/doppler/releases/download/v$VER/iqtools-$VER-$PLAT.tar.gz
-tar xzf iqtools-$VER-$PLAT.tar.gz
+curl -fsSL -O https://github.com/doppler-dsp/doppler/releases/download/v$VER/doppler-starter-$VER-$PLAT.tar.gz
+tar xzf doppler-starter-$VER-$PLAT.tar.gz
 cd iqtools
 
 cmake -B build . -DBUILD_PYTHON=OFF
@@ -107,11 +107,15 @@ ctest --test-dir build
 `make docs-relink` and gated by `docs-check`, so it cannot fall behind a
 release.)
 
+The asset is `doppler-starter-…` and the directory inside it is `iqtools`:
+the first says what you are downloading, the second is this project's own name
+— its package, its manifests and its README all use it. **Rename the directory
+and it is your project**; the manifests, the C core and the tests are all yours
+to edit from there.
+
 `find_package(doppler REQUIRED)` resolves against the bundled copy because the
 project prepends it to `CMAKE_PREFIX_PATH` — one `if(EXISTS ...)` block in
-`CMakeLists.txt`, above the manifest-owned section. **Rename the directory and
-it is your project**; the manifests, the C core and the tests are all yours to
-edit from there.
+`CMakeLists.txt`, above the manifest-owned section.
 
 What is inside:
 
@@ -354,7 +358,7 @@ The example is built and tested by doppler's own CI, so it cannot rot:
 | `make test-example-downstream`        | configure + build + CTest, **`BUILD_PYTHON=OFF`**                                  | inside `make test-examples` — ubuntu, macOS, **and the glibc 2.28 container**, which has no Python |
 | `make test-example-downstream-python` | builds the extension, runs this project's pytest                                   | inside `make test-examples-python` — the Python matrix job                                         |
 | `make drift-check`                    | `jm status --check` **for this project's own manifest**                            | the `jm manifest drift gate` job                                                                   |
-| `make test-example-tarball`           | packs the starter, extracts it **outside the repo**, builds it with no prefix flag | wherever the release artifacts are built                                                           |
+| `make test-starter-tarball`           | packs the starter, extracts it **outside the repo**, builds it with no prefix flag | wherever the release artifacts are built                                                           |
 
 The C half is deliberately Python-free so the question that matters most —
 *can a downstream project link `libdoppler.a`?* — is answered on three

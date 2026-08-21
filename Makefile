@@ -922,7 +922,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 doxygen-warn-gate \
                 test-examples-c test-examples-python test-example-downstream \
                 test-example-downstream-python \
-                package-example-tarball test-example-tarball \
+                package-starter-tarball test-starter-tarball \
                 test-stubs test-api-docs test-snippets lint-stubs \
                 test-ubsan \
                 check-docstring-coverage \
@@ -1484,41 +1484,59 @@ endif
 # tree: the working tree carries build/, .pytest_cache/ and a
 # compile_commands.json full of absolute paths from this machine, and a
 # starter that ships someone else's paths is a starter that reads as broken.
-EXAMPLE_STAGE ?= $(BUILD_DIR)/example-pkg
-EXAMPLE_NAME  ?= iqtools
+#
+# TWO names, because they answer different questions. The published asset is
+# `doppler-starter-<version>-<platform>.tar.gz`: on a release page beside
+# `doppler-<version>-<platform>.tar.gz` it has to say what it IS, and
+# `iqtools-…` says nothing to someone who has never heard of iqtools. The
+# directory inside it stays `iqtools`, because that is the project's own name
+# — its package, its manifests and its README all say so, and renaming it to
+# yours is step one of using it.
+STARTER_STAGE ?= $(BUILD_DIR)/starter-pkg
+STARTER_DIR   ?= iqtools
+STARTER_ASSET ?= doppler-starter
 
-package-example-tarball: ## VERSION=x.y.z — tar the starter project with the SDK bundled
+package-starter-tarball: ## VERSION=x.y.z — tar the starter project with the SDK bundled
 ifndef VERSION
-	@echo "usage: make package-example-tarball VERSION=<x.y.z>"; exit 1
+	@echo "usage: make package-starter-tarball VERSION=<x.y.z>"; exit 1
 endif
-	@rm -rf $(EXAMPLE_STAGE)
-	@mkdir -p $(EXAMPLE_STAGE)/$(EXAMPLE_NAME)
+	@rm -rf $(STARTER_STAGE)
+	@mkdir -p $(STARTER_STAGE)/$(STARTER_DIR)
 # HEAD, so the archive is a commit rather than whatever is unsaved. A starter
 # built from a dirty tree cannot be reproduced by the person who receives it.
-	@git archive HEAD:$(DOWNSTREAM_DIR) \
-	    | tar -x -C $(EXAMPLE_STAGE)/$(EXAMPLE_NAME) \
-	    || { echo "package-example-tarball: git archive failed — is $(DOWNSTREAM_DIR) committed?"; exit 1; }
+#
+# Through a FILE rather than a pipe into tar, so `git archive` failing is
+# caught by its own exit status. Piped, the `||` sees tar's status, not git's,
+# and whether that fails is up to how the local tar treats an empty stream:
+# GNU tar errors ("This does not look like a tar archive", exit 2), which is
+# the only reason the pipe version was safe on Linux, and it is not a property
+# worth betting the macOS leg on. Measured in the manylinux container against
+# a checkout git refuses -- see the safe.directory note in release.yml.
+	@git archive HEAD:$(DOWNSTREAM_DIR) > $(STARTER_STAGE)/project.tar \
+	    || { echo "package-starter-tarball: git archive failed — is $(DOWNSTREAM_DIR) committed, and is this checkout one git will read?"; exit 1; }
+	@tar -xf $(STARTER_STAGE)/project.tar -C $(STARTER_STAGE)/$(STARTER_DIR)
+	@rm -f $(STARTER_STAGE)/project.tar
 	@$(MAKE) --no-print-directory package-c \
-	    PREFIX=$(abspath $(EXAMPLE_STAGE)/$(EXAMPLE_NAME)/third_party/doppler)
+	    PREFIX=$(abspath $(STARTER_STAGE)/$(STARTER_DIR)/third_party/doppler)
 	@mkdir -p $(DIST_DIR)
-	@tar -czf "$(DIST_DIR)/$(EXAMPLE_NAME)-$(VERSION)-$(C_PLATFORM).tar.gz" \
-	    -C $(EXAMPLE_STAGE) $(EXAMPLE_NAME)
+	@tar -czf "$(DIST_DIR)/$(STARTER_ASSET)-$(VERSION)-$(C_PLATFORM).tar.gz" \
+	    -C $(STARTER_STAGE) $(STARTER_DIR)
 # Assert the shape the README promises, for the reason package-c-tarball does:
 # a tar of an empty prefix exits 0 and ships nothing. Both halves are checked
 # -- the project AND the doppler it is supposed to carry -- because bundling
 # is the whole claim and a tarball missing it still configures on a machine
 # that happens to have doppler installed.
-	@tb="$(DIST_DIR)/$(EXAMPLE_NAME)-$(VERSION)-$(C_PLATFORM).tar.gz"; \
-	 for want in $(EXAMPLE_NAME)/CMakeLists.txt \
-	             $(EXAMPLE_NAME)/just-makeit.toml \
-	             $(EXAMPLE_NAME)/third_party/doppler/include/ \
-	             $(EXAMPLE_NAME)/third_party/doppler/lib/libdoppler.a \
-	             $(EXAMPLE_NAME)/third_party/doppler/lib/cmake/; do \
+	@tb="$(DIST_DIR)/$(STARTER_ASSET)-$(VERSION)-$(C_PLATFORM).tar.gz"; \
+	 for want in $(STARTER_DIR)/CMakeLists.txt \
+	             $(STARTER_DIR)/just-makeit.toml \
+	             $(STARTER_DIR)/third_party/doppler/include/ \
+	             $(STARTER_DIR)/third_party/doppler/lib/libdoppler.a \
+	             $(STARTER_DIR)/third_party/doppler/lib/cmake/; do \
 	     tar -tzf "$$tb" | grep -q "^$$want" || { \
-	         echo "package-example-tarball: $$tb has no $$want — refusing to ship it"; \
+	         echo "package-starter-tarball: $$tb has no $$want — refusing to ship it"; \
 	         exit 1; }; \
 	 done; \
-	 echo "package-example-tarball: $$tb ($$(tar -tzf "$$tb" | wc -l) entries)"
+	 echo "package-starter-tarball: $$tb ($$(tar -tzf "$$tb" | wc -l) entries)"
 
 # The gate on the artifact, not on the source: extract the tarball somewhere
 # with no relationship to this repo and run EXACTLY the commands the README
@@ -1541,15 +1559,15 @@ endif
 # nothing installed at all, so the C half is what the README leads with and
 # what this gate runs; the Python half is a documented second step with one
 # prerequisite, already covered by test-example-downstream-python.
-test-example-tarball: ## Extract the starter tarball and build it with no flags
+test-starter-tarball: ## Extract the starter tarball and build it with no flags
 	@v="$$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)"; \
-	 $(MAKE) --no-print-directory package-example-tarball VERSION="$$v" \
+	 $(MAKE) --no-print-directory package-starter-tarball VERSION="$$v" \
 	   || exit 1; \
-	 tb="$(abspath $(DIST_DIR))/$(EXAMPLE_NAME)-$$v-$(C_PLATFORM).tar.gz"; \
+	 tb="$(abspath $(DIST_DIR))/$(STARTER_ASSET)-$$v-$(C_PLATFORM).tar.gz"; \
 	 tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
 	 tar xzf "$$tb" -C "$$tmp"; \
 	 printf "  %-22s" "extract + build"; \
-	 if (cd "$$tmp/$(EXAMPLE_NAME)" \
+	 if (cd "$$tmp/$(STARTER_DIR)" \
 	     && cmake -B build . -DBUILD_PYTHON=OFF > "$$tmp/log" 2>&1 \
 	     && cmake --build build --parallel $(NPROC) >> "$$tmp/log" 2>&1 \
 	     && $(CTEST) --test-dir build >> "$$tmp/log" 2>&1); then \

@@ -59,8 +59,9 @@ ______________________________________________________________________
     measured while writing an empty array, which is the exact failure the
     file exists to catch, one level down.
 - **`examples/downstream-jm` ships as a starter tarball with doppler inside
-    it.** `make package-example-tarball VERSION=x.y.z` builds
-    `iqtools-<ver>-<plat>.tar.gz`: the project from `git archive` (never the
+    it**, published with every release as
+    **`doppler-starter-<ver>-<plat>.tar.gz`** for all three platforms.
+    `make package-starter-tarball VERSION=x.y.z` builds the project from `git archive` (never the
     working tree, which carries `build/` and a `compile_commands.json` full of
     one machine's absolute paths) plus the C SDK installed into
     `third_party/doppler/`. Extract it and build — no doppler checkout, no
@@ -73,10 +74,26 @@ ______________________________________________________________________
     was doppler's CI mechanism documented in a page written for someone
     consuming doppler.
 
-    `make test-example-tarball` is the gate, and it is deliberately not a
+    `make test-starter-tarball` is the gate, and it is deliberately not a
     duplicate of `test-example-downstream`: it unpacks the shipped archive
     **outside this repo** and runs the README's own commands, so a packaging
     mistake fails there and nowhere else.
+
+    It is built in the same release job as the SDK it bundles, so doppler is
+    compiled once rather than twice, and it rides the existing
+    `dist/doppler-*-<plat>.tar.gz` upload glob. The whole recipe was run in
+    the manylinux container before being wired in, which settled three things
+    reading could not: `git archive` needs
+    `git config --global --add safe.directory /project` or it prints
+    "detected dubious ownership" and writes **nothing**; `git` must *not* be
+    added to the `dnf` list, because the image already ships 2.55.0 at
+    `/usr/local/bin/git` and installing it adds a second, older one at
+    `/usr/bin/git` that PATH never reaches; and the artifact the container
+    produces extracts, configures with no flags, builds and passes its test. The asset is named
+    `doppler-starter-` and not `iqtools-` because on a release page beside
+    `doppler-<ver>-<plat>.tar.gz` it has to say what it is; the directory
+    inside stays `iqtools`, which is the project's own name and what you
+    rename first.
 
 - **The starter provisions its Python half in-tree, from its own manifest.**
     `make setup` creates `.venv/` and runs `pip install -e ".[test]"`. No

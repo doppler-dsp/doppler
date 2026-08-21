@@ -55,10 +55,16 @@ build: $(BUILD_DIR)/CMakeCache.txt ## Configure and build
 
 test: build ## Run CTest and pytest
 	ctest --test-dir $(BUILD_DIR) --output-on-failure
+# --ignore-glob keeps the benchmarks out of the TEST run. pyproject's
+# `python_files` deliberately collects `bench_*.py` so `make bench` can find
+# them, and that setting is global — without this, `make test` would collect
+# them too and fail on the missing `benchmark` fixture for anyone who has not
+# installed the dev extra.
+#
 # Exit 5 is pytest's "no tests collected", which is not a failure here: the C
 # half is the half that must always run, and a project mid-scaffold has no
 # Python tests yet.
-	$(PYTHON) -m pytest src/ -v; ret=$$?; \
+	$(PYTHON) -m pytest src/ -v --ignore-glob="*/benchmarks/*"; ret=$$?; \
 		[ $$ret -eq 0 ] || [ $$ret -eq 5 ] || exit $$ret
 
 # Builds and runs every benchmark, then merges the results into one snapshot.

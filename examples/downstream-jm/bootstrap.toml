@@ -12,6 +12,10 @@ config = "just-makeit.toml"
 
 # Build dependencies — populated by just-makeit new.
 # Add [runtime.*] sections for your project's own system libraries.
+#
+# Every target this project has needs only a C toolchain and the wheels in
+# pyproject.toml's `dev` extra, so `make setup` covers the lot with no
+# privileges. These entries are what a CI image installs.
 
 [dev.apt]
 packages = [

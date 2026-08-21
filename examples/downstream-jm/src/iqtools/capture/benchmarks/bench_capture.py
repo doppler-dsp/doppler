@@ -1,31 +1,85 @@
-"""Benchmark for Capture.
+"""Benchmarks for Capture — how fast a capture reads from Python.
 
-Run standalone:  python src/iqtools/capture/benchmarks/bench_capture.py
-Or via make:     make bench
+Run via:  make bench
+
+Each `test_bench_*` below is a pytest-benchmark case: hand `benchmark` a
+callable and it does the warm-up, the repeats and the statistics. `make bench`
+collects these alongside the C results.
 """
 
-import time
+import numpy as np
+import pytest
 
+from doppler.wfm import Composer, Segment, Writer
 from iqtools.capture import Capture
 
-REPS = 1_000
-BLOCK_1K = 1_024
-BLOCK_64K = 65_536
+FS = 2_400_000.0
+FC = 1_200_000_000.0
+NUM_SAMPLES = 65_536
+BLOCK = 4_096
 
 
-def _bench(label: str, fn, *args, reps: int = REPS) -> float:
-    for _ in range(max(1, reps // 10)):  # warmup
-        fn(*args)
-    t0 = time.perf_counter()
-    for _ in range(reps):
-        fn(*args)
-    return (time.perf_counter() - t0) / reps
+@pytest.fixture(scope="module")
+def capture_path(tmp_path_factory):
+    """A BLUE capture to read, written with doppler's own writer."""
+    scene = Segment("qpsk", sps=8, snr=15, fs=FS, num_samples=NUM_SAMPLES)
+    samples = Composer([scene]).compose()
+
+    # Back the payload off full scale so the ci16 quantisation never clips.
+    peak = float(np.max(np.abs(samples)))
+    headroom_db = 20.0 * np.log10(peak) + 1.0 if peak > 0.0 else 1.0
+
+    path = tmp_path_factory.mktemp("bench") / "capture.blue"
+    with Writer(
+        path,
+        file_type="blue",
+        sample_type="ci16",
+        fs=FS,
+        fc=FC,
+        headroom=headroom_db,
+    ) as w:
+        w.write(samples)
+    return path
 
 
-def main() -> None:
-    Capture(...)
-    print("capture")
+def test_bench_open(benchmark, capture_path):
+    """Opening a capture: the header parse, paid once per file."""
+
+    def open_and_close():
+        with Capture(capture_path):
+            pass
+
+    benchmark(open_and_close)
 
 
-if __name__ == "__main__":
-    main()
+def test_bench_read_block(benchmark, capture_path):
+    """One block — the hot loop, ci16 on disk to cf32 in memory."""
+    with Capture(capture_path) as cap:
+
+        def read_one():
+            cap.reset()
+            return cap.read(BLOCK)
+
+        benchmark(read_one)
+
+
+def test_bench_read_whole(benchmark, capture_path):
+    """The whole capture, block by block, the way a consumer reads it."""
+    with Capture(capture_path) as cap:
+
+        def read_all():
+            cap.reset()
+            total = 0
+            while True:
+                got = cap.read(BLOCK)
+                if got.size == 0:
+                    return total
+                total += got.size
+
+        benchmark(read_all)
+
+
+def test_bench_summary(benchmark, capture_path):
+    """The metadata record — no sample data touched."""
+    with Capture(capture_path) as cap:
+        benchmark(cap.summary)

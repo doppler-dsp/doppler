@@ -58,6 +58,73 @@ ______________________________________________________________________
     that stopped recording would otherwise hand every caller a way to look
     measured while writing an empty array, which is the exact failure the
     file exists to catch, one level down.
+- **`examples/downstream-jm` ships as a starter tarball with doppler inside
+    it.** `make package-example-tarball VERSION=x.y.z` builds
+    `iqtools-<ver>-<plat>.tar.gz`: the project from `git archive` (never the
+    working tree, which carries `build/` and a `compile_commands.json` full of
+    one machine's absolute paths) plus the C SDK installed into
+    `third_party/doppler/`. Extract it and build — no doppler checkout, no
+    install step, no `CMAKE_PREFIX_PATH`, no network. `find_package(doppler)`
+    resolves against the bundle because `CMakeLists.txt` prepends it, above
+    the manifest-owned section, and an explicit `-Ddoppler_DIR` still wins.
+
+    Its README loses the "from source, or against a doppler build tree"
+    section and the "For doppler developers" framing that went with it — that
+    was doppler's CI mechanism documented in a page written for someone
+    consuming doppler.
+
+    `make test-example-tarball` is the gate, and it is deliberately not a
+    duplicate of `test-example-downstream`: it unpacks the shipped archive
+    **outside this repo** and runs the README's own commands, so a packaging
+    mistake fails there and nowhere else.
+
+- **The starter provisions its Python half in-tree, from its own manifest.**
+    `make setup` creates `.venv/` and runs `pip install -e ".[test]"`. No
+    root, nothing written outside the extracted directory, and no second copy
+    of the dependency list: NumPy is already declared in `[build-system]   requires`, `[project] dependencies` and `find_package(Python3 ... NumPy)`,
+    and the new `[test]` extra carries `pytest` and `doppler-dsp`.
+
+    Measured, and contrary to the obvious assumption: the only thing a stock
+    Python is missing here is **NumPy's headers** — `Python.h` ships with the
+    interpreter, so no system `-dev` package is in the critical path.
+    `jbx install-deps` still installs the `bootstrap.toml` names, but it is
+    `sudo <package-manager>` by construction with no notion of a prefix, so it
+    is for CI images rather than for someone who just unpacked a tarball.
+
+### Changed
+
+- **The starter's Makefile is what a newcomer reads first, so it was cut back
+    to what it teaches.** `coverage` and `docs` are gone: both named tools
+    nothing declared — `lcov`, `genhtml`, `doxygen`, `zensical`, `pytest-cov`
+    — so in a freshly unpacked starter `make coverage` spent a full Debug
+    rebuild and then said `lcov: command not found`. Neither ran in CI nor
+    appeared in any doc. What survives is `setup`, `build`, `test`, `bench`,
+    `clean`, `help`, and one `dev` extra in `pyproject.toml` that makes all of
+    them work after a single command.
+
+    `help` is now derived from the `## ` comment beside each target instead of
+    a hand-written list — the list it replaces had already drifted, still
+    advertising coverage as "C (lcov)".
+
+- **`make bench` measures something.** Both benchmarks were unfilled jm
+    scaffolds: the C one recorded nothing (`EMPTY bench_capture_core: no   measurements recorded`) and the Python one called `Capture(...)` with a
+    literal `Ellipsis` and printed a string. `pytest-benchmark` was missing
+    too, and `python_files` never included `bench_*.py`, so pytest collected
+    no benchmark at all. All four are fixed, and the starter now demonstrates
+    the thing it exists to demonstrate — reading a capture at **483 MSa/s** in
+    C, with the Python binding costing about **4%** over it (135.6 µs vs
+    141.2 µs for the same file).
+
+- **The starter's Makefile drops its Windows branches.** The manifest has
+    declared `platforms = ["linux", "macos"]` all along, so `SHELL = cmd.exe`,
+    the MinGW generator override, the `2>nul` twin of every probe and the
+    `.pyd` clean-up were dead code. `PYTHON` collapses with them: it used to
+    run the interpreter to ask for `pathlib.Path(sys.executable).as_posix()`,
+    which existed only to turn Windows backslashes into forward slashes, and
+    to fall back to a bare `python` that can now only resolve to Python 2.
+    It is `command -v python3`. The root `CMakeLists.txt`'s unconditional
+    `if(WIN32 ...)` libwinpthread copy is gone too — `jm status --check`
+    confirms its absence is not drift.
 
 - **`doppler.coding.ConvEncoder` — doppler can encode now**
     ([#900](https://github.com/doppler-dsp/doppler/issues/900)). Until this,

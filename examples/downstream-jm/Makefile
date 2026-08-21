@@ -1,51 +1,44 @@
 # iqtools project Makefile
 #
-# Targets:
-#   make              Configure + build (Release)
-#   make test         CTest + pytest
-#   make bench        C + Python benchmarks; dated snapshot in benchmarks/history/
-#   make just-build   PEP 517 hook for just-buildit
-#   make clean        Remove build artifacts
-#   make help         Show this message
+# Start here:
+#
+#     make setup      create .venv and install what the project declares
+#     make test       build, then run the C and Python tests
+#     make bench      measure it
+#
+# `make help` lists every target.
 
-ifeq ($(OS), Windows_NT)
-SHELL      = cmd.exe
-NPROC      ?= 4
-PYTHON     ?= $(or $(JUST_BUILDIT_PYTHON),$(shell python -c "import sys,pathlib;print(pathlib.Path(sys.executable).as_posix())"))
-else
+# PYTHON picks the in-tree .venv when it exists, and falls back to whatever
+# python3 is on PATH. `make setup` creates that venv, so no packages are ever
+# installed outside this directory and nothing needs root.
+#
+# The path is absolute because CMake does not resolve a relative
+# -DPython3_EXECUTABLE.
+VENV       ?= .venv
 SHELL      = /bin/sh
 NPROC      ?= $(shell nproc 2>/dev/null || echo 4)
-PYTHON     ?= $(or $(JUST_BUILDIT_PYTHON),$(shell python3 -c "import sys,pathlib;print(pathlib.Path(sys.executable).as_posix())" 2>/dev/null),$(shell python -c "import sys,pathlib;print(pathlib.Path(sys.executable).as_posix())" 2>/dev/null))
-endif
+VENV_PY    := $(CURDIR)/$(VENV)/bin/python
+PYTHON     ?= $(or $(JUST_BUILDIT_PYTHON),$(wildcard $(VENV_PY)),$(shell command -v python3))
 BUILD_DIR  ?= build
 BUILD_TYPE ?= Release
 
-# On Windows (OS=Windows_NT is always set by the OS itself, regardless of
-# shell), force the MinGW Makefiles generator so CMake uses gcc instead of
-# MSVC.  MSVC does not support C99 float complex; gcc does.
-ifeq ($(OS), Windows_NT)
-CMAKE_GENERATOR ?= MinGW Makefiles
-CMAKE_GEN_FLAG  := -G "$(CMAKE_GENERATOR)"
-else
-CMAKE_GEN_FLAG  :=
-endif
+.PHONY: all setup build test bench just-build clean help
 
-.PHONY: all build test bench just-build docs clean help
+# Creates .venv and installs the project into it, so the package list comes
+# from pyproject.toml rather than from a copy here. Run this once; every
+# target below then works.
+setup: ## Provision an in-tree venv from pyproject.toml — no sudo, nothing system-wide
+	@python3 -m venv $(VENV)
+	@$(VENV_PY) -m pip -q install --upgrade pip
+	@$(VENV_PY) -m pip -q install -e ".[dev]"
+	@echo "setup: $(VENV) ready — 'make test' now builds the Python half too"
 
-all: build
+all: build ## Configure and build (the default)
 
 $(BUILD_DIR)/CMakeCache.txt:
-ifeq ($(OS), Windows_NT)
-	$(PYTHON) -c "import numpy" 2>nul || $(PYTHON) -m pip install numpy
-	$(PYTHON) -c "import pytest" 2>nul || $(PYTHON) -m pip install pytest
-
-else
 	@$(PYTHON) -c "import numpy" 2>/dev/null || $(PYTHON) -m pip install numpy
 	@$(PYTHON) -c "import pytest" 2>/dev/null || $(PYTHON) -m pip install pytest
-
-endif
 	cmake -B $(BUILD_DIR) -S . \
-		$(CMAKE_GEN_FLAG) \
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 		-DPython3_EXECUTABLE=$(PYTHON) \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON
@@ -53,49 +46,27 @@ endif
 compile_commands.json: $(BUILD_DIR)/CMakeCache.txt
 	cp $(BUILD_DIR)/compile_commands.json $@
 
-build: $(BUILD_DIR)/CMakeCache.txt
+build: $(BUILD_DIR)/CMakeCache.txt ## Configure and build
 	cmake --build $(BUILD_DIR) --parallel $(NPROC)
 
-test: build
+test: build ## Run CTest and pytest
 	ctest --test-dir $(BUILD_DIR) --output-on-failure
-ifeq ($(OS), Windows_NT)
-	$(PYTHON) -c "import subprocess,sys; r=subprocess.run([sys.executable,'-m','pytest','src/','-v']); sys.exit(0 if r.returncode in(0,5) else r.returncode)"
-else
+# Exit 5 is pytest's "no tests collected", which is not a failure here: the C
+# half is the half that must always run, and a project mid-scaffold has no
+# Python tests yet.
 	$(PYTHON) -m pytest src/ -v; ret=$$?; \
 		[ $$ret -eq 0 ] || [ $$ret -eq 5 ] || exit $$ret
-endif
 
-bench:
-	just-makeit bench
+# Builds and runs every benchmark, then merges the results into one snapshot.
+# The runner is just-makeit, the same tool that generated the bindings, taken
+# from .venv so the version matches the one this project declares.
+bench: ## Run the C and Python benchmarks
+	@$(VENV)/bin/just-makeit bench
 
-coverage:
-	cmake -B $(BUILD_DIR)/cov -S . $(CMAKE_GEN_FLAG) \
-		-DCMAKE_BUILD_TYPE=Debug \
-		-DCMAKE_C_FLAGS="--coverage -O0" \
-		-DPython3_EXECUTABLE=$(PYTHON)
-	cmake --build $(BUILD_DIR)/cov --parallel $(NPROC)
-	ctest --test-dir $(BUILD_DIR)/cov --output-on-failure
-	lcov --capture --directory $(BUILD_DIR)/cov \
-		--output-file $(BUILD_DIR)/cov/coverage.info \
-		--ignore-errors inconsistent 2>/dev/null || \
-	  lcov --capture --directory $(BUILD_DIR)/cov \
-		--output-file $(BUILD_DIR)/cov/coverage.info
-	lcov --remove $(BUILD_DIR)/cov/coverage.info '/usr/*' '*/tests/*' \
-		--output-file $(BUILD_DIR)/cov/coverage_filtered.info \
-		--ignore-errors unused
-	mkdir -p docs/coverage/c
-	genhtml $(BUILD_DIR)/cov/coverage_filtered.info \
-		--output-directory docs/coverage/c
-	@echo "C coverage: docs/coverage/c/index.html"
-	$(PYTHON) -m pytest src/ \
-		--cov=iqtools \
-		--cov-report=html:docs/coverage/python \
-		--cov-report=term-missing
-	@echo "Python coverage: docs/coverage/python/index.html"
-
+# The hook just-buildit calls when pip builds a wheel. No `## ` comment, so
+# it stays out of `make help` — you do not run this one by hand.
 just-build:
 	cmake -B $(BUILD_DIR) -S . \
-		$(CMAKE_GEN_FLAG) \
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 		-DPython3_EXECUTABLE=$(JUST_BUILDIT_PYTHON) \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON
@@ -103,28 +74,17 @@ just-build:
 	mkdir -p $(JUST_BUILDIT_OUTPUT_DIR)
 	cp -r src/iqtools $(JUST_BUILDIT_OUTPUT_DIR)/iqtools
 
-docs: build
-	@command -v doxygen >/dev/null 2>&1 || \
-	  { echo "doxygen not found — install it first"; exit 1; }
-	doxygen Doxyfile
-	@echo "C API docs: docs/doxygen/html/index.html"
-	@command -v zensical >/dev/null 2>&1 || \
-	  { echo "zensical not found — uv add --dev zensical mkdocstrings-python"; exit 1; }
-	zensical build
-	@echo "Python API docs: site/index.html"
+clean: ## Remove build artifacts
+	rm -rf $(BUILD_DIR)
+	find src -name "*.so" | xargs rm -f 2>/dev/null; true
 
-clean:
-	rm -rf $(BUILD_DIR) site docs/coverage docs/doxygen
-	find src -name "*.so" -o -name "*.pyd" | xargs rm -f 2>/dev/null; true
-
-help:
+# Prints the `## ` comment beside each target above, so adding a target adds
+# its own help line.
+help: ## Show this message
 	@echo ""
-	@echo "iqtools build targets"
+	@echo "iqtools — make targets"
 	@echo ""
-	@echo "  make               Configure + build"
-	@echo "  make test          Run CTest + pytest"
-	@echo "  make bench         Run C + Python benchmarks"
-	@echo "  make coverage      C (lcov) + Python (pytest-cov) coverage reports"
-	@echo "  make docs          Doxygen (C) + Zensical (Python) API docs"
-	@echo "  make clean         Remove build artifacts"
+	@awk 'BEGIN{FS=":.*?## "} /^[a-zA-Z_-]+:.*?## /{printf "  %-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "First time:  make setup && make test"
 	@echo ""

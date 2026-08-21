@@ -40,8 +40,14 @@ fn main() {
     println!("  k   re        im");
     println!("  --- --------- ---------");
 
-    let ctrl: Vec<f32> = (0..n)
-        .map(|k| 0.01 * (2.0 * PI * k as f32 / n as f32).sin())
+    // f64, because the C control port is `const double *`. This example fed
+    // it f32 and so read past the end of its own buffer on every call.
+    let ctrl: Vec<f64> = (0..n)
+        .map(|k| {
+            let phase =
+                2.0 * std::f64::consts::PI * k as f64 / n as f64;
+            0.01 * phase.sin()
+        })
         .collect();
     lo.reset();
     let mut fm_samples = vec![num_complex::Complex::<f32>::default(); n];

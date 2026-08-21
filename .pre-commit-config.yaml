@@ -118,6 +118,16 @@ repos:
         language: system
         pass_filenames: false
 
+      # The Rust crate is hand-written against the C ABI, so nothing else in
+      # this repo compares the two. Cheap enough to run on every commit, and
+      # the failure it catches (an element width that disagrees) is a heap
+      # over-read from safe Rust rather than a build error.
+      - id: rust-abi
+        name: Rust extern "C" matches the C it names
+        entry: make -s lint-rust-abi
+        language: system
+        pass_filenames: false
+
       # Stimulus and metrics come from the library (wfmgen, ber), not from a
       # private copy in a test or example. Fires on C and Python, since the
       # consuming layers span both.

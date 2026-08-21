@@ -295,12 +295,32 @@ jobs:
               # gain. make itself ships in the manylinux image.
               dnf install -y make cmake pkg-config tar gzip
               make package-c-tarball VERSION=${{ needs.verify-version.outputs.version }}
+              # The starter ships the SDK inside it, so it is built here where
+              # that SDK has just been built rather than in a job of its own
+              # that would compile doppler a second time.
+              #
+              # `safe.directory` because `git archive` runs as root against a
+              # checkout owned by the runner user, and git refuses that as
+              # dubious ownership. Both halves measured in this image rather
+              # than assumed: without the line `git archive` prints "detected
+              # dubious ownership" and writes nothing, and with it the export
+              # is complete (41 files).
+              #
+              # git is NOT added to the dnf list above: the image already
+              # ships 2.55.0 at /usr/local/bin/git, and `dnf install git` adds
+              # a second, older one at /usr/bin/git that PATH never reaches —
+              # a slow metadata fetch on every release leg, for no change.
+              git config --global --add safe.directory /project
+              make package-starter-tarball VERSION=${{ needs.verify-version.outputs.version }}
             "
 
-      - name: Upload C library (Linux ${{ matrix.arch.tag }})
+      - name: Upload C library + starter (Linux ${{ matrix.arch.tag }})
         uses: actions/upload-artifact@v7
         with:
           name: c-dist-linux-${{ matrix.arch.tag }}
+          # Matches BOTH doppler-<ver>- and doppler-starter-<ver>-, which is
+          # why the starter is named that way: it rides the existing glob, and
+          # a release page shows the two side by side saying what each is.
           path: dist/doppler-*-linux-${{ matrix.arch.tag }}.tar.gz
 
   build-c-macos:
@@ -321,7 +341,11 @@ jobs:
         # artifact that only a release could produce.
         run: make package-c-tarball VERSION="${{ needs.verify-version.outputs.version }}"
 
-      - name: Upload C library (macOS)
+      - name: Build + tar the starter project
+        # Same job as the SDK it bundles, so doppler is compiled once.
+        run: make package-starter-tarball VERSION="${{ needs.verify-version.outputs.version }}"
+
+      - name: Upload C library + starter (macOS)
         uses: actions/upload-artifact@v7
         with:
           name: c-dist-macos

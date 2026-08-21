@@ -1351,14 +1351,37 @@ GALLERY_SCRIPTS := \
 plot-rx-dynamics: build ## Render docs/assets/rx-dynamics.png from the C harness's telemetry
 	uv run python scripts/plot_rx_dynamics.py
 
+# EXAMPLES_SKIP is the same list src/doppler/tests/test_examples.py reads, and
+# it is read here rather than restated: a script the smoke gate deliberately
+# does not run is a script this target cannot run either, and two copies of
+# that judgement is how they came to disagree. They did --
+# mpsk_receiver_performance_demo.py has been skipped by the gate since its
+# Monte Carlo was found to be draw-dependent, while `gallery` ran it anyway and
+# exited 1 on the failure, so step 2 of the release checklist could not pass
+# (gh-857). A skip is announced with its reason rather than being silent,
+# because a quietly-absent panel is how gh-780's stale assets accumulated.
+EXAMPLES_SKIP := src/doppler/examples/.examples-skip
+
 gallery: ## Run the plot examples and copy their PNGs to docs/assets/
 	@echo "Regenerating gallery plots..."
 	@for script in $(GALLERY_SCRIPTS); do \
+	    base=$$(basename $$script); \
+	    if grep -q "^$$base:" $(EXAMPLES_SKIP) 2>/dev/null; then \
+	        printf "  %-45s%s\n" "$$script" "SKIP ($(EXAMPLES_SKIP))"; \
+	        continue; \
+	    fi; \
 	    printf "  %-45s" "$$script"; \
 	    uv run python $$script > /dev/null 2>&1 && echo "OK" || { echo "FAIL"; exit 1; }; \
 	done
-	@mv -f agc_convergence.png ccsds_link_demo.png agc_settling_design.png ber_awgn_demo.png cic_demo_spectrum.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png lockdet_demo.png telemetry_fanin_demo.png mpsk_telemetry_capture_demo.png rate_converter_demo.png ratesync_demo.png ddc_fn_demo.png ddc_fn_scaling.png adc_demo.png hbdecim_q15_demo.png wfmgen_demo.png symbols_demo.png wfm_composition_demo.png wcdma_carriers_demo.png plan_demo.png plan_background_demo.png crowded_band_demo.png measure_demo.png measure_imd_npr_demo.png wfm_write_demo.png doppler_channel_demo.png wfm_io_demo.png dsss_burst_pipeline_demo.png async_dsss_receiver_spec_demo.png dsss_receiver_demo.png carrier_acq_rrc_demo.png mpsk_receiver_demo.png mpsk_receiver_performance_demo.png docs/assets/
-	@rm -f burst.blue
+	@for png in agc_convergence.png ccsds_link_demo.png agc_settling_design.png ber_awgn_demo.png cic_demo_spectrum.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png lockdet_demo.png telemetry_fanin_demo.png mpsk_telemetry_capture_demo.png rate_converter_demo.png ratesync_demo.png ddc_fn_demo.png ddc_fn_scaling.png adc_demo.png hbdecim_q15_demo.png wfmgen_demo.png symbols_demo.png wfm_composition_demo.png wcdma_carriers_demo.png plan_demo.png plan_background_demo.png crowded_band_demo.png measure_demo.png measure_imd_npr_demo.png wfm_write_demo.png doppler_channel_demo.png wfm_io_demo.png dsss_burst_pipeline_demo.png async_dsss_receiver_spec_demo.png dsss_receiver_demo.png carrier_acq_rrc_demo.png mpsk_receiver_demo.png mpsk_receiver_performance_demo.png; do \
+	    [ -e "$$png" ] && mv -f "$$png" docs/assets/ || true; \
+	done
+	# The demos that WRITE a capture leave it in the repo root. burst.blue
+	# was cleaned; the SigMF and BLUE pairs the wfm_io/wfm_write demos
+	# emit were not, so `make gallery` left four untracked files behind --
+	# which is how an artifact gets committed by accident.
+	@rm -f burst.blue probe.ci16 probe.ci16.sigmf-meta \
+	       scene.cf32 scene.cf32.sigmf-meta
 	@printf "  %-45s" "$(GALLERY_CHARACTERIZATIONS)"
 	@uv run python $(GALLERY_CHARACTERIZATIONS) \
 	     docs/assets/dsss_acq_characterization.png > /dev/null 2>&1 \

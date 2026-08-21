@@ -7,7 +7,7 @@ project(doppler_consumer C)
 # or rely on a system install. The package provides two link targets:
 #
 #   doppler::doppler         shared — links `-ldoppler`; smallest binary.
-#   doppler::doppler-static  static — pure C, self-contained: links only -lm.
+#   doppler::doppler-static  static — pure C, self-contained: -lm, -lpthread.
 #   doppler::stream[-static] OPTIONAL stream layer (NATS transport);
 #                            link only if you need dp_pub_*/dp_sub_* or nats://.
 #

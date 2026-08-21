@@ -51,8 +51,8 @@ cmake -B build -DCMAKE_PREFIX_PATH="$HOME/.local/doppler"     # for find_package
 export PKG_CONFIG_PATH="$HOME/.local/doppler/lib/pkgconfig"   # for pkg-config doppler
 ```
 
-The core library is pure C and links only `-lm`, so there is no external
-runtime dependency to install. The optional stream component
+The core library is pure C and links `-lm` and `-lpthread`, both part of a
+POSIX toolchain, so there is no external runtime dependency to install. The optional stream component
 (`libdoppler_stream`, for the NATS wire layer) embeds the vendored `nats.c`
 statically, so it too needs no external runtime NATS client library — just a
 running `nats-server` to connect to. See the
@@ -97,7 +97,7 @@ find_package(doppler REQUIRED)
 # shared: links -ldoppler; smallest binary
 target_link_libraries(my_app PRIVATE doppler::doppler)
 
-# static: pure C, self-contained — links only -lm
+# static: pure C, self-contained — links -lm and -lpthread
 target_link_libraries(my_app PRIVATE doppler::doppler-static)
 
 # optional: the NATS stream layer (dp_pub_*/dp_sub_*, wfmgen --output nats://).
@@ -114,9 +114,9 @@ A complete, buildable consumer that exercises both targets lives in
 # shared
 gcc -o app main.c $(pkg-config --cflags --libs doppler)
 
-# static — pure C, self-contained: only -lm
+# static — pure C, self-contained: -lm and -lpthread
 gcc -o app main.c $(pkg-config --cflags doppler) \
-    "$(pkg-config --variable=libdir doppler)/libdoppler.a" -lm
+    "$(pkg-config --variable=libdir doppler)/libdoppler.a" -lm -lpthread
 
 # the optional NATS stream layer has its own module — one name gives
 # the whole line (shared; Requires: doppler)

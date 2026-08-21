@@ -22,9 +22,11 @@ What it forbids
 3. Re-implementing a helper the family exports (`dp_nearf`, `dp_cgauss`,
    `dp_dsss_capture`, ...), including under the historical names the
    consolidation retired.
-4. Rolling a private random source: an inline xorshift step, a hand-written
-   Box-Muller, or either of the two uniform mappings. `dp_rng_test.h` is the
-   sanctioned home and the only file exempt.
+4. Rolling a private random source: an inline xorshift step, an inline
+   linear-congruential step, a hand-written Box-Muller, or either of the two
+   uniform mappings. `dp_rng_test.h` is the sanctioned home and the only file
+   exempt. **This rule and rule 5 scan `native/validation/` too** -- see
+   "Scope is per rule" below.
 5. Drawing twice from ONE generator state inside one expression. The two
    calls are indeterminately sequenced (C11 6.5.2.2p10), so the order is the
    compiler's -- and gcc and clang really do disagree, which means such a
@@ -35,14 +37,50 @@ The forbidden list is DERIVED from the family on every run, not written here,
 so a macro added to any member -- or a whole new member -- is covered without
 editing this file.
 
+Scope is per rule, not per script
+---------------------------------
+Rules 4 and 5 -- the randomness pair -- scan `native/tests/` AND
+`native/validation/`. Everything else scans `native/tests/` only.
+
+That split is the point rather than an oversight. Rules 1-3 and the assertion
+ratchet are about who owns the ASSERTIONS, and a validation harness does not
+assert; it prints a number. Rules 4 and 5 are about who owns the RANDOMNESS,
+and that is a claim about the whole C-side harness.
+
+`native/validation/` is in fact where a private generator does the MOST
+damage, for the reason it is exempt from the others: with no assertion there
+is no margin, and no failure. A generator that is quietly wrong becomes a
+PUBLISHED figure that is quietly wrong.
+
+The gate did not scan it until this widening -- while printing a summary
+line that said `no private RNG` without qualification, over four harnesses
+that had one. `check_stimulus_sources.py` had scanned both directories all
+along, so the two SSOT gates disagreed about their own scope and the
+narrower one was the one whose rule was stated as absolute.
+
+What widening it found is the argument for having done it. `rx_dynamics.c`
+drew both Gaussian components from ONE state inside one expression -- rule
+5, a different noise stream under gcc than under clang -- and rule 5 could
+not see that either, because its wrapper fold starts from the `dp_*` names
+and that file's generator chain was private all the way down. **A private
+generator does not just risk being wrong; it hides the other rules from the
+code that uses it.**
+
 Why (4) is here and not in check_stimulus_sources.py
 ---------------------------------------------------
 That gate looked at hand-rolled Gaussian noise and declined: it "hits 72
 files, most of them legitimately", and a ratchet that large is noise, and a
-noisy gate gets switched off. Correct across the Python layer and the
-validation harnesses. Not correct HERE. After the dp_rng_test.h consolidation
-the count in `native/tests` is zero, so the rule is absolute rather than a
-ratchet, and an absolute rule is worth a gate.
+noisy gate gets switched off. Correct across the Python layer. Not correct
+HERE, where the xorshift and Box-Muller copies were all migrated rather than
+excused -- so for those shapes the rule is ABSOLUTE across both directories,
+and an absolute rule is worth a gate.
+
+The one ratchet is `scripts/.private-rng-ratchet`, and it holds only what
+the LCG idiom found on its first run: four inline linear-congruential
+streams the xorshift-only scan had never looked for, three of them in the
+directory this docstring called zero. Migrating those moves their streams
+and therefore the numbers measured against them, so they are listed with a
+reason. The list may only shrink, and an entry matching nothing fails.
 
 The cost of not having had it: the xorshift step was written out twenty times
 and `gauss` five, and the fifth was a half-finished edit -- `(void)u1`, then
@@ -86,7 +124,29 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TESTS = ROOT / "native" / "tests"
+VALIDATION = ROOT / "native" / "validation"
 HEADER = TESTS / "dp_test.h"
+
+#: The directories each rule scans. SCOPE IS PER RULE, not per script, and
+#: the split is the point rather than an oversight.
+#:
+#: The randomness rules (4 and 5) are about `dp_rng_test.h`, which is a claim
+#: about the whole C-side harness: `native/validation/` includes that header
+#: already, and its files are where a private generator does the MOST damage,
+#: because a validation harness REPORTS a number rather than asserting a
+#: bound. A generator that is quietly wrong there becomes a published figure
+#: that is quietly wrong -- with nothing to notice, since there is no
+#: assertion to have margin.
+#:
+#: The rest of this gate is genuinely `native/tests`-specific. Re-defining a
+#: `dp_*.h` macro, naming your own assertion, and the assertion ratchet are
+#: all about who owns the ASSERTIONS, and `native/validation/` does not
+#: assert -- it prints. Widening those by changing one glob would have made
+#: the gate opine about a directory whose contract is different.
+#:
+#: Both scopes are given as globs of tracked files, so a new harness in
+#: either directory is covered the day it lands.
+RNG_DIRS = (TESTS, VALIDATION)
 
 # Names the consolidation retired. Kept as a short explicit list because they
 # no longer exist anywhere to be derived FROM -- that is the whole point.
@@ -105,8 +165,8 @@ RETIRED = [
 ASSERTION_LIKE = re.compile(r"^(CHECK|REQUIRE|EXPECT|ASSERT)\w*$")
 
 
-def _tracked() -> set[pathlib.Path]:
-    """The files under `native/tests/` that are actually in the repository.
+def _tracked(*dirs: pathlib.Path) -> set[pathlib.Path]:
+    """The files under `dirs` that are actually in the repository.
 
     This gate is a claim about what doppler's test suite contains, so it
     must read what the repository contains — not whatever happens to be
@@ -125,26 +185,33 @@ def _tracked() -> set[pathlib.Path]:
     A file has to be staged before this sees it, which is the repository's
     existing tradeoff for new files and lint.
     """
+    dirs = dirs or (TESTS,)
+    rel = [str(d.relative_to(ROOT)) for d in dirs]
     out = subprocess.run(
-        ["git", "ls-files", "--", "native/tests"],
+        ["git", "ls-files", "--", *rel],
         cwd=ROOT,
         capture_output=True,
         text=True,
         check=False,
     )
     if out.returncode != 0:  # not a checkout (a tarball, say) — scan it all
-        return set(TESTS.glob("*.c")) | set(TESTS.glob("*.h"))
+        found: set[pathlib.Path] = set()
+        for d in dirs:
+            found |= set(d.glob("*.c")) | set(d.glob("*.h"))
+        return found
     return {ROOT / line for line in out.stdout.split() if line}
 
 
-def sources() -> list[pathlib.Path]:
-    """Every tracked `.c` and `.h` under `native/tests/`, sorted."""
-    keep = _tracked()
-    return sorted(
-        p
-        for p in list(TESTS.glob("*.c")) + list(TESTS.glob("*.h"))
-        if p in keep
-    )
+def sources(*dirs: pathlib.Path) -> list[pathlib.Path]:
+    """Every tracked `.c` and `.h` under `dirs` (default `native/tests/`)."""
+    dirs = dirs or (TESTS,)
+    keep = _tracked(*dirs)
+    out: list[pathlib.Path] = []
+    for d in dirs:
+        out += [
+            p for p in list(d.glob("*.c")) + list(d.glob("*.h")) if p in keep
+        ]
+    return sorted(out)
 
 
 def family() -> list[pathlib.Path]:
@@ -237,9 +304,42 @@ GENERATOR_IDIOMS = [
         "the private 53-bit uniform mapping",
         "dp_uni64",
     ),
+    (
+        # `st = st * 6364136223846793005ULL + 1442695040888963407ULL`. The
+        # second-most-obvious way to roll a generator, and the scan looked
+        # for xorshift only -- so it printed `no private RNG` over four
+        # live LCG streams, three of them in the directory where the rule
+        # was stated as ABSOLUTE. Found on this rule's first run, which is
+        # the argument for writing it rather than trusting the sentence.
+        #
+        # Same backreference discipline as the xorshift idioms, and
+        # load-bearing for the same reason: the SAME lvalue on both sides
+        # is what makes it a stream. `x = k * 1103515245u + 12345u`, the
+        # one-shot index hash in `dp_mf_test.h`, multiplies a DIFFERENT
+        # value and carries no state between calls -- it is a deterministic
+        # bit pattern, not a random source, and reporting it would put
+        # correct code on a ratchet.
+        #
+        # Five digits of multiplier is the discriminator. Every LCG in the
+        # literature and in this tree uses a large odd constant (48271,
+        # 69069, 1664525, 1103515245, 6364136223846793005); `n = n * 2 + 1`
+        # is arithmetic and must stay silent.
+        re.compile(r"(\*?\w+)\s*=\s*\1\s*\*\s*\d{5,}"),
+        "an inline linear-congruential step",
+        "dp_xs32 / dp_xs64",
+    ),
+    (
+        re.compile(r"(\*?\w+)\s*\*=\s*\d{5,}"),
+        "an inline linear-congruential step",
+        "dp_xs32 / dp_xs64",
+    ),
 ]
 
 RNG_HOME = "dp_rng_test.h"
+
+#: Pre-existing private generators, one per line, each with a reason.
+#: A RATCHET: it may only shrink. See the file's own header.
+RNG_RATCHET = ROOT / "scripts" / ".private-rng-ratchet"
 
 
 def strip_comments(text: str) -> str:
@@ -336,7 +436,7 @@ def double_draws() -> list[str]:
     proved nothing.
     """
     bad = []
-    for path in sources():
+    for path in sources(*RNG_DIRS):
         code = strip_comments(path.read_text())
         names = ["dp_(?:xs32|xs64|uni|uni64|bit|gauss|gauss64|cgauss)"]
         for _ in range(3):  # to a fixpoint; three levels is generous
@@ -372,20 +472,97 @@ def double_draws() -> list[str]:
     return bad
 
 
-def generators() -> list[str]:
-    """Fail any test that rolls its own random source."""
-    bad = []
-    for path in sources():
+def rng_occurrences() -> list[tuple[str, str, int, str]]:
+    """Every private-generator idiom across `RNG_DIRS`.
+
+    Each occurrence as `(what, rel, line_number, source_line)`.
+    """
+    found: list[tuple[str, str, int, str]] = []
+    for path in sources(*RNG_DIRS):
         if path.name == RNG_HOME:
             continue
         code = strip_comments(path.read_text())
         for n, line in enumerate(code.splitlines(), 1):
-            for pattern, what, use in GENERATOR_IDIOMS:
+            for pattern, what, _use in GENERATOR_IDIOMS:
                 if pattern.search(line):
-                    bad.append(
-                        f"{path.relative_to(ROOT)}:{n}: {what} — "
-                        f"use {use} from {RNG_HOME}"
+                    found.append(
+                        (what, str(path.relative_to(ROOT)), n, line.strip())
                     )
+    return found
+
+
+def rng_key(what: str, rel: str, line: str) -> str:
+    """Line-number-free identity, so an unrelated edit does not churn the
+    ratchet. Same shape as check_stimulus_sources.py's allowlist key."""
+    return f"{what}::{rel}::{' '.join(line.split())}"
+
+
+def generators() -> list[str]:
+    """Fail any harness that rolls its own random source.
+
+    Scans `native/tests/` AND `native/validation/`. The gate looked only at
+    `native/tests` until this widening, while printing a summary line that
+    said `no private RNG` without qualification -- and four validation
+    harnesses had one, in the directory where a private generator does the
+    most damage, because a validation harness REPORTS a number instead of
+    asserting a bound. There is no assertion there to have margin, so a
+    generator that is quietly wrong becomes a published figure that is
+    quietly wrong. `check_stimulus_sources.py` had scanned both directories
+    all along, so the two SSOT gates disagreed about their own scope and the
+    narrower one was the one whose rule was stated as absolute.
+
+    Widening it found the second half of the same defect: `rx_dynamics.c`
+    drew both Gaussian components from ONE state inside one expression --
+    rule 5, indeterminately sequenced, a different noise stream under gcc
+    than under clang -- and rule 5 could not see it either, because its
+    wrapper fold starts from the `dp_*` names and this file's chain was
+    private all the way down. A private generator does not just risk being
+    wrong; it hides the OTHER rules from the code that uses it.
+
+    The four were migrated rather than ratcheted (all bit-exact: three were
+    `dp_xs32`/`dp_cgauss`/`dp_bit` spelled out by hand, and
+    `ber_despreader.c`'s (13, 7, 17) triple on a `uint64_t` is `dp_xs64`),
+    so the rule stays ABSOLUTE for the shapes it already knew.
+
+    What is on the ratchet is what the NEW idiom found: four inline LCG
+    streams that the xorshift-only scan had never looked for. Migrating
+    those moves their streams, which moves published numbers, so they are
+    listed with a reason and the list may only shrink.
+    """
+    found = rng_occurrences()
+    allowed: dict[str, str] = {}
+    if RNG_RATCHET.exists():
+        for raw in RNG_RATCHET.read_text().splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            key, _, reason = line.partition("|")
+            allowed[key.strip()] = reason.strip()
+
+    bad: list[str] = []
+    seen: set[str] = set()
+    for what, rel, n, line in found:
+        k = rng_key(what, rel, line)
+        seen.add(k)
+        if k in allowed:
+            continue
+        use = next(u for _p, w, u in GENERATOR_IDIOMS if w == what)
+        bad.append(
+            f"{rel}:{n}: {what} — use {use} from {RNG_HOME}.\n"
+            f"      If it genuinely cannot, add to "
+            f"{RNG_RATCHET.relative_to(ROOT)}:\n"
+            f"      {k} | why"
+        )
+
+    # A ratchet may only shrink, so an entry matching nothing is a failure,
+    # not a tidy-up: it means the rule got stricter and the list did not
+    # follow, and the next reader cannot tell a live excuse from a dead one.
+    for k in sorted(set(allowed) - seen):
+        bad.append(
+            f"{RNG_RATCHET.relative_to(ROOT)}: '{k}' matches nothing — "
+            f"the ratchet went stale. Delete the line; the rule just got "
+            f"stricter, which is the direction it may move."
+        )
     return bad
 
 
@@ -741,16 +918,38 @@ def main() -> int:
         return 1
 
     scanned = len([p for p in sources() if p.suffix == ".c"])
+    # Say what was SCANNED and what is RATCHETED, not just "no private RNG".
+    # That line printed unqualified while four validation harnesses rolled
+    # their own, because the scan had never looked outside native/tests --
+    # a summary that names its scope cannot make that claim again, and a
+    # summary that names the ratchet count cannot read as zero.
+    rng_scanned = len(sources(*RNG_DIRS))
+    held = sum(
+        1
+        for raw in (
+            RNG_RATCHET.read_text().splitlines()
+            if RNG_RATCHET.exists()
+            else []
+        )
+        if raw.strip() and not raw.strip().startswith("#")
+    )
+    dirs = ", ".join(str(d.relative_to(ROOT)) for d in RNG_DIRS)
     print(
         f"check_tests_ssot: OK — {scanned} tests, "
         f"{len(macros)} macros and {len(funcs)} helpers owned by "
-        f"{len(family())} dp_*.h harness headers; no private RNG"
+        f"{len(family())} dp_*.h harness headers"
+    )
+    print(
+        f"  randomness: {rng_scanned} file(s) across {dirs} — no new "
+        f"private RNG"
         + (
-            f"; no file lost assertions vs the merge base with {base}"
-            if base
-            else ""
+            f", {held} ratcheted (may only shrink)"
+            if held
+            else ", and none held on the ratchet"
         )
     )
+    if base:
+        print(f"  assertions: no file lost any vs the merge base with {base}")
     return 0
 
 

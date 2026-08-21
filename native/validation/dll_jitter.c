@@ -41,6 +41,7 @@
  */
 #include "awgn/awgn_core.h"
 #include "dll/dll_core.h"
+#include "dp_rng_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -58,12 +59,7 @@ make_code (uint8_t *code)
 {
   uint32_t st = 0x12345u;
   for (size_t i = 0; i < SF; i++)
-    {
-      st ^= st << 13;
-      st ^= st >> 17;
-      st ^= st << 5;
-      code[i] = (st & 1u) ? 1u : 0u;
-    }
+    code[i] = (dp_xs32 (&st) & 1u) ? 1u : 0u;
 }
 
 /* Carrier-free, aligned, rectangular spread signal (one period, +1 data). */

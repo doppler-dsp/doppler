@@ -1,0 +1,44 @@
+# Ratchet for scripts/check_tests_ssot.py's private-generator rule (rule 4).
+#
+# One pre-existing private random source per line, each with a reason.
+#
+# THIS LIST MAY ONLY SHRINK. Adding an entry means a NEW private generator,
+# and a private generator cannot be wrong in a way anything notices -- which
+# is the whole argument for the rule. `dp_rng_test.h` documents what one
+# already cost: a half-finished Box-Muller delivering mean +0.056 and
+# variance 1.115 while claiming N(0, 1), so a test ran 0.47 dB hot on biased,
+# heavy-tailed noise for as long as it existed, and nothing failed.
+#
+# An entry that matches nothing is a FAILURE, not a tidy-up: the rule got
+# stricter and the list did not follow, and the next reader cannot tell a
+# live excuse from a dead one. Delete it.
+#
+# Format:  <idiom>::<path>::<normalised source line> | reason
+#
+# ── The xorshift and Box-Muller shapes are NOT here, and that is the point ──
+#
+# Every copy of those was migrated onto dp_rng_test.h rather than listed:
+# `native/tests` in #686, and `native/validation`'s last four alongside the
+# widening that made this file necessary. All four were bit-exact -- three
+# were dp_xs32 / dp_cgauss / dp_bit spelled out by hand, and
+# ber_despreader.c's (13, 7, 17) triple on a uint64_t is dp_xs64 -- so the
+# rule stays ABSOLUTE for them. A gate is worth most where it can be a rule.
+#
+# ── What IS here: the LCG streams the xorshift-only scan never looked for ──
+#
+# Found on the new idiom's first run. Unlike the four above, migrating these
+# MOVES the stream, and each of these files publishes or asserts a number
+# measured against the stream it has. So they are listed, with the migration
+# and its re-verification tracked separately (doppler#933), and this list
+# gets shorter as that lands.
+#
+# NOT NEEDED HERE: a one-shot index hash (`x = k * 1103515245u + 12345u` in
+# dp_mf_test.h). It multiplies a DIFFERENT value and carries no state between
+# calls -- a deterministic bit pattern, not a random source. The idiom's
+# backreference is what tells the two apart. Do not add such a line: an entry
+# for correct code reads as debt and dilutes the ratchet.
+
+an inline linear-congruential step::native/tests/test_psd_core.c::*st = *st * 6364136223846793005ULL + 1442695040888963407ULL; | Fills a spectral estimate with uniform [-1, 1]; dp_rng_test.h's own "where a new generator goes" note sanctioned this as the single-caller exception, and there turned out to be four. Migrating moves the noise the PSD statistics are tuned against.
+an inline linear-congruential step::native/tests/test_nprmeas_core.c::_rng = _rng * 1664525u + 1013904223u; | Notched broadband noise for the NPR fixture; the notch depth assertions are tuned against this stream.
+an inline linear-congruential step::native/tests/test_tonemeas_core.c::_rng = _rng * 1664525u + 1013904223u; | Uniform white noise in [-a, a] for the tone fixture; the SFDR/ENOB assertions are tuned against this stream.
+an inline linear-congruential step::native/validation/mpsk_diff_penalty.c::ds = ds * 6364136223846793005ull + 1442695040888963407ull; | The differential-symbol source for a PUBLISHED coherent-vs-differential penalty. Moving the stream moves that figure, so the migration owes a re-verification rather than a rebuild.

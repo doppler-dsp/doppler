@@ -21,6 +21,7 @@
  */
 #include "awgn/awgn_core.h"
 #include "ber/ber_core.h"
+#include "dp_rng_test.h"
 #include "pn/pn_core.h"
 #include "wfm_synth/wfm_synth_core.h"
 #include <complex.h>
@@ -57,10 +58,7 @@ ber_point (const float *codef, int L, awgn_state_t *g, float *nb,
       for (int i = 0; i < L; i++)
         zn += codef[i] * ns[i]; /* despread noise term: code . noise */
       /* data bit d (random); received despread = d*L + zn, decide sign */
-      *dst ^= *dst << 13;
-      *dst ^= *dst >> 7;
-      *dst ^= *dst << 17;
-      int    d = (*dst & 1) ? 1 : -1;
+      int    d = (dp_xs64 (dst) & 1) ? 1 : -1;
       double z = (double)d * L + ((d > 0) ? zn : -zn);
       if ((z >= 0.0 ? 1 : -1) != d)
         errs++;

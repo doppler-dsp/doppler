@@ -27,10 +27,10 @@ dev = [
     # tool, and installing that one costs a confusing five minutes.
     "pytest",
     "doppler-dsp",
-    # make bench — the runner is just-makeit itself, the same tool that
-    # generated the bindings; pytest-benchmark is what the Python half needs,
-    # and without it `jm bench` reports "none found" and moves on.
-    "just-makeit",
+    # make bench — pytest-benchmark is what the Python half needs; without it
+    # `jm bench` reports "none found" and moves on. The benchmark RUNNER,
+    # just-makeit, is deliberately not listed: its version is declared once in
+    # just-makeit.toml, and `make setup` installs that one.
     "pytest-benchmark",
 ]
 

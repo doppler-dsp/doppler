@@ -156,8 +156,8 @@ HalfbandDecimator_state_t * HalfbandDecimator_create (
 **Parameters:**
 
 
-* `h` Float32 FIR branch coefficients, length h\_len. Must be a symmetric halfband prototype (antisymmetric even-indexed taps zeroed). 
-* `h_len` Number of FIR branch coefficients in h. 
+* `h` Float32 FIR branch coefficients. Must be a symmetric halfband prototype (antisymmetric even-indexed taps zeroed). 
+* `h_len` Number of coefficients in h. 
 
 
 

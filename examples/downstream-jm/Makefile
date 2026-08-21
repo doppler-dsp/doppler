@@ -16,6 +16,10 @@
 # -DPython3_EXECUTABLE.
 VENV       ?= .venv
 SHELL      = /bin/sh
+# The just-makeit version is declared once, in just-makeit.toml, which is the
+# file jm itself reads. `make setup` installs exactly that version rather than
+# naming it a second time, so the two can never disagree.
+JM_VERSION := $(shell sed -n 's/^jm_version *= *"\(.*\)"/\1/p' just-makeit.toml)
 NPROC      ?= $(shell nproc 2>/dev/null || echo 4)
 VENV_PY    := $(CURDIR)/$(VENV)/bin/python
 PYTHON     ?= $(or $(JUST_BUILDIT_PYTHON),$(wildcard $(VENV_PY)),$(shell command -v python3))
@@ -30,7 +34,7 @@ BUILD_TYPE ?= Release
 setup: ## Provision an in-tree venv from pyproject.toml — no sudo, nothing system-wide
 	@python3 -m venv $(VENV)
 	@$(VENV_PY) -m pip -q install --upgrade pip
-	@$(VENV_PY) -m pip -q install -e ".[dev]"
+	@$(VENV_PY) -m pip -q install -e ".[dev]" "just-makeit==$(JM_VERSION)"
 	@echo "setup: $(VENV) ready — 'make test' now builds the Python half too"
 
 all: build ## Configure and build (the default)

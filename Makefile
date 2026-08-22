@@ -971,6 +971,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 print-jm-version nats-up nats-down \
                 docs-relink docs-drift-check drift-check changelog-check \
                 release-notes-size-check workflow-syntax-check \
+                jm-pin \
                 issue-link-check \
                 validate validate-c validate-check \
                 characterize characterization-check \
@@ -1948,6 +1949,37 @@ characterization-check: ## Verify every characterization subject is runnable and
 # here can limit the blast radius, which is why the reminder below is printed
 # every time rather than written down somewhere.
 JM_APPLY_ARGS ?=
+
+# The jm pin lives in three files and a lock. `just-makeit.toml` is the SSOT,
+# `gen_jm_pin.py --write` (via docs-relink) propagates to pyproject.toml and the
+# downstream example, and `uv lock` re-resolves the dev group the pin names.
+# Before this target that sequence had no home, so every bump improvised it --
+# which is how the 0.63.3 -> 0.65.0 bump came to be done with a raw `sed`, a
+# direct script call and a bare `uv lock`, in a repo whose rule is that make is
+# the SSOT. `gen_jm_pin.py --check` already gates that the sites agree; this
+# gates HOW they get there.
+jm-pin: ## JM=x.y.z — move the just-makeit pin everywhere and re-lock
+ifndef JM
+	@echo "usage: make jm-pin JM=<x.y.z>"; exit 1
+endif
+# Pre-flight BEFORE touching anything, because the failure mode is asymmetric:
+# `docs-relink` runs under `uv run`, so once pyproject.toml names a version uv
+# cannot resolve, the environment is broken and this target can no longer run
+# to fix itself. Measured while writing it -- `make jm-pin JM=9.9.9` left three
+# files moved, a stale lock, and no way back through make.
+#
+# It also answers the question actually being asked most of the time: has the
+# version been released yet? `jm status` says CLOSED, and a closed issue is not
+# a release.
+	@curl -fsS -o /dev/null "https://pypi.org/pypi/just-makeit/$(JM)/json" || { \
+	    echo "jm-pin: just-makeit $(JM) is not on PyPI — nothing changed."; \
+	    echo "  A merged fix is not a release. Check:"; \
+	    echo "    gh release list --repo just-buildit/just-makeit --limit 3"; \
+	    exit 1; }
+	@sed -i 's/^jm_version = ".*"/jm_version = "$(JM)"/' just-makeit.toml
+	@$(MAKE) --no-print-directory docs-relink
+	@uv lock
+	@echo "jm-pin: pinned $(JM). Next: make jm-apply, then make drift-check."
 
 jm-apply: ## Regenerate jm-owned glue from the manifest (then run drift-check)
 	uv sync --group dev --no-install-project

@@ -67,7 +67,7 @@ _Farrow fractional-delay interpolator — linear / parabolic / cubic._ [More...]
 | ---: | :--- |
 |  [**farrow\_state\_t**](structfarrow__state__t.md) \* | [**farrow\_create**](#function-farrow_create) (int order) <br>_Create a Farrow interpolator._  |
 |  size\_t | [**farrow\_delay**](#function-farrow_delay) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state, const float complex \* x, size\_t x\_len, double mu, float complex \* out, size\_t max\_out) <br>_Apply a constant fractional delay of_ `mu` _samples to a CF32 block._ |
-|  size\_t | [**farrow\_delay\_max\_out**](#function-farrow_delay_max_out) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br> |
+|  size\_t | [**farrow\_delay\_max\_out**](#function-farrow_delay_max_out) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br>_Upper bound on what_ [_**farrow\_delay()**_](farrow__core_8h.md#function-farrow_delay) _writes, or 0 for "caller sizes"._ |
 |  void | [**farrow\_destroy**](#function-farrow_destroy) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br>_Destroy a Farrow interpolator._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**farrow\_eval**](#function-farrow_eval) (const [**farrow\_state\_t**](structfarrow__state__t.md) \* s, float mu) <br>_Interpolate at fractional offset_ `mu` _∈_`[0,1)` _between_`d[1]` _and_`d[2]` _._ |
 |  size\_t | [**farrow\_get\_group\_delay**](#function-farrow_get_group_delay) (const [**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br> |
@@ -259,6 +259,7 @@ CF32 output array, same length as `x`, each sample delayed by `group_delay - mu`
 
 ### function farrow\_delay\_max\_out 
 
+_Upper bound on what_ [_**farrow\_delay()**_](farrow__core_8h.md#function-farrow_delay) _writes, or 0 for "caller sizes"._
 ```C++
 size_t farrow_delay_max_out (
     farrow_state_t * state
@@ -267,6 +268,27 @@ size_t farrow_delay_max_out (
 
 
 
+Returns 0 deliberately. [**farrow\_delay()**](farrow__core_8h.md#function-farrow_delay) emits exactly one output sample per input sample, so the bound is the caller's own block length and there is nothing this function could add. A 0 is the documented sentinel for that case: the binding falls back to sizing the output from the input block rather than from this number.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+0  [**farrow\_delay()**](farrow__core_8h.md#function-farrow_delay) is length-preserving, so the input length is the bound. 
+
+
+
+
+
+        
 
 <hr>
 

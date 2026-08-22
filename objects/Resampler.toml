@@ -54,7 +54,9 @@ type = "size_t"
 name = "num_taps"
 type = "size_t"
 
-# gh-428 manual_stub: hand-written .pyi symbol (see status_allow rationale).
+# gh-428 manual_stub: hand-written .pyi symbol. NOT obsoleted by jm 0.64.0 --
+# execute_ctrl takes two arrays, which `_outbuf.why_not` excludes (gh-412),
+# so no execute_ctrl_max_out is generated.
 [[Resampler.methods]]
 name = "execute_ctrl_max_out"
 manual_stub = true

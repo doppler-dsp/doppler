@@ -459,6 +459,18 @@ DDCObj_exit (DDCObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+DDCObj_execute_ctrl_push_max_out (DDCObject *self,
+                                  PyObject  *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (ddc_execute_ctrl_push_max_out (self->handle));
+}
+
 static PyMethodDef DDCObj_methods[] = {
 
   { "execute", (PyCFunction)(void *)DDCObj_execute,
@@ -618,6 +630,23 @@ static PyMethodDef DDCObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "execute_ctrl_push_max_out", (PyCFunction)DDCObj_execute_ctrl_push_max_out,
+    METH_NOARGS,
+    "execute_ctrl_push_max_out() -> int\n"
+    "\n"
+    "Largest number of samples execute_ctrl_push() can return in the\n"
+    "current state.\n"
+    "\n"
+    "Size an `out=` buffer with this before calling execute_ctrl_push(), or\n"
+    "use it to allocate one up front. The bound is this object's own: what\n"
+    "it depends on is a property of the algorithm, so a header block on\n"
+    "execute_ctrl_push_max_out() replaces this text.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Upper bound on the output length; the actual call may return "
+    "fewer.\n" },
   { NULL }
 };
 

@@ -151,6 +151,19 @@ void farrow_destroy(farrow_state_t *state);
  */
 void farrow_reset(farrow_state_t *state);
 
+/**
+ * @brief Upper bound on what farrow_delay() writes, or 0 for "caller sizes".
+ *
+ * Returns 0 deliberately.  farrow_delay() emits exactly one output sample
+ * per input sample, so the bound is the caller's own block length and there
+ * is nothing this function could add.  A 0 is the documented sentinel for
+ * that case: the binding falls back to sizing the output from the input
+ * block rather than from this number.
+ *
+ * @param state  Must be non-NULL.
+ * @return       0 -- farrow_delay() is length-preserving, so the input
+ *               length is the bound.
+ */
 size_t farrow_delay_max_out(farrow_state_t *state);
 /**
  * @brief Apply a constant fractional delay of @p mu samples to a CF32 block.

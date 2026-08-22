@@ -432,7 +432,8 @@ GATES_PROVISION = install-deps install-docs-deps build pyext nats-up \
                   nats-down install-deps-ci install-docs-deps-ci \
                   ccache-stats \
                   apt-stall-config
-GATES_DEPS    = lint changelog-check drift-check doxygen-check docs-check \
+GATES_DEPS    = lint changelog-check release-notes-size-check \
+                drift-check doxygen-check docs-check \
                 gen-c-api-check \
                 validate-check \
                 test-all test-stubs test-api-docs test-snippets test-rust \
@@ -969,6 +970,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 package-c package-c-tarball sdist release-notes \
                 print-jm-version nats-up nats-down \
                 docs-relink docs-drift-check drift-check changelog-check \
+                release-notes-size-check \
                 issue-link-check \
                 validate validate-c validate-check \
                 characterize characterization-check \
@@ -2037,6 +2039,17 @@ changelog-assemble: ## Promote changelog.d/ fragments into [Unreleased]
 
 changelog-assembled-check: ## Fail if any fragment is still unassembled
 	@$(UV) run python scripts/changelog-assemble.py --check
+
+# Sized against what would actually be PUBLISHED, not what CHANGELOG.md holds:
+# a version section may carry a `### Highlights` block, and release-notes.sh
+# publishes that instead when the whole section will not fit. The same number
+# doubles as the release-cadence signal -- deferring a release is what makes it
+# grow -- so there is no separate "days since the last tag" rule to drift out
+# of step with this one. It runs here rather than at tag time because
+# `github-release` needs `publish-python`: at tag time the version is already
+# on PyPI and PyPI refuses a re-upload.
+release-notes-size-check: ## Fail if the release notes would exceed GitHub's cap
+	@uv run python scripts/check_release_notes_size.py
 
 changelog-check: ## A branch changing code must add a changelog entry
 	@base=$$(git merge-base HEAD $(CHANGELOG_BASE) 2>/dev/null) || { \

@@ -348,6 +348,28 @@ release: ## Build the native library clean, with BUILD_TYPE=Release
 	@$(MAKE) clean
 	@$(MAKE) build BUILD_TYPE=Release
 
+# `test` and `test-fast` execute COMPILED artifacts, so they must not execute
+# stale ones. A prerequisite-only line: it adds to the recipes defined in the
+# Core section above rather than replacing them, so there is no second recipe
+# and no `overriding recipe` warning.
+#
+# The failure this closes is not the noisy one. Editing a test and re-running
+# reported a failure quoting the OLD assertion at the OLD line numbers, which
+# is confusing but self-correcting the moment you read it. The one that
+# matters is the inverse: edit a source, `make test`, see green, ship -- with
+# the suite having never compiled the change, and nothing in the output
+# distinguishing that from a real pass. Reported from doppler
+# (doppler-dsp/doppler#659), where `make` is the only sanctioned way to run
+# the C suite -- a pre-commit hook blocks raw ctest -- so this was the single
+# path to a result and it was the one that could be silently stale.
+#
+# Inside HAS_C because `build` only exists here; a Python-only repo compiles
+# nothing and keeps `test` free-standing.
+#
+# No separate gate: a missing prerequisite reproduces the bug immediately, so
+# the dependency IS the check and there is nothing here that can rot.
+test test-fast: build
+
 ifeq ($(HAS_PYTHON),1)
 pyext: ## Build the Python extension in place
 	$(PYEXT_CMD)
@@ -641,8 +663,28 @@ endif
 	@test "$$(git rev-parse HEAD)" = "$$(git rev-parse origin/main)" || \
 	    { echo "ERROR: local main != origin/main — git pull first"; exit 1; }
 	@$(MAKE) version-check VERSION=$(VERSION)
-	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
-	git push origin "v$(VERSION)"
+# Idempotent, so `ship` can be RE-RUN after its watch is interrupted. The tag
+# push is the point of no return -- it starts the release -- but the watch that
+# follows runs for tens of minutes, and anything cutting it short (a timeout, a
+# dropped connection, Ctrl-C) used to leave `ship` unusable: `git tag` fails on
+# an existing tag, so the way back was to know that `release-watch` is a
+# separate target. Re-running the command you already ran is the obvious move,
+# and it now works.
+#
+# An existing tag on a DIFFERENT commit is still refused. That is the case
+# worth failing on: the artifacts were built from wherever the tag pointed when
+# the workflow ran, so moving it makes the tag disagree with what was published.
+	@if git rev-parse -q --verify "refs/tags/v$(VERSION)" >/dev/null 2>&1; then \
+	    test "$$(git rev-parse "v$(VERSION)^{commit}")" = "$$(git rev-parse HEAD)" || \
+	        { echo "ERROR: v$(VERSION) exists and points at another commit."; \
+	          echo "  A released tag must not move — its artifacts were built"; \
+	          echo "  from where it pointed. Cut the next patch version."; \
+	          exit 1; }; \
+	    echo "tag-release: v$(VERSION) already tags HEAD — reusing it"; \
+	else \
+	    git tag -a "v$(VERSION)" -m "Release v$(VERSION)"; \
+	fi
+	@git push origin "v$(VERSION)"
 	@echo "Tagged v$(VERSION) — release workflow starting on GitHub"
 
 release-watch: ## VERSION=x.y.z — watch the release workflow and verify it

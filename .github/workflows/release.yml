@@ -453,30 +453,34 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Wait for the version to be resolvable on PyPI
-        # `shell: bash` for pipefail. The `pip index | grep -q` below is a
-        # condition, so the only change is the honest one: when pip itself
-        # fails, the answer is "not resolvable yet" and the loop waits,
-        # instead of the result resting on grep alone.
+        # The SIMPLE INDEX is what pip actually reads, and curl is always
+        # present. This job has NO setup-python, so the bare `pip index
+        # versions` this used to run was never guaranteed to exist -- and
+        # `2>/dev/null` turned its absence into "not indexed yet", forever.
+        # A check that can only fail is not a check: v0.43.0 timed out at 5
+        # minutes and v0.43.1 at 15, both while the version was live on PyPI
+        # the whole time, and both took the container images and the GitHub
+        # Release down with them. Widening the budget was treating the symptom.
+        #
+        # The pattern anchors on the character after the version so that
+        # 0.43.1 does not match 0.43.10: a wheel is `doppler_dsp-<v>-...whl`
+        # and an sdist `doppler_dsp-<v>.tar.gz`.
         shell: bash
         run: |
           VERSION="${{ needs.verify-version.outputs.version }}"
-          # 90 x 10s = 15 minutes, inside this job's 45-minute cap. It was 30
-          # (5 minutes) and v0.43.0 exceeded it: `publish-python` had SUCCEEDED
-          # and the wheels were on PyPI, but the index had not caught up, so
-          # this job failed and took the container images with it. The budget
-          # is the whole gate here -- there is nothing to retry against a
-          # dependency that is simply still propagating, and failing early
-          # loses artifacts for a release that actually worked.
-          ATTEMPTS=90
+          INDEX="https://pypi.org/simple/doppler-dsp/"
+          ATTEMPTS=60
           for i in $(seq 1 $ATTEMPTS); do
-            if pip index versions doppler-dsp 2>/dev/null | grep -q "$VERSION"; then
-              echo "doppler-dsp==$VERSION is live on PyPI (after $(( (i-1) * 10 ))s)."
+            if curl -fsS "$INDEX" | grep -q "doppler_dsp-$VERSION[-.]"; then
+              echo "doppler-dsp==$VERSION is on the index (after $(( (i - 1) * 10 ))s)."
               exit 0
             fi
             echo "Waiting for PyPI to index doppler-dsp==$VERSION... ($i/$ATTEMPTS)"
             sleep 10
           done
-          echo "::error::doppler-dsp==$VERSION never appeared on PyPI after $(( ATTEMPTS * 10 ))s."
+          echo "::error::doppler-dsp==$VERSION is not on the simple index after $(( ATTEMPTS * 10 ))s."
+          echo "The index currently lists:"
+          curl -fsS "$INDEX" | grep -o "doppler_dsp-[0-9][0-9.]*" | sort -u | tail -20
           exit 1
 
       - name: Log in to GHCR

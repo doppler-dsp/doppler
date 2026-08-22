@@ -407,6 +407,18 @@ MemoryCaptureObj_exit (MemoryCaptureObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+MemoryCaptureObj_records_max_out (MemoryCaptureObject *self,
+                                  PyObject            *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (dp_tlm_capture_read_max_out (self->handle));
+}
+
 static PyMethodDef MemoryCaptureObj_methods[] = {
 
   { "read_dict", (PyCFunction)(void *)MemoryCaptureObj_read_dict,
@@ -632,6 +644,20 @@ static PyMethodDef MemoryCaptureObj_methods[] = {
     "    If ``close()`` reports failure. ``__exit__`` calls it and raises\n"
     "    what it raises, so a failed finalize propagates out of the ``with``\n"
     "    block (gh-805 §H).\n" },
+  { "records_max_out", (PyCFunction)MemoryCaptureObj_records_max_out,
+    METH_NOARGS,
+    "records_max_out() -> int\n"
+    "\n"
+    "Upper bound on what dp_tlm_capture_read() can return right now.\n"
+    "\n"
+    "The accumulated count: a caller sizing a destination cannot know its\n"
+    "own request will be smaller, and the generated binding allocates this\n"
+    "much, reads, then resizes to what actually came back.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { NULL }
 };
 

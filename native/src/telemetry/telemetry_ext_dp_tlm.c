@@ -521,6 +521,18 @@ TelemetryObj_exit (TelemetryObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+TelemetryObj_read_max_out (TelemetryObject *self,
+                           PyObject        *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (dp_tlm_read_max_out (self->handle));
+}
+
 static PyMethodDef TelemetryObj_methods[] = {
 
   { "read_dict", (PyCFunction)(void *)TelemetryObj_read_dict,
@@ -877,6 +889,19 @@ static PyMethodDef TelemetryObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "read_max_out", (PyCFunction)TelemetryObj_read_max_out, METH_NOARGS,
+    "read_max_out() -> int\n"
+    "\n"
+    "Upper bound on what dp_tlm_read() can return right now.\n"
+    "\n"
+    "Simply the available count: a caller sizing a destination cannot know\n"
+    "the request will be smaller, and jm's generated binding allocates this\n"
+    "much, reads, then resizes to what actually came back.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { NULL }
 };
 

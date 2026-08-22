@@ -460,6 +460,18 @@ DdcrObj_exit (DdcrObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+DdcrObj_execute_ctrl_push_max_out (DdcrObject *self,
+                                   PyObject   *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (ddcr_execute_ctrl_push_max_out (self->handle));
+}
+
 static PyMethodDef DdcrObj_methods[] = {
 
   { "execute", (PyCFunction)(void *)DdcrObj_execute,
@@ -633,6 +645,17 @@ static PyMethodDef DdcrObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "execute_ctrl_push_max_out",
+    (PyCFunction)DdcrObj_execute_ctrl_push_max_out, METH_NOARGS,
+    "execute_ctrl_push_max_out() -> int\n"
+    "\n"
+    "Bound for ONE pushed input: `ceil(rate) + 1` output periods.\n"
+    "Non-zero because the push form has no input block to size from.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { NULL }
 };
 

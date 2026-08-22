@@ -524,6 +524,19 @@ RateConverterObj_exit (RateConverterObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+RateConverterObj_execute_ctrl_push_max_out (RateConverterObject *self,
+                                            PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (
+      RateConverter_execute_ctrl_push_max_out (self->handle));
+}
+
 static PyMethodDef RateConverterObj_methods[] = {
 
   { "execute", (PyCFunction)(void *)RateConverterObj_execute,
@@ -685,6 +698,17 @@ static PyMethodDef RateConverterObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "execute_ctrl_push_max_out",
+    (PyCFunction)RateConverterObj_execute_ctrl_push_max_out, METH_NOARGS,
+    "execute_ctrl_push_max_out() -> int\n"
+    "\n"
+    "Bound for ONE pushed input: `ceil(rate) + 1` output periods.\n"
+    "Non-zero because the push form has no input block to size from.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { NULL }
 };
 

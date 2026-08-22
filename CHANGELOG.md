@@ -13,11 +13,13 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.43.0] — 2026-08-22
+
 ### Highlights
 
-247 entries since v0.42.0, and this section is the shape of them. Every entry, in full, follows below — nothing here replaces
-one, and where a change was made and then superseded inside this same release
-the **net** effect is what is stated.
+248 entries since v0.42.0, and this section is the shape of them. Nothing
+here replaces an entry, and where a change was made and then superseded inside
+this same release the **net** effect is what is stated.
 
 **Act on these first.**
 
@@ -106,6 +108,172 @@ the **net** effect is what is stated.
 **Under the hood.** The just-makeit pin moved 0.51.0 → 0.63.3 across eleven bumps and now has one source of truth. A changelog entry is a **file**
 now (`changelog.d/`), because a shared line does not scale past a few open
 PRs.
+
+### Breaking
+
+- **BREAKING: the Costas arm filter is gone, and `nda_tap = "lo_arm"` with
+    it.** A discriminator tap does not need an arm filter where the chain
+    already filters ahead of it — and the one place the receiver added its own,
+    a free-running half-symbol boxcar on the raw post-LO sample, was also the
+    only tap whose node had no filtering ahead of it at all. `mf_in` is that
+    tap done properly: DEC's filters have already band-limited it and the AGC
+    has already levelled it. (The matched filter may itself BE a boxcar — I&D
+    and CIC both are — and that is untouched; this is about the extra arm.)
+
+    It did not work anyway. Measured with `native/validation/rx_nda_tap.c`,
+    fraction of a known carrier offset removed: 0.1352 at sps=8, 0.0002 at
+    sps=200, 0.0000 at sps=10000, unchanged with the modulation removed or the
+    timing loop disabled — the only tap of the four that failed, and it failed
+    everywhere. The published `0.090*Rs` pull-in came from a hand-tuned
+    `bn_carrier` absorbing gh-765 at sps=8, which stops working as the ratio
+    grows. Closes gh-768.
+
+- **BREAKING: `warmup_syms` is gone from both receivers.** The handover now
+    rests on its lock detector and nothing else. That detector already carries
+    both hysteresis axes — a split declare/drop threshold pair and a
+    consecutive-symbol count each way — so the warmup counter was a second,
+    cruder de-chatterer for the same job.
+
+    It was guarding a condition gh-657 made impossible. Its comment claimed the
+    pre-lock lock EMA reaches 0.9-1.7 against 0.62 settled; `carrier_nda_disc()`
+    now divides by `|z|` at the FIRST squaring, so every later value is a unit
+    vector and `lock` is an EMA of something bounded in [-1, 1] — it cannot
+    exceed 1. Measured on the shipped receiver (QPSK, sps=8, 20 dB, 5 seeds):
+    pre-lock peak 0.900-0.916, settled 0.947-0.968. BOTH numbers in that
+    comment described the pre-normalisation detector. Note `acq_to_track`
+    already defaults to 0, so the default receiver never consulted it.
+
+- **BREAKING: `nda_tap = "mf_all"` is now `"mf_out"`.** "all" read as *both*
+    sides of the matched filter, which is the one thing it never meant — the
+    tap is the MFR's output. Paired with `mf_in` it is now a symmetric
+    input/output naming, and `strobe` keeps its own name because that name is
+    standard. C enum `MPSK_RX_NDA_TAP_MF_OUT`. This is the only shipped
+    spelling that changes; callers passing `nda_tap="mf_all"` get the usual
+    `ValueError` listing the valid names.
+
+- **Frame flags on a waveform that cannot carry one now REFUSE instead of
+    being silently ignored.** `--type bpsk|qpsk|pn` (and the Python
+    equivalents) source their symbols from the PN LFSR, so there is no length
+    to bound a payload; they now exit 2 with a message naming the replacement,
+    where before they exited 0 and produced an unframed waveform. `--type bits`
+    with frame flags but no `--bits` refuses for the same reason. This is the
+    defect being fixed, not a new restriction — see below.
+
+- **`DsssReceiver` refuses `sps < 2` instead of aborting the process.**
+    `DsssReceiver(sps=1)` used to **SIGABRT the interpreter** — exit 134, no
+    exception, no traceback, nothing on stderr. `sps` is a documented
+    constructor parameter and `1` is not obviously out of range from the
+    Python face, so a caller had no way to see it coming and no way to
+    recover.
+
+    The guard validated `sps < 1`, so `sps = 1` reached
+    `mpsk_receiver_create()`, which rejects it (that constructor requires
+    `sps >= m_out`, and the smallest legal `m_out` is 2). Its argument-error
+    NULL then went through `dp_xnn()`, an **abort-on-OOM** helper — and an
+    argument error is not an allocation failure.
+
+    Two is not arbitrary: below it there is no receiver to build, which is
+    the range `mpsk_rx_derive_m_out()` already documented. The guard and the
+    guarantee simply did not meet. The object now also declares
+    `create_error = "ValueError"`, so the refusal names the parameter set
+    instead of surfacing as a blanket `MemoryError`.
+
+    **Behaviour change:** `sps` of 0 or 1 now raises `ValueError` where it
+    previously killed the process. Nothing in the tree passed either.
+
+- **`HalfbandDecimator_create()` takes `(h, h_len)`, not `(num_taps, h)`** —
+    the array first, matching its own manifest and every other array
+    constructor in the tree. **C callers must swap the two arguments.** The
+    types differ, so a call that does not swap fails to compile rather than
+    misbehaving; the Python face is unchanged.
+
+    `objects/HalfbandDecimator.toml` declared **one** constructor parameter
+    while the C took **two**, in the opposite order. Nothing broke today,
+    because jm never rewrites that prototype — but the manifest is what
+    `jm regenerate` and every future reconciliation read, so the divergence
+    was a trap for whoever regenerated the object next, and it hid the real
+    signature from the generated stub.
+
+    The issue proposed declaring both parameters instead, as the smaller
+    change. Rendered, that turns out worse: jm sorts the array first and
+    makes the count optional, giving
+    `__init__(self, h, num_taps: int = ...)` — a redundant Python argument
+    duplicating `len(h)`, and the C order still not what the manifest says.
+    So the fix converges the C on jm's shape, which is also what
+    `fir`, `corr`, `corr2d`, `detector` and `detector2d` already do; the
+    `hbdecim` family were the only three `(len, ptr)` constructors in the
+    tree, and the one-line adapter now does the swap.
+
+    Not gated here, deliberately: verifying it needs jm's manifest→C type
+    renderer, and reimplementing that downstream is the duplication jm
+    exists to remove. `jm status --check` cannot see it — every file jm owns
+    was self-consistent, and the only disagreeing file was the sacred
+    `_core.c`. Filed as just-makeit#1076, which asks jm to verify the
+    `_core.h` declaration it already injects.
+
+- **The MPSK acquisition/tracking handover is gone, and so is
+    `ContinuousMpskReceiver`.** `acq_to_track`, the `tracking` property, the
+    `<prefix>.tracking` telemetry probe, `MpskReceiver.configure_lock()` and
+    the whole decision-directed arm are removed
+    ([#877](https://github.com/doppler-dsp/doppler/issues/877)). One M-th-power
+    NDA discriminator steers the LO from the first strobe to the last.
+
+    **It was measured before it was deleted**, because `acq_to_track` had to be
+    shown *not* inert rather than assumed so. The same record through
+    `MpskReceiver` twice, at operating points where the meter is not saturated
+    (SER 1.5e-2 to 7.1e-2, BPSK/QPSK/8PSK):
+
+    | axis                          | result                                |
+    | ----------------------------- | ------------------------------------- |
+    | recovered symbols that differ | 19764–19928 of 19998 (~99%)           |
+    | largest difference            | 0.30–0.48 (unit-radius constellation) |
+    | SER over 10 engaged cells     | mean ratio **0.9999**, t = 0.28       |
+    | cells where the handover won  | 6 of 10                               |
+
+    So it perturbed essentially the whole sample path and moved the decisions
+    by scatter with no sign. At the one operating point where it shipped
+    enabled — 8PSK in `mpsk_receiver_ber.c`, on the ±π/8 decision-margin
+    argument — the validator already carried its own number: turning it off
+    costs **0.09 dB** (0.44 → 0.53 dB of loss) against a settling window it
+    more than doubled, since the handover fired around symbol 8500.
+
+    `ContinuousMpskReceiver` existed only to pin the handover off. With nothing
+    left to pin it was a duplicate of `MpskReceiver`, which is now the
+    continuous receiver under its own name. `configure_lock()` went for a
+    second reason: it retuned only the handover's detector and never the lock
+    indicator's, so it desynced the two detectors it appeared to configure.
+
+- **`ber_settle_from()` loses its `handover` argument** (C and Python). Its
+    only producer was `acq_to_track`, so it could now only ever be passed -1.
+    `dp_ber_settle()` in the test harness loses the matching `tracking` array.
+
+- **`MPSK_RX_LOOPS_STATE_VERSION` 6 → 7.** The blob drops the handover
+    detector's `cnt`/`locked` pair and the `tracking` flag bit; `have_prev_idx`
+    moves to bit 0. A v6 blob is rejected at the envelope, not reinterpreted.
+    `MPSK_RX_HANDOVER_*` are renamed `MPSK_RX_LOCK_*`, since what they size is
+    the surviving lock indicator.
+
+- **`Lo::steps_ctrl` read twice its buffer from safe Rust**
+    ([#911](https://github.com/doppler-dsp/doppler/issues/911)). The extern
+    declared the control port `*const f32`; the C takes `const double *`, so
+    C walked `8 * ctrl_len` bytes off a `4 * ctrl_len`-byte allocation, with
+    the values reinterpreted regardless. **Breaking**: `steps_ctrl` now takes
+    `&[f64]`. `examples/nco_demo.rs` was calling it with a *non-zero*
+    `Vec<f32>`, so it over-read on every run.
+
+    The existing test passed throughout because it used `vec![0.0_f32; 4]` —
+    all-zero is the one input whose bit pattern is identical at both widths.
+    The new test uses a real deviation and asserts the measured phase advance;
+    against the original declarations it reports the deviation as **entirely
+    ignored** (0.0999… where 0.15 was expected), since `0.05_f32` read as
+    `f64` is a denormal.
+
+    `ffi/rust/` is the one binding jm does not generate, so nothing compared
+    it to the C — and this had happened once before (`cce1792f`). New
+    `scripts/check_rust_abi.py` (`make lint-rust-abi`, and a pre-commit hook)
+    checks every `extern "C"` declaration against the header: the name exists,
+    the arity matches, and each parameter's element width agrees. 45
+    declarations check clean; three sabotages caught.
 
 ### Added
 
@@ -269,393 +437,1334 @@ PRs.
     `sudo <package-manager>` by construction with no notion of a prefix, so it
     is for CI images rather than for someone who just unpacked a tarball.
 
-### Changed
+- **`track.BpskReceiver` — the receiver asked for in the units a capture comes
+    with.** Two required arguments, `sample_rate_hz` and `symbol_rate_hz`,
+    against `MpskReceiver`'s seventeen parameters. `m` is carried by the class
+    name; `sps` is `fs / Rs`, a ratio the library computes for its own use in
+    planning a cascade, so a caller never states it; and `carrier_freq_hz`
+    defaults to 0 for complex baseband. Nothing on the signature is normalised
+    to anything ([#831](https://github.com/doppler-dsp/doppler/issues/831)).
 
-- **The starter's Makefile is what a newcomer reads first, so it was cut back
-    to what it teaches.** `coverage` and `docs` are gone: both named tools
-    nothing declared — `lcov`, `genhtml`, `doxygen`, `zensical`, `pytest-cov`
-    — so in a freshly unpacked starter `make coverage` spent a full Debug
-    rebuild and then said `lcov: command not found`. Neither ran in CI nor
-    appeared in any doc. What survives is `setup`, `build`, `test`, `bench`,
-    `clean`, `help`, and one `dev` extra in `pyproject.toml` that makes all of
-    them work after a single command.
+    It is a **view** over the same core, not a second type — the rule being
+    that a difference in constructor is a flavor — and a test asserts it
+    produces bit-identical symbols to the equivalent `MpskReceiver`, because
+    one core is the whole claim. `MpskReceiver` is unchanged.
 
-    `help` is now derived from the `## ` comment beside each target instead of
-    a hand-written list — the list it replaces had already drifted, still
-    advertising coverage as "C (lcov)".
+    `m_out` deriving rather than being pinned is not cosmetic: `m_out=4`
+    against the default I&D pulse is measured **3.11 dB** off the coherent
+    bound where the derived 8 is 0.41 dB off. A parameter nobody needed was a
+    way to lose most of a link's margin quietly, and the telemetry demo had
+    been doing exactly that.
 
-- **`make bench` measures something.** Both benchmarks were unfilled jm
-    scaffolds: the C one recorded nothing (`EMPTY bench_capture_core: no   measurements recorded`) and the Python one called `Capture(...)` with a
-    literal `Ellipsis` and printed a string. `pytest-benchmark` was missing
-    too, and `python_files` never included `bench_*.py`, so pytest collected
-    no benchmark at all. All four are fixed, and the starter now demonstrates
-    the thing it exists to demonstrate — reading a capture at **483 MSa/s** in
-    C, with the Python binding costing about **4%** over it (135.6 µs vs
-    141.2 µs for the same file).
+- **The receiver publishes the recovered SYMBOL, not just its loop state.**
+    `sym.i` and `sym.q` join the fourteen existing probes
+    ([#846](https://github.com/doppler-dsp/doppler/issues/846)). Every probe
+    before them was an internal, so a filed capture held the scene around a
+    number and not the thing the number is computed from — no constellation,
+    and no error rate recomputable from the evidence. A telemetry record
+    carries one `float`, so a complex value cannot be one probe; the pair
+    lands on the sample index the format already stamps, and
+    `sym.i + 1j*sym.q` reconstructs `steps()` output exactly.
 
-- **The starter's Makefile drops its Windows branches.** The manifest has
-    declared `platforms = ["linux", "macos"]` all along, so `SHELL = cmd.exe`,
-    the MinGW generator override, the `2>nul` twin of every probe and the
-    `.pyd` clean-up were dead code. `PYTHON` collapses with them: it used to
-    run the interpreter to ask for `pathlib.Path(sys.executable).as_posix()`,
-    which existed only to turn Windows backslashes into forward slashes, and
-    to fall back to a bare `python` that can now only resolve to Python 2.
-    It is `command -v python3`. The root `CMakeLists.txt`'s unconditional
-    `if(WIN32 ...)` libwinpthread copy is gone too — `jm status --check`
-    confirms its absence is not drift.
+- **`conv` is certified — the first component with no Python face to be.**
+    The campaign's evidence layer is a Python validator, and `conv` has no
+    binding: a binding built only to be measured is one nobody calls, and the
+    campaign would then be certifying an artifact of its own process. So the
+    substitution is **C measures, Python renders**.
+    `native/validation/conv_certify.c` runs the sweeps — bits from `pn`,
+    symbols from `mpsk_map`, noise from `awgn`, soft decisions from
+    `mpsk_soft_demap` — and emits CSV;
+    `src/doppler/tests/validation/conv/validate.py` parses it and
+    characterises, reviews and asserts through the same `Report` every other
+    object uses, so the format cannot drift between the two kinds. Nothing in
+    the C decides whether a number is acceptable; nothing in the Python
+    computes one. `docs/dev/contributing/validation.md` and
+    `docs/dev/contributing/adding-algorithms.md` carry the track, both gates found it by
+    glob with no registration, and the validation log reads **12 objects
+    certified**.
 
-- **just-makeit pinned to 0.63.3, and the tree builds on it.** The bump
-    closes nine doppler-filed issues:
-    [gh-1023](https://github.com/just-buildit/just-makeit/issues/1023)
-    (`jm bench` runs what the tree BUILDS, not what the manifest declares),
-    [gh-1034](https://github.com/just-buildit/just-makeit/issues/1034) (a
-    function-only module gets a C test and a benchmark),
-    [gh-1042](https://github.com/just-buildit/just-makeit/issues/1042) (every
-    parameter in a generated signature gets a `Parameters` entry),
-    [gh-1046](https://github.com/just-buildit/just-makeit/issues/1046) (jm
-    does not emit a CMake target name the project already declares),
-    [gh-1051](https://github.com/just-buildit/just-makeit/issues/1051) (a
-    `count_default` method's `.pyi` no longer hardcodes `count: int = 1`),
-    [gh-1052](https://github.com/just-buildit/just-makeit/issues/1052) (a
-    header-derived `*_max_out` doc is one paragraph, not one per source
-    line), and the three below.
+    **What the report says a caller should do.** Ship traceback depth 60
+    rather than the textbook `5*K = 35`, which sits 17 % above the achievable
+    floor where 60 is within 1.2 %. Feed the decoder soft decisions or do not
+    code at all — below Eb/N0 ~3.5 dB a hard-decision Viterbi is **worse than
+    an uncoded link**, because the rate costs 3.01 dB of Eb that a two-level
+    input does not buy back. Size a node-sync window for the job it has: the
+    phase decision holds at 250 bits, while the in-sync statistic only becomes
+    a channel estimate — to within 25 % of the delivered symbol error rate —
+    at a thousand bits or more.
 
-    **0.63.0 through 0.63.2 could not build this tree**, which is why the
-    pin lands three patches downstream of the minor. gh-1034 gave every
-    module with free functions a `test_`/`bench_<name>_core` pair, and each
-    release uncovered the next defect behind the last:
+    **And one design number is corrected.** `docs/design/viterbi.md` §4
+    quoted `5*K` at 33 % above the floor (0.04178 against 0.03137), from a
+    prototype that was explicitly throwaway and uncommitted. Measured over
+    four times the bits at the same Eb/N0: 17 %, with every level ~30 %
+    higher — about what a fraction of a dB of Es/N0 convention is worth on a
+    curve that steep. The page now carries the table the gated harness
+    produces and says the prototype's is superseded; the decision it drove is
+    unchanged.
 
-    - **0.63.0/0.63.1 — the pair did not configure.** For a *collocated
-        module-object* (a module whose `objects` list carries its own name)
-        the object already emits `test_<obj>_core` into the same
-        `CMakeLists.txt`, so `cmake` refused outright:
-        `add_executable cannot create target "test_agc_core"`. Fixed by
-        [gh-1055](https://github.com/just-buildit/just-makeit/issues/1055),
-        and under it
-        [gh-1057](https://github.com/just-buildit/just-makeit/issues/1057) —
-        the reason nothing caught it. `_targets.from_manifest()` accumulated
-        into a `set`, so a name emitted twice was indistinguishable from one
-        emitted once; measured on this tree at filing, 365 names emitted
-        against a set of 356, **nine produced twice and the set reporting
-        zero**.
-    - **0.63.2 — the pair configured, then did not compile or link.**
-        Getting past `cmake` is what let anything reach the compiler for the
-        first time. A function declared with `out_type` got a call one
-        argument short of the prototype jm had generated in the same run
-        (`(void)ccsds_asm_bits()` against `void ccsds_asm_bits(uint8_t *)`),
-        and the targets linked `<module>_core m` and nothing else, so a
-        module function calling a sibling core did not resolve. Both are
-        doppler-filed —
-        [gh-1060](https://github.com/just-buildit/just-makeit/issues/1060)
-        and
-        [gh-1061](https://github.com/just-buildit/just-makeit/issues/1061),
-        the latter being gh-254's lesson, which gh-1034 introduced a second
-        target pair without inheriting.
+- **`conv` — convolutional codes, both directions, on one code description.**
+    A rate-1/n code is four numbers: a constraint length, an output count, a
+    generator polynomial per output, and which outputs are inverted.
+    `conv_code_t` holds them, `conv_outputs()` is the only place in the tree
+    that says what the family emits, and **both** `conv_encode` and the new
+    `viterbi_decode` read it. An encoder that computed the outputs and a
+    decoder that computed them again would be two implementations of one
+    primitive — and the inversion is exactly the detail that drifts between
+    them, invisibly, because a matched pair decodes itself perfectly and
+    interoperates with nothing.
 
-    Six generated module tests land with the bump — `arith`, `filter`,
-    `measure`, `resample`, `spectral`, `wfm`. They are jm scaffolds and say
-    so, reporting `PASSED (0 checks)`; what they do today is prove every
-    symbol links and every all-scalar function survives a call. That is not
-    nothing — see the entry below. **They are real tests**, not the
-    scaffolds jm generated: `dp_test.h`'s `DP_TEST_END` fails a test that
-    checked nothing, which is doppler's own rule refusing a scaffold
-    outright, so the six were written against the 43 functions' actual
-    properties ([#914](https://github.com/doppler-dsp/doppler/issues/914)).
-    The seven module *benchmarks* get no
-    scaffold at all: they exist and are declared in this project's own
-    `CMakeLists.txt`, so gh-1046 stands jm down.
+    **CCSDS is now a configuration, not an implementation.** `CCSDS_TM_CONV`
+    is `{k=7, n=2, {0171, 0133}, invert G2}` and `ccsds_tm`'s bespoke encoder is
+    gone; the frame assembler encodes through `conv_encode`. Point the same
+    objects at the deep-space rate-1/6 code, a K = 9 experiment, or anything a
+    caller brings.
 
-- **A repo path named in prose is now gated, and three dead citations
-    fixed.** `check_site_links.py` holds every LINK in the built site and
-    cannot see a path written as a code span, so a page could cite a file
-    that had never existed with every docs gate green. New
-    `scripts/check_doc_paths.py` (on `make lint` via `docs-invariants`)
-    scans **headers as well as docs** — the worst instance was written in a
-    C header and reached the site only because mkdoxy copied it, so gating
-    the generated page would have been gating the copy. Cross-repo
-    citations are excluded by naming the sibling project, derived from the
-    text rather than an allowlist. 587 paths across 876 files check clean.
+    The decoder is streaming and maximum-likelihood: 2^(k-1) states, branch
+    metrics computed once per step from the `2^n` distinct output words rather
+    than per state, path metrics renormalised so a stream cannot overflow them,
+    and a traceback ring. It consumes the LLR convention `mpsk_soft_demap`
+    produces, so it agrees with `mpsk_demap` on hard decisions by construction
+    — and since scaling every branch metric cannot move the winning path, a
+    caller with no SNR estimate may pass unscaled values. **Depth 60** is the
+    measured default for CCSDS's code: `5·K = 35`, the textbook number, sits
+    33 % above the achievable BER (`docs/design/viterbi.md` §4).
 
-    What it would have caught: `dsss_receiver_core.h` sent readers to
-    `docs/gallery/dsss-acq-async-data.md` and `dsss-despread-async-data.md`,
-    neither ever committed under those names; and the NATS archive page
-    closed its "read X for the current state" note with
-    `docs/dev/streaming-roadmap.md`, which has never existed in this repo at
-    all.
+    **The external truth is the impulse response**, which is what a generator
+    polynomial means — drive a 1 followed by zeros and output `j` traces
+    `poly[j]`, inverted where the code says so. That is checkable for every
+    configuration rather than only the familiar one, and it is not a round
+    trip. Seven codes from K = 3 to K = 9 and rate 1/1 to 1/3 decode exactly;
+    sabotage-proven four ways, each in the section that should catch it:
+    reversing the state convention and dropping the inversion both redden the
+    impulse response, while breaking the butterfly's input bit or shortening
+    the traceback by one redden the decode.
 
-- **`docs/design/mpsk.md` no longer tells readers they cannot link
-    `mpsk_map`.** §9.6 listed "`mpsk_core` is in no library" as *open*
-    against [#747](https://github.com/doppler-dsp/doppler/issues/747) —
-    which is closed, and both `mpsk_core.c.o` and `util_core.c.o` are in
-    `libdoppler.a` today with `mpsk_map`/`mpsk_demap` defined. The bullet is
-    rewritten as resolved, and the stale "84 component cores" figure (104
-    now) is gone rather than corrected, since a count restated in prose is a
-    number with nothing keeping it true.
+    Also fixed on arrival, the gh-747 class: `conv_core` reached no library, so
+    a C consumer could include the installed header and link none of its 11
+    out-of-line symbols. jm 0.62.0's wiring check is what named it.
 
-- **`doppler.coding.ConvEncoder` — doppler can encode now**
-    ([#900](https://github.com/doppler-dsp/doppler/issues/900)). Until this,
-    **no class in the library exposed an `encode()` at all.** `Viterbi`
-    accepts any rate-1/n code, and Python could produce symbols for exactly
-    one of them — CCSDS's, and only inside a `FrameDesc`, because that path's
-    stage kinds bind to `ccsds_tm_frame_ops` and carry a depth rather than a
-    polynomial. A decoder whose matching encoder cannot be reached is a
-    decoder that can only be tested against itself.
+- **`dp_mf_test.h` and `dp_dsss_test.h` have self-tests — and doppler#689 is
+    a gate instead of a paragraph.** These were the last two entries on
+    `docs/design/rx-test.md` §5.2's list; the section is now closed, and it
+    records what writing the tests found rather than only that they exist.
 
-    ```python
-    from doppler.coding import ConvEncoder, Viterbi
+    `dp_dsss_test.h` carries a **known defect in its own docstring**: the
+    noise line scales `dp_cgauss` by `sigma/sqrt(2)`, the factor for the other
+    complex-Gaussian convention, so every capture is **3.01 dB quieter than it
+    claims**. It is deliberately unfixed — removing the `/sqrt(2)` makes an
+    async BER sweep go non-monotonic (6 dB decodes, 8 dB fails, 10 dB
+    decodes), which is acquisition succeeding or failing per point rather than
+    a threshold, so correcting it is a receiver investigation. Until now the
+    defect was held in place by prose alone.
 
-    sym  = ConvEncoder([0o171, 0o133], k=7, invert=0x2).encode(bits)
-    back = Viterbi([0o171, 0o133], k=7, depth=35).decode(llr)
+    The self-test makes it a **characterization**: the 3.01 dB is measured and
+    asserted, reproducing the header's own `E|n|^2 = 0.4996` against a target
+    of 1.0. So the magnitude is a fact rather than a recollection, the level
+    cannot drift further unnoticed, and a one-character "fix" turns the test
+    **red on purpose** — forcing the investigation #689 asks for instead of
+    quietly re-tuning two BER sweeps that have been passing on 3 dB of noise
+    they never had. Proven: removing the `/sqrt(2)` reads −0.02 dB against the
+    pinned −3.01.
+
+    `dp_mf_test.h`'s `mf_evm_db()` takes a **min over strobe alignment** — the
+    shape `dp_ber_test.h` calls "the historic footgun", legitimate here
+    because the loop is open and the strobe phase is genuinely arbitrary, but
+    exposed to the false-PASS that footgun names. So it is measured rather
+    than argued: a stream carrying an unrelated sequence must read badly at
+    every alignment the search tries, or every EVM this header has reported is
+    a search result rather than a measurement. Also pinned: the fitted complex
+    gain normalises out rotation *and* scale (an 80 dB swing when removed),
+    which is what lets one number score both the complex and the real chain,
+    and both traps the header documents get an assertion each.
+
+- **`dp_sym_test.h`, `dp_tx_test.h` and `dp_state_test.h` have self-tests, and
+    the state macro gains the FIDELITY half it was missing.**
+
+    **`DP_STATE_ROUNDTRIP_TEST` is 12 lines and 31 test files call it** — the
+    only evidence most serializable objects have that their state interface
+    works. It asserted what `set_state` **returns** (`DP_OK` on a good blob,
+    `DP_ERR_INVALID` on a clobbered one) and never that the restored object
+    **carries** the state, so a `set_state` that validated the envelope,
+    returned `DP_OK` and restored nothing passed at all 31 sites. The
+    project's claim is bit-exact resume; every object meeting it did so in its
+    own test, by hand, while the shared macro a new object reaches for first
+    proved only the envelope.
+
+    The generic fix is three lines and needs no knowledge of the object:
+    restore into `b`, re-serialize `b`, compare to `a`'s blob. The state
+    standard is what makes it well defined — a blob carries only RUNNING
+    fields, config is restored by `create()`, and `b` must be a fresh object
+    of the same config. **No object was cheating**: everything passes with it
+    in, and all 32 call sites pass distinct `a`/`b`, so it is exercised rather
+    than trivially satisfied.
+
+    Finding it needed a fake object, because the macro pastes a PREFIX and so
+    cannot be exercised against a real one without also testing that object.
+    `test_dp_state.c` builds one over the real `dp_state.h` envelope whose
+    `set_state` switches between correct and three broken implementations.
+
+    **`dp_sym_test.h`** is thin, so what is load-bearing is the numbers its
+    docstrings state — other files write fixed thresholds against them. Those
+    are pinned at the source, and the half a closed form cannot establish is
+    measured: a stream at uniformly random phase lands on the scatter floor
+    and **passes** the `< -12.0 dB` assertion the header records as live in
+    `test_mpsk_receiver_r_core.c` until 2026-07-27, while the identical stream
+    fails it at BPSK. It also found the short-stream floor is **39, not the 20
+    the guard names** — both back-half forms score `ceil(n_syms/2)`, which the
+    layer beneath rejects below 20. Docstrings corrected.
+
+    **`dp_tx_test.h`** is the file `check_stimulus_sources.py` structurally
+    cannot police (§5.4): it *is* the test layer's stimulus, so the gate has
+    nowhere to point. The conventions it would have checked are asserted
+    instead. `DP_TX_RC` makes the central one exact — a full raised cosine is
+    Nyquist, so at symbol centres the sample **is** `amp * symbol`, and "amp
+    is the SYMBOL amplitude, never a peak" stops being a comment. Proven by
+    sabotage: reading `tau` as samples, and dropping the `rate` scaling from
+    the lead-in, each take exactly the one assertion written for them red.
+
+- **`dp_test.h` has a self-test — the assertion foundation 97 C test files
+    include, and nothing tested it.** That is the worst place in the tree for
+    an untested thing, because the failure mode is not a red suite but a
+    **green** one: a `DP_CHECK` that stops recording failures turns all 97
+    files into programs that run to completion and report success, and `ctest`
+    says 100%. The header replaced 90 hand-rolled `CHECK` macros in six
+    variants — one with its condition inverted, twenty whose failure gate had
+    drifted so that 75 checks printed FAIL and their tests still exited 0 —
+    and nothing had been watching the replacement.
+
+    `test_dp_test.c` resolves the circularity by observing `dp_test.h`'s own
+    counters rather than its exit status, so it can assert that a check FAILS
+    without failing itself, and it captures stderr so a deliberate failure
+    never puts a fake `FAIL` line into a passing test's log. Capturing rather
+    than discarding also pins the DIAGNOSTIC — file, line, stringified
+    condition, and both values plus the tolerance for `DP_CHECK_NEAR`.
+
+    `DP_TEST_END` returns, so its three exit paths cannot be tested
+    in-process; `test_dp_test_end.c` gives each one a process and CTest
+    asserts the status (`WILL_FAIL` for two). The path that matters is
+    **`nothing`**: the zero-assertion floor is the only guard between this
+    suite and a test whose body never ran reading as a pass forever, and
+    nothing had ever run a zero-assertion program to confirm the floor fires.
+
+    Writing it found a documentation defect on the first run. `dp_cnearf` /
+    `dp_cnear` are component-wise and their comment called that "the stricter
+    of the two" — it is the **looser**: the component test accepts a square of
+    side `2*tol`, the magnitude test a disc of radius `tol` that sits strictly
+    inside it, so a diagonal error of `(0.4, 0.4)` passes at `tol = 0.5`
+    despite a magnitude of 0.566. That is the shape of every carrier-phase
+    error the suite measures, so the semantics are now asserted rather than
+    described.
+
+- **The CCSDS rate-1/2 K=7 convolutional code** (131.0-B-3 section 3.3), with
+    the symbol inversion on the G2 output path that 3.3.1(5) requires. That
+    inversion is invisible to a round trip — a matched Viterbi inverts whatever
+    it was handed — so it is pinned against the impulse response, where C1 must
+    trace `G1 = 1111001` and C2 the complement of `G2 = 1011011`, and against
+    an all-zero input, which must emit C1 all zeros and C2 all ones.
+
+- **The frame assembler, and the ASM** (131.0-B-3 section 9) — the element the
+    other four exist for. `ccsds_tm_frame_encode` takes a Transfer Frame as packed
+    octets and returns unpacked channel symbols, which makes it the one place
+    the packed/unpacked boundary between `ccsds_tm_rs.h` and `ccsds_tm.h` is
+    crossed rather than a convention each kernel assumes about its caller.
+
+    What it adds over running the four kernels in order is that **the stages do
+    not all cover the same bits.** The marker enters third and the stages
+    disagree about whether they reach over it: the outer code must not
+    (9.5.1), the randomiser must not (10.3.4 note 1), and the inner code must
+    (3.2.1, 9.2.1.4) — 9.2.1.5 states two of the three in a single sentence.
+    So `ccsds_tm_frame_layout` reports a **span per stage** rather than a stage
+    order: an order is the representation that cannot express this, being
+    right at three boundaries and wrong at the fourth, in the direction that
+    still encodes, still decodes against a receiver of one's own construction,
+    and syncs to nothing.
+
+    All three rows are asserted against something outside the assembler: the
+    marker byte for byte as figure 9-1 prints it, the randomiser's published
+    40-bit prefix positioned *after* it — which fails in both halves if the
+    randomiser reached back, since the marker would come out XORed with
+    `FF 48 0E C0` and the block would begin at sequence bit 32 — and
+    `ccsds_tm_rs_codeword_ok`, which needs no decoder and refuses the 255 symbols
+    taken from the marker rather than from behind it. Nine sabotages were run
+    against the finished test, one per claim.
+
+    Virtual fill (4.4.2's shortened codeblock) is not implemented, so a frame
+    that is not exactly `223 * I` octets is refused rather than padded (#813).
+
+    `ccsds_tm_core` now reaches `libdoppler.so` and `libdoppler.a`. It never
+    had, for as long as the component has existed: `native/inc/ccsds_tm/*.h`
+    are installed
+    headers whose every function is out-of-line, and `nm` found 13 defined
+    symbols in the core against zero occurrences of the component's prefix in
+    the library — so
+    a C consumer could include the header and link none of it. Python was
+    unaffected the whole time, because the extension links each core directly,
+    which is exactly why nobody noticed. jm 0.62.0's wiring check is what
+    named it.
+
+- **Reed-Solomon symbol interleaving** (131.0-B-3 sections 4.3.5 and 4.4.1),
+    depths `I = 1, 2, 3, 4, 5, 8`, plus `ccsds_tm_rs_codeword_ok` — a syndrome check
+    that says whether 255 symbols form a codeword without decoding them. The
+    interleaver is what makes the outer code burst-tolerant: a contiguous burst
+    of `B` symbols lands as `ceil(B/I)` errors per codeword, so depth buys a
+    `I`-fold longer correctable burst at no cost in rate. Tested in both
+    directions — a 40-symbol burst stays inside `E=16` at depth 5 and exceeds
+    it at depth 1 — because an interleaver that merely copied would pass the
+    first half alone.
+
+- **`ccsds_tm` — CCSDS TM channel coding, starting with the pseudo-randomiser.**
+    doppler encoded nothing before this: no convolutional code, no
+    Reed-Solomon, no interleaver and no randomiser anywhere in the tree, which
+    is the gap between a test-vector generator and a link waveform. The first
+    element of the CCSDS TM slice (131.0-B-3, section 10) lands as its own
+    `c_dep` rather than a library inside `wfmcompose`, because both ends want
+    it — wfmgen encodes and `frame`/`ber_meter` will decode, and a receiver
+    should not carry the waveform-composition chain on its link line for the
+    sake of a randomiser.
+
+    `ccsds_tm_randomise` is its own inverse, so both ends call one function.
+    The published 40-bit prefix is what pins it: a first cut transcribed the
+    taps from the polynomial's exponents rather than from the recurrence they
+    stand for, drove the register to the all-zero fixed point, and **passed
+    both a round trip and both period checks** — a dead sequence repeats with
+    period 255 and matches no earlier one. The period test now also asserts
+    the 128-ones balance a maximal generator must have, which no degenerate
+    sequence does.
+
+- **CCSDS Reed-Solomon (255,223)**, the E=16 outer code (131.0-B-3 section
+    4.3), with the three conventions a textbook implementation gets wrong and
+    a round trip cannot catch: the field is `x^8 + x^7 + x^2 + x + 1` (4.3.3)
+    rather than the habitual one, the generator's roots are powers of `a^11`
+    rather than consecutive powers of `a` (4.3.4), and symbols travel in the
+    **dual (Berlekamp) basis** (4.3.9.1). Verified against Annex G, which
+    publishes all 33 coefficients of `g(x)` — reproducing them exercises the
+    field and the root stride together — and against 4.3.9.3's two basis
+    matrices, required to invert each other across all 256 symbols so a single
+    mis-transcribed bit cannot pass.
+
+- **The CCSDS receive chain, and a link demo that runs it end to end.**
+    `ccsds_tm_frame_decode` is the mirror of `ccsds_tm_frame_encode` — it reads the same
+    `ccsds_tm_frame_cfg_t` and the same span table, so the two directions cannot
+    come to disagree about which stage covered what, which is the failure
+    `ccsds_tm_frame.h` opens by describing. It skips the marker, re-applies the
+    involutive randomiser over the block span, packs back to octets MSB-first,
+    and checks each interleaved codeword; `ccsds_tm_frame_rx_t` reports what it
+    found. `ccsds_tm_asm_find` correlates for the marker at every offset in
+    **both polarities**, because a BPSK carrier recovered through a 180-degree
+    ambiguity delivers the stream complemented and the marker is the only part
+    of a CADU that can say so — the randomiser deliberately does not cover it.
+
+    **The outer code is a check, not a correction.** `ccsds_tm_rs_codeword_ok` is a
+    syndrome test; Berlekamp-Massey, Chien and Forney are still
+    `docs/design/fec-receive.md` §7 step 2. So `rs_ok < rs_codewords` means the
+    returned frame is wrong in a way the function knows about, which is why it
+    is reported rather than folded into the return value.
+
+    **The inner decode is deliberately outside it.** A Viterbi is streaming and
+    emits decision `i` only after `depth` further bits, and the marker that
+    says where a CADU *starts* is only readable once the inner code is undone —
+    so a function taking channel symbols would have to own a decoder, a search
+    window and a buffer. That is a streaming receiver object; this is the pure
+    per-frame chain it will call. It matches the encoder, where `conv_enc_t`
+    belongs to the caller for the same reason: the inner code is continuous and
+    the frame is not.
+
+    `examples/c/ccsds_link_demo.c` runs the whole thing — R-S, randomiser, ASM,
+    K=7 rate-1/2, BPSK, AWGN, soft demap, Viterbi, sync, and back — and prints
+    an Es/N0 sweep plus the recovered text. It measures rather than asserts:
+    the channel's own symbol error rate comes out at **7.90 % at 0 dB against
+    Q(sqrt 2) = 7.86 %**, the inner code takes that to **zero bit errors in
+    40092 from 2 dB up**, and the outer code reports 7 of 10 codewords surviving
+    at 0 dB where the Viterbi did not clear the channel. The capture starts
+    1554 symbols late on purpose, so the sync has to find the frame rather than
+    be told: it reports the marker at bit 9455, which is exactly
+    `10232 - 777`.
+
+    Nine guards, each proven by sabotage. Two of them were GREEN on the first
+    attempt and the tests were what changed: a rotated de-interleave is
+    **invisible against a zeros payload**, because R-S of all-zeros has
+    all-zero parity and every interleaved column is then identical — the zeros
+    this file uses to keep a missing randomiser visible were hiding a different
+    defect, so that section now pays for it with structured data. And the ASM
+    search was never exercised at the last offset a marker can occupy, so a
+    loop bound of `<` instead of `<=` passed everything while losing exactly
+    the frame flush against the end of a capture.
+
+- **The frame assembler carries the inner encoder across frames, and takes a
+    capacity.** `ccsds_tm_frame_encode` now reads
+    `(cfg, conv, frame, frame_len, out, max_out)`. Both parameters close a hole
+    that a single-frame test cannot see, and the prototype's actual use case is
+    a *stream* of frames.
+
+    **`conv`** is the caller's `conv_enc_t`, carried from one frame to the
+    next. 3.3.2 fixes the inner code's output as one uninterrupted symbol
+    sequence with no per-frame flush, and `ccsds_tm.h` says so outright — the
+    state is a struct precisely so a chunked caller can carry it, "or introduce
+    a discontinuity every chunk boundary that no decoder expects." The
+    assembler was that caller, and it called `conv_enc_init` per frame.
+
+    Measured at depth 1, two frames: restarting differs from the continuous
+    encoding in **6 of 8288 symbols**, all within the first 7 symbols of frame
+    2 — the `K - 1 = 6` bits of register memory, landing on the ASM a receiver
+    correlates against. A matched Viterbi absorbs it, which is what makes this
+    the same class as the inversion on G2 and the dual basis: self-consistent,
+    decodes against a receiver of one's own construction, and not what the
+    standard says. `NULL` is still the single-frame form, and now means "this
+    frame stands alone" rather than "I forgot".
+
+    **`max_out`** is a capacity rather than a comment, because the CADU is
+    assembled in the TAIL of the output buffer: a short buffer was a write past
+    the end, not a truncated answer. Its sibling `wfm_frame_bits` already took one.
+
+    Both are proven by sabotage. Restoring the per-frame `conv_enc_init`
+    reddens *"a stream of frames must equal one continuous encode of the same
+    CADUs"* — asserted against the two CADUs run through one `conv_encode`,
+    which is external truth built from the uncoded assembler and the kernel,
+    neither of which knows what a frame is. Dropping the capacity check reddens
+    both the refusal and *"it must not have written anything"* — the guard is
+    preventing a real out-of-bounds write, not a theoretical one.
+
+    The constraint length is public, since `K - 1` is the quantity a caller
+    reasons with at both ends: how far a restarted register stays wrong, and
+    how much of a stream a decoder needs before its state is the data's rather
+    than its own. It reads `CCSDS_TM_CONV.k` now that the code is a
+    description rather than a constant.
+
+- **`docs/design/viterbi.md` and `docs/design/fec-receive.md` — the design
+    for the FEC receive half.** The decoder gets its own page; the chain page
+    owns the synchronization and the lock detector.
+    Planned, not built. `ccsds_tm/` encodes today and decodes nothing, so nothing
+    can measure a coded link and coding gain is unquotable.
+
+    The prototype decoded symbols dumped from the **shipped** `conv_encode`
+    rather than from a re-derivation of it, and **refuted two things a first
+    sketch had assumed**:
+
+    - **The code is transparent, so the decoder cannot resolve polarity.** Both
+        generators have odd weight (5), so inverting the input inverts both
+        outputs and an inverted stream is an exact codeword of the inverted
+        bits — measured: `decode(-llr)` returns exactly `~bits`. The sketch had
+        node sync searching phase × polarity and picking the best; measured,
+        the two polarities read 0.1193 and 0.1197, i.e. it would have been
+        choosing from noise. **Polarity belongs to the ASM search**, which must
+        correlate for the marker and its complement. Phase does separate, ~2–4×.
+    - **The node-sync statistic is the plain disagreement COUNT, settled by
+        measurement.** As a comparator over the two phase hypotheses it picks
+        correctly in 1000 of 1000 trials at the 500-symbol operating point from
+        2 dB up, and is already at 0.9 % single-shot over 64 decoded bits. A
+        soft-decision statistic is not needed at this window —
+        Mengali, Pellizzoni & Spalvieri (IEEE T-COMM 43(9), 1995) is the
+        Mengali, Pellizzoni & Spalvieri (IEEE T-COMM 43(9), 1995) matters
+        where a synchronizer must declare on far less data than this one has.
+        Three ad-hoc comparators measured **within noise of each other**, and
+        the count is the cheapest: no multiplies, and the same number already
+        serves as the lock statistic and the channel quality readout.
+
+    Also measured: **`5·K` traceback is 33 % above the BER floor** (0.04178 vs
+    0.03137 at 1 dB); depth 60 is within 3 %. And the detector is sized for
+    **both** error probabilities, including the one nobody sizes —
+    **P_false_unlock**, dropping lock on a working link. At a 0.30 threshold a
+    Gaussian puts it at 5.17e-5 where the measurement says 2.50e-3: **48×
+    optimistic**, in the direction that promises a link that does not drop.
+
+    **The lock operating point is recorded with what it buys**: window = 500
+    channel symbols, threshold = 100 (20 %). The in-sync statistic tracks the
+    theoretical channel symbol error rate to within a count (66.6 against 65.5
+    predicted at 1 dB; 18.8 against 18.8 at 5 dB), so "sync metric, lock
+    statistic and channel quality" really are one quantity. Against false
+    *unlock* the threshold is excellent — 1.5 % at 1 dB, below 1e-3 from 2 dB
+    up. Against false *lock* a single window is marginal at 12.7–18.8 %,
+    because the out-of-sync distribution is ~125 ± 25 and the threshold sits
+    about 1σ below its mean; that is the argument for `lockdet`'s hysteresis
+    rather than against the threshold.
+
+    The measurement home is settled too, and it is **not a new sweep**: the
+    receiver instrument built on `docs/design/rx-test.md` already owns the
+    stimulus, the statistics and the frame outcomes, so a coded link is an
+    adapter and an operating point — the way `ContinuousMpskReceiver` was.
+
+- **A validation report now files the TRAJECTORIES behind its numbers, not
+    just the numbers** ([#846](https://github.com/doppler-dsp/doppler/issues/846)).
+    `Report.capture()` attaches telemetry, captures the run, and writes the
+    capture and its self-describing sidecar into the object's own `data/`
+    folder beside the CSVs — committed like every other artifact there, so the
+    scene behind an EVM or a lock time is re-openable without re-running
+    anything.
+
+    **`Report` owns it because it already owns the folder.** It is the single
+    writer of `results.md`, the plots and `data/*.csv`; a per-validator
+    convention would let the layout drift between objects the way the report
+    format would without `_validation_common`. `write=False` still captures —
+    every measurement runs, as the limits gate expects — and files nothing,
+    because a test must never write into the repo.
+
+    What is encapsulated is the ORDER, for the same reason `dp_ber_measure()`
+    exists on the C side: probes must be registered BEFORE the capture opens,
+    because the ring is sized from the probe table. Attach, then `arm`, then
+    run — and getting it wrong raises rather than silently truncating.
+
+    `scripts/plot_capture.py` is the one utility that reads them, replacing
+    one script per subject: it takes a filed capture and an optional probe
+    selection, resolves names against the capture's own table, and computes
+    nothing. `--list` prints the probe table, because the capture describes
+    itself. `MpskReceiver` is the first object to file one — 14 probes, 1792
+    records, byte-stable across runs.
+
+- **The general assembler, and a CCSDS CADU built from a description.**
+    `wfm_frame_assemble()` materialises a `wfm_frame_desc_t`: it writes every
+    field in wire order, then runs each stage over the span the layout gave it
+    — over that span and no other, which is the whole content of the coverage
+    table a standard's framing turns out to be. `wfm_frame_bits()` is now that
+    function over the four-field configuration.
+
+    **The kernels arrive as a table, and that is a layering requirement rather
+    than a taste.** `ccsds_tm` depends on `wfm/wfm_frame.h` to describe a
+    CADU, so `wfm_frame.c` must not call `ccsds_tm`'s kernels — the two would
+    form a cycle. A `wfm_frame_ops_t` carries them instead, looked up by stage
+    kind and extending the built-in CRC-16 rather than replacing it. A stage
+    whose kind is in neither table is a **refusal**, never a silent skip: a
+    stage that quietly did not run produces a frame that still assembles,
+    still decodes against itself, and syncs to nothing.
+
+    `ccsds_tm_frame_describe()` expresses 131.0-B-3 section 9 as data — three
+    fields and three stages — and `ccsds_tm_frame_ops()` supplies the outer
+    code, the randomiser and the inner code. They are the *same functions*
+    `ccsds_tm_frame_encode()` calls, so the two paths cannot come to disagree
+    about what a stage does, only about which bits it is handed, and that is
+    what the description states.
+
+    **The falsification is complete.** Across five configurations, the
+    described CADU equals `ccsds_tm_frame_encode()`'s output **byte for
+    byte** — including a carried `conv_enc_t` across two frames, where 3.3.2's
+    continuous symbol sequence would expose an assembler that quietly owned
+    its own register. That check inherits everything the shipped encoder is
+    already falsified against: figure 9-1's marker, the randomiser's published
+    prefix, Annex G's generator, the inner code's impulse response. A
+    generalization that agreed only with itself would prove nothing.
+
+    One rule makes a single in-place kernel signature serve a CRC, an outer
+    code and a randomiser alike: **a derived field is the last field of its
+    stage's cover**, so the kernel reads information at the head of its span
+    and writes check symbols into the tail. Descriptions that break it are
+    refused. Tracking: gh-853.
+
+- **Scoring a coded frame, and why an outer code beats a CRC at it.**
+    `wfm_frame_check()` is the receive mirror of `wfm_frame_assemble()`: it
+    undoes each stage over the span the *same description* gives it, in the
+    opposite order to the one they were applied in, correcting in place and
+    reporting what it found. `Frame.check()` / `FrameDesc.check()` expose it,
+    returning a `FrameCheck` record.
+
+    It needs the description and the received bits and **no payload truth at
+    all**, so it works on a real capture — which is what makes a truth-free
+    frame error rate possible on a coded link.
+
+    **A CRC reports one bit; an outer code reports what it cost.** Both frames
+    below "pass", and only one of them is healthy:
+
+    ```text
+    clean          passed=1  units=6 ok=6  corrected=0  symbols=0
+    80-symbol burst passed=1  units=6 ok=6  corrected=5  symbols=80
+    E+1 in one cw   passed=0  units=6 ok=5  corrected=0  symbols=0
     ```
 
-    `conv` keeps the CODE — the description, the trellis arithmetic and the
-    kernel — and `conv_enc` is the stateful encoder over one, the same split
-    `viterbi` established. It is not a second implementation:
-    `conv_enc_encode` calls `conv_encode`, and the C benchmark measures the
-    wrapper at **1.001x** the raw kernel.
+    A margin being spent is visible long before it is lost, and a failure
+    names how much of the frame went with it rather than condemning the whole
+    thing.
 
-    Two measurements worth recording. Encoding is **flat in `k`** — 2.92 ns
-    per information bit at every `k` from 3 to 9, because the encoder
-    computes `n` parities per input bit and never walks a trellis — against
-    the decoder's 331 to 1699 µs over the same range, where `2**(k-1)` states
-    set the price. And the register carrying between calls is the whole
-    reason the encoder is an object: a chunked encode is bit-identical to one
-    call, while an encoder restarted per block emits `k - 1` wrong symbols at
-    every boundary.
+    **A stage the receiver does not reverse is reported as NOT CHECKED, never
+    as passed** — `checked < stages` says so. The inner code is the case: a
+    Viterbi is streaming and emits its decisions `depth` bits late, so frame
+    checking begins after the inner decode and after frame synchronisation,
+    and a frame checker never sees channel symbols. Likewise a description
+    with no reversible stage at all returns "not checked" rather than "passed"
+    — an FER conflating the two would score every unprotected frame as
+    perfect.
 
-- **`doppler.viterbi` is now `doppler.coding`** — **BREAKING**, though it
-    breaks nothing released: `Viterbi` shipped in no tag, and is
-    `[Unreleased]` above. A module named after the DECODING algorithm cannot
-    hold the encoder without reading wrong, and jm's `reexports` names
-    submodules of the same package rather than a sibling, so a re-export
-    could not bridge them. `doppler.coding` is the home for the general code
-    families a standard configures; `rs` follows.
+- **Gallery page and worked example for the whole slice.**
+    [A CCSDS CADU](docs/gallery/ccsds-link.md) walks the description end to
+    end: the three fields, the three covers, why a pipeline cannot express the
+    asymmetry between them, the `wfmgen` flags that reach the same thing, and
+    what the receive side reports. Its numbers are executed rather than
+    transcribed — the `pycon` fences run under the docs gate and the plot
+    comes from `src/doppler/examples/ccsds_link_demo.py`, which self-validates
+    with physical asserts (the interleaver must carry exactly a `depth * E`
+    symbol burst and refuse one symbol more).
 
-- **`ccsds_tm` certified — the 14th object, and the last of the three with
-    no Python face** ([#894](https://github.com/doppler-dsp/doppler/issues/894)
-    context;
-    `src/doppler/tests/validation/ccsds_tm/results.md`). 12 limits, 5
-    findings, 1 open.
+- **A frame can be described from Python, CCSDS included.**
+    `doppler.wfm.FrameDesc` is `Frame`'s deferred flavor: the same
+    constructor arguments, but it stops before materialising, so the four
+    fields `wfm_frame_t` names are a starting point a caller extends with
+    `add_field` / `add_stage` before `build()`. Empty arrays for all three
+    begin from nothing.
 
-    Its claim inventory came out better than any before it — **every public
-    entry point was already pinned against a published value**, because the
-    component was built that way. So the certification measured the three
-    things it adds *on top of* the codes it configures, none of which a
-    single codeword can show:
+    That is what makes the CCSDS coding reachable from Python at all.
+    `ccsds_tm` has no binding and is not getting one, so a caller meets the
+    outer code, the randomiser and the inner code by **describing** a CADU —
+    three fields and three covers — rather than through a CCSDS entry point
+    bolted onto this object. The covers are 131.0-B-3's coverage table: the
+    inner code reaches over the marker and neither of the other two does.
 
-    - **The interleaver's guarantee is exact and has no tail.** A contiguous
-        burst of `depth * 16` symbols is corrected and `depth * 16 + 1` is
-        not — 200 blocks of 200 either way, at every allowed depth. It is a
-        cliff rather than a curve, because the pigeonhole argument is exact;
-        size the depth from the longest burst the channel produces, not from
-        a probability.
-    - **B-6's reason for demoting the 255-bit randomiser is measurable, and
-        it is 91 dB.** On constant data `CCSDS_TM_RAND_LEGACY` puts a line
-        that far above its own noise floor, at 1/255 of the symbol rate
-        exactly as 10.4.2 warns, where the default 131071-bit sequence puts
-        nothing (1.9 dB, the ordinary fluctuation of an averaged
-        periodogram). Measured through `psd_core`, the shipped meter.
-    - **A looser ASM threshold is a worse detector, not a more sensitive
-        one.** At `max_errors = 8` the marker is found at its right offset
-        only 58 % of the time **with no channel errors at all**, because
-        `asm_find` reports the FIRST match and each of the 96 preceding bits
-        is another chance to beat it. `t = 4` survives both tails. The
-        false-alarm rate itself tracks the binomial closed form to within
-        20 % across five decades.
+    `Frame` is unchanged and is now visibly one configuration of the general
+    description: `n_fields()`, `n_stages()`, `field_off()`, `field_bits()`,
+    `stage_first()` and `stage_bits()` read it too, and agree with the named
+    `layout()` field for field.
 
-    Two things the inventory turned up that no gate could:
-    **`ccsds_tm_randomise`'s docblock described the LEGACY generator** — 8
-    stages, all-ones preset, 255-bit period, three facts each belonging to
-    the other randomiser, which the same header states correctly two
-    declarations above. Fixed here. And **`max_errors` has to be chosen
-    against the search window rather than the marker length**, which no
-    interface says
-    ([#897](https://github.com/doppler-dsp/doppler/issues/897)).
+    A view rather than a second type, by the rule the `ddc` module already
+    follows — a difference in CONSTRUCTOR is a flavor; a difference in METHOD
+    SIGNATURE is a separate type. Every method is shared verbatim.
 
-- **`doppler.viterbi.Viterbi` — the soft-decision convolutional decoder now
-    has a Python face**
-    ([#893](https://github.com/doppler-dsp/doppler/issues/893)). It lived
-    inside the `conv` `c_deps` directory, one level below anything jm
-    modelled, so it had no binding, no generated CMake target for its test or
-    its benchmark, and a component string typed by hand. Declaring it as an
-    object in a collocated `viterbi` module produced all four, plus the
-    `.pyi`, for one `objects/viterbi.toml` and one `[module.viterbi]` block:
+    Two carve-outs, both filed. `add_field`/`add_stage` take `kind` as an int
+    rather than one of the enum's names, because a method parameter cannot yet
+    be a string enum
+    ([just-makeit#1021](https://github.com/just-buildit/just-makeit/issues/1021)
+    — the `enum` key is accepted on a method parameter and silently ignored,
+    which is the half worth fixing). And `layout()`'s named view reports
+    nothing for a description, on purpose: it would go stale the moment a
+    fifth field is appended, and a stale offset is worse than an absent one.
 
-    ```python
-    v = Viterbi([0o171, 0o133], k=7, depth=35)   # CCSDS 131.0-B-3 §3
-    bits = v.decode(llr)                          # soft in, hard out
-    ```
+- **A frame is a field list and a stage list, not a pipeline.**
+    `wfm_frame_desc_t` describes a frame as an ordered list of **fields** —
+    what appears on the wire, in order — and an ordered list of **stages**,
+    each carrying the **span it covers**. `wfm_frame_desc_layout()` derives
+    every field offset, every stage span and both lengths from the two.
 
-    The manifest cannot express `viterbi_create(const conv_code_t *, size_t)`,
-    so the declared constructor takes the generator polynomials directly — the
-    array *is* the code, and its length gives `n`, following `fir`'s `taps`.
-    The struct form survives as `viterbi_create_code` for callers that already
-    hold one, and a test asserts the two agree. State carries across calls and
-    serializes, so `Viterbi` joins the shared round-trip matrix; a code the
-    decoder refuses now raises `ValueError` with what it wanted rather than a
-    blanket `MemoryError`. `conv` keeps the code description and the encoder,
-    the same split `rs` and `ccsds_tm` already have.
+    `wfm_frame_t` is now a *configuration* of it rather than a rival:
+    `wfm_frame_layout()` builds the description through
+    `wfm_frame_describe()` and reads the general layout back, so there is one
+    implementation of the arithmetic and the two cannot drift.
 
-    The C benchmark moved with it, and now **interleaves** its two traceback
-    depths instead of measuring them one after the other. It had to: the
-    first configuration in a process pays the clock ramp that the 0.25 s
-    settle does not finish absorbing, and back-to-back runs of the same
-    binary reported depth=35 at 229 ns/bit once and 162 ns/bit twice —
-    turning a real **1.42x** cost for depth 96 into 1.03x, and once into
-    0.99x, which reads as a 95-step traceback being cheaper than a 34-step
-    one. Interleaved, three consecutive runs agree to 1.42x, and the Python
-    face measures 1.38x independently.
+    **`cover` is the load-bearing part.** `ccsds_tm_frame.h` already predicts
+    the failure of leaving it out — *"any chain of optional transforms applied
+    to 'the frame' is right at three stage boundaries and wrong at the fourth,
+    and wrong in the direction that still encodes, still decodes against
+    itself, and syncs to nothing."* A stage that inherited "whatever ran
+    before me" would be that chain. CCSDS is the case that proves it: the
+    marker is covered by the inner code and by neither the outer code nor the
+    randomiser.
 
-- **Eight C benchmarks, and a gate that keeps them honest.** An audit of what
-    landed since v0.42.0 found five new components with C tests and no
-    benchmark at all — `conv` (convolutional encode/Viterbi decode), `rs`
-    (Reed-Solomon), `ccsds_tm`, `mpsk` (the per-symbol map/demap/soft-demap
-    kernels) and `ber` — plus `snr`. All six now have one, and the two
-    benchmarks that shipped with `frame` and `frame_meter` as unfilled jm
-    scaffolds are filled in.
+    Two rules fell out of prototyping and both simplify the model. A derived
+    field **is** a field, which removes any need for a stage to expand what it
+    covers and makes R-S check symbols and a CRC trailer one concept rather
+    than two. And "emits a new unit" is a distinct property — the inner code
+    consumes the assembled CADU and emits channel symbols — which is exactly
+    why `ccsds_tm_frame_layout_t` reports `cadu_bits` and `out_bits` as two
+    numbers.
 
-    Three things the new measurements say, none of which the tree had
-    recorded: at the CCSDS k=7 rate-1/2 code, Viterbi decode runs at
-    **6.2 Mbit/s against the encoder's 342**, so decoding is the expensive
-    direction by more than fifty times; RS(255,223) costs
-    **1.33x** from a clean
-    codeword to a fully-loaded one, because the 32 syndromes dominate the
-    correction they gate; and in the CCSDS chain the inner code is **40%** of
-    a full `frame_encode` while `asm_find` — the only stage that scales with
-    the sample rate rather than the frame rate — scans at **1.0 ns/bit**.
+    Checked against both shipped framers: the existing frame's layout is
+    unchanged, and a description configured as CCSDS reproduces
+    `ccsds_tm_frame_layout()`'s four spans and both lengths exactly, across
+    three configurations. That is the layout half of the falsification;
+    byte-for-byte output needs a general assembler and is not claimed yet.
+    Design: `docs/design/frame-description.md`. Tracking: gh-853.
 
-- **`scripts/check_bench_coverage.py`, on `make lint`.** Four rules, all
-    derived from the tree rather than from a list: a component with C tests
-    has a benchmark; a non-component benchmark has a CMake target; a
-    benchmark records a measurement; and it writes its JSON under the name a
-    collector opens. Both allowlists are ratchets that may only shrink, and
-    the gate fails if an entry is left behind after its benchmark starts
-    measuring.
+- **The generated tree is checked at the commit that changes it, not in CI.**
+    Two pre-commit hooks close the gap `make lint` structurally cannot see —
+    lint checks *sources*, while `docs/c-api` is mkdoxy output and the docstring
+    ratchet reads generated stubs.
 
-- **`native/benchmarks/` is now honest about what runs.** `jm bench` walks
-    jm's *component* list, so a `c_deps` entry or a function-only module is
-    invisible to it — `util`, `timing`, `hbdecim` and `resamp` had been
-    compiled by every build and run by nothing for months, appearing in no
-    published snapshot (`just-makeit bench util` answers
-    `unknown component(s): util`). Ten benchmarks are in that state, including the six
-    added here; they are run by hand until
-    [just-makeit#1023](https://github.com/just-buildit/just-makeit/issues/1023)
-    ships, rather than papered over with a local runner the fix would retire.
-    The gate holds everything checkable without running them.
+    `gen-c-api-drift` runs `make gen-c-api-check` when a staged file matches the
+    Doxyfile's own `INPUT` and `FILE_PATTERNS`, so editing a header and
+    forgetting the regenerated tree fails the commit that caused it. It is
+    narrowed rather than unconditional because it costs 19 s and shells out to
+    a pinned doxygen container on any box whose doxygen is not 1.9.8.
 
-### Fixed
+    `docs-invariants` runs the thirteen fast checks `docs-check` runs before its
+    site build — API-doc coverage, the docstring-coverage ratchet, nav index,
+    doc/face parity, version strings, generator drift — in **1.6 s**, on every
+    commit. It replaces the narrower `docs-drift` hook, whose four checks it
+    contains, and iterates `DOCS_CHECK_PRE_CMDS` directly so the hook and the
+    gate cannot disagree about what an invariant is.
 
-- **`ciccompmf`'s header described a contract it does not have.** It said
-    "M outside the Bernoulli table range leaves out unmodified"; it writes
-    M **zeros**. A caller who pre-filled a fallback design and trusted that
-    sentence got it silently replaced with the all-zero filter — a muted
-    signal path rather than a degraded one. The range is also per-parity —
-    odd M up to 19, even M only up to 18, since the Bernoulli table is nine
-    entries — which the flat `[1, 19]` did not say. The doc now states both,
-    and `test_resample_core.c` pins them.
+    Both run the same commands CI runs, so a local pass means a CI pass.
 
-- **`kaiser_num_taps(0, …)` crashed the process, and a Python shadow hid
-    it.** Two defects, both found on the first run of the C test jm's
-    gh-1034 now generates for a function-only module.
+- **`docs/dev/issues.md` — the whole backlog, tiered by the kind of harm each
+    issue does.** Six tiers, from *breaks for a user* down to *convergence and
+    hygiene*, with a summary and status per issue. Most open issues carry no
+    label at all, so this ordering **is** the triage rather than a view onto
+    one that already existed.
 
-    The function ends in `htaps / (size_t)num_phases`, an INTEGER divide, so
-    `num_phases == 0` was not a wrong answer but a **SIGFPE** — and this is a
-    public module function, so a Python caller passing 0 took the
-    interpreter down rather than getting an exception. A value below 1 is
-    not a bank; it now returns 0, and the header says so.
+    Generated, because a hand-maintained list of eighty-odd issues is the
+    shape this repo has had to delete before: it rots in both directions at
+    once, missing what was filed and still naming what was closed.
+    `make issues` reconciles the committed tier map against the live issue
+    list and **fails** on either — an open issue with no tier is untriaged and
+    says so; a tier entry whose issue is closed is a stale row and says so.
 
-    Nobody had seen it because `src/doppler/resample/__init__.py` **imported
-    `kaiser_beta` and `kaiser_num_taps` from the extension on line 20 and
-    then redefined both in pure Python below it.** Every Python caller got
-    the shadow; the C implementations were bound, exported, and unreachable.
-    The two had already drifted in exactly the way duplicated logic does —
-    the C one crashed where the Python one raised `ZeroDivisionError` —
-    while agreeing on every value either was ever asked for, which was
-    verified across a sweep of both before the copies were deleted. The
-    imports now stand alone. A module `__init__.py` is a re-export and
-    nothing else.
+    The judgement half lives in `docs/dev/issue-tiers.toml`, committed so a
+    tier assignment is reviewed like code rather than living in someone's
+    head. The rendering half is gated offline: `gen_issue_tracker.py --check`
+    re-renders from that map and diffs the page, so a hand-edit is caught by
+    `docs-drift-check` like every other generated region.
 
-- **Four benchmarks wrote their results under a name nothing reads.**
-    `jm_bench_write_json(&b, "X")` writes `bench_X_core.json`, and both
-    collectors open `bench_<component>_core.json`. `bench_hbdecim_core.c`
-    passed `"hbdecim_core"`, `bench_resamp_core.c` passed `"resamp_core"`,
-    `bench_awgn_core.c` passed `"bench_awgn_core"` and
-    `bench_wfm_synth_core.c` passed `"synth"` — so each ran, printed its
-    table, and had its JSON silently not found. **`awgn` and `wfm_synth` are
-    real, measuring benchmarks that jm runs on every `make bench`, and
-    neither has ever reached a C snapshot** — verified against
-    `benchmarks/history/20260724T231732Z-c.json` and
-    `benchmarks/published/v0.37.3/*-c.json`. Both components do appear in the
-    published *Python* snapshots, so what was lost is the C-level row, not
-    the component. Rule 4 of the new gate is what found them.
+    `make issues` is deliberately **not** in CI and not in `docs-relink`. It
+    is the only generator whose input is off the machine — it reads GitHub
+    through `gh` — so a CI job built on it would fail on a rate limit rather
+    than on the tree. Freshness cannot be checked offline, so the page states
+    the date it was derived and the command that derives it, which is the
+    date-plus-derivation this repo requires of any recorded live value.
 
-- **`snr_data_aided_db_series` and `snr_m2m4_db_series` are O(n · window)**
-    ([#890](https://github.com/doppler-dsp/doppler/issues/890), filed not
-    fixed). Both re-scan the whole window at every output sample: measured at
-    277x / 898x / 2760x the whole-block estimate for windows of 256 / 1024 /
-    4096, a ratio linear in the window, as an O(n · window) loop must be. Both
-    estimators are sums and slide in O(n). Found by the new `snr` benchmark on
-    its first run, which is what the two rows were written to ask.
+- **The lock thresholds a decision actually used are readable.**
+    `MpskReceiver` and its views gain `lock_drop_thresh`, `sync_lock_thresh`
+    and `sync_lock_drop_thresh`, joining the `lock_thresh` that was already
+    there. Anything reading a lock statistic against its decision needs both
+    edges of the pair, and the carrier drop level (`0.8 ×` declare) and the
+    timing loop's levels were previously reachable only by retyping them —
+    a second copy of a rule the object owns, free to drift from the decision
+    it claims to describe.
 
-### Changed
+    The timing pair reading `0.311 / 0.311` is information rather than a
+    defect: the timing loop carries no *level* hysteresis, its hysteresis
+    living in the verify counts instead. Its threshold is also not the
+    carrier's number and is not derived the same way — symsync sizes block
+    length and threshold together from (rolloff, esno_min, pfa, pd).
 
-- **just-makeit pin 0.61.0 → 0.62.0.** Adopts the two doppler-filed fixes that
-    the `MpskReceiver`/`MpskReceiverR` collapse
-    (`docs/design/mpsk-refactor.md` §6) was blocked on, skipping 0.61.1 (a
-    release-notes repair with no template change).
+- **`loop_filter_wn(bn, zeta)` is public** — the natural frequency
+    `8*zeta*bn / (4*zeta^2 + 1)`, which at `zeta = 0.707` is `1.8857*bn`.
+    Every closed form about a second-order loop is written in `wn`, and the
+    one that matters for measurement is the steady-state phase lag under a
+    frequency **ramp**, `2*pi*r / wn^2` — the disturbance a type-2 loop does
+    *not* null, and therefore the only one against which a gain can be
+    checked. A frequency step is nulled regardless of gain and cannot.
 
-    **jm gh-1012** lets a `[[<obj>.views.methods]]` entry restating a parent's
-    name declare its own `arg_type`/`return_type`, bound to its own C symbol
-    via `fn` — so two objects differing in one method's dtype and nothing else
-    can become one object and one view, under the *same* Python name.
-    Previously the only way to express it was a differently-named method
-    (`steps_r`), which gives the two faces an asymmetric public surface —
-    most of the way back to being a second type. **jm gh-1011** is the fix for
-    what made that silent: such a declaration was accepted, written to the
-    manifest, then discarded, because the replay copied the parent's entry
-    wholesale and kept only `doc`. It is now honoured (with `fn`) or refused
-    by name. A doc-only override — same name, same signature — is unchanged.
+    Extracted from `loop_filter_init()` and **deliberately unguarded**, so the
+    behaviour of that function changes by exactly nothing — including the
+    non-finite case its own docstring documents. `loop_filter_create()` is the
+    boundary that rejects the domain, and the test pins it doing so.
 
-### Removed
+    `native/validation/rx_nda_tap.c`'s private `rx_nda_wn` is gone.
 
-- **Two installed public headers that declared an API the library does not
-    define** (#801). Both were installed by the `native/inc/**` rule and
-    published to `docs/c-api/`, so a downstream C user could read them,
-    include them, and fail at link time.
+    **Three of the five "copies" turned out not to be copies**, which is worth
+    recording because the grep that found them looked convincing.
+    `loop_filter_bandwidth_demo.py` and `validate.py` share only the
+    `(4*zeta^2 + 1)` denominator — their `excess_law` is
+    `16*zeta^2 / (4*zeta^2 + 1)^2`, a different closed form. And
+    `test_loop_filter_core.c`'s `theta = 4*zeta*bn*t / (4*zeta^2 + 1)` is
+    `wn*t/2` written out **independently on purpose**: its own comment says
+    re-typing the implementation's formula beside it "would prove only that
+    the file had been copied correctly". Repointing either would have deleted
+    the independence that makes them evidence.
 
-    **`native/inc/telemetry/tlm_recorder.h`** declared seven
-    `dp_tlm_recorder_*` functions with full Doxygen; all seven were absent
-    from every first-party artifact (`libdoppler.a`, `libdoppler.so`,
-    `libdoppler_stream.a`, `libdoppler_stream.so`) and no implementation
-    existed anywhere.
+    The new test exploits that instead: it ties `loop_filter_wn()` to the
+    test's existing independent derivation (`wn*t/2 == theta`) rather than to
+    a copy of its own expression, and pins the quoted `1.8857*bn`, linearity
+    in `bn`, and that the gains `loop_filter_init()` produces still match.
+    Sabotage: `8.0 -> 8.1` takes six assertions red.
 
-    It was **superseded, not unbuilt** — the capability ships as
-    `dp_tlm_capture_*` (`open`/`open_memory`, `close`, `count`, `dropped`,
-    `records`, `destroy`, plus `read`/`read_max_out`) with a Python face
-    (`Telemetry`, `MemoryCapture`, `Capture`) and a worked example in
-    `src/doppler/examples/mpsk_telemetry_capture_demo.py`, which answers the
-    header's own rationale directly: the capture sizes its own ring and drains
-    at every block boundary, so a drop is impossible rather than unlikely.
+- **`MpskReceiver.locked` — the binary carrier-lock indicator reaches Python.**
+    `mpsk_receiver_get_locked()` has always existed in C, and `lock_time`'s own
+    docstring referred to "polling `locked` in a loop", but the property was
+    never declared, so the Python face had only the raw `lock` metric. Adding
+    it also gives the Python tests the observable that replaces `tracking`.
 
-    The shapes differ because **telemetry is attach-on-demand**. Probes attach
-    at runtime and one attach forwards to an object's children — a single
-    `MpskReceiver` attach registers 13 — so the ring can only be sized once
-    the probe table exists. That is why the shipped API opens a capture
-    *after* the attach; `dp_tlm_recorder_create(t, path, block)` sizes at
-    construction and structurally cannot express it. Keeping it would have
-    pointed readers away from a working API toward a shape the model rules
-    out.
+    Its docstring states what the C header states and the API reference now
+    repeats: it is an **indicator and nothing else**. It steers no loop and
+    gates no output, so a wrong reading costs a caller their measurement window
+    and costs the demodulator nothing. Its statistic's H1 mean is a function of
+    Es/N0 alone, so the instant it declares carries no information about how
+    converged the carrier estimate is — `lock_time` plus a settling budget is
+    the question that asks about convergence.
 
-    **`native/inc/stream/stream_core.h`** was a 21-line jm scaffold whose only
-    content was `/* Declare module-level functions here. */`. The `stream`
-    module is real (`stream_core.c`, `stream_nats.c`, `tlm_sink.c`); this was
-    the per-module public header nobody filled in, and `[module.stream]` is
-    `no_generate`, so jm does not put it back.
+- **Two more `mpsk_receiver_core.h` claims get C tests, both sabotage-proven**
+    ([#814](https://github.com/doppler-dsp/doppler/issues/814)).
 
-    Their four generated `docs/c-api/` pages go with them, via
-    `make gen-c-api`. Nothing in the tree included either header.
+    **§14 — `bn_carrier` is normalised to the SYMBOL rate.** The `@warning`'s own
+    headline: *"at the old default `sps = 8` the same number is now an 8x wider
+    loop"*. Nothing measured it, so a regression to input-rate normalisation
+    would have read correct at `sps = 8` — the rate every other test in the file
+    uses — and been wrong everywhere else. Measured as settling time **in
+    symbols** at one `bn` across a 4x span of `sps`, with the offset held
+    constant in symbol-rate units: 320 symbols at `sps` 8, 16 and 32. An
+    input-rate `bn` would scale that by 4, which is what makes the invariance the
+    discriminator. Read off `get_norm_freq` rather than the lock detector, whose
+    own EMA and verify counts made an earlier attempt useless (955 symbols at
+    `sps = 4` against 51 at 16). Sabotage: scaling `bn_carrier` by `lo_sps` takes
+    it red.
 
-### Added
+    **§15 — never pair `m_out = 2` with `MPSK_RX_PULSE_IANDD`.** The header says
+    *never* and construction permits it anyway. Pinned as the **degeneracy**
+    rather than the failure rate — *"fails about half the time"* is a
+    distribution over seeds, not an assertion — and the mechanism is
+    deterministic: **+11 dB** of EVM excess against `m_out = 8`'s +0.5. The test
+    also asserts that `lock` stays above the declare threshold at both
+    geometries, because it does: a caller who pairs 2 with I&D and watches
+    `lock` sees nothing wrong, which is why the header's "never" could not be
+    left to runtime.
+
+- **Two `mpsk_receiver_core.h` claims that nothing tested now have C tests**,
+    both proven by sabotage ([#814](https://github.com/doppler-dsp/doppler/issues/814)).
+
+    **§4b — the handover carries the frequency estimate across, both ways.** The
+    header's claim is not that the flip happens (§4 pins that, along with the
+    drop-back and the re-declare) but that *"the shared loop filter carries the
+    frequency estimate across it in both directions, so a drop-back is a
+    discriminator swap rather than a cold re-acquisition"*. §4 cannot test it, and
+    not merely by omission — it calls `mpsk_receiver_set_norm_freq()` right after
+    the drop-back, **overwriting the very quantity the claim is about**, so a
+    receiver that cleared its filter on every mode change would pass §4 unchanged.
+
+    §4b steps in one-symbol chunks so the measurement straddles each transition
+    rather than bracketing it at block boundaries, and checks both: forward, the
+    estimate is already the offset before the flip *and* undisturbed by it;
+    reverse, the drop-back preserves it too, deliberately without §4's re-seed.
+    The failure it guards is silent and expensive — a cold re-acquisition still
+    reaches lock, so SER recovers and `tracking` returns to 1; it just pays the
+    pull-in again, and at a marginal `bn` it slips instead.
+
+    **§12 — the verify counts are time hysteresis.** *"Both directions are
+    verify-counted (8 symbols up / 32 down)"* was documented and tested nowhere,
+    and `carrier_nda`'s certification found the analogous count mattered a great
+    deal — its `n_up = 8` false-declared 18/60 at one geometry. Measured as
+    behaviour rather than by reading the count back: on one record, `n_up = 2`
+    must declare strictly earlier than `n_up = 64`, and by at least the extra
+    symbols asked for. Sabotage: making `configure_lock` ignore `n_up` takes both
+    assertions red, where a count wired to nothing would give the same instant
+    twice.
+
+- **`docs/design/mpsk-refactor.md` — the design for collapsing `MpskReceiver`
+    and `MpskReceiverR` into one object with three faces.** Planned, not built.
+    The argument is a measurement: the two differ only in a front-end pointer
+    and one rate convention, and `mpsk_receiver_r_core.c` is 372 lines of which
+    16 functions are pure delegations — but the cost of the split is not the
+    duplication, it is that their shared 784-line `mpsk_rx_loops.h` **has no
+    test home**, so its claims are pinned only where one twin's tests happen to
+    reach them. "The LO runs at half the input rate" is pinned by neither, and
+    that is where the gh-765 `freq_scale` bug lived.
+
+- **`mpsk.mpsk_soft_demap` — per-bit log-likelihood ratios from the M-PSK
+    constellation.** The module docstring has promised *"hard and **soft**"*
+    since the module shipped, and there was no soft anything in it. There is
+    now, and the caller it was built for is the CCSDS inner decoder: a
+    rate-1/2 K=7 Viterbi fed hard bits gives up roughly 2 dB of the coding
+    gain it exists to deliver.
+
+    The convention, because every consumer has to agree with it:
+    `L_i = log( P(bit i = 0) / P(bit i = 1) )`, so **positive means bit 0**
+    and the hard decision is `L < 0`. That is not a second decision rule — it
+    is the same one seen differently, and *"the LLR's sign reproduces
+    `mpsk_demap`'s label"* is asserted at every M across Es/N0 from −3 dB
+    (where the decision is nearly a coin toss) to +20 dB. Sabotage: flipping
+    the sign reddens it at every point.
+
+    **One general path, no per-M fast paths.** BPSK and QPSK have exact
+    closed forms — `4·Re{y}/N0`, and `4·(1/√2)·{Re,Im}{y}/N0` for QPSK, whose
+    `phi0 = pi/4` grid is axis-separable — but shipping them beside the
+    general path would be two implementations of one primitive, which is the
+    thing that drifts. They are worth more as **test assertions**: they prove
+    the general path right, to 2e-4, and pin the grid that makes the
+    separability true rather than coincidental.
+
+    Also pinned, each sabotage-proven: exact linearity in `1/N0` (so a caller
+    without an SNR estimate may pass 1.0 and rescale, and a Viterbi may ignore
+    it entirely); that the origin — equidistant from every point — reads
+    exactly zero on every bit, and that confidence grows strictly along the
+    ray to a constellation point, which is what a demapper returning the hard
+    decision as ±1 would fail; and four refusals (short buffer, unsupported M,
+    zero and negative `N0`) verified against a poisoned buffer, since silence
+    is this function's whole contract.
+
+    `llr` is a caller-provided out-param rather than a returned array because
+    the output expands by `log2(M)` and jm sizes a function's output array 1:1
+    with its input — `kaiser_window` is the existing precedent for that shape.
+    What max-log costs at 8PSK **in dB** is deliberately not claimed: it is an
+    Eb/N0 offset on a decoded BER curve and cannot be measured until the
+    decoder exists (`docs/design/mpsk-soft.md` §5).
+
+- **`docs/design/mpsk-soft.md` — the design for LLR output from the M-PSK
+    constellation.** Planned, not built. `doppler.mpsk`'s module docstring has
+    said *"M-ary PSK mapping: hard and **soft**"* since the module shipped, and
+    there is no soft anything in it — five functions, all hard-decision. The
+    caller that makes this urgent is the CCSDS inner decoder: a rate-1/2 K=7
+    Viterbi fed hard bits gives up roughly **2 dB** of the coding gain it
+    exists to deliver, which is more than the difference between having the
+    convolutional code and not having it.
+
+    Three things the throwaway prototype settled before any C was written, all
+    measured against the shipped `mpsk_map`/`mpsk_demap` rather than a numpy
+    re-derivation:
+
+    - **The sign convention reproduces `mpsk_demap` exactly** — zero
+        mismatches over 20 000 symbols at each of M ∈ {2, 4, 8} × Es/N0 ∈
+        {−3, 0, +6, +20} dB, including where the decision is nearly a coin
+        toss. That matters because the repository has exactly one decision
+        rule and a soft demapper that disagreed anywhere would be a second.
+    - **BPSK and QPSK have exact closed forms and need no search.** With
+        `phi0 = pi/4` the QPSK grid is axis-separable, so its two bits are
+        independent BPSK decisions: `4·Re{y}/N0` and `4·(1/√2)·{Re,Im}{y}/N0`,
+        agreeing with the general path to 1e-14. Two of the three
+        constellations are one multiply per bit.
+    - **max-log is free at M = 2 and M = 4 and costs something at M = 8** —
+        identical for the first two (with one point per bit subset per axis,
+        the maximum *is* the sum), and 3–14 % median LLR error at 8PSK.
+
+    What that costs **in dB** is named as an unknown rather than quoted from
+    literature: it is an Eb/N0 offset on a decoded BER curve and cannot be
+    measured until the decoder exists, so the header will not claim a figure
+    until phase 7 does.
+
+- **Node synchronization is the library's job now, in `conv`.**
+    `node_sync_score` decodes a window, **re-encodes the decisions**, and
+    counts where the result disagrees with the received hard decisions;
+    `node_sync_scan` runs that over all `n` alignments of a rate-1/n code and
+    reports the winner with its margin. It references no truth, no marker and
+    no training sequence — only the decoder's own input and output — so it
+    works on a live capture, which is what makes it a receiver's statistic
+    rather than a simulation's. Closes
+    [#834](https://github.com/doppler-dsp/doppler/issues/834).
+
+    In sync the count **is** the channel symbol error rate. Out of sync it is
+    not a half, and the difference is worth stating because a half is what a
+    coin-flip argument predicts: the decoder is a maximum-LIKELIHOOD search,
+    so it finds whatever codeword agrees best with the misaligned stream.
+    Measured on clean streams: **24 %** of symbols for CCSDS K=7 r=1/2, 23 %
+    uninverted, 18 % for a K=5 r=1/3 — against 0 % for the right alignment.
+
+    Two things the tests found rather than confirmed. The head of a window
+    must be discarded by the DECODER's traceback depth, not the encoder's
+    `k-1`: two cold starts overlap there and the decoder's all-zero prior is
+    the larger, so skipping only `k-1` left three disagreements in 1598
+    symbols on a clean stream and broke the polarity equality. And the scan
+    must be scored over the window it is about to decode — at Es/N0 = +1 dB a
+    slip early in a record made a whole-record scan prefer the phase that was
+    right for the tail, and frame sync then found no marker at the head.
+
+    `native/validation/rx_coding_gain.c` was picking the phase by which parity
+    put an ASM where an ASM could be — the harness doing the library's job
+    with a statistic that exists only because CCSDS supplies a marker.
+    Swapping it onto the re-encoding metric changed **no measured number**:
+    same frames, same bits, same bound. That is the evidence the
+    general statistic is at least as good as the special one.
+
+- **The standard test harness gained the two helpers this needed**, rather
+    than a private copy in one file: `dp_bit_distance` (bits differing between
+    two packed-octet buffers — what `ber_meter` answers for a symbol stream
+    and cannot be pointed at two byte arrays) and `dp_rx_duty` (the share of a
+    window where a per-symbol flag is set). The standard record
+    (`dp_rx_result_t`) now carries `lock_duty` and `lock_stat_duty`, printed
+    with every battery row.
+
+- **`doppler.coding.ReedSolomon` — a caller can name their own block code, in
+    both directions.** `rs_encode`, `rs_syndromes` and `rs_codeword_ok` were
+    reachable from Python only through `FrameDesc`'s Reed-Solomon stage, which
+    binds to `ccsds_tm_frame_ops` and carries an interleaving depth rather than
+    a code — so Python could run exactly **one** Reed-Solomon code, CCSDS's,
+    and only inside a frame. This is the third and last of the family slices
+    [gh-900](https://github.com/doppler-dsp/doppler/issues/900) named, after
+    `ConvEncoder` and `SyncFinder`, and it takes the same shape: `rs` owns the
+    code, the object owns the binding of a code to its tables, and every method
+    calls the matching kernel rather than reimplementing it.
+
+    `encode` answers in whole systematic codewords because that is the unit
+    every other method takes, and it may encode **in place** — the call a frame
+    assembler makes, and the reason `rs_encode` stays exposed as the
+    parity-only primitive. `decode` corrects the caller's own array and returns
+    the count, with **-1** for "too far from every codeword to name one" and
+    **-2** for a word that was not `n` symbols long, because those are
+    different kinds of fact: one is the channel's answer and one is the
+    caller's mistake.
+
+    **Two of the five constructor arguments are validated rather than
+    trusted**, and it has to be there or nowhere: a non-primitive `field_poly`
+    and a `root_stride` sharing a factor with `n` each produce arithmetic that
+    encodes and decodes against itself perfectly, so no round trip can ever
+    catch them. `generator()` is exposed for the matching reason — standards
+    publish those coefficients, so it is how a caller checks that they read the
+    five numbers correctly against the *document* rather than against this
+    implementation.
+
+    Sixteen mutations of the object were each confirmed to turn the C suite
+    red, and two of them found real gaps first: nothing had pinned that
+    `first_root` reaches the arithmetic at all (a codec that silently used the
+    textbook root set would produce a perfectly good RS(255,223) that no CCSDS
+    receiver can decode), and nothing had pinned the `*_max_out` bounds — an
+    off-by-one in `generator_max_out` is a heap overflow, because the binding
+    allocates from it. Both now have sections of their own.
+
+    The Python face is checked against `math.comb` arithmetic written out from
+    the definition, not against the kernel: an oracle that shares its
+    arithmetic with its subject proves only self-consistency, which every wrong
+    Reed-Solomon also has.
+
+- **A runnable example and a gallery page for the whole `doppler.coding`
+    family.** `src/doppler/examples/coding_demo.py` runs an outer code, a
+    marker, an inner code, a real AWGN channel, acquisition and both decoders,
+    on a configuration that is nobody's standard — and it closes a gap the
+    previous three slices each left: `ConvEncoder`, `Viterbi` and `SyncFinder`
+    all shipped with no example exercising them, which
+    [the lifecycle page](https://github.com/doppler-dsp/doppler/blob/main/docs/dev/contributing/adding-algorithms.md)
+    owes unconditionally.
+
+    It also measures something the tree stated and never showed: **past its
+    radius a bounded-distance decoder can be silently wrong**, returning a
+    positive count for a word that passes `codeword_ok` because it *is* a
+    codeword — just not the one that was sent. The sweep runs on a deliberately
+    weak RS(15,11), because the miscorrection probability is about
+    `sum(C(n,i)(q-1)**i for i<=E) / q**(n-k)` — 2e-05 for RS(255,239) and 0.36
+    for RS(15,11) — and a sweep of the strong code would have been reporting
+    its own sample size. The measured rate converges onto that closed form,
+    which the example asserts.
+
+- **A release can no longer be too large to publish, and the same number says
+    when one is due.** GitHub caps a release body at 125,000 characters, and
+    `release.yml`'s `github-release` job lists `publish-python` in its
+    `needs` — so an oversized body fails *after* the version is on PyPI, and
+    PyPI refuses a re-upload, which removes the ordinary "rerun the release"
+    recovery. Measured on 2026-08-22: `[Unreleased]` plus `changelog.d/`
+    projected to **410,891** characters, 3.3x the cap, against 19,296 for
+    v0.42.0's real notes.
+
+    `scripts/check_release_notes_size.py` runs on `make lint` and in `gates`,
+    and measures what would actually be **published** rather than what
+    CHANGELOG.md holds: a version section may carry a `### Highlights` block,
+    and `release-notes.sh` publishes that, with a link to the full section,
+    when the whole section will not fit. CHANGELOG.md keeps its full depth —
+    the record is the point of it.
+
+    The cadence half is the same measurement, not a second mechanism.
+    Deferring a release is exactly what makes the body grow, so the gate warns
+    at half the budget ("a release is due") and fails at the cap. A "days
+    since the last tag" rule would have been a rule about the clock, and the
+    clock is not what breaks: a quiet fortnight ships fine, and one like this
+    one does not.
+
+- **Reed-Solomon is a description now, and it CORRECTS.** `rs/rs_core.h` is a
+    general Reed-Solomon code over `GF(2^J)` — a symbol width, a field
+    polynomial, a parity count, a first root and a root stride — with the
+    encoder, the syndromes and a Berlekamp-Massey / Chien / Forney decoder all
+    reading the same `rs_code_t`. **Nothing in it is CCSDS.** 131.0-B-3's
+    (255,223) `E = 16` is `CCSDS_TM_RS`, five numbers in `ccsds_tm/ccsds_tm_rs.h`,
+    beside the two things the standard adds that are not properties of the
+    code: the dual-basis symbol representation (4.3.9) and the interleaver
+    (4.4.1). Its own `c_dep`, for the reason `conv` is one — a caller who
+    wants a Reed-Solomon code should not link a channel-coding standard.
+
+    This closes [#826](https://github.com/doppler-dsp/doppler/issues/826): the
+    outer code checked and could not correct, so all the concatenated coding
+    gain past the Viterbi was unavailable. In `examples/c/ccsds_link_demo.c`
+    at `Es/N0 = 0 dB`, where the inner code does not clear the channel, the
+    three symbol errors it lets through used to cost **three of ten
+    codewords** and a frame that was wrong-but-known-wrong; they are now
+    repaired and all ten codewords are good, frames byte-exact.
+    `ccsds_tm_frame_rx_t` grew `rs_corrected` and `rs_symbols` to report the repair
+    work, and `rs_ok` now counts codewords valid **after** decoding.
+
+    **Two offsets a textbook will not warn about**, both of which produce a
+    decoder that decodes its own encoder perfectly and interoperates with
+    nothing — the failure this slice keeps finding in new guises. First: the
+    syndromes are a power sum only after substituting `Yt = Y * X^j0`, so
+    running Berlekamp-Massey while assuming `j0 = 1` finds the right error
+    *positions* and magnitudes wrong by `X^(j0-1)`, and every syndrome still
+    checks out against the decoder's own model. Second: Chien iterates the
+    **position exponent** rather than field elements, which is what makes a
+    root stride of 11 cost nothing — a search over `a^e` has to invert the
+    stride to learn where the error is. Both are derived in
+    `docs/design/reed-solomon.md`, which owns the outer code the way
+    `docs/design/viterbi.md` owns the inner one.
+
+    **Validated rather than trusted:** `rs_init` refuses a non-primitive field
+    polynomial (the table must visit every nonzero element exactly once) and
+    `rs_code_valid` refuses a root stride sharing a factor with `n`, because
+    both produce arithmetic that is entirely self-consistent — CCSDS 4.3.4
+    states the second as a note about `a^11`, and for a general implementation
+    a note is a condition to check.
+
+    The external truth is the code's own distance rather than a round trip:
+    `E` symbol errors corrected exactly, the sent word **never** recovered at
+    `E+1`, refusal as often as `~1/E!` says, and — provable, and proved —
+    a decode either refuses or returns a codeword, never a third thing, with a
+    refused word left untouched. Checked at three configurations (textbook
+    RS(255,223), the CCSDS-shaped one, and RS(15,11) where every single-symbol
+    error at every position and value is swept). Every guard proven by
+    sabotage, including one that was NOT: a zero-magnitude refusal branch that
+    survived 600k adversarial patterns without ever executing, deleted rather
+    than left as a claim nothing runs.
+
+- **The receiver battery measures the ramp law.** `dp_rx_result_t`'s
+    `ramp_lag_rad`/`ramp_law_rad` had been declared since the instrument
+    landed and filled by nothing. Filling them found two reasons the
+    `doppler` point could not have measured anything, and both were in the
+    measurement rather than the receiver.
+
+    **The point was three and a half decades below the answer.** It carried
+    0.02 ppm/s, which `2*pi*r/wn^2` puts at a settled lag of 2.2e-4 rad
+    against a linear range of `pi/4` — so every number it produced was
+    byte-identical to `anchor`'s, and a point that reproduces the reference
+    is not measuring the thing it is named for. The rate is now sized from
+    the answer it has to make observable: **9.2 ppm/s**, predicting ~0.1 rad,
+    an eighth of the range, so the *law* is checked rather than its
+    breakdown.
+
+    **The estimator was reading its own noise.** The discriminator series was
+    reduced to `fabs()` at capture, and at these Es/N0 the discriminator's
+    noise dwarfs the lag — `|e|` has an RMS of 0.54 against a lag of 0.1, so
+    a mean of it is nearly identical at every point in the battery. The
+    series is now **signed** and the magnitude taken of the **mean**: the
+    loop's own integrator forces that mean to the value which sustains the
+    ramp, so the noise averages out of it. Measured **0.1006 rad against
+    0.09989 predicted, +0.7%** — the agreement `rx_nda_tap.c` gets on a
+    *noiseless* tail, here at 6.79 dB Es/N0.
+
+    Gated at the 10% tolerance `rx_nda_tap.c` established, and only where a
+    ramp exists: a type-2 loop nulls a frequency step regardless of gain, so
+    an unimpaired point has a law of exactly zero and nothing to check.
+    `wn` comes from the new `loop_filter_wn()`, and the damping it needs is
+    **read back from the constructed receiver** through a new `zeta` entry on
+    `dp_rx_iface_t` — the adapter passes `0` and asks the receiver to derive
+    it, so restating the default would have been a copy of the number the
+    receiver is free to change.
+
+    Sabotage, both ways: scaling `freq_scale` by 2 reads +101.4% and fails,
+    by 1.25 reads -19.4% and fails — **and the trio stays green through
+    both** (SER 1.09e-3, EVM -7.35 dB, unmoved). A carrier loop running at
+    twice its stated bandwidth is invisible to every other number the
+    instrument produces.
+
+    **What it does not cover, structurally.** gh-765 itself was `freq_scale`
+    missing its `* upd` — the filter's output taken as radians per *update*
+    rather than per symbol. Every battery point runs `nda_tap = 0` (STROBE),
+    whose update rate is exactly 1, so that factor *is* 1 and removing it
+    leaves this gate byte-identical and green. `rx_nda_tap.c` catches it, on
+    the taps whose update rate is not 1 (`mf_out` 2.0, `mf_in` 1.5625) and
+    never on `strobe`. A battery point at a non-unity tap is what would close
+    it, and that is entangled with the open `nda_tap` question (#791).
+
+- **The receiver battery is a complete suite, and it runs on two receivers.**
+    Four operating points added (`qpsk`, `psk8`, `irrational` at
+    `sps = 17.33389`, `rate_odd` at `sps = 31.7`), and a second adapter for
+    `ContinuousMpskReceiver` — which is `docs/design/rx-test.md` goal 6 cashed
+    rather than asserted: the second receiver costs one function and reuses the
+    other ten interface entries unchanged. Each M is read at **its own**
+    SER=1e-3 Es/N0 (6.79 / 10.35 / 15.68 dB from `ber_esn0_db_for_ser`),
+    because holding one Es/N0 across M compares constellations rather than
+    receivers.
+
+    What it found immediately, and none of it was visible to the Python
+    harness it replaces:
+
+    - **`nda_tap = mf_in` refuses on all 9 points** of the battery, under
+        either pulse, on the BASE receiver — isolated by changing only that
+        one argument. Diagnosed under Changed: the tap acquires everywhere,
+        and it is its LOCK STATISTIC that falls under the detector's
+        threshold, so the refusals are the settle gate reading a degraded
+        indicator rather than a loop that never moved.
+    - **Implementation loss grows with irrational oversampling**: 0.07 dB at
+        `sps = 8`, **4.34 dB** at 17.33389, **7.41 dB** at 31.7 — a trend, not
+        a cliff, and defensible because the harness's four gates passed.
+    - `qpsk`/`psk8` **refuse** on frame geometry (the frame's bit count does
+        not divide into whole symbols at M = 4/8). A refusal is a result: the
+        frame set is BPSK-shaped and the M sweep needs a length that divides.
+
+- **Coding gain, measured through a real receiver.**
+    `native/validation/rx_coding_gain.c` runs the whole CCSDS chain in both
+    directions with a demodulator in the middle — R-S, randomiser, ASM, K=7
+    r=1/2, BPSK, RRC, AWGN, `MpskReceiver`, soft demap, node sync, Viterbi,
+    ASM search, derandomise, R-S **decode** — and reports what each stage
+    saw. It is an adapter and an operating point rather than a second
+    harness: the receiver adapters moved to `native/tests/dp_rx_mpsk.h` and
+    are shared with `rx_battery.c`, and the point is `DP_RX_ANCHOR` with one
+    field changed, so a difference from the battery's numbers is the coding
+    or the Es/N0 and cannot be the geometry.
+
+    At Es/N0 = +2 dB (Eb/N0 5.59 dB), with the channel putting **one symbol in
+    25** wrong before decoding, the link delivered **46 of 46 frame slots,
+    every one byte-exact, 0 payload errors in 410 320 bits** — a coding gain
+    of **≥ 4.1 dB**, where the bound is the run length rather than the code:
+    zero errors is not a rate, so it is the exact 95 % upper limit
+    (`ber_confidence`) turned into the Eb/N0 an uncoded link would have
+    needed (`ber_esn0_db_for_ser`), minus the Eb/N0 this link ran at. The
+    rate is charged first — R = 1/2 × 223/255, so 3.59 dB of redundancy
+    before any gain is claimed.
+
+    **Three things only a receiver-in-the-loop run could say**, all now in
+    `docs/design/fec-receive.md` §8. The uncoded lock detector is not a
+    usable gate for a coded link: the binary `locked` flag reads 23 % at 0 dB
+    while the loops track throughout and every delivered frame is byte-exact,
+    so the window is the settling budget and the evidence of lock is that the
+    marker appears. Slips are real at these Es/N0 — frame sync loses the
+    marker where it expected it 4 times over ~46 slots at 0 dB, falling to
+    zero only at the clean point — and a measured slip moved the stream by an
+    ODD number of symbols, which flips the `(C1, C2)` parity and makes every
+    subsequent bit noise, so node sync cannot be a one-shot at start of
+    stream. And the outer code **never miscorrected**: a CADU that
+    decodes, reports every codeword good and matches no transmitted frame is
+    the failure `rs_core.h` warns is possible past `E`, and across the whole
+    sweep including the points where nothing synchronised there were zero.
+
+    Five gates, each proven by sabotage: disabling R-S correction, sweeping
+    only an easy link (which fires the channel-SER, gain-bound and
+    waterfall-span gates at once), and forcing the node-sync hypothesis test
+    to a tie.
+
+- **A Python receiver can ACQUIRE a frame, not just check one it was handed.**
+    `doppler.detection.SyncFinder` correlates a known marker against every bit
+    offset of a stream, in both polarities, and reports the first offset
+    within a tolerance. `doppler.wfm.ccsds_asm_bits()` hands it CCSDS's
+    `0x1ACFFC1D`. Together they close the gap
+    [gh-900](https://github.com/doppler-dsp/doppler/issues/900) named: the
+    frame checker `Frame.check()` had always existed, and nothing could find
+    a frame for it to score, so everything the `ccsds_tm` certification
+    measured about that detector described a function Python could not call.
+
+    **The search is general and CCSDS is a configuration of it.** The kernel
+    moved to a header-only `native/inc/dp_syncword.h`, and
+    `ccsds_tm_asm_find` is now two lines over it — the same relationship
+    `CCSDS_TM_CONV` has to `conv_code_t`. A standard picks a pattern; the
+    correlation is not the standard's. `SyncFinder` therefore takes any
+    marker, at any length, and `detection` stays free of any one document's
+    picks.
+
+    **`max_errors` is answered, not warned about.**
+    [gh-897](https://github.com/doppler-dsp/doppler/issues/897) found that the
+    threshold has to be chosen against the SEARCH WINDOW and that nothing said
+    so: half of 32 is 16, so 8 "sounds safe", and at `t = 8` the marker is
+    found at its true offset only 58 % of the time on a stream with no channel
+    errors at all — each preceding offset is an independent chance to
+    false-hit first. `SyncFinder.pfa(t)` is the per-offset false-alarm
+    probability and `SyncFinder.max_errors_for(window_bits, pfa)` inverts it
+    through `1 - (1 - pfa)**W`, returning the largest tolerance that still
+    holds. They sit beside the search the way `det_threshold` sits beside
+    `det_pd`, and they answer *for the marker being searched*, so a threshold
+    and the thing it thresholds cannot come from two declarations.
+
+    Checked against three independent oracles rather than against itself: an
+    exhaustive enumeration of all 2^8 windows in C, `math.comb` in Python, and
+    — the one that matters — **the search itself**, whose measured accept rate
+    over 20000 random windows tracks the formula it is meant to size. Ten
+    mutations of the kernel and three of the binding were each confirmed to
+    turn the suite red.
+
+    **A finding that was prose until now runs.** A complemented CADU passes
+    its own outer code, cleanly, with nothing corrected: Reed-Solomon is
+    linear and the all-ones vector is itself a full-length codeword, so a
+    global flip lands on another codeword and the randomiser carries it
+    straight through. A receiver that acquired at the right offset and ignored
+    the reported polarity would score a clean PASS on a frame whose every
+    payload bit is wrong. The headers have said the marker is "the only thing
+    in a CADU that can say so" since the component was written; nothing had
+    ever run it.
+
+    The marker also stopped being transcribed. `0x1ACFFC1D` was expanded
+    MSB-first by hand in six live places — two `frame_core.h` doctests that
+    generated four more in `wfm.pyi`, two tests, a docs page and the link
+    demo — which is exactly the hazard `ccsds_tm_asm_bits` exists to remove.
+    All six now call `ccsds_asm_bits()`.
+
+- **`make test-tsan` — the threaded C tests under ThreadSanitizer, where a
+    data race fails rather than prints.** The companion to `make test-ubsan`,
+    and the gate that holds the CCSDS RS fix above.
+
+    Scoped to the threaded tests by a **ctest `-R` pattern, not a hand list
+    of binaries**, so a new threaded test named for what it is gets picked up
+    with no edit here — the same reasoning `check_bench_coverage` applies to
+    benchmarks, for the same reason: a list maintained by hand goes stale
+    silently. It fails when the pattern matches nothing, because an empty
+    result set is not a pass — the trap the glibc and tarball gates were both
+    caught by. `TSAN_OPTIONS=halt_on_error=1` for the reason `UBSAN_OPTS`
+    already gives: without it the sanitizer prints and the suite still
+    passes.
+
+    `native/tests/test_ccsds_tm_rs_race.c` is its first case, and is a
+    separate binary on purpose — the race is on the FIRST call, so a process
+    that has already encoded anything cannot reach it. Eight threads released
+    from one barrier must all derive the same `g(x)` and the same parity.
+    Reverting the fix makes TSan report `data race ... in rs_init` and the
+    target go red.
+
+    It earned its keep immediately: the first run caught `bench_buffer_core`
+    linking no `libm`, which a Release build hides by folding the `sqrt` away
+    and a Debug build does not.
+
+- **`track` gains a characterization tree, and the M-PSK pull-in envelope
+    becomes a curve anybody can re-run**
+    ([#849](https://github.com/doppler-dsp/doppler/issues/849)).
+    `src/doppler/track/tests/characterization/pull_in/` sweeps the success
+    fraction against multiples of each loop's own acquisition bound, across
+    every constellation order and two oversampling ratios, composed entirely
+    from the shipped harness.
+
+    It existed as dated prose in three docstrings before this, and re-derived
+    by nothing — which is how two findings came to be filed against the
+    receiver for behaviour that was really a test seeded past the bound
+    (#843, both retracted). The docstrings now cite the subject instead of
+    quoting numbers.
+
+    Two things the sweep establishes beyond the shoulders: the collapse
+    multiple does **not** move with `sps` (identical rows at 8 and 16), which
+    is the check that the bound really is stated in cycles per symbol; and it
+    barely moves with `m` (4/4/3), which is the `1/m` being carried correctly
+    — a missing `m` would spread the collapse fourfold across the orders.
+
+- **The Viterbi decoder resumes from a blob, like every other stateful
+    object.** `viterbi_state_bytes` / `viterbi_get_state` / `viterbi_set_state`
+    carry the path metrics, the traceback ring and the cursor into it, so a
+    decode split anywhere and restored into a *fresh* decoder produces the same
+    bits as one uninterrupted pass. A decoder is a link in a chain — behind the
+    receiver, in front of the R-S decoder — and a chain is checkpointable only
+    if every link is; one that is not is enough to make elastic resume
+    unavailable for everything it sits between.
+
+    **`fill` travels, because it is part of the answer rather than
+    bookkeeping.** A decoder resumed inside its first `depth` bits still owes
+    its traceback and must emit nothing for bits it has not earned;
+    `viterbi_decode_max_out` reads `fill` to say so. A blob that dropped it
+    resumes a decoder that invents them, and a split taken in steady state
+    cannot see the difference — so the test takes two, one on each side of
+    `depth`.
+
+    **A size match is not a configuration match.** The code and the depth are
+    configuration, restored by `viterbi_create` rather than carried in the
+    payload — but they are *stamped* in it and compared, because two codes with
+    the same `k` and `n` differing only in a polynomial or in `invert` produce
+    blobs of identical length. The envelope's own size check sees no
+    difference between them, and reinterpreting one as the other yields a
+    decoder that is confidently wrong instead of one that refuses.
+
+    Eight guards, each proven by sabotage and each reddening in the section
+    meant to catch it: dropping `fill` shortens the split stream, dropping the
+    cursor or either buffer breaks bit-exactness, and removing the code
+    comparison lets an uninverted-CCSDS blob restore into a CCSDS decoder.
+    Closes #824.
+
+- **wfmgen can generate a coded waveform, and a CCSDS CADU is a configuration
+    of it.** Four new flags on `--type bits` — `--rs-depth I`, `--randomise`,
+    `--asm` and `--conv` — apply channel coding as **stages over the frame's
+    fields**, and they do not all cover the same bits.
+
+    That asymmetry is the point rather than a detail. A marker, a preamble and
+    a sync word are things a receiver *finds*, so all three must look the same
+    in every frame: the outer code and the randomiser reach over the data
+    group only, and the inner code reaches over everything. CCSDS states that
+    rule for its own ASM (10.3.4: *"The ASM was not randomized"*), and the
+    reason it gives is exactly as true of doppler's preamble and sync word —
+    so it generalises rather than being special-cased.
+
+    Set all four with a 223·I-octet payload and no preamble or sync word and
+    the result is a **CCSDS CADU**. It is a configuration these flags reach,
+    not a mode they switch into.
+
+    Verified against the shipped encoder rather than against itself: the CLI's
+    output is bit-identical to a description assembled through
+    `wfm_frame_assemble`, which is byte-identical to `ccsds_tm_frame_encode`
+    across five configurations — so it inherits everything that encoder is
+    falsified against (figure 9-1's marker, the published randomiser prefix,
+    Annex G's generator, the inner code's impulse response).
+
+    **The record carries it**, and that was a defect worth catching before it
+    shipped: a record is what makes a capture reproducible, so a stage the
+    record dropped would be a capture nobody could rebuild — and the omission
+    would read as a plain uncoded waveform rather than as missing
+    information. `--record` now emits the four keys (only when set, so an
+    uncoded record is unchanged), `--from-file` reads them back, the schema
+    declares them, and a round trip is asserted end to end.
+
+    Refusals rather than surprises: `--rs-depth` outside 4.3.5.1's
+    `{1,2,3,4,5,8}` is rejected, and a payload off the `223·I` grid is refused
+    rather than padded — virtual fill is not implemented
+    ([gh-813](https://github.com/doppler-dsp/doppler/issues/813)), and a
+    silently padded codeblock is the wrong length for the receiver it was
+    aimed at. Any coding flag also *frames* the waveform, as `--sync` does: a
+    CADU carries neither a preamble nor a sync word, so a source coded but
+    unframed would have emitted its payload with no coding at all.
 
 - **[Measuring a Receiver](docs/dev/contributing/measuring-a-receiver.md) — the missing
     HOW.** `docs/design/rx-test.md` says why the receiver harness is shaped as
@@ -828,170 +1937,6 @@ PRs.
 
     The battery's five construction parameters are `0` on purpose: it states
     the link and lets the object derive what it already knows (gh-644).
-
-### Fixed
-
-- **A periodic marker's sync words were scored as DATA.** `dp_ber_measure()`
-    opened its scored window at the settled point and bounded it past the
-    marker's end only for a *blind* marker. For a **periodic** one — a frame's
-    sync word, recurring for the whole record — `ber_meter`'s exclusion reads
-    an index before `t0` as "not a marker" (`ber_meter_core.c:122`), so every
-    sync word *preceding* `t0` was scored as payload: known symbols that had
-    no chance of being wrong, quietly flattering the denominator. The window
-    now opens at the marker's **first occurrence** for the periodic shape and
-    past its **end** for the blind one, which is what `rx_frame_fer.c` had
-    already been doing by hand.
-
-    The same argument holds at the **other** end and is now enforced there
-    too: `in_marker` bounds exclusion at both ends
-    (`off / period >= occurrences`), so scoring past the last excluded
-    occurrence reintroduces the identical defect at the tail. Measured, it
-    does not currently bite — exclusion already reaches 44 symbols past the
-    scored top at period 285 and 824 at period 1679 — but that margin is a
-    function of the detected **lag**, not a chosen constant: on the 285
-    geometry a lag beyond ~245 turns it positive, and `DP_BER_LAG_SPAN` is
-    200\. Bounded rather than left to a coincidence that holds at the only two
-    geometries anyone has looked at. Today it changes no number.
-
-- **`dp_ber_report_t` threw away the alignment it had just computed.** The
-    `lag` and `phase` that fixed the record are now returned. They are part of
-    *defending* the rate rather than a by-product of computing it: anything
-    else scored against the same record — per-frame outcomes, a telemetry
-    series — has to be placed in the same coordinates, and re-running the
-    detection to find out where it sat is a second copy of the decision, free
-    to disagree with the first.
-
-- **`native/validation/` was running its own random number generators.**
-    `native/tests/dp_rng_test.h` is the declared SSOT and
-    `scripts/check_tests_ssot.py` enforces it *absolutely* — in
-    `native/tests/` only. The other directory is the one whose numbers get
-    **published**, and five harnesses there carried private xorshift32 and
-    Box-Muller copies. They now use the SSOT.
-
-    **Bit-exact, proven per file rather than argued**: every harness's full
-    sweep was captured before and after, and all 19 outputs are byte-identical
-    (the only line that moves anywhere in the tree is `ber_despreader`'s
-    wall-clock `elapsed`, in a file this does not touch).
-
-    Getting there required the draw **order** to be measured, and that is the
-    part worth recording. Three of these files drew both Box-Muller components
-    inside one expression, which is **indeterminately sequenced** (C11
-    6.5.2.2p10) — so the stream each had was the compiler's choice, not the
-    author's. `dp_rng_test.h` states that gcc takes the imaginary operand
-    first; that is true of the bare `a + b*I` shape it was measured on and
-    **not** of these. `carrier_nda_pullin`'s `cexp(...) + s*g + s*g*I` needed
-    **real** first to reproduce its stream, and imaginary-first moved every
-    number in the file. The order is a property of the **expression**, not a
-    rule — which is an argument for named locals, not against them.
-    `rx_nda_gauss`'s own two uniforms were in one expression too; sequencing
-    them in `dp_gauss`'s order left the file byte-identical, so gcc had been
-    drawing the logarithm's uniform first there.
-
-    Migrated: `carrier_mpsk_jitter`, `carrier_nda_step_response` (xorshift
-    only), `carrier_nda_pullin`, `rx_nda_tap`, and `mpsk_ber_common.h` with
-    both BER twins. The gate is **not** widened to the directory yet: the
-    sweep found **four more** files carrying private generators
-    (`dll_jitter`, `symsync_lock`, `ber_despreader`, `ratesync_scurve`) that
-    #802 did not list, so the ratchet would fail on unmigrated files. The
-    directory having grown again is exactly what gh-687 predicted it would.
-
-- **`mpsk_receiver_core.h` said the old defaults for the five parameters that
-    now derive.** gh-644 made `0` request a derived value for `m_out`, `zeta`,
-    `lock_thresh`, `num_phases` and `bn_agc_ratio`, and updated
-    `objects/mpsk_receiver.toml` so the Python face said so — while the C
-    header, which is the SSOT, went on documenting `(default 8)`,
-    `(default 0.707)`, `(default 0.5)` and `(default 1024)`, and mentioned the
-    derivation nowhere. The one face that is the source of truth was the one
-    face that did not know about the feature.
-
-    Each `@param` now states that `0` derives, what it derives to, and the
-    getter that reads it back; a `@note` on `create()` carries the rule once.
-    Documentation only — no behaviour change.
-
-    Same class as the `burst_despreader_core.h` drift already recorded in
-    `CLAUDE.md`, where hand-written `(default: X)` annotations went 5x out of
-    step with the manifest, and which just-makeit#442 is the open ask to lint
-    for. It recurred anyway, in the change that introduced the feature, which
-    argues for that lint rather than against it.
-
-- **One bits→symbol map, and it is the library's.** `wfm_synth`'s bit pattern
-    had **four inlined copies** of the mapping — two in `wfm_synth_core.h`
-    (`wfm_synth_next_symbol`, `wfm_synth_step`) and two in
-    `wfm_synth_steps()`. The first of those carries a comment saying the
-    kernel is shared "so the single-sample and block paths cannot diverge —
-    they call the SAME function rather than each inlining the arithmetic", and
-    the arithmetic was inlined four times anyway.
-
-    All four now call `wfm_synth_bit_symbol()`, which hands a Gray label to
-    `mpsk_constellation()` — the library's canonical map, and the one
-    `dp_ber_score()` inverts to score bit errors.
-
-    That mattered, latently: the QPSK copies put `b0` on the I sign and `b1`
-    on the Q sign — the same *constellation*, but two of the four labels
-    swapped against `mpsk_constellation()`. Nothing in the tree scored a QPSK
-    bit pattern against truth, so it never produced a wrong number. A framed
-    QPSK stream measured through the canonical scorer would have read about
-    **half its symbols wrong on a working receiver**.
-
-    `modulation` already meant BITS PER SYMBOL (1 = BPSK, 2 = QPSK), so 3 =
-    8PSK extends the numbering rather than reinterpreting it.
-
-    The gate is a round trip through the canonical demapper — a property no
-    agreement between two copies can establish, since the old copies agreed
-    with each other perfectly. The bit pattern counts up so every one of the M
-    labels is exercised; an alternating pattern emits one or two labels for
-    ever, and a label the test never produces is one the mapping can get wrong
-    undetected. Proven by sabotage: LSB-first packing, the original I/Q-sign
-    QPSK mapping restored, and Gray skipped each take it red.
-
-    There was a **fifth** copy, in Python:
-    `test_rrc_bits_matches_matched_filter` hand-built its QPSK reference from
-    the same I/Q-sign formula, so the matched-filter check passed by comparing
-    the generator against a restatement of the generator. Its reference now
-    comes from `doppler.mpsk.mpsk_map` — the binding over the one map — which
-    is why that test had to move with the fix rather than the fix move to it.
-
-    That test is now parametrized over `sps`, because `sps` is what selects the
-    shaping implementation: a power of two shapes with the polyphase `resamp`
-    bank, anything else falls back to a dense FIR, and those are two separate
-    block loops in `wfm_synth_steps()`. Every existing test used `sps` 4 or 8,
-    so the **dense-FIR bits loop had no test on any path** — one of the four
-    copies could have been fixed and the other not, with nothing to say so.
-    `sps = 3` covers it; sabotaging that loop alone takes `[3]` red and leaves
-    `[4]` green, which is how the split was checked rather than assumed.
-
-- **A capped CIC silently cost the cascade its rate** — `RateConverter` at a
-    power-of-two decimation past the CIC cap decimated by `R` and claimed `D`.
-    Measured: `RateConverter_create(1/8192)` delivered `1/4096`, twice the rate
-    asked for, and `1/16384` delivered four times it — with no error, no NaN,
-    and an output that looks entirely plausible.
-
-    The planner already hands whatever a capped CIC leaves to a `Resampler`
-    stage. That residual was gated on the matched-terminal flag alone, so the
-    plain constructor never got it. It is now emitted whenever the integer
-    stages did not complete the decimation, which is the condition that
-    actually decides whether it is needed.
-
-- **The CIC decimation cap is `CIC_R_MAX` (2048), one halving below where the
-    accumulator fills.** The 64-bit accumulator holds `65535 · R^4`; at
-    `R = 4096` that is `2^64 - 2^48`, which fits and fills it to within one
-    part in 65536. "Fits exactly" is not headroom — it is the value at which
-    any further term overflows, and the CIC's exactness argument (every
-    intermediate overflow cancels in the combs) holds only while the true
-    result fits in 64 bits. 2048 leaves **16×**.
-
-    The cap costs no rate, because of the fix above; past it the residual goes
-    to the resampler, exactly as the non-power-of-two path already did. Both
-    layers enforce it — `cic_create()` refuses beyond `CIC_R_MAX` and the
-    planner never asks — because a cap the planner honours and the constructor
-    does not is one bad call site away from the accumulator it protects.
-
-    Lowering the cap is what exposed the rate defect: it moved the first
-    affected geometry from `D = 8192` down to `D = 4096`, where a receiver can
-    actually reach it. Both are pinned by
-    `test_capped_cic_still_delivers_the_requested_rate`, proven by sabotage.
-
-### Added
 
 - **`MpskReceiver` derives the construction parameters that are not design
     axes, on both faces** (gh-644, `docs/design/mpsk.md` §8.1). Five of its
@@ -1395,380 +2340,6 @@ PRs.
     harness docstring now carry the measured table, and the identity is pinned
     tightly from 12 dB up — where every EVM assertion in the tree actually
     runs — with the flattery pinned separately as its own monotone property.
-
-### Breaking
-
-- **BREAKING: the Costas arm filter is gone, and `nda_tap = "lo_arm"` with
-    it.** A discriminator tap does not need an arm filter where the chain
-    already filters ahead of it — and the one place the receiver added its own,
-    a free-running half-symbol boxcar on the raw post-LO sample, was also the
-    only tap whose node had no filtering ahead of it at all. `mf_in` is that
-    tap done properly: DEC's filters have already band-limited it and the AGC
-    has already levelled it. (The matched filter may itself BE a boxcar — I&D
-    and CIC both are — and that is untouched; this is about the extra arm.)
-
-    It did not work anyway. Measured with `native/validation/rx_nda_tap.c`,
-    fraction of a known carrier offset removed: 0.1352 at sps=8, 0.0002 at
-    sps=200, 0.0000 at sps=10000, unchanged with the modulation removed or the
-    timing loop disabled — the only tap of the four that failed, and it failed
-    everywhere. The published `0.090*Rs` pull-in came from a hand-tuned
-    `bn_carrier` absorbing gh-765 at sps=8, which stops working as the ratio
-    grows. Closes gh-768.
-
-- **BREAKING: `warmup_syms` is gone from both receivers.** The handover now
-    rests on its lock detector and nothing else. That detector already carries
-    both hysteresis axes — a split declare/drop threshold pair and a
-    consecutive-symbol count each way — so the warmup counter was a second,
-    cruder de-chatterer for the same job.
-
-    It was guarding a condition gh-657 made impossible. Its comment claimed the
-    pre-lock lock EMA reaches 0.9-1.7 against 0.62 settled; `carrier_nda_disc()`
-    now divides by `|z|` at the FIRST squaring, so every later value is a unit
-    vector and `lock` is an EMA of something bounded in [-1, 1] — it cannot
-    exceed 1. Measured on the shipped receiver (QPSK, sps=8, 20 dB, 5 seeds):
-    pre-lock peak 0.900-0.916, settled 0.947-0.968. BOTH numbers in that
-    comment described the pre-normalisation detector. Note `acq_to_track`
-    already defaults to 0, so the default receiver never consulted it.
-
-- **BREAKING: `nda_tap = "mf_all"` is now `"mf_out"`.** "all" read as *both*
-    sides of the matched filter, which is the one thing it never meant — the
-    tap is the MFR's output. Paired with `mf_in` it is now a symmetric
-    input/output naming, and `strobe` keeps its own name because that name is
-    standard. C enum `MPSK_RX_NDA_TAP_MF_OUT`. This is the only shipped
-    spelling that changes; callers passing `nda_tap="mf_all"` get the usual
-    `ValueError` listing the valid names.
-
-- **Frame flags on a waveform that cannot carry one now REFUSE instead of
-    being silently ignored.** `--type bpsk|qpsk|pn` (and the Python
-    equivalents) source their symbols from the PN LFSR, so there is no length
-    to bound a payload; they now exit 2 with a message naming the replacement,
-    where before they exited 0 and produced an unframed waveform. `--type bits`
-    with frame flags but no `--bits` refuses for the same reason. This is the
-    defect being fixed, not a new restriction — see below.
-
-### Changed
-
-- **One SNR conversion, not two.** `wfm_snr_over_fs()` (the composer's
-    per-segment noise floor, and what `Plan` recomputes a swept SNR through)
-    carried its own copy of the mode→SNR-over-fs arithmetic, with a comment
-    saying it "mirrors the conversion in `wfm_synth_core.c` … single source of
-    truth — no drift". It was a second implementation, and the claim held only
-    by inspection: nothing in the tree compared them, `wfm_snr_over_fs` had no
-    test and no binding, and the consequence of a divergence is silent — the
-    same requested SNR meaning two different noise powers depending on how many
-    sources happen to share a segment.
-
-    The arithmetic now lives once, as `wfm_synth_snr_over_fs()` beside the
-    generator that owns it, with `wfm_synth_bps()` for the bits-per-symbol rule
-    both callers need. What legitimately differs stays an ARGUMENT rather than
-
-- **`wfmgen`, `Synth` and `Segment` silently ignored the frame flags for every
-    unspread type** ([#755](https://github.com/doppler-dsp/doppler/issues/755)).
-    They were parsed, stored in `wfm_source_t` and readable back — `s.sync`
-    returned the sync word — and applied only on `type="dsss"`. Measured before
-    the fix:
-
-    ```console
-    $ wfmgen --type bpsk --sync 1111100110101 --crc crc16 \
-             --acq-code 10101010 --acq-reps 4 --count 256 --output a.dat
-    $ wfmgen --type bpsk --count 256 --output b.dat
-    $ cmp a.dat b.dat && echo IDENTICAL
-    IDENTICAL
-    ```
-
-    So a caller who asked for a framed waveform got an unframed one, at exit 0,
-    with no warning — a plausible result from a state nobody can defend, which
-    is the exact failure `docs/design/rx-test.md` exists to stop.
-
-    One gate caused it (`wfm_synth_bridge.c`'s `if (src->type !=   WFM_SYNTH_DSSS) return 0;`) and nothing else consumed the fields. **What
-    let it ship is that no test asserted a frame kwarg CHANGES the waveform** —
-    the DSSS path was covered and the unspread path had nothing to be wrong
-    about, because nothing looked. The recurrence gate is therefore
-    behavioural, at each face: `test_wfm_compose.c` checks the framed stream IS
-    `wfm_frame_bits()` of its own descriptor symbol for symbol,
-    `test_frame_source.py` checks the composer, the CLI and the record
-    round-trip, `test_wfm_synth.py` checks `Synth`, and the flag matrix pins a
-    framed `bits` record. Four sabotages, each red on target: reverting the
-    attach, silencing the record emitter, silencing the reader, and removing
-    the refusal.
-
-    `crc` is deliberately NOT read as intent to frame — it defaults to `crc16`
-    on every source, so doing so would have appended a trailer to every
-    unframed pattern anyone has ever generated. A preamble or a sync word is
-    what says "framed".
-
-    a second formula: the composer resolves `auto` to Es/No for a DSSS source
-    and passes the true symbol span, while the generator resolves the same
-    source to fs because at `create()` time the codes have not attached yet and
-    the spreading factor is unknown.
-
-    `test_wfm_compose` gains the end-to-end check that was missing: for seven
-    (type, mode, sps) combinations, the noise a composed source actually
-    carries against a HAND-DERIVED expected power. The first version computed
-    that expectation by calling `wfm_snr_over_fs()` — which, now that both
-    sides share one conversion, moved with it: dropping the bits-per-symbol
-    term from the Eb/No branch left the test green. A known answer cannot
-    follow the code it checks. With literals it fails by 3.06 dB at QPSK, and
-    the Es/No span term turns out to have been guarded all along by the DSSS
-    byte-identity assertion in the same file.
-
-- **The M-PSK receiver harness generates with `wfm.Synth` and aligns with
-    `BerMeter`, instead of with its own numpy.** Two duplicates, both of which
-    had invented a convention:
-
-    `make_signal()` oversampled by `np.repeat`, mixed its own carrier and
-    scaled its own AWGN variance under two Es/N0 conventions. It now asks
-    `Synth(type="symbols")` — the same `lo`/`awgn`/sample-and-hold the
-    receivers under test are built against. **Verifying `snr_mode="esno"` on
-    the way through found nothing wrong with it**, which is worth saying
-    plainly: it delivers the Es/N0 it claims to within 0.04 dB across m 2/4/8,
-    sps 1..16 and Es/N0 0..20 dB, read back with `snr.snr_data_aided_db` at the
-    matched-filter output and cross-checked by subtracting the same-seed clean
-    run. Nothing had ever checked it, and the check now runs in CI.
-
-    `symbol_metrics()` searched its lag by minimising the error count over
-    ±200 — an optimisation over the answer, which false-passes on a lucky
-    alignment over garbage and false-floors when the true lag falls outside the
-    span. It now detects with `BerMeter.align()` and REFUSES to return a number
-    when `align_ok` is false, which is what two of its seven call sites were
-    approximating by hand with `abs(lag) < 190`. `coherent_errors()` likewise
-    stopped computing a post-marker scoring window by hand: `score()` excludes
-    marker symbols itself and reports them in `skipped`.
-
-    No output-rate invariant was added, though the design called for one. The
-    detection already refuses every case it would have caught — half rate
-    detects at −2.5 dB of margin, double rate at −inf, `m_out` outputs mistaken
-    for symbols at −5.6 dB, against +10.5 dB healthy — so a count check would
-    have been a second convention for a question `ber` answers. It was written
-    twice, once in Python and once as a C module function with its own
-    tolerance constants, before being measured; both are reverted.
-
-### Fixed
-
-- **The clang-tidy pre-commit hook ran nowhere, and is removed** (gh-737).
-    Fixing its missing pin left a second defect untouched: it sat at
-    `stages: [pre-push]`, `make setup` runs a plain `pre-commit install` —
-    which installs only the pre-commit hook type unless the config declares
-    `default_install_hook_types`, and this one does not — and CI's `make lint`
-    runs pre-commit at the default stage. So it executed on no machine and in
-    no pipeline, reporting zero findings because it never looked: a dead gate
-    that happened to be green, which nothing downstream could tell from
-    success. Deleting it costs no coverage, because there was none; what it
-    buys is that the tree stops advertising a gate it does not have.
-    `make lint-clang-tidy` is unchanged and is still how to run it by hand.
-    Restoring the hook needs an execution home — a CI job, or
-    `default_install_hook_types` — **and** the gh-720 backlog cleared enough
-    for it to pass; clearing the findings alone would not have revived it,
-    since the backlog is why it could not be switched on and not why it did
-    not run.
-
-- **Every NDA tap now delivers the `bn_carrier` it was given.** `freq_scale`
-    converted the carrier loop filter's output assuming it is radians per
-    SYMBOL, which is true only for `strobe`. A tap updating `upd` times per
-    symbol produces radians per UPDATE, so the LO was under-driven by `upd`
-    and the loop ran narrower than the caller asked for.
-
-    **A frequency STEP could never have shown this** — a type-2 loop nulls a
-    step to zero steady-state error regardless of gain, which is why every
-    acquisition test passed on both sides of the bug. A frequency RAMP holds a
-    constant phase lag with a closed form, and that is where it was visible:
-
-    ```
-      theta_ss = 2*pi*r / wn^2,  wn = 8*zeta*bn/(4*zeta^2+1) = 1.8857*bn
-    ```
-
-    Measured at sps=200, bn=0.005/sym, the lag was that form times exactly
-    `upd` — 1.00 for strobe, 2.00 for mf_out, 1.5625 for mf_in, at every ramp
-    rate. With the fix all three match the form to under 1%, so the maximum
-    trackable Doppler rate is now the same at every tap instead of `1/upd` of
-    it. Closes gh-765.
-
-- **The `mf_in` carrier loop was sized against a placeholder update rate.**
-    `config_carrier()` runs inside `mpsk_rx_loops_init()`, which is before
-    `mpsk_receiver_create()` can read the cascade's real `bank_sps`, so the tap
-    got loop gains designed for `lo_sps` updates per symbol while actually
-    updating `bank_sps` times — `ki` too small by `(lo_sps/bank_sps)^2`, which
-    is 1.7e7 at Fs/Rs = 10000. The integrator never moved: the loop reported a
-    flawless 0 Hz error at 0 Hz offset and acquired **nothing** at any other
-    offset, at any rate ratio above sps=8. The filter is now re-sized once the
-    real rate is known, and `rx_nda_tap.c` gates it at three rate ratios.
-
-- **A `WFM_SEQ_PN` frame field with `poly = 0` was emitting a constant.**
-    `wfm_frame.c` passed `poly` straight to `pn_create()`, which takes the tap
-    mask verbatim — so 0, the natural "default" and the value `wfm_synth`'s
-    `--pn-poly` already resolves, meant a register with NO FEEDBACK: it shifts
-    the seed out and then emits zeros for ever. Measured, a 127-bit PN field at
-    `reg_bits = 7` carried **2 ones**. Every generated PN field was a constant
-    that still looked like a field, which is why nothing noticed.
-
-    `test_wfm_frame.c` could not catch it because its check was a CONSISTENCY
-    test: it compared `wfm_frame_bits()` against `pn_generate()` with
-    `poly = 0` on both sides and they agreed perfectly — on two all-zero
-    sequences. The new gate is a property no agreement between two halves can
-    establish: one period of a length-n MLS carries exactly `2^(n-1)` ones, so
-    a balance check over `2^n - 1` bits says the descriptor resolved a real
-    polynomial. It reads 1 against 256 when it did not, and it fires even with
-    the old mutually-consistent comparison restored.
-
-    The fix applies the resolution the project already had
-    (`poly ? poly : pn_mls_poly (reg_bits)`). The polynomial table moved from
-    `wfm_synth_core.h` to **`pn_core.h`**, where the convention belongs — it is
-    `pn_create()`'s tap mask, not the synth's — and `wfm_synth_mls_poly()`
-    stays as a forwarder, so no call site changed and no second table exists.
-
-- **`docs/c-api` was stale for `wfm_frame` and `frame_meter`.** Neither of the
-    two commits that added them ran `gen-c-api-check`, so 26 mkdoxy files
-    (including `wfm__frame_8h.md` and `frame__meter__core_8h.md`, which had
-    never been generated at all) would have failed that CI gate. Regenerated.
-
-- **A merged fix no longer leaves its issue open.** GitHub closes an issue only
-    when a closing keyword reaches the default branch; doppler rebase-merges,
-    so a commit message carries it — and nothing asked any branch to use one.
-
-    The cost was three issues in one week, all fixed and all still open:
-    `c0e0e615` gated the generated C API tree, which **is** #714, and left it
-    open for a day; PR #717's F1/F2/F3 are #663, #664 and #665, found only
-    because a triage pass read the PR body against the backlog. An open count
-    that includes finished work is a backlog nobody can plan from, and the
-    triage that produced the ranked board had to verify six issues against the
-    tree one at a time to learn which were real.
-
-    `make issue-link-check` asks a branch that changes code to declare either
-    `Closes #N` or `No-issue:`. **The bar is a statement, not a link** — most
-    branches close nothing, and a gate demanding an issue number from a
-    re-vendor would argue with its author, which is the failure mode
-    `changelog-check`'s own comment warns about. Silence is the one rejected
-    answer, because it cannot be told apart from a closure nobody wrote down.
-
-    A bare mention is not a link and is rejected with silence: `See #714 for   context` and `#714` alone both leave the issue open on merge. That
-    discrimination is the gate, so it is what the mutation test targets —
-    relaxing the pattern to accept any `#N` fails exactly those two cases and
-    leaves the other eleven green.
-
-    It shares `CHANGELOG_CODE_PATHS` with `changelog-check` rather than
-    defining "code" a second time, takes the same base so both per-branch
-    gates measure against the same commit, is inert on `main` by construction,
-    and fails closed with no merge base. Logic lives in
-    `scripts/issue-link-check.sh` so its 13 tests can drive it over seeded
-    messages instead of fabricating a scratch repository.
-
-    Closes #746.
-
-- **A NaN lock metric held the lock forever; an unknown lock is not a lock.**
-    `lockdet_step`'s drop test read `x < down_thresh`, and every comparison
-    against NaN is false — so while locked a non-finite look counted as a
-    *hit*, reset the drop run on every look, and left the flag lit
-    indefinitely on a dead statistic. Measured through the binding before the
-    fix: three NaN looks against `n_down = 2`, still reporting locked. Every
-    receiver that publishes a lock lamp reads this decision.
-
-    The library had already settled the question, in the component that
-    exists to answer it. `util_core.h`'s `saturate()` documents *"a lock
-    statistic wants NaN at the **floor** — an unknown lock is not a lock"* as
-    the reason its `nan_to` is a parameter — and **no lock detector had ever
-    called it**, so that paragraph described a caller who did not exist. AGC
-    leverages the primitive in five places; `lockdet` now leverages the same
-    one rather than encoding the policy a second way:
-
-    ```c
-    x = saturate (x, -INFINITY, INFINITY, -INFINITY);
-    ```
-
-    The bounds are infinite because the NaN substitution is the only job:
-    every finite look, and both infinities, pass through untouched. `+inf`
-    remains an ordinary hit and `-inf` an ordinary miss — only NaN is
-    unordered — and the exclusive edge at `x == down_thresh` is unchanged.
-
-    Doing the substitution once, up front, is also what keeps both
-    comparisons plain. The first fix carried the policy in the *spelling* of
-    a predicate (`!(x >= t)` rather than `x < t`, identical for every finite
-    `x` and opposite for NaN), which is exactly the subtlety that let the
-    drop side be written the wrong way to begin with. A rule that survives
-    only in how an operator is spelled is a rule waiting to be re-broken.
-
-    Three coverage gaps closed alongside it, none of them defects:
-    `lockdet_steps` carrying the decision **and** the in-flight verify run
-    *across calls* — the header's "frames of any size with no seam", where
-    only a single block had been tested and one block cannot see a seam;
-    `create()` clamping the verify counts (only `init()`'s clamp was pinned,
-    and they are separate entry points); and `set_state` into a
-    differently-tuned detector, which carries the source's configuration and
-    not merely its decision.
-
-- **`LoopFilter(t=0)` built a silently dead loop and `LoopFilter(t=inf)` one
-    whose every output was NaN forever.**
-    ([gh-740](https://github.com/doppler-dsp/doppler/issues/740)) The
-    constructor accepted a caller's arbitrary doubles and validated none of
-    them, so `t = 0` produced `kp = ki = 0` — a loop indistinguishable from
-    the legitimate frozen `bn = 0` — and `t = inf`, or a NaN in any argument,
-    produced NaN gains that poison every subsequent update permanently. Both
-    were one line away in Python. `loop_filter_create()` now rejects
-    `bn < 0`, `zeta <= 0`, `t <= 0` and any non-finite argument, and the
-    binding raises **`ValueError`** with the component's own message instead
-    of a blanket `MemoryError`.
-
-    Enforcement is at `create()` and **deliberately nowhere else**.
-    `loop_filter_init()` is the by-value path taken by the seven objects that
-    embed a filter, all of which validate upstream — the only
-    runtime-computed `t` in the tree is `mpsk_receiver`'s `1.0/upd`, safe
-    because `m_out >= 2` is checked in its own constructor — so guarding it
-    would be error handling for an impossible scenario. The asymmetry is
-    pinned by `test_loop_filter_core.c` §1 and §10 rather than left to read
-    as an oversight.
-
-    Validating at the boundary also makes the arithmetic **total**: with
-    `bn >= 0` and `zeta > 0` the gain denominator is at least 4, which closes
-    the one genuinely pathological corner — for `zeta >= 1` a sufficiently
-    negative `bn` drove it exactly through zero and both gains to infinity.
-
-- **`check_tests_ssot.py` scanned the working tree rather than the
-    repository, so an ignored file could fail `make lint`.** `jm apply`
-    materialises its own create-only `jm_test.h`, which doppler does not use
-    and which defines the retired `ALMOST_EQ` / `ALMOST_EQ_C` spellings this
-    gate exists to forbid. It is gitignored and never lands, but a plain glob
-    still found it and reported four violations in a file nobody had written
-    and nobody could remove for good. The scan now derives from
-    `git ls-files`, the same fix `validate-c` already uses after a glob there
-    ran a stale binary whose source had been deleted. Verified to still catch
-    a tracked violation, and to scan the same 90 tests and 8 harness headers
-    as before.
-
-- **The TED normaliser was never broken for DTTL; the measurement that said
-    so differentiated the wrong equilibrium.** The RateSync validation
-    report carried F15 — a normalised through-cascade S-curve slope of ~1.0
-    for Gardner but 1.23 rising to 10.75 for DTTL across roll-off, tracked
-    as [gh-669](https://github.com/doppler-dsp/doppler/issues/669) with the
-    cause explicitly open. Both harnesses took that slope about a fixed
-    offset of zero, which through the cascade is the **unstable T/2
-    equilibrium** rather than the eye centre. Measured at the stable zero,
-    DTTL reads 0.9998–1.0013 at every roll-off from beta 0.1 to 0.9, so `bn`
-    names one loop bandwidth on either detector — exactly what
-    `symsync_ted_slope` was always supposed to deliver.
-
-    Two things hid it. Gardner's S-curve is near-sinusoidal, so its two
-    zeros carry the same slope magnitude (1.0036 against 1.0044) and the
-    shipped default detector read correct at either — only DTTL, whose curve
-    is not sinusoidal, could expose the error, and it surfaced as a spurious
-    *roll-off* dependence that sent the investigation after the pulse and
-    the normalising formula instead of the offset. And the stable/unstable
-    labelling came from a hard-coded `slope <= 0` test, which is meaningful
-    only relative to a timing axis: the Python validator offsets the
-    decimation phase and the C harness offsets the transmitter, so their
-    axes run in opposite senses, every slope sign is negated between them,
-    and the two agreed on every measured number while disagreeing about
-    which zero to call stable.
-
-    Both now locate the equilibrium by **eye opening**, which has no sign
-    convention — mean `|symbol|` is 1.000 at the eye centre against
-    0.53–0.79 at T/2. `validate_ratesync_scurve` reports both zeros, so the
-    retired figures remain on the page as the unstable column; its DTTL
-    ratchet is replaced by a real gate on both detectors, sabotage-verified
-    by pointing the search back at the wrong equilibrium. The claim in
-    `symsync_ted_slope`'s own doxygen that the shipped normalisation "varies
-    10.6x between beta 0.1 and 0.9" came from the same measurement and is
-    **withdrawn**.
-
-### Added
 
 - **just-makeit pin 0.59.1 → 0.60.1, and 38 C symbols across 6 components
     became linkable.** The mpsk certification found `mpsk_map`/`mpsk_demap`
@@ -2306,6 +2877,1069 @@ PRs.
     any other bullet. The gate's gap is #705.
 
 ### Changed
+
+- **The starter's Makefile is what a newcomer reads first, so it was cut back
+    to what it teaches.** `coverage` and `docs` are gone: both named tools
+    nothing declared — `lcov`, `genhtml`, `doxygen`, `zensical`, `pytest-cov`
+    — so in a freshly unpacked starter `make coverage` spent a full Debug
+    rebuild and then said `lcov: command not found`. Neither ran in CI nor
+    appeared in any doc. What survives is `setup`, `build`, `test`, `bench`,
+    `clean`, `help`, and one `dev` extra in `pyproject.toml` that makes all of
+    them work after a single command.
+
+    `help` is now derived from the `## ` comment beside each target instead of
+    a hand-written list — the list it replaces had already drifted, still
+    advertising coverage as "C (lcov)".
+
+- **`make bench` measures something.** Both benchmarks were unfilled jm
+    scaffolds: the C one recorded nothing (`EMPTY bench_capture_core: no   measurements recorded`) and the Python one called `Capture(...)` with a
+    literal `Ellipsis` and printed a string. `pytest-benchmark` was missing
+    too, and `python_files` never included `bench_*.py`, so pytest collected
+    no benchmark at all. All four are fixed, and the starter now demonstrates
+    the thing it exists to demonstrate — reading a capture at **483 MSa/s** in
+    C, with the Python binding costing about **4%** over it (135.6 µs vs
+    141.2 µs for the same file).
+
+- **The starter's Makefile drops its Windows branches.** The manifest has
+    declared `platforms = ["linux", "macos"]` all along, so `SHELL = cmd.exe`,
+    the MinGW generator override, the `2>nul` twin of every probe and the
+    `.pyd` clean-up were dead code. `PYTHON` collapses with them: it used to
+    run the interpreter to ask for `pathlib.Path(sys.executable).as_posix()`,
+    which existed only to turn Windows backslashes into forward slashes, and
+    to fall back to a bare `python` that can now only resolve to Python 2.
+    It is `command -v python3`. The root `CMakeLists.txt`'s unconditional
+    `if(WIN32 ...)` libwinpthread copy is gone too — `jm status --check`
+    confirms its absence is not drift.
+
+- **just-makeit pinned to 0.63.3, and the tree builds on it.** The bump
+    closes nine doppler-filed issues:
+    [gh-1023](https://github.com/just-buildit/just-makeit/issues/1023)
+    (`jm bench` runs what the tree BUILDS, not what the manifest declares),
+    [gh-1034](https://github.com/just-buildit/just-makeit/issues/1034) (a
+    function-only module gets a C test and a benchmark),
+    [gh-1042](https://github.com/just-buildit/just-makeit/issues/1042) (every
+    parameter in a generated signature gets a `Parameters` entry),
+    [gh-1046](https://github.com/just-buildit/just-makeit/issues/1046) (jm
+    does not emit a CMake target name the project already declares),
+    [gh-1051](https://github.com/just-buildit/just-makeit/issues/1051) (a
+    `count_default` method's `.pyi` no longer hardcodes `count: int = 1`),
+    [gh-1052](https://github.com/just-buildit/just-makeit/issues/1052) (a
+    header-derived `*_max_out` doc is one paragraph, not one per source
+    line), and the three below.
+
+    **0.63.0 through 0.63.2 could not build this tree**, which is why the
+    pin lands three patches downstream of the minor. gh-1034 gave every
+    module with free functions a `test_`/`bench_<name>_core` pair, and each
+    release uncovered the next defect behind the last:
+
+    - **0.63.0/0.63.1 — the pair did not configure.** For a *collocated
+        module-object* (a module whose `objects` list carries its own name)
+        the object already emits `test_<obj>_core` into the same
+        `CMakeLists.txt`, so `cmake` refused outright:
+        `add_executable cannot create target "test_agc_core"`. Fixed by
+        [gh-1055](https://github.com/just-buildit/just-makeit/issues/1055),
+        and under it
+        [gh-1057](https://github.com/just-buildit/just-makeit/issues/1057) —
+        the reason nothing caught it. `_targets.from_manifest()` accumulated
+        into a `set`, so a name emitted twice was indistinguishable from one
+        emitted once; measured on this tree at filing, 365 names emitted
+        against a set of 356, **nine produced twice and the set reporting
+        zero**.
+    - **0.63.2 — the pair configured, then did not compile or link.**
+        Getting past `cmake` is what let anything reach the compiler for the
+        first time. A function declared with `out_type` got a call one
+        argument short of the prototype jm had generated in the same run
+        (`(void)ccsds_asm_bits()` against `void ccsds_asm_bits(uint8_t *)`),
+        and the targets linked `<module>_core m` and nothing else, so a
+        module function calling a sibling core did not resolve. Both are
+        doppler-filed —
+        [gh-1060](https://github.com/just-buildit/just-makeit/issues/1060)
+        and
+        [gh-1061](https://github.com/just-buildit/just-makeit/issues/1061),
+        the latter being gh-254's lesson, which gh-1034 introduced a second
+        target pair without inheriting.
+
+    Six generated module tests land with the bump — `arith`, `filter`,
+    `measure`, `resample`, `spectral`, `wfm`. They are jm scaffolds and say
+    so, reporting `PASSED (0 checks)`; what they do today is prove every
+    symbol links and every all-scalar function survives a call. That is not
+    nothing — see the entry below. **They are real tests**, not the
+    scaffolds jm generated: `dp_test.h`'s `DP_TEST_END` fails a test that
+    checked nothing, which is doppler's own rule refusing a scaffold
+    outright, so the six were written against the 43 functions' actual
+    properties ([#914](https://github.com/doppler-dsp/doppler/issues/914)).
+    The seven module *benchmarks* get no
+    scaffold at all: they exist and are declared in this project's own
+    `CMakeLists.txt`, so gh-1046 stands jm down.
+
+- **A repo path named in prose is now gated, and three dead citations
+    fixed.** `check_site_links.py` holds every LINK in the built site and
+    cannot see a path written as a code span, so a page could cite a file
+    that had never existed with every docs gate green. New
+    `scripts/check_doc_paths.py` (on `make lint` via `docs-invariants`)
+    scans **headers as well as docs** — the worst instance was written in a
+    C header and reached the site only because mkdoxy copied it, so gating
+    the generated page would have been gating the copy. Cross-repo
+    citations are excluded by naming the sibling project, derived from the
+    text rather than an allowlist. 587 paths across 876 files check clean.
+
+    What it would have caught: `dsss_receiver_core.h` sent readers to
+    `docs/gallery/dsss-acq-async-data.md` and `dsss-despread-async-data.md`,
+    neither ever committed under those names; and the NATS archive page
+    closed its "read X for the current state" note with
+    `docs/dev/streaming-roadmap.md`, which has never existed in this repo at
+    all.
+
+- **`docs/design/mpsk.md` no longer tells readers they cannot link
+    `mpsk_map`.** §9.6 listed "`mpsk_core` is in no library" as *open*
+    against [#747](https://github.com/doppler-dsp/doppler/issues/747) —
+    which is closed, and both `mpsk_core.c.o` and `util_core.c.o` are in
+    `libdoppler.a` today with `mpsk_map`/`mpsk_demap` defined. The bullet is
+    rewritten as resolved, and the stale "84 component cores" figure (104
+    now) is gone rather than corrected, since a count restated in prose is a
+    number with nothing keeping it true.
+
+- **`doppler.coding.ConvEncoder` — doppler can encode now**
+    ([#900](https://github.com/doppler-dsp/doppler/issues/900)). Until this,
+    **no class in the library exposed an `encode()` at all.** `Viterbi`
+    accepts any rate-1/n code, and Python could produce symbols for exactly
+    one of them — CCSDS's, and only inside a `FrameDesc`, because that path's
+    stage kinds bind to `ccsds_tm_frame_ops` and carry a depth rather than a
+    polynomial. A decoder whose matching encoder cannot be reached is a
+    decoder that can only be tested against itself.
+
+    ```python
+    from doppler.coding import ConvEncoder, Viterbi
+
+    sym  = ConvEncoder([0o171, 0o133], k=7, invert=0x2).encode(bits)
+    back = Viterbi([0o171, 0o133], k=7, depth=35).decode(llr)
+    ```
+
+    `conv` keeps the CODE — the description, the trellis arithmetic and the
+    kernel — and `conv_enc` is the stateful encoder over one, the same split
+    `viterbi` established. It is not a second implementation:
+    `conv_enc_encode` calls `conv_encode`, and the C benchmark measures the
+    wrapper at **1.001x** the raw kernel.
+
+    Two measurements worth recording. Encoding is **flat in `k`** — 2.92 ns
+    per information bit at every `k` from 3 to 9, because the encoder
+    computes `n` parities per input bit and never walks a trellis — against
+    the decoder's 331 to 1699 µs over the same range, where `2**(k-1)` states
+    set the price. And the register carrying between calls is the whole
+    reason the encoder is an object: a chunked encode is bit-identical to one
+    call, while an encoder restarted per block emits `k - 1` wrong symbols at
+    every boundary.
+
+- **`doppler.viterbi` is now `doppler.coding`** — **BREAKING**, though it
+    breaks nothing released: `Viterbi` shipped in no tag, and is
+    `[Unreleased]` above. A module named after the DECODING algorithm cannot
+    hold the encoder without reading wrong, and jm's `reexports` names
+    submodules of the same package rather than a sibling, so a re-export
+    could not bridge them. `doppler.coding` is the home for the general code
+    families a standard configures; `rs` follows.
+
+- **`ccsds_tm` certified — the 14th object, and the last of the three with
+    no Python face** ([#894](https://github.com/doppler-dsp/doppler/issues/894)
+    context;
+    `src/doppler/tests/validation/ccsds_tm/results.md`). 12 limits, 5
+    findings, 1 open.
+
+    Its claim inventory came out better than any before it — **every public
+    entry point was already pinned against a published value**, because the
+    component was built that way. So the certification measured the three
+    things it adds *on top of* the codes it configures, none of which a
+    single codeword can show:
+
+    - **The interleaver's guarantee is exact and has no tail.** A contiguous
+        burst of `depth * 16` symbols is corrected and `depth * 16 + 1` is
+        not — 200 blocks of 200 either way, at every allowed depth. It is a
+        cliff rather than a curve, because the pigeonhole argument is exact;
+        size the depth from the longest burst the channel produces, not from
+        a probability.
+    - **B-6's reason for demoting the 255-bit randomiser is measurable, and
+        it is 91 dB.** On constant data `CCSDS_TM_RAND_LEGACY` puts a line
+        that far above its own noise floor, at 1/255 of the symbol rate
+        exactly as 10.4.2 warns, where the default 131071-bit sequence puts
+        nothing (1.9 dB, the ordinary fluctuation of an averaged
+        periodogram). Measured through `psd_core`, the shipped meter.
+    - **A looser ASM threshold is a worse detector, not a more sensitive
+        one.** At `max_errors = 8` the marker is found at its right offset
+        only 58 % of the time **with no channel errors at all**, because
+        `asm_find` reports the FIRST match and each of the 96 preceding bits
+        is another chance to beat it. `t = 4` survives both tails. The
+        false-alarm rate itself tracks the binomial closed form to within
+        20 % across five decades.
+
+    Two things the inventory turned up that no gate could:
+    **`ccsds_tm_randomise`'s docblock described the LEGACY generator** — 8
+    stages, all-ones preset, 255-bit period, three facts each belonging to
+    the other randomiser, which the same header states correctly two
+    declarations above. Fixed here. And **`max_errors` has to be chosen
+    against the search window rather than the marker length**, which no
+    interface says
+    ([#897](https://github.com/doppler-dsp/doppler/issues/897)).
+
+- **`doppler.viterbi.Viterbi` — the soft-decision convolutional decoder now
+    has a Python face**
+    ([#893](https://github.com/doppler-dsp/doppler/issues/893)). It lived
+    inside the `conv` `c_deps` directory, one level below anything jm
+    modelled, so it had no binding, no generated CMake target for its test or
+    its benchmark, and a component string typed by hand. Declaring it as an
+    object in a collocated `viterbi` module produced all four, plus the
+    `.pyi`, for one `objects/viterbi.toml` and one `[module.viterbi]` block:
+
+    ```python
+    v = Viterbi([0o171, 0o133], k=7, depth=35)   # CCSDS 131.0-B-3 §3
+    bits = v.decode(llr)                          # soft in, hard out
+    ```
+
+    The manifest cannot express `viterbi_create(const conv_code_t *, size_t)`,
+    so the declared constructor takes the generator polynomials directly — the
+    array *is* the code, and its length gives `n`, following `fir`'s `taps`.
+    The struct form survives as `viterbi_create_code` for callers that already
+    hold one, and a test asserts the two agree. State carries across calls and
+    serializes, so `Viterbi` joins the shared round-trip matrix; a code the
+    decoder refuses now raises `ValueError` with what it wanted rather than a
+    blanket `MemoryError`. `conv` keeps the code description and the encoder,
+    the same split `rs` and `ccsds_tm` already have.
+
+    The C benchmark moved with it, and now **interleaves** its two traceback
+    depths instead of measuring them one after the other. It had to: the
+    first configuration in a process pays the clock ramp that the 0.25 s
+    settle does not finish absorbing, and back-to-back runs of the same
+    binary reported depth=35 at 229 ns/bit once and 162 ns/bit twice —
+    turning a real **1.42x** cost for depth 96 into 1.03x, and once into
+    0.99x, which reads as a 95-step traceback being cheaper than a 34-step
+    one. Interleaved, three consecutive runs agree to 1.42x, and the Python
+    face measures 1.38x independently.
+
+- **Eight C benchmarks, and a gate that keeps them honest.** An audit of what
+    landed since v0.42.0 found five new components with C tests and no
+    benchmark at all — `conv` (convolutional encode/Viterbi decode), `rs`
+    (Reed-Solomon), `ccsds_tm`, `mpsk` (the per-symbol map/demap/soft-demap
+    kernels) and `ber` — plus `snr`. All six now have one, and the two
+    benchmarks that shipped with `frame` and `frame_meter` as unfilled jm
+    scaffolds are filled in.
+
+    Three things the new measurements say, none of which the tree had
+    recorded: at the CCSDS k=7 rate-1/2 code, Viterbi decode runs at
+    **6.2 Mbit/s against the encoder's 342**, so decoding is the expensive
+    direction by more than fifty times; RS(255,223) costs
+    **1.33x** from a clean
+    codeword to a fully-loaded one, because the 32 syndromes dominate the
+    correction they gate; and in the CCSDS chain the inner code is **40%** of
+    a full `frame_encode` while `asm_find` — the only stage that scales with
+    the sample rate rather than the frame rate — scans at **1.0 ns/bit**.
+
+- **`scripts/check_bench_coverage.py`, on `make lint`.** Four rules, all
+    derived from the tree rather than from a list: a component with C tests
+    has a benchmark; a non-component benchmark has a CMake target; a
+    benchmark records a measurement; and it writes its JSON under the name a
+    collector opens. Both allowlists are ratchets that may only shrink, and
+    the gate fails if an entry is left behind after its benchmark starts
+    measuring.
+
+- **`native/benchmarks/` is now honest about what runs.** `jm bench` walks
+    jm's *component* list, so a `c_deps` entry or a function-only module is
+    invisible to it — `util`, `timing`, `hbdecim` and `resamp` had been
+    compiled by every build and run by nothing for months, appearing in no
+    published snapshot (`just-makeit bench util` answers
+    `unknown component(s): util`). Ten benchmarks are in that state, including the six
+    added here; they are run by hand until
+    [just-makeit#1023](https://github.com/just-buildit/just-makeit/issues/1023)
+    ships, rather than papered over with a local runner the fix would retire.
+    The gate holds everything checkable without running them.
+
+- **The algorithm lifecycle now names what a change owes a reader.** Phase 9 of
+    [Adding an Algorithm](https://doppler-dsp.github.io/doppler/dev/adding-algorithms/)
+    was one paragraph about carrying findings back; it is now five deliverables
+    with the gate behind each — a `@code` example on every public function
+    (executed by `make test-stubs`), a markdown guide when prose outgrows a
+    docstring, C **and** Python benchmarks, a runnable example, and a gallery
+    page when there is a figure worth seeing.
+
+    Phase 3 also states the part that was implicit: a header's `@code` blocks
+    **are tests**, flowed into the `.pyi` by jm and executed, so they must be
+    pinned against a real run rather than reasoned about.
+
+- **The published benchmark page moves to v0.43.0**, five releases after it
+    last did. `benchmarks/published` had stalled at v0.37.3 because `make bench`
+    was the one unpinned jm call site and had been silently resolving to a
+    version too old to understand the manifest — fixed earlier in this cycle,
+    and this is the first publish since.
+
+    Measured with `make bench-interleaved` (five alternating passes per build,
+    per-benchmark best kept) on `030b7679`, so the two columns are free of the
+    cross-run drift the old two-pass `bench-publish` picked up.
+
+    The new `syncword` rows are the most native-sensitive thing on the page:
+    the marker search is an XOR-and-sum over every offset, which vectorises,
+    so `-march=native` buys **+45 % at a 32-bit marker and +97 % at 256** over
+    the portable wheel build. `max_errors_for` is flat at +2 %, as a scalar
+    log-space sum should be.
+
+- **Timing the Python microbenchmarks is `make bench-python` now, not part of
+    `make test-python`.** Tests run constantly; benchmarks run occasionally.
+    They were one target doing both — a second, *serial* pass over
+    `src/doppler/*/benchmarks/` so pytest-benchmark would measure instead of
+    disabling itself under xdist.
+
+    Measured in CI before changing anything: that pass was **139 s of a 268 s
+    step, on all six Python versions** — roughly 14 minutes a run spent timing
+    code on a shared runner and throwing the numbers away. Runner timings are
+    not trustworthy in the first place; that is what
+    [#543](https://github.com/doppler-dsp/doppler/issues/543) deleted
+    `perf-regression.yml` over, and why `make bench-interleaved` exists.
+
+    The benchmark files still run in `make test-python` — as **tests**, with
+    `--benchmark-disable`, so a broken benchmark script still fails where it
+    should. Nothing stopped being asserted: the suite went from 2730 tests
+    plus a separate 138 to **2868 in one pass**, 66 s locally.
+
+    `--benchmark-disable` is explicit rather than relied upon. pytest-benchmark
+    *also* self-disables whenever xdist is active, which would leave the test
+    run's behaviour depending on `-n auto` — and `PYTEST_ARGS="-n 0"` is a
+    documented override, under which timing would quietly switch back on inside
+    the step everyone runs. (`-p no:benchmark` is the wrong knob and was
+    measured as such: it removes the fixture and every benchmark test errors
+    with "fixture 'benchmark' not found".)
+
+    Python line coverage now runs on **3.12 only** — the version whose
+    `coverage.xml` is uploaded. The other five computed it and discarded it,
+    which is just a slower test run; the number the patch gate reads has always
+    come from the `coverage` job's single instrumented C ∪ Python ∪ Rust build.
+
+- **The C core is compiled through ccache, and a developer can now run the
+    gates in CI's own container.** Two halves of the same idea: stop repeating
+    work, and stop guessing whether the environment matches.
+
+    Measured first. On one run the core was built **seven times with the same
+    compiler and the same flags** — once per Python job (only the ~11 s
+    extension build differs per ABI) plus the ubuntu-24.04 leg — at 59–80 s
+    each, about 7 minutes of identical work per run. `ccache` is now in every
+    dev group and reaches every configure step, including the coverage tree's.
+
+    What is *not* duplicated stays that way: the ubuntu-22.04 leg is a
+    different glibc and compiler, the coverage build is clang with
+    `-fprofile-instr-generate`, and `glibc-228` is the floor's toolchain.
+    ccache hashes the compiler and the full flag set, so those land in
+    separate entries by construction rather than by our being careful about
+    it. `make ccache-stats` runs after each build so the hit rate is in the
+    log — a cache that stops hitting has no other symptom than builds slowly
+    getting longer.
+
+    ccache rather than build-once-and-share: an artifact would make the six
+    Python jobs *wait* on a build job that nothing waits on today, and it
+    cannot span runs. The cache can, which is the case a developer feels — the
+    second push to a branch.
+
+    **Running it like CI is now a target, not a hope.** `make ci-run   TARGET='build test-rust'` runs any goals inside the *pinned digest* CI
+    uses, `make ci-shell` opens a shell in it, and `make ci-gates` runs the
+    whole gate set there — `gates` is already "every gate CI runs" (enforced
+    by `gates-check`), so this only adds the environment.
+
+    Both of today's CI-only failures would have been caught by it before a
+    push: a cargo too old to read the repo's own lockfile (invisible on a box
+    with rustup), and a host build tree handed to the container failing on
+    `atan2f@GLIBC_2.43`. That second one is why `ci-run` builds into its own
+    `build-ci/` and sets **both** `BUILD_DIR` and `DOPPLER_BUILD_DIR` —
+    `ffi/rust/build.rs` locates the library itself and defaults to the host
+    tree, so missing the second variable fails in a way that reads as a code
+    bug. Same separation, same reason, as `glibc-gate`'s `build-glibc228`.
+
+    Deliberately not a pre-push hook: `gates` includes `coverage` at ~10
+    minutes, and a hook that slow is one people pass `--no-verify` to.
+
+- **The pseudo-randomiser follows 131.0-B-6, which changed the default.**
+    §10.4.1 makes the **131071-bit** sequence (`h(x) = x¹⁷ + x¹⁴ + 1`, preset
+    `11000111000111000`) the requirement; §10.4.2 keeps the 255-bit one
+    doppler shipped *"for backward compatibility with legacy systems"*. Both
+    are now available as configurations — `CCSDS_TM_RAND` and
+    `CCSDS_TM_RAND_LEGACY` — over one generator, and the default is B-6's.
+
+    `wfmgen --randomise` takes an optional generator: bare means `ccsds`,
+    and `--randomise legacy` selects the old one. `--record` carries **which**
+    rather than a bare `true`, because the two are not interchangeable on the
+    air — only the matching receiver derandomises a given waveform, so a
+    record naming neither could not rebuild its own capture. A boolean is
+    still read on input, as the default, so older records load.
+
+    The frame decoder now **steps** the generator alongside the pack instead
+    of indexing a 255-entry table. That table was free at the old period and
+    would be 128 KB at the new one — and longer than any CADU, so it would
+    never wrap.
+
+- **The reported coding-gain bound moves 6.1 → 4.1 dB, and the reason is the
+    measurement's shape rather than the receiver's.**
+    `validate_rx_coding_gain`'s cleanest point moves Es/N0 0.0 → 2.0 dB on the
+    same chain, same seeds, same code, so the gate is re-baselined to 4.0 dB
+    with the measurement recorded beside it. The ≥6.1 dB half of that pair was
+    only ever measured on the legacy waveform, so it is the figure this
+    release does **not** ship, and `docs/design/fec-receive.md` §8 reports the
+    B-6 sweep throughout.
+
+    B-6 changed the sequence deliberately, to remove the 255-bit one's
+    spectral lines at 1/255 of the symbol rate and its ITU power-flux-density
+    problem. A maximal-length sequence of degree *D* has a maximum run of
+    exactly *D*, so the legacy randomiser guaranteed a transition every ≤ 8
+    symbols and B-6's only every ≤ 17 — but both have the **same 50.00 %
+    transition density** and the same run distribution below 8, and the whole
+    difference is ~20 events per CADU, or 0.2 % of symbols.
+
+    Isolated, that costs about **0.02 dB** of implementation loss, not 2 dB
+    (gh-866, closed with the data). What moves the reported clean point two
+    whole grid steps is a concatenated code on its cliff amplifying a ~3 %
+    relative change in channel SER, read on a 1 dB sweep grid — B-6 at +1 dB
+    was already at 1.08e-3 payload BER, so the true threshold shift is well
+    under 2 dB.
+
+- **A changelog entry is a FILE now, because a shared line does not scale.**
+    Every pull request appended to the same place in `CHANGELOG.md`. Measured
+    with twelve PRs in flight: **all twelve** touched it, all near the top of a
+    2625-line `[Unreleased]`, so **every merge knocked the other eleven to
+    `CONFLICTING`** — `O(N^2)` hand-resolutions in one file, none of them about
+    the code. That is a property of the layout, not of anyone's discipline, and
+    no amount of care fixes it.
+
+    An entry now goes in `changelog.d/<section>/<slug>.md`. The directory **is**
+    the `### Heading`, so the section is never declared twice and cannot
+    disagree with itself; the content is the entry verbatim, moved and not
+    templated. Two PRs touch different files, so git has nothing to resolve.
+
+    **`changelog-check` is folded, not replaced** — it asks exactly what it
+    asked before (a branch changing code must say what changed) and now accepts
+    either a fragment or a direct `CHANGELOG.md` edit, counting fragments
+    toward `[Unreleased]` being non-empty so a release cannot be cut with the
+    notes still sitting unassembled. `make changelog-assemble` promotes them
+    once per release, in Keep a Changelog order, and deletes them as it goes,
+    so a second run is a no-op by construction.
+
+    One consumer had to learn about them: `gen_jm_pin.py` harvests the jm pin
+    from the changelog TEXT, so a bump recording its pin in a fragment would
+    have been reported as a pin nothing documents. It reads
+    `changelog.d/*/*.md` too now.
+
+- **Every Linux CI job runs inside a baked toolchain image instead of
+    apt-installing one.** `deploy/docker/Dockerfile.ci` carries the dev and
+    docs groups, and `.github/ci-images.env` pins it by digest.
+
+    The provisioning step it replaces was ~112 MB of archives per job, ten
+    jobs a run — and most of it was already on the runner under a different
+    owner: cmake 3.31.6 and cargo 1.97.1 live in `/usr/local`, outside dpkg,
+    so apt did not know they were there and fetched the distro copies anyway.
+    That download was the entire exposure to mirror weather. On 2026-08-19 it
+    stalled five runs of one PR, one job trickling 21m30s against a
+    25-minute ceiling ([#885](https://github.com/doppler-dsp/doppler/issues/885)).
+
+    **The image has no package list of its own.** It copies `bootstrap.toml`
+    and runs the same two `jbx install-deps` commands `make install-deps` and
+    `make install-docs-deps` run, so the image and a dev box provision from
+    one file. A second list is exactly what `bootstrap.toml` exists to
+    prevent, and it would rot in the way that is hardest to notice — the
+    image would keep working while no longer being what a developer gets.
+
+    **Two bases, and the pair is load-bearing.** `build-and-test` runs
+    ubuntu-22.04 and ubuntu-24.04 on purpose — two glibcs — so one image for
+    both legs would leave that matrix naming two environments while testing
+    one. `BASE` is a build argument and both are published.
+
+    **The glibc 2.28 floor is untouched.** It is still answered where it
+    always was: `make glibc-gate` builds the tree in Debian 10 and runs
+    `glibc-check` over the `.so` and every example binary, and release wheels
+    are still built in `manylinux_2_28`. A modern base cannot answer a floor
+    question, and this image does not try to.
+
+    Two things fall out of running in a container. `make nats-up` shelled out
+    to `docker run`, which does not exist inside a container job — and the
+    nats:// tests **self-skip** when 4222 is unreachable, so that would have
+    quietly dropped the whole nats path rather than failing. The image now
+    carries `nats-server` and `scripts/start-nats.sh` prefers the binary,
+    falling back to docker, so a dev box without docker gains those tests
+    instead of skipping them. And the script no longer reports success on
+    someone else's broker: it detects a listener it did not start and says so.
+
+    Freshness is a question asked nightly, not an image consumed nightly.
+    `ci-image.yml` rebuilds, compares the package fingerprint baked into the
+    image, and publishes and opens a repin PR only when the content actually
+    moved — so a run stays reproducible while drift still surfaces within a
+    day. `make ci-image-check` fails offline when `bootstrap.toml` or the
+    Dockerfile move without a repin, and refuses any `container:` naming a
+    mutable tag.
+
+- **`ContinuousMpskReceiver` pins `nda_tap = strobe`, measured on its own
+    waveform.** It shipped pinning `mf_in`, and every harness that had touched
+    that tap shared the same gap: `rx_battery` runs RRC with dense transitions
+    throughout (the **burst** flavor's signal), `rx_nda_tap` sweeps NRZ but
+    **noiseless**, and the C test runs I&D at 30 dB. `docs/design/mpsk.md` §0
+    calls the continuous flavor *NRZ BPSK, periods of data modulation off but
+    carrier on*, and nothing measured that.
+
+    New: **`native/validation/rx_dynamics.c`** — NRZ BPSK, I&D, `m_out = 4`,
+    DTTL, 12 dB Es/N0, half the record with modulation **off** (carrier on, so
+    the TED has no edge and timing cannot close), then dense transitions as a
+    step, all under a Doppler ramp through `doppler_channel` so the carrier and
+    every clock move together. It captures every telemetry probe
+    (`--out DIR`), and `make plot-rx-dynamics` renders
+    `docs/assets/rx-dynamics.png` from that capture — the figure plots the
+    receiver's own records, never a Python re-derivation.
+
+    | tap          | lock, modulation OFF | min at the onset | end    |
+    | ------------ | -------------------- | ---------------- | ------ |
+    | **`strobe`** | +0.935               | **+0.860**       | +0.920 |
+    | `mf_out`     | +0.934               | +0.478           | +0.802 |
+    | `mf_in`      | +0.761               | +0.417           | +0.714 |
+
+    **`strobe`'s timing dependency costs nothing in the half where timing is
+    impossible**, because an unmodulated NRZ carrier is *sampling-phase
+    invariant* — every sample is the same constellation point, so the
+    M-th-power discriminator does not care which one the timing loop would have
+    nominated. Timing closure gates demodulation, not carrier acquisition.
+    `mf_out` takes the largest hit the moment transitions exist (its ISI bias,
+    on schedule). The **TED** is the largest single effect on the page: the
+    same record through Gardner deepens `strobe`'s onset dip from 0.075 to
+    0.306, four times, on its own.
+
+- **`docs/dev/` is organised around its spine, and CI has a page.** The
+    thirteen pages [Adding an
+    Algorithm](https://doppler-dsp.github.io/doppler/dev/contributing/adding-algorithms/)
+    links to now live under `docs/dev/contributing/`, leaving `docs/dev/`
+    holding the index and the maintainer-internals pages. The spine was
+    already the entry point and `index.md` already listed its members
+    separately from maintainer plumbing; the directory now says the same
+    thing the index did.
+
+    New: [Continuous Integration](https://doppler-dsp.github.io/doppler/dev/ci/)
+    — what CI is made of and how to run it yourself. The pinned toolchain
+    image and why it has no package list of its own; the three things
+    installed outside `bootstrap.toml` and why a cross-distro list cannot
+    express them; digest pinning and what "refresh nightly" does and does not
+    mean; the compiler cache and its measured hit rate; and the four gates
+    that watch CI itself.
+
+    It leads with `make ci-shell` / `ci-run` / `ci-gates`, because the point
+    of baking the toolchain is that "works on my machine" and "works in CI"
+    become the same sentence — including the warning that container and host
+    build trees must not be mixed, which is a link error that reads as a code
+    bug.
+
+    The move itself was gated end to end: `check_nav_index` for the index
+    bullets, the strict site build and `check_site_links` for 183 pages of
+    internal links, `check_doc_targets` for every `make` target the new page
+    names, and `gen_validation_log`'s output path — a generated page, so its
+    generator moved with it rather than being left pointing at a path that no
+    longer exists.
+
+- **The `m_out` rule has one implementation again.** gh-644 gave it a home in
+    `mpsk_rx_derive_m_out()`; `dsss_receiver_core.c` was never migrated, so
+    the tree carried two implementations of one rule — the thing CLAUDE.md's
+    *never reimplement existing logic* exists to prevent, and which the
+    retired copy's own comment was a monument to having gone wrong once
+    already.
+
+    They disagreed below `sps = 2`: the shared rule refuses with `0`, the
+    local one floored at `2`. Neither value builds a receiver at `sps = 1`,
+    so this moves *which* rule refuses rather than whether one does —
+    recorded because a silent value difference between two copies of a single
+    rule is how the first drift happened.
+
+- **just-makeit pin 0.62.0 → 0.62.1**, for a fix this repo drove and could not
+    work around: **just-makeit#1018**. A gh-1012 signature override's `.pyi`
+    documented the PARENT's C symbol while the runtime face documented the
+    override's, so `MpskReceiverR.steps` — whose whole point is that it takes
+    `float32` where its parent takes `complex64` — was stubbed with a doctest
+    that constructs `MpskReceiver` and hands it a complex array.
+
+    `scripts/check_doc_face_parity.py` refused it, correctly, and **no manifest
+    or header configuration made both faces right**: removing the override's
+    `@code` only swapped the runtime face onto jm's synthesized example while
+    the stub kept the parent's authored one. That is what made it an upstream
+    blocker rather than a local carve-out, and why the collapse waited on a jm
+    release instead of on an exemption.
+
+    The fix keys a member's doc block on the symbol it BINDS
+    (`C.method_c_symbol`) rather than on `<component>_<member>`, and judges the
+    scaffold sentinel against the member NAME — jm writes its skeleton
+    `@brief` from the Python name while the parser recognises a scaffold by the
+    name derived from the C symbol, the same string for every method until
+    `fn` made them differ.
+
+    Adopting it reconciled two `.pyi` files and eight sacred fragments, with no
+    `_core` and no signature drift. `Doc face parity` reports 213 methods compared and 0 divergent.
+
+- **What `mf_in` costs is excess noise bandwidth, not processing gain.** A
+    Nyquist-sampled band-limited signal loses nothing by being sampled fast.
+    Measured at the node with the AGC off so the path is linear, `mf_in` sits
+    **6.01 dB** below Es/N0 at `bank_sps = 4` while the terminal node sits
+    1.7 dB below it — and `10·log10(4) = 6.02 dB`, *identical at 6.79, 12 and
+    20 dB Es/N0*, which is the signature of a pure bandwidth ratio rather than
+    an SNR-dependent effect. DEC band-limits to **its own** Nyquist,
+    `±bank_sps·Rs/2`, while the signal occupies ~`±Rs`, and the terminal filter
+    — the first thing in the cascade matched to the signal — is downstream of
+    this tap.
+
+    So the cost is **bounded by the plan** (`bank_sps` is a planner outcome:
+    still 8 at `sps = 64`, so 9.0 dB there, not 18) — and it is the tap's
+    **stated price rather than a defect**. Band-limiting the node (an arm
+    filter, or the 2-sps decimation `docs/design/mpsk.md` §3.3 considers)
+    would recover most of it and is **declined**: both cost serialized state
+    on every object carrying the tap, and `strobe` already reads the node
+    matched to the signal for free — and measures better on this flavor's own
+    waveform. So `mf_in`'s trade is stated, not repaired: `bank_sps/(2M)` of
+    pull-in range for `10·log10(bank_sps)` dB of lock sensitivity. The loop
+    acquires at every operating point measured; what degrades is the
+    M-th-power lock statistic, which is an SNR measure.
+
+- **`MpskReceiver`'s certification is re-based on measurements that can carry
+    it** — 33 limits to 60, with a claim inventory (§1.1) mapping all 28
+    header claims onto the C test, a report section, or C-ONLY.
+
+    The Es/N0 grid is now **derived per M** from the bound and the record
+    length. One grid across all three orders put BPSK where it makes no errors
+    at all: six of nine cells could not bound anything, and one of them
+    reported the receiver *beating* the matched-filter bound off three errors.
+    Each M is now measured where its own bound predicts enough errors in the
+    symbols actually **scored**, so the grid moves with the record length
+    instead of being retyped, and section 4 asserts only over cells clearing a
+    stated error floor.
+
+    Four sections are new. **§2.8** halves `m_out` at fixed Es/N0: ~2.7 dB of
+    EVM at every M, reproducing the header's QPSK figure and **not** its
+    M-dependent ordering, which is anchored at an SER this record length
+    cannot reach. **§2.9** measures the AGC's level law. **§2.10** covers
+    lifecycle, telemetry and state, with the resume checked against a *warm*
+    instance so the blob has to determine the continuation rather than merely
+    not contradict it. **§2.7** grows a true-lock control and all three
+    metrics, which turns the invisibility claim into evidence — and
+    corroborates `docs/design/rx-test.md` §8.6's independent measurement to
+    0.05 dB.
+
+    Two findings are rewritten on the corrected bound, and both, plus
+    [#781](https://github.com/doppler-dsp/doppler/issues/781), turn out to be
+    the same mechanism: a loop that recovers the symbol rate to 2 ppm against
+    a record the meter cannot align. **8PSK's implementation loss is
+    unmeasurable by any per-push sweep**, because its measurable window
+    (≤14.5 dB) and its working window (≥17 dB) do not overlap. A new finding
+    collects six header claims a binding reaches that nothing measures
+    ([#814](https://github.com/doppler-dsp/doppler/issues/814)).
+
+    Every characterisation section now closes with what its table *means*,
+    which is the half `CarrierNda`'s report had and this one did not.
+
+- **`MpskReceiverR` is now a VIEW over `MpskReceiver`, not a second type — one
+    object, three faces.** The Python surface is unchanged for every existing
+    caller: same class name, same constructor signature and defaults, same
+    `steps()`/`bits()` taking `float32`, same properties. What it GAINS is the
+    four §8.1 read-backs the separate type had in C and never bound (`zeta`,
+    `num_phases`, `lock_thresh`, `bn_agc_ratio`), which are shared from the
+    parent verbatim. In C, `mpsk_receiver_r_*` is gone: the constructor is
+    `mpsk_receiver_create_real()` and the block API is
+    `mpsk_receiver_steps_real()` / `mpsk_receiver_bits_real()`, over one
+    `mpsk_receiver_state_t` carrying `union { ddc_state_t *c; ddcr_state_t *r; }   fe` and an `int real`. `native/{inc,src}/mpsk_receiver_r/` and
+    `objects/mpsk_receiver_r.toml` are deleted.
+
+    The argument was never the duplication. `mpsk_receiver_r_core.c` was 372
+    lines of which 16 functions were pure delegations, but the cost of the
+    split was that their shared 784-line `mpsk_rx_loops.h` **had no test
+    home** — so its claims were pinned only where one of the two tests
+    happened to reach them, and the two did not overlap. `set_telemetry` was
+    asserted seven times on the complex side and zero on the real one; **"the
+    LO runs at half the input rate" was pinned by neither**, which is exactly
+    where the gh-765 `freq_scale` defect lived. `test_mpsk_receiver_r_core.c`
+    is folded into `test_mpsk_receiver_core.c` (§15-23) rather than deleted,
+    and every row of that table now has one owner.
+
+    §23 is the claim nothing asserted, in two halves, each proven by sabotage:
+    the loop GAIN against `θ_ss = 2πr/wn²` under a **ramp** on both faces
+    (`lo_sps = sps` on the real face reads 2.00× the law at both ramp rates),
+    and the frequency READBACK against a known offset (dropping the 0.5 in
+    `mpsk_rx_lo_to_input()` is off by exactly `df`, five times the tolerance).
+    Each sabotage leaves the other half green. The stimulus for the first has
+    to be a ramp: a type-2 loop nulls a frequency step regardless of gain,
+    which is how gh-765 survived every test in the tree. The estimator is the
+    **signed mean** of the discriminator output, not the mean of `|e|` — under
+    a ramp the lag is a constant the loop holds, so the signed mean averages
+    the jitter out while `mean|e|` carries a bias that read 44% high and failed
+    a correct receiver.
+
+    The state blob is unchanged on both faces and neither version moved, but
+    the envelope MAGIC is keyed on the face (`MPSK`/`MPSR`) so a blob from one
+    is refused by the other by name rather than reinterpreted. `MpskReceiverR`
+    keeps its declared defaults verbatim, including the five it pins where the
+    parent derives — three of which disagree with the derivation. Fixing that
+    is a behaviour change and is gh-829; the collapse changed no behaviour, and
+    `make validate-check` reports the report unchanged.
+
+    Made possible by just-makeit#1012 (jm 0.62.0): a view method restating a
+    parent's Python name may declare its own signature when it binds its own C
+    symbol via `fn`. The type/flavor rule — a difference in constructor is a
+    flavor, a difference in method signature is a separate type — is unchanged;
+    what changed is that jm can now express the answer.
+
+- **The certification's level-diagnostic finding is now gated by `ctest` and by
+    the examples suite, not only stated in a report.** `docs/dev/contributing/validation.md`
+    step 9 — whatever a certification establishes goes back into the C test and
+    into an example, because those are what keep it true and what put it in front
+    of someone.
+
+    **The C test's assertion is strictly stronger.** §11 checked that the AGC's
+    gain *moved* by more than 10 dB per 4× level step. It now checks the **law**:
+    each step moves it by `20·log10(4) = 12.0412 dB`, measured 12.0412 and
+    12.0412. That is the difference between a trend and an absolute level
+    estimate. Sabotage shows the coverage this adds — a 2% scale error on
+    `agc_gain_db` passes the old `> 10 dB` check and fails the new one.
+
+    **The example carries the blind spot**, because that is what a caller gets
+    wrong: `lock` reads 0.936 / 0.948 / 0.950 across a 16× level change and
+    **cannot see a level error at all** — it is the M-th-power carrier statistic
+    and `carrier_nda_disc` divides out its own `|z|^M`. `mpsk_receiver_demo.py`
+    now asserts both halves (the gain law, and that `lock` stays put), so a change
+    making `lock` level-sensitive fails the examples gate instead of surprising
+    someone in the field. The gallery page includes that region under
+    "Diagnosing a level problem — read `agc_gain_db`, never `lock`".
+
+    Only the robust half was carried. The report's §2.9 also shows the `A²`
+    timing under-drive in `timing_rate`, and that one is **not** monotone in
+    level — at 25 dB and amplitude 0.25 the un-levelled receiver reads better —
+    so it is reported and deliberately not asserted anywhere.
+
+- **A level problem is invisible to `MpskReceiver.lock`, and the report now
+    says where to look instead.** With `agc = 0` the recovered symbol rate
+    degrades from 17 to 172 ppm as the input level falls — the `A²`
+    under-drive the header describes, arriving on the timing loop — while
+    `lock` reads 0.96–0.97 throughout and is not even monotone in level,
+    because `carrier_nda_disc` divides out its own `|z|^M` and is immune to
+    the level by construction.
+
+    So the receiver publishes two health readouts with disjoint blind spots,
+    and the one a caller reaches for first is the blinder of the two.
+    Diagnose with `agc_gain_db` and `timing_rate` instead. The gain law is
+    exact: the readback plus `20·log10(amp)` is constant to under 0.01 dB
+    across a 32× amplitude span, so the number is an absolute level estimate
+    and not just a trend. Neither `lock` nor, at 20 dB Es/N0, the error rate
+    can see a level error at all. Measured in the report's §2.9.
+
+- **`MpskReceiverR` derives the five parameters its complex twin derives.**
+    `m_out`, `zeta`, `lock_thresh`, `num_phases` and `bn_agc_ratio` now
+    default to `0` — *derive it* — instead of carrying pinned values.
+    `MpskReceiver` and `MpskReceiverR` are one object with two constructors,
+    and both now read back the same numbers:
+
+    ```pycon
+    >>> MpskReceiverR(m=4, sps=32.0).num_phases
+    64
+    ```
+
+    which was `1024`. Three of the five were not merely redundant:
+    `num_phases = 1024` was the legacy bank against the **measured**
+    saturation point of 64, `lock_thresh = 0.5` a round number against the
+    derived `sigma_H0 * eta(Pfa)` = 0.4999, and `zeta = 0.707` a typed-out
+    constant against `1/sqrt(2)`. `m_out = 8` happened to equal the
+    derivation at the default `sps = 32` and stopped doing so anywhere else.
+
+    The real face never adopted `docs/design/mpsk.md` §8.1 because the
+    collapse that created it carried the defaults across **unchanged** — a
+    refactor and a retune in one commit is a diff nobody can bisect. This is
+    the retune, on its own, with the evidence.
+
+    **Nothing measurable moved.** `validate_mpsk_receiver_real_ber` reports
+    implementation loss against the coherent bound at each M's own SER=1e-3
+    anchor, and every figure is identical before and after — 0.54 dB at
+    M=2, 0.51 dB at M=4, 0.92 dB at M=8. So the saturation measured on the
+    complex face holds behind the R2C halfband too, and the 16x bank was
+    paying about **40 kB per instance** (measured over 100 instances) for
+    resolution the receiver cannot use.
+
+    Pass a value to pin one, exactly as before; only the defaults moved.
+
+- **One `mpsk.md`.** The M-PSK design lived on three pages —
+    `mpsk.md`, `mpsk-refactor.md` and `mpsk-soft.md` — and two of them
+    specified the *same constructor differently*. They are now one page:
+    the refactor's API surface merged into §8 with the disagreements resolved,
+    its collapse record kept as §12, and the soft-decision design folded under
+    §9 as §9.7, rewritten to describe what shipped rather than what was
+    proposed.
+
+    Where the two constructors disagreed, §8.2 is the answer: `nda_tap` and
+    `acq_to_track` are **gone** rather than derived, and `differential` moves
+    to `bits()`. §8.2 also now states the whole target — **exactly two required
+    arguments**, `sample_rate_hz` and `symbol_rate_hz`, with `m` defaulting to
+    2 — and the three-constraint rule that derives `bn_carrier`.
+
+- `rs` is certified. The Reed-Solomon header's claims were enumerated and
+    mapped onto `test_rs_core.c`, which gained seven sections for the ones
+    nothing ran: the derived sizes and the declared range, the consequence of
+    the root-stride rule, the parity as a remainder by long division, the
+    syndrome closed form, the packed-symbol convention at `J < 8`, every error
+    count up to `E`, and that the description carries no running state. The
+    evidence layer is
+    [`src/doppler/tests/validation/rs/results.md`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/rs/results.md),
+    measured by `native/validation/rs_certify.c` on the C-only track, and it
+    establishes the number a caller sizes parity by: a failure past `E` is
+    **silent** with probability `V(E)/q^(n-k)` — 0.99 at `E = 1`, 2.6e-14 at
+    CCSDS's `E = 16` — and that probability does not fall as the damage grows.
+
+- `rs_core.h` no longer offers RS(204,188) as a code to point the file at.
+    `n` is `2^J - 1` by construction, so DVB's code is a *shortened*
+    RS(255,239) and needs the virtual fill of
+    [#813](https://github.com/doppler-dsp/doppler/issues/813); both the header
+    and `docs/design/reed-solomon.md` now name the mother code.
+
+- **`rx_battery --check` still does not gate a receiver that refuses EVERY
+    point**, and the file now says so where the gate would go. A per-point
+    refusal is a result and stays uncounted — a `qpsk`/`psk8` frame-geometry
+    refusal is the harness working — but nine of them is a receiver that does
+    not work, which is precisely how the `mf_in` pin exited 0 while measuring
+    nothing. Closing it needs a run-level rather than a per-point gate, so it
+    is being added to this same loop as `dp_rx_witness_t` by doppler#794
+    rather than raced here.
+
+- **`libdoppler.a` now declares `-lpthread`, and a static consumer needs it
+    on the link line.** The core has needed pthread since `rs.c` moved to
+    `pthread_once`, but nothing said so: each component that needs pthread
+    carries `Threads::Threads` PUBLIC on its own target, and every component
+    is folded into the archive as `$<TARGET_OBJECTS:...>` — objects, not a
+    link edge — which drops the usage requirement on the floor. So the
+    archive's link interface named only `-lm` while one of its members called
+    `pthread_once`.
+
+    Nothing failed on a modern box, because glibc ≥ 2.34 folds pthread into
+    libc. On glibc < 2.34 it is a separate library and the symbol has to be
+    named: `examples/c/ccsds_link_demo` failed to link in the Debian 10 job
+    with `undefined reference to pthread_once`.
+
+    `Threads::Threads` is now PUBLIC on `doppler_lib_static`, so
+    `doppler::doppler-static` and `pkg-config --static doppler` both carry it
+    and a `find_package`/pkg-config consumer needs no change. A consumer that
+    spells the link line by hand should add `-lpthread` beside `-lm`.
+
+- **The telemetry capture demo reads every panel against the number it is
+    supposed to hit.** Each trace now carries its reference: decision
+    thresholds in red, read off the receiver rather than retyped, and the
+    actual quantity an estimator is estimating in green. `sym.i` and `sym.q`
+    share one axis, because what matters is their relative size — I settles
+    into two ±1 bands while Q collapses onto zero, and separate autoscaled
+    panels render a Q of pure noise exactly like a Q carrying signal. The
+    example asserts it (mean|I| ≈ 17× mean|Q|) rather than leaving it to
+    the eye.
+
+    The demo also stops passing `acq_to_track=1`: **there is no handover.**
+    One NDA discriminator steers the LO from the first output to the last,
+    which is Mode 1 in `docs/design/mpsk.md`, and the demo had been running
+    the superseded design against a view whose own manifest pins that gating
+    at 0. The parameter remains on the shipped constructor — measured, it
+    still changes 456 of 3998 symbols — so retiring it belongs to
+    [#831](https://github.com/doppler-dsp/doppler/issues/831).
+
+- **The telemetry capture example's transmitter is `wfmgen`, not numpy.**
+    `mpsk_telemetry_capture_demo.py` shaped its own rectangular pulse
+    (`np.repeat`), applied its own carrier offset, and computed its own noise
+    level from `sqrt(8 / (2 * 10**(20/10)))` — an Es/N0 convention written out
+    by hand, where the `8` is `sps` and the `2` is the complex-noise factor and
+    neither is named. It is now one `Composer([Segment(...)])`, the same path
+    the CLI and a JSON record drive, with `snr_mode="esno"` stating the level
+    once. numpy stays for analysis of the captured series.
+
+    The point is not tidiness: this example exists to show what a receiver's
+    telemetry can prove, and a demo that re-derives the transmitter cannot
+    catch a transmitter bug — it would agree with itself while both halves
+    drifted from the shipped generator.
+
+    `scripts/check_stimulus_sources.py` is the gate for this class and passed
+    on the old code, because its `pulse` marker matches a defined `rrc`/`rc`
+    function and its `level` marker matches peak-fraction normalisation.
+    Widening it is [gh-871](https://github.com/doppler-dsp/doppler/issues/871):
+    the hand-computed sigma shape appears in 14 files, so it wants a ratcheted
+    marker rather than a drive-by.
+
+    The docstring also claimed the attach registers "all 13 probes" while the
+    real figure is 16. It now names the probe families and points at the
+    assert that pins the set (`set(series) == set(tlm.probe_names)`), a count
+    nobody read back being exactly what went stale. Among the 16 are
+    `rx.sync.lock` and `rx.sync.locked` — the timing loop's Gardner
+    eye-opening ratio and its de-chattered flag, which no C accessor exposes.
+
+- **Four examples and the M-PSK gallery page build their stimulus with
+    `wfmgen` instead of numpy.** Each one shows a different face of the
+    generator rather than repeating one recipe, because the examples are where
+    a reader learns which face their own problem wants:
+
+    | example                    | what it now teaches                                                                                                                                                              |
+    | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `mpsk_receiver_demo`       | the `symbols` source — an arbitrary constellation, which is how ONE function serves BPSK, QPSK **and** 8PSK when `modulation` reaches only the first two; plus `snr_mode="esno"` |
+    | `costas_demo`              | `snr_mode="fs"` — SNR per SAMPLE, the question a Costas loop actually asks, and a 12 dB different number from `esno` at sps=16                                                   |
+    | `symsync_demo`             | `rc_h` and `wfm_awgn_amplitude` — the primitives for a stimulus the composer *cannot* build                                                                                      |
+    | `dll_demo`                 | `PN` — a real maximal-length code                                                                                                                                                |
+    | `gallery/mpsk-receiver.md` | `level` in dBFS, replacing a bare `* 0.5`                                                                                                                                        |
+
+    Every conversion was verified numerically rather than assumed, because the
+    conventions are the part that goes wrong silently: with noise off the
+    `symbols` source is **byte-identical** to `np.repeat`, `snr_mode="esno"`
+    and the hand-written `sqrt(sps / (2 * 10**(esn0/10)))` both measure
+    10.0 dB at the matched-filter output, `snr_mode="fs"` reproduces its hand
+    sigma to five digits, and `wfm_awgn_amplitude` matches to eight decimals.
+
+    **`dll_demo` got a real fix, not just a refactor.** Its 127-chip code was
+    `default_rng(1).integers(0, 2, 127)` — a coin flip. 127 is 2^7 - 1, so
+    `PN(length=7)` fills the period exactly, and the difference is the
+    property a delay lock loop runs on: an m-sequence's off-peak
+    autocorrelation is a flat **-1** at every non-zero lag, while the random
+    code wandered between **-13 and +3**. The discriminator reads that
+    sidelobe structure directly, so the demo had been handing itself a worse
+    S-curve than any real spreading code would produce.
+
+    **`symsync_demo` is the one that stays hand-placed, and says why.**
+    `Segment.sps` is an integer, so no scene can express "the symbol clock
+    runs 1.004x fast and starts 1.7 samples late" — which is the question a
+    `SymbolSync` exists to answer. Its pulse and its level are now library
+    primitives even though its clock cannot be; `rc_h` is documented for
+    exactly this, being the analytic raised cosine at arbitrary non-grid
+    times, and the private `rc_pulse` it replaces was a transcription of that
+    formula.
+
+- **Batch 2 of the numpy-to-`wfmgen` sweep**, four more examples, again a
+    different face each:
+
+    | example                | what it now teaches                                                                               |
+    | ---------------------- | ------------------------------------------------------------------------------------------------- |
+    | `telemetry_fanin_demo` | a **multi-segment scene** — clean, outage, clean as one `Composer`, not three arrays concatenated |
+    | `receiver_lock_demo`   | **continuous async DSSS** (`symbol_rate` > 0), the waveform type this demo was hand-indexing      |
+    | `rate_converter_demo`  | **`Composer.from_json`** — the face a `--record` document has                                     |
+    | `ber_awgn_demo`        | `wfm_awgn_amplitude` at sps = 1, where Es/N0 and per-sample SNR are the same number               |
+
+    `receiver_lock_demo` is the one worth reading. wfmgen has its waveform as
+    a first-class type: `--type dsss` with a `symbol_rate` selects the
+    continuous form, where the code repeats forever and data rides it at a
+    rate that is deliberately not a whole number of chips. That
+    asynchronicity is the entire subject of the demo, and it had been
+    expressed as index arithmetic
+    (`si = floor((idx - 0.37*TE) / tsym)`). All three loops — DLL, Costas
+    and SymbolSync — still acquire from a cold start on the generated
+    stimulus, which is the assertion that file already carried.
+
+    Two codes stopped being coin flips. `receiver_lock_demo`'s 127-chip code
+    and `telemetry_fanin_demo`'s 31-chip one are both `2^n - 1`, so
+    `PN(length=7)` and `PN(length=5)` fill their periods exactly. The second
+    replaces a hand-written five-stage LFSR whose own docstring explained why
+    low autocorrelation sidelobes matter to a CFAR reference — and then
+    generated the sequence by hand rather than asking the library.
+
+    **A trap found and documented**: the CLI's `--fs` default of 1.0 does
+    **not** reach a JSON scene. `{"type": "tone", "freq": 0.08}` renders at
+    DC with no error; `{"type": "tone", "freq": 0.08, "fs": 1.0}` renders at
+    0.08. Found because `rate_converter_demo` failed its own frequency check
+    with the tone 1245 bins off, which is the gate doing its job.
+
+- **just-makeit pin 0.61.0 → 0.62.0.** Adopts the two doppler-filed fixes that
+    the `MpskReceiver`/`MpskReceiverR` collapse
+    (`docs/design/mpsk-refactor.md` §6) was blocked on, skipping 0.61.1 (a
+    release-notes repair with no template change).
+
+    **jm gh-1012** lets a `[[<obj>.views.methods]]` entry restating a parent's
+    name declare its own `arg_type`/`return_type`, bound to its own C symbol
+    via `fn` — so two objects differing in one method's dtype and nothing else
+    can become one object and one view, under the *same* Python name.
+    Previously the only way to express it was a differently-named method
+    (`steps_r`), which gives the two faces an asymmetric public surface —
+    most of the way back to being a second type. **jm gh-1011** is the fix for
+    what made that silent: such a declaration was accepted, written to the
+    manifest, then discarded, because the replay copied the parent's entry
+    wholesale and kept only `doc`. It is now honoured (with `fn`) or refused
+    by name. A doc-only override — same name, same signature — is unchanged.
+
+- **One SNR conversion, not two.** `wfm_snr_over_fs()` (the composer's
+    per-segment noise floor, and what `Plan` recomputes a swept SNR through)
+    carried its own copy of the mode→SNR-over-fs arithmetic, with a comment
+    saying it "mirrors the conversion in `wfm_synth_core.c` … single source of
+    truth — no drift". It was a second implementation, and the claim held only
+    by inspection: nothing in the tree compared them, `wfm_snr_over_fs` had no
+    test and no binding, and the consequence of a divergence is silent — the
+    same requested SNR meaning two different noise powers depending on how many
+    sources happen to share a segment.
+
+    The arithmetic now lives once, as `wfm_synth_snr_over_fs()` beside the
+    generator that owns it, with `wfm_synth_bps()` for the bits-per-symbol rule
+    both callers need. What legitimately differs stays an ARGUMENT rather than
+
+- **`wfmgen`, `Synth` and `Segment` silently ignored the frame flags for every
+    unspread type** ([#755](https://github.com/doppler-dsp/doppler/issues/755)).
+    They were parsed, stored in `wfm_source_t` and readable back — `s.sync`
+    returned the sync word — and applied only on `type="dsss"`. Measured before
+    the fix:
+
+    ```console
+    $ wfmgen --type bpsk --sync 1111100110101 --crc crc16 \
+             --acq-code 10101010 --acq-reps 4 --count 256 --output a.dat
+    $ wfmgen --type bpsk --count 256 --output b.dat
+    $ cmp a.dat b.dat && echo IDENTICAL
+    IDENTICAL
+    ```
+
+    So a caller who asked for a framed waveform got an unframed one, at exit 0,
+    with no warning — a plausible result from a state nobody can defend, which
+    is the exact failure `docs/design/rx-test.md` exists to stop.
+
+    One gate caused it (`wfm_synth_bridge.c`'s `if (src->type !=   WFM_SYNTH_DSSS) return 0;`) and nothing else consumed the fields. **What
+    let it ship is that no test asserted a frame kwarg CHANGES the waveform** —
+    the DSSS path was covered and the unspread path had nothing to be wrong
+    about, because nothing looked. The recurrence gate is therefore
+    behavioural, at each face: `test_wfm_compose.c` checks the framed stream IS
+    `wfm_frame_bits()` of its own descriptor symbol for symbol,
+    `test_frame_source.py` checks the composer, the CLI and the record
+    round-trip, `test_wfm_synth.py` checks `Synth`, and the flag matrix pins a
+    framed `bits` record. Four sabotages, each red on target: reverting the
+    attach, silencing the record emitter, silencing the reader, and removing
+    the refusal.
+
+    `crc` is deliberately NOT read as intent to frame — it defaults to `crc16`
+    on every source, so doing so would have appended a trailer to every
+    unframed pattern anyone has ever generated. A preamble or a sync word is
+    what says "framed".
+
+    a second formula: the composer resolves `auto` to Es/No for a DSSS source
+    and passes the true symbol span, while the generator resolves the same
+    source to fs because at `create()` time the codes have not attached yet and
+    the spreading factor is unknown.
+
+    `test_wfm_compose` gains the end-to-end check that was missing: for seven
+    (type, mode, sps) combinations, the noise a composed source actually
+    carries against a HAND-DERIVED expected power. The first version computed
+    that expectation by calling `wfm_snr_over_fs()` — which, now that both
+    sides share one conversion, moved with it: dropping the bits-per-symbol
+    term from the Eb/No branch left the test green. A known answer cannot
+    follow the code it checks. With literals it fails by 3.06 dB at QPSK, and
+    the Es/No span term turns out to have been guarded all along by the DSSS
+    byte-identity assertion in the same file.
+
+- **The M-PSK receiver harness generates with `wfm.Synth` and aligns with
+    `BerMeter`, instead of with its own numpy.** Two duplicates, both of which
+    had invented a convention:
+
+    `make_signal()` oversampled by `np.repeat`, mixed its own carrier and
+    scaled its own AWGN variance under two Es/N0 conventions. It now asks
+    `Synth(type="symbols")` — the same `lo`/`awgn`/sample-and-hold the
+    receivers under test are built against. **Verifying `snr_mode="esno"` on
+    the way through found nothing wrong with it**, which is worth saying
+    plainly: it delivers the Es/N0 it claims to within 0.04 dB across m 2/4/8,
+    sps 1..16 and Es/N0 0..20 dB, read back with `snr.snr_data_aided_db` at the
+    matched-filter output and cross-checked by subtracting the same-seed clean
+    run. Nothing had ever checked it, and the check now runs in CI.
+
+    `symbol_metrics()` searched its lag by minimising the error count over
+    ±200 — an optimisation over the answer, which false-passes on a lucky
+    alignment over garbage and false-floors when the true lag falls outside the
+    span. It now detects with `BerMeter.align()` and REFUSES to return a number
+    when `align_ok` is false, which is what two of its seven call sites were
+    approximating by hand with `abs(lag) < 190`. `coherent_errors()` likewise
+    stopped computing a post-marker scoring window by hand: `score()` excludes
+    marker symbols itself and reports them in `skipped`.
+
+    No output-rate invariant was added, though the design called for one. The
+    detection already refuses every case it would have caught — half rate
+    detects at −2.5 dB of margin, double rate at −inf, `m_out` outputs mistaken
+    for symbols at −5.6 dB, against +10.5 dB healthy — so a count check would
+    have been a second convention for a question `ber` answers. It was written
+    twice, once in Python and once as a C module function with its own
+    tolerance constants, before being measured; both are reverted.
 
 - **just-makeit pin 0.59.0 → 0.59.1, which retires a doppler-local edit rather
     than adding one.** The whole adoption is deleting nine lines.
@@ -2847,7 +4481,1806 @@ PRs.
     untouched: a linear approximation of a different quantity, tracked as
     #699.
 
+### Removed
+
+- **Two installed public headers that declared an API the library does not
+    define** (#801). Both were installed by the `native/inc/**` rule and
+    published to `docs/c-api/`, so a downstream C user could read them,
+    include them, and fail at link time.
+
+    **`native/inc/telemetry/tlm_recorder.h`** declared seven
+    `dp_tlm_recorder_*` functions with full Doxygen; all seven were absent
+    from every first-party artifact (`libdoppler.a`, `libdoppler.so`,
+    `libdoppler_stream.a`, `libdoppler_stream.so`) and no implementation
+    existed anywhere.
+
+    It was **superseded, not unbuilt** — the capability ships as
+    `dp_tlm_capture_*` (`open`/`open_memory`, `close`, `count`, `dropped`,
+    `records`, `destroy`, plus `read`/`read_max_out`) with a Python face
+    (`Telemetry`, `MemoryCapture`, `Capture`) and a worked example in
+    `src/doppler/examples/mpsk_telemetry_capture_demo.py`, which answers the
+    header's own rationale directly: the capture sizes its own ring and drains
+    at every block boundary, so a drop is impossible rather than unlikely.
+
+    The shapes differ because **telemetry is attach-on-demand**. Probes attach
+    at runtime and one attach forwards to an object's children — a single
+    `MpskReceiver` attach registers 13 — so the ring can only be sized once
+    the probe table exists. That is why the shipped API opens a capture
+    *after* the attach; `dp_tlm_recorder_create(t, path, block)` sizes at
+    construction and structurally cannot express it. Keeping it would have
+    pointed readers away from a working API toward a shape the model rules
+    out.
+
+    **`native/inc/stream/stream_core.h`** was a 21-line jm scaffold whose only
+    content was `/* Declare module-level functions here. */`. The `stream`
+    module is real (`stream_core.c`, `stream_nats.c`, `tlm_sink.c`); this was
+    the per-module public header nobody filled in, and `[module.stream]` is
+    `no_generate`, so jm does not put it back.
+
+    Their four generated `docs/c-api/` pages go with them, via
+    `make gen-c-api`. Nothing in the tree included either header.
+
+- **`nda_tap` is gone; the carrier discriminator reads the on-time strobe.**
+    The knob offered three nodes and the other two are deleted with it, along
+    with `MPSK_RX_NDA_TAP_*`, the `mf_out`/`mf_in` code paths, and the
+    `rx_nda_tap.c` harness that ranked them
+    ([#832](https://github.com/doppler-dsp/doppler/issues/832)).
+
+    Measured on the receiver's own waveform — NRZ, modulation off then dense,
+    under a coupled Doppler ramp — the strobe won on every axis: lock **+0.860**
+    at the data onset against `mf_out`'s +0.478 and `mf_in`'s +0.417. Its
+    timing dependency costs nothing exactly where timing is impossible, because
+    an unmodulated carrier is sampling-phase invariant.
+
+    The pull-in range the taps traded for is not lost, it is derived: an
+    M-th-power detector updating at `F` sees `|Δf| < F/(2M)`, and the strobe
+    fixes `F = Rs`. A caller needing more states the requirement and gets a
+    loop that meets it or a refusal (`docs/design/mpsk.md` §8.2).
+
 ### Fixed
+
+- **`ciccompmf`'s header described a contract it does not have.** It said
+    "M outside the Bernoulli table range leaves out unmodified"; it writes
+    M **zeros**. A caller who pre-filled a fallback design and trusted that
+    sentence got it silently replaced with the all-zero filter — a muted
+    signal path rather than a degraded one. The range is also per-parity —
+    odd M up to 19, even M only up to 18, since the Bernoulli table is nine
+    entries — which the flat `[1, 19]` did not say. The doc now states both,
+    and `test_resample_core.c` pins them.
+
+- **`kaiser_num_taps(0, …)` crashed the process, and a Python shadow hid
+    it.** Two defects, both found on the first run of the C test jm's
+    gh-1034 now generates for a function-only module.
+
+    The function ends in `htaps / (size_t)num_phases`, an INTEGER divide, so
+    `num_phases == 0` was not a wrong answer but a **SIGFPE** — and this is a
+    public module function, so a Python caller passing 0 took the
+    interpreter down rather than getting an exception. A value below 1 is
+    not a bank; it now returns 0, and the header says so.
+
+    Nobody had seen it because `src/doppler/resample/__init__.py` **imported
+    `kaiser_beta` and `kaiser_num_taps` from the extension on line 20 and
+    then redefined both in pure Python below it.** Every Python caller got
+    the shadow; the C implementations were bound, exported, and unreachable.
+    The two had already drifted in exactly the way duplicated logic does —
+    the C one crashed where the Python one raised `ZeroDivisionError` —
+    while agreeing on every value either was ever asked for, which was
+    verified across a sweep of both before the copies were deleted. The
+    imports now stand alone. A module `__init__.py` is a re-export and
+    nothing else.
+
+- **Four benchmarks wrote their results under a name nothing reads.**
+    `jm_bench_write_json(&b, "X")` writes `bench_X_core.json`, and both
+    collectors open `bench_<component>_core.json`. `bench_hbdecim_core.c`
+    passed `"hbdecim_core"`, `bench_resamp_core.c` passed `"resamp_core"`,
+    `bench_awgn_core.c` passed `"bench_awgn_core"` and
+    `bench_wfm_synth_core.c` passed `"synth"` — so each ran, printed its
+    table, and had its JSON silently not found. **`awgn` and `wfm_synth` are
+    real, measuring benchmarks that jm runs on every `make bench`, and
+    neither has ever reached a C snapshot** — verified against
+    `benchmarks/history/20260724T231732Z-c.json` and
+    `benchmarks/published/v0.37.3/*-c.json`. Both components do appear in the
+    published *Python* snapshots, so what was lost is the C-level row, not
+    the component. Rule 4 of the new gate is what found them.
+
+- **`snr_data_aided_db_series` and `snr_m2m4_db_series` are O(n · window)**
+    ([#890](https://github.com/doppler-dsp/doppler/issues/890), filed not
+    fixed). Both re-scan the whole window at every output sample: measured at
+    277x / 898x / 2760x the whole-block estimate for windows of 256 / 1024 /
+    4096, a ratio linear in the window, as an O(n · window) loop must be. Both
+    estimators are sums and slide in O(n). Found by the new `snr` benchmark on
+    its first run, which is what the two rows were written to ask.
+
+- **The assertion ratchet compares against the merge base, not `origin/main`'s
+    tip.** It asks whether *this branch* removed assertions, and the only honest
+    baseline for that is where the branch started. Against the tip, a branch that
+    is merely **behind** fails for assertions someone else *added* — naming a file
+    it never touched, under the message "a test file LOST assertions".
+
+    Measured twice on one branch: `test_mpsk_receiver_core.c` at −13 while `main`
+    was 19 commits ahead, then `test_mpsk_core.c` at −10 after a soft-demapping
+    commit landed 30 ahead. Neither file had been edited on the branch, and both
+    "fixes" were a rebase — which is the tell: a gate whose verdict changes when
+    you rebase is measuring the gap to `main`, and `git` already reports that.
+
+    The cost is not the false alarm, it is the habit: a gate that cries wolf for a
+    reason unrelated to the diff trains the reader to rebase-and-ignore, which is
+    exactly how a real lost assertion would slip past. Its own docstring says a
+    suite can go green while covering less; a ratchet can go red while nothing was
+    lost, and that is the same defect from the other side.
+
+    Proven both ways in a worktree pinned behind `main`: 51 assertions in the tree
+    against 61 at the tip (**false FAIL**) and 51 at the merge base (**correctly
+    quiet**), and removing three assertions there still goes red. Falls back to
+    the given ref when no merge base exists, so an uncomputable baseline is not
+    silently skipped. The messages now name which baseline was used.
+
+- **The `doppler_channel` C benchmark published a ratio its own prose
+    contradicted, and now does not.** It reported `ramp/static = 0.70x` — "a
+    drifting offset is 30% cheaper than a fixed one" — directly beside a
+    paragraph asserting the two cost the same. The paragraph was right.
+
+    The benchmark already warmed up per configuration, which warms the caches
+    for the config it precedes. What it could not warm is the CPU's frequency
+    ramp out of a cold process, and that is charged entirely to whichever
+    configuration runs *first*. `MIN` over rounds cannot remove it either,
+    because every round in a cold process is equally cold — the usual defence
+    against a slow outlier is no defence against a slow *start*.
+
+    A process-level warm-up before any configuration is timed takes the ratio
+    to **1.00x**, reproducibly. An instance of the class filed as
+    [#896](https://github.com/doppler-dsp/doppler/issues/896), fixed here for
+    this benchmark; the general case is still open.
+
+    Worth knowing when reading any multi-config benchmark in this tree: a
+    ratio *below* 1.0 against the first row is the signature, and it is a
+    measurement artifact rather than a finding.
+
+- **`make test-examples-c` discovers the C examples instead of listing
+    them, and runs each under a deadline.** It iterated a hand-written list
+    of nine binary names, so the other four compiled, shipped, and were
+    executed by nothing — with no reason recorded, nothing failing if a
+    fifth joined them, and nothing noticing if one was deleted. A C example
+    is documentation that claims to be executable, so one that runs nowhere
+    is the shape this repo already calls indistinguishable from a gate
+    passing.
+
+    Discovery is over `examples/c/*.c`, so a new example is gated the moment
+    it exists. Opting one out costs an entry in `examples/c/.examples-skip`
+    with a **mandatory reason** — the same contract
+    `src/doppler/examples/.examples-skip` already holds the Python side to,
+    and the mechanism this mirrors.
+
+    Writing the four exclusions down turned out to separate them.
+    `pipeline_demo` is PUSH/PULL between two **in-process** threads: it needs
+    a broker but no peer, and it exits on its own. So it takes the
+    conditional `broker:` idiom — it now RUNS wherever `127.0.0.1:4222`
+    answers, which CI arranges. Ten examples run where nine did. The other
+    three print *"Press Ctrl+C to stop"* and have no exit condition, so no
+    broker makes them terminate; their round-trips stay covered by the
+    stream suite and `make docker-stream`.
+
+    Four properties, each failing rather than warning: a stale waiver, a
+    waiver with no reason, a source that produced no binary (the same
+    fail-open bug one layer down, in `examples/c/CMakeLists.txt`'s own hand
+    lists), and running nothing at all. Every run is under a deadline, which
+    is load-bearing rather than defensive — the cheapest way to reintroduce
+    "an example nothing runs" is an example that runs forever, and without a
+    deadline the gate hangs instead of failing, reading as *still working*
+    until CI's own ceiling kills the job and names the wrong thing.
+
+    The deadline runs through `scripts/with-deadline.sh` rather than
+    `timeout(1)` directly. `timeout` is coreutils and is absent from
+    GitHub's macOS runner — `gtimeout` too — which that script already
+    measured and already solves behind one contract, POSIX-watchdog fallback
+    and the 124 exit code included. A bare `timeout` there does not time
+    anything out; it fails with 127 and reports the example as broken. The
+    discovery loop is likewise a `while read` rather than `mapfile`, which
+    is bash 4 against the runner's bash 3.2.
+
+- **The Rust lockfile went back to a format the distro cargo can read, and the
+    CI image lost 860 MB.** One defect, two symptoms
+    ([#887](https://github.com/doppler-dsp/doppler/issues/887)).
+
+    `ffi/rust/Cargo.lock` had drifted to format **v4** — written by whichever
+    modern cargo last resolved anything — and cargo refuses v4 below 1.78,
+    while apt ships **1.75 on both Ubuntu LTSes**. So anyone who provisioned
+    from `bootstrap.toml` and ran `make test-rust` got
+
+    ```text
+    error: failed to parse lock file at: ffi/rust/Cargo.lock
+    Caused by:
+      lock file version 4 requires `-Znext-lockfile-bump`
+    ```
+
+    CI never saw it: the hosted runner carries a rustup cargo that shadowed
+    apt's. Moving CI into a container removed the shadow and the failure
+    surfaced on both Ubuntu legs at once, while macOS stayed green.
+
+    **Nothing needed v4.** The crate is edition 2021 with two dependencies,
+    and cargo 1.75 compiles the whole tree in under four seconds — measured
+    before choosing the fix, because the alternative (provision rustup
+    everywhere) is a much larger change to justify on a guess. The lockfile is
+    v3 again by a one-line change that touches no dependency version, and
+    `Cargo.toml` now declares `rust-version = "1.75"` so the floor is stated
+    rather than implied.
+
+    `make cargo-floor-check` holds it. Cargo rewrites the lockfile to v4 the
+    first time a modern one resolves anything, silently, and a lockfile is not
+    a file anyone reads — so the bump is invisible and the failure lands far
+    from its cause. Both halves are why it is a gate rather than a note.
+
+    The image benefits twice over: the rustup toolchain it had grown to work
+    around this — **613 MB, the largest single thing in it** — is gone, taking
+    `deploy/docker/Dockerfile.ci` from **3.17 GB to 2.31 GB**. What remains is
+    what CI genuinely uses: llvm/clang for coverage, the distro Rust for
+    `make test-rust`. `deploy/docker/README.md` now carries `doppler-ci`
+    beside `doppler-glibc228` — the two images that bake nothing in — with the
+    size breakdown and why it is one image rather than one per job shape.
+
+    **The bespoke pinned-doxygen image is retired with it.** That image
+    (556 MB) existed to hand `make gen-c-api` and `doxygen-check` a doxygen
+    matching CI's — a question the CI image answers *by construction*, since
+    CI's doxygen job runs inside it. The `doxygen-check` fallback was worse
+    than redundant: it ran `apt-get install doxygen` inside `ubuntu:24.04` on
+    every invocation, the same provision-at-runtime pattern the image removed
+    from CI. Both paths now shim `$(CI_IMAGE)`, the version assertion moved
+    with them (an upstream bump fails loudly instead of quietly changing
+    generated output), and the retired names are registered so they cannot
+    creep back.
+
+- **`carrier_acq`'s state blob carried seven undefined bytes.**
+    `carrier_acq_extra_t` puts a `uint8_t ready` in front of a `double`, and
+    `get_state` writes the struct whole — so the seven bytes of padding the
+    compiler inserts went into the blob holding whatever the stack last left
+    there. A designated initializer zeroes the members it does not mention;
+    padding keeps *unspecified* values (C11 6.7.9p10), and compilers differ on
+    whether they zero it anyway.
+
+    Found by this branch's fidelity check the moment it existed, and found the
+    way this class always is: **green on macOS and on gcc 15, red on both Linux
+    runners**, because whether two blobs of the same state compare equal
+    depended on the compiler rather than on the object. Both DSSS receivers
+    already declare an explicit `_pad[7]` for this reason; `carrier_acq` did
+    not.
+
+    The member is now explicit, which is a **format-preserving** fix — those
+    seven bytes are the same seven the compiler was already inserting, at the
+    same offsets, so no blob changes size or layout. They are merely defined.
+
+- **`carrier_nda_core.h` cited the wrong design section three times, and
+    `make doc-sections-check` now catches that class.** All three pointed at
+    `docs/design/mpsk.md` §2.3 — "The invariant", which is about rate-keyed
+    constants — for the one-AGC-per-receiver argument, the squaring-loss
+    measurement, and the lock statistic's H0 variance. All three arguments
+    are in the document, in §3.2 and §4.2.
+
+    That is not a cosmetic slip. #796's sibling issue was filed reporting
+    that the `~6 dB Es/N0` floor "has no measurement behind it that I can
+    find anywhere in the tree"; §3.2 carries a measured table of loop SNR
+    against the un-normalised form, six Es/N0 rows by three constellations,
+    4e5 samples per point. **A citation reads as authority, so one pointing
+    at the wrong argument is worse than none — the reader concludes the
+    claim is unsupported.**
+
+    The gate checks that a `docs/x.md §N` citation names a section that
+    exists — 81 of them across the tree, which nothing checked before — and,
+    when the citation also names the section's title, that the title matches.
+    The title half is what catches a wrong-but-existing number, which is
+    every one of the three above; it is optional, so each citation that gains
+    a title is coverage that cannot regress.
+
+- **The amplitude note now separates scale from Es/N0.** It read as though
+    section 9 of `test_carrier_nda_core.c` established that loop gain is
+    independent of signal level. It does not, and cannot: it scales a clean
+    phasor, holding signal and noise in one ratio. Per-sample division by the
+    instantaneous `|s+n|` is a hard limiter, so the S-curve slope genuinely
+    does depend on Es/N0 — which is measured, in the §3.2 table now cited.
+    Section 9 keeps its place as a **float-range** gate: proven by sabotage,
+    un-hoisting the divide makes it fail, because forming `|z|^M` at the end
+    returns 0 below `|z| = 0.032` and NaN above 1e4 at M = 8.
+
+- **The CCSDS Reed-Solomon tables were derived under a data race, and
+    `make test-tsan` now exists to say so.** `native/src/ccsds_tm/rs.c` built
+    its field behind a plain `ready` flag: two threads reaching any entry
+    point first would both see `ready == 0`, both call `rs_init`, and — the
+    part that makes it undefined behaviour rather than a wasted
+    initialisation — one could read the tables while the other was still
+    writing them. Now `pthread_once`.
+
+    It survived because it was unreachable: nothing called the encoder. Two
+    things already in the tree make the first call the racy one —
+    `dp_parallel.h` fans per-source signal builds across cores, and every
+    block method declares `nogil = true`, so a Python encoder driven from a
+    thread pool is the same race with a different scheduler. A first call is
+    exactly what a freshly imported module makes.
+
+    Precomputing the tables as `static const` would also have been
+    thread-safe, and was rejected: it moves `g(x)` from something *derived*
+    to something transcribed, and the derivation is what `test_ccsds_tm_rs`
+    holds to Annex G. Thread safety should not cost the evidence.
+
+- **Four `ccsds_tm` header claims that nothing asserted.** The claim
+    inventory `docs/dev/contributing/validation.md` step 1 asks for, run against
+    `ccsds_tm`'s three headers, found four rows the C tests did not cover —
+    two of them the shapes that page warns about by name.
+
+    **The dual basis was a consistency test.** Requiring the two transforms
+    to invert each other is satisfied by *any* invertible 8×8 GF(2) matrix
+    and its inverse, so it could not see a defect the two halves share.
+    Demonstrated rather than argued: reading 4.3.9.3's two equations the
+    wrong way round — the likeliest transcription error — leaves an exact
+    inverse pair and the old check stayed green.
+
+    Replaced by a **derived** check. Every GF(2)-linear functional on GF(2⁸)
+    is `u -> Tr(c·u)` for a unique `c`, so the transform's eight output bits
+    are eight field elements; the test solves for them from the shipped
+    matrix and the shipped field — using `rs_core`'s own tables, not a
+    private multiply — and asserts the structure a dual basis has: `c_0 = 1`,
+    `c_j = c_1^j`, and `Tr(c_i · β_j) = δ_ij` read through the *other* matrix
+    so both transcriptions are covered. Measured, `c_1 = α^117`, which is
+    **not** primitive (`gcd(117, 255) = 3`) and does not need to be.
+
+    **And the published oracle, which the derived check could not supply.**
+    4.3.9.3's two matrices are now transcribed into the test as printed bit
+    rows — the way `asm_published` and the randomiser's `published40` prefix
+    already are — and checked row by row and across all 256 values. Both
+    match the shipped pair exactly, all sixteen rows.
+
+    The two are kept side by side and are not redundant. The transcription
+    says these are *CCSDS's* matrices; the derivation says they are a dual
+    basis *at all*, and would still catch a pair mis-transcribed the same way
+    in both the implementation and the test — which a second transcription
+    cannot. Closes gh-861.
+
+    **`asm_find` promises FIRST below threshold, not best**, and nothing
+    tested it: every case put one marker in a zero background, where the two
+    are the same offset. Now two markers with the *earlier* one damaged, plus
+    the same stream at a tighter tolerance so a search hard-wired to the
+    first offset fails too. It matters because a best-match search has to see
+    the whole stream before it can answer, which a frame synchroniser on a
+    live capture cannot do.
+
+    **The interleaver's differential ran no library code.** The section named
+    "what interleaving is FOR" computed `b % DEPTH` in a loop and asserted
+    arithmetic about its own loop — it held for any interleaver, including
+    one that did not interleave. Now measured through `encode_block` /
+    `decode_block`: a burst of `depth × E` is repaired in full and one symbol
+    more costs exactly one codeword, at **every** depth 4.3.5.1 allows —
+    which also closes depths 2, 3, 4 and 8, exercised nowhere before — plus
+    the differential itself, an 80-symbol burst that depth 5 carries and
+    depth 1 refuses at identical rate.
+
+    Every one proven by sabotage: a flipped matrix bit, a self-consistent
+    wrong pair, a best-match search, an interleaver that does not interleave,
+    and an accepted out-of-range depth.
+
+- **The coverage job's exit code stopped being thrown away a second time**,
+    and a gate now holds the rule for every workflow step. Removing the
+    leading `-` from the recipe's pytest fixed one discard; the step around
+    it was doing the same thing one layer out:
+
+    ```yaml
+    run: make coverage | tee coverage.txt
+    ```
+
+    Actions runs a `run:` block under `bash -e`, where a pipeline reports the
+    **last** command's status — so this step was green whenever `tee` was,
+    which is always. `make coverage` had in fact failed: the install of the
+    instrumented `wfmgen` died on a directory that does not exist in a clean
+    checkout, no report was written, and the only symptom was the patch gate
+    one step later opening a `coverage.lcov` nothing had produced. A missing
+    number is harder to notice than a wrong one.
+
+    Both halves are fixed. The step declares `shell: bash` (GitHub's alias
+    for `bash -eo pipefail`), and the recipe creates the destination
+    directory instead of relying on one. That directory is the whole reason
+    the failure was CI-only: the build bundles `wfmgen` into the copied
+    package, the purge that keeps deleted tests from lingering removes it —
+    it is not a `*.so` — and takes the emptied `wfm/_bin/` with it, after
+    which the directory came back only from `src/doppler/wfm/_bin/`, which is
+    `.gitignore`d and therefore present on a developer's tree and never on a
+    runner.
+
+    The gate is `make lint-ci-pipefail`
+    (`scripts/check_workflow_pipelines.py`): every step whose script contains
+    a shell pipeline must have pipefail in effect, via `shell: bash`, a shell
+    string that names it, or `set -o pipefail`. Registration-free — it walks
+    every workflow and composite action, so a new file is covered the moment
+    it exists. It reads shell quoting rather than searching for `|`, because
+    a `jq` filter carries one as data and a pipeline inside `$( )` discards
+    its status just the same; that distinction is not academic, since it
+    found two more real discards in `release.yml`, both now declared.
+    Sabotage-proven: restoring the bare `make coverage | tee` line turns the
+    gate red, and `src/doppler/tests/test_ci_pipefail_gate.py` drives it over
+    seeded YAML so it is exercised against a step that must fail, not only
+    against a tree that passes.
+
+- **`conv`'s claim inventory, and the four things it found.** The first two
+    steps of `docs/dev/contributing/validation.md` — enumerate the header's claims, map
+    each onto `test_conv_core.c` as pinned / pinned-only-at-literals / absent,
+    then write and **sabotage** a test for every uncovered row.
+
+    **`conv_outputs` and `conv_next_state` had zero mentions.** The file
+    docstring calls the first "the only place that says what this family of
+    codes emits" and the register convention "load-bearing", and both were
+    exercised only *through* `conv_encode` — the one caller that agrees with
+    them by construction. A user building a trellis (which is what
+    `viterbi_create` does) reads them directly. Now the trellis is run BY
+    HAND from the two of them and required to reproduce `conv_encode` symbol
+    for symbol, at three codes, plus that a state IS the `k-1` previous
+    inputs with the newest in the high stage.
+
+    **The LLR sign convention was pinned only against the test's own
+    helper.** Every section fed LLRs through one `to_llr`, so a decoder and a
+    helper that flipped TOGETHER passed all of them — measured, not
+    theorised: flipping both leaves every pre-existing section green. The
+    identity code (`k=2, n=1, poly={0b10}`) closes it without importing
+    anything, because a maximum-likelihood decode of the identity code is
+    exactly a hard slicer, so the decoded bits must equal `llr < 0` element
+    for element.
+
+    **`d_free` was an explicit unknown** (`docs/design/viterbi.md` §8) and is
+    now measured against published values: **10** for CCSDS's (171,133) K=7,
+    5 for the K=3 (7,5), 6 for the K=4 (15,17).
+
+    **And one claim was simply wrong.** The header said "the first `depth`
+    bits of a stream produce no output"; the traceback walks `depth - 1`, and
+    `viterbi_decode_max_out` agreed with the code. The test pinned the two
+    against each other, so nothing could see the prose was off by one — 493
+    bits come out of 500 symbols at depth 8, not 492. The prose moved, and
+    the count is now pinned against a literal as well as against the sizing
+    function.
+
+- `make coverage` no longer hangs on any machine where `DEBUGINFOD_URLS` is
+    set — which on Ubuntu is every machine, because
+    `/etc/profile.d/debuginfod.sh` exports it into every shell. `llvm-cov`
+    consulted debuginfod for each of the 33 objects it opens, three times over,
+    looking for debug info that cannot exist: the objects were built locally
+    minutes earlier and carry their own coverage mapping. Every lookup was a
+    network round trip ending in a timeout. Measured: one extension `.so` took
+    **over 120 s and produced no output**, against **0.105 s** with the
+    variable cleared; the full report/show/export trio over all 33 objects now
+    runs in **0.275 s**. The coverage recipe clears the variable for the LLVM
+    tools only, so a developer's own debuginfod setup is untouched everywhere
+    else.
+
+- **`make coverage` stopped ignoring pytest's exit code**, and the four causes
+    behind the failures it was hiding are fixed rather than tolerated. The
+    recipe carried a leading `-`, so make discarded the result in the one job
+    that produces the coverage number — 89 results (27 failed, 62 errors)
+    against 2631 passed, invisible.
+
+    | cause                                                      | count | fix                                                         |
+    | ---------------------------------------------------------- | ----- | ----------------------------------------------------------- |
+    | repo root resolved by counting directories                 | 81    | `repo_root()` walks up (separate change)                    |
+    | the **normal** `wfmgen` shadowing the instrumented library | 7     | install the instrumented binary into the copied tree        |
+    | a threading speedup measured under profiling               | 1     | withhold that one assertion when `LLVM_PROFILE_FILE` is set |
+    | files deleted from `src/` surviving in the copied tree     | —     | clear the python half before the extract                    |
+
+    The binary one is invisible without a byte comparison: the tar copy
+    excludes `*.so` but **not executables**, so a 655 KB gcc/optimised
+    `wfmgen` sat beside a 1.49 MB clang/Debug library, and every test
+    asserting byte parity between the CLI and the library compared two
+    different builds of the same source.
+
+    The scaling one is the only case where the TEST is wrong under coverage
+    rather than the environment. `-fprofile-instr-generate` makes every
+    counter update an atomic on a page shared between threads, so two threads
+    serialise on the profiling runtime instead of the GIL: 0.98x against
+    ~1.9x uninstrumented. Asserting anyway would turn a threading claim into
+    a measurement of llvm's counters. The assertion stays live when not
+    instrumented — verified, because a skip that quietly disarms an example
+    is worse than the failure it silences.
+
+    The fourth had no failure count because nothing measured it. The extract
+    is additive, so anything deleted from `src/` kept running from the copy —
+    found when a temporary sabotage test, removed from `src/`, failed the
+    next run anyway. **A deleted test that keeps passing is worse than one
+    that keeps failing**: it reports coverage for source that no longer
+    exists.
+
+    Sabotage-proven both directions: a deliberate failing test now gives
+    `COVERAGE_RC=2`, where before the same failure exited 0.
+
+- **The coverage run no longer borrows the developer's machine.** With its
+    exit code finally being read, the job reported 44 failures and 6 errors —
+    none about the code under test. Three gates asked for artifacts in
+    `build/`, which this job never builds (it builds `build-cov`), and four
+    asked for console scripts on `PATH`:
+
+    | asked for                                            | who                               | why it passed locally                   |
+    | ---------------------------------------------------- | --------------------------------- | --------------------------------------- |
+    | `build/libdoppler.a`                                 | the C doc-snippet gate, 33 blocks | an ordinary build tree is sitting there |
+    | `build/native/validation/validate_{conv,rs}_certify` | the conv/rs certify harnesses     | same                                    |
+    | `wfmgen` on `PATH`                                   | 9 sh doc fences                   | an activated venv                       |
+    | `doppler-source` / `doppler-fir` / `doppler-specan`  | the cli block tests               | same                                    |
+
+    The build tree is now one derivation, `doppler.tests._repo.build_dir()`,
+    reading `$DOPPLER_BUILD_DIR` and falling back to `<repo>/build`. That
+    variable is not new — `ffi/rust/build.rs` has always read it and the
+    coverage recipe already exported it for the cargo leg; the Python gates
+    each spelled `build/` themselves instead. The recipe now exports it for
+    the pytest leg too, and prepends the instrumented `wfmgen` and the venv's
+    `bin` to `PATH`.
+
+    The C snippets are **run instrumented** rather than excluded: a snippet
+    cannot link against a clang source-based archive without
+    `-fprofile-instr-generate -fcoverage-mapping`, so the gate adds them (and
+    prefers clang) when `LLVM_PROFILE_FILE` says the run is instrumented.
+    Each snippet then writes its own `.profraw` into the directory the recipe
+    merges, so 33 documented C examples contribute to the number instead of
+    being a hole in it.
+
+    This is the same class as the two exit-code discards on either side of
+    it: what a gate reads from its environment has to come from the run, not
+    from whoever happens to be running it.
+
+- **`DelayCf64.ptr()` accepts the keyword its own type stub publishes, and
+    a bare `ptr()` no longer promises one sample.** The stub said
+    `ptr(count=1)`; the binding accepted `n=` and returned the whole window.
+    Both halves were wrong, and in opposite directions — a caller following
+    the stub got `TypeError: 'count' is an invalid keyword argument`, while
+    one who found `n=` was told the default was 1 when it was `num_taps`.
+
+    The keyword is now `count`, which every published face — the stub, the
+    runtime docstring — had said all along; nothing in the tree passed it by
+    keyword, so no caller moves. The default is now **declared** rather than
+    hand-restored after each regeneration: `count_default` in
+    `objects/delay.toml` is a C expression (just-makeit gh-1051), which is
+    what lets an instance-derived default live in the manifest at all. The
+    hand-patch it replaces is gone, so it cannot drift again.
+
+- **A gate for the whole class: `make kwarg-parity-check`.** It reads the
+    `_kwlist` out of every `native/src/*/*_ext_*.c` and compares it to the
+    `def` its `.pyi` publishes — 169 methods, discovered, so a new object is
+    covered the moment its fragment exists.
+
+    `jm status --check` structurally cannot see this: the kwlist sits in a
+    wrapper body, which jm's own output calls out as *"yours … not counted
+    as drift"*. Measured, not assumed — renaming the kwarg back to `n`
+    leaves `make drift-check` reporting exactly what it reported before, and
+    passing.
+
+    It found two more on arrival, both the reverse pairing (the stub
+    *under*-publishes a hand-written `out=`), and carries them as a
+    shrink-only ratchet: an entry that stops mismatching also fails, so the
+    list cannot rot in either direction. doppler#922 tracks emptying it;
+    just-makeit#1074 is the upstream gap underneath both findings.
+
+- **The CI dependency install retries three times, not twice**, inside the
+    same step ceiling. `DEPS_DEADLINE x DEPS_TRIES` moves from 600x2 to
+    420x3 (~21.5 min against the 25-minute ceiling `deps-budget-check`
+    enforces).
+
+    Measured, not guessed. With the runners' azure mirror answering `Ign` and
+    the archive.ubuntu.com fallback trickling, the timings say the retry is
+    the thing that works and the long deadline is not:
+
+    | job                   | install-deps                                  | outcome |
+    | --------------------- | --------------------------------------------- | ------- |
+    | Build on ubuntu-24.04 | 831 s = 600 (attempt 1 killed) + 10 + **221** | pass    |
+    | Python 3.13           | 119 s                                         | pass    |
+    | coverage, Python 3.11 | 1210 s = 600 + 10 + 600, both exhausted       | fail    |
+
+    A healthy attempt is 120-220 s, so the back half of a 600 s deadline is
+    spent stalled: it buys nothing a retry would not buy sooner. Three 420 s
+    attempts give ~2x headroom over a healthy install and three rolls of the
+    mirror lottery instead of two.
+
+    This is a mitigation and is labelled as one — [#885](https://github.com/doppler-dsp/doppler/issues/885)
+    carries the fix, which is to stop apt-installing the 112 MB of toolchain
+    the runner image already ships.
+
+- **A test that accumulates failures and never reports them is now a lint
+    failure.** `DP_CHECK` counts into `dp_test_fails_` and carries on; only
+    `DP_TEST_END` turns that counter into a non-zero exit. A file ending with
+    its own `printf ("… OK …")` and `return 0` therefore runs every check,
+    records every failure, and exits 0 — so each of its `DP_CHECK`s is
+    decoration and `ctest` reports the test as passing while it asserts
+    nothing that can fail.
+
+    Two files ended that way, and they show the two different costs.
+    `test_frame_meter_core.c` shipped **3 `DP_CHECK`s that could not fail**.
+    `test_wfm_frame.c` asserted entirely through `DP_REQUIRE`, which *does*
+    return 1, so its epilogue was latent rather than broken — and went off the
+    moment 12 `DP_CHECK`s were added to it. That is the worse half: the file
+    looked healthy, and writing an ordinary assertion into it produced an
+    assertion that could not fail.
+
+    Found by sabotage rather than by review. Making `wfm_frame_t`'s
+    `preamble_reps = 0` emit one period instead of no preamble changed the
+    layout, and every test still passed. It is precisely the shape
+    `DP_TEST_END`'s own "ASSERTED NOTHING" guard exists to catch and cannot,
+    because a file that never calls it never runs that guard either.
+
+    Both epilogues now call `DP_TEST_END`, and `check_tests_ssot.py` refuses
+    any test using the accumulating flavour without it. The rule is absolute
+    rather than a ratchet — after the fix the count is zero — and
+    registration-free, so a new test scaffolded from an old template is
+    covered the moment it lands. Proven by putting the defect back and
+    watching `make tests-ssot` name the file.
+
+- **The FER anchor in the receiver battery can fail again.** It could not,
+    at any operating point in the standard battery: the sabotage it exists to
+    catch — corrupting every other frame's CRC — left `rx_battery --check`
+    reporting **OK**. Now it fails at four points, and the reported slack at
+    the anchor drops from **1.64x to 1.32x**.
+
+    The cause was not the tolerance and not the interval width. Corrupting
+    every other frame adds `0.5 x (1 - FER)`, so the *relative* change shrinks
+    as the baseline rises — and `RX_FRAME_CONT` protected 1040 bits, at which
+    the battery's SER=1e-3 anchor already fails two thirds of frames on noise
+    alone. A gross fault therefore moved the measurement only 0.68 → 0.84, a
+    factor of 1.23, under the anchor's floor of about 1.7. **A high baseline
+    FER hides faults rather than exposing them.**
+
+    The payload is now 304 bits (320 protected), where the baseline is 0.30
+    and the same sabotage reads 0.65 — a factor of 2.18. `RX_FRAME_NONE` and
+    `RX_FRAME_GOLD` move with it, keeping the pairings that make them
+    comparable (same payload verbatim, same geometry); `test_dp_frame`
+    asserts both and its bit-count table moves too. Shortening the frame
+    rather than raising Es/N0 keeps **one** Es/N0 across all four battery
+    metrics, which is what makes them comparable at all.
+
+    A second point came back for free: `rate_odd` previously **REFUSED** its
+    framed half — "no burst aligned, the marker never detected" — and now
+    measures 111 frames. `qpsk` and `psk8` still refuse (their frame bits do
+    not divide into whole symbols), unchanged.
+
+- **`make gallery` reads the same skip list the examples gate does, so release
+    step 2 can pass again.** The target ran every script in `GALLERY_SCRIPTS`
+    and exited 1 on the first failure. One of them,
+    `mpsk_receiver_performance_demo.py`, has been in
+    `src/doppler/examples/.examples-skip` since its Monte Carlo was found to be
+    draw-dependent — the smoke gate deliberately does not run it — while
+    `gallery` ran it anyway and failed on it.
+
+    So the two disagreed about the same judgement, and `make gallery` could not
+    pass on any machine. That is step 2 of
+    [the release checklist](../dev/release.md), which is where it was found:
+    preparing for a release runs straight into it.
+
+    The list is now read rather than restated. A skipped script prints `SKIP`
+    with the file it came from — a quietly absent panel is how the stale assets
+    in [#780](https://github.com/doppler-dsp/doppler/issues/780) accumulated —
+    and the PNG move tolerates a file a skipped script never produced.
+
+    Proven by sabotage: removing the entry from `.examples-skip` puts the
+    target back to red, and restoring it goes green.
+
+- **`make gallery` no longer leaves four untracked files in the repo root.**
+    The demos that write a capture leave it where they ran. `burst.blue` was
+    cleaned up; the SigMF and BLUE pairs from the `wfm_io` / `wfm_write` demos
+    (`probe.ci16`, `probe.ci16.sigmf-meta`, `scene.cf32`,
+    `scene.cf32.sigmf-meta`) were not — none of them gitignored, which is how a
+    build artifact gets committed by accident.
+
+- **35 committed gallery assets were stale and are regenerated.** #780 counted
+    21; it is 35 now, and the figures are deterministic (verified by
+    regenerating one twice and comparing hashes), so the diff is real content
+    rather than PNG churn. #780's remaining halves — the gallery has no gate,
+    and one script is in no target — are untouched.
+
+- **A hung `install-deps` can no longer block a PR for hours.** CI's dependency
+    provisioning reaches the network three times — the jbx bootstrap
+    `curl … get-jb.sh | bash`, then jbx's own apt/brew — and none of those calls
+    carried a timeout. `get-jb.sh` itself makes three curls with neither
+    `--retry` nor `--max-time`. So a stalled mirror did not *fail* the step, it
+    **hung** it, until GitHub's 360-minute job limit, reporting `pending` the
+    whole way where a reader cannot tell it from slow CI. Measured 2026-08-19:
+    one commit hung **3h45m** and then **2h42m** at `Install system   dependencies`, blocking an otherwise-green PR, while a sibling branch passed
+    the identical step ninety seconds later.
+
+    **A retry alone would have been decoration, and that is the finding.** This
+    repo already runs a retry-on-failure pattern
+    (`.github/actions/setup-uv/action.yml`), and it keys on a step *exiting*
+    non-zero — correct for the 2026-08-07 incident it was built for, where a
+    fetch timed out and returned an error. A hung step never exits, so the same
+    pattern bolted onto provisioning would never once have fired. The deadline
+    is what converts the hang into a failure; the retry is what then recovers
+    instead of merely failing faster. They ship together, deadline first.
+
+    New `scripts/with-deadline.sh` carries both, reached through
+    `make install-deps-ci` / `make install-docs-deps-ci` so the Makefile stays
+    the one place that says *how* a tool runs — a developer keeps the plain
+    target, CI reaches for the bounded one, and neither is a second copy of the
+    invocation. All seven provisioning call sites also gain a step-level
+    `timeout-minutes: 25`, the backstop for a shell with no `timeout(1)` and
+    the half that cannot be bypassed. `timeout-minutes` is **not supported on
+    composite-action steps**, so unlike `setup-uv` this cannot be folded into a
+    single action.
+
+    Sized from measurement, not feel: healthy runs took **16–179s across 9
+    samples** (median 18), so the 300s per-attempt deadline is ~1.7x the worst
+    observed.
+
+    **A deadline expiry is terminal and is not retried**, which the fix's own
+    first live run is what established. Attempt 1 hit the 300s deadline inside
+    `apt-get` and attempts 2 and 3 then failed in seconds with `Could not get   lock /var/lib/dpkg/lock-frontend. It is held by process 2429 (apt-get)`.
+    The killed apt-get **survived**: jbx runs it under `sudo`, so it is
+    root-owned and an unprivileged process-group kill gets `EPERM`. It then
+    holds the lock forever, because the reason it was killed is that it hung.
+    Retrying past that point is not merely wasteful — it is guaranteed to fail
+    and it buries the real cause under two lock errors. Ordinary failures (a
+    curl exiting non-zero, a transient resolver error) leave no lock and *are*
+    still retried.
+
+    **The stall is a mirror going quiet mid-download.** The log shows
+    `azure.archive.ubuntu.com` producing nothing for 229 seconds partway
+    through a 114 MB fetch, on the same package (`cmake-data`) across separate
+    runs — a broken path, not random noise. `make apt-stall-config` sets
+    `Acquire::http::Timeout "30"` / `Acquire::Retries "3"` before provisioning
+    (Linux-only, best-effort, a no-op without apt or sudo). **Measured, that
+    did not stop it**: apt carried the config and still sat nine minutes on the
+    same package, so the deadline is what bounds this, not apt. The setting
+    stays because it costs nothing and covers stall modes apt *can* see, but it
+    is not the thing that works here.
+
+    **What makes the retry viable is reclaiming the lock.** The holder is
+    root-owned, and a CI runner gives us root — so on a deadline expiry the
+    script kills it, removes the dpkg/apt lock files, runs `dpkg --configure -a`, and retries. That is gated on `CI` *and* sudo: clearing dpkg locks is
+    reasonable for a disposable VM and unreasonable for a laptop, so off a
+    runner a deadline expiry stays terminal.
+
+    **What the retry buys is the partial-progress resume, not a fresh mirror.**
+    This entry claimed the clean attempt would land "quite possibly against a
+    different mirror node", the only thing that helps against a stall localised
+    to one path. Measured 2026-08-19 (run 32250340944): Python 3.9 stalled on
+    `Get:7 … cmake … [11.2 MB]`, the reclaim ran, and attempt 2 stalled on
+    **the same cmake from the same host**. The retry does not move nodes. What
+    it does keep is apt's partial downloads across the kill — attempt 2 opened
+    with `Need to get 97.4 MB/114 MB` — which is real, and weaker than the
+    claim it replaces. The same run also puts apt's own timeout beyond doubt:
+    **591 seconds** of silence on a single `Get:` with
+    `Acquire::http::Timeout "30"` demonstrably applied.
+
+    **The stall is stochastic per runner, and that is the sizing fact.** In
+    that run 16 of 19 jobs passed this step untouched, and re-running the two
+    failures passed clean with no deadline message at all. So two tries is not
+    obviously the wrong number; it simply cannot rescue a runner that drew a
+    bad path, and the honest bound is that a persistent stall now costs ~20
+    minutes and a clear message instead of 3h45m and a `pending` spinner.
+
+    The deadline moves to **600s**: the 9 samples it was first sized from were
+    all fast ones, so ~3.4x the worst observed is the honest margin, and a true
+    hang is still bounded at ten minutes against the 360 it used to get.
+
+    **The retry budget has to fit the step ceiling, and the first version did
+    not.** 600s x 3 tries is 30 minutes against the `timeout-minutes: 15`
+    those sites first carried, so the
+    retry — which the reclaim had just made work, apt restarting cleanly with
+    no lock error — was killed mid-download four minutes later. Now 2 tries
+    against a 25-minute ceiling (~20.2 min of budget), and `make   deps-budget-check` derives both sides from the real numbers and fails if
+    they ever stop fitting. Sabotage-proven: it reddens on the exact 600x3
+    against-15 pairing that shipped, and refuses rather than passing silently
+    if it can find no `timeout-minutes:` to check against.
+
+    **The deadline bounds provisioning; a hang elsewhere was still
+    unbounded.** Measured against a second incident while this branch was
+    open: in PR #880 provisioning succeeded and then `make test-python` hung
+    **70 minutes** inside `Test with coverage`, reporting `pending`
+    throughout — the same symptom, at a step none of the fix's commits touch.
+    It had to be cancelled and re-run by hand, which is the manual recovery
+    the deadline exists to remove. So **all 25 jobs now carry a job-level
+    ceiling**, a different mechanism that does not replace the deadline: a
+    ceiling only kills, where the deadline kills *and retries*, so
+    provisioning keeps the pairing that recovers. Sized from **180 successful
+    jobs** — `coverage` to 90 minutes against a legitimate 54.7-minute run,
+    every other job to 45 against a 30.0-minute worst case. `docs.yml` is 45
+    rather than the 20 its 3-minute work suggests, and `deps-budget-check` is
+    what caught that: at 20 the 1210s provisioning budget no longer fits,
+    because a *job* ceiling bounds the provisioning step inside it just as a
+    step ceiling does. That is the gate doing exactly what it was built for,
+    one commit after it was written, on a value it was not written to police.
+
+    Also measured on that run: **GitHub's macOS runner has neither
+    `timeout(1)` nor `gtimeout`**, so the script carries a POSIX watchdog
+    fallback with the same contract rather than leaving a whole platform on the
+    workflow ceiling alone.
+
+    Every path verified by sabotage: the deadline fires (`rc=124`, one attempt,
+    no retry), a plain failure propagates its own code and still retries, a run
+    that recovers on attempt 2 exits 0, and the missing-`timeout(1)` case
+    announces itself rather than degrading silently.
+
+- **An installed header can no longer declare a C API the library does not
+    define.** `native/inc/` is installed wholesale, so a header there is a
+    **published C API** whether or not anything implements it — a downstream
+    can read it, include it, and fail at link time, which is the worst
+    possible first experience of a library.
+
+    Two headers had done exactly that (`telemetry/tlm_recorder.h`, seven
+    functions superseded by `dp_tlm_capture` and never built; an empty
+    `stream/stream_core.h` scaffold) and were deleted earlier.
+    `make installed-headers-check` is the durable half: every non-`static`,
+    non-`inline` function declared at file scope in an installed header must
+    resolve in `libdoppler.a` or the optional `libdoppler_stream.a`.
+
+    **It found a third on arrival.** `ber_meter/ber_meter_core.h` still
+    declared `theory_ser`, `theory_ber`, `esn0_db_for_ser`,
+    `evm_scatter_floor_db`, `settle_syms` and `lock_symbol` — the
+    pre-consolidation names, left behind when #539 moved those kernels to
+    `ber_core.h` under a `ber_` prefix. None of the six existed under those
+    names anywhere in the tree, and nothing in-tree called them, so the only
+    thing they could do was compile at a downstream and fail to link. They
+    were also six unprefixed global names in a public header.
+
+    Absolute rather than a ratchet, and with no allowlist: the right count is
+    zero, and a list would only be somewhere for a fourth to hide. A
+    declaration with no definition is either implemented or its header stops
+    being installed.
+
+- **`gen_jm_pin --check` now asks whether the pin move was announced by THIS
+    change, so a rollback can no longer ship silently.** The check asserted
+    that the pinned jm version appears somewhere in `CHANGELOG.md` on a line
+    naming the pin. A **rollback** — "0.63.3 regressed us, go back to 0.55.3" —
+    moves all three pin sites to a version the file already describes
+    *arriving at*, so the scan found it and said nothing. Applied consistently
+    is not the same as announced, which is the exact failure the assertion was
+    written to close, one level in.
+
+    It now compares the pin against the **merge base** (the same question and
+    baseline the assertion ratchet uses: did *this branch* move it). When it
+    moved, the new version must appear as a pin **destination** among the
+    changelog lines the branch adds. History does not count, because history
+    is what a rollback returns to.
+
+    Two narrower scopes were tried first and both let the rollback through, for
+    one reason: `[Unreleased]` is 198 KB here — doppler has not released since
+    v0.42.0 — and holds every pin bump since 0.52.0, and `changelog.d/` is 109
+    unassembled fragments. Each is this release *cycle's* history rather than
+    this *branch's* statement.
+
+    An untracked fragment is read as fully added, because writing a fresh
+    `changelog.d/` file is the ordinary way to record a bump and `git diff`
+    cannot see it — without that the gate would reject the workflow it asks
+    for, which is how a gate gets switched off.
+
+- **The same check no longer counts a version it is moving AWAY from.**
+    Harvesting every semver on a pin line made 17 of 18 "recorded" versions
+    left-hand sides of an `X → Y` entry.
+
+    [#693](https://github.com/doppler-dsp/doppler/issues/693) proposed taking
+    the last semver on the line; this file's own history refutes that twice.
+    `pin 0.57.0 → 0.59.0, and the create-only headers 0.58.0 ships` ends on a
+    version that is neither side of the move, and `pinned to 0.25.0 (from   0.24.0)` puts the destination **first**. The destination is now read from
+    what the sentence does — an `X → Y` pair, else a bare `→ Y` / `to Y`, else
+    the first semver with an explicit `(from X)` removed — which is right for
+    all 22 pin lines in the tree.
+
+    Proven by sabotage in both directions: an unannounced forward bump and an
+    unannounced rollback each go red, and each passes once a fragment names
+    the move. An unmoved pin stays green.
+
+- **The lock detector's DETECTION side is measured, and its scope is written
+    down.** `MPSK_RX_LOCK_THRESH_DEFAULT` is derived as
+    `sigma_H0 * eta(Pfa)` — a false-alarm threshold sized against the
+    no-signal distribution alone — and the header's claim that the statistic
+    "reads ~1.0 at lock" carried no Es/N0 with it. It does at the design
+    point: **100 % duty at every named battery point**, each at its own
+    SER = 1e-3 anchor. It does not below: 69 % at +1 dB, **24 % at 0 dB**, 0.2
+    % at −3 dB — while the statistic stays positive throughout and a
+    concatenated link over that same record delivers error-free frames. So
+    the default is an **uncoded-link indicator**, and a caller running where
+    FEC exists to put you must gate on frame sync or on `node_sync_score`
+    instead. [#835](https://github.com/doppler-dsp/doppler/issues/835).
+
+    Reported and not gated, deliberately: a `lock_duty >= 0.9` gate was
+    written and removed after sabotage, because `dp_ber_settle` already
+    requires the flag to hold 90 % over 200 symbols and both sabotages
+    reddened the tally gate first. A gate that cannot fail independently is
+    one nobody can trust the day it goes green.
+
+- **A claim-inventory row was read from a test's headline instead of its
+    assertions, and understated the coverage.** The `MpskReceiver` report's §1.1
+    recorded C6 — the two-way handover — as *"the flip is pinned; the DROP-BACK
+    is absent"*. `test_mpsk_receiver_core.c` §4 in fact pins the flip, the
+    drop-back **and** the re-declare; the row was written from the section's
+    comment rather than from what it asserts.
+
+    What §4 genuinely cannot test is the part the header argues — that the loop
+    filter *carries the frequency estimate across* rather than re-acquiring —
+    because §4 re-seeds the carrier by hand over the outage, so it would pass
+    against a receiver that cleared it. That is what the new §12 covers, and the
+    row now says so.
+
+    Recorded because it is the campaign's own trap arriving from the other
+    direction: **pinned-only-at-literals**, committed by the auditor rather than
+    the author. An inventory is evidence about tests, so it has to be read the
+    way the tests are — assertion by assertion.
+
+- **Two claims the inventory listed as unmeasured are now measured — and did not
+    hold**, which the report says instead of leaving them open-ended.
+
+    **C21**, the `A^2` timing under-drive with `agc = 0`: §2.9 shows a level
+    error reaching `timing_rate`, but the proxy is **not monotone in level**. At
+    25 dB Es/N0 and amplitude 0.25 the un-levelled receiver reads *better* (4 ppm
+    against 5), so an assertion on it would have been true at one operating point
+    and false at another.
+
+    **C16**, that `num_phases = 64` is the *measured saturation point*: swept 4
+    to 1024 arms at an off-grid rate, EVM is flat to **0.08 dB**. So this
+    geometry saturates below 4 arms and does not locate 64 as the knee at all —
+    worse than unmeasured, because the obvious test would have asserted a
+    difference that is not there.
+
+    Both need a harsher stimulus than a per-push validator builds, so they belong
+    in `make characterize` or `native/validation/`
+    ([`docs/dev/contributing/adding-algorithms.md`](docs/dev/contributing/adding-algorithms.md) phase 7).
+    Recorded because "measured and refuted" and "not yet measured" are different
+    states, and a reader deciding what to do next needs to know which one applies.
+
+- **Every `SER theory` figure in the `MpskReceiver` validation report was the
+    bound at the wrong Es/N0.** `ber_theory_ser` takes **linear** Es/N0 — its
+    header says so in capitals — and that validator passed dB, alone in the
+    tree (`ber_esn0_db_for_ser.c`, `ber_awgn_demo.py` and
+    `test_mpsk_receiver_performance.py` all convert).
+
+    The consequence was not an offset but a **fold**: `db → 10·log10(db)` is
+    compressive, so an 8/12/16 dB sweep was scored against the bound at
+    9.0/10.8/12.0 dB and the sign of the error reversed across the sweep. It
+    read as a receiver falling behind the bound at low Es/N0 and catching up
+    at high — which is what an implementation loss is supposed to look like,
+    and is why it survived review. The tell was 8PSK reading **20 dB better
+    than the bound**; nothing beats a matched filter, so a negative
+    implementation loss is always a defect in the measurement.
+
+    Corrected, **BPSK's implementation loss is +0.47 to +0.67 dB and QPSK's
+    +0.33 to +0.39 dB**, where the old table implied ~1.3 dB at BPSK and a
+    10× rate deficit at QPSK. Every bound now goes through one
+    `_bound(m, esn0_db)` helper, so there is a single conversion site rather
+    than three that agreed by luck. Recorded as the report's F8.
+
+- **`MpskReceiver`'s `resolves` verdict is derived from the experiment's design,
+    not from its outcome.** It keyed on the *measured* error count clearing
+    `MIN_ERRORS`, which was wrong twice over. Statistically: whether an
+    experiment can resolve an effect is fixed by the bound and the record length
+    before any data arrives, so reading it off the observed count judges a
+    receiver measurable *because* it did worse. Practically: the measured count
+    is machine-dependent, so 8PSK at 17 dB gave 20 errors on one toolchain and 6
+    on another, straddling the floor — `resolves` read `yes` on one machine and
+    `no` on the other, and **the set of asserted limits changed with it**. A cell
+    dropped out of the certified envelope depending on which compiler built it.
+
+    Now `theory * scored symbols >= MIN_ERRORS`, which is a closed form over
+    `erfc` and bit-identical across those toolchains (measured). The measured
+    `errors` column stays in §2.1 — it is what tells a reader whether the
+    design's expectation was borne out. Found by the structural comparison in
+    [#820](https://github.com/doppler-dsp/doppler/issues/820), which masked every
+    number and left exactly this verdict flip visible.
+
+- **The `MpskReceiver` report's "not covered" note no longer reads as if the tree
+    lacks framing.** It said *"FER is absent because this object has no framing"*,
+    which was true of the object and became misleading once `wfm.Frame`,
+    `ccsds_tm_frame.h` and the CCSDS chain landed a layer up — and
+    `native/validation/rx_frame_fer.c` already measures FER on a receiver through
+    them. So `rx-test.md` goal 4's fourth metric is reachable; it is just not
+    reachable from a report scoped to one object, which is a different statement.
+
+    The note now also records a composition gap worth knowing about:
+    `mpsk_soft_demap` produces per-bit LLRs and **`MpskReceiver` exposes none**,
+    so a caller feeding a soft-decision decoder demaps from `steps()` output
+    themselves rather than asking the receiver for it. The receiver's claim
+    inventory is unaffected — the LLRs came out of the `mpsk` constellation
+    module, not the receiver, so no header claim changed.
+
+- **`MpskReceiver`'s tests seeded the carrier loop either ON the answer or
+    past its pull-in cliff, so almost none of them measured acquisition**
+    ([#843](https://github.com/doppler-dsp/doppler/issues/843)). Every seeding
+    site is now stated in the loop's own units — cycles per **symbol**, the
+    same normalization as `bn_carrier` and `bn_timing` — and held at or under
+    the acquisition bound of `bn_carrier / m`.
+
+    The `m` is the part that was missing everywhere.
+    `_mpsk_rx_harness.freq_offset_inside_bw` returned `frac * bn / sps`,
+    contradicting `docs/design/mpsk-refactor.md` §4.4 on two counts: the NDA
+    discriminator is an M-th power, so the bound carries a divide by `m`, and
+    the bound has no `sps` in it at all. Without the `m` one call read
+    identically at every order while asking a 4× harder question at 8PSK than
+    at BPSK, putting 8PSK exactly on the measured limit with no margin. The
+    same expression was written out by hand in the C BER certification
+    (`mpsk_receiver_ber.c`, `mpsk_receiver_real_ber.c`), whose sweep runs all
+    three orders.
+
+    Conversion to cycles per **sample** now happens once, at the constructor
+    boundary that needs it, which is what `native/tests/dp_rx_mpsk.h` already
+    warned about: *"Mixing them is an sps-sized error, and at sps=8 it asked
+    the loop for 8x its design envelope."*
+
+    The opposite defect sat in `test_mpsk_receiver.py` and
+    `test_mpsk_receiver_core.c` §2, which passed `init_norm_freq` equal to the
+    stimulus's own offset — so the loop started on the answer and never left
+    its initial state. **A receiver whose carrier discriminator was wired to
+    nothing passed all of those.** They now start one bound below truth, and
+    the change is sabotage-proven: moving the seed to ten times the bound
+    fails six of them, where seeded on truth they passed at any offset
+    whatsoever.
+
+    Bounds measured 2026-08-17 rather than asserted (6 seeds per point;
+    BPSK/QPSK/8PSK at sps 8, bn 0.01, 20 dB, 4000 symbols): the carrier loop
+    acquires reliably out to 4× its bound and collapses by 6×, so the rule
+    keeps a 4× margin; the timing loop reaches 1.6× and collapses over
+    1.8–2.0×, and `clock_offset_inside_bw` was confirmed correct as written —
+    no `m` belongs in it, because the timing discriminator is not an M-th
+    power.
+
+    `scripts/check_stimulus_sources.py` gains a fourth signature, so a bare
+    cycles-per-sample offset literal in the test, validation or example trees
+    fails the gate the way a private pulse, level or EVM already does.
+
+- **`make nats-down` removed the JetStream store while the broker was still
+    writing to it**, and failed the cleanup step of jobs whose tests had
+    passed:
+
+    ```text
+    rm: cannot remove '.../streams/DP_WORK_ep752264292/msgs': Directory not empty
+    ```
+
+    `kill` returns when the signal is *queued*, not when the process is gone.
+    Measured against a real nats-server: it stayed alive for roughly nine
+    hundred further `kill -0` polls after `kill` returned, and a JetStream
+    shutdown spends that window flushing stream state to disk. The `rm -rf`
+    ran straight into it — emptying a stream's `msgs/` directory and then
+    failing its `rmdir` on a file the broker had re-created in between.
+
+    The recipe now stops every writer, **waits for it to be gone** (SIGTERM,
+    then SIGKILL after 10s), and only then removes the store; the container
+    comes down before the store too, so a future bind mount cannot quietly
+    reintroduce this. The removal itself can no longer fail the target — it
+    runs under `if: always()`, so a surviving temp directory is worth a
+    warning and is not worth turning a red test run into a red cleanup.
+
+    `scripts/start-nats.sh` lost the same race in the other direction, where
+    `set -e` made a "Directory not empty" abort the *start*. It now retries
+    and then insists on an empty store, saying which command to run.
+
+    Gated by `src/doppler/tests/test_nats_teardown.py`, which drives the real
+    recipe against a stand-in that keeps writing through SIGTERM. Deleting
+    the wait loop turns it red.
+
+- **The "no private RNG" gate now scans `native/validation/`, where four
+    harnesses had one.** `check_tests_ssot.py` enforces a rule its own
+    docstring stated absolutely — an inline xorshift, a hand-written
+    Box-Muller or either uniform mapping may exist only in `dp_rng_test.h` —
+    and printed `no private RNG` in its summary. It scanned `native/tests/`
+    only. `check_stimulus_sources.py` had scanned both directories all
+    along, so the two SSOT gates disagreed about their own scope and the
+    narrower one was the one whose rule was stated as absolute.
+
+    `native/validation/` is where this costs the most, for the same reason
+    it is exempt from the gate's *other* rules: a validation harness
+    **reports** a number instead of asserting a bound, so there is no
+    assertion to have margin and nothing to fail. A generator that is
+    quietly wrong becomes a published figure that is quietly wrong — which
+    is exactly what the consolidation found in `native/tests`, where a
+    half-finished Box-Muller delivered mean +0.056 and variance 1.115 while
+    claiming N(0, 1) and no test noticed.
+
+    Scope is now **per rule**: the two randomness rules read both
+    directories, while re-defining a `dp_*.h` macro, naming your own
+    assertion, and the assertion ratchet stay `native/tests`-only. Those are
+    about who owns the *assertions*, and a validation harness does not
+    assert.
+
+    `symsync_lock.c`, `ber_despreader.c`, `dll_jitter.c` and `rx_dynamics.c`
+    were **migrated rather than excused**, so the rule stays absolute rather
+    than becoming a ratchet. All four are bit-exact: three had `dp_xs32` /
+    `dp_cgauss` / `dp_bit` spelled out by hand, and `ber_despreader.c`'s
+    (13, 7, 17) triple on a `uint64_t` *is* `dp_xs64`. Proven by compiling
+    each harness before and after with identical flags and diffing the full
+    sweep, not just the `--check` subset.
+
+    Widening the scan found the second half of the same defect.
+    `rx_dynamics.c` drew both Gaussian components from **one state inside
+    one expression** — indeterminately sequenced (C11 6.5.2.2p10), so it
+    drew a different noise stream under `make test` (gcc) than under
+    `make coverage` (clang), in a harness that publishes a lock/rate table.
+    The rule against that could not see it either: its wrapper fold starts
+    from the `dp_*` names, and this file's generator chain was private all
+    the way down. **A private generator does not just risk being wrong; it
+    hides the other rules from the code that uses it.** Rewritten into named
+    locals, in the order this build's gcc actually chose, so the published
+    numbers are unchanged — `docs/design/mpsk.md` quotes the strobe tap's
+    `+0.860` at the data onset, and a re-ordering moves it to `+0.757`.
+
+    Which order that is had to be MEASURED, not read off. `dp_rng_test.h`
+    records gcc taking the imaginary operand first; here, under this
+    harness's actual flags, gcc `-O3` and clang `-O0` both take the *real*
+    one, so writing the documented order in produced a silently different
+    table — one that still passed `--check`, because that subset prints a
+    single line. Every one of the four migrations was confirmed by diffing
+    the harness's FULL sweep, compiled before and after with its exact
+    per-target flags.
+
+    The point of the rewrite is not that the two compilers disagreed here;
+    measured, they happened to agree. It is that nothing made them, and the
+    published number had no defence if a flag, a version or a target ever
+    changed the choice.
+
+- **The gate now recognises a linear-congruential generator, which it had
+    never looked for.** The scan knew xorshift and Box-Muller only, so it
+    printed `no private RNG` over four live LCG streams — three of them in
+    `native/tests`, the directory whose count the docstring called zero.
+    Found on the new idiom's first run.
+
+    It uses the same backreference discipline as the xorshift idioms, and it
+    is load-bearing for the same reason: the *same* lvalue on both sides is
+    what makes it a stream. `x = k * 1103515245u + 12345u`, the one-shot
+    index hash in `dp_mf_test.h`, multiplies a different value and carries
+    no state — a deterministic bit pattern, not a random source — and stays
+    silent, as does `n = n * 2 + 1`. Both were checked as controls.
+
+    Unlike the xorshift copies, migrating these **moves the stream** and
+    therefore the numbers measured against it, so the four are held in
+    `scripts/.private-rng-ratchet` with a reason each. The list may only
+    shrink, and an entry matching nothing fails the gate rather than being
+    quietly ignored.
+
+    The summary line now names the directories it scanned and the number it
+    is holding, so it cannot read as an unqualified zero again. Every rule
+    above was proven by sabotage — putting each shape back and watching
+    `make tests-ssot` name the file.
+
+- **The release-notes renderer could exit 141 and publish nothing.** The
+    `### Highlights` extraction exits at the next `### ` heading; fed from a
+    pipe, the writer then takes SIGPIPE, and `set -o pipefail` turns that into
+    a failed release — after emitting a **zero-byte** body, with every visible
+    step looking fine. Found by running the renderer over a 132 KB section
+    rather than by reading it. It reads a here-string now, and
+    `test_extraction_does_not_die_of_sigpipe` asserts the exit code
+    specifically, because the symptom was otherwise indistinguishable from an
+    ordinary failure.
+
+- **Tests found the repo root by counting directories, so 89 of them failed
+    under the coverage harness.** `Path(__file__).parents[N]` is correct
+    exactly once — from the source checkout. `make coverage` copies the
+    package to `build-cov/pkg/doppler`, two levels deeper, so every
+    fixed-depth root landed inside `build-cov/` and every test reading
+    `docs/`, `scripts/` or `native/` failed there.
+
+    It went unnoticed because `COVERAGE_CMD`'s pytest carries a leading `-`,
+    so make ignores its exit code: **27 failed and 62 errors against 2631
+    passed**, permanently tolerated in the one job that produces the coverage
+    number. `wfm/tests/test_schema.py` alone contributed 47, because
+    `parents[4]` missed `docs/schema/wfmgen.schema.json` and took out a
+    module-scope fixture.
+
+    `doppler.tests._repo.repo_root()` walks up for `pyproject.toml` **and**
+    `native/` together — either alone could match an unrelated parent project
+    — which is depth-independent and therefore right from both trees. 16
+    sites converted.
+
+    The walk is deliberately better than skipping those tests: `build-cov/`
+    lives *inside* the repo, so it finds the real root and they now **run**
+    under coverage and contribute to the number, rather than being excluded
+    as "needs a checkout".
+
+    `test_benchmark_fixtures.py` keeps its `parents[1]`, which means
+    `src/doppler` rather than the repo root and was never wrong.
+
+    Verified against both trees: the source-tree suite is unchanged at 2719
+    passed / 7 skipped, and the fixed-depth idiom is gone from every site
+    that meant "repo root".
+
+- **A retired identifier stays retired, and there is now a gate for it.**
+    The `fec` → `ccsds_tm` rename went green with **eleven** occurrences of
+    the retired prefix still in the tree: two macros in a public header (the
+    ASM pattern and the inner code's constraint length, now `CCSDS_TM_ASM` and
+    `CCSDS_TM_CONV_K`), the NAME five C tests print at the end of a run, an
+    encoder type in a design page that had not existed since the codec was
+    generalised to `conv_enc_t`, and three header references in a changelog
+    entry and a validation report. A compiler cannot notice any of them —
+    every one still compiled, because every one still existed.
+
+    `scripts/check_retired_names.py` (wired as `make lint-retired-names` and a
+    pre-commit hook) scans the hand-written trees for the patterns in
+    `scripts/.retired-names`, a table whose rows are added by the commit that
+    retires a name and which only ever hold at zero occurrences. Proven three
+    ways by sabotage: the macro back in the header, the old name back in a
+    test's printed label, and a stale symbol back in a design page.
+
+    The patterns match the IDENTIFIER forms only, so FEC keeps its meaning as
+    the general subject — `docs/design/fec-receive.md` spans a general Viterbi
+    and a general Reed-Solomon, and that page's name is deliberate. One
+    consequence worth stating, because it is the rule working rather than a
+    gap: an entry like this one cannot spell the names it retires, so it names
+    what replaced them instead.
+
+- **An incomplete receiver adapter now fails by name instead of segfaulting.**
+    Every `dp_rx_iface_t` entry is mandatory — the instrument calls all twelve
+    unconditionally — so a positional initializer that stops one short is a
+    NULL call at the first operating point, before a single line is printed.
+    `dp_rx_run()` now checks the adapter first and fails the record with
+    `adapter entry '<name>' is NULL`, which `--check` turns red.
+
+    It is a *failure*, not a refusal: a refusal is the instrument declining a
+    number it cannot defend, and this is the instrument unable to run at all.
+
+    Found the way the class is designed to be found — `ContinuousMpskReceiver`'s
+    adapter was written against an eleven-entry interface and `zeta` was
+    appended as the twelfth on another branch, so **both branches were green**
+    and only their rebase was not. The guard is proven by sabotage: dropping
+    `rx_mpsk_zeta` from `RX_CONT` reddens `validate_rx_battery --check` with the
+    entry named, where before it exited 139 with no output.
+
+- **The receiver instrument declared six frame-statistics fields and measured
+    none of them.** `native/tests/dp_rx_test.h` carried `frames`,
+    `sync_detected`, `crc_passed`, `fer`, `sync_miss` and `prot_bits`,
+    documented FER in its own composition table, included
+    `frame_meter_core.h` — and never called `frame_meter_create`. The
+    instrument built to report goal 4's four metrics *together* reported
+    three, and the missing one is the only truth-free metric that sees a
+    false lock.
+
+    The machinery already existed in `native/validation/rx_frame_fer.c`, so
+    this **moves** it rather than writing a second one: `dp_rx_score_frames()`
+    with the per-frame sync CONFIRMATION at ±`DP_RX_SYNC_SPAN` (a tracking
+    window, not a re-acquisition), the truth-free CRC check, and the
+    one-sided FER anchor asserted on the interval's **lower** limit.
+    `rx_frame_fer.c` is now a caller and its copy is gone; it reproduces its
+    committed table **bit for bit**, which is how a move is told apart from a
+    rewrite. `framed == 0` prints **n/a**, never `0.0`.
+
+    Measured consequence on the battery: the anchor's SER rises from
+    1.087e-03 to 1.090e-03 once the periodic marker's sync words stop being
+    scored as data (#793) — the only direction it could move, because symbols
+    that could not be wrong stopped being counted as symbols that merely
+    happened not to be.
+
+- **`test_dp_test` did not link libm, and only the coverage build noticed.**
+    The self-test calls `cabs` once, to show that `dp_cnear` accepts a diagonal
+    error a magnitude bound would reject. gcc at `-O2` folds that call away and
+    needs no libm; the coverage build is clang at `-O0` and emits it, so the
+    missing `target_link_libraries(... m)` was invisible to `make test` and an
+    `undefined reference` in `make coverage`. Its sibling `test_dp_rng` already
+    linked `m`.
+
+- **`validate.py --check` says what differs, not just that something does.**
+    It printed `STALE — <file>` and stopped, which answers none of the first
+    questions: which lines, and is this a real edit or a number's last digit? It
+    now prints the unified diff (first 40 changed lines, no context, so every
+    line shown is a changed one) and states explicitly that on a machine other
+    than the one that generated the report, `make validate` will move the
+    problem rather than fix it.
+
+    Written because that distinction turned out to matter. Wiring
+    `make validate-check` into CI for
+    [#816](https://github.com/doppler-dsp/doppler/issues/816) — it sat in
+    `GATES_DEPS` with no CI home, so report staleness was checked on developer
+    machines and nowhere else — reported **four of eleven reports STALE on the
+    runner** while all eleven were up to date locally on the same architecture,
+    Python and numpy. Two of the four render their limits exactly as they always
+    have, so their drift predates that change: **the committed reports have
+    never been reproducible on a machine other than the one that generated
+    them.**
+
+    The CI step is therefore *not* wired, and `ci.yml` carries the evidence as a
+    comment where the next reader will look. A permanently red job is worse than
+    the hole it closes. Diagnosis and options are
+    [#820](https://github.com/doppler-dsp/doppler/issues/820); #816 stays open
+    with a named blocker instead of an open question.
+
+- **`--check` gates a report's STRUCTURE, and the numbers are gated where they
+    have units.** Byte-comparing `results.md` demanded reproducibility the
+    numbers do not carry: measured across two toolchains (gcc 15.2/glibc 2.43
+    against 13.3/2.39 on one CPU), a BPSK cell's error count moved 204 → 198 and
+    SER, implementation loss and EVM moved with it — all inside the
+    measurement's own ~7% standard error. Four of eleven reports were stale on
+    the other machine, two of them for reasons predating any recent change
+    ([#820](https://github.com/doppler-dsp/doppler/issues/820)).
+
+    A tolerance was the obvious fix and does not work: absorbing the observed
+    differences needs **>96%** relative, because relative deviation grows without
+    bound as a quantity approaches zero and these reports deliberately measure
+    quantities that converge to zero. At the point of comparison the artifact is
+    markdown, so a `0.3` in a table has neither units nor provenance to key a
+    per-quantity tolerance on.
+
+    So `--check` masks numeric literals and byte-compares the rest — sections and
+    their order, prose, each limit's claim wording, every verdict and finding
+    tag, table shape. Section headings, `§N.M` references and `#N`/`gh-N`
+    citations are **not** masked: they are structure written with digits, and an
+    earlier version that masked them let a renumbered section and a re-pointed
+    citation through. Numbers are gated by each object's
+    `test_validation_limits.py`, which asserts them through the same `build()`
+    with thresholds the author chose per quantity. Two gates, two questions.
+
+    Verified against the toolchain that broke it: all eleven reports pass in a
+    gcc 13.3 / glibc 2.39 container. **`make validate-check` is therefore wired
+    into CI**, closing the half of #816 that was blocked on this.
+
+- **`make validate-check` no longer discards the diagnosis it asks for.** It ran
+    `validate.py --check > /dev/null`, so the one caller anyone actually uses
+    threw away the output and printed a filename. `--check` now prints a unified
+    diff when a report is stale, and the target captures and replays it (from
+    `STALE:` onward, so the per-limit PASS lines stay out of the way).
+
+    Measured consequence of not having it: wiring the target into CI for
+    [#816](https://github.com/doppler-dsp/doppler/issues/816) reported four of
+    eleven reports stale on the runner and the log said only *which files* — the
+    half that cannot distinguish an edited validator, where `make validate` is
+    the fix, from a machine difference, where re-running fixes nothing. Those
+    have opposite responses, so a filename alone is the least useful thing to
+    print.
+
+    With the diff in hand the cause took one container run: the reports differ
+    because the measured **error counts** differ (204 against 198 on one BPSK
+    cell), which moves SER, implementation loss and EVM with them — all well
+    inside the measurement's own ~7% standard error. So the reports print three
+    and four significant figures where they carry about one, and byte-comparison
+    is the wrong contract for the numeric half. Diagnosis, evidence and options:
+    [#820](https://github.com/doppler-dsp/doppler/issues/820).
+
+- **The validation reports' coherence checks ran in no CI workflow, on any
+    report.** `Report._self_check` refuses a render that contradicts itself — a
+    `§N.M` pointing at a section the report does not have, a gap in section 2's
+    numbering, a table cell truncated mid-reference, and now limits counted but
+    never rendered. It runs from `render()`, `render()` runs from `emit()`, and
+    a `write=False` build skips it — so the only paths that reached it were
+    `make validate` and `make validate-check`, **and neither is in any CI
+    workflow** (`validate-check` sits in `GATES_DEPS`, and no job runs
+    `make gates`; grep the workflows for "validate" and the one hit is a
+    release-time wheel check).
+
+    So the checks were tested in CI — `test_validation_report.py` drives them
+    over seeded reports — and never *applied* in CI to the eleven reports they
+    exist for. That is the campaign's founding bug one layer out: not a claim
+    nobody executes, but a checker nobody points at the artifact.
+
+    Each module's `test_validation_limits.py` now renders the report it already
+    built (`assert_renders`), so all four coherence families are enforced on
+    every real report inside `make test-python`. It is free — the report is
+    already in memory — and registration-free per object, since a new object
+    joins its module's existing `OBJECTS` map. Proven by sabotage: a dangling
+    `§9.9` in `ema`'s validator takes exactly
+    `test_the_report_renders_coherently[ema]` red and nothing else.
+
+    Staleness is the half this cannot fix — whether the *committed* bytes match
+    the generator is still `make validate-check`'s question, and still not in
+    CI. Filed as [#816](https://github.com/doppler-dsp/doppler/issues/816),
+    which also proposes making `gates-check` bidirectional so the next gate
+    added to `GATES_DEPS` without a CI home fails loudly.
+
+- **Section 4 of seven validation reports named none of the limits it
+    counted.** `agc`, `ema`, `resamp`, `lockdet`, `mpsk`, `loop_filter` and
+    `mpsk_receiver` each rendered the heading, the sentence "Claims a caller
+    may rely on", and then nothing — while section 5 beside it closed with
+    `N/N limits hold`. **262 certified claims that only four of eleven
+    reports actually stated.**
+
+    Neither gate could see it, for two different reasons.
+    `test_validation_limits.py` asserts every limit and never reads the
+    report. `make validate-check` re-renders and compares bytes, so a
+    generator emitting an empty section agrees with itself perfectly — a
+    staleness gate proves the artifact matches the generator, which says
+    nothing about whether what is generated is complete. The passing tally
+    sat beside the empty section, and the tally is what a reader trusts.
+
+    The table is now emitted by `Report.summary()` — the one hook every
+    validator calls, and the only one that runs after the last `limit()` —
+    so it cannot be forgotten by a new object, and the four hand-rolled
+    copies are gone rather than left to drift. `Report._self_check` refuses
+    a render whose section 4 carries fewer rows than the run recorded,
+    counted against the **rendered** text because that is the artifact a
+    reader gets. Proven by sabotage, with three seeded cases in
+    `test_validation_report.py` including the vacuity guard from the other
+    side: a report asserting no limits needs no table.
+
+- **A JSON scene with no `fs` rendered at 1 MHz, not at 1.0 — so a normalised
+    frequency came out at DC.** `wfmgen --help` documents `--fs` as
+    *"Sample rate (default 1.0; freq treated as normalised)"*, and the JSON
+    reader defaulted the same field to **1e6**. A scene written to the
+    documented contract —
+
+    ```json
+    {"version": 1, "segments": [{"type": "tone", "freq": 0.08}]}
+    ```
+
+    — was therefore read as 0.08 Hz against an unstated 1 MHz rate, which is
+    a tone at DC. Nothing errored: the flag parser and the JSON reader are
+    two faces of one generator, and they disagreed about a default.
+
+    The reader now defaults `fs` to **1.0**, and the schema says so: `fs` is
+    no longer in `required` for either segment form and carries
+    `"default": 1.0` with the normalised-frequency contract spelled out. All
+    three faces — flag, schema, reader — now agree.
+
+    Found by `rate_converter_demo` failing its own frequency check with the
+    tone **1245 bins** off, which is a self-validating example earning its
+    keep; a silent DC tone has no other symptom. Gated by
+    `test_json_fs_defaults_to_one_so_freq_is_normalised`, which asserts on
+    the RENDERED waveform rather than the parsed struct and was proven by
+    sabotage: restoring the 1e6 default gives `tone at 0.0, expected 0.08`.
+
+    **Behaviour change for a scene that omitted `fs` and meant Hz.** Such a
+    document was never schema-valid — `fs` was `required` — and every record
+    `--record` writes states `fs` explicitly, so a round-tripped capture is
+    unaffected. A hand-written scene relying on the old 1 MHz now needs
+    `"fs": 1e6`, which it should have carried all along.
+
+- **A periodic marker's sync words were scored as DATA.** `dp_ber_measure()`
+    opened its scored window at the settled point and bounded it past the
+    marker's end only for a *blind* marker. For a **periodic** one — a frame's
+    sync word, recurring for the whole record — `ber_meter`'s exclusion reads
+    an index before `t0` as "not a marker" (`ber_meter_core.c:122`), so every
+    sync word *preceding* `t0` was scored as payload: known symbols that had
+    no chance of being wrong, quietly flattering the denominator. The window
+    now opens at the marker's **first occurrence** for the periodic shape and
+    past its **end** for the blind one, which is what `rx_frame_fer.c` had
+    already been doing by hand.
+
+    The same argument holds at the **other** end and is now enforced there
+    too: `in_marker` bounds exclusion at both ends
+    (`off / period >= occurrences`), so scoring past the last excluded
+    occurrence reintroduces the identical defect at the tail. Measured, it
+    does not currently bite — exclusion already reaches 44 symbols past the
+    scored top at period 285 and 824 at period 1679 — but that margin is a
+    function of the detected **lag**, not a chosen constant: on the 285
+    geometry a lag beyond ~245 turns it positive, and `DP_BER_LAG_SPAN` is
+    200\. Bounded rather than left to a coincidence that holds at the only two
+    geometries anyone has looked at. Today it changes no number.
+
+- **`dp_ber_report_t` threw away the alignment it had just computed.** The
+    `lag` and `phase` that fixed the record are now returned. They are part of
+    *defending* the rate rather than a by-product of computing it: anything
+    else scored against the same record — per-frame outcomes, a telemetry
+    series — has to be placed in the same coordinates, and re-running the
+    detection to find out where it sat is a second copy of the decision, free
+    to disagree with the first.
+
+- **`native/validation/` was running its own random number generators.**
+    `native/tests/dp_rng_test.h` is the declared SSOT and
+    `scripts/check_tests_ssot.py` enforces it *absolutely* — in
+    `native/tests/` only. The other directory is the one whose numbers get
+    **published**, and five harnesses there carried private xorshift32 and
+    Box-Muller copies. They now use the SSOT.
+
+    **Bit-exact, proven per file rather than argued**: every harness's full
+    sweep was captured before and after, and all 19 outputs are byte-identical
+    (the only line that moves anywhere in the tree is `ber_despreader`'s
+    wall-clock `elapsed`, in a file this does not touch).
+
+    Getting there required the draw **order** to be measured, and that is the
+    part worth recording. Three of these files drew both Box-Muller components
+    inside one expression, which is **indeterminately sequenced** (C11
+    6.5.2.2p10) — so the stream each had was the compiler's choice, not the
+    author's. `dp_rng_test.h` states that gcc takes the imaginary operand
+    first; that is true of the bare `a + b*I` shape it was measured on and
+    **not** of these. `carrier_nda_pullin`'s `cexp(...) + s*g + s*g*I` needed
+    **real** first to reproduce its stream, and imaginary-first moved every
+    number in the file. The order is a property of the **expression**, not a
+    rule — which is an argument for named locals, not against them.
+    `rx_nda_gauss`'s own two uniforms were in one expression too; sequencing
+    them in `dp_gauss`'s order left the file byte-identical, so gcc had been
+    drawing the logarithm's uniform first there.
+
+    Migrated: `carrier_mpsk_jitter`, `carrier_nda_step_response` (xorshift
+    only), `carrier_nda_pullin`, `rx_nda_tap`, and `mpsk_ber_common.h` with
+    both BER twins. The gate is **not** widened to the directory yet: the
+    sweep found **four more** files carrying private generators
+    (`dll_jitter`, `symsync_lock`, `ber_despreader`, `ratesync_scurve`) that
+    #802 did not list, so the ratchet would fail on unmigrated files. The
+    directory having grown again is exactly what gh-687 predicted it would.
+
+- **`mpsk_receiver_core.h` said the old defaults for the five parameters that
+    now derive.** gh-644 made `0` request a derived value for `m_out`, `zeta`,
+    `lock_thresh`, `num_phases` and `bn_agc_ratio`, and updated
+    `objects/mpsk_receiver.toml` so the Python face said so — while the C
+    header, which is the SSOT, went on documenting `(default 8)`,
+    `(default 0.707)`, `(default 0.5)` and `(default 1024)`, and mentioned the
+    derivation nowhere. The one face that is the source of truth was the one
+    face that did not know about the feature.
+
+    Each `@param` now states that `0` derives, what it derives to, and the
+    getter that reads it back; a `@note` on `create()` carries the rule once.
+    Documentation only — no behaviour change.
+
+    Same class as the `burst_despreader_core.h` drift already recorded in
+    `CLAUDE.md`, where hand-written `(default: X)` annotations went 5x out of
+    step with the manifest, and which just-makeit#442 is the open ask to lint
+    for. It recurred anyway, in the change that introduced the feature, which
+    argues for that lint rather than against it.
+
+- **One bits→symbol map, and it is the library's.** `wfm_synth`'s bit pattern
+    had **four inlined copies** of the mapping — two in `wfm_synth_core.h`
+    (`wfm_synth_next_symbol`, `wfm_synth_step`) and two in
+    `wfm_synth_steps()`. The first of those carries a comment saying the
+    kernel is shared "so the single-sample and block paths cannot diverge —
+    they call the SAME function rather than each inlining the arithmetic", and
+    the arithmetic was inlined four times anyway.
+
+    All four now call `wfm_synth_bit_symbol()`, which hands a Gray label to
+    `mpsk_constellation()` — the library's canonical map, and the one
+    `dp_ber_score()` inverts to score bit errors.
+
+    That mattered, latently: the QPSK copies put `b0` on the I sign and `b1`
+    on the Q sign — the same *constellation*, but two of the four labels
+    swapped against `mpsk_constellation()`. Nothing in the tree scored a QPSK
+    bit pattern against truth, so it never produced a wrong number. A framed
+    QPSK stream measured through the canonical scorer would have read about
+    **half its symbols wrong on a working receiver**.
+
+    `modulation` already meant BITS PER SYMBOL (1 = BPSK, 2 = QPSK), so 3 =
+    8PSK extends the numbering rather than reinterpreting it.
+
+    The gate is a round trip through the canonical demapper — a property no
+    agreement between two copies can establish, since the old copies agreed
+    with each other perfectly. The bit pattern counts up so every one of the M
+    labels is exercised; an alternating pattern emits one or two labels for
+    ever, and a label the test never produces is one the mapping can get wrong
+    undetected. Proven by sabotage: LSB-first packing, the original I/Q-sign
+    QPSK mapping restored, and Gray skipped each take it red.
+
+    There was a **fifth** copy, in Python:
+    `test_rrc_bits_matches_matched_filter` hand-built its QPSK reference from
+    the same I/Q-sign formula, so the matched-filter check passed by comparing
+    the generator against a restatement of the generator. Its reference now
+    comes from `doppler.mpsk.mpsk_map` — the binding over the one map — which
+    is why that test had to move with the fix rather than the fix move to it.
+
+    That test is now parametrized over `sps`, because `sps` is what selects the
+    shaping implementation: a power of two shapes with the polyphase `resamp`
+    bank, anything else falls back to a dense FIR, and those are two separate
+    block loops in `wfm_synth_steps()`. Every existing test used `sps` 4 or 8,
+    so the **dense-FIR bits loop had no test on any path** — one of the four
+    copies could have been fixed and the other not, with nothing to say so.
+    `sps = 3` covers it; sabotaging that loop alone takes `[3]` red and leaves
+    `[4]` green, which is how the split was checked rather than assumed.
+
+- **A capped CIC silently cost the cascade its rate** — `RateConverter` at a
+    power-of-two decimation past the CIC cap decimated by `R` and claimed `D`.
+    Measured: `RateConverter_create(1/8192)` delivered `1/4096`, twice the rate
+    asked for, and `1/16384` delivered four times it — with no error, no NaN,
+    and an output that looks entirely plausible.
+
+    The planner already hands whatever a capped CIC leaves to a `Resampler`
+    stage. That residual was gated on the matched-terminal flag alone, so the
+    plain constructor never got it. It is now emitted whenever the integer
+    stages did not complete the decimation, which is the condition that
+    actually decides whether it is needed.
+
+- **The CIC decimation cap is `CIC_R_MAX` (2048), one halving below where the
+    accumulator fills.** The 64-bit accumulator holds `65535 · R^4`; at
+    `R = 4096` that is `2^64 - 2^48`, which fits and fills it to within one
+    part in 65536. "Fits exactly" is not headroom — it is the value at which
+    any further term overflows, and the CIC's exactness argument (every
+    intermediate overflow cancels in the combs) holds only while the true
+    result fits in 64 bits. 2048 leaves **16×**.
+
+    The cap costs no rate, because of the fix above; past it the residual goes
+    to the resampler, exactly as the non-power-of-two path already did. Both
+    layers enforce it — `cic_create()` refuses beyond `CIC_R_MAX` and the
+    planner never asks — because a cap the planner honours and the constructor
+    does not is one bad call site away from the accumulator it protects.
+
+    Lowering the cap is what exposed the rate defect: it moved the first
+    affected geometry from `D = 8192` down to `D = 4096`, where a receiver can
+    actually reach it. Both are pinned by
+    `test_capped_cic_still_delivers_the_requested_rate`, proven by sabotage.
+
+- **The clang-tidy pre-commit hook ran nowhere, and is removed** (gh-737).
+    Fixing its missing pin left a second defect untouched: it sat at
+    `stages: [pre-push]`, `make setup` runs a plain `pre-commit install` —
+    which installs only the pre-commit hook type unless the config declares
+    `default_install_hook_types`, and this one does not — and CI's `make lint`
+    runs pre-commit at the default stage. So it executed on no machine and in
+    no pipeline, reporting zero findings because it never looked: a dead gate
+    that happened to be green, which nothing downstream could tell from
+    success. Deleting it costs no coverage, because there was none; what it
+    buys is that the tree stops advertising a gate it does not have.
+    `make lint-clang-tidy` is unchanged and is still how to run it by hand.
+    Restoring the hook needs an execution home — a CI job, or
+    `default_install_hook_types` — **and** the gh-720 backlog cleared enough
+    for it to pass; clearing the findings alone would not have revived it,
+    since the backlog is why it could not be switched on and not why it did
+    not run.
+
+- **Every NDA tap now delivers the `bn_carrier` it was given.** `freq_scale`
+    converted the carrier loop filter's output assuming it is radians per
+    SYMBOL, which is true only for `strobe`. A tap updating `upd` times per
+    symbol produces radians per UPDATE, so the LO was under-driven by `upd`
+    and the loop ran narrower than the caller asked for.
+
+    **A frequency STEP could never have shown this** — a type-2 loop nulls a
+    step to zero steady-state error regardless of gain, which is why every
+    acquisition test passed on both sides of the bug. A frequency RAMP holds a
+    constant phase lag with a closed form, and that is where it was visible:
+
+    ```
+      theta_ss = 2*pi*r / wn^2,  wn = 8*zeta*bn/(4*zeta^2+1) = 1.8857*bn
+    ```
+
+    Measured at sps=200, bn=0.005/sym, the lag was that form times exactly
+    `upd` — 1.00 for strobe, 2.00 for mf_out, 1.5625 for mf_in, at every ramp
+    rate. With the fix all three match the form to under 1%, so the maximum
+    trackable Doppler rate is now the same at every tap instead of `1/upd` of
+    it. Closes gh-765.
+
+- **The `mf_in` carrier loop was sized against a placeholder update rate.**
+    `config_carrier()` runs inside `mpsk_rx_loops_init()`, which is before
+    `mpsk_receiver_create()` can read the cascade's real `bank_sps`, so the tap
+    got loop gains designed for `lo_sps` updates per symbol while actually
+    updating `bank_sps` times — `ki` too small by `(lo_sps/bank_sps)^2`, which
+    is 1.7e7 at Fs/Rs = 10000. The integrator never moved: the loop reported a
+    flawless 0 Hz error at 0 Hz offset and acquired **nothing** at any other
+    offset, at any rate ratio above sps=8. The filter is now re-sized once the
+    real rate is known, and `rx_nda_tap.c` gates it at three rate ratios.
+
+- **A `WFM_SEQ_PN` frame field with `poly = 0` was emitting a constant.**
+    `wfm_frame.c` passed `poly` straight to `pn_create()`, which takes the tap
+    mask verbatim — so 0, the natural "default" and the value `wfm_synth`'s
+    `--pn-poly` already resolves, meant a register with NO FEEDBACK: it shifts
+    the seed out and then emits zeros for ever. Measured, a 127-bit PN field at
+    `reg_bits = 7` carried **2 ones**. Every generated PN field was a constant
+    that still looked like a field, which is why nothing noticed.
+
+    `test_wfm_frame.c` could not catch it because its check was a CONSISTENCY
+    test: it compared `wfm_frame_bits()` against `pn_generate()` with
+    `poly = 0` on both sides and they agreed perfectly — on two all-zero
+    sequences. The new gate is a property no agreement between two halves can
+    establish: one period of a length-n MLS carries exactly `2^(n-1)` ones, so
+    a balance check over `2^n - 1` bits says the descriptor resolved a real
+    polynomial. It reads 1 against 256 when it did not, and it fires even with
+    the old mutually-consistent comparison restored.
+
+    The fix applies the resolution the project already had
+    (`poly ? poly : pn_mls_poly (reg_bits)`). The polynomial table moved from
+    `wfm_synth_core.h` to **`pn_core.h`**, where the convention belongs — it is
+    `pn_create()`'s tap mask, not the synth's — and `wfm_synth_mls_poly()`
+    stays as a forwarder, so no call site changed and no second table exists.
+
+- **`docs/c-api` was stale for `wfm_frame` and `frame_meter`.** Neither of the
+    two commits that added them ran `gen-c-api-check`, so 26 mkdoxy files
+    (including `wfm__frame_8h.md` and `frame__meter__core_8h.md`, which had
+    never been generated at all) would have failed that CI gate. Regenerated.
+
+- **A merged fix no longer leaves its issue open.** GitHub closes an issue only
+    when a closing keyword reaches the default branch; doppler rebase-merges,
+    so a commit message carries it — and nothing asked any branch to use one.
+
+    The cost was three issues in one week, all fixed and all still open:
+    `c0e0e615` gated the generated C API tree, which **is** #714, and left it
+    open for a day; PR #717's F1/F2/F3 are #663, #664 and #665, found only
+    because a triage pass read the PR body against the backlog. An open count
+    that includes finished work is a backlog nobody can plan from, and the
+    triage that produced the ranked board had to verify six issues against the
+    tree one at a time to learn which were real.
+
+    `make issue-link-check` asks a branch that changes code to declare either
+    `Closes #N` or `No-issue:`. **The bar is a statement, not a link** — most
+    branches close nothing, and a gate demanding an issue number from a
+    re-vendor would argue with its author, which is the failure mode
+    `changelog-check`'s own comment warns about. Silence is the one rejected
+    answer, because it cannot be told apart from a closure nobody wrote down.
+
+    A bare mention is not a link and is rejected with silence: `See #714 for   context` and `#714` alone both leave the issue open on merge. That
+    discrimination is the gate, so it is what the mutation test targets —
+    relaxing the pattern to accept any `#N` fails exactly those two cases and
+    leaves the other eleven green.
+
+    It shares `CHANGELOG_CODE_PATHS` with `changelog-check` rather than
+    defining "code" a second time, takes the same base so both per-branch
+    gates measure against the same commit, is inert on `main` by construction,
+    and fails closed with no merge base. Logic lives in
+    `scripts/issue-link-check.sh` so its 13 tests can drive it over seeded
+    messages instead of fabricating a scratch repository.
+
+    Closes #746.
+
+- **A NaN lock metric held the lock forever; an unknown lock is not a lock.**
+    `lockdet_step`'s drop test read `x < down_thresh`, and every comparison
+    against NaN is false — so while locked a non-finite look counted as a
+    *hit*, reset the drop run on every look, and left the flag lit
+    indefinitely on a dead statistic. Measured through the binding before the
+    fix: three NaN looks against `n_down = 2`, still reporting locked. Every
+    receiver that publishes a lock lamp reads this decision.
+
+    The library had already settled the question, in the component that
+    exists to answer it. `util_core.h`'s `saturate()` documents *"a lock
+    statistic wants NaN at the **floor** — an unknown lock is not a lock"* as
+    the reason its `nan_to` is a parameter — and **no lock detector had ever
+    called it**, so that paragraph described a caller who did not exist. AGC
+    leverages the primitive in five places; `lockdet` now leverages the same
+    one rather than encoding the policy a second way:
+
+    ```c
+    x = saturate (x, -INFINITY, INFINITY, -INFINITY);
+    ```
+
+    The bounds are infinite because the NaN substitution is the only job:
+    every finite look, and both infinities, pass through untouched. `+inf`
+    remains an ordinary hit and `-inf` an ordinary miss — only NaN is
+    unordered — and the exclusive edge at `x == down_thresh` is unchanged.
+
+    Doing the substitution once, up front, is also what keeps both
+    comparisons plain. The first fix carried the policy in the *spelling* of
+    a predicate (`!(x >= t)` rather than `x < t`, identical for every finite
+    `x` and opposite for NaN), which is exactly the subtlety that let the
+    drop side be written the wrong way to begin with. A rule that survives
+    only in how an operator is spelled is a rule waiting to be re-broken.
+
+    Three coverage gaps closed alongside it, none of them defects:
+    `lockdet_steps` carrying the decision **and** the in-flight verify run
+    *across calls* — the header's "frames of any size with no seam", where
+    only a single block had been tested and one block cannot see a seam;
+    `create()` clamping the verify counts (only `init()`'s clamp was pinned,
+    and they are separate entry points); and `set_state` into a
+    differently-tuned detector, which carries the source's configuration and
+    not merely its decision.
+
+- **`LoopFilter(t=0)` built a silently dead loop and `LoopFilter(t=inf)` one
+    whose every output was NaN forever.**
+    ([gh-740](https://github.com/doppler-dsp/doppler/issues/740)) The
+    constructor accepted a caller's arbitrary doubles and validated none of
+    them, so `t = 0` produced `kp = ki = 0` — a loop indistinguishable from
+    the legitimate frozen `bn = 0` — and `t = inf`, or a NaN in any argument,
+    produced NaN gains that poison every subsequent update permanently. Both
+    were one line away in Python. `loop_filter_create()` now rejects
+    `bn < 0`, `zeta <= 0`, `t <= 0` and any non-finite argument, and the
+    binding raises **`ValueError`** with the component's own message instead
+    of a blanket `MemoryError`.
+
+    Enforcement is at `create()` and **deliberately nowhere else**.
+    `loop_filter_init()` is the by-value path taken by the seven objects that
+    embed a filter, all of which validate upstream — the only
+    runtime-computed `t` in the tree is `mpsk_receiver`'s `1.0/upd`, safe
+    because `m_out >= 2` is checked in its own constructor — so guarding it
+    would be error handling for an impossible scenario. The asymmetry is
+    pinned by `test_loop_filter_core.c` §1 and §10 rather than left to read
+    as an oversight.
+
+    Validating at the boundary also makes the arithmetic **total**: with
+    `bn >= 0` and `zeta > 0` the gain denominator is at least 4, which closes
+    the one genuinely pathological corner — for `zeta >= 1` a sufficiently
+    negative `bn` drove it exactly through zero and both gains to infinity.
+
+- **`check_tests_ssot.py` scanned the working tree rather than the
+    repository, so an ignored file could fail `make lint`.** `jm apply`
+    materialises its own create-only `jm_test.h`, which doppler does not use
+    and which defines the retired `ALMOST_EQ` / `ALMOST_EQ_C` spellings this
+    gate exists to forbid. It is gitignored and never lands, but a plain glob
+    still found it and reported four violations in a file nobody had written
+    and nobody could remove for good. The scan now derives from
+    `git ls-files`, the same fix `validate-c` already uses after a glob there
+    ran a stale binary whose source had been deleted. Verified to still catch
+    a tracked violation, and to scan the same 90 tests and 8 harness headers
+    as before.
+
+- **The TED normaliser was never broken for DTTL; the measurement that said
+    so differentiated the wrong equilibrium.** The RateSync validation
+    report carried F15 — a normalised through-cascade S-curve slope of ~1.0
+    for Gardner but 1.23 rising to 10.75 for DTTL across roll-off, tracked
+    as [gh-669](https://github.com/doppler-dsp/doppler/issues/669) with the
+    cause explicitly open. Both harnesses took that slope about a fixed
+    offset of zero, which through the cascade is the **unstable T/2
+    equilibrium** rather than the eye centre. Measured at the stable zero,
+    DTTL reads 0.9998–1.0013 at every roll-off from beta 0.1 to 0.9, so `bn`
+    names one loop bandwidth on either detector — exactly what
+    `symsync_ted_slope` was always supposed to deliver.
+
+    Two things hid it. Gardner's S-curve is near-sinusoidal, so its two
+    zeros carry the same slope magnitude (1.0036 against 1.0044) and the
+    shipped default detector read correct at either — only DTTL, whose curve
+    is not sinusoidal, could expose the error, and it surfaced as a spurious
+    *roll-off* dependence that sent the investigation after the pulse and
+    the normalising formula instead of the offset. And the stable/unstable
+    labelling came from a hard-coded `slope <= 0` test, which is meaningful
+    only relative to a timing axis: the Python validator offsets the
+    decimation phase and the C harness offsets the transmitter, so their
+    axes run in opposite senses, every slope sign is negated between them,
+    and the two agreed on every measured number while disagreeing about
+    which zero to call stable.
+
+    Both now locate the equilibrium by **eye opening**, which has no sign
+    convention — mean `|symbol|` is 1.000 at the eye centre against
+    0.53–0.79 at T/2. `validate_ratesync_scurve` reports both zeros, so the
+    retired figures remain on the page as the unstable column; its DTTL
+    ratchet is replaced by a real gate on both detectors, sabotage-verified
+    by pointing the search back at the wrong equilibrium. The claim in
+    `symsync_ted_slope`'s own doxygen that the shipped normalisation "varies
+    10.6x between beta 0.1 and 0.9" came from the same measurement and is
+    **withdrawn**.
 
 - **A merge conflict could reach the docs site, three different ways.** The
     gate is ported from

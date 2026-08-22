@@ -152,6 +152,29 @@ def main() -> int:
                     "not start with '- ' — a fragment is the entry "
                     "itself, verbatim"
                 )
+            # A fragment may not carry a `### ` heading. The DIRECTORY is the
+            # heading, so one in the body is a second, contradictory answer --
+            # and because the fragments for a section are joined and inserted
+            # as ONE block, a stray heading captures every fragment that sorts
+            # after it. Measured on the 0.43.0 assembly:
+            # `changed/rx-battery-run-level-gate.md` ended with a `### Removed`
+            # line, and the five `changed/` fragments sorting after it were
+            # published under **Removed** -- a static-link fix and four
+            # example rewrites, all announced as deletions. The bullet count
+            # was right, which is exactly why this needs a gate: a miscounted
+            # entry is visible and a misfiled one is not.
+            for n, line in enumerate(entry.splitlines(), 1):
+                if line.startswith("### "):
+                    sys.exit(
+                        f"changelog-assemble: {f.relative_to(ROOT)} line {n} "
+                        f"is a section heading ({line.strip()!r}).\n"
+                        "  The directory a fragment sits in IS its heading, "
+                        "so this is a second answer to the same question --\n"
+                        "  and it captures every fragment promoted after it. "
+                        "Delete the line; move the\n"
+                        "  entry to changelog.d/<section>/ if it belongs "
+                        "under a different one."
+                    )
             chunks.append(entry)
         body = insert(body, section, "\n\n".join(chunks))
 

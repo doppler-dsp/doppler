@@ -190,8 +190,8 @@ detector_state_t * detector_create (
 **Parameters:**
 
 
-* `ref` Reference signal, CF32 ndarray of length n. 
-* `n` Reference / FFT length in complex samples. 
+* `ref` Reference signal, CF32 ndarray of length ref\_len. 
+* `ref_len` Reference / FFT length in complex samples. 
 * `dwell` Int-dump depth; must be &gt;= 1. 
 * `noise_lo` Lower noise bin index (inclusive, 0-based). 
 * `noise_hi` Upper noise bin index (inclusive, &lt; n). 

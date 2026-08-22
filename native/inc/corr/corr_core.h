@@ -78,8 +78,8 @@ typedef struct {
  * after this returns.  With @p dwell == 1 every call produces output; with
  * larger values the accumulator absorbs @p dwell frames before dumping.
  *
- * @param ref       Reference signal, CF32, length @p n.
- * @param n         Reference / FFT length in samples.
+ * @param ref       Reference signal, CF32, length @p ref_len.
+ * @param ref_len   Reference / FFT length in samples.
  * @param dwell     Integration depth; must be >= 1.  Pass 1 for immediate
  *                  output on every call.
  * @param nthreads  Accepted for API compatibility; ignored.

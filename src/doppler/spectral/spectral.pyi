@@ -588,7 +588,7 @@ class Corr:
     Parameters
     ----------
     ref : NDArray[np.complex64]
-        Reference signal, CF32, length n.
+        Reference signal, CF32, length ref_len.
     dwell : int, default 1
         Integration depth; must be >= 1. Pass 1 for immediate output on every
         call.
@@ -1066,7 +1066,7 @@ class CorrDetector:
     Parameters
     ----------
     ref : NDArray[np.complex64]
-        Reference signal, CF32 ndarray of length n.
+        Reference signal, CF32 ndarray of length ref_len.
     dwell : int, default 1
         Int-dump depth; must be >= 1.
     noise_lo : int, default 0

@@ -98,8 +98,8 @@ extern "C"
    * The tap array is copied at creation; the caller may free it afterward.
    * Use fir_create_real() instead when all imaginary parts are zero —
    * that path costs 1 FMA/tap versus 2 FMA + permute + mul here.
-   * @param taps     Array of num_taps CF32 coefficients (I+jQ each), copied.
-   * @param num_taps Filter length (>= 1).
+   * @param taps     Array of taps_len CF32 coefficients (I+jQ each), copied.
+   * @param taps_len Filter length (>= 1).
    * @return Heap-allocated state, or NULL on allocation failure.
    * @code
    * >>> import numpy as np

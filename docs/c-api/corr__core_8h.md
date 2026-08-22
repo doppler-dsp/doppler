@@ -160,8 +160,8 @@ corr_state_t * corr_create (
 **Parameters:**
 
 
-* `ref` Reference signal, CF32, length `n`. 
-* `n` Reference / FFT length in samples. 
+* `ref` Reference signal, CF32, length `ref_len`. 
+* `ref_len` Reference / FFT length in samples. 
 * `dwell` Integration depth; must be &gt;= 1. Pass 1 for immediate output on every call. 
 * `nthreads` Accepted for API compatibility; ignored. 
 * `n_out` Inverse/output length; 0 =&gt; native (n). Must be &gt;= n. A larger value zero-pads the cross-spectrum before the inverse, returning the band-limited (Dirichlet) interpolation of the correlation on a finer length-n\_out grid — same peak, sub-bin lag resolution. Native is bit-exact and allocates no extra buffer. 

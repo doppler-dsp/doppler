@@ -116,8 +116,8 @@ typedef struct
  * it passes.  Setting @p threshold to 0.0 unconditionally fires on every dump.
  * The ring capacity is next_pow2(max(n, 512)) complex samples.
  *
- * @param ref        Reference signal, CF32 ndarray of length n.
- * @param n          Reference / FFT length in complex samples.
+ * @param ref        Reference signal, CF32 ndarray of length ref_len.
+ * @param ref_len    Reference / FFT length in complex samples.
  * @param dwell      Int-dump depth; must be >= 1.
  * @param noise_lo   Lower noise bin index (inclusive, 0-based).
  * @param noise_hi   Upper noise bin index (inclusive, < n).

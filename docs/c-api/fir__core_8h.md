@@ -154,8 +154,8 @@ fir_state_t * fir_create (
 **Parameters:**
 
 
-* `taps` Array of num\_taps CF32 coefficients (I+jQ each), copied. 
-* `num_taps` Filter length (&gt;= 1). 
+* `taps` Array of taps\_len CF32 coefficients (I+jQ each), copied. 
+* `taps_len` Filter length (&gt;= 1). 
 
 
 

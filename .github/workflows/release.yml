@@ -285,11 +285,20 @@ jobs:
 
       - name: Build + tar the C library in the manylinux container
         run: |
-          docker run --rm \
+          # The script reaches the container on STDIN through a QUOTED
+          # heredoc, so the runner's shell performs no expansion on it.
+          # It was a double-quoted argument until v0.43.0, and a COMMENT in it
+          # carrying an unbalanced `"` closed that string early -- everything
+          # after it was parsed by the RUNNER, so `make package-starter-tarball`
+          # ran as the runner user against a `build/` cmake had just created as
+          # root inside the container. It surfaced as `mkdir: cannot create
+          # directory 'build/starter-pkg': Permission denied`: a permissions
+          # error with no permissions bug behind it (doppler#948).
+          docker run --rm -i \
             -v "${{ github.workspace }}:/project" \
             -w /project \
             quay.io/pypa/manylinux_2_28_${{ matrix.arch.tag }} \
-            bash -euxc "
+            bash -euxs <<'IN_CONTAINER'
               # Container-context dep install (2 packages); a jbx/bootstrap.toml
               # bootstrap here would add a CDN dependency to the C build for no
               # gain. make itself ships in the manylinux image.
@@ -312,7 +321,7 @@ jobs:
               # a slow metadata fetch on every release leg, for no change.
               git config --global --add safe.directory /project
               make package-starter-tarball VERSION=${{ needs.verify-version.outputs.version }}
-            "
+          IN_CONTAINER
 
       - name: Upload C library + starter (Linux ${{ matrix.arch.tag }})
         uses: actions/upload-artifact@v7
@@ -451,14 +460,24 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ needs.verify-version.outputs.version }}"
-          for i in $(seq 1 30); do
+          # 90 x 10s = 15 minutes, inside this job's 45-minute cap. It was 30
+          # (5 minutes) and v0.43.0 exceeded it: `publish-python` had SUCCEEDED
+          # and the wheels were on PyPI, but the index had not caught up, so
+          # this job failed and took the container images with it. The budget
+          # is the whole gate here -- there is nothing to retry against a
+          # dependency that is simply still propagating, and failing early
+          # loses artifacts for a release that actually worked.
+          ATTEMPTS=90
+          for i in $(seq 1 $ATTEMPTS); do
             if pip index versions doppler-dsp 2>/dev/null | grep -q "$VERSION"; then
-              echo "doppler-dsp==$VERSION is live on PyPI."; exit 0
+              echo "doppler-dsp==$VERSION is live on PyPI (after $(( (i-1) * 10 ))s)."
+              exit 0
             fi
-            echo "Waiting for PyPI to index doppler-dsp==$VERSION... ($i/30)"
+            echo "Waiting for PyPI to index doppler-dsp==$VERSION... ($i/$ATTEMPTS)"
             sleep 10
           done
-          echo "::error::doppler-dsp==$VERSION never appeared on PyPI."; exit 1
+          echo "::error::doppler-dsp==$VERSION never appeared on PyPI after $(( ATTEMPTS * 10 ))s."
+          exit 1
 
       - name: Log in to GHCR
         uses: docker/login-action@v4

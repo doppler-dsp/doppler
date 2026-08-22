@@ -970,7 +970,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 package-c package-c-tarball sdist release-notes \
                 print-jm-version nats-up nats-down \
                 docs-relink docs-drift-check drift-check changelog-check \
-                release-notes-size-check \
+                release-notes-size-check workflow-syntax-check \
                 issue-link-check \
                 validate validate-c validate-check \
                 characterize characterization-check \
@@ -1021,6 +1021,7 @@ include standard.mk
 # long as it has existed. Being inert (#705) was only half the problem; not
 # running was the other half, and `gates` is a local convenience, not CI.
 lint: tests-ssot characterization-check validation-report-check changelog-check \
+      workflow-syntax-check \
       issue-link-check deps-budget-check ci-image-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check
 
@@ -1049,6 +1050,14 @@ bench-coverage-check: ## Verify every tested component has a benchmark that runs
 # DelayCf64.ptr's kwarg back to `n` left drift-check reporting exactly what
 # it reported before, and passing, while a caller following the stub got a
 # TypeError (#619). Reads both faces instead, discovering every fragment.
+# GitHub does not parse a `run:` block, so a shell syntax error there does not
+# announce itself -- the shell runs what it managed to parse and the step fails
+# somewhere else. v0.43.0's release died on
+# `mkdir: build/starter-pkg: Permission denied` because an unbalanced `"` in a
+# COMMENT closed the container's script early and the rest ran on the runner.
+workflow-syntax-check: ## Verify every workflow `run:` block is valid shell
+	@uv run python scripts/check_workflow_syntax.py
+
 kwarg-parity-check: ## Verify each binding accepts the keywords its stub publishes
 	@uv run python scripts/check_kwarg_parity.py
 

@@ -59,7 +59,7 @@ _1-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
-|  [**corr\_state\_t**](structcorr__state__t.md) \* | [**corr\_create**](#function-corr_create) (const float complex \* ref, size\_t n, size\_t dwell, int nthreads, size\_t n\_out) <br>_Allocate a 1-D FFT correlator with coherent integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so each execute() call costs only two FFTs and n complex multiplies._ `ref` _may be freed after this returns. With_`dwell` _== 1 every call produces output; with larger values the accumulator absorbs_`dwell` _frames before dumping._ |
+|  [**corr\_state\_t**](structcorr__state__t.md) \* | [**corr\_create**](#function-corr_create) (const float complex \* ref, size\_t ref\_len, size\_t dwell, int nthreads, size\_t n\_out) <br>_Allocate a 1-D FFT correlator with coherent integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so each execute() call costs only two FFTs and n complex multiplies._ `ref` _may be freed after this returns. With_`dwell` _== 1 every call produces output; with larger values the accumulator absorbs_`dwell` _frames before dumping._ |
 |  void | [**corr\_destroy**](#function-corr_destroy) ([**corr\_state\_t**](structcorr__state__t.md) \* state) <br>_Destroy and free a corr instance._  |
 |  size\_t | [**corr\_execute**](#function-corr_execute) ([**corr\_state\_t**](structcorr__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out, size\_t max\_out) <br>_Correlate one frame and optionally dump the coherent accumulator. Runs: forward FFT → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, inverse FFT → normalise (÷ n). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse. On the_`dwell-th` _call_`out` _is written, the accumulator is zeroed, and the counter resets; the function returns n\_out. All other calls return 0 and leave_`out` _unmodified. In Python, a dump returns an ndarray and a no-dump returns None._ |
 |  size\_t | [**corr\_execute\_max\_out**](#function-corr_execute_max_out) ([**corr\_state\_t**](structcorr__state__t.md) \* state) <br>_Maximum output samples per execute call (== n\_out)._  |
@@ -146,7 +146,7 @@ _Allocate a 1-D FFT correlator with coherent integrate-and-dump. Pre-computes co
 ```C++
 corr_state_t * corr_create (
     const float complex * ref,
-    size_t n,
+    size_t ref_len,
     size_t dwell,
     int nthreads,
     size_t n_out

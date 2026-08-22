@@ -34,7 +34,7 @@ typedef struct {
   float complex *work_trunc;
 } corr_state_t;
 
-corr_state_t *corr_create(const float complex *ref, size_t n, size_t dwell,
+corr_state_t *corr_create(const float complex *ref, size_t ref_len, size_t dwell,
                           int nthreads, size_t n_out);
 
 void corr_destroy(corr_state_t *state);

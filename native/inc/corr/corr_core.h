@@ -99,7 +99,7 @@ typedef struct {
  * (4, 1, 0)
  * @endcode
  */
-corr_state_t *corr_create(const float complex *ref, size_t n, size_t dwell,
+corr_state_t *corr_create(const float complex *ref, size_t ref_len, size_t dwell,
                           int nthreads, size_t n_out);
 
 /** @brief Destroy and free a corr instance.  @param state May be NULL. */

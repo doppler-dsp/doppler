@@ -112,7 +112,7 @@ extern "C"
    * False
    * @endcode
    */
-  fir_state_t *fir_create (const float complex *taps, size_t num_taps);
+  fir_state_t *fir_create (const float complex *taps, size_t taps_len);
 
   /**
    * @brief Create a FIR filter from real float tap coefficients.

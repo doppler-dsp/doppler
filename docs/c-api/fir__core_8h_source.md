@@ -57,7 +57,7 @@ extern "C"
     return CMPLXF (re, im);
   }
 
-  fir_state_t *fir_create (const float complex *taps, size_t num_taps);
+  fir_state_t *fir_create (const float complex *taps, size_t taps_len);
 
   fir_state_t *fir_create_real (const float *taps, size_t num_taps);
 

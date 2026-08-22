@@ -13,6 +13,100 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Highlights
+
+247 entries since v0.42.0, and this section is the shape of them. Every entry, in full, follows below — nothing here replaces
+one, and where a change was made and then superseded inside this same release
+the **net** effect is what is stated.
+
+**Act on these first.**
+
+- **`nda_tap` is gone from both M-PSK receivers**, along with the
+    acquisition/tracking handover, `ContinuousMpskReceiver`, `warmup_syms`,
+    `acq_to_track`, the `tracking` property and `configure_lock()`. One
+    M-th-power NDA discriminator now steers the LO from the first strobe to
+    the last. (`"mf_all"` was renamed to `"mf_out"` earlier in this cycle;
+    that rename no longer applies to anything.)
+- **`MpskReceiverR` is a VIEW over `MpskReceiver`, not a second type**, so
+    the two can no longer drift apart in what they derive or accept.
+- **`HalfbandDecimator_create()` takes `(h, h_len)`, not `(num_taps, h)`.**
+    C callers must swap; the types differ so it fails to compile rather than
+    misbehaving, and the Python face is unchanged.
+- **Rust: `Lo::steps_ctrl` takes `&[f64]`.** It declared its control port
+    `*const f32` while the C took `const double *`, so C read twice the
+    buffer from safe Rust ([#911](https://github.com/doppler-dsp/doppler/issues/911)).
+- **`DsssReceiver` refuses `sps < 2`** instead of `SIGABRT`ing the
+    interpreter with no traceback.
+- **`MPSK_RX_LOOPS_STATE_VERSION` 6 → 7**; frame flags on a waveform that
+    cannot carry one now refuse rather than being ignored.
+
+**Forward error correction, end to end.**
+
+- `doppler.viterbi` is now **`doppler.coding`**, and it encodes as well as
+    decodes: the CCSDS rate-1/2 K=7 convolutional code, Reed-Solomon
+    (255,223) that **corrects** rather than only detects, symbol
+    interleaving, and node synchronisation.
+- **`doppler.wfm.Frame`** describes a frame as a field list and a stage
+    list — one description read from both ends, so the assembler and the
+    receiver cannot disagree about a bit layout. A CCSDS CADU is a
+    configuration, not a code path.
+- The **CCSDS receive chain**, a link demo that runs it end to end, and
+    coding gain measured through a real receiver.
+- **`wfmgen` can generate a coded waveform**, and a Python receiver can
+    ACQUIRE a frame rather than only check one it was handed.
+
+**The M-PSK receiver.**
+
+- **`MpskReceiver.locked`** and **`lock_time`** — the binary lock indicator
+    and the acquisition time, as numbers, in Python.
+- **`mpsk.mpsk_soft_demap`** — per-bit log-likelihood ratios.
+- Receiver telemetry reaches the front-end AGC; the receiver publishes the
+    recovered **symbol**, not just loop state.
+- **`track.BpskReceiver`** — the receiver asked for in the units a capture
+    actually comes in.
+
+**Measurement you can trust.**
+
+- **14 objects are certified** under the object-validation campaign, each
+    with a claim inventory mapping its header's prose onto tests that are
+    proven by sabotage — `MpskReceiver`, `LoopFilter`, `CarrierNda`,
+    `RateSync`, the M-PSK constellation, `conv` and `ccsds_tm` among them.
+- **75 assertions across 20 C tests could not fail**, and now can. The
+    `dp_*_test.h` family — the assertion foundation 97 C test files sit on —
+    has self-tests of its own.
+- **The C tests' randomness has one home**, `native/tests/dp_rng_test.h`,
+    and a gate that keeps it there.
+- **Every benchmark records a measurement**, enforced by
+    `scripts/check_bench_coverage.py`; several were writing results under a
+    name nothing read.
+- **`FrameMeter`**, `lock_time`, and a receiver instrument that runs one
+    harness across every receiver.
+
+**Faster, and honest about it.**
+
+- The Python example gate runs in parallel in two passes: **376.6 s →
+    20.6 s**.
+- Every Linux CI job runs inside a **baked toolchain image**; the C core
+    compiles through **ccache**.
+- **`make coverage` stopped discarding pytest's exit code** — twice, in two
+    different places — and the coverage run no longer borrows the
+    developer's machine.
+- **`make test-tsan`** runs the threaded C tests under ThreadSanitizer,
+    where a data race in the CCSDS Reed-Solomon table derivation was found.
+
+**Packaging and consumers.**
+
+- `libdoppler.a` declares `-lpthread`; the C tarball could previously be
+    built **empty** and would have shipped.
+- Two installed public headers declared an API the library does not export,
+    and an installed header can no longer do so.
+- `examples/downstream-jm` ships as a **starter tarball with doppler
+    inside**.
+
+**Under the hood.** The just-makeit pin moved 0.51.0 → 0.63.3 across eleven bumps and now has one source of truth. A changelog entry is a **file**
+now (`changelog.d/`), because a shared line does not scale past a few open
+PRs.
+
 ### Added
 
 - **Every benchmark in the tree now records a measurement — the

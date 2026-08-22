@@ -17,6 +17,14 @@
 #
 #   make release-notes VERSION=0.42.0
 #
+# TOO LARGE TO PUBLISH: GitHub caps the release body, and `github-release`
+# runs AFTER `publish-python` — so an oversized body fails once the version is
+# already on PyPI, which refuses a re-upload. CHANGELOG.md is the engineering
+# record and is allowed to be enormous; the RELEASE PAGE is not. So when the
+# section will not fit, this publishes the version's `### Highlights` block and
+# links to the full section. `scripts/check_release_notes_size.py` owns the
+# budget and gates it on every PR, long before a tag exists.
+#
 # Usage:  scripts/release-notes.sh <x.y.z> [owner/repo]
 set -euo pipefail
 
@@ -45,6 +53,38 @@ if [ -z "$(printf '%s' "$section" | tr -d '[:space:]')" ]; then
   exit 1
 fi
 
+# The budget comes from the checker so there is exactly one copy of it.
+SIZE_CHECK="$(dirname "$0")/check_release_notes_size.py"
+BUDGET=$(python3 "$SIZE_CHECK" --print-budget)
+
+# `### Highlights` runs to the next `### ` heading.
+#
+# A here-string, NOT a pipe: this awk exits at the next heading, so a piped
+# `printf` is still writing when the reader goes away and takes SIGPIPE --
+# which `set -o pipefail` turns into a failed release. Measured: exit 141 on a
+# 132 KB section, silently producing an empty body.
+highlights=$(awk '
+  /^### Highlights/ { found = 1; next }
+  found && /^### / { exit }
+  found { print }
+' <<<"$section")
+
+published="$section"
+note=""
+if [ "${#section}" -gt "$BUDGET" ]; then
+  if [ -z "$(printf '%s' "$highlights" | tr -d '[:space:]')" ]; then
+    echo "release-notes: the [$VERSION] section is ${#section} characters," >&2
+    echo "release-notes: over the $BUDGET budget, and has no ### Highlights" >&2
+    echo "release-notes: block to publish instead. Summarise it." >&2
+    exit 1
+  fi
+  published="$highlights"
+  note="
+This release is large. The highlights are above; every entry, in full, is in
+[CHANGELOG.md](https://github.com/${REPO}/blob/v${VERSION}/CHANGELOG.md).
+"
+fi
+
 cat <<EOF
 ## Install
 
@@ -68,7 +108,7 @@ See [Docker](https://doppler-dsp.github.io/doppler/install/docker/#published-con
 
 ## What's in ${VERSION}
 
-${section}
-
+${published}
+${note}
 ---
 EOF

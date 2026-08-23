@@ -488,3 +488,78 @@ fields instead of a `reserved[]` the format secretly used.
 | 5   | `CI8` and `CI16` have no round-trip test                                                      | [#962](https://github.com/doppler-dsp/doppler/issues/962) |
 | 6   | Format names are unprefixed in a public header (`CF32`, `CI16`, …)                            | [#962](https://github.com/doppler-dsp/doppler/issues/962) |
 | 7   | `Push.send`'s size ceiling is undocumented on the Python face                                 | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
+
+______________________________________________________________________
+
+## 11. What is not measured
+
+Everything above describes behaviour. None of it carries a number, and
+several of the claims are quantitative — §8b bounds an interrupt at one
+100 ms slice, §6b's flush warns that the client's own close drops a
+backlog it cannot clear in 500 ms, and §321's drain defaults to 5 s
+because that is "generous for a link that is keeping up". Not one of
+those three figures has been measured on this layer. They are design
+intent written as prose, which is the state the characterization phase
+exists to end.
+
+Written down first, deliberately: an unknown recorded before the sweep
+is a question, and the same unknown recorded after is a result looking
+for a justification.
+
+### The use cases the numbers are for
+
+- **A continuous producer.** `wfmgen --continuous --realtime --output   nats://…` as a signal source feeding receivers for as long as someone
+    leaves it running. It must hold rate, and it must stop on Ctrl+C
+    without losing the tail it has already published.
+- **A consumer at rate.** A dashboard or analyzer that must stay
+    responsive to Ctrl+C while frames are arriving as fast as the link
+    delivers them.
+- **A request/reply control exchange**, whose round trip is the only
+    latency this layer can measure without two synchronized clocks.
+
+### The unknowns
+
+1. **Throughput per pattern and format.** Three patterns × five sample
+    formats, recorded as **both** MSa/s and MB/s. The two orders disagree
+    on purpose: `CI8` moves a quarter the bytes of `CF32` per sample, so
+    whichever of the two is flat across formats names the bottleneck —
+    flat MB/s means the link, flat MSa/s means the conversion.
+1. **End-to-end latency.** A one-way send-to-receive difference measures
+    clock skew between two processes as much as it measures the wire, and
+    the frame header carries a timestamp that would make that mistake
+    easy to publish. The honest headline is a REQ/REP round trip, halved,
+    with the symmetry assumption stated rather than hidden.
+1. **Whether the 100 ms interrupt bound holds at full rate.** The slice
+    mechanism checks the flag *between* waits. On an idle subscriber that
+    is ten checks a second; under saturation the receive spends most of
+    its time inside the client's wait, and the bound has never been
+    measured there. This is the one that matters most, because it is the
+    claim a caller reads as a guarantee.
+1. **Drain duration against backlog depth**, and the depth at which the
+    5 s default stops being generous and starts truncating.
+1. **The publish rate at which the close-path 500 ms cap begins dropping
+    frames.** §6b asserts that on a link slower than loopback this is
+    "not a large backlog" — a claim with no number behind it, made in the
+    docstring a caller consults when deciding whether they need a flush.
+
+### A floor that is not this layer's to fix
+
+Time-to-shutdown has a lower bound that no library code can move: a
+process cannot answer a signal before it is running. Measured while
+fixing the C pair test — SIGINT delivered ~0 ms after `Popen` returns
+kills the transmitter outright (exit `-2`, three times out of three),
+because it is still in the dynamic linker and has not reached
+`signal(SIGINT, …)`; by 5 ms it exits 0, three out of three.
+
+So a shutdown measurement must start its clock **after** the handler is
+installed, and prove that rather than assume it. A harness that starts
+timing at process launch measures startup and reports it as shutdown
+latency.
+
+### Where the answers will live
+
+Per [Adding an algorithm](../dev/contributing/adding-algorithms.md), a
+long sweep is phase 7 and belongs under `characterization/`, not in the
+pinning tests. The claims in §6b, §8b and §321 are phase 8 material: they
+are header prose today, and each one that survives measurement becomes an
+assertion in `test_stream_*.c` rather than a sentence.

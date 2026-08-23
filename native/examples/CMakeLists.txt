@@ -21,7 +21,8 @@ endforeach()
 
 if(NOT WIN32)
     find_package(Threads REQUIRED)
-    foreach(_ex transmitter receiver pipeline_demo spectrum_analyzer)
+    foreach(_ex transmitter receiver pipeline_demo spectrum_analyzer
+                graceful_shutdown_demo)
         add_executable(${_ex} ${_ex}.c)
         target_include_directories(${_ex} PRIVATE
             ${CMAKE_SOURCE_DIR}/native/inc

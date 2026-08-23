@@ -275,5 +275,34 @@ main (void)
     dp_f32_destroy (buf);
   }
 
+  /* The macro generates a type each time it is instantiated, so f64 and
+     i16 have their own copies of every function -- exercised here, because
+     "it works for f32" says nothing about the others. */
+  {
+    dp_f64_t *b64 = dp_f64_create (1024);
+    DP_REQUIRE (b64 != NULL);
+    double d[128] = { 0 };
+    DP_CHECK (dp_f64_write (b64, d, 64) == true);
+    DP_CHECK (dp_f64_closed (b64) == 0);
+    dp_f64_close (b64);
+    DP_CHECK (dp_f64_closed (b64) != 0);
+    DP_CHECK (dp_f64_wait (b64, 64) != NULL);
+    dp_f64_consume (b64, 64);
+    DP_CHECK (dp_f64_wait (b64, 64) == NULL);
+    dp_f64_destroy (b64);
+
+    dp_i16_t *b16 = dp_i16_create (1024);
+    DP_REQUIRE (b16 != NULL);
+    int16_t s[128] = { 0 };
+    DP_CHECK (dp_i16_write (b16, s, 64) == true);
+    DP_CHECK (dp_i16_closed (b16) == 0);
+    dp_i16_close (b16);
+    DP_CHECK (dp_i16_closed (b16) != 0);
+    DP_CHECK (dp_i16_wait (b16, 64) != NULL);
+    dp_i16_consume (b16, 64);
+    DP_CHECK (dp_i16_wait (b16, 64) == NULL);
+    dp_i16_destroy (b16);
+  }
+
   DP_TEST_END ("test_buffer_core");
 }

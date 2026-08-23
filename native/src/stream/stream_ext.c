@@ -481,8 +481,9 @@ Publisher_flush (PublisherObject *self, PyObject *args, PyObject *kwds)
     }
 
   int rc;
-  Py_BEGIN_ALLOW_THREADS;
-  rc = dp_pub_flush (self->ctx, timeout_ms);
+  Py_BEGIN_ALLOW_THREADS
+    ;
+    rc = dp_pub_flush (self->ctx, timeout_ms);
   Py_END_ALLOW_THREADS;
 
   if (rc == DP_ERR_TIMEOUT)
@@ -495,8 +496,7 @@ Publisher_flush (PublisherObject *self, PyObject *args, PyObject *kwds)
     }
   if (rc != DP_OK)
     {
-      PyErr_Format (PyExc_RuntimeError, "flush failed: %s",
-                    dp_strerror (rc));
+      PyErr_Format (PyExc_RuntimeError, "flush failed: %s", dp_strerror (rc));
       return NULL;
     }
   Py_RETURN_NONE;
@@ -516,8 +516,9 @@ Publisher_drain (PublisherObject *self, PyObject *args, PyObject *kwds)
     }
 
   int rc;
-  Py_BEGIN_ALLOW_THREADS;
-  rc = dp_stream_drain (self->ctx, timeout_ms);
+  Py_BEGIN_ALLOW_THREADS
+    ;
+    rc = dp_stream_drain (self->ctx, timeout_ms);
   Py_END_ALLOW_THREADS;
 
   if (rc == DP_ERR_TIMEOUT)
@@ -528,13 +529,11 @@ Publisher_drain (PublisherObject *self, PyObject *args, PyObject *kwds)
     }
   if (rc != DP_OK)
     {
-      PyErr_Format (PyExc_RuntimeError, "drain failed: %s",
-                    dp_strerror (rc));
+      PyErr_Format (PyExc_RuntimeError, "drain failed: %s", dp_strerror (rc));
       return NULL;
     }
   Py_RETURN_NONE;
 }
-
 
 static PyObject *
 Publisher_send_eos (PublisherObject *self, PyObject *Py_UNUSED (ignored))
@@ -545,8 +544,9 @@ Publisher_send_eos (PublisherObject *self, PyObject *Py_UNUSED (ignored))
       return NULL;
     }
   int rc;
-  Py_BEGIN_ALLOW_THREADS;
-  rc = dp_pub_send_eos (self->ctx);
+  Py_BEGIN_ALLOW_THREADS
+    ;
+    rc = dp_pub_send_eos (self->ctx);
   Py_END_ALLOW_THREADS;
   if (rc != DP_OK)
     {
@@ -583,9 +583,12 @@ static PyMethodDef Publisher_methods[] = {
     "Examples\n"
     "--------\n"
     ">>> from doppler.stream import Publisher, CF32\n"
-    ">>> pub = Publisher(\"nats://127.0.0.1:4222/demo\", CF32)  # doctest: +SKIP\n"
-    ">>> pub.send_eos()                                        # doctest: +SKIP\n"
-    ">>> pub.drain()                                           # doctest: +SKIP\n" },
+    ">>> pub = Publisher(\"nats://127.0.0.1:4222/demo\", CF32)  # doctest: "
+    "+SKIP\n"
+    ">>> pub.send_eos()                                        # doctest: "
+    "+SKIP\n"
+    ">>> pub.drain()                                           # doctest: "
+    "+SKIP\n" },
   { "flush", (PyCFunction)Publisher_flush, METH_VARARGS | METH_KEYWORDS,
     "flush(timeout_ms=2000) -> None\n"
     "\n"
@@ -666,9 +669,11 @@ static PyMethodDef Publisher_methods[] = {
     "Examples\n"
     "--------\n"
     ">>> from doppler.stream import Publisher, CF64   # doctest: +SKIP\n"
-    ">>> pub = Publisher(\"nats://127.0.0.1:4222/iq\", CF64)  # doctest: +SKIP\n"
+    ">>> pub = Publisher(\"nats://127.0.0.1:4222/iq\", CF64)  # doctest: "
+    "+SKIP\n"
     ">>> pub.drain()   # stopped producing, so shut down  # doctest: +SKIP\n"
-    ">>> pub.close()                                      # doctest: +SKIP\n" },
+    ">>> pub.close()                                      # doctest: "
+    "+SKIP\n" },
   { "close", (PyCFunction)Publisher_close, METH_NOARGS,
     "close() — destroy the socket" },
   { "__enter__", (PyCFunction)Publisher_enter, METH_NOARGS, NULL },
@@ -1321,8 +1326,9 @@ py_mean_power (PyObject *self, PyObject *args)
 
   double p;
   void  *data = PyArray_DATA (arr);
-  Py_BEGIN_ALLOW_THREADS;
-  p = dp_mean_power (fmt, data, (size_t)n);
+  Py_BEGIN_ALLOW_THREADS
+    ;
+    p = dp_mean_power (fmt, data, (size_t)n);
   Py_END_ALLOW_THREADS;
   return PyFloat_FromDouble (p);
 }
@@ -1337,8 +1343,7 @@ py_format_name (PyObject *self, PyObject *args)
   int code;
   if (!PyArg_ParseTuple (args, "i", &code))
     return NULL;
-  return PyUnicode_FromString (
-      dp_sample_type_str ((dp_sample_type_t)code));
+  return PyUnicode_FromString (dp_sample_type_str ((dp_sample_type_t)code));
 }
 
 static PyObject *
@@ -1482,9 +1487,9 @@ static PyObject *
 py_interrupt_on_sigint (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
-  unsigned     latency_ms = 0;
-  PyObject    *kw_latency = kwds ? PyDict_GetItemString (kwds, "latency_ms")
-                                 : NULL;
+  unsigned  latency_ms = 0;
+  PyObject *kw_latency
+      = kwds ? PyDict_GetItemString (kwds, "latency_ms") : NULL;
   if (kwds && PyDict_Size (kwds) > (kw_latency ? 1 : 0))
     {
       PyErr_SetString (PyExc_TypeError,
@@ -1520,7 +1525,7 @@ py_interrupt_on_sigint (PyObject *self, PyObject *args, PyObject *kwds)
   g->latency_ms       = latency_ms;
   g->saved_latency_ms = 0;
   g->sigs[0]          = SIGINT;
-  g->nsigs   = 1;
+  g->nsigs            = 1;
   for (Py_ssize_t i = 0; i < extra; i++)
     {
       long v = PyLong_AsLong (PyTuple_GET_ITEM (args, i));

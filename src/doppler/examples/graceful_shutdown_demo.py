@@ -1,19 +1,31 @@
 """Stopping a stream cleanly: interrupt, end-of-stream, drain.
 
-Three questions no producer/consumer pair could answer before, shown on
-the real tool rather than a toy:
+A streaming producer has to answer three questions when it stops, and
+this shows how:
 
-1. **Can a continuous run be stopped at all?** ``wfmgen --continuous`` has
-   no natural end. It now installs a signal handler before it opens
-   anything, so SIGINT leaves the generate loop instead of killing the
-   process mid-write.
-2. **Does the consumer learn the stream ended?** A timeout means only
-   "nothing yet", which is exactly what a consumer cannot act on. wfmgen
-   publishes an explicit end-of-stream frame, and ``recv()`` raises
-   ``EOFError``.
-3. **Did the tail arrive?** A send returns once the *client* has the
-   block, not the server. wfmgen drains with a budget and reports the
-   result, so exit code 0 means the samples actually landed.
+1. **How is a continuous run stopped?** ``wfmgen --continuous`` has no
+   natural end. It installs a signal handler before opening anything, so
+   SIGINT leaves the generate loop rather than killing the process
+   mid-write.
+2. **How does the consumer know the stream ended?** A receive timeout
+   means only "nothing has arrived yet" — it cannot distinguish an idle
+   sender from a finished one. The sender publishes an explicit
+   end-of-stream frame, and ``recv()`` raises ``EOFError``.
+3. **Did everything arrive?** A send returns once the client holds the
+   block, not once the server does. Draining waits for that, with a
+   budget, and reports the result — so exit code 0 means the samples
+   landed.
+
+Shown on **all three faces of wfmgen**, because the contract is the
+library's and not any one binding's:
+
+- **CLI** — the ``wfmgen`` binary as a subprocess, stopped with a real
+  SIGINT. This is what a person types.
+- **Python API** — ``Composer`` into a ``StreamSink``, with the loop
+  checking ``doppler.stream.interrupted()`` and ending with
+  ``send_eos()`` then ``drain()``. This is what a script does.
+- **C API** — ``doppler_wfmgen(argc, argv)``, the same CLI as a callable,
+  demonstrated by ``native/examples/graceful_shutdown_demo.c``.
 
 Run it::
 
@@ -39,12 +51,11 @@ from doppler.stream import Subscriber
 
 ENDPOINT = "nats://127.0.0.1:4222/graceful-demo"
 
-#: How long to let wfmgen produce before interrupting it, AT FULL RATE --
-#: no --realtime, so the generator runs as fast as it can and the receive
-#: side spends most of its time inside the transport's wait. That is the
-#: condition the interrupt bound has never been measured on: idle, a wait
-#: checks the flag ten times a second; saturated, it is inside the client
-#: nearly always. Interrupting a flat-out producer is the interesting case.
+#: How long to produce before interrupting, at full rate — no ``--realtime``,
+#: so the generator runs as fast as it can. Interrupting a saturated
+#: producer is the demanding case: the receive side is inside the
+#: transport's wait almost continuously, rather than checking the interrupt
+#: flag between idle polls.
 RUN_S = 5.0
 
 #: Cap on the post-interrupt drain, so a large backlog cannot turn the
@@ -87,6 +98,7 @@ def main() -> int:
         print("wfmgen not built — run `make build`")
         return 0
 
+    print("--- face 1: the CLI, as a subprocess ---")
     print(f"subscribing to {ENDPOINT}")
     sub = Subscriber(ENDPOINT)
 
@@ -99,17 +111,13 @@ def main() -> int:
         start_new_session=True,
     )
 
-    # Consume CONCURRENTLY, from the moment the producer starts.
+    # Consume while the producer runs, not after it stops.
     #
-    # Not an aesthetic choice. Reading only after the interrupt makes the
-    # client buffer the whole run in memory: measured, a 5 s unpaced run
-    # queued ~16 GB, and the drain then "received" it at 18 GB/s because
-    # doppler's recv is zero-copy and was handing out pointers to RAM, not
-    # reading a socket. That is a rate for a transfer that had already
-    # happened, and an example that would OOM a CI runner.
-    #
-    # Reading as it arrives bounds memory AND makes the numbers mean
-    # something: producer and consumer measured over the same interval.
+    # A subscriber that does not read lets the client queue the whole run
+    # in memory — an unpaced producer can bank many gigabytes in seconds.
+    # Reading concurrently bounds that, and it is the only way to get a
+    # throughput number that means anything, since producer and consumer
+    # are then measured over the same interval.
     frames = 0
     samples = 0
     ended = False
@@ -139,8 +147,7 @@ def main() -> int:
         reader.start()
         time.sleep(RUN_S)
 
-        # 1. Interrupt it while it is SATURATED, not idle. This is the
-        #    condition the interrupt bound had never been measured on.
+        # 1. Interrupt it mid-stream, while it is saturated.
         print("interrupting the producer (SIGINT) mid-stream")
         started = time.monotonic()
         os.killpg(os.getpgid(proc.pid), signal.SIGINT)
@@ -160,8 +167,8 @@ def main() -> int:
         stop_reading.set()
 
         assert ended, (
-            "the consumer never saw an end-of-stream frame — it would have "
-            "had only silence to interpret, which is the whole defect"
+            "the consumer never saw an end-of-stream frame, so it had only "
+            "silence to interpret"
         )
         assert frames > 0, "no frames crossed the wire before the interrupt"
 
@@ -174,10 +181,8 @@ def main() -> int:
         print(f"  arriving at {msa:.1f} MSa/s ({gbs:.2f} GB/s of cf32)")
         print(
             "\nPUB/SUB is at-most-once: a subscriber that cannot keep up "
-            "drops\nframes rather than slowing the sender, so this is what "
-            "ARRIVED, not\nwhat was sent. A number for what was SENT needs "
-            "the producer\ninstrumented too -- which is what the "
-            "characterization is for."
+            "drops\nframes rather than slowing the sender, so this counts "
+            "what ARRIVED,\nnot what was sent."
         )
     finally:
         if proc.poll() is None:
@@ -185,7 +190,72 @@ def main() -> int:
             proc.wait(timeout=5)
         sub.close()
 
-    print("\nall three questions answered: stopped, ended, delivered")
+    print("\n--- face 2: the Python API, in-process ---")
+    _python_api_face()
+
+    print("\nall three questions answered, on every face that asks them")
+    return 0
+
+
+def _python_api_face() -> None:
+    """The same shutdown, composed and sent from Python.
+
+    No subprocess and no signal. A producer loop asks ``interrupted()``
+    between blocks, and that is the same flag a signal handler sets — so
+    one loop serves both Ctrl+C and a programmatic stop without needing to
+    know which it got. This stop is programmatic, which keeps the example
+    deterministic.
+    """
+    import numpy as np
+
+    from doppler import stream as dstream
+    from doppler.wfm import Composer, Segment, StreamSink
+
+    endpoint = "nats://127.0.0.1:4222/graceful-demo-py"
+    sub = Subscriber(endpoint)
+    sink = StreamSink(endpoint, "cf32")
+
+    frames = 0
+    try:
+        seg = Segment("tone", num_samples=4096)
+        block = Composer([seg]).compose().astype(np.complex64)
+
+        dstream.resume()  # start from a known state
+        t0 = time.monotonic()
+        while not dstream.interrupted():
+            sink.send(block, 1e6, 1e9)
+            frames += 1
+            if time.monotonic() - t0 > 0.5:
+                # What a signal handler would do. The loop cannot tell the
+                # difference between this and a Ctrl+C.
+                dstream.interrupt()
+
+        # The ordered shutdown: stop producing, say so, then let it land.
+        # send_eos() must precede drain() — a drain cannot be reversed and
+        # refuses sends once it starts flushing.
+        sink.send_eos()
+        sink.drain(5000)
+        dstream.resume()
+        print(f"sent {frames} frames, then send_eos() + drain()")
+
+        got = 0
+        ended = False
+        while True:
+            try:
+                _blk, _hdr = sub.recv(timeout_ms=2000)
+            except EOFError:
+                ended = True
+                break
+            except Exception:
+                break
+            got += 1
+
+        assert ended, "the Python face must announce its ending too"
+        assert got > 0, "no frames arrived on the Python face"
+        print(f"consumer received {got} frames, then EOFError")
+    finally:
+        sink.close()
+        sub.close()
     return 0
 
 

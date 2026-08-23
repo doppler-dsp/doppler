@@ -105,6 +105,26 @@ StreamSink_send (StreamSinkObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+StreamSink_send_eos (StreamSinkObject *self, PyObject *args)
+{
+  (void)args;
+  if (self->closed)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "StreamSink is closed");
+      return NULL;
+    }
+  int _rc;
+  _rc = wfm_stream_sink_send_eos (self->h);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_OSError, "wfm_stream_sink_send_eos failed (rc=%d)",
+                    (int)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 StreamSink_drain (StreamSinkObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]   = { "timeout_ms", NULL };
@@ -229,6 +249,7 @@ StreamSink_dealloc (StreamSinkObject *self)
 
 static PyMethodDef StreamSink_methods[] = {
   { "send", (PyCFunction)StreamSink_send, METH_VARARGS | METH_KEYWORDS, NULL },
+  { "send_eos", (PyCFunction)StreamSink_send_eos, METH_VARARGS, NULL },
   { "drain", (PyCFunction)StreamSink_drain, METH_VARARGS | METH_KEYWORDS,
     NULL },
   { "track_clipping", (PyCFunction)StreamSink_track_clipping,

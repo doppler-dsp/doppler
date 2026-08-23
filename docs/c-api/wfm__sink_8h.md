@@ -60,11 +60,11 @@ _NATS PUB sink for generated IQ (Phase B)._ [More...](#detailed-description)
 |  int | [**wfm\_stream\_sink\_available**](#function-wfm_stream_sink_available) (void) <br>_1 if the real stream sink (libdoppler\_stream) is linked, else 0 (the pure-C core links only the weak no-op stubs). wfmgen checks this before the_ `--output nats://` _path._ |
 |  double | [**wfm\_stream\_sink\_clip\_fraction**](#function-wfm_stream_sink_clip_fraction) (const [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br> |
 |  void | [**wfm\_stream\_sink\_close**](#function-wfm_stream_sink_close) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br>_Close the sink and destroy the publisher._  |
-|  int | [**wfm\_stream\_sink\_drain**](#function-wfm_stream_sink_drain) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, int timeout\_ms) <br> |
+|  int | [**wfm\_stream\_sink\_drain**](#function-wfm_stream_sink_drain) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, int timeout\_ms) <br>_Let everything already sent reach the server, then stop._  |
 |  [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* | [**wfm\_stream\_sink\_open**](#function-wfm_stream_sink_open) (const char \* endpoint, int sample\_type) <br>_Open a stream sink (PUB) bound to a NATS subject._  |
 |  double | [**wfm\_stream\_sink\_peak**](#function-wfm_stream_sink_peak) (const [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br> |
 |  int | [**wfm\_stream\_sink\_send**](#function-wfm_stream_sink_send) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, const float \_Complex \* iq, size\_t n, double fs, double fc) <br>_Convert a cf32 block to the wire type and publish it._  |
-|  int | [**wfm\_stream\_sink\_send\_eos**](#function-wfm_stream_sink_send_eos) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br>_Let everything already sent reach the server, then stop._  |
+|  int | [**wfm\_stream\_sink\_send\_eos**](#function-wfm_stream_sink_send_eos) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br>_Tell subscribers this stream has ended._  |
 |  void | [**wfm\_stream\_sink\_set\_gain**](#function-wfm_stream_sink_set_gain) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, double gain) <br> |
 |  void | [**wfm\_stream\_sink\_track\_clipping**](#function-wfm_stream_sink_track_clipping) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, int on) <br> |
 
@@ -202,6 +202,7 @@ void wfm_stream_sink_close (
 
 ### function wfm\_stream\_sink\_drain 
 
+_Let everything already sent reach the server, then stop._ 
 ```C++
 int wfm_stream_sink_drain (
     wfm_stream_sink_t * sink,
@@ -211,6 +212,32 @@ int wfm_stream_sink_drain (
 
 
 
+A send hands a block to the NATS client and returns; the client writes it in the background. So "send returned" is not "the server
+has it", and closing without asking relies on the client's own best-effort flush  capped at 500 ms, with no way to report failure, so a backlog that cannot clear in half a second is dropped silently.
+
+
+Call this before closing the sink on any run whose tail matters. After it returns the sink is finished: close it next, which is then just the free.
+
+
+
+
+**Parameters:**
+
+
+* `sink` Sink; NULL is DP\_OK (nothing was buffered). 
+* `timeout_ms` Budget; &lt;= 0 uses the stream layer's 5 s default. 
+
+
+
+**Returns:**
+
+DP\_OK once drained, or the stream layer's error  DP\_ERR\_TIMEOUT if the budget ran out with the drain still in progress, in which case the sink is still safe to close. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -324,38 +351,13 @@ int wfm_stream_sink_send (
 
 ### function wfm\_stream\_sink\_send\_eos 
 
-_Let everything already sent reach the server, then stop._ 
+_Tell subscribers this stream has ended._ 
 ```C++
 int wfm_stream_sink_send_eos (
     wfm_stream_sink_t * sink
 ) 
 ```
 
-
-
-A send hands a block to the NATS client and returns; the client writes it in the background. So "send returned" is not "the server
-has it", and closing without asking relies on the client's own best-effort flush  capped at 500 ms, with no way to report failure, so a backlog that cannot clear in half a second is dropped silently.
-
-
-Call this before closing the sink on any run whose tail matters. After it returns the sink is finished: close it next, which is then just the free.
-
-
-
-
-**Parameters:**
-
-
-* `sink` Sink; NULL is DP\_OK (nothing was buffered). 
-* `timeout_ms` Budget; &lt;= 0 uses the stream layer's 5 s default. 
-
-
-
-**Returns:**
-
-DP\_OK once drained, or the stream layer's error  DP\_ERR\_TIMEOUT if the budget ran out with the drain still in progress, in which case the sink is still safe to close.
-
-
-Tell subscribers this stream has ended.
 
 
 Publishes an end-of-stream frame, so a consumer learns the sender finished rather than inferring it from silence. Send it BEFORE draining: a drain cannot be reversed and refuses sends once it reaches its publish-flushing phase.

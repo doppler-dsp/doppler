@@ -130,9 +130,8 @@ Here is a list of all modules:
 
 
 
-        * [**Interrupting a blocking receive**](group__interrupt.md) 
+        * [**Interrupting a blocking receive (DEPRECATED)**](group__interrupt.md) 
             
-
 
 
 

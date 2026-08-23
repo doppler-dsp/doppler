@@ -361,6 +361,10 @@ create_fn = "wfm_plan_load"
 init_params = [{ name = "path", type = "path" }]
 
 [module.sample_clock]
+# timing_core's pace() consults dp_interrupted() so a paced loop can be
+# stopped; this extension embeds its objects rather than linking
+# libdoppler, so it needs the primitive's definitions too.
+extra_link_libs = ["$<TARGET_OBJECTS:dp_interrupt_obj>"]
 kind            = "handle"
 backing         = "dp_sample_clock"
 handle_type     = "dp_sample_clock_t"
@@ -546,7 +550,10 @@ context_manager = true
 close_fn        = "wfm_stream_sink_close"
 create_fn       = "wfm_stream_sink_open"
 # dp_tlm_core: stream_core_obj's tlm_sink.c references dp_tlm_read.
-extra_link_libs = ["$<TARGET_OBJECTS:stream_core_obj>", "dp_tlm_core", "nats_vendor_static", "Threads::Threads", "m"]
+# dp_interrupt_obj: stream_core.c's deprecated dp_stream_interrupt* forward
+# to the core primitive, and this extension embeds stream objects rather
+# than linking libdoppler, so it needs the definitions too.
+extra_link_libs = ["$<TARGET_OBJECTS:stream_core_obj>", "$<TARGET_OBJECTS:dp_interrupt_obj>", "dp_tlm_core", "nats_vendor_static", "Threads::Threads", "m"]
 
 [[module.wfm_sink.create_args]]
 name = "endpoint"
@@ -888,7 +895,8 @@ sample_type  = true
 # vendored cJSON OBJECT lib (wfm_cjson_core) + libm go in extra_link_libs. This mirrors
 # native/src/wfmcompose/CMakeLists.txt's test_wfm_compose link line.
 # wfm_keywords_core: the writer core's BLUE extended-header codec.
-extra_link_libs = ["wfm_draw_core", "wfm_cjson_core", "wfm_keywords_core", "m"]
+extra_link_libs = ["wfm_draw_core", "wfm_cjson_core", "wfm_keywords_core",
+                   "$<TARGET_OBJECTS:dp_interrupt_obj>", "m"]
 
 # The source type wraps wfm_source_t field-for-field (struct order); enum fields
 # cross as validated strings via the SSOT, `bits` as an owned bytes buffer.

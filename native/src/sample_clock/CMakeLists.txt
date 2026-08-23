@@ -6,6 +6,7 @@ if(BUILD_PYTHON)
 Python3_add_library(sample_clock MODULE WITH_SOABI sample_clock_ext.c)
 target_link_libraries(sample_clock PRIVATE
     timing_core
+    $<TARGET_OBJECTS:dp_interrupt_obj>
     Python3::NumPy)
 target_include_directories(sample_clock PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(sample_clock PROPERTIES

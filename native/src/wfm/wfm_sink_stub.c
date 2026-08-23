@@ -53,6 +53,14 @@ wfm_stream_sink_send (wfm_stream_sink_t *sink, const float _Complex *iq,
   return -1;
 }
 
+WFM_STUB int
+wfm_stream_sink_drain (wfm_stream_sink_t *sink, int timeout_ms)
+{
+  (void)sink;
+  (void)timeout_ms;
+  return DP_OK;
+}
+
 WFM_STUB void
 wfm_stream_sink_close (wfm_stream_sink_t *sink)
 {

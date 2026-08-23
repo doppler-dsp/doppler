@@ -14,6 +14,7 @@ _Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP._ [More...](#detailed
 * `#include <stddef.h>`
 * `#include <stdint.h>`
 * `#include "clib_common.h"`
+* `#include "dp_interrupt.h"`
 * `#include "dp_format.h"`
 
 

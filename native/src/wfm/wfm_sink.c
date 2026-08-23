@@ -202,6 +202,14 @@ wfm_stream_sink_send (wfm_stream_sink_t *sink, const float _Complex *iq,
     }
 }
 
+int
+wfm_stream_sink_drain (wfm_stream_sink_t *sink, int timeout_ms)
+{
+  if (!sink || !sink->pub)
+    return DP_OK;
+  return dp_stream_drain (sink->pub, timeout_ms);
+}
+
 void
 wfm_stream_sink_close (wfm_stream_sink_t *sink)
 {

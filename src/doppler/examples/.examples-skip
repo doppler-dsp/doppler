@@ -12,6 +12,7 @@
 # broker is reachable on 127.0.0.1:4222 (CI starts one, and the root
 # conftest brings one up when `nats-server` is on PATH) and self-skips
 # elsewhere -- it needs no peer process, just the broker.
+work_queue_shutdown_demo.py: broker: SPMC end-of-stream over a JetStream work queue -- at-least-once, one consumer of five told, and the ending acked so it does not outlive the run; needs no peer process, just the broker
 graceful_shutdown_demo.py: broker: drives the real wfmgen against a live broker -- interrupt, end-of-stream, drain; needs no peer process, just the broker
 wfm_realtime_stream.py: broker: single-process realtime stream; TX asserts run against a live broker
 mpsk_receiver_performance_demo.py: its Monte Carlo asserts the coherent bound, and 8PSK at m_out < 8 genuinely misses it (measured 8.1 dB loss at m_out=4/sps=10.73, SER 0.18 at Es/N0 16 dB), so pass/fail depends on the draw. Un-skip once the M=8 lock/detect decision lands -- see project memory. Runs on demand: python src/doppler/examples/mpsk_receiver_performance_demo.py

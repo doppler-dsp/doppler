@@ -851,6 +851,28 @@ Push_send (PushObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+Push_send_eos (PushObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->ctx)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "push is closed");
+      return NULL;
+    }
+  int rc;
+  Py_BEGIN_ALLOW_THREADS
+    ;
+    rc = dp_pub_send_eos (self->ctx);
+  Py_END_ALLOW_THREADS;
+  if (rc != DP_OK)
+    {
+      PyErr_Format (PyExc_RuntimeError, "send_eos failed: %s",
+                    dp_strerror (rc));
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 Push_close (PushObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->closed && self->ctx)
@@ -880,6 +902,31 @@ static PyMethodDef Push_methods[] = {
     "send(samples, sample_rate=0, center_freq=0, timestamp_ns=None) -- "
     "timestamp_ns overrides the auto-stamped send time, propagating an "
     "upstream origin timestamp instead of stamping now" },
+  { "send_eos", (PyCFunction)Push_send_eos, METH_NOARGS,
+    "send_eos() -> None\n"
+    "\n"
+    "Tell workers this stream has ended.\n"
+    "\n"
+    "A Pull.recv() raises EOFError instead of waiting out a timeout --\n"
+    "which means only \"nothing yet\" and cannot be told from \"nothing\n"
+    "ever\" without this.\n"
+    "\n"
+    "The work queue is at-LEAST-once, so unlike PUB/SUB the marker is\n"
+    "not dropped -- but it may arrive more than once, so a handler must\n"
+    "be idempotent. It needs no ack from the caller: recv() reports the\n"
+    "ending as a state and hands back no message, so it acks the frame\n"
+    "itself. Were it not acked it would redeliver forever and outlive\n"
+    "the run that sent it.\n"
+    "\n"
+    "On a shared subject exactly ONE worker sees it, because a work\n"
+    "queue load-balances: use it to end a single-consumer stage, not to\n"
+    "broadcast a shutdown to a pool.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.stream import Push, CF32\n"
+    ">>> push = Push(\"nats://127.0.0.1:4222/work\", CF32)  # doctest: +SKIP\n"
+    ">>> push.send_eos()                                    # doctest: +SKIP\n" },
   { "close", (PyCFunction)Push_close, METH_NOARGS, NULL },
   { "__enter__", (PyCFunction)Push_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)Push_exit, METH_VARARGS, NULL },

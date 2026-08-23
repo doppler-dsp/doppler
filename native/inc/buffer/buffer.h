@@ -478,7 +478,7 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
    *                                                                          \
    * Both checks exist because this used to be an unbounded busy-spin with  \
    * no exit at all: a producer that stopped left the consumer spinning     \
-   * forever at 100%% CPU, and because the loop read no flag, no signal     \
+   * forever at 100% CPU, and because the loop read no flag, no signal     \
    * handler could rescue it. See docs/design/io-termination.md.            \
    *                                                                          \
    * @param ab Pointer to buffer.                                             \

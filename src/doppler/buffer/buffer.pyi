@@ -103,6 +103,17 @@ class F32Buffer:
         ndarray of complex64, shape (n,)
             Zero-copy view of the next ``n`` samples in the ring.
 
+        Raises
+        ------
+        EOFError
+            The producer called :meth:`close` and fewer than ``n``
+            samples remain.  The tail is drained and no more is coming,
+            so the wait ends rather than blocking forever.
+        KeyboardInterrupt
+            Somebody asked this process to stop.  Ctrl+C reaches this
+            wait only inside :func:`doppler.stream.interrupt_on_sigint`,
+            which arms the flag the wait reads; without it the spin does
+            not check for signals at all.
         Examples
         --------
         >>> from doppler.buffer import F32Buffer
@@ -118,6 +129,59 @@ class F32Buffer:
         >>> view.tolist()
         [(1+2j), (3+4j), (5+6j)]
         >>> buf.consume(3)
+
+        """
+        ...
+
+    @property
+    def closed(self) -> bool:
+        """``True`` once the producer has called :meth:`close`.
+
+        The consumer's half of end of stream: it distinguishes "the
+        producer is slow" from "the producer has finished", which an
+        empty ring alone cannot.
+
+        Examples
+        --------
+        >>> from doppler.buffer import F32Buffer
+        >>> buf = F32Buffer(1024)
+        >>> buf.closed
+        False
+        >>> buf.close()
+        >>> buf.closed
+        True
+
+        """
+        ...
+
+    def close(self) -> None:
+        """Say that no more data is coming.
+
+        The producer's half of end of stream.  Until this exists a
+        consumer cannot tell a slow producer from a finished one --
+        both look like an empty ring -- so :meth:`wait` had nothing to
+        do but spin.  Call it once, after the last write.
+
+        Release ordering: every sample written before this is visible
+        to a consumer that observes the flag.  Closing does not discard
+        what was already written; :meth:`wait` keeps returning batches
+        until the ring is drained, and only then raises ``EOFError``.
+
+        See ``docs/design/io-termination.md`` for the one termination
+        contract shared with the network and disk transports.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.buffer import F32Buffer
+        >>> buf = F32Buffer(1024)
+        >>> buf.close()
+        >>> buf.closed
+        True
+        >>> buf.wait(4)
+        Traceback (most recent call last):
+            ...
+        EOFError: end of stream: the producer closed the ring
 
         """
         ...
@@ -329,6 +393,17 @@ class F64Buffer:
         ndarray of complex128, shape (n,)
             Zero-copy view into the ring buffer.
 
+        Raises
+        ------
+        EOFError
+            The producer called :meth:`close` and fewer than ``n``
+            samples remain.  The tail is drained and no more is coming,
+            so the wait ends rather than blocking forever.
+        KeyboardInterrupt
+            Somebody asked this process to stop.  Ctrl+C reaches this
+            wait only inside :func:`doppler.stream.interrupt_on_sigint`,
+            which arms the flag the wait reads; without it the spin does
+            not check for signals at all.
         Examples
         --------
         >>> from doppler.buffer import F64Buffer
@@ -344,6 +419,59 @@ class F64Buffer:
         >>> view.tolist()
         [(1+2j), (3+4j)]
         >>> buf.consume()
+
+        """
+        ...
+
+    @property
+    def closed(self) -> bool:
+        """``True`` once the producer has called :meth:`close`.
+
+        The consumer's half of end of stream: it distinguishes "the
+        producer is slow" from "the producer has finished", which an
+        empty ring alone cannot.
+
+        Examples
+        --------
+        >>> from doppler.buffer import F64Buffer
+        >>> buf = F64Buffer(1024)
+        >>> buf.closed
+        False
+        >>> buf.close()
+        >>> buf.closed
+        True
+
+        """
+        ...
+
+    def close(self) -> None:
+        """Say that no more data is coming.
+
+        The producer's half of end of stream.  Until this exists a
+        consumer cannot tell a slow producer from a finished one --
+        both look like an empty ring -- so :meth:`wait` had nothing to
+        do but spin.  Call it once, after the last write.
+
+        Release ordering: every sample written before this is visible
+        to a consumer that observes the flag.  Closing does not discard
+        what was already written; :meth:`wait` keeps returning batches
+        until the ring is drained, and only then raises ``EOFError``.
+
+        See ``docs/design/io-termination.md`` for the one termination
+        contract shared with the network and disk transports.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.buffer import F64Buffer
+        >>> buf = F64Buffer(1024)
+        >>> buf.close()
+        >>> buf.closed
+        True
+        >>> buf.wait(4)
+        Traceback (most recent call last):
+            ...
+        EOFError: end of stream: the producer closed the ring
 
         """
         ...
@@ -555,6 +683,17 @@ class I16Buffer:
         ndarray of int16, shape (n, 2)
             Zero-copy view; column 0 = I, column 1 = Q.
 
+        Raises
+        ------
+        EOFError
+            The producer called :meth:`close` and fewer than ``n``
+            samples remain.  The tail is drained and no more is coming,
+            so the wait ends rather than blocking forever.
+        KeyboardInterrupt
+            Somebody asked this process to stop.  Ctrl+C reaches this
+            wait only inside :func:`doppler.stream.interrupt_on_sigint`,
+            which arms the flag the wait reads; without it the spin does
+            not check for signals at all.
         Examples
         --------
         >>> from doppler.buffer import I16Buffer
@@ -570,6 +709,59 @@ class I16Buffer:
         >>> view.tolist()
         [[10, 20], [30, 40]]
         >>> buf.consume()
+
+        """
+        ...
+
+    @property
+    def closed(self) -> bool:
+        """``True`` once the producer has called :meth:`close`.
+
+        The consumer's half of end of stream: it distinguishes "the
+        producer is slow" from "the producer has finished", which an
+        empty ring alone cannot.
+
+        Examples
+        --------
+        >>> from doppler.buffer import I16Buffer
+        >>> buf = I16Buffer(1024)
+        >>> buf.closed
+        False
+        >>> buf.close()
+        >>> buf.closed
+        True
+
+        """
+        ...
+
+    def close(self) -> None:
+        """Say that no more data is coming.
+
+        The producer's half of end of stream.  Until this exists a
+        consumer cannot tell a slow producer from a finished one --
+        both look like an empty ring -- so :meth:`wait` had nothing to
+        do but spin.  Call it once, after the last write.
+
+        Release ordering: every sample written before this is visible
+        to a consumer that observes the flag.  Closing does not discard
+        what was already written; :meth:`wait` keeps returning batches
+        until the ring is drained, and only then raises ``EOFError``.
+
+        See ``docs/design/io-termination.md`` for the one termination
+        contract shared with the network and disk transports.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.buffer import I16Buffer
+        >>> buf = I16Buffer(1024)
+        >>> buf.close()
+        >>> buf.closed
+        True
+        >>> buf.wait(4)
+        Traceback (most recent call last):
+            ...
+        EOFError: end of stream: the producer closed the ring
 
         """
         ...

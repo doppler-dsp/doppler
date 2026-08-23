@@ -2789,9 +2789,16 @@ test-snippets: ## Run the python/C/shell doc-fence gates
 # names a script and the registry stays the only place a name appears.
 #
 # Override with PYTEST_ARGS="-n 0" to force serial, matching `test-python`.
+# test_c_example_pairs.py runs here rather than under test-examples-c for
+# two reasons that are both about this being the only place it can actually
+# run: the C examples it drives need a live broker AND the built binaries,
+# and this is the gate CI reaches with both (test-examples-c also runs in
+# the macOS build job, where there is no nats-server to start). It
+# self-skips without either.
 test-examples-python: ## Run the Python example gate (requires pyext)
 	uv run pytest -m "examples and not examples_serial" -q -n auto \
-	    $(PYTEST_ARGS) src/doppler/tests/test_examples.py
+	    $(PYTEST_ARGS) src/doppler/tests/test_examples.py \
+	    src/doppler/tests/test_c_example_pairs.py
 	@# Exit 5 is pytest's "no tests collected", which is what an EMPTY
 	@# .examples-serial produces -- every item deselected. That is the
 	@# registry doing its job (the constraint was fixed and the line

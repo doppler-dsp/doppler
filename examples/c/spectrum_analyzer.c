@@ -246,12 +246,20 @@ main (int argc, char *argv[])
 
   uint64_t frame = 0;
 
+  /* Bounded, so Ctrl+C is seen with no traffic -- see receiver.c for why a
+     blocking dp_sub_recv makes the handler unreachable once a sender
+     stops. */
+  dp_sub_set_timeout (ctx, 250);
+
   while (keep_running)
     {
       dp_msg_t   *msg = NULL;
       dp_header_t hdr;
 
-      if (dp_sub_recv (ctx, &msg, &hdr) != DP_OK)
+      int rc = dp_sub_recv (ctx, &msg, &hdr);
+      if (rc == DP_ERR_TIMEOUT)
+        continue;
+      if (rc != DP_OK)
         continue;
 
       size_t           n    = dp_msg_num_samples (msg);

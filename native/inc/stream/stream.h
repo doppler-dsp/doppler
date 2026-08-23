@@ -293,6 +293,40 @@ extern "C"
   dp_sample_type_t dp_msg_sample_type (dp_msg_t *msg);
 
   /**
+   * @brief Mean power of a complex sample block, normalised to full scale.
+   *
+   * `mean(|x|^2)`, with the integer formats divided by
+   * dp_format_full_scale() first so the answer means the same thing
+   * whatever the format is — `10*log10()` of it is dBFS in every case.
+   * The frame-level dp_msg_mean_power() is this over a received message.
+   *
+   * @param format Sample format of @p data.
+   * @param data   @p n complex samples, interleaved for an integer format.
+   * @param n      Sample count.
+   * @return Mean power, or 0 for a NULL pointer, an empty block, or a
+   *         format this build does not know.
+   */
+  double dp_mean_power (dp_sample_type_t format, const void *data, size_t n);
+
+  /**
+   * @brief Mean power of a received I/Q frame, normalised to full scale.
+   *
+   * dp_mean_power() over the frame's own samples: the format and the count
+   * come from its header, so a subscriber that takes whatever arrives can
+   * compare frames without branching on the type. `10*log10()` of it is
+   * dBFS.
+   *
+   * Exists because every consumer was writing this loop: the C receiver
+   * example carried one copy per wire type and a switch to pick between
+   * them, which is the same duplication the library forbids internally.
+   *
+   * @param msg Message handle from a recv.
+   * @return Mean power, or 0 for a NULL handle, an empty frame, or a
+   *         non-I/Q kind (telemetry records are not samples).
+   */
+  double dp_msg_mean_power (dp_msg_t *msg);
+
+  /**
    * @brief What the message's payload IS (dp_frame_kind_t).
    *
    * Ask this before dp_msg_sample_type(): a telemetry frame's format field

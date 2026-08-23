@@ -409,6 +409,7 @@
 * **dp\_xnn** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_crc16\_ccitt** ([**dp\_crc16.h**](dp__crc16_8h.md))
 * **dp\_format\_chars** ([**dp\_format.h**](dp__format_8h.md))
+* **dp\_format\_full\_scale** ([**dp\_format.h**](dp__format_8h.md))
 * **dp\_format\_is\_valid** ([**dp\_format.h**](dp__format_8h.md))
 * **dp\_format\_size** ([**dp\_format.h**](dp__format_8h.md))
 * **dp\_isotime\_format** ([**dp\_isotime.h**](dp__isotime_8h.md))

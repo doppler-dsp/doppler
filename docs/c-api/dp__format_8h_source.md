@@ -53,6 +53,25 @@ extern "C"
       }
   }
 
+  static inline double
+  dp_format_full_scale (dp_sample_type_t type)
+  {
+    switch (type)
+      {
+      case CI8:
+        return 127.0;
+      case CI16:
+        return 32767.0;
+      case CI32:
+        return 2147483647.0;
+      case CF32:
+      case CF64:
+        return 1.0;
+      default:
+        return 0.0;
+      }
+  }
+
   static inline int
   dp_format_is_valid (dp_sample_type_t type)
   {

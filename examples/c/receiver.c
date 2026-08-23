@@ -37,31 +37,6 @@ signal_handler (int signum)
   keep_running = 0;
 }
 
-static double
-power_cf64 (const double _Complex *s, size_t n)
-{
-  double p = 0.0;
-  for (size_t i = 0; i < n; i++)
-    {
-      double re = creal (s[i]), im = cimag (s[i]);
-      p += re * re + im * im;
-    }
-  return p / (double)n;
-}
-
-static double
-power_ci32 (const int32_t *s, size_t n)
-{
-  const double scale = 1.0 / 2147483647.0;
-  double       p     = 0.0;
-  for (size_t i = 0; i < n; i++)
-    {
-      double re = s[2 * i] * scale, im = s[2 * i + 1] * scale;
-      p += re * re + im * im;
-    }
-  return p / (double)n;
-}
-
 static void
 format_timestamp (uint64_t ts_ns, char *buf, size_t buf_size)
 {
@@ -130,57 +105,121 @@ main (int argc, char *argv[])
   fflush (stdout);
 
   uint64_t total_samples = 0;
+  uint64_t total_bytes   = 0;
   uint64_t packet_count  = 0;
   uint64_t last_seq      = 0;
   uint64_t dropped       = 0;
+
+  /* Throughput is measured from the FIRST frame, not from start-up: the
+     wait for a sender to appear is not part of the rate, and counting it
+     makes the number climb for a minute after the stream begins. */
+  uint64_t t_first_ns = 0;
+
+  /* End-to-end latency, from the sender's own dp_header_t.timestamp_ns to
+     the moment this process holds the samples. Both stamps are
+     CLOCK_REALTIME, so the figure is only meaningful when the two ends
+     share a clock -- the same host, or hosts disciplined by PTP/NTP.
+     Across an undisciplined pair it measures clock offset, not transport,
+     which is why it is labelled rather than left to be misread. */
+  double lat_sum_ms = 0.0;
+  double lat_min_ms = 1e300;
+  double lat_max_ms = 0.0;
+
+  /* A BOUNDED wait, and it is not a nicety: dp_sub_recv with the default
+     timeout blocks inside the NATS client until a message arrives, so the
+     Ctrl+C handler above sets keep_running and nothing ever returns to look
+     at it. With traffic flowing that is invisible -- every packet returns
+     control to this loop -- and the moment the sender stops, Ctrl+C stops
+     working entirely. Ask for a timeout, treat it as "check the flag". */
+  dp_sub_set_timeout (ctx, 250);
 
   while (keep_running)
     {
       dp_msg_t   *msg = NULL;
       dp_header_t hdr;
 
-      if (dp_sub_recv (ctx, &msg, &hdr) != DP_OK)
+      int rc = dp_sub_recv (ctx, &msg, &hdr);
+      if (rc == DP_ERR_TIMEOUT)
+        continue; /* no traffic; loop round and re-read keep_running */
+      if (rc != DP_OK)
         continue;
 
+      uint64_t         now  = dp_get_timestamp_ns ();
       size_t           n    = dp_msg_num_samples (msg);
       dp_sample_type_t type = dp_msg_sample_type (msg);
       void            *data = dp_msg_data (msg);
 
       packet_count++;
       total_samples += n;
+      total_bytes += hdr.payload_bytes;
+      if (t_first_ns == 0)
+        t_first_ns = now;
+
+      /* Unsigned arithmetic: a sender's clock that is AHEAD of ours would
+         wrap this to something enormous, so the sign is checked first and
+         a negative reading reported as zero rather than as 1.8e10 ms. */
+      double lat_ms = (now > hdr.timestamp_ns)
+                          ? (double)(now - hdr.timestamp_ns) / 1e6
+                          : 0.0;
+      lat_sum_ms += lat_ms;
+      if (lat_ms < lat_min_ms)
+        lat_min_ms = lat_ms;
+      if (lat_ms > lat_max_ms)
+        lat_max_ms = lat_ms;
 
       if (packet_count > 1 && hdr.sequence != last_seq + 1)
         dropped += hdr.sequence - last_seq - 1;
       last_seq = hdr.sequence;
 
-      double pwr = 0.0;
-      if (type == CI32)
-        pwr = power_ci32 ((const int32_t *)data, n);
-      else if (type == CF64)
-        pwr = power_cf64 ((const double _Complex *)data, n);
-      double pwr_db = 10.0 * log10 (pwr + 1e-12);
+      /* One call, whatever the wire carried: dp_msg_mean_power normalises
+         the integer formats by full scale, so this is dBFS either way and
+         the example does not branch on the type to say so. */
+      double pwr_db = 10.0 * log10 (dp_msg_mean_power (msg) + 1e-12);
 
       char ts[32];
       format_timestamp (hdr.timestamp_ns, ts, sizeof (ts));
 
-      double mb = (double)(total_samples * dp_sample_size (type))
-                  / (1024.0 * 1024.0);
+      double mb = (double)total_bytes / (1024.0 * 1024.0);
+      double secs
+          = (now > t_first_ns) ? (double)(now - t_first_ns) / 1e9 : 0.0;
+      double msps = (secs > 0.0) ? (double)total_samples / secs / 1e6 : 0.0;
+      double mbps = (secs > 0.0) ? mb / secs : 0.0;
+
+      char fmt[3] = { 0, 0, 0 };
+      dp_format_chars (type, fmt);
 
       printf ("\033[2J\033[H");
       printf ("doppler Receiver\n================\n");
       printf ("  Endpoint:     %s\n", endpoint);
-      printf ("  Sample Type:  %s\n", dp_sample_type_str (type));
       printf ("  Sample Rate:  %.2f MHz\n", hdr.sample_rate / 1e6);
       printf ("  Center Freq:  %.2f GHz\n", hdr.center_freq / 1e9);
       printf ("\n");
-      printf ("  Sequence:     %lu\n", (unsigned long)hdr.sequence);
-      printf ("  Timestamp:    %s\n", ts);
-      printf ("  Num Samples:  %lu\n", (unsigned long)n);
-      printf ("  Power:        %.2f dB\n", pwr_db);
+      /* The frame header as it is on the wire -- the fields a receiver
+         written against docs/design/streaming.md would be parsing. */
+      printf ("  -- frame header (v%u) --\n", (unsigned)hdr.version);
+      printf ("  format:       %s (\"%s\", %zu B/sample)\n",
+              dp_sample_type_str (type), fmt, dp_sample_size (type));
+      printf ("  kind:         %s\n",
+              hdr.kind == DP_KIND_TLM ? "TLM (records)" : "IQ (samples)");
+      printf ("  flags:        0x%04X%s\n", (unsigned)hdr.flags,
+              (hdr.flags & DP_FLAG_CHUNKED) ? "  CHUNKED" : "");
+      printf ("  data_rep:     %.4s\n", hdr.data_rep);
+      printf ("  sequence:     %lu\n", (unsigned long)hdr.sequence);
+      printf ("  timestamp:    %s\n", ts);
+      printf ("  num_samples:  %lu\n", (unsigned long)n);
+      printf ("  payload:      %lu bytes\n", (unsigned long)hdr.payload_bytes);
+      printf ("\n");
+      printf ("  Power:        %.2f dBFS\n", pwr_db);
+      printf ("  Rate:         %.2f MS/s  (%.1f MB/s)\n", msps, mbps);
+      printf ("  Latency:      %.3f ms   (min %.3f, mean %.3f, max %.3f)\n",
+              lat_ms, lat_min_ms, lat_sum_ms / (double)packet_count,
+              lat_max_ms);
+      printf ("                one-way, sender clock -> here; only\n");
+      printf ("                meaningful if both share a clock\n");
       printf ("\n");
       printf ("  Packets:      %lu\n", (unsigned long)packet_count);
-      printf ("  Total:        %lu samples (%.2f MB)\n",
-              (unsigned long)total_samples, mb);
+      printf ("  Total:        %lu samples (%.2f MB in %.1f s)\n",
+              (unsigned long)total_samples, mb, secs);
       printf ("  Dropped:      %lu\n", (unsigned long)dropped);
       printf ("\n");
       print_samples (data, type, n);

@@ -113,6 +113,79 @@ Examples
 """
 
 
+def mean_power(samples: NDArray[Any]) -> float:
+    """Mean power of a complex sample block, normalised to full scale.
+
+    ``mean(|x|**2)``, with the integer formats divided by their full
+    scale first, so the answer means the same thing whatever the wire
+    carried and ``10*log10()`` of it is dBFS in every case.
+
+    This is the same ``dp_mean_power()`` the C examples call -- one
+    implementation, so the Python and C receivers cannot report
+    different numbers for one frame, and neither has to spell the loop
+    out again.
+
+    Parameters
+    ----------
+    samples : ndarray
+        C-contiguous block: ``complex64``/``complex128`` for
+        :data:`CF32`/:data:`CF64`, or ``int8``/``int16``/``int32``
+        interleaved I/Q (length ``2*n``) for :data:`CI8`/:data:`CI16`/
+        :data:`CI32`.
+
+    Returns
+    -------
+    float
+        Mean power, 0.0 for an empty block.
+
+    Raises
+    ------
+    TypeError
+        If the dtype is not one of the wire formats.
+    ValueError
+        If ``samples`` is not C-contiguous.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.stream import mean_power
+    >>> mean_power(np.ones(4, dtype=np.complex64))
+    1.0
+    >>> round(mean_power(np.full(8, 16384, dtype=np.int16)), 4)
+    0.5
+
+    """
+    ...
+
+
+def format_name(code: int) -> str:
+    """The name of a wire format code.
+
+    The same ``dp_sample_type_str()`` the C face prints, so a Python
+    receiver names a format exactly as the C one does rather than
+    carrying a private code-to-name table.
+
+    Parameters
+    ----------
+    code : int
+        A wire format, e.g. :data:`CF64`.
+
+    Returns
+    -------
+    str
+        The format's name, or ``"UNKNOWN"`` for a code this build does
+        not know.
+
+    Examples
+    --------
+    >>> from doppler.stream import format_name, CF64, CI8
+    >>> format_name(CF64), format_name(CI8)
+    ('CF64', 'CI8')
+
+    """
+    ...
+
+
 def get_timestamp_ns() -> int:
     """Current wall-clock time in nanoseconds since the UNIX epoch.
 

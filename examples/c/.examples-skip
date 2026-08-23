@@ -18,9 +18,16 @@ pipeline_demo: broker: PUSH/PULL over JetStream between two IN-PROCESS threads, 
 
 # The three below are live dashboards: each prints "Press Ctrl+C to stop"
 # and has no exit condition, so no broker makes them terminate and a smoke
-# run can never exercise them. Their wire round-trips are covered by the
-# stream suite (src/doppler/stream/tests/, against CI's live broker) and by
+# run -- which runs ONE binary to completion -- can never exercise them.
+# Their wire round-trips are covered by the stream suite
+# (src/doppler/stream/tests/, against CI's live broker) and by
 # `make docker-stream`, which builds and smokes all three binaries.
+#
+# receiver/transmitter are additionally run AS A PAIR by
+# src/doppler/tests/test_c_example_pairs.py, which is where "Press Ctrl+C
+# to stop" stopped being an untested claim: the reason below assumes the
+# interrupt works, and for a receiver parked in a blocking recv it did
+# not.
 receiver: runs until Ctrl+C -- a SUB dashboard with no exit condition, and needs a live transmitter peer as well as a broker
 transmitter: runs until Ctrl+C -- publishes until interrupted; the receiver half of the pair
 spectrum_analyzer: runs until Ctrl+C -- live spectrum display with no exit condition

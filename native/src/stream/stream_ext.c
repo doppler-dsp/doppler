@@ -149,6 +149,9 @@ build_recv_result (dp_msg_t *msg, const dp_header_t *hdr)
                         PyLong_FromUnsignedLongLong (hdr->num_samples));
   PyDict_SetItemString (header, "format", PyLong_FromLong (hdr->format));
   PyDict_SetItemString (header, "kind", PyLong_FromLong (hdr->kind));
+  PyDict_SetItemString (
+      header, "data_rep",
+      PyUnicode_FromStringAndSize (hdr->data_rep, sizeof hdr->data_rep));
   PyDict_SetItemString (header, "flags", PyLong_FromLong (hdr->flags));
   PyDict_SetItemString (header, "payload_bytes",
                         PyLong_FromUnsignedLong (hdr->payload_bytes));
@@ -1040,6 +1043,76 @@ py_get_timestamp_ns (PyObject *self, PyObject *args)
   return PyLong_FromUnsignedLongLong (dp_get_timestamp_ns ());
 }
 
+/* mean_power(samples) -> float
+ *
+ * The same dp_mean_power() the C examples call, so the Python and C
+ * receivers report one number computed one way. The format comes from the
+ * array's dtype, which is what recv() set from the frame's own header. */
+static PyObject *
+py_mean_power (PyObject *self, PyObject *args)
+{
+  (void)self;
+  PyArrayObject *arr;
+  if (!PyArg_ParseTuple (args, "O!", &PyArray_Type, &arr))
+    return NULL;
+  if (!PyArray_IS_C_CONTIGUOUS (arr))
+    {
+      PyErr_SetString (PyExc_ValueError, "samples must be C-contiguous");
+      return NULL;
+    }
+
+  dp_sample_type_t fmt;
+  switch (PyArray_TYPE (arr))
+    {
+    case NPY_COMPLEX64:
+      fmt = CF32;
+      break;
+    case NPY_COMPLEX128:
+      fmt = CF64;
+      break;
+    case NPY_INT8:
+      fmt = CI8;
+      break;
+    case NPY_INT16:
+      fmt = CI16;
+      break;
+    case NPY_INT32:
+      fmt = CI32;
+      break;
+    default:
+      PyErr_SetString (PyExc_TypeError,
+                       "samples dtype is not a doppler wire format "
+                       "(complex64/complex128, or int8/int16/int32 "
+                       "interleaved I/Q)");
+      return NULL;
+    }
+
+  npy_intp n = PyArray_SIZE (arr);
+  if (fmt == CI8 || fmt == CI16 || fmt == CI32)
+    n /= 2; /* interleaved I/Q pairs */
+
+  double p;
+  void  *data = PyArray_DATA (arr);
+  Py_BEGIN_ALLOW_THREADS;
+  p = dp_mean_power (fmt, data, (size_t)n);
+  Py_END_ALLOW_THREADS;
+  return PyFloat_FromDouble (p);
+}
+
+/* format_name(code) -> str — the same dp_sample_type_str() the C face
+ * prints, so the two receivers name a format identically instead of each
+ * carrying a private code-to-name table. */
+static PyObject *
+py_format_name (PyObject *self, PyObject *args)
+{
+  (void)self;
+  int code;
+  if (!PyArg_ParseTuple (args, "i", &code))
+    return NULL;
+  return PyUnicode_FromString (
+      dp_sample_type_str ((dp_sample_type_t)code));
+}
+
 /* =========================================================================
  * Module definition
  * ========================================================================= */
@@ -1048,6 +1121,67 @@ static PyMethodDef module_methods[] = {
   { "get_timestamp_ns", py_get_timestamp_ns, METH_NOARGS,
     "get_timestamp_ns() -> int\n"
     "Current wall-clock time in nanoseconds (CLOCK_REALTIME)." },
+  { "format_name", py_format_name, METH_VARARGS,
+    "format_name(code) -> str\n"
+    "\n"
+    "The name of a wire format code.\n"
+    "\n"
+    "The same ``dp_sample_type_str()`` the C face prints, so a Python\n"
+    "receiver names a format exactly as the C one does rather than\n"
+    "carrying a private code-to-name table.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "code : int\n"
+    "    A wire format, e.g. ``CF64``.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "str\n"
+    "    The format's name, or ``\"UNKNOWN\"`` for a code this build does\n"
+    "    not know.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.stream import format_name, CF64, CI8\n"
+    ">>> format_name(CF64), format_name(CI8)\n"
+    "('CF64', 'CI8')\n" },
+  { "mean_power", py_mean_power, METH_VARARGS,
+    "mean_power(samples) -> float\n"
+    "\n"
+    "Mean power of a complex sample block, normalised to full scale.\n"
+    "\n"
+    "``mean(|x|**2)``, with the integer formats divided by their full\n"
+    "scale first, so the answer means the same thing whatever the wire\n"
+    "carried and ``10*log10()`` of it is dBFS in every case. This is the\n"
+    "same ``dp_mean_power()`` the C examples call -- one implementation,\n"
+    "so the Python and C receivers cannot report different numbers for\n"
+    "one frame.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "samples : ndarray\n"
+    "    C-contiguous block: ``complex64``/``complex128``, or\n"
+    "    ``int8``/``int16``/``int32`` interleaved I/Q (length ``2*n``).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    Mean power, 0.0 for an empty block.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "TypeError\n"
+    "    If the dtype is not one of the wire formats.\n"
+    "ValueError\n"
+    "    If ``samples`` is not C-contiguous.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.stream import mean_power\n"
+    ">>> mean_power(np.ones(4, dtype=np.complex64))\n"
+    "1.0\n" },
   { NULL },
 };
 

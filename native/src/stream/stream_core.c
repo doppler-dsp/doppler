@@ -1,5 +1,6 @@
 #include "stream/stream.h"
 #include "stream_internal.h"
+#include <complex.h>
 #include <stddef.h> /* offsetof — the wire-layout assertions */
 #include <stdint.h>
 #include <stdlib.h>
@@ -162,6 +163,90 @@ dp_sample_type_str (dp_sample_type_t type)
     default:
       return "UNKNOWN";
     }
+}
+
+double
+dp_mean_power (dp_sample_type_t format, const void *data, size_t n)
+{
+  double fs = dp_format_full_scale (format);
+  if (!data || n == 0 || fs == 0.0)
+    return 0.0;
+
+  /* Normalising the integer formats by full scale is what makes the answer
+     comparable across the wire types: a caller that does not care which one
+     it got still gets a number that means the same thing. */
+  double inv = 1.0 / fs;
+  double p   = 0.0;
+
+  switch (format)
+    {
+    case CF64:
+      {
+        const double _Complex *x = (const double _Complex *)data;
+        for (size_t i = 0; i < n; i++)
+          {
+            double re = creal (x[i]), im = cimag (x[i]);
+            p += re * re + im * im;
+          }
+        break;
+      }
+    case CF32:
+      {
+        const float _Complex *x = (const float _Complex *)data;
+        for (size_t i = 0; i < n; i++)
+          {
+            double re = (double)crealf (x[i]), im = (double)cimagf (x[i]);
+            p += re * re + im * im;
+          }
+        break;
+      }
+    case CI32:
+      {
+        const int32_t *x = (const int32_t *)data;
+        for (size_t i = 0; i < n; i++)
+          {
+            double re = (double)x[2 * i] * inv,
+                   im = (double)x[2 * i + 1] * inv;
+            p += re * re + im * im;
+          }
+        break;
+      }
+    case CI16:
+      {
+        const int16_t *x = (const int16_t *)data;
+        for (size_t i = 0; i < n; i++)
+          {
+            double re = (double)x[2 * i] * inv,
+                   im = (double)x[2 * i + 1] * inv;
+            p += re * re + im * im;
+          }
+        break;
+      }
+    case CI8:
+      {
+        const int8_t *x = (const int8_t *)data;
+        for (size_t i = 0; i < n; i++)
+          {
+            double re = (double)x[2 * i] * inv,
+                   im = (double)x[2 * i + 1] * inv;
+            p += re * re + im * im;
+          }
+        break;
+      }
+    default:
+      return 0.0;
+    }
+
+  return p / (double)n;
+}
+
+double
+dp_msg_mean_power (dp_msg_t *msg)
+{
+  if (!msg || dp_msg_kind (msg) != DP_KIND_IQ)
+    return 0.0; /* telemetry records are not samples */
+  return dp_mean_power (dp_msg_sample_type (msg), dp_msg_data (msg),
+                        dp_msg_num_samples (msg));
 }
 
 const char *

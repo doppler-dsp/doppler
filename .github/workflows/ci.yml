@@ -304,12 +304,19 @@ jobs:
           --cov-report=term-missing \
           --cov-report=xml:coverage.xml"
 
+    - name: Python example smoke tests
+      # BEFORE nats-down, deliberately. The examples gate runs the
+      # broker-dependent examples -- the conditional `broker:` entries in
+      # both skip registries, and the two-process pairs -- and every one of
+      # them SELF-SKIPS when 127.0.0.1:4222 is unreachable. Stopping the
+      # broker first therefore left this step green while exercising none of
+      # them: the failure mode the whole self-skip idiom is supposed to
+      # avoid, moved one step later.
+      run: make test-examples-python
+
     - name: Stop NATS broker
       if: always()
       run: make nats-down
-
-    - name: Python example smoke tests
-      run: make test-examples-python
 
     - name: Validation reports are not stale
       # `results.md` is the deliverable -- committed on purpose, linked from

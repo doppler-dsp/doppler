@@ -60,8 +60,9 @@
 |  int | [**dp\_pub\_send\_ci16**](#function-dp_pub_send_ci16) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const int16\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI16 samples via a Publisher._  |
 |  int | [**dp\_pub\_send\_ci32**](#function-dp_pub_send_ci32) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const int32\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI32 samples via a Publisher._  |
 |  int | [**dp\_pub\_send\_ci8**](#function-dp_pub_send_ci8) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const int8\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI8 samples via a Publisher._  |
+|  int | [**dp\_pub\_send\_eos**](#function-dp_pub_send_eos) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx) <br>_Shut a context down gracefully: drain, then closed._  |
 |  int | [**dp\_pub\_send\_tlm16**](#function-dp_pub_send_tlm16) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const void \* records, size\_t num\_records, double sample\_rate, double center\_freq) <br>_Send an array of 16-byte telemetry records via a Publisher._  |
-|  int | [**dp\_stream\_drain**](#function-dp_stream_drain) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, int timeout\_ms) <br>_Shut a context down gracefully: drain, then closed._  |
+|  int | [**dp\_stream\_drain**](#function-dp_stream_drain) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, int timeout\_ms) <br> |
 |  [**dp\_sub\_t**](group__types.md#typedef-dp_sub_t) \* | [**dp\_sub\_create**](#function-dp_sub_create) (const char \* endpoint) <br>_Create a Subscriber and connect to_ `endpoint` _._ |
 |  void | [**dp\_sub\_destroy**](#function-dp_sub_destroy) ([**dp\_sub\_t**](group__types.md#typedef-dp_sub_t) \* ctx) <br>_Destroy a Subscriber context and release all resources._  |
 |  int | [**dp\_sub\_recv**](#function-dp_sub_recv) ([**dp\_sub\_t**](group__types.md#typedef-dp_sub_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, [**dp\_header\_t**](structdp__header__t.md) \* header) <br>_Receive one frame from a Subscriber socket (zero-copy)._  |
@@ -465,6 +466,86 @@ DP\_OK (0) on success, negative error code on failure.
 
 
 
+### function dp\_pub\_send\_eos 
+
+_Shut a context down gracefully: drain, then closed._ 
+```
+int dp_pub_send_eos (
+    dp_pub_t * ctx
+) 
+```
+
+
+
+The ordered shutdown, and the one a signal handler's exit path wants. The client stops accepting new deliveries, lets what is in flight finish, flushes everything pending, and then closes.
+
+
+**It waits for the connection to reach CLOSED before returning**, and that is the part worth having in the library rather than in every caller: `natsConnection_Drain` returns immediately and does the work in the background, so a process that exits when it returns abandons exactly the work the drain was for. Getting that wrong looks like success.
+
+
+Against [**dp\_pub\_flush()**](group__pubsub.md#function-dp_pub_flush): flush answers "does the server have what I
+published", and the context keeps working afterwards. Drain answers "let everything finish, then stop", and the context is finished when it returns — call the matching `*_destroy` next, which is then just the free.
+
+
+**Drain last, after your application has stopped producing.** A drain cannot be reversed, and a send issued while one is in progress is racing its phases: it may slip through while subscriptions drain, or be refused once the connection reaches its publish-flushing phase. Do not publish a "shutting down" notice after calling this and assume it went.
+
+
+Because this waits for CLOSED, a single-threaded caller does not have to reason about that race: once it has returned, a send is refused with [**DP\_ERR\_CLOSED**](clib__common_8h.md#define-dp_err_closed), deterministically. The race is real only for a thread still publishing while another drains.
+
+
+Size `timeout_ms` to the slowest thing the drain has to wait for, with margin: cutting a drain off mid-write every deploy is worse than waiting. doppler's own receive is synchronous — there is no message handler to finish — so the wait is dominated by flushing whatever is still buffered, and the 5 s default is generous for a link that is keeping up. A slow or congested link, or a large backlog, wants more.
+
+
+
+
+**Parameters:**
+
+
+* `ctx` Any context. 
+* `timeout_ms` How long to wait for CLOSED; &lt;= 0 uses 5000 ms. 
+
+
+
+**Returns:**
+
+DP\_OK once closed, [**DP\_ERR\_TIMEOUT**](clib__common_8h.md#define-dp_err_timeout) if the budget ran out with the drain still in progress (the context is still safe to destroy), DP\_ERR\_INVALID for a NULL context.
+
+
+Tell subscribers the stream has ended.
+
+
+Publishes a zero-payload DP\_KIND\_EOS frame. A receiving `*_recv` reports [**DP\_ERR\_EOF**](clib__common_8h.md#define-dp_err_eof) instead of handing back an empty frame, so a consumer learns the sender finished rather than inferring it from silence — which is the inference this whole contract exists to remove.
+
+
+**Send it before [**dp\_stream\_drain()**](group__pubsub.md#function-dp_stream_drain), not after.** A drain cannot be reversed and refuses sends once it reaches its publish-flushing phase, so an EOS issued after one may simply not go. The ordered shutdown is: stop producing, send EOS, drain, destroy.
+
+
+**What it does NOT promise.** PUB/SUB is at-most-once (§9), so this frame can be dropped like any other: it turns the common case from "wait forever" into "finish promptly", not from unreliable into guaranteed, and a subscriber that must not hang on a lost marker still needs a timeout. PUSH/PULL delivers it at-least-once, so it may arrive more than once and a handler must be idempotent.
+
+
+
+
+**Parameters:**
+
+
+* `ctx` Any send-capable context. 
+
+
+
+**Returns:**
+
+DP\_OK once handed to the client, [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) for a NULL context, [**DP\_ERR\_CLOSED**](clib__common_8h.md#define-dp_err_closed) if the context is already draining or closed. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_pub\_send\_tlm16 
 
 _Send an array of 16-byte telemetry records via a Publisher._ 
@@ -512,7 +593,6 @@ DP\_OK (0) on success, negative error code on failure.
 
 ### function dp\_stream\_drain 
 
-_Shut a context down gracefully: drain, then closed._ 
 ```
 int dp_stream_drain (
     dp_pub_t * ctx,
@@ -522,44 +602,6 @@ int dp_stream_drain (
 
 
 
-The ordered shutdown, and the one a signal handler's exit path wants. The client stops accepting new deliveries, lets what is in flight finish, flushes everything pending, and then closes.
-
-
-**It waits for the connection to reach CLOSED before returning**, and that is the part worth having in the library rather than in every caller: `natsConnection_Drain` returns immediately and does the work in the background, so a process that exits when it returns abandons exactly the work the drain was for. Getting that wrong looks like success.
-
-
-Against [**dp\_pub\_flush()**](group__pubsub.md#function-dp_pub_flush): flush answers "does the server have what I
-published", and the context keeps working afterwards. Drain answers "let everything finish, then stop", and the context is finished when it returns — call the matching `*_destroy` next, which is then just the free.
-
-
-**Drain last, after your application has stopped producing.** A drain cannot be reversed, and a send issued while one is in progress is racing its phases: it may slip through while subscriptions drain, or be refused once the connection reaches its publish-flushing phase. Do not publish a "shutting down" notice after calling this and assume it went.
-
-
-Because this waits for CLOSED, a single-threaded caller does not have to reason about that race: once it has returned, a send is refused with [**DP\_ERR\_CLOSED**](clib__common_8h.md#define-dp_err_closed), deterministically. The race is real only for a thread still publishing while another drains.
-
-
-Size `timeout_ms` to the slowest thing the drain has to wait for, with margin: cutting a drain off mid-write every deploy is worse than waiting. doppler's own receive is synchronous — there is no message handler to finish — so the wait is dominated by flushing whatever is still buffered, and the 5 s default is generous for a link that is keeping up. A slow or congested link, or a large backlog, wants more.
-
-
-
-
-**Parameters:**
-
-
-* `ctx` Any context. 
-* `timeout_ms` How long to wait for CLOSED; &lt;= 0 uses 5000 ms. 
-
-
-
-**Returns:**
-
-DP\_OK once closed, [**DP\_ERR\_TIMEOUT**](clib__common_8h.md#define-dp_err_timeout) if the budget ran out with the drain still in progress (the context is still safe to destroy), DP\_ERR\_INVALID for a NULL context. 
-
-
-
-
-
-        
 
 <hr>
 
@@ -658,7 +700,7 @@ On success, `*msg` is set to a message handle whose data buffer is valid until [
 
 **Returns:**
 
-DP\_OK on success, DP\_ERR\_TIMEOUT on timeout, negative on error. 
+DP\_OK on success, [**DP\_ERR\_TIMEOUT**](clib__common_8h.md#define-dp_err_timeout) on timeout, [**DP\_ERR\_EOF**](clib__common_8h.md#define-dp_err_eof) when the sender has finished (no message is produced, so there is nothing to free), negative on error. 
 
 
 

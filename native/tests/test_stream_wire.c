@@ -128,6 +128,22 @@ test_frame_kinds (void)
   DP_CHECK (dp_element_size (DP_KIND_TLM, CF64) == 16);
   DP_CHECK (dp_element_size (DP_KIND_IQ, (dp_sample_type_t)0) == 0);
   DP_CHECK (dp_element_size ((dp_frame_kind_t)99, CF64) == 0);
+
+  printf ("-- end of stream is a kind too, and carries nothing\n");
+
+  /* EOS has no format and no elements: it is a statement, so asking its
+     element size is asking the wrong question and gets 0 rather than a
+     plausible number. */
+  DP_CHECK (dp_element_size (DP_KIND_EOS, (dp_sample_type_t)0) == 0);
+  DP_CHECK (dp_element_size (DP_KIND_EOS, CF64) == 0);
+
+  /* A KIND rather than a flag, and the numbering is part of the wire
+     contract: a receiver validates `flags` against DP_FLAG_KNOWN and
+     refuses anything outside it, but does NOT validate `kind` -- which is
+     precisely what makes a new kind additive and a new flag breaking. */
+  DP_CHECK (DP_KIND_IQ == 0);
+  DP_CHECK (DP_KIND_TLM == 1);
+  DP_CHECK (DP_KIND_EOS == 2);
 }
 
 /* ------------------------------------------------------------------

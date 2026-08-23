@@ -296,10 +296,21 @@ dp_frame_parse (const void *buf, size_t len, dp_header_t *hdr,
   if (hdr->payload_bytes != avail)
     return DP_ERR_INVALID; /* the header's claim vs the transport's truth */
 
-  size_t elem = dp_element_size ((dp_frame_kind_t)hdr->kind,
-                                 (dp_sample_type_t)hdr->format);
-  if (elem == 0 || hdr->num_samples * elem != avail)
-    return DP_ERR_INVALID;
+  /* End of stream carries nothing, so the element-size question does not
+     apply to it -- but "does not apply" is not "unchecked": a frame that
+     says it is an ending and still claims a payload is refused. */
+  if ((dp_frame_kind_t)hdr->kind == DP_KIND_EOS)
+    {
+      if (avail != 0 || hdr->num_samples != 0)
+        return DP_ERR_INVALID;
+    }
+  else
+    {
+      size_t elem = dp_element_size ((dp_frame_kind_t)hdr->kind,
+                                     (dp_sample_type_t)hdr->format);
+      if (elem == 0 || hdr->num_samples * elem != avail)
+        return DP_ERR_INVALID;
+    }
 
   *body     = d + fixed;
   *body_len = avail;
@@ -390,6 +401,8 @@ dp_strerror (int err)
       return "Interrupted by dp_stream_interrupt";
     case DP_ERR_CLOSED:
       return "Context is draining or closed";
+    case DP_ERR_EOF:
+      return "End of stream: the sender has finished";
     default:
       return "Unknown error";
     }
@@ -556,6 +569,35 @@ dp_pub_send_tlm16 (dp_pub_t *ctx, const void *records, size_t num_records,
 {
   return send_signal (ctx, records, num_records, sample_rate, center_freq,
                       (dp_sample_type_t)0);
+}
+
+int
+dp_pub_send_eos (dp_pub_t *ctx)
+{
+  if (!ctx)
+    return DP_ERR_INVALID;
+
+  /* A statement, not data: no payload, no format, no samples. It does NOT
+     go through send_signal, which rejects a zero-length send -- correctly,
+     for a frame that is supposed to carry something. */
+  dp_header_t header = { 0 };
+  header.magic       = DP_STREAM_MAGIC;
+  memcpy (header.data_rep, dp_host_rep (), 4);
+  header.format               = 0;
+  header.kind                 = (uint16_t)DP_KIND_EOS;
+  header.version              = DP_WIRE_VERSION;
+  header.flags                = 0;
+  header.payload_bytes        = 0;
+  header.sequence             = ctx->sequence++;
+  header.timestamp_ns         = ctx->timestamp_override_set
+                                    ? ctx->timestamp_override_ns
+                                    : dp_get_timestamp_ns ();
+  ctx->timestamp_override_set = 0;
+  header.sample_rate          = 0.0;
+  header.center_freq          = 0.0;
+  header.num_samples          = 0;
+
+  return nats_send_signal (ctx, &header, NULL, 0);
 }
 
 dp_pub_t *

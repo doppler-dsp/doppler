@@ -310,6 +310,14 @@ do_recv (void *ctx, set_timeout_fn fn_timeout, recv_signal_fn fn_recv,
       PyErr_SetString (PyExc_KeyboardInterrupt, "interrupted");
       return NULL;
     }
+  if (rc == DP_ERR_EOF)
+    {
+      /* EOFError, not RuntimeError: the sender finished, which is a state
+         and the ordinary end of a loop. Python already has a word for it,
+         and `except EOFError` is what a reader expects to write. */
+      PyErr_SetString (PyExc_EOFError, "end of stream: the sender finished");
+      return NULL;
+    }
   if (rc != DP_OK)
     {
       PyErr_Format (PyExc_RuntimeError, "recv failed: %s", dp_strerror (rc));
@@ -527,11 +535,57 @@ Publisher_drain (PublisherObject *self, PyObject *args, PyObject *kwds)
   Py_RETURN_NONE;
 }
 
+
+static PyObject *
+Publisher_send_eos (PublisherObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->ctx)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "publisher is closed");
+      return NULL;
+    }
+  int rc;
+  Py_BEGIN_ALLOW_THREADS;
+  rc = dp_pub_send_eos (self->ctx);
+  Py_END_ALLOW_THREADS;
+  if (rc != DP_OK)
+    {
+      PyErr_Format (PyExc_RuntimeError, "send_eos failed: %s",
+                    dp_strerror (rc));
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef Publisher_methods[] = {
   { "send", (PyCFunction)Publisher_send, METH_VARARGS | METH_KEYWORDS,
     "send(samples, sample_rate=0, center_freq=0, timestamp_ns=None) -- "
     "timestamp_ns overrides the auto-stamped send time, propagating an "
     "upstream origin timestamp instead of stamping now" },
+  { "send_eos", (PyCFunction)Publisher_send_eos, METH_NOARGS,
+    "send_eos() -> None\n"
+    "\n"
+    "Tell subscribers the stream has ended.\n"
+    "\n"
+    "A subscriber's recv() raises EOFError instead of waiting out a\n"
+    "timeout -- which means only \"nothing yet\" and cannot be told from\n"
+    "\"nothing ever\" without this.\n"
+    "\n"
+    "Send it BEFORE drain(), not after: a drain cannot be reversed and\n"
+    "refuses sends once it reaches its publish-flushing phase. The order\n"
+    "is: stop producing, send_eos(), drain(), close().\n"
+    "\n"
+    "PUB/SUB is at-most-once, so this frame can be dropped like any\n"
+    "other: it makes the common case end promptly, not reliably, and a\n"
+    "subscriber that must not hang still needs a timeout. PUSH/PULL\n"
+    "delivers it at-least-once, so handling must be idempotent.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.stream import Publisher, CF32\n"
+    ">>> pub = Publisher(\"nats://127.0.0.1:4222/demo\", CF32)  # doctest: +SKIP\n"
+    ">>> pub.send_eos()                                        # doctest: +SKIP\n"
+    ">>> pub.drain()                                           # doctest: +SKIP\n" },
   { "flush", (PyCFunction)Publisher_flush, METH_VARARGS | METH_KEYWORDS,
     "flush(timeout_ms=2000) -> None\n"
     "\n"

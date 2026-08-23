@@ -45,6 +45,11 @@
 #define DP_ERR_CLOSED                                                         \
   (-9) /**< The context is draining or closed and accepts no more sends -- \
             a state, not a transport failure. */
+#define DP_ERR_EOF                                                            \
+  (-10) /**< The producer has finished: no more data is coming, ever. A     \
+             state, not a failure, and distinct from DP_ERR_TIMEOUT, which  \
+             means "not yet". Every transport spells it the same way -- see \
+             docs/design/io-termination.md. */
 
 #include "jm_perf.h"
 

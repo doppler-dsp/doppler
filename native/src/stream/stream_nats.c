@@ -332,6 +332,8 @@ nats_type_token (const dp_header_t *h)
 {
   if ((dp_frame_kind_t)h->kind == DP_KIND_TLM)
     return "TLM16";
+  if ((dp_frame_kind_t)h->kind == DP_KIND_EOS)
+    return "EOS";
   return dp_sample_type_str ((dp_sample_type_t)h->format);
 }
 
@@ -765,6 +767,20 @@ nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
 
   if (ctx->nats.role == DP_ROLE_REP)
     nats_stash_reply (ctx, m);
+
+  /* End of stream is a STATEMENT, so it is reported rather than handed back
+     as an empty frame a caller would have to recognise for itself. Checked
+     here -- after the envelope is validated, before anything sizes a payload
+     -- because an EOS frame has no format and no samples, so the element-size
+     arithmetic below has nothing to work with. */
+  if ((dp_frame_kind_t)hdr.kind == DP_KIND_EOS)
+    {
+      if (out_hdr)
+        memcpy (out_hdr, &hdr, sizeof (dp_header_t));
+      natsMsg_Destroy (m);
+      *out_msg = NULL;
+      return DP_ERR_EOF;
+    }
 
   /* Large fan-out frames arrive as several chunks — reassemble into one owned
    * buffer.  (PULL never chunks: the work-queue carries whole frames.) */

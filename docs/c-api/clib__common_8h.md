@@ -93,6 +93,7 @@
 | ---: | :--- |
 | define  | [**CMPLXF**](clib__common_8h.md#define-cmplxf) (r, i) `\_\_builtin\_complex ((float)(r), (float)(i))`<br> |
 | define  | [**DP\_ERR\_CLOSED**](clib__common_8h.md#define-dp_err_closed)  `(-9)`<br> |
+| define  | [**DP\_ERR\_EOF**](clib__common_8h.md#define-dp_err_eof)  `(-10)`<br> |
 | define  | [**DP\_ERR\_INIT**](clib__common_8h.md#define-dp_err_init)  `(-1)`<br> |
 | define  | [**DP\_ERR\_INTERRUPTED**](clib__common_8h.md#define-dp_err_interrupted)  `(-8)`<br> |
 | define  | [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid)  `(-4)`<br> |
@@ -198,6 +199,23 @@ Assert a just-constructed object / allocation is non-NULL, aborting with a diagn
 
 
 The context is draining or closed and accepts no more sends  \ a state, not a transport failure. 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_ERR\_EOF 
+
+```C++
+#define DP_ERR_EOF `(-10)`
+```
+
+
+
+The producer has finished: no more data is coming, ever. A \ state, not a failure, and distinct from DP\_ERR\_TIMEOUT, which \ means "not yet". Every transport spells it the same way  see \ docs/design/io-termination.md. 
 
 
         

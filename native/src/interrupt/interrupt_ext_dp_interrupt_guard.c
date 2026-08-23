@@ -102,6 +102,18 @@ InterruptObj_resume (InterruptObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
+InterruptObj_latency_ms (InterruptObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  uint32_t y = dp_interrupt_guard_latency_ms (self->handle);
+  return PyLong_FromUnsignedLong ((unsigned long)y);
+}
+
+static PyObject *
 InterruptObj_destroy (InterruptObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
@@ -183,6 +195,29 @@ static PyMethodDef InterruptObj_methods[] = {
     ">>> it.resume()\n"
     ">>> it.interrupted()\n"
     "0\n" },
+  { "latency_ms", (PyCFunction)InterruptObj_latency_ms, METH_NOARGS,
+    "latency_ms() -> int\n"
+    "\n"
+    "The wait slice every blocking wait in this process uses.\n"
+    "\n"
+    "The readback for the constructor's `latency_ms`, and it reads the\n"
+    "PROCESS setting rather than what this guard asked for -- those differ\n"
+    "when the guard passed 0, which means \"leave it alone\". A value a "
+    "caller\n"
+    "can set and not read back is a value they cannot reason about.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Milliseconds.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.interrupt import Interrupt\n"
+    ">>> it = Interrupt(np.array([], dtype=np.int32), latency_ms=25)\n"
+    ">>> it.latency_ms()\n"
+    "25\n" },
   { "destroy", (PyCFunction)InterruptObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"

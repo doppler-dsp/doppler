@@ -24,6 +24,7 @@
 
 #include "clib_common.h"
 
+#include <signal.h>
 #include <stddef.h>
 
 #ifdef __cplusplus
@@ -65,6 +66,40 @@ extern "C"
    * signal (SIGINT, on_sigint);
    * @endcode
    */
+  /**
+   * @brief The state one process shares: the flag, and the wait slice.
+   *
+   * Public only so a Python extension can hand its address to another via
+   * a capsule. A C caller never touches it -- one archive means one copy
+   * and nothing to bind.
+   */
+  typedef struct
+  {
+    volatile sig_atomic_t flag;      /**< set by a handler; read by waits */
+    unsigned              latency_ms; /**< wait slice, milliseconds */
+  } dp_interrupt_state_t;
+
+  /**
+   * @brief This translation unit's interrupt state.
+   *
+   * The owner exports it; see dp_interrupt_bind().
+   */
+  dp_interrupt_state_t *dp_interrupt_state (void);
+
+  /**
+   * @brief Adopt another translation unit's interrupt state as this one's.
+   *
+   * A Python extension links this file statically, so each module gets its
+   * own flag and a stop in one cannot reach a wait in another
+   * (doppler#976). One module owns the state; every other calls this at
+   * IMPORT, once, before any handler is installed -- which is what makes
+   * the pointer safe to dereference from one.
+   *
+   * @param shared State to adopt; NULL is @ref DP_ERR_INVALID.
+   * @return DP_OK, or DP_ERR_INVALID.
+   */
+  int dp_interrupt_bind (dp_interrupt_state_t *shared);
+
   void dp_interrupt (void);
 
   /**

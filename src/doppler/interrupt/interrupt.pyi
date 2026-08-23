@@ -87,6 +87,29 @@ class Interrupt:
 
         """
 
+    def latency_ms(self) -> int:
+        """The wait slice every blocking wait in this process uses.
+
+        The readback for the constructor's `latency_ms`, and it reads the
+        PROCESS setting rather than what this guard asked for -- those differ
+        when the guard passed 0, which means "leave it alone". A value a caller
+        can set and not read back is a value they cannot reason about.
+
+        Returns
+        -------
+        int
+            Milliseconds.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.interrupt import Interrupt
+        >>> it = Interrupt(np.array([], dtype=np.int32), latency_ms=25)
+        >>> it.latency_ms()
+        25
+
+        """
+
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 

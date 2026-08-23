@@ -110,10 +110,17 @@ class F32Buffer:
             samples remain.  The tail is drained and no more is coming,
             so the wait ends rather than blocking forever.
         KeyboardInterrupt
-            Somebody asked this process to stop.  Ctrl+C reaches this
-            wait only inside :func:`doppler.stream.interrupt_on_sigint`,
-            which arms the flag the wait reads; without it the spin does
-            not check for signals at all.
+            Somebody asked this process to stop, through a
+            :class:`doppler.interrupt.Interrupt` guard that armed the
+            signal.  Without a guard the spin checks for signals at all.
+
+            .. warning::
+               A guard constructed in another extension module does NOT
+               reach this wait today: each module links the interrupt
+               primitive statically and gets its own copy of the flag
+               (doppler#976).  Until that is fixed the only stop this
+               wait observes is one requested from within
+               ``doppler.buffer`` itself.
         Examples
         --------
         >>> from doppler.buffer import F32Buffer
@@ -400,10 +407,17 @@ class F64Buffer:
             samples remain.  The tail is drained and no more is coming,
             so the wait ends rather than blocking forever.
         KeyboardInterrupt
-            Somebody asked this process to stop.  Ctrl+C reaches this
-            wait only inside :func:`doppler.stream.interrupt_on_sigint`,
-            which arms the flag the wait reads; without it the spin does
-            not check for signals at all.
+            Somebody asked this process to stop, through a
+            :class:`doppler.interrupt.Interrupt` guard that armed the
+            signal.  Without a guard the spin checks for signals at all.
+
+            .. warning::
+               A guard constructed in another extension module does NOT
+               reach this wait today: each module links the interrupt
+               primitive statically and gets its own copy of the flag
+               (doppler#976).  Until that is fixed the only stop this
+               wait observes is one requested from within
+               ``doppler.buffer`` itself.
         Examples
         --------
         >>> from doppler.buffer import F64Buffer
@@ -690,10 +704,17 @@ class I16Buffer:
             samples remain.  The tail is drained and no more is coming,
             so the wait ends rather than blocking forever.
         KeyboardInterrupt
-            Somebody asked this process to stop.  Ctrl+C reaches this
-            wait only inside :func:`doppler.stream.interrupt_on_sigint`,
-            which arms the flag the wait reads; without it the spin does
-            not check for signals at all.
+            Somebody asked this process to stop, through a
+            :class:`doppler.interrupt.Interrupt` guard that armed the
+            signal.  Without a guard the spin checks for signals at all.
+
+            .. warning::
+               A guard constructed in another extension module does NOT
+               reach this wait today: each module links the interrupt
+               primitive statically and gets its own copy of the flag
+               (doppler#976).  Until that is fixed the only stop this
+               wait observes is one requested from within
+               ``doppler.buffer`` itself.
         Examples
         --------
         >>> from doppler.buffer import I16Buffer

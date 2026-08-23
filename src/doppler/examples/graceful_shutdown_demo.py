@@ -22,7 +22,7 @@ library's and not any one binding's:
 - **CLI** — the ``wfmgen`` binary as a subprocess, stopped with a real
   SIGINT. This is what a person types.
 - **Python API** — ``Composer`` into a ``StreamSink``, with the loop
-  checking ``doppler.stream.interrupted()`` and ending with
+  checking the ``Interrupt`` guard and ending with
   ``send_eos()`` then ``drain()``. This is what a script does.
 - **C API** — ``doppler_wfmgen(argc, argv)``, the same CLI as a callable,
   demonstrated by ``native/examples/graceful_shutdown_demo.c``.
@@ -200,15 +200,18 @@ def main() -> int:
 def _python_api_face() -> None:
     """The same shutdown, composed and sent from Python.
 
-    No subprocess and no signal. A producer loop asks ``interrupted()``
-    between blocks, and that is the same flag a signal handler sets — so
-    one loop serves both Ctrl+C and a programmatic stop without needing to
-    know which it got. This stop is programmatic, which keeps the example
+    No subprocess and no signal. A producer loop asks the guard between
+    blocks, and that is the same flag a signal handler sets — so one loop
+    serves both Ctrl+C and a programmatic stop without needing to know
+    which it got. This stop is programmatic, which keeps the example
     deterministic.
+
+    The guard arms nothing here (an empty signal list): it is a handle to
+    the process-wide flag, which is all a programmatic stop needs.
     """
     import numpy as np
 
-    from doppler import stream as dstream
+    from doppler.interrupt import Interrupt
     from doppler.wfm import Composer, Segment, StreamSink
 
     endpoint = "nats://127.0.0.1:4222/graceful-demo-py"
@@ -220,22 +223,24 @@ def _python_api_face() -> None:
         seg = Segment("tone", num_samples=4096)
         block = Composer([seg]).compose().astype(np.complex64)
 
-        dstream.resume()  # start from a known state
+        # Constructing the guard clears the flag, so the loop starts from
+        # a known state without a separate call.
+        it = Interrupt(np.array([], dtype=np.int32))
         t0 = time.monotonic()
-        while not dstream.interrupted():
+        while not it.interrupted():
             sink.send(block, 1e6, 1e9)
             frames += 1
             if time.monotonic() - t0 > 0.5:
                 # What a signal handler would do. The loop cannot tell the
                 # difference between this and a Ctrl+C.
-                dstream.interrupt()
+                it.interrupt()
 
         # The ordered shutdown: stop producing, say so, then let it land.
         # send_eos() must precede drain() — a drain cannot be reversed and
         # refuses sends once it starts flushing.
         sink.send_eos()
         sink.drain(5000)
-        dstream.resume()
+        it.resume()
         print(f"sent {frames} frames, then send_eos() + drain()")
 
         got = 0

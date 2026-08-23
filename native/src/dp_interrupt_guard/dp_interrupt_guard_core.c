@@ -106,3 +106,10 @@ dp_interrupt_guard_resume (dp_interrupt_guard_t *guard)
   (void)guard;
   dp_resume ();
 }
+
+uint32_t
+dp_interrupt_guard_latency_ms (const dp_interrupt_guard_t *guard)
+{
+  (void)guard;
+  return (uint32_t)dp_interrupt_latency_ms ();
+}

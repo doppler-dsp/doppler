@@ -136,6 +136,27 @@ extern "C"
    */
   void dp_interrupt_guard_resume (dp_interrupt_guard_t *guard);
 
+  /**
+   * @brief The wait slice every blocking wait in this process uses.
+   *
+   * The readback for the constructor's `latency_ms`, and it reads the
+   * PROCESS setting rather than what this guard asked for -- those differ
+   * when the guard passed 0, which means "leave it alone". A value a
+   * caller can set and not read back is a value they cannot reason about.
+   *
+   * @param guard Guard; NULL reads the process setting anyway.
+   * @return Milliseconds.
+   *
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.interrupt import Interrupt
+   * >>> it = Interrupt(np.array([], dtype=np.int32), latency_ms=25)
+   * >>> it.latency_ms()
+   * 25
+   * @endcode
+   */
+  uint32_t dp_interrupt_guard_latency_ms (const dp_interrupt_guard_t *guard);
+
 #ifdef __cplusplus
 }
 #endif

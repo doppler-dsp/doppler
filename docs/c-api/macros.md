@@ -115,6 +115,7 @@
 * **DP\_OK** ([**clib\_common.h**](clib__common_8h.md))
 * **DP\_FMT** ([**dp\_format.h**](dp__format_8h.md))
 * **DP\_INTERRUPT\_LATENCY\_DEFAULT\_MS** ([**dp\_interrupt.h**](dp__interrupt_8h.md))
+* **DP\_INTERRUPT\_MAX\_SIGNALS** ([**dp\_interrupt.h**](dp__interrupt_8h.md))
 * **DP\_ISOTIME\_BASIC** ([**dp\_isotime.h**](dp__isotime_8h.md))
 * **DP\_ISOTIME\_EXTENDED** ([**dp\_isotime.h**](dp__isotime_8h.md))
 * **DP\_ISOTIME\_MAX** ([**dp\_isotime.h**](dp__isotime_8h.md))

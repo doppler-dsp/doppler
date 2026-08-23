@@ -20,13 +20,37 @@ callers.
 
 ______________________________________________________________________
 
+## 0. Where this stands
+
+This page was written as a proposal and is now two-thirds built, so the
+sections below mix what shipped with what is still owed. Rather than
+rewrite each into the past tense and lose the reasoning, the state is
+stated once, here:
+
+| transport   | interruptible                  | end-of-stream                                                      | durable completion        |
+| ----------- | ------------------------------ | ------------------------------------------------------------------ | ------------------------- |
+| **network** | yes                            | yes — `DP_KIND_EOS`                                                | yes — `dp_stream_drain`   |
+| **memory**  | yes — `wait()` checks the flag | yes — `close()` / `closed`                                         | **no**                    |
+| **disk**    | —                              | **no** ([#972](https://github.com/doppler-dsp/doppler/issues/972)) | yes — close returns `int` |
+
+Two carve-outs that are decisions rather than oversights, both filed:
+
+- **the disk half** ([#972](https://github.com/doppler-dsp/doppler/issues/972))
+    — a reader still cannot tell "short read, writer still open" from "end
+    of capture", which is §1's subtlest failure and the one still live.
+- **the rename is half-done** ([#974](https://github.com/doppler-dsp/doppler/issues/974))
+    — the `dp_stream_*` spellings below were to be removed, not aliased.
+    They are aliased, and doppler's own Python binding still calls them.
+
+______________________________________________________________________
+
 ## 1. The same bug, three costumes
 
-|             | the wait                                        | how it fails                                                                                                                  | producer-side question                                                                                             |
-| ----------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| **network** | blocking `recv` inside the NATS client          | keeps the caller out of the loop where the flag is read                                                                       | `dp_pub_flush` / `dp_stream_drain` — the client's own close is best-effort with a 500 ms cap and no failure report |
-| **memory**  | `dp_<t>_wait()` in `native/inc/buffer/buffer.h` | **unbounded busy-spin.** No timeout, no flag, no producer-done. If the producer stops, the consumer spins forever at 100% CPU | the `dropped` counter — an overrun is a field someone might read, not an answer anyone gets                        |
-| **disk**    | `wfm_reader_read()` returning 0                 | `0` means end-of-file *or* not-written-yet. A live capture cannot tell them apart                                             | the writer's close returns `int` and raises `OSError`                                                              |
+|             | the wait                                        | how it fails                                                                                                                                                                                                                     | producer-side question                                                                                             |
+| ----------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **network** | blocking `recv` inside the NATS client          | keeps the caller out of the loop where the flag is read                                                                                                                                                                          | `dp_pub_flush` / `dp_stream_drain` — the client's own close is best-effort with a 500 ms cap and no failure report |
+| **memory**  | `dp_<t>_wait()` in `native/inc/buffer/buffer.h` | **was an unbounded busy-spin** — no timeout, no flag, no producer-done, so a stopped producer left the consumer at 100% CPU with no signal able to rescue it. Fixed: it checks `closed` and the interrupt flag, and returns NULL | the `dropped` counter — an overrun is a field someone might read, not an answer anyone gets. **Still true**        |
+| **disk**    | `wfm_reader_read()` returning 0                 | `0` means end-of-file *or* not-written-yet. A live capture cannot tell them apart                                                                                                                                                | the writer's close returns `int` and raises `OSError`                                                              |
 
 Ranked by severity, which is not the order they were built in:
 
@@ -38,9 +62,10 @@ Ranked by severity, which is not the order they were built in:
     tail-following reader treats a slow writer as end-of-file, gets a
     short read, and reports a clean finish on a truncated capture. A
     hang is at least visible.
-- **Network is the one already fixed**, and it is the model: §8b of
+- **Network was the one already fixed**, and it was the model: §8b of
     [Streaming](streaming.md) slices the wait and checks a flag inside
-    it.
+    it. Memory now follows it; **disk is the one still open**, which
+    means the failure ranked second-worst here is the one that survives.
 
 ______________________________________________________________________
 
@@ -52,9 +77,10 @@ ______________________________________________________________________
 - **A consumer at rate that must stay responsive.** A dashboard or
     analyzer reading as fast as the transport delivers, still answering
     Ctrl+C.
-- **A pipeline stage whose upstream finishes.** The case none of the
-    three handles today: a consumer must learn that no more data is
-    coming and exit 0, rather than block, spin, or silently truncate.
+- **A pipeline stage whose upstream finishes.** The case that motivated
+    the page: a consumer must learn that no more data is coming and exit
+    0, rather than block, spin, or silently truncate. Network and memory
+    serve it now; a disk reader still cannot, and silently truncates.
 
 ______________________________________________________________________
 
@@ -80,17 +106,29 @@ general primitive carrying the name of one of its three users is exactly
 the naming rot this repo keeps rediscovering. Two spellings forever is
 the more expensive option, just later.
 
+**The second half of that has not happened**, and saying so here is the
+point of §0. `dp_interrupt.c` exists and the old names forward to it
+verbatim, but nothing has been removed and doppler's own Python binding
+still calls the deprecated spellings throughout — so the tree currently
+has the two-spellings state this paragraph argues against, reached by
+default rather than by decision. Tracked as
+[#974](https://github.com/doppler-dsp/doppler/issues/974).
+
 ### End-of-stream — the piece that does not exist
 
-No transport can say "I am done" today. This is the genuinely new
-mechanism, and it is what kills the race in all three cases:
+No transport could say "I am done" when this was written. This is the
+genuinely new mechanism, and it is what kills the race in all three
+cases — two of them now, the third still owed:
 
-- **memory** — a producer marks the ring closed; `wait()` returns
-    end-of-stream instead of spinning when it is closed and drained.
-- **disk** — a reader distinguishes "short read, writer still open" from
-    "end of capture", which is what makes tail-following honest.
-- **network** — an explicit end-of-stream frame, so a subscriber learns
-    the sender finished rather than inferring it from silence.
+- **memory** *(built)* — a producer marks the ring closed; `wait()`
+    returns end-of-stream instead of spinning when it is closed and
+    drained.
+- **disk** *(not built —
+    [#972](https://github.com/doppler-dsp/doppler/issues/972))* — a reader
+    distinguishes "short read, writer still open" from "end of capture",
+    which is what makes tail-following honest.
+- **network** *(built)* — an explicit end-of-stream frame, so a subscriber
+    learns the sender finished rather than inferring it from silence.
 
 Explicit, not inferred, and the alternatives were checked rather than
 assumed away. NATS does offer one adjacent mechanism — a JetStream stream
@@ -136,7 +174,8 @@ invisible one.
 What that buys per tier, stated rather than blurred:
 
 - **PUSH/PULL** — at-least-once, so the marker arrives (possibly more
-    than once; EOS must therefore be idempotent).
+    than once; EOS must therefore be idempotent). It reaches **exactly one
+    consumer**, which is the caveat below.
 - **PUB/SUB** — best-effort. A subscriber that must not hang on a lost
     marker still needs a timeout; EOS turns the common case from "wait
     forever" into "finish promptly", not from "unreliable" into
@@ -147,6 +186,49 @@ What that buys per tier, stated rather than blurred:
 That asymmetry is a property of the transports, not of this design, and
 the vocabulary is uniform anyway: a caller handles `DP_ERR_EOF` the same
 way everywhere and is told which tiers can fail to deliver it.
+
+#### On the work queue an ending is a MESSAGE, with both consequences
+
+"At-least-once" was written above as unqualified good news, and building
+the tier found two ways it is not. Both follow from one fact — on
+PUSH/PULL the marker is an ordinary work-queue message — and neither has
+an analogue on the other transports, where the marker is a flag or a
+fact.
+
+**It goes to one consumer, not to the pool.** A work queue load-balances,
+and an EOS frame load-balances with everything else. So a single
+`send_eos()` ends *one* worker and leaves the rest waiting on a stream
+that is over. Measured with five consumers racing: twenty frames spread
+across all five, one of them told, four silent — and *which* one varies
+per run, because the choice is the broker's.
+
+This is the opposite shape from PUB/SUB, and the pairing is worth stating
+plainly, because the tier with the *reliable* marker is the one that
+cannot broadcast it:
+
+|               | reaches              | can be lost |
+| ------------- | -------------------- | ----------- |
+| **PUB/SUB**   | every subscriber     | yes         |
+| **PUSH/PULL** | exactly one consumer | no          |
+
+Ending a pool of N therefore needs N markers, or a second PUB/SUB subject
+carrying the shutdown alongside the work queue carrying the data.
+`work_queue_shutdown_demo.py` asserts the single-consumer property rather
+than describing it.
+
+**And it must be acked, by the receive path, because nobody else can.**
+`dp_sub_recv` reports an ending as a *state* and hands back no
+`dp_msg_t` — so there is nothing for a caller to `dp_msg_ack()`. PULL is
+an explicit-ack consumer on a WorkQueue stream, where a message is
+removed only once acked, so an unacked marker redelivers every `AckWait`
+forever *and* stays in the stream: the next run against that subject
+opens onto the previous run's ending, a stream told it finished before it
+began. Measured, then fixed — the receive path acks it itself.
+
+That the reporting convention (a state, not a frame) is what removes the
+caller's ability to ack is the part worth carrying forward. Any future
+"report it as a state" decision on an acked transport inherits the same
+obligation.
 
 ### Durable completion — one bounded, failure-reporting verb
 

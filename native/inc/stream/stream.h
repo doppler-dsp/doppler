@@ -47,6 +47,7 @@
  * live in clib_common.h — the streaming API uses the one doppler-wide scheme.
  */
 #include "clib_common.h"
+#include "dp_interrupt.h"
 #include "dp_format.h"
 
 /**
@@ -911,7 +912,14 @@ extern "C"
   const char *dp_host_rep (void);
 
 
-  /** @defgroup interrupt Interrupting a blocking receive
+  /** @defgroup interrupt Interrupting a blocking receive (DEPRECATED)
+   *
+   * @deprecated These are the `dp_stream_*` spellings of a primitive that
+   * is not specific to streaming. It moved to `dp_interrupt.h` in the core
+   * library so a build with no NATS can use it; use `dp_interrupt()`,
+   * `dp_interrupted()`, `dp_resume()`, `dp_interrupt_on_signal()` and
+   * `dp_restore_signal()` instead. These forward verbatim and are removed
+   * once their callers migrate. See `docs/design/io-termination.md`.
    *  @ingroup streaming
    *  @{
    *
@@ -958,7 +966,7 @@ extern "C"
    * perceives when they press Ctrl+C. It is a default rather than a
    * constant of the design: see dp_stream_set_interrupt_latency_ms().
    */
-#define DP_INTERRUPT_LATENCY_DEFAULT_MS 100u
+/* Defined by dp_interrupt.h, which owns the primitive. */
 
   /**
    * @brief How soon a blocking receive must notice an interrupt.

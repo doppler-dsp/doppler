@@ -25,7 +25,7 @@
 
 | Type | Name |
 | ---: | :--- |
-| module | [**Interrupting a blocking receive**](group__interrupt.md) <br> |
+| module | [**Interrupting a blocking receive (DEPRECATED)**](group__interrupt.md) <br> |
 
 
 

@@ -57,7 +57,7 @@
 |  int | [**dp\_stream\_interrupted**](#function-dp_stream_interrupted) (void) <br>_Non-zero when an interrupt is pending._  |
 |  int | [**dp\_stream\_restore\_signal**](#function-dp_stream_restore_signal) (int sig) <br>_Restore the handler that was in place before._  |
 |  void | [**dp\_stream\_resume**](#function-dp_stream_resume) (void) <br>_Clear the interrupt, so blocking receives block again._  |
-|  void | [**dp\_stream\_set\_interrupt\_latency\_ms**](#function-dp_stream_set_interrupt_latency_ms) (unsigned ms) <br>_How soon a blocking receive must notice an interrupt._  |
+|  void | [**dp\_stream\_set\_interrupt\_latency\_ms**](#function-dp_stream_set_interrupt_latency_ms) (unsigned ms) <br>_Default interrupt latency, in milliseconds._  |
 
 
 
@@ -85,13 +85,17 @@
 
 
 
-## Macros
-
-| Type | Name |
-| ---: | :--- |
-| define  | [**DP\_INTERRUPT\_LATENCY\_DEFAULT\_MS**](group__interrupt.md#define-dp_interrupt_latency_default_ms)  `100u`<br>_Default interrupt latency, in milliseconds._  |
 
 ## Detailed Description
+
+
+
+
+**Deprecated**
+
+These are the `dp_stream_*` spellings of a primitive that is not specific to streaming. It moved to `dp_interrupt.h` in the core library so a build with no NATS can use it; use `dp_interrupt()`, `dp_interrupted()`, `dp_resume()`, `dp_interrupt_on_signal()` and `dp_restore_signal()` instead. These forward verbatim and are removed once their callers migrate. See `docs/design/io-termination.md`.
+
+
 
 
 A blocking `*_recv` waits inside the NATS client, and a flag your signal handler sets is read by your loop — which the blocking call is keeping you out of. With traffic arriving that is invisible, because every frame returns control to you; the moment a sender stops, Ctrl+C stops working. That is not hypothetical: it shipped, in doppler's own C receiver example.
@@ -293,13 +297,19 @@ The flag is sticky on purpose: a handler fires once and the loops it unblocks ma
 
 ### function dp\_stream\_set\_interrupt\_latency\_ms 
 
-_How soon a blocking receive must notice an interrupt._ 
+_Default interrupt latency, in milliseconds._ 
 ```
 void dp_stream_set_interrupt_latency_ms (
     unsigned ms
 ) 
 ```
 
+
+
+Ten wakeups a second on an idle receiver, and a delay no human perceives when they press Ctrl+C. It is a default rather than a constant of the design: see [**dp\_stream\_set\_interrupt\_latency\_ms()**](group__interrupt.md#function-dp_stream_set_interrupt_latency_ms).
+
+
+How soon a blocking receive must notice an interrupt.
 
 
 The library cannot be woken from the NATS client's wait, so it waits in slices and checks the flag between them. This is the size of that slice, expressed as the thing a caller actually cares about — the worst-case delay between [**dp\_stream\_interrupt()**](group__interrupt.md#function-dp_stream_interrupt) and the receive returning — rather than as an implementation detail.
@@ -316,30 +326,9 @@ Process-wide, like the flag it serves. Takes effect on the next wait slice, so a
 **Parameters:**
 
 
-* `ms` Milliseconds; 0 selects [**DP\_INTERRUPT\_LATENCY\_DEFAULT\_MS**](group__interrupt.md#define-dp_interrupt_latency_default_ms). 
+* `ms` Milliseconds; 0 selects [**DP\_INTERRUPT\_LATENCY\_DEFAULT\_MS**](dp__interrupt_8h.md#define-dp_interrupt_latency_default_ms). 
 
 
-
-
-        
-
-<hr>
-## Macro Definition Documentation
-
-
-
-
-
-### define DP\_INTERRUPT\_LATENCY\_DEFAULT\_MS 
-
-_Default interrupt latency, in milliseconds._ 
-```
-#define DP_INTERRUPT_LATENCY_DEFAULT_MS `100u`
-```
-
-
-
-Ten wakeups a second on an idle receiver, and a delay no human perceives when they press Ctrl+C. It is a default rather than a constant of the design: see [**dp\_stream\_set\_interrupt\_latency\_ms()**](group__interrupt.md#function-dp_stream_set_interrupt_latency_ms). 
 
 
         

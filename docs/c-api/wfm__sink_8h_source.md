@@ -43,6 +43,8 @@ wfm_stream_sink_t *wfm_stream_sink_open(const char *endpoint, int sample_type);
 int wfm_stream_sink_send(wfm_stream_sink_t *sink, const float _Complex *iq,
                          size_t n, double fs, double fc);
 
+int wfm_stream_sink_drain(wfm_stream_sink_t *sink, int timeout_ms);
+
 void wfm_stream_sink_close(wfm_stream_sink_t *sink);
 
 /* Clip detection, mirroring wfm_writer (peak always tracked on the integer

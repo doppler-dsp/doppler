@@ -208,6 +208,12 @@ if(NOT WIN32)
         ${CMAKE_SOURCE_DIR}/native/src/timing/timing_core.c)
     target_include_directories(timing_core PUBLIC
         ${CMAKE_SOURCE_DIR}/native/inc)
+    # pace()'s sleep gives up when the process is interrupted, so timing_core
+    # now references dp_interrupted(). The objects have to be named at each
+    # consumer: CMake does not propagate one OBJECT library's objects through
+    # another, so a PUBLIC link here compiles and still leaves the symbol
+    # undefined at link time. Measured, not assumed -- it was written that way
+    # first. Targets that link libdoppler instead get it from the archive.
 
     # Expose the sample clock in libdoppler (.so + .a) for downstream C — the
     # header already ships via the native/inc install. doppler_lib /
@@ -221,14 +227,16 @@ if(NOT WIN32)
 
     add_executable(test_timing_core
         ${CMAKE_SOURCE_DIR}/native/tests/test_timing_core.c)
-    target_link_libraries(test_timing_core PRIVATE timing_core)
+    target_link_libraries(test_timing_core PRIVATE timing_core
+        $<TARGET_OBJECTS:dp_interrupt_obj>)
     target_include_directories(test_timing_core PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc)
     add_test(NAME test_timing_core COMMAND test_timing_core)
 
     add_executable(bench_timing_core
         ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_timing_core.c)
-    target_link_libraries(bench_timing_core PRIVATE timing_core m)
+    target_link_libraries(bench_timing_core PRIVATE timing_core m
+        $<TARGET_OBJECTS:dp_interrupt_obj>)
     target_include_directories(bench_timing_core PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks)
 
@@ -246,7 +254,7 @@ if(NOT WIN32)
         ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_sink.c)
     target_link_libraries(test_wfm_sink PRIVATE
         wfm_sink_core
-        $<TARGET_OBJECTS:stream_core_obj>
+        $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
         dp_tlm_core
         nats_vendor_static
         Threads::Threads m)
@@ -287,7 +295,7 @@ if(NOT WIN32)
         wfmgen_core
         wfm_compose_core wfm_draw_core wfm_writer_core wfm_keywords_core wfm_sink_core timing_core wfm_cjson_core
         wfm_dsp_core wfm_frame_core ccsds_tm_core conv_core rs_core wfm_synth_core lo_core awgn_core pn_core gold_core fir_core resamp_core
-        $<TARGET_OBJECTS:stream_core_obj>
+        $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
         dp_tlm_core
         nats_vendor_static
         Threads::Threads m)

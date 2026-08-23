@@ -69,6 +69,27 @@ wfm_stream_sink_t *wfm_stream_sink_open(const char *endpoint, int sample_type);
 int wfm_stream_sink_send(wfm_stream_sink_t *sink, const float _Complex *iq,
                          size_t n, double fs, double fc);
 
+/**
+ * @brief Let everything already sent reach the server, then stop.
+ *
+ * `wfm_stream_sink_send` hands a block to the NATS client and returns; the
+ * client writes it in the background. So "send returned" is not "the server
+ * has it", and closing without asking relies on the client's own
+ * best-effort flush -- capped at 500 ms, with no way to report failure, so
+ * a backlog that cannot clear in half a second is dropped silently.
+ *
+ * Call this before wfm_stream_sink_close() on any run whose tail matters.
+ * After it returns the sink is finished: close it next, which is then just
+ * the free.
+ *
+ * @param sink       Sink; NULL is DP_OK (nothing was buffered).
+ * @param timeout_ms Budget; <= 0 uses the stream layer's 5 s default.
+ * @return DP_OK once drained, or the stream layer's error -- DP_ERR_TIMEOUT
+ *         if the budget ran out with the drain still in progress, in which
+ *         case the sink is still safe to close.
+ */
+int wfm_stream_sink_drain(wfm_stream_sink_t *sink, int timeout_ms);
+
 /** @brief Close the sink and destroy the publisher. @param sink May be NULL. */
 void wfm_stream_sink_close(wfm_stream_sink_t *sink);
 

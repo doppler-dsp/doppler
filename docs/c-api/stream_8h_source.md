@@ -20,6 +20,7 @@
  * live in clib_common.h — the streaming API uses the one doppler-wide scheme.
  */
 #include "clib_common.h"
+#include "dp_interrupt.h"
 #include "dp_format.h"
 
 #ifdef __cplusplus
@@ -287,7 +288,7 @@ extern "C"
 
   void dp_stream_interrupt (void);
 
-#define DP_INTERRUPT_LATENCY_DEFAULT_MS 100u
+/* Defined by dp_interrupt.h, which owns the primitive. */
 
   void dp_stream_set_interrupt_latency_ms (unsigned ms);
 

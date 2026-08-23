@@ -10,6 +10,7 @@ Here is a list of all files with brief descriptions:
         * **file** [**doppler.h**](doppler_8h.md) 
         * **file** [**dp\_crc16.h**](dp__crc16_8h.md) _CRC-16-CCITT over a bit stream — the one CRC shared by every doppler frame producer and consumer._     
         * **file** [**dp\_format.h**](dp__format_8h.md) _Complex sample formats, named by their BLUE/Platinum codes._     
+        * **file** [**dp\_interrupt.h**](dp__interrupt_8h.md) _Asking a blocking wait to stop, whatever it is waiting on._     
         * **file** [**dp\_isotime.h**](dp__isotime_8h.md) _ISO 8601 UTC timestamps in both spellings — filename-safe_ **basic** _for names doppler writes,_**extended** _for the wire formats that mandate it._    
         * **file** [**dp\_parallel.h**](dp__parallel_8h.md)     
         * **file** [**dp\_simd.h**](dp__simd_8h.md) _doppler's own composite SIMD reductions, layered over_ `jm_simd.h` _._    

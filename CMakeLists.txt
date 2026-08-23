@@ -137,8 +137,22 @@ configure_file(
 
 # Combined C library — shared + static, no Python dependency.
 # Component OBJECT libraries are wired in via target_sources below.
-add_library(doppler_lib SHARED native/src/doppler_lib.c)
-add_library(doppler_lib_static STATIC native/src/doppler_lib.c)
+# dp_interrupt is core, not a component: the ring buffer and the file writer
+# consult the same flag as the NATS wait, and both exist in a build with no
+# stream component at all. An OBJECT library rather than a plain source
+# because stream_core_obj is embedded as raw objects into targets that never
+# link the core archive -- test_stream_nats_core, bench_stream, wfmgen -- so
+# those need the objects too, not a link edge to a library they do not use.
+add_library(dp_interrupt_obj OBJECT native/src/dp_interrupt.c)
+target_include_directories(dp_interrupt_obj PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/native/inc>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/native/inc>)
+set_target_properties(dp_interrupt_obj PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+add_library(doppler_lib SHARED native/src/doppler_lib.c
+    $<TARGET_OBJECTS:dp_interrupt_obj>)
+add_library(doppler_lib_static STATIC native/src/doppler_lib.c
+    $<TARGET_OBJECTS:dp_interrupt_obj>)
 foreach(_t doppler_lib doppler_lib_static)
     target_include_directories(${_t} PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/native/inc>

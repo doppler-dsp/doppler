@@ -11,6 +11,7 @@
 
 #include <signal.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 /* Set by the previous handler, to prove chaining actually calls it. */
@@ -129,6 +130,77 @@ test_restore_puts_the_old_handler_back (void)
   DP_CHECK (sigaction (SIGUSR2, &sa, NULL) == 0);
 }
 
+/* Set by a SA_SIGINFO predecessor, to prove the three-argument chain. */
+static volatile sig_atomic_t prior_si_ran = 0;
+
+static void
+prior_sigaction (int sig, siginfo_t *info, void *uctx)
+{
+  (void)sig;
+  (void)info;
+  (void)uctx;
+  prior_si_ran = 1;
+}
+
+/* The displaced handler may be a SA_SIGINFO one -- CPython's is -- so the
+   chain has to call it through sa_sigaction with all three arguments, not
+   through sa_handler. Getting this wrong silently drops the interpreter's
+   own handler. */
+static void
+test_chaining_calls_a_sigaction_predecessor (void)
+{
+  struct sigaction sa;
+  memset (&sa, 0, sizeof sa);
+  sa.sa_sigaction = prior_sigaction;
+  sa.sa_flags     = SA_SIGINFO;
+  sigemptyset (&sa.sa_mask);
+  DP_CHECK (sigaction (SIGUSR2, &sa, NULL) == 0);
+
+  prior_si_ran = 0;
+  dp_resume ();
+  DP_CHECK (dp_interrupt_on_signal (SIGUSR2) == DP_OK);
+
+  raise (SIGUSR2);
+
+  DP_CHECK (dp_interrupted () != 0);
+  DP_CHECK (prior_si_ran == 1);
+
+  DP_CHECK (dp_restore_signal (SIGUSR2) == DP_OK);
+  dp_resume ();
+
+  memset (&sa, 0, sizeof sa);
+  sa.sa_handler = SIG_DFL;
+  DP_CHECK (sigaction (SIGUSR2, &sa, NULL) == 0);
+}
+
+/* A signal that cannot be caught fails the install rather than reporting a
+   success nobody can rely on. */
+static void
+test_uncatchable_signal_is_refused (void)
+{
+  DP_CHECK (dp_interrupt_on_signal (SIGKILL) == DP_ERR_INVALID);
+}
+
+/* The slot table is finite. Filling it must refuse the next install rather
+   than silently forget the handler it would have displaced. */
+static void
+test_slot_exhaustion_is_refused (void)
+{
+  static const int sigs[] = { SIGUSR1, SIGUSR2, SIGCHLD, SIGCONT,
+                              SIGURG,  SIGXCPU, SIGXFSZ, SIGVTALRM };
+  const int        n      = (int)(sizeof sigs / sizeof sigs[0]);
+
+  for (int i = 0; i < n; i++)
+    DP_CHECK (dp_interrupt_on_signal (sigs[i]) == DP_OK);
+
+  /* A ninth, distinct from all eight above. */
+  DP_CHECK (dp_interrupt_on_signal (SIGPROF) == DP_ERR_INVALID);
+
+  for (int i = 0; i < n; i++)
+    DP_CHECK (dp_restore_signal (sigs[i]) == DP_OK);
+  dp_resume ();
+}
+
 int
 main (void)
 {
@@ -139,6 +211,9 @@ main (void)
   test_chaining_calls_the_previous_handler ();
   test_restoring_what_was_never_installed_fails ();
   test_restore_puts_the_old_handler_back ();
+  test_chaining_calls_a_sigaction_predecessor ();
+  test_uncatchable_signal_is_refused ();
+  test_slot_exhaustion_is_refused ();
 
   DP_TEST_END ("test_dp_interrupt");
 }

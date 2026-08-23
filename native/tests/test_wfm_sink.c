@@ -72,6 +72,13 @@ main (void)
       !wfm_stream_sink_open ("nats://127.0.0.1:4222/wfm-sink-bad", 9),
       "bad type rejected");
 
+  /* drain(NULL) is DP_OK, not a crash and not an error: nothing was
+     buffered, so the question "has everything reached the server" is
+     vacuously yes. A caller draining in a cleanup path should not have to
+     guard the call. */
+  DP_REQUIRE_MSG (wfm_stream_sink_drain (NULL, 100) == DP_OK,
+                  "draining a NULL sink is vacuously fine");
+
   printf ("test_wfm_sink: OK (5 wire types published)\n");
   return 0;
 }

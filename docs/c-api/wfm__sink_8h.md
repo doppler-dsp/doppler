@@ -211,11 +211,11 @@ int wfm_stream_sink_drain (
 
 
 
-`wfm_stream_sink_send` hands a block to the NATS client and returns; the client writes it in the background. So "send returned" is not "the server
+A send hands a block to the NATS client and returns; the client writes it in the background. So "send returned" is not "the server
 has it", and closing without asking relies on the client's own best-effort flush  capped at 500 ms, with no way to report failure, so a backlog that cannot clear in half a second is dropped silently.
 
 
-Call this before [**wfm\_stream\_sink\_close()**](wfm__sink_8h.md#function-wfm_stream_sink_close) on any run whose tail matters. After it returns the sink is finished: close it next, which is then just the free.
+Call this before closing the sink on any run whose tail matters. After it returns the sink is finished: close it next, which is then just the free.
 
 
 

@@ -72,13 +72,13 @@ int wfm_stream_sink_send(wfm_stream_sink_t *sink, const float _Complex *iq,
 /**
  * @brief Let everything already sent reach the server, then stop.
  *
- * `wfm_stream_sink_send` hands a block to the NATS client and returns; the
+ * A send hands a block to the NATS client and returns; the
  * client writes it in the background. So "send returned" is not "the server
  * has it", and closing without asking relies on the client's own
  * best-effort flush -- capped at 500 ms, with no way to report failure, so
  * a backlog that cannot clear in half a second is dropped silently.
  *
- * Call this before wfm_stream_sink_close() on any run whose tail matters.
+ * Call this before closing the sink on any run whose tail matters.
  * After it returns the sink is finished: close it next, which is then just
  * the free.
  *

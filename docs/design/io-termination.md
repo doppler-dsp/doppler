@@ -20,34 +20,6 @@ callers.
 
 ______________________________________________________________________
 
-## 0. Where this stands
-
-This page was written as a proposal and is now two-thirds built, so the
-sections below mix what shipped with what is still owed. Rather than
-rewrite each into the past tense and lose the reasoning, the state is
-stated once, here:
-
-| transport   | interruptible                  | end-of-stream                                                      | durable completion        |
-| ----------- | ------------------------------ | ------------------------------------------------------------------ | ------------------------- |
-| **network** | yes                            | yes — `DP_KIND_EOS`                                                | yes — `dp_stream_drain`   |
-| **memory**  | yes — `wait()` checks the flag | yes — `close()` / `closed`                                         | **no**                    |
-| **disk**    | —                              | **no** ([#972](https://github.com/doppler-dsp/doppler/issues/972)) | yes — close returns `int` |
-
-Two carve-outs that are decisions rather than oversights, both filed:
-
-- **the disk half** ([#972](https://github.com/doppler-dsp/doppler/issues/972))
-    — a reader still cannot tell "short read, writer still open" from "end
-    of capture", which is §1's subtlest failure and the one still live.
-- **the rename is half-done** ([#974](https://github.com/doppler-dsp/doppler/issues/974))
-    — the `dp_stream_*` spellings below were to be removed, not aliased.
-    They are aliased, and doppler's own Python binding still calls them.
-- **none of it is measured at rate**
-    ([#975](https://github.com/doppler-dsp/doppler/issues/975)) — §5's
-    list, including the 100 ms interrupt bound, which is published in a
-    public header and measured only on an idle waiter.
-
-______________________________________________________________________
-
 ## 1. The same bug, three costumes
 
 |             | the wait                                        | how it fails                                                                                                                                                                                                                     | producer-side question                                                                                             |
@@ -117,6 +89,78 @@ still calls the deprecated spellings throughout — so the tree currently
 has the two-spellings state this paragraph argues against, reached by
 default rather than by decision. Tracked as
 [#974](https://github.com/doppler-dsp/doppler/issues/974).
+
+#### The primitive is an OBJECT, and the guard moves into C
+
+Renaming it was half the problem. The other half is that it was never
+*declared* — it has no manifest fragment at all, so its CMake object
+library is hand-written in the root `CMakeLists.txt`, three modules splice
+it into their link lines by hand, its binding lives inside `stream`'s
+`no_generate` extension, and it has no `.pyi` of its own. Every symptom
+in [#974](https://github.com/doppler-dsp/doppler/issues/974) follows from
+that one omission, which is why the fix is phase 2 rather than a delete.
+
+**It cannot be declared as free functions.** A module function's C symbol
+*is* its Python name — jm has no `fn` override there, and says so
+(`unknown function key 'fn' — it is a method key`). So a `dp_`-prefixed C
+API could only present as `doppler.interrupt.dp_interrupt()`, or by
+renaming the C to bare `interrupt()` / `resume()`, which pollutes the
+global namespace of every C consumer. That is what the prefix exists to
+prevent.
+
+**A class escapes both**, and by derivation rather than by override.
+Name the component after the C prefix — `dp_interrupt_guard` — and every
+symbol jm derives is already the name doppler would have chosen:
+`dp_interrupt_guard_create`, `_destroy`, `_interrupt`, `_interrupted`,
+`_resume`. `class_name = "Interrupt"` places the Python face. That is the
+`dp_tlm` pattern exactly, and it needs no `fn` overrides at all.
+
+It does need three one-line C wrappers, and the reason is worth stating so
+it is not mistaken for the aliasing mess above: **jm passes the handle as
+a method's first argument** (`dp_tlm_emit_checked(self->handle, …)`),
+while the process-wide functions take `void`. So the object face is
+`dp_interrupt_guard_interrupt(g)` delegating to `dp_interrupt()`. These
+are not a second spelling of the same function the way `dp_stream_*` is —
+they have a different signature and a different job: they are the object's
+face onto a facility it does not own. The shape:
+
+```python
+it = Interrupt()                  # a handle to the process-wide facility
+it.interrupt(); it.interrupted(); it.resume()
+
+with Interrupt(sigint=True) as it:   # construction ARMS; exit restores
+    while not it.interrupted():
+        ...
+```
+
+Two things this decides, both deliberate:
+
+- **The flag stays process-wide**, so two instances observe one flag. The
+    object is a handle to a facility, not an instance of one, and §6 still
+    holds — per-wait interruption is a different feature. What the object
+    scopes is the *arming*: which signals this guard installed, and the
+    latency it overrode.
+- **The guard's logic moves into C.** Today `InterruptGuardObject` lives
+    in `stream_ext.c` and does real work there — saving and restoring the
+    latency, tracking which handlers it installed, unwinding a partial
+    install. That is orchestration in a binding, which the repo forbids
+    everywhere else, and it is why the guard has no C test: there is no C
+    to test. `dp_interrupt_guard_t` with a create/destroy pair puts it
+    where every other lifecycle lives, and `__enter__`/`__exit__` are then
+    generated rather than hand-written.
+
+**It is a breaking change, and pre-1.0 is when to take it.**
+`doppler.stream.interrupt()` becomes `doppler.interrupt.Interrupt().interrupt()`.
+The free functions go: they are the spelling that cannot be declared, and
+keeping them would mean keeping the hand binding that this exists to
+retire. The C face is untouched — every `dp_*` symbol keeps its name — so
+no C caller moves.
+
+The cost worth naming: a declared component owes a benchmark, and `make lint` will require one (jm warns about it on scaffold). The primitive has
+a C test and no benchmark today, which nothing notices, because an
+undeclared component is invisible to that gate too.
+
+______________________________________________________________________
 
 ### End-of-stream — the piece that does not exist
 
@@ -275,9 +319,9 @@ ______________________________________________________________________
 
 ## 5. What is not measured
 
-Tracked as [#975](https://github.com/doppler-dsp/doppler/issues/975) — a
-list of gaps inside a design page is read once, by whoever is already
-working on that page.
+Tracked as [#975](https://github.com/doppler-dsp/doppler/issues/975); see
+§7. A list of gaps inside a design page is read once, by whoever is
+already working on that page.
 
 The quantitative claims across all three transports are prose today. See
 [Streaming §11](streaming.md) for the network figures; the same treatment
@@ -303,3 +347,72 @@ ______________________________________________________________________
     different cost.
 - **No ordering or delivery guarantees.** Those remain each transport's
     own; see [Streaming §9](streaming.md).
+
+______________________________________________________________________
+
+## 7. The record — resolved and open
+
+This page was written as a proposal and two thirds of it is built. Rather
+than rewrite each section into the past tense and lose the reasoning for
+why it was decided that way, each decision is listed here with what
+became of it.
+
+- **The interrupt primitive is general, and moves down a layer** —
+    *resolved, shipped.* `dp_interrupt.c` has no NATS dependency and never
+    did; the ring's `wait()` is its second caller and reads the same flag
+    the NATS wait does.
+
+- **The `dp_stream_*` spellings are removed, not aliased** — *half done,
+    and the half that is missing is the one this page argued for*
+    ([#974](https://github.com/doppler-dsp/doppler/issues/974)). The
+    rename happened and the old names forward verbatim; nothing has been
+    deleted, and doppler's own Python binding still calls the deprecated
+    spellings throughout. "Two spellings forever" is the state §3 rejected,
+    now reached by default rather than by decision.
+
+- **End of stream is a KIND, not a flag bit** — *resolved, shipped.*
+    `DP_KIND_EOS`, with the qualification §3 records: a receiver built
+    before it existed *refuses* the frame rather than ignoring it, because
+    the validator rejects a zero element size. Additive in the sense that
+    matters — no existing frame changes meaning — and not in the sense
+    first assumed.
+
+- **On the work queue the marker is an ordinary MESSAGE** — *resolved,
+    and it corrected this page.* §3 had recorded PUSH/PULL's at-least-once
+    as unqualified good news. Building it found the two consequences that
+    follow from the marker being a message: it reaches exactly one
+    consumer, so the tier with the *reliable* ending is the one that
+    cannot broadcast it; and it must be acked by the receive path, because
+    reporting an ending as a *state* is precisely what leaves the caller
+    nothing to ack. Both are in §3 now.
+
+- **The ring's wait ends instead of spinning** — *resolved, shipped.*
+    `close()` / `closed`, and the wait checks the interrupt flag. One
+    branch inside it — the re-load after observing the flag — is reached
+    only when the consumer sees `closed` before the write, a window one
+    spin iteration wide. It was documented as untestable and is not:
+    a single race catches its removal about 5% of the time, so the C test
+    runs the race repeatedly instead, which is a gate rather than a flake.
+
+- **A disk reader distinguishes "short read" from "end of capture"** —
+    *open* ([#972](https://github.com/doppler-dsp/doppler/issues/972)).
+    The third transport, and §1 ranks its failure the subtlest of the
+    three because it does not hang — it reports a clean finish on a
+    truncated capture.
+
+- **Memory gets a durable-completion verb** — *open.* Network and disk
+    each answer "did my data land"; the ring still offers only the
+    `dropped` counter, which is a field someone might read rather than an
+    answer anyone gets. §3 names the gap and nothing has closed it.
+
+- **The quantitative claims get measured** — *open*
+    ([#975](https://github.com/doppler-dsp/doppler/issues/975)). §5's
+    list. The sharpest is the 100 ms interrupt bound, which is not prose
+    here but `DP_INTERRUPT_LATENCY_DEFAULT_MS` in a public header, with
+    "on an idle waiter" doing the work in the sentence — the one case
+    nobody needs an interrupt budget for.
+
+- **None of it is certified** — *open.* No transport in this contract has
+    a validation report: the header claims below are enumerated nowhere,
+    and [Object Validation](../dev/contributing/validation.md) is the
+    process that would. The findings above are the raw material for one.

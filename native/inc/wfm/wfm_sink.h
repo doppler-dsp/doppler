@@ -70,6 +70,19 @@ int wfm_stream_sink_send(wfm_stream_sink_t *sink, const float _Complex *iq,
                          size_t n, double fs, double fc);
 
 /**
+ * @brief Tell subscribers this stream has ended.
+ *
+ * Publishes an end-of-stream frame, so a consumer learns the sender
+ * finished rather than inferring it from silence. Send it BEFORE draining:
+ * a drain cannot be reversed and refuses sends once it reaches its
+ * publish-flushing phase.
+ *
+ * @param sink Sink; NULL is DP_OK (there is no stream to end).
+ * @return DP_OK, or the stream layer's error.
+ */
+int wfm_stream_sink_send_eos(wfm_stream_sink_t *sink);
+
+/**
  * @brief Let everything already sent reach the server, then stop.
  *
  * A send hands a block to the NATS client and returns; the
@@ -88,18 +101,6 @@ int wfm_stream_sink_send(wfm_stream_sink_t *sink, const float _Complex *iq,
  *         if the budget ran out with the drain still in progress, in which
  *         case the sink is still safe to close.
  */
-/**
- * @brief Tell subscribers this stream has ended.
- *
- * Publishes an end-of-stream frame, so a consumer learns the sender
- * finished rather than inferring it from silence. Send it BEFORE draining:
- * a drain cannot be reversed and refuses sends once it reaches its
- * publish-flushing phase.
- *
- * @param sink Sink; NULL is DP_OK (there is no stream to end).
- * @return DP_OK, or the stream layer's error.
- */
-int wfm_stream_sink_send_eos(wfm_stream_sink_t *sink);
 
 int wfm_stream_sink_drain(wfm_stream_sink_t *sink, int timeout_ms);
 

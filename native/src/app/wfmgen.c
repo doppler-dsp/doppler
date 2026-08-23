@@ -1267,8 +1267,9 @@ emit_to_file (const emit_ctx_t *e)
 static void
 write_record (const emit_ctx_t *e, int repeating)
 {
-  char *json = wfm_spec_to_json (e->segs, e->n_segs, repeating, e->endless,
-                                 e->o->headroom);
+  char *json
+      = wfm_spec_to_json (e->segs, e->n_segs, repeating, e->endless,
+                          wfm_compose_seed_advance (e->comp), e->o->headroom);
   if (!json)
     return;
   FILE *rf = fopen (e->o->record_path, "w");

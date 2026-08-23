@@ -623,6 +623,12 @@ wfm_compose_set_seed_advance (wfm_compose_state_t *state, int mode)
     state->seed_advance = mode;
 }
 
+int
+wfm_compose_seed_advance (const wfm_compose_state_t *state)
+{
+  return state ? state->seed_advance : WFM_SEED_ADVANCE_NONE;
+}
+
 void
 wfm_compose_destroy (wfm_compose_state_t *state)
 {

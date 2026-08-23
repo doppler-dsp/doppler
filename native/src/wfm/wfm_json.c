@@ -505,7 +505,7 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
 
 char *
 wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
-                  int continuous, double headroom)
+                  int continuous, int seed_advance, double headroom)
 {
   cJSON *root = cJSON_CreateObject ();
   if (!root)
@@ -513,6 +513,13 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
   cJSON_AddNumberToObject (root, "version", 1);
   cJSON_AddBoolToObject (root, "repeat", repeat != 0);
   cJSON_AddBoolToObject (root, "continuous", continuous != 0);
+  /* Omitted at NONE, exactly as headroom is omitted at 0 dB: the 1-source
+   * inline form's field order is frozen for byte-identity, and a key that is
+   * always present would churn every recorded spec for a default. */
+  if (seed_advance > WFM_SEED_ADVANCE_NONE
+      && seed_advance <= WFM_SEED_ADVANCE_ALL)
+    cJSON_AddStringToObject (root, "seed_advance",
+                             SEED_ADVANCE_NAMES[seed_advance]);
   if (headroom != 0.0) /* omit at 0 dB so pre-headroom specs are unchanged */
     cJSON_AddNumberToObject (root, "headroom", headroom);
   cJSON *arr = cJSON_AddArrayToObject (root, "segments");
@@ -658,7 +665,7 @@ wfm_spec_template_json (void)
       .off_samples = 2000 }, /* a trailing gap of zeros */
     { .sources = mix, .n_sources = 2, .fs = 1e6, .num_samples = 10000 },
   };
-  return wfm_spec_to_json (segs, 3, 0, 0, 0.0);
+  return wfm_spec_to_json (segs, 3, 0, 0, 0, 0.0);
 }
 
 double

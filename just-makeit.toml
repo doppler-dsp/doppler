@@ -1231,7 +1231,13 @@ header = "timing/timing_core.h"
 [module.wfm_compose.json]
 enabled = true
 to_json_fn = "wfm_spec_to_json"
-to_json_trailing = ["0.0"]
+# The trailing literals are spliced after (segs, n, repeat, continuous), so the
+# order here IS the C signature's. `self->state` is in scope in jm's generated
+# to_json, which is what lets the composer stay the SSOT for seed_advance --
+# without it the Python face emitted a spec that replayed a different waveform
+# (doppler#978). headroom is a writer gain, not composer state, so it is still
+# the literal 0.0: a Python Composer has none.
+to_json_trailing = ["wfm_compose_seed_advance (self->state)", "0.0"]
 
 [[module.wfm_compose.serializers]]
 name = "to_sigmf"

@@ -194,7 +194,7 @@ detector_state_t * detector_create (
 * `ref_len` Reference / FFT length in complex samples. 
 * `dwell` Int-dump depth; must be &gt;= 1. 
 * `noise_lo` Lower noise bin index (inclusive, 0-based). 
-* `noise_hi` Upper noise bin index (inclusive, &lt; n). 
+* `noise_hi` Upper noise bin index (inclusive, &lt; n). A value at or beyond the window clamps to n - 1, so the default sentinel selects the full window. 
 * `noise_mode` Noise aggregation: "mean", "median", "min", or "max". 
 * `threshold` Test-stat gate; 0.0 = always emit. 
 * `nthreads` Accepted for API compatibility; ignored. 

@@ -762,7 +762,7 @@ dev = [
     { name = "clang-format", specifier = "==22.1.8" },
     { name = "clang-tidy", specifier = "==22.1.8" },
     { name = "jsonschema", specifier = ">=4.18" },
-    { name = "just-makeit", specifier = "==0.65.0" },
+    { name = "just-makeit", specifier = "==0.66.0" },
     { name = "matplotlib", marker = "python_full_version == '3.9.*'", specifier = "<3.10" },
     { name = "matplotlib", marker = "python_full_version >= '3.10'", specifier = ">=3.10.9" },
     { name = "mdformat", marker = "python_full_version >= '3.10'", specifier = "==1.0.0" },
@@ -1232,14 +1232,14 @@ wheels = [
 
 [[package]]
 name = "just-makeit"
-version = "0.65.0"
+version = "0.66.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "tomlkit" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/2c/2e63bfc4bcbb0ee1457962b9fefd7baca11dd9783718ad2f97f64aceffa0/just_makeit-0.65.0-py3-none-any.whl", hash = "sha256:54f52b5145b5724bd9dd17300ec26a9e3a25351da0ddb509265d310d9e9e823c", size = 1227606, upload-time = "2026-08-22T12:38:46.908Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/02/d83fc2a90a1c15a364f287519ff8b6b1692460fa117f3948cd4e706bf83a/just_makeit-0.66.0-py3-none-any.whl", hash = "sha256:90820623720d47b86daeeb68702e0d428c0431e04018eccc36f8ea1b9a340635", size = 1234591, upload-time = "2026-08-22T23:51:59.545Z" },
 ]
 
 [[package]]

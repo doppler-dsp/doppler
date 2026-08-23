@@ -1,4 +1,4 @@
-- **just-makeit pin 0.63.3 → 0.65.0, and six header/manifest constructor
+- **just-makeit pin 0.63.3 → 0.66.0, and six header/manifest constructor
     mismatches are resolved.** 0.64.x added a **CTOR** check comparing the
     `create()` declaration jm injects into a sacred header against the one the
     manifest describes. It found six that `drift-check` at 0.63.3 exits 0 on —
@@ -38,3 +38,13 @@
     Also carried since 0.63.3: gh-1079's `out=` buffer for an all-scalar
     `variable_output` method (eight bindings, and `DelayCf64.push_ptr` off the
     `kwarg-parity` ratchet), and gh-1026's enum refusals naming their choices.
+
+    0.66.0 additionally refuses an `init_param` default that is not a literal
+    for its type, and found one: `detector`/`detector2d`'s `noise_hi` carried
+    `default = "n-1"` / `"ny*nx-1"` beside a `default_raw` sentinel. Those
+    expressions described the EFFECT — the C clamps anything at or beyond the
+    window to the last bin — not a value, and jm renders a default into C, the
+    `.pyi` and an app's flags, where an expression is valid in none. The
+    non-literal is gone; the clamping behaviour now lives on the header's
+    `@param`, which is where it should have been, since the `.pyi` had been
+    publishing `default n-1` with no explanation of what selected it.

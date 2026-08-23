@@ -34,7 +34,12 @@ default = "0"
 [[detector2d.init_params]]
 name = "noise_hi"
 type = "size_t"
-default = "ny*nx-1"
+# No `default`: the value actually passed is the SIZE_MAX sentinel in
+# `default_raw`, and the C clamps anything >= the window to the last bin. The
+# old `default = "ny*nx-1"` described that EFFECT rather than a value —
+# jm renders a default into C, the .pyi and an app's flags, and an expression
+# is valid in none of them (refused outright since jm 0.66.0). The behaviour is
+# documented on the header's @param, where jm transplants it into the docstring.
 default_raw = "(unsigned long long)-1ULL"
 
 [[detector2d.init_params]]

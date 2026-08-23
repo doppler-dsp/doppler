@@ -120,7 +120,9 @@ typedef struct
  * @param ref_len    Reference / FFT length in complex samples.
  * @param dwell      Int-dump depth; must be >= 1.
  * @param noise_lo   Lower noise bin index (inclusive, 0-based).
- * @param noise_hi   Upper noise bin index (inclusive, < n).
+ * @param noise_hi   Upper noise bin index (inclusive, < n).  A value at or
+ *                  beyond the window clamps to n - 1, so the
+ *                  default sentinel selects the full window.
  * @param noise_mode Noise aggregation: "mean", "median", "min", or "max".
  * @param threshold  Test-stat gate; 0.0 = always emit.
  * @param nthreads   Accepted for API compatibility; ignored.

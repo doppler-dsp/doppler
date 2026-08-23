@@ -41,6 +41,10 @@ Two carve-outs that are decisions rather than oversights, both filed:
 - **the rename is half-done** ([#974](https://github.com/doppler-dsp/doppler/issues/974))
     — the `dp_stream_*` spellings below were to be removed, not aliased.
     They are aliased, and doppler's own Python binding still calls them.
+- **none of it is measured at rate**
+    ([#975](https://github.com/doppler-dsp/doppler/issues/975)) — §5's
+    list, including the 100 ms interrupt bound, which is published in a
+    public header and measured only on an idle waiter.
 
 ______________________________________________________________________
 
@@ -270,6 +274,10 @@ Consequences, both load-bearing:
 ______________________________________________________________________
 
 ## 5. What is not measured
+
+Tracked as [#975](https://github.com/doppler-dsp/doppler/issues/975) — a
+list of gaps inside a design page is read once, by whoever is already
+working on that page.
 
 The quantitative claims across all three transports are prose today. See
 [Streaming §11](streaming.md) for the network figures; the same treatment

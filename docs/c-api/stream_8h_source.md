@@ -43,6 +43,7 @@ extern "C"
   {
     DP_KIND_IQ  = 0, 
     DP_KIND_TLM = 1, 
+    DP_KIND_EOS = 2, 
   } dp_frame_kind_t;
 
 
@@ -152,6 +153,8 @@ extern "C"
   dp_pub_t *dp_pub_create_tlm (const char *endpoint);
 
   int dp_pub_flush (dp_pub_t *ctx, int timeout_ms);
+
+  int dp_pub_send_eos (dp_pub_t *ctx);
 
   int dp_stream_drain (dp_pub_t *ctx, int timeout_ms);
 

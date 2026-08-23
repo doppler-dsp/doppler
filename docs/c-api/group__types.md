@@ -110,7 +110,8 @@ _What a frame's payload IS, independent of how its elements are encoded._
 ```
 enum dp_frame_kind_t {
     DP_KIND_IQ = 0,
-    DP_KIND_TLM = 1
+    DP_KIND_TLM = 1,
+    DP_KIND_EOS = 2
 };
 ```
 

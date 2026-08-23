@@ -192,7 +192,7 @@ On success, `*msg` is set to a message handle whose data buffer is valid until [
 
 **Returns:**
 
-DP\_OK on success, DP\_ERR\_TIMEOUT on timeout, negative on error.   
+DP\_OK on success, [**DP\_ERR\_TIMEOUT**](clib__common_8h.md#define-dp_err_timeout) on timeout, [**DP\_ERR\_EOF**](clib__common_8h.md#define-dp_err_eof) when the sender has finished (no message is produced, so there is nothing to free), negative on error.   
 
 
 

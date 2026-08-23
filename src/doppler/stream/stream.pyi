@@ -604,6 +604,33 @@ class Publisher:
         """
         ...
 
+    def send_eos(self) -> None:
+        """Tell subscribers the stream has ended.
+
+        A subscriber's :meth:`Subscriber.recv` raises :class:`EOFError`
+        instead of waiting out a timeout -- which means only "nothing
+        yet", and cannot be told from "nothing ever" without this.
+
+        Send it **before** :meth:`drain`, not after: a drain cannot be
+        reversed and refuses sends once it reaches its publish-flushing
+        phase. The order is stop producing, ``send_eos()``, ``drain()``,
+        ``close()``.
+
+        Notes
+        -----
+        PUB/SUB is at-most-once, so this frame can be dropped like any
+        other. It makes the common case end promptly, not reliably, and a
+        subscriber that must not hang on a lost marker still needs a
+        timeout. PUSH/PULL delivers it at-least-once, so handling it must
+        be idempotent.
+
+        Examples
+        --------
+        >>> from doppler.stream import Publisher, CF32
+        >>> pub = Publisher("nats://127.0.0.1:4222/demo", CF32)  # doctest: +SKIP
+        >>> pub.send_eos()                                        # doctest: +SKIP
+        >>> pub.drain()                                           # doctest: +SKIP
+        """
     def flush(self, timeout_ms: int = 2000) -> None:
         """Wait until the server has everything published so far.
 

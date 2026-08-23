@@ -98,6 +98,17 @@ def main() -> None:
 
             time.sleep(0.008)  # ~8 ms throttle for 8192 @ 1 MHz
 
+        # Drain on the way out, and only now: the loop above has ended,
+        # so this program has stopped producing, which is the condition a
+        # drain wants. It stops new work, flushes everything still
+        # buffered and closes -- and it WAITS for that to finish, which
+        # the underlying client's own drain does not. No flush before it:
+        # a drain ends with that same flush as its final phase.
+        try:
+            pub.drain()
+        except TimeoutError as exc:
+            print(f"warning: {exc}", file=sys.stderr)
+
 
 if __name__ == "__main__":
     main()

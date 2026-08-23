@@ -256,6 +256,87 @@ test_interrupt_unblocks_recv (void)
   dp_sub_destroy (sub);
 }
 
+/* ------------------------------------------------------------------
+ * test_flush_after_send: "the send returned" is not "the server has it".
+ * The publish is buffered and written in the background; this is the
+ * round trip that makes the difference observable.
+ * ------------------------------------------------------------------ */
+static void
+test_flush_after_send (void)
+{
+  printf ("\n-- flush waits for the server --\n");
+  const char *ep = nats_ep ("flush");
+
+  dp_sub_t *sub = dp_sub_create (ep);
+  DP_CHECK (sub != NULL);
+  usleep (SETTLE_US);
+  dp_pub_t *pub = dp_pub_create (ep, CF64);
+  DP_CHECK (pub != NULL);
+  usleep (SETTLE_US);
+  if (!sub || !pub)
+    return;
+
+  double _Complex tx[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+  DP_CHECK (dp_pub_send_cf64 (pub, tx, 8, 48000.0, 0.0) == DP_OK);
+  DP_CHECK (dp_pub_flush (pub, 2000) == DP_OK);
+
+  /* After a successful flush the frame is the server's problem, not the
+     client's buffer, so a receive with a short timeout must find it. */
+  dp_msg_t   *msg = NULL;
+  dp_header_t hdr;
+  dp_sub_set_timeout (sub, 1000);
+  DP_CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_OK);
+  DP_CHECK (msg != NULL);
+  if (msg)
+    dp_msg_free (msg);
+
+  /* Flushing with nothing pending is a no-op that still round-trips. */
+  DP_CHECK (dp_pub_flush (pub, 2000) == DP_OK);
+
+  dp_pub_destroy (pub);
+  dp_sub_destroy (sub);
+}
+
+/* ------------------------------------------------------------------
+ * test_drain_then_send: drain is irreversible, and says so.
+ *
+ * A send issued WHILE a drain runs races its phases and may go either
+ * way -- which is why dp_stream_drain waits for CLOSED. Once it has,
+ * the answer is determinate, and it is a state (DP_ERR_CLOSED) rather
+ * than a transport failure, so a caller can tell "I shut this down"
+ * from "the network broke".
+ * ------------------------------------------------------------------ */
+static void
+test_drain_then_send (void)
+{
+  printf ("\n-- drain, then a send is refused as CLOSED --\n");
+  const char *ep = nats_ep ("drain");
+
+  dp_pub_t *pub = dp_pub_create (ep, CF64);
+  DP_CHECK (pub != NULL);
+  if (!pub)
+    return;
+  usleep (SETTLE_US);
+
+  double _Complex tx[4] = { 1, 2, 3, 4 };
+  DP_CHECK (dp_pub_send_cf64 (pub, tx, 4, 48000.0, 0.0) == DP_OK);
+
+  /* Everything published before this reaches the server, and the context
+     is finished when it returns. */
+  DP_CHECK (dp_stream_drain (pub, 5000) == DP_OK);
+
+  /* Determinate now, because the drain has completed rather than merely
+     started -- and DP_ERR_CLOSED, not DP_ERR_SEND. */
+  int rc = dp_pub_send_cf64 (pub, tx, 4, 48000.0, 0.0);
+  DP_CHECK (rc == DP_ERR_CLOSED);
+  DP_CHECK (strcmp (dp_strerror (rc), "Context is draining or closed") == 0);
+
+  /* And flushing a closed connection is not a lie either. */
+  DP_CHECK (dp_pub_flush (pub, 500) != DP_OK);
+
+  dp_pub_destroy (pub); /* still safe: destroy is just the free now */
+}
+
 int
 main (void)
 {
@@ -270,6 +351,8 @@ main (void)
   test_req_rep_roundtrip ();
   test_chunked_pub_sub ();
   test_interrupt_unblocks_recv ();
+  test_flush_after_send ();
+  test_drain_then_send ();
 
   printf ("\n");
   DP_TEST_END ("test_stream_nats_core");

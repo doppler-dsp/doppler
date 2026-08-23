@@ -266,6 +266,28 @@ def test_recv_array_is_valid_after_recv(push_pull_cf64):
 
 
 # ------------------------------------------------------------------ #
+# Flushing a publisher                                                #
+# ------------------------------------------------------------------ #
+
+
+def test_flush_makes_the_send_observable():
+    """send() returns before the server has it; flush() is the round trip."""
+    ep = _unique_endpoint()
+    sub = Subscriber(ep)
+    time.sleep(0.05)
+    pub = Publisher(ep, CF64)
+    pub.send(np.ones(16, dtype=np.complex128), sample_rate=1e6)
+    pub.flush()
+    samples, _hdr = sub.recv(timeout_ms=1000)
+    assert len(samples) == 16
+    pub.flush(timeout_ms=500)  # nothing pending is still a round trip
+    pub.close()
+    with pytest.raises(RuntimeError, match="closed"):
+        pub.flush()
+    sub.close()
+
+
+# ------------------------------------------------------------------ #
 # Interrupting a blocking receive                                     #
 # ------------------------------------------------------------------ #
 
@@ -306,6 +328,45 @@ def test_interrupt_unblocks_a_blocking_recv():
         timer.join()
         doppler.stream.resume()
         sub.close()
+
+
+def test_interrupt_latency_is_the_callers_to_set():
+    """The wait slice is a knob, and it reaches a blocked receive.
+
+    Asserted as an upper bound rather than a measurement: a small latency
+    must not make the interrupt SLOWER, and the default must not be the
+    only value that works. The scaling itself (500 -> ~300 ms overshoot,
+    10 -> ~9 ms) is measurable but not worth a timing assertion in a
+    suite that runs on shared CI.
+    """
+    import threading
+
+    assert doppler.stream.interrupt_latency_ms() > 0
+    doppler.stream.set_interrupt_latency_ms(10)
+    assert doppler.stream.interrupt_latency_ms() == 10
+    try:
+        doppler.stream.resume()
+        sub = Subscriber(_unique_endpoint())
+        time.sleep(0.05)
+        timer = threading.Timer(0.2, doppler.stream.interrupt)
+        timer.start()
+        t0 = time.monotonic()
+        with pytest.raises(KeyboardInterrupt):
+            sub.recv()
+        timer.join()
+        assert time.monotonic() - t0 < 2.0
+        sub.close()
+    finally:
+        doppler.stream.set_interrupt_latency_ms(0)  # 0 = restore the default
+        doppler.stream.resume()
+    assert doppler.stream.interrupt_latency_ms() == 100
+
+
+def test_interrupt_on_sigint_scopes_the_latency_to_the_block():
+    before = doppler.stream.interrupt_latency_ms()
+    with doppler.stream.interrupt_on_sigint(latency_ms=5):
+        assert doppler.stream.interrupt_latency_ms() == 5
+    assert doppler.stream.interrupt_latency_ms() == before
 
 
 def test_interrupt_on_sigint_restores_the_previous_handler():

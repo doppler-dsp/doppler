@@ -150,6 +150,10 @@ extern "C"
 
   dp_pub_t *dp_pub_create_tlm (const char *endpoint);
 
+  int dp_pub_flush (dp_pub_t *ctx, int timeout_ms);
+
+  int dp_stream_drain (dp_pub_t *ctx, int timeout_ms);
+
   void dp_pub_destroy (dp_pub_t *ctx);
 
   dp_sub_t *dp_sub_create (const char *endpoint);
@@ -282,6 +286,12 @@ extern "C"
 
 
   void dp_stream_interrupt (void);
+
+#define DP_INTERRUPT_LATENCY_DEFAULT_MS 100u
+
+  void dp_stream_set_interrupt_latency_ms (unsigned ms);
+
+  unsigned dp_stream_interrupt_latency_ms (void);
 
   void dp_stream_resume (void);
 

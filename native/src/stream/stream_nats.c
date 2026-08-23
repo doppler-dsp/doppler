@@ -319,6 +319,8 @@ nats_publish (struct dp_ctx *ctx, const char *typestr, const void *buf,
       return DP_ERR_INVALID; /* SUB/PULL cannot send */
     }
 
+  if (s == NATS_DRAINING || s == NATS_CONNECTION_CLOSED)
+    return DP_ERR_CLOSED; /* a state the caller chose, not a failure */
   return (s == NATS_OK) ? DP_OK : DP_ERR_SEND;
 }
 
@@ -442,6 +444,46 @@ nats_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
 }
 
 int
+nats_drain (struct dp_ctx *ctx, int timeout_ms)
+{
+  natsConnection *conn = (natsConnection *)ctx->nats.conn;
+  if (!conn)
+    return DP_ERR_INVALID;
+
+  natsStatus s = natsConnection_Drain (conn);
+  if (s != NATS_OK)
+    return DP_ERR_SEND;
+
+  /* Drain returns immediately and finishes in the background. Waiting for
+     CLOSED is the whole point: returning here would hand back a context
+     whose pending publishes are still unwritten, which is what the drain
+     was called to avoid. Polled rather than event-driven because the
+     client offers no completion callback for it. */
+  int64_t       budget = (timeout_ms > 0) ? (int64_t)timeout_ms : 5000;
+  const int64_t step   = 20;
+  for (int64_t waited = 0; waited < budget; waited += step)
+    {
+      if (natsConnection_IsClosed (conn))
+        return DP_OK;
+      nats_Sleep (step);
+    }
+  return natsConnection_IsClosed (conn) ? DP_OK : DP_ERR_TIMEOUT;
+}
+
+int
+nats_flush (struct dp_ctx *ctx, int timeout_ms)
+{
+  natsConnection *conn = (natsConnection *)ctx->nats.conn;
+  if (!conn)
+    return DP_ERR_INVALID;
+  int64_t    budget = (timeout_ms > 0) ? (int64_t)timeout_ms : 2000;
+  natsStatus s      = natsConnection_FlushTimeout (conn, budget);
+  if (s == NATS_TIMEOUT)
+    return DP_ERR_TIMEOUT;
+  return (s == NATS_OK) ? DP_OK : DP_ERR_SEND;
+}
+
+int
 nats_send_raw (struct dp_ctx *ctx, const void *data, size_t size)
 {
   return nats_publish (ctx, NULL, data, (int)size);
@@ -451,12 +493,14 @@ nats_send_raw (struct dp_ctx *ctx, const void *data, size_t size)
  * Receive
  * ========================================================================= */
 
-/* One wait slice. Short on purpose: it is how often a blocking receive
- * looks up to see whether dp_stream_interrupt() has been called, and it
- * bounds how long Ctrl+C appears to be ignored. 100 ms costs ten wakeups a
- * second on an idle subscriber and buys an interrupt no human perceives as
- * a delay. */
-#define DP_WAIT_SLICE_MS 100
+/* How long one wait slice may be: whatever interrupt latency the caller
+ * asked for. Read per slice rather than cached, so a change takes effect
+ * on a receive that is already blocked. */
+static int64_t
+dp_wait_slice_ms (void)
+{
+  return (int64_t)dp_stream_interrupt_latency_ms ();
+}
 
 /* Pull one message from the durable JetStream consumer (batch of 1).  The
  * message is NOT acked here — the caller acks via dp_msg_ack once it has been
@@ -480,7 +524,7 @@ nats_pull_fetch (struct dp_ctx *ctx, natsMsg **out)
      empty work queue has to be able to hear dp_stream_interrupt(). */
   for (;;)
     {
-      int64_t slice = DP_WAIT_SLICE_MS;
+      int64_t slice = dp_wait_slice_ms ();
       if (remaining >= 0 && remaining < slice)
         slice = remaining;
 
@@ -538,7 +582,7 @@ nats_next (struct dp_ctx *ctx, natsMsg **out)
 
   for (;;)
     {
-      int64_t slice = DP_WAIT_SLICE_MS;
+      int64_t slice = dp_wait_slice_ms ();
       if (remaining >= 0 && remaining < slice)
         slice = remaining;
 

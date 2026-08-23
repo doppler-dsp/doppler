@@ -42,6 +42,9 @@
 #define DP_ERR_INTERRUPTED                                                    \
   (-8) /**< A blocking call returned because dp_stream_interrupt() was     \
             called -- a request to stop, not a failure. */
+#define DP_ERR_CLOSED                                                         \
+  (-9) /**< The context is draining or closed and accepts no more sends -- \
+            a state, not a transport failure. */
 
 #include "jm_perf.h"
 

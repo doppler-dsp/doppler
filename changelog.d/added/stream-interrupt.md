@@ -30,3 +30,32 @@
 
     Both receiver examples now block with no timeout and stop instantly,
     which is the shape a dashboard wants and could not have before.
+
+- **`dp_pub_flush()` and `dp_stream_drain()` — the two questions a sender
+    could not ask.** `dp_pub_send_*` hands the frame to the client and
+    returns; the client writes it in the background, so "the send returned"
+    is not "the server has it". Closing does flush what is buffered
+    (measured: 0 frames lost in 25 publish-then-close cycles), but
+    best-effort, capped at 500 ms, and reporting nothing — so a backlog
+    that cannot drain in half a second goes silently, and on a link slower
+    than loopback that is not a large backlog.
+
+    `flush()` is the round trip, with a budget you chose and an answer you
+    can act on; it is also the only way to ask without closing, which is
+    what a long-lived publisher needs to checkpoint. `drain()` is the
+    ordered shutdown — stop new work, finish what is in flight, flush,
+    close — and it **waits for CLOSED**, which is the part worth having in
+    the library: the client's own drain returns immediately and finishes
+    in the background, so a process that exits on its return abandons the
+    work the drain was for.
+
+    A drain cannot be reversed, and a send racing one may slip through or
+    be refused. Because doppler's drain waits, a single-threaded caller
+    never meets that race: afterwards a send returns the new
+    `DP_ERR_CLOSED` deterministically — a *state*, not a transport
+    failure, so a caller can tell "I shut this down" from "the network
+    broke". Both transmitter examples now drain on the way out, and
+    neither flushes first, because a drain ends with that flush as its
+    final phase. Guidance and shape follow NATS's own drain-and-shutdown
+    documentation; the subscription drain a queue-group member wants is
+    filed as #966.

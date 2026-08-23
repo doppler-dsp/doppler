@@ -101,6 +101,8 @@ int            nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg,
                                  dp_header_t *out_hdr);
 int  nats_recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size);
 int  nats_send_raw (struct dp_ctx *ctx, const void *data, size_t size);
+int  nats_flush (struct dp_ctx *ctx, int timeout_ms);
+int  nats_drain (struct dp_ctx *ctx, int timeout_ms);
 void nats_set_recv_timeout (struct dp_ctx *ctx, int timeout_ms);
 
 /* dp_msg accessors for DP_MSG_NATS (called from the core's switch). */

@@ -224,6 +224,19 @@ main (int argc, char *argv[])
     }
 
   free (samples);
+
+  /* Drain on the way out, and only now: the loop above has ended, so
+     this program has stopped producing, which is the condition a drain
+     wants. It stops new work, flushes everything still buffered, and
+     closes -- and it WAITS for that to finish, which the underlying
+     client's own drain does not. No flush before it: a drain ends with
+     that same flush as its final phase, so one of our own would be
+     asking twice. */
+  int rc = dp_stream_drain (ctx, 5000);
+  if (rc != DP_OK)
+    fprintf (stderr, "warning: drain did not complete (%s)\n",
+             dp_strerror (rc));
+
   dp_pub_destroy (ctx);
   return 0;
 }

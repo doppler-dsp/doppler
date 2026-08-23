@@ -49,6 +49,8 @@
 #define DP_ERR_TOO_LARGE (-7) 
 #define DP_ERR_INTERRUPTED                                                    \
   (-8) 
+#define DP_ERR_CLOSED                                                         \
+  (-9) 
 #include "jm_perf.h"
 
 /* ------------------------------------------------------------------ */

@@ -356,6 +356,7 @@ test_argument_guards (void)
   DP_CHECK (dp_sub_recv (NULL, NULL, NULL) == DP_ERR_INVALID);
 
   /* The NULL-handle answers, which every accessor owes. */
+  DP_CHECK (dp_pub_flush (NULL, 100) == DP_ERR_INVALID);
   DP_CHECK (dp_msg_mean_power (NULL) == 0.0);
   DP_CHECK (dp_msg_kind (NULL) == DP_KIND_IQ);
   DP_CHECK (dp_msg_num_samples (NULL) == 0);
@@ -391,6 +392,15 @@ test_interrupt_flag (void)
 
   dp_stream_resume ();
   DP_CHECK (!dp_stream_interrupted ());
+
+  /* The latency is the caller's, not a constant baked into the wait. */
+  DP_CHECK (dp_stream_interrupt_latency_ms ()
+            == DP_INTERRUPT_LATENCY_DEFAULT_MS);
+  dp_stream_set_interrupt_latency_ms (7);
+  DP_CHECK (dp_stream_interrupt_latency_ms () == 7);
+  dp_stream_set_interrupt_latency_ms (0); /* 0 means "the default" */
+  DP_CHECK (dp_stream_interrupt_latency_ms ()
+            == DP_INTERRUPT_LATENCY_DEFAULT_MS);
 
   DP_CHECK (strcmp (dp_strerror (DP_ERR_INTERRUPTED),
                     "Interrupted by dp_stream_interrupt")

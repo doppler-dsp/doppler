@@ -465,6 +465,91 @@ extern "C"
   dp_pub_t *dp_pub_create_tlm (const char *endpoint);
 
   /**
+   * @brief Wait until the server has everything published so far.
+   *
+   * `dp_pub_send_*` hands the frame to the client and returns; the client
+   * writes it in the background. That is what makes publishing fast, and
+   * it means "the send returned" is not "the server has it". This waits
+   * for a round trip, so when it returns DP_OK everything published
+   * before it has arrived.
+   *
+   * You do NOT need this before destroy: the NATS client flushes what is
+   * buffered when the connection closes. But it does so best-effort with
+   * a **500 ms cap and no way to report failure**, so a backlog that
+   * cannot drain in half a second is dropped silently — and on a link
+   * slower than loopback that is not a large backlog. Call this when
+   * losing the tail would matter, and you get a budget you chose and an
+   * answer you can act on.
+   *
+   * It is also the only way to ask the question WITHOUT closing: a
+   * long-lived publisher that wants "everything up to here is on the
+   * server" has nothing else to call. (PUSH does not need it — the
+   * JetStream publish is server-acked before it returns — and REQ/REP
+   * flush on every message already.)
+   *
+   * **A drained shutdown does not need one.** dp_stream_drain() ends with
+   * this same flush as its final phase, so flush belongs at checkpoints
+   * a drain does not cover — confirming a batch is on the server before
+   * treating it as complete — not in front of a drain.
+   *
+   * @param ctx         Any send-capable context (dp_pub_t / dp_push_t /
+   *                    dp_req_t / dp_rep_t are the same underlying type).
+   * @param timeout_ms  How long to wait; <= 0 uses 2000 ms.
+   * @return DP_OK when the server has it, @ref DP_ERR_TIMEOUT if the
+   *         budget ran out with data still pending, DP_ERR_INVALID for a
+   *         NULL context.
+   */
+  int dp_pub_flush (dp_pub_t *ctx, int timeout_ms);
+
+  /**
+   * @brief Shut a context down gracefully: drain, then closed.
+   *
+   * The ordered shutdown, and the one a signal handler's exit path wants.
+   * The client stops accepting new deliveries, lets what is in flight
+   * finish, flushes everything pending, and then closes.
+   *
+   * **It waits for the connection to reach CLOSED before returning**, and
+   * that is the part worth having in the library rather than in every
+   * caller: `natsConnection_Drain` returns immediately and does the work
+   * in the background, so a process that exits when it returns abandons
+   * exactly the work the drain was for. Getting that wrong looks like
+   * success.
+   *
+   * Against dp_pub_flush(): flush answers "does the server have what I
+   * published", and the context keeps working afterwards. Drain answers
+   * "let everything finish, then stop", and the context is finished when
+   * it returns — call the matching `*_destroy` next, which is then just
+   * the free.
+   *
+   * **Drain last, after your application has stopped producing.** A drain
+   * cannot be reversed, and a send issued while one is in progress is
+   * racing its phases: it may slip through while subscriptions drain, or
+   * be refused once the connection reaches its publish-flushing phase.
+   * Do not publish a "shutting down" notice after calling this and assume
+   * it went.
+   *
+   * Because this waits for CLOSED, a single-threaded caller does not have
+   * to reason about that race: once it has returned, a send is refused
+   * with @ref DP_ERR_CLOSED, deterministically. The race is real only for
+   * a thread still publishing while another drains.
+   *
+   * Size @p timeout_ms to the slowest thing the drain has to wait for,
+   * with margin: cutting a drain off mid-write every deploy is worse
+   * than waiting. doppler's own receive is synchronous — there is no
+   * message handler to finish — so the wait is dominated by flushing
+   * whatever is still buffered, and the 5 s default is generous for a
+   * link that is keeping up. A slow or congested link, or a large
+   * backlog, wants more.
+   *
+   * @param ctx        Any context.
+   * @param timeout_ms How long to wait for CLOSED; <= 0 uses 5000 ms.
+   * @return DP_OK once closed, @ref DP_ERR_TIMEOUT if the budget ran out
+   *         with the drain still in progress (the context is still safe
+   *         to destroy), DP_ERR_INVALID for a NULL context.
+   */
+  int dp_stream_drain (dp_pub_t *ctx, int timeout_ms);
+
+  /**
    * @brief Destroy a Publisher context and release all resources.
    * @param ctx Publisher context (may be NULL).
    */
@@ -865,6 +950,44 @@ extern "C"
    * The flag is process-wide and sticky; dp_stream_resume() clears it.
    */
   void dp_stream_interrupt (void);
+
+  /**
+   * @brief Default interrupt latency, in milliseconds.
+   *
+   * Ten wakeups a second on an idle receiver, and a delay no human
+   * perceives when they press Ctrl+C. It is a default rather than a
+   * constant of the design: see dp_stream_set_interrupt_latency_ms().
+   */
+#define DP_INTERRUPT_LATENCY_DEFAULT_MS 100u
+
+  /**
+   * @brief How soon a blocking receive must notice an interrupt.
+   *
+   * The library cannot be woken from the NATS client's wait, so it waits
+   * in slices and checks the flag between them. This is the size of that
+   * slice, expressed as the thing a caller actually cares about — the
+   * worst-case delay between dp_stream_interrupt() and the receive
+   * returning — rather than as an implementation detail.
+   *
+   * It is a knob because the right answer is not the library's to know.
+   * A human pressing Ctrl+C cannot perceive 100 ms; a control loop that
+   * must hand back within one symbol period can, and a battery-powered
+   * sensor would rather wake once a second than ten times. The cost is
+   * one wakeup per slice on an otherwise idle receiver.
+   *
+   * Process-wide, like the flag it serves. Takes effect on the next wait
+   * slice, so a receive already blocked adopts it within one old slice.
+   *
+   * @param ms Milliseconds; 0 selects @ref DP_INTERRUPT_LATENCY_DEFAULT_MS.
+   */
+  void dp_stream_set_interrupt_latency_ms (unsigned ms);
+
+  /**
+   * @brief The interrupt latency in force.
+   *
+   * @return Milliseconds.
+   */
+  unsigned dp_stream_interrupt_latency_ms (void);
 
   /**
    * @brief Clear the interrupt, so blocking receives block again.

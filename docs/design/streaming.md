@@ -295,6 +295,64 @@ before acking gets its frame redelivered to another worker.
 
 ______________________________________________________________________
 
+## 6b. When a publish has actually happened
+
+`dp_pub_send_*` hands the frame to the NATS client and returns. The client
+writes it in the background, which is what makes publishing fast and what
+makes "the send returned" different from "the server has it".
+
+Closing does not lose it in the ordinary case: the client flushes what is
+buffered when the connection closes — measured, 0 frames lost in 25
+publish-then-close cycles. But that flush is **best-effort, capped at
+500 ms, and reports nothing**, so a backlog that cannot drain in half a
+second is dropped in silence, and on a link slower than loopback that is
+not a large backlog.
+
+`dp_pub_flush()` / `Publisher.flush()` is the round trip: a budget you
+chose and an answer you can act on (`DP_ERR_TIMEOUT` / `TimeoutError`
+means data is still buffered). It is also the only way to ask the
+question without closing, which is what a long-lived publisher needs to
+checkpoint.
+
+The other two senders do not need it. A JetStream `PUSH` is server-acked
+before `send` returns — that is the tier's whole point — and REQ/REP
+flush on every message, because a request nobody sent gets no reply.
+
+### Shutting down: drain, and wait for it
+
+`dp_stream_drain()` / `Publisher.drain()` is the ordered exit: stop
+accepting new work, let what is in flight finish, flush everything
+pending, close. It **waits for CLOSED**, and that wait is the reason it
+belongs in the library — the client's own drain returns immediately and
+finishes in the background, so a process that exits on its return
+abandons exactly the work the drain was for.
+
+Two rules come with it, both from
+[NATS's own guidance](https://docs.nats.io/learn/resilient-clients/drain-and-shutdown):
+
+- **Drain last**, once the application has stopped producing. A drain
+    cannot be reversed, and a send issued while one is running races its
+    phases: it may slip through during the unsubscribe phase, or be
+    refused once the connection reaches the flush phase. Because doppler's
+    drain waits, a single-threaded caller never meets that race — after it
+    returns, a send is refused with `DP_ERR_CLOSED`, deterministically,
+    and that is a *state* rather than a transport failure so a caller can
+    tell "I shut this down" from "the network broke".
+- **A drained shutdown needs no flush.** The drain ends with that flush as
+    its final phase; `flush()` is for checkpoints a drain does not cover.
+
+Size the timeout to the slowest thing being waited on, with margin —
+cutting a drain off mid-write on every deploy is worse than waiting.
+doppler's receive is synchronous, so there is no handler to finish and
+the wait is dominated by the buffered bytes.
+
+One drain is missing: the client also drains a *single subscription*,
+which is how a queue-group member leaves without dropping its work — a
+`Pull` worker scaling down. Tracked as
+[#966](https://github.com/doppler-dsp/doppler/issues/966).
+
+______________________________________________________________________
+
 ## 7. Sequence and time
 
 `sequence` counts **per socket**, from 0, incremented on every logical

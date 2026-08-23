@@ -144,6 +144,10 @@ test_frame_kinds (void)
   DP_CHECK (DP_KIND_IQ == 0);
   DP_CHECK (DP_KIND_TLM == 1);
   DP_CHECK (DP_KIND_EOS == 2);
+
+  /* Announcing the end of a stream that does not exist is a caller error,
+     not a silent success: there is no context to say it on. */
+  DP_CHECK (dp_pub_send_eos (NULL) == DP_ERR_INVALID);
 }
 
 /* ------------------------------------------------------------------

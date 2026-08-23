@@ -2165,7 +2165,7 @@ test-examples-c: build ## Smoke-test every standalone C example
 	    -DCMAKE_BUILD_TYPE=Release \
 	    > /dev/null 2>&1
 	@cmake --build $(STANDALONE_BUILD_DIR) > /dev/null 2>&1
-	@printf "  %-20s" "awgn_example"; \
+	@printf "  %-24s" "awgn_example"; \
 	if $(STANDALONE_BUILD_DIR)/awgn_example > /dev/null 2>&1; then \
 	    echo "PASS"; \
 	else \
@@ -2197,7 +2197,7 @@ test-example-downstream: build ## Build the downstream jm example (C only)
 	@cmake --build $(DOWNSTREAM_BUILD_DIR) --parallel $(NPROC) \
 	    > $(DOWNSTREAM_BUILD_DIR).log 2>&1 \
 	    || { echo "  build FAILED"; cat $(DOWNSTREAM_BUILD_DIR).log; exit 1; }
-	@printf "  %-20s" "downstream-jm"; \
+	@printf "  %-24s" "downstream-jm"; \
 	if $(CTEST) --test-dir $(DOWNSTREAM_BUILD_DIR) > /dev/null 2>&1; then \
 	    echo "PASS"; \
 	else \

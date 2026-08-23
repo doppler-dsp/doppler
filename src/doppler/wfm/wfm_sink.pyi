@@ -40,24 +40,21 @@ class StreamSink:
         int
             0 on success, non-zero on a send/allocation error.
         """
-    def drain(self, timeout_ms: int = ...) -> None:
-        """Let everything already sent reach the server, then stop.
+    def send_eos(self) -> int:
+        """Tell subscribers this stream has ended.
 
-        A send hands a block to the NATS client and returns; the client writes
-        it in the background. So "send returned" is not "the server has it",
-        and closing without asking relies on the client's own best-effort flush
-        -- capped at 500 ms, with no way to report failure, so a backlog that
-        cannot clear in half a second is dropped silently.
+        Publishes an end-of-stream frame, so a consumer learns the sender
+        finished rather than inferring it from silence. Send it BEFORE
+        draining: a drain cannot be reversed and refuses sends once it reaches
+        its publish-flushing phase.
 
-        Call this before closing the sink on any run whose tail matters. After
-        it returns the sink is finished: close it next, which is then just the
-        free.
-
-        Parameters
-        ----------
-        timeout_ms : int
-            Budget; <= 0 uses the stream layer's 5 s default.
+        Returns
+        -------
+        int
+            DP_OK, or the stream layer's error.
         """
+    def drain(self, timeout_ms: int = ...) -> None:
+        """drain(timeout_ms=0) -> None."""
     def track_clipping(self, on: int = ...) -> None:
         """Enable the per-component clip counter (off by default; peak always
         on).

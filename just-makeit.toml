@@ -587,6 +587,12 @@ name = "fc"
 type = "double"
 
 [[module.wfm_sink.methods]]
+name = "send_eos"
+fn = "wfm_stream_sink_send_eos"
+returns = "int"
+error = "OSError"
+
+[[module.wfm_sink.methods]]
 name = "drain"
 fn = "wfm_stream_sink_drain"
 # returns="int", NOT status_return: on a HANDLE method jm rejects

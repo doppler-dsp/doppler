@@ -301,7 +301,13 @@ dp_frame_parse (const void *buf, size_t len, dp_header_t *hdr,
      says it is an ending and still claims a payload is refused. */
   if ((dp_frame_kind_t)hdr->kind == DP_KIND_EOS)
     {
-      if (avail != 0 || hdr->num_samples != 0)
+      /* Every field the kind fixes is CHECKED, not merely documented:
+         `format` is part of that claim, so a frame that says it is an
+         ending and also names a sample type is refused like one that
+         claims a payload. Otherwise the one kind that skips the
+         element-size arithmetic would be the one kind whose format
+         nothing ever looks at. */
+      if (avail != 0 || hdr->num_samples != 0 || hdr->format != 0)
         return DP_ERR_INVALID;
     }
   else

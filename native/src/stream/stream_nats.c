@@ -777,6 +777,15 @@ nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
     {
       if (out_hdr)
         memcpy (out_hdr, &hdr, sizeof (dp_header_t));
+      /* Ack it HERE, which is the one place that can. PULL is an
+         explicit-ack consumer on a work-queue stream, and the caller is
+         handed no message -- so if this frame is not acked now, nothing
+         can ever ack it: it redelivers every AckWait forever and is never
+         removed from the stream, and the NEXT run against the subject
+         opens onto an ending that belongs to the previous one. The other
+         roles have no ack to give. */
+      if (ctx->nats.role == DP_ROLE_PULL)
+        (void)natsMsg_Ack (m, NULL);
       natsMsg_Destroy (m);
       *out_msg = NULL;
       return DP_ERR_EOF;

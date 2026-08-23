@@ -152,6 +152,76 @@ test_eos_ends_the_stream (void)
 }
 
 /* ------------------------------------------------------------------
+ * test_eos_is_acked_on_the_work_queue
+ *
+ * PULL is an explicit-ack consumer on a WorkQueue stream, and an EOS
+ * frame is the one message the CALLER can never ack: it is reported as a
+ * state and no dp_msg_t is handed back. So if the receive path does not
+ * ack it, nothing does -- it redelivers every AckWait forever, is never
+ * removed from the stream, and the next run against the subject opens
+ * onto an ending that belongs to the previous one.
+ *
+ * The wait below is the consumer's own AckWait (5 s, set in
+ * nats_pull_subscribe) plus a margin. Nothing cheaper observes this:
+ * a redelivery is only scheduled when that timer expires, so a shorter
+ * wait cannot tell an acked message from an unacked one and would pass
+ * either way.
+ * ------------------------------------------------------------------ */
+#define PULL_ACKWAIT_MS 5000
+
+static void
+test_eos_is_acked_on_the_work_queue (void)
+{
+  printf ("\n-- end of stream is acked on the work queue --\n");
+  const char *ep = nats_ep ("eosack");
+
+  dp_pub_t *push = dp_push_create (ep, CF32);
+  DP_CHECK (push != NULL);
+  dp_sub_t *pull = dp_pull_create (ep);
+  DP_CHECK (pull != NULL);
+  usleep (SETTLE_US);
+
+  /* Data first, so the marker is proven to arrive after a real frame. */
+  float _Complex tx[4] = { 1 + 1 * I, 2 + 2 * I, 3 + 3 * I, 4 + 4 * I };
+  DP_CHECK (dp_pub_send_cf32 (push, tx, 4, 48000.0, 915e6) == DP_OK);
+  DP_CHECK (dp_pub_send_eos (push) == DP_OK);
+
+  dp_sub_set_timeout (pull, 3000);
+
+  dp_msg_t   *msg = NULL;
+  dp_header_t hdr;
+  DP_CHECK (dp_sub_recv (pull, &msg, &hdr) == DP_OK);
+  DP_CHECK (msg != NULL);
+  if (msg)
+    {
+      DP_CHECK (dp_msg_ack (msg) == DP_OK);
+      dp_msg_free (msg);
+    }
+
+  msg = NULL;
+  DP_CHECK_MSG (dp_sub_recv (pull, &msg, &hdr) == DP_ERR_EOF,
+                "the work-queue tier must report the ending too");
+  DP_CHECK (msg == NULL);
+
+  /* The pin: it must not come back. */
+  msg = NULL;
+  dp_sub_set_timeout (pull, PULL_ACKWAIT_MS + 1500);
+  int rc = dp_sub_recv (pull, &msg, &hdr);
+  DP_CHECK_MSG (rc != DP_ERR_EOF,
+                "the end-of-stream frame was redelivered: nothing acked it, "
+                "so it stays in the work queue forever and the next run "
+                "against this subject reads a previous run's ending");
+  DP_CHECK_MSG (rc == DP_ERR_TIMEOUT,
+                "with the ending consumed and nothing further sent, the "
+                "next receive means 'nothing yet'");
+  if (msg)
+    dp_msg_free (msg);
+
+  dp_pub_destroy (push);
+  dp_sub_destroy (pull);
+}
+
+/* ------------------------------------------------------------------
  * test_req_rep_roundtrip
  * ------------------------------------------------------------------ */
 static void
@@ -411,6 +481,7 @@ main (void)
 
   test_pub_sub_roundtrip ();
   test_eos_ends_the_stream ();
+  test_eos_is_acked_on_the_work_queue ();
   test_req_rep_roundtrip ();
   test_chunked_pub_sub ();
   test_interrupt_unblocks_recv ();

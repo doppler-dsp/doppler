@@ -42,6 +42,10 @@
 #include <unistd.h>
 #endif /* _WIN32 */
 
+/* The ring's wait consults the same interrupt flag as every other
+   blocking wait in doppler; see docs/design/io-termination.md. */
+#include "dp_interrupt.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -289,6 +293,9 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
     size_t capacity;                \
     void *_handle;       \
     DP_ALIGN (DP_CACHELINE) volatile size_t head;        \
+    /* Shares the producer's line on purpose: the producer writes both, \
+       and a consumer reading them together reads one line. */          \
+    volatile int closed;   \
     DP_ALIGN (DP_CACHELINE) volatile size_t tail;        \
     DP_ALIGN (DP_CACHELINE) volatile size_t dropped;      \
   } dp_##name##_t;                                                            \
@@ -349,12 +356,46 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
   }                                                                           \
                                                                               \
                                                                          \
+  static inline void dp_##name##_close (dp_##name##_t *ab)                    \
+  {                                                                           \
+    __atomic_store_n (&ab->closed, 1, __ATOMIC_RELEASE);                      \
+  }                                                                           \
+                                                                              \
+    \
+  static inline int dp_##name##_closed (const dp_##name##_t *ab)              \
+  {                                                                           \
+    return __atomic_load_n (&ab->closed, __ATOMIC_ACQUIRE);                   \
+  }                                                                           \
+                                                                              \
+                                                                         \
   static inline type *dp_##name##_wait (dp_##name##_t *ab, size_t n)          \
   {                                                                           \
     size_t h, t;                                                              \
     while (((h = DP_LOAD_ACQ (&ab->head)) - (t = DP_LOAD_RLX (&ab->tail)))    \
            < n)                                                               \
       {                                                                       \
+        /* The re-load after observing `closed` is required, not tidy.    \
+           close() is a RELEASE store and closed() an ACQUIRE load, so a    \
+           consumer that observes the flag is guaranteed to see every write \
+           that preceded it -- but only if it looks again. Using the `h`    \
+           read before the acquire would discard a final batch the producer \
+           had already published.                                           \
+                                                                            \
+           Narrow enough that no deterministic test reaches it: the branch  \
+           needs the consumer to see the flag and NOT yet the data, and if  \
+           the write is already visible the loop exits above without coming \
+           here at all. Sabotaging it leaves the suite green, which is why  \
+           the reasoning is written down rather than left to a test. */     \
+        if (dp_##name##_closed (ab))                                          \
+          {                                                                   \
+            h = DP_LOAD_ACQ (&ab->head);                                      \
+            t = DP_LOAD_RLX (&ab->tail);                                      \
+            if (h - t < n)                                                    \
+              return NULL;                                                    \
+            break;                                                            \
+          }                                                                   \
+        if (dp_interrupted ())                                                \
+          return NULL;                                                        \
         DP_SPIN_HINT ();                                                      \
       }                                                                       \
     (void)h;                                                                  \

@@ -10,7 +10,9 @@
  */
 #include "buffer/buffer.h"
 #include "dp_test.h"
+#include <pthread.h>
 #include <stdio.h>
+#include <time.h>
 
 /* Advance head and tail to `target` while keeping occupancy near zero, using
  * a small fixed scratch so the prime works for any (possibly 16 KiB-page)
@@ -32,6 +34,25 @@
         }                                                                     \
     }                                                                         \
   while (0)
+
+/* Consumer half of the write-then-close race below. Spins in wait() until
+   the producer supplies a batch or closes the ring. */
+typedef struct
+{
+  dp_f32_t *buf;
+  float    *got;
+  float     first;
+} eos_race_arg_t;
+
+static void *
+eos_consumer (void *p)
+{
+  eos_race_arg_t *a = (eos_race_arg_t *)p;
+  a->got            = dp_f32_wait (a->buf, 64);
+  if (a->got)
+    a->first = a->got[0];
+  return NULL;
+}
 
 int
 main (void)
@@ -145,6 +166,112 @@ main (void)
     /* Now full: one more sample must be dropped. */
     DP_CHECK (dp_f32_write (buf, chunk, 1) == false);
     DP_CHECK (buf->dropped == 1);
+    dp_f32_destroy (buf);
+  }
+
+  /* ---- end of stream ------------------------------------------------- */
+  /* The defect this closes: wait() was an unbounded busy-spin with no exit.
+     A producer that stopped left the consumer spinning forever at 100% CPU,
+     and because the loop read no flag, no signal handler could rescue it.
+     These four cases are the whole contract. */
+  {
+    dp_f32_t *buf = dp_f32_create (1024);
+    DP_REQUIRE (buf != NULL);
+
+    /* 1. An open, empty ring with data available returns it as before --
+          closing must not change the ordinary path. */
+    float chunk[128];
+    for (size_t i = 0; i < 128; i++)
+      chunk[i] = (float)i;
+    DP_CHECK (dp_f32_write (buf, chunk, 64) == true);
+    DP_CHECK (dp_f32_wait (buf, 64) != NULL);
+    dp_f32_consume (buf, 64);
+
+    /* 2. Closed and drained -> NULL, promptly, instead of spinning. */
+    DP_CHECK (dp_f32_closed (buf) == 0);
+    dp_f32_close (buf);
+    DP_CHECK (dp_f32_closed (buf) != 0);
+    DP_CHECK_MSG (dp_f32_wait (buf, 64) == NULL,
+                  "a closed, drained ring ends the wait rather than "
+                  "spinning forever on a producer that has finished");
+    dp_f32_destroy (buf);
+  }
+
+  {
+    /* 3. Closed with a FULL batch still buffered must hand it back, not
+          discard it. The ordering in wait() exists for this: a producer
+          that writes its last samples and closes must not lose them to a
+          consumer that noticed the flag first. */
+    dp_f32_t *buf = dp_f32_create (1024);
+    DP_REQUIRE (buf != NULL);
+    float chunk[128];
+    for (size_t i = 0; i < 128; i++)
+      chunk[i] = (float)i;
+    DP_CHECK (dp_f32_write (buf, chunk, 64) == true);
+    dp_f32_close (buf);
+    DP_CHECK_MSG (dp_f32_wait (buf, 64) != NULL,
+                  "closing must not discard samples already written");
+    /* NB: this case returns before the loop body runs at all -- a full
+       batch is available on entry, so the closed check inside the loop is
+       never reached. The ordering that check exists for is exercised by
+       the threaded case below, not here. Sabotaging the in-loop ordering
+       leaves THIS assertion green, which is how that was found. */
+    dp_f32_consume (buf, 64);
+    DP_CHECK (dp_f32_wait (buf, 64) == NULL);
+    dp_f32_destroy (buf);
+  }
+
+  {
+    /* 4. Interrupted -> NULL, on a ring nobody closed. This is the case the
+          old spin could not express at all. */
+    dp_f32_t *buf = dp_f32_create (1024);
+    DP_REQUIRE (buf != NULL);
+    dp_interrupt ();
+    DP_CHECK_MSG (dp_f32_wait (buf, 64) == NULL,
+                  "an interrupt ends the wait even on an open ring");
+    DP_CHECK_MSG (dp_f32_closed (buf) == 0,
+                  "and does so WITHOUT closing the ring -- the caller tells "
+                  "end-of-stream from interrupted by asking which happened");
+    dp_resume ();
+    dp_f32_destroy (buf);
+  }
+
+  /* 5. A consumer already spinning inside wait() when the producer writes
+        its last batch and closes must receive those samples. This is the
+        realistic shape -- the ring exists for producer/consumer threads --
+        and it does cover the loop body, which the single-threaded cases
+        never enter.
+
+        It does NOT pin the re-load-after-acquire inside the closed branch:
+        that needs the consumer to observe the flag while the write is still
+        invisible, and when the write IS visible the loop exits before the
+        branch. Sabotaging the re-load leaves this green. The argument for
+        it is written in buffer.h instead, where it can be read next to the
+        code it defends. */
+  {
+    dp_f32_t *buf = dp_f32_create (1024);
+    DP_REQUIRE (buf != NULL);
+
+    eos_race_arg_t arg = { buf, NULL, 0 };
+    pthread_t      th;
+    DP_REQUIRE (pthread_create (&th, NULL, eos_consumer, &arg) == 0);
+
+    /* Let the consumer reach the spin before anything is written. */
+    struct timespec nap = { 0, 50 * 1000 * 1000 };
+    nanosleep (&nap, NULL);
+
+    float chunk[64];
+    for (size_t i = 0; i < 64; i++)
+      chunk[i] = (float)(i + 1);
+    DP_CHECK (dp_f32_write (buf, chunk, 64) == true);
+    dp_f32_close (buf);
+
+    DP_REQUIRE (pthread_join (th, NULL) == 0);
+    DP_CHECK_MSG (arg.got != NULL,
+                  "a consumer spinning when the producer writes-then-closes "
+                  "must receive the final batch, not lose it to the flag");
+    DP_CHECK_MSG (arg.first == 1.0f,
+                  "and receive the samples that were actually written");
     dp_f32_destroy (buf);
   }
 

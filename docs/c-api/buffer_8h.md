@@ -14,6 +14,7 @@ _High-performance x86-64 Circular Buffer for RF Streaming._ [More...](#detailed-
 * `#include <stdio.h>`
 * `#include <sys/mman.h>`
 * `#include <unistd.h>`
+* `#include "dp_interrupt.h"`
 * `#include <stdbool.h>`
 * `#include <stddef.h>`
 * `#include <stdint.h>`

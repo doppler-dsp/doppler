@@ -3,19 +3,14 @@
 # entry naming a deleted script fails the meta-test, so this list stays
 # honest. Everything NOT listed here runs in CI on arrival.
 #
-# All six entries are halves of two-process NATS demos: each blocks
-# waiting for its peer (or exits nonzero when 127.0.0.1:4222 is
-# unreachable), so a single-process smoke run can never exercise them.
-# The wire round-trips they demonstrate are covered by the stream suite
-# (src/doppler/stream/tests/, which runs against CI's live broker).
+# The two-process NATS demos are no longer here: they are RUN, in pairs,
+# from .examples-pairs. What is left is the class this file is actually
+# for -- an example whose own assertion cannot be trusted to hold on
+# every run, and one that needs a broker it must not require.
+#
 # A "broker:" reason is conditional: the example runs whenever a NATS
-# broker is reachable on 127.0.0.1:4222 (CI starts one) and self-skips
+# broker is reachable on 127.0.0.1:4222 (CI starts one, and the root
+# conftest brings one up when `nats-server` is on PATH) and self-skips
 # elsewhere -- it needs no peer process, just the broker.
 wfm_realtime_stream.py: broker: single-process realtime stream; TX asserts run against a live broker
-transmitter.py: two-process NATS demo (pair of receiver.py); needs a live peer
-receiver.py: two-process NATS demo (pair of transmitter.py); blocks on recv
-requester.py: two-process NATS REQ demo (pair of replier.py); needs a live peer
-replier.py: two-process NATS REP demo (pair of requester.py); blocks on recv
-pipeline_send.py: two-process compose-pipeline demo (pair of pipeline_recv.py)
-pipeline_recv.py: two-process compose-pipeline demo (pair of pipeline_send.py)
 mpsk_receiver_performance_demo.py: its Monte Carlo asserts the coherent bound, and 8PSK at m_out < 8 genuinely misses it (measured 8.1 dB loss at m_out=4/sps=10.73, SER 0.18 at Es/N0 16 dB), so pass/fail depends on the draw. Un-skip once the M=8 lock/detect decision lands -- see project memory. Runs on demand: python src/doppler/examples/mpsk_receiver_performance_demo.py

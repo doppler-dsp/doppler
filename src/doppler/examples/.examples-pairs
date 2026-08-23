@@ -1,0 +1,26 @@
+# Two-process examples: one "first.py + second.py: <evidence regex>" per
+# line, "#" comments allowed. Read by src/doppler/tests/test_examples.py,
+# which runs the pair as two subprocesses against a live NATS broker,
+# SIGTERMs both once the evidence appears, and requires exit 0 from each.
+#
+# These used to sit in .examples-skip as "needs a live peer" -- true of a
+# harness that runs one script at a time, and not true of anything else:
+# the gate already runs every example as a subprocess, so running two is
+# a second Popen. Skipping them meant the demos a reader is most likely
+# to copy (the whole streaming story) were the ones nothing executed.
+#
+# Order is start order, and it is load-bearing for the JetStream pair --
+# see the note there. The regex is matched against the pair's COMBINED
+# stdout, so it can name whichever side proves the wire actually moved;
+# a pair that exits 0 having exchanged nothing must not pass.
+transmitter.py + receiver.py: Packets: +[1-9]
+# The RTT line is printed only after the reply comes back, so it is the
+# round trip itself; `Done.` would have matched either half's shutdown.
+replier.py + requester.py: RTT +[0-9]
+# pipeline_send.py runs FIRST, though both docstrings used to say workers
+# first: the Push side is what creates the JetStream work-queue stream,
+# and against a broker that has never carried it `dp_pull_create failed`
+# is immediate and deterministic (measured on a fresh -sd store; once any
+# sender has created the stream, either order works, which is why the
+# wrong order survived in the docs).
+pipeline_send.py + pipeline_recv.py: Packets: +[1-9]

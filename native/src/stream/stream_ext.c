@@ -81,11 +81,6 @@ build_recv_result (dp_msg_t *msg, const dp_header_t *hdr)
       dims[0] = (npy_intp)dp_msg_num_samples (msg);
       typenum = NPY_COMPLEX128;
     }
-  else if (st == CF128)
-    {
-      dims[0] = (npy_intp)dp_msg_num_samples (msg);
-      typenum = NPY_CLONGDOUBLE;
-    }
   else if (st == CI8)
     {
       dims[0] = (npy_intp)(dp_msg_num_samples (msg) * 2); /* interleaved I/Q */
@@ -161,8 +156,6 @@ build_recv_result (dp_msg_t *msg, const dp_header_t *hdr)
 typedef int (*send_ci32_fn) (void *, const int32_t *, size_t, double, double);
 typedef int (*send_cf64_fn) (void *, const double _Complex *, size_t, double,
                              double);
-typedef int (*send_cf128_fn) (void *, const long double _Complex *, size_t,
-                              double, double);
 typedef int (*send_ci8_fn) (void *, const int8_t *, size_t, double, double);
 typedef int (*send_ci16_fn) (void *, const int16_t *, size_t, double, double);
 typedef int (*send_cf32_fn) (void *, const float _Complex *, size_t, double,
@@ -170,9 +163,8 @@ typedef int (*send_cf32_fn) (void *, const float _Complex *, size_t, double,
 
 static PyObject *
 do_send (void *ctx, int sample_type, send_ci32_fn fn_ci32,
-         send_cf64_fn fn_cf64, send_cf128_fn fn_cf128, send_ci8_fn fn_ci8,
-         send_ci16_fn fn_ci16, send_cf32_fn fn_cf32, PyObject *args,
-         PyObject *kwds)
+         send_cf64_fn fn_cf64, send_ci8_fn fn_ci8, send_ci16_fn fn_ci16,
+         send_cf32_fn fn_cf32, PyObject *args, PyObject *kwds)
 {
   PyArrayObject *arr;
   double         sample_rate      = 0.0;
@@ -200,12 +192,11 @@ do_send (void *ctx, int sample_type, send_ci32_fn fn_ci32,
       return NULL;
     }
 
-  int expected = (sample_type == CI32)    ? NPY_INT32
-                 : (sample_type == CF64)  ? NPY_COMPLEX128
-                 : (sample_type == CF128) ? NPY_CLONGDOUBLE
-                 : (sample_type == CI8)   ? NPY_INT8
-                 : (sample_type == CI16)  ? NPY_INT16
-                                          : NPY_COMPLEX64; /* CF32 */
+  int expected = (sample_type == CI32)   ? NPY_INT32
+                 : (sample_type == CF64) ? NPY_COMPLEX128
+                 : (sample_type == CI8)  ? NPY_INT8
+                 : (sample_type == CI16) ? NPY_INT16
+                                         : NPY_COMPLEX64; /* CF32 */
   if (PyArray_TYPE (arr) != expected)
     {
       PyErr_SetString (PyExc_TypeError, "samples dtype mismatch");
@@ -233,12 +224,9 @@ do_send (void *ctx, int sample_type, send_ci32_fn fn_ci32,
     else if (sample_type == CI16)
       rc = fn_ci16 (ctx, (const int16_t *)data, (size_t)num_samples,
                     sample_rate, center_freq);
-    else if (sample_type == CF32)
+    else /* CF32 */
       rc = fn_cf32 (ctx, (const float _Complex *)data, (size_t)num_samples,
                     sample_rate, center_freq);
-    else
-      rc = fn_cf128 (ctx, (const long double _Complex *)data,
-                     (size_t)num_samples, sample_rate, center_freq);
   Py_END_ALLOW_THREADS;
 
   if (rc == DP_ERR_TOO_LARGE)
@@ -330,7 +318,7 @@ Publisher_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
                                     &sample_type))
     return NULL;
 
-  if (sample_type < CI32 || sample_type > TLM16)
+  if (!dp_sample_type_is_valid ((dp_sample_type_t)sample_type))
     {
       PyErr_SetString (PyExc_ValueError, "Invalid sample_type");
       return NULL;
@@ -403,9 +391,8 @@ Publisher_send (PublisherObject *self, PyObject *args, PyObject *kwds)
       Py_RETURN_NONE;
     }
   return do_send (self->ctx, self->sample_type, (send_ci32_fn)dp_pub_send_ci32,
-                  (send_cf64_fn)dp_pub_send_cf64,
-                  (send_cf128_fn)dp_pub_send_cf128,
-                  (send_ci8_fn)dp_pub_send_ci8, (send_ci16_fn)dp_pub_send_ci16,
+                  (send_cf64_fn)dp_pub_send_cf64, (send_ci8_fn)dp_pub_send_ci8,
+                  (send_ci16_fn)dp_pub_send_ci16,
                   (send_cf32_fn)dp_pub_send_cf32, args, kwds);
 }
 
@@ -581,7 +568,7 @@ Push_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
                                     &sample_type))
     return NULL;
 
-  if (sample_type < CI32 || sample_type > CF32)
+  if (!dp_sample_type_is_iq ((dp_sample_type_t)sample_type))
     {
       PyErr_SetString (PyExc_ValueError, "Invalid sample_type");
       return NULL;
@@ -610,9 +597,9 @@ Push_send (PushObject *self, PyObject *args, PyObject *kwds)
 {
   return do_send (
       self->ctx, self->sample_type, (send_ci32_fn)dp_push_send_ci32,
-      (send_cf64_fn)dp_push_send_cf64, (send_cf128_fn)dp_push_send_cf128,
-      (send_ci8_fn)dp_push_send_ci8, (send_ci16_fn)dp_push_send_ci16,
-      (send_cf32_fn)dp_push_send_cf32, args, kwds);
+      (send_cf64_fn)dp_push_send_cf64, (send_ci8_fn)dp_push_send_ci8,
+      (send_ci16_fn)dp_push_send_ci16, (send_cf32_fn)dp_push_send_cf32, args,
+      kwds);
 }
 
 static PyObject *
@@ -823,7 +810,7 @@ Requester_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
                                     &sample_type))
     return NULL;
 
-  if (sample_type < CI32 || sample_type > CF32)
+  if (!dp_sample_type_is_iq ((dp_sample_type_t)sample_type))
     {
       PyErr_SetString (PyExc_ValueError, "Invalid sample_type");
       return NULL;
@@ -851,9 +838,8 @@ static PyObject *
 Requester_send (RequesterObject *self, PyObject *args, PyObject *kwds)
 {
   return do_send (self->ctx, self->sample_type, (send_ci32_fn)dp_req_send_ci32,
-                  (send_cf64_fn)dp_req_send_cf64,
-                  (send_cf128_fn)dp_req_send_cf128,
-                  (send_ci8_fn)dp_req_send_ci8, (send_ci16_fn)dp_req_send_ci16,
+                  (send_cf64_fn)dp_req_send_cf64, (send_ci8_fn)dp_req_send_ci8,
+                  (send_ci16_fn)dp_req_send_ci16,
                   (send_cf32_fn)dp_req_send_cf32, args, kwds);
 }
 
@@ -942,7 +928,7 @@ Replier_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
                                     &sample_type))
     return NULL;
 
-  if (sample_type < CI32 || sample_type > CF32)
+  if (!dp_sample_type_is_iq ((dp_sample_type_t)sample_type))
     {
       PyErr_SetString (PyExc_ValueError, "Invalid sample_type");
       return NULL;
@@ -977,9 +963,8 @@ static PyObject *
 Replier_send (ReplierObject *self, PyObject *args, PyObject *kwds)
 {
   return do_send (self->ctx, self->sample_type, (send_ci32_fn)dp_rep_send_ci32,
-                  (send_cf64_fn)dp_rep_send_cf64,
-                  (send_cf128_fn)dp_rep_send_cf128,
-                  (send_ci8_fn)dp_rep_send_ci8, (send_ci16_fn)dp_rep_send_ci16,
+                  (send_cf64_fn)dp_rep_send_cf64, (send_ci8_fn)dp_rep_send_ci8,
+                  (send_ci16_fn)dp_rep_send_ci16,
                   (send_cf32_fn)dp_rep_send_cf32, args, kwds);
 }
 
@@ -1112,7 +1097,6 @@ PyInit_stream (void)
 
   PyModule_AddIntConstant (m, "CI32", CI32);
   PyModule_AddIntConstant (m, "CF64", CF64);
-  PyModule_AddIntConstant (m, "CF128", CF128);
   PyModule_AddIntConstant (m, "CI8", CI8);
   PyModule_AddIntConstant (m, "CI16", CI16);
   PyModule_AddIntConstant (m, "CF32", CF32);

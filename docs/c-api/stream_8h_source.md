@@ -37,7 +37,13 @@ extern "C"
   {
     CI32  = 0, 
     CF64  = 1, 
-    CF128 = 2, 
+    /* 2 was CF128 (long double I/Q). Retired: its wire size is
+       sizeof(long double _Complex), which is 32 bytes on both x86-64 and
+       aarch64 while the REPRESENTATION differs (80-bit extended vs IEEE
+       binary128), so a frame crossed an architecture boundary, matched on
+       every field a receiver checks, and decoded to nonsense. The value is
+       not reused: an old sender's frames must stay unrecognised, not be
+       silently read as some newer type. */
     CI8   = 3, 
     CI16  = 4, 
     CF32  = 5, 
@@ -113,10 +119,6 @@ extern "C"
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
-  int dp_pub_send_cf128 (dp_pub_t *ctx, const long double _Complex *samples,
-                         size_t num_samples, double sample_rate,
-                         double center_freq);
-
   int dp_pub_send_ci8 (dp_pub_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
@@ -160,10 +162,6 @@ extern "C"
   int dp_push_send_cf64 (dp_push_t *ctx, const double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
-
-  int dp_push_send_cf128 (dp_push_t *ctx, const long double _Complex *samples,
-                          size_t num_samples, double sample_rate,
-                          double center_freq);
 
   int dp_push_send_ci8 (dp_push_t *ctx, const int8_t *samples,
                         size_t num_samples, double sample_rate,
@@ -211,10 +209,7 @@ extern "C"
                         double center_freq);
   int dp_req_send_cf64 (dp_req_t *ctx, const double _Complex *samples,
                         size_t num_samples, double sample_rate,
-                        double center_freq);
-  int dp_req_send_cf128 (dp_req_t *ctx, const long double _Complex *samples,
-                         size_t num_samples, double sample_rate,
-                         double center_freq);
+                        double center_freq);  
   int dp_req_send_ci8 (dp_req_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
@@ -230,10 +225,7 @@ extern "C"
                         double center_freq);
   int dp_rep_send_cf64 (dp_rep_t *ctx, const double _Complex *samples,
                         size_t num_samples, double sample_rate,
-                        double center_freq);
-  int dp_rep_send_cf128 (dp_rep_t *ctx, const long double _Complex *samples,
-                         size_t num_samples, double sample_rate,
-                         double center_freq);
+                        double center_freq);  
   int dp_rep_send_ci8 (dp_rep_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
@@ -264,6 +256,10 @@ extern "C"
   const char *dp_sample_type_str (dp_sample_type_t type);
 
   size_t dp_sample_size (dp_sample_type_t type);
+
+  int dp_sample_type_is_valid (dp_sample_type_t type);
+
+  int dp_sample_type_is_iq (dp_sample_type_t type);
 
   uint64_t dp_get_timestamp_ns (void);
 

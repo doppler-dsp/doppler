@@ -384,8 +384,9 @@ def test_streamsink_loopback_to_subscriber():
 
     StreamSink frames with ``dp_pub_send_*`` (the shared wire format), so a
     ``doppler.stream.Subscriber`` on the same endpoint must recover the samples
-    and the fs/fc tags. cf64 is used because the Python recv path decodes
-    CF64/CI32/CF128 (cf32 is wire-valid but not Python-decodable).
+    and the fs/fc tags. cf64 is used because it is StreamSink's own
+    default, not because of any decode limit -- every wire type the
+    sender can emit decodes on the Python side.
     """
     from doppler.stream import Subscriber
 

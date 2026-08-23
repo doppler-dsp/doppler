@@ -122,13 +122,12 @@ for block in Composer([scene]).stream(block=4096):
 print(clock.samples, clock.underruns, clock.max_lateness)
 ```
 
-!!! note "Publish cf64/ci32 to a Python subscriber"
+!!! note "Every wire type decodes on both faces"
 
-    `doppler.stream`'s receiver currently decodes only `CI32`/`CF64`/`CF128`,
-    so `StreamSink`'s default `cf32` (and `ci16`/`ci8`) frames are not yet
-    decodable on the Python side — use `sample_type="cf64"` until the
-    [stream dtype gap](../dev/archive/wfm-validation-findings.md) is fixed. A C
-    `dp_sub_*` subscriber decodes all six types today.
+    A `doppler.stream` subscriber decodes each type `StreamSink` can emit —
+    `cf32` (the default), `cf64`, `ci8`, `ci16`, `ci32` — the same set a C
+    `dp_sub_*` subscriber reads. The note that stood here described a
+    Python-side decode gap that had already been closed.
 
 ## Reproduce
 

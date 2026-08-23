@@ -90,7 +90,13 @@ extern "C"
   {
     CI32  = 0, /**< Complex int32: int32_t I/Q   (8 bytes/sample). */
     CF64  = 1, /**< Complex float64: double I/Q  (16 bytes/sample). */
-    CF128 = 2, /**< Complex long double I/Q      (32 bytes/sample). */
+    /* 2 was CF128 (long double I/Q). Retired: its wire size is
+       sizeof(long double _Complex), which is 32 bytes on both x86-64 and
+       aarch64 while the REPRESENTATION differs (80-bit extended vs IEEE
+       binary128), so a frame crossed an architecture boundary, matched on
+       every field a receiver checks, and decoded to nonsense. The value is
+       not reused: an old sender's frames must stay unrecognised, not be
+       silently read as some newer type. */
     CI8   = 3, /**< Complex int8: int8_t I/Q     (2 bytes/sample).  */
     CI16  = 4, /**< Complex int16: int16_t I/Q   (4 bytes/sample).  */
     CF32  = 5, /**< Complex float32: float I/Q   (8 bytes/sample).  */
@@ -117,7 +123,6 @@ extern "C"
    * |-----------|----------------------|--------------|
    * | CF32   | @c float _Complex    | 8            |
    * | CF64   | @c double _Complex   | 16           |
-   * | CF128  | @c long double _Complex | 32        |
    *
    * Integer complex types have no C99 equivalent.  They are represented
    * as interleaved I/Q arrays where each complex sample occupies two
@@ -300,14 +305,6 @@ extern "C"
                         double center_freq);
 
   /**
-   * @brief Send an array of CF128 samples via a Publisher.
-   * @copydetails dp_pub_send_ci32
-   */
-  int dp_pub_send_cf128 (dp_pub_t *ctx, const long double _Complex *samples,
-                         size_t num_samples, double sample_rate,
-                         double center_freq);
-
-  /**
    * @brief Send an array of CI8 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
@@ -450,14 +447,6 @@ extern "C"
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
-  /**
-   * @brief Send CF128 samples via a Push socket.
-   * @copydetails dp_pub_send_ci32
-   */
-  int dp_push_send_cf128 (dp_push_t *ctx, const long double _Complex *samples,
-                          size_t num_samples, double sample_rate,
-                          double center_freq);
-
   /** @brief Send CI8 samples via a Push socket.
    *  @copydetails dp_pub_send_ci32 */
   int dp_push_send_ci8 (dp_push_t *ctx, const int8_t *samples,
@@ -578,12 +567,7 @@ extern "C"
   /** @brief Send CF64 signal frame as a request. */
   int dp_req_send_cf64 (dp_req_t *ctx, const double _Complex *samples,
                         size_t num_samples, double sample_rate,
-                        double center_freq);
-  /** @brief Send CF128 signal frame as a request. */
-  int dp_req_send_cf128 (dp_req_t *ctx, const long double _Complex *samples,
-                         size_t num_samples, double sample_rate,
-                         double center_freq);
-  /** @brief Send CI8 signal frame as a request. */
+                        double center_freq);  /** @brief Send CI8 signal frame as a request. */
   int dp_req_send_ci8 (dp_req_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
@@ -603,12 +587,7 @@ extern "C"
   /** @brief Send CF64 signal frame as a reply. */
   int dp_rep_send_cf64 (dp_rep_t *ctx, const double _Complex *samples,
                         size_t num_samples, double sample_rate,
-                        double center_freq);
-  /** @brief Send CF128 signal frame as a reply. */
-  int dp_rep_send_cf128 (dp_rep_t *ctx, const long double _Complex *samples,
-                         size_t num_samples, double sample_rate,
-                         double center_freq);
-  /** @brief Send CI8 signal frame as a reply. */
+                        double center_freq);  /** @brief Send CI8 signal frame as a reply. */
   int dp_rep_send_ci8 (dp_rep_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
@@ -677,7 +656,7 @@ extern "C"
 
   /**
    * @brief Return a short string name for @p type
-   *        ("CI8", "CI16", "CI32", "CF32", "CF64", "CF128").
+   *        ("CI8", "CI16", "CI32", "CF32", "CF64").
    * @param type Sample type enum value.
    * @return Statically allocated, null-terminated string.
    */
@@ -687,9 +666,35 @@ extern "C"
    * @brief Return the byte size of one complex sample for @p type.
    * @param type Sample type enum value.
    * @return Byte count (e.g. 2 for CI8, 4 for CI16, 8 for CI32/CF32,
-   *         16 for CF64, 32 for CF128).
+   *         16 for CF64).
    */
   size_t dp_sample_size (dp_sample_type_t type);
+
+  /**
+   * @brief True when @p type is a sample type this build knows.
+   *
+   * Derived from dp_sample_size(), so there is one table: a type with no
+   * size is not a type. Ask this rather than range-testing the enum --
+   * the values are append-only and a RETIRED one (2, the former CF128)
+   * sits inside the range while being invalid, so `type <= CF32` accepts a
+   * value nothing can send or decode.
+   *
+   * @param type Sample type enum value.
+   * @return Non-zero when the type is known, 0 otherwise.
+   */
+  int dp_sample_type_is_valid (dp_sample_type_t type);
+
+  /**
+   * @brief True when @p type is a known I/Q sample type.
+   *
+   * Every valid type except TLM16, whose payload is telemetry records
+   * rather than samples. This is the check a sender that carries only I/Q
+   * (PUSH, REQ, REP) wants; PUB additionally accepts TLM16.
+   *
+   * @param type Sample type enum value.
+   * @return Non-zero when the type is a known I/Q type, 0 otherwise.
+   */
+  int dp_sample_type_is_iq (dp_sample_type_t type);
 
   /**
    * @brief Return the current wall-clock time as nanoseconds since the UNIX

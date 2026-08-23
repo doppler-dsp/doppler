@@ -57,7 +57,6 @@
 |  void | [**dp\_pull\_set\_timeout**](#function-dp_pull_set_timeout) ([**dp\_pull\_t**](group__types.md#typedef-dp_pull_t) \* ctx, int timeout\_ms) <br>_Set receive timeout for a Pull socket._  |
 |  [**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* | [**dp\_push\_create**](#function-dp_push_create) (const char \* endpoint, [**dp\_sample\_type\_t**](group__types.md#enum-dp_sample_type_t) sample\_type) <br>_Create a Push producer and connect to_ `endpoint` _._ |
 |  void | [**dp\_push\_destroy**](#function-dp_push_destroy) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx) <br>_Destroy a Push context and release all resources._  |
-|  int | [**dp\_push\_send\_cf128**](#function-dp_push_send_cf128) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const long double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF128 samples via a Push socket._  |
 |  int | [**dp\_push\_send\_cf32**](#function-dp_push_send_cf32) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const float \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF32 samples via a Push socket._  |
 |  int | [**dp\_push\_send\_cf64**](#function-dp_push_send_cf64) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF64 samples via a Push socket._  |
 |  int | [**dp\_push\_send\_ci16**](#function-dp_push_send_ci16) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const int16\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI16 samples via a Push socket._  |
@@ -294,48 +293,6 @@ void dp_push_destroy (
 
 
 * `ctx` Push context (may be NULL). 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dp\_push\_send\_cf128 
-
-_Send CF128 samples via a Push socket._ 
-```
-int dp_push_send_cf128 (
-    dp_push_t * ctx,
-    const long double _Complex * samples,
-    size_t num_samples,
-    double sample_rate,
-    double center_freq
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `ctx` Publisher context. 
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
-* `num_samples` Number of complex samples. 
-* `sample_rate` Sample rate in Hz. 
-* `center_freq` Centre frequency in Hz. 
-
-
-
-**Returns:**
-
-DP\_OK (0) on success, negative error code on failure.   
-
 
 
 

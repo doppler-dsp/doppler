@@ -42,6 +42,7 @@ RETIRED = Path(__file__).parent / ".retired-names"
 SCAN_DIRS = (
     "native",
     "examples",
+    "example-projects",
     "src/doppler",
     "scripts",
     "changelog.d",

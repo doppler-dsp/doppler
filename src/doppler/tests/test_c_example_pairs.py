@@ -35,7 +35,7 @@ from doppler.tests._repo import repo_root
 pytestmark = pytest.mark.examples
 
 REPO = repo_root(__file__)
-BIN = REPO / "build" / "examples" / "c"
+BIN = REPO / "build" / "native" / "examples"
 
 # How long the interrupted process may take to exit. The example asks the
 # broker for a 250 ms receive timeout, so one timeout plus teardown is the

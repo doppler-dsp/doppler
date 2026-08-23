@@ -46,6 +46,7 @@
 * `#include "tonemeas/tonemeas_core.h"`
 * `#include "nprmeas/nprmeas_core.h"`
 * `#include "imdmeas/imdmeas_core.h"`
+* `#include "dp_interrupt_guard/dp_interrupt_guard_core.h"`
 * `#include "dp_tlm/dp_tlm_core.h"`
 * `#include "dp_tlm_capture/dp_tlm_capture_core.h"`
 * `#include "ddc/ddc_core.h"`

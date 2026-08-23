@@ -8,18 +8,18 @@ on `PATH`.
 
 Under `examples/` are four real consumers, smallest first:
 
-| Path                      | What it shows                                                                                                                |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `examples/consumer/`      | The minimum: `find_package(doppler)` + link `doppler::doppler`.                                                              |
-| `examples/standalone/`    | A single-file DSP program linking the static lib.                                                                            |
-| `examples/c/`             | The streaming C demos (transmitter / receiver / spectrum).                                                                   |
-| `examples/downstream-jm/` | **iqtools** — a full jm project: C core + generated Python bindings, `.pyi`, tests. The flagship "build on doppler" example. |
+| Path                           | What it shows                                                                                                                |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `example-projects/consumer/`   | The minimum: `find_package(doppler)` + link `doppler::doppler`.                                                              |
+| `example-projects/standalone/` | A single-file DSP program linking the static lib.                                                                            |
+| `native/examples/`             | The streaming C demos (transmitter / receiver / spectrum).                                                                   |
+| `examples/downstream-jm/`      | **iqtools** — a full jm project: C core + generated Python bindings, `.pyi`, tests. The flagship "build on doppler" example. |
 
 ## Try it
 
 ```sh
 # 1) The tiniest consumer — links doppler, prints a result.
-cd examples/consumer && cmake -B build && cmake --build build && ./build/consumer_shared
+cd example-projects/consumer && cmake -B build && cmake --build build && ./build/consumer_shared
 
 # 2) The full jm downstream — builds bindings + runs its whole suite.
 cd /workspace/examples/downstream-jm && make test

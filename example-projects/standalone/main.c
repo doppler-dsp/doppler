@@ -6,18 +6,18 @@
  *
  * Build from source tree (doppler built but not installed):
  *   cmake -B build -DBUILD_PYTHON=OFF && cmake --build build -j
- *   cmake -B examples/standalone/build examples/standalone \
+ *   cmake -B example-projects/standalone/build example-projects/standalone \
  *         -DDOPPLER_BUILD_DIR=$(pwd)/build
- *   cmake --build examples/standalone/build
- *   ./examples/standalone/build/awgn_example
+ *   cmake --build example-projects/standalone/build
+ *   ./example-projects/standalone/build/awgn_example
  *
  * Build from installed artifact (after cmake --install):
- *   cmake -B examples/standalone/build examples/standalone
- *   cmake --build examples/standalone/build
- *   ./examples/standalone/build/awgn_example
+ *   cmake -B example-projects/standalone/build example-projects/standalone
+ *   cmake --build example-projects/standalone/build
+ *   ./example-projects/standalone/build/awgn_example
  *
  * Or with plain gcc against the build tree (the core is pure C — only -lm):
- *   gcc -o awgn_example examples/standalone/main.c \
+ *   gcc -o awgn_example example-projects/standalone/main.c \
  *       -Inative/inc -Ibuild/native/inc \
  *       build/libdoppler.a -lm
  */

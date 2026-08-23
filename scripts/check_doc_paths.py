@@ -58,7 +58,7 @@ SOURCES = (
     # "Usage:" block a reader copies first, and invisible because nothing
     # looked. A path in an example is now checked like a path in a page.
     "src/doppler/examples/*.py",
-    "examples/c/*.c",
+    "native/examples/*.c",
 )
 
 #: Directories that are unmistakably this repo's, so a code span starting with

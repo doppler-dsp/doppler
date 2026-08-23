@@ -53,7 +53,7 @@ Under `/workspace/examples` are four real consumers, smallest to largest —
 Then, inside:
 
 ```sh
-cd examples/consumer && cmake -B build && cmake --build build && ./build/consumer_shared
+cd example-projects/consumer && cmake -B build && cmake --build build && ./build/consumer_shared
 ```
 
 ## Showcase — a full downstream project

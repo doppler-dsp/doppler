@@ -168,7 +168,7 @@ set_target_properties(doppler_lib_static PROPERTIES EXPORT_NAME doppler-static)
 # that drops the usage requirement on the floor. Nothing else re-stated it, so
 # the archive's link interface carried no pthread and a consumer that pulled a
 # pthread-using member out of libdoppler.a failed to link: on glibc < 2.34
-# pthread is a separate library, so `examples/c/ccsds_link_demo` died on
+# pthread is a separate library, so `native/examples/ccsds_link_demo` died on
 # `undefined reference to pthread_once` in CI's Debian 10 job while every
 # glibc >= 2.34 box linked it clean, pthread being folded into libc there.
 find_package(Threads REQUIRED)
@@ -1016,7 +1016,7 @@ if(NOT WIN32)
         VERBATIM)
 endif()
 
-add_subdirectory(examples/c)
+add_subdirectory(native/examples)
 
 # ── Install ──────────────────────────────────────────────────────────────────
 

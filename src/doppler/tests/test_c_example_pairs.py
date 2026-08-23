@@ -1,6 +1,6 @@
 """The two-process C examples, run as pairs — including Ctrl+C.
 
-`examples/c/.examples-skip` excuses `receiver`/`transmitter` from the
+`native/examples/.examples-skip` excuses `receiver`/`transmitter` from the
 smoke gate with a reason that is true as far as it goes — "runs until
 Ctrl+C, no exit condition, so no broker makes them terminate" — and that
 reason quietly ASSUMES the thing this file tests. Ctrl+C was the stated

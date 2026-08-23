@@ -13,7 +13,7 @@
  *
  * Build:
  *   make build
- *   ./build/examples/c/agc_demo
+ *   ./build/native/examples/agc_demo
  */
 
 #include <agc/agc_core.h>

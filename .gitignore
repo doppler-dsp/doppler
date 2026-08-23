@@ -26,7 +26,7 @@ site/
 # `.csv` was missing here, and one got committed: `agc_step_response.csv`,
 # 206 KB at the repo root, added by f79ac33f — the very commit that
 # introduced the fail-closed example gate on the principle that an example
-# must never pollute the repo. The C demo `build/examples/c/agc_demo` writes
+# must never pollute the repo. The C demo `build/native/examples/agc_demo` writes
 # it into whatever cwd it is run from, and docs/examples/c.md tells you to
 # run it from the root. Root-scoped, so the validation trees' deliberately
 # committed `*/data/*.csv` are untouched.

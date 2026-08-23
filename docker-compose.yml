@@ -33,7 +33,7 @@ services:
   #
   # All four C services share one lean image: the stream-services target of
   # deploy/docker/Dockerfile.examples, which carries just the statically-linked
-  # examples/c streaming binaries on PATH. The anchor below defines that build
+  # native/examples streaming binaries on PATH. The anchor below defines that build
   # once and the shared `image:` name means compose builds it a single time and
   # reuses it for every service.
   transmitter:

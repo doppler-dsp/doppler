@@ -166,7 +166,7 @@ wfmgen --type tone --count 1000000 | other-tool                    # pipe via st
 wfmgen --type tone --continuous --output nats://127.0.0.1:4222/iq  # stream forever to NATS
 ```
 
-A `dp_sub_*` subscriber (e.g. `examples/c/spectrum_analyzer`) reads the NATS
+A `dp_sub_*` subscriber (e.g. `native/examples/spectrum_analyzer`) reads the NATS
 stream. For pacing a live stream to the true sample rate, see
 [Streaming](../wfmgen/streaming.md).
 

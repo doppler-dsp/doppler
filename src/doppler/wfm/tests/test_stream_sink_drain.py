@@ -64,6 +64,32 @@ def test_drain_default_budget() -> None:
         sink.close()
 
 
+def test_send_eos_then_drain_is_the_ordered_shutdown() -> None:
+    """The order the header prescribes: stop producing, say so, let it land.
+
+    `send_eos()` must precede `drain()` — a drain cannot be reversed and
+    refuses sends once it reaches its publish-flushing phase, so an
+    end-of-stream issued afterwards may simply not go.
+    """
+    sink = wfm.StreamSink(ENDPOINT, "cf32")
+    try:
+        sink.send(np.zeros(256, dtype=np.complex64), 1e6, 2.4e9)
+        sink.send_eos()
+        sink.drain(2000)
+    finally:
+        sink.close()
+
+
+def test_send_eos_with_nothing_sent() -> None:
+    """A sender that finishes without sending anything still says so."""
+    sink = wfm.StreamSink(ENDPOINT, "cf32")
+    try:
+        sink.send_eos()
+        sink.drain(2000)
+    finally:
+        sink.close()
+
+
 def test_close_after_drain_is_just_the_free() -> None:
     """Drain leaves the sink finished; closing next must still work.
 

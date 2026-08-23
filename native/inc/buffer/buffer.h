@@ -60,6 +60,10 @@
 #include <unistd.h>
 #endif /* _WIN32 */
 
+/* The ring's wait consults the same interrupt flag as every other
+   blocking wait in doppler; see docs/design/io-termination.md. */
+#include "dp_interrupt.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -347,6 +351,9 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
     size_t capacity; /**< Total capacity in complex samples. */               \
     void *_handle;   /**< Platform handle (Win32: HANDLE, POSIX: NULL). */    \
     DP_ALIGN (DP_CACHELINE) volatile size_t head;    /**< Producer idx. */    \
+    /* Shares the producer's line on purpose: the producer writes both, \
+       and a consumer reading them together reads one line. */          \
+    volatile int closed; /**< Producer said no more data is coming. */  \
     DP_ALIGN (DP_CACHELINE) volatile size_t tail;    /**< Consumer idx. */    \
     DP_ALIGN (DP_CACHELINE) volatile size_t dropped; /**< Overrun ctr. */     \
   } dp_##name##_t;                                                            \
@@ -431,14 +438,53 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
   }                                                                           \
                                                                               \
   /**                                                                         \
+   * @brief Say that no more data is coming.                                  \
+   *                                                                          \
+   * The producer's half of end-of-stream. Until this exists, a consumer      \
+   * cannot tell "the producer is slow" from "the producer has finished" --   \
+   * both look like an empty ring -- so dp_##name##_wait() had nothing to do  \
+   * but spin forever. Call it once, after the last write.                    \
+   *                                                                          \
+   * Release ordering: every sample written before this is visible to a       \
+   * consumer that observes the flag.                                         \
+   *                                                                          \
+   * @param ab Pointer to buffer.                                             \
+   */                                                                         \
+  static inline void dp_##name##_close (dp_##name##_t *ab)                    \
+  {                                                                           \
+    __atomic_store_n (&ab->closed, 1, __ATOMIC_RELEASE);                      \
+  }                                                                           \
+                                                                              \
+  /** @brief Non-zero once the producer has called dp_##name##_close(). */    \
+  static inline int dp_##name##_closed (const dp_##name##_t *ab)              \
+  {                                                                           \
+    return __atomic_load_n (&ab->closed, __ATOMIC_ACQUIRE);                   \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
    * @brief Blocking wait for a contiguous batch of samples.                  \
    *                                                                          \
    * Because of double-mapping, the returned pointer is guaranteed contiguous \
    * for @p n samples, allowing direct SIMD/AVX processing without copying.   \
    *                                                                          \
+   * Returns NULL rather than spinning forever when the wait cannot be     \
+   * satisfied, for either of two reasons the caller tells apart with       \
+   * dp_##name##_closed() and dp_interrupted():                             \
+   *                                                                          \
+   * - **end of stream** -- the producer has closed the ring AND fewer than \
+   *   @p n samples remain. The tail is drained: whatever is left is less   \
+   *   than a batch and no more is coming.                                  \
+   * - **interrupted** -- somebody asked this process to stop.              \
+   *                                                                          \
+   * Both checks exist because this used to be an unbounded busy-spin with  \
+   * no exit at all: a producer that stopped left the consumer spinning     \
+   * forever at 100%% CPU, and because the loop read no flag, no signal     \
+   * handler could rescue it. See docs/design/io-termination.md.            \
+   *                                                                          \
    * @param ab Pointer to buffer.                                             \
    * @param n  Minimum samples required.                                      \
-   * @return   Pointer to the read-head in the buffer.                        \
+   * @return   Pointer to the read-head, or NULL at end of stream or on an  \
+   *           interrupt.                                                    \
    */                                                                         \
   static inline type *dp_##name##_wait (dp_##name##_t *ab, size_t n)          \
   {                                                                           \
@@ -446,6 +492,28 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
     while (((h = DP_LOAD_ACQ (&ab->head)) - (t = DP_LOAD_RLX (&ab->tail)))    \
            < n)                                                               \
       {                                                                       \
+        /* The re-load after observing `closed` is required, not tidy.    \
+           close() is a RELEASE store and closed() an ACQUIRE load, so a    \
+           consumer that observes the flag is guaranteed to see every write \
+           that preceded it -- but only if it looks again. Using the `h`    \
+           read before the acquire would discard a final batch the producer \
+           had already published.                                           \
+                                                                            \
+           Narrow enough that no deterministic test reaches it: the branch  \
+           needs the consumer to see the flag and NOT yet the data, and if  \
+           the write is already visible the loop exits above without coming \
+           here at all. Sabotaging it leaves the suite green, which is why  \
+           the reasoning is written down rather than left to a test. */     \
+        if (dp_##name##_closed (ab))                                          \
+          {                                                                   \
+            h = DP_LOAD_ACQ (&ab->head);                                      \
+            t = DP_LOAD_RLX (&ab->tail);                                      \
+            if (h - t < n)                                                    \
+              return NULL;                                                    \
+            break;                                                            \
+          }                                                                   \
+        if (dp_interrupted ())                                                \
+          return NULL;                                                        \
         DP_SPIN_HINT ();                                                      \
       }                                                                       \
     (void)h;                                                                  \

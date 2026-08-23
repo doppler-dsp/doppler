@@ -65,6 +65,11 @@ static const char *kind_name[N_KIND] = { "f32", "f64" };
   do                                                                          \
     {                                                                         \
       const type *_p = dp_##name##_wait ((buf), (chunk));                     \
+      /* wait() may now return NULL -- end of stream, or interrupted. This    \
+         bench closes neither, so it cannot happen here; the guard is what    \
+         keeps that a fact rather than an assumption. */                      \
+      if (!_p)                                                                \
+        break;                                                                \
       for (size_t _k = 0; _k < (chunk) * 2; _k++)                             \
         (acc) += (double)_p[_k];                                              \
       dp_##name##_consume ((buf), (chunk));                                   \

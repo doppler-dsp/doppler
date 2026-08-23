@@ -13,6 +13,10 @@
 #include "dp_test.h"
 #include "stream/stream.h"
 
+/* dp_frame_parse: the receive-side rules, reachable without a broker. */
+#include "../src/stream/stream_internal.h"
+
+#include <complex.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -157,6 +161,213 @@ test_flag_mask (void)
   DP_CHECK (DP_WIRE_VERSION == 2u);
 }
 
+/* ------------------------------------------------------------------
+ * dp_mean_power: one formula, every wire format, and the normalisation
+ * that makes the answers comparable.
+ * ------------------------------------------------------------------ */
+static void
+test_mean_power (void)
+{
+  printf ("-- mean power is full-scale normalised in every format\n");
+
+  /* A unit-magnitude complex value is full scale in every format, so all
+     five must report 1.0 -- that IS the normalisation's contract. */
+  double _Complex cf64[4] = { 1, I, -1, -I };
+  DP_CHECK (dp_near (dp_mean_power (CF64, cf64, 4), 1.0, 1e-12));
+
+  float _Complex cf32[4] = { 1, I, -1, -I };
+  DP_CHECK (dp_near (dp_mean_power (CF32, cf32, 4), 1.0, 1e-6));
+
+  int8_t ci8[4] = { 127, 0, 0, -127 };
+  DP_CHECK (dp_near (dp_mean_power (CI8, ci8, 2), 1.0, 1e-9));
+
+  int16_t ci16[4] = { 32767, 0, 0, -32767 };
+  DP_CHECK (dp_near (dp_mean_power (CI16, ci16, 2), 1.0, 1e-9));
+
+  int32_t ci32[4] = { 2147483647, 0, 0, -2147483647 };
+  DP_CHECK (dp_near (dp_mean_power (CI32, ci32, 2), 1.0, 1e-9));
+
+  /* Half scale is a quarter of the power, in the format that quantises. */
+  int16_t half[2] = { 16384, 0 };
+  DP_CHECK (dp_near (dp_mean_power (CI16, half, 1), 0.25, 1e-3));
+
+  /* Both components count: I and Q at full scale is 2.0, not 1.0. */
+  double _Complex both[1] = { 1 + 1 * I };
+  DP_CHECK (dp_near (dp_mean_power (CF64, both, 1), 2.0, 1e-12));
+
+  /* Nothing to measure, nothing to crash on. */
+  DP_CHECK (dp_mean_power (CF64, NULL, 4) == 0.0);
+  DP_CHECK (dp_mean_power (CF64, cf64, 0) == 0.0);
+  DP_CHECK (dp_mean_power ((dp_sample_type_t)0, cf64, 4) == 0.0);
+}
+
+/* ------------------------------------------------------------------
+ * dp_frame_parse: the five checks a receiver makes. v1 made one of them,
+ * which is how a header could claim more samples than its message
+ * carried and be believed.
+ * ------------------------------------------------------------------ */
+static size_t
+build_frame (char *buf, size_t cap, size_t nsamples)
+{
+  dp_header_t h = { 0 };
+  h.magic       = DP_STREAM_MAGIC;
+  memcpy (h.data_rep, dp_host_rep (), 4);
+  h.format        = (uint16_t)CF64;
+  h.kind          = (uint16_t)DP_KIND_IQ;
+  h.version       = DP_WIRE_VERSION;
+  h.flags         = 0;
+  h.num_samples   = nsamples;
+  h.payload_bytes = (uint32_t)(nsamples * dp_sample_size (CF64));
+
+  size_t total = sizeof h + h.payload_bytes;
+  if (total > cap)
+    return 0;
+  memset (buf, 0, total);
+  memcpy (buf, &h, sizeof h);
+  return total;
+}
+
+static void
+test_frame_parse (void)
+{
+  printf ("-- a receiver checks five things, not one\n");
+
+  char        buf[512];
+  size_t      len = build_frame (buf, sizeof buf, 4);
+  dp_header_t h;
+  dp_chunk_t  ch;
+  int         chunked = 0;
+  const void *body    = NULL;
+  size_t      blen    = 0;
+
+  DP_CHECK (len > 0);
+  if (len == 0)
+    return; /* the fixture itself is broken; the checks below are moot */
+  DP_CHECK (dp_frame_parse (buf, len, &h, &ch, &chunked, &body, &blen)
+            == DP_OK);
+  DP_CHECK (chunked == 0);
+  DP_CHECK (blen == 4 * sizeof (double _Complex));
+  DP_CHECK ((const char *)body == buf + sizeof (dp_header_t));
+
+  /* 1. the magic */
+  char bad[512];
+  memcpy (bad, buf, len);
+  ((dp_header_t *)bad)->magic ^= 1u;
+  DP_CHECK (dp_frame_parse (bad, len, &h, &ch, &chunked, &body, &blen)
+            == DP_ERR_INVALID);
+
+  /* 2. the version -- a v1 frame must not be read as a v2 one */
+  memcpy (bad, buf, len);
+  ((dp_header_t *)bad)->version = 1;
+  DP_CHECK (dp_frame_parse (bad, len, &h, &ch, &chunked, &body, &blen)
+            == DP_ERR_INVALID);
+
+  /* 3. an unknown flag bit: it would move where the payload starts, so it
+        is refused rather than ignored -- the property that lets a later
+        additive block be introduced safely. */
+  memcpy (bad, buf, len);
+  ((dp_header_t *)bad)->flags |= 0x8000u;
+  DP_CHECK (dp_frame_parse (bad, len, &h, &ch, &chunked, &body, &blen)
+            == DP_ERR_INVALID);
+
+  /* 4. the header's length claim against the transport's truth. THIS is
+        the out-of-bounds read: a frame claiming a longer payload than it
+        carries was believed, and both faces then read past the buffer. */
+  memcpy (bad, buf, len);
+  ((dp_header_t *)bad)->payload_bytes += 16;
+  DP_CHECK (dp_frame_parse (bad, len, &h, &ch, &chunked, &body, &blen)
+            == DP_ERR_INVALID);
+
+  /* 5. num_samples against that same length */
+  memcpy (bad, buf, len);
+  ((dp_header_t *)bad)->num_samples += 1;
+  DP_CHECK (dp_frame_parse (bad, len, &h, &ch, &chunked, &body, &blen)
+            == DP_ERR_INVALID);
+
+  /* An unknown format has no element size, so no length can be right. */
+  memcpy (bad, buf, len);
+  ((dp_header_t *)bad)->format = 0;
+  DP_CHECK (dp_frame_parse (bad, len, &h, &ch, &chunked, &body, &blen)
+            == DP_ERR_INVALID);
+
+  /* Truncated before the header ends. */
+  DP_CHECK (dp_frame_parse (buf, sizeof (dp_header_t) - 1, &h, &ch, &chunked,
+                            &body, &blen)
+            == DP_ERR_INVALID);
+
+  /* Says CHUNKED but carries no chunk block. */
+  memcpy (bad, buf, len);
+  ((dp_header_t *)bad)->flags |= DP_FLAG_CHUNKED;
+  DP_CHECK (dp_frame_parse (bad, sizeof (dp_header_t), &h, &ch, &chunked,
+                            &body, &blen)
+            == DP_ERR_INVALID);
+
+  /* A well-formed chunked frame: the block is consumed and the payload
+     starts after it. */
+  dp_header_t ch_hdr = { 0 };
+  memcpy (&ch_hdr, buf, sizeof ch_hdr);
+  ch_hdr.flags |= DP_FLAG_CHUNKED;
+  ch_hdr.num_samples   = 2;
+  ch_hdr.payload_bytes = (uint32_t)(2 * sizeof (double _Complex));
+  dp_chunk_t blk       = { 0 };
+  blk.index            = 0;
+  blk.count            = 2;
+  blk.total_bytes      = 4 * sizeof (double _Complex);
+  blk.offset           = 0;
+
+  char   cbuf[512];
+  size_t off = 0;
+  memcpy (cbuf + off, &ch_hdr, sizeof ch_hdr);
+  off += sizeof ch_hdr;
+  memcpy (cbuf + off, &blk, sizeof blk);
+  off += sizeof blk;
+  memset (cbuf + off, 0, ch_hdr.payload_bytes);
+  off += ch_hdr.payload_bytes;
+
+  DP_CHECK (dp_frame_parse (cbuf, off, &h, &ch, &chunked, &body, &blen)
+            == DP_OK);
+  DP_CHECK (chunked == 1);
+  DP_CHECK (ch.count == 2);
+  DP_CHECK (ch.total_bytes == 4 * sizeof (double _Complex));
+  DP_CHECK ((const char *)body
+            == cbuf + sizeof (dp_header_t) + sizeof (dp_chunk_t));
+}
+
+/* ------------------------------------------------------------------
+ * The guards a caller hits without a broker anywhere in sight.
+ * ------------------------------------------------------------------ */
+static void
+test_argument_guards (void)
+{
+  printf ("-- bad arguments are refused before anything connects\n");
+
+  /* An invalid format is refused at CONSTRUCTION, not at the first send:
+     the socket declares what it will carry, so a retired or unknown code
+     never reaches the wire. No broker is contacted to find this out. */
+  DP_CHECK (dp_pub_create ("nats://127.0.0.1:4222/x", (dp_sample_type_t)0)
+            == NULL);
+  DP_CHECK (dp_pub_create ("nats://127.0.0.1:4222/x", (dp_sample_type_t)1)
+            == NULL); /* v1's CF64 is not a v2 format */
+  DP_CHECK (dp_pub_create (NULL, CF64) == NULL);
+  DP_CHECK (dp_sub_create (NULL) == NULL);
+
+  double _Complex x[2] = { 1, 2 };
+  DP_CHECK (dp_pub_send_cf64 (NULL, x, 2, 0.0, 0.0) == DP_ERR_INVALID);
+  DP_CHECK (dp_sub_recv (NULL, NULL, NULL) == DP_ERR_INVALID);
+
+  /* The NULL-handle answers, which every accessor owes. */
+  DP_CHECK (dp_msg_mean_power (NULL) == 0.0);
+  DP_CHECK (dp_msg_kind (NULL) == DP_KIND_IQ);
+  DP_CHECK (dp_msg_num_samples (NULL) == 0);
+  DP_CHECK (dp_msg_data (NULL) == NULL);
+  dp_msg_free (NULL); /* must not crash */
+
+  DP_CHECK (strcmp (dp_sample_type_str ((dp_sample_type_t)0), "UNKNOWN") == 0);
+  DP_CHECK (strcmp (dp_strerror (DP_ERR_TOO_LARGE),
+                    "Frame exceeds transport max_payload")
+            == 0);
+}
+
 int
 main (void)
 {
@@ -166,6 +377,9 @@ main (void)
   test_frame_kinds ();
   test_host_rep ();
   test_flag_mask ();
+  test_mean_power ();
+  test_frame_parse ();
+  test_argument_guards ();
 
   printf ("\n");
   DP_TEST_END ("test_stream_wire");

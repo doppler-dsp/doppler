@@ -85,6 +85,13 @@ struct dp_msg
 
 /* ---- NATS transport (implemented in stream_nats.c) --------------------- */
 
+/* Every check a receiver makes on an arriving frame, over a plain buffer --
+ * the format's rules, with no transport in them. Returns DP_OK and points
+ * *body at the payload, or DP_ERR_INVALID. */
+int dp_frame_parse (const void *buf, size_t len, dp_header_t *hdr,
+                    dp_chunk_t *chunk, int *chunked, const void **body,
+                    size_t *body_len);
+
 struct dp_ctx *nats_ctx_create (dp_role_t role, const char *endpoint,
                                 dp_frame_kind_t kind, dp_sample_type_t format);
 void           nats_ctx_destroy (struct dp_ctx *ctx);

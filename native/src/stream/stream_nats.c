@@ -528,56 +528,24 @@ nats_stash_reply (struct dp_ctx *ctx, natsMsg *m)
     ctx->nats.last_reply = strdup (reply);
 }
 
-/* Parse and check one frame's fixed part: the header, and the chunk block
- * when the header says one is there. Returns DP_OK with *body pointing at
- * the payload and *body_len its length.
- *
- * Every check here is one a v1 receiver did not make. It validated the
- * magic and nothing else -- not the version, not the flags, and crucially
- * not the payload length, so a header claiming more samples than the
- * message carried produced an out-of-bounds read on both faces (the numpy
- * array was sized from the header's own claim). */
+/* Pull the buffer out of a natsMsg and hand it to dp_frame_parse(), which
+ * is where the checking lives -- deliberately, so the rules can be tested
+ * against a hand-built buffer with no broker in the way (see
+ * native/tests/test_stream_wire.c). */
 static int
 nats_parse_frame (const natsMsg *m, dp_header_t *hdr, dp_chunk_t *chunk,
                   int *chunked, const char **body, size_t *body_len)
 {
   const char *d   = natsMsg_GetData ((natsMsg *)m);
   int         len = natsMsg_GetDataLength ((natsMsg *)m);
-  if (len < (int)sizeof (*hdr))
+  if (!d || len < 0)
     return DP_ERR_INVALID;
 
-  memcpy (hdr, d, sizeof (*hdr));
-  if (hdr->magic != DP_STREAM_MAGIC)
-    return DP_ERR_INVALID; /* not ours, or the opposite byte order */
-  if (hdr->version != DP_WIRE_VERSION)
-    return DP_ERR_INVALID;
-  if (hdr->flags & (uint16_t)~DP_FLAG_KNOWN)
-    return DP_ERR_INVALID; /* a block we do not know moves the payload */
-  if (memcmp (hdr->data_rep, dp_host_rep (), 4) != 0)
-    return DP_ERR_INVALID; /* magic already implies this; say it anyway */
-
-  size_t fixed = sizeof (*hdr);
-  *chunked     = (hdr->flags & DP_FLAG_CHUNKED) ? 1 : 0;
-  if (*chunked)
-    {
-      if ((size_t)len < fixed + sizeof (*chunk))
-        return DP_ERR_INVALID;
-      memcpy (chunk, d + fixed, sizeof (*chunk));
-      fixed += sizeof (*chunk);
-    }
-
-  size_t avail = (size_t)len - fixed;
-  if (hdr->payload_bytes != avail)
-    return DP_ERR_INVALID; /* the header's claim vs the transport's truth */
-
-  size_t elem = dp_element_size ((dp_frame_kind_t)hdr->kind,
-                                 (dp_sample_type_t)hdr->format);
-  if (elem == 0 || hdr->num_samples * elem != avail)
-    return DP_ERR_INVALID;
-
-  *body     = d + fixed;
-  *body_len = avail;
-  return DP_OK;
+  const void *b = NULL;
+  int rc = dp_frame_parse (d, (size_t)len, hdr, chunk, chunked, &b, body_len);
+  if (rc == DP_OK)
+    *body = (const char *)b;
+  return rc;
 }
 
 /* Validate one chunk message and copy its payload into the reassembly buffer

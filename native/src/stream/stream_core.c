@@ -249,6 +249,60 @@ dp_msg_mean_power (dp_msg_t *msg)
                         dp_msg_num_samples (msg));
 }
 
+/* Every check a receiver makes on an arriving frame, over a plain buffer.
+ *
+ * In the core rather than beside the transport because none of it is about
+ * NATS: it is the format's own rules, it is the part that decides whether a
+ * length can be trusted, and a caller with a buffer -- a test, a different
+ * transport, a tool -- must be able to run it. The v1 receiver checked the
+ * magic and nothing else, which is how a header claiming more samples than
+ * its message carried produced an out-of-bounds read on both faces. */
+int
+dp_frame_parse (const void *buf, size_t len, dp_header_t *hdr,
+                dp_chunk_t *chunk, int *chunked, const void **body,
+                size_t *body_len)
+{
+  if (!buf || !hdr || !chunk || !chunked || !body || !body_len)
+    return DP_ERR_INVALID;
+  if (len < sizeof (*hdr))
+    return DP_ERR_INVALID;
+
+  const char *d = (const char *)buf;
+  memcpy (hdr, d, sizeof (*hdr));
+
+  if (hdr->magic != DP_STREAM_MAGIC)
+    return DP_ERR_INVALID; /* not ours, or the opposite byte order */
+  if (hdr->version != DP_WIRE_VERSION)
+    return DP_ERR_INVALID;
+  if (hdr->flags & (uint16_t)~DP_FLAG_KNOWN)
+    return DP_ERR_INVALID; /* a block we do not know moves the payload */
+  if (memcmp (hdr->data_rep, dp_host_rep (), 4) != 0)
+    return DP_ERR_INVALID; /* the magic implies this; say it anyway */
+
+  size_t fixed = sizeof (*hdr);
+  *chunked     = (hdr->flags & DP_FLAG_CHUNKED) ? 1 : 0;
+  if (*chunked)
+    {
+      if (len < fixed + sizeof (*chunk))
+        return DP_ERR_INVALID;
+      memcpy (chunk, d + fixed, sizeof (*chunk));
+      fixed += sizeof (*chunk);
+    }
+
+  size_t avail = len - fixed;
+  if (hdr->payload_bytes != avail)
+    return DP_ERR_INVALID; /* the header's claim vs the transport's truth */
+
+  size_t elem = dp_element_size ((dp_frame_kind_t)hdr->kind,
+                                 (dp_sample_type_t)hdr->format);
+  if (elem == 0 || hdr->num_samples * elem != avail)
+    return DP_ERR_INVALID;
+
+  *body     = d + fixed;
+  *body_len = avail;
+  return DP_OK;
+}
+
 const char *
 dp_host_rep (void)
 {

@@ -94,7 +94,7 @@ import warnings
 import numpy as np
 
 from doppler.impairment import DopplerChannel
-from doppler.wfm import Gold, Synth
+from doppler.wfm import Gold, Synth, bpsk_map
 
 SF = 1023  # CCSDS 415.0-G-1 command-link Gold code period (2**10 - 1)
 CHIP_RATE = 3.069e6  # Mcps -- SPEC's exact chip rate
@@ -172,7 +172,11 @@ def make_capture(start_hz: float, rate_hz_s: float, seed: int):
         rng.standard_normal(len(x)) + 1j * rng.standard_normal(len(x))
     )
     x = (x + noise).astype(np.complex64)
-    return x, np.where(payload > 0, 1.0, -1.0)
+    # bpsk_map is the same C kernel the source maps bits with (0 -> +1,
+    # 1 -> -1), so the truth is what went out, not a convention restated
+    # here -- a hand-written sign would silently make every decode below
+    # read as "inverted".
+    return x, bpsk_map(payload).real.astype(float)
 
 
 # --8<-- [end:signal]

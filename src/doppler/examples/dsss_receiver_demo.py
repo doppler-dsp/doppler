@@ -28,7 +28,7 @@ import warnings
 # --8<-- [start:signal]
 import numpy as np
 
-from doppler.wfm import Gold
+from doppler.wfm import Gold, Synth, bpsk_map
 
 SF = 1023  # 2**10 - 1: the CCSDS 415.0-G-1 command-link Gold code period
 CHIP_RATE = 3.0e6  # Hz
@@ -43,21 +43,39 @@ N_SYM = 3500
 PRE_SILENCE = TE * 20 + 737  # deliberately not a whole number of epochs
 
 CODE = Gold().generate(SF)
-_CSIGN = np.where(CODE & 1, -1.0, 1.0)
 
 
 def make_signal(cn0_dbhz: float, seed: int):
-    """Identical construction to Stage 1-3's ``make_signal``."""
+    """The same signal Stage 1-3 used, described rather than assembled.
+
+    :class:`~doppler.wfm.Synth` in continuous DSSS mode (``symbol_rate > 0``)
+    is the transmitter: the Gold code repeats forever and a known random
+    payload rides on it at ``SYM_RATE``, with non-integer chips/symbol --
+    the asynchronicity this whole chain exists to handle. ``freq`` carries
+    the static Doppler. Noise is added here rather than by the source so the
+    pre-signal silence carries the same floor as the signal itself (the
+    receiver sweeps that silence before the burst arrives).
+
+    Ground truth comes from :func:`~doppler.wfm.bpsk_map`, the same C kernel
+    the source maps bits with, so the returned symbols are what was
+    transmitted -- not a sign convention restated here.
+    """
     rng = np.random.default_rng(seed)
     n = int(N_SYM * TSYM) + 2 * TE
-    idx = np.arange(n)
-    data = (rng.integers(0, 2, N_SYM + 4) * 2 - 1).astype(float)
-    si = np.clip(np.floor(idx / TSYM).astype(int), 0, len(data) - 1)
-    cph = (idx / SPC).astype(int) % SF
-    sig = data[si] * _CSIGN[cph] * np.exp(2j * np.pi * (DOPPLER_HZ / FS) * idx)
+    payload = rng.integers(0, 2, N_SYM + 4).astype(np.uint8)
+    sig = Synth(
+        type="dsss",
+        data_code=bytes(CODE.tolist()),
+        symbol_rate=SYM_RATE,
+        sps=SPC,
+        fs=FS,
+        freq=DOPPLER_HZ,
+        snr=100.0,  # clean -- the AWGN floor is added below
+        bits=bytes(payload.tolist()),
+        seed=seed,
+    ).steps(n)
 
-    amp_snr = np.sqrt(10.0 ** (cn0_dbhz / 10.0) / FS)
-    sigma = 1.0 / amp_snr
+    sigma = np.sqrt(FS / 10.0 ** (cn0_dbhz / 10.0))
     total_n = int(PRE_SILENCE) + n
     noise = (sigma / np.sqrt(2.0)) * (
         rng.standard_normal(total_n) + 1j * rng.standard_normal(total_n)
@@ -65,7 +83,7 @@ def make_signal(cn0_dbhz: float, seed: int):
     x = np.concatenate([np.zeros(int(PRE_SILENCE)), sig]).astype(
         np.complex64
     ) + noise.astype(np.complex64)
-    return x, data
+    return x, bpsk_map(payload).real.astype(float)
 
 
 # --8<-- [end:signal]

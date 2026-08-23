@@ -9,10 +9,13 @@ The whole pipeline through one growing file, with the project's own tools:
   uniformly each repeat — so **every burst gets a fresh Doppler** (``freq:
   [lo, hi]``) **and a fresh arrival jitter** (the trailing gap ``off_samples:
   [lo, hi]``, which shifts the next burst's code phase), on top of a fresh
-  noise realization (``seed_advance="noise"``). Code and payload stay fixed
-  (they're explicit ``bits`` patterns), and the draws are reproducible — keyed
-  off the source seed and the repeat index — so the same scene replays
-  byte-for-byte.
+  noise realization (``seed_advance="noise"``). The burst itself is
+  *described*, not assembled here: one ``"type": "dsss"`` segment carries the
+  two codes, the preamble repeat count, the sync word and the payload bits,
+  and wfmgen builds `[preamble x reps | sync | payload | CRC-16]`, spreads the
+  frame and sizes the segment. Codes and payload stay fixed, and the draws are
+  reproducible — keyed off the source seed and the repeat index — so the same
+  scene replays byte-for-byte.
 
 * **Reader** — a streaming acquirer that *follows* the bursts rather than
   assuming a fixed grid: it seeks to each burst's expected position (one PRI on
@@ -50,9 +53,10 @@ from doppler.wfm import PN
 # ── waveform geometry ────────────────────────────────────────────────────────
 # Spreading codes are real maximal-length sequences from the PN source
 # (poly=0 auto-picks the primitive polynomial) — a clean thumbtack
-# autocorrelation, so acquisition has genuine processing gain. They are carried
-# in the scene as explicit `bits` patterns, which stay fixed as wfmgen advances
-# the seed each repeat (only the random draws vary). Lengths are MLS periods.
+# autocorrelation, so acquisition has genuine processing gain. They are named
+# in the scene as the segment's `acq_code`/`data_code`, and stay fixed as
+# wfmgen advances the seed each repeat (only the random draws vary). The
+# receiver is handed the same two arrays. Lengths are MLS periods.
 ACQ_BITS, DATA_BITS = 9, 6
 ACQ_SF, REPS, DATA_SF, SPC = (1 << ACQ_BITS) - 1, 5, (1 << DATA_BITS) - 1, 4
 CHIP_RATE = 1.0e6
@@ -98,45 +102,41 @@ _NOMINAL_GAP = _PERIOD - _BURST  # trailing zeros for the nominal PRI
 _WINDOW = _BURST + JITTER_MAX + 4000
 
 
-def _crc16(bits):
-    c = 0xFFFF
-    for b in bits:
-        c ^= (int(b) & 1) << 15
-        c = ((c << 1) ^ 0x1021) & 0xFFFF if c & 0x8000 else (c << 1) & 0xFFFF
-    return c
-
-
-def _frame_chips():
-    """Spread the frame (sync | payload | CRC-16) by the data code -> chips."""
-    crc = _crc16(_PAYLOAD_BITS)
-    crcb = np.array([(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
-    frame = np.concatenate([SYNC, _PAYLOAD_BITS, crcb])
-    return "".join("".join(map(str, _DCODE ^ b)) for b in frame)
+def _bitstr(bits):
+    """A 0/1 array as the bit string wfmgen's scene fields take."""
+    return "".join(map(str, np.asarray(bits) & 1))
 
 
 def write_scene(path, *, snr_db=SNR_DB):
-    """Write the wfmgen scene: ONE bits segment per burst (preamble chips then
-    the spread frame, concatenated so the burst shares one carrier and one
-    Doppler draw), streamed `continuous`. The ranged fields make each repeat
-    distinct: `freq` is a uniform Doppler draw, `off_samples` a uniform
-    trailing gap (→ varying code phase), `seed_advance="noise"` for AWGN."""
-    pattern = "".join(map(str, np.tile(_ACODE, REPS))) + _frame_chips()
+    """Write the wfmgen scene: ONE `dsss` segment per burst, streamed
+    `continuous`. The segment is a *description* of the burst — two codes, a
+    repeat count, a sync word and the payload bits — and the engine assembles
+    `[preamble x REPS | sync | payload | CRC-16]`, spreads the frame with the
+    data code, appends the CRC and derives the segment's own length. The
+    ranged fields make each repeat distinct: `freq` is a uniform Doppler draw,
+    `off_samples` a uniform trailing gap (→ varying code phase),
+    `seed_advance="noise"` for AWGN."""
     scene = {
         "version": 1,
         "continuous": True,
         "seed_advance": "noise",  # fresh noise each burst; code/payload fixed
         "segments": [
             {
-                "type": "bits",
+                "type": "dsss",
                 "fs": FS,
                 "freq": [DOPPLER_LO, DOPPLER_HI],  # per-burst Doppler draw
                 "snr": snr_db,
-                "snr_mode": "fs",
+                "snr_mode": "fs",  # chip SNR, as the reader's header says
                 "seed": 1,
-                "sps": SPC,
-                "modulation": "bpsk",
-                "pattern": pattern,
-                "num_samples": len(pattern) * SPC,
+                "sps": SPC,  # samples per CHIP
+                "acq_code": _bitstr(_ACODE),
+                "acq_reps": REPS,
+                "data_code": _bitstr(_DCODE),
+                "sync": _bitstr(SYNC),
+                "payload": _bitstr(_PAYLOAD_BITS),
+                "crc": "crc16",
+                # A dsss burst sizes itself (one burst = n_chips * sps), so
+                # num_samples is derived, not written here.
                 # nominal PRI gap + uniform arrival jitter → varying code phase
                 "off_samples": [_NOMINAL_GAP, _NOMINAL_GAP + JITTER_MAX],
             }

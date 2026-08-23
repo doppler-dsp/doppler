@@ -459,11 +459,162 @@ Publisher_exit (PublisherObject *self, PyObject *Py_UNUSED (args))
   return Publisher_close (self, NULL);
 }
 
+static PyObject *
+Publisher_flush (PublisherObject *self, PyObject *args, PyObject *kwds)
+{
+  int          timeout_ms = 2000;
+  static char *kwlist[]   = { "timeout_ms", NULL };
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|i", kwlist, &timeout_ms))
+    return NULL;
+  if (self->closed || !self->ctx)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "publisher is closed");
+      return NULL;
+    }
+
+  int rc;
+  Py_BEGIN_ALLOW_THREADS;
+  rc = dp_pub_flush (self->ctx, timeout_ms);
+  Py_END_ALLOW_THREADS;
+
+  if (rc == DP_ERR_TIMEOUT)
+    {
+      PyErr_Format (PyExc_TimeoutError,
+                    "the server did not acknowledge everything published "
+                    "within %d ms; data is still buffered",
+                    timeout_ms);
+      return NULL;
+    }
+  if (rc != DP_OK)
+    {
+      PyErr_Format (PyExc_RuntimeError, "flush failed: %s",
+                    dp_strerror (rc));
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+Publisher_drain (PublisherObject *self, PyObject *args, PyObject *kwds)
+{
+  int          timeout_ms = 5000;
+  static char *kwlist[]   = { "timeout_ms", NULL };
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|i", kwlist, &timeout_ms))
+    return NULL;
+  if (self->closed || !self->ctx)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "publisher is closed");
+      return NULL;
+    }
+
+  int rc;
+  Py_BEGIN_ALLOW_THREADS;
+  rc = dp_stream_drain (self->ctx, timeout_ms);
+  Py_END_ALLOW_THREADS;
+
+  if (rc == DP_ERR_TIMEOUT)
+    {
+      PyErr_Format (PyExc_TimeoutError,
+                    "the drain did not complete within %d ms", timeout_ms);
+      return NULL;
+    }
+  if (rc != DP_OK)
+    {
+      PyErr_Format (PyExc_RuntimeError, "drain failed: %s",
+                    dp_strerror (rc));
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef Publisher_methods[] = {
   { "send", (PyCFunction)Publisher_send, METH_VARARGS | METH_KEYWORDS,
     "send(samples, sample_rate=0, center_freq=0, timestamp_ns=None) -- "
     "timestamp_ns overrides the auto-stamped send time, propagating an "
     "upstream origin timestamp instead of stamping now" },
+  { "flush", (PyCFunction)Publisher_flush, METH_VARARGS | METH_KEYWORDS,
+    "flush(timeout_ms=2000) -> None\n"
+    "\n"
+    "Wait until the server has everything published so far.\n"
+    "\n"
+    "send() hands the frame to the client and returns; the client writes\n"
+    "it in the background, so \"the send returned\" is not \"the server\n"
+    "has it\". This waits for a round trip.\n"
+    "\n"
+    "You do NOT need it before close(): the NATS client flushes what is\n"
+    "buffered when the connection closes. But it does so best-effort\n"
+    "with a 500 ms cap and no way to report failure, so a backlog that\n"
+    "cannot drain in half a second is dropped silently -- and on a link\n"
+    "slower than loopback that is not a large backlog. Call this when\n"
+    "losing the tail would matter, and you get a budget you chose and an\n"
+    "answer you can act on. It is also the only way to ask the question\n"
+    "without closing.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "timeout_ms : int, optional\n"
+    "    How long to wait (default 2000).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "None\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "TimeoutError\n"
+    "    If the budget ran out with data still buffered.\n"
+    "RuntimeError\n"
+    "    If the publisher is closed, or the flush failed outright.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.stream import Publisher, CF64  # doctest: +SKIP\n"
+    ">>> with Publisher(\"nats://127.0.0.1:4222/iq\", CF64) as pub:\n"
+    "...     pub.send(np.zeros(8, dtype=np.complex128))  # doctest: +SKIP\n"
+    "...     pub.flush()                                 # doctest: +SKIP\n" },
+  { "drain", (PyCFunction)Publisher_drain, METH_VARARGS | METH_KEYWORDS,
+    "drain(timeout_ms=5000) -> None\n"
+    "\n"
+    "Shut down gracefully: stop accepting new work, let what is in\n"
+    "flight finish, flush everything pending, close.\n"
+    "\n"
+    "This WAITS for the connection to close, which is the part worth\n"
+    "having: the underlying drain returns immediately and finishes in\n"
+    "the background, so a process that exits when it returns abandons\n"
+    "exactly the work the drain was for.\n"
+    "\n"
+    "Drain LAST, after you have stopped producing. It cannot be\n"
+    "reversed, and a send issued while one is in progress races its\n"
+    "phases -- it may slip through, or be refused. Because this waits,\n"
+    "a single-threaded caller need not reason about that: afterwards a\n"
+    "send raises RuntimeError deterministically.\n"
+    "\n"
+    "Against flush(): flush asks whether the server has what you\n"
+    "published and leaves the publisher usable; drain ends it.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "timeout_ms : int, optional\n"
+    "    How long to wait for the close (default 5000).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "None\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "TimeoutError\n"
+    "    If the drain did not complete in the budget.\n"
+    "RuntimeError\n"
+    "    If the publisher is already closed, or the drain failed.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.stream import Publisher, CF64   # doctest: +SKIP\n"
+    ">>> pub = Publisher(\"nats://127.0.0.1:4222/iq\", CF64)  # doctest: +SKIP\n"
+    ">>> pub.drain()   # stopped producing, so shut down  # doctest: +SKIP\n"
+    ">>> pub.close()                                      # doctest: +SKIP\n" },
   { "close", (PyCFunction)Publisher_close, METH_NOARGS,
     "close() — destroy the socket" },
   { "__enter__", (PyCFunction)Publisher_enter, METH_NOARGS, NULL },
@@ -1155,6 +1306,25 @@ py_resume (PyObject *self, PyObject *args)
 }
 
 static PyObject *
+py_set_interrupt_latency_ms (PyObject *self, PyObject *args)
+{
+  (void)self;
+  unsigned ms;
+  if (!PyArg_ParseTuple (args, "I", &ms))
+    return NULL;
+  dp_stream_set_interrupt_latency_ms (ms);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+py_interrupt_latency_ms (PyObject *self, PyObject *args)
+{
+  (void)self;
+  (void)args;
+  return PyLong_FromUnsignedLong (dp_stream_interrupt_latency_ms ());
+}
+
+static PyObject *
 py_interrupted (PyObject *self, PyObject *args)
 {
   (void)self;
@@ -1178,6 +1348,8 @@ typedef struct
   PyObject_HEAD int sigs[DP_GUARD_MAX_SIGS];
   Py_ssize_t        nsigs;
   int               armed;
+  unsigned          latency_ms; /* 0 = leave the process setting alone */
+  unsigned          saved_latency_ms;
 } InterruptGuardObject;
 
 static PyTypeObject InterruptGuardType;
@@ -1187,6 +1359,11 @@ InterruptGuard_enter (InterruptGuardObject *self, PyObject *Py_UNUSED (a))
 {
   /* A stale flag would refuse the first receive inside the block. */
   dp_stream_resume ();
+  if (self->latency_ms)
+    {
+      self->saved_latency_ms = dp_stream_interrupt_latency_ms ();
+      dp_stream_set_interrupt_latency_ms (self->latency_ms);
+    }
   for (Py_ssize_t i = 0; i < self->nsigs; i++)
     {
       if (dp_stream_interrupt_on_signal (self->sigs[i]) != DP_OK)
@@ -1213,6 +1390,8 @@ InterruptGuard_exit (InterruptGuardObject *self, PyObject *Py_UNUSED (a))
         dp_stream_restore_signal (self->sigs[i]);
       self->armed = 0;
     }
+  if (self->latency_ms)
+    dp_stream_set_interrupt_latency_ms (self->saved_latency_ms);
   /* Cleared on the way out so a later receive is not refused by an
      interrupt that has already been handled. */
   dp_stream_resume ();
@@ -1246,9 +1425,32 @@ static PyTypeObject InterruptGuardType = {
 };
 
 static PyObject *
-py_interrupt_on_sigint (PyObject *self, PyObject *args)
+py_interrupt_on_sigint (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
+  unsigned     latency_ms = 0;
+  PyObject    *kw_latency = kwds ? PyDict_GetItemString (kwds, "latency_ms")
+                                 : NULL;
+  if (kwds && PyDict_Size (kwds) > (kw_latency ? 1 : 0))
+    {
+      PyErr_SetString (PyExc_TypeError,
+                       "interrupt_on_sigint() takes signals positionally "
+                       "and only latency_ms by keyword");
+      return NULL;
+    }
+  if (kw_latency)
+    {
+      long v = PyLong_AsLong (kw_latency);
+      if (v == -1 && PyErr_Occurred ())
+        return NULL;
+      if (v < 0)
+        {
+          PyErr_SetString (PyExc_ValueError, "latency_ms must not be < 0");
+          return NULL;
+        }
+      latency_ms = (unsigned)v;
+    }
+
   Py_ssize_t extra = PyTuple_GET_SIZE (args);
   if (extra + 1 > DP_GUARD_MAX_SIGS)
     {
@@ -1260,8 +1462,10 @@ py_interrupt_on_sigint (PyObject *self, PyObject *args)
       = PyObject_New (InterruptGuardObject, &InterruptGuardType);
   if (!g)
     return NULL;
-  g->armed   = 0;
-  g->sigs[0] = SIGINT;
+  g->armed            = 0;
+  g->latency_ms       = latency_ms;
+  g->saved_latency_ms = 0;
+  g->sigs[0]          = SIGINT;
   g->nsigs   = 1;
   for (Py_ssize_t i = 0; i < extra; i++)
     {
@@ -1350,7 +1554,8 @@ static PyMethodDef module_methods[] = {
     ">>> resume()\n"
     ">>> interrupted()\n"
     "False\n" },
-  { "interrupt_on_sigint", py_interrupt_on_sigint, METH_VARARGS,
+  { "interrupt_on_sigint", (PyCFunction)py_interrupt_on_sigint,
+    METH_VARARGS | METH_KEYWORDS,
     "interrupt_on_sigint(*extra_signals) -> context manager\n"
     "\n"
     "Make Ctrl+C stop a blocking receive, for the duration of the block.\n"
@@ -1372,6 +1577,9 @@ static PyMethodDef module_methods[] = {
     "    Further signals to treat the same way, e.g. signal.SIGTERM for a\n"
     "    container that is stopped rather than interrupted. SIGINT is\n"
     "    always included.\n"
+    "latency_ms : int, optional\n"
+    "    Set the interrupt latency for the duration of the block and\n"
+    "    restore it after. See set_interrupt_latency_ms().\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -1388,6 +1596,51 @@ static PyMethodDef module_methods[] = {
     ">>> with interrupt_on_sigint():\n"
     "...     interrupted()\n"
     "False\n" },
+  { "set_interrupt_latency_ms", py_set_interrupt_latency_ms, METH_VARARGS,
+    "set_interrupt_latency_ms(ms) -> None\n"
+    "\n"
+    "How soon a blocking receive must notice interrupt().\n"
+    "\n"
+    "The library cannot be woken from the NATS client's wait, so it\n"
+    "waits in slices and checks between them; this is the worst-case\n"
+    "delay between interrupt() and the receive returning, and the cost\n"
+    "is one wakeup per slice on an idle receiver. A human pressing\n"
+    "Ctrl+C cannot perceive the 100 ms default; a control loop can, and\n"
+    "a battery-powered sensor would rather wake once a second.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "ms : int\n"
+    "    Milliseconds; 0 restores the default.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "None\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.stream import (\n"
+    "...     interrupt_latency_ms, set_interrupt_latency_ms)\n"
+    ">>> set_interrupt_latency_ms(10)\n"
+    ">>> interrupt_latency_ms()\n"
+    "10\n"
+    ">>> set_interrupt_latency_ms(0)   # back to the default\n"
+    ">>> interrupt_latency_ms()\n"
+    "100\n" },
+  { "interrupt_latency_ms", py_interrupt_latency_ms, METH_NOARGS,
+    "interrupt_latency_ms() -> int\n"
+    "\n"
+    "The interrupt latency in force, in milliseconds.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.stream import interrupt_latency_ms\n"
+    ">>> interrupt_latency_ms() > 0\n"
+    "True\n" },
   { "format_name", py_format_name, METH_VARARGS,
     "format_name(code) -> str\n"
     "\n"

@@ -311,6 +311,22 @@ dp_frame_parse (const void *buf, size_t len, dp_header_t *hdr,
    point of the API. */
 static volatile sig_atomic_t dp_interrupt_flag = 0;
 
+/* Not sig_atomic_t: only ordinary code writes it, and a wait slice reading
+   a torn value would at worst wait a wrong-but-bounded time once. */
+static unsigned dp_interrupt_latency_ms = DP_INTERRUPT_LATENCY_DEFAULT_MS;
+
+void
+dp_stream_set_interrupt_latency_ms (unsigned ms)
+{
+  dp_interrupt_latency_ms = ms ? ms : DP_INTERRUPT_LATENCY_DEFAULT_MS;
+}
+
+unsigned
+dp_stream_interrupt_latency_ms (void)
+{
+  return dp_interrupt_latency_ms;
+}
+
 void
 dp_stream_interrupt (void)
 {
@@ -436,6 +452,8 @@ dp_strerror (int err)
       return "Frame exceeds transport max_payload";
     case DP_ERR_INTERRUPTED:
       return "Interrupted by dp_stream_interrupt";
+    case DP_ERR_CLOSED:
+      return "Context is draining or closed";
     default:
       return "Unknown error";
     }
@@ -608,6 +626,22 @@ dp_pub_t *
 dp_pub_create_tlm (const char *endpoint)
 {
   return ctx_create (DP_ROLE_PUB, endpoint, DP_KIND_TLM, (dp_sample_type_t)0);
+}
+
+int
+dp_stream_drain (dp_pub_t *ctx, int timeout_ms)
+{
+  if (!ctx)
+    return DP_ERR_INVALID;
+  return nats_drain (ctx, timeout_ms);
+}
+
+int
+dp_pub_flush (dp_pub_t *ctx, int timeout_ms)
+{
+  if (!ctx)
+    return DP_ERR_INVALID;
+  return nats_flush (ctx, timeout_ms);
 }
 
 void

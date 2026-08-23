@@ -23,10 +23,12 @@ from .stream import (  # noqa: E402
     format_name,
     get_timestamp_ns,
     interrupt,
+    interrupt_latency_ms,
     interrupted,
     mean_power,
     interrupt_on_sigint,
     resume,
+    set_interrupt_latency_ms,
 )
 
 __all__ = [
@@ -45,8 +47,10 @@ __all__ = [
     "format_name",
     "get_timestamp_ns",
     "interrupt",
+    "interrupt_latency_ms",
     "interrupt_on_sigint",
     "interrupted",
     "mean_power",
     "resume",
+    "set_interrupt_latency_ms",
 ]

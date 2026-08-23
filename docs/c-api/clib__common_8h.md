@@ -92,6 +92,7 @@
 | Type | Name |
 | ---: | :--- |
 | define  | [**CMPLXF**](clib__common_8h.md#define-cmplxf) (r, i) `\_\_builtin\_complex ((float)(r), (float)(i))`<br> |
+| define  | [**DP\_ERR\_CLOSED**](clib__common_8h.md#define-dp_err_closed)  `(-9)`<br> |
 | define  | [**DP\_ERR\_INIT**](clib__common_8h.md#define-dp_err_init)  `(-1)`<br> |
 | define  | [**DP\_ERR\_INTERRUPTED**](clib__common_8h.md#define-dp_err_interrupted)  `(-8)`<br> |
 | define  | [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid)  `(-4)`<br> |
@@ -180,6 +181,23 @@ Assert a just-constructed object / allocation is non-NULL, aborting with a diagn
 
 
 [**clib\_common.h**](clib__common_8h.md) — common C99 types and performance macros for doppler. 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_ERR\_CLOSED 
+
+```C++
+#define DP_ERR_CLOSED `(-9)`
+```
+
+
+
+The context is draining or closed and accepts no more sends  \ a state, not a transport failure. 
 
 
         

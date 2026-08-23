@@ -185,8 +185,63 @@ def interrupted() -> bool:
     ...
 
 
+def set_interrupt_latency_ms(ms: int) -> None:
+    """How soon a blocking receive must notice :func:`interrupt`.
+
+    The library cannot be woken from the NATS client's wait, so it waits
+    in slices and checks the flag between them. This is the worst-case
+    delay between :func:`interrupt` and the receive returning, expressed
+    as the thing a caller cares about rather than as an implementation
+    detail. The cost is one wakeup per slice on an idle receiver.
+
+    It is a knob because the right answer is not the library's to know: a
+    human pressing Ctrl+C cannot perceive the 100 ms default, a control
+    loop that must hand back within a symbol period can, and a
+    battery-powered sensor would rather wake once a second.
+
+    Process-wide, and it takes effect on the next slice, so a receive
+    already blocked adopts it within one old slice.
+
+    Parameters
+    ----------
+    ms : int
+        Milliseconds; 0 restores the default (100).
+
+    Examples
+    --------
+    >>> from doppler.stream import (
+    ...     interrupt_latency_ms, set_interrupt_latency_ms)
+    >>> set_interrupt_latency_ms(10)
+    >>> interrupt_latency_ms()
+    10
+    >>> set_interrupt_latency_ms(0)
+    >>> interrupt_latency_ms()
+    100
+
+    """
+    ...
+
+
+def interrupt_latency_ms() -> int:
+    """The interrupt latency in force, in milliseconds.
+
+    Returns
+    -------
+    int
+
+    Examples
+    --------
+    >>> from doppler.stream import interrupt_latency_ms
+    >>> interrupt_latency_ms() > 0
+    True
+
+    """
+    ...
+
+
 def interrupt_on_sigint(
     *extra_signals: int,
+    latency_ms: int = ...,
 ) -> AbstractContextManager[None]:
     """Make Ctrl+C stop a blocking receive, for the duration of the block.
 
@@ -210,6 +265,9 @@ def interrupt_on_sigint(
         Further signals to treat the same way, e.g. ``signal.SIGTERM`` for
         a container that is stopped rather than interrupted. ``SIGINT`` is
         always included.
+    latency_ms : int, optional
+        Set the interrupt latency for the duration of the block and
+        restore it after -- see :func:`set_interrupt_latency_ms`.
 
     Returns
     -------
@@ -497,6 +555,91 @@ class Publisher:
         ...          sample_rate=int(48000),             # doctest: +SKIP
         ...          center_freq=int(433e6))             # doctest: +SKIP
         >>> pub.close()                                 # doctest: +SKIP
+        """
+        ...
+
+    def drain(self, timeout_ms: int = 5000) -> None:
+        """Shut down gracefully: stop new work, finish, flush, close.
+
+        This **waits** for the connection to close, which is the part
+        worth having: the underlying drain returns immediately and
+        finishes in the background, so a process that exits when it
+        returns abandons exactly the work the drain was for.
+
+        Drain **last**, after you have stopped producing. It cannot be
+        reversed, and a send issued while one is in progress races its
+        phases -- it may slip through, or be refused. Because this waits,
+        a single-threaded caller need not reason about that: afterwards a
+        send raises ``RuntimeError`` deterministically.
+
+        Against :meth:`flush`: flush asks whether the server has what you
+        published and leaves the publisher usable; drain ends it. A
+        drained shutdown needs no flush of its own -- the drain's final
+        phase *is* that flush.
+
+        Size ``timeout_ms`` to the slowest thing the drain waits for,
+        with margin. doppler's receive is synchronous, so there is no
+        handler to finish and the wait is dominated by flushing what is
+        buffered; the default is generous for a link that is keeping up.
+
+        Parameters
+        ----------
+        timeout_ms : int, optional
+            How long to wait for the close (default 5000).
+
+        Raises
+        ------
+        TimeoutError
+            If the drain did not complete in the budget.
+        RuntimeError
+            If the publisher is already closed, or the drain failed.
+
+        Examples
+        --------
+        >>> from doppler.stream import Publisher, CF64   # doctest: +SKIP
+        >>> pub = Publisher("nats://127.0.0.1:4222/iq", CF64)  # doctest: +SKIP
+        >>> pub.drain()      # stopped producing, so shut down  # doctest: +SKIP
+        >>> pub.close()                                         # doctest: +SKIP
+
+        """
+        ...
+
+    def flush(self, timeout_ms: int = 2000) -> None:
+        """Wait until the server has everything published so far.
+
+        :meth:`send` hands the frame to the client and returns; the client
+        writes it in the background, so "the send returned" is not "the
+        server has it".  This waits for a round trip.
+
+        You do **not** need it before :meth:`close`: the NATS client
+        flushes what is buffered when the connection closes.  But it does
+        so best-effort with a 500 ms cap and no way to report failure, so
+        a backlog that cannot drain in half a second is dropped silently
+        -- and on a link slower than loopback that is not a large backlog.
+        Call this when losing the tail would matter, and you get a budget
+        you chose and an answer you can act on.  It is also the only way
+        to ask the question *without* closing.
+
+        Parameters
+        ----------
+        timeout_ms : int, optional
+            How long to wait (default 2000).
+
+        Raises
+        ------
+        TimeoutError
+            If the budget ran out with data still buffered.
+        RuntimeError
+            If the publisher is closed, or the flush failed outright.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.stream import Publisher, CF64   # doctest: +SKIP
+        >>> with Publisher("nats://127.0.0.1:4222/iq", CF64) as pub:
+        ...     pub.send(np.zeros(8, dtype=np.complex128))  # doctest: +SKIP
+        ...     pub.flush()                                 # doctest: +SKIP
+
         """
         ...
 

@@ -175,6 +175,10 @@ ______________________________________________________________________
 
 ::: doppler.stream.interrupted
 
+::: doppler.stream.set_interrupt_latency_ms
+
+::: doppler.stream.interrupt_latency_ms
+
 ::: doppler.stream.mean_power
 
 ::: doppler.stream.format_name

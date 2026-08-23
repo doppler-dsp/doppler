@@ -188,6 +188,6 @@ ______________________________________________________________________
 <!-- related-pages:start -->
 
 **Gallery** — [Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md)
-**Design** — [Streaming — one envelope, six roles, two planes](../design/streaming.md), [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md)
+**Design** — [Ending a wait — one contract for network, memory and disk](../design/io-termination.md), [Streaming — one envelope, six roles, two planes](../design/streaming.md), [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md)
 
 <!-- related-pages:end -->

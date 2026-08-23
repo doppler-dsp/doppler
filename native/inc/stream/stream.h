@@ -99,6 +99,27 @@ extern "C"
     DP_KIND_TLM = 1, /**< Packed 16-byte `dp_tlm_rec_t` records; `format` is 0
                         and `num_samples` counts records. Published by the
                         `dp_tlm_sink_*` helper (stream/tlm_sink.h). */
+    DP_KIND_EOS = 2, /**< End of stream: the sender has finished. Carries no
+                        payload (`num_samples` is 0 and `format` is 0), so it
+                        is a statement rather than data. A receiver reports it
+                        as @ref DP_ERR_EOF instead of handing back an empty
+                        frame.
+
+                        A KIND rather than a flag bit, and that is forced by
+                        §3's own rules: a receiver refuses any `flags` bit
+                        outside `DP_FLAG_KNOWN`, because an unknown block
+                        moves where the payload starts -- so a new flag would
+                        be rejected by every existing receiver, while a new
+                        kind is additive. Same precedent as TLM, which stopped
+                        pretending to be a sample format for the same reason.
+
+                        **Not reliable on PUB/SUB.** That tier is at-most-once
+                        (§9), so this frame can be dropped like any other. It
+                        turns the common case from "wait forever" into "finish
+                        promptly"; a subscriber that must not hang on a lost
+                        marker still needs a timeout. On PUSH/PULL it is
+                        at-least-once, so it may arrive more than once and
+                        handling it must be idempotent. */
   } dp_frame_kind_t;
 
   /**
@@ -548,6 +569,34 @@ extern "C"
    *         with the drain still in progress (the context is still safe
    *         to destroy), DP_ERR_INVALID for a NULL context.
    */
+  /**
+   * @brief Tell subscribers the stream has ended.
+   *
+   * Publishes a zero-payload @ref DP_KIND_EOS frame. A receiving
+   * `*_recv` reports @ref DP_ERR_EOF instead of handing back an empty
+   * frame, so a consumer learns the sender finished rather than inferring
+   * it from silence — which is the inference this whole contract exists
+   * to remove.
+   *
+   * **Send it before dp_stream_drain(), not after.** A drain cannot be
+   * reversed and refuses sends once it reaches its publish-flushing
+   * phase, so an EOS issued after one may simply not go. The ordered
+   * shutdown is: stop producing, send EOS, drain, destroy.
+   *
+   * **What it does NOT promise.** PUB/SUB is at-most-once (§9), so this
+   * frame can be dropped like any other: it turns the common case from
+   * "wait forever" into "finish promptly", not from unreliable into
+   * guaranteed, and a subscriber that must not hang on a lost marker
+   * still needs a timeout. PUSH/PULL delivers it at-least-once, so it may
+   * arrive more than once and a handler must be idempotent.
+   *
+   * @param ctx Any send-capable context.
+   * @return DP_OK once handed to the client, @ref DP_ERR_INVALID for a
+   *         NULL context, @ref DP_ERR_CLOSED if the context is already
+   *         draining or closed.
+   */
+  int dp_pub_send_eos (dp_pub_t *ctx);
+
   int dp_stream_drain (dp_pub_t *ctx, int timeout_ms);
 
   /**
@@ -576,7 +625,9 @@ extern "C"
    * @param ctx         Subscriber context.
    * @param[out] msg    Set to a zero-copy message handle.
    * @param[out] header Set to the frame metadata.
-   * @return DP_OK on success, DP_ERR_TIMEOUT on timeout, negative on error.
+   * @return DP_OK on success, @ref DP_ERR_TIMEOUT on timeout, @ref
+   *         DP_ERR_EOF when the sender has finished (no message is
+   *         produced, so there is nothing to free), negative on error.
    */
   int dp_sub_recv (dp_sub_t *ctx, dp_msg_t **msg, dp_header_t *header);
 

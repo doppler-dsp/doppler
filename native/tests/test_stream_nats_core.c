@@ -90,6 +90,68 @@ test_pub_sub_roundtrip (void)
 }
 
 /* ------------------------------------------------------------------
+ * test_eos_ends_the_stream
+ *
+ * The point of the whole contract: a subscriber learns the sender has
+ * finished instead of inferring it from silence. Before this, "no frame
+ * arrived" meant either "the sender is idle" or "the sender is gone", and
+ * nothing could tell them apart.
+ * ------------------------------------------------------------------ */
+static void
+test_eos_ends_the_stream (void)
+{
+  printf ("\n-- end of stream --\n");
+  const char *ep = nats_ep ("eos");
+
+  dp_sub_t *sub = dp_sub_create (ep);
+  DP_CHECK (sub != NULL);
+  usleep (SETTLE_US);
+
+  dp_pub_t *pub = dp_pub_create (ep, CF64);
+  DP_CHECK (pub != NULL);
+  usleep (SETTLE_US);
+
+  /* Data first, so the marker is proven to arrive AFTER a real frame
+     rather than instead of one. */
+  double _Complex tx[2] = { 1 + 1 * I, 2 + 2 * I };
+  DP_CHECK (dp_pub_send_cf64 (pub, tx, 2, 48000.0, 915e6) == DP_OK);
+  DP_CHECK (dp_pub_send_eos (pub) == DP_OK);
+
+  dp_sub_set_timeout (sub, 3000);
+
+  dp_msg_t   *msg = NULL;
+  dp_header_t hdr;
+  DP_CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_OK);
+  DP_CHECK (msg != NULL);
+  if (msg)
+    {
+      DP_CHECK (dp_msg_num_samples (msg) == 2);
+      dp_msg_free (msg);
+    }
+
+  /* The marker: reported as a STATE, not handed back as an empty frame the
+     caller would have to recognise. */
+  msg = NULL;
+  DP_CHECK_MSG (dp_sub_recv (sub, &msg, &hdr) == DP_ERR_EOF,
+                "a subscriber must learn the sender finished, rather than "
+                "waiting out a timeout that means only 'not yet'");
+  DP_CHECK_MSG (msg == NULL,
+                "no message is produced for an end-of-stream frame, so "
+                "there is nothing for the caller to free");
+
+  /* DP_ERR_EOF is distinct from DP_ERR_TIMEOUT, which is the whole point:
+     with nothing further sent, the next receive times out rather than
+     repeating the end-of-stream. */
+  msg = NULL;
+  dp_sub_set_timeout (sub, 300);
+  DP_CHECK_MSG (dp_sub_recv (sub, &msg, &hdr) == DP_ERR_TIMEOUT,
+                "'finished' and 'nothing yet' must not be the same answer");
+
+  dp_pub_destroy (pub);
+  dp_sub_destroy (sub);
+}
+
+/* ------------------------------------------------------------------
  * test_req_rep_roundtrip
  * ------------------------------------------------------------------ */
 static void
@@ -348,6 +410,7 @@ main (void)
     }
 
   test_pub_sub_roundtrip ();
+  test_eos_ends_the_stream ();
   test_req_rep_roundtrip ();
   test_chunked_pub_sub ();
   test_interrupt_unblocks_recv ();

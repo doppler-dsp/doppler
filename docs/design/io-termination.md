@@ -111,9 +111,19 @@ outside `DP_FLAG_KNOWN` is **refused**, because an unknown block moves
 where the payload starts. The `kind` field is not among the five checks.
 
 So a new flag bit would be breaking — every existing receiver rejects the
-frame — while a new kind is additive, which is the precedent
-`DP_KIND_TLM` already set when telemetry stopped pretending to be a
-sample format.
+frame — while a new kind is the precedent `DP_KIND_TLM` already set when
+telemetry stopped pretending to be a sample format.
+
+"Additive" needs one qualification, found by implementing it rather than
+by reading: doppler's own validator refuses any frame whose element size
+is zero, and an end-of-stream frame has no element size because it has no
+elements. So a receiver built before this existed does not ignore the
+marker — it rejects the frame as `DP_ERR_INVALID`. That is the safe
+failure (a refusal, not a misparse) and it is still additive in the sense
+that matters, since no *existing* frame changes meaning. But "an old
+receiver quietly skips it" would have been wrong, and the validator had to
+be taught that a frame carrying nothing is checked differently rather than
+not at all: an EOS frame that claims a payload is still refused.
 
 ### The one thing it cannot promise
 

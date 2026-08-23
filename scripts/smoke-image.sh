@@ -37,6 +37,26 @@ printf '==> smoke: %s  %s%s\n' "${kind}" "${image}" \
 case "${kind}" in
 runtime)
   run python -c "import doppler; print('doppler', doppler.__version__)"
+  # An import is not what this image is FOR. Its whole pitch is the ~70
+  # demos under /examples, and the docs' first command runs one of them --
+  # which is how gh-954 shipped: awgn_demo.py wrote to a repo-relative
+  # docs/assets/ that does not exist in the container, so the published
+  # image failed the very line the install page tells a reader to type,
+  # while this smoke went green on an import.
+  #
+  # The demo is READ OUT of the doc snippet rather than named again here,
+  # so the smoke cannot check one command while the page advertises
+  # another. `${0}` locates the checkout, which release.yml also has.
+  demo=$(sed -n \
+    's|^docker run .* python \([A-Za-z0-9_]*\.py\).*|\1|p' \
+    "$(dirname "${0}")/../tests/install/docker-build.sh" | head -n1)
+  if [ -z "${demo}" ]; then
+    echo "smoke-image.sh: no 'python <demo>.py' line in the runtime" \
+         "doc snippet -- the smoke has nothing to check" >&2
+    exit 2
+  fi
+  echo "==> runtime: running the documented demo (${demo})"
+  run python "${demo}"
   ;;
 sdk)
   # The install is real only if a downstream can find + link it: build the

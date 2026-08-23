@@ -7,7 +7,7 @@ The traces coincide — the codec is lossless for cf32.
 
 Run::
 
-    python examples/python/wfm_write_demo.py           # → burst.blue
+    python wfm_write_demo.py           # → burst.blue
 """
 
 from __future__ import annotations

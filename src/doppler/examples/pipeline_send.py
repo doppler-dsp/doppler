@@ -6,9 +6,9 @@ load-balanced across all connected workers sharing the durable consumer.
 Requires a running nats-server (e.g. `nats-server -js`).
 
 Usage:
-  python examples/python/pipeline_send.py [endpoint]
-  python examples/python/pipeline_send.py                  # nats://127.0.0.1:4222/work
-  python examples/python/pipeline_send.py nats://127.0.0.1:4222/work2
+  python pipeline_send.py [endpoint]
+  python pipeline_send.py                  # nats://127.0.0.1:4222/work
+  python pipeline_send.py nats://127.0.0.1:4222/work2
 
 Start this FIRST, then one or more pipeline_recv.py workers on the same
 endpoint.  The Push side is what creates the JetStream work-queue stream:

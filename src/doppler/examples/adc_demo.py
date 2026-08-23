@@ -13,7 +13,7 @@ the FFT processing gain (not the total noise power).  The y-axis runs to
 -120 dBFS so all floors are visible.
 
 Run:
-    python examples/python/adc_demo.py
+    python adc_demo.py
 """
 
 from __future__ import annotations

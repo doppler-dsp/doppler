@@ -12,7 +12,7 @@ Demonstrates all four correlation / detection classes:
 Saves a three-panel figure to corr_demo.png.
 
 Run:
-  python examples/python/corr_demo.py
+  python corr_demo.py
 """
 
 import matplotlib

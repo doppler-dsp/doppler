@@ -19,7 +19,7 @@ the downstream integer word width, not the quantization error.
 Output: cvt_quantization_demo.png
 
 Run:
-  python examples/python/cvt_quantization_demo.py
+  python cvt_quantization_demo.py
 """
 
 from __future__ import annotations

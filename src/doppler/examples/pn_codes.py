@@ -5,7 +5,7 @@ realizations exposed by `doppler.wfm.PN`, plus the 64-bit register path
 (lengths > 32). Runs in a second with no plotting — every claim is asserted.
 
 Run:
-    python examples/python/pn_codes.py
+    python pn_codes.py
 """
 
 from __future__ import annotations

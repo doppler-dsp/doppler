@@ -18,7 +18,7 @@ Mirrors the analytic checks in ``TestRRC`` of
 ``src/doppler/wfm/tests/test_dsp_correctness.py``.
 
 Run:
-    python examples/python/wfm_rrc_response.py
+    python wfm_rrc_response.py
 """
 
 from __future__ import annotations

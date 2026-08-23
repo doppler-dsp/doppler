@@ -33,7 +33,7 @@ Saves a three-panel plot to ema_memory.png:
              shipped path is exact everywhere
 
 Run:
-  python examples/python/ema_demo.py
+  python ema_demo.py
 """
 
 import math

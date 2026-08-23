@@ -3,15 +3,15 @@
 Subscribes to a doppler transmitter and displays a live dashboard: the
 frame header as it arrived on the wire, signal power, throughput, one-way
 latency, packet statistics and the first few samples.  Field for field
-the same dashboard as `examples/c/receiver.c`, computed the same way --
+the same dashboard as the C receiver example, computed the same way --
 the power comes from `doppler.stream.mean_power()`, which is the same
 `dp_mean_power()` the C example calls, not a second implementation in
 numpy.  Requires a running nats-server (e.g. `nats-server -js`).
 
 Usage:
-  python examples/python/receiver.py [endpoint]
-  python examples/python/receiver.py                          # nats://127.0.0.1:4222/iq
-  python examples/python/receiver.py nats://broker.example:4222/iq
+  python receiver.py [endpoint]
+  python receiver.py                          # nats://127.0.0.1:4222/iq
+  python receiver.py nats://broker.example:4222/iq
 
 Press Ctrl+C to stop.
 """

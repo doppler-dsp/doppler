@@ -22,7 +22,7 @@ after a bounded run.
 
 Run:
     nats-server -js &
-    python examples/python/wfm_realtime_stream.py
+    python wfm_realtime_stream.py
 """
 
 from __future__ import annotations

@@ -18,7 +18,7 @@ segments (Welch's method) — a smoother backdrop and a lower-variance floor tha
 a single periodogram, at the same resolution bandwidth.
 
 Run:
-    python examples/python/measure_demo.py
+    python measure_demo.py
 """
 
 from __future__ import annotations

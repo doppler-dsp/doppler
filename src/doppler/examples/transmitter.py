@@ -5,9 +5,9 @@ subject.  Mirrors the C transmitter example using the Python stream API.
 Requires a running nats-server (e.g. `nats-server -js`).
 
 Usage:
-  python examples/python/transmitter.py [endpoint]
-  python examples/python/transmitter.py                  # nats://127.0.0.1:4222/iq
-  python examples/python/transmitter.py nats://127.0.0.1:4222/iq2
+  python transmitter.py [endpoint]
+  python transmitter.py                  # nats://127.0.0.1:4222/iq
+  python transmitter.py nats://127.0.0.1:4222/iq2
 
 Press Ctrl+C to stop.
 """

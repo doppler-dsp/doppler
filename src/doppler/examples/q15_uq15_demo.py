@@ -13,7 +13,7 @@ This demo shows:
   3. UQ15 offset-binary roundtrip spectrum — identical noise floor to Q15.
 
 Run:
-  python examples/python/q15_uq15_demo.py
+  python q15_uq15_demo.py
 """
 
 from __future__ import annotations

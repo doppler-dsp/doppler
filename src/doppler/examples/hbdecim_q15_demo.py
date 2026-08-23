@@ -15,7 +15,7 @@ Three-panel dark-theme figure:
     shifts to f=0.16 of the output rate; stopband tone is suppressed ~60 dB.
 
 Run:
-  python examples/python/hbdecim_q15_demo.py
+  python hbdecim_q15_demo.py
 """
 
 import matplotlib

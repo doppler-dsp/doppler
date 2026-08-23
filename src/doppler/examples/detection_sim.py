@@ -72,7 +72,7 @@ Equivalence: det_pd_power(snr², M, p) == det_pd(snr, M, eta)
 
 Run::
 
-    python examples/python/detection_sim.py
+    python detection_sim.py
 
 Saves detection_sim.png.  Runs in ~5 s.
 """

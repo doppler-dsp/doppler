@@ -13,7 +13,7 @@ is a fixed-point UQ16 integer path with no multiplications, making it
 ideal as the first decimation stage at very high sample rates (R ≤ 4096).
 
 Run:
-  python examples/python/cic_demo.py
+  python cic_demo.py
 """
 
 from __future__ import annotations

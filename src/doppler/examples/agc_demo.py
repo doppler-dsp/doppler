@@ -29,7 +29,7 @@ Saves a three-panel plot to agc_convergence.png:
              time constants so the two bandwidths overlay.
 
 Run:
-  python examples/python/agc_demo.py
+  python agc_demo.py
 """
 
 import matplotlib

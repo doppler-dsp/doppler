@@ -589,6 +589,11 @@ type = "double"
 [[module.wfm_sink.methods]]
 name = "send_eos"
 fn = "wfm_stream_sink_send_eos"
+# The stub says `-> int` and the binding returns None -- because this method
+# takes NO ARGUMENTS. jm honours `error` when rendering the annotation only
+# on the arg-carrying branch, so `drain` below (same two keys, one arg) gets
+# the correct `-> None`. just-makeit#1116, reproduced against 0.66.1 with a
+# one-line fix; drop this note when the pin passes it.
 returns = "int"
 error = "OSError"
 

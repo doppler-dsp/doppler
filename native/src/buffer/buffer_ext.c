@@ -255,7 +255,22 @@ static PyMethodDef F32Buffer_methods[] = {
   { "wait", (PyCFunction)F32Buffer_wait, METH_VARARGS,
     "wait(n) -> np.ndarray[complex64]\n\n"
     "Block until n samples are available; return zero-copy view.\n"
-    "MUST call consume(n) when done." },
+    "MUST call consume(n) when done.\n"
+    "\n"
+    "Two things end the wait instead of returning samples, and a\n"
+    "consumer loop has to handle both:\n"
+    "\n"
+    "- ``EOFError`` -- the producer called close() AND fewer than n\n"
+    "  samples remain. The tail is drained and no more is coming.\n"
+    "- ``KeyboardInterrupt`` -- somebody asked this process to stop.\n"
+    "  Ctrl+C reaches this wait only inside\n"
+    "  doppler.stream.interrupt_on_sigint(), which is what arms the\n"
+    "  flag the wait reads; without it the wait does not check for\n"
+    "  signals at all.\n"
+    "\n"
+    "Without close() a consumer cannot tell a slow producer from a\n"
+    "finished one -- both look like an empty ring -- so this used to\n"
+    "spin forever at 100% CPU. See docs/design/io-termination.md." },
   { "consume", (PyCFunction)F32Buffer_consume, METH_VARARGS,
     "consume([n]) -> None\n\nRelease n samples (defaults to last wait)." },
   { "destroy", (PyCFunction)F32Buffer_destroy, METH_NOARGS,
@@ -492,15 +507,30 @@ static PyMethodDef F64Buffer_methods[] = {
     "\n"
     "Examples\n"
     "--------\n"
-    ">>> from doppler.buffer import F32Buffer\n"
-    ">>> buf = F32Buffer(1024)\n"
+    ">>> from doppler.buffer import F64Buffer\n"
+    ">>> buf = F64Buffer(1024)\n"
     ">>> buf.close()\n"
     ">>> buf.closed\n"
     "True\n" },
   { "wait", (PyCFunction)F64Buffer_wait, METH_VARARGS,
     "wait(n) -> np.ndarray[complex128]\n\n"
     "Block until n samples are available; return zero-copy view.\n"
-    "MUST call consume(n) when done." },
+    "MUST call consume(n) when done.\n"
+    "\n"
+    "Two things end the wait instead of returning samples, and a\n"
+    "consumer loop has to handle both:\n"
+    "\n"
+    "- ``EOFError`` -- the producer called close() AND fewer than n\n"
+    "  samples remain. The tail is drained and no more is coming.\n"
+    "- ``KeyboardInterrupt`` -- somebody asked this process to stop.\n"
+    "  Ctrl+C reaches this wait only inside\n"
+    "  doppler.stream.interrupt_on_sigint(), which is what arms the\n"
+    "  flag the wait reads; without it the wait does not check for\n"
+    "  signals at all.\n"
+    "\n"
+    "Without close() a consumer cannot tell a slow producer from a\n"
+    "finished one -- both look like an empty ring -- so this used to\n"
+    "spin forever at 100% CPU. See docs/design/io-termination.md." },
   { "consume", (PyCFunction)F64Buffer_consume, METH_VARARGS,
     "consume([n]) -> None\n\nRelease n samples." },
   { "destroy", (PyCFunction)F64Buffer_destroy, METH_NOARGS,
@@ -750,15 +780,30 @@ static PyMethodDef I16Buffer_methods[] = {
     "\n"
     "Examples\n"
     "--------\n"
-    ">>> from doppler.buffer import F32Buffer\n"
-    ">>> buf = F32Buffer(1024)\n"
+    ">>> from doppler.buffer import I16Buffer\n"
+    ">>> buf = I16Buffer(1024)\n"
     ">>> buf.close()\n"
     ">>> buf.closed\n"
     "True\n" },
   { "wait", (PyCFunction)I16Buffer_wait, METH_VARARGS,
     "wait(n) -> np.ndarray[int16, shape=(n,2)]\n\n"
     "Block until n IQ samples are available; return zero-copy view.\n"
-    "Column 0 = I, column 1 = Q. MUST call consume(n) when done." },
+    "Column 0 = I, column 1 = Q. MUST call consume(n) when done.\n"
+    "\n"
+    "Two things end the wait instead of returning samples, and a\n"
+    "consumer loop has to handle both:\n"
+    "\n"
+    "- ``EOFError`` -- the producer called close() AND fewer than n\n"
+    "  samples remain. The tail is drained and no more is coming.\n"
+    "- ``KeyboardInterrupt`` -- somebody asked this process to stop.\n"
+    "  Ctrl+C reaches this wait only inside\n"
+    "  doppler.stream.interrupt_on_sigint(), which is what arms the\n"
+    "  flag the wait reads; without it the wait does not check for\n"
+    "  signals at all.\n"
+    "\n"
+    "Without close() a consumer cannot tell a slow producer from a\n"
+    "finished one -- both look like an empty ring -- so this used to\n"
+    "spin forever at 100% CPU. See docs/design/io-termination.md." },
   { "consume", (PyCFunction)I16Buffer_consume, METH_VARARGS,
     "consume([n]) -> None\n\nRelease n IQ sample pairs." },
   { "destroy", (PyCFunction)I16Buffer_destroy, METH_NOARGS,

@@ -18,13 +18,36 @@
 #include <string.h>
 
 #include "cJSON.h"
+#include "dp_format.h" /* the BLUE codes, shared with the wire */
 
 /* per sample_type (wavegen order 0 cf32,1 cf64,2 ci32,3 ci16,4 ci8) */
-static const size_t ELEM[5]  = { 4, 8, 4, 2, 1 };  /* bytes per I or Q */
-static const size_t BPS[5]   = { 8, 16, 8, 4, 2 }; /* bytes per sample */
+static const size_t ELEM[5] = { 4, 8, 4, 2, 1 }; /* bytes per I or Q */
+/* bytes per sample -- derived below from STYPE_FMT, never restated */
 static const double SCALE[5] = { 0, 0, 2147483647.0, 32767.0, 127.0 };
-static const char   FMTCH[5]
-    = { 'F', 'D', 'L', 'I', 'B' }; /* BLUE format char */
+/* BLUE format char per wavegen-order stype. DERIVED from the stream
+   layer's format codes rather than written out again: dp_sample_type_t's
+   values ARE the two-character BLUE codes (stream/stream.h), so the file
+   writer and the wire cannot disagree about what a `cf32` is. Three
+   enumerations of these five types used to exist -- this table, the
+   stream enum, and wfm_sink.c's WT_* -- with hand-written translation
+   between them. */
+static const dp_sample_type_t STYPE_FMT[5] = { CF32, CF64, CI32, CI16, CI8 };
+
+/* Bytes per complex sample for a wavegen-order stype. Was a second literal
+   table (BPS[]); now the same switch dp_format_size() already is. */
+static size_t
+stype_bytes (int stype)
+{
+  return dp_format_size (STYPE_FMT[stype]);
+}
+
+static char
+blue_format_char (int stype)
+{
+  char code[2];
+  dp_format_chars (STYPE_FMT[stype], code);
+  return code[1]; /* [0] is the mode, always 'C' here */
+}
 
 #include "wfm/wfm_names.h" /* TYPE_NAMES / N_TYPES / MODE_NAMES (SSOT) */
 
@@ -166,12 +189,12 @@ wfm_blue_write_hcb (FILE *fp, int sample_type, int endian, double fs,
   put_at (h, 12, &i32, 4, be); /* detached */
   /* protected (16), pipe (20), ext_start (24), ext_size (28) = 0 */
   put_at (h, 32, &data_start, 8, be); /* data_start (bytes) */
-  f64 = (double)(total_samples * BPS[sample_type]);
+  f64 = (double)(total_samples * stype_bytes (sample_type));
   put_at (h, 40, &f64, 8, be); /* data_size (bytes) */
   i32 = 1000;
-  put_at (h, 48, &i32, 4, be); /* type = 1000 (1-D vector) */
-  h[52] = 'C';                 /* format mode: complex */
-  h[53] = FMTCH[sample_type];  /* format type: B/I/L/F/D */
+  put_at (h, 48, &i32, 4, be);            /* type = 1000 (1-D vector) */
+  h[52] = 'C';                            /* format mode: complex */
+  h[53] = blue_format_char (sample_type); /* B/I/L/F/D */
   /* timecode (56): seconds since J1950, which is what BLUE counts from.
      An UNSET t0 leaves the field at its zeroed default rather than writing
      the J1950 value of the UNIX epoch -- a reader tests the field against
@@ -578,7 +601,7 @@ wfm_writer_close (wfm_writer_state_t *w)
       /* patch BLUE data_size from the actual count when the stream seeks */
       if (w->ft == WFM_FT_BLUE && fseek (w->fp, 40, SEEK_SET) == 0)
         {
-          double   data_size = (double)(w->written * BPS[w->stype]);
+          double   data_size = (double)(w->written * stype_bytes (w->stype));
           uint8_t  b[8];
           uint8_t *p = b;
           put (&p, &data_size, 8, w->be);

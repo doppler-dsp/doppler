@@ -54,8 +54,9 @@
 |  int | [**dp\_msg\_ack**](#function-dp_msg_ack) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_Acknowledge a message on a durable (JetStream) consumer._  |
 |  void \* | [**dp\_msg\_data**](#function-dp_msg_data) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_Return a pointer to the raw sample data inside the message._  |
 |  void | [**dp\_msg\_free**](#function-dp_msg_free) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_Free a message handle and release the underlying buffer._  |
+|  [**dp\_frame\_kind\_t**](group__types.md#enum-dp_frame_kind_t) | [**dp\_msg\_kind**](#function-dp_msg_kind) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_What the message's payload IS (dp\_frame\_kind\_t)._  |
 |  size\_t | [**dp\_msg\_num\_samples**](#function-dp_msg_num_samples) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_Return the number of complex samples in the message._  |
-|  [**dp\_sample\_type\_t**](group__types.md#enum-dp_sample_type_t) | [**dp\_msg\_sample\_type**](#function-dp_msg_sample_type) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_Return the sample type of the message._  |
+|  [**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) | [**dp\_msg\_sample\_type**](#function-dp_msg_sample_type) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_Return the sample type of the message._  |
 |  size\_t | [**dp\_msg\_size**](#function-dp_msg_size) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_Return the byte size of the sample data._  |
 
 
@@ -181,6 +182,43 @@ void dp_msg_free (
 
 
 * `msg` Message handle (may be NULL). 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_msg\_kind 
+
+_What the message's payload IS (dp\_frame\_kind\_t)._ 
+```
+dp_frame_kind_t dp_msg_kind (
+    dp_msg_t * msg
+) 
+```
+
+
+
+Ask this before [**dp\_msg\_sample\_type()**](group__msg.md#function-dp_msg_sample_type): a telemetry frame's format field is 0, because BLUE has no code for a record stream.
+
+
+
+
+**Parameters:**
+
+
+* `msg` Message handle. 
+
+
+
+**Returns:**
+
+The frame's kind, or DP\_KIND\_IQ for a NULL handle. 
+
 
 
 

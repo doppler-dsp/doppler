@@ -20,6 +20,7 @@
  * live in clib_common.h — the streaming API uses the one doppler-wide scheme.
  */
 #include "clib_common.h"
+#include "dp_format.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -33,46 +34,52 @@ extern "C"
    * Sample types
    * ---------------------------------------------------------------------- */
 
-  typedef enum
-  {
-    CI32  = 0, 
-    CF64  = 1, 
-    /* 2 was CF128 (long double I/Q). Retired: its wire size is
-       sizeof(long double _Complex), which is 32 bytes on both x86-64 and
-       aarch64 while the REPRESENTATION differs (80-bit extended vs IEEE
-       binary128), so a frame crossed an architecture boundary, matched on
-       every field a receiver checks, and decoded to nonsense. The value is
-       not reused: an old sender's frames must stay unrecognised, not be
-       silently read as some newer type. */
-    CI8   = 3, 
-    CI16  = 4, 
-    CF32  = 5, 
-    TLM16 = 6, 
-  } dp_sample_type_t;
+  /* The sample formats themselves live in dp_format.h: they are BLUE's
+     vocabulary, shared with the file writer, and a container is the wrong
+     owner for the names of what it carries. */
 
   typedef enum
   {
-    DP_PROTO_SIGS = 0, 
-    DP_PROTO_DIFI = 1, 
-  } dp_protocol_t;
+    DP_KIND_IQ  = 0, 
+    DP_KIND_TLM = 1, 
+  } dp_frame_kind_t;
+
+
+#define DP_STREAM_MAGIC 0x4D41455254535044ULL /* "DPSTREAM" little-endian */
+
+#define DP_WIRE_VERSION 2u
+
+#define DP_REP_LE "EEEI"
+#define DP_REP_BE "IEEE"
+
+#define DP_FLAG_CHUNKED                                                       \
+  0x0001u 
+#define DP_FLAG_KNOWN (DP_FLAG_CHUNKED)
 
 
   typedef struct
   {
-    uint32_t magic;       
-    uint32_t version;     
-    uint32_t protocol;    
-    uint32_t stream_id;   
-    uint32_t sample_type; 
-    uint32_t flags;       
-    uint64_t sequence;    
-    uint64_t
-        timestamp_ns; 
-    double   sample_rate; 
-    double   center_freq; 
-    uint64_t num_samples; 
-    uint64_t reserved[4]; 
+    uint64_t magic;         
+    char     data_rep[4];   
+    uint16_t format;        
+    uint16_t kind;          
+    uint16_t version;       
+    uint16_t flags;         
+    uint32_t payload_bytes; 
+    uint64_t sequence;      
+    uint64_t timestamp_ns;  
+    double   sample_rate;   
+    double   center_freq;   
+    uint64_t num_samples;   
   } dp_header_t;
+
+  typedef struct
+  {
+    uint32_t index;       
+    uint32_t count;       
+    uint64_t total_bytes; 
+    uint64_t offset;      
+  } dp_chunk_t;
 
   typedef struct dp_msg dp_msg_t;
 
@@ -99,6 +106,8 @@ extern "C"
   size_t dp_msg_num_samples (dp_msg_t *msg);
 
   dp_sample_type_t dp_msg_sample_type (dp_msg_t *msg);
+
+  dp_frame_kind_t dp_msg_kind (dp_msg_t *msg);
 
   int dp_msg_ack (dp_msg_t *msg);
 
@@ -134,6 +143,8 @@ extern "C"
   int dp_pub_send_tlm16 (dp_pub_t *ctx, const void *records,
                          size_t num_records, double sample_rate,
                          double center_freq);
+
+  dp_pub_t *dp_pub_create_tlm (const char *endpoint);
 
   void dp_pub_destroy (dp_pub_t *ctx);
 
@@ -207,9 +218,10 @@ extern "C"
   int dp_req_send_ci32 (dp_req_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
-  int dp_req_send_cf64 (dp_req_t *ctx, const double _Complex *samples,
-                        size_t num_samples, double sample_rate,
-                        double center_freq);  
+  int dp_req_send_cf64 (
+      dp_req_t *ctx, const double _Complex *samples, size_t num_samples,
+      double sample_rate,
+      double center_freq); 
   int dp_req_send_ci8 (dp_req_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
@@ -223,9 +235,10 @@ extern "C"
   int dp_rep_send_ci32 (dp_rep_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
-  int dp_rep_send_cf64 (dp_rep_t *ctx, const double _Complex *samples,
-                        size_t num_samples, double sample_rate,
-                        double center_freq);  
+  int dp_rep_send_cf64 (
+      dp_rep_t *ctx, const double _Complex *samples, size_t num_samples,
+      double sample_rate,
+      double center_freq); 
   int dp_rep_send_ci8 (dp_rep_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
@@ -259,7 +272,10 @@ extern "C"
 
   int dp_sample_type_is_valid (dp_sample_type_t type);
 
-  int dp_sample_type_is_iq (dp_sample_type_t type);
+  size_t dp_element_size (dp_frame_kind_t kind, dp_sample_type_t format);
+
+  const char *dp_host_rep (void);
+
 
   uint64_t dp_get_timestamp_ns (void);
 

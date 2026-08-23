@@ -28,7 +28,7 @@ dp_tlm_sink_open (const char *endpoint)
   dp_tlm_sink_t *s = calloc (1, sizeof (*s));
   if (!s)
     return NULL;
-  s->pub = dp_pub_create (endpoint, TLM16);
+  s->pub = dp_pub_create_tlm (endpoint);
   if (!s->pub)
     {
       free (s); /* bad endpoint / connect failure */

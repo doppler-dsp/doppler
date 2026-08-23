@@ -70,6 +70,7 @@
 * [**dll\_state\_t**](structdll__state__t.md)
 * [**dll\_tlm\_t**](structdll__tlm__t.md)
 * [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md)
+* [**dp\_chunk\_t**](structdp__chunk__t.md)
 * [**dp\_header\_t**](structdp__header__t.md)
 * [**dp\_peak\_t**](structdp__peak__t.md)
 * [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md)

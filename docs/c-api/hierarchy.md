@@ -59,7 +59,8 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dll\_state\_t**](structdll__state__t.md) _DLL state._ 
 * **struct** [**dll\_tlm\_t**](structdll__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then a single predicted-not-taken branch per code epoch. Zeroed in state blobs and preserved across set\_state (the hand-written triplet treats it like the borrowed_ `code` _)._
 * **struct** [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) _DopplerChannel state._ 
-* **struct** [**dp\_header\_t**](structdp__header__t.md) _Frame metadata header carried in every stream message._ 
+* **struct** [**dp\_chunk\_t**](structdp__chunk__t.md) _Reassembly geometry, present only when_ [_**DP\_FLAG\_CHUNKED**_](group__wire.md#define-dp_flag_chunked) _._
+* **struct** [**dp\_header\_t**](structdp__header__t.md) _Frame metadata carried in every stream message._ 
 * **struct** [**dp\_peak\_t**](structdp__peak__t.md) _One spectral peak returned by_ [_**find\_peaks\_f32()**_](spectral__core_8h.md#function-find_peaks_f32) _._
 * **struct** [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md) 
 * **struct** [**dp\_reader\_t**](structdp__reader__t.md) 

@@ -8,7 +8,7 @@
 
 
 
-_Frame metadata header carried in every stream message._ [More...](#detailed-description)
+_Frame metadata carried in every stream message._ [More...](#detailed-description)
 
 * `#include <stream.h>`
 
@@ -37,17 +37,17 @@ _Frame metadata header carried in every stream message._ [More...](#detailed-des
 | Type | Name |
 | ---: | :--- |
 |  double | [**center\_freq**](#variable-center_freq)  <br> |
-|  uint32\_t | [**flags**](#variable-flags)  <br> |
-|  uint32\_t | [**magic**](#variable-magic)  <br> |
+|  char | [**data\_rep**](#variable-data_rep)  <br> |
+|  uint16\_t | [**flags**](#variable-flags)  <br> |
+|  uint16\_t | [**format**](#variable-format)  <br> |
+|  uint16\_t | [**kind**](#variable-kind)  <br> |
+|  uint64\_t | [**magic**](#variable-magic)  <br> |
 |  uint64\_t | [**num\_samples**](#variable-num_samples)  <br> |
-|  uint32\_t | [**protocol**](#variable-protocol)  <br> |
-|  uint64\_t | [**reserved**](#variable-reserved)  <br> |
+|  uint32\_t | [**payload\_bytes**](#variable-payload_bytes)  <br> |
 |  double | [**sample\_rate**](#variable-sample_rate)  <br> |
-|  uint32\_t | [**sample\_type**](#variable-sample_type)  <br> |
 |  uint64\_t | [**sequence**](#variable-sequence)  <br> |
-|  uint32\_t | [**stream\_id**](#variable-stream_id)  <br> |
 |  uint64\_t | [**timestamp\_ns**](#variable-timestamp_ns)  <br> |
-|  uint32\_t | [**version**](#variable-version)  <br> |
+|  uint16\_t | [**version**](#variable-version)  <br> |
 
 
 
@@ -95,7 +95,10 @@ _Frame metadata header carried in every stream message._ [More...](#detailed-des
 ## Detailed Description
 
 
-The first 4 bytes of the wire header are always the magic value `0x53494753` ("SIGS"), which receivers can use for basic validation. Future-proofed for DIFI / VITA 49 with protocol and stream\_id fields. 
+64 bytes, in declaration order, memcpy'd whole  there is no padding on any ABI doppler builds for, and a static assertion in `stream_core.c` fails the build if that ever stops being true.
+
+
+Numbers are in HOST byte order and [**data\_rep**](structdp__header__t.md#variable-data_rep) says which order that was; the magic catches the mismatch first, so a wrong-endian frame is rejected rather than silently misread. 
 
 
     
@@ -112,7 +115,24 @@ double dp_header_t::center_freq;
 
 
 
-Centre frequency in Hz. 
+Centre frequency in Hz, 0 if unknown. 
+
+
+        
+
+<hr>
+
+
+
+### variable data\_rep 
+
+```C++
+char dp_header_t::data_rep[4];
+```
+
+
+
+[**DP\_REP\_LE**](group__wire.md#define-dp_rep_le) or [**DP\_REP\_BE**](group__wire.md#define-dp_rep_be), no NUL. 
 
 
         
@@ -124,12 +144,46 @@ Centre frequency in Hz.
 ### variable flags 
 
 ```C++
-uint32_t dp_header_t::flags;
+uint16_t dp_header_t::flags;
 ```
 
 
 
-Reserved flags — set to 0. 
+Bitwise OR of the DP\_FLAG\_\* set. 
+
+
+        
+
+<hr>
+
+
+
+### variable format 
+
+```C++
+uint16_t dp_header_t::format;
+```
+
+
+
+BLUE code (dp\_sample\_type\_t); 0 when the kind is not sample data. 
+
+
+        
+
+<hr>
+
+
+
+### variable kind 
+
+```C++
+uint16_t dp_header_t::kind;
+```
+
+
+
+dp\_frame\_kind\_t: what the payload IS. 
 
 
         
@@ -141,12 +195,12 @@ Reserved flags — set to 0.
 ### variable magic 
 
 ```C++
-uint32_t dp_header_t::magic;
+uint64_t dp_header_t::magic;
 ```
 
 
 
-Magic number: 0x53494753 "SIGS". 
+[**DP\_STREAM\_MAGIC**](group__wire.md#define-dp_stream_magic). 
 
 
         
@@ -163,7 +217,7 @@ uint64_t dp_header_t::num_samples;
 
 
 
-Number of complex samples in this message. 
+Complex samples (DP\_KIND\_IQ) or records (DP\_KIND\_TLM) in THIS message. 
 
 
         
@@ -172,32 +226,15 @@ Number of complex samples in this message.
 
 
 
-### variable protocol 
+### variable payload\_bytes 
 
 ```C++
-uint32_t dp_header_t::protocol;
+uint32_t dp_header_t::payload_bytes;
 ```
 
 
 
-dp\_protocol\_t (0 = SIGS, 1 = DIFI). 
-
-
-        
-
-<hr>
-
-
-
-### variable reserved 
-
-```C++
-uint64_t dp_header_t::reserved[4];
-```
-
-
-
-Reserved — set to zero, do not interpret. 
+Bytes of payload in THIS message. The transport also knows the message length; a receiver requires the two to agree, which is what stops a header claiming more samples than were sent. 
 
 
         
@@ -214,24 +251,7 @@ double dp_header_t::sample_rate;
 
 
 
-Sample rate in Hz. 
-
-
-        
-
-<hr>
-
-
-
-### variable sample\_type 
-
-```C++
-uint32_t dp_header_t::sample_type;
-```
-
-
-
-Wire sample type (dp\_sample\_type\_t). 
+Sample rate in Hz, 0 if unknown. 
 
 
         
@@ -248,24 +268,7 @@ uint64_t dp_header_t::sequence;
 
 
 
-Monotonically increasing per-sender count. 
-
-
-        
-
-<hr>
-
-
-
-### variable stream\_id 
-
-```C++
-uint32_t dp_header_t::stream_id;
-```
-
-
-
-DIFI stream ID; 0 for SIGS. 
+Per-socket frame counter, from 0. A chunked frame consumes one number, not one per chunk. 
 
 
         
@@ -282,7 +285,7 @@ uint64_t dp_header_t::timestamp_ns;
 
 
 
-UNIX timestamp in nanoseconds (CLOCK\_REALTIME). 
+UNIX nanoseconds (CLOCK\_REALTIME), or 0 for "no capture time"  the same unset convention [**wfm\_time.h**](wfm__time_8h.md) uses, so a frame that never had one does not claim 1970. 
 
 
         
@@ -294,12 +297,12 @@ UNIX timestamp in nanoseconds (CLOCK\_REALTIME).
 ### variable version 
 
 ```C++
-uint32_t dp_header_t::version;
+uint16_t dp_header_t::version;
 ```
 
 
 
-Protocol version (currently 1). 
+[**DP\_WIRE\_VERSION**](group__wire.md#define-dp_wire_version). 
 
 
         

@@ -26,6 +26,7 @@
 | Type | Name |
 | ---: | :--- |
 | module | [**Sample C types**](group__sampletypes.md) <br> |
+| module | [**Wire constants**](group__wire.md) <br> |
 
 
 
@@ -34,21 +35,21 @@
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_header\_t**](structdp__header__t.md) <br>_Frame metadata header carried in every stream message._  |
+| struct | [**dp\_chunk\_t**](structdp__chunk__t.md) <br>_Reassembly geometry, present only when_ [_**DP\_FLAG\_CHUNKED**_](group__wire.md#define-dp_flag_chunked) _._ |
+| struct | [**dp\_header\_t**](structdp__header__t.md) <br>_Frame metadata carried in every stream message._  |
 
 
 ## Public Types
 
 | Type | Name |
 | ---: | :--- |
+| enum  | [**dp\_frame\_kind\_t**](#enum-dp_frame_kind_t)  <br>_What a frame's payload IS, independent of how its elements are encoded._  |
 | typedef struct dp\_msg | [**dp\_msg\_t**](#typedef-dp_msg_t)  <br>_Opaque zero-copy message handle returned by recv functions._  |
-| enum  | [**dp\_protocol\_t**](#enum-dp_protocol_t)  <br>_Protocol identifier for the wire header._  |
 | typedef struct dp\_ctx | [**dp\_pub\_t**](#typedef-dp_pub_t)  <br>_Opaque streaming socket handle returned by all create functions._  |
 | typedef struct dp\_ctx | [**dp\_pull\_t**](#typedef-dp_pull_t)  <br> |
 | typedef struct dp\_ctx | [**dp\_push\_t**](#typedef-dp_push_t)  <br> |
 | typedef struct dp\_ctx | [**dp\_rep\_t**](#typedef-dp_rep_t)  <br> |
 | typedef struct dp\_ctx | [**dp\_req\_t**](#typedef-dp_req_t)  <br> |
-| enum  | [**dp\_sample\_type\_t**](#enum-dp_sample_type_t)  <br>_Selects the wire format of complex samples._  |
 | typedef struct dp\_ctx | [**dp\_sub\_t**](#typedef-dp_sub_t)  <br> |
 
 
@@ -103,6 +104,27 @@
 
 
 
+### enum dp\_frame\_kind\_t 
+
+_What a frame's payload IS, independent of how its elements are encoded._ 
+```
+enum dp_frame_kind_t {
+    DP_KIND_IQ = 0,
+    DP_KIND_TLM = 1
+};
+```
+
+
+
+`TLM16` used to be a sixth `dp_sample_type_t`, which made every I/Q-only sender carry an exception for it and left the format field holding a value BLUE does not define. Telemetry is not a sample encoding, it is a different kind of frame, so it says so here and the format field stays purely a BLUE sample code. 
+
+
+        
+
+<hr>
+
+
+
 ### typedef dp\_msg\_t 
 
 _Opaque zero-copy message handle returned by recv functions._ 
@@ -116,23 +138,6 @@ The data buffer is valid until [**dp\_msg\_free()**](group__msg.md#function-dp_m
 
 
         
-
-<hr>
-
-
-
-### enum dp\_protocol\_t 
-
-_Protocol identifier for the wire header._ 
-```
-enum dp_protocol_t {
-    DP_PROTO_SIGS = 0,
-    DP_PROTO_DIFI = 1
-};
-```
-
-
-
 
 <hr>
 
@@ -199,34 +204,6 @@ typedef struct dp_ctx dp_req_t;
 
 
 
-
-<hr>
-
-
-
-### enum dp\_sample\_type\_t 
-
-_Selects the wire format of complex samples._ 
-```
-enum dp_sample_type_t {
-    CI32 = 0,
-    CF64 = 1,
-    CI8 = 3,
-    CI16 = 4,
-    CF32 = 5,
-    TLM16 = 6
-};
-```
-
-
-
-All sample arrays are packed as interleaved I/Q pairs.
-
-
-Values are fixed — new types are appended to preserve wire compatibility with older receivers. 
-
-
-        
 
 <hr>
 

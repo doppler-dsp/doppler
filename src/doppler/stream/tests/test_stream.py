@@ -298,16 +298,25 @@ def test_push_pull_header_all_fields(push_pull_cf64):
     required = {
         "sample_rate",
         "center_freq",
-        "sample_type",
+        "format",
+        "kind",
+        "flags",
+        "payload_bytes",
+        "version",
         "timestamp_ns",
         "sequence",
         "num_samples",
-        "protocol",
-        "stream_id",
     }
     assert required.issubset(hdr.keys()), (
         f"Missing keys: {required - hdr.keys()}"
     )
+    # `format` is the BLUE code, not an ordinal: "CD" for complex float64,
+    # the same two characters the same samples get in a BLUE file.
+    assert hdr["format"] == CF64
+    assert bytes([hdr["format"] & 0xFF, hdr["format"] >> 8]) == b"CD"
+    assert hdr["kind"] == 0  # DP_KIND_IQ
+    assert hdr["version"] == 2
+    assert hdr["payload_bytes"] == 4 * 16
 
 
 def test_push_pull_header_num_samples(push_pull_cf64):
@@ -622,7 +631,10 @@ def test_pub_sub_tlm16_roundtrip():
 
     pub.send(recs)
     rx, hdr = sub.recv(timeout_ms=2000)
-    assert hdr["sample_type"] == TLM16
+    # A telemetry frame is a KIND; its format field carries no BLUE code
+    # because BLUE has none for a record stream.
+    assert hdr["kind"] == TLM16
+    assert hdr["format"] == 0
     assert hdr["num_samples"] == len(recs)
     assert rx.dtype == recs.dtype  # structured rows survive the wire
     np.testing.assert_array_equal(rx, recs)

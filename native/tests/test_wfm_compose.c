@@ -101,7 +101,7 @@ main (void)
   wfm_compose_destroy (r);
 
   /* ── JSON round-trip: spec → JSON → spec produces identical output ── */
-  char *json = wfm_spec_to_json (segs, 2, 0, 0, 0.0);
+  char *json = wfm_spec_to_json (segs, 2, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (json, "to_json");
   DP_REQUIRE_MSG (strstr (json, "\"tone\"") && strstr (json, "\"qpsk\""),
                   "type names");
@@ -190,7 +190,7 @@ main (void)
       { .sources = one, .n_sources = 1, .fs = 1e6, .num_samples = 256 },
       { .sources = both, .n_sources = 2, .fs = 1e6, .num_samples = 256 }
     };
-    char *js = wfm_spec_to_json (segs2, 2, 0, 0, 0.0);
+    char *js = wfm_spec_to_json (segs2, 2, 0, 0, 0, 0.0);
     DP_REQUIRE_MSG (js, "symbols to_json");
     DP_REQUIRE_MSG (strstr (js, "\"symbols\""),
                     "symbols type + array serialized");
@@ -392,7 +392,7 @@ main (void)
     size_t               ns;
     int                  rp, ct;
     const wfm_segment_t *rs   = wfm_compose_segments (c, &ns, &rp, &ct);
-    char                *json = wfm_spec_to_json (rs, ns, rp, ct, 0.0);
+    char                *json = wfm_spec_to_json (rs, ns, rp, ct, 0, 0.0);
     DP_REQUIRE_MSG (json && strstr (json, "\"sum\""), "sum array emitted");
     /* reparse and compare sample-for-sample. */
     wfm_compose_state_t *jc = wfm_compose_from_json (json);
@@ -415,17 +415,75 @@ main (void)
     wfm_source_t  src = { .type = 0, .snr = 100.0, .sps = 8, .pn_length = 7 };
     wfm_segment_t seg
         = { .sources = &src, .n_sources = 1, .fs = 1e6, .num_samples = 16 };
-    char *j6 = wfm_spec_to_json (&seg, 1, 0, 0, 6.0);
+    char *j6 = wfm_spec_to_json (&seg, 1, 0, 0, 0, 6.0);
     DP_REQUIRE_MSG (j6 && strstr (j6, "\"headroom\""),
                     "headroom emitted when set");
     DP_REQUIRE_MSG (fabs (wfm_spec_headroom (j6) - 6.0) < 1e-9,
                     "headroom extracted");
     free (j6);
-    char *j0 = wfm_spec_to_json (&seg, 1, 0, 0, 0.0);
+    char *j0 = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
     DP_REQUIRE_MSG (j0 && !strstr (j0, "\"headroom\""),
                     "headroom omitted at 0 dB");
     DP_REQUIRE_MSG (wfm_spec_headroom (j0) == 0.0, "absent headroom → 0");
     free (j0);
+  }
+
+  /* ── seed_advance rides in the record too (doppler#978) ──
+   *
+   * Its twin above is not decoration: the key was PARSED and never emitted,
+   * so a recorded run replayed with the mode reset to NONE and every loop
+   * after the first came out identical. The composer is the SSOT here --
+   * `--from-file` sets the mode from the spec and the flag path sets it from
+   * `--seed-advance`, so a serialiser reads it back with
+   * wfm_compose_seed_advance() rather than from whichever half supplied it.
+   */
+  {
+    wfm_source_t  src = { .type = 0, .snr = 100.0, .sps = 8, .pn_length = 7 };
+    wfm_segment_t seg
+        = { .sources = &src, .n_sources = 1, .fs = 1e6, .num_samples = 16 };
+    wfm_compose_state_t *c = wfm_compose_create (&seg, 1, /*repeat=*/1, 0);
+    DP_REQUIRE_MSG (c, "seed_advance create");
+    DP_REQUIRE_MSG (wfm_compose_seed_advance (c) == WFM_SEED_ADVANCE_NONE,
+                    "seed_advance defaults to NONE");
+    wfm_compose_set_seed_advance (c, WFM_SEED_ADVANCE_NOISE);
+    DP_REQUIRE_MSG (wfm_compose_seed_advance (c) == WFM_SEED_ADVANCE_NOISE,
+                    "the getter reads back what the setter wrote");
+    /* Out of range is ignored by the setter — so the getter must still show
+     * the last good value, not whatever was passed. */
+    wfm_compose_set_seed_advance (c, 99);
+    DP_REQUIRE_MSG (wfm_compose_seed_advance (c) == WFM_SEED_ADVANCE_NOISE,
+                    "an out-of-range mode leaves the getter untouched");
+
+    size_t               ns;
+    int                  rp, ct;
+    const wfm_segment_t *rs = wfm_compose_segments (c, &ns, &rp, &ct);
+    char                *jn
+        = wfm_spec_to_json (rs, ns, rp, ct, wfm_compose_seed_advance (c), 0.0);
+    /* Presence only — the VALUE is checked by the round trip below, so this
+     * assertion must not encode cJSON's whitespace. */
+    DP_REQUIRE_MSG (jn && strstr (jn, "\"seed_advance\""),
+                    "seed_advance emitted when set");
+    /* The round trip that matters: parse it back and the mode survives. */
+    wfm_compose_state_t *jc = wfm_compose_from_json (jn);
+    DP_REQUIRE_MSG (jc, "seed_advance from_json");
+    DP_REQUIRE_MSG (wfm_compose_seed_advance (jc) == WFM_SEED_ADVANCE_NOISE,
+                    "seed_advance survives emit → parse");
+    free (jn);
+    wfm_compose_destroy (jc);
+    wfm_compose_destroy (c);
+
+    /* Omitted at the default, exactly as headroom is at 0 dB: the inline
+     * form's field order is frozen for byte-identity, so an always-present
+     * key would churn every capture ever recorded to say "none". */
+    char *j0 = wfm_spec_to_json (&seg, 1, 0, 0, WFM_SEED_ADVANCE_NONE, 0.0);
+    DP_REQUIRE_MSG (j0 && !strstr (j0, "\"seed_advance\""),
+                    "seed_advance omitted at NONE");
+    wfm_compose_state_t *j0c = wfm_compose_from_json (j0);
+    DP_REQUIRE_MSG (
+        j0c && wfm_compose_seed_advance (j0c) == WFM_SEED_ADVANCE_NONE,
+        "absent seed_advance → NONE");
+    free (j0);
+    wfm_compose_destroy (j0c);
   }
 
   /* ── seed_advance: none = byte-identical repeat; all = whole seed advances
@@ -545,7 +603,7 @@ main (void)
                          .off_samples    = 10,
                          .off_samples_hi = 30,
                          .ranged         = WFM_RANGE_OFF_SAMPLES };
-    char         *js = wfm_spec_to_json (&g, 1, 0, 0, 0.0);
+    char         *js = wfm_spec_to_json (&g, 1, 0, 0, 0, 0.0);
     DP_REQUIRE_MSG (js, "ranged spec to json");
     DP_REQUIRE_MSG (strstr (js, "200") && strstr (js, "30"),
                     "ranges emitted as arrays");
@@ -630,7 +688,7 @@ main (void)
                         .sps      = 1 };
     wfm_segment_t g
         = { .sources = &s, .n_sources = 1, .fs = 1e6, .num_samples = 32 };
-    char *js = wfm_spec_to_json (&g, 1, 0, 0, 0.0);
+    char *js = wfm_spec_to_json (&g, 1, 0, 0, 0, 0.0);
     DP_REQUIRE_MSG (js && strstr (js, "f_end"), "chirp f_end present");
     DP_REQUIRE_MSG (strstr (js, "300000") != NULL, "f_end hi bound emitted");
     wfm_compose_state_t *c = wfm_compose_from_json (js);
@@ -738,7 +796,7 @@ main (void)
 
     /* JSON round-trip: geometry keys emitted, parse back, same bytes, and
      * the recorded num_samples is the resolved intrinsic on-time. */
-    char *js = wfm_spec_to_json (gg, 1, 0, 0, 0.0);
+    char *js = wfm_spec_to_json (gg, 1, 0, 0, 0, 0.0);
     wfm_compose_destroy (c); /* json built; the borrow ends here */
     DP_REQUIRE_MSG (js && strstr (js, "\"dsss\""), "dsss type name");
     DP_REQUIRE_MSG (strstr (js, "acq_code") && strstr (js, "data_code")
@@ -812,7 +870,7 @@ main (void)
     DP_REQUIRE_MSG (cn, "no-sync dsss create");
     size_t               nn  = 0;
     const wfm_segment_t *ggn = wfm_compose_segments (cn, &nn, NULL, NULL);
-    char                *jn  = wfm_spec_to_json (ggn, 1, 0, 0, 0.0);
+    char                *jn  = wfm_spec_to_json (ggn, 1, 0, 0, 0, 0.0);
     wfm_compose_destroy (cn);
     DP_REQUIRE_MSG (jn && !strstr (jn, "\"sync\""),
                     "absent sync key not emitted");
@@ -1163,7 +1221,7 @@ main (void)
     DP_REQUIRE_MSG (cse, "sum emit create");
     size_t               nse = 0;
     const wfm_segment_t *gge = wfm_compose_segments (cse, &nse, NULL, NULL);
-    char                *jse = wfm_spec_to_json (gge, 1, 0, 0, 0.0);
+    char                *jse = wfm_spec_to_json (gge, 1, 0, 0, 0, 0.0);
     wfm_compose_destroy (cse);
     DP_REQUIRE_MSG (jse && strstr (jse, "\"sum\"")
                         && strstr (jse, "\"delay_samples\"")
@@ -1180,7 +1238,7 @@ main (void)
     wfm_compose_state_t *cj2 = wfm_compose_create (&gjd, 1, 0, 0);
     size_t               nj2 = 0;
     const wfm_segment_t *gg2 = wfm_compose_segments (cj2, &nj2, NULL, NULL);
-    char                *jd  = wfm_spec_to_json (gg2, 1, 0, 0, 0.0);
+    char                *jd  = wfm_spec_to_json (gg2, 1, 0, 0, 0, 0.0);
     wfm_compose_destroy (cj2);
     DP_REQUIRE_MSG (jd && strstr (jd, "\"delay_samples\"")
                         && strstr (jd, "\"gap_noise\""),
@@ -1203,7 +1261,7 @@ main (void)
     wfm_compose_state_t *cjd = wfm_compose_create (&g0, 1, 0, 0);
     size_t               njd = 0;
     const wfm_segment_t *ggd = wfm_compose_segments (cjd, &njd, NULL, NULL);
-    char                *j0  = wfm_spec_to_json (ggd, 1, 0, 0, 0.0);
+    char                *j0  = wfm_spec_to_json (ggd, 1, 0, 0, 0, 0.0);
     wfm_compose_destroy (cjd);
     DP_REQUIRE_MSG (j0 && !strstr (j0, "\"delay_samples\"")
                         && !strstr (j0, "\"gap_noise\""),
@@ -1214,7 +1272,7 @@ main (void)
     wfm_compose_state_t *cj = wfm_compose_create (&g3, 1, 0, 0);
     size_t               nj = 0;
     const wfm_segment_t *gj = wfm_compose_segments (cj, &nj, NULL, NULL);
-    char                *js = wfm_spec_to_json (gj, 1, 0, 0, 0.0);
+    char                *js = wfm_spec_to_json (gj, 1, 0, 0, 0, 0.0);
     wfm_compose_destroy (cj);
     DP_REQUIRE_MSG (js && strstr (js, "\"repeats\""), "repeats key emitted");
     wfm_compose_state_t *jr = wfm_compose_from_json (js);
@@ -1235,7 +1293,7 @@ main (void)
     wfm_compose_state_t *c1j = wfm_compose_create (&g1, 1, 0, 0);
     size_t               n1j = 0;
     const wfm_segment_t *g1j = wfm_compose_segments (c1j, &n1j, NULL, NULL);
-    char                *j1  = wfm_spec_to_json (g1j, 1, 0, 0, 0.0);
+    char                *j1  = wfm_spec_to_json (g1j, 1, 0, 0, 0, 0.0);
     wfm_compose_destroy (c1j);
     DP_REQUIRE_MSG (j1 && !strstr (j1, "\"repeats\""),
                     "repeats omitted at 1 (old specs unchanged)");

@@ -73,6 +73,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  size\_t | [**wfm\_compose\_execute**](#function-wfm_compose_execute) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, float complex \* out, size\_t max) <br>_Emit up to_ `max` _samples of the composed stream._ |
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_from\_file**](#function-wfm_compose_from_file) (const char \* path) <br>_Build a composer from a JSON spec file._  |
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_from\_json**](#function-wfm_compose_from_json) (const char \* json) <br>_Build a composer from a JSON spec string (for_  _from-file)._ |
+|  int | [**wfm\_compose\_seed\_advance**](#function-wfm_compose_seed_advance) (const [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state) <br>_The composer's current seed-advance mode (a_ `wfm_seed_advance_t` _)._ |
 |  const [**wfm\_segment\_t**](structwfm__segment__t.md) \* | [**wfm\_compose\_segments**](#function-wfm_compose_segments) (const [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, size\_t \* n\_out, int \* repeat, int \* continuous) <br>_Borrow the composer's stored segment list (for_  _record / SigMF)._ |
 |  void | [**wfm\_compose\_set\_seed\_advance**](#function-wfm_compose_set_seed_advance) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, int mode) <br>_Choose how the seed advances on each repeat of a looped/continuous stream (a_ `wfm_seed_advance_t` _):_ |
 |  size\_t | [**wfm\_compose\_spans**](#function-wfm_compose_spans) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, [**wfm\_span\_t**](structwfm__span__t.md) \* out, size\_t cap) <br>_Replay the (epoch 0) instance timeline of a resolved segment list._  |
@@ -85,7 +86,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  int | [**wfm\_source\_has\_frame**](#function-wfm_source_has_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Non-zero when this source describes a FRAME._  |
 |  double | [**wfm\_spec\_headroom**](#function-wfm_spec_headroom) (const char \* json) <br>_The top-level_ `headroom` _(dB) from a spec JSON, or 0 if absent._ |
 |  char \* | [**wfm\_spec\_template\_json**](#function-wfm_spec_template_json) (void) <br>_A ready-to-edit example spec in the canonical_  _from-file schema._ |
-|  char \* | [**wfm\_spec\_to\_json**](#function-wfm_spec_to_json) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous, double headroom) <br>_Serialise a spec to a JSON string (for_  _record)._ |
+|  char \* | [**wfm\_spec\_to\_json**](#function-wfm_spec_to_json) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous, int seed\_advance, double headroom) <br>_Serialise a spec to a JSON string (for_  _record)._ |
 
 
 
@@ -400,6 +401,33 @@ wfm_compose_state_t * wfm_compose_from_json (
 
 Composer state, or NULL on parse error / bad type / no segments. 
 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_compose\_seed\_advance 
+
+_The composer's current seed-advance mode (a_ `wfm_seed_advance_t` _)._
+```C++
+int wfm_compose_seed_advance (
+    const wfm_compose_state_t * state
+) 
+```
+
+
+
+The composer is the SSOT for it: `--from-file` sets it from the spec and the flag path sets it from `--seed-advance`, so a serialiser must read it back from here rather than from whichever half happened to supply it. 
+
+**Parameters:**
+
+
+* `state` Compose state (may be NULL → `WFM_SEED_ADVANCE_NONE`). 
 
 
 
@@ -872,13 +900,17 @@ char * wfm_spec_to_json (
     size_t n_segs,
     int repeat,
     int continuous,
+    int seed_advance,
     double headroom
 ) 
 ```
 
 
 
-`headroom` (dB of output backoff applied at the writer, not the composer) is emitted as a top-level field only when non-zero, so an unrecorded run and any pre-headroom spec stay byte-identical. Read it back with [**wfm\_spec\_headroom()**](wfm__compose_8h.md#function-wfm_spec_headroom).
+`seed_advance` (a `wfm_seed_advance_t`) and `headroom` (dB of output backoff applied at the writer, not the composer) are each emitted as a top-level field only when non-default, so an unrecorded run and any older spec stay byte-identical. Read `headroom` back with [**wfm\_spec\_headroom()**](wfm__compose_8h.md#function-wfm_spec_headroom); the parser reads `seed_advance` straight onto the composer.
+
+
+`seed_advance` is a parameter rather than something read from `segs` because it is a property of the whole stream, like `repeat`/`continuous`. Omitting it is what made a recorded run replay a DIFFERENT waveform (doppler#978): the key was parsed and never written, so the round-trip silently fell back to NONE and every loop after the first came out identical.
 
 
 

@@ -189,6 +189,8 @@ wfm_compose_state_t *wfm_compose_create(
 
 void wfm_compose_set_seed_advance(wfm_compose_state_t *state, int mode);
 
+int wfm_compose_seed_advance(const wfm_compose_state_t *state);
+
 size_t wfm_compose_execute(
     wfm_compose_state_t *state, float complex *out, size_t max);
 
@@ -206,7 +208,7 @@ const wfm_segment_t *wfm_compose_segments(const wfm_compose_state_t *state,
  */
 
 char *wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,
-                       int continuous, double headroom);
+                       int continuous, int seed_advance, double headroom);
 
 double wfm_spec_headroom(const char *json);
 

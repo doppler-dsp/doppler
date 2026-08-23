@@ -49,7 +49,7 @@ scene_json (double qpsk_snr, double qpsk_level, double tone_level)
                            .fs          = 1e6,
                            .num_samples = L,
                            .off_samples = 0 };
-  return wfm_spec_to_json (&seg, 1, 0, 0, 0.0);
+  return wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
 }
 
 /* Full-compose a spec into out[L]; returns the sample count collected. */
@@ -111,7 +111,7 @@ test_parallel_build_bit_exact (void)
                          .fs          = 1e6,
                          .num_samples = NPAR_LEN,
                          .off_samples = 0 };
-  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0.0);
+  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (json, "par: spec_to_json");
 
   size_t          nbytes = NPAR_LEN * sizeof (float _Complex);
@@ -185,7 +185,7 @@ test_noise_anchor_position (void)
                              .fs          = 1e6,
                              .num_samples = L,
                              .off_samples = 0 };
-      char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0.0);
+      char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
       DP_REQUIRE_MSG (json, "anchor: spec_to_json");
       DP_REQUIRE_MSG (compose_collect (json, ref) == L,
                       "anchor: compose length");
@@ -271,7 +271,7 @@ test_background_fold (void)
                          .fs          = 1e6,
                          .num_samples = BG_LEN,
                          .off_samples = 0 };
-  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0.0);
+  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (json, "bg: spec_to_json");
 
   /* The same scene with the flag cleared: same samples, BG_N + FG_N slots. */
@@ -280,14 +280,14 @@ test_background_fold (void)
     fill_src (&flat[k], k, 0);
   wfm_segment_t fseg = seg;
   fseg.sources       = flat;
-  char *fjson        = wfm_spec_to_json (&fseg, 1, 0, 0, 0.0);
+  char *fjson        = wfm_spec_to_json (&fseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (fjson, "bg: flat spec_to_json");
 
   /* Foreground only — the reference for disabling the whole background. */
   wfm_segment_t gseg = seg;
   gseg.sources       = flat + BG_N;
   gseg.n_sources     = FG_N;
-  char *gjson        = wfm_spec_to_json (&gseg, 1, 0, 0, 0.0);
+  char *gjson        = wfm_spec_to_json (&gseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (gjson, "bg: fg-only spec_to_json");
 
   size_t          nbytes = BG_LEN * sizeof (float _Complex);
@@ -383,7 +383,7 @@ test_background_must_be_prefix (void)
                          .fs          = 1e6,
                          .num_samples = L,
                          .off_samples = 0 };
-  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0.0);
+  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (json, "prefix: spec_to_json");
   DP_REQUIRE_MSG (wfm_plan_prepare (json) == NULL,
                   "BG: an interleaved background is rejected by prepare()");
@@ -408,7 +408,7 @@ test_background_bundled_is_not_folded (void)
                          .fs          = 1e6,
                          .num_samples = L,
                          .off_samples = 0 };
-  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0.0);
+  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (json, "bundled-bg: spec_to_json");
 
   size_t          bytes = L * sizeof (float _Complex);
@@ -533,7 +533,7 @@ main (void)
   wfm_segment_t rseg       = {
     .sources = &ranged_src, .n_sources = 1, .fs = 1e6, .num_samples = L
   };
-  char *jranged = wfm_spec_to_json (&rseg, 1, 0, 0, 0.0);
+  char *jranged = wfm_spec_to_json (&rseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jranged, "ranged-source json");
   DP_REQUIRE_MSG (wfm_plan_prepare (jranged) == NULL,
                   "reject ranged per-source field");
@@ -549,7 +549,7 @@ main (void)
                          .num_samples    = L,
                          .ranged         = WFM_RANGE_NUM_SAMPLES,
                          .num_samples_hi = 2 * L };
-  char         *jnum = wfm_spec_to_json (&nseg, 1, 0, 0, 0.0);
+  char         *jnum = wfm_spec_to_json (&nseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jnum, "ranged-num-samples json");
   DP_REQUIRE_MSG (wfm_plan_prepare (jnum) == NULL,
                   "reject ranged num_samples");
@@ -559,7 +559,7 @@ main (void)
   wfm_segment_t zseg = {
     .sources = &plain_solo, .n_sources = 1, .fs = 1e6, .num_samples = 0
   };
-  char *jzero = wfm_spec_to_json (&zseg, 1, 0, 0, 0.0);
+  char *jzero = wfm_spec_to_json (&zseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jzero, "zero-num-samples json");
   DP_REQUIRE_MSG (wfm_plan_prepare (jzero) == NULL, "reject num_samples == 0");
   free (jzero);
@@ -571,7 +571,7 @@ main (void)
   wfm_source_t  two_noise[2] = { noise_a, noise_b };
   wfm_segment_t nnseg
       = { .sources = two_noise, .n_sources = 2, .fs = 1e6, .num_samples = L };
-  char *jnn = wfm_spec_to_json (&nnseg, 1, 0, 0, 0.0);
+  char *jnn = wfm_spec_to_json (&nnseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jnn, "two-noise json");
   DP_REQUIRE_MSG (wfm_plan_prepare (jnn) == NULL, "reject two noise sources");
   free (jnn);
@@ -580,7 +580,7 @@ main (void)
   wfm_segment_t lnseg            = {
     .sources = leading_noise, .n_sources = 2, .fs = 1e6, .num_samples = L
   };
-  char *jln = wfm_spec_to_json (&lnseg, 1, 0, 0, 0.0);
+  char *jln = wfm_spec_to_json (&lnseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jln, "leading-noise json");
   DP_REQUIRE_MSG (wfm_plan_prepare (jln) == NULL,
                   "reject non-trailing noise source");
@@ -592,19 +592,19 @@ main (void)
     { .sources = &plain_solo, .n_sources = 1, .fs = 1e6, .num_samples = L },
     { .sources = &plain_solo, .n_sources = 1, .fs = 2e6, .num_samples = L },
   };
-  char *jfsdiff = wfm_spec_to_json (fsdiff, 2, 0, 0, 0.0);
+  char *jfsdiff = wfm_spec_to_json (fsdiff, 2, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jfsdiff, "differing-fs json");
   DP_REQUIRE_MSG (wfm_plan_prepare (jfsdiff) == NULL,
                   "reject differing per-segment fs");
   free (jfsdiff);
 
   /* an unbounded repeat/continuous scene has no fixed capacity. */
-  char *jrepeat = wfm_spec_to_json (&nseg, 1, /*repeat=*/1, 0, 0.0);
+  char *jrepeat = wfm_spec_to_json (&nseg, 1, /*repeat=*/1, 0, 0, 0.0);
   DP_REQUIRE_MSG (jrepeat, "repeat json");
   DP_REQUIRE_MSG (wfm_plan_prepare (jrepeat) == NULL,
                   "reject repeat=true scene");
   free (jrepeat);
-  char *jcont = wfm_spec_to_json (&nseg, 1, 0, /*continuous=*/1, 0.0);
+  char *jcont = wfm_spec_to_json (&nseg, 1, 0, /*continuous=*/1, 0, 0.0);
   DP_REQUIRE_MSG (jcont, "continuous json");
   DP_REQUIRE_MSG (wfm_plan_prepare (jcont) == NULL,
                   "reject continuous=true scene");
@@ -620,7 +620,7 @@ main (void)
   wfm_segment_t cseg       = {
     .sources = &clean_solo, .n_sources = 1, .fs = 1e6, .num_samples = L
   };
-  char *jclean = wfm_spec_to_json (&cseg, 1, 0, 0, 0.0);
+  char *jclean = wfm_spec_to_json (&cseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jclean, "clean json");
   wfm_plan_t *pclean = wfm_plan_prepare (jclean);
   DP_REQUIRE_MSG (pclean, "accept clean (no-noise) scene");
@@ -636,7 +636,7 @@ main (void)
       = { .type = 4, .snr = 12.0, .seed = 7, .sps = 8, .pn_length = 7 };
   wfm_segment_t sseg
       = { .sources = &solo, .n_sources = 1, .fs = 1e6, .num_samples = L };
-  char *jsolo = wfm_spec_to_json (&sseg, 1, 0, 0, 0.0);
+  char *jsolo = wfm_spec_to_json (&sseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jsolo, "solo json");
   DP_REQUIRE_MSG (compose_collect (jsolo, ref) == L, "compose solo baseline");
   wfm_plan_t *psolo = wfm_plan_prepare (jsolo);
@@ -651,7 +651,7 @@ main (void)
   solo9.snr          = 9.0;
   wfm_segment_t sseg9
       = { .sources = &solo9, .n_sources = 1, .fs = 1e6, .num_samples = L };
-  char *jsolo9 = wfm_spec_to_json (&sseg9, 1, 0, 0, 0.0);
+  char *jsolo9 = wfm_spec_to_json (&sseg9, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jsolo9, "solo9 json");
   DP_REQUIRE_MSG (compose_collect (jsolo9, ref) == L, "compose solo@snr=9");
   DP_REQUIRE_MSG (wfm_plan_render (psolo, "{\"snr\":9.0}", got) == L,
@@ -682,7 +682,7 @@ main (void)
   solo_lvl.level        = -3.0;
   wfm_segment_t sseg_lvl
       = { .sources = &solo_lvl, .n_sources = 1, .fs = 1e6, .num_samples = L };
-  char *jlvl = wfm_spec_to_json (&sseg_lvl, 1, 0, 0, 0.0);
+  char *jlvl = wfm_spec_to_json (&sseg_lvl, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jlvl, "solo level json");
   DP_REQUIRE_MSG (compose_collect (jlvl, ref) == L, "compose solo@level=-3");
   wfm_plan_t *plvl = wfm_plan_prepare (jlvl);
@@ -699,7 +699,7 @@ main (void)
   solo_lvl9.snr          = 9.0;
   wfm_segment_t sseg_lvl9
       = { .sources = &solo_lvl9, .n_sources = 1, .fs = 1e6, .num_samples = L };
-  char *jlvl9 = wfm_spec_to_json (&sseg_lvl9, 1, 0, 0, 0.0);
+  char *jlvl9 = wfm_spec_to_json (&sseg_lvl9, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jlvl9, "solo level snr json");
   DP_REQUIRE_MSG (compose_collect (jlvl9, ref) == L, "compose solo@-3,snr=9");
   DP_REQUIRE_MSG (wfm_plan_render (plvl, "{\"snr\":9.0}", got) == L,
@@ -737,7 +737,7 @@ main (void)
       .off_samples = 200 },
     { .sources = &tone2, .n_sources = 1, .fs = 1e6, .num_samples = L / 2 },
   };
-  char *jmulti = wfm_spec_to_json (multiseg, 2, 0, 0, 0.0);
+  char *jmulti = wfm_spec_to_json (multiseg, 2, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jmulti, "multi-seg json");
   size_t          multi_len = L + 200 + L / 2;
   float _Complex *mref      = malloc (multi_len * sizeof *mref);
@@ -774,7 +774,7 @@ main (void)
                             .num_samples = L / 4,
                             .off_samples = rep_gap,
                             .repeats     = n_rep };
-  char         *jrep    = wfm_spec_to_json (&repseg, 1, 0, 0, 0.0);
+  char         *jrep    = wfm_spec_to_json (&repseg, 1, 0, 0, 0, 0.0);
   size_t        rep_len = n_rep * (L / 4 + rep_gap);
   DP_REQUIRE_MSG (jrep, "repeats json");
   float _Complex *rref = malloc (rep_len * sizeof *rref);
@@ -818,7 +818,7 @@ main (void)
           .delay_samples_hi = 128,
           .ranged           = WFM_RANGE_OFF_SAMPLES | WFM_RANGE_DELAY_SAMPLES,
           .repeats          = 3 };
-  char *jrg = wfm_spec_to_json (&rgseg, 1, 0, 0, 0.0);
+  char *jrg = wfm_spec_to_json (&rgseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jrg, "ranged-gap json");
   wfm_compose_state_t *rgc = wfm_compose_from_json (jrg);
   DP_REQUIRE_MSG (rgc, "ranged-gap compose parse");

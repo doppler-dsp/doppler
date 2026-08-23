@@ -449,6 +449,16 @@ wfm_compose_state_t *wfm_compose_create(
 void wfm_compose_set_seed_advance(wfm_compose_state_t *state, int mode);
 
 /**
+ * @brief The composer's current seed-advance mode (a `wfm_seed_advance_t`).
+ *
+ * The composer is the SSOT for it: `--from-file` sets it from the spec and the
+ * flag path sets it from `--seed-advance`, so a serialiser must read it back
+ * from here rather than from whichever half happened to supply it.
+ * @param state  Compose state (may be NULL → `WFM_SEED_ADVANCE_NONE`).
+ */
+int wfm_compose_seed_advance(const wfm_compose_state_t *state);
+
+/**
  * @brief Emit up to `max` samples of the composed stream.
  * @return Number of samples written: < `max` (or 0) signals the sequence
  *         finished (never, when `continuous`).
@@ -482,14 +492,22 @@ const wfm_segment_t *wfm_compose_segments(const wfm_compose_state_t *state,
 /**
  * @brief Serialise a spec to a JSON string (for --record).
  *
- * `headroom` (dB of output backoff applied at the writer, not the composer) is
- * emitted as a top-level field only when non-zero, so an unrecorded run and any
- * pre-headroom spec stay byte-identical. Read it back with wfm_spec_headroom().
+ * `seed_advance` (a `wfm_seed_advance_t`) and `headroom` (dB of output backoff
+ * applied at the writer, not the composer) are each emitted as a top-level
+ * field only when non-default, so an unrecorded run and any older spec stay
+ * byte-identical. Read `headroom` back with wfm_spec_headroom(); the parser
+ * reads `seed_advance` straight onto the composer.
+ *
+ * `seed_advance` is a parameter rather than something read from `segs` because
+ * it is a property of the whole stream, like `repeat`/`continuous`. Omitting it
+ * is what made a recorded run replay a DIFFERENT waveform (doppler#978): the
+ * key was parsed and never written, so the round-trip silently fell back to
+ * NONE and every loop after the first came out identical.
  *
  * @return malloc'd JSON (caller frees), or NULL on allocation failure.
  */
 char *wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,
-                       int continuous, double headroom);
+                       int continuous, int seed_advance, double headroom);
 
 /**
  * @brief The top-level `headroom` (dB) from a spec JSON, or 0 if absent.

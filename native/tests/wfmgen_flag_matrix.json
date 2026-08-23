@@ -1089,6 +1089,7 @@
     "record": {
       "continuous": false,
       "repeat": false,
+      "seed_advance": "all",
       "segments": [
         {
           "freq": 0,

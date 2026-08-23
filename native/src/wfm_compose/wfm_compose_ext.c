@@ -2787,7 +2787,8 @@ Composer_to_json (ComposerObject *self, PyObject *Py_UNUSED (ignored))
   int                  repeat = 0, continuous = 0;
   const wfm_segment_t *segs
       = wfm_compose_segments (self->state, &n, &repeat, &continuous);
-  char *js = wfm_spec_to_json (segs, n, repeat, continuous, 0.0);
+  char *js = wfm_spec_to_json (segs, n, repeat, continuous,
+                               wfm_compose_seed_advance (self->state), 0.0);
   if (!js)
     {
       PyErr_SetString (PyExc_RuntimeError, "wfm_spec_to_json failed");

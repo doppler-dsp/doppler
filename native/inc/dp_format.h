@@ -98,6 +98,37 @@ extern "C"
   }
 
   /**
+   * @brief Full-scale magnitude of one I or Q component of @p type.
+   *
+   * The divisor that puts an integer format on the same footing as a float
+   * one, so a number derived from samples (a power, an RMS, a headroom)
+   * means the same thing whatever the wire carried. 1.0 for the float
+   * formats, which are already full-scale, and 0 for a code this build does
+   * not know.
+   *
+   * @param type Sample format.
+   * @return Full-scale value per component, or 0.
+   */
+  static inline double
+  dp_format_full_scale (dp_sample_type_t type)
+  {
+    switch (type)
+      {
+      case CI8:
+        return 127.0;
+      case CI16:
+        return 32767.0;
+      case CI32:
+        return 2147483647.0;
+      case CF32:
+      case CF64:
+        return 1.0;
+      default:
+        return 0.0;
+      }
+  }
+
+  /**
    * @brief Non-zero when @p type is a format doppler can send and decode.
    *
    * Derived from dp_format_size(): a format with no size is not a format.

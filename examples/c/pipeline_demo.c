@@ -96,18 +96,6 @@ producer_thread (void *arg)
   return NULL;
 }
 
-static double
-mean_power_cf64 (const double _Complex *s, size_t n)
-{
-  double acc = 0.0;
-  for (size_t i = 0; i < n; i++)
-    {
-      double re = creal (s[i]), im = cimag (s[i]);
-      acc += re * re + im * im;
-    }
-  return acc / (double)n;
-}
-
 static void *
 consumer_thread (void *arg)
 {
@@ -150,9 +138,7 @@ consumer_thread (void *arg)
       batches++;
       total_samps += n;
 
-      double pwr = 0.0;
-      if (type == CF64)
-        pwr = mean_power_cf64 ((const double _Complex *)dp_msg_data (msg), n);
+      double pwr = dp_msg_mean_power (msg);
       power_sum += pwr;
 
       if (i == 0)

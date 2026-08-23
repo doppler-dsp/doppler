@@ -107,6 +107,10 @@ extern "C"
 
   dp_sample_type_t dp_msg_sample_type (dp_msg_t *msg);
 
+  double dp_mean_power (dp_sample_type_t format, const void *data, size_t n);
+
+  double dp_msg_mean_power (dp_msg_t *msg);
+
   dp_frame_kind_t dp_msg_kind (dp_msg_t *msg);
 
   int dp_msg_ack (dp_msg_t *msg);

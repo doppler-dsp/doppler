@@ -51,10 +51,12 @@
 
 | Type | Name |
 | ---: | :--- |
+|  double | [**dp\_mean\_power**](#function-dp_mean_power) ([**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) format, const void \* data, size\_t n) <br>_Mean power of a complex sample block, normalised to full scale._  |
 |  int | [**dp\_msg\_ack**](#function-dp_msg_ack) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_Acknowledge a message on a durable (JetStream) consumer._  |
 |  void \* | [**dp\_msg\_data**](#function-dp_msg_data) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_Return a pointer to the raw sample data inside the message._  |
 |  void | [**dp\_msg\_free**](#function-dp_msg_free) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_Free a message handle and release the underlying buffer._  |
 |  [**dp\_frame\_kind\_t**](group__types.md#enum-dp_frame_kind_t) | [**dp\_msg\_kind**](#function-dp_msg_kind) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_What the message's payload IS (dp\_frame\_kind\_t)._  |
+|  double | [**dp\_msg\_mean\_power**](#function-dp_msg_mean_power) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_Mean power of a received I/Q frame, normalised to full scale._  |
 |  size\_t | [**dp\_msg\_num\_samples**](#function-dp_msg_num_samples) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_Return the number of complex samples in the message._  |
 |  [**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) | [**dp\_msg\_sample\_type**](#function-dp_msg_sample_type) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_Return the sample type of the message._  |
 |  size\_t | [**dp\_msg\_size**](#function-dp_msg_size) ([**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \* msg) <br>_Return the byte size of the sample data._  |
@@ -88,6 +90,47 @@
 
 ## Public Functions Documentation
 
+
+
+
+### function dp\_mean\_power 
+
+_Mean power of a complex sample block, normalised to full scale._ 
+```
+double dp_mean_power (
+    dp_sample_type_t format,
+    const void * data,
+    size_t n
+) 
+```
+
+
+
+`mean(|x|^2)`, with the integer formats divided by dp\_format\_full\_scale() first so the answer means the same thing whatever the format is — `10*log10()` of it is dBFS in every case. The frame-level [**dp\_msg\_mean\_power()**](group__msg.md#function-dp_msg_mean_power) is this over a received message.
+
+
+
+
+**Parameters:**
+
+
+* `format` Sample format of `data`. 
+* `data` `n` complex samples, interleaved for an integer format. 
+* `n` Sample count. 
+
+
+
+**Returns:**
+
+Mean power, or 0 for a NULL pointer, an empty block, or a format this build does not know. 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -218,6 +261,46 @@ Ask this before [**dp\_msg\_sample\_type()**](group__msg.md#function-dp_msg_samp
 **Returns:**
 
 The frame's kind, or DP\_KIND\_IQ for a NULL handle. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_msg\_mean\_power 
+
+_Mean power of a received I/Q frame, normalised to full scale._ 
+```
+double dp_msg_mean_power (
+    dp_msg_t * msg
+) 
+```
+
+
+
+[**dp\_mean\_power()**](group__msg.md#function-dp_mean_power) over the frame's own samples: the format and the count come from its header, so a subscriber that takes whatever arrives can compare frames without branching on the type. `10*log10()` of it is dBFS.
+
+
+Exists because every consumer was writing this loop: the C receiver example carried one copy per wire type and a switch to pick between them, which is the same duplication the library forbids internally.
+
+
+
+
+**Parameters:**
+
+
+* `msg` Message handle from a recv. 
+
+
+
+**Returns:**
+
+Mean power, or 0 for a NULL handle, an empty frame, or a non-I/Q kind (telemetry records are not samples). 
 
 
 

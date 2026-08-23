@@ -61,6 +61,7 @@ _Complex sample formats, named by their BLUE/Platinum codes._ [More...](#detaile
 | Type | Name |
 | ---: | :--- |
 |  void | [**dp\_format\_chars**](#function-dp_format_chars) ([**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) type, char out) <br>_The two characters BLUE writes for_ `type` _(HCB bytes 52/53)._ |
+|  double | [**dp\_format\_full\_scale**](#function-dp_format_full_scale) ([**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) type) <br>_Full-scale magnitude of one I or Q component of_ `type` _._ |
 |  int | [**dp\_format\_is\_valid**](#function-dp_format_is_valid) ([**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) type) <br>_Non-zero when_ `type` _is a format doppler can send and decode._ |
 |  size\_t | [**dp\_format\_size**](#function-dp_format_size) ([**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) type) <br>_Bytes occupied by one complex sample of_ `type` _, or 0 if the code is not one doppler sends._ |
 
@@ -170,6 +171,43 @@ Unpacks rather than translates — the enum value IS the code — so a wire head
 
 * `type` Sample format. 
 * `out` Two characters, mode then element type. Not NUL-terminated. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_format\_full\_scale 
+
+_Full-scale magnitude of one I or Q component of_ `type` _._
+```C++
+static inline double dp_format_full_scale (
+    dp_sample_type_t type
+) 
+```
+
+
+
+The divisor that puts an integer format on the same footing as a float one, so a number derived from samples (a power, an RMS, a headroom) means the same thing whatever the wire carried. 1.0 for the float formats, which are already full-scale, and 0 for a code this build does not know.
+
+
+
+
+**Parameters:**
+
+
+* `type` Sample format. 
+
+
+
+**Returns:**
+
+Full-scale value per component, or 0. 
+
 
 
 

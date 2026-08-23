@@ -20,7 +20,9 @@ from .stream import (  # noqa: E402
     CF32,
     CF64,
     TLM16,
+    format_name,
     get_timestamp_ns,
+    mean_power,
 )
 
 __all__ = [
@@ -36,5 +38,7 @@ __all__ = [
     "CF32",
     "CF64",
     "TLM16",
+    "format_name",
     "get_timestamp_ns",
+    "mean_power",
 ]

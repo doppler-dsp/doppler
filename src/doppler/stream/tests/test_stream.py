@@ -300,6 +300,7 @@ def test_push_pull_header_all_fields(push_pull_cf64):
         "center_freq",
         "format",
         "kind",
+        "data_rep",
         "flags",
         "payload_bytes",
         "version",
@@ -316,6 +317,7 @@ def test_push_pull_header_all_fields(push_pull_cf64):
     assert bytes([hdr["format"] & 0xFF, hdr["format"] >> 8]) == b"CD"
     assert hdr["kind"] == 0  # DP_KIND_IQ
     assert hdr["version"] == 2
+    assert hdr["data_rep"] in ("EEEI", "IEEE")
     assert hdr["payload_bytes"] == 4 * 16
 
 

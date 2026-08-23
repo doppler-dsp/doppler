@@ -50,7 +50,7 @@ stream.
 
 `recv()` returns `(samples, header)` where `header` is a dict of the
 decoded `dp_header_t` fields: `format`, `kind`, `version`, `flags`,
-`payload_bytes`, `sequence`, `timestamp_ns`, `sample_rate`,
+`data_rep`, `payload_bytes`, `sequence`, `timestamp_ns`, `sample_rate`,
 `center_freq` and `num_samples`. The full byte layout, and what a
 receiver validates before handing anything back, is in
 [Design: Streaming](../design/streaming.md).
@@ -166,6 +166,10 @@ ______________________________________________________________________
 ## Helpers
 
 ::: doppler.stream.get_timestamp_ns
+
+::: doppler.stream.mean_power
+
+::: doppler.stream.format_name
 
 ## Related pages
 

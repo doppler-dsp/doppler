@@ -14,6 +14,7 @@
 
 #include "clib_common.h"
 
+#include <signal.h>
 #include <stddef.h>
 
 #ifdef __cplusplus
@@ -24,6 +25,16 @@ extern "C"
 #define DP_INTERRUPT_LATENCY_DEFAULT_MS 100u
 
 #define DP_INTERRUPT_MAX_SIGNALS 8u
+
+  typedef struct
+  {
+    volatile sig_atomic_t flag;      
+    unsigned              latency_ms; 
+  } dp_interrupt_state_t;
+
+  dp_interrupt_state_t *dp_interrupt_state (void);
+
+  int dp_interrupt_bind (dp_interrupt_state_t *shared);
 
   void dp_interrupt (void);
 

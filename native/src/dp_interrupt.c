@@ -23,11 +23,48 @@
    handler without tearing, which is what makes dp_interrupt() safe to call
    from one -- and being safe to call from a handler is the entire point of
    the API. */
-static volatile sig_atomic_t dp_interrupt_flag = 0;
+/* The state a C build uses: one archive, one copy, nothing to bind.
+   `dp_interrupt_flag` is the storage; `shared` is what every read and write
+   actually goes through. They are the same object until somebody binds.
 
-/* Not sig_atomic_t: only ordinary code writes it, and a wait slice reading
-   a torn value would at worst wait a wrong-but-bounded time once. */
-static unsigned dp_interrupt_latency = DP_INTERRUPT_LATENCY_DEFAULT_MS;
+   That indirection exists for ONE reason, and it is not C. A Python
+   extension links this file STATICALLY, so every module that wants the flag
+   gets its own copy, and CPython loads extensions RTLD_LOCAL so the copies
+   never unify -- a stop requested in doppler.interrupt could not reach a
+   ring wait in doppler.buffer (doppler#976). One module now owns the state
+   and the rest bind onto it.
+
+   A C binary binds nothing and pays one pointer dereference on a path
+   measured at sub-nanosecond; wfmgen and the C tests behave exactly as
+   before. */
+static dp_interrupt_state_t dp_interrupt_own_state
+    = { 0, DP_INTERRUPT_LATENCY_DEFAULT_MS };
+
+/* Read from a signal handler, so it is only ever assigned ONCE, at import,
+   before any handler is installed. Never reassigned while a handler could
+   run -- which is what makes dereferencing it from one safe. */
+static dp_interrupt_state_t *dp_interrupt_shared = &dp_interrupt_own_state;
+
+#define dp_interrupt_flag (dp_interrupt_shared->flag)
+#define dp_interrupt_latency (dp_interrupt_shared->latency_ms)
+
+dp_interrupt_state_t *
+dp_interrupt_state (void)
+{
+  return dp_interrupt_shared;
+}
+
+int
+dp_interrupt_bind (dp_interrupt_state_t *shared)
+{
+  if (!shared)
+    return DP_ERR_INVALID;
+  /* Adopting the owner's state means adopting its latency too; a module
+     that kept its own would answer latency_ms() with a number no wait in
+     the process uses. */
+  dp_interrupt_shared = shared;
+  return DP_OK;
+}
 
 void
 dp_interrupt (void)

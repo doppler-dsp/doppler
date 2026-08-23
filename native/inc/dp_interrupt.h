@@ -24,6 +24,8 @@
 
 #include "clib_common.h"
 
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -128,6 +130,104 @@ extern "C"
    * @return DP_OK, or @ref DP_ERR_INVALID if @p sig was never installed.
    */
   int dp_restore_signal (int sig);
+
+  /**
+   * @brief A scoped handle to the process-wide interrupt facility.
+   *
+   * The flag above is process-wide and stays so, so this is a handle to a
+   * facility rather than an instance of one: two guards observe the same
+   * flag. What a guard scopes is the *arming* -- which signals it
+   * installed, and the latency it overrode -- so that both can be undone
+   * exactly, by the code that did them, without a caller tracking it.
+   *
+   * It exists because that bookkeeping had been living in the Python
+   * binding, which is the one place doppler does not put logic. See
+   * docs/design/io-termination.md.
+   */
+  typedef struct dp_interrupt_guard dp_interrupt_guard_t;
+
+  /**
+   * @brief Clear the flag, optionally install handlers, and remember what
+   *        to undo.
+   *
+   * Construction is what ARMS: on return the handlers are installed and
+   * the flag is clear. A stale flag would otherwise refuse the first wait
+   * inside the very block that just armed it.
+   *
+   * @param signals    Signals to install on; may be NULL for none, in
+   *                   which case the guard is only a handle to the flag.
+   * @param n_signals  How many @p signals holds.
+   * @param latency_ms Wait-slice override; 0 leaves the process setting
+   *                   alone, and only a non-zero value is restored.
+   * @return A guard, or NULL if a handler could not be installed -- in
+   *         which case any already installed by this call are restored
+   *         first, so a failed create arms nothing.
+   *
+   * @code
+   * >>> from doppler.interrupt import Interrupt
+   * >>> it = Interrupt()
+   * >>> it.interrupted()
+   * 0
+   * @endcode
+   */
+  dp_interrupt_guard_t *dp_interrupt_guard_create (const int *signals,
+                                                   size_t     n_signals,
+                                                   unsigned   latency_ms);
+
+  /**
+   * @brief Restore every handler and latency this guard changed.
+   *
+   * Does NOT clear the flag: a caller that was interrupted still needs to
+   * see that it was, after the block that noticed has exited.
+   *
+   * @param guard Guard; NULL is a no-op.
+   */
+  void dp_interrupt_guard_destroy (dp_interrupt_guard_t *guard);
+
+  /**
+   * @brief Ask every blocking wait in this process to stop.
+   *
+   * The object's face onto dp_interrupt(). It takes a guard because that
+   * is how a method is called, not because the request is scoped to one --
+   * the flag is process-wide, and a request through any guard is seen by
+   * every waiter.
+   *
+   * @param guard Guard; NULL is a no-op.
+   *
+   * @code
+   * >>> from doppler.interrupt import Interrupt
+   * >>> it = Interrupt()
+   * >>> it.interrupt()
+   * >>> it.interrupted()
+   * 1
+   * @endcode
+   */
+  void dp_interrupt_guard_interrupt (dp_interrupt_guard_t *guard);
+
+  /**
+   * @brief Non-zero once a stop has been requested.
+   *
+   * @param guard Guard; NULL reads the flag anyway, since it is
+   *              process-wide and a guard is not what holds it.
+   * @return Non-zero if interrupted.
+   */
+  int dp_interrupt_guard_interrupted (const dp_interrupt_guard_t *guard);
+
+  /**
+   * @brief Clear the flag so waits proceed again.
+   *
+   * @param guard Guard; NULL is still honoured, for the reason above.
+   *
+   * @code
+   * >>> from doppler.interrupt import Interrupt
+   * >>> it = Interrupt()
+   * >>> it.interrupt()
+   * >>> it.resume()
+   * >>> it.interrupted()
+   * 0
+   * @endcode
+   */
+  void dp_interrupt_guard_resume (dp_interrupt_guard_t *guard);
 
 #ifdef __cplusplus
 }

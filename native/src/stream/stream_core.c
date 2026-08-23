@@ -105,13 +105,27 @@ dp_sample_size (dp_sample_type_t type)
       return sizeof (float _Complex);
     case CF64:
       return sizeof (double _Complex);
-    case CF128:
-      return sizeof (long double _Complex);
     case TLM16:
       return 16; /* one packed dp_tlm_rec_t per "sample" */
     default:
       return 0;
     }
+}
+
+/* Derived from dp_sample_size() on purpose: one table decides what a type
+   is, so a type added there is valid here with no second edit -- and the
+   retired value 2 (CF128) is invalid here for free, because it has no
+   size. */
+int
+dp_sample_type_is_valid (dp_sample_type_t type)
+{
+  return dp_sample_size (type) != 0;
+}
+
+int
+dp_sample_type_is_iq (dp_sample_type_t type)
+{
+  return dp_sample_type_is_valid (type) && type != TLM16;
 }
 
 const char *
@@ -129,8 +143,6 @@ dp_sample_type_str (dp_sample_type_t type)
       return "CF32";
     case CF64:
       return "CF64";
-    case CF128:
-      return "CF128";
     case TLM16:
       return "TLM16";
     default:
@@ -282,14 +294,6 @@ dp_pub_send_cf64 (dp_pub_t *ctx, const double _Complex *samples,
 }
 
 int
-dp_pub_send_cf128 (dp_pub_t *ctx, const long double _Complex *samples,
-                   size_t num_samples, double sample_rate, double center_freq)
-{
-  return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      CF128);
-}
-
-int
 dp_pub_send_ci8 (dp_pub_t *ctx, const int8_t *samples, size_t num_samples,
                  double sample_rate, double center_freq)
 {
@@ -375,14 +379,6 @@ dp_push_send_cf64 (dp_push_t *ctx, const double _Complex *samples,
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
                       CF64);
-}
-
-int
-dp_push_send_cf128 (dp_push_t *ctx, const long double _Complex *samples,
-                    size_t num_samples, double sample_rate, double center_freq)
-{
-  return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      CF128);
 }
 
 int
@@ -500,14 +496,6 @@ dp_req_send_cf64 (dp_req_t *ctx, const double _Complex *samples,
 }
 
 int
-dp_req_send_cf128 (dp_req_t *ctx, const long double _Complex *samples,
-                   size_t num_samples, double sample_rate, double center_freq)
-{
-  return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      CF128);
-}
-
-int
 dp_req_send_ci8 (dp_req_t *ctx, const int8_t *samples, size_t num_samples,
                  double sample_rate, double center_freq)
 {
@@ -545,14 +533,6 @@ dp_rep_send_cf64 (dp_rep_t *ctx, const double _Complex *samples,
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
                       CF64);
-}
-
-int
-dp_rep_send_cf128 (dp_rep_t *ctx, const long double _Complex *samples,
-                   size_t num_samples, double sample_rate, double center_freq)
-{
-  return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      CF128);
 }
 
 int

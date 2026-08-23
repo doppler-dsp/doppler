@@ -9,9 +9,10 @@ sample type, sample_rate, center_freq, and a nanosecond timestamp.
 Zero-copy recv: the returned NumPy array holds a reference to the
 dp_msg_t until GC.
 
-Sample types supported by the Python binding: CI32, CF64, CF128.
-CI8/CI16/CF32 exist in the C wire protocol but the Python recv path
-does not decode them (raises ValueError on receipt).
+Sample types: CI8, CI16, CI32, CF32, CF64 (I/Q) and TLM16 (telemetry
+records, Publisher only). Every one round-trips through both faces. The
+wire values are append-only and 2 is retired -- it was CF128, whose
+representation differs between x86-64 and aarch64 at the same size.
 
 All tests use a random subject so they don't collide with each other or
 with a concurrent run on the same broker.
@@ -26,9 +27,9 @@ import time
 import numpy as np
 import pytest
 
+import doppler.stream
 from doppler.stream import (
     CF64,
-    CF128,
     CI32,
     Publisher,
     Pull,
@@ -265,23 +266,22 @@ def test_recv_array_is_valid_after_recv(push_pull_cf64):
 
 
 # ------------------------------------------------------------------ #
-# PUSH / PULL — CF128 (long double complex)                           #
+# Retired wire values                                                 #
 # ------------------------------------------------------------------ #
 
 
-def test_push_pull_cf128_roundtrip():
-    ep = _unique_endpoint()
-    push = Push(ep, CF128)
-    pull = Pull(ep)
-    time.sleep(0.05)
-    x = np.array([1 + 2j, -3 - 4j], dtype=np.clongdouble)
-    push.send(x)
-    samples, _hdr = pull.recv(timeout_ms=2000)
-    assert samples.dtype == np.clongdouble
-    np.testing.assert_array_almost_equal(samples.real, x.real)
-    np.testing.assert_array_almost_equal(samples.imag, x.imag)
-    push.__exit__(None, None, None)
-    pull.__exit__(None, None, None)
+def test_retired_sample_type_is_rejected():
+    """Wire value 2 was CF128 and is retired, not reusable.
+
+    A retired value sits INSIDE the enum's numeric range, so the ordinal
+    test this binding used to run (`type <= CF32`) accepted it and then
+    built zero-length frames. The constructor asks the C predicate
+    instead, which derives validity from `dp_sample_size()` -- one table,
+    and a type with no size is not a type.
+    """
+    assert not hasattr(doppler.stream, "CF128")
+    with pytest.raises(ValueError):
+        Push(_unique_endpoint(), 2)
 
 
 # ------------------------------------------------------------------ #

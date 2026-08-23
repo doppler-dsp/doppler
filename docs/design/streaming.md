@@ -107,21 +107,33 @@ is `DP_VERSION` from `stream_internal.h`. A receiver comparing against 1
 rejects every doppler frame. The header comment is the thing that is
 wrong, and it is tracked as part of gap 1 in §10.
 
-### Byte order and the CF128 trap
+### Byte order, and the type that had to go
 
 The header is **host byte order**. There is no conversion on either side —
 `memcpy` out, `memcpy` in. Every architecture doppler ships for is
 little-endian, so this has never bitten; a big-endian peer would read
-garbage and the magic check would catch it.
+garbage, and the magic doubles as the probe that catches it (byte-swapped
+"SIGS" is not `DP_MAGIC`).
 
-Endianness is not the portability hazard worth worrying about. **CF128
-is.** Its wire size is `sizeof(long double _Complex)`, which is 32 bytes
-on both x86-64 and aarch64 — but the *representation* differs: x86-64
-stores an 80-bit extended value in 16 bytes (`LDBL_MANT_DIG` 64), aarch64
-stores IEEE binary128 (`LDBL_MANT_DIG` 113). The sizes agree, so nothing
-rejects the frame, and the values decode to nonsense. doppler publishes
-multi-arch container images, so the two ends of a CF128 stream can
-genuinely differ. Use CF64 across an arch boundary.
+Endianness was never the real portability hazard. **CF128 was**, and it is
+why wire value 2 is now retired. Its size was
+`sizeof(long double _Complex)` — 32 bytes on both x86-64 and aarch64 — but
+the *representation* differed: x86-64 stores an 80-bit extended value in 16
+bytes (`LDBL_MANT_DIG` 64), aarch64 stores IEEE binary128
+(`LDBL_MANT_DIG` 113). Every field a receiver checks agreed, so nothing
+rejected the frame and the samples decoded to nonsense. doppler publishes
+multi-arch images, so the two ends of such a stream genuinely can differ.
+
+A type that cannot cross the architectures the project ships is not a wire
+type, so it was removed rather than documented. **The value is not reused.**
+An older sender's frames must stay unrecognised rather than be read as some
+newer type, which is also why `dp_sample_type_is_valid()` exists: a retired
+value sits inside the enum's numeric range, so the ordinal test that used to
+guard the senders (`type <= CF32`) accepted it. Validity is derived from
+`dp_sample_size()` now — one table, and a type with no size is not a type.
+
+BLUE has no format code for a quad or extended float either, which is the
+file format reaching the same conclusion independently.
 
 ### Payload layout per sample type
 
@@ -129,14 +141,15 @@ genuinely differ. Use CF64 across an arch boundary.
 | ----------- | ----------- | ----------------------- | ----------------- |
 | `CI32` = 0  | 8 B/sample  | interleaved I,Q `int32` | `int32`, len `2n` |
 | `CF64` = 1  | 16 B/sample | `double _Complex`       | `complex128`      |
-| `CF128` = 2 | 32 B/sample | `long double _Complex`  | `clongdouble`     |
+| *2*         | —           | *retired: was CF128*    | —                 |
 | `CI8` = 3   | 2 B/sample  | interleaved I,Q `int8`  | `int8`, len `2n`  |
 | `CI16` = 4  | 4 B/sample  | interleaved I,Q `int16` | `int16`, len `2n` |
 | `CF32` = 5  | 8 B/sample  | `float _Complex`        | `complex64`       |
 | `TLM16` = 6 | 16 B/record | packed `dp_tlm_rec_t`   | structured        |
 
-Values are fixed and appended, never renumbered — a new type must not
-change what an older receiver already decodes. `CI32 = 0` rather than a
+Values are fixed and appended, never renumbered, and a retired value is
+never reused — a new type must not change what an older receiver already
+decodes, and must not be mistaken for one an older sender emitted. `CI32 = 0` rather than a
 sentinel is a historical accident, so **zero is a valid sample type** and
 a zeroed header is not distinguishable from a CI32 one by that field
 alone. The magic is the check.
@@ -300,7 +313,8 @@ ______________________________________________________________________
     at-least-once, so a duplicate after a redelivery is normal and a
     consumer that must not double-count needs its own dedupe on
     `(sender, sequence)`.
-- **No cross-endian and no cross-ABI CF128** (§3).
+- **No cross-endian frames** (§3). The magic detects it; nothing
+    converts.
 - **No authentication or TLS configuration.** The endpoint parser accepts
     `nats://` only and passes the authority to the client verbatim, so
     URL-embedded credentials reach the server, but there is no
@@ -316,7 +330,10 @@ ______________________________________________________________________
 
 ## 10. Known gaps
 
-Each is filed; this table is the map, not the detail.
+Each is filed; this table is the map, not the detail. Two more stood
+here and were closed by the CF128 retirement, which had to touch both:
+the stale "only three sample types" prose, and the ordinal type check
+that would otherwise have accepted the retired value.
 
 | #   | Gap                                                                                                                                             | Issue                                                     |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -325,8 +342,6 @@ Each is filed; this table is the map, not the detail.
 | 3   | `Pull` cannot create the work-queue stream, so a worker started first fails on a fresh broker                                                   | [#956](https://github.com/doppler-dsp/doppler/issues/956) |
 | 4   | The raw-bytes control plane has no Python face                                                                                                  | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
 | 5   | `Pull.ack(samples)` makes the caller hold a message lifetime                                                                                    | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
-| 6   | Stale "only CI32/CF64/CF128 are supported" prose in the stub and the test module                                                                | [#958](https://github.com/doppler-dsp/doppler/issues/958) |
-| 7   | `CI8` and `CI16` have no round-trip test                                                                                                        | [#958](https://github.com/doppler-dsp/doppler/issues/958) |
-| 8   | Sample-type validation is ordinal (`> CF32`), not a predicate                                                                                   | [#958](https://github.com/doppler-dsp/doppler/issues/958) |
-| 9   | Enum constants are unprefixed in a public header (`CF32`, `CI16`, …)                                                                            | [#958](https://github.com/doppler-dsp/doppler/issues/958) |
-| 10  | `Push.send`'s size ceiling is undocumented on the Python face                                                                                   | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
+| 6   | `CI8` and `CI16` have no round-trip test                                                                                                        | [#958](https://github.com/doppler-dsp/doppler/issues/958) |
+| 7   | Enum constants are unprefixed in a public header (`CF32`, `CI16`, …)                                                                            | [#958](https://github.com/doppler-dsp/doppler/issues/958) |
+| 8   | `Push.send`'s size ceiling is undocumented on the Python face                                                                                   | [#959](https://github.com/doppler-dsp/doppler/issues/959) |

@@ -5,10 +5,11 @@ from numpy.typing import NDArray
 # ---------------------------------------------------------------------------
 # Sample-type constants
 #
-# These map to dp_sample_type_t values on the wire.  Only CI32, CF64, and
-# CF128 are fully supported by the Python binding (send + recv decode).
-# CI8, CI16, and CF32 exist in the C wire protocol but the Python recv path
-# raises ValueError if it encounters them; do not use those values here.
+# These map to dp_sample_type_t values on the wire, and every one of them
+# round-trips through both faces (send and recv decode).  The values are
+# append-only so an older receiver keeps decoding what it already knew;
+# 2 is absent because it was CF128, retired for being unreadable across
+# architectures, and a retired value is never reused.
 # ---------------------------------------------------------------------------
 
 CI32: int
@@ -42,23 +43,6 @@ Examples
 >>> from doppler.stream import CF64
 >>> CF64
 1
-
-"""
-
-CF128: int
-"""Complex long double — ``long double _Complex`` (32 bytes/sample).
-
-Sent and received as ``numpy.clongdouble`` (``complex256`` on x86-64
-Linux where ``long double`` is 80-bit extended precision stored in 16
-bytes, giving an effective 128-byte-per-pair wire format).
-
-Wire value: ``2``.
-
-Examples
---------
->>> from doppler.stream import CF128
->>> CF128
-2
 
 """
 
@@ -174,8 +158,10 @@ class Publisher:
         (``host:port/subject``; the subject defaults to ``"default"``
         if omitted). Requires a running ``nats-server``.
     sample_type : int
-        Wire encoding.  One of :data:`CI32`, :data:`CF64` (default),
-        :data:`CF128`.  Raises :exc:`ValueError` for any other value.
+        Wire encoding.  One of :data:`CI8`, :data:`CI16`,
+        :data:`CI32`, :data:`CF32`, :data:`CF64` (default), or (on a
+        :class:`Publisher`) :data:`TLM16`.  Raises :exc:`ValueError` for
+        any other value.
 
     Raises
     ------
@@ -225,8 +211,8 @@ class Publisher:
         endpoint : str
             NATS endpoint, e.g. ``"nats://127.0.0.1:4222/iq"``.
         sample_type : int, optional
-            Wire encoding: :data:`CI32`, :data:`CF64` (default), or
-            :data:`CF128`.
+            Wire encoding: :data:`CI8`, :data:`CI16`, :data:`CI32`,
+            :data:`CF32`, or :data:`CF64` (default).
         """
         ...
 
@@ -268,9 +254,11 @@ class Publisher:
         ----------
         samples : ndarray
             C-contiguous array whose dtype must match the socket's
-            ``sample_type``: ``numpy.complex128`` for :data:`CF64`,
-            ``numpy.clongdouble`` for :data:`CF128`, ``numpy.int32``
-            for :data:`CI32` (interleaved I/Q, length ``2*n_samples``).
+            ``sample_type``: ``numpy.complex64`` for :data:`CF32`,
+            ``numpy.complex128`` for :data:`CF64`, or ``numpy.int8`` /
+            ``numpy.int16`` / ``numpy.int32`` for :data:`CI8` /
+            :data:`CI16` / :data:`CI32` (interleaved I/Q, length
+            ``2*n_samples``).
         sample_rate : float, optional
             Samples per second written into the header (default 0).
         center_freq : float, optional
@@ -420,9 +408,11 @@ class Subscriber:
         Returns
         -------
         samples : ndarray
-            Decoded sample data.  dtype is ``numpy.complex128``
-            (:data:`CF64`), ``numpy.clongdouble`` (:data:`CF128`), or
-            ``numpy.int32`` flat interleaved I/Q (:data:`CI32`).
+            Decoded sample data.  dtype follows the frame's own
+            ``sample_type``: ``numpy.complex64`` / ``numpy.complex128``
+            for :data:`CF32` / :data:`CF64`, or ``numpy.int8`` /
+            ``numpy.int16`` / ``numpy.int32`` flat interleaved I/Q for
+            :data:`CI8` / :data:`CI16` / :data:`CI32`.
         header : dict
             Decoded ``dp_header_t`` fields:
 
@@ -431,8 +421,9 @@ class Subscriber:
             ``center_freq`` : float
                 Centre frequency in Hz as reported by the sender.
             ``sample_type`` : int
-                Wire sample type (one of :data:`CI32`, :data:`CF64`,
-                :data:`CF128`).
+                Wire sample type (one of :data:`CI8`, :data:`CI16`,
+                :data:`CI32`, :data:`CF32`, :data:`CF64`,
+                :data:`TLM16`).
             ``timestamp_ns`` : int
                 Frame timestamp (``CLOCK_REALTIME`` nanoseconds) set
                 by the sender at the moment of the send call.
@@ -441,7 +432,8 @@ class Subscriber:
                 gaps indicate dropped frames.
             ``num_samples`` : int
                 Number of IQ samples in the frame (``len(samples)``
-                for CF64/CF128; ``len(samples)//2`` for CI32).
+                for CF32/CF64; ``len(samples)//2`` for the interleaved
+                integer types).
             ``protocol`` : int
                 Wire protocol (0 = SIGS, 1 = DIFI/VITA 49).
             ``stream_id`` : int
@@ -502,8 +494,10 @@ class Push:
     endpoint : str
         NATS endpoint, e.g. ``"nats://127.0.0.1:4222/work"``.
     sample_type : int
-        Wire encoding.  One of :data:`CI32`, :data:`CF64` (default),
-        :data:`CF128`.  Raises :exc:`ValueError` for any other value.
+        Wire encoding.  One of :data:`CI8`, :data:`CI16`,
+        :data:`CI32`, :data:`CF32`, :data:`CF64` (default), or (on a
+        :class:`Publisher`) :data:`TLM16`.  Raises :exc:`ValueError` for
+        any other value.
 
     Raises
     ------
@@ -546,8 +540,8 @@ class Push:
         endpoint : str
             NATS endpoint, e.g. ``"nats://127.0.0.1:4222/work"``.
         sample_type : int, optional
-            Wire encoding: :data:`CI32`, :data:`CF64` (default), or
-            :data:`CF128`.
+            Wire encoding: :data:`CI8`, :data:`CI16`, :data:`CI32`,
+            :data:`CF32`, or :data:`CF64` (default).
         """
         ...
 
@@ -586,9 +580,11 @@ class Push:
         ----------
         samples : ndarray
             C-contiguous array whose dtype must match the socket's
-            ``sample_type``: ``numpy.complex128`` for :data:`CF64`,
-            ``numpy.clongdouble`` for :data:`CF128`, ``numpy.int32``
-            for :data:`CI32` (interleaved I/Q, length ``2*n``).
+            ``sample_type``: ``numpy.complex64`` for :data:`CF32`,
+            ``numpy.complex128`` for :data:`CF64`, or ``numpy.int8`` /
+            ``numpy.int16`` / ``numpy.int32`` for :data:`CI8` /
+            :data:`CI16` / :data:`CI32` (interleaved I/Q, length
+            ``2*n``).
         sample_rate : float, optional
             Samples per second written into the header (default 0).
         center_freq : float, optional
@@ -737,9 +733,11 @@ class Pull:
         Returns
         -------
         samples : ndarray
-            Decoded sample data.  dtype is ``numpy.complex128``
-            (:data:`CF64`), ``numpy.clongdouble`` (:data:`CF128`), or
-            ``numpy.int32`` flat interleaved I/Q (:data:`CI32`).
+            Decoded sample data.  dtype follows the frame's own
+            ``sample_type``: ``numpy.complex64`` / ``numpy.complex128``
+            for :data:`CF32` / :data:`CF64`, or ``numpy.int8`` /
+            ``numpy.int16`` / ``numpy.int32`` flat interleaved I/Q for
+            :data:`CI8` / :data:`CI16` / :data:`CI32`.
         header : dict
             Decoded ``dp_header_t`` fields — see
             :meth:`Subscriber.recv` for the full key list.
@@ -833,7 +831,8 @@ class Requester:
         NATS endpoint, e.g. ``"nats://127.0.0.1:4222/ctrl"``.
     sample_type : int
         Wire encoding of frames *sent* by this socket.  One of
-        :data:`CI32`, :data:`CF64` (default), :data:`CF128`.  The
+        :data:`CI8`, :data:`CI16`, :data:`CI32`, :data:`CF32`, or
+        :data:`CF64` (default).  The
         reply frame's type is determined by the :class:`Replier`.
 
     Raises
@@ -882,7 +881,8 @@ class Requester:
             ``"nats://127.0.0.1:4222/ctrl"``.
         sample_type : int, optional
             Wire encoding of frames sent by this socket:
-            :data:`CI32`, :data:`CF64` (default), or :data:`CF128`.
+            :data:`CI8`, :data:`CI16`, :data:`CI32`, :data:`CF32`, or
+            :data:`CF64` (default).
         """
         ...
 
@@ -922,9 +922,10 @@ class Requester:
         ----------
         samples : ndarray
             C-contiguous array whose dtype must match the socket's
-            ``sample_type``: ``numpy.complex128`` for :data:`CF64`,
-            ``numpy.clongdouble`` for :data:`CF128`, ``numpy.int32``
-            for :data:`CI32`.
+            ``sample_type``: ``numpy.complex64`` for :data:`CF32`,
+            ``numpy.complex128`` for :data:`CF64`, or ``numpy.int8`` /
+            ``numpy.int16`` / ``numpy.int32`` for :data:`CI8` /
+            :data:`CI16` / :data:`CI32`.
         sample_rate : float, optional
             Samples per second written into the header (default 0).
         center_freq : float, optional
@@ -1032,7 +1033,8 @@ class Replier:
         NATS endpoint, e.g. ``"nats://127.0.0.1:4222/ctrl"``.
     sample_type : int
         Wire encoding of frames *sent* by this socket (the reply).  One
-        of :data:`CI32`, :data:`CF64` (default), :data:`CF128`.  The
+        of :data:`CI8`, :data:`CI16`, :data:`CI32`, :data:`CF32`, or
+        :data:`CF64` (default).  The
         request frame's type is determined by the :class:`Requester`.
 
     Raises
@@ -1079,7 +1081,8 @@ class Replier:
             NATS endpoint, e.g. ``"nats://127.0.0.1:4222/ctrl"``.
         sample_type : int, optional
             Wire encoding of reply frames sent by this socket:
-            :data:`CI32`, :data:`CF64` (default), or :data:`CF128`.
+            :data:`CI8`, :data:`CI16`, :data:`CI32`, :data:`CF32`, or
+            :data:`CF64` (default).
         """
         ...
 
@@ -1159,9 +1162,10 @@ class Replier:
         ----------
         samples : ndarray
             C-contiguous array whose dtype must match the socket's
-            ``sample_type``: ``numpy.complex128`` for :data:`CF64`,
-            ``numpy.clongdouble`` for :data:`CF128`, ``numpy.int32``
-            for :data:`CI32`.
+            ``sample_type``: ``numpy.complex64`` for :data:`CF32`,
+            ``numpy.complex128`` for :data:`CF64`, or ``numpy.int8`` /
+            ``numpy.int16`` / ``numpy.int32`` for :data:`CI8` /
+            :data:`CI16` / :data:`CI32`.
         sample_rate : float, optional
             Samples per second written into the reply header
             (default 0).

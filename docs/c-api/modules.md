@@ -39,7 +39,6 @@ Here is a list of all modules:
 
 
 
-
     * [**PUB/SUB — fan-out broadcast**](group__pubsub.md) 
         
 
@@ -57,11 +56,8 @@ Here is a list of all modules:
 
 
 
-
     * [**REQ/REP — request/reply**](group__reqrep.md) 
         
-
-
 
 
 
@@ -108,6 +104,8 @@ Here is a list of all modules:
 
     * [**Utilities**](group__utils.md) 
         
+
+
 
 
 

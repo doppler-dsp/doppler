@@ -95,13 +95,6 @@ print_samples (const void *samples, dp_sample_type_t type, size_t count)
           printf ("    [%zu] I: %+.6f, Q: %+.6f\n", i, creal (s[i]),
                   cimag (s[i]));
         }
-      else if (type == CF128)
-        {
-          const long double _Complex *s
-              = (const long double _Complex *)samples;
-          printf ("    [%zu] I: %+.6Lf, Q: %+.6Lf\n", i, creall (s[i]),
-                  cimagl (s[i]));
-        }
     }
 }
 

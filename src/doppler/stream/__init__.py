@@ -19,7 +19,6 @@ from .stream import (  # noqa: E402
     CI32,
     CF32,
     CF64,
-    CF128,
     TLM16,
     get_timestamp_ns,
 )
@@ -36,7 +35,6 @@ __all__ = [
     "CI32",
     "CF32",
     "CF64",
-    "CF128",
     "TLM16",
     "get_timestamp_ns",
 ]

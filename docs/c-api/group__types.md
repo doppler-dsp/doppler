@@ -211,7 +211,6 @@ _Selects the wire format of complex samples._
 enum dp_sample_type_t {
     CI32 = 0,
     CF64 = 1,
-    CF128 = 2,
     CI8 = 3,
     CI16 = 4,
     CF32 = 5,

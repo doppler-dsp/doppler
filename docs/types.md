@@ -20,7 +20,6 @@ ______________________________________________________________________
 | `uint64_t` | 8 | UI64 | `np.uint64` | `u64` |
 | `float _Complex` | 8 | CF32 | `np.complex64` | `DpCf32` |
 | `double _Complex` | 16 | CF64 | `np.complex128` | `DpCf64` |
-| `long double _Complex` | 32 | CF128 | `np.clongdouble` | — |
 <figcaption>C99 type system — Built-in, &lt;stdint.h&gt;, &lt;complex.h&gt;</figcaption>
 </figure>
 

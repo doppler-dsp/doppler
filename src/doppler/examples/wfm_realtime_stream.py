@@ -10,12 +10,11 @@ samples/second, like a live SDR), published through a
 end it reports the clock's pacing accuracy (samples emitted, underruns, worst
 lateness).
 
-The sink publishes **cf64** on purpose: ``doppler.stream``'s receiver
-currently decodes only ``CI32``/``CF64``/``CF128``, so the ``StreamSink``
-default ``cf32`` (and ``ci16``/``ci8``) are not yet decodable on the
-Python side — tracked in
-``docs/dev/wfm-validation-findings.md#streamsink-stream-dtype-gap`` and filed
-as a ``stream`` bug. Use cf64/ci32 for a Python subscriber until that lands.
+The sink publishes **cf64** because that is what this demo's numbers are
+quoted in, not because of a decode limit: every wire type ``StreamSink``
+can emit (``cf32``/``cf64``/``ci8``/``ci16``/``ci32``) decodes on the
+Python side. The gap this paragraph used to describe was closed, and the
+claim outlived it by several releases.
 
 Unlike the smoke-tested compute demos, this one binds a socket and paces in
 real time, so it is a *manual* demo (run it directly); it still exits 0 cleanly

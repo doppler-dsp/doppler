@@ -85,8 +85,7 @@ Floating-point complex types use C99 `<complex.h>`:
 |Wire type   |C type   |bytes/sample    |
 |-----|-----|-----|
 |CF32   |`float` \_Complex   |8    |
-|CF64   |`double` \_Complex   |16    |
-|CF128   |`long` double \_Complex   |32   |
+|CF64   |`double` \_Complex   |16   |
 
 
 

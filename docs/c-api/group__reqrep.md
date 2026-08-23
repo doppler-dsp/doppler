@@ -56,7 +56,6 @@
 |  int | [**dp\_rep\_recv**](#function-dp_rep_recv) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, size\_t \* size) <br>_Block until an incoming request arrives on the Replier (zero-copy)._  |
 |  int | [**dp\_rep\_recv\_signal**](#function-dp_rep_recv_signal) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, [**dp\_header\_t**](structdp__header__t.md) \* header) <br>_Receive a signal frame request (zero-copy)._  |
 |  int | [**dp\_rep\_send**](#function-dp_rep_send) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, const void \* data, size\_t size) <br>_Send the reply to the most recent request._  |
-|  int | [**dp\_rep\_send\_cf128**](#function-dp_rep_send_cf128) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, const long double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF128 signal frame as a reply._  |
 |  int | [**dp\_rep\_send\_cf32**](#function-dp_rep_send_cf32) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, const float \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF32 signal frame as a reply._  |
 |  int | [**dp\_rep\_send\_cf64**](#function-dp_rep_send_cf64) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, const double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF64 signal frame as a reply._  |
 |  int | [**dp\_rep\_send\_ci16**](#function-dp_rep_send_ci16) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, const int16\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI16 signal frame as a reply._  |
@@ -68,7 +67,6 @@
 |  int | [**dp\_req\_recv**](#function-dp_req_recv) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, size\_t \* size) <br>_Receive the reply to a previously sent request (zero-copy)._  |
 |  int | [**dp\_req\_recv\_signal**](#function-dp_req_recv_signal) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, [**dp\_header\_t**](structdp__header__t.md) \* header) <br>_Receive a signal frame reply (zero-copy)._  |
 |  int | [**dp\_req\_send**](#function-dp_req_send) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, const void \* data, size\_t size) <br>_Send raw bytes as a request._  |
-|  int | [**dp\_req\_send\_cf128**](#function-dp_req_send_cf128) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, const long double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF128 signal frame as a request._  |
 |  int | [**dp\_req\_send\_cf32**](#function-dp_req_send_cf32) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, const float \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF32 signal frame as a request._  |
 |  int | [**dp\_req\_send\_cf64**](#function-dp_req_send_cf64) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, const double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF64 signal frame as a request._  |
 |  int | [**dp\_req\_send\_ci16**](#function-dp_req_send_ci16) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, const int16\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI16 signal frame as a request._  |
@@ -285,26 +283,6 @@ DP\_OK on success.
 
 
         
-
-<hr>
-
-
-
-### function dp\_rep\_send\_cf128 
-
-_Send CF128 signal frame as a reply._ 
-```
-int dp_rep_send_cf128 (
-    dp_rep_t * ctx,
-    const long double _Complex * samples,
-    size_t num_samples,
-    double sample_rate,
-    double center_freq
-) 
-```
-
-
-
 
 <hr>
 
@@ -609,26 +587,6 @@ DP\_OK on success.
 
 
         
-
-<hr>
-
-
-
-### function dp\_req\_send\_cf128 
-
-_Send CF128 signal frame as a request._ 
-```
-int dp_req_send_cf128 (
-    dp_req_t * ctx,
-    const long double _Complex * samples,
-    size_t num_samples,
-    double sample_rate,
-    double center_freq
-) 
-```
-
-
-
 
 <hr>
 

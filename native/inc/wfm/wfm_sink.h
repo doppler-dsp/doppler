@@ -5,7 +5,7 @@
  * Streams cf32 blocks (from synth or the composer) to a NATS subject using
  * doppler's `dp_pub_*` wire layer (SIGS header, magic "SIGS"), converting to
  * the requested wire sample type per block. This is the `--output nats://…`
- * destination; a `dp_sub_*` receiver (e.g. examples/c/spectrum_analyzer) reads
+ * destination; a `dp_sub_*` receiver (e.g. native/examples/spectrum_analyzer) reads
  * the stream.
  *
  * Lifecycle: wfm_stream_sink_open -> wfm_stream_sink_send* -> wfm_stream_sink_close

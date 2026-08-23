@@ -27,7 +27,7 @@
 #   downstream-jm   — the iqtools showcase: doppler installed, iqtools already
 #                     built and its full suite green, jm ready to re-generate.
 #                     Lands you in /iqtools.
-#   stream-services — a lean runtime carrying just the examples/c streaming
+#   stream-services — a lean runtime carrying just the native/examples streaming
 #                     binaries (transmitter / receiver / spectrum_analyzer)
 #                     that docker-compose.yml runs. No toolchain, no Python.
 # ---------------------------------------------------------------------------
@@ -44,7 +44,7 @@ ARG GLIBC_BASE=doppler-glibc228:dev
 # BUILD_PYTHON=OFF: none of these images need doppler's own Python extension
 # (the SDK builds downstream *bindings*, not doppler's), so the builder stays
 # a pure C toolchain. The build tree is kept in the stage so stream-services
-# can lift the examples/c streaming binaries straight out of it.
+# can lift the native/examples streaming binaries straight out of it.
 FROM ubuntu:24.04 AS doppler-build
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential cmake ca-certificates \
@@ -142,7 +142,7 @@ RUN cmake -B build-stream -S . -DBUILD_PYTHON=OFF -DCMAKE_BUILD_TYPE=Release \
         --target transmitter receiver spectrum_analyzer
 
 # ── Target: streaming services for docker-compose ──────────────────────────
-# The examples/c streaming binaries link doppler statically (doppler_lib_static
+# The native/examples streaming binaries link doppler statically (doppler_lib_static
 # + the folded-in stream tier + nats.c), so this runtime needs no doppler and
 # no toolchain — only libc/libm/pthread from the slim base. That holds now
 # because stream-build above targets glibc 2.28, comfortably under this base's
@@ -152,9 +152,9 @@ RUN cmake -B build-stream -S . -DBUILD_PYTHON=OFF -DCMAKE_BUILD_TYPE=Release \
 # bare name.
 FROM debian:bookworm-slim AS stream-services
 COPY --from=stream-build \
-        /src/build-stream/examples/c/transmitter \
-        /src/build-stream/examples/c/receiver \
-        /src/build-stream/examples/c/spectrum_analyzer \
+        /src/build-stream/native/examples/transmitter \
+        /src/build-stream/native/examples/receiver \
+        /src/build-stream/native/examples/spectrum_analyzer \
         /usr/local/bin/
 WORKDIR /app
 # No ENTRYPOINT: docker-compose sets each service's command explicitly.

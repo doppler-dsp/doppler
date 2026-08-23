@@ -27,8 +27,8 @@ The three sanctioned states for a C fence (see
   and runs the
   resulting binary, requiring exit code 0.
 * **include** — ``--8<--`` pulled byte-for-byte from a tested source
-  (``examples/c/*.c``, already built + run by ``make test-examples``); zero
-  drift by construction.
+  (``native/examples/*.c``, already built + run by
+  ``make test-examples``); zero drift by construction.
 * **skip** — ``<!-- docs-snippet: skip=REASON -->``; reason mandatory. For
   genuinely non-standalone blocks: an illustrative fragment (a struct layout,
   a partial diff, a signature-only excerpt) that was never meant to compile

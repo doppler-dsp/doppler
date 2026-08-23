@@ -7,7 +7,7 @@
     on the format at all.
 
     It exists because the examples were each carrying their own copy: two in
-    `examples/c/receiver.c` (one per wire type, plus a switch to choose), a
+    `native/examples/receiver.c` (one per wire type, plus a switch to choose), a
     third in `pipeline_demo.c`, and a numpy expression in the Python
     receiver — four implementations of one formula in a DSP library whose
     own rule is that a primitive is written once. All four now call it.

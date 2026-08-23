@@ -10,7 +10,7 @@
 #   3. pkg-config                                    (shared)
 #   4. pkg-config --static                           (static)
 #
-# Each path builds and runs the examples/consumer program (so the example
+# Each path builds and runs the example-projects/consumer program (so the example
 # doubles as the test), and every produced binary — plus libdoppler.so itself —
 # is checked to carry NO dynamic libzmq dependency. ZMQ has been fully removed
 # from doppler; this assertion is now a permanent regression guard against it
@@ -27,7 +27,7 @@
 set -euo pipefail
 
 REPO="doppler-dsp/doppler"
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"   # repo root (for examples/consumer)
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"   # repo root (for example-projects/consumer)
 VERSION="${1:-$(grep -m1 '^version' "$ROOT/pyproject.toml" | cut -d'"' -f2)}"
 PREFIX_DIR="${2:-}"
 CC="${CC:-cc}"
@@ -96,7 +96,7 @@ run() {  # run a freshly built consumer and assert it has no libzmq dep
 # ── 1 & 2: CMake find_package (shared + static) via the example project ───────
 echo ">> CMake find_package (doppler::doppler + doppler::doppler-static)"
 cbuild="$work/cmake-build"
-cmake -S "$ROOT/examples/consumer" -B "$cbuild" \
+cmake -S "$ROOT/example-projects/consumer" -B "$cbuild" \
     -DCMAKE_PREFIX_PATH="$prefix" >/dev/null
 cmake --build "$cbuild" >/dev/null
 run "$cbuild/consumer_shared"
@@ -106,7 +106,7 @@ run "$cbuild/consumer_static"
 # ── 3 & 4: pkg-config (shared + static), when pkg-config is available ─────────
 if command -v pkg-config >/dev/null 2>&1; then
     export PKG_CONFIG_PATH="$pcdir"
-    src="$ROOT/examples/consumer/main.c"
+    src="$ROOT/example-projects/consumer/main.c"
 
     echo ">> pkg-config (shared)"
     # shellcheck disable=SC2046

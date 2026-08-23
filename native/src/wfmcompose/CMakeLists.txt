@@ -196,7 +196,7 @@ add_test(NAME test_wfm_keywords COMMAND test_wfm_keywords)
 # here still link it.
 
 # ── NATS PUB sink — POSIX only (vendored nats.c + pthreads don't build on
-#    MinGW; mirrors examples/c's streaming guard). The sink is independent of
+#    MinGW; mirrors native/examples's streaming guard). The sink is independent of
 #    the composer, so it links the stream layer, not synth. ─────────────────
 if(NOT WIN32)
     find_package(Threads REQUIRED)

@@ -73,7 +73,7 @@ The PUSH/PULL work-queue tier is backed by NATS JetStream, so pushed
 frames survive a restart of the consumer and are load-balanced
 round-robin across every connected `Pull`.
 
-<!-- docs-snippet: skip=illustrative excerpt (undeclared samples/count), needs a live broker; see examples/c/pipeline_demo for the tested version -->
+<!-- docs-snippet: skip=illustrative excerpt (undeclared samples/count), needs a live broker; see native/examples/pipeline_demo for the tested version -->
 
 ```c
 #include <stream/stream.h>
@@ -95,7 +95,7 @@ dp_msg_free(msg);
 dp_pull_destroy(pull);
 ```
 
-For complete, runnable examples see [`examples/c/`](https://github.com/doppler-dsp/doppler/tree/main/examples/c).
+For complete, runnable examples see [`native/examples/`](https://github.com/doppler-dsp/doppler/tree/main/native/examples).
 
 ______________________________________________________________________
 
@@ -226,8 +226,8 @@ dp_sub_create("nats://127.0.0.1:4222/iq");
 
 ```bash
 # Run the examples
-./build/examples/c/transmitter
-./build/examples/c/receiver
+./build/native/examples/transmitter
+./build/native/examples/receiver
 ```
 
 ### Two machines over LAN
@@ -264,10 +264,10 @@ nats-server -js -a 0.0.0.0
 
 ```bash
 # On Machine A (transmitter) — replace with the broker's actual IP:
-./build/examples/c/transmitter nats://192.168.1.100:4222/iq
+./build/native/examples/transmitter nats://192.168.1.100:4222/iq
 
 # On Machine B (receiver) — same broker IP:
-./build/examples/c/receiver nats://192.168.1.100:4222/iq
+./build/native/examples/receiver nats://192.168.1.100:4222/iq
 ```
 
 ### Loopback (fastest, same machine only)
@@ -321,7 +321,7 @@ ______________________________________________________________________
 
     ```bash
     # On the receiver machine, check you're connecting to the broker's IP:
-    ./build/examples/c/receiver nats://192.168.1.100:4222/iq
+    ./build/native/examples/receiver nats://192.168.1.100:4222/iq
     # NOT nats://127.0.0.1:4222/iq (that's the receiver's own machine!)
     ```
 
@@ -393,8 +393,8 @@ listening at the endpoint's host:port.
 
     ```bash
     nats-server -js -p 4223
-    ./build/examples/c/transmitter nats://192.168.1.100:4223/iq
-    ./build/examples/c/receiver nats://192.168.1.100:4223/iq
+    ./build/native/examples/transmitter nats://192.168.1.100:4223/iq
+    ./build/native/examples/receiver nats://192.168.1.100:4223/iq
     ```
 
 ### No output / silent failure
@@ -403,8 +403,8 @@ listening at the endpoint's host:port.
 
 ```bash
 # Verify libdoppler.so is found:
-ldd ./build/examples/c/transmitter
-ldd ./build/examples/c/receiver
+ldd ./build/native/examples/transmitter
+ldd ./build/native/examples/receiver
 
 # If missing, set LD_LIBRARY_PATH:
 export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
@@ -423,7 +423,7 @@ If you're still stuck:
 
 1. Check existing issues: https://github.com/doppler-dsp/doppler/issues
 1. Include in your bug report:
-    - Output of `./build/examples/c/transmitter --help` and `./build/examples/c/receiver --help`
+    - Output of `./build/native/examples/transmitter --help` and `./build/native/examples/receiver --help`
     - Network topology (same machine, LAN, cloud, containers)
     - `nats-server` logs (run it in the foreground, without `-js` daemonizing, to see connection attempts)
     - OS and toolchain versions (`uname -a`, `cmake --version`) — note doppler statically embeds the vendored `nats.c` client, so there is no system NATS client library to query

@@ -1,5 +1,5 @@
 - **The C receiver example ignored Ctrl+C once the transmitter stopped.**
-    `examples/c/receiver.c` never set a receive timeout, so `dp_sub_recv`
+    `native/examples/receiver.c` never set a receive timeout, so `dp_sub_recv`
     parked inside the NATS client — for an hour at a time — and the SIGINT
     handler's `keep_running` flag was never re-read. With traffic flowing
     the bug is invisible: every packet returns control to the loop and the
@@ -12,7 +12,7 @@
     round and re-read the flag", which is what the Python receiver was
     already doing by passing `timeout_ms=500`.
 
-    Nothing ran these: `examples/c/.examples-skip` excuses the dashboards
+    Nothing ran these: `native/examples/.examples-skip` excuses the dashboards
     from the smoke gate because they never self-terminate, and the reason
     it gives — "runs until Ctrl+C" — quietly assumed the interrupt worked.
     `src/doppler/tests/test_c_example_pairs.py` now runs receiver and

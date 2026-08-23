@@ -3,7 +3,7 @@
 ## Standalone project
 
 A minimal working project lives at
-[`examples/standalone/`](https://github.com/doppler-dsp/doppler/tree/main/examples/standalone).
+[`example-projects/standalone/`](https://github.com/doppler-dsp/doppler/tree/main/example-projects/standalone).
 It generates 4096 AWGN samples with `awgn()` and prints empirical statistics.
 The same example is also available as a one-liner Python script.
 
@@ -118,10 +118,10 @@ ______________________________________________________________________
 
 ### Consumer project — `find_package`
 
-`examples/standalone/` above links against a doppler **build tree**. For the
+`example-projects/standalone/` above links against a doppler **build tree**. For the
 idiomatic *installed*-library setup — `find_package(doppler)` against a system
 install or an extracted [release tarball](../install/c.md#install-from-a-release-tarball) —
-see [`examples/consumer/`](https://github.com/doppler-dsp/doppler/tree/main/examples/consumer).
+see [`example-projects/consumer/`](https://github.com/doppler-dsp/doppler/tree/main/example-projects/consumer).
 One `CMakeLists.txt` builds against **both** link targets:
 `doppler::doppler` (shared) and `doppler::doppler-static` (the pure-C static
 archive — links `-lm` and `-lpthread`, no C++ runtime). The
@@ -431,7 +431,7 @@ Build and run the full demo:
 
 ```sh
 make build
-./build/examples/c/hbdecim_demo
+./build/native/examples/hbdecim_demo
 ```
 
 ______________________________________________________________________
@@ -478,7 +478,7 @@ Build and run the full demo (prints a convergence table and writes
 
 ```sh
 make build
-./build/examples/c/agc_demo
+./build/native/examples/agc_demo
 ```
 
 ______________________________________________________________________
@@ -489,7 +489,7 @@ Two threads in-process — producer pushes 100 batches of 1024 CF64
 samples over the NATS JetStream PUSH/PULL work-queue tier; consumer
 receives and prints power.
 
-<!-- docs-snippet: skip=illustrative excerpt (undeclared samples, needs a live NATS broker); see examples/c/pipeline_demo for the tested version -->
+<!-- docs-snippet: skip=illustrative excerpt (undeclared samples, needs a live NATS broker); see native/examples/pipeline_demo for the tested version -->
 
 ```c
 #include <doppler.h>
@@ -519,5 +519,5 @@ batches):
 
 ```sh
 make build
-./build/examples/c/pipeline_demo
+./build/native/examples/pipeline_demo
 ```

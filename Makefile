@@ -2132,8 +2132,8 @@ doxygen-warn-gate: ## The doxygen warning gate proper (re-entered in Docker)
 # Smoke-test every standalone C example. Excluded (each needs a live NATS peer
 # or terminal interaction, not just a broker): transmitter, receiver,
 # pipeline_demo, spectrum_analyzer.
-EXAMPLE_BIN_DIR := $(BUILD_DIR)/examples/c
-STANDALONE_BUILD_DIR := examples/standalone/build
+EXAMPLE_BIN_DIR := $(BUILD_DIR)/native/examples
+STANDALONE_BUILD_DIR := example-projects/standalone/build
 DOWNSTREAM_DIR := examples/downstream-jm
 # Build trees live under doppler's BUILD_DIR, not inside the example: the
 # example is a jm project and `jm status` walks its tree, so a build dir there
@@ -2148,7 +2148,7 @@ DOWNSTREAM_BUILD_DIR := $(BUILD_DIR)/downstream-jm
 # and names the wrong thing. A deadline turns that into a FAIL with the
 # example's name on it.
 C_EXAMPLE_TIMEOUT ?= 120
-C_EXAMPLE_SKIPS   := examples/c/.examples-skip
+C_EXAMPLE_SKIPS   := native/examples/.examples-skip
 
 test-examples-c: build ## Smoke-test every standalone C example
 # DISCOVERED, never listed. This used to iterate a hand-written list of nine
@@ -2160,7 +2160,7 @@ test-examples-c: build ## Smoke-test every standalone C example
 	@echo "Running C example smoke tests..."
 	@bash scripts/smoke-c-examples.sh $(EXAMPLE_BIN_DIR) $(C_EXAMPLE_TIMEOUT)
 	@echo "Building standalone example..."
-	@cmake -B $(STANDALONE_BUILD_DIR) examples/standalone \
+	@cmake -B $(STANDALONE_BUILD_DIR) example-projects/standalone \
 	    -DDOPPLER_BUILD_DIR=$(abspath $(BUILD_DIR)) \
 	    -DCMAKE_BUILD_TYPE=Release \
 	    > /dev/null 2>&1
@@ -2336,7 +2336,7 @@ abi-check: ## Verify the built libraries are portable and C++-free (Linux)
 # still links, which is exactly why a gate that names it is worth having.
 link-check: ## Smoke-test that a downstream links libdoppler.a with -lm -lpthread
 	@t=$$(mktemp -d); \
-	 if cc examples/consumer/main.c -Inative/inc -I$(BUILD_DIR)/native/inc \
+	 if cc example-projects/consumer/main.c -Inative/inc -I$(BUILD_DIR)/native/inc \
 	       $(BUILD_DIR)/libdoppler.a -lm -lpthread -o "$$t/consumer_smoke" \
 	    && ( cd "$$t" && ./consumer_smoke > /dev/null ); then \
 	     echo "link-check: OK — libdoppler.a links with -lm -lpthread."; \
@@ -2375,7 +2375,7 @@ consumer-faces-check: build ## Build a consumer via cc/CMake/pkg-config, assert 
 # evidence away. The list is globbed, never enumerated, so a new example is
 # covered the moment it builds.
 GLIBC_MAX ?= 2.28
-GLIBC_EXAMPLE_DIR = $(BUILD_DIR)/examples/c
+GLIBC_EXAMPLE_DIR = $(BUILD_DIR)/native/examples
 glibc-check: ## Verify no glibc symbol newer than $(GLIBC_MAX) (needs an old-glibc build)
 # Fail-closed on BOTH ways of reading nothing, because "no bad symbols found"
 # and "no symbols found" produced the identical green line: pointed at a dir

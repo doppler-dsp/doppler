@@ -45,7 +45,7 @@
  *
  * Build:
  *   cmake --build build
- *   ./build/examples/c/ccsds_link_demo
+ *   ./build/native/examples/ccsds_link_demo
  */
 
 #include "viterbi/viterbi_core.h"

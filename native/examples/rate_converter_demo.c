@@ -14,7 +14,7 @@
  *
  * Build:
  *   make build
- *   ./build/examples/c/rate_converter_demo
+ *   ./build/native/examples/rate_converter_demo
  */
 
 #include <RateConverter/RateConverter_core.h>

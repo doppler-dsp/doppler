@@ -12,7 +12,7 @@ foreach(_ex nco_demo fir_demo hbdecim_demo fft_demo agc_demo corr_demo cic_demo 
         ${CMAKE_BINARY_DIR}/native/inc)
     target_link_libraries(${_ex} PRIVATE doppler_lib_static m)
     set_target_properties(${_ex} PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples/c)
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endforeach()
 
 # ── Streaming examples (POSIX only — use pthreads + the vendored nats.c) ─────
@@ -35,6 +35,6 @@ if(NOT WIN32)
             nats_vendor_static
             Threads::Threads m)
         set_target_properties(${_ex} PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples/c)
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     endforeach()
 endif()

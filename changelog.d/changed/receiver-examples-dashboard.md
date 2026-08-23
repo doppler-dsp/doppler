@@ -1,5 +1,5 @@
 - **Both receiver examples now show the frame header, throughput and
-    latency — and show the same ones.** `examples/c/receiver.c` and
+    latency — and show the same ones.** `native/examples/receiver.c` and
     `src/doppler/examples/receiver.py` render a dashboard that is identical
     field for field: the wire header as it arrived (version, format with its
     BLUE code, kind, flags, `data_rep`, sequence, `num_samples`,

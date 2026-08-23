@@ -215,7 +215,7 @@ ______________________________________________________________________
 
 ## 6. What it buys
 
-Measured by `examples/c/ccsds_link_demo.c`, which runs the whole chain at
+Measured by `native/examples/ccsds_link_demo.c`, which runs the whole chain at
 `I = 5` and reports per-codeword outcomes. The interesting row is the one
 where the inner code does not clear the channel on its own:
 

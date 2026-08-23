@@ -90,7 +90,7 @@ resolves the very library built beside it, never a drifting pin.
 
 ```mermaid
 flowchart TD
-    SRC["this checkout"] --> BUILD["<b>doppler-build</b><br/>cmake --install → /opt/doppler<br/>+ examples/c binaries"]
+    SRC["this checkout"] --> BUILD["<b>doppler-build</b><br/>cmake --install → /opt/doppler<br/>+ native/examples binaries"]
     BUILD --> DEV["<b>dev-base</b><br/>toolchain · uv · just-makeit<br/>doppler C SDK in /usr/local"]
     DEV --> SDK["<b>sdk</b><br/>+ all example sources<br/>→ /workspace"]
     DEV --> DJM["<b>downstream-jm</b><br/>iqtools built &amp; tested<br/>→ /iqtools"]
@@ -101,7 +101,7 @@ flowchart TD
     the doppler *Python* package from PyPI — the real downstream pattern (link the
     SDK, import the API). The C SDK is version-locked from source; the Python
     package floats at latest (a test-helper dependency).
-- **stream-services** lifts the statically-linked `examples/c` streaming
+- **stream-services** lifts the statically-linked `native/examples` streaming
     binaries straight out of the builder onto a slim base — no toolchain, no
     Python, ~116 MB.
 

@@ -161,10 +161,10 @@ print(f"Received {len(samples)} samples @ {hdr['sample_rate']/1e6:.1f} MHz")
 Build the C examples once, then mix and match:
 
 ```bash
-make          # builds ./build/examples/c/transmitter, receiver, etc.
+make          # builds ./build/native/examples/transmitter, receiver, etc.
 
 # Terminal 1 (transmitter takes ci32 or cf64 — not cf32)
-./build/examples/c/transmitter nats://127.0.0.1:4222/iq cf64
+./build/native/examples/transmitter nats://127.0.0.1:4222/iq cf64
 
 # Terminal 2 (Python)
 python - <<'EOF'

@@ -19,7 +19,7 @@
  *
  * Build:
  *   cmake --build build
- *   ./build/examples/c/corr_demo
+ *   ./build/native/examples/corr_demo
  */
 
 #include <corr/corr_core.h>

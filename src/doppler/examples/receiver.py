@@ -38,7 +38,7 @@ def _fmt_chars(code: int) -> str:
 
 
 def _format_ts(ts_ns: int) -> str:
-    """Local wall-clock time, the same rendering examples/c/receiver.c
+    """Local wall-clock time, the same rendering native/examples/receiver.c
     produces with localtime_r -- the two dashboards must agree on the
     number they print for one frame."""
     secs = ts_ns // 1_000_000_000

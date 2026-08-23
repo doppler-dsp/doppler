@@ -181,7 +181,7 @@ each fence is a fully independent compile-and-run:
 | State       | How                                                | Proves                                                   | Use for                                         |
 | ----------- | -------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------- |
 | **exec**    | plain ```` ```c ```` with its own `int main(void)` | compiles + runs, exit 0                                  | it *builds and runs*                            |
-| **include** | `--8<--` from a tested `examples/c/*.c`            | byte-identical to code `make test-examples` already runs | zero drift, by construction                     |
+| **include** | `--8<--` from a tested `native/examples/*.c`       | byte-identical to code `make test-examples` already runs | zero drift, by construction                     |
 | **broker**  | `<!-- docs-snippet: broker=REASON -->`             | compiles everywhere; runs where a broker is on :4222     | complete program that talks to a broker         |
 | **no-run**  | `<!-- docs-snippet: no-run=REASON -->`             | compiles `-Werror` against the real headers + link line  | complete program whose run blocks on a peer     |
 | **skip**    | `<!-- docs-snippet: skip=REASON -->`               | nothing (documents *why*)                                | genuine fragments (no `main`, undeclared names) |

@@ -182,7 +182,7 @@ keeps it honest — none of them optional except where the table says so:
 | a `@code` example on each public function             | `native/inc/<obj>/<obj>_core.h`                       | `make test-stubs`                                   |
 | a markdown guide, **when** prose outgrows a docstring | `docs/design/<algo>.md`, or `docs/guide/`             | `make docs-check`, `check_nav_index.py`             |
 | a benchmark, C **and** Python                         | `native/benchmarks/`, `src/doppler/<mod>/benchmarks/` | `make bench`, `make bench-compare`                  |
-| a runnable example, C **or** Python                   | `examples/c/`, `src/doppler/examples/`                | `make test-examples-c`, `make test-examples-python` |
+| a runnable example, C **or** Python                   | `native/examples/`, `src/doppler/examples/`           | `make test-examples-c`, `make test-examples-python` |
 | a gallery page, **when** there is a figure worth it   | `docs/gallery/`                                       | `make test-snippets`, `check_nav_index.py`          |
 
 Three things about that table are worth knowing before you trip over them.
@@ -206,7 +206,7 @@ an entry in `.examples-skip` with a **mandatory reason**, and an entry naming a
 deleted script fails a meta-test. `make test-examples-c` instead iterates a
 hand-written list of binary names, so a C example absent from it compiles,
 ships, and is executed by nothing — silently, and with no reason recorded
-anywhere. Today that list holds 9 of the 13 programs in `examples/c/`; the four
+anywhere. Today that list holds 9 of the 13 programs in `native/examples/`; the four
 it omits all need a live NATS broker, which is a real reason that is written
 down nowhere ([gh-863](https://github.com/doppler-dsp/doppler/issues/863)).
 Add your example to the list, or you have written documentation nothing runs.

@@ -4,7 +4,7 @@ Install:
     pip install doppler-dsp
 
 Run:
-    python examples/standalone/example.py
+    python example-projects/standalone/example.py
 """
 
 import numpy as np

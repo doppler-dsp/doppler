@@ -13,7 +13,7 @@
  *
  * Build:
  *   make build
- *   ./build/examples/c/cic_demo
+ *   ./build/native/examples/cic_demo
  */
 
 #include <cic/cic_core.h>

@@ -18,4 +18,4 @@
 
     Sabotage-checked: putting one `examples/python/` line back fails the
     gate by name. It found a real straggler on arrival too —
-    `examples/c/agc_demo.c` cited the same dead directory.
+    `native/examples/agc_demo.c` cited the same dead directory.

@@ -62,7 +62,7 @@ sdk)
   # The install is real only if a downstream can find + link it: build the
   # smallest consumer against it, from scratch, and run the result.
   run bash -c 'pkg-config --modversion doppler && \
-     cd examples/consumer && cmake -B build >/dev/null && \
+     cd example-projects/consumer && cmake -B build >/dev/null && \
      cmake --build build >/dev/null && ./build/consumer_shared'
   ;;
 downstream)

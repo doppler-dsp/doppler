@@ -23,6 +23,7 @@ Here is a list of all modules:
 
 
 
+
     * [**PUSH/PULL — pipeline**](group__pipeline.md) 
         
 
@@ -41,6 +42,7 @@ Here is a list of all modules:
 
     * [**PUB/SUB — fan-out broadcast**](group__pubsub.md) 
         
+
 
 
 
@@ -100,10 +102,22 @@ Here is a list of all modules:
 
 
 
+        * [**Wire constants**](group__wire.md) 
+            
+
+
+
+
+
+
+
+
+
 
 
     * [**Utilities**](group__utils.md) 
         
+
 
 
 

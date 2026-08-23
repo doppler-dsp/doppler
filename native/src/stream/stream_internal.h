@@ -13,18 +13,11 @@
 
 #include "stream/stream.h"
 
-#define DP_MAGIC 0x53494753   /* "SIGS" */
-#define DP_VERSION 0x00010000 /* v1.0.0 */
-
-/* Chunking. A logical frame larger than the server max_payload is split into
- * several messages that share one sequence; dp_header_t.flags carries
- * DP_FLAG_CHUNKED and reserved[] carries the reassembly geometry. reserved[]
- * is otherwise zero/uninterpreted. */
-#define DP_FLAG_CHUNKED 0x1u
-#define DP_CHUNK_IDX 0 /* reserved[] index: 0-based chunk number  */
-#define DP_CHUNK_CNT 1 /* reserved[] index: chunks in this frame  */
-#define DP_CHUNK_TOT 2 /* reserved[] index: total frame samples   */
-#define DP_CHUNK_OFF 3 /* reserved[] index: this chunk byte offset */
+/* The wire constants -- magic, version, the flag set and the chunk block --
+ * are PUBLIC (stream/stream.h). They were private here while the public
+ * header described `flags` as "set to 0" and `reserved[]` as "do not
+ * interpret", which meant the format could not be implemented from the
+ * header doppler publishes. */
 
 /* Messaging role.  The NATS backend maps these onto pub/sub subjects, a
  * JetStream work-queue, or request/reply, as appropriate. */
@@ -55,8 +48,9 @@ struct dp_nats_state
 
 struct dp_ctx
 {
-  dp_sample_type_t sample_type;
-  uint64_t         sequence;              /* per-sender count. */
+  dp_frame_kind_t  kind;     /* what this socket sends: I/Q or telemetry */
+  dp_sample_type_t format;   /* BLUE code; 0 when kind is not DP_KIND_IQ */
+  uint64_t         sequence; /* per-sender count. */
   uint64_t         timestamp_override_ns; /* one-shot; consumed by the next
                                               send_signal() call (dp_ctx_set_
                                               timestamp_ns()). */
@@ -73,8 +67,9 @@ typedef enum
 
 struct dp_msg
 {
-  dp_msg_kind_t    kind;
-  dp_sample_type_t sample_type;
+  dp_msg_kind_t    owner;  /* who owns the buffer (NOT the frame kind) */
+  dp_frame_kind_t  kind;   /* the frame's own kind, from its header */
+  dp_sample_type_t format; /* BLUE code; 0 when kind is not DP_KIND_IQ */
   size_t           num_samples;
   size_t           data_offset; /* bytes to skip at the front (NATS header). */
   union
@@ -91,7 +86,7 @@ struct dp_msg
 /* ---- NATS transport (implemented in stream_nats.c) --------------------- */
 
 struct dp_ctx *nats_ctx_create (dp_role_t role, const char *endpoint,
-                                dp_sample_type_t sample_type);
+                                dp_frame_kind_t kind, dp_sample_type_t format);
 void           nats_ctx_destroy (struct dp_ctx *ctx);
 int            nats_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
                                  const void *samples, size_t data_size);

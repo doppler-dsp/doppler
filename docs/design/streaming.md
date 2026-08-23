@@ -69,7 +69,7 @@ Each role additionally carries a **raw-bytes** face in C —
 `dp_req_send` / `dp_req_recv` / `dp_rep_send` / `dp_rep_recv` take a
 `void *` and a byte count instead of a typed sample block, for control
 messages that are not signals. Those are the status plane proper; they
-have no Python face today (gap 4 in §10).
+have no Python face today (gap 3 in §10).
 
 ______________________________________________________________________
 
@@ -78,85 +78,105 @@ ______________________________________________________________________
 Every message is:
 
 ```text
-+--------------------------------+-------------------------+
-| dp_header_t  (96 bytes)        | payload (n * itemsize)  |
-+--------------------------------+-------------------------+
++------------------------+-------------------+------------------------+
+| dp_header_t (64 bytes) | dp_chunk_t (24)?  | payload (n * elem)     |
++------------------------+-------------------+------------------------+
+                          only when CHUNKED
 ```
 
 Field by field, in declaration order — which is also byte order, because
-the struct is memcpy'd whole and has no padding on any LP64 ABI:
+the struct is memcpy'd whole. `stream_core.c` carries a `_Static_assert`
+on the size and on every offset below, so the layout is a build failure
+away from drifting rather than a comment.
 
-| Offset | Size | Field          | Value                            |
-| ------ | ---- | -------------- | -------------------------------- |
-| 0      | 4    | `magic`        | `0x53494753` — "SIGS"            |
-| 4      | 4    | `version`      | `0x00010000` (see below)         |
-| 8      | 4    | `protocol`     | 0 = SIGS; 1 = DIFI, reserved     |
-| 12     | 4    | `stream_id`    | 0 for SIGS                       |
-| 16     | 4    | `sample_type`  | `dp_sample_type_t`               |
-| 20     | 4    | `flags`        | bit 0 = `DP_FLAG_CHUNKED` (§4)   |
-| 24     | 8    | `sequence`     | per-socket, starts at 0          |
-| 32     | 8    | `timestamp_ns` | `CLOCK_REALTIME` ns              |
-| 40     | 8    | `sample_rate`  | Hz, `double`                     |
-| 48     | 8    | `center_freq`  | Hz, `double`                     |
-| 56     | 8    | `num_samples`  | samples in *this message*        |
-| 64     | 32   | `reserved[4]`  | chunk geometry when chunked (§4) |
+| Offset | Size | Field           | Value                                   |
+| ------ | ---- | --------------- | --------------------------------------- |
+| 0      | 8    | `magic`         | `DP_STREAM_MAGIC` — `DPSTREAM` as u64   |
+| 8      | 4    | `data_rep`      | `"EEEI"` (LE) or `"IEEE"` (BE)          |
+| 12     | 2    | `format`        | BLUE code; 0 when the kind is not I/Q   |
+| 14     | 2    | `kind`          | `dp_frame_kind_t` — what the payload IS |
+| 16     | 2    | `version`       | `DP_WIRE_VERSION` = 2                   |
+| 18     | 2    | `flags`         | bit 0 = `DP_FLAG_CHUNKED` (§4)          |
+| 20     | 4    | `payload_bytes` | payload length THIS message claims      |
+| 24     | 8    | `sequence`      | per-socket, from 0                      |
+| 32     | 8    | `timestamp_ns`  | `CLOCK_REALTIME` ns, or 0 = unset       |
+| 40     | 8    | `sample_rate`   | Hz, `double`                            |
+| 48     | 8    | `center_freq`   | Hz, `double`                            |
+| 56     | 8    | `num_samples`   | samples or records in THIS message      |
 
-**`version` on the wire is `0x00010000`, not `1`.** `stream.h` documents
-the field as "Protocol version (currently 1)"; the value actually written
-is `DP_VERSION` from `stream_internal.h`. A receiver comparing against 1
-rejects every doppler frame. The header comment is the thing that is
-wrong, and it is tracked as part of gap 1 in §10.
+**The magic is an integer, not a `char[8]`, and that is load-bearing.**
+The header is host byte order with no conversion, so a peer of the
+opposite endianness reads the magic byte-swapped and it stops matching —
+the format tag is therefore also the endianness probe, for free. A
+`char[8]` would read identically either way and detect nothing.
+`data_rep` then says *which* order it was, using BLUE's own token so a
+hex dump answers the question without decoding anything.
 
-### Byte order, and the type that had to go
+### What a receiver checks
 
-The header is **host byte order**. There is no conversion on either side —
-`memcpy` out, `memcpy` in. Every architecture doppler ships for is
-little-endian, so this has never bitten; a big-endian peer would read
-garbage, and the magic doubles as the probe that catches it (byte-swapped
-"SIGS" is not `DP_MAGIC`).
+Five things, before it hands anything back:
 
-Endianness was never the real portability hazard. **CF128 was**, and it is
-why wire value 2 is now retired. Its size was
-`sizeof(long double _Complex)` — 32 bytes on both x86-64 and aarch64 — but
-the *representation* differed: x86-64 stores an 80-bit extended value in 16
-bytes (`LDBL_MANT_DIG` 64), aarch64 stores IEEE binary128
-(`LDBL_MANT_DIG` 113). Every field a receiver checks agreed, so nothing
-rejected the frame and the samples decoded to nonsense. doppler publishes
-multi-arch images, so the two ends of such a stream genuinely can differ.
+1. `magic` — is this ours, in our byte order;
+1. `version` — a different major is refused, not guessed at;
+1. `flags` — any bit outside `DP_FLAG_KNOWN` is refused, because an
+    unknown block would move where the payload starts;
+1. `payload_bytes` against the message length the transport reports —
+    the header's claim must equal the transport's truth;
+1. `num_samples × element size` against that same length.
 
-A type that cannot cross the architectures the project ships is not a wire
-type, so it was removed rather than documented. **The value is not reused.**
-An older sender's frames must stay unrecognised rather than be read as some
-newer type, which is also why `dp_sample_type_is_valid()` exists: a retired
-value sits inside the enum's numeric range, so the ordinal test that used to
-guard the senders (`type <= CF32`) accepted it. Validity is derived from
-`dp_sample_size()` now — one table, and a type with no size is not a type.
+Checks 4 and 5 are the reason the field exists. v1 validated the magic
+and nothing else, so a header claiming more samples than its message
+carried produced an out-of-bounds read on both faces — the numpy array
+was sized from the header's own claim, over a buffer nobody measured.
 
-BLUE has no format code for a quad or extended float either, which is the
-file format reaching the same conclusion independently.
+### Formats are BLUE codes, and that is the point
 
-### Payload layout per sample type
+The value in `format` is the two-character Midas BLUE 1.1 Table 6 code,
+packed little-endian — the same two characters the same samples get at
+HCB bytes 52/53 when written to a file.
 
-| Type        | Wire        | Payload                 | numpy dtype       |
-| ----------- | ----------- | ----------------------- | ----------------- |
-| `CI32` = 0  | 8 B/sample  | interleaved I,Q `int32` | `int32`, len `2n` |
-| `CF64` = 1  | 16 B/sample | `double _Complex`       | `complex128`      |
-| *2*         | —           | *retired: was CF128*    | —                 |
-| `CI8` = 3   | 2 B/sample  | interleaved I,Q `int8`  | `int8`, len `2n`  |
-| `CI16` = 4  | 4 B/sample  | interleaved I,Q `int16` | `int16`, len `2n` |
-| `CF32` = 5  | 8 B/sample  | `float _Complex`        | `complex64`       |
-| `TLM16` = 6 | 16 B/record | packed `dp_tlm_rec_t`   | structured        |
+| Format | Code   | Wire        | Payload                 | numpy dtype       |
+| ------ | ------ | ----------- | ----------------------- | ----------------- |
+| `CI8`  | `"CB"` | 2 B/sample  | interleaved I,Q `int8`  | `int8`, len `2n`  |
+| `CI16` | `"CI"` | 4 B/sample  | interleaved I,Q `int16` | `int16`, len `2n` |
+| `CI32` | `"CL"` | 8 B/sample  | interleaved I,Q `int32` | `int32`, len `2n` |
+| `CF32` | `"CF"` | 8 B/sample  | `float _Complex`        | `complex64`       |
+| `CF64` | `"CD"` | 16 B/sample | `double _Complex`       | `complex128`      |
 
-Values are fixed and appended, never renumbered, and a retired value is
-never reused — a new type must not change what an older receiver already
-decodes, and must not be mistaken for one an older sender emitted. `CI32 = 0` rather than a
-sentinel is a historical accident, so **zero is a valid sample type** and
-a zeroed header is not distinguishable from a CI32 one by that field
-alone. The magic is the check.
+doppler used to hold **three** enumerations of these five types — the
+stream's own, `wfm_writer`'s `stype` in "wavegen order", and
+`wfm_sink.c`'s `WT_*` — agreeing on no single value, plus a `FMTCH[]`
+table mapping one of them to BLUE and a `BPS[]` table restating the
+sizes. Every boundary between them was a hand-written switch. Naming a
+format by the code the file format already defines leaves one vocabulary
+and nothing to translate, so the codes live in `native/inc/dp_format.h`
+(a header, all `static inline`) rather than in either container: the
+transport is the wrong thing to link in order to name a file's samples.
 
-`TLM16` is not I/Q: `num_samples` counts 16-byte telemetry records, and
-it is Publisher-only (no PUSH/REQ/REP variant exists in C). Its producer
-side is `dp_tlm_sink_*`; see [Telemetry](telemetry.md).
+There is no code for a quad or extended float. BLUE defines none, which
+is the file format independently reaching the conclusion that retired
+CF128 from the wire — its representation differs between x86-64 and
+aarch64 at identical size, so a frame crossed an architecture boundary,
+matched every field a receiver checks, and decoded to nonsense.
+
+### A telemetry frame is a kind, not a format
+
+`TLM16` used to be a sixth sample type. It is not a sample encoding: its
+payload is 16-byte `dp_tlm_rec_t` records, `num_samples` counts records,
+and only a Publisher can emit it. As a sample type it forced every
+I/Q-only sender to carry an exception for it and left `format` holding a
+value BLUE does not define.
+
+So the frame says what it is in `kind` (`DP_KIND_IQ` / `DP_KIND_TLM`),
+`format` stays purely a BLUE sample code, and a telemetry frame sets it
+to 0. In C a telemetry publisher has its own constructor
+(`dp_pub_create_tlm`) because there is no format to pass; in Python it
+stays `Publisher(ep, TLM16)`, since "what does this socket publish" is
+one question to a caller and the two vocabularies cannot collide — every
+BLUE code is two ASCII characters packed into 16 bits, so all of them
+are ≥ 0x4200, while `DP_KIND_TLM` is 1.
+
+Its producer side is `dp_tlm_sink_*`; see [Telemetry](telemetry.md).
 
 ______________________________________________________________________
 
@@ -173,26 +193,33 @@ different workers, so PUSH does not chunk: an oversized frame returns
 `DP_ERR_TOO_LARGE` (-7) rather than being silently split.
 
 A chunked frame's messages each carry a full header with
-`DP_FLAG_CHUNKED` set, all sharing the logical frame's `sequence`, and
-use `reserved[]` for the geometry:
+`DP_FLAG_CHUNKED` set, all sharing the logical frame's `sequence`,
+followed by a 24-byte `dp_chunk_t`:
 
-| Index | Name           | Meaning                                   |
-| ----- | -------------- | ----------------------------------------- |
-| 0     | `DP_CHUNK_IDX` | 0-based chunk number                      |
-| 1     | `DP_CHUNK_CNT` | chunks in this frame                      |
-| 2     | `DP_CHUNK_TOT` | total samples in the logical frame        |
-| 3     | `DP_CHUNK_OFF` | this chunk's byte offset into the payload |
+| Offset | Size | Field         | Meaning                            |
+| ------ | ---- | ------------- | ---------------------------------- |
+| 0      | 4    | `index`       | 0-based chunk number               |
+| 4      | 4    | `count`       | chunks in this frame               |
+| 8      | 8    | `total_bytes` | payload bytes in the whole frame   |
+| 16     | 8    | `offset`      | this chunk's byte offset into that |
 
-Chunks are sample-aligned — the split is `max_payload` rounded down to a
-whole number of samples — so no sample straddles two messages.
+It rides only chunked frames. v1 spent a third of its 96-byte header on
+four `reserved[]` words carrying exactly this, zeroed on every unchunked
+frame — and documented as "set to zero, do not interpret", which meant
+the format could not be implemented from the header doppler publishes.
 
-Reassembly accepts a chunk only if the magic matches, the chunked flag is
-set, the `sequence` equals the frame being assembled, and `DP_CHUNK_CNT`
-agrees. A repeat of an index already seen is a no-op, so redelivery is
-harmless. When the last chunk lands, the receiver is handed **one clean
-logical frame**: doppler-owned buffer, `num_samples` set to the total,
-`DP_FLAG_CHUNKED` cleared, `reserved[]` zeroed. A subscriber never sees a
-chunk, which is why nothing in the Python API mentions them.
+Chunks are element-aligned — the split is `max_payload` minus the header
+and chunk block, rounded down to a whole number of elements — so no
+sample straddles two messages.
+
+Reassembly accepts a chunk only if it passes every check in §3, carries
+`DP_FLAG_CHUNKED`, has the `sequence` of the frame being assembled, and
+agrees on `count`. A repeat of an index already seen is a no-op, so
+redelivery is harmless. When the last chunk lands, the receiver is handed
+**one clean logical frame**: doppler-owned buffer, `num_samples` and
+`payload_bytes` set to the totals, `DP_FLAG_CHUNKED` cleared. A
+subscriber never sees a chunk, which is why nothing in the Python API
+mentions them.
 
 Two consequences worth stating plainly:
 
@@ -241,7 +268,7 @@ reconfiguring it.
 
 **The Push side creates the stream; the Pull side only binds it.** So on
 a broker that has never carried `DP_WORK_<base>`, starting a worker first
-fails immediately — see gap 3 in §10.
+fails immediately — see gap 2 in §10.
 
 ______________________________________________________________________
 
@@ -260,7 +287,7 @@ the message handle's owner, and the buffer lives until the array is
 collected. Which is also why `Pull.ack()` takes the array back —
 acknowledging a JetStream delivery needs the underlying message, and the
 array is what is holding it. It works, and it makes the caller carry a C
-ownership detail; see gap 5 in §10.
+ownership detail; see gap 4 in §10.
 
 Acks are the work queue's contract, not a formality: delivery is
 at-least-once, a frame stays pending until acked, and a worker that dies
@@ -315,6 +342,10 @@ ______________________________________________________________________
     `(sender, sequence)`.
 - **No cross-endian frames** (§3). The magic detects it; nothing
     converts.
+- **No optional-block negotiation.** A receiver refuses a frame carrying
+    a flag bit it does not know rather than guessing where the payload
+    starts, which is what makes a later additive block (BLUE keywords is
+    the candidate) safe to introduce inside major version 2.
 - **No authentication or TLS configuration.** The endpoint parser accepts
     `nats://` only and passes the authority to the client verbatim, so
     URL-embedded credentials reach the server, but there is no
@@ -322,7 +353,7 @@ ______________________________________________________________________
     seed list, so a client points at one server (or a load-balanced
     address) rather than a seed set.
 - **No role checking.** All six handle types are `typedef struct dp_ctx`,
-    so in C nothing stops `dp_sub_recv()` on a publisher; see gap 2.
+    so in C nothing stops `dp_sub_recv()` on a publisher; see gap 1.
 - **No backpressure on PUB.** A slow subscriber drops. That is the tier's
     property, not a defect — choose PUSH/PULL when loss is unacceptable.
 
@@ -330,18 +361,18 @@ ______________________________________________________________________
 
 ## 10. Known gaps
 
-Each is filed; this table is the map, not the detail. Two more stood
-here and were closed by the CF128 retirement, which had to touch both:
-the stale "only three sample types" prose, and the ordinal type check
-that would otherwise have accepted the retired value.
+Each is filed; this table is the map, not the detail. Three more stood
+here and are closed: the stale "only three sample types" prose and the
+ordinal type check went with the CF128 retirement, and the public header
+now documents the flags and the chunk block, because v2 made them real
+fields instead of a `reserved[]` the format secretly used.
 
-| #   | Gap                                                                                                                                             | Issue                                                     |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| 1   | The public header documents `flags`/`reserved[]` as "do not interpret" and `version` as 1, so §3 and §4 cannot be derived from `stream.h` alone | [#958](https://github.com/doppler-dsp/doppler/issues/958) |
-| 2   | Six handle types are one type; no entry point validates its role                                                                                | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
-| 3   | `Pull` cannot create the work-queue stream, so a worker started first fails on a fresh broker                                                   | [#956](https://github.com/doppler-dsp/doppler/issues/956) |
-| 4   | The raw-bytes control plane has no Python face                                                                                                  | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
-| 5   | `Pull.ack(samples)` makes the caller hold a message lifetime                                                                                    | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
-| 6   | `CI8` and `CI16` have no round-trip test                                                                                                        | [#958](https://github.com/doppler-dsp/doppler/issues/958) |
-| 7   | Enum constants are unprefixed in a public header (`CF32`, `CI16`, …)                                                                            | [#958](https://github.com/doppler-dsp/doppler/issues/958) |
-| 8   | `Push.send`'s size ceiling is undocumented on the Python face                                                                                   | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
+| #   | Gap                                                                                           | Issue                                                     |
+| --- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 1   | Six handle types are one type; no entry point validates its role                              | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
+| 2   | `Pull` cannot create the work-queue stream, so a worker started first fails on a fresh broker | [#956](https://github.com/doppler-dsp/doppler/issues/956) |
+| 3   | The raw-bytes control plane has no Python face                                                | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
+| 4   | `Pull.ack(samples)` makes the caller hold a message lifetime                                  | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
+| 5   | `CI8` and `CI16` have no round-trip test                                                      | [#962](https://github.com/doppler-dsp/doppler/issues/962) |
+| 6   | Format names are unprefixed in a public header (`CF32`, `CI16`, …)                            | [#962](https://github.com/doppler-dsp/doppler/issues/962) |
+| 7   | `Push.send`'s size ceiling is undocumented on the Python face                                 | [#959](https://github.com/doppler-dsp/doppler/issues/959) |

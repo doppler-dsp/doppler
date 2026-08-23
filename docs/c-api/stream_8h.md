@@ -14,6 +14,7 @@ _Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP._ [More...](#detailed
 * `#include <stddef.h>`
 * `#include <stdint.h>`
 * `#include "clib_common.h"`
+* `#include "dp_format.h"`
 
 
 
@@ -33,7 +34,8 @@ _Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP._ [More...](#detailed
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_header\_t**](structdp__header__t.md) <br>_Frame metadata header carried in every stream message._  |
+| struct | [**dp\_chunk\_t**](structdp__chunk__t.md) <br>_Reassembly geometry, present only when_ [_**DP\_FLAG\_CHUNKED**_](group__wire.md#define-dp_flag_chunked) _._ |
+| struct | [**dp\_header\_t**](structdp__header__t.md) <br>_Frame metadata carried in every stream message._  |
 
 
 
@@ -94,11 +96,12 @@ Provides NATS-backed signal streaming using three messaging patterns:
 |Pattern   |Sender function   |Receiver function   |Use case    |
 |-----|-----|-----|-----|
 |PUB/SUB   |dp\_pub\_\*   |dp\_sub\_\*   |Fan-out broadcast    |
-|PUSH/PULL   |dp\_push\_\*   |dp\_pull\_\*   |Pipeline /   |
+|PUSH/PULL   |dp\_push\_\*   |dp\_pull\_\*   |Pipeline load-balance    |
+|REQ/REP   |dp\_req\_\*   |dp\_rep\_\*   |Control metadata   |
 
 
 
-load-balance\| \| REQ/REP \| dp\_req\_\* \| dp\_rep\_\* \| Control / metadata \|
+
 
 
 Requires a running `nats-server` (`nats-server -js` for the PUSH/PULL JetStream work-queue tier). An endpoint is `"nats://host:port[/subject]"`; the subject defaults to `"default"` if omitted.

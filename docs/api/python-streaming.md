@@ -32,18 +32,28 @@ Every socket is a **context manager** and releases the GIL while blocked
 waiting on NATS, so receive loops thread cleanly. The sender's
 `sample_type` fixes the NumPy dtype on both ends:
 
-| Constant | dtype              | layout                                                        |
-| -------- | ------------------ | ------------------------------------------------------------- |
-| `CF32`   | `numpy.complex64`  | complex I/Q                                                   |
-| `CF64`   | `numpy.complex128` | complex I/Q                                                   |
-| `CI8`    | `numpy.int8`       | interleaved I/Q, length `2n`                                  |
-| `CI16`   | `numpy.int16`      | interleaved I/Q, length `2n`                                  |
-| `CI32`   | `numpy.int32`      | interleaved I/Q, length `2n`                                  |
-| `TLM16`  | structured rows    | telemetry records, not I/Q ([Telemetry](python-telemetry.md)) |
+| Constant | BLUE code | dtype              | layout                       |
+| -------- | --------- | ------------------ | ---------------------------- |
+| `CF32`   | `"CF"`    | `numpy.complex64`  | complex I/Q                  |
+| `CF64`   | `"CD"`    | `numpy.complex128` | complex I/Q                  |
+| `CI8`    | `"CB"`    | `numpy.int8`       | interleaved I/Q, length `2n` |
+| `CI16`   | `"CI"`    | `numpy.int16`      | interleaved I/Q, length `2n` |
+| `CI32`   | `"CL"`    | `numpy.int32`      | interleaved I/Q, length `2n` |
 
-`recv()` returns `(samples, header)` where `header` is a dict of the decoded
-`dp_header_t` fields (`sample_rate`, `center_freq`, `sample_type`,
-`timestamp_ns`, `sequence`).
+A format's value **is** its two-character Midas BLUE code, packed
+little-endian — the same characters the same samples get in a BLUE file,
+so nothing translates between the wire and the file. `TLM16` is the
+exception in the same argument slot: it is a frame *kind*, not a sample
+format (telemetry records, Publisher only — see
+[Telemetry](python-telemetry.md)), because BLUE has no code for a record
+stream.
+
+`recv()` returns `(samples, header)` where `header` is a dict of the
+decoded `dp_header_t` fields: `format`, `kind`, `version`, `flags`,
+`payload_bytes`, `sequence`, `timestamp_ns`, `sample_rate`,
+`center_freq` and `num_samples`. The full byte layout, and what a
+receiver validates before handing anything back, is in
+[Design: Streaming](../design/streaming.md).
 
 ______________________________________________________________________
 

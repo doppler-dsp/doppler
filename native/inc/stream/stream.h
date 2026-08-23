@@ -4,12 +4,11 @@
  *
  * Provides NATS-backed signal streaming using three messaging patterns:
  *
- * | Pattern   | Sender function  | Receiver function | Use case |
- * |-----------|------------------|-------------------|------------------------|
- * | PUB/SUB   | dp_pub_*         | dp_sub_*          | Fan-out broadcast |
- * | PUSH/PULL | dp_push_*        | dp_pull_*         | Pipeline /
- * load-balance| | REQ/REP   | dp_req_*         | dp_rep_*          | Control /
- * metadata |
+ * | Pattern   | Sender function | Receiver function | Use case              |
+ * |-----------|-----------------|-------------------|-----------------------|
+ * | PUB/SUB   | dp_pub_*        | dp_sub_*          | Fan-out broadcast     |
+ * | PUSH/PULL | dp_push_*       | dp_pull_*         | Pipeline load-balance |
+ * | REQ/REP   | dp_req_*        | dp_rep_*          | Control metadata      |
  *
  * Requires a running `nats-server` (`nats-server -js` for the PUSH/PULL
  * JetStream work-queue tier). An endpoint is `"nats://host:port[/subject]"`;
@@ -48,6 +47,7 @@
  * live in clib_common.h — the streaming API uses the one doppler-wide scheme.
  */
 #include "clib_common.h"
+#include "dp_format.h"
 
 /**
  * @defgroup streaming Streaming
@@ -78,41 +78,27 @@ extern "C"
    *  @{
    */
 
-  /**
-   * @brief Selects the wire format of complex samples.
-   *
-   * All sample arrays are packed as interleaved I/Q pairs.
-   *
-   * Values are fixed — new types are appended to preserve wire
-   * compatibility with older receivers.
-   */
-  typedef enum
-  {
-    CI32  = 0, /**< Complex int32: int32_t I/Q   (8 bytes/sample). */
-    CF64  = 1, /**< Complex float64: double I/Q  (16 bytes/sample). */
-    /* 2 was CF128 (long double I/Q). Retired: its wire size is
-       sizeof(long double _Complex), which is 32 bytes on both x86-64 and
-       aarch64 while the REPRESENTATION differs (80-bit extended vs IEEE
-       binary128), so a frame crossed an architecture boundary, matched on
-       every field a receiver checks, and decoded to nonsense. The value is
-       not reused: an old sender's frames must stay unrecognised, not be
-       silently read as some newer type. */
-    CI8   = 3, /**< Complex int8: int8_t I/Q     (2 bytes/sample).  */
-    CI16  = 4, /**< Complex int16: int16_t I/Q   (4 bytes/sample).  */
-    CF32  = 5, /**< Complex float32: float I/Q   (8 bytes/sample).  */
-    TLM16 = 6, /**< 16-byte telemetry records (dp_tlm_rec_t) — not I/Q;
-                    num_samples counts records. Published by the
-                    dp_tlm_sink_* helper (stream/tlm_sink.h). */
-  } dp_sample_type_t;
+  /* The sample formats themselves live in dp_format.h: they are BLUE's
+     vocabulary, shared with the file writer, and a container is the wrong
+     owner for the names of what it carries. */
 
   /**
-   * @brief Protocol identifier for the wire header.
+   * @brief What a frame's payload IS, independent of how its elements are
+   * encoded.
+   *
+   * `TLM16` used to be a sixth `dp_sample_type_t`, which made every I/Q-only
+   * sender carry an exception for it and left the format field holding a
+   * value BLUE does not define. Telemetry is not a sample encoding, it is a
+   * different kind of frame, so it says so here and the format field stays
+   * purely a BLUE sample code.
    */
   typedef enum
   {
-    DP_PROTO_SIGS = 0, /**< Native SIGS protocol. */
-    DP_PROTO_DIFI = 1, /**< DIFI / VITA 49 (reserved for future use). */
-  } dp_protocol_t;
+    DP_KIND_IQ  = 0, /**< Interleaved complex samples; `format` is the code. */
+    DP_KIND_TLM = 1, /**< Packed 16-byte `dp_tlm_rec_t` records; `format` is 0
+                        and `num_samples` counts records. Published by the
+                        `dp_tlm_sink_*` helper (stream/tlm_sink.h). */
+  } dp_frame_kind_t;
 
   /**
    * @defgroup sampletypes Sample C types
@@ -141,29 +127,101 @@ extern "C"
    */
   /** @} */ /* end group sampletypes */
 
-  /**
-   * @brief Frame metadata header carried in every stream message.
+  /** @defgroup wire Wire constants
+   *  @ingroup streaming
+   *  @{ */
+
+  /** Magic: the eight ASCII bytes `DPSTREAM`, as one @c uint64_t.
    *
-   * The first 4 bytes of the wire header are always the magic value
-   * `0x53494753` ("SIGS"), which receivers can use for basic validation.
-   * Future-proofed for DIFI / VITA 49 with protocol and stream_id fields.
+   *  An integer rather than an eight-character array on purpose: the header is written
+   *  in host byte order with no conversion, so a peer of the opposite
+   *  endianness reads this field byte-swapped and it no longer matches. The
+   *  magic is therefore the endianness probe as well as the format tag, and
+   *  costs nothing to be both. (An array of characters would read identically either
+   *  way and detect nothing.) */
+#define DP_STREAM_MAGIC 0x4D41455254535044ULL /* "DPSTREAM" little-endian */
+
+  /** Wire revision. A receiver rejects a frame whose major differs: within a
+   *  major, changes are additive and announced by an unrecognised flag bit,
+   *  which is also rejected (see @ref DP_FLAG_KNOWN). */
+#define DP_WIRE_VERSION 2u
+
+  /** Byte-order tag, BLUE's own token (HCB `data_rep`): IEEE
+   *  little-endian. Written as four ASCII characters so a hex dump says
+   *  which order the numbers are in without decoding anything else. */
+#define DP_REP_LE "EEEI"
+  /** Byte-order tag: IEEE big-endian. */
+#define DP_REP_BE "IEEE"
+
+  /** Frame flags. */
+#define DP_FLAG_CHUNKED                                                       \
+  0x0001u /**< A 24-byte chunk block follows the header; see §4 of           \
+               docs/design/streaming.md. */
+
+  /** Every flag bit this build understands.
+   *
+   *  A receiver REJECTS a frame carrying a bit outside this mask rather than
+   *  guessing. That is what makes a later additive change safe: a frame with
+   *  a new optional block cannot be mistaken for one without it, because the
+   *  block changes where the payload starts. */
+#define DP_FLAG_KNOWN (DP_FLAG_CHUNKED)
+
+  /** @} */ /* end group wire */
+
+  /**
+   * @brief Frame metadata carried in every stream message.
+   *
+   * 64 bytes, in declaration order, memcpy'd whole -- there is no padding
+   * on any ABI doppler builds for, and a static assertion in
+   * `stream_core.c` fails the build if that ever stops being true.
+   *
+   * Numbers are in HOST byte order and @ref data_rep says which order that
+   * was; the magic catches the mismatch first, so a wrong-endian frame is
+   * rejected rather than silently misread.
    */
   typedef struct
   {
-    uint32_t magic;       /**< Magic number: 0x53494753 "SIGS". */
-    uint32_t version;     /**< Protocol version (currently 1). */
-    uint32_t protocol;    /**< dp_protocol_t (0 = SIGS, 1 = DIFI). */
-    uint32_t stream_id;   /**< DIFI stream ID; 0 for SIGS. */
-    uint32_t sample_type; /**< Wire sample type (dp_sample_type_t). */
-    uint32_t flags;       /**< Reserved flags — set to 0. */
-    uint64_t sequence;    /**< Monotonically increasing per-sender count. */
-    uint64_t
-        timestamp_ns; /**< UNIX timestamp in nanoseconds (CLOCK_REALTIME). */
-    double   sample_rate; /**< Sample rate in Hz. */
-    double   center_freq; /**< Centre frequency in Hz. */
-    uint64_t num_samples; /**< Number of complex samples in this message. */
-    uint64_t reserved[4]; /**< Reserved — set to zero, do not interpret. */
+    uint64_t magic;         /**< @ref DP_STREAM_MAGIC. */
+    char     data_rep[4];   /**< @ref DP_REP_LE or @ref DP_REP_BE, no NUL. */
+    uint16_t format;        /**< BLUE code (dp_sample_type_t); 0 when the
+                                 kind is not sample data. */
+    uint16_t kind;          /**< dp_frame_kind_t: what the payload IS. */
+    uint16_t version;       /**< @ref DP_WIRE_VERSION. */
+    uint16_t flags;         /**< Bitwise OR of the DP_FLAG_* set. */
+    uint32_t payload_bytes; /**< Bytes of payload in THIS message. The
+                                 transport also knows the message length;
+                                 a receiver requires the two to agree,
+                                 which is what stops a header claiming
+                                 more samples than were sent. */
+    uint64_t sequence;      /**< Per-socket frame counter, from 0. A chunked
+                                 frame consumes one number, not one per
+                                 chunk. */
+    uint64_t timestamp_ns;  /**< UNIX nanoseconds (CLOCK_REALTIME), or 0 for
+                                 "no capture time" -- the same unset
+                                 convention wfm_time.h uses, so a frame that
+                                 never had one does not claim 1970. */
+    double   sample_rate;   /**< Sample rate in Hz, 0 if unknown. */
+    double   center_freq;   /**< Centre frequency in Hz, 0 if unknown. */
+    uint64_t num_samples;   /**< Complex samples (DP_KIND_IQ) or records
+                                 (DP_KIND_TLM) in THIS message. */
   } dp_header_t;
+
+  /**
+   * @brief Reassembly geometry, present only when @ref DP_FLAG_CHUNKED.
+   *
+   * Immediately follows the header and precedes the chunk's own payload
+   * bytes. It rides only chunked frames rather than sitting in every
+   * header: the previous format spent a third of its 96 bytes on four
+   * `reserved[]` words that were documented as "do not interpret" and were
+   * in fact this, zeroed on every unchunked frame.
+   */
+  typedef struct
+  {
+    uint32_t index;       /**< 0-based chunk number. */
+    uint32_t count;       /**< Chunks in this frame. */
+    uint64_t total_bytes; /**< Payload bytes in the whole logical frame. */
+    uint64_t offset;      /**< This chunk's byte offset into that payload. */
+  } dp_chunk_t;
 
   /** @brief Opaque zero-copy message handle returned by recv functions.
    *
@@ -233,6 +291,17 @@ extern "C"
    * @return Sample type enum value.
    */
   dp_sample_type_t dp_msg_sample_type (dp_msg_t *msg);
+
+  /**
+   * @brief What the message's payload IS (dp_frame_kind_t).
+   *
+   * Ask this before dp_msg_sample_type(): a telemetry frame's format field
+   * is 0, because BLUE has no code for a record stream.
+   *
+   * @param msg Message handle.
+   * @return The frame's kind, or DP_KIND_IQ for a NULL handle.
+   */
+  dp_frame_kind_t dp_msg_kind (dp_msg_t *msg);
 
   /**
    * @brief Acknowledge a message on a durable (JetStream) consumer.
@@ -347,6 +416,19 @@ extern "C"
   int dp_pub_send_tlm16 (dp_pub_t *ctx, const void *records,
                          size_t num_records, double sample_rate,
                          double center_freq);
+
+  /**
+   * @brief Create a Publisher that emits telemetry frames.
+   *
+   * A separate constructor because @ref DP_KIND_TLM is a frame kind rather
+   * than a sample format: there is no BLUE code to pass to dp_pub_create(),
+   * and a publisher that emits records does not also emit I/Q. Send with
+   * dp_pub_send_tlm16().
+   *
+   * @param endpoint `nats://host:port/subject`.
+   * @return Publisher handle, or NULL on failure.
+   */
+  dp_pub_t *dp_pub_create_tlm (const char *endpoint);
 
   /**
    * @brief Destroy a Publisher context and release all resources.
@@ -565,9 +647,10 @@ extern "C"
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF64 signal frame as a request. */
-  int dp_req_send_cf64 (dp_req_t *ctx, const double _Complex *samples,
-                        size_t num_samples, double sample_rate,
-                        double center_freq);  /** @brief Send CI8 signal frame as a request. */
+  int dp_req_send_cf64 (
+      dp_req_t *ctx, const double _Complex *samples, size_t num_samples,
+      double sample_rate,
+      double center_freq); /** @brief Send CI8 signal frame as a request. */
   int dp_req_send_ci8 (dp_req_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
@@ -585,9 +668,10 @@ extern "C"
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF64 signal frame as a reply. */
-  int dp_rep_send_cf64 (dp_rep_t *ctx, const double _Complex *samples,
-                        size_t num_samples, double sample_rate,
-                        double center_freq);  /** @brief Send CI8 signal frame as a reply. */
+  int dp_rep_send_cf64 (
+      dp_rep_t *ctx, const double _Complex *samples, size_t num_samples,
+      double sample_rate,
+      double center_freq); /** @brief Send CI8 signal frame as a reply. */
   int dp_rep_send_ci8 (dp_rep_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
@@ -685,16 +769,28 @@ extern "C"
   int dp_sample_type_is_valid (dp_sample_type_t type);
 
   /**
-   * @brief True when @p type is a known I/Q sample type.
+   * @brief Bytes per payload element for a frame of this kind.
    *
-   * Every valid type except TLM16, whose payload is telemetry records
-   * rather than samples. This is the check a sender that carries only I/Q
-   * (PUSH, REQ, REP) wants; PUB additionally accepts TLM16.
+   * For @ref DP_KIND_IQ that is dp_sample_size() of @p format; for
+   * @ref DP_KIND_TLM it is 16, one packed record, and @p format is not
+   * consulted because a record stream has no BLUE code.
    *
-   * @param type Sample type enum value.
-   * @return Non-zero when the type is a known I/Q type, 0 otherwise.
+   * @param kind   What the payload is (dp_frame_kind_t).
+   * @param format Sample format, for an I/Q frame.
+   * @return Bytes per element, or 0 when the pair is not something this
+   *         build can send or decode.
    */
-  int dp_sample_type_is_iq (dp_sample_type_t type);
+  size_t dp_element_size (dp_frame_kind_t kind, dp_sample_type_t format);
+
+  /**
+   * @brief This machine's byte-order tag: @ref DP_REP_LE or @ref DP_REP_BE.
+   *
+   * Four characters, not NUL-terminated. Derived at run time rather than
+   * compiled in, so a big-endian build tags its frames honestly instead of
+   * inheriting a constant nobody revisited.
+   */
+  const char *dp_host_rep (void);
+
 
   /**
    * @brief Return the current wall-clock time as nanoseconds since the UNIX

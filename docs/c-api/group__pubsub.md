@@ -51,7 +51,8 @@
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* | [**dp\_pub\_create**](#function-dp_pub_create) (const char \* endpoint, [**dp\_sample\_type\_t**](group__types.md#enum-dp_sample_type_t) sample\_type) <br>_Create a Publisher and connect to_ `endpoint` _._ |
+|  [**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* | [**dp\_pub\_create**](#function-dp_pub_create) (const char \* endpoint, [**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) sample\_type) <br>_Create a Publisher and connect to_ `endpoint` _._ |
+|  [**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* | [**dp\_pub\_create\_tlm**](#function-dp_pub_create_tlm) (const char \* endpoint) <br>_Create a Publisher that emits telemetry frames._  |
 |  void | [**dp\_pub\_destroy**](#function-dp_pub_destroy) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx) <br>_Destroy a Publisher context and release all resources._  |
 |  int | [**dp\_pub\_send\_cf32**](#function-dp_pub_send_cf32) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const float \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CF32 samples via a Publisher._  |
 |  int | [**dp\_pub\_send\_cf64**](#function-dp_pub_send_cf64) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CF64 samples via a Publisher._  |
@@ -128,6 +129,43 @@ dp_pub_t * dp_pub_create (
 **Returns:**
 
 Non-NULL context on success, NULL on failure. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_pub\_create\_tlm 
+
+_Create a Publisher that emits telemetry frames._ 
+```
+dp_pub_t * dp_pub_create_tlm (
+    const char * endpoint
+) 
+```
+
+
+
+A separate constructor because DP\_KIND\_TLM is a frame kind rather than a sample format: there is no BLUE code to pass to [**dp\_pub\_create()**](group__pubsub.md#function-dp_pub_create), and a publisher that emits records does not also emit I/Q. Send with [**dp\_pub\_send\_tlm16()**](group__pubsub.md#function-dp_pub_send_tlm16).
+
+
+
+
+**Parameters:**
+
+
+* `endpoint` `nats://host:port/subject`. 
+
+
+
+**Returns:**
+
+Publisher handle, or NULL on failure. 
 
 
 

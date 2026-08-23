@@ -92,7 +92,8 @@ main (void)
   DP_CHECK (msg != NULL);
   if (msg)
     {
-      DP_CHECK (hdr.sample_type == TLM16);
+      DP_CHECK (hdr.kind == DP_KIND_TLM);
+      DP_CHECK (hdr.format == 0); /* no BLUE code for records */
       DP_CHECK (hdr.num_samples == 15);
       DP_CHECK (dp_msg_num_samples (msg) == 15);
       const dp_tlm_rec_t *recs = (const dp_tlm_rec_t *)dp_msg_data (msg);

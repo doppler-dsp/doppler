@@ -1,6 +1,9 @@
 #include "stream/stream.h"
 #include "stream_internal.h"
+#include <stddef.h> /* offsetof — the wire-layout assertions */
+#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 /* =========================================================================
@@ -12,7 +15,7 @@ dp_msg_data (dp_msg_t *msg)
 {
   if (!msg)
     return NULL;
-  switch (msg->kind)
+  switch (msg->owner)
     {
     case DP_MSG_NATS:
       return nats_msg_data (msg);
@@ -28,7 +31,7 @@ dp_msg_size (dp_msg_t *msg)
 {
   if (!msg)
     return 0;
-  switch (msg->kind)
+  switch (msg->owner)
     {
     case DP_MSG_NATS:
       return nats_msg_size (msg);
@@ -48,7 +51,13 @@ dp_msg_num_samples (dp_msg_t *msg)
 dp_sample_type_t
 dp_msg_sample_type (dp_msg_t *msg)
 {
-  return msg ? msg->sample_type : CF64;
+  return msg ? msg->format : CF64;
+}
+
+dp_frame_kind_t
+dp_msg_kind (dp_msg_t *msg)
+{
+  return msg ? msg->kind : DP_KIND_IQ;
 }
 
 int
@@ -56,7 +65,7 @@ dp_msg_ack (dp_msg_t *msg)
 {
   if (!msg)
     return DP_ERR_INVALID;
-  if (msg->kind == DP_MSG_NATS)
+  if (msg->owner == DP_MSG_NATS)
     return nats_msg_ack (msg);
   return DP_OK; /* core-NATS / reassembled: nothing to ack */
 }
@@ -66,7 +75,7 @@ dp_msg_free (dp_msg_t *msg)
 {
   if (!msg)
     return;
-  switch (msg->kind)
+  switch (msg->owner)
     {
     case DP_MSG_NATS:
       nats_msg_free (msg);
@@ -90,42 +99,49 @@ dp_get_timestamp_ns (void)
   return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
 }
 
+/* The wire layout is a promise, so the compiler holds it. Every one of
+   these was true before and asserted nowhere: the previous header's size
+   was whatever padding produced, and its documented `version` value
+   disagreed with the one actually written. */
+_Static_assert (sizeof (dp_header_t) == 64, "dp_header_t must be 64 bytes");
+_Static_assert (sizeof (dp_chunk_t) == 24, "dp_chunk_t must be 24 bytes");
+_Static_assert (offsetof (dp_header_t, magic) == 0, "magic at 0");
+_Static_assert (offsetof (dp_header_t, data_rep) == 8, "data_rep at 8");
+_Static_assert (offsetof (dp_header_t, format) == 12, "format at 12");
+_Static_assert (offsetof (dp_header_t, kind) == 14, "kind at 14");
+_Static_assert (offsetof (dp_header_t, version) == 16, "version at 16");
+_Static_assert (offsetof (dp_header_t, flags) == 18, "flags at 18");
+_Static_assert (offsetof (dp_header_t, payload_bytes) == 20, "payload at 20");
+_Static_assert (offsetof (dp_header_t, sequence) == 24, "sequence at 24");
+_Static_assert (offsetof (dp_header_t, timestamp_ns) == 32, "timestamp at 32");
+_Static_assert (offsetof (dp_header_t, sample_rate) == 40, "fs at 40");
+_Static_assert (offsetof (dp_header_t, center_freq) == 48, "fc at 48");
+_Static_assert (offsetof (dp_header_t, num_samples) == 56, "n at 56");
+
 size_t
 dp_sample_size (dp_sample_type_t type)
 {
-  switch (type)
-    {
-    case CI8:
-      return 2 * sizeof (int8_t);
-    case CI16:
-      return 2 * sizeof (int16_t);
-    case CI32:
-      return 2 * sizeof (int32_t);
-    case CF32:
-      return sizeof (float _Complex);
-    case CF64:
-      return sizeof (double _Complex);
-    case TLM16:
-      return 16; /* one packed dp_tlm_rec_t per "sample" */
-    default:
-      return 0;
-    }
+  return dp_format_size (type); /* the one table, in dp_format.h */
 }
 
-/* Derived from dp_sample_size() on purpose: one table decides what a type
-   is, so a type added there is valid here with no second edit -- and the
-   retired value 2 (CF128) is invalid here for free, because it has no
-   size. */
 int
 dp_sample_type_is_valid (dp_sample_type_t type)
 {
-  return dp_sample_size (type) != 0;
+  return dp_format_is_valid (type);
 }
 
-int
-dp_sample_type_is_iq (dp_sample_type_t type)
+size_t
+dp_element_size (dp_frame_kind_t kind, dp_sample_type_t format)
 {
-  return dp_sample_type_is_valid (type) && type != TLM16;
+  switch (kind)
+    {
+    case DP_KIND_IQ:
+      return dp_format_size (format);
+    case DP_KIND_TLM:
+      return 16; /* one packed dp_tlm_rec_t per record */
+    default:
+      return 0;
+    }
 }
 
 const char *
@@ -143,11 +159,19 @@ dp_sample_type_str (dp_sample_type_t type)
       return "CF32";
     case CF64:
       return "CF64";
-    case TLM16:
-      return "TLM16";
     default:
       return "UNKNOWN";
     }
+}
+
+const char *
+dp_host_rep (void)
+{
+  /* Derived, not declared: the same union trick a reader would use, so a
+     build on a big-endian target tags its frames honestly instead of
+     inheriting a constant nobody revisited. */
+  const uint16_t one = 1u;
+  return (*(const unsigned char *)&one) ? DP_REP_LE : DP_REP_BE;
 }
 
 const char *
@@ -182,11 +206,17 @@ dp_strerror (int err)
  * ========================================================================= */
 
 static struct dp_ctx *
-ctx_create (dp_role_t role, const char *endpoint, dp_sample_type_t sample_type)
+ctx_create (dp_role_t role, const char *endpoint, dp_frame_kind_t kind,
+            dp_sample_type_t format)
 {
   if (!endpoint)
     return NULL;
-  return nats_ctx_create (role, endpoint, sample_type);
+  /* A socket declares what it will send at construction, so an invalid
+     format is refused here rather than at the first send -- which is also
+     where a retired or unknown code is caught. */
+  if (kind == DP_KIND_IQ && !dp_sample_type_is_valid (format))
+    return NULL;
+  return nats_ctx_create (role, endpoint, kind, format);
 }
 
 static void
@@ -205,13 +235,23 @@ send_signal (struct dp_ctx *ctx, const void *samples, size_t num_samples,
   if (!ctx || !samples || num_samples == 0)
     return DP_ERR_INVALID;
 
-  dp_header_t header          = { 0 };
-  header.magic                = DP_MAGIC;
-  header.version              = DP_VERSION;
-  header.protocol             = DP_PROTO_SIGS;
-  header.stream_id            = 0;
-  header.sample_type          = type;
+  size_t elem = dp_element_size (ctx->kind, type);
+  if (elem == 0)
+    return DP_ERR_INVALID;
+
+  size_t data_size = num_samples * elem;
+  if (data_size > UINT32_MAX)
+    return DP_ERR_TOO_LARGE; /* payload_bytes is 32-bit by design: a frame
+                                this large cannot cross any broker anyway */
+
+  dp_header_t header = { 0 };
+  header.magic       = DP_STREAM_MAGIC;
+  memcpy (header.data_rep, dp_host_rep (), 4);
+  header.format               = (uint16_t)(ctx->kind == DP_KIND_IQ ? type : 0);
+  header.kind                 = (uint16_t)ctx->kind;
+  header.version              = DP_WIRE_VERSION;
   header.flags                = 0;
+  header.payload_bytes        = (uint32_t)data_size;
   header.sequence             = ctx->sequence++;
   header.timestamp_ns         = ctx->timestamp_override_set
                                     ? ctx->timestamp_override_ns
@@ -220,8 +260,6 @@ send_signal (struct dp_ctx *ctx, const void *samples, size_t num_samples,
   header.sample_rate          = sample_rate;
   header.center_freq          = center_freq;
   header.num_samples          = num_samples;
-
-  size_t data_size = num_samples * dp_sample_size (type);
 
   return nats_send_signal (ctx, &header, samples, data_size);
 }
@@ -274,7 +312,7 @@ set_recv_timeout (struct dp_ctx *ctx, int timeout_ms)
 dp_pub_t *
 dp_pub_create (const char *endpoint, dp_sample_type_t sample_type)
 {
-  return ctx_create (DP_ROLE_PUB, endpoint, sample_type);
+  return ctx_create (DP_ROLE_PUB, endpoint, DP_KIND_IQ, sample_type);
 }
 
 int
@@ -322,7 +360,13 @@ dp_pub_send_tlm16 (dp_pub_t *ctx, const void *records, size_t num_records,
                    double sample_rate, double center_freq)
 {
   return send_signal (ctx, records, num_records, sample_rate, center_freq,
-                      TLM16);
+                      (dp_sample_type_t)0);
+}
+
+dp_pub_t *
+dp_pub_create_tlm (const char *endpoint)
+{
+  return ctx_create (DP_ROLE_PUB, endpoint, DP_KIND_TLM, (dp_sample_type_t)0);
 }
 
 void
@@ -334,7 +378,7 @@ dp_pub_destroy (dp_pub_t *ctx)
 dp_sub_t *
 dp_sub_create (const char *endpoint)
 {
-  return ctx_create (DP_ROLE_SUB, endpoint, CF64);
+  return ctx_create (DP_ROLE_SUB, endpoint, DP_KIND_IQ, CF64);
 }
 
 int
@@ -362,7 +406,7 @@ dp_sub_destroy (dp_sub_t *ctx)
 dp_push_t *
 dp_push_create (const char *endpoint, dp_sample_type_t sample_type)
 {
-  return ctx_create (DP_ROLE_PUSH, endpoint, sample_type);
+  return ctx_create (DP_ROLE_PUSH, endpoint, DP_KIND_IQ, sample_type);
 }
 
 int
@@ -408,7 +452,7 @@ dp_push_send_cf32 (dp_push_t *ctx, const float _Complex *samples,
 dp_pull_t *
 dp_pull_create (const char *endpoint)
 {
-  return ctx_create (DP_ROLE_PULL, endpoint, CF64);
+  return ctx_create (DP_ROLE_PULL, endpoint, DP_KIND_IQ, CF64);
 }
 
 int
@@ -442,13 +486,13 @@ dp_pull_destroy (dp_pull_t *ctx)
 dp_req_t *
 dp_req_create (const char *endpoint)
 {
-  return ctx_create (DP_ROLE_REQ, endpoint, CF64);
+  return ctx_create (DP_ROLE_REQ, endpoint, DP_KIND_IQ, CF64);
 }
 
 dp_rep_t *
 dp_rep_create (const char *endpoint)
 {
-  return ctx_create (DP_ROLE_REP, endpoint, CF64);
+  return ctx_create (DP_ROLE_REP, endpoint, DP_KIND_IQ, CF64);
 }
 
 /* -- Raw-bytes send/recv ------------------------------------------------ */

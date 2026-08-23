@@ -12,51 +12,21 @@ from numpy.typing import NDArray
 # architectures, and a retired value is never reused.
 # ---------------------------------------------------------------------------
 
-CI32: int
-"""Complex int32 — interleaved ``int32_t`` I/Q (8 bytes/sample).
-
-Each complex sample occupies two consecutive ``int32_t`` elements in the
-array: element 2k is I, element 2k+1 is Q.  For *n* complex samples the
-send functions expect a C-contiguous ``numpy.int32`` array of length
-``2*n``; recv returns the same flat layout.
-
-Wire value: ``0``.
-
-Examples
---------
->>> from doppler.stream import CI32
->>> CI32
-0
-
-"""
-
-CF64: int
-"""Complex float64 — ``double _Complex`` (16 bytes/sample).
-
-Sent and received as ``numpy.complex128``.  Default sample type for all
-sender socket types.
-
-Wire value: ``1``.
-
-Examples
---------
->>> from doppler.stream import CF64
->>> CF64
-1
-
-"""
-
 CI8: int
 """Complex int8 — interleaved ``int8_t`` I/Q (2 bytes/sample).
 
-Sent and received as a ``numpy.int8`` array of ``2*n`` interleaved
-elements. Wire value: ``3``.
+Each complex sample occupies two consecutive ``int8`` elements: element
+2k is I, 2k+1 is Q.  For *n* complex samples the send functions expect a
+C-contiguous ``numpy.int8`` array of length ``2*n``; recv returns the
+same flat layout.
+
+Wire value: the BLUE format code ``"CB"``, packed little-endian.
 
 Examples
 --------
 >>> from doppler.stream import CI8
->>> CI8
-3
+>>> bytes([CI8 & 0xFF, CI8 >> 8])
+b'CB'
 
 """
 
@@ -64,46 +34,81 @@ CI16: int
 """Complex int16 — interleaved ``int16_t`` I/Q (4 bytes/sample).
 
 Sent and received as a ``numpy.int16`` array of ``2*n`` interleaved
-elements. Wire value: ``4``.
+elements.  Wire value: the BLUE format code ``"CI"``.
 
 Examples
 --------
 >>> from doppler.stream import CI16
->>> CI16
-4
+>>> bytes([CI16 & 0xFF, CI16 >> 8])
+b'CI'
+
+"""
+
+CI32: int
+"""Complex int32 — interleaved ``int32_t`` I/Q (8 bytes/sample).
+
+Sent and received as a ``numpy.int32`` array of ``2*n`` interleaved
+elements.  Wire value: the BLUE format code ``"CL"``.
+
+Examples
+--------
+>>> from doppler.stream import CI32
+>>> bytes([CI32 & 0xFF, CI32 >> 8])
+b'CL'
 
 """
 
 CF32: int
 """Complex float32 — ``float _Complex`` (8 bytes/sample).
 
-Sent and received as ``numpy.complex64``. Wire value: ``5``.
+Sent and received as ``numpy.complex64``.  Wire value: the BLUE format
+code ``"CF"``.
 
 Examples
 --------
 >>> from doppler.stream import CF32
->>> CF32
-5
+>>> bytes([CF32 & 0xFF, CF32 >> 8])
+b'CF'
+
+"""
+
+CF64: int
+"""Complex float64 — ``double _Complex`` (16 bytes/sample).
+
+Sent and received as ``numpy.complex128``.  Default sample type for all
+sender socket types.  Wire value: the BLUE format code ``"CD"``.
+
+Examples
+--------
+>>> from doppler.stream import CF64
+>>> bytes([CF64 & 0xFF, CF64 >> 8])
+b'CD'
 
 """
 
 TLM16: int
-"""16-byte telemetry records (``dp_tlm_rec_t``) — not I/Q samples.
+"""16-byte telemetry records (``dp_tlm_rec_t``) — a frame KIND, not a
+sample format.
 
-A TLM16 frame's payload is packed telemetry records; ``num_samples``
-counts records. ``Publisher(ep, TLM16).send(recs)`` publishes the
-structured array ``doppler.telemetry.Telemetry.read()`` returns, and
-``Subscriber.recv()`` decodes the frame back into the same structured
-dtype ``[("n", "<u8"), ("value", "<f4"), ("probe", "<u2"),
-("flags", "<u2")]``. The C-side producer face is the ``dp_tlm_sink_*``
-helper (``stream/tlm_sink.h``) in ``libdoppler_stream``. Wire
-value: ``6``.
+Telemetry is not a sample encoding, so it does not have a BLUE format
+code and it does not sit alongside the five above on the wire: a frame
+says ``kind = TLM16`` and leaves ``format`` at 0.  It reaches the API
+through the same constructor argument because "what does this socket
+publish" is one question to a caller, and the two vocabularies cannot
+collide — a BLUE code is two ASCII characters packed into 16 bits, so
+every one of them is at least 0x4200.
+
+``Publisher(ep, TLM16).send(recs)`` publishes the structured array
+``doppler.telemetry.Telemetry.read()`` returns, and ``Subscriber.recv()``
+decodes it back into the same dtype ``[("n", "<u8"), ("value", "<f4"),
+("probe", "<u2"), ("flags", "<u2")]``.  The C-side producer face is the
+``dp_tlm_sink_*`` helper (``stream/tlm_sink.h``).  Publisher only.
 
 Examples
 --------
 >>> from doppler.stream import TLM16
 >>> TLM16
-6
+1
 
 """
 

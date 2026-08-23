@@ -69,9 +69,19 @@ build_recv_result (dp_msg_t *msg, const dp_header_t *hdr)
 
   npy_intp         dims[1];
   int              typenum;
-  dp_sample_type_t st = dp_msg_sample_type (msg);
+  dp_frame_kind_t  kind = dp_msg_kind (msg);
+  dp_sample_type_t st   = dp_msg_sample_type (msg);
+  const int        tlm  = (kind == DP_KIND_TLM);
 
-  if (st == CI32)
+  if (tlm)
+    {
+      /* telemetry records: structured rows (n u8 | value f4 | probe u2 |
+       * flags u2), decoded below via the shared descr instead of a plain
+       * typenum. */
+      dims[0] = (npy_intp)dp_msg_num_samples (msg);
+      typenum = -1;
+    }
+  else if (st == CI32)
     {
       dims[0] = (npy_intp)(dp_msg_num_samples (msg) * 2); /* interleaved I/Q */
       typenum = NPY_INT32;
@@ -96,23 +106,16 @@ build_recv_result (dp_msg_t *msg, const dp_header_t *hdr)
       dims[0] = (npy_intp)dp_msg_num_samples (msg);
       typenum = NPY_COMPLEX64;
     }
-  else if (st == TLM16)
-    {
-      /* telemetry records: structured rows (n u8 | value f4 | probe u2 |
-       * flags u2), decoded below via the shared descr instead of a plain
-       * typenum. */
-      dims[0] = (npy_intp)dp_msg_num_samples (msg);
-      typenum = -1;
-    }
   else
     {
       Py_DECREF (msg_obj);
-      PyErr_Format (PyExc_ValueError, "Unknown sample_type: %u", (unsigned)st);
+      PyErr_Format (PyExc_ValueError, "Unknown wire format: 0x%04X",
+                    (unsigned)st);
       return NULL;
     }
 
   PyObject *arr;
-  if (st == TLM16)
+  if (tlm)
     {
       Py_INCREF (tlm16_descr); /* NewFromDescr steals a reference */
       arr = PyArray_NewFromDescr (&PyArray_Type, tlm16_descr, 1, dims, NULL,
@@ -144,10 +147,12 @@ build_recv_result (dp_msg_t *msg, const dp_header_t *hdr)
                         PyFloat_FromDouble (hdr->center_freq));
   PyDict_SetItemString (header, "num_samples",
                         PyLong_FromUnsignedLongLong (hdr->num_samples));
-  PyDict_SetItemString (header, "sample_type",
-                        PyLong_FromLong (hdr->sample_type));
-  PyDict_SetItemString (header, "protocol", PyLong_FromLong (hdr->protocol));
-  PyDict_SetItemString (header, "stream_id", PyLong_FromLong (hdr->stream_id));
+  PyDict_SetItemString (header, "format", PyLong_FromLong (hdr->format));
+  PyDict_SetItemString (header, "kind", PyLong_FromLong (hdr->kind));
+  PyDict_SetItemString (header, "flags", PyLong_FromLong (hdr->flags));
+  PyDict_SetItemString (header, "payload_bytes",
+                        PyLong_FromUnsignedLong (hdr->payload_bytes));
+  PyDict_SetItemString (header, "version", PyLong_FromLong (hdr->version));
 
   return Py_BuildValue ("(NN)", arr, header);
 }
@@ -318,7 +323,13 @@ Publisher_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
                                     &sample_type))
     return NULL;
 
-  if (!dp_sample_type_is_valid ((dp_sample_type_t)sample_type))
+  /* TLM16 is a frame KIND, not a sample format, and it arrives in the same
+     argument slot because "what does this socket publish" is one question
+     to a caller. The two vocabularies cannot collide: a BLUE code is two
+     ASCII characters packed into 16 bits, so every one of them is >= 0x4200,
+     while DP_KIND_TLM is 1. */
+  const int tlm = (sample_type == DP_KIND_TLM);
+  if (!tlm && !dp_sample_type_is_valid ((dp_sample_type_t)sample_type))
     {
       PyErr_SetString (PyExc_ValueError, "Invalid sample_type");
       return NULL;
@@ -328,7 +339,8 @@ Publisher_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
   if (!self)
     return NULL;
 
-  self->ctx = dp_pub_create (endpoint, (dp_sample_type_t)sample_type);
+  self->ctx = tlm ? dp_pub_create_tlm (endpoint)
+                  : dp_pub_create (endpoint, (dp_sample_type_t)sample_type);
   if (!self->ctx)
     {
       Py_DECREF (self);
@@ -345,7 +357,7 @@ Publisher_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static PyObject *
 Publisher_send (PublisherObject *self, PyObject *args, PyObject *kwds)
 {
-  if (self->sample_type == TLM16)
+  if (self->sample_type == DP_KIND_TLM)
     {
       /* Telemetry frames: a structured array of 16-byte records (the
        * dtype Telemetry.read() returns) published verbatim. PUB-only —
@@ -568,7 +580,7 @@ Push_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
                                     &sample_type))
     return NULL;
 
-  if (!dp_sample_type_is_iq ((dp_sample_type_t)sample_type))
+  if (!dp_sample_type_is_valid ((dp_sample_type_t)sample_type))
     {
       PyErr_SetString (PyExc_ValueError, "Invalid sample_type");
       return NULL;
@@ -810,7 +822,7 @@ Requester_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
                                     &sample_type))
     return NULL;
 
-  if (!dp_sample_type_is_iq ((dp_sample_type_t)sample_type))
+  if (!dp_sample_type_is_valid ((dp_sample_type_t)sample_type))
     {
       PyErr_SetString (PyExc_ValueError, "Invalid sample_type");
       return NULL;
@@ -928,7 +940,7 @@ Replier_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
                                     &sample_type))
     return NULL;
 
-  if (!dp_sample_type_is_iq ((dp_sample_type_t)sample_type))
+  if (!dp_sample_type_is_valid ((dp_sample_type_t)sample_type))
     {
       PyErr_SetString (PyExc_ValueError, "Invalid sample_type");
       return NULL;
@@ -1100,7 +1112,7 @@ PyInit_stream (void)
   PyModule_AddIntConstant (m, "CI8", CI8);
   PyModule_AddIntConstant (m, "CI16", CI16);
   PyModule_AddIntConstant (m, "CF32", CF32);
-  PyModule_AddIntConstant (m, "TLM16", TLM16);
+  PyModule_AddIntConstant (m, "TLM16", DP_KIND_TLM);
 
   return m;
 }

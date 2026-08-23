@@ -5,6 +5,7 @@
  * checks are that pacing actually waits ~n/fs, that the stamp arithmetic is
  * exact, and that underruns are counted / resync re-anchors.
  */
+#include "dp_interrupt.h"
 #include "dp_test.h"
 #include "timing/timing_core.h"
 
@@ -190,6 +191,61 @@ test_track_rejects_stale (void)
   return 0;
 }
 
+/* The pacing sleep must give up when the process is interrupted.
+ *
+ * This is the fix for the defect that made `wfmgen --continuous --realtime`
+ * ignore Ctrl+C: sleep_until_mono_ns() retries on EINTR by design -- correct
+ * for drift-free pacing, and a wait no signal could end. Paced against a low
+ * sample rate the sleep is seconds long, so the interrupt was swallowed
+ * whole. Measured before the fix: the same run without --realtime exited in
+ * 3 ms, with it, never.
+ *
+ * Pinned as a DEADLINE rather than a duration: the claim is "returns without
+ * serving the full interval", and one second against a sixteen-second sleep
+ * is unambiguous on the slowest CI box. */
+static int
+test_pace_returns_when_interrupted (void)
+{
+  dp_sample_clock_t c;
+  /* 16 samples/second, so one 256-sample block is a 16 SECOND pace. Nothing
+     but the interrupt can bring this back quickly. */
+  dp_sample_clock_init (&c, 16.0, 0);
+
+  /* First call establishes the epoch and does not sleep. */
+  (void)dp_sample_clock_pace (&c, 1);
+
+  dp_interrupt ();
+  uint64_t t0 = dp_mono_ns ();
+  (void)dp_sample_clock_pace (&c, 256);
+  uint64_t elapsed_ms = (dp_mono_ns () - t0) / 1000000ULL;
+  dp_resume ();
+
+  DP_CHECK_MSG (elapsed_ms < 1000,
+                "an interrupted pace must abandon its deadline, not serve "
+                "the full 16 s interval");
+  return 0;
+}
+
+/* ...and must NOT give up when it has not been interrupted, or the fix
+   would be "pacing no longer paces", which the test above cannot tell
+   apart from a working one. */
+static int
+test_pace_still_waits_when_not_interrupted (void)
+{
+  dp_sample_clock_t c;
+  dp_sample_clock_init (&c, 1000.0, 0); /* 1 kHz: 100 samples = 100 ms */
+  (void)dp_sample_clock_pace (&c, 1);
+
+  dp_resume ();
+  uint64_t t0 = dp_mono_ns ();
+  (void)dp_sample_clock_pace (&c, 100);
+  uint64_t elapsed_ms = (dp_mono_ns () - t0) / 1000000ULL;
+
+  DP_CHECK_MSG (elapsed_ms >= 50,
+                "an uninterrupted pace must still serve its interval");
+  return 0;
+}
+
 int
 main (void)
 {
@@ -213,6 +269,13 @@ main (void)
     return 1;
   if (test_track_rejects_stale ())
     return 1;
-  printf ("test_timing_core: all passed\n");
-  return 0;
+  if (test_pace_returns_when_interrupted ())
+    return 1;
+  if (test_pace_still_waits_when_not_interrupted ())
+    return 1;
+  /* Through the harness, not `return 0`: DP_CHECK records a failure and
+     continues, so a main() that returns 0 on its own can print FAIL and
+     still exit success. This file did, until the two pace checks above
+     were added and one of them failed silently. */
+  DP_TEST_END ("test_timing_core");
 }

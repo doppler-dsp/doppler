@@ -26,8 +26,15 @@
     end. Paced against a low sample rate that sleep is seconds long, so the
     interrupt was swallowed entirely: measured, `--continuous --realtime`
     never exited, while the same run without `--realtime` exited in 3 ms.
-    The sleep now gives up when the process is interrupted. Same shape as
-    the ring's spin and the blocking recv, in a third place —
+    The sleep is now **sliced**, with the flag checked between slices, at
+    the same `dp_interrupt_latency_ms()` cadence the NATS wait uses. The
+    first attempt only checked where `clock_nanosleep` returns `EINTR`,
+    which works when a signal happens to land and not at all when a caller
+    simply sets the flag — no signal, no `EINTR`, no check. It also has
+    `SA_RESTART` against it: Linux restarts an absolute `clock_nanosleep`
+    by itself under that flag. Slicing makes the bound a property of the
+    code rather than of whether a signal arrived. Same shape as the ring's
+    spin and the blocking recv, in a third place —
     `docs/design/io-termination.md` predicted the class, not this instance.
 
     After: 3 ms to exit, 3/3, exit 0, capture readable, on both paths.

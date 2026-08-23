@@ -22,6 +22,7 @@ without either, the same way the C round-trip tests do.
 from __future__ import annotations
 
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -107,14 +108,35 @@ def test_receiver_stops_on_sigint_after_the_sender_has_stopped() -> None:
 
     rcv, rx_out = _start("receiver")
     time.sleep(1.0)
-    tx, _tx_out = _start("transmitter")
+    tx, tx_out = _start("transmitter")
 
-    # Let the wire actually move before anything is interrupted, so a pair
-    # that exchanges nothing cannot pass this by exiting promptly.
+    # Wait for the SENDER to say it is up before anything is interrupted.
+    # Its banner is printed after `signal(SIGINT, ...)` in main(), so the
+    # line is proof the handler is installed -- and that is the whole
+    # point: a signal delivered before then is not ignored, it KILLS the
+    # process (exit -2) while it is still in the dynamic linker, which no
+    # amount of handler code can prevent. Waiting on the receiver alone
+    # could not tell: `Packets:` matched the dashboard's own `Packets: 0`
+    # and any traffic another test left on the subject, so the wait
+    # returned instantly and this test interrupted a process that had not
+    # started executing. It failed on 2 of 7 Python versions in CI and on
+    # nothing locally, which is what a millisecond-wide race looks like.
     deadline = time.monotonic() + 20.0
     try:
         while time.monotonic() < deadline:
-            if any("Packets:" in ln for ln in rx_out):
+            if any("Waiting" in ln for ln in tx_out):
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail(
+                f"transmitter never started\n{''.join(tx_out)[-1500:]}"
+            )
+
+        # THEN let the wire actually move, so a pair that exchanges nothing
+        # cannot pass this by exiting promptly. A non-zero count is the
+        # evidence -- `Packets:` alone matches the idle dashboard.
+        while time.monotonic() < deadline:
+            if any(re.search(r"Packets: +[1-9]", ln) for ln in rx_out):
                 break
             time.sleep(0.05)
         else:

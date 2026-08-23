@@ -1088,6 +1088,13 @@ emit_to_stream (const emit_ctx_t *e)
                         wfm_stream_sink_clip_fraction (sink), o->sample_type,
                         o->headroom, o->clip_report, o->clip_error);
 
+  /* Say the stream has ended BEFORE draining. The order matters: a drain
+     cannot be reversed and refuses sends once it reaches its
+     publish-flushing phase, so an EOS issued after one may simply not go.
+     Without this a subscriber has only silence to go on, and silence is
+     exactly what it cannot interpret. */
+  (void)wfm_stream_sink_send_eos (sink);
+
   /* Drain BEFORE close, on every exit -- interrupted or finished. A send
      returns once the client has the block, not once the server does, so
      closing without this leaves the tail to the client's own best-effort

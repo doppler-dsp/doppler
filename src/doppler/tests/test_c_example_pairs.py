@@ -25,6 +25,7 @@ import os
 import signal
 import socket
 import subprocess
+import threading
 import time
 
 import pytest
@@ -51,10 +52,19 @@ def _broker_reachable(host: str = "127.0.0.1", port: int = 4222) -> bool:
         return False
 
 
-def _start(name: str) -> subprocess.Popen:
-    """Run one example in its own process group, so a signal can be sent
-    to the group exactly as a terminal's Ctrl+C would deliver it."""
-    return subprocess.Popen(
+def _start(name: str) -> tuple[subprocess.Popen, list[str]]:
+    """Run one example in its own process group, draining its output.
+
+    Two things, and the second is not optional. The process group is so a
+    signal reaches it exactly as a terminal's Ctrl+C would. The drain
+    thread is because a dashboard prints a screen per frame: a pipe nobody
+    reads fills in well under a second, and the example then blocks in
+    write() rather than in recv() -- at which point this test proves
+    nothing about the interrupt and hangs on a full buffer instead. CI
+    found that, having passed locally, which is the usual way round for a
+    race decided by how fast the reader is.
+    """
+    proc = subprocess.Popen(
         [str(BIN / name)],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -62,6 +72,15 @@ def _start(name: str) -> subprocess.Popen:
         text=True,
         start_new_session=True,
     )
+    sink: list[str] = []
+
+    def pump() -> None:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            sink.append(line)
+
+    threading.Thread(target=pump, daemon=True).start()
+    return proc, sink
 
 
 def _interrupt(proc: subprocess.Popen) -> None:
@@ -86,23 +105,20 @@ def test_receiver_stops_on_sigint_after_the_sender_has_stopped() -> None:
     if not _broker_reachable():
         pytest.skip("two-process C example: no NATS broker on :4222")
 
-    rcv = _start("receiver")
+    rcv, rx_out = _start("receiver")
     time.sleep(1.0)
-    tx = _start("transmitter")
+    tx, _tx_out = _start("transmitter")
 
     # Let the wire actually move before anything is interrupted, so a pair
     # that exchanges nothing cannot pass this by exiting promptly.
     deadline = time.monotonic() + 20.0
-    rx_text = ""
     try:
         while time.monotonic() < deadline:
-            assert rcv.stdout is not None
-            line = rcv.stdout.readline()
-            rx_text += line
-            if "Packets:" in line:
+            if any("Packets:" in ln for ln in rx_out):
                 break
+            time.sleep(0.05)
         else:
-            pytest.fail(f"receiver saw no packets\n{rx_text[-1500:]}")
+            pytest.fail(f"receiver saw no packets\n{''.join(rx_out)[-1500:]}")
 
         # The sender stops FIRST. From here the receiver's recv has nothing
         # to return, which is where an unbounded wait becomes a hang.

@@ -265,6 +265,7 @@ nav:
       - State Serialization: design/state-serialization.md
       - Telemetry: design/telemetry.md
       - Streaming: design/streaming.md
+      - Ending a Wait: design/io-termination.md
       - DSSS Acquisition: design/dsss-acquisition.md
       - Async DSSS Receiver Spec: design/async-dsss-spec.md
       - Async Symbol Despreader: design/async-symbol-despreader.md

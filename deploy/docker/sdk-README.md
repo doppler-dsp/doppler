@@ -6,7 +6,7 @@ the static *and* shared library, the CMake package config and the pkg-config
 dev toolchain (gcc, cmake, make), `uv`, and the pinned `just-makeit` are all
 on `PATH`.
 
-Under `examples/` are four real consumers, smallest first:
+Four real consumers ship in the image, smallest first:
 
 | Path                           | What it shows                                                                                                                |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |

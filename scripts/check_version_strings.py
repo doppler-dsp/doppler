@@ -70,10 +70,11 @@ def main() -> int:
     # writing today's release into a `curl` line. A page nobody scans is where
     # the rot this gate exists to stop goes to hide. Their own build trees are
     # skipped; nothing generated lives there.
-    for page in sorted((ROOT / "examples").rglob("*.md")):
-        if "build" in page.relative_to(ROOT).parts:
-            continue
-        pages.append(page)
+    for root in ("examples", "example-projects"):
+        for page in sorted((ROOT / root).rglob("*.md")):
+            if "build" in page.relative_to(ROOT).parts:
+                continue
+            pages.append(page)
 
     hits: list[str] = []
     for page in pages:

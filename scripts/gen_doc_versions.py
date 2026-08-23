@@ -86,7 +86,7 @@ def pages() -> list[Path]:
     directory can contain copies of its own README.
     """
     out: list[Path] = [ROOT / "README.md"]
-    for root in ("docs", "examples"):
+    for root in ("docs", "examples", "example-projects"):
         for page in sorted((ROOT / root).rglob("*.md")):
             if "build" in page.relative_to(ROOT).parts:
                 continue

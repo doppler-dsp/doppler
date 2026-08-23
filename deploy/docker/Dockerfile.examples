@@ -92,7 +92,9 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
 # which is the point. doppler is on the default find_package path, so each
 # example configures with no -Ddoppler_DIR.
 FROM dev-base AS sdk
-COPY examples/ /workspace/examples/
+COPY example-projects/ /workspace/example-projects/
+COPY native/examples/ /workspace/native/examples/
+COPY examples/downstream-jm/ /workspace/examples/downstream-jm/
 COPY deploy/docker/sdk-README.md /workspace/README.md
 WORKDIR /workspace
 CMD ["/bin/bash"]

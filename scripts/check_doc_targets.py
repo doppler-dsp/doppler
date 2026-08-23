@@ -81,7 +81,7 @@ def real_targets() -> set[str]:
 
 def pages() -> list[Path]:
     out = [ROOT / "README.md", ROOT / "CONTRIBUTING.md"]
-    for root in ("docs", "examples"):
+    for root in ("docs", "examples", "example-projects"):
         for page in sorted((ROOT / root).rglob("*.md")):
             if SKIP_PARTS.intersection(page.relative_to(ROOT).parts):
                 continue

@@ -82,7 +82,7 @@ PAIR_REGISTRY = EXAMPLES_DIR / ".examples-pairs"
 # Examples living outside src/doppler/examples/ that are part of the
 # same guarantee. The standalone example is the "pip install + one file"
 # story the install docs tell.
-EXTRA_EXAMPLES = [REPO / "examples" / "standalone" / "example.py"]
+EXTRA_EXAMPLES = [REPO / "example-projects" / "standalone" / "example.py"]
 
 # Wall-clock ceiling per example. The slowest legitimate examples are
 # Monte-Carlo characterization runs; anything past this is a hang (a

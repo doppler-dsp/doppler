@@ -11,6 +11,7 @@
 _Asking a blocking wait to stop, whatever it is waiting on._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include <signal.h>`
 * `#include <stddef.h>`
 
 
@@ -27,6 +28,11 @@ _Asking a blocking wait to stop, whatever it is waiting on._ [More...](#detailed
 
 
 
+## Classes
+
+| Type | Name |
+| ---: | :--- |
+| struct | [**dp\_interrupt\_state\_t**](structdp__interrupt__state__t.md) <br>_Ask every blocking wait in this process to stop._  |
 
 
 
@@ -53,9 +59,11 @@ _Asking a blocking wait to stop, whatever it is waiting on._ [More...](#detailed
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**dp\_interrupt**](#function-dp_interrupt) (void) <br>_Ask every blocking wait in this process to stop._  |
+|  void | [**dp\_interrupt**](#function-dp_interrupt) (void) <br> |
+|  int | [**dp\_interrupt\_bind**](#function-dp_interrupt_bind) ([**dp\_interrupt\_state\_t**](structdp__interrupt__state__t.md) \* shared) <br>_Adopt another translation unit's interrupt state as this one's._  |
 |  unsigned | [**dp\_interrupt\_latency\_ms**](#function-dp_interrupt_latency_ms) (void) <br>_The interrupt latency in force._  |
 |  int | [**dp\_interrupt\_on\_signal**](#function-dp_interrupt_on_signal) (int sig) <br>_Install a handler for_ `sig` _that calls_[_**dp\_interrupt()**_](dp__interrupt_8h.md#function-dp_interrupt) _._ |
+|  [**dp\_interrupt\_state\_t**](structdp__interrupt__state__t.md) \* | [**dp\_interrupt\_state**](#function-dp_interrupt_state) (void) <br>_This translation unit's interrupt state._  |
 |  int | [**dp\_interrupted**](#function-dp_interrupted) (void) <br>_Non-zero when an interrupt is pending._  |
 |  int | [**dp\_restore\_signal**](#function-dp_restore_signal) (int sig) <br>_Put back whatever handler_ [_**dp\_interrupt\_on\_signal()**_](dp__interrupt_8h.md#function-dp_interrupt_on_signal) _displaced._ |
 |  void | [**dp\_resume**](#function-dp_resume) (void) <br>_Clear the interrupt, so blocking waits block again._  |
@@ -114,7 +122,6 @@ See `docs/design/io-termination.md` for the contract this is one third of; the o
 
 ### function dp\_interrupt 
 
-_Ask every blocking wait in this process to stop._ 
 ```C++
 void dp_interrupt (
     void
@@ -123,18 +130,40 @@ void dp_interrupt (
 
 
 
-Assigns to a `volatile sig_atomic_t` and does nothing else, which is the only thing the C standard promises can be done from a signal handler without tearing — and being callable from a handler is the entire point of this API.
 
-
-The flag is **sticky**: one handler firing may have to release several parked loops, so it stays set until [**dp\_resume()**](dp__interrupt_8h.md#function-dp_resume) clears it.
+<hr>
 
 
 
+### function dp\_interrupt\_bind 
+
+_Adopt another translation unit's interrupt state as this one's._ 
 ```C++
-static void on_sigint (int sig) { (void)sig; dp_interrupt (); }
-signal (SIGINT, on_sigint);
+int dp_interrupt_bind (
+    dp_interrupt_state_t * shared
+) 
 ```
- 
+
+
+
+A Python extension links this file statically, so each module gets its own flag and a stop in one cannot reach a wait in another (doppler#976). One module owns the state; every other calls this at IMPORT, once, before any handler is installed  which is what makes the pointer safe to dereference from one.
+
+
+
+
+**Parameters:**
+
+
+* `shared` State to adopt; NULL is [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID. 
+
+
+
 
 
         
@@ -202,6 +231,26 @@ DP\_OK, or [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) if t
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_interrupt\_state 
+
+_This translation unit's interrupt state._ 
+```C++
+dp_interrupt_state_t * dp_interrupt_state (
+    void
+) 
+```
+
+
+
+The owner exports it; see [**dp\_interrupt\_bind()**](dp__interrupt_8h.md#function-dp_interrupt_bind). 
 
 
         

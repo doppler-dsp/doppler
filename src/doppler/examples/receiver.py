@@ -22,12 +22,14 @@ import signal
 import sys
 import time
 
+import numpy as np
+
+from doppler.interrupt import Interrupt
 from doppler.stream import (
     CF64,
     Subscriber,
     format_name,
     get_timestamp_ns,
-    interrupt_on_sigint,
     mean_power,
 )
 
@@ -84,12 +86,15 @@ def main() -> None:
     lat_max_ms = 0.0
 
     # No timeout on recv(): it BLOCKS, which is what a dashboard wants --
-    # it has nothing to do between frames. That is only safe because
-    # interrupt_on_sigint() is holding a C-level handler that unblocks the
-    # wait; a Python handler cannot, because it runs only when the
-    # interpreter regains control and the blocking recv is what prevents
-    # that. SIGTERM is included so a container stop behaves like a Ctrl+C.
-    with Subscriber(args.endpoint) as sub, interrupt_on_sigint(signal.SIGTERM):
+    # it has nothing to do between frames. That is only safe because the
+    # Interrupt guard is holding a C-level handler that unblocks the wait;
+    # a Python handler cannot, because it runs only when the interpreter
+    # regains control and the blocking recv is what prevents that. SIGTERM
+    # is included so a container stop behaves like a Ctrl+C -- and both are
+    # named, where the retired interrupt_on_sigint() folded SIGINT in
+    # silently.
+    stop_on = np.array([signal.SIGINT, signal.SIGTERM], dtype=np.int32)
+    with Subscriber(args.endpoint) as sub, Interrupt(stop_on):
         while True:
             try:
                 samples, hdr = sub.recv()

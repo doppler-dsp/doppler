@@ -66,3 +66,8 @@ doc = "Non-zero once a stop has been requested."
 name = "resume"
 return_type = "void"
 doc = "Clear the flag so waits proceed again."
+
+[[dp_interrupt_guard.methods]]
+name = "latency_ms"
+return_type = "uint32_t"
+doc = "The wait slice every blocking wait in this process uses."

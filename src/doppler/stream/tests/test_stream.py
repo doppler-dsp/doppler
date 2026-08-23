@@ -292,6 +292,21 @@ def test_flush_makes_the_send_observable():
 # ------------------------------------------------------------------ #
 
 
+def _guard(latency_ms: int = 0):
+    """A guard that arms no handlers -- a handle to the process-wide flag.
+
+    The interrupt moved to `doppler.interrupt.Interrupt`; `doppler.stream`
+    no longer re-exports it. These tests stay here because what they pin
+    is the STREAM's half of the contract -- that a blocked recv() honours
+    the flag -- not the flag itself, which test_dp_interrupt_guard.py has.
+    """
+    import numpy as np
+
+    from doppler.interrupt import Interrupt
+
+    return Interrupt(np.array([], dtype=np.int32), latency_ms=latency_ms)
+
+
 def test_interrupt_unblocks_a_blocking_recv():
     """A blocked recv() must come back when asked, not when a frame does.
 
@@ -302,11 +317,11 @@ def test_interrupt_unblocks_a_blocking_recv():
     """
     import threading
 
-    doppler.stream.resume()
+    it = _guard()
     sub = Subscriber(_unique_endpoint())
     time.sleep(0.05)
 
-    timer = threading.Timer(0.4, doppler.stream.interrupt)
+    timer = threading.Timer(0.4, it.interrupt)
     timer.start()
     t0 = time.monotonic()
     try:
@@ -321,12 +336,12 @@ def test_interrupt_unblocks_a_blocking_recv():
             sub.recv()
 
         # And receiving works again once cleared.
-        doppler.stream.resume()
+        it.resume()
         with pytest.raises(TimeoutError):
             sub.recv(timeout_ms=200)
     finally:
         timer.join()
-        doppler.stream.resume()
+        it.resume()
         sub.close()
 
 
@@ -341,14 +356,15 @@ def test_interrupt_latency_is_the_callers_to_set():
     """
     import threading
 
-    assert doppler.stream.interrupt_latency_ms() > 0
-    doppler.stream.set_interrupt_latency_ms(10)
-    assert doppler.stream.interrupt_latency_ms() == 10
+    baseline = _guard()
+    assert baseline.latency_ms() > 0
+
+    it = _guard(latency_ms=10)
+    assert it.latency_ms() == 10
     try:
-        doppler.stream.resume()
         sub = Subscriber(_unique_endpoint())
         time.sleep(0.05)
-        timer = threading.Timer(0.2, doppler.stream.interrupt)
+        timer = threading.Timer(0.2, it.interrupt)
         timer.start()
         t0 = time.monotonic()
         with pytest.raises(KeyboardInterrupt):
@@ -357,30 +373,35 @@ def test_interrupt_latency_is_the_callers_to_set():
         assert time.monotonic() - t0 < 2.0
         sub.close()
     finally:
-        doppler.stream.set_interrupt_latency_ms(0)  # 0 = restore the default
-        doppler.stream.resume()
-    assert doppler.stream.interrupt_latency_ms() == 100
+        it.resume()
+
+    # The override is the guard's, and dies with it.
+    del it
+    assert baseline.latency_ms() == 100
 
 
-def test_interrupt_on_sigint_scopes_the_latency_to_the_block():
-    before = doppler.stream.interrupt_latency_ms()
-    with doppler.stream.interrupt_on_sigint(latency_ms=5):
-        assert doppler.stream.interrupt_latency_ms() == 5
-    assert doppler.stream.interrupt_latency_ms() == before
+def test_a_guard_scopes_the_latency_to_its_lifetime():
+    before = _guard().latency_ms()
+    with _guard(latency_ms=5) as inner:
+        assert inner.latency_ms() == 5
+    assert _guard().latency_ms() == before
 
 
-def test_interrupt_on_sigint_restores_the_previous_handler():
-    """The context manager leaves the process as it found it."""
+def test_arming_sigint_leaves_pythons_view_of_the_handler_alone():
+    """The guard installs underneath Python's handler and chains to it."""
     import signal as _signal
 
+    import numpy as np
+
+    from doppler.interrupt import Interrupt
+
     before = _signal.getsignal(_signal.SIGINT)
-    with doppler.stream.interrupt_on_sigint():
-        assert not doppler.stream.interrupted()
-    # Python's view of the handler is untouched -- ours is installed at the
-    # C level underneath it and chains to whatever was there, which is what
+    with Interrupt(np.array([_signal.SIGINT], dtype=np.int32)) as it:
+        assert not it.interrupted()
+    # Ours is installed at the C level underneath Python's, which is what
     # keeps Ctrl+C working outside a receive.
     assert _signal.getsignal(_signal.SIGINT) is before
-    assert not doppler.stream.interrupted()
+    assert not _guard().interrupted()
 
 
 # ------------------------------------------------------------------ #

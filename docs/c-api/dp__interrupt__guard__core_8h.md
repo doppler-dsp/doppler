@@ -64,6 +64,7 @@
 |  void | [**dp\_interrupt\_guard\_destroy**](#function-dp_interrupt_guard_destroy) ([**dp\_interrupt\_guard\_t**](dp__interrupt__guard__core_8h.md#typedef-dp_interrupt_guard_t) \* guard) <br>_Restore every handler and latency this guard changed._  |
 |  void | [**dp\_interrupt\_guard\_interrupt**](#function-dp_interrupt_guard_interrupt) ([**dp\_interrupt\_guard\_t**](dp__interrupt__guard__core_8h.md#typedef-dp_interrupt_guard_t) \* guard) <br>_Ask every blocking wait in this process to stop._  |
 |  int | [**dp\_interrupt\_guard\_interrupted**](#function-dp_interrupt_guard_interrupted) (const [**dp\_interrupt\_guard\_t**](dp__interrupt__guard__core_8h.md#typedef-dp_interrupt_guard_t) \* guard) <br>_Non-zero once a stop has been requested._  |
+|  uint32\_t | [**dp\_interrupt\_guard\_latency\_ms**](#function-dp_interrupt_guard_latency_ms) (const [**dp\_interrupt\_guard\_t**](dp__interrupt__guard__core_8h.md#typedef-dp_interrupt_guard_t) \* guard) <br>_The wait slice every blocking wait in this process uses._  |
 |  void | [**dp\_interrupt\_guard\_resume**](#function-dp_interrupt_guard_resume) ([**dp\_interrupt\_guard\_t**](dp__interrupt__guard__core_8h.md#typedef-dp_interrupt_guard_t) \* guard) <br>_Clear the flag so waits proceed again._  |
 
 
@@ -285,6 +286,51 @@ Non-zero if interrupted.
 >>> it.interrupt()
 >>> it.interrupted()
 1
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_interrupt\_guard\_latency\_ms 
+
+_The wait slice every blocking wait in this process uses._ 
+```C++
+uint32_t dp_interrupt_guard_latency_ms (
+    const dp_interrupt_guard_t * guard
+) 
+```
+
+
+
+The readback for the constructor's `latency_ms`, and it reads the PROCESS setting rather than what this guard asked for  those differ when the guard passed 0, which means "leave it alone". A value a caller can set and not read back is a value they cannot reason about.
+
+
+
+
+**Parameters:**
+
+
+* `guard` Guard; NULL reads the process setting anyway. 
+
+
+
+**Returns:**
+
+Milliseconds.
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.interrupt import Interrupt
+>>> it = Interrupt(np.array([], dtype=np.int32), latency_ms=25)
+>>> it.latency_ms()
+25
 ```
  
 

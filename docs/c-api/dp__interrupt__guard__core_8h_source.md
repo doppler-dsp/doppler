@@ -49,6 +49,8 @@ extern "C"
 
   void dp_interrupt_guard_resume (dp_interrupt_guard_t *guard);
 
+  uint32_t dp_interrupt_guard_latency_ms (const dp_interrupt_guard_t *guard);
+
 #ifdef __cplusplus
 }
 #endif

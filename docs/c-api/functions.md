@@ -1454,6 +1454,7 @@
 * **wfm\_stream\_sink\_open** ([**wfm\_sink.h**](wfm__sink_8h.md))
 * **wfm\_stream\_sink\_peak** ([**wfm\_sink.h**](wfm__sink_8h.md))
 * **wfm\_stream\_sink\_send** ([**wfm\_sink.h**](wfm__sink_8h.md))
+* **wfm\_stream\_sink\_send\_eos** ([**wfm\_sink.h**](wfm__sink_8h.md))
 * **wfm\_stream\_sink\_set\_gain** ([**wfm\_sink.h**](wfm__sink_8h.md))
 * **wfm\_stream\_sink\_track\_clipping** ([**wfm\_sink.h**](wfm__sink_8h.md))
 * **wfm\_j1950\_to\_unix\_ns** ([**wfm\_time.h**](wfm__time_8h.md))

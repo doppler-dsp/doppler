@@ -7,11 +7,12 @@ Shows:
                            Gaussian shape
   3. White spectrum      — PSD flat to within thermal noise floor
   4. Seeding             — deterministic replay via reset() / reseed()
-  5. Spectral plot       — histogram + Welch PSD + noisy carrier saved to
-                           docs/assets/awgn_demo.png
+  5. Spectral plot       — histogram + Welch PSD + noisy carrier saved as
+                           awgn_demo.png in the current directory
+                           (`make gallery` moves it to docs/assets/)
 
 Run:
-  python examples/python/awgn_demo.py
+  python src/doppler/examples/awgn_demo.py
 """
 
 from __future__ import annotations
@@ -247,7 +248,7 @@ for ax in (ax_hist, ax_psd, ax_sig):
         spine.set_edgecolor(GRID_COL)
     ax.tick_params(colors=LABEL_COL)
 
-out_path = pathlib.Path("docs/assets/awgn_demo.png")
+out_path = pathlib.Path("awgn_demo.png")
 fig.savefig(out_path, dpi=150, bbox_inches="tight")
 plt.close(fig)
 print(f"  Saved {out_path}")

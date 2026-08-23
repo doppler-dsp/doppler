@@ -137,11 +137,15 @@ def test_example_runs(script: Path, tmp_path: Path) -> None:
         else:
             pytest.skip(f"registry: {reason}")
 
-    # A couple of gallery scripts save their figure straight to the
-    # relative path docs/assets/ (that is how `make gallery` refreshes
-    # the committed figures); give the throwaway cwd that directory so
-    # they run anywhere without touching the repo's copy.
-    (tmp_path / "docs" / "assets").mkdir(parents=True)
+    # The throwaway cwd is deliberately BARE -- an example writes its
+    # figure as a plain filename into whatever directory it is run from,
+    # and `make gallery` does the moving into docs/assets/. This harness
+    # used to mkdir docs/assets/ here, which made the one script that
+    # hard-coded that prefix (awgn_demo.py) pass the gate while it could
+    # not run anywhere else: the published runtime image's own documented
+    # command, `docker run ... python awgn_demo.py`, died on
+    # FileNotFoundError (gh-954). Creating the directory an example
+    # expects is accommodating the defect, not testing for it.
 
     env = dict(os.environ, MPLBACKEND="Agg")
     proc = subprocess.run(

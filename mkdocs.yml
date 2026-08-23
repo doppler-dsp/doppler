@@ -232,6 +232,7 @@ nav:
       - "Python: Acquire (CarrierAcquisition)": api/python-acquire.md
       - "Python: SNR": api/python-snr.md
       - "Python: Streaming": api/python-streaming.md
+      - "Python: Interrupt": api/python-interrupt.md
       - "Python: Buffer": api/python-buffer.md
       - "Python: Telemetry": api/python-telemetry.md
       - "Python: Delay": api/python-delay.md

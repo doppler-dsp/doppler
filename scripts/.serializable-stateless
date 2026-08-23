@@ -64,3 +64,10 @@ syncword
 # same ReedSolomon again. (The INTERLEAVER a standard wraps around it does
 # carry position, but that lives in the frame assembler, not here.)
 rs_codec
+# Interrupt guard — its state is process-local RESOURCE OWNERSHIP (which
+# signal handlers it installed, the latency it overrode), not running DSP
+# state. A blob saying "I hold SIGINT" restored in another process would be
+# a claim about handlers that process never installed, so the triplet would
+# be actively wrong rather than merely absent. The flag it fronts is
+# process-wide and outlives any guard.
+dp_interrupt_guard

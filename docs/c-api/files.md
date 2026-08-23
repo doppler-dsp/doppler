@@ -112,6 +112,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**dll\_core.h**](dll__core_8h.md) _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._     
         * **dir** [**doppler\_channel**](dir_597302de6cb0d177e5e89858f2abab7e.md)     
             * **file** [**doppler\_channel\_core.h**](doppler__channel__core_8h.md) _Clock Doppler as a propagation impairment: dilate the time base and shift the carrier, coherently, from one physical parameter._     
+        * **dir** [**dp\_interrupt\_guard**](dir_001936014fd0d8bf32545bf8d71a57c6.md)     
+            * **file** [**dp\_interrupt\_guard\_core.h**](dp__interrupt__guard__core_8h.md)     
         * **dir** [**dp\_tlm**](dir_76b7d6d4427bc094138fa987d2f2ac6b.md)     
             * **file** [**dp\_tlm\_core.h**](dp__tlm__core_8h.md) _Lightweight scalar telemetry taps for running DSP objects._     
         * **dir** [**dp\_tlm\_capture**](dir_c53721efa35f9e05ec164f1aacd6bf30.md)     
@@ -167,6 +169,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**interp\_core.h**](interp__core_8h.md) _Interp module — public C API._ 
         * **dir** [**interp\_table**](dir_532d1478dbb04668a5390572613675ee.md)     
             * **file** [**interp\_table\_core.h**](interp__table__core_8h.md) _Periodically-extended interpolated lookup table._     
+        * **dir** [**interrupt**](dir_c129c9820da25930d499ea809db42198.md)     
+            * **file** [**interrupt\_core.h**](interrupt__core_8h.md) _Interrupt module — public C API._ 
         * **dir** [**lo**](dir_e3bbeba8c021d4d74db794db08bafd77.md)     
             * **file** [**lo\_core.h**](lo__core_8h.md) _Local oscillator: NCO + 2^16 sin/cos LUT → CF32 phasors._     
         * **dir** [**lockdet**](dir_87531a87e500e672b7d093c5682794b4.md)     

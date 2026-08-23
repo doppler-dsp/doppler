@@ -1,0 +1,68 @@
+# dp_interrupt_guard — the object face of the process-wide interrupt flag.
+#
+# The COMPONENT is `dp_interrupt_guard`, not `interrupt`, and that is what
+# makes this declarable at all. jm derives every C symbol from the component
+# name (`<comp>_create`, `<comp>_<method>`) with NO override available on a
+# module function -- so a free-function spelling would have forced either
+# `doppler.interrupt.dp_interrupt()` or a rename of the C to bare
+# `interrupt()`/`resume()`, polluting the namespace the dp_ prefix exists to
+# protect. Naming the component after the C prefix means not one function is
+# renamed, and `class_name` puts the Python face where a caller wants it.
+# Same trick, same reason, as objects/dp_tlm.toml.
+#
+# The three methods take a guard they do not use. That is not an alias layer:
+# jm passes the handle as a method's first argument while the process-wide
+# functions take void, so these are the object's face onto a facility it does
+# not own. The header says so, and test_dp_interrupt.c pins that two guards
+# observe one flag.
+
+[dp_interrupt_guard]
+class_name = "Interrupt"
+# Object-level defaults for every method that does not override them. Absent
+# these jm falls back to float _Complex -- which the .pyi ignored (it honoured
+# the per-method `void`) while the BINDING did not, emitting
+# `float complex y = <a void call>`. The two faces disagreeing is the bug;
+# declaring the object's own types is the fix.
+arg_type = "void"
+return_type = "void"
+# The flag itself is dp_interrupt.c, a root-level primitive rather than a jm
+# component, so it arrives as an object library rather than a <name>_core
+# target -- the same spelling [module.timing] uses for it.
+extra_link_libs = ["$<TARGET_OBJECTS:dp_interrupt_obj>"]
+# Opaque heap state jm cannot infer, and no per-sample step: this is a
+# lifecycle, not a DSP object.
+no_state = "true"
+no_step = "true"
+# Nothing to reset. The flag is not the guard's to clear -- destroy
+# deliberately leaves it set so a caller that was interrupted still sees it.
+no_reset = "true"
+create_error = "OSError"
+create_error_message = "cannot install a handler for one of the signals requested"
+
+[[dp_interrupt_guard.init_params]]
+name = "signals"
+type = "int32_t[]"
+doc = "Signals to install on; empty arms nothing and the guard is only a handle to the flag."
+
+[[dp_interrupt_guard.init_params]]
+name = "latency_ms"
+type = "uint32_t"
+default = "0"
+doc = "Wait-slice override; 0 leaves the process setting alone, and only a non-zero value is restored."
+
+[[dp_interrupt_guard.methods]]
+name = "interrupt"
+# Explicit, because a method with no return_type inherits the object's --
+# which for a DSP object is float _Complex, and rendered `-> complex`.
+return_type = "void"
+doc = "Ask every blocking wait in this process to stop."
+
+[[dp_interrupt_guard.methods]]
+name = "interrupted"
+return_type = "int"
+doc = "Non-zero once a stop has been requested."
+
+[[dp_interrupt_guard.methods]]
+name = "resume"
+return_type = "void"
+doc = "Clear the flag so waits proceed again."

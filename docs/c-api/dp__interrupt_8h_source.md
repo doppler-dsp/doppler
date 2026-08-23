@@ -23,6 +23,8 @@ extern "C"
 
 #define DP_INTERRUPT_LATENCY_DEFAULT_MS 100u
 
+#define DP_INTERRUPT_MAX_SIGNALS 8u
+
   void dp_interrupt (void);
 
   void dp_resume (void);
@@ -36,20 +38,6 @@ extern "C"
   int dp_interrupt_on_signal (int sig);
 
   int dp_restore_signal (int sig);
-
-  typedef struct dp_interrupt_guard dp_interrupt_guard_t;
-
-  dp_interrupt_guard_t *dp_interrupt_guard_create (const int *signals,
-                                                   size_t     n_signals,
-                                                   unsigned   latency_ms);
-
-  void dp_interrupt_guard_destroy (dp_interrupt_guard_t *guard);
-
-  void dp_interrupt_guard_interrupt (dp_interrupt_guard_t *guard);
-
-  int dp_interrupt_guard_interrupted (const dp_interrupt_guard_t *guard);
-
-  void dp_interrupt_guard_resume (dp_interrupt_guard_t *guard);
 
 #ifdef __cplusplus
 }

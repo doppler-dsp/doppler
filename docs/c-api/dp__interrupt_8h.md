@@ -29,11 +29,6 @@ _Asking a blocking wait to stop, whatever it is waiting on._ [More...](#detailed
 
 
 
-## Public Types
-
-| Type | Name |
-| ---: | :--- |
-| typedef struct dp\_interrupt\_guard | [**dp\_interrupt\_guard\_t**](#typedef-dp_interrupt_guard_t)  <br>_A scoped handle to the process-wide interrupt facility._  |
 
 
 
@@ -59,11 +54,6 @@ _Asking a blocking wait to stop, whatever it is waiting on._ [More...](#detailed
 | Type | Name |
 | ---: | :--- |
 |  void | [**dp\_interrupt**](#function-dp_interrupt) (void) <br>_Ask every blocking wait in this process to stop._  |
-|  [**dp\_interrupt\_guard\_t**](dp__interrupt_8h.md#typedef-dp_interrupt_guard_t) \* | [**dp\_interrupt\_guard\_create**](#function-dp_interrupt_guard_create) (const int \* signals, size\_t n\_signals, unsigned latency\_ms) <br>_Clear the flag, optionally install handlers, and remember what to undo._  |
-|  void | [**dp\_interrupt\_guard\_destroy**](#function-dp_interrupt_guard_destroy) ([**dp\_interrupt\_guard\_t**](dp__interrupt_8h.md#typedef-dp_interrupt_guard_t) \* guard) <br>_Restore every handler and latency this guard changed._  |
-|  void | [**dp\_interrupt\_guard\_interrupt**](#function-dp_interrupt_guard_interrupt) ([**dp\_interrupt\_guard\_t**](dp__interrupt_8h.md#typedef-dp_interrupt_guard_t) \* guard) <br>_Ask every blocking wait in this process to stop._  |
-|  int | [**dp\_interrupt\_guard\_interrupted**](#function-dp_interrupt_guard_interrupted) (const [**dp\_interrupt\_guard\_t**](dp__interrupt_8h.md#typedef-dp_interrupt_guard_t) \* guard) <br>_Non-zero once a stop has been requested._  |
-|  void | [**dp\_interrupt\_guard\_resume**](#function-dp_interrupt_guard_resume) ([**dp\_interrupt\_guard\_t**](dp__interrupt_8h.md#typedef-dp_interrupt_guard_t) \* guard) <br>_Clear the flag so waits proceed again._  |
 |  unsigned | [**dp\_interrupt\_latency\_ms**](#function-dp_interrupt_latency_ms) (void) <br>_The interrupt latency in force._  |
 |  int | [**dp\_interrupt\_on\_signal**](#function-dp_interrupt_on_signal) (int sig) <br>_Install a handler for_ `sig` _that calls_[_**dp\_interrupt()**_](dp__interrupt_8h.md#function-dp_interrupt) _._ |
 |  int | [**dp\_interrupted**](#function-dp_interrupted) (void) <br>_Non-zero when an interrupt is pending._  |
@@ -102,6 +92,7 @@ _Asking a blocking wait to stop, whatever it is waiting on._ [More...](#detailed
 | Type | Name |
 | ---: | :--- |
 | define  | [**DP\_INTERRUPT\_LATENCY\_DEFAULT\_MS**](dp__interrupt_8h.md#define-dp_interrupt_latency_default_ms)  `100u`<br>_Default interrupt latency, in milliseconds._  |
+| define  | [**DP\_INTERRUPT\_MAX\_SIGNALS**](dp__interrupt_8h.md#define-dp_interrupt_max_signals)  `8u`<br>_Most signals this facility will handle at once._  |
 
 ## Detailed Description
 
@@ -116,29 +107,6 @@ See `docs/design/io-termination.md` for the contract this is one third of; the o
 
 
     
-## Public Types Documentation
-
-
-
-
-### typedef dp\_interrupt\_guard\_t 
-
-_A scoped handle to the process-wide interrupt facility._ 
-```C++
-typedef struct dp_interrupt_guard dp_interrupt_guard_t;
-```
-
-
-
-The flag above is process-wide and stays so, so this is a handle to a facility rather than an instance of one: two guards observe the same flag. What a guard scopes is the _arming_  which signals it installed, and the latency it overrode  so that both can be undone exactly, by the code that did them, without a caller tracking it.
-
-
-It exists because that bookkeeping had been living in the Python binding, which is the one place doppler does not put logic. See docs/design/io-termination.md. 
-
-
-        
-
-<hr>
 ## Public Functions Documentation
 
 
@@ -165,192 +133,6 @@ The flag is **sticky**: one handler firing may have to release several parked lo
 ```C++
 static void on_sigint (int sig) { (void)sig; dp_interrupt (); }
 signal (SIGINT, on_sigint);
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function dp\_interrupt\_guard\_create 
-
-_Clear the flag, optionally install handlers, and remember what to undo._ 
-```C++
-dp_interrupt_guard_t * dp_interrupt_guard_create (
-    const int * signals,
-    size_t n_signals,
-    unsigned latency_ms
-) 
-```
-
-
-
-Construction is what ARMS: on return the handlers are installed and the flag is clear. A stale flag would otherwise refuse the first wait inside the very block that just armed it.
-
-
-
-
-**Parameters:**
-
-
-* `signals` Signals to install on; may be NULL for none, in which case the guard is only a handle to the flag. 
-* `n_signals` How many `signals` holds. 
-* `latency_ms` Wait-slice override; 0 leaves the process setting alone, and only a non-zero value is restored. 
-
-
-
-**Returns:**
-
-A guard, or NULL if a handler could not be installed  in which case any already installed by this call are restored first, so a failed create arms nothing.
-
-
-
-```C++
->>> from doppler.interrupt import Interrupt
->>> it = Interrupt()
->>> it.interrupted()
-0
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function dp\_interrupt\_guard\_destroy 
-
-_Restore every handler and latency this guard changed._ 
-```C++
-void dp_interrupt_guard_destroy (
-    dp_interrupt_guard_t * guard
-) 
-```
-
-
-
-Does NOT clear the flag: a caller that was interrupted still needs to see that it was, after the block that noticed has exited.
-
-
-
-
-**Parameters:**
-
-
-* `guard` Guard; NULL is a no-op. 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dp\_interrupt\_guard\_interrupt 
-
-_Ask every blocking wait in this process to stop._ 
-```C++
-void dp_interrupt_guard_interrupt (
-    dp_interrupt_guard_t * guard
-) 
-```
-
-
-
-The object's face onto [**dp\_interrupt()**](dp__interrupt_8h.md#function-dp_interrupt). It takes a guard because that is how a method is called, not because the request is scoped to one  the flag is process-wide, and a request through any guard is seen by every waiter.
-
-
-
-
-**Parameters:**
-
-
-* `guard` Guard; NULL is a no-op.
-
-
-```C++
->>> from doppler.interrupt import Interrupt
->>> it = Interrupt()
->>> it.interrupt()
->>> it.interrupted()
-1
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function dp\_interrupt\_guard\_interrupted 
-
-_Non-zero once a stop has been requested._ 
-```C++
-int dp_interrupt_guard_interrupted (
-    const dp_interrupt_guard_t * guard
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `guard` Guard; NULL reads the flag anyway, since it is process-wide and a guard is not what holds it. 
-
-
-
-**Returns:**
-
-Non-zero if interrupted. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dp\_interrupt\_guard\_resume 
-
-_Clear the flag so waits proceed again._ 
-```C++
-void dp_interrupt_guard_resume (
-    dp_interrupt_guard_t * guard
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `guard` Guard; NULL is still honoured, for the reason above.
-
-
-```C++
->>> from doppler.interrupt import Interrupt
->>> it = Interrupt()
->>> it.interrupt()
->>> it.resume()
->>> it.interrupted()
-0
 ```
  
 
@@ -557,6 +339,25 @@ _Default interrupt latency, in milliseconds._
 
 
 Ten wakeups a second on an idle waiter, and a delay no human perceives when they press Ctrl+C. It is a default rather than a constant of the design: see [**dp\_set\_interrupt\_latency\_ms()**](dp__interrupt_8h.md#function-dp_set_interrupt_latency_ms). 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_INTERRUPT\_MAX\_SIGNALS 
+
+_Most signals this facility will handle at once._ 
+```C++
+#define DP_INTERRUPT_MAX_SIGNALS `8u`
+```
+
+
+
+Not a budget anyone reasoned about  it is "more signals than a
+program sensibly interrupts on". Public because a guard records what it armed in a fixed array of this size, and the two must agree. 
 
 
         

@@ -926,7 +926,8 @@ static PyMethodDef Push_methods[] = {
     "--------\n"
     ">>> from doppler.stream import Push, CF32\n"
     ">>> push = Push(\"nats://127.0.0.1:4222/work\", CF32)  # doctest: +SKIP\n"
-    ">>> push.send_eos()                                    # doctest: +SKIP\n" },
+    ">>> push.send_eos()                                    # doctest: "
+    "+SKIP\n" },
   { "close", (PyCFunction)Push_close, METH_NOARGS, NULL },
   { "__enter__", (PyCFunction)Push_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)Push_exit, METH_VARARGS, NULL },

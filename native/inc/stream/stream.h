@@ -826,6 +826,99 @@ extern "C"
   const char *dp_host_rep (void);
 
 
+  /** @defgroup interrupt Interrupting a blocking receive
+   *  @ingroup streaming
+   *  @{
+   *
+   * A blocking `*_recv` waits inside the NATS client, and a flag your
+   * signal handler sets is read by your loop — which the blocking call is
+   * keeping you out of. With traffic arriving that is invisible, because
+   * every frame returns control to you; the moment a sender stops, Ctrl+C
+   * stops working. That is not hypothetical: it shipped, in doppler's own
+   * C receiver example.
+   *
+   * A bounded `*_set_timeout` is one answer, and the examples relied on
+   * it, but it makes every caller trade latency against responsiveness and
+   * get it wrong quietly. This is the other: the library checks a flag of
+   * its own inside the wait, so a blocking receive stays blocking and
+   * still returns when you ask it to.
+   */
+
+  /**
+   * @brief Ask every blocking receive in this process to return now.
+   *
+   * Async-signal-safe by construction — it assigns to a
+   * `volatile sig_atomic_t` and does nothing else — so the intended caller
+   * is a signal handler:
+   *
+   * @code
+   * static void on_sigint (int sig)
+   * {
+   *   (void)sig;
+   *   dp_stream_interrupt ();
+   * }
+   * @endcode
+   *
+   * Every receive already blocked returns @ref DP_ERR_INTERRUPTED within
+   * one internal wait slice (100 ms), and so does every one STARTED while
+   * the flag is set — a receive cannot be missed by racing the signal.
+   * The flag is process-wide and sticky; dp_stream_resume() clears it.
+   */
+  void dp_stream_interrupt (void);
+
+  /**
+   * @brief Clear the interrupt, so blocking receives block again.
+   *
+   * The flag is sticky on purpose: a handler fires once and the loops it
+   * unblocks may be several, so an auto-clearing flag would release one
+   * caller and leave the rest parked.
+   */
+  void dp_stream_resume (void);
+
+  /**
+   * @brief Non-zero when an interrupt is pending.
+   *
+   * For a loop that wants to notice without calling recv again, and for a
+   * caller that keeps its own flag and wants one source of truth.
+   *
+   * @return Non-zero when interrupted, 0 otherwise.
+   */
+  int dp_stream_interrupted (void);
+
+  /**
+   * @brief Install a handler for @p sig that calls dp_stream_interrupt().
+   *
+   * The handler is installed in C, and that is the whole point rather than
+   * a convenience. A handler written in a higher-level language runs when
+   * its interpreter next regains control, which is precisely what a
+   * blocking receive is preventing -- the flag would be set only after the
+   * wait it is meant to end. Measured, not reasoned: a Python
+   * `signal.signal` handler calling the interrupt left a blocked `recv()`
+   * blocked forever.
+   *
+   * Whatever handler was installed is **chained, not replaced**: it runs
+   * immediately after the flag is set. Without that, a signal arriving
+   * while the program is not inside a receive would set a flag nobody
+   * reads and otherwise do nothing -- fixing the blocking case by breaking
+   * the ordinary one. For an embedding interpreter this is what keeps its
+   * own Ctrl+C behaviour intact.
+   *
+   * @param sig Signal number, e.g. `SIGINT`.
+   * @return DP_OK, or DP_ERR_INVALID for a signal that cannot be caught.
+   */
+  int dp_stream_interrupt_on_signal (int sig);
+
+  /**
+   * @brief Restore the handler that was in place before.
+   *
+   * @param sig Signal number previously passed to
+   *            dp_stream_interrupt_on_signal().
+   * @return DP_OK, or DP_ERR_INVALID if that signal was never installed.
+   */
+  int dp_stream_restore_signal (int sig);
+
+  /** @} */ /* end group interrupt */
+
   /**
    * @brief Return the current wall-clock time as nanoseconds since the UNIX
    * epoch.

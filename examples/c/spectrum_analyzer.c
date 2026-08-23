@@ -55,6 +55,7 @@ static volatile int keep_running = 1;
 static void
 signal_handler (int signum)
 {
+  dp_stream_interrupt (); /* unblock a parked recv; see receiver.c */
   (void)signum;
   keep_running = 0;
 }
@@ -246,19 +247,14 @@ main (int argc, char *argv[])
 
   uint64_t frame = 0;
 
-  /* Bounded, so Ctrl+C is seen with no traffic -- see receiver.c for why a
-     blocking dp_sub_recv makes the handler unreachable once a sender
-     stops. */
-  dp_sub_set_timeout (ctx, 250);
-
   while (keep_running)
     {
       dp_msg_t   *msg = NULL;
       dp_header_t hdr;
 
       int rc = dp_sub_recv (ctx, &msg, &hdr);
-      if (rc == DP_ERR_TIMEOUT)
-        continue;
+      if (rc == DP_ERR_INTERRUPTED)
+        break; /* the handler called dp_stream_interrupt; see receiver.c */
       if (rc != DP_OK)
         continue;
 

@@ -14,6 +14,8 @@
 #include <Python.h>
 #include <numpy/arrayobject.h>
 
+#include <signal.h>
+
 #include "dp_tlm/dp_tlm_core.h" /* dp_tlm_rec_t (TLM16 frames) */
 #include "stream/stream.h"
 
@@ -285,6 +287,27 @@ do_recv (void *ctx, set_timeout_fn fn_timeout, recv_signal_fn fn_recv,
   if (rc == DP_ERR_TIMEOUT)
     {
       PyErr_SetString (PyExc_TimeoutError, "recv timeout");
+      return NULL;
+    }
+  if (rc == DP_ERR_INTERRUPTED)
+    {
+      /* KeyboardInterrupt rather than a doppler-specific exception: the
+         interrupt exists so Ctrl+C works during a blocking recv, and a
+         program's existing handling of Ctrl+C -- `try`, `finally`, a
+         `with` block's cleanup -- applies unchanged. Anything else would
+         make the caller learn a second word for the same event.
+
+         PyErr_CheckSignals() FIRST, and once. Our C handler chains to
+         CPython's, so a real Ctrl+C leaves a Python-level signal pending;
+         raising our own exception here and letting that one fire too
+         delivered KeyboardInterrupt TWICE -- the second landing inside
+         the caller's `except KeyboardInterrupt:` cleanup. Measured, not
+         reasoned. So: let CPython raise it if it has one to raise, and
+         only invent one when nothing is pending (interrupt() called from
+         another thread, where no signal was involved at all). */
+      if (PyErr_CheckSignals () != 0)
+        return NULL; /* CPython raised it; do not raise a second */
+      PyErr_SetString (PyExc_KeyboardInterrupt, "interrupted");
       return NULL;
     }
   if (rc != DP_OK)
@@ -1113,6 +1136,146 @@ py_format_name (PyObject *self, PyObject *args)
       dp_sample_type_str ((dp_sample_type_t)code));
 }
 
+static PyObject *
+py_interrupt (PyObject *self, PyObject *args)
+{
+  (void)self;
+  (void)args;
+  dp_stream_interrupt ();
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+py_resume (PyObject *self, PyObject *args)
+{
+  (void)self;
+  (void)args;
+  dp_stream_resume ();
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+py_interrupted (PyObject *self, PyObject *args)
+{
+  (void)self;
+  (void)args;
+  return PyBool_FromLong (dp_stream_interrupted ());
+}
+
+/* =========================================================================
+ * interrupt_on_sigint — the context manager
+ *
+ * In C with the rest of the binding, not a .py beside it: this package is
+ * a thin face over the C ABI, and the mechanism it drives (a sigaction
+ * chained to CPython's own) is C anyway. Same __enter__/__exit__ shape as
+ * the socket types above, so a reader meets one pattern.
+ * ========================================================================= */
+
+#define DP_GUARD_MAX_SIGS 8
+
+typedef struct
+{
+  PyObject_HEAD int sigs[DP_GUARD_MAX_SIGS];
+  Py_ssize_t        nsigs;
+  int               armed;
+} InterruptGuardObject;
+
+static PyTypeObject InterruptGuardType;
+
+static PyObject *
+InterruptGuard_enter (InterruptGuardObject *self, PyObject *Py_UNUSED (a))
+{
+  /* A stale flag would refuse the first receive inside the block. */
+  dp_stream_resume ();
+  for (Py_ssize_t i = 0; i < self->nsigs; i++)
+    {
+      if (dp_stream_interrupt_on_signal (self->sigs[i]) != DP_OK)
+        {
+          for (Py_ssize_t j = 0; j < i; j++)
+            dp_stream_restore_signal (self->sigs[j]);
+          PyErr_Format (PyExc_OSError,
+                        "cannot install a handler for signal %d",
+                        self->sigs[i]);
+          return NULL;
+        }
+    }
+  self->armed = 1;
+  Py_INCREF (self);
+  return (PyObject *)self;
+}
+
+static PyObject *
+InterruptGuard_exit (InterruptGuardObject *self, PyObject *Py_UNUSED (a))
+{
+  if (self->armed)
+    {
+      for (Py_ssize_t i = 0; i < self->nsigs; i++)
+        dp_stream_restore_signal (self->sigs[i]);
+      self->armed = 0;
+    }
+  /* Cleared on the way out so a later receive is not refused by an
+     interrupt that has already been handled. */
+  dp_stream_resume ();
+  Py_RETURN_FALSE;
+}
+
+static void
+InterruptGuard_dealloc (InterruptGuardObject *self)
+{
+  if (self->armed)
+    {
+      for (Py_ssize_t i = 0; i < self->nsigs; i++)
+        dp_stream_restore_signal (self->sigs[i]);
+    }
+  Py_TYPE (self)->tp_free ((PyObject *)self);
+}
+
+static PyMethodDef InterruptGuard_methods[] = {
+  { "__enter__", (PyCFunction)InterruptGuard_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)InterruptGuard_exit, METH_VARARGS, NULL },
+  { NULL },
+};
+
+static PyTypeObject InterruptGuardType = {
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.stream.InterruptGuard",
+  .tp_basicsize                           = sizeof (InterruptGuardObject),
+  .tp_flags                               = Py_TPFLAGS_DEFAULT,
+  .tp_doc     = "Context manager returned by interrupt_on_sigint().",
+  .tp_methods = InterruptGuard_methods,
+  .tp_dealloc = (destructor)InterruptGuard_dealloc,
+};
+
+static PyObject *
+py_interrupt_on_sigint (PyObject *self, PyObject *args)
+{
+  (void)self;
+  Py_ssize_t extra = PyTuple_GET_SIZE (args);
+  if (extra + 1 > DP_GUARD_MAX_SIGS)
+    {
+      PyErr_SetString (PyExc_ValueError, "too many signals");
+      return NULL;
+    }
+
+  InterruptGuardObject *g
+      = PyObject_New (InterruptGuardObject, &InterruptGuardType);
+  if (!g)
+    return NULL;
+  g->armed   = 0;
+  g->sigs[0] = SIGINT;
+  g->nsigs   = 1;
+  for (Py_ssize_t i = 0; i < extra; i++)
+    {
+      long v = PyLong_AsLong (PyTuple_GET_ITEM (args, i));
+      if (v == -1 && PyErr_Occurred ())
+        {
+          Py_DECREF (g);
+          return NULL;
+        }
+      g->sigs[g->nsigs++] = (int)v;
+    }
+  return (PyObject *)g;
+}
+
 /* =========================================================================
  * Module definition
  * ========================================================================= */
@@ -1121,6 +1284,110 @@ static PyMethodDef module_methods[] = {
   { "get_timestamp_ns", py_get_timestamp_ns, METH_NOARGS,
     "get_timestamp_ns() -> int\n"
     "Current wall-clock time in nanoseconds (CLOCK_REALTIME)." },
+  { "interrupt", py_interrupt, METH_NOARGS,
+    "interrupt() -> None\n"
+    "\n"
+    "Ask every blocking receive in this process to return now.\n"
+    "\n"
+    "A blocking ``recv()`` waits inside the NATS client with the GIL\n"
+    "released, so Python's own signal handling does not run until it\n"
+    "returns -- which, with no sender, is never. This is the flag the\n"
+    "library checks inside that wait; a receive it unblocks raises\n"
+    "``KeyboardInterrupt``, so the rest of the program behaves exactly\n"
+    "as it would for any other Ctrl+C.\n"
+    "\n"
+    "``interrupt_on_sigint()`` is the context manager that wires this to\n"
+    "SIGINT for you; call this directly to stop a receive from another\n"
+    "thread.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "None\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.stream import interrupt, interrupted, resume\n"
+    ">>> interrupt()\n"
+    ">>> interrupted()\n"
+    "True\n"
+    ">>> resume()\n"
+    ">>> interrupted()\n"
+    "False\n" },
+  { "resume", py_resume, METH_NOARGS,
+    "resume() -> None\n"
+    "\n"
+    "Clear the interrupt, so blocking receives block again.\n"
+    "\n"
+    "The flag is sticky on purpose: a handler fires once and the loops\n"
+    "it unblocks may be several, so an auto-clearing flag would release\n"
+    "one caller and leave the rest parked.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "None\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.stream import interrupt, interrupted, resume\n"
+    ">>> interrupt(); resume()\n"
+    ">>> interrupted()\n"
+    "False\n" },
+  { "interrupted", py_interrupted, METH_NOARGS,
+    "interrupted() -> bool\n"
+    "\n"
+    "True when an interrupt is pending.\n"
+    "\n"
+    "For a loop that wants to notice without calling ``recv()`` again.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "bool\n"
+    "    Whether a blocking receive would return immediately.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.stream import interrupted, resume\n"
+    ">>> resume()\n"
+    ">>> interrupted()\n"
+    "False\n" },
+  { "interrupt_on_sigint", py_interrupt_on_sigint, METH_VARARGS,
+    "interrupt_on_sigint(*extra_signals) -> context manager\n"
+    "\n"
+    "Make Ctrl+C stop a blocking receive, for the duration of the block.\n"
+    "\n"
+    "Installs a C handler that calls interrupt(), so a recv() already\n"
+    "blocked returns promptly and raises KeyboardInterrupt -- the\n"
+    "exception Ctrl+C raises anywhere else, so existing try/finally and\n"
+    "`with` cleanup applies unchanged. The handler is installed in C\n"
+    "because a Python one runs only when the interpreter next regains\n"
+    "control, which is exactly what the blocking wait prevents.\n"
+    "\n"
+    "Whatever handler was there is CHAINED, not replaced, so a Ctrl+C\n"
+    "arriving outside a receive behaves as it always did. On exit the\n"
+    "previous handlers are restored and the flag is cleared.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "*extra_signals : int\n"
+    "    Further signals to treat the same way, e.g. signal.SIGTERM for a\n"
+    "    container that is stopped rather than interrupted. SIGINT is\n"
+    "    always included.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "context manager\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "OSError\n"
+    "    If a signal cannot be caught (SIGKILL, SIGSTOP).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.stream import interrupt_on_sigint, interrupted\n"
+    ">>> with interrupt_on_sigint():\n"
+    "...     interrupted()\n"
+    "False\n" },
   { "format_name", py_format_name, METH_VARARGS,
     "format_name(code) -> str\n"
     "\n"
@@ -1246,6 +1513,9 @@ PyInit_stream (void)
   PyModule_AddIntConstant (m, "CI8", CI8);
   PyModule_AddIntConstant (m, "CI16", CI16);
   PyModule_AddIntConstant (m, "CF32", CF32);
+  if (PyType_Ready (&InterruptGuardType) < 0)
+    return NULL;
+
   PyModule_AddIntConstant (m, "TLM16", DP_KIND_TLM);
 
   return m;

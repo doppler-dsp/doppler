@@ -22,7 +22,11 @@ from .stream import (  # noqa: E402
     TLM16,
     format_name,
     get_timestamp_ns,
+    interrupt,
+    interrupted,
     mean_power,
+    interrupt_on_sigint,
+    resume,
 )
 
 __all__ = [
@@ -40,5 +44,9 @@ __all__ = [
     "TLM16",
     "format_name",
     "get_timestamp_ns",
+    "interrupt",
+    "interrupt_on_sigint",
+    "interrupted",
     "mean_power",
+    "resume",
 ]

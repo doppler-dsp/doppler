@@ -33,6 +33,13 @@ static volatile int keep_running = 1;
 static void
 signal_handler (int signum)
 {
+  /* Unblock a receive that is parked inside the NATS client. Setting the
+     flag below is not enough on its own: the loop that reads it is exactly
+     what a blocking dp_sub_recv is keeping us out of, so with no traffic
+     arriving this handler would run and nothing would happen. Both lines
+     are needed -- this one to get back to the loop, the flag to tell the
+     loop why. dp_stream_interrupt is async-signal-safe by construction. */
+  dp_stream_interrupt ();
   (void)signum;
   keep_running = 0;
 }
@@ -125,22 +132,21 @@ main (int argc, char *argv[])
   double lat_min_ms = 1e300;
   double lat_max_ms = 0.0;
 
-  /* A BOUNDED wait, and it is not a nicety: dp_sub_recv with the default
-     timeout blocks inside the NATS client until a message arrives, so the
-     Ctrl+C handler above sets keep_running and nothing ever returns to look
-     at it. With traffic flowing that is invisible -- every packet returns
-     control to this loop -- and the moment the sender stops, Ctrl+C stops
-     working entirely. Ask for a timeout, treat it as "check the flag". */
-  dp_sub_set_timeout (ctx, 250);
-
+  /* No timeout: this recv BLOCKS, which is what a dashboard wants -- it
+     has nothing to do between frames. That is only safe because the
+     handler calls dp_stream_interrupt(), which is what brings us back
+     here when a human asks to stop. A caller that would rather not
+     depend on the interrupt can bound the wait instead
+     (dp_sub_set_timeout) and treat DP_ERR_TIMEOUT as "check my flag";
+     both work, and doing NEITHER is the bug this example shipped with. */
   while (keep_running)
     {
       dp_msg_t   *msg = NULL;
       dp_header_t hdr;
 
       int rc = dp_sub_recv (ctx, &msg, &hdr);
-      if (rc == DP_ERR_TIMEOUT)
-        continue; /* no traffic; loop round and re-read keep_running */
+      if (rc == DP_ERR_INTERRUPTED)
+        break; /* Ctrl+C: keep_running is already 0 */
       if (rc != DP_OK)
         continue;
 

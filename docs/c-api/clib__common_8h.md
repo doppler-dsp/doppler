@@ -93,6 +93,7 @@
 | ---: | :--- |
 | define  | [**CMPLXF**](clib__common_8h.md#define-cmplxf) (r, i) `\_\_builtin\_complex ((float)(r), (float)(i))`<br> |
 | define  | [**DP\_ERR\_INIT**](clib__common_8h.md#define-dp_err_init)  `(-1)`<br> |
+| define  | [**DP\_ERR\_INTERRUPTED**](clib__common_8h.md#define-dp_err_interrupted)  `(-8)`<br> |
 | define  | [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid)  `(-4)`<br> |
 | define  | [**DP\_ERR\_MEMORY**](clib__common_8h.md#define-dp_err_memory)  `(-6)`<br> |
 | define  | [**DP\_ERR\_RECV**](clib__common_8h.md#define-dp_err_recv)  `(-3)`<br> |
@@ -196,6 +197,23 @@ Assert a just-constructed object / allocation is non-NULL, aborting with a diagn
 
 
 Initialisation failed (context/socket). 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_ERR\_INTERRUPTED 
+
+```C++
+#define DP_ERR_INTERRUPTED `(-8)`
+```
+
+
+
+A blocking call returned because [**dp\_stream\_interrupt()**](group__interrupt.md#function-dp_stream_interrupt) was \ called  a request to stop, not a failure. 
 
 
         

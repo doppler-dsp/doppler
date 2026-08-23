@@ -103,6 +103,7 @@
 ## d
 
 * **DP\_ERR\_INIT** ([**clib\_common.h**](clib__common_8h.md))
+* **DP\_ERR\_INTERRUPTED** ([**clib\_common.h**](clib__common_8h.md))
 * **DP\_ERR\_INVALID** ([**clib\_common.h**](clib__common_8h.md))
 * **DP\_ERR\_MEMORY** ([**clib\_common.h**](clib__common_8h.md))
 * **DP\_ERR\_RECV** ([**clib\_common.h**](clib__common_8h.md))

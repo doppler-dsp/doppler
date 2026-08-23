@@ -332,6 +332,60 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## 8b. Stopping a blocking receive
+
+A blocking `*_recv` waits inside the NATS client. A flag your signal
+handler sets is read by your loop — which the blocking call is keeping
+you out of. With traffic arriving that is invisible, because every frame
+returns control to you; the moment a sender stops, Ctrl+C stops working.
+
+That is not hypothetical. doppler's own C receiver example shipped with
+it: 0.00 s to exit while the transmitter ran, indefinite once it stopped.
+
+Two answers, and the layer supports both:
+
+- **Bound the wait.** `*_set_timeout` plus treating `DP_ERR_TIMEOUT` as
+    "loop round and re-read my flag". Simple, and it makes every caller
+    trade latency against responsiveness.
+- **Interrupt it.** `dp_stream_interrupt()` sets a process-wide flag that
+    the library checks *inside* the wait, so a blocking receive stays
+    blocking and still returns — with `DP_ERR_INTERRUPTED`, which is a
+    request to stop rather than a failure. It assigns to a
+    `volatile sig_atomic_t` and does nothing else, so a signal handler
+    may call it. `dp_stream_interrupt_on_signal()` installs such a handler
+    for you; `dp_stream_resume()` clears the flag.
+
+Internally every wait is sliced at 100 ms, which is what bounds how long
+an interrupt appears to be ignored — ten wakeups a second on an idle
+subscriber, and a delay no human perceives. The flag is checked *before*
+the first slice too, so a receive started after the signal refuses
+immediately rather than parking once: interrupt-then-receive and
+receive-then-interrupt behave the same.
+
+The flag is **sticky**. A handler fires once and the loops it unblocks
+may be several, so an auto-clearing flag would release one caller and
+leave the rest parked.
+
+**In Python the handler must be installed from C, and that is not an
+implementation detail.** A Python handler runs when the interpreter next
+regains control, which is precisely what the blocking wait prevents — the
+flag would be set only after the wait it is meant to end. Measured: a
+first version of `interrupt_on_sigint()` used `signal.signal` and left a
+blocked `recv()` blocked forever. So `interrupt_on_sigint()` installs a
+`sigaction` and **chains** to whatever was there, including CPython's own
+handler; without the chaining, a Ctrl+C arriving outside a receive would
+set a flag nobody reads, fixing the blocking case by breaking the
+ordinary one.
+
+An unblocked `recv()` raises `KeyboardInterrupt` — the exception Ctrl+C
+raises anywhere else, so a caller's existing `try`/`finally` and `with`
+cleanup applies unchanged. It is raised **once**: the binding calls
+`PyErr_CheckSignals()` first and lets CPython raise its own pending one
+if there is one, because raising ours as well delivered a second
+`KeyboardInterrupt` into the caller's cleanup block.
+
+______________________________________________________________________
+
 ## 9. What this layer does not promise
 
 - **No ordering across senders**, and no global ordering — only a

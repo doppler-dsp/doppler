@@ -1,4 +1,5 @@
 # stream/stream.pyi — type stubs for the stream C extension.
+from contextlib import AbstractContextManager
 from typing import Any, Dict, Tuple
 from numpy.typing import NDArray
 
@@ -111,6 +112,135 @@ Examples
 1
 
 """
+
+
+def interrupt() -> None:
+    """Ask every blocking receive in this process to return now.
+
+    A blocking :meth:`Subscriber.recv` waits inside the NATS client with
+    the GIL released, so Python's own signal handling does not run until
+    it returns -- which, with no sender, is never. This is the flag the
+    library checks inside that wait; a receive it unblocks raises
+    ``KeyboardInterrupt``, so the rest of the program behaves exactly as
+    it would for any other Ctrl+C.
+
+    :func:`interrupt_on_sigint` is the context manager that wires this to
+    SIGINT for you. Call this directly to stop a receive from another
+    thread, where no signal is involved at all.
+
+    The flag is process-wide and sticky: :func:`resume` clears it.
+
+    Examples
+    --------
+    >>> from doppler.stream import interrupt, interrupted, resume
+    >>> interrupt()
+    >>> interrupted()
+    True
+    >>> resume()
+    >>> interrupted()
+    False
+
+    """
+    ...
+
+
+def resume() -> None:
+    """Clear the interrupt, so blocking receives block again.
+
+    The flag is sticky on purpose: a handler fires once and the loops it
+    unblocks may be several, so an auto-clearing flag would release one
+    caller and leave the rest parked.
+
+    Examples
+    --------
+    >>> from doppler.stream import interrupt, interrupted, resume
+    >>> interrupt()
+    >>> resume()
+    >>> interrupted()
+    False
+
+    """
+    ...
+
+
+def interrupted() -> bool:
+    """True when an interrupt is pending.
+
+    For a loop that wants to notice without calling :meth:`Subscriber.recv`
+    again.
+
+    Returns
+    -------
+    bool
+        Whether a blocking receive would return immediately.
+
+    Examples
+    --------
+    >>> from doppler.stream import interrupted, resume
+    >>> resume()
+    >>> interrupted()
+    False
+
+    """
+    ...
+
+
+def interrupt_on_sigint(
+    *extra_signals: int,
+) -> AbstractContextManager[None]:
+    """Make Ctrl+C stop a blocking receive, for the duration of the block.
+
+    Installs a **C-level** handler that calls :func:`interrupt`, so a
+    ``recv()`` already blocked returns promptly and raises
+    ``KeyboardInterrupt`` -- the exception Ctrl+C raises anywhere else, so
+    existing ``try``/``finally`` and ``with`` cleanup applies unchanged.
+
+    C-level because it has to be: a Python handler runs only when the
+    interpreter next regains control, which is exactly what the blocking
+    wait prevents, so the flag would be set only after the wait it is
+    meant to end.
+
+    Whatever handler was installed is **chained, not replaced**, so a
+    Ctrl+C arriving outside a receive behaves as it always did. On exit
+    the previous handlers are restored and the flag is cleared.
+
+    Parameters
+    ----------
+    *extra_signals : int
+        Further signals to treat the same way, e.g. ``signal.SIGTERM`` for
+        a container that is stopped rather than interrupted. ``SIGINT`` is
+        always included.
+
+    Returns
+    -------
+    context manager
+        Yields ``None``.
+
+    Raises
+    ------
+    OSError
+        If a signal cannot be caught (``SIGKILL``, ``SIGSTOP``).
+
+    Examples
+    --------
+    The shape a receive loop wants, with nothing left to remember::
+
+        with Subscriber(endpoint) as sub, interrupt_on_sigint():
+            while True:
+                try:
+                    samples, header = sub.recv()
+                except KeyboardInterrupt:
+                    break
+
+    >>> from doppler.stream import interrupt_on_sigint, interrupted
+    >>> with interrupt_on_sigint():
+    ...     interrupted()
+    False
+    >>> interrupted()
+    False
+
+    """
+    ...
 
 
 def mean_power(samples: NDArray[Any]) -> float:

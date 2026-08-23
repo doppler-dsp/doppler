@@ -13,6 +13,7 @@
 #include <arpa/inet.h>
 #include <complex.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -182,6 +183,79 @@ test_chunked_pub_sub (void)
   dp_sub_destroy (sub);
 }
 
+/* ------------------------------------------------------------------
+ * test_interrupt_unblocks_recv: the whole point of the API.
+ *
+ * A subscriber with NO timeout waits inside the NATS client. A second
+ * thread calls dp_stream_interrupt(), exactly as a signal handler would,
+ * and the receive must come back promptly with DP_ERR_INTERRUPTED rather
+ * than sitting there until a frame arrives -- which, with no sender, is
+ * never.
+ * ------------------------------------------------------------------ */
+static void *
+interrupt_after_delay (void *arg)
+{
+  (void)arg;
+  usleep (400000); /* let the receive get properly blocked first */
+  dp_stream_interrupt ();
+  return NULL;
+}
+
+static void
+test_interrupt_unblocks_recv (void)
+{
+  printf ("\n-- interrupt unblocks a blocking recv --\n");
+  const char *ep = nats_ep ("interrupt");
+
+  dp_stream_resume ();
+  dp_sub_t *sub = dp_sub_create (ep);
+  DP_CHECK (sub != NULL);
+  if (!sub)
+    return;
+  usleep (SETTLE_US);
+
+  /* No dp_sub_set_timeout: this blocks, and nothing will ever publish. */
+  pthread_t th;
+  DP_CHECK (pthread_create (&th, NULL, interrupt_after_delay, NULL) == 0);
+
+  struct timespec t0, t1;
+  clock_gettime (CLOCK_MONOTONIC, &t0);
+
+  dp_msg_t   *msg = NULL;
+  dp_header_t hdr;
+  int         rc = dp_sub_recv (sub, &msg, &hdr);
+
+  clock_gettime (CLOCK_MONOTONIC, &t1);
+  pthread_join (th, NULL);
+
+  double elapsed = (double)(t1.tv_sec - t0.tv_sec)
+                   + (double)(t1.tv_nsec - t0.tv_nsec) / 1e9;
+
+  DP_CHECK (rc == DP_ERR_INTERRUPTED);
+  DP_CHECK (msg == NULL);
+  /* Generous against the 100 ms slice, and tiny against the hour a
+     blocking NextMsg would otherwise wait. */
+  DP_CHECK (elapsed < 3.0);
+  printf ("  returned in %.3f s\n", elapsed);
+
+  /* Sticky: a receive STARTED while the flag is set refuses at once, so a
+     signal cannot be missed by racing it. */
+  clock_gettime (CLOCK_MONOTONIC, &t0);
+  rc = dp_sub_recv (sub, &msg, &hdr);
+  clock_gettime (CLOCK_MONOTONIC, &t1);
+  DP_CHECK (rc == DP_ERR_INTERRUPTED);
+  DP_CHECK ((double)(t1.tv_sec - t0.tv_sec)
+                + (double)(t1.tv_nsec - t0.tv_nsec) / 1e9
+            < 0.5);
+
+  /* And receiving works again once it is cleared. */
+  dp_stream_resume ();
+  dp_sub_set_timeout (sub, 200);
+  DP_CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_ERR_TIMEOUT);
+
+  dp_sub_destroy (sub);
+}
+
 int
 main (void)
 {
@@ -195,6 +269,7 @@ main (void)
   test_pub_sub_roundtrip ();
   test_req_rep_roundtrip ();
   test_chunked_pub_sub ();
+  test_interrupt_unblocks_recv ();
 
   printf ("\n");
   DP_TEST_END ("test_stream_nats_core");

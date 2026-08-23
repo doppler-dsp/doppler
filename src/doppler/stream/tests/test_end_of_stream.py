@@ -18,7 +18,7 @@ import time
 import numpy as np
 import pytest
 
-from doppler.stream import CF32, Publisher, Subscriber
+from doppler.stream import CF32, Publisher, Pull, Push, Subscriber
 
 
 def _broker_reachable(host: str = "127.0.0.1", port: int = 4222) -> bool:
@@ -95,3 +95,77 @@ def test_eos_with_no_data_at_all() -> None:
     finally:
         pub.close()
         sub.close()
+
+
+# --------------------------------------------------------------------
+# The work-queue tier. Different guarantees, same vocabulary -- and the
+# tier where the marker is reliable, so it is the one worth testing that
+# it actually arrives rather than merely usually does.
+# --------------------------------------------------------------------
+
+
+def _work_subject(hint: str) -> str:
+    # Unique per run: a work queue is DURABLE, so a fixed subject would
+    # carry one run's leftovers into the next -- and one of the things
+    # under test here is that it does not.
+    return f"nats://127.0.0.1:4222/{hint}-{int(time.time() * 1e6)}"
+
+
+def test_push_can_announce_an_ending_and_pull_hears_it() -> None:
+    """The work-queue face of send_eos, which Push did not have."""
+    endpoint = _work_subject("eos-work")
+    push, pull = Push(endpoint, CF32), Pull(endpoint)
+    try:
+        push.send(np.zeros(64, dtype=np.complex64), 1e6, 1e9)
+        push.send_eos()
+
+        samples, _hdr = pull.recv(timeout_ms=RECV_MS)
+        assert len(samples) == 64
+        pull.ack(samples)
+
+        with pytest.raises(EOFError):
+            pull.recv(timeout_ms=RECV_MS)
+    finally:
+        push.close()
+        pull.close()
+
+
+def test_work_queue_ending_is_consumed_not_left_pending() -> None:
+    """The ending must not come back, and the caller cannot make it stop.
+
+    PULL is explicit-ack, and an end-of-stream frame is the one message
+    a caller can never ack: it is reported as a state with no frame
+    handed back. So if the receive path does not ack it, nothing does --
+    it redelivers every AckWait forever and, because a work-queue
+    message is removed only once acked, the NEXT run against the subject
+    opens onto this run's ending.
+
+    The wait below is that AckWait plus a margin, and it is load-bearing
+    rather than generous: a redelivery is only scheduled when the timer
+    expires, so a shorter wait cannot tell an acked ending from an
+    unacked one and would pass either way.
+    """
+    endpoint = _work_subject("eos-work-ack")
+    push, pull = Push(endpoint, CF32), Pull(endpoint)
+    try:
+        push.send_eos()
+        with pytest.raises(EOFError):
+            pull.recv(timeout_ms=RECV_MS)
+
+        with pytest.raises(Exception) as caught:
+            pull.recv(timeout_ms=6500)
+        assert not isinstance(caught.value, EOFError), (
+            "the ending was redelivered: nothing acked it, so it stays "
+            "in the work queue and outlives the run that sent it"
+        )
+    finally:
+        push.close()
+        pull.close()
+
+
+def test_send_eos_on_a_closed_push_is_refused() -> None:
+    """Announcing an ending down a socket that is gone is a caller error."""
+    push = Push(_work_subject("eos-work-closed"), CF32)
+    push.close()
+    with pytest.raises(RuntimeError):
+        push.send_eos()

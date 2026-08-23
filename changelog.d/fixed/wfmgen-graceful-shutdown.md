@@ -38,7 +38,8 @@
     deadline).
 
     `StreamSink.drain(timeout_ms=0)` puts the same verb on the Python face,
-    declared (`status_return` + `error`) rather than hand-written. Its
-    `error_message` and a numpy `Raises` section are dropped on the way —
-    jm honours both on an *object* method and neither on a
-    *handle-module* one, filed as just-makeit#1111.
+    declared (`returns = "int"` + `error`) rather than hand-written. Note
+    the spelling: a **handle** method needs `returns = "int"` and refuses
+    the `status_return` an **object** method takes — and having taken it,
+    silently drops `error_message` and emits no `Raises` section, both of
+    which an object method gets. Filed as just-makeit#1111.

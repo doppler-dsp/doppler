@@ -589,9 +589,13 @@ type = "double"
 [[module.wfm_sink.methods]]
 name = "drain"
 fn = "wfm_stream_sink_drain"
-status_return = true
+# returns="int", NOT status_return: on a HANDLE method jm rejects
+# status_return outright ("error requires an `int` status return"). The
+# object-method form in objects/dp_tlm_capture.toml is the other spelling.
+# error_message is accepted here and then ignored, and no Raises section is
+# emitted either -- both honoured on an object method. just-makeit#1111.
+returns = "int"
 error = "OSError"
-error_message = "the drain budget ran out with data still pending; the sink is still safe to close"
 
 [[module.wfm_sink.methods.args]]
 name = "timeout_ms"

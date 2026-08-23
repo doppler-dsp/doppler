@@ -587,6 +587,18 @@ name = "fc"
 type = "double"
 
 [[module.wfm_sink.methods]]
+name = "drain"
+fn = "wfm_stream_sink_drain"
+status_return = true
+error = "OSError"
+error_message = "the drain budget ran out with data still pending; the sink is still safe to close"
+
+[[module.wfm_sink.methods.args]]
+name = "timeout_ms"
+type = "int"
+default = "0"
+
+[[module.wfm_sink.methods]]
 name = "track_clipping"
 fn = "wfm_stream_sink_track_clipping"
 

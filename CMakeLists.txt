@@ -808,6 +808,14 @@ add_test(NAME test_dp_dsss COMMAND test_dp_dsss)
 # set_state RETURNS and never that the restored object carries the state, so a
 # set_state that validated the envelope and restored nothing passed at all 31
 # sites.
+# The interrupt primitive: three transports depend on it to be stoppable, so
+# a regression is silent everywhere at once. Links the objects directly -- it
+# tests the core primitive, not a component that embeds it.
+add_executable(test_dp_interrupt native/tests/test_dp_interrupt.c
+    $<TARGET_OBJECTS:dp_interrupt_obj>)
+target_include_directories(test_dp_interrupt PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_dp_interrupt COMMAND test_dp_interrupt)
+
 add_executable(test_dp_state native/tests/test_dp_state.c)
 target_include_directories(test_dp_state
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

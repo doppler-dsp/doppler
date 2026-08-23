@@ -36,3 +36,9 @@
     on **both** halves: removing the handler fails in 0.58 s (killed by the
     signal), removing the interruptible sleep fails in 40.68 s (hangs to the
     deadline).
+
+    `StreamSink.drain(timeout_ms=0)` puts the same verb on the Python face,
+    declared (`status_return` + `error`) rather than hand-written. Its
+    `error_message` and a numpy `Raises` section are dropped on the way —
+    jm honours both on an *object* method and neither on a
+    *handle-module* one, filed as just-makeit#1111.

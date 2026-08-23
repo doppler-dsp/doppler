@@ -105,6 +105,29 @@ StreamSink_send (StreamSinkObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+StreamSink_drain (StreamSinkObject *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[]   = { "timeout_ms", NULL };
+  int          timeout_ms = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|i", kwlist, &timeout_ms))
+    return NULL;
+  if (self->closed)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "StreamSink is closed");
+      return NULL;
+    }
+  int _rc;
+  _rc = wfm_stream_sink_drain (self->h, timeout_ms);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_OSError, "wfm_stream_sink_drain failed (rc=%d)",
+                    (int)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 StreamSink_track_clipping (StreamSinkObject *self, PyObject *args,
                            PyObject *kwds)
 {
@@ -206,6 +229,8 @@ StreamSink_dealloc (StreamSinkObject *self)
 
 static PyMethodDef StreamSink_methods[] = {
   { "send", (PyCFunction)StreamSink_send, METH_VARARGS | METH_KEYWORDS, NULL },
+  { "drain", (PyCFunction)StreamSink_drain, METH_VARARGS | METH_KEYWORDS,
+    NULL },
   { "track_clipping", (PyCFunction)StreamSink_track_clipping,
     METH_VARARGS | METH_KEYWORDS, NULL },
   { "close", (PyCFunction)StreamSink_close, METH_NOARGS, "close() -> None" },

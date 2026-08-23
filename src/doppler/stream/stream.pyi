@@ -630,6 +630,7 @@ class Publisher:
         >>> pub = Publisher("nats://127.0.0.1:4222/demo", CF32)  # doctest: +SKIP
         >>> pub.send_eos()                                        # doctest: +SKIP
         >>> pub.drain()                                           # doctest: +SKIP
+
         """
     def flush(self, timeout_ms: int = 2000) -> None:
         """Wait until the server has everything published so far.

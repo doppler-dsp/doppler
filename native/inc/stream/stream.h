@@ -524,6 +524,34 @@ extern "C"
   int dp_pub_flush (dp_pub_t *ctx, int timeout_ms);
 
   /**
+   * @brief Tell subscribers the stream has ended.
+   *
+   * Publishes a zero-payload @ref DP_KIND_EOS frame. A receiving
+   * `*_recv` reports @ref DP_ERR_EOF instead of handing back an empty
+   * frame, so a consumer learns the sender finished rather than inferring
+   * it from silence — which is the inference this whole contract exists
+   * to remove.
+   *
+   * **Send it before dp_stream_drain(), not after.** A drain cannot be
+   * reversed and refuses sends once it reaches its publish-flushing
+   * phase, so an EOS issued after one may simply not go. The ordered
+   * shutdown is: stop producing, send EOS, drain, destroy.
+   *
+   * **What it does NOT promise.** PUB/SUB is at-most-once (§9), so this
+   * frame can be dropped like any other: it turns the common case from
+   * "wait forever" into "finish promptly", not from unreliable into
+   * guaranteed, and a subscriber that must not hang on a lost marker
+   * still needs a timeout. PUSH/PULL delivers it at-least-once, so it may
+   * arrive more than once and a handler must be idempotent.
+   *
+   * @param ctx Any send-capable context.
+   * @return DP_OK once handed to the client, @ref DP_ERR_INVALID for a
+   *         NULL context, @ref DP_ERR_CLOSED if the context is already
+   *         draining or closed.
+   */
+  int dp_pub_send_eos (dp_pub_t *ctx);
+
+  /**
    * @brief Shut a context down gracefully: drain, then closed.
    *
    * The ordered shutdown, and the one a signal handler's exit path wants.
@@ -569,34 +597,6 @@ extern "C"
    *         with the drain still in progress (the context is still safe
    *         to destroy), DP_ERR_INVALID for a NULL context.
    */
-  /**
-   * @brief Tell subscribers the stream has ended.
-   *
-   * Publishes a zero-payload @ref DP_KIND_EOS frame. A receiving
-   * `*_recv` reports @ref DP_ERR_EOF instead of handing back an empty
-   * frame, so a consumer learns the sender finished rather than inferring
-   * it from silence — which is the inference this whole contract exists
-   * to remove.
-   *
-   * **Send it before dp_stream_drain(), not after.** A drain cannot be
-   * reversed and refuses sends once it reaches its publish-flushing
-   * phase, so an EOS issued after one may simply not go. The ordered
-   * shutdown is: stop producing, send EOS, drain, destroy.
-   *
-   * **What it does NOT promise.** PUB/SUB is at-most-once (§9), so this
-   * frame can be dropped like any other: it turns the common case from
-   * "wait forever" into "finish promptly", not from unreliable into
-   * guaranteed, and a subscriber that must not hang on a lost marker
-   * still needs a timeout. PUSH/PULL delivers it at-least-once, so it may
-   * arrive more than once and a handler must be idempotent.
-   *
-   * @param ctx Any send-capable context.
-   * @return DP_OK once handed to the client, @ref DP_ERR_INVALID for a
-   *         NULL context, @ref DP_ERR_CLOSED if the context is already
-   *         draining or closed.
-   */
-  int dp_pub_send_eos (dp_pub_t *ctx);
-
   int dp_stream_drain (dp_pub_t *ctx, int timeout_ms);
 
   /**

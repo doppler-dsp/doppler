@@ -148,6 +148,65 @@ test_frame_kinds (void)
   /* Announcing the end of a stream that does not exist is a caller error,
      not a silent success: there is no context to say it on. */
   DP_CHECK (dp_pub_send_eos (NULL) == DP_ERR_INVALID);
+
+  printf ("-- an ending is checked, not merely exempted\n");
+
+  /* EOS is the one kind that skips the element-size arithmetic, so every
+     field the kind FIXES has to be checked here instead -- otherwise it
+     would also be the one kind whose header nothing validates at all. */
+  char        buf[sizeof (dp_header_t) + 64];
+  dp_header_t h;
+  dp_chunk_t  ch;
+  int         chunked = 0;
+  const void *body    = NULL;
+  size_t      blen    = 0;
+
+  dp_header_t e = { 0 };
+  e.magic       = DP_STREAM_MAGIC;
+  memcpy (e.data_rep, dp_host_rep (), 4);
+  e.kind    = (uint16_t)DP_KIND_EOS;
+  e.version = DP_WIRE_VERSION;
+
+  /* The well-formed ending: nothing claimed, nothing carried. */
+  memset (buf, 0, sizeof buf);
+  memcpy (buf, &e, sizeof e);
+  DP_CHECK_MSG (dp_frame_parse (buf, sizeof e, &h, &ch, &chunked, &body, &blen)
+                    == DP_OK,
+                "a zero-payload end-of-stream frame is well-formed");
+  DP_CHECK (blen == 0);
+
+  /* Claiming samples it cannot be carrying. */
+  dp_header_t bad = e;
+  bad.num_samples = 4;
+  memset (buf, 0, sizeof buf);
+  memcpy (buf, &bad, sizeof bad);
+  DP_CHECK_MSG (
+      dp_frame_parse (buf, sizeof bad, &h, &ch, &chunked, &body, &blen)
+          == DP_ERR_INVALID,
+      "an ending that claims samples is a contradiction, not a "
+      "frame to interpret");
+
+  /* Carrying a payload it says nothing about. */
+  bad               = e;
+  bad.payload_bytes = 16;
+  memset (buf, 0, sizeof buf);
+  memcpy (buf, &bad, sizeof bad);
+  DP_CHECK_MSG (
+      dp_frame_parse (buf, sizeof bad + 16, &h, &ch, &chunked, &body, &blen)
+          == DP_ERR_INVALID,
+      "an ending carries nothing, so a payload on one is refused");
+
+  /* Naming a sample type. The header says format is 0 for an ending; that
+     claim is only worth making if something enforces it. */
+  bad        = e;
+  bad.format = (uint16_t)CF64;
+  memset (buf, 0, sizeof buf);
+  memcpy (buf, &bad, sizeof bad);
+  DP_CHECK_MSG (
+      dp_frame_parse (buf, sizeof bad, &h, &ch, &chunked, &body, &blen)
+          == DP_ERR_INVALID,
+      "an ending has no sample type, so a frame naming one is not "
+      "the ending it claims to be");
 }
 
 /* ------------------------------------------------------------------

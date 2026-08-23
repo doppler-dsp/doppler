@@ -129,6 +129,24 @@ F32Buffer_wait (F32BufferObject *self, PyObject *args)
     ptr = dp_f32_wait (self->buf, (size_t)n);
   Py_END_ALLOW_THREADS
 
+  if (!ptr)
+    {
+      /* wait() gives up at end of stream or on an interrupt, and the two
+         are told apart by asking which happened. Building an array over
+         NULL would be the alternative, so this guard is load-bearing
+         rather than defensive. */
+      if (dp_f32_closed (self->buf))
+        {
+          PyErr_SetString (PyExc_EOFError,
+                           "end of stream: the producer closed the ring");
+          return NULL;
+        }
+      if (PyErr_CheckSignals () != 0)
+        return NULL; /* CPython raised it; do not raise a second */
+      PyErr_SetString (PyExc_KeyboardInterrupt, "interrupted");
+      return NULL;
+    }
+
   /* Reinterpret float* IQ pairs as complex64 */
   npy_intp  dims[1] = { n };
   PyObject *arr
@@ -184,7 +202,23 @@ F32Buffer_available (F32BufferObject *self, void *Py_UNUSED (closure))
   return PyLong_FromSize_t (dp_f32_available (self->buf));
 }
 
+static PyObject *
+F32Buffer_close (F32BufferObject *self, PyObject *Py_UNUSED (ignored))
+{
+  dp_f32_close (self->buf);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+F32Buffer_closed (F32BufferObject *self, void *Py_UNUSED (closure))
+{
+  return PyBool_FromLong (dp_f32_closed (self->buf));
+}
+
 static PyGetSetDef F32Buffer_getset[] = {
+  { "closed", (getter)F32Buffer_closed, NULL,
+    "True once the producer has called close(): no more data is coming.",
+    NULL },
   { "capacity", (getter)F32Buffer_capacity, NULL,
     "Buffer capacity in complex samples.", NULL },
   { "available", (getter)F32Buffer_available, NULL,
@@ -200,6 +234,24 @@ static PyMethodDef F32Buffer_methods[] = {
   { "write", (PyCFunction)F32Buffer_write, METH_VARARGS,
     "write(arr) -> bool\n\nNon-blocking write (complex64). "
     "Returns True on success, False if full." },
+  { "close", (PyCFunction)F32Buffer_close, METH_NOARGS,
+    "close() -> None\n"
+    "\n"
+    "Say that no more data is coming -- the producer's half of end of\n"
+    "stream. Until this exists a consumer cannot tell \"the producer is\n"
+    "slow\" from \"the producer has finished\": both look like an empty\n"
+    "ring. Call it once, after the last write.\n"
+    "\n"
+    "wait() then raises EOFError once the ring is drained, instead of\n"
+    "blocking for data that will never arrive.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.buffer import F32Buffer\n"
+    ">>> buf = F32Buffer(1024)\n"
+    ">>> buf.close()\n"
+    ">>> buf.closed\n"
+    "True\n" },
   { "wait", (PyCFunction)F32Buffer_wait, METH_VARARGS,
     "wait(n) -> np.ndarray[complex64]\n\n"
     "Block until n samples are available; return zero-copy view.\n"
@@ -324,6 +376,24 @@ F64Buffer_wait (F64BufferObject *self, PyObject *args)
     ptr = dp_f64_wait (self->buf, (size_t)n);
   Py_END_ALLOW_THREADS
 
+  if (!ptr)
+    {
+      /* wait() gives up at end of stream or on an interrupt, and the two
+         are told apart by asking which happened. Building an array over
+         NULL would be the alternative, so this guard is load-bearing
+         rather than defensive. */
+      if (dp_f64_closed (self->buf))
+        {
+          PyErr_SetString (PyExc_EOFError,
+                           "end of stream: the producer closed the ring");
+          return NULL;
+        }
+      if (PyErr_CheckSignals () != 0)
+        return NULL; /* CPython raised it; do not raise a second */
+      PyErr_SetString (PyExc_KeyboardInterrupt, "interrupted");
+      return NULL;
+    }
+
   npy_intp  dims[1] = { n };
   PyObject *arr
       = PyArray_SimpleNewFromData (1, dims, NPY_COMPLEX128, (void *)ptr);
@@ -378,7 +448,23 @@ F64Buffer_available (F64BufferObject *self, void *Py_UNUSED (closure))
   return PyLong_FromSize_t (dp_f64_available (self->buf));
 }
 
+static PyObject *
+F64Buffer_close (F64BufferObject *self, PyObject *Py_UNUSED (ignored))
+{
+  dp_f64_close (self->buf);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+F64Buffer_closed (F64BufferObject *self, void *Py_UNUSED (closure))
+{
+  return PyBool_FromLong (dp_f64_closed (self->buf));
+}
+
 static PyGetSetDef F64Buffer_getset[] = {
+  { "closed", (getter)F64Buffer_closed, NULL,
+    "True once the producer has called close(): no more data is coming.",
+    NULL },
   { "capacity", (getter)F64Buffer_capacity, NULL,
     "Buffer capacity in complex samples.", NULL },
   { "available", (getter)F64Buffer_available, NULL,
@@ -393,6 +479,24 @@ static PyGetSetDef F64Buffer_getset[] = {
 static PyMethodDef F64Buffer_methods[] = {
   { "write", (PyCFunction)F64Buffer_write, METH_VARARGS,
     "write(arr) -> bool\n\nNon-blocking write (complex128)." },
+  { "close", (PyCFunction)F64Buffer_close, METH_NOARGS,
+    "close() -> None\n"
+    "\n"
+    "Say that no more data is coming -- the producer's half of end of\n"
+    "stream. Until this exists a consumer cannot tell \"the producer is\n"
+    "slow\" from \"the producer has finished\": both look like an empty\n"
+    "ring. Call it once, after the last write.\n"
+    "\n"
+    "wait() then raises EOFError once the ring is drained, instead of\n"
+    "blocking for data that will never arrive.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.buffer import F32Buffer\n"
+    ">>> buf = F32Buffer(1024)\n"
+    ">>> buf.close()\n"
+    ">>> buf.closed\n"
+    "True\n" },
   { "wait", (PyCFunction)F64Buffer_wait, METH_VARARGS,
     "wait(n) -> np.ndarray[complex128]\n\n"
     "Block until n samples are available; return zero-copy view.\n"
@@ -529,6 +633,24 @@ I16Buffer_wait (I16BufferObject *self, PyObject *args)
     ptr = dp_i16_wait (self->buf, (size_t)n);
   Py_END_ALLOW_THREADS
 
+  if (!ptr)
+    {
+      /* wait() gives up at end of stream or on an interrupt, and the two
+         are told apart by asking which happened. Building an array over
+         NULL would be the alternative, so this guard is load-bearing
+         rather than defensive. */
+      if (dp_i16_closed (self->buf))
+        {
+          PyErr_SetString (PyExc_EOFError,
+                           "end of stream: the producer closed the ring");
+          return NULL;
+        }
+      if (PyErr_CheckSignals () != 0)
+        return NULL; /* CPython raised it; do not raise a second */
+      PyErr_SetString (PyExc_KeyboardInterrupt, "interrupted");
+      return NULL;
+    }
+
   /* Shape (n, 2) int16: column 0 = I, column 1 = Q */
   npy_intp  dims[2] = { n, 2 };
   PyObject *arr = PyArray_SimpleNewFromData (2, dims, NPY_INT16, (void *)ptr);
@@ -583,7 +705,23 @@ I16Buffer_available (I16BufferObject *self, void *Py_UNUSED (closure))
   return PyLong_FromSize_t (dp_i16_available (self->buf));
 }
 
+static PyObject *
+I16Buffer_close (I16BufferObject *self, PyObject *Py_UNUSED (ignored))
+{
+  dp_i16_close (self->buf);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+I16Buffer_closed (I16BufferObject *self, void *Py_UNUSED (closure))
+{
+  return PyBool_FromLong (dp_i16_closed (self->buf));
+}
+
 static PyGetSetDef I16Buffer_getset[] = {
+  { "closed", (getter)I16Buffer_closed, NULL,
+    "True once the producer has called close(): no more data is coming.",
+    NULL },
   { "capacity", (getter)I16Buffer_capacity, NULL,
     "Buffer capacity in IQ sample pairs.", NULL },
   { "available", (getter)I16Buffer_available, NULL,
@@ -599,6 +737,24 @@ static PyMethodDef I16Buffer_methods[] = {
   { "write", (PyCFunction)I16Buffer_write, METH_VARARGS,
     "write(arr) -> bool\n\nNon-blocking write (int16, shape (n,2) or "
     "(2n,))." },
+  { "close", (PyCFunction)I16Buffer_close, METH_NOARGS,
+    "close() -> None\n"
+    "\n"
+    "Say that no more data is coming -- the producer's half of end of\n"
+    "stream. Until this exists a consumer cannot tell \"the producer is\n"
+    "slow\" from \"the producer has finished\": both look like an empty\n"
+    "ring. Call it once, after the last write.\n"
+    "\n"
+    "wait() then raises EOFError once the ring is drained, instead of\n"
+    "blocking for data that will never arrive.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.buffer import F32Buffer\n"
+    ">>> buf = F32Buffer(1024)\n"
+    ">>> buf.close()\n"
+    ">>> buf.closed\n"
+    "True\n" },
   { "wait", (PyCFunction)I16Buffer_wait, METH_VARARGS,
     "wait(n) -> np.ndarray[int16, shape=(n,2)]\n\n"
     "Block until n IQ samples are available; return zero-copy view.\n"

@@ -17,7 +17,7 @@ only the noise differs between the reference and the received copy — see the
 ``src/doppler/wfm/tests/test_dsp_correctness.py``.
 
 Run:
-    python examples/python/wfm_receiver_ber.py
+    python wfm_receiver_ber.py
 """
 
 from __future__ import annotations

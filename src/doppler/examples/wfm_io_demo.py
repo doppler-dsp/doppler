@@ -23,7 +23,7 @@ metadata the file type recovered. ``Reader`` auto-detects the file type; raw is
 the one case that needs a ``sample_type`` hint.
 
 Run:
-    python examples/python/wfm_io_demo.py
+    python wfm_io_demo.py
 """
 
 from __future__ import annotations

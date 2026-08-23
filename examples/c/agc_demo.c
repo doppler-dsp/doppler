@@ -9,7 +9,7 @@
  *
  * Prints a downsampled convergence table and writes the full per-sample
  * trace to agc_step_response.csv.  Plot the CSV with
- * examples/python/agc_demo.py (which also runs the demo standalone).
+ * the Python agc_demo.py example (which also runs the demo standalone).
  *
  * Build:
  *   make build

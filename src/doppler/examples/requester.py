@@ -9,9 +9,9 @@ The REQ/REP pattern is strictly alternating: send → recv → send → recv.
 Both sides must follow this order or NATS raises an FSM error.
 
 Usage:
-  python examples/python/requester.py [endpoint]
-  python examples/python/requester.py                       # ctrl subject
-  python examples/python/requester.py nats://broker.example:4222/ctrl
+  python requester.py [endpoint]
+  python requester.py                       # ctrl subject
+  python requester.py nats://broker.example:4222/ctrl
 
 Run replier.py first.  Press Ctrl+C to stop.
 """

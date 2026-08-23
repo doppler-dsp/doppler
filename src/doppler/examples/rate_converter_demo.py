@@ -20,7 +20,7 @@ changes.  The four decimation regimes are:
 where D = 1/rate and R* = nearest power-of-two to D.
 
 Run:
-  python examples/python/rate_converter_demo.py
+  python rate_converter_demo.py
 """
 
 from __future__ import annotations

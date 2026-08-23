@@ -12,7 +12,7 @@ Visualises doppler.detection theory functions at Pfa = 1e-5.
 
 Run::
 
-    python examples/python/detection_curves.py
+    python detection_curves.py
 
 Saves detection_curves.png in the working directory.
 """

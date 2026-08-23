@@ -22,7 +22,7 @@ on
 the real axis with a wider cloud — lower SNR, fewer points.
 
 Run:
-    python examples/python/wfmgen_demo.py
+    python wfmgen_demo.py
 """
 
 from __future__ import annotations

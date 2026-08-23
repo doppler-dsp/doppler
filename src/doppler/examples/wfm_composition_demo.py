@@ -26,7 +26,7 @@ the four Gray-coded QPSK points and their cloud are the ``snr=15`` Es/No made
 visible — the SNR that the scene's floor was resolved from.
 
 Run:
-    python examples/python/wfm_composition_demo.py
+    python wfm_composition_demo.py
 """
 
 from __future__ import annotations

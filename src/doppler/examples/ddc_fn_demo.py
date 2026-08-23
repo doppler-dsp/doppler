@@ -20,7 +20,7 @@ Shows:
   4. Spectral plot — input passband → baseband output → retuned output
 
 Run:
-  python examples/python/ddc_fn_demo.py
+  python ddc_fn_demo.py
 """
 
 from __future__ import annotations

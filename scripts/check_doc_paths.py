@@ -48,7 +48,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 #: Where prose lives. Headers are included deliberately -- see above.
-SOURCES = ("docs/**/*.md", "native/inc/**/*.h")
+SOURCES = (
+    "docs/**/*.md",
+    "native/inc/**/*.h",
+    # The examples too, and for the same reason the headers are here: their
+    # docstrings are read as documentation. Adding them found 46 references
+    # to `examples/python/`, a directory that had not existed since the
+    # Python examples moved under src/doppler/ -- stale in 34 files, in the
+    # "Usage:" block a reader copies first, and invisible because nothing
+    # looked. A path in an example is now checked like a path in a page.
+    "src/doppler/examples/*.py",
+    "examples/c/*.c",
+)
 
 #: Directories that are unmistakably this repo's, so a code span starting with
 #: one is a claim about THIS tree. Derived from the top level rather than
@@ -82,6 +93,21 @@ _PATH = re.compile(
     r"`([A-Za-z0-9_./-]+\.(?:c|h|py|pyi|toml|md|txt|sh|yml|yaml|json|in))`"
 )
 
+#: The same path, NOT backticked. Only applied to the example sources
+#: (EXAMPLE_SOURCES below), where a path most often appears bare in a
+#: "Usage:" line rather than in a code span -- which is exactly how 46
+#: references to a directory that no longer existed survived in the block a
+#: reader copies first. Left off the markdown pages deliberately: prose
+#: there says "under docs/design" and similar far more loosely, and a rule
+#: that fires on those is a rule that gets switched off.
+_BARE_PATH = re.compile(
+    r"(?<![`\w/])([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+"
+    r"\.(?:c|h|py|pyi|toml|md|txt|sh|yml|yaml|json|in))"
+)
+
+#: Where a bare path is checked as strictly as a backticked one.
+EXAMPLE_SOURCES = ("src/doppler/examples/", "examples/", "native/examples/")
+
 #: A placeholder rather than a real path -- `<obj>_core.c`, `bench_*.c`.
 _PLACEHOLDER = re.compile(r"[*<>{}]")
 
@@ -105,7 +131,11 @@ def main() -> int:
     files = sorted({p for pat in SOURCES for p in ROOT.glob(pat)})
     for src in files:
         text = src.read_text(encoding="utf-8", errors="replace")
-        for m in _PATH.finditer(text):
+        rel = src.relative_to(ROOT).as_posix()
+        patterns = [_PATH]
+        if rel.startswith(EXAMPLE_SOURCES):
+            patterns.append(_BARE_PATH)
+        for m in (m for pat in patterns for m in pat.finditer(text)):
             path = m.group(1)
             if not path.startswith(REPO_PREFIX) or _PLACEHOLDER.search(path):
                 continue

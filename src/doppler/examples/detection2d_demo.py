@@ -55,7 +55,7 @@ Right  — ROC curve at operating SNR and dwell: theory line, empirical
 
 Run::
 
-    python examples/python/detection2d_demo.py
+    python detection2d_demo.py
 
 Saves detection2d_demo.png.  Runs in ~10 s.
 """

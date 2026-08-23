@@ -23,7 +23,7 @@ config to reconstruct.
 
 Run::
 
-    python examples/python/wfm_json_demo.py
+    python wfm_json_demo.py
 """
 
 from __future__ import annotations

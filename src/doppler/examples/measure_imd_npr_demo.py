@@ -26,7 +26,7 @@ notch/floor estimate than a single periodogram, at the same resolution
 bandwidth.
 
 Run:
-    python examples/python/measure_imd_npr_demo.py
+    python measure_imd_npr_demo.py
 """
 
 from __future__ import annotations

@@ -6,7 +6,7 @@ Shows:
   2. State persistence across buffer boundaries.
 
 Run:
-  python examples/python/fir_demo.py
+  python fir_demo.py
 """
 
 import numpy as np

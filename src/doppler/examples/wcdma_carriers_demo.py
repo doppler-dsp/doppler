@@ -23,7 +23,7 @@ Four panels:
   4. Per-channel measurements: occupied bandwidth (99 %), in-channel SNR, and
      adjacent-channel leakage (ACLR) derived from the band powers.
 
-Run: ``uv run python examples/python/wcdma_carriers_demo.py``
+Run: ``uv run python wcdma_carriers_demo.py``
 """
 
 from __future__ import annotations

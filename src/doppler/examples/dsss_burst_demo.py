@@ -38,7 +38,7 @@ Run
 ---
 ::
 
-    python examples/python/dsss_burst_demo.py
+    python dsss_burst_demo.py
 """
 
 from __future__ import annotations

@@ -281,6 +281,17 @@ extern "C"
   const char *dp_host_rep (void);
 
 
+  void dp_stream_interrupt (void);
+
+  void dp_stream_resume (void);
+
+  int dp_stream_interrupted (void);
+
+  int dp_stream_interrupt_on_signal (int sig);
+
+  int dp_stream_restore_signal (int sig);
+
+
   uint64_t dp_get_timestamp_ns (void);
 
   void dp_ctx_set_timestamp_ns (dp_pub_t *ctx, uint64_t timestamp_ns);

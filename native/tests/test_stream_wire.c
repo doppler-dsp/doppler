@@ -368,6 +368,39 @@ test_argument_guards (void)
             == 0);
 }
 
+/* ------------------------------------------------------------------
+ * The interrupt flag itself. Whether a blocked receive returns is a
+ * broker test (test_stream_nats_core); that the flag is sticky, and
+ * that a receive started while it is set refuses immediately, is not.
+ * ------------------------------------------------------------------ */
+static void
+test_interrupt_flag (void)
+{
+  printf ("-- the interrupt flag is sticky and pre-checked\n");
+
+  dp_stream_resume ();
+  DP_CHECK (!dp_stream_interrupted ());
+
+  dp_stream_interrupt ();
+  DP_CHECK (dp_stream_interrupted ());
+
+  /* Sticky: reading it does not clear it, so several parked loops all
+     see one handler's signal rather than the first one eating it. */
+  DP_CHECK (dp_stream_interrupted ());
+  DP_CHECK (dp_stream_interrupted ());
+
+  dp_stream_resume ();
+  DP_CHECK (!dp_stream_interrupted ());
+
+  DP_CHECK (strcmp (dp_strerror (DP_ERR_INTERRUPTED),
+                    "Interrupted by dp_stream_interrupt")
+            == 0);
+  /* An interrupt is a request to stop, not a failure, and a caller that
+     lumps it in with DP_ERR_RECV would report a crash for a Ctrl+C. */
+  DP_CHECK (DP_ERR_INTERRUPTED != DP_ERR_TIMEOUT);
+  DP_CHECK (DP_ERR_INTERRUPTED != DP_ERR_RECV);
+}
+
 int
 main (void)
 {
@@ -380,6 +413,7 @@ main (void)
   test_mean_power ();
   test_frame_parse ();
   test_argument_guards ();
+  test_interrupt_flag ();
 
   printf ("\n");
   DP_TEST_END ("test_stream_wire");

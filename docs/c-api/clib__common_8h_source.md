@@ -47,6 +47,8 @@
 #define DP_ERR_TIMEOUT (-5) 
 #define DP_ERR_MEMORY (-6)  
 #define DP_ERR_TOO_LARGE (-7) 
+#define DP_ERR_INTERRUPTED                                                    \
+  (-8) 
 #include "jm_perf.h"
 
 /* ------------------------------------------------------------------ */

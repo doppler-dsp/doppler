@@ -451,6 +451,13 @@ nats_send_raw (struct dp_ctx *ctx, const void *data, size_t size)
  * Receive
  * ========================================================================= */
 
+/* One wait slice. Short on purpose: it is how often a blocking receive
+ * looks up to see whether dp_stream_interrupt() has been called, and it
+ * bounds how long Ctrl+C appears to be ignored. 100 ms costs ten wakeups a
+ * second on an idle subscriber and buys an interrupt no human perceives as
+ * a delay. */
+#define DP_WAIT_SLICE_MS 100
+
 /* Pull one message from the durable JetStream consumer (batch of 1).  The
  * message is NOT acked here — the caller acks via dp_msg_ack once it has been
  * processed, so a crash before ack triggers redelivery (at-least-once). */
@@ -461,17 +468,34 @@ nats_pull_fetch (struct dp_ctx *ctx, natsMsg **out)
   if (!sub)
     return DP_ERR_INVALID;
 
-  int         to   = ctx->nats.recv_timeout_ms;
-  natsMsgList list = { NULL, 0 };
+  if (dp_stream_interrupted ())
+    return DP_ERR_INTERRUPTED;
+
+  int         to        = ctx->nats.recv_timeout_ms;
+  int64_t     remaining = (to < 0) ? -1 : (int64_t)(to == 0 ? 1 : to);
+  natsMsgList list      = { NULL, 0 };
   natsStatus  s;
-  if (to < 0)
+
+  /* Sliced for the same reason the SUB path is: a worker parked on an
+     empty work queue has to be able to hear dp_stream_interrupt(). */
+  for (;;)
     {
-      do
-        s = natsSubscription_Fetch (&list, sub, 1, 3600000, NULL);
-      while (s == NATS_TIMEOUT);
+      int64_t slice = DP_WAIT_SLICE_MS;
+      if (remaining >= 0 && remaining < slice)
+        slice = remaining;
+
+      s = natsSubscription_Fetch (&list, sub, 1, (int64_t)slice, NULL);
+      if (s != NATS_TIMEOUT)
+        break;
+      if (dp_stream_interrupted ())
+        return DP_ERR_INTERRUPTED;
+      if (remaining >= 0)
+        {
+          remaining -= slice;
+          if (remaining <= 0)
+            return DP_ERR_TIMEOUT;
+        }
     }
-  else
-    s = natsSubscription_Fetch (&list, sub, 1, to == 0 ? 1 : to, NULL);
 
   if (s == NATS_TIMEOUT)
     return DP_ERR_TIMEOUT;
@@ -498,22 +522,40 @@ nats_next (struct dp_ctx *ctx, natsMsg **out)
   if (!sub)
     return DP_ERR_INVALID;
 
-  int        to = ctx->nats.recv_timeout_ms;
-  natsStatus s;
-  if (to < 0)
-    {
-      do
-        s = natsSubscription_NextMsg (out, sub, 3600000);
-      while (s == NATS_TIMEOUT);
-    }
-  else
-    {
-      s = natsSubscription_NextMsg (out, sub, to == 0 ? 1 : to);
-    }
+  /* Checked BEFORE waiting as well as between slices: a receive started
+     after the signal must not park for a slice first, which is what makes
+     "interrupt then recv" behave the same as "recv then interrupt". */
+  if (dp_stream_interrupted ())
+    return DP_ERR_INTERRUPTED;
 
-  if (s == NATS_TIMEOUT)
-    return DP_ERR_TIMEOUT;
-  return (s == NATS_OK) ? DP_OK : DP_ERR_RECV;
+  int to = ctx->nats.recv_timeout_ms;
+
+  /* Both paths are the same loop; the only difference is whether there is
+     a deadline to run out of. Slicing the caller's own timeout matters as
+     much as slicing an infinite wait: a five-second recv that ignores
+     Ctrl+C for five seconds is the same defect, smaller. */
+  int64_t remaining = (to < 0) ? -1 : (int64_t)(to == 0 ? 1 : to);
+
+  for (;;)
+    {
+      int64_t slice = DP_WAIT_SLICE_MS;
+      if (remaining >= 0 && remaining < slice)
+        slice = remaining;
+
+      natsStatus s = natsSubscription_NextMsg (out, sub, (int64_t)slice);
+      if (s != NATS_TIMEOUT)
+        return (s == NATS_OK) ? DP_OK : DP_ERR_RECV;
+
+      if (dp_stream_interrupted ())
+        return DP_ERR_INTERRUPTED;
+
+      if (remaining >= 0)
+        {
+          remaining -= slice;
+          if (remaining <= 0)
+            return DP_ERR_TIMEOUT;
+        }
+    }
 }
 
 /* A REP must answer the request it just received; remember its reply subject.

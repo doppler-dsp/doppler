@@ -167,6 +167,14 @@ ______________________________________________________________________
 
 ::: doppler.stream.get_timestamp_ns
 
+::: doppler.stream.interrupt_on_sigint
+
+::: doppler.stream.interrupt
+
+::: doppler.stream.resume
+
+::: doppler.stream.interrupted
+
 ::: doppler.stream.mean_power
 
 ::: doppler.stream.format_name

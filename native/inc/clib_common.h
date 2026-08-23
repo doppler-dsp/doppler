@@ -39,6 +39,9 @@
 #define DP_ERR_TIMEOUT (-5) /**< Operation timed out. */
 #define DP_ERR_MEMORY (-6)  /**< Memory allocation failure. */
 #define DP_ERR_TOO_LARGE (-7) /**< Frame exceeds transport max payload. */
+#define DP_ERR_INTERRUPTED                                                    \
+  (-8) /**< A blocking call returned because dp_stream_interrupt() was     \
+            called -- a request to stop, not a failure. */
 
 #include "jm_perf.h"
 

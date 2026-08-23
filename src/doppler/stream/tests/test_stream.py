@@ -266,6 +266,63 @@ def test_recv_array_is_valid_after_recv(push_pull_cf64):
 
 
 # ------------------------------------------------------------------ #
+# Interrupting a blocking receive                                     #
+# ------------------------------------------------------------------ #
+
+
+def test_interrupt_unblocks_a_blocking_recv():
+    """A blocked recv() must come back when asked, not when a frame does.
+
+    recv() with no timeout waits inside the NATS client with the GIL
+    released. Nothing is published here, so without the interrupt this
+    call never returns -- which is exactly the defect the C receiver
+    example shipped with.
+    """
+    import threading
+
+    doppler.stream.resume()
+    sub = Subscriber(_unique_endpoint())
+    time.sleep(0.05)
+
+    timer = threading.Timer(0.4, doppler.stream.interrupt)
+    timer.start()
+    t0 = time.monotonic()
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            sub.recv()  # no timeout: blocks
+        elapsed = time.monotonic() - t0
+        assert elapsed < 3.0, f"took {elapsed:.2f}s"
+
+        # Sticky: a recv STARTED while the flag is set refuses at once, so
+        # a signal cannot be missed by racing it.
+        with pytest.raises(KeyboardInterrupt):
+            sub.recv()
+
+        # And receiving works again once cleared.
+        doppler.stream.resume()
+        with pytest.raises(TimeoutError):
+            sub.recv(timeout_ms=200)
+    finally:
+        timer.join()
+        doppler.stream.resume()
+        sub.close()
+
+
+def test_interrupt_on_sigint_restores_the_previous_handler():
+    """The context manager leaves the process as it found it."""
+    import signal as _signal
+
+    before = _signal.getsignal(_signal.SIGINT)
+    with doppler.stream.interrupt_on_sigint():
+        assert not doppler.stream.interrupted()
+    # Python's view of the handler is untouched -- ours is installed at the
+    # C level underneath it and chains to whatever was there, which is what
+    # keeps Ctrl+C working outside a receive.
+    assert _signal.getsignal(_signal.SIGINT) is before
+    assert not doppler.stream.interrupted()
+
+
+# ------------------------------------------------------------------ #
 # Retired wire values                                                 #
 # ------------------------------------------------------------------ #
 

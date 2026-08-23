@@ -27,15 +27,9 @@ from doppler.stream import (
     Subscriber,
     format_name,
     get_timestamp_ns,
+    interrupt_on_sigint,
     mean_power,
 )
-
-keep_running = True
-
-
-def _sighandler(sig, frame) -> None:
-    global keep_running
-    keep_running = False
 
 
 def _fmt_chars(code: int) -> str:
@@ -63,9 +57,6 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    signal.signal(signal.SIGINT, _sighandler)
-    signal.signal(signal.SIGTERM, _sighandler)
-
     print(
         f"doppler Receiver (Python)\n  Endpoint: {args.endpoint}\n"
         f"\nWaiting for packets..."
@@ -92,12 +83,18 @@ def main() -> None:
     lat_min_ms = float("inf")
     lat_max_ms = 0.0
 
-    with Subscriber(args.endpoint) as sub:
-        while keep_running:
+    # No timeout on recv(): it BLOCKS, which is what a dashboard wants --
+    # it has nothing to do between frames. That is only safe because
+    # interrupt_on_sigint() is holding a C-level handler that unblocks the
+    # wait; a Python handler cannot, because it runs only when the
+    # interpreter regains control and the blocking recv is what prevents
+    # that. SIGTERM is included so a container stop behaves like a Ctrl+C.
+    with Subscriber(args.endpoint) as sub, interrupt_on_sigint(signal.SIGTERM):
+        while True:
             try:
-                samples, hdr = sub.recv(timeout_ms=500)
-            except TimeoutError:
-                continue
+                samples, hdr = sub.recv()
+            except KeyboardInterrupt:
+                break
 
             now = get_timestamp_ns()
             n = int(hdr.get("num_samples", len(samples)))

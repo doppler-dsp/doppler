@@ -21,10 +21,10 @@ below rather than described.
    shutdown and is not one — and 1:5 is where it stops being subtle:
    ending a pool of N needs N markers, or a different tier.
 
-   The demo polls its five consumers in rotation so all of them are
-   genuinely asking when the ending goes out. That also makes the frame
-   split even, which is the loop's doing and not the broker's — the count
-   carrying the claim is the total, not the shape of the split.
+   The five consumers each run a thread and race for frames, so the
+   distribution shown is the BROKER's and not this script's — it varies
+   run to run, and so does which consumer gets told. The count carrying
+   the claim is the total, never the shape of the split.
 
 3. **The ending does not outlive the run.** A work-queue message stays in
    the stream until it is acked, and the caller cannot ack this one: it is
@@ -47,6 +47,7 @@ from __future__ import annotations
 import os
 import socket
 import sys
+import threading
 import time
 
 import numpy as np
@@ -59,10 +60,15 @@ from doppler.stream import CF32, Pull, Push
 #: has ended.
 NUM_CONSUMERS = 5
 
-#: A whole number of frames each, so an uneven split is a real finding
-#: rather than an artifact of the arithmetic.
+#: Enough that the broker has something to distribute. A whole multiple
+#: of the consumer count only so an even split is POSSIBLE -- it is not
+#: expected, and nothing asserts it.
 FRAMES_EACH = 4
 NUM_FRAMES = NUM_CONSUMERS * FRAMES_EACH
+
+#: Generous: a consumer that times out while frames remain takes them out
+#: of the total, turning a slow broker into a failed claim.
+RECV_MS = 3000
 
 BLOCK = 256
 
@@ -113,46 +119,53 @@ def main() -> int:
             producer.send(block, 1e6, 1e9)
         producer.send_eos()
 
-        # Round-robin, one receive each per turn -- so every consumer is
-        # actually asking when the ending goes out, which is what makes
-        # "only one was told" a fair result rather than a consequence of
-        # the other four never looking.
+        # Every consumer runs its own thread, pulling as fast as it can.
+        # The distribution is then the BROKER's -- Pull.recv() releases the
+        # GIL, so the five genuinely race, and which consumer gets which
+        # frame is NATS deciding rather than this loop taking turns.
         #
-        # It does NOT make the even split meaningful: polling in rotation
-        # hands out frames evenly by construction. What the counts prove is
-        # the TOTAL -- five consumers received NUM_FRAMES between them, not
-        # NUM_FRAMES each, which is the difference between a queue and a
-        # broadcast.
-        received = {name: 0 for name, _ in consumers}
+        # An earlier version polled them in strict rotation. That produced
+        # a perfectly even split every time, which looked like evidence and
+        # was arithmetic: the loop was doing the load-balancing itself.
+        # Left as a warning -- a harness that imposes the result it is
+        # measuring will report it confidently.
+        received = [0] * NUM_CONSUMERS
         told_it_ended: list[str] = []
-        finished: set[str] = set()
+        ledger = threading.Lock()
 
-        while len(finished) < len(consumers):
-            for name, consumer in consumers:
-                if name in finished:
-                    continue
+        def drain(index: int, name: str, consumer: Pull) -> None:
+            while True:
                 try:
-                    samples, _hdr = consumer.recv(timeout_ms=1500)
+                    samples, _hdr = consumer.recv(timeout_ms=RECV_MS)
                 except EOFError:
-                    told_it_ended.append(name)
-                    finished.add(name)
-                    continue
+                    # The ending. Exactly one consumer reaches this.
+                    with ledger:
+                        told_it_ended.append(name)
+                    return
                 except Exception:
-                    # A timeout here means this consumer asked while the
-                    # queue was empty. It is done -- but nobody told it,
-                    # which is claim 2 happening rather than being stated.
-                    finished.add(name)
-                    continue
+                    # A timeout: this consumer asked while the queue was
+                    # empty. It is done -- but nobody told it, which is
+                    # claim 2 happening rather than being stated.
+                    return
                 consumer.ack(samples)
-                received[name] += 1
+                received[index] += 1
 
-        total = sum(received.values())
+        threads = [
+            threading.Thread(target=drain, args=(i, name, consumer))
+            for i, (name, consumer) in enumerate(consumers)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        total = sum(received)
         print(f"\n  frames received (total {total}):")
-        for name, _ in consumers:
+        for i, (name, _) in enumerate(consumers):
             ending = (
                 "  <- told the stream ended" if name in told_it_ended else ""
             )
-            print(f"    {name}: {received[name]}{ending}")
+            print(f"    {name}: {received[i]}{ending}")
 
         # 1. At-least-once: nothing was dropped.
         assert total == NUM_FRAMES, (
@@ -166,10 +179,11 @@ def main() -> int:
             f"to exactly one consumer; {len(told_it_ended)} of "
             f"{NUM_CONSUMERS} saw it"
         )
-        # NOT that the split is even -- the loop above polls in strict
-        # rotation, so an even split is arithmetic and proves nothing. The
-        # claim is the TOTAL: a broadcast tier would have delivered all
-        # NUM_FRAMES to each of the five.
+        # NOT that the split is even. It is the broker's to choose and it
+        # varies run to run (measured: [5, 4, 5, 3, 3] on one trial, an
+        # even [4, 4, 4, 4, 4] on the next). Asserting a shape would be
+        # asserting a coincidence. The claim is the TOTAL -- a broadcast
+        # tier would have delivered all NUM_FRAMES to each of the five.
         assert total != NUM_FRAMES * NUM_CONSUMERS, (
             "every consumer received every frame, which is PUB/SUB "
             "behaviour -- this is not a work queue"
@@ -183,8 +197,8 @@ def main() -> int:
             f"{NUM_CONSUMERS} consumers, not {NUM_FRAMES} each"
         )
         print(
-            "                  (the even split is this loop's rotation, "
-            "not the broker's)"
+            f"                  (split {received} — the broker's to "
+            f"choose, and it varies)"
         )
         print(
             f"  one ending    : 1 of {NUM_CONSUMERS} was told; {silent} are "

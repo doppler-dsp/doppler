@@ -35,6 +35,12 @@
     }                                                                         \
   while (0)
 
+/* How many times the write-then-close race below is run. One attempt
+   catches a missing re-load-after-acquire only ~5% of the time (measured:
+   2 of 40 with it deleted), because the branch needs a window one spin
+   iteration wide. Independent attempts compound: 0.95^200 ~= 3e-5. */
+#define EOS_RACE_ATTEMPTS 200
+
 /* Consumer half of the write-then-close race below. Spins in wait() until
    the producer supplies a batch or closes the ring. */
 typedef struct
@@ -242,37 +248,58 @@ main (void)
         and it does cover the loop body, which the single-threaded cases
         never enter.
 
-        It does NOT pin the re-load-after-acquire inside the closed branch:
-        that needs the consumer to observe the flag while the write is still
-        invisible, and when the write IS visible the loop exits before the
-        branch. Sabotaging the re-load leaves this green. The argument for
-        it is written in buffer.h instead, where it can be read next to the
-        code it defends. */
+        Repeated, because ONE attempt does not pin the re-load-after-
+        acquire inside the closed branch. That branch needs the consumer's
+        head-load to land before the producer's write and its closed-load
+        after the close -- a window one spin-iteration wide -- so a single
+        race hits it only sometimes. Measured, rather than assumed: with
+        the re-load deleted, one attempt goes red in 2 of 40 runs.
+
+        A 5% detector is not a gate; it is a flake wearing one. But the
+        attempts are independent, so repetition compounds them --
+        0.95^EOS_RACE_ATTEMPTS, which is about 3e-5 at 200. That turns the
+        argument written in buffer.h into something the suite enforces,
+        which is what this file is for. */
   {
-    dp_f32_t *buf = dp_f32_create (1024);
-    DP_REQUIRE (buf != NULL);
-
-    eos_race_arg_t arg = { buf, NULL, 0 };
-    pthread_t      th;
-    DP_REQUIRE (pthread_create (&th, NULL, eos_consumer, &arg) == 0);
-
-    /* Let the consumer reach the spin before anything is written. */
-    struct timespec nap = { 0, 50 * 1000 * 1000 };
-    nanosleep (&nap, NULL);
-
-    float chunk[64];
-    for (size_t i = 0; i < 64; i++)
+    /* 64 COMPLEX samples, so 128 floats. `n` is in samples and each is an
+       I/Q pair, so a float[64] here is a 256-byte over-read that the
+       fixture -- not the ring -- was committing. */
+    float chunk[128];
+    for (size_t i = 0; i < 128; i++)
       chunk[i] = (float)(i + 1);
-    DP_CHECK (dp_f32_write (buf, chunk, 64) == true);
-    dp_f32_close (buf);
 
-    DP_REQUIRE (pthread_join (th, NULL) == 0);
-    DP_CHECK_MSG (arg.got != NULL,
+    int lost = 0, wrong = 0;
+    for (int attempt = 0; attempt < EOS_RACE_ATTEMPTS; attempt++)
+      {
+        dp_f32_t *buf = dp_f32_create (1024);
+        DP_REQUIRE (buf != NULL);
+
+        eos_race_arg_t arg = { buf, NULL, 0 };
+        pthread_t      th;
+        DP_REQUIRE (pthread_create (&th, NULL, eos_consumer, &arg) == 0);
+
+        /* Long enough for the consumer to reach the spin, short enough
+           that the loop above stays affordable. */
+        struct timespec nap = { 0, 200 * 1000 };
+        nanosleep (&nap, NULL);
+
+        DP_CHECK (dp_f32_write (buf, chunk, 64) == true);
+        dp_f32_close (buf);
+
+        DP_REQUIRE (pthread_join (th, NULL) == 0);
+        if (arg.got == NULL)
+          lost++;
+        else if (arg.first != 1.0f)
+          wrong++;
+        dp_f32_destroy (buf);
+      }
+
+    DP_CHECK_MSG (lost == 0,
                   "a consumer spinning when the producer writes-then-closes "
                   "must receive the final batch, not lose it to the flag");
-    DP_CHECK_MSG (arg.first == 1.0f,
+    DP_CHECK_MSG (wrong == 0,
                   "and receive the samples that were actually written");
-    dp_f32_destroy (buf);
+    dp_f32_destroy (dp_f32_create (1024)); /* keep the create/destroy pair */
   }
 
   /* The macro generates a type each time it is instantiated, so f64 and

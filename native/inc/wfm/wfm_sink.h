@@ -101,7 +101,6 @@ int wfm_stream_sink_send_eos(wfm_stream_sink_t *sink);
  *         if the budget ran out with the drain still in progress, in which
  *         case the sink is still safe to close.
  */
-
 int wfm_stream_sink_drain(wfm_stream_sink_t *sink, int timeout_ms);
 
 /** @brief Close the sink and destroy the publisher. @param sink May be NULL. */

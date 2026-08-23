@@ -92,6 +92,52 @@ mechanism, and it is what kills the race in all three cases:
 - **network** — an explicit end-of-stream frame, so a subscriber learns
     the sender finished rather than inferring it from silence.
 
+Explicit, not inferred, and the alternatives were checked rather than
+assumed away. NATS does offer one adjacent mechanism — a JetStream stream
+can be **sealed** — and it is the wrong instrument: an admin operation on
+a whole stream, irreversible, blocking *every* future writer rather than
+saying one sender finished, and absent from core PUB/SUB entirely. On a
+multi-sender subject it asserts something false. The remaining candidates
+are inference wearing a better name: a pull consumer's "no messages"
+means the stream is empty *now*, which is the exact ambiguity being
+removed, and connection-drop detection cannot distinguish a clean finish
+from a crash.
+
+### On the wire it is a KIND, not a flag
+
+doppler's own validation rules decide this. §3 of
+[Streaming](streaming.md) lists what a receiver checks: any `flags` bit
+outside `DP_FLAG_KNOWN` is **refused**, because an unknown block moves
+where the payload starts. The `kind` field is not among the five checks.
+
+So a new flag bit would be breaking — every existing receiver rejects the
+frame — while a new kind is additive, which is the precedent
+`DP_KIND_TLM` already set when telemetry stopped pretending to be a
+sample format.
+
+### The one thing it cannot promise
+
+**PUB/SUB is at-most-once (§9), so an end-of-stream frame can be
+dropped.** Explicit beats inferred, and it does not beat physics: on that
+tier a subscriber may simply never see the marker, and a design that
+quietly assumed otherwise would have replaced a visible ambiguity with an
+invisible one.
+
+What that buys per tier, stated rather than blurred:
+
+- **PUSH/PULL** — at-least-once, so the marker arrives (possibly more
+    than once; EOS must therefore be idempotent).
+- **PUB/SUB** — best-effort. A subscriber that must not hang on a lost
+    marker still needs a timeout; EOS turns the common case from "wait
+    forever" into "finish promptly", not from "unreliable" into
+    "guaranteed".
+- **ring and file** — reliable, because the marker is a flag in shared
+    memory or a fact about the file, not a message that can be lost.
+
+That asymmetry is a property of the transports, not of this design, and
+the vocabulary is uniform anyway: a caller handles `DP_ERR_EOF` the same
+way everywhere and is told which tiers can fail to deliver it.
+
 ### Durable completion — one bounded, failure-reporting verb
 
 Each transport answers "did my data land", with the same contract: a

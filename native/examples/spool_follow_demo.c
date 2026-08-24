@@ -47,6 +47,20 @@
 #include <time.h>
 
 #define PATH "spool_follow_demo.blue"
+
+/* How long the run lasts when nobody says. An example must TERMINATE: the
+   `make test-examples-c` gate runs every one of them with no arguments and
+   no terminal, so a demo that waits for a real Ctrl+C is a demo that hangs
+   until the gate's 120 s timeout and reports FAIL. This one did, on every
+   machine and in the glibc 2.28 job, and it was the unexplained half of
+   `make gates` being red.
+
+   Long enough to be a real run at the writer's 4096-samples-per-20 ms pace
+   (~15 blocks, ~61k samples) and short enough that twelve examples in a row
+   still finish quickly. Pass a number of seconds to override, or 0 to wait
+   for an actual Ctrl+C -- which is the interactive demonstration, and stays
+   one keystroke away. */
+#define DEFAULT_RUN_S 0.3
 #define FS 2.4e6
 #define BLK 4096
 #define STYPE 3 /* ci16 */
@@ -171,7 +185,9 @@ reader_thread (void *arg)
 int
 main (int argc, char **argv)
 {
-  double limit_s = (argc > 1) ? atof (argv[1]) : 0.0;
+  /* Default is a bounded run, NOT "wait forever": see DEFAULT_RUN_S. An
+     explicit 0 asks for the interactive form. */
+  double limit_s = (argc > 1) ? atof (argv[1]) : DEFAULT_RUN_S;
 
   /* Install EARLY -- before the threads exist. A signal arriving before
      the handler does terminates the process. */
@@ -185,8 +201,12 @@ main (int argc, char **argv)
     }
 
   setvbuf (stdout, NULL, _IOLBF, 0);
-  printf ("spooling to %s -- press Ctrl+C to stop%s\n", PATH,
-          limit_s > 0 ? " (or wait for the limit)" : "");
+  if (limit_s > 0)
+    printf ("spooling to %s -- stopping after %.2f s (Ctrl+C stops it "
+            "sooner; pass 0 to wait for one)\n",
+            PATH, limit_s);
+  else
+    printf ("spooling to %s -- press Ctrl+C to stop\n", PATH);
 
   pthread_t wt, rt;
   pthread_create (&wt, NULL, writer_thread, fp);

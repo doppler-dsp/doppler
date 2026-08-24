@@ -25,6 +25,16 @@ create_error_message = "cannot open capture: no such file, unrecognised file typ
 
 # The CORE's own dependencies. gh-254 makes link=true additive for a collocated
 # module-object, so these land on the object's core/test/bench AND the .so.
+# The Python face installs dp_interrupted as the follow read's stop
+# predicate, so this .so needs the primitive's definitions -- and, because
+# dp_interrupt_guard is `process_global`, the capsule rendezvous that makes
+# its flag the SAME flag doppler.interrupt sets (doppler#976). Declared
+# rather than spliced, because jm generates that rendezvous only into modules
+# whose link line it wrote.
+[[wfm_reader.depends_on]]
+name = "dp_interrupt_guard"
+link = true
+
 [[wfm_reader.depends_on]]
 name = "wfm_cjson"
 link = true

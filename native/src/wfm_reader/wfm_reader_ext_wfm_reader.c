@@ -11,6 +11,15 @@
 
 #include "wfm_reader/wfm_reader_core.h"
 
+/* The stop predicate the Python face installs below. The CORE deliberately
+   does not call dp_interrupted() itself -- that would put dp_interrupt.c on
+   the link line of every C consumer of wfm_reader_core, which is why
+   read_follow() takes an injected predicate at all (end-of-capture.md 4c).
+   A binding is the layer that CAN link it, and doppler's own answer to "what
+   should stop a follow read?" is the process interrupt, exactly as
+   wfm_reader_core.h's own example says. */
+#include "dp_interrupt.h"
+
 typedef struct
 {
   PyObject_HEAD wfm_reader_state_t *handle;
@@ -92,6 +101,18 @@ ReaderObj_init (ReaderObject *self, PyObject *args, PyObject *kwds)
                        "C are supported)");
       return -1;
     }
+  /* Make Ctrl+C end a follow read. Without this the predicate is NULL and
+     read_follow() has no escape at all -- both budgets default to "forever"
+     on purpose (a stream with no rhythm we control turns any finite budget
+     into a spurious ending), so "no stop predicate" means "waits until the
+     writer closes, whatever happens".
+
+     This is only true across modules because dp_interrupt_guard is
+     `process_global` (doppler#976): the flag Interrupt() sets in
+     doppler.interrupt is the same object this module reads. Before that fix
+     it would have been a different variable and this line would have looked
+     like it worked. */
+  wfm_reader_set_stop_fn (self->handle, dp_interrupted);
   return 0;
 }
 

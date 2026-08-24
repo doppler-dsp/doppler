@@ -346,24 +346,35 @@ policy nobody has needed yet, and the default is unbounded.
 
 ______________________________________________________________________
 
-## 7b. Not instrumented, and why
+## 7b. Not instrumented, and the constraint that is now gone
 
 Phase 6 would normally add telemetry taps for exactly the two quantities
-above. It was tried and reverted, and the reason is worth recording
-because it is not about this object.
+above. It was tried and reverted, and the reason turned out not to be about
+this object *or* about telemetry.
 
-`dp_tlm_core.h` includes `buffer/buffer.h`, which defines `_GNU_SOURCE`
-for `memfd_create` **at its own line 50** — after any libc header the
-translation unit already reached. So a TU that includes `<stdio.h>` before
-it gets `syscall` undeclared. Putting telemetry in `wfm_reader_core.h`
-therefore exports an include-ORDER constraint to every consumer of the
-reader; `bench_wfm_reader_core.c` failed to compile on the spot.
+`dp_tlm_core.h` includes `buffer/buffer.h`, which defined `_GNU_SOURCE`
+**at its own line 51** — after any libc header the translation unit had
+already reached. So a TU that included `<stdio.h>` first got `syscall`
+undeclared, and putting telemetry in `wfm_reader_core.h` exported that
+include-ORDER constraint to every consumer of the reader;
+`bench_wfm_reader_core.c` failed to compile on the spot. A forward
+declaration avoided the include, but declaring the `dp_tlm` dependency makes
+`jm apply` inject the header anyway — the same problem through the front
+door.
 
-A forward declaration avoids the include, but declaring the `dp_tlm`
-dependency makes `jm apply` inject the header anyway, which is the same
-problem through the front door. Since a harness that owns both ends
-computes both quantities directly, the taps are not worth the constraint.
-The `buffer.h` ordering bug is real and belongs to `buffer.h`.
+That was read at the time as "telemetry doesn't work here". It was
+[#986](https://github.com/doppler-dsp/doppler/issues/986): the macro was a
+no-op in the common case, and `-std=gnu99` was quietly supplying the two
+functions via `_DEFAULT_SOURCE`, so the line looked like what made
+`buffer.h` work while contributing nothing. Feature-test macros are on the
+compile line now, and on the exported target, so **the constraint no longer
+exists** and phase 6 is a free choice rather than a refusal.
+
+It is still not taken here. A harness that owns both ends computes backlog
+and `wait_ms` directly, which is what §7 does, and the taps would add a
+`dp_tlm` dependency to the reader for numbers nothing is currently reading
+at runtime. That is a decision about value, and it is reversible; the
+sentence it replaces was a decision about a bug, and it was not.
 
 The reader carries no serializable state triplet either, and that is the
 existing decision for this object rather than one this design makes: its
@@ -371,42 +382,60 @@ running state is a file offset, and resuming means reopening a file.
 
 ______________________________________________________________________
 
-## 8. #977, and what it does and does not block
+## 8. The Python stop path, and how it was closed
 
-The interrupt flag is per-extension-module
-([#976](https://github.com/doppler-dsp/doppler/issues/976)): static
-linkage duplicates a file-static and CPython imports extensions
-`RTLD_LOCAL`, so `Interrupt().interrupt()` sets a flag in one `.so` and a
-wait in another reads a different one.
+The interrupt flag used to be per-extension-module
+([#976](https://github.com/doppler-dsp/doppler/issues/976)): static linkage
+duplicates a file-static and CPython imports extensions `RTLD_LOCAL`, so
+`Interrupt().interrupt()` set a flag in one `.so` while a wait in another
+read a different one.
 
-**It does not block the C face**, which is one archive and one copy —
-§9's tests exercise the stop path today. It blocks the *Python* face:
-until the state is shared, a stop raised in `doppler.interrupt` does not
-reach a follow read in `doppler.wfm`.
+**It never blocked the C face**, which is one archive and one copy — §9's
+tests exercise the stop path and always did. It blocked the *Python* face
+exactly as described: a stop raised in `doppler.interrupt` did not reach a
+follow read in `doppler.wfm`.
 
 `process_global = true` (just-buildit/just-makeit#1117, jm 0.67.0) is the
-generated fix and names doppler#976 as its motivating case. Two things
-stood between doppler and it. **One is gone**: jm 0.67.1 (gh-1128) split
-the roles — a `no_generate` *owner* is still refused, because nothing
-would publish, but a `no_generate` *adopter* is now **reported** rather
-than refusing the whole declaration, and the generated header carries the
-import path, module attribute and capsule name as `#define`s so a
-hand-written adopter has something to write against. `buffer` and
-`stream` are adopters, so that is the shape doppler needs.
+generated fix and names doppler#976 as its motivating case. It is adopted,
+and **this section's own prediction about the cost was wrong**, which is
+worth recording because the wrong version is the intuitive one.
 
-**The other is ours.** `dp_interrupt` is **not a jm component**
-(`objects/dp_interrupt_guard.toml:28` — a root-level primitive spliced in
-by `extra_link_libs`), so `process_global` has nowhere to attach. Making
-it one is a file move plus every includer, and it is
-[#977](https://github.com/doppler-dsp/doppler/issues/977)'s own migration
-rather than this branch's.
+It said `dp_interrupt` "is not a jm component … making it one is a file move
+plus every includer", and treated that migration as the prerequisite. No file
+moved. `process_global` attaches to a **component**, and
+`dp_interrupt_guard` — the object face declared in phase 2 — already is one;
+its core carries `dp_interrupt.c`'s objects. Declaring the flag on the guard
+was a manifest key plus two accessors.
 
-The contrast is the argument for doing it. `dp_tlm` **is** a component,
-so `depends_on { link = true }` reaches an object's C test and bench as
-well as its `.so` (gh-254); `dp_interrupt` needed `extra_link_libs`,
-which reaches only the `.so` — which is why the follow read takes an
-injected stop predicate (§4c) instead of calling `dp_interrupted`
-directly.
+What *was* load-bearing is a different thing entirely, and neither #976 nor
+#977 predicted it: **the link declaration**. jm generates the rendezvous only
+into modules whose link line it wrote, so every consumer had to move from a
+raw `$<TARGET_OBJECTS:dp_interrupt_obj>` splice to
+`depends_on { link = true }`. A module jm cannot see keeps its own flag
+silently — the original defect, one level up. `wfm_reader` is one of them,
+declared for exactly this reason.
+
+[#977](https://github.com/doppler-dsp/doppler/issues/977) proposed going
+further — an owned heap `dp_interrupt_t` handed to each wait. It is closed:
+the declarative route removes the duplication structurally, with no API
+change and nothing to migrate, and a per-wait `set_interrupt` would give
+every caller a new silent failure mode of the same family (an object nobody
+attached an interrupt to is a wait nobody can stop).
+
+**What the binding had to do.** `read_follow()` takes an injected predicate
+(§4c) rather than calling `dp_interrupted` itself, so that the core does not
+drag `dp_interrupt.c` onto the link line of every C consumer. Nothing was
+injecting one on the Python side, so a follow read had no escape at all. The
+binding now installs `dp_interrupted` at construction — the binding is the
+layer that *can* link it, and it is what `wfm_reader_core.h`'s own example
+says doppler passes.
+
+**A stop still does not, by itself, end the read**, and that is the design
+rather than a gap. `follow_grace_ms` defaults to 0 = forever, so a stopped
+reader waits for the writer's marker indefinitely: the shutdown propagates
+*through* the file (§4a), and the reader joins it rather than racing it. A
+caller that wants a bounded stop sets a grace; `test_wfm_reader_follow.py`
+pins both halves.
 
 ______________________________________________________________________
 
@@ -473,15 +502,15 @@ ______________________________________________________________________
 
 Per [Adding an algorithm](../dev/contributing/adding-algorithms.md):
 
-| #   | phase      | state                                                                                           |
-| --- | ---------- | ----------------------------------------------------------------------------------------------- |
-| 1   | Why        | this page; prototype run (§9)                                                                   |
-| 2   | Declare    | **done** — `read_follow`, `ending`, the budgets, `flush`; `make drift-check` green              |
-| 3   | Implement  | **done** — §9                                                                                   |
-| 4   | Pin        | **done** — six C tests, five sabotage-proven; this is the coverage (C-first)                    |
-| 5   | Bind       | generated; a glue-level smoke test and the Python stop path await §8                            |
-| 6   | Instrument | **n/a, with a reason** — §7b: telemetry would export `buffer.h`'s `_GNU_SOURCE` ordering bug    |
-| 7   | Explore    | **done** — `wfm_follow_keepup`, `make validate-c` + a `ctest` subset; closes #975's disk bullet |
-| 8   | Certify    | no transport in this contract has a validation report yet                                       |
-| 9   | Document   | **partial** — `native/examples/spool_follow_demo.c` runs the topology and self-validates        |
-| 10  | Land       | CHANGELOG; §10's deferrals filed                                                                |
+| #   | phase      | state                                                                                                                                     |
+| --- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Why        | this page; prototype run (§9)                                                                                                             |
+| 2   | Declare    | **done** — `read_follow`, `ending`, the budgets, `flush`; `make drift-check` green                                                        |
+| 3   | Implement  | **done** — §9                                                                                                                             |
+| 4   | Pin        | **done** — six C tests, five sabotage-proven; this is the coverage (C-first)                                                              |
+| 5   | Bind       | **done** — the binding installs `dp_interrupted`; `test_wfm_reader_follow.py` covers the stop, the drain, the marker and a bounded budget |
+| 6   | Instrument | **declined, and now freely** — §7b: the `_GNU_SOURCE` constraint that forced it is fixed (#986)                                           |
+| 7   | Explore    | **done** — `wfm_follow_keepup`, `make validate-c` + a `ctest` subset; closes #975's disk bullet                                           |
+| 8   | Certify    | no transport in this contract has a validation report yet                                                                                 |
+| 9   | Document   | **partial** — `native/examples/spool_follow_demo.c` runs the topology and self-validates                                                  |
+| 10  | Land       | CHANGELOG; §10's deferrals filed                                                                                                          |

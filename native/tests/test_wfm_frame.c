@@ -14,7 +14,6 @@
  * bits and no payload truth at all, which is the one metric that works on a
  * real capture AND still catches a false lock.
  */
-#define _GNU_SOURCE
 #include "dp_test.h"
 #include "wfm/wfm_frame.h"
 

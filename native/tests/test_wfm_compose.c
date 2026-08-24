@@ -5,7 +5,6 @@
  * clean/off), delays, once-through completion, and repeat looping — all
  * over the reused Phase-A synth engine.
  */
-#define _GNU_SOURCE
 #include "dp_test.h"
 #include "wfm/wfm_compose.h"
 #include "wfm/wfm_dsp.h"   /* wfm_frame_dsss_* for the dsss burst section */

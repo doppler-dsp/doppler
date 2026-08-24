@@ -29,7 +29,6 @@
  * exactly as random whether the randomiser ran, ran wrong, or did not run at
  * all — the absence is invisible. Zeros make the sequence itself the output.
  */
-#define _GNU_SOURCE
 #include "dp_test.h"
 
 #include "ccsds_tm/ccsds_tm.h"

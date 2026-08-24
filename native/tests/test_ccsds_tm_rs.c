@@ -26,7 +26,6 @@
  *   - the code is SYSTEMATIC (4.3.4 note 2), so the information symbols must
  *     survive encoding unchanged.
  */
-#define _GNU_SOURCE
 #include "dp_test.h"
 
 #include "ccsds_tm/ccsds_tm_rs.h"

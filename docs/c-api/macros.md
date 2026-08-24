@@ -359,10 +359,5 @@
 * **WFM\_SYNTH\_STATE\_VERSION** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 
 
-## _
-
-* **\_POSIX\_C\_SOURCE** ([**dp\_isotime.h**](dp__isotime_8h.md))
-
-
 
 

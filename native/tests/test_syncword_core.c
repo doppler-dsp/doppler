@@ -21,7 +21,6 @@
  *    disagrees with the detector it is meant to size is worse than no
  *    formula, because a caller would trust it.
  */
-#define _GNU_SOURCE
 #include "dp_rng_test.h"
 #include "dp_test.h"
 

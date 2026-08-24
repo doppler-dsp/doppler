@@ -30,7 +30,6 @@
  * "decodes" and the word it returns is not the one that was sent. See
  * docs/design/reed-solomon.md §4.
  */
-#define _GNU_SOURCE
 #include "dp_rng_test.h"
 #include "dp_test.h"
 

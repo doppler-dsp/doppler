@@ -1084,7 +1084,7 @@ doc-sections-check: ## Verify every `docs/x.md` section citation resolves
 # never set uv up -- `make: uv: No such file or directory`, exit 127, which
 # is a gate that cannot run rather than one that fails. The script imports
 # nothing outside the standard library precisely so it does not need one.
-installed-headers-check: build ## Verify installed headers declare only what the libraries define
+installed-headers-check: build ## Verify installed headers declare only what the libraries define, and define no feature-test macro
 	@command -v python3 >/dev/null 2>&1 || { \
 	    echo "installed-headers-check: no python3 — this gate has not run,"; \
 	    echo "  so it has not passed."; exit 1; }

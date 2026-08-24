@@ -4,6 +4,29 @@ project(doppler VERSION 0.43.2 LANGUAGES C)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# Feature-test macros go on the COMPILE LINE, never in a header (doppler#986).
+#
+# glibc's features.h latches the feature set on its FIRST inclusion, so a
+# `#define _GNU_SOURCE` inside a header is a no-op whenever anything reached
+# libc before that header did. buffer.h carried one at its own line 51 and it
+# was inert in exactly that way -- measured directly: after `#include
+# <stdio.h>` then `#include "buffer/buffer.h"`, `__USE_GNU` is NOT defined.
+#
+# It looked like it worked because CMAKE_C_EXTENSIONS defaults ON, so this
+# builds as -std=gnu99 and _DEFAULT_SOURCE already declares the syscall() and
+# ftruncate() buffer.h calls. Under a strict -std=c99 the same file compiles
+# or does not COMPILE ACCORDING TO INCLUDE ORDER ALONE, and native/inc is
+# installed wholesale -- a downstream picks its own order and its own dialect.
+#
+# Defined for every target here, which is the only place the ordering is
+# guaranteed. `scripts/check_installed_headers.py` keeps a header from
+# growing one back.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_compile_definitions(_GNU_SOURCE)
+elseif(APPLE)
+    add_compile_definitions(_DARWIN_C_SOURCE) # MAP_ANON
+endif()
+
 # doppler is pure C: every first-party source is C99 and the core libdoppler
 # links -lm and -lpthread.  The vendored nats.c (the optional libdoppler_stream
 # component's transport) is also pure C, so the whole build needs only a C
@@ -158,6 +181,17 @@ foreach(_t doppler_lib doppler_lib_static)
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/native/inc>
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/native/inc>
         $<INSTALL_INTERFACE:include>)
+    # The feature-test macro travels with the TARGET, so a downstream that
+    # links doppler gets it on its own compile line without reading a note
+    # (doppler#986). buffer.h is installed and calls syscall()/ftruncate();
+    # it used to define _GNU_SOURCE itself, which is a no-op for any
+    # translation unit that reached libc first -- so the requirement was
+    # real, undocumented, and silently unmet. PUBLIC, not PRIVATE: it is the
+    # CONSUMER's compile line that needs it, since the header is theirs to
+    # include.
+    target_compile_definitions(${_t} PUBLIC
+        $<$<PLATFORM_ID:Linux>:_GNU_SOURCE>
+        $<$<PLATFORM_ID:Darwin>:_DARWIN_C_SOURCE>)
     set_target_properties(${_t} PROPERTIES OUTPUT_NAME doppler)
 endforeach()
 # Export both libs under obvious target names: `doppler::doppler` (shared) and

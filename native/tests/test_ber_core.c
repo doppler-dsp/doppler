@@ -26,7 +26,6 @@
  * test_snr_core.c: an estimator has to be checked against a signal whose Es/N0
  * is known by construction.
  */
-#define _GNU_SOURCE
 #include "ber/ber_core.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"

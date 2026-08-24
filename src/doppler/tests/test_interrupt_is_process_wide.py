@@ -39,8 +39,14 @@ from importlib.metadata import version
 
 import pytest
 
+from doppler.tests._repo import repo_root
+
 _PKG = pathlib.Path(__file__).resolve().parents[1]
-_ROOT = _PKG.parents[1]
+#: The checkout, found by walking up for its markers rather than by
+#: counting directories: `make coverage` runs this file from a COPY of
+#: the package at build-cov/pkg/doppler, two levels deeper, where every
+#: fixed-depth root lands inside build-cov/. See doppler.tests._repo.
+_ROOT = repo_root()
 _NATIVE_INC = _ROOT / "native" / "inc"
 
 #: How long the consumer thread is given to notice. The ring's wait checks

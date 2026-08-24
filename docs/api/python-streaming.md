@@ -167,17 +167,33 @@ ______________________________________________________________________
 
 ::: doppler.stream.get_timestamp_ns
 
-::: doppler.stream.interrupt_on_sigint
+### Stopping a blocked receive
 
-::: doppler.stream.interrupt
+The interrupt is no longer part of this module. It was never a streaming
+feature — the same flag ends a ring wait and a capture read — so it now
+lives on its own, as an object rather than as six free functions:
 
-::: doppler.stream.resume
+```python
+import numpy as np
 
-::: doppler.stream.interrupted
+from doppler.interrupt import Interrupt
 
-::: doppler.stream.set_interrupt_latency_ms
+it = Interrupt(np.array([], dtype=np.int32))
 
-::: doppler.stream.interrupt_latency_ms
+# Requested from another thread, or from a SIGINT handler this guard
+# installed. A Subscriber.recv() blocked in the NATS client raises
+# KeyboardInterrupt; so does a ring wait, and so does a capture read.
+it.interrupt()
+assert it.interrupted()
+it.resume()
+```
+
+`doppler.stream.interrupt_on_sigint()`, `interrupt()`, `resume()`,
+`interrupted()`, `set_interrupt_latency_ms()` and `interrupt_latency_ms()`
+are **gone**, not deprecated. See [Interrupt](python-interrupt.md) for the
+object that replaces them and
+[Ending a wait](../design/io-termination.md) for the contract it serves on
+all three transports.
 
 ::: doppler.stream.mean_power
 
@@ -188,6 +204,6 @@ ______________________________________________________________________
 <!-- related-pages:start -->
 
 **Gallery** — [Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md)
-**Design** — [Ending a wait — one contract for network, memory and disk](../design/io-termination.md), [Streaming — one envelope, six roles, two planes](../design/streaming.md), [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md)
+**Design** — [Streaming — one envelope, six roles, two planes](../design/streaming.md), [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md)
 
 <!-- related-pages:end -->

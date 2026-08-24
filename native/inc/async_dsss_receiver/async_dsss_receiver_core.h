@@ -125,6 +125,23 @@ extern "C"
    * costs some phase noise at the 0-Doppler floor -- but the ~5 dB Es/N0
    * floor is still met.
    *
+   * THE PULL-IN NUMBER IS NOW MEASURED, and the "~tens of Hz" above is the
+   * assumption rather than the observation. `native/validation/costas_pullin.c`
+   * sweeps this loop's acquisition range in multiples of the `bn/m` bound
+   * (`m = 2`, the squaring discriminator) and re-derives it on every `make
+   * test`. At bn = 0.04 over a 2046-sample code period that bound is
+   * 9.775e-6 cyc/sample -- 60 Hz at SPEC's 6.138 MHz front end -- and the
+   * loop acquires 100% inside it on BOTH signs, is still reliable at 2x, and
+   * is dead by 4x. (Tighter than the MPSK carrier's measured 4x/5x envelope;
+   * the two are separate sweeps for that reason.)
+   *
+   * What the assumption cost: doppler#982. The receiver's own hand-off
+   * residual was measured at -54..+375 Hz, i.e. routinely 2-6x this bound,
+   * so the loop is asked to acquire from outside its range on most draws and
+   * the resulting failures read as an acquisition problem. Before widening
+   * bn again, check the hand-off against the bound -- this value was tuned
+   * empirically against the residual assumption that measurement contradicts.
+   *
    * NO FLL: the pre-despread Costas always passes bn_fll = 0 (a pure PLL).
    * The FLL cross-product frequency discriminator is far too noisy on this
    * loop's data-modulated despread-symbol input. The phase discriminator is

@@ -24,6 +24,19 @@ target_compile_options(validate_costas_jitter PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_costas_jitter
          COMMAND validate_costas_jitter --check)
 
+# The pull-in twin of carrier_nda_pullin.c, for the loop that had only
+# jitter. Links native/tests for dp_rng_test.h + dp_sym_test.h (the shared
+# bn/m offset spelling), like the harnesses that already do.
+add_executable(validate_costas_pullin
+               ${CMAKE_CURRENT_SOURCE_DIR}/costas_pullin.c)
+target_include_directories(validate_costas_pullin
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_costas_pullin PRIVATE doppler_lib_static m)
+target_compile_options(validate_costas_pullin PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_costas_pullin
+         COMMAND validate_costas_pullin --check)
+
 add_executable(validate_dll_jitter
                ${CMAKE_CURRENT_SOURCE_DIR}/dll_jitter.c)
 target_include_directories(validate_dll_jitter

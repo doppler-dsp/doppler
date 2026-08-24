@@ -237,13 +237,24 @@ def test_an_undersized_out_is_refused_not_truncated(tmp_path):
 
 
 def test_a_raw_capture_never_ends_so_only_a_stop_finishes_it(tmp_path):
-    """Raw and CSV carry no end-of-capture marker at all.
+    """Raw and CSV never report an ending, and it is not for lack of room.
 
     BLUE patches `data_size` at close() and that transition is the ending.
-    A raw file has nowhere to put one, so a follow read of it can never
-    report EOF however long it waits -- the design says so in prose and
-    nothing checked it. The only way out is a stop, which is exactly why
-    the stop path is not optional.
+    Raw and CSV could carry a marker -- they already get a
+    `<path>.sigmf-meta` sidecar for the fs/fc/t0 the containers cannot hold
+    -- but a sidecar is a SECOND FILE: opt-out (`sidecar=false`), and
+    separable from its data by a move, a copy or a glob. Writing the marker
+    inline is worse still: raw has no framing, so it would be read as
+    samples.
+
+    So the ending stays unavailable rather than becoming best-effort, which
+    is the whole basis for `DP_ERR_EOF` being a guarantee on BLUE: the
+    marker is in the artifact the reader is already reading. A marker that
+    usually arrives would be trusted, and would then be wrong exactly when
+    the sidecar went missing.
+
+    The only way out of this wait is a stop -- which is precisely why the
+    stop path is not optional.
     """
     p = tmp_path / "nomarker.raw"
     w = Writer(p, file_type="raw", sample_type="ci16", fs=2.4e6)

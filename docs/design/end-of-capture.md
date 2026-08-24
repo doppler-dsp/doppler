@@ -199,9 +199,30 @@ says *finished*; only a marker says *which*. **Not built** — §10.
 atomic against a concurrent reader, so a torn `data_size` reads as "not
 yet" and the next poll succeeds — a 100 ms delay rather than a misparse.
 
-**Raw and CSV have no header and therefore no marker.** A followed
-capture must be one we wrote as BLUE. That is a constraint on the caller,
-not a hazard to defend against, because the writer is ours.
+**Raw and CSV never end, and the reason is discardability rather than a
+lack of room.** A followed capture must be one we wrote as BLUE. That is a
+constraint on the caller, not a hazard to defend against, because the
+writer is ours.
+
+The tempting fix is to give them a marker anyway, and it is worth saying
+why it is refused rather than merely absent. Raw and CSV *do* have
+somewhere to put one: both already get a `<path>.sigmf-meta` sidecar
+carrying the `fs`/`fc`/`t0` their containers cannot hold. A marker could
+go there — and it would not be a guarantee, because a sidecar is a
+**second file**. It is opt-out (`sidecar=false`, for a downstream whose
+glob an extra file would break) and it separates from its data under an
+ordinary move, copy or glob. Writing the marker *inline* is worse: raw has
+no framing, so those bytes are indistinguishable from samples and a reader
+would return them as data.
+
+So the ending stays unavailable rather than becoming best-effort. That is
+the same reasoning §1's scope rests on: `DP_ERR_EOF` is a guarantee here
+because the marker is in the artifact the reader is **already reading**,
+patched in place by the writer that owns it. A marker that usually arrives
+is worse than none, because a reader learns to trust it and is then wrong
+exactly when the sidecar went missing — which is the "clean finish on a
+truncated capture" failure this whole design exists to remove, reintroduced
+one layer out.
 
 ### 4b. `wfm_writer_flush()` — alignment, not just durability
 

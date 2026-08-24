@@ -100,15 +100,42 @@ def main(out_path: str = "ddc_fn_scaling.png") -> None:
         print(f"  {n:>8} {thru / 1e6:>9.3f} {su:>7.2f}x {su / n * 100:>5.0f}%")
 
     # The GIL-release claim is the whole demo: with the GIL held across
-    # execute, two threads would aggregate ≈1× base throughput.  Genuine
-    # parallelism must clear that by a wide margin on any 2+ core box
-    # (measured ≈1.9×; the memory-bandwidth ceiling only bites later).
-    # ...but NOT under profile instrumentation, where the number is not the
-    # receiver's. `make coverage` builds with -fprofile-instr-generate, and
-    # every counter update is an atomic on a page shared between threads, so
-    # two threads serialise on the profiling runtime rather than on the GIL:
-    # measured 0.98x here against ~1.9x uninstrumented. Asserting anyway
-    # would make a threading claim out of a measurement of llvm's counters.
+    # execute, N threads would aggregate ≈1× base throughput AT EVERY N.
+    # That last clause is the load-bearing one, and this assertion used to
+    # miss it -- it read ONE point, the 2-thread speedup, and called
+    # anything under 1.25× GIL-bound.
+    #
+    # A 2-thread sample cannot carry that claim on a machine whose
+    # single-thread boost clock is well above its all-core clock, which is
+    # an ordinary cloud-VM property. doppler#990: a CI runner measured
+    #
+    #     1 thread  0.015 Mblk/s   1.00×
+    #     2 threads 0.016          1.02×   <- "GIL-bound", said the assert
+    #     4 threads 0.029          1.90×   <- ...while scaling 1.9×
+    #
+    # and both points imply the SAME per-thread rate (0.510 and 0.475 of
+    # the single-thread rate). A machine clocking ~2× on one core as on
+    # four produces exactly that, and on such a box su2 ≈ 1.0 is the
+    # CORRECT result for a kernel that has fully released the GIL.
+    # Contention would have distorted the two ratios differently; it did
+    # not, and 24 local runs across four topologies and load regimes never
+    # moved su2 below 1.92×, so "flaky runner" was not the answer either.
+    #
+    # So read the CURVE, not a point: take the best speedup over every
+    # measured thread count. A held GIL caps ALL of them near 1× -- proven
+    # by sabotage, swapping the kernel for a pure-Python loop, which scores
+    # 1.00× at 1, 2 and 4 threads and fails this assertion as it must --
+    # while frequency scaling merely flattens the curve without stopping it
+    # climbing. Taking the maximum is what survives the second and still
+    # catches the first.
+    #
+    # None of that holds under profile instrumentation, where the number is
+    # not the receiver's. `make coverage` builds with
+    # -fprofile-instr-generate, and every counter update is an atomic on a
+    # page shared between threads, so the threads serialise on the profiling
+    # runtime rather than on the GIL: measured 0.98x here against ~1.9x
+    # uninstrumented. Asserting anyway would make a threading claim out of a
+    # measurement of llvm's counters.
     #
     # Keyed on LLVM_PROFILE_FILE, which the coverage recipe sets and nothing
     # else does -- a precise precondition, not a guess about the environment.
@@ -119,12 +146,27 @@ def main(out_path: str = "ddc_fn_scaling.png") -> None:
             "  scaling assertion skipped: LLVM_PROFILE_FILE is set, so the "
             "profiling runtime's atomics dominate the threading it measures"
         )
-    elif ncpu >= 2 and 2 in counts:
-        su2 = speedups[counts.index(2)]
-        assert su2 > 1.25, (
-            f"2-thread speedup {su2:.2f}x — execute appears GIL-bound"
+    elif max(counts) >= 4:
+        parallel = [(n, su) for n, su in zip(counts, speedups) if n >= 2]
+        n_best, best = max(parallel, key=lambda ns: ns[1])
+        assert best > 1.25, (
+            f"no thread count beat {best:.2f}x (best was {n_best} threads) "
+            f"— execute appears GIL-bound"
         )
-        print(f"  2-thread speedup {su2:.2f}x > 1.25x — GIL released, OK")
+        print(
+            f"  best speedup {best:.2f}x at {n_best} threads > 1.25x "
+            f"— GIL released, OK"
+        )
+    else:
+        # Fewer than four usable cores, so the curve is one or two points
+        # and the frequency effect above is indistinguishable from a held
+        # GIL -- the information is not in the measurement, at any
+        # threshold. Say so rather than assert something the data cannot
+        # support; the plot is still produced and still useful.
+        print(
+            f"  scaling assertion skipped: {ncpu} core(s) gives no thread "
+            f"count where a released GIL and a boost-clocked one differ"
+        )
 
     # ── plot ────────────────────────────────────────────────────────────────
     fig, ax = plt.subplots(figsize=(9, 5.2), constrained_layout=True)

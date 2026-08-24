@@ -10,4 +10,4 @@
 # The bar for an entry is narrow: the example's own assertion must be a
 # TIMING. An example that is merely slow does not belong here (it parallelizes
 # fine); an example whose measurement is perturbed by load does.
-ddc_fn_scaling.py: asserts a 2-thread speedup (su2 > 1.25) to prove execute() releases the GIL -- under xdist the workers already own every core, so it measured 1.15x and read the contention as "execute appears GIL-bound"
+ddc_fn_scaling.py: asserts a thread-scaling speedup to prove execute() releases the GIL -- under xdist the workers already own every core, so the whole curve is depressed and it read the contention as "execute appears GIL-bound" (measured 1.15x at 2 threads). Reading the best point rather than the 2-thread one (doppler#990) fixed a DIFFERENT failure and does not remove this one: xdist starves every count at once, so there is no unaffected point to find

@@ -1124,8 +1124,24 @@ follow_available (wfm_reader_state_t *r)
    whole contract exists to remove.
 
    BLUE patches data_size at close(), so the placeholder -> real transition
-   is the writer having finished, observed. Raw and CSV carry no marker at
-   all, so they never end: only a stop request can finish that wait. */
+   is the writer having finished, observed.
+
+   Raw and CSV never end, and the reason is DISCARDABILITY rather than a
+   lack of room. They do have somewhere to put one: a raw or CSV capture
+   already gets a `<path>.sigmf-meta` sidecar carrying the fs/fc/t0 those
+   containers cannot hold. A marker could go there too -- and it would not
+   be a guarantee, because that sidecar is a SECOND FILE. It is opt-out
+   (`sidecar=false`, for a downstream whose glob an extra file would
+   break), and it can be moved, dropped or copied away from its data
+   independently. Inside the container is no better: raw has no framing, so
+   anything written inline is indistinguishable from samples and would be
+   read as them.
+
+   What makes DP_ERR_EOF a guarantee on BLUE is that its marker lives in
+   the artifact the reader is ALREADY reading -- a header field, patched in
+   place at close(). A best-effort marker in a file that may not arrive is
+   a worse answer than no marker, because a reader would learn to trust it.
+   So only a stop request can finish that wait. */
 static int
 follow_ended (wfm_reader_state_t *r)
 {

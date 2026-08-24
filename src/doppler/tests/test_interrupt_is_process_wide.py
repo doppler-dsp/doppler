@@ -35,11 +35,13 @@ import re
 import subprocess
 import sys
 import textwrap
+from importlib.metadata import version
 
 import pytest
 
 _PKG = pathlib.Path(__file__).resolve().parents[1]
-_NATIVE_INC = _PKG.parents[1] / "native" / "inc"
+_ROOT = _PKG.parents[1]
+_NATIVE_INC = _ROOT / "native" / "inc"
 
 #: How long the consumer thread is given to notice. The ring's wait checks
 #: the flag every spin iteration, so a working flag is seen in microseconds
@@ -185,4 +187,72 @@ def test_every_module_carrying_the_flag_joins_the_rendezvous() -> None:
         f"dp_interrupt_guard.toml; a `no_generate` module has to call "
         f"dp_interrupt_pyadopt() in its own PyInit_, as buffer and stream "
         f"do. Do NOT add a waiver list here."
+    )
+
+
+# --------------------------------------------------------------------- #
+# The contract header: generated, but by nothing that runs again
+# --------------------------------------------------------------------- #
+
+
+def test_the_generated_contract_header_is_not_stale() -> None:
+    """``<comp>_procglobal.h`` still says what this jm would generate.
+
+    The header is where the three rendezvous names LIVE for a
+    ``no_generate`` module -- ``dp_interrupt_pyadopt.h`` reads the macros
+    rather than spelling them, precisely so a rename moves them by
+    itself. What that reasoning assumed, and nobody checked, is that the
+    header tracks jm. It does not: ``render_header`` is called only from
+    ``jm init`` and ``jm object``, so the file is written once at
+    scaffold time and never again. ``jm apply`` will not rewrite it
+    (clobber it to one line and apply reports nothing), and
+    ``jm status --check`` does not compare it, so a ``DO NOT EDIT`` file
+    sits outside every gate jm has. Filed as just-buildit/just-makeit#1140.
+
+    Measured on the 0.67.1 -> 0.67.2 bump, which is what this test is
+    made of: gh-1134 moved the owner import from the package to the
+    extension module, jm regenerated every module it writes, and left
+    ``DP_INTERRUPT_GUARD_PG_OWNER`` naming the package. buffer and
+    stream then adopted through the stale macro and the package
+    half-loaded -- 100 collection errors.
+
+    The behavioural test above does catch that, which is how it was
+    found. This one catches it at the RIGHT ALTITUDE: it names the stale
+    file and the field, on a jm bump, instead of leaving a hundred
+    unrelated-looking import errors to be traced back. It also covers
+    the shape doppler does not have today -- a project whose adopters
+    are all jm-generated, where a stale header breaks nothing until
+    someone adds a hand-written binding.
+
+    Registration-free on both axes: the components come from
+    ``process_globals`` over the merged manifest, and the expected text
+    from jm's own renderer, so this cannot drift from what jm means.
+    """
+    _config = pytest.importorskip("just_makeit._config")
+    _pg = pytest.importorskip("just_makeit._procglobal")
+
+    cfg = _config.load(_ROOT)
+    comps = _pg.process_globals(cfg)
+    assert comps, (
+        "no component declares process_global — either the manifest moved "
+        "or jm's API did; this test is checking nothing"
+    )
+
+    stale = []
+    for comp in comps:
+        hdr = _NATIVE_INC / _pg.header_name(comp)
+        want = _pg.render_header(cfg, comp)
+        assert want, f"jm rendered no header for {comp} — its API moved"
+        if not hdr.is_file() or hdr.read_text() != want:
+            stale.append(hdr.relative_to(_ROOT))
+
+    assert not stale, (
+        f"generated contract header(s) stale against just-makeit "
+        f"{version('just-makeit')}: {stale}. `jm apply` does NOT rewrite "
+        f"them (just-buildit/just-makeit#1140) — regenerate by hand:\n"
+        f'    uv run python -c "import pathlib;'
+        f"from just_makeit import _config, _procglobal as p;"
+        f"cfg=_config.load(pathlib.Path('.'));"
+        f"[(pathlib.Path('native/inc')/p.header_name(c)).write_text("
+        f'p.render_header(cfg,c)) for c in p.process_globals(cfg)]"'
     )

@@ -86,7 +86,7 @@
 | ---: | :--- |
 | define  | [**DP\_INTERRUPT\_GUARD\_PG\_ATTR**](dp__interrupt__guard__procglobal_8h.md#define-dp_interrupt_guard_pg_attr)  `"\_jm\_pg\_dp\_interrupt\_guard"`<br> |
 | define  | [**DP\_INTERRUPT\_GUARD\_PG\_CAPSULE**](dp__interrupt__guard__procglobal_8h.md#define-dp_interrupt_guard_pg_capsule)  `"doppler.dp\_interrupt\_guard.\_jm\_procglobal"`<br> |
-| define  | [**DP\_INTERRUPT\_GUARD\_PG\_OWNER**](dp__interrupt__guard__procglobal_8h.md#define-dp_interrupt_guard_pg_owner)  `"doppler.interrupt"`<br> |
+| define  | [**DP\_INTERRUPT\_GUARD\_PG\_OWNER**](dp__interrupt__guard__procglobal_8h.md#define-dp_interrupt_guard_pg_owner)  `"doppler.interrupt.interrupt"`<br> |
 
 ## Public Functions Documentation
 
@@ -155,7 +155,7 @@ void * dp_interrupt_guard_state_ptr (
 ### define DP\_INTERRUPT\_GUARD\_PG\_OWNER 
 
 ```C++
-#define DP_INTERRUPT_GUARD_PG_OWNER `"doppler.interrupt"`
+#define DP_INTERRUPT_GUARD_PG_OWNER `"doppler.interrupt.interrupt"`
 ```
 
 

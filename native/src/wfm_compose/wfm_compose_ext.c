@@ -2494,9 +2494,18 @@ Composer_init (ComposerObject *self, PyObject *args, PyObject *kwds)
     {
       if (PyDict_Size (kw) > 0)
         {
-          PyErr_SetString (
+          /* gh-1126: NAME the keys. With a segments list every leftover
+           * kwarg was reported as a segments-vs-kwargs conflict, which is
+           * the wrong problem whenever the real one is a misspelling or a
+           * composer-level name that does not exist -- including, before
+           * this, every attempt to guess at a setting. */
+          PyObject *_k = PyDict_Keys (kw);
+          PyErr_Format (
               PyExc_TypeError,
-              "pass either segments or single-segment kwargs, not both");
+              "unexpected keyword argument(s) %R alongside a segments list;"
+              " pass either segments or single-segment kwargs, not both",
+              _k);
+          Py_XDECREF (_k);
           Py_DECREF (kw);
           return -1;
         }
@@ -3168,7 +3177,7 @@ PyInit_wfm_compose (void)
   {
     void     *dp_interrupt_guard_state_ptr (void);
     void      dp_interrupt_guard_state_adopt (void *shared);
-    PyObject *_own = PyImport_ImportModule ("doppler.interrupt");
+    PyObject *_own = PyImport_ImportModule ("doppler.interrupt.interrupt");
     if (!_own)
       {
         Py_DECREF (m);

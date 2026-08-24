@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.67.1"
+jm_version = "0.67.2"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -646,10 +646,7 @@ type = "double"
 
 # `returns` types the `tmp` the `expr` below operates on, and jm REFUSES an
 # `expr` field without it (gh-333: defaulting `tmp` to the decoded `type`
-# truncates the getter's value before the expr runs, silently). jm 0.67.1's
-# new key check nevertheless warns that it "has no effect" -- its vocabulary
-# omits the key its own generator requires. just-buildit/just-makeit#1137;
-# keep the key, ignore the warning.
+# truncates the getter's value before the expr runs, silently).
 [[module.wfm_sink.getters.fields]]
 name = "peak_dbfs"
 getter = "wfm_stream_sink_peak"
@@ -1573,28 +1570,6 @@ Examples
 
 """
 objects = ["dp_interrupt_guard"]
-
-# The `process_global` capsule, lifted from the .so onto the PACKAGE.
-#
-# just-makeit publishes it on the extension module -- `doppler.interrupt.
-# interrupt` -- while the rendezvous it generates into every ADOPTING module
-# imports `doppler.interrupt`, the package. Those are two different objects
-# whenever a module lives at `<pkg>/<mod>/<mod>.so` behind a re-exporting
-# `__init__.py`, which is jm's own standard layout, so every adopter died
-# with `AttributeError: module 'doppler.interrupt' has no attribute
-# '_jm_pg_dp_interrupt_guard'` at import. Filed as just-buildit/just-makeit#1134.
-#
-# Declared here rather than hand-added to the generated `__init__.py`: this
-# is a manifest key doing what the manifest is for, so `jm apply` keeps it
-# and the drift gate covers it. Drop the entry once jm names the extension
-# module itself -- the ratchet in
-# src/doppler/tests/test_interrupt_is_process_wide.py is what will notice.
-[module.interrupt.reexports]
-# `Interrupt` is repeated because a `reexports` entry REPLACES the import
-# line jm derives for that submodule rather than adding to it -- listing
-# only the capsule silently dropped `from doppler.interrupt import
-# Interrupt`, which every doctest in this module uses.
-interrupt = ["Interrupt", "_jm_pg_dp_interrupt_guard"]
 
 [module.buffer]
 doc = """

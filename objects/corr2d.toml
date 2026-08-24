@@ -10,7 +10,16 @@ serializable = "true"
 
 [[corr2d.init_params]]
 name = "ref"
-type = "float _Complex[]"
+# TWO-dimensional: the reference is a ny x nx surface, and the manifest had
+# under-declared it as 1-D — which is what made jm derive a single `ref_len`
+# against a C that takes `(ref, ny, nx)`, the mismatch 0.64.x's CTOR check
+# surfaced.
+type = "float _Complex[][]"
+# gh-1097: the C names the two extents (ny, nx) rather than taking jm's
+# derived `ref_dim0`/`ref_dim1`.
+# jm already passed both — this names them instead of the derived
+# `ref_dim0`/`ref_dim1`.
+derived = ["ny", "nx"]
 
 [[corr2d.init_params]]
 name = "dwell"

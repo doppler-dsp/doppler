@@ -68,7 +68,8 @@ typedef struct
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
-detector_state_t *detector_create (const float complex *ref, size_t n,
+detector_state_t *detector_create (const float complex *ref,
+                                   size_t ref_len,
                                    size_t dwell, size_t noise_lo,
                                    size_t noise_hi,
                                    det_noise_mode_t noise_mode,

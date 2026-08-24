@@ -588,7 +588,7 @@ class Corr:
     Parameters
     ----------
     ref : NDArray[np.complex64]
-        Reference signal, CF32, length n.
+        Reference signal, CF32, length ref_len.
     dwell : int, default 1
         Integration depth; must be >= 1. Pass 1 for immediate output on every
         call.
@@ -1066,13 +1066,14 @@ class CorrDetector:
     Parameters
     ----------
     ref : NDArray[np.complex64]
-        Reference signal, CF32 ndarray of length n.
+        Reference signal, CF32 ndarray of length ref_len.
     dwell : int, default 1
         Int-dump depth; must be >= 1.
     noise_lo : int, default 0
         Lower noise bin index (inclusive, 0-based).
-    noise_hi : int, default n-1
-        Upper noise bin index (inclusive, < n).
+    noise_hi : int
+        Upper noise bin index (inclusive, < n). A value at or beyond the window
+        clamps to n - 1, so the default sentinel selects the full window.
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
         Noise aggregation: "mean", "median", "min", or "max".
     threshold : float, default 0.0
@@ -1311,8 +1312,10 @@ class CorrDetector2D:
         Int-dump depth; must be >= 1.
     noise_lo : int, default 0
         Lower flat-index noise bin (inclusive, 0-based).
-    noise_hi : int, default ny*nx-1
-        Upper flat-index noise bin (inclusive, < ny*nx).
+    noise_hi : int
+        Upper flat-index noise bin (inclusive, < ny*nx). A value at or beyond
+        the window clamps to ny*nx - 1, so the default sentinel selects the
+        full window.
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
         Noise aggregation: "mean", "median", "min", or "max".
     threshold : float, default 0.0

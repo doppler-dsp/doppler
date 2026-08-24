@@ -28,11 +28,14 @@ create_fn = "dp_tlm_capture_open_memory"
 # on an older one -- doppler's glibc 2.28 / Debian 10 job is what catches it,
 # and it caught exactly this when the hand-written CMakeLists' Threads::Threads
 # was dropped on the way to being generated.
-# dp_interrupt_obj: this component links timing_core, whose pace() consults
-# dp_interrupted() so a paced loop can be stopped. Its C test and bench
-# embed the objects rather than linking libdoppler, so they need the
-# primitive's definitions too.
-extra_link_libs = ["Threads::Threads", "$<TARGET_OBJECTS:dp_interrupt_obj>"]
+extra_link_libs = ["Threads::Threads"]
+
+# The interrupt primitive: this component links timing_core, whose pace()
+# consults dp_interrupted() so a paced loop can be stopped, and its C test
+# and bench embed the objects rather than linking libdoppler. DECLARED, not
+# spliced as a raw `$<TARGET_OBJECTS:dp_interrupt_obj>` genexpr: the
+# component is `process_global`, and jm generates the one-flag-per-process
+# rendezvous only into modules whose link line it wrote (doppler#976).
 
 # A NULL from open() is almost never OOM. It is one of four stated conditions,
 # and "no probes attached" is by far the likeliest — the bound is computed from
@@ -40,6 +43,10 @@ extra_link_libs = ["Threads::Threads", "$<TARGET_OBJECTS:dp_interrupt_obj>"]
 # zero and a NULL that a blanket MemoryError would misexplain completely.
 create_error = "ValueError"
 create_error_message = "capture could not be opened: attach every probe BEFORE opening (the ring is sized from the probe table, so no probes means no bound), pass a non-zero block_samples, use a context with no capture already open, and — for the file flavour — a writable path"
+
+[[dp_tlm_capture.depends_on]]
+name = "dp_interrupt_guard"
+link = true
 
 [[dp_tlm_capture.init_params]]
 name = "tlm"

@@ -11,6 +11,7 @@ Here is a list of all files with brief descriptions:
         * **file** [**dp\_crc16.h**](dp__crc16_8h.md) _CRC-16-CCITT over a bit stream — the one CRC shared by every doppler frame producer and consumer._     
         * **file** [**dp\_format.h**](dp__format_8h.md) _Complex sample formats, named by their BLUE/Platinum codes._     
         * **file** [**dp\_interrupt.h**](dp__interrupt_8h.md) _Asking a blocking wait to stop, whatever it is waiting on._     
+        * **file** [**dp\_interrupt\_pyadopt.h**](dp__interrupt__pyadopt_8h.md)     
         * **file** [**dp\_isotime.h**](dp__isotime_8h.md) _ISO 8601 UTC timestamps in both spellings — filename-safe_ **basic** _for names doppler writes,_**extended** _for the wire formats that mandate it._    
         * **file** [**dp\_parallel.h**](dp__parallel_8h.md)     
         * **file** [**dp\_simd.h**](dp__simd_8h.md) _doppler's own composite SIMD reductions, layered over_ `jm_simd.h` _._    
@@ -114,6 +115,7 @@ Here is a list of all files with brief descriptions:
             * **file** [**doppler\_channel\_core.h**](doppler__channel__core_8h.md) _Clock Doppler as a propagation impairment: dilate the time base and shift the carrier, coherently, from one physical parameter._     
         * **dir** [**dp\_interrupt\_guard**](dir_001936014fd0d8bf32545bf8d71a57c6.md)     
             * **file** [**dp\_interrupt\_guard\_core.h**](dp__interrupt__guard__core_8h.md)     
+            * **file** [**dp\_interrupt\_guard\_procglobal.h**](dp__interrupt__guard__procglobal_8h.md)     
         * **dir** [**dp\_tlm**](dir_76b7d6d4427bc094138fa987d2f2ac6b.md)     
             * **file** [**dp\_tlm\_core.h**](dp__tlm__core_8h.md) _Lightweight scalar telemetry taps for running DSP objects._     
         * **dir** [**dp\_tlm\_capture**](dir_c53721efa35f9e05ec164f1aacd6bf30.md)     

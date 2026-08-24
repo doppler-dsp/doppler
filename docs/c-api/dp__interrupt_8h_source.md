@@ -26,16 +26,6 @@ extern "C"
 
 #define DP_INTERRUPT_MAX_SIGNALS 8u
 
-  typedef struct
-  {
-    volatile sig_atomic_t flag;      
-    unsigned              latency_ms; 
-  } dp_interrupt_state_t;
-
-  dp_interrupt_state_t *dp_interrupt_state (void);
-
-  int dp_interrupt_bind (dp_interrupt_state_t *shared);
-
   void dp_interrupt (void);
 
   void dp_resume (void);

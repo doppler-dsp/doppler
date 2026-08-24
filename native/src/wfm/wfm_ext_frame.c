@@ -1367,8 +1367,7 @@ static PyMethodDef FrameObj_methods[] = {
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
     ">>> d = FrameDesc(empty, sync, payload, crc=\"crc16\")\n"
     ">>> d.build()\n"
-    ">>> d.stage_bits(0)      # payload and CRC: what crc16 was computed "
-    "over\n"
+    ">>> d.stage_bits(0)      # payload+CRC: what crc16 covered\n"
     "32\n" },
   { "destroy", (PyCFunction)FrameObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"

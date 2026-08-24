@@ -29,6 +29,7 @@
 #include <numpy/arrayobject.h>
 
 #include "buffer/buffer.h"
+#include "dp_interrupt_pyadopt.h"
 
 /* =====================================================================
  * F32Buffer  (float complex / complex64)
@@ -873,6 +874,15 @@ PyInit_buffer (void)
       Py_DECREF (m);
       return NULL;
     }
+
+  /* ONE flag per process. buffer.h's wait() consults dp_interrupted(), and
+     this module is `no_generate`, so jm writes no PyInit_ here to put its
+     rendezvous in -- without this call a stop requested through
+     doppler.interrupt leaves a ring wait spinning on a different variable
+     (doppler#976, and the wait is an unbounded spin, so "different
+     variable" means "forever at 100% CPU"). */
+  if (!dp_interrupt_pyadopt (m))
+    return NULL;
 
   return m;
 }

@@ -10,7 +10,16 @@ serializable = "true"
 
 [[detector2d.init_params]]
 name = "ref"
-type = "float _Complex[]"
+# TWO-dimensional: the reference is a ny x nx surface, and the manifest had
+# under-declared it as 1-D — which is what made jm derive a single `ref_len`
+# against a C that takes `(ref, ny, nx)`, the mismatch 0.64.x's CTOR check
+# surfaced.
+type = "float _Complex[][]"
+# gh-1097: the C names the two extents (ny, nx) rather than taking jm's
+# derived `ref_dim0`/`ref_dim1`.
+# jm already passed both — this names them instead of the derived
+# `ref_dim0`/`ref_dim1`.
+derived = ["ny", "nx"]
 
 [[detector2d.init_params]]
 name = "dwell"
@@ -25,12 +34,21 @@ default = "0"
 [[detector2d.init_params]]
 name = "noise_hi"
 type = "size_t"
-default = "ny*nx-1"
+# No `default`: the value actually passed is the SIZE_MAX sentinel in
+# `default_raw`, and the C clamps anything >= the window to the last bin. The
+# old `default = "ny*nx-1"` described that EFFECT rather than a value —
+# jm renders a default into C, the .pyi and an app's flags, and an expression
+# is valid in none of them (refused outright since jm 0.66.0). The behaviour is
+# documented on the header's @param, where jm transplants it into the docstring.
 default_raw = "(unsigned long long)-1ULL"
 
 [[detector2d.init_params]]
 name = "noise_mode"
 type = "string_enum:mean,median,min,max"
+# gh-1096: the C takes the enum typedef, not a bare int. Only the injected
+# create() declaration moves — the binding still parses the choice string,
+# validates it to an index and passes an int, which C converts at the call.
+c_type = "det_noise_mode_t"
 default = "mean"
 
 [[detector2d.init_params]]

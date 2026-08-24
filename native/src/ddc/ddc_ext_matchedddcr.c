@@ -282,6 +282,18 @@ MatchedDdcrObj_execute_ctrl (MatchedDdcrObject *self, PyObject *args,
 }
 
 static PyObject *
+MatchedDdcrObj_execute_ctrl_push_max_out (MatchedDdcrObject *self,
+                                          PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (ddcr_execute_ctrl_push_max_out (self->handle));
+}
+
+static PyObject *
 MatchedDdcrObj_execute_ctrl_push (MatchedDdcrObject *self, PyObject *args,
                                   PyObject *kwds)
 {
@@ -290,13 +302,61 @@ MatchedDdcrObj_execute_ctrl_push (MatchedDdcrObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char *_kwlist[] = { "x", "rate_ctrl", "freq_ctrl", NULL };
+  static char *_kwlist[] = { "x", "rate_ctrl", "freq_ctrl", "out", NULL };
   float        x         = 0;
   double       rate_ctrl = 0;
   double       freq_ctrl = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "fdd", _kwlist, &x, &rate_ctrl,
-                                    &freq_ctrl))
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "fdd|O", _kwlist, &x,
+                                    &rate_ctrl, &freq_ctrl, &out_obj))
     return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          return NULL;
+        }
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_COMPLEX64,
+          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = ddcr_execute_ctrl_push_max_out (self->handle);
+      size_t _min_cap = _omax > ddcr_execute_ctrl_push_max_out (self->handle)
+                            ? _omax
+                            : (ddcr_execute_ctrl_push_max_out (self->handle));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      size_t n_out = ddcr_execute_ctrl_push (
+          self->handle, x, rate_ctrl, freq_ctrl,
+          (float complex *)PyArray_DATA (out_arr), _cap);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
   size_t _need = ddcr_execute_ctrl_push_max_out (self->handle);
   size_t _cap  = ddcr_execute_ctrl_push_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -508,7 +568,7 @@ static PyMethodDef MatchedDdcrObj_methods[] = {
 
   { "execute", (PyCFunction)(void *)MatchedDdcrObj_execute,
     METH_VARARGS | METH_KEYWORDS,
-    "execute(x) -> ndarray\n"
+    "execute(x, out) -> ndarray\n"
     "\n"
     "Down-convert a block of real float32 samples to CF32 baseband.\n"
     "\n"
@@ -516,6 +576,8 @@ static PyMethodDef MatchedDdcrObj_methods[] = {
     "----------\n"
     "x : NDArray[np.float32]\n"
     "    Input.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    CF32 output buffer (C-only, hidden from Python).\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -539,32 +601,104 @@ static PyMethodDef MatchedDdcrObj_methods[] = {
     "1.0\n" },
   { "execute_max_out", (PyCFunction)MatchedDdcrObj_execute_max_out,
     METH_NOARGS,
-    "execute_max_out() -> int\n\nMax output length execute() can produce for "
-    "the current state.\nUse to size the ``out=`` buffer." },
+    "execute_max_out() -> int\n"
+    "\n"
+    "Upper bound on one execute call's output, or 0 to let the caller\n"
+    "size it from the input block (a decimator never exceeds its input).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "execute_ctrl", (PyCFunction)(void *)MatchedDdcrObj_execute_ctrl,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_ctrl(x) -> ndarray\n"
+    "execute_ctrl(x, rate_ctrl, freq_ctrl) -> ndarray\n"
     "\n"
     "Process a real block, steering both control ports.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import MatchedDdcr\n"
-    "    >>> obj = MatchedDdcr(0.0, 0.25, \"rrc\", 0.35, 8, 2.0, 1024)\n"
-    "    >>> y = obj.execute_ctrl(np.zeros(4))\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex64')\n" },
+    "The control-port form of ddcr_execute(); see ddc_execute_ctrl() for the\n"
+    "semantics, which are identical except for where the LO lives.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.float32]\n"
+    "    Real float32 input block.\n"
+    "rate_ctrl : float\n"
+    "    Rate deviation added to the terminal Resampler stage's rate\n"
+    "    (referenced to the terminal, post-decimation rate).\n"
+    "freq_ctrl : float\n"
+    "    Frequency deviation added to the fine LO, in cycles/sample at the\n"
+    "    INTERMEDIATE rate (fs_in/2) — the halfband has already decimated by\n"
+    "    two by the time the mix happens, so a discriminator working in\n"
+    "    cycles per ADC sample must be doubled before it lands here.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    Number of output samples written.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.ddc import Ddcr\n"
+    ">>> import numpy as np\n"
+    ">>> ddcr = Ddcr(norm_freq=-0.5, rate=0.25)  # LO 0.2 short of tune\n"
+    ">>> t = np.arange(4096)\n"
+    ">>> x = np.cos(2 * np.pi * 0.1 * t).astype(np.float32)\n"
+    ">>> y = ddcr.execute_ctrl(x, 0.0, -0.2)     # ctrl completes the tune\n"
+    ">>> y.shape\n"
+    "(1024,)\n"
+    ">>> round(float(abs(y[100:].mean())), 2)    # real tone -> DC, amp 1.0\n"
+    "1.0\n" },
   { "execute_ctrl_push", (PyCFunction)(void *)MatchedDdcrObj_execute_ctrl_push,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_ctrl_push(n=1) -> ndarray\n"
+    "execute_ctrl_push(x, rate_ctrl, freq_ctrl, out) -> ndarray\n"
     "\n"
     "Push ONE real input sample; emit whatever outputs it completes.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import MatchedDdcr\n"
-    "    >>> obj = MatchedDdcr(0.0, 0.25, \"rrc\", 0.35, 8, 2.0, 1024)\n"
-    "    >>> y = obj.execute_ctrl_push(np.zeros(4))\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex64')\n" },
+    "The per-input streaming form of ddcr_execute_ctrl(), for a closed loop.\n"
+    "The halfband consumes two inputs per intermediate sample, so every\n"
+    "other push does no mixing and emits nothing at all — the LO advances\n"
+    "(and its control is applied) once per *intermediate* sample, which is\n"
+    "the rate the LO runs at.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : float\n"
+    "    One real float32 input sample.\n"
+    "rate_ctrl : float\n"
+    "    Rate deviation for this input (terminal-stage rate).\n"
+    "freq_ctrl : float\n"
+    "    Frequency deviation, cycles/sample at fs_in/2.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Output buffer for any emitted samples.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    Number of outputs written (0, 1, or more).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.ddc import Ddcr\n"
+    ">>> import numpy as np\n"
+    ">>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)\n"
+    ">>> x = np.cos(2 * np.pi * 0.1 * np.arange(128)).astype(np.float32)\n"
+    ">>> outs = [ddcr.execute_ctrl_push(float(s), 0.0, 0.0) for s in x]\n"
+    ">>> int(sum(len(o) for o in outs))  # 128 real inputs, rate 1/4 -> 32\n"
+    "32\n"
+    ">>> [len(o) for o in outs[:4]]      # halfband: 0 until a strobe\n"
+    "[0, 0, 0, 1]\n" },
+  { "execute_ctrl_push_max_out",
+    (PyCFunction)MatchedDdcrObj_execute_ctrl_push_max_out, METH_NOARGS,
+    "execute_ctrl_push_max_out() -> int\n"
+    "\n"
+    "Bound for ONE pushed input: `ceil(rate) + 1` output periods.\n"
+    "Non-zero because the push form has no input block to size from.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "reset", (PyCFunction)MatchedDdcrObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
@@ -635,23 +769,21 @@ static PyMethodDef MatchedDdcrObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "destroy", (PyCFunction)MatchedDdcrObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)MatchedDdcrObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -666,9 +798,8 @@ static PyMethodDef MatchedDdcrObj_methods[] = {
     "Exit a context manager, releasing the Ddcr.\n"
     "\n"
     "Equivalent to calling `close()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"

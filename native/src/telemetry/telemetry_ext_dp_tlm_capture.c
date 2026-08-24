@@ -139,6 +139,18 @@ MemoryCaptureObj_init (MemoryCaptureObject *self, PyObject *args,
   return 0;
 }
 
+static PyObject *
+MemoryCaptureObj_records_max_out (MemoryCaptureObject *self,
+                                  PyObject            *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (dp_tlm_capture_read_max_out (self->handle));
+}
+
 static PyArray_Descr *MemoryCaptureObj_records_dtype = NULL;
 
 /* The record's numpy dtype, built from the compiler's own layout:
@@ -192,43 +204,6 @@ done:
   return out;
 }
 
-/* Hand-written, sharing tlm_read_dict.h with Telemetry.read_dict(); only the
-   record SOURCE differs. Here it is the capture's own accumulator, borrowed
-   and only read — every array handed back is a fresh numpy allocation — and
-   unlike the ring drain this does NOT consume, exactly as records() does not.
- */
-static PyObject *
-MemoryCaptureObj_read_dict (MemoryCaptureObject *self, PyObject *args,
-                            PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char       *_kwlist[] = { "n", "index", NULL };
-  unsigned long long n_raw     = 0;
-  int                with_idx  = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Kp", _kwlist, &n_raw,
-                                    &with_idx))
-    return NULL;
-
-  /* The context carries the registry the ids resolve against. */
-  dp_tlm_t *tlm = dp_tlm_capture_context (self->handle);
-  if (!tlm)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "read_dict: no context");
-      return NULL;
-    }
-
-  const dp_tlm_rec_t *recs  = dp_tlm_capture_records (self->handle);
-  size_t              n_out = dp_tlm_capture_count (self->handle);
-  if (n_raw != 0 && n_out > (size_t)n_raw)
-    n_out = (size_t)n_raw;
-
-  return tlm_build_read_dict (tlm, recs, n_out, with_idx);
-}
-
 static PyObject *
 MemoryCaptureObj_records (MemoryCaptureObject *self, PyObject *args,
                           PyObject *kwds)
@@ -238,14 +213,83 @@ MemoryCaptureObj_records (MemoryCaptureObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char       *_kwlist[] = { "n", NULL };
+  static char       *_kwlist[] = { "n", "out", NULL };
   unsigned long long n_raw     = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|K", _kwlist, &n_raw))
+  PyObject          *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KO", _kwlist, &n_raw,
+                                    &out_obj))
     return NULL;
-  size_t n     = (size_t)n_raw;
+  size_t n = (size_t)n_raw;
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact record dtype AND C-contiguity. Compared with
+       * EquivTypes against the generated descr: a structured array's type
+       * num is NPY_VOID, so a scalar enum cannot say what layout is
+       * wanted, and coercing to one would silently reinterpret the
+       * caller's buffer. */
+      {
+        PyArray_Descr *_want = MemoryCaptureObj_records_get_dtype ();
+        if (!_want)
+          {
+            return NULL;
+          }
+        if (!PyArray_Check (out_obj)
+            || !PyArray_EquivTypes (PyArray_DESCR ((PyArrayObject *)out_obj),
+                                    _want)
+            || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+            || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+          {
+            PyErr_Format (
+                PyExc_TypeError,
+                "out must be a writable, C-contiguous ndarray of"
+                " dtype %R, not %R",
+                _want,
+                PyArray_Check (out_obj)
+                    ? (PyObject *)PyArray_DESCR ((PyArrayObject *)out_obj)
+                    : Py_None);
+            Py_DECREF (_want);
+            return NULL;
+          }
+        Py_DECREF (_want);
+      }
+      PyArrayObject *out_arr = (PyArrayObject *)out_obj;
+      Py_INCREF (out_arr);
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = dp_tlm_capture_read_max_out (self->handle);
+      size_t _min_cap = _omax > dp_tlm_capture_read_max_out (self->handle)
+                            ? _omax
+                            : (dp_tlm_capture_read_max_out (self->handle));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      size_t n_out = dp_tlm_capture_read (
+          self->handle, n, (dp_tlm_rec_t *)PyArray_DATA (out_arr), _cap);
+      npy_intp       _odim   = (npy_intp)n_out;
+      PyArray_Descr *_vdescr = MemoryCaptureObj_records_get_dtype ();
+      if (!_vdescr)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyObject *_oview
+          = PyArray_NewFromDescr (&PyArray_Type, _vdescr, 1, &_odim, NULL,
+                                  PyArray_DATA (out_arr), 0, NULL);
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
   size_t _need = dp_tlm_capture_read_max_out (self->handle);
   size_t _cap  = dp_tlm_capture_read_max_out (self->handle);
-  (void)_need;
+  if (!_cap || _cap < _need)
+    _cap = _need;
   npy_intp       _adim  = (npy_intp)_cap;
   PyArray_Descr *_descr = MemoryCaptureObj_records_get_dtype ();
   if (!_descr)
@@ -407,6 +451,43 @@ MemoryCaptureObj_exit (MemoryCaptureObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+/* Hand-written, sharing tlm_read_dict.h with Telemetry.read_dict(); only the
+   record SOURCE differs. Here it is the capture's own accumulator, borrowed
+   and only read — every array handed back is a fresh numpy allocation — and
+   unlike the ring drain this does NOT consume, exactly as records() does not.
+ */
+static PyObject *
+MemoryCaptureObj_read_dict (MemoryCaptureObject *self, PyObject *args,
+                            PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "n", "index", NULL };
+  unsigned long long n_raw     = 0;
+  int                with_idx  = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Kp", _kwlist, &n_raw,
+                                    &with_idx))
+    return NULL;
+
+  /* The context carries the registry the ids resolve against. */
+  dp_tlm_t *tlm = dp_tlm_capture_context (self->handle);
+  if (!tlm)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "read_dict: no context");
+      return NULL;
+    }
+
+  const dp_tlm_rec_t *recs  = dp_tlm_capture_records (self->handle);
+  size_t              n_out = dp_tlm_capture_count (self->handle);
+  if (n_raw != 0 && n_out > (size_t)n_raw)
+    n_out = (size_t)n_raw;
+
+  return tlm_build_read_dict (tlm, recs, n_out, with_idx);
+}
+
 static PyMethodDef MemoryCaptureObj_methods[] = {
 
   { "read_dict", (PyCFunction)(void *)MemoryCaptureObj_read_dict,
@@ -454,7 +535,7 @@ static PyMethodDef MemoryCaptureObj_methods[] = {
 
   { "records", (PyCFunction)(void *)MemoryCaptureObj_records,
     METH_VARARGS | METH_KEYWORDS,
-    "records(n) -> ndarray\n"
+    "records(n, out) -> ndarray\n"
     "\n"
     "Copies accumulated records out. Memory mode only.\n"
     "\n"
@@ -471,6 +552,8 @@ static PyMethodDef MemoryCaptureObj_methods[] = {
     "----------\n"
     "n : int\n"
     "    Records wanted; 0 means \"everything accumulated\".\n"
+    "out : NDArray[Any] | None\n"
+    "    Destination.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -504,8 +587,22 @@ static PyMethodDef MemoryCaptureObj_methods[] = {
     "    Probe id; index into the registry.\n"
     "flags : int\n"
     "    Reserved; always 0.\n" },
+  { "records_max_out", (PyCFunction)MemoryCaptureObj_records_max_out,
+    METH_NOARGS,
+    "records_max_out() -> int\n"
+    "\n"
+    "Upper bound on what dp_tlm_capture_read() can return right now.\n"
+    "\n"
+    "The accumulated count: a caller sizing a destination cannot know its\n"
+    "own request will be smaller, and the generated binding allocates this\n"
+    "much, reads, then resizes to what actually came back.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "block", (PyCFunction)MemoryCaptureObj_block, METH_NOARGS,
-    "block() -> int\n"
+    "block() -> None\n"
     "\n"
     "Block boundary: drains the ring to empty.\n"
     "\n"
@@ -520,6 +617,12 @@ static PyMethodDef MemoryCaptureObj_methods[] = {
     "happens at the boundary, never inside the DSP loop.\n"
     "\n"
     "Usually reached through dp_tlm_set_now() rather than called directly.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``block failed``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -659,13 +762,25 @@ static PyTypeObject MemoryCaptureObjType = {
     "Read\n"
     "    at close(), so later track() corrections are picked up. Must "
     "outlive\n"
-    "    the capture. Required: the C API takes NULL here to mean `no time "
-    "base\n"
-    "    stated` and then omits the sidecar keys rather than fabricating a "
-    "rate,\n"
-    "    but a capsule constructor argument cannot yet accept None\n"
-    "    (just-makeit#823), so there is currently no way to say it from "
-    "Python.\n"
+    "    the capture. Pass None to state that there is no time base: the "
+    "sidecar\n"
+    "    then omits the rate and epoch keys rather than fabricating them into "
+    "a\n"
+    "    file that outlives the process. The argument itself is not omittable "
+    "—\n"
+    "    say None deliberately.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``capture could not "
+    "be\n"
+    "    opened: attach every probe BEFORE opening (the ring is sized from "
+    "the\n"
+    "    probe table, so no probes means no bound), pass a non-zero\n"
+    "    block_samples, use a context with no capture already open, and — "
+    "for\n"
+    "    the file flavour — a writable path``.\n"
     "\n"
     "Examples\n"
     "--------\n"

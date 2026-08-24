@@ -246,6 +246,18 @@ DDCObj_execute_ctrl (DDCObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+DDCObj_execute_ctrl_push_max_out (DDCObject *self,
+                                  PyObject  *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (ddc_execute_ctrl_push_max_out (self->handle));
+}
+
+static PyObject *
 DDCObj_execute_ctrl_push (DDCObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
@@ -253,17 +265,66 @@ DDCObj_execute_ctrl_push (DDCObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char *_kwlist[] = { "x", "rate_ctrl", "freq_ctrl", NULL };
+  static char *_kwlist[] = { "x", "rate_ctrl", "freq_ctrl", "out", NULL };
   Py_complex   x_raw     = { 0.0, 0.0 };
   double       rate_ctrl = 0;
   double       freq_ctrl = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Ddd", _kwlist, &x_raw,
-                                    &rate_ctrl, &freq_ctrl))
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Ddd|O", _kwlist, &x_raw,
+                                    &rate_ctrl, &freq_ctrl, &out_obj))
     return NULL;
-  float complex x     = (float)x_raw.real + (float)x_raw.imag * I;
-  size_t        _need = ddc_execute_ctrl_push_max_out (self->handle);
-  size_t        _cap  = ddc_execute_ctrl_push_max_out (self->handle);
-  (void)_need;
+  float complex x = (float)x_raw.real + (float)x_raw.imag * I;
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          return NULL;
+        }
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_COMPLEX64,
+          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = ddc_execute_ctrl_push_max_out (self->handle);
+      size_t _min_cap = _omax > ddc_execute_ctrl_push_max_out (self->handle)
+                            ? _omax
+                            : (ddc_execute_ctrl_push_max_out (self->handle));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      size_t n_out = ddc_execute_ctrl_push (
+          self->handle, x, rate_ctrl, freq_ctrl,
+          (float complex *)PyArray_DATA (out_arr), _cap);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
+  size_t _need = ddc_execute_ctrl_push_max_out (self->handle);
+  size_t _cap  = ddc_execute_ctrl_push_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
@@ -463,7 +524,7 @@ static PyMethodDef DDCObj_methods[] = {
 
   { "execute", (PyCFunction)(void *)DDCObj_execute,
     METH_VARARGS | METH_KEYWORDS,
-    "execute(x) -> ndarray\n"
+    "execute(x, out) -> ndarray\n"
     "\n"
     "Mix input block with LO, then rate-convert.\n"
     "\n"
@@ -471,6 +532,8 @@ static PyMethodDef DDCObj_methods[] = {
     "----------\n"
     "x : NDArray[np.complex64]\n"
     "    CF32 input block; accepted as float32 (auto-cast).\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    CF32 output buffer (C-only, hidden from Python).\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -492,32 +555,133 @@ static PyMethodDef DDCObj_methods[] = {
     ">>> round(float(abs(y[500])), 2)   # shifted to DC; amplitude ≈ 1\n"
     "1.0\n" },
   { "execute_max_out", (PyCFunction)DDCObj_execute_max_out, METH_VARARGS,
-    "execute_max_out(x_len) -> int\n\nMax output length execute() can produce "
-    "for x_len.\nUse to size the ``out=`` buffer." },
+    "execute_max_out(x_len) -> int\n"
+    "\n"
+    "Maximum output samples one execute() of x_len inputs can produce.\n"
+    "\n"
+    "A DDC decimates (or passes at unity), so the output never exceeds the\n"
+    "input length: returns x_len. The binding sizes the output buffer to\n"
+    "this per-call bound and resizes down to the actual count (gh-607).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x_len : int\n"
+    "    Number of input samples the matching execute() call sees.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    x_len (a safe upper bound on the produced samples).\n" },
   { "execute_ctrl", (PyCFunction)(void *)DDCObj_execute_ctrl,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_ctrl(x) -> ndarray\n"
+    "execute_ctrl(x, rate_ctrl, freq_ctrl) -> ndarray\n"
     "\n"
     "Mix and resample a block, steering both control ports.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import DDC\n"
-    "    >>> obj = DDC(norm_freq=0.0, rate=0.25)\n"
-    "    >>> y = obj.execute_ctrl(np.zeros(4))\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex64')\n" },
+    "The control-port form of ddc_execute(): the LO advances by `phase_inc +\n"
+    "freq_ctrl` on every sample of this block, and the cascade's terminal\n"
+    "stage runs at `stage_rate + rate_ctrl`. Neither deviation is persisted\n"
+    "— the centre norm_freq and rate are untouched — so a tracking loop\n"
+    "passes its full filter output on every call and the DDC holds no loop\n"
+    "state of its own.\n"
+    "\n"
+    "Feeding a stream through ddc_execute_ctrl_push() one sample at a time\n"
+    "reproduces this call bit-for-bit when both controls are held constant,\n"
+    "so the cheap block form stays correct for open-loop use (a fixed\n"
+    "Doppler offset, a rate trim) and the push form is what a closed loop\n"
+    "uses.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.complex64]\n"
+    "    CF32 input block.\n"
+    "rate_ctrl : float\n"
+    "    Rate deviation added to the terminal Resampler stage's rate.\n"
+    "    Referenced to the terminal (post-decimation) rate, not the overall\n"
+    "    rate; ignored by a plan whose last stage is an integer HB/CIC with\n"
+    "    nothing to steer.\n"
+    "freq_ctrl : float\n"
+    "    Frequency deviation added to the LO, in cycles/sample at the INPUT\n"
+    "    rate (any sign).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    Number of output samples written.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.ddc import DDC\n"
+    ">>> import numpy as np\n"
+    ">>> ddc = DDC(norm_freq=0.0, rate=0.25)   # LO centred at DC\n"
+    ">>> t = np.arange(4096)\n"
+    ">>> x = np.exp(1j * 2 * np.pi * 0.1 * t).astype(np.complex64)\n"
+    ">>> y = ddc.execute_ctrl(x, 0.0, -0.1)    # freq_ctrl steers +0.1 to DC\n"
+    ">>> y.shape\n"
+    "(1024,)\n"
+    ">>> round(float(abs(y[100:].mean())), 2)  # settled output sits at DC\n"
+    "1.0\n" },
   { "execute_ctrl_push", (PyCFunction)(void *)DDCObj_execute_ctrl_push,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_ctrl_push(n=1) -> ndarray\n"
+    "execute_ctrl_push(x, rate_ctrl, freq_ctrl, out) -> ndarray\n"
     "\n"
     "Push ONE input sample; emit whatever outputs it completes.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import DDC\n"
-    "    >>> obj = DDC(norm_freq=0.0, rate=0.25)\n"
-    "    >>> y = obj.execute_ctrl_push(np.zeros(4))\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex64')\n" },
+    "The per-input streaming form of ddc_execute_ctrl(), and the only form a\n"
+    "closed loop can use: a block call has to know its whole control history\n"
+    "up front, whereas a carrier or timing loop computes each correction\n"
+    "*from* the outputs already emitted. Both loops close once per symbol,\n"
+    "so both ports need this form.\n"
+    "\n"
+    "The mix costs one LO step per input; the cascade then emits 0 outputs\n"
+    "(the common decimating case, between strobes), 1, or several.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : complex\n"
+    "    One CF32 input sample.\n"
+    "rate_ctrl : float\n"
+    "    Rate deviation for this input (terminal-stage rate).\n"
+    "freq_ctrl : float\n"
+    "    Frequency deviation for this input, cycles/sample at the input\n"
+    "    rate.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Output buffer for any emitted samples.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    Number of outputs written (0, 1, or more).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.ddc import DDC\n"
+    ">>> import numpy as np\n"
+    ">>> ddc = DDC(norm_freq=-0.1, rate=0.25)\n"
+    ">>> t = np.arange(64)\n"
+    ">>> x = np.exp(1j * 2 * np.pi * 0.1 * t).astype(np.complex64)\n"
+    ">>> outs = [ddc.execute_ctrl_push(complex(s), 0.0, 0.0) for s in x]\n"
+    ">>> int(sum(len(o) for o in outs))   # 64 inputs, rate 1/4 -> 16 outs\n"
+    "16\n"
+    ">>> [len(o) for o in outs[:4]]        # 0 outs until a strobe completes\n"
+    "[0, 0, 0, 1]\n" },
+  { "execute_ctrl_push_max_out", (PyCFunction)DDCObj_execute_ctrl_push_max_out,
+    METH_NOARGS,
+    "execute_ctrl_push_max_out() -> int\n"
+    "\n"
+    "Largest number of samples execute_ctrl_push() can return in the\n"
+    "current state.\n"
+    "\n"
+    "Size an `out=` buffer with this before calling execute_ctrl_push(), or\n"
+    "use it to allocate one up front. The bound is this object's own: what\n"
+    "it depends on is a property of the algorithm, so a header block on\n"
+    "execute_ctrl_push_max_out() replaces this text.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Upper bound on the output length; the actual call may return "
+    "fewer.\n" },
   { "reset", (PyCFunction)DDCObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
@@ -587,12 +751,11 @@ static PyMethodDef DDCObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)DDCObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -627,10 +790,37 @@ static PyTypeObject DDCObjType = {
   .tp_dealloc                             = (destructor)DDCObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create a complex-input Digital Down-Converter. Allocates internal state "
-    "for the LO and RateConverter cascade. The RateConverter selects the "
+  = "Create a complex-input Digital Down-Converter. Allocates internal state\n"
+    "for the LO and RateConverter cascade. The RateConverter selects the\n"
     "cheapest multi-stage decimation chain (CIC + optional halfband + "
-    "polyphase resampler) for the given rate.\n",
+    "polyphase\n"
+    "resampler) for the given rate.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "norm_freq : float, default 0.0\n"
+    "    LO frequency in cycles/sample at the input rate. Set to -f_carrier "
+    "to\n"
+    "    shift a carrier at f_carrier to DC. Any real value is accepted.\n"
+    "rate : float, default 0.25\n"
+    "    Output rate / input rate. Must be > 0. Values >= 1 are up-sampling;\n"
+    "    typical use is decimation (0 < rate < 1).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``DDC: invalid\n"
+    "    parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps > 0,\n"
+    "    num_phases a power of two >= 2)``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.ddc import DDC\n"
+    ">>> ddc = DDC(norm_freq=-0.1, rate=0.25)\n"
+    ">>> ddc.norm_freq\n"
+    "-0.1\n"
+    ">>> ddc.rate\n"
+    "0.25\n",
   .tp_methods = DDCObj_methods,
   .tp_getset  = DDC_getset,
   .tp_new     = DDCObj_new,

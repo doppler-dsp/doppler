@@ -125,12 +125,21 @@ they have a different signature and a different job: they are the object's
 face onto a facility it does not own. The shape:
 
 ```python
-it = Interrupt()                  # a handle to the process-wide facility
-it.interrupt(); it.interrupted(); it.resume()
+import signal
 
-with Interrupt(sigint=True) as it:   # construction ARMS; exit restores
-    while not it.interrupted():
-        ...
+import numpy as np
+
+from doppler.interrupt import Interrupt
+
+# A handle to the process-wide facility, arming nothing.
+it = Interrupt(np.array([], dtype=np.int32))
+it.interrupt()
+assert it.interrupted()
+it.resume()
+
+# Construction ARMS; leaving the block restores what it displaced.
+with Interrupt(np.array([signal.SIGINT], dtype=np.int32)) as guard:
+    assert not guard.interrupted()
 ```
 
 Two things this decides, both deliberate:

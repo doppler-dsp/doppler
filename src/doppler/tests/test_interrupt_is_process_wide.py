@@ -4,7 +4,7 @@
 every blocking wait in doppler consults*. That is true in C, where
 everything links one archive. It is not automatic in Python, because each
 extension module links the primitive **statically** and CPython loads
-extensions ``RTLD_LOCAL`` -- so without deliberate binding every module
+extensions ``RTLD_LOCAL`` -- so without a deliberate rendezvous every module
 gets its own flag and a stop in one cannot reach a wait in another
 (doppler#976).
 
@@ -13,17 +13,25 @@ was invisible, because the only Python setter happened to live in the same
 ``.so`` as the only wait anybody tested. Nothing here is clever; what it is
 is EXECUTED, which is the property the original arrangement lacked.
 
+The rendezvous itself is just-makeit's ``process_global = true`` on the
+``dp_interrupt_guard`` component: the owning module publishes a ``PyCapsule``
+over the state and every other linking module adopts the pointer in its
+``PyInit_``. doppler writes the two accessors it names
+(``native/src/dp_interrupt.c``) and, for its two ``no_generate`` modules,
+the adopt call itself (``native/inc/dp_interrupt_pyadopt.h``).
+
 Two checks, deliberately different in kind:
 
 - a **behavioural** one, which is the claim a caller actually relies on;
 - a **structural** one, which is registration-free, so a NEW module that
-  links the primitive and forgets to bind is caught the moment it exists
-  rather than when somebody notices a hang.
+  links the primitive and never joins the rendezvous is caught the moment
+  it exists rather than when somebody notices a hang.
 """
 
 from __future__ import annotations
 
 import pathlib
+import re
 import subprocess
 import sys
 import textwrap
@@ -31,6 +39,7 @@ import textwrap
 import pytest
 
 _PKG = pathlib.Path(__file__).resolve().parents[1]
+_NATIVE_INC = _PKG.parents[1] / "native" / "inc"
 
 #: How long the consumer thread is given to notice. The ring's wait checks
 #: the flag every spin iteration, so a working flag is seen in microseconds
@@ -38,24 +47,37 @@ _PKG = pathlib.Path(__file__).resolve().parents[1]
 #: short enough that a broken one does not stall the suite.
 _NOTICE_S = 3.0
 
+#: Defined in native/src/dp_interrupt.c. A module carrying this symbol has
+#: linked the primitive statically and therefore holds a flag of its own,
+#: which is what makes it a module that MUST join the rendezvous.
+_STORAGE_SYMBOL = b"dp_interrupt_own_state"
+
+
+def _capsule_name() -> bytes:
+    """The rendezvous capsule name, read from just-makeit's own header.
+
+    Derived rather than spelled, because it is jm's invention: it is
+    project-and-component-qualified, so renaming the component moves it.
+    A literal here would keep passing against the old name while every
+    module quietly stopped sharing a flag -- the failure this file exists
+    to catch, arrived at through its own test.
+    """
+    hdr = (
+        _NATIVE_INC / "dp_interrupt_guard" / "dp_interrupt_guard_procglobal.h"
+    )
+    if not hdr.is_file():  # pragma: no cover - a build this test can't judge
+        pytest.skip(f"{hdr} absent: run `make jm-apply`")
+    m = re.search(
+        r'#define\s+DP_INTERRUPT_GUARD_PG_CAPSULE\s+"([^"]+)"',
+        hdr.read_text(),
+    )
+    assert m, f"no PG_CAPSULE define in {hdr} — jm's contract moved"
+    return m.group(1).encode()
+
 
 def _extensions() -> list[pathlib.Path]:
     """Every built doppler extension, discovered rather than listed."""
     return sorted(_PKG.glob("*/*.so"))
-
-
-def _uses_the_flag(so: pathlib.Path) -> bool:
-    """Does this module carry its own copy of the primitive?
-
-    `nm` over the object's symbols: a module that linked dp_interrupt.c
-    statically defines these, and is therefore one that must bind.
-    """
-    out = subprocess.run(["nm", "-C", str(so)], capture_output=True, text=True)
-    if out.returncode != 0:  # nm absent (macOS CI images vary); skip
-        pytest.skip("nm unavailable")
-    return " dp_interrupt_own_state" in out.stdout or (
-        "dp_interrupt_bind" in out.stdout
-    )
 
 
 # --------------------------------------------------------------------- #
@@ -92,25 +114,6 @@ _PROBE = textwrap.dedent(
 )
 
 
-#: The modules that carry their own flag today, doppler#976. A RATCHET:
-#: it may only shrink. Both tests below are strict-xfail against it, so
-#: they fail if the defect spreads AND fail if it is fixed without this
-#: list being updated -- which is what stops a fix landing silently and
-#: leaving a stale waiver behind.
-KNOWN_UNBOUND = frozenset(
-    {"buffer", "interrupt", "stream", "telemetry", "wfm"}
-)
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "doppler#976: each extension links the interrupt primitive "
-        "statically, so a stop in one module cannot reach a wait in "
-        "another. doppler#977 removes the cause. When this XPASSes, the "
-        "fix has landed -- delete the marker, do not widen it."
-    ),
-)
 def test_a_stop_in_one_module_reaches_a_wait_in_another() -> None:
     """The claim, end to end, across two extension modules.
 
@@ -145,49 +148,41 @@ def test_a_stop_in_one_module_reaches_a_wait_in_another() -> None:
 # --------------------------------------------------------------------- #
 
 
-def test_every_module_carrying_the_flag_also_binds_it() -> None:
-    """A module that links the primitive must adopt the shared state.
+def test_every_module_carrying_the_flag_joins_the_rendezvous() -> None:
+    """A module that links the primitive must share the one state.
 
     Discovered over the built extensions, so a new module is covered the
     moment it exists -- there is no list here to forget to update, which
-    is the failure mode this whole file exists to prevent.
+    is the failure mode this whole file exists to prevent. In particular
+    there is no waiver list: the previous version of this test carried a
+    five-module ratchet, and a waiver that outlives its defect is how the
+    next one hides.
+
+    Both roles are proved by the same evidence, deliberately. The owner
+    module publishes the capsule and an adopter reads it, so the capsule
+    NAME is a string constant in either one's `.so`; a module that linked
+    the primitive and joined nothing has the storage and not the name.
+    Reading the binary is what makes this registration-free -- there is no
+    manifest to consult and nothing to declare.
     """
-    carriers = [so for so in _extensions() if _uses_the_flag(so)]
+    capsule = _capsule_name()
+    carriers = [
+        so for so in _extensions() if _STORAGE_SYMBOL in so.read_bytes()
+    ]
     assert carriers, (
-        "no extension carries the interrupt primitive — probe broken"
+        "no extension carries the interrupt primitive — probe broken, or "
+        "the extensions are not built (`make build`)"
     )
 
-    out = subprocess.run(
-        ["nm", "-C", *[str(p) for p in carriers]],
-        capture_output=True,
-        text=True,
+    missing = sorted(
+        so.parent.name for so in carriers if capsule not in so.read_bytes()
     )
-    missing = []
-    current = None
-    binds: dict[str, bool] = {}
-    for line in out.stdout.splitlines():
-        if line.endswith(":") and line[:-1].endswith(".so"):
-            current = pathlib.Path(line[:-1]).parent.name
-            binds.setdefault(current, False)
-        elif current and "dp_interrupt_bind" in line and " U " not in line:
-            # defined here, and referenced by this module's own init
-            binds[current] = (
-                binds[current] or "dp_interrupt_rendezvous" in out.stdout
-            )
-
-    missing = {m for m, ok in binds.items() if not ok}
-
-    # The ratchet, in both directions.
-    spread = missing - KNOWN_UNBOUND
-    assert not spread, (
-        f"NEW module(s) carrying their own interrupt flag: {sorted(spread)}. "
-        f"A stop elsewhere cannot reach their waits (doppler#976). Bind the "
-        f"shared state, or land doppler#977 -- do not add them to "
-        f"KNOWN_UNBOUND, which may only shrink."
-    )
-    fixed = KNOWN_UNBOUND - missing
-    assert not fixed, (
-        f"{sorted(fixed)} now bind the shared state — good. Remove them "
-        f"from KNOWN_UNBOUND so the ratchet keeps its value; a waiver that "
-        f"outlives its defect is how the next one hides."
+    assert not missing, (
+        f"module(s) carrying their own interrupt flag without joining the "
+        f"rendezvous: {missing}. A stop requested elsewhere cannot reach "
+        f"their waits (doppler#976). A module just-makeit generates gets "
+        f"the rendezvous from `process_global` in objects/"
+        f"dp_interrupt_guard.toml; a `no_generate` module has to call "
+        f"dp_interrupt_pyadopt() in its own PyInit_, as buffer and stream "
+        f"do. Do NOT add a waiver list here."
     )

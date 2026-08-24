@@ -15,6 +15,17 @@
  * which is also when it turned out to have no NATS dependency to begin
  * with — a `volatile sig_atomic_t` and four accessors over libc.
  *
+ * ONE flag per PROCESS, and in Python that takes a rendezvous. Each
+ * extension module links this file statically and CPython imports
+ * extensions `RTLD_LOCAL`, so every `.so` would otherwise hold its own
+ * copy -- doppler#976, where a stop requested through `doppler.interrupt`
+ * left a ring wait in `doppler.buffer` spinning on a different variable.
+ * The state and the two accessors that share it live in `dp_interrupt.c`;
+ * their names carry the `dp_interrupt_guard` prefix because the declared
+ * COMPONENT is what just-makeit binds, and it generates the capsule
+ * hand-off into every module's `PyInit_` from that declaration. Nothing
+ * here is a C caller's concern: one archive means one copy.
+ *
  * See `docs/design/io-termination.md` for the contract this is one third
  * of; the other two are end-of-stream and durable completion.
  */
@@ -66,40 +77,6 @@ extern "C"
    * signal (SIGINT, on_sigint);
    * @endcode
    */
-  /**
-   * @brief The state one process shares: the flag, and the wait slice.
-   *
-   * Public only so a Python extension can hand its address to another via
-   * a capsule. A C caller never touches it -- one archive means one copy
-   * and nothing to bind.
-   */
-  typedef struct
-  {
-    volatile sig_atomic_t flag;      /**< set by a handler; read by waits */
-    unsigned              latency_ms; /**< wait slice, milliseconds */
-  } dp_interrupt_state_t;
-
-  /**
-   * @brief This translation unit's interrupt state.
-   *
-   * The owner exports it; see dp_interrupt_bind().
-   */
-  dp_interrupt_state_t *dp_interrupt_state (void);
-
-  /**
-   * @brief Adopt another translation unit's interrupt state as this one's.
-   *
-   * A Python extension links this file statically, so each module gets its
-   * own flag and a stop in one cannot reach a wait in another
-   * (doppler#976). One module owns the state; every other calls this at
-   * IMPORT, once, before any handler is installed -- which is what makes
-   * the pointer safe to dereference from one.
-   *
-   * @param shared State to adopt; NULL is @ref DP_ERR_INVALID.
-   * @return DP_OK, or DP_ERR_INVALID.
-   */
-  int dp_interrupt_bind (dp_interrupt_state_t *shared);
-
   void dp_interrupt (void);
 
   /**

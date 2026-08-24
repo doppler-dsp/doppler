@@ -1,5 +1,5 @@
 # delay/delay.pyi — type stubs for the delay C extension.
-from typing import Any, final
+from typing import final
 import numpy as np
 from numpy.typing import NDArray
 
@@ -130,7 +130,11 @@ class DelayCf64:
             min(n, num_taps).
         """
 
-    def push_ptr(self, x: complex) -> NDArray[np.complex128]:
+    def push_ptr(
+        self,
+        x: complex,
+        out: NDArray[np.complex128] | None = None,
+    ) -> NDArray[np.complex128]:
         """Atomically push a sample and snapshot the current window. Equivalent
         to calling delay_push() then delay_ptr(num_taps), but avoids the
         overhead of a second function call. Always writes exactly num_taps
@@ -141,6 +145,8 @@ class DelayCf64:
         ----------
         x : complex
             New complex sample to insert.
+        out : NDArray[np.complex128] | None
+            Output buffer; must hold at least max_out elements.
 
         Returns
         -------
@@ -156,6 +162,17 @@ class DelayCf64:
         >>> d.push_ptr(2+0j).tolist()
         [(2+0j), (1+0j), 0j]
 
+        """
+
+    def push_ptr_max_out(self) -> int:
+        """Return the maximum output capacity for delay_push_ptr(). Returns
+        num_taps; the Python binding uses this to pre-allocate the output
+        buffer before calling delay_push_ptr().
+
+        Returns
+        -------
+        int
+            num_taps (number of samples delay_push_ptr() will write).
         """
 
     def write(self, x: complex) -> None:
@@ -178,9 +195,6 @@ class DelayCf64:
         [(5+6j), 0j]
 
         """
-
-    def push_ptr_max_out(self) -> int:
-        """Max output length push_ptr() can produce for the current state (always exactly num_taps). Use to size the ``out=`` buffer."""
 
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.

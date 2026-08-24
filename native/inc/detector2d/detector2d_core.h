@@ -113,7 +113,9 @@ typedef struct
  * @param nx         Number of columns in the reference and input frames.
  * @param dwell      Int-dump depth; must be >= 1.
  * @param noise_lo   Lower flat-index noise bin (inclusive, 0-based).
- * @param noise_hi   Upper flat-index noise bin (inclusive, < ny*nx).
+ * @param noise_hi   Upper flat-index noise bin (inclusive, < ny*nx).  A
+ *                  value at or beyond the window clamps to ny*nx - 1, so
+ *                  the default sentinel selects the full window.
  * @param noise_mode Noise aggregation: "mean", "median", "min", or "max".
  * @param threshold  Test-stat gate; 0.0 = always emit.
  * @param nthreads   Accepted for API compatibility; ignored.

@@ -48,6 +48,26 @@ PyInit_interrupt (void)
       Py_DECREF (&InterruptObjType);
       Py_DECREF (m);
       return NULL;
-    }
+    } /* gh-1117: this module OWNS dp_interrupt_guard's process-global state.
+       */
+  {
+    void     *dp_interrupt_guard_state_ptr (void);
+    void      dp_interrupt_guard_state_adopt (void *shared);
+    PyObject *_pg
+        = PyCapsule_New (dp_interrupt_guard_state_ptr (),
+                         "doppler.dp_interrupt_guard._jm_procglobal", NULL);
+    if (!_pg)
+      {
+        Py_DECREF (m);
+        return NULL;
+      }
+    if (PyModule_AddObject (m, "_jm_pg_dp_interrupt_guard", _pg) < 0)
+      {
+        Py_DECREF (_pg);
+        Py_DECREF (m);
+        return NULL;
+      }
+  }
+
   return m;
 }

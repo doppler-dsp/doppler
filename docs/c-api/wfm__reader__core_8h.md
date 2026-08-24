@@ -14,6 +14,7 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 * `#include <stddef.h>`
 * `#include "wfm/wfm_keywords.h"`
 * `#include "wfm_writer/wfm_writer_core.h"`
+* `#include "dp_interrupt_guard/dp_interrupt_guard_core.h"`
 
 
 

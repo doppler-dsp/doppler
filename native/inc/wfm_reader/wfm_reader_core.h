@@ -42,6 +42,7 @@
 
 #include "wfm/wfm_keywords.h" /* wfm_keyword_t */
 #include "wfm_writer/wfm_writer_core.h"   /* wfm_filetype_t */
+#include "dp_interrupt_guard/dp_interrupt_guard_core.h"
 
 #ifdef __cplusplus
 extern "C"

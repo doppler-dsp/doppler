@@ -5,6 +5,7 @@ target_include_directories(
                             ${CMAKE_SOURCE_DIR}/native/inc/wfm_reader)
 target_link_libraries(wfm_reader_core PUBLIC
     m
+    dp_interrupt_guard_core
     wfm_cjson_core
     wfm_keywords_core
     wfm_writer_core
@@ -14,6 +15,7 @@ add_executable(test_wfm_reader_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_reader_core.c)
 target_link_libraries(test_wfm_reader_core
                       PRIVATE wfm_reader_core m
+    dp_interrupt_guard_core
     wfm_cjson_core
     wfm_keywords_core
     wfm_writer_core
@@ -28,6 +30,7 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_reader_core.c)
 target_link_libraries(bench_wfm_reader_core
                       PRIVATE wfm_reader_core m
+    dp_interrupt_guard_core
     wfm_cjson_core
     wfm_keywords_core
     wfm_writer_core
@@ -41,6 +44,7 @@ if(BUILD_PYTHON)
 Python3_add_library(wfm_reader MODULE WITH_SOABI wfm_reader_ext.c)
 target_link_libraries(wfm_reader PRIVATE
     wfm_reader_core
+    dp_interrupt_guard_core
     wfm_cjson_core
     wfm_keywords_core
     wfm_writer_core

@@ -7,7 +7,8 @@ A parameterisable DSSS burst, described to wfmgen as one segment::
 The acquisition code is a Galois LFSR maximum-length sequence (MLS) of length
 ``2^L − 1`` chips.  Repeating it ``acq_reps`` times gives the receiver enough
 coherent integration to detect the signal at low SNR — more repetitions lowers
-the detection threshold by ``10·log10(acq_reps)`` dB.  The payload is spread by
+the detection threshold by roughly ``10·log10(acq_reps)`` dB — panel D
+measures how much of that a real acquirer keeps.  The payload is spread by
 a *second*, independent MLS (``DATA_SF`` = 31 chips per data bit) at the **same
 chip rate**, so the occupied bandwidth is identical throughout: a DSSS burst
 looks like noise from start to silence — a claim panel C plots and an
@@ -36,9 +37,15 @@ Bottom-left
     phases are spectrally indistinguishable.
 
 Bottom-right
-    Detection SNR vs input SNR for three ``acq_reps`` values.  Each additional
-    repetition is one coherent averaging step; the peak cross-correlation SNR
-    rises by ``10·log10(acq_reps)`` dB, trading burst duration for sensitivity.
+    Detection probability vs input SNR, one curve per ``acq_reps``, measured
+    by Monte Carlo through :class:`~doppler.dsss.BurstAcquisition` — the
+    object that actually integrates coherently across the repetitions and
+    applies the CFAR threshold.  Each doubling of ``acq_reps`` moves the
+    Pd = 0.5 threshold about 2.5 dB left against an ideal
+    ``10·log10(2)`` = 3.0 dB; the shortfall is the price of the larger search
+    the extra coherent depth buys.  Measuring this with a hand-rolled
+    one-period correlator is what doppler#980 was: it showed +0.6 dB across
+    an 8x change and the assertion could not see it.
 
 Run
 ---
@@ -55,7 +62,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from doppler.spectral import PSD, Corr
+from doppler.dsss import BurstAcquisition
+from doppler.spectral import FFT, PSD, Corr, hann_window, magnitude_db_cf32
 from doppler.wfm import PN, Composer, Segment, bpsk_map
 
 # ── burst geometry ───────────────────────────────────────────────────────────
@@ -208,14 +216,33 @@ def psd_db(x: np.ndarray, nfft: int = 512) -> np.ndarray:
 
 
 def spectrogram(x: np.ndarray, nfft: int = 128, hop: int = 32) -> np.ndarray:
-    """Short-time FFT magnitude in dB, normalised to its peak."""
-    win = np.hanning(nfft)
-    cols = [
-        np.fft.fftshift(np.abs(np.fft.fft(x[i : i + nfft] * win)))
-        for i in range(0, len(x) - nfft, hop)
-    ]
-    s = 20.0 * np.log10(np.array(cols).T + 1e-9)
-    return s - s.max()
+    """Short-time FFT magnitude in dB, normalised to its peak.
+
+    Every stage is a doppler primitive rather than its numpy equivalent:
+    :func:`~doppler.spectral.hann_window` for the taper,
+    :class:`~doppler.spectral.FFT` for the transform, and
+    :func:`~doppler.spectral.magnitude_db_cf32` for the dB magnitude. The
+    library owns each of those exactly once, and this is the same window and
+    the same transform :class:`~doppler.spectral.PSD` uses in panel C — so
+    the two spectral panels cannot disagree about what a Hann window is.
+    """
+    win = np.empty(nfft, np.float32)
+    hann_window(win)
+    with FFT(n=nfft) as fft:
+        cols = [
+            np.fft.fftshift(
+                magnitude_db_cf32(
+                    fft.execute_cf32(
+                        (x[i : i + nfft] * win).astype(np.complex64)
+                    ),
+                    1e-9,  # -180 dB floor: the guard against log10(0)
+                    0.0,
+                )
+            )
+            for i in range(0, len(x) - nfft, hop)
+        ]
+    sg = np.array(cols).T
+    return sg - sg.max()
 
 
 # ── build reference and main burst ───────────────────────────────────────────
@@ -272,43 +299,113 @@ assert occ_pay / occ_acq > 0.5, (
     "the payload does not fill the chip band — is it actually spread?"
 )
 
-# ── SNR sweep: detection peak vs input SNR for several acq_reps values ───────
-snr_range = np.arange(-10, 31, 2, dtype=float)
-reps_sweep = [1, 2, 4, 8]
-detection_snr: dict[int, list[float]] = {r: [] for r in reps_sweep}
+# ── detection sweep: Pd vs input SNR, one curve per acq_reps ─────────────────
+# THIS IS THE OBJECT'S JOB, not a hand correlator's. `BurstAcquisition` is
+# what integrates coherently across the preamble repetitions and applies the
+# CFAR threshold; a sliding one-period matched filter cannot, which is exactly
+# what this panel used to get wrong (doppler#980). Correlating against ONE
+# period no matter how many were transmitted measured +0.6 dB across an 8x
+# change in acq_reps while the docstring claimed +9 -- the plot showed four
+# curves lying on top of each other under four separated theory lines.
+#
+# `configure_search_raw(reps, 1)` pins the search rather than letting it
+# auto-size: `doppler_bins = reps` spends every repetition on the coherent
+# axis (the gain being demonstrated), and `n_noncoh = 1` makes one burst
+# enough to decide. The auto-sizer would pick n_noncoh > 1 for the small-reps
+# arms, which need several frames this single-burst push can never supply --
+# the same trap dsss_realtime_file_demod.py documents at its own push().
+REPS_SWEEP = [1, 2, 4, 8]
+SWEEP_SNRS = np.arange(-26.0, -7.0, 1.0)
+SWEEP_TRIALS = 40  # independent noise draws per (reps, SNR) cell
+DESIGN_CN0_DBHZ = 50.0  # the acquirer is sized once, not per sweep point
 
-for snr in snr_range:
-    for reps in reps_sweep:
-        b = build_burst(
-            acq_reps=reps, n_payload_sym=0, snr_db=snr, silence_chips=0
-        )
-        xc = sliding_xcorr(b, ref)
-        # Peak in the acquisition window
-        peak = float(xc.max())
-        # Noise floor: std of the correlation outside the peaks
-        mask = xc < 0.8 * peak
-        noise_floor = float(xc[mask].std()) if mask.any() else 1.0
-        detection_snr[reps].append(
-            20.0 * np.log10(peak / (noise_floor + 1e-9))
-        )
 
-# ── validate the sweep: monotone despreading gain ────────────────────────────
-# (reps=1 yields a single correlation window — no off-peak cells to
-# estimate a noise floor from — so validate the reps >= 2 curves.)
-for reps in reps_sweep[1:]:
-    d = np.array(detection_snr[reps])
-    # More input SNR → more detection SNR, monotonically.
-    assert np.all(np.diff(d) > 0), f"detection SNR not monotone ({reps} reps)"
-    # Despreading gain: at -10 dB input the correlation peak must stand
-    # >25 dB above the input SNR (>10·log10(PERIOD) ≈ 21 dB code gain).
-    gain = float(d[0] - snr_range[0])
-    assert gain > 25.0, f"processing gain only {gain:.1f} dB ({reps} reps)"
-print(
-    "despreading gain at -10 dB input: "
-    + ", ".join(
-        f"{r} reps -> {detection_snr[r][0] - snr_range[0]:.1f} dB"
-        for r in reps_sweep[1:]
+def detects(reps: int, snr_db: float, seed: int) -> bool:
+    """One trial: does the acquirer find this burst at all?
+
+    The acquirer is built at a FIXED design C/N0 while the sweep varies the
+    true SNR, so no arm is ever handed the answer it is being tested on.
+    """
+    acq = BurstAcquisition(
+        ACQ_CODE,
+        reps=reps,
+        spc=CHIP_SPS,
+        chip_rate=FS / CHIP_SPS,
+        cn0_dbhz=DESIGN_CN0_DBHZ,
+        doppler_uncertainty=0.0,  # this demo has no carrier offset
+        pfa=1e-3,
     )
+    acq.configure_search_raw(reps, 1)
+    burst_only = build_burst(
+        acq_reps=reps,
+        n_payload_sym=0,
+        snr_db=snr_db,
+        silence_chips=0,
+        seed=seed,
+    )
+    return bool(acq.push(burst_only))
+
+
+pd_curves: dict[int, np.ndarray] = {
+    reps: np.array(
+        [
+            sum(detects(reps, snr, s) for s in range(SWEEP_TRIALS))
+            / SWEEP_TRIALS
+            for snr in SWEEP_SNRS
+        ]
+    )
+    for reps in REPS_SWEEP
+}
+
+
+def pd50(curve: np.ndarray) -> float:
+    """Input SNR where Pd first crosses 0.5, linearly interpolated."""
+    for i in range(1, len(curve)):
+        if curve[i - 1] < 0.5 <= curve[i]:
+            f = (0.5 - curve[i - 1]) / (curve[i] - curve[i - 1])
+            return float(
+                SWEEP_SNRS[i - 1] + f * (SWEEP_SNRS[i] - SWEEP_SNRS[i - 1])
+            )
+    return float("nan")
+
+
+thresholds = {reps: pd50(pd_curves[reps]) for reps in REPS_SWEEP}
+shifts = [
+    thresholds[a] - thresholds[b] for a, b in zip(REPS_SWEEP, REPS_SWEEP[1:])
+]
+
+# ── validate the sweep: the detection threshold moves, and by how much ───────
+# The claim is a RATIO between arms, so the check has to be one too. The old
+# assertion compared each arm to a floor, which one period of a 127-chip code
+# clears on its own -- so it passed while the reps axis did nothing at all.
+#
+# Ideal is 10*log10(2) = 3.01 dB per doubling. Measured: 2.26, 2.50, 3.12 dB
+# (thresholds -13.6, -15.9, -18.4, -21.5 dB), total 7.9 dB against an ideal
+# 9.03. The shortfall is real and worth knowing rather than tuning away: more
+# coherent depth means more search cells, so the Bonferroni threshold rises
+# with it (the object reports 3.98 -> 4.30 across these four arms). That
+# accounts for part of the gap; this file does not claim it accounts for all
+# of it.
+assert all(np.isfinite(t) for t in thresholds.values()), (
+    "a reps arm never reached Pd = 0.5 -- widen SWEEP_SNRS"
+)
+assert all(s > 0 for s in shifts), (
+    f"the detection threshold did not fall with acq_reps: {thresholds}"
+)
+assert all(1.5 <= s <= 4.0 for s in shifts), (
+    f"per-doubling shift outside [1.5, 4.0] dB of the 3.01 dB ideal: {shifts}"
+)
+total = thresholds[REPS_SWEEP[0]] - thresholds[REPS_SWEEP[-1]]
+assert 6.5 <= total <= 9.5, (
+    f"total 1->8 shift {total:.1f} dB, expected near 10*log10(8) = 9.03"
+)
+print(
+    "detection threshold (Pd=0.5): "
+    + ", ".join(f"{r} reps -> {thresholds[r]:.1f} dB" for r in REPS_SWEEP)
+)
+print(
+    f"  shift per doubling: {', '.join(f'{v:.2f}' for v in shifts)} dB "
+    f"(ideal 3.01); total {total:.2f} dB (ideal 9.03)"
 )
 
 # ── plot ─────────────────────────────────────────────────────────────────────
@@ -387,28 +484,31 @@ ax.set_ylim(-30, 5)
 ax.legend(fontsize=9)
 ax.grid(alpha=0.3)
 
-# ── D: detection SNR vs input SNR (acq_reps sweep) ───────────────────────────
+# ── D: Pd vs input SNR — the detection threshold moving with acq_reps ────────
 ax = axes[1, 1]
 colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
-for reps, color in zip(reps_sweep, colors):
+for reps, color in zip(REPS_SWEEP, colors):
     ax.plot(
-        snr_range,
-        detection_snr[reps],
+        SWEEP_SNRS,
+        pd_curves[reps],
         lw=1.5,
         color=color,
         label=f"{reps} rep{'s' if reps > 1 else ''}",
     )
-# Theoretical coherent gain lines
-for reps, color in zip(reps_sweep, colors):
-    theory = snr_range + 10 * np.log10(PERIOD * reps)
-    ax.plot(snr_range, theory, lw=0.8, color=color, ls=":", alpha=0.6)
-ax.set_xlabel("input SNR (dB)")
-ax.set_ylabel("detection peak SNR (dB)")
+    # The Pd=0.5 crossing is the "detection threshold" the claim is about,
+    # so mark the number the assertion actually tests.
+    ax.axvline(thresholds[reps], color=color, lw=0.8, ls=":", alpha=0.7)
+ax.axhline(0.5, color="k", lw=0.8, ls="--", alpha=0.6)
+ax.set_xlabel("input SNR (dB, full band)")
+ax.set_ylabel("measured $P_d$")
+ax.set_ylim(-0.03, 1.03)
 ax.set_title(
-    "Detection SNR vs input SNR — coherent gain of acq repetitions\n"
-    "(solid = measured, dotted = theory +10·log10(PERIOD·reps))"
+    f"Detection probability vs input SNR — {SWEEP_TRIALS} trials/point\n"
+    f"threshold moves {np.mean(shifts):.1f} dB per doubling "
+    "(ideal 10·log10(2) = 3.0)",
+    fontsize=9,
 )
-ax.legend(title="acq_reps", fontsize=8)
+ax.legend(title="acq_reps", fontsize=8, loc="upper left")
 ax.grid(alpha=0.3)
 
 fig.tight_layout(rect=(0, 0, 1, 0.95))

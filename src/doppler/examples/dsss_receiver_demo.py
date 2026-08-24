@@ -28,7 +28,7 @@ import warnings
 # --8<-- [start:signal]
 import numpy as np
 
-from doppler.wfm import Gold, Synth, bpsk_map
+from doppler.wfm import Composer, Gold, Segment, bpsk_map
 
 SF = 1023  # 2**10 - 1: the CCSDS 415.0-G-1 command-link Gold code period
 CHIP_RATE = 3.0e6  # Hz
@@ -60,30 +60,36 @@ def make_signal(cn0_dbhz: float, seed: int):
     the source maps bits with, so the returned symbols are what was
     transmitted -- not a sign convention restated here.
     """
-    rng = np.random.default_rng(seed)
-    n = int(N_SYM * TSYM) + 2 * TE
-    payload = rng.integers(0, 2, N_SYM + 4).astype(np.uint8)
-    sig = Synth(
-        type="dsss",
-        data_code=bytes(CODE.tolist()),
-        symbol_rate=SYM_RATE,
-        sps=SPC,
-        fs=FS,
-        freq=DOPPLER_HZ,
-        snr=100.0,  # clean -- the AWGN floor is added below
-        bits=bytes(payload.tolist()),
-        seed=seed,
-    ).steps(n)
-
-    sigma = np.sqrt(FS / 10.0 ** (cn0_dbhz / 10.0))
-    total_n = int(PRE_SILENCE) + n
-    noise = (sigma / np.sqrt(2.0)) * (
-        rng.standard_normal(total_n) + 1j * rng.standard_normal(total_n)
+    payload = (
+        np.random.default_rng(seed).integers(0, 2, N_SYM + 4).astype(np.uint8)
     )
-    x = np.concatenate([np.zeros(int(PRE_SILENCE)), sig]).astype(
-        np.complex64
-    ) + noise.astype(np.complex64)
-    return x, bpsk_map(payload).real.astype(float)
+    capture = Segment(
+        type="dsss",
+        fs=FS,
+        sps=SPC,
+        freq=DOPPLER_HZ,  # the static Doppler offset
+        # C/N0 in dB-Hz is the link's own figure; referred to the full
+        # sample-rate band it is the segment's `snr`. The engine resolves the
+        # AWGN amplitude from there -- an invented sigma convention is the
+        # single most common way a stimulus goes quietly wrong.
+        snr=cn0_dbhz - 10.0 * np.log10(FS),
+        snr_mode="fs",
+        seed=seed,
+        data_code=bytes(CODE.tolist()),
+        symbol_rate=SYM_RATE,  # > 0 selects continuous async DSSS
+        payload=bytes(payload.tolist()),
+        num_samples=int(N_SYM * TSYM) + 2 * TE,
+        # The pre-signal silence is the segment's own LEADING gap, and
+        # `gap_noise="auto"` runs the noise floor through it -- so the
+        # receiver sweeps real noise before the signal starts, with no
+        # second noise realisation to keep consistent by hand.
+        delay_samples=int(PRE_SILENCE),
+        gap_noise="auto",
+    )
+    return (
+        Composer([capture]).compose(),
+        bpsk_map(payload).real.astype(float),
+    )
 
 
 # --8<-- [end:signal]

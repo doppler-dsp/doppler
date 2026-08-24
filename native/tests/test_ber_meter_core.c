@@ -32,7 +32,6 @@
  *   7. marker symbols are excluded from scoring and land in `skipped`, so
  *      the symbols that fixed the alignment cannot also flatter the rate.
  */
-#define _GNU_SOURCE
 #include "ber_meter/ber_meter_core.h"
 
 #include "dp_rng_test.h"

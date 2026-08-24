@@ -21,7 +21,6 @@
  *    do not, because Python hands them arrays rather than pointers, and a
  *    wrong length must be refused rather than read past.
  */
-#define _GNU_SOURCE
 #include "dp_rng_test.h"
 #include "dp_test.h"
 

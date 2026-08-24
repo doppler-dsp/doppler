@@ -8,7 +8,6 @@
  * per-axis tests re-materialize a variation and memcmp it against a full
  * compose of the equivalently-modified spec.
  */
-#define _GNU_SOURCE
 #include "dp_test.h"
 #include "wfm/wfm_compose.h"
 #include "wfm/wfm_plan.h"

@@ -19,7 +19,6 @@
  *   - CONTINUITY, because 3.3.2 specifies an unbroken symbol sequence and a
  *     caller that chunks a long record must not restart the register.
  */
-#define _GNU_SOURCE
 #include "dp_test.h"
 
 #include "ccsds_tm/ccsds_tm.h"

@@ -42,11 +42,13 @@
 #ifndef DP_ISOTIME_H
 #define DP_ISOTIME_H
 
-/* clock_gettime + gmtime_r are POSIX, and doppler builds as strict c99. */
-#if !defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L
-#undef _POSIX_C_SOURCE
-#define _POSIX_C_SOURCE 200809L
-#endif
+/* clock_gettime + gmtime_r are POSIX, and the feature-test macro that
+   exposes them is on the COMPILE LINE -- see the top-level CMakeLists.txt,
+   which puts it on the exported target too, so a downstream inherits it.
+   This header used to raise _POSIX_C_SOURCE itself, which is a no-op for any
+   translation unit that reached libc first (doppler#986); the comment on it
+   also claimed doppler "builds as strict c99", and it does not --
+   CMAKE_C_EXTENSIONS defaults ON, so the dialect is gnu99. */
 
 #include <stdint.h>
 #include <stdio.h>

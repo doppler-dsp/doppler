@@ -19,7 +19,6 @@
  *
  * Each of those is a sentence in the header today. A sentence is not a gate.
  */
-#define _GNU_SOURCE
 #include "dp_frame_test.h"
 #include "dp_test.h"
 

@@ -14,7 +14,6 @@
  * rather than one, because a threshold defended from only one side is a
  * threshold that has been tuned rather than chosen.
  */
-#define _GNU_SOURCE
 #include "dp_rng_test.h"
 #include "dp_test.h"
 

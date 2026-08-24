@@ -26,6 +26,27 @@ Where a symbol may live
 `libdoppler.a` and the optional `libdoppler_stream.a`, which are exactly the
 two archives the package installs and exports. A symbol that resolves only
 inside a Python extension module is NOT a C API and does not count.
+
+A second question of the same file set
+--------------------------------------
+No installed header may define a **feature-test macro** (`_GNU_SOURCE`,
+`_POSIX_C_SOURCE`, `_DARWIN_C_SOURCE`, …). glibc's `features.h` latches the
+feature set on its FIRST inclusion, so such a `#define` is a no-op for every
+translation unit that reached libc before including the header -- which is
+most of them. `buffer/buffer.h` carried one at its own line 51 and it was
+inert in exactly that way, measured directly: after `#include <stdio.h>` then
+`#include "buffer/buffer.h"`, `__USE_GNU` is not defined (doppler#986).
+
+It read as though the header had handled the problem, so the failure was
+attributed elsewhere: the phase-6 telemetry work was reverted because adding
+an include ABOVE that line stopped `syscall` resolving.
+
+The macros belong on the compile line, and the top-level CMakeLists.txt puts
+them there -- on the exported target too, so a downstream inherits them.
+
+This lives here rather than in a gate of its own because it is the same
+question of the same files: what does a published header oblige a consumer
+to do? Nothing it cannot see.
 """
 
 from __future__ import annotations
@@ -156,7 +177,58 @@ def declared() -> dict[str, list[tuple[pathlib.Path, int]]]:
     return out
 
 
+#: Defining any of these in an installed header is a no-op for most callers
+#: (see the module docstring). Matched on the `#define` line, so a header may
+#: still TEST one with `#ifdef`.
+_FEATURE_TEST = re.compile(
+    r"^\s*#\s*define\s+(_GNU_SOURCE|_DEFAULT_SOURCE|_BSD_SOURCE"
+    r"|_SVID_SOURCE|_POSIX_C_SOURCE|_POSIX_SOURCE|_XOPEN_SOURCE"
+    r"|_XOPEN_SOURCE_EXTENDED|_DARWIN_C_SOURCE|_ISOC99_SOURCE"
+    r"|_ISOC11_SOURCE|_FILE_OFFSET_BITS|_LARGEFILE64_SOURCE)\b",
+    re.M,
+)
+
+
+def feature_test_defines() -> list[tuple[pathlib.Path, int, str]]:
+    """(header, line, macro) for every feature-test macro defined in one.
+
+    Discovered over the installed tree, so a header that grows one is caught
+    when it is written rather than when somebody's include order changes.
+    There is no allowlist, for the same reason the declaration check has
+    none: the correct count is zero, and a list is only somewhere for the
+    next one to hide.
+    """
+    out = []
+    for header in sorted(INC.rglob("*.h")):
+        if header.name in NOT_INSTALLED:
+            continue
+        # Count lines in the BLANKED text, not the original: the offsets
+        # come from the blanked one, and _blank_comments preserves newline
+        # counts precisely so the two agree line-for-line. Mixing them
+        # reported dp_state.h:2 for a define on line 35.
+        blanked = _blank_comments(
+            header.read_text(encoding="utf-8", errors="replace")
+        )
+        for m in _FEATURE_TEST.finditer(blanked):
+            line = blanked.count("\n", 0, m.start()) + 1
+            out.append((header, line, m.group(1)))
+    return out
+
+
 def main() -> int:
+    bad_macros = feature_test_defines()
+    if bad_macros:
+        print("check_installed_headers: installed header(s) define a")
+        print("  feature-test macro. It is a no-op for any translation unit")
+        print("  that reached libc first, so it does not do what it looks")
+        print("  like it does (#986).\n")
+        for header, line, macro in bad_macros:
+            print(f"  {header.relative_to(ROOT)}:{line}: {macro}")
+        print("\n  Define it on the compile line instead — the top-level")
+        print("  CMakeLists.txt does, on the exported target too, so a")
+        print("  downstream inherits it. There is deliberately no allowlist.")
+        return 1
+
     libs = archives()
     if not libs:
         print("check_installed_headers: no libdoppler.a under")
@@ -189,7 +261,8 @@ def main() -> int:
     print(
         f"check_installed_headers: OK — {len(decls)} declaration(s) across "
         f"{len(list(INC.rglob('*.h')))} installed header(s) all resolve in "
-        f"{', '.join(p.name for p in libs)}"
+        f"{', '.join(p.name for p in libs)}, and none defines a "
+        f"feature-test macro"
     )
     return 0
 

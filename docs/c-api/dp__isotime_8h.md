@@ -95,7 +95,6 @@ _ISO 8601 UTC timestamps in both spellings — filename-safe_ **basic** _for nam
 | define  | [**DP\_ISOTIME\_NSEC**](dp__isotime_8h.md#define-dp_isotime_nsec)  `9u`<br> |
 | define  | [**DP\_ISOTIME\_SEC**](dp__isotime_8h.md#define-dp_isotime_sec)  `0u`<br> |
 | define  | [**DP\_ISOTIME\_USEC**](dp__isotime_8h.md#define-dp_isotime_usec)  `6u`<br> |
-| define  | [**\_POSIX\_C\_SOURCE**](dp__isotime_8h.md#define-_posix_c_source)  `200809L`<br> |
 
 ## Detailed Description
 
@@ -365,19 +364,6 @@ Fractional digits `iso-8601-basic` offers: none, `-m`, `-u`, `-n`.
 
 ```C++
 #define DP_ISOTIME_USEC `6u`
-```
-
-
-
-
-<hr>
-
-
-
-### define \_POSIX\_C\_SOURCE 
-
-```C++
-#define _POSIX_C_SOURCE `200809L`
 ```
 
 

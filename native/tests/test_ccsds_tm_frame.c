@@ -31,7 +31,6 @@
  * test_ccsds_tm_rand gives: a random-looking payload hides a randomiser that
  * did not run.
  */
-#define _GNU_SOURCE
 #include "dp_test.h"
 
 #include "ccsds_tm/ccsds_tm_frame.h"

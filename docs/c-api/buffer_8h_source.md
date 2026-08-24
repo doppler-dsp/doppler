@@ -28,14 +28,13 @@
 #include <windows.h>
 #else /* POSIX ------------------------------------------------------------   \
        */
-#ifdef __linux__
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE /* memfd_create */
-#endif
-#endif
-#ifdef __APPLE__
-#define _DARWIN_C_SOURCE /* MAP_ANON */
-#endif
+/* NO feature-test macro here. _GNU_SOURCE / _DARWIN_C_SOURCE are defined on
+   the compile line (see the top-level CMakeLists.txt), because glibc's
+   features.h latches on its first inclusion: a #define in this header is a
+   no-op for every translation unit that reached libc before including it,
+   which is most of them. This file carried one and it was inert exactly that
+   way -- doppler#986. A downstream compiling the installed headers needs the
+   same definition on ITS compile line. */
 #include <fcntl.h> /* shm_open on macOS */
 #include <stdio.h> /* snprintf */
 #include <sys/mman.h>

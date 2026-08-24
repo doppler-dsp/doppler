@@ -18,7 +18,6 @@
  *     re-generated per frame would advance its register and every repeat
  *     would differ, so a capture compared against it would score as errors.
  */
-#define _GNU_SOURCE
 #include "dp_test.h"
 #include "frame/frame_core.h"
 #include "wfm/wfm_frame.h"

@@ -45,6 +45,6 @@ than the free functions it used to be.
 
 <!-- related-pages:start -->
 
-**Design** — [Ending a wait — one contract for network, memory and disk](../design/io-termination.md)
+**Design** — [Ending a capture — spooling an endless stream to disk while reading it back](../design/end-of-capture.md), [Ending a wait — one contract for network, memory and disk](../design/io-termination.md)
 
 <!-- related-pages:end -->

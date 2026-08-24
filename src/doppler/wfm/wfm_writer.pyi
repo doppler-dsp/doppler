@@ -163,6 +163,41 @@ class Writer:
 
         """
 
+    def flush(self) -> None:
+        """Make every sample written so far durable and observable to a
+        concurrent reader, without ending the capture. Leaves the file on a
+        sample boundary, which is what lets a follower read it without meeting
+        a partial sample. Raises OSError if this or any earlier write failed; a
+        capture is not finished until close().
+
+        Leaves the file on a sample boundary -- write() emits whole samples, so
+        a flush BETWEEN write calls is what lets a follower read the capture
+        without meeting a partial one. Raises `OSError` if this or any earlier
+        write failed; a capture is not complete until close().
+
+        Raises
+        ------
+        OSError
+            If the C call returns a non-zero status. The exception message is
+            ``flush failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import pathlib, tempfile
+        >>> import numpy as np
+        >>> from doppler.wfm import Reader, Writer
+        >>> tmp = tempfile.TemporaryDirectory()
+        >>> p = pathlib.Path(tmp.name) / "live.blue"
+        >>> w = Writer(p, file_type="blue", sample_type="ci16", fs=2.4e6)
+        >>> _ = w.write(np.zeros(16, dtype=np.complex64))
+        >>> w.flush()                    # the samples are on disk now
+        >>> Reader(p).read_follow(16).size
+        16
+        >>> w.close()
+        >>> tmp.cleanup()
+
+        """
+
     def track_clipping(self, on: int = 1) -> None:
         """Enable the per-component clip *counter* (off by default; peak is
         always on).

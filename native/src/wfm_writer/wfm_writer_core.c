@@ -592,6 +592,26 @@ write_sigmf_sidecar (wfm_writer_state_t *w)
   return rc;
 }
 
+/* Make what has been written observable, without finishing the capture.
+   close()'s error discipline minus the finalisation, and the ferror() check
+   is first for the reason close() documents at length: a rejected write
+   leaves nothing buffered, so fflush alone reports success afterwards.
+
+   The second reason to have this is alignment, not durability. write() emits
+   whole samples, so a flush BETWEEN write calls leaves the file ending on a
+   sample boundary -- which is what lets a follower read it without meeting a
+   partial sample. An implicit stdio flush, triggered mid-fwrite when the
+   buffer fills, does not. See docs/design/end-of-capture.md. */
+int
+wfm_writer_flush (wfm_writer_state_t *w)
+{
+  if (!w || !w->fp)
+    return -1;
+  if (ferror (w->fp))
+    return -1;
+  return fflush (w->fp) == 0 ? 0 : -1;
+}
+
 int
 wfm_writer_close (wfm_writer_state_t *w)
 {

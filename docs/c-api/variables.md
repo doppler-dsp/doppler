@@ -97,6 +97,7 @@
 * **wfm\_plan\_t** ([**wfm\_plan.h**](wfm__plan_8h.md))
 * **wfm\_stream\_sink\_t** ([**wfm\_sink.h**](wfm__sink_8h.md))
 * **wfm\_fc\_source\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
+* **wfm\_follow\_end\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **wfm\_fs\_source\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **wfm\_mode\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **wfm\_reader\_state\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))

@@ -58,6 +58,14 @@ extern "C"
        than a guess. */
   } wfm_t0_source_t;
 
+  typedef enum
+  {
+    WFM_FOLLOW_NONE = 0,    
+    WFM_FOLLOW_EOF,         
+    WFM_FOLLOW_TIMEOUT,     
+    WFM_FOLLOW_INTERRUPTED  
+  } wfm_follow_end_t;
+
   typedef struct
   {
     int    file_type;   
@@ -105,6 +113,9 @@ const char *wfm_reader_keyword_tag(const wfm_reader_state_t *state, size_t i);
 
 void wfm_reader_reset(wfm_reader_state_t *state);
 
+  void wfm_reader_set_stop_fn (wfm_reader_state_t *state, int (*fn) (void));
+
+
 void wfm_reader_destroy(wfm_reader_state_t *state);
 
 int wfm_reader_get_fc_source(const wfm_reader_state_t *state);
@@ -124,6 +135,13 @@ int wfm_reader_get_endian(const wfm_reader_state_t *state);
 double wfm_reader_get_fs(const wfm_reader_state_t *state);
 double wfm_reader_get_fc(const wfm_reader_state_t *state);
 size_t wfm_reader_get_num_samples(const wfm_reader_state_t *state);
+size_t wfm_reader_read_follow_max_out(wfm_reader_state_t *state, size_t n);
+size_t wfm_reader_read_follow(wfm_reader_state_t *state, size_t n, float complex *out, size_t max_out);
+uint32_t wfm_reader_get_follow_timeout_ms(const wfm_reader_state_t *state);
+void wfm_reader_set_follow_timeout_ms(wfm_reader_state_t *state, uint32_t val);
+uint32_t wfm_reader_get_follow_grace_ms(const wfm_reader_state_t *state);
+void wfm_reader_set_follow_grace_ms(wfm_reader_state_t *state, uint32_t val);
+int wfm_reader_get_ending(const wfm_reader_state_t *state);
 #ifdef __cplusplus
 }
 #endif

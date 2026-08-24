@@ -7,12 +7,14 @@
  */
 #include "wfm_reader/wfm_reader_core.h"
 
+#include "dp_interrupt.h"
 #include "wfm/wfm_time.h"
 
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "cJSON.h"
 #include "wfm/wfm_keywords.h"
@@ -56,6 +58,23 @@ struct wfm_reader_state
   size_t trailing;    /* payload bytes past the last whole sample */
   int    csv_counted; /* CSV num_samples has been scanned for (lazy) */
   int    fs_source;   /* wfm_fs_source_t: which metadata `fs` came from */
+  /* Following a capture that is still being written. `ending` is why the
+     last read_follow() came back empty -- a wfm_follow_end_t index, which
+     is what the `ending` property decodes to a string, corresponding 1:1 to
+     DP_OK / DP_ERR_EOF / _TIMEOUT / _INTERRUPTED. `follow_bounded` latches
+     once the writer patches data_size -- the 0 -> N transition is the writer
+     having finished, OBSERVED, rather than the promise the header opened
+     with. See docs/design/end-of-capture.md. */
+  uint32_t follow_timeout_ms; /* 0 = wait forever */
+  uint32_t follow_grace_ms;   /* 0 = wait forever, after a stop is asked */
+  int      ending;
+  int      follow_bounded;
+  /* How the follow loop learns a stop was requested. A capture reader has no
+     business depending on the process interrupt primitive -- that is the
+     caller's policy, and hard-wiring it would put dp_interrupt.c on the link
+     line of every consumer of wfm_reader_core. So the predicate is injected;
+     doppler passes dp_interrupted, a test passes its own. NULL never stops. */
+  int (*stop_fn) (void);
   double t0_unix_sec; /* capture start, UNIX seconds; 0 if unknown */
   int    t0_source;   /* wfm_t0_source_t: where `t0` came from */
 };
@@ -989,6 +1008,48 @@ read_csv (wfm_reader_state_t *r, float _Complex *out, size_t max)
   return i;
 }
 
+/* Convert up to `max` whole samples from the current position. The one place
+   bytes become samples -- wfm_reader_read applies the declared-payload bound
+   around it, wfm_reader_read_follow applies its own.
+
+   A PARTIAL sample at the end is un-consumed rather than dropped. fread has
+   already taken those bytes from the stream, so dropping them leaves the next
+   read one element out of phase and every sample after it wrong -- silently,
+   and forever. Only reachable on a file being appended to (a finished capture
+   has no partial tail to meet), but the fix belongs here, where the bytes
+   are. docs/design/end-of-capture.md section 2b. */
+static size_t
+read_block (wfm_reader_state_t *r, size_t max, float _Complex *out)
+{
+  size_t elem = ELEM[r->sample_type], nc = comps (r->mode);
+  size_t need = max * nc * elem;
+  if (r->scratch_cap < need)
+    {
+      uint8_t *q = (uint8_t *)realloc (r->scratch, need);
+      if (!q)
+        return 0;
+      r->scratch     = q;
+      r->scratch_cap = need;
+    }
+  size_t got   = fread (r->scratch, 1, need, r->fp);
+  size_t nsamp = got / (nc * elem);
+  size_t rem   = got - nsamp * (nc * elem);
+  if (rem)
+    (void)fseek (r->fp, -(long)rem, SEEK_CUR);
+  const uint8_t *p = r->scratch;
+  for (size_t i = 0; i < nsamp; i++)
+    {
+      /* scalar mode has no Q component on the wire -- it reads as exactly 0,
+         so an 'S' capture surfaces as a real signal on the imaginary axis. */
+      float re = convert_elem (p, r->sample_type, r->endian);
+      float im = (nc == 2) ? convert_elem (p + elem, r->sample_type, r->endian)
+                           : 0.0f;
+      out[i]   = re + im * (float _Complex)I;
+      p += nc * elem;
+    }
+  return nsamp;
+}
+
 size_t
 wfm_reader_read (wfm_reader_state_t *r, size_t max, float _Complex *out,
                  size_t max_out)
@@ -1009,32 +1070,202 @@ wfm_reader_read (wfm_reader_state_t *r, size_t max, float _Complex *out,
       if (max > r->remaining)
         max = r->remaining;
     }
-  size_t elem = ELEM[r->sample_type], nc = comps (r->mode);
-  size_t need = max * nc * elem;
-  if (r->scratch_cap < need)
-    {
-      uint8_t *p = (uint8_t *)realloc (r->scratch, need);
-      if (!p)
-        return 0;
-      r->scratch     = p;
-      r->scratch_cap = need;
-    }
-  size_t         got   = fread (r->scratch, 1, need, r->fp);
-  size_t         nsamp = got / (nc * elem);
-  const uint8_t *p     = r->scratch;
-  for (size_t i = 0; i < nsamp; i++)
-    {
-      /* scalar mode has no Q component on the wire -- it reads as exactly 0,
-         so an 'S' capture surfaces as a real signal on the imaginary axis. */
-      float re = convert_elem (p, r->sample_type, r->endian);
-      float im = (nc == 2) ? convert_elem (p + elem, r->sample_type, r->endian)
-                           : 0.0f;
-      out[i]   = re + im * (float _Complex)I;
-      p += nc * elem;
-    }
+  size_t nsamp = read_block (r, max, out);
   if (r->bounded)
     r->remaining -= nsamp;
   return nsamp;
+}
+
+/* ── Following a capture that is still being written ──────────────────────
+ * docs/design/end-of-capture.md.
+ *
+ * The one rule: a short read means NOTHING. Only an explicit marker ends
+ * the wait -- never the file going quiet, which is a slow writer, a stalled
+ * writer and a finished writer wearing the same face.
+ *
+ * Two hazards that bite the NAIVE approach (call read() in a loop) do not
+ * arise here, and it is worth saying why rather than defending against them
+ * twice. follow_available() seeks and divides: it reports whole samples, so
+ * read_block is never asked for a partial one, and the seek clears stdio's
+ * latched end-of-file indicator as a side effect of asking. Both hazards
+ * are real on the plain read() path -- see read_block, and
+ * test_read_never_consumes_a_partial_sample. */
+
+/* Whole samples readable right now. Consumes nothing and leaves the read
+   position where it found it. */
+static size_t
+follow_available (wfm_reader_state_t *r)
+{
+  long cur = ftell (r->fp);
+  if (cur < 0)
+    return 0;
+  if (fseek (r->fp, 0, SEEK_END) != 0)
+    return 0;
+  long end = ftell (r->fp);
+  if (fseek (r->fp, cur, SEEK_SET) != 0 || end < cur)
+    return 0;
+  size_t stride = comps (r->mode) * ELEM[r->sample_type];
+  size_t avail  = (size_t)(end - cur) / stride;
+  /* Once the length is real, anything past the payload (the extended
+     header) is not samples. */
+  if (r->follow_bounded)
+    {
+      size_t used = (size_t)(cur - r->data_off);
+      size_t left
+          = (r->data_bytes > used) ? (r->data_bytes - used) / stride : 0;
+      if (avail > left)
+        avail = left;
+    }
+  return avail;
+}
+
+/* Has the writer declared the capture finished? Explicit only -- a file that
+   has merely stopped growing is NOT an ending, which is the inference this
+   whole contract exists to remove.
+
+   BLUE patches data_size at close(), so the placeholder -> real transition
+   is the writer having finished, observed. Raw and CSV carry no marker at
+   all, so they never end: only a stop request can finish that wait. */
+static int
+follow_ended (wfm_reader_state_t *r)
+{
+  if (r->follow_bounded)
+    return 1;
+  if (r->file_type != WFM_FT_BLUE)
+    return 0;
+  long cur = ftell (r->fp);
+  if (cur < 0 || fseek (r->fp, 40, SEEK_SET) != 0)
+    return 0;
+  uint8_t h[8];
+  size_t  got = fread (h, 1, 8, r->fp);
+  if (fseek (r->fp, cur, SEEK_SET) != 0 || got != 8)
+    return 0;
+  double ds = 0.0;
+  swab_copy (&ds, h, 8, r->endian);
+  if (!(ds > 0.0))
+    return 0; /* still the placeholder the writer opened with */
+  r->data_bytes     = (size_t)ds;
+  r->follow_bounded = 1;
+  return 1;
+}
+
+/* Sleep one interrupt slice, or the remaining budget if that is shorter. */
+static uint32_t
+follow_nap (uint32_t remaining_ms)
+{
+  /* The same slice every other doppler wait uses. The MACRO, not the
+     accessor: a compile-time constant costs no link dependency, which is the
+     whole point of stop_fn above. */
+  uint32_t slice = DP_INTERRUPT_LATENCY_DEFAULT_MS;
+  if (remaining_ms && slice > remaining_ms)
+    slice = remaining_ms;
+  struct timespec ts
+      = { (time_t)(slice / 1000u), (long)(slice % 1000u) * 1000000L };
+  nanosleep (&ts, NULL);
+  return slice;
+}
+
+size_t
+wfm_reader_read_follow_max_out (wfm_reader_state_t *r, size_t n)
+{
+  (void)r;
+  /* The caller's ask, NOT what is available: jm's binding calls this to size
+     the output array BEFORE the kernel runs, so answering "available now"
+     would hand a blocking read a zero-length buffer at exactly the moment it
+     is supposed to wait. */
+  return n;
+}
+
+int
+wfm_reader_get_ending (const wfm_reader_state_t *r)
+{
+  return r->ending;
+}
+
+uint32_t
+wfm_reader_get_follow_timeout_ms (const wfm_reader_state_t *r)
+{
+  return r->follow_timeout_ms;
+}
+
+void
+wfm_reader_set_follow_timeout_ms (wfm_reader_state_t *r, uint32_t val)
+{
+  r->follow_timeout_ms = val;
+}
+
+uint32_t
+wfm_reader_get_follow_grace_ms (const wfm_reader_state_t *r)
+{
+  return r->follow_grace_ms;
+}
+
+void
+wfm_reader_set_follow_grace_ms (wfm_reader_state_t *r, uint32_t val)
+{
+  r->follow_grace_ms = val;
+}
+
+void
+wfm_reader_set_stop_fn (wfm_reader_state_t *r, int (*fn) (void))
+{
+  r->stop_fn = fn;
+}
+
+size_t
+wfm_reader_read_follow (wfm_reader_state_t *r, size_t n, float complex *out,
+                        size_t max_out)
+{
+  if (max_out < n)
+    n = max_out;
+  r->ending = WFM_FOLLOW_NONE;
+  if (n == 0)
+    return 0;
+
+  /* One clock with two values: the caller's wait budget until a stop is
+     requested, then the grace budget for the writer to land its marker.
+     0 means forever in both -- the escape is the stop, not a clock. */
+  uint32_t budget   = r->follow_timeout_ms;
+  int      stopping = 0;
+
+  for (;;)
+    {
+      size_t avail = follow_available (r);
+      if (avail > 0)
+        {
+          /* Drain outranks the stop: data already in the file is returned
+             even once a stop has been requested, or Ctrl+C discards a tail
+             that is already safely on disk. */
+          if (avail < n)
+            n = avail;
+          return read_block (r, n, out);
+        }
+      if (follow_ended (r))
+        {
+          /* The marker may have landed with samples still unread. */
+          if (follow_available (r) > 0)
+            continue;
+          r->ending = WFM_FOLLOW_EOF;
+          return 0;
+        }
+      if (!stopping && r->stop_fn && r->stop_fn ())
+        {
+          stopping = 1;
+          budget   = r->follow_grace_ms;
+        }
+      if (budget == 0)
+        {
+          follow_nap (0);
+          continue;
+        }
+      uint32_t slept = follow_nap (budget);
+      budget         = (slept >= budget) ? 0 : budget - slept;
+      if (budget == 0)
+        {
+          r->ending = stopping ? WFM_FOLLOW_INTERRUPTED : WFM_FOLLOW_TIMEOUT;
+          return 0;
+        }
+    }
 }
 
 size_t

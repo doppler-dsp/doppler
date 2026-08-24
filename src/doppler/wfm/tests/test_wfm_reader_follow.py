@@ -182,3 +182,54 @@ def test_a_finite_budget_is_something_the_caller_asks_for(tmp_path):
         assert r.ending == "timeout"
     finally:
         w.close()
+
+
+def test_a_zero_length_ask_returns_at_once(tmp_path):
+    """`read_follow(0)` is answered, not waited on.
+
+    A budget of "forever" plus an ask of nothing would otherwise be a wait
+    that can never be satisfied, which is the one shape this contract must
+    not produce by accident.
+    """
+    p = tmp_path / "zero.blue"
+    w = _capture(p)
+    try:
+        r = Reader(p)
+        got = _in_thread(lambda: r.read_follow(0))
+        assert len(got) == 0
+        assert r.ending == "none"
+    finally:
+        w.close()
+
+
+def test_an_undersized_out_is_refused_not_truncated(tmp_path):
+    """A short `out=` raises rather than quietly returning less.
+
+    Written expecting the opposite -- that the smaller of `count` and `out`
+    would win -- and the binding corrected it: `read_follow` sizes against
+    `read_follow_max_out(count)` and refuses anything shorter. That is the
+    better contract and the reason is the asymmetry of the two mistakes. A
+    caller who passes a buffer too small has made an error they can fix; a
+    read that silently returns 64 of the 4096 samples they asked for looks
+    exactly like "that is all there was", which on a FOLLOW read is the one
+    thing this whole design exists to tell apart.
+    """
+    p = tmp_path / "small.blue"
+    w = _capture(p, n=4096)
+    try:
+        r = Reader(p)
+        need = r.read_follow_max_out(4096)
+        assert need >= 4096
+
+        buf = np.zeros(64, dtype=np.complex64)
+        with pytest.raises(ValueError, match="need >="):
+            r.read_follow(4096, out=buf)
+
+        # And the correctly-sized buffer is accepted, so the guard is a
+        # bound and not a blanket refusal of `out=`.
+        big = np.zeros(need, dtype=np.complex64)
+        got = _in_thread(lambda: r.read_follow(4096, out=big))
+        assert len(got) == 4096
+        assert np.array_equal(got, big[:4096])
+    finally:
+        w.close()

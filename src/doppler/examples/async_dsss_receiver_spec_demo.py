@@ -38,12 +38,15 @@ the code loop as a rate bias the code discriminator alone cannot pull in.
 
 **Three honesty notes, all load-bearing:**
 
-- **Acquisition here is probabilistic, and the example says so.** Scored over
-  eight fixed noise draws at this Es/N0, the receiver acquires on 5 of 8 (TCA)
-  and 6 of 8 (+/-50 kHz) -- and decodes cleanly on every draw where it does.
-  The example used to assert one draw as though the outcome were determined;
-  it passed because of the seed. Both halves are asserted now, over the
-  draws. Why the rate is what it is: doppler#982.
+- **Carrier lock here is probabilistic, and the example says so.** Scored
+  over eight fixed noise draws at this Es/N0, the receiver holds lock on 5 of
+  8 (TCA) and 6 of 8 (+/-50 kHz) -- and decodes cleanly on every draw where it
+  does. Acquisition is *not* what varies: every draw acquires and the code
+  loop locks on every one, failures included. The example used to assert one
+  draw as though the outcome were determined; it passed because of the seed.
+  Both halves are asserted now, over the draws. Why the rate is what it is,
+  and why the coarse residual that decides it is asymmetric about zero:
+  doppler#982.
 
 - **10 dB, not SPEC's 5 dB.** The AWGN-only decode floor is ~5 dB (the C
   test ``_test_awgn_esn0_floor`` proves 5 dB decodes, 4 dB fails), but the
@@ -128,7 +131,7 @@ SEED = 1
 #: making the example slow -- one receive is well under a second.
 SCORING_SEEDS = (1, 2, 3, 4, 5, 6, 7, 8)
 
-#: Acquisition floor across those draws. Measured 5/8 (TCA) and 6/8 (+50 kHz),
+#: Carrier-lock floor across those draws. Measured 5/8 (TCA), 6/8 (+50 kHz),
 #: so 4 leaves room for a different architecture's rounding without letting a
 #: real regression through. Raising this is a receiver improvement, not a
 #: tuning knob -- see doppler#982 for what is worth measuring next.
@@ -403,15 +406,23 @@ def main(out_path: str = "async_dsss_receiver_spec_demo.png") -> None:
     # ── both regimes, scored over several noise draws ────────────────────
     # A ONE-DRAW assertion cannot support a claim about a receiver at its
     # operating edge, and this example used to make one. Measured over eight
-    # fixed draws at this Es/N0: the TCA crossing acquires on 5 of 8 and the
-    # +/-50 kHz extremum on 6 of 8 -- so whether the old single-seed assert
-    # passed was a property of the seed, not of the receiver. (Not caused by
-    # any change here: the same 6/8 comes out with the noise drawn by numpy
-    # or by doppler's own source, at a level identical to seven digits.)
+    # fixed draws at this Es/N0: the TCA crossing holds carrier lock on 5 of 8
+    # and the +/-50 kHz extremum on 6 of 8 -- so whether the old single-seed
+    # assert passed was a property of the seed, not of the receiver. (Not
+    # caused by any change here: the same 6/8 comes out with the noise drawn
+    # by numpy or by doppler's own source, at a level identical to seven
+    # digits.)
     #
-    # So the claim is the one the measurement supports: it acquires on MOST
-    # draws, and when it acquires it decodes cleanly. Both halves are
-    # asserted, because "locked" without a BER bar would pass on a mislock.
+    # ACQUISITION IS NOT WHAT VARIES. Every draw acquires at the same epoch
+    # and the code loop locks on every one of them, failures included; what
+    # is bimodal is sustained CARRIER lock, and which side a draw lands on is
+    # set by the sign of the coarse Doppler residual (doppler#982). Calling
+    # this "acquired on N/8" -- as this comment did until the stage was
+    # actually instrumented -- named the wrong stage.
+    #
+    # So the claim is the one the measurement supports: it locks on MOST
+    # draws, and when it locks it decodes cleanly. Both halves are asserted,
+    # because "locked" without a BER bar would pass on a mislock.
     for label, (start_hz, rate) in (
         ("TCA", (TCA_START_HZ, DOPPLER_RATE_HZ_S)),
         ("+50kHz static", (OFFSET_EXTREMUM_HZ, 0.0)),
@@ -428,14 +439,16 @@ def main(out_path: str = "async_dsss_receiver_spec_demo.png") -> None:
             bers.append(best_ber(syms_s, ds, lo=int(len(syms_s) * frac))[1])
         worst = max(bers) if bers else 1.0
         print(
-            f"[{label}] acquired on {locks}/{len(SCORING_SEEDS)} noise draws; "
-            f"worst settled BER when acquired {worst:.4f}"
+            f"[{label}] carrier lock held on {locks}/{len(SCORING_SEEDS)} "
+            f"noise draws (all 8 acquire); worst settled BER when "
+            f"locked {worst:.4f}"
         )
         assert locks >= MIN_LOCKS, (
-            f"[{label}] acquired on only {locks}/{len(SCORING_SEEDS)} draws"
+            f"[{label}] held carrier lock on only {locks}/"
+            f"{len(SCORING_SEEDS)} draws"
         )
         assert worst < bars, (
-            f"[{label}] acquired but did not decode: worst BER {worst:.3f}"
+            f"[{label}] locked but did not decode: worst BER {worst:.3f}"
         )
 
     wber = _windowed_ber(bits, data, lag, inv)

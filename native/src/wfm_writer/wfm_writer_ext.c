@@ -63,14 +63,18 @@ _bind_write_blue_header (PyObject *self, PyObject *args, PyObject *kwds)
   int _arg_sample_type = _enum_index (_enum_stype, sample_type);
   if (_arg_sample_type < 0)
     {
-      PyErr_Format (PyExc_ValueError, "invalid sample_type '%s'", sample_type);
+      PyErr_Format (
+          PyExc_ValueError,
+          "invalid sample_type '%s' (choices: cf32, cf64, ci32, ci16, ci8)",
+          sample_type);
       Py_XDECREF (path);
       return NULL;
     }
   int _arg_endian = _enum_index (_enum_endian, endian);
   if (_arg_endian < 0)
     {
-      PyErr_Format (PyExc_ValueError, "invalid endian '%s'", endian);
+      PyErr_Format (PyExc_ValueError, "invalid endian '%s' (choices: le, be)",
+                    endian);
       Py_XDECREF (path);
       return NULL;
     }

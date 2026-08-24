@@ -54,7 +54,10 @@ StreamSink_init (StreamSinkObject *self, PyObject *args, PyObject *kwds)
   int _arg_sample_type = _enum_index (_enum_stype, sample_type);
   if (_arg_sample_type < 0)
     {
-      PyErr_Format (PyExc_ValueError, "invalid sample_type '%s'", sample_type);
+      PyErr_Format (
+          PyExc_ValueError,
+          "invalid sample_type '%s' (choices: cf32, cf64, ci32, ci16, ci8)",
+          sample_type);
       return -1;
     }
   if (!self->closed && self->h)
@@ -117,8 +120,8 @@ StreamSink_send_eos (StreamSinkObject *self, PyObject *args)
   _rc = wfm_stream_sink_send_eos (self->h);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_OSError, "wfm_stream_sink_send_eos failed (rc=%d)",
-                    (int)_rc);
+      PyErr_Format (PyExc_OSError, "%s (rc=%lld)",
+                    "wfm_stream_sink_send_eos failed", (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -140,8 +143,8 @@ StreamSink_drain (StreamSinkObject *self, PyObject *args, PyObject *kwds)
   _rc = wfm_stream_sink_drain (self->h, timeout_ms);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_OSError, "wfm_stream_sink_drain failed (rc=%d)",
-                    (int)_rc);
+      PyErr_Format (PyExc_OSError, "%s (rc=%lld)",
+                    "wfm_stream_sink_drain failed", (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -292,5 +295,33 @@ PyInit_wfm_sink (void)
       Py_DECREF (m);
       return NULL;
     }
+  /* gh-1117: adopt dp_interrupt_guard's process-global state from its owner.
+   */
+  {
+    void     *dp_interrupt_guard_state_ptr (void);
+    void      dp_interrupt_guard_state_adopt (void *shared);
+    PyObject *_own = PyImport_ImportModule ("doppler.interrupt");
+    if (!_own)
+      {
+        Py_DECREF (m);
+        return NULL;
+      }
+    PyObject *_pg = PyObject_GetAttrString (_own, "_jm_pg_dp_interrupt_guard");
+    Py_DECREF (_own);
+    if (!_pg)
+      {
+        Py_DECREF (m);
+        return NULL;
+      }
+    void *_p = PyCapsule_GetPointer (
+        _pg, "doppler.dp_interrupt_guard._jm_procglobal");
+    Py_DECREF (_pg);
+    if (!_p)
+      {
+        Py_DECREF (m);
+        return NULL;
+      }
+    dp_interrupt_guard_state_adopt (_p);
+  }
   return m;
 }

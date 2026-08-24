@@ -29,6 +29,20 @@ return_type = "void"
 # component, so it arrives as an object library rather than a <name>_core
 # target -- the same spelling [module.timing] uses for it.
 extra_link_libs = ["$<TARGET_OBJECTS:dp_interrupt_obj>"]
+# ONE flag per PROCESS, not per .so (doppler#976; jm gh-1117 phase 2).
+#
+# jm links a component's core statically into every extension module that
+# needs it and CPython imports extensions RTLD_LOCAL, so `volatile
+# sig_atomic_t flag` was a DIFFERENT variable in doppler.interrupt,
+# doppler.buffer and doppler.stream. Every test passed, because the only
+# setter and the only wait anybody exercised happened to share a `.so`.
+#
+# Declaring it makes jm generate the rendezvous into each linking module's
+# PyInit_: this module publishes a capsule over the state, every other
+# imports it and adopts the pointer. The two accessors underneath are ours
+# -- jm cannot write them, because the state is reached by our own code on
+# every access -- and live in native/src/dp_interrupt.c beside the storage.
+process_global = true
 # Opaque heap state jm cannot infer, and no per-sample step: this is a
 # lifecycle, not a DSP object.
 no_state = "true"

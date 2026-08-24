@@ -13,3 +13,12 @@
 # _SynthEngine is the underscore-prefixed low-level binding behind the public
 # composer Synth; callers use Synth. It is intentionally not in the API ref.
 doppler.wfm._SynthEngine
+
+# The process-global rendezvous capsule. Not API in any sense a caller can
+# use: it is a PyCapsule that just-makeit's generated PyInit_ hands between
+# extension modules so every one of them reads the SAME interrupt flag
+# (doppler#976). It reaches `__all__` only because it has to be re-exported
+# onto the package for adopters to find it -- see [module.interrupt.reexports]
+# in just-makeit.toml, and just-buildit/just-makeit#1134, whose fix removes
+# the need for the re-export and with it this line.
+doppler.interrupt._jm_pg_dp_interrupt_guard

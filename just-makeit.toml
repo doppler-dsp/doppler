@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.63.3"
+jm_version = "0.67.1"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -363,8 +363,12 @@ init_params = [{ name = "path", type = "path" }]
 [module.sample_clock]
 # timing_core's pace() consults dp_interrupted() so a paced loop can be
 # stopped; this extension embeds its objects rather than linking
-# libdoppler, so it needs the primitive's definitions too.
-extra_link_libs = ["$<TARGET_OBJECTS:dp_interrupt_obj>"]
+# libdoppler, so it needs the primitive's definitions too. Declared as a
+# `link = true` dependency rather than spliced as a raw
+# `$<TARGET_OBJECTS:>` genexpr, because jm can only see the linkage it
+# WROTE -- and `dp_interrupt_guard` is `process_global`, so a module jm
+# cannot see linking it is a module that silently keeps its own flag
+# (doppler#976). The core carries dp_interrupt.c's storage and accessors.
 kind            = "handle"
 backing         = "dp_sample_clock"
 handle_type     = "dp_sample_clock_t"
@@ -382,6 +386,10 @@ capsule         = "doppler.wfm.dp_sample_clock"
 # free(self->h) alone (no <backing>_close finalizer). init_fn makes jm own the
 # malloc/free.
 close_fn        = ""
+
+[[module.sample_clock.depends_on]]
+name = "dp_interrupt_guard"
+link = true
 
 [[module.sample_clock.create_args]]
 name = "fs"
@@ -553,7 +561,14 @@ create_fn       = "wfm_stream_sink_open"
 # dp_interrupt_obj: stream_core.c's deprecated dp_stream_interrupt* forward
 # to the core primitive, and this extension embeds stream objects rather
 # than linking libdoppler, so it needs the definitions too.
-extra_link_libs = ["$<TARGET_OBJECTS:stream_core_obj>", "$<TARGET_OBJECTS:dp_interrupt_obj>", "dp_tlm_core", "nats_vendor_static", "Threads::Threads", "m"]
+extra_link_libs = ["$<TARGET_OBJECTS:stream_core_obj>", "dp_tlm_core", "nats_vendor_static", "Threads::Threads", "m"]
+
+# The interrupt primitive, DECLARED rather than spliced -- see
+# [module.sample_clock]. It is `process_global`, and jm generates the
+# rendezvous only into modules whose link line it wrote.
+[[module.wfm_sink.depends_on]]
+name = "dp_interrupt_guard"
+link = true
 
 [[module.wfm_sink.create_args]]
 name = "endpoint"
@@ -589,11 +604,12 @@ type = "double"
 [[module.wfm_sink.methods]]
 name = "send_eos"
 fn = "wfm_stream_sink_send_eos"
-# The stub says `-> int` and the binding returns None -- because this method
-# takes NO ARGUMENTS. jm honours `error` when rendering the annotation only
-# on the arg-carrying branch, so `drain` below (same two keys, one arg) gets
-# the correct `-> None`. just-makeit#1116, reproduced against 0.66.1 with a
-# one-line fix; drop this note when the pin passes it.
+# `returns` is the C signature; `error = "OSError"` makes the binding RAISE
+# rather than hand the status back, so the stub is `-> None`. It read `-> int`
+# until the 0.67.1 pin: jm honoured `error` in the annotation only on the
+# arg-carrying branch, so this zero-arg method disagreed with the `drain`
+# below that declares the identical pair. just-makeit#1116, fixed in 0.67.0
+# and verified here -- the regenerated stub says `-> None`.
 returns = "int"
 error = "OSError"
 
@@ -603,8 +619,9 @@ fn = "wfm_stream_sink_drain"
 # returns="int", NOT status_return: on a HANDLE method jm rejects
 # status_return outright ("error requires an `int` status return"). The
 # object-method form in objects/dp_tlm_capture.toml is the other spelling.
-# error_message is accepted here and then ignored, and no Raises section is
-# emitted either -- both honoured on an object method. just-makeit#1111.
+# The `Raises` half of just-makeit#1111 is fixed as of the 0.67.1 pin (0.66.1)
+# and the stub now carries one; `error_message` is honoured there too, though
+# neither method here declares one.
 returns = "int"
 error = "OSError"
 
@@ -627,6 +644,12 @@ name = "clip_fraction"
 getter = "wfm_stream_sink_clip_fraction"
 type = "double"
 
+# `returns` types the `tmp` the `expr` below operates on, and jm REFUSES an
+# `expr` field without it (gh-333: defaulting `tmp` to the decoded `type`
+# truncates the getter's value before the expr runs, silently). jm 0.67.1's
+# new key check nevertheless warns that it "has no effect" -- its vocabulary
+# omits the key its own generator requires. just-buildit/just-makeit#1137;
+# keep the key, ignore the warning.
 [[module.wfm_sink.getters.fields]]
 name = "peak_dbfs"
 getter = "wfm_stream_sink_peak"
@@ -922,8 +945,13 @@ sample_type  = true
 # vendored cJSON OBJECT lib (wfm_cjson_core) + libm go in extra_link_libs. This mirrors
 # native/src/wfmcompose/CMakeLists.txt's test_wfm_compose link line.
 # wfm_keywords_core: the writer core's BLUE extended-header codec.
-extra_link_libs = ["wfm_draw_core", "wfm_cjson_core", "wfm_keywords_core",
-                   "$<TARGET_OBJECTS:dp_interrupt_obj>", "m"]
+extra_link_libs = ["wfm_draw_core", "wfm_cjson_core", "wfm_keywords_core", "m"]
+
+# The interrupt primitive, DECLARED rather than spliced -- see
+# [module.sample_clock].
+[[module.wfm_compose.depends_on]]
+name = "dp_interrupt_guard"
+link = true
 
 # The source type wraps wfm_source_t field-for-field (struct order); enum fields
 # cross as validated strings via the SSOT, `bits` as an owned bytes buffer.
@@ -1539,6 +1567,28 @@ Examples
 
 """
 objects = ["dp_interrupt_guard"]
+
+# The `process_global` capsule, lifted from the .so onto the PACKAGE.
+#
+# just-makeit publishes it on the extension module -- `doppler.interrupt.
+# interrupt` -- while the rendezvous it generates into every ADOPTING module
+# imports `doppler.interrupt`, the package. Those are two different objects
+# whenever a module lives at `<pkg>/<mod>/<mod>.so` behind a re-exporting
+# `__init__.py`, which is jm's own standard layout, so every adopter died
+# with `AttributeError: module 'doppler.interrupt' has no attribute
+# '_jm_pg_dp_interrupt_guard'` at import. Filed as just-buildit/just-makeit#1134.
+#
+# Declared here rather than hand-added to the generated `__init__.py`: this
+# is a manifest key doing what the manifest is for, so `jm apply` keeps it
+# and the drift gate covers it. Drop the entry once jm names the extension
+# module itself -- the ratchet in
+# src/doppler/tests/test_interrupt_is_process_wide.py is what will notice.
+[module.interrupt.reexports]
+# `Interrupt` is repeated because a `reexports` entry REPLACES the import
+# line jm derives for that submodule rather than adding to it -- listing
+# only the capsule silently dropped `from doppler.interrupt import
+# Interrupt`, which every doctest in this module uses.
+interrupt = ["Interrupt", "_jm_pg_dp_interrupt_guard"]
 
 [module.buffer]
 doc = """

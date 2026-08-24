@@ -66,7 +66,11 @@ class Telemetry:
     """
     def __init__(self, ring_records: int = ...) -> None: ...
 
-    def read(self, n: int = 0) -> NDArray[Any]:
+    def read(
+        self,
+        n: int = 0,
+        out: NDArray[Any] | None = None,
+    ) -> NDArray[Any]:
         """Drains records into out. Non-blocking.
 
         Consumer side of the SPSC ring: safe to call from a different thread
@@ -77,6 +81,8 @@ class Telemetry:
         ----------
         n : int
             Records wanted; 0 means "everything available".
+        out : NDArray[Any] | None
+            Destination.
 
         Returns
         -------
@@ -98,6 +104,23 @@ class Telemetry:
         >>> tlm.read().shape            # drained
         (0,)
 
+        """
+
+    def read_max_out(self) -> int:
+        """Upper bound on what dp_tlm_read() can return right now.
+
+        Simply the available count: a caller sizing a destination cannot know
+        the
+
+        request will be smaller, and jm's generated binding allocates this
+        much,
+
+        reads, then resizes to what actually came back.
+
+        Returns
+        -------
+        int
+            Output.
         """
 
     def probe(self, name: str, decim: int = 1) -> int:
@@ -528,7 +551,11 @@ class MemoryCapture:
         clock: object | None,
     ) -> None: ...
 
-    def records(self, n: int = 0) -> NDArray[Any]:
+    def records(
+        self,
+        n: int = 0,
+        out: NDArray[Any] | None = None,
+    ) -> NDArray[Any]:
         """Copies accumulated records out. Memory mode only.
 
         The copying twin of dp_tlm_capture_records(): same records, same order,
@@ -544,6 +571,8 @@ class MemoryCapture:
         ----------
         n : int
             Records wanted; 0 means "everything accumulated".
+        out : NDArray[Any] | None
+            Destination.
 
         Returns
         -------
@@ -567,6 +596,22 @@ class MemoryCapture:
         >>> cap.records(2).shape             # 0 (the default) means "all"
         (2,)
 
+        """
+
+    def records_max_out(self) -> int:
+        """Upper bound on what dp_tlm_capture_read() can return right now.
+
+        The accumulated count: a caller sizing a destination cannot know its
+        own
+
+        request will be smaller, and the generated binding allocates this much,
+
+        reads, then resizes to what actually came back.
+
+        Returns
+        -------
+        int
+            Output.
         """
 
     def block(self) -> None:

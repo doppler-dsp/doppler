@@ -154,6 +154,7 @@ class DDC:
         x: complex,
         rate_ctrl: float,
         freq_ctrl: float,
+        out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
@@ -175,6 +176,8 @@ class DDC:
         freq_ctrl : float
             Frequency deviation for this input, cycles/sample at the input
             rate.
+        out : NDArray[np.complex64] | None
+            Output buffer for any emitted samples.
 
         Returns
         -------
@@ -194,6 +197,21 @@ class DDC:
         >>> [len(o) for o in outs[:4]]        # 0 outs until a strobe completes
         [0, 0, 0, 1]
 
+        """
+
+    def execute_ctrl_push_max_out(self) -> int:
+        """Largest number of samples execute_ctrl_push() can return in the
+        current state.
+
+        Size an `out=` buffer with this before calling execute_ctrl_push(), or
+        use it to allocate one up front. The bound is this object's own: what
+        it depends on is a property of the algorithm, so a header block on
+        execute_ctrl_push_max_out() replaces this text.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
         """
 
     def reset(self) -> None:
@@ -504,6 +522,7 @@ class MatchedDDC:
         x: complex,
         rate_ctrl: float,
         freq_ctrl: float,
+        out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
@@ -525,6 +544,8 @@ class MatchedDDC:
         freq_ctrl : float
             Frequency deviation for this input, cycles/sample at the input
             rate.
+        out : NDArray[np.complex64] | None
+            Output buffer for any emitted samples.
 
         Returns
         -------
@@ -544,6 +565,21 @@ class MatchedDDC:
         >>> [len(o) for o in outs[:4]]        # 0 outs until a strobe completes
         [0, 0, 0, 1]
 
+        """
+
+    def execute_ctrl_push_max_out(self) -> int:
+        """Largest number of samples execute_ctrl_push() can return in the
+        current state.
+
+        Size an `out=` buffer with this before calling execute_ctrl_push(), or
+        use it to allocate one up front. The bound is this object's own: what
+        it depends on is a property of the algorithm, so a header block on
+        execute_ctrl_push_max_out() replaces this text.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
         """
 
     def reset(self) -> None:
@@ -820,6 +856,7 @@ class Ddcr:
         x: float,
         rate_ctrl: float,
         freq_ctrl: float,
+        out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Push ONE real input sample; emit whatever outputs it completes.
 
@@ -837,6 +874,8 @@ class Ddcr:
             Rate deviation for this input (terminal-stage rate).
         freq_ctrl : float
             Frequency deviation, cycles/sample at fs_in/2.
+        out : NDArray[np.complex64] | None
+            Output buffer for any emitted samples.
 
         Returns
         -------
@@ -855,6 +894,16 @@ class Ddcr:
         >>> [len(o) for o in outs[:4]]      # halfband: 0 until a strobe
         [0, 0, 0, 1]
 
+        """
+
+    def execute_ctrl_push_max_out(self) -> int:
+        """Bound for ONE pushed input: `ceil(rate) + 1` output periods.
+        Non-zero because the push form has no input block to size from.
+
+        Returns
+        -------
+        int
+            Output.
         """
 
     def reset(self) -> None:
@@ -1165,6 +1214,7 @@ class MatchedDdcr:
         x: float,
         rate_ctrl: float,
         freq_ctrl: float,
+        out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Push ONE real input sample; emit whatever outputs it completes.
 
@@ -1182,6 +1232,8 @@ class MatchedDdcr:
             Rate deviation for this input (terminal-stage rate).
         freq_ctrl : float
             Frequency deviation, cycles/sample at fs_in/2.
+        out : NDArray[np.complex64] | None
+            Output buffer for any emitted samples.
 
         Returns
         -------
@@ -1200,6 +1252,16 @@ class MatchedDdcr:
         >>> [len(o) for o in outs[:4]]      # halfband: 0 until a strobe
         [0, 0, 0, 1]
 
+        """
+
+    def execute_ctrl_push_max_out(self) -> int:
+        """Bound for ONE pushed input: `ceil(rate) + 1` output periods.
+        Non-zero because the push form has no input block to size from.
+
+        Returns
+        -------
+        int
+            Output.
         """
 
     def reset(self) -> None:

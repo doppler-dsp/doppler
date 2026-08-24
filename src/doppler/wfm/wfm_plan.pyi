@@ -122,6 +122,12 @@ class Plan:
         ----------
         path : str | os.PathLike
             Input.
+
+        Raises
+        ------
+        OSError
+            If the C call returns a non-zero status. The exception message is
+            ``wfm_plan_dump failed``, with the return code appended (gh-869).
         """
     def close(self) -> None:
         """Release the handle and free resources."""

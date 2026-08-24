@@ -194,7 +194,8 @@ Plan_dump (PlanObject *self, PyObject *args, PyObject *kwds)
   Py_XDECREF (path);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_OSError, "wfm_plan_dump failed (rc=%d)", (int)_rc);
+      PyErr_Format (PyExc_OSError, "%s (rc=%lld)", "wfm_plan_dump failed",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;

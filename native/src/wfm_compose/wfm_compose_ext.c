@@ -427,7 +427,10 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     int _i = _enum_index (_enum_wfm_type, type);
     if (_i < 0)
       {
-        PyErr_Format (PyExc_ValueError, "invalid type '%s'", type);
+        PyErr_Format (PyExc_ValueError,
+                      "invalid type '%s' (choices: tone, noise, pn, bpsk, "
+                      "qpsk, chirp, bits, symbols, dsss)",
+                      type);
         return -1;
       }
     self->src.type = _i;
@@ -478,7 +481,9 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     int _i = _enum_index (_enum_snr_mode, snr_mode);
     if (_i < 0)
       {
-        PyErr_Format (PyExc_ValueError, "invalid snr_mode '%s'", snr_mode);
+        PyErr_Format (PyExc_ValueError,
+                      "invalid snr_mode '%s' (choices: auto, fs, ebno, esno)",
+                      snr_mode);
         return -1;
       }
     self->src.snr_mode = _i;
@@ -491,7 +496,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     int _i = _enum_index (_enum_wfm_lfsr, lfsr);
     if (_i < 0)
       {
-        PyErr_Format (PyExc_ValueError, "invalid lfsr '%s'", lfsr);
+        PyErr_Format (PyExc_ValueError,
+                      "invalid lfsr '%s' (choices: galois, fibonacci)", lfsr);
         return -1;
       }
     self->src.lfsr = _i;
@@ -545,7 +551,9 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     int _i = _enum_index (_enum_bitmod, modulation);
     if (_i < 0)
       {
-        PyErr_Format (PyExc_ValueError, "invalid modulation '%s'", modulation);
+        PyErr_Format (PyExc_ValueError,
+                      "invalid modulation '%s' (choices: none, bpsk, qpsk)",
+                      modulation);
         return -1;
       }
     self->src.modulation = _i;
@@ -554,7 +562,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     int _i = _enum_index (_enum_wfm_pulse, pulse);
     if (_i < 0)
       {
-        PyErr_Format (PyExc_ValueError, "invalid pulse '%s'", pulse);
+        PyErr_Format (PyExc_ValueError,
+                      "invalid pulse '%s' (choices: rect, rrc)", pulse);
         return -1;
       }
     self->src.pulse = _i;
@@ -574,7 +583,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     int _i = _enum_index (_enum_crc, crc);
     if (_i < 0)
       {
-        PyErr_Format (PyExc_ValueError, "invalid crc '%s'", crc);
+        PyErr_Format (PyExc_ValueError,
+                      "invalid crc '%s' (choices: none, crc16)", crc);
         return -1;
       }
     self->src.crc = _i;
@@ -600,7 +610,10 @@ Synth_set_type (SynthObject *self, PyObject *value, void *closure)
   int _i = _enum_index (_enum_wfm_type, s);
   if (_i < 0)
     {
-      PyErr_Format (PyExc_ValueError, "invalid type '%s'", s);
+      PyErr_Format (PyExc_ValueError,
+                    "invalid type '%s' (choices: tone, noise, pn, bpsk, qpsk, "
+                    "chirp, bits, symbols, dsss)",
+                    s);
       return -1;
     }
   self->src.type = _i;
@@ -680,7 +693,9 @@ Synth_set_snr_mode (SynthObject *self, PyObject *value, void *closure)
   int _i = _enum_index (_enum_snr_mode, s);
   if (_i < 0)
     {
-      PyErr_Format (PyExc_ValueError, "invalid snr_mode '%s'", s);
+      PyErr_Format (PyExc_ValueError,
+                    "invalid snr_mode '%s' (choices: auto, fs, ebno, esno)",
+                    s);
       return -1;
     }
   self->src.snr_mode = _i;
@@ -762,7 +777,8 @@ Synth_set_lfsr (SynthObject *self, PyObject *value, void *closure)
   int _i = _enum_index (_enum_wfm_lfsr, s);
   if (_i < 0)
     {
-      PyErr_Format (PyExc_ValueError, "invalid lfsr '%s'", s);
+      PyErr_Format (PyExc_ValueError,
+                    "invalid lfsr '%s' (choices: galois, fibonacci)", s);
       return -1;
     }
   self->src.lfsr = _i;
@@ -872,7 +888,8 @@ Synth_set_modulation (SynthObject *self, PyObject *value, void *closure)
   int _i = _enum_index (_enum_bitmod, s);
   if (_i < 0)
     {
-      PyErr_Format (PyExc_ValueError, "invalid modulation '%s'", s);
+      PyErr_Format (PyExc_ValueError,
+                    "invalid modulation '%s' (choices: none, bpsk, qpsk)", s);
       return -1;
     }
   self->src.modulation = _i;
@@ -894,7 +911,8 @@ Synth_set_pulse (SynthObject *self, PyObject *value, void *closure)
   int _i = _enum_index (_enum_wfm_pulse, s);
   if (_i < 0)
     {
-      PyErr_Format (PyExc_ValueError, "invalid pulse '%s'", s);
+      PyErr_Format (PyExc_ValueError,
+                    "invalid pulse '%s' (choices: rect, rrc)", s);
       return -1;
     }
   self->src.pulse = _i;
@@ -1032,7 +1050,8 @@ Synth_set_crc (SynthObject *self, PyObject *value, void *closure)
   int _i = _enum_index (_enum_crc, s);
   if (_i < 0)
     {
-      PyErr_Format (PyExc_ValueError, "invalid crc '%s'", s);
+      PyErr_Format (PyExc_ValueError,
+                    "invalid crc '%s' (choices: none, crc16)", s);
       return -1;
     }
   self->src.crc = _i;
@@ -1415,7 +1434,8 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
         int _i = _enum_index (_enum_gap_noise, _s);
         if (_i < 0)
           {
-            PyErr_Format (PyExc_ValueError, "invalid gap_noise '%s'", _s);
+            PyErr_Format (PyExc_ValueError,
+                          "invalid gap_noise '%s' (choices: auto, off)", _s);
             goto fail;
           }
         self->gap_noise = _i;
@@ -1577,7 +1597,9 @@ Segment_sum (PyObject *cls, PyObject *args, PyObject *kwds)
             int _i = _enum_index (_enum_gap_noise, _s);
             if (_i < 0)
               {
-                PyErr_Format (PyExc_ValueError, "invalid gap_noise '%s'", _s);
+                PyErr_Format (PyExc_ValueError,
+                              "invalid gap_noise '%s' (choices: auto, off)",
+                              _s);
                 goto fail;
               }
             self->gap_noise = _i;
@@ -1730,7 +1752,8 @@ Segment_set_gap_noise (SegmentObject *self, PyObject *value, void *closure)
   int _i = _enum_index (_enum_gap_noise, s);
   if (_i < 0)
     {
-      PyErr_Format (PyExc_ValueError, "invalid gap_noise '%s'", s);
+      PyErr_Format (PyExc_ValueError,
+                    "invalid gap_noise '%s' (choices: auto, off)", s);
       return -1;
     }
   self->gap_noise = _i;
@@ -3022,13 +3045,17 @@ Composer_to_sigmf (ComposerObject *self, PyObject *args, PyObject *kwds)
   int _e_sample_type = _enum_index (_enum_stype, sample_type);
   if (_e_sample_type < 0)
     {
-      PyErr_Format (PyExc_ValueError, "invalid sample_type '%s'", sample_type);
+      PyErr_Format (
+          PyExc_ValueError,
+          "invalid sample_type '%s' (choices: cf32, cf64, ci32, ci16, ci8)",
+          sample_type);
       return NULL;
     }
   int _e_endian = _enum_index (_enum_endian, endian);
   if (_e_endian < 0)
     {
-      PyErr_Format (PyExc_ValueError, "invalid endian '%s'", endian);
+      PyErr_Format (PyExc_ValueError, "invalid endian '%s' (choices: le, be)",
+                    endian);
       return NULL;
     }
   size_t               _n;
@@ -3135,5 +3162,33 @@ PyInit_wfm_compose (void)
   PyModule_AddObject (m, "Timeline", (PyObject *)&TimelineType);
   Py_INCREF (&ComposerType);
   PyModule_AddObject (m, "Composer", (PyObject *)&ComposerType);
+  /* gh-1117: adopt dp_interrupt_guard's process-global state from its owner.
+   */
+  {
+    void     *dp_interrupt_guard_state_ptr (void);
+    void      dp_interrupt_guard_state_adopt (void *shared);
+    PyObject *_own = PyImport_ImportModule ("doppler.interrupt");
+    if (!_own)
+      {
+        Py_DECREF (m);
+        return NULL;
+      }
+    PyObject *_pg = PyObject_GetAttrString (_own, "_jm_pg_dp_interrupt_guard");
+    Py_DECREF (_own);
+    if (!_pg)
+      {
+        Py_DECREF (m);
+        return NULL;
+      }
+    void *_p = PyCapsule_GetPointer (
+        _pg, "doppler.dp_interrupt_guard._jm_procglobal");
+    Py_DECREF (_pg);
+    if (!_p)
+      {
+        Py_DECREF (m);
+        return NULL;
+      }
+    dp_interrupt_guard_state_adopt (_p);
+  }
   return m;
 }

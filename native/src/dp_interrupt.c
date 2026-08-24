@@ -13,57 +13,83 @@
 #include "dp_interrupt.h"
 
 #include "clib_common.h"
+#include "dp_interrupt_guard/dp_interrupt_guard_procglobal.h"
 
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* Process-wide, and sig_atomic_t because a signal handler writes it. That
-   type is the ONLY thing the C standard promises can be assigned from a
-   handler without tearing, which is what makes dp_interrupt() safe to call
-   from one -- and being safe to call from a handler is the entire point of
-   the API. */
-/* The state a C build uses: one archive, one copy, nothing to bind.
-   `dp_interrupt_flag` is the storage; `shared` is what every read and write
-   actually goes through. They are the same object until somebody binds.
+/* The state one process shares: the flag, and the wait slice.
+
+   `sig_atomic_t` because a signal handler writes it. That type is the ONLY
+   thing the C standard promises can be assigned from a handler without
+   tearing, which is what makes dp_interrupt() safe to call from one -- and
+   being safe to call from a handler is the entire point of the API.
+
+   INTERNAL -- it is not in dp_interrupt.h, because nothing outside this
+   file has ever needed its shape. The rendezvous below hands it across as
+   an opaque `void *`, which is jm's whole contract. */
+typedef struct
+{
+  volatile sig_atomic_t flag;       /* set by a handler; read by waits */
+  unsigned              latency_ms; /* wait slice, milliseconds */
+} dp_interrupt_shared_t;
+
+/* The state a C build uses: one archive, one copy, nothing to adopt.
+   `dp_interrupt_own_state` is the storage; `dp_interrupt_shared` is what
+   every read and write actually goes through. They are the same object
+   until somebody adopts.
 
    That indirection exists for ONE reason, and it is not C. A Python
    extension links this file STATICALLY, so every module that wants the flag
    gets its own copy, and CPython loads extensions RTLD_LOCAL so the copies
    never unify -- a stop requested in doppler.interrupt could not reach a
    ring wait in doppler.buffer (doppler#976). One module now owns the state
-   and the rest bind onto it.
+   and the rest adopt a pointer to it.
 
-   A C binary binds nothing and pays one pointer dereference on a path
+   A C binary adopts nothing and pays one pointer dereference on a path
    measured at sub-nanosecond; wfmgen and the C tests behave exactly as
    before. */
-static dp_interrupt_state_t dp_interrupt_own_state
+static dp_interrupt_shared_t dp_interrupt_own_state
     = { 0, DP_INTERRUPT_LATENCY_DEFAULT_MS };
 
 /* Read from a signal handler, so it is only ever assigned ONCE, at import,
    before any handler is installed. Never reassigned while a handler could
    run -- which is what makes dereferencing it from one safe. */
-static dp_interrupt_state_t *dp_interrupt_shared = &dp_interrupt_own_state;
+static dp_interrupt_shared_t *dp_interrupt_shared = &dp_interrupt_own_state;
 
 #define dp_interrupt_flag (dp_interrupt_shared->flag)
 #define dp_interrupt_latency (dp_interrupt_shared->latency_ms)
 
-dp_interrupt_state_t *
-dp_interrupt_state (void)
+/* ── the process-global rendezvous (just-makeit gh-1117) ─────────────────
+   These two are the half jm cannot write, and they carry the COMPONENT's
+   prefix -- `dp_interrupt_guard` -- rather than this file's, because the
+   component is what jm binds: `dp_interrupt` has no manifest fragment,
+   while `dp_interrupt_guard`'s core carries these objects. jm generates
+   the other half: the owning module (doppler.interrupt) publishes a
+   capsule over `_state_ptr()`, and every other linking module imports it
+   and calls `_state_adopt()` from its own PyInit_.
+
+   Their prototypes are in the generated
+   dp_interrupt_guard/dp_interrupt_guard_procglobal.h, included above so a
+   signature that drifts from jm's contract fails to COMPILE rather than
+   failing to link in somebody's extension module. */
+void *
+dp_interrupt_guard_state_ptr (void)
 {
-  return dp_interrupt_shared;
+  return (void *)dp_interrupt_shared;
 }
 
-int
-dp_interrupt_bind (dp_interrupt_state_t *shared)
+void
+dp_interrupt_guard_state_adopt (void *shared)
 {
-  if (!shared)
-    return DP_ERR_INVALID;
   /* Adopting the owner's state means adopting its latency too; a module
      that kept its own would answer latency_ms() with a number no wait in
-     the process uses. */
-  dp_interrupt_shared = shared;
-  return DP_OK;
+     the process uses. NULL is ignored rather than fatal -- a failed
+     rendezvous leaves this module on its own flag, which is exactly the
+     pre-existing behaviour and strictly better than a crash at import. */
+  if (shared)
+    dp_interrupt_shared = (dp_interrupt_shared_t *)shared;
 }
 
 void

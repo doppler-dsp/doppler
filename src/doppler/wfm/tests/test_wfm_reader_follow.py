@@ -29,6 +29,7 @@ phrased as what goes wrong when it is dropped:
 
 from __future__ import annotations
 
+import contextlib
 import threading
 
 import numpy as np
@@ -233,3 +234,61 @@ def test_an_undersized_out_is_refused_not_truncated(tmp_path):
         assert np.array_equal(got, big[:4096])
     finally:
         w.close()
+
+
+def test_a_raw_capture_never_ends_so_only_a_stop_finishes_it(tmp_path):
+    """Raw and CSV carry no end-of-capture marker at all.
+
+    BLUE patches `data_size` at close() and that transition is the ending.
+    A raw file has nowhere to put one, so a follow read of it can never
+    report EOF however long it waits -- the design says so in prose and
+    nothing checked it. The only way out is a stop, which is exactly why
+    the stop path is not optional.
+    """
+    p = tmp_path / "nomarker.raw"
+    w = Writer(p, file_type="raw", sample_type="ci16", fs=2.4e6)
+    w.write(np.zeros(4096, dtype=np.complex64))
+    w.flush()
+    try:
+        it = Interrupt(np.array([], dtype=np.int32))
+        r = Reader(p, sample_type="ci16")
+        r.follow_grace_ms = _GRACE_MS
+        assert len(r.read_follow(4096)) == 4096
+
+        w.close()  # closing a RAW capture writes no marker
+        timer = threading.Timer(0.2, it.interrupt)
+        timer.start()
+        try:
+            got = _in_thread(lambda: r.read_follow(4096))
+        finally:
+            timer.join()
+
+        assert len(got) == 0
+        assert r.ending == "interrupted", (
+            "a raw capture reported an ending it has no way to know"
+        )
+    finally:
+        with contextlib.suppress(Exception):
+            w.close()
+
+
+def test_following_an_already_closed_capture_ends_at_once(tmp_path):
+    """Opened AFTER close(): the length is real from the first read.
+
+    The other tests open the reader while the capture is still growing, so
+    the bounded path -- where the header's length is known and anything past
+    the payload is the extended header rather than samples -- was never
+    taken.
+    """
+    p = tmp_path / "closed.blue"
+    w = _capture(p, n=4096)
+    w.close()
+
+    r = Reader(p)
+    r.follow_grace_ms = _GRACE_MS
+    got = _in_thread(lambda: r.read_follow(4096))
+    assert len(got) == 4096
+
+    tail = _in_thread(lambda: r.read_follow(4096))
+    assert len(tail) == 0
+    assert r.ending == "eof"

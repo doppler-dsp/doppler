@@ -393,6 +393,30 @@ double wfm_writer_get_clip_fraction(const wfm_writer_state_t *state);
 double wfm_writer_get_peak_dbfs(const wfm_writer_state_t *state);
 bool wfm_writer_get_clipped(const wfm_writer_state_t *state);
 int write_blue_header(const char *path, double fs, int sample_type, int endian, double fc, double data_start, size_t total, int detached, double t0);
+/**
+ * @brief Make written samples durable and observable, without finishing.
+ *
+ * Leaves the file on a sample boundary -- write() emits whole samples, so
+ * a flush BETWEEN write calls is what lets a follower read the capture
+ * without meeting a partial one. Raises `OSError` if this or any earlier
+ * write failed; a capture is not complete until close().
+ *
+ * @code
+ * >>> import pathlib, tempfile
+ * >>> import numpy as np
+ * >>> from doppler.wfm import Reader, Writer
+ * >>> tmp = tempfile.TemporaryDirectory()
+ * >>> p = pathlib.Path(tmp.name) / "live.blue"
+ * >>> w = Writer(p, file_type="blue", sample_type="ci16", fs=2.4e6)
+ * >>> _ = w.write(np.zeros(16, dtype=np.complex64))
+ * >>> w.flush()                    # the samples are on disk now
+ * >>> Reader(p).read_follow(16).size
+ * 16
+ * >>> w.close()
+ * >>> tmp.cleanup()
+ * @endcode
+ */
+int wfm_writer_flush(wfm_writer_state_t *state);
 #ifdef __cplusplus
 }
 #endif

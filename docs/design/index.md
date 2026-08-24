@@ -32,6 +32,14 @@ instead.)
     memory and disk: why "no data right now" is indistinguishable from
     "no data ever" on all three, the interrupt primitive that already
     exists and is misnamed, and the end-of-stream marker that does not
+- [Capture Files](capture-files.md) — the file I/O subsystem underneath
+    `Reader`/`Writer`: why the file type is decided by content, why one
+    keyword codec serves both directions, why provenance is a value rather
+    than a caveat, and what a streaming writer costs at close
+- [Ending a Capture](end-of-capture.md) — the disk third of that
+    contract: spooling an endless stream to disk while reading it back,
+    why Ctrl+C must reach the reader through the file rather than around
+    it, and what owning both ends of the file buys
 - [DSSS Acquisition](dsss-acquisition.md) — stateless, parallel, dynamics-capable acquisition architecture + roadmap
 - [Async DSSS Receiver Spec](async-dsss-spec.md) — the target waveform and receiver specification (CCSDS Gold-1023, 3.069 Mcps, 2700 bps, ±50 kHz, \<500 Hz/s) the async DSSS receiver is built against
 - [Asynchronous Symbol Despreader](async-symbol-despreader.md) — despreading when the data-symbol rate is asynchronous to the code-epoch rate

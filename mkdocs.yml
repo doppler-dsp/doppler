@@ -267,6 +267,8 @@ nav:
       - Telemetry: design/telemetry.md
       - Streaming: design/streaming.md
       - Ending a Wait: design/io-termination.md
+      - Capture Files: design/capture-files.md
+      - Ending a Capture: design/end-of-capture.md
       - DSSS Acquisition: design/dsss-acquisition.md
       - Async DSSS Receiver Spec: design/async-dsss-spec.md
       - Async Symbol Despreader: design/async-symbol-despreader.md

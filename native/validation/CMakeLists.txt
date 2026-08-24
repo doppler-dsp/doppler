@@ -288,3 +288,12 @@ target_link_libraries(validate_rx_frame_fer PRIVATE doppler_lib_static m)
 target_compile_options(validate_rx_frame_fer PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_rx_frame_fer
          COMMAND validate_rx_frame_fer --check)
+
+add_executable(validate_wfm_follow_keepup
+               ${CMAKE_CURRENT_SOURCE_DIR}/wfm_follow_keepup.c)
+target_include_directories(validate_wfm_follow_keepup
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_wfm_follow_keepup PRIVATE doppler_lib_static m)
+add_test(NAME validate_wfm_follow_keepup
+         COMMAND validate_wfm_follow_keepup --check)

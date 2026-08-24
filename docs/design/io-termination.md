@@ -172,9 +172,10 @@ cases — two of them now, the third still owed:
     returns end-of-stream instead of spinning when it is closed and
     drained.
 - **disk** *(not built —
-    [#972](https://github.com/doppler-dsp/doppler/issues/972))* — a reader
-    distinguishes "short read, writer still open" from "end of capture",
-    which is what makes tail-following honest.
+    [#972](https://github.com/doppler-dsp/doppler/issues/972); designed in
+    [Ending a Capture](end-of-capture.md))* — a reader distinguishes
+    "short read, writer still open" from "end of capture", which is what
+    makes tail-following honest.
 - **network** *(built)* — an explicit end-of-stream frame, so a subscriber
     learns the sender finished rather than inferring it from silence.
 
@@ -395,10 +396,19 @@ became of it.
     runs the race repeatedly instead, which is a gate rather than a flake.
 
 - **A disk reader distinguishes "short read" from "end of capture"** —
-    *open* ([#972](https://github.com/doppler-dsp/doppler/issues/972)).
-    The third transport, and §1 ranks its failure the subtlest of the
-    three because it does not hang — it reports a clean finish on a
-    truncated capture.
+    *designed, not built* ([#972](https://github.com/doppler-dsp/doppler/issues/972);
+    [Ending a Capture](end-of-capture.md)). The third transport, and §1
+    ranks its failure the subtlest of the three because it does not hang
+    — it reports a clean finish on a truncated capture. Designed and built
+    for the case where **doppler owns both ends of the file**: an
+    end-of-capture marker is then something we write, so `DP_ERR_EOF` on
+    disk is a guarantee rather than best-effort, and the shutdown
+    propagates *through* the file — the interrupt stops the writer, the
+    writer's close is the marker, and the reader drains to it. Following a
+    capture written by something else is explicitly out of scope. One
+    correction to §1's table below: disk's producer-side answer existed
+    only at `close()` — there was no flush verb — so incrementally it sat
+    where the ring does, not where the network does. There is one now.
 
 - **Memory gets a durable-completion verb** — *open.* Network and disk
     each answer "did my data land"; the ring still offers only the

@@ -162,6 +162,24 @@ WriterObj_write (WriterObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+WriterObj_flush (WriterObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = wfm_writer_flush (self->handle);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_OSError, "%s (rc=%lld)", "flush failed",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 WriterObj_track_clipping (WriterObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
@@ -503,6 +521,40 @@ static PyMethodDef WriterObj_methods[] = {
     "(2400000.0, 1200000000.0, 1024)\n"
     ">>> r.close()\n"
     ">>> tmp.cleanup()   # directory and contents removed\n" },
+  { "flush", (PyCFunction)WriterObj_flush, METH_NOARGS,
+    "flush() -> None\n"
+    "\n"
+    "Make every sample written so far durable and observable to a\n"
+    "concurrent reader, without ending the capture. Leaves the file on a\n"
+    "sample boundary, which is what lets a follower read it without meeting\n"
+    "a partial sample. Raises OSError if this or any earlier write failed; a\n"
+    "capture is not finished until close().\n"
+    "\n"
+    "Leaves the file on a sample boundary -- write() emits whole samples, so\n"
+    "a flush BETWEEN write calls is what lets a follower read the capture\n"
+    "without meeting a partial one. Raises `OSError` if this or any earlier\n"
+    "write failed; a capture is not complete until close().\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "OSError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``flush failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import pathlib, tempfile\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import Reader, Writer\n"
+    ">>> tmp = tempfile.TemporaryDirectory()\n"
+    ">>> p = pathlib.Path(tmp.name) / \"live.blue\"\n"
+    ">>> w = Writer(p, file_type=\"blue\", sample_type=\"ci16\", fs=2.4e6)\n"
+    ">>> _ = w.write(np.zeros(16, dtype=np.complex64))\n"
+    ">>> w.flush()                    # the samples are on disk now\n"
+    ">>> Reader(p).read_follow(16).size\n"
+    "16\n"
+    ">>> w.close()\n"
+    ">>> tmp.cleanup()\n" },
   { "track_clipping", (PyCFunction)(void *)WriterObj_track_clipping,
     METH_VARARGS | METH_KEYWORDS,
     "track_clipping(on) -> None\n"
@@ -687,6 +739,18 @@ static PyTypeObject WriterObjType = {
     "cannot be\n"
     "    turned off. Pass false when an extra file beside the capture would\n"
     "    break a downstream glob.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "OSError\n"
+    "    If construction fails. The exception message is ``cannot open the\n"
+    "    capture for writing: check the path, the directory, and permissions "
+    "--\n"
+    "    and note that file_type=\"sigmf\" requires a path ending in "
+    ".sigmf-data,\n"
+    "    since a SigMF capture is a <base>.sigmf-data + <base>.sigmf-meta "
+    "pair\n"
+    "    found by name``.\n"
     "\n"
     "Examples\n"
     "--------\n"

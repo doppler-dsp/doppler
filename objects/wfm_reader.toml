@@ -14,6 +14,15 @@ class_name = "Reader"
 create_error = "ValueError"
 create_error_message = "cannot open capture: no such file, unrecognised file type, or an unsupported BLUE format mode (only S and C are supported)"
 
+# read_follow() consults the interrupt flag, so the reader links the primitive
+# the same way dp_interrupt_guard and [module.timing] do -- it is a root-level
+# object library, not a <name>_core target.
+#
+# NB this is a THIRD static copy of the flag in a third `.so` (doppler#976).
+# Correct for the C face, where one archive means one copy; from Python a stop
+# raised in doppler.interrupt still will not reach a wait in doppler.wfm until
+# the state is shared. That is the shared-atomic work, not this.
+
 # The CORE's own dependencies. gh-254 makes link=true additive for a collocated
 # module-object, so these land on the object's core/test/bench AND the .so.
 [[wfm_reader.depends_on]]
@@ -35,6 +44,7 @@ link = true
 [[wfm_reader.depends_on]]
 name = "wfm_draw"
 link = true
+
 
 # gh-515: `path` crosses as a borrowed const char * (PyUnicode_FSConverter), so
 # str and os.PathLike both work; wfm_reader_create copies it during the call.
@@ -62,6 +72,74 @@ variable_output = true
 # Kernel is told its write limit (jm gh-138): an under-reporting
 # max_out truncates the emission instead of overrunning `out`.
 pass_capacity = true
+
+# read_follow(n) -- docs/design/end-of-capture.md section 4. The following
+# read: whole samples only, resumable past EOF, and a wait that ends on the
+# capture's marker rather than on the file going quiet.
+#
+# WHY THE RETURN IS A COUNT AND NOT A STATUS CODE. The design sketched an
+# int-returning sibling handing back DP_ERR_EOF / _TIMEOUT / _INTERRUPTED. A
+# variable_output method HAS no way to raise: `error` needs `status_return` or
+# `error_negative`, and the C return is already the size_t count the binding
+# sizes the result with. That is a known shape, not a discovery -- doppler#938
+# hit it on execute_profile, and skills://just-makeit records it with the
+# workarounds (a hand check in the sacred fragment is drift the next apply
+# discards). The ring's three-way mapping -- EOFError, PyErr_CheckSignals(),
+# KeyboardInterrupt (buffer_ext.c:140-146) -- is hand-written for that reason. It did not need to be: with the
+# waits unbounded (the default), a zero-length return can ONLY mean the capture
+# ended, because the call does not come back for "not yet". So the loop is the
+# one every reader doctest already uses -- `while len(b := r.read_follow(4096))`
+# -- and the ending is a property for the callers who opted into a bound and so
+# have two ways to get an empty result. The C face keeps the vocabulary:
+# `ending` IS DP_OK / DP_ERR_EOF / DP_ERR_TIMEOUT / DP_ERR_INTERRUPTED.
+#
+# nogil is a CORRECTNESS requirement here, not the throughput tweak it is
+# elsewhere: the spool topology has a Python writer thread, and a follow read
+# holding the GIL across an unbounded wait stops the thread producing the data
+# it is waiting for. See section 5 of the design.
+[[wfm_reader.methods]]
+name = "read_follow"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+# Kernel is told its write limit (jm gh-138): an under-reporting
+# max_out truncates the emission instead of overrunning `out`.
+pass_capacity = true
+nogil = true
+# NO `params`, and that is forced rather than chosen. Declaring params gives
+# `read_follow_max_out(state)` -- no count -- and jm's binding calls it to size
+# the output buffer BEFORE the kernel runs. A blocking read then has nowhere to
+# write: nothing has arrived yet, so the bound is 0 and the array is empty
+# before the wait even starts. That sizing hook fits a NON-blocking drain
+# (Telemetry.read, jm gh-1091); it does not fit this.
+#
+# So read_follow takes jm's synthesised generator shape, exactly like read():
+# `count` is the caller's ask, `read_follow_max_out(state, n)` returns it, the
+# buffer is sized before the kernel blocks, and `out=` comes back for free --
+# which matters in a spool loop that would otherwise allocate per block.
+# The budgets move to writable properties below: they are policy for a stream,
+# set once, not an argument for every block.
+doc = """Read whatever whole samples have arrived in a capture that is still being written, blocking until at least one does. Unlike `read()`, a short or empty result does not mean end-of-file: the reader waits. **0 means wait forever** for both budgets, which is the default and the right answer for a stream with no end -- any finite budget fires during an ordinary quiet patch. An empty result therefore means the capture ENDED; read `ending` for which way. `timeout_ms` bounds the wait for data; `grace_ms` bounds how long to keep waiting for the writer's marker after a stop has been requested, and expiring it may cost you the tail. Never consumes a partial sample, so a writer flushing mid-sample cannot desynchronise the stream."""
+
+# The two budgets, as configuration rather than per-call arguments. 0 means
+# wait forever, which is the default and the answer for a stream with no end.
+[[wfm_reader.properties]]
+name = "follow_timeout_ms"
+type = "uint32_t"
+writable = true
+doc = """How long `read_follow()` waits for samples to arrive, in milliseconds; **0 (the default) waits forever**, which is the right answer for a stream with no end -- any finite budget fires during an ordinary quiet patch and reports an ending that has not happened. Set it only if the caller has its own reason to give up. A bounded wait that expires leaves `ending` at `"timeout"`."""
+
+[[wfm_reader.properties]]
+name = "follow_grace_ms"
+type = "uint32_t"
+writable = true
+doc = """How long `read_follow()` keeps waiting for the writer's end-of-capture marker after a stop has been requested, in milliseconds; **0 (the default) waits forever**. The writer needs a moment to flush and patch its header, and expiring this budget before it does costs you the tail -- so the default trades an unlikely hang against a certain loss. A bounded grace that expires leaves `ending` at `"interrupted"`."""
+
+[[wfm_reader.properties]]
+name = "ending"
+type = "int"
+enum = "follow_end"
+doc = """Why the last `read_follow()` came back empty -- `"none"` while the capture is still live, `"eof"` once the writer closed and said so, `"timeout"` if a bounded `timeout_ms` expired, `"interrupted"` if a stop was requested and a bounded `grace_ms` expired before the writer's marker arrived. With the default unbounded budgets only `"none"` and `"eof"` are reachable, which is why an empty result needs no check in the common case. The values are doppler's own return codes (`DP_OK`, `DP_ERR_EOF`, `DP_ERR_TIMEOUT`, `DP_ERR_INTERRUPTED`), so a C caller reads the same vocabulary every other transport uses."""
 
 # Computed properties (no `field`): jm declares wfm_reader_get_<prop>() for the
 # core to implement and calls it from the binding, so the state struct stays

@@ -107,6 +107,62 @@ ReaderObj_reset (ReaderObject *self, PyObject *Py_UNUSED (ignored))
   Py_RETURN_NONE;
 }
 
+/* gh-519: strcmp for the enum lookup below. Python.h already
+ * pulls in <string.h>, but the include is explicit so the block
+ * stands on its own wherever it is spliced. */
+#include <string.h>
+
+/* String-enum tables — order is the C int (the [[enum]] SSOT). */
+static int
+_enum_index_Reader (const char *const *tab, const char *s)
+{
+  for (int i = 0; tab[i]; i++)
+    if (strcmp (tab[i], s) == 0)
+      return i;
+  return -1;
+}
+
+static const char *const _enum_Reader_follow_end[] = {
+  "none", "eof", "timeout", "interrupted", NULL,
+};
+
+static const char *const _enum_Reader_ftype[] = {
+  "raw", "csv", "blue", "sigmf", NULL,
+};
+
+static const char *const _enum_Reader_stype[] = {
+  "cf32", "cf64", "ci32", "ci16", "ci8", NULL,
+};
+
+static const char *const _enum_Reader_sample_mode[] = {
+  "complex",
+  "scalar",
+  NULL,
+};
+
+static const char *const _enum_Reader_endian[] = {
+  "le",
+  "be",
+  NULL,
+};
+
+static const char *const _enum_Reader_fs_source[] = {
+  "none",
+  "xdelta",
+  "core:sample_rate",
+  NULL,
+};
+
+static const char *const _enum_Reader_t0_source[] = {
+  "none",
+  "timecode",
+  NULL,
+};
+
+static const char *const _enum_Reader_fc_source[] = {
+  "none", "FREQ", "RF_FREQ", "CENTER_FREQ", "F_C", "core:frequency", NULL,
+};
+
 static PyObject *
 ReaderObj_read_max_out (ReaderObject *self, PyObject *args)
 {
@@ -205,58 +261,196 @@ ReaderObj_read (ReaderObject *self, PyObject *args, PyObject *kwds)
   Py_DECREF (v0);
   return arr0;
 }
-/* gh-519: strcmp for the enum lookup below. Python.h already
- * pulls in <string.h>, but the include is explicit so the block
- * stands on its own wherever it is spliced. */
-#include <string.h>
 
-/* String-enum tables — order is the C int (the [[enum]] SSOT). */
-static int
-_enum_index_Reader (const char *const *tab, const char *s)
+static PyObject *
+ReaderObj_read_follow_max_out (ReaderObject *self, PyObject *args)
 {
-  for (int i = 0; tab[i]; i++)
-    if (strcmp (tab[i], s) == 0)
-      return i;
-  return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  Py_ssize_t n = 0;
+  if (!PyArg_ParseTuple (args, "n", &n))
+    return NULL;
+  return PyLong_FromSize_t (
+      wfm_reader_read_follow_max_out (self->handle, (size_t)n));
 }
 
-static const char *const _enum_Reader_ftype[] = {
-  "raw", "csv", "blue", "sigmf", NULL,
-};
-
-static const char *const _enum_Reader_stype[] = {
-  "cf32", "cf64", "ci32", "ci16", "ci8", NULL,
-};
-
-static const char *const _enum_Reader_sample_mode[] = {
-  "complex",
-  "scalar",
-  NULL,
-};
-
-static const char *const _enum_Reader_endian[] = {
-  "le",
-  "be",
-  NULL,
-};
-
-static const char *const _enum_Reader_fs_source[] = {
-  "none",
-  "xdelta",
-  "core:sample_rate",
-  NULL,
-};
-
-static const char *const _enum_Reader_t0_source[] = {
-  "none",
-  "timecode",
-  NULL,
-};
-
-static const char *const _enum_Reader_fc_source[] = {
-  "none", "FREQ", "RF_FREQ", "CENTER_FREQ", "F_C", "core:frequency", NULL,
-};
-
+static PyObject *
+ReaderObj_read_follow (ReaderObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "count", "out", NULL };
+  Py_ssize_t   n         = 1;
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|nO", _kwlist, &n, &out_obj))
+    return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          return NULL;
+        }
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_COMPLEX64,
+          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          return NULL;
+        }
+      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax = wfm_reader_read_follow_max_out (self->handle, (size_t)n);
+      size_t _min_cap = _omax;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      /* nogil: GIL released across the pure-C kernel — sound only when
+       * this object is not shared across threads concurrently (one
+       * object per stream); the kernel touches only this object's
+       * state/buffers and the caller's input. */
+      float complex *_ng0 = (float complex *)PyArray_DATA (out_arr);
+      size_t         n_out;
+      Py_BEGIN_ALLOW_THREADS
+        n_out = wfm_reader_read_follow (self->handle, (size_t)n, _ng0, _cap);
+      Py_END_ALLOW_THREADS
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
+  size_t _need = (size_t)n;
+  size_t _cap  = wfm_reader_read_follow_max_out (self->handle, (size_t)n);
+  (void)_need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
+    {
+      return NULL;
+    }
+  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
+  size_t n_out;
+  Py_BEGIN_ALLOW_THREADS
+    n_out = wfm_reader_read_follow (self->handle, (size_t)n, _d0, _cap);
+  Py_END_ALLOW_THREADS
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+static PyObject *
+Reader_getprop_follow_timeout_ms (ReaderObject *self,
+                                  void         *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLong (
+      (unsigned long)wfm_reader_get_follow_timeout_ms (self->handle));
+}
+static int
+Reader_setprop_follow_timeout_ms (ReaderObject *self, PyObject *value,
+                                  void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  unsigned long v_raw = 0UL;
+  if (!PyArg_Parse (value, "k", &v_raw))
+    return -1;
+  uint32_t v = (uint32_t)v_raw;
+  wfm_reader_set_follow_timeout_ms (self->handle, v);
+  return 0;
+}
+static PyObject *
+Reader_getprop_follow_grace_ms (ReaderObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLong (
+      (unsigned long)wfm_reader_get_follow_grace_ms (self->handle));
+}
+static int
+Reader_setprop_follow_grace_ms (ReaderObject *self, PyObject *value,
+                                void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  unsigned long v_raw = 0UL;
+  if (!PyArg_Parse (value, "k", &v_raw))
+    return -1;
+  uint32_t v = (uint32_t)v_raw;
+  wfm_reader_set_follow_grace_ms (self->handle, v);
+  return 0;
+}
+static PyObject *
+Reader_getprop_ending (ReaderObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  long _v = (long)(wfm_reader_get_ending (self->handle));
+  if (_v < 0 || _v >= 4)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "ending holds out-of-range follow_end value %ld"
+                    " (valid: 0..3)",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_Reader_follow_end[_v]);
+}
 static PyObject *
 Reader_getprop_file_type (ReaderObject *self, void *Py_UNUSED (closure))
 {
@@ -795,6 +989,35 @@ Reader_getprop_header (ReaderObject *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef Reader_getset[] = {
+  { "follow_timeout_ms", (getter)Reader_getprop_follow_timeout_ms,
+    (setter)Reader_setprop_follow_timeout_ms,
+    "How long `read_follow()` waits for samples to arrive, in milliseconds; "
+    "**0 (the default) waits forever**, which is the right answer for a "
+    "stream with no end -- any finite budget fires during an ordinary quiet "
+    "patch and reports an ending that has not happened. Set it only if the "
+    "caller has its own reason to give up. A bounded wait that expires leaves "
+    "`ending` at `\"timeout\"`.\n",
+    NULL },
+  { "follow_grace_ms", (getter)Reader_getprop_follow_grace_ms,
+    (setter)Reader_setprop_follow_grace_ms,
+    "How long `read_follow()` keeps waiting for the writer's end-of-capture "
+    "marker after a stop has been requested, in milliseconds; **0 (the "
+    "default) waits forever**. The writer needs a moment to flush and patch "
+    "its header, and expiring this budget before it does costs you the tail "
+    "-- so the default trades an unlikely hang against a certain loss. A "
+    "bounded grace that expires leaves `ending` at `\"interrupted\"`.\n",
+    NULL },
+  { "ending", (getter)Reader_getprop_ending, NULL,
+    "Why the last `read_follow()` came back empty -- `\"none\"` while the "
+    "capture is still live, `\"eof\"` once the writer closed and said so, "
+    "`\"timeout\"` if a bounded `timeout_ms` expired, `\"interrupted\"` if a "
+    "stop was requested and a bounded `grace_ms` expired before the writer's "
+    "marker arrived. With the default unbounded budgets only `\"none\"` and "
+    "`\"eof\"` are reachable, which is why an empty result needs no check in "
+    "the common case. The values are doppler's own return codes (`DP_OK`, "
+    "`DP_ERR_EOF`, `DP_ERR_TIMEOUT`, `DP_ERR_INTERRUPTED`), so a C caller "
+    "reads the same vocabulary every other transport uses.\n",
+    NULL },
   { "file_type", (getter)Reader_getprop_file_type, NULL,
     "Which file type the capture turned out to be -- `\"raw\"`, `\"csv\"`, "
     "`\"blue\"` or `\"sigmf\"`. Detected from the file's CONTENT, not its "
@@ -1008,12 +1231,8 @@ static PyMethodDef ReaderObj_methods[] = {
     "Maximum samples one read(n) yields: n (fewer at EOF).\n"
     "\n"
     "A reader streams, so a read of n produces at most n samples; the\n"
-    "binding\n"
-    "\n"
-    "sizes its buffer to this per-call bound (gh-607) and resizes down to\n"
-    "the\n"
-    "\n"
-    "actual count, never pre-allocating the whole capture.\n"
+    "binding sizes its buffer to this per-call bound (gh-607) and resizes\n"
+    "down to the actual count, never pre-allocating the whole capture.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1024,6 +1243,85 @@ static PyMethodDef ReaderObj_methods[] = {
     "-------\n"
     "int\n"
     "    Output.\n" },
+  { "read_follow", (PyCFunction)(void *)ReaderObj_read_follow,
+    METH_VARARGS | METH_KEYWORDS,
+    "read_follow(count=1) -> ndarray\n"
+    "\n"
+    "Read whatever whole samples have arrived in a capture that is still\n"
+    "being written, blocking until at least one does. Unlike `read()`, a\n"
+    "short or empty result does not mean end-of-file: the reader waits. **0\n"
+    "means wait forever** for both budgets, which is the default and the\n"
+    "right answer for a stream with no end -- any finite budget fires during\n"
+    "an ordinary quiet patch. An empty result therefore means the capture\n"
+    "ENDED; read `ending` for which way. `timeout_ms` bounds the wait for\n"
+    "data; `grace_ms` bounds how long to keep waiting for the writer's\n"
+    "marker after a stop has been requested, and expiring it may cost you\n"
+    "the tail. Never consumes a partial sample, so a writer flushing\n"
+    "mid-sample cannot desynchronise the stream.\n"
+    "\n"
+    "Blocks until whole samples arrive. A short or empty result does not\n"
+    "mean end-of-file the way ::wfm_reader_read's does -- the reader waits.\n"
+    "**Zero means the capture ENDED**, because with the default unbounded\n"
+    "budgets the call does not come back for \"not yet\";\n"
+    "::wfm_reader_get_ending says which way it ended.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "count : int\n"
+    "    How many output samples to ask for. The call may return fewer; size\n"
+    "    an `out=` buffer with the matching `_max_out()` when you need the\n"
+    "    worst case.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Optional pre-allocated output buffer. When given, the result is\n"
+    "    written into it and the returned array is a view of exactly the\n"
+    "    samples produced; when omitted, a fresh array is allocated.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    Output.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import pathlib, tempfile\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import Reader, Writer\n"
+    ">>> tmp = tempfile.TemporaryDirectory()\n"
+    ">>> p = pathlib.Path(tmp.name) / \"capture.blue\"\n"
+    ">>> x = np.zeros(8, dtype=np.complex64)\n"
+    ">>> with Writer(p, file_type=\"blue\", sample_type=\"ci16\", fs=2.4e6) "
+    "as w:\n"
+    "...     _ = w.write(x)\n"
+    ">>> r = Reader(p)\n"
+    ">>> total = 0\n"
+    ">>> while len(block := r.read_follow(4)):   # 0 only when the capture "
+    "ends\n"
+    "...     total += len(block)\n"
+    ">>> total, r.ending\n"
+    "(8, 'eof')\n"
+    ">>> r.close()\n"
+    ">>> tmp.cleanup()\n" },
+  { "read_follow_max_out", (PyCFunction)ReaderObj_read_follow_max_out,
+    METH_VARARGS,
+    "read_follow_max_out(n) -> int\n"
+    "\n"
+    "Largest number of samples read_follow() can return for n inputs.\n"
+    "\n"
+    "Size an `out=` buffer with this before calling read_follow(), or use it\n"
+    "to allocate one up front. The bound is this object's own: what it\n"
+    "depends on is a property of the algorithm, so a header block on\n"
+    "read_follow_max_out() replaces this text.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int\n"
+    "    Number of input samples read_follow() will be given.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Upper bound on the output length; the actual call may return "
+    "fewer.\n" },
   { "close", (PyCFunction)ReaderObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
@@ -1108,6 +1406,14 @@ static PyTypeObject ReaderObjType = {
     "    byte order, likewise a hint that only headerless raw uses; `\"le\"` "
     "or\n"
     "    `\"be\"` from Python, 0 or 1 from C.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``cannot open "
+    "capture:\n"
+    "    no such file, unrecognised file type, or an unsupported BLUE format\n"
+    "    mode (only S and C are supported)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

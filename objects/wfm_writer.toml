@@ -126,6 +126,29 @@ nogil = true
 
 # `params` rather than `arg_type`, so `on` keeps the default the handle gave it
 # — w.track_clipping() with no argument is the documented spelling.
+# flush() -- docs/design/end-of-capture.md section 4b. Two reasons, and the
+# second is the one that motivated it: DURABILITY (an hour-long capture whose
+# tail lives in a FILE buffer until close is an hour of unsaved work) and
+# ALIGNMENT (write() emits whole samples, so a flush BETWEEN write calls leaves
+# the file ending on a sample boundary -- an implicit stdio flush, triggered
+# mid-fwrite when the buffer fills, does not).
+#
+# status_return + error: the int is a status, not a value, so the Python
+# face is `w.flush() -> None` raising OSError -- the same contract
+# close() has (gh-541), for the same reason. ferror() is the durable record
+# that an earlier write failed and fflush alone reports success afterwards, so
+# a bare fflush return would be the wrong answer; see wfm_writer_core.c:618.
+[[wfm_writer.methods]]
+name = "flush"
+arg_type = "void"
+return_type = "int"
+# status_return, not error_negative: the int is ONLY a status (jm rejects
+# both -- they make opposite claims about the return value). Non-zero raises.
+status_return = true
+error = "OSError"
+nogil = true
+doc = "Make every sample written so far durable and observable to a concurrent reader, without ending the capture. Leaves the file on a sample boundary, which is what lets a follower read it without meeting a partial sample. Raises OSError if this or any earlier write failed; a capture is not finished until close()."
+
 [[wfm_writer.methods]]
 name = "track_clipping"
 arg_type = "void"

@@ -680,7 +680,7 @@ size_t frame_stage_first(frame_state_t *state, size_t i);
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
  * >>> d = FrameDesc(empty, sync, payload, crc="crc16")
  * >>> d.build()
- * >>> d.stage_bits(0)      # payload and CRC: what crc16 was computed over
+ * >>> d.stage_bits(0)      # payload+CRC: what crc16 covered
  * 32
  *
  * @endcode

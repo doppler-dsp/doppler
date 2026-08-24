@@ -23,12 +23,25 @@ would refuse the first wait inside the very block that just armed:
 
 ```python
 import signal
+
 import numpy as np
+
 from doppler.interrupt import Interrupt
 
 with Interrupt(np.array([signal.SIGINT], dtype=np.int32)) as it:
     while not it.interrupted():
         ...  # a receive, a ring wait, a generate loop
+        # Ctrl+C is what ends this loop in a real run. The request is made
+        # in-process here because the guard CHAINS to the interpreter's own
+        # SIGINT handler, so a genuine signal would raise KeyboardInterrupt
+        # out of this page rather than let it finish.
+        it.interrupt()
+    assert it.interrupted()
+
+# The flag is process-wide and outlives the guard, so a page that sets it
+# puts it back. Inside your own program that is exactly what you do NOT
+# want -- see below.
+Interrupt(np.array([], dtype=np.int32)).resume()
 ```
 
 Leaving the block restores every handler the guard displaced. It does

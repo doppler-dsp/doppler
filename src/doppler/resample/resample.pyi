@@ -866,6 +866,7 @@ class RateConverter:
         self,
         x: complex,
         ctrl: float,
+        out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
@@ -890,6 +891,8 @@ class RateConverter:
         ctrl : float
             Rate deviation added to the terminal stage's rate for this input
             (referenced to the terminal, post-decimation rate).
+        out : NDArray[np.complex64] | None
+            Output buffer for any emitted samples.
 
         Returns
         -------
@@ -906,6 +909,16 @@ class RateConverter:
         >>> [rc.execute_ctrl_push(complex(v), 0.0).shape[0] for v in x]
         [1, 1, 1, 1, 0, 1, 1, 1, 1, 0]
 
+        """
+
+    def execute_ctrl_push_max_out(self) -> int:
+        """Bound for ONE pushed input: `ceil(rate) + 1` output periods.
+        Non-zero because the push form has no input block to size from.
+
+        Returns
+        -------
+        int
+            Output.
         """
 
     def reset(self) -> None:
@@ -1228,6 +1241,7 @@ class MatchedRateConverter:
         self,
         x: complex,
         ctrl: float,
+        out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
@@ -1252,6 +1266,8 @@ class MatchedRateConverter:
         ctrl : float
             Rate deviation added to the terminal stage's rate for this input
             (referenced to the terminal, post-decimation rate).
+        out : NDArray[np.complex64] | None
+            Output buffer for any emitted samples.
 
         Returns
         -------
@@ -1268,6 +1284,16 @@ class MatchedRateConverter:
         >>> [rc.execute_ctrl_push(complex(v), 0.0).shape[0] for v in x]
         [1, 1, 1, 1, 0, 1, 1, 1, 1, 0]
 
+        """
+
+    def execute_ctrl_push_max_out(self) -> int:
+        """Bound for ONE pushed input: `ceil(rate) + 1` output periods.
+        Non-zero because the push form has no input block to size from.
+
+        Returns
+        -------
+        int
+            Output.
         """
 
     def reset(self) -> None:

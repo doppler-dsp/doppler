@@ -224,6 +224,19 @@ RateConverterObj_execute_ctrl (RateConverterObject *self, PyObject *args,
 }
 
 static PyObject *
+RateConverterObj_execute_ctrl_push_max_out (RateConverterObject *self,
+                                            PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (
+      RateConverter_execute_ctrl_push_max_out (self->handle));
+}
+
+static PyObject *
 RateConverterObj_execute_ctrl_push (RateConverterObject *self, PyObject *args,
                                     PyObject *kwds)
 {
@@ -232,14 +245,64 @@ RateConverterObj_execute_ctrl_push (RateConverterObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char *_kwlist[] = { "x", "ctrl", NULL };
+  static char *_kwlist[] = { "x", "ctrl", "out", NULL };
   Py_complex   x_raw     = { 0.0, 0.0 };
   double       ctrl      = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Dd", _kwlist, &x_raw, &ctrl))
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Dd|O", _kwlist, &x_raw, &ctrl,
+                                    &out_obj))
     return NULL;
-  float complex x     = (float)x_raw.real + (float)x_raw.imag * I;
-  size_t        _need = RateConverter_execute_ctrl_push_max_out (self->handle);
-  size_t        _cap  = RateConverter_execute_ctrl_push_max_out (self->handle);
+  float complex x = (float)x_raw.real + (float)x_raw.imag * I;
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          return NULL;
+        }
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_COMPLEX64,
+          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          return NULL;
+        }
+      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax = RateConverter_execute_ctrl_push_max_out (self->handle);
+      size_t _min_cap
+          = _omax > RateConverter_execute_ctrl_push_max_out (self->handle)
+                ? _omax
+                : (RateConverter_execute_ctrl_push_max_out (self->handle));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      size_t n_out = RateConverter_execute_ctrl_push (
+          self->handle, x, ctrl, (float complex *)PyArray_DATA (out_arr),
+          _cap);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
+  size_t _need = RateConverter_execute_ctrl_push_max_out (self->handle);
+  size_t _cap  = RateConverter_execute_ctrl_push_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -528,18 +591,20 @@ static PyMethodDef RateConverterObj_methods[] = {
 
   { "execute", (PyCFunction)(void *)RateConverterObj_execute,
     METH_VARARGS | METH_KEYWORDS,
-    "execute(x) -> ndarray\n"
+    "execute(x, out) -> ndarray\n"
     "\n"
-    "Convert a block of CF32 samples through the cascade. Passes input "
-    "through each stage in order, ping-ponging between two intermediate "
-    "buffers. State persists between calls, so contiguous calls on sequential "
-    "blocks give the same result as one large call. Output length is "
-    "approximately n_in * rate.\n"
+    "Convert a block of CF32 samples through the cascade. Passes input\n"
+    "through each stage in order, ping-ponging between two intermediate\n"
+    "buffers. State persists between calls, so contiguous calls on\n"
+    "sequential blocks give the same result as one large call. Output length\n"
+    "is approximately n_in * rate.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : NDArray[np.complex64]\n"
     "    Input.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Output buffer; must hold at least max_out samples.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -556,40 +621,125 @@ static PyMethodDef RateConverterObj_methods[] = {
     "((512,), dtype('complex64'))\n" },
   { "execute_max_out", (PyCFunction)RateConverterObj_execute_max_out,
     METH_NOARGS,
-    "execute_max_out() -> int\n\nMax output length execute() can produce for "
-    "the current state.\nUse to size the ``out=`` buffer." },
+    "execute_max_out() -> int\n"
+    "\n"
+    "Upper bound on execute output for a standard 65536-sample block.\n"
+    "\n"
+    "Returns (size_t)(65536 * max(rate, 1.0)) + 2. The Python extension uses\n"
+    "this to pre-allocate the output buffer on the first execute call.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "execute_ctrl", (PyCFunction)(void *)RateConverterObj_execute_ctrl,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_ctrl(x) -> ndarray\n"
+    "execute_ctrl(x, ctrl) -> ndarray\n"
     "\n"
     "Convert a block, steering the cascade's fractional stage by ctrl.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import RateConverter\n"
-    "    >>> obj = RateConverter(1.0, 0)\n"
-    "    >>> y = obj.execute_ctrl(np.zeros(4))\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex64')\n" },
+    "The control-port form of RateConverter_execute(): the fixed integer\n"
+    "stages (HalfbandDecimator / CIC) run unchanged, and the scalar rate\n"
+    "deviation ctrl is forwarded to the **terminal polyphase Resampler\n"
+    "stage's** accumulator (via resamp_execute_ctrl_push) — so its effective\n"
+    "rate becomes `stage_rate + ctrl` for this call. This exposes the\n"
+    "fractional tail's control port that RateConverter_execute() hides: a\n"
+    "timing/rate-tracking loop can decimate a high input rate cheaply\n"
+    "through the HB/CIC stages and then arbitrary-rate + strobe-align in the\n"
+    "last stage, updating ctrl per block.\n"
+    "\n"
+    "`ctrl` is referenced to the terminal stage's (post-decimation) rate,\n"
+    "not the overall rate. It is meaningful only when the cascade actually\n"
+    "ends in a Resampler stage; a pure integer HB/CIC cascade has no\n"
+    "fractional stage to steer, so this **falls through to\n"
+    "RateConverter_execute()** (ctrl ignored).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.complex64]\n"
+    "    CF32 input block.\n"
+    "ctrl : float\n"
+    "    Rate deviation added to the terminal Resampler stage's rate.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    CF32 output array; length tracks the accumulated effective rate.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.resample import RateConverter\n"
+    ">>> import numpy as np\n"
+    ">>> rc = RateConverter(rate=0.8, compensate=0)  # -> Resampler(0.8)\n"
+    ">>> x = np.ones(1000, dtype=np.complex64)\n"
+    ">>> rc.execute_ctrl(x, 0.0).shape[0]    # base rate: 1000 -> 800\n"
+    "800\n"
+    ">>> rc2 = RateConverter(rate=0.8, compensate=0)\n"
+    ">>> rc2.execute_ctrl(x, 0.05).shape[0]  # +ctrl speeds the tail up\n"
+    "851\n" },
   { "execute_ctrl_push",
     (PyCFunction)(void *)RateConverterObj_execute_ctrl_push,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_ctrl_push(n=1) -> ndarray\n"
+    "execute_ctrl_push(x, ctrl, out) -> ndarray\n"
     "\n"
     "Push ONE input sample; emit whatever outputs it completes.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import RateConverter\n"
-    "    >>> obj = RateConverter(1.0, 0)\n"
-    "    >>> y = obj.execute_ctrl_push(np.zeros(4))\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex64')\n" },
+    "The per-input streaming form of RateConverter_execute_ctrl(), and the\n"
+    "only form a closed loop can use: a block call must know its whole\n"
+    "`ctrl` history up front, whereas a timing loop computes each correction\n"
+    "*from* the outputs already emitted. Feeding a stream one sample at a\n"
+    "time through this reproduces RateConverter_execute_ctrl() on the same\n"
+    "block bit-for-bit when ctrl is held constant (the cascade is\n"
+    "block-boundary invariant), so the cheap block form stays correct for\n"
+    "open-loop use.\n"
+    "\n"
+    "The integer HB/CIC stages consume the sample and emit at most one\n"
+    "intermediate sample each; the terminal Resampler stage then emits 0\n"
+    "outputs (a decimator between strobes — the common case), 1, or several\n"
+    "(an interpolator). A cascade with no terminal Resampler ignores ctrl.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : complex\n"
+    "    One CF32 input sample.\n"
+    "ctrl : float\n"
+    "    Rate deviation added to the terminal stage's rate for this input\n"
+    "    (referenced to the terminal, post-decimation rate).\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Output buffer for any emitted samples.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    CF32 array of the outputs completed by this input (0, 1, or more).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.resample import RateConverter\n"
+    ">>> import numpy as np\n"
+    ">>> rc = RateConverter(rate=0.8, compensate=0)  # -> Resampler(0.8)\n"
+    ">>> x = (np.arange(10, dtype=np.float32) + 1).astype(np.complex64)\n"
+    ">>> # a decimator emits 0 between strobes, 1 on a strobe:\n"
+    ">>> [rc.execute_ctrl_push(complex(v), 0.0).shape[0] for v in x]\n"
+    "[1, 1, 1, 1, 0, 1, 1, 1, 1, 0]\n" },
+  { "execute_ctrl_push_max_out",
+    (PyCFunction)RateConverterObj_execute_ctrl_push_max_out, METH_NOARGS,
+    "execute_ctrl_push_max_out() -> int\n"
+    "\n"
+    "Bound for ONE pushed input: `ceil(rate) + 1` output periods.\n"
+    "Non-zero because the push form has no input block to size from.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "reset", (PyCFunction)RateConverterObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Zero all sub-stage filter memories. Rate, stage count, and stage types "
-    "are preserved. Processing from a reset state produces the same output as "
-    "a freshly created converter fed the same input. Use between signal "
-    "bursts to suppress transient artefacts from prior filter memory.\n"
+    "Zero all sub-stage filter memories. Rate, stage count, and stage\n"
+    "types are preserved. Processing from a reset state produces the same\n"
+    "output as a freshly created converter fed the same input. Use between\n"
+    "signal bursts to suppress transient artefacts from prior filter memory.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -653,12 +803,11 @@ static PyMethodDef RateConverterObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)RateConverterObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -673,9 +822,8 @@ static PyMethodDef RateConverterObj_methods[] = {
     "Exit a context manager, releasing the RateConverter.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -694,12 +842,37 @@ static PyTypeObject RateConverterObjType = {
   .tp_dealloc = (destructor)RateConverterObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create a rate converter for the given output/input rate ratio. Selects "
+  = "Create a rate converter for the given output/input rate ratio. Selects\n"
     "the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase "
-    "Resampler stages at construction time (see file header for the selection "
-    "table). Setting compensate=1 appends a closed-form Molnar-Vucic CIC "
-    "droop-compensating FIR after any CIC stage, which improves passband "
-    "flatness at the cost of one extra FIR stage.\n",
+    "Resampler\n"
+    "stages at construction time (see file header for the selection table).\n"
+    "Setting compensate=1 appends a closed-form Molnar-Vucic CIC\n"
+    "droop-compensating FIR after any CIC stage, which improves passband\n"
+    "flatness at the cost of one extra FIR stage.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "rate : float, default 1.0\n"
+    "    Output-to-input sample rate ratio. Any positive float.\n"
+    "compensate : int, default 0\n"
+    "    Non-zero to append a CIC passband-droop compensating FIR after any "
+    "CIC\n"
+    "    stage.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``RateConverter:\n"
+    "    invalid parameter (need rate > 0, 0 <= beta <= 1, span >= 1, "
+    "pulse_sps\n"
+    "    > 0, num_phases a power of two >= 2)``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.resample import RateConverter\n"
+    ">>> rc = RateConverter(rate=0.5, compensate=0)\n"
+    ">>> rc.rate\n"
+    "0.5\n",
   .tp_methods = RateConverterObj_methods,
   .tp_getset  = RateConverter_getset,
   .tp_new     = RateConverterObj_new,

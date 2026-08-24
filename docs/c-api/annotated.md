@@ -61,7 +61,6 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) _DopplerChannel state._     
 * **struct** [**dp\_chunk\_t**](structdp__chunk__t.md) _Reassembly geometry, present only when_ [_**DP\_FLAG\_CHUNKED**_](group__wire.md#define-dp_flag_chunked) _._    
 * **struct** [**dp\_header\_t**](structdp__header__t.md) _Frame metadata carried in every stream message._     
-* **struct** [**dp\_interrupt\_state\_t**](structdp__interrupt__state__t.md) _Ask every blocking wait in this process to stop._     
 * **struct** [**dp\_peak\_t**](structdp__peak__t.md) _One spectral peak returned by_ [_**find\_peaks\_f32()**_](spectral__core_8h.md#function-find_peaks_f32) _._    
 * **struct** [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md)     
 * **struct** [**dp\_reader\_t**](structdp__reader__t.md)     

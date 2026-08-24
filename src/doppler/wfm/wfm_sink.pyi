@@ -40,7 +40,7 @@ class StreamSink:
         int
             0 on success, non-zero on a send/allocation error.
         """
-    def send_eos(self) -> int:
+    def send_eos(self) -> None:
         """Tell subscribers this stream has ended.
 
         Publishes an end-of-stream frame, so a consumer learns the sender
@@ -48,10 +48,12 @@ class StreamSink:
         draining: a drain cannot be reversed and refuses sends once it reaches
         its publish-flushing phase.
 
-        Returns
-        -------
-        int
-            DP_OK, or the stream layer's error.
+        Raises
+        ------
+        OSError
+            If the C call returns a non-zero status. The exception message is
+            ``wfm_stream_sink_send_eos failed``, with the return code appended
+            (gh-869).
         """
     def drain(self, timeout_ms: int = ...) -> None:
         """Let everything already sent reach the server, then stop.
@@ -70,6 +72,13 @@ class StreamSink:
         ----------
         timeout_ms : int
             Budget; <= 0 uses the stream layer's 5 s default.
+
+        Raises
+        ------
+        OSError
+            If the C call returns a non-zero status. The exception message is
+            ``wfm_stream_sink_drain failed``, with the return code appended
+            (gh-869).
         """
     def track_clipping(self, on: int = ...) -> None:
         """Enable the per-component clip counter (off by default; peak always

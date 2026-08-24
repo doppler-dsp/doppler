@@ -56,6 +56,18 @@ TelemetryObj_init (TelemetryObject *self, PyObject *args, PyObject *kwds)
   return 0;
 }
 
+static PyObject *
+TelemetryObj_read_max_out (TelemetryObject *self,
+                           PyObject        *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (dp_tlm_read_max_out (self->handle));
+}
+
 static PyArray_Descr *TelemetryObj_read_dtype = NULL;
 
 /* The record's numpy dtype, built from the compiler's own layout:
@@ -117,14 +129,83 @@ TelemetryObj_read (TelemetryObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char       *_kwlist[] = { "n", NULL };
+  static char       *_kwlist[] = { "n", "out", NULL };
   unsigned long long n_raw     = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|K", _kwlist, &n_raw))
+  PyObject          *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KO", _kwlist, &n_raw,
+                                    &out_obj))
     return NULL;
-  size_t n     = (size_t)n_raw;
+  size_t n = (size_t)n_raw;
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact record dtype AND C-contiguity. Compared with
+       * EquivTypes against the generated descr: a structured array's type
+       * num is NPY_VOID, so a scalar enum cannot say what layout is
+       * wanted, and coercing to one would silently reinterpret the
+       * caller's buffer. */
+      {
+        PyArray_Descr *_want = TelemetryObj_read_get_dtype ();
+        if (!_want)
+          {
+            return NULL;
+          }
+        if (!PyArray_Check (out_obj)
+            || !PyArray_EquivTypes (PyArray_DESCR ((PyArrayObject *)out_obj),
+                                    _want)
+            || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+            || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+          {
+            PyErr_Format (
+                PyExc_TypeError,
+                "out must be a writable, C-contiguous ndarray of"
+                " dtype %R, not %R",
+                _want,
+                PyArray_Check (out_obj)
+                    ? (PyObject *)PyArray_DESCR ((PyArrayObject *)out_obj)
+                    : Py_None);
+            Py_DECREF (_want);
+            return NULL;
+          }
+        Py_DECREF (_want);
+      }
+      PyArrayObject *out_arr = (PyArrayObject *)out_obj;
+      Py_INCREF (out_arr);
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = dp_tlm_read_max_out (self->handle);
+      size_t _min_cap = _omax > dp_tlm_read_max_out (self->handle)
+                            ? _omax
+                            : (dp_tlm_read_max_out (self->handle));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      size_t n_out = dp_tlm_read (
+          self->handle, n, (dp_tlm_rec_t *)PyArray_DATA (out_arr), _cap);
+      npy_intp       _odim   = (npy_intp)n_out;
+      PyArray_Descr *_vdescr = TelemetryObj_read_get_dtype ();
+      if (!_vdescr)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyObject *_oview
+          = PyArray_NewFromDescr (&PyArray_Type, _vdescr, 1, &_odim, NULL,
+                                  PyArray_DATA (out_arr), 0, NULL);
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
   size_t _need = dp_tlm_read_max_out (self->handle);
   size_t _cap  = dp_tlm_read_max_out (self->handle);
-  (void)_need;
+  if (!_cap || _cap < _need)
+    _cap = _need;
   npy_intp       _adim  = (npy_intp)_cap;
   PyArray_Descr *_descr = TelemetryObj_read_get_dtype ();
   if (!_descr)
@@ -153,42 +234,6 @@ TelemetryObj_read (TelemetryObject *self, PyObject *args, PyObject *kwds)
     }
   Py_DECREF (v0);
   return arr0;
-}
-
-/* Hand-written: the return is a dict whose KEYS come from the probe registry
-   and whose VALUES are numpy arrays of data-dependent length — a shape with no
-   manifest spelling. The marshalling is shared with MemoryCapture.read_dict()
-   in tlm_read_dict.h; only the record SOURCE differs, and for this face that
-   is a drain of the ring. */
-static PyObject *
-TelemetryObj_read_dict (TelemetryObject *self, PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char       *_kwlist[] = { "n", "index", NULL };
-  unsigned long long n_raw     = 0;
-  int                with_idx  = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Kp", _kwlist, &n_raw,
-                                    &with_idx))
-    return NULL;
-
-  size_t        cap   = dp_tlm_read_max_out (self->handle);
-  dp_tlm_rec_t *recs  = NULL;
-  size_t        n_out = 0;
-  if (cap > 0)
-    {
-      recs = (dp_tlm_rec_t *)PyMem_Malloc (cap * sizeof *recs);
-      if (!recs)
-        return PyErr_NoMemory ();
-      n_out = dp_tlm_read (self->handle, (size_t)n_raw, recs, cap);
-    }
-
-  PyObject *out = tlm_build_read_dict (self->handle, recs, n_out, with_idx);
-  PyMem_Free (recs);
-  return out;
 }
 
 static PyObject *
@@ -258,7 +303,8 @@ TelemetryObj_set_decim (TelemetryObject *self, PyObject *args, PyObject *kwds)
   int      _rc   = dp_tlm_set_decim (self->handle, name, decim);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "set_decim failed (rc=%d)", _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_decim failed",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -281,7 +327,8 @@ TelemetryObj_emit (TelemetryObject *self, PyObject *args, PyObject *kwds)
   int     _rc = dp_tlm_emit_checked (self->handle, id, v);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "emit failed (rc=%d)", _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "emit failed",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -521,6 +568,42 @@ TelemetryObj_exit (TelemetryObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+/* Hand-written: the return is a dict whose KEYS come from the probe registry
+   and whose VALUES are numpy arrays of data-dependent length — a shape with no
+   manifest spelling. The marshalling is shared with MemoryCapture.read_dict()
+   in tlm_read_dict.h; only the record SOURCE differs, and for this face that
+   is a drain of the ring. */
+static PyObject *
+TelemetryObj_read_dict (TelemetryObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "n", "index", NULL };
+  unsigned long long n_raw     = 0;
+  int                with_idx  = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Kp", _kwlist, &n_raw,
+                                    &with_idx))
+    return NULL;
+
+  size_t        cap   = dp_tlm_read_max_out (self->handle);
+  dp_tlm_rec_t *recs  = NULL;
+  size_t        n_out = 0;
+  if (cap > 0)
+    {
+      recs = (dp_tlm_rec_t *)PyMem_Malloc (cap * sizeof *recs);
+      if (!recs)
+        return PyErr_NoMemory ();
+      n_out = dp_tlm_read (self->handle, (size_t)n_raw, recs, cap);
+    }
+
+  PyObject *out = tlm_build_read_dict (self->handle, recs, n_out, with_idx);
+  PyMem_Free (recs);
+  return out;
+}
+
 static PyMethodDef TelemetryObj_methods[] = {
 
   { "read_dict", (PyCFunction)(void *)TelemetryObj_read_dict,
@@ -573,7 +656,7 @@ static PyMethodDef TelemetryObj_methods[] = {
 
   { "read", (PyCFunction)(void *)TelemetryObj_read,
     METH_VARARGS | METH_KEYWORDS,
-    "read(n) -> ndarray\n"
+    "read(n, out) -> ndarray\n"
     "\n"
     "Drains records into out. Non-blocking.\n"
     "\n"
@@ -585,6 +668,8 @@ static PyMethodDef TelemetryObj_methods[] = {
     "----------\n"
     "n : int\n"
     "    Records wanted; 0 means \"everything available\".\n"
+    "out : NDArray[Any] | None\n"
+    "    Destination.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -616,6 +701,19 @@ static PyMethodDef TelemetryObj_methods[] = {
     "    Probe id; index into the registry.\n"
     "flags : int\n"
     "    Reserved; always 0.\n" },
+  { "read_max_out", (PyCFunction)TelemetryObj_read_max_out, METH_NOARGS,
+    "read_max_out() -> int\n"
+    "\n"
+    "Upper bound on what dp_tlm_read() can return right now.\n"
+    "\n"
+    "Simply the available count: a caller sizing a destination cannot know\n"
+    "the request will be smaller, and jm's generated binding allocates this\n"
+    "much, reads, then resizes to what actually came back.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "probe", (PyCFunction)(void *)TelemetryObj_probe,
     METH_VARARGS | METH_KEYWORDS,
     "probe(name, decim) -> int\n"
@@ -691,7 +789,7 @@ static PyMethodDef TelemetryObj_methods[] = {
     "KeyError: 'no probe by that name (rc=-4)'\n" },
   { "set_decim", (PyCFunction)(void *)TelemetryObj_set_decim,
     METH_VARARGS | METH_KEYWORDS,
-    "set_decim(name, decim) -> int\n"
+    "set_decim(name, decim) -> None\n"
     "\n"
     "Retunes an EXISTING probe's decimation, by name.\n"
     "\n"
@@ -706,6 +804,12 @@ static PyMethodDef TelemetryObj_methods[] = {
     "decim : int\n"
     "    Emit every decim-th event; >= 1.\n"
     "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_decim failed``, with the return code appended (gh-869).\n"
+    "\n"
     "Examples\n"
     "--------\n"
     ">>> from doppler.telemetry import Telemetry\n"
@@ -717,7 +821,7 @@ static PyMethodDef TelemetryObj_methods[] = {
     "ValueError: set_decim failed (rc=-4)\n" },
   { "emit", (PyCFunction)(void *)TelemetryObj_emit,
     METH_VARARGS | METH_KEYWORDS,
-    "emit(id, v) -> int\n"
+    "emit(id, v) -> None\n"
     "\n"
     "Validating dp_tlm_emit(): refuses an id the registry never issued.\n"
     "\n"
@@ -738,6 +842,12 @@ static PyMethodDef TelemetryObj_methods[] = {
     "    Probe id from dp_tlm_probe() on THIS context.\n"
     "v : float\n"
     "    The scalar, narrowed to float by the ring record.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``emit failed``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -895,6 +1005,15 @@ static PyTypeObject TelemetryObjType = {
     "    requests are rounded up to the page minimum (buffer.h semantics) — "
     "read\n"
     "    the authoritative value back with dp_tlm_capacity().\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``ring_records must "
+    "be\n"
+    "    a power of two (and at least the page minimum); read the granted "
+    "size\n"
+    "    back from Telemetry.capacity``.\n"
     "\n"
     "Examples\n"
     "--------\n"

@@ -78,8 +78,8 @@ typedef struct {
  * after this returns.  With @p dwell == 1 every call produces output; with
  * larger values the accumulator absorbs @p dwell frames before dumping.
  *
- * @param ref       Reference signal, CF32, length @p n.
- * @param n         Reference / FFT length in samples.
+ * @param ref       Reference signal, CF32, length @p ref_len.
+ * @param ref_len   Reference / FFT length in samples.
  * @param dwell     Integration depth; must be >= 1.  Pass 1 for immediate
  *                  output on every call.
  * @param nthreads  Accepted for API compatibility; ignored.
@@ -99,7 +99,7 @@ typedef struct {
  * (4, 1, 0)
  * @endcode
  */
-corr_state_t *corr_create(const float complex *ref, size_t n, size_t dwell,
+corr_state_t *corr_create(const float complex *ref, size_t ref_len, size_t dwell,
                           int nthreads, size_t n_out);
 
 /** @brief Destroy and free a corr instance.  @param state May be NULL. */

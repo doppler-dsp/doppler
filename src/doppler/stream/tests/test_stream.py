@@ -376,7 +376,15 @@ def test_interrupt_latency_is_the_callers_to_set():
         it.resume()
 
     # The override is the guard's, and dies with it.
-    del it
+    #
+    # `timer` has to go too, and that is not tidiness: threading.Timer holds
+    # the BOUND METHOD `it.interrupt`, which holds `it`, so dropping only the
+    # `it` name leaves the guard alive and its latency override still in
+    # force. Nobody had seen that, because until doppler#976 was fixed this
+    # test never reached this line -- `it.interrupt()` set doppler.interrupt's
+    # flag while `sub.recv()` read doppler.stream's, so the recv above blocked
+    # forever and the run was killed rather than failed.
+    del timer, it
     assert baseline.latency_ms() == 100
 
 

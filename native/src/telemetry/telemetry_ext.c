@@ -71,6 +71,34 @@ PyInit_telemetry (void)
       Py_DECREF (&CaptureObjType);
       Py_DECREF (m);
       return NULL;
-    }
+    } /* gh-1117: adopt dp_interrupt_guard's process-global state from its
+         owner. */
+  {
+    void     *dp_interrupt_guard_state_ptr (void);
+    void      dp_interrupt_guard_state_adopt (void *shared);
+    PyObject *_own = PyImport_ImportModule ("doppler.interrupt");
+    if (!_own)
+      {
+        Py_DECREF (m);
+        return NULL;
+      }
+    PyObject *_pg = PyObject_GetAttrString (_own, "_jm_pg_dp_interrupt_guard");
+    Py_DECREF (_own);
+    if (!_pg)
+      {
+        Py_DECREF (m);
+        return NULL;
+      }
+    void *_p = PyCapsule_GetPointer (
+        _pg, "doppler.dp_interrupt_guard._jm_procglobal");
+    Py_DECREF (_pg);
+    if (!_p)
+      {
+        Py_DECREF (m);
+        return NULL;
+      }
+    dp_interrupt_guard_state_adopt (_p);
+  }
+
   return m;
 }

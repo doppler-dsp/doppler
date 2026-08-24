@@ -74,6 +74,7 @@
 
 #include "dp_tlm/dp_tlm_core.h"
 #include "timing/timing_core.h" /* dp_sample_clock_t — the ONE time base */
+#include "dp_interrupt_guard/dp_interrupt_guard_core.h"
 
 #ifdef __cplusplus
 extern "C" {

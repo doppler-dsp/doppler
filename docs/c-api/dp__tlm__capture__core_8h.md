@@ -12,6 +12,7 @@ _Lossless telemetry capture: sized by arithmetic, not by guesswork._ [More...](#
 
 * `#include "dp_tlm/dp_tlm_core.h"`
 * `#include "timing/timing_core.h"`
+* `#include "dp_interrupt_guard/dp_interrupt_guard_core.h"`
 
 
 

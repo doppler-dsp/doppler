@@ -190,7 +190,7 @@ detector2d_state_t * detector2d_create (
 * `nx` Number of columns in the reference and input frames. 
 * `dwell` Int-dump depth; must be &gt;= 1. 
 * `noise_lo` Lower flat-index noise bin (inclusive, 0-based). 
-* `noise_hi` Upper flat-index noise bin (inclusive, &lt; ny\*nx). 
+* `noise_hi` Upper flat-index noise bin (inclusive, &lt; ny\*nx). A value at or beyond the window clamps to ny\*nx - 1, so the default sentinel selects the full window. 
 * `noise_mode` Noise aggregation: "mean", "median", "min", or "max". 
 * `threshold` Test-stat gate; 0.0 = always emit. 
 * `nthreads` Accepted for API compatibility; ignored. 

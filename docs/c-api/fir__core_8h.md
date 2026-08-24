@@ -61,7 +61,7 @@ _Direct-form FIR filter — real-tap and complex-tap variants._ [More...](#detai
 
 | Type | Name |
 | ---: | :--- |
-|  [**fir\_state\_t**](structfir__state__t.md) \* | [**fir\_create**](#function-fir_create) (const float complex \* taps, size\_t num\_taps) <br>_Create a FIR filter from complex CF32 tap coefficients. Implements a direct-form FIR convolution:_ `y[n]` _= sum\_k_`h[k]` _\*_`x[n-k]` _. The tap array is copied at creation; the caller may free it afterward. Use_[_**fir\_create\_real()**_](fir__core_8h.md#function-fir_create_real) _instead when all imaginary parts are zero — that path costs 1 FMA/tap versus 2 FMA + permute + mul here._ |
+|  [**fir\_state\_t**](structfir__state__t.md) \* | [**fir\_create**](#function-fir_create) (const float complex \* taps, size\_t taps\_len) <br>_Create a FIR filter from complex CF32 tap coefficients. Implements a direct-form FIR convolution:_ `y[n]` _= sum\_k_`h[k]` _\*_`x[n-k]` _. The tap array is copied at creation; the caller may free it afterward. Use_[_**fir\_create\_real()**_](fir__core_8h.md#function-fir_create_real) _instead when all imaginary parts are zero — that path costs 1 FMA/tap versus 2 FMA + permute + mul here._ |
 |  [**fir\_state\_t**](structfir__state__t.md) \* | [**fir\_create\_real**](#function-fir_create_real) (const float \* taps, size\_t num\_taps) <br>_Create a FIR filter from real float tap coefficients._  |
 |  double | [**fir\_dc\_gain**](#function-fir_dc_gain) (const [**fir\_state\_t**](structfir__state__t.md) \* state) <br>_The filter's response to a constant input: the sum of its taps._  |
 |  void | [**fir\_destroy**](#function-fir_destroy) ([**fir\_state\_t**](structfir__state__t.md) \* state) <br>_Release all heap resources owned by the filter state. Frees the tap array, delay line, and scratch buffer, then the state struct itself. Passing NULL is a no-op. The Python wrapper calls this automatically in_ **del** _and_**exit** _; call it explicitly only when you want deterministic resource release before GC._ |
@@ -143,7 +143,7 @@ _Create a FIR filter from complex CF32 tap coefficients. Implements a direct-for
 ```C++
 fir_state_t * fir_create (
     const float complex * taps,
-    size_t num_taps
+    size_t taps_len
 ) 
 ```
 
@@ -154,8 +154,8 @@ fir_state_t * fir_create (
 **Parameters:**
 
 
-* `taps` Array of num\_taps CF32 coefficients (I+jQ each), copied. 
-* `num_taps` Filter length (&gt;= 1). 
+* `taps` Array of taps\_len CF32 coefficients (I+jQ each), copied. 
+* `taps_len` Filter length (&gt;= 1). 
 
 
 

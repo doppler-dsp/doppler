@@ -19,6 +19,8 @@
 #include "dp_tlm/dp_tlm_core.h" /* dp_tlm_rec_t (TLM16 frames) */
 #include "stream/stream.h"
 
+#include "dp_interrupt_pyadopt.h"
+
 /* =========================================================================
  * dpMsgObject — prevents premature dp_msg_free via NumPy base object
  * ========================================================================= */
@@ -1528,6 +1530,14 @@ PyInit_stream (void)
   PyModule_AddIntConstant (m, "CI16", CI16);
   PyModule_AddIntConstant (m, "CF32", CF32);
   PyModule_AddIntConstant (m, "TLM16", DP_KIND_TLM);
+
+  /* ONE flag per process. The NATS receive path checks dp_interrupted()
+     between slices, and this module is `no_generate`, so jm writes no
+     PyInit_ here to put its rendezvous in -- without this call a stop
+     requested through doppler.interrupt cannot end a recv() here
+     (doppler#976). */
+  if (!dp_interrupt_pyadopt (m))
+    return NULL;
 
   return m;
 }

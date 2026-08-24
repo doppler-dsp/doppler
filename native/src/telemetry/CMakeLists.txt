@@ -9,7 +9,7 @@ target_link_libraries(telemetry PRIVATE
     dp_tlm_core
     dp_tlm_capture_core
     Threads::Threads
-    $<TARGET_OBJECTS:dp_interrupt_obj>
+    dp_interrupt_guard_core
     timing_core
     Python3::NumPy)
 target_include_directories(telemetry PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

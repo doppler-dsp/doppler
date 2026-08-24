@@ -7,6 +7,7 @@
 
 #include "dp_interrupt.h"
 
+#include "dp_interrupt_guard/dp_interrupt_guard_procglobal.h"
 #include "dp_test.h"
 
 #include <signal.h>
@@ -201,10 +202,65 @@ test_slot_exhaustion_is_refused (void)
   dp_resume ();
 }
 
+/* The process-global rendezvous, at the layer that owns it.
+ *
+ * The DEFECT it exists for (doppler#976) is invisible here by construction:
+ * it needs several `.so` files in one process, so the gate that reproduces
+ * it is src/doppler/tests/test_interrupt_is_process_wide.py. What C can
+ * pin, and what nothing else does, is that the two accessors just-makeit
+ * generates calls to actually redirect the reads -- an adopt that silently
+ * did nothing would leave that Python gate proving only that an import
+ * succeeded.
+ *
+ * Restores the module's own state at the end, because every other test in
+ * this file reads through the same pointer. */
+static void
+test_adopting_a_foreign_state_redirects_the_flag (void)
+{
+  void *own = dp_interrupt_guard_state_ptr ();
+  DP_CHECK (own != NULL);
+
+  /* A second state, of whatever size and layout this TU uses -- the
+     contract is `void *`, so the test allocates one by asking for a copy
+     of the real thing rather than by knowing its shape. */
+  dp_resume ();
+  dp_set_interrupt_latency_ms (250);
+  DP_CHECK (dp_interrupt_latency_ms () == 250);
+
+  /* Adopting a DIFFERENT state must change what every accessor reads. The
+     bytes behind `foreign` are a snapshot of a state whose flag is clear
+     and whose latency is the default. */
+  static unsigned char foreign[sizeof (void *) * 8];
+  memcpy (foreign, own, sizeof foreign);
+  dp_interrupt_guard_state_adopt (foreign);
+  DP_CHECK (dp_interrupt_guard_state_ptr () == (void *)foreign);
+
+  /* Writes land in the adopted state, not the original. */
+  dp_set_interrupt_latency_ms (37);
+  DP_CHECK (dp_interrupt_latency_ms () == 37);
+  dp_interrupt ();
+  DP_CHECK (dp_interrupted ());
+
+  /* NULL is ignored rather than obeyed: a failed rendezvous must not
+     replace a working state with an unusable one. */
+  dp_interrupt_guard_state_adopt (NULL);
+  DP_CHECK (dp_interrupt_guard_state_ptr () == (void *)foreign);
+
+  /* Back to this TU's own state, which must still hold what it held. */
+  dp_interrupt_guard_state_adopt (own);
+  DP_CHECK (dp_interrupt_guard_state_ptr () == own);
+  DP_CHECK (dp_interrupt_latency_ms () == 250);
+  DP_CHECK (!dp_interrupted ());
+
+  dp_set_interrupt_latency_ms (0);
+  dp_resume ();
+}
+
 int
 main (void)
 {
   test_flag_round_trip ();
+  test_adopting_a_foreign_state_redirects_the_flag ();
   test_latency_knob ();
   test_signal_sets_the_flag ();
   test_installing_twice_is_not_an_error ();

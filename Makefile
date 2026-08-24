@@ -908,20 +908,48 @@ uvx diff-cover $(COV_DIR)/coverage.lcov \
 endef
 
 # ── Release ──────────────────────────────────────────────────────────────────
-# Five places carry the version; `version-check` probes three of them (uv.lock's
-# copy is re-synced by `uv lock` in the bump, and CHANGELOG is prose).
+# SEVEN places carry the version; `version-check` probes five (uv.lock's copy is
+# re-synced by `uv lock` in the bump, and CHANGELOG is prose).
+#
+# bootstrap.toml and just-makeit.toml joined the probes on 2026-08-24, and the
+# reason is that they had NOT been bumped: bootstrap.toml sat at 0.3.7 (frozen
+# when jb.toml was renamed) and just-makeit.toml at 0.1.0 -- untouched since the
+# INITIAL COMMIT, while doppler shipped its way to 0.43.2. Both sit in a
+# `[project]` table beside `name = "doppler"`, so both read as this project's
+# version and both were simply wrong. Nothing consumed either, which is exactly
+# why nothing noticed: `doppler_version()` returns DOPPLER_VERSION stamped by
+# CMake from PROJECT_VERSION, so the wrong numbers cost nothing and announced
+# nothing.
+#
+# just-makeit.toml's is the one with a future: just-buildit/just-makeit#1141 is
+# that `[project] version` reaches none of its four generated copies
+# (pyproject.toml, CMakeLists.txt, bootstrap.toml, `<proj>_version()`). When jm
+# closes that, it starts propagating this value outward -- and 0.1.0 would have
+# been propagated INTO the three files that were right.
+#
+# bootstrap.toml could not join until its version stopped forcing a CI image
+# rebuild; see ci-image-source-hash.
 define VERSION_PROBES
 pyproject.toml|grep '^version' pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/'
 CMakeLists.txt|grep '^project(doppler VERSION' CMakeLists.txt | sed 's/.*VERSION \([0-9.]*\).*/\1/'
 Cargo.toml|grep '^version' $(RUST_DIR)/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/'
+bootstrap.toml|sed -n '/^\[project\]/,/^\[/{s/^version = "\(.*\)"/\1/p}' bootstrap.toml
+just-makeit.toml|sed -n '/^\[project\]/,/^\[/{s/^version = "\(.*\)"/\1/p}' just-makeit.toml
 endef
 
 # CMake and Cargo reject a Python pre-release suffix (1.2.3rc1), so those two
 # get the numeric prefix while pyproject keeps the full string.
+# Both new seds are RANGE-scoped to the `[project]` table. A bare
+# `s/^version = .../` would also rewrite the first `version` key of any later
+# table -- and just-makeit.toml's very next line is `jm_version`, a DIFFERENT
+# number with its own SSOT in scripts/gen_jm_pin.py. Anchoring on the table
+# keeps the two pins from colliding.
 define BUMP_VERSION_CMD
 sed -i 's/^version = "[^"]*"/version = "$(VERSION)"/' pyproject.toml
 sed -i "s/^version = \"[0-9.]*/version = \"$$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" $(RUST_DIR)/Cargo.toml
 sed -i "s/^project(doppler VERSION [0-9.]*/project(doppler VERSION $$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" CMakeLists.txt
+sed -i '/^\[project\]/,/^\[/{s/^version = "[^"]*"/version = "$(VERSION)"/}' bootstrap.toml
+sed -i '/^\[project\]/,/^\[/{s/^version = "[^"]*"/version = "$(VERSION)"/}' just-makeit.toml
 uv lock
 @$(MAKE) --no-print-directory docs-relink
 endef
@@ -2558,8 +2586,15 @@ ccache-stats: ## Print compiler-cache hit statistics (no-op without ccache)
 	    echo "ccache-stats: ccache not installed — builds are uncached"; \
 	 fi
 
+# Plain `python3`, not `$(UV) run python`, and deliberately: the script is
+# stdlib-only, and ci-image.yml shells out to THIS target so the workflow and
+# the check cannot compute different numbers. That workflow builds the image
+# the rest of CI runs inside, so it is the one place that cannot assume a
+# synced uv environment -- it has neither a setup-python nor a uv install step.
+# Nothing is unpinned by this: `uv run` pins dependencies, and this script has
+# none.
 ci-image-source-hash: ## Print the hash of the CI image's inputs (plumbing)
-	@cat bootstrap.toml $(CI_DOCKERFILE) | sha256sum | cut -d' ' -f1
+	@python3 scripts/ci_image_source_hash.py
 
 ci-image: ## Build the CI toolchain image locally, one per base
 	@for b in $(CI_IMAGE_BASES); do \
@@ -2649,8 +2684,10 @@ ci-image-check: ## Fail when the pinned CI image no longer matches its inputs
 	 fi; \
 	 have=$$($(MAKE) -s ci-image-source-hash); \
 	 if [ "$$have" != "$(CI_IMAGE_SOURCE_HASH)" ]; then \
-	     echo "ci-image-check: bootstrap.toml or $(CI_DOCKERFILE) changed"; \
-	     echo "  since the pinned image was built."; \
+	     echo "ci-image-check: the CI image's inputs changed since the"; \
+	     echo "  pinned image was built (bootstrap.toml's package/tool"; \
+	     echo "  tables, or $(CI_DOCKERFILE) -- NOT [project], which"; \
+	     echo "  no layer reads; see scripts/ci_image_source_hash.py)."; \
 	     echo "    pinned inputs: $(CI_IMAGE_SOURCE_HASH)"; \
 	     echo "    this tree:     $$have"; \
 	     echo "  Push the branch (ci-image.yml builds on those paths), then"; \

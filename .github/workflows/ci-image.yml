@@ -125,8 +125,12 @@ jobs:
           F2404: ${{ steps.publish.outputs.fingerprint_2404 }}
         run: |
           set -euo pipefail
-          src="$(cat bootstrap.toml deploy/docker/Dockerfile.ci \
-                 | sha256sum | cut -d' ' -f1)"
+          # ONE definition of this hash, in the Makefile, called from here.
+          # It used to be spelled out again in this file, so the workflow and
+          # `make ci-image-check` were two implementations of the same number
+          # and a change to either alone would have made the gate compare a
+          # tree against a pin computed a different way.
+          src="$(make -s ci-image-source-hash)"
 
           # Column 0, no indentation: make `include`s this file, and a line
           # with leading whitespace reads to make as a recipe outside a

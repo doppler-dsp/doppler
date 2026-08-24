@@ -111,13 +111,40 @@ ______________________________________________________________________
 make release-branch VERSION=X.Y.Z   # branches chore/release-X.Y.Z, then bumps
 ```
 
-`bump-version` updates **three files** atomically:
+`bump-version` updates **five files** atomically:
 
 | File                  | Field                        |
 | --------------------- | ---------------------------- |
 | `pyproject.toml`      | `version`                    |
 | `ffi/rust/Cargo.toml` | `version`                    |
 | `CMakeLists.txt`      | `project(doppler VERSION …)` |
+| `bootstrap.toml`      | `[project] version`          |
+| `just-makeit.toml`    | `[project] version`          |
+
+(`uv.lock` is re-synced by the `uv lock` in the same command, and `CHANGELOG.md`
+is prose you write in step 4 — neither is a probe.)
+
+The last two joined on 2026-08-24, having never been bumped at all:
+`bootstrap.toml` was frozen at `0.3.7` and `just-makeit.toml` at `0.1.0`, the
+value it was given in the **initial commit**. Nothing read either, which is
+why nothing noticed — `doppler_version()` returns `DOPPLER_VERSION`, stamped
+by CMake from `PROJECT_VERSION`. `make version-check` now probes all five, so
+a missed one is a red gate rather than a number nobody reads.
+
+!!! note "Why `bootstrap.toml` could not be bumped before"
+
+    Its bytes fed the CI image fingerprint, so moving the version demanded an
+    image rebuild and a repin — every release, for a string no image layer
+    reads. `make ci-image-source-hash` now hashes the tables that decide the
+    image (everything but `[project]`) instead of the whole file, so the
+    version travels freely and a rebuild still fires on any real change. See
+    [Build Internals](build-internals.md).
+
+    `just-makeit.toml`'s copy has a second reason to be right:
+    [just-makeit#1141](https://github.com/just-buildit/just-makeit/issues/1141)
+    is that `[project] version` reaches none of its four generated copies. When
+    jm closes that, this value starts propagating outward — and `0.1.0` would
+    have propagated into the three files that were correct.
 
 ## 4. Update CHANGELOG.md
 
@@ -231,11 +258,14 @@ minimal PEP 517 backend driving the whole thing):
     x86_64) and a leaked `-mcpu=native` (SVE/SVE2 on aarch64) — see
     [Build Internals](build-internals.md#portability-gate) for both scans.
 
-**`verify-version` checks** — the workflow fails immediately if any of these disagree with the tag:
+**`verify-version` checks** — it runs `make version-check VERSION=<tag>`, which
+fails immediately if any probed file disagrees with the tag or with the others:
 
 - `pyproject.toml`
 - `ffi/rust/Cargo.toml`
 - `CMakeLists.txt`
+- `bootstrap.toml` (`[project] version`)
+- `just-makeit.toml` (`[project] version`)
 
 If it fails, bump the missed file manually, push a fixup commit on main, then re-tag.
 

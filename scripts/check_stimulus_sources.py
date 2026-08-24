@@ -147,8 +147,14 @@ MARKERS: dict[str, tuple[re.Pattern[str], str]] = {
     ),
     "evm": (
         re.compile(
-            r"def\s+_?evm(_db)?\s*\(|"
-            r"static\s+(inline\s+)?double\s+_?evm(_db)?\w*\s*\("
+            # `\w*` before `evm`, not just an optional `_`: a one-word
+            # prefix defeated this. `self_evm_db()` sat in
+            # async_dsss_receiver_spec_demo.py -- a line-for-line twin of
+            # ber_evm_db, returning the identical -10.1 dB -- while this
+            # marker reported ZERO occurrences. A gate that reads as
+            # coverage and is not is the failure this file exists to name.
+            r"def\s+\w*evm(_db)?\s*\(|"
+            r"static\s+(inline\s+)?double\s+\w*evm(_db)?\w*\s*\("
         ),
         "measure with ber_evm_db() -- doppler.ber.ber_evm_db in Python, "
         "dp_sym_test.h's dp_test_evm_db_hard_range() in C -- over a window "

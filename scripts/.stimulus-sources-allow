@@ -33,3 +33,21 @@ pulse::src/doppler/track/tests/test_theory_symsync.py::def _rc(t): | SAFE: indep
 # only permitted direction. Do not add to this section.
 
 pulse::src/doppler/track/tests/test_symsync.py::def _rc(t, beta, T): | VIOLATION (review). A raised cosine taking (t, beta, T) -- unlike its theory sibling this is the FUNCTIONAL suite, so it is most likely stimulus rather than an oracle. Confirm which before removing; if it is an oracle, move it to the SAFE section with that reason.
+
+# ── SAFE: not a measurement at all ────────────────────────────────────
+# The widened `evm` marker (a `\w*` prefix, added after `self_evm_db()` hid
+# a line-for-line twin of ber_evm_db behind one word) reaches names that
+# only PASS an EVM around. They compute nothing, so there is nothing for
+# the library to own.
+
+evm::src/doppler/examples/mpsk_receiver_performance_demo.py::def panel_evm(ax, trials): | SAFE: a matplotlib panel. It plots t["evm"] values measured elsewhere; it does not compute one.
+evm::src/doppler/tests/_validation_common.py::def clamp_evm_db(evm: float) -> float: | SAFE: floors an already-measured EVM at EVM_FLOOR_DB. Its own docstring says the argument arrives "as ber_evm_db reports it" -- it is downstream of the kernel, not a copy of it.
+
+# ── SAFE: the library deliberately refuses this measurement ───────────
+# ber_evm_db is SELF-referenced with no truth and no lag, and says so:
+# "cannot be fooled by an alignment search". Minimising over alignment is
+# exactly what these need, so they are the opposite measurement rather than
+# a private copy of this one.
+
+evm::src/doppler/resample/tests/test_RateConverter.py::def _best_evm_db(y: np.ndarray, syms: np.ndarray) -> float: | SAFE: TRUTH-referenced and minimised over strobe alignment. Open loop the cascade's strobe phase is arbitrary, so minimising isolates the matched filter from the timing loop that does not exist yet -- the one thing ber_evm_db is built to refuse.
+evm::src/doppler/resample/tests/test_RateConverter.py::def _sweep_evm_db(sps: float, compensate: int) -> float: | SAFE: delegates to _best_evm_db above, which the gate cannot follow because that helper is itself not a sanctioned name. Same reason as its callee.

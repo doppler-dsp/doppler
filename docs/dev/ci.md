@@ -136,10 +136,27 @@ git push                # ci-image.yml rebuilds and prints the pin block
 ```
 
 `ci-image-check` runs inside `make lint`. It is offline and instant: it hashes
-`bootstrap.toml` + `Dockerfile.ci` and compares that to what the pin recorded,
-and it refuses any `container:` naming a mutable tag, because a tag is mutable
-by definition and the image a PR passed on would not have to be the one it
-merges with.
+the image's inputs and compares that to what the pin recorded, and it refuses
+any `container:` naming a mutable tag, because a tag is mutable by definition
+and the image a PR passed on would not have to be the one it merges with.
+
+**"Inputs" is narrower than "those two files", and the difference matters.**
+The hash was `cat bootstrap.toml Dockerfile.ci | sha256sum` — the *files*, not
+the *image*. `bootstrap.toml` also carries doppler's `[project] version`, which
+no layer reads, so keeping that version in step with a release would have
+demanded an image rebuild on every release; a reformatted comment did the same.
+`scripts/ci_image_source_hash.py` now parses `bootstrap.toml`, drops
+`[project]`, and hashes the rest by value alongside the Dockerfile — so the
+`[dev.*]`/`[docs.*]` package lists and `[tools.install-deps] groups`, which
+decide what `jbx install-deps` installs, still fire a rebuild, while identity
+and formatting no longer do.
+
+Excluding one reasoned table rather than listing the ones to include is the
+whole design: an include-list stops covering a table added later, which is a
+gate that keeps passing because it stopped looking. Forgetting, here, costs an
+extra rebuild rather than a missed one. `ci-image.yml` calls
+`make -s ci-image-source-hash` rather than spelling the hash a second time, so
+the gate and the pin cannot compute different numbers.
 
 ______________________________________________________________________
 

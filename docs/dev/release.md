@@ -111,7 +111,9 @@ ______________________________________________________________________
 make release-branch VERSION=X.Y.Z   # branches chore/release-X.Y.Z, then bumps
 ```
 
-`bump-version` updates **five files** atomically:
+`bump-version` updates **five files** atomically, from one declaration in
+`scripts/version_sites.py` — there is no second list, and `version-check`
+reads the same table:
 
 | File                  | Field                        |
 | --------------------- | ---------------------------- |
@@ -130,6 +132,16 @@ value it was given in the **initial commit**. Nothing read either, which is
 why nothing noticed — `doppler_version()` returns `DOPPLER_VERSION`, stamped
 by CMake from `PROJECT_VERSION`. `make version-check` now probes all five, so
 a missed one is a red gate rather than a number nobody reads.
+
+!!! warning "Pre-releases are refused"
+
+    `make bump-version VERSION=1.2.3rc1` errors. CMake and Cargo reject the
+    suffix, and `standard.mk`'s `version-check` requires every site to return
+    the same string — so a pre-release bump used to produce a tree that could
+    not pass `release.yml`'s own `verify-version` step. Supporting them needs a
+    change in the vendored `standard.mk`
+    ([just-buildit#30](https://github.com/just-buildit/just-buildit.github.io/issues/30));
+    doppler has cut zero pre-releases.
 
 !!! note "Why `bootstrap.toml` could not be bumped before"
 

@@ -104,9 +104,17 @@ seg = Segment.sum(Synth(type="qpsk", sps=8), fs=1e6, num_samples=4096)
 iq = Composer(seg).execute(4096)
 ```
 
-Passing `num_samples`/`off_samples` to `Composer(...)` **directly** raises
-`TypeError: pass either segments or single-segment kwargs, not both` — the
-Composer renders a scene that already carries its own timing.
+Passing `num_samples`/`off_samples` to `Composer(...)` **directly** raises a
+`TypeError` — the Composer renders a scene that already carries its own
+timing:
+
+```text
+unexpected keyword argument(s) ['num_samples'] alongside a segments list;
+pass either segments or single-segment kwargs, not both
+```
+
+The message names the offending keys, so the same error also tells you when
+the real problem was a misspelling rather than a conflict.
 
 (As a convenience, `Composer(type="qpsk", num_samples=…)` accepts single-segment
 kwargs to build a one-segment scene for you — but you cannot pass *both* a

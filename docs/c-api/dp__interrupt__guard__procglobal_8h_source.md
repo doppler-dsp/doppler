@@ -61,7 +61,7 @@ void dp_interrupt_guard_state_adopt(void *shared);
  *         PyCapsule_New(dp_interrupt_guard_state_ptr(), DP_INTERRUPT_GUARD_PG_CAPSULE,
  *                       NULL));
  */
-#define DP_INTERRUPT_GUARD_PG_OWNER   "doppler.interrupt"
+#define DP_INTERRUPT_GUARD_PG_OWNER   "doppler.interrupt.interrupt"
 #define DP_INTERRUPT_GUARD_PG_ATTR    "_jm_pg_dp_interrupt_guard"
 #define DP_INTERRUPT_GUARD_PG_CAPSULE "doppler.dp_interrupt_guard._jm_procglobal"
 

@@ -15,6 +15,6 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .interrupt import _jm_pg_dp_interrupt_guard, Interrupt  # noqa: E402
+from .interrupt import Interrupt  # noqa: E402
 
-__all__ = ["Interrupt", "_jm_pg_dp_interrupt_guard"]
+__all__ = ["Interrupt"]

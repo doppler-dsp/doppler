@@ -76,7 +76,7 @@ PyInit_telemetry (void)
   {
     void     *dp_interrupt_guard_state_ptr (void);
     void      dp_interrupt_guard_state_adopt (void *shared);
-    PyObject *_own = PyImport_ImportModule ("doppler.interrupt");
+    PyObject *_own = PyImport_ImportModule ("doppler.interrupt.interrupt");
     if (!_own)
       {
         Py_DECREF (m);

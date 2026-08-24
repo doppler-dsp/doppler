@@ -251,19 +251,98 @@ SampleClock_dealloc (SampleClockObject *self)
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
-static PyMethodDef SampleClock_methods[]
-    = { { "pace", (PyCFunction)SampleClock_pace, METH_VARARGS | METH_KEYWORDS,
-          NULL },
-        { "stamp", (PyCFunction)SampleClock_stamp, METH_VARARGS, NULL },
-        { "stamp_at", (PyCFunction)SampleClock_stamp_at,
-          METH_VARARGS | METH_KEYWORDS, NULL },
-        { "track", (PyCFunction)SampleClock_track,
-          METH_VARARGS | METH_KEYWORDS, NULL },
-        { "reset", (PyCFunction)SampleClock_reset, METH_VARARGS, NULL },
-        { "resync", (PyCFunction)SampleClock_resync, METH_VARARGS, NULL },
-        { "close", (PyCFunction)SampleClock_close, METH_NOARGS,
-          "close() -> None" },
-        { NULL, NULL, 0, NULL } };
+static PyMethodDef SampleClock_methods[] = {
+  { "pace", (PyCFunction)SampleClock_pace, METH_VARARGS | METH_KEYWORDS,
+    "Advance by count samples and sleep until that block's deadline\n"
+    "(``epoch + n/fs``). Returns the slack in seconds measured before\n"
+    "sleeping: ``>= 0`` means early (and it slept that long); ``< 0`` means\n"
+    "it arrived late — an underrun, which is counted (and the epoch\n"
+    "re-anchored when ``resync`` is set), with no sleep.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "count : int\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    Output.\n" },
+  { "stamp", (PyCFunction)SampleClock_stamp, METH_VARARGS,
+    "Ideal wall-clock timestamp (ns since the UNIX epoch) of the next\n"
+    "sample to be produced — sample index ``n``. Call it before pace() to\n"
+    "tag the block you are about to emit, or after to tag the following\n"
+    "block. Equivalent to ``dp_sample_clock_stamp_at(c, c->n)``.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
+  { "stamp_at", (PyCFunction)SampleClock_stamp_at,
+    METH_VARARGS | METH_KEYWORDS,
+    "Ideal wall-clock timestamp (ns since the UNIX epoch) of an ARBITRARY\n"
+    "sample index n — past, present, or future, not just the clock's own\n"
+    "live position. The receive-side counterpart of dp_sample_clock_stamp():\n"
+    "a block emitting several per-record outputs from one buffered input\n"
+    "(e.g. several detections spanning different epochs from one streamed\n"
+    "message) stamps each at its own historical sample offset instead of\n"
+    "reusing the whole buffer's single arrival time.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
+  { "track", (PyCFunction)SampleClock_track, METH_VARARGS | METH_KEYWORDS,
+    "Reconcile c's epoch_real_ns against one OBSERVED (timestamp, sample\n"
+    "index) pair read off an incoming stream header — the receive-side dual\n"
+    "of pace()'s resync: instead of sleeping toward a deadline, this adopts\n"
+    "or corrects the epoch from ground truth the sender already stamped.\n"
+    "\n"
+    "The FIRST call always adopts observed_timestamp_ns as the epoch\n"
+    "(``has_anchor`` starts false — a fresh clock has no real observation\n"
+    "yet, so there is nothing to compare against). Every later call only\n"
+    "re-anchors if the discrepancy between the observation and what the\n"
+    "clock's current model predicts exceeds tolerance_ns (same\n"
+    "step-correction semantics as pace()'s own resync, applied to tracking\n"
+    "instead of sleeping) — this corrects accumulated epoch OFFSET only, it\n"
+    "does not model sample-rate SKEW, exactly like pace()'s resync.\n"
+    "\n"
+    "Rejects (no-op, returns 0) any observation with n_at_observation less\n"
+    "than the clock's current n outright: a stale, out-of-order, or\n"
+    "redelivered header must never walk the epoch backward. Never treat two\n"
+    "reconciled observations as literal replay-safe state — always resync\n"
+    "from an ARRIVING message, not a cached one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "observed_timestamp_ns : int\n"
+    "    Input.\n"
+    "n_at_observation : int\n"
+    "    Input.\n"
+    "tolerance_ns : int\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Nonzero if this call adopted or re-anchored the epoch; 0 if it was\n"
+    "    accepted as already consistent, or rejected as stale.\n" },
+  { "reset", (PyCFunction)SampleClock_reset, METH_VARARGS,
+    "Re-capture both epochs and zero the counters — a fresh clock at n=0.\n" },
+  { "resync", (PyCFunction)SampleClock_resync, METH_VARARGS,
+    "Re-anchor the pacing epoch to \"now\" without clearing ``n`` or\n"
+    "counters, dropping any accumulated lateness so future blocks pace\n"
+    "forward from the present. (pace() does this automatically when\n"
+    "``resync`` is set.)\n" },
+  { "close", (PyCFunction)SampleClock_close, METH_NOARGS,
+    "Release the handle and free resources." },
+  { NULL, NULL, 0, NULL }
+};
 
 static PyTypeObject SampleClockType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.wfm.SampleClock",
@@ -302,7 +381,7 @@ PyInit_sample_clock (void)
   {
     void     *dp_interrupt_guard_state_ptr (void);
     void      dp_interrupt_guard_state_adopt (void *shared);
-    PyObject *_own = PyImport_ImportModule ("doppler.interrupt");
+    PyObject *_own = PyImport_ImportModule ("doppler.interrupt.interrupt");
     if (!_own)
       {
         Py_DECREF (m);

@@ -237,18 +237,111 @@ Plan_dealloc (PlanObject *self)
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
-static PyMethodDef Plan_methods[]
-    = { { "render", (PyCFunction)Plan_render, METH_VARARGS, NULL },
-        { "at", (PyCFunction)Plan_at, METH_VARARGS, NULL },
-        { "length", (PyCFunction)Plan_length, METH_VARARGS, NULL },
-        { "n_sources", (PyCFunction)Plan_n_sources, METH_VARARGS, NULL },
-        { "anchor_seed", (PyCFunction)Plan_anchor_seed, METH_VARARGS, NULL },
-        { "save", (PyCFunction)Plan_save, METH_VARARGS, NULL },
-        { "dump", (PyCFunction)Plan_dump, METH_VARARGS | METH_KEYWORDS, NULL },
-        { "close", (PyCFunction)Plan_close, METH_NOARGS, "close() -> None" },
-        { "__enter__", (PyCFunction)Plan_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)Plan_exit, METH_VARARGS, NULL },
-        { NULL, NULL, 0, NULL } };
+static PyMethodDef Plan_methods[] = {
+  { "render", (PyCFunction)Plan_render, METH_VARARGS,
+    "General render: apply a JSON override spec, return a cf32 array.\n"
+    "\n"
+    "`overrides_json` is a small JSON object, all keys optional:\n"
+    "`{\"gains\":[dB…], \"phases\":[rad…], \"enable\":[bool…], \"snr\":dB,\n"
+    "\"seed\":u}` (`gains`/`phases`/`enable` are per-source, flat and\n"
+    "segment-major, length = wfm_plan_n_sources()). An empty object (or\n"
+    "NULL) renders the baseline — bit-identical to\n"
+    "`Composer(scene).compose()`. Writes up to `wfm_plan_len(p)` samples to\n"
+    "`out`.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "overrides_json : str\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[Any]\n"
+    "    Samples actually written for this draw (<= wfm_plan_len(p)).\n" },
+  { "at", (PyCFunction)Plan_at, METH_VARARGS,
+    "Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse).\n"
+    "\n"
+    "`out = Σ gain_k·cache_k + gain(snr)·noise(seed)` per segment/instance;\n"
+    "writes up to `wfm_plan_len(p)` samples. Equivalent to `render` with\n"
+    "only `{\"snr\":snr,\"seed\":seed}` — `seed` is always an explicit "
+    "override\n"
+    "here.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "snr : float\n"
+    "    Input.\n"
+    "seed : int\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[Any]\n"
+    "    Samples actually written for this draw (<= wfm_plan_len(p)).\n" },
+  { "length", (PyCFunction)Plan_length, METH_VARARGS,
+    "Worst-case materialized length in samples (every ranged gap at its\n"
+    "`hi` bound) — the jm binding's out_len_fn / allocation capacity.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
+  { "n_sources", (PyCFunction)Plan_n_sources, METH_VARARGS,
+    "Number of cached signal sources across every segment (excludes noise\n"
+    "floors); the length of the `gains`/`phases`/`enable` arrays.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
+  { "anchor_seed", (PyCFunction)Plan_anchor_seed, METH_VARARGS,
+    "The noise seed that reproduces a full compose.\n"
+    "\n"
+    "The first noisy segment's default seed (its first source's `seed`\n"
+    "field). Passing this as `wfm_plan_at`'s seed (with the scene's base\n"
+    "SNR) yields the byte-identical output of `wfm_compose` for a\n"
+    "single-segment scene; for a multi-segment scene each segment still\n"
+    "draws from its own default seed unless overridden. Varying the seed\n"
+    "draws independent Monte-Carlo noise (and, for a ranged-gap scene,\n"
+    "timing) realizations.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
+  { "save", (PyCFunction)Plan_save, METH_VARARGS,
+    "Serialize a Plan into blob (wfm_plan_save_bytes(p) bytes).\n"
+    "\n"
+    "Native-endian. The blob embeds the spec JSON, so a restore is\n"
+    "self-contained. Returns the number of bytes written (==\n"
+    "wfm_plan_save_bytes(p)) — the actual-length contract a variable-output\n"
+    "binding needs, so `save() -> bytes` generates with no hand-written\n"
+    "glue.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "bytes\n"
+    "    Output.\n" },
+  { "dump", (PyCFunction)Plan_dump, METH_VARARGS | METH_KEYWORDS,
+    "Save a Plan to a file (wfm_plan_save() bytes at path).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "path : str | os.PathLike\n"
+    "    Input.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "OSError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``wfm_plan_dump failed``, with the return code appended "
+    "(gh-869).\n" },
+  { "close", (PyCFunction)Plan_close, METH_NOARGS,
+    "Release the handle and free resources." },
+  { "__enter__", (PyCFunction)Plan_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)Plan_exit, METH_VARARGS, NULL },
+  { NULL, NULL, 0, NULL }
+};
 
 static PyTypeObject PlanType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.wfm.Plan",

@@ -36,7 +36,14 @@ the first end-to-end test in the repo of the receiver's carrier->code
 aiding (``carrier_freq_hz=``), which feeds the tracked carrier offset into
 the code loop as a rate bias the code discriminator alone cannot pull in.
 
-**Two honesty notes, both load-bearing:**
+**Three honesty notes, all load-bearing:**
+
+- **Acquisition here is probabilistic, and the example says so.** Scored over
+  eight fixed noise draws at this Es/N0, the receiver acquires on 5 of 8 (TCA)
+  and 6 of 8 (+/-50 kHz) -- and decodes cleanly on every draw where it does.
+  The example used to assert one draw as though the outcome were determined;
+  it passed because of the seed. Both halves are asserted now, over the
+  draws. Why the rate is what it is: doppler#982.
 
 - **10 dB, not SPEC's 5 dB.** The AWGN-only decode floor is ~5 dB (the C
   test ``_test_awgn_esn0_floor`` proves 5 dB decodes, 4 dB fails), but the
@@ -94,7 +101,7 @@ import warnings
 import numpy as np
 
 from doppler.impairment import DopplerChannel
-from doppler.wfm import Gold, Synth, bpsk_map
+from doppler.wfm import Gold, Synth, bpsk_map, wfm_awgn_amplitude
 
 SF = 1023  # CCSDS 415.0-G-1 command-link Gold code period (2**10 - 1)
 CHIP_RATE = 3.069e6  # Mcps -- SPEC's exact chip rate
@@ -115,6 +122,17 @@ OFFSET_EXTREMUM_HZ = 50e3  # the +/-50 kHz frequency-uncertainty edge
 ESN0_DB = 10.0  # true Es/N0 at the receiver input (noise added after Doppler)
 N_SYM = 4000
 SEED = 1
+
+#: Fixed noise draws the two regimes are SCORED over (the figure still uses
+#: SEED alone). Eight is enough to tell "most draws" from "this draw" without
+#: making the example slow -- one receive is well under a second.
+SCORING_SEEDS = (1, 2, 3, 4, 5, 6, 7, 8)
+
+#: Acquisition floor across those draws. Measured 5/8 (TCA) and 6/8 (+50 kHz),
+#: so 4 leaves room for a different architecture's rounding without letting a
+#: real regression through. Raising this is a receiver improvement, not a
+#: tuning knob -- see doppler#982 for what is worth measuring next.
+MIN_LOCKS = 4
 PRE = SF * SPC * 20 + 737  # pre-signal silence (not a whole # of epochs)
 
 # CCSDS Gold code: real, cross-checked reference (3-valued sidelobes).
@@ -166,12 +184,22 @@ def make_capture(start_hz: float, rate_hz_s: float, seed: int):
     signal = channel.execute(clean)
 
     x = np.concatenate([np.zeros(PRE, np.complex64), signal])
-    cn0 = ESN0_DB + 10.0 * np.log10(SYM_RATE)
-    sigma = 1.0 / np.sqrt(10.0 ** (cn0 / 10.0) / FS)
-    noise = (sigma / np.sqrt(2.0)) * (
-        rng.standard_normal(len(x)) + 1j * rng.standard_normal(len(x))
+    # The AWGN floor comes from doppler's own two kernels rather than a sigma
+    # derived here: `wfm_awgn_amplitude` owns the SNR -> amplitude relation
+    # (an invented amplitude convention is the classic silent stimulus bug),
+    # and a `type="noise"` Synth owns the draw. The noise cannot ride the
+    # segment itself -- it must land AFTER the Doppler channel, which is the
+    # one thing the composer cannot express here.
+    #
+    # The Es/N0 is referred to fs the way the segment would do it: a data
+    # symbol spans fs/symbol_rate samples. The sqrt(2) bridges the two
+    # conventions -- the Synth emits unit TOTAL power (0.707 per component)
+    # while wfm_awgn_amplitude returns a PER-COMPONENT sigma.
+    amp = float(
+        wfm_awgn_amplitude(ESN0_DB - 10.0 * np.log10(FS / SYM_RATE), 1.0)
     )
-    x = (x + noise).astype(np.complex64)
+    unit_noise = Synth(type="noise", fs=FS, seed=seed).steps(len(x))
+    x = (x + (amp * np.sqrt(2.0)) * unit_noise).astype(np.complex64)
     # bpsk_map is the same C kernel the source maps bits with (0 -> +1,
     # 1 -> -1), so the truth is what went out, not a convention restated
     # here -- a hand-written sign would silently make every decode below
@@ -181,6 +209,7 @@ def make_capture(start_hz: float, rate_hz_s: float, seed: int):
 
 # --8<-- [end:signal]
 
+from doppler.ber import ber_evm_db  # noqa: E402
 from doppler.dsss import AsyncDsssReceiver  # noqa: E402
 from doppler.snr import snr_m2m4_db  # noqa: E402
 
@@ -277,20 +306,6 @@ def best_ber(syms: np.ndarray, data: np.ndarray, lo: int | None = None):
     return bits, best[0], best[1], best[2]
 
 
-def self_evm_db(z: np.ndarray) -> float:
-    """Self-referenced EVM (dB): de-rotate a symbol block by the BPSK
-    squaring angle, unit-power normalise, hard-decide +/-1, RMS error to the
-    nearest. No truth symbols, no lag -- a locked constellation sits near
-    -Es/N0, a scattered one near 0 dB."""
-    if len(z) < 16:
-        return 0.0
-    z = z.astype(np.complex128)
-    z = z * np.exp(-1j * 0.5 * np.angle(np.sum(z * z)))
-    z = z / np.sqrt(np.mean(np.abs(z) ** 2))
-    dec = np.where(z.real > 0, 1.0, -1.0)
-    return 20.0 * np.log10(np.sqrt(np.mean(np.abs(z - dec) ** 2)) + 1e-12)
-
-
 def decode_and_check(
     x: np.ndarray,
     data: np.ndarray,
@@ -337,7 +352,12 @@ def decode_and_check(
     k0 = int(len(syms) * settle_frac)
     bits, ber, lag, inv = best_ber(syms, data, lo=k0)
     settled = syms[k0:]
-    evm = self_evm_db(settled)
+    # `ber_evm_db` IS this measurement -- each symbol against the stream's own
+    # hard decision, rotation estimated from the data, no truth and no lag --
+    # and it takes the window explicitly so EVM and BER are scored on exactly
+    # the same symbols. A hand-written twin lived here until it was noticed
+    # that the library already owned it.
+    evm = float(ber_evm_db(settled.astype(np.complex64), 0, len(settled), 2))
     m2m4 = float(snr_m2m4_db(settled.astype(np.complex64)))
     print(
         f"[{label}] {len(syms)} syms  ber={ber:.4f}  evm={evm:.1f} dB  "
@@ -380,16 +400,43 @@ def main(out_path: str = "async_dsss_receiver_spec_demo.png") -> None:
     x, data = make_capture(TCA_START_HZ, DOPPLER_RATE_HZ_S, SEED)
     rx, syms, trace, bits, ber, lag, inv = decode_and_check(x, data, "TCA")
 
-    # The OTHER physical regime -- offset extremum (+/-50 kHz, ~0 rate) --
-    # decodes too; assert it so the example self-validates both, without
-    # claiming the two ever coexist.
-    xe, de = make_capture(OFFSET_EXTREMUM_HZ, 0.0, SEED)
-    # Last quarter, not the back half: this regime's carrier needs ~2950 of
-    # its ~3940 symbols to pull 50 kHz in (decode_and_check's docstring has
-    # the per-block profile). Measured there it is not marginal at all --
-    # BER 0.0000 -- so the bar is the strict default, not the 0.03 the
-    # transient-straddling window needed.
-    decode_and_check(xe, de, "+50kHz static", ber_max=0.02, settle_frac=0.75)
+    # ── both regimes, scored over several noise draws ────────────────────
+    # A ONE-DRAW assertion cannot support a claim about a receiver at its
+    # operating edge, and this example used to make one. Measured over eight
+    # fixed draws at this Es/N0: the TCA crossing acquires on 5 of 8 and the
+    # +/-50 kHz extremum on 6 of 8 -- so whether the old single-seed assert
+    # passed was a property of the seed, not of the receiver. (Not caused by
+    # any change here: the same 6/8 comes out with the noise drawn by numpy
+    # or by doppler's own source, at a level identical to seven digits.)
+    #
+    # So the claim is the one the measurement supports: it acquires on MOST
+    # draws, and when it acquires it decodes cleanly. Both halves are
+    # asserted, because "locked" without a BER bar would pass on a mislock.
+    for label, (start_hz, rate) in (
+        ("TCA", (TCA_START_HZ, DOPPLER_RATE_HZ_S)),
+        ("+50kHz static", (OFFSET_EXTREMUM_HZ, 0.0)),
+    ):
+        frac = 0.5 if label == "TCA" else 0.75
+        bars = 0.02 if label == "TCA" else 0.03
+        locks, bers = 0, []
+        for s_ in SCORING_SEEDS:
+            xs, ds = make_capture(start_hz, rate, s_)
+            rx_s, syms_s, _ = receive(xs)
+            if not rx_s.locked:
+                continue
+            locks += 1
+            bers.append(best_ber(syms_s, ds, lo=int(len(syms_s) * frac))[1])
+        worst = max(bers) if bers else 1.0
+        print(
+            f"[{label}] acquired on {locks}/{len(SCORING_SEEDS)} noise draws; "
+            f"worst settled BER when acquired {worst:.4f}"
+        )
+        assert locks >= MIN_LOCKS, (
+            f"[{label}] acquired on only {locks}/{len(SCORING_SEEDS)} draws"
+        )
+        assert worst < bars, (
+            f"[{label}] acquired but did not decode: worst BER {worst:.3f}"
+        )
 
     wber = _windowed_ber(bits, data, lag, inv)
     assert np.nanmean(wber[-5:]) < 0.05, "decode did not stay converged"

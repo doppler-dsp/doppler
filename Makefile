@@ -908,51 +908,68 @@ uvx diff-cover $(COV_DIR)/coverage.lcov \
 endef
 
 # ── Release ──────────────────────────────────────────────────────────────────
-# SEVEN places carry the version; `version-check` probes five (uv.lock's copy is
-# re-synced by `uv lock` in the bump, and CHANGELOG is prose).
+# ONE declaration of the version sites, in scripts/version_sites.py, with one
+# reader and one writer over it. Both directions used to be spelled out here,
+# per site, and they differed by more than a filename: five bespoke
+# `grep | sed` reads and five bespoke `sed -i` writes, so the two spellings of
+# one site could disagree about which line they meant, and a site in one list
+# and not the other was invisible.
 #
-# bootstrap.toml and just-makeit.toml joined the probes on 2026-08-24, and the
-# reason is that they had NOT been bumped: bootstrap.toml sat at 0.3.7 (frozen
-# when jb.toml was renamed) and just-makeit.toml at 0.1.0 -- untouched since the
-# INITIAL COMMIT, while doppler shipped its way to 0.43.2. Both sit in a
-# `[project]` table beside `name = "doppler"`, so both read as this project's
-# version and both were simply wrong. Nothing consumed either, which is exactly
-# why nothing noticed: `doppler_version()` returns DOPPLER_VERSION stamped by
-# CMake from PROJECT_VERSION, so the wrong numbers cost nothing and announced
-# nothing.
+# They DID disagree. The writer stripped a pre-release suffix on the way into
+# CMakeLists.txt and Cargo.toml (CMake and Cargo reject `1.2.3rc1`) while the
+# reader read back whatever was there and `version-check` demanded every site
+# match. Measured 2026-08-24:
 #
-# just-makeit.toml's is the one with a future: just-buildit/just-makeit#1141 is
-# that `[project] version` reaches none of its four generated copies
-# (pyproject.toml, CMakeLists.txt, bootstrap.toml, `<proj>_version()`). When jm
-# closes that, it starts propagating this value outward -- and 0.1.0 would have
-# been propagated INTO the three files that were right.
+#     $ make bump-version VERSION=0.44.0rc1
+#     $ make version-check
+#     ERROR: CMakeLists.txt has 0.44.0, but pyproject.toml has 0.44.0rc1
 #
-# bootstrap.toml could not join until its version stopped forcing a CI image
-# rebuild; see ci-image-source-hash.
-define VERSION_PROBES
-pyproject.toml|grep '^version' pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/'
-CMakeLists.txt|grep '^project(doppler VERSION' CMakeLists.txt | sed 's/.*VERSION \([0-9.]*\).*/\1/'
-Cargo.toml|grep '^version' $(RUST_DIR)/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/'
-bootstrap.toml|sed -n '/^\[project\]/,/^\[/{s/^version = "\(.*\)"/\1/p}' bootstrap.toml
-just-makeit.toml|sed -n '/^\[project\]/,/^\[/{s/^version = "\(.*\)"/\1/p}' just-makeit.toml
-endef
+# A bump that cannot pass its own check, in the exact step release.yml runs
+# against the tag. Each rule was locally reasonable; jointly they were
+# impossible. Pre-releases are now REFUSED with that reason rather than
+# half-supported -- doppler has cut zero of them -- and supporting them needs a
+# change in the vendored standard.mk: just-buildit/just-buildit.github.io#30.
+#
+# uv.lock's copy is re-synced by the `uv lock` below; CHANGELOG is prose.
+VERSION_SITES_CMD = python3 scripts/version_sites.py
 
-# CMake and Cargo reject a Python pre-release suffix (1.2.3rc1), so those two
-# get the numeric prefix while pyproject keeps the full string.
-# Both new seds are RANGE-scoped to the `[project]` table. A bare
-# `s/^version = .../` would also rewrite the first `version` key of any later
-# table -- and just-makeit.toml's very next line is `jm_version`, a DIFFERENT
-# number with its own SSOT in scripts/gen_jm_pin.py. Anchoring on the table
-# keeps the two pins from colliding.
+# The labels, once. The probe COMMAND is identical for every site, so this
+# derives the whole VERSION_PROBES block standard.mk wants instead of carrying
+# five hand-written pipelines. `$(shell)` is deliberately absent: standard.mk
+# EXPORTS VERSION_PROBES, so a shell in it would run once per recipe, on every
+# target -- this is pure make text and costs nothing.
+VERSION_SITE_LABELS = pyproject.toml CMakeLists.txt Cargo.toml \
+                      bootstrap.toml just-makeit.toml
+
+define VERSION_PROBE_NEWLINE
+
+
+endef
+# The newline leads each entry rather than trailing it: `foreach` joins with a
+# SPACE, and a space after the newline lands inside the next entry's label
+# (standard.mk splits on `|` only, so it would print as indentation). Leading
+# it puts that space after the command, where the shell ignores it, and the
+# empty first line is dropped by standard.mk's own blank-line filter.
+VERSION_PROBES := $(foreach L,$(VERSION_SITE_LABELS),$(VERSION_PROBE_NEWLINE)$(L)|$(VERSION_SITES_CMD) --read $(L))
+
+# `--write` sets every DECLARED site and reads them all back, so a site missing
+# from VERSION_SITE_LABELS above is still written and still verified -- the
+# silent direction of the old two-list arrangement cannot recur.
 define BUMP_VERSION_CMD
-sed -i 's/^version = "[^"]*"/version = "$(VERSION)"/' pyproject.toml
-sed -i "s/^version = \"[0-9.]*/version = \"$$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" $(RUST_DIR)/Cargo.toml
-sed -i "s/^project(doppler VERSION [0-9.]*/project(doppler VERSION $$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" CMakeLists.txt
-sed -i '/^\[project\]/,/^\[/{s/^version = "[^"]*"/version = "$(VERSION)"/}' bootstrap.toml
-sed -i '/^\[project\]/,/^\[/{s/^version = "[^"]*"/version = "$(VERSION)"/}' just-makeit.toml
+$(VERSION_SITES_CMD) --write $(VERSION)
 uv lock
 @$(MAKE) --no-print-directory docs-relink
 endef
+
+# PROJECT names the namespaced env var standard.mk accepts a version from:
+# JUST_BUILDIT_DOPPLER_VERSION. A BARE exported VERSION is refused for the
+# release targets, because that name carries no evidence anyone meant it --
+# measured before the guard existed, `VERSION=9.9.9 make -n bump-version`
+# rewrote every manifest from a variable nobody typed, and `release-branch`
+# would have branched on it. Set here rather than guarded here: the guard is
+# generic to every repo on standard.mk and lives there, not in a private copy
+# (just-buildit/just-buildit.github.io#29). Inert until that lands.
+PROJECT = DOPPLER
 
 define RELEASE_BRANCH_NOTES
 @echo "  - if perf-relevant code changed since the last release (release.md"

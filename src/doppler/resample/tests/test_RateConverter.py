@@ -538,6 +538,52 @@ def test_plain_execute_ctrl_push_honours_out():
             assert np.array_equal(buf[: got.size], want)
 
 
+def test_plain_push_rejects_a_bad_out_buffer():
+    """The three refusals the `out=` path owes a caller.
+
+    Each is a separate branch in the binding and none had a test: the base
+    class's push form was never called at all (see
+    test_plain_execute_ctrl_push_matches_the_block_form), so its error paths
+    were unreached along with everything else.
+    """
+    rc = RateConverter(rate=0.8, compensate=0)
+    need = rc.execute_ctrl_push_max_out()
+
+    # Not an ndarray at all.
+    with pytest.raises(TypeError, match="writable, C-contiguous"):
+        rc.execute_ctrl_push(1 + 0j, 0.0, out=[0] * need)
+
+    # Right shape, wrong dtype — the marshal would write into a temp copy
+    # rather than the caller's buffer, which is silently not `out=`.
+    with pytest.raises(TypeError, match="writable, C-contiguous"):
+        rc.execute_ctrl_push(1 + 0j, 0.0, out=np.zeros(need, np.complex128))
+
+    # Right dtype, not C-contiguous.
+    with pytest.raises(TypeError, match="writable, C-contiguous"):
+        rc.execute_ctrl_push(
+            1 + 0j, 0.0, out=np.zeros(need * 2, np.complex64)[::2]
+        )
+
+    # Right in every way except size.
+    with pytest.raises(ValueError, match="need >="):
+        rc.execute_ctrl_push(
+            1 + 0j, 0.0, out=np.zeros(max(need - 1, 0), np.complex64)
+        )
+
+
+def test_plain_push_max_out_after_destroy_raises():
+    """A destroyed object answers RuntimeError, not a stale number.
+
+    `execute_ctrl_push_max_out` is what a caller sizes its `out=` buffer
+    with, so a plausible answer from a freed handle is the worst kind: it
+    would be believed.
+    """
+    rc = RateConverter(rate=0.8, compensate=0)
+    rc.destroy()
+    with pytest.raises(RuntimeError, match="destroyed"):
+        rc.execute_ctrl_push_max_out()
+
+
 def test_matched_state_round_trips_mid_stream():
     x, _ = _rrc_bpsk(17.333333333, 0.2)
     kw = {"rate": 2 / 17.333333333, "compensate": 1, "pulse": "rrc"}

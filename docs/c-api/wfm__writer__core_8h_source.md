@@ -89,6 +89,7 @@ double wfm_writer_get_clip_fraction(const wfm_writer_state_t *state);
 double wfm_writer_get_peak_dbfs(const wfm_writer_state_t *state);
 bool wfm_writer_get_clipped(const wfm_writer_state_t *state);
 int write_blue_header(const char *path, double fs, int sample_type, int endian, double fc, double data_start, size_t total, int detached, double t0);
+int wfm_writer_flush(wfm_writer_state_t *state);
 #ifdef __cplusplus
 }
 #endif

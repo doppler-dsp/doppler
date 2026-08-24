@@ -41,6 +41,7 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 | Type | Name |
 | ---: | :--- |
 | enum  | [**wfm\_fc\_source\_t**](#enum-wfm_fc_source_t)  <br> |
+| enum  | [**wfm\_follow\_end\_t**](#enum-wfm_follow_end_t)  <br> |
 | enum  | [**wfm\_fs\_source\_t**](#enum-wfm_fs_source_t)  <br> |
 | enum  | [**wfm\_mode\_t**](#enum-wfm_mode_t)  <br> |
 | typedef struct wfm\_reader\_state | [**wfm\_reader\_state\_t**](#typedef-wfm_reader_state_t)  <br> |
@@ -74,9 +75,12 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 |  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**wfm\_reader\_find\_header\_field**](#function-wfm_reader_find_header_field) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, const char \* name) <br>_Look up one HCB field by name, or NULL if absent._  |
 |  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**wfm\_reader\_find\_keyword**](#function-wfm_reader_find_keyword) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* r, const char \* tag) <br> |
 |  int | [**wfm\_reader\_get\_endian**](#function-wfm_reader_get_endian) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br> |
+|  int | [**wfm\_reader\_get\_ending**](#function-wfm_reader_get_ending) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br> |
 |  double | [**wfm\_reader\_get\_fc**](#function-wfm_reader_get_fc) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br> |
 |  int | [**wfm\_reader\_get\_fc\_source**](#function-wfm_reader_get_fc_source) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br>_Which keyword_ [_**wfm\_reader\_get\_fc**_](wfm__reader__core_8h.md#function-wfm_reader_get_fc) _read the centre frequency from._ |
 |  int | [**wfm\_reader\_get\_file\_type**](#function-wfm_reader_get_file_type) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br> |
+|  uint32\_t | [**wfm\_reader\_get\_follow\_grace\_ms**](#function-wfm_reader_get_follow_grace_ms) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br> |
+|  uint32\_t | [**wfm\_reader\_get\_follow\_timeout\_ms**](#function-wfm_reader_get_follow_timeout_ms) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br> |
 |  double | [**wfm\_reader\_get\_fs**](#function-wfm_reader_get_fs) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br> |
 |  int | [**wfm\_reader\_get\_fs\_source**](#function-wfm_reader_get_fs_source) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br>_Which metadata_ [_**wfm\_reader\_get\_fs**_](wfm__reader__core_8h.md#function-wfm_reader_get_fs) _read the sample rate from._ |
 |  int | [**wfm\_reader\_get\_mode**](#function-wfm_reader_get_mode) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br> |
@@ -93,8 +97,13 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 |  size\_t | [**wfm\_reader\_num\_header\_fields**](#function-wfm_reader_num_header_fields) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br>_The first keyword whose tag equals_ `tag` _, or NULL if absent._ |
 |  size\_t | [**wfm\_reader\_num\_keywords**](#function-wfm_reader_num_keywords) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br>_Number of extended-header keywords recovered from the capture._  |
 |  size\_t | [**wfm\_reader\_read**](#function-wfm_reader_read) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, size\_t n, float complex \* out, size\_t max\_out) <br>_Read up to_ `count` _samples, returning them as_`complex64` _._ |
+|  size\_t | [**wfm\_reader\_read\_follow**](#function-wfm_reader_read_follow) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, size\_t n, float complex \* out, size\_t max\_out) <br>_Read from a capture that is still being written._  |
+|  size\_t | [**wfm\_reader\_read\_follow\_max\_out**](#function-wfm_reader_read_follow_max_out) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, size\_t n) <br> |
 |  size\_t | [**wfm\_reader\_read\_max\_out**](#function-wfm_reader_read_max_out) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, size\_t n) <br>_Maximum samples one read(n) yields: n (fewer at EOF)._  |
 |  void | [**wfm\_reader\_reset**](#function-wfm_reader_reset) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br>_Rewind to the first sample of the capture._  |
+|  void | [**wfm\_reader\_set\_follow\_grace\_ms**](#function-wfm_reader_set_follow_grace_ms) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, uint32\_t val) <br> |
+|  void | [**wfm\_reader\_set\_follow\_timeout\_ms**](#function-wfm_reader_set_follow_timeout_ms) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, uint32\_t val) <br> |
+|  void | [**wfm\_reader\_set\_stop\_fn**](#function-wfm_reader_set_stop_fn) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, int(\*)(void) fn) <br>_Tell a following read how to learn that a stop was requested._  |
 
 
 
@@ -181,6 +190,31 @@ names". `FREQ` in the HCB keyword area is nonetheless what real captures carry, 
 
 
 Reporting the tag matters because 0.0 is a legitimate answer: a genuine baseband capture and a capture whose frequency this library failed to find are otherwise indistinguishable. WFM\_FC\_NONE says "not found", and only then is `fc == 0.0` a guess rather than a reading. 
+
+
+        
+
+<hr>
+
+
+
+### enum wfm\_follow\_end\_t 
+
+```C++
+enum wfm_follow_end_t {
+    WFM_FOLLOW_NONE = 0,
+    WFM_FOLLOW_EOF,
+    WFM_FOLLOW_TIMEOUT,
+    WFM_FOLLOW_INTERRUPTED
+};
+```
+
+
+
+Why a following read came back empty.
+
+
+Indices, because that is what the `ending` property decodes to a string. Each corresponds 1:1 to the doppler return code a C caller would expect from any other transport  WFM\_FOLLOW\_EOF is [**DP\_ERR\_EOF**](clib__common_8h.md#define-dp_err_eof), and so on  so the two faces name the same four states even though the property carries the index. 
 
 
         
@@ -413,6 +447,21 @@ int wfm_reader_get_endian (
 
 
 
+### function wfm\_reader\_get\_ending 
+
+```C++
+int wfm_reader_get_ending (
+    const wfm_reader_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function wfm\_reader\_get\_fc 
 
 ```C++
@@ -452,6 +501,36 @@ A [**wfm\_fc\_source\_t**](wfm__reader__core_8h.md#enum-wfm_fc_source_t). WFM\_F
 
 ```C++
 int wfm_reader_get_file_type (
+    const wfm_reader_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function wfm\_reader\_get\_follow\_grace\_ms 
+
+```C++
+uint32_t wfm_reader_get_follow_grace_ms (
+    const wfm_reader_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function wfm\_reader\_get\_follow\_timeout\_ms 
+
+```C++
+uint32_t wfm_reader_get_follow_timeout_ms (
     const wfm_reader_state_t * state
 ) 
 ```
@@ -818,6 +897,67 @@ Samples come out at unit scale whatever the wire type was: a float type is reint
 
 
 
+### function wfm\_reader\_read\_follow 
+
+_Read from a capture that is still being written._ 
+```C++
+size_t wfm_reader_read_follow (
+    wfm_reader_state_t * state,
+    size_t n,
+    float complex * out,
+    size_t max_out
+) 
+```
+
+
+
+Blocks until whole samples arrive. A short or empty result does not mean end-of-file the way [**wfm\_reader\_read**](wfm__reader__core_8h.md#function-wfm_reader_read)'s does  the reader waits. **Zero means the capture ENDED**, because with the default unbounded budgets the call does not come back for "not yet"; [**wfm\_reader\_get\_ending**](wfm__reader__core_8h.md#function-wfm_reader_get_ending) says which way it ended.
+
+
+
+```C++
+>>> import pathlib, tempfile
+>>> import numpy as np
+>>> from doppler.wfm import Reader, Writer
+>>> tmp = tempfile.TemporaryDirectory()
+>>> p = pathlib.Path(tmp.name) / "capture.blue"
+>>> x = np.zeros(8, dtype=np.complex64)
+>>> with Writer(p, file_type="blue", sample_type="ci16", fs=2.4e6) as w:
+...     _ = w.write(x)
+>>> r = Reader(p)
+>>> total = 0
+>>> while len(block := r.read_follow(4)):   # 0 only when the capture ends
+...     total += len(block)
+>>> total, r.ending
+(8, 'eof')
+>>> r.close()
+>>> tmp.cleanup()
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_reader\_read\_follow\_max\_out 
+
+```C++
+size_t wfm_reader_read_follow_max_out (
+    wfm_reader_state_t * state,
+    size_t n
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function wfm\_reader\_read\_max\_out 
 
 _Maximum samples one read(n) yields: n (fewer at EOF)._ 
@@ -851,6 +991,69 @@ void wfm_reader_reset (
 
 
 Seeks back to where the payload starts — 512 bytes into an attached BLUE file, byte 0 of a `.det` or a raw/SigMF payload — and restores the remaining-sample count, so the capture reads again from the top. The file's metadata and decoded keywords are unaffected: they came from the header and do not change. 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_reader\_set\_follow\_grace\_ms 
+
+```C++
+void wfm_reader_set_follow_grace_ms (
+    wfm_reader_state_t * state,
+    uint32_t val
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function wfm\_reader\_set\_follow\_timeout\_ms 
+
+```C++
+void wfm_reader_set_follow_timeout_ms (
+    wfm_reader_state_t * state,
+    uint32_t val
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function wfm\_reader\_set\_stop\_fn 
+
+_Tell a following read how to learn that a stop was requested._ 
+```C++
+void wfm_reader_set_stop_fn (
+    wfm_reader_state_t * state,
+    int(*)(void) fn
+) 
+```
+
+
+
+`read_follow()` blocks until data arrives; `fn` is what lets it stop for a reason other than the capture ending. It is INJECTED rather than hard-wired because a capture reader has no business depending on the process interrupt primitive: doing so would put `dp_interrupt.c` on the link line of every consumer of `wfm_reader_core`, and the policy is the caller's anyway. doppler passes `dp_interrupted`; a test passes its own.
+
+
+NULL (the default) means the follow read never stops early  only the capture's end or a bounded budget finishes it.
+
+
+
+```C++
+wfm_reader_set_stop_fn (r, dp_interrupted);
+```
+ 
 
 
         

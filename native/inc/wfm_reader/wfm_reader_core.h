@@ -123,6 +123,21 @@ extern "C"
        than a guess. */
   } wfm_t0_source_t;
 
+  /** Why a following read came back empty.
+   *
+   *  Indices, because that is what the `ending` property decodes to a
+   *  string. Each corresponds 1:1 to the doppler return code a C caller
+   *  would expect from any other transport -- ::WFM_FOLLOW_EOF is
+   *  ::DP_ERR_EOF, and so on -- so the two faces name the same four states
+   *  even though the property carries the index. */
+  typedef enum
+  {
+    WFM_FOLLOW_NONE = 0,    /**< DP_OK -- the capture is still live. */
+    WFM_FOLLOW_EOF,         /**< DP_ERR_EOF -- the writer closed and said so. */
+    WFM_FOLLOW_TIMEOUT,     /**< DP_ERR_TIMEOUT -- a bounded wait expired. */
+    WFM_FOLLOW_INTERRUPTED  /**< DP_ERR_INTERRUPTED -- a bounded grace did. */
+  } wfm_follow_end_t;
+
   /** Resolved metadata for an open capture. Fields the file type does not
    *  carry are 0 (`fs`/`fc` for raw/CSV, `num_samples` for a stream). */
   typedef struct
@@ -334,6 +349,26 @@ const char *wfm_reader_keyword_tag(const wfm_reader_state_t *state, size_t i);
    */
 void wfm_reader_reset(wfm_reader_state_t *state);
 
+  /**
+   * @brief Tell a following read how to learn that a stop was requested.
+   *
+   * `read_follow()` blocks until data arrives; @p fn is what lets it stop
+   * for a reason other than the capture ending. It is INJECTED rather than
+   * hard-wired because a capture reader has no business depending on the
+   * process interrupt primitive: doing so would put `dp_interrupt.c` on the
+   * link line of every consumer of `wfm_reader_core`, and the policy is the
+   * caller's anyway. doppler passes `dp_interrupted`; a test passes its own.
+   *
+   * NULL (the default) means the follow read never stops early -- only the
+   * capture's end or a bounded budget finishes it.
+   *
+   * @code
+   * wfm_reader_set_stop_fn (r, dp_interrupted);
+   * @endcode
+   */
+  void wfm_reader_set_stop_fn (wfm_reader_state_t *state, int (*fn) (void));
+
+
   /** @brief Close the file, free the reader and its decoded keywords. */
 void wfm_reader_destroy(wfm_reader_state_t *state);
 
@@ -407,6 +442,41 @@ int wfm_reader_get_endian(const wfm_reader_state_t *state);
 double wfm_reader_get_fs(const wfm_reader_state_t *state);
 double wfm_reader_get_fc(const wfm_reader_state_t *state);
 size_t wfm_reader_get_num_samples(const wfm_reader_state_t *state);
+size_t wfm_reader_read_follow_max_out(wfm_reader_state_t *state, size_t n);
+/**
+ * @brief Read from a capture that is still being written.
+ *
+ * Blocks until whole samples arrive. A short or empty result does not
+ * mean end-of-file the way ::wfm_reader_read's does -- the reader waits.
+ * **Zero means the capture ENDED**, because with the default unbounded
+ * budgets the call does not come back for "not yet"; ::wfm_reader_get_ending
+ * says which way it ended.
+ *
+ * @code
+ * >>> import pathlib, tempfile
+ * >>> import numpy as np
+ * >>> from doppler.wfm import Reader, Writer
+ * >>> tmp = tempfile.TemporaryDirectory()
+ * >>> p = pathlib.Path(tmp.name) / "capture.blue"
+ * >>> x = np.zeros(8, dtype=np.complex64)
+ * >>> with Writer(p, file_type="blue", sample_type="ci16", fs=2.4e6) as w:
+ * ...     _ = w.write(x)
+ * >>> r = Reader(p)
+ * >>> total = 0
+ * >>> while len(block := r.read_follow(4)):   # 0 only when the capture ends
+ * ...     total += len(block)
+ * >>> total, r.ending
+ * (8, 'eof')
+ * >>> r.close()
+ * >>> tmp.cleanup()
+ * @endcode
+ */
+size_t wfm_reader_read_follow(wfm_reader_state_t *state, size_t n, float complex *out, size_t max_out);
+uint32_t wfm_reader_get_follow_timeout_ms(const wfm_reader_state_t *state);
+void wfm_reader_set_follow_timeout_ms(wfm_reader_state_t *state, uint32_t val);
+uint32_t wfm_reader_get_follow_grace_ms(const wfm_reader_state_t *state);
+void wfm_reader_set_follow_grace_ms(wfm_reader_state_t *state, uint32_t val);
+int wfm_reader_get_ending(const wfm_reader_state_t *state);
 #ifdef __cplusplus
 }
 #endif

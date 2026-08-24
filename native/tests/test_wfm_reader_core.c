@@ -1045,6 +1045,294 @@ test_sigmf_pair_from_create (void)
   return 0;
 }
 
+/* ── Following a capture that is still being written ──────────────────────
+ * docs/design/end-of-capture.md sections 2a and 2b. Both were measured
+ * defects before read_follow existed, and both are SILENT: the first
+ * reports a clean end after two samples of an unbounded stream, the second
+ * hands back plausible garbage at the wrong stride. Neither is caught by
+ * any round-trip above, because a finished capture never grows under a
+ * reader and never has a partial tail to meet. */
+
+/* 2a: C stdio LATCHES the end-of-file indicator, so a reader that once
+   caught up with the writer returns 0 forever even as the file grows.
+   Sabotage: drop the clearerr() in follow_available and this goes red. */
+static int
+test_follow_resumes_after_catching_up (void)
+{
+  const char *path = "wfm_follow_grow.blue";
+  FILE       *fp   = fopen (path, "wb+");
+  DP_REQUIRE_MSG (fp, "open for write");
+  /* total 0: an unbounded run declares no length, which is what wfmgen
+     writes and what makes the declared bound a placeholder. */
+  wfm_writer_state_t *w
+      = wfm_writer_open (fp, WFM_FT_BLUE, 3, 0, 2.4e6, 0.0, 0, 0.0);
+  DP_REQUIRE_MSG (w, "writer open");
+  float _Complex x[10];
+  make_signal (x, 10);
+  DP_REQUIRE_MSG (wfm_writer_write (w, x, 4) == 4, "wrote 4");
+  DP_REQUIRE_MSG (wfm_writer_flush (w) == 0, "flush 4");
+
+  wfm_reader_state_t *r = wfm_reader_create (path, 3, 0);
+  DP_REQUIRE_MSG (r, "reader open");
+  wfm_reader_set_follow_timeout_ms (r, 200);
+  float _Complex y[16];
+  DP_REQUIRE_MSG (wfm_reader_read_follow (r, 16, y, 16) == 4, "first 4");
+
+  /* The reader has now hit EOF once. Grow the file underneath it. */
+  DP_REQUIRE_MSG (wfm_writer_write (w, x + 4, 6) == 6, "wrote 6 more");
+  DP_REQUIRE_MSG (wfm_writer_flush (w) == 0, "flush 6");
+  size_t got = wfm_reader_read_follow (r, 16, y, 16);
+  DP_REQUIRE_MSG (got == 6, "a reader that caught up still sees growth");
+  DP_REQUIRE_MSG (wfm_reader_get_ending (r) == WFM_FOLLOW_NONE,
+                  "growth is not an ending");
+  wfm_reader_destroy (r);
+  wfm_writer_close (w);
+  fclose (fp);
+  remove (path);
+  return 0;
+}
+
+/* 2b, on the PLAIN read path, which is where the fix is load-bearing.
+   read() asks for `max` samples and lets fread return what it can, so it
+   over-reads into a partial sample and drops the remainder -- bytes fread
+   has already taken. Every sample after that is one int16 out of phase,
+   permanently, with no error anywhere.
+
+   WHO WRITES 2.5 SAMPLES: not this library. Measured on a growing capture
+   (3601 samples of the file size, zero non-aligned) -- stdio buffers in
+   powers of two and every doppler sample size divides them, so our own
+   writer's visible prefix is always whole samples. The partial tail comes
+   from somewhere else: a foreign writer chunking with write(2), a short
+   write on a full disk, a capture truncated mid-sample by a killed
+   recorder (which is what wfm_reader_get_trailing_bytes exists to report),
+   or a network filesystem. All reachable, none of them us -- so the file
+   here is built by hand rather than by a Writer, deliberately.
+
+   Sabotage-verified: removing the fseek-back in read_block turns the
+   sequence below into [(1,2), (3,4)] and nothing more. The follow path
+   masks this defect (follow_available clamps to whole samples), which is
+   exactly why this test drives read() and not read_follow() -- two
+   mechanisms covering one fault means neither is pinned. */
+static int
+test_read_never_consumes_a_partial_sample (void)
+{
+  const char   *path    = "wfm_partial.cf32";
+  const int16_t head[5] = { 1, 2, 3, 4, 5 }; /* 2 samples + half of #3 */
+  const int16_t tail[3] = { 6, 7, 8 };
+  FILE         *fp      = fopen (path, "wb");
+  DP_REQUIRE_MSG (fp, "open for write");
+  DP_REQUIRE_MSG (fwrite (head, sizeof head, 1, fp) == 1, "wrote 2.5");
+  fclose (fp);
+
+  wfm_reader_state_t *r = wfm_reader_create (path, 3, 0);
+  DP_REQUIRE_MSG (r, "reader open");
+  float _Complex y[8];
+  size_t n1 = wfm_reader_read (r, 8, y, 8);
+  DP_REQUIRE_MSG (n1 == 2, "only whole samples are emitted");
+
+  fp = fopen (path, "ab");
+  DP_REQUIRE_MSG (fp, "reopen to append");
+  DP_REQUIRE_MSG (fwrite (tail, sizeof tail, 1, fp) == 1, "completed #3, +#4");
+  fclose (fp);
+
+  size_t n2 = wfm_reader_read (r, 8, y + n1, 8 - n1);
+  DP_REQUIRE_MSG (n2 == 2, "the completed sample and the next");
+  for (int i = 0; i < 4; i++)
+    {
+      int re = (int)(crealf (y[i]) * 32767.0f + 0.5f);
+      int im = (int)(cimagf (y[i]) * 32767.0f + 0.5f);
+      DP_REQUIRE_MSG (re == 2 * i + 1 && im == 2 * i + 2,
+                      "the stream never desynchronises");
+    }
+  wfm_reader_destroy (r);
+  remove (path);
+  return 0;
+}
+
+/* The ending is EXPLICIT: the writer's close patches data_size, and that
+   placeholder -> real transition is what ends the wait. A file that has
+   merely gone quiet is not an ending, which is what the timeout half
+   pins. */
+static int
+test_follow_ends_on_the_marker_not_on_silence (void)
+{
+  const char *path = "wfm_follow_eof.blue";
+  FILE       *fp   = fopen (path, "wb+");
+  DP_REQUIRE_MSG (fp, "open for write");
+  wfm_writer_state_t *w
+      = wfm_writer_open (fp, WFM_FT_BLUE, 3, 0, 2.4e6, 0.0, 0, 0.0);
+  DP_REQUIRE_MSG (w, "writer open");
+  float _Complex x[8];
+  make_signal (x, 8);
+  DP_REQUIRE_MSG (wfm_writer_write (w, x, 8) == 8, "wrote 8");
+  DP_REQUIRE_MSG (wfm_writer_flush (w) == 0, "flush");
+
+  wfm_reader_state_t *r = wfm_reader_create (path, 3, 0);
+  DP_REQUIRE_MSG (r, "reader open");
+  wfm_reader_set_follow_timeout_ms (r, 150);
+  float _Complex y[16];
+  DP_REQUIRE_MSG (wfm_reader_read_follow (r, 16, y, 16) == 8, "drained 8");
+
+  /* Quiet, but not over: a bounded wait must report TIMEOUT, never EOF. */
+  DP_REQUIRE_MSG (wfm_reader_read_follow (r, 16, y, 16) == 0, "nothing yet");
+  DP_REQUIRE_MSG (wfm_reader_get_ending (r) == WFM_FOLLOW_TIMEOUT,
+                  "silence is not an ending");
+
+  wfm_writer_close (w); /* patches data_size -- the marker */
+  DP_REQUIRE_MSG (wfm_reader_read_follow (r, 16, y, 16) == 0, "drained");
+  DP_REQUIRE_MSG (wfm_reader_get_ending (r) == WFM_FOLLOW_EOF,
+                  "the marker ends it");
+  wfm_reader_destroy (r);
+  fclose (fp);
+  remove (path);
+  return 0;
+}
+
+/* The §3 shutdown rules. Testable here and now, in C, with no interrupt
+   primitive anywhere: wfm_reader_set_stop_fn takes the predicate, so a test
+   supplies its own. That is the whole reason the reader does not link
+   dp_interrupt.c -- the policy is the caller's, and here the caller is this
+   file. */
+static int g_stop = 0;
+static int
+test_stop_requested (void)
+{
+  return g_stop;
+}
+
+/* DRAIN WINS. A stop does not discard what is already on disk: the reader
+   hands back every whole sample it can see before it honours the request.
+   Getting this wrong loses a tail by an amount that varies per run, because
+   it is a race between two loops -- which is exactly the kind of defect a
+   test has to pin rather than a reviewer notice.
+
+   Sabotage: move the stop check above the follow_available() branch in
+   wfm_reader_read_follow and this goes red. */
+static int
+test_follow_drains_before_honouring_a_stop (void)
+{
+  const char *path = "wfm_follow_drain.blue";
+  FILE       *fp   = fopen (path, "wb+");
+  DP_REQUIRE_MSG (fp, "open for write");
+  wfm_writer_state_t *w
+      = wfm_writer_open (fp, WFM_FT_BLUE, 3, 0, 2.4e6, 0.0, 0, 0.0);
+  DP_REQUIRE_MSG (w, "writer open");
+  float _Complex x[12];
+  make_signal (x, 12);
+  DP_REQUIRE_MSG (wfm_writer_write (w, x, 12) == 12, "wrote 12");
+  DP_REQUIRE_MSG (wfm_writer_flush (w) == 0, "flush");
+
+  wfm_reader_state_t *r = wfm_reader_create (path, 3, 0);
+  DP_REQUIRE_MSG (r, "reader open");
+  wfm_reader_set_stop_fn (r, test_stop_requested);
+  wfm_reader_set_follow_grace_ms (r, 50); /* bounded, so a bug cannot hang */
+
+  g_stop = 1; /* the stop is ALREADY requested before the first read */
+  float _Complex y[16];
+  size_t got = wfm_reader_read_follow (r, 16, y, 16);
+  DP_REQUIRE_MSG (got == 12, "a stop does not discard what is on disk");
+  DP_REQUIRE_MSG (wfm_reader_get_ending (r) == WFM_FOLLOW_NONE,
+                  "draining is not an ending");
+
+  /* Only once it is drained does the stop end the wait. */
+  DP_REQUIRE_MSG (wfm_reader_read_follow (r, 16, y, 16) == 0, "drained");
+  DP_REQUIRE_MSG (wfm_reader_get_ending (r) == WFM_FOLLOW_INTERRUPTED,
+                  "a bounded grace expiring reports INTERRUPTED");
+  g_stop = 0;
+  wfm_reader_destroy (r);
+  wfm_writer_close (w);
+  fclose (fp);
+  remove (path);
+  return 0;
+}
+
+/* The two budgets are different clocks with different meanings, and the
+   ending has to say which one expired: TIMEOUT means "more may come",
+   INTERRUPTED means "a stop was asked for and the tail may be short". A
+   reader that reported one for the other would be telling a caller its
+   capture is complete when it is not.
+
+   Sabotage: report a single ending for both and this goes red. */
+static int
+test_follow_distinguishes_timeout_from_interrupted (void)
+{
+  const char *path = "wfm_follow_clocks.blue";
+  FILE       *fp   = fopen (path, "wb+");
+  DP_REQUIRE_MSG (fp, "open for write");
+  wfm_writer_state_t *w
+      = wfm_writer_open (fp, WFM_FT_BLUE, 3, 0, 2.4e6, 0.0, 0, 0.0);
+  DP_REQUIRE_MSG (w, "writer open");
+  float _Complex x[4];
+  make_signal (x, 4);
+  DP_REQUIRE_MSG (wfm_writer_write (w, x, 4) == 4, "wrote 4");
+  DP_REQUIRE_MSG (wfm_writer_flush (w) == 0, "flush");
+
+  wfm_reader_state_t *r = wfm_reader_create (path, 3, 0);
+  DP_REQUIRE_MSG (r, "reader open");
+  wfm_reader_set_stop_fn (r, test_stop_requested);
+  wfm_reader_set_follow_timeout_ms (r, 60);
+  wfm_reader_set_follow_grace_ms (r, 60);
+  float _Complex y[8];
+  DP_REQUIRE_MSG (wfm_reader_read_follow (r, 8, y, 8) == 4, "drained 4");
+
+  g_stop = 0; /* quiet, no stop: the WAIT budget expires */
+  DP_REQUIRE_MSG (wfm_reader_read_follow (r, 8, y, 8) == 0, "nothing yet");
+  DP_REQUIRE_MSG (wfm_reader_get_ending (r) == WFM_FOLLOW_TIMEOUT,
+                  "no stop asked for -- TIMEOUT, and more may come");
+
+  g_stop = 1; /* quiet, stop asked: the GRACE budget expires */
+  DP_REQUIRE_MSG (wfm_reader_read_follow (r, 8, y, 8) == 0, "still nothing");
+  DP_REQUIRE_MSG (wfm_reader_get_ending (r) == WFM_FOLLOW_INTERRUPTED,
+                  "stop asked for -- INTERRUPTED, and the tail may be short");
+  g_stop = 0;
+  wfm_reader_destroy (r);
+  wfm_writer_close (w);
+  fclose (fp);
+  remove (path);
+  return 0;
+}
+
+/* flush() is what makes a written sample OBSERVABLE without ending the
+   capture. Before it existed the only fflush was inside close(), so a
+   follower waited on samples the producer had already produced and could
+   not make appear -- measured at 3968 of 4096.
+
+   Sabotage: drop the fflush from wfm_writer_flush and this goes red. */
+static int
+test_flush_makes_samples_observable (void)
+{
+  const char *path = "wfm_flush_vis.blue";
+  FILE       *fp   = fopen (path, "wb+");
+  DP_REQUIRE_MSG (fp, "open for write");
+  wfm_writer_state_t *w
+      = wfm_writer_open (fp, WFM_FT_BLUE, 3, 0, 2.4e6, 0.0, 0, 0.0);
+  DP_REQUIRE_MSG (w, "writer open");
+  /* The 512-byte HCB is buffered too, so land it before the reader opens --
+     otherwise this measures "the reader could not parse a header that is
+     not there yet", which is a different fact. */
+  DP_REQUIRE_MSG (wfm_writer_flush (w) == 0, "header down");
+  wfm_reader_state_t *r = wfm_reader_create (path, 3, 0);
+  DP_REQUIRE_MSG (r, "reader open");
+
+  float _Complex x[6];
+  make_signal (x, 6);
+  DP_REQUIRE_MSG (wfm_writer_write (w, x, 6) == 6, "wrote 6");
+  /* Small enough to sit in the FILE buffer: nothing is on disk yet. */
+  wfm_reader_set_follow_timeout_ms (r, 40);
+  float _Complex y[8];
+  DP_REQUIRE_MSG (wfm_reader_read_follow (r, 8, y, 8) == 0,
+                  "buffered, unseen");
+
+  DP_REQUIRE_MSG (wfm_writer_flush (w) == 0, "flush");
+  DP_REQUIRE_MSG (wfm_reader_read_follow (r, 8, y, 8) == 6,
+                  "flush makes them observable");
+  wfm_reader_destroy (r);
+  wfm_writer_close (w);
+  fclose (fp);
+  remove (path);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1093,6 +1381,18 @@ main (void)
   if (test_t0_round_trips_through_blue ())
     return 1;
   if (test_fs_and_t0_provenance ())
+    return 1;
+  if (test_follow_resumes_after_catching_up ())
+    return 1;
+  if (test_read_never_consumes_a_partial_sample ())
+    return 1;
+  if (test_follow_ends_on_the_marker_not_on_silence ())
+    return 1;
+  if (test_follow_drains_before_honouring_a_stop ())
+    return 1;
+  if (test_follow_distinguishes_timeout_from_interrupted ())
+    return 1;
+  if (test_flush_makes_samples_observable ())
     return 1;
   printf ("test_wfm_reader: all passed\n");
   return 0;

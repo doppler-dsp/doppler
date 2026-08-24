@@ -2600,6 +2600,13 @@ values = ["none", "xdelta", "core:sample_rate"]
 name = "t0_source"
 values = ["none", "timecode"]
 
+# How a following read ended (docs/design/end-of-capture.md). "none" is index
+# 0 and is the state while the capture is still live; the rest name the three
+# ways a wait can stop. Order matches wfm_follow_end_t (wfm_reader_core.h).
+[[enum]]
+name = "follow_end"
+values = ["none", "eof", "timeout", "interrupted"]
+
 [[enum]]
 name = "interp_method"
 values = ["floor", "nearest", "linear"]

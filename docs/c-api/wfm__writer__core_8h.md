@@ -68,6 +68,7 @@ _Output file types for generated IQ: raw / csv / BLUE-1000 + SigMF meta._ [More.
 |  int | [**wfm\_writer\_close**](#function-wfm_writer_close) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* w) <br>_Flush, patch the BLUE data\_size from the actual count (if seekable), write any attached extended-header keywords, and free the writer (does not close the FILE\*)._  |
 |  [**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* | [**wfm\_writer\_create**](#function-wfm_writer_create) (const char \* path, double fs, int file\_type, int sample\_type, int endian, double fc, size\_t total, double headroom, double t0, bool sidecar) <br>_Open a capture for writing._  |
 |  int | [**wfm\_writer\_destroy**](#function-wfm_writer_destroy) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* state) <br>_Finalise and free — the object binding's fallible destructor._  |
+|  int | [**wfm\_writer\_flush**](#function-wfm_writer_flush) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* state) <br>_Make written samples durable and observable, without finishing._  |
 |  double | [**wfm\_writer\_get\_clip\_fraction**](#function-wfm_writer_get_clip_fraction) (const [**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* state) <br> |
 |  bool | [**wfm\_writer\_get\_clipped**](#function-wfm_writer_get_clipped) (const [**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* state) <br> |
 |  double | [**wfm\_writer\_get\_peak\_dbfs**](#function-wfm_writer_get_peak_dbfs) (const [**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* state) <br> |
@@ -497,6 +498,44 @@ Identical to [**wfm\_writer\_close()**](wfm__writer__core_8h.md#function-wfm_wri
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_writer\_flush 
+
+_Make written samples durable and observable, without finishing._ 
+```C++
+int wfm_writer_flush (
+    wfm_writer_state_t * state
+) 
+```
+
+
+
+Leaves the file on a sample boundary  write() emits whole samples, so a flush BETWEEN write calls is what lets a follower read the capture without meeting a partial one. Raises `OSError` if this or any earlier write failed; a capture is not complete until close().
+
+
+
+```C++
+>>> import pathlib, tempfile
+>>> import numpy as np
+>>> from doppler.wfm import Reader, Writer
+>>> tmp = tempfile.TemporaryDirectory()
+>>> p = pathlib.Path(tmp.name) / "live.blue"
+>>> w = Writer(p, file_type="blue", sample_type="ci16", fs=2.4e6)
+>>> _ = w.write(np.zeros(16, dtype=np.complex64))
+>>> w.flush()                    # the samples are on disk now
+>>> Reader(p).read_follow(16).size
+16
+>>> w.close()
+>>> tmp.cleanup()
+```
+ 
 
 
         

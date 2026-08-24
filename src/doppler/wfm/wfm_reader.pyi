@@ -153,6 +153,123 @@ class Reader:
             Output.
         """
 
+    def read_follow(
+        self,
+        count: int = 1,
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Read whatever whole samples have arrived in a capture that is still
+        being written, blocking until at least one does. Unlike `read()`, a
+        short or empty result does not mean end-of-file: the reader waits. **0
+        means wait forever** for both budgets, which is the default and the
+        right answer for a stream with no end -- any finite budget fires during
+        an ordinary quiet patch. An empty result therefore means the capture
+        ENDED; read `ending` for which way. `timeout_ms` bounds the wait for
+        data; `grace_ms` bounds how long to keep waiting for the writer's
+        marker after a stop has been requested, and expiring it may cost you
+        the tail. Never consumes a partial sample, so a writer flushing
+        mid-sample cannot desynchronise the stream.
+
+        Blocks until whole samples arrive. A short or empty result does not
+        mean end-of-file the way ::wfm_reader_read's does -- the reader waits.
+        **Zero means the capture ENDED**, because with the default unbounded
+        budgets the call does not come back for "not yet";
+        ::wfm_reader_get_ending says which way it ended.
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.complex64] | None
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+
+        Examples
+        --------
+        >>> import pathlib, tempfile
+        >>> import numpy as np
+        >>> from doppler.wfm import Reader, Writer
+        >>> tmp = tempfile.TemporaryDirectory()
+        >>> p = pathlib.Path(tmp.name) / "capture.blue"
+        >>> x = np.zeros(8, dtype=np.complex64)
+        >>> with Writer(p, file_type="blue", sample_type="ci16", fs=2.4e6) as w:
+        ...     _ = w.write(x)
+        >>> r = Reader(p)
+        >>> total = 0
+        >>> while len(block := r.read_follow(4)):   # 0 only when the capture ends
+        ...     total += len(block)
+        >>> total, r.ending
+        (8, 'eof')
+        >>> r.close()
+        >>> tmp.cleanup()
+
+        """
+
+    def read_follow_max_out(self, n: int) -> int:
+        """Largest number of samples read_follow() can return for n inputs.
+
+        Size an `out=` buffer with this before calling read_follow(), or use it
+        to allocate one up front. The bound is this object's own: what it
+        depends on is a property of the algorithm, so a header block on
+        read_follow_max_out() replaces this text.
+
+        Parameters
+        ----------
+        n : int
+            Number of input samples read_follow() will be given.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
+        """
+
+    @property
+    def follow_timeout_ms(self) -> int:
+        """How long `read_follow()` waits for samples to arrive, in
+        milliseconds; **0 (the default) waits forever**, which is the right
+        answer for a stream with no end -- any finite budget fires during an
+        ordinary quiet patch and reports an ending that has not happened. Set
+        it only if the caller has its own reason to give up. A bounded wait
+        that expires leaves `ending` at `"timeout"`.
+        """
+    @follow_timeout_ms.setter
+    def follow_timeout_ms(self, value: int) -> None: ...
+
+    @property
+    def follow_grace_ms(self) -> int:
+        """How long `read_follow()` keeps waiting for the writer's
+        end-of-capture marker after a stop has been requested, in milliseconds;
+        **0 (the default) waits forever**. The writer needs a moment to flush
+        and patch its header, and expiring this budget before it does costs you
+        the tail -- so the default trades an unlikely hang against a certain
+        loss. A bounded grace that expires leaves `ending` at
+        `"interrupted"`.
+        """
+    @follow_grace_ms.setter
+    def follow_grace_ms(self, value: int) -> None: ...
+
+    @property
+    def ending(self) -> Literal["none", "eof", "timeout", "interrupted"]:
+        """Why the last `read_follow()` came back empty -- `"none"` while the
+        capture is still live, `"eof"` once the writer closed and said so,
+        `"timeout"` if a bounded `timeout_ms` expired, `"interrupted"` if a
+        stop was requested and a bounded `grace_ms` expired before the writer's
+        marker arrived. With the default unbounded budgets only `"none"` and
+        `"eof"` are reachable, which is why an empty result needs no check in
+        the common case. The values are doppler's own return codes (`DP_OK`,
+        `DP_ERR_EOF`, `DP_ERR_TIMEOUT`, `DP_ERR_INTERRUPTED`), so a C caller
+        reads the same vocabulary every other transport uses.
+        """
+
     @property
     def file_type(self) -> Literal["raw", "csv", "blue", "sigmf"]:
         """Which file type the capture turned out to be -- `"raw"`, `"csv"`,

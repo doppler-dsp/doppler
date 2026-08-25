@@ -601,6 +601,67 @@ $(call _std_require,BUMP_VERSION_CMD,HAS_RELEASE)
 $(call _std_require,VERSION_PROBES,HAS_RELEASE)
 $(call _std_require,RELEASE_WATCH_CMD,HAS_RELEASE)
 
+# Where VERSION may come from, and where it may not.
+#
+# `VERSION` is one of the most commonly exported names there is -- CI systems,
+# build wrappers and half the shell profiles in existence set it -- and make
+# imports the environment as make variables. So a bare exported VERSION
+# satisfies `ifndef VERSION` below and ARMS a release target that was invoked
+# with no argument at all. Measured in doppler:
+#
+#     $ VERSION=9.9.9 make -n bump-version
+#     sed -i 's/^version = "[^"]*"/version = "9.9.9"/' pyproject.toml
+#     ...
+#
+# Every manifest rewritten to a number nobody typed, and `release-branch` would
+# branch and bump on it too -- a wrong release, from a variable that may have
+# been exported three shells ago for something else entirely.
+#
+# The fix is NOT to ban the environment, which would cost the perfectly good
+# `VERSION=x make bump-version` habit. It is to insist the NAME carry evidence
+# of intent, which `VERSION` cannot: nothing distinguishes one typed at the
+# front of this command from one exported by a CI runner. So a repo declares
+# its own PROJECT and the namespaced spelling is accepted:
+#
+#     make bump-version VERSION=1.2.3        # command line, always wins
+#     JUST_BUILDIT_DOPPLER_VERSION=1.2.3 make bump-version
+#     VERSION=1.2.3 make bump-version        # REFUSED, with both of the above
+#
+# `JUST_BUILDIT_<PROJECT>_VERSION` follows the convention the build backend
+# already uses (JUST_BUILDIT_PYTHON, JUST_BUILDIT_OUTPUT_DIR), and PROJECT
+# scopes it so one shell can carry versions for several repos at once without
+# them colliding -- which is the situation that makes a bare VERSION dangerous
+# in the first place.
+#
+# A repo that does not set PROJECT keeps command-line-only, which is the safe
+# default rather than a silent downgrade.
+PROJECT     ?=
+VERSION_ENV ?= $(if $(PROJECT),JUST_BUILDIT_$(PROJECT)_VERSION)
+VERSION_TARGETS ?= bump-version version-check release-branch tag-release \
+                   release-watch ship
+
+ifneq ($(origin VERSION),command line)
+# The namespaced spelling, read INDIRECTLY: make imports the environment, so
+# `$($(VERSION_ENV))` is that variable's value without naming it twice.
+_std_version_env := $(if $(VERSION_ENV),$($(VERSION_ENV)))
+ifneq ($(_std_version_env),)
+override VERSION := $(_std_version_env)
+else
+ifneq ($(filter environment environment override,$(origin VERSION)),)
+ifneq ($(filter $(VERSION_TARGETS),$(MAKECMDGOALS)),)
+$(error VERSION=$(VERSION) came from the ENVIRONMENT, where the name carries \
+no evidence that you meant it -- a release target invoked with no argument \
+would act on it. Use `make <target> VERSION=$(VERSION)`$(if $(VERSION_ENV), \
+or export $(VERSION_ENV) instead))
+else
+# Some other target in a shell that happens to export VERSION. Ignore it
+# rather than fail: erroring here would make this guard worse than the bug.
+override VERSION :=
+endif
+endif
+endif
+endif
+
 bump-version: ## VERSION=x.y.z — write the version into the repo's manifests
 ifndef VERSION
 	@echo "usage: make bump-version VERSION=<x.y.z>"

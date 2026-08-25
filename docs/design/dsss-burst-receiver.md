@@ -34,6 +34,13 @@ the fold one home (`dp_fftfreq`), but the fold was the symptom. Four
 hand-rolled copies is what a seam with no owner produces, and the next
 caller starts the count again.
 
+Nor can it simply copy that shape, because it runs the other way. A tracking
+receiver only ever goes **forward** — the unprocessed tail is exactly what it
+needs. A burst receiver is handed an *end* anchor and must reach **back** to
+a preamble start already gone past, so it needs bounded look-back where
+`DsssReceiver` needs a tail (§7.1). That single reversal is what most of the
+rest of this design follows from.
+
 ### 1.1 The criterion
 
 > A burst event must contain everything the demodulator needs, when the
@@ -246,6 +253,10 @@ ______________________________________________________________________
 1. **Mirror `DsssReceiver` where the problem is the same** — including the
     unprocessed-tail derivation, so no sample is lost across acquisition to
     demodulation.
+1. **Retain, do not re-derive.** Every stage reaches backwards from an end
+    anchor, so the receiver owns a bounded history and reuses the existing
+    double-mapped ring rather than growing a new buffer type (§7.1). A
+    dropped sample is a lost burst, so an overrun must be loud.
 
 ### 5.1 Non-goals
 
@@ -293,6 +304,13 @@ operating envelope.
     reference the receiver already holds, so it may be a private function
     rather than a new public type. That decision should follow the phase-3
     implementation, not precede it.
+- **Whether the history ring should be acq's.** §7.1 has the receiver keep
+    its own, costing one `memcpy` of the stream, because `acq_push()`
+    consumes eagerly. The alternative is a retention policy on `acq`'s
+    existing ring so there is one copy instead of two. That is a change to a
+    certified object, so it needs a measurement showing the copy matters
+    before it is worth the blast radius — and at cf32 rates the copy may well
+    disappear against the FFT.
 
 ### 6.2 Smaller unknowns
 
@@ -327,8 +345,8 @@ objects/dsss_burst_receiver.toml
 ```
 
 State: the composed `burst_acq_state_t *`, the chosen consumer's state, the
-in-flight burst window, and `samples_fed`. Config: the two codes, the sync
-word, the geometry, and which consumer to drive.
+history ring (§7.1), the in-flight burst, and `samples_fed`. Config: the two
+codes, the sync word, the geometry, and which consumer to drive.
 
 ```text
 push(x, n) ->
@@ -346,6 +364,73 @@ push(x, n) ->
 The three stages are the point. `search → refine → demod` is the chain
 `async-dsss-spec.md` records as validated; the burst path had the first and
 last and was quietly asking acquisition to do refine's job with arithmetic.
+
+### 7.1 Look-back — the receiver retains what acquisition releases
+
+Every stage above reaches **backwards**, and that is the structural
+difference from `DsssReceiver`. A tracking receiver only ever goes forward:
+its hand-off derives the unprocessed *tail* and continues from there.
+A burst receiver is handed an **end** anchor — `samples_consumed` is the
+offset a detection's epoch *ended* at — and then has to reach back to a
+preamble start that has already gone past.
+
+How far back is bounded, and by the geometry rather than by a guess. A
+detection fires on any frame lying inside the preamble, so the **last** one
+can fire a full preamble-span after the burst began; refine then searches
+about that. Two terms:
+
+| term          | span         | why                                                              |
+| ------------- | ------------ | ---------------------------------------------------------------- |
+| detection lag | `REPS · P`   | the last frame inside the preamble is that far past its start    |
+| refine span   | `± REPS · P` | §6.1 — bounded by the preamble, generously                       |
+| forward hold  | `BURST_LEN`  | the demod needs the whole burst, which arrives *after* detection |
+
+so the retained span is roughly `2·REPS·P + BURST_LEN`, rounded up to a
+power of two.
+
+**The primitive already exists, and `acq` already depends on it.**
+`native/inc/buffer/buffer.h` generates a double-mapped SPSC ring
+(`dp_f32_t` for cf32), and `acq_core.h` includes it — `acq_state_t` holds
+`dp_f32_t *ring`, "the only ring". So this is not a new dependency for a DSP
+core, and **no new type is needed**: `DECLARE_DP_BUFFER` already covers the
+dtype. The double mapping is the property that matters here — a window
+spanning the wrap comes back as one contiguous `float complex *`, so the
+burst can be handed to `demod()` with no copy and no seam.
+
+**What it does not already do is retain.** `acq_push()` calls
+`dp_f32_consume(st->ring, frame_n)` on every frame it processes
+(`acq_core.c:906`), so by the time a hit is emitted acquisition has
+*released* the samples the receiver still needs. The receiver therefore
+keeps its **own** history ring alongside acq's, rather than borrowing one it
+does not own.
+
+> **Do not read behind acq's tail.** The samples are still physically mapped
+> after `consume()` and can be dereferenced, which makes this the tempting
+> shortcut. It is reading released memory: the next `write()` overwrites it,
+> on a schedule the reader does not control. The double mapping makes the
+> bug silent rather than a fault.
+
+Three things the receiver owns on top of the primitive, all policy rather
+than mechanism (the primitive should not grow them):
+
+- **Addressing.** The ring is indexed by its own head/tail; the receiver
+    works in stream-absolute sample positions. One conversion, in one place,
+    is what keeps `preamble_start` meaning the same thing everywhere.
+- **Retention.** Nothing may be consumed while an in-flight burst or a
+    pending refine still needs it. This is the receiver's bookkeeping, and it
+    is what the sizing formula above has to be checked against.
+- **A loud overrun.** `dp_f32_write()` returns `false` and bumps a `dropped`
+    counter on overrun. For a streaming FIFO that is a statistic; here a
+    dropped sample is a **lost burst**, so it has to surface as an error a
+    caller sees, not a counter nobody reads. Same reasoning as
+    `Report.capture`'s refusal to file a capture with a hole.
+
+The cost is one `memcpy` of the stream into the receiver's ring, on top of
+acq's own. Whether that is worth eliminating — by giving `acq` a retention
+policy instead of consuming eagerly — is a real question, and the answer
+should follow a measurement, not this paragraph.
+
+______________________________________________________________________
 
 The phases after this one are the spine's, unchanged: declare, implement,
 pin with sabotage, bind, instrument, explore, certify. The certification at

@@ -75,6 +75,45 @@ build_burst (float complex *y, const uint8_t *acode, const uint8_t *dcode,
   return n;
 }
 
+/* As build_burst(), but with `filler` random-ish data symbols BEFORE the
+ * sync word, and an optional payload bit flipped after the CRC is computed
+ * (so the trailer no longer matches). Both are what the read-back claims
+ * below need: frame_offset is only meaningful when the sync is NOT at 0,
+ * and frame_valid's negative case needs a frame that ARRIVES and fails. */
+static size_t
+build_burst_ex (float complex *y, const uint8_t *acode, const uint8_t *dcode,
+                const uint8_t *payload, double f0, size_t filler,
+                int corrupt_at)
+{
+  size_t n = 0;
+  for (size_t r = 0; r < ACQ_REPS; r++)
+    for (size_t c = 0; c < ACQ_SF; c++)
+      for (size_t k = 0; k < SPC; k++)
+        y[n++] = csign (acode[c]);
+  for (size_t j = 0; j < filler; j++)
+    n = put_symbol (y, n, dcode, (uint8_t)((j * 5u + 1u) & 1u));
+  for (size_t j = 0; j < SYNC_LEN; j++)
+    n = put_symbol (y, n, dcode, SYNC[j]);
+
+  uint16_t crc = crc16 (payload, PAYLOAD); /* over the CLEAN payload */
+  for (size_t j = 0; j < PAYLOAD; j++)
+    {
+      uint8_t b = payload[j];
+      if (corrupt_at >= 0 && (size_t)corrupt_at == j)
+        b = (uint8_t)(b ^ 1u); /* transmitted wrong; CRC unchanged */
+      n = put_symbol (y, n, dcode, b);
+    }
+  for (size_t j = 0; j < CRC_BITS; j++)
+    n = put_symbol (y, n, dcode, (crc >> (CRC_BITS - 1 - j)) & 1u);
+
+  for (size_t i = 0; i < n; i++)
+    {
+      double ph = 2.0 * M_PI * f0 * (double)i;
+      y[i] *= (float)cos (ph) + (float)sin (ph) * I;
+    }
+  return n;
+}
+
 static int
 run_case (const char *name, double f0, double f0_prior, double mu,
           double max_rate)
@@ -187,6 +226,194 @@ main (void)
   /* LEO: a real chirp, coarse prior slightly off; the 2-D estimate recovers
    * the residual Doppler + rate and dechirps before despreading. */
   (void)run_case ("leo", 0.012, 0.0115, 6.0e-7, 1.0e-6);
+
+  /* ── frame_valid's NEGATIVE case: a frame that arrives and fails ──────
+   *
+   * frame_valid was asserted 1 on a clean burst and 0 on an 8-sample input
+   * -- but the second is the "no frame at all" path, where demod() returns
+   * 0 before a CRC is ever computed. A frame_valid that ignored the
+   * trailer entirely and reported 1 for anything it decoded would pass
+   * BOTH of those.
+   *
+   * The case that separates them is a frame that arrives intact, aligns on
+   * the sync, produces its payload bits -- and whose CRC does not match,
+   * because one payload bit was transmitted flipped after the trailer was
+   * computed. That is the whole reason the trailer is there. */
+  {
+    uint8_t acode[ACQ_SF], dcode[DATA_SF], payload[PAYLOAD];
+    for (size_t i = 0; i < ACQ_SF; i++)
+      acode[i] = (uint8_t)((i * 2654435761u >> 13) & 1u);
+    for (size_t i = 0; i < DATA_SF; i++)
+      dcode[i] = (uint8_t)((i * 40503u >> 7) & 1u);
+    for (size_t i = 0; i < PAYLOAD; i++)
+      payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
+
+    const size_t cap
+        = (ACQ_SF * ACQ_REPS + (16 + SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF)
+              * SPC
+          + 16;
+    float complex *y = malloc (cap * sizeof *y);
+    DP_CHECK (y != NULL);
+    if (y)
+      {
+        const double f0 = 0.012;
+        uint8_t      bits[PAYLOAD];
+
+        /* Baseline: clean, so the negative results below are not simply a
+           demodulator that never works. */
+        size_t n = build_burst_ex (y, acode, dcode, payload, f0, 0, -1);
+        burst_demod_state_t *d = burst_demod_create (
+            dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10);
+        DP_CHECK (d != NULL);
+        if (d)
+          {
+            burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
+            burst_demod_set_sync (d, SYNC, SYNC_LEN);
+            burst_demod_set_prior (d, f0, 0);
+            DP_CHECK (burst_demod_demod (d, y, n, bits, PAYLOAD) == PAYLOAD);
+            DP_CHECK (d->frame_valid == 1);
+            burst_demod_destroy (d);
+          }
+
+        /* Three flipped positions, including both ends of the payload. */
+        const int spots[3] = { 0, 17, PAYLOAD - 1 };
+        for (int si = 0; si < 3; si++)
+          {
+            n = build_burst_ex (y, acode, dcode, payload, f0, 0, spots[si]);
+            burst_demod_state_t *b = burst_demod_create (
+                dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10);
+            DP_CHECK (b != NULL);
+            if (b)
+              {
+                burst_demod_set_preamble (b, acode, ACQ_SF, ACQ_REPS);
+                burst_demod_set_sync (b, SYNC, SYNC_LEN);
+                burst_demod_set_prior (b, f0, 0);
+                size_t nb = burst_demod_demod (b, y, n, bits, PAYLOAD);
+                /* The frame is still decoded -- this is not the too-short
+                   path -- and the CRC rejects it. */
+                DP_CHECK (nb == PAYLOAD);
+                DP_CHECK (b->frame_valid == 0);
+                burst_demod_destroy (b);
+              }
+          }
+        free (y);
+      }
+  }
+
+  /* ── frame_offset and n_symbols, away from their degenerate values ────
+   *
+   * frame_offset is documented as "symbol offset of the sync word" and was
+   * only ever observed as 0 -- which is what a read-back hardwired to zero
+   * also reports. n_symbols ("despread data symbols produced") had no
+   * mention at all in either language.
+   *
+   * Both are checked against a burst carrying filler symbols BEFORE the
+   * sync: the offset must equal the filler count, and n_symbols must grow
+   * with it, because the demodulator despreads the whole data section and
+   * then aligns within it. */
+  {
+    uint8_t acode[ACQ_SF], dcode[DATA_SF], payload[PAYLOAD];
+    for (size_t i = 0; i < ACQ_SF; i++)
+      acode[i] = (uint8_t)((i * 2654435761u >> 13) & 1u);
+    for (size_t i = 0; i < DATA_SF; i++)
+      dcode[i] = (uint8_t)((i * 40503u >> 7) & 1u);
+    for (size_t i = 0; i < PAYLOAD; i++)
+      payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
+
+    const size_t cap
+        = (ACQ_SF * ACQ_REPS + (16 + SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF)
+              * SPC
+          + 16;
+    float complex *y = malloc (cap * sizeof *y);
+    DP_CHECK (y != NULL);
+    if (y)
+      {
+        const double f0       = 0.012;
+        const size_t fills[3] = { 0, 3, 9 };
+        uint8_t      bits[PAYLOAD];
+        size_t       prev_syms = 0;
+        for (int fi = 0; fi < 3; fi++)
+          {
+            size_t n
+                = build_burst_ex (y, acode, dcode, payload, f0, fills[fi], -1);
+            burst_demod_state_t *d = burst_demod_create (
+                dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10);
+            DP_CHECK (d != NULL);
+            if (d)
+              {
+                burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
+                burst_demod_set_sync (d, SYNC, SYNC_LEN);
+                burst_demod_set_prior (d, f0, 0);
+                DP_CHECK (burst_demod_demod (d, y, n, bits, PAYLOAD)
+                          == PAYLOAD);
+                DP_CHECK (d->frame_valid == 1);
+                /* the sync sits exactly `filler` symbols in */
+                DP_CHECK (d->frame_offset == fills[fi]);
+                /* and the whole data section was despread */
+                DP_CHECK (d->n_symbols
+                          == fills[fi] + SYNC_LEN + PAYLOAD + CRC_BITS);
+                DP_CHECK (d->n_symbols > prev_syms || fi == 0);
+                prev_syms = d->n_symbols;
+                burst_demod_destroy (d);
+              }
+          }
+        free (y);
+      }
+  }
+
+  /* ── reset() clears the read-backs ────────────────────────────────────
+   *
+   * Documented, and called by nothing in either language. The read-backs
+   * are the object's whole output surface, so a reset that left them
+   * standing would report the PREVIOUS burst's verdict for a burst that
+   * had not been demodulated yet -- the worst possible failure for a
+   * per-burst object, and completely silent. */
+  {
+    uint8_t acode[ACQ_SF], dcode[DATA_SF], payload[PAYLOAD];
+    for (size_t i = 0; i < ACQ_SF; i++)
+      acode[i] = (uint8_t)((i * 2654435761u >> 13) & 1u);
+    for (size_t i = 0; i < DATA_SF; i++)
+      dcode[i] = (uint8_t)((i * 40503u >> 7) & 1u);
+    for (size_t i = 0; i < PAYLOAD; i++)
+      payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
+
+    const size_t cap
+        = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF) * SPC
+          + 16;
+    float complex *y = malloc (cap * sizeof *y);
+    DP_CHECK (y != NULL);
+    if (y)
+      {
+        const double f0 = 0.012;
+        uint8_t      bits[PAYLOAD];
+        size_t       n = build_burst_ex (y, acode, dcode, payload, f0, 0, -1);
+        burst_demod_state_t *d = burst_demod_create (
+            dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10);
+        DP_CHECK (d != NULL);
+        if (d)
+          {
+            burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
+            burst_demod_set_sync (d, SYNC, SYNC_LEN);
+            burst_demod_set_prior (d, f0, 0);
+            DP_CHECK (burst_demod_demod (d, y, n, bits, PAYLOAD) == PAYLOAD);
+            /* the precondition: they are NON-zero before the reset, or the
+               assertions below pass on state that was already clear */
+            DP_CHECK (d->frame_valid == 1);
+            DP_CHECK (d->n_symbols > 0);
+            DP_CHECK (d->est_freq_hz != 0.0);
+
+            burst_demod_reset (d);
+            DP_CHECK (d->frame_valid == 0);
+            DP_CHECK (d->n_symbols == 0);
+            DP_CHECK (d->frame_offset == 0);
+            DP_CHECK (d->est_freq_hz == 0.0);
+            DP_CHECK (d->est_rate_hz == 0.0);
+            DP_CHECK (d->est_snr_db == 0.0);
+            burst_demod_destroy (d);
+          }
+        free (y);
+      }
+  }
 
   DP_TEST_END ("test_burst_demod_core");
 }

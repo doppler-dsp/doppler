@@ -1,6 +1,6 @@
 [project]
 name    = "doppler"
-version = "0.43.2"
+version = "0.44.0"
 
 [tools.install-deps]
 source = "just-bashit:install-deps"

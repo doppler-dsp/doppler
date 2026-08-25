@@ -274,24 +274,31 @@ that detected it. So a crossing can name a position up to one acquisition
 frame **earlier than the burst it belongs to**, and the far edge of one
 burst's window can therefore reach the next burst's anchor.
 
-The object consequently has a **re-arm time**, and it is worth stating
-because it is a property a caller can violate. Measured on bursts laid end to
-end, four at a time, worst case over eight frame phases:
+The object consequently has a **re-arm time**. How large is **not settled**,
+and the honest record of trying to settle it is worth more than a number.
 
-| inter-burst gap | of a burst  | bursts decoded |
-| --------------- | ----------- | -------------- |
-| 0 samples       | 0.00        | **3 / 4**      |
-| 62              | 0.03        | 4 / 4          |
-| 124 … 620       | 0.05 … 0.25 | 4 / 4          |
+A first sweep varied the frame phase only — four bursts, one seed, one noise
+level, one push size — and found every gap from 3 % of a burst upward clean.
+**That sweep was far too narrow to support the claim it appeared to.**
+Widening it to randomise burst *size*, seed, noise, burst count and push
+block, and pairing every trial against the same scene spread wide apart so
+bursts merely lost to low C/N0 are excluded, gives a different answer: **13
+genuine re-arm losses in 204 eligible randomised trials**, spread evenly
+across every noise level. A "works above N % separation" rule does not
+survive.
 
-Zero gap is the only failing row, and zero gap is not a burst link — bursts
-that abut with no separation are a continuous stream, which is
-`DsssReceiver`'s problem and not this object's (§5.1). Any real gap clears
-it, by a wide margin: the smallest non-zero separation swept, **3 % of a
-burst**, is already clean at every frame phase.
+And burst spacing is not the variable that decides it. Re-running those
+failures across block sizes with everything else identical, **11 of 13 change
+their result with the block size alone**, monotonically worse as the block
+grows. That is not a re-arm effect: it is
+[doppler#1008](https://github.com/doppler-dsp/doppler/issues/1008), in which
+`push()` abandons the remainder of its input once a burst is emitted, so a
+block carrying several bursts loses all but the first.
 
-So the bound is real but slack, and it belongs in the object's stated
-envelope rather than in its mechanism.
+Until #1008 is fixed, any re-arm figure measured on a multi-burst capture is
+measuring that instead. The zero-gap row stands on its own — a stream whose
+bursts abut is not a burst link (§5.1) — but the shape of the bound above it
+is an open question, not a documented envelope.
 
 ______________________________________________________________________
 
@@ -556,18 +563,26 @@ Both windows are derived, and neither is a knob:
 | identity  | `refine_span` = `(k_lo + k_hi + REPS)·P` | the exact span over which refine can map two anchors onto one start — wider would merge distinct bursts, narrower would split one |
 | exclusion | `burst_len`, armed only on `frame_valid` | exactly how long a payload can keep firing                                                                                        |
 
-**The re-arm time is an envelope property, not a defect** (§3.6). The
-exclusion window's far edge can reach the next burst's anchor, so bursts
-must be *separated* — which a burst link is, by definition. Only a zero gap
-fails, and a zero gap is a continuous stream rather than a burst link.
+**The re-arm bound is open** (§3.6), and three candidate mechanisms have been
+implemented and **measured to fix nothing**. They are recorded so the next
+person does not spend the same afternoon:
 
-Two candidate mechanisms were implemented and **measured to fix nothing** —
-backing the far edge off by one acquisition frame, and bounding the identity
-window by `burst_len` so a short payload cannot merge two adjacent bursts.
-Neither was kept. They are recorded here so the next person does not spend
-the same afternoon on them: whatever produces the zero-gap loss, it is not
-either of those, and it is not worth finding until a caller has a use case
-that needs it.
+- backing the exclusion window's far edge off by one acquisition frame;
+- bounding the identity window by `burst_len`, so a short payload cannot
+    merge two adjacent bursts — the derivation predicted this and the
+    measurement refused it: failing trials span `spacing/refine_span` from
+    0.67 to 5.97, the same range as the passing ones;
+- consuming the whole input rather than abandoning it after an emit
+    ([doppler#1008](https://github.com/doppler-dsp/doppler/issues/1008)) —
+    a real defect that does need fixing, but one that exposes a second
+    underneath: a detection queued near the end of a stream can never
+    complete, so `dsss_br_trim` pins the ring's tail and the remainder is
+    dropped (`dropped=5632` on the giant-push test). Not kept, because it
+    trades a silent discard for a counted drop without settling the
+    retention question.
+
+What is settled: a zero gap fails, and a zero gap is a continuous stream
+rather than a burst link (§5.1).
 
 ### 7.1 Look-back — the receiver retains what acquisition releases
 

@@ -1066,8 +1066,16 @@ include standard.mk
 # a gate this repo believed it had was executed by nothing on every PR for as
 # long as it has existed. Being inert (#705) was only half the problem; not
 # running was the other half, and `gates` is a local convenience, not CI.
+#
+# `release-notes-size-check` joined for the SAME reason, one release later. It
+# was still GATES_DEPS-only, so the two-sentences-above paragraph described it
+# exactly: a gate the repo believed it had, run by nothing on any PR. It now
+# also enforces the per-entry length that changelog.d/README.md asks for, and
+# guidance without a gate is the thing this repo keeps re-learning -- v0.44.0
+# assembled to 72,636 characters at a median of 24 lines per entry while a
+# README asked politely for less.
 lint: tests-ssot characterization-check validation-report-check changelog-check \
-      workflow-syntax-check \
+      workflow-syntax-check release-notes-size-check \
       issue-link-check deps-budget-check ci-image-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check
 

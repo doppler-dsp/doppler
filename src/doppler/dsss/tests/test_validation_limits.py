@@ -30,6 +30,9 @@ from doppler.dsss.tests.validation.acq import (
 from doppler.dsss.tests.validation.burst_acq import (
     validate as burst_acq_validate,
 )
+from doppler.dsss.tests.validation.burst_despreader import (
+    validate as burst_despreader_validate,
+)
 from doppler.dsss.tests.validation.ppe import (
     validate as ppe_validate,
 )
@@ -38,6 +41,7 @@ from doppler.tests._validation_common import assert_renders
 OBJECTS = {
     "acq": acq_validate,
     "burst_acq": burst_acq_validate,
+    "burst_despreader": burst_despreader_validate,
     "ppe": ppe_validate,
 }
 

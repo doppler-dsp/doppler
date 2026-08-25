@@ -196,5 +196,26 @@ main (void)
     detector2d_destroy (b);
   }
 
+  /* ── dwell = 0 is refused, inherited from corr2d ──────────────────────
+   *
+   * detector2d's own header says dwell "must be >= 1" and it validates
+   * nothing itself -- it forwards straight to corr2d_create, which is
+   * where the rule now lives (see test_corr2d_core.c). Pinned here too
+   * because this is the object a caller constructs, and because it is the
+   * assertion that would notice if the forwarding were ever replaced by a
+   * local copy that forgot the rule. */
+  {
+    float complex ref[N] = { 0 };
+    ref[0]               = 1.0f;
+    DP_CHECK (
+        detector2d_create (ref, NY, NX, 0, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1)
+        == NULL);
+    /* Not vacuous: the neighbouring value builds. */
+    detector2d_state_t *ok = detector2d_create (ref, NY, NX, 1, 1, N - 1,
+                                                DET_NOISE_MEAN, 0.0f, 1);
+    DP_CHECK (ok != NULL);
+    detector2d_destroy (ok);
+  }
+
   DP_TEST_END ("test_detector2d_core");
 }

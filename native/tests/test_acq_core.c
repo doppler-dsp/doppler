@@ -655,5 +655,147 @@ main (void)
   (void)_acq_wideband_coverage_check ();
   (void)_acq_continuous_check ();
 
+  /* ── samples_consumed: a per-hit anchor, not a per-call one ───────────
+   *
+   * acq_result_t::samples_consumed is documented as "the raw sample offset
+   * (since this engine's own stream start) this detection's epoch ended
+   * at ... the per-hit anchor a caller needs to derive a precise timestamp
+   * instead of reusing one message-level timestamp for every hit -- a
+   * single push() call spanning multiple epochs can emit several hits at
+   * different sample offsets."
+   *
+   * That is a specific claim about the SHAPE of the answer, and it had zero
+   * mentions in this file and zero in test_acq.py. The failure it guards
+   * against is quiet and plausible: stamping every hit from one call with
+   * the same offset still produces detections in the right place, and only
+   * a caller correlating hits to wall-clock would ever notice.
+   *
+   * One push, many epochs, and the offsets must be strictly increasing and
+   * land on epoch boundaries. */
+  {
+    const size_t sf = 7, spcl = 2, nxl = sf * spcl;
+    acq_state_t *a = acq_create_burst (CODE7, sf, 8, spcl, 1.0e6, 60.0, 0.0,
+                                       1e-2, 0.9, 0);
+    DP_CHECK (a != NULL);
+    if (a)
+      {
+        const size_t   eps = 24;
+        float complex *x   = malloc (eps * nxl * sizeof *x);
+        DP_CHECK (x != NULL);
+        if (x)
+          {
+            for (size_t k = 0; k < eps * nxl; k++)
+              {
+                uint8_t chip = CODE7[((k % nxl) / spcl) % sf];
+                x[k]         = (chip & 1u) ? -1.0f : 1.0f;
+              }
+            /* Pinned for the same reason as the noise-mode section
+               below: an auto-sized n_noncoh > 1 makes one dump span
+               several frames, and the anchor stride would then be a
+               multiple of that rather than of a->n. Pinning makes the
+               stride claim exact instead of approximately right. */
+            DP_CHECK (acq_configure_search_raw (a, 8, 1) == 0);
+            acq_result_t hits[32];
+            size_t       nh = acq_push (a, x, eps * nxl, hits, 32);
+            DP_CHECK (nh >= 2); /* several epochs in ONE call */
+            for (size_t i = 1; i < nh; i++)
+              {
+                /* strictly increasing -- not one stamp reused */
+                DP_CHECK (hits[i].samples_consumed
+                          > hits[i - 1].samples_consumed);
+                /* and the stride is a whole number of frames */
+                uint64_t d
+                    = hits[i].samples_consumed - hits[i - 1].samples_consumed;
+                DP_CHECK (d % (uint64_t)a->n == 0);
+              }
+            if (nh >= 1)
+              {
+                /* the first anchor is one frame in, not zero */
+                DP_CHECK (hits[0].samples_consumed >= (uint64_t)a->n);
+                /* and no anchor runs past what was pushed */
+                DP_CHECK (hits[nh - 1].samples_consumed
+                          <= (uint64_t)(eps * nxl));
+              }
+            free (x);
+          }
+        acq_destroy (a);
+      }
+  }
+
+  /* ── noise_mode: four CFAR references, ~15 dB apart ───────────────────
+   *
+   * The constructor's last argument selects the CFAR noise aggregation
+   * (0=mean, 1=median, 2=min, 3=max) and had zero mentions in this file
+   * and zero in test_acq.py -- only the default was ever used. noise_est
+   * is the denominator of the gating statistic, so the choice moves the
+   * effective sensitivity of the whole engine.
+   *
+   * Measured rather than assumed: on the same burst the statistic spans
+   * more than an order of magnitude across the four, because dividing by
+   * the smallest reference cell is a far more optimistic detector than
+   * dividing by the largest. Asserted as the ORDERING, which is a property
+   * of the aggregation and not of the draw: min is the most sensitive, max
+   * the least, and mean/median sit between. */
+  {
+    const size_t   sf = 7, spcl = 2, nxl = sf * spcl, eps = 16;
+    float complex *x = malloc (eps * nxl * sizeof *x);
+    DP_CHECK (x != NULL);
+    if (x)
+      {
+        uint32_t st = 99u;
+        for (size_t k = 0; k < eps * nxl; k++)
+          {
+            uint8_t chip = CODE7[((k % nxl) / spcl) % sf];
+            float   s    = (chip & 1u) ? -1.0f : 1.0f;
+            x[k]         = s + (float)(0.30 * dp_gauss (&st))
+                           + (float)(0.30 * dp_gauss (&st)) * I;
+          }
+        double stat[4];
+        int    have[4] = { 0, 0, 0, 0 };
+        for (int m = 0; m < 4; m++)
+          {
+            acq_state_t *a = acq_create_burst (CODE7, sf, 8, spcl, 1.0e6, 55.0,
+                                               0.0, 1e-2, 0.9, m);
+            DP_CHECK (a != NULL);
+            if (a)
+              {
+                /* Pin the grid, for the reason the localization section
+                   above already gives: the auto-sizer ascends past
+                   n_noncoh = 1 with no caller cap, and at these settings
+                   it picks 4 -- so one dump needs 4*n samples and a push
+                   sized in epochs quietly produces NO hits in every mode.
+                   Measured while writing this, and it reads as "the modes
+                   are broken" rather than "the dwell never completed". */
+                DP_CHECK (acq_configure_search_raw (a, 8, 1) == 0);
+                acq_result_t hits[16];
+                size_t       nh = acq_push (a, x, eps * nxl, hits, 16);
+                if (nh >= 1)
+                  {
+                    stat[m] = hits[0].test_stat;
+                    have[m] = 1;
+                    DP_CHECK (hits[0].noise_est > 0.0f);
+                    DP_CHECK (hits[0].test_stat > 0.0f);
+                  }
+                acq_destroy (a);
+              }
+          }
+        /* min divides by the smallest reference cell, so it is the most
+           optimistic; mean and median sit between it and max. Only the
+           pairs that both produced a hit can be compared -- an aggressive
+           enough reference legitimately suppresses detection entirely,
+           which is itself the point of offering the choice. */
+        if (have[2] && have[0])
+          DP_CHECK (stat[2] > stat[0]);
+        if (have[2] && have[1])
+          DP_CHECK (stat[2] > stat[1]);
+        if (have[3] && have[0])
+          DP_CHECK (stat[3] <= stat[0]);
+        /* At least the default and the most optimistic must detect, or the
+           comparison above is vacuous. */
+        DP_CHECK (have[0] && have[2]);
+        free (x);
+      }
+  }
+
   DP_TEST_END ("test_acq_core");
 }

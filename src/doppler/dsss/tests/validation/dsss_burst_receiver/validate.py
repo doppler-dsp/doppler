@@ -171,6 +171,11 @@ class Data:
     amp_rows: list[list[str]] = field(default_factory=list)
     amp_invariant: bool = False
     amp_span_db: float = 0.0
+    pd_rows: list[list[str]] = field(default_factory=list)
+    pd_high: float = 0.0
+    pd_low: float = 1.0
+    pd_mid: float = 0.0
+    pd_monotone: bool = False
     truncated_margin: float = 0.0
     truncated_rejected: bool = False
     margin_separates: bool = False
@@ -214,7 +219,7 @@ def section_object() -> None:
             ],
             [
                 "`.../characterization/dsss_burst_receiver/`",
-                "the sweeps behind §2.3 and §2.6 — margin vs C/N0, and "
+                "the sweeps behind §2.3 and §2.7 — margin vs C/N0, and "
                 "detection vs the acquisition code",
             ],
             [
@@ -262,19 +267,24 @@ def section_object() -> None:
                 "§2.3",
             ],
             [
+                "the fraction of bursts it FINDS, at a given C/N0",
+                "**nothing — no report in this chain gated a Pd**",
+                "§2.6",
+            ],
+            [
                 "a burst is claimed once however many frames fire",
                 "C, needs a grid where several DO fire",
-                "§2.5",
+                "§2.8",
             ],
             [
                 "`state_bytes()` is a pure function of configuration",
                 "**jm's binding depends on it; nothing said so**",
-                "§2.6",
+                "§2.9",
             ],
             [
                 "any block size is accepted",
                 "C, including a push larger than the ring",
-                "§2.5",
+                "§2.8",
             ],
         ],
     )
@@ -294,10 +304,20 @@ def characterise() -> Data:
     _sec_refine(d)
     _sec_reps(d)
     _sec_amplitude(d)
+    _sec_pd(d)
     _sec_code(d)
     _sec_bounds(d)
     _sec_state(d)
     return d
+
+
+def _cn0(sigma: float) -> float:
+    """C/N0 of a unit-amplitude burst in complex noise of std `sigma`.
+
+    The same relationship the acquisition engine sizes itself with, so the
+    axis is comparable to a `cn0_dbhz` a caller would pass in.
+    """
+    return 10.0 * np.log10(1.0 / sigma**2) + 10.0 * np.log10(FS)
 
 
 def _margin_at(reps_cfg: int, reps_sig: int) -> float:
@@ -628,8 +648,70 @@ def _sec_amplitude(d: Data) -> None:
     R.md()
 
 
+def _sec_pd(d: Data) -> None:
+    R.md("### 2.6 Detection probability — the fraction it actually finds")
+    R.md()
+    R.md(
+        "Everything above asks whether the receiver handles a burst "
+        "CORRECTLY. This asks how often it gets one at all, which is the "
+        "number a link is sized with — and until now no report in this "
+        "chain gated one. `acq`'s certification pins `underpowered`, the "
+        "engine's own *prediction*; `Acquisition` has a measured Pd gate in "
+        "`test_acq_characterization.py`; the burst path had neither."
+    )
+    R.md()
+    R.md(
+        "This is the **end-to-end** figure and it is stricter than "
+        "acquisition's: a trial counts only when the burst is found at its "
+        "exact sample AND the CRC passes. It therefore folds in "
+        "acquisition's own Pd, refine's period discrimination, and the "
+        "demodulator's margin — one number for the whole chain, which is "
+        "what a caller has."
+    )
+    R.md()
+    rows, csv = [], []
+    trials = 24
+    for sigma in (1.4, 2.2, 4.0):
+        good = 0
+        for k in range(trials):
+            rx = _rx()
+            at = 6000 + (k * 37) % CODE_PERIOD  # spread across a period
+            hits = _drive(rx, _capture(at, sigma, seed=8000 + k))
+            good += int(
+                bool(hits) and hits[0]["valid"] and hits[0]["start"] == at
+            )
+        pd = good / trials
+        rows.append([f"{_cn0(sigma):.1f}", f"{good}/{trials}", f"{pd:.2f}"])
+        csv.append([_cn0(sigma), good, trials, pd])
+    R.table(["C/N0 (dB-Hz)", "found and decoded", "Pd"], rows)
+    _csv(HERE / "data" / "pd.csv", "cn0_dbhz,good,trials,pd", csv)
+    d.pd_rows = rows
+    d.pd_high = float(rows[0][2])
+    d.pd_mid = float(rows[1][2])
+    d.pd_low = float(rows[2][2])
+    d.pd_monotone = d.pd_high >= d.pd_mid >= d.pd_low
+    R.md(
+        f"Saturated at the top (**{d.pd_high:.2f}**), on the knee in the "
+        f"middle (**{d.pd_mid:.2f}**), and floored at the bottom "
+        f"(**{d.pd_low:.2f}**). The floor is the half that makes the "
+        f"saturation meaningful: a receiver that reported a burst for "
+        f"anything would score 1.00 at every level, and only the bottom row "
+        f"can catch it."
+    )
+    R.md()
+    R.md(
+        "**These numbers belong to this geometry**, not to the object: they "
+        "move with the code length, `reps`, `spc` and the CFAR sizing. "
+        "§2.4 shows the knee shifting 11 dB across `reps` alone. What is "
+        "certified here is the SHAPE — saturate, transition, floor — and "
+        "that the transition sits where the characterization's sweep puts "
+        "it."
+    )
+    R.md()
+
+
 def _sec_code(d: Data) -> None:
-    R.md("### 2.6 What actually loses a burst is the CODE")
+    R.md("### 2.7 What actually loses a burst is the CODE")
     R.md()
     R.md(
         "Acquisition frames the stream sequentially and **without "
@@ -695,7 +777,7 @@ def _sec_code(d: Data) -> None:
 
 
 def _sec_bounds(d: Data) -> None:
-    R.md("### 2.7 What it refuses, and what it does not double-count")
+    R.md("### 2.8 What it refuses, and what it does not double-count")
     R.md()
     rx = _rx()
     nothing = np.zeros(1, np.complex64)
@@ -743,7 +825,7 @@ def _sec_bounds(d: Data) -> None:
 
 
 def _sec_state(d: Data) -> None:
-    R.md("### 2.8 State — a pure function of configuration")
+    R.md("### 2.9 State — a pure function of configuration")
     R.md()
     R.md(
         "`state_bytes()` has to be constant for a given configuration, and "
@@ -875,7 +957,7 @@ def review(d: Data) -> None:
         "an issue. A 42% loss measured against burst position looked "
         "exactly like preambles straddling frame boundaries; the same "
         "sweep with a different code of the same length lost nothing "
-        "(§2.4). The tests have been moved onto a real m-sequence, built "
+        "(§2.7). The tests have been moved onto a real m-sequence, built "
         "with the library's own generator, because a receiver measured on "
         "a code no caller would choose measures the wrong thing.",
     )
@@ -958,6 +1040,22 @@ def limits(d: Data) -> None:
         f"within 0.08 of the predicted (reps-1)/reps = "
         f"{d.margin_predicted:.3f} — a RELATIVE claim, because the floor "
         f"moves with reps",
+    )
+    R.limit(
+        d.pd_high >= 0.9,
+        f"Pd saturates above the knee: {d.pd_high:.2f} at "
+        f"{d.pd_rows[0][0]} dB-Hz",
+    )
+    R.limit(
+        d.pd_low <= 0.1,
+        f"...and FLOORS below it: {d.pd_low:.2f} at {d.pd_rows[2][0]} "
+        f"dB-Hz — the half that stops a receiver which reports a burst for "
+        f"anything from scoring perfectly",
+    )
+    R.limit(
+        d.pd_monotone,
+        "...and is monotone across the three levels, so the curve has a "
+        "shape rather than two endpoints",
     )
     R.limit(
         d.reps_floor_tracks,
@@ -1095,12 +1193,12 @@ def build(write: bool = True) -> Report:
             f"bursts than a structured code of the same length "
             f"({d.poor_code_pts:.2f}). A 42% loss was first read as the "
             f"non-overlapping framing needing fixing; it was the code "
-            f"(§2.6, F6).",
+            f"(§2.7, F6).",
             "**Checkpoint between bursts.** `state_bytes()` is a pure "
             "function of configuration — jm's binding depends on that — and "
             "a blob taken inside the preamble carries the retained "
             "look-back, so it resumes into a fresh instance and still "
-            "decodes (§2.6, F5).",
+            "decodes (§2.9, F5).",
         ],
     )
     R.summary("\n- Raw sweeps: `data/epoch.csv`, `data/code.csv`")

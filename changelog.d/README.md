@@ -27,12 +27,37 @@ file list.
 The content is the entry exactly as it will appear, starting with `- `:
 
 ```markdown
-- **The headline, in bold.** Then the prose, at the same standard the rest of
-    this changelog is written to — what changed, what it was measured
-    against, and what it cost. Continuation lines are indented four spaces.
+- **The headline, in bold.** One or two sentences of why it matters, and the
+    one number or symptom that makes it concrete. Continuation lines are
+    indented four spaces.
 ```
 
 Nothing is generated from it and nothing is templated. It is moved verbatim.
+
+## Keep it to a few lines
+
+**A changelog entry is an index, not the record.** Aim for a bold headline
+plus one to three lines. If there is more to say — the measurement, the
+sabotage that proved the gate, the three hypotheses that were wrong — it goes
+in the issue, the PR, or a design page, and the entry **links** there. Those
+places keep it next to the code and the discussion; the changelog only has to
+get a reader to them.
+
+This is a correction, and the size of it is the argument. The guidance here
+used to ask for "what changed, what it was measured against, and what it
+cost", at "the same standard the rest of this changelog is written to". That
+produced entries with a median of **24 lines**, and a v0.44.0 section of
+**1221 lines / 72,636 characters** — 73% of the GitHub release-body budget,
+for one release. Rewritten to this standard it is **225 lines / 12,534
+characters**, with nothing dropped: what left the file moved into links.
+
+Two practical consequences:
+
+- The release body is `make release-notes VERSION=x.y.z`, which embeds this
+    section verbatim. A section that grows without bound eventually cannot be
+    published at all.
+- An entry nobody finishes reading documents nothing. The detail was not
+    wasted — it was in the wrong file.
 
 ## Releasing
 

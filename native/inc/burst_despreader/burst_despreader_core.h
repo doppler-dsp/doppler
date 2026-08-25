@@ -328,19 +328,31 @@ double burst_despreader_get_snr_est (const burst_despreader_state_t *state);
  * exact for every stat_n (odd included).  Only payload prompts fold into
  * the statistics — preamble prompts (different code length, pull-in
  * transients) are excluded so the H0 law and the SNR calibration hold.
- * Returns 0 before any payload prompt has been folded.
+ *
+ * RETURNS 0 IN TWO CASES, and a caller must separate them with stat_n:
+ * before any payload prompt has been folded (stat_n == 0), and when the
+ * quadrature sum is exactly zero (stat_n > 0), where the ratio is
+ * undefined and there is no statistic to report. The second only happens
+ * on a perfectly noiseless input — which never occurs on the air and
+ * occurs constantly in tests, so it is worth knowing that the WORST
+ * possible reading of this statistic is what a synthetic clean burst
+ * produces. The example below therefore carries a noise floor, which is
+ * also the only condition under which a lock statistic means anything.
  *
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import BurstDespreader
  * >>> from doppler.detection import det_threshold_f
  * >>> code = (np.arange(31) % 2).astype(np.uint8)
- * >>> b = BurstDespreader(code=code, sf=31, sps=2)
  * >>> chips = 1.0 - 2.0 * (code % 2)
- * >>> x = np.tile(np.repeat(chips, 2), 64).astype(np.complex64)
- * >>> _ = b.steps(x)
+ * >>> clean = np.tile(np.repeat(chips, 2), 64)
+ * >>> rng = np.random.default_rng(7)
+ * >>> n = (rng.standard_normal(clean.size)
+ * ...      + 1j * rng.standard_normal(clean.size)) / np.sqrt(2)
+ * >>> b = BurstDespreader(code=code, sf=31, sps=2)
+ * >>> _ = b.steps((clean + 0.3 * n).astype(np.complex64))
  * >>> eta = np.sqrt(b.stat_n * det_threshold_f(1e-3, b.stat_n))
- * >>> bool(b.lock_stat > eta)   # a clean burst passes the pfa=1e-3 gate
+ * >>> bool(b.lock_stat > eta)   # this burst passes the pfa=1e-3 gate
  * True
  *
  * @endcode

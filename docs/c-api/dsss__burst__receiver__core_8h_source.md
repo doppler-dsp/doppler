@@ -16,6 +16,18 @@
 #include "jm_perf.h"
 #include "buffer/buffer.h"
 #include "dp_state.h"
+
+#define DSSS_BR_QCAP 8u
+
+typedef struct
+{
+  uint64_t anchor;     
+  uint64_t start;      
+  double   doppler_hz; 
+  double   cn0_dbhz;   
+  double   margin;     
+  int      refined;    
+} dsss_br_pending_t;
 #include "burst_acq/burst_acq_core.h"
 #include "acq/acq_core.h"
 #include "burst_demod/burst_demod_core.h"
@@ -63,6 +75,21 @@ typedef struct {
   double   est_rate_hz;    
   double   est_snr_db;     
   double   refine_margin;  
+  /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
+  float *ref_sign;   
+  float _Complex *corr_buf; 
+  size_t refine_span;  
+  size_t corr_len;     
+  size_t retain_span;  
+  size_t chunk_max;    
+  /* ── Bursts in flight (at most one is RETURNED per push) ─────────────── */
+  dsss_br_pending_t q[DSSS_BR_QCAP]; 
+  size_t            q_head;          
+  size_t            q_len;           
+  uint64_t suppress_until; 
+  size_t acq_blob_max; 
+  size_t k_lo; 
+  size_t k_hi; 
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
   size_t   pending;  
   uint64_t dropped;  

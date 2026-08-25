@@ -1,10 +1,9 @@
 """`DsssBurstReceiver` — the Python face of the composed burst chain.
 
-`push()` is not implemented yet (the three stages are the next commit), so
-these pin the surface that IS real: construction and its refusals, the
-derived read-backs, reset, and the state round-trip. The C test
-(`native/tests/test_dsss_burst_receiver_core.c`) owns the geometry
-derivations; this file owns what the binding exposes.
+The C test (`native/tests/test_dsss_burst_receiver_core.c`) owns the
+geometry derivations and the refine stage's behaviour; this file owns what
+the binding exposes -- and one end-to-end decode, because "a burst goes in
+and payload bits come out" is the claim a Python caller actually makes.
 
 Deliberately not a copy of the C test. Testing at both layers is the
 repo's rule, and the thing only reachable from here is the binding: the
@@ -107,11 +106,11 @@ def test_a_valid_parameter_set_still_builds() -> None:
     assert _make() is not None
 
 
-def test_push_reports_no_burst_and_is_bounded() -> None:
-    """`push()` is a declared no-op until the three stages land.
+def test_silence_yields_no_burst() -> None:
+    """Silence decodes nothing, and the buffer bound is block-independent.
 
-    Pinned rather than skipped so that implementing it has to change a
-    test rather than quietly satisfy one.
+    The control for the decode test below: a receiver that reported a
+    burst for any input would pass that one.
     """
     r = _make()
     out = r.push(np.zeros(4096, np.complex64))
@@ -185,3 +184,97 @@ def test_works_as_a_context_manager() -> None:
     """The generated `__enter__`/`__exit__` glue closes the receiver."""
     with _make() as r:
         assert r.push(np.zeros(64, np.complex64)).size == 0
+
+
+def _burst(f0: float = 0.0) -> tuple[np.ndarray, np.ndarray]:
+    """One burst — preamble, then the spread sync|payload|CRC-16 frame.
+
+    Built with `doppler.wfm.crc16`, the same C kernel the receiver checks
+    on the way out, so the trailer is not a second implementation.
+    """
+    from doppler.wfm import crc16
+
+    acq, data, sync = _codes()
+    rng = np.random.default_rng(7)
+    payload = rng.integers(0, 2, PAYLOAD).astype(np.uint8)
+    c = crc16(payload)
+    crc = np.array([(c >> (15 - j)) & 1 for j in range(16)], np.uint8)
+    frame = np.concatenate([sync, payload, crc])
+
+    def sgn(b):
+        return np.where(np.asarray(b) & 1, -1.0, 1.0)
+
+    chips = [np.tile(sgn(acq), REPS)] + [sgn(b) * sgn(data) for b in frame]
+    bb = np.repeat(np.concatenate(chips), SPC)
+    ph = np.exp(2j * np.pi * f0 * np.arange(len(bb)))
+    return (bb * ph).astype(np.complex64), payload
+
+
+def test_decodes_a_burst_and_publishes_the_event() -> None:
+    """The end-to-end claim, through the binding.
+
+    A burst placed at a known offset in a noise floor, streamed in small
+    blocks, must come back as its payload bits with a valid CRC — and
+    `preamble_start` must name the sample it actually began at. That
+    field is the one a caller cannot compute, so it is the one worth
+    asserting from Python rather than trusting the C test for.
+    """
+    burst, payload = _burst()
+    at, n_cap = 5000, 40_000
+    rng = np.random.default_rng(3)
+    cap = (
+        0.02 * (rng.standard_normal(n_cap) + 1j * rng.standard_normal(n_cap))
+    ).astype(np.complex64)
+    cap[at : at + burst.size] += burst
+
+    r = _make()
+    got = np.zeros(0, np.uint8)
+    for off in range(0, n_cap, 777):
+        got = r.push(cap[off : off + 777])
+        if got.size:
+            break
+
+    assert got.size == PAYLOAD
+    assert np.array_equal(got, payload)
+    assert r.frame_valid == 1
+    assert r.preamble_start == at
+    assert r.n_bursts == 1
+    assert r.dropped == 0
+    # Resolved cleanly: the nearest rival period sits near (reps-1)/reps.
+    assert 0.0 < r.refine_margin < 0.9
+
+
+def test_the_event_survives_a_state_round_trip_mid_stream() -> None:
+    """A receiver resumed from bytes still decodes the burst.
+
+    The checkpoint lands mid-stream, before the burst has fully arrived,
+    so the restored receiver has to carry the retained look-back with it
+    — which is the half of the blob that would be easy to omit and
+    impossible to notice on a fresh-instance round trip.
+    """
+    burst, payload = _burst()
+    at, n_cap = 5000, 40_000
+    rng = np.random.default_rng(3)
+    cap = (
+        0.02 * (rng.standard_normal(n_cap) + 1j * rng.standard_normal(n_cap))
+    ).astype(np.complex64)
+    cap[at : at + burst.size] += burst
+
+    a = _make()
+    cut = at + 800  # inside the preamble, before the frame has landed
+    for off in range(0, cut, 777):
+        assert a.push(cap[off : min(off + 777, cut)]).size == 0
+
+    b = _make()
+    b.set_state(a.get_state())
+
+    got = np.zeros(0, np.uint8)
+    for off in range(cut, n_cap, 777):
+        got = b.push(cap[off : off + 777])
+        if got.size:
+            break
+
+    assert got.size == PAYLOAD
+    assert np.array_equal(got, payload)
+    assert b.frame_valid == 1
+    assert b.preamble_start == at

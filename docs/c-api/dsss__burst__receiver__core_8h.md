@@ -128,7 +128,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 | ---: | :--- |
 | define  | [**DSSS\_BR\_QCAP**](dsss__burst__receiver__core_8h.md#define-dsss_br_qcap)  `8u`<br>_Detections that may be in flight at once._  |
 | define  | [**DSSS\_BURST\_RECEIVER\_STATE\_MAGIC**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('D', 'B', 'R', 'X')`<br>_Per-object envelope tag: "DBRX" (DsssBurstReceiver)._  |
-| define  | [**DSSS\_BURST\_RECEIVER\_STATE\_VERSION**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_version)  `1u`<br> |
+| define  | [**DSSS\_BURST\_RECEIVER\_STATE\_VERSION**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_version)  `2u`<br> |
 
 ## Detailed Description
 
@@ -749,7 +749,7 @@ _Per-object envelope tag: "DBRX" (DsssBurstReceiver)._
 ### define DSSS\_BURST\_RECEIVER\_STATE\_VERSION 
 
 ```C++
-#define DSSS_BURST_RECEIVER_STATE_VERSION `1u`
+#define DSSS_BURST_RECEIVER_STATE_VERSION `2u`
 ```
 
 

@@ -429,6 +429,32 @@ dsss_br_emit (dsss_burst_receiver_state_t *s, uint8_t *out, size_t max_out)
 
   s->q_head = (s->q_head + 1u) % DSSS_BR_QCAP;
   s->q_len--;
+
+  /* A burst that DECODED owns its whole span: the payload goes on firing
+     against the acquisition code, and none of that is a new burst. This is
+     the only place the long window is armed -- knowing there IS a payload
+     here is what justifies blinding the search for one, and a detection
+     alone does not know that (doppler#1004). Candidates already queued
+     inside the span go with it; the compaction only ever writes at or
+     behind the entry it just read, so it is safe in place. */
+  if (s->frame_valid)
+    {
+      uint64_t until = e->start + (uint64_t)s->burst_len;
+      if (until > s->suppress_until)
+        s->suppress_until = until;
+
+      size_t keep = 0;
+      for (size_t j = 0; j < s->q_len; j++)
+        {
+          dsss_br_pending_t *cand = &s->q[(s->q_head + j) % DSSS_BR_QCAP];
+          if (cand->anchor < s->suppress_until)
+            continue;
+          s->q[(s->q_head + keep) % DSSS_BR_QCAP] = *cand;
+          keep++;
+        }
+      s->q_len = keep;
+    }
+
   s->pending = s->q_len;
   return n;
 }
@@ -476,27 +502,66 @@ dsss_burst_receiver_push (dsss_burst_receiver_state_t *state,
              position. Which epoch of the preamble it is, refine decides. */
           uint64_t epoch = hits[i].samples_consumed - (uint64_t)e->n
                            + (uint64_t)hits[i].code_phase;
+
+          /* Inside a burst that has already DECODED: acquisition fires on
+             the payload too, and those are not new bursts. */
           if (epoch < state->suppress_until)
-            continue; /* same burst, a later frame of its preamble */
+            continue;
+
+          /* THE SAME PREAMBLE as a candidate already queued? Two anchors
+             name one burst exactly when refine can map both onto a single
+             start, and `refine_span` is that reach -- so proximity within
+             it is the identity test, not elapsed distance. Keep the
+             STRONGER of the two: a weak hit that merely arrived first must
+             not own the slot, which is precisely how a spurious detection
+             used to discard the next real burst (doppler#1004). */
+          int merged = 0;
+          for (size_t j = 0; j < state->q_len; j++)
+            {
+              dsss_br_pending_t *cand
+                  = &state->q[(state->q_head + j) % DSSS_BR_QCAP];
+              uint64_t d = epoch > cand->anchor ? epoch - cand->anchor
+                                                : cand->anchor - epoch;
+              if (d >= (uint64_t)state->refine_span)
+                continue;
+              merged = 1;
+              if ((double)hits[i].peak_mag > cand->peak_mag)
+                {
+                  /* The anchor moves, so whatever refine concluded from the
+                     old one is stale -- clear `refined` and let it run
+                     again rather than pairing a new anchor with an old
+                     start. */
+                  cand->anchor     = epoch;
+                  cand->peak_mag   = (double)hits[i].peak_mag;
+                  cand->start      = 0;
+                  cand->margin     = 1.0;
+                  cand->refined    = 0;
+                  cand->doppler_hz = dp_fftfreq (
+                      hits[i].doppler_bin, e->coherent_bins,
+                      e->doppler_res_hz * (double)e->coherent_bins);
+                  cand->cn0_dbhz = hits[i].cn0_dbhz_est;
+                }
+              break;
+            }
+          if (merged)
+            continue;
+
           if (state->q_len >= DSSS_BR_QCAP)
             break;
 
           dsss_br_pending_t *q
               = &state->q[(state->q_head + state->q_len) % DSSS_BR_QCAP];
-          q->anchor  = epoch;
-          q->start   = 0;
-          q->margin  = 1.0;
-          q->refined = 0;
+          q->anchor   = epoch;
+          q->start    = 0;
+          q->margin   = 1.0;
+          q->peak_mag = (double)hits[i].peak_mag;
+          q->refined  = 0;
           q->doppler_hz
               = dp_fftfreq (hits[i].doppler_bin, e->coherent_bins,
                             e->doppler_res_hz * (double)e->coherent_bins);
           q->cn0_dbhz = hits[i].cn0_dbhz_est;
           state->q_len++;
           state->pending = state->q_len;
-
-          /* Suppress from the anchor forward by a whole burst: every later
-             frame of this preamble reports an epoch inside that span. */
-          state->suppress_until = epoch + (uint64_t)state->burst_len;
         }
 
       off += chunk;

@@ -40,6 +40,7 @@ _One detection between acquisition and demodulation._ [More...](#detailed-descri
 |  double | [**cn0\_dbhz**](#variable-cn0_dbhz)  <br> |
 |  double | [**doppler\_hz**](#variable-doppler_hz)  <br> |
 |  double | [**margin**](#variable-margin)  <br> |
+|  double | [**peak\_mag**](#variable-peak_mag)  <br> |
 |  int | [**refined**](#variable-refined)  <br> |
 |  uint64\_t | [**start**](#variable-start)  <br> |
 
@@ -160,6 +161,24 @@ double dsss_br_pending_t::margin;
 
 
 Refine runner-up ratio; valid once `refined`. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable peak\_mag 
+
+```C++
+double dsss_br_pending_t::peak_mag;
+```
+
+
+
+The hit's RAW CFAR peak. Two detections naming the same preamble keep the stronger, so a weak hit that merely arrived first cannot own the slot a real burst needs (doppler#1004). Deliberately not `test_stat`: that is peak/noise\_est, and the noise estimate is a mean over the surface, so a BARE preamble  which raises no floor  outscores a real burst whose payload does. The raw peak measures what the comparison actually means, how much preamble the frame holds. 
  
 
 

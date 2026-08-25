@@ -138,8 +138,14 @@ def check(path: Path) -> list[str]:
     return bad
 
 
-# "- **F1 · FIXED** — ..." as Report.find renders it.
-FINDING_RE = re.compile(r"^- \*\*(F\d+) · ", re.M)
+# "- **F1 · FIXED** — ..." as Report.find renders it. The label may carry a
+# letter suffix ("F7b"): a finding that supersedes or refines an earlier one
+# is numbered against it rather than given an unrelated number. Without the
+# suffix here the check MISCOUNTS a finding the report renders correctly, and
+# the report is then failed for a defect it does not have -- which is what
+# happened to dsss_burst_receiver's F7b, unnoticed because this gate was
+# already red on other reports for an unrelated reason.
+FINDING_RE = re.compile(r"^- \*\*(F\d+[a-z]?) · ", re.M)
 # Section 5's own count: "- **6 findings**, 0 of them gaps ..."
 SUMMARY_RE = re.compile(r"^- \*\*(\d+) findings\*\*", re.M)
 

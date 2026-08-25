@@ -310,7 +310,18 @@ envelope.
     cliff below: 88% at 57.7, 58% at 56.5. So the knee for this geometry is
     **~58–60 dB-Hz**, and `refine_margin` is a usable health signal rather
     than an ornament: it reads ~0.87 where the stage is failing against
-    ~0.775 where it is not. How the floor moves with `REPS` is still open.
+    ~0.775 where it is not.
+
+    **How the floor moves with `REPS` — MEASURED, and it is a trade.** The
+    floor is `(REPS-1)/REPS`, so it RISES with depth: 0.55 measured at
+    `REPS=2`, 0.77 at 4, 0.89 at 8, 0.94 at 16. The separation between a
+    resolved burst and an unresolved one therefore **halves with every
+    doubling** — 0.37, 0.20, 0.10, 0.05 — while the acquisition knee
+    improves from 66.0 to 54.9 dB-Hz over the same range. More repetitions
+    buy sensitivity and cost discrimination. Concretely: compare
+    `refine_margin` against `(REPS-1)/REPS`, never against a constant; the
+    certification asserted a fixed 0.9 until this sweep was run, which is
+    correct at `REPS=4` and wrong at 8 and 16.
 
     **A margin measured only where it does not fail is not a margin** — and
     this section's own first draft is the cautionary case: the coherent form

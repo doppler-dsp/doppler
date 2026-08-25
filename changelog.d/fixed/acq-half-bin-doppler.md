@@ -6,8 +6,13 @@
     autocorrelation-sidelobe floor, so a half-bin burst was invisible at *any*
     C/N0. Measured across a 12 dB sweep: zero detections every time.
 
-    The engine now zero-pads its own column transform, sampling the surface
-    between the native Doppler bins. Detection is flat across the bin
+    The engine now lengthens its **slow-time** transform — the per-column
+    series of epochs — by zero-padding it, sampling the surface between the
+    native Doppler bins. **The code axis is untouched**, and that distinction
+    is load-bearing: the correlation along it is *circular*, so padding the
+    replica or the epoch in time would change the correlation rather than
+    interpolate it. Verified alongside: `code_phase` stays exact at every lag
+    across a whole code period. Detection is flat across the bin
     (measured at 0, ¼, ½, ¾ and 1 bin) where it previously had a hole at ½.
 
     **Not via `corr2d`'s `ny_out`**, and the reason is worth recording:

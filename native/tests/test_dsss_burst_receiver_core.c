@@ -15,6 +15,8 @@
  */
 #include "dsss_burst_receiver/dsss_burst_receiver_core.h"
 
+#include "pn/pn_core.h"
+
 #include "dp_rng_test.h"
 #include "dp_test.h"
 
@@ -48,12 +50,30 @@ crc16 (const uint8_t *bits, size_t n)
   return c;
 }
 
+/* A REAL spreading code: the maximal-length sequence of a 5-stage LFSR,
+ * built with the library's own generator rather than an arithmetic pattern.
+ *
+ * This is not fussiness. The pattern previously used here --
+ * `(i * 2654435761) >> 13 & 1` -- reads like a reasonable deterministic code
+ * and has a peak-to-worst-sidelobe ratio of **1.07**: it barely spreads at
+ * all. The characterization measured what that costs (53% of burst offsets
+ * detected, against 100% for a real code), because the CFAR reference is
+ * then set by the code's own autocorrelation rather than by noise. An MLS of
+ * the same length has a ratio of 31 -- the ideal -1 sidelobe. Testing the
+ * receiver on a code no caller would use measures the wrong thing. */
 static const uint8_t *
 acq_code (void)
 {
   static uint8_t c[ACQ_SF];
-  for (size_t i = 0; i < ACQ_SF; i++)
-    c[i] = (uint8_t)((i * 2654435761u >> 13) & 1u);
+  static int     built = 0;
+  if (!built)
+    {
+      pn_state_t *pn = pn_create (pn_mls_poly (5), 1u, 5u, 0);
+      for (size_t i = 0; i < ACQ_SF; i++)
+        c[i] = pn_step (pn);
+      pn_destroy (pn);
+      built = 1;
+    }
   return c;
 }
 
@@ -354,42 +374,76 @@ test_decodes_under_residual_doppler (void)
   return 0;
 }
 
-/* refine_margin's NEGATIVE case -- the one that makes the positive one
- * evidence. Pinning the search grid to a single coherent bin leaves the
- * detector firing on chance correlations rather than the preamble, so refine
- * has no true period to find; the margin must rise toward 1 and the CRC must
- * fail. Without this, a margin hardwired to 0.775 would pass every check
- * above, and the object's only view of its own hand-off would be decoration.
- */
+/* One TRUE burst is reported once, false alarms are marked, and
+ * refine_margin agrees with the CRC on which is which.
+ *
+ * Three claims in one capture because they are one property. Acquisition
+ * fires on every frame lying inside the preamble, so without suppression a
+ * single burst is claimed `reps` times over. It also false-alarms in noise at
+ * a finite rate, and a false alarm legitimately RETURNS bits -- the caller's
+ * verdict is `frame_valid`, not the fact that something came back. An earlier
+ * version asserted "exactly one return" and failed the moment the acquisition
+ * code was good enough to reach its designed false-alarm rate.
+ *
+ * The margin claim is the one that matters and it is the object's whole
+ * reason for existing: a mis-windowed burst still has a carrier, so a
+ * lock-style indicator reads healthy through a broken hand-off. Here the
+ * true burst resolves its period (margin well below 1) and every false alarm
+ * does not (margin near 1) -- the two agree with the CRC without being told
+ * about it.
+ *
+ * The noise is deterministic (dp_gauss from a fixed seed), so the false
+ * alarm below is reproducible rather than hoped for; the count is asserted
+ * so this cannot quietly become vacuous if the realization changes. */
 static int
-test_refine_margin_flags_an_unresolved_period (void)
+test_true_burst_once_and_false_alarms_marked (void)
 {
-  const size_t         AT = 5000;
-  static float complex cap[40000];
-  build_capture (cap, 40000, AT, 0.0, 0.02, 999u);
-
   dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
-  DP_REQUIRE (dsss_burst_receiver_configure_search_raw (s, 1, 1) == 0);
+
+  const size_t         AT = 5000;
+  static float complex cap[40000];
+  build_capture (cap, 40000, AT, 0.0, 0.02, 12345u);
 
   uint8_t out[PAYLOAD];
-  size_t  got = 0;
-  for (size_t off = 0; off < 40000 && got == 0; off += 777)
+  size_t  n_valid = 0, n_false = 0;
+  double  valid_margin = 1.0, worst_false_margin = 0.0;
+
+  for (size_t off = 0; off < 40000; off += 777)
     {
       size_t n = (off + 777 <= 40000) ? 777 : (40000 - off);
-      got      = dsss_burst_receiver_push (s, cap + off, n, out, PAYLOAD);
+      if (!dsss_burst_receiver_push (s, cap + off, n, out, PAYLOAD))
+        continue;
+      double m = dsss_burst_receiver_get_refine_margin (s);
+      if (dsss_burst_receiver_get_frame_valid (s))
+        {
+          n_valid++;
+          valid_margin = m;
+          DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
+        }
+      else
+        {
+          n_false++;
+          if (m > worst_false_margin)
+            worst_false_margin = m;
+        }
     }
 
-  if (got)
-    {
-      /* It found something and got the period wrong: the margin says so,
-         and the CRC agrees. That pairing is the point -- a lock-style
-         indicator that stayed healthy through a broken hand-off is exactly
-         what this object exists to end. */
-      DP_CHECK (dsss_burst_receiver_get_refine_margin (s) > 0.8);
-      DP_CHECK (dsss_burst_receiver_get_preamble_start (s) != AT);
-      DP_CHECK (dsss_burst_receiver_get_frame_valid (s) == 0);
-    }
+  /* The real burst, claimed exactly once despite firing on every frame of
+     its own preamble. */
+  DP_CHECK (n_valid == 1);
+  DP_CHECK (dsss_burst_receiver_get_n_bursts (s) >= 1);
+
+  /* Non-vacuous: this capture really does contain a false alarm, so the
+     comparison below is measuring something. */
+  DP_CHECK_MSG (n_false >= 1,
+                "no false alarm in this capture -- the margin comparison "
+                "below would be vacuous");
+
+  /* The margin tells them apart, unprompted. */
+  DP_CHECK (valid_margin < 0.9);
+  DP_CHECK (worst_false_margin > valid_margin);
+
   dsss_burst_receiver_destroy (s);
   return 0;
 }
@@ -451,30 +505,86 @@ test_one_giant_push_finds_the_same_burst (void)
   return 0;
 }
 
-/* One burst is claimed ONCE. Acquisition fires on every frame lying inside
- * the preamble, so without suppression a single burst is queued `reps` times
- * and the receiver reports bursts that do not exist. */
+/* A burst near the START of the stream, where refine cannot back off its
+ * full search span.
+ *
+ * The candidates are `anchor + k*P`, and backing off must therefore move in
+ * WHOLE code periods -- clamping to sample 0 instead puts the entire grid on
+ * multiples of P and throws away the very phase the anchor carries. Measured
+ * before the fix, with a 127-chip code (where the sizer picks a coherent
+ * depth of 1, so `k_lo*P` is large): refine returned exactly 11*P while the
+ * burst sat 588 samples off it.
+ *
+ * This is placed early enough that `k_lo * code_period` exceeds the anchor,
+ * which is the only condition that reaches the clamp. */
 static int
-test_a_single_burst_is_reported_once (void)
+test_a_burst_near_the_stream_start (void)
 {
   dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
 
-  const size_t         AT = 5000;
+  /* Inside the clamp's reach: the refine span cannot be taken in full. */
+  const size_t AT = 600;
+  DP_REQUIRE (AT < s->k_lo * s->code_period);
+  /* ...and NOT on a code-period boundary, so a grid that lost the phase
+     could not land on the right answer by accident. */
+  DP_REQUIRE (AT % s->code_period != 0);
+
   static float complex cap[40000];
-  build_capture (cap, 40000, AT, 0.0, 0.02, 12345u);
+  build_capture (cap, 40000, AT, 0.0, 0.02, 4242u);
 
   uint8_t out[PAYLOAD];
-  size_t  bursts = 0;
+  size_t  got = 0;
+  for (size_t off = 0; off < 40000 && got == 0; off += 777)
+    {
+      size_t n = (off + 777 <= 40000) ? 777 : (40000 - off);
+      got      = dsss_burst_receiver_push (s, cap + off, n, out, PAYLOAD);
+    }
+  DP_CHECK (got == PAYLOAD);
+  DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
+  DP_CHECK (dsss_burst_receiver_get_frame_valid (s) == 1);
+
+  dsss_burst_receiver_destroy (s);
+  return 0;
+}
+
+/* One burst, many detections: the suppression path.
+ *
+ * With the search grid pinned to a single coherent bin the acquisition frame
+ * is ONE code period, so `reps` frames fall inside the preamble and every one
+ * of them fires. Without suppression the same burst is queued that many times
+ * and the receiver reports bursts that do not exist. The auto-sized grid used
+ * by the other tests here spends its depth on Doppler instead, making the
+ * frame the whole preamble and firing only once -- so this path needs its own
+ * stimulus rather than sharing theirs. */
+static int
+test_one_burst_many_detections_is_claimed_once (void)
+{
+  dsss_burst_receiver_state_t *s = make_rx ();
+  DP_REQUIRE (s != NULL);
+  DP_REQUIRE (dsss_burst_receiver_configure_search_raw (s, 1, 1) == 0);
+  /* The frame really is one code period now -- otherwise the preamble would
+     not span several frames and this test would prove nothing. */
+  DP_REQUIRE (s->acq->engine->n == s->code_period);
+
+  const size_t         AT = 5000;
+  static float complex cap[40000];
+  build_capture (cap, 40000, AT, 0.0, 0.02, 777u);
+
+  uint8_t out[PAYLOAD];
+  size_t  n_valid = 0;
   for (size_t off = 0; off < 40000; off += 777)
     {
       size_t n = (off + 777 <= 40000) ? 777 : (40000 - off);
-      if (dsss_burst_receiver_push (s, cap + off, n, out, PAYLOAD))
-        bursts++;
+      if (!dsss_burst_receiver_push (s, cap + off, n, out, PAYLOAD))
+        continue;
+      if (dsss_burst_receiver_get_frame_valid (s))
+        {
+          n_valid++;
+          DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
+        }
     }
-  DP_CHECK (bursts == 1);
-  DP_CHECK (dsss_burst_receiver_get_n_bursts (s) == 1);
-  DP_CHECK (dsss_burst_receiver_get_pending (s) == 0);
+  DP_CHECK_MSG (n_valid == 1, "the same burst was decoded more than once");
 
   dsss_burst_receiver_destroy (s);
   return 0;
@@ -617,13 +727,15 @@ main (void)
     return 1;
   if (test_decodes_under_residual_doppler ())
     return 1;
-  if (test_refine_margin_flags_an_unresolved_period ())
+  if (test_true_burst_once_and_false_alarms_marked ())
     return 1;
   if (test_silence_yields_no_burst ())
     return 1;
   if (test_one_giant_push_finds_the_same_burst ())
     return 1;
-  if (test_a_single_burst_is_reported_once ())
+  if (test_a_burst_near_the_stream_start ())
+    return 1;
+  if (test_one_burst_many_detections_is_claimed_once ())
     return 1;
   if (test_push_max_out_is_the_payload ())
     return 1;

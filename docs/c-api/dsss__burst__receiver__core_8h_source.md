@@ -40,6 +40,7 @@ typedef struct
 #include "loop_filter/loop_filter_core.h"
 #include "detection/detection_core.h"
 #include "fft/fft_core.h"
+#include "pn/pn_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

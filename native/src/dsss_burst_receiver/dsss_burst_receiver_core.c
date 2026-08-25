@@ -300,11 +300,19 @@ static int
 dsss_br_refine (dsss_burst_receiver_state_t *s, uint64_t anchor,
                 uint64_t *start, double *margin)
 {
-  size_t   P    = s->code_period;
-  size_t   reps = s->reps;
-  uint64_t back = (uint64_t)(s->k_lo * P);
-  if (anchor < back)
-    back = anchor; /* clamp at the start of the stream */
+  size_t P    = s->code_period;
+  size_t reps = s->reps;
+  /* Back off a WHOLE NUMBER OF CODE PERIODS, always. The candidates are
+     `anchor + k*P` precisely because acquisition's code phase already fixes
+     the alignment within a period, so a clamp that backed off to sample 0
+     would put the whole grid on multiples of P instead -- losing the very
+     phase the anchor carries. Measured: with a 127-chip code the sizer picks
+     a coherent depth of 1, k_lo*P then exceeds an early anchor, and refine
+     returned 11*P exactly while the burst sat 588 samples off it. */
+  uint64_t max_back = (anchor / (uint64_t)P) * (uint64_t)P;
+  uint64_t back     = (uint64_t)(s->k_lo * P);
+  if (back > max_back)
+    back = max_back;
   uint64_t lo = anchor - back;
 
   size_t n_cand = s->k_lo + s->k_hi + 1u;

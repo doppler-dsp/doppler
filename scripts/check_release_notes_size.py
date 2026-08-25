@@ -16,12 +16,23 @@ were 19,296 characters, so the overflow is not a near miss.
 
 What is measured is what would be PUBLISHED
 -------------------------------------------
-CHANGELOG.md is the engineering record and is allowed to be enormous -- the
-entries here routinely explain a defect better than the design doc does, and
-shrinking them to fit a release page would destroy the wrong artifact. So the
-version section may carry a ``### Highlights`` block, and when the whole
-section will not fit that block is what ``release-notes.sh`` publishes, with a
+The version section may carry a ``### Highlights`` block, and when the whole
+section will not fit, that block is what ``release-notes.sh`` publishes with a
 link to the full section.
+
+That escape hatch used to be the whole policy: this file argued CHANGELOG.md
+"is the engineering record and is allowed to be enormous", on the grounds that
+shrinking entries to fit a release page destroys the wrong artifact. The
+premise was wrong, and the size is the argument -- v0.44.0 assembled to
+**1221 lines / 72,636 characters**, median **24 lines per entry**, 73% of the
+budget for ONE release. Nothing was lost condensing it to 12,534: the detail
+moved into the issues, PRs and design pages the entries already cited, which
+is where it is next to the discussion and the code rather than in a file
+nobody reads to the end.
+
+So an entry is an index now, and ``MAX_ENTRY_LINES`` enforces it at the moment
+it is written. Highlights stays as the fallback for a genuinely huge release,
+not as permission.
 
 The hard failure therefore measures the **publishable** body: an over-budget
 section with a Highlights block that fits is fine, and an over-budget section
@@ -66,6 +77,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 
@@ -90,6 +102,20 @@ BUDGET = GITHUB_BODY_LIMIT - PREAMBLE_RESERVE - GENERATED_NOTES_RESERVE
 # Warn at half the budget. Low enough that a release is cut with room to spare,
 # high enough that an ordinary week stays silent.
 WARN_FRACTION = 0.5
+
+# Non-blank lines one changelog entry may span, INCLUDING its headline.
+#
+# The target is a bold headline plus one to three lines, with the detail behind
+# a link -- see changelog.d/README.md. This is the backstop, not the target:
+# v0.44.0's 39 entries land at median 5 and max 8 after being rewritten to it,
+# so 10 leaves headroom for a genuinely knotty breaking change while still
+# catching the 24-line median that made this gate necessary.
+#
+# Counted on FRAGMENTS and on ``[Unreleased]``, which between them are every
+# entry a branch can still change. Released sections are left alone: they were
+# written under the old policy and rewriting history to satisfy a new rule is
+# not what a ratchet is for.
+MAX_ENTRY_LINES = 10
 
 
 def unreleased_section(changelog: str) -> str:
@@ -232,6 +258,80 @@ def report(raw: int, publishable: int, entries: int, summarised: bool) -> int:
     return 0
 
 
+def oversized_entries(
+    section: str, fragments: str
+) -> list[tuple[str, int, str]]:
+    """Entries over ``MAX_ENTRY_LINES``, as ``(where, lines, headline)``.
+
+    Reads the FRAGMENTS as files rather than as the concatenated blob the size
+    check uses, so the failure can name the file to edit. ``[Unreleased]`` is
+    read too, because a direct CHANGELOG edit is allowed and would otherwise
+    walk straight past this.
+
+    Blank lines do not count: they separate paragraphs inside one entry and
+    penalising them would push authors toward denser prose, which is the
+    opposite of the point.
+    """
+    found: list[tuple[str, int, str]] = []
+
+    def scan(where: str, text: str) -> None:
+        entry: list[str] = []
+        head = ""
+
+        def flush() -> None:
+            if entry and len(entry) > MAX_ENTRY_LINES:
+                found.append((where, len(entry), head))
+
+        for line in text.splitlines():
+            if line.startswith("- "):
+                flush()
+                entry = [line]
+                m = re.match(r"-\s+\*\*(.+?)\*\*", line)
+                head = (m.group(1) if m else line[2:].strip())[:60]
+            elif line.startswith(("#", "[")) and not line.startswith("  "):
+                flush()
+                entry = []
+            elif entry and line.strip():
+                entry.append(line)
+        flush()
+
+    scan("[Unreleased]", section)
+    if os.path.isdir(fragments):
+        for sub in sorted(os.listdir(fragments)):
+            d = os.path.join(fragments, sub)
+            if not os.path.isdir(d):
+                continue
+            for name in sorted(os.listdir(d)):
+                if not name.endswith(".md"):
+                    continue
+                path = os.path.join(d, name)
+                with open(path, encoding="utf-8") as fh:
+                    scan(os.path.relpath(path, ROOT), fh.read())
+    return found
+
+
+def report_entries(found: list[tuple[str, int, str]]) -> int:
+    if not found:
+        return 0
+    print(
+        f"check_release_notes_size: {len(found)} changelog entr"
+        f"{'y' if len(found) == 1 else 'ies'} over "
+        f"{MAX_ENTRY_LINES} lines — FAIL"
+    )
+    for where, n, head in sorted(found, key=lambda t: -t[1]):
+        print(f"  {n:>3} lines  {where}")
+        print(f"            {head}")
+    print()
+    print("  An entry is an INDEX, not the record: a bold headline plus one")
+    print("  to three lines, and a link to the issue, PR or design page that")
+    print("  carries the rest. See changelog.d/README.md.")
+    print()
+    print("  This is not a style nit. v0.44.0 assembled to 72,636 characters")
+    print("  at a median of 24 lines per entry — 73% of the release-body")
+    print("  budget for one release, and the body is published verbatim.")
+    return 1
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
@@ -287,7 +387,11 @@ def main() -> int:
     # budget the full section is better notes and is what gets published.
     summarised = bool(hl.strip()) and raw > BUDGET
     publishable = len(hl) if summarised else raw
-    return report(raw, publishable, entries, summarised)
+
+    # Both, always: reporting only the first would let a branch fix one and
+    # discover the other on the next run.
+    rc = report(raw, publishable, entries, summarised)
+    return report_entries(oversized_entries(section, args.fragments)) or rc
 
 
 if __name__ == "__main__":

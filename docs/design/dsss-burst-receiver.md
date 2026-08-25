@@ -212,6 +212,89 @@ one structurally cannot.
 
 ______________________________________________________________________
 
+### 3.6 Acquisition returns crossings, not bursts
+
+Refine answers *where* a burst starts (§3.4). Nothing yet answers **how many
+bursts there are**, and that is a separate problem with its own failure
+modes. Acquisition hands back a stream of threshold crossings, and three
+kinds arrive:
+
+| what fires                         | why                                                                                                        | what it is                              |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| several frames of **one preamble** | the preamble spans up to `REPS` frames and each can clear the gate                                         | the **same** burst, reported repeatedly |
+| the **payload** of a burst         | the data code correlates against the acquisition code at some non-zero level, usually off the Doppler peak | not a burst                             |
+| **noise**                          | at the configured `pfa`, by construction                                                                   | not a burst                             |
+
+Row 1 is an **identity** question — *are these two crossings one burst?* Rows
+2 and 3 are an **exclusion** question — *is this a burst at all?* They look
+like one problem and are not, and the rest of this section is what it costs
+to treat them as one.
+
+#### Treating them as one loses bursts
+
+Suppress everything for one `burst_len` after a crossing and take the first
+hit in that window, and both rows are handled at once. Measured on the
+five-burst example capture, that loses **2 of 5 bursts** — each to a spurious
+crossing inside the *preceding* burst's payload, roughly 10 dB weaker than
+the burst it discarded. The exclusion rule fired on a crossing that was not a
+burst, and the identity rule then hid the real one behind it.
+
+The obvious explanation is wrong, and the wrong one is instructive.
+Acquisition frames without overlap, so a preamble landing mid-frame is split
+between two — which looks exactly like a cause. It is not: sweeping the
+global frame phase moves every burst's single-frame coverage over 50 %–100 %,
+*including an exact half-split*, and the count does not move — pinned at 3/5
+at every phase, while the worst-straddled burst in the capture is found and a
+near-fully-covered one is lost. What predicts the loss, 1:1 across every
+phase, is the number of spurious crossings. Non-overlapping framing does cost
+a band of offsets **near the knee**, where the margin is thin, but that is a
+separate and much smaller effect
+([doppler#1006](https://github.com/doppler-dsp/doppler/issues/1006)).
+
+#### The obvious tie-break is the wrong quantity
+
+Ranking two crossings so the stronger keeps the slot needs a measure of
+strength, and the gating statistic is not one. `test_stat` is
+`peak_mag / noise_est`, and `noise_est` is a *mean over the correlation
+surface* — so a signal that spreads energy across the surface raises its own
+denominator. A **bare** preamble raises no floor; a real burst's payload
+does. Measured: a decoy preamble at **0.35 amplitude** outranks a full burst
+at 1.0 on `test_stat`. `cn0_dbhz_est` is backed out of `test_stat` and
+inherits it.
+
+The normalized statistic answers *did this cross the gate*, which is what it
+exists for and what prices `pfa`. It does not answer *which of these two is
+the stronger signal*.
+
+#### An exclusion window has a far edge — so the object has a re-arm time
+
+A window that runs to the end of a burst is compared against an **epoch**,
+and §3.1 already says an epoch is a residue: a code position inside the frame
+that detected it. So a crossing can name a position up to one acquisition
+frame **earlier than the burst it belongs to**, and the far edge of one
+burst's window can therefore reach the next burst's anchor.
+
+The object consequently has a **re-arm time**, and it is worth stating
+because it is a property a caller can violate. Measured on bursts laid end to
+end, four at a time, worst case over eight frame phases:
+
+| inter-burst gap | of a burst  | bursts decoded |
+| --------------- | ----------- | -------------- |
+| 0 samples       | 0.00        | **3 / 4**      |
+| 62              | 0.03        | 4 / 4          |
+| 124 … 620       | 0.05 … 0.25 | 4 / 4          |
+
+Zero gap is the only failing row, and zero gap is not a burst link — bursts
+that abut with no separation are a continuous stream, which is
+`DsssReceiver`'s problem and not this object's (§5.1). Any real gap clears
+it, by a wide margin: the smallest non-zero separation swept, **3 % of a
+burst**, is already clean at every frame phase.
+
+So the bound is real but slack, and it belongs in the object's stated
+envelope rather than in its mechanism.
+
+______________________________________________________________________
+
 ## 4. What this means for `DetectionEvent`
 
 [`async-dsss-spec.md`](async-dsss-spec.md) specifies `DetectionEvent` with
@@ -255,24 +338,52 @@ ______________________________________________________________________
 1. **All C.** The composition, the fold, the epoch and the seeding live in
     `native/src/dsss_burst_receiver/`. The Python face is a thin binding, as
     with every other object.
+
 1. **Compose, never re-implement.** `burst_acq`, `burst_despreader` and
     `burst_demod` cores are linked, not copied. The refine stage composes the
     existing correlation primitive against a reference the receiver already
     holds. No DSP is written here.
+
 1. **Three stages, named.** `search → refine → demod`. Acquisition is not
     asked to produce an exact epoch; refine is what produces it (§3.4). A
     design that leaves refine implicit is the one that ends up doing it with
     arithmetic at every call site.
+
+1. **Claim bursts by two rules, never one.** §3.6's identity and exclusion
+    questions get separate answers, because one rule cannot serve both:
+
+    - **Identity** — two crossings are the same burst when refine could map
+        both onto one start. That is computable, not a tunable: refine's
+        candidate grid is `anchor + k·P` over `k ∈ [−k_lo, k_hi]`, so
+        `refine_span` *is* the window. Within it the **larger raw
+        `peak_mag`** keeps the slot, so a weak crossing that merely arrived
+        first cannot own it — and it must be the raw peak, never `test_stat`
+        or `cn0_dbhz_est`, for the reason §3.6 measures.
+    - **Exclusion** — a burst's payload keeps firing for a whole
+        `burst_len`, and suppressing that long is right only if a burst is
+        really there. Nothing at detection time knows. **The CRC knows**, so
+        the long window is armed by a burst that *decoded* and by nothing
+        else, and candidates already queued inside the confirmed span are
+        dropped with it.
+
+    The consequence is deliberate: the demodulator's verdict feeds
+    **backwards** into the search. It is the one place in this object where a
+    later stage informs an earlier one, and it is what keeps a crossing that
+    turns out to be nothing from costing the next real burst.
+
 1. **Emit the event, and consume only the event.** The receiver's own
     internal path must go through the same `DetectionEvent` a remote consumer
     would get. If the record is insufficient, the in-process path must break
     too — otherwise the sufficiency criterion is enforced by nothing.
+
 1. **Validate its own hand-off.** §3.5 is a gap the composition can close: it
     knows the expected preamble and can score the seam rather than trusting
     it.
+
 1. **Mirror `DsssReceiver` where the problem is the same** — including the
     unprocessed-tail derivation, so no sample is lost across acquisition to
     demodulation.
+
 1. **Retain, do not re-derive.** Every stage reaches backwards from an end
     anchor, so the receiver owns a bounded history and reuses the existing
     double-mapped ring rather than growing a new buffer type (§7.1). A
@@ -286,6 +397,11 @@ ______________________________________________________________________
     hand stays supported; it just stops being the only option.
 - No transport. The event is a flat POD; who serializes it is the caller's
     concern, exactly as `async-dsss-spec.md` has it.
+- **Not a continuous-stream receiver.** Bursts are *separated* — that is what
+    makes them bursts, and the search, the look-back and the claim rules all
+    assume it. A stream whose bursts abut with no gap at all is
+    `DsssReceiver`'s problem, and the re-arm bound in §3.6 is the edge where
+    the two meet.
 
 ______________________________________________________________________
 
@@ -406,7 +522,12 @@ codes, the sync word, the geometry, and which consumer to drive.
 ```text
 push(x, n) ->
     SEARCH   feed burst_acq; collect hits with stream-absolute anchors
-    per burst cluster:
+    CLAIM    turn a stream of hits into distinct bursts           (§3.6)
+             within refine_span of a queued candidate -> SAME burst,
+                 keep the one with the larger raw peak_mag
+             inside a burst that already DECODED -> its payload, drop
+             otherwise -> a new candidate
+    per claimed burst:
         REFINE   score offsets over +/- REPS*P: one code-period
                  correlation per preamble position, magnitudes
                  summed non-coherently                            (§3.4)
@@ -421,6 +542,32 @@ push(x, n) ->
 The three stages are the point. `search → refine → demod` is the chain
 `async-dsss-spec.md` records as validated; the burst path had the first and
 last and was quietly asking acquisition to do refine's job with arithmetic.
+
+`CLAIM` is not a fourth stage so much as the bookkeeping between the first
+two, but it is written out because it was once a single line of policy that
+cost bursts (§3.6). Its two rules answer two different questions and are
+deliberately not merged: identity is settled by refine's own reach, a
+payload's existence is settled by the CRC.
+
+Both windows are derived, and neither is a knob:
+
+| window    | value                                    | why that value                                                                                                                    |
+| --------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| identity  | `refine_span` = `(k_lo + k_hi + REPS)·P` | the exact span over which refine can map two anchors onto one start — wider would merge distinct bursts, narrower would split one |
+| exclusion | `burst_len`, armed only on `frame_valid` | exactly how long a payload can keep firing                                                                                        |
+
+**The re-arm time is an envelope property, not a defect** (§3.6). The
+exclusion window's far edge can reach the next burst's anchor, so bursts
+must be *separated* — which a burst link is, by definition. Only a zero gap
+fails, and a zero gap is a continuous stream rather than a burst link.
+
+Two candidate mechanisms were implemented and **measured to fix nothing** —
+backing the far edge off by one acquisition frame, and bounding the identity
+window by `burst_len` so a short payload cannot merge two adjacent bursts.
+Neither was kept. They are recorded here so the next person does not spend
+the same afternoon on them: whatever produces the zero-gap loss, it is not
+either of those, and it is not worth finding until a caller has a use case
+that needs it.
 
 ### 7.1 Look-back — the receiver retains what acquisition releases
 

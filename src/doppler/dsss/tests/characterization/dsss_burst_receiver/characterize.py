@@ -30,7 +30,7 @@ a straddled preamble has no margin to give away.
 
 The framing is the residual: even a good code loses a band around mid-frame,
 because acquisition frames without overlap and a preamble falling across a
-boundary is split between two of them. That is doppler#1004.
+boundary is split between two of them. That is doppler#1006.
 
 **Both of those took a correction to see.** A first pass measured a 42% loss
 on the structured code and concluded the framing needed overlapping dwells —
@@ -210,7 +210,7 @@ def _run_one(
 #: sigma = 0.02 (about 100 dB-Hz, ~40 dB above the knee) and reported 100%
 #: found for the good code -- which proves nothing, because a frame carrying
 #: half a preamble still clears threshold by a mile up there. A straddle loss
-#: can only show where the margin is thin. See doppler#1004.
+#: can only show where the margin is thin. See doppler#1006.
 OFFSET_SIGMA = 2.2
 
 
@@ -270,7 +270,7 @@ def main(out_path: str | None = None) -> None:
     print(
         f"\n[1] detection vs burst offset, at "
         f"{cn0_dbhz(OFFSET_SIGMA):.0f} dB-Hz -- NEAR THE KNEE, because a "
-        f"straddle loss cannot show far above it (doppler#1004)"
+        f"straddle loss cannot show far above it (doppler#1006)"
     )
     results = {}
     for label, codes in (("good", good), ("poor", poor)):
@@ -308,7 +308,7 @@ def main(out_path: str | None = None) -> None:
         "       is acquisition's NON-OVERLAPPING framing, and near the "
         "knee it costs a real"
     )
-    print("       fraction of bursts. That is doppler#1004.")
+    print("       fraction of bursts. That is doppler#1006.")
 
     cn0, rate, margin = sweep_cn0()
     print(

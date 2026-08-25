@@ -17,7 +17,20 @@
 #include "buffer/buffer.h"
 #include "dp_state.h"
 
-#define DSSS_BR_QCAP 8u
+#define DSSS_BR_HITS 16u
+
+typedef struct
+{
+  uint64_t preamble_start; 
+  double   doppler_hz_est; 
+  double   doppler_res_hz; 
+  double   cn0_dbhz_est;   
+  double   est_freq_hz;    
+  double   est_rate_hz;    
+  double   est_snr_db;     
+  double   refine_margin;  
+  uint64_t frame_valid;    
+} dsss_br_event_t;
 
 typedef struct
 {
@@ -84,10 +97,23 @@ typedef struct {
   size_t corr_len;     
   size_t retain_span;  
   size_t chunk_max;    
-  /* ── Bursts in flight (at most one is RETURNED per push) ─────────────── */
-  dsss_br_pending_t q[DSSS_BR_QCAP]; 
-  size_t            q_head;          
-  size_t            q_len;           
+  /* ── Detections in flight ────────────────────────────────────────────
+   * Only detections whose burst window has NOT yet arrived live here: every
+   * one whose window HAS arrived is demodulated before push() returns, which
+   * is what bounds retention (see dsss_br_trim). */
+  dsss_br_pending_t *q;      
+  size_t             q_cap;  
+  size_t             q_head; 
+  size_t             q_len;  
+  /* ── The completed bursts of the LAST push ───────────────────────────
+   * Scratch, deliberately NOT serialized: it describes the most recent
+   * push() only, so keeping it out of the blob is what lets state_bytes()
+   * stay a pure function of configuration (finding F5). Grows on demand,
+   * because the count scales with the caller's block size, not with any
+   * configuration. */
+  dsss_br_event_t *ev;     
+  size_t           ev_cap; 
+  size_t           ev_len; 
   uint64_t suppress_until; 
   size_t acq_blob_max; 
   size_t k_lo; 
@@ -116,6 +142,10 @@ void dsss_burst_receiver_reset(dsss_burst_receiver_state_t *state);
 size_t dsss_burst_receiver_push_max_out(dsss_burst_receiver_state_t *state, size_t x_len);
 
 size_t dsss_burst_receiver_push(dsss_burst_receiver_state_t *state, const float complex *x, size_t x_len, uint8_t *out, size_t max_out);
+
+size_t dsss_burst_receiver_events_max_out(dsss_burst_receiver_state_t *state);
+
+size_t dsss_burst_receiver_events(dsss_burst_receiver_state_t *state, size_t n, dsss_br_event_t *out, size_t max_out);
 int dsss_burst_receiver_configure_search_raw(dsss_burst_receiver_state_t *state, size_t doppler_bins, size_t n_noncoh);
 uint64_t dsss_burst_receiver_get_preamble_start(const dsss_burst_receiver_state_t *state);
 int dsss_burst_receiver_get_frame_valid(const dsss_burst_receiver_state_t *state);
@@ -142,7 +172,7 @@ uint64_t dsss_burst_receiver_get_n_bursts(const dsss_burst_receiver_state_t *sta
  */
 
 #define DSSS_BURST_RECEIVER_STATE_MAGIC DP_FOURCC('D', 'B', 'R', 'X')
-#define DSSS_BURST_RECEIVER_STATE_VERSION 2u
+#define DSSS_BURST_RECEIVER_STATE_VERSION 3u
 
 size_t dsss_burst_receiver_state_bytes(const dsss_burst_receiver_state_t *state);
 

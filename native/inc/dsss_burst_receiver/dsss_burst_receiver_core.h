@@ -31,8 +31,38 @@
 #include "buffer/buffer.h"
 #include "dp_state.h"
 
-/** @brief Detections that may be in flight at once. */
-#define DSSS_BR_QCAP 8u
+/**
+ * @brief One completed burst's event, as `events()` hands it back.
+ *
+ * push() returns the PAYLOADS of every burst it completed, concatenated;
+ * this is the parallel record for row `i` of that return. It exists because
+ * a single push() can complete many bursts, and each one needs its own
+ * event -- a single set of scalar read-backs would describe only the last
+ * (docs/design/dsss-burst-receiver.md section 4: the record must be
+ * sufficient on its own, for EVERY burst, not just the most recent).
+ */
+/**
+ * @brief Detections collected from acquisition per batch.
+ *
+ * A BATCHING parameter, never a correctness one: push() loops until acq has
+ * absorbed the whole chunk, so a smaller array means more iterations and
+ * nothing else. Growing it to "be safe" would hide the fact that acq_push()
+ * stops once its result array is full and abandons the rest of its input.
+ */
+#define DSSS_BR_HITS 16u
+
+typedef struct
+{
+  uint64_t preamble_start; /**< Exact stream position of the preamble.     */
+  double   doppler_hz_est; /**< Signed coarse Doppler, Hz.                 */
+  double   doppler_res_hz; /**< Acquisition's native bin width, Hz.        */
+  double   cn0_dbhz_est;   /**< C/N0 lower bound from the hit, dB-Hz.      */
+  double   est_freq_hz;    /**< Demod's residual-frequency estimate.       */
+  double   est_rate_hz;    /**< Demod's chirp-rate estimate.               */
+  double   est_snr_db;     /**< Demod's post-decode SNR estimate.          */
+  double   refine_margin;  /**< Runner-up period over the winner.          */
+  uint64_t frame_valid;    /**< Non-zero if the CRC-16 checked out.        */
+} dsss_br_event_t;
 
 /**
  * @brief One detection between acquisition and demodulation.
@@ -150,10 +180,32 @@ typedef struct {
                             so any block size is accepted without the ring
                             overrunning its own retention.                 */
 
-  /* ── Bursts in flight (at most one is RETURNED per push) ─────────────── */
-  dsss_br_pending_t q[DSSS_BR_QCAP]; /**< Detections, oldest first.         */
-  size_t            q_head;          /**< Index of the oldest entry.        */
-  size_t            q_len;           /**< Entries in flight.                */
+  /* ── Detections in flight ────────────────────────────────────────────
+   * Only detections whose burst window has NOT yet arrived live here: every
+   * one whose window HAS arrived is demodulated before push() returns, which
+   * is what bounds retention (see dsss_br_trim). */
+  dsss_br_pending_t *q;      /**< Detections, oldest first; `q_cap` long.   */
+  size_t             q_cap;  /**< DERIVED, not a constant. Entries sit at
+                                  least `refine_span` apart within
+                                  `retain_span` of the head, so the count
+                                  scales with burst_len/refine_span -- about
+                                  1 at the C test geometry but 5.5x at a real
+                                  link and 20x for a long payload. A fixed 8
+                                  silently dropped the hit AND the rest of
+                                  the batch on anything but the test's own
+                                  geometry.                                 */
+  size_t             q_head; /**< Index of the oldest entry.                */
+  size_t             q_len;  /**< Entries in flight.                        */
+
+  /* ── The completed bursts of the LAST push ───────────────────────────
+   * Scratch, deliberately NOT serialized: it describes the most recent
+   * push() only, so keeping it out of the blob is what lets state_bytes()
+   * stay a pure function of configuration (finding F5). Grows on demand,
+   * because the count scales with the caller's block size, not with any
+   * configuration. */
+  dsss_br_event_t *ev;     /**< One record per burst returned.             */
+  size_t           ev_cap; /**< Allocated records.                          */
+  size_t           ev_len; /**< Records the last push() wrote.              */
   uint64_t suppress_until; /**< Detections below this stream position fall
                                 inside a burst that has already DECODED, so
                                 they are the payload firing against the
@@ -176,7 +228,11 @@ typedef struct {
   size_t k_hi; /**< ...and after.                                         */
 
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
-  size_t   pending;  /**< Bursts demodulated, awaiting return by push().   */
+  size_t   pending;  /**< Always 0. push() returns EVERY burst it
+                          completed, so nothing is ever left awaiting
+                          return. Kept so the read-back does not vanish from
+                          a released API; it used to report `q_len`, which is
+                          not what its own documentation claimed.          */
   uint64_t dropped;  /**< Samples the ring refused. A LOST BURST each, not
                           a statistic -- lifetime, survives reset().       */
   uint64_t n_bursts; /**< Bursts demodulated, lifetime.                    */
@@ -275,18 +331,22 @@ void dsss_burst_receiver_reset(dsss_burst_receiver_state_t *state);
 
 
 /**
- * @brief Max bits push() writes: the payload length.
+ * @brief Max bits push() can write for an input of @p x_len samples.
  *
- * Independent of @p x_len, because at most one burst is returned per call.
+ * push() returns EVERY burst it completed, so the bound scales with the
+ * input: distinct bursts cannot overlap, so they are at least `burst_len`
+ * apart, and a push of @p x_len samples can complete at most
+ * `x_len/burst_len + 1` of them -- plus every detection already queued from
+ * an earlier call, which is `q_cap`.
  *
  * @param state  Must be non-NULL.
- * @param x_len  Input length (ignored).
- * @return payload_len -- the buffer a caller must provide.
+ * @param x_len  Number of input samples the caller is about to push.
+ * @return `(x_len/burst_len + 1 + q_cap) * payload_len`.
  */
 size_t dsss_burst_receiver_push_max_out(dsss_burst_receiver_state_t *state, size_t x_len);
 
 /**
- * @brief Stream samples; emit one burst's payload when one completes.
+ * @brief Stream samples; return the payload of EVERY burst that completed.
  *
  * Retains @p x in the history ring and feeds the embedded acquisition.
  * When a detection fires, the refine stage correlates the whole preamble to
@@ -294,17 +354,25 @@ size_t dsss_burst_receiver_push_max_out(dsss_burst_receiver_state_t *state, size
  * cannot report, its code phase being a lag modulo one code period -- and
  * the burst is demodulated once its last sample has arrived.
  *
- * Writes the payload of AT MOST ONE completed burst per call, so the
- * read-back fields always describe the burst whose bits were just returned.
- * If more are ready, `pending` is non-zero and a further push drains the
- * next. Returning 0 is normal, not an error: it means no burst completed.
+ * EVERY SAMPLE OF @p x IS CONSUMED, and every burst that completes is
+ * returned by the call that completed it. Payloads are concatenated, so
+ * burst `i` occupies `out[i*payload_len .. (i+1)*payload_len)`, and
+ * `events()` returns the matching record for each. Returning 0 is normal,
+ * not an error: it means no burst completed in this call.
+ *
+ * This is the contract doppler#1008 broke. push() used to return at most one
+ * burst per call AND abandon the rest of its input to do it, so a block
+ * carrying several bursts lost all but the first -- measured at 6/6 decoded
+ * with 333-sample blocks against 1/6 with one large one. The history ring is
+ * a contiguous window over the stream and is never reset between bursts, so
+ * a payload whose tail falls outside one call is completed by a later one.
  *
  * @param state  Must be non-NULL.
  * @param x  Input samples (cf32), @p x_len long.
  * @param x_len  Number of input samples.
  * @param out  Payload bits, caller-owned, @p max_out long.
  * @param max_out  Capacity of @p out; see push_max_out().
- * @return Bits written to @p out (0 or payload_len).
+ * @return Bits written to @p out -- `n_bursts_returned * payload_len`.
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import DsssBurstReceiver
@@ -320,6 +388,50 @@ size_t dsss_burst_receiver_push_max_out(dsss_burst_receiver_state_t *state, size
  * @endcode
  */
 size_t dsss_burst_receiver_push(dsss_burst_receiver_state_t *state, const float complex *x, size_t x_len, uint8_t *out, size_t max_out);
+
+/**
+ * @brief Max records events() writes: one per burst the last push() returned.
+ *
+ * @param state  Must be non-NULL.
+ * @return The number of bursts the most recent push() completed.
+ */
+size_t dsss_burst_receiver_events_max_out(dsss_burst_receiver_state_t *state);
+
+/**
+ * @brief The event record for each burst the last push() returned.
+ *
+ * Row `i` describes the payload at `out[i*payload_len ...]` of that push.
+ * A single push can complete many bursts and each needs its own event, so
+ * these are a list rather than the scalar read-backs -- those still exist
+ * and still describe the LAST burst, but they cannot speak for the others.
+ *
+ * Valid until the next push(), reset() or set_state(). Deliberately not
+ * serialized: it describes one call, and keeping it out of the blob is what
+ * holds state_bytes() to a pure function of configuration.
+ *
+ * @param state  Must be non-NULL.
+ * @param n  Ignored. The record count is whatever the last push() produced,
+ *           not something a caller chooses; this parameter exists because
+ *           every variable-output method carries one, and the binding uses
+ *           it only as a floor on the buffer it allocates.
+ * @param out  Records, caller-owned, @p max_out long.
+ * @param max_out  Capacity of @p out; see events_max_out().
+ * @return Records written to @p out -- `min(events_max_out(), max_out)`.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.dsss import DsssBurstReceiver
+ * >>> rng = np.random.default_rng(0)
+ * >>> rx = DsssBurstReceiver(
+ * ...     rng.integers(0, 2, 31).astype(np.uint8),
+ * ...     rng.integers(0, 2, 8).astype(np.uint8),
+ * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+ * >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
+ * >>> len(rx.events()) == bits.size // 32   # one record per payload
+ * True
+ *
+ * @endcode
+ */
+size_t dsss_burst_receiver_events(dsss_burst_receiver_state_t *state, size_t n, dsss_br_event_t *out, size_t max_out);
 /**
  * @brief Pin the acquisition search grid, bypassing the auto-sizing.
  *
@@ -370,7 +482,7 @@ uint64_t dsss_burst_receiver_get_n_bursts(const dsss_burst_receiver_state_t *sta
 
 /** @brief Per-object envelope tag: "DBRX" (DsssBurstReceiver). */
 #define DSSS_BURST_RECEIVER_STATE_MAGIC DP_FOURCC('D', 'B', 'R', 'X')
-#define DSSS_BURST_RECEIVER_STATE_VERSION 2u
+#define DSSS_BURST_RECEIVER_STATE_VERSION 3u
 
 /** @brief Byte size of @p state's blob (envelope + payload + child). */
 size_t dsss_burst_receiver_state_bytes(const dsss_burst_receiver_state_t *state);

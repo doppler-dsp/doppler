@@ -117,10 +117,11 @@ def test_silence_yields_no_burst() -> None:
     assert isinstance(out, np.ndarray)
     assert out.size == 0
     assert r.n_bursts == 0
-    # At most one burst per call, so the caller's buffer is the payload
-    # length whatever the block size.
-    assert r.push_max_out(1) == PAYLOAD
-    assert r.push_max_out(1 << 20) == PAYLOAD
+    # The bound scales with the input: push() returns EVERY burst the call
+    # completed, so a constant payload_len would under-size the buffer the
+    # moment one call carried two bursts (doppler#1008).
+    assert r.push_max_out(1) >= PAYLOAD
+    assert r.push_max_out(1 << 20) > r.push_max_out(1)
 
 
 def test_reset_clears_the_event() -> None:

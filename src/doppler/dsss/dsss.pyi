@@ -3226,18 +3226,21 @@ class DsssBurstReceiver:
         x: NDArray[np.complex64],
         out: NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
-        """Stream raw cf32 samples. Samples feed the embedded BurstAcquisition
-        and are retained in a history ring; when a detection fires, the refine
-        stage correlates the whole preamble to recover the exact preamble start
-        -- the one quantity acquisition structurally cannot report, since its
-        code_phase is a lag modulo one code period -- and the burst is
-        demodulated the moment its last sample has arrived. Returns the payload
-        bits of AT MOST ONE completed burst per call, so the read-back fields
-        always describe the burst whose bits were just returned; if more are
-        ready, `pending` is non-zero and a further push (an empty array will
-        do) drains the next. An empty return is normal, not an error: it means
-        no burst completed in this call. Accepts any block size; state carries
-        across calls.
+        """Stream raw cf32 samples and get back the payload of EVERY burst that
+        completed. Samples feed the embedded BurstAcquisition and are retained
+        in a history ring; when a detection fires, the refine stage correlates
+        the whole preamble to recover the exact preamble start -- the one
+        quantity acquisition structurally cannot report, since its code_phase
+        is a lag modulo one code period -- and the burst is demodulated the
+        moment its last sample has arrived. Every sample is consumed and every
+        burst that completes is returned by the call that completed it, with
+        payloads concatenated: burst i occupies
+        bits[i*payload_len:(i+1)*payload_len], and events() returns the
+        matching record for each. An empty return is normal, not an error: it
+        means no burst completed in this call. Accepts any block size -- the
+        history ring is a contiguous window over the stream and is never reset
+        between bursts, so a payload whose tail falls outside one call is
+        completed by a later one.
 
         Retains x in the history ring and feeds the embedded acquisition. When
         a detection fires, the refine stage correlates the whole preamble to
@@ -3246,11 +3249,19 @@ class DsssBurstReceiver:
         period -- and the burst is demodulated once its last sample has
         arrived.
 
-        Writes the payload of AT MOST ONE completed burst per call, so the
-        read-back fields always describe the burst whose bits were just
-        returned. If more are ready, `pending` is non-zero and a further push
-        drains the next. Returning 0 is normal, not an error: it means no burst
-        completed.
+        EVERY SAMPLE OF x IS CONSUMED, and every burst that completes is
+        returned by the call that completed it. Payloads are concatenated, so
+        burst `i` occupies `out[i*payload_len .. (i+1)*payload_len)`, and
+        `events()` returns the matching record for each. Returning 0 is normal,
+        not an error: it means no burst completed in this call.
+
+        This is the contract doppler#1008 broke. push() used to return at most
+        one burst per call AND abandon the rest of its input to do it, so a
+        block carrying several bursts lost all but the first -- measured at 6/6
+        decoded with 333-sample blocks against 1/6 with one large one. The
+        history ring is a contiguous window over the stream and is never reset
+        between bursts, so a payload whose tail falls outside one call is
+        completed by a later one.
 
         Parameters
         ----------
@@ -3262,7 +3273,7 @@ class DsssBurstReceiver:
         Returns
         -------
         NDArray[np.uint8]
-            Bits written to out (0 or payload_len).
+            Bits written to out -- `n_bursts_returned * payload_len`.
 
         Examples
         --------
@@ -3280,19 +3291,85 @@ class DsssBurstReceiver:
         """
 
     def push_max_out(self, x_len: int) -> int:
-        """Max bits push() writes: the payload length.
+        """Max bits push() can write for an input of x_len samples.
 
-        Independent of x_len, because at most one burst is returned per call.
+        push() returns EVERY burst it completed, so the bound scales with the
+
+        input: distinct bursts cannot overlap, so they are at least `burst_len`
+
+        apart, and a push of x_len samples can complete at most
+
+        `x_len/burst_len + 1` of them -- plus every detection already queued
+        from
+
+        an earlier call, which is `q_cap`.
 
         Parameters
         ----------
         x_len : int
-            Input length (ignored).
+            Number of input samples the caller is about to push.
 
         Returns
         -------
         int
-            payload_len -- the buffer a caller must provide.
+            `(x_len/burst_len + 1 + q_cap) * payload_len`.
+        """
+
+    def events(
+        self,
+        count: int = 1,
+        out: NDArray[Any] | None = None,
+    ) -> NDArray[Any]:
+        """The event record for each burst the last push() returned. Row i
+        describes the payload at bits[i*payload_len:(i+1)*payload_len] of that
+        push. Valid until the next push(), reset() or set_state().
+
+        Row `i` describes the payload at `out[i*payload_len ...]` of that push.
+        A single push can complete many bursts and each needs its own event, so
+        these are a list rather than the scalar read-backs -- those still exist
+        and still describe the LAST burst, but they cannot speak for the
+        others.
+
+        Valid until the next push(), reset() or set_state(). Deliberately not
+        serialized: it describes one call, and keeping it out of the blob is
+        what holds state_bytes() to a pure function of configuration.
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[Any] | None
+            Records, caller-owned, max_out long.
+
+        Returns
+        -------
+        NDArray[Any]
+            Records written to out -- `min(events_max_out(), max_out)`.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import DsssBurstReceiver
+        >>> rng = np.random.default_rng(0)
+        >>> rx = DsssBurstReceiver(
+        ...     rng.integers(0, 2, 31).astype(np.uint8),
+        ...     rng.integers(0, 2, 8).astype(np.uint8),
+        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+        >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
+        >>> len(rx.events()) == bits.size // 32   # one record per payload
+        True
+
+        """
+
+    def events_max_out(self) -> int:
+        """Max records events() writes: one per burst the last push() returned.
+
+        Returns
+        -------
+        int
+            The number of bursts the most recent push() completed.
         """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
@@ -3417,11 +3494,11 @@ class DsssBurstReceiver:
 
     @property
     def preamble_start(self) -> int:
-        """Stream-absolute preamble start. Never late."""
+        """Exact stream position of the preamble."""
 
     @property
     def frame_valid(self) -> int:
-        """1 iff the CRC-16 trailer matched."""
+        """Non-zero if the CRC-16 checked out."""
 
     @property
     def doppler_hz_est(self) -> float:
@@ -3429,33 +3506,35 @@ class DsssBurstReceiver:
 
     @property
     def doppler_res_hz(self) -> float:
-        """Width of that estimate."""
+        """Acquisition's native bin width, Hz."""
 
     @property
     def cn0_dbhz_est(self) -> float:
-        """C/N0 lower bound, dB-Hz (saturating)."""
+        """C/N0 lower bound from the hit, dB-Hz."""
 
     @property
     def est_freq_hz(self) -> float:
-        """Demod's own residual estimate, Hz."""
+        """Demod's residual-frequency estimate."""
 
     @property
     def est_rate_hz(self) -> float:
-        """Demod's own chirp-rate estimate."""
+        """Demod's chirp-rate estimate."""
 
     @property
     def est_snr_db(self) -> float:
-        """Demod's own post-decode SNR estimate."""
+        """Demod's post-decode SNR estimate."""
 
     @property
     def refine_margin(self) -> float:
-        """Winning preamble correlation over its nearest whole-period
-        competitor. Near 1 means the period was NOT resolved.
-        """
+        """Runner-up period over the winner."""
 
     @property
     def pending(self) -> int:
-        """Bursts demodulated, awaiting return by push()."""
+        """Always 0. push() returns EVERY burst it completed, so nothing is
+        ever left awaiting return. Kept so the read-back does not vanish from a
+        released API; it used to report `q_len`, which is not what its own
+        documentation claimed.
+        """
 
     @property
     def dropped(self) -> int:

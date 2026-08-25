@@ -534,7 +534,9 @@ push(x, n) ->
                  keep the one with the larger raw peak_mag
              inside a burst that already DECODED -> its payload, drop
              otherwise -> a new candidate
-    per claimed burst:
+             (acq is re-fed until it has absorbed the whole chunk: it
+              stops once its result array fills and abandons the rest)
+    per claimed burst WHOSE WINDOW HAS ARRIVED -- all of them, not one:
         REFINE   score offsets over +/- REPS*P: one code-period
                  correlation per preamble position, magnitudes
                  summed non-coherently                            (§3.4)
@@ -542,8 +544,8 @@ push(x, n) ->
         EVENT    build DetectionEvent (fold via dp_fftfreq, one home)
         DEMOD    window the burst from the event ALONE            (goal 4)
                  drive the consumer, score the seam               (goal 5)
-                 emit payload + verdict
-    carry the unprocessed tail forward                            (goal 6)
+                 append payload + its own event to this call's list
+    return EVERY completed burst; every sample of x was consumed  (goal 6)
 ```
 
 The three stages are the point. `search → refine → demod` is the chain

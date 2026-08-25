@@ -666,6 +666,8 @@
 * **dsss\_burst\_receiver\_configure\_search\_raw** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **dsss\_burst\_receiver\_create** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **dsss\_burst\_receiver\_destroy** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
+* **dsss\_burst\_receiver\_events** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
+* **dsss\_burst\_receiver\_events\_max\_out** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **dsss\_burst\_receiver\_get\_cn0\_dbhz\_est** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **dsss\_burst\_receiver\_get\_doppler\_hz\_est** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **dsss\_burst\_receiver\_get\_doppler\_res\_hz** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))

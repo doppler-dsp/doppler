@@ -1084,7 +1084,7 @@ double marcum_q (
 Probability that a Rice(a, sigma=1) random variable exceeds b. For M=1: Q\_1(a, b) = P(Rice(a,1) &gt; b). General integer M relates to the noncentral chi-squared CDF with 2M degrees of freedom.
 
 
-Computed via the Poisson-weighted chi-squared series (exact for M=1, converges in ~60 terms for practical a, b &lt;= 15):
+Computed via the Poisson-weighted chi-squared series (exact for M=1):
 
 
 Q\_M(a, b) = sum\_{k=0}^inf w\_k \* Q\_{M+k}(0, b)
@@ -1093,7 +1093,10 @@ Q\_M(a, b) = sum\_{k=0}^inf w\_k \* Q\_{M+k}(0, b)
 where: w\_k = exp(-u) \* u^k/k! (u = a^2/2) Q\_n(0,b) = exp(-v) \* sum\_{j=0}^{n-1} v^j/j! (v = b^2/2)
 
 
-Each iteration advances both the Poisson weight and the chi-sum in O(1) using the recurrences w\_{k+1} = w\_k \* u/(k+1) and Q\_{n+1}(0,b) = Q\_n(0,b) + exp(-v)\*v^n/n!. Total cost: O(K) where K ~ max(u, M) + safety margin.
+Each iteration advances both the Poisson weight and the chi-sum in O(1) using the recurrences w\_{k+1} = w\_k \* u/(k+1) and Q\_{n+1}(0,b) = Q\_n(0,b) + exp(-v)\*v^n/n!.
+
+
+The window is CENTRED on the Poisson mode k ~ u = a^2/2 and its half-width scales as 12\*sqrt(u+1) + 60 terms, so the term count grows with `a` rather than being the fixed ~60 this comment used to claim: about 60 terms at a = 0, but ~187 at a = 15. That scaling is the whole point  a Poisson(u) distribution's mass sits at k ~ u with spread ~sqrt(u), so a fixed window anchored at k = 0 misses it entirely once `a` is large, which is a real bug this code already carries a comment about (see marcum\_q.c). Total cost: O(sqrt(u) + M).
 
 
 Special cases:

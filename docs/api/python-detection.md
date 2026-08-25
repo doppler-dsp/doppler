@@ -299,7 +299,7 @@ ______________________________________________________________________
 
 **Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [Measuring an Error Rate, Defensibly](../gallery/ber-awgn.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Name Your Own Code — and What Happens Past the Radius](../gallery/coding.md), [Detection Theory Curves](../gallery/detection-curves.md), [Monte Carlo vs Marcum Q Theory](../gallery/detection-sim.md), [Lock Detection: Verify Counts + Hysteresis](../gallery/lockdet.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md)
 **Guides** — [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Lock Detection Across `doppler.track`](../guide/lock-detection.md)
-**Design** — [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [The Exponential Moving Average](../design/ema.md), [MPSK Receiver](../design/mpsk.md), [SymbolSync Timing Lock Detector](../design/timing_lock_detector.md)
+**Design** — [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [Detection Sizing — the four laws behind one prefix](../design/detection.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [The Exponential Moving Average](../design/ema.md), [MPSK Receiver](../design/mpsk.md), [SymbolSync Timing Lock Detector](../design/timing_lock_detector.md)
 **Contributing** — [Validation log](../dev/contributing/validation-log.md)
 
 <!-- related-pages:end -->

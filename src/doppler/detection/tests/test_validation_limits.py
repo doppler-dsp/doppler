@@ -24,12 +24,16 @@ from __future__ import annotations
 
 import pytest
 
+from doppler.detection.tests.validation.detection import (
+    validate as detection_validate,
+)
 from doppler.detection.tests.validation.lockdet import (
     validate as lockdet_validate,
 )
 from doppler.tests._validation_common import assert_renders
 
 OBJECTS = {
+    "detection": detection_validate,
     "lockdet": lockdet_validate,
 }
 

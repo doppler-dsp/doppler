@@ -100,7 +100,6 @@ int det_dwell_power (double snr_power, double pd_min, double pfa,
 
 double det_snr_power(int dwell, double pd_min, double pfa);
 
-int det_dwell_power(double snr_power, double pd_min, double pfa, int max_dwell);
 #ifdef __cplusplus
 }
 #endif

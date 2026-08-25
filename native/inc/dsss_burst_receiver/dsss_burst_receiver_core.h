@@ -18,6 +18,29 @@
 #include "jm_perf.h"
 #include "buffer/buffer.h"
 #include "dp_state.h"
+
+/** @brief Detections that may be in flight at once. */
+#define DSSS_BR_QCAP 8u
+
+/**
+ * @brief One detection between acquisition and demodulation.
+ *
+ * A hit cannot always be refined the moment it arrives -- the refine window
+ * reaches BACKWARDS and forwards, so some of it may not have been pushed
+ * yet -- and a detection dropped because its window was incomplete is a lost
+ * burst. So a hit is queued here with the event fields acquisition supplied,
+ * refined when its window is reachable, and demodulated when the burst has
+ * fully arrived.
+ */
+typedef struct
+{
+  uint64_t anchor;     /**< Coarse code epoch from the hit (stream-absolute).*/
+  uint64_t start;      /**< Refined preamble start; valid once `refined`.   */
+  double   doppler_hz; /**< Signed coarse Doppler, Hz.                      */
+  double   cn0_dbhz;   /**< C/N0 lower bound from the hit, dB-Hz.           */
+  double   margin;     /**< Refine runner-up ratio; valid once `refined`.   */
+  int      refined;    /**< Non-zero once `start` is known.                 */
+} dsss_br_pending_t;
 #include "burst_acq/burst_acq_core.h"
 #include "acq/acq_core.h"
 #include "burst_demod/burst_demod_core.h"
@@ -86,6 +109,41 @@ typedef struct {
   double   refine_margin;  /**< Winning preamble correlation over its
                                 nearest whole-period competitor. Near 1
                                 means the period was NOT resolved.         */
+
+  /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
+  float *ref_sign;   /**< One code period of +-1 chip signs, spc-expanded.
+                          Real, so the per-period correlation is a signed
+                          sum rather than a complex multiply.              */
+  float _Complex *corr_buf; /**< Per-offset code-period correlations, reused
+                                 across the candidate sweep so the sliding
+                                 correlation is computed once and the
+                                 non-coherent combine just indexes it.     */
+  size_t refine_span;  /**< Candidate offsets searched: 2*reps*code_period. */
+  size_t corr_len;     /**< Entries in corr_buf.                            */
+  size_t retain_span;  /**< Samples that must stay reachable: refine span +
+                            one whole burst.                               */
+  size_t chunk_max;    /**< Largest slice of one push processed at a time,
+                            so any block size is accepted without the ring
+                            overrunning its own retention.                 */
+
+  /* ── Bursts in flight (at most one is RETURNED per push) ─────────────── */
+  dsss_br_pending_t q[DSSS_BR_QCAP]; /**< Detections, oldest first.         */
+  size_t            q_head;          /**< Index of the oldest entry.        */
+  size_t            q_len;           /**< Entries in flight.                */
+  uint64_t suppress_until; /**< Detections below this stream position belong
+                                to a burst already claimed -- acquisition
+                                fires once per frame across the preamble,
+                                so without this one burst is claimed reps
+                                times over.                                */
+  size_t acq_blob_max; /**< Fixed upper bound on the acquisition child's
+                            blob. `state_bytes()` must be a pure function of
+                            CONFIGURATION -- jm's binding compares an incoming
+                            blob's length against it -- yet both the retained
+                            look-back and acq's own unconsumed ring vary with
+                            the stream. Both are therefore written into
+                            fixed-size regions with a length prefix.        */
+  size_t k_lo; /**< Whole code periods searched BEFORE the anchor.        */
+  size_t k_hi; /**< ...and after.                                         */
 
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
   size_t   pending;  /**< Bursts demodulated, awaiting return by push().   */

@@ -139,10 +139,29 @@ event chainable rather than merely consumable.
 
 §3.1 says a *code-period* correlation cannot name the repetition. The
 **preamble** can, because it has finite extent — its edges break exactly the
-periodicity a bare code correlation is blind to. Correlating the whole
-`REPS × P` preamble as one reference against the stream gives a peak whose
-value at a whole-period offset `k` follows the triangular overlap envelope
-`(REPS - abs(k)) / REPS`.
+periodicity a bare code correlation is blind to. Score a candidate offset by
+correlating one code period at each of the `REPS` positions the preamble
+would occupy and summing the **magnitudes**; the score at a whole-period
+offset `k` follows the triangular overlap envelope `(REPS - abs(k)) / REPS`,
+because only `REPS - abs(k)` of those positions still land on preamble.
+
+**Combine non-coherently, one code period at a time — not the whole preamble
+as one reference.** This correction cost a measurement: the first version
+correlated all `REPS × P` samples coherently and was verified on a capture
+with *zero* Doppler, where it cannot fail. Acquisition leaves up to half a
+bin of residual, and a coherent integration that long does not survive it:
+
+| residual Doppler | coherent whole preamble                                    | non-coherent per period |
+| ---------------- | ---------------------------------------------------------- | ----------------------- |
+| 0                | exact                                                      | exact                   |
+| 0.25 bin         | **wrong by 2 periods** (true position 639× below the peak) | exact                   |
+| 0.50 bin         | **wrong by 1 period** (310× below)                         | exact                   |
+
+So the per-period form is not an optimization, it is the mechanism. Each
+correlation spans one code period rather than `REPS` of them, so the phase
+rotation a half-bin residual produces stays small enough to integrate
+through, and the envelope survives. It is the same coherent-then-non-coherent
+split `acq` itself uses, applied to a finer question.
 
 Measured at three noise levels, against a coarse guess deliberately placed
 two periods early:
@@ -156,7 +175,8 @@ two periods early:
 | +2 periods             | 0.465          | 0.500     |
 
 The argmax landed on the true start **exactly** — to the sample, not to the
-period — at σ = 0.02, 0.6 and 1.6 alike.
+period — at σ = 0.02, 0.6 and 1.6 alike, and at 0, 0.25 and 0.5 bins of
+residual Doppler.
 
 > **This is the stage the chain is missing.** Acquisition's job is to get
 > close; resolving the exact preamble start is a *refine*, and it has a
@@ -276,16 +296,20 @@ decision already made.
 
 ### 6.1 The refine stage's margin and span
 
-The *mechanism* is settled (§3.4): correlate the whole preamble, and the
-triangular overlap envelope names the repetition. What is not settled is its
-operating envelope.
+The *mechanism* is settled (§3.4): correlate one code period at each of the
+preamble's `REPS` positions, sum the magnitudes, and the triangular overlap
+envelope names the repetition. What is not settled is its operating
+envelope.
 
 - **The discrimination margin.** The nearest competitor sits at
     `(REPS-1)/REPS` — 2.5 dB at `REPS = 4`. At what C/N0 does the wrong
     repetition win, and how does that floor move with `REPS`? The prototype
     saw the correct peak at every noise level it tried, which establishes the
     mechanism and not its limit. **A margin measured only where it does not
-    fail is not a margin.**
+    fail is not a margin** — and this section's own first draft is the
+    cautionary case: the coherent form was "verified" on a zero-Doppler
+    capture and was wrong by two code periods the moment a quarter of a bin
+    was present.
 - **The search span.** Acquisition bounds the error to whole code periods
     within the preamble, so a span of `± REPS · P` is sufficient and probably
     generous. The cost is one correlation per candidate offset; whether that
@@ -352,7 +376,9 @@ codes, the sync word, the geometry, and which consumer to drive.
 push(x, n) ->
     SEARCH   feed burst_acq; collect hits with stream-absolute anchors
     per burst cluster:
-        REFINE   correlate the WHOLE preamble over +/- REPS*P     (§3.4)
+        REFINE   score offsets over +/- REPS*P: one code-period
+                 correlation per preamble position, magnitudes
+                 summed non-coherently                            (§3.4)
                  -> exact preamble_start, to the sample
         EVENT    build DetectionEvent (fold via dp_fftfreq, one home)
         DEMOD    window the burst from the event ALONE            (goal 4)

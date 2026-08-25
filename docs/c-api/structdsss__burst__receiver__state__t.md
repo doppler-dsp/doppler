@@ -37,12 +37,16 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**acq**](#variable-acq)  <br> |
+|  size\_t | [**acq\_blob\_max**](#variable-acq_blob_max)  <br> |
 |  uint8\_t \* | [**acq\_code**](#variable-acq_code)  <br> |
 |  size\_t | [**acq\_code\_len**](#variable-acq_code_len)  <br> |
 |  size\_t | [**burst\_len**](#variable-burst_len)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
+|  size\_t | [**chunk\_max**](#variable-chunk_max)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  size\_t | [**code\_period**](#variable-code_period)  <br> |
+|  float \_Complex \* | [**corr\_buf**](#variable-corr_buf)  <br> |
+|  size\_t | [**corr\_len**](#variable-corr_len)  <br> |
 |  uint8\_t \* | [**data\_code**](#variable-data_code)  <br> |
 |  size\_t | [**data\_code\_len**](#variable-data_code_len)  <br> |
 |  [**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* | [**demod**](#variable-demod)  <br> |
@@ -54,14 +58,23 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 |  double | [**est\_snr\_db**](#variable-est_snr_db)  <br> |
 |  int | [**frame\_valid**](#variable-frame_valid)  <br> |
 |  dp\_f32\_t \* | [**hist**](#variable-hist)  <br> |
+|  size\_t | [**k\_hi**](#variable-k_hi)  <br> |
+|  size\_t | [**k\_lo**](#variable-k_lo)  <br> |
 |  uint64\_t | [**n\_bursts**](#variable-n_bursts)  <br> |
 |  size\_t | [**payload\_len**](#variable-payload_len)  <br> |
 |  size\_t | [**pending**](#variable-pending)  <br> |
 |  uint64\_t | [**preamble\_start**](#variable-preamble_start)  <br> |
+|  [**dsss\_br\_pending\_t**](structdsss__br__pending__t.md) | [**q**](#variable-q)  <br> |
+|  size\_t | [**q\_head**](#variable-q_head)  <br> |
+|  size\_t | [**q\_len**](#variable-q_len)  <br> |
+|  float \* | [**ref\_sign**](#variable-ref_sign)  <br> |
 |  double | [**refine\_margin**](#variable-refine_margin)  <br> |
+|  size\_t | [**refine\_span**](#variable-refine_span)  <br> |
 |  size\_t | [**reps**](#variable-reps)  <br> |
+|  size\_t | [**retain\_span**](#variable-retain_span)  <br> |
 |  uint64\_t | [**samples\_fed**](#variable-samples_fed)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
+|  uint64\_t | [**suppress\_until**](#variable-suppress_until)  <br> |
 |  uint8\_t \* | [**sync**](#variable-sync)  <br> |
 |  size\_t | [**sync\_len**](#variable-sync_len)  <br> |
 
@@ -129,6 +142,24 @@ burst_acq_state_t* dsss_burst_receiver_state_t::acq;
 
 
 Search stage. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable acq\_blob\_max 
+
+```C++
+size_t dsss_burst_receiver_state_t::acq_blob_max;
+```
+
+
+
+Fixed upper bound on the acquisition child's blob. `state_bytes()` must be a pure function of CONFIGURATION  jm's binding compares an incoming blob's length against it  yet both the retained look-back and acq's own unconsumed ring vary with the stream. Both are therefore written into fixed-size regions with a length prefix. 
  
 
 
@@ -210,6 +241,24 @@ Chip rate, Hz.
 
 
 
+### variable chunk\_max 
+
+```C++
+size_t dsss_burst_receiver_state_t::chunk_max;
+```
+
+
+
+Largest slice of one push processed at a time, so any block size is accepted without the ring overrunning its own retention. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable cn0\_dbhz\_est 
 
 ```C++
@@ -237,6 +286,42 @@ size_t dsss_burst_receiver_state_t::code_period;
 
 
 One preamble repetition, in SAMPLES. The modulus acq's code\_phase is a residue of, so every epoch ambiguity in this object is stated against it. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable corr\_buf 
+
+```C++
+float _Complex* dsss_burst_receiver_state_t::corr_buf;
+```
+
+
+
+Per-offset code-period correlations, reused across the candidate sweep so the sliding correlation is computed once and the non-coherent combine just indexes it. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable corr\_len 
+
+```C++
+size_t dsss_burst_receiver_state_t::corr_len;
+```
+
+
+
+Entries in corr\_buf. 
  
 
 
@@ -444,6 +529,42 @@ History ring. Double-mapped, so a window that spans the wrap is ONE contiguous p
 
 
 
+### variable k\_hi 
+
+```C++
+size_t dsss_burst_receiver_state_t::k_hi;
+```
+
+
+
+...and after. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable k\_lo 
+
+```C++
+size_t dsss_burst_receiver_state_t::k_lo;
+```
+
+
+
+Whole code periods searched BEFORE the anchor. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable n\_bursts 
 
 ```C++
@@ -515,6 +636,78 @@ Stream-absolute preamble start. Never late.
 
 
 
+### variable q 
+
+```C++
+dsss_br_pending_t dsss_burst_receiver_state_t::q[DSSS_BR_QCAP];
+```
+
+
+
+Detections, oldest first. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable q\_head 
+
+```C++
+size_t dsss_burst_receiver_state_t::q_head;
+```
+
+
+
+Index of the oldest entry. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable q\_len 
+
+```C++
+size_t dsss_burst_receiver_state_t::q_len;
+```
+
+
+
+Entries in flight. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable ref\_sign 
+
+```C++
+float* dsss_burst_receiver_state_t::ref_sign;
+```
+
+
+
+One code period of +-1 chip signs, spc-expanded. Real, so the per-period correlation is a signed sum rather than a complex multiply. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable refine\_margin 
 
 ```C++
@@ -533,6 +726,23 @@ Winning preamble correlation over its nearest whole-period competitor. Near 1 me
 
 
 
+### variable refine\_span 
+
+```C++
+size_t dsss_burst_receiver_state_t::refine_span;
+```
+
+
+
+Candidate offsets searched: 2\*reps\*code\_period. 
+
+
+        
+
+<hr>
+
+
+
 ### variable reps 
 
 ```C++
@@ -542,6 +752,24 @@ size_t dsss_burst_receiver_state_t::reps;
 
 
 Preamble code repetitions. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable retain\_span 
+
+```C++
+size_t dsss_burst_receiver_state_t::retain_span;
+```
+
+
+
+Samples that must stay reachable: refine span + one whole burst. 
  
 
 
@@ -578,6 +806,24 @@ size_t dsss_burst_receiver_state_t::spc;
 
 
 Samples per chip. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable suppress\_until 
+
+```C++
+uint64_t dsss_burst_receiver_state_t::suppress_until;
+```
+
+
+
+Detections below this stream position belong to a burst already claimed  acquisition fires once per frame across the preamble, so without this one burst is claimed reps times over. 
  
 
 

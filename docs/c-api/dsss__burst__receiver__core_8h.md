@@ -45,6 +45,7 @@ _DsssBurstReceiver component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+| struct | [**dsss\_br\_pending\_t**](structdsss__br__pending__t.md) <br>_One detection between acquisition and demodulation._  |
 | struct | [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) <br>_DsssBurstReceiver state._  |
 
 
@@ -124,6 +125,7 @@ _DsssBurstReceiver component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**DSSS\_BR\_QCAP**](dsss__burst__receiver__core_8h.md#define-dsss_br_qcap)  `8u`<br>_Detections that may be in flight at once._  |
 | define  | [**DSSS\_BURST\_RECEIVER\_STATE\_MAGIC**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('D', 'B', 'R', 'X')`<br>_Per-object envelope tag: "DBRX" (DsssBurstReceiver)._  |
 | define  | [**DSSS\_BURST\_RECEIVER\_STATE\_VERSION**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_version)  `1u`<br> |
 
@@ -704,6 +706,20 @@ size_t dsss_burst_receiver_state_bytes (
 ## Macro Definition Documentation
 
 
+
+
+
+### define DSSS\_BR\_QCAP 
+
+_Detections that may be in flight at once._ 
+```C++
+#define DSSS_BR_QCAP `8u`
+```
+
+
+
+
+<hr>
 
 
 

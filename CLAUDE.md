@@ -10,6 +10,31 @@ See `~/.claude/skills/just-makeit.md` for the full jm reference.
 
 ______________________________________________________________________
 
+## Architecture
+
+Moved here from `~/.claude/CLAUDE.md` on 2026-08-25: these are doppler's
+rules, and that file loads into every session in every repo.
+
+- **C-first**: every algorithm lives in C exactly once. Wrappers call C — they
+    never reimplement logic. This holds *within* C too — don't let two C
+    modules each grow their own copy of the same helper. Concrete instance
+    (2026-07-17): `nco_core.c`, `lo_core.c`, and `dll_core.h` each carried
+    their own private `norm_freq → phase_inc` conversion; `lo_core.c`'s had
+    already been fixed to round instead of truncate, but `nco_core.c` — the
+    primitive's actual owner — still truncated, and `dll_core.h` had grown a
+    third private copy instead of calling either. One shared, public
+    primitive; every caller reuses it.
+- **Thin means thin**: a wrapper should be glue (type conversion, error
+    translation, lifetime bridging). If it's growing past a few hundred lines,
+    it's doing too much.
+- **Shared wire formats**: one `dp_header_t`, one magic value, one framing
+    convention. A C transmitter must talk to a Python subscriber.
+- **Test at every layer**: C tests for C, integration tests for wrappers.
+- **Build artifacts in `build/`**: never scatter cmake output into the repo
+    root.
+
+______________________________________________________________________
+
 ## Repository layout
 
 ```

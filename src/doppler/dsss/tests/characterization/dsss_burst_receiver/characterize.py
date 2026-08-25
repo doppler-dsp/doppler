@@ -18,18 +18,27 @@ NON-overlapping: one dwell is one frame's worth of samples, with no sliding
 search. A burst arrives at an arbitrary offset relative to that grid, so its
 preamble can straddle two frames with neither holding all of it. The obvious
 conclusion is that the framing loses those bursts — and it is wrong. This
-panel sweeps the offset across a whole frame at a C/N0 far above threshold,
-for a code with good autocorrelation and one with poor, and the loss belongs
-almost entirely to the CODE.
+panel sweeps the offset across a whole frame **near the sensitivity knee**,
+for a code with good autocorrelation and one with poor. Both effects are
+real, and they are not the same size.
 
-That distinction was nearly missed here. A first pass used a structured code
-whose peak-to-worst-sidelobe ratio is 1.07 — barely a spreading code at all —
-measured a 42% loss, and concluded the framing needed overlapping dwells.
-Swapping in a random code of the same length made the loss vanish. The
-mechanism is the CFAR reference: with a poor code the noise estimate is set
-by the code's own autocorrelation sidelobes rather than by noise, so the
-margin over threshold is thin and a straddled preamble falls under it. Good
-autocorrelation absorbs the straddle.
+The code dominates: at 59 dB-Hz a structured code whose peak-to-worst-
+sidelobe ratio is 1.07 finds 6% of offsets where an m-sequence finds 77%.
+The mechanism is the CFAR reference — with a poor code the noise estimate
+is set by the code's own autocorrelation sidelobes rather than by noise, so
+a straddled preamble has no margin to give away.
+
+The framing is the residual: even a good code loses a band around mid-frame,
+because acquisition frames without overlap and a preamble falling across a
+boundary is split between two of them. That is doppler#1004.
+
+**Both of those took a correction to see.** A first pass measured a 42% loss
+on the structured code and concluded the framing needed overlapping dwells —
+wrong, the code was the dominant term. The fix for that then over-corrected:
+the sweep was run at 100 dB-Hz, where a half-covered frame clears threshold
+by 40 dB and the framing term vanishes entirely, and the conclusion became
+"the framing was never the problem". Near the knee it plainly is. A sweep
+far from the operating point answers a question nobody asked.
 
 **Right — refine's period discrimination vs C/N0.** Acquisition fixes the
 code phase within a period; refine decides WHICH repetition, by correlating
@@ -195,18 +204,29 @@ def _run_one(
     return (False, False, float("nan"))
 
 
-def sweep_offset(codes) -> tuple[np.ndarray, np.ndarray]:
+#: C/N0 the offset sweep runs at, as an input noise sigma.
+#:
+#: NEAR THE KNEE, deliberately. The first version of this sweep ran at
+#: sigma = 0.02 (about 100 dB-Hz, ~40 dB above the knee) and reported 100%
+#: found for the good code -- which proves nothing, because a frame carrying
+#: half a preamble still clears threshold by a mile up there. A straddle loss
+#: can only show where the margin is thin. See doppler#1004.
+OFFSET_SIGMA = 2.2
+
+
+def sweep_offset(codes, sigma: float = OFFSET_SIGMA):
     """Detection vs the burst's offset within one acquisition frame.
 
-    Run at a C/N0 far above threshold on purpose: anything lost here is lost
-    to geometry or to the code, never to noise.
+    Run NEAR the sensitivity knee: a burst whose preamble straddles two of
+    acquisition's non-overlapping frames is split between them, and only a
+    thin margin turns that into a lost burst.
     """
     burst = _burst(*codes)
     offs = np.arange(0, ACQ_FRAME, OFFSET_STEP)
     ok = np.zeros(offs.size, dtype=bool)
     for i, off in enumerate(offs):
         ok[i] = _run_one(
-            BASE_AT + int(off), sigma=0.02, seed=5, codes=codes, burst=burst
+            BASE_AT + int(off), sigma=sigma, seed=5, codes=codes, burst=burst
         )[0]
     return offs, ok
 
@@ -248,8 +268,9 @@ def main(out_path: str | None = None) -> None:
     good = (ACQ_CODE, DATA_CODE, SYNC)
     poor = _structured_codes()
     print(
-        f"\n[1] detection vs burst offset, at {cn0_dbhz(0.02):.0f} dB-Hz "
-        f"(far above threshold -- nothing here is lost to noise)"
+        f"\n[1] detection vs burst offset, at "
+        f"{cn0_dbhz(OFFSET_SIGMA):.0f} dB-Hz -- NEAR THE KNEE, because a "
+        f"straddle loss cannot show far above it (doppler#1004)"
     )
     results = {}
     for label, codes in (("good", good), ("poor", poor)):
@@ -272,17 +293,22 @@ def main(out_path: str | None = None) -> None:
             f"losses: {band}"
         )
     print(
-        "    => the losses belong to the CODE's autocorrelation, not to "
-        "the non-overlapping framing."
+        "    => BOTH matter, and the code matters more. With a poor code "
+        "the CFAR reference is"
     )
     print(
-        "       With a poor code the CFAR reference is set by the code's "
-        "own sidelobes, so a"
+        "       set by the code's own sidelobes, so a straddled preamble "
+        "has no margin at all."
     )
     print(
-        "       straddled preamble has no margin to give away. A good code "
-        "absorbs the straddle."
+        "       A good code recovers most of it -- but not all. The "
+        "residual band around mid-frame"
     )
+    print(
+        "       is acquisition's NON-OVERLAPPING framing, and near the "
+        "knee it costs a real"
+    )
+    print("       fraction of bursts. That is doppler#1004.")
 
     cn0, rate, margin = sweep_cn0()
     print(
@@ -348,8 +374,8 @@ def _plot(results, cn0, rate, margin, out_path: str) -> None:
     ax0.set_ylim(0.25, 1.35)
     ax0.set_xlim(-0.02, 1.02)
     ax0.set_title(
-        "Where a burst is lost is set by the CODE,\nnot by the framing "
-        "(x = lost, at 100 dB-Hz)",
+        "Where a burst is lost, near the knee\n"
+        f"(x = lost, at {cn0_dbhz(OFFSET_SIGMA):.0f} dB-Hz)",
         fontsize=10,
     )
     ax0.legend(fontsize=8, loc="upper center", ncol=1)

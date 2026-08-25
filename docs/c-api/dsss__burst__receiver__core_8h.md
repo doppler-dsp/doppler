@@ -8,7 +8,7 @@
 
 [Go to the source code of this file](dsss__burst__receiver__core_8h_source.md)
 
-_DsssBurstReceiver component API._ [More...](#detailed-description)
+_DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
 * `#include "jm_perf.h"`
@@ -132,14 +132,22 @@ _DsssBurstReceiver component API._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Lifecycle: create -&gt; [step / steps / reset]\* -&gt; destroy
+Composes the three certified burst objects behind one push(): acquisition SEARCHES the stream, a refine stage recovers the exact preamble start, and the demodulator produces the payload. It owns the hand-off between them  the epoch, the fold, and the look-back reaching back to a burst start that has already gone past  which is the part every caller previously redid by hand. See docs/design/dsss-burst-receiver.md.
 
 
-Example: 
+Lifecycle: create, then push() repeatedly, then destroy. There is no step()/steps(): a burst is a frame, not a sample.
+
+
+
 ```C++
-dsss_burst_receiver_state_t *obj = dsss_burst_receiver_create(NULL, 0, NULL, 0, NULL, 0, 5, 4, 1000000.0, 64, 50.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
-uint8_t y = dsss_burst_receiver_step(obj, 0.0f + 0.0f * I);
-dsss_burst_receiver_destroy(obj);
+uint8_t acq[31], data[8], sync[13];
+dsss_burst_receiver_state_t *rx = dsss_burst_receiver_create (
+    acq, 31, data, 8, sync, 13, 4, 4, 1.0e6, 32,
+    55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
+uint8_t bits[32];
+size_t n = dsss_burst_receiver_push (rx, samples, n_samples, bits, 32);
+if (n && rx->frame_valid) { ... }
+dsss_burst_receiver_destroy (rx);
 ```
  
 
@@ -172,7 +180,7 @@ The escape hatch for a caller who wants a specific (doppler\_bins, n\_noncoh) ra
 
 
 * `state` Must be non-NULL. 
-* `doppler_bins` Coherent depth to pin, in [1, reps]. 
+* `doppler_bins` Coherent depth to pin, in `[1, reps]`. 
 * `n_noncoh` Non-coherent looks to combine. 
 
 

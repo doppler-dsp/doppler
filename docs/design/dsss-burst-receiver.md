@@ -301,20 +301,38 @@ preamble's `REPS` positions, sum the magnitudes, and the triangular overlap
 envelope names the repetition. What is not settled is its operating
 envelope.
 
-- **The discrimination margin.** The nearest competitor sits at
-    `(REPS-1)/REPS` — 2.5 dB at `REPS = 4`. At what C/N0 does the wrong
-    repetition win, and how does that floor move with `REPS`? The prototype
-    saw the correct peak at every noise level it tried, which establishes the
-    mechanism and not its limit. **A margin measured only where it does not
-    fail is not a margin** — and this section's own first draft is the
-    cautionary case: the coherent form was "verified" on a zero-Doppler
-    capture and was wrong by two code periods the moment a quarter of a bin
-    was present.
+- **The discrimination margin — MEASURED** (phase 7,
+    `src/doppler/dsss/tests/characterization/dsss_burst_receiver/`). At
+    `REPS = 4`, `ACQ_SF = 31`: `refine_margin` sits at **0.774** against the
+    predicted `(REPS-1)/REPS = 0.750` from 100 dB-Hz down to about 70, then
+    climbs as the rival closes — 0.81 at 66 dB-Hz, 0.83 at 63, 0.87 at 56.5.
+    The correct-period rate holds at 100% to roughly 60 dB-Hz and falls off a
+    cliff below: 88% at 57.7, 58% at 56.5. So the knee for this geometry is
+    **~58–60 dB-Hz**, and `refine_margin` is a usable health signal rather
+    than an ornament: it reads ~0.87 where the stage is failing against
+    ~0.775 where it is not. How the floor moves with `REPS` is still open.
+
+    **A margin measured only where it does not fail is not a margin** — and
+    this section's own first draft is the cautionary case: the coherent form
+    was "verified" on a zero-Doppler capture and was wrong by two code
+    periods the moment a quarter of a bin was present.
+
+- **What actually loses bursts is the CODE, not the framing.** The same
+    characterization swept the burst's start across a whole acquisition frame
+    at 100 dB-Hz. With a good code every offset is found; with a structured
+    code whose peak-to-worst-sidelobe ratio is 1.07, **47% are lost** —
+    because the CFAR reference is then set by the code's own autocorrelation
+    sidelobes, leaving no margin for a preamble that straddles two
+    non-overlapping frames. This design nearly acquired an overlapping-dwell
+    requirement on the strength of that first measurement; the framing was
+    never the problem. Choose the preamble code on its autocorrelation.
+
 - **The search span.** Acquisition bounds the error to whole code periods
     within the preamble, so a span of `± REPS · P` is sufficient and probably
     generous. The cost is one correlation per candidate offset; whether that
     is `REPS` coarse candidates (period-spaced, then interpolate) or a full
     dense search over the span is a cost/robustness trade to measure.
+
 - **Whether refine also closes the frequency.** The same stage could refine
     sub-bin Doppler — either the column-FFT
     [`dsss-use-cases.md`](../dev/contributing/dsss-use-cases.md) describes, or
@@ -324,10 +342,12 @@ envelope.
     path already has ~8× margin without it, so this is an option to justify
     rather than a requirement — and the honest default is not to build it
     until a measurement asks for it.
+
 - **Whether refine is a separate object.** It composes `Corr` against a
     reference the receiver already holds, so it may be a private function
     rather than a new public type. That decision should follow the phase-3
     implementation, not precede it.
+
 - **Whether the history ring should be acq's.** §7.1 has the receiver keep
     its own, costing one `memcpy` of the stream, because `acq_push()`
     consumes eagerly. The alternative is a retention policy on `acq`'s

@@ -51,6 +51,17 @@ typedef struct
   double   doppler_hz; /**< Signed coarse Doppler, Hz.                      */
   double   cn0_dbhz;   /**< C/N0 lower bound from the hit, dB-Hz.           */
   double   margin;     /**< Refine runner-up ratio; valid once `refined`.   */
+  double   peak_mag;   /**< The hit's RAW CFAR peak. Two detections naming
+                            the same preamble keep the stronger, so a weak
+                            hit that merely arrived first cannot own the
+                            slot a real burst needs (doppler#1004).
+                            Deliberately not `test_stat`: that is
+                            peak/noise_est, and the noise estimate is a mean
+                            over the surface, so a BARE preamble -- which
+                            raises no floor -- outscores a real burst whose
+                            payload does. The raw peak measures what the
+                            comparison actually means, how much preamble the
+                            frame holds.                                   */
   int      refined;    /**< Non-zero once `start` is known.                 */
 } dsss_br_pending_t;
 #include "burst_acq/burst_acq_core.h"
@@ -143,11 +154,17 @@ typedef struct {
   dsss_br_pending_t q[DSSS_BR_QCAP]; /**< Detections, oldest first.         */
   size_t            q_head;          /**< Index of the oldest entry.        */
   size_t            q_len;           /**< Entries in flight.                */
-  uint64_t suppress_until; /**< Detections below this stream position belong
-                                to a burst already claimed -- acquisition
-                                fires once per frame across the preamble,
-                                so without this one burst is claimed reps
-                                times over.                                */
+  uint64_t suppress_until; /**< Detections below this stream position fall
+                                inside a burst that has already DECODED, so
+                                they are the payload firing against the
+                                acquisition code rather than new bursts.
+                                Armed only on a valid frame: arming it on
+                                every detection let one spurious hit blind
+                                the search for a whole burst and discard the
+                                next real one (doppler#1004). Coalescing the
+                                several frames of ONE preamble is a separate
+                                job, done by `refine_span` proximity plus a
+                                greatest-of tie-break.                     */
   size_t acq_blob_max; /**< Fixed upper bound on the acquisition child's
                             blob. `state_bytes()` must be a pure function of
                             CONFIGURATION -- jm's binding compares an incoming
@@ -353,7 +370,7 @@ uint64_t dsss_burst_receiver_get_n_bursts(const dsss_burst_receiver_state_t *sta
 
 /** @brief Per-object envelope tag: "DBRX" (DsssBurstReceiver). */
 #define DSSS_BURST_RECEIVER_STATE_MAGIC DP_FOURCC('D', 'B', 'R', 'X')
-#define DSSS_BURST_RECEIVER_STATE_VERSION 1u
+#define DSSS_BURST_RECEIVER_STATE_VERSION 2u
 
 /** @brief Byte size of @p state's blob (envelope + payload + child). */
 size_t dsss_burst_receiver_state_bytes(const dsss_burst_receiver_state_t *state);

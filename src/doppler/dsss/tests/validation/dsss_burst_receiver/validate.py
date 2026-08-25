@@ -192,6 +192,9 @@ class Data:
     state_rejects: bool = False
     dropped_zero: bool = False
     any_block_size: bool = False
+    decoy_rows: list[list[str]] = field(default_factory=list)
+    decoy_all_survive: bool = False
+    decoy_detected_alone: bool = False
 
 
 # ── 1. the object ─────────────────────────────────────────────────────
@@ -308,6 +311,7 @@ def characterise() -> Data:
     _sec_code(d)
     _sec_bounds(d)
     _sec_state(d)
+    _sec_decoy(d)
     return d
 
 
@@ -882,6 +886,81 @@ def _sec_state(d: Data) -> None:
     R.md()
 
 
+def _sec_decoy(d: Data) -> None:
+    """A weaker detection arriving FIRST must not cost the burst behind it."""
+    R.md("### 2.10 A spurious detection ahead of a real burst")
+    R.md()
+    R.md(
+        "The chain-visible failure this object was certified without. "
+        "Acquisition fires on more than preambles — noise crosses the CFAR "
+        "gate at the priced rate, and a neighbouring burst's PAYLOAD "
+        "correlates against the acquisition code too. The question is what "
+        "one of those costs when it lands ahead of a real burst."
+    )
+    R.md()
+
+    burst_len = (REPS * ACQ_SF + (SYNC_LEN + PAYLOAD + 16) * DATA_SF) * SPC
+    at, amp = 5000, 0.35
+    preamble = _burst_reps(REPS)[: REPS * CODE_PERIOD]
+
+    # The vacuity guard: the decoy must actually CROSS the gate on its own,
+    # or every row below passes against a receiver that simply ignores it.
+    solo = _capture(at, 0.02, seed=41, burst=np.zeros(1, np.complex64))
+    solo[at : at + preamble.size] += (amp * preamble).astype(np.complex64)
+    seen = _drive(_rx(), solo, stop_on_first=False)
+    d.decoy_detected_alone = len(seen) > 0 and not any(
+        h["valid"] for h in seen
+    )
+
+    rows = []
+    survived = []
+    for gap in (400, 900, 1500, 2100):
+        cap = _capture(at, 0.02, seed=41)
+        lo = at - gap
+        cap[lo : lo + preamble.size] += (amp * preamble).astype(np.complex64)
+        hits = _drive(_rx(), cap, stop_on_first=False)
+        good = [h for h in hits if h["valid"] and h["start"] == at]
+        survived.append(len(good) == 1)
+        rows.append(
+            [
+                str(gap),
+                f"{gap / burst_len:.2f}",
+                "yes" if good else "NO",
+                f"{good[0]['margin']:.3f}" if good else "--",
+            ]
+        )
+    d.decoy_rows = rows
+    d.decoy_all_survive = all(survived)
+
+    R.table(
+        ["decoy lead (samples)", "of a burst", "burst decoded", "margin"],
+        rows,
+    )
+    R.md()
+    R.md(
+        f"A bare preamble at **{amp:g}** amplitude — no payload, so it "
+        f"cannot pass a CRC — placed ahead of a real burst. On its own it "
+        f"crosses the gate and is reported, invalid (**"
+        f"{d.decoy_detected_alone}**), which is what stops the rows above "
+        f"passing vacuously. Ahead of a real burst it costs nothing: the "
+        f"burst decodes at its exact sample at every lead "
+        f"(**{d.decoy_all_survive}**)."
+    )
+    R.md()
+    R.md(
+        "It used to cost the burst entirely. The rule armed a "
+        "`burst_len`-long suppression window on EVERY detection, at "
+        "detection time, and took the first hit in it — so any spurious "
+        "crossing blinded the search for a whole burst. Two jobs were "
+        "conflated: *is this the same preamble* (identity, answered by "
+        "`refine_span` proximity and settled by keeping the stronger peak) "
+        "and *is this a burst's own payload* (answerable only once a burst "
+        "has DECODED, which is now the only thing that arms the long "
+        "window). See F9 and doppler#1004."
+    )
+    R.md()
+
+
 # ── 3. review ─────────────────────────────────────────────────────────
 
 
@@ -1001,6 +1080,29 @@ def review(d: Data) -> None:
         "half-bin row to its nearer neighbour was tried and cost ~5 points "
         "of Pd.",
     )
+    R.find(
+        "F9",
+        "FIXED",
+        "**A spurious detection ahead of a real burst discarded it.** The "
+        "dedup rule armed `suppress_until = epoch + burst_len` on EVERY "
+        "detection, unconditionally and at detection time, and took the "
+        "FIRST hit in that window — so a crossing from noise, or from a "
+        "neighbouring burst's payload firing against the acquisition code, "
+        "blinded the search for a whole burst length. On the 5-burst "
+        "example capture that cost 2 of 5 bursts; it now finds 5/5, each at "
+        "its exact sample. Two jobs were conflated and are now separate: "
+        "identity (`refine_span` proximity, settled by the stronger PEAK) "
+        "and payload exclusion (armed only by a burst that actually "
+        "DECODED). The tie-break is on `peak_mag` and deliberately not "
+        "`test_stat` — the latter is peak over a noise estimate averaged "
+        "across the surface, so a BARE preamble, raising no floor, "
+        "outscores a real burst whose payload does. §2.10 pins it. "
+        "Note this report could not have caught it at its own geometry: "
+        "with this payload `burst_len` (2448) is UNDER `refine_span` "
+        "(2480), so the window cannot reach past the burst it belongs to. "
+        "The defect needs `burst_len > refine_span`, which is every "
+        "realistic link. See doppler#1004.",
+    )
 
 
 # ── 4. limits ─────────────────────────────────────────────────────────
@@ -1103,6 +1205,18 @@ def limits(d: Data) -> None:
         f"...and the two differ by more than 10x in peak-to-sidelobe "
         f"({d.good_code_pts:.0f} against {d.poor_code_pts:.2f})",
     )
+    R.limit(
+        d.decoy_detected_alone,
+        "a bare 0.35-amplitude preamble crosses the gate on its own and is "
+        "reported invalid -- without which the decoy limits below are "
+        "vacuous",
+    )
+    R.limit(
+        d.decoy_all_survive,
+        "a weaker detection arriving ahead of a real burst does not cost "
+        "it: the burst decodes at its exact sample at every lead from 400 "
+        "to 2100 samples (doppler#1004)",
+    )
     R.limit(d.silence_quiet, "silence decodes nothing and reports no burst")
     R.limit(
         d.one_valid_per_burst,
@@ -1201,7 +1315,10 @@ def build(write: bool = True) -> Report:
             "decodes (§2.9, F5).",
         ],
     )
-    R.summary("\n- Raw sweeps: `data/epoch.csv`, `data/code.csv`")
+    R.summary(
+        "\n- Raw sweeps: `data/epoch.csv`, `data/reps.csv`, "
+        "`data/amplitude.csv`, `data/pd.csv`, `data/code.csv`"
+    )
     R.emit(HERE / "results.md")
     return R
 

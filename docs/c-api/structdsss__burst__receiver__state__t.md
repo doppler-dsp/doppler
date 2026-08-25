@@ -823,7 +823,7 @@ uint64_t dsss_burst_receiver_state_t::suppress_until;
 
 
 
-Detections below this stream position belong to a burst already claimed  acquisition fires once per frame across the preamble, so without this one burst is claimed reps times over. 
+Detections below this stream position fall inside a burst that has already DECODED, so they are the payload firing against the acquisition code rather than new bursts. Armed only on a valid frame: arming it on every detection let one spurious hit blind the search for a whole burst and discard the next real one (doppler#1004). Coalescing the several frames of ONE preamble is a separate job, done by `refine_span` proximity plus a greatest-of tie-break. 
  
 
 

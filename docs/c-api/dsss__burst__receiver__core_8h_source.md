@@ -26,6 +26,7 @@ typedef struct
   double   doppler_hz; 
   double   cn0_dbhz;   
   double   margin;     
+  double   peak_mag;   
   int      refined;    
 } dsss_br_pending_t;
 #include "burst_acq/burst_acq_core.h"
@@ -141,7 +142,7 @@ uint64_t dsss_burst_receiver_get_n_bursts(const dsss_burst_receiver_state_t *sta
  */
 
 #define DSSS_BURST_RECEIVER_STATE_MAGIC DP_FOURCC('D', 'B', 'R', 'X')
-#define DSSS_BURST_RECEIVER_STATE_VERSION 1u
+#define DSSS_BURST_RECEIVER_STATE_VERSION 2u
 
 size_t dsss_burst_receiver_state_bytes(const dsss_burst_receiver_state_t *state);
 

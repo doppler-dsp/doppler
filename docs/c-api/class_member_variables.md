@@ -544,7 +544,7 @@
 * **prefix** ([**RateConverter\_state\_t**](structRateConverter__state__t.md))
 * **pulse** ([**RateConverter\_state\_t**](structRateConverter__state__t.md), [**ratesync\_state\_t**](structratesync__state__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
 * **pulse\_sps** ([**RateConverter\_state\_t**](structRateConverter__state__t.md))
-* **peak\_mag** ([**acq\_handoff\_t**](structacq__handoff__t.md), [**acq\_result\_t**](structacq__result__t.md), [**acq\_state\_t**](structacq__state__t.md), [**det\_result2d\_t**](structdet__result2d__t.md), [**det\_result\_t**](structdet__result__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md))
+* **peak\_mag** ([**acq\_handoff\_t**](structacq__handoff__t.md), [**acq\_result\_t**](structacq__result__t.md), [**acq\_state\_t**](structacq__state__t.md), [**det\_result2d\_t**](structdet__result2d__t.md), [**det\_result\_t**](structdet__result__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md), [**dsss\_br\_pending\_t**](structdsss__br__pending__t.md))
 * **pd** ([**acq\_state\_t**](structacq__state__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
 * **pd\_predicted** ([**acq\_state\_t**](structacq__state__t.md))
 * **peak\_col** ([**acq\_state\_t**](structacq__state__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md))

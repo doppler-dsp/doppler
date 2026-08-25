@@ -592,6 +592,78 @@ test_one_burst_many_detections_is_claimed_once (void)
 
 /* push_max_out() is the payload length whatever the input block size, since
  * at most one burst is returned per call. */
+/* A WEAKER spurious detection arriving BEFORE a real burst must not cost the
+ * burst (doppler#1004).
+ *
+ * The old rule armed `suppress_until = epoch + burst_len` on every detection,
+ * unconditionally and at detection time, and took the FIRST hit in that
+ * window. So any spurious crossing -- noise, or a neighbouring burst's
+ * payload firing against the acquisition code -- blinded the search for a
+ * whole burst and the next real preamble was discarded before it was ever
+ * queued. Measured on the 5-burst example capture: 3 of 5 bursts lost, with
+ * the two losses attributable 1:1 to two such crossings, each ~10 dB weaker
+ * than the burst it killed.
+ *
+ * WHY NOTHING HERE CAUGHT IT. This file's geometry has a payload so short
+ * that burst_len (2448) is under refine_span (2480) -- the suppression window
+ * is narrower than refine's own reach, so it can never extend past the burst
+ * it belongs to and can never swallow a distinct one. The defect needs
+ * burst_len > refine_span, which is every realistic link (the example's ratio
+ * is 5.5x). The decoy below reaches into the window from inside instead, so
+ * the same rule is exercised without changing the file's geometry.
+ *
+ * The decoy is a bare preamble at 0.35 amplitude: strong enough to cross the
+ * CFAR gate, too weak to win a greatest-of comparison, and carrying no
+ * payload so it cannot pass a CRC. Under the fixed rule it is coalesced into
+ * the real burst -- same preamble by refine's reach -- and the stronger hit
+ * takes the slot, so the burst decodes at its exact start. Under the old rule
+ * the decoy owns the slot and the burst is gone.
+ */
+static int
+test_a_weak_decoy_does_not_cost_the_burst (void)
+{
+  dsss_burst_receiver_state_t *s = make_rx ();
+  DP_REQUIRE (s != NULL);
+
+  const size_t AT    = 5000;
+  const size_t GAP   = 1500; /* < burst_len, so the old rule suppresses */
+  const size_t N_CAP = 40000;
+  DP_REQUIRE (GAP < s->burst_len);
+
+  static float complex cap[40000];
+  build_capture (cap, N_CAP, AT, 0.0, 0.02, 12345u);
+
+  /* The decoy: one preamble only, no payload, at a third the amplitude. */
+  const uint8_t *acode = acq_code ();
+  size_t         d     = AT - GAP;
+  for (size_t r = 0; r < REPS; r++)
+    for (size_t c = 0; c < ACQ_SF; c++)
+      for (size_t k = 0; k < SPC; k++, d++)
+        cap[d] += 0.35f * csign (acode[c]);
+
+  uint8_t out[PAYLOAD];
+  size_t  got = 0;
+  for (size_t off = 0; off < N_CAP && got == 0; off += 777)
+    {
+      size_t n = (off + 777 <= N_CAP) ? 777 : (N_CAP - off);
+      got      = dsss_burst_receiver_push (s, cap + off, n, out, PAYLOAD);
+    }
+
+  /* The burst survives the decoy, exactly: same start, same bits, valid. */
+  DP_CHECK (got == PAYLOAD);
+  DP_CHECK (dsss_burst_receiver_get_frame_valid (s) == 1);
+  DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
+
+  const uint8_t *want = payload_bits ();
+  size_t         errs = 0;
+  for (size_t i = 0; i < PAYLOAD; i++)
+    errs += (out[i] != want[i]);
+  DP_CHECK (errs == 0);
+
+  dsss_burst_receiver_destroy (s);
+  return 0;
+}
+
 static int
 test_push_max_out_is_the_payload (void)
 {
@@ -736,6 +808,8 @@ main (void)
   if (test_a_burst_near_the_stream_start ())
     return 1;
   if (test_one_burst_many_detections_is_claimed_once ())
+    return 1;
+  if (test_a_weak_decoy_does_not_cost_the_burst ())
     return 1;
   if (test_push_max_out_is_the_payload ())
     return 1;

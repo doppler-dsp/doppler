@@ -18,20 +18,52 @@
         coverage in `test_detection.py`, in the wrong language for an object
         whose header is the SSOT, and these three are exactly what
         `acq_core.c` sizes its (coherent depth, look count) split with.
+
     - **The header's headline number was unpinned.** `det_threshold_f` exists
         because a chi-square gate on an estimated noise reference *"realizes
-        41x the priced pfa at n = 16"*, and nothing re-derived it. It now is,
-        twice and independently: **41.0x** from the shipped API, **41.1x**
-        from 2 million Monte-Carlo draws. The degrees of freedom are the
-        trap — the comparator is `det_threshold_noncoherent(pfa, n/2)`, not
-        `(pfa, n)`, because the statistic carries `n` real dof while that
-        helper prices `chi2(2M)`; pricing it at `n` gives 4.8x, a plausible
-        number off by almost ten.
+        41x the priced pfa at n = 16"*, and nothing re-derived it. The
+        behaviour is not a finding — a threshold built on a reference
+        estimated from `n` samples inherits that estimate's uncertainty,
+        which is why `det_threshold_f` exists — but the arithmetic executed
+        nowhere, so the figure could drift from the code with no gate
+        noticing. It is now re-derived in C, reproduced by Monte-Carlo
+        (41.1x), and cross-checked against scipy, which also confirms
+        `det_threshold_noncoherent(pfa, n/2)` *is* the chi2(n) quantile to
+        1e-15 and `det_threshold_f` *is* the F(n,n) quantile.
+
+        **More useful than the ratio: the number to budget.** 41x is a
+        multiplier on the false-alarm *rate* and cannot be added to a link
+        budget. What a caller needs is dB, indexed by how many samples they
+        can spare for the reference — so §2.4 now derives and gates that
+        table. The reference is known to `sqrt(2/n)`: 35% at 16 samples,
+        14% at 100. Priced correctly that costs **3.27 dB at n = 16** and
+        **0.97 dB at n = 100** (pfa 1e-3), more at a tighter false-alarm
+        budget — 6.15 dB at 16 samples and pfa 1e-6. The penalty falls
+        faster than `1/sqrt(n)` at small `n`, so the table is read rather
+        than scaled, and the design rule is to fold in every prompt
+        available rather than the minimum that reaches a decision.
+
+        The comparator is derived rather than chosen to reproduce 41
+        (`R^2 = n*F(n,n)` under H0; a caller treating `sum Im^2/n` as
+        exactly `s^2` gates at the chi2(n) quantile, and since
+        `det_threshold_noncoherent(pfa, M)` prices chi2(2M) that is
+        `M = n/2`; `M = n` gives 4.8x, equally plausible on sight). The
+        comparison is **even-`n` only** — `n/2` is integer division and
+        doppler cannot price a known-noise gate at odd degrees of freedom
+        at all, so at odd `n` it returns the chi2(n-1) gate and the
+        multiplier comes out about a fifth high. Every site that
+        reproduces it now asserts `n` is even instead of relying on its
+        sweep to avoid the problem, which all three happened to do — which
+        is exactly how the approximation stayed invisible.
+        `det_threshold_f` carries no such restriction: a burst's prompt
+        count is whatever the burst contained.
+
     - **`marcum_q`'s stated envelope was never exercised.** Every pinned
         value sat at `a <= 3` while the header promised `a, b <= 15`. Now
         measured against a Rice frequency at the edge. The sabotage is the
         point: dropping the series window's `sqrt(u)` scaling leaves **every
         pre-existing literal green** and takes only the new section red.
+
     - **`det_dwell_power` was declared twice** in the header, once with docs
         and once bare.
 

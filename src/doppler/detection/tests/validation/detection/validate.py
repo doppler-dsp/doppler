@@ -76,6 +76,12 @@ class Data:
     f_rows: list[list[str]] = field(default_factory=list)
     f_ratio_16: float = 0.0
     f_ratio_monotone: bool = False
+    est_quality_rows: list[list[str]] = field(default_factory=list)
+    est_rel_16: float = 0.0
+    sens_db_16: float = 0.0
+    sens_db_halves: bool = False
+    budget_rows: list[list[str]] = field(default_factory=list)
+    budget_100_1e3: float = 0.0
     power_exact: bool = False
     power_worst: float = 0.0
     noncoh_reduces: bool = False
@@ -447,15 +453,52 @@ def _sec_noncoherent(d: Data) -> None:
 
 
 def _sec_fratio(d: Data) -> None:
-    R.md("### 2.4 An estimated noise reference costs 41x at n=16")
+    R.md("### 2.4 A threshold on an estimated reference, and how good it is")
     R.md()
     R.md(
         "Every family above prices a statistic normalised by a **known** "
         "noise power. `BurstDespreader` has one burst and estimates the "
         "noise from it — `sum Im^2` against `sum Re^2` — so its exact H0 "
-        "law is `R^2 = n*F(n,n)`, whose tail is fatter. Below, `realized` "
-        "is the false-alarm rate the chi-square gate actually delivers, "
-        "found by inverting `det_threshold_f` on its own quantile."
+        "law is `R^2 = n*F(n,n)`, whose tail is fatter."
+    )
+    R.md()
+    R.md(
+        "None of what follows is a defect. Estimating a reference from `n` "
+        "samples means the threshold inherits that estimate's uncertainty; "
+        "the only question worth asking is how much, and `det_threshold_f` "
+        "exists because doppler already prices it. **How good the estimate "
+        "is comes first, because everything else follows from it.** "
+        "`sigma_hat^2 = sum Im^2 / n` is unbiased but not sharp: it is "
+        "`sigma^2 * chi2(n)/n`, so its relative standard deviation is "
+        "`sqrt(2/n)`."
+    )
+    R.md()
+    q_rows = []
+    for n in (4, 8, 16, 32, 64, 128):
+        rel = float(np.sqrt(2.0 / n))
+        q_rows.append(
+            [str(n), f"{rel * 100:.1f}%", f"{10 * np.log10(1 + rel):.2f}"]
+        )
+        if n == 16:
+            d.est_rel_16 = rel
+    R.table(
+        ["n", "1-sigma relative error on the noise estimate", "dB"], q_rows
+    )
+    d.est_quality_rows = q_rows
+    R.md(
+        f"At the sixteen prompts a short burst affords, the floor is known "
+        f"to about {d.est_rel_16 * 100:.0f}% (1 sigma). Both numbers below "
+        f"follow from that one."
+    )
+    R.md()
+    R.md(
+        "Because a ratio of two estimates is not a ratio to a constant, "
+        "the difference lands in one of two places depending on which gate "
+        "is used — and they are different quantities, which is why "
+        '"costs 41x" is not a usable sentence. **Using the known-noise '
+        "gate, the false-alarm rate moves.** `realized` is what that gate "
+        "delivers, found by inverting `det_threshold_f` on its own "
+        "quantile."
     )
     R.md()
 
@@ -472,6 +515,9 @@ def _sec_fratio(d: Data) -> None:
     pfa = 1e-3
     rows, csv, ratios = [], [], []
     for n in (4, 8, 16, 32, 64):
+        # Even n only: n // 2 would price chi2(n-1) otherwise. Asserted so
+        # a later edit to this tuple cannot reintroduce the approximation.
+        assert n % 2 == 0, f"the chi-square comparator needs even n, got {n}"
         eta = det_threshold_noncoherent(pfa, n // 2)
         g = eta * eta / n
         rp = realized(g, n)
@@ -505,20 +551,111 @@ def _sec_fratio(d: Data) -> None:
     d.f_ratio_16 = ratios[2]
     d.f_ratio_monotone = all(a > b for a, b in zip(ratios, ratios[1:]))
     R.md(
-        f"A detector priced at one false alarm in a thousand delivers one "
-        f"in {1 / (ratios[2] * pfa):.0f}. The penalty shrinks monotonically "
-        f"as the estimate hardens ({ratios[0]:.0f}x to {ratios[-1]:.0f}x) "
-        f"and never vanishes over any dwell a burst affords."
+        f"41 is a multiplier on the false-alarm **rate**, not a cost — "
+        f"quoted as a cost it names no unit. It shrinks monotonically as "
+        f"the estimate hardens ({ratios[0]:.0f}x to {ratios[-1]:.0f}x)."
     )
     R.md()
     R.md(
-        "**The degrees of freedom are the trap.** The comparator is "
-        "`det_threshold_noncoherent(pfa, n/2)`, not `(pfa, n)`: `R` is "
-        "asymptotically `sqrt(chi2(n))` — `n` REAL dof, one per prompt — "
-        "while that helper prices `chi2(2M)`, because a non-coherent look "
-        "is a complex magnitude and carries two. Pricing it at `(pfa, n)` "
-        "gives 4.8x here: a plausible number, off by almost ten. Raw "
-        "sweep: `data/fratio_penalty.csv`."
+        "**Using `det_threshold_f`, the sensitivity moves instead.** Keep "
+        "the rate you asked for and the same information shortfall lands "
+        "in the threshold, in dB. This is the number a link budget uses."
+    )
+    R.md()
+    srows, sdb = [], []
+    for n in (4, 8, 16, 32, 64, 128):
+        eta = det_threshold_noncoherent(pfa, n // 2)
+        g_known = eta * eta / n
+        g_f = det_threshold_f(pfa, n)
+        db = float(10 * np.log10(g_f / g_known))
+        sdb.append(db)
+        srows.append([str(n), f"{g_known:.4f}", f"{g_f:.4f}", f"{db:.2f} dB"])
+        if n == 16:
+            d.sens_db_16 = db
+    R.table(
+        ["n", "known-noise gate", "correct F gate", "sensitivity given up"],
+        srows,
+    )
+    # Doubling n tightens sqrt(2/n) by sqrt(2) and roughly halves the dB
+    # cost -- the two prices are one quantity seen from two sides.
+    d.sens_db_halves = all(0.4 < b / a < 0.75 for a, b in zip(sdb, sdb[1:]))
+    R.md(
+        "Both columns are `sqrt(2/n)` seen from two sides, which is why "
+        "they fall together: doubling the prompts folded into the "
+        "reference tightens the estimate by `sqrt(2)` and roughly halves "
+        "the dB cost."
+    )
+    R.md()
+    R.md("#### The number to budget")
+    R.md()
+    R.md(
+        "The useful form of all of the above, indexed by the thing a "
+        "caller actually knows — how many samples they can spare for the "
+        "noise reference. Read off the row and add that much margin to "
+        "the link budget."
+    )
+    R.md()
+    brows = []
+    for n in (8, 16, 32, 64, 100, 128, 256, 512, 1024):
+        ne = n if n % 2 == 0 else n - 1
+        cells = []
+        for pf in (1e-2, 1e-3, 1e-6):
+            eta = det_threshold_noncoherent(pf, ne // 2)
+            db = float(
+                10 * np.log10(det_threshold_f(pf, ne) / (eta * eta / ne))
+            )
+            cells.append(f"{db:.2f} dB")
+            if n == 100 and pf == 1e-3:
+                d.budget_100_1e3 = db
+        brows.append([str(n), f"{np.sqrt(2.0 / n) * 100:.1f}%", *cells])
+    R.table(
+        [
+            "samples in the noise estimate",
+            "reference known to",
+            "budget at pfa 1e-2",
+            "1e-3",
+            "1e-6",
+        ],
+        brows,
+    )
+    d.budget_rows = brows
+    R.md(
+        f"So: 100 samples of noise reference at `pfa = 1e-3` is "
+        f"**{d.budget_100_1e3:.2f} dB** of extra margin, and a burst that "
+        f"can only spare 16 pays {d.sens_db_16:.2f} dB. The penalty falls "
+        f"faster than `1/sqrt(n)` at small `n` and approaches it from "
+        f"above, so a fitted rule of thumb misleads exactly where the cost "
+        f"is largest — read the row rather than scaling one."
+    )
+    R.md()
+    R.md(
+        "The tighter false-alarm budget is the expensive one: at "
+        "`pfa = 1e-6` a 16-sample reference costs 6.15 dB against 2.27 dB "
+        "at `pfa = 1e-2`, because the gate sits further into a tail whose "
+        "shape is exactly what the estimate is uncertain about."
+    )
+    R.md()
+    R.md(
+        "**The comparator is derived, not fitted.** Under H0 a burst's `n` "
+        "prompts give `sum Re^2 ~ s^2*chi2(n)` and `sum Im^2 ~ "
+        "s^2*chi2(n)`, so `R^2 = n*F(n,n)`. A caller treating `sum Im^2/n` "
+        "as exactly `s^2` believes `R^2 ~ chi2(n)` instead and gates at "
+        "that quantile; `det_threshold_noncoherent(pfa, M)` solves "
+        "`marcum_q(M,0,b) = pfa`, which is `P(chi2(2M) > b^2)`, so `2M = "
+        "n` and the comparator is `M = n/2`. Pricing it at `(pfa, n)` "
+        "gives 4.8x, which is equally plausible on sight — worth deriving "
+        "rather than guessing."
+    )
+    R.md()
+    R.md(
+        "**Even `n` only, and the loop asserts it rather than relying on "
+        "the sweep.** `n/2` is integer division and doppler cannot price a "
+        "known-noise gate at odd degrees of freedom at all, so at odd `n` "
+        "this returns the `chi2(n-1)` gate — the same value as `n-1` — and "
+        "overstates the penalty by about a fifth (89x against a true 73.7x "
+        "at n = 5). `det_threshold_f` has no such restriction, deliberately: "
+        "a burst's prompt count is whatever the burst contained. Raw sweep: "
+        "`data/fratio_penalty.csv`."
     )
     R.md()
 
@@ -899,17 +1036,23 @@ def review(d: Data) -> None:
     R.find(
         "F2",
         "FIXED",
-        f"`detection_core.h` justified `det_threshold_f`'s existence with "
-        f'one number — the chi-square gate realizing *"41x at n = 16, '
-        f'pfa = 1e-3"* — and **nothing pinned it**. Now re-derived in C '
-        f"from the shipped API alone ({d.f_ratio_16:.1f}x, §2.4) and "
-        f"independently confirmed by 2 million Monte-Carlo draws in the "
-        f"characterization subject (41.1x). Two derivations that share no "
-        f"arithmetic agreeing to within the standard error is what makes "
-        f"the number evidence rather than a recollection. Sabotage-proven "
-        f"with a defect no existing literal could see: perturbing "
-        f"`det_threshold_noncoherent` at `n_noncoh == 32` only, which "
-        f"exactly two assertions catch, both new.",
+        f"`detection_core.h` explains why `det_threshold_f` exists with "
+        f"one number — the chi-square gate realizing 41x the priced pfa at "
+        f"n = 16 — and nothing re-derived it. The behaviour behind that is "
+        f"not a finding: a threshold built on a reference estimated from "
+        f"`n` samples inherits the estimate's uncertainty, and the library "
+        f"already prices it correctly. What was missing was the arithmetic "
+        f"executing anywhere, so the figure could drift from the code with "
+        f"no gate noticing. Now re-derived in C ({d.f_ratio_16:.1f}x) and "
+        f"reproduced by Monte-Carlo in the characterization subject "
+        f"(41.1x). §2.4 also supplies what the ratio was standing in for "
+        f"and what a caller actually needs: a budget table in dB indexed "
+        f"by how many samples are available for the reference — "
+        f"{d.sens_db_16:.2f} dB at 16, {d.budget_100_1e3:.2f} dB at 100. A "
+        f"rate multiplier cannot be added to a link budget; that number "
+        f"can. Sabotage-proven with a defect no existing literal could "
+        f"see: perturbing `det_threshold_noncoherent` at `n_noncoh == 32` "
+        f"only, which exactly two assertions catch, both new.",
     )
     R.find(
         "F3",
@@ -1013,6 +1156,27 @@ def limits(d: Data) -> None:
         "estimate hardens",
     )
     R.limit(
+        abs(d.est_rel_16 - 0.3536) < 1e-3,
+        f"the noise reference at n=16 is known to "
+        f"{d.est_rel_16 * 100:.1f}% (1 sigma) — sqrt(2/n), the cause of "
+        f"both prices",
+    )
+    R.limit(
+        abs(d.sens_db_16 - 3.27) < 0.05,
+        f"pricing an estimated reference correctly costs "
+        f"{d.sens_db_16:.2f} dB of sensitivity at n=16",
+    )
+    R.limit(
+        d.sens_db_halves,
+        "doubling the prompts in the noise estimate roughly halves that dB "
+        "cost, as sqrt(2/n) requires",
+    )
+    R.limit(
+        abs(d.budget_100_1e3 - 0.97) < 0.05,
+        f"a 100-sample noise reference at pfa=1e-3 costs "
+        f"{d.budget_100_1e3:.2f} dB — the budget table a caller reads off",
+    )
+    R.limit(
         d.inverse_worst < 1e-9,
         f"det_snr inverts det_pd to {d.inverse_worst:.1e} across 12 cells",
     )
@@ -1102,13 +1266,13 @@ def build(write: bool = True) -> Report:
             "so `det_n_noncoh` re-derives it every iteration — sizing "
             "against a fixed threshold under-provisions every answer "
             "(§2.3).",
-            f"**An estimated noise reference costs "
-            f"{d.f_ratio_16:.0f}x at n = 16.** A `BurstDespreader` gated "
-            f"with the chi-square threshold false-alarms at 1 in "
-            f"{1 / (d.f_ratio_16 * 1e-3):.0f}, not 1 in 1000. Use "
-            f"`det_threshold_f`, and match the degrees of freedom — the "
-            f"comparator is `n/2`, and getting that wrong yields 4.8x, a "
-            f"plausible number off by almost ten (§2.4, F2).",
+            f"**Estimating your own noise reference costs margin — budget "
+            f"it.** {d.sens_db_16:.2f} dB at 16 samples, "
+            f"{d.budget_100_1e3:.2f} dB at 100, at `pfa = 1e-3`, and more "
+            f"at a tighter false-alarm budget. §2.4 has the table, indexed "
+            f"by how many samples you can spare for the estimate. "
+            f"`det_threshold_f` is what turns that uncertainty into a "
+            f"threshold rather than a false-alarm surprise.",
             "**The non-coherent model does not break where the tree says "
             "it does.** It is monotone to 1024 looks and within 0.6 sigma "
             "of Monte-Carlo at 512, while `acq` bounds its search at 256 "

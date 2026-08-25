@@ -1,6 +1,6 @@
 [package]
 name = "doppler"
-version = "0.43.2"
+version = "0.44.0"
 edition = "2021"
 # The floor is what Ubuntu's LTSes ship, and it is declared rather than
 # implied: cargo 1.75 is what apt gives on BOTH 22.04 and 24.04, which is what

@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.67.3"
+jm_version = "0.68.0"
 name = "doppler"
 version = "0.43.2"
 build = "cmake"

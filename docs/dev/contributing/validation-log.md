@@ -60,7 +60,7 @@ There is no list here to update.
 
 <!-- validation-log:start -->
 
-**21 objects certified** — 14 of the 77 `objects/*.toml` jm fragments, plus 7 with no object manifest at all (`ccsds_tm`, `conv`, `detection`, `ema`, `mpsk`, `resamp`, `rs`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
+**22 objects certified** — 15 of the 77 `objects/*.toml` jm fragments, plus 7 with no object manifest at all (`ccsds_tm`, `conv`, `detection`, `ema`, `mpsk`, `resamp`, `rs`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
 
 | object                                                                                                                            | module       | limits | findings | still open                 |
 | --------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------ | -------- | -------------------------- |
@@ -69,6 +69,7 @@ There is no list here to update.
 | [LockDet](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/lockdet/results.md)             | `detection`  | 22/22  | 6        | none                       |
 | [acq](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/acq/results.md)                          | `dsss`       | 15/15  | 6        | 2 — F3, F6                 |
 | [BurstAcquisition](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_acq/results.md)       | `dsss`       | 17/17  | 4        | none                       |
+| [BurstDemod](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_demod/results.md)           | `dsss`       | 15/15  | 5        | none                       |
 | [BurstDespreader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_despreader/results.md) | `dsss`       | 15/15  | 5        | none                       |
 | [PolynomialPhaseEstimator](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/ppe/results.md)     | `dsss`       | 15/15  | 5        | none                       |
 | [M-PSK constellation](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/mpsk/tests/validation/mpsk/results.md)         | `mpsk`       | 24/24  | 5        | 1 — F3                     |

@@ -26,7 +26,7 @@ import warnings
 
 import numpy as np
 
-from doppler.dsss import Acquisition
+from doppler.dsss import Acquisition, bin_to_signed
 from doppler.dsss.handoff import dll_init_chip_from_acq
 from doppler.resample import RateConverter
 from doppler.track import Dll, MpskReceiver
@@ -155,7 +155,13 @@ def _handoff(x):
     assert hit is not None, "acquisition failed to find the continuous code"
     dop_bin, code_phase, _pk, _n, _ts, _c, *_rest = hit
     doppler_bins = acq.doppler_bins
-    k_fold = (dop_bin + doppler_bins // 2) % doppler_bins - doppler_bins // 2
+    # The library's own mapping (clib_common.h, exposed as
+    # doppler.dsss.bin_to_signed): fftfreq's convention except at the
+    # Nyquist bin, where it reports +n/2. The fold that was written out
+    # here differed there -- harmless as a frequency (the two are
+    # aliases) and not harmless as a seed, since it is a full span from
+    # what the search meant.
+    k_fold = bin_to_signed(dop_bin, doppler_bins)
     doppler_hz_est = k_fold * acq.doppler_res_hz
     chip_phase = dll_init_chip_from_acq(code_phase, SPC, SF)
     frame = acq.code_bins * acq.doppler_bins

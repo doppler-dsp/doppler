@@ -1724,7 +1724,12 @@ class PolynomialPhaseEstimator:
 
     @property
     def nfft(self) -> int:
-        """zero-padded transform length (next pow2 of max_len)."""
+        """zero-padded transform length: 4 * next_pow2 (max_len). The 4x is
+        deliberate -- a finer frequency grid before the parabolic peak
+        refinement, which matters because the input is often short (preamble
+        partials, symbol streams). It also sizes `buf`, `spec` and `mag`, so
+        the footprint is 4x what a bare next-pow2 would suggest.
+        """
 
     @property
     def max_rate(self) -> float:
@@ -3139,3 +3144,39 @@ class AsyncDsssReceiver:
         tb : object | None
             Traceback object, or None. Ignored.
         """
+
+def bin_to_signed(bin: int, n_bins: int) -> int:
+    """Map an FFT bin index to its SIGNED frequency index --
+    numpy.fft.fftfreq(n) * n, exactly: 0 = DC, ascending positive to
+    (n-1)/2, then wrapping negative, so an even grid's Nyquist bin is -n/2.
+    Multiply by doppler_res_hz for Hz. Call this rather than writing the
+    fold out: the search and its hand-off must agree on the convention, and
+    a consumer seeded on the wrong side of it is off by the full search
+    span -- a failure that once surfaced here as a receiver reporting
+    tracking while decoding noise. A thin wrapper over dp_fftfreq_index()
+    in clib_common.h, so C callers inline the same code.
+
+    Parameters
+    ----------
+    bin : int
+        Bin index in `[0, n_bins)`.
+    n_bins : int
+        Grid size.
+
+    Returns
+    -------
+    int
+        Signed index in `[-(n_bins/2), +((n_bins-1)/2)]`.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.dsss import bin_to_signed
+    >>> [bin_to_signed(b, 8) for b in range(8)]
+    [0, 1, 2, 3, -4, -3, -2, -1]
+    >>> (np.fft.fftfreq(8) * 8).astype(int).tolist()   # same convention
+    [0, 1, 2, 3, -4, -3, -2, -1]
+    >>> bin_to_signed(4, 7)                         # odd grid: no ambiguity
+    -3
+
+    """

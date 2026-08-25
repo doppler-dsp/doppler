@@ -2745,6 +2745,19 @@ True
 """
 objects = ["despreader", "burst_despreader", "acq", "burst_acq", "ppe", "burst_demod", "dsss_receiver", "async_dsss_receiver"]
 
+[[module.dsss.functions]]
+name = "bin_to_signed"
+return_type = "int"
+doc = "Map an FFT bin index to its SIGNED frequency index -- numpy.fft.fftfreq(n) * n, exactly: 0 = DC, ascending positive to (n-1)/2, then wrapping negative, so an even grid's Nyquist bin is -n/2. Multiply by doppler_res_hz for Hz. Call this rather than writing the fold out: the search and its hand-off must agree on the convention, and a consumer seeded on the wrong side of it is off by the full search span -- a failure that once surfaced here as a receiver reporting tracking while decoding noise. A thin wrapper over dp_fftfreq_index() in clib_common.h, so C callers inline the same code."
+
+[[module.dsss.functions.params]]
+name = "bin"
+type = "size_t"
+
+[[module.dsss.functions.params]]
+name = "n_bins"
+type = "size_t"
+
 [module.acquire]
 doc = """
 Cold-start carrier acquisition: a coarse frequency/phase search (CarrierAcquisition) that seeds a downstream tracking loop.

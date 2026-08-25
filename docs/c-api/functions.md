@@ -70,7 +70,6 @@
 * **acc\_trace\_state\_bytes** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
 * **acc\_trace\_value** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
 * **acc\_trace\_value\_max\_out** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
-* **acq\_bin\_to\_signed** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_build\_handoff** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_configure\_search\_raw** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_create\_burst** ([**acq\_core.h**](acq__core_8h.md))
@@ -245,6 +244,7 @@
 * **burst\_despreader\_state\_bytes** ([**burst\_despreader\_core.h**](burst__despreader__core_8h.md))
 * **burst\_despreader\_steps** ([**burst\_despreader\_core.h**](burst__despreader__core_8h.md))
 * **burst\_despreader\_steps\_max\_out** ([**burst\_despreader\_core.h**](burst__despreader__core_8h.md))
+* **bin\_to\_signed** ([**dsss\_core.h**](dsss__core_8h.md))
 * **blackman\_harris\_window** ([**spectral\_core.h**](spectral__core_8h.md))
 * **bpsk\_map** ([**wfm\_core.h**](wfm__core_8h.md))
 
@@ -404,6 +404,8 @@
 
 ## d
 
+* **dp\_fftfreq** ([**clib\_common.h**](clib__common_8h.md))
+* **dp\_fftfreq\_index** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_xcalloc** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_xmalloc** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_xnn** ([**clib\_common.h**](clib__common_8h.md))

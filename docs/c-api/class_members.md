@@ -330,6 +330,7 @@
 
 ## i
 
+* **interp** ([**acq\_state\_t**](structacq__state__t.md))
 * **id\_gain** ([**agc\_tlm\_t**](structagc__tlm__t.md))
 * **id\_level** ([**agc\_tlm\_t**](structagc__tlm__t.md))
 * **inv\_len** ([**boxcar\_state\_t**](structboxcar__state__t.md))
@@ -454,6 +455,7 @@
 * **n\_unconsumed** ([**acq\_extra\_t**](structacq__extra__t.md))
 * **nc\_count** ([**acq\_extra\_t**](structacq__extra__t.md), [**acq\_state\_t**](structacq__state__t.md))
 * **noise\_est** ([**acq\_handoff\_t**](structacq__handoff__t.md), [**acq\_result\_t**](structacq__result__t.md), [**acq\_state\_t**](structacq__state__t.md), [**det\_result2d\_t**](structdet__result2d__t.md), [**det\_result\_t**](structdet__result__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md))
+* **n\_surf** ([**acq\_state\_t**](structacq__state__t.md))
 * **nc\_surface** ([**acq\_state\_t**](structacq__state__t.md))
 * **noise\_hi** ([**acq\_state\_t**](structacq__state__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md))
 * **noise\_lo** ([**acq\_state\_t**](structacq__state__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md))

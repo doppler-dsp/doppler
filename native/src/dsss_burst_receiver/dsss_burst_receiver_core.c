@@ -151,11 +151,13 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
   burst_demod_set_preamble (s->demod, s->acq_code, acq_code_len, reps);
   burst_demod_set_sync (s->demod, s->sync, sync_len);
 
-  /* The acquisition child's blob grows with whatever is unconsumed in its
-     own ring, so bound it once here (the ring is empty, so this is the base
-     size) plus a full ring's worth. See `acq_blob_max`. */
-  s->acq_blob_max = acq_state_bytes (s->acq->engine)
-                    + s->acq->engine->ring->capacity * sizeof (float _Complex);
+  /* acq_state_bytes() is ALREADY a pure function of configuration -- it
+     sizes its sample region from `ring_cap`, the capacity, not from whatever
+     happens to be unconsumed. So this is simply its current value; an
+     earlier version added a whole ring on top, on the assumption that it
+     tracked the live count. It is re-read in configure_search_raw(), the one
+     call that can legitimately change the grid underneath it. */
+  s->acq_blob_max = acq_state_bytes (s->acq->engine);
 
   return s;
 
@@ -505,7 +507,14 @@ int
 dsss_burst_receiver_configure_search_raw (dsss_burst_receiver_state_t *state,
                                           size_t doppler_bins, size_t n_noncoh)
 {
-  return burst_acq_configure_search_raw (state->acq, doppler_bins, n_noncoh);
+  int rc = burst_acq_configure_search_raw (state->acq, doppler_bins, n_noncoh);
+  /* Re-pinning the grid resizes the acquisition child's blob, so the region
+     reserved for it moves with it. state_bytes() stays a pure function of
+     CONFIGURATION -- this call IS configuration -- and a blob taken before
+     the change correctly stops matching. */
+  if (rc == 0)
+    state->acq_blob_max = acq_state_bytes (state->acq->engine);
+  return rc;
 }
 
 /* ── Read-backs: the DetectionEvent, per burst (§4) ───────────────────── */

@@ -51,9 +51,11 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  float | [**eta\_nc**](#variable-eta_nc)  <br> |
 |  size\_t | [**frame\_n**](#variable-frame_n)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
+|  size\_t | [**interp**](#variable-interp)  <br> |
 |  float \* | [**mag\_buf**](#variable-mag_buf)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**n\_noncoh**](#variable-n_noncoh)  <br> |
+|  size\_t | [**n\_surf**](#variable-n_surf)  <br> |
 |  size\_t | [**nc\_count**](#variable-nc_count)  <br> |
 |  float \* | [**nc\_surface**](#variable-nc_surface)  <br> |
 |  float | [**noise\_est**](#variable-noise_est)  <br> |
@@ -413,6 +415,24 @@ Sample rate (Hz) = chip\_rate \* spc.
 
 
 
+### variable interp 
+
+```C++
+size_t acq_state_t::interp;
+```
+
+
+
+Doppler-axis interpolation factor of the inverse (1 = none). Zero-padding the product in frequency is exact band-limited interpolation, so a peak landing between two slow-time bins is no longer attenuated by the scalloping loss that made a half-bin burst invisible at any SNR (gh-1002). It adds resolution to the SURFACE only: the reported bin is mapped back to the native grid, so no consumer's arithmetic changes. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable mag\_buf 
 
 ```C++
@@ -439,7 +459,8 @@ size_t acq_state_t::n;
 
 
 
-Output grid size in samples: coherent\_bins \* window\_bins \* code\_bins (one of coherent\_bins/window\_bins is always 1). 
+NATIVE grid size in samples: coherent\_bins \* window\_bins \* code\_bins (one of coherent\_bins/window\_bins is always 1). This is the INPUT frame and the count of statistically independent cells  it is what the threshold ladder is sized from, and it is what `doppler_bin` is reported on. 
+ 
 
 
         
@@ -457,6 +478,24 @@ size_t acq_state_t::n_noncoh;
 
 
 Non-coherent looks per detection (1 = coherent). 
+
+
+        
+
+<hr>
+
+
+
+### variable n\_surf 
+
+```C++
+size_t acq_state_t::n_surf;
+```
+
+
+
+Cells in the correlation SURFACE = `interp` \* n. The inverse transform is evaluated on a finer Doppler grid, so the buffers, the peak search and the CFAR reference span this and not `n`. 
+ 
 
 
         

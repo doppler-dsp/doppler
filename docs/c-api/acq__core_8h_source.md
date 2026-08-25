@@ -67,6 +67,8 @@ extern "C"
     size_t window_bins; 
     size_t code_bins; 
     size_t n; 
+    size_t n_surf; 
+    size_t interp; 
     size_t frame_n; 
     size_t sf;      
     size_t spc;     

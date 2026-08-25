@@ -199,8 +199,23 @@ extern "C"
     size_t window_bins; /**< Wideband frequency-window hypotheses (1 =
                               disabled/native — see the file doc comment).   */
     size_t code_bins; /**< One segment in samples = sf*spc.                 */
-    size_t n; /**< Output grid size in samples: coherent_bins * window_bins *
-                   code_bins (one of coherent_bins/window_bins is always 1). */
+    size_t n; /**< NATIVE grid size in samples: coherent_bins * window_bins *
+                   code_bins (one of coherent_bins/window_bins is always 1).
+                   This is the INPUT frame and the count of statistically
+                   independent cells -- it is what the threshold ladder is
+                   sized from, and it is what `doppler_bin` is reported on.  */
+    size_t n_surf; /**< Cells in the correlation SURFACE = `interp` * n. The
+                        inverse transform is evaluated on a finer Doppler
+                        grid, so the buffers, the peak search and the CFAR
+                        reference span this and not `n`.                     */
+    size_t interp; /**< Doppler-axis interpolation factor of the inverse (1 =
+                        none). Zero-padding the product in frequency is exact
+                        band-limited interpolation, so a peak landing between
+                        two slow-time bins is no longer attenuated by the
+                        scalloping loss that made a half-bin burst invisible
+                        at any SNR (gh-1002). It adds resolution to the
+                        SURFACE only: the reported bin is mapped back to the
+                        native grid, so no consumer's arithmetic changes.    */
     size_t frame_n; /**< Raw samples consumed from the ring per iteration:
                           == n natively; == code_bins in wideband mode (one
                           epoch's worth — window_bins hypotheses come from

@@ -236,6 +236,90 @@ _acq_configure_search_raw_check (void)
  * (rather than a caller cap, which no longer exists) making the auto-sizer's
  * n_noncoh ascend land on 1 -- the actual pushed burst is noise-free anyway,
  * so cn0_dbhz only steers the SIZING decision, not detectability. */
+/* gh-1002: a burst at exactly HALF a coherent Doppler bin must still be
+ * detected.
+ *
+ * The slow-time FFT's scalloping loss is ~3.9 dB at the worst case, exactly
+ * between two bins -- and that was not a margin a caller could buy back with
+ * signal, because `test_stat` saturates against the code's own
+ * autocorrelation-sidelobe floor. A half-bin burst was therefore invisible
+ * at ANY C/N0. The engine now zero-pads its column transform, so the surface
+ * is sampled between the native bins too.
+ *
+ * The geometry is chosen so the defect actually EXISTS here: a 31-chip code
+ * at reps=4 buys a coherent depth of 4, which is where the slow-time null is
+ * sharp. The first attempt used the 7-chip code the rest of this file shares
+ * (coherent depth 2) and passed with the fix reverted -- a regression test
+ * that cannot fail is decoration, and the structural `interp > 1` assert
+ * below would have hidden that had it been the only check.
+ *
+ * The sweep runs the ends as well as the half: half a bin alone would pass
+ * against an engine that had merely lowered its threshold. The claim is a
+ * FLAT response across the bin. */
+static int
+_acq_half_bin_check (void)
+{
+  const double   PI  = acos (-1.0);
+  const size_t   spc = 4, sf = 31, reps = 4;
+  const double   crate = 1.0e6;
+  static uint8_t code31[31];
+  for (size_t i = 0; i < sf; i++)
+    code31[i] = (uint8_t)(((i * 2654435761u) >> 13) & 1u);
+
+  acq_state_t *a = acq_create_burst (code31, sf, reps, spc, crate, 55.0, 0.0,
+                                     1e-3, 0.9, 0);
+  DP_CHECK (a != NULL);
+  if (!a)
+    return 0;
+
+  /* The depth that makes the null sharp -- asserted so a future sizing
+     change cannot quietly move this test off the geometry it needs. */
+  DP_CHECK (a->coherent_bins == reps);
+  DP_CHECK (a->interp > 1);
+  DP_CHECK (a->n_surf == a->n * a->interp);
+
+  const size_t nx  = sf * spc;        /* code_bins                   */
+  const size_t n   = reps * nx;       /* one frame = the preamble    */
+  const double res = 1.0 / (double)n; /* one Doppler bin, cyc/sample */
+
+  /* A whole DWELL, not one frame: at this C/N0 the sizer may buy
+     non-coherent looks, and a single frame then never completes one -- the
+     first version of this test read that as "not detected" and failed with
+     the fix in place. */
+  const size_t looks = a->n_noncoh;
+  DP_REQUIRE (looks >= 1 && looks <= 8);
+  const size_t n_tot = looks * n;
+
+  static float complex frame[8 * 4 * 31 * 4];
+  for (int q = 0; q <= 4; q++) /* 0, 1/4, 1/2, 3/4, 1 bin */
+    {
+      double f_norm = 0.25 * (double)q * res;
+      acq_reset (a);
+      for (size_t k = 0; k < n_tot; k++)
+        {
+          uint8_t chip = code31[((k % nx) / spc) % sf];
+          double  s    = (chip & 1u) ? -1.0 : 1.0;
+          double  ph   = 2.0 * PI * f_norm * (double)k;
+          frame[k]     = (float complex) (s * cos (ph) + I * s * sin (ph));
+        }
+
+      acq_result_t hits[8];
+      size_t       nh = acq_push (a, frame, n_tot, hits, 8);
+      DP_CHECK_MSG (nh >= 1, "no detection at this quarter-bin offset");
+      if (nh >= 1)
+        {
+          /* Reported on the NATIVE grid whatever the surface resolved: the
+             half-bin case may legitimately name either neighbour, but never
+             a row that does not exist on the caller's grid. */
+          DP_CHECK (hits[0].doppler_bin < a->coherent_bins);
+          DP_CHECK (hits[0].test_stat > a->threshold);
+        }
+    }
+
+  acq_destroy (a);
+  return 0;
+}
+
 static int
 _acq_wideband_check (void)
 {
@@ -506,7 +590,12 @@ main (void)
   DP_CHECK (a->coherent_bins == 2);
   DP_CHECK (a->n == a->coherent_bins * nx);
   DP_CHECK (!a->underpowered && a->pd_predicted >= 0.9);
-  DP_CHECK (a->noise_lo == 0 && a->noise_hi == a->n - 1);
+  /* The CFAR reference spans the SURFACE, which is the interpolated grid
+     the peak search runs over -- not the native cell count `n`. The two
+     differ by `interp` since gh-1002; asserting `n - 1` here would pin the
+     reference to a fraction of the cells it actually reads. */
+  DP_CHECK (a->n_surf == a->n * a->interp);
+  DP_CHECK (a->noise_lo == 0 && a->noise_hi == a->n_surf - 1);
   DP_CHECK (a->fs == crate * (double)spc);
   DP_CHECK (fabs (a->doppler_span_hz - span) < 1e-6);
   /* threshold = eta * sqrt(2/pi); eta = sqrt(-2 ln pfa_cell) > 0 */
@@ -651,6 +740,7 @@ main (void)
 
   (void)_acq_cn0_calibration ();
   (void)_acq_configure_search_raw_check ();
+  (void)_acq_half_bin_check ();
   (void)_acq_wideband_check ();
   (void)_acq_wideband_coverage_check ();
   (void)_acq_continuous_check ();

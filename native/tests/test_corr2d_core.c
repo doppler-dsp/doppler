@@ -645,5 +645,35 @@ main (void)
     corr2d_destroy (fine);
   }
 
+  /* ── dwell = 0 is refused, not silently accepted ──────────────────────
+   *
+   * The header says dwell "must be >= 1" and create() enforced only the
+   * output-grid rule, so a zero dwell built an object that was not merely
+   * degenerate but silent: the dump test is `++count == dwell`, which zero
+   * never satisfies, so it accumulated every frame it was given and
+   * emitted nothing until count wrapped. A caller whose dwell came from a
+   * computed value that underflowed got silence and unbounded growth.
+   *
+   * Checked here rather than only in detector2d because detector2d_create
+   * forwards its own dwell straight into this call -- one validation at
+   * the primitive covers both objects, and a copy in each would be the
+   * thing that drifts.
+   *
+   * NULL is the whole error report by design: the repo's convention
+   * (docs/dev/contributing/error-convention.md) is that create() returns
+   * NULL for an allocation failure OR an invalid argument, and the binding
+   * turns that into MemoryError. */
+  {
+    float complex ref[16] = { 0 };
+    ref[0]                = 1.0f;
+    DP_CHECK (corr2d_create (ref, NY, NX, 0, 1, 0, 0) == NULL);
+    /* Not vacuous: the neighbouring value builds. */
+    corr2d_state_t *ok = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
+    DP_CHECK (ok != NULL);
+    corr2d_destroy (ok);
+    /* The pre-existing output-grid rule still holds. */
+    DP_CHECK (corr2d_create (ref, NY, NX, 1, 1, 0, NX - 1) == NULL);
+  }
+
   DP_TEST_END ("test_corr2d_core");
 }

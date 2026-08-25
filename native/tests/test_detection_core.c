@@ -433,25 +433,54 @@ main (void)
     }
   }
 
-  /* ── det_threshold_f: the 41x an ESTIMATED noise reference costs ───────
+  /* ── det_threshold_f: the header's 41x, re-derived ────────────────────
    *
-   * detection_core.h states the whole reason this function exists as one
-   * number -- "the chi-square gate realizes tens of times the priced pfa
-   * (41x at n = 16, pfa = 1e-3)" -- and nothing pinned it. Re-derived here
-   * from the shipped API alone, so the claim moves if the arithmetic does.
+   * Nothing here is a defect. A threshold built on a noise reference
+   * estimated from n samples inherits that estimate's uncertainty --
+   * sigma_hat^2 = sum Im^2 / n is sigma^2*chi2(n)/n, good to sqrt(2/n) --
+   * and det_threshold_f exists precisely because doppler prices that
+   * correctly. What was missing is that the header quotes one number for
+   * it ("41x at n = 16, pfa = 1e-3") and no code re-derived it, so the
+   * figure could drift from the arithmetic with no gate noticing.
    *
-   * THE DEGREES OF FREEDOM ARE THE TRAP. BurstDespreader's statistic is
-   * R = sqrt(n * sum Re^2 / sum Im^2), asymptotically sqrt(chi2(n)) -- n
-   * REAL dof, one per prompt. det_threshold_noncoherent(pfa, M) prices
-   * chi2(2M), because a non-coherent look is a complex magnitude and
-   * carries two. So the comparator is at n/2, not n; pricing it at n gives
-   * 4.8x here, which is a plausible number and off by almost ten. */
+   * The ratio is a multiplier on the false-alarm RATE, which is not a
+   * cost and cannot be added to a link budget. The number a caller
+   * actually budgets is the same shortfall taken in the threshold
+   * instead -- 3.27 dB at n = 16, about 1 dB at n = 100 -- and that table
+   * lives in the certification report (section 2.4), which regenerates it
+   * rather than quoting it.
+   *
+   * THE DEGREES OF FREEDOM ARE THE TRAP, so the derivation comes first --
+   * a comparator picked because it reproduces 41 would be fitting, not
+   * measuring. Under H0 a burst's n prompts give sum Re^2 ~ s^2*chi2(n)
+   * and sum Im^2 ~ s^2*chi2(n), so R^2 = n*F(n,n), which is the header's
+   * law. A caller who treats sum Im^2 / n as though it were exactly s^2
+   * believes R^2 ~ chi2(n) instead, and gates at that distribution's
+   * upper-pfa quantile. det_threshold_noncoherent(pfa, M) solves
+   * marcum_q(M, 0, b) = pfa, which IS P(chi2(2M) > b^2) -- so 2M = n and
+   * the comparator sits at M = n/2. Pricing it at M = n gives 4.8x here:
+   * a plausible number, off by almost ten.
+   *
+   * EVEN n ONLY, enforced below rather than left to the sweep to avoid.
+   * `n / 2` is integer division, so at odd n this prices chi2(n-1) -- the
+   * same gate as n-1 -- and overstates the penalty by about a fifth (89x
+   * against a true 73.7x at n = 5). doppler cannot express an odd-dof
+   * known-noise gate at all, while det_threshold_f handles odd n
+   * deliberately, because a burst's prompt count is whatever the burst
+   * contained. So the COMPARISON is an even-n statement even though the
+   * gate it recommends is not.
+   *
+   * Cross-checked against scipy while this was written, as a third
+   * opinion sharing no code with either: det_threshold_noncoherent(pfa,
+   * n/2) matches chi2(n).isf(pfa) to 1e-15, det_threshold_f matches
+   * f.isf(pfa, n, n), and f.sf(eta^2/n, n, n) gives the same 41.0x. */
   {
     const double pfa = 1e-3;
     /* Invert det_threshold_f: it is monotone DECREASING in pfa, so bisect
      * on the geometric mean to find the pfa a given quantile really buys. */
     for (int n = 4; n <= 64; n *= 4)
       {
+        DP_CHECK (n % 2 == 0); /* see the even-n note above */
         double eta = det_threshold_noncoherent (pfa, n / 2); /* chi2(n) */
         double g   = eta * eta / (double)n;                  /* F units */
         double lo = 1e-15, hi = 0.9999;
@@ -479,7 +508,8 @@ main (void)
       int    ns[3] = { 4, 16, 64 };
       for (int i = 0; i < 3; i++)
         {
-          int    n   = ns[i];
+          int n = ns[i];
+          DP_CHECK (n % 2 == 0);
           double eta = det_threshold_noncoherent (pfa, n / 2);
           double g   = eta * eta / (double)n;
           double lo = 1e-15, hi = 0.9999;
@@ -495,6 +525,29 @@ main (void)
         }
       DP_CHECK (r[0] > r[1] && r[1] > r[2]);
     }
+  }
+
+  /* ── the even-dof restriction, pinned rather than described ───────────
+   *
+   * det_threshold_noncoherent takes a LOOK COUNT and prices chi2(2M), so
+   * there is no argument that yields an odd-dof gate: M = n/2 and
+   * M = (n-1)/2 are the same integer for odd n, and the helper returns the
+   * same threshold for both. That is what makes the 41x comparison above
+   * an even-n statement, and it is asserted here so the restriction cannot
+   * quietly stop being true -- a future helper that DID accept odd dof
+   * would take this red, which is the correct signal to widen the section
+   * above rather than a regression. */
+  {
+    const double pfa = 1e-3;
+    for (int n = 3; n <= 17; n += 2)
+      {
+        DP_CHECK (det_threshold_noncoherent (pfa, n / 2)
+                  == det_threshold_noncoherent (pfa, (n - 1) / 2));
+        /* ... and the even neighbours genuinely differ, so the equality
+           above is the collapse and not a constant function. */
+        DP_CHECK (det_threshold_noncoherent (pfa, (n + 1) / 2)
+                  > det_threshold_noncoherent (pfa, (n - 1) / 2));
+      }
   }
 
   /* ── marcum_q across its STATED envelope (a, b <= 15) ──────────────────

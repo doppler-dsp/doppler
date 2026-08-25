@@ -59,7 +59,7 @@ they agree on Pd at every SNR. That equivalence is asserted, not assumed.
 The other three are genuinely different distributions, and reaching for the
 wrong one does not fail loudly. It returns a plausible number.
 
-### The 4.9409 trap
+### Two thresholds near 5, and only one is a sigma count
 
 At `pfa = 5e-6`, `det_threshold` returns **4.9409** and `det_q_inv` returns
 **4.4172**. Both are small numbers near 5. Only one of them is a count of
@@ -117,39 +117,124 @@ margin on the ideal number will be short.
 
 ______________________________________________________________________
 
-## 4. Estimating the noise fattens the tail — the 41× that `det_threshold_f`
-
-exists to remove
+## 4. A threshold on an estimated reference is only as good as the estimate
 
 Every family in §2 except the last prices a statistic normalised by a **known**
 noise power. `BurstDespreader` cannot do that: it has one burst, and it
 estimates the noise from the same burst it is testing — the quadrature sum
 `ΣIm²` against the in-phase sum `ΣRe²`.
 
-A ratio of two estimates is not a ratio to a constant. Its exact H0 law is
-`R² = n · F(n, n)`, whose tail is fatter than the chi-square gate's, and the
-gap is not a rounding error. Re-derived from the shipped API at `pfa = 1e-3`:
+That is not a flaw in the detector, and none of what follows is a defect. It
+is the ordinary consequence of estimating: if the reference comes from `n`
+samples, the threshold inherits that estimate's uncertainty, and the only
+question worth asking is how much. This section answers it, because the
+answer is what a caller has to size against — and `det_threshold_f` exists
+precisely because doppler already prices it correctly.
 
-| n   | χ² gate | correct F gate | pfa actually realized | ratio     |
-| --- | ------- | -------------- | --------------------- | --------- |
-| 4   | 4.6167  | 53.4358        | 8.38e-02              | **83.8×** |
-| 8   | 3.2656  | 12.0455        | 5.71e-02              | **57.1×** |
-| 16  | 2.4533  | 5.2048         | 4.10e-02              | **41.0×** |
-| 32  | 1.9527  | 3.0923         | 3.14e-02              | **31.4×** |
-| 64  | 1.6362  | 2.1931         | 2.55e-02              | **25.5×** |
+**How good is the estimate.** `σ̂² = ΣIm²/n` is unbiased but not sharp: it is
+`σ²·χ²(n)/n`, so its relative standard deviation is `√(2/n)`.
 
-A detector priced at one false alarm in a thousand is delivering one in
-twenty-four. The error shrinks as the noise estimate hardens — the last column
-falls monotonically — but it never becomes negligible over any dwell a burst
-actually affords.
+| n   | 1σ relative | in dB | 90 % interval on σ̂²/σ² |
+| --- | ----------- | ----- | ---------------------- |
+| 4   | 70.7 %      | 2.32  | [0.18, 2.37]           |
+| 8   | 50.0 %      | 1.76  | [0.34, 1.94]           |
+| 16  | 35.4 %      | 1.31  | [0.50, 1.64]           |
+| 32  | 25.0 %      | 0.97  | [0.63, 1.44]           |
+| 64  | 17.7 %      | 0.71  | [0.73, 1.31]           |
+| 128 | 12.5 %      | 0.51  | [0.80, 1.21]           |
 
-**A degrees-of-freedom note, because getting it wrong reproduces a plausible
-wrong answer.** The comparator above is `det_threshold_noncoherent(pfa, n/2)`,
-not `(pfa, n)`. `R` is asymptotically `sqrt(χ²(n))` — `n` real degrees of
-freedom, one per prompt — while `det_threshold_noncoherent(pfa, M)` prices
-`χ²(2M)`, because a non-coherent *look* is a complex magnitude and carries
-two. Pricing at `(pfa, n)` yields 4.8× at n = 16: still a warning, off by
-almost ten.
+At the sixteen prompts a short burst affords, the floor is known to about a
+third. Everything below follows from that one number.
+
+Because a ratio of two estimates is not a ratio to a constant, the exact H0
+law is `R² = n·F(n, n)` rather than `χ²(n)`. The difference shows up in one of
+two places depending on which gate is used, and they are different quantities
+— which is why "costs 41×" is not a usable sentence.
+
+**Using the known-noise gate: the false-alarm rate moves.** Keep the χ² gate
+and the realized rate is higher than the priced one. At `pfa = 1e-3`:
+
+| n   | χ² gate | correct F gate | pfa realized | multiplier |
+| --- | ------- | -------------- | ------------ | ---------- |
+| 4   | 4.6167  | 53.4358        | 8.38e-02     | 83.8×      |
+| 8   | 3.2656  | 12.0455        | 5.71e-02     | 57.1×      |
+| 16  | 2.4533  | 5.2048         | 4.10e-02     | 41.0×      |
+| 32  | 1.9527  | 3.0923         | 3.14e-02     | 31.4×      |
+| 64  | 1.6362  | 2.1931         | 2.55e-02     | 25.5×      |
+
+41 is a multiplier on the false-alarm **rate**, not a cost — quoted as a cost
+it names no unit.
+
+**Using `det_threshold_f`: the sensitivity moves instead.** Keep the rate you
+asked for and the same information shortfall lands in the threshold, in dB.
+This is the number a link budget uses:
+
+| n   | known-noise gate | correct F gate | sensitivity given up |
+| --- | ---------------- | -------------- | -------------------- |
+| 4   | 4.6167           | 53.4358        | 10.64 dB             |
+| 8   | 3.2656           | 12.0455        | 5.67 dB              |
+| 16  | 2.4533           | 5.2048         | 3.27 dB              |
+| 32  | 1.9527           | 3.0923         | 2.00 dB              |
+| 64  | 1.6362           | 2.1931         | 1.27 dB              |
+| 128 | 1.4311           | 1.7346         | 0.84 dB              |
+
+Both columns are `√(2/n)` seen from two sides, which is why they fall
+together: doubling the prompts folded into the reference tightens the estimate
+by `√2` and roughly halves the dB cost.
+
+### The number to budget
+
+The useful form of all of the above, indexed by the thing a caller actually
+knows — how many samples can be spared for the noise reference. Read the row
+and add that much margin.
+
+| samples in the estimate | reference known to | pfa 1e-2 | 1e-3    | 1e-6     |
+| ----------------------- | ------------------ | -------- | ------- | -------- |
+| 8                       | 50.0 %             | 3.80 dB  | 5.67 dB | 11.50 dB |
+| 16                      | 35.4 %             | 2.27 dB  | 3.27 dB | 6.15 dB  |
+| 32                      | 25.0 %             | 1.42 dB  | 2.00 dB | 3.54 dB  |
+| 64                      | 17.7 %             | 0.92 dB  | 1.27 dB | 2.17 dB  |
+| 100                     | 14.1 %             | 0.71 dB  | 0.97 dB | 1.61 dB  |
+| 128                     | 12.5 %             | 0.61 dB  | 0.84 dB | 1.38 dB  |
+| 256                     | 8.8 %              | 0.41 dB  | 0.56 dB | 0.91 dB  |
+| 512                     | 6.2 %              | 0.28 dB  | 0.38 dB | 0.61 dB  |
+| 1024                    | 4.4 %              | 0.20 dB  | 0.26 dB | 0.41 dB  |
+
+A hundred samples of reference at `pfa = 1e-3` is about **1 dB**; a burst that
+can only spare sixteen pays **3.3 dB**. The tighter the false-alarm budget the
+more it costs, because the gate sits further into a tail whose shape is
+exactly what the estimate is uncertain about — 6.15 dB at `pfa = 1e-6` and
+sixteen samples.
+
+Do not scale one row to reach another: the penalty falls faster than
+`1/√n` at small `n` and only approaches it from above, so a fitted rule of
+thumb is worst where the cost is largest. The table is regenerated by
+`src/doppler/detection/tests/validation/detection/validate.py` and gated, so
+it cannot drift from the code.
+
+The design rule that follows is simply to fold in every prompt available
+rather than the minimum that reaches a decision.
+
+**How the χ² comparator above is obtained.** Under H0 a burst's `n` prompts
+give `ΣRe² ~ σ²·χ²(n)`, so a caller treating `ΣIm²/n` as exactly `σ²` believes
+`R² ~ χ²(n)` and gates at that quantile. `det_threshold_noncoherent(pfa, M)`
+solves `marcum_q(M, 0, b) = pfa`, which is `P(χ²(2M) > b²)`, so `2M = n` and
+the comparator is `M = n/2`. Worth deriving rather than guessing: `M = n`
+returns 4.8× instead, which is equally plausible on sight.
+
+The tables were reproduced three ways that share no arithmetic — inverting
+`det_threshold_f` on that gate, Monte-Carlo draws of the statistic, and
+scipy's `f.sf`. scipy also confirms `det_threshold_noncoherent(pfa, n/2)` is
+the `χ²(n)` quantile to 1e-15 and `det_threshold_f` is the `F(n,n)` quantile.
+
+**The comparison is even-`n` only.** `n/2` is integer division, and
+`det_threshold_noncoherent` prices `χ²(2M)` and nothing else, so there is no
+argument that yields an odd-dof known-noise gate; at odd `n` it returns the
+`χ²(n−1)` value and the multiplier comes out about a fifth high (89× against
+73.7× at n = 5). The tables are even-`n` for that reason and the checks assert
+it. `det_threshold_f` has no such restriction, which is the useful half of the
+asymmetry: a burst's prompt count is whatever the burst contained, so the gate
+a caller actually uses handles odd `n`.
 
 `det_threshold_f` solves `I_{1/(1+g)}(n/2, n/2) = pfa` on the regularized
 incomplete beta, which is exact for every `n ≥ 1`, odd included — a

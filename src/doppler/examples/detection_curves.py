@@ -65,12 +65,20 @@ mask = valid > 0
 # chi-square gate prices. det_threshold_f is the exact gate; the penalty
 # below is what using the chi-square one instead really delivers.
 #
-# The degrees of freedom are the trap: R is asymptotically sqrt(chi2(n)),
-# n REAL dof, while det_threshold_noncoherent(pfa, M) prices chi2(2M) --
-# a non-coherent look is a complex magnitude and carries two. So the
-# comparator is n/2. Pricing it at n gives 4.8x instead of 41x at n=16.
+# The degrees of freedom are the trap, and the comparator is DERIVED
+# rather than picked to match: under H0 the burst's n prompts give
+# sum Re^2 ~ s^2*chi2(n), so a caller treating sum Im^2/n as exactly s^2
+# believes R^2 ~ chi2(n) and gates at that quantile. Since
+# det_threshold_noncoherent(pfa, M) prices chi2(2M), that is M = n/2.
+# Pricing it at n gives 4.8x instead of 41x at n=16.
+#
+# EVEN n only -- n // 2 would price chi2(n-1) otherwise, which is the same
+# gate as n-1 and overstates the penalty by about a fifth. doppler cannot
+# express an odd-dof known-noise gate; det_threshold_f handles odd n
+# deliberately, because a burst's prompt count is whatever it contained.
 PFA_BURST = 1e-3
 DOFS = [2, 4, 8, 16, 32, 64, 128]
+assert all(n % 2 == 0 for n in DOFS)  # see the note above
 
 
 def realized_pfa(quantile, n):
@@ -94,6 +102,21 @@ chi_gates = [
 ]
 f_gates = [det_threshold_f(PFA_BURST, n) for n in DOFS]
 penalty = [realized_pfa(g, n) / PFA_BURST for g, n in zip(chi_gates, DOFS)]
+
+# The TWO prices, and the estimate quality that causes both.
+#
+# `penalty` is a multiplier on the false-alarm RATE, paid by a detector
+# that ignores the estimation. It is NOT "what an estimated reference
+# costs" -- quoted as a cost it names no unit. The cost of doing it RIGHT
+# is a higher threshold: detection sensitivity, in dB, which is the number
+# a link budget wants.
+#
+# Both are the same sqrt(2/n) seen from two sides. sigma_hat^2 =
+# sum Im^2 / n is sigma^2 * chi2(n)/n, whose relative standard deviation
+# is sqrt(2/n) -- 35% at n=16. The floor the detector divides by is known
+# only to a third, which is why the correct gate must sit so much higher.
+sens_db = [10 * np.log10(f / g) for f, g in zip(f_gates, chi_gates)]
+est_rel = [np.sqrt(2.0 / n) for n in DOFS]
 # --8<-- [end:theory]
 
 # --8<-- [start:checks]
@@ -135,8 +158,27 @@ assert all(a > b for a, b in zip(penalty, penalty[1:])), (
 assert penalty[-1] > 5.0, (
     "even at n=128 the chi-square gate is still materially mispriced"
 )
-for n, pen in zip(DOFS, penalty):
-    print(f"n={n:<4} chi-square gate realizes {pen:5.1f}x the priced pfa")
+
+# Price two: doing it correctly costs SENSITIVITY, not false alarms.
+i16 = DOFS.index(16)
+assert abs(sens_db[i16] - 3.27) < 0.05, (
+    f"the correct gate costs {sens_db[i16]:.2f} dB at n=16, expected 3.27"
+)
+assert all(a > b for a, b in zip(sens_db, sens_db[1:])), (
+    "more prompts in the reference must cost less sensitivity"
+)
+# Doubling n tightens sqrt(2/n) by sqrt(2) and roughly halves the dB cost.
+assert all(0.4 < b / a < 0.75 for a, b in zip(sens_db, sens_db[1:])), (
+    "the dB cost should roughly halve per doubling of n"
+)
+assert abs(est_rel[i16] - 0.3536) < 1e-3, "sqrt(2/16) is 35.4%"
+
+for n, pen, db, rel in zip(DOFS, penalty, sens_db, est_rel):
+    print(
+        f"n={n:<4} noise known to {rel * 100:5.1f}%  ->  "
+        f"ignore it: {pen:5.1f}x the priced pfa   |   "
+        f"price it: {db:5.2f} dB of sensitivity"
+    )
 # --8<-- [end:checks]
 
 # ── Plot ─────────────────────────────────────────────────────────────────────
@@ -246,15 +288,24 @@ ax2.grid(True, which="both", linestyle=":", linewidth=0.6, alpha=0.8)
 # A ratio and a log axis: the penalty spans 2 decades of dof and only one
 # decade of ratio, so both axes are log and the "priced" line is at 1.0.
 
-ax3.axhline(1.0, color="0.5", linestyle="--", linewidth=0.9, zorder=1)
+# Two curves on twin axes, because there are two prices and they are the
+# same sqrt(2/n) seen from two sides -- plotting only the multiplier is
+# what let "costs 41x" stand as a sentence with no unit in it.
+# Tinted to the LEFT axis and labelled on the left: with two y-axes an
+# uncoloured reference line reads as the blue curve's asymptote, which it
+# is not -- 1.0 is "no mispricing" on the red axis only.
+ax3.axhline(
+    1.0, color="#d62728", linestyle="--", linewidth=0.9, alpha=0.55, zorder=1
+)
 ax3.text(
-    DOFS[-1],
-    1.08,
-    "priced rate",
-    ha="right",
+    DOFS[0],
+    1.06,
+    r"1x = correctly priced",
+    ha="left",
     va="bottom",
-    color="0.4",
-    fontsize=9,
+    color="#d62728",
+    alpha=0.8,
+    fontsize=8,
 )
 ax3.loglog(
     DOFS,
@@ -263,25 +314,57 @@ ax3.loglog(
     linewidth=1.8,
     marker="o",
     markersize=5,
-    label=r"$\chi^2$ gate on an F(n,n) statistic",
+    label="ignore it: false-alarm RATE multiplier",
 )
-i16 = DOFS.index(16)
+i_16 = DOFS.index(16)
 ax3.annotate(
-    f"{penalty[i16]:.0f}x at n=16",
-    xy=(16, penalty[i16]),
-    xytext=(16 * 1.3, penalty[i16] * 1.6),
+    f"{penalty[i_16]:.0f}x",
+    xy=(16, penalty[i_16]),
+    xytext=(16 * 1.35, penalty[i_16] * 1.7),
     fontsize=8.5,
     color="#d62728",
     arrowprops={"arrowstyle": "->", "color": "#d62728", "linewidth": 0.8},
 )
 ax3.set_xlabel("n (prompts folded into the noise estimate)", fontsize=10)
-ax3.set_ylabel("realized $P_{fa}$ / priced $P_{fa}$", fontsize=10)
-ax3.set_title(
-    rf"Cost of an ESTIMATED noise reference, $P_{{fa}} = {PFA_BURST:.0e}$",
-    fontsize=11,
+ax3.set_ylabel(
+    r"realized $P_{fa}$ / priced $P_{fa}$", color="#d62728", fontsize=10
 )
-ax3.legend(fontsize=8, loc="upper right")
+ax3.tick_params(axis="y", labelcolor="#d62728")
 ax3.grid(True, which="both", linestyle=":", linewidth=0.6, alpha=0.8)
+
+ax3b = ax3.twinx()
+ax3b.semilogx(
+    DOFS,
+    sens_db,
+    color="#1f77b4",
+    linewidth=1.8,
+    marker="s",
+    markersize=5,
+    label="price it: SENSITIVITY given up",
+)
+ax3b.annotate(
+    f"{sens_db[i_16]:.2f} dB",
+    xy=(16, sens_db[i_16]),
+    xytext=(16 * 1.35, sens_db[i_16] + 1.6),
+    fontsize=8.5,
+    color="#1f77b4",
+    arrowprops={"arrowstyle": "->", "color": "#1f77b4", "linewidth": 0.8},
+)
+ax3b.set_ylabel("sensitivity given up (dB)", color="#1f77b4", fontsize=10)
+ax3b.tick_params(axis="y", labelcolor="#1f77b4")
+ax3b.set_ylim(0, max(sens_db) * 1.25)
+
+lines_a, labels_a = ax3.get_legend_handles_labels()
+lines_b, labels_b = ax3b.get_legend_handles_labels()
+ax3.legend(
+    lines_a + lines_b, labels_a + labels_b, fontsize=7.5, loc="upper right"
+)
+ax3.set_title(
+    "Cost of an ESTIMATED noise reference\n"
+    rf"(known to {100 * np.sqrt(2 / 16):.0f}% at $n=16$, "
+    rf"$P_{{fa}} = {PFA_BURST:.0e}$)",
+    fontsize=10.5,
+)
 
 # ── Save ─────────────────────────────────────────────────────────────────────
 

@@ -91,6 +91,18 @@ dp_xcalloc (size_t nmemb, size_t size)
   return dp_xnn (calloc (nmemb, size));
 }
 
+static inline long
+dp_fftfreq_index (size_t bin, size_t n)
+{
+  return (bin <= (n - 1) / 2) ? (long)bin : (long)bin - (long)n;
+}
+
+static inline double
+dp_fftfreq (size_t bin, size_t n, double fs)
+{
+  return (n == 0) ? 0.0 : (double)dp_fftfreq_index (bin, n) * fs / (double)n;
+}
+
 #endif /* DOPPLER_CLIB_COMMON_H */
 ```
 

@@ -46,7 +46,7 @@ from pathlib import Path
 import numpy as np
 
 from doppler.ddc import DDC
-from doppler.dsss import BurstAcquisition, BurstDemod
+from doppler.dsss import BurstAcquisition, BurstDemod, bin_to_signed
 from doppler.tests._repo import repo_root
 from doppler.wfm import PN
 
@@ -210,9 +210,13 @@ def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
     dop, cp, _peak, _noise, test_stat, _snr, *_rest = max(
         hits, key=lambda h: h[4]
     )
-    f0 = dop * acq.doppler_res_hz
-    if dop >= acq.doppler_bins / 2:
-        f0 -= acq.doppler_bins * acq.doppler_res_hz
+    # doppler.dsss.bin_to_signed is the library's own mapping
+    # (clib_common.h): fftfreq's convention except at the Nyquist bin,
+    # where it reports +n/2 rather than -n/2. Call it rather than
+    # restating the fold -- the two answers are aliases of one
+    # frequency, but a seed on the wrong side is a full span away from
+    # what the search meant.
+    f0 = bin_to_signed(dop, acq.doppler_bins) * acq.doppler_res_hz
     rec = {
         "detected": True,
         "frame_valid": False,

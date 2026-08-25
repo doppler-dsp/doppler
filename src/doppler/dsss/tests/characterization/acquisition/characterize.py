@@ -87,7 +87,7 @@ from pathlib import Path
 
 import numpy as np
 
-from doppler.dsss import Acquisition
+from doppler.dsss import Acquisition, bin_to_signed
 from doppler.dsss.tests.characterization.dsss_receiver.characterize import (
     CHIP_RATE,
     CN0_RANGE_DBHZ,
@@ -259,7 +259,7 @@ def run_trial(
         *_rest,
     ) = hit
     doppler_hz_est = (
-        dop_bin if dop_bin <= a.doppler_bins // 2 else dop_bin - a.doppler_bins
+        bin_to_signed(dop_bin, a.doppler_bins)
     ) * a.doppler_res_hz
     dop_bin_dist = _circ_dist(dop_bin, row_true, a.doppler_bins)
     code_dist_samples = _circ_dist(code_phase, col_ref, a.code_bins)

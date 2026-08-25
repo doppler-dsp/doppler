@@ -315,7 +315,7 @@ _acq_wideband_check (void)
  * in [-du, +du] must have a hypothesis within half a bin, and the search and
  * acq_build_handoff() must agree on which one.
  *
- * This is the regression test for the bug that motivated acq_bin_to_signed().
+ * This is the regression test for the bug that motivated dp_fftfreq_index().
  * The two used to carry separate fold formulas that disagreed at exactly one
  * index -- bin == window_bins/2, reachable only for an EVEN window_bins. The
  * search read that row as +n/2 and the handoff as -n/2, so a true Doppler
@@ -365,7 +365,7 @@ _acq_wideband_coverage_check (void)
      either side ever grows a private copy again. */
   for (size_t b = 0; b < w->window_bins; b++)
     {
-      long k = acq_bin_to_signed (b, w->window_bins);
+      long k = dp_fftfreq_index (b, w->window_bins);
       DP_CHECK (k >= -kmax && k <= kmax);
       acq_result_t  hit = { .doppler_bin = b, .code_phase = 0 };
       acq_handoff_t ho;
@@ -380,7 +380,7 @@ _acq_wideband_coverage_check (void)
       double best = 1e300;
       for (size_t b = 0; b < w->window_bins; b++)
         {
-          double hz = (double)acq_bin_to_signed (b, w->window_bins) * res;
+          double hz = (double)dp_fftfreq_index (b, w->window_bins) * res;
           double e  = fabs (hz - truth);
           if (e < best)
             best = e;

@@ -136,7 +136,12 @@ from pathlib import Path
 
 import numpy as np
 
-from doppler.dsss import BurstAcquisition, BurstDemod, BurstDespreader
+from doppler.dsss import (
+    BurstAcquisition,
+    BurstDemod,
+    BurstDespreader,
+    bin_to_signed,
+)
 from doppler.snr import snr_data_aided_db, snr_data_aided_db_series
 from doppler.tests._repo import repo_root
 from doppler.wfm import Composer, Segment, crc16
@@ -414,9 +419,13 @@ def demo_despreader(rx, hits, acq, acq_code, data_code, frame_bits):
     for k, hit in enumerate(hits):
         start = hit["abs_pos"]
         dop = hit["dop"]
-        f0 = dop * acq.doppler_res_hz
-        if dop >= acq.doppler_bins / 2:
-            f0 -= acq.doppler_bins * acq.doppler_res_hz
+        # doppler.dsss.bin_to_signed is the library's own mapping
+        # (clib_common.h): fftfreq's convention except at the Nyquist
+        # bin, where it reports +n/2 rather than -n/2. Call it rather
+        # than restating the fold -- the two answers are aliases of one
+        # frequency, but a seed on the wrong side of the fold is a full
+        # span away from what the search meant.
+        f0 = bin_to_signed(dop, acq.doppler_bins) * acq.doppler_res_hz
         norm_freq = f0 / FS
         # abs_pos already IS the discovered code-phase-zero sample (the
         # sweep resolved code phase into an absolute position, not a
@@ -484,9 +493,13 @@ def demo_burst_demod(rx, hits, acq, acq_code, data_code, payload_bits):
     for k, hit in enumerate(hits):
         start, dop = hit["abs_pos"], hit["dop"]
         window = rx[start : start + BURST_LEN]
-        f0 = dop * acq.doppler_res_hz
-        if dop >= acq.doppler_bins / 2:
-            f0 -= acq.doppler_bins * acq.doppler_res_hz
+        # doppler.dsss.bin_to_signed is the library's own mapping
+        # (clib_common.h): fftfreq's convention except at the Nyquist
+        # bin, where it reports +n/2 rather than -n/2. Call it rather
+        # than restating the fold -- the two answers are aliases of one
+        # frequency, but a seed on the wrong side of the fold is a full
+        # span away from what the search meant.
+        f0 = bin_to_signed(dop, acq.doppler_bins) * acq.doppler_res_hz
         d.set_prior(f0 / FS, 0)  # abs_pos already IS the preamble start
         bits_hat = d.demod(window)
         valid = bool(d.frame_valid)

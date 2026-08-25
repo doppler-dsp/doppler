@@ -333,7 +333,7 @@ acq_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t cb, double pfa,
  *   count folds to [-n/2, +n/2-1] (one more negative hypothesis than
  *   positive), leaving the top positive offset unreachable, and puts a bin at
  *   exactly n/2 whose signed reading is the one index the search and the
- *   handoff used to disagree on (see acq_bin_to_signed()).
+ *   handoff used to disagree on (see dp_fftfreq_index()).
  *
  * Worked example, SPEC.md's geometry (chip_rate 3.069 Mcps, sf 1023 -> span
  * 1500 Hz, res 3000 Hz) at du = 50 kHz: n_side = ceil(48500/3000) = 17 ->
@@ -876,7 +876,7 @@ acq_push (acq_state_t *st, const float complex *x, size_t n_in,
               fft_execute_cf32 (st->wide_fwd, frame, nx, st->wide_spec, nx);
               for (size_t r = 0; r < st->window_bins; r++)
                 {
-                  long signed_r = acq_bin_to_signed (r, st->window_bins);
+                  long signed_r = dp_fftfreq_index (r, st->window_bins);
                   long wrapped = ((signed_r % (long)nx) + (long)nx) % (long)nx;
                   size_t roll  = (size_t)wrapped;
                   for (size_t j = 0; j < nx; j++)
@@ -980,9 +980,9 @@ acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
     phase += cl;
 
   /* Shared with the wideband search's own row->roll mapping — see
-     acq_bin_to_signed()'s doc comment for the sign inversion that a second,
+     dp_fftfreq_index()'s doc comment for the sign inversion that a second,
      drifted copy of this formula used to cause here. */
-  long k_fold = acq_bin_to_signed (hit->doppler_bin, state->window_bins);
+  long k_fold = dp_fftfreq_index (hit->doppler_bin, state->window_bins);
 
   *out = (acq_handoff_t){
     .samples_consumed = hit->samples_consumed,

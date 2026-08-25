@@ -577,11 +577,11 @@ extern "C"
    * @return Signed index in `[-(n_bins/2), +(n_bins/2)]`; multiply by
    *         `doppler_res_hz` for Hz.
    */
-  static inline long
-  acq_bin_to_signed (size_t bin, size_t n_bins)
-  {
-    return (bin <= n_bins / 2) ? (long)bin : (long)bin - (long)n_bins;
-  }
+  /* The definition now lives in clib_common.h so every consumer -- this
+   * engine's search, its hand-off, and any composing receiver -- includes
+   * the SAME inline rather than restating the formula. It was here, and
+   * four call sites outside C restated it in three mutually inconsistent
+   * ways; see the doc comment above. */
 
   /**
    * @brief Convert one acq_push() hit into a wire-ready hand-off record.
@@ -598,7 +598,7 @@ extern "C"
    *   (coherent_bins pinned at 1, `window_bins` the active mechanism, the
    *   only mode this function supports), so `hit`'s `doppler_bin` is a
    *   frequency-WINDOW index, mapped to a signed bin by
-   *   `acq_bin_to_signed()` — the SAME helper the search uses — and scaled
+   *   `dp_fftfreq_index()` — the SAME helper the search uses — and scaled
    *   by `state->doppler_res_hz`.
    *
    * @param state    The engine @p hit came from (non-NULL, built via

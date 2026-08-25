@@ -274,6 +274,31 @@ for an end-to-end decode through physically-coupled Doppler.
 
 ::: doppler.dsss.AsyncDsssReceiver
 
+## `bin_to_signed` — read an FFT grid the way numpy does
+
+Maps a reported Doppler **bin index** to its **signed** frequency index —
+`numpy.fft.fftfreq(n) * n`, exactly. Multiply by `doppler_res_hz` for Hz:
+
+```python
+from doppler.dsss import bin_to_signed
+
+f0_hz = bin_to_signed(hit_bin, acq.doppler_bins) * acq.doppler_res_hz
+```
+
+Call it rather than writing the fold out. The search and its hand-off must
+agree on the convention, and a consumer seeded on the wrong side of it is off
+by the **full search span** — a failure that once surfaced here as a receiver
+reporting `tracking == 1` while decoding noise. It is a thin wrapper over
+`dp_fftfreq_index()` in `clib_common.h`, so C callers inline the same code.
+
+Two things worth knowing. An **even** grid's Nyquist bin is `-n/2`, following
+numpy; this engine reported `+n/2` there until the burst-chain certification,
+so a formula ported in from numpy now agrees with it. And the C companion
+`dp_fftfreq(bin, n, fs)` returns the bin's frequency directly, taking the
+sample **rate** where numpy takes the sample **spacing**.
+
+::: doppler.dsss.bin_to_signed
+
 ## Related pages
 
 <!-- related-pages:start -->

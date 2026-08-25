@@ -3307,7 +3307,7 @@ class DsssBurstReceiver:
         Parameters
         ----------
         doppler_bins : int
-            Coherent depth to pin, in [1, reps].
+            Coherent depth to pin, in `[1, reps]`.
         n_noncoh : int
             Non-coherent looks to combine.
 

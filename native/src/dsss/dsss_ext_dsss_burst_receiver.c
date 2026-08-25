@@ -660,7 +660,7 @@ static PyMethodDef DsssBurstReceiverObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "doppler_bins : int\n"
-    "    Coherent depth to pin, in [1, reps].\n"
+    "    Coherent depth to pin, in `[1, reps]`.\n"
     "n_noncoh : int\n"
     "    Non-coherent looks to combine.\n"
     "\n"

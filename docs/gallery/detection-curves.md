@@ -9,9 +9,31 @@ Curves shift left as SNR increases: more per-sample SNR trades
 against coherent integration depth. Filled circles mark where each
 curve first crosses Pd = 0.9 — M = 18, 9, 5, 2.
 
-**Right — minimum dwell for Pd ≥ 0.9 vs SNR** at fixed Pfa = 1e-5.
+**Middle — minimum dwell for Pd ≥ 0.9 vs SNR** at fixed Pfa = 1e-5.
 Every 3 dB of extra SNR roughly halves the required dwell: at 0 dB
 you need 18 dwells for Pd = 0.9; at +6 dB you need only 5.
+
+**Right — what an ESTIMATED noise reference costs.** The two panels
+beside it price a statistic normalised by a *known* noise power. A
+burst detector does not have one: it has a single burst, and estimates
+the noise from that same burst. The exact null law is then
+`R² = n·F(n, n)`, whose tail is fatter than the chi-square gate
+prices — so a detector sold at one false alarm in a thousand delivers
+one in twenty-four at n = 16. `det_threshold_f` is the gate that
+removes it. The penalty shrinks as the estimate hardens (127× at
+n = 2, 22× at n = 128) and never becomes negligible over any dwell a
+burst affords.
+
+Two things worth knowing before you use that panel. The comparator is
+`det_threshold_noncoherent(pfa, n/2)`, **not** `(pfa, n)`: the
+statistic carries `n` real degrees of freedom, one per prompt, while
+that helper prices `chi2(2M)` because a non-coherent look is a complex
+magnitude and carries two. Pricing it at `n` yields 4.8× — a plausible
+number, and wrong by almost ten. And the 41× is not a recollection: it
+is re-derived here from the shipped API, pinned in
+`native/tests/test_detection_core.c`, and independently confirmed at
+**41.1×** by two million Monte-Carlo draws in the `models`
+characterization sweep.
 
 ## How it works
 
@@ -35,4 +57,8 @@ python src/doppler/examples/detection_curves.py   # → detection_curves.png
 
 See [Monte Carlo vs Marcum Q](detection-sim.md) for the 30,000-trial
 validation of these closed-form curves against the envelope and power
-detectors.
+detectors, [Detection Sizing](../design/detection.md) for why five
+different laws ship under one `det_` prefix and what happens when they
+are crossed, and the
+[certification report](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/detection/results.md)
+for the certified envelope these curves sit inside.

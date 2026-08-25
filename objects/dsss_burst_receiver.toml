@@ -43,6 +43,10 @@ depends_on = [
     { name = "loop_filter", link = true },
     { name = "detection", link = true },
     { name = "fft", link = true },
+    # pn: the MLS generator this object's C test builds its acquisition code
+    # with. Bare, not link=true -- the test/bench need the symbol, the .so
+    # does not (the same shape objects/dsss_receiver.toml uses for `snr`).
+    { name = "pn" },
 ]
 
 # ── Construction ─────────────────────────────────────────────────────────────

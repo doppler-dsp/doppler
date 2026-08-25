@@ -26,6 +26,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 * `#include "loop_filter/loop_filter_core.h"`
 * `#include "detection/detection_core.h"`
 * `#include "fft/fft_core.h"`
+* `#include "pn/pn_core.h"`
 
 
 

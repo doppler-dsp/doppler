@@ -80,13 +80,22 @@ acq_in_doppler_band (const acq_state_t *st, size_t k)
  * the code's own autocorrelation-sidelobe floor, so a burst sitting at half
  * a bin was undetectable at ANY C/N0 (gh-1002).
  *
- * It is done HERE, by zero-padding this engine's own column transform, and
- * NOT via corr2d's `ny_out`. corr2d sees a single-row reference (a code
- * replica with no Doppler content) and takes its fast path, in which the row
- * axis provably cancels to an identity and is never transformed at all --
- * so `ny_out` would force it onto the general 2-D path and re-transform rows
- * this engine has already transformed. The Doppler axis is this engine's,
- * and padding its input is the textbook way to interpolate it.
+ * WHAT IS PADDED IS THE SLOW-TIME TRANSFORM, NOT THE CODE. The code axis
+ * (`code_bins = sf*spc`) is untouched: corr2d's correlation along it is
+ * CIRCULAR, so zero-padding the replica or the epoch in time would not be an
+ * interpolation at all -- it would change the correlation being computed
+ * (corr2d's own header states this: the forward FFT2 must stay at the
+ * code-period size). The padded sequence is the per-column series of epochs,
+ * whose transform is an ordinary spectral estimate, and lengthening that
+ * transform samples the same DTFT more finely. Verified alongside: the
+ * reported code_phase is exact at every lag across a whole period.
+ *
+ * It is done HERE and NOT via corr2d's `ny_out`. corr2d sees a single-row
+ * reference (a code replica with no Doppler content) and takes its fast
+ * path, in which the row axis provably cancels to an identity and is never
+ * transformed at all -- so `ny_out` would force it onto the general 2-D path
+ * and re-transform rows this engine has already transformed. The Doppler
+ * axis is this engine's.
  *
  * Frequency-domain zero-padding is exact band-limited interpolation, so the
  * added rows carry no new information -- which is why the threshold ladder

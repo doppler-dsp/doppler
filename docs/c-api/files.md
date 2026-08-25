@@ -122,6 +122,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**dp\_tlm\_capture\_core.h**](dp__tlm__capture__core_8h.md) _Lossless telemetry capture: sized by arithmetic, not by guesswork._     
         * **dir** [**dsss**](dir_8b18bfb9a64167292d2c60acbfcb2ae1.md)     
             * **file** [**dsss\_core.h**](dsss__core_8h.md) _Dsss module — public C API._     
+        * **dir** [**dsss\_burst\_receiver**](dir_32a143d35207eb7d99f4a541895f77eb.md)     
+            * **file** [**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md) _DsssBurstReceiver component API._     
         * **dir** [**dsss\_receiver**](dir_39e39d42b234cb6483b3a80e996300fe.md)     
             * **file** [**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md) _Composed continuous DSSS receiver: Acquisition -&gt; Costas(bn\_fll) pre-despread carrier wipeoff -&gt; Dll(segments) -&gt; RateConverter -&gt; MpskReceiver, one object._     
         * **dir** [**f32\_to\_i16**](dir_e25c96329f88166d8f87eefdc2ba64fa.md)     

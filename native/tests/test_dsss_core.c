@@ -7,12 +7,12 @@
  */
 #include "dsss/dsss_core.h"
 
-/* Both defines come BEFORE the include: jm_test.h defaults each if the
- * including file has not set it, so a later define would be ignored. */
-#define JM_TEST_NAME "test_dsss_core"
-#define JM_SCAFFOLD_CHECKS 0
-
-#include "jm_test.h"
+/* dp_test.h, not jm's scaffold harness: `jm_test.h` is gitignored, so a
+ * test including it builds on a machine that has run `jm apply` and fails
+ * in CI. doppler keeps ONE assertion harness (just-makeit.toml's
+ * status_allow says why); `make tests-ssot` is the gate that catches the
+ * other one, and it caught this file. */
+#include "dp_test.h"
 
 int
 main (void)
@@ -35,23 +35,23 @@ main (void)
     /* n = 8 (even): 0 1 2 3 -4 -3 -2 -1 */
     static const int want8[8] = { 0, 1, 2, 3, -4, -3, -2, -1 };
     for (size_t b = 0; b < 8; b++)
-      CHECK (bin_to_signed (b, 8) == want8[b]);
+      DP_CHECK (bin_to_signed (b, 8) == want8[b]);
 
     /* n = 7 (odd): 0 1 2 3 -3 -2 -1  — no ambiguous index exists */
     static const int want7[7] = { 0, 1, 2, 3, -3, -2, -1 };
     for (size_t b = 0; b < 7; b++)
-      CHECK (bin_to_signed (b, 7) == want7[b]);
+      DP_CHECK (bin_to_signed (b, 7) == want7[b]);
 
     /* n = 4 and n = 2, the smallest even grids */
     static const int want4[4] = { 0, 1, -2, -1 };
     for (size_t b = 0; b < 4; b++)
-      CHECK (bin_to_signed (b, 4) == want4[b]);
+      DP_CHECK (bin_to_signed (b, 4) == want4[b]);
     static const int want2[2] = { 0, -1 };
     for (size_t b = 0; b < 2; b++)
-      CHECK (bin_to_signed (b, 2) == want2[b]);
+      DP_CHECK (bin_to_signed (b, 2) == want2[b]);
 
     /* n = 1: the only bin is DC. */
-    CHECK (bin_to_signed (0, 1) == 0);
+    DP_CHECK (bin_to_signed (0, 1) == 0);
   }
 
   /* ── the wrapper and the inline are the same function ─────────────────
@@ -62,7 +62,7 @@ main (void)
   {
     for (size_t n = 1; n <= 33; n++)
       for (size_t b = 0; b < n; b++)
-        CHECK ((long)bin_to_signed (b, n) == dp_fftfreq_index (b, n));
+        DP_CHECK ((long)bin_to_signed (b, n) == dp_fftfreq_index (b, n));
   }
 
   /* ── dp_fftfreq() takes fs, not numpy's sample SPACING ────────────────
@@ -75,18 +75,18 @@ main (void)
     const double fs = 8000.0;
     const size_t n  = 8;
     /* bin 1 of an 8-point grid at 8 kHz is 1 kHz; bin 4 is -4 kHz. */
-    CHECK (dp_fftfreq (1, n, fs) == 1000.0);
-    CHECK (dp_fftfreq (4, n, fs) == -4000.0);
-    CHECK (dp_fftfreq (7, n, fs) == -1000.0);
-    CHECK (dp_fftfreq (0, n, fs) == 0.0);
+    DP_CHECK (dp_fftfreq (1, n, fs) == 1000.0);
+    DP_CHECK (dp_fftfreq (4, n, fs) == -4000.0);
+    DP_CHECK (dp_fftfreq (7, n, fs) == -1000.0);
+    DP_CHECK (dp_fftfreq (0, n, fs) == 0.0);
     /* fs = 1 gives normalised cycles/sample, numpy's default. */
-    CHECK (dp_fftfreq (1, n, 1.0) == 0.125);
-    CHECK (dp_fftfreq (4, n, 1.0) == -0.5);
+    DP_CHECK (dp_fftfreq (1, n, 1.0) == 0.125);
+    DP_CHECK (dp_fftfreq (4, n, 1.0) == -0.5);
     /* and it is index * fs / n, so it scales with fs rather than with 1/fs */
-    CHECK (dp_fftfreq (1, n, 2.0 * fs) == 2.0 * dp_fftfreq (1, n, fs));
+    DP_CHECK (dp_fftfreq (1, n, 2.0 * fs) == 2.0 * dp_fftfreq (1, n, fs));
     /* n = 0 is refused rather than dividing by zero. */
-    CHECK (dp_fftfreq (0, 0, fs) == 0.0);
+    DP_CHECK (dp_fftfreq (0, 0, fs) == 0.0);
   }
 
-  JM_TEST_EPILOGUE ();
+  DP_TEST_END ("test_dsss_core");
 }

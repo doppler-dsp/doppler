@@ -1,4 +1,5 @@
 #include "detector2d/detector2d_core.h"
+#include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
@@ -284,11 +285,13 @@ main (void)
     /* A surface with a clear peak and a spread of noise values, so the
        four modes give four DIFFERENT answers -- a flat window would let
        any of them pass as any other. */
+    /* dp_xs32, not a hand-rolled LCG: one RNG per repo, so a test's noise
+       is reproducible against the same helper every other test uses
+       (make tests-ssot). */
     uint32_t st = 4242u;
     for (size_t k = 0; k < N; k++)
       {
-        st        = st * 1664525u + 1013904223u;
-        float mag = 0.1f + (float)((st >> 16) & 0xFFu) / 255.0f;
+        float mag = 0.1f + (float)((dp_xs32 (&st) >> 16) & 0xFFu) / 255.0f;
         in[k]     = mag;
       }
     in[0] = 8.0f; /* the peak */

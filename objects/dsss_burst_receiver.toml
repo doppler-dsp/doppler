@@ -1,0 +1,218 @@
+[dsss_burst_receiver]
+arg_type = "float _Complex"
+return_type = "uint8_t"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "DsssBurstReceiver"
+# Carries running state across calls -- the history ring, the embedded
+# acquisition engine, and any in-flight burst -- so it owes the triplet.
+# The composition's checkpoint boundary is BETWEEN bursts, which is what
+# makes BurstDemod's deliberate statelessness cost nothing here: a burst
+# completes inside one demod() call or is lost, so there is no mid-demod
+# position to save. See docs/design/dsss-burst-receiver.md.
+serializable = "true"
+# A NULL create() is an ARGUMENT error here, never an allocation one: the
+# guard rejects a parameter set that cannot build a receiver. Same reasoning
+# as objects/dsss_receiver.toml's -- a blanket MemoryError names neither the
+# offending parameter nor its constraint.
+create_error = "ValueError"
+create_error_message = "DsssBurstReceiver: invalid parameter (need non-empty acq_code/data_code/sync, reps >= 1, spc >= 1, chip_rate > 0, payload_len >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0 < pd < 1)"
+# Composes the three certified Burst* cores. `corr` is the refine stage's
+# primitive (docs/design/dsss-burst-receiver.md §3.4) -- the whole preamble
+# correlated as one reference, which is what names the code repetition that
+# burst_acq's own code_phase structurally cannot.
+#
+# `acq` is listed explicitly even though burst_acq forwards to it: jm's
+# depends_on linking is not recursively transitive, the same reason
+# objects/dsss_receiver.toml has to repeat RateConverter's cascade.
+# The full transitive closure, not just the direct three: burst_acq pulls
+# acq -> corr2d/fft2d/fft/detection, burst_demod pulls ppe -> fft/spectral,
+# and burst_despreader pulls loop_filter. Listing only the direct deps links
+# a .so that cannot resolve them.
+depends_on = [
+    { name = "burst_acq", link = true },
+    { name = "acq", link = true },
+    { name = "burst_demod", link = true },
+    { name = "burst_despreader", link = true },
+    { name = "ppe", link = true },
+    { name = "corr", link = true },
+    { name = "corr2d", link = true },
+    { name = "fft2d", link = true },
+    { name = "spectral", link = true },
+    { name = "loop_filter", link = true },
+    { name = "detection", link = true },
+    { name = "fft", link = true },
+]
+
+# ── Construction ─────────────────────────────────────────────────────────────
+# Everything the chain needs, at once. That is the point of the object: the
+# hand-wired alternative is three constructors plus set_preamble/set_sync/
+# set_prior, and the epoch arithmetic between them is what four call sites
+# got wrong three different ways (gh-1001).
+#
+# The history ring is NOT a knob. Its span is derived from the geometry --
+# roughly 2*reps*code_period + burst_len (§7.1) -- because every term is
+# already known here, and a caller asked to size a look-back buffer is a
+# caller given a way to lose bursts silently.
+
+[[dsss_burst_receiver.init_params]]
+name = "acq_code"
+type = "uint8_t[]"
+
+[[dsss_burst_receiver.init_params]]
+name = "data_code"
+type = "uint8_t[]"
+
+[[dsss_burst_receiver.init_params]]
+name = "sync"
+type = "uint8_t[]"
+
+[[dsss_burst_receiver.init_params]]
+name = "reps"
+type = "size_t"
+default = "5"
+
+[[dsss_burst_receiver.init_params]]
+name = "spc"
+type = "size_t"
+default = "4"
+
+[[dsss_burst_receiver.init_params]]
+name = "chip_rate"
+type = "double"
+default = "1000000.0"
+
+[[dsss_burst_receiver.init_params]]
+name = "payload_len"
+type = "size_t"
+default = "64"
+
+[[dsss_burst_receiver.init_params]]
+name = "cn0_dbhz"
+type = "double"
+default = "50.0"
+
+[[dsss_burst_receiver.init_params]]
+name = "doppler_uncertainty"
+type = "double"
+default = "0.0"
+
+[[dsss_burst_receiver.init_params]]
+name = "pfa"
+type = "double"
+default = "1e-3"
+
+[[dsss_burst_receiver.init_params]]
+name = "pd"
+type = "double"
+default = "0.9"
+
+# burst_demod's own chirp/code-Doppler knobs, forwarded unchanged.
+[[dsss_burst_receiver.init_params]]
+name = "carrier_hz"
+type = "double"
+default = "0.0"
+
+[[dsss_burst_receiver.init_params]]
+name = "max_rate"
+type = "double"
+default = "0.0"
+
+[[dsss_burst_receiver.init_params]]
+name = "est_segments"
+type = "size_t"
+default = "10"
+
+[[dsss_burst_receiver.methods]]
+name = "push"
+doc = "Stream raw cf32 samples. Samples feed the embedded BurstAcquisition and are retained in a history ring; when a detection fires, the refine stage correlates the whole preamble to recover the exact preamble start -- the one quantity acquisition structurally cannot report, since its code_phase is a lag modulo one code period -- and the burst is demodulated the moment its last sample has arrived. Returns the payload bits of AT MOST ONE completed burst per call, so the read-back fields always describe the burst whose bits were just returned; if more are ready, `pending` is non-zero and a further push (an empty array will do) drains the next. An empty return is normal, not an error: it means no burst completed in this call. Accepts any block size; state carries across calls."
+arg_type = "void"
+return_type = "uint8_t"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[dsss_burst_receiver.methods]]
+name = "configure_search_raw"
+doc = "Pin the embedded BurstAcquisition's search grid directly, bypassing the auto-sizing -- the escape hatch for a caller who wants a specific (doppler_bins, n_noncoh). Forwards to the engine unchanged."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+    { name = "doppler_bins", type = "size_t" },
+    { name = "n_noncoh", type = "size_t" },
+]
+
+[[dsss_burst_receiver.methods]]
+name = "reset"
+doc = "Return to the searching state: resets the embedded acquisition, drops the history ring's contents and clears every read-back, so a fresh stream cannot inherit the previous burst's verdict. Construction parameters are untouched."
+arg_type = "void"
+return_type = "void"
+
+# ── Read-backs: the DetectionEvent, per burst ────────────────────────────────
+# These are the record, not a summary. `push` completes at most one burst per
+# call precisely so that they are unambiguous -- a read-back describing "the
+# most recent of several" would be a summary, and the criterion this object
+# exists to satisfy is that the EVENT carries everything a consumer needs.
+
+# The field a caller cannot compute: it needs the engine's own stream
+# position, and acquisition reports an END anchor (samples_consumed) plus a
+# residue (code_phase), neither of which is a burst start. Never late.
+[[dsss_burst_receiver.properties]]
+name = "preamble_start"
+type = "uint64_t"
+
+[[dsss_burst_receiver.properties]]
+name = "frame_valid"
+type = "int"
+
+[[dsss_burst_receiver.properties]]
+name = "doppler_hz_est"
+type = "double"
+
+[[dsss_burst_receiver.properties]]
+name = "doppler_res_hz"
+type = "double"
+
+[[dsss_burst_receiver.properties]]
+name = "cn0_dbhz_est"
+type = "double"
+
+[[dsss_burst_receiver.properties]]
+name = "est_freq_hz"
+type = "double"
+
+[[dsss_burst_receiver.properties]]
+name = "est_rate_hz"
+type = "double"
+
+[[dsss_burst_receiver.properties]]
+name = "est_snr_db"
+type = "double"
+
+# The refine stage's own confidence: the winning preamble correlation over
+# its nearest whole-period competitor. The envelope is (reps-1)/reps when the
+# right repetition wins, so a value near 1 means the period was NOT resolved.
+# Exposed because nothing else in the chain can see a hand-off go wrong --
+# a locked carrier on a mis-windowed burst reads as a healthy lock_metric.
+[[dsss_burst_receiver.properties]]
+name = "refine_margin"
+type = "double"
+
+# Bursts demodulated and waiting to be returned by a further push().
+[[dsss_burst_receiver.properties]]
+name = "pending"
+type = "size_t"
+
+# Samples the history ring could not accept. A dropped sample is a LOST
+# BURST, not a statistic -- surfaced so a caller can size or throttle rather
+# than silently decode fewer bursts than arrived.
+[[dsss_burst_receiver.properties]]
+name = "dropped"
+type = "uint64_t"
+
+[[dsss_burst_receiver.properties]]
+name = "n_bursts"
+type = "uint64_t"

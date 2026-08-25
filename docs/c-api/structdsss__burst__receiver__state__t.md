@@ -56,6 +56,9 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 |  double | [**est\_freq\_hz**](#variable-est_freq_hz)  <br> |
 |  double | [**est\_rate\_hz**](#variable-est_rate_hz)  <br> |
 |  double | [**est\_snr\_db**](#variable-est_snr_db)  <br> |
+|  [**dsss\_br\_event\_t**](structdsss__br__event__t.md) \* | [**ev**](#variable-ev)  <br> |
+|  size\_t | [**ev\_cap**](#variable-ev_cap)  <br> |
+|  size\_t | [**ev\_len**](#variable-ev_len)  <br> |
 |  int | [**frame\_valid**](#variable-frame_valid)  <br> |
 |  dp\_f32\_t \* | [**hist**](#variable-hist)  <br> |
 |  size\_t | [**k\_hi**](#variable-k_hi)  <br> |
@@ -64,7 +67,8 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 |  size\_t | [**payload\_len**](#variable-payload_len)  <br> |
 |  size\_t | [**pending**](#variable-pending)  <br> |
 |  uint64\_t | [**preamble\_start**](#variable-preamble_start)  <br> |
-|  [**dsss\_br\_pending\_t**](structdsss__br__pending__t.md) | [**q**](#variable-q)  <br> |
+|  [**dsss\_br\_pending\_t**](structdsss__br__pending__t.md) \* | [**q**](#variable-q)  <br> |
+|  size\_t | [**q\_cap**](#variable-q_cap)  <br> |
 |  size\_t | [**q\_head**](#variable-q_head)  <br> |
 |  size\_t | [**q\_len**](#variable-q_len)  <br> |
 |  float \* | [**ref\_sign**](#variable-ref_sign)  <br> |
@@ -493,6 +497,60 @@ Demod's own post-decode SNR estimate.
 
 
 
+### variable ev 
+
+```C++
+dsss_br_event_t* dsss_burst_receiver_state_t::ev;
+```
+
+
+
+One record per burst returned. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable ev\_cap 
+
+```C++
+size_t dsss_burst_receiver_state_t::ev_cap;
+```
+
+
+
+Allocated records. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable ev\_len 
+
+```C++
+size_t dsss_burst_receiver_state_t::ev_len;
+```
+
+
+
+Records the last push() wrote. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable frame\_valid 
 
 ```C++
@@ -609,7 +667,7 @@ size_t dsss_burst_receiver_state_t::pending;
 
 
 
-Bursts demodulated, awaiting return by push(). 
+Always 0. push() returns EVERY burst it completed, so nothing is ever left awaiting return. Kept so the read-back does not vanish from a released API; it used to report `q_len`, which is not what its own documentation claimed. 
  
 
 
@@ -639,12 +697,30 @@ Stream-absolute preamble start. Never late.
 ### variable q 
 
 ```C++
-dsss_br_pending_t dsss_burst_receiver_state_t::q[DSSS_BR_QCAP];
+dsss_br_pending_t* dsss_burst_receiver_state_t::q;
 ```
 
 
 
-Detections, oldest first. 
+Detections, oldest first; `q_cap` long. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable q\_cap 
+
+```C++
+size_t dsss_burst_receiver_state_t::q_cap;
+```
+
+
+
+DERIVED, not a constant. Entries sit at least `refine_span` apart within `retain_span` of the head, so the count scales with burst\_len/refine\_span  about 1 at the C test geometry but 5.5x at a real link and 20x for a long payload. A fixed 8 silently dropped the hit AND the rest of the batch on anything but the test's own geometry. 
  
 
 

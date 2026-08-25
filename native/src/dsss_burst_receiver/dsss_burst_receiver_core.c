@@ -113,7 +113,28 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
     s->hist = dp_f32_create (dsss_br_pow2_ceil (2u * s->retain_span));
     if (!s->hist)
       goto fail;
-    s->chunk_max = s->hist->capacity - s->retain_span;
+    /* One code period of headroom. The retention bound below lands EXACTLY
+       on retain_span, and a merge can move an anchor forward inside the
+       window, so leave a period rather than sit on the equality. */
+    s->chunk_max = s->hist->capacity - s->retain_span - s->code_period;
+  }
+
+  /* ── The detection queue, sized from the geometry ────────────────────
+   * Every live entry has a burst window that has NOT arrived, so its base
+   * lies within `retain_span` of the head; the CLAIM rule merges anchors
+   * closer than `refine_span`, so distinct entries are at least that far
+   * apart. The count is therefore retain_span/refine_span, and it is NOT a
+   * constant: it is about 1 at the C tests' short-payload geometry and 5.5x
+   * that at a real link. A fixed cap silently dropped the hit and the rest
+   * of its batch on any geometry but the one the tests happened to use. */
+  {
+    size_t per = s->burst_len / s->refine_span + 1u;
+    s->q_cap   = 2u * (3u + per);
+    if (s->q_cap < 8u)
+      s->q_cap = 8u;
+    s->q = calloc (s->q_cap, sizeof *s->q);
+    if (!s->q)
+      goto fail;
   }
 
   /* Refine scratch. The chip signs are real, so a per-period correlation is
@@ -177,6 +198,8 @@ dsss_burst_receiver_destroy (dsss_burst_receiver_state_t *state)
     burst_acq_destroy (state->acq);
   if (state->hist)
     dp_f32_destroy (state->hist);
+  free (state->q);
+  free (state->ev);
   free (state->ref_sign);
   free (state->corr_buf);
   free (state->acq_code);
@@ -199,7 +222,8 @@ dsss_burst_receiver_reset (dsss_burst_receiver_state_t *state)
   state->pending     = 0;
   state->q_head      = 0;
   state->q_len       = 0;
-  memset (state->q, 0, sizeof state->q);
+  state->ev_len      = 0;
+  memset (state->q, 0, state->q_cap * sizeof *state->q);
   state->suppress_until = 0;
 
   /* Every read-back, not just the verdict. These ARE the event (§4), and a
@@ -225,11 +249,13 @@ size_t
 dsss_burst_receiver_push_max_out (dsss_burst_receiver_state_t *state,
                                   size_t                       x_len)
 {
-  /* At most one completed burst per call (see the manifest's push doc), so
-   * the payload length bounds the output regardless of how many samples
-   * arrive. */
-  (void)x_len;
-  return state->payload_len;
+  /* push() returns EVERY burst it completed, so the bound scales with the
+   * input rather than being a constant. Distinct bursts cannot overlap, so
+   * they are at least burst_len apart and x_len samples can complete at most
+   * x_len/burst_len + 1 of them -- plus every detection already queued from
+   * an earlier call, which q_cap bounds. */
+  size_t n = x_len / state->burst_len + 1u + state->q_cap;
+  return n * state->payload_len;
 }
 
 /** @brief Contiguous view of the history ring at a stream position. */
@@ -427,7 +453,37 @@ dsss_br_emit (dsss_burst_receiver_state_t *s, uint8_t *out, size_t max_out)
   s->est_snr_db     = s->demod->est_snr_db;
   s->n_bursts++;
 
-  s->q_head = (s->q_head + 1u) % DSSS_BR_QCAP;
+  /* ...and the same event into this burst's OWN row. One push can complete
+     several, and the scalars above can only ever describe the last of them;
+     a caller needs the record that belongs to each payload it was handed. */
+  /* Grow on demand: the row count scales with the caller's block size, not
+     with any configuration, which is exactly why this buffer is scratch and
+     is never serialized. */
+  if (s->ev_len == s->ev_cap)
+    {
+      size_t           cap = s->ev_cap ? s->ev_cap * 2u : 8u;
+      dsss_br_event_t *p   = realloc (s->ev, cap * sizeof *p);
+      if (p)
+        {
+          s->ev     = p;
+          s->ev_cap = cap;
+        }
+    }
+  if (s->ev_len < s->ev_cap)
+    {
+      dsss_br_event_t *r = &s->ev[s->ev_len++];
+      r->preamble_start  = s->preamble_start;
+      r->doppler_hz_est  = s->doppler_hz_est;
+      r->doppler_res_hz  = s->doppler_res_hz;
+      r->cn0_dbhz_est    = s->cn0_dbhz_est;
+      r->est_freq_hz     = s->est_freq_hz;
+      r->est_rate_hz     = s->est_rate_hz;
+      r->est_snr_db      = s->est_snr_db;
+      r->refine_margin   = s->refine_margin;
+      r->frame_valid     = (uint64_t)s->frame_valid;
+    }
+
+  s->q_head = (s->q_head + 1u) % s->q_cap;
   s->q_len--;
 
   /* A burst that DECODED owns its whole span: the payload goes on firing
@@ -446,10 +502,10 @@ dsss_br_emit (dsss_burst_receiver_state_t *s, uint8_t *out, size_t max_out)
       size_t keep = 0;
       for (size_t j = 0; j < s->q_len; j++)
         {
-          dsss_br_pending_t *cand = &s->q[(s->q_head + j) % DSSS_BR_QCAP];
+          dsss_br_pending_t *cand = &s->q[(s->q_head + j) % s->q_cap];
           if (cand->anchor < s->suppress_until)
             continue;
-          s->q[(s->q_head + keep) % DSSS_BR_QCAP] = *cand;
+          s->q[(s->q_head + keep) % s->q_cap] = *cand;
           keep++;
         }
       s->q_len = keep;
@@ -459,16 +515,74 @@ dsss_br_emit (dsss_burst_receiver_state_t *s, uint8_t *out, size_t max_out)
   return n;
 }
 
+/**
+ * @brief Demodulate every detection whose burst window has arrived.
+ *
+ * Appends each completed burst's payload at @p done bits into @p out and its
+ * event to the scratch list. Returns the bits added.
+ *
+ * Draining FULLY, rather than once per push, is what bounds retention: every
+ * entry left in `q` afterwards has a window that has not arrived, so its
+ * base lies within burst_len + k_lo*P of the head and dsss_br_trim can
+ * always release down to retain_span.
+ */
+static size_t
+dsss_br_drain (dsss_burst_receiver_state_t *s, uint8_t *out, size_t max_out,
+               size_t done)
+{
+  size_t added = 0;
+  for (;;)
+    {
+      size_t room = max_out > done + added ? max_out - (done + added) : 0;
+      size_t n    = dsss_br_emit (s, out ? out + done + added : NULL, room);
+      if (!n)
+        break;
+      added += n;
+    }
+  return added;
+}
+
+/**
+ * @brief Samples the acquisition child has ABSORBED -- framed plus ringed.
+ *
+ * acq_push() stops once it has filled the caller's result array and leaves
+ * the rest of its input unwritten (acq_core.c:925), so a composer has to
+ * re-feed the remainder itself. The repo idiom for that diffs against the
+ * child's `samples_consumed` (dsss_receiver_core.c:392-427), and that is
+ * correct THERE because the tail is handed to a different stage.
+ *
+ * Here the tail goes back to the SAME acq, and `samples_consumed` counts
+ * only FRAMED samples -- acq's ring can hold samples it has written but not
+ * yet framed. Diffing against it would re-feed those: a DOUBLE-FED stream,
+ * which corrupts the detection positions rather than merely losing them.
+ * The invariant quantity is framed plus ring-resident.
+ */
+static uint64_t
+dsss_br_acq_absorbed (const dsss_burst_receiver_state_t *s)
+{
+  const acq_state_t *e = s->acq->engine;
+  uint64_t           h = (uint64_t)DP_LOAD_RLX (&e->ring->head);
+  uint64_t           t = (uint64_t)DP_LOAD_RLX (&e->ring->tail);
+  return e->samples_consumed + (h - t);
+}
+
 size_t
 dsss_burst_receiver_push (dsss_burst_receiver_state_t *state,
                           const float complex *x, size_t x_len, uint8_t *out,
                           size_t max_out)
 {
-  /* A burst already ready outranks new input: at most one is handed back per
-     call, so the read-backs always describe the bits the caller just got. */
-  size_t produced = dsss_br_emit (state, out, max_out);
-  if (produced)
-    return produced;
+  /* Every call starts a fresh event list: `events()` describes THIS push. */
+  state->ev_len  = 0;
+  state->pending = 0;
+
+  /* Drain anything already complete FIRST -- it is returned by this call,
+     not held back. In practice this finds nothing, and that is the point:
+     because the loop below drains FULLY, a push leaves behind only
+     detections whose window has not arrived, so there is nothing completable
+     at entry. The old code returned here without looking at `x` at all,
+     discarding the whole block; the fix is not to guard that return but to
+     make the state it reacted to unreachable. */
+  size_t produced = dsss_br_drain (state, out, max_out, 0);
 
   const acq_state_t *e   = state->acq->engine;
   size_t             off = 0;
@@ -490,90 +604,127 @@ dsss_burst_receiver_push (dsss_burst_receiver_state_t *state,
         }
       state->samples_fed += chunk;
 
-      /* SEARCH. */
-      acq_result_t hits[16];
-      size_t       nh = burst_acq_push (state->acq, x + off, chunk, hits, 16);
-
-      for (size_t i = 0; i < nh; i++)
+      /* SEARCH -- looping until acq has absorbed the WHOLE chunk. It stops
+         as soon as it has filled `hits` and abandons the rest of its input,
+         so a single call leaves detections unmade over samples this object
+         is holding (doppler#1008). */
+      size_t fed = 0;
+      while (fed < chunk)
         {
-          /* The hit's own END anchor, made stream-absolute: samples_consumed
-             is where this detection's epoch ENDED, so backing off one frame
-             and adding the code phase names a code epoch rather than a
-             position. Which epoch of the preamble it is, refine decides. */
-          uint64_t epoch = hits[i].samples_consumed - (uint64_t)e->n
-                           + (uint64_t)hits[i].code_phase;
+          uint64_t     before = dsss_br_acq_absorbed (state);
+          acq_result_t hits[DSSS_BR_HITS];
+          size_t nh = burst_acq_push (state->acq, x + off + fed, chunk - fed,
+                                      hits, DSSS_BR_HITS);
 
-          /* Inside a burst that has already DECODED: acquisition fires on
-             the payload too, and those are not new bursts. */
-          if (epoch < state->suppress_until)
-            continue;
-
-          /* THE SAME PREAMBLE as a candidate already queued? Two anchors
-             name one burst exactly when refine can map both onto a single
-             start, and `refine_span` is that reach -- so proximity within
-             it is the identity test, not elapsed distance. Keep the
-             STRONGER of the two: a weak hit that merely arrived first must
-             not own the slot, which is precisely how a spurious detection
-             used to discard the next real burst (doppler#1004). */
-          int merged = 0;
-          for (size_t j = 0; j < state->q_len; j++)
+          for (size_t i = 0; i < nh; i++)
             {
-              dsss_br_pending_t *cand
-                  = &state->q[(state->q_head + j) % DSSS_BR_QCAP];
-              uint64_t d = epoch > cand->anchor ? epoch - cand->anchor
-                                                : cand->anchor - epoch;
-              if (d >= (uint64_t)state->refine_span)
+              /* The hit's own END anchor, made stream-absolute:
+                 samples_consumed is where this detection's epoch ENDED, so
+                 backing off one frame and adding the code phase names a code
+                 epoch rather than a position. Which epoch of the preamble it
+                 is, refine decides. */
+              uint64_t epoch = hits[i].samples_consumed - (uint64_t)e->n
+                               + (uint64_t)hits[i].code_phase;
+
+              /* Inside a burst that has already DECODED: acquisition fires on
+                 the payload too, and those are not new bursts. */
+              if (epoch < state->suppress_until)
                 continue;
-              merged = 1;
-              if ((double)hits[i].peak_mag > cand->peak_mag)
+
+              /* THE SAME PREAMBLE as a candidate already queued? Two anchors
+                 name one burst exactly when refine can map both onto a single
+                 start, and `refine_span` is that reach -- so proximity within
+                 it is the identity test, not elapsed distance. Keep the
+                 STRONGER of the two: a weak hit that merely arrived first must
+                 not own the slot, which is precisely how a spurious detection
+                 used to discard the next real burst (doppler#1004). */
+              int merged = 0;
+              for (size_t j = 0; j < state->q_len; j++)
                 {
-                  /* The anchor moves, so whatever refine concluded from the
-                     old one is stale -- clear `refined` and let it run
-                     again rather than pairing a new anchor with an old
-                     start. */
-                  cand->anchor     = epoch;
-                  cand->peak_mag   = (double)hits[i].peak_mag;
-                  cand->start      = 0;
-                  cand->margin     = 1.0;
-                  cand->refined    = 0;
-                  cand->doppler_hz = dp_fftfreq (
-                      hits[i].doppler_bin, e->coherent_bins,
-                      e->doppler_res_hz * (double)e->coherent_bins);
-                  cand->cn0_dbhz = hits[i].cn0_dbhz_est;
+                  dsss_br_pending_t *cand
+                      = &state->q[(state->q_head + j) % state->q_cap];
+                  uint64_t d = epoch > cand->anchor ? epoch - cand->anchor
+                                                    : cand->anchor - epoch;
+                  if (d >= (uint64_t)state->refine_span)
+                    continue;
+                  merged = 1;
+                  if ((double)hits[i].peak_mag > cand->peak_mag)
+                    {
+                      /* The anchor moves, so whatever refine concluded from
+                         the old one is stale -- clear `refined` and let it run
+                         again rather than pairing a new anchor with an old
+                         start. */
+                      cand->anchor     = epoch;
+                      cand->peak_mag   = (double)hits[i].peak_mag;
+                      cand->start      = 0;
+                      cand->margin     = 1.0;
+                      cand->refined    = 0;
+                      cand->doppler_hz = dp_fftfreq (
+                          hits[i].doppler_bin, e->coherent_bins,
+                          e->doppler_res_hz * (double)e->coherent_bins);
+                      cand->cn0_dbhz = hits[i].cn0_dbhz_est;
+                    }
+                  break;
                 }
-              break;
+              if (merged)
+                continue;
+
+              if (state->q_len >= state->q_cap)
+                break;
+
+              dsss_br_pending_t *q
+                  = &state->q[(state->q_head + state->q_len) % state->q_cap];
+              q->anchor   = epoch;
+              q->start    = 0;
+              q->margin   = 1.0;
+              q->peak_mag = (double)hits[i].peak_mag;
+              q->refined  = 0;
+              q->doppler_hz
+                  = dp_fftfreq (hits[i].doppler_bin, e->coherent_bins,
+                                e->doppler_res_hz * (double)e->coherent_bins);
+              q->cn0_dbhz = hits[i].cn0_dbhz_est;
+              state->q_len++;
             }
-          if (merged)
-            continue;
 
-          if (state->q_len >= DSSS_BR_QCAP)
+          /* How much acq actually took. A zero means it could not frame at
+             all, which its own ring capacity forbids -- break rather than
+             spin. */
+          uint64_t took64 = dsss_br_acq_absorbed (state) - before;
+          size_t   took   = took64 > (uint64_t)(chunk - fed) ? (chunk - fed)
+                                                             : (size_t)took64;
+          if (!took)
             break;
-
-          dsss_br_pending_t *q
-              = &state->q[(state->q_head + state->q_len) % DSSS_BR_QCAP];
-          q->anchor   = epoch;
-          q->start    = 0;
-          q->margin   = 1.0;
-          q->peak_mag = (double)hits[i].peak_mag;
-          q->refined  = 0;
-          q->doppler_hz
-              = dp_fftfreq (hits[i].doppler_bin, e->coherent_bins,
-                            e->doppler_res_hz * (double)e->coherent_bins);
-          q->cn0_dbhz = hits[i].cn0_dbhz_est;
-          state->q_len++;
-          state->pending = state->q_len;
+          fed += took;
         }
 
       off += chunk;
 
-      /* Emit as soon as one is ready, so a caller streaming small blocks
-         sees a burst when its last sample lands rather than at the end of an
-         arbitrarily long push. */
-      produced = dsss_br_emit (state, out, max_out);
-      if (produced)
-        break;
+      /* DRAIN EVERY burst whose window has now arrived -- not one per chunk.
+         This is what restores the retention bound: with it, the oldest entry
+         left in `q` always has an UNARRIVED window, so its base sits within
+         burst_len + k_lo*P of the head and dsss_br_trim can always release
+         down to retain_span. Draining one per chunk let the backlog grow
+         until dp_f32_write refused and samples were lost (doppler#1008). */
+      produced += dsss_br_drain (state, out, max_out, produced);
     }
   return produced;
+}
+
+size_t
+dsss_burst_receiver_events_max_out (dsss_burst_receiver_state_t *state)
+{
+  return state->ev_len;
+}
+
+size_t
+dsss_burst_receiver_events (dsss_burst_receiver_state_t *state, size_t n,
+                            dsss_br_event_t *out, size_t max_out)
+{
+  (void)n; /* see the header: the count is the last push's, not a request */
+  size_t rows = state->ev_len < max_out ? state->ev_len : max_out;
+  if (out && rows)
+    memcpy (out, state->ev, rows * sizeof *out);
+  return rows;
 }
 
 int
@@ -701,7 +852,7 @@ dsss_burst_receiver_state_bytes (const dsss_burst_receiver_state_t *s)
          + sizeof (double) * 7u   /* the event's doubles                    */
          + sizeof (uint64_t)      /* suppress_until                         */
          + sizeof (uint32_t) * 2u /* q_len, q_head                          */
-         + sizeof (dsss_br_pending_t) * DSSS_BR_QCAP
+         + sizeof (dsss_br_pending_t) * s->q_cap
          + sizeof (uint32_t) /* retained sample count                       */
          + s->retain_span * sizeof (float _Complex)
          + sizeof (uint32_t) /* acquisition child length                    */
@@ -736,7 +887,7 @@ dsss_burst_receiver_get_state (const dsss_burst_receiver_state_t *s,
      silently lost burst, which is the failure this object exists to avoid. */
   dp_w_u32 (&_w, (uint32_t)s->q_len);
   dp_w_u32 (&_w, (uint32_t)s->q_head);
-  dp_w_bytes (&_w, s->q, sizeof s->q);
+  dp_w_bytes (&_w, s->q, s->q_cap * sizeof *s->q);
 
   /* The retained look-back, into a fixed region: the next burst's window may
      begin inside it, so a resume without it cannot reach back. */
@@ -795,11 +946,11 @@ dsss_burst_receiver_set_state (dsss_burst_receiver_state_t *s,
 
   uint32_t q_len  = dp_r_u32 (&_r);
   uint32_t q_head = dp_r_u32 (&_r);
-  if (q_len > DSSS_BR_QCAP || q_head >= DSSS_BR_QCAP)
+  if (q_len > s->q_cap || q_head >= s->q_cap)
     return DP_ERR_INVALID;
   s->q_len  = q_len;
   s->q_head = q_head;
-  dp_r_bytes (&_r, s->q, sizeof s->q);
+  dp_r_bytes (&_r, s->q, s->q_cap * sizeof *s->q);
 
   uint32_t n = dp_r_u32 (&_r);
   if ((size_t)n > s->retain_span)

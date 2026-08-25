@@ -195,6 +195,10 @@ class Data:
     decoy_rows: list[list[str]] = field(default_factory=list)
     decoy_all_survive: bool = False
     decoy_detected_alone: bool = False
+    block_rows: list[list[str]] = field(default_factory=list)
+    block_invariant: bool = False
+    block_multi_in_one: bool = False
+    block_no_drops: bool = False
 
 
 # ── 1. the object ─────────────────────────────────────────────────────
@@ -312,6 +316,7 @@ def characterise() -> Data:
     _sec_bounds(d)
     _sec_state(d)
     _sec_decoy(d)
+    _sec_blocks(d)
     return d
 
 
@@ -961,6 +966,90 @@ def _sec_decoy(d: Data) -> None:
     R.md()
 
 
+def _sec_blocks(d: Data) -> None:
+    """The block size is the caller's choice and must not change the answer."""
+    R.md("### 2.11 Several bursts, and the caller's block size")
+    R.md()
+    R.md(
+        "Every other section here streams ONE burst. That is the shape of "
+        "every test this object had, and it is why three separate "
+        "input-discarding defects survived certification: with a single "
+        "burst, everything `push()` threw away was noise, so nothing "
+        "observable was lost. This section puts three bursts in one capture "
+        "and varies only how the caller hands them over."
+    )
+    R.md()
+
+    burst_len = BURST.size
+    gap = 3 * CODE_PERIOD
+    starts = [5000]
+    for _ in range(2):
+        starts.append(starts[-1] + burst_len + gap)
+    n_cap = starts[-1] + burst_len + 4000
+
+    rng = np.random.default_rng(31)
+    cap = (
+        0.02 * (rng.standard_normal(n_cap) + 1j * rng.standard_normal(n_cap))
+    ).astype(np.complex64)
+    for t in starts:
+        cap[t : t + burst_len] += BURST
+
+    rows, sets, drops = [], [], []
+    for block in (777, 4096, 16384, n_cap):
+        rx = _rx()
+        found = set()
+        for off in range(0, n_cap, block):
+            bits = rx.push(cap[off : off + block])
+            if not bits.size:
+                continue
+            for ev in rx.events():
+                if int(ev[0]) in starts and int(ev[8]):
+                    found.add(int(ev[0]))
+        sets.append(found)
+        drops.append(int(rx.dropped))
+        rows.append(
+            [
+                "whole capture" if block >= n_cap else str(block),
+                f"{len(found)}/{len(starts)}",
+                str(int(rx.dropped)),
+            ]
+        )
+
+    d.block_rows = rows
+    d.block_invariant = all(f == sets[0] for f in sets) and len(
+        sets[0]
+    ) == len(starts)
+    d.block_no_drops = all(x == 0 for x in drops)
+
+    # One call carrying the whole capture must return all three, from THAT
+    # call -- not one per call with the rest of the input abandoned.
+    rx = _rx()
+    bits = rx.push(cap)
+    d.block_multi_in_one = bits.size == len(starts) * PAYLOAD
+
+    R.table(["block size (samples)", "bursts decoded", "dropped"], rows)
+    R.md()
+    R.md(
+        f"Identical at every block size (**{d.block_invariant}**), and no "
+        f"sample refused at any of them (**{d.block_no_drops}**). A single "
+        f"push of the whole capture returns all "
+        f"{len(starts)} payloads at once (**{d.block_multi_in_one}**)."
+    )
+    R.md()
+    R.md(
+        "It used to depend on the block size entirely. `push()` returned at "
+        "most one burst per call and abandoned the rest of its input to do "
+        "it, so a block carrying several bursts lost all but the first -- "
+        "6/6 decoded with 333-sample blocks against 1/6 with one large one "
+        "on the example capture. `push()` now returns EVERY burst it "
+        "completed, with `events()` giving each its own record, which is "
+        "what makes consuming the whole input possible: draining fully is "
+        "also what bounds retention, so `dropped` is 0 by construction "
+        "rather than by luck. See F11 and doppler#1008."
+    )
+    R.md()
+
+
 # ── 3. review ─────────────────────────────────────────────────────────
 
 
@@ -1079,6 +1168,26 @@ def review(d: Data) -> None:
         "DETECTION rather than a finer reported estimate. Rounding a "
         "half-bin row to its nearer neighbour was tried and cost ~5 points "
         "of Pd.",
+    )
+    R.find(
+        "F11",
+        "FIXED",
+        "**`push()` discarded the rest of its input once a burst was "
+        "ready**, so a block carrying several bursts lost all but the "
+        "first -- 6/6 decoded with 333-sample blocks against 1/6 with one "
+        "large one. Three separate sites: an early return that never looked "
+        "at `x` at all, a `break` that left the remainder unwritten, and a "
+        "single `acq_push` per chunk, which stops once its result array is "
+        "full and abandons its own input suffix. All three are gone: the "
+        "loop runs to the end of `x`, acq is re-fed until it has absorbed "
+        "the chunk, and `push()` returns EVERY burst it completed. "
+        "**Nothing caught this because no test anywhere put two bursts in "
+        "one stream** -- with a single burst, everything discarded after it "
+        "was noise, so the loss was unobservable, and this report's own "
+        "`any_block_size` limit had the same blind spot. §2.11 is that gate. "
+        "Draining every arrived detection rather than one per chunk is also "
+        "what bounds retention, so `dropped` is now 0 by construction. See "
+        "doppler#1008.",
     )
     R.find(
         "F9",
@@ -1216,6 +1325,21 @@ def limits(d: Data) -> None:
         "a weaker detection arriving ahead of a real burst does not cost "
         "it: the burst decodes at its exact sample at every lead from 400 "
         "to 2100 samples (doppler#1004)",
+    )
+    R.limit(
+        d.block_invariant,
+        "the same 3-burst capture decodes identically at every block size "
+        "from 777 samples to the whole capture in one call (doppler#1008)",
+    )
+    R.limit(
+        d.block_no_drops,
+        "no sample is refused at any block size -- draining every arrived "
+        "detection is what keeps retention inside the ring",
+    )
+    R.limit(
+        d.block_multi_in_one,
+        "one push carrying three bursts returns all three payloads from "
+        "that call, not one with the rest of the input abandoned",
     )
     R.limit(d.silence_quiet, "silence decodes nothing and reports no burst")
     R.limit(

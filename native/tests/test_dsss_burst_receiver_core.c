@@ -138,6 +138,32 @@ build_burst (float complex *y, double f0)
   return n;
 }
 
+/**
+ * @brief A capture with SEVERAL bursts, at @p n_at given offsets.
+ *
+ * The gate this suite never had. Every other helper here places exactly ONE
+ * burst, which is why three separate input-discarding defects survived
+ * certification: with a single burst, everything push() threw away was
+ * noise, so nothing observable was lost (doppler#1008).
+ */
+static void
+build_capture_multi (float complex *cap, size_t n_cap, const size_t *at,
+                     size_t n_at, double sigma, uint32_t seed)
+{
+  uint32_t st = seed;
+  for (size_t i = 0; i < n_cap; i++)
+    {
+      float re = (float)(sigma * dp_gauss (&st));
+      float im = (float)(sigma * dp_gauss (&st));
+      cap[i]   = re + im * I;
+    }
+  static float complex burst[1 << 16];
+  size_t               nb = build_burst (burst, 0.0);
+  for (size_t k = 0; k < n_at; k++)
+    for (size_t i = 0; i < nb && at[k] + i < n_cap; i++)
+      cap[at[k] + i] += burst[i];
+}
+
 /** @brief A capture: noise everywhere, one burst starting at @p at. */
 static void
 build_capture (float complex *cap, size_t n_cap, size_t at, double f0,
@@ -494,13 +520,42 @@ test_one_giant_push_finds_the_same_burst (void)
   static float complex cap[40000];
   build_capture (cap, 40000, AT, 0.0, 0.02, 12345u);
 
-  uint8_t out[PAYLOAD];
-  size_t  got = dsss_burst_receiver_push (s, cap, 40000, out, PAYLOAD);
-  DP_CHECK (got == PAYLOAD);
-  DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
-  DP_CHECK (dsss_burst_receiver_get_frame_valid (s) == 1);
+  /* push() returns EVERY burst the call completed, so the buffer is sized
+     from the input and the burst is located through its EVENT rather than
+     through the scalar read-backs -- those describe the LAST burst returned,
+     which need not be the real one when a capture also carries a false
+     alarm. */
+  size_t   cap_bits = dsss_burst_receiver_push_max_out (s, 40000);
+  uint8_t *out      = malloc (cap_bits);
+  DP_REQUIRE (out != NULL);
+  size_t got = dsss_burst_receiver_push (s, cap, 40000, out, cap_bits);
+  DP_CHECK (got >= PAYLOAD);
+  DP_CHECK (got % PAYLOAD == 0);
+
+  size_t           n_ev = dsss_burst_receiver_events_max_out (s);
+  dsss_br_event_t *evs  = malloc (n_ev * sizeof *evs);
+  DP_REQUIRE (evs != NULL);
+  DP_CHECK (dsss_burst_receiver_events (s, n_ev, evs, n_ev) == n_ev);
+  DP_CHECK (n_ev == got / PAYLOAD);
+
+  int found = 0;
+  for (size_t i = 0; i < n_ev; i++)
+    if (evs[i].preamble_start == AT && evs[i].frame_valid)
+      {
+        found               = 1;
+        const uint8_t *want = payload_bits ();
+        size_t         errs = 0;
+        for (size_t k = 0; k < PAYLOAD; k++)
+          errs += (out[i * PAYLOAD + k] != want[k]);
+        DP_CHECK (errs == 0);
+      }
+  DP_CHECK (found);
+
+  /* The whole point: consuming the entire input costs nothing. */
   DP_CHECK (dsss_burst_receiver_get_dropped (s) == 0);
 
+  free (evs);
+  free (out);
   dsss_burst_receiver_destroy (s);
   return 0;
 }
@@ -664,13 +719,160 @@ test_a_weak_decoy_does_not_cost_the_burst (void)
   return 0;
 }
 
+/* THE REGRESSION TEST FOR doppler#1008: the same capture, decoded
+ * identically at every block size.
+ *
+ * push() used to abandon the rest of its input once a burst was ready, so a
+ * block carrying several bursts lost all but the first -- measured on the
+ * example capture at 6/6 decoded with 333-sample blocks against 1/6 with one
+ * large one. The block size is the caller's choice and must not change what
+ * is decoded, so this asserts the SET of recovered bursts is identical
+ * across block sizes, including a single push of the whole capture.
+ *
+ * Gaps are generous on purpose: this test is about block size, and pinning
+ * it to a marginal burst separation would make it fail for a second reason.
+ */
 static int
-test_push_max_out_is_the_payload (void)
+test_every_burst_survives_any_block_size (void)
+{
+  const size_t         N_CAP = 40000;
+  const size_t         GAP   = 3000;
+  static float complex cap[40000];
+
+  size_t at[3];
+  {
+    dsss_burst_receiver_state_t *g = make_rx ();
+    DP_REQUIRE (g != NULL);
+    at[0] = 5000;
+    at[1] = at[0] + g->burst_len + GAP;
+    at[2] = at[1] + g->burst_len + GAP;
+    DP_REQUIRE (at[2] + g->burst_len < N_CAP);
+    dsss_burst_receiver_destroy (g);
+  }
+  build_capture_multi (cap, N_CAP, at, 3, 0.02, 4242u);
+
+  const size_t blocks[] = { 333, 777, 4096, N_CAP };
+  for (size_t b = 0; b < sizeof blocks / sizeof blocks[0]; b++)
+    {
+      dsss_burst_receiver_state_t *s = make_rx ();
+      DP_REQUIRE (s != NULL);
+      size_t   cap_bits = dsss_burst_receiver_push_max_out (s, N_CAP);
+      uint8_t *out      = malloc (cap_bits);
+      DP_REQUIRE (out != NULL);
+
+      int found[3] = { 0, 0, 0 };
+      for (size_t off = 0; off < N_CAP; off += blocks[b])
+        {
+          size_t n = (off + blocks[b] <= N_CAP) ? blocks[b] : (N_CAP - off);
+          size_t got
+              = dsss_burst_receiver_push (s, cap + off, n, out, cap_bits);
+          size_t n_ev = dsss_burst_receiver_events_max_out (s);
+          DP_CHECK (n_ev == got / PAYLOAD);
+          if (!n_ev)
+            continue;
+
+          dsss_br_event_t *evs = malloc (n_ev * sizeof *evs);
+          DP_REQUIRE (evs != NULL);
+          DP_CHECK (dsss_burst_receiver_events (s, n_ev, evs, n_ev) == n_ev);
+          const uint8_t *want = payload_bits ();
+          for (size_t i = 0; i < n_ev; i++)
+            for (size_t k = 0; k < 3; k++)
+              if (evs[i].preamble_start == at[k] && evs[i].frame_valid)
+                {
+                  size_t errs = 0;
+                  for (size_t j = 0; j < PAYLOAD; j++)
+                    errs += (out[i * PAYLOAD + j] != want[j]);
+                  DP_CHECK (errs == 0);
+                  found[k] = 1;
+                }
+          free (evs);
+        }
+
+      /* Every burst, at every block size. Losing one here is doppler#1008. */
+      DP_CHECK (found[0] && found[1] && found[2]);
+      /* And consuming the whole input costs nothing. */
+      DP_CHECK (dsss_burst_receiver_get_dropped (s) == 0);
+
+      free (out);
+      dsss_burst_receiver_destroy (s);
+    }
+  return 0;
+}
+
+/* acq_push() stops once it has filled the caller's result array and abandons
+ * the rest of its input (acq_core.c:925). push() slices at chunk_max, so a
+ * chunk can easily carry more than DSSS_BR_HITS dumps -- and a single
+ * burst_acq_push() per chunk then leaves acq un-fed over samples this object
+ * is holding, losing detections rather than samples.
+ *
+ * Pinning the grid to one coherent bin makes the acquisition frame ONE code
+ * period, so a chunk spans ~92 frames and saturation is certain.
+ */
+static int
+test_acq_saturation_does_not_lose_bursts (void)
+{
+  const size_t         N_CAP = 40000;
+  const size_t         GAP   = 3000;
+  static float complex cap[40000];
+
+  /* A DELIBERATELY loose false-alarm rate, so noise crosses the gate often
+     enough that one batch of DSSS_BR_HITS cannot hold a chunk's detections.
+     Saturation is the condition under test; leaving it to chance would make
+     this test pass for the wrong reason. */
+  dsss_burst_receiver_state_t *s = dsss_burst_receiver_create (
+      acq_code (), ACQ_SF, data_code (), DATA_SF, sync_word (), SYNC_LEN, REPS,
+      SPC, 1.0e6, PAYLOAD, 55.0, 0.0, 0.2, 0.9, 0.0, 0.0, 10);
+  DP_REQUIRE (s != NULL);
+  DP_REQUIRE (dsss_burst_receiver_configure_search_raw (s, 1, 1) == DP_OK);
+
+  size_t at[3] = { 5000, 0, 0 };
+  at[1]        = at[0] + s->burst_len + GAP;
+  at[2]        = at[1] + s->burst_len + GAP;
+  DP_REQUIRE (at[2] + s->burst_len < N_CAP);
+  /* The premise: a chunk spans far more frames than one batch of hits. */
+  DP_REQUIRE (s->chunk_max / s->code_period > DSSS_BR_HITS);
+  build_capture_multi (cap, N_CAP, at, 3, 0.02, 909u);
+
+  size_t   cap_bits = dsss_burst_receiver_push_max_out (s, N_CAP);
+  uint8_t *out      = malloc (cap_bits);
+  DP_REQUIRE (out != NULL);
+  size_t got = dsss_burst_receiver_push (s, cap, N_CAP, out, cap_bits);
+
+  size_t           n_ev = dsss_burst_receiver_events_max_out (s);
+  dsss_br_event_t *evs  = malloc ((n_ev ? n_ev : 1) * sizeof *evs);
+  DP_REQUIRE (evs != NULL);
+  DP_CHECK (dsss_burst_receiver_events (s, n_ev, evs, n_ev) == n_ev);
+  DP_CHECK (n_ev == got / PAYLOAD);
+
+  int found = 0;
+  for (size_t i = 0; i < n_ev; i++)
+    for (size_t k = 0; k < 3; k++)
+      if (evs[i].preamble_start == at[k] && evs[i].frame_valid)
+        found++;
+  DP_CHECK (found == 3);
+  DP_CHECK (dsss_burst_receiver_get_dropped (s) == 0);
+
+  free (evs);
+  free (out);
+  dsss_burst_receiver_destroy (s);
+  return 0;
+}
+
+static int
+test_push_max_out_scales_with_input (void)
 {
   dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
-  DP_CHECK (dsss_burst_receiver_push_max_out (s, 1) == PAYLOAD);
-  DP_CHECK (dsss_burst_receiver_push_max_out (s, 1u << 20) == PAYLOAD);
+  /* The bound scales with the input, because push() returns every burst the
+     call completed. A constant payload_len would under-size the buffer the
+     moment one call carried two bursts -- which is doppler#1008. */
+  DP_CHECK (dsss_burst_receiver_push_max_out (s, 1) >= PAYLOAD);
+  DP_CHECK (dsss_burst_receiver_push_max_out (s, 1u << 20)
+            > dsss_burst_receiver_push_max_out (s, 1));
+  {
+    size_t n = (1u << 20) / s->burst_len + 1u + s->q_cap;
+    DP_CHECK (dsss_burst_receiver_push_max_out (s, 1u << 20) == n * PAYLOAD);
+  }
   dsss_burst_receiver_destroy (s);
   return 0;
 }
@@ -811,7 +1013,11 @@ main (void)
     return 1;
   if (test_a_weak_decoy_does_not_cost_the_burst ())
     return 1;
-  if (test_push_max_out_is_the_payload ())
+  if (test_every_burst_survives_any_block_size ())
+    return 1;
+  if (test_acq_saturation_does_not_lose_bursts ())
+    return 1;
+  if (test_push_max_out_scales_with_input ())
     return 1;
   if (test_reset_clears_the_event_but_not_the_counters ())
     return 1;

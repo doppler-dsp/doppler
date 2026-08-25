@@ -72,6 +72,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md) _One telemetry sample: a probe's scalar value at sample index_ `n` _._
 * **struct** [**dp\_tlm\_stats\_t**](structdp__tlm__stats__t.md) _Context-wide counters, snapshotted together._ 
 * **struct** [**dp\_writer\_t**](structdp__writer__t.md) 
+* **struct** [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) _DsssBurstReceiver state._ 
 * **struct** [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md) 
 * **struct** [**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md) _Composed receiver state._ 
 * **struct** [**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) _F32ToI16 state._ 

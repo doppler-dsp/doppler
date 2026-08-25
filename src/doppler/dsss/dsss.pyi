@@ -11,7 +11,7 @@ class PolynomialPhaseEstimate(tuple[float, float, float]):
     Attributes
     ----------
     freq_norm : float
-        Normalised frequency −0.5..+0.5 (DC-centred).
+        frequency, cycles/sample, in [-0.5, 0.5).
     rate_norm : float
         chirp rate, cycles/sample^2.
     snr_db : float
@@ -20,7 +20,7 @@ class PolynomialPhaseEstimate(tuple[float, float, float]):
 
     @property
     def freq_norm(self) -> float:
-        """Normalised frequency −0.5..+0.5 (DC-centred)."""
+        """frequency, cycles/sample, in [-0.5, 0.5)."""
 
     @property
     def rate_norm(self) -> float:
@@ -3130,6 +3130,376 @@ class AsyncDsssReceiver:
         tb: object | None = ...,
     ) -> None:
         """Exit a context manager, releasing the AsyncDsssReceiver.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
+class DsssBurstReceiver:
+    """Create a burst receiver: acquisition, refine and demodulation composed
+    behind one push().
+
+    Parameters
+    ----------
+    acq_code : NDArray[np.uint8]
+        Preamble PN chips (0/1), length acq_code_len.
+    data_code : NDArray[np.uint8]
+        Payload spreading chips (0/1), data_code_len long.
+    sync : NDArray[np.uint8]
+        Frame sync word (0/1 symbols), sync_len long.
+    reps : int, default 5
+        Preamble code repetitions (>= 1).
+    spc : int, default 4
+        Samples per chip (>= 1).
+    chip_rate : float, default 1000000.0
+        Chip rate in Hz (> 0).
+    payload_len : int, default 64
+        Payload bits per burst (>= 1).
+    cn0_dbhz : float, default 50.0
+        Carrier-to-noise density in dB-Hz (> 0), sizing the acquisition search.
+    doppler_uncertainty : float, default 0.0
+        One-sided Doppler half-range, Hz.
+    pfa : float, default 1e-3
+        Target false-alarm probability, in (0, 1).
+    pd : float, default 0.9
+        Target detection probability, in (0, 1).
+    carrier_hz : float, default 0.0
+        RF carrier (Hz) for code-Doppler; 0 = ignore.
+    max_rate : float, default 0.0
+        Chirp-rate search half-span (cycles/sample^2).
+    est_segments : int, default 10
+        Segments the feedforward estimator fits over.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``DsssBurstReceiver:
+        invalid parameter (need non-empty acq_code/data_code/sync, reps >= 1,
+        spc >= 1, chip_rate > 0, payload_len >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0
+        < pd < 1)``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.dsss import DsssBurstReceiver
+    >>> rng = np.random.default_rng(0)
+    >>> acq = rng.integers(0, 2, 31).astype(np.uint8)
+    >>> dat = rng.integers(0, 2, 8).astype(np.uint8)
+    >>> syn = np.zeros(13, dtype=np.uint8)
+    >>> rx = DsssBurstReceiver(acq, dat, syn, reps=4, spc=4,
+    ...                        payload_len=32)
+    >>> rx.n_bursts
+    0
+
+    """
+    def __init__(
+        self,
+        acq_code: NDArray[np.uint8],
+        data_code: NDArray[np.uint8],
+        sync: NDArray[np.uint8],
+        reps: int = ...,
+        spc: int = ...,
+        chip_rate: float = ...,
+        payload_len: int = ...,
+        cn0_dbhz: float = ...,
+        doppler_uncertainty: float = ...,
+        pfa: float = ...,
+        pd: float = ...,
+        carrier_hz: float = ...,
+        max_rate: float = ...,
+        est_segments: int = ...,
+    ) -> None: ...
+
+    def push(
+        self,
+        x: NDArray[np.complex64],
+        out: NDArray[np.uint8] | None = None,
+    ) -> NDArray[np.uint8]:
+        """Stream raw cf32 samples. Samples feed the embedded BurstAcquisition
+        and are retained in a history ring; when a detection fires, the refine
+        stage correlates the whole preamble to recover the exact preamble start
+        -- the one quantity acquisition structurally cannot report, since its
+        code_phase is a lag modulo one code period -- and the burst is
+        demodulated the moment its last sample has arrived. Returns the payload
+        bits of AT MOST ONE completed burst per call, so the read-back fields
+        always describe the burst whose bits were just returned; if more are
+        ready, `pending` is non-zero and a further push (an empty array will
+        do) drains the next. An empty return is normal, not an error: it means
+        no burst completed in this call. Accepts any block size; state carries
+        across calls.
+
+        Retains x in the history ring and feeds the embedded acquisition. When
+        a detection fires, the refine stage correlates the whole preamble to
+        recover the exact preamble start -- the quantity acquisition
+        structurally cannot report, its code phase being a lag modulo one code
+        period -- and the burst is demodulated once its last sample has
+        arrived.
+
+        Writes the payload of AT MOST ONE completed burst per call, so the
+        read-back fields always describe the burst whose bits were just
+        returned. If more are ready, `pending` is non-zero and a further push
+        drains the next. Returning 0 is normal, not an error: it means no burst
+        completed.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input samples (cf32), x_len long.
+        out : NDArray[np.uint8] | None
+            Payload bits, caller-owned, max_out long.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            Bits written to out (0 or payload_len).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import DsssBurstReceiver
+        >>> rng = np.random.default_rng(0)
+        >>> rx = DsssBurstReceiver(
+        ...     rng.integers(0, 2, 31).astype(np.uint8),
+        ...     rng.integers(0, 2, 8).astype(np.uint8),
+        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+        >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
+        >>> bits.size            # silence carries no burst
+        0
+
+        """
+
+    def push_max_out(self, x_len: int) -> int:
+        """Max bits push() writes: the payload length.
+
+        Independent of x_len, because at most one burst is returned per call.
+
+        Parameters
+        ----------
+        x_len : int
+            Input length (ignored).
+
+        Returns
+        -------
+        int
+            payload_len -- the buffer a caller must provide.
+        """
+
+    def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
+        """Pin the embedded BurstAcquisition's search grid directly, bypassing
+        the auto-sizing -- the escape hatch for a caller who wants a specific
+        (doppler_bins, n_noncoh). Forwards to the engine unchanged.
+
+        The escape hatch for a caller who wants a specific (doppler_bins,
+        n_noncoh) rather than the grid the cn0_dbhz/pfa/pd sizing chooses.
+        Forwards to the embedded engine unchanged.
+
+        Parameters
+        ----------
+        doppler_bins : int
+            Coherent depth to pin, in [1, reps].
+        n_noncoh : int
+            Non-coherent looks to combine.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure_search_raw failed``, with the return code appended
+            (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import DsssBurstReceiver
+        >>> rng = np.random.default_rng(0)
+        >>> rx = DsssBurstReceiver(
+        ...     rng.integers(0, 2, 31).astype(np.uint8),
+        ...     rng.integers(0, 2, 8).astype(np.uint8),
+        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+        >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=1)
+
+        """
+
+    def reset(self) -> None:
+        """Return to the searching state: resets the embedded acquisition,
+        drops the history ring's contents and clears every read-back, so a
+        fresh stream cannot inherit the previous burst's verdict. Construction
+        parameters are untouched.
+
+        Resets the embedded acquisition, discards the retained look-back, and
+        clears all the event fields, so a fresh stream cannot inherit the
+        previous burst's verdict. The lifetime counters (`n_bursts`, `dropped`)
+        deliberately survive -- a reset that zeroed them could hide that this
+        receiver had already lost samples. Construction parameters are
+        untouched.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import DsssBurstReceiver
+        >>> rng = np.random.default_rng(0)
+        >>> rx = DsssBurstReceiver(
+        ...     rng.integers(0, 2, 31).astype(np.uint8),
+        ...     rng.integers(0, 2, 8).astype(np.uint8),
+        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+        >>> _ = rx.push(np.zeros(1024, dtype=np.complex64))
+        >>> rx.reset()
+        >>> rx.frame_valid
+        0
+
+        """
+
+    def state_bytes(self) -> int:
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the DsssBurstReceiver has already been
+        destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
+    def get_state(self) -> bytes:
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the DsssBurstReceiver has already been
+        destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the DsssBurstReceiver has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def preamble_start(self) -> int:
+        """Stream-absolute preamble start. Never late."""
+
+    @property
+    def frame_valid(self) -> int:
+        """1 iff the CRC-16 trailer matched."""
+
+    @property
+    def doppler_hz_est(self) -> float:
+        """Signed coarse Doppler, Hz."""
+
+    @property
+    def doppler_res_hz(self) -> float:
+        """Width of that estimate."""
+
+    @property
+    def cn0_dbhz_est(self) -> float:
+        """C/N0 lower bound, dB-Hz (saturating)."""
+
+    @property
+    def est_freq_hz(self) -> float:
+        """Demod's own residual estimate, Hz."""
+
+    @property
+    def est_rate_hz(self) -> float:
+        """Demod's own chirp-rate estimate."""
+
+    @property
+    def est_snr_db(self) -> float:
+        """Demod's own post-decode SNR estimate."""
+
+    @property
+    def refine_margin(self) -> float:
+        """Winning preamble correlation over its nearest whole-period
+        competitor. Near 1 means the period was NOT resolved.
+        """
+
+    @property
+    def pending(self) -> int:
+        """Bursts demodulated, awaiting return by push()."""
+
+    @property
+    def dropped(self) -> int:
+        """Samples the ring refused. A LOST BURST each, not a statistic --
+        lifetime, survives reset().
+        """
+
+    @property
+    def n_bursts(self) -> int:
+        """Bursts demodulated, lifetime."""
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "DsssBurstReceiver":
+        """Enter a context manager, returning this object.
+
+        Lets a DsssBurstReceiver be used in a `with` statement so its C
+        resources are released deterministically on exit rather than at
+        collection time.
+
+        Returns
+        -------
+        DsssBurstReceiver
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the DsssBurstReceiver.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

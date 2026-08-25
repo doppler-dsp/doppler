@@ -2743,7 +2743,7 @@ Examples
 True
 
 """
-objects = ["despreader", "burst_despreader", "acq", "burst_acq", "ppe", "burst_demod", "dsss_receiver", "async_dsss_receiver"]
+objects = ["despreader", "burst_despreader", "acq", "burst_acq", "ppe", "burst_demod", "dsss_receiver", "async_dsss_receiver", "dsss_burst_receiver"]
 
 [[module.dsss.functions]]
 name = "bin_to_signed"

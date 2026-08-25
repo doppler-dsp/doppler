@@ -2,7 +2,7 @@ add_library(dsss_core OBJECT dsss_core.c bin_to_signed.c)
 target_include_directories(dsss_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# dsss Python module — aggregates: Despreader, BurstDespreader, Acquisition, BurstAcquisition, PolynomialPhaseEstimator, BurstDemod, DsssReceiver, AsyncDsssReceiver
+# dsss Python module — aggregates: Despreader, BurstDespreader, Acquisition, BurstAcquisition, PolynomialPhaseEstimator, BurstDemod, DsssReceiver, AsyncDsssReceiver, DsssBurstReceiver
 Python3_add_library(dsss MODULE WITH_SOABI dsss_ext.c)
 target_link_libraries(dsss PRIVATE
     dsss_core
@@ -14,6 +14,7 @@ target_link_libraries(dsss PRIVATE
     burst_demod_core
     dsss_receiver_core
     async_dsss_receiver_core
+    dsss_burst_receiver_core
     costas_core
     lo_core
     lockdet_core
@@ -73,6 +74,7 @@ target_link_libraries(test_dsss_core PRIVATE
     burst_demod_core
     dsss_receiver_core
     async_dsss_receiver_core
+    dsss_burst_receiver_core
     costas_core
     lo_core
     lockdet_core
@@ -124,6 +126,7 @@ target_link_libraries(bench_dsss_core PRIVATE
     burst_demod_core
     dsss_receiver_core
     async_dsss_receiver_core
+    dsss_burst_receiver_core
     costas_core
     lo_core
     lockdet_core

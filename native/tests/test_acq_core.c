@@ -747,8 +747,13 @@ main (void)
           {
             uint8_t chip = CODE7[((k % nxl) / spcl) % sf];
             float   s    = (chip & 1u) ? -1.0f : 1.0f;
-            x[k]         = s + (float)(0.30 * dp_gauss (&st))
-                           + (float)(0.30 * dp_gauss (&st)) * I;
+            /* Named locals, not two draws in one expression: the order
+               of the two dp_gauss() calls would be the compiler's, and
+               gcc and clang differ -- so the same seed gave a different
+               noise realization per toolchain (make tests-ssot). */
+            float re = (float)(0.30 * dp_gauss (&st));
+            float im = (float)(0.30 * dp_gauss (&st));
+            x[k]     = s + re + im * I;
           }
         double stat[4];
         int    have[4] = { 0, 0, 0, 0 };

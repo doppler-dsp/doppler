@@ -42,6 +42,7 @@ instead.)
     it, and what owning both ends of the file buys
 - [DSSS Acquisition](dsss-acquisition.md) — stateless, parallel, dynamics-capable acquisition architecture + roadmap
 - [Async DSSS Receiver Spec](async-dsss-spec.md) — the target waveform and receiver specification (CCSDS Gold-1023, 3.069 Mcps, 2700 bps, ±50 kHz, \<500 Hz/s) the async DSSS receiver is built against
+- [DsssBurstReceiver](dsss-burst-receiver.md) — the burst chain composed in C: the three-stage `search → refine → demod` shape, why the hand-off needs a never-late epoch, and what a burst `DetectionEvent` must carry to stand alone
 - [Asynchronous Symbol Despreader](async-symbol-despreader.md) — despreading when the data-symbol rate is asynchronous to the code-epoch rate
 - [Asynchronous Data on a Repeating PN Code](async-despreader-working-design.md) — the working design behind the async despreader, assuming at most one data transition per code epoch
 - [Automatic Gain Control](agc.md) — the log-domain level loop every receiver

@@ -271,6 +271,7 @@ nav:
       - Ending a Capture: design/end-of-capture.md
       - DSSS Acquisition: design/dsss-acquisition.md
       - Async DSSS Receiver Spec: design/async-dsss-spec.md
+      - DsssBurstReceiver: design/dsss-burst-receiver.md
       - Async Symbol Despreader: design/async-symbol-despreader.md
       - Automatic Gain Control: design/agc.md
       - Detection Sizing: design/detection.md

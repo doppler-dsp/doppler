@@ -84,3 +84,7 @@ build-ci/
 # Ignored rather than deleted each time, because `jm apply` recreates it and
 # the drift gate is green either way (verified: exit 0 with it absent).
 native/tests/jm_test.h
+
+# LLVM coverage artifacts
+*.profraw
+*.profdata

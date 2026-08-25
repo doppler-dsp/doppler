@@ -120,11 +120,11 @@ The threshold rises from 5.065 to 5.165 across a 16x range of uncertainty. A cal
 
 | injected C/N0 (dB-Hz) | reported | error (dB) |
 |---|---|---|
-| 55 | 54.68 | 0.32 |
-| 60 | 59.57 | 0.43 |
-| 65 | 63.46 | 1.54 |
+| 55 | 54.54 | 0.46 |
+| 60 | 59.38 | 0.62 |
+| 65 | 63.08 | 1.92 |
 
-Worst **1.54 dB** over three levels. The header is explicit that this saturates once the true C/N0 exceeds what the code and geometry can resolve — the estimate is then reading the code's own autocorrelation sidelobes rather than the noise, which is a real ceiling and not a fault. Raw sweep: `data/cn0.csv`.
+Worst **1.92 dB** over three levels. The header is explicit that this saturates once the true C/N0 exceeds what the code and geometry can resolve — the estimate is then reading the code's own autocorrelation sidelobes rather than the noise, which is a real ceiling and not a fault. Raw sweep: `data/cn0.csv`.
 
 ### 2.6 The CFAR reference is a choice, worth ~15 dB
 
@@ -132,9 +132,9 @@ Worst **1.54 dB** over three levels. The header is explicit that this saturates 
 
 | noise_mode | hits | noise_est | test_stat |
 |---|---|---|---|
-| mean | 2 | 22.5465 | 43.39 |
-| median | 2 | 17.3825 | 56.28 |
-| min | 2 | 0.9815 | 996.62 |
+| mean | 2 | 24.8636 | 39.34 |
+| median | 2 | 17.8828 | 54.70 |
+| min | 2 | 0.4682 | 2089.39 |
 | max | 0 | — | no detection |
 
 Dividing by the smallest reference cell is a far more optimistic detector than dividing by the largest, so `min` produces the biggest statistic and `max` the smallest — and at a given signal level `max` can legitimately suppress detection entirely. That is the point of offering the choice, and it is now asserted as an ordering rather than left to the default.
@@ -183,7 +183,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding. 
 | PASS | the native span is chip_rate/(2*sf), as documented |
 | PASS | the per-cell threshold rises with the searched cell count — a tighter uncertainty prior buys sensitivity, not just runtime |
 | PASS | `underpowered` is set when the link cannot meet the requested pd and clear when it can |
-| PASS | cn0_dbhz_est tracks an injected C/N0 to 1.54 dB across three levels inside the linear region |
+| PASS | cn0_dbhz_est tracks an injected C/N0 to 1.92 dB across three levels inside the linear region |
 | PASS | configure_search_raw refuses all three out-of-range argument combinations |
 | PASS | ...and the engine keeps its prior grid, so a refused reconfiguration cannot leave the threshold ladder mismatched |
 | PASS | a reset mid-frame leaves the engine behaving like a fresh one |

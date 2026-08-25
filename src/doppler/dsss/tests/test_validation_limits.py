@@ -36,6 +36,9 @@ from doppler.dsss.tests.validation.burst_demod import (
 from doppler.dsss.tests.validation.burst_despreader import (
     validate as burst_despreader_validate,
 )
+from doppler.dsss.tests.validation.dsss_burst_receiver import (
+    validate as dsss_burst_receiver_validate,
+)
 from doppler.dsss.tests.validation.ppe import (
     validate as ppe_validate,
 )
@@ -46,6 +49,7 @@ OBJECTS = {
     "burst_acq": burst_acq_validate,
     "burst_demod": burst_demod_validate,
     "burst_despreader": burst_despreader_validate,
+    "dsss_burst_receiver": dsss_burst_receiver_validate,
     "ppe": ppe_validate,
 }
 

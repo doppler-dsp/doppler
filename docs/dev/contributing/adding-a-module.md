@@ -1,8 +1,25 @@
 # Adding a New C Extension Module
 
-This guide walks through every step required to add a new DSP module to
-doppler using [just-makeit](https://just-buildit.github.io/just-makeit/)
-(`jm`). The scaffold handles boilerplate; you fill in the DSP logic.
+This guide walks through adding a new DSP module to doppler using
+[just-makeit](https://just-buildit.github.io/just-makeit/) (`jm`). The
+scaffold handles boilerplate; you fill in the DSP logic.
+
+**This page is not the whole lifecycle.**
+[Adding an algorithm](adding-algorithms.md) is the spine and owns the phase
+*order*; this page is the *how* for its declare, implement and bind phases.
+The phases after them are somebody else's page and are not optional:
+
+| after you finish here                         | go to                                                                          | gate                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------- |
+| explore the envelope, characterize            | [Object Validation](validation.md)                                             | `make validate-c`, `make characterize`             |
+| **certify** — the evidence a caller relies on | [Object Validation](validation.md)                                             | `make validate-check`, `test_validation_limits.py` |
+| document — header `@code`, guides, examples   | [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md) | `make test-stubs`, `make test-examples-c`          |
+| land — changelog, issues for what is left     | [Release](../release.md)                                                       | `make changelog-check`                             |
+
+A module that builds and passes its own tests is **not** finished: an object
+ships with certified limits, and the order is not negotiable — the C header
+is the SSOT, so the claims get pinned in C first and the Python evidence
+layer is built on top of that, never the reverse.
 
 For the layout rules that govern each generated file, see
 [Module Layout](module-layout.md).
@@ -11,64 +28,100 @@ ______________________________________________________________________
 
 ## Prerequisites
 
-Drive doppler with the **exact pinned jm version** — a stale local install
-warns on every command (version skew), and an unpinned `uvx just-makeit`
-can silently resolve to a newer release than the one doppler's manifest
-was written against:
+Drive doppler through **`make`**, and jm through the repo's own pinned
+install — never `uvx`. An unpinned `uvx just-makeit` does not fetch the
+latest release: it silently reuses whatever version is installed as a uv
+*tool*, which drifts per machine and never updates. That is not
+hypothetical — `make bench` was the one unpinned call site and resolved to a
+version far behind the manifest, so it could not parse the manifest at all
+and the local benchmark path was unrunnable for months.
+
+The pin is declared **once**, in
+[`just-makeit.toml`](https://github.com/doppler-dsp/doppler/blob/main/just-makeit.toml)'s
+`[project] jm_version`, and `scripts/gen_jm_pin.py` propagates it to every
+other site. Read it from there rather than from any prose — including this
+page, which deliberately does not name a version:
 
 ```sh
-uvx --from 'just-makeit==0.28.11' jm --help
+grep '^jm_version' just-makeit.toml     # the SSOT
+.venv/bin/just-makeit --version         # what you are actually running
+make drift-check                        # what CI runs
 ```
 
-(`0.28.11` is the current pin — check
-[`just-makeit.toml`](https://github.com/doppler-dsp/doppler/blob/main/just-makeit.toml)'s
-`jm_version` for the live value.) The scaffold writes into the doppler
-source tree, so run all commands from the repo root.
+Every jm command warns on version skew, so a stale CLI announces itself.
 
-**Always diff after any mutating `jm` command** (`object`, `method`,
-`property`, `add`, `remove`, and — see Step 11 — a bare `apply`). Confirmed
-on jm 0.29.1: these commands can rewrite files well outside the component
-you touched —
+The scaffold writes into the doppler source tree, so run all commands from
+the repo root.
 
-- Every `jm object` / `jm method` / `jm remove object` call reformats
-    **every** `objects/*.toml` fragment (reordering keys, collapsing
-    multi-line arrays, stripping hand-written comments) even though only
-    one object changed semantically. Cosmetic, but don't commit the noise:
-    `git checkout -- objects/ just-makeit.toml` after the command, then
-    reapply just your own manifest edit by hand.
-- A **bare** `jm apply` (no fragment path) can regenerate a sibling
-    object's sacred `<module>_ext_<component>.c` fragment in the same
-    module — silently discarding hand-patches (a corrected constructor
-    default, an explanatory comment, a UAF fix) even though that object
-    was never touched. This is not cosmetic — it reintroduces real bugs.
-    Prefer the **scoped** form, `jm apply objects/<component>.toml`, and
-    if you do run a bare `jm apply`, check `git diff` for every
-    `*_ext_*.c` file, not just the one you meant to change.
+**Diff after any mutating `jm` command** (`object`, `method`, `property`,
+`add`, `remove`) — not because jm is untrustworthy, but because a manifest
+edit legitimately regenerates every fragment in the module, and reading that
+diff is how you confirm it changed what you meant.
 
-These are being filed upstream as just-makeit issues; this note stays
-until they're fixed and the pin bumped past the fix.
+> **Two hazards this page used to warn about are fixed** and the warnings
+> are gone. A bare `jm apply` no longer regenerates a sibling's sacred
+> `<module>_ext_<component>.c` and discards its hand-patches, and a mutating
+> command no longer reformats every `objects/*.toml`. Verified on the
+> current pin: a bare `jm apply` against a clean tree writes **nothing**,
+> and `jm property` touches only the component it names and that module's
+> generated glue. If you are reading an older copy of this page telling you
+> to `git checkout -- objects/` after every command, that advice is stale.
 
 ______________________________________________________________________
 
 ## Step 0 — Characterize the algorithm
 
-Ask one question: **can a single input sample be processed independently,
+Two questions, and they pick the method verb as well as the scaffold.
+
+**1. Is the output rate tied to the input rate?**
+
+- **Yes** — N samples in, N (or N/R) samples out. A transducer.
+- **No** — samples go in and *events* come out, zero or more per call, at
+    whatever rate the signal produces them. A detector, an acquisition
+    engine, a burst receiver.
+
+**2. If the rate is tied: can a single sample be processed independently,
 with small fixed state?**
 
-- **Yes** → a plain step/steps object. Use the CLI default (Step 1,
-    Entry point A).
-- **No** — the algorithm owns block I/O (it needs a window, a whole
-    buffer, or produces output whose length isn't known until runtime) →
-    use a `--preset` (Step 1, Entry point B):
-    - Block processor / decimator / resampler / FFT / correlator →
-        `--preset blockwise`
-    - Signal generator (void input, array output) → `--preset generator`
+Each shape has its own verb, so pick the shape first and the name
+follows:
+
+| shape                                                                                        | verb             | scaffold                                      | examples                                             |
+| -------------------------------------------------------------------------------------------- | ---------------- | --------------------------------------------- | ---------------------------------------------------- |
+| sample-independent, small fixed state — **or usable inside a feedback loop**                 | `step` + `steps` | CLI default (Step 1, Entry point A)           | AGC, LoopFilter, LockDet, converters, accumulators   |
+| owns block I/O — needs a window, a whole buffer, or an output length not known until runtime | `execute`        | `--preset blockwise`                          | decimator, resampler, FFT, correlator                |
+| **event-driven — output decoupled from input**                                               | `push`           | `--preset blockwise`, returning a record list | `acq`, `detector`, `detector2d`, `DsssBurstReceiver` |
+| void input, array output                                                                     | `steps`          | `--preset generator`                          | NCO, LO, tone/PN generators                          |
+
+**`push` is not a deviation from `steps`; it is the third category.** The
+distinction is real rather than cosmetic: a `steps` caller knows how much
+output a call produces before making it, and a `push` caller does not — which
+is exactly why `push` returns a **list** of records (`acq_result_t`,
+`det_result_t`) or a variable-length payload with a parallel `events()`, and
+why its `*_max_out()` takes the input length. Naming an event-driven object
+`steps` would promise a rate it cannot honour.
+
+> **`step` and `steps` are jm BUILT-INS**, generated from the object's
+> `arg_type`/`return_type` — they are not `[[<obj>.methods]]` entries, so
+> grepping the manifest for them finds nothing. A sample-wise object gets
+> both, sharing one state: `steps(x)` for a block, `step(x)` for a single
+> sample. Verified across the shipped stubs: AGC, LoopFilter, LockDet,
+> MovingAverage, the converters and the accumulators all carry the pair.
+>
+> **`step` is what makes an object usable inside a RECURSIVE loop, and that
+> is why it is not optional.** When a caller closes feedback around your
+> object — a Costas loop driving an NCO through a `LoopFilter`, a DLL
+> correcting its own timing, an AGC adjusting the gain that produced the
+> sample it just measured — **the next input depends on the previous
+> output**, so there is no block to hand over. `steps` cannot express that
+> at all; only `step` can. Offering `steps` alone quietly excludes your
+> object from every tracking loop in the library.
 
 ______________________________________________________________________
 
 ## Step 1 — Declare the interface
 
-**Entry point A: plain step/steps object**
+**Entry point A: plain `steps` object**
 
 ```sh
 jm object myobj --module mymodule --state gain:double:1.0 --mutable
@@ -305,85 +358,59 @@ All C tests must pass before moving to the Python layer.
 
 ______________________________________________________________________
 
-## Step 7 — Write `<module>.pyi`
+## Step 7 — Author the docstrings in the **C header**
 
-Open `src/doppler/<module>/<module>.pyi` (generated skeleton) and flesh
-out every public type following the
-[module layout rules](module-layout.md). Docstrings use
-[numpy-style format](https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard):
+**Do not write `src/doppler/<module>/<module>.pyi` by hand.** jm generates it,
+and it is derived from your `_core.h` — the header's Doxygen *is* the source
+of the Python docstrings. Editing the stub means writing something the next
+`jm apply` deletes.
 
-```text
-# mymod/mymod.pyi — type stubs for the mymod C extension.
-import numpy as np
-from numpy.typing import NDArray
+So the authoring you actually do happens in Step 4, in the header:
 
-class <component>:
-    """One-line summary.
+| write this in `<component>_core.h` | becomes this in `<module>.pyi`      |
+| ---------------------------------- | ----------------------------------- |
+| `@brief` prose                     | the summary line and body           |
+| `@param name  text`                | the `Parameters` entry              |
+| `@return text`                     | the `Returns` entry                 |
+| a `@code … @endcode` block         | a runnable numpy `Examples` doctest |
+| `@code` on `create()`              | the **class**'s `Examples` section  |
 
-    Parameters
-    ----------
-    n:
-        Block size.  Must be a power of two.
+That last row matters more than it looks: a class whose constructor takes a
+required array (a code, a tap vector) gets its Examples only from `create()`'s
+`@code`, so without one the class ships with no example at all.
 
-    Examples
-    --------
-    Construct and inspect an instance:
+**The `@code` blocks are executed**, by `make test-stubs` — they are doctests,
+not decoration. Two traps worth knowing before you write one:
 
-    >>> import numpy as np
-    >>> from doppler.mymod import <component>
-    >>> obj = <component>(256)
-    >>> obj.n
-    256
-
-    Process a block of CF32 samples:
-
-    >>> x = np.ones(256, dtype=np.complex64)
-    >>> y = obj.execute_cf32(x)
-    >>> y.dtype
-    dtype('complex64')
-    >>> y.shape
-    (256,)
-
-    """
-
-    n: int
-    """Block size passed to the constructor."""
-
-    def execute_cf32(
-        self, x: NDArray[np.complex64]
-    ) -> NDArray[np.complex64]:
-        """Process one block of CF32 samples."""
-        ...
-```
-
-Verify the examples pass:
+- **Wrap at 71 columns.** jm indents the block into the stub, and a line that
+    lands past 79 fails the formatter. `jm apply` names any line that will
+    overflow, with its budget.
+- **Leave a blank line before the closing `@endcode`.** A text-mode doctest
+    otherwise swallows the terminator into the last example's expected output.
 
 ```sh
-python -m doctest -v src/doppler/<module>/<module>.pyi
+make test-stubs      # doctest every generated .pyi
 ```
-
-Fix any failures before continuing.
 
 ______________________________________________________________________
 
-## Step 8 — Write `__init__.py`
+## Step 8 — Declare the public surface in the manifest
 
-Open `src/doppler/<module>/__init__.py` and update the re-export:
+**Do not write `src/doppler/<module>/__init__.py` by hand either.** jm
+generates it, and `__all__` follows from what the manifest declares.
 
-```text
-from .<module> import <component>
+- The **module docstring** comes from `[module.<name>] doc`.
+- **Re-exporting a sibling module's symbols** is
+    `reexports = { <mod> = [...] }` on `[module.<name>]`, not a hand-written
+    `from .x import y`.
 
-__all__ = ["<component>"]
-```
+`__all__` is still the public API — it controls `import *`, what IDEs
+surface, and what users may rely on — but you edit it by declaring the
+surface, not by typing the list. A symbol missing from `__all__` is a symbol
+that is not public.
 
-`__all__` **is** the public API. It controls what
-`from doppler.<module> import *` exposes, what IDEs surface in
-autocompletion, and what users can reasonably rely on. Make sure every
-symbol a user should be able to reach is listed — if it isn't here, it
-isn't public. Conversely, every name in `__all__` must have a
-corresponding stub in `<module>.pyi`; the two lists must stay in sync.
-
-Nothing else belongs here. See [Module Layout](module-layout.md).
+Nothing else belongs in `__init__.py`: no wrapper classes, no logic. See
+[Module Layout](module-layout.md).
 
 ______________________________________________________________________
 
@@ -564,7 +591,8 @@ target_include_directories(bench_mycomp_core
 `make lint` then holds it: a component with C tests must have a benchmark,
 it must record a measurement, and it must write its JSON under the name a
 collector opens (`jm_bench_write_json(&b, "mycomp")`, not `"mycomp_core"` —
-four files got that wrong and two of them lost real measurements to it).
+a real and repeated mistake: the wrong name writes a file no collector opens,
+so the benchmark runs and its measurement is silently thrown away).
 
 **It will not run under `make bench` yet.** That needs
 [just-makeit#1023](https://github.com/just-buildit/just-makeit/issues/1023);
@@ -590,15 +618,10 @@ make test-python                        # full pytest suite
 
 If you changed `objects/<component>.toml` (or `just-makeit.toml`) after
 the initial `jm apply` — e.g. added a property, tweaked a param default —
-reconcile the generated glue. **Prefer the scoped form** —
-`jm apply objects/<component>.toml` — over a bare `jm apply`: in a module
-with sibling objects, a bare `jm apply` has been seen (jm 0.29.1) to
-regenerate a *sibling's* sacred `_ext_<sibling>.c` fragment too, discarding
-its hand-patches. Whichever form you run, check `git diff` before trusting
-it:
+reconcile the generated glue:
 
 ```sh
-jm apply objects/<component>.toml   # scoped; reconciles CMakeLists, __init__.py, .pyi
+jm apply                            # reconciles CMakeLists, __init__.py, .pyi
 jm status --check                   # confirms zero drift; this is what CI's manifest-drift gate runs
 git diff --stat                     # confirm only your component's files changed
 ```
@@ -610,23 +633,24 @@ ______________________________________________________________________
 Before opening a PR:
 
 - [ ] `make test` — all C tests pass
-- [ ] `python -m doctest -v src/doppler/<module>/<module>.pyi` — all examples pass
+- [ ] `make test-stubs` — every `@code` doctest in your header runs
 - [ ] `make test-python` — all Python tests pass
 - [ ] `make bench` — C and Python benchmarks run and JSON snapshots are saved
 - [ ] The C benchmark exists **and runs**: an object's is scaffolded, a
     `c_deps` entry's or a function-only module's is hand-written and
     hand-registered (Step 10b). `make lint` gates both halves
 - [ ] `jm status --check` — zero manifest drift
-- [ ] `__init__.py` contains only re-exports and `__all__`
+- [ ] `__init__.py` and `<module>.pyi` are **generated**, not hand-edited
+    — the surface is declared in the manifest and documented in the header
 - [ ] No Python wrapper classes — C extension types are the public API
-- [ ] `<module>.pyi` has stubs for every exported symbol
 - [ ] If stateful: `serializable = "true"` set, C triplet implemented, both
     the C round-trip test and the Python
     `test_state_serialization.py` matrix entry pass
 - [ ] `make docs` — docs build clean
-- [ ] `uv run pytest -m docs_snippets` — every Python fence you added to the
-    docs runs (or is `skip=`-marked with a reason). New pages are gated
-    automatically; see [Doc Examples (tested)](doc-examples.md)
+- [ ] `make test-snippets` — every fence you added to the docs runs (or is
+    `skip=`-marked with a reason). New pages are gated automatically; see
+    [Doc Examples (tested)](doc-examples.md)
+- [ ] `make lint` — every gate CI runs, including the drift and report gates
 
 ______________________________________________________________________
 

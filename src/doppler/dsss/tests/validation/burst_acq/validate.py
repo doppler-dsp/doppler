@@ -137,6 +137,13 @@ def section_object() -> None:
         ["page", "owns"],
         [
             [
+                "[`docs/design/dsss-acquisition.md`]"
+                "(../../../../../../docs/design/dsss-acquisition.md)",
+                "the architecture this object is a front door onto — the "
+                "burst constructor it selects, and why burst and continuous "
+                "are fixed at construction rather than switchable",
+            ],
+            [
                 "[`acq`'s report](../acq/results.md)",
                 "everything this object does at runtime — the engine, its "
                 "sizing, its statistics. **Not re-derived here.**",

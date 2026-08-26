@@ -110,6 +110,17 @@ def section_object() -> None:
         ["page", "owns"],
         [
             [
+                "[`docs/design/dsss-burst-receiver.md`]"
+                "(../../../../../../docs/design/dsss-burst-receiver.md)",
+                "the burst chain this object serves — the tracked branch, "
+                "for bursts long enough to close a loop",
+            ],
+            [
+                "[`docs/design/loop-filter.md`]"
+                "(../../../../../../docs/design/loop-filter.md)",
+                "the two embedded loops' law and their bandwidth parameter",
+            ],
+            [
                 "[`detection`'s report](../../../../detection/tests/"
                 "validation/detection/results.md)",
                 "`det_threshold_f` and the F(n,n) law this object's lock "

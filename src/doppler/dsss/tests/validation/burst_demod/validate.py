@@ -171,6 +171,12 @@ def section_object() -> None:
         ["page", "owns"],
         [
             [
+                "[`docs/design/dsss-burst-receiver.md`]"
+                "(../../../../../../docs/design/dsss-burst-receiver.md)",
+                "the burst chain this object terminates — why the last stage "
+                "is feedforward, and what the refine stage must hand it",
+            ],
+            [
                 "[`ppe`'s report](../ppe/results.md)",
                 "the feedforward (frequency, chirp rate) estimator this "
                 "object drives — not re-derived here",

@@ -109,6 +109,28 @@ def section_object() -> None:
         "afterwards."
     )
     R.md()
+    R.table(
+        ["page", "owns"],
+        [
+            [
+                "[`docs/design/ppe.md`](../../../../../../docs/design/ppe.md)",
+                "the reasoning — why the search is two-dimensional and "
+                "coherent, why the transform is 4x its input, and why the "
+                "caller strips the modulation",
+            ],
+            [
+                "[`docs/design/dsss-burst-receiver.md`]"
+                "(../../../../../../docs/design/dsss-burst-receiver.md)",
+                "the burst chain this estimator serves, and the tracked "
+                "alternative it is chosen over",
+            ],
+            [
+                "`native/inc/ppe/ppe_core.h`",
+                "the contract — the SSOT this report audits",
+            ],
+        ],
+    )
+    R.md()
     R.md("### 1.1 The claim inventory")
     R.md()
     R.md(

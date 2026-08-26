@@ -24,7 +24,14 @@ MARKDOWN_SUPPORT       = YES
 QUIET                  = YES
 WARN_IF_UNDOCUMENTED   = YES
 
-# The "included by" graph for clib_common.h exceeds the default 50-node cap once
-# enough modules include it (each adds a node); raise the ceiling so the graph
-# renders without a warning (the CI gate fails on any Doxygen warning).
-DOT_GRAPH_MAX_NODES    = 100
+# Doxygen's MAXIMUM, deliberately, so this is not a number of ours.
+#
+# Two headers in this library have a graph whose node count IS the module
+# count: clib_common.h is included by every module (its "included by" graph),
+# and doppler.h includes every module (its "include" graph). Any finite
+# ceiling on those is a ceiling on how many modules doppler may have, and it
+# gets crossed by adding a module rather than by a defect -- this one was
+# raised 50 -> 100 once already and was crossed again at 103 includers of
+# clib_common.h, failing the zero-warning gate for nothing. 10000 is the
+# largest value doxygen accepts, so no growth of this library can reach it.
+DOT_GRAPH_MAX_NODES    = 10000

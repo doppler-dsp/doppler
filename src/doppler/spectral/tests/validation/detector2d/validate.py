@@ -121,6 +121,19 @@ def section_object() -> None:
         ["page", "owns"],
         [
             [
+                "[`docs/design/detection.md`]"
+                "(../../../../../../docs/design/detection.md)",
+                "the CFAR law this object applies — how a threshold is "
+                "priced from a false-alarm rate, and over what population",
+            ],
+            [
+                "[`docs/design/corr2d-interpolated-inverse.md`]"
+                "(../../../../../../docs/design/"
+                "corr2d-interpolated-inverse.md)",
+                "§6, the downstream wiring: what this object reads off the "
+                "surface and what the interpolated form changes about it",
+            ],
+            [
                 "[`corr2d`'s report](../corr2d/results.md)",
                 "the correlation surface this object decides on — not "
                 "re-derived here",

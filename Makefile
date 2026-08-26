@@ -2153,8 +2153,11 @@ changelog-check: ## A branch changing code must add a changelog entry
 	}; \
 	files=$$(git diff --name-only "$$base"..HEAD); \
 	if [ -z "$$files" ]; then \
+	  ./scripts/uncommitted-code-guard.sh --inert changelog-check $(CHANGELOG_CODE_PATHS) \
+	    || exit 1; \
 	  echo "changelog-check: no commits ahead of $(CHANGELOG_BASE) — branch check inert"; \
 	else \
+	  ./scripts/uncommitted-code-guard.sh changelog-check $(CHANGELOG_CODE_PATHS); \
 	  pat=$$(printf '%s\n' $(CHANGELOG_CODE_PATHS) | sed 's|.*|^&/|' | paste -sd'|'); \
 	  code=$$(printf '%s\n' "$$files" | grep -E "$$pat" || true); \
 	  if [ -z "$$code" ]; then \

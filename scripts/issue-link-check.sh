@@ -63,9 +63,15 @@ else
     }
     files=$(git diff --name-only "$base"..HEAD)
     if [ -z "$files" ]; then
+        # Inert is only honest when there is nothing to be inert ABOUT.
+        "$(dirname "$0")/uncommitted-code-guard.sh" --inert issue-link-check \
+            $CODE_PATHS
         echo "issue-link-check: no commits ahead of $BASE — inert"
         exit 0
     fi
+    # Commits exist, so the verdict below is real -- but say plainly if the
+    # tree also holds code this run did not read.
+    "$(dirname "$0")/uncommitted-code-guard.sh" issue-link-check $CODE_PATHS
     pat=$(printf '%s\n' $CODE_PATHS | sed 's|.*|^&/|' | paste -sd'|')
     if printf '%s\n' "$files" | grep -qE "$pat"; then
         changed_code=1

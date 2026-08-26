@@ -171,8 +171,12 @@ HOLLOW_ALLOW: set[str] = set()
 #: ungated: this file checked `native/benchmarks/` and nothing else while
 #: phase 9 of the lifecycle owes a benchmark "C **and** Python".
 #:
-#: 19 today. It may only SHRINK -- a NEW bench_*.py must call
-#: `benchmark(...)`. Emptying it is tracked by gh-1010.
+#: It may only SHRINK -- a NEW bench_*.py must call `benchmark(...)`, and
+#: an entry whose file starts recording must lose its line (checked below,
+#: because the C ratchets learned the hard way that an unchecked promise of
+#: that shape is prose). How many are left is PRINTED on every green run
+#: rather than tallied here, where the number would be true once. Emptying
+#: it is tracked by gh-1010.
 PY_HOLLOW_ALLOW: set[str] = {
     "accumulator/benchmarks/bench_acc_trace.py",
     "acquire/benchmarks/bench_carrier_acq.py",
@@ -189,7 +193,6 @@ PY_HOLLOW_ALLOW: set[str] = {
     "spectral/benchmarks/bench_psd.py",
     "telemetry/benchmarks/bench_dp_tlm.py",
     "track/benchmarks/bench_carrier_mpsk.py",
-    "track/benchmarks/bench_ratesync.py",
     "wfm/benchmarks/bench_frame.py",
     "wfm/benchmarks/bench_gold.py",
     "wfm/benchmarks/bench_pn.py",
@@ -465,6 +468,24 @@ def main() -> int:
                 "only shrink."
             )
 
+    # The PYTHON ratchet gets the same discipline, which it did not have:
+    # rule 5 skipped its entries and nothing ever looked at them again, so
+    # the one direction that matters -- a file that starts recording and
+    # keeps its waiver -- was unguarded, and the set could stop being a
+    # ratchet without any run going red.
+    for rel in sorted(PY_HOLLOW_ALLOW):
+        p = SRC / rel
+        if not p.exists():
+            failures.append(
+                f"{rel}: is in PY_HOLLOW_ALLOW but no such file exists, so "
+                "the entry waives nothing. Delete it, or fix the path."
+            )
+        elif _py_records(p):
+            failures.append(
+                f"{rel}: is in PY_HOLLOW_ALLOW but now calls the benchmark "
+                "fixture. Delete its line — the ratchet may only shrink."
+            )
+
     if failures:
         print("check_bench_coverage: FAIL\n", file=sys.stderr)
         for f in failures:
@@ -482,6 +503,14 @@ def main() -> int:
         "check_bench_coverage: OK — every tested component is benchmarked "
         f"and every benchmark records under a collectable name ({n_extra} "
         "of them still await just-makeit#1023 to be RUN by `make bench`)"
+    )
+    # What is left on each ratchet, printed rather than written down: a
+    # tally in a comment is true on the day it is typed and by nothing
+    # after it.
+    print(
+        f"check_bench_coverage: ratchets — {len(ALLOW)} unmeasurable, "
+        f"{len(HOLLOW_ALLOW)} hollow C, {len(PY_HOLLOW_ALLOW)} hollow "
+        "Python (doppler#1010)"
     )
     return 0
 

@@ -13,6 +13,231 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.44.0] — 2026-08-24
+
+### Breaking
+
+- **`CF128` is removed from the streaming wire protocol.** It is 32 bytes on
+    both x86-64 and aarch64 but a different *representation*, so every field a
+    receiver checks agreed and the samples decoded to nonsense — across the
+    multi-arch images doppler itself publishes. Use `CF64`. Wire value 2 is
+    retired, not reused; `dp_sample_type_is_valid()` now derives from
+    `dp_sample_size()` so a type with no size is not a type.
+
+- **The streaming wire format is v2:** a 64-byte header (down from 96),
+    `DPSTREAM` magic, BLUE format codes, a `payload_bytes` the receiver
+    actually validates, and `TLM16` as a frame *kind* rather than a sample
+    format. v1 and v2 are unrecognisable at byte 0, so both ends must move
+    together. `recv()` headers gain `kind`/`flags`/`payload_bytes`/`version`,
+    and `sample_type` becomes `format`. Layout and rationale:
+    [`docs/design/streaming.md`](https://doppler-dsp.github.io/doppler/design/streaming/).
+
+- **`wfm_spec_to_json()` takes a `seed_advance` argument**, inserted before
+    `headroom` because it describes the stream rather than the writer.
+    `WFM_SEED_ADVANCE_NONE` reproduces the old output byte for byte. Fixes
+    [#978](https://github.com/doppler-dsp/doppler/issues/978).
+
+### Added
+
+- **`dp_stream_interrupt()` — a blocking receive you can actually stop.** The
+    library checks a process-wide flag *inside* the wait, so `*_recv` returns
+    `DP_ERR_INTERRUPTED` instead of parking forever once a sender goes quiet.
+    Python gets `interrupt_on_sigint()` (a context manager) plus
+    `interrupt()`/`resume()`/`interrupted()`; an unblocked `recv()` raises
+    `KeyboardInterrupt`.
+
+- **A sender can say it has finished, and a receiver hears it.**
+    `dp_pub_send_eos()` / `Push.send_eos()` publish a zero-payload
+    `DP_KIND_EOS` frame; `*_recv` reports `DP_ERR_EOF` and Python raises
+    `EOFError`. A timeout only ever answered "nothing *yet*". Delivery follows
+    the tier — at-most-once on PUB/SUB, at-least-once on PUSH/PULL.
+
+- **The ring buffer can say it is finished, and its wait can end.**
+    `dp_<t>_close()` / `dp_<t>_closed()`, and `dp_<t>_wait()` returns `NULL`
+    on drained-and-closed or on interrupt instead of spinning forever at 100%
+    CPU with no flag to read. Contract change for `wait()`'s callers.
+
+- **A follow read is stoppable from Python.** `Reader.read_follow()` installs
+    `dp_interrupted` at construction; before this it had no escape at all.
+    A stop still does not by itself end the read — `follow_grace_ms` defaults
+    to forever, so shutdown propagates *through* the file.
+
+- **`dp_pub_flush()` and `dp_stream_drain()`** — "does the server have it?"
+    and "stop cleanly", neither of which a sender could previously ask.
+    `drain()` waits for CLOSED, so a process exiting on its return does not
+    abandon the work; a send afterwards returns `DP_ERR_CLOSED`, a state
+    rather than a transport failure.
+
+- **`dp_mean_power()` / `doppler.stream.mean_power()`** — mean power of a
+    complex block normalised to full scale, so `10*log10()` is dBFS whatever
+    the wire carried. Replaces four private copies of the same formula. Also
+    `doppler.stream.format_name()` and `data_rep` in the `recv()` header.
+
+- **One wait contract for network, memory and disk** —
+    [`docs/design/io-termination.md`](https://doppler-dsp.github.io/doppler/design/io-termination/).
+    The three transports had the same defect three times: "no data now" was
+    indistinguishable from "no data ever". Written before the implementation
+    so the vocabulary could not diverge across them.
+
+- **`docs/design/streaming.md`** — the transport contract, which had no home:
+    the wire byte by byte, chunking and reassembly, the subjects derived from
+    an endpoint, buffer ownership, and what the layer does not promise.
+    Writing it produced #956, #958 and #959.
+
+- **A worked example of stopping a stream cleanly**
+    (`graceful_shutdown_demo.py`), driving the real `wfmgen` unpaced. Asserts
+    the three previously unanswerable things: the run can be interrupted, the
+    consumer *learns* the stream ended, and the tail arrived. Measured: the
+    producer stops in ~31 ms while saturated at ~3 GB/s.
+
+- **`work_queue_shutdown_demo.py`** — the SPMC case, one producer and five
+    consumers, asserting the trap: a work queue load-balances, so `send_eos()`
+    ends *one* consumer and the other four wait forever. Ending a pool of N
+    needs N markers.
+
+- **The two-process streaming examples are RUN now, in pairs.**
+    `transmitter`/`receiver`, `replier`/`requester` and
+    `pipeline_send`/`pipeline_recv` move from `.examples-skip` to a
+    `.examples-pairs` registry whose evidence regex means a pair that exits 0
+    having exchanged nothing still fails. Gate: 76 passed / 7 skipped → 80 / 1.
+
+- **`costas`'s pull-in is measured, not assumed** —
+    `native/validation/costas_pullin.c`. The loop an entire receiver's carrier
+    recovery rests on had only a jitter validator, which its own MPSK twin
+    calls "not the question". Acquires at and inside `bn/m` on both signs, and
+    the bound scales with `bn`. Symmetric, so [#982](https://github.com/doppler-dsp/doppler/issues/982)'s
+    asymmetry is not in this loop.
+
+- **`async_dsss_receiver_core.h` no longer states its pull-in as prose.** The
+    header claimed "~tens of Hz" of residual; it is **−54..+375 Hz**, 2–6× the
+    loop's own bound, so the receiver asks its carrier loop to acquire from
+    outside its range on most draws.
+
+### Changed
+
+- **The version sites have one declaration, one reader and one writer**
+    (`scripts/version_sites.py`). Two lists — one to read each site, one to
+    write it — encoded *jointly impossible* rules: the writer stripped a
+    pre-release suffix that the reader then failed to match, so
+    `make bump-version VERSION=X.Y.Zrc1` produced a tree that could not pass
+    `release.yml`'s own check. Pre-releases are refused with that reason;
+    supporting them needs [just-buildit#30](https://github.com/just-buildit/just-buildit.github.io/issues/30).
+
+- **Re-vendored `standard.mk`: a bare exported `VERSION` can no longer arm a
+    release target.** `VERSION=9.9.9 make bump-version`, with no argument
+    typed, rewrote every manifest. Fixed upstream
+    ([just-buildit#29](https://github.com/just-buildit/just-buildit.github.io/pull/29))
+    rather than copied here: `PROJECT = DOPPLER` makes
+    `JUST_BUILDIT_DOPPLER_VERSION` the spelling that carries intent.
+
+- **The CI image fingerprint hashes the image's inputs, not two whole files.**
+    `cat bootstrap.toml Dockerfile.ci | sha256sum` counted a `[project]   version` no layer reads, which is what had kept doppler's version out of
+    that file. Now parsed, with `[project]` excluded — one reasoned exclusion
+    beats an include-list that stops covering a table added later.
+
+- **The interrupt primitive moved to the core library** as
+    `native/inc/dp_interrupt.h`. It lived in the optional `libdoppler_stream`
+    while two of its three users are core, and never had a NATS dependency.
+    The `dp_stream_*` spellings still forward and are **deprecated**.
+
+- **The DSSS examples describe their burst to wfmgen instead of assembling
+    it.** Three examples hand-built `[preamble | sync | payload | CRC]`, so
+    the framing rules lived in four places — including a second private
+    `_crc16()`. Decoded bursts are bit-identical after the move. Ground truth
+    now comes from `bpsk_map`, which fixes a sign inversion both files had.
+
+- **The DSSS examples measure with doppler's objects instead of hand-rolled
+    numpy**, and two of those copies were wrong.
+    `dsss_burst_demo`'s repetition sweep is `BurstAcquisition` now: the hand
+    correlator matched one code period regardless of `acq_reps` and so
+    measured +0.6 dB across an 8× change while claiming +9
+    ([#980](https://github.com/doppler-dsp/doppler/issues/980)).
+
+- **`dsss_burst_demo.py`'s payload is now actually spread, and a gate says
+    so.** Its headline claim was false — the "payload" was a BPSK segment at
+    one pulse per bit, filling 0.010 of the band against the preamble's 0.69.
+    Now 0.53 against 0.69, with a ratio assertion beside it.
+
+- **The async DSSS example measures its acquisition rate** instead of
+    asserting one lucky draw: 5/8 (TCA) and 6/8 (±50 kHz) over fixed noise
+    draws, decoding cleanly whenever it acquires. Why that rate:
+    [#982](https://github.com/doppler-dsp/doppler/issues/982).
+
+- **Both receiver examples show the same dashboard** — wire header, power in
+    dBFS, sustained MS/s/MB/s, and one-way latency from `timestamp_ns`, which
+    nothing had been using. Power comes from one shared C primitive, so the
+    two faces cannot disagree about a frame.
+
+- **The examples now live where their language does.** `examples/c/` →
+    `native/examples/`, and the two stand-alone consumer projects →
+    `example-projects/`, which says what they are. All pure renames.
+
+- **just-makeit pin 0.63.3 → 0.68.0**, across four bumps. 0.67.1 for
+    `process_global` (the mechanism [#976](https://github.com/doppler-dsp/doppler/issues/976)
+    needs); 0.67.3 retiring both workarounds it shipped with, plus jm gh-1140
+    which doppler filed after finding a generated contract header that `apply`
+    never rewrote and `status` never compared; 0.68.0 for gh-1141/gh-1142,
+    whose new version gate doppler passes **only** because the `0.1.0` below
+    was fixed first.
+
+### Fixed
+
+- **Two `[project] version` fields had never been bumped, and nothing was
+    watching either.** `bootstrap.toml` sat at `0.3.7`, `just-makeit.toml` at
+    `0.1.0` — the value from the *initial commit* — while doppler shipped to
+    0.43.2. `make version-check` now probes five files instead of three.
+
+- **A stop requested in one extension module now reaches a wait in another**
+    ([#976](https://github.com/doppler-dsp/doppler/issues/976)). Each `.so`
+    links the interrupt primitive statically and CPython imports `RTLD_LOCAL`,
+    so the flag `doppler.interrupt` set was not the flag `doppler.buffer` read
+    — invisible because the only setter and the only tested wait shared a
+    module.
+
+- **The runtime image's own documented first command failed** with
+    `FileNotFoundError` ([#954](https://github.com/doppler-dsp/doppler/issues/954)).
+    `awgn_demo.py` wrote to a repo-relative path. Two gates were watching and
+    neither could see it: the example harness pre-created the directory, and
+    the image smoke checked `import doppler` rather than what the image is
+    for. Both fixed.
+
+- **The C receiver example ignored Ctrl+C once the transmitter stopped.** No
+    receive timeout, so `dp_sub_recv` parked inside the NATS client and the
+    SIGINT flag was never re-read — invisible while traffic flows. 0.26 s to
+    exit with the fix. Also found: CI ran `make nats-down` *before* the
+    examples step, so every broker-dependent example silently self-skipped.
+
+- **34 example docstrings told you to run a path that has not existed for
+    releases.** `check_doc_paths.py` read an example's docstring as code
+    rather than documentation; examples are in scope now, bare paths included.
+
+- **A feature-test macro in a public header does not work, and two of ours
+    were there** ([#986](https://github.com/doppler-dsp/doppler/issues/986)).
+    glibc latches the feature set on the first `features.h` include, so
+    `#define _GNU_SOURCE` in a header is a no-op for most translation units.
+
+- **`wfmgen --continuous` could not be stopped without losing its output**,
+    and **a `--record` capture now replays the run it recorded** —
+    `seed_advance` was written to the record but never read back.
+
+- **`ddc_fn_scaling.py` read one point of its scaling curve** and called an
+    ordinary cloud VM a GIL regression
+    ([#990](https://github.com/doppler-dsp/doppler/issues/990)). 1.02× at two
+    threads with **1.90× at four** is a clock ceiling, not a held GIL, which
+    caps every count near 1×. It reads the whole curve now.
+
+- **`spool_follow_demo` waited for a Ctrl+C nobody could send** and hung the
+    example gate.
+
+- **The stimulus gate's `evm` marker was defeated by a one-word prefix.**
+
+- **An end-of-stream frame on the work queue is acked**, so it does not
+    redeliver forever, and **`dp_frame_parse` checks an EOS frame's `format`**
+    rather than accepting any.
+
+- **`F64Buffer.close()` and `I16Buffer.close()` documented themselves with
+    the wrong type's name.**
+
 ## [0.43.2] — 2026-08-22
 
 ### Fixed
@@ -11263,6 +11488,10 @@ ______________________________________________________________________
 [0.40.0]: https://github.com/doppler-dsp/doppler/compare/v0.39.0...v0.40.0
 [0.41.0]: https://github.com/doppler-dsp/doppler/compare/v0.40.0...v0.41.0
 [0.42.0]: https://github.com/doppler-dsp/doppler/compare/v0.41.0...v0.42.0
+[0.43.0]: https://github.com/doppler-dsp/doppler/compare/v0.42.0...v0.43.0
+[0.43.1]: https://github.com/doppler-dsp/doppler/compare/v0.43.0...v0.43.1
+[0.43.2]: https://github.com/doppler-dsp/doppler/compare/v0.43.1...v0.43.2
+[0.44.0]: https://github.com/doppler-dsp/doppler/compare/v0.43.2...v0.44.0
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
 [0.5.1]: https://github.com/doppler-dsp/doppler/compare/v0.5.0...v0.5.1
 [0.5.2]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...v0.5.2
@@ -11273,3 +11502,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.44.0...HEAD

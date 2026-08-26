@@ -222,7 +222,6 @@ dsss_burst_receiver_reset (dsss_burst_receiver_state_t *state)
   state->samples_fed = 0;
   state->pending     = 0;
   state->q_head      = 0;
-  state->q_len       = 0;
   state->ev_len      = 0;
   memset (state->q, 0, state->q_cap * sizeof *state->q);
   state->suppress_until = 0;
@@ -396,7 +395,7 @@ dsss_br_trim (dsss_burst_receiver_state_t *s)
   uint64_t head = s->hist->head;
   uint64_t keep
       = head > (uint64_t)s->retain_span ? head - (uint64_t)s->retain_span : 0;
-  if (s->q_len)
+  if (s->pending)
     {
       const dsss_br_pending_t *o    = &s->q[s->q_head];
       uint64_t                 base = o->refined ? o->start : o->anchor;
@@ -421,7 +420,7 @@ dsss_br_trim (dsss_burst_receiver_state_t *s)
 static size_t
 dsss_br_emit (dsss_burst_receiver_state_t *s, uint8_t *out, size_t max_out)
 {
-  if (!s->q_len)
+  if (!s->pending)
     return 0;
   dsss_br_pending_t *e = &s->q[s->q_head];
 
@@ -485,7 +484,7 @@ dsss_br_emit (dsss_burst_receiver_state_t *s, uint8_t *out, size_t max_out)
     }
 
   s->q_head = (s->q_head + 1u) % s->q_cap;
-  s->q_len--;
+  s->pending--;
 
   /* A burst that DECODED owns its whole span: the payload goes on firing
      against the acquisition code, and none of that is a new burst. This is
@@ -501,7 +500,7 @@ dsss_br_emit (dsss_burst_receiver_state_t *s, uint8_t *out, size_t max_out)
         s->suppress_until = until;
 
       size_t keep = 0;
-      for (size_t j = 0; j < s->q_len; j++)
+      for (size_t j = 0; j < s->pending; j++)
         {
           dsss_br_pending_t *cand = &s->q[(s->q_head + j) % s->q_cap];
           if (cand->anchor < s->suppress_until)
@@ -509,10 +508,9 @@ dsss_br_emit (dsss_burst_receiver_state_t *s, uint8_t *out, size_t max_out)
           s->q[(s->q_head + keep) % s->q_cap] = *cand;
           keep++;
         }
-      s->q_len = keep;
+      s->pending = keep;
     }
 
-  s->pending = s->q_len;
   return n;
 }
 
@@ -573,8 +571,13 @@ dsss_burst_receiver_push (dsss_burst_receiver_state_t *state,
                           size_t max_out)
 {
   /* Every call starts a fresh event list: `events()` describes THIS push. */
-  state->ev_len  = 0;
-  state->pending = 0;
+  state->ev_len = 0;
+  /* `pending` is NOT cleared here. It is the live queue length -- detections
+     whose burst window has not arrived -- and it must survive across pushes,
+     because surviving across pushes is the whole point of holding them. It
+     used to be a separate per-push counter zeroed on this line, which is
+     what made a mechanical merge of the two fields silently discard a burst
+     split across two calls. */
 
   /* Drain anything already complete FIRST -- it is returned by this call,
      not held back. In practice this finds nothing, and that is the point:
@@ -640,7 +643,7 @@ dsss_burst_receiver_push (dsss_burst_receiver_state_t *state,
                  not own the slot, which is precisely how a spurious detection
                  used to discard the next real burst (doppler#1004). */
               int merged = 0;
-              for (size_t j = 0; j < state->q_len; j++)
+              for (size_t j = 0; j < state->pending; j++)
                 {
                   dsss_br_pending_t *cand
                       = &state->q[(state->q_head + j) % state->q_cap];
@@ -670,11 +673,11 @@ dsss_burst_receiver_push (dsss_burst_receiver_state_t *state,
               if (merged)
                 continue;
 
-              if (state->q_len >= state->q_cap)
+              if (state->pending >= state->q_cap)
                 break;
 
               dsss_br_pending_t *q
-                  = &state->q[(state->q_head + state->q_len) % state->q_cap];
+                  = &state->q[(state->q_head + state->pending) % state->q_cap];
               q->anchor   = epoch;
               q->start    = 0;
               q->margin   = 1.0;
@@ -684,7 +687,7 @@ dsss_burst_receiver_push (dsss_burst_receiver_state_t *state,
                   = dp_fftfreq (hits[i].doppler_bin, e->coherent_bins,
                                 e->doppler_res_hz * (double)e->coherent_bins);
               q->cn0_dbhz = hits[i].cn0_dbhz_est;
-              state->q_len++;
+              state->pending++;
             }
 
           /* How much acq actually took. A zero means it could not frame at
@@ -849,10 +852,10 @@ dsss_burst_receiver_state_bytes (const dsss_burst_receiver_state_t *s)
      coincidence. Both variable regions are fixed-size with a length prefix. */
   return sizeof (dp_state_hdr_t)
          + sizeof (uint64_t) * 4u /* samples_fed, n_bursts, dropped, start  */
-         + sizeof (uint32_t) * 2u /* frame_valid, pending                   */
+         + sizeof (uint32_t)      /* frame_valid                            */
          + sizeof (double) * 7u   /* the event's doubles                    */
          + sizeof (uint64_t)      /* suppress_until                         */
-         + sizeof (uint32_t) * 2u /* q_len, q_head                          */
+         + sizeof (uint32_t) * 2u /* pending, q_head                        */
          + sizeof (dsss_br_pending_t) * s->q_cap
          + sizeof (uint32_t) /* retained sample count                       */
          + s->retain_span * sizeof (float _Complex)
@@ -873,7 +876,6 @@ dsss_burst_receiver_get_state (const dsss_burst_receiver_state_t *s,
   dp_w_u64 (&_w, s->dropped);
   dp_w_u64 (&_w, s->preamble_start);
   dp_w_u32 (&_w, (uint32_t)s->frame_valid);
-  dp_w_u32 (&_w, (uint32_t)s->pending);
   dp_w_f64 (&_w, s->doppler_hz_est);
   dp_w_f64 (&_w, s->doppler_res_hz);
   dp_w_f64 (&_w, s->cn0_dbhz_est);
@@ -886,7 +888,7 @@ dsss_burst_receiver_get_state (const dsss_burst_receiver_state_t *s,
   /* The detections in flight. Omitting these would resume a receiver that
      had forgotten a burst it had already found but not yet returned -- a
      silently lost burst, which is the failure this object exists to avoid. */
-  dp_w_u32 (&_w, (uint32_t)s->q_len);
+  dp_w_u32 (&_w, (uint32_t)s->pending);
   dp_w_u32 (&_w, (uint32_t)s->q_head);
   dp_w_bytes (&_w, s->q, s->q_cap * sizeof *s->q);
 
@@ -935,7 +937,6 @@ dsss_burst_receiver_set_state (dsss_burst_receiver_state_t *s,
   s->dropped        = dp_r_u64 (&_r);
   s->preamble_start = dp_r_u64 (&_r);
   s->frame_valid    = (int)dp_r_u32 (&_r);
-  s->pending        = (size_t)dp_r_u32 (&_r);
   s->doppler_hz_est = dp_r_f64 (&_r);
   s->doppler_res_hz = dp_r_f64 (&_r);
   s->cn0_dbhz_est   = dp_r_f64 (&_r);
@@ -945,12 +946,12 @@ dsss_burst_receiver_set_state (dsss_burst_receiver_state_t *s,
   s->refine_margin  = dp_r_f64 (&_r);
   s->suppress_until = dp_r_u64 (&_r);
 
-  uint32_t q_len  = dp_r_u32 (&_r);
-  uint32_t q_head = dp_r_u32 (&_r);
-  if (q_len > s->q_cap || q_head >= s->q_cap)
+  uint32_t pending = dp_r_u32 (&_r);
+  uint32_t q_head  = dp_r_u32 (&_r);
+  if (pending > s->q_cap || q_head >= s->q_cap)
     return DP_ERR_INVALID;
-  s->q_len  = q_len;
-  s->q_head = q_head;
+  s->pending = pending;
+  s->q_head  = q_head;
   dp_r_bytes (&_r, s->q, s->q_cap * sizeof *s->q);
 
   uint32_t n = dp_r_u32 (&_r);

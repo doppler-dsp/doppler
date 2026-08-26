@@ -3529,11 +3529,37 @@ class DsssBurstReceiver:
         """Runner-up period over the winner."""
 
     @property
+    def refine_span(self) -> int:
+        """Coalescing window, in samples -- the MINIMUM BURST SPACING. Two
+        detections closer together than this are treated as the same preamble
+        and merged, so bursts packed tighter than `refine_span` are lost rather
+        than reported. Measured at a 255-chip code, `reps=5`, `spc=2`: bursts
+        spaced 8916 samples yielded 2 decodes from 7 bursts, with `dropped ==
+        0`.
+        """
+
+    @property
+    def retain_span(self) -> int:
+        """History kept per anchor, in samples -- the MINIMUM TRAILING CONTEXT.
+        `refine_span` plus one whole burst. A burst closer than this to the end
+        of what has been pushed is held rather than emitted, because refine
+        cannot yet see the samples it needs. Feed at least this many more, or
+        the last burst of a capture never comes out. At the geometry above the
+        boundary is sharp: 20500 trailing samples against a `retain_span` of
+        20556 loses the burst.
+        """
+
+    @property
     def pending(self) -> int:
-        """Always 0. push() returns EVERY burst it completed, so nothing is
-        ever left awaiting return. Kept so the read-back does not vanish from a
-        released API; it used to report `q_len`, which is not what its own
-        documentation claimed.
+        """Detections held because their burst window has not fully arrived.
+        `push()` emits nothing for these on purpose -- a burst is returned when
+        it is complete, not when it is guessed at. Feed more samples and it
+        comes out bit-exact, wherever the split fell. Read it at the END of a
+        stream. A caller closing a file or a socket while this is non-zero is
+        discarding a burst that would have decoded, and nothing else
+        distinguishes that from an empty capture: `dropped` counts samples the
+        ring refused, `n_bursts` counts what was demodulated, and a truncated
+        burst is neither.
         """
 
     @property

@@ -502,42 +502,91 @@ DsssBurstReceiver_getprop_n_bursts (DsssBurstReceiverObject *self,
       (unsigned long long)dsss_burst_receiver_get_n_bursts (self->handle));
 }
 
-static PyGetSetDef DsssBurstReceiver_getset[]
-    = { { "preamble_start", (getter)DsssBurstReceiver_getprop_preamble_start,
-          NULL, "Stream-absolute preamble start. Never late.\n", NULL },
-        { "frame_valid", (getter)DsssBurstReceiver_getprop_frame_valid, NULL,
-          "1 if the CRC-16 trailer matched.\n", NULL },
-        { "doppler_hz_est", (getter)DsssBurstReceiver_getprop_doppler_hz_est,
-          NULL, "Folded/signed Doppler estimate, Hz.\n", NULL },
-        { "doppler_res_hz", (getter)DsssBurstReceiver_getprop_doppler_res_hz,
-          NULL, "Doppler bin width = chip_rate/(sf*coherent_bins).\n", NULL },
-        { "cn0_dbhz_est", (getter)DsssBurstReceiver_getprop_cn0_dbhz_est, NULL,
-          "Estimated carrier-to-noise density (dB-Hz), backed out of "
-          "test_stat via the same C/N0 <-> per-sample-amplitude-SNR "
-          "relationship used to size the engine (see acq_create_burst()/ "
-          "acq_create_continuous()). Tracks the true C/N0 while receiver AWGN "
-          "dominates the CFAR noise estimate; saturates at the code's own "
-          "autocorrelation-sidelobe floor once the true C/N0 exceeds what "
-          "this code/geometry can resolve — a real ceiling, not a fault.\n",
-          NULL },
-        { "est_freq_hz", (getter)DsssBurstReceiver_getprop_est_freq_hz, NULL,
-          "estimated residual Doppler (Hz).\n", NULL },
-        { "est_rate_hz", (getter)DsssBurstReceiver_getprop_est_rate_hz, NULL,
-          "estimated Doppler rate (Hz/s).\n", NULL },
-        { "est_snr_db", (getter)DsssBurstReceiver_getprop_est_snr_db, NULL,
-          "estimator confidence (dB).\n", NULL },
-        { "refine_margin", (getter)DsssBurstReceiver_getprop_refine_margin,
-          NULL,
-          "Winning preamble correlation over its nearest whole-period "
-          "competitor. Near 1 means the period was NOT resolved.\n",
-          NULL },
-        { "pending", (getter)DsssBurstReceiver_getprop_pending, NULL,
-          "Bursts demodulated, awaiting return by push().\n", NULL },
-        { "dropped", (getter)DsssBurstReceiver_getprop_dropped, NULL,
-          "Overrun ctr.\n", NULL },
-        { "n_bursts", (getter)DsssBurstReceiver_getprop_n_bursts, NULL,
-          "Bursts demodulated, lifetime.\n", NULL },
-        { NULL } };
+static PyObject *
+DsssBurstReceiver_getprop_refine_span (DsssBurstReceiverObject *self,
+                                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->refine_span);
+}
+
+static PyObject *
+DsssBurstReceiver_getprop_retain_span (DsssBurstReceiverObject *self,
+                                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->retain_span);
+}
+
+static PyGetSetDef DsssBurstReceiver_getset[] = {
+  { "preamble_start", (getter)DsssBurstReceiver_getprop_preamble_start, NULL,
+    "Stream-absolute preamble start. Never late.\n", NULL },
+  { "frame_valid", (getter)DsssBurstReceiver_getprop_frame_valid, NULL,
+    "1 if the CRC-16 trailer matched.\n", NULL },
+  { "doppler_hz_est", (getter)DsssBurstReceiver_getprop_doppler_hz_est, NULL,
+    "Folded/signed Doppler estimate, Hz.\n", NULL },
+  { "doppler_res_hz", (getter)DsssBurstReceiver_getprop_doppler_res_hz, NULL,
+    "Doppler bin width = chip_rate/(sf*coherent_bins).\n", NULL },
+  { "cn0_dbhz_est", (getter)DsssBurstReceiver_getprop_cn0_dbhz_est, NULL,
+    "Estimated carrier-to-noise density (dB-Hz), backed out of "
+    "test_stat via the same C/N0 <-> per-sample-amplitude-SNR "
+    "relationship used to size the engine (see acq_create_burst()/ "
+    "acq_create_continuous()). Tracks the true C/N0 while receiver AWGN "
+    "dominates the CFAR noise estimate; saturates at the code's own "
+    "autocorrelation-sidelobe floor once the true C/N0 exceeds what "
+    "this code/geometry can resolve — a real ceiling, not a fault.\n",
+    NULL },
+  { "est_freq_hz", (getter)DsssBurstReceiver_getprop_est_freq_hz, NULL,
+    "estimated residual Doppler (Hz).\n", NULL },
+  { "est_rate_hz", (getter)DsssBurstReceiver_getprop_est_rate_hz, NULL,
+    "estimated Doppler rate (Hz/s).\n", NULL },
+  { "est_snr_db", (getter)DsssBurstReceiver_getprop_est_snr_db, NULL,
+    "estimator confidence (dB).\n", NULL },
+  { "refine_margin", (getter)DsssBurstReceiver_getprop_refine_margin, NULL,
+    "Winning preamble correlation over its nearest whole-period "
+    "competitor. Near 1 means the period was NOT resolved.\n",
+    NULL },
+  { "pending", (getter)DsssBurstReceiver_getprop_pending, NULL,
+    "Bursts demodulated, awaiting return by push().\n", NULL },
+  { "dropped", (getter)DsssBurstReceiver_getprop_dropped, NULL,
+    "Overrun ctr.\n", NULL },
+  { "n_bursts", (getter)DsssBurstReceiver_getprop_n_bursts, NULL,
+    "Bursts demodulated, lifetime.\n", NULL },
+  { "refine_span", (getter)DsssBurstReceiver_getprop_refine_span, NULL,
+    "Coalescing window, in samples -- the MINIMUM BURST SPACING.\n"
+    "\n"
+    "Two detections closer together than this are treated as the same "
+    "preamble\n"
+    "and merged, so bursts packed tighter than `refine_span` are lost rather\n"
+    "than reported. Measured at a 255-chip code, `reps=5`, `spc=2`: bursts\n"
+    "spaced 8916 samples yielded 2 decodes from 7 bursts, with `dropped == "
+    "0`.\n",
+    NULL },
+  { "retain_span", (getter)DsssBurstReceiver_getprop_retain_span, NULL,
+    "History kept per anchor, in samples -- the MINIMUM TRAILING CONTEXT.\n"
+    "\n"
+    "`refine_span` plus one whole burst. A burst closer than this to the end "
+    "of\n"
+    "what has been pushed is held rather than emitted, because refine cannot "
+    "yet\n"
+    "see the samples it needs. Feed at least this many more, or the last "
+    "burst of\n"
+    "a capture never comes out. At the geometry above the boundary is sharp: "
+    "20500\n"
+    "trailing samples against a `retain_span` of 20556 loses the burst.\n",
+    NULL },
+  { NULL }
+};
 
 static PyObject *
 DsssBurstReceiverObj_destroy (DsssBurstReceiverObject *self,

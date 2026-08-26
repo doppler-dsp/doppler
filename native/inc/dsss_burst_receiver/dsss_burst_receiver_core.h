@@ -172,10 +172,24 @@ typedef struct {
                                  across the candidate sweep so the sliding
                                  correlation is computed once and the
                                  non-coherent combine just indexes it.     */
-  size_t refine_span;  /**< Candidate offsets searched: 2*reps*code_period. */
+  size_t refine_span;  /**< Candidate offsets searched, in samples:
+                            `(k_lo + k_hi + reps) * code_period`, which is
+                            `(4*reps + 4) * code_period` for the `k_lo`
+                            chosen in create(). This doc claimed
+                            `2*reps*code_period` until it was measured --
+                            2.4x low at reps=5 -- so read `refine_span`
+                            rather than the formula.
+
+                            It is also the CALLER-facing minimum burst
+                            spacing: two anchors closer than this are
+                            coalesced as one preamble, so bursts packed
+                            tighter are merged and the rest are lost.     */
   size_t corr_len;     /**< Entries in corr_buf.                            */
   size_t retain_span;  /**< Samples that must stay reachable: refine span +
-                            one whole burst.                               */
+                            one whole burst. Also the caller-facing minimum
+                            TRAILING context -- a burst closer than this to
+                            the end of what has been pushed is not emitted
+                            until more samples arrive.                     */
   size_t chunk_max;    /**< Largest slice of one push processed at a time,
                             so any block size is accepted without the ring
                             overrunning its own retention.                 */
@@ -195,7 +209,21 @@ typedef struct {
                                   the batch on anything but the test's own
                                   geometry.                                 */
   size_t             q_head; /**< Index of the oldest entry.                */
-  size_t             q_len;  /**< Entries in flight.                        */
+  size_t             pending; /**< Detections held because their burst window
+                                  has NOT fully arrived -- the caller-facing
+                                  "there is not enough data yet" read-back.
+
+                                  push() deliberately emits nothing for these:
+                                  a burst is returned when it is complete, not
+                                  when it is guessed at. Feed more samples and
+                                  it comes out, bit-exact, wherever the split
+                                  fell. What this exists for is the OTHER end:
+                                  a caller closing a file or a socket while
+                                  this is non-zero is discarding a burst that
+                                  would have decoded, and every other
+                                  read-back looks identical to "nothing was
+                                  ever there" (`dropped` counts ring refusals,
+                                  not this).                                */
 
   /* ── The completed bursts of the LAST push ───────────────────────────
    * Scratch, deliberately NOT serialized: it describes the most recent
@@ -228,11 +256,6 @@ typedef struct {
   size_t k_hi; /**< ...and after.                                         */
 
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
-  size_t   pending;  /**< Always 0. push() returns EVERY burst it
-                          completed, so nothing is ever left awaiting
-                          return. Kept so the read-back does not vanish from
-                          a released API; it used to report `q_len`, which is
-                          not what its own documentation claimed.          */
   uint64_t dropped;  /**< Samples the ring refused. A LOST BURST each, not
                           a statistic -- lifetime, survives reset().       */
   uint64_t n_bursts; /**< Bursts demodulated, lifetime.                    */

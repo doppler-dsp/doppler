@@ -1,6 +1,6 @@
 # DsssBurstReceiver — the Composed Burst Chain
 
-![Four bursts decoded at their exact samples, and the same answer at every block size](../assets/dsss_burst_receiver_demo.png)
+![Four bursts decoded at their exact samples, the same answer at every block size, and every per-burst read-back checked against the scene](../assets/dsss_burst_receiver_demo.png)
 
 The composed form of `BurstAcquisition -> refine -> BurstDemod`, the burst
 DSSS receive chain, in one C object:
@@ -26,7 +26,7 @@ redoing, and getting subtly wrong:
     inconsistent ways before it became
     [`dp_fftfreq()`](../c-api/index.md).
 
-## Three properties, each asserted
+## Four properties, each asserted
 
 The example is a gate, not an illustration: it exits non-zero if any of
 these stops being true.
@@ -86,13 +86,61 @@ is lost; one sample more recovers all four. Both spans were internal until
 to learn the minimum spacing was to read the C, and the header's own
 formula for it was 2.4x low.
 
+### 4. Every read-back, checked against the scene
+
+One `push()` can complete several bursts, and the scalar properties
+(`rx.cn0_dbhz_est` and friends) describe only the **last** one. `events()`
+hands back the same nine fields *per burst*, and between them they are the
+object's entire diagnostic surface:
+
+| field            | what it is                                  | what it is checked against here                          |
+| ---------------- | ------------------------------------------- | -------------------------------------------------------- |
+| `preamble_start` | exact stream position of the preamble       | the burst's true start, sample for sample                |
+| `doppler_hz_est` | signed coarse Doppler, from the search grid | must sit inside the bin that contains the truth          |
+| `doppler_res_hz` | that grid's bin width                       | `fs / (sf * spc)` — `acq` transforms `sf*spc` verbatim   |
+| `cn0_dbhz_est`   | C/N0 **lower bound** implied by the hit     | `Es/N0 + 10·log10(Rs)` of the scene that was generated   |
+| `est_freq_hz`    | residual frequency after refine + demod     | a hundredth of one search bin — and it beats that by far |
+| `est_rate_hz`    | chirp-rate estimate                         | zero, because `max_rate=0` switches that axis **off**    |
+| `est_snr_db`     | the estimator's own peak-to-mean confidence | a floor — it is **not** a link SNR                       |
+| `refine_margin`  | runner-up code period over the winner       | strictly under 1, or the wrong period won                |
+| `frame_valid`    | the CRC-16 checked out                      | 1, on every burst                                        |
+
+<!-- docs-snippet: skip=an excerpt whose names (results, capture, truth) live in the example's namespace; the script itself is executed on every push by `make test-examples-python` -->
+
+```python
+--8<-- "src/doppler/examples/dsss_burst_receiver_demo.py:probes"
+```
+
+The bottom two panels of the figure are those rows plotted. The left one is
+the reason the chain does not stop at acquisition: the search grid can only
+promise half a bin — **1961 Hz** at this geometry — and refine plus demod
+resolve the residual to well under a hertz, three orders of magnitude
+inside it. The right one puts the quality read-backs beside the scene that
+produced them: the C/N0 estimate lands within about a decibel of the
+scene's **57.1 dB-Hz** on every burst, from a bound that is allowed to be
+pessimistic and must not run hot.
+
+Two of these are easy to misread, so the example asserts them rather than
+mentioning them:
+
+- **`est_rate_hz == 0` is a configuration fact, not a measurement.** This
+    receiver was built with `max_rate=0.0`, so the chirp axis is not
+    searched. A caller who wants a rate has to ask for one.
+- **`est_snr_db` is confidence, not SNR.** It is the winning estimator
+    row's peak-to-mean ratio. Comparing it with the link's Es/N0 will give
+    a number that looks meaningful and is not.
+
 ## The same thing in C
 
 The [C example](https://github.com/doppler-dsp/doppler/blob/main/native/examples/dsss_burst_receiver_demo.c)
-demonstrates the identical four sections and prints the identical numbers,
+demonstrates the same sections and prints the same numbers,
 because both build their capture from **one wfmgen scene** through the same
 engine — `wfm_compose_create()` in C, `Composer`/`Segment` in Python.
 Neither tiles a preamble, spreads a frame, appends a CRC or draws noise.
+(The per-burst estimates of the read-back section are the one place the two
+faces differ in the last decimal: the payload bits are drawn differently, so
+the noise the estimator sees is not the same realisation. Every check the two
+apply is the same one, derived the same way from the scene.)
 
 What the C face shows that the Python one cannot is the part the binding
 does for you: the lifecycle you manage yourself, and that the output buffer

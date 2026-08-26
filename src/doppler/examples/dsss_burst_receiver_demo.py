@@ -16,7 +16,7 @@ stops being the caller's problem:
 - a bin→frequency fold that four call sites once restated three mutually
   inconsistent ways is now inside.
 
-Three properties are demonstrated, each with an assertion rather than a
+Four properties are demonstrated, each with an assertion rather than a
 claim — exit 0 means measured, not merely run.
 
 **1. Block size does not change the answer.** The same capture is pushed as
@@ -35,15 +35,34 @@ read-back distinguishes that from an empty capture.
 spacing, it is a property rather than a constant, and packing tighter
 silently costs bursts rather than erroring.
 
-Two panels
-----------
-Left
+**4. Every read-back is checked against the capture that produced it.** The
+nine fields of `events()` are the object's whole diagnostic surface, and
+each is compared here with what the scene says it must be -- the bin width
+with `fs / (sf*spc)`, the C/N0 estimate with the Es/N0 the segment was
+generated at, the coarse Doppler with its own bin, the refined residual
+with a hundredth of it. A read-back nobody checks is a number, not a
+measurement.
+
+Four panels
+-----------
+Top left
     The capture, with every true burst start marked and every decoded start
     overlaid. They coincide, which is the point.
 
-Right
+Top right
     Decoded-burst count against push block size, over four decades. A flat
     line is the claim; anything else is doppler#1008 coming back.
+
+Bottom left
+    Frequency: what the search grid can promise (half a bin) against what
+    refine and demod actually resolve, per burst, on a log axis. The gap is
+    three orders of magnitude and it is the reason `est_freq_hz` exists
+    alongside `doppler_hz_est`.
+
+Bottom right
+    Quality: the C/N0 estimate against the analytic C/N0 of the scene, the
+    estimator's own confidence, and the refine margin against the 1.0 it
+    must stay under. Every bar is a probe a caller can read at run time.
 """
 
 import matplotlib
@@ -279,8 +298,114 @@ assert n_tight < N_BURSTS, (
 )
 print("  -> coalesced, as documented. refine_span IS the minimum spacing.")
 
+# ── 4. every read-back the object offers, for EVERY burst ──────────────────
+# --8<-- [start:probes]
+# The scalar properties describe the LAST burst only — one push() can
+# complete several and one set of scalars cannot speak for all of them.
+# `events()` hands back the same nine fields per burst, and between them
+# they are the whole diagnostic surface: where the burst was, what the
+# search grid thought its Doppler was and how wide that grid is, what C/N0
+# the hit implies, what the estimator refined the residual frequency and
+# chirp rate to and how confident it was, how far the winning preamble beat
+# its runner-up, and whether the CRC checked out.
+_, _, rx_all = results[capture.size]
+events = np.asarray(rx_all.events(rx_all.events_max_out()))
+
+# What the scene says each read-back must be. Derived from the geometry
+# above, not from a previous run of this script: `acq` transforms sf*spc
+# verbatim, so the bin width is fs over that, and a segment generated at
+# Es/N0 with a DATA_SF-chip symbol carries C/N0 = Es/N0 + 10log10(Rs).
+BIN_HZ = FS / (ACQ_SF * SPC)
+CN0_DBHZ_TRUE = ESN0_DB + 10.0 * np.log10(CHIP_RATE / DATA_SF)
+
+print("\nevery read-back, per burst (events(), one row per decoded burst):")
+print(
+    f"  {'#':>2} {'start':>7} {'dopp_hz':>8} {'res_hz':>8} {'cn0_dBHz':>9} "
+    f"{'freq_hz':>8} {'rate_hz':>8} {'conf_dB':>8} {'margin':>7} {'crc':>4}"
+)
+for i, e in enumerate(events):
+    print(
+        f"  {i:>2} {int(e['preamble_start']):>7} "
+        f"{e['doppler_hz_est']:>8.1f} {e['doppler_res_hz']:>8.1f} "
+        f"{e['cn0_dbhz_est']:>9.2f} {e['est_freq_hz']:>8.2f} "
+        f"{e['est_rate_hz']:>8.2f} {e['est_snr_db']:>8.2f} "
+        f"{e['refine_margin']:>7.3f} {int(e['frame_valid']):>4}"
+    )
+print(
+    f"  scene: bin {BIN_HZ:.1f} Hz, C/N0 {CN0_DBHZ_TRUE:.2f} dB-Hz "
+    f"(Es/N0 {ESN0_DB:.0f} dB at {CHIP_RATE / DATA_SF / 1e3:.1f} ksym/s), "
+    "true offset 0 Hz, no chirp"
+)
+
+assert events.size == N_BURSTS, "one event per decoded burst, always"
+for i, e in enumerate(events):
+    where = f"burst {i}"
+    # The record must stand on its own: its start is the burst's start.
+    assert int(e["preamble_start"]) == truth[i], (
+        f"{where}: event says {int(e['preamble_start'])}, burst starts at "
+        f"{truth[i]}"
+    )
+    assert int(e["frame_valid"]) == 1, f"{where}: CRC-16 did not check out"
+    # The search grid: its width is derived, and its estimate must sit in
+    # the bin that contains the truth (0 Hz).
+    assert e["doppler_res_hz"] == BIN_HZ, (
+        f"{where}: bin width {e['doppler_res_hz']} != fs/(sf*spc) {BIN_HZ}"
+    )
+    assert abs(e["doppler_hz_est"]) <= BIN_HZ / 2, (
+        f"{where}: coarse Doppler {e['doppler_hz_est']:.1f} Hz is outside "
+        "the bin containing the true 0 Hz"
+    )
+    # ...and the whole reason the chain does not stop at acquisition: the
+    # refined residual is finer than the grid by orders of magnitude.
+    assert abs(e["est_freq_hz"]) < BIN_HZ / 100, (
+        f"{where}: refined residual {e['est_freq_hz']:.2f} Hz is no better "
+        f"than a hundredth of the {BIN_HZ:.0f} Hz search bin — refine and "
+        "demod are not adding anything over the grid"
+    )
+    # A zero here is a CONFIGURATION fact, not a measurement: max_rate=0
+    # switches the chirp axis off. Pass a non-zero max_rate to ask for one.
+    assert e["est_rate_hz"] == 0.0, (
+        f"{where}: chirp rate {e['est_rate_hz']} Hz/s from a receiver built "
+        "with max_rate=0, which does not search that axis"
+    )
+    # The C/N0 estimate is a LOWER BOUND, so it may not run hot; the scene
+    # says what it is bounding.
+    assert e["cn0_dbhz_est"] <= CN0_DBHZ_TRUE + 1.5, (
+        f"{where}: C/N0 estimate {e['cn0_dbhz_est']:.2f} dB-Hz runs hot "
+        f"against the scene's {CN0_DBHZ_TRUE:.2f} dB-Hz — it is documented "
+        "as a lower bound, and per-burst estimator spread here is a few "
+        "tenths of a dB"
+    )
+    assert e["cn0_dbhz_est"] >= CN0_DBHZ_TRUE - 3.0, (
+        f"{where}: C/N0 estimate {e['cn0_dbhz_est']:.2f} dB-Hz is more than "
+        f"3 dB under the scene's {CN0_DBHZ_TRUE:.2f} dB-Hz"
+    )
+    # `est_snr_db` is the estimator's own peak-to-mean confidence, NOT a
+    # link SNR — do not compare it with Es/N0.
+    assert e["est_snr_db"] > 10.0, (
+        f"{where}: estimator confidence {e['est_snr_db']:.1f} dB — the "
+        "winning row barely stood out from its own mean"
+    )
+    assert 0.0 < e["refine_margin"] < 1.0, (
+        f"{where}: refine margin {e['refine_margin']:.3f} — the runner-up "
+        "period was not beaten by the winner"
+    )
+
+# The scalars are not a second source: they ARE the last row.
+last = events[-1]
+for name in events.dtype.names:
+    assert getattr(rx_all, name) == last[name], (
+        f"scalar {name} disagrees with the last event row — the scalars "
+        "describe the most recent burst and nothing else"
+    )
+print(
+    f"  -> all {N_BURSTS} rows check out against the scene; the scalar "
+    "read-backs equal row -1, which is all they ever claim to be"
+)
+# --8<-- [end:probes]
+
 # ── figure ──────────────────────────────────────────────────────────────────
-fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(12, 4.2))
+fig, ((ax0, ax1), (ax2, ax3)) = plt.subplots(2, 2, figsize=(12, 8.4))
 
 t_ms = np.arange(capture.size) / FS * 1e3
 ax0.plot(t_ms, np.abs(capture), lw=0.4, color="0.6")
@@ -322,6 +447,112 @@ ax1.set_title(
     fontsize=9,
 )
 ax1.grid(alpha=0.3, which="both")
+
+# ── the read-backs, plotted ────────────────────────────────────────────────
+# Frequency, on a log axis because that is the only way the two live on one
+# plot: the search grid can promise half a bin and the estimator resolves
+# three orders finer. Absolute values, since the sign carries no information
+# once the truth is 0 Hz.
+idx = np.arange(N_BURSTS)
+resid = np.abs(events["est_freq_hz"])
+ax2.axhline(
+    BIN_HZ / 2,
+    color="0.45",
+    lw=1.2,
+    ls="--",
+    label=f"search grid: half a bin ({BIN_HZ / 2:.0f} Hz)",
+)
+ax2.bar(
+    idx,
+    resid,
+    width=0.45,
+    color="tab:purple",
+    label="|est_freq_hz| after refine + demod",
+)
+for i, v in enumerate(resid):
+    ax2.annotate(
+        f"{v:.2f} Hz",
+        (i, v),
+        textcoords="offset points",
+        xytext=(0, 4),
+        ha="center",
+        fontsize=7,
+    )
+ax2.set_yscale("log")
+ax2.set_xticks(idx)
+ax2.set_xlabel("burst")
+ax2.set_ylabel("|frequency error| (Hz)")
+ax2.set_title(
+    "What the grid promises vs what the chain resolves\n"
+    f"(median {np.median(resid):.2f} Hz — "
+    f"{BIN_HZ / 2 / max(np.median(resid), 1e-9):.0f}x inside one bin)",
+    fontsize=9,
+)
+ax2.set_ylim(min(resid.min(), 0.1) / 3, BIN_HZ * 4)
+ax2.legend(fontsize=8, loc="upper right")
+ax2.grid(alpha=0.3, which="both", axis="y")
+
+# Quality: two dB quantities on the left axis, the dimensionless refine
+# margin on the right, and the CRC flag as the marker that says the row is
+# worth reading at all.
+w = 0.35
+ax3.bar(
+    idx - w / 2,
+    events["cn0_dbhz_est"],
+    width=w,
+    color="tab:blue",
+    label="cn0_dbhz_est (lower bound)",
+)
+ax3.bar(
+    idx + w / 2,
+    events["est_snr_db"],
+    width=w,
+    color="tab:orange",
+    label="est_snr_db (estimator confidence)",
+)
+ax3.axhline(
+    CN0_DBHZ_TRUE,
+    color="tab:blue",
+    lw=1.0,
+    ls="--",
+    alpha=0.8,
+    label=f"scene C/N0 = {CN0_DBHZ_TRUE:.1f} dB-Hz",
+)
+ax3.set_xticks(idx)
+ax3.set_xlabel("burst")
+ax3.set_ylabel("dB / dB-Hz")
+ax3.set_ylim(0, CN0_DBHZ_TRUE * 1.45)
+ax3.grid(alpha=0.3, axis="y")
+
+ax3m = ax3.twinx()
+ax3m.plot(
+    idx,
+    events["refine_margin"],
+    "D-",
+    color="tab:green",
+    ms=5,
+    label="refine_margin (runner-up / winner)",
+)
+ax3m.axhline(1.0, color="tab:green", lw=0.8, ls=":", alpha=0.7)
+ax3m.set_ylim(0, 1.45 / 1.25)
+ax3m.set_ylabel("margin (must stay < 1)")
+
+for i, e in enumerate(events):
+    ax3.annotate(
+        "CRC ok" if e["frame_valid"] else "CRC BAD",
+        (i, 2.0),
+        ha="center",
+        fontsize=7,
+        color="0.25",
+    )
+h0, l0 = ax3.get_legend_handles_labels()
+h1, l1 = ax3m.get_legend_handles_labels()
+ax3.legend(h0 + h1, l0 + l1, fontsize=7, loc="upper center", ncol=2)
+ax3.set_title(
+    "Every quality read-back, checked against the scene\n"
+    "(C/N0 is a lower bound; confidence is peak-to-mean, not a link SNR)",
+    fontsize=9,
+)
 
 fig.tight_layout()
 fig.savefig("dsss_burst_receiver_demo.png", dpi=110)

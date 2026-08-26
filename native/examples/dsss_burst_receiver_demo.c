@@ -28,6 +28,11 @@
  *       `pending` says so. Read it before you stop feeding a stream.
  *   §4  Bursts closer than `refine_span` coalesce — that span IS the
  *       minimum burst spacing, not a suggestion.
+ *   §5  Every read-back, for EVERY burst: the nine fields of
+ *       `dsss_br_event_t`, each checked against what the scene says it must
+ *       be. The scalar members describe only the LAST burst — that is why
+ *       the record exists — and this section prints both and asserts the
+ *       relation between them.
  *
  * Build:
  *   cmake --build build
@@ -39,6 +44,7 @@
 #include <wfm/wfm_compose.h>
 
 #include <complex.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -293,6 +299,101 @@ main (void)
       {
         fprintf (stderr, "bursts inside refine_span were all decoded — the"
                          " rule this demonstrates has changed\n");
+        return 1;
+      }
+  }
+
+  /* ── §5  every read-back, for EVERY burst ─────────────────────────────── */
+  {
+    /* What the scene says each read-back must be, DERIVED rather than
+       remembered: acq transforms sf*spc verbatim, so the bin width is fs
+       over that, and a segment generated at Es/N0 with a DATA_SF-chip
+       symbol carries C/N0 = Es/N0 + 10log10(chip_rate / DATA_SF). */
+    const double bin_hz = FS / (double)(ACQ_SF * SPC);
+    const double cn0_true
+        = ESN0_DB + 10.0 * log10 (CHIP_RATE / (double)DATA_SF);
+
+    const size_t spacing = refine_span + refine_span / 5u;
+    const size_t want    = 4u;
+    size_t       n = compose (&src, want, spacing - BURST_LEN, cap, CAP_MAX);
+
+    dsss_burst_receiver_state_t *rx = make_rx (acode, dcode, sy);
+    if (!rx || !n)
+      {
+        fprintf (stderr, "§5 setup failed\n");
+        return 1;
+      }
+    size_t   cap_out = dsss_burst_receiver_push_max_out (rx, n);
+    uint8_t *out     = malloc (cap_out);
+    size_t   got     = dsss_burst_receiver_push (rx, cap, n, out, cap_out);
+    free (out);
+
+    /* One record per burst the push returned -- ask the object how many,
+       never assume: a single push can complete several. */
+    dsss_br_event_t ev[8];
+    size_t          nev = dsss_burst_receiver_events_max_out (rx);
+    nev = dsss_burst_receiver_events (rx, nev, ev, sizeof ev / sizeof *ev);
+
+    printf ("§5  every read-back, per burst (%zu payload(s), %zu event(s)):\n",
+            got / PAYLOAD, nev);
+    printf ("       # %8s %8s %8s %9s %8s %8s %8s %7s %4s\n", "start",
+            "dopp_hz", "res_hz", "cn0_dBHz", "freq_hz", "rate_hz", "conf_dB",
+            "margin", "crc");
+    for (size_t i = 0; i < nev; i++)
+      printf ("      %2zu %8llu %8.1f %8.1f %9.2f %8.2f %8.2f %8.2f %7.3f"
+              " %4llu\n",
+              i, (unsigned long long)ev[i].preamble_start,
+              ev[i].doppler_hz_est, ev[i].doppler_res_hz, ev[i].cn0_dbhz_est,
+              ev[i].est_freq_hz, ev[i].est_rate_hz, ev[i].est_snr_db,
+              ev[i].refine_margin, (unsigned long long)ev[i].frame_valid);
+    printf ("      scene: bin %.1f Hz, C/N0 %.2f dB-Hz, true offset 0 Hz,"
+            " no chirp\n",
+            bin_hz, cn0_true);
+
+    int ok = (nev == want);
+    for (size_t i = 0; i < nev && ok; i++)
+      {
+        const dsss_br_event_t *e = &ev[i];
+        ok = e->preamble_start == (uint64_t)(i * spacing)
+             && e->frame_valid
+             /* the search grid: width derived, estimate inside the bin
+                that contains the true 0 Hz */
+             && e->doppler_res_hz == bin_hz
+             && fabs (e->doppler_hz_est) <= bin_hz / 2.0
+             /* and the reason the chain does not stop at acquisition */
+             && fabs (e->est_freq_hz) < bin_hz / 100.0
+             /* zero here is a CONFIGURATION fact: max_rate = 0 switches
+                the chirp axis off, it is not a measured absence */
+             && e->est_rate_hz == 0.0
+             /* cn0_dbhz_est is documented as a LOWER bound */
+             && e->cn0_dbhz_est <= cn0_true + 1.5
+             && e->cn0_dbhz_est >= cn0_true - 3.0
+             /* est_snr_db is the estimator's peak-to-mean confidence, NOT
+                a link SNR -- do not compare it with Es/N0 */
+             && e->est_snr_db > 10.0 && e->refine_margin > 0.0
+             && e->refine_margin < 1.0;
+      }
+    /* The scalar members are not a second source: they ARE the last row. */
+    if (ok && nev)
+      {
+        const dsss_br_event_t *last = &ev[nev - 1];
+        ok = rx->preamble_start == last->preamble_start
+             && rx->frame_valid == (int)last->frame_valid
+             && rx->doppler_hz_est == last->doppler_hz_est
+             && rx->doppler_res_hz == last->doppler_res_hz
+             && rx->cn0_dbhz_est == last->cn0_dbhz_est
+             && rx->est_freq_hz == last->est_freq_hz
+             && rx->est_rate_hz == last->est_rate_hz
+             && rx->est_snr_db == last->est_snr_db
+             && rx->refine_margin == last->refine_margin;
+      }
+    dsss_burst_receiver_destroy (rx);
+    printf ("      -> every row checks out against the scene; the scalar"
+            " read-backs equal the last row, which is all they claim.\n");
+    if (!ok)
+      {
+        fprintf (stderr, "a read-back disagreed with the scene that"
+                         " produced it\n");
         return 1;
       }
     rc = 0;

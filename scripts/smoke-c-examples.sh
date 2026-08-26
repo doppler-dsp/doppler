@@ -120,19 +120,19 @@ for ex in "${examples[@]}"; do
         case "$reason" in
             broker:*)
                 if [ $broker -eq 0 ]; then
-                    printf "  %-24s SKIP (no broker on 127.0.0.1:4222)\n" "$ex"
+                    printf "  %-26s SKIP (no broker on 127.0.0.1:4222)\n" "$ex"
                     continue
                 fi
                 ;;
             *)
-                printf "  %-24s SKIP (%.46s)\n" "$ex" "$reason"
+                printf "  %-26s SKIP (%.46s)\n" "$ex" "$reason"
                 continue
                 ;;
         esac
     fi
 
     if [ ! -x "$BIN_DIR/$ex" ]; then
-        printf "  %-24s NOT BUILT\n" "$ex"
+        printf "  %-26s NOT BUILT\n" "$ex"
         echo "            $SRC_DIR/$ex.c exists and produced no binary."
         echo "            Add it to $SRC_DIR/CMakeLists.txt (which carries"
         echo "            hand lists of its own), or to $REGISTRY with a"
@@ -140,7 +140,7 @@ for ex in "${examples[@]}"; do
         exit 1
     fi
 
-    printf "  %-24s" "$ex"
+    printf "  %-26s" "$ex"
     if "$DEADLINE" "$TIMEOUT" 1 "$BIN_DIR/$ex" > /dev/null 2>&1; then
         echo "PASS"
         ran=$((ran + 1))

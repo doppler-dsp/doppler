@@ -173,6 +173,7 @@ nav:
           - Streaming Async Despreader: gallery/async-despread.md
           - Full-Chain Lock-Up: gallery/receiver-lock.md
           - DsssReceiver (Composed Object): gallery/dsss-receiver.md
+          - DsssBurstReceiver (Composed Burst Chain): gallery/dsss-burst-receiver.md
           - "AsyncDsssReceiver: the SPEC Waveform": gallery/async-dsss-receiver-spec.md
           - "CarrierAcquisition: RRC Pulse Shaping": gallery/carrier-acq-rrc.md
       - Synchronization Loops:

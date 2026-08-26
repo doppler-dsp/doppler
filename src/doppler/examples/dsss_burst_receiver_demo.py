@@ -88,6 +88,7 @@ FRAME_SYMS = len(SYNC) + PAYLOAD + 16  # sync | payload | CRC-16
 BURST_LEN = (REPS * ACQ_SF + FRAME_SYMS * DATA_SF) * SPC
 
 
+# --8<-- [start:receiver]
 def receiver():
     return DsssBurstReceiver(
         acq_code=acq_code,
@@ -107,6 +108,9 @@ def receiver():
     )
 
 
+# --8<-- [end:receiver]
+
+# --8<-- [start:spacing]
 # The spacing is READ from the receiver, not computed here: detections closer
 # than `refine_span` are coalesced as one preamble, so a capture that packs
 # them tighter loses bursts rather than erroring. A margin over the minimum
@@ -116,6 +120,7 @@ REFINE_SPAN, RETAIN_SPAN = probe.refine_span, probe.retain_span
 SPACING = REFINE_SPAN + REFINE_SPAN // 5
 GAP = SPACING - BURST_LEN
 assert GAP > 0, "the geometry cannot fit a gap at this spacing"
+# --8<-- [end:spacing]
 
 # ── the capture ─────────────────────────────────────────────────────────────
 # One declarative dsss segment per burst: the engine tiles the preamble,
@@ -150,6 +155,7 @@ print(
 print(f"  retain_span {RETAIN_SPAN:>7}   (history kept per anchor)")
 
 
+# --8<-- [start:decode]
 def decode(block_size):
     """Push the whole capture in blocks of `block_size`; return starts+bits."""
     rx = receiver()
@@ -165,6 +171,8 @@ def decode(block_size):
         rx,
     )
 
+
+# --8<-- [end:decode]
 
 # ── 1. block size does not change the answer ────────────────────────────────
 sizes = [capture.size, 65_536, 8_192, 1_000, 333]
@@ -205,6 +213,7 @@ print(f"  -> {N_BURSTS}/{N_BURSTS} bursts, exact samples, payloads bit-exact")
 
 # ── 2. a burst split across two calls is HELD, and pending says so ──────────
 print("\nsplit across two push() calls:")
+# --8<-- [start:split]
 cut = truth[0] + BURST_LEN // 2
 rx = receiver()
 first = np.asarray(rx.push(capture[:cut]))
@@ -225,6 +234,7 @@ assert np.array_equal(second[:PAYLOAD], payload), (
     "the split burst is not exact"
 )
 print("  -> held, then returned whole. Read pending before you stop feeding.")
+# --8<-- [end:split]
 
 # ── 3. closer than refine_span, and they coalesce ──────────────────────────
 # Between one burst and one refine_span: the bursts do not overlap, they are

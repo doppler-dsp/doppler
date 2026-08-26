@@ -56,6 +56,7 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 - [Streaming Async Despreader](async-despread.md) — `Dll(segments)` PN-epoch despreader.
 - [Full-Chain Lock-Up](receiver-lock.md) — `Dll -> Costas -> SymbolSync` cold-started with no code, carrier, or timing knowledge, watched over one shared `Telemetry` context.
 - [DsssReceiver — the Composed Continuous DSSS Receiver](dsss-receiver.md) — `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver` at real chip/symbol rates, collapsed into one `DsssReceiver` and one `steps()` call -- the despreader removes the code and an explicit resampler bridges it to a normal demodulator.
+- [DsssBurstReceiver — the Composed Burst Chain](dsss-burst-receiver.md) — `BurstAcquisition -> refine -> BurstDemod` behind one `push()`: the same answer at every block size, a burst split across two calls held rather than lost, and `refine_span` as the minimum burst spacing.
 - [AsyncDsssReceiver: the SPEC Waveform](async-dsss-receiver-spec.md) — the packaged receiver decoding SPEC's own continuous async DSSS (CCSDS Gold-1023, 3.069 Mcps, 2700 bps) through physically-coupled clock Doppler, in both pass regimes (TCA-crossing ramp and ±50 kHz offset extremum), with the pre-despread carrier loop tracking the ramp and a binary symbol-lock indicator.
 - [CarrierAcquisition: RRC Pulse Shaping](carrier-acq-rrc.md) — PSDMF residual-carrier estimation against an RRC-shaped BPSK stream, and why the `psd_template` override matters.
 

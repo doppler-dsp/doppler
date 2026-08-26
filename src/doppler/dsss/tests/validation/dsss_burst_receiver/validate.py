@@ -1395,6 +1395,34 @@ def build(write: bool = True) -> Report:
     R.executive(
         "DsssBurstReceiver",
         [
+            # ORIENTATION FIRST. The bullets below this are subtleties, and
+            # every one of them assumes the reader already knows what the
+            # object is and how it is called. A caller arriving cold needs
+            # the shape of the call and the envelope before the caveats --
+            # otherwise the list answers questions nobody has asked yet.
+            "**What it is.** A burst receiver: samples in, decoded "
+            "payloads out. It owns the hand-off between acquisition, a "
+            "refine stage and the demodulator, which is the part a "
+            "hand-wired chain gets wrong (§1). Configure it once with the "
+            "waveform -- the two codes, the sync word, and the geometry -- "
+            "and stream; there is no per-burst setup.",
+            "**The shape of the call.** `push(x)` returns the payload "
+            "bits of EVERY burst that completed in that call, "
+            "concatenated, and `events()` returns one record per payload "
+            "in the same order: burst `i` is "
+            "`bits[i*payload_len:(i+1)*payload_len]` with `events()[i]` "
+            "describing it. Every sample is consumed whatever the block "
+            "size, and a burst split across calls is completed by a later "
+            "one, so a caller never sizes or aligns anything (§2.11).",
+            f"**Whether it fits your link.** End to end -- exact sample "
+            f"AND valid CRC -- this geometry decodes "
+            f"{d.pd_high:.0%} of bursts at {d.pd_rows[0][0]} dB-Hz, "
+            f"{d.pd_mid:.0%} at {d.pd_rows[1][0]} and {d.pd_low:.0%} at "
+            f"{d.pd_rows[2][0]}: a knee a few dB wide, not a gentle "
+            f"roll-off (§2.6). The numbers belong to the GEOMETRY rather "
+            f"than to the object -- §2.4 moves that knee 11 dB on `reps` "
+            f"alone -- so "
+            f"read the SHAPE and re-measure for yours.",
             "**`preamble_start` is the deliverable.** Acquisition reports "
             "an end anchor and a residue modulo one code period; neither is "
             "a burst start, and a consumer in another process has neither "

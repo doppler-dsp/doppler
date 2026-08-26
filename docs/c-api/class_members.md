@@ -620,7 +620,6 @@
 * **q** ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md))
 * **q\_cap** ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md))
 * **q\_head** ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md))
-* **q\_len** ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md))
 
 
 ## r

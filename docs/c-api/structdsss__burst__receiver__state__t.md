@@ -70,7 +70,6 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 |  [**dsss\_br\_pending\_t**](structdsss__br__pending__t.md) \* | [**q**](#variable-q)  <br> |
 |  size\_t | [**q\_cap**](#variable-q_cap)  <br> |
 |  size\_t | [**q\_head**](#variable-q_head)  <br> |
-|  size\_t | [**q\_len**](#variable-q_len)  <br> |
 |  float \* | [**ref\_sign**](#variable-ref_sign)  <br> |
 |  double | [**refine\_margin**](#variable-refine_margin)  <br> |
 |  size\_t | [**refine\_span**](#variable-refine_span)  <br> |
@@ -667,7 +666,11 @@ size_t dsss_burst_receiver_state_t::pending;
 
 
 
-Always 0. push() returns EVERY burst it completed, so nothing is ever left awaiting return. Kept so the read-back does not vanish from a released API; it used to report `q_len`, which is not what its own documentation claimed. 
+Detections held because their burst window has NOT fully arrived  the caller-facing "there is not enough data yet" read-back.
+
+
+push() deliberately emits nothing for these: a burst is returned when it is complete, not when it is guessed at. Feed more samples and it comes out, bit-exact, wherever the split fell. What this exists for is the OTHER end: a caller closing a file or a socket while this is non-zero is discarding a burst that would have decoded, and every other read-back looks identical to "nothing was
+ever there" (`dropped` counts ring refusals, not this). 
  
 
 
@@ -748,24 +751,6 @@ Index of the oldest entry.
 
 
 
-### variable q\_len 
-
-```C++
-size_t dsss_burst_receiver_state_t::q_len;
-```
-
-
-
-Entries in flight. 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable ref\_sign 
 
 ```C++
@@ -810,7 +795,11 @@ size_t dsss_burst_receiver_state_t::refine_span;
 
 
 
-Candidate offsets searched: 2\*reps\*code\_period. 
+Candidate offsets searched, in samples: `(k_lo + k_hi + reps) * code_period`, which is `(4*reps + 4) * code_period` for the `k_lo` chosen in create(). This doc claimed `2*reps*code_period` until it was measured  2.4x low at reps=5  so read `refine_span` rather than the formula.
+
+
+It is also the CALLER-facing minimum burst spacing: two anchors closer than this are coalesced as one preamble, so bursts packed tighter are merged and the rest are lost. 
+ 
 
 
         
@@ -845,7 +834,7 @@ size_t dsss_burst_receiver_state_t::retain_span;
 
 
 
-Samples that must stay reachable: refine span + one whole burst. 
+Samples that must stay reachable: refine span + one whole burst. Also the caller-facing minimum TRAILING context  a burst closer than this to the end of what has been pushed is not emitted until more samples arrive. 
  
 
 

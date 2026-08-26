@@ -111,6 +111,7 @@ Exit 0 when every tested component is benchmarked and every benchmark runs.
 
 from __future__ import annotations
 
+import ast
 import re
 import sys
 from pathlib import Path
@@ -119,6 +120,7 @@ ROOT = Path(__file__).resolve().parent.parent
 INC = ROOT / "native" / "inc"
 TESTS = ROOT / "native" / "tests"
 BENCH = ROOT / "native" / "benchmarks"
+SRC = ROOT / "src" / "doppler"  # the Python face, for rule 5
 
 #: component -> why it is legitimately unmeasurable. RATCHET: may only
 #: shrink, and it is down to ONE. `buffer` and `wfm_compose` both came off
@@ -161,6 +163,68 @@ ALLOW: dict[str, str] = {
 #: row -- the face where per-call overhead is not folded into the number.
 #: Tracked as doppler#891.
 HOLLOW_ALLOW: set[str] = set()
+
+#: The PYTHON half of rule 3, ratcheted. `jm apply` scaffolds a bench_*.py
+#: with a fixture and no test, so a component can carry a Python benchmark
+#: that collects zero benchmarks -- the same "looks measured, measures
+#: nothing" shape rule 3 catches in C, one language over, and it was
+#: ungated: this file checked `native/benchmarks/` and nothing else while
+#: phase 9 of the lifecycle owes a benchmark "C **and** Python".
+#:
+#: 19 today. It may only SHRINK -- a NEW bench_*.py must call
+#: `benchmark(...)`. Emptying it is tracked by gh-1010.
+PY_HOLLOW_ALLOW: set[str] = {
+    "accumulator/benchmarks/bench_acc_trace.py",
+    "acquire/benchmarks/bench_carrier_acq.py",
+    "analyzer/benchmarks/bench_specan.py",
+    "ber/benchmarks/bench_ber_meter.py",
+    "ber/benchmarks/bench_frame_meter.py",
+    "dsss/benchmarks/bench_async_dsss_receiver.py",
+    "dsss/benchmarks/bench_dsss_receiver.py",
+    "impairment/benchmarks/bench_doppler_channel.py",
+    "interp/benchmarks/bench_interp_table.py",
+    "measure/benchmarks/bench_imdmeas.py",
+    "measure/benchmarks/bench_nprmeas.py",
+    "measure/benchmarks/bench_tonemeas.py",
+    "spectral/benchmarks/bench_psd.py",
+    "telemetry/benchmarks/bench_dp_tlm.py",
+    "track/benchmarks/bench_carrier_mpsk.py",
+    "track/benchmarks/bench_ratesync.py",
+    "wfm/benchmarks/bench_frame.py",
+    "wfm/benchmarks/bench_gold.py",
+    "wfm/benchmarks/bench_pn.py",
+}
+
+
+def _py_records(path: Path) -> bool:
+    r"""Does this file actually CALL pytest-benchmark's fixture?
+
+    `def test_x(benchmark, ...)` only requests it; `benchmark(fn)` or
+    `benchmark.pedantic(...)` is what records a round, and the scaffolds
+    take the fixture and never call it.
+
+    Parsed, not pattern-matched. The regex this replaces was
+    `^[^#]*\bbenchmark\s*\(` -- and `[^#]*` spans newlines, so it matched
+    the prose "The C benchmark (`native/benchmarks/...`)" in a module
+    docstring and reported a deliberately hollowed-out file as measured.
+    Caught by sabotaging the gate rather than by reading it. This is a
+    Python file, so ask Python: a Call node whose func is `benchmark` or
+    `benchmark.<attr>`. A mention in prose is not a Call, and cannot be.
+    """
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except SyntaxError:
+        return False  # it cannot record anything if it cannot parse
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        f = node.func
+        if isinstance(f, ast.Attribute):
+            f = f.value
+        if isinstance(f, ast.Name) and f.id == "benchmark":
+            return True
+    return False
+
 
 #: A recorded measurement, at the start of a line or after whitespace --
 #: not inside a comment, which is how the scaffolds "mention" it while
@@ -319,6 +383,23 @@ def main() -> int:
             "never jm_bench_add, so it writes an empty benchmark array and "
             "the component is absent from every snapshot. Add a timing loop, "
             "or add it to HOLLOW_ALLOW (ratchet — it may only shrink)."
+        )
+
+    # Rule 5 -- the same, for Python. A bench_*.py that never CALLS the
+    # benchmark fixture collects nothing: `--benchmark-only` reports zero
+    # tests for it, so the component is absent from the Python snapshot
+    # while the file exists, imports cleanly, and passes every other check.
+    for p in sorted(SRC.rglob("benchmarks/bench_*.py")):
+        rel = str(p.relative_to(SRC))
+        if rel in PY_HOLLOW_ALLOW:
+            continue
+        if _py_records(p):
+            continue
+        failures.append(
+            f"{rel}: takes the `benchmark` fixture but never calls it, so "
+            "pytest-benchmark records no round and the component is absent "
+            "from every Python snapshot. Add a `benchmark(...)` call, or add "
+            "it to PY_HOLLOW_ALLOW (ratchet — it may only shrink)."
         )
 
     # Rule 4 -- the name a benchmark WRITES matches the one it is read under.

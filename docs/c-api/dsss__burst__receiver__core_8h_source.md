@@ -104,7 +104,7 @@ typedef struct {
   dsss_br_pending_t *q;      
   size_t             q_cap;  
   size_t             q_head; 
-  size_t             q_len;  
+  size_t             pending; 
   /* ── The completed bursts of the LAST push ───────────────────────────
    * Scratch, deliberately NOT serialized: it describes the most recent
    * push() only, so keeping it out of the blob is what lets state_bytes()
@@ -119,7 +119,6 @@ typedef struct {
   size_t k_lo; 
   size_t k_hi; 
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
-  size_t   pending;  
   uint64_t dropped;  
   uint64_t n_bursts; 
 /*<<property_struct_fields>>*/

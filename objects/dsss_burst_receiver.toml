@@ -231,10 +231,58 @@ type = "double"
 name = "refine_margin"
 type = "double"
 
-# Bursts demodulated and waiting to be returned by a further push().
+# The two spans a caller must respect, and could not read (gh-1011).
+#
+# Both are derived once in create() and never change, so these are
+# accessors rather than calculations -- but without them the only way to
+# learn the minimum burst spacing was to read the C, and duplicating
+# `(4*reps+4)*code_period` in a caller is the drift this repo forbids.
+# The header's own doc for it was 2.4x low until this pass measured it.
+[[dsss_burst_receiver.properties]]
+name = "refine_span"
+type = "size_t"
+field = true
+doc = """Coalescing window, in samples -- the MINIMUM BURST SPACING.
+
+Two detections closer together than this are treated as the same preamble
+and merged, so bursts packed tighter than `refine_span` are lost rather
+than reported. Measured at a 255-chip code, `reps=5`, `spc=2`: bursts
+spaced 8916 samples yielded 2 decodes from 7 bursts, with `dropped == 0`."""
+
+[[dsss_burst_receiver.properties]]
+name = "retain_span"
+type = "size_t"
+field = true
+doc = """History kept per anchor, in samples -- the MINIMUM TRAILING CONTEXT.
+
+`refine_span` plus one whole burst. A burst closer than this to the end of
+what has been pushed is held rather than emitted, because refine cannot yet
+see the samples it needs. Feed at least this many more, or the last burst of
+a capture never comes out. At the geometry above the boundary is sharp: 20500
+trailing samples against a `retain_span` of 20556 loses the burst."""
+
+# Detections held because their burst window has not fully arrived.
+#
+# The name survived a correction rather than a rewrite: this used to be a
+# separate field hardwired to 0, documented "Always 0", while the code
+# assigned it `q_len` on one path only -- so the manifest, the header and
+# the code each said a different thing. There is now ONE field, live, and
+# the three agree.
 [[dsss_burst_receiver.properties]]
 name = "pending"
 type = "size_t"
+field = true
+doc = """Detections held because their burst window has not fully arrived.
+
+`push()` emits nothing for these on purpose -- a burst is returned when it
+is complete, not when it is guessed at. Feed more samples and it comes out
+bit-exact, wherever the split fell.
+
+Read it at the END of a stream. A caller closing a file or a socket while
+this is non-zero is discarding a burst that would have decoded, and nothing
+else distinguishes that from an empty capture: `dropped` counts samples the
+ring refused, `n_bursts` counts what was demodulated, and a truncated burst
+is neither."""
 
 # Samples the history ring could not accept. A dropped sample is a LOST
 # BURST, not a statistic -- surfaced so a caller can size or throttle rather

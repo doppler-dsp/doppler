@@ -858,6 +858,71 @@ test_acq_saturation_does_not_lose_bursts (void)
   return 0;
 }
 
+/* A burst SPLIT across two push() calls comes out of the second one, whole,
+ * and `pending` says so in between.
+ *
+ * This is the streaming contract, and nothing exercised it: every other test
+ * here hands push() a burst that is already complete. A refactor that merged
+ * the `pending` read-back with the queue length passed all 152 tests in this
+ * tree while silently discarding any burst that straddled a call boundary --
+ * because push() zeroed the old per-call counter on entry, which after the
+ * merge zeroed the queue itself. The suite could not see it.
+ *
+ * Two things are asserted, and both matter. The bits must survive the split
+ * (the behaviour), and `pending` must be non-zero between the calls (the
+ * read-back a caller needs at end-of-stream: closing a file while it is set
+ * discards a burst that would have decoded, and no other field distinguishes
+ * that from an empty capture). */
+static int
+test_a_burst_split_across_two_pushes_survives (void)
+{
+  static float complex cap[40000];
+  const size_t         at = 3000;
+  build_capture (cap, sizeof cap / sizeof *cap, at, 0.0, 0.05, 4242u);
+
+  const size_t burst_len
+      = REPS * ACQ_SF * SPC + (SYNC_LEN + PAYLOAD + 16u) * DATA_SF * SPC;
+
+  /* Cuts INSIDE the burst and PAST the preamble, so a detection exists to
+     be held. A cut at a quarter of the burst is deliberately not here: at
+     that point acquisition has not finished the dwell carrying the preamble,
+     so `pending` is legitimately 0 and the burst is found from scratch on
+     the second call. Holding is what this test is about.
+
+     The last cut is the sharp one -- everything has arrived except the final
+     sample, and the honest answer is still to hold rather than guess. */
+  const size_t cuts[] = { at + burst_len / 2u, at + (3u * burst_len) / 4u,
+                          at + burst_len - 1u };
+
+  for (size_t c = 0; c < sizeof cuts / sizeof *cuts; c++)
+    {
+      dsss_burst_receiver_state_t *s = make_rx ();
+      DP_REQUIRE (s != NULL);
+      uint8_t bits[4u * PAYLOAD];
+
+      size_t n1
+          = dsss_burst_receiver_push (s, cap, cuts[c], bits, sizeof bits);
+      DP_CHECK (n1 == 0); /* incomplete: emit nothing rather than guess */
+      /* Through the ACCESSOR, not `s->pending`. The field and the getter are
+         different surfaces: Python reads the getter, and a getter hardwired
+         to 0 passes every test in this file that reads the field directly.
+         Verified by sabotage -- it did. */
+      DP_CHECK (dsss_burst_receiver_get_pending (s) == 1u);
+
+      size_t n2 = dsss_burst_receiver_push (
+          s, cap + cuts[c], (sizeof cap / sizeof *cap) - cuts[c], bits,
+          sizeof bits);
+      DP_CHECK (n2 == PAYLOAD); /* the whole burst, from the second call */
+      DP_CHECK (dsss_burst_receiver_get_pending (s) == 0u);
+      DP_CHECK (dsss_burst_receiver_get_frame_valid (s) == 1);
+      for (size_t i = 0; i < PAYLOAD; i++)
+        DP_CHECK (bits[i] == payload_bits ()[i]);
+
+      dsss_burst_receiver_destroy (s);
+    }
+  return 0;
+}
+
 static int
 test_push_max_out_scales_with_input (void)
 {
@@ -1016,6 +1081,8 @@ main (void)
   if (test_every_burst_survives_any_block_size ())
     return 1;
   if (test_acq_saturation_does_not_lose_bursts ())
+    return 1;
+  if (test_a_burst_split_across_two_pushes_survives ())
     return 1;
   if (test_push_max_out_scales_with_input ())
     return 1;

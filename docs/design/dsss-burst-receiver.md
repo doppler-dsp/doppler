@@ -1,6 +1,10 @@
 # `DsssBurstReceiver`: the burst chain, composed in C
 
-**Status:** draft / for discussion
+**Status:** shipped — the object exists, is certified (32 limits, 11
+findings, 0 open) and this document has been kept current with it.
+**Looking for the API?** §8. Sections 1–7 are the design record: the problem,
+what a prototype measured, and the four assumptions that did not survive
+contact.
 **Scope:** a new composed C object — `DsssBurstReceiver` — that owns the
 burst chain end to end, the way
 [`DsssReceiver`](../api/python-dsss.md) already owns the continuous one.
@@ -274,31 +278,45 @@ that detected it. So a crossing can name a position up to one acquisition
 frame **earlier than the burst it belongs to**, and the far edge of one
 burst's window can therefore reach the next burst's anchor.
 
-The object consequently has a **re-arm time**. How large is **not settled**,
-and the honest record of trying to settle it is worth more than a number.
+The object consequently has a **re-arm time**, and with
+[doppler#1008](https://github.com/doppler-dsp/doppler/issues/1008) fixed it
+can finally be measured — every earlier attempt was measuring that defect
+instead, because block size dominated the result.
 
-A first sweep varied the frame phase only — four bursts, one seed, one noise
-level, one push size — and found every gap from 3 % of a burst upward clean.
-**That sweep was far too narrow to support the claim it appeared to.**
-Widening it to randomise burst *size*, seed, noise, burst count and push
-block, and pairing every trial against the same scene spread wide apart so
-bursts merely lost to low C/N0 are excluded, gives a different answer: **13
-genuine re-arm losses in 204 eligible randomised trials**, spread evenly
-across every noise level. A "works above N % separation" rule does not
-survive.
+Paired control: the same scene at a given gap and spread three burst-lengths
+apart, so a burst lost at *both* is sensitivity rather than re-arm and is
+excluded. Randomised burst size, phase, seed, noise, count and block size.
 
-And burst spacing is not the variable that decides it. Re-running those
-failures across block sizes with everything else identical, **11 of 13 change
-their result with the block size alone**, monotonically worse as the block
-grows. That is not a re-arm effect: it is
-[doppler#1008](https://github.com/doppler-dsp/doppler/issues/1008), in which
-`push()` abandons the remainder of its input once a burst is emitted, so a
-block carrying several bursts loses all but the first.
+| inter-burst gap | losses, all C/N0 | losses, clean C/N0 |
+| --------------- | ---------------- | ------------------ |
+| 0 % (abutting)  | 8 / 35           | 3 / 26             |
+| 2 %             | 4 / 36           | **0 / 20**         |
+| 5 %             | 3 / 25           | **0 / 24**         |
+| 10 %            | 4 / 41           | 1 / 25             |
+| 25 %            | 3 / 33           | **0 / 35**         |
+| 50 %            | 1 / 31           | **0 / 30**         |
 
-Until #1008 is fixed, any re-arm figure measured on a multi-burst capture is
-measuring that instead. The zero-gap row stands on its own — a stream whose
-bursts abut is not a burst link (§5.1) — but the shape of the bound above it
-is an open question, not a documented envelope.
+**A zero gap fails and any real separation does not.** At clean C/N0 — about
+40 dB above the knee, where sensitivity cannot confound the reading — losses
+are confined to the abutting case. Zero gap is not a burst link anyway: bursts
+that abut with no separation are a continuous stream, which is
+`DsssReceiver`'s problem (§5.1).
+
+The residual in the left column is **sensitivity, not re-arm**, and the
+experiment cannot fully separate the two by construction: changing the gap
+re-lays the whole capture, so each burst sees a different noise realization
+and one near threshold can flip either way. That is why the clean column is
+the one that answers the question.
+
+**Two false answers preceded this one, and both were the measurement rather
+than the object.** The first sweep varied only the frame phase — one seed,
+one noise level, one block size — and made "clean above 3 % separation" look
+established; widening it destroyed that. The second reported a flat ~11 % loss
+at every gap, which looked structural and was not: the harness recorded
+`preamble_start`, a scalar read-back that describes only the **last** burst of
+a call, so it under-counted precisely when a push returned several. Reading
+`events()` instead took it from 17/160 to 4/160. A harness written against a
+one-result API silently under-reports a list-returning one.
 
 ______________________________________________________________________
 
@@ -565,26 +583,25 @@ Both windows are derived, and neither is a knob:
 | identity  | `refine_span` = `(k_lo + k_hi + REPS)·P` | the exact span over which refine can map two anchors onto one start — wider would merge distinct bursts, narrower would split one |
 | exclusion | `burst_len`, armed only on `frame_valid` | exactly how long a payload can keep firing                                                                                        |
 
-**The re-arm bound is open** (§3.6), and three candidate mechanisms have been
-implemented and **measured to fix nothing**. They are recorded so the next
-person does not spend the same afternoon:
+**The re-arm bound is settled** (§3.6): a zero gap fails, any real separation
+does not, and a zero gap is a continuous stream rather than a burst link
+(§5.1). Getting there took three wrong turns, recorded so nobody repeats
+them:
 
-- backing the exclusion window's far edge off by one acquisition frame;
+- backing the exclusion window's far edge off by one acquisition frame —
+    **measured to fix nothing**;
 - bounding the identity window by `burst_len`, so a short payload cannot
-    merge two adjacent bursts — the derivation predicted this and the
+    merge two adjacent bursts — the derivation predicted it cleanly and the
     measurement refused it: failing trials span `spacing/refine_span` from
-    0.67 to 5.97, the same range as the passing ones;
-- consuming the whole input rather than abandoning it after an emit
-    ([doppler#1008](https://github.com/doppler-dsp/doppler/issues/1008)) —
-    a real defect that does need fixing, but one that exposes a second
-    underneath: a detection queued near the end of a stream can never
-    complete, so `dsss_br_trim` pins the ring's tail and the remainder is
-    dropped (`dropped=5632` on the giant-push test). Not kept, because it
-    trades a silent discard for a counted drop without settling the
-    retention question.
-
-What is settled: a zero gap fails, and a zero gap is a continuous stream
-rather than a burst link (§5.1).
+    0.67 to 5.97, the same range as the passing ones. Neither was kept;
+- the third was not a wrong turn but the actual defect
+    ([doppler#1008](https://github.com/doppler-dsp/doppler/issues/1008)):
+    `push()` abandoned the rest of its input after an emit. Fixing it needed
+    the retention bound restored at the same time — consuming the input alone
+    makes the ring refuse samples (`dropped=5632`), because `trim` clamps to
+    the oldest queued detection and draining one per chunk lets the backlog
+    grow. Draining **every** arrived detection is what makes `dropped` 0 by
+    construction.
 
 ### 7.1 Look-back — the receiver retains what acquisition releases
 
@@ -660,7 +677,137 @@ component that exists, rather than about a demo.
 
 ______________________________________________________________________
 
-## 8. See also
+## 8. The API that shipped
+
+Design phase 1 is above; this is what it became, kept here because the shape
+of the surface *is* a design decision and two of its choices were arrived at
+by measurement rather than by taste.
+
+### 8.1 The C surface
+
+<!-- docs-snippet: skip=declarations quoted from dsss_burst_receiver_core.h, not a compilable program -->
+
+```c
+/* Lifecycle */
+dsss_burst_receiver_state_t *dsss_burst_receiver_create (
+    const uint8_t *acq_code, size_t acq_code_len,
+    const uint8_t *data_code, size_t data_code_len,
+    const uint8_t *sync, size_t sync_len,
+    size_t reps, size_t spc, double chip_rate, size_t payload_len,
+    double cn0_dbhz, double doppler_uncertainty, double pfa, double pd,
+    double carrier_hz, double max_rate, size_t est_segments);
+void   dsss_burst_receiver_destroy (dsss_burst_receiver_state_t *);
+void   dsss_burst_receiver_reset   (dsss_burst_receiver_state_t *);
+
+/* The stream: samples in, the payload of EVERY completed burst out */
+size_t dsss_burst_receiver_push_max_out (dsss_burst_receiver_state_t *,
+                                         size_t x_len);
+size_t dsss_burst_receiver_push (dsss_burst_receiver_state_t *,
+                                 const float complex *x, size_t x_len,
+                                 uint8_t *out, size_t max_out);
+
+/* One event per burst that push() just returned */
+size_t dsss_burst_receiver_events_max_out (dsss_burst_receiver_state_t *);
+size_t dsss_burst_receiver_events (dsss_burst_receiver_state_t *, size_t n,
+                                   dsss_br_event_t *out, size_t max_out);
+
+/* Escape hatch, read-backs, state */
+int    dsss_burst_receiver_configure_search_raw (dsss_burst_receiver_state_t *,
+                                                 size_t doppler_bins,
+                                                 size_t n_noncoh);
+size_t dsss_burst_receiver_state_bytes (const dsss_burst_receiver_state_t *);
+void   dsss_burst_receiver_get_state   (const dsss_burst_receiver_state_t *,
+                                        void *blob);
+int    dsss_burst_receiver_set_state   (dsss_burst_receiver_state_t *,
+                                        const void *blob);
+```
+
+### 8.2 `push()` returns a LIST, and that is the load-bearing choice
+
+Payloads come back concatenated — burst `i` occupies
+`out[i*payload_len .. (i+1)*payload_len)` — with `events()` giving each its
+own record.
+
+The alternative, one burst per call, is what shipped first and it was wrong
+in a way worth recording. A call can *complete* many bursts while *returning*
+one, and that mismatch has to be absorbed somewhere: a store for the surplus,
+a capacity for the store, a drain protocol telling callers to push again, and
+back-pressure when the store fills. Every one of those is a way for a caller
+to lose a burst by not following a protocol. Returning the list deletes all
+of them — collection is forced by the return value, and a caller *cannot*
+fail to drain.
+
+It also deleted the defect. The one-per-call version abandoned the rest of
+its input to preserve its own contract, so a block carrying several bursts
+lost all but the first — 6/6 decoded with 333-sample blocks against 1/6 with
+one large one ([doppler#1008](https://github.com/doppler-dsp/doppler/issues/1008)).
+
+**`push_max_out(x_len)` uses its argument**, which the one-per-call version
+accepted and ignored. Distinct bursts cannot overlap, so `x_len` samples
+complete at most `x_len/burst_len + 1` of them, plus whatever is already
+queued:
+
+```
+push_max_out(x_len) = (x_len/burst_len + 1 + q_cap) * payload_len
+```
+
+### 8.3 Why `events()` is a second call
+
+Each burst needs its own event: the scalar read-backs
+(`preamble_start`, `frame_valid`, `doppler_hz_est`, …) still exist and still
+describe the **last** burst returned, but they cannot speak for the others.
+§4's sufficiency argument is about what *one* event must contain, not how
+many are returned per call, so a list preserves it exactly.
+
+It is a companion rather than a second output of `push()` for a mechanical
+reason: bits are `k · payload_len` long and events are `k`, and the binding
+generator emits one variable-length output per method — a second parallel
+array is allocated at the *first* one's length. Splitting the call is the
+honest way to express two different lengths, and it leaves every existing
+caller of `bits = rx.push(x)` working unchanged.
+
+```python
+import numpy as np
+from doppler.dsss import DsssBurstReceiver
+
+rng = np.random.default_rng(0)
+PAYLOAD_LEN = 32
+rx = DsssBurstReceiver(
+    rng.integers(0, 2, 31).astype(np.uint8),   # acquisition code
+    rng.integers(0, 2, 8).astype(np.uint8),    # data code
+    np.zeros(13, dtype=np.uint8),              # sync word
+    reps=4, spc=4, payload_len=PAYLOAD_LEN,
+)
+
+bits = rx.push(np.zeros(4096, dtype=np.complex64))   # k * payload_len
+for i, ev in enumerate(rx.events()):                 # k records
+    payload = bits[i * PAYLOAD_LEN:(i + 1) * PAYLOAD_LEN]
+    print(ev.preamble_start, ev.frame_valid, payload.size)
+
+# One record per payload, always -- silence here, so k == 0.
+assert len(rx.events()) == bits.size // PAYLOAD_LEN
+```
+
+`events()` is scratch describing the most recent `push()`, valid until the
+next `push()`, `reset()` or `set_state()`. It is deliberately **not**
+serialized — keeping one call's transient out of the blob is what holds
+`state_bytes()` to a pure function of configuration.
+
+### 8.4 What the caller is not asked to size
+
+The history ring, the detection queue and the search grid are all derived
+from the geometry at `create()`. A caller asked to size a look-back buffer is
+a caller handed a way to lose bursts silently (§7.1), and a caller asked for
+a queue depth is the same thing one level up: the depth scales with
+`burst_len/refine_span`, which is ~1 at a short-payload test geometry and
+5.5× at a real link, so any constant is wrong somewhere.
+
+`configure_search_raw()` remains the one escape hatch, and it pins the
+acquisition grid only.
+
+______________________________________________________________________
+
+## 9. See also
 
 - [Adding an algorithm — the lifecycle](../dev/contributing/adding-algorithms.md) — the
     phase order this document is phase 1 of

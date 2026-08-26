@@ -182,7 +182,7 @@ keeps it honest — none of them optional except where the table says so:
 | a `@code` example on each public function             | `native/inc/<obj>/<obj>_core.h`                       | `make test-stubs`                                   |
 | a markdown guide, **when** prose outgrows a docstring | `docs/design/<algo>.md`, or `docs/guide/`             | `make docs-check`, `check_nav_index.py`             |
 | a benchmark, C **and** Python                         | `native/benchmarks/`, `src/doppler/<mod>/benchmarks/` | `make bench`, `make bench-compare`                  |
-| a runnable example, C **or** Python                   | `native/examples/`, `src/doppler/examples/`           | `make test-examples-c`, `make test-examples-python` |
+| a runnable example, C **and** Python                  | `native/examples/`, `src/doppler/examples/`           | `make test-examples-c`, `make test-examples-python` |
 | a gallery page, **when** there is a figure worth it   | `docs/gallery/`                                       | `make test-snippets`, `check_nav_index.py`          |
 
 Three things about that table are worth knowing before you trip over them.
@@ -199,17 +199,25 @@ scaffolds both files for you, so the deliverable is filling them in, not
 creating them. Doing it now is also the only cheap moment: a number nobody
 took before the algorithm was tuned cannot be recovered afterwards.
 
-**A C example is REGISTERED; a Python example is DISCOVERED**, and the
-difference decides whether forgetting is survivable. `src/doppler/examples/*.py`
-is globbed, so a new script is gated the moment it exists; opting one out means
-an entry in `.examples-skip` with a **mandatory reason**, and an entry naming a
-deleted script fails a meta-test. `make test-examples-c` instead iterates a
-hand-written list of binary names, so a C example absent from it compiles,
-ships, and is executed by nothing — silently, and with no reason recorded
-anywhere. Today that list holds 9 of the 13 programs in `native/examples/`; the four
-it omits all need a live NATS broker, which is a real reason that is written
-down nowhere ([gh-863](https://github.com/doppler-dsp/doppler/issues/863)).
-Add your example to the list, or you have written documentation nothing runs.
+**Both examples are DISCOVERED, and both are owed.** `src/doppler/examples/*.py`
+is globbed and `native/examples/*.c` is too, so a new example is gated the
+moment it exists; opting one out costs an entry in `.examples-skip` or
+`C_EXAMPLE_SKIPS` with a **mandatory reason**, and an entry naming a deleted
+script fails a meta-test. The C side used to iterate a hand-written list
+instead, which left four of thirteen programs compiling, shipping and
+executed by nothing ([gh-863](https://github.com/doppler-dsp/doppler/issues/863),
+since fixed) — so discovery is not a convenience here, it is what makes
+forgetting survivable.
+
+**C *and* Python, not either.** This asked for one of the two until 2026-08-26,
+and one is not enough: the two faces fail differently. A C example is where a
+caller sees the lifecycle it must actually manage — create, feed, drain,
+destroy, and who owns the buffer — none of which the Python binding exposes
+because it does that work for you. A Python example is where the *result* is
+legible: a plot, an assertion against a reference, a number a reader can
+check. An object with only the C one ships an algorithm nobody can see the
+output of; with only the Python one it ships an API nobody can call from C
+without reading the header and guessing.
 
 Then carry the findings back. Whatever the certification established — a new
 limit, a corrected rule, a number a caller has to choose by — goes into the C

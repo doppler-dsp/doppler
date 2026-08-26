@@ -68,7 +68,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**acq\_build\_handoff**](#function-acq_build_handoff) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* hit, size\_t code\_len, size\_t spc, [**acq\_handoff\_t**](structacq__handoff__t.md) \* out) <br>_Map a reported bin index to its SIGNED frequency index._  |
+|  void | [**acq\_build\_handoff**](#function-acq_build_handoff) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* hit, size\_t code\_len, size\_t spc, [**acq\_handoff\_t**](structacq__handoff__t.md) \* out) <br>_Convert one_ [_**acq\_push()**_](acq__core_8h.md#function-acq_push) _hit into a wire-ready hand-off record._ |
 |  int | [**acq\_configure\_search\_raw**](#function-acq_configure_search_raw) ([**acq\_state\_t**](structacq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_burst**](#function-acq_create_burst) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst-mode acquisition engine: coherent multi-epoch combining, up to_ `reps` _deep (today's classic behavior)._ |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_continuous**](#function-acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, never coherent multi-epoch combining._  |
@@ -167,7 +167,7 @@ acq_destroy(a);
 
 ### function acq\_build\_handoff 
 
-_Map a reported bin index to its SIGNED frequency index._ 
+_Convert one_ [_**acq\_push()**_](acq__core_8h.md#function-acq_push) _hit into a wire-ready hand-off record._
 ```C++
 void acq_build_handoff (
     const acq_state_t * state,
@@ -178,30 +178,6 @@ void acq_build_handoff (
 ) 
 ```
 
-
-
-The one definition of the FFT-bin convention this engine reports in: `0 = DC`, ascending positive through `n_bins/2`, then wrapping negative. Both the wideband search (which chooses a row's spectral roll) and `acq_build_handoff()` (which converts a hit back to Hz) MUST agree on it, so it lives here once rather than as a formula in each.
-
-
-It did not, once: the search used this form while the handoff used `((bin + n/2) % n) - n/2`, which disagrees at exactly one index — `bin == n_bins/2`, reachable only when `n_bins` is even. The search read that row as `+n/2` and the handoff as `-n/2`, a full-span sign inversion (102 kHz at SPEC.md's geometry) that surfaced as a receiver reporting `tracking == 1` while decoding noise. Auto-sizing now keeps `window_bins` odd (see `acq_auto_config_continuous`) so no such index exists, and this shared helper keeps the two readings identical regardless.
-
-
-
-
-**Parameters:**
-
-
-* `bin` Reported bin index in `[0, n_bins)`. 
-* `n_bins` Grid size (`window_bins`, or `coherent_bins`). 
-
-
-
-**Returns:**
-
-Signed index in `[-(n_bins/2), +(n_bins/2)]`; multiply by `doppler_res_hz` for Hz.
-
-
-Convert one [**acq\_push()**](acq__core_8h.md#function-acq_push) hit into a wire-ready hand-off record.
 
 
 Two convention inversions live here, ported verbatim from `dsss_receiver_core.c`'s own (pre-existing, now-shared) handoff logic:

@@ -568,35 +568,15 @@ extern "C"
     float  test_stat;       /**< Raw CFAR gating statistic, diagnostic. */
   } acq_handoff_t;
 
-  /**
-   * @brief Map a reported bin index to its SIGNED frequency index.
-   *
-   * The one definition of the FFT-bin convention this engine reports in:
-   * `0 = DC`, ascending positive through `n_bins/2`, then wrapping negative.
-   * Both the wideband search (which chooses a row's spectral roll) and
-   * `acq_build_handoff()` (which converts a hit back to Hz) MUST agree on
-   * it, so it lives here once rather than as a formula in each.
-   *
-   * It did not, once: the search used this form while the handoff used
-   * `((bin + n/2) % n) - n/2`, which disagrees at exactly one index —
-   * `bin == n_bins/2`, reachable only when `n_bins` is even. The search
-   * read that row as `+n/2` and the handoff as `-n/2`, a full-span sign
-   * inversion (102 kHz at SPEC.md's geometry) that surfaced as a receiver
-   * reporting `tracking == 1` while decoding noise. Auto-sizing now keeps
-   * `window_bins` odd (see `acq_auto_config_continuous`) so no such index
-   * exists, and this shared helper keeps the two readings identical
-   * regardless.
-   *
-   * @param bin     Reported bin index in `[0, n_bins)`.
-   * @param n_bins  Grid size (`window_bins`, or `coherent_bins`).
-   * @return Signed index in `[-(n_bins/2), +(n_bins/2)]`; multiply by
-   *         `doppler_res_hz` for Hz.
-   */
-  /* The definition now lives in clib_common.h so every consumer -- this
-   * engine's search, its hand-off, and any composing receiver -- includes
-   * the SAME inline rather than restating the formula. It was here, and
-   * four call sites outside C restated it in three mutually inconsistent
-   * ways; see the doc comment above. */
+  /* The FFT-bin convention this engine reports in -- `0 = DC`, ascending
+   * positive, then wrapping negative -- is `dp_fftfreq_index()` in
+   * clib_common.h, and its doc comment there is the one definition. It was
+   * declared here, and four call sites outside C restated the fold in three
+   * mutually inconsistent ways; the engine's wideband search and its own
+   * hand-off were two of them, which surfaced as a receiver reporting
+   * `tracking == 1` while decoding noise. Every consumer -- this engine's
+   * search, its hand-off, and any composing receiver -- now includes the
+   * SAME inline rather than restating the formula. */
 
   /**
    * @brief Convert one acq_push() hit into a wire-ready hand-off record.

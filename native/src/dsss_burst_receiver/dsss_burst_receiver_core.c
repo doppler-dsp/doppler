@@ -42,7 +42,8 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
   /* Every one of these is an ARGUMENT error, and the manifest's
    * create_error/create_error_message turn a NULL return into a ValueError
    * naming the constraint -- not the blanket MemoryError this would
-   * otherwise surface as (the gh-782 shape, see objects/*.toml). */
+   * otherwise surface as (the gh-782 shape, declared per object under
+   * objects/). */
   if (!acq_code || acq_code_len == 0 || !data_code || data_code_len == 0
       || !sync || sync_len == 0 || reps < 1 || spc < 1 || chip_rate <= 0.0
       || payload_len < 1 || cn0_dbhz <= 0.0 || pfa <= 0.0 || pfa >= 1.0

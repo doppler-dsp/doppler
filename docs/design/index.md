@@ -40,6 +40,7 @@ instead.)
     contract: spooling an endless stream to disk while reading it back,
     why Ctrl+C must reach the reader through the file rather than around
     it, and what owning both ends of the file buys
+- [The Polynomial-Phase Estimator](ppe.md) — the feedforward frequency/chirp-rate estimate a burst gets exactly one of: why the search is two-dimensional and coherent, why the transform is 4x its input, and why the caller strips the modulation
 - [DSSS Acquisition](dsss-acquisition.md) — stateless, parallel, dynamics-capable acquisition architecture + roadmap
 - [Async DSSS Receiver Spec](async-dsss-spec.md) — the target waveform and receiver specification (CCSDS Gold-1023, 3.069 Mcps, 2700 bps, ±50 kHz, \<500 Hz/s) the async DSSS receiver is built against
 - [DsssBurstReceiver](dsss-burst-receiver.md) — the burst chain composed in C: the three-stage `search → refine → demod` shape, why the hand-off needs a never-late epoch, and what a burst `DetectionEvent` must carry to stand alone

@@ -57,6 +57,9 @@ instead.)
 - [The Viterbi Decoder](viterbi.md) — the CCSDS inner code decoded: the trellis in the encoder's own terms, the branch metric it inherits, and why 5·K traceback is 33 % above the floor
 - [Reed-Solomon](reed-solomon.md) — the outer code as a description: the two offsets a textbook omits (`j0 != 1`, and a root stride that is not 1), why Chien iterates positions rather than field elements, and what a refusal is not
 - [The FEC Receive Half](fec-receive.md) — the Viterbi, the node sync it needs first, and the lock detector's two error probabilities: why the code's transparency means polarity cannot be resolved by the decoder
+- [Interleaving — spreading a burst across codewords](interleaving.md) — the
+    permutation, the three ways to reason about it wrongly, and the measured
+    gain: E to E×depth, and the bound that still bites
 - [A Frame as a Description](frame-description.md) — a frame as a list of
     fields and a list of stages, each stage carrying the span it covers: why
     a chain of optional transforms is the representation that cannot express

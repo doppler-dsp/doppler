@@ -170,6 +170,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**imdmeas\_core.h**](imdmeas__core_8h.md) _IMDMeasure — two-tone intermodulation (IMD2/IMD3) and intercept._     
         * **dir** [**impairment**](dir_e387feada4efddcbd9f1bef4a6cef9f7.md)     
             * **file** [**impairment\_core.h**](impairment__core_8h.md) _Impairment module — public C API._ 
+        * **dir** [**interleaver**](dir_46ba54d679b7d3fa44b8264f360065a9.md)     
+            * **file** [**interleaver\_core.h**](interleaver__core_8h.md) _Block interleaving as an object — the geometry, held._     
         * **dir** [**interp**](dir_af5ecbc8fae4d9dc167c6ab2381d74df.md)     
             * **file** [**interp\_core.h**](interp__core_8h.md) _Interp module — public C API._ 
         * **dir** [**interp\_table**](dir_532d1478dbb04668a5390572613675ee.md)     

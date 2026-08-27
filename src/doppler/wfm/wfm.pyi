@@ -1294,14 +1294,18 @@ class Frame:
         depth: int = 0,
         emit_num: int = 0,
         emit_den: int = 0,
+        unit_bits: int = 0,
     ) -> int:
         """Append one transform and -- the load-bearing part -- the span of
         fields it covers. `kind` is a `wfm_stage_kind_t` index: 0 crc16, 1 rs,
-        2 randomise, 3 conv (jm gh-1021 -- a method parameter cannot yet be a
-        string enum). `n_fields = 0` means the stage does not run. A stage that
-        inherited whatever ran before it is the representation that cannot
-        express a CCSDS CADU, where the marker is covered by the inner code and
-        by neither the outer code nor the randomiser.
+        2 randomise, 3 conv, 4 interleave (jm gh-1021 -- a method parameter
+        cannot yet be a string enum). `n_fields = 0` means the stage does not
+        run. A stage that inherited whatever ran before it is the
+        representation that cannot express a CCSDS CADU, where the marker is
+        covered by the inner code and by neither the outer code nor the
+        randomiser. `unit_bits` applies to `interleave` alone and is the bits
+        per permuted unit (0 reads as 1); its ROW count is `depth` and its
+        column count is derived from the span the stage covers.
 
         n_fields is the load-bearing part and 0 means the stage does not run. A
         stage that inherited "everything before me" instead of declaring its
@@ -1311,7 +1315,7 @@ class Frame:
         Parameters
         ----------
         kind : int
-            wfm_stage_kind_t index; 0=crc16…3=conv.
+            wfm_stage_kind_t index; 0=crc16…4=interleave.
         first_field : int
             First field covered.
         n_fields : int
@@ -1323,6 +1327,12 @@ class Frame:
             stage stays inside the frame.
         emit_den : int
             Expansion denominator.
+        unit_bits : int
+            INTERLEAVE only: bits per interleaved unit; 0 reads as 1. Match it
+            to the outer code's symbol — permuting octets is what spreads a
+            burst across the codewords of a code over GF(256), and permuting
+            bits inside one spreads a burst within a symbol that is already
+            wrong.
 
         Returns
         -------
@@ -2195,14 +2205,18 @@ class FrameDesc:
         depth: int = 0,
         emit_num: int = 0,
         emit_den: int = 0,
+        unit_bits: int = 0,
     ) -> int:
         """Append one transform and -- the load-bearing part -- the span of
         fields it covers. `kind` is a `wfm_stage_kind_t` index: 0 crc16, 1 rs,
-        2 randomise, 3 conv (jm gh-1021 -- a method parameter cannot yet be a
-        string enum). `n_fields = 0` means the stage does not run. A stage that
-        inherited whatever ran before it is the representation that cannot
-        express a CCSDS CADU, where the marker is covered by the inner code and
-        by neither the outer code nor the randomiser.
+        2 randomise, 3 conv, 4 interleave (jm gh-1021 -- a method parameter
+        cannot yet be a string enum). `n_fields = 0` means the stage does not
+        run. A stage that inherited whatever ran before it is the
+        representation that cannot express a CCSDS CADU, where the marker is
+        covered by the inner code and by neither the outer code nor the
+        randomiser. `unit_bits` applies to `interleave` alone and is the bits
+        per permuted unit (0 reads as 1); its ROW count is `depth` and its
+        column count is derived from the span the stage covers.
 
         n_fields is the load-bearing part and 0 means the stage does not run. A
         stage that inherited "everything before me" instead of declaring its
@@ -2212,7 +2226,7 @@ class FrameDesc:
         Parameters
         ----------
         kind : int
-            wfm_stage_kind_t index; 0=crc16…3=conv.
+            wfm_stage_kind_t index; 0=crc16…4=interleave.
         first_field : int
             First field covered.
         n_fields : int
@@ -2224,6 +2238,12 @@ class FrameDesc:
             stage stays inside the frame.
         emit_den : int
             Expansion denominator.
+        unit_bits : int
+            INTERLEAVE only: bits per interleaved unit; 0 reads as 1. Match it
+            to the outer code's symbol — permuting octets is what spreads a
+            burst across the codewords of a code over GF(256), and permuting
+            bits inside one spreads a burst within a symbol that is already
+            wrong.
 
         Returns
         -------

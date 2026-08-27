@@ -49,6 +49,8 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  double | [**f\_end\_hi**](#variable-f_end_hi)  <br> |
 |  double | [**freq**](#variable-freq)  <br> |
 |  double | [**freq\_hi**](#variable-freq_hi)  <br> |
+|  unsigned | [**interleave\_depth**](#variable-interleave_depth)  <br> |
+|  unsigned | [**interleave\_unit\_bits**](#variable-interleave_unit_bits)  <br> |
 |  double | [**level**](#variable-level)  <br> |
 |  double | [**level\_hi**](#variable-level_hi)  <br> |
 |  int | [**lfsr**](#variable-lfsr)  <br> |
@@ -294,6 +296,32 @@ double wfm_source_t::freq;
 
 ```C++
 double wfm_source_t::freq_hi;
+```
+
+
+
+
+<hr>
+
+
+
+### variable interleave\_depth 
+
+```C++
+unsigned wfm_source_t::interleave_depth;
+```
+
+
+
+
+<hr>
+
+
+
+### variable interleave\_unit\_bits 
+
+```C++
+unsigned wfm_source_t::interleave_unit_bits;
 ```
 
 

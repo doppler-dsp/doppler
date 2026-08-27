@@ -564,25 +564,28 @@ FrameDescObj_add_stage (FrameDescObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char  *_kwlist[] = { "kind",     "first_field", "n_fields", "depth",
-                              "emit_num", "emit_den",    NULL };
+  static char  *_kwlist[] = { "kind",     "first_field", "n_fields",  "depth",
+                              "emit_num", "emit_den",    "unit_bits", NULL };
   int           kind      = 0;
   unsigned long first_field_raw = 0;
   unsigned long n_fields_raw    = 0;
   unsigned long depth_raw       = 0;
   unsigned long emit_num_raw    = 0;
   unsigned long emit_den_raw    = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ikkkkk", _kwlist, &kind,
+  unsigned long unit_bits_raw   = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ikkkkkk", _kwlist, &kind,
                                     &first_field_raw, &n_fields_raw,
-                                    &depth_raw, &emit_num_raw, &emit_den_raw))
+                                    &depth_raw, &emit_num_raw, &emit_den_raw,
+                                    &unit_bits_raw))
     return NULL;
   uint32_t first_field = (uint32_t)first_field_raw;
   uint32_t n_fields    = (uint32_t)n_fields_raw;
   uint32_t depth       = (uint32_t)depth_raw;
   uint32_t emit_num    = (uint32_t)emit_num_raw;
   uint32_t emit_den    = (uint32_t)emit_den_raw;
+  uint32_t unit_bits   = (uint32_t)unit_bits_raw;
   int y = frame_add_stage (self->handle, kind, first_field, n_fields, depth,
-                           emit_num, emit_den);
+                           emit_num, emit_den, unit_bits);
   return PyLong_FromLong ((long)y);
 }
 
@@ -1233,6 +1236,12 @@ static PyMethodDef FrameDescObj_methods[] = {
     "    stage stays inside the frame.\n"
     "emit_den : int\n"
     "    Expansion denominator.\n"
+    "unit_bits : int\n"
+    "    INTERLEAVE only: bits per interleaved unit; 0 reads as 1. Match it\n"
+    "    to the outer code's symbol -- permuting octets is what spreads a\n"
+    "    burst across the codewords of a code over GF(256), and permuting\n"
+    "    bits inside one spreads a burst within a symbol that is already\n"
+    "    wrong.\n"
     "\n"
     "Returns\n"
     "-------\n"

@@ -42,6 +42,7 @@ _One transform, and — the whole point — the fields it covers._ [More...](#de
 |  unsigned | [**first\_field**](#variable-first_field)  <br> |
 |  [**wfm\_stage\_kind\_t**](wfm__frame_8h.md#enum-wfm_stage_kind_t) | [**kind**](#variable-kind)  <br> |
 |  unsigned | [**n\_fields**](#variable-n_fields)  <br> |
+|  unsigned | [**unit\_bits**](#variable-unit_bits)  <br> |
 
 
 
@@ -113,8 +114,7 @@ unsigned wfm_stage_t::depth;
 
 
 
-RS: interleaving depth 
- 
+RS / INTERLEAVE: interleaving depth 
 
 
         
@@ -194,6 +194,23 @@ unsigned wfm_stage_t::n_fields;
 
 fields covered; 0 = does not run 
  
+
+
+        
+
+<hr>
+
+
+
+### variable unit\_bits 
+
+```C++
+unsigned wfm_stage_t::unit_bits;
+```
+
+
+
+INTERLEAVE: bits per interleaved unit; 0 reads as 1. Not folded into `depth`, because the two are independent — depth 8 over octets and depth 8 over bits are different permutations of the same span, and only one of them protects an octet-oriented outer code. 
 
 
         

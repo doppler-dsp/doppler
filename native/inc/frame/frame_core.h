@@ -400,13 +400,18 @@ int frame_add_field(frame_state_t *state, const uint8_t *lit, size_t lit_len,
  * `wfm/wfm_frame.h`.
  *
  * @param state        A frame from @ref frame_create_desc.
- * @param kind         @ref wfm_stage_kind_t index; 0=crc16…3=conv.
+ * @param kind         @ref wfm_stage_kind_t index; 0=crc16…4=interleave.
  * @param first_field  First field covered.
  * @param n_fields     Fields covered; 0 = the stage does not run.
  * @param depth        Interleaving depth, for an outer code.
  * @param emit_num     Expansion numerator for a stage that emits a NEW
  *                     stream; 0 when the stage stays inside the frame.
  * @param emit_den     Expansion denominator.
+ * @param unit_bits    INTERLEAVE only: bits per interleaved unit; 0 reads
+ *                     as 1. Match it to the outer code's symbol — permuting
+ *                     octets is what spreads a burst across the codewords of
+ *                     a code over GF(256), and permuting bits inside one
+ *                     spreads a burst within a symbol that is already wrong.
  * @return The new stage's index, or -1 if the description is full or already
  *         built.
  *
@@ -437,7 +442,7 @@ int frame_add_field(frame_state_t *state, const uint8_t *lit, size_t lit_len,
  */
 int frame_add_stage(frame_state_t *state, int kind, uint32_t first_field,
                     uint32_t n_fields, uint32_t depth, uint32_t emit_num,
-                    uint32_t emit_den);
+                    uint32_t emit_den, uint32_t unit_bits);
 
 /**
  * @brief Lay out and materialise a described frame.

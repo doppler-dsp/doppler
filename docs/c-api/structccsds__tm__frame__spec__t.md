@@ -39,6 +39,8 @@ _A framed waveform's choices, before they become a description._ [More...](#deta
 |  int | [**attach\_asm**](#variable-attach_asm)  <br> |
 |  int | [**convolutional**](#variable-convolutional)  <br> |
 |  int | [**crc**](#variable-crc)  <br> |
+|  unsigned | [**interleave\_depth**](#variable-interleave_depth)  <br> |
+|  unsigned | [**interleave\_unit\_bits**](#variable-interleave_unit_bits)  <br> |
 |  const uint8\_t \* | [**payload**](#variable-payload)  <br> |
 |  size\_t | [**payload\_len**](#variable-payload_len)  <br> |
 |  const uint8\_t \* | [**preamble**](#variable-preamble)  <br> |
@@ -153,6 +155,46 @@ int ccsds_tm_frame_spec_t::crc;
 
 
 Non-zero: a CRC-16 trailer over the payload group. 
+
+
+        
+
+<hr>
+
+
+
+### variable interleave\_depth 
+
+```C++
+unsigned ccsds_tm_frame_spec_t::interleave_depth;
+```
+
+
+
+A BLOCK INTERLEAVER over the data group; 0 = none.
+
+
+Not a CCSDS pick, and here for the reason `crc` and `sync` are: this spec is the one frame description every doppler face reaches, and 131.0-B-6's own choices are a CONFIGURATION of it rather than the whole of its vocabulary.
+
+
+Applied AFTER the outer code and the randomiser and before the inner code, which is the only order that buys anything: an interleaver exists so a burst on the CHANNEL arrives spread across the outer code's codewords, so it must be the last thing between them and the wire. 
+
+
+        
+
+<hr>
+
+
+
+### variable interleave\_unit\_bits 
+
+```C++
+unsigned ccsds_tm_frame_spec_t::interleave_unit_bits;
+```
+
+
+
+Bits per permuted unit; 0 reads as 1. Match it to the outer code's symbol — 8 for Reed-Solomon over GF(256), because permuting bits inside a symbol that is already wrong buys nothing. 
 
 
         

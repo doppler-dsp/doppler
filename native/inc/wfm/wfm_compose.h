@@ -151,6 +151,16 @@ typedef struct {
     int attach_asm;      /* prepend the 0x1ACFFC1D marker as a FIELD */
     int convolutional;   /* inner code over the whole frame, marker included;
                             doubles the bit count (rate 1/2, K=7) */
+    unsigned interleave_depth;      /* block interleaver over the data group;
+                            0 = none. LAST of the data-group stages, so it is
+                            what the channel sees: an interleaver exists to
+                            make a burst arrive spread across the outer
+                            code's codewords, so anything between it and the
+                            wire would undo the point. */
+    unsigned interleave_unit_bits;  /* bits per permuted unit; 0 reads as 1.
+                            Match it to the outer code's symbol -- 8 for RS
+                            over GF(256). Permuting BITS inside a symbol that
+                            is already wrong buys nothing. */
 } wfm_source_t;
 
 /**

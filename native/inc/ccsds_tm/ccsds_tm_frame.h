@@ -392,6 +392,23 @@ extern "C"
     int randomise;
     /** Non-zero: the K=7 rate-1/2 inner code, over the whole frame. */
     int convolutional;
+
+    /** A BLOCK INTERLEAVER over the data group; 0 = none.
+     *
+     * Not a CCSDS pick, and here for the reason @c crc and @c sync are: this
+     * spec is the one frame description every doppler face reaches, and
+     * 131.0-B-6's own choices are a CONFIGURATION of it rather than the whole
+     * of its vocabulary.
+     *
+     * Applied AFTER the outer code and the randomiser and before the inner
+     * code, which is the only order that buys anything: an interleaver exists
+     * so a burst on the CHANNEL arrives spread across the outer code's
+     * codewords, so it must be the last thing between them and the wire. */
+    unsigned interleave_depth;
+    /** Bits per permuted unit; 0 reads as 1. Match it to the outer code's
+     *  symbol — 8 for Reed-Solomon over GF(256), because permuting bits
+     *  inside a symbol that is already wrong buys nothing. */
+    unsigned interleave_unit_bits;
   } ccsds_tm_frame_spec_t;
 
   /**

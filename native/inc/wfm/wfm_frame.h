@@ -132,7 +132,13 @@ extern "C"
     WFM_STAGE_CRC16     = 0, /**< dp_crc16_ccitt over the covered input  */
     WFM_STAGE_RS        = 1, /**< a Reed-Solomon code, interleaved       */
     WFM_STAGE_RANDOMISE = 2, /**< XOR a pseudo-random sequence, in place */
-    WFM_STAGE_CONV      = 3  /**< a convolutional code                   */
+    WFM_STAGE_CONV      = 3, /**< a convolutional code                   */
+    /** A block interleaver: permute in place, length unchanged. Applied
+        AFTER the outer code, so a burst spreads ACROSS codewords rather
+        than inside one. @c depth is the row count and @c unit_bits the
+        unit; the column count is derived from the span it covers, because
+        a stage's cover is what says how much there is to permute. */
+    WFM_STAGE_INTERLEAVE = 4
   } wfm_stage_kind_t;
 
   /**
@@ -157,7 +163,13 @@ extern "C"
     wfm_stage_kind_t kind;
     unsigned         first_field; /**< first field covered                */
     unsigned         n_fields;    /**< fields covered; 0 = does not run   */
-    unsigned         depth;       /**< RS: interleaving depth             */
+    unsigned         depth;       /**< RS / INTERLEAVE: interleaving depth */
+
+    /** INTERLEAVE: bits per interleaved unit; 0 reads as 1. Not folded into
+        @c depth, because the two are independent — depth 8 over octets and
+        depth 8 over bits are different permutations of the same span, and
+        only one of them protects an octet-oriented outer code. */
+    unsigned unit_bits;
 
     /** A stage that consumes the assembled frame and emits a DIFFERENT
         stream sets these: the output is `n * emit_num / emit_den` bits.

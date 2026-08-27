@@ -277,6 +277,59 @@ def cases() -> list[tuple[str, list[str]]]:
                 "64",
             ],
         ),
+        # ---- the block interleaver, and the unit that makes it work ----
+        # Two cases rather than one, because the two flags are not the same
+        # kind of thing: --interleave selects the stage, --interleave-unit
+        # selects WHAT it permutes, and only the second is easy to get wrong
+        # in a way that still produces a waveform. Both spans are chosen to
+        # divide -- the column count follows from the span, so a remainder is
+        # refused (which the wfmgen CLI-error tests cover separately).
+        #
+        # 223*8 = 1784 payload bits + a CRC-16 trailer = 1800, and 1800 is
+        # 8*225 and 8*8*28.125 -- so unit=8 needs a depth that divides 225.
+        (
+            "bits_interleave_bits",
+            [
+                "--type",
+                "bits",
+                "--modulation",
+                "bpsk",
+                "--bits",
+                "1" * (223 * 8),
+                "--interleave",
+                "8",
+                "--sps",
+                "1",
+                "--count",
+                "1800",
+            ],
+        ),
+        (
+            "bits_interleave_octets_with_outer_code",
+            [
+                # Depth 5 over octets, which is the arrangement the burst-gain
+                # validation measures: one codeword per row, so a burst spreads
+                # one symbol into each.
+                "--type",
+                "bits",
+                "--modulation",
+                "bpsk",
+                "--bits",
+                "1" * (223 * 8),
+                "--rs-depth",
+                "1",
+                "--interleave",
+                "5",
+                "--interleave-unit",
+                "8",
+                "--crc",
+                "none",
+                "--sps",
+                "1",
+                "--count",
+                "2040",
+            ],
+        ),
         # ---- channel coding: the stages, and the CADU they configure ----
         # A 223-octet Transfer Frame with all four stages on and neither a
         # preamble nor a sync word IS a CCSDS CADU. Pinned as one case rather

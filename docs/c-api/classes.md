@@ -126,6 +126,7 @@
 * [**i8\_to\_f32\_state\_t**](structi8__to__f32__state__t.md)
 * [**imd\_meas\_t**](structimd__meas__t.md)
 * [**imdmeas\_state\_t**](structimdmeas__state__t.md)
+* [**interleaver\_state\_t**](structinterleaver__state__t.md)
 * [**interp\_table\_state\_t**](structinterp__table__state__t.md)
 
 

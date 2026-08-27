@@ -6,6 +6,7 @@
 #include "wfm/wfm_frame.h"
 
 #include "dp_crc16.h"
+#include "dp_interleave.h"
 #include "gold/gold_core.h"
 #include "pn/pn_core.h"
 #include "wfm/wfm_dsp.h" /* the DSSS burst assembler declared there */
@@ -294,8 +295,87 @@ crc16_undo (const wfm_stage_t *st, uint8_t *bits, size_t n,
   return 0;
 }
 
+/* ── the block interleaver ───────────────────────────────────────────────
+ *
+ * A permutation, so the cover it occupies on the wire is exactly what it
+ * reads: no derived field, no expansion, `emit_num == 0`. That makes it the
+ * simplest stage class there is, and the second BUILTIN — unlike the outer
+ * and inner codes it needs no configuration a component has to supply, so it
+ * does not belong in a `wfm_frame_ops_t` table.
+ *
+ * The geometry is `depth` rows of `unit_bits`-wide units, and the COLUMN
+ * count is derived from the span: a stage's cover is what says how much
+ * there is to permute, and deriving the other way -- fixing columns and
+ * letting the row count fall out -- would silently change the permutation
+ * when a payload length changed. A span that is not a whole number of
+ * `depth * unit_bits` units is REFUSED, because there is no honest thing to
+ * do with the remainder: padding changes the length and dropping it loses
+ * bits.
+ *
+ * Out of place, because a transpose is: the scratch is one allocation per
+ * stage application over a frame-sized buffer, which is the same order as
+ * the frame itself. */
+static int
+ilv_geometry (const wfm_stage_t *st, size_t n, size_t *rows, size_t *cols,
+              size_t *unit)
+{
+  const size_t r = st->depth ? (size_t)st->depth : 1u;
+  const size_t u = st->unit_bits ? (size_t)st->unit_bits : 1u;
+  if (n == 0 || r == 0 || u == 0)
+    return -1;
+  if (n % (r * u) != 0)
+    return -1;
+  *rows = r;
+  *cols = n / (r * u);
+  *unit = u;
+  return 0;
+}
+
+static int
+ilv_apply (const wfm_stage_t *st, uint8_t *bits, size_t n, int forward)
+{
+  size_t rows, cols, unit;
+  if (ilv_geometry (st, n, &rows, &cols, &unit) != 0)
+    return -1;
+  uint8_t *tmp = (uint8_t *)malloc (n);
+  if (!tmp)
+    return -1;
+  if (forward)
+    dp_interleave_u8 (bits, tmp, rows, cols, unit);
+  else
+    dp_deinterleave_u8 (bits, tmp, rows, cols, unit);
+  memcpy (bits, tmp, n);
+  free (tmp);
+  return 0;
+}
+
+static int
+ilv_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
+{
+  (void)user;
+  return ilv_apply (st, bits, n, 1);
+}
+
+/* De-interleaving detects nothing, so it reports one unit that is always
+ * good -- the same answer, and for the same reason, that the derandomiser
+ * gives: it cannot fail, it can only be pointed at the wrong bits, and the
+ * stage that catches THAT is the one after it. */
+static int
+ilv_undo (const wfm_stage_t *st, uint8_t *bits, size_t n,
+          wfm_frame_stage_rx_t *rx, void *user)
+{
+  (void)user;
+  if (ilv_apply (st, bits, n, 0) != 0)
+    return -1;
+  rx->units   = 1u;
+  rx->ok      = 1u;
+  rx->checked = 1;
+  return 0;
+}
+
 static const wfm_stage_op_t BUILTIN[] = {
   { WFM_STAGE_CRC16, crc16_in_unit, NULL, crc16_undo },
+  { WFM_STAGE_INTERLEAVE, ilv_in_unit, NULL, ilv_undo },
 };
 
 static const wfm_stage_op_t *

@@ -302,6 +302,16 @@ target_compile_options(validate_rx_frame_fer PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_rx_frame_fer
          COMMAND validate_rx_frame_fer --check)
 
+add_executable(validate_interleave_burst_gain
+               ${CMAKE_CURRENT_SOURCE_DIR}/interleave_burst_gain.c)
+target_include_directories(validate_interleave_burst_gain
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_interleave_burst_gain PRIVATE doppler_lib_static m)
+target_compile_options(validate_interleave_burst_gain PRIVATE -O3)
+add_test(NAME validate_interleave_burst_gain
+         COMMAND validate_interleave_burst_gain --check)
+
 add_executable(validate_wfm_follow_keepup
                ${CMAKE_CURRENT_SOURCE_DIR}/wfm_follow_keepup.c)
 target_include_directories(validate_wfm_follow_keepup

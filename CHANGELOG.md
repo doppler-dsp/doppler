@@ -23,16 +23,10 @@ ______________________________________________________________________
     burst is `E * depth` octets and not one octet more.
 
 - **`make lint-alloc-helpers` — the gate `dp_xmalloc` never had.** A trusted
-    internal allocation (fixed size, arguments already validated) can only
-    fail on genuine OOM, so it goes through `clib_common.h`'s abort-on-OOM
-    helpers rather than an unwind path no test can reach. The helpers landed
-    2026-07-21 and the rule to extend them lived in a note and nowhere else,
-    so a bare `malloc` beside a helper call passed every gate the repo had.
-    The 313 call sites that predate it are ratcheted per file in
-    `scripts/.alloc-helper-allow` and may only shrink;
-    `make lint-alloc-helpers-baseline` re-records after converting some.
-    Generated `_ext` glue and the helpers' own home are out of scope, and 11
-    cases in `test_alloc_helper_gate.py` pin both directions of the ratchet.
+    internal allocation goes through `clib_common.h`'s abort-on-OOM helpers
+    rather than an unwind path no test can reach; the rule dates from
+    2026-07-21 and nothing enforced it, so a bare `malloc` passed every gate.
+    The 313 sites that predate it are ratcheted per file and may only shrink.
 
 ### Fixed
 

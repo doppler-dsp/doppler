@@ -2068,7 +2068,7 @@ class BurstDemod:
         Parameters
         ----------
         n : int
-            Demodulator handle.
+            Ignored — the count is the last demod()'s frame.
 
         Returns
         -------
@@ -3505,12 +3505,12 @@ class DsssBurstReceiver:
         decoder exists to deliver (`mpsk_soft_demap`'s own docstring), which is
         what makes a coded burst worth coding.
 
-        Concatenated the same way push()'s payloads are: burst i occupies
-        `llr[i * frame_bits ... ]`, in the order events() reports. The
-        convention is `mpsk_soft_demap`'s — positive means bit 0, so `L < 0`
-        reproduces exactly the bits push() returned. Spans the WHOLE frame
-        rather than the payload alone, because a code covers what its
-        description says it covers.
+        Concatenated the same way push()'s payloads are, one row of
+        `frame_bits` per burst: burst i starts at `i * frame_bits`, in the
+        order events() reports. The convention is `mpsk_soft_demap`'s —
+        positive means bit 0, so `L < 0` reproduces exactly the bits push()
+        returned. Spans the WHOLE frame rather than the payload alone, because
+        a code covers what its description says it covers.
 
         Valid until the next push(), reset() or set_state(); deliberately not
         serialized, for the same reason events() is not: it describes one call.
@@ -3608,17 +3608,12 @@ class DsssBurstReceiver:
         """
 
     def events_max_out(self) -> int:
-        """Largest number of samples events() can return in the current state.
-
-        Size an `out=` buffer with this before calling events(), or use it to
-        allocate one up front. The bound is this object's own: what it depends
-        on is a property of the algorithm, so a header block on
-        events_max_out() replaces this text.
+        """Max records events() writes: one per burst the last push() returned.
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            The number of bursts the most recent push() completed.
         """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:

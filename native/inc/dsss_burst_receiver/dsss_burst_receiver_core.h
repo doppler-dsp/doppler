@@ -458,9 +458,9 @@ size_t dsss_burst_receiver_events_max_out(dsss_burst_receiver_state_t *state);
  * exists to deliver (`mpsk_soft_demap`'s own docstring), which is what makes
  * a coded burst worth coding.
  *
- * Concatenated the same way push()'s payloads are: burst @c i occupies
- * one row of `frame_bits` each, starting at `i * frame_bits`, in the order
- * events() reports. The convention
+ * Concatenated the same way push()'s payloads are, one row of `frame_bits`
+ * per burst: burst @c i starts at `i * frame_bits`, in the order events()
+ * reports. The convention
  * is `mpsk_soft_demap`'s — positive means bit 0, so `L < 0` reproduces
  * exactly the bits push() returned. Spans the WHOLE frame rather than the
  * payload alone, because a code covers what its description says it covers.

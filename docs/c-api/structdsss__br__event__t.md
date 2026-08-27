@@ -42,8 +42,6 @@
 |  double | [**est\_freq\_hz**](#variable-est_freq_hz)  <br> |
 |  double | [**est\_rate\_hz**](#variable-est_rate_hz)  <br> |
 |  double | [**est\_snr\_db**](#variable-est_snr_db)  <br> |
-|  uint64\_t | [**frame\_checked**](#variable-frame_checked)  <br> |
-|  uint64\_t | [**frame\_valid**](#variable-frame_valid)  <br> |
 |  uint64\_t | [**preamble\_start**](#variable-preamble_start)  <br> |
 |  double | [**refine\_margin**](#variable-refine_margin)  <br> |
 
@@ -194,42 +192,6 @@ double dsss_br_event_t::est_snr_db;
 
 
 Demod's post-decode SNR estimate. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable frame\_checked 
-
-```C++
-uint64_t dsss_br_event_t::frame_checked;
-```
-
-
-
-Checking stages actually reversed. 0 with frame\_valid 0 means the frame carries NO check  a different fact from a failed one, and an FER conflating them scores every unprotected frame as an error. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable frame\_valid 
-
-```C++
-uint64_t dsss_br_event_t::frame_valid;
-```
-
-
-
-Non-zero if every check that RAN passed. 
  
 
 

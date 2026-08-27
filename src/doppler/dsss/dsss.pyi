@@ -1805,8 +1805,9 @@ class BurstDemod:
     max_rate : float, default 0.0
         Chirp-rate search half-span (cycles/sample^2 at the input rate); 0 =
         Doppler only (no rate search).
-    payload_len : int, default 0
-        Number of payload data symbols (bits) in a frame.
+    frame_syms : int, default 0
+        Symbols the frame occupies after the sync word — how many bits demod()
+        hands back per burst. What they mean is a frame description's business.
     est_segments : int, default 10
         Partial correlations per acq period (segmentation for the feedforward
         estimate; larger tolerates more rate).
@@ -1839,14 +1840,13 @@ class BurstDemod:
     >>> n = np.arange(len(bb))
     >>> f0 = 0.012
     >>> x = (bb * np.exp(2j * np.pi * f0 * n)).astype(np.complex64)
-    >>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, payload_len=64)
+    >>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, frame_syms=len(frame))
     >>> d.set_preamble(acode, reps)   # unmodulated (f0, rate) preamble
-    >>> d.set_frame(sync)             # Barker-13 sync, CRC-16 trailer
-    0
-    >>> d.set_prior(f0, 0)           # coarse Doppler + preamble start
+    >>> d.set_sync(sync)              # Barker-13: frame align + sign fix
+    >>> d.set_prior(f0, 0)            # coarse Doppler + preamble start
     >>> bits = d.demod(x)      # estimate -> dechirp -> despread -> slice
-    >>> int(d.frame_valid), bool(np.array_equal(bits, payload))
-    (1, True)
+    >>> bool(np.array_equal(bits, frame))   # the FRAME, not the payload
+    True
 
     """
     def __init__(
@@ -1856,27 +1856,27 @@ class BurstDemod:
         chip_rate: float = ...,
         carrier_hz: float = ...,
         max_rate: float = ...,
-        payload_len: int = ...,
+        frame_syms: int = ...,
         est_segments: int = ...,
     ) -> None: ...
 
     def reset(self) -> None:
         """Clear the per-burst read-backs, leaving the configuration intact.
 
-        Zeros the after-demod fields (frame_valid, frame_offset, n_symbols, and
-        the est_* estimates) so a stale result cannot be mistaken for a fresh
-        one. The spreading codes, sync word, and prior set up before the first
-        burst are preserved, so the object is immediately ready to demodulate
-        the next burst.
+        Zeros the after-demod fields (frame_offset, n_symbols, and the est_*
+        estimates) so a stale result cannot be mistaken for a fresh one. The
+        spreading codes, sync word, and prior set up before the first burst are
+        preserved, so the object is immediately ready to demodulate the next
+        burst.
 
         Examples
         --------
         >>> import numpy as np
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
-        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
-        >>> d.reset()          # clears est_ + frame_valid, keeps config
-        >>> d.frame_valid
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
+        >>> d.reset()          # clears the estimates, keeps the config
+        >>> d.frame_offset
         0
 
         """
@@ -1904,97 +1904,45 @@ class BurstDemod:
         >>> import numpy as np
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
-        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
         >>> acode = (np.arange(500) & 1).astype(np.uint8)  # unmodulated
         >>> d.set_preamble(acode, reps=5)  # 5 reps drive the (f0, rate) fit
 
         """
 
-    def set_frame(
-        self,
-        sync: NDArray[np.uint8],
-        crc: int = 1,
-        rs_depth: int = 0,
-        randomise: int = 0,
-        attach_asm: int = 0,
-    ) -> int:
-        """Describe the frame this burst carries — the sync word plus which
-        stages cover it — instead of assuming `sync | payload | CRC-16`. Builds
-        the same `wfm_frame_desc_t` the generator assembles from, so the
-        frame's length, its field order and each stage's cover come from one
-        place: a burst generated with `crc=0` is 16 bits shorter here rather
-        than reported invalid, and an outer code repairs before the payload is
-        read. `frame_valid` then means every check that RAN came out good, with
-        `frame_checked` saying how many did — a frame carrying no check reports
-        0 and 0. The correlation template is the frame's leading literal group
-        (the marker, when attach_asm, then the sync word). The inner code is
-        deliberately NOT accepted: it covers the sync word too, so its bits are
-        coded on the wire and a hard-decision correlator cannot find the frame
-        at all (doppler#1018).
+    def set_sync(self, sync: NDArray[np.uint8]) -> None:
+        """Set the known frame-sync word (0/1 BPSK symbols) used for frame
+        alignment and phase/sign resolution. The ONLY thing this object is told
+        about the frame's content, and for a physical-layer reason: without the
+        sign the slicer would be a coin toss. Where the payload sits, which
+        stages cover what and whether a check passed all need the frame's
+        description and belong one layer up (doppler#1020).
 
-        Replaces `set_sync()`, and the difference is the point: a sync word is
-        one FIELD of a frame, and this demodulator used to hard-code the rest
-        of it as `sync | payload | CRC-16`. A burst generated without a CRC
-        decoded bit-exactly and was reported INVALID; one carrying an outer
-        code could not be described at all. The description built here is the
-        same `wfm_frame_desc_t` the generator assembles from
-        (wfm_frame_desc_of), so the two ends cannot disagree about the frame's
-        length, its field order, or which stage covers what.
+        After the data section is despread to soft BPSK symbols, demod()
+        correlates them against this word; the complex correlation peak locates
+        the frame (its frame_offset) and its phase resolves the residual
+        carrier rotation and the BPSK sign ambiguity before slicing. Pass the
+        word as 0/1 symbols; it is copied and stored internally as +/-1.
 
-        What changes for a caller:
-
-        - **The frame's length is the layout's**, so a frame with no CRC is 16
-          bits shorter here rather than 16 bits of noise the receiver insisted
-          on;
-        - **`frame_valid` means "every check that RAN came out good"**, and
-          frame_checked says how many did. A frame carrying no check reports 0
-          and 0 — different from a failed one;
-        - **an outer code REPAIRS before the payload is read**, because
-          `wfm_frame_check()` corrects in place over the span its own
-          description gave it.
-
-        The correlation template becomes the frame's leading literal group: the
-        marker (when attach_asm) then the sync word. Those are the fields a
-        receiver FINDS rather than decodes, and correlating over both is free
-        gain when a marker is present.
-
-        **The inner code is not accepted here.** A convolutional stage covers
-        everything including the sync word, so its bits are coded ON THE WIRE
-        and a hard-decision correlator cannot find the frame at all; undoing it
-        needs the soft symbols this object currently discards (doppler#1018).
-        There is no flag for it rather than a flag that silently does nothing.
+        This is the ONLY thing this object is told about the frame's content,
+        and it is told it for a physical-layer reason: without the sign the
+        slicer would be a coin toss. Everything else — where the payload sits,
+        which stages cover what, whether a check passed — needs the frame's
+        description and belongs one layer up (doppler#1020).
 
         Parameters
         ----------
         sync : NDArray[np.uint8]
-            Frame-sync word, one 0/1 symbol per element; copied. May be NULL
-            when the frame carries a marker instead.
-        crc : int
-            Non-zero: a CRC-16 trailer follows the payload.
-        rs_depth : int
-            Outer-code interleaving depth; 0 = no outer code.
-        randomise : int
-            Randomiser generator (0 = off), as the generator's own `randomise`
-            field spells it.
-        attach_asm : int
-            Non-zero: the frame opens with the CCSDS ASM.
-
-        Returns
-        -------
-        int
-            0, or -1 if the geometry is refused or an allocation failed.
+            Frame-sync word, one 0/1 symbol per element; copied.
 
         Examples
         --------
         >>> import numpy as np
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
-        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
         >>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
-        >>> d.set_frame(sync)              # Barker-13, CRC-16 trailer
-        0
-        >>> d.set_frame(sync, crc=0)       # ...or no trailer at all
-        0
+        >>> d.set_sync(sync)   # Barker-13: frame align + phase/sign fix
 
         """
 
@@ -2054,10 +2002,9 @@ class BurstDemod:
         >>> import numpy as np
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
-        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
-        >>> d.set_frame(np.zeros(13, dtype=np.uint8))
-        0
-        >>> d.llrs_max_out(1)          # sync + payload + the CRC trailer
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
+        >>> d.set_sync(np.zeros(13, dtype=np.uint8))
+        >>> d.llrs_max_out(1)          # one per frame symbol
         93
 
         """
@@ -2097,7 +2044,7 @@ class BurstDemod:
         >>> import numpy as np
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
-        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
         >>> d.set_prior(0.012, start=0)   # coarse Doppler + start, from acq
 
         """
@@ -2131,10 +2078,6 @@ class BurstDemod:
         """Max output length demod() can produce for the current state. Use to size the ``out=`` buffer."""
 
     @property
-    def frame_valid(self) -> int:
-        """1 iff every check that RAN came out good."""
-
-    @property
     def frame_offset(self) -> int:
         """symbol offset of the sync word."""
 
@@ -2155,8 +2098,11 @@ class BurstDemod:
         """estimator confidence (dB)."""
 
     @property
-    def payload_len(self) -> int:
-        """payload data symbols (bits)."""
+    def frame_syms(self) -> int:
+        """symbols the frame occupies AFTER the sync word — a number the caller
+        states. What they MEAN is the frame description's business, one layer
+        up.
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -3305,8 +3251,8 @@ class DsssBurstReceiver:
         Samples per chip (>= 1).
     chip_rate : float, default 1000000.0
         Chip rate in Hz (> 0).
-    payload_len : int, default 64
-        Payload bits per burst (>= 1).
+    frame_syms : int, default 64
+        Frame symbols per burst (>= 1) — what push() returns, bit for bit.
     cn0_dbhz : float, default 50.0
         Carrier-to-noise density in dB-Hz (> 0), sizing the acquisition search.
     doppler_uncertainty : float, default 0.0
@@ -3321,35 +3267,13 @@ class DsssBurstReceiver:
         Chirp-rate search half-span (cycles/sample^2).
     est_segments : int, default 10
         Segments the feedforward estimator fits over.
-    crc : int, default 1
-        Non-zero: the frame ends in a CRC-16-CCITT trailer over the payload. 0:
-        it does not, and the frame is 16 bits shorter — which the receiver now
-        BELIEVES, instead of measuring the burst against a trailer the
-        transmitter never sent and reporting every frame invalid. Whether a
-        frame carries a check and whether that check passed are separate
-        answers: see `frame_checked`.
-    rs_depth : int, default 0
-        Reed-Solomon (255,223) E=16 interleaving depth over the data group; 0 =
-        no outer code. An outer code REPAIRS: `wfm_frame_check` corrects the
-        frame in place over the span its description gives it, so the payload
-        is read after the repair rather than before it.
-    randomise : int, default 0
-        The CCSDS section-10 pseudo-randomiser over the data group: 0 = off, 1
-        = 131.0-B-6 10.4.1's sequence, 2 = 10.4.2's legacy one. It is its own
-        inverse, so the receiver runs the same generator the transmitter did —
-        and only the matching one derandomises a given waveform.
-    attach_asm : int, default 0
-        Non-zero: the frame opens with the CCSDS Attached Sync Marker, and the
-        correlation template becomes marker+sync rather than sync alone — free
-        acquisition gain, since a marker is a field a receiver FINDS rather
-        than decodes.
 
     Raises
     ------
     ValueError
         If construction fails. The exception message is ``DsssBurstReceiver:
         invalid parameter (need non-empty acq_code/data_code/sync, reps >= 1,
-        spc >= 1, chip_rate > 0, payload_len >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0
+        spc >= 1, chip_rate > 0, frame_syms >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0
         < pd < 1)``.
 
     Examples
@@ -3361,7 +3285,7 @@ class DsssBurstReceiver:
     >>> dat = rng.integers(0, 2, 8).astype(np.uint8)
     >>> syn = np.zeros(13, dtype=np.uint8)
     >>> rx = DsssBurstReceiver(acq, dat, syn, reps=4, spc=4,
-    ...                        payload_len=32)
+    ...                        frame_syms=32)
     >>> rx.n_bursts
     0
 
@@ -3374,7 +3298,7 @@ class DsssBurstReceiver:
         reps: int = ...,
         spc: int = ...,
         chip_rate: float = ...,
-        payload_len: int = ...,
+        frame_syms: int = ...,
         cn0_dbhz: float = ...,
         doppler_uncertainty: float = ...,
         pfa: float = ...,
@@ -3382,10 +3306,6 @@ class DsssBurstReceiver:
         carrier_hz: float = ...,
         max_rate: float = ...,
         est_segments: int = ...,
-        crc: int = ...,
-        rs_depth: int = ...,
-        randomise: int = ...,
-        attach_asm: int = ...,
     ) -> None: ...
 
     def push(
@@ -3393,17 +3313,20 @@ class DsssBurstReceiver:
         x: NDArray[np.complex64],
         out: NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
-        """Stream raw cf32 samples and get back the payload of EVERY burst that
-        completed. Samples feed the embedded BurstAcquisition and are retained
-        in a history ring; when a detection fires, the refine stage correlates
-        the whole preamble to recover the exact preamble start -- the one
-        quantity acquisition structurally cannot report, since its code_phase
-        is a lag modulo one code period -- and the burst is demodulated the
-        moment its last sample has arrived. Every sample is consumed and every
-        burst that completes is returned by the call that completed it, with
-        payloads concatenated: burst i occupies
-        bits[i*payload_len:(i+1)*payload_len], and events() returns the
-        matching record for each. An empty return is normal, not an error: it
+        """Stream raw cf32 samples and get back the FRAME BITS of every burst
+        that completed. Samples feed the embedded BurstAcquisition and are
+        retained in a history ring; when a detection fires, the refine stage
+        correlates the whole preamble to recover the exact preamble start --
+        the one quantity acquisition structurally cannot report, since its
+        code_phase is a lag modulo one code period -- and the burst is
+        demodulated the moment its last sample has arrived. Every sample is
+        consumed and every burst that completes is returned by the call that
+        completed it, with frames concatenated: burst i occupies frame_syms
+        bits starting at i*frame_syms, and events() returns the matching record
+        for each. The bits are the frame as RECEIVED -- sync word first, every
+        symbol after it -- because this object stops at decisions: undoing the
+        frame (a CRC, an outer code, a randomiser) needs its description and is
+        `wfm.Frame.deframe`'s job. An empty return is normal, not an error: it
         means no burst completed in this call. Accepts any block size -- the
         history ring is a contiguous window over the stream and is never reset
         between bursts, so a payload whose tail falls outside one call is
@@ -3418,9 +3341,9 @@ class DsssBurstReceiver:
 
         EVERY SAMPLE OF x IS CONSUMED, and every burst that completes is
         returned by the call that completed it. Payloads are concatenated, so
-        burst `i` occupies `out[i*payload_len .. (i+1)*payload_len)`, and
-        `events()` returns the matching record for each. Returning 0 is normal,
-        not an error: it means no burst completed in this call.
+        burst `i` occupies `out` from `i*frame_syms`, and `events()` returns
+        the matching record for each. Returning 0 is normal, not an error: it
+        means no burst completed in this call.
 
         This is the contract doppler#1008 broke. push() used to return at most
         one burst per call AND abandon the rest of its input to do it, so a
@@ -3440,7 +3363,7 @@ class DsssBurstReceiver:
         Returns
         -------
         NDArray[np.uint8]
-            Bits written to out -- `n_bursts_returned * payload_len`.
+            Bits written to out -- `n_bursts_returned * frame_syms`.
 
         Examples
         --------
@@ -3450,7 +3373,7 @@ class DsssBurstReceiver:
         >>> rx = DsssBurstReceiver(
         ...     rng.integers(0, 2, 31).astype(np.uint8),
         ...     rng.integers(0, 2, 8).astype(np.uint8),
-        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
         >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
         >>> bits.size            # silence carries no burst
         0
@@ -3479,7 +3402,7 @@ class DsssBurstReceiver:
         Returns
         -------
         int
-            `(x_len/burst_len + 1 + q_cap) * payload_len`.
+            `(x_len/burst_len + 1 + q_cap) * frame_syms`.
         """
 
     def llrs(
@@ -3537,7 +3460,7 @@ class DsssBurstReceiver:
         >>> rx = DsssBurstReceiver(
         ...     rng.integers(0, 2, 31).astype(np.uint8),
         ...     rng.integers(0, 2, 8).astype(np.uint8),
-        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
         >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
         >>> len(bits), len(rx.llrs(rx.llrs_max_out(1)))   # nothing decoded
         (0, 0)
@@ -3565,10 +3488,10 @@ class DsssBurstReceiver:
         out: NDArray[Any] | None = None,
     ) -> NDArray[Any]:
         """The event record for each burst the last push() returned. Row i
-        describes the payload at bits[i*payload_len:(i+1)*payload_len] of that
-        push. Valid until the next push(), reset() or set_state().
+        describes the frame at bits[i*frame_syms ...] of that push. Valid until
+        the next push(), reset() or set_state().
 
-        Row `i` describes the payload at `out[i*payload_len ...]` of that push.
+        Row `i` describes the payload at `out[i*frame_syms ...]` of that push.
         A single push can complete many bursts and each needs its own event, so
         these are a list rather than the scalar read-backs -- those still exist
         and still describe the LAST burst, but they cannot speak for the
@@ -3600,7 +3523,7 @@ class DsssBurstReceiver:
         >>> rx = DsssBurstReceiver(
         ...     rng.integers(0, 2, 31).astype(np.uint8),
         ...     rng.integers(0, 2, 8).astype(np.uint8),
-        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
         >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
         >>> len(rx.events()) == bits.size // 32   # one record per payload
         True
@@ -3647,7 +3570,7 @@ class DsssBurstReceiver:
         >>> rx = DsssBurstReceiver(
         ...     rng.integers(0, 2, 31).astype(np.uint8),
         ...     rng.integers(0, 2, 8).astype(np.uint8),
-        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
         >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=1)
 
         """
@@ -3673,11 +3596,9 @@ class DsssBurstReceiver:
         >>> rx = DsssBurstReceiver(
         ...     rng.integers(0, 2, 31).astype(np.uint8),
         ...     rng.integers(0, 2, 8).astype(np.uint8),
-        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
         >>> _ = rx.push(np.zeros(1024, dtype=np.complex64))
         >>> rx.reset()
-        >>> rx.frame_valid
-        0
 
         """
 
@@ -3739,17 +3660,6 @@ class DsssBurstReceiver:
     @property
     def preamble_start(self) -> int:
         """Exact stream position of the preamble."""
-
-    @property
-    def frame_valid(self) -> int:
-        """Non-zero if every check that RAN passed."""
-
-    @property
-    def frame_checked(self) -> int:
-        """Checking stages actually reversed. 0 with frame_valid 0 means the
-        frame carries NO check -- a different fact from a failed one, and an
-        FER conflating them scores every unprotected frame as an error.
-        """
 
     @property
     def doppler_hz_est(self) -> float:

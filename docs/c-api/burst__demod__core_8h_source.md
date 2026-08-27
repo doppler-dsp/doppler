@@ -14,8 +14,6 @@
 
 #include "clib_common.h"
 #include "jm_perf.h"
-#include "ccsds_tm/ccsds_tm_frame.h" /* CCSDS_TM_ASM_BITS + the ops */
-#include "wfm/wfm_frame.h"           /* the frame DESCRIPTION          */
 #include "ppe/ppe_core.h"
 #include "fft/fft_core.h"
 #include "spectral/spectral_core.h"
@@ -40,16 +38,11 @@ extern "C"
     size_t   acq_reps;  
     int8_t  *sync;      
     size_t   sync_len;  
-    uint8_t *sync_bits; 
-    uint8_t  marker[CCSDS_TM_ASM_BITS]; 
-    wfm_frame_desc_t d;   
-    wfm_frame_desc_layout_t lay; 
-    unsigned payload_field;      
     size_t   spc;       
     double   chip_rate; 
     double   carrier_hz; 
     double   max_rate;  
-    size_t   payload_len;  
+    size_t   frame_syms;   
     size_t   est_segments; 
     double   f0_prior;     
     size_t   start;        
@@ -62,8 +55,6 @@ extern "C"
     float *llr;   
     size_t n_llr; 
     double est_n0; 
-    int    frame_valid;  
-    int    frame_checked; 
     size_t frame_offset; 
     size_t n_symbols;    
     double est_freq_hz;  
@@ -74,7 +65,7 @@ extern "C"
   burst_demod_state_t *burst_demod_create (const uint8_t *data_code,
                                            size_t data_code_len, size_t spc,
                                            double chip_rate, double carrier_hz,
-                                           double max_rate, size_t payload_len,
+                                           double max_rate, size_t frame_syms,
                                            size_t est_segments);
 
   void burst_demod_destroy (burst_demod_state_t *state);
@@ -85,9 +76,8 @@ extern "C"
                                  const uint8_t *acq_code, size_t acq_code_len,
                                  size_t reps);
 
-  int burst_demod_set_frame (burst_demod_state_t *state, const uint8_t *sync,
-                             size_t sync_len, int crc, unsigned rs_depth,
-                             int randomise, int attach_asm);
+  void burst_demod_set_sync (burst_demod_state_t *state, const uint8_t *sync,
+                             size_t sync_len);
 
   size_t burst_demod_llrs (burst_demod_state_t *state, size_t n, float *out,
                            size_t max_out);

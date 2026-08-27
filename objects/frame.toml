@@ -333,6 +333,39 @@ status_return = true
 error = "ValueError"
 
 [[frame.methods]]
+name = "deframe"
+doc = "Undo the description's stages over a received frame and hand back the CORRECTED bits — the layer a receiver stops short of (doppler#1020)."
+arg_type = "void"
+return_type = "uint8_t"
+variable_output = true
+pass_capacity = true
+params = [{ name = "rx_bits", type = "uint8_t[]" }]
+
+[[frame.properties]]
+name = "rx_ok"
+type = "int"
+field = true
+doc = "Checks that came out good in the last deframe() -- one per CRC, one per outer-code codeword. `rx_ok == rx_units` is the verdict."
+
+[[frame.properties]]
+name = "rx_units"
+type = "int"
+field = true
+doc = "Checks the last deframe() performed across every stage it reversed."
+
+[[frame.properties]]
+name = "rx_checked"
+type = "int"
+field = true
+doc = "Stages the last deframe() actually reversed. 0 means the description carries no reversible stage at all -- which is why `rx_ok` is 0 too, and is a different fact from a check that failed. An FER conflating them scores every unprotected frame as an error."
+
+[[frame.properties]]
+name = "rx_symbols"
+type = "int"
+field = true
+doc = "Symbol errors the last deframe() repaired. Margin being spent, visible before it is lost -- what an outer code reports and a CRC cannot."
+
+[[frame.methods]]
 name = "check"
 doc = "Undo the description's stages over a received frame and report what was found -- the receive mirror of `bits()`, reading the same description, so a transmitter and a receiver holding the same `Frame` cannot disagree about which stage covered what. This is the truth-free frame error rate on a CODED link: it needs no payload truth, so it works on a real capture, and an outer code is a strictly better detector than a CRC because it reports how much repair it took rather than one bit of right-or-wrong. `checked` is smaller than `stages` when the description names a stage the receiver does not reverse here -- the inner code is the case, being undone before frame synchronisation -- and such a stage is reported as not checked, never as passed."
 arg_type = "void"

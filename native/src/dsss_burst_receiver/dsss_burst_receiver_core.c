@@ -33,11 +33,10 @@ dsss_burst_receiver_state_t *
 dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
                             const uint8_t *data_code, size_t data_code_len,
                             const uint8_t *sync, size_t sync_len, size_t reps,
-                            size_t spc, double chip_rate, size_t payload_len,
+                            size_t spc, double chip_rate, size_t frame_syms,
                             double cn0_dbhz, double doppler_uncertainty,
                             double pfa, double pd, double carrier_hz,
-                            double max_rate, size_t est_segments, int crc,
-                            int rs_depth, int randomise, int attach_asm)
+                            double max_rate, size_t est_segments)
 {
   /* Every one of these is an ARGUMENT error, and the manifest's
    * create_error/create_error_message turn a NULL return into a ValueError
@@ -46,7 +45,7 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
    * objects/). */
   if (!acq_code || acq_code_len == 0 || !data_code || data_code_len == 0
       || !sync || sync_len == 0 || reps < 1 || spc < 1 || chip_rate <= 0.0
-      || payload_len < 1 || cn0_dbhz <= 0.0 || pfa <= 0.0 || pfa >= 1.0
+      || frame_syms < 1 || cn0_dbhz <= 0.0 || pfa <= 0.0 || pfa >= 1.0
       || pd <= 0.0 || pd >= 1.0)
     return NULL;
 
@@ -57,7 +56,7 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
   s->reps          = reps;
   s->spc           = spc;
   s->chip_rate     = chip_rate;
-  s->payload_len   = payload_len;
+  s->frame_syms    = frame_syms;
   s->acq_code_len  = acq_code_len;
   s->data_code_len = data_code_len;
   s->sync_len      = sync_len;
@@ -82,29 +81,20 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
    * sent could not fit in the window this object reserved for it. */
   s->demod
       = burst_demod_create (s->data_code, data_code_len, spc, chip_rate,
-                            carrier_hz, max_rate, payload_len, est_segments);
+                            carrier_hz, max_rate, frame_syms, est_segments);
   if (!s->demod)
     goto fail;
   burst_demod_set_preamble (s->demod, s->acq_code, acq_code_len, reps);
-  /* The frame, described rather than assumed: the same four choices the
-     generator's scene offers, turned into the same layout by the same
-     function (doppler#1017). A refusal here is a geometry no burst can
-     carry, so the object refuses too. */
-  if (burst_demod_set_frame (s->demod, s->sync, sync_len, crc,
-                             (unsigned)((rs_depth > 0) ? rs_depth : 0),
-                             randomise, attach_asm)
-      != 0)
-    goto fail;
+  burst_demod_set_sync (s->demod, s->sync, sync_len);
 
   /* ── Derived geometry ───────────────────────────────────────────────
    * code_period: one acquisition code repetition, in samples. This is the
    * modulus every epoch ambiguity in the design doc is stated against --
    * acq's code_phase is exactly `burst_start mod code_period` (§3.1).
    * burst_len: preamble + the spread frame, whatever the frame is. */
-  s->frame_bits  = s->demod->lay.frame_bits; /* the row stride of llrs() */
+  s->frame_bits  = frame_syms; /* the row stride of push() and llrs() */
   s->code_period = acq_code_len * spc;
-  s->burst_len
-      = (reps * acq_code_len + s->demod->lay.frame_bits * data_code_len) * spc;
+  s->burst_len   = (reps * acq_code_len + frame_syms * data_code_len) * spc;
 
   /* ── The history ring (§7.1) ────────────────────────────────────────
    * NOT a caller knob. A detection can fire on the LAST frame inside the
@@ -241,13 +231,11 @@ dsss_burst_receiver_reset (dsss_burst_receiver_state_t *state)
   memset (state->q, 0, state->q_cap * sizeof *state->q);
   state->suppress_until = 0;
 
-  /* Every read-back, not just the verdict. These ARE the event (§4), and a
-   * stale doppler_hz_est beside a cleared frame_valid describes a burst
-   * that was never demodulated -- the silent failure burst_demod's own
-   * report (F4) found in exactly this shape. */
+  /* Every read-back together. These ARE the event (§4), and a stale
+   * doppler_hz_est beside a cleared preamble_start describes a burst that
+   * was never demodulated -- the silent failure burst_demod's own report
+   * (F4) found in exactly this shape. */
   state->preamble_start = 0;
-  state->frame_valid    = 0;
-  state->frame_checked  = 0;
   state->doppler_hz_est = 0.0;
   state->doppler_res_hz = 0.0;
   state->cn0_dbhz_est   = 0.0;
@@ -271,7 +259,7 @@ dsss_burst_receiver_push_max_out (dsss_burst_receiver_state_t *state,
    * x_len/burst_len + 1 of them -- plus every detection already queued from
    * an earlier call, which q_cap bounds. */
   size_t n = x_len / state->burst_len + 1u + state->q_cap;
-  return n * state->payload_len;
+  return n * state->frame_syms;
 }
 
 /** @brief Contiguous view of the history ring at a stream position. */
@@ -462,8 +450,6 @@ dsss_br_emit (dsss_burst_receiver_state_t *s, uint8_t *out, size_t max_out)
   s->doppler_hz_est = e->doppler_hz;
   s->cn0_dbhz_est   = e->cn0_dbhz;
   s->refine_margin  = e->margin;
-  s->frame_valid    = s->demod->frame_valid;
-  s->frame_checked  = s->demod->frame_checked;
   s->doppler_res_hz = eng->doppler_res_hz;
   s->est_freq_hz    = s->demod->est_freq_hz;
   s->est_rate_hz    = s->demod->est_rate_hz;
@@ -519,21 +505,22 @@ dsss_br_emit (dsss_burst_receiver_state_t *s, uint8_t *out, size_t max_out)
       r->est_rate_hz     = s->est_rate_hz;
       r->est_snr_db      = s->est_snr_db;
       r->refine_margin   = s->refine_margin;
-      r->frame_valid     = (uint64_t)s->frame_valid;
-      r->frame_checked   = (uint64_t)s->frame_checked;
     }
 
   s->q_head = (s->q_head + 1u) % s->q_cap;
   s->pending--;
 
-  /* A burst that DECODED owns its whole span: the payload goes on firing
+  /* A burst that DEMODULATED owns its whole span: its symbols go on firing
      against the acquisition code, and none of that is a new burst. This is
-     the only place the long window is armed -- knowing there IS a payload
-     here is what justifies blinding the search for one, and a detection
-     alone does not know that (doppler#1004). Candidates already queued
-     inside the span go with it; the compaction only ever writes at or
-     behind the entry it just read, so it is safe in place. */
-  if (s->frame_valid)
+     the only place the long window is armed -- and what arms it is the SYNC
+     WORD having correlated here, which is a physical fact this object owns.
+     It used to be the CRC, which is not: a receiver that stops at decisions
+     has no verdict to wait for, and a frame whose check fails is still a
+     frame that was transmitted here (doppler#1004, doppler#1020).
+     Candidates already queued inside the span go with it; the compaction
+     only ever writes at or behind the entry it just read, so it is safe in
+     place. */
+  if (n)
     {
       uint64_t until = e->start + (uint64_t)s->burst_len;
       if (until > s->suppress_until)
@@ -813,19 +800,6 @@ dsss_burst_receiver_get_preamble_start (
   return state->preamble_start;
 }
 
-int
-dsss_burst_receiver_get_frame_valid (const dsss_burst_receiver_state_t *state)
-{
-  return state->frame_valid;
-}
-
-int
-dsss_burst_receiver_get_frame_checked (
-    const dsss_burst_receiver_state_t *state)
-{
-  return state->frame_checked;
-}
-
 double
 dsss_burst_receiver_get_doppler_hz_est (
     const dsss_burst_receiver_state_t *state)
@@ -918,7 +892,6 @@ dsss_burst_receiver_state_bytes (const dsss_burst_receiver_state_t *s)
      coincidence. Both variable regions are fixed-size with a length prefix. */
   return sizeof (dp_state_hdr_t)
          + sizeof (uint64_t) * 4u /* samples_fed, n_bursts, dropped, start  */
-         + sizeof (uint32_t)      /* frame_valid                            */
          + sizeof (double) * 7u   /* the event's doubles                    */
          + sizeof (uint64_t)      /* suppress_until                         */
          + sizeof (uint32_t) * 2u /* pending, q_head                        */
@@ -941,7 +914,6 @@ dsss_burst_receiver_get_state (const dsss_burst_receiver_state_t *s,
   dp_w_u64 (&_w, s->n_bursts);
   dp_w_u64 (&_w, s->dropped);
   dp_w_u64 (&_w, s->preamble_start);
-  dp_w_u32 (&_w, (uint32_t)s->frame_valid);
   dp_w_f64 (&_w, s->doppler_hz_est);
   dp_w_f64 (&_w, s->doppler_res_hz);
   dp_w_f64 (&_w, s->cn0_dbhz_est);
@@ -1002,7 +974,6 @@ dsss_burst_receiver_set_state (dsss_burst_receiver_state_t *s,
   s->n_bursts       = dp_r_u64 (&_r);
   s->dropped        = dp_r_u64 (&_r);
   s->preamble_start = dp_r_u64 (&_r);
-  s->frame_valid    = (int)dp_r_u32 (&_r);
   s->doppler_hz_est = dp_r_f64 (&_r);
   s->doppler_res_hz = dp_r_f64 (&_r);
   s->cn0_dbhz_est   = dp_r_f64 (&_r);

@@ -76,6 +76,25 @@ extern "C"
                                size_t frame_len, const uint8_t *frame_bits,
                                wfm_frame_desc_t *out);
 
+  typedef struct
+  {
+    int attach_asm;
+    const uint8_t *preamble;
+    size_t         preamble_len;
+    size_t         preamble_reps;
+    const uint8_t *sync;
+    size_t         sync_len;
+    const uint8_t *payload;
+    size_t         payload_len;
+    int crc;
+    unsigned rs_depth;
+    int randomise;
+    int convolutional;
+  } ccsds_tm_frame_spec_t;
+
+  int ccsds_tm_frame_desc_of (const ccsds_tm_frame_spec_t *s,
+                              wfm_frame_desc_t *d);
+
   void ccsds_tm_frame_ops (wfm_frame_ops_t *out, conv_enc_t *conv);
 
 #ifdef __cplusplus

@@ -97,50 +97,36 @@ wfm_source_frame_error (const wfm_source_t *src)
 
 /* The source's frame as a DESCRIPTION — an ADAPTER, not a second layout.
  *
- * Everything about which stage covers what now lives in `wfm_frame_desc_of`,
- * where a receiver can reach it too: a generator and a receiver holding the
- * same choices must hold the same frame, and the only way they cannot
- * disagree is for neither to work it out. What is left here is this face's
- * own two decisions.
+ * Which stage covers what is `ccsds_tm_frame_desc_of`'s, because the covers
+ * are that standard's and `wfm/wfm_frame.h` deliberately knows nothing about
+ * CCSDS. What is left here is this face's own decision: the DSSS preamble is
+ * a field for an unspread source and is NOT one for a spread burst.
  *
- * The first is the DSSS preamble, which is a field for an unspread source and
- * is not one for a spread burst -- a physical fact rather than an
- * inconsistency: a DSSS preamble is transmitted unmodulated and UNSPREAD,
- * because it is the coherent pull-in target a receiver correlates raw chips
- * against. It is therefore outside anything a stage could cover, and
- * `wfm_dsss_desc_chips` prepends it around the description rather than
- * inside it.
- *
- * The second is where CCSDS's own numbers enter: the marker's bits and the
- * outer code's parity size. `wfm_frame.c` cannot call `ccsds_tm` (ccsds_tm
- * depends on it), which is the same reason the stage KERNELS arrive as a
- * table.
+ * That is a physical fact rather than an inconsistency: a DSSS preamble is
+ * transmitted unmodulated and UNSPREAD, because it is the coherent pull-in
+ * target a receiver correlates raw chips against. It is therefore outside
+ * anything a stage could cover, and `wfm_dsss_desc_chips` prepends it around
+ * the description rather than inside it.
  */
 int
 wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
 {
-  static uint8_t marker[CCSDS_TM_ASM_BITS];
-  if (src->attach_asm)
-    ccsds_tm_asm_bits (marker); /* the ONE expansion, never a transcription */
-
-  const int        spread = (src->type == WFM_SYNTH_DSSS);
-  wfm_frame_spec_t s      = {
-    .marker         = src->attach_asm ? marker : NULL,
-    .n_marker       = src->attach_asm ? CCSDS_TM_ASM_BITS : 0u,
-    .preamble       = spread ? NULL : src->acq_code,
-    .n_preamble     = spread ? 0u : src->n_acq_code,
-    .preamble_reps  = spread ? 0u : src->acq_reps,
-    .sync           = src->sync,
-    .n_sync         = src->n_sync,
-    .payload        = src->bits,
-    .n_payload      = src->n_bits,
-    .crc            = src->crc,
-    .rs_depth       = src->rs_depth,
-    .rs_parity_bits = (size_t)CCSDS_TM_RS_2E * src->rs_depth * 8u,
-    .randomise      = src->randomise,
-    .convolutional  = src->convolutional,
+  const int                   spread = (src->type == WFM_SYNTH_DSSS);
+  const ccsds_tm_frame_spec_t s      = {
+    .attach_asm    = src->attach_asm,
+    .preamble      = spread ? NULL : src->acq_code,
+    .preamble_len  = spread ? 0u : src->n_acq_code,
+    .preamble_reps = spread ? 0u : src->acq_reps,
+    .sync          = src->sync,
+    .sync_len      = src->n_sync,
+    .payload       = src->bits,
+    .payload_len   = src->n_bits,
+    .crc           = src->crc,
+    .rs_depth      = src->rs_depth,
+    .randomise     = src->randomise,
+    .convolutional = src->convolutional,
   };
-  return wfm_frame_desc_of (&s, d);
+  return ccsds_tm_frame_desc_of (&s, d);
 }
 
 int

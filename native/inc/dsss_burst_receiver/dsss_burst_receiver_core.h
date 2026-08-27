@@ -15,11 +15,11 @@
  * @code
  * uint8_t acq[31], data[8], sync[13];
  * dsss_burst_receiver_state_t *rx = dsss_burst_receiver_create (
- *     acq, 31, data, 8, sync, 13, 4, 4, 1.0e6, 32,
+ *     acq, 31, data, 8, sync, 13, 4, 4, 1.0e6, 61,
  *     55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
- * uint8_t bits[32];
- * size_t n = dsss_burst_receiver_push (rx, samples, n_samples, bits, 32);
- * if (n && rx->frame_valid) { ... }
+ * uint8_t bits[61];   // frame_syms per burst: sync | payload | CRC
+ * size_t n = dsss_burst_receiver_push (rx, samples, n_samples, bits, 61);
+ * // the bits are the FRAME as received; undoing it is a Frame's job
  * dsss_burst_receiver_destroy (rx);
  * @endcode
  */
@@ -61,12 +61,6 @@ typedef struct
   double   est_rate_hz;    /**< Demod's chirp-rate estimate.               */
   double   est_snr_db;     /**< Demod's post-decode SNR estimate.          */
   double   refine_margin;  /**< Runner-up period over the winner.          */
-  uint64_t frame_valid;    /**< Non-zero if every check that RAN passed.   */
-  uint64_t frame_checked;  /**< Checking stages actually reversed. 0 with
-                                frame_valid 0 means the frame carries NO
-                                check -- a different fact from a failed
-                                one, and an FER conflating them scores
-                                every unprotected frame as an error.      */
 } dsss_br_event_t;
 
 /**
@@ -136,7 +130,10 @@ typedef struct {
   size_t   reps;         /**< Preamble code repetitions.                   */
   size_t   spc;          /**< Samples per chip.                            */
   double   chip_rate;    /**< Chip rate, Hz.                               */
-  size_t   payload_len;  /**< Payload bits per burst.                      */
+  size_t   frame_syms;   /**< Symbols the frame occupies after the sync
+                              word, and so bits per burst out of push().
+                              What they MEAN is a frame description's
+                              business, one layer up (doppler#1020).     */
 
   /* ── Derived geometry ───────────────────────────────────────────────── */
   size_t code_period; /**< One preamble repetition, in SAMPLES. The modulus
@@ -162,8 +159,6 @@ typedef struct {
 
   /* ── The DetectionEvent, describing the most recent completed burst ─── */
   uint64_t preamble_start; /**< Stream-absolute preamble start. Never late. */
-  int      frame_valid;    /**< 1 iff every check that RAN came out good.   */
-  int      frame_checked;  /**< Checking stages reversed for that burst.    */
   double   doppler_hz_est; /**< Signed coarse Doppler, Hz.                  */
   double   doppler_res_hz; /**< Width of that estimate.                     */
   double   cn0_dbhz_est;   /**< C/N0 lower bound, dB-Hz (saturating).       */
@@ -303,7 +298,8 @@ typedef struct {
  * @param reps  Preamble code repetitions (>= 1).
  * @param spc  Samples per chip (>= 1).
  * @param chip_rate  Chip rate in Hz (> 0).
- * @param payload_len  Payload bits per burst (>= 1).
+ * @param frame_syms   Frame symbols per burst (>= 1) — what push()
+ *                     returns, bit for bit.
  * @param cn0_dbhz  Carrier-to-noise density in dB-Hz (> 0), sizing the
  *                  acquisition search.
  * @param doppler_uncertainty  One-sided Doppler half-range, Hz.
@@ -312,17 +308,6 @@ typedef struct {
  * @param carrier_hz  RF carrier (Hz) for code-Doppler; 0 = ignore.
  * @param max_rate  Chirp-rate search half-span (cycles/sample^2).
  * @param est_segments  Segments the feedforward estimator fits over.
- * @param crc           Non-zero: the frame ends in a CRC-16-CCITT trailer
- *                      over the payload. 0: it does not, and the frame is
- *                      16 bits shorter — which this object then BELIEVES,
- *                      rather than measuring the burst against a trailer
- *                      nobody sent.
- * @param rs_depth      Outer-code interleaving depth over the data group;
- *                      0 = none. It REPAIRS, before the payload is read.
- * @param randomise     Randomiser generator over the data group (0 = off),
- *                      as the generator's own `randomise` field spells it.
- * @param attach_asm    Non-zero: the frame opens with the CCSDS ASM, which
- *                      joins the correlation template.
  * @return Heap-allocated state, or NULL if any argument is invalid.
  * @note Caller must call dsss_burst_receiver_destroy() when done.
  * @code
@@ -333,13 +318,13 @@ typedef struct {
  * >>> dat = rng.integers(0, 2, 8).astype(np.uint8)
  * >>> syn = np.zeros(13, dtype=np.uint8)
  * >>> rx = DsssBurstReceiver(acq, dat, syn, reps=4, spc=4,
- * ...                        payload_len=32)
+ * ...                        frame_syms=32)
  * >>> rx.n_bursts
  * 0
  *
  * @endcode
  */
-dsss_burst_receiver_state_t *dsss_burst_receiver_create(const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code, size_t data_code_len, const uint8_t *sync, size_t sync_len, size_t reps, size_t spc, double chip_rate, size_t payload_len, double cn0_dbhz, double doppler_uncertainty, double pfa, double pd, double carrier_hz, double max_rate, size_t est_segments, int crc, int rs_depth, int randomise, int attach_asm);
+dsss_burst_receiver_state_t *dsss_burst_receiver_create(const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code, size_t data_code_len, const uint8_t *sync, size_t sync_len, size_t reps, size_t spc, double chip_rate, size_t frame_syms, double cn0_dbhz, double doppler_uncertainty, double pfa, double pd, double carrier_hz, double max_rate, size_t est_segments);
 
 /**
  * @brief Destroy a dsss_burst_receiver instance and release all memory.
@@ -364,11 +349,9 @@ void dsss_burst_receiver_destroy(dsss_burst_receiver_state_t *state);
  * >>> rx = DsssBurstReceiver(
  * ...     rng.integers(0, 2, 31).astype(np.uint8),
  * ...     rng.integers(0, 2, 8).astype(np.uint8),
- * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+ * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
  * >>> _ = rx.push(np.zeros(1024, dtype=np.complex64))
  * >>> rx.reset()
- * >>> rx.frame_valid
- * 0
  *
  * @endcode
  */
@@ -393,7 +376,7 @@ void dsss_burst_receiver_reset(dsss_burst_receiver_state_t *state);
  *
  * @param state  Must be non-NULL.
  * @param x_len  Number of input samples the caller is about to push.
- * @return `(x_len/burst_len + 1 + q_cap) * payload_len`.
+ * @return `(x_len/burst_len + 1 + q_cap) * frame_syms`.
  */
 size_t dsss_burst_receiver_push_max_out(dsss_burst_receiver_state_t *state, size_t x_len);
 
@@ -408,7 +391,7 @@ size_t dsss_burst_receiver_push_max_out(dsss_burst_receiver_state_t *state, size
  *
  * EVERY SAMPLE OF @p x IS CONSUMED, and every burst that completes is
  * returned by the call that completed it. Payloads are concatenated, so
- * burst `i` occupies `out[i*payload_len .. (i+1)*payload_len)`, and
+ * burst `i` occupies `out` from `i*frame_syms`, and
  * `events()` returns the matching record for each. Returning 0 is normal,
  * not an error: it means no burst completed in this call.
  *
@@ -424,7 +407,7 @@ size_t dsss_burst_receiver_push_max_out(dsss_burst_receiver_state_t *state, size
  * @param x_len  Number of input samples.
  * @param out  Payload bits, caller-owned, @p max_out long.
  * @param max_out  Capacity of @p out; see push_max_out().
- * @return Bits written to @p out -- `n_bursts_returned * payload_len`.
+ * @return Bits written to @p out -- `n_bursts_returned * frame_syms`.
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import DsssBurstReceiver
@@ -432,7 +415,7 @@ size_t dsss_burst_receiver_push_max_out(dsss_burst_receiver_state_t *state, size
  * >>> rx = DsssBurstReceiver(
  * ...     rng.integers(0, 2, 31).astype(np.uint8),
  * ...     rng.integers(0, 2, 8).astype(np.uint8),
- * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+ * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
  * >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
  * >>> bits.size            # silence carries no burst
  * 0
@@ -480,7 +463,7 @@ size_t dsss_burst_receiver_events_max_out(dsss_burst_receiver_state_t *state);
  * >>> rx = DsssBurstReceiver(
  * ...     rng.integers(0, 2, 31).astype(np.uint8),
  * ...     rng.integers(0, 2, 8).astype(np.uint8),
- * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+ * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
  * >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
  * >>> len(bits), len(rx.llrs(rx.llrs_max_out(1)))   # nothing decoded
  * (0, 0)
@@ -502,7 +485,7 @@ size_t dsss_burst_receiver_llrs_max_out(dsss_burst_receiver_state_t *state, size
 /**
  * @brief The event record for each burst the last push() returned.
  *
- * Row `i` describes the payload at `out[i*payload_len ...]` of that push.
+ * Row `i` describes the payload at `out[i*frame_syms ...]` of that push.
  * A single push can complete many bursts and each needs its own event, so
  * these are a list rather than the scalar read-backs -- those still exist
  * and still describe the LAST burst, but they cannot speak for the others.
@@ -526,7 +509,7 @@ size_t dsss_burst_receiver_llrs_max_out(dsss_burst_receiver_state_t *state, size
  * >>> rx = DsssBurstReceiver(
  * ...     rng.integers(0, 2, 31).astype(np.uint8),
  * ...     rng.integers(0, 2, 8).astype(np.uint8),
- * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+ * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
  * >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
  * >>> len(rx.events()) == bits.size // 32   # one record per payload
  * True
@@ -552,15 +535,13 @@ size_t dsss_burst_receiver_events(dsss_burst_receiver_state_t *state, size_t n, 
  * >>> rx = DsssBurstReceiver(
  * ...     rng.integers(0, 2, 31).astype(np.uint8),
  * ...     rng.integers(0, 2, 8).astype(np.uint8),
- * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+ * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
  * >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=1)
  *
  * @endcode
  */
 int dsss_burst_receiver_configure_search_raw(dsss_burst_receiver_state_t *state, size_t doppler_bins, size_t n_noncoh);
 uint64_t dsss_burst_receiver_get_preamble_start(const dsss_burst_receiver_state_t *state);
-int dsss_burst_receiver_get_frame_valid(const dsss_burst_receiver_state_t *state);
-
 int dsss_burst_receiver_get_frame_checked(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_doppler_hz_est(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_doppler_res_hz(const dsss_burst_receiver_state_t *state);
@@ -586,7 +567,7 @@ uint64_t dsss_burst_receiver_get_n_bursts(const dsss_burst_receiver_state_t *sta
 
 /** @brief Per-object envelope tag: "DBRX" (DsssBurstReceiver). */
 #define DSSS_BURST_RECEIVER_STATE_MAGIC DP_FOURCC('D', 'B', 'R', 'X')
-#define DSSS_BURST_RECEIVER_STATE_VERSION 3u
+#define DSSS_BURST_RECEIVER_STATE_VERSION 4u
 
 /** @brief Byte size of @p state's blob (envelope + payload + child). */
 size_t dsss_burst_receiver_state_bytes(const dsss_burst_receiver_state_t *state);

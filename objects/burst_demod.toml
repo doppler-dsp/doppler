@@ -7,7 +7,8 @@
 #   3. despread the data section with the (short) data code -> soft BPSK symbols
 #   4. frame sync — correlate the symbols against the known sync word; its
 #      complex peak gives the frame offset AND the residual phase (derotated out)
-#   5. slice the payload to bits; verify the CRC-16 trailer -> frame_valid
+#   5. slice frame_syms symbols to bits (and to LLRs) -- and stop: what
+#      the bits MEAN needs a frame description, one layer up
 #
 # Seeded from acquisition via set_prior(coarse Doppler, preamble start). One
 # `max_rate` knob spans near-static Doppler (0) to severe LEO chirp. One-shot
@@ -63,7 +64,7 @@ type = "double"
 default = "0.0"
 
 [[burst_demod.init_params]]
-name = "payload_len"
+name = "frame_syms"
 type = "size_t"
 default = "0"
 
@@ -80,17 +81,11 @@ return_type = "void"
 params = [{ name = "acq_code", type = "uint8_t[]" }, { name = "reps", type = "size_t" }]
 
 [[burst_demod.methods]]
-name = "set_frame"
-doc = "Describe the frame this burst carries — the sync word plus which stages cover it — instead of assuming `sync | payload | CRC-16`. Builds the same `wfm_frame_desc_t` the generator assembles from, so the frame's length, its field order and each stage's cover come from one place: a burst generated with `crc=0` is 16 bits shorter here rather than reported invalid, and an outer code repairs before the payload is read. `frame_valid` then means every check that RAN came out good, with `frame_checked` saying how many did — a frame carrying no check reports 0 and 0. The correlation template is the frame's leading literal group (the marker, when attach_asm, then the sync word). The inner code is deliberately NOT accepted: it covers the sync word too, so its bits are coded on the wire and a hard-decision correlator cannot find the frame at all (doppler#1018)."
+name = "set_sync"
+doc = "Set the known frame-sync word (0/1 BPSK symbols) used for frame alignment and phase/sign resolution. The ONLY thing this object is told about the frame's content, and for a physical-layer reason: without the sign the slicer would be a coin toss. Where the payload sits, which stages cover what and whether a check passed all need the frame's description and belong one layer up (doppler#1020)."
 arg_type = "void"
-return_type = "int"
-params = [
-    { name = "sync", type = "uint8_t[]" },
-    { name = "crc", type = "int", default = "1" },
-    { name = "rs_depth", type = "int", default = "0" },
-    { name = "randomise", type = "int", default = "0" },
-    { name = "attach_asm", type = "int", default = "0" },
-]
+return_type = "void"
+params = [{ name = "sync", type = "uint8_t[]" }]
 
 [[burst_demod.methods]]
 name = "llrs"
@@ -117,10 +112,6 @@ pass_capacity = true
 nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
 
-[[burst_demod.properties]]
-name = "frame_valid"
-type = "int"
-field = true
 
 [[burst_demod.properties]]
 name = "frame_offset"
@@ -148,6 +139,6 @@ type = "double"
 field = true
 
 [[burst_demod.properties]]
-name = "payload_len"
+name = "frame_syms"
 type = "size_t"
 field = true

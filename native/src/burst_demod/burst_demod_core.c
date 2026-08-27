@@ -2,7 +2,6 @@
 
 #include "ccsds_tm/ccsds_tm_frame.h" /* the stage kernels + the ASM bits    */
 #include "mpsk/mpsk_core.h"          /* mpsk_soft_demap — the ONE LLR rule  */
-#include "wfm/wfm_frame.h"           /* the frame DESCRIPTION, both faces   */
 
 #include <complex.h>
 #include <math.h>
@@ -29,7 +28,7 @@ wrap_pi (double ph)
 burst_demod_state_t *
 burst_demod_create (const uint8_t *data_code, size_t data_code_len, size_t spc,
                     double chip_rate, double carrier_hz, double max_rate,
-                    size_t payload_len, size_t est_segments)
+                    size_t frame_syms, size_t est_segments)
 {
   if (!data_code || data_code_len == 0 || spc == 0 || chip_rate <= 0.0
       || max_rate < 0.0 || est_segments == 0)
@@ -49,7 +48,7 @@ burst_demod_create (const uint8_t *data_code, size_t data_code_len, size_t spc,
   s->chip_rate    = chip_rate;
   s->carrier_hz   = carrier_hz;
   s->max_rate     = max_rate;
-  s->payload_len  = payload_len;
+  s->frame_syms   = frame_syms;
   s->est_segments = est_segments;
   return s;
 }
@@ -65,7 +64,6 @@ burst_demod_destroy (burst_demod_state_t *s)
   free (s->acq_code);
   free (s->sync);
   free (s->llr);
-  free (s->sync_bits);
   free (s->part);
   free (s);
 }
@@ -73,7 +71,6 @@ burst_demod_destroy (burst_demod_state_t *s)
 void
 burst_demod_reset (burst_demod_state_t *s)
 {
-  s->frame_valid  = 0;
   s->frame_offset = 0;
   s->n_symbols    = 0;
   s->est_freq_hz  = 0.0;
@@ -112,90 +109,19 @@ burst_demod_set_preamble (burst_demod_state_t *s, const uint8_t *acq_code,
   s->ppe = ppe_create (s->n_part, ppe_max_rate);
 }
 
-int
-burst_demod_set_frame (burst_demod_state_t *s, const uint8_t *sync,
-                       size_t sync_len, int crc, unsigned rs_depth,
-                       int randomise, int attach_asm)
+void
+burst_demod_set_sync (burst_demod_state_t *s, const uint8_t *sync,
+                      size_t sync_len)
 {
-  if (!s)
-    return -1;
-  /* The marker's bits come from the ONE function that expands them, never a
-     second transcription -- the same rule the generator follows. */
-  if (attach_asm)
-    ccsds_tm_asm_bits (s->marker);
-
-  /* Owned copies: the description points at these, and it outlives the call
-     that supplied the caller's array. */
-  uint8_t *sy = NULL;
-  if (sync && sync_len)
-    {
-      sy = malloc (sync_len);
-      if (!sy)
-        return -1;
-      memcpy (sy, sync, sync_len);
-      for (size_t i = 0; i < sync_len; i++)
-        sy[i] &= 1u;
-    }
-
-  const wfm_frame_spec_t spec = {
-    .marker         = attach_asm ? s->marker : NULL,
-    .n_marker       = attach_asm ? (size_t)CCSDS_TM_ASM_BITS : 0u,
-    .sync           = sy,
-    .n_sync         = sy ? sync_len : 0u,
-    .payload        = NULL, /* the receive side: geometry, not contents */
-    .n_payload      = s->payload_len,
-    .crc            = crc,
-    .rs_depth       = rs_depth,
-    .rs_parity_bits = (size_t)CCSDS_TM_RS_2E * rs_depth * 8u,
-    .randomise      = randomise,
-    .convolutional  = 0, /* see the header: the inner code needs soft bits */
-  };
-  wfm_frame_desc_t        d;
-  wfm_frame_desc_layout_t lay;
-  if (wfm_frame_desc_of (&spec, &d) != 0
-      || wfm_frame_desc_layout (&d, &lay) != 0 || lay.frame_bits == 0)
-    {
-      free (sy);
-      return -1;
-    }
-
-  free (s->sync_bits);
-  s->sync_bits = sy;
-  s->d         = d;
-  s->lay       = lay;
-  /* Re-point the description at the copy, since `spec` named a local. */
-  unsigned f = 0;
-  if (attach_asm)
-    s->d.field[f++].seq.bits = s->marker;
-  if (sy)
-    s->d.field[f++].seq.bits = s->sync_bits;
-  s->payload_field = f;
-
-  /* The correlation template is the LEADING LITERAL GROUP -- the marker and
-     the sync word, whatever the frame carries. They are the fields a
-     receiver FINDS rather than decodes, they are contiguous at the head of
-     the frame, and correlating over both is free gain when a marker is
-     present. `sync`/`sync_len` name that group; a frame with only a sync
-     word is the same thing with one field in it. */
-  const size_t tmpl = s->lay.field_off[s->payload_field];
+  if (!sync || sync_len == 0)
+    return;
   free (s->sync);
-  s->sync     = NULL;
-  s->sync_len = 0;
-  if (tmpl)
-    {
-      s->sync = malloc (tmpl * sizeof (int8_t));
-      if (!s->sync)
-        return -1;
-      size_t w = 0;
-      if (attach_asm)
-        for (size_t i = 0; i < (size_t)CCSDS_TM_ASM_BITS; i++)
-          s->sync[w++] = (s->marker[i] & 1u) ? -1 : 1;
-      if (sy)
-        for (size_t i = 0; i < sync_len; i++)
-          s->sync[w++] = (sy[i] & 1u) ? -1 : 1; /* 0 -> +1, 1 -> -1 */
-      s->sync_len = w;
-    }
-  return 0;
+  s->sync = malloc (sync_len * sizeof (int8_t));
+  if (!s->sync)
+    return;
+  for (size_t i = 0; i < sync_len; i++)
+    s->sync[i] = (sync[i] & 1u) ? -1 : 1; /* 0 -> +1, 1 -> -1 */
+  s->sync_len = sync_len;
 }
 
 void
@@ -209,7 +135,7 @@ size_t
 burst_demod_llrs_max_out (burst_demod_state_t *s, size_t n)
 {
   (void)n; /* the count is the last demod()'s frame, not a request */
-  return s ? s->lay.frame_bits : 0u;
+  return s ? s->frame_syms : 0u;
 }
 
 size_t
@@ -226,7 +152,7 @@ burst_demod_llrs (burst_demod_state_t *s, size_t n, float *out, size_t max_out)
 size_t
 burst_demod_demod_max_out (burst_demod_state_t *s)
 {
-  return s->payload_len;
+  return s->frame_syms;
 }
 
 /* Dechirp the unmodulated preamble by (f0, mu) and PN-wipe it into one partial
@@ -298,7 +224,7 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
                    size_t x_len, uint8_t *out, size_t max_out)
 {
   burst_demod_reset (s);
-  if (!s->ppe || !s->sync || s->payload_len == 0)
+  if (!s->ppe || !s->sync || s->frame_syms == 0)
     return 0;
 
   const size_t npre  = s->acq_sf * s->acq_reps * s->spc;
@@ -389,11 +315,11 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
   /* ── 3) Frame sync: the sync word's complex correlation peak gives the
    * offset and the residual phase (which also resolves the BPSK sign). ──────
    */
-  /* The frame's length is the DESCRIPTION's, not an expression here. It used
-     to be `sync + payload + 16`, which is one frame shape spelled a second
-     time -- and a burst generated without a CRC, or with an outer code, was
-     then measured against a frame the transmitter never sent. */
-  const size_t frame = s->lay.frame_bits;
+  /* How many symbols follow the sync word. A NUMBER the caller states, not
+     a layout this object derives: what those symbols mean -- which are
+     payload, which are a check, what covers what -- belongs to whoever
+     holds the frame's description, one layer up. */
+  const size_t frame = s->frame_syms;
   if (nsym < frame)
     {
       free (sym);
@@ -420,30 +346,19 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
   double theta    = atan2 ((double)cimagf (best_c), (double)crealf (best_c));
   float complex derot = cexpf (-(float)theta * I);
 
-  /* ── 4) Slice the WHOLE frame, undo its stages, then read the payload ───
+  /* ── 4) Slice the frame to bits, and stop ────────────────────────────
    *
-   * Slicing only the payload and recomputing one CRC is what this used to
-   * do, and it could only ever answer one question about one frame shape.
-   * The frame's own description says how long it is, which stages cover
-   * what, and where the payload sits -- and `wfm_frame_check` is the receive
-   * mirror of the assembler that built it, so a stage that REPAIRS (an outer
-   * code) repairs before the payload is read.
+   * A hard decision per symbol, from the sync word onward. This object
+   * makes decisions; it does not undo frames. Which bits are payload,
+   * whether a check passed, what an outer code repaired -- all of that
+   * needs the frame's DESCRIPTION, and belongs to whoever holds one
+   * (doppler#1020).
    */
-  uint8_t *work = malloc (frame);
-  if (!work)
-    {
-      free (sym);
-      return 0;
-    }
-  for (size_t k = 0; k < frame; k++)
-    work[k] = (crealf (sym[best_off + k] * derot) < 0.0f) ? 1u : 0u;
-
-  /* ── the SOFT bits, before the hard ones are taken ─────────────────────
-   *
-   * `crealf(sym * derot)` is the log-likelihood ratio up to a scale, and it
-   * used to be computed, sliced to one bit, and freed. Kept here in
+  /* The SOFT decisions first, because they are what the hard ones are made
+   * of: `crealf(sym * derot)` IS the log-likelihood ratio up to a scale, and
+   * it used to be computed, sliced to one bit and freed. Kept in
    * `mpsk_soft_demap`'s convention -- positive means bit 0, so `L < 0` is
-   * exactly the hard decision below, which is asserted rather than assumed
+   * exactly the slice below, which the tests assert rather than assume
    * (doppler#1018).
    *
    * SCALED, not raw. A Viterbi is invariant to a positive scale, but LLRs
@@ -490,23 +405,10 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
     free (unit);
   }
 
-  wfm_frame_ops_t ops;
-  ccsds_tm_frame_ops (&ops, NULL);
-  wfm_frame_rx_t rx;
-  const int      verdict = wfm_frame_check (&s->d, &ops, work, &rx);
-  /* Three answers, not two. `frame_valid` is "every check that ran came out
-     good"; `frame_checked` is how many ran. A frame carrying NO check
-     reports 0 and 0 -- "carries no check" and "the check failed" are
-     different facts, and an FER conflating them scores every unprotected
-     frame as an error. */
-  s->frame_valid   = (verdict == 1) ? 1 : 0;
-  s->frame_checked = (verdict < 0) ? 0 : (int)rx.checked;
+  size_t nbits = (frame <= max_out) ? frame : max_out;
+  for (size_t k = 0; k < nbits; k++)
+    out[k] = (crealf (sym[best_off + k] * derot) < 0.0f) ? 1u : 0u;
 
-  const size_t poff  = s->lay.field_off[s->payload_field];
-  size_t       nbits = (s->payload_len <= max_out) ? s->payload_len : max_out;
-  memcpy (out, work + poff, nbits);
-
-  free (work);
   free (sym);
   return nbits;
 }

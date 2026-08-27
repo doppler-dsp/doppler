@@ -201,7 +201,7 @@ static inline unsigned dp_format_components (
 
 
 
-Read off the MODE character rather than switched per format, so a format added to the enum above needs no edit here. A code this build does not know reports 0, which is the same answer dp\_format\_size gives and is distinguishable from both valid counts.
+Read off the MODE character rather than switched per format, so a format added to the enum above needs no edit here. A code this build does not know reports 0, which is the same answer `dp_format_size` gives and is distinguishable from both valid counts.
 
 
 

@@ -145,7 +145,7 @@ Both ends now build the same `wfm_frame_desc_t` from the same four
 choices, so the frame's length, its field order and each stage's cover come
 from one place:
 
-```python
+```text
 rx = DsssBurstReceiver(..., crc=1, rs_depth=0, randomise=0, attach_asm=0)
 ```
 
@@ -175,6 +175,8 @@ the Viterbi.
 
 `push()` returns hard bits; `llrs()` returns the same decision seen a
 second way, one value per **frame** bit:
+
+<!-- docs-snippet: skip=a two-line excerpt whose names (rx, x) belong to a caller's own stream; the identity it shows is executed by `test_the_soft_bits_are_the_hard_ones_seen_a_second_way` -->
 
 ```python
 bits = rx.push(x)                    # hard, per burst, concatenated

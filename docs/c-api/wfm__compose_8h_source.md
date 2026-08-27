@@ -14,6 +14,7 @@
 
 #include "clib_common.h"
 #include "wfm_synth/wfm_synth_core.h"
+#include "wfm/wfm_frame.h" /* wfm_frame_desc_t — a source's frame, described */
 
 #ifdef __cplusplus
 extern "C" {
@@ -164,6 +165,10 @@ int wfm_source_attach_dsss(wfm_synth_state_t *syn, const wfm_source_t *src,
                            double fs);
 
 int wfm_source_has_frame(const wfm_source_t *src);
+
+int wfm_source_describe_frame(const wfm_source_t *src, wfm_frame_desc_t *d);
+
+size_t wfm_source_dsss_nchips(const wfm_source_t *src);
 
 const char *wfm_source_frame_error(const wfm_source_t *src);
 

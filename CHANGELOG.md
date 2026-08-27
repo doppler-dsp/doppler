@@ -13,6 +13,31 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`Interleaver` is certified** — `src/doppler/coding/tests/validation/interleaver/`,
+    20 limits and 8 findings, plus `coding`'s first
+    `test_validation_limits.py`. The permutation is scored against numpy's
+    reshape-transpose rather than against doppler's own inverse, and the
+    burst claim is measured end to end over RS(255,223): the corrigible
+    burst is `E * depth` octets and not one octet more.
+
+### Fixed
+
+- **The `Interleaver` object's own permutation was unpinned in C.**
+    Transposing its three calls into `dp_interleave.h` left the entire
+    155-test C suite green — a transposed block interleave is still a
+    permutation, still inverts, and still permutes each block within
+    itself, so every existing assertion survived it. `test_interleaver_core.c`
+    now compares the object against the kernel it wraps, checks
+    `interleaver_create_rx` (which had no coverage at all), measures the
+    one-hit-per-codeword invariant through the object, and pins
+    statelessness. Six sabotages, six reds.
+
+- **`interleave_burst_demo.py` demonstrates the silent-mismatch hazard.** A
+    receiver holding a different geometry raises nothing and returns the
+    right number of bits with half of them wrong.
+
 ## [0.44.0] — 2026-08-24
 
 ### Breaking

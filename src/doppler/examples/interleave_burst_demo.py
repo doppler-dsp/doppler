@@ -139,8 +139,29 @@ def main():
     # 3. and it stops exactly where the arithmetic says
     assert rows[bound + 1][1] == 1.0, rows[bound + 1]
 
+    # 4. and the geometry is a link parameter, not a local choice. Nothing
+    #    on the wire carries it and nothing checks it: a receiver holding
+    #    different numbers returns an array of exactly the right length,
+    #    raises nothing, and hands the decoder a different permutation.
+    #    That is F3 of the validation report beside this file, and it is
+    #    why the object refuses to infer `cols` from the input length.
+    rng = np.random.default_rng(7)
+    info = rng.integers(0, 256, size=(N_CW, rs.k), dtype=np.uint8)
+    clean = _bits(np.stack([rs.encode(row) for row in info]).reshape(-1))
+    sent = np.asarray(tx.interleave(clean))
+
+    wrong_end = Deinterleaver(rows=rs.n, cols=N_CW, unit_bits=8)
+    got = np.asarray(wrong_end.deinterleave(sent))
+    wrong = float(np.mean(got != clean))
+    print("\na receiver with rows and cols exchanged:")
+    print(f"     no error raised, {got.size} bits back (the right count),")
+    print(f"     {wrong * 100:.0f}% of them wrong")
+    assert got.size == clean.size, (got.size, clean.size)
+    assert wrong > 0.4, wrong
+
     print(f"\nOK — the corrigible burst went from {E} octets to {bound},")
     print(f"     and {bound + 1} still fails: a bound, not immunity.")
+    print("     Both ends must be configured with the same three numbers.")
 
 
 if __name__ == "__main__":

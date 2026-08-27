@@ -447,6 +447,9 @@ def test_a_real_capture_round_trips_through_our_own_writer(
     with Reader(p, **kw) as r:
         assert r.mode == "scalar"
         assert r.sample_type == stype
+        # Asked BEFORE the read: for CSV this is the lazy whole-file scan,
+        # and it counts one column per line only if it knows the mode.
+        assert r.num_samples == len(x)
         y = r.read(len(x) * 2)
 
     assert len(y) == len(x)
@@ -496,3 +499,21 @@ def test_a_real_capture_is_exactly_half_the_bytes(tmp_path):
         sizes[stype] = p.stat().st_size
     assert sizes["cf32"] == 800
     assert sizes["f32"] == 400
+
+
+def test_a_sigmf_sidecar_naming_an_unknown_datatype_is_refused(tmp_path):
+    """`core:datatype` is the only place a SigMF capture says what it holds,
+    so a value we cannot decode has no fallback worth having -- reading it as
+    the constructor's hint would be answering a question the file already
+    answered, wrongly. Both halves of the code are checked: an unknown MODE
+    letter and an unknown ELEMENT."""
+    for dt in ("xf32_le", "cq99_le"):
+        p = tmp_path / f"{dt}.sigmf-data"
+        p.write_bytes(b"\x00" * 64)
+        (tmp_path / f"{dt}.sigmf-meta").write_text(
+            json.dumps(
+                {"global": {"core:datatype": dt, "core:sample_rate": 1e6}}
+            )
+        )
+        with pytest.raises((ValueError, RuntimeError, OSError)):
+            Reader(p)

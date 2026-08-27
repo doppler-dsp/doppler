@@ -130,8 +130,22 @@ test_blue_format_codes (void)
 
   /* Every scalar format is exactly half its complex twin. */
   DP_CHECK (dp_sample_size (SF32) * 2u == dp_sample_size (CF32));
+  DP_CHECK (dp_sample_size (SI8) * 2u == dp_sample_size (CI8));
   DP_CHECK (dp_format_components (SF32) == 1u);
   DP_CHECK (dp_format_components (CF32) == 2u);
+  /* An unknown code has no component count either -- 0 is distinguishable
+     from both 1 and 2, which is why it is not defaulted to complex. */
+  DP_CHECK (dp_format_components ((dp_sample_type_t)DP_FMT ('V', 'F')) == 0u);
+
+  /* Full scale is a property of the ELEMENT, so a scalar format and its
+     complex twin agree: the divisor that puts an integer format on the same
+     footing as a float one does not care how many components a sample has. */
+  DP_CHECK (dp_format_full_scale (SI8) == dp_format_full_scale (CI8));
+  DP_CHECK (dp_format_full_scale (SI16) == dp_format_full_scale (CI16));
+  DP_CHECK (dp_format_full_scale (SI32) == dp_format_full_scale (CI32));
+  DP_CHECK (dp_format_full_scale (SF32) == 1.0);
+  DP_CHECK (dp_format_full_scale (SF64) == 1.0);
+  DP_CHECK (dp_format_full_scale ((dp_sample_type_t)DP_FMT ('V', 'F')) == 0.0);
 }
 
 /* ------------------------------------------------------------------

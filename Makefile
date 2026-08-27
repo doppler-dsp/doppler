@@ -117,9 +117,9 @@ SYNC_CMD   = $(UV) sync
 # way `make format` runs it. That is what closes the "same command, different
 # environment" class of drift: the tool comes from `--group dev` and uv.lock
 # owns the version, so there is no `additional_dependencies` left to drift.
-LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format clang-tidy \
-               phase-conversion stimulus-sources retired-names ci-pipefail \
-               rust-abi
+LINT_TOOLS   = conflict tracked-paths ruff ruff-format mdformat clang-format \
+               clang-tidy phase-conversion stimulus-sources retired-names \
+               ci-pipefail rust-abi
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -210,6 +210,13 @@ LINT_clang-tidy   = @$(TIDY_FILES) | xargs -r $(CLANG_TIDY) -p $(BUILD_DIR) --qu
 # rather than inline here so a test can run it over seeded files — a lint
 # target whose only exercise is corrupting the repo is a target nobody proves.
 LINT_conflict = ./scripts/conflict-check.sh
+
+# Check-only, and cheap: it reads names, never contents. A tracked path whose
+# name carries shell punctuation is a quoting slip that got committed, and the
+# one this repo had -- a 1500-line stale copy of wfmgen.c under a `sed`
+# fragment for a name -- was invisible to every other gate, because every
+# other gate is keyed on a suffix or a directory this file had neither of.
+LINT_tracked-paths = ./scripts/check-tracked-paths.sh
 
 # Check-only, so it is in LINT_TOOLS but deliberately NOT in FORMAT_TOOLS.
 # nco_core.h calls confining the double->phase-word conversion "a STRUCTURAL

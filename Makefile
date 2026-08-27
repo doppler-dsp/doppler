@@ -435,6 +435,12 @@ COMPILE_DB = symlink
 # ccache-stats prints a hit rate; it asserts nothing and cannot fail the
 # build, so it is provisioning/reporting rather than a gate. gates-check is
 # what noticed -- CI called a target `gates` could not reach, and said so.
+#
+# gates-check only walks that ONE direction, though: CI -> gates. An entry
+# below that no workflow runs passes it without a word, which is how
+# test-ubsan and test-tsan sat here-adjacent and gated no PR for their whole
+# lives (#1026). The mirror check belongs in standard.mk, which is vendored
+# verbatim -- just-buildit/just-makeit#1158.
 GATES_PROVISION = install-deps install-docs-deps build pyext nats-up \
                   nats-down install-deps-ci install-docs-deps-ci \
                   ccache-stats \
@@ -445,7 +451,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 validate-check \
                 test-all test-stubs test-api-docs test-snippets test-rust \
                 abi-check link-check installed-headers-check \
-                test-asan \
+                test-asan test-ubsan test-tsan \
                 consumer-faces-check glibc-gate \
                 specan-check check-isotime-parity coverage coverage-gate \
                 docker-examples
@@ -1476,11 +1482,31 @@ gallery: ## Run the plot examples and copy their PNGs to docs/assets/
 # `Synth(sps=1)` became a silently dead waveform instead of a crash. A gate
 # that only runs the program cannot see any of it; this one can.
 #
-# `alignment` is excluded, and that is a RATCHET, not an exemption: 821
-# reports today, every one `member access within misaligned address`, from
-# casting a byte cursor to a struct pointer in dp_tlm, buffer and dp_state.
-# Fixing them is its own change. The exclusion may only ever shrink -- if you
-# find yourself adding a second `-fno-sanitize=`, fix the code instead.
+# `alignment` is excluded, and that is a RATCHET, not an exemption: every
+# report is `member access within misaligned address`, from casting a byte
+# cursor to a struct pointer in dp_tlm, buffer and dp_state. Fixing them is its
+# own change. The exclusion may only ever shrink -- if you find yourself adding
+# a second `-fno-sanitize=`, fix the code instead.
+#
+#   measured     count   how
+#   (undated)      821   the number this comment carried before #1026
+#   2026-08-27     853   the command below
+#
+# It GREW by 32 between those two rows, silently, because nothing reads it --
+# "may only shrink" is a sentence in a comment, not a gate (#1028).
+#
+# To re-measure, drop the exclusion, make reports non-fatal, and read the
+# output under `ctest -V`:
+#
+#     make test-ubsan UBSAN_DIR=/tmp/ub UBSAN_OFF=float-divide-by-zero \
+#          UBSAN_OPTS=halt_on_error=0
+#     ( cd /tmp/ub && ctest -V 2>&1 | grep -c 'runtime error' )
+#
+# `-V` is load-bearing, and leaving it out cost an hour here: with reports
+# non-fatal every test PASSES, so `--output-on-failure` -- what this target
+# passes -- prints nothing, and the count comes back 0 from a run that found
+# 853. Absent output is not a pass, one layer further out than usual: the
+# diagnostics existed and ctest discarded them.
 UBSAN_DIR    ?= build-ubsan
 UBSAN_OFF    ?= alignment
 UBSAN_FLAGS   = -fsanitize=undefined,float-cast-overflow \
@@ -1498,6 +1524,13 @@ test-ubsan: ## Run the C suite under UBSan; any undefined behaviour fails
 		"-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=undefined" \
 		$(CMAKE_ARGS)
 	$(CMAKE) --build $(UBSAN_DIR) --parallel $(NPROC)
+# An empty result set is not a pass -- see test-asan.
+	@n=$$($(CTEST) --test-dir $(UBSAN_DIR) -N | sed -n 's/^Total Tests: //p'); \
+	 if [ "$$n" = "0" ] || [ -z "$$n" ]; then \
+	   echo "test-ubsan: the suite registered no tests — nothing ran,"; \
+	   echo "  so this gate has not passed."; exit 1; \
+	 fi; \
+	 echo "test-ubsan: $$n test(s) under UndefinedBehaviorSanitizer"
 	UBSAN_OPTIONS=$(UBSAN_OPTS) \
 		$(CTEST) --test-dir $(UBSAN_DIR) --output-on-failure
 
@@ -1517,9 +1550,11 @@ test-ubsan: ## Run the C suite under UBSan; any undefined behaviour fails
 # with clang at -O0 and the layout there exposed it -- a stack layout, not a
 # check. ASan names the write, the buffer and both frames in one report.
 #
-# Whole-suite rather than a pattern like TSAN_TESTS, because unlike a race,
-# a bad access needs no special test to provoke: every target that touches
-# memory is a candidate, which is all of them.
+# Whole-suite, because unlike a race a bad access needs no special test to
+# provoke: every target that touches memory is a candidate, which is all of
+# them. test-tsan below has since been widened to the whole suite too, for a
+# related reason -- a name cannot tell you whether the LIBRARY spawns threads
+# underneath a test that has none of its own.
 #
 # There is NO exclusion here, and that is a property to keep rather than a
 # coincidence. Turning the run on found nine failures on a green tree -- two
@@ -1558,23 +1593,37 @@ test-asan: ## Run the C suite under ASan+LSan; any bad access or leak fails
 		$(CTEST) --test-dir $(ASAN_DIR) --output-on-failure
 
 # ── ThreadSanitizer ──────────────────────────────────────────────────────────
-# Scoped to the tests that actually run threads, because that is what makes
-# the result readable: a whole-suite TSan run is dominated by single-threaded
-# targets that cannot report anything, and the signal is one line in it.
+# WHOLE-SUITE, like test-asan, and that is a correction rather than a
+# preference. This used to run `ctest -R 'race|parallel|thread'` on the
+# argument that a name is a better selector than a hand-kept list. Measured
+# 2026-08-27 (#1026), that pattern selected 2 of the suite's tests: ONE real
+# threaded test, plus `test_acc_trace_core`, which matched by accident on the
+# "race" inside "t-race". Three genuinely threaded tests -- test_buffer_core,
+# test_dp_tlm_core and test_wfm_plan -- matched nothing and had never run.
 #
-# TSAN_TESTS is a ctest -R pattern, not a hand list of binaries -- a new
-# threaded test named for what it is gets picked up with no edit here. That
-# is the same reasoning `check_bench_coverage` applies to benchmarks: a list
-# maintained by hand is a list that goes stale silently.
+# The deeper reason a name cannot work: whether a test runs threads is not a
+# property of the TEST. `Plan.prepare()` fans its per-source builds across
+# cores through dp_parallel, so test_wfm_plan is threaded without a thread
+# anywhere in it, and no naming convention can know that. A whole-suite run is
+# dominated by targets that cannot report anything, which costs 2m31s of wall
+# clock and buys a denominator that is actually true.
+#
+# ONE exclusion, and it is a RATCHET that may only shrink. test_stream_nats_core
+# interrupts a stream from a second thread, which races the read of the
+# process-wide flag: `volatile sig_atomic_t` is the right type for a SIGNAL
+# handler and is not a C11 atomic, so a genuine cross-thread race on it is
+# exactly what TSan should say. Fixing it means atomics on a C99 codebase and
+# a signal-safety argument on a facility three modules share -- its own change,
+# filed as #1027, not a thing to smuggle into wiring up a gate.
 #
 # halt_on_error, for exactly the reason UBSAN_OPTS gives above: without it
 # TSan prints a race and the suite still passes, and the gate is decorative.
-TSAN_DIR   ?= build-tsan
-TSAN_TESTS ?= race|parallel|thread
-TSAN_FLAGS  = -fsanitize=thread -fno-omit-frame-pointer -g
-TSAN_OPTS   = halt_on_error=1:second_deadlock_stack=1
+TSAN_DIR     ?= build-tsan
+TSAN_EXCLUDE ?= ^test_stream_nats_core$$
+TSAN_FLAGS    = -fsanitize=thread -fno-omit-frame-pointer -g
+TSAN_OPTS     = halt_on_error=1:second_deadlock_stack=1
 
-test-tsan: ## Run the threaded C tests under TSan; any data race fails
+test-tsan: ## Run the C suite under TSan; any data race fails
 	$(CMAKE) -B $(TSAN_DIR) -S . \
 		-DCMAKE_BUILD_TYPE=Debug \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
@@ -1583,18 +1632,20 @@ test-tsan: ## Run the threaded C tests under TSan; any data race fails
 		"-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=thread" \
 		$(CMAKE_ARGS)
 	$(CMAKE) --build $(TSAN_DIR) --parallel $(NPROC)
-# An empty result set is not a pass. If the pattern matches nothing the gate
-# has not run, so it has not passed -- the same trap the glibc and tarball
-# gates were both caught by.
-	@n=$$($(CTEST) --test-dir $(TSAN_DIR) -R '$(TSAN_TESTS)' -N \
+# An empty result set is not a pass -- the same trap the glibc and tarball
+# gates were both caught by, and the one this target's old name-pattern was
+# nearly caught by: a pattern that matches almost nothing still matches
+# something, so the guard fires only in the total case.
+	@n=$$($(CTEST) --test-dir $(TSAN_DIR) -E '$(TSAN_EXCLUDE)' -N \
 	      | sed -n 's/^Total Tests: //p'); \
 	 if [ "$$n" = "0" ] || [ -z "$$n" ]; then \
-	   echo "test-tsan: no test matched '$(TSAN_TESTS)' — nothing ran,"; \
+	   echo "test-tsan: the suite registered no tests — nothing ran,"; \
 	   echo "  so this gate has not passed."; exit 1; \
 	 fi; \
-	 echo "test-tsan: $$n threaded test(s) under ThreadSanitizer"
+	 echo "test-tsan: $$n test(s) under ThreadSanitizer" \
+	      "(excluding '$(TSAN_EXCLUDE)', see #1027)"
 	TSAN_OPTIONS=$(TSAN_OPTS) \
-		$(CTEST) --test-dir $(TSAN_DIR) -R '$(TSAN_TESTS)' \
+		$(CTEST) --test-dir $(TSAN_DIR) -E '$(TSAN_EXCLUDE)' \
 		--output-on-failure
 
 blazing: ## Clean + Release + -march=native (max speed; never packaged)
@@ -2728,7 +2779,10 @@ ci-run: ## Run `make TARGET=<goals>` inside the PINNED CI image
 	 fi
 	$(CI_DOCKER_RUN) -e DOPPLER_BUILD_DIR=/w/$(CI_BUILD_DIR) $(CI_IMAGE) \
 	    make $(TARGET) BUILD_DIR=$(CI_BUILD_DIR) \
-	        STANDALONE_BUILD_DIR=$(CI_BUILD_DIR)/standalone
+	        STANDALONE_BUILD_DIR=$(CI_BUILD_DIR)/standalone \
+	        ASAN_DIR=$(CI_BUILD_DIR)-asan \
+	        UBSAN_DIR=$(CI_BUILD_DIR)-ubsan \
+	        TSAN_DIR=$(CI_BUILD_DIR)-tsan
 # DOPPLER_BUILD_DIR as well as BUILD_DIR, because they are read by different
 # consumers and missing the second one fails in a way that reads as a code
 # bug: ffi/rust/build.rs locates the library itself, defaulting to ../../build
@@ -2736,6 +2790,11 @@ ci-run: ## Run `make TARGET=<goals>` inside the PINNED CI image
 # glibc-2.43 .so inside a 2.39 container and died on
 # `undefined reference: atan2f@GLIBC_2.43`. Pointing both at the container
 # tree is what makes "run it like CI" true rather than nearly true.
+# The three sanitizer dirs for a plainer reason: they are separate variables,
+# so a container run left a `build-asan/` in the HOST checkout whose
+# CMakeCache.txt names /w paths, and the next `make test-asan` on the host died
+# with "CMakeCache.txt directory ... is different". Gitignored, so nothing is
+# lost -- it just costs an `rm -rf` and a puzzled minute to work out why.
 # Repoint the compilation database at the HOST build tree, for the same
 # reason glibc-gate does: `build` symlinks it at $(BUILD_DIR), so a container
 # run leaves the repo root pointing into $(CI_BUILD_DIR), whose every entry

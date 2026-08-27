@@ -352,7 +352,11 @@ nats_publish_block (struct dp_ctx *ctx, const dp_header_t *h,
   memcpy (buf, h, hdr_sz);
   if (ch)
     memcpy (buf + hdr_sz, ch, ch_sz);
-  memcpy (buf + hdr_sz + ch_sz, data, data_len);
+  /* Guarded like `ch` above: a zero-length payload arrives as (NULL, 0),
+     and memcpy's second argument is declared never-null, so the call is
+     undefined even though it copies nothing. */
+  if (data_len)
+    memcpy (buf + hdr_sz + ch_sz, data, data_len);
   int rc = nats_publish (ctx, nats_type_token (h), buf,
                          (int)(hdr_sz + ch_sz + data_len));
   free (buf);

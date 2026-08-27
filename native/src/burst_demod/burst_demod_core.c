@@ -352,7 +352,7 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
    * makes decisions; it does not undo frames. Which bits are payload,
    * whether a check passed, what an outer code repaired -- all of that
    * needs the frame's DESCRIPTION, and belongs to whoever holds one
-   * (doppler#1020).
+   * (doppler#1022).
    */
   /* The SOFT decisions first, because they are what the hard ones are made
    * of: `crealf(sym * derot)` IS the log-likelihood ratio up to a scale, and

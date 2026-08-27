@@ -31,7 +31,9 @@ import pytest
 from doppler.dsss import DsssBurstReceiver
 from doppler.dsss.benchmarks._burst_stimulus import (
     CHIP_RATE,
+    FRAME_SYMS,
     PAYLOAD,
+    PAYLOAD_OFF,
     REPS,
     SPC,
     SYNC,
@@ -66,7 +68,7 @@ def _receiver(acq_code, data_code):
         reps=REPS,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        payload_len=PAYLOAD,
+        frame_syms=FRAME_SYMS,
         cn0_dbhz=60.0,
         doppler_uncertainty=0.0,
         pfa=1e-3,
@@ -102,13 +104,16 @@ def test_bench_push_bursts(benchmark, waveform, n_bursts):
     out = np.asarray(benchmark(run))
     # Asserted, because a benchmark that quietly stopped decoding would
     # otherwise simply look faster.
-    assert out.size == n_bursts * PAYLOAD, (
-        f"expected {n_bursts} bursts, decoded {out.size // PAYLOAD} — this "
+    # The receiver hands back FRAMES — it stops at decisions, so the payload
+    # is a slice a caller takes (doppler#1022).
+    assert out.size == n_bursts * FRAME_SYMS, (
+        f"expected {n_bursts} bursts, decoded {out.size // FRAME_SYMS} — this "
         "row would otherwise time the search path under the decode path's "
         "name"
     )
     for k in range(n_bursts):
-        assert np.array_equal(out[k * PAYLOAD : (k + 1) * PAYLOAD], payload), (
-            f"burst {k} did not decode bit-exactly"
-        )
+        frame = out[k * FRAME_SYMS : (k + 1) * FRAME_SYMS]
+        assert np.array_equal(
+            frame[PAYLOAD_OFF : PAYLOAD_OFF + PAYLOAD], payload
+        ), f"burst {k} did not decode bit-exactly"
     rate(benchmark)

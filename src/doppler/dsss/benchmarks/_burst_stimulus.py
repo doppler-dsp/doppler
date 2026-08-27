@@ -52,6 +52,9 @@ SYNC = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], dtype=np.uint8)
 ACQ_SF = 2**ACQ_SF_BITS - 1
 DATA_SF = 2**DATA_SF_BITS - 1
 FRAME_SYMS = len(SYNC) + PAYLOAD + 16  # sync | payload | CRC-16
+#: What the receiver hands back per burst — it stops at decisions, so the
+#: frame comes back whole and the payload is a slice at `len(SYNC)`.
+PAYLOAD_OFF = len(SYNC)
 #: One burst's active span, in samples. Derived from the geometry above so
 #: it cannot disagree with it.
 BURST_LEN = (REPS * ACQ_SF + FRAME_SYMS * DATA_SF) * SPC
@@ -155,7 +158,7 @@ def packing(acq_code, data_code):
         reps=REPS,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        payload_len=PAYLOAD,
+        frame_syms=FRAME_SYMS,
         cn0_dbhz=60.0,
         doppler_uncertainty=0.0,
         pfa=1e-3,

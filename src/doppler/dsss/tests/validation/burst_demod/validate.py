@@ -11,9 +11,11 @@ CRC-16 trailer. One pass, one shot, one verdict.
 
 That shape decides what matters. There is no loop to converge, so the
 estimate either lands or the burst is lost; and the object's entire output
-surface is five read-backs plus the bits. `frame_valid` is the one a caller
+surface is five read-backs plus the bits. Whether the frame is GOOD is not
+among them any more — this object stops at decisions (doppler#1022), so the
+trailer is checked here, as a caller would. That check is the one
 branches on, so its **negative** case is the claim worth the most evidence —
-a `frame_valid` that reported success for anything it managed to decode
+a demodulator that hid or silently repaired a transmitted bit error
 would be indistinguishable from a working one on every clean burst.
 
 The estimator is certified separately
@@ -65,6 +67,34 @@ def _crc16(bits: np.ndarray) -> int:
     return c
 
 
+PAYLOAD_OFF = len(SYNC)  # the frame opens with the sync word
+
+
+def _frame_ok(frame: np.ndarray) -> bool:
+    """The caller's half: does the frame's trailer match its payload?
+
+    `burst_demod` stops at decisions — it returns the frame's bits and makes
+    no claim about them, because undoing a frame needs a description it does
+    not hold (doppler#1022). So the CRC is checked HERE, which is what a
+    caller does and what `wfm.Frame.deframe()` does for one that holds a
+    description. This report's own claims moved with it: what the object
+    promises is that a transmitted bit error REACHES this check.
+    """
+    frame = np.asarray(frame)
+    if frame.size < PAYLOAD_OFF + PAYLOAD_LEN + CRC_BITS:
+        return False
+    payload = frame[PAYLOAD_OFF : PAYLOAD_OFF + PAYLOAD_LEN]
+    rx = 0
+    for b in frame[PAYLOAD_OFF + PAYLOAD_LEN :][:CRC_BITS]:
+        rx = (rx << 1) | (int(b) & 1)
+    return rx == _crc16(payload)
+
+
+def _payload_of(frame: np.ndarray) -> np.ndarray:
+    """The payload's slice out of a returned frame."""
+    return np.asarray(frame)[PAYLOAD_OFF : PAYLOAD_OFF + PAYLOAD_LEN]
+
+
 def _burst(
     payload: np.ndarray,
     *,
@@ -78,7 +108,8 @@ def _burst(
 
     `corrupt_at` flips a payload bit AFTER the trailer is computed, so the
     frame arrives intact and fails its own CRC — the case that separates a
-    real `frame_valid` from one that reports success for anything decoded.
+    demodulator which hands the error THROUGH from one that hides or
+    "fixes" it.
     """
     crc = _crc16(payload)
     crc_bits = np.array(
@@ -113,12 +144,12 @@ def _demod(x: np.ndarray, *, max_rate: float = 0.0, carrier_hz: float = 0.0):
         _dcode(),
         spc=SPC,
         chip_rate=CHIP_RATE,
-        payload_len=PAYLOAD_LEN,
+        frame_syms=len(SYNC) + PAYLOAD_LEN + CRC_BITS,
         max_rate=max_rate,
         carrier_hz=carrier_hz,
     )
     d.set_preamble(_acode(), REPS)
-    d.set_frame(SYNC)
+    d.set_sync(SYNC)
     d.set_prior(F0, 0)
     return d, d.demod(x)
 
@@ -205,7 +236,8 @@ def section_object() -> None:
         ["header claim", "pinned where", "here"],
         [
             [
-                "`frame_valid` is 1 iff the CRC-16 trailer matched",
+                "a transmitted bit error reaches the caller, and the "
+                "frame's own trailer rejects it",
                 "**positive case + the too-short path only**",
                 "§2.1",
             ],
@@ -262,52 +294,61 @@ def characterise() -> Data:
 
 
 def _sec_crc(d: Data) -> None:
-    R.md("### 2.1 `frame_valid` rejects a frame that arrives and fails")
+    R.md("### 2.1 A transmitted bit error REACHES the caller")
     R.md()
     R.md(
-        "This is the claim the object exists to make. It was pinned at 1 on "
-        "a clean burst, and at 0 on an **8-sample** input — but that second "
-        "case returns before a CRC is ever computed, so it is the *no frame "
-        "at all* path. A `frame_valid` that ignored the trailer entirely "
-        "and reported 1 for anything it decoded would pass both."
+        "This object stops at decisions: it returns the frame's bits and "
+        "makes no claim about them, because undoing a frame needs a "
+        "description it does not hold (doppler#1022). So the claim it makes "
+        "here is the one a layer above depends on — that an error which "
+        "happened on the wire is still in the bits when they are handed "
+        "over, neither hidden nor silently repaired."
     )
     R.md()
     R.md(
-        "The case that separates them is a frame that arrives intact, "
-        "aligns on the sync, produces its payload bits, and whose CRC does "
-        "not match — one payload bit transmitted flipped **after** the "
-        "trailer was computed."
+        "The case that shows it is a frame which arrives intact, aligns on "
+        "the sync and produces its symbols, carrying one payload bit "
+        "transmitted flipped **after** its trailer was computed. Two things "
+        "must hold: the flip is in the output at the bit it was applied to, "
+        "and the trailer — checked HERE, as `wfm.Frame.deframe()` would — "
+        "no longer matches. An earlier version of this report asserted the "
+        "second alone, through a `frame_valid` read-back this object no "
+        "longer owns."
     )
     R.md()
     payload = _payload()
-    d0, bits0 = _demod(_burst(payload))
-    d.clean_ok = bool(d0.frame_valid) and np.array_equal(bits0, payload)
+    _d0, bits0 = _demod(_burst(payload))
+    d.clean_ok = _frame_ok(bits0) and np.array_equal(
+        _payload_of(bits0), payload
+    )
     rows, csv = [], []
     all_reject = True
     still_decodes = True
+    frame_syms = len(SYNC) + PAYLOAD_LEN + CRC_BITS
     for pos in (0, 17, PAYLOAD_LEN - 1):
-        dd, bb = _demod(_burst(payload, corrupt_at=pos))
-        all_reject &= dd.frame_valid == 0
-        still_decodes &= len(bb) == PAYLOAD_LEN
+        _dd, bb = _demod(_burst(payload, corrupt_at=pos))
+        all_reject &= not _frame_ok(bb)
+        still_decodes &= len(bb) == frame_syms
+        reached = bool(_payload_of(bb)[pos] != payload[pos])
         rows.append(
             [
                 str(pos),
                 str(len(bb)),
-                str(dd.frame_valid),
-                str(not np.array_equal(bb, payload)),
+                str(reached),
+                str(not _frame_ok(bb)),
             ]
         )
-        csv.append([pos, len(bb), dd.frame_valid])
+        csv.append([pos, len(bb), int(reached)])
     R.table(
         [
             "payload bit flipped",
-            "bits returned",
-            "frame_valid",
-            "bits differ from truth",
+            "frame bits returned",
+            "flip reached the caller",
+            "trailer rejects it",
         ],
         rows,
     )
-    _csv(HERE / "data" / "crc.csv", "pos,nbits,frame_valid", csv)
+    _csv(HERE / "data" / "crc.csv", "pos,nbits,reached", csv)
     d.crc_rows = rows
     d.crc_rejects_all = all_reject
     d.crc_still_decodes = still_decodes
@@ -336,7 +377,7 @@ def _sec_readbacks(d: Data) -> None:
     rows, csv = [], []
     off_ok = nsym_ok = True
     for filler in (0, 3, 9):
-        dd, _bb = _demod(_burst(payload, filler=filler))
+        dd, bb = _demod(_burst(payload, filler=filler))
         want_n = filler + len(SYNC) + PAYLOAD_LEN + CRC_BITS
         off_ok &= dd.frame_offset == filler
         nsym_ok &= dd.n_symbols == want_n
@@ -346,7 +387,7 @@ def _sec_readbacks(d: Data) -> None:
                 str(dd.frame_offset),
                 str(dd.n_symbols),
                 str(want_n),
-                str(bool(dd.frame_valid)),
+                str(_frame_ok(bb)),
             ]
         )
         csv.append([filler, dd.frame_offset, dd.n_symbols, want_n])
@@ -356,7 +397,7 @@ def _sec_readbacks(d: Data) -> None:
             "frame_offset",
             "n_symbols",
             "expected",
-            "frame_valid",
+            "trailer ok",
         ],
         rows,
     )
@@ -391,27 +432,26 @@ def _sec_reset(d: Data) -> None:
     R.md()
     dd, _ = _demod(_burst(_payload()))
     before = (
-        int(dd.frame_valid),
         int(dd.n_symbols),
         float(dd.est_freq_hz),
+        int(dd.frame_offset),
     )
     d.reset_precondition = (
-        before[0] == 1 and before[1] > 0 and before[2] != 0.0
+        before[0] > 0 and before[1] != 0.0 and before[2] >= 0
     )
     dd.reset()
     after = (
-        int(dd.frame_valid),
         int(dd.n_symbols),
         float(dd.est_freq_hz),
         int(dd.frame_offset),
         float(dd.est_rate_hz),
         float(dd.est_snr_db),
     )
-    d.reset_clears = after == (0, 0, 0.0, 0, 0.0, 0.0)
+    d.reset_clears = after == (0, 0.0, 0, 0.0, 0.0)
     rows = [
-        ["frame_valid", str(before[0]), str(after[0])],
-        ["n_symbols", str(before[1]), str(after[1])],
-        ["est_freq_hz", f"{before[2]:.2f}", f"{after[2]:.2f}"],
+        ["n_symbols", str(before[0]), str(after[0])],
+        ["est_freq_hz", f"{before[1]:.2f}", f"{after[1]:.2f}"],
+        ["frame_offset", str(before[2]), str(after[2])],
     ]
     R.table(["read-back", "after a burst", "after reset()"], rows)
     d.reset_rows = rows
@@ -464,7 +504,9 @@ def _sec_estimate(d: Data) -> None:
         good = 0
         for k in range(5):
             dd, bb = _demod(_burst(payload, sigma=sigma, seed=100 + k))
-            good += int(bool(dd.frame_valid) and np.array_equal(bb, payload))
+            good += int(
+                _frame_ok(bb) and np.array_equal(_payload_of(bb), payload)
+            )
         rows.append([f"{sigma:g}", f"{good}/5"])
         csv.append([sigma, good])
         if sigma <= 0.2:
@@ -487,20 +529,25 @@ def _sec_bounds(d: Data) -> None:
     R.md("### 2.5 What it refuses")
     R.md()
     dd = BurstDemod(
-        _dcode(), spc=SPC, chip_rate=CHIP_RATE, payload_len=PAYLOAD_LEN
+        _dcode(),
+        spc=SPC,
+        chip_rate=CHIP_RATE,
+        frame_syms=len(SYNC) + PAYLOAD_LEN + CRC_BITS,
     )
-    d.max_out_is_payload = dd.demod_max_out() == PAYLOAD_LEN
+    d.max_out_is_payload = (
+        dd.demod_max_out() == len(SYNC) + PAYLOAD_LEN + CRC_BITS
+    )
     dd.set_preamble(_acode(), REPS)
-    dd.set_frame(SYNC)
+    dd.set_sync(SYNC)
     dd.set_prior(F0, 0)
     rows = []
     refused = True
     for n in (8, 64, 512):
         tiny = np.zeros(n, dtype=np.complex64)
         got = dd.demod(tiny)
-        refused &= len(got) == 0 and dd.frame_valid == 0
-        rows.append([str(n), str(len(got)), str(dd.frame_valid)])
-    R.table(["burst samples", "bits returned", "frame_valid"], rows)
+        refused &= len(got) == 0
+        rows.append([str(n), str(len(got))])
+    R.table(["burst samples", "bits returned"], rows)
     d.short_rows = rows
     d.short_refused = refused
     R.md(
@@ -521,9 +568,10 @@ def review(d: Data) -> None:
     R.find(
         "F1",
         "FIXED",
-        "**`frame_valid`'s negative case was the too-short path only.** It "
-        "was asserted 1 on a clean burst and 0 on an 8-sample input — but "
-        "the latter returns before a CRC is ever computed. A `frame_valid` "
+        "**The frame verdict's negative case was the too-short path "
+        "only.** It was asserted 1 on a clean burst and 0 on an 8-sample "
+        "input — but "
+        "the latter returns before any check is ever computed. A verdict "
         "that ignored the trailer and reported 1 for anything it decoded "
         "would have passed both assertions, on an object whose entire "
         "purpose is to tell a caller whether the payload can be trusted. "
@@ -531,7 +579,10 @@ def review(d: Data) -> None:
         "a payload bit flipped after the trailer was computed, at both ends "
         "and the middle — with the bits still returned, which is what "
         "distinguishes the CRC path from the too-short one. Sabotage-proven "
-        "by forcing `frame_valid = 1` whenever a frame decodes.",
+        "by reporting success whenever a frame decoded. The verdict has "
+        "since moved OUT of this object entirely (doppler#1022): it stops "
+        "at decisions, and what §2.1 pins is that a wire error still "
+        "reaches whoever checks.",
     )
     R.find(
         "F2",
@@ -554,7 +605,7 @@ def review(d: Data) -> None:
         "despread data section — filler, sync, payload and trailer — not "
         "the payload. That distinction is invisible until the sync is not "
         "at offset zero, which is why it needed the same stimulus as F2. "
-        "Sabotage-proven by reporting `payload_len` instead.",
+        "Sabotage-proven by reporting `frame_syms` instead.",
     )
     R.find(
         "F4",
@@ -563,7 +614,7 @@ def review(d: Data) -> None:
         "read-backs are this object's whole output surface, so a reset that "
         "left them standing would report the previous burst's verdict for a "
         "burst that had not been demodulated — silently, and in the "
-        "direction that matters (a stale `frame_valid = 1`). Now checked "
+        "direction that matters (a stale success). Now checked "
         "with the precondition asserted first, so it cannot pass against "
         "state that was already clear. Sabotage-proven by making `reset()` "
         "return immediately.",
@@ -644,7 +695,7 @@ def limits(d: Data) -> None:
     )
     R.limit(
         d.max_out_is_payload,
-        "demod_max_out() is the payload length — the buffer a caller must "
+        "demod_max_out() is the FRAME length — the buffer a caller must "
         "provide",
     )
     R.limit(
@@ -681,7 +732,8 @@ def build(write: bool = True) -> Report:
     R.executive(
         "BurstDemod",
         [
-            "**`frame_valid` now has evidence for the case that matters.** "
+            "**The bit-error path now has evidence for the case that "
+            "matters.** "
             "It was pinned at 1 on a clean burst and at 0 on an 8-sample "
             "input — the *no frame at all* path — so a version that ignored "
             "the CRC entirely would have passed both. It is now measured on "
@@ -691,7 +743,7 @@ def build(write: bool = True) -> Report:
             "which is what a caller slicing soft symbols needs, and it was "
             "mentioned in neither language before this (§2.2, F3).",
             "**Call `reset()` between bursts.** The read-backs persist "
-            "otherwise, and a stale `frame_valid = 1` is the failure "
+            "otherwise, and a silently repaired bit is the failure "
             "direction that matters. Nothing had ever called it (§2.3, F4).",
             "**`est_freq_hz` is in Hz**, not cycles per sample — the "
             "conversion a caller would otherwise have to guess from a "

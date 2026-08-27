@@ -82,7 +82,7 @@ params = [{ name = "acq_code", type = "uint8_t[]" }, { name = "reps", type = "si
 
 [[burst_demod.methods]]
 name = "set_sync"
-doc = "Set the known frame-sync word (0/1 BPSK symbols) used for frame alignment and phase/sign resolution. The ONLY thing this object is told about the frame's content, and for a physical-layer reason: without the sign the slicer would be a coin toss. Where the payload sits, which stages cover what and whether a check passed all need the frame's description and belong one layer up (doppler#1020)."
+doc = "Set the known frame-sync word (0/1 BPSK symbols) used for frame alignment and phase/sign resolution. The ONLY thing this object is told about the frame's content, and for a physical-layer reason: without the sign the slicer would be a coin toss. Where the payload sits, which stages cover what and whether a check passed all need the frame's description and belong one layer up (doppler#1022)."
 arg_type = "void"
 return_type = "void"
 params = [{ name = "sync", type = "uint8_t[]" }]

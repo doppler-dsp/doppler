@@ -71,6 +71,6 @@ zero-phase reference (the first) is rotation-invariant.
 <!-- related-pages:start -->
 
 **Gallery** — [M-PSK Carrier Loop — Theory Validation](../gallery/carrier-mpsk.md), [DsssBurstReceiver — the Composed Burst Chain](../gallery/dsss-burst-receiver.md), [M-PSK constellation (Gray-coded map / demap)](../gallery/mpsk.md)
-**Design** — [`DsssBurstReceiver`: the burst chain, composed in C](../design/dsss-burst-receiver.md), [The FEC Receive Half](../design/fec-receive.md), [MPSK Receiver](../design/mpsk.md), [The Viterbi Decoder](../design/viterbi.md)
+**Design** — [The FEC Receive Half](../design/fec-receive.md), [MPSK Receiver](../design/mpsk.md), [The Viterbi Decoder](../design/viterbi.md)
 
 <!-- related-pages:end -->

@@ -40,6 +40,25 @@ BURST_CHIPS = ACQ_SF * REPS + FRAME * DATA_SF
 BURST_LEN = BURST_CHIPS * SPC
 
 
+def _frame_ok(frame, payload):
+    """Did this frame arrive intact? The receiver no longer says.
+
+    `BurstDemod` stops at decisions (doppler#1022): it hands back the
+    frame's bits, and the trailer is checked by whoever holds the frame —
+    `wfm.Frame.deframe()` in the shipped form, four lines here.
+    """
+    from doppler.wfm import crc16
+
+    frame = np.asarray(frame)
+    if frame.size < len(SYNC) + len(payload) + 16:
+        return False
+    got = frame[len(SYNC) : len(SYNC) + len(payload)]
+    rx = 0
+    for b in frame[len(SYNC) + len(payload) :][:16]:
+        rx = (rx << 1) | (int(b) & 1)
+    return bool(np.array_equal(got, payload)) and rx == int(crc16(got))
+
+
 def _codes():
     rng = np.random.default_rng(7)
     acq = rng.integers(0, 2, ACQ_SF, dtype=np.uint8)
@@ -221,12 +240,12 @@ def test_five_bursts_decode_through_burst_demod():
 
     n_valid = 0
     for _k, s in enumerate(starts):
-        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, payload_len=PAYLOAD)
+        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, frame_syms=FRAME)
         bd.set_preamble(acq, REPS)
-        bd.set_frame(SYNC)
+        bd.set_sync(SYNC)
         bd.set_prior(0.0, 0)
         bits = bd.demod(x[s : s + BURST_LEN])
-        if bd.frame_valid and np.array_equal(bits, pay):
+        if _frame_ok(bits, pay):
             n_valid += 1
     assert n_valid == 5
 
@@ -390,12 +409,12 @@ def test_repeats_burst_train_decodes():
 
     n_valid = 0
     for s in starts:
-        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, payload_len=PAYLOAD)
+        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, frame_syms=FRAME)
         bd.set_preamble(acq, REPS)
-        bd.set_frame(SYNC)
+        bd.set_sync(SYNC)
         bd.set_prior(0.0, 0)
         bits = bd.demod(x[s : s + BURST_LEN])
-        if bd.frame_valid and np.array_equal(bits, pay):
+        if _frame_ok(bits, pay):
             n_valid += 1
     assert n_valid == 5
 
@@ -436,12 +455,12 @@ def test_gap_noise_default_floor_and_decode():
 
     n_valid = 0
     for s in starts:
-        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, payload_len=PAYLOAD)
+        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, frame_syms=FRAME)
         bd.set_preamble(acq, REPS)
-        bd.set_frame(SYNC)
+        bd.set_sync(SYNC)
         bd.set_prior(0.0, 0)
         bits = bd.demod(x[s : s + BURST_LEN])
-        if bd.frame_valid and np.array_equal(bits, pay):
+        if _frame_ok(bits, pay):
             n_valid += 1
     assert n_valid == 5
 

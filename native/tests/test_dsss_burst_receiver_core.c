@@ -99,7 +99,7 @@ sync_word (void)
  *
  * This object stops at decisions, so the CRC is computed HERE now — the
  * same arithmetic that used to be `frame_valid`, at the layer that owns it
- * (doppler#1020). `wfm.Frame.deframe()` is the shipped form of this; a
+ * (doppler#1022). `wfm.Frame.deframe()` is the shipped form of this; a
  * three-line local copy keeps this test linked against burst objects only.
  */
 static int
@@ -350,10 +350,14 @@ test_decodes_a_burst_from_a_stream (void)
   /* The field a caller cannot compute: recovered to the SAMPLE, from an
      acquisition that reports only an end anchor and a residue. */
   DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
+  DP_CHECK_MSG (frame_ok (out),
+                "the frame it handed back checks out against its own "
+                "trailer — computed here, because this object stops at "
+                "decisions (doppler#1022)");
 
   /* The payload sits inside the frame push() returned: sync word, then
      payload, then the trailer. Slicing it is the caller's arithmetic --
-     this object hands back decisions, not fields (doppler#1020). */
+     this object hands back decisions, not fields (doppler#1022). */
   const uint8_t *want = payload_bits ();
   size_t         errs = 0;
   for (size_t i = 0; i < PAYLOAD; i++)
@@ -733,7 +737,7 @@ test_a_weak_decoy_does_not_cost_the_burst (void)
 
   /* The payload sits inside the frame push() returned: sync word, then
      payload, then the trailer. Slicing it is the caller's arithmetic --
-     this object hands back decisions, not fields (doppler#1020). */
+     this object hands back decisions, not fields (doppler#1022). */
   const uint8_t *want = payload_bits ();
   size_t         errs = 0;
   for (size_t i = 0; i < PAYLOAD; i++)
@@ -940,6 +944,8 @@ test_a_burst_split_across_two_pushes_survives (void)
           sizeof bits);
       /* the whole FRAME, from the second call */
       DP_CHECK (n2 == FRAME_SYMS);
+      DP_CHECK_MSG (frame_ok (bits),
+                    "a burst split across two pushes still checks out");
       DP_CHECK (dsss_burst_receiver_get_pending (s) == 0u);
       DP_CHECK (frame_ok (bits));
       for (size_t i = 0; i < PAYLOAD; i++)

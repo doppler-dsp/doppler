@@ -1916,7 +1916,7 @@ class BurstDemod:
         about the frame's content, and for a physical-layer reason: without the
         sign the slicer would be a coin toss. Where the payload sits, which
         stages cover what and whether a check passed all need the frame's
-        description and belong one layer up (doppler#1020).
+        description and belong one layer up (doppler#1022).
 
         After the data section is despread to soft BPSK symbols, demod()
         correlates them against this word; the complex correlation peak locates
@@ -1928,7 +1928,7 @@ class BurstDemod:
         and it is told it for a physical-layer reason: without the sign the
         slicer would be a coin toss. Everything else — where the payload sits,
         which stages cover what, whether a check passed — needs the frame's
-        description and belongs one layer up (doppler#1020).
+        description and belongs one layer up (doppler#1022).
 
         Parameters
         ----------

@@ -516,7 +516,7 @@ dsss_br_emit (dsss_burst_receiver_state_t *s, uint8_t *out, size_t max_out)
      WORD having correlated here, which is a physical fact this object owns.
      It used to be the CRC, which is not: a receiver that stops at decisions
      has no verdict to wait for, and a frame whose check fails is still a
-     frame that was transmitted here (doppler#1004, doppler#1020).
+     frame that was transmitted here (doppler#1004, doppler#1022).
      Candidates already queued inside the span go with it; the compaction
      only ever writes at or behind the entry it just read, so it is safe in
      place. */

@@ -72,7 +72,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from doppler.dsss import DsssBurstReceiver
-from doppler.wfm import PN, Composer, Segment
+from doppler.wfm import PN, Composer, FrameDesc, Segment
 
 # ── geometry ────────────────────────────────────────────────────────────────
 # 255 chips at 2 samples/chip is 510 = 2*3*5*17 correlation bins. The length
@@ -104,6 +104,7 @@ payload = np.random.default_rng(0).integers(0, 2, PAYLOAD).astype(np.uint8)
 
 ACQ_SF, DATA_SF = len(acq_code), len(data_code)
 FRAME_SYMS = len(SYNC) + PAYLOAD + 16  # sync | payload | CRC-16
+PAYLOAD_OFF = len(SYNC)  # push() returns the FRAME; the payload is a slice
 BURST_LEN = (REPS * ACQ_SF + FRAME_SYMS * DATA_SF) * SPC
 
 
@@ -116,7 +117,7 @@ def receiver():
         reps=REPS,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        payload_len=PAYLOAD,
+        frame_syms=FRAME_SYMS,
         cn0_dbhz=60.0,
         doppler_uncertainty=0.0,
         pfa=1e-3,
@@ -202,7 +203,7 @@ for n, (starts, bits, rx) in results.items():
     label = "whole capture" if n == capture.size else f"{n} samples"
     print(
         f"  {label:>14}: {len(starts)} burst(s), "
-        f"{bits.size // PAYLOAD} payload(s), dropped={rx.dropped}"
+        f"{bits.size // FRAME_SYMS} frame(s), dropped={rx.dropped}"
     )
 
 ref_starts, ref_bits, _ = results[capture.size]
@@ -223,10 +224,10 @@ assert len(ref_starts) == N_BURSTS, (
 )
 for got, want in zip(ref_starts, truth):
     assert got == want, f"burst start {got} != {want}"
-assert ref_bits.size == N_BURSTS * PAYLOAD
+assert ref_bits.size == N_BURSTS * FRAME_SYMS
 for k in range(N_BURSTS):
     assert np.array_equal(
-        ref_bits[k * PAYLOAD : (k + 1) * PAYLOAD], payload
+        ref_bits[k * FRAME_SYMS + PAYLOAD_OFF :][:PAYLOAD], payload
     ), f"burst {k} payload is not bit-exact"
 print(f"  -> {N_BURSTS}/{N_BURSTS} bursts, exact samples, payloads bit-exact")
 
@@ -239,17 +240,17 @@ first = np.asarray(rx.push(capture[:cut]))
 held = rx.pending
 second = np.asarray(rx.push(capture[cut:]))
 print(
-    f"  fed {cut} samples (mid-burst): {first.size // PAYLOAD} payload(s), "
+    f"  fed {cut} samples (mid-burst): {first.size // FRAME_SYMS} frame(s), "
     f"pending={held}"
 )
 print(
-    f"  fed the rest:                  {second.size // PAYLOAD} payload(s), "
+    f"  fed the rest:                  {second.size // FRAME_SYMS} frame(s), "
     f"pending={rx.pending}"
 )
 assert first.size == 0, "a half-arrived burst must not be emitted"
 assert held == 1, "pending must report the burst being held"
 assert rx.pending == 0, "pending must clear once the burst is emitted"
-assert np.array_equal(second[:PAYLOAD], payload), (
+assert np.array_equal(second[PAYLOAD_OFF:][:PAYLOAD], payload), (
     "the split burst is not exact"
 )
 print("  -> held, then returned whole. Read pending before you stop feeding.")
@@ -287,7 +288,7 @@ tight = Composer(
 ).compose()
 rx_tight = receiver()
 tight_bits = np.asarray(rx_tight.push(tight))
-n_tight = tight_bits.size // PAYLOAD
+n_tight = tight_bits.size // FRAME_SYMS
 print(
     f"\npacked at {TIGHT_SPACING} (inside refine_span {REFINE_SPAN}): "
     f"{n_tight} of {N_BURSTS} bursts decoded"
@@ -321,8 +322,7 @@ CN0_DBHZ_TRUE = ESN0_DB + 10.0 * np.log10(CHIP_RATE / DATA_SF)
 print("\nevery read-back, per burst (events(), one row per decoded burst):")
 print(
     f"  {'#':>2} {'start':>7} {'dopp_hz':>8} {'res_hz':>8} {'cn0_dBHz':>9} "
-    f"{'freq_hz':>8} {'rate_hz':>8} {'conf_dB':>8} {'margin':>7} {'crc':>4}"
-    f"{'chk':>4}"
+    f"{'freq_hz':>8} {'rate_hz':>8} {'conf_dB':>8} {'margin':>7}"
 )
 for i, e in enumerate(events):
     print(
@@ -330,8 +330,7 @@ for i, e in enumerate(events):
         f"{e['doppler_hz_est']:>8.1f} {e['doppler_res_hz']:>8.1f} "
         f"{e['cn0_dbhz_est']:>9.2f} {e['est_freq_hz']:>8.2f} "
         f"{e['est_rate_hz']:>8.2f} {e['est_snr_db']:>8.2f} "
-        f"{e['refine_margin']:>7.3f} {int(e['frame_valid']):>4}"
-        f"{int(e['frame_checked']):>4}"
+        f"{e['refine_margin']:>7.3f}"
     )
 print(
     f"  scene: bin {BIN_HZ:.1f} Hz, C/N0 {CN0_DBHZ_TRUE:.2f} dB-Hz "
@@ -346,14 +345,6 @@ for i, e in enumerate(events):
     assert int(e["preamble_start"]) == truth[i], (
         f"{where}: event says {int(e['preamble_start'])}, burst starts at "
         f"{truth[i]}"
-    )
-    assert int(e["frame_valid"]) == 1, f"{where}: a check that ran failed"
-    # ...and one check DID run. `frame_valid` alone cannot say that: a
-    # frame carrying no check reports 0 and 0, which is a different fact
-    # from a failed one and must not read as the same number.
-    assert int(e["frame_checked"]) == 1, (
-        f"{where}: {int(e['frame_checked'])} stages checked, expected the "
-        "CRC-16 this scene appends"
     )
     # The search grid: its width is derived, and its estimate must sit in
     # the bin that contains the truth (0 Hz).
@@ -412,6 +403,39 @@ print(
     "read-backs equal row -1, which is all they ever claim to be"
 )
 # --8<-- [end:probes]
+
+# ── 5. the frame is undone one layer up ────────────────────────────────────
+# --8<-- [start:deframe]
+# The receiver stopped at decisions: `push()` handed back FRAME BITS and no
+# opinion about them (doppler#1022). Turning those into a payload — and into
+# a verdict — needs the frame's description, which is what `FrameDesc` is.
+# One object, built once, describing exactly what the generator built.
+empty = np.empty(0, np.uint8)
+deframer = FrameDesc(empty, empty, empty)
+deframer.add_field(SYNC)  # found, not decoded
+deframer.add_field(np.zeros(PAYLOAD, np.uint8))  # the geometry
+deframer.add_field(empty, derived_by=1, derived_bits=16)  # the CRC, by stage 0
+deframer.add_stage(0, first_field=1, n_fields=2)  # CRC-16 over both
+deframer.build()
+
+deframed_ok, payloads = [], []
+for k in range(N_BURSTS):
+    frame = ref_bits[k * FRAME_SYMS : (k + 1) * FRAME_SYMS]
+    got = np.asarray(deframer.deframe(frame))
+    deframed_ok.append(deframer.rx_ok == deframer.rx_units == 1)
+    payloads.append(got[PAYLOAD_OFF : PAYLOAD_OFF + PAYLOAD])
+
+print("\ndeframed by wfm.FrameDesc (the receiver has no opinion):")
+print(
+    f"  {sum(deframed_ok)}/{N_BURSTS} frames check out, "
+    f"{sum(int(np.array_equal(p, payload)) for p in payloads)}/{N_BURSTS} "
+    "payloads bit-exact"
+)
+assert all(deframed_ok), "every frame's CRC must check out"
+for k, got in enumerate(payloads):
+    assert np.array_equal(got, payload), f"burst {k} payload is not exact"
+print("  -> decide, then deframe. Two objects, one frame, no shared secret.")
+# --8<-- [end:deframe]
 
 # ── figure ──────────────────────────────────────────────────────────────────
 fig, ((ax0, ax1), (ax2, ax3)) = plt.subplots(2, 2, figsize=(12, 8.4))
@@ -546,9 +570,9 @@ ax3m.axhline(1.0, color="tab:green", lw=0.8, ls=":", alpha=0.7)
 ax3m.set_ylim(0, 1.45 / 1.25)
 ax3m.set_ylabel("margin (must stay < 1)")
 
-for i, e in enumerate(events):
+for i in range(len(events)):
     ax3.annotate(
-        "CRC ok" if e["frame_valid"] else "CRC BAD",
+        "CRC ok" if deframed_ok[i] else "CRC BAD",
         (i, 2.0),
         ha="center",
         fontsize=7,

@@ -129,17 +129,25 @@ CRC-valid with the exact payload — through the noisy gaps, using the
 sidecar's ground-truth positions:
 
 ```python
+from doppler.wfm import crc16
 from doppler.dsss import BurstDemod
 
 burst_len = (128 * 4 + (13 + 200 + 16) * 25) * 4   # n_chips * sps
 decoded = 0
+# The demodulator returns the FRAME and no verdict — it stops at
+# decisions — so the payload is a slice and the CRC is checked here.
+frame_syms = 13 + 200 + 16
 for s in starts:
-    bd = BurstDemod(dat, spc=4, chip_rate=1e6, payload_len=200)
+    bd = BurstDemod(dat, spc=4, chip_rate=1e6, frame_syms=frame_syms)
     bd.set_preamble(acq, 4)
-    bd.set_frame(BARKER13)
+    bd.set_sync(BARKER13)
     bd.set_prior(0.0, 0)
-    bits = bd.demod(x[s : s + burst_len])
-    decoded += bool(bd.frame_valid and np.array_equal(bits, pay))
+    frame = bd.demod(x[s : s + burst_len])
+    got = frame[13:13 + 200]
+    rx_crc = 0
+    for b in frame[13 + 200:][:16]:
+        rx_crc = (rx_crc << 1) | int(b)
+    decoded += bool(rx_crc == int(crc16(got)) and np.array_equal(got, pay))
 assert decoded == 5
 ```
 

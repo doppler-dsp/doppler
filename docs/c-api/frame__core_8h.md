@@ -853,7 +853,7 @@ size_t frame_deframe (
 
 
 
-The receive counterpart of building one, and the layer a receiver stops short of: `DsssBurstReceiver` and friends hand back hard and soft decisions for a frame's symbols and make no claim about what they mean, because knowing that needs a description — this one (doppler#1020).
+The receive counterpart of building one, and the layer a receiver stops short of: `DsssBurstReceiver` and friends hand back hard and soft decisions for a frame's symbols and make no claim about what they mean, because knowing that needs a description — this one (doppler#1022).
 
 
 Returns the frame with every reversible stage undone, in place order: a randomiser XORed back, an outer code's repairs APPLIED, a CRC checked. The payload is then a slice, at [**frame\_field\_off**](frame__core_8h.md#function-frame_field_off) of the payload field — which is the caller's arithmetic because a description does not privilege one field over another.

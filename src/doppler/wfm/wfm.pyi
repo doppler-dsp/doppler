@@ -1416,12 +1416,12 @@ class Frame:
     ) -> NDArray[np.uint8]:
         """Undo the description's stages over a received frame and hand back
         the CORRECTED bits — the layer a receiver stops short of
-        (doppler#1020).
+        (doppler#1022).
 
         The receive counterpart of building one, and the layer a receiver stops
         short of: `DsssBurstReceiver` and friends hand back hard and soft
         decisions for a frame's symbols and make no claim about what they mean,
-        because knowing that needs a description — this one (doppler#1020).
+        because knowing that needs a description — this one (doppler#1022).
 
         Returns the frame with every reversible stage undone, in place order: a
         randomiser XORed back, an outer code's repairs APPLIED, a CRC checked.
@@ -2317,12 +2317,12 @@ class FrameDesc:
     ) -> NDArray[np.uint8]:
         """Undo the description's stages over a received frame and hand back
         the CORRECTED bits — the layer a receiver stops short of
-        (doppler#1020).
+        (doppler#1022).
 
         The receive counterpart of building one, and the layer a receiver stops
         short of: `DsssBurstReceiver` and friends hand back hard and soft
         decisions for a frame's symbols and make no claim about what they mean,
-        because knowing that needs a description — this one (doppler#1020).
+        because knowing that needs a description — this one (doppler#1022).
 
         Returns the frame with every reversible stage undone, in place order: a
         randomiser XORed back, an outer code's repairs APPLIED, a CRC checked.

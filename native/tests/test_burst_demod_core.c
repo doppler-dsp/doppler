@@ -38,6 +38,23 @@ crc16 (const uint8_t *bits, size_t n)
   return c;
 }
 
+/* The caller's half of the split: does the frame's own trailer match its
+ * own payload? This object stops at decisions (doppler#1022), so every
+ * assertion that used to read `frame_valid` reads this instead — the same
+ * arithmetic, at the layer that owns it. `wfm.Frame.deframe()` is the
+ * shipped form; six lines here keep this test linked against burst objects
+ * only. */
+static int
+frame_ok (const uint8_t *frame, size_t n)
+{
+  if (n < SYNC_LEN + PAYLOAD + CRC_BITS)
+    return 0;
+  uint16_t rx = 0;
+  for (size_t j = 0; j < CRC_BITS; j++)
+    rx = (uint16_t)((rx << 1) | (frame[SYNC_LEN + PAYLOAD + j] & 1u));
+  return rx == crc16 (frame + SYNC_LEN, PAYLOAD);
+}
+
 /* Append one BPSK data symbol (bit -> +/-1) spread by data_code. */
 static size_t
 put_symbol (float complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
@@ -147,7 +164,7 @@ run_case (const char *name, double f0, double f0_prior, double mu,
   DP_CHECK (nb == FRAME_SYMS);
   /* The FRAME comes back, sync word first, exactly as transmitted. Which
      bits are payload is the caller's arithmetic now, and so is the check:
-     this object stops at decisions (doppler#1020). */
+     this object stops at decisions (doppler#1022). */
   size_t errs = 0;
   for (size_t i = 0; i < SYNC_LEN; i++)
     if (bits[i] != SYNC[i])
@@ -159,10 +176,9 @@ run_case (const char *name, double f0, double f0_prior, double mu,
   /* ...and the trailer it received is the one crc16() computes over the
      payload it received -- the whole point of the trailer, verified where
      a caller would verify it. */
-  uint16_t rx_crc = 0;
-  for (size_t j = 0; j < CRC_BITS; j++)
-    rx_crc = (uint16_t)((rx_crc << 1) | (bits[SYNC_LEN + PAYLOAD + j] & 1u));
-  DP_CHECK (rx_crc == crc16 (bits + SYNC_LEN, PAYLOAD));
+  DP_CHECK_MSG (frame_ok (bits, nb),
+                "the trailer it received is the one crc16() computes over "
+                "the payload it received");
 
   printf ("  %-10s f0=%.4f(prior %.4f) mu=%.2e | est f=%.1fHz r=%.2eHz/s "
           "snr=%.0f off=%zu errs=%zu\n",
@@ -219,6 +235,13 @@ run_edge_cases (void)
   DP_CHECK (burst_demod_demod (d, tiny, 8, eb, FRAME_SYMS) == 0);
   float el[FRAME_SYMS];
   DP_CHECK (burst_demod_llrs (d, 1, el, FRAME_SYMS) == 0);
+  /* The capacity accessor answers from the CONFIGURATION, so it reports a
+     frame's worth even when the last call produced none — that is what a
+     caller sizes a buffer with, before there is anything to size for. */
+  DP_CHECK_MSG (burst_demod_llrs_max_out (d, 1) == FRAME_SYMS,
+                "llrs_max_out is the frame's length, not the last call's");
+  DP_CHECK_MSG (burst_demod_demod_max_out (d) == FRAME_SYMS,
+                "and demod_max_out agrees with it");
   burst_demod_destroy (d);
 
   /* est_segments > acq_sf forces the per-segment chip clamp (Lseg >= 1). */
@@ -317,6 +340,22 @@ main (void)
                 DP_CHECK_MSG (bits[SYNC_LEN + (size_t)spots[si]]
                                   != payload[spots[si]],
                               "a transmitted bit error must reach the caller");
+                /* ...and ONLY that bit: a demodulator that "fixed" one
+                   error by mangling its neighbours would pass the check
+                   above and be useless. */
+                size_t other = 0;
+                for (size_t i = 0; i < PAYLOAD; i++)
+                  if (i != (size_t)spots[si]
+                      && bits[SYNC_LEN + i] != payload[i])
+                    other++;
+                DP_CHECK_MSG (other == 0, "and no other payload bit moved");
+                /* The sync word is untouched too — it is what the frame was
+                   found by. */
+                size_t sync_moved = 0;
+                for (size_t i = 0; i < SYNC_LEN; i++)
+                  if (bits[i] != SYNC[i])
+                    sync_moved++;
+                DP_CHECK_MSG (sync_moved == 0, "and the sync word is intact");
                 /* ...and the trailer no longer matches, which is the check
                    doing its job one layer up. */
                 uint16_t rx = 0;
@@ -377,6 +416,9 @@ main (void)
                 burst_demod_set_prior (d, f0, 0);
                 DP_CHECK (burst_demod_demod (d, y, n, bits, FRAME_SYMS)
                           == FRAME_SYMS);
+                DP_CHECK_MSG (frame_ok (bits, FRAME_SYMS),
+                              "a frame behind filler symbols still checks "
+                              "out — the offset is found, not guessed");
                 /* the sync sits exactly `filler` symbols in */
                 DP_CHECK (d->frame_offset == fills[fi]);
                 /* and the whole data section was despread */
@@ -427,6 +469,9 @@ main (void)
             burst_demod_set_prior (d, f0, 0);
             DP_CHECK (burst_demod_demod (d, y, n, bits, FRAME_SYMS)
                       == FRAME_SYMS);
+            DP_CHECK_MSG (frame_ok (bits, FRAME_SYMS),
+                          "the burst this reset is tested against really "
+                          "decoded, or the preconditions below are vacuous");
             /* the precondition: they are NON-zero before the reset, or the
                assertions below pass on state that was already clear */
             DP_CHECK (d->n_symbols > 0);
@@ -499,6 +544,14 @@ main (void)
     DP_CHECK_MSG (errs == 0, "...bit-exactly, sync word included");
     DP_CHECK_MSG (burst_demod_llrs_max_out (d, 1) == no_crc,
                   "and the soft twin is the same length");
+    float sl[FRAME_SYMS];
+    DP_CHECK (burst_demod_llrs (d, 1, sl, FRAME_SYMS) == no_crc);
+    size_t soft_bad = 0;
+    for (size_t i = 0; i < no_crc; i++)
+      if (((sl[i] < 0.0f) ? 1u : 0u) != bits[i])
+        soft_bad++;
+    DP_CHECK_MSG (soft_bad == 0,
+                  "...and carries the same decisions, one per symbol");
     burst_demod_destroy (d);
     free (y);
   }

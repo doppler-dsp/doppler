@@ -228,6 +228,26 @@ wfm_synth_set_bits (wfm_synth_state_t *state, const uint8_t *bits, size_t n,
 }
 
 int
+wfm_synth_set_dsss_chips (wfm_synth_state_t *state, const uint8_t *chips,
+                          size_t n_chips)
+{
+  if (state->wtype != WFM_SYNTH_DSSS)
+    return 0; /* no-op for every other type */
+  if (!chips || n_chips == 0)
+    return -1;
+  uint8_t *copy = malloc (n_chips);
+  if (!copy)
+    return -1;
+  memcpy (copy, chips, n_chips);
+  free (state->bits);
+  state->bits    = copy;
+  state->n_bits  = n_chips;
+  state->bit_idx = 0;
+  state->bit_mod = 1; /* chips are always BPSK (0 → +1, 1 → −1) */
+  return 0;
+}
+
+int
 wfm_synth_set_dsss (wfm_synth_state_t *state, const uint8_t *acq_code,
                     size_t acq_len, size_t acq_reps, const uint8_t *data_code,
                     size_t data_len, const uint8_t *sync, size_t sync_len,
@@ -245,12 +265,9 @@ wfm_synth_set_dsss (wfm_synth_state_t *state, const uint8_t *acq_code,
   (void)wfm_frame_dsss_chips (acq_code, acq_len, acq_reps, data_code, data_len,
                               sync, sync_len, payload, payload_len, crc,
                               chips);
-  free (state->bits);
-  state->bits    = chips;
-  state->n_bits  = n;
-  state->bit_idx = 0;
-  state->bit_mod = 1; /* chips are always BPSK (0 → +1, 1 → −1) */
-  return 0;
+  const int rc = wfm_synth_set_dsss_chips (state, chips, n);
+  free (chips);
+  return rc;
 }
 
 int

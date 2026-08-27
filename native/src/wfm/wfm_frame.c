@@ -488,24 +488,96 @@ wfm_frame_crc_ok (const wfm_frame_t *f, const uint8_t *rx_bits)
  * wfm/wfm_dsp.h, where every caller already looks for them.
  */
 size_t
+wfm_dsss_desc_nchips (const wfm_frame_desc_t *d, size_t acq_len,
+                      size_t acq_reps, size_t data_len)
+{
+  wfm_frame_desc_layout_t l;
+  if (!d || wfm_frame_desc_layout (d, &l) != 0)
+    return 0;
+  const size_t pre = acq_len * acq_reps;
+  if (l.out_bits && data_len == 0)
+    return 0;                         /* frame bits with no spreading code */
+  return pre + l.out_bits * data_len; /* 0 when there is nothing to send */
+}
+
+size_t
+wfm_dsss_desc_chips (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
+                     const uint8_t *acq_code, size_t acq_len, size_t acq_reps,
+                     const uint8_t *data_code, size_t data_len, uint8_t *out,
+                     size_t max_out)
+{
+  const size_t total = wfm_dsss_desc_nchips (d, acq_len, acq_reps, data_len);
+  if (total == 0 || total > max_out || !out)
+    return 0;
+
+  wfm_frame_desc_layout_t l;
+  if (wfm_frame_desc_layout (d, &l) != 0)
+    return 0;
+
+  /* Assemble first, spread second. The description says what the frame IS --
+     which fields, which stages, and the span each stage covers -- and every
+     answer about the bits comes from `wfm_frame_assemble`. A stage whose
+     kernel this caller did not supply makes the assembly fail, and the burst
+     is then refused rather than transmitted without it. */
+  uint8_t *bits = (l.out_bits > 0) ? malloc (l.out_bits) : NULL;
+  if (l.out_bits > 0
+      && (!bits
+          || wfm_frame_assemble (d, ops, bits, l.out_bits) != l.out_bits))
+    {
+      free (bits);
+      return 0;
+    }
+
+  size_t w = 0;
+  /* The preamble is NOT a frame field here, and that is the DSSS-specific
+     decision: it is unmodulated, unspread and uncoded, because it is the
+     coherent pull-in target a receiver correlates raw chips against. So a
+     description handed to this function covers exactly what gets spread, and
+     an inner code that "covers everything" covers everything SPREAD. */
+  for (size_t r = 0; r < acq_reps; r++)
+    for (size_t i = 0; i < acq_len; i++)
+      out[w++] = acq_code[i] & 1u;
+  /* Every frame bit spread by the data code: a 0 bit transmits the code
+     as-is, a 1 bit transmits it inverted. */
+  for (size_t i = 0; i < l.out_bits; i++)
+    for (size_t j = 0; j < data_len; j++)
+      out[w++] = (uint8_t)(bits[i] ^ (data_code[j] & 1u));
+
+  free (bits);
+  return w;
+}
+
+/* The four-field DSSS burst, expressed as the general one.
+ *
+ * `wfm_frame_t` is one configuration of `wfm_frame_desc_t`, so this pair is
+ * the description pair with the description filled in — no second layout, no
+ * second spreader, and no way for the two spellings to answer differently.
+ * Note what is NOT in the description: the acquisition preamble. It is
+ * unmodulated and unspread, so it belongs to the waveform rather than to the
+ * frame, and `wfm_dsss_desc_chips` prepends it. */
+static int
+dsss_four_field (const uint8_t *sync, size_t sync_len, const uint8_t *payload,
+                 size_t payload_len, int crc, wfm_frame_desc_t *out)
+{
+  wfm_frame_t f  = { 0 };
+  f.sync.kind    = WFM_SEQ_LITERAL;
+  f.sync.bits    = sync;
+  f.sync.len     = sync_len;
+  f.payload.kind = WFM_SEQ_LITERAL;
+  f.payload.bits = payload;
+  f.payload.len  = payload_len;
+  f.crc          = crc;
+  return wfm_frame_describe (&f, out);
+}
+
+size_t
 wfm_frame_dsss_nchips (size_t acq_len, size_t acq_reps, size_t data_len,
                        size_t sync_len, size_t payload_len, int crc)
 {
-  /* The layout is wfm_frame's, so this is the preamble (unspread) plus the
-     spread group. Expressing it here a second time is what the frame
-     descriptor exists to stop. */
-  wfm_frame_t f  = { 0 };
-  f.sync.kind    = WFM_SEQ_LITERAL;
-  f.sync.len     = sync_len;
-  f.payload.kind = WFM_SEQ_LITERAL;
-  f.payload.len  = payload_len;
-  f.crc          = crc;
-
-  size_t pre   = acq_len * acq_reps;
-  size_t nbits = wfm_frame_nbits (&f);
-  if (nbits && data_len == 0)
-    return 0;                    /* frame bits with no spreading code */
-  return pre + nbits * data_len; /* 0 when there is nothing to transmit */
+  wfm_frame_desc_t d;
+  if (dsss_four_field (NULL, sync_len, NULL, payload_len, crc, &d) != 0)
+    return 0;
+  return wfm_dsss_desc_nchips (&d, acq_len, acq_reps, data_len);
 }
 
 size_t
@@ -515,46 +587,12 @@ wfm_frame_dsss_chips (const uint8_t *acq_code, size_t acq_len, size_t acq_reps,
                       const uint8_t *payload, size_t payload_len, int crc,
                       uint8_t *out)
 {
-  size_t total = wfm_frame_dsss_nchips (acq_len, acq_reps, data_len, sync_len,
-                                        payload_len, crc);
-  if (total == 0)
+  wfm_frame_desc_t d;
+  if (dsss_four_field (sync, sync_len, payload, payload_len, crc, &d) != 0)
     return 0;
-
-  /* The frame's BITS come from wfm_frame_bits(); this function's remaining job
-     is the DSSS-specific part -- prepend the unmodulated repeated preamble,
-     and XOR-spread each frame bit by the data code. That split is the point of
-     the descriptor: the layout (and the CRC's position, width and bit order)
-     is stated once, and DSSS becomes "assemble the frame, then spread it". */
-  wfm_frame_t f  = { 0 };
-  f.sync.kind    = WFM_SEQ_LITERAL;
-  f.sync.bits    = sync;
-  f.sync.len     = sync_len;
-  f.payload.kind = WFM_SEQ_LITERAL;
-  f.payload.bits = payload;
-  f.payload.len  = payload_len;
-  f.crc          = crc;
-
-  wfm_frame_layout_t l;
-  wfm_frame_layout (&f, &l);
-  uint8_t *bits = (l.total_bits > 0) ? malloc (l.total_bits) : NULL;
-  if (l.total_bits > 0
-      && (!bits || wfm_frame_bits (&f, bits, l.total_bits) != l.total_bits))
-    {
-      free (bits);
-      return 0;
-    }
-
-  size_t w = 0;
-  /* Unmodulated repeated preamble: the acquisition code, verbatim. */
-  for (size_t r = 0; r < acq_reps; r++)
-    for (size_t i = 0; i < acq_len; i++)
-      out[w++] = acq_code[i] & 1u;
-  /* Every frame bit spread by the data code: a 0 bit transmits the code as-is,
-     a 1 bit transmits it inverted. */
-  for (size_t i = 0; i < l.total_bits; i++)
-    for (size_t j = 0; j < data_len; j++)
-      out[w++] = (uint8_t)(bits[i] ^ (data_code[j] & 1u));
-
-  free (bits);
-  return w;
+  const size_t total = wfm_dsss_desc_nchips (&d, acq_len, acq_reps, data_len);
+  /* The four-field form has no capacity argument and never had one: its
+     caller sizes `out` from _nchips by contract. Pass that same number. */
+  return wfm_dsss_desc_chips (&d, NULL, acq_code, acq_len, acq_reps, data_code,
+                              data_len, out, total);
 }

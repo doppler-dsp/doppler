@@ -12,6 +12,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
 * `#include "wfm_synth/wfm_synth_core.h"`
+* `#include "wfm/wfm_frame.h"`
 
 
 
@@ -82,6 +83,8 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  int | [**wfm\_source\_attach\_dsss**](#function-wfm_source_attach_dsss) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Attach a dsss source's data to a freshly-created synth._  |
 |  int | [**wfm\_source\_attach\_frame**](#function-wfm_source_attach_frame) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Attach an unspread source's bit pattern, framed or not._  |
 |  double | [**wfm\_source\_create\_snr**](#function-wfm_source_create_snr) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double snr, int \* snr\_mode) <br>_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `wfm_synth_create()` _._ |
+|  int | [**wfm\_source\_describe\_frame**](#function-wfm_source_describe_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_Describe a source's frame: the fields, the stages, and their covers._  |
+|  size\_t | [**wfm\_source\_dsss\_nchips**](#function-wfm_source_dsss_nchips) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Chips one DSSS BURST from this source occupies, description and all._  |
 |  const char \* | [**wfm\_source\_frame\_error**](#function-wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
 |  int | [**wfm\_source\_has\_frame**](#function-wfm_source_has_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Non-zero when this source describes a FRAME._  |
 |  double | [**wfm\_spec\_headroom**](#function-wfm_spec_headroom) (const char \* json) <br>_The top-level_ `headroom` _(dB) from a spec JSON, or 0 if absent._ |
@@ -760,6 +763,82 @@ double wfm_source_create_snr (
 **Returns:**
 
 The SNR in dB for create. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_source\_describe\_frame 
+
+_Describe a source's frame: the fields, the stages, and their covers._ 
+```C++
+int wfm_source_describe_frame (
+    const wfm_source_t * src,
+    wfm_frame_desc_t * d
+) 
+```
+
+
+
+The ONE place a `wfm_source_t`'s framing flags become a description, read by the `type=bits` assembler and the DSSS spreader alike, so the two cannot disagree about which stage covers what. For a DSSS burst the acquisition preamble is deliberately NOT a field: it is unmodulated and unspread, so it sits outside everything a stage can cover.
+
+
+
+
+**Parameters:**
+
+
+* `src` the source. 
+* `d` receives the description. 
+
+
+
+**Returns:**
+
+0, or non-zero if the source cannot be described. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_source\_dsss\_nchips 
+
+_Chips one DSSS BURST from this source occupies, description and all._ 
+```C++
+size_t wfm_source_dsss_nchips (
+    const wfm_source_t * src
+) 
+```
+
+
+
+What sizes a lone dsss segment's intrinsic on-time. It reads the same description the burst is assembled from, so a stage that lengthens the frame  a rate-1/2 inner code doubles it  lengthens the segment by the same arithmetic instead of by a second copy of it.
+
+
+
+
+**Parameters:**
+
+
+* `src` the source. 
+
+
+
+**Returns:**
+
+burst chips, or 0 for a non-dsss source, a CONTINUOUS dsss source (which has no intrinsic length), or an empty/refused geometry. 
 
 
 

@@ -96,19 +96,20 @@ free_src_bits (wfm_source_t *srcs, size_t ns)
       }
 }
 
-/* Emit a bits source's modulation + pattern (no-op for other types). */
+/* Emit the coding STAGES a source's frame carries, and only those that are
+ * on: a record is what makes a capture reproducible, so a stage the record
+ * does not carry is a capture nobody can rebuild -- and the omission would
+ * look exactly like a plain uncoded waveform. Written conditionally so an
+ * uncoded record is byte-identical to what it was before coding existed.
+ *
+ * NOT type-gated, for the reason add_frame_fields() gives about the frame
+ * itself: these lived inside the bits path, so a coded DSSS burst recorded
+ * its geometry and dropped its stages, and --from-file rebuilt an uncoded
+ * waveform from a record that looked complete (doppler#1017). One writer,
+ * every source that can carry a stage. */
 static void
-add_bits_fields (cJSON *o, const wfm_source_t *src)
+add_stage_fields (cJSON *o, const wfm_source_t *src)
 {
-  if (src->type != WFM_SYNTH_BITS)
-    return;
-  int bm = (src->modulation >= 0 && src->modulation < 3) ? src->modulation : 1;
-  cJSON_AddStringToObject (o, "modulation", BITMOD_NAMES[bm]);
-  /* The coding stages, and only when one is on: a record is what makes a
-     capture reproducible, so a stage the record does not carry is a capture
-     nobody can rebuild -- and the omission would look exactly like a plain
-     uncoded waveform. Written conditionally so an uncoded record is
-     byte-identical to what it was before coding existed. */
   if (src->rs_depth)
     cJSON_AddNumberToObject (o, "rs_depth", (double)src->rs_depth);
   /* WHICH generator, not merely that one ran: 131.0-B-6 specifies two and
@@ -121,6 +122,16 @@ add_bits_fields (cJSON *o, const wfm_source_t *src)
     cJSON_AddBoolToObject (o, "asm", 1);
   if (src->convolutional)
     cJSON_AddBoolToObject (o, "conv", 1);
+}
+
+/* Emit a bits source's modulation + pattern (no-op for other types). */
+static void
+add_bits_fields (cJSON *o, const wfm_source_t *src)
+{
+  if (src->type != WFM_SYNTH_BITS)
+    return;
+  int bm = (src->modulation >= 0 && src->modulation < 3) ? src->modulation : 1;
+  cJSON_AddStringToObject (o, "modulation", BITMOD_NAMES[bm]);
   if (src->bits && src->n_bits)
     {
       char *bs = bits_to_string (src->bits, src->n_bits);
@@ -294,6 +305,7 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
   if (src->background) /* omit when false so old specs are unchanged */
     cJSON_AddBoolToObject (so, "background", 1);
   add_bits_fields (so, src);
+  add_stage_fields (so, src);
   add_symbols_fields (so, src);
   add_dsss_fields (so, src);
   add_pulse_fields (so, src);
@@ -571,6 +583,7 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
           if (src->background) /* omit when false so old specs are unchanged */
             cJSON_AddBoolToObject (s, "background", 1);
           add_bits_fields (s, src);
+          add_stage_fields (s, src);
           add_symbols_fields (s, src);
           add_dsss_fields (s, src);
           add_pulse_fields (s, src);

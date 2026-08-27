@@ -491,6 +491,23 @@ int wfm_synth_set_bits(wfm_synth_state_t *state, const uint8_t *bits, size_t n,
  * @return 0 on success; -1 on invalid geometry (frame bits with no data
  *         code, or an empty burst) or allocation failure.
  */
+/**
+ * @brief Install an already-assembled DSSS burst as the chip pattern.
+ *
+ * The spreading half of `wfm_synth_set_dsss()`, split out so a caller who
+ * assembled the frame from a `wfm_frame_desc_t` -- a burst carrying an inner
+ * code, an ASM, an outer code or a randomiser -- installs it through the same
+ * path as the four-field form rather than through a second one. Chips are
+ * copied; @p chips stays the caller's.
+ *
+ * @param state    Synth (no-op unless `wtype == WFM_SYNTH_DSSS`).
+ * @param chips    Burst chips, one per byte (0/1), BPSK-mapped by the synth.
+ * @param n_chips  Chip count; must be non-zero.
+ * @return 0 on success, -1 on a NULL/empty pattern or allocation failure.
+ */
+int wfm_synth_set_dsss_chips(wfm_synth_state_t *state, const uint8_t *chips,
+                             size_t n_chips);
+
 int wfm_synth_set_dsss(wfm_synth_state_t *state, const uint8_t *acq_code,
                        size_t acq_len, size_t acq_reps,
                        const uint8_t *data_code, size_t data_len,

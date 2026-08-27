@@ -44,14 +44,31 @@ wfm_source_frame_error (const wfm_source_t *src)
   if (!wfm_source_has_frame (src))
     return NULL;
   if (src->type == WFM_SYNTH_DSSS)
-    return NULL; /* the spread path, unchanged */
-  if (src->type != WFM_SYNTH_BITS)
+    {
+      /* A CONTINUOUS dsss stream has no frame at all; the CLI and the
+         composer refuse the burst-frame flags alongside --symbol-rate before
+         reaching here, so there is nothing left to check. */
+      if (src->symbol_rate > 0.0)
+        return NULL;
+      /* A burst SPREADS its frame, so frame bits without a code are not a
+         geometry this can build. It used to leave a zero-length capture and
+         exit 0 -- a refusal nobody was told about. */
+      if ((src->n_sync || src->n_bits) && src->n_data_code == 0)
+        return "a DSSS burst spreads its frame: --data-code is required "
+               "whenever there are frame bits (--sync/--bits) to spread";
+    }
+  else if (src->type != WFM_SYNTH_BITS)
     return "--acq-code/--sync frame a waveform, and a frame needs an explicit "
            "payload: use --type bits with --bits (--modulation bpsk|qpsk), or "
            "--type dsss to spread it";
-  if (!src->bits || src->n_bits == 0)
+  else if (!src->bits || src->n_bits == 0)
     return "a frame needs a payload: --type bits with --acq-code/--sync also "
            "needs --bits";
+
+  /* The stage rules below reach a DSSS burst too, now that its frame is the
+     same description every other source's is (doppler#1017). Before that they
+     were unreachable for it in the worst way: the flags parsed, the stage was
+     dropped, and the waveform came out looking fine. */
 
   /* 4.3.5.1's depths, checked here so a caller learns it from the flag rather
      than from a kernel refusing mid-assembly. */
@@ -101,8 +118,8 @@ wfm_source_frame_error (const wfm_source_t *src)
  * correlates against must not vary between frames -- is exactly as true of a
  * preamble and a sync word.
  */
-static int
-describe_source_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
+int
+wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
 {
   memset (d, 0, sizeof *d);
 
@@ -121,7 +138,15 @@ describe_source_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
       d->field[n].seq.len  = CCSDS_TM_ASM_BITS;
       n++;
     }
-  if (src->n_acq_code && src->acq_reps)
+  /* The acquisition preamble is a FIELD for an unspread source and is NOT one
+     for a DSSS burst. That is not an inconsistency, it is the physical fact:
+     a DSSS preamble is transmitted unmodulated and UNSPREAD, because it is the
+     coherent pull-in target a receiver correlates raw chips against. It is
+     therefore outside everything a stage could cover -- an inner code over
+     "the whole frame" must not reach it, and neither can a randomiser -- and
+     `wfm_dsss_desc_chips` prepends it around the description rather than
+     inside it. */
+  if (src->n_acq_code && src->acq_reps && src->type != WFM_SYNTH_DSSS)
     {
       d->field[n].seq.kind = WFM_SEQ_LITERAL;
       d->field[n].seq.bits = src->acq_code;
@@ -228,7 +253,7 @@ wfm_source_attach_frame (wfm_synth_state_t *syn, const wfm_source_t *src)
      can carry today — the generated PN/Gold kinds `wfm_seq_t` supports have
      no spelling on any face yet (gh-755). */
   wfm_frame_desc_t d;
-  if (describe_source_frame (src, &d) != 0)
+  if (wfm_source_describe_frame (src, &d) != 0)
     return -1;
 
   wfm_frame_desc_layout_t lay;
@@ -280,10 +305,48 @@ wfm_source_attach_dsss (wfm_synth_state_t *syn, const wfm_source_t *src,
       return wfm_synth_set_dsss_cont (syn, src->data_code, src->n_data_code,
                                       cps, mode, src->bits, src->n_bits);
     }
-  return wfm_synth_set_dsss (syn, src->acq_code, src->n_acq_code,
-                             src->acq_reps, src->data_code, src->n_data_code,
-                             src->sync, src->n_sync, src->bits, src->n_bits,
-                             src->crc);
+  /* A BURST is a frame that is spread. The frame comes from the same
+     description every other source is built from -- so `--conv`, `--asm`,
+     `--rs-depth` and `--randomise` reach a DSSS burst by existing, instead of
+     being read from the scene and then silently dropped (doppler#1017). */
+  wfm_frame_desc_t d;
+  if (wfm_source_describe_frame (src, &d) != 0)
+    return -1;
+  const size_t n = wfm_dsss_desc_nchips (&d, src->n_acq_code, src->acq_reps,
+                                         src->n_data_code);
+  if (n == 0)
+    return -1; /* frame bits with no data code, or an empty burst */
+  uint8_t *chips = malloc (n);
+  if (!chips)
+    return -1;
+  wfm_frame_ops_t ops;
+  ccsds_tm_frame_ops (&ops, NULL);
+  const size_t got = wfm_dsss_desc_chips (
+      &d, &ops, src->acq_code, src->n_acq_code, src->acq_reps, src->data_code,
+      src->n_data_code, chips, n);
+  if (got != n)
+    {
+      /* A stage the description names and nothing can run, or a geometry the
+         stage refuses (RS wants exactly 223*depth octets). Refuse the burst;
+         a waveform missing a stage its caller asked for decodes against
+         itself and syncs to nothing. */
+      free (chips);
+      return -1;
+    }
+  const int rc = wfm_synth_set_dsss_chips (syn, chips, n);
+  free (chips);
+  return rc;
+}
+
+size_t
+wfm_source_dsss_nchips (const wfm_source_t *src)
+{
+  wfm_frame_desc_t d;
+  if (!src || src->type != WFM_SYNTH_DSSS || src->symbol_rate > 0.0
+      || wfm_source_describe_frame (src, &d) != 0)
+    return 0;
+  return wfm_dsss_desc_nchips (&d, src->n_acq_code, src->acq_reps,
+                               src->n_data_code);
 }
 
 wfm_synth_state_t *

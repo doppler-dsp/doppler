@@ -975,6 +975,18 @@ target_include_directories(test_dp_rng
 target_compile_options(test_dp_rng PRIVATE -O2)
 add_test(NAME test_dp_rng COMMAND test_dp_rng)
 
+# native/inc/dp_interleave.h is the block-interleaving permutation, shared by
+# the WFM_STAGE_INTERLEAVE frame-stage kernel and the Interleaver object --
+# header-only for the reason dp_crc16.h gives, so neither grows a link-line
+# dependency for arithmetic. Owned by no object, so registered here. Links
+# nothing.
+add_executable(test_dp_interleave native/tests/test_dp_interleave.c)
+target_include_directories(test_dp_interleave
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_interleave PRIVATE -O2)
+add_test(NAME test_dp_interleave COMMAND test_dp_interleave)
+
 # native/inc/dp_isotime.h formats filename-safe basic-format UTC timestamps.
 # The format is NOT defined there -- it is just-bashit's `iso-8601-basic`, and
 # code cannot be shared between a bash library and a C one, so this test holds

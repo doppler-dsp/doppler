@@ -40,6 +40,7 @@
  */
 
 #include <dsss_burst_receiver/dsss_burst_receiver_core.h>
+#include <frame/frame_core.h>
 #include <pn/pn_core.h>
 #include <wfm/wfm_compose.h>
 
@@ -148,9 +149,9 @@ compose (wfm_source_t *src, size_t repeats, size_t gap, float complex *out,
 static dsss_burst_receiver_state_t *
 make_rx (const uint8_t *acode, const uint8_t *dcode, const uint8_t *sy)
 {
-  return dsss_burst_receiver_create (acode, ACQ_SF, dcode, DATA_SF, sy,
-                                     SYNC_LEN, REPS, SPC, CHIP_RATE, PAYLOAD,
-                                     CN0_DBHZ, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
+  return dsss_burst_receiver_create (
+      acode, ACQ_SF, dcode, DATA_SF, sy, SYNC_LEN, REPS, SPC, CHIP_RATE,
+      FRAME_SYMS, CN0_DBHZ, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
 }
 
 /** @brief Push `cap` in `block` chunks; return payloads decoded. */
@@ -176,10 +177,10 @@ decode_in_blocks (const float complex *cap, size_t cap_len, size_t block,
       size_t got = dsss_burst_receiver_push (rx, cap + off, n, out, cap_out);
       if (got && !kept && first_payload)
         {
-          memcpy (first_payload, out, PAYLOAD);
+          memcpy (first_payload, out, FRAME_SYMS);
           kept = 1;
         }
-      total += got / PAYLOAD;
+      total += got / FRAME_SYMS;
     }
   free (out);
   dsss_burst_receiver_destroy (rx);
@@ -231,11 +232,14 @@ main (void)
         fprintf (stderr, "compose failed\n");
         return 1;
       }
-    uint8_t got[PAYLOAD];
+    uint8_t got[FRAME_SYMS];
     size_t  d     = decode_in_blocks (cap, n, n, acode, dcode, sy, got);
     int     exact = (d == 1u);
+    /* push() hands back the FRAME — this receiver stops at decisions
+       (doppler#1022) — so the payload is a slice, and the trailer is
+       checked by `frame_deframe()` in §5 below. */
     for (size_t i = 0; i < PAYLOAD && exact; i++)
-      exact = (got[i] == payload[i]);
+      exact = (got[SYNC_LEN + i] == payload[i]);
     printf ("§1  %zu-sample capture, one burst: %zu decoded, payload %s\n", n,
             d, exact ? "bit-exact" : "WRONG");
     if (!exact)
@@ -268,10 +272,10 @@ main (void)
         = dsss_burst_receiver_push (rx, cap + cut, n - cut, out, cap_out);
     printf ("§3  split mid-burst: push 1 -> %zu payload(s), pending %zu;"
             "  push 2 -> %zu, pending %zu\n",
-            a1 / PAYLOAD, held, a2 / PAYLOAD, rx->pending);
-    int ok = (a1 == 0 && held == 1u && a2 == PAYLOAD && rx->pending == 0);
+            a1 / FRAME_SYMS, held, a2 / FRAME_SYMS, rx->pending);
+    int ok = (a1 == 0 && held == 1u && a2 == FRAME_SYMS && rx->pending == 0);
     for (size_t i = 0; i < PAYLOAD && ok; i++)
-      ok = (out[i] == payload[i]);
+      ok = (out[SYNC_LEN + i] == payload[i]);
     free (out);
     dsss_burst_receiver_destroy (rx);
     printf ("      -> held, then returned whole. Read pending before you"
@@ -326,7 +330,6 @@ main (void)
     size_t   cap_out = dsss_burst_receiver_push_max_out (rx, n);
     uint8_t *out     = malloc (cap_out);
     size_t   got     = dsss_burst_receiver_push (rx, cap, n, out, cap_out);
-    free (out);
 
     /* One record per burst the push returned -- ask the object how many,
        never assume: a single push can complete several. */
@@ -335,7 +338,7 @@ main (void)
     nev = dsss_burst_receiver_events (rx, nev, ev, sizeof ev / sizeof *ev);
 
     printf ("§5  every read-back, per burst (%zu payload(s), %zu event(s)):\n",
-            got / PAYLOAD, nev);
+            got / FRAME_SYMS, nev);
     printf ("       # %8s %8s %8s %9s %8s %8s %8s %7s\n", "start", "dopp_hz",
             "res_hz", "cn0_dBHz", "freq_hz", "rate_hz", "conf_dB", "margin");
     for (size_t i = 0; i < nev; i++)
@@ -393,6 +396,55 @@ main (void)
                          " produced it\n");
         return 1;
       }
+
+    /* ── §6  the frame is undone one layer up ──────────────────────────── */
+    {
+      /* The receiver stopped at decisions: §5's rows are FRAME BITS and no
+         opinion about them (doppler#1022). Turning those into a payload —
+         and into a verdict — needs the frame's description, which is what
+         `frame_create()` builds and `frame_deframe()` reads. */
+      frame_state_t *f = frame_create (
+          0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,       /* no preamble    */
+          0, sy, SYNC_LEN, 0, 0, 0, 0, 0, 0, 0, 0, 0,     /* literal sync   */
+          0, payload, PAYLOAD, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* the payload   */
+          1);                                             /* crc16 trailer */
+      if (!f)
+        {
+          fprintf (stderr, "frame_create failed\n");
+          return 1;
+        }
+      const size_t nbits  = frame_deframe_max_out (f, 0);
+      uint8_t     *undone = malloc (nbits ? nbits : 1u);
+      int          all_ok = (nbits == FRAME_SYMS) && undone != NULL;
+      printf (
+          "§6  deframed by frame_deframe() (the receiver has no opinion):\n");
+      for (size_t i = 0; i < nev && all_ok; i++)
+        {
+          const size_t got_n = frame_deframe (f, out + i * FRAME_SYMS,
+                                              FRAME_SYMS, undone, nbits);
+          /* The NAMED view, because this frame was built the four-field
+             way: [preamble | sync | payload | crc]. A field-by-field
+             description would index its own fields instead. */
+          const size_t poff = frame_layout (f).payload_off;
+          int          same = (got_n == FRAME_SYMS);
+          for (size_t k = 0; k < PAYLOAD && same; k++)
+            same = (undone[poff + k] == payload[k]);
+          /* `checked` is the load-bearing half: a frame carrying NO check
+             reports 0 and 0, which is not the same fact as a failed one. */
+          all_ok = same && f->rx_checked == 1 && f->rx_ok == f->rx_units;
+        }
+      printf ("      %zu/%zu frames check out, payloads bit-exact\n",
+              all_ok ? nev : 0u, nev);
+      printf ("      -> decide, then deframe. Two objects, one frame.\n");
+      free (undone);
+      free (out);
+      frame_destroy (f);
+      if (!all_ok)
+        {
+          fprintf (stderr, "a returned frame did not deframe cleanly\n");
+          return 1;
+        }
+    }
     rc = 0;
   }
 

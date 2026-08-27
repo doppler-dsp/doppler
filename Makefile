@@ -445,6 +445,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 validate-check \
                 test-all test-stubs test-api-docs test-snippets test-rust \
                 abi-check link-check installed-headers-check \
+                test-asan \
                 consumer-faces-check glibc-gate \
                 specan-check check-isotime-parity coverage coverage-gate \
                 docker-examples
@@ -1000,6 +1001,7 @@ RELEASE_WATCH_CMD = @REPO=doppler-dsp/doppler RW_PKG=doppler-dsp \
 
 # ── Clean ────────────────────────────────────────────────────────────────────
 CLEAN_PATHS = $(BUILD_DIR) $(PY_BUILD_DIR) $(UBSAN_DIR) $(TSAN_DIR) \
+              $(ASAN_DIR) \
               $(GLIBC_BUILD_DIR) \
               docs/doxygen/ site/ \
               *.png bench_*.json zensical.toml __pycache__
@@ -1032,7 +1034,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 test-example-downstream-python \
                 package-starter-tarball test-starter-tarball \
                 test-stubs test-api-docs test-snippets lint-stubs \
-                test-ubsan test-tsan \
+                test-ubsan test-tsan test-asan \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
                 glibc-check glibc-gate glibc-image specan-check \
@@ -1498,6 +1500,62 @@ test-ubsan: ## Run the C suite under UBSan; any undefined behaviour fails
 	$(CMAKE) --build $(UBSAN_DIR) --parallel $(NPROC)
 	UBSAN_OPTIONS=$(UBSAN_OPTS) \
 		$(CTEST) --test-dir $(UBSAN_DIR) --output-on-failure
+
+# ── AddressSanitizer ─────────────────────────────────────────────────────────
+# The C suite rebuilt under ASan, with LeakSanitizer left ON.
+#
+# UBSan above covers what the standard leaves undefined; this covers what the
+# ALLOCATOR knows and the program does not -- reads and writes outside an
+# object, and allocations nothing releases. Neither the behavioural suite nor
+# UBSan can see that class: an overflowing write lands on whatever the
+# compiler happened to put next, so the program is wrong and the assertions
+# are green. doppler#1024 is the instance that bought this target. A test
+# wrote 93 bytes into a 64-byte stack buffer, 29 bytes into its own caller's
+# frame, on top of the array holding the values the next assertion compared
+# against. gcc at -O2 padded the frame and hid it for as long as it existed;
+# `make test` was 152/152. It surfaced only because the coverage job builds
+# with clang at -O0 and the layout there exposed it -- a stack layout, not a
+# check. ASan names the write, the buffer and both frames in one report.
+#
+# Whole-suite rather than a pattern like TSAN_TESTS, because unlike a race,
+# a bad access needs no special test to provoke: every target that touches
+# memory is a candidate, which is all of them.
+#
+# There is NO exclusion here, and that is a property to keep rather than a
+# coincidence. Turning the run on found nine failures on a green tree -- two
+# genuine out-of-bounds reads and seven leaks -- and all nine were test-side
+# and fixed in the same change, so this target has never had a ratchet and
+# should not acquire its first one quietly. Adding `detect_leaks=0` or a
+# suppressions file is a change in what this gate promises; fix the code.
+ASAN_DIR   ?= build-asan
+ASAN_FLAGS  = -fsanitize=address -fno-omit-frame-pointer -g
+# halt_on_error, for the reason UBSAN_OPTS gives above. `detect_leaks` is
+# spelled out rather than left to the platform default: it is ON by default on
+# Linux and OFF on macOS, so relying on the default would mean the gate
+# silently checks less on one of the two platforms CI builds.
+ASAN_OPTS   = halt_on_error=1:abort_on_error=1:detect_leaks=1
+
+test-asan: ## Run the C suite under ASan+LSan; any bad access or leak fails
+	$(CMAKE) -B $(ASAN_DIR) -S . \
+		-DCMAKE_BUILD_TYPE=Debug \
+		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+		"-DCMAKE_C_FLAGS=$(ASAN_FLAGS)" \
+		"-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address" \
+		"-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address" \
+		$(CMAKE_ARGS)
+	$(CMAKE) --build $(ASAN_DIR) --parallel $(NPROC)
+# An empty result set is not a pass -- the same trap test-tsan guards, and it
+# bites harder here because this target takes no pattern: a configure that
+# registered no tests would run zero of them and exit 0, reporting a clean
+# sanitizer run over nothing at all.
+	@n=$$($(CTEST) --test-dir $(ASAN_DIR) -N | sed -n 's/^Total Tests: //p'); \
+	 if [ "$$n" = "0" ] || [ -z "$$n" ]; then \
+	   echo "test-asan: the suite registered no tests — nothing ran,"; \
+	   echo "  so this gate has not passed."; exit 1; \
+	 fi; \
+	 echo "test-asan: $$n test(s) under AddressSanitizer + LeakSanitizer"
+	ASAN_OPTIONS=$(ASAN_OPTS) \
+		$(CTEST) --test-dir $(ASAN_DIR) --output-on-failure
 
 # ── ThreadSanitizer ──────────────────────────────────────────────────────────
 # Scoped to the tests that actually run threads, because that is what makes

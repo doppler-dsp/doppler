@@ -126,8 +126,16 @@ main (void)
     carrier_mpsk_destroy (c);
 
     /* only M in {2,4,8} is a valid constellation order */
-    DP_CHECK (carrier_mpsk_create (0.05, 0.707, 0.0, 16, 0.0, 2) != NULL);
-    DP_CHECK (carrier_mpsk_create (0.05, 0.707, 0.0, 16, 0.0, 8) != NULL);
+    /* The ACCEPTING cases hand back a state, so the test that proves
+       they are accepted also has to release it; only the rejecting
+       ones below have nothing to free. */
+    carrier_mpsk_state_t *ok;
+    ok = carrier_mpsk_create (0.05, 0.707, 0.0, 16, 0.0, 2);
+    DP_CHECK (ok != NULL);
+    carrier_mpsk_destroy (ok);
+    ok = carrier_mpsk_create (0.05, 0.707, 0.0, 16, 0.0, 8);
+    DP_CHECK (ok != NULL);
+    carrier_mpsk_destroy (ok);
     DP_CHECK (carrier_mpsk_create (0.05, 0.707, 0.0, 16, 0.0, 3) == NULL);
     DP_CHECK (carrier_mpsk_create (0.05, 0.707, 0.0, 16, 0.0, 16) == NULL);
   }

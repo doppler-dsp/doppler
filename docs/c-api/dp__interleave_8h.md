@@ -56,9 +56,9 @@ _Block interleaving — the permutation, and nothing else._ [More...](#detailed-
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**dp\_deinterleave\_f32**](#function-dp_deinterleave_f32) (const float \* in, float \* out, size\_t rows, size\_t cols, size\_t unit) <br>_Undo dp\_interleave\_f32 — the soft-decision receive path._  |
+|  void | [**dp\_deinterleave\_f32**](#function-dp_deinterleave_f32) (const float \* in, float \* out, size\_t rows, size\_t cols, size\_t unit) <br>_Undo_ `dp_interleave_f32` _— the soft-decision receive path._ |
 |  size\_t | [**dp\_deinterleave\_index**](#function-dp_deinterleave_index) (size\_t o, size\_t rows, size\_t cols) <br>_Where output unit_ `o` _came from — the inverse permutation._ |
-|  void | [**dp\_deinterleave\_u8**](#function-dp_deinterleave_u8) (const uint8\_t \* in, uint8\_t \* out, size\_t rows, size\_t cols, size\_t unit) <br>_Undo dp\_interleave\_u8 over a block of the same geometry._  |
+|  void | [**dp\_deinterleave\_u8**](#function-dp_deinterleave_u8) (const uint8\_t \* in, uint8\_t \* out, size\_t rows, size\_t cols, size\_t unit) <br>_Undo_ `dp_interleave_u8` _over a block of the same geometry._ |
 |  size\_t | [**dp\_interleave\_block\_units**](#function-dp_interleave_block_units) (size\_t rows, size\_t cols) <br>_Units in one block —_ `rows * cols` _._ |
 |  void | [**dp\_interleave\_f32**](#function-dp_interleave_f32) (const float \* in, float \* out, size\_t rows, size\_t cols, size\_t unit) <br>_Interleave one block of soft values._  |
 |  size\_t | [**dp\_interleave\_index**](#function-dp_interleave_index) (size\_t i, size\_t rows, size\_t cols) <br>_Where input unit_ `i` _lands in the interleaved output._ |
@@ -132,7 +132,7 @@ Header-only, like `dp_crc16.h` and for the same reason: the frame stage kernel a
 
 ### function dp\_deinterleave\_f32 
 
-_Undo dp\_interleave\_f32 — the soft-decision receive path._ 
+_Undo_ `dp_interleave_f32` _— the soft-decision receive path._
 ```C++
 static inline void dp_deinterleave_f32 (
     const float * in,
@@ -181,7 +181,7 @@ static inline size_t dp_deinterleave_index (
 
 
 
-Identical to dp\_interleave\_index with `rows` and `cols` exchanged, which is a fact about the transform rather than a coincidence: reading a `rows x cols` matrix by columns is writing a `cols x rows` one by rows. It is why every function below undoes itself by swapping two arguments, and why a SQUARE block is its own inverse.
+Identical to `dp_interleave_index` with `rows` and `cols` exchanged, which is a fact about the transform rather than a coincidence: reading a `rows x cols` matrix by columns is writing a `cols x rows` one by rows. It is why every function below undoes itself by swapping two arguments, and why a SQUARE block is its own inverse.
 
 
 
@@ -211,7 +211,7 @@ The input unit index it came from.
 
 ### function dp\_deinterleave\_u8 
 
-_Undo dp\_interleave\_u8 over a block of the same geometry._ 
+_Undo_ `dp_interleave_u8` _over a block of the same geometry._
 ```C++
 static inline void dp_deinterleave_u8 (
     const uint8_t * in,

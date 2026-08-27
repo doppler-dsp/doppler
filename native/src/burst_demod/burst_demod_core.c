@@ -1,6 +1,7 @@
 #include "burst_demod/burst_demod_core.h"
 
 #include "ccsds_tm/ccsds_tm_frame.h" /* the stage kernels + the ASM bits    */
+#include "mpsk/mpsk_core.h"          /* mpsk_soft_demap — the ONE LLR rule  */
 #include "wfm/wfm_frame.h"           /* the frame DESCRIPTION, both faces   */
 
 #include <complex.h>
@@ -63,6 +64,8 @@ burst_demod_destroy (burst_demod_state_t *s)
   free (s->data_code);
   free (s->acq_code);
   free (s->sync);
+  free (s->llr);
+  free (s->sync_bits);
   free (s->part);
   free (s);
 }
@@ -200,6 +203,24 @@ burst_demod_set_prior (burst_demod_state_t *s, double f0_coarse, size_t start)
 {
   s->f0_prior = f0_coarse;
   s->start    = start;
+}
+
+size_t
+burst_demod_llrs_max_out (burst_demod_state_t *s, size_t n)
+{
+  (void)n; /* the count is the last demod()'s frame, not a request */
+  return s ? s->lay.frame_bits : 0u;
+}
+
+size_t
+burst_demod_llrs (burst_demod_state_t *s, size_t n, float *out, size_t max_out)
+{
+  (void)n; /* the count is the last demod()'s frame, not a request */
+  if (!s || !out || s->n_llr == 0)
+    return 0;
+  const size_t rows = (s->n_llr < max_out) ? s->n_llr : max_out;
+  memcpy (out, s->llr, rows * sizeof *out);
+  return rows;
 }
 
 size_t
@@ -416,6 +437,58 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
     }
   for (size_t k = 0; k < frame; k++)
     work[k] = (crealf (sym[best_off + k] * derot) < 0.0f) ? 1u : 0u;
+
+  /* ── the SOFT bits, before the hard ones are taken ─────────────────────
+   *
+   * `crealf(sym * derot)` is the log-likelihood ratio up to a scale, and it
+   * used to be computed, sliced to one bit, and freed. Kept here in
+   * `mpsk_soft_demap`'s convention -- positive means bit 0, so `L < 0` is
+   * exactly the hard decision below, which is asserted rather than assumed
+   * (doppler#1018).
+   *
+   * SCALED, not raw. A Viterbi is invariant to a positive scale, but LLRs
+   * from different bursts are not comparable without one, and combining
+   * across bursts needs them to be. The estimate is the symbols' own: after
+   * derotation the real axis carries the signal and the imaginary axis
+   * carries noise alone, so `a` is the mean |Re| and `n0` is twice the
+   * variance of Im -- both referred to unit amplitude, which is the
+   * convention `mpsk_soft_demap` documents.
+   */
+  {
+    float         *llr  = realloc (s->llr, frame * sizeof *llr);
+    float complex *unit = malloc (frame * sizeof *unit);
+    if (llr && unit)
+      {
+        s->llr   = llr;
+        double a = 0.0, q2 = 0.0;
+        for (size_t k = 0; k < frame; k++)
+          {
+            const float complex y = sym[best_off + k] * derot;
+            unit[k]               = y;
+            a += fabs ((double)crealf (y));
+            q2 += (double)cimagf (y) * (double)cimagf (y);
+          }
+        a /= (double)frame;
+        /* E[|n|^2] over both dimensions, referred to unit amplitude. The
+           floor keeps a noiseless capture finite rather than infinite. */
+        double n0 = 2.0 * (q2 / (double)frame) / (a > 0.0 ? a * a : 1.0);
+        if (!(n0 > 1e-12))
+          n0 = 1e-12;
+        s->est_n0 = n0;
+        if (a > 0.0)
+          for (size_t k = 0; k < frame; k++)
+            unit[k] /= (float)a;
+        mpsk_soft_demap (unit, frame, s->llr, frame, 2, (float)n0);
+        s->n_llr = frame;
+      }
+    else
+      {
+        free (llr);
+        s->llr   = NULL;
+        s->n_llr = 0;
+      }
+    free (unit);
+  }
 
   wfm_frame_ops_t ops;
   ccsds_tm_frame_ops (&ops, NULL);

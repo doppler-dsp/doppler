@@ -42,6 +42,7 @@
 #include "rs/rs_core.h"
 #include "pn/pn_core.h"
 #include "gold/gold_core.h"
+#include "mpsk/mpsk_core.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -85,6 +86,14 @@ extern "C"
     size_t         n_part;
 
     /* ── read-backs (after demod) ── */
+    float *llr;   /**< The frame's soft bits, `mpsk_soft_demap`'s
+                       convention: positive means bit 0, so `L < 0` is the
+                       hard decision demod() returned. Valid until the next
+                       demod(); n_llr of them.                            */
+    size_t n_llr; /**< LLRs the last demod() wrote (the frame's length).  */
+    double est_n0; /**< Noise power the LLRs are scaled by, referred to
+                        unit symbol amplitude. Published so a caller can
+                        undo the scaling, or compare bursts by it.        */
     int    frame_valid;  /**< 1 iff every check that RAN came out good.    */
     int    frame_checked; /**< checking stages actually reversed. 0 with
                               frame_valid 0 means the frame carries no
@@ -154,6 +163,7 @@ extern "C"
    * >>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, payload_len=64)
    * >>> d.set_preamble(acode, reps)   # unmodulated (f0, rate) preamble
    * >>> d.set_frame(sync)             # Barker-13 sync, CRC-16 trailer
+   * 0
    * >>> d.set_prior(f0, 0)           # coarse Doppler + preamble start
    * >>> bits = d.demod(x)      # estimate -> dechirp -> despread -> slice
    * >>> int(d.frame_valid), bool(np.array_equal(bits, payload))
@@ -273,13 +283,66 @@ extern "C"
    * >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
    * >>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
    * >>> d.set_frame(sync)              # Barker-13, CRC-16 trailer
+   * 0
    * >>> d.set_frame(sync, crc=0)       # ...or no trailer at all
+   * 0
    *
    * @endcode
    */
   int burst_demod_set_frame (burst_demod_state_t *state, const uint8_t *sync,
                              size_t sync_len, int crc, unsigned rs_depth,
                              int randomise, int attach_asm);
+
+  /**
+   * @brief LLRs the last demod() wrote — the frame's soft bits.
+   *
+   * `crealf(sym * derot)` IS the log-likelihood ratio up to a scale, and it
+   * was computed, sliced to one bit and freed on every burst. A hard
+   * decision throws away roughly 2 dB of the coding gain a soft-input
+   * decoder exists to deliver (`mpsk_soft_demap`'s own docstring), so this
+   * is what makes a coded burst worth coding.
+   *
+   * **The convention is not a new one**: `mpsk_soft_demap`'s, which is
+   * `mpsk_demap`'s decision rule seen a second way. Positive means bit 0,
+   * so `L < 0` reproduces exactly the bits demod() returned — asserted in
+   * the tests rather than assumed.
+   *
+   * Spans the WHOLE frame, not just the payload, because a code covers what
+   * its description says it covers and a decoder needs the bits the code
+   * protects. The payload's own span is `field_off`/`field_bits` of the
+   * layout.
+   *
+   * Scaled by @c est_n0 rather than left raw: a Viterbi is invariant to a
+   * positive scale, but LLRs from different bursts are not comparable
+   * without one, and combining across bursts needs them to be.
+   *
+   * @param state    Demodulator handle.
+   * @param n        Ignored — the count is the last demod()'s frame.
+   * @param out      Receives the LLRs, one per frame bit.
+   * @param max_out  Capacity of @p out; see burst_demod_llrs_max_out().
+   * @return LLRs written — `min(frame bits, max_out)`, or 0 if the last
+   *         demod() produced no frame.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import BurstDemod
+   * >>> dcode = (np.arange(50) & 1).astype(np.uint8)
+   * >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
+   * >>> d.set_frame(np.zeros(13, dtype=np.uint8))
+   * 0
+   * >>> d.llrs_max_out(1)          # sync + payload + the CRC trailer
+   * 93
+   *
+   * @endcode
+   */
+  size_t burst_demod_llrs (burst_demod_state_t *state, size_t n, float *out,
+                           size_t max_out);
+
+  /**
+   * @brief Max LLRs burst_demod_llrs() writes: the frame's length in bits.
+   *
+   * @param state  Demodulator handle.
+   */
+  size_t burst_demod_llrs_max_out (burst_demod_state_t *state, size_t n);
 
   /**
    * @brief Seed the demodulator from acquisition with the coarse Doppler and
@@ -359,6 +422,7 @@ extern "C"
    * >>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, payload_len=64)
    * >>> d.set_preamble(acode, reps)
    * >>> d.set_frame(sync)
+   * 0
    * >>> d.set_prior(f0, 0)
    * >>> bits = d.demod(x)
    * >>> int(d.frame_valid), bool(np.array_equal(bits, payload))

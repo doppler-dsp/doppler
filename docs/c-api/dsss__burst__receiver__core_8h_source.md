@@ -59,6 +59,7 @@ typedef struct
 #include "conv/conv_core.h"
 #include "rs/rs_core.h"
 #include "gold/gold_core.h"
+#include "mpsk/mpsk_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -118,6 +119,10 @@ typedef struct {
    * configuration. */
   dsss_br_event_t *ev;     
   size_t           ev_cap; 
+  float  *llr;     
+  size_t  llr_cap; 
+  size_t  llr_len; 
+  size_t  frame_bits; 
   size_t           ev_len; 
   uint64_t suppress_until; 
   size_t acq_blob_max; 
@@ -146,6 +151,10 @@ void dsss_burst_receiver_reset(dsss_burst_receiver_state_t *state);
 size_t dsss_burst_receiver_push_max_out(dsss_burst_receiver_state_t *state, size_t x_len);
 
 size_t dsss_burst_receiver_push(dsss_burst_receiver_state_t *state, const float complex *x, size_t x_len, uint8_t *out, size_t max_out);
+
+size_t dsss_burst_receiver_llrs(dsss_burst_receiver_state_t *state, size_t n, float *out, size_t max_out);
+
+size_t dsss_burst_receiver_llrs_max_out(dsss_burst_receiver_state_t *state, size_t n);
 
 size_t dsss_burst_receiver_events_max_out(dsss_burst_receiver_state_t *state);
 

@@ -115,6 +115,7 @@ typedef struct
 #include "conv/conv_core.h"
 #include "rs/rs_core.h"
 #include "gold/gold_core.h"
+#include "mpsk/mpsk_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -242,6 +243,14 @@ typedef struct {
    * configuration. */
   dsss_br_event_t *ev;     /**< One record per burst returned.             */
   size_t           ev_cap; /**< Allocated records.                          */
+  float  *llr;     /**< The soft bits of every burst the last push
+                        returned, concatenated: burst i occupies
+                        llr[i*frame_bits ... ]. Scratch, like `ev` --
+                        it describes one call and is never serialized. */
+  size_t  llr_cap; /**< Allocated floats.                               */
+  size_t  llr_len; /**< Floats written by the last push.                */
+  size_t  frame_bits; /**< The frame's length, from the description --
+                           the stride of a row in `llr`.                */
   size_t           ev_len; /**< Records the last push() wrote.              */
   uint64_t suppress_until; /**< Detections below this stream position fall
                                 inside a burst that has already DECODED, so
@@ -427,6 +436,54 @@ size_t dsss_burst_receiver_push(dsss_burst_receiver_state_t *state, const float 
  * @param state  Must be non-NULL.
  * @return The number of bursts the most recent push() completed.
  */
+/**
+ * @brief The SOFT bits of every burst the last push() returned.
+ *
+ * `crealf(sym * derot)` IS the log-likelihood ratio up to a scale, and the
+ * demodulator used to compute it, slice it to one bit and free it. A hard
+ * decision throws away roughly 2 dB of the coding gain a soft-input decoder
+ * exists to deliver (`mpsk_soft_demap`'s own docstring), which is what makes
+ * a coded burst worth coding.
+ *
+ * Concatenated the same way push()'s payloads are: burst @c i occupies
+ * `llr[i * frame_bits ... ]`, in the order events() reports. The convention
+ * is `mpsk_soft_demap`'s — positive means bit 0, so `L < 0` reproduces
+ * exactly the bits push() returned. Spans the WHOLE frame rather than the
+ * payload alone, because a code covers what its description says it covers.
+ *
+ * Valid until the next push(), reset() or set_state(); deliberately not
+ * serialized, for the same reason events() is not: it describes one call.
+ *
+ * @param state    Receiver handle.
+ * @param n        Ignored — the count is the last push's, not a request.
+ * @param out      Receives the LLRs.
+ * @param max_out  Capacity of @p out; see llrs_max_out().
+ * @return LLRs written.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.dsss import DsssBurstReceiver
+ * >>> rng = np.random.default_rng(0)
+ * >>> rx = DsssBurstReceiver(
+ * ...     rng.integers(0, 2, 31).astype(np.uint8),
+ * ...     rng.integers(0, 2, 8).astype(np.uint8),
+ * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+ * >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
+ * >>> len(bits), len(rx.llrs(rx.llrs_max_out(1)))   # nothing decoded
+ * (0, 0)
+ *
+ * @endcode
+ */
+size_t dsss_burst_receiver_llrs(dsss_burst_receiver_state_t *state, size_t n, float *out, size_t max_out);
+
+/**
+ * @brief Max LLRs llrs() writes: frame bits x the bursts the last push
+ *        returned.
+ *
+ * @param state  Receiver handle.
+ * @param n      Ignored, as in llrs().
+ */
+size_t dsss_burst_receiver_llrs_max_out(dsss_burst_receiver_state_t *state, size_t n);
+
 size_t dsss_burst_receiver_events_max_out(dsss_burst_receiver_state_t *state);
 
 /**

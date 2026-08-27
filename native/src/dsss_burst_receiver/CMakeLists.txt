@@ -19,6 +19,7 @@ target_link_libraries(dsss_burst_receiver_core PUBLIC
     rs_core
     pn_core
     gold_core
+    mpsk_core
     burst_despreader_core
     loop_filter_core
     corr_core)
@@ -41,6 +42,7 @@ target_link_libraries(test_dsss_burst_receiver_core
     rs_core
     pn_core
     gold_core
+    mpsk_core
     burst_despreader_core
     loop_filter_core
     corr_core
@@ -68,6 +70,7 @@ target_link_libraries(bench_dsss_burst_receiver_core
     rs_core
     pn_core
     gold_core
+    mpsk_core
     burst_despreader_core
     loop_filter_core
     corr_core

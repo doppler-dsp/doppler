@@ -45,6 +45,7 @@ _BurstDemod state. Allocate with_ [_**burst\_demod\_create()**_](burst__demod__c
 |  uint8\_t \* | [**data\_code**](#variable-data_code)  <br> |
 |  size\_t | [**data\_sf**](#variable-data_sf)  <br> |
 |  double | [**est\_freq\_hz**](#variable-est_freq_hz)  <br> |
+|  double | [**est\_n0**](#variable-est_n0)  <br> |
 |  double | [**est\_rate\_hz**](#variable-est_rate_hz)  <br> |
 |  size\_t | [**est\_segments**](#variable-est_segments)  <br> |
 |  double | [**est\_snr\_db**](#variable-est_snr_db)  <br> |
@@ -53,8 +54,10 @@ _BurstDemod state. Allocate with_ [_**burst\_demod\_create()**_](burst__demod__c
 |  size\_t | [**frame\_offset**](#variable-frame_offset)  <br> |
 |  int | [**frame\_valid**](#variable-frame_valid)  <br> |
 |  [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) | [**lay**](#variable-lay)  <br> |
+|  float \* | [**llr**](#variable-llr)  <br> |
 |  uint8\_t | [**marker**](#variable-marker)  <br> |
 |  double | [**max\_rate**](#variable-max_rate)  <br> |
+|  size\_t | [**n\_llr**](#variable-n_llr)  <br> |
 |  size\_t | [**n\_part**](#variable-n_part)  <br> |
 |  size\_t | [**n\_symbols**](#variable-n_symbols)  <br> |
 |  float complex \* | [**part**](#variable-part)  <br> |
@@ -275,6 +278,24 @@ estimated residual Doppler (Hz).
 
 
 
+### variable est\_n0 
+
+```C++
+double burst_demod_state_t::est_n0;
+```
+
+
+
+Noise power the LLRs are scaled by, referred to unit symbol amplitude. Published so a caller can undo the scaling, or compare bursts by it. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable est\_rate\_hz 
 
 ```C++
@@ -419,6 +440,24 @@ where each field landed.
 
 
 
+### variable llr 
+
+```C++
+float* burst_demod_state_t::llr;
+```
+
+
+
+The frame's soft bits, `mpsk_soft_demap`'s convention: positive means bit 0, so `L < 0` is the hard decision demod() returned. Valid until the next demod(); n\_llr of them. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable marker 
 
 ```C++
@@ -445,6 +484,24 @@ double burst_demod_state_t::max_rate;
 
 
 chirp-rate search half-span (cycles/sample^2). 
+
+
+        
+
+<hr>
+
+
+
+### variable n\_llr 
+
+```C++
+size_t burst_demod_state_t::n_llr;
+```
+
+
+
+LLRs the last demod() wrote (the frame's length). 
+ 
 
 
         

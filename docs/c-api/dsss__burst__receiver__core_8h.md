@@ -27,6 +27,9 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 * `#include "detection/detection_core.h"`
 * `#include "fft/fft_core.h"`
 * `#include "pn/pn_core.h"`
+* `#include "conv/conv_core.h"`
+* `#include "rs/rs_core.h"`
+* `#include "gold/gold_core.h"`
 
 
 
@@ -76,7 +79,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 | Type | Name |
 | ---: | :--- |
 |  int | [**dsss\_burst\_receiver\_configure\_search\_raw**](#function-dsss_burst_receiver_configure_search_raw) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the acquisition search grid, bypassing the auto-sizing._  |
-|  [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* | [**dsss\_burst\_receiver\_create**](#function-dsss_burst_receiver_create) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, const uint8\_t \* data\_code, size\_t data\_code\_len, const uint8\_t \* sync, size\_t sync\_len, size\_t reps, size\_t spc, double chip\_rate, size\_t payload\_len, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, double carrier\_hz, double max\_rate, size\_t est\_segments) <br>_Create a burst receiver: acquisition, refine and demodulation composed behind one push()._  |
+|  [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* | [**dsss\_burst\_receiver\_create**](#function-dsss_burst_receiver_create) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, const uint8\_t \* data\_code, size\_t data\_code\_len, const uint8\_t \* sync, size\_t sync\_len, size\_t reps, size\_t spc, double chip\_rate, size\_t payload\_len, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, double carrier\_hz, double max\_rate, size\_t est\_segments, int crc, int rs\_depth, int randomise, int attach\_asm) <br>_Create a burst receiver: acquisition, refine and demodulation composed behind one push()._  |
 |  void | [**dsss\_burst\_receiver\_destroy**](#function-dsss_burst_receiver_destroy) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br>_Destroy a dsss\_burst\_receiver instance and release all memory._  |
 |  size\_t | [**dsss\_burst\_receiver\_events**](#function-dsss_burst_receiver_events) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, size\_t n, [**dsss\_br\_event\_t**](structdsss__br__event__t.md) \* out, size\_t max\_out) <br>_The event record for each burst the last push() returned._  |
 |  size\_t | [**dsss\_burst\_receiver\_events\_max\_out**](#function-dsss_burst_receiver_events_max_out) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br>_Max records events() writes: one per burst the last push() returned._  |
@@ -87,6 +90,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 |  double | [**dsss\_burst\_receiver\_get\_est\_freq\_hz**](#function-dsss_burst_receiver_get_est_freq_hz) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dsss\_burst\_receiver\_get\_est\_rate\_hz**](#function-dsss_burst_receiver_get_est_rate_hz) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dsss\_burst\_receiver\_get\_est\_snr\_db**](#function-dsss_burst_receiver_get_est_snr_db) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
+|  int | [**dsss\_burst\_receiver\_get\_frame\_checked**](#function-dsss_burst_receiver_get_frame_checked) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  int | [**dsss\_burst\_receiver\_get\_frame\_valid**](#function-dsss_burst_receiver_get_frame_valid) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  uint64\_t | [**dsss\_burst\_receiver\_get\_n\_bursts**](#function-dsss_burst_receiver_get_n_bursts) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  size\_t | [**dsss\_burst\_receiver\_get\_pending**](#function-dsss_burst_receiver_get_pending) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
@@ -235,7 +239,11 @@ dsss_burst_receiver_state_t * dsss_burst_receiver_create (
     double pd,
     double carrier_hz,
     double max_rate,
-    size_t est_segments
+    size_t est_segments,
+    int crc,
+    int rs_depth,
+    int randomise,
+    int attach_asm
 ) 
 ```
 
@@ -520,6 +528,21 @@ double dsss_burst_receiver_get_est_rate_hz (
 
 ```C++
 double dsss_burst_receiver_get_est_snr_db (
+    const dsss_burst_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dsss\_burst\_receiver\_get\_frame\_checked 
+
+```C++
+int dsss_burst_receiver_get_frame_checked (
     const dsss_burst_receiver_state_t * state
 ) 
 ```

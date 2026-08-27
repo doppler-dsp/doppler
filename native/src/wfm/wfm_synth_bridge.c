@@ -95,149 +95,52 @@ wfm_source_frame_error (const wfm_source_t *src)
   return NULL;
 }
 
-/* The source's frame as a DESCRIPTION: the fields in wire order, and the
- * span each stage covers.
+/* The source's frame as a DESCRIPTION — an ADAPTER, not a second layout.
  *
- * Built here rather than through wfm_frame_describe() because the marker goes
- * in FRONT of everything and a description's field list is positional -- it
- * cannot be appended after the fact. That is the same reason the marker is
- * interesting at all: it enters the frame third and one of the stages after
- * it reaches back over it.
+ * Everything about which stage covers what now lives in `wfm_frame_desc_of`,
+ * where a receiver can reach it too: a generator and a receiver holding the
+ * same choices must hold the same frame, and the only way they cannot
+ * disagree is for neither to work it out. What is left here is this face's
+ * own two decisions.
  *
- * Which stage covers what is the whole content of this function:
+ * The first is the DSSS preamble, which is a field for an unspread source and
+ * is not one for a spread burst -- a physical fact rather than an
+ * inconsistency: a DSSS preamble is transmitted unmodulated and UNSPREAD,
+ * because it is the coherent pull-in target a receiver correlates raw chips
+ * against. It is therefore outside anything a stage could cover, and
+ * `wfm_dsss_desc_chips` prepends it around the description rather than
+ * inside it.
  *
- *   marker / preamble / sync   found, not decoded -- covered by the inner
- *                              code alone, because all three have to look
- *                              the same in every frame to be findable
- *   payload / crc / parity     the data group -- what the outer code and the
- *                              randomiser reach over
- *   everything                 the inner code
- *
- * The middle row is 10.3.4's rule generalised: CCSDS says the randomiser does
- * not cover the ASM, and the reason it gives -- a marker a receiver
- * correlates against must not vary between frames -- is exactly as true of a
- * preamble and a sync word.
+ * The second is where CCSDS's own numbers enter: the marker's bits and the
+ * outer code's parity size. `wfm_frame.c` cannot call `ccsds_tm` (ccsds_tm
+ * depends on it), which is the same reason the stage KERNELS arrive as a
+ * table.
  */
 int
 wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
 {
-  memset (d, 0, sizeof *d);
-
-  unsigned i_asm = 0, i_data = 0, i_crc = 0, i_parity = 0;
-  unsigned n = 0;
-
-  /* The ASM is a literal field like any other; its pattern comes from the one
-     function that expands it, never a second transcription. */
   static uint8_t marker[CCSDS_TM_ASM_BITS];
   if (src->attach_asm)
-    {
-      ccsds_tm_asm_bits (marker);
-      i_asm                = n;
-      d->field[n].seq.kind = WFM_SEQ_LITERAL;
-      d->field[n].seq.bits = marker;
-      d->field[n].seq.len  = CCSDS_TM_ASM_BITS;
-      n++;
-    }
-  /* The acquisition preamble is a FIELD for an unspread source and is NOT one
-     for a DSSS burst. That is not an inconsistency, it is the physical fact:
-     a DSSS preamble is transmitted unmodulated and UNSPREAD, because it is the
-     coherent pull-in target a receiver correlates raw chips against. It is
-     therefore outside everything a stage could cover -- an inner code over
-     "the whole frame" must not reach it, and neither can a randomiser -- and
-     `wfm_dsss_desc_chips` prepends it around the description rather than
-     inside it. */
-  if (src->n_acq_code && src->acq_reps && src->type != WFM_SYNTH_DSSS)
-    {
-      d->field[n].seq.kind = WFM_SEQ_LITERAL;
-      d->field[n].seq.bits = src->acq_code;
-      d->field[n].seq.len  = src->n_acq_code;
-      d->field[n].reps     = src->acq_reps;
-      n++;
-    }
-  if (src->n_sync)
-    {
-      d->field[n].seq.kind = WFM_SEQ_LITERAL;
-      d->field[n].seq.bits = src->sync;
-      d->field[n].seq.len  = src->n_sync;
-      n++;
-    }
+    ccsds_tm_asm_bits (marker); /* the ONE expansion, never a transcription */
 
-  i_data               = n;
-  d->field[n].seq.kind = WFM_SEQ_LITERAL;
-  d->field[n].seq.bits = src->bits;
-  d->field[n].seq.len  = src->n_bits;
-  n++;
-
-  /* Stage indices are needed before the stages exist, because a derived field
-     names the stage that writes it. They are assigned in application order:
-     the CRC first, then the outer code over the result, then the randomiser,
-     then the inner code. */
-  unsigned s_crc = 0, s_rs = 0, s_rand = 0, s_conv = 0, ns = 0;
-  if (src->crc)
-    s_crc = ns++;
-  if (src->rs_depth)
-    s_rs = ns++;
-  if (src->randomise)
-    s_rand = ns++;
-  if (src->convolutional)
-    s_conv = ns++;
-
-  if (src->crc)
-    {
-      i_crc                  = n;
-      d->field[n].bits       = WFM_FRAME_CRC_BITS;
-      d->field[n].derived_by = s_crc + 1u;
-      n++;
-    }
-  if (src->rs_depth)
-    {
-      i_parity               = n;
-      d->field[n].bits       = (size_t)CCSDS_TM_RS_2E * src->rs_depth * 8u;
-      d->field[n].derived_by = s_rs + 1u;
-      n++;
-    }
-  d->n_fields = n;
-  d->n_stages = ns;
-
-  /* The data group: payload, its CRC, and the outer code's check symbols.
-     Contiguous by construction, and each derived field is the last of its own
-     stage's cover, which is what lets one kernel signature serve them all. */
-  const unsigned data_end = n; /* one past the last data field */
-
-  if (src->crc)
-    {
-      d->stage[s_crc].kind        = WFM_STAGE_CRC16;
-      d->stage[s_crc].first_field = i_data;
-      d->stage[s_crc].n_fields    = i_crc - i_data + 1u;
-    }
-  if (src->rs_depth)
-    {
-      d->stage[s_rs].kind        = WFM_STAGE_RS;
-      d->stage[s_rs].depth       = src->rs_depth;
-      d->stage[s_rs].first_field = i_data;
-      d->stage[s_rs].n_fields    = i_parity - i_data + 1u;
-    }
-  if (src->randomise)
-    {
-      d->stage[s_rand].kind        = WFM_STAGE_RANDOMISE;
-      d->stage[s_rand].first_field = i_data;
-      d->stage[s_rand].n_fields    = data_end - i_data;
-      /* WHICH generator, carried on the stage: 131.0-B-6 specifies two and
-         they produce waveforms only the matching receiver derandomises, so
-         this is not a detail the kernel may pick for itself. `depth` is the
-         stage's free parameter and the randomiser has no other use for it. */
-      d->stage[s_rand].depth = (unsigned)src->randomise;
-    }
-  if (src->convolutional)
-    {
-      d->stage[s_conv].kind        = WFM_STAGE_CONV;
-      d->stage[s_conv].first_field = 0u;
-      d->stage[s_conv].n_fields    = n;
-      d->stage[s_conv].emit_num    = 2u;
-      d->stage[s_conv].emit_den    = 1u;
-    }
-  (void)i_asm;
-  return 0;
+  const int        spread = (src->type == WFM_SYNTH_DSSS);
+  wfm_frame_spec_t s      = {
+    .marker         = src->attach_asm ? marker : NULL,
+    .n_marker       = src->attach_asm ? CCSDS_TM_ASM_BITS : 0u,
+    .preamble       = spread ? NULL : src->acq_code,
+    .n_preamble     = spread ? 0u : src->n_acq_code,
+    .preamble_reps  = spread ? 0u : src->acq_reps,
+    .sync           = src->sync,
+    .n_sync         = src->n_sync,
+    .payload        = src->bits,
+    .n_payload      = src->n_bits,
+    .crc            = src->crc,
+    .rs_depth       = src->rs_depth,
+    .rs_parity_bits = (size_t)CCSDS_TM_RS_2E * src->rs_depth * 8u,
+    .randomise      = src->randomise,
+    .convolutional  = src->convolutional,
+  };
+  return wfm_frame_desc_of (&s, d);
 }
 
 int

@@ -55,7 +55,7 @@ def _burst(payload, f0, mu, *, rng=None, sigma=0.0):
 def _make(max_rate):
     d = BurstDemod(_DCODE, SPC, CHIP_RATE, 0.0, max_rate, PAYLOAD, 10)
     d.set_preamble(_ACODE, REPS)
-    d.set_sync(SYNC)
+    d.set_frame(SYNC)
     return d
 
 

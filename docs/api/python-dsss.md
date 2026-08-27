@@ -100,7 +100,7 @@ rx = (bb * np.exp(2j * np.pi * f0 * nn)).astype(np.complex64)
 d = BurstDemod(data_code, spc=4, chip_rate=1e6, carrier_hz=0.0,
                max_rate=0.0, payload_len=64, est_segments=10)
 d.set_preamble(acq_code, reps=5)
-d.set_sync(sync_word)              # 0/1 BPSK sync header
+d.set_frame(sync_word)              # 0/1 BPSK sync header
 d.set_prior(f0, preamble_start)
 bits = d.demod(rx)
 assert d.frame_valid             # CRC passed

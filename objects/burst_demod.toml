@@ -20,7 +20,22 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "BurstDemod"
-depends_on = [{ name = "ppe", link = true }, { name = "fft", link = true }, { name = "spectral", link = true }]
+# wfm_frame is where a frame's layout lives, for BOTH ends of a link: the
+# demodulator describes the frame it expects with the same builder the
+# generator assembles from. ccsds_tm supplies the stage KERNELS (and the ASM
+# bits) as a table -- wfm_frame.c cannot call them, since ccsds_tm depends on
+# it -- so every consumer carries ccsds_tm and the two codes it configures.
+depends_on = [
+    { name = "ppe", link = true },
+    { name = "fft", link = true },
+    { name = "spectral", link = true },
+    { name = "wfm_frame", link = true },
+    { name = "ccsds_tm", link = true },
+    { name = "conv", link = true },
+    { name = "rs", link = true },
+    { name = "pn", link = true },
+    { name = "gold", link = true },
+]
 
 [[burst_demod.init_params]]
 name = "data_code"
@@ -64,11 +79,17 @@ return_type = "void"
 params = [{ name = "acq_code", type = "uint8_t[]" }, { name = "reps", type = "size_t" }]
 
 [[burst_demod.methods]]
-name = "set_sync"
-doc = "Set the known frame-sync word (0/1 BPSK symbols) used for frame alignment + phase/sign resolution."
+name = "set_frame"
+doc = "Describe the frame this burst carries — the sync word plus which stages cover it — instead of assuming `sync | payload | CRC-16`. Builds the same `wfm_frame_desc_t` the generator assembles from, so the frame's length, its field order and each stage's cover come from one place: a burst generated with `crc=0` is 16 bits shorter here rather than reported invalid, and an outer code repairs before the payload is read. `frame_valid` then means every check that RAN came out good, with `frame_checked` saying how many did — a frame carrying no check reports 0 and 0. The correlation template is the frame's leading literal group (the marker, when attach_asm, then the sync word). The inner code is deliberately NOT accepted: it covers the sync word too, so its bits are coded on the wire and a hard-decision correlator cannot find the frame at all (doppler#1018)."
 arg_type = "void"
-return_type = "void"
-params = [{ name = "sync", type = "uint8_t[]" }]
+return_type = "int"
+params = [
+    { name = "sync", type = "uint8_t[]" },
+    { name = "crc", type = "int", default = "1" },
+    { name = "rs_depth", type = "int", default = "0" },
+    { name = "randomise", type = "int", default = "0" },
+    { name = "attach_asm", type = "int", default = "0" },
+]
 
 [[burst_demod.methods]]
 name = "set_prior"

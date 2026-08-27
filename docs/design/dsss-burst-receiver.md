@@ -807,6 +807,66 @@ acquisition grid only.
 
 ______________________________________________________________________
 
+## 10. The frame is a description (2026-08-26)
+
+Sections 1–9 describe a receiver whose frame is `sync | payload | CRC-16`.
+That shape was written down in **four** places — the generator's DSSS
+assembler, this object's `burst_len`, `burst_demod`'s frame length, and its
+CRC check — while the rest of the library had long since agreed that a
+frame is a `wfm_frame_desc_t`: fields, stages, and the span each stage
+covers. Two consequences, both measured:
+
+- a burst generated with `crc="none"` decoded **bit-exactly** and reported
+    `frame_valid = 0`, because the receiver measured it against a trailer
+    the transmitter never sent;
+- `wfmgen --type dsss --conv` produced a waveform **byte-identical** to no
+    `--conv` at all. The flag parsed, set its field, and was never read: the
+    burst assembler had never heard of a stage.
+
+Both ends now derive their description from the same builder
+(`wfm_frame_desc_of`) and the same four choices — `crc`, `rs_depth`,
+`randomise`, `attach_asm`. Nothing about a frame's layout is computed twice.
+
+### 10.1 The preamble is not part of the frame
+
+For a DSSS burst the acquisition preamble is **excluded** from the
+description, and that is a physical fact rather than a modelling
+convenience: it is transmitted unmodulated and unspread, because it is the
+coherent pull-in target a receiver correlates raw chips against. So it sits
+outside anything a stage could cover — an inner code over "the whole frame"
+covers everything *spread* — and `wfm_dsss_desc_chips()` prepends it around
+the description rather than inside it. An unspread `bits` source keeps its
+preamble as a field, where it belongs.
+
+The **sync word and marker**, by contrast, are fields: they are spread and
+coded like the payload. What makes them special is that a receiver *finds*
+them rather than decoding them, so they form the correlation template —
+marker first, then sync — and a frame carrying both correlates over both.
+
+### 10.2 Three answers, not two
+
+`frame_valid` now means *every check that ran came out good*, and
+`frame_checked` says how many did. A frame with no checking stage reports
+`0` and `0`. This is `wfm_frame_check()`'s own contract, and the reason it
+gives is the one that matters here: an FER conflating "carries no check"
+with "the check failed" scores every unprotected frame as an error.
+
+An outer code **repairs** before the payload is read: the check corrects
+the frame in place over the span its description gives it, and the payload
+is then read from the corrected bits. Measured on this chain — eight
+injected bit errors reach the payload without `rs_depth`, and are gone with
+it.
+
+### 10.3 What the inner code needs, and why it is refused
+
+A convolutional stage covers the sync word too, so on the wire the bits a
+hard-decision correlator looks for are *coded*. Frame synchronisation would
+have to run after the Viterbi, which needs the soft symbols this
+demodulator computes and then frees — one line before the hard decision.
+`set_frame()` therefore has no `convolutional` argument at all, rather than
+one that silently does nothing; the soft path is
+[#1018](https://github.com/doppler-dsp/doppler/issues/1018).
+
 ## 9. See also
 
 - [Adding an algorithm — the lifecycle](../dev/contributing/adding-algorithms.md) — the

@@ -35,9 +35,9 @@ read-back distinguishes that from an empty capture.
 spacing, it is a property rather than a constant, and packing tighter
 silently costs bursts rather than erroring.
 
-**4. Every read-back is checked against the capture that produced it.** The
-nine fields of `events()` are the object's whole diagnostic surface, and
-each is compared here with what the scene says it must be -- the bin width
+**4. Every read-back is checked against the capture that produced it.**
+`events()`'s fields are the object's whole diagnostic surface, and each is
+compared here with what the scene says it must be -- the bin width
 with `fs / (sf*spc)`, the C/N0 estimate with the Es/N0 the segment was
 generated at, the coarse Doppler with its own bin, the refined residual
 with a hundredth of it. A read-back nobody checks is a number, not a
@@ -302,8 +302,8 @@ print("  -> coalesced, as documented. refine_span IS the minimum spacing.")
 # --8<-- [start:probes]
 # The scalar properties describe the LAST burst only — one push() can
 # complete several and one set of scalars cannot speak for all of them.
-# `events()` hands back the same nine fields per burst, and between them
-# they are the whole diagnostic surface: where the burst was, what the
+# `events()` hands back the same fields per burst, and between them they
+# are the whole diagnostic surface: where the burst was, what the
 # search grid thought its Doppler was and how wide that grid is, what C/N0
 # the hit implies, what the estimator refined the residual frequency and
 # chirp rate to and how confident it was, how far the winning preamble beat
@@ -322,6 +322,7 @@ print("\nevery read-back, per burst (events(), one row per decoded burst):")
 print(
     f"  {'#':>2} {'start':>7} {'dopp_hz':>8} {'res_hz':>8} {'cn0_dBHz':>9} "
     f"{'freq_hz':>8} {'rate_hz':>8} {'conf_dB':>8} {'margin':>7} {'crc':>4}"
+    f"{'chk':>4}"
 )
 for i, e in enumerate(events):
     print(
@@ -330,6 +331,7 @@ for i, e in enumerate(events):
         f"{e['cn0_dbhz_est']:>9.2f} {e['est_freq_hz']:>8.2f} "
         f"{e['est_rate_hz']:>8.2f} {e['est_snr_db']:>8.2f} "
         f"{e['refine_margin']:>7.3f} {int(e['frame_valid']):>4}"
+        f"{int(e['frame_checked']):>4}"
     )
 print(
     f"  scene: bin {BIN_HZ:.1f} Hz, C/N0 {CN0_DBHZ_TRUE:.2f} dB-Hz "
@@ -345,7 +347,14 @@ for i, e in enumerate(events):
         f"{where}: event says {int(e['preamble_start'])}, burst starts at "
         f"{truth[i]}"
     )
-    assert int(e["frame_valid"]) == 1, f"{where}: CRC-16 did not check out"
+    assert int(e["frame_valid"]) == 1, f"{where}: a check that ran failed"
+    # ...and one check DID run. `frame_valid` alone cannot say that: a
+    # frame carrying no check reports 0 and 0, which is a different fact
+    # from a failed one and must not read as the same number.
+    assert int(e["frame_checked"]) == 1, (
+        f"{where}: {int(e['frame_checked'])} stages checked, expected the "
+        "CRC-16 this scene appends"
+    )
     # The search grid: its width is derived, and its estimate must sit in
     # the bin that contains the truth (0 Hz).
     assert e["doppler_res_hz"] == BIN_HZ, (

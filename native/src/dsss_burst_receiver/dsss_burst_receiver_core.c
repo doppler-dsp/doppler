@@ -18,7 +18,6 @@
 /* Frame trailer: the CRC-16 burst_demod checks. Named rather than spelled
  * 16 at each use -- the burst length below is derived from it, and a bare
  * 16 beside a payload length reads like a block size. */
-#define DSSS_BR_CRC_BITS 16u
 
 /** @brief Smallest power of two >= n (the ring's capacity contract). */
 static size_t
@@ -37,7 +36,8 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
                             size_t spc, double chip_rate, size_t payload_len,
                             double cn0_dbhz, double doppler_uncertainty,
                             double pfa, double pd, double carrier_hz,
-                            double max_rate, size_t est_segments)
+                            double max_rate, size_t est_segments, int crc,
+                            int rs_depth, int randomise, int attach_asm)
 {
   /* Every one of these is an ARGUMENT error, and the manifest's
    * create_error/create_error_message turn a NULL return into a ValueError
@@ -74,16 +74,36 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
   memcpy (s->data_code, data_code, data_code_len);
   memcpy (s->sync, sync, sync_len);
 
+  /* ── The demodulator, built FIRST, because it owns the frame ────────
+   * Its description says how long the frame is, and everything below is
+   * measured in bursts. That used to be `sync + payload + CRC-16` spelled
+   * out here -- a fourth copy of one frame shape, and the one that decides
+   * how much history the ring keeps, so a frame the transmitter actually
+   * sent could not fit in the window this object reserved for it. */
+  s->demod
+      = burst_demod_create (s->data_code, data_code_len, spc, chip_rate,
+                            carrier_hz, max_rate, payload_len, est_segments);
+  if (!s->demod)
+    goto fail;
+  burst_demod_set_preamble (s->demod, s->acq_code, acq_code_len, reps);
+  /* The frame, described rather than assumed: the same four choices the
+     generator's scene offers, turned into the same layout by the same
+     function (doppler#1017). A refusal here is a geometry no burst can
+     carry, so the object refuses too. */
+  if (burst_demod_set_frame (s->demod, s->sync, sync_len, crc,
+                             (unsigned)((rs_depth > 0) ? rs_depth : 0),
+                             randomise, attach_asm)
+      != 0)
+    goto fail;
+
   /* ── Derived geometry ───────────────────────────────────────────────
    * code_period: one acquisition code repetition, in samples. This is the
    * modulus every epoch ambiguity in the design doc is stated against --
    * acq's code_phase is exactly `burst_start mod code_period` (§3.1).
-   * burst_len: preamble + the spread sync|payload|CRC frame. */
+   * burst_len: preamble + the spread frame, whatever the frame is. */
   s->code_period = acq_code_len * spc;
-  {
-    size_t frame_syms = sync_len + payload_len + DSSS_BR_CRC_BITS;
-    s->burst_len = (reps * acq_code_len + frame_syms * data_code_len) * spc;
-  }
+  s->burst_len
+      = (reps * acq_code_len + s->demod->lay.frame_bits * data_code_len) * spc;
 
   /* ── The history ring (§7.1) ────────────────────────────────────────
    * NOT a caller knob. A detection can fire on the LAST frame inside the
@@ -165,14 +185,6 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
   if (!s->acq)
     goto fail;
 
-  s->demod
-      = burst_demod_create (s->data_code, data_code_len, spc, chip_rate,
-                            carrier_hz, max_rate, payload_len, est_segments);
-  if (!s->demod)
-    goto fail;
-  burst_demod_set_preamble (s->demod, s->acq_code, acq_code_len, reps);
-  burst_demod_set_sync (s->demod, s->sync, sync_len);
-
   /* acq_state_bytes() is ALREADY a pure function of configuration -- it
      sizes its sample region from `ring_cap`, the capacity, not from whatever
      happens to be unconsumed. So this is simply its current value; an
@@ -232,6 +244,7 @@ dsss_burst_receiver_reset (dsss_burst_receiver_state_t *state)
    * report (F4) found in exactly this shape. */
   state->preamble_start = 0;
   state->frame_valid    = 0;
+  state->frame_checked  = 0;
   state->doppler_hz_est = 0.0;
   state->doppler_res_hz = 0.0;
   state->cn0_dbhz_est   = 0.0;
@@ -447,6 +460,7 @@ dsss_br_emit (dsss_burst_receiver_state_t *s, uint8_t *out, size_t max_out)
   s->cn0_dbhz_est   = e->cn0_dbhz;
   s->refine_margin  = e->margin;
   s->frame_valid    = s->demod->frame_valid;
+  s->frame_checked  = s->demod->frame_checked;
   s->doppler_res_hz = eng->doppler_res_hz;
   s->est_freq_hz    = s->demod->est_freq_hz;
   s->est_rate_hz    = s->demod->est_rate_hz;
@@ -481,6 +495,7 @@ dsss_br_emit (dsss_burst_receiver_state_t *s, uint8_t *out, size_t max_out)
       r->est_snr_db      = s->est_snr_db;
       r->refine_margin   = s->refine_margin;
       r->frame_valid     = (uint64_t)s->frame_valid;
+      r->frame_checked   = (uint64_t)s->frame_checked;
     }
 
   s->q_head = (s->q_head + 1u) % s->q_cap;
@@ -758,6 +773,13 @@ int
 dsss_burst_receiver_get_frame_valid (const dsss_burst_receiver_state_t *state)
 {
   return state->frame_valid;
+}
+
+int
+dsss_burst_receiver_get_frame_checked (
+    const dsss_burst_receiver_state_t *state)
+{
+  return state->frame_checked;
 }
 
 double

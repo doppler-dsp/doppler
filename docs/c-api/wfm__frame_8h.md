@@ -38,6 +38,7 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 | struct | [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) <br>_The kernels an assembly runs, and whatever state they carry._  |
 | struct | [**wfm\_frame\_rx\_t**](structwfm__frame__rx__t.md) <br>_What_ [_**wfm\_frame\_check**_](wfm__frame_8h.md#function-wfm_frame_check) _found, stage by stage._ |
 | struct | [**wfm\_frame\_span\_t**](structwfm__frame__span__t.md) <br>_A run of bits inside the assembled frame,_ `[first, first + n)` _._ |
+| struct | [**wfm\_frame\_spec\_t**](structwfm__frame__spec__t.md) <br>_The frame knobs a FACE offers, before they become a description._  |
 | struct | [**wfm\_frame\_stage\_rx\_t**](structwfm__frame__stage__rx__t.md) <br>_What undoing one stage found._  |
 | struct | [**wfm\_frame\_t**](structwfm__frame__t.md) <br>_A frame's bit layout:_ `[preamble × reps | sync | payload | crc]` _._ |
 | struct | [**wfm\_seq\_t**](structwfm__seq__t.md) <br>_A run of bits, however it is produced._  |
@@ -84,6 +85,7 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 |  int | [**wfm\_frame\_crc\_ok**](#function-wfm_frame_crc_ok) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f, const uint8\_t \* rx\_bits) <br>_Check a received frame's CRC in place._  |
 |  int | [**wfm\_frame\_desc\_crc\_ok**](#function-wfm_frame_desc_crc_ok) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const uint8\_t \* rx\_bits) <br>_Check a received frame's CRC against any description that has one._  |
 |  int | [**wfm\_frame\_desc\_layout**](#function-wfm_frame_desc_layout) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) \* out) <br>_Derive every field offset, every stage span and both lengths._  |
+|  int | [**wfm\_frame\_desc\_of**](#function-wfm_frame_desc_of) (const [**wfm\_frame\_spec\_t**](structwfm__frame__spec__t.md) \* s, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_Turn the knobs into a description: fields in wire order, and the span each stage covers._  |
 |  int | [**wfm\_frame\_describe**](#function-wfm_frame_describe) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* out) <br>_Express a_ [_**wfm\_frame\_t**_](structwfm__frame__t.md) _as a_[_**wfm\_frame\_desc\_t**_](structwfm__frame__desc__t.md) _._ |
 |  int | [**wfm\_frame\_layout**](#function-wfm_frame_layout) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f, [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) \* out) <br>_Fill_ `out` _with the field offsets._ |
 |  size\_t | [**wfm\_frame\_nbits**](#function-wfm_frame_nbits) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f) <br>_Total frame bits, or 0 if the geometry is empty._  |
@@ -573,6 +575,45 @@ A derived field whose producing stage covers no caller-supplied bits is dropped 
 **Returns:**
 
 0, or -1 if `d` or `out` is NULL, or a count or a cover runs past its array. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_frame\_desc\_of 
+
+_Turn the knobs into a description: fields in wire order, and the span each stage covers._ 
+```C++
+int wfm_frame_desc_of (
+    const wfm_frame_spec_t * s,
+    wfm_frame_desc_t * d
+) 
+```
+
+
+
+The ONE place a set of frame choices becomes a layout, so a generator and a receiver holding the same choices hold the same frame. Which stage covers what is the whole content of it:  The middle row is CCSDS 131.0-B-6 10.3.4's rule generalised: the randomiser does not cover the ASM, and the reason given — a marker a receiver correlates against must not vary between frames — is exactly as true of a preamble and a sync word.
+
+
+
+
+**Parameters:**
+
+
+* `s` the knobs. 
+* `d` receives the description. 
+
+
+
+**Returns:**
+
+0, or -1 on NULL, or if the geometry needs more fields or stages than a description holds. 
 
 
 

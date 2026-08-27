@@ -30,6 +30,7 @@ typedef struct
   double   est_snr_db;     
   double   refine_margin;  
   uint64_t frame_valid;    
+  uint64_t frame_checked;  
 } dsss_br_event_t;
 
 typedef struct
@@ -55,6 +56,9 @@ typedef struct
 #include "detection/detection_core.h"
 #include "fft/fft_core.h"
 #include "pn/pn_core.h"
+#include "conv/conv_core.h"
+#include "rs/rs_core.h"
+#include "gold/gold_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -83,6 +87,7 @@ typedef struct {
   /* ── The DetectionEvent, describing the most recent completed burst ─── */
   uint64_t preamble_start; 
   int      frame_valid;    
+  int      frame_checked;  
   double   doppler_hz_est; 
   double   doppler_res_hz; 
   double   cn0_dbhz_est;   
@@ -124,7 +129,7 @@ typedef struct {
 /*<<property_struct_fields>>*/
 } dsss_burst_receiver_state_t;
 
-dsss_burst_receiver_state_t *dsss_burst_receiver_create(const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code, size_t data_code_len, const uint8_t *sync, size_t sync_len, size_t reps, size_t spc, double chip_rate, size_t payload_len, double cn0_dbhz, double doppler_uncertainty, double pfa, double pd, double carrier_hz, double max_rate, size_t est_segments);
+dsss_burst_receiver_state_t *dsss_burst_receiver_create(const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code, size_t data_code_len, const uint8_t *sync, size_t sync_len, size_t reps, size_t spc, double chip_rate, size_t payload_len, double cn0_dbhz, double doppler_uncertainty, double pfa, double pd, double carrier_hz, double max_rate, size_t est_segments, int crc, int rs_depth, int randomise, int attach_asm);
 
 void dsss_burst_receiver_destroy(dsss_burst_receiver_state_t *state);
 
@@ -148,6 +153,8 @@ size_t dsss_burst_receiver_events(dsss_burst_receiver_state_t *state, size_t n, 
 int dsss_burst_receiver_configure_search_raw(dsss_burst_receiver_state_t *state, size_t doppler_bins, size_t n_noncoh);
 uint64_t dsss_burst_receiver_get_preamble_start(const dsss_burst_receiver_state_t *state);
 int dsss_burst_receiver_get_frame_valid(const dsss_burst_receiver_state_t *state);
+
+int dsss_burst_receiver_get_frame_checked(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_doppler_hz_est(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_doppler_res_hz(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_cn0_dbhz_est(const dsss_burst_receiver_state_t *state);

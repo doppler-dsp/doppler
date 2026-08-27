@@ -10,17 +10,19 @@
  *   3. despread the data section with the (short) data code -> soft BPSK symbols;
  *   4. frame sync — correlate the symbols against the known sync word; the
  *      complex peak gives the frame offset and the residual phase (derotated);
- *   5. slice the payload to bits; verify the CRC-16 trailer -> @c frame_valid.
+ *   5. slice the frame to bits and undo its stages -> @c frame_valid;
+ *      the payload is read from the span the description gives it.
  *
  * Seed from acquisition with set_prior(coarse Doppler, preamble start),
- * set_preamble(acq code, reps) and set_sync(sync word), then demod(burst). One
+ * set_preamble(acq code, reps) and set_frame(the frame's shape), then
+ * demod(burst). One
  * @c max_rate knob spans near-static Doppler (0) to severe LEO chirp. One-shot
  * per burst. Composes ppe (which composes fft + spectral).
  *
  * @code
  * burst_demod_state_t *d = burst_demod_create(dcode, 50, 4, 1e6, 0, 0, 256, 10);
  * burst_demod_set_preamble(d, acode, 500, 5);
- * burst_demod_set_sync(d, sync, 31);
+ * burst_demod_set_frame(d, sync, 31, 1, 0, 0, 0);
  * burst_demod_set_prior(d, f0_coarse, preamble_start);
  * size_t nbits = burst_demod_demod(d, x, n, bits, 256);   // d->frame_valid ...
  * @endcode
@@ -30,10 +32,16 @@
 
 #include "clib_common.h"
 #include "jm_perf.h"
+#include "ccsds_tm/ccsds_tm_frame.h" /* CCSDS_TM_ASM_BITS + the ops */
+#include "wfm/wfm_frame.h"           /* the frame DESCRIPTION          */
 #include "ppe/ppe_core.h"
 #include "fft/fft_core.h"
 #include "spectral/spectral_core.h"
 #include <complex.h>
+#include "conv/conv_core.h"
+#include "rs/rs_core.h"
+#include "pn/pn_core.h"
+#include "gold/gold_core.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -50,8 +58,18 @@ extern "C"
     uint8_t *acq_code;  /**< owned acq preamble code (0/1), length acq_sf.    */
     size_t   acq_sf;    /**< acq code length (chips).                        */
     size_t   acq_reps;  /**< acq preamble repetitions.                       */
-    int8_t  *sync;      /**< owned sync word as +/-1, length sync_len.       */
-    size_t   sync_len;  /**< sync word length (symbols).                     */
+    int8_t  *sync;      /**< the CORRELATION TEMPLATE as +/-1: the frame's
+                             leading literal group (marker, then sync word),
+                             which is what a receiver finds rather than
+                             decodes. Length sync_len.                      */
+    size_t   sync_len;  /**< template length (symbols).                      */
+    uint8_t *sync_bits; /**< owned 0/1 copy of the sync word; the
+                             description points at it.                      */
+    uint8_t  marker[CCSDS_TM_ASM_BITS]; /**< the ASM, when the frame has one */
+    wfm_frame_desc_t d;   /**< the frame this burst carries: fields, stages,
+                               and the span each stage covers.              */
+    wfm_frame_desc_layout_t lay; /**< where each field landed.              */
+    unsigned payload_field;      /**< the payload's index in `d`.           */
     size_t   spc;       /**< samples per chip.                              */
     double   chip_rate; /**< chip rate (Hz).                               */
     double   carrier_hz; /**< RF carrier (Hz) for code-Doppler; 0 = ignore. */
@@ -67,7 +85,12 @@ extern "C"
     size_t         n_part;
 
     /* ── read-backs (after demod) ── */
-    int    frame_valid;  /**< 1 if the CRC-16 trailer matched.             */
+    int    frame_valid;  /**< 1 iff every check that RAN came out good.    */
+    int    frame_checked; /**< checking stages actually reversed. 0 with
+                              frame_valid 0 means the frame carries no
+                              check -- which is not the same fact as a
+                              failed one, and an FER conflating them scores
+                              every unprotected frame as an error.         */
     size_t frame_offset; /**< symbol offset of the sync word.             */
     size_t n_symbols;    /**< despread data symbols produced.             */
     double est_freq_hz;  /**< estimated residual Doppler (Hz).            */
@@ -86,7 +109,7 @@ extern "C"
    * range from near-static Doppler (0) to a severe LEO chirp.
    *
    * After construction, register the templates and the acquisition seed —
-   * set_preamble(), set_sync(), set_prior() — then call demod() once per burst.
+   * set_preamble(), set_frame(), set_prior() — then call demod() once per burst.
    *
    * @param data_code      Data spreading code, one 0/1 chip per element; copied
    *                       into the object (its length is the data spreading
@@ -130,7 +153,7 @@ extern "C"
    * >>> x = (bb * np.exp(2j * np.pi * f0 * n)).astype(np.complex64)
    * >>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, payload_len=64)
    * >>> d.set_preamble(acode, reps)   # unmodulated (f0, rate) preamble
-   * >>> d.set_sync(sync)              # Barker-13 frame-sync word
+   * >>> d.set_frame(sync)             # Barker-13 sync, CRC-16 trailer
    * >>> d.set_prior(f0, 0)           # coarse Doppler + preamble start
    * >>> bits = d.demod(x)      # estimate -> dechirp -> despread -> slice
    * >>> int(d.frame_valid), bool(np.array_equal(bits, payload))
@@ -199,30 +222,64 @@ extern "C"
                                  size_t reps);
 
   /**
-   * @brief Register the known frame-sync word used for frame alignment and
-   *        phase/sign resolution.
+   * @brief Describe the frame this burst carries — fields, stages and all.
    *
-   * After the data section is despread to soft BPSK symbols, demod() correlates
-   * them against this word; the complex correlation peak locates the frame
-   * (its @c frame_offset) and its phase resolves the residual carrier rotation
-   * and the BPSK sign ambiguity before slicing. Pass the word as 0/1 symbols;
-   * it is copied and stored internally as +/-1.
+   * Replaces `set_sync()`, and the difference is the point: a sync word is
+   * one FIELD of a frame, and this demodulator used to hard-code the rest of
+   * it as `sync | payload | CRC-16`. A burst generated without a CRC decoded
+   * bit-exactly and was reported INVALID; one carrying an outer code could
+   * not be described at all. The description built here is the same
+   * `wfm_frame_desc_t` the generator assembles from
+   * (@ref wfm_frame_desc_of), so the two ends cannot disagree about the
+   * frame's length, its field order, or which stage covers what.
    *
-   * @param state     Demodulator handle.
-   * @param sync      Frame-sync word, one 0/1 symbol per element; copied.
-   * @param sync_len  Sync word length (symbols); the length of @p sync.
+   * What changes for a caller:
+   *
+   * - **The frame's length is the layout's**, so a frame with no CRC is 16
+   *   bits shorter here rather than 16 bits of noise the receiver insisted
+   *   on;
+   * - **`frame_valid` means "every check that RAN came out good"**, and
+   *   @c frame_checked says how many did. A frame carrying no check reports
+   *   0 and 0 — different from a failed one;
+   * - **an outer code REPAIRS before the payload is read**, because
+   *   `wfm_frame_check()` corrects in place over the span its own
+   *   description gave it.
+   *
+   * The correlation template becomes the frame's leading literal group: the
+   * marker (when @p attach_asm) then the sync word. Those are the fields a
+   * receiver FINDS rather than decodes, and correlating over both is free
+   * gain when a marker is present.
+   *
+   * **The inner code is not accepted here.** A convolutional stage covers
+   * everything including the sync word, so its bits are coded ON THE WIRE
+   * and a hard-decision correlator cannot find the frame at all; undoing it
+   * needs the soft symbols this object currently discards (doppler#1018).
+   * There is no flag for it rather than a flag that silently does nothing.
+   *
+   * @param state       Demodulator handle.
+   * @param sync        Frame-sync word, one 0/1 symbol per element; copied.
+   *                    May be NULL when the frame carries a marker instead.
+   * @param sync_len    Sync word length (symbols).
+   * @param crc         Non-zero: a CRC-16 trailer follows the payload.
+   * @param rs_depth    Outer-code interleaving depth; 0 = no outer code.
+   * @param randomise   Randomiser generator (0 = off), as the generator's
+   *                    own `randomise` field spells it.
+   * @param attach_asm  Non-zero: the frame opens with the CCSDS ASM.
+   * @return 0, or -1 if the geometry is refused or an allocation failed.
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import BurstDemod
    * >>> dcode = (np.arange(50) & 1).astype(np.uint8)
    * >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
    * >>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
-   * >>> d.set_sync(sync)   # Barker-13: frame align + phase/sign fix
+   * >>> d.set_frame(sync)              # Barker-13, CRC-16 trailer
+   * >>> d.set_frame(sync, crc=0)       # ...or no trailer at all
    *
    * @endcode
    */
-  void burst_demod_set_sync (burst_demod_state_t *state, const uint8_t *sync,
-                             size_t sync_len);
+  int burst_demod_set_frame (burst_demod_state_t *state, const uint8_t *sync,
+                             size_t sync_len, int crc, unsigned rs_depth,
+                             int randomise, int attach_asm);
 
   /**
    * @brief Seed the demodulator from acquisition with the coarse Doppler and
@@ -260,7 +317,7 @@ extern "C"
    * the CRC-16 trailer. On return the read-back fields report the outcome —
    * @c frame_valid (CRC match), @c frame_offset, @c n_symbols, and the
    * @c est_freq_hz / @c est_rate_hz / @c est_snr_db estimates. The templates
-   * and prior must already be set via set_preamble(), set_sync(), set_prior().
+   * and prior must already be set via set_preamble(), set_frame(), set_prior().
    *
    * The C function returns the number of bits written; the Python binding
    * returns those bits as an array (a view into a reused buffer unless an
@@ -301,7 +358,7 @@ extern "C"
    * >>> x = (bb * np.exp(2j * np.pi * f0 * n)).astype(np.complex64)
    * >>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, payload_len=64)
    * >>> d.set_preamble(acode, reps)
-   * >>> d.set_sync(sync)
+   * >>> d.set_frame(sync)
    * >>> d.set_prior(f0, 0)
    * >>> bits = d.demod(x)
    * >>> int(d.frame_valid), bool(np.array_equal(bits, payload))

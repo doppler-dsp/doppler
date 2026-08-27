@@ -41,6 +41,7 @@ _BurstDemod state. Allocate with_ [_**burst\_demod\_create()**_](burst__demod__c
 |  size\_t | [**acq\_sf**](#variable-acq_sf)  <br> |
 |  double | [**carrier\_hz**](#variable-carrier_hz)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
+|  [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) | [**d**](#variable-d)  <br> |
 |  uint8\_t \* | [**data\_code**](#variable-data_code)  <br> |
 |  size\_t | [**data\_sf**](#variable-data_sf)  <br> |
 |  double | [**est\_freq\_hz**](#variable-est_freq_hz)  <br> |
@@ -48,17 +49,22 @@ _BurstDemod state. Allocate with_ [_**burst\_demod\_create()**_](burst__demod__c
 |  size\_t | [**est\_segments**](#variable-est_segments)  <br> |
 |  double | [**est\_snr\_db**](#variable-est_snr_db)  <br> |
 |  double | [**f0\_prior**](#variable-f0_prior)  <br> |
+|  int | [**frame\_checked**](#variable-frame_checked)  <br> |
 |  size\_t | [**frame\_offset**](#variable-frame_offset)  <br> |
 |  int | [**frame\_valid**](#variable-frame_valid)  <br> |
+|  [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) | [**lay**](#variable-lay)  <br> |
+|  uint8\_t | [**marker**](#variable-marker)  <br> |
 |  double | [**max\_rate**](#variable-max_rate)  <br> |
 |  size\_t | [**n\_part**](#variable-n_part)  <br> |
 |  size\_t | [**n\_symbols**](#variable-n_symbols)  <br> |
 |  float complex \* | [**part**](#variable-part)  <br> |
+|  unsigned | [**payload\_field**](#variable-payload_field)  <br> |
 |  size\_t | [**payload\_len**](#variable-payload_len)  <br> |
 |  [**ppe\_state\_t**](structppe__state__t.md) \* | [**ppe**](#variable-ppe)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
 |  size\_t | [**start**](#variable-start)  <br> |
 |  int8\_t \* | [**sync**](#variable-sync)  <br> |
+|  uint8\_t \* | [**sync\_bits**](#variable-sync_bits)  <br> |
 |  size\_t | [**sync\_len**](#variable-sync_len)  <br> |
 
 
@@ -198,6 +204,24 @@ chip rate (Hz).
 
 
 
+### variable d 
+
+```C++
+wfm_frame_desc_t burst_demod_state_t::d;
+```
+
+
+
+the frame this burst carries: fields, stages, and the span each stage covers. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable data\_code 
 
 ```C++
@@ -323,6 +347,24 @@ coarse Doppler prior (cycles/sample).
 
 
 
+### variable frame\_checked 
+
+```C++
+int burst_demod_state_t::frame_checked;
+```
+
+
+
+checking stages actually reversed. 0 with frame\_valid 0 means the frame carries no check  which is not the same fact as a failed one, and an FER conflating them scores every unprotected frame as an error. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable frame\_offset 
 
 ```C++
@@ -349,8 +391,43 @@ int burst_demod_state_t::frame_valid;
 
 
 
-1 if the CRC-16 trailer matched. 
+1 iff every check that RAN came out good. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable lay 
+
+```C++
+wfm_frame_desc_layout_t burst_demod_state_t::lay;
+```
+
+
+
+where each field landed. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable marker 
+
+```C++
+uint8_t burst_demod_state_t::marker[CCSDS_TM_ASM_BITS];
+```
+
+
+
+the ASM, when the frame has one 
 
 
         
@@ -416,6 +493,24 @@ float complex* burst_demod_state_t::part;
 
 
 preamble partials scratch (acq\_reps\*est\_seg). 
+
+
+        
+
+<hr>
+
+
+
+### variable payload\_field 
+
+```C++
+unsigned burst_demod_state_t::payload_field;
+```
+
+
+
+the payload's index in `d`. 
+ 
 
 
         
@@ -504,7 +599,25 @@ int8_t* burst_demod_state_t::sync;
 
 
 
-owned sync word as +/-1, length sync\_len. 
+the CORRELATION TEMPLATE as +/-1: the frame's leading literal group (marker, then sync word), which is what a receiver finds rather than decodes. Length sync\_len. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable sync\_bits 
+
+```C++
+uint8_t* burst_demod_state_t::sync_bits;
+```
+
+
+
+owned 0/1 copy of the sync word; the description points at it. 
  
 
 
@@ -522,7 +635,7 @@ size_t burst_demod_state_t::sync_len;
 
 
 
-sync word length (symbols). 
+template length (symbols). 
  
 
 

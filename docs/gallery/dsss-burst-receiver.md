@@ -90,7 +90,7 @@ formula for it was 2.4x low.
 
 One `push()` can complete several bursts, and the scalar properties
 (`rx.cn0_dbhz_est` and friends) describe only the **last** one. `events()`
-hands back the same nine fields *per burst*, and between them they are the
+hands back the same fields *per burst*, and between them they are the
 object's entire diagnostic surface:
 
 | field            | what it is                                  | what it is checked against here                          |
@@ -103,7 +103,8 @@ object's entire diagnostic surface:
 | `est_rate_hz`    | chirp-rate estimate                         | zero, because `max_rate=0` switches that axis **off**    |
 | `est_snr_db`     | the estimator's own peak-to-mean confidence | a floor — it is **not** a link SNR                       |
 | `refine_margin`  | runner-up code period over the winner       | strictly under 1, or the wrong period won                |
-| `frame_valid`    | the CRC-16 checked out                      | 1, on every burst                                        |
+| `frame_valid`    | every check that RAN came out good          | 1, on every burst                                        |
+| `frame_checked`  | checking stages actually reversed           | 1 with a CRC, 0 with none — a different fact from a fail |
 
 <!-- docs-snippet: skip=an excerpt whose names (results, capture, truth) live in the example's namespace; the script itself is executed on every push by `make test-examples-python` -->
 
@@ -129,6 +130,47 @@ mentioning them:
 - **`est_snr_db` is confidence, not SNR.** It is the winning estimator
     row's peak-to-mean ratio. Comparing it with the link's Es/N0 will give
     a number that looks meaningful and is not.
+
+## The frame is a description, not four fixed fields
+
+This receiver used to assume `sync | payload | CRC-16` and nothing else. A
+burst generated with **no** CRC decoded bit-exactly and was reported
+*invalid*, because the receiver was measuring it against a trailer the
+transmitter never sent; a burst carrying an outer code could not be
+described at all — nor generated, since `wfmgen`'s `--conv` / `--rs-depth`
+/ `--randomise` / `--asm` were read from the scene and then silently
+dropped on the spread path ([#1017](https://github.com/doppler-dsp/doppler/issues/1017)).
+
+Both ends now build the same `wfm_frame_desc_t` from the same four
+choices, so the frame's length, its field order and each stage's cover come
+from one place:
+
+```python
+rx = DsssBurstReceiver(..., crc=1, rs_depth=0, randomise=0, attach_asm=0)
+```
+
+- **`crc=0`** is a frame sixteen bits shorter — believed, not failed.
+- **`randomise=1`** derandomises before the payload is read (its own
+    inverse, so the receiver runs the same generator the transmitter did).
+- **`rs_depth=I`** REPAIRS: the outer code corrects the frame in place over
+    the span its description gives it, and the payload is read afterwards.
+    Measured on this chain: eight injected bit errors reach the payload
+    without it and are gone with it.
+- **`attach_asm=1`** puts the CCSDS marker at the head of the frame and in
+    the correlation template — a field a receiver *finds* rather than
+    decodes, so correlating over marker+sync is free acquisition gain.
+
+`frame_valid` accordingly means **every check that ran came out good**, and
+`frame_checked` says how many did. A frame carrying no check reports `0`
+and `0`: "carries no check" and "the check failed" are different facts, and
+an FER that conflated them would score every unprotected frame as an error.
+
+The inner code is the one stage this receiver does **not** accept, and it
+says so rather than accepting a flag that does nothing: a convolutional
+code covers the sync word too, so the bits a hard-decision correlator would
+look for are coded on the wire. Undoing it needs the soft symbols the
+demodulator currently discards
+([#1018](https://github.com/doppler-dsp/doppler/issues/1018)).
 
 ## The same thing in C
 

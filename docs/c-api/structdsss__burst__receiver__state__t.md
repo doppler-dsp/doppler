@@ -59,6 +59,7 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 |  [**dsss\_br\_event\_t**](structdsss__br__event__t.md) \* | [**ev**](#variable-ev)  <br> |
 |  size\_t | [**ev\_cap**](#variable-ev_cap)  <br> |
 |  size\_t | [**ev\_len**](#variable-ev_len)  <br> |
+|  int | [**frame\_checked**](#variable-frame_checked)  <br> |
 |  int | [**frame\_valid**](#variable-frame_valid)  <br> |
 |  dp\_f32\_t \* | [**hist**](#variable-hist)  <br> |
 |  size\_t | [**k\_hi**](#variable-k_hi)  <br> |
@@ -550,6 +551,24 @@ Records the last push() wrote.
 
 
 
+### variable frame\_checked 
+
+```C++
+int dsss_burst_receiver_state_t::frame_checked;
+```
+
+
+
+Checking stages reversed for that burst. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable frame\_valid 
 
 ```C++
@@ -558,7 +577,7 @@ int dsss_burst_receiver_state_t::frame_valid;
 
 
 
-1 iff the CRC-16 trailer matched. 
+1 iff every check that RAN came out good. 
  
 
 

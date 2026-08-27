@@ -115,16 +115,23 @@ BurstDemodObj_set_preamble (BurstDemodObject *self, PyObject *args,
 }
 
 static PyObject *
-BurstDemodObj_set_sync (BurstDemodObject *self, PyObject *args, PyObject *kwds)
+BurstDemodObj_set_frame (BurstDemodObject *self, PyObject *args,
+                         PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char *_kwlist[] = { "sync", NULL };
-  PyObject    *sync_obj  = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &sync_obj))
+  static char *_kwlist[]
+      = { "sync", "crc", "rs_depth", "randomise", "attach_asm", NULL };
+  PyObject *sync_obj   = NULL;
+  int       crc        = 1;
+  int       rs_depth   = 0;
+  int       randomise  = 0;
+  int       attach_asm = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|iiii", _kwlist, &sync_obj,
+                                    &crc, &rs_depth, &randomise, &attach_asm))
     return NULL;
   PyArrayObject *sync_arr = (PyArrayObject *)PyArray_FROM_OTF (
       sync_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
@@ -134,9 +141,10 @@ BurstDemodObj_set_sync (BurstDemodObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *sync     = (const uint8_t *)PyArray_DATA (sync_arr);
   size_t         sync_len = (size_t)PyArray_SIZE (sync_arr);
-  burst_demod_set_sync (self->handle, sync, sync_len);
+  int y = burst_demod_set_frame (self->handle, sync, sync_len, crc, rs_depth,
+                                 randomise, attach_asm);
   Py_DECREF (sync_arr);
-  Py_RETURN_NONE;
+  return PyLong_FromLong ((long)y);
 }
 
 static PyObject *
@@ -369,7 +377,7 @@ BurstDemod_getprop_payload_len (BurstDemodObject *self,
 
 static PyGetSetDef BurstDemod_getset[]
     = { { "frame_valid", (getter)BurstDemod_getprop_frame_valid, NULL,
-          "1 if the CRC-16 trailer matched.\n", NULL },
+          "1 iff every check that RAN came out good.\n", NULL },
         { "frame_offset", (getter)BurstDemod_getprop_frame_offset, NULL,
           "symbol offset of the sync word.\n", NULL },
         { "n_symbols", (getter)BurstDemod_getprop_n_symbols, NULL,
@@ -416,14 +424,30 @@ BurstDemodObj_exit (BurstDemodObject *self, PyObject *args)
 
 static PyMethodDef BurstDemodObj_methods[] = {
   { "reset", (PyCFunction)BurstDemodObj_reset, METH_NOARGS,
-    "Clear the per-burst read-backs, leaving the configuration intact." },
+    "Clear the per-burst read-backs, leaving the configuration intact.\n"
+    "\n"
+    "Zeros the after-demod fields (frame_valid, frame_offset, n_symbols, and\n"
+    "the est_* estimates) so a stale result cannot be mistaken for a fresh\n"
+    "one. The spreading codes, sync word, and prior set up before the first\n"
+    "burst are preserved, so the object is immediately ready to demodulate\n"
+    "the next burst.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import BurstDemod\n"
+    ">>> dcode = (np.arange(50) & 1).astype(np.uint8)\n"
+    ">>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)\n"
+    ">>> d.reset()          # clears est_ + frame_valid, keeps config\n"
+    ">>> d.frame_valid\n"
+    "0\n" },
 
   { "set_preamble", (PyCFunction)(void *)BurstDemodObj_set_preamble,
     METH_VARARGS | METH_KEYWORDS,
     "set_preamble(acq_code, reps) -> None\n"
     "\n"
-    "Set the (unmodulated) acquisition preamble code + repetition count used "
-    "for the feedforward (f0, rate) estimate.\n"
+    "Set the (unmodulated) acquisition preamble code + repetition count\n"
+    "used for the feedforward (f0, rate) estimate.\n"
     "\n"
     "The preamble is the acq spreading code transmitted reps times with no\n"
     "data modulation; demod() segment-despreads it into partial correlations\n"
@@ -447,24 +471,75 @@ static PyMethodDef BurstDemodObj_methods[] = {
     ">>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)\n"
     ">>> acode = (np.arange(500) & 1).astype(np.uint8)  # unmodulated\n"
     ">>> d.set_preamble(acode, reps=5)  # 5 reps drive the (f0, rate) fit\n" },
-  { "set_sync", (PyCFunction)(void *)BurstDemodObj_set_sync,
+  { "set_frame", (PyCFunction)(void *)BurstDemodObj_set_frame,
     METH_VARARGS | METH_KEYWORDS,
-    "set_sync(sync) -> None\n"
+    "set_frame(sync, crc, rs_depth, randomise, attach_asm) -> int\n"
     "\n"
-    "Set the known frame-sync word (0/1 BPSK symbols) used for frame "
-    "alignment + phase/sign resolution.\n"
+    "Describe the frame this burst carries — the sync word plus which\n"
+    "stages cover it — instead of assuming `sync | payload | CRC-16`. Builds\n"
+    "the same `wfm_frame_desc_t` the generator assembles from, so the\n"
+    "frame's length, its field order and each stage's cover come from one\n"
+    "place: a burst generated with `crc=0` is 16 bits shorter here rather\n"
+    "than reported invalid, and an outer code repairs before the payload is\n"
+    "read. `frame_valid` then means every check that RAN came out good, with\n"
+    "`frame_checked` saying how many did — a frame carrying no check reports\n"
+    "0 and 0. The correlation template is the frame's leading literal group\n"
+    "(the marker, when attach_asm, then the sync word). The inner code is\n"
+    "deliberately NOT accepted: it covers the sync word too, so its bits are\n"
+    "coded on the wire and a hard-decision correlator cannot find the frame\n"
+    "at all (doppler#1018).\n"
     "\n"
-    "After the data section is despread to soft BPSK symbols, demod()\n"
-    "correlates them against this word; the complex correlation peak locates\n"
-    "the frame (its frame_offset) and its phase resolves the residual "
-    "carrier\n"
-    "rotation and the BPSK sign ambiguity before slicing. Pass the word as\n"
-    "0/1 symbols; it is copied and stored internally as +/-1.\n"
+    "Replaces `set_sync()`, and the difference is the point: a sync word is\n"
+    "one FIELD of a frame, and this demodulator used to hard-code the rest\n"
+    "of it as `sync | payload | CRC-16`. A burst generated without a CRC\n"
+    "decoded bit-exactly and was reported INVALID; one carrying an outer\n"
+    "code could not be described at all. The description built here is the\n"
+    "same `wfm_frame_desc_t` the generator assembles from\n"
+    "(wfm_frame_desc_of), so the two ends cannot disagree about the frame's\n"
+    "length, its field order, or which stage covers what.\n"
+    "\n"
+    "What changes for a caller:\n"
+    "\n"
+    "- **The frame's length is the layout's**, so a frame with no CRC is 16\n"
+    "  bits shorter here rather than 16 bits of noise the receiver insisted\n"
+    "  on;\n"
+    "- **`frame_valid` means \"every check that RAN came out good\"**, and\n"
+    "  frame_checked says how many did. A frame carrying no check reports 0\n"
+    "  and 0 — different from a failed one;\n"
+    "- **an outer code REPAIRS before the payload is read**, because\n"
+    "  `wfm_frame_check()` corrects in place over the span its own\n"
+    "  description gave it.\n"
+    "\n"
+    "The correlation template becomes the frame's leading literal group: the\n"
+    "marker (when attach_asm) then the sync word. Those are the fields a\n"
+    "receiver FINDS rather than decodes, and correlating over both is free\n"
+    "gain when a marker is present.\n"
+    "\n"
+    "**The inner code is not accepted here.** A convolutional stage covers\n"
+    "everything including the sync word, so its bits are coded ON THE WIRE\n"
+    "and a hard-decision correlator cannot find the frame at all; undoing it\n"
+    "needs the soft symbols this object currently discards (doppler#1018).\n"
+    "There is no flag for it rather than a flag that silently does nothing.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "sync : NDArray[np.uint8]\n"
-    "    Frame-sync word, one 0/1 symbol per element; copied.\n"
+    "    Frame-sync word, one 0/1 symbol per element; copied. May be NULL\n"
+    "    when the frame carries a marker instead.\n"
+    "crc : int\n"
+    "    Non-zero: a CRC-16 trailer follows the payload.\n"
+    "rs_depth : int\n"
+    "    Outer-code interleaving depth; 0 = no outer code.\n"
+    "randomise : int\n"
+    "    Randomiser generator (0 = off), as the generator's own `randomise`\n"
+    "    field spells it.\n"
+    "attach_asm : int\n"
+    "    Non-zero: the frame opens with the CCSDS ASM.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    0, or -1 if the geometry is refused or an allocation failed.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -473,13 +548,14 @@ static PyMethodDef BurstDemodObj_methods[] = {
     ">>> dcode = (np.arange(50) & 1).astype(np.uint8)\n"
     ">>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)\n"
     ">>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)\n"
-    ">>> d.set_sync(sync)   # Barker-13: frame align + phase/sign fix\n" },
+    ">>> d.set_frame(sync)              # Barker-13, CRC-16 trailer\n"
+    ">>> d.set_frame(sync, crc=0)       # ...or no trailer at all\n" },
   { "set_prior", (PyCFunction)(void *)BurstDemodObj_set_prior,
     METH_VARARGS | METH_KEYWORDS,
     "set_prior(f0_coarse, start) -> None\n"
     "\n"
-    "Seed from acquisition: coarse Doppler (cycles/sample at the input rate) "
-    "and the preamble start sample.\n"
+    "Seed from acquisition: coarse Doppler (cycles/sample at the input\n"
+    "rate) and the preamble start sample.\n"
     "\n"
     "These come from the upstream acquisition stage: f0_coarse centres the\n"
     "feedforward frequency search near the true Doppler, and start tells\n"
@@ -502,9 +578,9 @@ static PyMethodDef BurstDemodObj_methods[] = {
     ">>> d.set_prior(0.012, start=0)   # coarse Doppler + start, from acq\n" },
   { "demod", (PyCFunction)(void *)BurstDemodObj_demod,
     METH_VARARGS | METH_KEYWORDS,
-    "demod(x) -> ndarray\n"
+    "demod(x, out) -> ndarray\n"
     "\n"
-    "Demodulate a burst (preamble + frame); return the payload bits. "
+    "Demodulate a burst (preamble + frame); return the payload bits.\n"
     "Read-back properties report the estimates + CRC validity.\n"
     "\n"
     "Runs the whole feedforward chain on the supplied samples: estimate the\n"
@@ -513,7 +589,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "check the CRC-16 trailer. On return the read-back fields report the\n"
     "outcome — frame_valid (CRC match), frame_offset, n_symbols, and the\n"
     "est_freq_hz / est_rate_hz / est_snr_db estimates. The templates and\n"
-    "prior must already be set via set_preamble(), set_sync(), set_prior().\n"
+    "prior must already be set via set_preamble(), set_frame(), set_prior().\n"
     "\n"
     "The C function returns the number of bits written; the Python binding\n"
     "returns those bits as an array (a view into a reused buffer unless an\n"
@@ -523,6 +599,8 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "----------\n"
     "x : NDArray[np.complex64]\n"
     "    Burst samples (complex baseband at spc*chip_rate).\n"
+    "out : NDArray[np.uint8] | None\n"
+    "    Caller-provided output buffer for the payload bits.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -535,8 +613,8 @@ static PyMethodDef BurstDemodObj_methods[] = {
     ">>> from doppler.dsss import BurstDemod\n"
     ">>> spc, acq_sf, reps, data_sf = 4, 500, 5, 50\n"
     ">>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)\n"
-    ">>> acode = ((np.arange(acq_sf) * 2654435761 >> 13) & "
-    "1).astype(np.uint8)\n"
+    ">>> acode = ((np.arange(acq_sf) * 2654435761 >> 13) & 1).astype(\n"
+    "...     np.uint8)\n"
     ">>> dcode = ((np.arange(data_sf) * 40503 >> 7) & 1).astype(np.uint8)\n"
     ">>> payload = ((np.arange(64) * 7 + 3) & 1).astype(np.uint8)\n"
     ">>> def crc16(bits):\n"
@@ -547,8 +625,8 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "...              if c & 0x8000 else (c << 1) & 0xFFFF)\n"
     "...     return c\n"
     ">>> crc = crc16(payload)\n"
-    ">>> crc_bits = np.array([(crc >> (15 - j)) & 1 for j in range(16)], "
-    "np.uint8)\n"
+    ">>> crc_bits = np.array(\n"
+    "...     [(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)\n"
     ">>> frame = np.concatenate([sync, payload, crc_bits])\n"
     ">>> csign = lambda b: np.where(np.asarray(b) & 1, -1.0, 1.0)\n"
     ">>> chips = ([np.tile(csign(acode), reps)]\n"
@@ -559,25 +637,30 @@ static PyMethodDef BurstDemodObj_methods[] = {
     ">>> x = (bb * np.exp(2j * np.pi * f0 * n)).astype(np.complex64)\n"
     ">>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, payload_len=64)\n"
     ">>> d.set_preamble(acode, reps)\n"
-    ">>> d.set_sync(sync)\n"
+    ">>> d.set_frame(sync)\n"
     ">>> d.set_prior(f0, 0)\n"
     ">>> bits = d.demod(x)\n"
     ">>> int(d.frame_valid), bool(np.array_equal(bits, payload))\n"
     "(1, True)\n" },
   { "demod_max_out", (PyCFunction)BurstDemodObj_demod_max_out, METH_NOARGS,
-    "demod_max_out() -> int\n\nMax output length demod() can produce "
-    "for the current state.\nUse to size the ``out=`` buffer." },
+    "demod_max_out() -> int\n"
+    "\n"
+    "Max output bits = payload_len (caller sizes the buffer).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "destroy", (PyCFunction)BurstDemodObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)BurstDemodObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -592,9 +675,8 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "Exit a context manager, releasing the BurstDemod.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -612,9 +694,69 @@ static PyTypeObject BurstDemodObjType = {
   .tp_basicsize                           = sizeof (BurstDemodObject),
   .tp_dealloc                             = (destructor)BurstDemodObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Create a burst demodulator.\n",
-  .tp_methods                             = BurstDemodObj_methods,
-  .tp_getset                              = BurstDemod_getset,
-  .tp_new                                 = BurstDemodObj_new,
-  .tp_init                                = (initproc)BurstDemodObj_init,
+  .tp_doc
+  = "Create a feedforward BPSK DSSS burst demodulator.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "data_code : NDArray[np.uint8]\n"
+    "    Data spreading code, one 0/1 chip per element; copied into the "
+    "object\n"
+    "    (its length is the data spreading factor, chips/symbol).\n"
+    "spc : int, default 4\n"
+    "    Samples per chip (front-end oversample).\n"
+    "chip_rate : float, default 1.0e6\n"
+    "    Chip rate (Hz); sets the sample rate as spc*chip_rate.\n"
+    "carrier_hz : float, default 0.0\n"
+    "    RF carrier (Hz) for code-Doppler scaling; 0 = ignore.\n"
+    "max_rate : float, default 0.0\n"
+    "    Chirp-rate search half-span (cycles/sample^2 at the input rate); 0 "
+    "=\n"
+    "    Doppler only (no rate search).\n"
+    "payload_len : int, default 0\n"
+    "    Number of payload data symbols (bits) in a frame.\n"
+    "est_segments : int, default 10\n"
+    "    Partial correlations per acq period (segmentation for the "
+    "feedforward\n"
+    "    estimate; larger tolerates more rate).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import BurstDemod\n"
+    ">>> spc, acq_sf, reps, data_sf = 4, 500, 5, 50\n"
+    ">>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)\n"
+    ">>> acode = ((np.arange(acq_sf) * 2654435761 >> 13) & 1).astype(\n"
+    "...     np.uint8)\n"
+    ">>> dcode = ((np.arange(data_sf) * 40503 >> 7) & 1).astype(np.uint8)\n"
+    ">>> payload = ((np.arange(64) * 7 + 3) & 1).astype(np.uint8)\n"
+    ">>> def crc16(bits):\n"
+    "...     c = 0xFFFF\n"
+    "...     for b in bits:\n"
+    "...         c ^= (int(b) & 1) << 15\n"
+    "...         c = (((c << 1) ^ 0x1021) & 0xFFFF\n"
+    "...              if c & 0x8000 else (c << 1) & 0xFFFF)\n"
+    "...     return c\n"
+    ">>> crc = crc16(payload)\n"
+    ">>> crc_bits = np.array(\n"
+    "...     [(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)\n"
+    ">>> frame = np.concatenate([sync, payload, crc_bits])\n"
+    ">>> csign = lambda b: np.where(np.asarray(b) & 1, -1.0, 1.0)\n"
+    ">>> chips = ([np.tile(csign(acode), reps)]\n"
+    "...          + [csign(b) * csign(dcode) for b in frame])\n"
+    ">>> bb = np.repeat(np.concatenate(chips), spc).astype(np.complex64)\n"
+    ">>> n = np.arange(len(bb))\n"
+    ">>> f0 = 0.012\n"
+    ">>> x = (bb * np.exp(2j * np.pi * f0 * n)).astype(np.complex64)\n"
+    ">>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, payload_len=64)\n"
+    ">>> d.set_preamble(acode, reps)   # unmodulated (f0, rate) preamble\n"
+    ">>> d.set_frame(sync)             # Barker-13 sync, CRC-16 trailer\n"
+    ">>> d.set_prior(f0, 0)           # coarse Doppler + preamble start\n"
+    ">>> bits = d.demod(x)      # estimate -> dechirp -> despread -> slice\n"
+    ">>> int(d.frame_valid), bool(np.array_equal(bits, payload))\n"
+    "(1, True)\n",
+  .tp_methods = BurstDemodObj_methods,
+  .tp_getset  = BurstDemod_getset,
+  .tp_new     = BurstDemodObj_new,
+  .tp_init    = (initproc)BurstDemodObj_init,
 };

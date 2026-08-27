@@ -572,7 +572,7 @@ frame_check_t frame_check(frame_state_t *state, const uint8_t *rx_bits, size_t r
  * The receive counterpart of building one, and the layer a receiver stops
  * short of: `DsssBurstReceiver` and friends hand back hard and soft
  * decisions for a frame's symbols and make no claim about what they mean,
- * because knowing that needs a description — this one (doppler#1020).
+ * because knowing that needs a description — this one (doppler#1022).
  *
  * Returns the frame with every reversible stage undone, in place order:
  * a randomiser XORed back, an outer code's repairs APPLIED, a CRC checked.

@@ -334,7 +334,7 @@ error = "ValueError"
 
 [[frame.methods]]
 name = "deframe"
-doc = "Undo the description's stages over a received frame and hand back the CORRECTED bits — the layer a receiver stops short of (doppler#1020)."
+doc = "Undo the description's stages over a received frame and hand back the CORRECTED bits — the layer a receiver stops short of (doppler#1022)."
 arg_type = "void"
 return_type = "uint8_t"
 variable_output = true

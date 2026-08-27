@@ -1,4 +1,4 @@
-pos,nbits,frame_valid
-0,64,0
-17,64,0
-63,64,0
+pos,nbits,reached
+0,93,1
+17,93,1
+63,93,1

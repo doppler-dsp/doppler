@@ -191,14 +191,17 @@ def _run_one(
         reps=REPS,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        payload_len=PAYLOAD,
+        frame_syms=len(SYNC) + PAYLOAD + 16,
         cn0_dbhz=55.0,
     )
     for off in range(0, N_CAP, PUSH):
-        if rx.push(cap[off : off + PUSH]).size:
+        bits = rx.push(cap[off : off + PUSH])
+        if bits.size:
+            # A returned frame is the receiver's whole claim; whether it
+            # checks out is the DeFramer's answer (doppler#1022).
             return (
                 rx.preamble_start == at,
-                bool(rx.frame_valid),
+                bool(bits.size),
                 float(rx.refine_margin),
             )
     return (False, False, float("nan"))

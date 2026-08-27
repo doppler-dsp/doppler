@@ -693,7 +693,7 @@ dsss_burst_receiver_state_t *dsss_burst_receiver_create (
     const uint8_t *acq_code, size_t acq_code_len,
     const uint8_t *data_code, size_t data_code_len,
     const uint8_t *sync, size_t sync_len,
-    size_t reps, size_t spc, double chip_rate, size_t payload_len,
+    size_t reps, size_t spc, double chip_rate, size_t frame_syms,
     double cn0_dbhz, double doppler_uncertainty, double pfa, double pd,
     double carrier_hz, double max_rate, size_t est_segments);
 void   dsss_burst_receiver_destroy (dsss_burst_receiver_state_t *);
@@ -725,7 +725,7 @@ int    dsss_burst_receiver_set_state   (dsss_burst_receiver_state_t *,
 ### 8.2 `push()` returns a LIST, and that is the load-bearing choice
 
 Payloads come back concatenated — burst `i` occupies
-`out[i*payload_len .. (i+1)*payload_len)` — with `events()` giving each its
+`out` from `i*frame_syms` — with `events()` giving each its
 own record.
 
 The alternative, one burst per call, is what shipped first and it was wrong
@@ -748,7 +748,7 @@ complete at most `x_len/burst_len + 1` of them, plus whatever is already
 queued:
 
 ```
-push_max_out(x_len) = (x_len/burst_len + 1 + q_cap) * payload_len
+push_max_out(x_len) = (x_len/burst_len + 1 + q_cap) * frame_syms
 ```
 
 ### 8.3 Why `events()` is a second call
@@ -760,7 +760,7 @@ describe the **last** burst returned, but they cannot speak for the others.
 many are returned per call, so a list preserves it exactly.
 
 It is a companion rather than a second output of `push()` for a mechanical
-reason: bits are `k · payload_len` long and events are `k`, and the binding
+reason: bits are `k · frame_syms` long and events are `k`, and the binding
 generator emits one variable-length output per method — a second parallel
 array is allocated at the *first* one's length. Splitting the call is the
 honest way to express two different lengths, and it leaves every existing
@@ -772,20 +772,21 @@ from doppler.dsss import DsssBurstReceiver
 
 rng = np.random.default_rng(0)
 PAYLOAD_LEN = 32
+FRAME_SYMS = 13 + PAYLOAD_LEN + 16       # sync | payload | CRC-16
 rx = DsssBurstReceiver(
     rng.integers(0, 2, 31).astype(np.uint8),   # acquisition code
     rng.integers(0, 2, 8).astype(np.uint8),    # data code
     np.zeros(13, dtype=np.uint8),              # sync word
-    reps=4, spc=4, payload_len=PAYLOAD_LEN,
+    reps=4, spc=4, frame_syms=FRAME_SYMS,
 )
 
-bits = rx.push(np.zeros(4096, dtype=np.complex64))   # k * payload_len
+bits = rx.push(np.zeros(4096, dtype=np.complex64))   # k * frame_syms
 for i, ev in enumerate(rx.events()):                 # k records
-    payload = bits[i * PAYLOAD_LEN:(i + 1) * PAYLOAD_LEN]
-    print(ev.preamble_start, ev.frame_valid, payload.size)
+    frame = bits[i * FRAME_SYMS:(i + 1) * FRAME_SYMS]
+    print(ev.preamble_start, frame.size)
 
-# One record per payload, always -- silence here, so k == 0.
-assert len(rx.events()) == bits.size // PAYLOAD_LEN
+# One record per FRAME, always -- silence here, so k == 0.
+assert len(rx.events()) == bits.size // FRAME_SYMS
 ```
 
 `events()` is scratch describing the most recent `push()`, valid until the
@@ -807,82 +808,6 @@ acquisition grid only.
 
 ______________________________________________________________________
 
-## 10. The frame is a description (2026-08-26)
-
-Sections 1–9 describe a receiver whose frame is `sync | payload | CRC-16`.
-That shape was written down in **four** places — the generator's DSSS
-assembler, this object's `burst_len`, `burst_demod`'s frame length, and its
-CRC check — while the rest of the library had long since agreed that a
-frame is a `wfm_frame_desc_t`: fields, stages, and the span each stage
-covers. Two consequences, both measured:
-
-- a burst generated with `crc="none"` decoded **bit-exactly** and reported
-    `frame_valid = 0`, because the receiver measured it against a trailer
-    the transmitter never sent;
-- `wfmgen --type dsss --conv` produced a waveform **byte-identical** to no
-    `--conv` at all. The flag parsed, set its field, and was never read: the
-    burst assembler had never heard of a stage.
-
-Both ends now derive their description from the same builder
-(`wfm_frame_desc_of`) and the same four choices — `crc`, `rs_depth`,
-`randomise`, `attach_asm`. Nothing about a frame's layout is computed twice.
-
-### 10.1 The preamble is not part of the frame
-
-For a DSSS burst the acquisition preamble is **excluded** from the
-description, and that is a physical fact rather than a modelling
-convenience: it is transmitted unmodulated and unspread, because it is the
-coherent pull-in target a receiver correlates raw chips against. So it sits
-outside anything a stage could cover — an inner code over "the whole frame"
-covers everything *spread* — and `wfm_dsss_desc_chips()` prepends it around
-the description rather than inside it. An unspread `bits` source keeps its
-preamble as a field, where it belongs.
-
-The **sync word and marker**, by contrast, are fields: they are spread and
-coded like the payload. What makes them special is that a receiver *finds*
-them rather than decoding them, so they form the correlation template —
-marker first, then sync — and a frame carrying both correlates over both.
-
-### 10.2 Three answers, not two
-
-`frame_valid` now means *every check that ran came out good*, and
-`frame_checked` says how many did. A frame with no checking stage reports
-`0` and `0`. This is `wfm_frame_check()`'s own contract, and the reason it
-gives is the one that matters here: an FER conflating "carries no check"
-with "the check failed" scores every unprotected frame as an error.
-
-An outer code **repairs** before the payload is read: the check corrects
-the frame in place over the span its description gives it, and the payload
-is then read from the corrected bits. Measured on this chain — eight
-injected bit errors reach the payload without `rs_depth`, and are gone with
-it.
-
-### 10.3 What the inner code needs, and why it is refused
-
-A convolutional stage covers the sync word too, so on the wire the bits a
-hard-decision correlator looks for are *coded*. Frame synchronisation would
-have to run after the Viterbi. `set_frame()` therefore has no
-`convolutional` argument at all, rather than one that silently does nothing.
-
-The soft symbols that decode needs are no longer thrown away, which is the
-half of [#1018](https://github.com/doppler-dsp/doppler/issues/1018) that
-ships here: `llrs()` returns one LLR per **frame** bit, in
-`mpsk_soft_demap`'s convention, scaled by the burst's own noise estimate.
-What remains for the inner code is the ordering — Viterbi first, then find
-the frame — not the data.
-
-### 10.4 Why the LLRs are scaled
-
-A Viterbi is invariant to a positive scale, so raw `Re(y)` would decode
-just as well and it is tempting to stop there. Two things need the scale:
-LLRs from different bursts are otherwise incomparable, so combining across
-bursts is meaningless; and an LLR that tracks the link is a *measurement* —
-`2·a·r/n0` is proportional to the linear SNR, so every 6 dB multiplies it
-by about four, which the tests assert (measured 17.9 → 67.2 → 259.2 at
-6/12/18 dB Es/N0). `n0` comes from the symbols themselves: after
-derotation the real axis carries the signal and the imaginary axis carries
-noise alone.
-
 ## 9. See also
 
 - [Adding an algorithm — the lifecycle](../dev/contributing/adding-algorithms.md) — the
@@ -894,3 +819,67 @@ noise alone.
 - [DSSS acquisition](dsss-acquisition.md) — the detector's own architecture
 - [State serialization](state-serialization.md) — the triplet the composition
     inherits from its parts
+
+## 10. The receiver stops at decisions (2026-08-27)
+
+Sections 1–9 describe a receiver whose frame is `sync | payload | CRC-16`.
+That shape was written down in **four** places, and two consequences were
+measured: a burst generated with `crc="none"` decoded bit-exactly and was
+reported *invalid*, and `wfmgen --type dsss --conv` produced a waveform
+byte-identical to no `--conv` at all.
+
+The first fix ([#1017](https://github.com/doppler-dsp/doppler/issues/1017))
+gave both ends one `wfm_frame_desc_t`. It fixed the assumption and put the
+frame in the wrong object: a receiver then held `crc`/`rs_depth`/
+`randomise`/`attach_asm`, ran `wfm_frame_check()` and published
+`frame_valid` — none of which is a physical-layer fact — and a CCSDS
+coverage policy had moved into `wfm/wfm_frame.h`, whose own header says it
+"knows nothing about CCSDS".
+
+### 10.1 Three layers, each knowing one thing
+
+| layer    | object                              | knows                                                                   |
+| -------- | ----------------------------------- | ----------------------------------------------------------------------- |
+| physical | `BurstDemod`, `DsssBurstReceiver`   | the codes, the sync word, and `frame_syms` — how many symbols follow it |
+| frame    | `frame` (`wfm.Frame` / `FrameDesc`) | the fields, the stages, and the span each covers                        |
+| codes    | `conv`, `rs` via `ccsds_tm`'s ops   | the arithmetic a stage calls                                            |
+
+`push()` returns `frame_syms` bits per burst and `llrs()` the matching soft
+values. That is the entire output. `Frame.deframe()` is the receive
+counterpart of assembling one: it undoes the stages in place order and
+reports through `rx_ok` / `rx_units` / `rx_checked` / `rx_symbols`.
+
+**The receiver got smaller.** Gone: four constructor knobs, two read-backs,
+an event field, and the `ccsds_tm`/`conv`/`rs`/`wfm_frame` link line. What
+is left is what a demodulator is for.
+
+### 10.2 Where the cover policy lives
+
+`wfm/wfm_frame.h` knows what a field and a stage are and **not** which
+covers which, because the answer is a specification's. That table —
+marker/preamble/sync are found-not-decoded, payload/CRC/parity is the data
+group, the inner code covers everything — is CCSDS 131.0-B-6 10.3.4
+generalised, so it lives in `ccsds_tm_frame_desc_of()`, next to the ASM
+bits and the RS parity size it needs. The generator's bridge is an adapter
+over it; a receiver calls neither.
+
+### 10.3 What the split cost, and what it bought
+
+The **suppression window** was armed by `frame_valid`. It is armed by the
+burst having demodulated — the sync word correlated here, which is a fact
+this object owns. A frame whose check fails is still a frame that was
+transmitted at that position.
+
+Callers slice their own payload: `push()`'s rows are frames, so a payload
+is `frame[field_off(i):][:field_bits(i)]` after `deframe()`. That is one
+line, and it is the line that makes the receiver reusable for a frame
+nobody has designed yet.
+
+### 10.4 The inner code, still
+
+A convolutional stage covers the sync word, so on the wire the bits a
+hard-decision correlator looks for are coded, and frame synchronisation
+would have to run after the Viterbi. The soft bits that needs exist now
+(`llrs()`, [#1018](https://github.com/doppler-dsp/doppler/issues/1018));
+the ordering does not. `deframe()` reports such a stage as **not checked**,
+never as passed.

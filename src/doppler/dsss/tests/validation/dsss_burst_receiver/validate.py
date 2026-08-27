@@ -111,6 +111,34 @@ def _capture(at: int, sigma: float, seed: int, burst=None) -> np.ndarray:
     return cap
 
 
+FRAME_SYMS = len(SYNC) + PAYLOAD + 16  # sync | payload | CRC-16
+PAYLOAD_OFF = len(SYNC)
+
+
+def _payload_of(frame):
+    """The payload's slice out of a returned frame."""
+    return np.asarray(frame)[PAYLOAD_OFF : PAYLOAD_OFF + PAYLOAD]
+
+
+def _frame_ok(frame) -> bool:
+    """Does the frame's own trailer match its own payload?
+
+    The receiver stops at decisions (doppler#1022) — it returns the frame's
+    bits and holds no description, so the verdict this report needs is
+    computed here, exactly as `wfm.Frame.deframe()` computes it for a caller
+    that holds one.
+    """
+    from doppler.wfm import crc16
+
+    frame = np.asarray(frame)
+    if frame.size < FRAME_SYMS:
+        return False
+    rx = 0
+    for b in frame[PAYLOAD_OFF + PAYLOAD :][:16]:
+        rx = (rx << 1) | (int(b) & 1)
+    return rx == int(crc16(_payload_of(frame)))
+
+
 def _rx(acq_code=ACQ_CODE) -> DsssBurstReceiver:
     return DsssBurstReceiver(
         acq_code,
@@ -119,7 +147,7 @@ def _rx(acq_code=ACQ_CODE) -> DsssBurstReceiver:
         reps=REPS,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        payload_len=PAYLOAD,
+        frame_syms=FRAME_SYMS,
         cn0_dbhz=55.0,
     )
 
@@ -134,7 +162,7 @@ def _drive(rx, cap, stop_on_first=True):
                 {
                     "bits": bits,
                     "start": int(rx.preamble_start),
-                    "valid": bool(rx.frame_valid),
+                    "valid": _frame_ok(bits),
                     "margin": float(rx.refine_margin),
                 }
             )
@@ -353,7 +381,7 @@ def _margin_at(reps_cfg: int, reps_sig: int) -> float:
         reps=reps_cfg,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        payload_len=PAYLOAD,
+        frame_syms=FRAME_SYMS,
         cn0_dbhz=55.0,
     )
     hits = _drive(rx, _capture(6000, 0.02, seed=42, burst=burst))
@@ -373,7 +401,9 @@ def _sec_end_to_end(d: Data) -> None:
     rx = _rx()
     hits = _drive(rx, _capture(5000, 0.02, seed=3))
     d.decoded = len(hits) == 1 and hits[0]["valid"]
-    d.bits_exact = bool(hits) and np.array_equal(hits[0]["bits"], PAYLOAD_BITS)
+    d.bits_exact = bool(hits) and np.array_equal(
+        _payload_of(hits[0]["bits"]), PAYLOAD_BITS
+    )
     d.start_exact = bool(hits) and hits[0]["start"] == 5000
     d.dropped_zero = rx.dropped == 0
     R.table(
@@ -381,7 +411,7 @@ def _sec_end_to_end(d: Data) -> None:
         [
             ["payload bits returned", str(len(hits[0]["bits"]))],
             ["bits equal the transmitted payload", str(d.bits_exact)],
-            ["frame_valid", str(hits[0]["valid"])],
+            ["frame checks out", str(hits[0]["valid"])],
             ["preamble_start", f"{hits[0]['start']} (true 5000)"],
             ["samples dropped by the history ring", str(rx.dropped)],
         ],
@@ -503,7 +533,7 @@ def _sec_refine(d: Data) -> None:
             "no period wins cleanly — the envelope has flattened",
         ],
     ]
-    R.table(["stimulus", "refine_margin", "frame_valid", "note"], rows)
+    R.table(["stimulus", "refine_margin", "frame checks out", "note"], rows)
     d.margin_rows = rows
     R.md(
         f"`refine_margin` is the rival period over the winner, so **lower "
@@ -803,7 +833,7 @@ def _sec_bounds(d: Data) -> None:
     # Any block size, including one larger than the ring itself.
     rx3 = _rx()
     big = rx3.push(_capture(5000, 0.02, seed=3))
-    d.any_block_size = big.size == PAYLOAD and rx3.preamble_start == 5000
+    d.any_block_size = big.size == FRAME_SYMS and rx3.preamble_start == 5000
 
     R.table(
         ["case", "outcome"],
@@ -859,7 +889,7 @@ def _sec_state(d: Data) -> None:
     for off in range(cut, N_CAP, PUSH):
         bits = b.push(cap[off : off + PUSH])
         if bits.size:
-            rest.append((bits, int(b.preamble_start), bool(b.frame_valid)))
+            rest.append((bits, int(b.preamble_start), _frame_ok(bits)))
             break
     d.state_resumes = bool(rest) and rest[0][1] == 5000 and rest[0][2]
 
@@ -1002,8 +1032,9 @@ def _sec_blocks(d: Data) -> None:
             bits = rx.push(cap[off : off + block])
             if not bits.size:
                 continue
-            for ev in rx.events():
-                if int(ev[0]) in starts and int(ev[8]):
+            for i, ev in enumerate(rx.events()):
+                frame = bits[i * FRAME_SYMS : (i + 1) * FRAME_SYMS]
+                if int(ev[0]) in starts and _frame_ok(frame):
                     found.add(int(ev[0]))
         sets.append(found)
         drops.append(int(rx.dropped))
@@ -1025,7 +1056,7 @@ def _sec_blocks(d: Data) -> None:
     # call -- not one per call with the rest of the input abandoned.
     rx = _rx()
     bits = rx.push(cap)
-    d.block_multi_in_one = bits.size == len(starts) * PAYLOAD
+    d.block_multi_in_one = bits.size == len(starts) * FRAME_SYMS
 
     R.table(["block size (samples)", "bursts decoded", "dropped"], rows)
     R.md()
@@ -1410,7 +1441,7 @@ def build(write: bool = True) -> Report:
             "bits of EVERY burst that completed in that call, "
             "concatenated, and `events()` returns one record per payload "
             "in the same order: burst `i` is "
-            "`bits[i*payload_len:(i+1)*payload_len]` with `events()[i]` "
+            "`bits[i*frame_syms:(i+1)*frame_syms]` with `events()[i]` "
             "describing it. Every sample is consumed whatever the block "
             "size, and a burst split across calls is completed by a later "
             "one, so a caller never sizes or aligns anything (§2.11).",

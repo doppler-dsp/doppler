@@ -131,62 +131,63 @@ mentioning them:
     row's peak-to-mean ratio. Comparing it with the link's Es/N0 will give
     a number that looks meaningful and is not.
 
-## The frame is a description, not four fixed fields
+## The receiver stops at hard and soft decisions
 
-This receiver used to assume `sync | payload | CRC-16` and nothing else. A
-burst generated with **no** CRC decoded bit-exactly and was reported
-*invalid*, because the receiver was measuring it against a trailer the
-transmitter never sent; a burst carrying an outer code could not be
-described at all — nor generated, since `wfmgen`'s `--conv` / `--rs-depth`
-/ `--randomise` / `--asm` were read from the scene and then silently
-dropped on the spread path ([#1017](https://github.com/doppler-dsp/doppler/issues/1017)).
+This object used to assume `sync | payload | CRC-16`, then briefly held a
+frame description of its own — four knobs, a checker and a `frame_valid`
+read-back. Neither is a physical-layer fact, and the second put a CCSDS
+coverage policy inside a header that says it "knows nothing about CCSDS"
+([#1022](https://github.com/doppler-dsp/doppler/issues/1022)).
 
-Both ends now build the same `wfm_frame_desc_t` from the same four
-choices, so the frame's length, its field order and each stage's cover come
-from one place:
+So the chain is three objects, each knowing one thing:
 
-```text
-rx = DsssBurstReceiver(..., crc=1, rs_depth=0, randomise=0, attach_asm=0)
+| layer    | object                                 | knows                                                    |
+| -------- | -------------------------------------- | -------------------------------------------------------- |
+| physical | `DsssBurstReceiver`                    | the codes, the sync word, and how many symbols follow it |
+| frame    | `wfm.FrameDesc` / `Frame`              | the fields, the stages, and what each covers             |
+| codes    | `coding.Viterbi`, `coding.ReedSolomon` | the arithmetic a stage calls                             |
+
+`push()` returns **`frame_syms` bits per burst** — the frame as received,
+sync word first — and `llrs()` returns the same decisions as soft values.
+That is the whole output. Undoing the frame is a separate call:
+
+<!-- docs-snippet: skip=an excerpt whose names (ref_bits, payload) live in the example's namespace; the script itself is executed on every push by `make test-examples-python` -->
+
+```python
+--8<-- "src/doppler/examples/dsss_burst_receiver_demo.py:deframe"
 ```
 
-- **`crc=0`** is a frame sixteen bits shorter — believed, not failed.
-- **`randomise=1`** derandomises before the payload is read (its own
-    inverse, so the receiver runs the same generator the transmitter did).
-- **`rs_depth=I`** REPAIRS: the outer code corrects the frame in place over
-    the span its description gives it, and the payload is read afterwards.
-    Measured on this chain: eight injected bit errors reach the payload
-    without it and are gone with it.
-- **`attach_asm=1`** puts the CCSDS marker at the head of the frame and in
-    the correlation template — a field a receiver *finds* rather than
-    decodes, so correlating over marker+sync is free acquisition gain.
+- **`crc=none`** is simply a shorter frame — the receiver is told a smaller
+    `frame_syms`, and the DeFramer reports `rx_checked == 0`: *carries no
+    check* is not *the check failed*, and an FER conflating them would score
+    every unprotected frame as an error.
+- **A randomiser** round-trips when both descriptions carry it; a receiver
+    that does not derandomise gets bits the CRC rejects rather than a
+    silently wrong payload.
+- **An outer code REPAIRS** inside `deframe()`, before the payload is
+    sliced. Measured on this chain: eight injected bit errors reach the
+    payload without `rs_depth` and are gone with it.
 
-`frame_valid` accordingly means **every check that ran came out good**, and
-`frame_checked` says how many did. A frame carrying no check reports `0`
-and `0`: "carries no check" and "the check failed" are different facts, and
-an FER that conflated them would score every unprotected frame as an error.
-
-The inner code is the one stage this receiver does **not** accept, and it
-says so rather than accepting a flag that does nothing: a convolutional
-code covers the sync word too, so the bits a hard-decision correlator would
-look for are coded on the wire, and frame sync would have to run *after*
-the Viterbi.
+What the receiver gained by giving all that up is that it can be pointed at
+*any* frame: it needs a template to correlate and a length to slice, and
+nothing else.
 
 ## Soft bits, for whatever decodes them
 
 `push()` returns hard bits; `llrs()` returns the same decision seen a
-second way, one value per **frame** bit:
+second way, one value per frame symbol:
 
 <!-- docs-snippet: skip=a two-line excerpt whose names (rx, x) belong to a caller's own stream; the identity it shows is executed by `test_the_soft_bits_are_the_hard_ones_seen_a_second_way` -->
 
 ```python
-bits = rx.push(x)                    # hard, per burst, concatenated
-llr = rx.llrs(rx.llrs_max_out(1))    # soft, same order, frame-wide rows
+bits = rx.push(x)                    # hard, per burst, frame rows
+llr = rx.llrs(rx.llrs_max_out(1))    # soft, same order, same rows
 ```
 
 The convention is `mpsk_soft_demap`'s — positive means bit 0, so
 `(llr < 0)` reproduces exactly the bits `push()` returned, which the tests
 assert rather than assume. A hard decision costs roughly **2 dB** of the
-coding gain a soft-input decoder exists to deliver, and until now that
+coding gain a soft-input decoder exists to deliver, and until recently that
 number was computed and freed one line before the slicer.
 
 They are **scaled**, not raw: `2·a·r/n0`, with `n0` estimated from the
@@ -196,6 +197,11 @@ invariant to a positive scale — but LLRs from different bursts are not
 comparable without one, and the scaled version is a measurement in its own
 right: every 6 dB of Es/N0 multiplies it by about four (measured 17.9 →
 67.2 → 259.2 at 6, 12 and 18 dB).
+
+The **inner code** is the one stage nothing here undoes yet: it covers the
+sync word, so a hard-decision correlator cannot find a coded frame at all
+and frame sync would have to run after the Viterbi. The soft bits it needs
+now exist; the ordering does not.
 
 ## The same thing in C
 

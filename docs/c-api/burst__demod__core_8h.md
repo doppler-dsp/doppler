@@ -122,7 +122,7 @@ The whole post-acquisition payload chain, in C, with no tracking loops:
 
 
 
-At a decision. It hands back one bit per symbol (demod()) and one LLR per symbol ([**burst\_demod\_llrs()**](burst__demod__core_8h.md#function-burst_demod_llrs)), and it does not know what any of them mean: which are payload, which are a check, what an outer code would repair are all questions about a FRAME, and answering them needs a description this object deliberately does not hold (doppler#1020). It used to hold half of one — a hard-coded `sync | payload | CRC-16` — which is how a burst sent without a trailer came to be reported invalid.
+At a decision. It hands back one bit per symbol (demod()) and one LLR per symbol ([**burst\_demod\_llrs()**](burst__demod__core_8h.md#function-burst_demod_llrs)), and it does not know what any of them mean: which are payload, which are a check, what an outer code would repair are all questions about a FRAME, and answering them needs a description this object deliberately does not hold (doppler#1022). It used to hold half of one — a hard-coded `sync | payload | CRC-16` — which is how a burst sent without a trailer came to be reported invalid.
 
 
 What it does need is the sync word, to find the frame and resolve the BPSK sign, and `frame_syms`, to know how many symbols to slice. Both are physical-layer facts.
@@ -599,7 +599,7 @@ void burst_demod_set_sync (
 After the data section is despread to soft BPSK symbols, demod() correlates them against this word; the complex correlation peak locates the frame (its `frame_offset`) and its phase resolves the residual carrier rotation and the BPSK sign ambiguity before slicing. Pass the word as 0/1 symbols; it is copied and stored internally as +/-1.
 
 
-This is the ONLY thing this object is told about the frame's content, and it is told it for a physical-layer reason: without the sign the slicer would be a coin toss. Everything else — where the payload sits, which stages cover what, whether a check passed — needs the frame's description and belongs one layer up (doppler#1020).
+This is the ONLY thing this object is told about the frame's content, and it is told it for a physical-layer reason: without the sign the slicer would be a coin toss. Everything else — where the payload sits, which stages cover what, whether a check passed — needs the frame's description and belongs one layer up (doppler#1022).
 
 
 

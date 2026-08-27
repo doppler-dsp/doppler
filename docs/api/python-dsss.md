@@ -98,12 +98,18 @@ nn = np.arange(len(bb))
 rx = (bb * np.exp(2j * np.pi * f0 * nn)).astype(np.complex64)
 
 d = BurstDemod(data_code, spc=4, chip_rate=1e6, carrier_hz=0.0,
-               max_rate=0.0, payload_len=64, est_segments=10)
+               max_rate=0.0, frame_syms=13 + 64 + 16, est_segments=10)
 d.set_preamble(acq_code, reps=5)
-d.set_frame(sync_word)              # 0/1 BPSK sync header
+d.set_sync(sync_word)               # 0/1 BPSK sync header
 d.set_prior(f0, preamble_start)
-bits = d.demod(rx)
-assert d.frame_valid             # CRC passed
+frame = d.demod(rx)                 # the FRAME's bits, sync word first
+# The demodulator stops at decisions; the frame is undone one layer up.
+from doppler.wfm import crc16
+payload = frame[13:13 + 64]
+rx_crc = 0
+for b in frame[13 + 64:][:16]:
+    rx_crc = (rx_crc << 1) | int(b)
+assert rx_crc == int(crc16(payload))            # the CHECK is the caller's
 ```
 
 ::: doppler.dsss.BurstDemod

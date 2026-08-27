@@ -524,9 +524,10 @@ def demo_burst_demod(rx, hits, acq, acq_code, data_code, payload_bits):
         f"  {'#':<3} {'CRC':<5} {'errs':>4} {'est freq(Hz)':>12} "
         f"{'est snr(dB)':>11} {'frame off':>9}"
     )
-    d = BurstDemod(data_code, SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10)
+    frame_syms = len(SYNC) + PAYLOAD + 16  # sync | payload | CRC-16
+    d = BurstDemod(data_code, SPC, CHIP_RATE, 0.0, 0.0, frame_syms, 10)
     d.set_preamble(acq_code, REPS)
-    d.set_frame(SYNC)
+    d.set_sync(SYNC)
     results = []
     for k, hit in enumerate(hits):
         start, dop = hit["abs_pos"], hit["dop"]
@@ -539,8 +540,14 @@ def demo_burst_demod(rx, hits, acq, acq_code, data_code, payload_bits):
         # span away from what the search meant.
         f0 = bin_to_signed(dop, acq.doppler_bins) * acq.doppler_res_hz
         d.set_prior(f0 / FS, 0)  # abs_pos already IS the preamble start
-        bits_hat = d.demod(window)
-        valid = bool(d.frame_valid)
+        frame_hat = np.asarray(d.demod(window))
+        # The demodulator stops at decisions and hands back the frame; the
+        # payload is a slice and the CRC is the caller's (doppler#1022).
+        bits_hat = frame_hat[len(SYNC) : len(SYNC) + PAYLOAD]
+        rx_crc = 0
+        for b in frame_hat[len(SYNC) + PAYLOAD :][:16]:
+            rx_crc = (rx_crc << 1) | (int(b) & 1)
+        valid = len(frame_hat) == frame_syms and rx_crc == int(crc16(bits_hat))
         errs = (
             int(np.sum(bits_hat != payload_bits))
             if len(bits_hat) == len(payload_bits)

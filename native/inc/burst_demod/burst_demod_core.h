@@ -18,7 +18,7 @@
  * symbol (burst_demod_llrs()), and it does not know what any of them mean:
  * which are payload, which are a check, what an outer code would repair are
  * all questions about a FRAME, and answering them needs a description this
- * object deliberately does not hold (doppler#1020). It used to hold half of
+ * object deliberately does not hold (doppler#1022). It used to hold half of
  * one — a hard-coded `sync | payload | CRC-16` — which is how a burst sent
  * without a trailer came to be reported invalid.
  *
@@ -245,7 +245,7 @@ extern "C"
    * and it is told it for a physical-layer reason: without the sign the
    * slicer would be a coin toss. Everything else — where the payload sits,
    * which stages cover what, whether a check passed — needs the frame's
-   * description and belongs one layer up (doppler#1020).
+   * description and belongs one layer up (doppler#1022).
    *
    * @param state     Demodulator handle.
    * @param sync      Frame-sync word, one 0/1 symbol per element; copied.

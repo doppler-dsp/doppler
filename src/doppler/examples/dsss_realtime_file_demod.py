@@ -48,7 +48,7 @@ import numpy as np
 from doppler.ddc import DDC
 from doppler.dsss import BurstAcquisition, BurstDemod, bin_to_signed
 from doppler.tests._repo import repo_root
-from doppler.wfm import PN
+from doppler.wfm import PN, FrameDesc
 
 # ── waveform geometry ────────────────────────────────────────────────────────
 # Spreading codes are real maximal-length sequences from the PN source
@@ -62,10 +62,40 @@ ACQ_SF, REPS, DATA_SF, SPC = (1 << ACQ_BITS) - 1, 5, (1 << DATA_BITS) - 1, 4
 CHIP_RATE = 1.0e6
 FS = CHIP_RATE * SPC  # 4 MHz channel rate
 PAYLOAD = 64
+#: What BurstDemod hands back per burst: the frame as received, sync word
+#: first. It stops at decisions (doppler#1022), so the payload is a slice
+#: and the frame is checked one layer up, by the FrameDesc below.
+PAYLOAD_OFF = 13
+FRAME_SYMS = PAYLOAD_OFF + PAYLOAD + 16
 PRI_MS = 250.0  # nominal burst spacing (the writer paces to this in realtime)
 SYNC = np.array(
     [0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], dtype=np.uint8
 )  # Barker
+
+
+_DEFRAMER = None
+
+
+def _deframer():
+    """The frame the transmitter built, described for the receive side.
+
+    One `FrameDesc`, built once: sync word, payload, and the CRC-16 the
+    generator appends. `deframe()` undoes it and reports; the demodulator
+    has no opinion about any of it, which is the point of the split
+    (doppler#1022).
+    """
+    global _DEFRAMER
+    if _DEFRAMER is None:
+        empty = np.empty(0, np.uint8)
+        d = FrameDesc(empty, empty, empty)
+        d.add_field(SYNC)
+        d.add_field(np.zeros(PAYLOAD, np.uint8))
+        d.add_field(empty, derived_by=1, derived_bits=16)
+        d.add_stage(0, first_field=1, n_fields=2)
+        d.build()
+        _DEFRAMER = d
+    return _DEFRAMER
+
 
 # Doppler is drawn uniformly per burst in [DOPPLER_LO, DOPPLER_HI]; the
 # receiver DDCs by the band centre (NOMINAL_HZ) so the residual the Acquisition
@@ -224,9 +254,10 @@ def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
         "test_stat": float(test_stat),
     }
 
-    d = BurstDemod(_DCODE, SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10)
+    deframer = _deframer()
+    d = BurstDemod(_DCODE, SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, 10)
     d.set_preamble(_ACODE, REPS)
-    d.set_frame(SYNC)
+    d.set_sync(SYNC)
     npre = ACQ_SF * REPS * SPC
     # Try the acquired code phase first (sample-precise), then fall back to a
     # coarse grid scan over one code period in case the peak was a chip off.
@@ -235,12 +266,17 @@ def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
         if start < 0 or start + npre > len(base):
             continue
         d.set_prior(f0 / FS, start)
-        bits = d.demod(base)
-        if d.frame_valid:
+        frame = d.demod(base)
+        # The demodulator stops at decisions: it returns the frame's bits
+        # and the DeFramer says whether they are good (doppler#1022).
+        payload = np.asarray(deframer.deframe(frame))[
+            PAYLOAD_OFF : PAYLOAD_OFF + PAYLOAD
+        ]
+        if deframer.rx_ok == deframer.rx_units and deframer.rx_checked:
             rec.update(
                 frame_valid=True,
                 code_phase=int(start),
-                bits=bits,
+                bits=payload,
                 est_freq_hz=d.est_freq_hz + nominal_hz,
                 est_snr_db=d.est_snr_db,
             )

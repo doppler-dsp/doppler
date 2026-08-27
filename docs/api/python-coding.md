@@ -165,7 +165,7 @@ table — describe one with
 
 <!-- related-pages:start -->
 
-**Gallery** — [A CCSDS CADU, as a Frame Description](../gallery/ccsds-link.md), [Name Your Own Code — and What Happens Past the Radius](../gallery/coding.md)
+**Gallery** — [A CCSDS CADU, as a Frame Description](../gallery/ccsds-link.md), [Name Your Own Code — and What Happens Past the Radius](../gallery/coding.md), [DsssBurstReceiver — the Composed Burst Chain](../gallery/dsss-burst-receiver.md)
 **Design** — [The FEC Receive Half](../design/fec-receive.md), [Design](../design/index.md), [Reed-Solomon](../design/reed-solomon.md)
 
 <!-- related-pages:end -->

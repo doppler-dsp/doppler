@@ -579,7 +579,7 @@ size_t dsss_burst_receiver_state_t::frame_syms;
 
 
 
-Symbols the frame occupies after the sync word, and so bits per burst out of push(). What they MEAN is a frame description's business, one layer up (doppler#1020). 
+Symbols the frame occupies after the sync word, and so bits per burst out of push(). What they MEAN is a frame description's business, one layer up (doppler#1022). 
  
 
 

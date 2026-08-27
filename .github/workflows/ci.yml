@@ -570,6 +570,52 @@ jobs:
       run: make drift-check
 
   # ------------------------------------------------------------------
+  # AddressSanitizer + LeakSanitizer over the whole C suite. This is the gate
+  # for the class neither `make test` nor the coverage build can see on
+  # purpose: a read or write outside an object, and an allocation nothing
+  # releases. An overflowing write lands on whatever the compiler happened to
+  # put next, so the program is wrong while every assertion stays green --
+  # doppler#1024 is the instance, a test writing 93 bytes into a 64-byte stack
+  # buffer and 29 bytes into its own caller's frame. `make test` was 152/152
+  # on it. It surfaced only because the coverage job builds clang at -O0 and
+  # that layout exposed it, which is a stack layout rather than a check.
+  #
+  # Its own job rather than a step on build-and-test-linux: it rebuilds the
+  # tree with different flags, so bolting it onto a matrix leg would serialise
+  # a second full build behind the first and double that leg's wall clock for
+  # both images. Here it runs in parallel with everything else.
+  # ------------------------------------------------------------------
+  sanitizers:
+    name: ASan + LSan (C suite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # The toolchain is the image, the sanitizer runtime included -- the same
+    # reason the coverage job takes libclang-rt from here rather than naming
+    # it in bootstrap.toml.
+    container:
+      image: ghcr.io/doppler-dsp/doppler-ci@sha256:ba070a9b2ebc674f956026160ca806a3e7a572e4553a95cc67c6d4fe13bde6d4
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/ccache
+      with:
+        key: asan
+
+    - name: Run the C suite under ASan + LSan
+      # `make test-asan`, never an inline cmake: the Makefile is the single
+      # driver, so this step IS what a developer runs locally. The target
+      # refuses an empty test list rather than reporting a clean sanitizer run
+      # over nothing -- absent output is not a pass.
+      run: make test-asan
+
+    - name: Compiler-cache statistics
+      run: make ccache-stats
+
+  # ------------------------------------------------------------------
   # Code coverage (C tests ∪ Python ∪ Rust). clang source-based instrumentation
   # (-fprofile-instr-generate -fcoverage-mapping) on every first-party C object;
   # the CTest suite, pytest (against the instrumented .so), and the Rust FFI
@@ -678,6 +724,7 @@ jobs:
       - pre-commit
       - manifest-drift
       - coverage
+      - sanitizers
     runs-on: ubuntu-latest
     timeout-minutes: 45
     if: always()

@@ -107,8 +107,13 @@ main (void)
     hbdecim_q15_state_t *a        = hbdecim_q15_create (7, htaps);
     hbdecim_q15_state_t *b        = hbdecim_q15_create (7, htaps);
     DP_CHECK (a != NULL && b != NULL);
-    int16_t in[32], out[32];
-    for (int i = 0; i < 32; i++)
+    /* `n_in` and `max_out` count COMPLEX samples; the buffers are
+       interleaved int16 IQ, so each needs 2x that many elements (the
+       header says so on execute()). Sized 32 with n_in=32, this read two
+       bytes off the end of `in` -- caught by ASAN, invisible to the
+       assertions below, which only ever look at the state. */
+    int16_t in[2 * 32], out[2 * 32];
+    for (int i = 0; i < 2 * 32; i++)
       in[i] = (int16_t)(100 * i);
     (void)hbdecim_q15_execute (a, in, 32, out, 32);
     DP_STATE_ROUNDTRIP_TEST (hbdecim_q15, a, b);

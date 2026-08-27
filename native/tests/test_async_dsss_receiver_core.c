@@ -298,7 +298,7 @@ _test_give_up_cap (void)
       return 1;
     }
 
-  float complex *syms   = malloc (n * sizeof *syms);
+  float complex *syms; /* _stream() allocates it; see its three siblings */
   size_t         n_syms = _stream (rx, x, n, te, &syms);
 
   DP_CHECK (async_dsss_receiver_get_refining (rx) == 0);

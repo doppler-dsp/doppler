@@ -215,7 +215,8 @@ enum wfm_stage_kind_t {
     WFM_STAGE_CRC16 = 0,
     WFM_STAGE_RS = 1,
     WFM_STAGE_RANDOMISE = 2,
-    WFM_STAGE_CONV = 3
+    WFM_STAGE_CONV = 3,
+    WFM_STAGE_INTERLEAVE = 4
 };
 ```
 

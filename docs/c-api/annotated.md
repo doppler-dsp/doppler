@@ -99,6 +99,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**i8\_to\_f32\_state\_t**](structi8__to__f32__state__t.md) _I8ToF32 state._     
 * **struct** [**imd\_meas\_t**](structimd__meas__t.md) _Two-tone intermodulation result (IMD2/IMD3/TOI)._     
 * **struct** [**imdmeas\_state\_t**](structimdmeas__state__t.md) _IMDMeasure state: owned window, FFT plan and one-sided power scratch._     
+* **struct** [**interleaver\_state\_t**](structinterleaver__state__t.md) _A block interleaver's geometry._     
 * **struct** [**interp\_table\_state\_t**](structinterp__table__state__t.md) _InterpolatedTable state._     
 * **struct** [**lo\_state\_t**](structlo__state__t.md) _LO state._     
 * **struct** [**lockdet\_state\_t**](structlockdet__state__t.md) _Lock-detector state (embeddable by value; pointer-free POD)._     

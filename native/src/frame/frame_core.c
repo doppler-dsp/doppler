@@ -299,7 +299,7 @@ frame_add_field (frame_state_t *state, const uint8_t *lit, size_t lit_len,
 int
 frame_add_stage (frame_state_t *state, int kind, uint32_t first_field,
                  uint32_t n_fields, uint32_t depth, uint32_t emit_num,
-                 uint32_t emit_den)
+                 uint32_t emit_den, uint32_t unit_bits)
 {
   if (!state || state->one != NULL
       || state->d.n_stages >= WFM_FRAME_MAX_STAGES)
@@ -314,6 +314,7 @@ frame_add_stage (frame_state_t *state, int kind, uint32_t first_field,
   s->depth       = depth;
   s->emit_num    = emit_num;
   s->emit_den    = emit_den;
+  s->unit_bits   = unit_bits;
   state->d.n_stages++;
   return (int)i;
 }

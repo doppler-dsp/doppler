@@ -35,7 +35,7 @@ wfm_source_has_frame (const wfm_source_t *src)
   return src
          && ((src->acq_code && src->n_acq_code && src->acq_reps)
              || (src->sync && src->n_sync) || src->attach_asm || src->rs_depth
-             || src->randomise || src->convolutional);
+             || src->interleave_depth || src->randomise || src->convolutional);
 }
 
 const char *
@@ -92,6 +92,28 @@ wfm_source_frame_error (const wfm_source_t *src)
                "exactly 223*depth octets — virtual fill is not implemented, "
                "so a short frame is refused rather than padded";
     }
+
+  /* The interleaver's geometry, checked at the FLAG for the same reason the
+     outer code's is: the kernel would refuse mid-assembly, and a caller who
+     asked for a permutation the span cannot hold would get a zero-length
+     record and no sentence saying why. Measured on this exact case -- an
+     80-bit data group with `--interleave 8 --interleave-unit 8` -- which
+     produced an empty file and nothing on stderr.
+
+     The COLUMN count follows from the span, so what has to divide is
+     `depth * unit` into the data group. */
+  if (src->interleave_depth != 0)
+    {
+      const size_t unit
+          = src->interleave_unit_bits ? src->interleave_unit_bits : 1u;
+      const size_t data = src->n_bits + (src->crc ? WFM_FRAME_CRC_BITS : 0u);
+      const size_t cell = (size_t)src->interleave_depth * unit;
+      if (cell == 0 || data == 0 || data % cell != 0)
+        return "--interleave needs the data group (payload plus its CRC, if "
+               "any) to be a whole number of depth x unit units — the column "
+               "count follows from the span, so a remainder has nowhere to "
+               "go and is refused rather than padded";
+    }
   return NULL;
 }
 
@@ -113,18 +135,20 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
 {
   const int                   spread = (src->type == WFM_SYNTH_DSSS);
   const ccsds_tm_frame_spec_t s      = {
-    .attach_asm    = src->attach_asm,
-    .preamble      = spread ? NULL : src->acq_code,
-    .preamble_len  = spread ? 0u : src->n_acq_code,
-    .preamble_reps = spread ? 0u : src->acq_reps,
-    .sync          = src->sync,
-    .sync_len      = src->n_sync,
-    .payload       = src->bits,
-    .payload_len   = src->n_bits,
-    .crc           = src->crc,
-    .rs_depth      = src->rs_depth,
-    .randomise     = src->randomise,
-    .convolutional = src->convolutional,
+    .attach_asm           = src->attach_asm,
+    .preamble             = spread ? NULL : src->acq_code,
+    .preamble_len         = spread ? 0u : src->n_acq_code,
+    .preamble_reps        = spread ? 0u : src->acq_reps,
+    .sync                 = src->sync,
+    .sync_len             = src->n_sync,
+    .payload              = src->bits,
+    .payload_len          = src->n_bits,
+    .crc                  = src->crc,
+    .rs_depth             = src->rs_depth,
+    .randomise            = src->randomise,
+    .convolutional        = src->convolutional,
+    .interleave_depth     = src->interleave_depth,
+    .interleave_unit_bits = src->interleave_unit_bits,
   };
   return ccsds_tm_frame_desc_of (&s, d);
 }

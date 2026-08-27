@@ -62,7 +62,7 @@ int frame_add_field(frame_state_t *state, const uint8_t *lit, size_t lit_len,
 
 int frame_add_stage(frame_state_t *state, int kind, uint32_t first_field,
                     uint32_t n_fields, uint32_t depth, uint32_t emit_num,
-                    uint32_t emit_den);
+                    uint32_t emit_den, uint32_t unit_bits);
 
 int frame_build(frame_state_t *state);
 

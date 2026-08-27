@@ -2719,7 +2719,7 @@ objects = ["loop_filter", "costas", "dll", "symsync", "ratesync", "carrier_mpsk"
 # a module by that name regenerates it into its own generated filenames — the
 # retired-names gate catches it, which is the gate working.
 [module.coding]
-objects = ["conv_enc", "viterbi", "rs_codec"]
+objects = ["conv_enc", "viterbi", "rs_codec", "interleaver"]
 doc = """
 The general channel codes — the families a standard configures, rather than
 any standard's picks. `ConvEncoder` and `Viterbi` are the two directions of a

@@ -794,3 +794,587 @@ class ReedSolomon:
         tb : object | None
             Traceback object, or None. Ignored.
         """
+
+@final
+class Interleaver:
+    """Build an interleaver over a rows x cols block of unit_bits units.
+
+    Parameters
+    ----------
+    rows : int
+        Interleaving depth; the longest burst fully spread. Must be non-zero.
+    cols : int
+        Units per codeword. Must be non-zero.
+    unit_bits : int, default 1
+        Bits per interleaved unit. 1 interleaves bits; 8 interleaves octets,
+        which is what spreads a burst across the codewords of a symbol-oriented
+        code such as Reed-Solomon over GF(256). Must be non-zero.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Interleaver: rows,
+        cols and unit_bits must all be non-zero, and their product must fit a
+        size_t``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.coding import Interleaver
+    >>> il = Interleaver(rows=3, cols=4)
+    >>> il.block_bits, il.burst_len, il.separation
+    (12, 3, 4)
+
+    """
+    def __init__(
+        self,
+        rows: int = ...,
+        cols: int = ...,
+        unit_bits: int = ...,
+    ) -> None: ...
+
+    def reset(self) -> None:
+        """No-op; an interleaver carries nothing between calls.
+
+        Present because the object surface has it, and honest about why it does
+        nothing: a reset that pretended to clear something would suggest there
+        was something to clear. The geometry is configuration, not state, so it
+        survives — a reset that cleared THAT would leave every later call
+        refusing.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.coding import Interleaver
+        >>> il = Interleaver(rows=2, cols=3)
+        >>> il.reset()
+        >>> il.block_bits
+        6
+
+        """
+
+    def interleave(
+        self,
+        x: NDArray[np.uint8],
+        out: NDArray[np.uint8] | None = None,
+    ) -> NDArray[np.uint8]:
+        """Interleave a whole number of blocks: write the input by rows into a
+        `rows` x `cols` matrix and read it back by columns. Length-preserving.
+        A length that is not a whole multiple of `block_bits` is REFUSED rather
+        than padded -- padding changes the length, and a receiver
+        de-interleaving the padded block recovers different bits.
+
+        Parameters
+        ----------
+        x : NDArray[np.uint8]
+            Input.
+        out : NDArray[np.uint8] | None
+            Where to write n_in bits; must not overlap in.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            n_in on success, 0 if the length is not a whole number of blocks or
+            out is too small. A partial block is REFUSED rather than padded:
+            padding changes the length, and a receiver that de-interleaved the
+            padded block would recover different bits.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.coding import Interleaver
+        >>> il = Interleaver(rows=3, cols=4)
+        >>> x = np.arange(12, dtype=np.uint8)
+        >>> np.asarray(il.interleave(x)).tolist()
+        [0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11]
+
+        """
+
+    def interleave_max_out(self, n_in: int) -> int:
+        """Output bits for n_in input bits — the same number.
+
+        A permutation moves bits and does not add or remove any, so this is the
+
+        identity. It exists because the binding asks a method how much room its
+
+        output needs, and answering "the same" is not something a caller should
+
+        have to know.
+
+        Parameters
+        ----------
+        n_in : int
+            Input length in bits.
+
+        Returns
+        -------
+        int
+            n_in.
+
+        Examples
+        --------
+        >>> from doppler.coding import Interleaver
+        >>> Interleaver(rows=4, cols=8).interleave_max_out(32)
+        32
+
+        """
+
+    def deinterleave(
+        self,
+        x: NDArray[np.uint8],
+        out: NDArray[np.uint8] | None = None,
+    ) -> NDArray[np.uint8]:
+        """Undo `interleave()` over the same geometry. De-interleaving a `rows`
+        x `cols` block is interleaving a `cols` x `rows` one, so this is the
+        same kernel with two arguments exchanged -- which is also why a SQUARE
+        block is its own inverse.
+
+        Parameters
+        ----------
+        x : NDArray[np.uint8]
+            Input.
+        out : NDArray[np.uint8] | None
+            Where to write n_in bits; must not overlap in.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            n_in, or 0 on a refusal.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.coding import Interleaver
+        >>> il = Interleaver(rows=3, cols=4)
+        >>> x = np.arange(12, dtype=np.uint8)
+        >>> y = np.asarray(il.interleave(x))
+        >>> np.array_equal(np.asarray(il.deinterleave(y)), x)
+        True
+
+        """
+
+    def deinterleave_max_out(self, n_in: int) -> int:
+        """Output bits for n_in input bits — the same number.
+
+        Identical to interleaver_interleave_max_out, and for the same reason:
+
+        the inverse of a permutation is a permutation.
+
+        Parameters
+        ----------
+        n_in : int
+            Input length in bits.
+
+        Returns
+        -------
+        int
+            n_in.
+
+        Examples
+        --------
+        >>> from doppler.coding import Interleaver
+        >>> Interleaver(rows=4, cols=8).deinterleave_max_out(32)
+        32
+
+        """
+
+    def deinterleave_soft(
+        self,
+        x: NDArray[np.float32],
+        out: NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32]:
+        """Undo an interleave over SOFT values -- the receive path that
+        matters. `DsssBurstReceiver.llrs` span the whole frame, and an outer
+        decoder wants them de-interleaved BEFORE it runs; slicing to hard bits
+        first throws away the confidence the soft output exists to carry. There
+        is no `interleave_soft`, because a transmitter has bits, not LLRs.
+
+        `dsss_burst_receiver`'s `llrs` span the whole frame, and an outer
+        decoder wants them de-interleaved BEFORE it runs. Slicing to hard bits
+        first and de-interleaving those throws away the confidence the soft
+        output exists to carry, which is most of what an outer code is for.
+
+        There is no `interleave_soft`: a transmitter has bits, not LLRs.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input.
+        out : NDArray[np.float32] | None
+            Where to write n_in values; must not overlap in.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            n_in, or 0 on a refusal.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.coding import Interleaver
+        >>> il = Interleaver(rows=2, cols=3)
+        >>> llr = np.array([1., 2., 3., 4., 5., 6.], dtype=np.float32)
+        >>> np.asarray(il.deinterleave_soft(llr)).tolist()
+        [1.0, 3.0, 5.0, 2.0, 4.0, 6.0]
+
+        """
+
+    def deinterleave_soft_max_out(self, n_in: int) -> int:
+        """Output values for n_in soft input values — the same number.
+
+        Parameters
+        ----------
+        n_in : int
+            Input length in values.
+
+        Returns
+        -------
+        int
+            n_in.
+
+        Examples
+        --------
+        >>> from doppler.coding import Interleaver
+        >>> Interleaver(rows=4, cols=8).deinterleave_soft_max_out(32)
+        32
+
+        """
+
+    @property
+    def rows(self) -> int:
+        """Interleaving depth -- codewords interleaved."""
+
+    @property
+    def cols(self) -> int:
+        """Units per codeword."""
+
+    @property
+    def unit_bits(self) -> int:
+        """Bits per interleaved unit; 1 interleaves bits, 8 octets."""
+
+    @property
+    def block_bits(self) -> int:
+        """Bits in one block -- `rows * cols * unit_bits`. Every call takes a
+        whole multiple of this.
+        """
+
+    @property
+    def burst_len(self) -> int:
+        """The longest burst this geometry fully spreads: a burst of up to this
+        many consecutive units on the wire touches each codeword at most once.
+        An outer code correcting `t` units per codeword survives a burst of `t
+        * burst_len`.
+        """
+
+    @property
+    def separation(self) -> int:
+        """The other half of the link budget -- what `burst_len` spreads a
+        burst ACROSS. Equal to `cols`, and named for what it buys rather than
+        for the matrix it comes from.
+        """
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "Interleaver":
+        """Enter a context manager, returning this object.
+
+        Lets a Interleaver be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        Interleaver
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the Interleaver.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
+class Deinterleaver:
+    """Build an interleaver over a rows x cols block of unit_bits units.
+
+    Parameters
+    ----------
+    rows : int
+        Interleaving depth; the longest burst fully spread. Must be non-zero.
+    cols : int
+        Units per codeword. Must be non-zero.
+    unit_bits : int, default 1
+        Bits per interleaved unit. 1 interleaves bits; 8 interleaves octets,
+        which is what spreads a burst across the codewords of a symbol-oriented
+        code such as Reed-Solomon over GF(256). Must be non-zero.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Interleaver: rows,
+        cols and unit_bits must all be non-zero, and their product must fit a
+        size_t``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.coding import Interleaver
+    >>> il = Interleaver(rows=3, cols=4)
+    >>> il.block_bits, il.burst_len, il.separation
+    (12, 3, 4)
+
+    """
+    def __init__(
+        self,
+        rows: int = ...,
+        cols: int = ...,
+        unit_bits: int = ...,
+    ) -> None: ...
+
+    def reset(self) -> None:
+        """No-op; an interleaver carries nothing between calls.
+
+        Present because the object surface has it, and honest about why it does
+        nothing: a reset that pretended to clear something would suggest there
+        was something to clear. The geometry is configuration, not state, so it
+        survives — a reset that cleared THAT would leave every later call
+        refusing.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.coding import Interleaver
+        >>> il = Interleaver(rows=2, cols=3)
+        >>> il.reset()
+        >>> il.block_bits
+        6
+
+        """
+
+    def deinterleave(
+        self,
+        x: NDArray[np.uint8],
+        out: NDArray[np.uint8] | None = None,
+    ) -> NDArray[np.uint8]:
+        """Undo `interleave()` over the same geometry. De-interleaving a `rows`
+        x `cols` block is interleaving a `cols` x `rows` one, so this is the
+        same kernel with two arguments exchanged -- which is also why a SQUARE
+        block is its own inverse.
+
+        Parameters
+        ----------
+        x : NDArray[np.uint8]
+            Input.
+        out : NDArray[np.uint8] | None
+            Where to write n_in bits; must not overlap in.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            n_in, or 0 on a refusal.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.coding import Interleaver
+        >>> il = Interleaver(rows=3, cols=4)
+        >>> x = np.arange(12, dtype=np.uint8)
+        >>> y = np.asarray(il.interleave(x))
+        >>> np.array_equal(np.asarray(il.deinterleave(y)), x)
+        True
+
+        """
+
+    def deinterleave_max_out(self, n_in: int) -> int:
+        """Output bits for n_in input bits — the same number.
+
+        Identical to interleaver_interleave_max_out, and for the same reason:
+
+        the inverse of a permutation is a permutation.
+
+        Parameters
+        ----------
+        n_in : int
+            Input length in bits.
+
+        Returns
+        -------
+        int
+            n_in.
+
+        Examples
+        --------
+        >>> from doppler.coding import Interleaver
+        >>> Interleaver(rows=4, cols=8).deinterleave_max_out(32)
+        32
+
+        """
+
+    def deinterleave_soft(
+        self,
+        x: NDArray[np.float32],
+        out: NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32]:
+        """Undo an interleave over SOFT values -- the receive path that
+        matters. `DsssBurstReceiver.llrs` span the whole frame, and an outer
+        decoder wants them de-interleaved BEFORE it runs; slicing to hard bits
+        first throws away the confidence the soft output exists to carry. There
+        is no `interleave_soft`, because a transmitter has bits, not LLRs.
+
+        `dsss_burst_receiver`'s `llrs` span the whole frame, and an outer
+        decoder wants them de-interleaved BEFORE it runs. Slicing to hard bits
+        first and de-interleaving those throws away the confidence the soft
+        output exists to carry, which is most of what an outer code is for.
+
+        There is no `interleave_soft`: a transmitter has bits, not LLRs.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input.
+        out : NDArray[np.float32] | None
+            Where to write n_in values; must not overlap in.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            n_in, or 0 on a refusal.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.coding import Interleaver
+        >>> il = Interleaver(rows=2, cols=3)
+        >>> llr = np.array([1., 2., 3., 4., 5., 6.], dtype=np.float32)
+        >>> np.asarray(il.deinterleave_soft(llr)).tolist()
+        [1.0, 3.0, 5.0, 2.0, 4.0, 6.0]
+
+        """
+
+    def deinterleave_soft_max_out(self, n_in: int) -> int:
+        """Output values for n_in soft input values — the same number.
+
+        Parameters
+        ----------
+        n_in : int
+            Input length in values.
+
+        Returns
+        -------
+        int
+            n_in.
+
+        Examples
+        --------
+        >>> from doppler.coding import Interleaver
+        >>> Interleaver(rows=4, cols=8).deinterleave_soft_max_out(32)
+        32
+
+        """
+
+    @property
+    def rows(self) -> int:
+        """Interleaving depth -- codewords interleaved."""
+
+    @property
+    def cols(self) -> int:
+        """Units per codeword."""
+
+    @property
+    def unit_bits(self) -> int:
+        """Bits per interleaved unit; 1 interleaves bits, 8 octets."""
+
+    @property
+    def block_bits(self) -> int:
+        """Bits in one block -- `rows * cols * unit_bits`. Every call takes a
+        whole multiple of this.
+        """
+
+    @property
+    def burst_len(self) -> int:
+        """The longest burst this geometry fully spreads: a burst of up to this
+        many consecutive units on the wire touches each codeword at most once.
+        An outer code correcting `t` units per codeword survives a burst of `t
+        * burst_len`.
+        """
+
+    @property
+    def separation(self) -> int:
+        """The other half of the link budget -- what `burst_len` spreads a
+        burst ACROSS. Equal to `cols`, and named for what it buys rather than
+        for the matrix it comes from.
+        """
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "Deinterleaver":
+        """Enter a context manager, returning this object.
+
+        Lets a Deinterleaver be used in a `with` statement so its C resources
+        are released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        Deinterleaver
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the Deinterleaver.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """

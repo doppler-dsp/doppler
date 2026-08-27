@@ -65,7 +65,7 @@ _A frame's bit layout, held as an object so Python can describe one._ [More...](
 | Type | Name |
 | ---: | :--- |
 |  int | [**frame\_add\_field**](#function-frame_add_field) ([**frame\_state\_t**](structframe__state__t.md) \* state, const uint8\_t \* lit, size\_t lit\_len, int kind, size\_t gen\_len, size\_t reps, uint64\_t poly, uint64\_t seed, uint32\_t reg\_bits, int lfsr, uint64\_t taps\_a, uint64\_t seed\_a, uint64\_t taps\_b, uint64\_t seed\_b, uint32\_t derived\_by, size\_t derived\_bits) <br>_Append one field to a description._  |
-|  int | [**frame\_add\_stage**](#function-frame_add_stage) ([**frame\_state\_t**](structframe__state__t.md) \* state, int kind, uint32\_t first\_field, uint32\_t n\_fields, uint32\_t depth, uint32\_t emit\_num, uint32\_t emit\_den) <br>_Append one stage, and the span of fields it covers._  |
+|  int | [**frame\_add\_stage**](#function-frame_add_stage) ([**frame\_state\_t**](structframe__state__t.md) \* state, int kind, uint32\_t first\_field, uint32\_t n\_fields, uint32\_t depth, uint32\_t emit\_num, uint32\_t emit\_den, uint32\_t unit\_bits) <br>_Append one stage, and the span of fields it covers._  |
 |  size\_t | [**frame\_bits**](#function-frame_bits) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t n, uint8\_t \* out, size\_t max\_out) <br>_Materialise_ `n` _consecutive frames, one bit per byte._ |
 |  size\_t | [**frame\_bits\_max\_out**](#function-frame_bits_max_out) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t n) <br>_Bits_ [_**frame\_bits**_](frame__core_8h.md#function-frame_bits) _will write for_`n` _frames —_`n * nbits` _._ |
 |  int | [**frame\_build**](#function-frame_build) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Lay out and materialise a described frame._  |
@@ -271,7 +271,8 @@ int frame_add_stage (
     uint32_t n_fields,
     uint32_t depth,
     uint32_t emit_num,
-    uint32_t emit_den
+    uint32_t emit_den,
+    uint32_t unit_bits
 ) 
 ```
 
@@ -286,12 +287,13 @@ int frame_add_stage (
 
 
 * `state` A frame from [**frame\_create\_desc**](frame__core_8h.md#function-frame_create_desc). 
-* `kind` [**wfm\_stage\_kind\_t**](wfm__frame_8h.md#enum-wfm_stage_kind_t) index; 0=crc16…3=conv. 
+* `kind` [**wfm\_stage\_kind\_t**](wfm__frame_8h.md#enum-wfm_stage_kind_t) index; 0=crc16…4=interleave. 
 * `first_field` First field covered. 
 * `n_fields` Fields covered; 0 = the stage does not run. 
 * `depth` Interleaving depth, for an outer code. 
 * `emit_num` Expansion numerator for a stage that emits a NEW stream; 0 when the stage stays inside the frame. 
 * `emit_den` Expansion denominator. 
+* `unit_bits` INTERLEAVE only: bits per interleaved unit; 0 reads as 1. Match it to the outer code's symbol — permuting octets is what spreads a burst across the codewords of a code over GF(256), and permuting bits inside one spreads a burst within a symbol that is already wrong. 
 
 
 

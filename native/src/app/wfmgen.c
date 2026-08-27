@@ -369,6 +369,21 @@ static const char USAGE[]
       "  --asm           Prepend the 0x1ACFFC1D attached sync marker.\n"
       "  --conv          Convolutional K=7 rate-1/2, over the WHOLE frame\n"
       "                  including the marker; doubles the bit count.\n"
+      "  --interleave R  Block-interleave the data group R deep: write it by\n"
+      "                  rows into an R x C matrix and read it by columns,\n"
+      "                  where C follows from the span. LAST of these "
+      "stages,\n"
+      "                  so it is what the channel sees. A burst of up to R\n"
+      "                  consecutive units then touches each codeword once,\n"
+      "                  so an outer code correcting t per codeword survives\n"
+      "                  a burst of t*R. Length-preserving; a span that is\n"
+      "                  not a whole number of R*unit units is refused.\n"
+      "  --interleave-unit N\n"
+      "                  Bits per permuted unit (default 1). Use 8 with\n"
+      "                  --rs-depth: RS is a code over GF(256), so spreading\n"
+      "                  a burst across CODEWORDS means permuting octets.\n"
+      "                  Bit-interleaving an octet code spreads a burst\n"
+      "                  inside a symbol that is already wrong.\n"
       "  All four, with a 223*I-octet payload and no preamble or sync word,\n"
       "  is a CCSDS CADU. That is a configuration of these flags, not a mode\n"
       "  they switch into.\n"
@@ -674,6 +689,12 @@ static const opt_t OPTS[] = {
      same bits -- which is the whole reason the frame is a description rather
      than a chain. See wfm/wfm_frame.h. */
   { .name = "--rs-depth", .kind = OPT_U32, .off = OFF (src.rs_depth) },
+  { .name = "--interleave",
+    .kind = OPT_U32,
+    .off  = OFF (src.interleave_depth) },
+  { .name = "--interleave-unit",
+    .kind = OPT_U32,
+    .off  = OFF (src.interleave_unit_bits) },
   { .name  = "--randomise",
     .alias = "--randomize",
     .kind  = OPT_CHOICE_OPT,

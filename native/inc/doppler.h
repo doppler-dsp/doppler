@@ -147,6 +147,8 @@ extern "C" {
 
 #include "rs_codec/rs_codec_core.h"
 
+#include "interleaver/interleaver_core.h"
+
 #include "despreader/despreader_core.h"
 
 #include "burst_despreader/burst_despreader_core.h"

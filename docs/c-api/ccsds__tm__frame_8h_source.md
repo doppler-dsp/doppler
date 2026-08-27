@@ -90,6 +90,9 @@ extern "C"
     unsigned rs_depth;
     int randomise;
     int convolutional;
+
+    unsigned interleave_depth;
+    unsigned interleave_unit_bits;
   } ccsds_tm_frame_spec_t;
 
   int ccsds_tm_frame_desc_of (const ccsds_tm_frame_spec_t *s,

@@ -353,13 +353,17 @@ ccsds_tm_frame_desc_of (const ccsds_tm_frame_spec_t *s, wfm_frame_desc_t *d)
      field names the stage that writes it. They are assigned in APPLICATION
      order: the CRC first, then the outer code over the result, then the
      randomiser, then the inner code. */
-  unsigned s_crc = 0, s_rs = 0, s_rand = 0, s_conv = 0, ns = 0;
+  unsigned s_crc = 0, s_rs = 0, s_rand = 0, s_ilv = 0, s_conv = 0, ns = 0;
   if (s->crc)
     s_crc = ns++;
   if (s->rs_depth)
     s_rs = ns++;
   if (s->randomise)
     s_rand = ns++;
+  /* The interleaver is the LAST data-group stage, so it is what the channel
+     sees; the inner code is applied over everything after it. */
+  if (s->interleave_depth)
+    s_ilv = ns++;
   if (s->convolutional)
     s_conv = ns++;
   if (ns > WFM_FRAME_MAX_STAGES)
@@ -413,6 +417,18 @@ ccsds_tm_frame_desc_of (const ccsds_tm_frame_spec_t *s, wfm_frame_desc_t *d)
          this is not a detail the kernel may pick for itself. `depth` is the
          stage's free parameter and the randomiser has no other use for it. */
       d->stage[s_rand].depth = (unsigned)s->randomise;
+    }
+  if (s->interleave_depth)
+    {
+      /* Last of the data-group stages, so it is what the channel sees. Its
+         COLUMN count is derived from the span it covers, so a payload length
+         change moves the geometry -- which is correct, and is why both ends
+         read the same description rather than each computing one. */
+      d->stage[s_ilv].kind        = WFM_STAGE_INTERLEAVE;
+      d->stage[s_ilv].depth       = s->interleave_depth;
+      d->stage[s_ilv].unit_bits   = s->interleave_unit_bits;
+      d->stage[s_ilv].first_field = i_data;
+      d->stage[s_ilv].n_fields    = data_end - i_data;
     }
   if (s->convolutional)
     {

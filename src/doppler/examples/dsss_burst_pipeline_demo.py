@@ -53,7 +53,7 @@ from ground truth:
      :mod:`doppler.snr` module, used here instead of the object's own
      ``snr_est`` (see 'API notes' below for why).
   3. :class:`doppler.dsss.BurstDemod`, the one-shot feedforward path: seeded
-     with ``set_preamble``/``set_sync``/``set_prior`` (from the same
+     with ``set_preamble``/``set_frame``/``set_prior`` (from the same
      discovered hit), ``demod()`` recovers the payload and checks the
      CRC-16 trailer in one call.
 
@@ -515,7 +515,7 @@ def demo_despreader(rx, hits, acq, acq_code, data_code, frame_bits):
 
 
 def demo_burst_demod(rx, hits, acq, acq_code, data_code, payload_bits):
-    """BurstDemod, one-shot per burst: set_preamble/set_sync configure the
+    """BurstDemod, one-shot per burst: set_preamble/set_frame configure the
     frame once; set_prior (seeded from each *discovered* Acquisition hit,
     not ground truth) + demod() run the feedforward chain (dechirp,
     despread, frame-sync, CRC check) per burst."""
@@ -526,7 +526,7 @@ def demo_burst_demod(rx, hits, acq, acq_code, data_code, payload_bits):
     )
     d = BurstDemod(data_code, SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10)
     d.set_preamble(acq_code, REPS)
-    d.set_sync(SYNC)
+    d.set_frame(SYNC)
     results = []
     for k, hit in enumerate(hits):
         start, dop = hit["abs_pos"], hit["dop"]

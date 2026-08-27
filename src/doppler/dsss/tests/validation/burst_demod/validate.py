@@ -118,7 +118,7 @@ def _demod(x: np.ndarray, *, max_rate: float = 0.0, carrier_hz: float = 0.0):
         carrier_hz=carrier_hz,
     )
     d.set_preamble(_acode(), REPS)
-    d.set_sync(SYNC)
+    d.set_frame(SYNC)
     d.set_prior(F0, 0)
     return d, d.demod(x)
 
@@ -491,7 +491,7 @@ def _sec_bounds(d: Data) -> None:
     )
     d.max_out_is_payload = dd.demod_max_out() == PAYLOAD_LEN
     dd.set_preamble(_acode(), REPS)
-    dd.set_sync(SYNC)
+    dd.set_frame(SYNC)
     dd.set_prior(F0, 0)
     rows = []
     refused = True

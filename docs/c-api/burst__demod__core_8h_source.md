@@ -14,10 +14,16 @@
 
 #include "clib_common.h"
 #include "jm_perf.h"
+#include "ccsds_tm/ccsds_tm_frame.h" /* CCSDS_TM_ASM_BITS + the ops */
+#include "wfm/wfm_frame.h"           /* the frame DESCRIPTION          */
 #include "ppe/ppe_core.h"
 #include "fft/fft_core.h"
 #include "spectral/spectral_core.h"
 #include <complex.h>
+#include "conv/conv_core.h"
+#include "rs/rs_core.h"
+#include "pn/pn_core.h"
+#include "gold/gold_core.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -33,6 +39,11 @@ extern "C"
     size_t   acq_reps;  
     int8_t  *sync;      
     size_t   sync_len;  
+    uint8_t *sync_bits; 
+    uint8_t  marker[CCSDS_TM_ASM_BITS]; 
+    wfm_frame_desc_t d;   
+    wfm_frame_desc_layout_t lay; 
+    unsigned payload_field;      
     size_t   spc;       
     double   chip_rate; 
     double   carrier_hz; 
@@ -48,6 +59,7 @@ extern "C"
 
     /* ── read-backs (after demod) ── */
     int    frame_valid;  
+    int    frame_checked; 
     size_t frame_offset; 
     size_t n_symbols;    
     double est_freq_hz;  
@@ -69,8 +81,9 @@ extern "C"
                                  const uint8_t *acq_code, size_t acq_code_len,
                                  size_t reps);
 
-  void burst_demod_set_sync (burst_demod_state_t *state, const uint8_t *sync,
-                             size_t sync_len);
+  int burst_demod_set_frame (burst_demod_state_t *state, const uint8_t *sync,
+                             size_t sync_len, int crc, unsigned rs_depth,
+                             int randomise, int attach_asm);
 
   void burst_demod_set_prior (burst_demod_state_t *state, double f0_coarse,
                               size_t start);

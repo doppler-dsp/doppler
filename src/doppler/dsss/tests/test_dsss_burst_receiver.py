@@ -279,3 +279,176 @@ def test_the_event_survives_a_state_round_trip_mid_stream() -> None:
     assert np.array_equal(got, payload)
     assert b.frame_valid == 1
     assert b.preamble_start == at
+
+
+# ── the frame is a DESCRIPTION, and both ends read the same one ─────────
+#
+# The receiver used to assume `sync | payload | CRC-16` and nothing else.
+# A burst generated without a CRC decoded bit-exactly and was reported
+# INVALID; one carrying a randomiser or an outer code could not be
+# described at all, and the transmitter could not emit one either
+# (doppler#1017). These tests drive the two ends against each other --
+# `wfm.Composer` generates, `DsssBurstReceiver` receives -- because a frame
+# both halves agree on is the entire claim.
+
+_TX_ACQ_BITS, _TX_DATA_BITS = 8, 5
+_TX_REPS, _TX_SPC = 5, 2
+_TX_SYNC = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
+
+
+def _mls(stages, seed):
+    """An m-sequence from doppler's own PN generator, not a random array."""
+    from doppler.wfm import PN
+
+    n = 2**stages - 1
+    return (
+        np.asarray(PN(poly=0, seed=seed, length=stages).generate(n)) & 1
+    ).astype(np.uint8)
+
+
+def _link(payload_bits=96, **stages):
+    """`(capture, payload, receiver_kwargs)` for one generated burst.
+
+    The stage kwargs go to BOTH ends: to the scene as the generator spells
+    them (`crc`, `randomise`, `attach_asm`, `rs_depth`) and to the receiver
+    as it does. That is the point of the exercise -- one set of choices,
+    two faces, and no third place where the frame's shape is written down.
+    """
+    from doppler.wfm import Composer, Segment
+
+    acq, data = _mls(_TX_ACQ_BITS, 1), _mls(_TX_DATA_BITS, 3)
+    payload = (
+        np.random.default_rng(0).integers(0, 2, payload_bits).astype(np.uint8)
+    )
+    seg = {
+        "type": "dsss",
+        "fs": 1.0e6 * _TX_SPC,
+        "freq": 0.0,
+        # A REAL noise floor, not a clean one: the CFAR reference reads the
+        # floor, so a noiseless capture makes weak sidelobes cross the
+        # threshold and the same burst detect twice. 12 dB Es/N0 is what the
+        # rest of the burst suite uses.
+        "snr": 12.0,
+        "snr_mode": "esno",
+        "seed": 1,
+        "sps": _TX_SPC,
+        "acq_code": acq.tobytes(),
+        "acq_reps": _TX_REPS,
+        "data_code": data.tobytes(),
+        "sync": _TX_SYNC.tobytes(),
+        "payload": payload.tobytes(),
+        "gap_noise": "auto",
+        "off_samples": 200_000,  # room for the receiver's retain span
+    }
+    seg.update(stages)
+    rx_kw = {
+        "acq_code": acq,
+        "data_code": data,
+        "sync": _TX_SYNC,
+        "reps": _TX_REPS,
+        "spc": _TX_SPC,
+        "chip_rate": 1.0e6,
+        "payload_len": payload_bits,
+        "cn0_dbhz": 60.0,
+        "doppler_uncertainty": 0.0,
+        "pfa": 1e-3,
+        "pd": 0.9,
+        "carrier_hz": 0.0,
+        "max_rate": 0.0,
+        "est_segments": 10,
+    }
+    return np.asarray(Composer([Segment(**seg)]).compose()), payload, rx_kw
+
+
+def test_a_frame_with_no_crc_decodes_and_says_it_carries_no_check() -> None:
+    """`crc=0` is a frame 16 bits shorter, not a frame that failed.
+
+    Measured before this changed: the payload came out BIT-EXACT and
+    `frame_valid` read 0, because the receiver measured the burst against a
+    trailer the transmitter never sent. "Carries no check" and "the check
+    failed" are different facts, and an FER conflating them scores every
+    unprotected frame as an error.
+    """
+    cap, payload, rx_kw = _link(crc="none")
+    rx = DsssBurstReceiver(**rx_kw, crc=0)
+    bits = np.asarray(rx.push(cap))
+
+    assert bits.size >= payload.size
+    assert np.array_equal(bits[: payload.size], payload)
+    assert rx.frame_checked == 0, "there is no check in this frame to run"
+    assert rx.frame_valid == 0, "...so nothing passed, either"
+
+
+def test_the_randomiser_round_trips_and_a_mismatch_is_caught() -> None:
+    """A stage is only useful if both ends run it, and only safe if a
+    mismatch is visible."""
+    cap, payload, rx_kw = _link(randomise=1)
+
+    matched = DsssBurstReceiver(**rx_kw, randomise=1)
+    bits = np.asarray(matched.push(cap))
+    assert np.array_equal(bits[: payload.size], payload)
+    assert matched.frame_valid == 1
+    assert matched.frame_checked == 2, "the CRC and the randomiser both ran"
+
+    # The receiver that does not derandomise gets noise-looking bits — and
+    # the CRC says so rather than the payload quietly being wrong.
+    plain = DsssBurstReceiver(**rx_kw)
+    bits = np.asarray(plain.push(cap))
+    assert not np.array_equal(bits[: payload.size], payload)
+    assert plain.frame_checked == 1, "the CRC ran"
+    assert plain.frame_valid == 0, "...and failed, which is the point"
+
+
+def test_an_outer_code_repairs_before_the_payload_is_read() -> None:
+    """RS(255,223) corrects the frame, then the payload is read from it.
+
+    Errors are injected by INVERTING whole data symbols, so their count is
+    exact rather than a function of how the noise fell: eight bit errors,
+    well inside a depth-1 codeword's 16-byte correction capacity.
+    """
+    n_pay = 223 * 8 - 16  # payload + CRC = exactly one RS codeword's data
+    errs = [20, 40, 60, 80, 100, 120, 140, 160]
+
+    def corrupt(cap, data_len):
+        sym = data_len * _TX_SPC
+        pre = _TX_REPS * (2**_TX_ACQ_BITS - 1) * _TX_SPC
+        out = cap.copy()
+        for k in errs:
+            out[pre + k * sym : pre + (k + 1) * sym] *= -1
+        return out
+
+    data_len = 2**_TX_DATA_BITS - 1
+
+    cap, payload, rx_kw = _link(payload_bits=n_pay)
+    bits = np.asarray(DsssBurstReceiver(**rx_kw).push(corrupt(cap, data_len)))
+    assert int(np.sum(bits[:n_pay] != payload)) == len(errs), (
+        "without an outer code the injected errors reach the payload"
+    )
+
+    cap, payload, rx_kw = _link(payload_bits=n_pay, rs_depth=1)
+    rx = DsssBurstReceiver(**rx_kw, rs_depth=1)
+    bits = np.asarray(rx.push(corrupt(cap, data_len)))
+    assert np.array_equal(bits[:n_pay], payload), "the outer code repaired it"
+    assert rx.frame_valid == 1 and rx.frame_checked == 2
+
+
+def test_the_marker_is_part_of_the_frame_both_ends_describe() -> None:
+    """An ASM-carrying burst decodes, and only against a receiver told so.
+
+    The marker is a field like any other: it lengthens the frame, so a
+    receiver that does not know about it is looking for a shorter frame in
+    the wrong place — which is exactly what a description prevents.
+    """
+    cap, payload, rx_kw = _link(attach_asm=1)
+
+    told = DsssBurstReceiver(**rx_kw, attach_asm=1)
+    bits = np.asarray(told.push(cap))
+    assert np.array_equal(bits[: payload.size], payload)
+    assert told.frame_valid == 1
+
+    untold = DsssBurstReceiver(**rx_kw)
+    out = np.asarray(untold.push(cap))
+    assert not (
+        out.size >= payload.size
+        and np.array_equal(out[: payload.size], payload)
+    ), "a receiver that does not know about the marker must not decode"

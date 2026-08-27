@@ -137,6 +137,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) _The kernels an assembly runs, and whatever state they carry._     
 * **struct** [**wfm\_frame\_rx\_t**](structwfm__frame__rx__t.md) _What_ [_**wfm\_frame\_check**_](wfm__frame_8h.md#function-wfm_frame_check) _found, stage by stage._    
 * **struct** [**wfm\_frame\_span\_t**](structwfm__frame__span__t.md) _A run of bits inside the assembled frame,_ `[first, first + n)` _._    
+* **struct** [**wfm\_frame\_spec\_t**](structwfm__frame__spec__t.md) _The frame knobs a FACE offers, before they become a description._     
 * **struct** [**wfm\_frame\_stage\_rx\_t**](structwfm__frame__stage__rx__t.md) _What undoing one stage found._     
 * **struct** [**wfm\_frame\_t**](structwfm__frame__t.md) _A frame's bit layout:_ `[preamble × reps | sync | payload | crc]` _._    
 * **struct** [**wfm\_keyword\_t**](structwfm__keyword__t.md)     

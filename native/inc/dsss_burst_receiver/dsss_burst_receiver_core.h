@@ -61,7 +61,12 @@ typedef struct
   double   est_rate_hz;    /**< Demod's chirp-rate estimate.               */
   double   est_snr_db;     /**< Demod's post-decode SNR estimate.          */
   double   refine_margin;  /**< Runner-up period over the winner.          */
-  uint64_t frame_valid;    /**< Non-zero if the CRC-16 checked out.        */
+  uint64_t frame_valid;    /**< Non-zero if every check that RAN passed.   */
+  uint64_t frame_checked;  /**< Checking stages actually reversed. 0 with
+                                frame_valid 0 means the frame carries NO
+                                check -- a different fact from a failed
+                                one, and an FER conflating them scores
+                                every unprotected frame as an error.      */
 } dsss_br_event_t;
 
 /**
@@ -107,6 +112,9 @@ typedef struct
 #include "detection/detection_core.h"
 #include "fft/fft_core.h"
 #include "pn/pn_core.h"
+#include "conv/conv_core.h"
+#include "rs/rs_core.h"
+#include "gold/gold_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -153,7 +161,8 @@ typedef struct {
 
   /* ── The DetectionEvent, describing the most recent completed burst ─── */
   uint64_t preamble_start; /**< Stream-absolute preamble start. Never late. */
-  int      frame_valid;    /**< 1 iff the CRC-16 trailer matched.           */
+  int      frame_valid;    /**< 1 iff every check that RAN came out good.   */
+  int      frame_checked;  /**< Checking stages reversed for that burst.    */
   double   doppler_hz_est; /**< Signed coarse Doppler, Hz.                  */
   double   doppler_res_hz; /**< Width of that estimate.                     */
   double   cn0_dbhz_est;   /**< C/N0 lower bound, dB-Hz (saturating).       */
@@ -310,7 +319,7 @@ typedef struct {
  *
  * @endcode
  */
-dsss_burst_receiver_state_t *dsss_burst_receiver_create(const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code, size_t data_code_len, const uint8_t *sync, size_t sync_len, size_t reps, size_t spc, double chip_rate, size_t payload_len, double cn0_dbhz, double doppler_uncertainty, double pfa, double pd, double carrier_hz, double max_rate, size_t est_segments);
+dsss_burst_receiver_state_t *dsss_burst_receiver_create(const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code, size_t data_code_len, const uint8_t *sync, size_t sync_len, size_t reps, size_t spc, double chip_rate, size_t payload_len, double cn0_dbhz, double doppler_uncertainty, double pfa, double pd, double carrier_hz, double max_rate, size_t est_segments, int crc, int rs_depth, int randomise, int attach_asm);
 
 /**
  * @brief Destroy a dsss_burst_receiver instance and release all memory.
@@ -481,6 +490,8 @@ size_t dsss_burst_receiver_events(dsss_burst_receiver_state_t *state, size_t n, 
 int dsss_burst_receiver_configure_search_raw(dsss_burst_receiver_state_t *state, size_t doppler_bins, size_t n_noncoh);
 uint64_t dsss_burst_receiver_get_preamble_start(const dsss_burst_receiver_state_t *state);
 int dsss_burst_receiver_get_frame_valid(const dsss_burst_receiver_state_t *state);
+
+int dsss_burst_receiver_get_frame_checked(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_doppler_hz_est(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_doppler_res_hz(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_cn0_dbhz_est(const dsss_burst_receiver_state_t *state);

@@ -189,7 +189,7 @@ make_rx (void)
 {
   return dsss_burst_receiver_create (
       acq_code (), ACQ_SF, data_code (), DATA_SF, sync_word (), SYNC_LEN, REPS,
-      SPC, 1.0e6, PAYLOAD, 55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
+      SPC, 1.0e6, PAYLOAD, 55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10, 1, 0, 0, 0);
 }
 
 static dsss_burst_receiver_state_t *
@@ -204,7 +204,7 @@ make (void)
     sync[i] = (uint8_t)((i * 3u) & 1u);
   return dsss_burst_receiver_create (acq, ACQ_SF, data, DATA_SF, sync,
                                      SYNC_LEN, REPS, SPC, 1.0e6, PAYLOAD, 50.0,
-                                     0.0, 1e-3, 0.9, 0.0, 0.0, 10);
+                                     0.0, 1e-3, 0.9, 0.0, 0.0, 10, 1, 0, 0, 0);
 }
 
 /* A valid parameter set builds, and the codes are COPIED -- the caller's
@@ -260,7 +260,7 @@ test_refuses_bad_arguments (void)
 #define MK(ac, acl, dc, dcl, sy, syl, rp, sp, cr, pl, cn, du, fa, pdv)        \
   dsss_burst_receiver_create ((ac), (acl), (dc), (dcl), (sy), (syl), (rp),    \
                               (sp), (cr), (pl), (cn), (du), (fa), (pdv), 0.0, \
-                              0.0, 10)
+                              0.0, 10, 1, 0, 0, 0)
 
   DP_CHECK (MK (NULL, 0, code, DATA_SF, sync, SYNC_LEN, REPS, SPC, 1e6,
                 PAYLOAD, 50.0, 0.0, 1e-3, 0.9)
@@ -821,7 +821,7 @@ test_acq_saturation_does_not_lose_bursts (void)
      this test pass for the wrong reason. */
   dsss_burst_receiver_state_t *s = dsss_burst_receiver_create (
       acq_code (), ACQ_SF, data_code (), DATA_SF, sync_word (), SYNC_LEN, REPS,
-      SPC, 1.0e6, PAYLOAD, 55.0, 0.0, 0.2, 0.9, 0.0, 0.0, 10);
+      SPC, 1.0e6, PAYLOAD, 55.0, 0.0, 0.2, 0.9, 0.0, 0.0, 10, 1, 0, 0, 0);
   DP_REQUIRE (s != NULL);
   DP_REQUIRE (dsss_burst_receiver_configure_search_raw (s, 1, 1) == DP_OK);
 

@@ -26,6 +26,12 @@ target_link_libraries(dsss PRIVATE
     fft2d_core
     fft_core
     spectral_core
+    wfm_frame_core
+    ccsds_tm_core
+    conv_core
+    rs_core
+    pn_core
+    gold_core
     wfm_dsp_core
     RateConverter_core
     resamp_core
@@ -42,7 +48,6 @@ target_link_libraries(dsss PRIVATE
     symsync_core
     nco_core
     farrow_core
-    gold_core
     snr_core
     carrier_acq_core
     psd_core
@@ -86,6 +91,12 @@ target_link_libraries(test_dsss_core PRIVATE
     fft2d_core
     fft_core
     spectral_core
+    wfm_frame_core
+    ccsds_tm_core
+    conv_core
+    rs_core
+    pn_core
+    gold_core
     wfm_dsp_core
     RateConverter_core
     resamp_core
@@ -102,7 +113,6 @@ target_link_libraries(test_dsss_core PRIVATE
     symsync_core
     nco_core
     farrow_core
-    gold_core
     snr_core
     carrier_acq_core
     psd_core
@@ -138,6 +148,12 @@ target_link_libraries(bench_dsss_core PRIVATE
     fft2d_core
     fft_core
     spectral_core
+    wfm_frame_core
+    ccsds_tm_core
+    conv_core
+    rs_core
+    pn_core
+    gold_core
     wfm_dsp_core
     RateConverter_core
     resamp_core
@@ -154,7 +170,6 @@ target_link_libraries(bench_dsss_core PRIVATE
     symsync_core
     nco_core
     farrow_core
-    gold_core
     snr_core
     carrier_acq_core
     psd_core

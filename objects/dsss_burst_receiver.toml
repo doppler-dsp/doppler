@@ -34,6 +34,12 @@ depends_on = [
     { name = "burst_acq", link = true },
     { name = "acq", link = true },
     { name = "burst_demod", link = true },
+    { name = "wfm_frame", link = true },
+    { name = "ccsds_tm", link = true },
+    { name = "conv", link = true },
+    { name = "rs", link = true },
+    { name = "pn", link = true },
+    { name = "gold", link = true },
     { name = "burst_despreader", link = true },
     { name = "ppe", link = true },
     { name = "corr", link = true },
@@ -128,6 +134,30 @@ name = "est_segments"
 type = "size_t"
 default = "10"
 
+[[dsss_burst_receiver.init_params]]
+name = "crc"
+type = "int"
+default = "1"
+doc = "Non-zero: the frame ends in a CRC-16-CCITT trailer over the payload. 0: it does not, and the frame is 16 bits shorter — which the receiver now BELIEVES, instead of measuring the burst against a trailer the transmitter never sent and reporting every frame invalid. Whether a frame carries a check and whether that check passed are separate answers: see `frame_checked`."
+
+[[dsss_burst_receiver.init_params]]
+name = "rs_depth"
+type = "int"
+default = "0"
+doc = "Reed-Solomon (255,223) E=16 interleaving depth over the data group; 0 = no outer code. An outer code REPAIRS: `wfm_frame_check` corrects the frame in place over the span its description gives it, so the payload is read after the repair rather than before it."
+
+[[dsss_burst_receiver.init_params]]
+name = "randomise"
+type = "int"
+default = "0"
+doc = "The CCSDS section-10 pseudo-randomiser over the data group: 0 = off, 1 = 131.0-B-6 10.4.1's sequence, 2 = 10.4.2's legacy one. It is its own inverse, so the receiver runs the same generator the transmitter did — and only the matching one derandomises a given waveform."
+
+[[dsss_burst_receiver.init_params]]
+name = "attach_asm"
+type = "int"
+default = "0"
+doc = "Non-zero: the frame opens with the CCSDS Attached Sync Marker, and the correlation template becomes marker+sync rather than sync alone — free acquisition gain, since a marker is a field a receiver FINDS rather than decodes."
+
 [[dsss_burst_receiver.methods]]
 name = "push"
 doc = "Stream raw cf32 samples and get back the payload of EVERY burst that completed. Samples feed the embedded BurstAcquisition and are retained in a history ring; when a detection fires, the refine stage correlates the whole preamble to recover the exact preamble start -- the one quantity acquisition structurally cannot report, since its code_phase is a lag modulo one code period -- and the burst is demodulated the moment its last sample has arrived. Every sample is consumed and every burst that completes is returned by the call that completed it, with payloads concatenated: burst i occupies bits[i*payload_len:(i+1)*payload_len], and events() returns the matching record for each. An empty return is normal, not an error: it means no burst completed in this call. Accepts any block size -- the history ring is a contiguous window over the stream and is never reset between bursts, so a payload whose tail falls outside one call is completed by a later one."
@@ -162,6 +192,7 @@ result_fields = [
   { name = "est_snr_db", type = "double" },
   { name = "refine_margin", type = "double" },
   { name = "frame_valid", type = "uint64_t" },
+  { name = "frame_checked", type = "uint64_t" },
 ]
 
 [[dsss_burst_receiver.methods]]
@@ -196,6 +227,10 @@ type = "uint64_t"
 
 [[dsss_burst_receiver.properties]]
 name = "frame_valid"
+type = "int"
+
+[[dsss_burst_receiver.properties]]
+name = "frame_checked"
 type = "int"
 
 [[dsss_burst_receiver.properties]]

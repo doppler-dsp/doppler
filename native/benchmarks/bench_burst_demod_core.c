@@ -177,7 +177,7 @@ main (void)
           return 1;
         }
       burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
-      burst_demod_set_sync (d, SYNC, SYNC_LEN);
+      burst_demod_set_frame (d, SYNC, SYNC_LEN, 1, 0, 0, 0);
       burst_demod_set_prior (d, priors[k], 0);
 
       /* The precondition. Every stage of this object exits early on a

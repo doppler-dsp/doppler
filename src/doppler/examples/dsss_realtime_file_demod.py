@@ -226,7 +226,7 @@ def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
 
     d = BurstDemod(_DCODE, SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10)
     d.set_preamble(_ACODE, REPS)
-    d.set_sync(SYNC)
+    d.set_frame(SYNC)
     npre = ACQ_SF * REPS * SPC
     # Try the acquired code phase first (sample-precise), then fall back to a
     # coarse grid scan over one code period in case the peak was a chip off.

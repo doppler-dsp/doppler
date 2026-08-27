@@ -177,6 +177,27 @@ extern "C"
 
   size_t wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out);
 
+  typedef struct
+  {
+    const uint8_t *marker;
+    size_t         n_marker;
+    const uint8_t *preamble;
+    size_t         n_preamble;
+    size_t         preamble_reps;
+    const uint8_t *sync;
+    size_t         n_sync;
+    const uint8_t *payload;
+    size_t         n_payload;
+    int crc;
+    unsigned rs_depth;
+    size_t rs_parity_bits;
+    int randomise;
+    int convolutional;
+    unsigned conv_num, conv_den;
+  } wfm_frame_spec_t;
+
+  int wfm_frame_desc_of (const wfm_frame_spec_t *s, wfm_frame_desc_t *d);
+
   size_t wfm_dsss_desc_nchips (const wfm_frame_desc_t *d, size_t acq_len,
                                size_t acq_reps, size_t data_len);
 

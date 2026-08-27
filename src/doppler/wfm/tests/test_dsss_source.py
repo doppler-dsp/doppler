@@ -223,7 +223,7 @@ def test_five_bursts_decode_through_burst_demod():
     for _k, s in enumerate(starts):
         bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, payload_len=PAYLOAD)
         bd.set_preamble(acq, REPS)
-        bd.set_sync(SYNC)
+        bd.set_frame(SYNC)
         bd.set_prior(0.0, 0)
         bits = bd.demod(x[s : s + BURST_LEN])
         if bd.frame_valid and np.array_equal(bits, pay):
@@ -392,7 +392,7 @@ def test_repeats_burst_train_decodes():
     for s in starts:
         bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, payload_len=PAYLOAD)
         bd.set_preamble(acq, REPS)
-        bd.set_sync(SYNC)
+        bd.set_frame(SYNC)
         bd.set_prior(0.0, 0)
         bits = bd.demod(x[s : s + BURST_LEN])
         if bd.frame_valid and np.array_equal(bits, pay):
@@ -438,7 +438,7 @@ def test_gap_noise_default_floor_and_decode():
     for s in starts:
         bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, payload_len=PAYLOAD)
         bd.set_preamble(acq, REPS)
-        bd.set_sync(SYNC)
+        bd.set_frame(SYNC)
         bd.set_prior(0.0, 0)
         bits = bd.demod(x[s : s + BURST_LEN])
         if bd.frame_valid and np.array_equal(bits, pay):

@@ -92,9 +92,9 @@ class Synth:
         factor.
     sync : bytes | None, default None
         The frame-sync word bits (e.g. Barker-13) between the preamble and the
-        payload — what BurstDemod.set_sync correlates to resolve frame position
-        and BPSK polarity, and what a BER alignment detects against. Optional;
-        setting it (or acq_code) is what makes a source FRAMED.
+        payload — what BurstDemod.set_frame correlates to resolve frame
+        position and BPSK polarity, and what a BER alignment detects against.
+        Optional; setting it (or acq_code) is what makes a source FRAMED.
     crc : str, default ``"crc16"``
         The frame trailer — crc16 appends a CRC-16-CCITT over the payload bits
         (what BurstDemod validates as frame_valid, and what makes a truth-free
@@ -300,9 +300,9 @@ class Segment:
         factor.
     sync : bytes | None, default None
         The frame-sync word bits (e.g. Barker-13) between the preamble and the
-        payload — what BurstDemod.set_sync correlates to resolve frame position
-        and BPSK polarity, and what a BER alignment detects against. Optional;
-        setting it (or acq_code) is what makes a source FRAMED.
+        payload — what BurstDemod.set_frame correlates to resolve frame
+        position and BPSK polarity, and what a BER alignment detects against.
+        Optional; setting it (or acq_code) is what makes a source FRAMED.
     crc : str, default ``"crc16"``
         The frame trailer — crc16 appends a CRC-16-CCITT over the payload bits
         (what BurstDemod validates as frame_valid, and what makes a truth-free

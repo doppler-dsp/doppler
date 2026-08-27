@@ -1169,7 +1169,7 @@ name = "sync"
 type = "uint8_t*"
 bytes = true
 coerce = "bit_pattern"
-doc = "The frame-sync word bits (e.g. Barker-13) between the preamble and the payload — what BurstDemod.set_sync correlates to resolve frame position and BPSK polarity, and what a BER alignment detects against. Optional; setting it (or acq_code) is what makes a source FRAMED."
+doc = "The frame-sync word bits (e.g. Barker-13) between the preamble and the payload — what BurstDemod.set_frame correlates to resolve frame position and BPSK polarity, and what a BER alignment detects against. Optional; setting it (or acq_code) is what makes a source FRAMED."
 
 [[module.wfm_compose.source.fields]]
 name = "crc"

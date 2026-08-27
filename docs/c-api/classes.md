@@ -205,6 +205,7 @@
 * [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md)
 * [**wfm\_frame\_rx\_t**](structwfm__frame__rx__t.md)
 * [**wfm\_frame\_span\_t**](structwfm__frame__span__t.md)
+* [**wfm\_frame\_spec\_t**](structwfm__frame__spec__t.md)
 * [**wfm\_frame\_stage\_rx\_t**](structwfm__frame__stage__rx__t.md)
 * [**wfm\_frame\_t**](structwfm__frame__t.md)
 * [**wfm\_keyword\_t**](structwfm__keyword__t.md)

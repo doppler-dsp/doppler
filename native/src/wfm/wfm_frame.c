@@ -478,6 +478,135 @@ wfm_frame_crc_ok (const wfm_frame_t *f, const uint8_t *rx_bits)
   return wfm_frame_desc_crc_ok (&d, rx_bits);
 }
 
+/* ── the knobs, as a description ────────────────────────────────────────
+ *
+ * Moved here from the generator's bridge, where it could only ever serve one
+ * direction. A receiver needs the same layout from the same choices, and the
+ * only way two faces cannot disagree about a frame is for neither of them to
+ * work it out.
+ */
+int
+wfm_frame_desc_of (const wfm_frame_spec_t *s, wfm_frame_desc_t *d)
+{
+  if (!s || !d)
+    return -1;
+  memset (d, 0, sizeof *d);
+
+  unsigned i_data = 0, i_crc = 0, i_parity = 0, n = 0;
+
+  /* A field is included on its LENGTH, never on its pointer being non-NULL:
+     a length with no array is an unbuildable descriptor, and it has to reach
+     `wfm_frame_assemble` to be refused there. Dropping the field instead
+     would assemble a frame that is quietly missing it -- the same silent
+     unframing the composer's own tests pin. */
+  if (s->n_marker)
+    {
+      d->field[n].seq.kind = WFM_SEQ_LITERAL;
+      d->field[n].seq.bits = s->marker;
+      d->field[n].seq.len  = s->n_marker;
+      n++;
+    }
+  if (s->n_preamble && s->preamble_reps)
+    {
+      d->field[n].seq.kind = WFM_SEQ_LITERAL;
+      d->field[n].seq.bits = s->preamble;
+      d->field[n].seq.len  = s->n_preamble;
+      d->field[n].reps     = s->preamble_reps;
+      n++;
+    }
+  if (s->n_sync)
+    {
+      d->field[n].seq.kind = WFM_SEQ_LITERAL;
+      d->field[n].seq.bits = s->sync;
+      d->field[n].seq.len  = s->n_sync;
+      n++;
+    }
+
+  /* The payload is a field even when its bits are unknown: a receiver holds
+     the geometry and fills the contents in later. */
+  i_data               = n;
+  d->field[n].seq.kind = WFM_SEQ_LITERAL;
+  d->field[n].seq.bits = s->payload;
+  d->field[n].seq.len  = s->n_payload;
+  n++;
+
+  /* Stage indices are needed before the stages exist, because a derived
+     field names the stage that writes it. They are assigned in APPLICATION
+     order: the CRC first, then the outer code over the result, then the
+     randomiser, then the inner code. */
+  unsigned s_crc = 0, s_rs = 0, s_rand = 0, s_conv = 0, ns = 0;
+  if (s->crc)
+    s_crc = ns++;
+  if (s->rs_depth)
+    s_rs = ns++;
+  if (s->randomise)
+    s_rand = ns++;
+  if (s->convolutional)
+    s_conv = ns++;
+  if (ns > WFM_FRAME_MAX_STAGES)
+    return -1;
+
+  if (s->crc)
+    {
+      i_crc                  = n;
+      d->field[n].bits       = WFM_FRAME_CRC_BITS;
+      d->field[n].derived_by = s_crc + 1u;
+      n++;
+    }
+  if (s->rs_depth)
+    {
+      i_parity               = n;
+      d->field[n].bits       = s->rs_parity_bits;
+      d->field[n].derived_by = s_rs + 1u;
+      n++;
+    }
+  if (n > WFM_FRAME_MAX_FIELDS)
+    return -1;
+  d->n_fields = n;
+  d->n_stages = ns;
+
+  /* The data group: payload, its CRC, and the outer code's check symbols.
+     Contiguous by construction, and each derived field is the last of its
+     own stage's cover, which is what lets one kernel signature serve them
+     all. */
+  const unsigned data_end = n; /* one past the last data field */
+
+  if (s->crc)
+    {
+      d->stage[s_crc].kind        = WFM_STAGE_CRC16;
+      d->stage[s_crc].first_field = i_data;
+      d->stage[s_crc].n_fields    = i_crc - i_data + 1u;
+    }
+  if (s->rs_depth)
+    {
+      d->stage[s_rs].kind        = WFM_STAGE_RS;
+      d->stage[s_rs].depth       = s->rs_depth;
+      d->stage[s_rs].first_field = i_data;
+      d->stage[s_rs].n_fields    = i_parity - i_data + 1u;
+    }
+  if (s->randomise)
+    {
+      d->stage[s_rand].kind        = WFM_STAGE_RANDOMISE;
+      d->stage[s_rand].first_field = i_data;
+      d->stage[s_rand].n_fields    = data_end - i_data;
+      /* WHICH generator, carried on the stage: a standard may specify more
+         than one and they produce waveforms only the matching receiver
+         derandomises, so this is not a detail the kernel may pick for
+         itself. `depth` is the stage's free parameter and the randomiser
+         has no other use for it. */
+      d->stage[s_rand].depth = (unsigned)s->randomise;
+    }
+  if (s->convolutional)
+    {
+      d->stage[s_conv].kind        = WFM_STAGE_CONV;
+      d->stage[s_conv].first_field = 0u;
+      d->stage[s_conv].n_fields    = n;
+      d->stage[s_conv].emit_num    = s->conv_num ? s->conv_num : 2u;
+      d->stage[s_conv].emit_den    = s->conv_den ? s->conv_den : 1u;
+    }
+  return 0;
+}
+
 /* ── the DSSS burst: a FRAME, then spread ──────────────────────────────
  *
  * These live here rather than in wfm_dsp.c because they are frame functions:

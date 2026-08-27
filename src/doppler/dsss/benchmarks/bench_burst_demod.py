@@ -42,7 +42,7 @@ def waveform():
 def _demod(acq_code, data_code):
     d = BurstDemod(data_code, SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10)
     d.set_preamble(acq_code, REPS)
-    d.set_sync(SYNC)
+    d.set_frame(SYNC)
     return d
 
 

@@ -136,7 +136,7 @@ decoded = 0
 for s in starts:
     bd = BurstDemod(dat, spc=4, chip_rate=1e6, payload_len=200)
     bd.set_preamble(acq, 4)
-    bd.set_sync(BARKER13)
+    bd.set_frame(BARKER13)
     bd.set_prior(0.0, 0)
     bits = bd.demod(x[s : s + burst_len])
     decoded += bool(bd.frame_valid and np.array_equal(bits, pay))

@@ -137,7 +137,7 @@ run_case (const char *name, double f0, double f0_prior, double mu,
                                                0.0, max_rate, PAYLOAD, 10);
   DP_CHECK (d != NULL);
   burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
-  burst_demod_set_sync (d, SYNC, SYNC_LEN);
+  burst_demod_set_frame (d, SYNC, SYNC_LEN, 1, 0, 0, 0);
   burst_demod_set_prior (d, f0_prior, 0);
 
   uint8_t bits[PAYLOAD];
@@ -190,12 +190,12 @@ run_edge_cases (void)
   burst_demod_state_t *d
       = burst_demod_create (dc, DATA_SF, SPC, CHIP_RATE, 0, 0, PAYLOAD, 10);
   DP_CHECK (d != NULL);
-  burst_demod_set_preamble (d, NULL, 0, 0); /* guard: ignored */
-  burst_demod_set_sync (d, NULL, 0);        /* guard: ignored */
+  burst_demod_set_preamble (d, NULL, 0, 0);       /* guard: ignored */
+  burst_demod_set_frame (d, NULL, 0, 1, 0, 0, 0); /* no sync word */
   burst_demod_set_preamble (d, ac, ACQ_SF, ACQ_REPS);
   burst_demod_set_preamble (d, ac, ACQ_SF,
                             ACQ_REPS); /* re-arm: frees old ppe */
-  burst_demod_set_sync (d, SYNC, SYNC_LEN);
+  burst_demod_set_frame (d, SYNC, SYNC_LEN, 1, 0, 0, 0);
 
   /* Too-short input → clean failure (0 symbols, frame invalid). */
   float complex tiny[8] = { 0 };
@@ -268,7 +268,7 @@ main (void)
         if (d)
           {
             burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
-            burst_demod_set_sync (d, SYNC, SYNC_LEN);
+            burst_demod_set_frame (d, SYNC, SYNC_LEN, 1, 0, 0, 0);
             burst_demod_set_prior (d, f0, 0);
             DP_CHECK (burst_demod_demod (d, y, n, bits, PAYLOAD) == PAYLOAD);
             DP_CHECK (d->frame_valid == 1);
@@ -286,7 +286,7 @@ main (void)
             if (b)
               {
                 burst_demod_set_preamble (b, acode, ACQ_SF, ACQ_REPS);
-                burst_demod_set_sync (b, SYNC, SYNC_LEN);
+                burst_demod_set_frame (b, SYNC, SYNC_LEN, 1, 0, 0, 0);
                 burst_demod_set_prior (b, f0, 0);
                 size_t nb = burst_demod_demod (b, y, n, bits, PAYLOAD);
                 /* The frame is still decoded -- this is not the too-short
@@ -342,7 +342,7 @@ main (void)
             if (d)
               {
                 burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
-                burst_demod_set_sync (d, SYNC, SYNC_LEN);
+                burst_demod_set_frame (d, SYNC, SYNC_LEN, 1, 0, 0, 0);
                 burst_demod_set_prior (d, f0, 0);
                 DP_CHECK (burst_demod_demod (d, y, n, bits, PAYLOAD)
                           == PAYLOAD);
@@ -393,7 +393,7 @@ main (void)
         if (d)
           {
             burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
-            burst_demod_set_sync (d, SYNC, SYNC_LEN);
+            burst_demod_set_frame (d, SYNC, SYNC_LEN, 1, 0, 0, 0);
             burst_demod_set_prior (d, f0, 0);
             DP_CHECK (burst_demod_demod (d, y, n, bits, PAYLOAD) == PAYLOAD);
             /* the precondition: they are NON-zero before the reset, or the
@@ -413,6 +413,77 @@ main (void)
           }
         free (y);
       }
+  }
+
+  /* ── the frame is a DESCRIPTION, not `sync | payload | CRC-16` ────────
+   *
+   * The frame's length used to be that expression, spelled here and in the
+   * generator and in the composing receiver. A burst sent WITHOUT a CRC
+   * therefore decoded bit-exactly and was reported invalid, because the
+   * demodulator was measuring it against a trailer nobody had sent.
+   *
+   * Two facts are pinned: the shorter frame decodes, and "carries no
+   * check" is reported apart from "the check failed" -- an FER conflating
+   * them scores every unprotected frame as an error.
+   */
+  {
+    uint8_t acode[ACQ_SF], dcode[DATA_SF], payload[PAYLOAD];
+    for (size_t i = 0; i < ACQ_SF; i++)
+      acode[i] = (uint8_t)((i * 2654435761u >> 13) & 1u);
+    for (size_t i = 0; i < DATA_SF; i++)
+      dcode[i] = (uint8_t)((i * 40503u >> 7) & 1u);
+    for (size_t i = 0; i < PAYLOAD; i++)
+      payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
+
+    /* The same burst as everywhere else in this file, with the trailer
+       simply not transmitted. */
+    size_t cap
+        = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD) * DATA_SF) * SPC + 16;
+    float complex *y = malloc (cap * sizeof *y);
+    DP_REQUIRE (y != NULL);
+    size_t n = 0;
+    for (size_t r = 0; r < ACQ_REPS; r++)
+      for (size_t c = 0; c < ACQ_SF; c++)
+        for (size_t k = 0; k < SPC; k++)
+          y[n++] = csign (acode[c]);
+    for (size_t j = 0; j < SYNC_LEN; j++)
+      n = put_symbol (y, n, dcode, SYNC[j]);
+    for (size_t j = 0; j < PAYLOAD; j++)
+      n = put_symbol (y, n, dcode, payload[j]);
+
+    burst_demod_state_t *d = burst_demod_create (
+        dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10);
+    DP_REQUIRE (d != NULL);
+    burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
+    DP_CHECK_MSG (burst_demod_set_frame (d, SYNC, SYNC_LEN, 0, 0, 0, 0) == 0,
+                  "a frame with no trailer is a frame");
+    DP_CHECK_MSG (d->lay.frame_bits == SYNC_LEN + PAYLOAD,
+                  "...and it is exactly 16 bits shorter than the CRC one");
+    burst_demod_set_prior (d, 0.0, 0);
+
+    uint8_t bits[PAYLOAD];
+    size_t  nb = burst_demod_demod (d, y, n, bits, PAYLOAD);
+    DP_CHECK_MSG (nb == PAYLOAD, "the CRC-less burst demodulates");
+    size_t errs = 0;
+    for (size_t i = 0; i < PAYLOAD; i++)
+      if (bits[i] != payload[i])
+        errs++;
+    DP_CHECK_MSG (errs == 0, "...bit-exactly");
+    DP_CHECK_MSG (d->frame_checked == 0,
+                  "no checking stage ran, because there is none");
+    DP_CHECK_MSG (d->frame_valid == 0,
+                  "...and nothing passed either -- the two are separate "
+                  "answers, and this frame's answer to the first is what "
+                  "makes the second meaningless rather than damning");
+
+    /* The same object, told the frame DOES carry a trailer, is looking for
+       a longer frame -- and says so rather than reading 16 bits of
+       whatever follows as a CRC that happened to fail. */
+    DP_CHECK (burst_demod_set_frame (d, SYNC, SYNC_LEN, 1, 0, 0, 0) == 0);
+    DP_CHECK_MSG (d->lay.frame_bits == SYNC_LEN + PAYLOAD + CRC_BITS,
+                  "the description is what changed, not a constant");
+    burst_demod_destroy (d);
+    free (y);
   }
 
   DP_TEST_END ("test_burst_demod_core");

@@ -21,8 +21,26 @@
 #include "dp_format.h" /* the BLUE codes, shared with the wire */
 
 /* per sample_type (wavegen order 0 cf32,1 cf64,2 ci32,3 ci16,4 ci8) */
-static const size_t ELEM[5] = { 4, 8, 4, 2, 1 }; /* bytes per I or Q */
-/* bytes per sample -- derived below from STYPE_FMT, never restated */
+/* Element ENCODING per stype: what one component looks like on the wire.
+   The five scalar types repeat the five complex ones' encodings, because
+   only the component COUNT differs -- that is the whole of what BLUE's mode
+   character means. Indexed by stype so the tables below are indexed by KIND
+   and never restate a size or a scale twice. */
+enum
+{
+  EK_F32 = 0,
+  EK_F64,
+  EK_I32,
+  EK_I16,
+  EK_I8
+};
+static const int    KIND[10] = { EK_F32, EK_F64, EK_I32, EK_I16, EK_I8,
+                                 EK_F32, EK_F64, EK_I32, EK_I16, EK_I8 };
+static const size_t ELEM[5]  = { 4, 8, 4, 2, 1 }; /* bytes per component */
+/* Full-scale per component, by KIND. Zero for the float encodings, which
+   are already full-scale -- and that zero is also how `track_sample` knows a
+   format can CLIP, replacing a `stype >= 2` index test that silently became
+   wrong the moment scalar types were appended after the complex ones. */
 static const double SCALE[5] = { 0, 0, 2147483647.0, 32767.0, 127.0 };
 /* BLUE format char per wavegen-order stype. DERIVED from the stream
    layer's format codes rather than written out again: dp_sample_type_t's
@@ -31,14 +49,37 @@ static const double SCALE[5] = { 0, 0, 2147483647.0, 32767.0, 127.0 };
    enumerations of these five types used to exist -- this table, the
    stream enum, and wfm_sink.c's WT_* -- with hand-written translation
    between them. */
-static const dp_sample_type_t STYPE_FMT[5] = { CF32, CF64, CI32, CI16, CI8 };
+static const dp_sample_type_t STYPE_FMT[10]
+    = { CF32, CF64, CI32, CI16, CI8, SF32, SF64, SI32, SI16, SI8 };
 
-/* Bytes per complex sample for a wavegen-order stype. Was a second literal
-   table (BPS[]); now the same switch dp_format_size() already is. */
+/* Bytes per SAMPLE for a wavegen-order stype -- one component in scalar
+   mode, two in complex. Was a second literal table (BPS[]); now the same
+   switch dp_format_size() already is. */
 static size_t
 stype_bytes (int stype)
 {
   return dp_format_size (STYPE_FMT[stype]);
+}
+
+/* Components per sample: 2 complex, 1 scalar. Asked of dp_format rather than
+   derived from the stype index, so appending a format cannot desynchronise
+   it. */
+static unsigned
+stype_comps (int stype)
+{
+  return dp_format_components (STYPE_FMT[stype]);
+}
+
+/* HCB bytes 52 and 53. Both come from the format code, which IS the two
+   characters -- the mode used to be hardcoded 'C' here while this function
+   discarded the very character that carried it, which is why doppler could
+   read a scalar BLUE file and not write one (doppler#1032). */
+static char
+blue_mode_char (int stype)
+{
+  char code[2];
+  dp_format_chars (STYPE_FMT[stype], code);
+  return code[0];
 }
 
 static char
@@ -46,7 +87,7 @@ blue_format_char (int stype)
 {
   char code[2];
   dp_format_chars (STYPE_FMT[stype], code);
-  return code[1]; /* [0] is the mode, always 'C' here */
+  return code[1];
 }
 
 #include "wfm/wfm_names.h" /* TYPE_NAMES / N_TYPES / MODE_NAMES (SSOT) */
@@ -98,8 +139,14 @@ track_sample (wfm_writer_state_t *w, float re, float im)
   float m = ar > ai ? ar : ai;
   if (m > w->peak)
     w->peak = m;
-  if (w->track && w->stype >= 2)
-    w->nclip += (uint64_t)(ar > 1.0f) + (uint64_t)(ai > 1.0f);
+  /* Only an INTEGER format can clip, and SCALE says which those are. A
+     `stype >= 2` test meant that while the five complex types were the only
+     ones; appending the scalar five made indices 5 and 6 -- f32 and f64 --
+     answer yes to it. And in scalar mode there is no Q to clip, because
+     none is written. */
+  if (w->track && SCALE[KIND[w->stype]] != 0.0)
+    w->nclip += (uint64_t)(ar > 1.0f)
+                + (stype_comps (w->stype) == 2u ? (uint64_t)(ai > 1.0f) : 0u);
 }
 
 static long
@@ -174,7 +221,7 @@ wfm_blue_write_hcb (FILE *fp, int sample_type, int endian, double fs,
                     double fc, double data_start, size_t total_samples,
                     int detached, double t0_unix_sec)
 {
-  if (!fp || sample_type < 0 || sample_type > 4)
+  if (!fp || sample_type < 0 || sample_type >= (int)N_STYPES)
     return -1;
   int     be     = endian ? 1 : 0;
   uint8_t h[512] = { 0 }; /* every standard field defaults to 0 */
@@ -193,7 +240,7 @@ wfm_blue_write_hcb (FILE *fp, int sample_type, int endian, double fs,
   put_at (h, 40, &f64, 8, be); /* data_size (bytes) */
   i32 = 1000;
   put_at (h, 48, &i32, 4, be);            /* type = 1000 (1-D vector) */
-  h[52] = 'C';                            /* format mode: complex */
+  h[52] = blue_mode_char (sample_type);   /* C complex / S scalar */
   h[53] = blue_format_char (sample_type); /* B/I/L/F/D */
   /* timecode (56): seconds since J1950, which is what BLUE counts from.
      An UNSET t0 leaves the field at its zeroed default rather than writing
@@ -294,7 +341,8 @@ wfm_writer_open (FILE *fp, wfm_filetype_t ft, int sample_type, int endian,
                  double fs, double fc, size_t total_samples,
                  double t0_unix_sec)
 {
-  if (!fp || sample_type < 0 || sample_type > 4 || ft < 0 || ft > 3)
+  if (!fp || sample_type < 0 || sample_type >= (int)N_STYPES || ft < 0
+      || ft > 3)
     return NULL;
   wfm_writer_state_t *w = calloc (1, sizeof (*w));
   if (!w)
@@ -319,23 +367,31 @@ wfm_writer_open (FILE *fp, wfm_filetype_t ft, int sample_type, int endian,
   return w;
 }
 
-/* CSV: one complex sample per line. */
+/* CSV: one sample per line -- `I,Q` in complex mode, one value in scalar. */
 static size_t
 write_csv (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
 {
+  const int      k     = KIND[w->stype];
+  const unsigned comps = stype_comps (w->stype);
   for (size_t i = 0; i < n; i++)
     {
       float re = crealf (iq[i]) * w->gain, im = cimagf (iq[i]) * w->gain;
       int   ok;
       track_sample (w, re, im);
-      if (w->stype == 0)
-        ok = fprintf (w->fp, "%0.9f,%0.9f\n", (double)re, (double)im) > 0;
-      else if (w->stype == 1)
-        ok = fprintf (w->fp, "%0.17g,%0.17g\n", (double)re, (double)im) > 0;
+      if (k == EK_F32)
+        ok = (comps == 2u)
+                 ? fprintf (w->fp, "%0.9f,%0.9f\n", (double)re, (double)im) > 0
+                 : fprintf (w->fp, "%0.9f\n", (double)re) > 0;
+      else if (k == EK_F64)
+        ok = (comps == 2u)
+                 ? fprintf (w->fp, "%0.17g,%0.17g\n", (double)re, (double)im)
+                       > 0
+                 : fprintf (w->fp, "%0.17g\n", (double)re) > 0;
       else
-        ok = fprintf (w->fp, "%ld,%ld\n", qz (re, SCALE[w->stype]),
-                      qz (im, SCALE[w->stype]))
-             > 0;
+        ok = (comps == 2u) ? fprintf (w->fp, "%ld,%ld\n", qz (re, SCALE[k]),
+                                      qz (im, SCALE[k]))
+                                 > 0
+                           : fprintf (w->fp, "%ld\n", qz (re, SCALE[k])) > 0;
       if (!ok)
         return i;
     }
@@ -357,60 +413,64 @@ is_hcb_keyword (const char *tag)
 }
 
 /* raw / blue body: interleaved I/Q in the wire type + byte order. */
+/* Binary: `comps` components per sample, each in the stype's element
+   encoding. One loop over components rather than a re/im pair, because the
+   only difference between mode 'C' and mode 'S' is how many of them there
+   are -- a second switch for the scalar case would be the same five
+   encodings written twice, and the two copies would drift. */
 static size_t
 write_binary (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
 {
-  size_t elem = ELEM[w->stype], be = w->be;
-  if (grow (w, n * 2 * elem))
+  const int      k     = KIND[w->stype];
+  const size_t   elem  = ELEM[k];
+  const size_t   be    = w->be;
+  const unsigned comps = stype_comps (w->stype);
+  if (grow (w, n * comps * elem))
     return 0;
   uint8_t *p = w->buf;
   for (size_t i = 0; i < n; i++)
     {
-      float re = crealf (iq[i]) * w->gain, im = cimagf (iq[i]) * w->gain;
-      track_sample (w, re, im);
-      switch (w->stype)
-        {
-        case 0:
-          { /* cf32 */
-            put (&p, &re, 4, be);
-            put (&p, &im, 4, be);
-            break;
+      const float v[2]
+          = { crealf (iq[i]) * w->gain, cimagf (iq[i]) * w->gain };
+      track_sample (w, v[0], v[1]);
+      for (unsigned c = 0; c < comps; c++)
+        switch (k)
+          {
+          case EK_F32:
+            {
+              float f = v[c];
+              put (&p, &f, 4, be);
+              break;
+            }
+          case EK_F64:
+            {
+              double d = v[c];
+              put (&p, &d, 8, be);
+              break;
+            }
+          case EK_I32:
+            {
+              int32_t q = (int32_t)qz (v[c], SCALE[EK_I32]);
+              put (&p, &q, 4, be);
+              break;
+            }
+          case EK_I16:
+            {
+              int16_t q = (int16_t)qz (v[c], SCALE[EK_I16]);
+              put (&p, &q, 2, be);
+              break;
+            }
+          default:
+            {
+              int8_t q = (int8_t)qz (v[c], SCALE[EK_I8]);
+              put (&p, &q, 1, be);
+              break;
+            }
           }
-        case 1:
-          { /* cf64 */
-            double dr = re, di = im;
-            put (&p, &dr, 8, be);
-            put (&p, &di, 8, be);
-            break;
-          }
-        case 2:
-          { /* ci32 */
-            int32_t vr = (int32_t)qz (re, SCALE[2]);
-            int32_t vi = (int32_t)qz (im, SCALE[2]);
-            put (&p, &vr, 4, be);
-            put (&p, &vi, 4, be);
-            break;
-          }
-        case 3:
-          { /* ci16 */
-            int16_t vr = (int16_t)qz (re, SCALE[3]);
-            int16_t vi = (int16_t)qz (im, SCALE[3]);
-            put (&p, &vr, 2, be);
-            put (&p, &vi, 2, be);
-            break;
-          }
-        default:
-          { /* ci8 */
-            int8_t vr = (int8_t)qz (re, SCALE[4]);
-            int8_t vi = (int8_t)qz (im, SCALE[4]);
-            put (&p, &vr, 1, be);
-            put (&p, &vi, 1, be);
-            break;
-          }
-        }
     }
-  size_t bytes = n * 2 * elem;
-  return fwrite (w->buf, 1, bytes, w->fp) / (2 * elem);
+  const size_t stride = comps * elem;
+  size_t       bytes  = n * stride;
+  return fwrite (w->buf, 1, bytes, w->fp) / stride;
 }
 
 size_t
@@ -763,15 +823,23 @@ wfm_writer_clip_fraction (const wfm_writer_state_t *w)
   return (double)w->nclip / (double)(2 * w->written);
 }
 
-/* SigMF "cf32_le"-style datatype string (ci8 has no endian suffix). */
+/* SigMF "cf32_le"-style datatype string (a single-byte element has no endian
+   suffix, because it has no byte order to state).
+
+   SigMF spells real types `rf32_le`, NOT `f32_le` -- its complex/real prefix
+   is its own vocabulary and does not match doppler's `--sample-type` names.
+   Writing `cf32_le` for a real capture would be a sidecar that lies about
+   its own data, which is worse than refusing one. */
 static void
 sigmf_datatype (int stype, int be, char *out, size_t cap)
 {
-  static const char *const base[5] = { "cf32", "cf64", "ci32", "ci16", "ci8" };
-  if (stype == 4)
-    snprintf (out, cap, "ci8");
+  static const char *const ELEMNAME[5] = { "f32", "f64", "i32", "i16", "i8" };
+  const int                k           = KIND[stype];
+  const char               pfx = (stype_comps (stype) == 2u) ? 'c' : 'r';
+  if (k == EK_I8)
+    snprintf (out, cap, "%c%s", pfx, ELEMNAME[k]);
   else
-    snprintf (out, cap, "%s_%s", base[stype], be ? "be" : "le");
+    snprintf (out, cap, "%c%s_%s", pfx, ELEMNAME[k], be ? "be" : "le");
 }
 
 char *

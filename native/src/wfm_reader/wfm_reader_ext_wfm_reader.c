@@ -68,11 +68,22 @@ ReaderObj_init (ReaderObject *self, PyObject *args, PyObject *kwds)
     sample_type = 3;
   else if (strcmp (sample_type_str, "ci8") == 0)
     sample_type = 4;
+  else if (strcmp (sample_type_str, "f32") == 0)
+    sample_type = 5;
+  else if (strcmp (sample_type_str, "f64") == 0)
+    sample_type = 6;
+  else if (strcmp (sample_type_str, "i32") == 0)
+    sample_type = 7;
+  else if (strcmp (sample_type_str, "i16") == 0)
+    sample_type = 8;
+  else if (strcmp (sample_type_str, "i8") == 0)
+    sample_type = 9;
   else
     {
       PyErr_Format (PyExc_ValueError,
                     "sample_type must be one of \"cf32\", \"cf64\", \"ci32\", "
-                    "\"ci16\", \"ci8\", got '%s'",
+                    "\"ci16\", \"ci8\", \"f32\", \"f64\", \"i32\", \"i16\", "
+                    "\"i8\", got '%s'",
                     sample_type_str);
       Py_XDECREF (path);
       return -1;
@@ -152,7 +163,8 @@ static const char *const _enum_Reader_ftype[] = {
 };
 
 static const char *const _enum_Reader_stype[] = {
-  "cf32", "cf64", "ci32", "ci16", "ci8", NULL,
+  "cf32", "cf64", "ci32", "ci16", "ci8", "f32",
+  "f64",  "i32",  "i16",  "i8",   NULL,
 };
 
 static const char *const _enum_Reader_sample_mode[] = {
@@ -502,11 +514,11 @@ Reader_getprop_sample_type (ReaderObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   long _v = (long)(wfm_reader_get_sample_type (self->handle));
-  if (_v < 0 || _v >= 5)
+  if (_v < 0 || _v >= 10)
     {
       PyErr_Format (PyExc_ValueError,
                     "sample_type holds out-of-range stype value %ld"
-                    " (valid: 0..4)",
+                    " (valid: 0..9)",
                     _v);
       return NULL;
     }

@@ -2614,9 +2614,17 @@ values = ["rect", "rrc"]
 name = "ftype"
 values = ["raw", "csv", "blue", "sigmf"]
 
+# Wire sample type: five element encodings in each of BLUE's two modes.
+# The five complex names come first and their indices are load-bearing --
+# STYPE_FMT[], KIND[] and the reader's `hint % 5` all index by this order, so
+# APPEND, never reorder. The real five drop Q: `f32` writes one float per
+# sample where `cf32` writes two (doppler#1032).
 [[enum]]
 name = "stype"
-values = ["cf32", "cf64", "ci32", "ci16", "ci8"]
+values = [
+  "cf32", "cf64", "ci32", "ci16", "ci8",
+  "f32",  "f64",  "i32",  "i16",  "i8",
+]
 
 [[enum]]
 name = "endian"

@@ -341,7 +341,7 @@ Nothing is refused for looking unfamiliar: an unrecognised file opens as raw at 
 
 
 * `path` file to read  a `str` or any `os.PathLike` from Python. For a DETACHED BLUE capture this is normally the HEADER file  `<base>.tmp` or `<base>.prm` per BLUE 3.1.1.4 (this library's own writer emits `<base>.hdr`)  whose HCB `detached` field points at the collocated `<base>.det` payload; the extension does not decide, `detached` does. Passing the `<base>.det` directly also works (its header sibling is resolved). A SigMF `.sigmf-data` file resolves its `.sigmf-meta` sidecar the same way. 
-* `sample_type` the wire sample type, used only as a HINT for the headerless file types (raw, CSV)  BLUE and SigMF carry their own and ignore it. `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"` or `"ci8"` from Python; the matching 0..4 from C. A wrong hint does not fail; see [**wfm\_reader\_get\_trailing\_bytes**](wfm__reader__core_8h.md#function-wfm_reader_get_trailing_bytes). 
+* `sample_type` the wire sample type, used only as a HINT for the headerless file types (raw, CSV)  BLUE and SigMF carry their own and ignore it. The five complex names `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"`, `"ci8"` or the five real ones `"f32"`, `"f64"`, `"i32"`, `"i16"`, `"i8"` from Python; the matching 0..9 from C. A real hint is the only way to say that a headerless file carries one component per sample rather than interleaved I/Q. A wrong hint does not fail; see [**wfm\_reader\_get\_trailing\_bytes**](wfm__reader__core_8h.md#function-wfm_reader_get_trailing_bytes). 
 * `endian` byte order, likewise a hint that only headerless raw uses; `"le"` or `"be"` from Python, 0 or 1 from C. 
 
 

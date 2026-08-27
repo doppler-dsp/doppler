@@ -27,6 +27,7 @@
 #include "dp_interrupt.h"
 #include "timing/timing_core.h"
 #include "wfm/wfm_compose.h"
+#include "wfm/wfm_names.h" /* STYPE_NAMES -- the SSOT for --sample-type */
 #include "wfm/wfm_sink.h"
 #include "wfm/wfmgen.h"
 #include "wfm_writer/wfm_writer_core.h"
@@ -39,7 +40,8 @@ static const char *const TYPES[]
 static const char *const MODES[]   = { "auto", "fs", "ebno", "esno" };
 static const char *const CRCS[]    = { "none", "crc16" };
 static const char *const BITMODS[] = { "none", "bpsk", "qpsk" };
-static const char *const STYPES[]  = { "cf32", "cf64", "ci32", "ci16", "ci8" };
+/* STYPE_NAMES from wfm/wfm_names.h -- the SSOT, not a fourth copy. */
+#define STYPES STYPE_NAMES
 static const char *const FTYPES[]  = { "raw", "csv", "blue", "sigmf" };
 static const char *const ENDIANS[] = { "le", "be" };
 static const char *const LFSRS[]   = { "galois", "fibonacci" };
@@ -418,7 +420,14 @@ static const char USAGE[]
       "OUTPUT\n"
       "  --output DEST   File path, - for stdout, or nats://HOST:PORT/SUBJECT"
       " (default -)\n"
-      "  --sample-type T cf32 | cf64 | ci32 | ci16 | ci8 (default cf32)\n"
+      "  --sample-type T Complex, two components per sample:\n"
+      "                    cf32 | cf64 | ci32 | ci16 | ci8 (default cf32)\n"
+      "                  Real, one component -- Q is DROPPED, not summed:\n"
+      "                    f32 | f64 | i32 | i16 | i8\n"
+      "                  A real type halves the file and writes BLUE format\n"
+      "                  mode 'S' / SigMF `rf32_le`. Right for a waveform\n"
+      "                  that IS real; on a complex baseband it discards\n"
+      "                  half the information and mirrors the spectrum.\n"
       "  --file-type T   raw | csv | blue | sigmf (default raw)\n"
       "  --endian E      le | be (default le)\n"
       "  --record FILE   Write a JSON record of the resolved run to FILE\n"
@@ -1062,6 +1071,17 @@ emit_to_stream (const emit_ctx_t *e)
                      "error: nats output (%s) requires the stream component; "
                      "this build was not linked against libdoppler_stream\n",
                      o->out_path);
+      return 1;
+    }
+  /* A real --sample-type has no wire representation yet (doppler#1035), and
+     "cannot open sink" would send the reader looking at their broker. */
+  if (o->sample_type >= 5)
+    {
+      fprintf (stderr,
+               "error: --sample-type %s is a real (scalar) format, and the\n"
+               "  nats:// / zmq:// stream carries complex samples only.\n"
+               "  Write a file, or use a complex sample type.\n",
+               STYPES[o->sample_type]);
       return 1;
     }
   wfm_stream_sink_t *sink = wfm_stream_sink_open (o->out_path, o->sample_type);

@@ -848,6 +848,107 @@ DsssBurstReceiverObj_exit (DsssBurstReceiverObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+DsssBurstReceiverObj_llrs (DsssBurstReceiverObject *self, PyObject *args,
+                           PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "count", "out", NULL };
+  Py_ssize_t   n         = 1;
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|nO", _kwlist, &n, &out_obj))
+    return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          return NULL;
+        }
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          return NULL;
+        }
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax
+          = dsss_burst_receiver_llrs_max_out (self->handle, (size_t)n);
+      size_t _min_cap = _omax;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      size_t n_out = dsss_burst_receiver_llrs (
+          self->handle, (size_t)n, (float *)PyArray_DATA (out_arr), _cap);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
+  size_t _need = (size_t)n;
+  size_t _cap  = dsss_burst_receiver_llrs_max_out (self->handle, (size_t)n);
+  (void)_need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
+  if (!arr0)
+    {
+      return NULL;
+    }
+  float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t n_out = dsss_burst_receiver_llrs (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+
+static PyObject *
+DsssBurstReceiverObj_llrs_max_out (DsssBurstReceiverObject *self,
+                                   PyObject                *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  Py_ssize_t n = 0;
+  if (!PyArg_ParseTuple (args, "n", &n))
+    return NULL;
+  return PyLong_FromSize_t (
+      dsss_burst_receiver_llrs_max_out (self->handle, (size_t)n));
+}
+
 static PyMethodDef DsssBurstReceiverObj_methods[] = {
 
   { "push", (PyCFunction)(void *)DsssBurstReceiverObj_push,
@@ -1166,6 +1267,80 @@ static PyMethodDef DsssBurstReceiverObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "llrs", (PyCFunction)(void *)DsssBurstReceiverObj_llrs,
+    METH_VARARGS | METH_KEYWORDS,
+    "llrs(count=1) -> ndarray\n"
+    "\n"
+    "The SOFT bits of every burst the last push() returned, concatenated:\n"
+    "burst i occupies llr[i*frame_bits:(i+1)*frame_bits], in the same order\n"
+    "as push()'s payloads and events()' rows. `mpsk_soft_demap`'s convention\n"
+    "— positive means bit 0, so `L < 0` reproduces exactly the bits push()\n"
+    "returned, which is asserted rather than assumed. Spans the WHOLE frame\n"
+    "rather than the payload alone, because a code covers what its\n"
+    "description says it covers and a decoder needs the bits the code\n"
+    "protects. Scaled by the burst's own noise estimate: a Viterbi is\n"
+    "invariant to a positive scale, but LLRs from different bursts are not\n"
+    "comparable without one. Valid until the next push(), reset() or\n"
+    "set_state().\n"
+    "\n"
+    "`crealf(sym * derot)` IS the log-likelihood ratio up to a scale, and\n"
+    "the demodulator used to compute it, slice it to one bit and free it. A\n"
+    "hard decision throws away roughly 2 dB of the coding gain a soft-input\n"
+    "decoder exists to deliver (`mpsk_soft_demap`'s own docstring), which is\n"
+    "what makes a coded burst worth coding.\n"
+    "\n"
+    "Concatenated the same way push()'s payloads are: burst i occupies\n"
+    "`llr[i * frame_bits ... ]`, in the order events() reports. The\n"
+    "convention is `mpsk_soft_demap`'s — positive means bit 0, so `L < 0`\n"
+    "reproduces exactly the bits push() returned. Spans the WHOLE frame\n"
+    "rather than the payload alone, because a code covers what its\n"
+    "description says it covers.\n"
+    "\n"
+    "Valid until the next push(), reset() or set_state(); deliberately not\n"
+    "serialized, for the same reason events() is not: it describes one call.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "count : int\n"
+    "    How many output samples to ask for. The call may return fewer; size\n"
+    "    an `out=` buffer with the matching `_max_out()` when you need the\n"
+    "    worst case.\n"
+    "out : NDArray[np.float32] | None\n"
+    "    Receives the LLRs.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.float32]\n"
+    "    LLRs written.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import DsssBurstReceiver\n"
+    ">>> rng = np.random.default_rng(0)\n"
+    ">>> rx = DsssBurstReceiver(\n"
+    "...     rng.integers(0, 2, 31).astype(np.uint8),\n"
+    "...     rng.integers(0, 2, 8).astype(np.uint8),\n"
+    "...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)\n"
+    ">>> bits = rx.push(np.zeros(4096, dtype=np.complex64))\n"
+    ">>> len(bits), len(rx.llrs(rx.llrs_max_out(1)))   # nothing decoded\n"
+    "(0, 0)\n" },
+  { "llrs_max_out", (PyCFunction)DsssBurstReceiverObj_llrs_max_out,
+    METH_VARARGS,
+    "llrs_max_out(n) -> int\n"
+    "\n"
+    "Max LLRs llrs() writes: frame bits x the bursts the last push\n"
+    "returned.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int\n"
+    "    Ignored, as in llrs().\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { NULL }
 };
 

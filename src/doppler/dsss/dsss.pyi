@@ -1842,6 +1842,7 @@ class BurstDemod:
     >>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, payload_len=64)
     >>> d.set_preamble(acode, reps)   # unmodulated (f0, rate) preamble
     >>> d.set_frame(sync)             # Barker-13 sync, CRC-16 trailer
+    0
     >>> d.set_prior(f0, 0)           # coarse Doppler + preamble start
     >>> bits = d.demod(x)      # estimate -> dechirp -> despread -> slice
     >>> int(d.frame_valid), bool(np.array_equal(bits, payload))
@@ -1991,8 +1992,88 @@ class BurstDemod:
         >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
         >>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
         >>> d.set_frame(sync)              # Barker-13, CRC-16 trailer
+        0
         >>> d.set_frame(sync, crc=0)       # ...or no trailer at all
+        0
 
+        """
+
+    def llrs(
+        self,
+        count: int = 1,
+        out: NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32]:
+        """The soft bits of the last demod() — one LLR per FRAME bit, in
+        `mpsk_soft_demap`'s convention: positive means bit 0, so `L < 0`
+        reproduces exactly the bits demod() returned. `Re(sym * derot)` IS the
+        log-likelihood ratio up to a scale and used to be computed, sliced to
+        one bit and freed; a hard decision costs roughly 2 dB of the coding
+        gain a soft-input decoder exists to deliver. Spans the whole frame
+        rather than the payload alone, because a code covers what its
+        description says it covers. Scaled by `est_n0`, the burst's own noise
+        estimate, so LLRs from different bursts are comparable — a Viterbi
+        would not care, but combining across bursts does.
+
+        `crealf(sym * derot)` IS the log-likelihood ratio up to a scale, and it
+        was computed, sliced to one bit and freed on every burst. A hard
+        decision throws away roughly 2 dB of the coding gain a soft-input
+        decoder exists to deliver (`mpsk_soft_demap`'s own docstring), so this
+        is what makes a coded burst worth coding.
+
+        **The convention is not a new one**: `mpsk_soft_demap`'s, which is
+        `mpsk_demap`'s decision rule seen a second way. Positive means bit 0,
+        so `L < 0` reproduces exactly the bits demod() returned — asserted in
+        the tests rather than assumed.
+
+        Spans the WHOLE frame, not just the payload, because a code covers what
+        its description says it covers and a decoder needs the bits the code
+        protects. The payload's own span is `field_off`/`field_bits` of the
+        layout.
+
+        Scaled by est_n0 rather than left raw: a Viterbi is invariant to a
+        positive scale, but LLRs from different bursts are not comparable
+        without one, and combining across bursts needs them to be.
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.float32] | None
+            Receives the LLRs, one per frame bit.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            LLRs written — `min(frame bits, max_out)`, or 0 if the last demod()
+            produced no frame.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstDemod
+        >>> dcode = (np.arange(50) & 1).astype(np.uint8)
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
+        >>> d.set_frame(np.zeros(13, dtype=np.uint8))
+        0
+        >>> d.llrs_max_out(1)          # sync + payload + the CRC trailer
+        93
+
+        """
+
+    def llrs_max_out(self, n: int) -> int:
+        """Max LLRs burst_demod_llrs() writes: the frame's length in bits.
+
+        Parameters
+        ----------
+        n : int
+            Demodulator handle.
+
+        Returns
+        -------
+        int
+            Output.
         """
 
     def set_prior(self, f0_coarse: float, start: int) -> None:
@@ -3401,6 +3482,83 @@ class DsssBurstReceiver:
             `(x_len/burst_len + 1 + q_cap) * payload_len`.
         """
 
+    def llrs(
+        self,
+        count: int = 1,
+        out: NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32]:
+        """The SOFT bits of every burst the last push() returned, concatenated:
+        burst i occupies llr[i*frame_bits:(i+1)*frame_bits], in the same order
+        as push()'s payloads and events()' rows. `mpsk_soft_demap`'s convention
+        — positive means bit 0, so `L < 0` reproduces exactly the bits push()
+        returned, which is asserted rather than assumed. Spans the WHOLE frame
+        rather than the payload alone, because a code covers what its
+        description says it covers and a decoder needs the bits the code
+        protects. Scaled by the burst's own noise estimate: a Viterbi is
+        invariant to a positive scale, but LLRs from different bursts are not
+        comparable without one. Valid until the next push(), reset() or
+        set_state().
+
+        `crealf(sym * derot)` IS the log-likelihood ratio up to a scale, and
+        the demodulator used to compute it, slice it to one bit and free it. A
+        hard decision throws away roughly 2 dB of the coding gain a soft-input
+        decoder exists to deliver (`mpsk_soft_demap`'s own docstring), which is
+        what makes a coded burst worth coding.
+
+        Concatenated the same way push()'s payloads are: burst i occupies
+        `llr[i * frame_bits ... ]`, in the order events() reports. The
+        convention is `mpsk_soft_demap`'s — positive means bit 0, so `L < 0`
+        reproduces exactly the bits push() returned. Spans the WHOLE frame
+        rather than the payload alone, because a code covers what its
+        description says it covers.
+
+        Valid until the next push(), reset() or set_state(); deliberately not
+        serialized, for the same reason events() is not: it describes one call.
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.float32] | None
+            Receives the LLRs.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            LLRs written.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import DsssBurstReceiver
+        >>> rng = np.random.default_rng(0)
+        >>> rx = DsssBurstReceiver(
+        ...     rng.integers(0, 2, 31).astype(np.uint8),
+        ...     rng.integers(0, 2, 8).astype(np.uint8),
+        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, payload_len=32)
+        >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
+        >>> len(bits), len(rx.llrs(rx.llrs_max_out(1)))   # nothing decoded
+        (0, 0)
+
+        """
+
+    def llrs_max_out(self, n: int) -> int:
+        """Max LLRs llrs() writes: frame bits x the bursts the last push
+        returned.
+
+        Parameters
+        ----------
+        n : int
+            Ignored, as in llrs().
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
     def events(
         self,
         count: int = 1,
@@ -3450,12 +3608,17 @@ class DsssBurstReceiver:
         """
 
     def events_max_out(self) -> int:
-        """Max records events() writes: one per burst the last push() returned.
+        """Largest number of samples events() can return in the current state.
+
+        Size an `out=` buffer with this before calling events(), or use it to
+        allocate one up front. The bound is this object's own: what it depends
+        on is a property of the algorithm, so a header block on
+        events_max_out() replaces this text.
 
         Returns
         -------
         int
-            The number of bursts the most recent push() completed.
+            Upper bound on the output length; the actual call may return fewer.
         """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:

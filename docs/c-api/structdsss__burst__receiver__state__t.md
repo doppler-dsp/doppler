@@ -59,11 +59,15 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 |  [**dsss\_br\_event\_t**](structdsss__br__event__t.md) \* | [**ev**](#variable-ev)  <br> |
 |  size\_t | [**ev\_cap**](#variable-ev_cap)  <br> |
 |  size\_t | [**ev\_len**](#variable-ev_len)  <br> |
+|  size\_t | [**frame\_bits**](#variable-frame_bits)  <br> |
 |  int | [**frame\_checked**](#variable-frame_checked)  <br> |
 |  int | [**frame\_valid**](#variable-frame_valid)  <br> |
 |  dp\_f32\_t \* | [**hist**](#variable-hist)  <br> |
 |  size\_t | [**k\_hi**](#variable-k_hi)  <br> |
 |  size\_t | [**k\_lo**](#variable-k_lo)  <br> |
+|  float \* | [**llr**](#variable-llr)  <br> |
+|  size\_t | [**llr\_cap**](#variable-llr_cap)  <br> |
+|  size\_t | [**llr\_len**](#variable-llr_len)  <br> |
 |  uint64\_t | [**n\_bursts**](#variable-n_bursts)  <br> |
 |  size\_t | [**payload\_len**](#variable-payload_len)  <br> |
 |  size\_t | [**pending**](#variable-pending)  <br> |
@@ -551,6 +555,24 @@ Records the last push() wrote.
 
 
 
+### variable frame\_bits 
+
+```C++
+size_t dsss_burst_receiver_state_t::frame_bits;
+```
+
+
+
+The frame's length, from the description  the stride of a row in `llr`. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable frame\_checked 
 
 ```C++
@@ -632,6 +654,59 @@ size_t dsss_burst_receiver_state_t::k_lo;
 
 
 Whole code periods searched BEFORE the anchor. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable llr 
+
+```C++
+float* dsss_burst_receiver_state_t::llr;
+```
+
+
+
+The soft bits of every burst the last push returned, concatenated: burst i occupies llr[i\*frame\_bits ... ]. Scratch, like `ev`  it describes one call and is never serialized. 
+
+
+        
+
+<hr>
+
+
+
+### variable llr\_cap 
+
+```C++
+size_t dsss_burst_receiver_state_t::llr_cap;
+```
+
+
+
+Allocated floats. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable llr\_len 
+
+```C++
+size_t dsss_burst_receiver_state_t::llr_len;
+```
+
+
+
+Floats written by the last push. 
  
 
 

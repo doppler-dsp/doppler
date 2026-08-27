@@ -101,6 +101,7 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
    * modulus every epoch ambiguity in the design doc is stated against --
    * acq's code_phase is exactly `burst_start mod code_period` (§3.1).
    * burst_len: preamble + the spread frame, whatever the frame is. */
+  s->frame_bits  = s->demod->lay.frame_bits; /* the row stride of llrs() */
   s->code_period = acq_code_len * spc;
   s->burst_len
       = (reps * acq_code_len + s->demod->lay.frame_bits * data_code_len) * spc;
@@ -213,6 +214,7 @@ dsss_burst_receiver_destroy (dsss_burst_receiver_state_t *state)
     dp_f32_destroy (state->hist);
   free (state->q);
   free (state->ev);
+  free (state->llr);
   free (state->ref_sign);
   free (state->corr_buf);
   free (state->acq_code);
@@ -235,6 +237,7 @@ dsss_burst_receiver_reset (dsss_burst_receiver_state_t *state)
   state->pending     = 0;
   state->q_head      = 0;
   state->ev_len      = 0;
+  state->llr_len     = 0;
   memset (state->q, 0, state->q_cap * sizeof *state->q);
   state->suppress_until = 0;
 
@@ -483,6 +486,28 @@ dsss_br_emit (dsss_burst_receiver_state_t *s, uint8_t *out, size_t max_out)
           s->ev_cap = cap;
         }
     }
+  /* The burst's SOFT bits, alongside its record and for the same reason:
+     one push can complete several, and a decoder handed the payload needs
+     the LLRs of THAT burst (doppler#1018). */
+  {
+    const size_t want = s->llr_len + s->frame_bits;
+    if (want > s->llr_cap)
+      {
+        size_t cap = s->llr_cap ? s->llr_cap * 2u : (s->frame_bits * 4u);
+        while (cap < want)
+          cap *= 2u;
+        float *p = realloc (s->llr, cap * sizeof *p);
+        if (p)
+          {
+            s->llr     = p;
+            s->llr_cap = cap;
+          }
+      }
+    if (s->llr_len + s->frame_bits <= s->llr_cap)
+      s->llr_len += burst_demod_llrs (s->demod, 1, s->llr + s->llr_len,
+                                      s->frame_bits);
+  }
+
   if (s->ev_len < s->ev_cap)
     {
       dsss_br_event_t *r = &s->ev[s->ev_len++];
@@ -586,7 +611,8 @@ dsss_burst_receiver_push (dsss_burst_receiver_state_t *state,
                           size_t max_out)
 {
   /* Every call starts a fresh event list: `events()` describes THIS push. */
-  state->ev_len = 0;
+  state->ev_len  = 0;
+  state->llr_len = 0;
   /* `pending` is NOT cleared here. It is the live queue length -- detections
      whose burst window has not arrived -- and it must survive across pushes,
      because surviving across pushes is the whole point of holding them. It
@@ -727,6 +753,24 @@ dsss_burst_receiver_push (dsss_burst_receiver_state_t *state,
       produced += dsss_br_drain (state, out, max_out, produced);
     }
   return produced;
+}
+
+size_t
+dsss_burst_receiver_llrs_max_out (dsss_burst_receiver_state_t *state, size_t n)
+{
+  (void)n; /* as events_max_out: the count is the last push's, not a request */
+  return state->llr_len;
+}
+
+size_t
+dsss_burst_receiver_llrs (dsss_burst_receiver_state_t *state, size_t n,
+                          float *out, size_t max_out)
+{
+  (void)n; /* as events(): the count is the last push's, not a request */
+  const size_t rows = state->llr_len < max_out ? state->llr_len : max_out;
+  if (out && rows)
+    memcpy (out, state->llr, rows * sizeof *out);
+  return rows;
 }
 
 size_t

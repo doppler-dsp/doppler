@@ -32,6 +32,7 @@ target_link_libraries(dsss PRIVATE
     rs_core
     pn_core
     gold_core
+    mpsk_core
     wfm_dsp_core
     RateConverter_core
     resamp_core
@@ -97,6 +98,7 @@ target_link_libraries(test_dsss_core PRIVATE
     rs_core
     pn_core
     gold_core
+    mpsk_core
     wfm_dsp_core
     RateConverter_core
     resamp_core
@@ -154,6 +156,7 @@ target_link_libraries(bench_dsss_core PRIVATE
     rs_core
     pn_core
     gold_core
+    mpsk_core
     wfm_dsp_core
     RateConverter_core
     resamp_core

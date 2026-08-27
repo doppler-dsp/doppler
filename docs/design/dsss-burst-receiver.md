@@ -861,11 +861,27 @@ it.
 
 A convolutional stage covers the sync word too, so on the wire the bits a
 hard-decision correlator looks for are *coded*. Frame synchronisation would
-have to run after the Viterbi, which needs the soft symbols this
-demodulator computes and then frees — one line before the hard decision.
-`set_frame()` therefore has no `convolutional` argument at all, rather than
-one that silently does nothing; the soft path is
-[#1018](https://github.com/doppler-dsp/doppler/issues/1018).
+have to run after the Viterbi. `set_frame()` therefore has no
+`convolutional` argument at all, rather than one that silently does nothing.
+
+The soft symbols that decode needs are no longer thrown away, which is the
+half of [#1018](https://github.com/doppler-dsp/doppler/issues/1018) that
+ships here: `llrs()` returns one LLR per **frame** bit, in
+`mpsk_soft_demap`'s convention, scaled by the burst's own noise estimate.
+What remains for the inner code is the ordering — Viterbi first, then find
+the frame — not the data.
+
+### 10.4 Why the LLRs are scaled
+
+A Viterbi is invariant to a positive scale, so raw `Re(y)` would decode
+just as well and it is tempting to stop there. Two things need the scale:
+LLRs from different bursts are otherwise incomparable, so combining across
+bursts is meaningless; and an LLR that tracks the link is a *measurement* —
+`2·a·r/n0` is proportional to the linear SNR, so every 6 dB multiplies it
+by about four, which the tests assert (measured 17.9 → 67.2 → 259.2 at
+6/12/18 dB Es/N0). `n0` comes from the symbols themselves: after
+derotation the real axis carries the signal and the imaginary axis carries
+noise alone.
 
 ## 9. See also
 

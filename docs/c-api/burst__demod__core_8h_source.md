@@ -24,6 +24,7 @@
 #include "rs/rs_core.h"
 #include "pn/pn_core.h"
 #include "gold/gold_core.h"
+#include "mpsk/mpsk_core.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -58,6 +59,9 @@ extern "C"
     size_t         n_part;
 
     /* ── read-backs (after demod) ── */
+    float *llr;   
+    size_t n_llr; 
+    double est_n0; 
     int    frame_valid;  
     int    frame_checked; 
     size_t frame_offset; 
@@ -84,6 +88,11 @@ extern "C"
   int burst_demod_set_frame (burst_demod_state_t *state, const uint8_t *sync,
                              size_t sync_len, int crc, unsigned rs_depth,
                              int randomise, int attach_asm);
+
+  size_t burst_demod_llrs (burst_demod_state_t *state, size_t n, float *out,
+                           size_t max_out);
+
+  size_t burst_demod_llrs_max_out (burst_demod_state_t *state, size_t n);
 
   void burst_demod_set_prior (burst_demod_state_t *state, double f0_coarse,
                               size_t start);

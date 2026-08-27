@@ -422,6 +422,104 @@ BurstDemodObj_exit (BurstDemodObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+BurstDemodObj_llrs (BurstDemodObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "count", "out", NULL };
+  Py_ssize_t   n         = 1;
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|nO", _kwlist, &n, &out_obj))
+    return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          return NULL;
+        }
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = burst_demod_llrs_max_out (self->handle, (size_t)n);
+      size_t _min_cap = _omax;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      size_t n_out = burst_demod_llrs (self->handle, (size_t)n,
+                                       (float *)PyArray_DATA (out_arr), _cap);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
+  size_t _need = (size_t)n;
+  size_t _cap  = burst_demod_llrs_max_out (self->handle, (size_t)n);
+  (void)_need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
+  if (!arr0)
+    {
+      return NULL;
+    }
+  float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t n_out = burst_demod_llrs (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+
+static PyObject *
+BurstDemodObj_llrs_max_out (BurstDemodObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  Py_ssize_t n = 0;
+  if (!PyArg_ParseTuple (args, "n", &n))
+    return NULL;
+  return PyLong_FromSize_t (
+      burst_demod_llrs_max_out (self->handle, (size_t)n));
+}
+
 static PyMethodDef BurstDemodObj_methods[] = {
   { "reset", (PyCFunction)BurstDemodObj_reset, METH_NOARGS,
     "Clear the per-burst read-backs, leaving the configuration intact.\n"
@@ -549,7 +647,9 @@ static PyMethodDef BurstDemodObj_methods[] = {
     ">>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)\n"
     ">>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)\n"
     ">>> d.set_frame(sync)              # Barker-13, CRC-16 trailer\n"
-    ">>> d.set_frame(sync, crc=0)       # ...or no trailer at all\n" },
+    "0\n"
+    ">>> d.set_frame(sync, crc=0)       # ...or no trailer at all\n"
+    "0\n" },
   { "set_prior", (PyCFunction)(void *)BurstDemodObj_set_prior,
     METH_VARARGS | METH_KEYWORDS,
     "set_prior(f0_coarse, start) -> None\n"
@@ -638,6 +738,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
     ">>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, payload_len=64)\n"
     ">>> d.set_preamble(acode, reps)\n"
     ">>> d.set_frame(sync)\n"
+    "0\n"
     ">>> d.set_prior(f0, 0)\n"
     ">>> bits = d.demod(x)\n"
     ">>> int(d.frame_valid), bool(np.array_equal(bits, payload))\n"
@@ -686,6 +787,80 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "llrs", (PyCFunction)(void *)BurstDemodObj_llrs,
+    METH_VARARGS | METH_KEYWORDS,
+    "llrs(count=1) -> ndarray\n"
+    "\n"
+    "The soft bits of the last demod() — one LLR per FRAME bit, in\n"
+    "`mpsk_soft_demap`'s convention: positive means bit 0, so `L < 0`\n"
+    "reproduces exactly the bits demod() returned. `Re(sym * derot)` IS the\n"
+    "log-likelihood ratio up to a scale and used to be computed, sliced to\n"
+    "one bit and freed; a hard decision costs roughly 2 dB of the coding\n"
+    "gain a soft-input decoder exists to deliver. Spans the whole frame\n"
+    "rather than the payload alone, because a code covers what its\n"
+    "description says it covers. Scaled by `est_n0`, the burst's own noise\n"
+    "estimate, so LLRs from different bursts are comparable — a Viterbi\n"
+    "would not care, but combining across bursts does.\n"
+    "\n"
+    "`crealf(sym * derot)` IS the log-likelihood ratio up to a scale, and it\n"
+    "was computed, sliced to one bit and freed on every burst. A hard\n"
+    "decision throws away roughly 2 dB of the coding gain a soft-input\n"
+    "decoder exists to deliver (`mpsk_soft_demap`'s own docstring), so this\n"
+    "is what makes a coded burst worth coding.\n"
+    "\n"
+    "**The convention is not a new one**: `mpsk_soft_demap`'s, which is\n"
+    "`mpsk_demap`'s decision rule seen a second way. Positive means bit 0,\n"
+    "so `L < 0` reproduces exactly the bits demod() returned — asserted in\n"
+    "the tests rather than assumed.\n"
+    "\n"
+    "Spans the WHOLE frame, not just the payload, because a code covers what\n"
+    "its description says it covers and a decoder needs the bits the code\n"
+    "protects. The payload's own span is `field_off`/`field_bits` of the\n"
+    "layout.\n"
+    "\n"
+    "Scaled by est_n0 rather than left raw: a Viterbi is invariant to a\n"
+    "positive scale, but LLRs from different bursts are not comparable\n"
+    "without one, and combining across bursts needs them to be.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "count : int\n"
+    "    How many output samples to ask for. The call may return fewer; size\n"
+    "    an `out=` buffer with the matching `_max_out()` when you need the\n"
+    "    worst case.\n"
+    "out : NDArray[np.float32] | None\n"
+    "    Receives the LLRs, one per frame bit.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.float32]\n"
+    "    LLRs written — `min(frame bits, max_out)`, or 0 if the last demod()\n"
+    "    produced no frame.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import BurstDemod\n"
+    ">>> dcode = (np.arange(50) & 1).astype(np.uint8)\n"
+    ">>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)\n"
+    ">>> d.set_frame(np.zeros(13, dtype=np.uint8))\n"
+    "0\n"
+    ">>> d.llrs_max_out(1)          # sync + payload + the CRC trailer\n"
+    "93\n" },
+  { "llrs_max_out", (PyCFunction)BurstDemodObj_llrs_max_out, METH_VARARGS,
+    "llrs_max_out(n) -> int\n"
+    "\n"
+    "Max LLRs burst_demod_llrs() writes: the frame's length in bits.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int\n"
+    "    Demodulator handle.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { NULL }
 };
 

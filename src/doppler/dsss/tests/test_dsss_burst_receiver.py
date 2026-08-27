@@ -452,3 +452,86 @@ def test_the_marker_is_part_of_the_frame_both_ends_describe() -> None:
         out.size >= payload.size
         and np.array_equal(out[: payload.size], payload)
     ), "a receiver that does not know about the marker must not decode"
+
+
+# ── the soft bits ───────────────────────────────────────────────────────
+#
+# `crealf(sym * derot)` IS the log-likelihood ratio up to a scale, and the
+# demodulator computed it, sliced it to one bit and freed it on every burst
+# (doppler#1018). A hard decision throws away roughly 2 dB of the coding
+# gain a soft-input decoder exists to deliver.
+
+
+def _link_at(esno_db, **stages):
+    """`_link`, at a stated Es/N0 — the axis the LLR scale is measured on."""
+    from doppler.wfm import Composer, Segment
+
+    _cap, payload, rx_kw = _link(**stages)
+    acq, data = _mls(_TX_ACQ_BITS, 1), _mls(_TX_DATA_BITS, 3)
+    seg = {
+        "type": "dsss",
+        "fs": 1.0e6 * _TX_SPC,
+        "freq": 0.0,
+        "snr": esno_db,
+        "snr_mode": "esno",
+        "seed": 1,
+        "sps": _TX_SPC,
+        "acq_code": acq.tobytes(),
+        "acq_reps": _TX_REPS,
+        "data_code": data.tobytes(),
+        "sync": _TX_SYNC.tobytes(),
+        "payload": payload.tobytes(),
+        "gap_noise": "auto",
+        "off_samples": 200_000,
+    }
+    return np.asarray(Composer([Segment(**seg)]).compose()), payload, rx_kw
+
+
+def test_the_soft_bits_are_the_hard_ones_seen_a_second_way() -> None:
+    """`L < 0` reproduces `push()`'s bits exactly, over the whole frame.
+
+    The repository has ONE decision rule (`mpsk_demap`'s); this is a second
+    view of it, not a second copy, and the identity is asserted rather than
+    assumed. The span is the FRAME, not the payload, because a code covers
+    what its description says it covers.
+    """
+    cap, payload, rx_kw = _link()
+    rx = DsssBurstReceiver(**rx_kw)
+    bits = np.asarray(rx.push(cap))
+    llr = np.asarray(rx.llrs(rx.llrs_max_out(1)))
+
+    assert llr.size == len(_TX_SYNC) + payload.size + 16, (
+        "one LLR per frame bit: sync, payload and the CRC trailer"
+    )
+    hard = (llr < 0).astype(np.uint8)
+    lo = len(_TX_SYNC)
+    assert np.array_equal(hard[lo : lo + payload.size], bits[: payload.size])
+    # ...and the sync word's own bits are in there too, which is what makes
+    # them usable by a decoder whose code covered them.
+    assert np.array_equal(hard[:lo], _TX_SYNC)
+
+
+def test_the_llr_scale_tracks_the_link() -> None:
+    """Scaled by the burst's own noise estimate, so bursts are comparable.
+
+    An LLR is `2*a*r/n0`, so its magnitude is proportional to the LINEAR
+    SNR: every 6 dB should multiply it by about four. That is the property
+    that makes combining across bursts meaningful, and a raw `Re(y)` (which
+    a Viterbi would accept just as happily) does not have it.
+    """
+    mags = []
+    for esno in (6.0, 12.0, 18.0):
+        cap, payload, rx_kw = _link_at(esno)
+        rx = DsssBurstReceiver(**rx_kw)
+        bits = np.asarray(rx.push(cap))
+        assert np.array_equal(bits[: payload.size], payload), (
+            f"the burst must decode at {esno} dB for its LLRs to mean anything"
+        )
+        llr = np.asarray(rx.llrs(rx.llrs_max_out(1)))
+        mags.append(float(np.mean(np.abs(llr))))
+
+    for lo, hi in zip(mags, mags[1:]):
+        assert 2.5 < hi / lo < 6.0, (
+            f"6 dB should scale the LLRs by about 4x, measured {hi / lo:.2f}x "
+            f"({mags})"
+        )

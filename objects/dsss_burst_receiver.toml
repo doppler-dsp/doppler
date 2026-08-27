@@ -40,6 +40,7 @@ depends_on = [
     { name = "rs", link = true },
     { name = "pn", link = true },
     { name = "gold", link = true },
+    { name = "mpsk", link = true },
     { name = "burst_despreader", link = true },
     { name = "ppe", link = true },
     { name = "corr", link = true },
@@ -174,6 +175,14 @@ params = [{ name = "x", type = "float _Complex[]" }]
 # sufficient on its own, for every burst). Scratch, deliberately not
 # serialized: it describes one call, which is what keeps state_bytes() a pure
 # function of configuration (finding F5).
+[[dsss_burst_receiver.methods]]
+name = "llrs"
+doc = "The SOFT bits of every burst the last push() returned, concatenated: burst i occupies llr[i*frame_bits:(i+1)*frame_bits], in the same order as push()'s payloads and events()' rows. `mpsk_soft_demap`'s convention — positive means bit 0, so `L < 0` reproduces exactly the bits push() returned, which is asserted rather than assumed. Spans the WHOLE frame rather than the payload alone, because a code covers what its description says it covers and a decoder needs the bits the code protects. Scaled by the burst's own noise estimate: a Viterbi is invariant to a positive scale, but LLRs from different bursts are not comparable without one. Valid until the next push(), reset() or set_state()."
+arg_type = "void"
+return_type = "float"
+variable_output = true
+pass_capacity = true
+
 [[dsss_burst_receiver.methods]]
 name = "events"
 doc = "The event record for each burst the last push() returned. Row i describes the payload at bits[i*payload_len:(i+1)*payload_len] of that push. Valid until the next push(), reset() or set_state()."

@@ -168,9 +168,32 @@ an FER that conflated them would score every unprotected frame as an error.
 The inner code is the one stage this receiver does **not** accept, and it
 says so rather than accepting a flag that does nothing: a convolutional
 code covers the sync word too, so the bits a hard-decision correlator would
-look for are coded on the wire. Undoing it needs the soft symbols the
-demodulator currently discards
-([#1018](https://github.com/doppler-dsp/doppler/issues/1018)).
+look for are coded on the wire, and frame sync would have to run *after*
+the Viterbi.
+
+## Soft bits, for whatever decodes them
+
+`push()` returns hard bits; `llrs()` returns the same decision seen a
+second way, one value per **frame** bit:
+
+```python
+bits = rx.push(x)                    # hard, per burst, concatenated
+llr = rx.llrs(rx.llrs_max_out(1))    # soft, same order, frame-wide rows
+```
+
+The convention is `mpsk_soft_demap`'s — positive means bit 0, so
+`(llr < 0)` reproduces exactly the bits `push()` returned, which the tests
+assert rather than assume. A hard decision costs roughly **2 dB** of the
+coding gain a soft-input decoder exists to deliver, and until now that
+number was computed and freed one line before the slicer.
+
+They are **scaled**, not raw: `2·a·r/n0`, with `n0` estimated from the
+symbols themselves (after derotation the real axis carries the signal and
+the imaginary axis carries noise alone). A Viterbi would not care — it is
+invariant to a positive scale — but LLRs from different bursts are not
+comparable without one, and the scaled version is a measurement in its own
+right: every 6 dB of Es/N0 multiplies it by about four (measured 17.9 →
+67.2 → 259.2 at 6, 12 and 18 dB).
 
 ## The same thing in C
 

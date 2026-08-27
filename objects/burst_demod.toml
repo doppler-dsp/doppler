@@ -35,6 +35,7 @@ depends_on = [
     { name = "rs", link = true },
     { name = "pn", link = true },
     { name = "gold", link = true },
+    { name = "mpsk", link = true },
 ]
 
 [[burst_demod.init_params]]
@@ -90,6 +91,14 @@ params = [
     { name = "randomise", type = "int", default = "0" },
     { name = "attach_asm", type = "int", default = "0" },
 ]
+
+[[burst_demod.methods]]
+name = "llrs"
+doc = "The soft bits of the last demod() — one LLR per FRAME bit, in `mpsk_soft_demap`'s convention: positive means bit 0, so `L < 0` reproduces exactly the bits demod() returned. `Re(sym * derot)` IS the log-likelihood ratio up to a scale and used to be computed, sliced to one bit and freed; a hard decision costs roughly 2 dB of the coding gain a soft-input decoder exists to deliver. Spans the whole frame rather than the payload alone, because a code covers what its description says it covers. Scaled by `est_n0`, the burst's own noise estimate, so LLRs from different bursts are comparable — a Viterbi would not care, but combining across bursts does."
+arg_type = "void"
+return_type = "float"
+variable_output = true
+pass_capacity = true
 
 [[burst_demod.methods]]
 name = "set_prior"

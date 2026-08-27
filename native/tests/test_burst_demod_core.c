@@ -486,5 +486,67 @@ main (void)
     free (y);
   }
 
+  /* ── the soft bits, and the one decision rule ─────────────────────────
+   *
+   * `crealf(sym * derot)` is the LLR up to a scale, and it was sliced to a
+   * bit and freed. What has to be true of the kept version is that it is
+   * the SAME decision: `L < 0` reproduces demod()'s own bits, over the
+   * whole frame rather than the payload alone (doppler#1018).
+   */
+  {
+    uint8_t acode[ACQ_SF], dcode[DATA_SF], payload[PAYLOAD];
+    for (size_t i = 0; i < ACQ_SF; i++)
+      acode[i] = (uint8_t)((i * 2654435761u >> 13) & 1u);
+    for (size_t i = 0; i < DATA_SF; i++)
+      dcode[i] = (uint8_t)((i * 40503u >> 7) & 1u);
+    for (size_t i = 0; i < PAYLOAD; i++)
+      payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
+
+    size_t cap
+        = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF) * SPC
+          + 16;
+    float complex *y = malloc (cap * sizeof *y);
+    DP_REQUIRE (y != NULL);
+    size_t n = build_burst (y, acode, dcode, payload, 0.0, 0.0);
+
+    burst_demod_state_t *d = burst_demod_create (
+        dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10);
+    DP_REQUIRE (d != NULL);
+    burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
+    DP_CHECK (burst_demod_set_frame (d, SYNC, SYNC_LEN, 1, 0, 0, 0) == 0);
+    burst_demod_set_prior (d, 0.0, 0);
+
+    uint8_t bits[PAYLOAD];
+    DP_CHECK (burst_demod_demod (d, y, n, bits, PAYLOAD) == PAYLOAD);
+
+    const size_t nl = burst_demod_llrs_max_out (d, 1);
+    DP_CHECK_MSG (nl == SYNC_LEN + PAYLOAD + CRC_BITS,
+                  "one LLR per FRAME bit, not per payload bit");
+    float *llr = malloc (nl * sizeof *llr);
+    DP_REQUIRE (llr != NULL);
+    DP_CHECK (burst_demod_llrs (d, 1, llr, nl) == nl);
+
+    size_t disagree = 0;
+    for (size_t i = 0; i < PAYLOAD; i++)
+      if (((llr[SYNC_LEN + i] < 0.0f) ? 1u : 0u) != bits[i])
+        disagree++;
+    DP_CHECK_MSG (disagree == 0,
+                  "the soft bits and the hard bits are one decision rule "
+                  "seen twice, not two rules that happen to agree");
+    /* The sync word is in there too -- that is what makes the LLRs usable
+       by a code whose cover included it. */
+    size_t sync_bad = 0;
+    for (size_t i = 0; i < SYNC_LEN; i++)
+      if (((llr[i] < 0.0f) ? 1u : 0u) != SYNC[i])
+        sync_bad++;
+    DP_CHECK_MSG (sync_bad == 0, "the frame's leading fields are soft too");
+    /* And they are SCALED: a noise estimate the caller can read back. */
+    DP_CHECK_MSG (d->est_n0 > 0.0, "the LLR scale is published, not hidden");
+
+    free (llr);
+    burst_demod_destroy (d);
+    free (y);
+  }
+
   DP_TEST_END ("test_burst_demod_core");
 }

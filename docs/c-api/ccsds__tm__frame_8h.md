@@ -38,6 +38,7 @@ _The CCSDS frame assembler — where the ASM goes, and the one place the stages'
 | struct | [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md) <br>_The shape of one CADU, and what each stage covered._  |
 | struct | [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md) <br>_What_ [_**ccsds\_tm\_frame\_decode**_](ccsds__tm__frame_8h.md#function-ccsds_tm_frame_decode) _found on the way through._ |
 | struct | [**ccsds\_tm\_frame\_span\_t**](structccsds__tm__frame__span__t.md) <br>_A run of CADU bits, as a half-open range_ `[first, first + n)` _._ |
+| struct | [**ccsds\_tm\_frame\_spec\_t**](structccsds__tm__frame__spec__t.md) <br>_A framed waveform's choices, before they become a description._  |
 
 
 
@@ -65,6 +66,7 @@ _The CCSDS frame assembler — where the ASM goes, and the one place the stages'
 | Type | Name |
 | ---: | :--- |
 |  size\_t | [**ccsds\_tm\_frame\_decode**](#function-ccsds_tm_frame_decode) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, const uint8\_t \* cadu, size\_t n\_cadu, uint8\_t \* frame, size\_t max\_frame, [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md) \* rx) <br>_Recover a Transfer Frame from the bits of one CADU._  |
+|  int | [**ccsds\_tm\_frame\_desc\_of**](#function-ccsds_tm_frame_desc_of) (const [**ccsds\_tm\_frame\_spec\_t**](structccsds__tm__frame__spec__t.md) \* s, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_Turn those choices into a description: fields, stages, covers._  |
 |  int | [**ccsds\_tm\_frame\_describe**](#function-ccsds_tm_frame_describe) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, size\_t frame\_len, const uint8\_t \* frame\_bits, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* out) <br>_This CADU as a_ [_**wfm\_frame\_desc\_t**_](structwfm__frame__desc__t.md) _— the standard as DATA._ |
 |  size\_t | [**ccsds\_tm\_frame\_encode**](#function-ccsds_tm_frame_encode) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, [**conv\_enc\_t**](structconv__enc__t.md) \* conv, const uint8\_t \* frame, size\_t frame\_len, uint8\_t \* out, size\_t max\_out) <br>_Encode one Transfer Frame into channel symbols._  |
 |  size\_t | [**ccsds\_tm\_frame\_layout**](#function-ccsds_tm_frame_layout) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, size\_t frame\_len, [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md) \* out) <br>_Work out the CADU shape for a config, without encoding anything._  |
@@ -243,6 +245,45 @@ printf ("%zu octets, R-S %u/%u ok, %u symbols repaired\n", n, rx.rs_ok,
         rx.rs_codewords, rx.rs_symbols);
 ```
  
+
+
+
+        
+
+<hr>
+
+
+
+### function ccsds\_tm\_frame\_desc\_of 
+
+_Turn those choices into a description: fields, stages, covers._ 
+```C++
+int ccsds_tm_frame_desc_of (
+    const ccsds_tm_frame_spec_t * s,
+    wfm_frame_desc_t * d
+) 
+```
+
+
+
+The ONE place this standard's coverage table becomes data, so a generator and whatever undoes the frame later hold the same layout rather than each deriving one.
+
+
+
+
+**Parameters:**
+
+
+* `s` the choices. 
+* `d` receives the description. 
+
+
+
+**Returns:**
+
+0, or -1 on NULL, or if the geometry needs more fields or stages than a description holds. 
+
+
 
 
 

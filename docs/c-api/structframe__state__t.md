@@ -44,6 +44,10 @@ _Frame state._ [More...](#detailed-description)
 |  size\_t | [**nbits**](#variable-nbits)  <br> |
 |  uint8\_t \* | [**one**](#variable-one)  <br> |
 |  uint8\_t \* | [**own**](#variable-own)  <br> |
+|  int | [**rx\_checked**](#variable-rx_checked)  <br> |
+|  int | [**rx\_ok**](#variable-rx_ok)  <br> |
+|  int | [**rx\_symbols**](#variable-rx_symbols)  <br> |
+|  int | [**rx\_units**](#variable-rx_units)  <br> |
 
 
 
@@ -227,6 +231,62 @@ Owned copies of every literal field; NULL for a generated kind.
 
 
         
+
+<hr>
+
+
+
+### variable rx\_checked 
+
+```C++
+int frame_state_t::rx_checked;
+```
+
+
+
+What the last [**frame\_deframe()**](frame__core_8h.md#function-frame_deframe) found, summed across the stages it reversed. Read-backs rather than a returned record: the call hands back BITS, and jm binds one return value. `rx_checked == 0` means the description carries no reversible stage — which is not the same fact as a failed check, and an FER conflating them would score every unprotected frame as an error. 
+
+
+        
+
+<hr>
+
+
+
+### variable rx\_ok 
+
+```C++
+int frame_state_t::rx_ok;
+```
+
+
+
+
+<hr>
+
+
+
+### variable rx\_symbols 
+
+```C++
+int frame_state_t::rx_symbols;
+```
+
+
+
+
+<hr>
+
+
+
+### variable rx\_units 
+
+```C++
+int frame_state_t::rx_units;
+```
+
+
+
 
 <hr>
 

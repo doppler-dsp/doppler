@@ -148,9 +148,9 @@ compose (wfm_source_t *src, size_t repeats, size_t gap, float complex *out,
 static dsss_burst_receiver_state_t *
 make_rx (const uint8_t *acode, const uint8_t *dcode, const uint8_t *sy)
 {
-  return dsss_burst_receiver_create (
-      acode, ACQ_SF, dcode, DATA_SF, sy, SYNC_LEN, REPS, SPC, CHIP_RATE,
-      PAYLOAD, CN0_DBHZ, 0.0, 1e-3, 0.9, 0.0, 0.0, 10, 1, 0, 0, 0);
+  return dsss_burst_receiver_create (acode, ACQ_SF, dcode, DATA_SF, sy,
+                                     SYNC_LEN, REPS, SPC, CHIP_RATE, PAYLOAD,
+                                     CN0_DBHZ, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
 }
 
 /** @brief Push `cap` in `block` chunks; return payloads decoded. */
@@ -336,17 +336,14 @@ main (void)
 
     printf ("§5  every read-back, per burst (%zu payload(s), %zu event(s)):\n",
             got / PAYLOAD, nev);
-    printf ("       # %8s %8s %8s %9s %8s %8s %8s %7s %4s %4s\n", "start",
-            "dopp_hz", "res_hz", "cn0_dBHz", "freq_hz", "rate_hz", "conf_dB",
-            "margin", "crc", "chk");
+    printf ("       # %8s %8s %8s %9s %8s %8s %8s %7s\n", "start", "dopp_hz",
+            "res_hz", "cn0_dBHz", "freq_hz", "rate_hz", "conf_dB", "margin");
     for (size_t i = 0; i < nev; i++)
-      printf ("      %2zu %8llu %8.1f %8.1f %9.2f %8.2f %8.2f %8.2f %7.3f"
-              " %4llu %4llu\n",
+      printf ("      %2zu %8llu %8.1f %8.1f %9.2f %8.2f %8.2f %8.2f %7.3f\n",
               i, (unsigned long long)ev[i].preamble_start,
               ev[i].doppler_hz_est, ev[i].doppler_res_hz, ev[i].cn0_dbhz_est,
               ev[i].est_freq_hz, ev[i].est_rate_hz, ev[i].est_snr_db,
-              ev[i].refine_margin, (unsigned long long)ev[i].frame_valid,
-              (unsigned long long)ev[i].frame_checked);
+              ev[i].refine_margin);
     printf ("      scene: bin %.1f Hz, C/N0 %.2f dB-Hz, true offset 0 Hz,"
             " no chirp\n",
             bin_hz, cn0_true);
@@ -356,7 +353,6 @@ main (void)
       {
         const dsss_br_event_t *e = &ev[i];
         ok = e->preamble_start == (uint64_t)(i * spacing)
-             && e->frame_valid
              /* the search grid: width derived, estimate inside the bin
                 that contains the true 0 Hz */
              && e->doppler_res_hz == bin_hz
@@ -379,8 +375,7 @@ main (void)
       {
         const dsss_br_event_t *last = &ev[nev - 1];
         ok = rx->preamble_start == last->preamble_start
-             && rx->frame_valid == (int)last->frame_valid
-             && rx->frame_checked == (int)last->frame_checked
+
              && rx->doppler_hz_est == last->doppler_hz_est
              && rx->doppler_res_hz == last->doppler_res_hz
              && rx->cn0_dbhz_est == last->cn0_dbhz_est

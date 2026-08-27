@@ -41,7 +41,6 @@ _BurstDemod state. Allocate with_ [_**burst\_demod\_create()**_](burst__demod__c
 |  size\_t | [**acq\_sf**](#variable-acq_sf)  <br> |
 |  double | [**carrier\_hz**](#variable-carrier_hz)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
-|  [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) | [**d**](#variable-d)  <br> |
 |  uint8\_t \* | [**data\_code**](#variable-data_code)  <br> |
 |  size\_t | [**data\_sf**](#variable-data_sf)  <br> |
 |  double | [**est\_freq\_hz**](#variable-est_freq_hz)  <br> |
@@ -50,24 +49,18 @@ _BurstDemod state. Allocate with_ [_**burst\_demod\_create()**_](burst__demod__c
 |  size\_t | [**est\_segments**](#variable-est_segments)  <br> |
 |  double | [**est\_snr\_db**](#variable-est_snr_db)  <br> |
 |  double | [**f0\_prior**](#variable-f0_prior)  <br> |
-|  int | [**frame\_checked**](#variable-frame_checked)  <br> |
 |  size\_t | [**frame\_offset**](#variable-frame_offset)  <br> |
-|  int | [**frame\_valid**](#variable-frame_valid)  <br> |
-|  [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) | [**lay**](#variable-lay)  <br> |
+|  size\_t | [**frame\_syms**](#variable-frame_syms)  <br> |
 |  float \* | [**llr**](#variable-llr)  <br> |
-|  uint8\_t | [**marker**](#variable-marker)  <br> |
 |  double | [**max\_rate**](#variable-max_rate)  <br> |
 |  size\_t | [**n\_llr**](#variable-n_llr)  <br> |
 |  size\_t | [**n\_part**](#variable-n_part)  <br> |
 |  size\_t | [**n\_symbols**](#variable-n_symbols)  <br> |
 |  float complex \* | [**part**](#variable-part)  <br> |
-|  unsigned | [**payload\_field**](#variable-payload_field)  <br> |
-|  size\_t | [**payload\_len**](#variable-payload_len)  <br> |
 |  [**ppe\_state\_t**](structppe__state__t.md) \* | [**ppe**](#variable-ppe)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
 |  size\_t | [**start**](#variable-start)  <br> |
 |  int8\_t \* | [**sync**](#variable-sync)  <br> |
-|  uint8\_t \* | [**sync\_bits**](#variable-sync_bits)  <br> |
 |  size\_t | [**sync\_len**](#variable-sync_len)  <br> |
 
 
@@ -198,24 +191,6 @@ double burst_demod_state_t::chip_rate;
 
 
 chip rate (Hz). 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable d 
-
-```C++
-wfm_frame_desc_t burst_demod_state_t::d;
-```
-
-
-
-the frame this burst carries: fields, stages, and the span each stage covers. 
  
 
 
@@ -368,24 +343,6 @@ coarse Doppler prior (cycles/sample).
 
 
 
-### variable frame\_checked 
-
-```C++
-int burst_demod_state_t::frame_checked;
-```
-
-
-
-checking stages actually reversed. 0 with frame\_valid 0 means the frame carries no check  which is not the same fact as a failed one, and an FER conflating them scores every unprotected frame as an error. 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable frame\_offset 
 
 ```C++
@@ -404,33 +361,15 @@ symbol offset of the sync word.
 
 
 
-### variable frame\_valid 
+### variable frame\_syms 
 
 ```C++
-int burst_demod_state_t::frame_valid;
+size_t burst_demod_state_t::frame_syms;
 ```
 
 
 
-1 iff every check that RAN came out good. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable lay 
-
-```C++
-wfm_frame_desc_layout_t burst_demod_state_t::lay;
-```
-
-
-
-where each field landed. 
+symbols the frame occupies AFTER the sync word — a number the caller states. What they MEAN is the frame description's business, one layer up. 
  
 
 
@@ -450,23 +389,6 @@ float* burst_demod_state_t::llr;
 
 The frame's soft bits, `mpsk_soft_demap`'s convention: positive means bit 0, so `L < 0` is the hard decision demod() returned. Valid until the next demod(); n\_llr of them. 
  
-
-
-        
-
-<hr>
-
-
-
-### variable marker 
-
-```C++
-uint8_t burst_demod_state_t::marker[CCSDS_TM_ASM_BITS];
-```
-
-
-
-the ASM, when the frame has one 
 
 
         
@@ -558,42 +480,6 @@ preamble partials scratch (acq\_reps\*est\_seg).
 
 
 
-### variable payload\_field 
-
-```C++
-unsigned burst_demod_state_t::payload_field;
-```
-
-
-
-the payload's index in `d`. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable payload\_len 
-
-```C++
-size_t burst_demod_state_t::payload_len;
-```
-
-
-
-payload data symbols (bits). 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable ppe 
 
 ```C++
@@ -656,25 +542,7 @@ int8_t* burst_demod_state_t::sync;
 
 
 
-the CORRELATION TEMPLATE as +/-1: the frame's leading literal group (marker, then sync word), which is what a receiver finds rather than decodes. Length sync\_len. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable sync\_bits 
-
-```C++
-uint8_t* burst_demod_state_t::sync_bits;
-```
-
-
-
-owned 0/1 copy of the sync word; the description points at it. 
+owned sync word as +/-1, length sync\_len — the correlation template, and the only thing this object knows about the frame's CONTENT. 
  
 
 
@@ -692,7 +560,7 @@ size_t burst_demod_state_t::sync_len;
 
 
 
-template length (symbols). 
+sync word length (symbols). 
  
 
 

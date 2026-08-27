@@ -60,8 +60,7 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 |  size\_t | [**ev\_cap**](#variable-ev_cap)  <br> |
 |  size\_t | [**ev\_len**](#variable-ev_len)  <br> |
 |  size\_t | [**frame\_bits**](#variable-frame_bits)  <br> |
-|  int | [**frame\_checked**](#variable-frame_checked)  <br> |
-|  int | [**frame\_valid**](#variable-frame_valid)  <br> |
+|  size\_t | [**frame\_syms**](#variable-frame_syms)  <br> |
 |  dp\_f32\_t \* | [**hist**](#variable-hist)  <br> |
 |  size\_t | [**k\_hi**](#variable-k_hi)  <br> |
 |  size\_t | [**k\_lo**](#variable-k_lo)  <br> |
@@ -69,7 +68,6 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 |  size\_t | [**llr\_cap**](#variable-llr_cap)  <br> |
 |  size\_t | [**llr\_len**](#variable-llr_len)  <br> |
 |  uint64\_t | [**n\_bursts**](#variable-n_bursts)  <br> |
-|  size\_t | [**payload\_len**](#variable-payload_len)  <br> |
 |  size\_t | [**pending**](#variable-pending)  <br> |
 |  uint64\_t | [**preamble\_start**](#variable-preamble_start)  <br> |
 |  [**dsss\_br\_pending\_t**](structdsss__br__pending__t.md) \* | [**q**](#variable-q)  <br> |
@@ -573,33 +571,15 @@ The frame's length, from the description  the stride of a row in `llr`.
 
 
 
-### variable frame\_checked 
+### variable frame\_syms 
 
 ```C++
-int dsss_burst_receiver_state_t::frame_checked;
+size_t dsss_burst_receiver_state_t::frame_syms;
 ```
 
 
 
-Checking stages reversed for that burst. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable frame\_valid 
-
-```C++
-int dsss_burst_receiver_state_t::frame_valid;
-```
-
-
-
-1 iff every check that RAN came out good. 
+Symbols the frame occupies after the sync word, and so bits per burst out of push(). What they MEAN is a frame description's business, one layer up (doppler#1020). 
  
 
 
@@ -726,24 +706,6 @@ uint64_t dsss_burst_receiver_state_t::n_bursts;
 
 
 Bursts demodulated, lifetime. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable payload\_len 
-
-```C++
-size_t dsss_burst_receiver_state_t::payload_len;
-```
-
-
-
-Payload bits per burst. 
  
 
 

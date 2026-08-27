@@ -341,6 +341,75 @@ extern "C"
                                wfm_frame_desc_t *out);
 
   /**
+   * @brief A framed waveform's choices, before they become a description.
+   *
+   * The wider family `ccsds_tm_frame_describe` is the CADU case of: a frame
+   * that may open with a marker, may carry a preamble and a sync word a
+   * receiver FINDS, carries a payload, and applies some subset of this
+   * standard's four stages to it.
+   *
+   * **The fields are the caller's; the COVERS are the standard's**, which is
+   * the whole reason this lives here rather than in `wfm/wfm_frame.h`. That
+   * header knows what a field and a stage are and nothing about which covers
+   * which — a general description cannot, because the answer is a
+   * specification's:
+   *
+   *     marker / preamble / sync   found, not decoded — covered by the inner
+   *                                code alone, because all three must look
+   *                                the same in every frame to be findable
+   *     payload / crc / parity     the data group — what the outer code and
+   *                                the randomiser reach over
+   *     everything                 the inner code
+   *
+   * The middle row is 10.3.4 generalised: the randomiser does not cover the
+   * ASM, and the reason the standard gives — a marker a receiver correlates
+   * against must not vary between frames — is exactly as true of a preamble
+   * and a sync word.
+   *
+   * A receiver does NOT hold one of these. It stops at hard and soft
+   * decisions; the frame is undone one layer up, by whoever holds the
+   * description.
+   */
+  typedef struct
+  {
+    /** Non-zero: the frame opens with the ASM (0x1ACFFC1D). */
+    int attach_asm;
+    /** Preamble, repeated @p preamble_reps times; NULL for none. */
+    const uint8_t *preamble;
+    size_t         preamble_len;
+    size_t         preamble_reps;
+    /** Frame-sync word — what a receiver correlates to find the payload. */
+    const uint8_t *sync;
+    size_t         sync_len;
+    /** The payload. May be NULL when only the geometry is wanted. */
+    const uint8_t *payload;
+    size_t         payload_len;
+    /** Non-zero: a CRC-16 trailer over the payload group. */
+    int crc;
+    /** Outer-code interleaving depth; 0 = no outer code. */
+    unsigned rs_depth;
+    /** Randomiser generator: 0 = off, else 10.4.1 (1) or 10.4.2 (2). */
+    int randomise;
+    /** Non-zero: the K=7 rate-1/2 inner code, over the whole frame. */
+    int convolutional;
+  } ccsds_tm_frame_spec_t;
+
+  /**
+   * @brief Turn those choices into a description: fields, stages, covers.
+   *
+   * The ONE place this standard's coverage table becomes data, so a
+   * generator and whatever undoes the frame later hold the same layout
+   * rather than each deriving one.
+   *
+   * @param s  the choices.
+   * @param d  receives the description.
+   * @return 0, or -1 on NULL, or if the geometry needs more fields or
+   *         stages than a description holds.
+   */
+  int ccsds_tm_frame_desc_of (const ccsds_tm_frame_spec_t *s,
+                              wfm_frame_desc_t *d);
+
+  /**
    * @brief The kernels a described CADU is assembled with.
    *
    * The outer code, the randomiser and the inner code, as the transforms

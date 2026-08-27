@@ -73,9 +73,15 @@ _A frame's bit layout, held as an object so Python can describe one._ [More...](
 |  int | [**frame\_crc\_ok**](#function-frame_crc_ok) ([**frame\_state\_t**](structframe__state__t.md) \* state, const uint8\_t \* rx\_bits, size\_t rx\_bits\_len) <br>_Check one received frame's CRC._  |
 |  [**frame\_state\_t**](structframe__state__t.md) \* | [**frame\_create**](#function-frame_create) (int preamble\_kind, const uint8\_t \* preamble, size\_t preamble\_len, size\_t preamble\_nbits, size\_t preamble\_reps, uint64\_t preamble\_poly, uint64\_t preamble\_seed, uint32\_t preamble\_reg\_bits, int preamble\_lfsr, uint64\_t preamble\_taps\_a, uint64\_t preamble\_seed\_a, uint64\_t preamble\_taps\_b, uint64\_t preamble\_seed\_b, int sync\_kind, const uint8\_t \* sync, size\_t sync\_len, size\_t sync\_nbits, uint64\_t sync\_poly, uint64\_t sync\_seed, uint32\_t sync\_reg\_bits, int sync\_lfsr, uint64\_t sync\_taps\_a, uint64\_t sync\_seed\_a, uint64\_t sync\_taps\_b, uint64\_t sync\_seed\_b, int payload\_kind, const uint8\_t \* payload, size\_t payload\_len, size\_t payload\_nbits, uint64\_t payload\_poly, uint64\_t payload\_seed, uint32\_t payload\_reg\_bits, int payload\_lfsr, uint64\_t payload\_taps\_a, uint64\_t payload\_seed\_a, uint64\_t payload\_taps\_b, uint64\_t payload\_seed\_b, int crc) <br>_Create a frame instance._  |
 |  [**frame\_state\_t**](structframe__state__t.md) \* | [**frame\_create\_desc**](#function-frame_create_desc) (int preamble\_kind, const uint8\_t \* preamble, size\_t preamble\_len, size\_t preamble\_nbits, size\_t preamble\_reps, uint64\_t preamble\_poly, uint64\_t preamble\_seed, uint32\_t preamble\_reg\_bits, int preamble\_lfsr, uint64\_t preamble\_taps\_a, uint64\_t preamble\_seed\_a, uint64\_t preamble\_taps\_b, uint64\_t preamble\_seed\_b, int sync\_kind, const uint8\_t \* sync, size\_t sync\_len, size\_t sync\_nbits, uint64\_t sync\_poly, uint64\_t sync\_seed, uint32\_t sync\_reg\_bits, int sync\_lfsr, uint64\_t sync\_taps\_a, uint64\_t sync\_seed\_a, uint64\_t sync\_taps\_b, uint64\_t sync\_seed\_b, int payload\_kind, const uint8\_t \* payload, size\_t payload\_len, size\_t payload\_nbits, uint64\_t payload\_poly, uint64\_t payload\_seed, uint32\_t payload\_reg\_bits, int payload\_lfsr, uint64\_t payload\_taps\_a, uint64\_t payload\_seed\_a, uint64\_t payload\_taps\_b, uint64\_t payload\_seed\_b, int crc) <br>_The same frame, DEFERRED — a description a caller can extend._  |
+|  size\_t | [**frame\_deframe**](#function-frame_deframe) ([**frame\_state\_t**](structframe__state__t.md) \* state, const uint8\_t \* rx\_bits, size\_t rx\_bits\_len, uint8\_t \* out, size\_t max\_out) <br>_Undo this description's stages over a received frame — DEFRAME it._  |
+|  size\_t | [**frame\_deframe\_max\_out**](#function-frame_deframe_max_out) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t rx\_bits\_len) <br>_Max bits_ [_**frame\_deframe()**_](frame__core_8h.md#function-frame_deframe) _writes: the frame's own length._ |
 |  void | [**frame\_destroy**](#function-frame_destroy) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Destroy a frame instance and release all memory._  |
 |  size\_t | [**frame\_field\_bits**](#function-frame_field_bits) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t i) <br>_Bits in field_ `i` _, or 0 if there is no such field._ |
 |  size\_t | [**frame\_field\_off**](#function-frame_field_off) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t i) <br>_Bit offset of field_ `i` _, or 0 if there is no such field._ |
+|  int | [**frame\_get\_rx\_checked**](#function-frame_get_rx_checked) (const [**frame\_state\_t**](structframe__state__t.md) \* state) <br> |
+|  int | [**frame\_get\_rx\_ok**](#function-frame_get_rx_ok) (const [**frame\_state\_t**](structframe__state__t.md) \* state) <br> |
+|  int | [**frame\_get\_rx\_symbols**](#function-frame_get_rx_symbols) (const [**frame\_state\_t**](structframe__state__t.md) \* state) <br> |
+|  int | [**frame\_get\_rx\_units**](#function-frame_get_rx_units) (const [**frame\_state\_t**](structframe__state__t.md) \* state) <br> |
 |  [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) | [**frame\_layout**](#function-frame_layout) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Where each field lands, in bits from the start of the frame._  |
 |  size\_t | [**frame\_n\_fields**](#function-frame_n_fields) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Fields in the description._  |
 |  size\_t | [**frame\_n\_stages**](#function-frame_n_stages) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Stages in the description._  |
@@ -832,6 +838,119 @@ An unbuilt description, or NULL on allocation failure or a field that cannot be 
 
 
 
+### function frame\_deframe 
+
+_Undo this description's stages over a received frame — DEFRAME it._ 
+```C++
+size_t frame_deframe (
+    frame_state_t * state,
+    const uint8_t * rx_bits,
+    size_t rx_bits_len,
+    uint8_t * out,
+    size_t max_out
+) 
+```
+
+
+
+The receive counterpart of building one, and the layer a receiver stops short of: `DsssBurstReceiver` and friends hand back hard and soft decisions for a frame's symbols and make no claim about what they mean, because knowing that needs a description — this one (doppler#1020).
+
+
+Returns the frame with every reversible stage undone, in place order: a randomiser XORed back, an outer code's repairs APPLIED, a CRC checked. The payload is then a slice, at [**frame\_field\_off**](frame__core_8h.md#function-frame_field_off) of the payload field — which is the caller's arithmetic because a description does not privilege one field over another.
+
+
+The verdict comes back as read-backs (`ok`, `units`, `checked`, `symbols`), not as a return value, since the return is the bits. Read them exactly as [**frame\_check\_t**](structframe__check__t.md)'s, including the distinction that matters most: `checked == 0` says the description carries no reversible stage at all, which is a different fact from a check that failed.
+
+
+A stage with no `undo` kernel — a convolutional inner code, which a receiver cannot even frame-sync through — is reported as not checked rather than as passed.
+
+
+
+
+**Parameters:**
+
+
+* `state` The frame. 
+* `rx_bits` Received bits, `frame_bits` of them; treated as a capture and never modified. 
+* `rx_bits_len` How many were supplied. 
+* `out` Receives the corrected frame. 
+* `max_out` Capacity of `out`; see [**frame\_deframe\_max\_out()**](frame__core_8h.md#function-frame_deframe_max_out). 
+
+
+
+**Returns:**
+
+Bits written — the frame's length — or 0 if the description is empty or either buffer is too small. 
+```C++
+>>> import numpy as np
+>>> from doppler.wfm import Frame
+>>> empty = np.zeros(0, dtype=np.uint8)
+>>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], dtype=np.uint8)
+>>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], dtype=np.uint8)
+>>> f = Frame(empty, sync, payload, crc="crc16")
+>>> rx = np.asarray(f.bits())          # a clean capture of its own frame
+>>> got = np.asarray(f.deframe(rx))
+>>> f.rx_ok, f.rx_units, f.rx_checked  # one CRC, and it passed
+(1, 1, 1)
+>>> off = f.layout().payload_off       # the payload is a SLICE
+>>> bool(np.array_equal(got[off:off + 16], payload))
+True
+>>> rx[off] ^= 1                       # one bit flipped in flight
+>>> _ = f.deframe(rx)
+>>> f.rx_ok, f.rx_units                # the check notices
+(0, 1)
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function frame\_deframe\_max\_out 
+
+_Max bits_ [_**frame\_deframe()**_](frame__core_8h.md#function-frame_deframe) _writes: the frame's own length._
+```C++
+size_t frame_deframe_max_out (
+    frame_state_t * state,
+    size_t rx_bits_len
+) 
+```
+
+
+
+Size a `deframe()` buffer with this. The bound is the DESCRIPTION's, not the input's: a frame is as long as its fields say, so how many bits were received does not change how many come back.
+
+
+
+
+**Parameters:**
+
+
+* `state` The frame. 
+* `rx_bits_len` How many bits are on offer. Ignored, for the reason above; it is in the signature because the binding's capacity call passes the input's length. 
+
+
+
+**Returns:**
+
+The frame's length in bits, or 0 for an empty description. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function frame\_destroy 
 
 _Destroy a frame instance and release all memory._ 
@@ -956,6 +1075,66 @@ indices a caller passed to `add_field` keep meaning what they meant.
 
 
         
+
+<hr>
+
+
+
+### function frame\_get\_rx\_checked 
+
+```C++
+int frame_get_rx_checked (
+    const frame_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function frame\_get\_rx\_ok 
+
+```C++
+int frame_get_rx_ok (
+    const frame_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function frame\_get\_rx\_symbols 
+
+```C++
+int frame_get_rx_symbols (
+    const frame_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function frame\_get\_rx\_units 
+
+```C++
+int frame_get_rx_units (
+    const frame_state_t * state
+) 
+```
+
+
+
 
 <hr>
 

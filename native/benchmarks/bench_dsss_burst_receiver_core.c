@@ -192,10 +192,9 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 static dsss_burst_receiver_state_t *
 make_rx (void)
 {
-  return dsss_burst_receiver_create (acq_code (), ACQ_SF, data_code (),
-                                     DATA_SF, sync_word (), SYNC_LEN, REPS,
-                                     SPC, CHIP_RATE, PAYLOAD, CN0_DBHZ, 0.0,
-                                     1e-3, 0.9, 0.0, 0.0, 10, 1, 0, 0, 0);
+  return dsss_burst_receiver_create (
+      acq_code (), ACQ_SF, data_code (), DATA_SF, sync_word (), SYNC_LEN, REPS,
+      SPC, CHIP_RATE, PAYLOAD, CN0_DBHZ, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
 }
 
 /**

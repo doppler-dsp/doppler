@@ -132,7 +132,7 @@ extern "C"
    *
    * Read off the MODE character rather than switched per format, so a format
    * added to the enum above needs no edit here. A code this build does not
-   * know reports 0, which is the same answer @ref dp_format_size gives and
+   * know reports 0, which is the same answer `dp_format_size` gives and
    * is distinguishable from both valid counts.
    *
    * @param type Sample format.

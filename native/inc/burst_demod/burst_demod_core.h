@@ -341,6 +341,7 @@ extern "C"
    * @brief Max LLRs burst_demod_llrs() writes: the frame's length in bits.
    *
    * @param state  Demodulator handle.
+   * @param n      Ignored — the count is the last demod()'s frame.
    */
   size_t burst_demod_llrs_max_out (burst_demod_state_t *state, size_t n);
 

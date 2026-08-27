@@ -433,6 +433,7 @@ size_t burst_demod_llrs_max_out (
 
 
 * `state` Demodulator handle. 
+* `n` Ignored — the count is the last demod()'s frame. 
 
 
 

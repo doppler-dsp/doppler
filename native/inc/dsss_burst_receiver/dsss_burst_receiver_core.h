@@ -244,9 +244,9 @@ typedef struct {
   dsss_br_event_t *ev;     /**< One record per burst returned.             */
   size_t           ev_cap; /**< Allocated records.                          */
   float  *llr;     /**< The soft bits of every burst the last push
-                        returned, concatenated: burst i occupies
-                        llr[i*frame_bits ... ]. Scratch, like `ev` --
-                        it describes one call and is never serialized. */
+                        returned, concatenated: burst i starts at
+                        i*frame_bits. Scratch, like `ev` -- it describes
+                        one call and is never serialized.              */
   size_t  llr_cap; /**< Allocated floats.                               */
   size_t  llr_len; /**< Floats written by the last push.                */
   size_t  frame_bits; /**< The frame's length, from the description --
@@ -312,6 +312,17 @@ typedef struct {
  * @param carrier_hz  RF carrier (Hz) for code-Doppler; 0 = ignore.
  * @param max_rate  Chirp-rate search half-span (cycles/sample^2).
  * @param est_segments  Segments the feedforward estimator fits over.
+ * @param crc           Non-zero: the frame ends in a CRC-16-CCITT trailer
+ *                      over the payload. 0: it does not, and the frame is
+ *                      16 bits shorter — which this object then BELIEVES,
+ *                      rather than measuring the burst against a trailer
+ *                      nobody sent.
+ * @param rs_depth      Outer-code interleaving depth over the data group;
+ *                      0 = none. It REPAIRS, before the payload is read.
+ * @param randomise     Randomiser generator over the data group (0 = off),
+ *                      as the generator's own `randomise` field spells it.
+ * @param attach_asm    Non-zero: the frame opens with the CCSDS ASM, which
+ *                      joins the correlation template.
  * @return Heap-allocated state, or NULL if any argument is invalid.
  * @note Caller must call dsss_burst_receiver_destroy() when done.
  * @code
@@ -436,6 +447,8 @@ size_t dsss_burst_receiver_push(dsss_burst_receiver_state_t *state, const float 
  * @param state  Must be non-NULL.
  * @return The number of bursts the most recent push() completed.
  */
+size_t dsss_burst_receiver_events_max_out(dsss_burst_receiver_state_t *state);
+
 /**
  * @brief The SOFT bits of every burst the last push() returned.
  *
@@ -446,7 +459,8 @@ size_t dsss_burst_receiver_push(dsss_burst_receiver_state_t *state, const float 
  * a coded burst worth coding.
  *
  * Concatenated the same way push()'s payloads are: burst @c i occupies
- * `llr[i * frame_bits ... ]`, in the order events() reports. The convention
+ * one row of `frame_bits` each, starting at `i * frame_bits`, in the order
+ * events() reports. The convention
  * is `mpsk_soft_demap`'s — positive means bit 0, so `L < 0` reproduces
  * exactly the bits push() returned. Spans the WHOLE frame rather than the
  * payload alone, because a code covers what its description says it covers.
@@ -484,7 +498,6 @@ size_t dsss_burst_receiver_llrs(dsss_burst_receiver_state_t *state, size_t n, fl
  */
 size_t dsss_burst_receiver_llrs_max_out(dsss_burst_receiver_state_t *state, size_t n);
 
-size_t dsss_burst_receiver_events_max_out(dsss_burst_receiver_state_t *state);
 
 /**
  * @brief The event record for each burst the last push() returned.

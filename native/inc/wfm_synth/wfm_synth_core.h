@@ -491,6 +491,12 @@ int wfm_synth_set_bits(wfm_synth_state_t *state, const uint8_t *bits, size_t n,
  * @return 0 on success; -1 on invalid geometry (frame bits with no data
  *         code, or an empty burst) or allocation failure.
  */
+int wfm_synth_set_dsss(wfm_synth_state_t *state, const uint8_t *acq_code,
+                       size_t acq_len, size_t acq_reps,
+                       const uint8_t *data_code, size_t data_len,
+                       const uint8_t *sync, size_t sync_len,
+                       const uint8_t *payload, size_t payload_len, int crc);
+
 /**
  * @brief Install an already-assembled DSSS burst as the chip pattern.
  *
@@ -508,11 +514,6 @@ int wfm_synth_set_bits(wfm_synth_state_t *state, const uint8_t *bits, size_t n,
 int wfm_synth_set_dsss_chips(wfm_synth_state_t *state, const uint8_t *chips,
                              size_t n_chips);
 
-int wfm_synth_set_dsss(wfm_synth_state_t *state, const uint8_t *acq_code,
-                       size_t acq_len, size_t acq_reps,
-                       const uint8_t *data_code, size_t data_len,
-                       const uint8_t *sync, size_t sync_len,
-                       const uint8_t *payload, size_t payload_len, int crc);
 
 /**
  * @brief Configure a type=dsss synth for CONTINUOUS ASYNCHRONOUS generation.

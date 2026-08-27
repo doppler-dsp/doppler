@@ -93,8 +93,8 @@ _Synth component API._ [More...](#detailed-description)
 |  void | [**wfm\_synth\_set\_chirp\_span**](#function-wfm_synth_set_chirp_span) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, size\_t span) <br>_Pin a chirp's sweep span to_ `span` _samples (no-op for non-chirp)._ |
 |  void | [**wfm\_synth\_set\_cur\_im**](#function-wfm_synth_set_cur_im) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, float val) <br>_Override the held-symbol imaginary (Q) component in-place. Takes effect on the next_ [_**wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-wfm_synth_step) _within the current symbol hold._ |
 |  void | [**wfm\_synth\_set\_cur\_re**](#function-wfm_synth_set_cur_re) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, float val) <br>_Override the held-symbol real (I) component in-place. Takes effect on the next_ [_**wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-wfm_synth_step) _within the current symbol hold._ |
-|  int | [**wfm\_synth\_set\_dsss**](#function-wfm_synth_set_dsss) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_len, size\_t acq\_reps, const uint8\_t \* data\_code, size\_t data\_len, const uint8\_t \* sync, size\_t sync\_len, const uint8\_t \* payload, size\_t payload\_len, int crc) <br> |
-|  int | [**wfm\_synth\_set\_dsss\_chips**](#function-wfm_synth_set_dsss_chips) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const uint8\_t \* chips, size\_t n\_chips) <br>_Build and attach a two-code DSSS burst to a type=dsss synth (no-op otherwise)._  |
+|  int | [**wfm\_synth\_set\_dsss**](#function-wfm_synth_set_dsss) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_len, size\_t acq\_reps, const uint8\_t \* data\_code, size\_t data\_len, const uint8\_t \* sync, size\_t sync\_len, const uint8\_t \* payload, size\_t payload\_len, int crc) <br>_Build and attach a two-code DSSS burst to a type=dsss synth (no-op otherwise)._  |
+|  int | [**wfm\_synth\_set\_dsss\_chips**](#function-wfm_synth_set_dsss_chips) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const uint8\_t \* chips, size\_t n\_chips) <br>_Install an already-assembled DSSS burst as the chip pattern._  |
 |  int | [**wfm\_synth\_set\_dsss\_cont**](#function-wfm_synth_set_dsss_cont) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const uint8\_t \* code, size\_t code\_len, double chips\_per\_symbol, int data\_mode, const uint8\_t \* data, size\_t n\_data) <br>_Configure a type=dsss synth for CONTINUOUS ASYNCHRONOUS generation._  |
 |  void | [**wfm\_synth\_set\_nsps**](#function-wfm_synth_set_nsps) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, int val) <br>_Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos); set sym\_pos=0 as well when changing sps mid-stream._  |
 |  int | [**wfm\_synth\_set\_rrc**](#function-wfm_synth_set_rrc) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const float \* taps, size\_t ntaps) <br>_Enable RRC pulse shaping on a symbol synth (pn/bpsk/qpsk/bits)._  |
@@ -868,6 +868,7 @@ void wfm_synth_set_cur_re (
 
 ### function wfm\_synth\_set\_dsss 
 
+_Build and attach a two-code DSSS burst to a type=dsss synth (no-op otherwise)._ 
 ```C++
 int wfm_synth_set_dsss (
     wfm_synth_state_t * state,
@@ -881,24 +882,6 @@ int wfm_synth_set_dsss (
     const uint8_t * payload,
     size_t payload_len,
     int crc
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function wfm\_synth\_set\_dsss\_chips 
-
-_Build and attach a two-code DSSS burst to a type=dsss synth (no-op otherwise)._ 
-```C++
-int wfm_synth_set_dsss_chips (
-    wfm_synth_state_t * state,
-    const uint8_t * chips,
-    size_t n_chips
 ) 
 ```
 
@@ -934,10 +917,29 @@ NOTE: `snr_mode` semantics — the raw engine's create-time esno refers to the _
 
 **Returns:**
 
-0 on success; -1 on invalid geometry (frame bits with no data code, or an empty burst) or allocation failure.
+0 on success; -1 on invalid geometry (frame bits with no data code, or an empty burst) or allocation failure. 
 
 
-Install an already-assembled DSSS burst as the chip pattern.
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_synth\_set\_dsss\_chips 
+
+_Install an already-assembled DSSS burst as the chip pattern._ 
+```C++
+int wfm_synth_set_dsss_chips (
+    wfm_synth_state_t * state,
+    const uint8_t * chips,
+    size_t n_chips
+) 
+```
+
 
 
 The spreading half of `wfm_synth_set_dsss()`, split out so a caller who assembled the frame from a `wfm_frame_desc_t`  a burst carrying an inner code, an ASM, an outer code or a randomiser  installs it through the same path as the four-field form rather than through a second one. Chips are copied; `chips` stays the caller's.

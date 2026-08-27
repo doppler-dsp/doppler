@@ -83,7 +83,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 |  [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* | [**dsss\_burst\_receiver\_create**](#function-dsss_burst_receiver_create) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, const uint8\_t \* data\_code, size\_t data\_code\_len, const uint8\_t \* sync, size\_t sync\_len, size\_t reps, size\_t spc, double chip\_rate, size\_t payload\_len, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, double carrier\_hz, double max\_rate, size\_t est\_segments, int crc, int rs\_depth, int randomise, int attach\_asm) <br>_Create a burst receiver: acquisition, refine and demodulation composed behind one push()._  |
 |  void | [**dsss\_burst\_receiver\_destroy**](#function-dsss_burst_receiver_destroy) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br>_Destroy a dsss\_burst\_receiver instance and release all memory._  |
 |  size\_t | [**dsss\_burst\_receiver\_events**](#function-dsss_burst_receiver_events) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, size\_t n, [**dsss\_br\_event\_t**](structdsss__br__event__t.md) \* out, size\_t max\_out) <br>_The event record for each burst the last push() returned._  |
-|  size\_t | [**dsss\_burst\_receiver\_events\_max\_out**](#function-dsss_burst_receiver_events_max_out) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
+|  size\_t | [**dsss\_burst\_receiver\_events\_max\_out**](#function-dsss_burst_receiver_events_max_out) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br>_Max records events() writes: one per burst the last push() returned._  |
 |  double | [**dsss\_burst\_receiver\_get\_cn0\_dbhz\_est**](#function-dsss_burst_receiver_get_cn0_dbhz_est) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dsss\_burst\_receiver\_get\_doppler\_hz\_est**](#function-dsss_burst_receiver_get_doppler_hz_est) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dsss\_burst\_receiver\_get\_doppler\_res\_hz**](#function-dsss_burst_receiver_get_doppler_res_hz) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
@@ -98,7 +98,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 |  uint64\_t | [**dsss\_burst\_receiver\_get\_preamble\_start**](#function-dsss_burst_receiver_get_preamble_start) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dsss\_burst\_receiver\_get\_refine\_margin**](#function-dsss_burst_receiver_get_refine_margin) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  void | [**dsss\_burst\_receiver\_get\_state**](#function-dsss_burst_receiver_get_state) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**dsss\_burst\_receiver\_state\_bytes()**_](dsss__burst__receiver__core_8h.md#function-dsss_burst_receiver_state_bytes) _long)._ |
-|  size\_t | [**dsss\_burst\_receiver\_llrs**](#function-dsss_burst_receiver_llrs) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_Max records events() writes: one per burst the last push() returned._  |
+|  size\_t | [**dsss\_burst\_receiver\_llrs**](#function-dsss_burst_receiver_llrs) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_The SOFT bits of every burst the last push() returned._  |
 |  size\_t | [**dsss\_burst\_receiver\_llrs\_max\_out**](#function-dsss_burst_receiver_llrs_max_out) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, size\_t n) <br>_Max LLRs llrs() writes: frame bits x the bursts the last push returned._  |
 |  size\_t | [**dsss\_burst\_receiver\_push**](#function-dsss_burst_receiver_push) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, const float complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Stream samples; return the payload of EVERY burst that completed._  |
 |  size\_t | [**dsss\_burst\_receiver\_push\_max\_out**](#function-dsss_burst_receiver_push_max_out) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, size\_t x\_len) <br>_Max bits push() can write for an input of_ `x_len` _samples._ |
@@ -280,6 +280,10 @@ The look-back buffer is NOT a parameter. Its span is derived from the geometry h
 * `carrier_hz` RF carrier (Hz) for code-Doppler; 0 = ignore. 
 * `max_rate` Chirp-rate search half-span (cycles/sample^2). 
 * `est_segments` Segments the feedforward estimator fits over. 
+* `crc` Non-zero: the frame ends in a CRC-16-CCITT trailer over the payload. 0: it does not, and the frame is 16 bits shorter — which this object then BELIEVES, rather than measuring the burst against a trailer nobody sent. 
+* `rs_depth` Outer-code interleaving depth over the data group; 0 = none. It REPAIRS, before the payload is read. 
+* `randomise` Randomiser generator over the data group (0 = off), as the generator's own `randomise` field spells it. 
+* `attach_asm` Non-zero: the frame opens with the CCSDS ASM, which joins the correlation template. 
 
 
 
@@ -405,6 +409,7 @@ True
 
 ### function dsss\_burst\_receiver\_events\_max\_out 
 
+_Max records events() writes: one per burst the last push() returned._ 
 ```C++
 size_t dsss_burst_receiver_events_max_out (
     dsss_burst_receiver_state_t * state
@@ -413,6 +418,24 @@ size_t dsss_burst_receiver_events_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The number of bursts the most recent push() completed. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -632,7 +655,7 @@ void dsss_burst_receiver_get_state (
 
 ### function dsss\_burst\_receiver\_llrs 
 
-_Max records events() writes: one per burst the last push() returned._ 
+_The SOFT bits of every burst the last push() returned._ 
 ```C++
 size_t dsss_burst_receiver_llrs (
     dsss_burst_receiver_state_t * state,
@@ -644,27 +667,10 @@ size_t dsss_burst_receiver_llrs (
 
 
 
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-
-
-
-**Returns:**
-
-The number of bursts the most recent push() completed.
-
-
-The SOFT bits of every burst the last push() returned.
-
-
 `crealf(sym * derot)` IS the log-likelihood ratio up to a scale, and the demodulator used to compute it, slice it to one bit and free it. A hard decision throws away roughly 2 dB of the coding gain a soft-input decoder exists to deliver (`mpsk_soft_demap`'s own docstring), which is what makes a coded burst worth coding.
 
 
-Concatenated the same way push()'s payloads are: burst `i` occupies `llr[i * frame_bits ... ]`, in the order events() reports. The convention is `mpsk_soft_demap`'s — positive means bit 0, so `L < 0` reproduces exactly the bits push() returned. Spans the WHOLE frame rather than the payload alone, because a code covers what its description says it covers.
+Concatenated the same way push()'s payloads are: burst `i` occupies one row of `frame_bits` each, starting at `i * frame_bits`, in the order events() reports. The convention is `mpsk_soft_demap`'s — positive means bit 0, so `L < 0` reproduces exactly the bits push() returned. Spans the WHOLE frame rather than the payload alone, because a code covers what its description says it covers.
 
 
 Valid until the next push(), reset() or set\_state(); deliberately not serialized, for the same reason events() is not: it describes one call.

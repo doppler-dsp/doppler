@@ -671,7 +671,8 @@ float* dsss_burst_receiver_state_t::llr;
 
 
 
-The soft bits of every burst the last push returned, concatenated: burst i occupies llr[i\*frame\_bits ... ]. Scratch, like `ev`  it describes one call and is never serialized. 
+The soft bits of every burst the last push returned, concatenated: burst i starts at i\*frame\_bits. Scratch, like `ev`  it describes one call and is never serialized. 
+ 
 
 
         

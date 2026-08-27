@@ -101,25 +101,34 @@ def truth(x: np.ndarray, rows: int, cols: int, unit: int) -> np.ndarray:
     return x.reshape(rows, cols, unit).transpose(1, 0, 2).reshape(-1)
 
 
-def view_doc_faces_agree() -> bool:
-    """Do the `Deinterleaver`'s two docstrings still say the same thing?
+def view_doc_faces() -> tuple[bool, str]:
+    """Do the `Deinterleaver`'s two docstrings say the same thing?
 
     Derived rather than asserted, because it is the specific hazard
-    just-makeit#1160 leaves behind: the `.pyi` stub's class docstring IS
-    derived from `interleaver_create_rx`'s doxygen, while the runtime
-    `tp_doc` is hand-written in the sacred fragment, so the two faces can
-    drift the moment either side is edited. Compared on the opening
-    sentence — the part a `help()` reader and a type checker both see
-    first — with whitespace collapsed, since the two are wrapped by
-    different tools.
+    just-makeit#1160 leaves behind: a VIEW's runtime `tp_doc` is a
+    placeholder rather than its own `create_fn`'s, so doppler hand-writes
+    it in the sacred fragment — and the `.pyi` stub gets whatever jm
+    derives, which for a view is the PARENT's `create()`. Two faces of one
+    class, from two sources, and nothing compares them.
+
+    Compared on the opening sentence, which is what a `help()` reader and
+    a type checker each see first, with whitespace collapsed since the two
+    are wrapped by different tools.
+
+    Returns
+    -------
+    tuple of (bool, str)
+        Whether they agree, and the stub's opening sentence — the report
+        quotes it, because "they disagree" without saying what the stub
+        actually claims is the half a reader cannot act on.
     """
     stub = _text(ROOT / "src/doppler/coding/coding.pyi")
     m = re.search(r'class Deinterleaver[^:]*:\s*\n\s*"""(.*?)\n', stub, re.S)
     if not m or Deinterleaver.__doc__ is None:
-        return False
+        return False, "(not found)"
     first_stub = " ".join(m.group(1).split())
     first_run = " ".join(Deinterleaver.__doc__.split("\n")[0].split())
-    return first_stub == first_run
+    return first_stub == first_run, first_stub
 
 
 @dataclass
@@ -155,6 +164,7 @@ class Data:
     mismatch_silent: bool = False
     mismatch_worst_wrong: float = 0.0
     doc_faces_agree: bool = False
+    doc_stub_says: str = ""
 
 
 # ── 1. the object ────────────────────────────────────────────────────
@@ -935,7 +945,7 @@ def measure_view(d: Data) -> None:
     d.mismatch_rows = rows
     d.mismatch_silent = bool(silent)
     d.mismatch_worst_wrong = worst
-    d.doc_faces_agree = view_doc_faces_agree()
+    d.doc_faces_agree, d.doc_stub_says = view_doc_faces()
 
 
 def characterise() -> Data:
@@ -1043,20 +1053,30 @@ def review(d: Data) -> None:
         "`a_partial_block_is_refused` instead, which is also where the "
         "NULL-argument refusals live.",
     )
+    if d.doc_faces_agree:
+        measured = "AGREE today, so the drift has closed. "
+    else:
+        measured = (
+            f"disagree, and the stub opens \u201c{d.doc_stub_says}\u201d "
+            "— the TRANSMIT face's sentence, on the receive class, with no "
+            "mention that `interleave` is deliberately absent. A type "
+            "checker and an IDE read that one; `help()` reads the "
+            "hand-written one. "
+        )
     R.find(
         "F7",
         "GAP",
-        "**The view's runtime docstring is hand-written and can drift.** "
-        "jm derives a class docstring from `create()`'s doxygen, but a "
-        "VIEW's `tp_doc` gets a placeholder rather than its own "
-        "`create_fn`'s, so `Deinterleaver`'s runtime doc is maintained by "
-        "hand in the sacred fragment while the `.pyi` stub's IS derived — "
-        "two faces of one class, from two sources "
-        "(just-makeit#1160). The two agree today "
-        f"({'verified' if d.doc_faces_agree else 'THEY DO NOT'}, derived "
-        "from the stub and the live class rather than asserted), and "
-        "nothing keeps them agreeing. Retire the hand-written block when "
-        "the fix ships.",
+        "**The view's two docstrings do not agree, and the stub has the "
+        "wrong one.** jm derives a class docstring from `create()`'s "
+        "doxygen, but a VIEW's runtime `tp_doc` gets a placeholder rather "
+        "than its own `create_fn`'s (just-makeit#1160), so doppler "
+        "hand-writes `Deinterleaver`'s in the sacred fragment. The `.pyi` "
+        "stub, meanwhile, gets what jm derives — and for a view that is "
+        "the PARENT's `create()`. Measured from the two live sources: "
+        "they " + measured + "The fragment's own comment used to claim "
+        "the stub was derived from `interleaver_create_rx`; this is the "
+        "measurement that found it untrue. Retire the hand-written block "
+        "when the fix ships.",
     )
     R.find(
         "F8",

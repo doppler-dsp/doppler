@@ -667,7 +667,15 @@ static PyTypeObject DeinterleaverObjType = {
   /* Hand-written: jm derives a class docstring from create()'s header
      doxygen, but a VIEW's tp_doc is a placeholder rather than its own
      create_fn's (just-makeit#1160). Kept in step with
-     interleaver_create_rx's doxygen and with the .pyi, which IS derived. */
+     interleaver_create_rx's doxygen.
+
+     NOT in step with the .pyi, and that is the part of gh-1160 worth
+     knowing: the stub is derived, but for a view jm derives it from the
+     PARENT's create(), so coding.pyi tells a type checker this class
+     "builds an interleaver" and never mentions that interleave() is
+     deliberately absent. Measured by the validation report's F7, from
+     both live sources, so the finding flips on its own when jm is
+     fixed -- do not restate the outcome here. */
   .tp_doc
   = "The RECEIVE face of a block interleaver.\n"
     "\n"

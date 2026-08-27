@@ -1,0 +1,116 @@
+# Baseline for scripts/check_alloc_helpers.py -- a RATCHET.
+#
+# Bare malloc/calloc/realloc calls per file in doppler's library C, all of
+# them predating the dp_xmalloc/dp_xcalloc/dp_xnn helpers in
+# native/inc/clib_common.h.
+#
+# EVERY COUNT MAY ONLY SHRINK, and a file not listed may not allocate at
+# all. Converting a call means the number here comes down -- re-record with
+#
+#     make lint-alloc-helpers-baseline
+#
+# A count that stayed high after its file improved is a waiver outliving
+# its reason, so the gate fails on that too.
+#
+# Format:  <path> <count>
+
+native/inc/buffer/buffer.h 1
+native/inc/ccsds_tm/ccsds_tm_frame.h 1
+native/inc/doppler_channel/doppler_channel_core.h 1
+native/inc/dp_parallel.h 1
+native/inc/frame/frame_core.h 1
+native/src/RateConverter/RateConverter_core.c 8
+native/src/acc_cf64/acc_cf64_core.c 1
+native/src/acc_f32/acc_f32_core.c 1
+native/src/acc_q15/acc_q15_core.c 1
+native/src/acc_q8/acc_q8_core.c 1
+native/src/acc_trace/acc_trace_core.c 2
+native/src/acq/acq_core.c 12
+native/src/adc/adc_core.c 1
+native/src/agc/agc_core.c 1
+native/src/app/wfmgen.c 4
+native/src/awgn/awgn_core.c 1
+native/src/boxcar/boxcar_core.c 1
+native/src/burst_acq/burst_acq_core.c 1
+native/src/burst_demod/burst_demod_core.c 9
+native/src/burst_despreader/burst_despreader_core.c 3
+native/src/carrier_acq/carrier_acq_core.c 6
+native/src/carrier_mpsk/carrier_mpsk_core.c 1
+native/src/carrier_nda/carrier_nda_core.c 1
+native/src/cic/cic_core.c 1
+native/src/conv_enc/conv_enc_core.c 1
+native/src/corr/corr_core.c 5
+native/src/corr2d/corr2d_core.c 10
+native/src/costas/costas_core.c 1
+native/src/ddc/ddc_core.c 3
+native/src/ddcr/ddcr_core.c 4
+native/src/delay/delay_core.c 2
+native/src/despreader/despreader_core.c 3
+native/src/detector/detector_core.c 4
+native/src/detector2d/detector2d_core.c 4
+native/src/dll/dll_core.c 9
+native/src/dp_interrupt_guard/dp_interrupt_guard_core.c 1
+native/src/dp_tlm/dp_tlm_core.c 1
+native/src/dp_tlm_capture/dp_tlm_capture_core.c 5
+native/src/dsss_burst_receiver/dsss_burst_receiver_core.c 9
+native/src/f32_to_i16/f32_to_i16_core.c 1
+native/src/f32_to_i16u32/f32_to_i16u32_core.c 1
+native/src/f32_to_i16u64/f32_to_i16u64_core.c 1
+native/src/f32_to_uq15/f32_to_uq15_core.c 1
+native/src/farrow/farrow_core.c 1
+native/src/fft/fft_core.c 1
+native/src/fft/pocketfft.c 6
+native/src/fft2d/fft2d_core.c 1
+native/src/filter/design_lowpass.c 1
+native/src/fir/fir_core.c 7
+native/src/frame/frame_core.c 6
+native/src/frame_meter/frame_meter_core.c 1
+native/src/gold/gold_core.c 1
+native/src/hbdecim/hbdecim_core.c 4
+native/src/hbdecim_q15/hbdecim_q15_core.c 5
+native/src/i16_to_f32/i16_to_f32_core.c 1
+native/src/i16u32_to_f32/i16u32_to_f32_core.c 1
+native/src/i16u64_to_f32/i16u64_to_f32_core.c 1
+native/src/i32_to_f32/i32_to_f32_core.c 1
+native/src/i8_to_f32/i8_to_f32_core.c 1
+native/src/imdmeas/imdmeas_core.c 2
+native/src/interleaver/interleaver_core.c 1
+native/src/interp_table/interp_table_core.c 2
+native/src/lo/lo_core.c 1
+native/src/lockdet/lockdet_core.c 1
+native/src/loop_filter/loop_filter_core.c 1
+native/src/measure/measure_min_samples.c 1
+native/src/mpsk_receiver/mpsk_receiver_core.c 1
+native/src/nco/nco_core.c 1
+native/src/nprmeas/nprmeas_core.c 2
+native/src/pn/pn_core.c 1
+native/src/ppe/ppe_core.c 7
+native/src/psd/psd_core.c 6
+native/src/ratesync/ratesync_core.c 1
+native/src/resamp/resamp_core.c 7
+native/src/resample/hbdecim_r2c_core.c 4
+native/src/resample/resample_ext_HalfbandDecimator.c 1
+native/src/resample/resample_ext_Resampler.c 2
+native/src/rs_codec/rs_codec_core.c 1
+native/src/specan/specan_core.c 6
+native/src/spectral/find_peaks_f32.c 1
+native/src/spectral/noise_floor_db.c 1
+native/src/stream/stream_nats.c 7
+native/src/stream/tlm_sink.c 1
+native/src/symsync/symsync_core.c 1
+native/src/syncword/syncword_core.c 2
+native/src/timing/timing_core.c 1
+native/src/tonemeas/tonemeas_core.c 4
+native/src/uq15_to_f32/uq15_to_f32_core.c 1
+native/src/viterbi/viterbi_core.c 9
+native/src/wfm/wfm_compose.c 9
+native/src/wfm/wfm_frame.c 2
+native/src/wfm/wfm_json.c 7
+native/src/wfm/wfm_keywords.c 1
+native/src/wfm/wfm_plan.c 23
+native/src/wfm/wfm_resolve.c 1
+native/src/wfm/wfm_sink.c 2
+native/src/wfm/wfm_synth_bridge.c 3
+native/src/wfm_reader/wfm_reader_core.c 8
+native/src/wfm_synth/wfm_synth_core.c 9
+native/src/wfm_writer/wfm_writer_core.c 5

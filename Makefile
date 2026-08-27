@@ -118,8 +118,8 @@ SYNC_CMD   = $(UV) sync
 # environment" class of drift: the tool comes from `--group dev` and uv.lock
 # owns the version, so there is no `additional_dependencies` left to drift.
 LINT_TOOLS   = conflict tracked-paths ruff ruff-format mdformat clang-format \
-               clang-tidy phase-conversion stimulus-sources retired-names \
-               ci-pipefail rust-abi
+               clang-tidy phase-conversion alloc-helpers stimulus-sources \
+               retired-names ci-pipefail rust-abi
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -224,6 +224,18 @@ LINT_tracked-paths = ./scripts/check-tracked-paths.sh
 # already drifted once (one truncated while a sibling rounded). A rule with
 # no gate behind it is how that happened; this is the gate.
 LINT_phase-conversion = $(UV) run python scripts/check_phase_conversion_sites.py
+
+# A trusted internal allocation goes through clib_common.h's abort-on-OOM
+# helpers, because the alternative is an unwind path no test can reach --
+# uncoverable by construction, against a patch-coverage gate every changed C
+# line has to satisfy. The helpers landed 2026-07-21 and the rule then lived
+# in a memory file and nowhere else, so nothing extended it and a bare malloc
+# beside a helper call passed every gate the repo had. Ratcheted: the 313
+# sites that predate it may only shrink.
+LINT_alloc-helpers = $(UV) run python scripts/check_alloc_helpers.py
+
+lint-alloc-helpers-baseline: ## Re-record the alloc ratchet after converting some
+	@$(UV) run python scripts/check_alloc_helpers.py --update-baseline
 
 # A rename is finished when the old name appears NOWHERE, and that is a
 # different event from the build going green. fec_ -> ccsds_tm_ (#828) went
@@ -1046,6 +1058,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 glibc-check glibc-gate glibc-image specan-check \
                 check-isotime-parity \
                 tests-ssot validation-report-check \
+                lint-alloc-helpers-baseline \
                 compile_commands.json \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
                 apt-stall-config deps-budget-check cargo-floor-check \

@@ -855,7 +855,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "n : int\n"
-    "    Demodulator handle.\n"
+    "    Ignored — the count is the last demod()'s frame.\n"
     "\n"
     "Returns\n"
     "-------\n"

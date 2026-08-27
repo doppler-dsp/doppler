@@ -670,7 +670,7 @@ size_t dsss_burst_receiver_llrs (
 `crealf(sym * derot)` IS the log-likelihood ratio up to a scale, and the demodulator used to compute it, slice it to one bit and free it. A hard decision throws away roughly 2 dB of the coding gain a soft-input decoder exists to deliver (`mpsk_soft_demap`'s own docstring), which is what makes a coded burst worth coding.
 
 
-Concatenated the same way push()'s payloads are: burst `i` occupies one row of `frame_bits` each, starting at `i * frame_bits`, in the order events() reports. The convention is `mpsk_soft_demap`'s — positive means bit 0, so `L < 0` reproduces exactly the bits push() returned. Spans the WHOLE frame rather than the payload alone, because a code covers what its description says it covers.
+Concatenated the same way push()'s payloads are, one row of `frame_bits` per burst: burst `i` starts at `i * frame_bits`, in the order events() reports. The convention is `mpsk_soft_demap`'s — positive means bit 0, so `L < 0` reproduces exactly the bits push() returned. Spans the WHOLE frame rather than the payload alone, because a code covers what its description says it covers.
 
 
 Valid until the next push(), reset() or set\_state(); deliberately not serialized, for the same reason events() is not: it describes one call.

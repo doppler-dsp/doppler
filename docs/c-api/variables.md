@@ -79,6 +79,7 @@
 
 * **symsync\_\_core\_8h\_1a0411cd49bb5b71852cecd93bcbf0ca2d** ([**symsync\_core.h**](symsync__core_8h.md))
 * **symsync\_\_core\_8h\_1abed82baf7f470b522273a3e37c24c600** ([**symsync\_core.h**](symsync__core_8h.md))
+* **STYPE\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 
 
 ## t

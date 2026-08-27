@@ -108,6 +108,12 @@ wfm_stream_sink_open (const char *endpoint, int sample_type)
     case WT_CI8:
       dt = CI8;
       break;
+    /* The five SCALAR types reach here and are REFUSED, deliberately and for
+       now. doppler#1032 gave the file writers BLUE mode 'S'; the stream is a
+       separate contract -- a wire header, a subscriber, and the Rust FFI that
+       decodes it -- and quietly publishing a real capture as complex would
+       hand every subscriber half a signal. Refusing is the honest answer
+       until that side is designed. doppler#1035. */
     default:
       return NULL;
     }

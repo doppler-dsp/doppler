@@ -1333,6 +1333,78 @@ test_flush_makes_samples_observable (void)
   return 0;
 }
 
+/* A SCALAR capture, written by our OWN writer rather than a hand-built
+   fixture -- doppler#1032.
+ *
+ * The reader has always understood BLUE format mode 'S'; the writer emitted a
+ * literal 'C' whatever it was handed, and no test wrote a real capture and
+ * read it back, so the two halves of this library disagreed about what BLUE
+ * is for as long as both existed. A fixture assembled here by hand would not
+ * have caught it: it would have exercised the reader against bytes this
+ * library never produced.
+ *
+ * The sample COUNT is the assertion that matters. Read as complex, a scalar
+ * file yields half as many samples with every other one landing in Q --
+ * plausible output from a file that said otherwise. */
+static int
+test_scalar_round_trips_through_our_own_writer (void)
+{
+  static const int    STYPES[] = { 5, 6, 7, 8, 9 }; /* f32 f64 i32 i16 i8 */
+  static const double TOL[]    = { 1e-6, 1e-6, 1e-6, 1e-4, 2e-2 };
+  for (unsigned k = 0; k < 5; k++)
+    {
+      const int stype = STYPES[k];
+      float _Complex x[N], y[N];
+      make_signal (x, N);
+
+      char path[64];
+      snprintf (path, sizeof path, "dp_scalar_%d.blue", stype);
+      FILE *fp = fopen (path, "wb");
+      DP_REQUIRE_MSG (fp, "open for write");
+      wfm_writer_state_t *w
+          = wfm_writer_open (fp, WFM_FT_BLUE, stype, 0, 1e6, 0.0, N, 0.0);
+      DP_REQUIRE_MSG (w, "writer open");
+      DP_REQUIRE_MSG (wfm_writer_write (w, x, N) == N, "wrote N");
+      wfm_writer_close (w);
+      fclose (fp);
+
+      /* The mode character, read as a BYTE. Asking our own reader would let a
+         reader that shared the writer's assumption agree with it. */
+      fp = fopen (path, "rb");
+      DP_REQUIRE_MSG (fp, "open for read");
+      uint8_t hcb[512];
+      DP_REQUIRE_MSG (fread (hcb, 1, 512, fp) == 512, "read hcb");
+      fclose (fp);
+      DP_REQUIRE_MSG (hcb[52] == 'S', "BLUE format mode is scalar");
+
+      /* No hint: BLUE carries its own type, and if it did not this would be
+         the complex default and the count below would halve. */
+      wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
+      DP_REQUIRE_MSG (r, "reader open");
+      wfm_reader_info_t info;
+      wfm_reader_info (r, &info);
+      DP_REQUIRE_MSG (info.mode == WFM_MODE_SCALAR, "mode is scalar");
+      DP_REQUIRE_MSG (info.sample_type == stype, "sample_type recovered");
+      DP_REQUIRE_MSG (info.num_samples == N, "num_samples");
+
+      size_t total = 0, n;
+      while ((n = wfm_reader_read (r, N - total, y + total, N - total)) > 0)
+        total += n;
+      wfm_reader_destroy (r);
+      DP_REQUIRE_MSG (total == N, "read back N samples");
+
+      for (size_t i = 0; i < N; i++)
+        {
+          DP_REQUIRE_MSG (cimagf (y[i]) == 0.0f, "no Q in a scalar capture");
+          DP_REQUIRE_MSG (fabs ((double)crealf (x[i]) - (double)crealf (y[i]))
+                              < TOL[k],
+                          "I round-trips");
+        }
+      remove (path);
+    }
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1393,6 +1465,8 @@ main (void)
   if (test_follow_distinguishes_timeout_from_interrupted ())
     return 1;
   if (test_flush_makes_samples_observable ())
+    return 1;
+  if (test_scalar_round_trips_through_our_own_writer ())
     return 1;
   printf ("test_wfm_reader: all passed\n");
   return 0;

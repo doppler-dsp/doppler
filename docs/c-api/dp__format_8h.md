@@ -33,7 +33,7 @@ _Complex sample formats, named by their BLUE/Platinum codes._ [More...](#detaile
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**dp\_sample\_type\_t**](#enum-dp_sample_type_t)  <br>_A complex sample format. The value IS the BLUE code._  |
+| enum  | [**dp\_sample\_type\_t**](#enum-dp_sample_type_t)  <br>_A sample format. The value IS the BLUE code._  |
 
 
 
@@ -61,9 +61,10 @@ _Complex sample formats, named by their BLUE/Platinum codes._ [More...](#detaile
 | Type | Name |
 | ---: | :--- |
 |  void | [**dp\_format\_chars**](#function-dp_format_chars) ([**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) type, char out) <br>_The two characters BLUE writes for_ `type` _(HCB bytes 52/53)._ |
-|  double | [**dp\_format\_full\_scale**](#function-dp_format_full_scale) ([**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) type) <br>_Full-scale magnitude of one I or Q component of_ `type` _._ |
+|  unsigned | [**dp\_format\_components**](#function-dp_format_components) ([**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) type) <br>_Components per sample of_ `type` _— 2 for complex, 1 for scalar._ |
+|  double | [**dp\_format\_full\_scale**](#function-dp_format_full_scale) ([**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) type) <br>_Full-scale magnitude of one component of_ `type` _— an I, a Q, or a scalar-mode real sample._ |
 |  int | [**dp\_format\_is\_valid**](#function-dp_format_is_valid) ([**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) type) <br>_Non-zero when_ `type` _is a format doppler can send and decode._ |
-|  size\_t | [**dp\_format\_size**](#function-dp_format_size) ([**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) type) <br>_Bytes occupied by one complex sample of_ `type` _, or 0 if the code is not one doppler sends._ |
+|  size\_t | [**dp\_format\_size**](#function-dp_format_size) ([**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) type) <br>_Bytes occupied by one SAMPLE of_ `type` _, or 0 if the code is not one doppler sends._ |
 
 
 
@@ -125,17 +126,25 @@ size_t n = dp_format_size (CF64);  // 16 bytes per complex sample
 
 ### enum dp\_sample\_type\_t 
 
-_A complex sample format. The value IS the BLUE code._ 
+_A sample format. The value IS the BLUE code._ 
 ```C++
 enum dp_sample_type_t {
     CI8 = DP_FMT ('C', 'B'),
     CI16 = DP_FMT ('C', 'I'),
     CI32 = DP_FMT ('C', 'L'),
     CF32 = DP_FMT ('C', 'F'),
-    CF64 = DP_FMT ('C', 'D')
+    CF64 = DP_FMT ('C', 'D'),
+    SI8 = DP_FMT ('S', 'B'),
+    SI16 = DP_FMT ('S', 'I'),
+    SI32 = DP_FMT ('S', 'L'),
+    SF32 = DP_FMT ('S', 'F'),
+    SF64 = DP_FMT ('S', 'D')
 };
 ```
 
+
+
+Ten formats: five element types in each of the two modes. The element type is the same in both — only the component COUNT differs, which is the whole of what the mode means.
 
 
 There is no code for a quad or extended float because BLUE defines none — which is the format agreeing with why doppler retired CF128: its representation differs between x86-64 and aarch64 at identical size, so a frame crossed an architecture boundary and decoded to nonsense. 
@@ -181,9 +190,46 @@ Unpacks rather than translates — the enum value IS the code — so a wire head
 
 
 
+### function dp\_format\_components 
+
+_Components per sample of_ `type` _— 2 for complex, 1 for scalar._
+```C++
+static inline unsigned dp_format_components (
+    dp_sample_type_t type
+) 
+```
+
+
+
+Read off the MODE character rather than switched per format, so a format added to the enum above needs no edit here. A code this build does not know reports 0, which is the same answer dp\_format\_size gives and is distinguishable from both valid counts.
+
+
+
+
+**Parameters:**
+
+
+* `type` Sample format. 
+
+
+
+**Returns:**
+
+2, 1, or 0 for an unknown code. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_format\_full\_scale 
 
-_Full-scale magnitude of one I or Q component of_ `type` _._
+_Full-scale magnitude of one component of_ `type` _— an I, a Q, or a scalar-mode real sample._
 ```C++
 static inline double dp_format_full_scale (
     dp_sample_type_t type
@@ -240,13 +286,16 @@ Derived from dp\_format\_size(): a format with no size is not a format. Ask this
 
 ### function dp\_format\_size 
 
-_Bytes occupied by one complex sample of_ `type` _, or 0 if the code is not one doppler sends._
+_Bytes occupied by one SAMPLE of_ `type` _, or 0 if the code is not one doppler sends._
 ```C++
 static inline size_t dp_format_size (
     dp_sample_type_t type
 ) 
 ```
 
+
+
+A sample is one element: two components in mode `'C'` and one in mode `'S'`. It was "bytes per complex sample" until doppler#1032, when the scalar half of the mode axis was instantiated — the rename is the point, because every caller multiplying a sample count by this number is already correct under both and would not be if this returned bytes per COMPONENT.
 
 
 This switch is the single table: validity, element size and the wire layout all derive from it, so a format added here needs no second edit and a code that is not here is not a doppler format anywhere.
@@ -263,7 +312,7 @@ This switch is the single table: validity, element size and the wire layout all 
 
 **Returns:**
 
-Bytes per complex sample, or 0. 
+Bytes per sample, or 0. 
 
 
 
@@ -290,7 +339,10 @@ _Pack a BLUE two-character format code into a_ `uint16_t` _._
 
 
 
-Mode in the low byte, element type in the high byte, so a little-endian hex dump of the wire field reads as the two characters in order. doppler uses mode `'C'` — complex, two components per element. 
+Mode in the low byte, element type in the high byte, so a little-endian hex dump of the wire field reads as the two characters in order.
+
+
+Mode `'C'` is complex — two components per element — and `'S'` is scalar, one. Both are real formats a capture can be in; `'S'` is what a real-valued waveform is written as, and dropping it was why doppler could READ a scalar BLUE file and not write one (doppler#1032). 
 
 
         

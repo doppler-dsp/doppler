@@ -248,7 +248,7 @@ int wfm_reader_info_t::sample_type;
 
 
 
-0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8. 
+Element type only  0 f32, 1 f64, 2 i32, 3 i16, 4 i8. How many components make a sample is `mode`, never this: the two are independent axes and the BLUE format field spells them as two separate characters for the same reason. 
 
 
         

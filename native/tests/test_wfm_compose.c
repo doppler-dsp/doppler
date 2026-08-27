@@ -895,10 +895,10 @@ main (void)
 
       const size_t pre   = 8u * 3u; /* acq_code x acq_reps */
       const size_t frame = (2u + 5u + WFM_FRAME_CRC_BITS) * 4u;
-      DP_CHECK_MSG (wfm_source_dsss_nchips (&dsss) == pre + frame,
-                    "plain burst: preamble + spread frame");
-      DP_CHECK_MSG (wfm_source_dsss_nchips (&cv) == pre + 2u * frame,
-                    "a rate-1/2 inner code doubles the SPREAD part only");
+      DP_REQUIRE_MSG (wfm_source_dsss_nchips (&dsss) == pre + frame,
+                      "plain burst: preamble + spread frame");
+      DP_REQUIRE_MSG (wfm_source_dsss_nchips (&cv) == pre + 2u * frame,
+                      "a rate-1/2 inner code doubles the SPREAD part only");
 
       wfm_compose_state_t *cp = wfm_compose_create (&gpl, 1, 0, 0);
       wfm_compose_state_t *cc = wfm_compose_create (&gcv, 1, 0, 0);
@@ -908,20 +908,20 @@ main (void)
       size_t               cn2 = wfm_compose_execute (cc, cbuf, 4096);
       wfm_compose_destroy (cp);
       wfm_compose_destroy (cc);
-      DP_CHECK_MSG (pn2 == (pre + frame) * 2u
-                        && cn2 == (pre + 2u * frame) * 2u,
-                    "the segment's on-time follows its own description");
+      DP_REQUIRE_MSG (pn2 == (pre + frame) * 2u
+                          && cn2 == (pre + 2u * frame) * 2u,
+                      "the segment's on-time follows its own description");
       /* The preamble is the coherent pull-in target: a code over "the whole
          frame" must not touch it, or every receiver's acquisition breaks. */
-      DP_CHECK_MSG (memcmp (pbuf, cbuf, pre * 2u * sizeof (float complex))
-                        == 0,
-                    "the unspread preamble is identical with and without the "
-                    "inner code");
+      DP_REQUIRE_MSG (
+          memcmp (pbuf, cbuf, pre * 2u * sizeof (float complex)) == 0,
+          "the unspread preamble is identical with and without the "
+          "inner code");
       /* ...and the spread part is NOT identical, or the stage did nothing. */
-      DP_CHECK_MSG (memcmp (pbuf + pre * 2u, cbuf + pre * 2u,
-                            frame * 2u * sizeof (float complex))
-                        != 0,
-                    "the inner code changed the frame it covers");
+      DP_REQUIRE_MSG (memcmp (pbuf + pre * 2u, cbuf + pre * 2u,
+                              frame * 2u * sizeof (float complex))
+                          != 0,
+                      "the inner code changed the frame it covers");
 
       /* A record that omits a stage is a capture nobody can rebuild. The
          SUM path writes its sources through a different function than the
@@ -941,8 +941,8 @@ main (void)
       char                *jm2 = wfm_spec_to_json (gm, 1, 0, 0, 0, 0.0);
       wfm_compose_destroy (cm);
       DP_REQUIRE_MSG (jm2, "sum spec serialises");
-      DP_CHECK_MSG (strstr (jm2, "\"conv\"") != NULL,
-                    "a summed source's record must name its inner code");
+      DP_REQUIRE_MSG (strstr (jm2, "\"conv\"") != NULL,
+                      "a summed source's record must name its inner code");
       free (jm2);
     }
 

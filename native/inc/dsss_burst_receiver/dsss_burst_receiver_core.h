@@ -542,7 +542,6 @@ size_t dsss_burst_receiver_events(dsss_burst_receiver_state_t *state, size_t n, 
  */
 int dsss_burst_receiver_configure_search_raw(dsss_burst_receiver_state_t *state, size_t doppler_bins, size_t n_noncoh);
 uint64_t dsss_burst_receiver_get_preamble_start(const dsss_burst_receiver_state_t *state);
-int dsss_burst_receiver_get_frame_checked(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_doppler_hz_est(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_doppler_res_hz(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_cn0_dbhz_est(const dsss_burst_receiver_state_t *state);

@@ -54,6 +54,16 @@ repos:
         pass_filenames: false
         always_run: true
 
+      # Names, not contents: a tracked path carrying shell punctuation is a
+      # quoting slip somebody committed. always_run, because the file this
+      # catches is by definition one no other hook's file filter matches.
+      - id: tracked-paths
+        name: tracked paths are names a person could type
+        entry: make -s lint-tracked-paths
+        language: system
+        pass_filenames: false
+        always_run: true
+
   # Python + markdown formatting DISPATCHES INWARD: the hook calls a Makefile
   # target rather than resolving the tool itself, so `make format`, the hook and
   # CI cannot run the tool differently. The version comes from pyproject's `dev`

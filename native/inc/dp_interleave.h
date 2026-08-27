@@ -75,7 +75,7 @@ dp_interleave_index (size_t i, size_t rows, size_t cols)
 /**
  * @brief Where output unit @p o came from — the inverse permutation.
  *
- * Identical to @ref dp_interleave_index with @p rows and @p cols exchanged,
+ * Identical to `dp_interleave_index` with @p rows and @p cols exchanged,
  * which is a fact about the transform rather than a coincidence: reading a
  * `rows x cols` matrix by columns is writing a `cols x rows` one by rows. It
  * is why every function below undoes itself by swapping two arguments, and
@@ -154,7 +154,7 @@ dp_interleave_u8 (const uint8_t *in, uint8_t *out, size_t rows, size_t cols,
 }
 
 /**
- * @brief Undo @ref dp_interleave_u8 over a block of the same geometry.
+ * @brief Undo `dp_interleave_u8` over a block of the same geometry.
  *
  * @param in    `rows * cols * unit` bytes of interleaved input.
  * @param out   Where to write them; must not overlap @p in.
@@ -186,7 +186,7 @@ dp_interleave_f32 (const float *in, float *out, size_t rows, size_t cols,
 }
 
 /**
- * @brief Undo @ref dp_interleave_f32 — the soft-decision receive path.
+ * @brief Undo `dp_interleave_f32` — the soft-decision receive path.
  *
  * This is the one a receiver actually needs. `dsss_burst_receiver`'s `llrs`
  * span the whole frame, and an outer decoder wants them de-interleaved

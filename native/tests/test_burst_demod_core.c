@@ -400,7 +400,7 @@ main (void)
       {
         const double f0       = 0.012;
         const size_t fills[3] = { 0, 3, 9 };
-        uint8_t      bits[PAYLOAD];
+        uint8_t      bits[FRAME_SYMS];
         size_t       prev_syms = 0;
         for (int fi = 0; fi < 3; fi++)
           {
@@ -457,7 +457,7 @@ main (void)
     if (y)
       {
         const double f0 = 0.012;
-        uint8_t      bits[PAYLOAD];
+        uint8_t      bits[FRAME_SYMS];
         size_t       n = build_burst_ex (y, acode, dcode, payload, f0, 0, -1);
         burst_demod_state_t *d = burst_demod_create (
             dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, 10);

@@ -95,10 +95,6 @@ size_t frame_stage_first(frame_state_t *state, size_t i);
 
 size_t frame_stage_bits(frame_state_t *state, size_t i);
 
-int frame_get_rx_ok(const frame_state_t *state);
-int frame_get_rx_units(const frame_state_t *state);
-int frame_get_rx_checked(const frame_state_t *state);
-int frame_get_rx_symbols(const frame_state_t *state);
 #ifdef __cplusplus
 }
 #endif

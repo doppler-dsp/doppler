@@ -78,10 +78,6 @@ _A frame's bit layout, held as an object so Python can describe one._ [More...](
 |  void | [**frame\_destroy**](#function-frame_destroy) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Destroy a frame instance and release all memory._  |
 |  size\_t | [**frame\_field\_bits**](#function-frame_field_bits) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t i) <br>_Bits in field_ `i` _, or 0 if there is no such field._ |
 |  size\_t | [**frame\_field\_off**](#function-frame_field_off) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t i) <br>_Bit offset of field_ `i` _, or 0 if there is no such field._ |
-|  int | [**frame\_get\_rx\_checked**](#function-frame_get_rx_checked) (const [**frame\_state\_t**](structframe__state__t.md) \* state) <br> |
-|  int | [**frame\_get\_rx\_ok**](#function-frame_get_rx_ok) (const [**frame\_state\_t**](structframe__state__t.md) \* state) <br> |
-|  int | [**frame\_get\_rx\_symbols**](#function-frame_get_rx_symbols) (const [**frame\_state\_t**](structframe__state__t.md) \* state) <br> |
-|  int | [**frame\_get\_rx\_units**](#function-frame_get_rx_units) (const [**frame\_state\_t**](structframe__state__t.md) \* state) <br> |
 |  [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) | [**frame\_layout**](#function-frame_layout) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Where each field lands, in bits from the start of the frame._  |
 |  size\_t | [**frame\_n\_fields**](#function-frame_n_fields) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Fields in the description._  |
 |  size\_t | [**frame\_n\_stages**](#function-frame_n_stages) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Stages in the description._  |
@@ -1075,66 +1071,6 @@ indices a caller passed to `add_field` keep meaning what they meant.
 
 
         
-
-<hr>
-
-
-
-### function frame\_get\_rx\_checked 
-
-```C++
-int frame_get_rx_checked (
-    const frame_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function frame\_get\_rx\_ok 
-
-```C++
-int frame_get_rx_ok (
-    const frame_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function frame\_get\_rx\_symbols 
-
-```C++
-int frame_get_rx_symbols (
-    const frame_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function frame\_get\_rx\_units 
-
-```C++
-int frame_get_rx_units (
-    const frame_state_t * state
-) 
-```
-
-
-
 
 <hr>
 

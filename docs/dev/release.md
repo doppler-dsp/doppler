@@ -160,9 +160,10 @@ a missed one is a red gate rather than a number nobody reads.
 
 ## 4. Assemble the changelog
 
-Entries are written as **fragments** under `changelog.d/`, one file per
-change ([why](../../CONTRIBUTING.md)), so `## [Unreleased]` is empty-ish
-between releases and the release is where they get promoted. This step did
+Entries are written as **fragments** under `changelog.d/` — one file per
+change, which is what stopped `CHANGELOG.md` conflicting on every rebase — so
+`## [Unreleased]` stays near-empty between releases and the release is where
+they get promoted. This step did
 not exist in this runbook until 2026-08-28, and its absence was not
 theoretical: cutting from the old step 4 alone would have published the 5
 entries already sitting under `[Unreleased]` and left 62 fragments on the

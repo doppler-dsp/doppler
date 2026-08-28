@@ -158,18 +158,46 @@ a missed one is a red gate rather than a number nobody reads.
     jm closes that, this value starts propagating outward — and `0.1.0` would
     have propagated into the three files that were correct.
 
-## 4. Update CHANGELOG.md
+## 4. Assemble the changelog
+
+Entries are written as **fragments** under `changelog.d/`, one file per
+change ([why](../../CONTRIBUTING.md)), so `## [Unreleased]` is empty-ish
+between releases and the release is where they get promoted. This step did
+not exist in this runbook until 2026-08-28, and its absence was not
+theoretical: cutting from the old step 4 alone would have published the 5
+entries already sitting under `[Unreleased]` and left 62 fragments on the
+floor.
 
 On the release branch:
 
+```sh
+make changelog-assemble    # promotes changelog.d/ into [Unreleased], and
+                           # STAGES the promotion (the fragments are deleted
+                           # but still tracked, so an unstaged assemble makes
+                           # the next `make lint` fail on paths that are gone)
+```
+
+Then, by hand — this is the one part that is prose and stays prose:
+
 1. Rename `## [Unreleased]` → `## [X.Y.Z] — YYYY-MM-DD`
 1. Add a fresh empty `## [Unreleased]` section above it
-1. Update the comparison links at the bottom of the file:
 
-```markdown
-[X.Y.Z]: https://github.com/doppler-dsp/doppler/compare/vPREV...vX.Y.Z
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/vX.Y.Z...HEAD
+```sh
+make docs-relink           # regenerates the comparison links from the headings
 ```
+
+!!! tip "You no longer write the comparison links"
+
+    `## [X.Y.Z]` is a markdown reference link, and without a matching
+    `[X.Y.Z]: …` definition it renders as the literal text `[X.Y.Z]`. This
+    step used to ask for that line by hand and nothing checked, so 0.43.0,
+    0.43.1 and 0.43.2 all shipped without one and there was no
+    `[unreleased]:` definition at all ([#996][i996]).
+
+    `scripts/gen_changelog_links.py` derives the whole block from the
+    headings — `make docs-relink` writes it, and `make lint` fails on drift.
+    On its first run it found seven more missing definitions nobody had
+    noticed, and one link that chained `v0.4.1...v0.5.0` straight past 0.4.6.
 
 ## 5. Open the PR and merge it green (the gate)
 
@@ -191,7 +219,8 @@ make tag-release VERSION=X.Y.Z   # verifies on-main + in-sync, tags, pushes the 
 ```
 
 `tag-release` pushes **only the tag** (never `main`), which triggers the release
-workflow.
+workflow. It refuses to run while any `changelog.d/` fragment is still
+unassembled — step 4 is not optional, and the tag is the irreversible step.
 
 !!! warning "The tag push is irreversible"
 
@@ -365,3 +394,5 @@ which digit moved.
 
     `CHANGELOG.md` in the repository root is the source of truth for what each
     version changed.
+
+[i996]: https://github.com/doppler-dsp/doppler/issues/996

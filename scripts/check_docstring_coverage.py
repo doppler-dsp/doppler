@@ -146,6 +146,13 @@ def _is_record_class(cls: ast.ClassDef) -> bool:
 
 FULL, PARTIAL, STUB = "FULL", "PARTIAL", "STUB"
 
+# The third state of a per-symbol face flag (see :func:`face_flags`). "s" and
+# "r" mean COVERED on that face; this means the build never exposed the
+# runtime object, so the face is UNSCORED. An absent "r" alone conflates the
+# two, and the ratchet then reads "not built" as "lost its docstring" for
+# every symbol of a module that failed to import.
+UNSEEN = "?"
+
 # Raw Doxygen tags that must never survive into a rendered docstring. jm is
 # meant to strip inline tags and drop block tags; when it fails (plan item F1)
 # the literal tag leaks. Zero tolerance — any hit fails the gate.
@@ -510,10 +517,17 @@ def face_flags(
 ) -> dict[str, str]:
     """Every non-ignored symbol -> the faces it is COVERED on.
 
-    ``"s"`` stub, ``"r"`` runtime, ``"sr"`` both, ``""`` neither. This is the
-    ratchet's real unit, and the reason it exists is that a per-module *count*
-    is a container that cannot represent the failure it is meant to catch: the
-    interesting event is a pair that cancels.
+    ``"s"`` stub, ``"r"`` runtime, ``"sr"`` both, ``""`` neither — plus
+    :data:`UNSEEN` (``"?"``) for a runtime face this build never exposed.
+    That is a THIRD state, not the absence of ``"r"``: an absent ``"r"``
+    already means "seen and not covered", which is the regression. Conflating
+    them made every symbol of a module CI could not import read as though it
+    had lost its docstring. :func:`incomplete_counts` always had the rule
+    (``not s.runtime_seen`` -> skip); this mirrors it.
+
+    This is the ratchet's real unit, and the reason it exists is that a
+    per-module *count* is a container that cannot represent the failure it is
+    meant to catch: the interesting event is a pair that cancels.
 
     Measured 2026-08-28 adopting jm 0.70.0 — ``doppler.track`` read 9 -> 9
     while ``BpskReceiver`` gained a description and ``MpskReceiverR`` lost one.
@@ -534,8 +548,11 @@ def face_flags(
             faces = ""
             if s.covered("stub"):
                 faces += "s"
-            # A face the build did not expose is unscored, not failed.
-            if have_runtime and s.runtime_seen and s.covered("runtime"):
+            # Three states, not two. A face the build did not expose is
+            # UNSCORED, and an absent "r" cannot say which of the two it is.
+            if have_runtime and not s.runtime_seen:
+                faces += UNSEEN
+            elif have_runtime and s.covered("runtime"):
                 faces += "r"
             out[s.qual] = faces
     return out
@@ -557,6 +574,10 @@ def symbol_losses(
       rename that drops the prose still lands: the new name arrives uncovered
       and raises its module's count.
     * the runtime face when the tree is not built — unscored is not failed.
+      That holds per SYMBOL as well as per tree: ``import doppler`` can
+      succeed while a submodule's extension is missing, so ``have_runtime``
+      is True and only that module's symbols carry :data:`UNSEEN`. The
+      whole-tree flag alone does not cover this, which is how it reached CI.
     * gaining a face, obviously.
     """
     out = []
@@ -567,7 +588,11 @@ def symbol_losses(
             continue
         if "s" in was and "s" not in now:
             out.append(f"{qual}: stub description LOST (was covered, now not)")
-        if have_runtime and "r" in was and "r" not in now:
+        # Scored on a face-by-face basis, not a `continue`: the stub face is
+        # still judged for a symbol whose runtime face this build never
+        # exposed, and a check added below must not silently inherit a skip.
+        runtime_scored = have_runtime and UNSEEN not in now
+        if runtime_scored and "r" in was and "r" not in now:
             out.append(
                 f"{qual}: runtime description LOST (was covered, now not)"
             )
@@ -699,6 +724,8 @@ def write_baseline(
             "#   no 'r' flags appear. Rebuild and refresh to restore them."
         )
     for qual, faces in sorted(flags.items()):
+        # The baseline records COVERED faces; UNSEEN is not one of them.
+        faces = faces.replace(UNSEEN, "")
         if faces:
             lines.append(f"{qual} {faces}")
     with open(BASELINE_FILE, "w", encoding="utf-8") as fh:

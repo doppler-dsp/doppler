@@ -87,6 +87,70 @@ def test_runtime_loss_is_ignored_when_not_built() -> None:
     assert len(caught) == 1 and "runtime" in caught[0]
 
 
+def test_runtime_unseen_symbol_is_unscored_not_lost() -> None:
+    """The per-SYMBOL half of "unscored is not failed".
+
+    The whole-tree case above is not enough, and shipping only it is how this
+    reached CI. `import doppler` succeeds from the pure-Python package alone,
+    so a tree whose extension modules are absent still sets
+    `have_runtime=True` — and every symbol of a module that failed to import
+    was then read as having LOST its runtime description, starting at
+    `doppler.accumulator`. `incomplete_counts` always had the rule
+    (`not s.runtime_seen` -> skip); the per-symbol path did not mirror it.
+
+    An absent "r" cannot carry this, because it already means "seen and not
+    covered" — the real regression. Hence the third state.
+    """
+    gate = _gate()
+    base = {"m.A": "sr"}
+
+    # Seen, and genuinely lost: still a failure.
+    assert len(gate.symbol_losses(base, {"m.A": "s"}, True)) == 1
+    # Never exposed by this build: unscored, so silent.
+    assert gate.symbol_losses(base, {"m.A": "s" + gate.UNSEEN}, True) == []
+    # The stub face is still judged while the runtime face is unscored.
+    stub = gate.symbol_losses(base, {"m.A": gate.UNSEEN}, True)
+    assert len(stub) == 1 and "stub" in stub[0]
+
+
+def test_face_flags_marks_an_unimported_module_unseen() -> None:
+    """`face_flags` must EMIT the third state, not just tolerate it.
+
+    Proven over a `Sym` in the state `attach_runtime_face` leaves behind when
+    `importlib.import_module` raises: `runtime_seen` False on a built tree.
+    """
+    gate = _gate()
+    s = gate.Sym("m.A", "method", [], False, False, "x")
+    s.runtime_seen = False
+    flags = gate.face_flags({"m": [s]}, True, set())
+    assert gate.UNSEEN in flags["m.A"], "unseen was encoded as a mere absence"
+
+    # Seen with a real docstring scores "r" — the flag is not always UNSEEN.
+    s.runtime_seen, s.runtime_doc = True, s.stub_doc
+    seen = gate.face_flags({"m": [s]}, True, set())["m.A"]
+    assert gate.UNSEEN not in seen
+
+
+def test_baseline_never_records_the_unseen_marker(tmp_path) -> None:
+    """The baseline records COVERED faces; UNSEEN is not one of them.
+
+    A refresh run on a partially-built tree must not write "?" into the file
+    and have a later read treat it as a face. The real guard against that is
+    the constraint that the baseline is only ever regenerated from a BUILT
+    tree, but the writer should not depend on it holding.
+    """
+    gate = _gate()
+    gate.BASELINE_FILE = str(tmp_path / "baseline")
+    rows = {"m": {"stub_incomplete": 0, "runtime_incomplete": 0}}
+    flags = {"m.A": "s" + gate.UNSEEN, "m.B": gate.UNSEEN}
+    gate.write_baseline(rows, True, 0, flags)
+
+    text = (tmp_path / "baseline").read_text(encoding="utf-8")
+    assert gate.UNSEEN not in text.split("[symbols]", 1)[1]
+    _, got = gate.read_baseline()
+    assert got == {"m.A": "s"}, "an unseen face leaked into the baseline"
+
+
 def test_stub_loss_is_caught_even_while_runtime_holds() -> None:
     gate = _gate()
     losses = gate.symbol_losses({"m.A": "sr"}, {"m.A": "r"}, True)

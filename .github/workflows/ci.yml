@@ -625,7 +625,6 @@ jobs:
         san:
           - { target: test-asan, label: "ASan + LSan (C suite)" }
           - { target: test-ubsan, label: "UBSan (C suite)" }
-          - { target: test-tsan, label: "TSan (C suite)" }
     # The toolchain is the image, the sanitizer runtime included -- the same
     # reason the coverage job takes libclang-rt from here rather than naming
     # it in bootstrap.toml.
@@ -659,6 +658,69 @@ jobs:
     # "t-race", and missed three genuinely threaded ones.
     - name: ${{ matrix.san.label }}
       run: make ${{ matrix.san.target }}
+
+    - name: Stop NATS broker
+      if: always()
+      run: make nats-down
+
+    - name: Compiler-cache statistics
+      run: make ccache-stats
+
+  # ------------------------------------------------------------------
+  # TSan, SHARDED across legs. Its own job rather than a fourth entry in the
+  # matrix above, and that is the whole design: SHARDS comes from
+  # `strategy.job-total`, so the number of legs is declared EXACTLY ONCE, in
+  # the list below. Add a shard and both the leg and the stride follow.
+  #
+  # A repeated literal would be the wrong kind of cheap here. ctest's
+  # `-I start,,stride` does not know the shard COUNT -- `-I 5,,3` over 154
+  # tests selects 50, not 0 -- so legs and stride disagreeing produces a
+  # PARTIAL run that every leg reports green. A count stated twice is a
+  # coverage hole with a passing check in front of it.
+  #
+  # Why TSan and not the other two, measured on job 98724958320:
+  #
+  #   configure + build   1m09s
+  #   ctest (154 tests)  13m54s   <- 92%, so sharding is the lever
+  #
+  # ASan and UBSan are ~6m each and dominated by their builds, which sharding
+  # would multiply rather than divide.
+  #
+  # The floor is one test: validate_rx_coding_gain alone is 258s and
+  # validate_rx_battery 211s, ~57% of the suite's time in two harnesses that
+  # start no threads at all (only rx_dynamics.c touches dp_tlm_capture, the
+  # single pthread user any validator pulls in). Past ~3 legs the next lever
+  # is whether a single-threaded Monte Carlo battery belongs under a data-race
+  # detector, NOT more legs -- doppler#1047.
+  tsan:
+    name: TSan ${{ matrix.shard }}/${{ strategy.job-total }} (C suite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    container:
+      image: ghcr.io/doppler-dsp/doppler-ci@sha256:ba070a9b2ebc674f956026160ca806a3e7a572e4553a95cc67c6d4fe13bde6d4
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/ccache
+      with:
+        key: test-tsan
+
+    - name: Start NATS JetStream broker (the stream path is where threads are)
+      run: make nats-up
+
+    # Whole-suite since #1026, sharded since the leg became the long pole.
+    # The target refuses a SHARD outside 1..SHARDS, because that is the
+    # failure this shape can have and it is invisible from a green leg.
+    - name: TSan ${{ matrix.shard }}/${{ strategy.job-total }} — data races
+      run: make test-tsan SHARD=${{ matrix.shard }} SHARDS=${{ strategy.job-total }}
 
     - name: Stop NATS broker
       if: always()
@@ -777,6 +839,7 @@ jobs:
       - manifest-drift
       - coverage
       - sanitizers
+      - tsan
     runs-on: ubuntu-latest
     timeout-minutes: 45
     if: always()

@@ -1636,6 +1636,27 @@ TSAN_EXCLUDE ?= ^test_stream_nats_core$$
 TSAN_FLAGS    = -fsanitize=thread -fno-omit-frame-pointer -g
 TSAN_OPTS     = halt_on_error=1:second_deadlock_stack=1
 
+# SHARD=<k> SHARDS=<n> runs every n-th test starting at k, so the suite can be
+# spread across matrix legs. ctest's own `-I start,end,stride` does the
+# selection, which is round-robin over the registered order rather than a
+# contiguous block -- a block split would put the slow tail on one leg.
+#
+# Measured on one CI run of the whole leg (job 98724958320): 1m09s to
+# configure and build, then 13m54s of ctest -- so this is 92% TEST time and
+# sharding is the lever that works. Each leg re-pays the 69s build.
+#
+# The empty-set guard below counts the SHARDED set, so a shard index that
+# selects nothing fails rather than reporting a clean sanitizer run over no
+# tests. That matters more here than unsharded: SHARDS=4 on a 3-leg matrix
+# leaves a shard nobody runs, and the failure has to be loud.
+#
+# The floor is one test: validate_rx_coding_gain alone is 258s. Past ~3 legs
+# this stops helping, and the next lever is that harness rather than more
+# legs -- see the note in the CI workflow.
+# A literal comma cannot appear directly in a $(if ...) argument -- make
+# splits on it -- and `-I start,,stride` is three comma-separated fields.
+TSAN_COMMA := ,
+TSAN_SHARD = $(if $(SHARD),-I $(SHARD)$(TSAN_COMMA)$(TSAN_COMMA)$(SHARDS))
 test-tsan: ## Run the C suite under TSan; any data race fails
 	$(CMAKE) -B $(TSAN_DIR) -S . \
 		-DCMAKE_BUILD_TYPE=Debug \
@@ -1649,16 +1670,32 @@ test-tsan: ## Run the C suite under TSan; any data race fails
 # gates were both caught by, and the one this target's old name-pattern was
 # nearly caught by: a pattern that matches almost nothing still matches
 # something, so the guard fires only in the total case.
-	@n=$$($(CTEST) --test-dir $(TSAN_DIR) -E '$(TSAN_EXCLUDE)' -N \
+	@if [ -n "$(SHARD)" ]; then \
+	   : "ctest's -I start,,stride does NOT know the shard COUNT: -I 5,,3"; \
+	   : "on a 154-test suite selects 50, not 0. So an out-of-range index"; \
+	   : "is a silently PARTIAL run that every leg reports as green, and"; \
+	   : "the empty-set guard below cannot see it. Check it here."; \
+	   case "$(SHARD)$(SHARDS)" in \
+	     *[!0-9]*|"") echo "test-tsan: SHARD and SHARDS must be integers"; \
+	                  exit 1 ;; \
+	   esac; \
+	   if [ "$(SHARD)" -lt 1 ] || [ "$(SHARD)" -gt "$(SHARDS)" ]; then \
+	     echo "test-tsan: SHARD=$(SHARD) is outside 1..$(SHARDS), so the"; \
+	     echo "  shards do not cover the suite. Every leg would still be"; \
+	     echo "  green over a partial set."; exit 1; \
+	   fi; \
+	 fi
+	@n=$$($(CTEST) --test-dir $(TSAN_DIR) -E '$(TSAN_EXCLUDE)' $(TSAN_SHARD) -N \
 	      | sed -n 's/^Total Tests: //p'); \
 	 if [ "$$n" = "0" ] || [ -z "$$n" ]; then \
 	   echo "test-tsan: the suite registered no tests — nothing ran,"; \
 	   echo "  so this gate has not passed."; exit 1; \
 	 fi; \
 	 echo "test-tsan: $$n test(s) under ThreadSanitizer" \
-	      "(excluding '$(TSAN_EXCLUDE)', see #1027)"
+	      "(excluding '$(TSAN_EXCLUDE)', see #1027)" \
+	      "$(if $(SHARD),[shard $(SHARD)/$(SHARDS)],)"
 	TSAN_OPTIONS=$(TSAN_OPTS) \
-		$(CTEST) --test-dir $(TSAN_DIR) -E '$(TSAN_EXCLUDE)' \
+		$(CTEST) --test-dir $(TSAN_DIR) -E '$(TSAN_EXCLUDE)' $(TSAN_SHARD) \
 		--output-on-failure
 
 blazing: ## Clean + Release + -march=native (max speed; never packaged)

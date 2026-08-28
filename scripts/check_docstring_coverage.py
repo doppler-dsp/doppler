@@ -61,6 +61,22 @@ Usage
 
 Intentional exclusions go in ``docs/.docstring-coverage-ignore`` (one
 fully-qualified name per line, ``#`` comments allowed).
+
+The ratchet
+-----------
+``--check`` enforces two rules against ``docs/.docstring-coverage-baseline``,
+and it needs both:
+
+* **per SYMBOL** — a symbol covered in the baseline may never stop being
+  covered. This fails on its own, however much improved elsewhere.
+* **per MODULE** — the incomplete count may only drop, which is what catches
+  *new* undocumented surface (a symbol that was never in the baseline has no
+  ``True -> False`` transition to detect).
+
+The per-symbol rule exists because a count cannot represent the failure it is
+meant to catch. Adopting jm 0.70.0, ``doppler.track`` read 9 -> 9 while one
+class gained a description and another lost one; the module was silent and
+only a hand-written before/after diff named them. See :func:`face_flags`.
 """
 
 from __future__ import annotations
@@ -489,6 +505,75 @@ def all_leaks(mods: dict[str, list[Sym]], have_runtime: bool) -> list[str]:
     return hits
 
 
+def face_flags(
+    mods: dict[str, list[Sym]], have_runtime: bool, ignore: set[str]
+) -> dict[str, str]:
+    """Every non-ignored symbol -> the faces it is COVERED on.
+
+    ``"s"`` stub, ``"r"`` runtime, ``"sr"`` both, ``""`` neither. This is the
+    ratchet's real unit, and the reason it exists is that a per-module *count*
+    is a container that cannot represent the failure it is meant to catch: the
+    interesting event is a pair that cancels.
+
+    Measured 2026-08-28 adopting jm 0.70.0 — ``doppler.track`` read 9 -> 9
+    while ``BpskReceiver`` gained a description and ``MpskReceiverR`` lost one.
+    The sum was honest and the module was silent; only the per-symbol
+    before/after diff named the two classes. ``doppler.wfm`` tripped in the
+    same run purely because nothing there happened to improve.
+
+    Every symbol is returned, INCLUDING those covered on no face. Returning
+    only the covered ones would drop a symbol that lost both faces out of the
+    mapping entirely, and the check would then read its absence as "removed"
+    and skip it — which is precisely the regression being hunted.
+    """
+    out: dict[str, str] = {}
+    for syms in mods.values():
+        for s in syms:
+            if s.qual in ignore:
+                continue
+            faces = ""
+            if s.covered("stub"):
+                faces += "s"
+            # A face the build did not expose is unscored, not failed.
+            if have_runtime and s.runtime_seen and s.covered("runtime"):
+                faces += "r"
+            out[s.qual] = faces
+    return out
+
+
+def symbol_losses(
+    base_flags: dict[str, str], flags: dict[str, str], have_runtime: bool
+) -> list[str]:
+    """Symbols that WERE covered on a face and no longer are.
+
+    A ``True -> False`` transition fails on its own, whatever else improved —
+    that is the whole point, since the module counts can only report the sum.
+
+    Three cases deliberately do NOT count as a loss:
+
+    * a symbol absent from ``flags`` is genuinely gone (renamed or deleted),
+      not undocumented. :func:`face_flags` returns every symbol it scored,
+      including those covered on no face, so absence here is unambiguous. A
+      rename that drops the prose still lands: the new name arrives uncovered
+      and raises its module's count.
+    * the runtime face when the tree is not built — unscored is not failed.
+    * gaining a face, obviously.
+    """
+    out = []
+    for qual in sorted(base_flags):
+        was = base_flags[qual]
+        now = flags.get(qual)
+        if now is None:
+            continue
+        if "s" in was and "s" not in now:
+            out.append(f"{qual}: stub description LOST (was covered, now not)")
+        if have_runtime and "r" in was and "r" not in now:
+            out.append(
+                f"{qual}: runtime description LOST (was covered, now not)"
+            )
+    return out
+
+
 def build_report(
     mods: dict[str, list[Sym]], have_runtime: bool, ignore: set[str]
 ) -> dict:
@@ -578,7 +663,9 @@ def print_coverage(mods: dict, ignore: set[str]) -> None:
     )
 
 
-def write_baseline(rows: dict, have_runtime: bool, n_leaks: int) -> None:
+def write_baseline(
+    rows: dict, have_runtime: bool, n_leaks: int, flags: dict[str, str]
+) -> None:
     lines = [
         "# docstring-coverage ratchet baseline — regenerate with",
         "#   python scripts/check_docstring_coverage.py --update-baseline",
@@ -593,18 +680,49 @@ def write_baseline(rows: dict, have_runtime: bool, n_leaks: int) -> None:
     for mod, r in sorted(rows.items()):
         rt = r["runtime_incomplete"] if have_runtime else "-"
         lines.append(f"{mod} stub={r['stub_incomplete']} runtime={rt}")
+    lines += [
+        "",
+        "[symbols]",
+        "# One line per symbol COVERED on at least one face: <qual>"
+        " <faces>, s=stub r=runtime. A symbol here may never LOSE a",
+        "# face — that is a True -> False transition, and it fails on"
+        " its own regardless of what improved elsewhere in the module.",
+        "# A symbol covered on no face is omitted; it has nothing to"
+        " lose, and the module counts above own the burn-down. See",
+        "# face_flags() for why those counts alone are blind to it.",
+    ]
+    if not have_runtime:
+        lines.append(
+            "# NOTE: written without a build — runtime faces are unscored, so"
+        )
+        lines.append(
+            "#   no 'r' flags appear. Rebuild and refresh to restore them."
+        )
+    for qual, faces in sorted(flags.items()):
+        if faces:
+            lines.append(f"{qual} {faces}")
     with open(BASELINE_FILE, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
 
 
-def read_baseline() -> dict[str, dict[str, int | None]]:
+def read_baseline() -> tuple[dict[str, dict[str, int | None]], dict[str, str]]:
+    """Parse the baseline into (per-module counts, per-symbol face flags)."""
     out: dict[str, dict[str, int | None]] = {}
+    flags: dict[str, str] = {}
     if not os.path.exists(BASELINE_FILE):
-        return out
+        return out, flags
+    in_symbols = False
     with open(BASELINE_FILE, encoding="utf-8") as fh:
         for line in fh:
             line = line.split("#", 1)[0].strip()
             if not line:
+                continue
+            if line == "[symbols]":
+                in_symbols = True
+                continue
+            if in_symbols:
+                qual, _, faces = line.partition(" ")
+                flags[qual] = faces.strip()
                 continue
             mod, *kvs = line.split()
             rec: dict[str, int | None] = {}
@@ -612,7 +730,7 @@ def read_baseline() -> dict[str, dict[str, int | None]]:
                 k, v = kv.split("=")
                 rec[k] = None if v == "-" else int(v)
             out[mod] = rec
-    return out
+    return out, flags
 
 
 # --------------------------------------------------------------------------- #
@@ -664,9 +782,10 @@ def main() -> int:
 
     rows = build_report(mods, have_runtime, ignore)
     leaks = all_leaks(mods, have_runtime)
+    flags = face_flags(mods, have_runtime, ignore)
 
     if args.update_baseline:
-        write_baseline(rows, have_runtime, len(leaks))
+        write_baseline(rows, have_runtime, len(leaks), flags)
         print(
             f"Wrote baseline: {os.path.relpath(BASELINE_FILE, ROOT)} "
             f"({len(leaks)} known tag leak(s))"
@@ -684,14 +803,27 @@ def main() -> int:
         return 0
 
     # Ratchet: incomplete counts and leak count may only DROP, never rise.
-    baseline = read_baseline()
+    baseline, base_flags = read_baseline()
     if not baseline:
         print(
             "\nNo baseline committed. Run --update-baseline first.",
             file=sys.stderr,
         )
         return 1
-    regressions = []
+    if not base_flags:
+        # An inert rule reports nothing because it never looks. The baseline
+        # ships with a [symbols] section; its absence means a stale or
+        # hand-trimmed file, and staying quiet about that would hand back a
+        # green run from a gate that checked half of what it claims to.
+        print(
+            "\nThe baseline has no [symbols] section, so the per-symbol "
+            "ratchet would not run — refusing to report a partial check as "
+            "a pass. Regenerate with --update-baseline (from a BUILT tree, "
+            "so the runtime face is scored too).",
+            file=sys.stderr,
+        )
+        return 1
+    regressions = symbol_losses(base_flags, flags, have_runtime)
     for mod, r in rows.items():
         base = baseline.get(mod)
         if base is None:
@@ -737,10 +869,13 @@ def main() -> int:
         print("\nDocstring coverage: OK — no regression.")
         return 0
     print(
-        "\nLower the counts (document the surface) or, if a symbol is "
-        "intentionally exempt, add it to "
-        f"{os.path.relpath(IGNORE_FILE, ROOT)}. After improving, refresh "
-        "with --update-baseline.",
+        "\nA 'LOST' line means a symbol that WAS documented no longer is — "
+        "restore its description rather than refreshing the baseline over "
+        "it; that is the transition this gate exists to catch, and a net "
+        "count will not show it. Otherwise: lower the counts (document the "
+        "surface) or, if a symbol is intentionally exempt, add it to "
+        f"{os.path.relpath(IGNORE_FILE, ROOT)}. After genuinely improving, "
+        "refresh with --update-baseline.",
         file=sys.stderr,
     )
     return 1

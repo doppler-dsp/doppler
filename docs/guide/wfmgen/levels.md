@@ -79,12 +79,29 @@ ______________________________________________________________________
 
 `--snr` is applied as AWGN; `--snr-mode` chooses the reference:
 
-| Mode   | `--snr` means                                                 | Use for              |
-| ------ | ------------------------------------------------------------- | -------------------- |
-| `fs`   | SNR over the full sample rate (in-band power / noise power)   | tones, wideband      |
-| `esno` | **Es/No** — energy per *symbol* over noise PSD                | modulated (`*psk`)   |
-| `ebno` | **Eb/No** — energy per *bit* over noise PSD                   | link-budget work     |
-| `auto` | `fs` for `tone`/`noise`/`pn`, `esno` for `bpsk`/`qpsk`/`dsss` | the sensible default |
+| Mode   | `--snr` means                                               | Use for              |
+| ------ | ----------------------------------------------------------- | -------------------- |
+| `fs`   | SNR over the full sample rate (in-band power / noise power) | tones, wideband      |
+| `esno` | **Es/No** — energy per *symbol* over noise PSD              | modulated (`*psk`)   |
+| `ebno` | **Eb/No** — energy per *bit* over noise PSD                 | link-budget work     |
+| `auto` | `esno` for `bpsk`/`qpsk`/`dsss`, `fs` for the other six     | the sensible default |
+
+`auto` splits the nine `--type`s exactly once, and this is the one place that
+split is written out — the schema and the API page defer here rather than
+carry their own copy:
+
+| `auto` resolves to         | types                                                  |
+| -------------------------- | ------------------------------------------------------ |
+| **`esno`** (Es/N0)         | `bpsk` · `qpsk` · `dsss`                               |
+| **`fs`** (over full scale) | `tone` · `noise` · `pn` · `chirp` · `bits` · `symbols` |
+
+`bits` is on the `fs` side, which surprises people: a `bits` waveform *is*
+modulated (`--modulation bpsk|qpsk`), but its symbol rate is whatever the
+frame and `--sps` make it, so there is no symbol energy the engine can refer
+to without being told. Ask for one explicitly with `--snr-mode esno` if that
+is what you want. Verified by construction: `--type bits` renders
+byte-identically under `--snr-mode auto` and `--snr-mode fs`, and differently
+under `esno`.
 
 **`--snr 100` (the default) is *clean*** — `snr ≥ 100 dB` generates **no AWGN at
 all**, so a clean waveform pays no noise cost. Lower `--snr` to add noise; the

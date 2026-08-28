@@ -42,7 +42,7 @@ output — there is no second CLI implementation in Python:
 
 ```sh
 wfmgen --type qpsk --count 4096 -o out.iq            # 1. installed console script (execs the binary)
-./build/wfmgen --type qpsk --count 4096              # 2. the same binary, built from source
+build/native/src/wfmcompose/wfmgen --type qpsk --count 4096   # 2. built from source
 ```
 
 The `wfmgen` console script the wheel installs is a thin `os.execv` shim over

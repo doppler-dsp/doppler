@@ -167,20 +167,38 @@ contract (checked in both harnesses). Phase is a defined render-time rotation
 (`φ = 0` is the identity, skipped entirely), exact by construction rather than
 reproduced.
 
-## Scope and limits (v1)
+## Scope and limits
 
-`Plan` v1 covers the common evaluation scene: a **single** finite, non-ranged
-`sum` segment with a separable noise floor. A scene that is multi-segment,
-`continuous`, `repeat`, or *ranged* (a `[lo, hi]` field), or one whose only
-noisy source is a lone **bundled** source — its private RNG fused into the
-signal, so the floor cannot be separated — raises `ValueError` at `prepare()`:
+`prepare()` needs a scene whose length is **fixed** and whose per-source
+weights are **fixed**, because that is what makes a re-render a re-weighted
+sum instead of a re-synthesis. Two things break that, and they are the two it
+refuses:
 
-```python
-# a lone bundled noisy source is not separable → rejected
-try:
-    prepare(Composer(type="qpsk", snr=6.0, num_samples=1024))
-except ValueError as e:
-    print("rejected:", str(e)[:38], "…")
+| refused                                                       | why                                                                                                                                                |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a **ranged signal** field — `snr=(4, 8)`, `freq=(0.01, 0.05)` | the value the cache was rendered at is the one thing a sweep is supposed to vary afterwards, so a per-repeat redraw of it has nothing to re-weight |
+| **`continuous=True`**                                         | the length is open-ended, and the cache is the rendered samples                                                                                    |
+
+Everything else the scene can say is fine — including three things this page
+used to claim were rejected. Multi-segment scenes, `repeats`, and ranged
+**timing** (`off_samples`, `delay_samples`, the per-instance jitter a burst
+train wants) all prepare, which is what
+[DSSS bursts](dsss-bursts.md#sweeping-a-burst-train-with-plan) relies on. So
+does a lone **bundled** noisy source, whose private RNG is fused into the
+signal.
+
+```pycon
+>>> from doppler.wfm import Composer, Segment, prepare
+>>> plan = prepare(Composer([Segment(type="qpsk", snr=6.0, num_samples=512,
+...                                  off_samples=(100, 300), repeats=2)]))
+>>> len(plan) > 0                     # ranged TIMING + repeats: prepared
+True
+>>> try:                              # a ranged SIGNAL field: refused
+...     prepare(Composer([Segment(type="qpsk", snr=(4.0, 8.0),
+...                               num_samples=512)]))
+... except ValueError:
+...     print("rejected")
+rejected
 ```
 
 A prepared `Plan` **can** be serialized — `plan.save()` → `bytes`,

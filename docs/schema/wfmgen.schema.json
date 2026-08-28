@@ -74,7 +74,7 @@
       "type": "string",
       "enum": ["auto", "fs", "ebno", "esno"],
       "default": "auto",
-      "description": "SNR reference convention. auto: over full-scale for tone/noise/pn/chirp, Es/N0 for bpsk/qpsk/bits/dsss. fs: dB relative to full scale. ebno: Eb/N0 (per-bit). esno: Es/N0 (per-symbol; for a dsss burst the outer data symbol of len(data_code) chips x sps samples, for a continuous dsss stream the fs/symbol_rate samples the async symbol spans)."
+      "description": "SNR reference convention. auto: Es/N0 for bpsk/qpsk/dsss, over full-scale for the other six (tone/noise/pn/chirp/bits/symbols) -- bits included, because a bits frame has no symbol rate the engine can infer; the guide's Levels & SNR page is the one home for that split. fs: dB relative to full scale. ebno: Eb/N0 (per-bit). esno: Es/N0 (per-symbol; for a dsss burst the outer data symbol of len(data_code) chips x sps samples, for a continuous dsss stream the fs/symbol_rate samples the async symbol spans)."
     },
 
     "source": {
@@ -262,7 +262,7 @@
           "type": "integer",
           "minimum": 1,
           "default": 8,
-          "description": "RRC filter support in symbols (the filter length is rrc_span * sps + 1 taps). Only used when pulse=rrc."
+          "description": "RRC filter support in symbols, ONE-SIDED: wfm_rrc_ntaps() produces 2 * rrc_span * sps + 1 taps, unit-energy (sum of h^2 = 1). Only used when pulse=rrc."
         }
       }
     },

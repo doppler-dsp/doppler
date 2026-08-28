@@ -1,7 +1,7 @@
 # Waveforms
 
 `--type` selects the waveform; every type shares the same parameter set. The
-engine produces eight types from one declarative core.
+engine produces nine types from one declarative core.
 
 | `--type`  | What it is                                                     | Key parameters                      |
 | --------- | -------------------------------------------------------------- | ----------------------------------- |

@@ -2,10 +2,10 @@
 
 Everything in the `doppler.wfm` package imports from one place — `from doppler.wfm import …`. The two low-level generators are:
 
-| Class   | Output                                | Use when                                                                                            |
-| ------- | ------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `Synth` | CF32 — the eight-type waveform engine | Generate tone / noise / PN / BPSK / QPSK / chirp / bits / symbols, with optional LO offset and AWGN |
-| `PN`    | uint8 — raw LFSR chips (0/1)          | Spreading / ranging codes, scrambling, test vectors                                                 |
+| Class   | Output                               | Use when                                                                                                   |
+| ------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `Synth` | CF32 — the nine-type waveform engine | Generate tone / noise / PN / BPSK / QPSK / chirp / bits / symbols / DSSS, with optional LO offset and AWGN |
+| `PN`    | uint8 — raw LFSR chips (0/1)         | Spreading / ranging codes, scrambling, test vectors                                                        |
 
 `Synth` is also the unit of **composition** — pass synths into `Segment.sum`
 to mix them (see [`compose`](#compose-multi-segment-composition-writers-and-a-nats-sink) below).
@@ -22,7 +22,7 @@ the [Capture I/O guide](../guide/wfm-io/index.md) as the narrative version.
 
 ______________________________________________________________________
 
-## `Synth` — the eight-type waveform engine
+## `Synth` — the nine-type waveform engine
 
 One declarative engine produces every waveform type, selected by the string
 `type` (`tone`, `noise`, `pn`, `bpsk`, `qpsk`, `chirp`, `bits`, `symbols`).
@@ -142,7 +142,8 @@ offset  = Synth(type="pn", pn_length=9, sps=1, freq=2.5e5, fs=1e6).steps(511)
 ```
 
 `snr_mode` (`"auto"`, `"fs"`, `"ebno"`, `"esno"`) sets how `snr` is
-interpreted; `"auto"` uses over-`fs` for tone/noise/PN and Es/No for BPSK/QPSK.
+interpreted. Which types `"auto"` sends to which reference is written out once,
+in the guide: [Levels & SNR](../guide/wfmgen/levels.md#snr-noise).
 
 ### RRC pulse shaping (band-limited carriers)
 
@@ -416,12 +417,16 @@ sweep or a Monte-Carlo campaign that re-runs one scene at many operating points
 
 ::: doppler.wfm.compose.prepare
 
-A prepared `Plan` can be **saved** and restored so the one-time DSP is paid once
-across processes or machines: `plan.save()` returns the cache as `bytes` and
-`plan.dump(path)` writes it to a file; `PlanFromBlob(blob)` and
+A prepared `Plan` can be **saved** and restored: `plan.save()` returns the cache
+as `bytes` and `plan.dump(path)` writes it to a file; `PlanFromBlob(blob)` and
 `PlanFromFile(path)` reconstruct a `Plan` without re-running `prepare()` (the
 blob carries a DSP-source fingerprint, so a stale cache transparently rebuilds
 rather than returning wrong samples).
+
+Reach for it to checkpoint or resume a **live** `Plan`, not to move one between
+processes — the blob is the whole rendered cache, so for a hand-off the spec
+JSON is the thing to ship. The reasoning, with the sizes:
+[Prepare Once, Sweep Many](../guide/wfmgen/plan.md#scope-and-limits).
 
 ::: doppler.wfm.compose.PlanFromBlob
 

@@ -122,6 +122,20 @@ add_stage_fields (cJSON *o, const wfm_source_t *src)
     cJSON_AddBoolToObject (o, "asm", 1);
   if (src->convolutional)
     cJSON_AddBoolToObject (o, "conv", 1);
+  /* The UNIT travels with the depth, and is not defaulted away on the write
+     side: 1 and 8 are different waveforms over the same data group, and a
+     record that carried only the depth would replay an octet-interleaved
+     capture as a bit-interleaved one -- the same length, different bytes,
+     no error. Written only when the interleaver ran, so an uncoded record
+     still carries no coding keys. */
+  if (src->interleave_depth)
+    {
+      cJSON_AddNumberToObject (o, "interleave", (double)src->interleave_depth);
+      cJSON_AddNumberToObject (o, "interleave_unit",
+                               (double)(src->interleave_unit_bits
+                                            ? src->interleave_unit_bits
+                                            : 1u));
+    }
 }
 
 /* Emit a bits source's modulation + pattern (no-op for other types). */
@@ -369,6 +383,11 @@ read_frame_fields (const cJSON *so, wfm_source_t *out)
       = cJSON_IsTrue (cJSON_GetObjectItemCaseSensitive (so, "asm"));
   out->convolutional
       = cJSON_IsTrue (cJSON_GetObjectItemCaseSensitive (so, "conv"));
+  out->interleave_depth = (unsigned)num (so, "interleave", 0);
+  /* 0 reads as 1 in the kernel, so a record from before the unit was
+     written -- or one a human edited down to the depth alone -- replays as
+     bit interleaving, which is what a bare `--interleave R` means. */
+  out->interleave_unit_bits = (unsigned)num (so, "interleave_unit", 0);
   return 0;
 }
 

@@ -772,6 +772,95 @@ def fixtures(workdir: Path, exe: Path) -> None:
     (workdir / "seed.bin").unlink(missing_ok=True)
 
 
+def replay_checks(exe: Path, problems: list[str]) -> None:
+    """Every recordable case must replay from its own record, byte for byte.
+
+    `--record` writes the resolved run and `--from-file` reads it back; the
+    schema states the contract outright -- *"a recorded run reproduces
+    byte-for-byte when fed back"*. Nothing checked it. `check_coverage()`
+    asks only that each flag be DRIVEN, and `run_case()` pins the record it
+    produced, so a flag the serialiser forgets is pinned as correct: the
+    golden records its absence and agrees with itself forever.
+
+    That is not hypothetical twice over. `seed_advance` was dropped this way
+    (doppler#978), and `--interleave` was dropped again on the flag's first
+    release -- a replay came back the same LENGTH with different bytes and
+    no error, which is the worst shape available: a capture that looks like
+    the one you recorded and is a different waveform.
+
+    So this compares the artifact rather than the record. Derived from the
+    case table rather than a hand-written list, because a list is the thing
+    that stops growing when someone adds a flag.
+
+    Skipped, with a reason each: a case that already reads a scene (the
+    replay IS the case), one that failed (no record to replay), and one
+    whose output is a stream or a pair rather than a single file.
+    """
+    for name, argv in cases():
+        if "--from-file" in argv:
+            continue  # the case is itself a replay
+        with tempfile.TemporaryDirectory() as td:
+            wd = Path(td)
+            fixtures(wd, exe)
+            first = run_case(exe, argv, wd)
+            if first["exit"] != 0 or first["record"] is None:
+                continue  # a refusal pins its exit code, not a waveform
+            produced = [n for n in first["outputs"] if n != "record.json"]
+            if len(produced) != 1:
+                continue  # detached BLUE writes a pair; nothing to compare
+            out_name = produced[0]
+            original = (wd / out_name).read_bytes()
+            if not original:
+                continue
+
+            rec = wd / "record.json"
+            replay = wd / "replay.bin"
+            # The record describes the SIGNAL; the container is the caller's.
+            # --file-type/--sample-type/--endian deliberately do not reach the
+            # spec (there is no output section in the schema), so the replay
+            # supplies them exactly as the case did. Without this the check
+            # would be asserting a contract nobody makes -- and it would fail
+            # on out_csv/out_blue, which are correct.
+            carried: list[str] = []
+            for flag in ("--file-type", "--sample-type", "--endian"):
+                if flag in argv:
+                    carried += [flag, argv[argv.index(flag) + 1]]
+            proc = subprocess.run(
+                [
+                    str(exe),
+                    "--from-file",
+                    str(rec),
+                    *carried,
+                    "--output",
+                    str(replay),
+                ],
+                cwd=wd,
+                capture_output=True,
+                timeout=TIMEOUT_S,
+            )
+            if proc.returncode != 0:
+                problems.append(
+                    f"{name}: --record wrote a spec its own --from-file "
+                    f"refuses (exit {proc.returncode}): "
+                    f"{proc.stderr.decode('utf-8', 'replace').strip()[:160]}"
+                )
+                continue
+            got = replay.read_bytes()
+            if got != original:
+                how = (
+                    "same length, different bytes -- a flag reached the "
+                    "waveform but not the record"
+                    if len(got) == len(original)
+                    else f"{len(original)} bytes -> {len(got)}"
+                )
+                problems.append(
+                    f"{name}: replaying its own --record does not reproduce "
+                    f"the capture ({how}). Every flag that changes the "
+                    f"waveform has to reach wfm_json.c's writer AND its "
+                    f"reader, and the schema's source object."
+                )
+
+
 def build_matrix(exe: Path) -> dict:
     matrix: dict = {}
     for name, argv in cases():
@@ -818,6 +907,7 @@ def main() -> int:
     problems: list[str] = []
     check_coverage(problems)
     relational_checks(exe, problems)
+    replay_checks(exe, problems)
     got = build_matrix(exe)
 
     if not args.check:

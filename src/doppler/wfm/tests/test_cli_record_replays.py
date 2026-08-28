@@ -234,3 +234,90 @@ def test_python_to_json_round_trips_it(tmp_path, mode):
     assert np.array_equal(direct, replay)
     # non-vacuous for the same reason as above
     assert not np.array_equal(direct[:PERIOD], direct[PERIOD : 2 * PERIOD])
+
+
+# ── the same defect, on a second flag ────────────────────────────────────
+#
+# `--interleave` was dropped by the record on the flag's first release
+# (doppler#1031), exactly as `seed_advance` had been. The replay came back
+# the same LENGTH with different bytes and no error — a capture that looks
+# like the one you recorded and is a different waveform.
+#
+# It is a finite run, so unlike the loop tests above it can be compared as
+# whole files rather than a prefix off a pipe.
+
+
+def _run_to(tmp_path: Path, name: str, *args: str) -> bytes:
+    out = tmp_path / name
+    subprocess.run(
+        [_bin(), *args, "--output", str(out)],
+        check=True,
+        capture_output=True,
+        timeout=60,
+    )
+    return out.read_bytes()
+
+
+@pytest.mark.parametrize(
+    ("depth", "unit", "payload"),
+    [
+        (4, 1, "1011001011010010"),  # bit interleaving, the bare form
+        (5, 8, None),  # octet units: 24 payload bits + 16 CRC = 5 x 8
+    ],
+)
+def test_interleave_survives_a_record_round_trip(
+    tmp_path, depth, unit, payload
+):
+    """The flag has to reach the writer AND the reader, not just the kernel."""
+    bits = ["--bits", payload] if payload else ["--bits-hex", "b25a0f"]
+    record = tmp_path / "record.json"
+    args = [
+        "--type",
+        "bits",
+        "--modulation",
+        "bpsk",
+        *bits,
+        "--sync",
+        "11110011",
+        "--sps",
+        "1",
+        "--count",
+        "4096",
+        "--interleave",
+        str(depth),
+        "--interleave-unit",
+        str(unit),
+    ]
+    first = _run_to(tmp_path, "a.iq", *args, "--record", str(record))
+    again = _run_to(tmp_path, "b.iq", "--from-file", str(record))
+
+    spec = json.loads(record.read_text())["segments"][0]
+    assert spec["interleave"] == depth
+    assert spec["interleave_unit"] == unit
+    assert again == first, (
+        f"--interleave {depth} --interleave-unit {unit} did not survive "
+        f"--record; the replay is {len(again)} bytes against {len(first)}"
+    )
+
+
+def test_an_interleaved_run_differs_from_an_uninterleaved_one(tmp_path):
+    """Guard the guard: if the flag changed nothing, the test above is
+    vacuous and would pass against a writer that dropped it."""
+    args = [
+        "--type",
+        "bits",
+        "--modulation",
+        "bpsk",
+        "--bits",
+        "1011001011010010",
+        "--sync",
+        "11110011",
+        "--sps",
+        "1",
+        "--count",
+        "4096",
+    ]
+    plain = _run_to(tmp_path, "plain.iq", *args)
+    woven = _run_to(tmp_path, "woven.iq", *args, "--interleave", "4")
+    assert len(plain) == len(woven), "the interleaver is length-preserving"
+    assert plain != woven, "--interleave changed nothing to record"

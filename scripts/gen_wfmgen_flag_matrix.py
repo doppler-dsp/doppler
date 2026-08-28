@@ -748,6 +748,11 @@ def relational_checks(exe: Path, problems: list[str]) -> None:
 
 def fixtures(workdir: Path, exe: Path) -> None:
     """Inputs the cases read. Written per-case so runs stay independent."""
+    # A real binary payload: --bits-file consumes a file's BYTES,
+    # MSB first, which is what --help has always promised and what a
+    # transfer frame on disk actually is. It used to require a text
+    # 0/1 string, so this fixture made the case exit 2 -- the flag's
+    # only coverage was the failure it caused.
     (workdir / BITS_FILE).write_bytes(bytes([0xB2, 0x5A, 0x0F, 0xFF]))
     # 4 constellation points as interleaved float32 I,Q.
     import struct

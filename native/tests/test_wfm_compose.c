@@ -1611,6 +1611,60 @@ main (void)
     free (want);
   }
 
+  /* ── the interleaver's span INCLUDES the outer code's check symbols ──
+   *
+   * `ccsds_tm_frame_desc_of` gives the interleave stage the whole data group
+   * -- "payload, its CRC, and the outer code's check symbols" -- and the
+   * flag guard validated payload + CRC only. So the check ran against a
+   * DIFFERENT span from the one the stage permutes, and refused the
+   * canonical CCSDS arrangement: 223 octets under RS(255,223) interleaved 5
+   * deep at unit 8. 1784 bits does not divide by 40; the 2040 the stage
+   * actually covers divides exactly 51 times.
+   *
+   * That refusal was pinned in the flag-matrix golden as an expected exit 2,
+   * which is how a guard rejecting valid input survives: the evidence for
+   * the flag was the failure it caused. */
+  {
+    static uint8_t frame[223 * 8]; /* 223 octets, the RS(255,223) message */
+    for (size_t i = 0; i < sizeof frame; i++)
+      frame[i] = (uint8_t)(i & 1u);
+
+    wfm_source_t cadu = { .type                 = WFM_SYNTH_BITS,
+                          .snr                  = 100.0,
+                          .sps                  = 1,
+                          .pn_length            = 7,
+                          .modulation           = 1,
+                          .bits                 = frame,
+                          .n_bits               = sizeof frame,
+                          .crc                  = 0,
+                          .rs_depth             = 1,
+                          .interleave_depth     = 5,
+                          .interleave_unit_bits = 8 };
+    DP_REQUIRE_MSG (wfm_source_frame_error (&cadu) == NULL,
+                    "223 octets + RS parity is 2040 bits, which 5 x 8 "
+                    "divides 51 times -- the arrangement CCSDS specifies");
+
+    /* The guard still bites, or removing it would have passed the case
+       above just as well. One octet of payload less leaves 2032 bits, and
+       40 does not divide it. */
+    wfm_source_t short_group = cadu;
+    short_group.n_bits       = sizeof frame - 8u;
+    DP_REQUIRE_MSG (wfm_source_frame_error (&short_group) != NULL,
+                    "a data group that is not a whole number of units is "
+                    "still refused");
+
+    /* And without an outer code the span is payload + CRC, unchanged: 16
+       payload bits and no CRC is two units of 8, so depth 2 divides it. */
+    wfm_source_t         no_outer    = cadu;
+    static const uint8_t sixteen[16] = { 0 };
+    no_outer.bits                    = (uint8_t *)sixteen;
+    no_outer.n_bits                  = sizeof sixteen;
+    no_outer.rs_depth                = 0;
+    no_outer.interleave_depth        = 2;
+    DP_REQUIRE_MSG (wfm_source_frame_error (&no_outer) == NULL,
+                    "with no outer code the group is payload + CRC");
+  }
+
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "
           "resolve, sum-json, headroom, seed_advance, ranged fields, "
           "dsss burst, unspread frame, repeats)\n",

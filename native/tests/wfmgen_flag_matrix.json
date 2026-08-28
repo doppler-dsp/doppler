@@ -251,6 +251,8 @@
           "crc": "crc16",
           "freq": 0,
           "fs": 1,
+          "interleave": 8,
+          "interleave_unit": 1,
           "lfsr": "galois",
           "modulation": "bpsk",
           "num_samples": 1800,

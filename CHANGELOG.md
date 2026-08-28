@@ -44,6 +44,13 @@ ______________________________________________________________________
     receiver holding a different geometry raises nothing and returns the
     right number of bits with half of them wrong.
 
+- **`--record` silently dropped `--interleave`.** A replayed capture came back
+    the same length with different bytes and no error — the schema's own
+    round-trip contract, broken on the flag's first release (#1031). The
+    flag matrix now asserts that every recordable case replays from its own
+    record byte-for-byte, which is the check `seed_advance` (#978) also
+    needed and did not have.
+
 ## [0.44.0] — 2026-08-24
 
 ### Breaking

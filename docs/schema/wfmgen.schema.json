@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "wfmgen.schema.json",
   "title": "wfmgen",
-  "description": "Canonical spec for the doppler waveform composer. Shared by --from-file (read) and --record (write); a recorded run reproduces byte-for-byte when fed back.",
+  "description": "Canonical spec for the doppler waveform composer. Shared by --from-file (read) and --record (write); a recorded run reproduces byte-for-byte when fed back. The spec describes the SIGNAL, not the container: --file-type, --sample-type and --endian have no section here, so a replay that wants the same file back supplies them again on the command line.",
   "type": "object",
   "required": ["version", "segments"],
   "additionalProperties": false,
@@ -217,6 +217,16 @@
           "type": "boolean",
           "description": "Channel coding: convolutional K=7 rate-1/2 (CCSDS 131.0-B-3 3.3) over the WHOLE frame, marker included. Doubles the bit count. With rs_depth, randomise and asm over a 223*I-octet payload and no preamble or sync word, the result is a CCSDS CADU."
         },
+        "interleave": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Channel coding: block-interleave the data group this many units deep; 0 = none. LAST of the data-group stages, so it is what the channel sees. A burst of up to R consecutive units then touches each codeword at most once, so an outer code correcting t units per codeword survives a burst of t*R."
+        },
+        "interleave_unit": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Channel coding: bits per permuted unit; 0 reads as 1. Match it to the outer code's symbol — 8 with rs_depth, because Reed-Solomon is a code over GF(256) and spreading a burst across CODEWORDS means permuting octets. Bit-interleaving an octet code spreads a burst inside a symbol that is already wrong."
+        },
         "crc": {
           "type": "string",
           "enum": ["none", "crc16"],
@@ -329,6 +339,8 @@
         "randomise":  { "$ref": "#/$defs/source/properties/randomise" },
         "asm":        { "$ref": "#/$defs/source/properties/asm" },
         "conv":       { "$ref": "#/$defs/source/properties/conv" },
+        "interleave": { "$ref": "#/$defs/source/properties/interleave" },
+        "interleave_unit": { "$ref": "#/$defs/source/properties/interleave_unit" },
         "symbol_rate": { "$ref": "#/$defs/source/properties/symbol_rate" },
         "data":        { "$ref": "#/$defs/source/properties/data" },
         "pulse":      { "$ref": "#/$defs/source/properties/pulse" },

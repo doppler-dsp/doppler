@@ -56,8 +56,12 @@ if(NOT WIN32)
         dp_tlm_core
         nats_vendor_static
         m pthread)
+    # The vendored nats headers, for the one test that must forge a frame
+    # doppler's own writers cannot emit (an unparseable one). The target
+    # already links nats_vendor_static; this only lets it see the header.
     target_include_directories(test_stream_nats_core PRIVATE
-        ${CMAKE_SOURCE_DIR}/native/inc)
+        ${CMAKE_SOURCE_DIR}/native/inc
+        ${CMAKE_SOURCE_DIR}/vendor/nats.c/src)
     add_test(NAME test_stream_nats_core COMMAND test_stream_nats_core)
     set_tests_properties(test_stream_nats_core PROPERTIES
         SKIP_RETURN_CODE 77)

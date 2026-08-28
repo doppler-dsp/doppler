@@ -28,7 +28,7 @@ native/src/acc_trace/acc_trace_core.c 2
 native/src/acq/acq_core.c 12
 native/src/adc/adc_core.c 1
 native/src/agc/agc_core.c 1
-native/src/app/wfmgen.c 4
+native/src/app/wfmgen.c 6
 native/src/awgn/awgn_core.c 1
 native/src/boxcar/boxcar_core.c 1
 native/src/burst_acq/burst_acq_core.c 1

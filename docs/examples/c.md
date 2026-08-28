@@ -521,3 +521,32 @@ batches):
 make build
 ./build/native/examples/pipeline_demo
 ```
+
+______________________________________________________________________
+
+## Composing a scene — who owns the buffer
+
+`wfmgen` the tool and `doppler.wfm` the Python face both hand you a finished
+array. Underneath, the caller holds the buffer, and four things the Python
+face hides become the API:
+
+1. **You own the output.** `wfm_compose_execute()` never allocates. It fills
+    what you give it and returns how much it used.
+1. **The stream ends with a short read**, not an error, so composing means
+    draining in a loop until `execute()` returns less than you asked for —
+    and then `0` from every call after that.
+1. **The segment list is borrowed.** `wfm_compose_segments()` points into the
+    composer; `wfm_compose_destroy()` takes it with it.
+1. **A declaration is reproducible.** The same scene composed twice is
+    byte-identical, which is what makes a capture replayable.
+
+[`native/examples/wfmgen_demo.c`](https://github.com/doppler-dsp/doppler/blob/main/native/examples/wfmgen_demo.c)
+is the worked version: two segments, the first summing two clean tones, each
+followed by a gap. Clean sources carry no AWGN, so the gaps are exact zeros
+— which is why its checks are equalities rather than thresholds. It
+self-validates and exits non-zero if any of them stops holding.
+
+```sh
+make build
+./build/native/examples/wfmgen_demo
+```

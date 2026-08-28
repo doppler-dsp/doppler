@@ -821,7 +821,7 @@ class MemoryCapture:
 
 @final
 class Capture:
-    """Opens a capture that accumulates in memory instead of a file.
+    """Opens a lossless capture over t and arms the boundary drain.
 
     Parameters
     ----------
@@ -850,19 +850,28 @@ class Capture:
 
     Examples
     --------
-    >>> from doppler.telemetry import Telemetry, MemoryCapture
+    >>> import os, tempfile
+    >>> from doppler.telemetry import Telemetry, Capture
     >>> from doppler.wfm import SampleClock
     >>> tlm = Telemetry(1 << 12)
     >>> pid = tlm.probe("agc.gain_db")   # probes FIRST: they set the bound
-    >>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))
-    >>> for blk in range(4):
-    ...     tlm.set_now(blk * 256)       # drains the block just finished
-    ...     tlm.emit(pid, float(blk))
-    >>> cap.close()                      # raises if anything was lost
-    >>> [float(v) for v in cap.records()["value"]]
+    >>> path = os.path.join(tempfile.mkdtemp(), "rx.tlm")
+    >>> with Capture(tlm, 256, path, SampleClock(1e6)) as cap:
+    ...     for blk in range(4):
+    ...         tlm.set_now(blk * 256)   # drains the block just finished
+    ...         tlm.emit(pid, float(blk))
+    >>> os.path.exists(path + "-meta")   # the sidecar, written at close
+    True
+
+    The 16-byte record layout IS the file, so nothing doppler-specific is
+    needed to read it back:
+
+    >>> import numpy as np
+    >>> dt = np.dtype({"names": ["n", "value", "probe", "flags"],
+    ...                "formats": ["<u8", "<f4", "<u2", "<u2"],
+    ...                "offsets": [0, 8, 12, 14], "itemsize": 16})
+    >>> [float(v) for v in np.fromfile(path, dtype=dt)["value"]]
     [0.0, 1.0, 2.0, 3.0]
-    >>> cap.dropped
-    0
 
     """
     def __init__(

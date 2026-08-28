@@ -1820,12 +1820,12 @@ class Frame:
 
 @final
 class FrameDesc:
-    """Create a frame instance.
+    """The same frame, DEFERRED — a description a caller can extend.
 
     Parameters
     ----------
     preamble_kind : Literal["literal", "pn", "gold", "dotted"], default "literal"
-        Enum index; 0=literal…3=dotted.
+        preamble_kind constructor parameter.
     preamble : NDArray[np.uint8]
         Literal preamble bits, one per element. Pass an EMPTY array when the
         field is absent or generated -- `wfm_seq_t` already spells absence as a
@@ -1837,26 +1837,25 @@ class FrameDesc:
         from the `preamble` array instead; `wfm_seq_t` names these apart (len
         vs reg_bits) for the same reason.
     preamble_reps : int, default 0
-        Repetitions of the preamble; 0 = no preamble (default: 0).
+        preamble_reps constructor parameter.
     preamble_poly : int, default 0
-        PN feedback polynomial; 0 selects the maximal-length one (default: 0).
+        preamble_poly constructor parameter.
     preamble_seed : int, default 0
-        PN seed; 0 selects 1, since an all-zero register is a fixed point
-        (default: 0).
+        preamble_seed constructor parameter.
     preamble_reg_bits : int, default 0
-        PN/Gold register width, 1..64 (default: 0).
+        preamble_reg_bits constructor parameter.
     preamble_lfsr : Literal["galois", "fibonacci"], default "galois"
-        Enum index; 0=galois…1=fibonacci.
+        preamble_lfsr constructor parameter.
     preamble_taps_a : int, default 0
-        Gold: first register's taps (default: 0).
+        preamble_taps_a constructor parameter.
     preamble_seed_a : int, default 0
-        Gold: first register's seed (default: 0).
+        preamble_seed_a constructor parameter.
     preamble_taps_b : int, default 0
-        Gold: second register's taps (default: 0).
+        preamble_taps_b constructor parameter.
     preamble_seed_b : int, default 0
-        Gold: second register's seed (default: 0).
+        preamble_seed_b constructor parameter.
     sync_kind : Literal["literal", "pn", "gold", "dotted"], default "literal"
-        Enum index; 0=literal…3=dotted.
+        sync_kind constructor parameter.
     sync : NDArray[np.uint8]
         Literal sync word bits, one per element. Pass an EMPTY array when the
         field is absent or generated -- `wfm_seq_t` already spells absence as a
@@ -1864,25 +1863,25 @@ class FrameDesc:
         placeholder. (An omittable array init-param is a jm gap; see the module
         docs.)
     sync_nbits : int, default 0
-        Output bits for a GENERATED sync kind (default: 0).
+        sync_nbits constructor parameter.
     sync_poly : int, default 0
-        PN feedback polynomial; 0 selects the maximal-length one (default: 0).
+        sync_poly constructor parameter.
     sync_seed : int, default 0
-        PN seed; 0 selects 1 (default: 0).
+        sync_seed constructor parameter.
     sync_reg_bits : int, default 0
-        PN/Gold register width, 1..64 (default: 0).
+        sync_reg_bits constructor parameter.
     sync_lfsr : Literal["galois", "fibonacci"], default "galois"
-        Enum index; 0=galois…1=fibonacci.
+        sync_lfsr constructor parameter.
     sync_taps_a : int, default 0
-        Gold: first register's taps (default: 0).
+        sync_taps_a constructor parameter.
     sync_seed_a : int, default 0
-        Gold: first register's seed (default: 0).
+        sync_seed_a constructor parameter.
     sync_taps_b : int, default 0
-        Gold: second register's taps (default: 0).
+        sync_taps_b constructor parameter.
     sync_seed_b : int, default 0
-        Gold: second register's seed (default: 0).
+        sync_seed_b constructor parameter.
     payload_kind : Literal["literal", "pn", "gold", "dotted"], default "literal"
-        Enum index; 0=literal…3=dotted.
+        payload_kind constructor parameter.
     payload : NDArray[np.uint8]
         Literal payload bits, one per element. Pass an EMPTY array when the
         field is absent or generated -- `wfm_seq_t` already spells absence as a
@@ -1890,25 +1889,25 @@ class FrameDesc:
         placeholder. (An omittable array init-param is a jm gap; see the module
         docs.)
     payload_nbits : int, default 0
-        Output bits for a GENERATED payload kind (default: 0).
+        payload_nbits constructor parameter.
     payload_poly : int, default 0
-        PN feedback polynomial; 0 selects the maximal-length one (default: 0).
+        payload_poly constructor parameter.
     payload_seed : int, default 0
-        PN seed; 0 selects 1 (default: 0).
+        payload_seed constructor parameter.
     payload_reg_bits : int, default 0
-        PN/Gold register width, 1..64 (default: 0).
+        payload_reg_bits constructor parameter.
     payload_lfsr : Literal["galois", "fibonacci"], default "galois"
-        Enum index; 0=galois…1=fibonacci.
+        payload_lfsr constructor parameter.
     payload_taps_a : int, default 0
-        Gold: first register's taps (default: 0).
+        payload_taps_a constructor parameter.
     payload_seed_a : int, default 0
-        Gold: first register's seed (default: 0).
+        payload_seed_a constructor parameter.
     payload_taps_b : int, default 0
-        Gold: second register's taps (default: 0).
+        payload_taps_b constructor parameter.
     payload_seed_b : int, default 0
-        Gold: second register's seed (default: 0).
+        payload_seed_b constructor parameter.
     crc : Literal["none", "crc16"], default "none"
-        Enum index; 0=none…1=crc16.
+        crc constructor parameter.
 
     Raises
     ------
@@ -1916,28 +1915,6 @@ class FrameDesc:
         If construction fails. The exception message is ``frame geometry is
         empty or a field is unbuildable (a literal with no array, or a
         generated field with no register width)``.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from doppler.wfm import Frame
-    >>> empty = np.empty(0, np.uint8)                    # an absent field
-    >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)   # Barker-13
-    >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-    >>> f = Frame(empty, sync, payload, crc="crc16")
-    >>> f.nbits                                          # 13 + 16 + 16
-    45
-    >>> f.layout().payload_off
-    13
-    >>> f.crc_ok(f.bits())        # its own bits are its own truth
-    1
-
-    A payload a receiver can REGENERATE, rather than one it must be handed:
-
-    >>> g = Frame(empty, sync, empty, payload_kind="pn",
-    ...           payload_nbits=1024, payload_reg_bits=10, crc="crc16")
-    >>> g.nbits
-    1053
 
     """
     def __init__(

@@ -1122,18 +1122,16 @@ class Interleaver:
 
 @final
 class Deinterleaver:
-    """Build an interleaver over a rows x cols block of unit_bits units.
+    """The RECEIVE face of the same interleaver.
 
     Parameters
     ----------
     rows : int
-        Interleaving depth; the longest burst fully spread. Must be non-zero.
+        Interleaving depth, as the transmitter used.
     cols : int
-        Units per codeword. Must be non-zero.
+        Units per codeword, as the transmitter used.
     unit_bits : int, default 1
-        Bits per interleaved unit. 1 interleaves bits; 8 interleaves octets,
-        which is what spreads a burst across the codewords of a symbol-oriented
-        code such as Reed-Solomon over GF(256). Must be non-zero.
+        Bits per interleaved unit, as the transmitter used.
 
     Raises
     ------
@@ -1145,10 +1143,13 @@ class Deinterleaver:
     Examples
     --------
     >>> import numpy as np
-    >>> from doppler.coding import Interleaver
-    >>> il = Interleaver(rows=3, cols=4)
-    >>> il.block_bits, il.burst_len, il.separation
-    (12, 3, 4)
+    >>> from doppler.coding import Interleaver, Deinterleaver
+    >>> tx = Interleaver(rows=3, cols=4)
+    >>> rx = Deinterleaver(rows=3, cols=4)
+    >>> bits = np.arange(12, dtype=np.uint8)
+    >>> wire = np.asarray(tx.interleave(bits))
+    >>> np.array_equal(np.asarray(rx.deinterleave(wire)), bits)
+    True
 
     """
     def __init__(

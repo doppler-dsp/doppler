@@ -817,9 +817,36 @@ static PyTypeObject MatchedDdcrObjType = {
   .tp_basicsize                           = sizeof (MatchedDdcrObject),
   .tp_dealloc                             = (destructor)MatchedDdcrObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "MatchedDdcr type.\n",
-  .tp_methods                             = MatchedDdcrObj_methods,
-  .tp_getset                              = MatchedDdcr_getset,
-  .tp_new                                 = MatchedDdcrObj_new,
-  .tp_init                                = (initproc)MatchedDdcrObj_init,
+  .tp_doc
+  = "Create a real-input DDC whose terminal stage IS a matched filter.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "norm_freq : float, default 0.0\n"
+    "    Fine NCO frequency at the INTERMEDIATE rate (fs_in/2) — the same\n"
+    "    reference ddcr_create() uses.\n"
+    "rate : float, default 0.25\n"
+    "    Total output/input rate; must be in (0, 0.5).\n"
+    "pulse : Literal[\"iandd\", \"rrc\"], default \"rrc\"\n"
+    "    RC_PULSE_RRC / RC_PULSE_IANDD (RC_PULSE_NONE is invalid here — use\n"
+    "    ddcr_create()).\n"
+    "beta : float, default 0.35\n"
+    "    RRC roll-off in `[0, 1]` (ignored for the rectangle).\n"
+    "span : int, default 8\n"
+    "    One-sided RRC span in symbols (ignored for the rectangle).\n"
+    "pulse_sps : float, default 2.0\n"
+    "    The pulse's period in **output** samples.\n"
+    "num_phases : int, default 1024\n"
+    "    Terminal-stage arms; a power of two.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.ddc import MatchedDdcr\n"
+    ">>> rx = MatchedDdcr(norm_freq=-0.6875, rate=2 / 16, pulse=\"rrc\")\n"
+    ">>> rx.rate\n"
+    "0.125\n",
+  .tp_methods = MatchedDdcrObj_methods,
+  .tp_getset  = MatchedDdcr_getset,
+  .tp_new     = MatchedDdcrObj_new,
+  .tp_init    = (initproc)MatchedDdcrObj_init,
 };

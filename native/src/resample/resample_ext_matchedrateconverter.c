@@ -883,9 +883,56 @@ static PyTypeObject MatchedRateConverterObjType = {
   .tp_basicsize = sizeof (MatchedRateConverterObject),
   .tp_dealloc   = (destructor)MatchedRateConverterObj_dealloc,
   .tp_flags     = Py_TPFLAGS_DEFAULT,
-  .tp_doc       = "MatchedRateConverter type.\n",
-  .tp_methods   = MatchedRateConverterObj_methods,
-  .tp_getset    = MatchedRateConverter_getset,
-  .tp_new       = MatchedRateConverterObj_new,
-  .tp_init      = (initproc)MatchedRateConverterObj_init,
+  .tp_doc
+  = "Create a rate converter whose terminal stage IS a matched filter.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "rate : float, default 1.0\n"
+    "    Output-to-input sample rate ratio (any positive float). "
+    "Rate-agnostic:\n"
+    "    this object never learns about symbols — a caller wanting `m` "
+    "samples\n"
+    "    per symbol asks for `rate = m/sps`.\n"
+    "compensate : int, default 1\n"
+    "    Non-zero to correct CIC passband droop (folded into the bank here, "
+    "not\n"
+    "    appended as a stage).\n"
+    "pulse : Literal[\"iandd\", \"rrc\"], default \"rrc\"\n"
+    "    RC_PULSE_RRC / RC_PULSE_IANDD. RC_PULSE_NONE is invalid here — use\n"
+    "    RateConverter_create() for a plain conversion.\n"
+    "beta : float, default 0.35\n"
+    "    RRC roll-off in `[0, 1]` (ignored for the rectangle).\n"
+    "span : int, default 8\n"
+    "    One-sided RRC span in symbols (ignored for the rectangle, whose "
+    "support\n"
+    "    is always exactly one symbol).\n"
+    "pulse_sps : float, default 2.0\n"
+    "    The pulse's period measured in **output** samples (2 = two samples "
+    "per\n"
+    "    symbol out). This is a shape parameter, not a rate-planning one: a\n"
+    "    matched filter has a symbol duration, and the planner still knows\n"
+    "    nothing of symbols.\n"
+    "num_phases : int, default 1024\n"
+    "    Terminal-stage arms; power of two. Sets the fractional timing\n"
+    "    resolution to `1/num_phases` of an output period.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "Create with defaults:\n"
+    "\n"
+    ">>> from doppler import MatchedRateConverter\n"
+    ">>> obj = MatchedRateConverter(\n"
+    "...     rate=1.0,\n"
+    "...     compensate=1,\n"
+    "...     pulse=\"rrc\",\n"
+    "...     beta=0.35,\n"
+    "...     span=8,\n"
+    "...     pulse_sps=2.0,\n"
+    "...     num_phases=1024,\n"
+    "... )\n",
+  .tp_methods = MatchedRateConverterObj_methods,
+  .tp_getset  = MatchedRateConverter_getset,
+  .tp_new     = MatchedRateConverterObj_new,
+  .tp_init    = (initproc)MatchedRateConverterObj_init,
 };

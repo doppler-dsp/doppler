@@ -831,9 +831,44 @@ static PyTypeObject MatchedDDCObjType = {
   .tp_basicsize                           = sizeof (MatchedDDCObject),
   .tp_dealloc                             = (destructor)MatchedDDCObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "MatchedDDC type.\n",
-  .tp_methods                             = MatchedDDCObj_methods,
-  .tp_getset                              = MatchedDDC_getset,
-  .tp_new                                 = MatchedDDCObj_new,
-  .tp_init                                = (initproc)MatchedDDCObj_init,
+  .tp_doc
+  = "Create a DDC whose cascade's terminal stage IS a matched filter.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "norm_freq : float, default 0.0\n"
+    "    LO frequency in cycles/sample at the input rate, as ddc_create().\n"
+    "rate : float, default 0.25\n"
+    "    Output-to-input sample rate ratio. Rate-agnostic: a caller wanting "
+    "`m`\n"
+    "    outputs per symbol asks for `rate = m/sps`; the cascade never "
+    "learns\n"
+    "    about symbols.\n"
+    "pulse : Literal[\"iandd\", \"rrc\"], default \"rrc\"\n"
+    "    RC_PULSE_RRC / RC_PULSE_IANDD. RC_PULSE_NONE is invalid here — use\n"
+    "    ddc_create() for a plain down-conversion.\n"
+    "beta : float, default 0.35\n"
+    "    RRC roll-off in `[0, 1]` (ignored for the rectangle).\n"
+    "span : int, default 8\n"
+    "    One-sided RRC span in symbols (ignored for the rectangle, whose "
+    "support\n"
+    "    is exactly one symbol).\n"
+    "pulse_sps : float, default 2.0\n"
+    "    The pulse's period in **output** samples (2 = two samples per "
+    "symbol\n"
+    "    out).\n"
+    "num_phases : int, default 1024\n"
+    "    Terminal-stage arms; a power of two. Sets the timing resolution to\n"
+    "    `1/num_phases` of an output period.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.ddc import MatchedDDC\n"
+    ">>> rx = MatchedDDC(norm_freq=-0.1, rate=2 / 16, pulse=\"rrc\")\n"
+    ">>> rx.rate\n"
+    "0.125\n",
+  .tp_methods = MatchedDDCObj_methods,
+  .tp_getset  = MatchedDDC_getset,
+  .tp_new     = MatchedDDCObj_new,
+  .tp_init    = (initproc)MatchedDDCObj_init,
 };

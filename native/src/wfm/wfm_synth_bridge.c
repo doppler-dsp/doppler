@@ -106,13 +106,32 @@ wfm_source_frame_error (const wfm_source_t *src)
     {
       const size_t unit
           = src->interleave_unit_bits ? src->interleave_unit_bits : 1u;
-      const size_t data = src->n_bits + (src->crc ? WFM_FRAME_CRC_BITS : 0u);
+      /* The data group is payload + CRC + the OUTER CODE'S CHECK SYMBOLS,
+         which is what `ccsds_tm_frame_desc_of` gives the interleave stage
+         to cover ("payload, its CRC, and the outer code's check symbols")
+         and is the only span that makes the transform mean anything: an
+         interleaver exists to spread a burst across codewords, so leaving
+         the parity contiguous would defeat the point.
+
+         This guard omitted the parity, so it validated a DIFFERENT span
+         from the one the stage permutes. With --rs-depth 1 the check ran
+         against 1784 bits while the stage covered 2040, which refused the
+         canonical CCSDS arrangement -- 223 octets under RS(255,223),
+         interleaved 5 deep at unit 8 -- even though 2040 divides by 40
+         exactly. `bits_interleave_octets_with_outer_code` had that refusal
+         pinned in the flag-matrix golden as though it were correct. */
+      const size_t parity
+          = src->rs_depth ? (size_t)CCSDS_TM_RS_2E * (size_t)src->rs_depth * 8u
+                          : 0u;
+      const size_t data
+          = src->n_bits + (src->crc ? WFM_FRAME_CRC_BITS : 0u) + parity;
       const size_t cell = (size_t)src->interleave_depth * unit;
       if (cell == 0 || data == 0 || data % cell != 0)
-        return "--interleave needs the data group (payload plus its CRC, if "
-               "any) to be a whole number of depth x unit units — the column "
-               "count follows from the span, so a remainder has nowhere to "
-               "go and is refused rather than padded";
+        return "--interleave needs the data group (payload, its CRC if any, "
+               "and the outer code's check symbols) to be a whole number of "
+               "depth x unit units — the column count follows from the span, "
+               "so a remainder has nowhere to go and is refused rather than "
+               "padded";
     }
   return NULL;
 }

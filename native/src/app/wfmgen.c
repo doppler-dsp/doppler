@@ -180,6 +180,58 @@ report_clip (double peak, double frac, int stype, double headroom,
   return clip_error ? 1 : 0;
 }
 
+/* Read a file's BYTES into a malloc'd 0/1 bit array, MSB first per byte;
+ * *n gets the bit count (8 per byte). Returns NULL if the file cannot be
+ * read, or if it is empty -- a payload of no bits is a usage error, not a
+ * zero-length frame.
+ *
+ * Bytes, not text, and deliberately not both. `--bits` already takes a 0/1
+ * string and `--bits-hex` a hex one, so a real binary file is the case with
+ * no other route -- and it is the one the CCSDS example needs, which asks
+ * for "a 223*I-octet Transfer Frame on disk". Sniffing the content to
+ * accept either was considered and refused: a binary file whose bytes
+ * happen to be all 0x30/0x31 would decode as the wrong thing, and an
+ * ambiguous rule is the kind that surprises someone a year later.
+ */
+static uint8_t *
+bits_from_file (const char *path, size_t *n)
+{
+  FILE *f = fopen (path, "rb");
+  if (!f)
+    return NULL;
+  if (fseek (f, 0, SEEK_END) != 0)
+    {
+      (void)fclose (f);
+      return NULL;
+    }
+  const long len = ftell (f);
+  if (len <= 0 || fseek (f, 0, SEEK_SET) != 0)
+    {
+      (void)fclose (f);
+      return NULL;
+    }
+  uint8_t *raw = malloc ((size_t)len);
+  if (!raw)
+    {
+      (void)fclose (f);
+      return NULL;
+    }
+  const size_t rd = fread (raw, 1, (size_t)len, f);
+  (void)fclose (f);
+  uint8_t *bits = malloc (rd * 8u ? rd * 8u : 1u);
+  if (!bits)
+    {
+      free (raw);
+      return NULL;
+    }
+  for (size_t i = 0; i < rd; i++)
+    for (unsigned b = 0; b < 8u; b++)
+      bits[i * 8u + b] = (uint8_t)((raw[i] >> (7u - b)) & 1u);
+  free (raw);
+  *n = rd * 8u;
+  return bits;
+}
+
 /* Read a whole file into a malloc'd NUL-terminated string (caller frees). */
 static char *
 slurp_file (const char *path)
@@ -584,7 +636,7 @@ enum opt_kind
   OPT_RANGE_N,    /* LO[:HI] -> size_t at off, hi at aux, bit in seg.ranged */
   OPT_BITS,       /* "0101" -> uint8_t * at off, its length at aux        */
   OPT_HEX,        /* "a5"   -> uint8_t * at off, its bit count at aux     */
-  OPT_BITS_FILE,  /* a file holding a "0101" string                       */
+  OPT_BITS_FILE,  /* a file whose BYTES are the bits, MSB first          */
   OPT_SYMBOLS,    /* a raw cf32 file -> float _Complex * at off           */
 };
 
@@ -815,20 +867,25 @@ static int
 parse_bits_into (const opt_t *opt, const char *a, const char *v, uint8_t **dst,
                  size_t *n)
 {
-  char *text = NULL;
-  if (opt->kind == OPT_BITS_FILE)
+  free (*dst); /* a repeated flag replaces, it does not leak */
+  switch (opt->kind)
     {
-      text = slurp_file (v);
-      if (!text)
+    case OPT_HEX:
+      *dst = parse_hex_string (v, n);
+      break;
+    case OPT_BITS_FILE:
+      *dst = bits_from_file (v, n);
+      if (!*dst)
         {
-          (void)fprintf (stderr, "error: cannot read %s %s\n", a, v);
+          (void)fprintf (stderr, "error: %s cannot read %s, or it is empty\n",
+                         a, v);
           return 1;
         }
+      return 0;
+    default:
+      *dst = parse_bit_string (v, n);
+      break;
     }
-  free (*dst); /* a repeated flag replaces, it does not leak */
-  *dst = opt->kind == OPT_HEX ? parse_hex_string (v, n)
-                              : parse_bit_string (text ? text : v, n);
-  free (text);
   if (!*dst)
     {
       (void)fprintf (stderr, "error: %s expects a %s\n", a,

@@ -1645,13 +1645,23 @@ main (void)
                     "divides 51 times -- the arrangement CCSDS specifies");
 
     /* The guard still bites, or removing it would have passed the case
-       above just as well. One octet of payload less leaves 2032 bits, and
-       40 does not divide it. */
-    wfm_source_t short_group = cadu;
-    short_group.n_bits       = sizeof frame - 8u;
-    DP_REQUIRE_MSG (wfm_source_frame_error (&short_group) != NULL,
+       above just as well. It has to be provoked WITHOUT disturbing the outer
+       code's own geometry: shortening the payload trips the --rs-depth guard
+       three statements earlier, which returns a different sentence and
+       satisfies a bare `!= NULL` while never reaching this one. So keep the
+       223 octets and change the depth: 2040 divides by 5*8 and does not
+       divide by 2*8, because 255 is odd. */
+    wfm_source_t odd_depth     = cadu;
+    odd_depth.interleave_depth = 2;
+    const char *why            = wfm_source_frame_error (&odd_depth);
+    DP_REQUIRE_MSG (why != NULL,
                     "a data group that is not a whole number of units is "
                     "still refused");
+    /* And refused BY THIS GUARD -- asserting only that some sentence came
+       back is what let the case above pass on the outer code's message. */
+    DP_REQUIRE_MSG (strstr (why, "--interleave") == why,
+                    "the refusal has to name --interleave, not whichever "
+                    "guard happened to fire first");
 
     /* And without an outer code the span is payload + CRC, unchanged: 16
        payload bits and no CRC is two units of 8, so depth 2 divides it. */

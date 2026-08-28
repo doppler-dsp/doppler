@@ -102,6 +102,38 @@ X" message telling you which file and which page.
 
 Run it locally: `python scripts/check_nav_index.py`.
 
+## wfmgen flag docs (`check_wfmgen_flag_docs.py`)
+
+Every flag `wfmgen`'s dispatcher accepts must be named in some
+`docs/guide/wfmgen/*.md` page. A review once counted 50 of 56 — the missing
+six were the whole channel-coding stage — and the count was put right by
+hand, which kept it right until the next flag landed.
+
+Three decisions worth knowing before you meet it:
+
+- **Aliases count.** An alias exists to be typed, so an undocumented one is a
+    secret. On its first run this found `--randomize`: the guide documented
+    `--randomise` at length and never said the parser takes the other spelling.
+    Document an alias beside the name it aliases, not on a page of its own.
+- **There is no allow-list.** A flag costs one table cell to document, which
+    is cheaper than an exemption list that goes stale and has to be audited to
+    find out whether its entries are still true.
+- **Pages are discovered, not registered.** A new page under
+    `docs/guide/wfmgen/` counts the moment it exists, so the gate cannot be
+    satisfied by editing a list inside it. An empty guide directory **fails** —
+    otherwise every flag is vacuously documented and it would print OK having
+    read nothing.
+
+Flag discovery is `dispatcher_flags()`, imported from
+`scripts/gen_wfmgen_flag_matrix.py` rather than re-derived, so this gate and
+the flag-matrix ctest cannot disagree about what the parser accepts.
+
+It asks one direction only. A page citing a flag the parser *no longer*
+accepts is real doc rot and is not covered — see
+[#1054](https://github.com/doppler-dsp/doppler/issues/1054).
+
+Run it locally: `python scripts/check_wfmgen_flag_docs.py`.
+
 ## Related pages (`gen_related_pages.py`)
 
 Every `docs/api/*.md` page gets a generated `## Related pages` section

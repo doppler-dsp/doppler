@@ -156,7 +156,7 @@ ______________________________________________________________________
 
 <!-- related-pages:start -->
 
-**Gallery** — [Measuring an Error Rate, Defensibly](../gallery/ber-awgn.md), [Gallery](../gallery/index.md)
+**Gallery** — [Measuring an Error Rate, Defensibly](../gallery/ber-awgn.md), [Gallery](../gallery/index.md), [M-PSK Receiver — Performance Characterisation](../gallery/mpsk-receiver-performance.md)
 **Design** — [Detection Sizing — the four laws behind one prefix](../design/detection.md), [The FEC Receive Half](../design/fec-receive.md), [Receiver Test Harness](../design/rx-test.md)
 **Contributing** — [Measuring a receiver](../dev/contributing/measuring-a-receiver.md)
 

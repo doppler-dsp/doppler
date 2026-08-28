@@ -430,6 +430,48 @@ def settle_from(probes, floor=SETTLE_SYMS):
     return int(ber_settle_from(floor, t, c))
 
 
+def rate_settled(probes, tol=1e-4, hold=500):
+    """First symbol after which `sync.rate` stops moving, or None.
+
+    `settle_from()` is `max(budget, timing lock, carrier lock)`, and every
+    term in it is a PHASE settling statement. None of them covers the time to
+    slew out a CLOCK (rate) offset, which is a different and much slower
+    thing -- measured on BPSK at sps 32.95, with the seeded clock error at
+    half the timing bandwidth (`clock_offset_inside_bw`, 2.655e-3 here):
+
+        bn_timing = 0.0064   5/Bn = 781 symbols
+        rate error at 781    2.64e-3   (the initial error was 2.655e-3)
+        rate error < 1e-4    at 9900   -- 12.7x the budget
+
+    With no clock offset the same loop is settled on time, so this is
+    specific to slewing a rate error rather than the loop being sluggish.
+
+    Why it matters to a TRUTH-REFERENCED measurement, which is the only kind
+    that sees it: while the rate is wrong the receiver emits symbols at
+    slightly the wrong cadence, so the rx-to-truth lag MOVES. `BerMeter`
+    detects one lag and scores with it verbatim, so a window opened before
+    the rate settles is scored against the right truth at its start and the
+    wrong truth after -- measured, lag 18 becoming lag 19, and an SER of
+    0.483 on a receiver whose real SER over the settled window is 0. It reads
+    exactly like a false lock and is not one (doppler#1060).
+
+    `tol` is fractional rate error and `hold` how long it must stay inside
+    it, because the estimate is noisy and one excursion is not a relapse.
+    Returns None when it never settles within the record.
+    """
+    r = probes.get("sync.rate")
+    if r is None or r.size < hold:
+        return None
+    final = float(np.median(r[-hold:]))
+    if final == 0.0:
+        return None
+    err = np.abs(r - final) / abs(final)
+    for i in range(0, err.size - hold, hold // 5 or 1):
+        if err[i:].max() < tol:
+            return int(i)
+    return None
+
+
 def detect_alignment(y, idx, m, settle, lag_span=40, n_marker=256):
     """The one alignment recipe: a `BerMeter` with a DETECTED lag, or `None`.
 

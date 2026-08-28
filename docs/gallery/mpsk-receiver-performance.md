@@ -50,7 +50,24 @@ receiver's test harness encode.
 **EVM vs the coherent bound.** Self-referenced EVM — each symbol against its own
 hard decision — against `EVM_dB = −(Es/N0)_dB`. EVM is an I/Q-plane quantity, so
 there is no factor of two, and an EVM *beating* the bound means the measurement
-is wrong. Median margin over the whole random sweep: **+0.1 dB**.
+is wrong. Median margin over the whole random sweep: **+0.2 dB**.
+
+!!! warning "Some trials carry no measurement, and the demo says so"
+
+    A trial whose timing rate is still slewing at the end of its record has
+    **no window in which one detected alignment is valid** — the receiver is
+    emitting at slightly the wrong cadence, so the rx-to-truth lag moves
+    inside the window. `BerMeter` scores a detected lag verbatim, so such a
+    window reads correct at its start and chance after it: measured, lag 18
+    becoming 19, and an SER of **0.483** on a receiver whose settled SER over
+    the same capture is **0**.
+
+    That is not a lock failure and must not be scored as one. Those trials are
+    refused and **counted in the output** rather than dropped, because a
+    refusal nobody counts is indistinguishable from a measurement nobody made.
+    The underlying cause — `5/Bn` is a phase-settling budget and does not cover
+    slewing out a clock offset, measured 12.7× short — is
+    [doppler#1060](https://github.com/doppler-dsp/doppler/issues/1060).
 
 **Lock time against each trial's own budget.** Not an absolute symbol count — a
 *fraction* of that trial's `2·(5/bn_t + 5/bn_c)`, which is the only way to

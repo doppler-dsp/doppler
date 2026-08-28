@@ -1066,7 +1066,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 doc-sections-check \
                 installed-headers-check \
                 ci-image ci-image-check ci-image-shell ci-image-source-hash \
-                ci-shell ci-run ci-gates ccache-stats \
+                ci-shell ci-run ci-gates ccache-stats pr-watch \
                 wheel-check wheel-smoke release-smoke \
                 bench-python \
                 bench-interleaved bench-publish bench-docs bench-stream \
@@ -1077,7 +1077,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
 # ── Vendored from canonical ──────────────────────────────────────────────────
 # Verbatim copies the drift gate holds to canonical, alongside standard.mk
 # itself. Edit canonical and re-vendor; never edit these in place.
-VENDORED_FILES = scripts/release-watch.sh
+VENDORED_FILES = scripts/release-watch.sh scripts/pr-watch.sh
 
 include standard.mk
 
@@ -2287,6 +2287,7 @@ changelog-check: ## A branch changing code must add a changelog entry
 	  echo "changelog-check: no commits ahead of $(CHANGELOG_BASE) — branch check inert"; \
 	else \
 	  ./scripts/uncommitted-code-guard.sh changelog-check $(CHANGELOG_CODE_PATHS); \
+	  ./scripts/changelog-fragment-guard.sh "$$base" || exit 1; \
 	  pat=$$(printf '%s\n' $(CHANGELOG_CODE_PATHS) | sed 's|.*|^&/|' | paste -sd'|'); \
 	  code=$$(printf '%s\n' "$$files" | grep -E "$$pat" || true); \
 	  if [ -z "$$code" ]; then \
@@ -2829,6 +2830,33 @@ ci-gates: ## Run the full gate set inside the PINNED CI image (pre-push check)
 ci-image-shell: ## A shell in the LOCALLY BUILT CI image (see ci-image)
 	@docker run --rm -it -u $$(id -u):$$(id -g) \
 	    -v "$(CURDIR)":/w -w /w doppler-ci:ubuntu-24.04 bash
+# Report what a PR's checks did. It NEVER authorizes a merge -- that is
+# `gh pr merge <n> --auto --rebase`, which evaluates the repo's required set
+# SERVER-side and cannot be got wrong by a poll loop. Arm auto-merge first;
+# use this to find out whether the PR landed or is genuinely stuck, so a
+# failure is noticed rather than waited on forever.
+#
+# It exists because every hand-rolled version of this loop fails TOWARD green,
+# silently, and all three ways have been hit for real:
+#
+#   1. `gh run list -L 1` returns the newest run of ANY workflow on the
+#      branch, so it reports the docker job finishing while the test matrix is
+#      still queued. Bind to the PR's head SHA instead.
+#   2. Right after a force-push GitHub has not created the check runs yet, so
+#      a `grep pending` finds nothing and the loop declares victory over ZERO
+#      checks. An empty check set is not a green one.
+#   3. `gh pr checks --watch` can attach to the PRIOR run after a re-push and
+#      render its old conclusions instantly, which looks like a fast pass.
+#
+# Ported from just-buildit/just-makeit (skills://merge-set says to); REPO
+# derives from `git remote get-url origin` here rather than being required.
+#
+#   make pr-watch PR=1044
+#   make pr-watch PR=1044 TIMEOUT_MIN=90 ADVISORY="codecov/patch,flaky-thing"
+pr-watch: ## Watch PR=<n>'s checks to a settled verdict (never merges)
+	@test -n "$(PR)" || { echo "usage: make pr-watch PR=<number>"; exit 2; }
+	@bash scripts/pr-watch.sh $(PR)
+
 
 # The gate. Two questions, both answerable with no network and no docker:
 #

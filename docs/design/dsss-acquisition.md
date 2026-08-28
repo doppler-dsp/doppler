@@ -570,27 +570,47 @@ padding by `L` walks the estimate toward the true value:
 realized_pfa / target  ~=  N_eff(L) / N_eff(1)
 ```
 
-**Measured**, 40,000 pure-noise frames, identical build and seed with only
-`ACQ_DOPPLER_INTERP` changed:
+**Measured**, 60,000 pure-noise frames at `pfa = 1e-2` (the highest-count
+point, so the tightest bars), `doppler_bins = 8`, `n_noncoh = 1`, identical
+build and seed with only `ACQ_DOPPLER_INTERP` changed:
 
-| `ACQ_DOPPLER_INTERP` | realized Pfa | ratio to target | sigma |
-| -------------------- | ------------ | --------------- | ----- |
-| 2 (shipped)          | 1.85e-3      | **1.85×**       | +5.4  |
-| 1 (control)          | 9.00e-4      | 0.90×           | −0.6  |
+| quantity              | measured        | what it says                       |
+| --------------------- | --------------- | ---------------------------------- |
+| `N_eff(1) / N`        | **0.89 ± 0.04** | the native model is *conservative* |
+| `N_eff(2) / N_eff(1)` | **1.86 ± 0.09** | what interpolation adds            |
+| `N_eff(2) / N`        | **1.65 ± 0.05** | what a caller actually gets        |
 
-Both arms run `n_noncoh = 1`, so this measures the maximum-over-cells half
-directly with the per-cell sum reduced to a single look — the cleanest place
-to see the effect, and the configuration the characterization pins for its
-one-push-one-decision assumption. With interpolation off the independent-cell
-model is calibrated — 0.90× at −0.6 sigma is a clean fit. With it on the detector delivers **1.85×** the
-requested rate, and `pd_predicted` / `underpowered` are optimistic by the same
-factor because they read the same `pfa_cell`.
+Both arms run `n_noncoh = 1`, so this isolates the maximum-over-cells half
+with the per-cell sum reduced to a single look — the cleanest place to see the
+effect, and the configuration the characterization pins for its
+one-push-one-decision assumption.
 
-That 1.85 is close to `L = 2` and that is not a coincidence, but neither is it
-a derivation: it says the interstitial samples are contributing *nearly* an
-independent look each at this bandwidth. The ratio is a property of the grid
-geometry, so it is a number to **measure per configuration**, not a constant
-to hard-code.
+**Two errors of opposite sign, and they partly cancel.** `N_eff(1) < N`
+because adjacent DFT bins of a white-noise transform are not perfectly
+independent, so the Šidák count slightly overstates the looks — a *safe*
+direction, delivering fewer false alarms than asked for. Interpolation then
+overshoots it. The net is 1.65×, not 1.86×, and the distinction is
+load-bearing: 1.86 is the ratio between two *builds*, not the rate any caller
+experiences, and a correction of 1.86 applied to a model already 11%
+conservative would land at 0.89 of target.
+
+`pd_predicted` and `underpowered` read the same `pfa_cell`, so they are
+optimistic by the same factor.
+
+**Only `N` is wrong — the form is right.** The ratio holds across three
+decades of target: 1.65 / 1.40 / 1.50 at 1e-2 / 1e-3 / 1e-4 with interpolation
+on, and 0.89 / 0.77 / 0.83 with it off. That constancy is the signature of a
+multiplicative cell-count error. A miscalibrated per-cell threshold, or an
+unaccounted CFAR estimation loss from a finite reference window, would
+**drift** with the target instead. Neither does, which clears
+`det_threshold()`, `det_threshold_noncoherent()` and the `sqrt(2/pi)`
+mean-estimator conversion.
+
+That `N_eff(2)/N_eff(1)` sits just under `L = 2` is not a coincidence and is
+also not a derivation: it says the interstitial samples contribute *nearly* an
+independent look each at this bandwidth. Since that depends on the surface's
+correlation, it is a number to **measure per grid geometry**, not a constant to
+hard-code.
 
 **Why the obvious correction is wrong.** Sizing from `N · L` treats every
 interpolated sample as an independent test. They are not — they are

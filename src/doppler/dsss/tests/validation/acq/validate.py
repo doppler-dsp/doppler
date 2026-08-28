@@ -30,6 +30,11 @@ from pathlib import Path
 import numpy as np
 
 from doppler.dsss import Acquisition, BurstAcquisition
+from doppler.dsss.tests._acq_pfa import (
+    PFA_RATIO_RATCHET,
+    pfa_sigma,
+    realized_pfa,
+)
 from doppler.tests._validation_common import Report, cli
 from doppler.wfm import PN, mls_poly
 
@@ -97,6 +102,10 @@ class Data:
     raw_keeps_grid: bool = False
     reset_drains: bool = False
     state_exact: bool = False
+    pfa_hat: float = 0.0
+    pfa_ratio: float = 0.0
+    pfa_sigma: float = 0.0
+    pfa_within_ratchet: bool = False
 
 
 # ── 1. the object ─────────────────────────────────────────────────────
@@ -223,6 +232,7 @@ def characterise() -> Data:
     _sec_span(d)
     _sec_anchor(d)
     _sec_threshold(d)
+    _sec_realized_pfa(d)
     _sec_cn0(d)
     _sec_noisemode(d)
     _sec_lifecycle(d)
@@ -672,6 +682,62 @@ def _sec_lifecycle(d: Data) -> None:
     R.md()
 
 
+def _sec_realized_pfa(d: Data) -> None:
+    """Does the detector deliver the false-alarm rate it was asked for?"""
+    R.md("### 2.5 The rate it delivers, against the rate it was asked for")
+    R.md()
+    R.md(
+        "Every claim above is about how the threshold is DERIVED. This one "
+        "asks the only question a caller actually cares about: push pure "
+        "noise, count hits, compare against the configured `pfa`. The CFAR "
+        "statistic is scale-invariant, so one number characterises it."
+    )
+    R.md()
+
+    def _engine() -> BurstAcquisition:
+        a = BurstAcquisition(
+            _code(),
+            reps=8,
+            spc=SPC,
+            chip_rate=CHIP_RATE,
+            cn0_dbhz=45.0,
+        )
+        a.configure_search_raw(doppler_bins=8, n_noncoh=1)
+        return a
+
+    target = 1e-3
+    e0 = _engine()
+    frame = e0.code_bins * e0.doppler_bins
+    n = 20000
+    d.pfa_hat = realized_pfa(_engine, frame, n, seed=5)
+    d.pfa_ratio = d.pfa_hat / target
+    d.pfa_sigma = pfa_sigma(d.pfa_hat, target, n)
+    d.pfa_within_ratchet = d.pfa_ratio <= PFA_RATIO_RATCHET
+    R.table(
+        ["target pfa", "realized", "ratio", "sigma", "frames"],
+        [
+            [
+                f"{target:.0e}",
+                f"{d.pfa_hat:.2e}",
+                f"{d.pfa_ratio:.2f}x",
+                f"{d.pfa_sigma:+.1f}",
+                str(n),
+            ]
+        ],
+    )
+    R.md(
+        f"The detector delivers **{d.pfa_ratio:.2f}x** the false-alarm rate "
+        f"it was configured for ({d.pfa_sigma:+.1f} sigma over {n} noise "
+        f"frames, so not a run-to-run excursion). The threshold ladder is "
+        f"sized from the NATIVE cell count while the peak search runs on the "
+        f"Doppler-interpolated surface, and a maximum over a finer sampling "
+        f"of the same band-limited process is stochastically larger -- the "
+        f"scalloping-loss win of #1002, applied to H0. See F7 and "
+        f"doppler#1064; ratcheted at {PFA_RATIO_RATCHET}x below."
+    )
+    R.md()
+
+
 # ── 3. review ─────────────────────────────────────────────────────────
 
 
@@ -767,6 +833,32 @@ def review(d: Data) -> None:
         "measurement of it.",
     )
 
+    R.find(
+        "F7",
+        "CONFIRMED",
+        "**The detector delivers ~1.8x the false-alarm rate it is "
+        "configured for.** `acq_commit_thresholds()` sizes `pfa_cell` from "
+        "the NATIVE cell count `searched_bins * code_bins`, with no term "
+        "for `ACQ_DOPPLER_INTERP` -- argued in `acq_core.c` on the grounds "
+        "that frequency-domain zero-padding adds no new *information*. "
+        "That is true, and it is not the relevant argument: the detector "
+        "takes the MAXIMUM over the surface rather than integrating it, and "
+        "the maximum of a band-limited process sampled finely is "
+        "stochastically larger than the same process sampled coarsely. "
+        "Interpolation finds noise peaks that used to fall between bins -- "
+        "the scalloping-loss win of #1002 (~3.9 dB -> ~0.9 dB), applied to "
+        "H0. Measured over 40,000 noise frames with only the interpolation "
+        "factor changed: **1.85x target at +5.4 sigma with it on, 0.90x at "
+        "-0.6 sigma with it off** (\u00a72.5). `pd_predicted` and "
+        "`underpowered` derive from the same `pfa_cell`, so the link-budget "
+        "prediction is optimistic by the same factor. Ratcheted at "
+        "2.2x by the limit below so the gap cannot widen unnoticed; "
+        "the fix is NOT a Bonferroni over `interp` (the interpolated cells "
+        "are correlated, so that over-corrects and costs sensitivity) but "
+        "the ratio between the expected maxima of the two surfaces. "
+        "doppler#1064.",
+    )
+
 
 # ── 4. limits ─────────────────────────────────────────────────────────
 
@@ -814,6 +906,12 @@ def limits(d: Data) -> None:
     R.limit(
         d.span_formula_ok,
         "the native span is chip_rate/(2*sf), as documented",
+    )
+    R.limit(
+        d.pfa_within_ratchet,
+        "the realized false-alarm rate stays inside its ratchet against "
+        "the configured target -- a RATCHET, not a bound: it sits at "
+        "~1.8x today (F7, doppler#1064) and may only shrink",
     )
     R.limit(
         d.thresh_rises_with_cells,

@@ -111,6 +111,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from doppler.dsss import BurstAcquisition
+from doppler.dsss.tests._acq_pfa import (
+    PFA_RATIO_RATCHET,
+    pfa_sigma,
+    realized_pfa,
+)
 from doppler.wfm import PN, Synth, dsss_spread, mls_poly
 
 if TYPE_CHECKING:
@@ -389,24 +394,13 @@ def measure_pd(
 def measure_pfa(n_frames: int, seed: int = 0) -> float:
     """Achieved system Pfa over a pure-noise run (CFAR → signal-independent).
 
-    Pushes ``n_frames`` unit-power complex-noise frames and counts hits.
-    The CFAR test statistic is scale-invariant, so the rate does not depend on
-    the noise level — one number characterises the threshold.
+    Delegates to `doppler.dsss.tests._acq_pfa.realized_pfa`, which the
+    certification uses too. It was a private copy here until the shipped
+    detector was measured at 1.85x its configured target (doppler#1064) and
+    the two artefacts needed to agree on what "realized Pfa" means before
+    either could say anything about the gap.
     """
-    rng = np.random.default_rng(20240 + seed)
-    a = make_engine()
-    hits = 0
-    pushed = 0
-    chunk = 64  # frames per push
-    while pushed < n_frames:
-        f = min(chunk, n_frames - pushed)
-        m = f * FRAME
-        x = (1.0 / math.sqrt(2.0)) * (
-            rng.standard_normal(m) + 1j * rng.standard_normal(m)
-        )
-        hits += len(a.push(x.astype(np.complex64)))
-        pushed += f
-    return hits / n_frames
+    return realized_pfa(make_engine, FRAME, n_frames, seed=seed)
 
 
 def _cluster_count(positions: list[int], window: int) -> int:
@@ -555,7 +549,22 @@ def main(out_path: str | Path | None = None) -> None:
     pd, pfa_sil = measure_pd(snr_grid, n_trials=n_trials, seed=1)
     n_noise = 20000
     pfa_hat = measure_pfa(n_noise, seed=5)
-    print(f"achieved Pfa over {n_noise} noise frames: {pfa_hat:.2e}")
+    pfa_ratio = pfa_hat / PFA
+    print(
+        f"achieved Pfa over {n_noise} noise frames: {pfa_hat:.2e} "
+        f"({pfa_ratio:.2f}x the {PFA:.0e} target, "
+        f"{pfa_sigma(pfa_hat, PFA, n_noise):+.1f} sigma)"
+    )
+    # The detector delivers MORE false alarms than asked for, because the
+    # threshold is sized from the native cell count while the peak search
+    # runs on the interpolated surface -- doppler#1064, and the sweep model
+    # below has to predict from what is delivered, not from what was
+    # requested. Ratcheted so the gap cannot widen unnoticed.
+    assert pfa_ratio <= PFA_RATIO_RATCHET, (
+        f"realized Pfa {pfa_hat:.2e} is {pfa_ratio:.2f}x the {PFA:.0e} "
+        f"target, past the {PFA_RATIO_RATCHET}x ratchet -- the threshold "
+        f"model has drifted further from the surface it gates (doppler#1064)"
+    )
 
     # gh-394: is a blind, overlapping-dwell sweep's false-alarm rate well
     # explained by the naive `pfa * n_dwells` estimate, or does overlap
@@ -584,16 +593,26 @@ def main(out_path: str | Path | None = None) -> None:
             f"naive_expected={r['naive_expected']:6.1f} "
             f"raw={r['raw_total']:5d} clustered={r['clustered_total']:5d}"
         )
-    # Both conditions should land within a generous Poisson-tolerant band
-    # of the naive estimate (5 std devs; a real overlap-inflation effect
-    # of any practical size would blow well past this). Guards against a
-    # genuine engine regression while tolerating single-run variance.
+    # Predict from the rate the detector DELIVERS, not the one it was asked
+    # for. `naive_expected` is `PFA * n_dwells`, and the shipped detector
+    # runs at `pfa_ratio` times PFA (doppler#1064), so scoring against the
+    # target charged every dwell a rate the engine never had. That is what
+    # made this assertion fail on a detector doing exactly what its
+    # threshold told it to: measured 159 clustered alarms against a naive
+    # 93.5, where the delivered rate predicts 173.
+    #
+    # The band stays 5 sigma and Poisson: it is the only thing standing
+    # between this sweep and a false-alarm rate that genuinely drifts, and
+    # widening it to swallow a modelling error is how a gate stops catching
+    # anything.
     for r in (sweep_ctrl, sweep_overlap):
-        band = 5.0 * math.sqrt(max(r["naive_expected"], 1.0))
-        assert abs(r["clustered_total"] - r["naive_expected"]) <= band + 3.0, (
+        expected = r["naive_expected"] * pfa_ratio
+        band = 5.0 * math.sqrt(max(expected, 1.0))
+        assert abs(r["clustered_total"] - expected) <= band + 3.0, (
             f"clustered false-alarm count {r['clustered_total']} is far "
-            f"from the naive estimate {r['naive_expected']:.1f} "
-            f"(band +/-{band:.1f}) -- see gh-394"
+            f"from {expected:.1f} expected at the DELIVERED rate "
+            f"({pfa_ratio:.2f}x the {PFA:.0e} target; band +/-{band:.1f}) "
+            f"-- see gh-394 and doppler#1064"
         )
 
     # A representative burst for panel 1: a known cell, strong enough for a

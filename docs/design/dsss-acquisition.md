@@ -68,27 +68,27 @@ ______________________________________________________________________
 
 ## 2. Glossary
 
-| Term                      | Definition (doppler units)                                                                                        |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Chip / chip-rate `Rc`     | PN code element; `Rc` in chips/s.                                                                                 |
-| Code / PN / `sf` = `L`    | Spreading code; spreading factor `sf` = code length `L` in chips.                                                 |
-| Epoch `T_epoch`           | One code period = `L / Rc` s = `nx` samples.                                                                      |
-| `spc` vs `sps`            | `spc` = samples per **chip** = `fs/Rc`; `sps` = samples per **symbol** (not in the acq grid). `nx = sf·spc`.      |
-| Segment                   | One epoch of fast-time samples = one slow-time row.                                                               |
-| Sub-block                 | An epoch chopped into `K` pieces; segment = `epoch/K`.                                                            |
-| Code phase / delay        | Circular shift of the code = propagation delay; fast-time axis `0 … nx-1`.                                        |
-| Doppler                   | Carrier frequency offset `f`; slow-time axis.                                                                     |
-| Doppler rate              | `rdot` = d`f`/d`t` (Hz/s); quadratic carrier phase from acceleration.                                             |
-| Code Doppler              | Chip-rate dilation `Rc·(1+v/c)`; code phase walks over long integration.                                          |
-| Fast-time / slow-time     | Within an epoch (code phase) / across epochs (Doppler).                                                           |
-| CAF / delay-Doppler map   | The cross-ambiguity surface over `(delay × Doppler [× rate])`.                                                    |
-| Coherent / non-coherent   | Sum **complex** surfaces (gain `10·log10(M)`, phase-fragile) / sum squared **magnitude** (robust, squaring loss). |
-| Dwell / look              | One coherent dump; a "look" is one such dump fed to non-coherent integration.                                     |
-| `T_coh`                   | Coherent integration time = `ny · T_epoch`.                                                                       |
-| Pfa / Pd                  | False-alarm / detection probability; Bonferroni `pfa_cell = 1-(1-pfa)^(1/N)`, `N = ny·nx`.                        |
-| Processing gain           | Coherent `10·log10(M·N)`; non-coherent adds about `5·log10(N_nc)` in the weak limit.                              |
-| Squaring / combining loss | Non-coherent's few-dB shortfall versus ideal coherent.                                                            |
-| CFAR                      | Constant-false-alarm-rate gate; `test_stat = peak / noise_est`.                                                   |
+| Term                      | Definition (doppler units)                                                                                                 |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Chip / chip-rate `Rc`     | PN code element; `Rc` in chips/s.                                                                                          |
+| Code / PN / `sf` = `L`    | Spreading code; spreading factor `sf` = code length `L` in chips.                                                          |
+| Epoch `T_epoch`           | One code period = `L / Rc` s = `nx` samples.                                                                               |
+| `spc` vs `sps`            | `spc` = samples per **chip** = `fs/Rc`; `sps` = samples per **symbol** (not in the acq grid). `nx = sf·spc`.               |
+| Segment                   | One epoch of fast-time samples = one slow-time row.                                                                        |
+| Sub-block                 | An epoch chopped into `K` pieces; segment = `epoch/K`.                                                                     |
+| Code phase / delay        | Circular shift of the code = propagation delay; fast-time axis `0 … nx-1`.                                                 |
+| Doppler                   | Carrier frequency offset `f`; slow-time axis.                                                                              |
+| Doppler rate              | `rdot` = d`f`/d`t` (Hz/s); quadratic carrier phase from acceleration.                                                      |
+| Code Doppler              | Chip-rate dilation `Rc·(1+v/c)`; code phase walks over long integration.                                                   |
+| Fast-time / slow-time     | Within an epoch (code phase) / across epochs (Doppler).                                                                    |
+| CAF / delay-Doppler map   | The cross-ambiguity surface over `(delay × Doppler [× rate])`.                                                             |
+| Coherent / non-coherent   | Sum **complex** surfaces (gain `10·log10(M)`, phase-fragile) / sum squared **magnitude** (robust, squaring loss).          |
+| Dwell / look              | One coherent dump; a "look" is one such dump fed to non-coherent integration.                                              |
+| `T_coh`                   | Coherent integration time = `ny · T_epoch`.                                                                                |
+| Pfa / Pd                  | False-alarm / detection probability; Bonferroni `pfa_cell = 1-(1-pfa)^(1/N)`, `N = ny·nx` on the **native** grid — see §9. |
+| Processing gain           | Coherent `10·log10(M·N)`; non-coherent adds about `5·log10(N_nc)` in the weak limit.                                       |
+| Squaring / combining loss | Non-coherent's few-dB shortfall versus ideal coherent.                                                                     |
+| CFAR                      | Constant-false-alarm-rate gate; `test_stat = peak / noise_est`.                                                            |
 
 ______________________________________________________________________
 
@@ -457,14 +457,55 @@ ______________________________________________________________________
     We hold the `Acquisition`/`BurstAcquisition` Python API and bit-exactness as
     a hard contract, so the refactor is invisible to users — at the cost of
     carrying the wrapper.
+
 - **Squaring loss.** Non-coherent integration buys phase-robustness and weak-signal
     reach, but only `~5·log10(N_nc)` versus `10·log10` coherent. It is a fallback
     for when coherence runs out, not a free sensitivity dial.
+
 - **Sub-block partial-correlation loss.** Wider native Doppler for fewer channels,
     paid in code-correlation gain and sidelobe level — a few dB for `K ≤ 8`.
+
 - **Mixer-bank channel count.** Simple and lossless, but linear in span: ±100 kHz
     is hundreds of channels. The fan-out makes that cheap; the orchestration is the
     real work.
+
+- **Doppler interpolation moves the H0 tail, and the threshold does not yet
+    know.** `acq_commit_thresholds()` sizes `pfa_cell` from the **native** cell
+    count `searched_bins · code_bins`, with no term for `ACQ_DOPPLER_INTERP`.
+    The argument in `acq_core.c` is that frequency-domain zero-padding is exact
+    band-limited interpolation, so the added rows carry no new *information* —
+    which is true, and is not the relevant property.
+
+    The detector takes the **maximum** over the surface rather than integrating
+    it, and the maximum of a band-limited process sampled finely is
+    stochastically larger than the maximum of the same process sampled
+    coarsely. Interpolation finds noise peaks that previously fell between bins
+    and were missed. That is precisely the scalloping-loss win it was added for
+    ([#1002](https://github.com/doppler-dsp/doppler/issues/1002), worst case
+    ~3.9 dB → ~0.9 dB) — applied to H0 instead of to the signal.
+
+    Measured over 40,000 pure-noise frames, identical build and seed with only
+    the interpolation factor changed:
+
+    | `ACQ_DOPPLER_INTERP` | realized Pfa | ratio to target | sigma |
+    | -------------------- | ------------ | --------------- | ----- |
+    | 2 (shipped)          | 1.85e-3      | **1.85×**       | +5.4  |
+    | 1 (control)          | 9.00e-4      | 0.90×           | −0.6  |
+
+    So a caller asking for `pfa = 1e-3` currently gets ~1.8e-3, and
+    `pd_predicted` / `underpowered` are optimistic by the same factor since
+    they derive from the same `pfa_cell`. The certification records it as F7
+    and ratchets it so it cannot widen unnoticed; the characterization predicts
+    its sweep counts from the **delivered** rate rather than the configured
+    one, which is what makes its numbers agree again.
+
+    **The fix is not a Bonferroni over `interp`.** The interpolated cells are
+    correlated, so dividing the budget across `searched_bins · code_bins ·   interp` over-corrects and costs real sensitivity — the failure direction
+    `acq_core.c` already warns about. What is wanted is the ratio between the
+    expected maxima of the interpolated and native surfaces, which is a
+    property of the interpolation factor and the surface's correlation and is
+    measurable directly from the H0 runs above.
+    [#1064](https://github.com/doppler-dsp/doppler/issues/1064)
 
 ______________________________________________________________________
 

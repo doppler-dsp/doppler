@@ -481,19 +481,35 @@ ______________________________________________________________________
 
 ### 9.1 What `pfa` means for a peak detector
 
-**The statistic is a maximum, not a sum.** Acquisition forms the
-cross-ambiguity surface, divides the peak by a CFAR noise estimate, and
-declares a detection when that ratio clears `eta`. So the system false-alarm
-probability is
+**Sum along one axis, maximum along the other.** The two are easy to
+conflate and the distinction is what the rest of this section turns on:
 
 ```text
-pfa = P( max over the surface > eta  |  H0 )
+per CELL      sum |dump|^2 over n_noncoh coherent looks   (non-coherent gain)
+across CELLS  take the maximum, normalise by a CFAR reference, gate on eta
 ```
 
-and everything below is about what "the surface" means in that expression.
+So a cell's value is a *sum* — of `n_noncoh` independent looks at the same
+Doppler/code hypothesis — and the detector's decision is a *maximum* over
+those cells. The sum runs along time; the maximum runs along the surface.
+Both matter, and they set different halves of the threshold.
 
-**The independent-cell model.** If the surface consisted of `N` independent
-cells each exceeding `eta` with probability `p`, then
+**What the sum sets: the per-cell distribution.** Under H0 each look
+contributes `|z|^2 = sigma^2 · chi2(2)/2`, so the accumulated cell is
+`(sigma^2/2)·chi2(2·n_noncoh)`. The per-cell exceedance probability
+`p(eta)` therefore has a different shape for every `n_noncoh`, which is why
+there are two threshold routines rather than one: `det_threshold()` for the
+coherent case and `det_threshold_noncoherent()` for the order-`N_nc`
+statistic, whose H0 tail is `P(R > b) = Q_{N_nc}(0, b)` — Marcum Q, validated
+against Monte-Carlo to \<1%.
+
+Non-coherent integration therefore changes `p(eta)`. **It does not change the
+surface's spatial correlation**: summing independent looks of the same
+field leaves its correlation structure alone and only concentrates the
+marginal. That is why the sum is not what this section is about.
+
+**What the maximum sets: how many chances the noise gets.** Given `p(eta)`,
+if the surface were `N` independent cells then
 
 ```text
 pfa = 1 - (1 - p)^N        ->        p = 1 - (1 - pfa)^(1/N)
@@ -503,6 +519,18 @@ which is exactly what `acq_commit_thresholds()` computes, with
 `N = searched_bins · code_bins`. For a critically sampled DFT this is a good
 model: adjacent bins of a white-noise transform are very nearly uncorrelated,
 so the sample count and the independent-cell count nearly coincide.
+
+**The gate reads the interpolated maximum; the report reads the native one.**
+Both `acq_compute_stat()` and `acq_compute_stat_nc()` deliberately compute two
+maxima. `peak` ranges over the *interpolated* surface and sets `test_stat` —
+that is where the scalloping loss is recovered and what decides whether the
+gate fires. `nat` is restricted to *native* rows and sets the reported
+`doppler_bin`, because every consumer scales that by `doppler_res_hz` and a
+half-bin row would make the estimate jitter by a whole bin on noise.
+
+That split is the defect in one line: **the gate is decided by a maximum over
+the interpolated surface, while the threshold that gate compares against is
+sized from the native cell count.**
 
 **Why that stops being true under interpolation.** The sampled surface is not
 the object being maximised — it is a *sampling* of a continuous, band-limited
@@ -550,8 +578,11 @@ realized_pfa / target  ~=  N_eff(L) / N_eff(1)
 | 2 (shipped)          | 1.85e-3      | **1.85×**       | +5.4  |
 | 1 (control)          | 9.00e-4      | 0.90×           | −0.6  |
 
-With interpolation off the independent-cell model is calibrated — 0.90× at
-−0.6 sigma is a clean fit. With it on the detector delivers **1.85×** the
+Both arms run `n_noncoh = 1`, so this measures the maximum-over-cells half
+directly with the per-cell sum reduced to a single look — the cleanest place
+to see the effect, and the configuration the characterization pins for its
+one-push-one-decision assumption. With interpolation off the independent-cell
+model is calibrated — 0.90× at −0.6 sigma is a clean fit. With it on the detector delivers **1.85×** the
 requested rate, and `pd_predicted` / `underpowered` are optimistic by the same
 factor because they read the same `pfa_cell`.
 

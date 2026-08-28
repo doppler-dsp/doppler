@@ -504,7 +504,18 @@ class Composer:
         block: int = ...,
         realtime: float = ...,
     ) -> Iterator[NDArray[np.complex64]]:
-        """Iterate the sequence in blocks."""
+        """Iterate the sequence in blocks.
+
+        Parameters
+        ----------
+        block : int
+            Samples per yielded array.
+        realtime : float
+            Sample rate in **Hz** to pace against — pass
+            your ``fs`` (e.g. ``realtime=10e6``), not a
+            speed multiplier. ``0`` (the default) streams
+            as fast as possible.
+        """
     def to_dict(self) -> dict:
         """Serialise the composer state to a dict."""
     def to_sigmf(

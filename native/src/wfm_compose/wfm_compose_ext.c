@@ -18,6 +18,7 @@
 #include "wfm_compose/wfm_compose_bridge.h"
 #include "wfm_synth/wfm_synth_core.h"
 #include "wfm_writer/wfm_writer_core.h"
+#include <stdio.h>
 
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 static int
@@ -3074,6 +3075,30 @@ Composer_stream (ComposerObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_ValueError, "block must be > 0");
       return NULL;
     }
+  if (realtime < 0.0)
+    {
+      PyErr_SetString (
+          PyExc_ValueError,
+          "realtime must be >= 0 (it is the sample rate in Hz to pace "
+          "against; 0 streams as fast as possible)");
+      return NULL;
+    }
+  if (realtime > 0.0 && (double)block / realtime > 60.0)
+    {
+      /* snprintf, not PyErr_WarnFormat: PyUnicode_FromFormat has no
+         floating-point conversion, and these numbers are the message. */
+      char _rtmsg[320];
+      snprintf (_rtmsg, sizeof _rtmsg,
+                "stream(realtime=%g) paces at %g sample(s)/sec, so the first "
+                "block of %lld would take %.0f s. realtime is the SAMPLE RATE "
+                "in Hz -- pass your fs (e.g. realtime=10e6), not a speed "
+                "multiplier; 0 streams as fast as possible.",
+                realtime, realtime, (long long)block,
+                (double)block / realtime);
+      if (PyErr_WarnEx (PyExc_RuntimeWarning, _rtmsg, 1) < 0)
+        return NULL;
+    }
+
   ComposerStreamObject *it
       = PyObject_New (ComposerStreamObject, &ComposerStreamType);
   if (!it)
@@ -3241,30 +3266,32 @@ Composer_to_sigmf (ComposerObject *self, PyObject *args, PyObject *kwds)
   free (_js);
   return _s;
 }
-static PyMethodDef Composer_methods[]
-    = { { "execute", (PyCFunction)Composer_execute, METH_VARARGS,
-          "execute(n) -> ndarray[complex64]" },
-        { "compose", (PyCFunction)(void (*) (void))Composer_compose,
-          METH_VARARGS | METH_KEYWORDS,
-          "compose(block=4096) -> ndarray[complex64]" },
-        { "close", (PyCFunction)Composer_close, METH_NOARGS,
-          "close() -> None" },
-        { "__enter__", (PyCFunction)Composer_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)Composer_exit, METH_VARARGS, NULL },
-        { "stream", (PyCFunction)(void (*) (void))Composer_stream,
-          METH_VARARGS | METH_KEYWORDS,
-          "stream(block=4096, realtime=0.0) -> iterator (realtime=fs paces)" },
-        { "to_dict", (PyCFunction)Composer_to_dict, METH_NOARGS,
-          "to_dict() -> dict (resolved repeat/continuous/segments)" },
-        { "to_sigmf", (PyCFunction)(void (*) (void))Composer_to_sigmf,
-          METH_VARARGS | METH_KEYWORDS, "to_sigmf(...) -> str" },
-        { "from_json", (PyCFunction)Composer_from_json,
-          METH_VARARGS | METH_CLASS, "from_json(json) -> Composer" },
-        { "from_file", (PyCFunction)Composer_from_file,
-          METH_VARARGS | METH_CLASS, "from_file(path) -> Composer" },
-        { "to_json", (PyCFunction)Composer_to_json, METH_NOARGS,
-          "to_json() -> str" },
-        { NULL, NULL, 0, NULL } };
+static PyMethodDef Composer_methods[] = {
+  { "execute", (PyCFunction)Composer_execute, METH_VARARGS,
+    "execute(n) -> ndarray[complex64]" },
+  { "compose", (PyCFunction)(void (*) (void))Composer_compose,
+    METH_VARARGS | METH_KEYWORDS,
+    "compose(block=4096) -> ndarray[complex64]" },
+  { "close", (PyCFunction)Composer_close, METH_NOARGS, "close() -> None" },
+  { "__enter__", (PyCFunction)Composer_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)Composer_exit, METH_VARARGS, NULL },
+  { "stream", (PyCFunction)(void (*) (void))Composer_stream,
+    METH_VARARGS | METH_KEYWORDS,
+    "stream(block=4096, realtime=0.0) -> iterator\n\nrealtime is the SAMPLE "
+    "RATE in Hz to pace against -- pass your fs (e.g. realtime=10e6), not a "
+    "speed multiplier. 0 streams as fast as possible." },
+  { "to_dict", (PyCFunction)Composer_to_dict, METH_NOARGS,
+    "to_dict() -> dict (resolved repeat/continuous/segments)" },
+  { "to_sigmf", (PyCFunction)(void (*) (void))Composer_to_sigmf,
+    METH_VARARGS | METH_KEYWORDS, "to_sigmf(...) -> str" },
+  { "from_json", (PyCFunction)Composer_from_json, METH_VARARGS | METH_CLASS,
+    "from_json(json) -> Composer" },
+  { "from_file", (PyCFunction)Composer_from_file, METH_VARARGS | METH_CLASS,
+    "from_file(path) -> Composer" },
+  { "to_json", (PyCFunction)Composer_to_json, METH_NOARGS,
+    "to_json() -> str" },
+  { NULL, NULL, 0, NULL }
+};
 
 static PyTypeObject ComposerType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.wfm.Composer",

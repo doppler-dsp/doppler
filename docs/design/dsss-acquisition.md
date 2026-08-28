@@ -470,42 +470,113 @@ ______________________________________________________________________
     real work.
 
 - **Doppler interpolation moves the H0 tail, and the threshold does not yet
-    know.** `acq_commit_thresholds()` sizes `pfa_cell` from the **native** cell
-    count `searched_bins · code_bins`, with no term for `ACQ_DOPPLER_INTERP`.
-    The argument in `acq_core.c` is that frequency-domain zero-padding is exact
-    band-limited interpolation, so the added rows carry no new *information* —
-    which is true, and is not the relevant property.
-
-    The detector takes the **maximum** over the surface rather than integrating
-    it, and the maximum of a band-limited process sampled finely is
-    stochastically larger than the maximum of the same process sampled
-    coarsely. Interpolation finds noise peaks that previously fell between bins
-    and were missed. That is precisely the scalloping-loss win it was added for
-    ([#1002](https://github.com/doppler-dsp/doppler/issues/1002), worst case
-    ~3.9 dB → ~0.9 dB) — applied to H0 instead of to the signal.
-
-    Measured over 40,000 pure-noise frames, identical build and seed with only
-    the interpolation factor changed:
-
-    | `ACQ_DOPPLER_INTERP` | realized Pfa | ratio to target | sigma |
-    | -------------------- | ------------ | --------------- | ----- |
-    | 2 (shipped)          | 1.85e-3      | **1.85×**       | +5.4  |
-    | 1 (control)          | 9.00e-4      | 0.90×           | −0.6  |
-
-    So a caller asking for `pfa = 1e-3` currently gets ~1.8e-3, and
-    `pd_predicted` / `underpowered` are optimistic by the same factor since
-    they derive from the same `pfa_cell`. The certification records it as F7
-    and ratchets it so it cannot widen unnoticed; the characterization predicts
-    its sweep counts from the **delivered** rate rather than the configured
-    one, which is what makes its numbers agree again.
-
-    **The fix is not a Bonferroni over `interp`.** The interpolated cells are
-    correlated, so dividing the budget across `searched_bins · code_bins ·   interp` over-corrects and costs real sensitivity — the failure direction
-    `acq_core.c` already warns about. What is wanted is the ratio between the
-    expected maxima of the interpolated and native surfaces, which is a
-    property of the interpolation factor and the surface's correlation and is
-    measurable directly from the H0 runs above.
+    know.** The full treatment is [§9.1](#91-what-pfa-means-for-a-peak-detector)
+    below; the short version is that `pfa_cell` is sized from a *sample count*
+    where the quantity that governs the false-alarm rate is a property of the
+    *surface*, and interpolation changes the former without changing the
+    latter.
     [#1064](https://github.com/doppler-dsp/doppler/issues/1064)
+
+______________________________________________________________________
+
+### 9.1 What `pfa` means for a peak detector
+
+**The statistic is a maximum, not a sum.** Acquisition forms the
+cross-ambiguity surface, divides the peak by a CFAR noise estimate, and
+declares a detection when that ratio clears `eta`. So the system false-alarm
+probability is
+
+```text
+pfa = P( max over the surface > eta  |  H0 )
+```
+
+and everything below is about what "the surface" means in that expression.
+
+**The independent-cell model.** If the surface consisted of `N` independent
+cells each exceeding `eta` with probability `p`, then
+
+```text
+pfa = 1 - (1 - p)^N        ->        p = 1 - (1 - pfa)^(1/N)
+```
+
+which is exactly what `acq_commit_thresholds()` computes, with
+`N = searched_bins · code_bins`. For a critically sampled DFT this is a good
+model: adjacent bins of a white-noise transform are very nearly uncorrelated,
+so the sample count and the independent-cell count nearly coincide.
+
+**Why that stops being true under interpolation.** The sampled surface is not
+the object being maximised — it is a *sampling* of a continuous, band-limited
+function. Zero-padding the slow-time transform does not add information; it
+samples that same function more finely. Two consequences follow, and only the
+second is obvious:
+
+1. The maximum is **monotone in sampling density**. Adding samples can only
+    raise a maximum, never lower it, so `P(max > eta)` rises with the padding
+    factor `L` even though nothing about the noise changed.
+1. It **saturates**. As `L -> infinity` the sampled maximum converges to the
+    continuous supremum, so the exceedance probability approaches a finite
+    limit set by the surface's *bandwidth*, not by how many points were
+    evaluated.
+
+Native sampling therefore does not measure the false-alarm rate of the
+detector — it measures the rate of a detector that misses every peak falling
+between bins. That undercount is the same one #1002 fixed on the signal side:
+worst-case scalloping loss of ~3.9 dB, meaning a peak exactly half a bin off
+was attenuated to near-invisibility. Interpolation recovers those peaks. It
+recovers them for noise too.
+
+**The invariant, and the right `N`.** Write the tail of the continuous
+surface as
+
+```text
+P( sup > eta )  ~=  N_eff · p(eta)          for small p
+```
+
+`N_eff` is the *effective number of independent looks* — a property of the
+surface's correlation structure (its Doppler and code bandwidth), not of the
+grid it was evaluated on. It is what `N` in the Bonferroni expression is
+trying to approximate. Native sampling gives `N_eff_native <= N_eff`, and
+padding by `L` walks the estimate toward the true value:
+
+```text
+realized_pfa / target  ~=  N_eff(L) / N_eff(1)
+```
+
+**Measured**, 40,000 pure-noise frames, identical build and seed with only
+`ACQ_DOPPLER_INTERP` changed:
+
+| `ACQ_DOPPLER_INTERP` | realized Pfa | ratio to target | sigma |
+| -------------------- | ------------ | --------------- | ----- |
+| 2 (shipped)          | 1.85e-3      | **1.85×**       | +5.4  |
+| 1 (control)          | 9.00e-4      | 0.90×           | −0.6  |
+
+With interpolation off the independent-cell model is calibrated — 0.90× at
+−0.6 sigma is a clean fit. With it on the detector delivers **1.85×** the
+requested rate, and `pd_predicted` / `underpowered` are optimistic by the same
+factor because they read the same `pfa_cell`.
+
+That 1.85 is close to `L = 2` and that is not a coincidence, but neither is it
+a derivation: it says the interstitial samples are contributing *nearly* an
+independent look each at this bandwidth. The ratio is a property of the grid
+geometry, so it is a number to **measure per configuration**, not a constant
+to hard-code.
+
+**Why the obvious correction is wrong.** Sizing from `N · L` treats every
+interpolated sample as an independent test. They are not — they are
+correlated by construction, since interpolation is a deterministic function of
+the native samples. A Bonferroni over `N · L` therefore over-corrects, raising
+`eta` further than the tail requires and giving away detection sensitivity to
+buy a false-alarm rate that was already met. `acq_core.c` warns about exactly
+this failure direction. The correction wanted is `N_eff(L) / N_eff(1)`, which
+is bounded above by `L` and, as measured, close to it here but not equal.
+
+**Where this is enforced.** The certification measures the realized rate
+against the configured target (§2.5), records the gap as finding **F7**, and
+holds it with a ratchet that may only shrink — closing
+[#1064](https://github.com/doppler-dsp/doppler/issues/1064) is what earns
+`1.0`. The characterization predicts its sweep counts from the *delivered*
+rate rather than the configured one; predicting from the target is what made
+it fail against a detector that was obeying its own threshold exactly.
 
 ______________________________________________________________________
 

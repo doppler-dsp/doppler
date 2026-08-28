@@ -400,7 +400,7 @@ members:
 <!-- related-pages:start -->
 
 **Gallery** — [CIC Decimation Filter](../gallery/cic.md), [Doppler Channel — Clock Doppler as a Propagation Impairment](../gallery/doppler-channel.md), [Farrow Interpolator](../gallery/farrow.md), [RateConverter — Automatic Cascade Selection](../gallery/rate-converter.md)
-**Design** — [Quantization Design](../design/QUANTIZATION.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [Measurement Suite — single-tone ADC / spectral metrics](../design/measurement-suite.md), [MPSK Receiver](../design/mpsk.md)
+**Design** — [Quantization Design](../design/QUANTIZATION.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [Measurement Suite — single-tone ADC / spectral metrics](../design/measurement-suite.md), [MPSK Receiver](../design/mpsk.md), [Waveform amplitude & composition](../design/wfmgen-composition.md)
 **Contributing** — [Validation log](../dev/contributing/validation-log.md)
 
 <!-- related-pages:end -->

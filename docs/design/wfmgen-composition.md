@@ -281,6 +281,83 @@ headroom gain and peak/clip tracking live in the writer, after composition.
 - `--snr` / `snr_mode` semantics are unchanged; they simply now live on a source
     inside a `sum` rather than on the segment.
 
+## Sample timing — the axis this RFC does not have
+
+!!! note "Status: not implemented"
+
+    Amplitude and composition shipped. This section records the *third* axis,
+    which they sit beside rather than contain: how many samples a symbol
+    occupies, and whether that number holds still.
+
+`Segment.sps` is an `int`. That single type choice is why no scene expresses a
+fractional samples-per-symbol or a clock that drifts, and it has three visible
+consequences:
+
+- A symbol clock that is 1.004× fast and 1.7 samples late has to be
+    **hand-placed** in a demo, because no declaration can say it.
+- Sources cannot express clock Doppler at all
+    ([gh-942](https://github.com/doppler-dsp/doppler/issues/942)).
+- The RRC tap count is `2 * span * sps + 1`, so the integer is baked into the
+    filter geometry as well as the timeline.
+
+### The object already exists
+
+`MatchedRateConverter` — a constructor flavour of `RateConverter`
+(`objects/RateConverter.toml`), exported from `doppler.resample` — takes
+`rate` and `pulse_sps` as **doubles**. Its terminal stage carries a
+pulse-shaped bank instead of the anti-alias one, so the cascade *converts the
+rate and matched-filters in a single dot product*, and that stage's polyphase
+arm is the fractional timing delay.
+
+So fractional sps is not a feature to design. It is a constructor argument on
+an object already in the tree, already serializable, already benchmarked
+(`native/benchmarks/bench_RateConverter_core.c`). What is missing is a scene
+that can name it.
+
+### Drift is the control port, driven open-loop
+
+`execute_ctrl(x, ctrl)` and `execute_ctrl_push(x, ctrl)` steer that fractional
+delay per block or per sample, and `rate` is a writable property, so a slow
+ramp is expressible as rate over time rather than as a resampled afterthought.
+
+The receive side already uses this port the other way round: `RateSync` closes
+a timing loop around it, and [Symbol Timing on a Rate
+Cascade](ratesync-timing.md) is that page — including the convention that
+`ctrl` is referenced to the **terminal** rate, which this side must honour
+too. The generator drives the same port from a declared clock model instead of
+from a loop.
+
+That symmetry is the point, not a convenience: an impairment generated through
+the same primitive the recovery closes around is provably about the same
+quantity, rather than two implementations that agree until they do not.
+
+### Two cautions, both measured
+
+- **Zero Doppler *is* rate 1.0**, so every Doppler ramp crosses unity — and
+    unity is exactly where `resamp`'s control port once stalled, a rounding
+    cast reaching `2^32` and landing as zero, so no input was consumed at all.
+    Fixed 2026-08-11. A ramp through unity is the ordinary operating point
+    here, not a corner case, and any test of this axis should cross it rather
+    than approach it.
+- **A rectangle needs room.** `pulse="iandd"` with fewer than four output
+    samples per symbol degenerates to a two- or three-tap sum; the object
+    raises a `UserWarning` at construction and exposes `narrow_pulse` for
+    pulling rather than catching. Measured on the timing loop it feeds: lock
+    statistic **−0.34** at 2 samples/symbol against **+0.95** at 4.
+
+### What it changes in the model
+
+`sps` stops being an integer field on a segment and becomes part of the
+source's shaping stage — where `pulse`, `beta` and `span` already conceptually
+live, and where they are already constructor arguments on the same object.
+Four flags describing one object that exists is the same collapse the frame
+descriptor performs for framing, on a different axis.
+
+Deliberately **not** here: the timing loop itself, which is the receive side
+and has its own page; and the stateful per-source channel gh-942 also asks
+for, which is a larger question than the clock and should not be smuggled in
+behind it.
+
 ## Open questions
 
 - **`level` vs `snr` precedence** when a source over-specifies (both given) — pick

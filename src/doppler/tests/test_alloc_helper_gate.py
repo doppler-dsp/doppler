@@ -193,9 +193,22 @@ def test_update_baseline_records_what_is_there(tmp_path: Path) -> None:
 
 
 def test_the_real_repo_passes_its_own_ratchet() -> None:
-    """The gate, applied to doppler itself -- the artifact, not a fixture."""
+    """The gate, applied to doppler itself -- the artifact, not a fixture.
+
+    `--base HEAD` deliberately neuters the RAISE check here. Whether a count
+    went up without a reason is a question about a BRANCH against main, and
+    it already has an execution home: `make lint-alloc-helpers`, which the
+    `alloc-helpers` pre-commit hook dispatches to at the default
+    `--base origin/main`, under the `pre-commit (lint + format)` job -- the
+    one that checks out at `fetch-depth: 0`. This test asks the other -- do
+    the counts in the tree match the baseline -- and it runs in the Python
+    job, whose shallow checkout has no `origin/main` to read. Left at the
+    default it would not test the ratchet; it would test the fetch depth.
+    """
     r = subprocess.run(
-        [sys.executable, str(SCRIPT)], capture_output=True, text=True
+        [sys.executable, str(SCRIPT), "--base", "HEAD"],
+        capture_output=True,
+        text=True,
     )
     assert r.returncode == 0, r.stdout + r.stderr
 

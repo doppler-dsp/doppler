@@ -296,6 +296,7 @@ nav:
       - Waveforms: guide/wfmgen/waveforms.md
       - Levels & SNR: guide/wfmgen/levels.md
       - Scenes: guide/wfmgen/scenes.md
+      - Channel Coding: guide/wfmgen/coding.md
       - DSSS Bursts: guide/wfmgen/dsss-bursts.md
       - Streaming: guide/wfmgen/streaming.md
       - Python API: guide/wfmgen/python.md

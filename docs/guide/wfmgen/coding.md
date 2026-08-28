@@ -117,6 +117,10 @@ two generators are **not interchangeable on the air**: only the matching
 receiver derandomises a given waveform, which is why `--record` stores *which*
 one rather than a bare `true`.
 
+`--randomize` is accepted as an alias, spelled the other way. CCSDS 131.0-B-6
+says "randomizer", this guide says randomiser, and the parser declines to have
+an opinion; the two are the same flag and either may be typed.
+
 ### `--asm` — the marker
 
 Prepends the 32-bit `0x1ACFFC1D` attached sync marker. It is a field, not a

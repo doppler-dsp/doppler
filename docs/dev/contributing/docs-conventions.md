@@ -46,6 +46,7 @@ exists, with no opt-in list to remember.
 | ------------------------ | ----------------------------------------- | ------------------------------------------------------- |
 | API docs coverage        | `scripts/check_api_docs.py`               | Every public symbol named somewhere under `docs/api/`   |
 | Nav-index coverage       | `scripts/check_nav_index.py`              | Every page linked from its section's `index.md`         |
+| wfmgen flag docs         | `scripts/check_wfmgen_flag_docs.py`       | Every flag `wfmgen` accepts named in a guide page       |
 | Related-pages generation | `scripts/gen_related_pages.py`            | Nothing — see below                                     |
 | README sync              | `scripts/gen_readme.py`                   | Nothing — see below                                     |
 | Install-script sync      | `scripts/gen_install_scripts.py`          | Nothing — edit `bootstrap.toml`, run `make docs-relink` |

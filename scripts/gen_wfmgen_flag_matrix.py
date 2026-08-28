@@ -623,14 +623,22 @@ _ROW_RE = re.compile(r'\.(?:name|alias)\s*=\s*"(--?[A-Za-z0-9-]+)"')
 _ANCHORS = {"--type", "--count", "--output", "--freq", "-o"}
 
 
-def dispatcher_flags() -> set[str]:
-    """Every flag the parser accepts, read from its option table."""
-    flags = set(_ROW_RE.findall(SRC.read_text()))
+def dispatcher_flags(src: Path = SRC) -> set[str]:
+    """Every flag the parser accepts, read from its option table.
+
+    `src` exists so a second caller can ask the same question of a tree
+    that is not this checkout -- `check_wfmgen_flag_docs.py` imports this
+    function and its own tests seed a synthetic `wfmgen.c`. It is a
+    parameter rather than a second regex on purpose: two implementations of
+    "what flags does the parser accept" would drift, and the one that
+    drifted would report a gap that is not there, or miss one that is.
+    """
+    flags = set(_ROW_RE.findall(src.read_text()))
     missing = _ANCHORS - flags
     if missing:
         raise SystemExit(
             f"wfmgen_flag_matrix: flag discovery is broken -- "
-            f"{', '.join(sorted(missing))} not found in {SRC.name}. "
+            f"{', '.join(sorted(missing))} not found in {src.name}. "
             f"The option-table format changed; fix _ROW_RE."
         )
     return flags

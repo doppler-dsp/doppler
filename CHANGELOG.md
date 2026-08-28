@@ -13,6 +13,8 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.45.0] — 2026-08-28
+
 ### Added
 
 - **`Interleaver` is certified** — `src/doppler/coding/tests/validation/interleaver/`,
@@ -27,6 +29,421 @@ ______________________________________________________________________
     rather than an unwind path no test can reach; the rule dates from
     2026-07-21 and nothing enforced it, so a bare `malloc` passed every gate.
     The 313 sites that predate it are ratcheted per file and may only shrink.
+
+- **`make test-asan` — the C suite under AddressSanitizer and LeakSanitizer,
+    gated in CI.** Covers what `make test` and UBSan structurally cannot: an
+    access outside an object lands on whatever the compiler put next, so the
+    program is wrong while the assertions stay green. Ships with no
+    suppression file and no ratchet.
+    [#1024](https://github.com/doppler-dsp/doppler/issues/1024)
+
+- **`DsssBurstReceiver` exposes the two spans a caller must respect**
+    ([#1011](https://github.com/doppler-dsp/doppler/issues/1011)).
+    `refine_span` is the minimum burst spacing — detections closer than it
+    are coalesced as one preamble, so tighter-packed bursts are lost — and
+    `retain_span` is the history kept per anchor. Both were internal, so the
+    only way to learn the spacing was to read the C, and the header's own doc
+    for it was **2.4x low** (`2*reps*code_period` against the
+    `(4*reps+4)*code_period` the code computes). Corrected and measured: at
+    spacing exactly `refine_span` one burst of four is lost, and one sample
+    more recovers it.
+
+- **The `acq` engine is certified** — 15 limits re-asserted on every push,
+    plus two claims that had zero mentions in either language:
+    `samples_consumed` (a per-*hit* anchor, previously pinned by nothing) and
+    `noise_mode`, whose four CFAR references move the gating statistic by
+    ~15 dB on one burst. Two usability gaps filed rather than fixed:
+    [#999](https://github.com/doppler-dsp/doppler/issues/999) (a push shorter
+    than one dwell returns nothing, and nothing says how long a dwell is) and
+    [#998](https://github.com/doppler-dsp/doppler/issues/998) (no property
+    reports the searched Doppler reach; `doppler_span_hz` reads as though it
+    does). Evidence: `src/doppler/dsss/tests/validation/acq/results.md`.
+
+- **`BurstAcquisition` is certified as what it is — a forwarder** — 17 limits
+    on every push. The report deliberately does **not** re-measure detection:
+    that would certify `acq`'s engine twice and present the second run as
+    independent evidence. What a forwarder can get wrong is delivery, so each
+    of the seven constructor arguments is varied alone and must move
+    something no other argument moves — the type system cannot see a
+    transposition when `pfa` and `pd` are both doubles in (0,1). Evidence:
+    `src/doppler/dsss/tests/validation/burst_acq/results.md`.
+
+- **`BurstDemod` is certified** — 15 limits on every push. The gaps clustered
+    on the read-backs, which are what a caller consumes: `frame_valid`'s only
+    negative case was an 8-sample input that returns before a CRC is ever
+    computed, so a `frame_valid` ignoring the trailer entirely would have
+    passed; `frame_offset` had only ever been observed as 0, its degenerate
+    value; `n_symbols` and `reset()` were mentioned in neither language.
+    Evidence: `src/doppler/dsss/tests/validation/burst_demod/results.md`.
+
+- **`BurstDespreader` is certified, and its lock gate is measured rather than
+    asserted** — over 4000 noise-only bursts the realized false-alarm rate is
+    within **7%** of the priced rate across a decade of `pfa`, closing
+    `detection`'s `det_threshold_f` against a real consumer. Certifying it
+    found the header's own `lock_stat` example asserting a false result, and
+    that the `@code` block on a `*_get_*` accessor never reaches the doctest
+    gate — [46 header examples library-wide are in that blind
+    spot](https://github.com/doppler-dsp/doppler/issues/1000) (all extracted
+    and run by hand; the other 45 pass). Evidence:
+    `src/doppler/dsss/tests/validation/burst_despreader/results.md`.
+
+- **`Corr2D` is certified**, and the certification found a silent failure mode
+    — `dwell = 0` passed `create()` and built an object that accumulated every
+    frame and emitted nothing until `count` wrapped at `SIZE_MAX`. Fixed at
+    the primitive, so `CorrDetector2D` inherits the refusal rather than
+    carrying a second copy of the rule. Two pins the object arrived with
+    could not fail (a vacuous `reset`, an uncovered even-`n` Nyquist split),
+    both found by breaking the code and watching the suite stay green.
+    18 limits on every push; three claims are C-only and say so. Evidence:
+    `src/doppler/spectral/tests/validation/corr2d/results.md`.
+
+- **`detection` is certified** — the sizing helpers `Acquisition`, `LockDet`,
+    `Dll`, `BurstDespreader` and `BerMeter` all share, so a defect in these 19
+    functions moves every detector at once. 20 limits on every push. The
+    header's headline number — a chi-square gate on an estimated noise
+    reference realizing 41x the priced `pfa` at n = 16 — executed nowhere; it
+    is now re-derived in C, reproduced by Monte-Carlo (41.1x), and restated as
+    the number a caller can budget: **3.27 dB at n = 16, 0.97 dB at n = 100**.
+    One finding is open and not this object's to fix
+    ([#997](https://github.com/doppler-dsp/doppler/issues/997)). Evidence:
+    `src/doppler/detection/tests/validation/detection/results.md`.
+
+- **`docs/design/detection.md`** — the page this module never had. Five
+    statistical families ship under one `det_` prefix and are not
+    interchangeable, and reaching for the wrong one does not fail loudly: at
+    `pfa = 5e-6`, `det_threshold` returns 4.9409 and `det_q_inv` returns
+    4.4172 — two plausible numbers near 5, only one of which is a sigma count.
+
+- **`models` characterization subject** — the Monte-Carlo the tree cited but
+    never ran (`acq_core.c`: *"Validated against Monte-Carlo to \<1%"*). Every
+    family's H0 rate across four decades of `pfa` and both Pd curves against
+    measured frequency, 2 million draws per cell, every cell within 3 sigma.
+
+- **`CorrDetector2D` is certified** — 15 limits on every push. Three of the
+    four noise modes (`MEDIAN`, `MIN`, `MAX`) were exercised by nothing in
+    either language, and `noise_est` is the denominator of every decision this
+    object makes: a mode returning the wrong statistic would move every
+    `test_stat` in the library without moving a single peak position. Also
+    covered: `set_ref`'s refusal branch, and the last-dump fields' promise to
+    update regardless of threshold. Evidence:
+    `src/doppler/spectral/tests/validation/detector2d/results.md`.
+
+- **`PolynomialPhaseEstimator` is certified** — 15 limits on every push. The
+    sub-bin refinement had been pinned at a tolerance of **2.6 bins**, wide
+    enough to pass with the refinement deleted and the raw argmax returned;
+    measured, the estimator resolves a noiseless tone to ~1e-4 of a bin and
+    stays within 0.05 of a bin at 0 dB input SNR. One header claim was simply
+    wrong: `nfft` is 4x next-pow2, not next-pow2, so a caller budgeting memory
+    from the header was out by 4x. Evidence:
+    `src/doppler/dsss/tests/validation/ppe/results.md`.
+
+- **The CHANGELOG's comparison links are generated, not hand-written.**
+    `## [X.Y.Z]` is a markdown reference link; with no matching definition it
+    renders as literal text. The release runbook asked for that line by hand
+    and nothing checked, so three releases shipped without one and there was
+    no `[unreleased]:` definition at all. `scripts/gen_changelog_links.py`
+    derives the block from the headings — `make docs-relink` writes it,
+    `make lint` fails on drift. It found **eight** more defects on its first
+    run: seven missing definitions, and a link chaining `v0.4.1...v0.5.0`
+    straight past 0.4.6.
+    [#996](https://github.com/doppler-dsp/doppler/issues/996)
+
+- **`coding.Deinterleaver` — the receive face**, a view over the same core with
+    `interleave` deliberately absent. Someone working the rx side reaches for
+    this name; sharing one core means the geometry both ends must agree on has
+    exactly one definition. Plus `docs/design/interleaving.md` and a
+    self-validating example.
+    [#1031](https://github.com/doppler-dsp/doppler/issues/1031)
+
+- **`dp_fftfreq()` and `dp_fftfreq_index()`** — the FFT bin→frequency mapping,
+    in `clib_common.h` where everything can inline it, with
+    `doppler.dsss.bin_to_signed` a thin wrapper over the same code. It arrived
+    as an acquisition-private helper and disagreed with numpy at exactly one
+    index — an even grid's Nyquist bin — so every formula ported in from numpy
+    disagreed with the engine at the one bin it was most careful about. The
+    fold had been restated in four call sites, three mutually inconsistent
+    ways; see `docs/design/dsss-burst-receiver.md`.
+
+- **`dp_interleave.h` — the block-interleaving permutation**, header-only like
+    `dp_crc16.h` so neither the frame-stage kernel nor the coming `Interleaver`
+    object grows a link-line dependency for arithmetic. Hard bits, octets and
+    `float32` soft values, forward and inverse.
+    [#1031](https://github.com/doppler-dsp/doppler/issues/1031)
+
+- **`DsssBurstReceiver` gains a C example and a gallery page**, completing
+    phase 9 under the rule above. The C example builds its capture from **one
+    wfmgen segment** through `wfm_compose_create()` — the same engine the
+    Python example's `Composer`/`Segment` and the `wfmgen` CLI use, so all
+    three render the identical waveform and none of them tiles a preamble,
+    spreads a frame, appends a CRC or draws noise. It demonstrates the four
+    things the binding hides: the lifecycle, that the output buffer is the
+    caller's and sized from `push_max_out()` on the *block*, and the two
+    spans. [Gallery](https://doppler-dsp.github.io/doppler/gallery/dsss-burst-receiver/).
+
+- **A runnable example for `DsssBurstReceiver`**
+    (`src/doppler/examples/dsss_burst_receiver_demo.py`) — the last phase-9
+    deliverable the object was missing. Where
+    `dsss_burst_pipeline_demo.py` drives the three stages separately, this
+    is the same job through the composed object, asserting rather than
+    claiming: identical decodes at every block size from 99k down to 333
+    samples (32x shorter than one burst, `dropped == 0`); a burst split
+    across two `push()` calls held — `pending` says so — and returned
+    whole; and bursts packed inside `refine_span` coalescing, which is what
+    makes that span a minimum rather than a suggestion.
+
+- **`DsssBurstReceiver.llrs()` and `BurstDemod.llrs()` — the soft bits**
+    ([#1018](https://github.com/doppler-dsp/doppler/issues/1018)).
+    `Re(sym · derot)` IS the log-likelihood ratio up to a scale, and it was
+    computed, sliced to one bit and freed on every burst; a hard decision
+    costs roughly 2 dB of the coding gain a soft-input decoder exists to
+    deliver. One LLR per frame symbol now, in `mpsk_soft_demap`'s convention
+    (`L < 0` reproduces `push()`'s bits, asserted in both languages), scaled
+    by the burst's own noise estimate so bursts are comparable — measured
+    17.9 → 67.2 → 259.2 mean |L| at 6, 12 and 18 dB Es/N0.
+
+- **`DsssBurstReceiver`** (new, C) — the burst chain composed in one object,
+    the way `DsssReceiver` already composes the continuous one. Samples in,
+    one burst's payload bits out with a CRC verdict and an event describing
+    it, through **search → refine → demod** behind one `push()`. Every part
+    was already certified and nothing composed them, so the hand-off was
+    arithmetic each caller redid in Python. The stage that earns its keep is
+    **refine**: acquisition reports an *end* anchor and a code phase modulo
+    one period, and neither is a burst start. Certified at 29 limits / 10
+    findings / 0 open ([#1001](https://github.com/doppler-dsp/doppler/issues/1001));
+    design in `docs/design/dsss-burst-receiver.md`.
+
+- **`Segment` can ask for the four coding stages.** `rs_depth`, `randomise`,
+    `attach_asm` and `convolutional` were in the C struct, the wfmgen scene
+    schema and the CLI, and on no Python face. They spell out in full there
+    because they name the C members (`asm` is a GNU C keyword); the scene and
+    CLI keep their short forms.
+
+- **`wfm.Frame.deframe()` — the receive counterpart of building a frame.**
+    Undo a description's stages in place order (randomiser XORed back, outer
+    code repairs APPLIED, CRC checked) and hand back the corrected bits, with
+    the verdict in `rx_ok` / `rx_units` / `rx_checked` / `rx_symbols`. The
+    payload is then a slice at `field_off()`, because a description does not
+    privilege one field over another. `rx_checked == 0` says the frame carries
+    no reversible stage — a different fact from a check that failed.
+
+- **`WFM_STAGE_INTERLEAVE` and `wfmgen --interleave R [--interleave-unit N]`.**
+    A block interleaver over the frame's data group, applied after the outer
+    code and before the inner one, so a burst on the channel arrives spread
+    across codewords. Measured: with 5 × RS(255,223) it takes the corrigible
+    burst from 16 octets to 80.
+    [#1031](https://github.com/doppler-dsp/doppler/issues/1031)
+
+- **`coding.Interleaver` — a block interleaver, as an object.** Holds the
+    geometry (`rows`, `cols`, `unit_bits`) so both ends of a link cannot
+    disagree about the permutation, and de-interleaves `float32` soft values as
+    well as hard bits — the path `DsssBurstReceiver.llrs` needs.
+    [#1031](https://github.com/doppler-dsp/doppler/issues/1031)
+
+- **A design page for the polynomial-phase estimator**
+    (`docs/design/ppe.md`). `ppe` had been certified with phase 1 of the
+    lifecycle spine skipped — its reasoning existed only as header prose —
+    which the validation-report gate catches by requiring section 1 to *link*
+    a design page rather than restate it. The page is the argument: why the
+    search is two-dimensional and coherent, why the transform is zero-padded
+    4x, why the *caller* strips the modulation, and the measured envelope down
+    to −10 dB input SNR.
+
+- **Five real Python benchmarks for the burst chain**, over one shared 64k
+    stimulus so the composed object reads against its parts:
+    `DsssBurstReceiver`, `BurstAcquisition`, `BurstDemod`,
+    `BurstDespreader`, `PolynomialPhaseEstimator`. Each is two rows — noise
+    against bursts — and each asserts what it claims, because a benchmark
+    that quietly stopped decoding just looks faster. Two pairs come out
+    *identical*, which is the useful part: acquisition's correlation and
+    CFAR run the same whether a burst is present, and `ppe`'s coherent
+    search has no data-dependent branch, so the composed object's
+    idle-to-burst delta is attributable entirely to refine and demod.
+
+- **`RateSync` now has a Python benchmark that measures something**
+    ([#1010](https://github.com/doppler-dsp/doppler/issues/1010)). It was a jm
+    scaffold holding a fixture nothing called, so the timing loop every M-PSK
+    receiver runs appeared in no Python snapshot row. Two rows over one 64k
+    RRC-BPSK block, one per TED, each asserting its loop is still locked and
+    its eye still open — every way this measurement breaks makes it look
+    faster, and at 2 dB Es/N0 the count and the lock flag both still pass
+    while the settled EVM does not.
+
+- **Real (scalar) sample types — `f32`, `f64`, `i32`, `i16`, `i8`.** doppler
+    could read a real BLUE capture and not write one: the writer hardcoded
+    format mode `'C'`. All four containers now write one component per sample
+    (BLUE mode `'S'`, SigMF `rf32_le`), and the reader's hint can name a real
+    type so a headerless real file is not read as interleaved I/Q.
+    [#1032](https://github.com/doppler-dsp/doppler/issues/1032)
+
+- **`make test-ubsan` and `make test-tsan` now run in CI**, joining `test-asan`
+    in the `sanitizers` job. Both existed and had never run on a pull request.
+    TSan is whole-suite now: its old `-R 'race|parallel|thread'` pattern
+    selected 2 tests, one by accident, and missed three genuinely threaded ones.
+    [#1026](https://github.com/doppler-dsp/doppler/issues/1026)
+
+- **`native/examples/wfmgen_demo.c` — the composed scene from C.** The spine
+    asks for C *and* Python; wfmgen's API was reached only incidentally, by
+    examples whose subject was something else. Shows what the Python face
+    hides: the caller owns the output buffer, the stream ends with a short
+    read rather than an error, `wfm_compose_segments()` is borrowed until
+    `destroy()`, and a declaration composes byte-identically twice. Six
+    checks, no `assert()` (examples build Release), exit non-zero on any
+    failure.
+    [#1056](https://github.com/doppler-dsp/doppler/pull/1056)
+
+- **Channel coding has a guide page.** The six `wfmgen` coding flags were the
+    only 6 of 56 with no home outside `--help`, and every other "interleaved"
+    in the section means I/Q.
+    [Channel coding](https://doppler-dsp.github.io/doppler/guide/wfmgen/coding/)
+    states each stage's span, disambiguates the block interleaver, and runs
+    the real binary in every fence.
+
+- **`scripts/check_wfmgen_flag_docs.py` — every flag `wfmgen` accepts is
+    named in a `docs/guide/wfmgen/` page, now 58 of 58.** A review had
+    counted 50 of 56 and #1044 closed the gap by hand; nothing kept it
+    closed. On its first run this found `--randomize`, the American spelling
+    the parser accepts and eleven pages had never mentioned. Aliases count,
+    pages are discovered by glob, and there is no allow-list.
+    [#1055](https://github.com/doppler-dsp/doppler/pull/1055)
+
+### Changed
+
+- **The alloc-helper ratchet stopped contradicting itself (#1043).** Its
+    docstring and allow-file header said counts may *only shrink*; its failure
+    message said to raise the count and explain in the commit message. One
+    rule now: shrink freely, and a raise needs `# <reason>` **on the line**,
+    compared against `origin/main` so an unexplained one fails. A commit
+    message is read once by whoever is already convinced; the line is read by
+    whoever comes next.
+
+- **The DSSS burst benchmarks run 2.7x faster by choosing the acquisition
+    length on the TRANSFORM, not just the code.** `acq` calls
+    `fft_create(sf * spc)` verbatim — the code axis is a circular
+    correlation, so it cannot pad — and a 127-chip m-sequence at `spc=4`
+    gives 508 = 2²·**127**, where pocketfft falls to Bluestein: **9.70 µs
+    against 0.75 µs**. 255 chips at `spc=2` gives 510 = 2·3·5·17, smooth
+    *and* twice the autocorrelation ratio — better on both axes, not a
+    trade. `BurstAcquisition` goes 19.9 → 53.3 MSa/s. Not rounded to 512:
+    no binary code of that length has good periodic autocorrelation.
+
+- **The `DsssBurstReceiver` example now presents every read-back, not just
+    the bursts.** All nine fields of `events()` are printed per burst and
+    checked against the scene that produced them — the bin width against
+    `fs/(sf*spc)`, the C/N0 estimate against the segment's own Es/N0, the
+    coarse Doppler against its bin, the refined residual against a hundredth
+    of it — plus two figure panels and the assertion that the scalar
+    properties are exactly the last event row. Both faces do it: the C
+    example gained the same section.
+
+- **The CCSDS coverage table moved to `ccsds_tm`, where the standard is.**
+    `wfm/wfm_frame.h` knows what a field and a stage are and deliberately not
+    which covers which — its own header says it "knows nothing about CCSDS" —
+    so `ccsds_tm_frame_desc_of()` is where 131.0-B-6 10.3.4's rule now lives,
+    next to the ASM bits and the RS parity size it needs. The generator's
+    bridge is an adapter over it.
+
+- **A hand-written `CHANGELOG.md` entry is now refused.** `changelog.d/` has
+    asked for a fragment since twelve in-flight PRs all conflicted on the same
+    file, but `changelog-check` accepted either — so three PRs in one stack
+    still edited it directly and the conflict was hand-resolved twice. The
+    gate counts `[Unreleased]` entries at the base and at HEAD;
+    `changelog-assemble` still passes, detected by the fragments it consumes.
+
+- **A changelog entry over 10 lines fails `make lint`.** The rule that an
+    entry is an index, not the record, was guidance in
+    `changelog.d/README.md` — and guidance is what produced a 72,636-character
+    v0.44.0 section at a median of 24 lines per entry. `MAX_ENTRY_LINES` is
+    checked on the fragments *and* on `[Unreleased]`, so a direct CHANGELOG
+    edit cannot walk past it. Folded into `check_release_notes_size.py` rather
+    than added beside it: same file, same subject, one gate.
+
+- **`release-notes-size-check` runs in CI now.** It was in `GATES_DEPS` and
+    nowhere else, and no CI job runs `make gates` — the exact trap the
+    `lint:` comment above it already described, still live for this one gate
+    a release after `changelog-check` was moved for the same reason.
+
+- **An unbuildable DSSS burst is refused at create, not degraded to a silent
+    gap.** Frame bits with no spreading code, or an outer code whose payload is
+    not 223\*depth octets, used to compose successfully and emit nothing — on
+    the CLI, a zero-length capture with exit 0. Both now name the problem and
+    fail: the stage rules that already guarded an unspread frame were never
+    reached on the spread path.
+
+- **`DsssBurstReceiver` and `BurstDemod` stop at hard and soft decisions**
+    ([#1022](https://github.com/doppler-dsp/doppler/issues/1022)). They took a
+    frame's shape — first as a hard-coded `sync | payload | CRC-16`, then as a
+    description with four knobs and a `frame_valid` verdict — and neither is a
+    physical-layer fact. They now take a sync word to correlate and
+    `frame_syms` to slice; `push()` returns the frame's bits, `llrs()` the same
+    decisions as soft values, and that is the whole output. `payload_len` is
+    gone, `set_sync()` replaces `set_frame()`, and the `ccsds_tm`/`conv`/`rs`
+    link line goes with them.
+
+- **just-makeit pin 0.68.0 → 0.69.2.** Brings the fix for #1052:
+    `Composer.stream(realtime=)` is a sample rate in **Hz**, and now says so on
+    both faces — plus a warning when the first block would take over a minute
+    of wall clock (`realtime=1.0` on a 1000 block is 1000 s of silence), and a
+    `ValueError` on a negative rate that used to disable pacing quietly. Also
+    picks up 0.69.0's `doppler.h`, which no longer wraps its component
+    includes in `extern "C"` and so can be included from C++, and **0.69.2's
+    fix for just-buildit/just-makeit#1164** — 0.69.0's gh-1154 DOC finding
+    reported 28 authored `@code` doctest fences as drift, which is why this
+    pin sat on 0.69.1 unmerged rather than suppressing them.
+
+- **`check_nav_index` covers `docs/guide/` too.** It gated `design`, `dev` and
+    `gallery` only, so the section with the most pages had no backstop. The
+    guide nests, so containment is now the index.md *nearest* a page, and a
+    subsection's own index answers to its parent — which is how it found
+    `wfm-io/index.md` missing from `docs/guide/index.md` on its first run.
+
+- **`make pr-watch PR=<n>`** — the PR-check watcher, vendored from canonical
+    and held there by `standard-check`, instead of hand-copied per repo. It
+    reports; it never merges. `gh pr merge --auto` remains the gate.
+
+- **`Reader.sample_type` now names the mode it found.** A real float capture
+    reported `"cf32"` alongside `mode == "scalar"` — two contradictory answers.
+    It reports `"f32"`, which is also exactly what the constructor accepts as a
+    hint, so what you pass for a headerless file is what you get back.
+    [#1032](https://github.com/doppler-dsp/doppler/issues/1032)
+
+- **The sanitizer job is three parallel legs, not three sequential steps.**
+    Each rebuilds the tree with its own flags, so the job's wall clock was
+    their sum and it was the long pole on every PR — 27m02s on one measured
+    run. TSan is about half of that on its own, so the split buys ~1.8x, not
+    3x. `fail-fast: false`, so a failing ASan no longer hides what UBSan and
+    TSan would have said.
+
+- **The sanitizer suites no longer re-run the validation spot checks.** The
+    `validate_*` harnesses already run their `--check` subset on every PR in
+    the ordinary C suite, where it is cheap; under instrumentation the same
+    subset was 80% of ASan's ctest time, 80% of UBSan's and 90% of TSan's —
+    1166s per run for work already done. Measured locally, UBSan's ctest goes
+    156.19s → 34.67s. `make test-asan SAN_SWEEP=1` puts them back.
+
+- **`make build BUILD_TARGET=<t>` and `make test-snippets PAGE=<path>`** — both
+    were all-or-nothing, so iterating on one binary or one docs page meant
+    reaching past `make` for a raw command (seven `MAKE_SSOT_OK=1` prefixes in
+    one session, every one only to scope something). A cold `wfmgen_cli` build
+    is 5s against 34s for the tree. A `PAGE` that matches nothing FAILS, so a
+    typo cannot read as green.
+
+- **`shl_q8`'s multiply is documented as deliberate**, with the numbers.
+    Replacing C99's undefined negative left shift turned out to be a 4.5x
+    speedup there — a packed 16-bit multiply vectorises eight lanes where the
+    variable shift does not — so the obvious "repair" back to a shift is a
+    2.9x regression. Comments only; the kernels are unchanged and verified
+    exhaustively against an `int64_t` reference.
+
+- **The lifecycle spine owes a runnable example in C *and* Python, not
+    either** (`docs/dev/contributing/adding-algorithms.md`). One is not
+    enough because the two faces fail differently: the C example is where a
+    caller sees the lifecycle it must actually manage — create, feed, drain,
+    destroy, and that the output buffer is the caller's — none of which the
+    binding exposes because it does that work for you; the Python example is
+    where the result is legible. The same page's claim that C examples are
+    *registered* while Python ones are *discovered* went too: both are
+    globbed since gh-863, and opting either out costs an entry with a
+    mandatory reason.
 
 ### Fixed
 
@@ -50,6 +467,174 @@ ______________________________________________________________________
     flag matrix now asserts that every recordable case replays from its own
     record byte-for-byte, which is the check `seed_advance` (#978) also
     needed and did not have.
+
+- **`acq`: a burst at exactly half a coherent Doppler bin is detected again**
+    ([#1002](https://github.com/doppler-dsp/doppler/issues/1002)). Scalloping
+    costs ~3.9 dB at the worst case, and that was **not** margin a caller could
+    buy back with signal — `test_stat` saturates against the code's own
+    sidelobe floor, so a half-bin burst was invisible at *any* C/N0 (zero
+    detections across a 12 dB sweep). The engine now zero-pads its **slow-time**
+    transform; the code axis is untouched, because correlation along it is
+    circular and padding there would change the correlation rather than
+    interpolate it. Pfa over 80 000 frames is byte-identical.
+
+- **Nine memory defects the C suite had been carrying**, found by the new
+    `make test-asan` on its first run: two out-of-bounds reads (a 64-byte copy
+    out of an 8-byte global; an I/Q buffer sized in complex samples instead of
+    `int16_t`) and seven leaks, every one a `*_create()` in a test or
+    validation `main()` with no matching destroy.
+    [#1024](https://github.com/doppler-dsp/doppler/issues/1024)
+
+- **`check_bench_coverage` now gates Python benchmarks too**
+    ([#1010](https://github.com/doppler-dsp/doppler/issues/1010)). Phase 9 of
+    the lifecycle owes a benchmark "C **and** Python"; the gate read
+    `native/benchmarks/` and nothing else, and 24 of 86 `bench_*.py` took the
+    `benchmark` fixture without ever calling it — collecting zero rounds
+    while every other signal said covered. Five are filled in and the rest
+    are ratcheted. The first version of the check was itself wrong and sabotage
+    caught it: `^[^#]*\bbenchmark\s*\(` spans newlines, so it matched the
+    prose "The C benchmark (" in a docstring and passed a deliberately
+    hollowed file. It walks the AST now — a mention in prose is not a Call.
+
+- **`--bits-file` reads the binary file its help always promised.** It
+    required a text 0/1 string and errored on bytes, so the CCSDS example —
+    which needs "a 223\*I-octet Transfer Frame on disk" — could not be run.
+
+- **`issue-link-check` and `changelog-check` no longer pass when they cannot
+    see the work.** Both compare against `origin/main`, so before the first
+    commit they have an empty diff, report `inert`, and exit 0 — which reads
+    exactly like a verdict. Running `make lint` before committing is the most
+    natural order and it is precisely when these answer about nothing; #1012
+    reached CI red on a check that had "passed" locally minutes earlier.
+    Inert plus a dirty tree is now a failure naming the files, inert plus a
+    clean tree is still a pass, and with commits ahead a dirty tree warns
+    that the verdict read the commits rather than the working tree.
+
+- **`DsssBurstReceiver.push()` no longer discards its input, and returns
+    **every** burst it completed**
+    ([#1008](https://github.com/doppler-dsp/doppler/issues/1008)). Three
+    separate discard sites meant a block carrying several bursts lost all but
+    the first: measured at **6/6 decoded with 333-sample blocks against 1/6
+    with one large one**. It now decodes 5/5 at every block size, including a
+    1.48 M-sample capture in a single call, with `dropped == 0`.
+
+- **`DsssBurstReceiver.pending` reports detections being held, instead of
+    three contradictory things.** The manifest called it "bursts demodulated
+    and waiting", the header said "Always 0", and the code assigned it the
+    queue length on one path only — so a caller ending a capture mid-burst
+    saw `pending=0 dropped=0 n_bursts=0`, identical to an empty capture,
+    while the receiver held a burst that would have decoded. There is now one
+    live field and the three agree. Holding is correct and unchanged: a burst
+    split across two `push()` calls comes out of the second one bit-exact,
+    now pinned by `test_a_burst_split_across_two_pushes_survives` — the
+    contract nothing had tested.
+
+- **`DsssBurstReceiver`: a spurious detection no longer costs the next real
+    burst** ([#1004](https://github.com/doppler-dsp/doppler/issues/1004)). The
+    dedup rule armed its suppression window on **every** detection,
+    unconditionally and at detection time, so one noise crossing blinded the
+    search for a whole burst length — 2 of 5 bursts lost on the example
+    capture. It conflated two jobs now done separately: coalescing detections
+    of the *same preamble*, and excluding a burst's *own payload*. Now 5/5 at
+    every frame phase, zero spurious returns; the genuine near-knee framing
+    residual is split out as
+    [#1006](https://github.com/doppler-dsp/doppler/issues/1006).
+
+- **Three Doxygen defects, all comments that said something other than what
+    they meant.** An orphaned `/** */` block left behind when the FFT-bin fold
+    moved to `clib_common.h` bound itself to the *next* declaration, so
+    `acq_build_handoff()` rendered with two `@param`s it does not take and a
+    `@return` while returning `void`. `objects/*.toml` inside a block comment
+    contains the literal `/` `*` and opens a nested comment, reported 940 lines
+    below its cause. And `DOT_GRAPH_MAX_NODES` was a count of our own modules,
+    so it is crossed by growth rather than by a defect — already raised
+    50 → 100 once, crossed again at 103, now Doxygen's maximum. Fixed in
+    `Doxyfile.base` upstream too.
+
+- **A coding stage asked for on a DSSS burst was silently dropped**
+    ([#1017](https://github.com/doppler-dsp/doppler/issues/1017)). `--conv`,
+    `--asm`, `--rs-depth` and `--randomise` parsed, set their field, and were
+    never read: a DSSS burst assembled its frame through a private four-field
+    builder that had never heard of a stage, so `--conv` produced a
+    byte-identical waveform to no `--conv` at all. The burst is now assembled
+    from the same `wfm_frame_desc_t` every other source's frame is — and its
+    record carries the stages, so a coded capture replays as itself instead of
+    as a plausible uncoded one.
+
+- **`DsssBurstReceiver`'s benchmark recorded nothing.** jm's scaffold has no
+    `step()` to time and stopped there, leaving a `main()` that called
+    `jm_bench_write_json` without ever calling `jm_bench_add` — an empty
+    `"benchmarks": []` in every snapshot, which is worse than an absent
+    benchmark because it runs green and reads as "measured, nothing to
+    report". `push()` is now measured as **two** numbers, because its stages
+    do not run equally often: `push_idle` 30.3 MSa/s is the price of listening
+    (search runs per sample), `push_burst` 25.5 MSa/s adds one decoded burst
+    per 8192 samples.
+
+- **The shell fence gate said which `wfmgen` it ran.** It executes the real
+    binary, so its verdict belongs to one build — and on an unbuilt tree every
+    fence died as `exit 1` with an empty stderr, reading as "this documented
+    flag is wrong". `which` was not enough: the console-script shim resolves
+    while the binary it `execv`s is absent, so the gate probes `wfmgen --help`
+    and names the resolved path on every failure.
+
+- **`--interleave` refused valid CCSDS arrangements.** Its guard measured
+    payload + CRC and omitted the outer code's check symbols, so it validated
+    a different span from the one the stage permutes: 223 octets under
+    RS(255,223) at depth 5, unit 8 was rejected though 2040 bits divides by
+    40 exactly. Both failures were pinned in the flag-matrix golden as
+    expected `exit: 2`.
+
+- **`mpsk_receiver_performance_demo.py` runs again, and measures with the
+    library's own meters.** It carried three private copies of shared
+    formulas. The carrier offset used `bn_carrier / sps` where the
+    acquisition bound is `bn_carrier / m` cycles per symbol, seeding `0.5·m`
+    times the bound — 4× at 8PSK, enough that trials ended mid-acquisition
+    and read as lock failures. The EVM was longhand (now `ber_evm_db`,
+    verified equivalent to 0.01 dB first). The SER was differential and taken
+    as the minimum over 401 lags, which cannot see a cycle slip: it read
+    0.055 where the coherent truth was 0.466. Off `.examples-skip`.
+    [#1060](https://github.com/doppler-dsp/doppler/issues/1060)
+
+- **The Python benchmark ratchet is now checked for stale entries.** Rule 5
+    skipped every `PY_HOLLOW_ALLOW` path and nothing looked at them again, so
+    a file that started recording could keep its waiver and the set could stop
+    being a ratchet with no run going red — the same gap the C ratchets closed
+    one release earlier. An entry whose file records, or whose path no longer
+    exists, now fails the gate, and what is left on each ratchet is printed on
+    every green run instead of tallied in a comment.
+
+- **`make tag-release` refuses to tag with `changelog.d/` fragments still
+    unassembled, and `changelog-assemble` stages its own promotion.**
+    `changelog-assembled-check` existed but ran nowhere — named in the
+    .PHONY/help list and in no gate, no CI job — the third instance of that
+    shape in this repo. Its home is the irreversible step, not `lint`, since
+    a feature branch legitimately carries fragments. Assembling also used to
+    leave `make lint` failing on deleted-but-tracked paths; it now stages
+    itself. `docs/dev/release.md` gains the assemble step, which it had never
+    mentioned.
+
+- **A 1500-line stale copy of `wfmgen.c` was sitting in the repo root**, under
+    the name `fm_stream_sink_close (self->h);,+25p` — the residue of a quoting
+    slip in a `sed -n '/…/,+25p'`, committed by an unrelated change and already
+    drifting from the real file. Deleted, and gated: a tracked path must now be
+    a name a person could type (`[A-Za-z0-9._/-]`), which is the one property
+    that makes this class findable. Every other gate is keyed on a suffix or a
+    directory, and this file had neither.
+
+- **Four undefined operations UBSan had been reporting to nobody.** A left
+    shift of a negative value in all three `shl_*` kernels (`shl_q15`, `shl_q8`,
+    `shl_i64` — half of every Q-format input is negative), and a
+    `memcpy(dst, NULL, 0)` on the zero-length publish path in `stream_nats`.
+    [#1026](https://github.com/doppler-dsp/doppler/issues/1026)
+
+- **The wfmgen pages stopped contradicting each other.** Established by running
+    the code, not by picking a side: `--snr-mode auto` sends `bits` to `fs`,
+    not Es/N0 as the schema claimed (`--type bits` renders byte-identically
+    under `auto` and `fs`); RRC is `2 * span * sps + 1` taps, not
+    `span * sps + 1`; there are **nine** `--type`s, not eight; and `Plan` now
+    accepts multi-segment, `repeats`, ranged *timing* and bundled noise —
+    three of the five limits `plan.md` still advertised.
 
 ## [0.44.0] — 2026-08-24
 
@@ -11537,6 +12122,7 @@ ______________________________________________________________________
 [0.43.1]: https://github.com/doppler-dsp/doppler/compare/v0.43.0...v0.43.1
 [0.43.2]: https://github.com/doppler-dsp/doppler/compare/v0.43.1...v0.43.2
 [0.44.0]: https://github.com/doppler-dsp/doppler/compare/v0.43.2...v0.44.0
+[0.45.0]: https://github.com/doppler-dsp/doppler/compare/v0.44.0...v0.45.0
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.6...v0.5.0
 [0.5.1]: https://github.com/doppler-dsp/doppler/compare/v0.5.0...v0.5.1
 [0.5.2]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...v0.5.2
@@ -11547,4 +12133,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.44.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.45.0...HEAD

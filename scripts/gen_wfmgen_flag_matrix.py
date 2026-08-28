@@ -100,6 +100,12 @@ SKIP = {
 # flag that does not terminate -- which is a finding, not a flake.
 TIMEOUT_S = 20
 
+#: Floor for `replay_checks()`. Set just under what the table replays today
+#: so the count may grow and not silently collapse: every skip in that
+#: function is legitimate on its own, and a change that turned them all on
+#: at once would leave the check passing while looking at nothing.
+MIN_REPLAY_CASES = 25
+
 BITS_FILE = "bits.bin"
 SYMS_FILE = "syms.cf32"
 SCENE_FILE = "scene.json"
@@ -792,29 +798,51 @@ def replay_checks(exe: Path, problems: list[str]) -> None:
     case table rather than a hand-written list, because a list is the thing
     that stops growing when someone adds a flag.
 
-    Skipped, with a reason each: a case that already reads a scene (the
-    replay IS the case), one that failed (no record to replay), and one
-    whose output is a stream or a pair rather than a single file.
+    Every container is compared, not just the single-file ones. BLUE, CSV
+    and SigMF look like they could not be byte-identical across two runs --
+    a BLUE header has a timecode field and SigMF has `core:datetime` -- and
+    measurably they ARE: wfmgen writes a zero timecode and no wall-clock
+    date, which is a deliberate reproducibility choice and worth having a
+    check stand on. Two runs two seconds apart produce identical bytes in
+    all four containers.
+
+    The replay therefore lands in a SECOND directory under the case's own
+    output name, so a container that writes a pair (SigMF's data + meta,
+    detached BLUE's .det + .hdr) is compared file by file rather than
+    skipped for having more than one.
+
+    Skips are COUNTED and reported, never silent. A case that already reads
+    a scene is its own replay, and a case that refuses pins an exit code
+    rather than a waveform; both are legitimate, and a gate that stopped
+    checking everything would otherwise still print OK.
     """
+    checked = 0
+    skipped: dict[str, int] = {}
+
+    def skip(why: str) -> None:
+        skipped[why] = skipped.get(why, 0) + 1
+
     for name, argv in cases():
         if "--from-file" in argv:
-            continue  # the case is itself a replay
-        with tempfile.TemporaryDirectory() as td:
-            wd = Path(td)
+            skip("already a replay")
+            continue
+        with (
+            tempfile.TemporaryDirectory() as td,
+            tempfile.TemporaryDirectory() as td2,
+        ):
+            wd, wd2 = Path(td), Path(td2)
             fixtures(wd, exe)
             first = run_case(exe, argv, wd)
             if first["exit"] != 0 or first["record"] is None:
-                continue  # a refusal pins its exit code, not a waveform
+                skip("refusal: pins an exit code, not a waveform")
+                continue
             produced = [n for n in first["outputs"] if n != "record.json"]
-            if len(produced) != 1:
-                continue  # detached BLUE writes a pair; nothing to compare
-            out_name = produced[0]
-            original = (wd / out_name).read_bytes()
-            if not original:
+            if not produced or not any(
+                (wd / n).stat().st_size for n in produced
+            ):
+                skip("no output to compare")
                 continue
 
-            rec = wd / "record.json"
-            replay = wd / "replay.bin"
             # The record describes the SIGNAL; the container is the caller's.
             # --file-type/--sample-type/--endian deliberately do not reach the
             # spec (there is no output section in the schema), so the replay
@@ -825,16 +853,24 @@ def replay_checks(exe: Path, problems: list[str]) -> None:
             for flag in ("--file-type", "--sample-type", "--endian"):
                 if flag in argv:
                     carried += [flag, argv[argv.index(flag) + 1]]
+            # Same output NAME, second directory: the container decides how
+            # many files it writes and what it suffixes them with, so the
+            # only way to compare a pair is to let it choose both names
+            # twice.
+            out_arg = "sink.bin"
+            for flag in ("--output", "-o"):
+                if flag in argv:
+                    out_arg = Path(argv[argv.index(flag) + 1]).name
             proc = subprocess.run(
                 [
                     str(exe),
                     "--from-file",
-                    str(rec),
+                    str(wd / "record.json"),
                     *carried,
                     "--output",
-                    str(replay),
+                    str(wd2 / out_arg),
                 ],
-                cwd=wd,
+                cwd=wd2,
                 capture_output=True,
                 timeout=TIMEOUT_S,
             )
@@ -845,8 +881,22 @@ def replay_checks(exe: Path, problems: list[str]) -> None:
                     f"{proc.stderr.decode('utf-8', 'replace').strip()[:160]}"
                 )
                 continue
-            got = replay.read_bytes()
-            if got != original:
+
+            checked += 1
+            again = {p.name for p in wd2.iterdir() if p.is_file()}
+            if again != set(produced):
+                problems.append(
+                    f"{name}: the replay wrote {sorted(again)} where the "
+                    f"run wrote {sorted(produced)}"
+                )
+                continue
+            for fname in sorted(produced):
+                original, got = (
+                    (wd / fname).read_bytes(),
+                    (wd2 / fname).read_bytes(),
+                )
+                if got == original:
+                    continue
                 how = (
                     "same length, different bytes -- a flag reached the "
                     "waveform but not the record"
@@ -855,10 +905,24 @@ def replay_checks(exe: Path, problems: list[str]) -> None:
                 )
                 problems.append(
                     f"{name}: replaying its own --record does not reproduce "
-                    f"the capture ({how}). Every flag that changes the "
-                    f"waveform has to reach wfm_json.c's writer AND its "
-                    f"reader, and the schema's source object."
+                    f"{fname} ({how}). Every flag that changes the waveform "
+                    f"has to reach wfm_json.c's writer AND its reader, and "
+                    f"the schema's source object."
                 )
+
+    # A floor, not a formality: without it, a change that made every case
+    # skip would leave this function printing nothing and passing.
+    if checked < MIN_REPLAY_CASES:
+        problems.append(
+            f"only {checked} case(s) were replayed, below the floor of "
+            f"{MIN_REPLAY_CASES} -- the round-trip check has stopped "
+            f"looking at most of the matrix"
+        )
+    note = ", ".join(f"{n} {why}" for why, n in sorted(skipped.items()))
+    print(
+        f"wfmgen_flag_matrix: {checked} case(s) replayed from their own "
+        f"--record" + (f"; skipped {note}" if note else "")
+    )
 
 
 def build_matrix(exe: Path) -> dict:

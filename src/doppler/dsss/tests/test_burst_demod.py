@@ -2,9 +2,16 @@
 
 Build a full burst — an unmodulated 5x500 acquisition preamble followed by a
 50-chip-spread frame (sync header | payload | CRC-16) — apply a carrier with
-Doppler and Doppler rate, and check the demod recovers the payload bits and the
-CRC, feedforward, across both regimes the one ``max_rate`` knob spans:
-near-static Doppler and a severe LEO chirp.
+Doppler and Doppler rate, and check the demod recovers the frame's bits,
+feedforward, across both regimes the one ``max_rate`` knob spans: near-static
+Doppler and a severe LEO chirp.
+
+**The demodulator hands back the FRAME**, sync word first, and makes no claim
+about what the bits are for: this object stops at decisions, and undoing a
+frame needs a description it deliberately does not hold (doppler#1022). So the
+payload is a slice at ``PAYLOAD_OFF`` here, and the CRC is checked by this
+file — which is what a caller does, and what ``wfm.Frame.deframe()`` does for
+one that holds a description.
 """
 
 import numpy as np
@@ -14,6 +21,8 @@ from doppler.dsss import BurstDemod
 
 ACQ_SF, REPS, DATA_SF, SPC = 500, 5, 50, 4
 PAYLOAD = 64
+PAYLOAD_OFF = 13  # the sync word comes first in every frame here
+FRAME_SYMS = PAYLOAD_OFF + PAYLOAD + 16  # sync | payload | CRC-16
 CHIP_RATE = 1.0e6
 FS = CHIP_RATE * SPC
 # Barker-13 frame-sync word (0/1).
@@ -35,6 +44,26 @@ def _crc16(bits):
     return c
 
 
+def _payload_of(frame):
+    """The payload's slice out of a returned frame."""
+    return np.asarray(frame)[PAYLOAD_OFF : PAYLOAD_OFF + PAYLOAD]
+
+
+def _frame_ok(frame):
+    """The caller's half: does the frame's own trailer match its payload?
+
+    `wfm.Frame.deframe()` is the shipped way to ask; four lines here keep
+    this file testing the demodulator rather than the frame object.
+    """
+    frame = np.asarray(frame)
+    if frame.size < PAYLOAD_OFF + PAYLOAD + 16:
+        return False
+    rx = 0
+    for b in frame[PAYLOAD_OFF + PAYLOAD :][:16]:
+        rx = (rx << 1) | (int(b) & 1)
+    return rx == _crc16(_payload_of(frame))
+
+
 def _burst(payload, f0, mu, *, rng=None, sigma=0.0):
     """Preamble (5x500 unmod) + frame (sync|payload|crc), carrier-modulated."""
     crc = _crc16(payload)
@@ -53,7 +82,7 @@ def _burst(payload, f0, mu, *, rng=None, sigma=0.0):
 
 
 def _make(max_rate):
-    d = BurstDemod(_DCODE, SPC, CHIP_RATE, 0.0, max_rate, PAYLOAD, 10)
+    d = BurstDemod(_DCODE, SPC, CHIP_RATE, 0.0, max_rate, FRAME_SYMS, 10)
     d.set_preamble(_ACODE, REPS)
     d.set_sync(SYNC)
     return d
@@ -65,8 +94,8 @@ def test_static_doppler_decodes():
     d = _make(0.0)
     d.set_prior(0.012, 0)
     bits = d.demod(_burst(payload, 0.012, 0.0))
-    assert d.frame_valid == 1
-    assert np.array_equal(bits, payload)
+    assert _frame_ok(bits), "the frame's own trailer must check out"
+    assert np.array_equal(_payload_of(bits), payload)
     assert abs(d.est_freq_hz - 0.012 * FS) < 100.0  # within 100 Hz
 
 
@@ -78,8 +107,8 @@ def test_leo_chirp_decodes():
     d = _make(1.0e-6)
     d.set_prior(0.0115, 0)  # coarse prior off by ~2 kHz
     bits = d.demod(_burst(payload, f0, mu))
-    assert d.frame_valid == 1
-    assert np.array_equal(bits, payload)
+    assert _frame_ok(bits), "the frame's own trailer must check out"
+    assert np.array_equal(_payload_of(bits), payload)
     assert abs(d.est_freq_hz - f0 * FS) < 100.0
     assert abs(d.est_rate_hz - mu * FS * FS) / (mu * FS * FS) < 0.05  # 5%
 
@@ -95,7 +124,7 @@ def test_leo_decodes_under_noise():
         d = _make(1.0e-6)
         d.set_prior(f0 + 5e-4, 0)
         bits = d.demod(_burst(payload, f0, mu, rng=rng, sigma=sigma))
-        if d.frame_valid and np.array_equal(bits, payload):
+        if _frame_ok(bits) and np.array_equal(_payload_of(bits), payload):
             oks += 1
     assert oks >= 5  # robust across seeds
 
@@ -104,7 +133,7 @@ def test_bad_args():
     # An empty data code -> create() returns NULL -> jm raises MemoryError.
     with pytest.raises((ValueError, TypeError, MemoryError)):
         BurstDemod(
-            np.array([], np.uint8), SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10
+            np.array([], np.uint8), SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, 10
         )
 
 
@@ -118,8 +147,8 @@ def test_demod_out_writes_into_callers_buffer():
     out = np.zeros(max(d.demod_max_out(), len(x)), dtype=np.uint8)
     bits = d.demod(x, out=out)
     assert np.shares_memory(bits, out)
-    assert d.frame_valid == 1
-    assert np.array_equal(bits, payload)
+    assert _frame_ok(bits), "the frame's own trailer must check out"
+    assert np.array_equal(_payload_of(bits), payload)
 
 
 def test_demod_out_undersized_raises():

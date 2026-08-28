@@ -1547,9 +1547,12 @@ test_capped_cic_still_delivers_the_requested_rate (void)
 static void
 test_cic_ratio_is_capped_at_both_layers (void)
 {
-  DP_CHECK (cic_create (CIC_R_MAX) != NULL);
   {
+    /* One create, asserted AND released. The assertion used to be its own
+       throwaway `cic_create(...) != NULL`, which proved the same thing and
+       leaked the state it proved. */
     cic_state_t *c = cic_create (CIC_R_MAX);
+    DP_CHECK (c != NULL);
     if (c)
       cic_destroy (c);
   }

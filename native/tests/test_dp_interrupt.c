@@ -220,20 +220,27 @@ test_adopting_a_foreign_state_redirects_the_flag (void)
   void *own = dp_interrupt_guard_state_ptr ();
   DP_CHECK (own != NULL);
 
-  /* A second state, of whatever size and layout this TU uses -- the
-     contract is `void *`, so the test allocates one by asking for a copy
-     of the real thing rather than by knowing its shape. */
   dp_resume ();
   dp_set_interrupt_latency_ms (250);
   DP_CHECK (dp_interrupt_latency_ms () == 250);
 
-  /* Adopting a DIFFERENT state must change what every accessor reads. The
-     bytes behind `foreign` are a snapshot of a state whose flag is clear
-     and whose latency is the default. */
-  static unsigned char foreign[sizeof (void *) * 8];
-  memcpy (foreign, own, sizeof foreign);
-  dp_interrupt_guard_state_adopt (foreign);
-  DP_CHECK (dp_interrupt_guard_state_ptr () == (void *)foreign);
+  /* A second state. The contract is `void *` and carries no size, so the
+     test cannot ask how big one is -- it over-allocates generously and
+     over-aligns, which is sound for a buffer only ever WRITTEN through.
+     It must not be seeded by copying the real state: `own` points at an
+     object of the shape this TU uses, not at 64 bytes, and a memcpy of
+     `sizeof foreign` from it reads past the end of a global. That is the
+     bug ASAN caught here -- the buffer knew a size the source did not.
+     Zero is the seed it wanted anyway: static storage is already zeroed,
+     which for any layout of this state is a clear flag. */
+  static union
+  {
+    unsigned char bytes[sizeof (void *) * 8];
+    long double   align_ld;
+    void         *align_p;
+  } foreign;
+  dp_interrupt_guard_state_adopt (&foreign);
+  DP_CHECK (dp_interrupt_guard_state_ptr () == (void *)&foreign);
 
   /* Writes land in the adopted state, not the original. */
   dp_set_interrupt_latency_ms (37);
@@ -244,7 +251,7 @@ test_adopting_a_foreign_state_redirects_the_flag (void)
   /* NULL is ignored rather than obeyed: a failed rendezvous must not
      replace a working state with an unusable one. */
   dp_interrupt_guard_state_adopt (NULL);
-  DP_CHECK (dp_interrupt_guard_state_ptr () == (void *)foreign);
+  DP_CHECK (dp_interrupt_guard_state_ptr () == (void *)&foreign);
 
   /* Back to this TU's own state, which must still hold what it held. */
   dp_interrupt_guard_state_adopt (own);

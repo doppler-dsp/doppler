@@ -37,8 +37,7 @@ extern "C" {
  * For M=1: Q_1(a, b) = P(Rice(a,1) > b).  General integer M relates
  * to the noncentral chi-squared CDF with 2M degrees of freedom.
  *
- * Computed via the Poisson-weighted chi-squared series (exact for M=1,
- * converges in ~60 terms for practical a, b <= 15):
+ * Computed via the Poisson-weighted chi-squared series (exact for M=1):
  *
  *   Q_M(a, b) = sum_{k=0}^inf  w_k * Q_{M+k}(0, b)
  *
@@ -49,7 +48,15 @@ extern "C" {
  * Each iteration advances both the Poisson weight and the chi-sum in O(1)
  * using the recurrences w_{k+1} = w_k * u/(k+1) and
  * Q_{n+1}(0,b) = Q_n(0,b) + exp(-v)*v^n/n!.
- * Total cost: O(K) where K ~ max(u, M) + safety margin.
+ *
+ * The window is CENTRED on the Poisson mode k ~ u = a^2/2 and its half-width
+ * scales as 12*sqrt(u+1) + 60 terms, so the term count grows with `a` rather
+ * than being the fixed ~60 this comment used to claim: about 60 terms at
+ * a = 0, but ~187 at a = 15. That scaling is the whole point -- a Poisson(u)
+ * distribution's mass sits at k ~ u with spread ~sqrt(u), so a fixed window
+ * anchored at k = 0 misses it entirely once `a` is large, which is a real
+ * bug this code already carries a comment about (see marcum_q.c).
+ * Total cost: O(sqrt(u) + M).
  *
  * Special cases:
  *   - a = 0:   Q_M(0, b) = exp(-b^2/2) * sum_{j=0}^{M-1} (b^2/2)^j/j!
@@ -608,7 +615,6 @@ int det_dwell_power (double snr_power, double pd_min, double pfa,
  */
 double det_snr_power(int dwell, double pd_min, double pfa);
 
-int det_dwell_power(double snr_power, double pd_min, double pfa, int max_dwell);
 #ifdef __cplusplus
 }
 #endif

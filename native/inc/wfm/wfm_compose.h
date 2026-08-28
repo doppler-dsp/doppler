@@ -33,6 +33,7 @@
 
 #include "clib_common.h"
 #include "wfm_synth/wfm_synth_core.h"
+#include "wfm/wfm_frame.h" /* wfm_frame_desc_t — a source's frame, described */
 
 #ifdef __cplusplus
 extern "C" {
@@ -150,6 +151,16 @@ typedef struct {
     int attach_asm;      /* prepend the 0x1ACFFC1D marker as a FIELD */
     int convolutional;   /* inner code over the whole frame, marker included;
                             doubles the bit count (rate 1/2, K=7) */
+    unsigned interleave_depth;      /* block interleaver over the data group;
+                            0 = none. LAST of the data-group stages, so it is
+                            what the channel sees: an interleaver exists to
+                            make a burst arrive spread across the outer
+                            code's codewords, so anything between it and the
+                            wire would undo the point. */
+    unsigned interleave_unit_bits;  /* bits per permuted unit; 0 reads as 1.
+                            Match it to the outer code's symbol -- 8 for RS
+                            over GF(256). Permuting BITS inside a symbol that
+                            is already wrong buys nothing. */
 } wfm_source_t;
 
 /**
@@ -336,6 +347,35 @@ int wfm_source_attach_dsss(wfm_synth_state_t *syn, const wfm_source_t *src,
  * @param src  The source; NULL reads as unframed.
  */
 int wfm_source_has_frame(const wfm_source_t *src);
+
+/**
+ * @brief Describe a source's frame: the fields, the stages, and their covers.
+ *
+ * The ONE place a `wfm_source_t`'s framing flags become a description, read by
+ * the `type=bits` assembler and the DSSS spreader alike, so the two cannot
+ * disagree about which stage covers what. For a DSSS burst the acquisition
+ * preamble is deliberately NOT a field: it is unmodulated and unspread, so it
+ * sits outside everything a stage can cover.
+ *
+ * @param src  the source.
+ * @param d    receives the description.
+ * @return 0, or non-zero if the source cannot be described.
+ */
+int wfm_source_describe_frame(const wfm_source_t *src, wfm_frame_desc_t *d);
+
+/**
+ * @brief Chips one DSSS BURST from this source occupies, description and all.
+ *
+ * What sizes a lone dsss segment's intrinsic on-time. It reads the same
+ * description the burst is assembled from, so a stage that lengthens the frame
+ * -- a rate-1/2 inner code doubles it -- lengthens the segment by the same
+ * arithmetic instead of by a second copy of it.
+ *
+ * @param src  the source.
+ * @return burst chips, or 0 for a non-dsss source, a CONTINUOUS dsss source
+ *         (which has no intrinsic length), or an empty/refused geometry.
+ */
+size_t wfm_source_dsss_nchips(const wfm_source_t *src);
 
 /**
  * @brief NULL when this source's frame fields can be honoured; else why not.

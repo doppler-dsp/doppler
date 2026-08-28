@@ -247,7 +247,7 @@ main (void)
     DP_CHECK (frame_add_field (b, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
                                WFM_FRAME_CRC_BITS)
               == 2);
-    DP_CHECK (frame_add_stage (b, WFM_STAGE_CRC16, 1, 2, 0, 0, 0) == 0);
+    DP_CHECK (frame_add_stage (b, WFM_STAGE_CRC16, 1, 2, 0, 0, 0, 0) == 0);
     DP_REQUIRE_MSG (frame_build (b) == 0, "the description builds");
 
     DP_CHECK_MSG (b->nbits == 13 + 16 + 16, "13 + 16 + 16");
@@ -285,7 +285,7 @@ main (void)
     DP_CHECK (
         frame_add_field (b, PAY, 16, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         == -1);
-    DP_CHECK (frame_add_stage (b, WFM_STAGE_CRC16, 0, 1, 0, 0, 0) == -1);
+    DP_CHECK (frame_add_stage (b, WFM_STAGE_CRC16, 0, 1, 0, 0, 0, 0) == -1);
     DP_CHECK_MSG (frame_build (b) == -1, "and cannot be built twice");
 
     free (bb);
@@ -351,9 +351,9 @@ main (void)
               == 2);
     /* The three covers ARE the coverage table: the outer code and the
        randomiser start behind the marker, the inner code does not. */
-    DP_CHECK (frame_add_stage (b, WFM_STAGE_RS, 1, 2, DEPTH, 0, 0) == 0);
-    DP_CHECK (frame_add_stage (b, WFM_STAGE_RANDOMISE, 1, 2, 0, 0, 0) == 1);
-    DP_CHECK (frame_add_stage (b, WFM_STAGE_CONV, 0, 3, 0, 2, 1) == 2);
+    DP_CHECK (frame_add_stage (b, WFM_STAGE_RS, 1, 2, DEPTH, 0, 0, 0) == 0);
+    DP_CHECK (frame_add_stage (b, WFM_STAGE_RANDOMISE, 1, 2, 0, 0, 0, 0) == 1);
+    DP_CHECK (frame_add_stage (b, WFM_STAGE_CONV, 0, 3, 0, 2, 1, 0) == 2);
     DP_REQUIRE_MSG (frame_build (b) == 0, "a CADU builds from a description");
 
     DP_CHECK_MSG (b->nbits == n, "the CADU is the length the encoder says");
@@ -364,6 +364,106 @@ main (void)
                   "byte");
     free (got);
     frame_destroy (b);
+  }
+
+  /* ── the block interleaver as a stage (doppler#1031) ──────────────────
+   *
+   * The kernels are BUILTIN, so nothing outside this file drives them at the
+   * C level, and the coverage gate said so: 62.5% over wfm_frame.c's
+   * interleave half. Chasing that number found a REAL bug -- the stage-slot
+   * allocation had `s_ilv = ns++` nested under `if (convolutional)` with
+   * `s_conv = ns++` left unconditional, so a frame with an interleaver and
+   * no inner code allocated the wrong slot. Every test passed before and
+   * after the fix; only the uncovered-lines report pointed at it. */
+  {
+    static const uint8_t sync[13] = { 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1 };
+    uint8_t              payload[64];
+    for (unsigned i = 0; i < 64; i++)
+      payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
+
+    /* [ sync | payload ], interleaving the PAYLOAD only. A sync word is what
+       a receiver correlates to find the frame, so permuting it would destroy
+       the thing that makes the frame findable. */
+    frame_state_t *b = empty_desc ();
+    DP_REQUIRE (b != NULL);
+    DP_CHECK (
+        frame_add_field (b, sync, 13, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        == 0);
+    DP_CHECK (
+        frame_add_field (b, payload, 64, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        == 1);
+    DP_CHECK (frame_add_stage (b, WFM_STAGE_INTERLEAVE, 1, 1, 8, 0, 0, 0)
+              == 0);
+    DP_REQUIRE (frame_build (b) == 0);
+
+    /* Length-preserving, and the sync word is untouched. */
+    DP_CHECK_MSG (b->nbits == 13 + 64, "a permutation adds no bits");
+    uint8_t *tx = malloc (b->nbits);
+    DP_REQUIRE (tx && frame_bits (b, 1, tx, b->nbits) == b->nbits);
+    DP_CHECK_MSG (memcmp (tx, sync, 13) == 0,
+                  "the sync word is outside the stage's cover");
+    DP_CHECK_MSG (memcmp (tx + 13, payload, 64) != 0,
+                  "...and the payload actually moved");
+
+    /* deframe() reverses it, which is the whole receive path. */
+    uint8_t *rx = malloc (b->nbits);
+    DP_REQUIRE (rx);
+    DP_REQUIRE (frame_deframe (b, tx, b->nbits, rx, b->nbits) == b->nbits);
+    DP_CHECK_MSG (memcmp (rx + 13, payload, 64) == 0,
+                  "de-interleaving recovers the payload exactly");
+    DP_CHECK (b->rx_checked == 1);
+    free (tx);
+    free (rx);
+    frame_destroy (b);
+  }
+
+  /* A span the geometry cannot tile is REFUSED, not padded and not
+     truncated: the column count follows from the span, so a remainder has
+     nowhere to go. 64 bits with depth 8 and unit 8 needs a multiple of 64 and
+     64 is one -- so this uses depth 5, where 64 % 40 != 0. */
+  {
+    uint8_t        payload[64] = { 0 };
+    frame_state_t *b           = empty_desc ();
+    DP_REQUIRE (b != NULL);
+    DP_CHECK (
+        frame_add_field (b, payload, 64, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        == 0);
+    DP_CHECK (frame_add_stage (b, WFM_STAGE_INTERLEAVE, 0, 1, 5, 0, 0, 8)
+              == 0);
+    /* At BUILD, not at bits(): frame_build materialises the frame, so a
+       stage that cannot run refuses "at the point the caller can still do
+       something about it" -- its own comment. Earlier than this test first
+       assumed, and better. */
+    DP_CHECK_MSG (frame_build (b) != 0,
+                  "a span that does not tile is refused, not padded");
+    frame_destroy (b);
+  }
+
+  /* unit_bits is carried on the stage and CHANGES the permutation -- depth 8
+     over octets and depth 8 over bits are different orderings of the same
+     span, which is why it is a field of its own rather than folded into
+     depth. */
+  {
+    uint8_t payload[64];
+    for (unsigned i = 0; i < 64; i++)
+      payload[i] = (uint8_t)((i * 5u + 1u) & 1u);
+    uint8_t bit_out[64], oct_out[64];
+    for (unsigned pass = 0; pass < 2; pass++)
+      {
+        frame_state_t *b = empty_desc ();
+        DP_REQUIRE (b != NULL);
+        DP_CHECK (frame_add_field (b, payload, 64, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0)
+                  == 0);
+        DP_CHECK (frame_add_stage (b, WFM_STAGE_INTERLEAVE, 0, 1, 8, 0, 0,
+                                   pass ? 8u : 1u)
+                  == 0);
+        DP_REQUIRE (frame_build (b) == 0);
+        DP_REQUIRE (frame_bits (b, 1, pass ? oct_out : bit_out, 64) == 64);
+        frame_destroy (b);
+      }
+    DP_CHECK_MSG (memcmp (bit_out, oct_out, 64) != 0,
+                  "unit_bits selects a different permutation");
   }
 
   DP_TEST_END ("frame_core");

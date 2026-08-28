@@ -412,3 +412,108 @@ def test_fc_survives_a_close_time_hcb_keyword_patch(tmp_path):
     with Reader(p) as r:
         assert r.fc == pytest.approx(915e6)
         assert r.keywords["VER"] == "1.1"
+
+
+# ── scalar (real) sample types — doppler#1032 ────────────────────────────
+#
+# doppler could READ a BLUE file in mode 'S' and could not write one: the
+# writer hardcoded `h[52] = 'C'` while the function beside it discarded the
+# very mode character `dp_format_chars` handed back. Nothing noticed, because
+# no test ever round-tripped a real capture through our own writer -- which is
+# what these do.
+
+
+@pytest.mark.parametrize("file_type", ["raw", "csv", "blue", "sigmf"])
+@pytest.mark.parametrize("stype", ["f32", "f64", "i32", "i16", "i8"])
+def test_a_real_capture_round_trips_through_our_own_writer(
+    tmp_path, file_type, stype
+):
+    """Write a real waveform, read it back, get the same samples.
+
+    The count is the assertion that matters. A scalar file read as complex
+    yields HALF the samples with every other one landing in Q -- plausible
+    output from a file that said otherwise, which is the failure this whole
+    change is about.
+    """
+    p = tmp_path / ("cap.sigmf-data" if file_type == "sigmf" else "cap.bin")
+    x = np.exp(2j * np.pi * 0.03 * np.arange(64)).astype(np.complex64)
+
+    with Writer(p, file_type=file_type, sample_type=stype, fs=48e3) as w:
+        w.write(x)
+
+    # raw and CSV carry no metadata, so the hint is how they are told; BLUE
+    # and SigMF carry their own and must not need it.
+    kw = {"sample_type": stype} if file_type in ("raw", "csv") else {}
+    with Reader(p, **kw) as r:
+        assert r.mode == "scalar"
+        assert r.sample_type == stype
+        # Asked BEFORE the read: for CSV this is the lazy whole-file scan,
+        # and it counts one column per line only if it knows the mode.
+        assert r.num_samples == len(x)
+        y = r.read(len(x) * 2)
+
+    assert len(y) == len(x)
+    assert not y.imag.any(), "a scalar capture has no Q to read back"
+    tol = {"f32": 1e-6, "f64": 1e-6, "i32": 1e-6, "i16": 1e-4, "i8": 2e-2}
+    assert np.allclose(y.real, x.real, atol=tol[stype])
+
+
+@pytest.mark.parametrize(
+    "stype,mode_char", [("cf32", b"C"), ("f32", b"S"), ("i16", b"S")]
+)
+def test_blue_writes_the_mode_character_its_data_actually_has(
+    tmp_path, stype, mode_char
+):
+    """HCB byte 52 is the format MODE, and it was the literal 'C' regardless.
+
+    Read as bytes rather than through our own reader on purpose: a reader that
+    shared the writer's assumption would agree with it and prove nothing.
+    """
+    p = tmp_path / "cap.blue"
+    with Writer(p, file_type="blue", sample_type=stype, fs=48e3) as w:
+        w.write(np.zeros(8, np.complex64))
+    hcb = p.read_bytes()[:512]
+    assert hcb[52:53] == mode_char
+    assert hcb[53:54] == {"cf32": b"F", "f32": b"F", "i16": b"I"}[stype]
+
+
+def test_sigmf_names_real_types_with_its_own_prefix(tmp_path):
+    """SigMF spells a real type `rf32_le`, not `f32_le` -- its complex/real
+    marker is its own vocabulary and does not match `--sample-type`. Emitting
+    `cf32_le` for real data would be a sidecar that lies about its payload."""
+    p = tmp_path / "cap.sigmf-data"
+    with Writer(p, file_type="sigmf", sample_type="f32", fs=48e3) as w:
+        w.write(np.zeros(8, np.complex64))
+    doc = json.loads((tmp_path / "cap.sigmf-meta").read_text())
+    assert doc["global"]["core:datatype"] == "rf32_le"
+
+
+def test_a_real_capture_is_exactly_half_the_bytes(tmp_path):
+    """The whole of what mode 'S' means, in one number."""
+    x = np.zeros(100, np.complex64)
+    sizes = {}
+    for stype in ("cf32", "f32"):
+        p = tmp_path / f"{stype}.bin"
+        with Writer(p, file_type="raw", sample_type=stype, fs=48e3) as w:
+            w.write(x)
+        sizes[stype] = p.stat().st_size
+    assert sizes["cf32"] == 800
+    assert sizes["f32"] == 400
+
+
+def test_a_sigmf_sidecar_naming_an_unknown_datatype_is_refused(tmp_path):
+    """`core:datatype` is the only place a SigMF capture says what it holds,
+    so a value we cannot decode has no fallback worth having -- reading it as
+    the constructor's hint would be answering a question the file already
+    answered, wrongly. Both halves of the code are checked: an unknown MODE
+    letter and an unknown ELEMENT."""
+    for dt in ("xf32_le", "cq99_le"):
+        p = tmp_path / f"{dt}.sigmf-data"
+        p.write_bytes(b"\x00" * 64)
+        (tmp_path / f"{dt}.sigmf-meta").write_text(
+            json.dumps(
+                {"global": {"core:datatype": dt, "core:sample_rate": 1e6}}
+            )
+        )
+        with pytest.raises((ValueError, RuntimeError, OSError)):
+            Reader(p)

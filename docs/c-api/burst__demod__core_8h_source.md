@@ -18,6 +18,11 @@
 #include "fft/fft_core.h"
 #include "spectral/spectral_core.h"
 #include <complex.h>
+#include "conv/conv_core.h"
+#include "rs/rs_core.h"
+#include "pn/pn_core.h"
+#include "gold/gold_core.h"
+#include "mpsk/mpsk_core.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -37,7 +42,7 @@ extern "C"
     double   chip_rate; 
     double   carrier_hz; 
     double   max_rate;  
-    size_t   payload_len;  
+    size_t   frame_syms;   
     size_t   est_segments; 
     double   f0_prior;     
     size_t   start;        
@@ -47,7 +52,9 @@ extern "C"
     size_t         n_part;
 
     /* ── read-backs (after demod) ── */
-    int    frame_valid;  
+    float *llr;   
+    size_t n_llr; 
+    double est_n0; 
     size_t frame_offset; 
     size_t n_symbols;    
     double est_freq_hz;  
@@ -58,7 +65,7 @@ extern "C"
   burst_demod_state_t *burst_demod_create (const uint8_t *data_code,
                                            size_t data_code_len, size_t spc,
                                            double chip_rate, double carrier_hz,
-                                           double max_rate, size_t payload_len,
+                                           double max_rate, size_t frame_syms,
                                            size_t est_segments);
 
   void burst_demod_destroy (burst_demod_state_t *state);
@@ -71,6 +78,11 @@ extern "C"
 
   void burst_demod_set_sync (burst_demod_state_t *state, const uint8_t *sync,
                              size_t sync_len);
+
+  size_t burst_demod_llrs (burst_demod_state_t *state, size_t n, float *out,
+                           size_t max_out);
+
+  size_t burst_demod_llrs_max_out (burst_demod_state_t *state, size_t n);
 
   void burst_demod_set_prior (burst_demod_state_t *state, double f0_coarse,
                               size_t start);

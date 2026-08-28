@@ -121,8 +121,16 @@ main (void)
     carrier_nda_destroy (c);
 
     /* M in {2,4,8}; sps % n == 0; n > 0; sps > 0 */
-    DP_CHECK (carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 2) != NULL);
-    DP_CHECK (carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 8) != NULL);
+    /* The ACCEPTING cases hand back a state, so the test that proves
+       they are accepted also has to release it; only the rejecting
+       ones below have nothing to free. */
+    carrier_nda_state_t *ok;
+    ok = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 2);
+    DP_CHECK (ok != NULL);
+    carrier_nda_destroy (ok);
+    ok = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 8);
+    DP_CHECK (ok != NULL);
+    carrier_nda_destroy (ok);
     DP_CHECK (carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 3) == NULL);
     DP_CHECK (carrier_nda_create (0.01, 0.707, 0.0, 8, 3, 4)
               == NULL); /* 8%3 */

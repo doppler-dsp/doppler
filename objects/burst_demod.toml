@@ -7,7 +7,8 @@
 #   3. despread the data section with the (short) data code -> soft BPSK symbols
 #   4. frame sync — correlate the symbols against the known sync word; its
 #      complex peak gives the frame offset AND the residual phase (derotated out)
-#   5. slice the payload to bits; verify the CRC-16 trailer -> frame_valid
+#   5. slice frame_syms symbols to bits (and to LLRs) -- and stop: what
+#      the bits MEAN needs a frame description, one layer up
 #
 # Seeded from acquisition via set_prior(coarse Doppler, preamble start). One
 # `max_rate` knob spans near-static Doppler (0) to severe LEO chirp. One-shot
@@ -20,7 +21,23 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "BurstDemod"
-depends_on = [{ name = "ppe", link = true }, { name = "fft", link = true }, { name = "spectral", link = true }]
+# wfm_frame is where a frame's layout lives, for BOTH ends of a link: the
+# demodulator describes the frame it expects with the same builder the
+# generator assembles from. ccsds_tm supplies the stage KERNELS (and the ASM
+# bits) as a table -- wfm_frame.c cannot call them, since ccsds_tm depends on
+# it -- so every consumer carries ccsds_tm and the two codes it configures.
+depends_on = [
+    { name = "ppe", link = true },
+    { name = "fft", link = true },
+    { name = "spectral", link = true },
+    { name = "wfm_frame", link = true },
+    { name = "ccsds_tm", link = true },
+    { name = "conv", link = true },
+    { name = "rs", link = true },
+    { name = "pn", link = true },
+    { name = "gold", link = true },
+    { name = "mpsk", link = true },
+]
 
 [[burst_demod.init_params]]
 name = "data_code"
@@ -47,7 +64,7 @@ type = "double"
 default = "0.0"
 
 [[burst_demod.init_params]]
-name = "payload_len"
+name = "frame_syms"
 type = "size_t"
 default = "0"
 
@@ -65,10 +82,18 @@ params = [{ name = "acq_code", type = "uint8_t[]" }, { name = "reps", type = "si
 
 [[burst_demod.methods]]
 name = "set_sync"
-doc = "Set the known frame-sync word (0/1 BPSK symbols) used for frame alignment + phase/sign resolution."
+doc = "Set the known frame-sync word (0/1 BPSK symbols) used for frame alignment and phase/sign resolution. The ONLY thing this object is told about the frame's content, and for a physical-layer reason: without the sign the slicer would be a coin toss. Where the payload sits, which stages cover what and whether a check passed all need the frame's description and belong one layer up (doppler#1022)."
 arg_type = "void"
 return_type = "void"
 params = [{ name = "sync", type = "uint8_t[]" }]
+
+[[burst_demod.methods]]
+name = "llrs"
+doc = "The soft bits of the last demod() — one LLR per FRAME bit, in `mpsk_soft_demap`'s convention: positive means bit 0, so `L < 0` reproduces exactly the bits demod() returned. `Re(sym * derot)` IS the log-likelihood ratio up to a scale and used to be computed, sliced to one bit and freed; a hard decision costs roughly 2 dB of the coding gain a soft-input decoder exists to deliver. Spans the whole frame rather than the payload alone, because a code covers what its description says it covers. Scaled by `est_n0`, the burst's own noise estimate, so LLRs from different bursts are comparable — a Viterbi would not care, but combining across bursts does."
+arg_type = "void"
+return_type = "float"
+variable_output = true
+pass_capacity = true
 
 [[burst_demod.methods]]
 name = "set_prior"
@@ -87,10 +112,6 @@ pass_capacity = true
 nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
 
-[[burst_demod.properties]]
-name = "frame_valid"
-type = "int"
-field = true
 
 [[burst_demod.properties]]
 name = "frame_offset"
@@ -118,6 +139,6 @@ type = "double"
 field = true
 
 [[burst_demod.properties]]
-name = "payload_len"
+name = "frame_syms"
 type = "size_t"
 field = true

@@ -70,7 +70,8 @@ static const char *const _enum_gap_noise[] = {
 };
 
 static const char *const _enum_stype[] = {
-  "cf32", "cf64", "ci32", "ci16", "ci8", NULL,
+  "cf32", "cf64", "ci32", "ci16", "ci8", "f32",
+  "f64",  "i32",  "i16",  "i8",   NULL,
 };
 
 static const char *const _enum_endian[] = {
@@ -284,42 +285,69 @@ _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj)
 static int
 Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]
-      = { "type",           "freq",       "snr",        "snr_mode",
-          "seed",           "sps",        "pn_length",  "pn_poly",
-          "lfsr",           "level",      "background", "f_end",
-          "bits",           "modulation", "pulse",      "rrc_beta",
-          "rrc_span",       "symbols",    "acq_code",   "acq_reps",
-          "data_code",      "sync",       "crc",        "symbol_rate",
-          "dsss_code_only", "fs",         NULL };
-  const char *type           = "tone";
-  PyObject   *freq           = NULL;
-  PyObject   *snr            = NULL;
-  const char *snr_mode       = "auto";
-  uint32_t    seed           = 0;
-  int         sps            = 1;
-  int         pn_length      = 15;
-  uint64_t    pn_poly        = 0;
-  const char *lfsr           = "galois";
-  PyObject   *level          = NULL;
-  int         background     = 0;
-  PyObject   *f_end          = NULL;
-  PyObject   *bits           = NULL;
-  const char *modulation     = "bpsk";
-  const char *pulse          = "rect";
-  double      rrc_beta       = 0.35;
-  int         rrc_span       = 8;
-  PyObject   *symbols        = NULL;
-  PyObject   *acq_code       = NULL;
-  size_t      acq_reps       = 1;
-  PyObject   *data_code      = NULL;
-  PyObject   *sync           = NULL;
-  const char *crc            = "crc16";
-  double      symbol_rate    = 0.0;
-  int         dsss_code_only = 0;
-  double      fs             = 1e6;
-  PyObject   *_kw            = kwds;
-  int         _kw_owned      = 0;
+  static char *kwlist[]       = { "type",
+                                  "freq",
+                                  "snr",
+                                  "snr_mode",
+                                  "seed",
+                                  "sps",
+                                  "pn_length",
+                                  "pn_poly",
+                                  "lfsr",
+                                  "level",
+                                  "background",
+                                  "f_end",
+                                  "bits",
+                                  "modulation",
+                                  "pulse",
+                                  "rrc_beta",
+                                  "rrc_span",
+                                  "symbols",
+                                  "acq_code",
+                                  "acq_reps",
+                                  "data_code",
+                                  "sync",
+                                  "crc",
+                                  "rs_depth",
+                                  "randomise",
+                                  "attach_asm",
+                                  "convolutional",
+                                  "symbol_rate",
+                                  "dsss_code_only",
+                                  "fs",
+                                  NULL };
+  const char  *type           = "tone";
+  PyObject    *freq           = NULL;
+  PyObject    *snr            = NULL;
+  const char  *snr_mode       = "auto";
+  uint32_t     seed           = 0;
+  int          sps            = 1;
+  int          pn_length      = 15;
+  uint64_t     pn_poly        = 0;
+  const char  *lfsr           = "galois";
+  PyObject    *level          = NULL;
+  int          background     = 0;
+  PyObject    *f_end          = NULL;
+  PyObject    *bits           = NULL;
+  const char  *modulation     = "bpsk";
+  const char  *pulse          = "rect";
+  double       rrc_beta       = 0.35;
+  int          rrc_span       = 8;
+  PyObject    *symbols        = NULL;
+  PyObject    *acq_code       = NULL;
+  size_t       acq_reps       = 1;
+  PyObject    *data_code      = NULL;
+  PyObject    *sync           = NULL;
+  const char  *crc            = "crc16";
+  int          rs_depth       = 0;
+  int          randomise      = 0;
+  int          attach_asm     = 0;
+  int          convolutional  = 0;
+  double       symbol_rate    = 0.0;
+  int          dsss_code_only = 0;
+  double       fs             = 1e6;
+  PyObject    *_kw            = kwds;
+  int          _kw_owned      = 0;
   if (kwds)
     {
       {
@@ -405,11 +433,12 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     }
   if (!PyArg_ParseTupleAndKeywords (
-          args, _kw, "|sOOsIiiKsOiOOssdiOOnOOsdid", kwlist, &type, &freq, &snr,
-          &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level,
+          args, _kw, "|sOOsIiiKsOiOOssdiOOnOOsiiiidid", kwlist, &type, &freq,
+          &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level,
           &background, &f_end, &bits, &modulation, &pulse, &rrc_beta,
           &rrc_span, &symbols, &acq_code, &acq_reps, &data_code, &sync, &crc,
-          &symbol_rate, &dsss_code_only, &fs))
+          &rs_depth, &randomise, &attach_asm, &convolutional, &symbol_rate,
+          &dsss_code_only, &fs))
     {
       if (_kw_owned)
         Py_DECREF (_kw);
@@ -589,6 +618,10 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     self->src.crc = _i;
   }
+  self->src.rs_depth       = rs_depth;
+  self->src.randomise      = randomise;
+  self->src.attach_asm     = attach_asm;
+  self->src.convolutional  = convolutional;
   self->src.symbol_rate    = symbol_rate;
   self->src.dsss_code_only = dsss_code_only;
   return 0;
@@ -1058,6 +1091,66 @@ Synth_set_crc (SynthObject *self, PyObject *value, void *closure)
   return 0;
 }
 static PyObject *
+Synth_get_rs_depth (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return PyLong_FromLong ((long)self->src.rs_depth);
+}
+static int
+Synth_set_rs_depth (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  self->src.rs_depth = (int)PyLong_AsLong (value);
+  if (PyErr_Occurred ())
+    return -1;
+  return 0;
+}
+static PyObject *
+Synth_get_randomise (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return PyLong_FromLong ((long)self->src.randomise);
+}
+static int
+Synth_set_randomise (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  self->src.randomise = (int)PyLong_AsLong (value);
+  if (PyErr_Occurred ())
+    return -1;
+  return 0;
+}
+static PyObject *
+Synth_get_attach_asm (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return PyLong_FromLong ((long)self->src.attach_asm);
+}
+static int
+Synth_set_attach_asm (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  self->src.attach_asm = (int)PyLong_AsLong (value);
+  if (PyErr_Occurred ())
+    return -1;
+  return 0;
+}
+static PyObject *
+Synth_get_convolutional (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return PyLong_FromLong ((long)self->src.convolutional);
+}
+static int
+Synth_set_convolutional (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  self->src.convolutional = (int)PyLong_AsLong (value);
+  if (PyErr_Occurred ())
+    return -1;
+  return 0;
+}
+static PyObject *
 Synth_get_symbol_rate (SynthObject *self, void *closure)
 {
   (void)closure;
@@ -1138,6 +1231,14 @@ static PyGetSetDef Synth_getset[] = {
     NULL, NULL },
   { "sync", (getter)Synth_get_sync, (setter)Synth_set_sync, NULL, NULL },
   { "crc", (getter)Synth_get_crc, (setter)Synth_set_crc, NULL, NULL },
+  { "rs_depth", (getter)Synth_get_rs_depth, (setter)Synth_set_rs_depth, NULL,
+    NULL },
+  { "randomise", (getter)Synth_get_randomise, (setter)Synth_set_randomise,
+    NULL, NULL },
+  { "attach_asm", (getter)Synth_get_attach_asm, (setter)Synth_set_attach_asm,
+    NULL, NULL },
+  { "convolutional", (getter)Synth_get_convolutional,
+    (setter)Synth_set_convolutional, NULL, NULL },
   { "symbol_rate", (getter)Synth_get_symbol_rate,
     (setter)Synth_set_symbol_rate, NULL, NULL },
   { "dsss_code_only", (getter)Synth_get_dsss_code_only,
@@ -2047,6 +2148,58 @@ Segment_flat_crc (SegmentObject *self, void *closure)
   return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "crc");
 }
 static PyObject *
+Segment_flat_rs_depth (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "rs_depth is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
+                                 "rs_depth");
+}
+static PyObject *
+Segment_flat_randomise (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "randomise is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
+                                 "randomise");
+}
+static PyObject *
+Segment_flat_attach_asm (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "attach_asm is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
+                                 "attach_asm");
+}
+static PyObject *
+Segment_flat_convolutional (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "convolutional is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
+                                 "convolutional");
+}
+static PyObject *
 Segment_flat_symbol_rate (SegmentObject *self, void *closure)
 {
   (void)closure;
@@ -2094,46 +2247,50 @@ Segment_add (SegmentObject *self, PyObject *args)
   return tl;
 }
 
-static PyGetSetDef Segment_getset[]
-    = { { "sources", (getter)Segment_get_sources, NULL, NULL, NULL },
-        { "fs", (getter)Segment_get_fs, (setter)Segment_set_fs, NULL, NULL },
-        { "num_samples", (getter)Segment_get_num_samples,
-          (setter)Segment_set_num_samples, NULL, NULL },
-        { "off_samples", (getter)Segment_get_off_samples,
-          (setter)Segment_set_off_samples, NULL, NULL },
-        { "repeats", (getter)Segment_get_repeats, (setter)Segment_set_repeats,
-          NULL, NULL },
-        { "delay_samples", (getter)Segment_get_delay_samples,
-          (setter)Segment_set_delay_samples, NULL, NULL },
-        { "gap_noise", (getter)Segment_get_gap_noise,
-          (setter)Segment_set_gap_noise, NULL, NULL },
-        { "type", (getter)Segment_flat_type, NULL, NULL, NULL },
-        { "freq", (getter)Segment_flat_freq, NULL, NULL, NULL },
-        { "snr", (getter)Segment_flat_snr, NULL, NULL, NULL },
-        { "snr_mode", (getter)Segment_flat_snr_mode, NULL, NULL, NULL },
-        { "seed", (getter)Segment_flat_seed, NULL, NULL, NULL },
-        { "sps", (getter)Segment_flat_sps, NULL, NULL, NULL },
-        { "pn_length", (getter)Segment_flat_pn_length, NULL, NULL, NULL },
-        { "pn_poly", (getter)Segment_flat_pn_poly, NULL, NULL, NULL },
-        { "lfsr", (getter)Segment_flat_lfsr, NULL, NULL, NULL },
-        { "level", (getter)Segment_flat_level, NULL, NULL, NULL },
-        { "background", (getter)Segment_flat_background, NULL, NULL, NULL },
-        { "f_end", (getter)Segment_flat_f_end, NULL, NULL, NULL },
-        { "bits", (getter)Segment_flat_bits, NULL, NULL, NULL },
-        { "modulation", (getter)Segment_flat_modulation, NULL, NULL, NULL },
-        { "pulse", (getter)Segment_flat_pulse, NULL, NULL, NULL },
-        { "rrc_beta", (getter)Segment_flat_rrc_beta, NULL, NULL, NULL },
-        { "rrc_span", (getter)Segment_flat_rrc_span, NULL, NULL, NULL },
-        { "symbols", (getter)Segment_flat_symbols, NULL, NULL, NULL },
-        { "acq_code", (getter)Segment_flat_acq_code, NULL, NULL, NULL },
-        { "acq_reps", (getter)Segment_flat_acq_reps, NULL, NULL, NULL },
-        { "data_code", (getter)Segment_flat_data_code, NULL, NULL, NULL },
-        { "sync", (getter)Segment_flat_sync, NULL, NULL, NULL },
-        { "crc", (getter)Segment_flat_crc, NULL, NULL, NULL },
-        { "symbol_rate", (getter)Segment_flat_symbol_rate, NULL, NULL, NULL },
-        { "dsss_code_only", (getter)Segment_flat_dsss_code_only, NULL, NULL,
-          NULL },
-        { NULL, NULL, NULL, NULL, NULL } };
+static PyGetSetDef Segment_getset[] = {
+  { "sources", (getter)Segment_get_sources, NULL, NULL, NULL },
+  { "fs", (getter)Segment_get_fs, (setter)Segment_set_fs, NULL, NULL },
+  { "num_samples", (getter)Segment_get_num_samples,
+    (setter)Segment_set_num_samples, NULL, NULL },
+  { "off_samples", (getter)Segment_get_off_samples,
+    (setter)Segment_set_off_samples, NULL, NULL },
+  { "repeats", (getter)Segment_get_repeats, (setter)Segment_set_repeats, NULL,
+    NULL },
+  { "delay_samples", (getter)Segment_get_delay_samples,
+    (setter)Segment_set_delay_samples, NULL, NULL },
+  { "gap_noise", (getter)Segment_get_gap_noise, (setter)Segment_set_gap_noise,
+    NULL, NULL },
+  { "type", (getter)Segment_flat_type, NULL, NULL, NULL },
+  { "freq", (getter)Segment_flat_freq, NULL, NULL, NULL },
+  { "snr", (getter)Segment_flat_snr, NULL, NULL, NULL },
+  { "snr_mode", (getter)Segment_flat_snr_mode, NULL, NULL, NULL },
+  { "seed", (getter)Segment_flat_seed, NULL, NULL, NULL },
+  { "sps", (getter)Segment_flat_sps, NULL, NULL, NULL },
+  { "pn_length", (getter)Segment_flat_pn_length, NULL, NULL, NULL },
+  { "pn_poly", (getter)Segment_flat_pn_poly, NULL, NULL, NULL },
+  { "lfsr", (getter)Segment_flat_lfsr, NULL, NULL, NULL },
+  { "level", (getter)Segment_flat_level, NULL, NULL, NULL },
+  { "background", (getter)Segment_flat_background, NULL, NULL, NULL },
+  { "f_end", (getter)Segment_flat_f_end, NULL, NULL, NULL },
+  { "bits", (getter)Segment_flat_bits, NULL, NULL, NULL },
+  { "modulation", (getter)Segment_flat_modulation, NULL, NULL, NULL },
+  { "pulse", (getter)Segment_flat_pulse, NULL, NULL, NULL },
+  { "rrc_beta", (getter)Segment_flat_rrc_beta, NULL, NULL, NULL },
+  { "rrc_span", (getter)Segment_flat_rrc_span, NULL, NULL, NULL },
+  { "symbols", (getter)Segment_flat_symbols, NULL, NULL, NULL },
+  { "acq_code", (getter)Segment_flat_acq_code, NULL, NULL, NULL },
+  { "acq_reps", (getter)Segment_flat_acq_reps, NULL, NULL, NULL },
+  { "data_code", (getter)Segment_flat_data_code, NULL, NULL, NULL },
+  { "sync", (getter)Segment_flat_sync, NULL, NULL, NULL },
+  { "crc", (getter)Segment_flat_crc, NULL, NULL, NULL },
+  { "rs_depth", (getter)Segment_flat_rs_depth, NULL, NULL, NULL },
+  { "randomise", (getter)Segment_flat_randomise, NULL, NULL, NULL },
+  { "attach_asm", (getter)Segment_flat_attach_asm, NULL, NULL, NULL },
+  { "convolutional", (getter)Segment_flat_convolutional, NULL, NULL, NULL },
+  { "symbol_rate", (getter)Segment_flat_symbol_rate, NULL, NULL, NULL },
+  { "dsss_code_only", (getter)Segment_flat_dsss_code_only, NULL, NULL, NULL },
+  { NULL, NULL, NULL, NULL, NULL }
+};
 
 static PyMethodDef Segment_methods[]
     = { { "sum", (PyCFunction)(void (*) (void))Segment_sum,
@@ -2959,13 +3116,14 @@ _Composer_obj_to_dict (PyObject *o, const char *const *keys)
 static const char *const _Composer_seg_keys[]
     = { "fs",        "num_samples", "off_samples", "repeats", "delay_samples",
         "gap_noise", NULL };
-static const char *const _Composer_src_keys[]
-    = { "type",       "freq",      "snr",     "snr_mode",    "seed",
-        "sps",        "pn_length", "pn_poly", "lfsr",        "level",
-        "background", "f_end",     "bits",    "modulation",  "pulse",
-        "rrc_beta",   "rrc_span",  "symbols", "acq_code",    "acq_reps",
-        "data_code",  "sync",      "crc",     "symbol_rate", "dsss_code_only",
-        NULL };
+static const char *const _Composer_src_keys[] = {
+  "type",       "freq",          "snr",         "snr_mode",       "seed",
+  "sps",        "pn_length",     "pn_poly",     "lfsr",           "level",
+  "background", "f_end",         "bits",        "modulation",     "pulse",
+  "rrc_beta",   "rrc_span",      "symbols",     "acq_code",       "acq_reps",
+  "data_code",  "sync",          "crc",         "rs_depth",       "randomise",
+  "attach_asm", "convolutional", "symbol_rate", "dsss_code_only", NULL
+};
 
 static PyObject *
 Composer_to_dict (ComposerObject *self, PyObject *Py_UNUSED (ignored))
@@ -3055,10 +3213,10 @@ Composer_to_sigmf (ComposerObject *self, PyObject *args, PyObject *kwds)
   int _e_sample_type = _enum_index (_enum_stype, sample_type);
   if (_e_sample_type < 0)
     {
-      PyErr_Format (
-          PyExc_ValueError,
-          "invalid sample_type '%s' (choices: cf32, cf64, ci32, ci16, ci8)",
-          sample_type);
+      PyErr_Format (PyExc_ValueError,
+                    "invalid sample_type '%s' (choices: cf32, cf64, ci32, "
+                    "ci16, ci8, f32, f64, i32, i16, i8)",
+                    sample_type);
       return NULL;
     }
   int _e_endian = _enum_index (_enum_endian, endian);

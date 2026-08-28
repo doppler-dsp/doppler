@@ -132,7 +132,13 @@ extern "C"
     WFM_STAGE_CRC16     = 0, /**< dp_crc16_ccitt over the covered input  */
     WFM_STAGE_RS        = 1, /**< a Reed-Solomon code, interleaved       */
     WFM_STAGE_RANDOMISE = 2, /**< XOR a pseudo-random sequence, in place */
-    WFM_STAGE_CONV      = 3  /**< a convolutional code                   */
+    WFM_STAGE_CONV      = 3, /**< a convolutional code                   */
+    /** A block interleaver: permute in place, length unchanged. Applied
+        AFTER the outer code, so a burst spreads ACROSS codewords rather
+        than inside one. @c depth is the row count and @c unit_bits the
+        unit; the column count is derived from the span it covers, because
+        a stage's cover is what says how much there is to permute. */
+    WFM_STAGE_INTERLEAVE = 4
   } wfm_stage_kind_t;
 
   /**
@@ -157,7 +163,13 @@ extern "C"
     wfm_stage_kind_t kind;
     unsigned         first_field; /**< first field covered                */
     unsigned         n_fields;    /**< fields covered; 0 = does not run   */
-    unsigned         depth;       /**< RS: interleaving depth             */
+    unsigned         depth;       /**< RS / INTERLEAVE: interleaving depth */
+
+    /** INTERLEAVE: bits per interleaved unit; 0 reads as 1. Not folded into
+        @c depth, because the two are independent — depth 8 over octets and
+        depth 8 over bits are different permutations of the same span, and
+        only one of them protects an octet-oriented outer code. */
+    unsigned unit_bits;
 
     /** A stage that consumes the assembled frame and emits a DIFFERENT
         stream sets these: the output is `n * emit_num / emit_den` bits.
@@ -447,6 +459,63 @@ extern "C"
    *         width), or @p max_out is too small.
    */
   size_t wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out);
+
+  /**
+   * @brief Chip count of a DSSS burst built from a description.
+   *
+   * `acq_len * acq_reps + out_bits * data_len`, where `out_bits` is what
+   * leaves the description's last emitting stage — so an inner code that
+   * doubles the frame doubles the burst, and nothing here restates the
+   * arithmetic the layout already did.
+   *
+   * @param d         the description of everything that gets SPREAD.
+   * @param acq_len   preamble code length in chips (0 = no preamble).
+   * @param acq_reps  preamble repetitions.
+   * @param data_len  spreading-code length, i.e. chips per frame bit.
+   * @return burst chips, or 0 if the description is refused, or it has bits
+   *         and @p data_len is 0, or there is nothing to transmit.
+   */
+  size_t wfm_dsss_desc_nchips (const wfm_frame_desc_t *d, size_t acq_len,
+                               size_t acq_reps, size_t data_len);
+
+  /**
+   * @brief Build a two-code DSSS burst from a description: assemble, spread.
+   *
+   *     [ acq_code x acq_reps | wfm_frame_assemble(d) (+) data_code ]
+   *
+   * The general form of @ref wfm_frame_dsss_chips, and the only spreader —
+   * the four-field entry point is this one with the description filled in.
+   *
+   * **The preamble is not a field of @p d, by design.** It is unmodulated,
+   * unspread and uncoded, because it is the coherent pull-in target a
+   * receiver correlates raw chips against; a stage covering "the whole
+   * frame" therefore covers everything that is spread and not the preamble.
+   * That is the one place a DSSS burst's description differs from any other
+   * source's, and it is why this function takes the preamble separately.
+   *
+   * A stage whose kernel @p ops does not supply makes the assembly fail and
+   * the burst is REFUSED — never transmitted with the stage quietly missing,
+   * which would produce a waveform that decodes against itself and syncs to
+   * nothing.
+   *
+   * @param d         description of the spread frame.
+   * @param ops       kernels beyond the built-in CRC; may be NULL.
+   * @param acq_code  preamble chips (0/1); NULL when there is no preamble.
+   * @param acq_len   preamble length in chips.
+   * @param acq_reps  preamble repetitions.
+   * @param data_code spreading code (0/1), length @p data_len.
+   * @param data_len  chips per frame bit.
+   * @param out       receives the burst, one chip per byte.
+   * @param max_out   capacity of @p out; must be at least
+   *                  @ref wfm_dsss_desc_nchips.
+   * @return chips written, or 0 if the geometry is refused, a stage has no
+   *         kernel, or @p max_out is too small.
+   */
+  size_t wfm_dsss_desc_chips (const wfm_frame_desc_t *d,
+                              const wfm_frame_ops_t *ops,
+                              const uint8_t *acq_code, size_t acq_len,
+                              size_t acq_reps, const uint8_t *data_code,
+                              size_t data_len, uint8_t *out, size_t max_out);
 
   /**
    * @brief Undo a description's stages over a received frame, and report.

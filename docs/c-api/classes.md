@@ -42,6 +42,7 @@
 * [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md)
 * [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md)
 * [**ccsds\_tm\_frame\_span\_t**](structccsds__tm__frame__span__t.md)
+* [**ccsds\_tm\_frame\_spec\_t**](structccsds__tm__frame__spec__t.md)
 * [**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md)
 * [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md)
 * [**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md)
@@ -83,6 +84,9 @@
 * [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md)
 * [**dp\_tlm\_stats\_t**](structdp__tlm__stats__t.md)
 * [**dp\_writer\_t**](structdp__writer__t.md)
+* [**dsss\_br\_event\_t**](structdsss__br__event__t.md)
+* [**dsss\_br\_pending\_t**](structdsss__br__pending__t.md)
+* [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md)
 * [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md)
 * [**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md)
 
@@ -122,6 +126,7 @@
 * [**i8\_to\_f32\_state\_t**](structi8__to__f32__state__t.md)
 * [**imd\_meas\_t**](structimd__meas__t.md)
 * [**imdmeas\_state\_t**](structimdmeas__state__t.md)
+* [**interleaver\_state\_t**](structinterleaver__state__t.md)
 * [**interp\_table\_state\_t**](structinterp__table__state__t.md)
 
 

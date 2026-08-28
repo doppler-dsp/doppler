@@ -570,6 +570,104 @@ jobs:
       run: make drift-check
 
   # ------------------------------------------------------------------
+  # All three sanitizers over the whole C suite. Together they are the gate for
+  # the classes `make test` structurally cannot see: an access outside an
+  # object and an allocation nothing releases (ASan/LSan), what the standard
+  # leaves undefined (UBSan), and a data race (TSan). An overflowing write lands on whatever the compiler happened to
+  # put next, so the program is wrong while every assertion stays green --
+  # doppler#1024 is the instance, a test writing 93 bytes into a 64-byte stack
+  # buffer and 29 bytes into its own caller's frame. `make test` was 152/152
+  # on it. It surfaced only because the coverage job builds clang at -O0 and
+  # that layout exposed it, which is a stack layout rather than a check.
+  #
+  # Its own job rather than a step on build-and-test-linux: it rebuilds the
+  # tree with different flags, so bolting it onto a matrix leg would serialise
+  # a second full build behind the first and double that leg's wall clock for
+  # both images. Here it runs in parallel with everything else.
+  #
+  # One leg PER SANITIZER rather than three steps in one job, because the
+  # three do not share the work they used to look like they shared: each
+  # rebuilds the whole tree with its own flags, so the job's wall clock was
+  # their SUM -- and this job was the long pole on every PR in the repo.
+  #
+  # Measured on two runs of the same suite (2026-08-28, `gh api
+  # repos/doppler-dsp/doppler/actions/jobs/<id> --jq '.steps[]'`):
+  #
+  #   run          ASan    UBSan   TSan     job total
+  #   98714275676  5m29s   5m54s   14m58s   27m02s
+  #   98717845032  3m25s   3m30s    7m15s   15m08s
+  #
+  # TSan is about half the sequential total in both, so the matrix does NOT
+  # buy 3x -- it buys roughly 1.8x, and the new pole is TSan alone. Anyone
+  # shortening this job further should start there and not here.
+  #
+  # `fail-fast: false` because the point of running three is to learn what all
+  # three say. The old shape reported strictly less: a failing ASan step
+  # aborted the job before UBSan or TSan ever ran, so one finding hid the
+  # others until it was fixed and the whole thing re-run.
+  #
+  # The ccache key follows the leg. The three builds have DIFFERENT flag sets,
+  # so a shared key had them evicting each other's entries -- exactly what
+  # .github/actions/ccache's own "distinct keys" note is about; it read `key:
+  # asan` for all three.
+  #
+  # Renaming is safe here because `CI passed` is the repository's only
+  # REQUIRED status check (protect-main); it needs `sanitizers`, and a matrix
+  # job's result is a failure if any leg fails. No ruleset names these legs.
+  # ------------------------------------------------------------------
+  sanitizers:
+    name: ${{ matrix.san.label }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        san:
+          - { target: test-asan, label: "ASan + LSan (C suite)" }
+          - { target: test-ubsan, label: "UBSan (C suite)" }
+          - { target: test-tsan, label: "TSan (C suite)" }
+    # The toolchain is the image, the sanitizer runtime included -- the same
+    # reason the coverage job takes libclang-rt from here rather than naming
+    # it in bootstrap.toml.
+    container:
+      image: ghcr.io/doppler-dsp/doppler-ci@sha256:ba070a9b2ebc674f956026160ca806a3e7a572e4553a95cc67c6d4fe13bde6d4
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/ccache
+      with:
+        key: ${{ matrix.san.target }}
+
+    - name: Start NATS JetStream broker (the stream path is where threads are)
+      # Without a broker the nats:// tests SKIP, and they are exactly the ones
+      # that interrupt a stream from a second thread. A sanitizer job whose
+      # denominator quietly excludes the threaded tests is the shape of a green
+      # suite that checked less than it looks like it did.
+      run: make nats-up
+
+    # `make <target>`, never an inline cmake: the Makefile is the single
+    # driver, so this step IS what a developer runs locally. Every target
+    # refuses an empty test list rather than reporting a clean sanitizer run
+    # over nothing -- absent output is not a pass.
+    #
+    # test-tsan is whole-suite since #1026. The old `-R 'race|parallel|thread'`
+    # pattern selected 2 tests, one of them by accident on the "race" inside
+    # "t-race", and missed three genuinely threaded ones.
+    - name: ${{ matrix.san.label }}
+      run: make ${{ matrix.san.target }}
+
+    - name: Stop NATS broker
+      if: always()
+      run: make nats-down
+
+    - name: Compiler-cache statistics
+      run: make ccache-stats
+
+  # ------------------------------------------------------------------
   # Code coverage (C tests ∪ Python ∪ Rust). clang source-based instrumentation
   # (-fprofile-instr-generate -fcoverage-mapping) on every first-party C object;
   # the CTest suite, pytest (against the instrumented .so), and the Rust FFI
@@ -678,6 +776,7 @@ jobs:
       - pre-commit
       - manifest-drift
       - coverage
+      - sanitizers
     runs-on: ubuntu-latest
     timeout-minutes: 45
     if: always()

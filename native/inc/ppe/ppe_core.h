@@ -56,7 +56,14 @@ extern "C"
   typedef struct
   {
     size_t max_len;  /**< max input length (sizes the plan/scratch).        */
-    size_t nfft;     /**< zero-padded transform length (next pow2 of max_len).*/
+    size_t nfft;     /**< zero-padded transform length: 4 * next_pow2
+                          (max_len). The 4x is deliberate -- a finer
+                          frequency grid before the parabolic peak
+                          refinement, which matters because the input
+                          is often short (preamble partials, symbol
+                          streams). It also sizes `buf`, `spec` and
+                          `mag`, so the footprint is 4x what a bare
+                          next-pow2 would suggest.                    */
     double max_rate; /**< chirp-rate search half-span (cycles/sample^2).    */
     size_t n_rate;   /**< number of chirp-rate hypotheses (1 if max_rate=0).*/
     double drate;    /**< chirp-rate grid step.                             */

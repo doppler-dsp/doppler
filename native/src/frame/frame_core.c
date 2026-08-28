@@ -299,7 +299,7 @@ frame_add_field (frame_state_t *state, const uint8_t *lit, size_t lit_len,
 int
 frame_add_stage (frame_state_t *state, int kind, uint32_t first_field,
                  uint32_t n_fields, uint32_t depth, uint32_t emit_num,
-                 uint32_t emit_den)
+                 uint32_t emit_den, uint32_t unit_bits)
 {
   if (!state || state->one != NULL
       || state->d.n_stages >= WFM_FRAME_MAX_STAGES)
@@ -314,6 +314,7 @@ frame_add_stage (frame_state_t *state, int kind, uint32_t first_field,
   s->depth       = depth;
   s->emit_num    = emit_num;
   s->emit_den    = emit_den;
+  s->unit_bits   = unit_bits;
   state->d.n_stages++;
   return (int)i;
 }
@@ -397,6 +398,56 @@ size_t
 frame_stage_bits (frame_state_t *state, size_t i)
 {
   return (state && i < state->dl.n_stages) ? state->dl.stage[i].n : 0u;
+}
+
+size_t
+frame_deframe_max_out (frame_state_t *state, size_t rx_bits_len)
+{
+  (void)rx_bits_len; /* the length is the description's, not the input's */
+  return state ? state->dl.frame_bits : 0u;
+}
+
+size_t
+frame_deframe (frame_state_t *state, const uint8_t *rx_bits,
+               size_t rx_bits_len, uint8_t *out, size_t max_out)
+{
+  if (!state || !rx_bits || !out || state->dl.frame_bits == 0
+      || rx_bits_len < state->dl.frame_bits || max_out < state->dl.frame_bits)
+    {
+      if (state)
+        {
+          state->rx_ok      = 0;
+          state->rx_checked = 0;
+          state->rx_units   = 0;
+          state->rx_symbols = 0;
+        }
+      return 0;
+    }
+
+  /* The caller's bits are a CAPTURE: copy before the stages correct, so a
+     frame can be deframed twice and score the same both times. */
+  memcpy (out, rx_bits, state->dl.frame_bits);
+
+  wfm_frame_ops_t ops;
+  ccsds_tm_frame_ops (&ops, NULL);
+  wfm_frame_rx_t rx;
+  const int      verdict = wfm_frame_check (&state->d, &ops, out, &rx);
+
+  state->rx_checked = 0;
+  state->rx_units   = 0;
+  state->rx_ok      = 0;
+  state->rx_symbols = 0;
+  if (verdict >= 0)
+    {
+      state->rx_checked = (int)rx.checked;
+      for (unsigned i = 0; i < rx.n_stages; i++)
+        {
+          state->rx_units += (int)rx.stage[i].units;
+          state->rx_ok += (int)rx.stage[i].ok;
+          state->rx_symbols += (int)rx.stage[i].symbols;
+        }
+    }
+  return state->dl.frame_bits;
 }
 
 frame_check_t

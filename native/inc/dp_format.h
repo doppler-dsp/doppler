@@ -43,14 +43,22 @@ extern "C"
    *
    * Mode in the low byte, element type in the high byte, so a little-endian
    * hex dump of the wire field reads as the two characters in order.
-   * doppler uses mode @c 'C' — complex, two components per element.
+   *
+   * Mode @c 'C' is complex — two components per element — and @c 'S' is
+   * scalar, one. Both are real formats a capture can be in; @c 'S' is what a
+   * real-valued waveform is written as, and dropping it was why doppler could
+   * READ a scalar BLUE file and not write one (doppler#1032).
    */
 #define DP_FMT(mode, type)                                                    \
   ((uint16_t)((uint16_t)(unsigned char)(mode)                                 \
               | ((uint16_t)(unsigned char)(type) << 8)))
 
   /**
-   * @brief A complex sample format. The value IS the BLUE code.
+   * @brief A sample format. The value IS the BLUE code.
+   *
+   * Ten formats: five element types in each of the two modes. The element
+   * type is the same in both — only the component COUNT differs, which is
+   * the whole of what the mode means.
    *
    * There is no code for a quad or extended float because BLUE defines
    * none — which is the format agreeing with why doppler retired CF128: its
@@ -64,18 +72,30 @@ extern "C"
     CI32 = DP_FMT ('C', 'L'), /**< int32_t I/Q   (8 bytes/sample).  */
     CF32 = DP_FMT ('C', 'F'), /**< float I/Q     (8 bytes/sample).  */
     CF64 = DP_FMT ('C', 'D'), /**< double I/Q    (16 bytes/sample). */
+    SI8  = DP_FMT ('S', 'B'), /**< int8_t real   (1 byte/sample).   */
+    SI16 = DP_FMT ('S', 'I'), /**< int16_t real  (2 bytes/sample).  */
+    SI32 = DP_FMT ('S', 'L'), /**< int32_t real  (4 bytes/sample).  */
+    SF32 = DP_FMT ('S', 'F'), /**< float real    (4 bytes/sample).  */
+    SF64 = DP_FMT ('S', 'D'), /**< double real   (8 bytes/sample).  */
   } dp_sample_type_t;
 
   /**
-   * @brief Bytes occupied by one complex sample of @p type, or 0 if the code
-   * is not one doppler sends.
+   * @brief Bytes occupied by one SAMPLE of @p type, or 0 if the code is not
+   * one doppler sends.
+   *
+   * A sample is one element: two components in mode @c 'C' and one in mode
+   * @c 'S'. It was "bytes per complex sample" until doppler#1032, when the
+   * scalar half of the mode axis was instantiated — the rename is the point,
+   * because every caller multiplying a sample count by this number is
+   * already correct under both and would not be if this returned bytes per
+   * COMPONENT.
    *
    * This switch is the single table: validity, element size and the wire
    * layout all derive from it, so a format added here needs no second edit
    * and a code that is not here is not a doppler format anywhere.
    *
    * @param type Sample format.
-   * @return Bytes per complex sample, or 0.
+   * @return Bytes per sample, or 0.
    */
   static inline size_t
   dp_format_size (dp_sample_type_t type)
@@ -92,13 +112,43 @@ extern "C"
         return 2u * sizeof (float);
       case CF64:
         return 2u * sizeof (double);
+      case SI8:
+        return sizeof (int8_t);
+      case SI16:
+        return sizeof (int16_t);
+      case SI32:
+        return sizeof (int32_t);
+      case SF32:
+        return sizeof (float);
+      case SF64:
+        return sizeof (double);
       default:
         return 0u;
       }
   }
 
   /**
-   * @brief Full-scale magnitude of one I or Q component of @p type.
+   * @brief Components per sample of @p type — 2 for complex, 1 for scalar.
+   *
+   * Read off the MODE character rather than switched per format, so a format
+   * added to the enum above needs no edit here. A code this build does not
+   * know reports 0, which is the same answer `dp_format_size` gives and
+   * is distinguishable from both valid counts.
+   *
+   * @param type Sample format.
+   * @return 2, 1, or 0 for an unknown code.
+   */
+  static inline unsigned
+  dp_format_components (dp_sample_type_t type)
+  {
+    if (dp_format_size (type) == 0u)
+      return 0u;
+    return ((unsigned)type & 0xFFu) == (unsigned char)'S' ? 1u : 2u;
+  }
+
+  /**
+   * @brief Full-scale magnitude of one component of @p type — an I, a Q,
+   * or a scalar-mode real sample.
    *
    * The divisor that puts an integer format on the same footing as a float
    * one, so a number derived from samples (a power, an RMS, a headroom)
@@ -122,6 +172,15 @@ extern "C"
         return 2147483647.0;
       case CF32:
       case CF64:
+        return 1.0;
+      case SI8:
+        return 127.0;
+      case SI16:
+        return 32767.0;
+      case SI32:
+        return 2147483647.0;
+      case SF32:
+      case SF64:
         return 1.0;
       default:
         return 0.0;

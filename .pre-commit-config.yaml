@@ -54,6 +54,16 @@ repos:
         pass_filenames: false
         always_run: true
 
+      # Names, not contents: a tracked path carrying shell punctuation is a
+      # quoting slip somebody committed. always_run, because the file this
+      # catches is by definition one no other hook's file filter matches.
+      - id: tracked-paths
+        name: tracked paths are names a person could type
+        entry: make -s lint-tracked-paths
+        language: system
+        pass_filenames: false
+        always_run: true
+
   # Python + markdown formatting DISPATCHES INWARD: the hook calls a Makefile
   # target rather than resolving the tool itself, so `make format`, the hook and
   # CI cannot run the tool differently. The version comes from pyproject's `dev`
@@ -96,6 +106,16 @@ repos:
       - id: phase-conversion
         name: phase-conversion sites
         entry: make -s lint-phase-conversion
+        language: system
+        pass_filenames: false
+        types_or: [c]
+
+      # A trusted internal allocation goes through clib_common.h's
+      # abort-on-OOM helpers. Fires on any C change: a bare malloc can
+      # appear in any core, and the point is to catch the FIRST one.
+      - id: alloc-helpers
+        name: allocation helpers
+        entry: make -s lint-alloc-helpers
         language: system
         pass_filenames: false
         types_or: [c]

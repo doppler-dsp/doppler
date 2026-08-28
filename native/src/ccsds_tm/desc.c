@@ -288,3 +288,156 @@ ccsds_tm_frame_describe (const ccsds_tm_frame_cfg_t *cfg, size_t frame_len,
   out->stage[S_INNER].emit_den    = 1u;
   return 0;
 }
+
+/* ── the choices, as a description ──────────────────────────────────────
+ *
+ * The coverage table this file opens with, applied to a caller's fields.
+ * It lives here rather than in `wfm/wfm_frame.h` because the covers are
+ * THIS standard's: a general description knows what a field and a stage
+ * are, and cannot know which covers which.
+ *
+ * A generator and whatever undoes the frame later both call this, so the
+ * two hold one layout rather than each deriving one.
+ */
+int
+ccsds_tm_frame_desc_of (const ccsds_tm_frame_spec_t *s, wfm_frame_desc_t *d)
+{
+  if (!s || !d)
+    return -1;
+  memset (d, 0, sizeof *d);
+
+  unsigned i_data = 0, i_crc = 0, i_parity = 0, n = 0;
+
+  /* The marker's bits come from the ONE function that expands them, never a
+     second transcription. Static because the description points at it and
+     must outlive this call; it is the same 32 bits in every frame. */
+  static uint8_t marker[CCSDS_TM_ASM_BITS];
+  if (s->attach_asm)
+    {
+      ccsds_tm_asm_bits (marker);
+      d->field[n].seq.kind = WFM_SEQ_LITERAL;
+      d->field[n].seq.bits = marker;
+      d->field[n].seq.len  = CCSDS_TM_ASM_BITS;
+      n++;
+    }
+  /* A field is included on its LENGTH, never on its pointer being non-NULL:
+     a length with no array is an unbuildable descriptor, and it has to reach
+     `wfm_frame_assemble` to be refused there. Dropping the field instead
+     would assemble a frame that is quietly missing it -- the same silent
+     unframing the composer's own tests pin. */
+  if (s->preamble_len && s->preamble_reps)
+    {
+      d->field[n].seq.kind = WFM_SEQ_LITERAL;
+      d->field[n].seq.bits = s->preamble;
+      d->field[n].seq.len  = s->preamble_len;
+      d->field[n].reps     = s->preamble_reps;
+      n++;
+    }
+  if (s->sync_len)
+    {
+      d->field[n].seq.kind = WFM_SEQ_LITERAL;
+      d->field[n].seq.bits = s->sync;
+      d->field[n].seq.len  = s->sync_len;
+      n++;
+    }
+
+  /* The payload is a field even when its bits are unknown: a receiver holds
+     the geometry and fills the contents in later. */
+  i_data               = n;
+  d->field[n].seq.kind = WFM_SEQ_LITERAL;
+  d->field[n].seq.bits = s->payload;
+  d->field[n].seq.len  = s->payload_len;
+  n++;
+
+  /* Stage indices are needed before the stages exist, because a derived
+     field names the stage that writes it. They are assigned in APPLICATION
+     order: the CRC first, then the outer code over the result, then the
+     randomiser, then the inner code. */
+  unsigned s_crc = 0, s_rs = 0, s_rand = 0, s_ilv = 0, s_conv = 0, ns = 0;
+  if (s->crc)
+    s_crc = ns++;
+  if (s->rs_depth)
+    s_rs = ns++;
+  if (s->randomise)
+    s_rand = ns++;
+  /* The interleaver is the LAST data-group stage, so it is what the channel
+     sees; the inner code is applied over everything after it. */
+  if (s->interleave_depth)
+    s_ilv = ns++;
+  if (s->convolutional)
+    s_conv = ns++;
+  if (ns > WFM_FRAME_MAX_STAGES)
+    return -1;
+
+  if (s->crc)
+    {
+      i_crc                  = n;
+      d->field[n].bits       = WFM_FRAME_CRC_BITS;
+      d->field[n].derived_by = s_crc + 1u;
+      n++;
+    }
+  if (s->rs_depth)
+    {
+      i_parity               = n;
+      d->field[n].bits       = (size_t)CCSDS_TM_RS_2E * s->rs_depth * 8u;
+      d->field[n].derived_by = s_rs + 1u;
+      n++;
+    }
+  if (n > WFM_FRAME_MAX_FIELDS)
+    return -1;
+  d->n_fields = n;
+  d->n_stages = ns;
+
+  /* The data group: payload, its CRC, and the outer code's check symbols.
+     Contiguous by construction, and each derived field is the last of its
+     own stage's cover, which is what lets one kernel signature serve them
+     all. */
+  const unsigned data_end = n; /* one past the last data field */
+
+  if (s->crc)
+    {
+      d->stage[s_crc].kind        = WFM_STAGE_CRC16;
+      d->stage[s_crc].first_field = i_data;
+      d->stage[s_crc].n_fields    = i_crc - i_data + 1u;
+    }
+  if (s->rs_depth)
+    {
+      d->stage[s_rs].kind        = WFM_STAGE_RS;
+      d->stage[s_rs].depth       = s->rs_depth;
+      d->stage[s_rs].first_field = i_data;
+      d->stage[s_rs].n_fields    = i_parity - i_data + 1u;
+    }
+  if (s->randomise)
+    {
+      d->stage[s_rand].kind        = WFM_STAGE_RANDOMISE;
+      d->stage[s_rand].first_field = i_data;
+      d->stage[s_rand].n_fields    = data_end - i_data;
+      /* WHICH generator, carried on the stage: 131.0-B-6 specifies two and
+         they produce waveforms only the matching receiver derandomises, so
+         this is not a detail the kernel may pick for itself. `depth` is the
+         stage's free parameter and the randomiser has no other use for it. */
+      d->stage[s_rand].depth = (unsigned)s->randomise;
+    }
+  if (s->interleave_depth)
+    {
+      /* Last of the data-group stages, so it is what the channel sees. Its
+         COLUMN count is derived from the span it covers, so a payload length
+         change moves the geometry -- which is correct, and is why both ends
+         read the same description rather than each computing one. */
+      d->stage[s_ilv].kind        = WFM_STAGE_INTERLEAVE;
+      d->stage[s_ilv].depth       = s->interleave_depth;
+      d->stage[s_ilv].unit_bits   = s->interleave_unit_bits;
+      d->stage[s_ilv].first_field = i_data;
+      d->stage[s_ilv].n_fields    = data_end - i_data;
+    }
+  if (s->convolutional)
+    {
+      d->stage[s_conv].kind        = WFM_STAGE_CONV;
+      d->stage[s_conv].first_field = 0u;
+      d->stage[s_conv].n_fields    = n;
+      /* 3.2.1: rate 1/2, so the frame it covers leaves twice as long. */
+      d->stage[s_conv].emit_num = 2u;
+      d->stage[s_conv].emit_den = 1u;
+    }
+  return 0;
+}

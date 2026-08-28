@@ -563,25 +563,28 @@ FrameObj_add_stage (FrameObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char  *_kwlist[] = { "kind",     "first_field", "n_fields", "depth",
-                              "emit_num", "emit_den",    NULL };
+  static char  *_kwlist[] = { "kind",     "first_field", "n_fields",  "depth",
+                              "emit_num", "emit_den",    "unit_bits", NULL };
   int           kind      = 0;
   unsigned long first_field_raw = 0;
   unsigned long n_fields_raw    = 0;
   unsigned long depth_raw       = 0;
   unsigned long emit_num_raw    = 0;
   unsigned long emit_den_raw    = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ikkkkk", _kwlist, &kind,
+  unsigned long unit_bits_raw   = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ikkkkkk", _kwlist, &kind,
                                     &first_field_raw, &n_fields_raw,
-                                    &depth_raw, &emit_num_raw, &emit_den_raw))
+                                    &depth_raw, &emit_num_raw, &emit_den_raw,
+                                    &unit_bits_raw))
     return NULL;
   uint32_t first_field = (uint32_t)first_field_raw;
   uint32_t n_fields    = (uint32_t)n_fields_raw;
   uint32_t depth       = (uint32_t)depth_raw;
   uint32_t emit_num    = (uint32_t)emit_num_raw;
   uint32_t emit_den    = (uint32_t)emit_den_raw;
+  uint32_t unit_bits   = (uint32_t)unit_bits_raw;
   int y = frame_add_stage (self->handle, kind, first_field, n_fields, depth,
-                           emit_num, emit_den);
+                           emit_num, emit_den, unit_bits);
   return PyLong_FromLong ((long)y);
 }
 
@@ -601,6 +604,122 @@ FrameObj_build (FrameObject *self, PyObject *Py_UNUSED (ignored))
       return NULL;
     }
   Py_RETURN_NONE;
+}
+
+static PyObject *
+FrameObj_deframe_max_out (FrameObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  Py_ssize_t rx_bits_len = 0;
+  if (!PyArg_ParseTuple (args, "n", &rx_bits_len))
+    return NULL;
+  return PyLong_FromSize_t (
+      frame_deframe_max_out (self->handle, (size_t)rx_bits_len));
+}
+
+static PyObject *
+FrameObj_deframe (FrameObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char   *_kwlist[]   = { "rx_bits", "out", NULL };
+  PyObject      *rx_bits_obj = NULL;
+  PyArrayObject *rx_bits_arr = NULL;
+  PyObject      *out_obj     = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &rx_bits_obj,
+                                    &out_obj))
+    return NULL;
+  rx_bits_arr = (PyArrayObject *)PyArray_FROM_OTF (rx_bits_obj, NPY_UINT8,
+                                                   NPY_ARRAY_C_CONTIGUOUS);
+  if (!rx_bits_arr)
+    return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_UINT8
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (rx_bits_arr);
+          return NULL;
+        }
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          Py_DECREF (rx_bits_arr);
+          return NULL;
+        }
+      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax = frame_deframe_max_out (
+          self->handle, (size_t)PyArray_SIZE (rx_bits_arr));
+      size_t _min_cap = _omax;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (rx_bits_arr);
+          return NULL;
+        }
+      size_t n_out = frame_deframe (
+          self->handle, (const uint8_t *)PyArray_DATA (rx_bits_arr),
+          (size_t)PyArray_SIZE (rx_bits_arr),
+          (uint8_t *)PyArray_DATA (out_arr), _cap);
+      Py_DECREF (rx_bits_arr);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
+  size_t _need = (size_t)PyArray_SIZE (rx_bits_arr);
+  size_t _cap  = frame_deframe_max_out (self->handle,
+                                        (size_t)PyArray_SIZE (rx_bits_arr));
+  (void)_need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
+  if (!arr0)
+    {
+      Py_DECREF (rx_bits_arr);
+      return NULL;
+    }
+  uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t n_out = frame_deframe (self->handle,
+                                (const uint8_t *)PyArray_DATA (rx_bits_arr),
+                                (size_t)PyArray_SIZE (rx_bits_arr), _d0, _cap);
+  Py_DECREF (rx_bits_arr);
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyStructSequence_Field FrameObj_check_fields[] = {
@@ -775,6 +894,46 @@ FrameObj_stage_bits (FrameObject *self, PyObject *args, PyObject *kwds)
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
 static PyObject *
+Frame_getprop_rx_ok (FrameObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong ((long)self->handle->rx_ok);
+}
+static PyObject *
+Frame_getprop_rx_units (FrameObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong ((long)self->handle->rx_units);
+}
+static PyObject *
+Frame_getprop_rx_checked (FrameObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong ((long)self->handle->rx_checked);
+}
+static PyObject *
+Frame_getprop_rx_symbols (FrameObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong ((long)self->handle->rx_symbols);
+}
+static PyObject *
 Frame_getprop_nbits (FrameObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
@@ -785,9 +944,27 @@ Frame_getprop_nbits (FrameObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->nbits);
 }
 
-static PyGetSetDef Frame_getset[]
-    = { { "nbits", (getter)Frame_getprop_nbits, NULL, "Nbits.\n", NULL },
-        { NULL } };
+static PyGetSetDef Frame_getset[] = {
+  { "rx_ok", (getter)Frame_getprop_rx_ok, NULL,
+    "Checks that came out good in the last deframe() -- one per CRC, one per "
+    "outer-code codeword. `rx_ok == rx_units` is the verdict.\n",
+    NULL },
+  { "rx_units", (getter)Frame_getprop_rx_units, NULL,
+    "Checks the last deframe() performed across every stage it reversed.\n",
+    NULL },
+  { "rx_checked", (getter)Frame_getprop_rx_checked, NULL,
+    "Stages the last deframe() actually reversed. 0 means the description "
+    "carries no reversible stage at all -- which is why `rx_ok` is 0 too, and "
+    "is a different fact from a check that failed. An FER conflating them "
+    "scores every unprotected frame as an error.\n",
+    NULL },
+  { "rx_symbols", (getter)Frame_getprop_rx_symbols, NULL,
+    "Symbol errors the last deframe() repaired. Margin being spent, visible "
+    "before it is lost -- what an outer code reports and a CRC cannot.\n",
+    NULL },
+  { "nbits", (getter)Frame_getprop_nbits, NULL, "Nbits.\n", NULL },
+  { NULL }
+};
 
 static PyObject *
 FrameObj_destroy (FrameObject *self, PyObject *Py_UNUSED (ignored))
@@ -1055,6 +1232,12 @@ static PyMethodDef FrameObj_methods[] = {
     "    stage stays inside the frame.\n"
     "emit_den : int\n"
     "    Expansion denominator.\n"
+    "unit_bits : int\n"
+    "    INTERLEAVE only: bits per interleaved unit; 0 reads as 1. Match it\n"
+    "    to the outer code's symbol -- permuting octets is what spreads a\n"
+    "    burst across the codewords of a code over GF(256), and permuting\n"
+    "    bits inside one spreads a burst within a symbol that is already\n"
+    "    wrong.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -1138,6 +1321,90 @@ static PyMethodDef FrameObj_methods[] = {
     "Traceback (most recent call last):\n"
     "    ...\n"
     "ValueError: build failed (rc=-1)\n" },
+  { "deframe", (PyCFunction)(void *)FrameObj_deframe,
+    METH_VARARGS | METH_KEYWORDS,
+    "deframe(rx_bits, out) -> ndarray\n"
+    "\n"
+    "Undo the description's stages over a received frame and hand back\n"
+    "the CORRECTED bits — the layer a receiver stops short of\n"
+    "(doppler#1022).\n"
+    "\n"
+    "The receive counterpart of building one, and the layer a receiver stops\n"
+    "short of: `DsssBurstReceiver` and friends hand back hard and soft\n"
+    "decisions for a frame's symbols and make no claim about what they mean,\n"
+    "because knowing that needs a description — this one (doppler#1022).\n"
+    "\n"
+    "Returns the frame with every reversible stage undone, in place order: a\n"
+    "randomiser XORed back, an outer code's repairs APPLIED, a CRC checked.\n"
+    "The payload is then a slice, at frame_field_off of the payload field —\n"
+    "which is the caller's arithmetic because a description does not\n"
+    "privilege one field over another.\n"
+    "\n"
+    "The verdict comes back as read-backs (`ok`, `units`, `checked`,\n"
+    "`symbols`), not as a return value, since the return is the bits. Read\n"
+    "them exactly as frame_check_t's, including the distinction that matters\n"
+    "most: `checked == 0` says the description carries no reversible stage\n"
+    "at all, which is a different fact from a check that failed.\n"
+    "\n"
+    "A stage with no `undo` kernel — a convolutional inner code, which a\n"
+    "receiver cannot even frame-sync through — is reported as not checked\n"
+    "rather than as passed.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "rx_bits : NDArray[np.uint8]\n"
+    "    Received bits, `frame_bits` of them; treated as a capture and never\n"
+    "    modified.\n"
+    "out : NDArray[np.uint8] | None\n"
+    "    Receives the corrected frame.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.uint8]\n"
+    "    Bits written — the frame's length — or 0 if the description is\n"
+    "    empty or either buffer is too small.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import Frame\n"
+    ">>> empty = np.zeros(0, dtype=np.uint8)\n"
+    ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], dtype=np.uint8)\n"
+    ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], "
+    "dtype=np.uint8)\n"
+    ">>> f = Frame(empty, sync, payload, crc=\"crc16\")\n"
+    ">>> rx = np.asarray(f.bits())          # a clean capture of its own "
+    "frame\n"
+    ">>> got = np.asarray(f.deframe(rx))\n"
+    ">>> f.rx_ok, f.rx_units, f.rx_checked  # one CRC, and it passed\n"
+    "(1, 1, 1)\n"
+    ">>> off = f.layout().payload_off       # the payload is a SLICE\n"
+    ">>> bool(np.array_equal(got[off:off + 16], payload))\n"
+    "True\n"
+    ">>> rx[off] ^= 1                       # one bit flipped in flight\n"
+    ">>> _ = f.deframe(rx)\n"
+    ">>> f.rx_ok, f.rx_units                # the check notices\n"
+    "(0, 1)\n" },
+  { "deframe_max_out", (PyCFunction)FrameObj_deframe_max_out, METH_VARARGS,
+    "deframe_max_out(rx_bits_len) -> int\n"
+    "\n"
+    "Max bits frame_deframe() writes: the frame's own length.\n"
+    "\n"
+    "Size a `deframe()` buffer with this. The bound is the DESCRIPTION's,\n"
+    "not the input's: a frame is as long as its fields say, so how many bits\n"
+    "were received does not change how many come back.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "rx_bits_len : int\n"
+    "    How many bits are on offer. Ignored, for the reason above; it is in\n"
+    "    the signature because the binding's capacity call passes the\n"
+    "    input's length.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    The frame's length in bits, or 0 for an empty description.\n" },
   { "check", (PyCFunction)(void *)FrameObj_check, METH_VARARGS | METH_KEYWORDS,
     "check(rx_bits) -> FrameCheck record (passed, stages, checked, units, ok, "
     "corrected, symbols)\n"

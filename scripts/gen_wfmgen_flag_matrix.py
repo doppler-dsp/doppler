@@ -100,6 +100,12 @@ SKIP = {
 # flag that does not terminate -- which is a finding, not a flake.
 TIMEOUT_S = 20
 
+#: Floor for `replay_checks()`. Set just under what the table replays today
+#: so the count may grow and not silently collapse: every skip in that
+#: function is legitimate on its own, and a change that turned them all on
+#: at once would leave the check passing while looking at nothing.
+MIN_REPLAY_CASES = 25
+
 BITS_FILE = "bits.bin"
 SYMS_FILE = "syms.cf32"
 SCENE_FILE = "scene.json"
@@ -275,6 +281,59 @@ def cases() -> list[tuple[str, list[str]]]:
                 "2",
                 "--count",
                 "64",
+            ],
+        ),
+        # ---- the block interleaver, and the unit that makes it work ----
+        # Two cases rather than one, because the two flags are not the same
+        # kind of thing: --interleave selects the stage, --interleave-unit
+        # selects WHAT it permutes, and only the second is easy to get wrong
+        # in a way that still produces a waveform. Both spans are chosen to
+        # divide -- the column count follows from the span, so a remainder is
+        # refused (which the wfmgen CLI-error tests cover separately).
+        #
+        # 223*8 = 1784 payload bits + a CRC-16 trailer = 1800, and 1800 is
+        # 8*225 and 8*8*28.125 -- so unit=8 needs a depth that divides 225.
+        (
+            "bits_interleave_bits",
+            [
+                "--type",
+                "bits",
+                "--modulation",
+                "bpsk",
+                "--bits",
+                "1" * (223 * 8),
+                "--interleave",
+                "8",
+                "--sps",
+                "1",
+                "--count",
+                "1800",
+            ],
+        ),
+        (
+            "bits_interleave_octets_with_outer_code",
+            [
+                # Depth 5 over octets, which is the arrangement the burst-gain
+                # validation measures: one codeword per row, so a burst spreads
+                # one symbol into each.
+                "--type",
+                "bits",
+                "--modulation",
+                "bpsk",
+                "--bits",
+                "1" * (223 * 8),
+                "--rs-depth",
+                "1",
+                "--interleave",
+                "5",
+                "--interleave-unit",
+                "8",
+                "--crc",
+                "none",
+                "--sps",
+                "1",
+                "--count",
+                "2040",
             ],
         ),
         # ---- channel coding: the stages, and the CADU they configure ----
@@ -689,6 +748,11 @@ def relational_checks(exe: Path, problems: list[str]) -> None:
 
 def fixtures(workdir: Path, exe: Path) -> None:
     """Inputs the cases read. Written per-case so runs stay independent."""
+    # A real binary payload: --bits-file consumes a file's BYTES,
+    # MSB first, which is what --help has always promised and what a
+    # transfer frame on disk actually is. It used to require a text
+    # 0/1 string, so this fixture made the case exit 2 -- the flag's
+    # only coverage was the failure it caused.
     (workdir / BITS_FILE).write_bytes(bytes([0xB2, 0x5A, 0x0F, 0xFF]))
     # 4 constellation points as interleaved float32 I,Q.
     import struct
@@ -717,6 +781,153 @@ def fixtures(workdir: Path, exe: Path) -> None:
         timeout=TIMEOUT_S,
     )
     (workdir / "seed.bin").unlink(missing_ok=True)
+
+
+def replay_checks(exe: Path, problems: list[str]) -> None:
+    """Every recordable case must replay from its own record, byte for byte.
+
+    `--record` writes the resolved run and `--from-file` reads it back; the
+    schema states the contract outright -- *"a recorded run reproduces
+    byte-for-byte when fed back"*. Nothing checked it. `check_coverage()`
+    asks only that each flag be DRIVEN, and `run_case()` pins the record it
+    produced, so a flag the serialiser forgets is pinned as correct: the
+    golden records its absence and agrees with itself forever.
+
+    That is not hypothetical twice over. `seed_advance` was dropped this way
+    (doppler#978), and `--interleave` was dropped again on the flag's first
+    release -- a replay came back the same LENGTH with different bytes and
+    no error, which is the worst shape available: a capture that looks like
+    the one you recorded and is a different waveform.
+
+    So this compares the artifact rather than the record. Derived from the
+    case table rather than a hand-written list, because a list is the thing
+    that stops growing when someone adds a flag.
+
+    Every container is compared, not just the single-file ones. BLUE, CSV
+    and SigMF look like they could not be byte-identical across two runs --
+    a BLUE header has a timecode field and SigMF has `core:datetime` -- and
+    measurably they ARE: wfmgen writes a zero timecode and no wall-clock
+    date, which is a deliberate reproducibility choice and worth having a
+    check stand on. Two runs two seconds apart produce identical bytes in
+    all four containers.
+
+    The replay therefore lands in a SECOND directory under the case's own
+    output name, so a container that writes a pair (SigMF's data + meta,
+    detached BLUE's .det + .hdr) is compared file by file rather than
+    skipped for having more than one.
+
+    Skips are COUNTED and reported, never silent. A case that already reads
+    a scene is its own replay, and a case that refuses pins an exit code
+    rather than a waveform; both are legitimate, and a gate that stopped
+    checking everything would otherwise still print OK.
+    """
+    checked = 0
+    skipped: dict[str, int] = {}
+
+    def skip(why: str) -> None:
+        skipped[why] = skipped.get(why, 0) + 1
+
+    for name, argv in cases():
+        if "--from-file" in argv:
+            skip("already a replay")
+            continue
+        with (
+            tempfile.TemporaryDirectory() as td,
+            tempfile.TemporaryDirectory() as td2,
+        ):
+            wd, wd2 = Path(td), Path(td2)
+            fixtures(wd, exe)
+            first = run_case(exe, argv, wd)
+            if first["exit"] != 0 or first["record"] is None:
+                skip("refusal: pins an exit code, not a waveform")
+                continue
+            produced = [n for n in first["outputs"] if n != "record.json"]
+            if not produced or not any(
+                (wd / n).stat().st_size for n in produced
+            ):
+                skip("no output to compare")
+                continue
+
+            # The record describes the SIGNAL; the container is the caller's.
+            # --file-type/--sample-type/--endian deliberately do not reach the
+            # spec (there is no output section in the schema), so the replay
+            # supplies them exactly as the case did. Without this the check
+            # would be asserting a contract nobody makes -- and it would fail
+            # on out_csv/out_blue, which are correct.
+            carried: list[str] = []
+            for flag in ("--file-type", "--sample-type", "--endian"):
+                if flag in argv:
+                    carried += [flag, argv[argv.index(flag) + 1]]
+            # Same output NAME, second directory: the container decides how
+            # many files it writes and what it suffixes them with, so the
+            # only way to compare a pair is to let it choose both names
+            # twice.
+            out_arg = "sink.bin"
+            for flag in ("--output", "-o"):
+                if flag in argv:
+                    out_arg = Path(argv[argv.index(flag) + 1]).name
+            proc = subprocess.run(
+                [
+                    str(exe),
+                    "--from-file",
+                    str(wd / "record.json"),
+                    *carried,
+                    "--output",
+                    str(wd2 / out_arg),
+                ],
+                cwd=wd2,
+                capture_output=True,
+                timeout=TIMEOUT_S,
+            )
+            if proc.returncode != 0:
+                problems.append(
+                    f"{name}: --record wrote a spec its own --from-file "
+                    f"refuses (exit {proc.returncode}): "
+                    f"{proc.stderr.decode('utf-8', 'replace').strip()[:160]}"
+                )
+                continue
+
+            checked += 1
+            again = {p.name for p in wd2.iterdir() if p.is_file()}
+            if again != set(produced):
+                problems.append(
+                    f"{name}: the replay wrote {sorted(again)} where the "
+                    f"run wrote {sorted(produced)}"
+                )
+                continue
+            for fname in sorted(produced):
+                original, got = (
+                    (wd / fname).read_bytes(),
+                    (wd2 / fname).read_bytes(),
+                )
+                if got == original:
+                    continue
+                how = (
+                    "same length, different bytes -- a flag reached the "
+                    "waveform but not the record"
+                    if len(got) == len(original)
+                    else f"{len(original)} bytes -> {len(got)}"
+                )
+                problems.append(
+                    f"{name}: replaying its own --record does not reproduce "
+                    f"{fname} ({how}). Every flag that changes the waveform "
+                    f"has to reach wfm_json.c's writer AND its reader, and "
+                    f"the schema's source object."
+                )
+
+    # A floor, not a formality: without it, a change that made every case
+    # skip would leave this function printing nothing and passing.
+    if checked < MIN_REPLAY_CASES:
+        problems.append(
+            f"only {checked} case(s) were replayed, below the floor of "
+            f"{MIN_REPLAY_CASES} -- the round-trip check has stopped "
+            f"looking at most of the matrix"
+        )
+    note = ", ".join(f"{n} {why}" for why, n in sorted(skipped.items()))
+    print(
+        f"wfmgen_flag_matrix: {checked} case(s) replayed from their own "
+        f"--record" + (f"; skipped {note}" if note else "")
+    )
 
 
 def build_matrix(exe: Path) -> dict:
@@ -765,6 +976,7 @@ def main() -> int:
     problems: list[str] = []
     check_coverage(problems)
     relational_checks(exe, problems)
+    replay_checks(exe, problems)
     got = build_matrix(exe)
 
     if not args.check:

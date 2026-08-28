@@ -1,0 +1,4 @@
+filler,frame_offset,n_symbols,expected
+0,0,93,93
+3,3,96,96
+9,9,102,102

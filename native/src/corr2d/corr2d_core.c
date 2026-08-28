@@ -78,6 +78,19 @@ corr2d_create (const float complex *ref, size_t ny, size_t nx, size_t dwell,
       free (state);
       return NULL;
     }
+  /* The header says dwell "must be >= 1" and nothing enforced it. dwell = 0
+     is not a degenerate configuration, it is a black hole: the dump test is
+     `++count == dwell`, which a zero dwell never satisfies, so the object
+     accumulates every frame it is given and emits nothing until count wraps
+     at SIZE_MAX. A caller whose dwell came from a computed value that
+     underflowed gets silence and unbounded accumulation rather than an
+     error. detector2d_create forwards its own dwell straight here, so
+     validating at the primitive covers both objects. */
+  if (dwell < 1)
+    {
+      free (state);
+      return NULL;
+    }
   int decoupled = (nyo != ny) || (nxo != nx);
   /* Fast path requires ny_out == ny (the row-axis identity only holds for a
    * matched forward/inverse row-transform length — see the header doc

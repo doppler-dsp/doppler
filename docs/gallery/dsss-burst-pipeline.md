@@ -11,7 +11,7 @@ actually *finds*, not from ground truth.
 
 ## The scenario
 
-5 bursts, each `[ 5x512-chip unmodulated preamble | 1000-symbol BPSK payload spread 50 chips/symbol ]`, payload Es/N0 = 10 dB, separated by a
+5 bursts, each `[ 5x511-chip unmodulated preamble | 1000-symbol BPSK payload spread 63 chips/symbol ]`, payload Es/N0 = 10 dB, separated by a
 variable (burst-to-burst distinct) inter-burst gap. The payload frame is
 `sync word | 1000 payload bits | CRC-16`, spread by a *second*, short code
 distinct from the preamble code — the same frame layout

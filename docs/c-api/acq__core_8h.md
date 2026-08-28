@@ -81,11 +81,6 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  size\_t | [**acq\_state\_bytes**](#function-acq_state_bytes) (const [**acq\_state\_t**](structacq__state__t.md) \* state) <br>_Byte size of_ `state's` _blob (header + unconsumed + nc)._ |
 
 
-## Public Static Functions
-
-| Type | Name |
-| ---: | :--- |
-|  long | [**acq\_bin\_to\_signed**](#function-acq_bin_to_signed) (size\_t bin, size\_t n\_bins) <br>_Map a reported bin index to its SIGNED frequency index._  |
 
 
 
@@ -190,7 +185,7 @@ Two convention inversions live here, ported verbatim from `dsss_receiver_core.c`
 
 
 * **Chip phase**: `hit's` `code_phase` is a correlation LAG (0 … code\_bins-1); a code-tracking loop's `init_chip` wants the code's own instantaneous phase instead — the mirror-image inversion `phase = fmod(code_len - code_phase/spc, code_len)`, folded non-negative.
-* **Doppler**: `state` is assumed built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) (coherent\_bins pinned at 1, `window_bins` the active mechanism, the only mode this function supports), so `hit`'s `doppler_bin` is a frequency-WINDOW index, mapped to a signed bin by `acq_bin_to_signed()` — the SAME helper the search uses — and scaled by `state->doppler_res_hz`.
+* **Doppler**: `state` is assumed built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) (coherent\_bins pinned at 1, `window_bins` the active mechanism, the only mode this function supports), so `hit`'s `doppler_bin` is a frequency-WINDOW index, mapped to a signed bin by `dp_fftfreq_index()` — the SAME helper the search uses — and scaled by `state->doppler_res_hz`.
 
 
 
@@ -626,50 +621,6 @@ size_t acq_state_bytes (
 
 
 
-
-<hr>
-## Public Static Functions Documentation
-
-
-
-
-### function acq\_bin\_to\_signed 
-
-_Map a reported bin index to its SIGNED frequency index._ 
-```C++
-static inline long acq_bin_to_signed (
-    size_t bin,
-    size_t n_bins
-) 
-```
-
-
-
-The one definition of the FFT-bin convention this engine reports in: `0 = DC`, ascending positive through `n_bins/2`, then wrapping negative. Both the wideband search (which chooses a row's spectral roll) and `acq_build_handoff()` (which converts a hit back to Hz) MUST agree on it, so it lives here once rather than as a formula in each.
-
-
-It did not, once: the search used this form while the handoff used `((bin + n/2) % n) - n/2`, which disagrees at exactly one index — `bin == n_bins/2`, reachable only when `n_bins` is even. The search read that row as `+n/2` and the handoff as `-n/2`, a full-span sign inversion (102 kHz at SPEC.md's geometry) that surfaced as a receiver reporting `tracking == 1` while decoding noise. Auto-sizing now keeps `window_bins` odd (see `acq_auto_config_continuous`) so no such index exists, and this shared helper keeps the two readings identical regardless.
-
-
-
-
-**Parameters:**
-
-
-* `bin` Reported bin index in `[0, n_bins)`. 
-* `n_bins` Grid size (`window_bins`, or `coherent_bins`). 
-
-
-
-**Returns:**
-
-Signed index in `[-(n_bins/2), +(n_bins/2)]`; multiply by `doppler_res_hz` for Hz. 
-
-
-
-
-
-        
 
 <hr>
 ## Macro Definition Documentation

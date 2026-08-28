@@ -67,6 +67,8 @@ extern "C"
     size_t window_bins; 
     size_t code_bins; 
     size_t n; 
+    size_t n_surf; 
+    size_t interp; 
     size_t frame_n; 
     size_t sf;      
     size_t spc;     
@@ -158,11 +160,15 @@ extern "C"
     float  test_stat;       
   } acq_handoff_t;
 
-  static inline long
-  acq_bin_to_signed (size_t bin, size_t n_bins)
-  {
-    return (bin <= n_bins / 2) ? (long)bin : (long)bin - (long)n_bins;
-  }
+  /* The FFT-bin convention this engine reports in -- `0 = DC`, ascending
+   * positive, then wrapping negative -- is `dp_fftfreq_index()` in
+   * clib_common.h, and its doc comment there is the one definition. It was
+   * declared here, and four call sites outside C restated the fold in three
+   * mutually inconsistent ways; the engine's wideband search and its own
+   * hand-off were two of them, which surfaced as a receiver reporting
+   * `tracking == 1` while decoding noise. Every consumer -- this engine's
+   * search, its hand-off, and any composing receiver -- now includes the
+   * SAME inline rather than restating the formula. */
 
   void acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
                           size_t code_len, size_t spc, acq_handoff_t *out);

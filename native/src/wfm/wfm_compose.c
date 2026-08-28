@@ -427,9 +427,10 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
           && s->segs[i].sources[0].symbol_rate <= 0.0)
         {
           const wfm_source_t *d = &s->segs[i].sources[0];
-          size_t nchips = wfm_frame_dsss_nchips (d->n_acq_code, d->acq_reps,
-                                                 d->n_data_code, d->n_sync,
-                                                 d->n_bits, d->crc);
+          /* Through the source's own description, so a coding stage that
+             lengthens the frame lengthens the segment by the SAME arithmetic
+             the assembler uses -- a rate-1/2 inner code doubles both. */
+          size_t nchips = wfm_source_dsss_nchips (d);
           if (nchips)
             {
               int sps                   = (d->sps < 1) ? 1 : d->sps;

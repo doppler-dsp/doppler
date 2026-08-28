@@ -256,6 +256,7 @@ mpsk_ber_measure (const mpsk_ber_cfg_t *c, double esn0_db,
       free (out);
       free (lc);
       r.rep = dp_ber_report (&acc, esn0_db, NULL, 0, 0, 0, DP_BER_CONF);
+      dp_ber_free (&acc);
       return r;
     }
 
@@ -314,6 +315,7 @@ mpsk_ber_measure (const mpsk_ber_cfg_t *c, double esn0_db,
   free (lc);
   r.rep = dp_ber_report (&acc, esn0_db, settled_any ? &last_sync : NULL, lo,
                          hi, settled_any, DP_BER_CONF);
+  dp_ber_free (&acc);
   return r;
 }
 

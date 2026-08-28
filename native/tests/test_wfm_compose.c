@@ -875,37 +875,105 @@ main (void)
                     "absent sync key not emitted");
     free (jn);
 
-    /* invalid geometry (payload but no data code) fails the segment into a
-     * silent gap rather than wedging the stream. */
+    /* ── a coding stage reaches a DSSS burst ──────────────────────────
+     *
+     * The flags were read from the scene and then dropped: `--conv` on a
+     * dsss source produced a byte-identical waveform to no `--conv` at all,
+     * because the burst was assembled by a private four-field builder that
+     * had never heard of a stage (doppler#1017). Now the burst is the same
+     * description every other source's frame is, so a rate-1/2 inner code
+     * doubles the frame -- and leaves the preamble alone, because the
+     * preamble is not IN the description.
+     */
+    {
+      wfm_source_t cv  = dsss;
+      cv.convolutional = 1;
+      wfm_segment_t gcv
+          = { .sources = &cv, .n_sources = 1, .fs = 1e6, .off_samples = 0 };
+      wfm_segment_t gpl
+          = { .sources = &dsss, .n_sources = 1, .fs = 1e6, .off_samples = 0 };
+
+      const size_t pre   = 8u * 3u; /* acq_code x acq_reps */
+      const size_t frame = (2u + 5u + WFM_FRAME_CRC_BITS) * 4u;
+      DP_REQUIRE_MSG (wfm_source_dsss_nchips (&dsss) == pre + frame,
+                      "plain burst: preamble + spread frame");
+      DP_REQUIRE_MSG (wfm_source_dsss_nchips (&cv) == pre + 2u * frame,
+                      "a rate-1/2 inner code doubles the SPREAD part only");
+
+      wfm_compose_state_t *cp = wfm_compose_create (&gpl, 1, 0, 0);
+      wfm_compose_state_t *cc = wfm_compose_create (&gcv, 1, 0, 0);
+      DP_REQUIRE_MSG (cp && cc, "both bursts compose");
+      static float complex pbuf[4096], cbuf[4096];
+      size_t               pn2 = wfm_compose_execute (cp, pbuf, 4096);
+      size_t               cn2 = wfm_compose_execute (cc, cbuf, 4096);
+      wfm_compose_destroy (cp);
+      wfm_compose_destroy (cc);
+      DP_REQUIRE_MSG (pn2 == (pre + frame) * 2u
+                          && cn2 == (pre + 2u * frame) * 2u,
+                      "the segment's on-time follows its own description");
+      /* The preamble is the coherent pull-in target: a code over "the whole
+         frame" must not touch it, or every receiver's acquisition breaks. */
+      DP_REQUIRE_MSG (
+          memcmp (pbuf, cbuf, pre * 2u * sizeof (float complex)) == 0,
+          "the unspread preamble is identical with and without the "
+          "inner code");
+      /* ...and the spread part is NOT identical, or the stage did nothing. */
+      DP_REQUIRE_MSG (memcmp (pbuf + pre * 2u, cbuf + pre * 2u,
+                              frame * 2u * sizeof (float complex))
+                          != 0,
+                      "the inner code changed the frame it covers");
+
+      /* A record that omits a stage is a capture nobody can rebuild. The
+         SUM path writes its sources through a different function than the
+         lone-source path (which keeps its own field order for byte
+         identity), so both are checked -- the Python face covers the lone
+         one, this covers the sum. */
+      wfm_source_t  mix2[2] = { { .type = WFM_SYNTH_TONE, .freq = 0.1 }, cv };
+      wfm_segment_t gmix    = { .sources     = mix2,
+                                .n_sources   = 2,
+                                .fs          = 1e6,
+                                .num_samples = 64,
+                                .off_samples = 0 };
+      wfm_compose_state_t *cm = wfm_compose_create (&gmix, 1, 0, 0);
+      DP_REQUIRE_MSG (cm, "a sum carrying a coded dsss source composes");
+      size_t               nm  = 0;
+      const wfm_segment_t *gm  = wfm_compose_segments (cm, &nm, NULL, NULL);
+      char                *jm2 = wfm_spec_to_json (gm, 1, 0, 0, 0, 0.0);
+      wfm_compose_destroy (cm);
+      DP_REQUIRE_MSG (jm2, "sum spec serialises");
+      DP_REQUIRE_MSG (strstr (jm2, "\"conv\"") != NULL,
+                      "a summed source's record must name its inner code");
+      free (jm2);
+    }
+
+    /* Invalid geometry (frame bits but no spreading code) is REFUSED at
+     * create, on every face, and that is a deliberate change of answer. It
+     * used to build and degrade the segment to a silent gap -- the same
+     * "accepted and dropped" shape this file's own create-time check exists
+     * to stop, and on the CLI it read as a zero-length capture with exit 0.
+     * A DSSS burst spreads its frame, so a frame with nothing to spread it
+     * by is a geometry no caller can have meant (doppler#1017). */
     wfm_source_t bad = dsss;
     bad.data_code    = NULL;
     bad.n_data_code  = 0;
     wfm_segment_t gbad
         = { .sources = &bad, .n_sources = 1, .fs = 1e6, .off_samples = 4 };
-    wfm_compose_state_t *cbad = wfm_compose_create (&gbad, 1, 0, 0);
-    DP_REQUIRE_MSG (cbad, "bad dsss still creates");
-    size_t got = wfm_compose_execute (cbad, buf, 64);
-    DP_REQUIRE_MSG (got == 4, "bad dsss segment degrades to its gap");
-    for (size_t i = 0; i < got; i++)
-      DP_REQUIRE_MSG (buf[i] == 0.0f, "bad dsss gap is zeros");
-    wfm_compose_destroy (cbad);
+    DP_REQUIRE_MSG (wfm_source_frame_error (&bad) != NULL,
+                    "a spread frame with no data code is named as an error");
+    DP_REQUIRE_MSG (wfm_compose_create (&gbad, 1, 0, 0) == NULL,
+                    "bad dsss is refused at create, not silently gapped");
 
-    /* in a multi-source sum the on-time is explicit, so the build itself
-     * hits the invalid geometry (set_dsss fails) — the whole segment still
-     * degrades to its silent gap rather than wedging the stream. */
+    /* Same answer inside a multi-source sum: one source that cannot be built
+     * refuses the whole composition rather than summing the others and
+     * quietly leaving this one out. */
     wfm_source_t  mix[2] = { { .type = WFM_SYNTH_TONE, .freq = 0.1 }, bad };
     wfm_segment_t gsum   = { .sources     = mix,
                              .n_sources   = 2,
                              .fs          = 1e6,
                              .num_samples = 16,
                              .off_samples = 4 };
-    wfm_compose_state_t *csum = wfm_compose_create (&gsum, 1, 0, 0);
-    DP_REQUIRE_MSG (csum, "sum with bad dsss still creates");
-    got = wfm_compose_execute (csum, buf, 64);
-    DP_REQUIRE_MSG (got == 4, "sum with bad dsss degrades to its gap");
-    for (size_t i = 0; i < got; i++)
-      DP_REQUIRE_MSG (buf[i] == 0.0f, "sum bad-dsss gap is zeros");
-    wfm_compose_destroy (csum);
+    DP_REQUIRE_MSG (wfm_compose_create (&gsum, 1, 0, 0) == NULL,
+                    "a sum carrying a bad dsss source is refused too");
   }
 
   /* ── repeats: bounded per-segment instancing — N instances back-to-back,
@@ -1541,6 +1609,70 @@ main (void)
     free (b);
     free (c2);
     free (want);
+  }
+
+  /* ── the interleaver's span INCLUDES the outer code's check symbols ──
+   *
+   * `ccsds_tm_frame_desc_of` gives the interleave stage the whole data group
+   * -- "payload, its CRC, and the outer code's check symbols" -- and the
+   * flag guard validated payload + CRC only. So the check ran against a
+   * DIFFERENT span from the one the stage permutes, and refused the
+   * canonical CCSDS arrangement: 223 octets under RS(255,223) interleaved 5
+   * deep at unit 8. 1784 bits does not divide by 40; the 2040 the stage
+   * actually covers divides exactly 51 times.
+   *
+   * That refusal was pinned in the flag-matrix golden as an expected exit 2,
+   * which is how a guard rejecting valid input survives: the evidence for
+   * the flag was the failure it caused. */
+  {
+    static uint8_t frame[223 * 8]; /* 223 octets, the RS(255,223) message */
+    for (size_t i = 0; i < sizeof frame; i++)
+      frame[i] = (uint8_t)(i & 1u);
+
+    wfm_source_t cadu = { .type                 = WFM_SYNTH_BITS,
+                          .snr                  = 100.0,
+                          .sps                  = 1,
+                          .pn_length            = 7,
+                          .modulation           = 1,
+                          .bits                 = frame,
+                          .n_bits               = sizeof frame,
+                          .crc                  = 0,
+                          .rs_depth             = 1,
+                          .interleave_depth     = 5,
+                          .interleave_unit_bits = 8 };
+    DP_REQUIRE_MSG (wfm_source_frame_error (&cadu) == NULL,
+                    "223 octets + RS parity is 2040 bits, which 5 x 8 "
+                    "divides 51 times -- the arrangement CCSDS specifies");
+
+    /* The guard still bites, or removing it would have passed the case
+       above just as well. It has to be provoked WITHOUT disturbing the outer
+       code's own geometry: shortening the payload trips the --rs-depth guard
+       three statements earlier, which returns a different sentence and
+       satisfies a bare `!= NULL` while never reaching this one. So keep the
+       223 octets and change the depth: 2040 divides by 5*8 and does not
+       divide by 2*8, because 255 is odd. */
+    wfm_source_t odd_depth     = cadu;
+    odd_depth.interleave_depth = 2;
+    const char *why            = wfm_source_frame_error (&odd_depth);
+    DP_REQUIRE_MSG (why != NULL,
+                    "a data group that is not a whole number of units is "
+                    "still refused");
+    /* And refused BY THIS GUARD -- asserting only that some sentence came
+       back is what let the case above pass on the outer code's message. */
+    DP_REQUIRE_MSG (strstr (why, "--interleave") == why,
+                    "the refusal has to name --interleave, not whichever "
+                    "guard happened to fire first");
+
+    /* And without an outer code the span is payload + CRC, unchanged: 16
+       payload bits and no CRC is two units of 8, so depth 2 divides it. */
+    wfm_source_t         no_outer    = cadu;
+    static const uint8_t sixteen[16] = { 0 };
+    no_outer.bits                    = (uint8_t *)sixteen;
+    no_outer.n_bits                  = sizeof sixteen;
+    no_outer.rs_depth                = 0;
+    no_outer.interleave_depth        = 2;
+    DP_REQUIRE_MSG (wfm_source_frame_error (&no_outer) == NULL,
+                    "with no outer code the group is payload + CRC");
   }
 
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "

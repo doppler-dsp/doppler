@@ -63,28 +63,93 @@ acq_in_doppler_band (const acq_state_t *st, size_t k)
    * length, so that formula's assumptions don't apply to it anyway). */
   if (st->window_bins > 1)
     return 1;
-  const size_t row = k / st->code_bins;
-  const size_t fold
-      = (row <= st->coherent_bins - row) ? row : st->coherent_bins - row;
-  return fold <= (st->searched_bins - 1) / 2;
+  /* k indexes the (interpolated) SURFACE, so fold on the fine grid and
+     compare against a band widened by the same factor -- otherwise
+     interpolation would silently narrow the searched Doppler range. */
+  const size_t rows = st->coherent_bins * st->interp;
+  const size_t row  = k / st->code_bins;
+  const size_t fold = (row <= rows - row) ? row : rows - row;
+  return fold <= ((st->searched_bins - 1) / 2) * st->interp;
+}
+
+/* Doppler-axis interpolation of the SLOW-TIME FFT.
+ *
+ * 2 halves the worst-case scalloping loss of the slow-time transform from
+ * ~3.9 dB (a peak exactly between two bins) to ~0.9 dB. That null was not a
+ * margin a caller could buy back with signal: `test_stat` saturates against
+ * the code's own autocorrelation-sidelobe floor, so a burst sitting at half
+ * a bin was undetectable at ANY C/N0 (gh-1002).
+ *
+ * WHAT IS PADDED IS THE SLOW-TIME TRANSFORM, NOT THE CODE. The code axis
+ * (`code_bins = sf*spc`) is untouched: corr2d's correlation along it is
+ * CIRCULAR, so zero-padding the replica or the epoch in time would not be an
+ * interpolation at all -- it would change the correlation being computed
+ * (corr2d's own header states this: the forward FFT2 must stay at the
+ * code-period size). The padded sequence is the per-column series of epochs,
+ * whose transform is an ordinary spectral estimate, and lengthening that
+ * transform samples the same DTFT more finely. Verified alongside: the
+ * reported code_phase is exact at every lag across a whole period.
+ *
+ * It is done HERE and NOT via corr2d's `ny_out`. corr2d sees a single-row
+ * reference (a code replica with no Doppler content) and takes its fast
+ * path, in which the row axis provably cancels to an identity and is never
+ * transformed at all -- so `ny_out` would force it onto the general 2-D path
+ * and re-transform rows this engine has already transformed. The Doppler
+ * axis is this engine's.
+ *
+ * Frequency-domain zero-padding is exact band-limited interpolation, so the
+ * added rows carry no new information -- which is why the threshold ladder
+ * stays sized from the NATIVE cell count `n`. Interpolation changes where
+ * the surface is sampled, not how many independent chances the noise gets. */
+#define ACQ_DOPPLER_INTERP 2u
+
+/* Is this surface cell on a NATIVE Doppler row (not an interpolated one)? */
+static inline int
+acq_is_native_cell (const acq_state_t *st, size_t k)
+{
+  return st->interp <= 1 || ((k / st->code_bins) % st->interp) == 0;
 }
 
 /* Peak, CFAR noise, and test statistic from the coherent dump in out_buf. */
 static void
 acq_compute_stat (acq_state_t *st)
 {
-  const size_t n = st->n;
+  const size_t n = st->n_surf;
 
   for (size_t k = 0; k < n; k++)
     st->mag_buf[k] = cabsf (st->out_buf[k]);
 
-  size_t peak = 0;
-  for (size_t k = 1; k < n; k++)
-    if (st->mag_buf[k] > st->mag_buf[peak] && acq_in_doppler_band (st, k))
-      peak = k;
+  /* Two maxima, and the split is the whole point of interpolating.
+   *
+   * `peak` ranges over the INTERPOLATED surface and sets peak_mag /
+   * test_stat: that is where the scalloping loss is recovered, and it is
+   * what decides whether the gate fires at all.
+   *
+   * `nat` is restricted to NATIVE rows and sets the reported cell. The
+   * contract is that doppler_bin lives on the native grid -- every consumer
+   * scales it by doppler_res_hz -- so reporting a half-bin row, or rounding
+   * one to its nearer neighbour, would make the estimate jitter by a whole
+   * bin on noise. Measured: rounding cost ~5 points of Pd on the
+   * characterization's true-cell criterion, because a peak landing on an odd
+   * fine row reported the wrong neighbour. */
+  size_t peak = 0, nat = 0;
+  int    have_nat = 0;
+  for (size_t k = 0; k < n; k++)
+    {
+      if (!acq_in_doppler_band (st, k))
+        continue;
+      if (st->mag_buf[k] > st->mag_buf[peak])
+        peak = k;
+      if (acq_is_native_cell (st, k)
+          && (!have_nat || st->mag_buf[k] > st->mag_buf[nat]))
+        {
+          nat      = k;
+          have_nat = 1;
+        }
+    }
 
-  st->peak_row = peak / st->code_bins;
-  st->peak_col = peak % st->code_bins;
+  st->peak_row = (have_nat ? nat : peak) / st->code_bins / st->interp;
+  st->peak_col = (have_nat ? nat : peak) % st->code_bins;
   st->peak_mag = st->mag_buf[peak];
 
   st->noise_est = det_noise_estimate (st->mag_buf, st->noise_lo, st->noise_hi,
@@ -106,16 +171,28 @@ acq_compute_stat (acq_state_t *st)
 static void
 acq_compute_stat_nc (acq_state_t *st)
 {
-  const size_t n = st->n;
+  const size_t n = st->n_surf;
 
-  size_t peak = 0;
-  for (size_t k = 1; k < n; k++)
-    if (st->nc_surface[k] > st->nc_surface[peak]
-        && acq_in_doppler_band (st, k))
-      peak = k;
+  /* Same split as the coherent path: the statistic comes from the
+   * interpolated surface, the reported cell from the native grid. */
+  size_t peak = 0, nat = 0;
+  int    have_nat = 0;
+  for (size_t k = 0; k < n; k++)
+    {
+      if (!acq_in_doppler_band (st, k))
+        continue;
+      if (st->nc_surface[k] > st->nc_surface[peak])
+        peak = k;
+      if (acq_is_native_cell (st, k)
+          && (!have_nat || st->nc_surface[k] > st->nc_surface[nat]))
+        {
+          nat      = k;
+          have_nat = 1;
+        }
+    }
 
-  st->peak_row = peak / st->code_bins;
-  st->peak_col = peak % st->code_bins;
+  st->peak_row = (have_nat ? nat : peak) / st->code_bins / st->interp;
+  st->peak_col = (have_nat ? nat : peak) % st->code_bins;
   st->peak_mag = sqrtf (st->nc_surface[peak]);
 
   float noise_pow
@@ -333,7 +410,7 @@ acq_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t cb, double pfa,
  *   count folds to [-n/2, +n/2-1] (one more negative hypothesis than
  *   positive), leaving the top positive offset unreachable, and puts a bin at
  *   exactly n/2 whose signed reading is the one index the search and the
- *   handoff used to disagree on (see acq_bin_to_signed()).
+ *   handoff used to disagree on (see dp_fftfreq_index()).
  *
  * Worked example, SPEC.md's geometry (chip_rate 3.069 Mcps, sf 1023 -> span
  * 1500 Hz, res 3000 Hz) at du = 50 kHz: n_side = ceil(48500/3000) = 17 ->
@@ -483,6 +560,12 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
   const int    grid_changed = (new_db != st->coherent_bins) || (new_n != st->n)
                               || (new_freq_bins != st->window_bins);
   const size_t new_frame_n  = (new_freq_bins > 1) ? cb : new_n;
+  /* Interpolate the Doppler axis only where there IS one: wideband mode
+     tiles frequency with window_bins and pins coherent_bins at 1, so its
+     rows are hypotheses rather than FFT bins and have no scalloping to fix. */
+  const size_t new_interp
+      = (new_freq_bins > 1 || new_db <= 1) ? 1u : ACQ_DOPPLER_INTERP;
+  const size_t new_n_surf = new_n * new_interp;
 
   corr2d_state_t *new_corr          = NULL;
   fft_state_t    *new_fft           = NULL;
@@ -508,7 +591,7 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
        * carries the replica (chip 0 -> +1, chip 1 -> -1, each held for spc
        * samples), the rest of the (possibly wideband-enlarged) buffer
        * zero. */
-      new_ref = (float complex *)calloc (new_n, sizeof (float complex));
+      new_ref = (float complex *)calloc (new_n_surf, sizeof (float complex));
       if (!new_ref)
         goto fail;
       if (code)
@@ -521,19 +604,30 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
       else
         memcpy (new_ref, st->ref, cb * sizeof (float complex));
 
-      new_corr = corr2d_create (new_ref, new_db, cb, 1, 1, 0, 0);
+      /* The correlator works on the INTERPOLATED row count: its single-row
+         fast path runs one length-cb FFT per row and never touches the row
+         axis, so more rows is simply more independent code correlations --
+         no double transform, and `ny_out` stays 0 deliberately (see
+         ACQ_DOPPLER_INTERP). */
+      new_corr = corr2d_create (new_ref, new_db * new_interp, cb, 1, 1, 0, 0);
       if (!new_corr)
         goto fail;
-      new_fft = fft_create (new_db, -1, 1);
+      /* Zero-padded slow-time transform: `new_db` real inputs into a
+         `new_db * interp`-point FFT is exact band-limited interpolation of
+         the Doppler axis. */
+      new_fft = fft_create (new_db * new_interp, -1, 1);
       if (!new_fft)
         goto fail;
 
-      new_yframe  = (float complex *)malloc (new_n * sizeof (float complex));
-      new_out     = (float complex *)malloc (new_n * sizeof (float complex));
-      new_colbuf  = (float complex *)malloc (new_db * sizeof (float complex));
-      new_colout  = (float complex *)malloc (new_db * sizeof (float complex));
-      new_mag     = (float *)malloc (new_n * sizeof (float));
-      new_scratch = (float *)malloc (new_n * sizeof (float));
+      new_yframe
+          = (float complex *)malloc (new_n_surf * sizeof (float complex));
+      new_out = (float complex *)malloc (new_n_surf * sizeof (float complex));
+      new_colbuf  = (float complex *)calloc (new_db * new_interp,
+                                             sizeof (float complex));
+      new_colout  = (float complex *)malloc (new_db * new_interp
+                                             * sizeof (float complex));
+      new_mag     = (float *)malloc (new_n_surf * sizeof (float));
+      new_scratch = (float *)malloc (new_n_surf * sizeof (float));
       if (!new_yframe || !new_out || !new_colbuf || !new_colout || !new_mag
           || !new_scratch)
         goto fail;
@@ -569,7 +663,7 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
   /* Non-coherent power accumulator — only on the N_nc > 1 path. */
   if (new_nc > 1)
     {
-      new_ncsurf = (float *)calloc (new_n, sizeof (float));
+      new_ncsurf = (float *)calloc (new_n_surf, sizeof (float));
       if (!new_ncsurf)
         goto fail;
     }
@@ -625,9 +719,11 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
   st->window_bins   = new_freq_bins;
   st->n_noncoh      = new_nc;
   st->n             = new_n;
+  st->interp        = new_interp;
+  st->n_surf        = new_n_surf;
   st->frame_n       = new_frame_n;
   st->noise_lo      = 0;
-  st->noise_hi      = new_n - 1;
+  st->noise_hi      = new_n_surf - 1;
   return 0;
 
 fail:
@@ -805,7 +901,7 @@ acq_reset (acq_state_t *st)
   DP_STORE_REL (&st->ring->tail, 0);
   corr2d_reset (st->corr);
   if (st->nc_surface)
-    memset (st->nc_surface, 0, st->n * sizeof (float));
+    memset (st->nc_surface, 0, st->n_surf * sizeof (float));
   st->nc_count         = 0;
   st->samples_consumed = 0;
   st->peak_row = st->peak_col = 0;
@@ -876,7 +972,7 @@ acq_push (acq_state_t *st, const float complex *x, size_t n_in,
               fft_execute_cf32 (st->wide_fwd, frame, nx, st->wide_spec, nx);
               for (size_t r = 0; r < st->window_bins; r++)
                 {
-                  long signed_r = acq_bin_to_signed (r, st->window_bins);
+                  long signed_r = dp_fftfreq_index (r, st->window_bins);
                   long wrapped = ((signed_r % (long)nx) + (long)nx) % (long)nx;
                   size_t roll  = (size_t)wrapped;
                   for (size_t j = 0; j < nx; j++)
@@ -892,16 +988,21 @@ acq_push (acq_state_t *st, const float complex *x, size_t n_in,
               /* Slow-time Doppler FFT: FFT along the ny segment axis, per
                * column. Unnormalised (matches numpy fft); corr2d supplies
                * the only 1/n. */
+              const size_t ny_f = ny * st->interp;
               for (size_t j = 0; j < nx; j++)
                 {
                   for (size_t i = 0; i < ny; i++)
                     st->colbuf[i] = frame[i * nx + j];
-                  fft_execute_cf32 (st->slow_fft, st->colbuf, ny, st->colout,
-                                    ny);
-                  for (size_t i = 0; i < ny; i++)
+                  /* colbuf's tail stays zero from create: the pad is what
+                     interpolates the Doppler axis, and it must not carry the
+                     previous column's samples. */
+                  fft_execute_cf32 (st->slow_fft, st->colbuf, ny_f, st->colout,
+                                    ny_f);
+                  for (size_t i = 0; i < ny_f; i++)
                     st->yframe[i * nx + j] = st->colout[i];
                 }
-              n_out = corr2d_execute (st->corr, st->yframe, n, st->out_buf, n);
+              n_out = corr2d_execute (st->corr, st->yframe, st->n_surf,
+                                      st->out_buf, st->n_surf);
             }
           dp_f32_consume (st->ring, frame_n);
           st->samples_consumed += frame_n;
@@ -934,7 +1035,7 @@ acq_push (acq_state_t *st, const float complex *x, size_t n_in,
 
           /* Non-coherent path: magnitude-square accumulate each coherent look;
            * gate the order-N_nc statistic once n_noncoh looks are in. */
-          for (size_t k = 0; k < n; k++)
+          for (size_t k = 0; k < st->n_surf; k++)
             {
               float m = cabsf (st->out_buf[k]);
               st->nc_surface[k] += m * m;
@@ -959,7 +1060,7 @@ acq_push (acq_state_t *st, const float complex *x, size_t n_in,
                 .samples_consumed = st->samples_consumed,
               };
             }
-          memset (st->nc_surface, 0, n * sizeof (float));
+          memset (st->nc_surface, 0, st->n_surf * sizeof (float));
           st->nc_count = 0;
         }
 
@@ -980,9 +1081,9 @@ acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
     phase += cl;
 
   /* Shared with the wideband search's own row->roll mapping — see
-     acq_bin_to_signed()'s doc comment for the sign inversion that a second,
+     dp_fftfreq_index()'s doc comment for the sign inversion that a second,
      drifted copy of this formula used to cause here. */
-  long k_fold = acq_bin_to_signed (hit->doppler_bin, state->window_bins);
+  long k_fold = dp_fftfreq_index (hit->doppler_bin, state->window_bins);
 
   *out = (acq_handoff_t){
     .samples_consumed = hit->samples_consumed,
@@ -1000,7 +1101,7 @@ acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
  *
  * Fixed flat layout (offsets depend only on the ring capacity), so the state
  * blob is portable POD:
- *   [hdr][ float complex unconsumed[ring_cap] ][ float nc_surface[n] (if nc) ]
+ *   [hdr][ float complex unconsumed[ring_cap] ][ float nc_surface[n_surf] ]
  * Only the first hdr.n_unconsumed of the unconsumed region holds data; that
  * may exceed n (undrained full frames from a max_results-saturated run,
  * preserved so the resume processes them).
@@ -1028,7 +1129,7 @@ acq_state_bytes (const acq_state_t *st)
 {
   size_t b = ACQ_BODY_OFF + st->ring_cap * sizeof (float complex);
   if (st->n_noncoh > 1)
-    b += st->n * sizeof (float);
+    b += st->n_surf * sizeof (float);
   return b;
 }
 
@@ -1059,7 +1160,7 @@ acq_get_state (const acq_state_t *st, void *blob)
     }
   if (ex.has_nc)
     memcpy (acq_state_nc (blob, st->ring_cap), st->nc_surface,
-            n * sizeof (float));
+            st->n_surf * sizeof (float));
 }
 
 int
@@ -1090,9 +1191,9 @@ acq_set_state (acq_state_t *st, const void *blob)
     {
       if (ex.has_nc)
         memcpy (st->nc_surface, acq_state_nc ((void *)blob, st->ring_cap),
-                st->n * sizeof (float));
+                st->n_surf * sizeof (float));
       else
-        memset (st->nc_surface, 0, st->n * sizeof (float));
+        memset (st->nc_surface, 0, st->n_surf * sizeof (float));
     }
   return DP_OK;
 }

@@ -1,44 +1,26 @@
 # Objects with no resumable running state — serialization is intentionally
 # not applicable. Reviewed, permanent opt-out (checked by check_serializable.py).
 # Pure decode converters (scale-only, constant iscale):
-i16_to_f32
-i16u32_to_f32
-i16u64_to_f32
-i32_to_f32
-i8_to_f32
-uq15_to_f32
 # Transforms — a plan/window fixed at construction, no cross-call state:
-fft
-fft2d
 # By-value measurement analyzers — analyze(x) -> record, no state across calls:
-tonemeas
-nprmeas
-imdmeas
 # Feedforward polynomial-phase estimator — estimate(x) -> record, no state.
-ppe
 # Feedforward DSSS frame demod — one-shot burst analyzers, no running state.
-burst_demod
 # Periodic table lookup — pure function of (table, method, point), no state.
-interp_table
 # File-backed container I/O — the FILE* IS the state; a read cursor or a
 # written count is meaningless without the OS handle, which cannot cross a
 # checkpoint/pod boundary. No dp_state triplet; resume by re-opening the path.
-wfm_reader
-wfm_writer
 # Observation sink, not a signal-path stage: nothing downstream depends on
 # restoring it, so a resumed pipeline is bit-identical either way. Its ring is
 # a live cross-thread SPSC handle in the same sense the readers' FILE* is —
 # meaningless across a checkpoint/pod boundary. The probe table is setup-time
 # config, restored by re-registering; `now` is borrowed from the pipeline's
 # dp_sample_clock_t, not owned here.
-dp_tlm
 # The capture over that ring — the same argument, plus a stronger one. It owns
 # an open FILE* and a live writer thread (the wfm_reader/wfm_writer case
 # exactly), and its losslessness is a claim about ONE run, from open() to
 # close(): the drop count it renders a verdict on is latched against the
 # context at open. A resumed capture would carry a verdict that means nothing.
 # Capture a new one instead.
-dp_tlm_capture
 # A by-value DESCRIPTOR, not a stage: it is fully determined by its
 # constructor arguments and nothing about it advances with the stream. Its one
 # heap buffer is the materialised frame, which is a pure function of those
@@ -47,7 +29,6 @@ dp_tlm_capture
 # the usual no-running-state argument alone: even the generated PN/Gold fields
 # hold no live register here, because the frame is materialised once at create
 # and repeated, never re-generated.
-frame
 # A DETECTOR over its argument, not a stage in a stream: `find(bits)` reads
 # the whole run it is given and nothing carries to the next call. Its one heap
 # buffer is a copy of the marker, which is a pure function of the constructor
@@ -57,17 +38,37 @@ frame
 # holds. (When a resumable searcher does arrive -- one that carries partial
 # correlation across buffer boundaries -- it will be a different object with
 # genuine running state, and it will need a triplet.)
-syncword
 # A code plus the tables DERIVED from it, and every `rs` kernel takes it
 # const: nothing advances with the stream, and the whole state is a pure
 # function of the five constructor arguments. "Resume" means construct the
 # same ReedSolomon again. (The INTERLEAVER a standard wraps around it does
 # carry position, but that lives in the frame assembler, not here.)
-rs_codec
 # Interrupt guard — its state is process-local RESOURCE OWNERSHIP (which
 # signal handlers it installed, the latency it overrode), not running DSP
 # state. A blob saying "I hold SIGINT" restored in another process would be
 # a claim about handlers that process never installed, so the triplet would
 # be actively wrong rather than merely absent. The flag it fronts is
 # process-wide and outlives any guard.
+burst_demod
 dp_interrupt_guard
+dp_tlm
+dp_tlm_capture
+fft
+fft2d
+frame
+i16_to_f32
+i16u32_to_f32
+i16u64_to_f32
+i32_to_f32
+i8_to_f32
+imdmeas
+interleaver
+interp_table
+nprmeas
+ppe
+rs_codec
+syncword
+tonemeas
+uq15_to_f32
+wfm_reader
+wfm_writer

@@ -161,11 +161,65 @@ table — describe one with
 
 ::: doppler.coding.ReedSolomon
 
+## `Interleaver` — spreading a burst across codewords
+
+A block interleaver writes its input by rows into a `rows` × `cols` matrix and
+reads it back by columns. That is the whole transform: no redundancy, no
+detection, and the same number of bits out as in.
+
+What it buys is that a **burst** of errors arrives at the decoder spread out.
+Write one codeword per row and reading by columns transmits one symbol from
+each codeword in turn, so a burst of up to `rows` consecutive symbols costs
+each codeword at most one. An outer code correcting `t` symbols per codeword
+then survives a burst of `t * rows`.
+
+Two things are worth knowing before reaching for it.
+
+**Interleaving a single codeword buys nothing.** Reed-Solomon corrects any `E`
+symbol errors wherever they fall, so permuting them inside one codeword changes
+nothing a decoder can see. The gain exists only when there are codewords to
+spread a burst *across* — which is also why `ReedSolomon`'s own interleaving
+depth already has this property for the codewords it covers. `Interleaver` is
+the general form: it works over whatever span you give it, including many
+codeblocks and codes with no interleaving of their own.
+
+**Match `unit_bits` to the code's symbol.** An RS code over GF(256) is
+protected by permuting *octets* (`unit_bits=8`). Bit-interleaving it spreads a
+burst inside symbols that are already wrong, and the difference shows up
+exactly at the bound — measured in `validate_interleave_burst_gain`, where at
+the `E * rows` limit octet units correct every frame and bit units lose four in
+five.
+
+There is no `interleave_soft`, because a transmitter has bits, not LLRs.
+`deinterleave_soft` exists because a receiver has both: an outer decoder wants
+[`DsssBurstReceiver.llrs`](python-dsss.md) de-interleaved *before* it runs, and
+slicing to hard decisions first throws away the confidence the soft output
+carries.
+
+::: doppler.coding.Interleaver
+
+### `Deinterleaver` — the same object, under the name the receive side looks for
+
+Identical construction, and `interleave` deliberately absent. It exists because
+the two ends of a link are written by different people: someone working the
+receive side reaches for a `Deinterleaver`, and a class findable only under the
+transmit name is a class they do not find.
+
+It is a **view** over the same core rather than a second object, and that is the
+important part. `rows`, `cols` and `unit_bits` are exactly what the two ends
+must agree on, and a mismatch is not an error — it is a receiver de-interleaving
+into a different permutation and handing the decoder plausible garbage. One core
+means one definition of the geometry to get right.
+
+::: doppler.coding.Deinterleaver
+
 ## Related pages
 
 <!-- related-pages:start -->
 
-**Gallery** — [A CCSDS CADU, as a Frame Description](../gallery/ccsds-link.md), [Name Your Own Code — and What Happens Past the Radius](../gallery/coding.md)
-**Design** — [The FEC Receive Half](../design/fec-receive.md), [Design](../design/index.md), [Reed-Solomon](../design/reed-solomon.md)
+**Gallery** — [A CCSDS CADU, as a Frame Description](../gallery/ccsds-link.md), [Name Your Own Code — and What Happens Past the Radius](../gallery/coding.md), [DsssBurstReceiver — the Composed Burst Chain](../gallery/dsss-burst-receiver.md)
+**Guides** — [Channel coding — the stages over a frame](../guide/wfmgen/coding.md)
+**Design** — [The FEC Receive Half](../design/fec-receive.md), [Design](../design/index.md), [Interleaving — spreading a burst across codewords](../design/interleaving.md), [Reed-Solomon](../design/reed-solomon.md)
+**Contributing** — [Validation log](../dev/contributing/validation-log.md)
 
 <!-- related-pages:end -->

@@ -98,12 +98,18 @@ nn = np.arange(len(bb))
 rx = (bb * np.exp(2j * np.pi * f0 * nn)).astype(np.complex64)
 
 d = BurstDemod(data_code, spc=4, chip_rate=1e6, carrier_hz=0.0,
-               max_rate=0.0, payload_len=64, est_segments=10)
+               max_rate=0.0, frame_syms=13 + 64 + 16, est_segments=10)
 d.set_preamble(acq_code, reps=5)
-d.set_sync(sync_word)              # 0/1 BPSK sync header
+d.set_sync(sync_word)               # 0/1 BPSK sync header
 d.set_prior(f0, preamble_start)
-bits = d.demod(rx)
-assert d.frame_valid             # CRC passed
+frame = d.demod(rx)                 # the FRAME's bits, sync word first
+# The demodulator stops at decisions; the frame is undone one layer up.
+from doppler.wfm import crc16
+payload = frame[13:13 + 64]
+rx_crc = 0
+for b in frame[13 + 64:][:16]:
+    rx_crc = (rx_crc << 1) | int(b)
+assert rx_crc == int(crc16(payload))            # the CHECK is the caller's
 ```
 
 ::: doppler.dsss.BurstDemod
@@ -274,13 +280,52 @@ for an end-to-end decode through physically-coupled Doppler.
 
 ::: doppler.dsss.AsyncDsssReceiver
 
+## `bin_to_signed` — read an FFT grid the way numpy does
+
+Maps a reported Doppler **bin index** to its **signed** frequency index —
+`numpy.fft.fftfreq(n) * n`, exactly. Multiply by `doppler_res_hz` for Hz:
+
+```python
+import numpy as np
+
+from doppler.dsss import BurstAcquisition, bin_to_signed
+from doppler.wfm import PN, mls_poly
+
+code = np.asarray(
+    PN(poly=mls_poly(5), seed=1, length=5).generate(31)
+).astype(np.uint8)
+acq = BurstAcquisition(code, reps=4, spc=4, chip_rate=1e6, cn0_dbhz=55.0)
+
+# One repeated-code burst, so push() reports a hit to read the bin off.
+chips = np.where(code & 1, -1.0, 1.0)
+burst = np.tile(np.repeat(chips, 4), 8).astype(np.complex64)
+hit_bin = acq.push(burst)[0][0]
+
+f0_hz = bin_to_signed(hit_bin, acq.doppler_bins) * acq.doppler_res_hz
+print(f"bin {hit_bin} -> {f0_hz:+.0f} Hz")
+```
+
+Call it rather than writing the fold out. The search and its hand-off must
+agree on the convention, and a consumer seeded on the wrong side of it is off
+by the **full search span** — a failure that once surfaced here as a receiver
+reporting `tracking == 1` while decoding noise. It is a thin wrapper over
+`dp_fftfreq_index()` in `clib_common.h`, so C callers inline the same code.
+
+Two things worth knowing. An **even** grid's Nyquist bin is `-n/2`, following
+numpy; this engine reported `+n/2` there until the burst-chain certification,
+so a formula ported in from numpy now agrees with it. And the C companion
+`dp_fftfreq(bin, n, fs)` returns the bin's frequency directly, taking the
+sample **rate** where numpy takes the sample **spacing**.
+
+::: doppler.dsss.bin_to_signed
+
 ## Related pages
 
 <!-- related-pages:start -->
 
-**Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Correlation and Detection](../gallery/corr.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md), [Gallery](../gallery/index.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md)
+**Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Correlation and Detection](../gallery/corr.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [DsssBurstReceiver — the Composed Burst Chain](../gallery/dsss-burst-receiver.md), [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md), [Gallery](../gallery/index.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md)
 **Guides** — [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Guides](../guide/index.md), [Lock Detection Across `doppler.track`](../guide/lock-detection.md), [Checkpoint & Resume](../guide/state-serialization.md), [DSSS bursts — a burst train in one declaration](../guide/wfmgen/dsss-bursts.md), [Waveforms](../guide/wfmgen/waveforms.md)
-**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [DsssReceiver Specifications](../design/async-dsss-spec.md), [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [Design](../design/index.md), [MPSK Receiver](../design/mpsk.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
-**Contributing** — [DSSS Primary Use Cases for Code Acquisition Design](../dev/contributing/dsss-use-cases.md), [Contributing](../dev/index.md)
+**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [DsssReceiver Specifications](../design/async-dsss-spec.md), [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [Detection Sizing — the four laws behind one prefix](../design/detection.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [`DsssBurstReceiver`: the burst chain, composed in C](../design/dsss-burst-receiver.md), [Design](../design/index.md), [MPSK Receiver](../design/mpsk.md), [The Polynomial-Phase Estimator — the reasoning](../design/ppe.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
+**Contributing** — [DSSS Primary Use Cases for Code Acquisition Design](../dev/contributing/dsss-use-cases.md), [Validation log](../dev/contributing/validation-log.md), [Contributing](../dev/index.md)
 
 <!-- related-pages:end -->

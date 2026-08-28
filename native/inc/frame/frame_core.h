@@ -84,6 +84,16 @@ typedef struct {
     wfm_frame_desc_t d;
     /** The general layout, derived at build. */
     wfm_frame_desc_layout_t dl;
+    /** What the last frame_deframe() found, summed across the stages it
+        reversed. Read-backs rather than a returned record: the call hands
+        back BITS, and jm binds one return value. `rx_checked == 0` means
+        the description carries no reversible stage — which is not the same
+        fact as a failed check, and an FER conflating them would score every
+        unprotected frame as an error. */
+    int rx_checked;
+    int rx_units;
+    int rx_ok;
+    int rx_symbols;
     /** The four-field configuration, kept only when the object was built that
         way — it is what `layout()`'s NAMED view reports. A description built
         field by field has no preamble/sync/payload/crc to name, and
@@ -390,13 +400,18 @@ int frame_add_field(frame_state_t *state, const uint8_t *lit, size_t lit_len,
  * `wfm/wfm_frame.h`.
  *
  * @param state        A frame from @ref frame_create_desc.
- * @param kind         @ref wfm_stage_kind_t index; 0=crc16…3=conv.
+ * @param kind         @ref wfm_stage_kind_t index; 0=crc16…4=interleave.
  * @param first_field  First field covered.
  * @param n_fields     Fields covered; 0 = the stage does not run.
  * @param depth        Interleaving depth, for an outer code.
  * @param emit_num     Expansion numerator for a stage that emits a NEW
  *                     stream; 0 when the stage stays inside the frame.
  * @param emit_den     Expansion denominator.
+ * @param unit_bits    INTERLEAVE only: bits per interleaved unit; 0 reads
+ *                     as 1. Match it to the outer code's symbol — permuting
+ *                     octets is what spreads a burst across the codewords of
+ *                     a code over GF(256), and permuting bits inside one
+ *                     spreads a burst within a symbol that is already wrong.
  * @return The new stage's index, or -1 if the description is full or already
  *         built.
  *
@@ -427,7 +442,7 @@ int frame_add_field(frame_state_t *state, const uint8_t *lit, size_t lit_len,
  */
 int frame_add_stage(frame_state_t *state, int kind, uint32_t first_field,
                     uint32_t n_fields, uint32_t depth, uint32_t emit_num,
-                    uint32_t emit_den);
+                    uint32_t emit_den, uint32_t unit_bits);
 
 /**
  * @brief Lay out and materialise a described frame.
@@ -555,6 +570,77 @@ typedef struct {
  * @endcode
  */
 frame_check_t frame_check(frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len);
+
+/**
+ * @brief Undo this description's stages over a received frame — DEFRAME it.
+ *
+ * The receive counterpart of building one, and the layer a receiver stops
+ * short of: `DsssBurstReceiver` and friends hand back hard and soft
+ * decisions for a frame's symbols and make no claim about what they mean,
+ * because knowing that needs a description — this one (doppler#1022).
+ *
+ * Returns the frame with every reversible stage undone, in place order:
+ * a randomiser XORed back, an outer code's repairs APPLIED, a CRC checked.
+ * The payload is then a slice, at @ref frame_field_off of the payload
+ * field — which is the caller's arithmetic because a description does not
+ * privilege one field over another.
+ *
+ * The verdict comes back as read-backs (`ok`, `units`, `checked`,
+ * `symbols`), not as a return value, since the return is the bits. Read
+ * them exactly as @ref frame_check_t's, including the distinction that
+ * matters most: `checked == 0` says the description carries no reversible
+ * stage at all, which is a different fact from a check that failed.
+ *
+ * A stage with no `undo` kernel — a convolutional inner code, which a
+ * receiver cannot even frame-sync through — is reported as not checked
+ * rather than as passed.
+ *
+ * @param state        The frame.
+ * @param rx_bits      Received bits, `frame_bits` of them; treated as a
+ *                     capture and never modified.
+ * @param rx_bits_len  How many were supplied.
+ * @param out          Receives the corrected frame.
+ * @param max_out      Capacity of @p out; see frame_deframe_max_out().
+ * @return Bits written — the frame's length — or 0 if the description is
+ *         empty or either buffer is too small.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wfm import Frame
+ * >>> empty = np.zeros(0, dtype=np.uint8)
+ * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], dtype=np.uint8)
+ * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], dtype=np.uint8)
+ * >>> f = Frame(empty, sync, payload, crc="crc16")
+ * >>> rx = np.asarray(f.bits())          # a clean capture of its own frame
+ * >>> got = np.asarray(f.deframe(rx))
+ * >>> f.rx_ok, f.rx_units, f.rx_checked  # one CRC, and it passed
+ * (1, 1, 1)
+ * >>> off = f.layout().payload_off       # the payload is a SLICE
+ * >>> bool(np.array_equal(got[off:off + 16], payload))
+ * True
+ * >>> rx[off] ^= 1                       # one bit flipped in flight
+ * >>> _ = f.deframe(rx)
+ * >>> f.rx_ok, f.rx_units                # the check notices
+ * (0, 1)
+ *
+ * @endcode
+ */
+size_t frame_deframe(frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len, uint8_t *out, size_t max_out);
+
+/**
+ * @brief Max bits frame_deframe() writes: the frame's own length.
+ *
+ * Size a `deframe()` buffer with this. The bound is the DESCRIPTION's, not
+ * the input's: a frame is as long as its fields say, so how many bits were
+ * received does not change how many come back.
+ *
+ * @param state        The frame.
+ * @param rx_bits_len  How many bits are on offer. Ignored, for the reason
+ *                     above; it is in the signature because the binding's
+ *                     capacity call passes the input's length.
+ * @return The frame's length in bits, or 0 for an empty description.
+ */
+size_t frame_deframe_max_out(frame_state_t *state, size_t rx_bits_len);
+
 
 /**
  * @brief Fields in the description.

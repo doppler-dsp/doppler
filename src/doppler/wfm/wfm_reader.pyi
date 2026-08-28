@@ -21,9 +21,12 @@ class Reader:
         sidecar the same way.
     sample_type : Literal["cf32", "cf64", "ci32", "ci16", "ci8"], default "cf32"
         the wire sample type, used only as a HINT for the headerless file types
-        (raw, CSV) -- BLUE and SigMF carry their own and ignore it. `"cf32"`,
-        `"cf64"`, `"ci32"`, `"ci16"` or `"ci8"` from Python; the matching 0..4
-        from C. A wrong hint does not fail; see
+        (raw, CSV) -- BLUE and SigMF carry their own and ignore it. The five
+        complex names `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"`, `"ci8"` or the
+        five real ones `"f32"`, `"f64"`, `"i32"`, `"i16"`, `"i8"` from Python;
+        the matching 0..9 from C. A real hint is the only way to say that a
+        headerless file carries one component per sample rather than
+        interleaved I/Q. A wrong hint does not fail; see
         ::wfm_reader_get_trailing_bytes.
     endian : Literal["le", "be"], default "le"
         byte order, likewise a hint that only headerless raw uses; `"le"` or
@@ -281,7 +284,7 @@ class Reader:
         """
 
     @property
-    def sample_type(self) -> Literal["cf32", "cf64", "ci32", "ci16", "ci8"]:
+    def sample_type(self) -> Literal["cf32", "cf64", "ci32", "ci16", "ci8", "f32", "f64", "i32", "i16", "i8"]:
         """The wire sample type the samples are being decoded FROM -- `"cf32"`,
         `"cf64"`, `"ci32"`, `"ci16"` or `"ci8"`. For BLUE and SigMF this was
         read from the file's metadata and is authoritative; for raw and CSV it

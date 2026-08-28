@@ -1021,5 +1021,55 @@ main (void)
                         "wrote");
   }
 
+  /* ── the stage LIST, not just the covers (doppler#1031) ───────────────
+   *
+   * Adding the block interleaver to this descriptor introduced a defect
+   * nothing here could see: `s_ilv = ns++` ended up nested under
+   * `if (convolutional)` with `s_conv = ns++` left unconditional, so a
+   * description with no inner code still counted a stage slot for one. The
+   * spare stage is zero-initialised, which reads as CRC16 with n_fields == 0
+   * -- "does not run" -- so every frame still assembled byte-identically and
+   * every existing test passed.
+   *
+   * That is the whole reason to assert the COUNT and the KINDS rather than
+   * only the bits: a stage list with an extra do-nothing entry is invisible
+   * in the output and is still wrong, and it consumes one of
+   * WFM_FRAME_MAX_STAGES. */
+  {
+    static const uint8_t payload[223] = { 0 };
+    struct
+    {
+      const char *what;
+      unsigned    ilv, conv;
+      unsigned    want_stages;
+    } cases[] = {
+      { "interleave alone", 5, 0, 1 },
+      { "interleave + inner code", 5, 1, 2 },
+      { "inner code alone", 0, 1, 1 },
+      { "neither", 0, 0, 0 },
+    };
+    for (unsigned c = 0; c < 4; c++)
+      {
+        ccsds_tm_frame_spec_t sp = {
+          .payload              = payload,
+          .payload_len          = sizeof payload * 8u,
+          .interleave_depth     = cases[c].ilv,
+          .interleave_unit_bits = cases[c].ilv ? 8u : 0u,
+          .convolutional        = (int)cases[c].conv,
+        };
+        wfm_frame_desc_t d;
+        DP_REQUIRE (ccsds_tm_frame_desc_of (&sp, &d) == 0);
+        DP_CHECK_MSG (d.n_stages == cases[c].want_stages, cases[c].what);
+        /* and each declared stage actually runs -- an entry covering no
+           fields is the shape the defect above produced */
+        for (unsigned i = 0; i < d.n_stages; i++)
+          DP_CHECK_MSG (d.stage[i].n_fields > 0,
+                        "every stage in the list covers something");
+        if (cases[c].ilv && !cases[c].conv)
+          DP_CHECK (d.stage[0].kind == WFM_STAGE_INTERLEAVE
+                    && d.stage[0].unit_bits == 8u && d.stage[0].depth == 5u);
+      }
+  }
+
   DP_TEST_END ("ccsds_tm_frame");
 }

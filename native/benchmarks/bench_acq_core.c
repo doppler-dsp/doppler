@@ -155,7 +155,7 @@ main (void)
            * sizing is against the spacing bins are actually reported at
            * (doppler_res_hz = 2*span), and forced odd so coverage is symmetric
            * and no ambiguous n/2 index exists -- see acq_cover_window_bins() /
-           * acq_bin_to_signed(). */
+           * dp_fftfreq_index(). */
           if (a->coherent_bins != 1 || a->window_bins != cfg->expect_bins)
             {
               fprintf (stderr,
@@ -171,7 +171,7 @@ main (void)
           /* Same shared helper the engine itself uses, so the injected tone
              and the reported bin can never disagree about a row's sign. */
           const long signed_r
-              = acq_bin_to_signed (cfg->inject_window, a->window_bins);
+              = dp_fftfreq_index (cfg->inject_window, a->window_bins);
           const double f_norm = (double)signed_r / (double)nx;
 
           float complex *buf   = malloc (n_in * sizeof (float complex));

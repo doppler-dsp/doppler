@@ -199,8 +199,23 @@ extern "C"
     size_t window_bins; /**< Wideband frequency-window hypotheses (1 =
                               disabled/native — see the file doc comment).   */
     size_t code_bins; /**< One segment in samples = sf*spc.                 */
-    size_t n; /**< Output grid size in samples: coherent_bins * window_bins *
-                   code_bins (one of coherent_bins/window_bins is always 1). */
+    size_t n; /**< NATIVE grid size in samples: coherent_bins * window_bins *
+                   code_bins (one of coherent_bins/window_bins is always 1).
+                   This is the INPUT frame and the count of statistically
+                   independent cells -- it is what the threshold ladder is
+                   sized from, and it is what `doppler_bin` is reported on.  */
+    size_t n_surf; /**< Cells in the correlation SURFACE = `interp` * n. The
+                        inverse transform is evaluated on a finer Doppler
+                        grid, so the buffers, the peak search and the CFAR
+                        reference span this and not `n`.                     */
+    size_t interp; /**< Doppler-axis interpolation factor of the inverse (1 =
+                        none). Zero-padding the product in frequency is exact
+                        band-limited interpolation, so a peak landing between
+                        two slow-time bins is no longer attenuated by the
+                        scalloping loss that made a half-bin burst invisible
+                        at any SNR (gh-1002). It adds resolution to the
+                        SURFACE only: the reported bin is mapped back to the
+                        native grid, so no consumer's arithmetic changes.    */
     size_t frame_n; /**< Raw samples consumed from the ring per iteration:
                           == n natively; == code_bins in wideband mode (one
                           epoch's worth — window_bins hypotheses come from
@@ -553,35 +568,15 @@ extern "C"
     float  test_stat;       /**< Raw CFAR gating statistic, diagnostic. */
   } acq_handoff_t;
 
-  /**
-   * @brief Map a reported bin index to its SIGNED frequency index.
-   *
-   * The one definition of the FFT-bin convention this engine reports in:
-   * `0 = DC`, ascending positive through `n_bins/2`, then wrapping negative.
-   * Both the wideband search (which chooses a row's spectral roll) and
-   * `acq_build_handoff()` (which converts a hit back to Hz) MUST agree on
-   * it, so it lives here once rather than as a formula in each.
-   *
-   * It did not, once: the search used this form while the handoff used
-   * `((bin + n/2) % n) - n/2`, which disagrees at exactly one index —
-   * `bin == n_bins/2`, reachable only when `n_bins` is even. The search
-   * read that row as `+n/2` and the handoff as `-n/2`, a full-span sign
-   * inversion (102 kHz at SPEC.md's geometry) that surfaced as a receiver
-   * reporting `tracking == 1` while decoding noise. Auto-sizing now keeps
-   * `window_bins` odd (see `acq_auto_config_continuous`) so no such index
-   * exists, and this shared helper keeps the two readings identical
-   * regardless.
-   *
-   * @param bin     Reported bin index in `[0, n_bins)`.
-   * @param n_bins  Grid size (`window_bins`, or `coherent_bins`).
-   * @return Signed index in `[-(n_bins/2), +(n_bins/2)]`; multiply by
-   *         `doppler_res_hz` for Hz.
-   */
-  static inline long
-  acq_bin_to_signed (size_t bin, size_t n_bins)
-  {
-    return (bin <= n_bins / 2) ? (long)bin : (long)bin - (long)n_bins;
-  }
+  /* The FFT-bin convention this engine reports in -- `0 = DC`, ascending
+   * positive, then wrapping negative -- is `dp_fftfreq_index()` in
+   * clib_common.h, and its doc comment there is the one definition. It was
+   * declared here, and four call sites outside C restated the fold in three
+   * mutually inconsistent ways; the engine's wideband search and its own
+   * hand-off were two of them, which surfaced as a receiver reporting
+   * `tracking == 1` while decoding noise. Every consumer -- this engine's
+   * search, its hand-off, and any composing receiver -- now includes the
+   * SAME inline rather than restating the formula. */
 
   /**
    * @brief Convert one acq_push() hit into a wire-ready hand-off record.
@@ -598,7 +593,7 @@ extern "C"
    *   (coherent_bins pinned at 1, `window_bins` the active mechanism, the
    *   only mode this function supports), so `hit`'s `doppler_bin` is a
    *   frequency-WINDOW index, mapped to a signed bin by
-   *   `acq_bin_to_signed()` — the SAME helper the search uses — and scaled
+   *   `dp_fftfreq_index()` — the SAME helper the search uses — and scaled
    *   by `state->doppler_res_hz`.
    *
    * @param state    The engine @p hit came from (non-NULL, built via

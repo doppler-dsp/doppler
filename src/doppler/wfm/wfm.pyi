@@ -1294,14 +1294,18 @@ class Frame:
         depth: int = 0,
         emit_num: int = 0,
         emit_den: int = 0,
+        unit_bits: int = 0,
     ) -> int:
         """Append one transform and -- the load-bearing part -- the span of
         fields it covers. `kind` is a `wfm_stage_kind_t` index: 0 crc16, 1 rs,
-        2 randomise, 3 conv (jm gh-1021 -- a method parameter cannot yet be a
-        string enum). `n_fields = 0` means the stage does not run. A stage that
-        inherited whatever ran before it is the representation that cannot
-        express a CCSDS CADU, where the marker is covered by the inner code and
-        by neither the outer code nor the randomiser.
+        2 randomise, 3 conv, 4 interleave (jm gh-1021 -- a method parameter
+        cannot yet be a string enum). `n_fields = 0` means the stage does not
+        run. A stage that inherited whatever ran before it is the
+        representation that cannot express a CCSDS CADU, where the marker is
+        covered by the inner code and by neither the outer code nor the
+        randomiser. `unit_bits` applies to `interleave` alone and is the bits
+        per permuted unit (0 reads as 1); its ROW count is `depth` and its
+        column count is derived from the span the stage covers.
 
         n_fields is the load-bearing part and 0 means the stage does not run. A
         stage that inherited "everything before me" instead of declaring its
@@ -1311,7 +1315,7 @@ class Frame:
         Parameters
         ----------
         kind : int
-            wfm_stage_kind_t index; 0=crc16…3=conv.
+            wfm_stage_kind_t index; 0=crc16…4=interleave.
         first_field : int
             First field covered.
         n_fields : int
@@ -1323,6 +1327,12 @@ class Frame:
             stage stays inside the frame.
         emit_den : int
             Expansion denominator.
+        unit_bits : int
+            INTERLEAVE only: bits per interleaved unit; 0 reads as 1. Match it
+            to the outer code's symbol — permuting octets is what spreads a
+            burst across the codewords of a code over GF(256), and permuting
+            bits inside one spreads a burst within a symbol that is already
+            wrong.
 
         Returns
         -------
@@ -1407,6 +1417,96 @@ class Frame:
             ...
         ValueError: build failed (rc=-1)
 
+        """
+
+    def deframe(
+        self,
+        rx_bits: NDArray[np.uint8],
+        out: NDArray[np.uint8] | None = None,
+    ) -> NDArray[np.uint8]:
+        """Undo the description's stages over a received frame and hand back
+        the CORRECTED bits — the layer a receiver stops short of
+        (doppler#1022).
+
+        The receive counterpart of building one, and the layer a receiver stops
+        short of: `DsssBurstReceiver` and friends hand back hard and soft
+        decisions for a frame's symbols and make no claim about what they mean,
+        because knowing that needs a description — this one (doppler#1022).
+
+        Returns the frame with every reversible stage undone, in place order: a
+        randomiser XORed back, an outer code's repairs APPLIED, a CRC checked.
+        The payload is then a slice, at frame_field_off of the payload field —
+        which is the caller's arithmetic because a description does not
+        privilege one field over another.
+
+        The verdict comes back as read-backs (`ok`, `units`, `checked`,
+        `symbols`), not as a return value, since the return is the bits. Read
+        them exactly as frame_check_t's, including the distinction that matters
+        most: `checked == 0` says the description carries no reversible stage
+        at all, which is a different fact from a check that failed.
+
+        A stage with no `undo` kernel — a convolutional inner code, which a
+        receiver cannot even frame-sync through — is reported as not checked
+        rather than as passed.
+
+        Parameters
+        ----------
+        rx_bits : NDArray[np.uint8]
+            Received bits, `frame_bits` of them; treated as a capture and never
+            modified.
+        out : NDArray[np.uint8] | None
+            Receives the corrected frame.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            Bits written — the frame's length — or 0 if the description is
+            empty or either buffer is too small.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import Frame
+        >>> empty = np.zeros(0, dtype=np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], dtype=np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], dtype=np.uint8)
+        >>> f = Frame(empty, sync, payload, crc="crc16")
+        >>> rx = np.asarray(f.bits())          # a clean capture of its own frame
+        >>> got = np.asarray(f.deframe(rx))
+        >>> f.rx_ok, f.rx_units, f.rx_checked  # one CRC, and it passed
+        (1, 1, 1)
+        >>> off = f.layout().payload_off       # the payload is a SLICE
+        >>> bool(np.array_equal(got[off:off + 16], payload))
+        True
+        >>> rx[off] ^= 1                       # one bit flipped in flight
+        >>> _ = f.deframe(rx)
+        >>> f.rx_ok, f.rx_units                # the check notices
+        (0, 1)
+
+        """
+
+    def deframe_max_out(self, rx_bits_len: int) -> int:
+        """Max bits frame_deframe() writes: the frame's own length.
+
+        Size a `deframe()` buffer with this. The bound is the DESCRIPTION's,
+        not
+
+        the input's: a frame is as long as its fields say, so how many bits
+        were
+
+        received does not change how many come back.
+
+        Parameters
+        ----------
+        rx_bits_len : int
+            How many bits are on offer. Ignored, for the reason above; it is in
+            the signature because the binding's capacity call passes the
+            input's length.
+
+        Returns
+        -------
+        int
+            The frame's length in bits, or 0 for an empty description.
         """
 
     def check(self, rx_bits: NDArray[np.uint8]) -> FrameCheck:
@@ -1638,6 +1738,33 @@ class Frame:
         >>> d.stage_bits(0)      # payload+CRC: what crc16 covered
         32
 
+        """
+
+    @property
+    def rx_ok(self) -> int:
+        """Checks that came out good in the last deframe() -- one per CRC, one
+        per outer-code codeword. `rx_ok == rx_units` is the verdict.
+        """
+
+    @property
+    def rx_units(self) -> int:
+        """Checks the last deframe() performed across every stage it
+        reversed.
+        """
+
+    @property
+    def rx_checked(self) -> int:
+        """Stages the last deframe() actually reversed. 0 means the description
+        carries no reversible stage at all -- which is why `rx_ok` is 0 too,
+        and is a different fact from a check that failed. An FER conflating
+        them scores every unprotected frame as an error.
+        """
+
+    @property
+    def rx_symbols(self) -> int:
+        """Symbol errors the last deframe() repaired. Margin being spent,
+        visible before it is lost -- what an outer code reports and a CRC
+        cannot.
         """
 
     @property
@@ -2078,14 +2205,18 @@ class FrameDesc:
         depth: int = 0,
         emit_num: int = 0,
         emit_den: int = 0,
+        unit_bits: int = 0,
     ) -> int:
         """Append one transform and -- the load-bearing part -- the span of
         fields it covers. `kind` is a `wfm_stage_kind_t` index: 0 crc16, 1 rs,
-        2 randomise, 3 conv (jm gh-1021 -- a method parameter cannot yet be a
-        string enum). `n_fields = 0` means the stage does not run. A stage that
-        inherited whatever ran before it is the representation that cannot
-        express a CCSDS CADU, where the marker is covered by the inner code and
-        by neither the outer code nor the randomiser.
+        2 randomise, 3 conv, 4 interleave (jm gh-1021 -- a method parameter
+        cannot yet be a string enum). `n_fields = 0` means the stage does not
+        run. A stage that inherited whatever ran before it is the
+        representation that cannot express a CCSDS CADU, where the marker is
+        covered by the inner code and by neither the outer code nor the
+        randomiser. `unit_bits` applies to `interleave` alone and is the bits
+        per permuted unit (0 reads as 1); its ROW count is `depth` and its
+        column count is derived from the span the stage covers.
 
         n_fields is the load-bearing part and 0 means the stage does not run. A
         stage that inherited "everything before me" instead of declaring its
@@ -2095,7 +2226,7 @@ class FrameDesc:
         Parameters
         ----------
         kind : int
-            wfm_stage_kind_t index; 0=crc16…3=conv.
+            wfm_stage_kind_t index; 0=crc16…4=interleave.
         first_field : int
             First field covered.
         n_fields : int
@@ -2107,6 +2238,12 @@ class FrameDesc:
             stage stays inside the frame.
         emit_den : int
             Expansion denominator.
+        unit_bits : int
+            INTERLEAVE only: bits per interleaved unit; 0 reads as 1. Match it
+            to the outer code's symbol — permuting octets is what spreads a
+            burst across the codewords of a code over GF(256), and permuting
+            bits inside one spreads a burst within a symbol that is already
+            wrong.
 
         Returns
         -------
@@ -2191,6 +2328,96 @@ class FrameDesc:
             ...
         ValueError: build failed (rc=-1)
 
+        """
+
+    def deframe(
+        self,
+        rx_bits: NDArray[np.uint8],
+        out: NDArray[np.uint8] | None = None,
+    ) -> NDArray[np.uint8]:
+        """Undo the description's stages over a received frame and hand back
+        the CORRECTED bits — the layer a receiver stops short of
+        (doppler#1022).
+
+        The receive counterpart of building one, and the layer a receiver stops
+        short of: `DsssBurstReceiver` and friends hand back hard and soft
+        decisions for a frame's symbols and make no claim about what they mean,
+        because knowing that needs a description — this one (doppler#1022).
+
+        Returns the frame with every reversible stage undone, in place order: a
+        randomiser XORed back, an outer code's repairs APPLIED, a CRC checked.
+        The payload is then a slice, at frame_field_off of the payload field —
+        which is the caller's arithmetic because a description does not
+        privilege one field over another.
+
+        The verdict comes back as read-backs (`ok`, `units`, `checked`,
+        `symbols`), not as a return value, since the return is the bits. Read
+        them exactly as frame_check_t's, including the distinction that matters
+        most: `checked == 0` says the description carries no reversible stage
+        at all, which is a different fact from a check that failed.
+
+        A stage with no `undo` kernel — a convolutional inner code, which a
+        receiver cannot even frame-sync through — is reported as not checked
+        rather than as passed.
+
+        Parameters
+        ----------
+        rx_bits : NDArray[np.uint8]
+            Received bits, `frame_bits` of them; treated as a capture and never
+            modified.
+        out : NDArray[np.uint8] | None
+            Receives the corrected frame.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            Bits written — the frame's length — or 0 if the description is
+            empty or either buffer is too small.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import Frame
+        >>> empty = np.zeros(0, dtype=np.uint8)
+        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], dtype=np.uint8)
+        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], dtype=np.uint8)
+        >>> f = Frame(empty, sync, payload, crc="crc16")
+        >>> rx = np.asarray(f.bits())          # a clean capture of its own frame
+        >>> got = np.asarray(f.deframe(rx))
+        >>> f.rx_ok, f.rx_units, f.rx_checked  # one CRC, and it passed
+        (1, 1, 1)
+        >>> off = f.layout().payload_off       # the payload is a SLICE
+        >>> bool(np.array_equal(got[off:off + 16], payload))
+        True
+        >>> rx[off] ^= 1                       # one bit flipped in flight
+        >>> _ = f.deframe(rx)
+        >>> f.rx_ok, f.rx_units                # the check notices
+        (0, 1)
+
+        """
+
+    def deframe_max_out(self, rx_bits_len: int) -> int:
+        """Max bits frame_deframe() writes: the frame's own length.
+
+        Size a `deframe()` buffer with this. The bound is the DESCRIPTION's,
+        not
+
+        the input's: a frame is as long as its fields say, so how many bits
+        were
+
+        received does not change how many come back.
+
+        Parameters
+        ----------
+        rx_bits_len : int
+            How many bits are on offer. Ignored, for the reason above; it is in
+            the signature because the binding's capacity call passes the
+            input's length.
+
+        Returns
+        -------
+        int
+            The frame's length in bits, or 0 for an empty description.
         """
 
     def check(self, rx_bits: NDArray[np.uint8]) -> FrameCheck:
@@ -2422,6 +2649,33 @@ class FrameDesc:
         >>> d.stage_bits(0)      # payload+CRC: what crc16 covered
         32
 
+        """
+
+    @property
+    def rx_ok(self) -> int:
+        """Checks that came out good in the last deframe() -- one per CRC, one
+        per outer-code codeword. `rx_ok == rx_units` is the verdict.
+        """
+
+    @property
+    def rx_units(self) -> int:
+        """Checks the last deframe() performed across every stage it
+        reversed.
+        """
+
+    @property
+    def rx_checked(self) -> int:
+        """Stages the last deframe() actually reversed. 0 means the description
+        carries no reversible stage at all -- which is why `rx_ok` is 0 too,
+        and is a different fact from a check that failed. An FER conflating
+        them scores every unprotected frame as an error.
+        """
+
+    @property
+    def rx_symbols(self) -> int:
+        """Symbol errors the last deframe() repaired. Margin being spent,
+        visible before it is lost -- what an outer code reports and a CRC
+        cannot.
         """
 
     @property

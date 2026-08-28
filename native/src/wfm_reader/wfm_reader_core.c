@@ -163,6 +163,22 @@ typedef struct
    stored. Both halves are validated — an unsupported mode (V/Q/M/T/…, three or
    more components per sample) is REJECTED rather than assumed to be
    interleaved I/Q, which would silently return garbage at the wrong stride. */
+/* What the reader REPORTS as its sample type: one of the ten wavegen-order
+   names, complex five then scalar five.
+
+   `r->sample_type` is the ELEMENT index alone -- 0..4 -- because ELEM[],
+   SCALE[] and convert_elem() are all indexed by it, and `r->mode` carries the
+   component count separately. That split is right internally and wrong at the
+   surface: a real float capture reporting `sample_type == "cf32"` alongside
+   `mode == "scalar"` says two contradictory things, and the combined name is
+   also exactly what wfm_reader_create() accepts as a hint, so what you pass
+   for a headerless file is what you get back. */
+static int
+reported_stype (const wfm_reader_state_t *r)
+{
+  return r->sample_type + (r->mode == WFM_MODE_SCALAR ? 5 : 0);
+}
+
 static int
 parse_blue_hcb (const uint8_t h[512], blue_hcb_t *o)
 {
@@ -550,35 +566,38 @@ load_fc (wfm_reader_state_t *r)
    one and binary IQ very often does, which is the cheap half of the test. The
    expensive half is the same scan read_csv itself performs, so detection and
    parsing cannot disagree about what CSV is. */
-/* Is @p line exactly "<number> , <number>"? strtod rather than sscanf both
-   because it reports where it stopped -- a trailing third column means this
-   is somebody else's CSV, and guessing at that would be worse than reading
-   the file as raw -- and because it cannot silently mis-convert. */
+/* Is @p line exactly @p nc comma-separated numbers -- "<number>,<number>" in
+   complex mode, one number in scalar? strtod rather than sscanf both because
+   it reports where it stopped -- a trailing extra column means this is
+   somebody else's CSV, and guessing at that would be worse than reading the
+   file as raw -- and because it cannot silently mis-convert. */
 static int
-is_iq_line (const char *line)
+is_iq_line (const char *line, unsigned nc)
 {
-  const char *p   = line;
-  char       *end = NULL;
-  (void)strtod (p, &end);
-  if (end == p)
-    return 0;
-  p = end;
-  while (*p == ' ' || *p == '\t')
-    p++;
-  if (*p != ',')
-    return 0;
-  p = end = (char *)(p + 1);
-  (void)strtod (p, &end);
-  if (end == p)
-    return 0;
-  p = end;
+  const char *p = line;
+  for (unsigned c = 0; c < nc; c++)
+    {
+      char *end = NULL;
+      if (c > 0)
+        {
+          while (*p == ' ' || *p == '\t')
+            p++;
+          if (*p != ',')
+            return 0;
+          p++;
+        }
+      (void)strtod (p, &end);
+      if (end == p)
+        return 0;
+      p = end;
+    }
   while (*p == ' ' || *p == '\t')
     p++;
   return *p == '\0';
 }
 
 static int
-looks_like_csv (const uint8_t *h, size_t n)
+looks_like_csv (const uint8_t *h, size_t n, unsigned nc)
 {
   if (n == 0)
     return 0;
@@ -595,28 +614,37 @@ looks_like_csv (const uint8_t *h, size_t n)
   if (k + 1 >= sizeof line)
     return 0; /* a first "line" this long is not one of ours */
   line[k] = '\0';
-  return is_iq_line (line);
+  return is_iq_line (line, nc);
 }
 
-/* Map a SigMF datatype string ("cf32_le", "ci16_be", "ci8", …) to type/endian.
- */
+/* Map a SigMF datatype string ("cf32_le", "ci16_be", "ci8", "rf32_le", …) to
+   element type, mode and endianness.
+
+   The leading character is SigMF's own complex/real marker and is the mode:
+   `c` is two components per sample, `r` is one. Reading an `rf32_le` sidecar
+   as complex would return half as many samples with every other one landing
+   in Q -- plausible-looking output from a file that said otherwise. */
 static int
-sigmf_datatype (const char *dt, int *stype, int *endian)
+sigmf_datatype (const char *dt, int *stype, int *mode, int *endian)
 {
-  static const struct
-  {
-    const char *prefix;
-    int         s;
-  } map[] = {
-    { "cf32", 0 }, { "cf64", 1 }, { "ci32", 2 }, { "ci16", 3 }, { "ci8", 4 }
-  };
+  static const char *const ELEMNAME[5] = { "f32", "f64", "i32", "i16", "i8" };
+  int                      md;
+  if (dt == NULL)
+    return -1;
+  if (dt[0] == 'c')
+    md = WFM_MODE_COMPLEX;
+  else if (dt[0] == 'r')
+    md = WFM_MODE_SCALAR;
+  else
+    return -1;
   for (int i = 0; i < 5; i++)
     {
-      size_t L = strlen (map[i].prefix);
-      if (strncmp (dt, map[i].prefix, L) == 0)
+      size_t L = strlen (ELEMNAME[i]);
+      if (strncmp (dt + 1, ELEMNAME[i], L) == 0)
         {
-          *stype  = map[i].s;
-          *endian = (strstr (dt + L, "be") != NULL);
+          *stype  = i;
+          *mode   = md;
+          *endian = (strstr (dt + 1 + L, "be") != NULL);
           return 0;
         }
     }
@@ -628,8 +656,8 @@ sigmf_datatype (const char *dt, int *stype, int *endian)
    that omits it -- both leave *fc at 0.0, and only the first of those is a
    reading. */
 static int
-parse_sigmf_meta (const char *meta_path, int *stype, int *endian, double *fs,
-                  double *fc, int *has_fc)
+parse_sigmf_meta (const char *meta_path, int *stype, int *mode, int *endian,
+                  double *fs, double *fc, int *has_fc)
 {
   FILE *mf = fopen (meta_path, "rb");
   if (!mf)
@@ -660,7 +688,7 @@ parse_sigmf_meta (const char *meta_path, int *stype, int *endian, double *fs,
   cJSON *global = cJSON_GetObjectItem (root, "global");
   cJSON *dt = global ? cJSON_GetObjectItem (global, "core:datatype") : NULL;
   if (dt && cJSON_IsString (dt)
-      && sigmf_datatype (dt->valuestring, stype, endian) == 0)
+      && sigmf_datatype (dt->valuestring, stype, mode, endian) == 0)
     {
       cJSON *sr   = cJSON_GetObjectItem (global, "core:sample_rate");
       *fs         = (sr && cJSON_IsNumber (sr)) ? sr->valuedouble : 0.0;
@@ -770,10 +798,15 @@ count_csv (wfm_reader_state_t *r)
   long cur = ftell (r->fp);
   if (cur < 0 || fseek (r->fp, r->data_off, SEEK_SET) != 0)
     return;
-  size_t n = 0;
-  double a, b;
-  while (fscanf (r->fp, " %lf , %lf", &a, &b) == 2)
-    n++;
+  size_t         n  = 0;
+  const unsigned nc = comps (r->mode);
+  double         a, b;
+  if (nc == 2u)
+    while (fscanf (r->fp, " %lf , %lf", &a, &b) == 2)
+      n++;
+  else
+    while (fscanf (r->fp, " %lf", &a) == 1)
+      n++;
   clearerr (r->fp); /* the scan ends at EOF by design; that is not an error */
   if (fseek (r->fp, cur, SEEK_SET) != 0)
     return;
@@ -789,8 +822,8 @@ static int
 open_sigmf (wfm_reader_state_t *r, const char *path, const char *meta)
 {
   int has_fc = 0;
-  if (parse_sigmf_meta (meta, &r->sample_type, &r->endian, &r->fs, &r->fc,
-                        &has_fc)
+  if (parse_sigmf_meta (meta, &r->sample_type, &r->mode, &r->endian, &r->fs,
+                        &r->fc, &has_fc)
       != 0)
     return -1;
   if (has_fc)
@@ -828,12 +861,23 @@ ready (wfm_reader_state_t *r)
 wfm_reader_state_t *
 wfm_reader_create (const char *path, int hint_stype, int hint_endian)
 {
-  if (!path || hint_stype < 0 || hint_stype > 4)
+  /* The hint names one of the ten wavegen-order sample types. Indices 5..9
+     are the SCALAR five, and they are the only way to say "this headerless
+     file is real": raw and CSV carry no metadata, so without them a real
+     capture could only be read as interleaved I/Q at half the sample count
+     and with every other sample landing in Q.
+
+     Split rather than widened. `sample_type` stays the 0..4 ELEMENT index
+     that ELEM[], SCALE[] and convert_elem() are all indexed by, and the mode
+     goes where the mode goes -- a header-bearing file sets both from its own
+     bytes further down, and this is the same two fields set from a hint. */
+  if (!path || hint_stype < 0 || hint_stype > 9)
     return NULL;
   wfm_reader_state_t *r = (wfm_reader_state_t *)calloc (1, sizeof *r);
   if (!r)
     return NULL;
-  r->sample_type = hint_stype;
+  r->sample_type = hint_stype % 5;
+  r->mode        = (hint_stype >= 5) ? WFM_MODE_SCALAR : WFM_MODE_COMPLEX;
   r->endian      = hint_endian ? 1 : 0;
   char side[1024];
 
@@ -950,7 +994,7 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
      first line is a column header ("I,Q") fails the content test, and reading
      such a file as binary IQ would be a regression on the old behaviour.
      Content decides; the name still gets a vote. */
-  if (looks_like_csv (h, got) || ends_with (path, ".csv"))
+  if (looks_like_csv (h, got, comps (r->mode)) || ends_with (path, ".csv"))
     {
       fclose (r->fp);
       r->file_type = WFM_FT_CSV;
@@ -976,7 +1020,7 @@ void
 wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info)
 {
   info->file_type   = r->file_type;
-  info->sample_type = r->sample_type;
+  info->sample_type = reported_stype (r);
   info->mode        = r->mode;
   info->endian      = r->endian;
   info->fs          = r->fs;
@@ -996,12 +1040,18 @@ wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info)
 static size_t
 read_csv (wfm_reader_state_t *r, float _Complex *out, size_t max)
 {
-  double scale = (r->sample_type >= 2) ? SCALE[r->sample_type] : 1.0;
-  size_t i;
+  double         scale = (r->sample_type >= 2) ? SCALE[r->sample_type] : 1.0;
+  const unsigned nc    = comps (r->mode);
+  size_t         i;
   for (i = 0; i < max; i++)
     {
-      double a, b;
-      if (fscanf (r->fp, " %lf , %lf", &a, &b) != 2)
+      double a, b = 0.0;
+      if (nc == 2u)
+        {
+          if (fscanf (r->fp, " %lf , %lf", &a, &b) != 2)
+            break;
+        }
+      else if (fscanf (r->fp, " %lf", &a) != 1)
         break;
       out[i] = (float)(a / scale) + (float)(b / scale) * (float _Complex)I;
     }
@@ -1316,7 +1366,7 @@ wfm_reader_get_file_type (const wfm_reader_state_t *r)
 int
 wfm_reader_get_sample_type (const wfm_reader_state_t *r)
 {
-  return r->sample_type;
+  return reported_stype (r);
 }
 
 int

@@ -40,13 +40,16 @@ instead.)
     contract: spooling an endless stream to disk while reading it back,
     why Ctrl+C must reach the reader through the file rather than around
     it, and what owning both ends of the file buys
+- [The Polynomial-Phase Estimator](ppe.md) — the feedforward frequency/chirp-rate estimate a burst gets exactly one of: why the search is two-dimensional and coherent, why the transform is 4x its input, and why the caller strips the modulation
 - [DSSS Acquisition](dsss-acquisition.md) — stateless, parallel, dynamics-capable acquisition architecture + roadmap
 - [Async DSSS Receiver Spec](async-dsss-spec.md) — the target waveform and receiver specification (CCSDS Gold-1023, 3.069 Mcps, 2700 bps, ±50 kHz, \<500 Hz/s) the async DSSS receiver is built against
+- [DsssBurstReceiver](dsss-burst-receiver.md) — the burst chain composed in C: the three-stage `search → refine → demod` shape, why the hand-off needs a never-late epoch, and what a burst `DetectionEvent` must carry to stand alone
 - [Asynchronous Symbol Despreader](async-symbol-despreader.md) — despreading when the data-symbol rate is asynchronous to the code-epoch rate
 - [Asynchronous Data on a Repeating PN Code](async-despreader-working-design.md) — the working design behind the async despreader, assuming at most one data transition per code epoch
 - [Automatic Gain Control](agc.md) — the log-domain level loop every receiver
     stands on: why the filter is in dB and the detector is not, why the loop
     must be total under any input, and what level alone cannot tell it
+- [Detection Sizing](detection.md) — the four statistical laws behind one `det_` prefix: which one a statistic actually obeys, why non-coherent looks raise their own threshold, and the 41x an estimated noise reference costs
 - [Lock Detection](lock-detect.md) — the sizing chain every lock detector shares, and the independence it assumes
 - [Timing Lock Detector](timing_lock_detector.md) — SymbolSync's Gardner/DTTL lock statistic and sizing formula
 - [Symbol Timing on a Rate Cascade](ratesync-timing.md) — RateSync: why the matched filter and the interpolator are one dot product, why `ctrl` is referenced to the terminal stage's rate, and why the T/2 parity resolves itself
@@ -54,6 +57,9 @@ instead.)
 - [The Viterbi Decoder](viterbi.md) — the CCSDS inner code decoded: the trellis in the encoder's own terms, the branch metric it inherits, and why 5·K traceback is 33 % above the floor
 - [Reed-Solomon](reed-solomon.md) — the outer code as a description: the two offsets a textbook omits (`j0 != 1`, and a root stride that is not 1), why Chien iterates positions rather than field elements, and what a refusal is not
 - [The FEC Receive Half](fec-receive.md) — the Viterbi, the node sync it needs first, and the lock detector's two error probabilities: why the code's transparency means polarity cannot be resolved by the decoder
+- [Interleaving — spreading a burst across codewords](interleaving.md) — the
+    permutation, the three ways to reason about it wrongly, and the measured
+    gain: E to E×depth, and the bound that still bites
 - [A Frame as a Description](frame-description.md) — a frame as a list of
     fields and a list of stages, each stage carrying the span it covers: why
     a chain of optional transforms is the representation that cannot express

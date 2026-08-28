@@ -35,6 +35,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md) _The shape of one CADU, and what each stage covered._     
 * **struct** [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md) _What_ [_**ccsds\_tm\_frame\_decode**_](ccsds__tm__frame_8h.md#function-ccsds_tm_frame_decode) _found on the way through._    
 * **struct** [**ccsds\_tm\_frame\_span\_t**](structccsds__tm__frame__span__t.md) _A run of CADU bits, as a half-open range_ `[first, first + n)` _._    
+* **struct** [**ccsds\_tm\_frame\_spec\_t**](structccsds__tm__frame__spec__t.md) _A framed waveform's choices, before they become a description._     
 * **struct** [**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md) _A generator part-way through a run._     
 * **struct** [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) _A pseudo-randomiser: a maximal-length generator and its preset._     
 * **struct** [**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md) _What_ [_**ccsds\_tm\_rs\_decode\_block**_](ccsds__tm__rs_8h.md#function-ccsds_tm_rs_decode_block) _found in one codeblock._    
@@ -72,6 +73,9 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md) _One telemetry sample: a probe's scalar value at sample index_ `n` _._    
 * **struct** [**dp\_tlm\_stats\_t**](structdp__tlm__stats__t.md) _Context-wide counters, snapshotted together._     
 * **struct** [**dp\_writer\_t**](structdp__writer__t.md)     
+* **struct** [**dsss\_br\_event\_t**](structdsss__br__event__t.md)     
+* **struct** [**dsss\_br\_pending\_t**](structdsss__br__pending__t.md) _One detection between acquisition and demodulation._     
+* **struct** [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) _DsssBurstReceiver state._     
 * **struct** [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md)     
 * **struct** [**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md) _Composed receiver state._     
 * **struct** [**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) _F32ToI16 state._     
@@ -95,6 +99,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**i8\_to\_f32\_state\_t**](structi8__to__f32__state__t.md) _I8ToF32 state._     
 * **struct** [**imd\_meas\_t**](structimd__meas__t.md) _Two-tone intermodulation result (IMD2/IMD3/TOI)._     
 * **struct** [**imdmeas\_state\_t**](structimdmeas__state__t.md) _IMDMeasure state: owned window, FFT plan and one-sided power scratch._     
+* **struct** [**interleaver\_state\_t**](structinterleaver__state__t.md) _A block interleaver's geometry._     
 * **struct** [**interp\_table\_state\_t**](structinterp__table__state__t.md) _InterpolatedTable state._     
 * **struct** [**lo\_state\_t**](structlo__state__t.md) _LO state._     
 * **struct** [**lockdet\_state\_t**](structlockdet__state__t.md) _Lock-detector state (embeddable by value; pointer-free POD)._     

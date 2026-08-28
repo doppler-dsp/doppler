@@ -236,6 +236,90 @@ _acq_configure_search_raw_check (void)
  * (rather than a caller cap, which no longer exists) making the auto-sizer's
  * n_noncoh ascend land on 1 -- the actual pushed burst is noise-free anyway,
  * so cn0_dbhz only steers the SIZING decision, not detectability. */
+/* gh-1002: a burst at exactly HALF a coherent Doppler bin must still be
+ * detected.
+ *
+ * The slow-time FFT's scalloping loss is ~3.9 dB at the worst case, exactly
+ * between two bins -- and that was not a margin a caller could buy back with
+ * signal, because `test_stat` saturates against the code's own
+ * autocorrelation-sidelobe floor. A half-bin burst was therefore invisible
+ * at ANY C/N0. The engine now zero-pads its column transform, so the surface
+ * is sampled between the native bins too.
+ *
+ * The geometry is chosen so the defect actually EXISTS here: a 31-chip code
+ * at reps=4 buys a coherent depth of 4, which is where the slow-time null is
+ * sharp. The first attempt used the 7-chip code the rest of this file shares
+ * (coherent depth 2) and passed with the fix reverted -- a regression test
+ * that cannot fail is decoration, and the structural `interp > 1` assert
+ * below would have hidden that had it been the only check.
+ *
+ * The sweep runs the ends as well as the half: half a bin alone would pass
+ * against an engine that had merely lowered its threshold. The claim is a
+ * FLAT response across the bin. */
+static int
+_acq_half_bin_check (void)
+{
+  const double   PI  = acos (-1.0);
+  const size_t   spc = 4, sf = 31, reps = 4;
+  const double   crate = 1.0e6;
+  static uint8_t code31[31];
+  for (size_t i = 0; i < sf; i++)
+    code31[i] = (uint8_t)(((i * 2654435761u) >> 13) & 1u);
+
+  acq_state_t *a = acq_create_burst (code31, sf, reps, spc, crate, 55.0, 0.0,
+                                     1e-3, 0.9, 0);
+  DP_CHECK (a != NULL);
+  if (!a)
+    return 0;
+
+  /* The depth that makes the null sharp -- asserted so a future sizing
+     change cannot quietly move this test off the geometry it needs. */
+  DP_CHECK (a->coherent_bins == reps);
+  DP_CHECK (a->interp > 1);
+  DP_CHECK (a->n_surf == a->n * a->interp);
+
+  const size_t nx  = sf * spc;        /* code_bins                   */
+  const size_t n   = reps * nx;       /* one frame = the preamble    */
+  const double res = 1.0 / (double)n; /* one Doppler bin, cyc/sample */
+
+  /* A whole DWELL, not one frame: at this C/N0 the sizer may buy
+     non-coherent looks, and a single frame then never completes one -- the
+     first version of this test read that as "not detected" and failed with
+     the fix in place. */
+  const size_t looks = a->n_noncoh;
+  DP_REQUIRE (looks >= 1 && looks <= 8);
+  const size_t n_tot = looks * n;
+
+  static float complex frame[8 * 4 * 31 * 4];
+  for (int q = 0; q <= 4; q++) /* 0, 1/4, 1/2, 3/4, 1 bin */
+    {
+      double f_norm = 0.25 * (double)q * res;
+      acq_reset (a);
+      for (size_t k = 0; k < n_tot; k++)
+        {
+          uint8_t chip = code31[((k % nx) / spc) % sf];
+          double  s    = (chip & 1u) ? -1.0 : 1.0;
+          double  ph   = 2.0 * PI * f_norm * (double)k;
+          frame[k]     = (float complex) (s * cos (ph) + I * s * sin (ph));
+        }
+
+      acq_result_t hits[8];
+      size_t       nh = acq_push (a, frame, n_tot, hits, 8);
+      DP_CHECK_MSG (nh >= 1, "no detection at this quarter-bin offset");
+      if (nh >= 1)
+        {
+          /* Reported on the NATIVE grid whatever the surface resolved: the
+             half-bin case may legitimately name either neighbour, but never
+             a row that does not exist on the caller's grid. */
+          DP_CHECK (hits[0].doppler_bin < a->coherent_bins);
+          DP_CHECK (hits[0].test_stat > a->threshold);
+        }
+    }
+
+  acq_destroy (a);
+  return 0;
+}
+
 static int
 _acq_wideband_check (void)
 {
@@ -315,7 +399,7 @@ _acq_wideband_check (void)
  * in [-du, +du] must have a hypothesis within half a bin, and the search and
  * acq_build_handoff() must agree on which one.
  *
- * This is the regression test for the bug that motivated acq_bin_to_signed().
+ * This is the regression test for the bug that motivated dp_fftfreq_index().
  * The two used to carry separate fold formulas that disagreed at exactly one
  * index -- bin == window_bins/2, reachable only for an EVEN window_bins. The
  * search read that row as +n/2 and the handoff as -n/2, so a true Doppler
@@ -365,7 +449,7 @@ _acq_wideband_coverage_check (void)
      either side ever grows a private copy again. */
   for (size_t b = 0; b < w->window_bins; b++)
     {
-      long k = acq_bin_to_signed (b, w->window_bins);
+      long k = dp_fftfreq_index (b, w->window_bins);
       DP_CHECK (k >= -kmax && k <= kmax);
       acq_result_t  hit = { .doppler_bin = b, .code_phase = 0 };
       acq_handoff_t ho;
@@ -380,7 +464,7 @@ _acq_wideband_coverage_check (void)
       double best = 1e300;
       for (size_t b = 0; b < w->window_bins; b++)
         {
-          double hz = (double)acq_bin_to_signed (b, w->window_bins) * res;
+          double hz = (double)dp_fftfreq_index (b, w->window_bins) * res;
           double e  = fabs (hz - truth);
           if (e < best)
             best = e;
@@ -506,7 +590,12 @@ main (void)
   DP_CHECK (a->coherent_bins == 2);
   DP_CHECK (a->n == a->coherent_bins * nx);
   DP_CHECK (!a->underpowered && a->pd_predicted >= 0.9);
-  DP_CHECK (a->noise_lo == 0 && a->noise_hi == a->n - 1);
+  /* The CFAR reference spans the SURFACE, which is the interpolated grid
+     the peak search runs over -- not the native cell count `n`. The two
+     differ by `interp` since gh-1002; asserting `n - 1` here would pin the
+     reference to a fraction of the cells it actually reads. */
+  DP_CHECK (a->n_surf == a->n * a->interp);
+  DP_CHECK (a->noise_lo == 0 && a->noise_hi == a->n_surf - 1);
   DP_CHECK (a->fs == crate * (double)spc);
   DP_CHECK (fabs (a->doppler_span_hz - span) < 1e-6);
   /* threshold = eta * sqrt(2/pi); eta = sqrt(-2 ln pfa_cell) > 0 */
@@ -651,9 +740,157 @@ main (void)
 
   (void)_acq_cn0_calibration ();
   (void)_acq_configure_search_raw_check ();
+  (void)_acq_half_bin_check ();
   (void)_acq_wideband_check ();
   (void)_acq_wideband_coverage_check ();
   (void)_acq_continuous_check ();
+
+  /* ── samples_consumed: a per-hit anchor, not a per-call one ───────────
+   *
+   * acq_result_t::samples_consumed is documented as "the raw sample offset
+   * (since this engine's own stream start) this detection's epoch ended
+   * at ... the per-hit anchor a caller needs to derive a precise timestamp
+   * instead of reusing one message-level timestamp for every hit -- a
+   * single push() call spanning multiple epochs can emit several hits at
+   * different sample offsets."
+   *
+   * That is a specific claim about the SHAPE of the answer, and it had zero
+   * mentions in this file and zero in test_acq.py. The failure it guards
+   * against is quiet and plausible: stamping every hit from one call with
+   * the same offset still produces detections in the right place, and only
+   * a caller correlating hits to wall-clock would ever notice.
+   *
+   * One push, many epochs, and the offsets must be strictly increasing and
+   * land on epoch boundaries. */
+  {
+    const size_t sf = 7, spcl = 2, nxl = sf * spcl;
+    acq_state_t *a = acq_create_burst (CODE7, sf, 8, spcl, 1.0e6, 60.0, 0.0,
+                                       1e-2, 0.9, 0);
+    DP_CHECK (a != NULL);
+    if (a)
+      {
+        const size_t   eps = 24;
+        float complex *x   = malloc (eps * nxl * sizeof *x);
+        DP_CHECK (x != NULL);
+        if (x)
+          {
+            for (size_t k = 0; k < eps * nxl; k++)
+              {
+                uint8_t chip = CODE7[((k % nxl) / spcl) % sf];
+                x[k]         = (chip & 1u) ? -1.0f : 1.0f;
+              }
+            /* Pinned for the same reason as the noise-mode section
+               below: an auto-sized n_noncoh > 1 makes one dump span
+               several frames, and the anchor stride would then be a
+               multiple of that rather than of a->n. Pinning makes the
+               stride claim exact instead of approximately right. */
+            DP_CHECK (acq_configure_search_raw (a, 8, 1) == 0);
+            acq_result_t hits[32];
+            size_t       nh = acq_push (a, x, eps * nxl, hits, 32);
+            DP_CHECK (nh >= 2); /* several epochs in ONE call */
+            for (size_t i = 1; i < nh; i++)
+              {
+                /* strictly increasing -- not one stamp reused */
+                DP_CHECK (hits[i].samples_consumed
+                          > hits[i - 1].samples_consumed);
+                /* and the stride is a whole number of frames */
+                uint64_t d
+                    = hits[i].samples_consumed - hits[i - 1].samples_consumed;
+                DP_CHECK (d % (uint64_t)a->n == 0);
+              }
+            if (nh >= 1)
+              {
+                /* the first anchor is one frame in, not zero */
+                DP_CHECK (hits[0].samples_consumed >= (uint64_t)a->n);
+                /* and no anchor runs past what was pushed */
+                DP_CHECK (hits[nh - 1].samples_consumed
+                          <= (uint64_t)(eps * nxl));
+              }
+            free (x);
+          }
+        acq_destroy (a);
+      }
+  }
+
+  /* ── noise_mode: four CFAR references, ~15 dB apart ───────────────────
+   *
+   * The constructor's last argument selects the CFAR noise aggregation
+   * (0=mean, 1=median, 2=min, 3=max) and had zero mentions in this file
+   * and zero in test_acq.py -- only the default was ever used. noise_est
+   * is the denominator of the gating statistic, so the choice moves the
+   * effective sensitivity of the whole engine.
+   *
+   * Measured rather than assumed: on the same burst the statistic spans
+   * more than an order of magnitude across the four, because dividing by
+   * the smallest reference cell is a far more optimistic detector than
+   * dividing by the largest. Asserted as the ORDERING, which is a property
+   * of the aggregation and not of the draw: min is the most sensitive, max
+   * the least, and mean/median sit between. */
+  {
+    const size_t   sf = 7, spcl = 2, nxl = sf * spcl, eps = 16;
+    float complex *x = malloc (eps * nxl * sizeof *x);
+    DP_CHECK (x != NULL);
+    if (x)
+      {
+        uint32_t st = 99u;
+        for (size_t k = 0; k < eps * nxl; k++)
+          {
+            uint8_t chip = CODE7[((k % nxl) / spcl) % sf];
+            float   s    = (chip & 1u) ? -1.0f : 1.0f;
+            /* Named locals, not two draws in one expression: the order
+               of the two dp_gauss() calls would be the compiler's, and
+               gcc and clang differ -- so the same seed gave a different
+               noise realization per toolchain (make tests-ssot). */
+            float re = (float)(0.30 * dp_gauss (&st));
+            float im = (float)(0.30 * dp_gauss (&st));
+            x[k]     = s + re + im * I;
+          }
+        double stat[4];
+        int    have[4] = { 0, 0, 0, 0 };
+        for (int m = 0; m < 4; m++)
+          {
+            acq_state_t *a = acq_create_burst (CODE7, sf, 8, spcl, 1.0e6, 55.0,
+                                               0.0, 1e-2, 0.9, m);
+            DP_CHECK (a != NULL);
+            if (a)
+              {
+                /* Pin the grid, for the reason the localization section
+                   above already gives: the auto-sizer ascends past
+                   n_noncoh = 1 with no caller cap, and at these settings
+                   it picks 4 -- so one dump needs 4*n samples and a push
+                   sized in epochs quietly produces NO hits in every mode.
+                   Measured while writing this, and it reads as "the modes
+                   are broken" rather than "the dwell never completed". */
+                DP_CHECK (acq_configure_search_raw (a, 8, 1) == 0);
+                acq_result_t hits[16];
+                size_t       nh = acq_push (a, x, eps * nxl, hits, 16);
+                if (nh >= 1)
+                  {
+                    stat[m] = hits[0].test_stat;
+                    have[m] = 1;
+                    DP_CHECK (hits[0].noise_est > 0.0f);
+                    DP_CHECK (hits[0].test_stat > 0.0f);
+                  }
+                acq_destroy (a);
+              }
+          }
+        /* min divides by the smallest reference cell, so it is the most
+           optimistic; mean and median sit between it and max. Only the
+           pairs that both produced a hit can be compared -- an aggressive
+           enough reference legitimately suppresses detection entirely,
+           which is itself the point of offering the choice. */
+        if (have[2] && have[0])
+          DP_CHECK (stat[2] > stat[0]);
+        if (have[2] && have[1])
+          DP_CHECK (stat[2] > stat[1]);
+        if (have[3] && have[0])
+          DP_CHECK (stat[3] <= stat[0]);
+        /* At least the default and the most optimistic must detect, or the
+           comparison above is vacuous. */
+        DP_CHECK (have[0] && have[2]);
+        free (x);
+      }
+  }
 
   DP_TEST_END ("test_acq_core");
 }

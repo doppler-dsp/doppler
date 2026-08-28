@@ -367,6 +367,7 @@ test_score_counts_exactly (void)
     dp_ber_score (&a2, rx, 400, NSYM, truth, NSYM, &mk, &sy);
     DP_CHECK (a2.skipped >= 256);
     DP_CHECK (a2.symbols == (NSYM - 400) - a2.skipped);
+    dp_ber_free (&a2);
   }
 
   /* THE anti-footgun assertion. Hand scoring a deliberately wrong lag and it
@@ -383,6 +384,7 @@ test_score_counts_exactly (void)
     rate = (double)bad.errors / (double)bad.symbols;
     DP_CHECK (rate > 0.6);
     printf ("  wrong-lag scoring reports %.3f (chance is 0.75)\n", rate);
+    dp_ber_free (&bad);
   }
 
   /* Likewise a wrong ROTATION: no rotation search either. */
@@ -395,7 +397,9 @@ test_score_counts_exactly (void)
     dp_ber_score (&bad, rx, 1000, NSYM, truth, NSYM, NULL, &wrong);
     rate = (double)bad.errors / (double)bad.symbols;
     DP_CHECK (rate > 0.9);
+    dp_ber_free (&bad);
   }
+  dp_ber_free (&acc);
 }
 
 /* --- 5. the settled window ----------------------------------------------- */
@@ -557,6 +561,7 @@ test_sanity_gate (void)
     DP_CHECK (!f.sane);
     printf ("  spinning constellation rejected: %s  (evm %.1f m2m4 %.1f)\n",
             f.why, f.evm_db, f.m2m4_db);
+    dp_ber_free (&spin);
   }
 
   /* An unsettled window is rejected on its own gate, because NEITHER
@@ -582,7 +587,9 @@ test_sanity_gate (void)
     f = dp_ber_measure (&a3, rx, NSYM, truth, NSYM, esn0_db, 0, 0, NULL);
     DP_CHECK (!f.settled);
     DP_CHECK (!f.ok);
+    dp_ber_free (&a3);
   }
+  dp_ber_free (&acc);
 }
 
 /* --- 7. the accumulate-until-enough loop --------------------------------- */
@@ -625,6 +632,7 @@ test_inverse_sampling_loop (void)
      are all mutually consistent. */
   DP_CHECK (r.ser.lo <= theory && theory <= r.ser.hi);
   DP_CHECK (r.ber.lo <= theory && theory <= r.ber.hi); /* BPSK: BER == SER */
+  dp_ber_free (&acc);
 }
 
 int

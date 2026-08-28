@@ -150,6 +150,8 @@ extern "C" {
 
 #include "rs_codec/rs_codec_core.h"
 
+#include "interleaver/interleaver_core.h"
+
 #include "despreader/despreader_core.h"
 
 #include "burst_despreader/burst_despreader_core.h"
@@ -165,6 +167,8 @@ extern "C" {
 #include "dsss_receiver/dsss_receiver_core.h"
 
 #include "async_dsss_receiver/async_dsss_receiver_core.h"
+
+#include "dsss_burst_receiver/dsss_burst_receiver_core.h"
 
 #include "carrier_acq/carrier_acq_core.h"
 

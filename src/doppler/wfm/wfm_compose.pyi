@@ -92,9 +92,9 @@ class Synth:
         factor.
     sync : bytes | None, default None
         The frame-sync word bits (e.g. Barker-13) between the preamble and the
-        payload — what BurstDemod.set_sync correlates to resolve frame position
-        and BPSK polarity, and what a BER alignment detects against. Optional;
-        setting it (or acq_code) is what makes a source FRAMED.
+        payload — what BurstDemod.set_frame correlates to resolve frame
+        position and BPSK polarity, and what a BER alignment detects against.
+        Optional; setting it (or acq_code) is what makes a source FRAMED.
     crc : str, default ``"crc16"``
         The frame trailer — crc16 appends a CRC-16-CCITT over the payload bits
         (what BurstDemod validates as frame_valid, and what makes a truth-free
@@ -102,6 +102,33 @@ class Synth:
         source: it defaults to crc16, so it alone never frames an otherwise
         plain pattern.
         One of ``"none"``, ``"crc16"``.
+    rs_depth : int, default 0
+        Reed-Solomon (255,223) E=16 over the data group, interleaved this many
+        codewords deep; 0 = no outer code. CCSDS 131.0-B-3 4.3.5.1 allows 1, 2,
+        3, 4, 5 or 8, and the payload plus its CRC must be exactly 223*depth
+        octets — virtual fill is not implemented, so any other length is
+        REFUSED rather than padded. The wfmgen scene and CLI spell it
+        `rs_depth` / `--rs-depth`.
+    randomise : int, default 0
+        XOR a CCSDS section-10 pseudo-randomiser over the data group — the
+        payload, its CRC and the outer code's parity, but never a marker or a
+        preamble, which have to read the same in every frame to be findable. 0
+        = off, 1 = 131.0-B-6 10.4.1's 131071-bit sequence (the `shall`), 2 =
+        10.4.2's 255-bit legacy one. A CHOICE rather than a flag because only
+        the matching receiver derandomises a given waveform. CLI: `--randomise
+        [G]`.
+    attach_asm : int, default 0
+        Prepend the CCSDS Attached Sync Marker (0x1ACFFC1D) as the frame's
+        first field — what a receiver correlates to find a frame in a bit
+        stream. Not covered by the randomiser, and covered by the inner code,
+        which is the coverage rule the description carries. The wfmgen scene
+        and CLI spell it `asm` / `--asm`.
+    convolutional : int, default 0
+        Inner code: CCSDS K=7 rate-1/2 convolutional, over the WHOLE frame
+        including the marker, doubling its bit count. For a `dsss` burst it
+        covers everything that is spread and NOT the acquisition preamble — a
+        preamble is transmitted unmodulated because it is the coherent pull-in
+        target. The wfmgen scene and CLI spell it `conv` / `--conv`.
     symbol_rate : float, default 0.0
         For type=dsss: > 0 selects CONTINUOUS asynchronous mode — the spreading
         code repeats endlessly and data rides on it at this symbol rate (Hz),
@@ -141,6 +168,10 @@ class Synth:
         data_code: bytes | None = ...,
         sync: bytes | None = ...,
         crc: str = ...,
+        rs_depth: int = ...,
+        randomise: int = ...,
+        attach_asm: int = ...,
+        convolutional: int = ...,
         symbol_rate: float = ...,
         dsss_code_only: int = ...,
         fs: float = ...,
@@ -168,6 +199,10 @@ class Synth:
     data_code: bytes | None
     sync: bytes | None
     crc: str
+    rs_depth: int
+    randomise: int
+    attach_asm: int
+    convolutional: int
     symbol_rate: float
     dsss_code_only: int
     fs: float
@@ -265,9 +300,9 @@ class Segment:
         factor.
     sync : bytes | None, default None
         The frame-sync word bits (e.g. Barker-13) between the preamble and the
-        payload — what BurstDemod.set_sync correlates to resolve frame position
-        and BPSK polarity, and what a BER alignment detects against. Optional;
-        setting it (or acq_code) is what makes a source FRAMED.
+        payload — what BurstDemod.set_frame correlates to resolve frame
+        position and BPSK polarity, and what a BER alignment detects against.
+        Optional; setting it (or acq_code) is what makes a source FRAMED.
     crc : str, default ``"crc16"``
         The frame trailer — crc16 appends a CRC-16-CCITT over the payload bits
         (what BurstDemod validates as frame_valid, and what makes a truth-free
@@ -275,6 +310,33 @@ class Segment:
         source: it defaults to crc16, so it alone never frames an otherwise
         plain pattern.
         One of ``"none"``, ``"crc16"``.
+    rs_depth : int, default 0
+        Reed-Solomon (255,223) E=16 over the data group, interleaved this many
+        codewords deep; 0 = no outer code. CCSDS 131.0-B-3 4.3.5.1 allows 1, 2,
+        3, 4, 5 or 8, and the payload plus its CRC must be exactly 223*depth
+        octets — virtual fill is not implemented, so any other length is
+        REFUSED rather than padded. The wfmgen scene and CLI spell it
+        `rs_depth` / `--rs-depth`.
+    randomise : int, default 0
+        XOR a CCSDS section-10 pseudo-randomiser over the data group — the
+        payload, its CRC and the outer code's parity, but never a marker or a
+        preamble, which have to read the same in every frame to be findable. 0
+        = off, 1 = 131.0-B-6 10.4.1's 131071-bit sequence (the `shall`), 2 =
+        10.4.2's 255-bit legacy one. A CHOICE rather than a flag because only
+        the matching receiver derandomises a given waveform. CLI: `--randomise
+        [G]`.
+    attach_asm : int, default 0
+        Prepend the CCSDS Attached Sync Marker (0x1ACFFC1D) as the frame's
+        first field — what a receiver correlates to find a frame in a bit
+        stream. Not covered by the randomiser, and covered by the inner code,
+        which is the coverage rule the description carries. The wfmgen scene
+        and CLI spell it `asm` / `--asm`.
+    convolutional : int, default 0
+        Inner code: CCSDS K=7 rate-1/2 convolutional, over the WHOLE frame
+        including the marker, doubling its bit count. For a `dsss` burst it
+        covers everything that is spread and NOT the acquisition preamble — a
+        preamble is transmitted unmodulated because it is the coherent pull-in
+        target. The wfmgen scene and CLI spell it `conv` / `--conv`.
     symbol_rate : float, default 0.0
         For type=dsss: > 0 selects CONTINUOUS asynchronous mode — the spreading
         code repeats endlessly and data rides on it at this symbol rate (Hz),
@@ -339,6 +401,10 @@ class Segment:
     data_code: bytes | None
     sync: bytes | None
     crc: str
+    rs_depth: int
+    randomise: int
+    attach_asm: int
+    convolutional: int
     symbol_rate: float
     dsss_code_only: int
     def __init__(
@@ -366,6 +432,10 @@ class Segment:
         data_code: bytes | None = ...,
         sync: bytes | None = ...,
         crc: str = ...,
+        rs_depth: int = ...,
+        randomise: int = ...,
+        attach_asm: int = ...,
+        convolutional: int = ...,
         symbol_rate: float = ...,
         dsss_code_only: int = ...,
         fs: float = ...,

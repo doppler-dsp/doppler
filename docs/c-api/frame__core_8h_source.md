@@ -26,6 +26,10 @@ extern "C" {
 typedef struct {
     wfm_frame_desc_t d;
     wfm_frame_desc_layout_t dl;
+    int rx_checked;
+    int rx_units;
+    int rx_ok;
+    int rx_symbols;
     wfm_frame_t f;
     wfm_frame_layout_t l;
     int named;
@@ -58,7 +62,7 @@ int frame_add_field(frame_state_t *state, const uint8_t *lit, size_t lit_len,
 
 int frame_add_stage(frame_state_t *state, int kind, uint32_t first_field,
                     uint32_t n_fields, uint32_t depth, uint32_t emit_num,
-                    uint32_t emit_den);
+                    uint32_t emit_den, uint32_t unit_bits);
 
 int frame_build(frame_state_t *state);
 
@@ -73,6 +77,11 @@ typedef struct {
 } frame_check_t;
 
 frame_check_t frame_check(frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len);
+
+size_t frame_deframe(frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len, uint8_t *out, size_t max_out);
+
+size_t frame_deframe_max_out(frame_state_t *state, size_t rx_bits_len);
+
 
 size_t frame_n_fields(frame_state_t *state);
 

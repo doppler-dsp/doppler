@@ -92,8 +92,19 @@ test_blue_format_codes (void)
     char             mode, elem;
     size_t           bytes;
   } table[] = {
-    { CI8, 'C', 'B', 2 },  { CI16, 'C', 'I', 4 },  { CI32, 'C', 'L', 8 },
-    { CF32, 'C', 'F', 8 }, { CF64, 'C', 'D', 16 },
+    { CI8, 'C', 'B', 2 },
+    { CI16, 'C', 'I', 4 },
+    { CI32, 'C', 'L', 8 },
+    { CF32, 'C', 'F', 8 },
+    { CF64, 'C', 'D', 16 },
+    /* The scalar half of the mode axis: same five element encodings, one
+       component instead of two, so each is exactly half the bytes
+       (doppler#1032). */
+    { SI8, 'S', 'B', 1 },
+    { SI16, 'S', 'I', 2 },
+    { SI32, 'S', 'L', 4 },
+    { SF32, 'S', 'F', 4 },
+    { SF64, 'S', 'D', 8 },
   };
 
   for (size_t i = 0; i < sizeof table / sizeof table[0]; i++)
@@ -108,10 +119,33 @@ test_blue_format_codes (void)
     }
 
   /* A BLUE code doppler does not send is not a doppler format, and neither
-     is a value from the enum this format replaced -- v1's CF64 was 1. */
-  DP_CHECK (!dp_sample_type_is_valid ((dp_sample_type_t)DP_FMT ('S', 'D')));
+     is a value from the enum this format replaced -- v1's CF64 was 1.
+     `DP_FMT('S','D')` used to be the example here and is a real format now,
+     so the two examples below are one unknown MODE and one unknown ELEMENT
+     -- both halves of the code, since either alone can be wrong. */
+  DP_CHECK (!dp_sample_type_is_valid ((dp_sample_type_t)DP_FMT ('V', 'F')));
+  DP_CHECK (!dp_sample_type_is_valid ((dp_sample_type_t)DP_FMT ('C', 'X')));
   DP_CHECK (!dp_sample_type_is_valid ((dp_sample_type_t)1));
   DP_CHECK (dp_sample_size ((dp_sample_type_t)0) == 0);
+
+  /* Every scalar format is exactly half its complex twin. */
+  DP_CHECK (dp_sample_size (SF32) * 2u == dp_sample_size (CF32));
+  DP_CHECK (dp_sample_size (SI8) * 2u == dp_sample_size (CI8));
+  DP_CHECK (dp_format_components (SF32) == 1u);
+  DP_CHECK (dp_format_components (CF32) == 2u);
+  /* An unknown code has no component count either -- 0 is distinguishable
+     from both 1 and 2, which is why it is not defaulted to complex. */
+  DP_CHECK (dp_format_components ((dp_sample_type_t)DP_FMT ('V', 'F')) == 0u);
+
+  /* Full scale is a property of the ELEMENT, so a scalar format and its
+     complex twin agree: the divisor that puts an integer format on the same
+     footing as a float one does not care how many components a sample has. */
+  DP_CHECK (dp_format_full_scale (SI8) == dp_format_full_scale (CI8));
+  DP_CHECK (dp_format_full_scale (SI16) == dp_format_full_scale (CI16));
+  DP_CHECK (dp_format_full_scale (SI32) == dp_format_full_scale (CI32));
+  DP_CHECK (dp_format_full_scale (SF32) == 1.0);
+  DP_CHECK (dp_format_full_scale (SF64) == 1.0);
+  DP_CHECK (dp_format_full_scale ((dp_sample_type_t)DP_FMT ('V', 'F')) == 0.0);
 }
 
 /* ------------------------------------------------------------------

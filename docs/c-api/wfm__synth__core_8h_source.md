@@ -228,6 +228,10 @@ int wfm_synth_set_dsss(wfm_synth_state_t *state, const uint8_t *acq_code,
                        const uint8_t *sync, size_t sync_len,
                        const uint8_t *payload, size_t payload_len, int crc);
 
+int wfm_synth_set_dsss_chips(wfm_synth_state_t *state, const uint8_t *chips,
+                             size_t n_chips);
+
+
 int wfm_synth_set_dsss_cont(wfm_synth_state_t *state, const uint8_t *code,
                             size_t code_len, double chips_per_symbol,
                             int data_mode, const uint8_t *data, size_t n_data);

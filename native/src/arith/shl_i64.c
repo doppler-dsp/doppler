@@ -13,6 +13,13 @@ shl_i64 (const int64_t *a, size_t a_len, int64_t *out, int n)
       else if (n >= 63)
         out[i] = 0;
       else
-        out[i] = a[i] << n;
+        /* Shift in UNSIGNED and convert back: `<< n` on a negative value
+           is undefined in C99. Unlike the Q formats above there is no
+           saturation here -- no Q format, so no ceiling to clamp to --
+           and the intended semantics is precisely the truncating wrap
+           the unsigned shift gives. Measured level with the original at
+           64-bit width, unlike shl_q8.c, where this same idiom would
+           cost 3x -- the narrow packed multiply has no analogue here. */
+        out[i] = (int64_t)((uint64_t)a[i] << n);
     }
 }

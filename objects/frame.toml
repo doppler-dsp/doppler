@@ -312,7 +312,7 @@ params = [
 
 [[frame.methods]]
 name = "add_stage"
-doc = "Append one transform and -- the load-bearing part -- the span of fields it covers. `kind` is a `wfm_stage_kind_t` index: 0 crc16, 1 rs, 2 randomise, 3 conv (jm gh-1021 -- a method parameter cannot yet be a string enum). `n_fields = 0` means the stage does not run. A stage that inherited whatever ran before it is the representation that cannot express a CCSDS CADU, where the marker is covered by the inner code and by neither the outer code nor the randomiser."
+doc = "Append one transform and -- the load-bearing part -- the span of fields it covers. `kind` is a `wfm_stage_kind_t` index: 0 crc16, 1 rs, 2 randomise, 3 conv, 4 interleave (jm gh-1021 -- a method parameter cannot yet be a string enum). `n_fields = 0` means the stage does not run. A stage that inherited whatever ran before it is the representation that cannot express a CCSDS CADU, where the marker is covered by the inner code and by neither the outer code nor the randomiser. `unit_bits` applies to `interleave` alone and is the bits per permuted unit (0 reads as 1); its ROW count is `depth` and its column count is derived from the span the stage covers."
 arg_type = "void"
 return_type = "int"
 params = [
@@ -322,6 +322,7 @@ params = [
     { name = "depth", type = "uint32_t", default = "0" },
     { name = "emit_num", type = "uint32_t", default = "0" },
     { name = "emit_den", type = "uint32_t", default = "0" },
+    { name = "unit_bits", type = "uint32_t", default = "0" },
 ]
 
 [[frame.methods]]
@@ -331,6 +332,39 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 error = "ValueError"
+
+[[frame.methods]]
+name = "deframe"
+doc = "Undo the description's stages over a received frame and hand back the CORRECTED bits — the layer a receiver stops short of (doppler#1022)."
+arg_type = "void"
+return_type = "uint8_t"
+variable_output = true
+pass_capacity = true
+params = [{ name = "rx_bits", type = "uint8_t[]" }]
+
+[[frame.properties]]
+name = "rx_ok"
+type = "int"
+field = true
+doc = "Checks that came out good in the last deframe() -- one per CRC, one per outer-code codeword. `rx_ok == rx_units` is the verdict."
+
+[[frame.properties]]
+name = "rx_units"
+type = "int"
+field = true
+doc = "Checks the last deframe() performed across every stage it reversed."
+
+[[frame.properties]]
+name = "rx_checked"
+type = "int"
+field = true
+doc = "Stages the last deframe() actually reversed. 0 means the description carries no reversible stage at all -- which is why `rx_ok` is 0 too, and is a different fact from a check that failed. An FER conflating them scores every unprotected frame as an error."
+
+[[frame.properties]]
+name = "rx_symbols"
+type = "int"
+field = true
+doc = "Symbol errors the last deframe() repaired. Margin being spent, visible before it is lost -- what an outer code reports and a CRC cannot."
 
 [[frame.methods]]
 name = "check"

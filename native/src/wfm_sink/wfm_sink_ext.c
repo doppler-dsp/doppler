@@ -30,7 +30,8 @@ _enum_index (const char *const *tab, const char *s)
 }
 
 static const char *const _enum_stype[] = {
-  "cf32", "cf64", "ci32", "ci16", "ci8", NULL,
+  "cf32", "cf64", "ci32", "ci16", "ci8", "f32",
+  "f64",  "i32",  "i16",  "i8",   NULL,
 };
 
 typedef struct
@@ -54,10 +55,10 @@ StreamSink_init (StreamSinkObject *self, PyObject *args, PyObject *kwds)
   int _arg_sample_type = _enum_index (_enum_stype, sample_type);
   if (_arg_sample_type < 0)
     {
-      PyErr_Format (
-          PyExc_ValueError,
-          "invalid sample_type '%s' (choices: cf32, cf64, ci32, ci16, ci8)",
-          sample_type);
+      PyErr_Format (PyExc_ValueError,
+                    "invalid sample_type '%s' (choices: cf32, cf64, ci32, "
+                    "ci16, ci8, f32, f64, i32, i16, i8)",
+                    sample_type);
       return -1;
     }
   if (!self->closed && self->h)

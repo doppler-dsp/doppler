@@ -38,6 +38,7 @@
 | Type | Name |
 | ---: | :--- |
 |  const char \*const | [**MODE\_NAMES**](#variable-mode_names)   = `{ "auto", "fs", "ebno", "esno" }`<br> |
+|  const char \*const | [**STYPE\_NAMES**](#variable-stype_names)   = `/* multi line expression */`<br> |
 |  const char \*const | [**TYPE\_NAMES**](#variable-type_names)   = `/* multi line expression */`<br> |
 
 
@@ -84,6 +85,7 @@
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**N\_STYPES**](wfm__names_8h.md#define-n_stypes)  `10`<br> |
 | define  | [**N\_TYPES**](wfm__names_8h.md#define-n_types)  `9`<br> |
 
 ## Public Static Attributes Documentation
@@ -95,6 +97,19 @@
 
 ```C++
 const char* const MODE_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable STYPE\_NAMES 
+
+```C++
+const char* const STYPE_NAMES[];
 ```
 
 
@@ -117,6 +132,19 @@ const char* const TYPE_NAMES[];
 ## Macro Definition Documentation
 
 
+
+
+
+### define N\_STYPES 
+
+```C++
+#define N_STYPES `10`
+```
+
+
+
+
+<hr>
 
 
 

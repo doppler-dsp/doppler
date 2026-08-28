@@ -12,7 +12,6 @@
  * ACQ_REPS repeats of an unmodulated acquisition code, a Barker-13 sync
  * word, a spread payload, a CRC, all under a carrier -- and REFUSES TO TIME
  * ANYTHING unless the demodulator returns the payload bit-for-bit with
- * `frame_valid` set. The precondition is the point: it is what makes the
  * number a demodulation rather than a rejection.
  *
  * Reported per burst AND per sample, because the two answer different
@@ -43,6 +42,8 @@
 #define SPC 4
 #define SYNC_LEN 13
 #define PAYLOAD 64
+/* What demod() returns per burst: the frame as received. */
+#define FRAME_SYMS (SYNC_LEN + PAYLOAD + CRC_BITS)
 #define CRC_BITS 16
 #define CHIP_RATE 1.0e6
 #define ITERATIONS 20
@@ -142,7 +143,7 @@ main (void)
       = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF) * SPC
         + 16;
   float complex *y    = malloc (cap * sizeof *y);
-  uint8_t       *bits = malloc (PAYLOAD);
+  uint8_t       *bits = malloc (FRAME_SYMS);
   if (!y || !bits)
     return 1;
 
@@ -153,7 +154,6 @@ main (void)
   /* f0 in cycles/sample, mu the Doppler rate; max_rate must admit mu. */
   /* The test's own two working cases, plus a clean floor. `max_rate` is a
      chirp-rate half-span in cycles/sample^2 -- not Hz/s. Guessing 1.0e4
-     there produced a demodulator that returned 64 bits with frame_valid=0,
      which the precondition below refused to time. */
   const double      f0s[3]    = { 0.0, 0.012, 0.012 };
   const double      priors[3] = { 0.0, 0.012, 0.0115 };
@@ -170,7 +170,7 @@ main (void)
       n_samples = n;
 
       burst_demod_state_t *d = burst_demod_create (
-          dcode, DATA_SF, SPC, CHIP_RATE, 0.0, rates[k], PAYLOAD, 10);
+          dcode, DATA_SF, SPC, CHIP_RATE, 0.0, rates[k], FRAME_SYMS, 10);
       if (!d)
         {
           (void)fprintf (stderr, "bench_burst_demod: create NULL\n");
@@ -183,16 +183,15 @@ main (void)
       /* The precondition. Every stage of this object exits early on a
          signal that is not there, so without proving a real demodulation
          first the loop below would faithfully time the give-up path. */
-      memset (bits, 0, PAYLOAD);
-      size_t nb = burst_demod_demod (d, y, n, bits, PAYLOAD);
-      if (nb != PAYLOAD || d->frame_valid != 1
-          || memcmp (bits, payload, PAYLOAD) != 0)
+      memset (bits, 0, FRAME_SYMS);
+      size_t nb = burst_demod_demod (d, y, n, bits, FRAME_SYMS);
+      if (nb != FRAME_SYMS || memcmp (bits + SYNC_LEN, payload, PAYLOAD) != 0)
         {
           (void)fprintf (stderr,
-                         "bench_burst_demod: %s did not demodulate (nb=%zu, "
-                         "frame_valid=%d) — the timings below would measure "
-                         "a rejection, not a demodulation\n",
-                         rname[k], nb, d->frame_valid);
+                         "bench_burst_demod: %s did not demodulate (nb=%zu) "
+                         "— the timings below would be a rejection, not a "
+                         "demodulation\n",
+                         rname[k], nb);
           return 1;
         }
 
@@ -202,7 +201,7 @@ main (void)
         {
           burst_demod_reset (d);
           burst_demod_set_prior (d, priors[k], 0);
-          sink += burst_demod_demod (d, y, n, bits, PAYLOAD);
+          sink += burst_demod_demod (d, y, n, bits, FRAME_SYMS);
           clock_gettime (CLOCK_MONOTONIC, &w1);
         }
       while (elapsed_sec (&w0, &w1) < WARMUP_S);
@@ -212,7 +211,7 @@ main (void)
           burst_demod_reset (d);
           burst_demod_set_prior (d, priors[k], 0);
           clock_gettime (CLOCK_MONOTONIC, &t0);
-          sink += burst_demod_demod (d, y, n, bits, PAYLOAD);
+          sink += burst_demod_demod (d, y, n, bits, FRAME_SYMS);
           clock_gettime (CLOCK_MONOTONIC, &t1);
           t_dm[k][r] = elapsed_sec (&t0, &t1);
         }

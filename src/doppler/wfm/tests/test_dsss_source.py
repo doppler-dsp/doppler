@@ -40,6 +40,25 @@ BURST_CHIPS = ACQ_SF * REPS + FRAME * DATA_SF
 BURST_LEN = BURST_CHIPS * SPC
 
 
+def _frame_ok(frame, payload):
+    """Did this frame arrive intact? The receiver no longer says.
+
+    `BurstDemod` stops at decisions (doppler#1022): it hands back the
+    frame's bits, and the trailer is checked by whoever holds the frame —
+    `wfm.Frame.deframe()` in the shipped form, four lines here.
+    """
+    from doppler.wfm import crc16
+
+    frame = np.asarray(frame)
+    if frame.size < len(SYNC) + len(payload) + 16:
+        return False
+    got = frame[len(SYNC) : len(SYNC) + len(payload)]
+    rx = 0
+    for b in frame[len(SYNC) + len(payload) :][:16]:
+        rx = (rx << 1) | (int(b) & 1)
+    return bool(np.array_equal(got, payload)) and rx == int(crc16(got))
+
+
 def _codes():
     rng = np.random.default_rng(7)
     acq = rng.integers(0, 2, ACQ_SF, dtype=np.uint8)
@@ -221,12 +240,12 @@ def test_five_bursts_decode_through_burst_demod():
 
     n_valid = 0
     for _k, s in enumerate(starts):
-        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, payload_len=PAYLOAD)
+        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, frame_syms=FRAME)
         bd.set_preamble(acq, REPS)
         bd.set_sync(SYNC)
         bd.set_prior(0.0, 0)
         bits = bd.demod(x[s : s + BURST_LEN])
-        if bd.frame_valid and np.array_equal(bits, pay):
+        if _frame_ok(bits, pay):
             n_valid += 1
     assert n_valid == 5
 
@@ -242,6 +261,105 @@ def test_standalone_synth_face():
     s = Synth(**kw, fs=fs)
     x_syn = s.steps(BURST_LEN)
     assert np.array_equal(x_comp, x_syn)
+
+
+# ── the frame's STAGES reach a SPREAD burst ─────────────────────────────
+#
+# `test_frame_source.py` is the unspread twin of this section, written
+# because the frame kwargs were "accepted, stored, and applied nowhere" on
+# every unspread face. The spread path had the same hole one layer in: a
+# dsss burst assembled its frame through a private four-field builder that
+# had never heard of a stage, so `--conv` on a DSSS source produced a
+# BYTE-IDENTICAL waveform to no `--conv` at all. Nothing failed, because
+# nothing compared the two (doppler#1017).
+#
+# So every assertion here is behavioural: the samples moved, they moved by
+# the amount the description implies, and the preamble did not move at all.
+
+
+def _burst(acq, dat, pay, **extra):
+    kw = _seg_kwargs(1, 0, acq, dat, pay)
+    kw["snr"] = 99.0  # the stage is the only thing that may move a sample
+    kw.update(extra)
+    return np.asarray(Composer([Segment(**kw)]).compose())
+
+
+#: (flag, extra frame BITS the stage adds). The inner code doubles the frame
+#: it covers; the marker adds its 32 bits; the randomiser is XOR in place.
+STAGE_BITS = [("convolutional", FRAME), ("attach_asm", 32), ("randomise", 0)]
+
+
+@pytest.mark.parametrize(("flag", "extra_bits"), STAGE_BITS)
+def test_stage_reaches_the_spread_frame(flag, extra_bits):
+    """It runs, it costs what the description says, and it spares the
+    preamble."""
+    acq, dat, pay = _codes()
+    plain = _burst(acq, dat, pay)
+    coded = _burst(acq, dat, pay, **{flag: 1})
+
+    pre = ACQ_SF * REPS * SPC  # unmodulated preamble, in SAMPLES
+    assert coded.size == plain.size + extra_bits * DATA_SF * SPC, (
+        f"{flag} did not lengthen the burst by its own bits, spread"
+    )
+    # The preamble is the coherent pull-in target: it is transmitted
+    # unmodulated and UNSPREAD, so it is outside every stage's cover. A
+    # stage that touched it would break acquisition for every receiver.
+    assert np.array_equal(coded[:pre], plain[:pre]), (
+        f"{flag} moved the preamble, which is not part of the frame"
+    )
+    # ...and it must have changed what it does cover, or the flag was
+    # parsed and dropped — the exact failure this section exists to catch.
+    n = min(coded.size, plain.size) - pre
+    assert not np.array_equal(coded[pre : pre + n], plain[pre : pre + n]), (
+        f"{flag} left the spread frame byte-identical: the stage did not run"
+    )
+
+
+def test_a_record_carries_the_stages_and_replays_them():
+    """A coded burst's own record rebuilds it, stage for stage.
+
+    This is what a record is FOR, and it was the quiet half of the same
+    defect: the stage keys were written inside the `bits` path, so a coded
+    DSSS capture recorded its codes, its preamble and its CRC, dropped its
+    coding stages, and replayed as a perfectly plausible UNCODED waveform.
+    A record that omits a stage is a capture nobody can rebuild.
+
+    Note the two spellings, which are deliberate and worth pinning: the
+    Python kwarg is the C member (`convolutional`, `attach_asm` — `asm` is
+    a GNU C keyword and cannot name one), while the scene and the CLI use
+    the short forms (`conv`, `asm`).
+    """
+    acq, dat, pay = _codes()
+    kw = _seg_kwargs(1, 0, acq, dat, pay)
+    kw["snr"] = 99.0
+    kw["convolutional"] = 1
+    kw["attach_asm"] = 1
+
+    c = Composer([Segment(**kw)])
+    x_obj = np.asarray(c.compose())
+    rec = json.loads(c.to_json())["segments"][0]
+    assert rec.get("conv") is True, "the record dropped the inner code"
+    assert rec.get("asm") is True, "the record dropped the marker"
+
+    x_replay = np.asarray(Composer.from_json(c.to_json()).compose())
+    assert np.array_equal(x_obj, x_replay), "the record does not replay"
+
+
+def test_rs_depth_refuses_a_short_frame_rather_than_padding():
+    """The outer code's geometry is checked on the spread path too.
+
+    A codeblock is a whole number of codewords, so the data the outer code
+    is given must be exactly 223*depth octets. Virtual fill is not
+    implemented, and padding would produce a codeblock that encodes and
+    decodes perfectly here and is the wrong length for the receiver it was
+    aimed at. Until the stages reached a DSSS burst this could not be
+    wrong, because `rs_depth` was dropped before it was ever checked.
+    """
+    acq, dat, pay = _codes()
+    kw = _seg_kwargs(1, 0, acq, dat, pay)
+    kw["rs_depth"] = 1  # PAYLOAD + CRC is nowhere near 223 octets
+    with pytest.raises(ValueError):
+        Composer([Segment(**kw)]).compose()
 
 
 def test_invalid_geometry_raises_or_degrades():
@@ -291,12 +409,12 @@ def test_repeats_burst_train_decodes():
 
     n_valid = 0
     for s in starts:
-        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, payload_len=PAYLOAD)
+        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, frame_syms=FRAME)
         bd.set_preamble(acq, REPS)
         bd.set_sync(SYNC)
         bd.set_prior(0.0, 0)
         bits = bd.demod(x[s : s + BURST_LEN])
-        if bd.frame_valid and np.array_equal(bits, pay):
+        if _frame_ok(bits, pay):
             n_valid += 1
     assert n_valid == 5
 
@@ -337,12 +455,12 @@ def test_gap_noise_default_floor_and_decode():
 
     n_valid = 0
     for s in starts:
-        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, payload_len=PAYLOAD)
+        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, frame_syms=FRAME)
         bd.set_preamble(acq, REPS)
         bd.set_sync(SYNC)
         bd.set_prior(0.0, 0)
         bits = bd.demod(x[s : s + BURST_LEN])
-        if bd.frame_valid and np.array_equal(bits, pay):
+        if _frame_ok(bits, pay):
             n_valid += 1
     assert n_valid == 5
 

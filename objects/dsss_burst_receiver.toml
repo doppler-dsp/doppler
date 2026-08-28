@@ -1,0 +1,312 @@
+[dsss_burst_receiver]
+arg_type = "float _Complex"
+return_type = "uint8_t"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "DsssBurstReceiver"
+# Carries running state across calls -- the history ring, the embedded
+# acquisition engine, and any in-flight burst -- so it owes the triplet.
+# The composition's checkpoint boundary is BETWEEN bursts, which is what
+# makes BurstDemod's deliberate statelessness cost nothing here: a burst
+# completes inside one demod() call or is lost, so there is no mid-demod
+# position to save. See docs/design/dsss-burst-receiver.md.
+serializable = "true"
+# A NULL create() is an ARGUMENT error here, never an allocation one: the
+# guard rejects a parameter set that cannot build a receiver. Same reasoning
+# as objects/dsss_receiver.toml's -- a blanket MemoryError names neither the
+# offending parameter nor its constraint.
+create_error = "ValueError"
+create_error_message = "DsssBurstReceiver: invalid parameter (need non-empty acq_code/data_code/sync, reps >= 1, spc >= 1, chip_rate > 0, frame_syms >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0 < pd < 1)"
+# Composes the three certified Burst* cores. `corr` is the refine stage's
+# primitive (docs/design/dsss-burst-receiver.md §3.4) -- the whole preamble
+# correlated as one reference, which is what names the code repetition that
+# burst_acq's own code_phase structurally cannot.
+#
+# `acq` is listed explicitly even though burst_acq forwards to it: jm's
+# depends_on linking is not recursively transitive, the same reason
+# objects/dsss_receiver.toml has to repeat RateConverter's cascade.
+# The full transitive closure, not just the direct three: burst_acq pulls
+# acq -> corr2d/fft2d/fft/detection, burst_demod pulls ppe -> fft/spectral,
+# and burst_despreader pulls loop_filter. Listing only the direct deps links
+# a .so that cannot resolve them.
+depends_on = [
+    { name = "burst_acq", link = true },
+    { name = "acq", link = true },
+    { name = "burst_demod", link = true },
+    { name = "wfm_frame", link = true },
+    { name = "ccsds_tm", link = true },
+    { name = "conv", link = true },
+    { name = "rs", link = true },
+    { name = "pn", link = true },
+    { name = "gold", link = true },
+    { name = "mpsk", link = true },
+    { name = "burst_despreader", link = true },
+    { name = "ppe", link = true },
+    { name = "corr", link = true },
+    { name = "corr2d", link = true },
+    { name = "fft2d", link = true },
+    { name = "spectral", link = true },
+    { name = "loop_filter", link = true },
+    { name = "detection", link = true },
+    { name = "fft", link = true },
+    # pn: the MLS generator this object's C test builds its acquisition code
+    # with. Bare, not link=true -- the test/bench need the symbol, the .so
+    # does not (the same shape objects/dsss_receiver.toml uses for `snr`).
+    { name = "pn" },
+]
+
+# ── Construction ─────────────────────────────────────────────────────────────
+# Everything the chain needs, at once. That is the point of the object: the
+# hand-wired alternative is three constructors plus set_preamble/set_sync/
+# set_prior, and the epoch arithmetic between them is what four call sites
+# got wrong three different ways (gh-1001).
+#
+# The history ring is NOT a knob. Its span is derived from the geometry --
+# roughly 2*reps*code_period + burst_len (§7.1) -- because every term is
+# already known here, and a caller asked to size a look-back buffer is a
+# caller given a way to lose bursts silently.
+
+[[dsss_burst_receiver.init_params]]
+name = "acq_code"
+type = "uint8_t[]"
+
+[[dsss_burst_receiver.init_params]]
+name = "data_code"
+type = "uint8_t[]"
+
+[[dsss_burst_receiver.init_params]]
+name = "sync"
+type = "uint8_t[]"
+
+[[dsss_burst_receiver.init_params]]
+name = "reps"
+type = "size_t"
+default = "5"
+
+[[dsss_burst_receiver.init_params]]
+name = "spc"
+type = "size_t"
+default = "4"
+
+[[dsss_burst_receiver.init_params]]
+name = "chip_rate"
+type = "double"
+default = "1000000.0"
+
+[[dsss_burst_receiver.init_params]]
+name = "frame_syms"
+type = "size_t"
+default = "64"
+
+[[dsss_burst_receiver.init_params]]
+name = "cn0_dbhz"
+type = "double"
+default = "50.0"
+
+[[dsss_burst_receiver.init_params]]
+name = "doppler_uncertainty"
+type = "double"
+default = "0.0"
+
+[[dsss_burst_receiver.init_params]]
+name = "pfa"
+type = "double"
+default = "1e-3"
+
+[[dsss_burst_receiver.init_params]]
+name = "pd"
+type = "double"
+default = "0.9"
+
+# burst_demod's own chirp/code-Doppler knobs, forwarded unchanged.
+[[dsss_burst_receiver.init_params]]
+name = "carrier_hz"
+type = "double"
+default = "0.0"
+
+[[dsss_burst_receiver.init_params]]
+name = "max_rate"
+type = "double"
+default = "0.0"
+
+[[dsss_burst_receiver.init_params]]
+name = "est_segments"
+type = "size_t"
+default = "10"
+
+
+
+
+
+[[dsss_burst_receiver.methods]]
+name = "push"
+doc = "Stream raw cf32 samples and get back the FRAME BITS of every burst that completed. Samples feed the embedded BurstAcquisition and are retained in a history ring; when a detection fires, the refine stage correlates the whole preamble to recover the exact preamble start -- the one quantity acquisition structurally cannot report, since its code_phase is a lag modulo one code period -- and the burst is demodulated the moment its last sample has arrived. Every sample is consumed and every burst that completes is returned by the call that completed it, with frames concatenated: burst i occupies frame_syms bits starting at i*frame_syms, and events() returns the matching record for each. The bits are the frame as RECEIVED -- sync word first, every symbol after it -- because this object stops at decisions: undoing the frame (a CRC, an outer code, a randomiser) needs its description and is `wfm.Frame.deframe`'s job. An empty return is normal, not an error: it means no burst completed in this call. Accepts any block size -- the history ring is a contiguous window over the stream and is never reset between bursts, so a payload whose tail falls outside one call is completed by a later one."
+arg_type = "void"
+return_type = "uint8_t"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+# The per-burst events for the bursts push() just returned. A single push can
+# complete many, and the scalar read-backs can only describe the last of them
+# -- so each payload needs its own record (design section 4: the event must be
+# sufficient on its own, for every burst). Scratch, deliberately not
+# serialized: it describes one call, which is what keeps state_bytes() a pure
+# function of configuration (finding F5).
+[[dsss_burst_receiver.methods]]
+name = "llrs"
+doc = "The SOFT bits of every burst the last push() returned, concatenated: burst i occupies llr[i*frame_bits:(i+1)*frame_bits], in the same order as push()'s payloads and events()' rows. `mpsk_soft_demap`'s convention — positive means bit 0, so `L < 0` reproduces exactly the bits push() returned, which is asserted rather than assumed. Spans the WHOLE frame rather than the payload alone, because a code covers what its description says it covers and a decoder needs the bits the code protects. Scaled by the burst's own noise estimate: a Viterbi is invariant to a positive scale, but LLRs from different bursts are not comparable without one. Valid until the next push(), reset() or set_state()."
+arg_type = "void"
+return_type = "float"
+variable_output = true
+pass_capacity = true
+
+[[dsss_burst_receiver.methods]]
+name = "events"
+doc = "The event record for each burst the last push() returned. Row i describes the frame at bits[i*frame_syms ...] of that push. Valid until the next push(), reset() or set_state()."
+arg_type = "void"
+return_type = "dsss_br_event_t"
+variable_output = true
+record_dtype = "dsss_br_event_t"
+pass_capacity = true
+result_fields = [
+  { name = "preamble_start", type = "uint64_t" },
+  { name = "doppler_hz_est", type = "double" },
+  { name = "doppler_res_hz", type = "double" },
+  { name = "cn0_dbhz_est", type = "double" },
+  { name = "est_freq_hz", type = "double" },
+  { name = "est_rate_hz", type = "double" },
+  { name = "est_snr_db", type = "double" },
+  { name = "refine_margin", type = "double" },
+]
+
+[[dsss_burst_receiver.methods]]
+name = "configure_search_raw"
+doc = "Pin the embedded BurstAcquisition's search grid directly, bypassing the auto-sizing -- the escape hatch for a caller who wants a specific (doppler_bins, n_noncoh). Forwards to the engine unchanged."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+    { name = "doppler_bins", type = "size_t" },
+    { name = "n_noncoh", type = "size_t" },
+]
+
+[[dsss_burst_receiver.methods]]
+name = "reset"
+doc = "Return to the searching state: resets the embedded acquisition, drops the history ring's contents and clears every read-back, so a fresh stream cannot inherit the previous burst's verdict. Construction parameters are untouched."
+arg_type = "void"
+return_type = "void"
+
+# ── Read-backs: the DetectionEvent, per burst ────────────────────────────────
+# These are the record, not a summary. `push` completes at most one burst per
+# call precisely so that they are unambiguous -- a read-back describing "the
+# most recent of several" would be a summary, and the criterion this object
+# exists to satisfy is that the EVENT carries everything a consumer needs.
+
+# The field a caller cannot compute: it needs the engine's own stream
+# position, and acquisition reports an END anchor (samples_consumed) plus a
+# residue (code_phase), neither of which is a burst start. Never late.
+[[dsss_burst_receiver.properties]]
+name = "preamble_start"
+type = "uint64_t"
+
+
+
+[[dsss_burst_receiver.properties]]
+name = "doppler_hz_est"
+type = "double"
+
+[[dsss_burst_receiver.properties]]
+name = "doppler_res_hz"
+type = "double"
+
+[[dsss_burst_receiver.properties]]
+name = "cn0_dbhz_est"
+type = "double"
+
+[[dsss_burst_receiver.properties]]
+name = "est_freq_hz"
+type = "double"
+
+[[dsss_burst_receiver.properties]]
+name = "est_rate_hz"
+type = "double"
+
+[[dsss_burst_receiver.properties]]
+name = "est_snr_db"
+type = "double"
+
+# The refine stage's own confidence: the winning preamble correlation over
+# its nearest whole-period competitor. The envelope is (reps-1)/reps when the
+# right repetition wins, so a value near 1 means the period was NOT resolved.
+# Exposed because nothing else in the chain can see a hand-off go wrong --
+# a locked carrier on a mis-windowed burst reads as a healthy lock_metric.
+[[dsss_burst_receiver.properties]]
+name = "refine_margin"
+type = "double"
+
+# The two spans a caller must respect, and could not read (gh-1011).
+#
+# Both are derived once in create() and never change, so these are
+# accessors rather than calculations -- but without them the only way to
+# learn the minimum burst spacing was to read the C, and duplicating
+# `(4*reps+4)*code_period` in a caller is the drift this repo forbids.
+# The header's own doc for it was 2.4x low until this pass measured it.
+[[dsss_burst_receiver.properties]]
+name = "refine_span"
+type = "size_t"
+field = true
+doc = """Coalescing window, in samples -- the MINIMUM BURST SPACING.
+
+Two detections closer together than this are treated as the same preamble
+and merged, so bursts packed tighter than `refine_span` are lost rather
+than reported. Measured at a 255-chip code, `reps=5`, `spc=2`: bursts
+spaced 8916 samples yielded 2 decodes from 7 bursts, with `dropped == 0`."""
+
+[[dsss_burst_receiver.properties]]
+name = "retain_span"
+type = "size_t"
+field = true
+doc = """History kept per anchor, in samples -- the MINIMUM TRAILING CONTEXT.
+
+`refine_span` plus one whole burst. A burst closer than this to the end of
+what has been pushed is held rather than emitted, because refine cannot yet
+see the samples it needs. Feed at least this many more, or the last burst of
+a capture never comes out. At the geometry above the boundary is sharp: 20500
+trailing samples against a `retain_span` of 20556 loses the burst."""
+
+# Detections held because their burst window has not fully arrived.
+#
+# The name survived a correction rather than a rewrite: this used to be a
+# separate field hardwired to 0, documented "Always 0", while the code
+# assigned it `q_len` on one path only -- so the manifest, the header and
+# the code each said a different thing. There is now ONE field, live, and
+# the three agree.
+[[dsss_burst_receiver.properties]]
+name = "pending"
+type = "size_t"
+field = true
+doc = """Detections held because their burst window has not fully arrived.
+
+`push()` emits nothing for these on purpose -- a burst is returned when it
+is complete, not when it is guessed at. Feed more samples and it comes out
+bit-exact, wherever the split fell.
+
+Read it at the END of a stream. A caller closing a file or a socket while
+this is non-zero is discarding a burst that would have decoded, and nothing
+else distinguishes that from an empty capture: `dropped` counts samples the
+ring refused, `n_bursts` counts what was demodulated, and a truncated burst
+is neither."""
+
+# Samples the history ring could not accept. A dropped sample is a LOST
+# BURST, not a statistic -- surfaced so a caller can size or throttle rather
+# than silently decode fewer bursts than arrived.
+[[dsss_burst_receiver.properties]]
+name = "dropped"
+type = "uint64_t"
+
+[[dsss_burst_receiver.properties]]
+name = "n_bursts"
+type = "uint64_t"

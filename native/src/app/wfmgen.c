@@ -27,6 +27,7 @@
 #include "dp_interrupt.h"
 #include "timing/timing_core.h"
 #include "wfm/wfm_compose.h"
+#include "wfm/wfm_names.h" /* STYPE_NAMES -- the SSOT for --sample-type */
 #include "wfm/wfm_sink.h"
 #include "wfm/wfmgen.h"
 #include "wfm_writer/wfm_writer_core.h"
@@ -39,7 +40,8 @@ static const char *const TYPES[]
 static const char *const MODES[]   = { "auto", "fs", "ebno", "esno" };
 static const char *const CRCS[]    = { "none", "crc16" };
 static const char *const BITMODS[] = { "none", "bpsk", "qpsk" };
-static const char *const STYPES[]  = { "cf32", "cf64", "ci32", "ci16", "ci8" };
+/* STYPE_NAMES from wfm/wfm_names.h -- the SSOT, not a fourth copy. */
+#define STYPES STYPE_NAMES
 static const char *const FTYPES[]  = { "raw", "csv", "blue", "sigmf" };
 static const char *const ENDIANS[] = { "le", "be" };
 static const char *const LFSRS[]   = { "galois", "fibonacci" };
@@ -176,6 +178,58 @@ report_clip (double peak, double frac, int stype, double headroom,
     (void)fprintf (stderr, "  clipped %.2f%% of I/Q components\n",
                    100.0 * frac);
   return clip_error ? 1 : 0;
+}
+
+/* Read a file's BYTES into a malloc'd 0/1 bit array, MSB first per byte;
+ * *n gets the bit count (8 per byte). Returns NULL if the file cannot be
+ * read, or if it is empty -- a payload of no bits is a usage error, not a
+ * zero-length frame.
+ *
+ * Bytes, not text, and deliberately not both. `--bits` already takes a 0/1
+ * string and `--bits-hex` a hex one, so a real binary file is the case with
+ * no other route -- and it is the one the CCSDS example needs, which asks
+ * for "a 223*I-octet Transfer Frame on disk". Sniffing the content to
+ * accept either was considered and refused: a binary file whose bytes
+ * happen to be all 0x30/0x31 would decode as the wrong thing, and an
+ * ambiguous rule is the kind that surprises someone a year later.
+ */
+static uint8_t *
+bits_from_file (const char *path, size_t *n)
+{
+  FILE *f = fopen (path, "rb");
+  if (!f)
+    return NULL;
+  if (fseek (f, 0, SEEK_END) != 0)
+    {
+      (void)fclose (f);
+      return NULL;
+    }
+  const long len = ftell (f);
+  if (len <= 0 || fseek (f, 0, SEEK_SET) != 0)
+    {
+      (void)fclose (f);
+      return NULL;
+    }
+  uint8_t *raw = malloc ((size_t)len);
+  if (!raw)
+    {
+      (void)fclose (f);
+      return NULL;
+    }
+  const size_t rd = fread (raw, 1, (size_t)len, f);
+  (void)fclose (f);
+  uint8_t *bits = malloc (rd * 8u ? rd * 8u : 1u);
+  if (!bits)
+    {
+      free (raw);
+      return NULL;
+    }
+  for (size_t i = 0; i < rd; i++)
+    for (unsigned b = 0; b < 8u; b++)
+      bits[i * 8u + b] = (uint8_t)((raw[i] >> (7u - b)) & 1u);
+  free (raw);
+  *n = rd * 8u;
+  return bits;
 }
 
 /* Read a whole file into a malloc'd NUL-terminated string (caller frees). */
@@ -343,7 +397,7 @@ static const char USAGE[]
       "  --type bpsk/qpsk/pn (whose symbols come from the PN LFSR) refuse\n"
       "  these flags rather than ignoring them.\n"
       "\n"
-      "CHANNEL CODING  (--type bits)\n"
+      "CHANNEL CODING  (--type bits | --type dsss)\n"
       "  Stages over the frame's fields, each optional, and they do NOT all\n"
       "  cover the same bits -- which is the point. A marker, a preamble and\n"
       "  a sync word are things a receiver FINDS, so they must look the same\n"
@@ -369,9 +423,27 @@ static const char USAGE[]
       "  --asm           Prepend the 0x1ACFFC1D attached sync marker.\n"
       "  --conv          Convolutional K=7 rate-1/2, over the WHOLE frame\n"
       "                  including the marker; doubles the bit count.\n"
+      "  --interleave R  Block-interleave the data group R deep: write it by\n"
+      "                  rows into an R x C matrix and read it by columns,\n"
+      "                  where C follows from the span. LAST of these "
+      "stages,\n"
+      "                  so it is what the channel sees. A burst of up to R\n"
+      "                  consecutive units then touches each codeword once,\n"
+      "                  so an outer code correcting t per codeword survives\n"
+      "                  a burst of t*R. Length-preserving; a span that is\n"
+      "                  not a whole number of R*unit units is refused.\n"
+      "  --interleave-unit N\n"
+      "                  Bits per permuted unit (default 1). Use 8 with\n"
+      "                  --rs-depth: RS is a code over GF(256), so spreading\n"
+      "                  a burst across CODEWORDS means permuting octets.\n"
+      "                  Bit-interleaving an octet code spreads a burst\n"
+      "                  inside a symbol that is already wrong.\n"
       "  All four, with a 223*I-octet payload and no preamble or sync word,\n"
       "  is a CCSDS CADU. That is a configuration of these flags, not a mode\n"
       "  they switch into.\n"
+      "  On --type dsss the stages cover the SPREAD frame and not the\n"
+      "  acquisition preamble: a preamble is transmitted unmodulated,\n"
+      "  because it is what a receiver correlates raw chips against.\n"
       "\n"
       "DSSS BURST  (--type dsss)\n"
       "  One burst = an unmodulated repeated preamble (code A) followed by\n"
@@ -415,7 +487,14 @@ static const char USAGE[]
       "OUTPUT\n"
       "  --output DEST   File path, - for stdout, or nats://HOST:PORT/SUBJECT"
       " (default -)\n"
-      "  --sample-type T cf32 | cf64 | ci32 | ci16 | ci8 (default cf32)\n"
+      "  --sample-type T Complex, two components per sample:\n"
+      "                    cf32 | cf64 | ci32 | ci16 | ci8 (default cf32)\n"
+      "                  Real, one component -- Q is DROPPED, not summed:\n"
+      "                    f32 | f64 | i32 | i16 | i8\n"
+      "                  A real type halves the file and writes BLUE format\n"
+      "                  mode 'S' / SigMF `rf32_le`. Right for a waveform\n"
+      "                  that IS real; on a complex baseband it discards\n"
+      "                  half the information and mirrors the spectrum.\n"
       "  --file-type T   raw | csv | blue | sigmf (default raw)\n"
       "  --endian E      le | be (default le)\n"
       "  --record FILE   Write a JSON record of the resolved run to FILE\n"
@@ -557,7 +636,7 @@ enum opt_kind
   OPT_RANGE_N,    /* LO[:HI] -> size_t at off, hi at aux, bit in seg.ranged */
   OPT_BITS,       /* "0101" -> uint8_t * at off, its length at aux        */
   OPT_HEX,        /* "a5"   -> uint8_t * at off, its bit count at aux     */
-  OPT_BITS_FILE,  /* a file holding a "0101" string                       */
+  OPT_BITS_FILE,  /* a file whose BYTES are the bits, MSB first          */
   OPT_SYMBOLS,    /* a raw cf32 file -> float _Complex * at off           */
 };
 
@@ -671,6 +750,12 @@ static const opt_t OPTS[] = {
      same bits -- which is the whole reason the frame is a description rather
      than a chain. See wfm/wfm_frame.h. */
   { .name = "--rs-depth", .kind = OPT_U32, .off = OFF (src.rs_depth) },
+  { .name = "--interleave",
+    .kind = OPT_U32,
+    .off  = OFF (src.interleave_depth) },
+  { .name = "--interleave-unit",
+    .kind = OPT_U32,
+    .off  = OFF (src.interleave_unit_bits) },
   { .name  = "--randomise",
     .alias = "--randomize",
     .kind  = OPT_CHOICE_OPT,
@@ -782,20 +867,25 @@ static int
 parse_bits_into (const opt_t *opt, const char *a, const char *v, uint8_t **dst,
                  size_t *n)
 {
-  char *text = NULL;
-  if (opt->kind == OPT_BITS_FILE)
+  free (*dst); /* a repeated flag replaces, it does not leak */
+  switch (opt->kind)
     {
-      text = slurp_file (v);
-      if (!text)
+    case OPT_HEX:
+      *dst = parse_hex_string (v, n);
+      break;
+    case OPT_BITS_FILE:
+      *dst = bits_from_file (v, n);
+      if (!*dst)
         {
-          (void)fprintf (stderr, "error: cannot read %s %s\n", a, v);
+          (void)fprintf (stderr, "error: %s cannot read %s, or it is empty\n",
+                         a, v);
           return 1;
         }
+      return 0;
+    default:
+      *dst = parse_bit_string (v, n);
+      break;
     }
-  free (*dst); /* a repeated flag replaces, it does not leak */
-  *dst = opt->kind == OPT_HEX ? parse_hex_string (v, n)
-                              : parse_bit_string (text ? text : v, n);
-  free (text);
   if (!*dst)
     {
       (void)fprintf (stderr, "error: %s expects a %s\n", a,
@@ -1059,6 +1149,17 @@ emit_to_stream (const emit_ctx_t *e)
                      "error: nats output (%s) requires the stream component; "
                      "this build was not linked against libdoppler_stream\n",
                      o->out_path);
+      return 1;
+    }
+  /* A real --sample-type has no wire representation yet (doppler#1035), and
+     "cannot open sink" would send the reader looking at their broker. */
+  if (o->sample_type >= 5)
+    {
+      fprintf (stderr,
+               "error: --sample-type %s is a real (scalar) format, and the\n"
+               "  nats:// / zmq:// stream carries complex samples only.\n"
+               "  Write a file, or use a complex sample type.\n",
+               STYPES[o->sample_type]);
       return 1;
     }
   wfm_stream_sink_t *sink = wfm_stream_sink_open (o->out_path, o->sample_type);

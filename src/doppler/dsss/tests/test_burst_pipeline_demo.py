@@ -40,25 +40,45 @@ def test_acquisition_blind_sweep_finds_every_real_burst():
     rx, acq_code, _data_code, _payload_bits, _frame_bits = _generate()
     starts = demo.burst_starts()
     hits, _acq = demo.demo_acquisition(rx, acq_code)
-    is_real = demo._label_hits(hits, starts)
+    labels = demo._label_hits(hits, starts)
     # Every true burst is discovered by the blind sweep, with zero prior
     # knowledge of where (or whether) it is in the stream.
-    assert sum(is_real) == demo.N_BURSTS
-    # No injected Doppler in this scene: every REAL hit lands on bin 0.
-    assert all(h["dop"] == 0 for h, real in zip(hits, is_real) if real)
+    #
+    # "found" is real OR alias, and the distinction is the point of the
+    # three-way label: `dwell_pos + code_phase` is a residue modulo one
+    # code period, so a dwell that begins AFTER the burst reports a
+    # position a whole number of periods away. The detector found the
+    # burst either way -- scoring an alias as a miss would be wrong, and
+    # scoring it as a clean hit would hide that its epoch is unusable.
+    found = [k for k in labels if k in ("real", "alias")]
+    assert len(found) == demo.N_BURSTS, {
+        "real": labels.count("real"),
+        "alias": labels.count("alias"),
+        "false": labels.count("false"),
+    }
+    # No injected Doppler in this scene: every hit on a real burst lands
+    # on bin 0, aliased in time or not.
+    assert all(
+        h["dop"] == 0 for h, k in zip(hits, labels) if k in ("real", "alias")
+    )
 
 
 def test_despreader_tracks_real_bursts_with_correct_esn0():
     rx, acq_code, data_code, _payload_bits, frame_bits = _generate()
     starts = demo.burst_starts()
     hits, acq = demo.demo_acquisition(rx, acq_code)
-    is_real = demo._label_hits(hits, starts)
+    labels = demo._label_hits(hits, starts)
     results = demo.demo_despreader(
         rx, hits, acq, acq_code, data_code, frame_bits
     )
     assert len(results) == len(hits)
-    for r, real in zip(results, is_real):
-        if not real:
+    # Only hits whose epoch is the burst's own start are scored here. An
+    # ALIAS is a real burst at a late epoch, and late is the unrecoverable
+    # direction -- BurstDespreader's window absorbs an early start and
+    # nothing absorbs a late one -- so it is a hand-off failure, not a
+    # tracking one. It is scored by the CRC in the demod test below.
+    for r, k in zip(results, labels):
+        if k != "real":
             continue
         # BurstDespreader tracks continuously through the whole frame; a
         # handful of bit errors at Es/N0=10dB is normal, dozens would not
@@ -74,14 +94,19 @@ def test_burst_demod_decodes_every_real_burst_and_rejects_false_alarms():
     rx, acq_code, data_code, payload_bits, _frame_bits = _generate()
     starts = demo.burst_starts()
     hits, acq = demo.demo_acquisition(rx, acq_code)
-    is_real = demo._label_hits(hits, starts)
+    labels = demo._label_hits(hits, starts)
     results = demo.demo_burst_demod(
         rx, hits, acq, acq_code, data_code, payload_bits
     )
     assert len(results) == len(hits)
-    for (valid, errs), real in zip(results, is_real):
-        if real:
+    for (valid, errs), k in zip(results, labels):
+        if k == "real":
             assert valid and errs == 0
         else:
-            # A false alarm should never coincidentally pass CRC-16.
+            # Neither an alias nor a false alarm may pass CRC-16 -- and the
+            # two fail for different reasons. A false alarm carries no
+            # frame at all; an alias carries a real one, windowed a whole
+            # code period LATE, which is exactly the failure a caller
+            # cannot see from a lock indicator. The CRC is what catches
+            # both, which is why it is the demo's verdict.
             assert not valid

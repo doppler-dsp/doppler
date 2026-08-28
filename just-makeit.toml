@@ -1169,7 +1169,7 @@ name = "sync"
 type = "uint8_t*"
 bytes = true
 coerce = "bit_pattern"
-doc = "The frame-sync word bits (e.g. Barker-13) between the preamble and the payload — what BurstDemod.set_sync correlates to resolve frame position and BPSK polarity, and what a BER alignment detects against. Optional; setting it (or acq_code) is what makes a source FRAMED."
+doc = "The frame-sync word bits (e.g. Barker-13) between the preamble and the payload — what BurstDemod.set_frame correlates to resolve frame position and BPSK polarity, and what a BER alignment detects against. Optional; setting it (or acq_code) is what makes a source FRAMED."
 
 [[module.wfm_compose.source.fields]]
 name = "crc"
@@ -1177,6 +1177,30 @@ type = "int"
 enum = "crc"
 default = "crc16"
 doc = "The frame trailer — crc16 appends a CRC-16-CCITT over the payload bits (what BurstDemod validates as frame_valid, and what makes a truth-free frame error rate possible); none omits it. Applies only to a FRAMED source: it defaults to crc16, so it alone never frames an otherwise plain pattern."
+
+[[module.wfm_compose.source.fields]]
+name = "rs_depth"
+type = "int"
+default = "0"
+doc = "Reed-Solomon (255,223) E=16 over the data group, interleaved this many codewords deep; 0 = no outer code. CCSDS 131.0-B-3 4.3.5.1 allows 1, 2, 3, 4, 5 or 8, and the payload plus its CRC must be exactly 223*depth octets — virtual fill is not implemented, so any other length is REFUSED rather than padded. The wfmgen scene and CLI spell it `rs_depth` / `--rs-depth`."
+
+[[module.wfm_compose.source.fields]]
+name = "randomise"
+type = "int"
+default = "0"
+doc = "XOR a CCSDS section-10 pseudo-randomiser over the data group — the payload, its CRC and the outer code's parity, but never a marker or a preamble, which have to read the same in every frame to be findable. 0 = off, 1 = 131.0-B-6 10.4.1's 131071-bit sequence (the `shall`), 2 = 10.4.2's 255-bit legacy one. A CHOICE rather than a flag because only the matching receiver derandomises a given waveform. CLI: `--randomise [G]`."
+
+[[module.wfm_compose.source.fields]]
+name = "attach_asm"
+type = "int"
+default = "0"
+doc = "Prepend the CCSDS Attached Sync Marker (0x1ACFFC1D) as the frame's first field — what a receiver correlates to find a frame in a bit stream. Not covered by the randomiser, and covered by the inner code, which is the coverage rule the description carries. The wfmgen scene and CLI spell it `asm` / `--asm`."
+
+[[module.wfm_compose.source.fields]]
+name = "convolutional"
+type = "int"
+default = "0"
+doc = "Inner code: CCSDS K=7 rate-1/2 convolutional, over the WHOLE frame including the marker, doubling its bit count. For a `dsss` burst it covers everything that is spread and NOT the acquisition preamble — a preamble is transmitted unmodulated because it is the coherent pull-in target. The wfmgen scene and CLI spell it `conv` / `--conv`."
 
 [[module.wfm_compose.source.fields]]
 name = "symbol_rate"
@@ -2590,9 +2614,17 @@ values = ["rect", "rrc"]
 name = "ftype"
 values = ["raw", "csv", "blue", "sigmf"]
 
+# Wire sample type: five element encodings in each of BLUE's two modes.
+# The five complex names come first and their indices are load-bearing --
+# STYPE_FMT[], KIND[] and the reader's `hint % 5` all index by this order, so
+# APPEND, never reorder. The real five drop Q: `f32` writes one float per
+# sample where `cf32` writes two (doppler#1032).
 [[enum]]
 name = "stype"
-values = ["cf32", "cf64", "ci32", "ci16", "ci8"]
+values = [
+  "cf32", "cf64", "ci32", "ci16", "ci8",
+  "f32",  "f64",  "i32",  "i16",  "i8",
+]
 
 [[enum]]
 name = "endian"
@@ -2695,7 +2727,7 @@ objects = ["loop_filter", "costas", "dll", "symsync", "ratesync", "carrier_mpsk"
 # a module by that name regenerates it into its own generated filenames — the
 # retired-names gate catches it, which is the gate working.
 [module.coding]
-objects = ["conv_enc", "viterbi", "rs_codec"]
+objects = ["conv_enc", "viterbi", "rs_codec", "interleaver"]
 doc = """
 The general channel codes — the families a standard configures, rather than
 any standard's picks. `ConvEncoder` and `Viterbi` are the two directions of a
@@ -2743,7 +2775,20 @@ Examples
 True
 
 """
-objects = ["despreader", "burst_despreader", "acq", "burst_acq", "ppe", "burst_demod", "dsss_receiver", "async_dsss_receiver"]
+objects = ["despreader", "burst_despreader", "acq", "burst_acq", "ppe", "burst_demod", "dsss_receiver", "async_dsss_receiver", "dsss_burst_receiver"]
+
+[[module.dsss.functions]]
+name = "bin_to_signed"
+return_type = "int"
+doc = "Map an FFT bin index to its SIGNED frequency index -- numpy.fft.fftfreq(n) * n, exactly: 0 = DC, ascending positive to (n-1)/2, then wrapping negative, so an even grid's Nyquist bin is -n/2. Multiply by doppler_res_hz for Hz. Call this rather than writing the fold out: the search and its hand-off must agree on the convention, and a consumer seeded on the wrong side of it is off by the full search span -- a failure that once surfaced here as a receiver reporting tracking while decoding noise. A thin wrapper over dp_fftfreq_index() in clib_common.h, so C callers inline the same code."
+
+[[module.dsss.functions.params]]
+name = "bin"
+type = "size_t"
+
+[[module.dsss.functions.params]]
+name = "n_bins"
+type = "size_t"
 
 [module.acquire]
 doc = """

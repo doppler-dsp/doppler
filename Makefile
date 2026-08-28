@@ -117,9 +117,9 @@ SYNC_CMD   = $(UV) sync
 # way `make format` runs it. That is what closes the "same command, different
 # environment" class of drift: the tool comes from `--group dev` and uv.lock
 # owns the version, so there is no `additional_dependencies` left to drift.
-LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format clang-tidy \
-               phase-conversion stimulus-sources retired-names ci-pipefail \
-               rust-abi
+LINT_TOOLS   = conflict tracked-paths ruff ruff-format mdformat clang-format \
+               clang-tidy phase-conversion alloc-helpers stimulus-sources \
+               retired-names ci-pipefail rust-abi
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -211,12 +211,31 @@ LINT_clang-tidy   = @$(TIDY_FILES) | xargs -r $(CLANG_TIDY) -p $(BUILD_DIR) --qu
 # target whose only exercise is corrupting the repo is a target nobody proves.
 LINT_conflict = ./scripts/conflict-check.sh
 
+# Check-only, and cheap: it reads names, never contents. A tracked path whose
+# name carries shell punctuation is a quoting slip that got committed, and the
+# one this repo had -- a 1500-line stale copy of wfmgen.c under a `sed`
+# fragment for a name -- was invisible to every other gate, because every
+# other gate is keyed on a suffix or a directory this file had neither of.
+LINT_tracked-paths = ./scripts/check-tracked-paths.sh
+
 # Check-only, so it is in LINT_TOOLS but deliberately NOT in FORMAT_TOOLS.
 # nco_core.h calls confining the double->phase-word conversion "a STRUCTURAL
 # rule rather than a stylistic one", and records that duplicated copies have
 # already drifted once (one truncated while a sibling rounded). A rule with
 # no gate behind it is how that happened; this is the gate.
 LINT_phase-conversion = $(UV) run python scripts/check_phase_conversion_sites.py
+
+# A trusted internal allocation goes through clib_common.h's abort-on-OOM
+# helpers, because the alternative is an unwind path no test can reach --
+# uncoverable by construction, against a patch-coverage gate every changed C
+# line has to satisfy. The helpers landed 2026-07-21 and the rule then lived
+# in a memory file and nowhere else, so nothing extended it and a bare malloc
+# beside a helper call passed every gate the repo had. Ratcheted: the 313
+# sites that predate it may only shrink.
+LINT_alloc-helpers = $(UV) run python scripts/check_alloc_helpers.py
+
+lint-alloc-helpers-baseline: ## Re-record the alloc ratchet after converting some
+	@$(UV) run python scripts/check_alloc_helpers.py --update-baseline
 
 # A rename is finished when the old name appears NOWHERE, and that is a
 # different event from the build going green. fec_ -> ccsds_tm_ (#828) went
@@ -428,6 +447,12 @@ COMPILE_DB = symlink
 # ccache-stats prints a hit rate; it asserts nothing and cannot fail the
 # build, so it is provisioning/reporting rather than a gate. gates-check is
 # what noticed -- CI called a target `gates` could not reach, and said so.
+#
+# gates-check only walks that ONE direction, though: CI -> gates. An entry
+# below that no workflow runs passes it without a word, which is how
+# test-ubsan and test-tsan sat here-adjacent and gated no PR for their whole
+# lives (#1026). The mirror check belongs in standard.mk, which is vendored
+# verbatim -- just-buildit/just-makeit#1158.
 GATES_PROVISION = install-deps install-docs-deps build pyext nats-up \
                   nats-down install-deps-ci install-docs-deps-ci \
                   ccache-stats \
@@ -438,6 +463,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 validate-check \
                 test-all test-stubs test-api-docs test-snippets test-rust \
                 abi-check link-check installed-headers-check \
+                test-asan test-ubsan test-tsan \
                 consumer-faces-check glibc-gate \
                 specan-check check-isotime-parity coverage coverage-gate \
                 docker-examples
@@ -993,6 +1019,7 @@ RELEASE_WATCH_CMD = @REPO=doppler-dsp/doppler RW_PKG=doppler-dsp \
 
 # ── Clean ────────────────────────────────────────────────────────────────────
 CLEAN_PATHS = $(BUILD_DIR) $(PY_BUILD_DIR) $(UBSAN_DIR) $(TSAN_DIR) \
+              $(ASAN_DIR) \
               $(GLIBC_BUILD_DIR) \
               docs/doxygen/ site/ \
               *.png bench_*.json zensical.toml __pycache__
@@ -1025,12 +1052,13 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 test-example-downstream-python \
                 package-starter-tarball test-starter-tarball \
                 test-stubs test-api-docs test-snippets lint-stubs \
-                test-ubsan test-tsan \
+                test-ubsan test-tsan test-asan \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
                 glibc-check glibc-gate glibc-image specan-check \
                 check-isotime-parity \
                 tests-ssot validation-report-check \
+                lint-alloc-helpers-baseline \
                 compile_commands.json \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
                 apt-stall-config deps-budget-check cargo-floor-check \
@@ -1038,7 +1066,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 doc-sections-check \
                 installed-headers-check \
                 ci-image ci-image-check ci-image-shell ci-image-source-hash \
-                ci-shell ci-run ci-gates ccache-stats \
+                ci-shell ci-run ci-gates ccache-stats pr-watch \
                 wheel-check wheel-smoke release-smoke \
                 bench-python \
                 bench-interleaved bench-publish bench-docs bench-stream \
@@ -1049,7 +1077,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
 # ── Vendored from canonical ──────────────────────────────────────────────────
 # Verbatim copies the drift gate holds to canonical, alongside standard.mk
 # itself. Edit canonical and re-vendor; never edit these in place.
-VENDORED_FILES = scripts/release-watch.sh
+VENDORED_FILES = scripts/release-watch.sh scripts/pr-watch.sh
 
 include standard.mk
 
@@ -1467,11 +1495,31 @@ gallery: ## Run the plot examples and copy their PNGs to docs/assets/
 # `Synth(sps=1)` became a silently dead waveform instead of a crash. A gate
 # that only runs the program cannot see any of it; this one can.
 #
-# `alignment` is excluded, and that is a RATCHET, not an exemption: 821
-# reports today, every one `member access within misaligned address`, from
-# casting a byte cursor to a struct pointer in dp_tlm, buffer and dp_state.
-# Fixing them is its own change. The exclusion may only ever shrink -- if you
-# find yourself adding a second `-fno-sanitize=`, fix the code instead.
+# `alignment` is excluded, and that is a RATCHET, not an exemption: every
+# report is `member access within misaligned address`, from casting a byte
+# cursor to a struct pointer in dp_tlm, buffer and dp_state. Fixing them is its
+# own change. The exclusion may only ever shrink -- if you find yourself adding
+# a second `-fno-sanitize=`, fix the code instead.
+#
+#   measured     count   how
+#   (undated)      821   the number this comment carried before #1026
+#   2026-08-27     853   the command below
+#
+# It GREW by 32 between those two rows, silently, because nothing reads it --
+# "may only shrink" is a sentence in a comment, not a gate (#1028).
+#
+# To re-measure, drop the exclusion, make reports non-fatal, and read the
+# output under `ctest -V`:
+#
+#     make test-ubsan UBSAN_DIR=/tmp/ub UBSAN_OFF=float-divide-by-zero \
+#          UBSAN_OPTS=halt_on_error=0
+#     ( cd /tmp/ub && ctest -V 2>&1 | grep -c 'runtime error' )
+#
+# `-V` is load-bearing, and leaving it out cost an hour here: with reports
+# non-fatal every test PASSES, so `--output-on-failure` -- what this target
+# passes -- prints nothing, and the count comes back 0 from a run that found
+# 853. Absent output is not a pass, one layer further out than usual: the
+# diagnostics existed and ctest discarded them.
 UBSAN_DIR    ?= build-ubsan
 UBSAN_OFF    ?= alignment
 UBSAN_FLAGS   = -fsanitize=undefined,float-cast-overflow \
@@ -1489,27 +1537,125 @@ test-ubsan: ## Run the C suite under UBSan; any undefined behaviour fails
 		"-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=undefined" \
 		$(CMAKE_ARGS)
 	$(CMAKE) --build $(UBSAN_DIR) --parallel $(NPROC)
+# An empty result set is not a pass -- see test-asan.
+	@n=$$($(CTEST) --test-dir $(UBSAN_DIR) $(SAN_EXCLUDE_SWEEP) -N | sed -n 's/^Total Tests: //p'); \
+	 if [ "$$n" = "0" ] || [ -z "$$n" ]; then \
+	   echo "test-ubsan: the suite registered no tests — nothing ran,"; \
+	   echo "  so this gate has not passed."; exit 1; \
+	 fi; \
+	 echo "test-ubsan: $$n test(s) under UndefinedBehaviorSanitizer"
 	UBSAN_OPTIONS=$(UBSAN_OPTS) \
-		$(CTEST) --test-dir $(UBSAN_DIR) --output-on-failure
+		$(CTEST) --test-dir $(UBSAN_DIR) $(SAN_EXCLUDE_SWEEP) --output-on-failure
+
+# ── AddressSanitizer ─────────────────────────────────────────────────────────
+# The C suite rebuilt under ASan, with LeakSanitizer left ON.
+#
+# UBSan above covers what the standard leaves undefined; this covers what the
+# ALLOCATOR knows and the program does not -- reads and writes outside an
+# object, and allocations nothing releases. Neither the behavioural suite nor
+# UBSan can see that class: an overflowing write lands on whatever the
+# compiler happened to put next, so the program is wrong and the assertions
+# are green. doppler#1024 is the instance that bought this target. A test
+# wrote 93 bytes into a 64-byte stack buffer, 29 bytes into its own caller's
+# frame, on top of the array holding the values the next assertion compared
+# against. gcc at -O2 padded the frame and hid it for as long as it existed;
+# `make test` was 152/152. It surfaced only because the coverage job builds
+# with clang at -O0 and the layout there exposed it -- a stack layout, not a
+# check. ASan names the write, the buffer and both frames in one report.
+#
+# Whole-suite, because unlike a race a bad access needs no special test to
+# provoke: every target that touches memory is a candidate, which is all of
+# them. test-tsan below has since been widened to the whole suite too, for a
+# related reason -- a name cannot tell you whether the LIBRARY spawns threads
+# underneath a test that has none of its own.
+#
+# There is NO exclusion here, and that is a property to keep rather than a
+# coincidence. Turning the run on found nine failures on a green tree -- two
+# genuine out-of-bounds reads and seven leaks -- and all nine were test-side
+# and fixed in the same change, so this target has never had a ratchet and
+# should not acquire its first one quietly. Adding `detect_leaks=0` or a
+# suppressions file is a change in what this gate promises; fix the code.
+ASAN_DIR   ?= build-asan
+ASAN_FLAGS  = -fsanitize=address -fno-omit-frame-pointer -g
+# halt_on_error, for the reason UBSAN_OPTS gives above. `detect_leaks` is
+# spelled out rather than left to the platform default: it is ON by default on
+# Linux and OFF on macOS, so relying on the default would mean the gate
+# silently checks less on one of the two platforms CI builds.
+ASAN_OPTS   = halt_on_error=1:abort_on_error=1:detect_leaks=1
+
+test-asan: ## Run the C suite under ASan+LSan; any bad access or leak fails
+	$(CMAKE) -B $(ASAN_DIR) -S . \
+		-DCMAKE_BUILD_TYPE=Debug \
+		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+		"-DCMAKE_C_FLAGS=$(ASAN_FLAGS)" \
+		"-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address" \
+		"-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address" \
+		$(CMAKE_ARGS)
+	$(CMAKE) --build $(ASAN_DIR) --parallel $(NPROC)
+# An empty result set is not a pass -- the same trap test-tsan guards, and it
+# bites harder here because this target takes no pattern: a configure that
+# registered no tests would run zero of them and exit 0, reporting a clean
+# sanitizer run over nothing at all.
+	@n=$$($(CTEST) --test-dir $(ASAN_DIR) $(SAN_EXCLUDE_SWEEP) -N | sed -n 's/^Total Tests: //p'); \
+	 if [ "$$n" = "0" ] || [ -z "$$n" ]; then \
+	   echo "test-asan: the suite registered no tests — nothing ran,"; \
+	   echo "  so this gate has not passed."; exit 1; \
+	 fi; \
+	 echo "test-asan: $$n test(s) under AddressSanitizer + LeakSanitizer"
+	ASAN_OPTIONS=$(ASAN_OPTS) \
+		$(CTEST) --test-dir $(ASAN_DIR) $(SAN_EXCLUDE_SWEEP) --output-on-failure
 
 # ── ThreadSanitizer ──────────────────────────────────────────────────────────
-# Scoped to the tests that actually run threads, because that is what makes
-# the result readable: a whole-suite TSan run is dominated by single-threaded
-# targets that cannot report anything, and the signal is one line in it.
+# WHOLE-SUITE, like test-asan, and that is a correction rather than a
+# preference. This used to run `ctest -R 'race|parallel|thread'` on the
+# argument that a name is a better selector than a hand-kept list. Measured
+# 2026-08-27 (#1026), that pattern selected 2 of the suite's tests: ONE real
+# threaded test, plus `test_acc_trace_core`, which matched by accident on the
+# "race" inside "t-race". Three genuinely threaded tests -- test_buffer_core,
+# test_dp_tlm_core and test_wfm_plan -- matched nothing and had never run.
 #
-# TSAN_TESTS is a ctest -R pattern, not a hand list of binaries -- a new
-# threaded test named for what it is gets picked up with no edit here. That
-# is the same reasoning `check_bench_coverage` applies to benchmarks: a list
-# maintained by hand is a list that goes stale silently.
+# The deeper reason a name cannot work: whether a test runs threads is not a
+# property of the TEST. `Plan.prepare()` fans its per-source builds across
+# cores through dp_parallel, so test_wfm_plan is threaded without a thread
+# anywhere in it, and no naming convention can know that. A whole-suite run is
+# dominated by targets that cannot report anything, which costs 2m31s of wall
+# clock and buys a denominator that is actually true.
+#
+# ONE exclusion, and it is a RATCHET that may only shrink. test_stream_nats_core
+# interrupts a stream from a second thread, which races the read of the
+# process-wide flag: `volatile sig_atomic_t` is the right type for a SIGNAL
+# handler and is not a C11 atomic, so a genuine cross-thread race on it is
+# exactly what TSan should say. Fixing it means atomics on a C99 codebase and
+# a signal-safety argument on a facility three modules share -- its own change,
+# filed as #1027, not a thing to smuggle into wiring up a gate.
 #
 # halt_on_error, for exactly the reason UBSAN_OPTS gives above: without it
 # TSan prints a race and the suite still passes, and the gate is decorative.
-TSAN_DIR   ?= build-tsan
-TSAN_TESTS ?= race|parallel|thread
-TSAN_FLAGS  = -fsanitize=thread -fno-omit-frame-pointer -g
-TSAN_OPTS   = halt_on_error=1:second_deadlock_stack=1
+TSAN_DIR     ?= build-tsan
+# ── What a SANITIZER suite re-runs ───────────────────────────────────────────
+# The `validate_*` harnesses register their `--check` SPOT CHECK as a ctest
+# entry (their full sweep is `make validate-c`, run when an object changes).
+# That spot check belongs on every PR and it runs in the ordinary C suite,
+# where it is cheap. Re-running it under instrumentation is what costs:
+# measured on CI run 33132488070, the 23 validators were 80% of ASan's ctest
+# time, 80% of UBSan's and 90% of TSan's -- 1166s across the three legs, for
+# work the unsanitized suite already did. The same harnesses cost 4.4s and
+# 3.3s optimised, so it is a ~60x instrumentation tax, not a big subset.
+#
+# They are labelled `sweep` in native/validation/CMakeLists.txt by enumerating
+# that directory, so this stays true as validators are added. `-LE` excludes
+# by label; validate_rx_dynamics is labelled `threaded` instead, because it is
+# the only validator that starts one and it costs TSan 0.34s.
+#
+# Set SAN_SWEEP=1 to put them back -- `make test-asan SAN_SWEEP=1` is the
+# instrumented full-battery run, for when a kernel change wants it.
+SAN_EXCLUDE_SWEEP = $(if $(SAN_SWEEP),,-LE sweep)
 
-test-tsan: ## Run the threaded C tests under TSan; any data race fails
+TSAN_EXCLUDE ?= ^test_stream_nats_core$$
+TSAN_FLAGS    = -fsanitize=thread -fno-omit-frame-pointer -g
+TSAN_OPTS     = halt_on_error=1:second_deadlock_stack=1
+
+test-tsan: ## Run the C suite under TSan; any data race fails
 	$(CMAKE) -B $(TSAN_DIR) -S . \
 		-DCMAKE_BUILD_TYPE=Debug \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
@@ -1518,18 +1664,20 @@ test-tsan: ## Run the threaded C tests under TSan; any data race fails
 		"-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=thread" \
 		$(CMAKE_ARGS)
 	$(CMAKE) --build $(TSAN_DIR) --parallel $(NPROC)
-# An empty result set is not a pass. If the pattern matches nothing the gate
-# has not run, so it has not passed -- the same trap the glibc and tarball
-# gates were both caught by.
-	@n=$$($(CTEST) --test-dir $(TSAN_DIR) -R '$(TSAN_TESTS)' -N \
+# An empty result set is not a pass -- the same trap the glibc and tarball
+# gates were both caught by, and the one this target's old name-pattern was
+# nearly caught by: a pattern that matches almost nothing still matches
+# something, so the guard fires only in the total case.
+	@n=$$($(CTEST) --test-dir $(TSAN_DIR) -E '$(TSAN_EXCLUDE)' $(SAN_EXCLUDE_SWEEP) -N \
 	      | sed -n 's/^Total Tests: //p'); \
 	 if [ "$$n" = "0" ] || [ -z "$$n" ]; then \
-	   echo "test-tsan: no test matched '$(TSAN_TESTS)' — nothing ran,"; \
+	   echo "test-tsan: the suite registered no tests — nothing ran,"; \
 	   echo "  so this gate has not passed."; exit 1; \
 	 fi; \
-	 echo "test-tsan: $$n threaded test(s) under ThreadSanitizer"
+	 echo "test-tsan: $$n test(s) under ThreadSanitizer" \
+	      "(excluding '$(TSAN_EXCLUDE)', see #1027)"
 	TSAN_OPTIONS=$(TSAN_OPTS) \
-		$(CTEST) --test-dir $(TSAN_DIR) -R '$(TSAN_TESTS)' \
+		$(CTEST) --test-dir $(TSAN_DIR) -E '$(TSAN_EXCLUDE)' $(SAN_EXCLUDE_SWEEP) \
 		--output-on-failure
 
 blazing: ## Clean + Release + -march=native (max speed; never packaged)
@@ -2153,8 +2301,12 @@ changelog-check: ## A branch changing code must add a changelog entry
 	}; \
 	files=$$(git diff --name-only "$$base"..HEAD); \
 	if [ -z "$$files" ]; then \
+	  ./scripts/uncommitted-code-guard.sh --inert changelog-check $(CHANGELOG_CODE_PATHS) \
+	    || exit 1; \
 	  echo "changelog-check: no commits ahead of $(CHANGELOG_BASE) — branch check inert"; \
 	else \
+	  ./scripts/uncommitted-code-guard.sh changelog-check $(CHANGELOG_CODE_PATHS); \
+	  ./scripts/changelog-fragment-guard.sh "$$base" || exit 1; \
 	  pat=$$(printf '%s\n' $(CHANGELOG_CODE_PATHS) | sed 's|.*|^&/|' | paste -sd'|'); \
 	  code=$$(printf '%s\n' "$$files" | grep -E "$$pat" || true); \
 	  if [ -z "$$code" ]; then \
@@ -2660,7 +2812,10 @@ ci-run: ## Run `make TARGET=<goals>` inside the PINNED CI image
 	 fi
 	$(CI_DOCKER_RUN) -e DOPPLER_BUILD_DIR=/w/$(CI_BUILD_DIR) $(CI_IMAGE) \
 	    make $(TARGET) BUILD_DIR=$(CI_BUILD_DIR) \
-	        STANDALONE_BUILD_DIR=$(CI_BUILD_DIR)/standalone
+	        STANDALONE_BUILD_DIR=$(CI_BUILD_DIR)/standalone \
+	        ASAN_DIR=$(CI_BUILD_DIR)-asan \
+	        UBSAN_DIR=$(CI_BUILD_DIR)-ubsan \
+	        TSAN_DIR=$(CI_BUILD_DIR)-tsan
 # DOPPLER_BUILD_DIR as well as BUILD_DIR, because they are read by different
 # consumers and missing the second one fails in a way that reads as a code
 # bug: ffi/rust/build.rs locates the library itself, defaulting to ../../build
@@ -2668,6 +2823,11 @@ ci-run: ## Run `make TARGET=<goals>` inside the PINNED CI image
 # glibc-2.43 .so inside a 2.39 container and died on
 # `undefined reference: atan2f@GLIBC_2.43`. Pointing both at the container
 # tree is what makes "run it like CI" true rather than nearly true.
+# The three sanitizer dirs for a plainer reason: they are separate variables,
+# so a container run left a `build-asan/` in the HOST checkout whose
+# CMakeCache.txt names /w paths, and the next `make test-asan` on the host died
+# with "CMakeCache.txt directory ... is different". Gitignored, so nothing is
+# lost -- it just costs an `rm -rf` and a puzzled minute to work out why.
 # Repoint the compilation database at the HOST build tree, for the same
 # reason glibc-gate does: `build` symlinks it at $(BUILD_DIR), so a container
 # run leaves the repo root pointing into $(CI_BUILD_DIR), whose every entry
@@ -2689,6 +2849,33 @@ ci-gates: ## Run the full gate set inside the PINNED CI image (pre-push check)
 ci-image-shell: ## A shell in the LOCALLY BUILT CI image (see ci-image)
 	@docker run --rm -it -u $$(id -u):$$(id -g) \
 	    -v "$(CURDIR)":/w -w /w doppler-ci:ubuntu-24.04 bash
+# Report what a PR's checks did. It NEVER authorizes a merge -- that is
+# `gh pr merge <n> --auto --rebase`, which evaluates the repo's required set
+# SERVER-side and cannot be got wrong by a poll loop. Arm auto-merge first;
+# use this to find out whether the PR landed or is genuinely stuck, so a
+# failure is noticed rather than waited on forever.
+#
+# It exists because every hand-rolled version of this loop fails TOWARD green,
+# silently, and all three ways have been hit for real:
+#
+#   1. `gh run list -L 1` returns the newest run of ANY workflow on the
+#      branch, so it reports the docker job finishing while the test matrix is
+#      still queued. Bind to the PR's head SHA instead.
+#   2. Right after a force-push GitHub has not created the check runs yet, so
+#      a `grep pending` finds nothing and the loop declares victory over ZERO
+#      checks. An empty check set is not a green one.
+#   3. `gh pr checks --watch` can attach to the PRIOR run after a re-push and
+#      render its old conclusions instantly, which looks like a fast pass.
+#
+# Ported from just-buildit/just-makeit (skills://merge-set says to); REPO
+# derives from `git remote get-url origin` here rather than being required.
+#
+#   make pr-watch PR=1044
+#   make pr-watch PR=1044 TIMEOUT_MIN=90 ADVISORY="codecov/patch,flaky-thing"
+pr-watch: ## Watch PR=<n>'s checks to a settled verdict (never merges)
+	@test -n "$(PR)" || { echo "usage: make pr-watch PR=<number>"; exit 2; }
+	@bash scripts/pr-watch.sh $(PR)
+
 
 # The gate. Two questions, both answerable with no network and no docker:
 #
@@ -2834,15 +3021,53 @@ test-api-docs: ## Doctest the docs/api/*.md reference pages
 # a whole round trip to see the rest. The C gate compiles every fence against
 # build/libdoppler.a, so `make build` first; the python gate's `broker=` fences
 # need a NATS broker on :4222 and skip without one.
-test-snippets: ## Run the python/C/shell doc-fence gates
-	@fail=0; \
+#
+# PAGE=<docs-relative path> narrows all three gates to one page while you are
+# writing it. Each gate parametrizes over pages with the docs-relative path as
+# the test id, so one `-k` reaches all three without any of them growing a
+# selector of its own.
+#
+#     make test-snippets PAGE=guide/wfmgen/coding.md
+#
+# It exists because the unscoped target is the whole corpus, and iterating on
+# a single new page through it is slow enough that the actual behaviour was to
+# reach past `make` for a raw pytest with `-k` -- seven times in one session,
+# each prefixed with MAKE_SSOT_OK=1 to get past the hook that exists to stop
+# exactly that. A rule routinely bypassed is a missing option, not a
+# discipline problem: the bypass ran a DIFFERENT command from the gate, which
+# is how a page passes locally and fails in CI.
+#
+# Unscoped is still the gate. PAGE is an iteration aid, so it says so on the
+# way out rather than printing the same "ALL FENCE GATES PASS" line a full run
+# earns.
+test-snippets: ## Run the python/C/shell doc-fence gates (PAGE=<path> to narrow)
+	@fail=0; empty=0; n=0; \
 	 for t in test_doc_snippets test_c_doc_snippets test_sh_doc_snippets; do \
 	     echo "=== $$t ==="; \
+	     n=$$((n + 1)); \
 	     uv run python -m pytest -m docs_snippets -q \
-	         src/doppler/tests/$$t.py || fail=1; \
+	         $(if $(PAGE),-k "$(PAGE)") \
+	         src/doppler/tests/$$t.py; rc=$$?; \
+	     : "5 is pytest's 'collected nothing'. Under PAGE that is the normal"; \
+	     : "answer for two of the three -- a page with only sh fences has no"; \
+	     : "python or C ones -- so it is not a failure. Unscoped it stays"; \
+	     : "one, because the corpus having no fences means discovery broke."; \
+	     if [ "$$rc" = 5 ] && [ -n "$(PAGE)" ]; then empty=$$((empty + 1)); \
+	     elif [ "$$rc" != 0 ]; then fail=1; fi; \
 	 done; \
-	 if [ "$$fail" = 0 ]; then echo "test-snippets: ALL FENCE GATES PASS"; \
-	 else echo "test-snippets: FAILURES above"; exit 1; fi
+	 if [ "$$fail" != 0 ]; then echo "test-snippets: FAILURES above"; exit 1; \
+	 elif [ -n "$(PAGE)" ] && [ "$$empty" = "$$n" ]; then \
+	     : "Every gate collected nothing, so the selector matched NO page."; \
+	     : "Reporting that as a pass is how a typo'd PAGE reads as green."; \
+	     echo "test-snippets: PAGE=$(PAGE) matched no fences in any gate —"; \
+	     echo "  nothing ran. The id is the docs-relative path, e.g."; \
+	     echo "    make test-snippets PAGE=guide/wfmgen/coding.md"; \
+	     exit 1; \
+	 elif [ -n "$(PAGE)" ]; then \
+	     echo "test-snippets: PAGE=$(PAGE) passes ($$empty of $$n gate(s) had"; \
+	     echo "  no fences of their kind) — NOT a full run; the gate is"; \
+	     echo "  \`make test-snippets\` with no PAGE."; \
+	 else echo "test-snippets: ALL FENCE GATES PASS"; fi
 
 # Parallel by default, for the same reason `test-python` is: the workload is
 # embarrassingly parallel and pytest-xdist is already a dev dependency. Each

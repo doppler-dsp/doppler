@@ -59,6 +59,8 @@
 
 | Type | Name |
 | ---: | :--- |
+|  double | [**dp\_fftfreq**](#function-dp_fftfreq) (size\_t bin, size\_t n, double fs) <br>_The frequency of an FFT bin, in the units of_ `fs` _._ |
+|  long | [**dp\_fftfreq\_index**](#function-dp_fftfreq_index) (size\_t bin, size\_t n) <br>`numpy.fft.fftfreq(n)[bin] * n` _— the SIGNED index of an FFT bin._ |
 |  void \* | [**dp\_xcalloc**](#function-dp_xcalloc) (size\_t nmemb, size\_t size) <br> |
 |  void \* | [**dp\_xmalloc**](#function-dp_xmalloc) (size\_t n) <br> |
 |  void \* | [**dp\_xnn**](#function-dp_xnn) (void \* p) <br> |
@@ -106,6 +108,92 @@
 
 ## Public Static Functions Documentation
 
+
+
+
+### function dp\_fftfreq 
+
+_The frequency of an FFT bin, in the units of_ `fs` _._
+```C++
+static inline double dp_fftfreq (
+    size_t bin,
+    size_t n,
+    double fs
+) 
+```
+
+
+
+`dp_fftfreq_index(bin, n) * fs / n` — numpy's `fftfreq(n, d)[bin]` with the sample RATE where numpy takes the sample SPACING. That is the one deliberate difference from the numpy signature, and it is the right way round for this library: every caller here has `fs` in hand and would otherwise write `1.0 / fs` at the call site, which is a reciprocal to get wrong for no benefit. Pass `fs = 1.0` for normalised cycles/sample, which is numpy's default.
+
+
+
+
+**Parameters:**
+
+
+* `bin` Bin index in `[0, n)`. 
+* `n` Grid size (&gt; 0). 
+* `fs` Sample rate; the result is in these units. 
+
+
+
+**Returns:**
+
+Bin frequency in `[-fs/2, +fs/2)`. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_fftfreq\_index 
+
+`numpy.fft.fftfreq(n)[bin] * n` _— the SIGNED index of an FFT bin._
+```C++
+static inline long dp_fftfreq_index (
+    size_t bin,
+    size_t n
+) 
+```
+
+
+
+`0 = DC`, ascending positive to `(n-1)/2`, then wrapping negative, so an even-length grid puts its Nyquist bin at `-n/2`. Multiply by the grid's bin spacing for Hz, or use dp\_fftfreq() for the normalised frequency.
+
+
+Named for what it is. It arrived as an acquisition-specific helper called `dp_fftfreq_index`, which is how it came to disagree with numpy at exactly one index: it reported `+n/2` at the Nyquist bin. That is not wrong on its own  `+n/2` and `-n/2` are the same frequency, and a search on this grid cannot tell them apart  but every formula ported in from numpy then disagreed with the engine at the one bin the engine was most careful about. Following the universal convention deletes that class of surprise rather than documenting it.
+
+
+What must not vary is the READER: a consumer seeded on one side of the fold while the search meant the other is off by the full span. That happened here once  an acquisition's wideband search and its hand-off spelled the fold differently  and it surfaced as a receiver reporting `tracking == 1` while decoding noise. So this lives in the COMMON header, inline, and `doppler.dsss.bin_to_signed` is a thin wrapper over it, so C and Python call the same code instead of restating the arithmetic.
+
+
+
+
+**Parameters:**
+
+
+* `bin` Bin index in `[0, n)`. 
+* `n` Grid size. 
+
+
+
+**Returns:**
+
+Signed index in `[-(n/2), +((n-1)/2)]`. 
+
+
+
+
+
+        
+
+<hr>
 
 
 

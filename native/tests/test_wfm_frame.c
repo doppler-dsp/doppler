@@ -15,6 +15,7 @@
  * real capture AND still catches a false lock.
  */
 #include "dp_test.h"
+#include "wfm/wfm_dsp.h" /* the four-field DSSS pair, for the equivalence */
 #include "wfm/wfm_frame.h"
 
 #include "pn/pn_core.h"
@@ -385,6 +386,91 @@ main (void)
 
     DP_CHECK (wfm_frame_assemble (NULL, NULL, buf, sizeof buf) == 0);
     DP_CHECK (wfm_frame_assemble (&d, NULL, buf, 47u) == 0);
+  }
+
+  /* ── a DSSS burst from a description: assemble, then spread ───────────
+   *
+   * The four-field entry point is now this one with the description filled
+   * in, so what is worth pinning is the part that only the general form can
+   * express -- and the one structural decision underneath it: the preamble
+   * is NOT a field of the description, because it is transmitted unspread.
+   */
+  {
+    static const uint8_t acq[4]   = { 1, 0, 1, 1 };
+    static const uint8_t dcode[3] = { 1, 0, 0 };
+    static const uint8_t sync[5]  = { 1, 1, 0, 1, 0 };
+    static const uint8_t pay[8]   = { 0, 1, 1, 0, 1, 0, 0, 1 };
+    const size_t         reps = 2, pre = 4u * 2u, dl = 3u;
+
+    uint8_t     legacy[512], general[512];
+    wfm_frame_t f  = { 0 };
+    f.sync.kind    = WFM_SEQ_LITERAL;
+    f.sync.bits    = sync;
+    f.sync.len     = sizeof sync;
+    f.payload.kind = WFM_SEQ_LITERAL;
+    f.payload.bits = pay;
+    f.payload.len  = sizeof pay;
+    f.crc          = 1;
+    wfm_frame_desc_t d;
+    DP_CHECK (wfm_frame_describe (&f, &d) == 0);
+
+    const size_t want
+        = pre + (sizeof sync + sizeof pay + WFM_FRAME_CRC_BITS) * dl;
+    DP_CHECK_MSG (wfm_dsss_desc_nchips (&d, sizeof acq, reps, dl) == want,
+                  "burst chips = preamble + spread frame");
+    const size_t nl
+        = wfm_frame_dsss_chips (acq, sizeof acq, reps, dcode, dl, sync,
+                                sizeof sync, pay, sizeof pay, 1, legacy);
+    const size_t ng = wfm_dsss_desc_chips (&d, NULL, acq, sizeof acq, reps,
+                                           dcode, dl, general, sizeof general);
+    DP_CHECK_MSG (nl == want && ng == want,
+                  "both entry points write the same count");
+    DP_CHECK_MSG (
+        memcmp (legacy, general, want) == 0,
+        "the four-field burst IS the described burst, chip for chip");
+
+    /* The preamble is unspread and outside every stage's reach: it is the
+       acquisition code verbatim, whatever the description does after it.
+       Sabotage: make the preamble a FIELD of the description and this fails
+       the moment any stage covers "the whole frame". */
+    int pre_ok = 1;
+    for (size_t r = 0; r < reps; r++)
+      for (size_t i = 0; i < sizeof acq; i++)
+        if (general[r * sizeof acq + i] != acq[i])
+          pre_ok = 0;
+    DP_CHECK_MSG (pre_ok, "the preamble is the acq code, unspread");
+
+    /* A stage that lengthens the frame lengthens the burst by exactly its
+       own bits, spread -- no second arithmetic anywhere. */
+    wfm_frame_t g = f;
+    g.crc         = 0;
+    wfm_frame_desc_t d0;
+    DP_CHECK (wfm_frame_describe (&g, &d0) == 0);
+    DP_CHECK_MSG (wfm_dsss_desc_nchips (&d, sizeof acq, reps, dl)
+                          - wfm_dsss_desc_nchips (&d0, sizeof acq, reps, dl)
+                      == WFM_FRAME_CRC_BITS * dl,
+                  "a CRC stage costs exactly its bits, spread");
+
+    /* Refusals, in the shape the rest of this file uses: a stage nobody can
+       run, a capacity that cannot hold the burst, and a frame with no code
+       to spread it by. Each returns 0 and writes nothing. */
+    wfm_frame_desc_t rsd     = d;
+    rsd.n_stages             = 1u;
+    rsd.stage[0].kind        = WFM_STAGE_RS; /* no kernel is supplied here */
+    rsd.stage[0].depth       = 1u;
+    rsd.stage[0].first_field = 0u;
+    rsd.stage[0].n_fields    = rsd.n_fields;
+    memset (general, 0xAAu, sizeof general);
+    DP_CHECK_MSG (wfm_dsss_desc_chips (&rsd, NULL, acq, sizeof acq, reps,
+                                       dcode, dl, general, sizeof general)
+                      == 0,
+                  "a stage with no kernel refuses the burst");
+    DP_CHECK_MSG (general[0] == 0xAAu, "...and writes nothing");
+    DP_CHECK (wfm_dsss_desc_chips (&d, NULL, acq, sizeof acq, reps, dcode, dl,
+                                   general, want - 1u)
+              == 0);
+    DP_CHECK_MSG (wfm_dsss_desc_nchips (&d, sizeof acq, reps, 0u) == 0,
+                  "frame bits with no spreading code is not a geometry");
   }
 
   DP_TEST_END ("wfm_frame");

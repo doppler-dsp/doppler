@@ -1,7 +1,7 @@
 /*
  * coding_ext.c — Python extension module coding
  *
- * Objects: ConvEncoder, Viterbi, ReedSolomon
+ * Objects: ConvEncoder, Viterbi, ReedSolomon, Interleaver, Deinterleaver
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -12,6 +12,8 @@
 #include <numpy/arrayobject.h>
 
 #include "coding_ext_conv_enc.c"
+#include "coding_ext_deinterleaver.c"
+#include "coding_ext_interleaver.c"
 #include "coding_ext_rs_codec.c"
 #include "coding_ext_viterbi.c"
 
@@ -72,6 +74,10 @@ PyInit_coding (void)
     return NULL;
   if (PyType_Ready (&ReedSolomonObjType) < 0)
     return NULL;
+  if (PyType_Ready (&InterleaverObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&DeinterleaverObjType) < 0)
+    return NULL;
   PyObject *m = PyModule_Create (&coding_moduledef);
   if (!m)
     return NULL;
@@ -95,6 +101,23 @@ PyInit_coding (void)
       < 0)
     {
       Py_DECREF (&ReedSolomonObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&InterleaverObjType);
+  if (PyModule_AddObject (m, "Interleaver", (PyObject *)&InterleaverObjType)
+      < 0)
+    {
+      Py_DECREF (&InterleaverObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&DeinterleaverObjType);
+  if (PyModule_AddObject (m, "Deinterleaver",
+                          (PyObject *)&DeinterleaverObjType)
+      < 0)
+    {
+      Py_DECREF (&DeinterleaverObjType);
       Py_DECREF (m);
       return NULL;
     }

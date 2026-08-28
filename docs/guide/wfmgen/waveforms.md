@@ -1,7 +1,7 @@
 # Waveforms
 
 `--type` selects the waveform; every type shares the same parameter set. The
-engine produces eight types from one declarative core.
+engine produces nine types from one declarative core.
 
 | `--type`  | What it is                                                     | Key parameters                      |
 | --------- | -------------------------------------------------------------- | ----------------------------------- |
@@ -41,7 +41,9 @@ ______________________________________________________________________
 
 A `bits` waveform plays back **your** sequence — a preamble, sync word, or test
 vector — given as a 0/1 string (`--bits 10110101`), a hex string
-(`--bits-hex AA55`, MSB first), or a file (`--bits-file pattern.txt`).
+(`--bits-hex AA55`, MSB first), or a **binary** file whose bytes are
+the bits, MSB first per byte (`--bits-file frame.bin`) — which is how a
+real transfer frame reaches the tool.
 `--modulation` (`none` / `bpsk` / `qpsk`) maps the bits to symbols (`none` →
 0/1 amplitude, `bpsk` → ±1, `qpsk` → two bits per symbol, Gray-coded). Each bit
 is held `--sps` samples and the pattern **cycles** to fill the requested length.

@@ -1,0 +1,119 @@
+# interleaver — a block interleaver, as an object.
+#
+# doppler#1031. The transform is `dp_interleave.h`, header-only and stateless;
+# this owns the configured GEOMETRY built over one. The same split
+# conv/conv_enc established: `interleaver_interleave` calls
+# `dp_interleave_u8`, it is not a second implementation.
+#
+# Opaque heap state so no_state/no_step -- but nothing in it is RUNNING state,
+# only the three declared numbers, so it is deliberately NOT serializable:
+# interleaving is per-frame, and a partial block carried across frames would
+# add frame-latency and break per-frame decoding. Nothing survives a call, so
+# there is nothing to checkpoint.
+[interleaver]
+arg_type = "uint8_t"
+return_type = "uint8_t"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Interleaver"
+create_error = "ValueError"
+create_error_message = "Interleaver: rows, cols and unit_bits must all be non-zero, and their product must fit a size_t"
+
+# Interleaving depth: how many codewords are interleaved, and so the longest
+# burst that lands at most once in each.
+[[interleaver.init_params]]
+name = "rows"
+type = "size_t"
+
+# Units per codeword. REQUIRED and never derived from the input length: the
+# whole point is that both ends agree on the permutation, and deriving it
+# means a truncated frame silently produces a different one instead of an
+# error.
+[[interleaver.init_params]]
+name = "cols"
+type = "size_t"
+
+# Bits per interleaved unit. Not a knob: an outer code over GF(256) is
+# protected by permuting OCTETS, and bit-interleaving one spreads a burst
+# inside a symbol that is already wrong.
+[[interleaver.init_params]]
+name = "unit_bits"
+type = "size_t"
+default = "1"
+
+# The RECEIVE face. A view rather than a second object, because the geometry
+# is exactly what the two ends must agree on and one core means one definition
+# of it -- but a view rather than nothing, because someone working the receive
+# side reaches for `Deinterleaver` and a class findable only under the
+# transmit name is a class they do not find.
+#
+# `interleave` is excluded: a receive-only face that can silently run the
+# forward direction is a footgun, and the exclusion is what makes the name
+# mean what it says.
+[[interleaver.views]]
+class_name = "Deinterleaver"
+create_fn = "interleaver_create_rx"
+init_params = [
+  { name = "rows", type = "size_t" },
+  { name = "cols", type = "size_t" },
+  { name = "unit_bits", type = "size_t", default = "1" },
+]
+exclude_methods = ["interleave"]
+
+[[interleaver.methods]]
+name = "interleave"
+doc = "Interleave a whole number of blocks: write the input by rows into a `rows` x `cols` matrix and read it back by columns. Length-preserving. A length that is not a whole multiple of `block_bits` is REFUSED rather than padded -- padding changes the length, and a receiver de-interleaving the padded block recovers different bits."
+arg_type = "uint8_t"
+return_type = "uint8_t"
+variable_output = true
+pass_capacity = true
+
+[[interleaver.methods]]
+name = "deinterleave"
+doc = "Undo `interleave()` over the same geometry. De-interleaving a `rows` x `cols` block is interleaving a `cols` x `rows` one, so this is the same kernel with two arguments exchanged -- which is also why a SQUARE block is its own inverse."
+arg_type = "uint8_t"
+return_type = "uint8_t"
+variable_output = true
+pass_capacity = true
+
+[[interleaver.methods]]
+name = "deinterleave_soft"
+doc = "Undo an interleave over SOFT values -- the receive path that matters. `DsssBurstReceiver.llrs` span the whole frame, and an outer decoder wants them de-interleaved BEFORE it runs; slicing to hard bits first throws away the confidence the soft output exists to carry. There is no `interleave_soft`, because a transmitter has bits, not LLRs."
+arg_type = "float"
+return_type = "float"
+variable_output = true
+pass_capacity = true
+
+[[interleaver.properties]]
+name = "rows"
+type = "size_t"
+field = true
+doc = "Interleaving depth -- codewords interleaved."
+
+[[interleaver.properties]]
+name = "cols"
+type = "size_t"
+field = true
+doc = "Units per codeword."
+
+[[interleaver.properties]]
+name = "unit_bits"
+type = "size_t"
+field = true
+doc = "Bits per interleaved unit; 1 interleaves bits, 8 octets."
+
+[[interleaver.properties]]
+name = "block_bits"
+type = "size_t"
+doc = "Bits in one block -- `rows * cols * unit_bits`. Every call takes a whole multiple of this."
+
+[[interleaver.properties]]
+name = "burst_len"
+type = "size_t"
+doc = "The longest burst this geometry fully spreads: a burst of up to this many consecutive units on the wire touches each codeword at most once. An outer code correcting `t` units per codeword survives a burst of `t * burst_len`."
+
+[[interleaver.properties]]
+name = "separation"
+type = "size_t"
+doc = "The other half of the link budget -- what `burst_len` spreads a burst ACROSS. Equal to `cols`, and named for what it buys rather than for the matrix it comes from."

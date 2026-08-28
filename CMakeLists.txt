@@ -244,6 +244,9 @@ add_subdirectory(native/src/ber_meter)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:ber_meter_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:ber_meter_core>)
 add_subdirectory(native/src/carrier_acq)
+add_subdirectory(native/src/dsss_burst_receiver)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:dsss_burst_receiver_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:dsss_burst_receiver_core>)
 add_subdirectory(native/src/async_dsss_receiver)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:carrier_acq_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:carrier_acq_core>)
@@ -270,6 +273,9 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:burst_despreader_core
 add_subdirectory(native/src/despreader)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:despreader_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:despreader_core>)
+add_subdirectory(native/src/interleaver)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:interleaver_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:interleaver_core>)
 add_subdirectory(native/src/rs_codec)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:rs_codec_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:rs_codec_core>)
@@ -971,6 +977,18 @@ target_include_directories(test_dp_rng
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/tests)
 target_compile_options(test_dp_rng PRIVATE -O2)
 add_test(NAME test_dp_rng COMMAND test_dp_rng)
+
+# native/inc/dp_interleave.h is the block-interleaving permutation, shared by
+# the WFM_STAGE_INTERLEAVE frame-stage kernel and the Interleaver object --
+# header-only for the reason dp_crc16.h gives, so neither grows a link-line
+# dependency for arithmetic. Owned by no object, so registered here. Links
+# nothing.
+add_executable(test_dp_interleave native/tests/test_dp_interleave.c)
+target_include_directories(test_dp_interleave
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_interleave PRIVATE -O2)
+add_test(NAME test_dp_interleave COMMAND test_dp_interleave)
 
 # native/inc/dp_isotime.h formats filename-safe basic-format UTC timestamps.
 # The format is NOT defined there -- it is just-bashit's `iso-8601-basic`, and

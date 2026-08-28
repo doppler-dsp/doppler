@@ -44,17 +44,19 @@ _BurstDemod state. Allocate with_ [_**burst\_demod\_create()**_](burst__demod__c
 |  uint8\_t \* | [**data\_code**](#variable-data_code)  <br> |
 |  size\_t | [**data\_sf**](#variable-data_sf)  <br> |
 |  double | [**est\_freq\_hz**](#variable-est_freq_hz)  <br> |
+|  double | [**est\_n0**](#variable-est_n0)  <br> |
 |  double | [**est\_rate\_hz**](#variable-est_rate_hz)  <br> |
 |  size\_t | [**est\_segments**](#variable-est_segments)  <br> |
 |  double | [**est\_snr\_db**](#variable-est_snr_db)  <br> |
 |  double | [**f0\_prior**](#variable-f0_prior)  <br> |
 |  size\_t | [**frame\_offset**](#variable-frame_offset)  <br> |
-|  int | [**frame\_valid**](#variable-frame_valid)  <br> |
+|  size\_t | [**frame\_syms**](#variable-frame_syms)  <br> |
+|  float \* | [**llr**](#variable-llr)  <br> |
 |  double | [**max\_rate**](#variable-max_rate)  <br> |
+|  size\_t | [**n\_llr**](#variable-n_llr)  <br> |
 |  size\_t | [**n\_part**](#variable-n_part)  <br> |
 |  size\_t | [**n\_symbols**](#variable-n_symbols)  <br> |
 |  float complex \* | [**part**](#variable-part)  <br> |
-|  size\_t | [**payload\_len**](#variable-payload_len)  <br> |
 |  [**ppe\_state\_t**](structppe__state__t.md) \* | [**ppe**](#variable-ppe)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
 |  size\_t | [**start**](#variable-start)  <br> |
@@ -251,6 +253,24 @@ estimated residual Doppler (Hz).
 
 
 
+### variable est\_n0 
+
+```C++
+double burst_demod_state_t::est_n0;
+```
+
+
+
+Noise power the LLRs are scaled by, referred to unit symbol amplitude. Published so a caller can undo the scaling, or compare bursts by it. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable est\_rate\_hz 
 
 ```C++
@@ -341,15 +361,33 @@ symbol offset of the sync word.
 
 
 
-### variable frame\_valid 
+### variable frame\_syms 
 
 ```C++
-int burst_demod_state_t::frame_valid;
+size_t burst_demod_state_t::frame_syms;
 ```
 
 
 
-1 if the CRC-16 trailer matched. 
+symbols the frame occupies AFTER the sync word — a number the caller states. What they MEAN is the frame description's business, one layer up. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable llr 
+
+```C++
+float* burst_demod_state_t::llr;
+```
+
+
+
+The frame's soft bits, `mpsk_soft_demap`'s convention: positive means bit 0, so `L < 0` is the hard decision demod() returned. Valid until the next demod(); n\_llr of them. 
  
 
 
@@ -368,6 +406,24 @@ double burst_demod_state_t::max_rate;
 
 
 chirp-rate search half-span (cycles/sample^2). 
+
+
+        
+
+<hr>
+
+
+
+### variable n\_llr 
+
+```C++
+size_t burst_demod_state_t::n_llr;
+```
+
+
+
+LLRs the last demod() wrote (the frame's length). 
+ 
 
 
         
@@ -416,24 +472,6 @@ float complex* burst_demod_state_t::part;
 
 
 preamble partials scratch (acq\_reps\*est\_seg). 
-
-
-        
-
-<hr>
-
-
-
-### variable payload\_len 
-
-```C++
-size_t burst_demod_state_t::payload_len;
-```
-
-
-
-payload data symbols (bits). 
- 
 
 
         
@@ -504,7 +542,7 @@ int8_t* burst_demod_state_t::sync;
 
 
 
-owned sync word as +/-1, length sync\_len. 
+owned sync word as +/-1, length sync\_len — the correlation template, and the only thing this object knows about the frame's CONTENT. 
  
 
 

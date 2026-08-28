@@ -1,6 +1,7 @@
 #include "burst_demod/burst_demod_core.h"
 
-#include "dp_crc16.h" /* the shared TX/RX frame CRC (wfmgen appends it) */
+#include "ccsds_tm/ccsds_tm_frame.h" /* the stage kernels + the ASM bits    */
+#include "mpsk/mpsk_core.h"          /* mpsk_soft_demap — the ONE LLR rule  */
 
 #include <complex.h>
 #include <math.h>
@@ -27,7 +28,7 @@ wrap_pi (double ph)
 burst_demod_state_t *
 burst_demod_create (const uint8_t *data_code, size_t data_code_len, size_t spc,
                     double chip_rate, double carrier_hz, double max_rate,
-                    size_t payload_len, size_t est_segments)
+                    size_t frame_syms, size_t est_segments)
 {
   if (!data_code || data_code_len == 0 || spc == 0 || chip_rate <= 0.0
       || max_rate < 0.0 || est_segments == 0)
@@ -47,7 +48,7 @@ burst_demod_create (const uint8_t *data_code, size_t data_code_len, size_t spc,
   s->chip_rate    = chip_rate;
   s->carrier_hz   = carrier_hz;
   s->max_rate     = max_rate;
-  s->payload_len  = payload_len;
+  s->frame_syms   = frame_syms;
   s->est_segments = est_segments;
   return s;
 }
@@ -62,6 +63,7 @@ burst_demod_destroy (burst_demod_state_t *s)
   free (s->data_code);
   free (s->acq_code);
   free (s->sync);
+  free (s->llr);
   free (s->part);
   free (s);
 }
@@ -69,7 +71,6 @@ burst_demod_destroy (burst_demod_state_t *s)
 void
 burst_demod_reset (burst_demod_state_t *s)
 {
-  s->frame_valid  = 0;
   s->frame_offset = 0;
   s->n_symbols    = 0;
   s->est_freq_hz  = 0.0;
@@ -131,9 +132,27 @@ burst_demod_set_prior (burst_demod_state_t *s, double f0_coarse, size_t start)
 }
 
 size_t
+burst_demod_llrs_max_out (burst_demod_state_t *s, size_t n)
+{
+  (void)n; /* the count is the last demod()'s frame, not a request */
+  return s ? s->frame_syms : 0u;
+}
+
+size_t
+burst_demod_llrs (burst_demod_state_t *s, size_t n, float *out, size_t max_out)
+{
+  (void)n; /* the count is the last demod()'s frame, not a request */
+  if (!s || !out || s->n_llr == 0)
+    return 0;
+  const size_t rows = (s->n_llr < max_out) ? s->n_llr : max_out;
+  memcpy (out, s->llr, rows * sizeof *out);
+  return rows;
+}
+
+size_t
 burst_demod_demod_max_out (burst_demod_state_t *s)
 {
-  return s->payload_len;
+  return s->frame_syms;
 }
 
 /* Dechirp the unmodulated preamble by (f0, mu) and PN-wipe it into one partial
@@ -205,7 +224,7 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
                    size_t x_len, uint8_t *out, size_t max_out)
 {
   burst_demod_reset (s);
-  if (!s->ppe || !s->sync || s->payload_len == 0)
+  if (!s->ppe || !s->sync || s->frame_syms == 0)
     return 0;
 
   const size_t npre  = s->acq_sf * s->acq_reps * s->spc;
@@ -296,7 +315,11 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
   /* ── 3) Frame sync: the sync word's complex correlation peak gives the
    * offset and the residual phase (which also resolves the BPSK sign). ──────
    */
-  const size_t frame = s->sync_len + s->payload_len + BURST_DEMOD_CRC_BITS;
+  /* How many symbols follow the sync word. A NUMBER the caller states, not
+     a layout this object derives: what those symbols mean -- which are
+     payload, which are a check, what covers what -- belongs to whoever
+     holds the frame's description, one layer up. */
+  const size_t frame = s->frame_syms;
   if (nsym < frame)
     {
       free (sym);
@@ -323,29 +346,68 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
   double theta    = atan2 ((double)cimagf (best_c), (double)crealf (best_c));
   float complex derot = cexpf (-(float)theta * I);
 
-  /* ── 4) Slice the payload, recompute + check the CRC-16 trailer. ─────────
+  /* ── 4) Slice the frame to bits, and stop ────────────────────────────
+   *
+   * A hard decision per symbol, from the sync word onward. This object
+   * makes decisions; it does not undo frames. Which bits are payload,
+   * whether a check passed, what an outer code repaired -- all of that
+   * needs the frame's DESCRIPTION, and belongs to whoever holds one
+   * (doppler#1022).
    */
-  const size_t pstart = best_off + s->sync_len;
-  size_t       nbits  = (s->payload_len <= max_out) ? s->payload_len : max_out;
-  for (size_t k = 0; k < nbits; k++)
-    out[k] = (crealf (sym[pstart + k] * derot) < 0.0f) ? 1u : 0u;
+  /* The SOFT decisions first, because they are what the hard ones are made
+   * of: `crealf(sym * derot)` IS the log-likelihood ratio up to a scale, and
+   * it used to be computed, sliced to one bit and freed. Kept in
+   * `mpsk_soft_demap`'s convention -- positive means bit 0, so `L < 0` is
+   * exactly the slice below, which the tests assert rather than assume
+   * (doppler#1018).
+   *
+   * SCALED, not raw. A Viterbi is invariant to a positive scale, but LLRs
+   * from different bursts are not comparable without one, and combining
+   * across bursts needs them to be. The estimate is the symbols' own: after
+   * derotation the real axis carries the signal and the imaginary axis
+   * carries noise alone, so `a` is the mean |Re| and `n0` is twice the
+   * variance of Im -- both referred to unit amplitude, which is the
+   * convention `mpsk_soft_demap` documents.
+   */
+  {
+    float         *llr  = realloc (s->llr, frame * sizeof *llr);
+    float complex *unit = malloc (frame * sizeof *unit);
+    if (llr && unit)
+      {
+        s->llr   = llr;
+        double a = 0.0, q2 = 0.0;
+        for (size_t k = 0; k < frame; k++)
+          {
+            const float complex y = sym[best_off + k] * derot;
+            unit[k]               = y;
+            a += fabs ((double)crealf (y));
+            q2 += (double)cimagf (y) * (double)cimagf (y);
+          }
+        a /= (double)frame;
+        /* E[|n|^2] over both dimensions, referred to unit amplitude. The
+           floor keeps a noiseless capture finite rather than infinite. */
+        double n0 = 2.0 * (q2 / (double)frame) / (a > 0.0 ? a * a : 1.0);
+        if (!(n0 > 1e-12))
+          n0 = 1e-12;
+        s->est_n0 = n0;
+        if (a > 0.0)
+          for (size_t k = 0; k < frame; k++)
+            unit[k] /= (float)a;
+        mpsk_soft_demap (unit, frame, s->llr, frame, 2, (float)n0);
+        s->n_llr = frame;
+      }
+    else
+      {
+        free (llr);
+        s->llr   = NULL;
+        s->n_llr = 0;
+      }
+    free (unit);
+  }
 
-  uint8_t *pbits  = malloc (s->payload_len);
-  uint16_t rx_crc = 0;
-  if (pbits)
-    {
-      for (size_t k = 0; k < s->payload_len; k++)
-        pbits[k] = (crealf (sym[pstart + k] * derot) < 0.0f) ? 1u : 0u;
-      const size_t cstart = pstart + s->payload_len;
-      for (size_t j = 0; j < BURST_DEMOD_CRC_BITS; j++)
-        {
-          uint16_t b = (crealf (sym[cstart + j] * derot) < 0.0f) ? 1u : 0u;
-          rx_crc |= (uint16_t)(b << (BURST_DEMOD_CRC_BITS - 1 - j));
-        }
-      s->frame_valid
-          = (dp_crc16_ccitt (pbits, s->payload_len) == rx_crc) ? 1 : 0;
-      free (pbits);
-    }
+  size_t nbits = (frame <= max_out) ? frame : max_out;
+  for (size_t k = 0; k < nbits; k++)
+    out[k] = (crealf (sym[best_off + k] * derot) < 0.0f) ? 1u : 0u;
 
   free (sym);
   return nbits;

@@ -10,6 +10,7 @@ Here is a list of all files with brief descriptions:
         * **file** [**doppler.h**](doppler_8h.md) 
         * **file** [**dp\_crc16.h**](dp__crc16_8h.md) _CRC-16-CCITT over a bit stream — the one CRC shared by every doppler frame producer and consumer._     
         * **file** [**dp\_format.h**](dp__format_8h.md) _Complex sample formats, named by their BLUE/Platinum codes._     
+        * **file** [**dp\_interleave.h**](dp__interleave_8h.md) _Block interleaving — the permutation, and nothing else._     
         * **file** [**dp\_interrupt.h**](dp__interrupt_8h.md) _Asking a blocking wait to stop, whatever it is waiting on._     
         * **file** [**dp\_interrupt\_pyadopt.h**](dp__interrupt__pyadopt_8h.md)     
         * **file** [**dp\_isotime.h**](dp__isotime_8h.md) _ISO 8601 UTC timestamps in both spellings — filename-safe_ **basic** _for names doppler writes,_**extended** _for the wire formats that mandate it._    
@@ -121,7 +122,9 @@ Here is a list of all files with brief descriptions:
         * **dir** [**dp\_tlm\_capture**](dir_c53721efa35f9e05ec164f1aacd6bf30.md)     
             * **file** [**dp\_tlm\_capture\_core.h**](dp__tlm__capture__core_8h.md) _Lossless telemetry capture: sized by arithmetic, not by guesswork._     
         * **dir** [**dsss**](dir_8b18bfb9a64167292d2c60acbfcb2ae1.md)     
-            * **file** [**dsss\_core.h**](dsss__core_8h.md) _Dsss module — public C API._ 
+            * **file** [**dsss\_core.h**](dsss__core_8h.md) _Dsss module — public C API._     
+        * **dir** [**dsss\_burst\_receiver**](dir_32a143d35207eb7d99f4a541895f77eb.md)     
+            * **file** [**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md) _DsssBurstReceiver — the burst chain composed in C._     
         * **dir** [**dsss\_receiver**](dir_39e39d42b234cb6483b3a80e996300fe.md)     
             * **file** [**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md) _Composed continuous DSSS receiver: Acquisition -&gt; Costas(bn\_fll) pre-despread carrier wipeoff -&gt; Dll(segments) -&gt; RateConverter -&gt; MpskReceiver, one object._     
         * **dir** [**f32\_to\_i16**](dir_e25c96329f88166d8f87eefdc2ba64fa.md)     
@@ -167,6 +170,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**imdmeas\_core.h**](imdmeas__core_8h.md) _IMDMeasure — two-tone intermodulation (IMD2/IMD3) and intercept._     
         * **dir** [**impairment**](dir_e387feada4efddcbd9f1bef4a6cef9f7.md)     
             * **file** [**impairment\_core.h**](impairment__core_8h.md) _Impairment module — public C API._ 
+        * **dir** [**interleaver**](dir_46ba54d679b7d3fa44b8264f360065a9.md)     
+            * **file** [**interleaver\_core.h**](interleaver__core_8h.md) _Block interleaving as an object — the geometry, held._     
         * **dir** [**interp**](dir_af5ecbc8fae4d9dc167c6ab2381d74df.md)     
             * **file** [**interp\_core.h**](interp__core_8h.md) _Interp module — public C API._ 
         * **dir** [**interp\_table**](dir_532d1478dbb04668a5390572613675ee.md)     

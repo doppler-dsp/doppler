@@ -13,6 +13,44 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`Interleaver` is certified** — `src/doppler/coding/tests/validation/interleaver/`,
+    20 limits and 8 findings, plus `coding`'s first
+    `test_validation_limits.py`. The permutation is scored against numpy's
+    reshape-transpose rather than against doppler's own inverse, and the
+    burst claim is measured end to end over RS(255,223): the corrigible
+    burst is `E * depth` octets and not one octet more.
+
+- **`make lint-alloc-helpers` — the gate `dp_xmalloc` never had.** A trusted
+    internal allocation goes through `clib_common.h`'s abort-on-OOM helpers
+    rather than an unwind path no test can reach; the rule dates from
+    2026-07-21 and nothing enforced it, so a bare `malloc` passed every gate.
+    The 313 sites that predate it are ratcheted per file and may only shrink.
+
+### Fixed
+
+- **The `Interleaver` object's own permutation was unpinned in C.**
+    Transposing its three calls into `dp_interleave.h` left the entire
+    155-test C suite green — a transposed block interleave is still a
+    permutation, still inverts, and still permutes each block within
+    itself, so every existing assertion survived it. `test_interleaver_core.c`
+    now compares the object against the kernel it wraps, checks
+    `interleaver_create_rx` (which had no coverage at all), measures the
+    one-hit-per-codeword invariant through the object, and pins
+    statelessness. Six sabotages, six reds.
+
+- **`interleave_burst_demo.py` demonstrates the silent-mismatch hazard.** A
+    receiver holding a different geometry raises nothing and returns the
+    right number of bits with half of them wrong.
+
+- **`--record` silently dropped `--interleave`.** A replayed capture came back
+    the same length with different bytes and no error — the schema's own
+    round-trip contract, broken on the flag's first release (#1031). The
+    flag matrix now asserts that every recordable case replays from its own
+    record byte-for-byte, which is the check `seed_advance` (#978) also
+    needed and did not have.
+
 ## [0.44.0] — 2026-08-24
 
 ### Breaking

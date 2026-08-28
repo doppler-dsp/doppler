@@ -165,6 +165,9 @@
 * **DP\_TLM** ([**dp\_tlm\_core.h**](dp__tlm__core_8h.md))
 * **DP\_TLM\_MAX\_PROBES** ([**dp\_tlm\_core.h**](dp__tlm__core_8h.md))
 * **DP\_TLM\_NAME\_MAX** ([**dp\_tlm\_core.h**](dp__tlm__core_8h.md))
+* **DSSS\_BR\_HITS** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
+* **DSSS\_BURST\_RECEIVER\_STATE\_MAGIC** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
+* **DSSS\_BURST\_RECEIVER\_STATE\_VERSION** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **DSSS\_RECEIVER\_STATE\_MAGIC** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
 * **DSSS\_RECEIVER\_STATE\_VERSION** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
 * **DSSS\_RX\_BN\_CARRIER** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
@@ -300,6 +303,7 @@
 * **NCO\_ADD\_OVF** ([**nco\_core.h**](nco__core_8h.md))
 * **NCO\_STATE\_MAGIC** ([**nco\_core.h**](nco__core_8h.md))
 * **NCO\_STATE\_VERSION** ([**nco\_core.h**](nco__core_8h.md))
+* **N\_STYPES** ([**wfm\_names.h**](wfm__names_8h.md))
 * **N\_TYPES** ([**wfm\_names.h**](wfm__names_8h.md))
 
 

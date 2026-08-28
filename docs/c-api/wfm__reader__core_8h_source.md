@@ -70,7 +70,7 @@ extern "C"
   typedef struct
   {
     int    file_type;   
-    int    sample_type; 
+    int    sample_type;
     int    mode;        
     int    endian;      
     double fs;          

@@ -173,6 +173,7 @@ nav:
           - Streaming Async Despreader: gallery/async-despread.md
           - Full-Chain Lock-Up: gallery/receiver-lock.md
           - DsssReceiver (Composed Object): gallery/dsss-receiver.md
+          - DsssBurstReceiver (Composed Burst Chain): gallery/dsss-burst-receiver.md
           - "AsyncDsssReceiver: the SPEC Waveform": gallery/async-dsss-receiver-spec.md
           - "CarrierAcquisition: RRC Pulse Shaping": gallery/carrier-acq-rrc.md
       - Synchronization Loops:
@@ -270,9 +271,12 @@ nav:
       - Capture Files: design/capture-files.md
       - Ending a Capture: design/end-of-capture.md
       - DSSS Acquisition: design/dsss-acquisition.md
+      - Polynomial-Phase Estimator: design/ppe.md
       - Async DSSS Receiver Spec: design/async-dsss-spec.md
+      - DsssBurstReceiver: design/dsss-burst-receiver.md
       - Async Symbol Despreader: design/async-symbol-despreader.md
       - Automatic Gain Control: design/agc.md
+      - Detection Sizing: design/detection.md
       - Timing Lock Detector: design/timing_lock_detector.md
       - Symbol Timing on a Rate Cascade: design/ratesync-timing.md
       - MPSK Receiver: design/mpsk.md
@@ -292,6 +296,7 @@ nav:
       - Waveforms: guide/wfmgen/waveforms.md
       - Levels & SNR: guide/wfmgen/levels.md
       - Scenes: guide/wfmgen/scenes.md
+      - Channel Coding: guide/wfmgen/coding.md
       - DSSS Bursts: guide/wfmgen/dsss-bursts.md
       - Streaming: guide/wfmgen/streaming.md
       - Python API: guide/wfmgen/python.md

@@ -11,7 +11,7 @@ class PolynomialPhaseEstimate(tuple[float, float, float]):
     Attributes
     ----------
     freq_norm : float
-        Normalised frequency −0.5..+0.5 (DC-centred).
+        frequency, cycles/sample, in [-0.5, 0.5).
     rate_norm : float
         chirp rate, cycles/sample^2.
     snr_db : float
@@ -20,7 +20,7 @@ class PolynomialPhaseEstimate(tuple[float, float, float]):
 
     @property
     def freq_norm(self) -> float:
-        """Normalised frequency −0.5..+0.5 (DC-centred)."""
+        """frequency, cycles/sample, in [-0.5, 0.5)."""
 
     @property
     def rate_norm(self) -> float:
@@ -1724,7 +1724,12 @@ class PolynomialPhaseEstimator:
 
     @property
     def nfft(self) -> int:
-        """zero-padded transform length (next pow2 of max_len)."""
+        """zero-padded transform length: 4 * next_pow2 (max_len). The 4x is
+        deliberate -- a finer frequency grid before the parabolic peak
+        refinement, which matters because the input is often short (preamble
+        partials, symbol streams). It also sizes `buf`, `spec` and `mag`, so
+        the footprint is 4x what a bare next-pow2 would suggest.
+        """
 
     @property
     def max_rate(self) -> float:
@@ -1800,8 +1805,9 @@ class BurstDemod:
     max_rate : float, default 0.0
         Chirp-rate search half-span (cycles/sample^2 at the input rate); 0 =
         Doppler only (no rate search).
-    payload_len : int, default 0
-        Number of payload data symbols (bits) in a frame.
+    frame_syms : int, default 0
+        Symbols the frame occupies after the sync word — how many bits demod()
+        hands back per burst. What they mean is a frame description's business.
     est_segments : int, default 10
         Partial correlations per acq period (segmentation for the feedforward
         estimate; larger tolerates more rate).
@@ -1834,13 +1840,13 @@ class BurstDemod:
     >>> n = np.arange(len(bb))
     >>> f0 = 0.012
     >>> x = (bb * np.exp(2j * np.pi * f0 * n)).astype(np.complex64)
-    >>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, payload_len=64)
+    >>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, frame_syms=len(frame))
     >>> d.set_preamble(acode, reps)   # unmodulated (f0, rate) preamble
-    >>> d.set_sync(sync)              # Barker-13 frame-sync word
-    >>> d.set_prior(f0, 0)           # coarse Doppler + preamble start
+    >>> d.set_sync(sync)              # Barker-13: frame align + sign fix
+    >>> d.set_prior(f0, 0)            # coarse Doppler + preamble start
     >>> bits = d.demod(x)      # estimate -> dechirp -> despread -> slice
-    >>> int(d.frame_valid), bool(np.array_equal(bits, payload))
-    (1, True)
+    >>> bool(np.array_equal(bits, frame))   # the FRAME, not the payload
+    True
 
     """
     def __init__(
@@ -1850,27 +1856,27 @@ class BurstDemod:
         chip_rate: float = ...,
         carrier_hz: float = ...,
         max_rate: float = ...,
-        payload_len: int = ...,
+        frame_syms: int = ...,
         est_segments: int = ...,
     ) -> None: ...
 
     def reset(self) -> None:
         """Clear the per-burst read-backs, leaving the configuration intact.
 
-        Zeros the after-demod fields (frame_valid, frame_offset, n_symbols, and
-        the est_* estimates) so a stale result cannot be mistaken for a fresh
-        one. The spreading codes, sync word, and prior set up before the first
-        burst are preserved, so the object is immediately ready to demodulate
-        the next burst.
+        Zeros the after-demod fields (frame_offset, n_symbols, and the est_*
+        estimates) so a stale result cannot be mistaken for a fresh one. The
+        spreading codes, sync word, and prior set up before the first burst are
+        preserved, so the object is immediately ready to demodulate the next
+        burst.
 
         Examples
         --------
         >>> import numpy as np
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
-        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
-        >>> d.reset()          # clears est_ + frame_valid, keeps config
-        >>> d.frame_valid
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
+        >>> d.reset()          # clears the estimates, keeps the config
+        >>> d.frame_offset
         0
 
         """
@@ -1898,7 +1904,7 @@ class BurstDemod:
         >>> import numpy as np
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
-        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
         >>> acode = (np.arange(500) & 1).astype(np.uint8)  # unmodulated
         >>> d.set_preamble(acode, reps=5)  # 5 reps drive the (f0, rate) fit
 
@@ -1906,13 +1912,23 @@ class BurstDemod:
 
     def set_sync(self, sync: NDArray[np.uint8]) -> None:
         """Set the known frame-sync word (0/1 BPSK symbols) used for frame
-        alignment + phase/sign resolution.
+        alignment and phase/sign resolution. The ONLY thing this object is told
+        about the frame's content, and for a physical-layer reason: without the
+        sign the slicer would be a coin toss. Where the payload sits, which
+        stages cover what and whether a check passed all need the frame's
+        description and belong one layer up (doppler#1022).
 
         After the data section is despread to soft BPSK symbols, demod()
         correlates them against this word; the complex correlation peak locates
         the frame (its frame_offset) and its phase resolves the residual
         carrier rotation and the BPSK sign ambiguity before slicing. Pass the
         word as 0/1 symbols; it is copied and stored internally as +/-1.
+
+        This is the ONLY thing this object is told about the frame's content,
+        and it is told it for a physical-layer reason: without the sign the
+        slicer would be a coin toss. Everything else — where the payload sits,
+        which stages cover what, whether a check passed — needs the frame's
+        description and belongs one layer up (doppler#1022).
 
         Parameters
         ----------
@@ -1924,10 +1940,87 @@ class BurstDemod:
         >>> import numpy as np
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
-        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
         >>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
         >>> d.set_sync(sync)   # Barker-13: frame align + phase/sign fix
 
+        """
+
+    def llrs(
+        self,
+        count: int = 1,
+        out: NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32]:
+        """The soft bits of the last demod() — one LLR per FRAME bit, in
+        `mpsk_soft_demap`'s convention: positive means bit 0, so `L < 0`
+        reproduces exactly the bits demod() returned. `Re(sym * derot)` IS the
+        log-likelihood ratio up to a scale and used to be computed, sliced to
+        one bit and freed; a hard decision costs roughly 2 dB of the coding
+        gain a soft-input decoder exists to deliver. Spans the whole frame
+        rather than the payload alone, because a code covers what its
+        description says it covers. Scaled by `est_n0`, the burst's own noise
+        estimate, so LLRs from different bursts are comparable — a Viterbi
+        would not care, but combining across bursts does.
+
+        `crealf(sym * derot)` IS the log-likelihood ratio up to a scale, and it
+        was computed, sliced to one bit and freed on every burst. A hard
+        decision throws away roughly 2 dB of the coding gain a soft-input
+        decoder exists to deliver (`mpsk_soft_demap`'s own docstring), so this
+        is what makes a coded burst worth coding.
+
+        **The convention is not a new one**: `mpsk_soft_demap`'s, which is
+        `mpsk_demap`'s decision rule seen a second way. Positive means bit 0,
+        so `L < 0` reproduces exactly the bits demod() returned — asserted in
+        the tests rather than assumed.
+
+        Spans the WHOLE frame, not just the payload, because a code covers what
+        its description says it covers and a decoder needs the bits the code
+        protects. The payload's own span is `field_off`/`field_bits` of the
+        layout.
+
+        Scaled by est_n0 rather than left raw: a Viterbi is invariant to a
+        positive scale, but LLRs from different bursts are not comparable
+        without one, and combining across bursts needs them to be.
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.float32] | None
+            Receives the LLRs, one per frame bit.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            LLRs written — `min(frame bits, max_out)`, or 0 if the last demod()
+            produced no frame.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstDemod
+        >>> dcode = (np.arange(50) & 1).astype(np.uint8)
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
+        >>> d.set_sync(np.zeros(13, dtype=np.uint8))
+        >>> d.llrs_max_out(1)          # one per frame symbol
+        93
+
+        """
+
+    def llrs_max_out(self, n: int) -> int:
+        """Max LLRs burst_demod_llrs() writes: the frame's length in bits.
+
+        Parameters
+        ----------
+        n : int
+            Ignored — the count is the last demod()'s frame.
+
+        Returns
+        -------
+        int
+            Output.
         """
 
     def set_prior(self, f0_coarse: float, start: int) -> None:
@@ -1951,7 +2044,7 @@ class BurstDemod:
         >>> import numpy as np
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
-        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
         >>> d.set_prior(0.012, start=0)   # coarse Doppler + start, from acq
 
         """
@@ -1985,10 +2078,6 @@ class BurstDemod:
         """Max output length demod() can produce for the current state. Use to size the ``out=`` buffer."""
 
     @property
-    def frame_valid(self) -> int:
-        """1 if the CRC-16 trailer matched."""
-
-    @property
     def frame_offset(self) -> int:
         """symbol offset of the sync word."""
 
@@ -2009,8 +2098,11 @@ class BurstDemod:
         """estimator confidence (dB)."""
 
     @property
-    def payload_len(self) -> int:
-        """payload data symbols (bits)."""
+    def frame_syms(self) -> int:
+        """symbols the frame occupies AFTER the sync word — a number the caller
+        states. What they MEAN is the frame description's business, one layer
+        up.
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -3139,3 +3231,588 @@ class AsyncDsssReceiver:
         tb : object | None
             Traceback object, or None. Ignored.
         """
+
+@final
+class DsssBurstReceiver:
+    """Create a burst receiver: acquisition, refine and demodulation composed
+    behind one push().
+
+    Parameters
+    ----------
+    acq_code : NDArray[np.uint8]
+        Preamble PN chips (0/1), length acq_code_len.
+    data_code : NDArray[np.uint8]
+        Payload spreading chips (0/1), data_code_len long.
+    sync : NDArray[np.uint8]
+        Frame sync word (0/1 symbols), sync_len long.
+    reps : int, default 5
+        Preamble code repetitions (>= 1).
+    spc : int, default 4
+        Samples per chip (>= 1).
+    chip_rate : float, default 1000000.0
+        Chip rate in Hz (> 0).
+    frame_syms : int, default 64
+        Frame symbols per burst (>= 1) — what push() returns, bit for bit.
+    cn0_dbhz : float, default 50.0
+        Carrier-to-noise density in dB-Hz (> 0), sizing the acquisition search.
+    doppler_uncertainty : float, default 0.0
+        One-sided Doppler half-range, Hz.
+    pfa : float, default 1e-3
+        Target false-alarm probability, in (0, 1).
+    pd : float, default 0.9
+        Target detection probability, in (0, 1).
+    carrier_hz : float, default 0.0
+        RF carrier (Hz) for code-Doppler; 0 = ignore.
+    max_rate : float, default 0.0
+        Chirp-rate search half-span (cycles/sample^2).
+    est_segments : int, default 10
+        Segments the feedforward estimator fits over.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``DsssBurstReceiver:
+        invalid parameter (need non-empty acq_code/data_code/sync, reps >= 1,
+        spc >= 1, chip_rate > 0, frame_syms >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0
+        < pd < 1)``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.dsss import DsssBurstReceiver
+    >>> rng = np.random.default_rng(0)
+    >>> acq = rng.integers(0, 2, 31).astype(np.uint8)
+    >>> dat = rng.integers(0, 2, 8).astype(np.uint8)
+    >>> syn = np.zeros(13, dtype=np.uint8)
+    >>> rx = DsssBurstReceiver(acq, dat, syn, reps=4, spc=4,
+    ...                        frame_syms=32)
+    >>> rx.n_bursts
+    0
+
+    """
+    def __init__(
+        self,
+        acq_code: NDArray[np.uint8],
+        data_code: NDArray[np.uint8],
+        sync: NDArray[np.uint8],
+        reps: int = ...,
+        spc: int = ...,
+        chip_rate: float = ...,
+        frame_syms: int = ...,
+        cn0_dbhz: float = ...,
+        doppler_uncertainty: float = ...,
+        pfa: float = ...,
+        pd: float = ...,
+        carrier_hz: float = ...,
+        max_rate: float = ...,
+        est_segments: int = ...,
+    ) -> None: ...
+
+    def push(
+        self,
+        x: NDArray[np.complex64],
+        out: NDArray[np.uint8] | None = None,
+    ) -> NDArray[np.uint8]:
+        """Stream raw cf32 samples and get back the FRAME BITS of every burst
+        that completed. Samples feed the embedded BurstAcquisition and are
+        retained in a history ring; when a detection fires, the refine stage
+        correlates the whole preamble to recover the exact preamble start --
+        the one quantity acquisition structurally cannot report, since its
+        code_phase is a lag modulo one code period -- and the burst is
+        demodulated the moment its last sample has arrived. Every sample is
+        consumed and every burst that completes is returned by the call that
+        completed it, with frames concatenated: burst i occupies frame_syms
+        bits starting at i*frame_syms, and events() returns the matching record
+        for each. The bits are the frame as RECEIVED -- sync word first, every
+        symbol after it -- because this object stops at decisions: undoing the
+        frame (a CRC, an outer code, a randomiser) needs its description and is
+        `wfm.Frame.deframe`'s job. An empty return is normal, not an error: it
+        means no burst completed in this call. Accepts any block size -- the
+        history ring is a contiguous window over the stream and is never reset
+        between bursts, so a payload whose tail falls outside one call is
+        completed by a later one.
+
+        Retains x in the history ring and feeds the embedded acquisition. When
+        a detection fires, the refine stage correlates the whole preamble to
+        recover the exact preamble start -- the quantity acquisition
+        structurally cannot report, its code phase being a lag modulo one code
+        period -- and the burst is demodulated once its last sample has
+        arrived.
+
+        EVERY SAMPLE OF x IS CONSUMED, and every burst that completes is
+        returned by the call that completed it. Payloads are concatenated, so
+        burst `i` occupies `out` from `i*frame_syms`, and `events()` returns
+        the matching record for each. Returning 0 is normal, not an error: it
+        means no burst completed in this call.
+
+        This is the contract doppler#1008 broke. push() used to return at most
+        one burst per call AND abandon the rest of its input to do it, so a
+        block carrying several bursts lost all but the first -- measured at 6/6
+        decoded with 333-sample blocks against 1/6 with one large one. The
+        history ring is a contiguous window over the stream and is never reset
+        between bursts, so a payload whose tail falls outside one call is
+        completed by a later one.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input samples (cf32), x_len long.
+        out : NDArray[np.uint8] | None
+            Payload bits, caller-owned, max_out long.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            Bits written to out -- `n_bursts_returned * frame_syms`.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import DsssBurstReceiver
+        >>> rng = np.random.default_rng(0)
+        >>> rx = DsssBurstReceiver(
+        ...     rng.integers(0, 2, 31).astype(np.uint8),
+        ...     rng.integers(0, 2, 8).astype(np.uint8),
+        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
+        >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
+        >>> bits.size            # silence carries no burst
+        0
+
+        """
+
+    def push_max_out(self, x_len: int) -> int:
+        """Max bits push() can write for an input of x_len samples.
+
+        push() returns EVERY burst it completed, so the bound scales with the
+
+        input: distinct bursts cannot overlap, so they are at least `burst_len`
+
+        apart, and a push of x_len samples can complete at most
+
+        `x_len/burst_len + 1` of them -- plus every detection already queued
+        from
+
+        an earlier call, which is `q_cap`.
+
+        Parameters
+        ----------
+        x_len : int
+            Number of input samples the caller is about to push.
+
+        Returns
+        -------
+        int
+            `(x_len/burst_len + 1 + q_cap) * frame_syms`.
+        """
+
+    def llrs(
+        self,
+        count: int = 1,
+        out: NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32]:
+        """The SOFT bits of every burst the last push() returned, concatenated:
+        burst i occupies llr[i*frame_bits:(i+1)*frame_bits], in the same order
+        as push()'s payloads and events()' rows. `mpsk_soft_demap`'s convention
+        — positive means bit 0, so `L < 0` reproduces exactly the bits push()
+        returned, which is asserted rather than assumed. Spans the WHOLE frame
+        rather than the payload alone, because a code covers what its
+        description says it covers and a decoder needs the bits the code
+        protects. Scaled by the burst's own noise estimate: a Viterbi is
+        invariant to a positive scale, but LLRs from different bursts are not
+        comparable without one. Valid until the next push(), reset() or
+        set_state().
+
+        `crealf(sym * derot)` IS the log-likelihood ratio up to a scale, and
+        the demodulator used to compute it, slice it to one bit and free it. A
+        hard decision throws away roughly 2 dB of the coding gain a soft-input
+        decoder exists to deliver (`mpsk_soft_demap`'s own docstring), which is
+        what makes a coded burst worth coding.
+
+        Concatenated the same way push()'s payloads are, one row of
+        `frame_bits` per burst: burst i starts at `i * frame_bits`, in the
+        order events() reports. The convention is `mpsk_soft_demap`'s —
+        positive means bit 0, so `L < 0` reproduces exactly the bits push()
+        returned. Spans the WHOLE frame rather than the payload alone, because
+        a code covers what its description says it covers.
+
+        Valid until the next push(), reset() or set_state(); deliberately not
+        serialized, for the same reason events() is not: it describes one call.
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.float32] | None
+            Receives the LLRs.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            LLRs written.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import DsssBurstReceiver
+        >>> rng = np.random.default_rng(0)
+        >>> rx = DsssBurstReceiver(
+        ...     rng.integers(0, 2, 31).astype(np.uint8),
+        ...     rng.integers(0, 2, 8).astype(np.uint8),
+        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
+        >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
+        >>> len(bits), len(rx.llrs(rx.llrs_max_out(1)))   # nothing decoded
+        (0, 0)
+
+        """
+
+    def llrs_max_out(self, n: int) -> int:
+        """Max LLRs llrs() writes: frame bits x the bursts the last push
+        returned.
+
+        Parameters
+        ----------
+        n : int
+            Ignored, as in llrs().
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def events(
+        self,
+        count: int = 1,
+        out: NDArray[Any] | None = None,
+    ) -> NDArray[Any]:
+        """The event record for each burst the last push() returned. Row i
+        describes the frame at bits[i*frame_syms ...] of that push. Valid until
+        the next push(), reset() or set_state().
+
+        Row `i` describes the payload at `out[i*frame_syms ...]` of that push.
+        A single push can complete many bursts and each needs its own event, so
+        these are a list rather than the scalar read-backs -- those still exist
+        and still describe the LAST burst, but they cannot speak for the
+        others.
+
+        Valid until the next push(), reset() or set_state(). Deliberately not
+        serialized: it describes one call, and keeping it out of the blob is
+        what holds state_bytes() to a pure function of configuration.
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[Any] | None
+            Records, caller-owned, max_out long.
+
+        Returns
+        -------
+        NDArray[Any]
+            Records written to out -- `min(events_max_out(), max_out)`.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import DsssBurstReceiver
+        >>> rng = np.random.default_rng(0)
+        >>> rx = DsssBurstReceiver(
+        ...     rng.integers(0, 2, 31).astype(np.uint8),
+        ...     rng.integers(0, 2, 8).astype(np.uint8),
+        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
+        >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
+        >>> len(rx.events()) == bits.size // 32   # one record per payload
+        True
+
+        """
+
+    def events_max_out(self) -> int:
+        """Max records events() writes: one per burst the last push() returned.
+
+        Returns
+        -------
+        int
+            The number of bursts the most recent push() completed.
+        """
+
+    def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
+        """Pin the embedded BurstAcquisition's search grid directly, bypassing
+        the auto-sizing -- the escape hatch for a caller who wants a specific
+        (doppler_bins, n_noncoh). Forwards to the engine unchanged.
+
+        The escape hatch for a caller who wants a specific (doppler_bins,
+        n_noncoh) rather than the grid the cn0_dbhz/pfa/pd sizing chooses.
+        Forwards to the embedded engine unchanged.
+
+        Parameters
+        ----------
+        doppler_bins : int
+            Coherent depth to pin, in `[1, reps]`.
+        n_noncoh : int
+            Non-coherent looks to combine.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure_search_raw failed``, with the return code appended
+            (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import DsssBurstReceiver
+        >>> rng = np.random.default_rng(0)
+        >>> rx = DsssBurstReceiver(
+        ...     rng.integers(0, 2, 31).astype(np.uint8),
+        ...     rng.integers(0, 2, 8).astype(np.uint8),
+        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
+        >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=1)
+
+        """
+
+    def reset(self) -> None:
+        """Return to the searching state: resets the embedded acquisition,
+        drops the history ring's contents and clears every read-back, so a
+        fresh stream cannot inherit the previous burst's verdict. Construction
+        parameters are untouched.
+
+        Resets the embedded acquisition, discards the retained look-back, and
+        clears all the event fields, so a fresh stream cannot inherit the
+        previous burst's verdict. The lifetime counters (`n_bursts`, `dropped`)
+        deliberately survive -- a reset that zeroed them could hide that this
+        receiver had already lost samples. Construction parameters are
+        untouched.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import DsssBurstReceiver
+        >>> rng = np.random.default_rng(0)
+        >>> rx = DsssBurstReceiver(
+        ...     rng.integers(0, 2, 31).astype(np.uint8),
+        ...     rng.integers(0, 2, 8).astype(np.uint8),
+        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
+        >>> _ = rx.push(np.zeros(1024, dtype=np.complex64))
+        >>> rx.reset()
+
+        """
+
+    def state_bytes(self) -> int:
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the DsssBurstReceiver has already been
+        destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
+    def get_state(self) -> bytes:
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the DsssBurstReceiver has already been
+        destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the DsssBurstReceiver has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def preamble_start(self) -> int:
+        """Exact stream position of the preamble."""
+
+    @property
+    def doppler_hz_est(self) -> float:
+        """Signed coarse Doppler, Hz."""
+
+    @property
+    def doppler_res_hz(self) -> float:
+        """Acquisition's native bin width, Hz."""
+
+    @property
+    def cn0_dbhz_est(self) -> float:
+        """C/N0 lower bound from the hit, dB-Hz."""
+
+    @property
+    def est_freq_hz(self) -> float:
+        """Demod's residual-frequency estimate."""
+
+    @property
+    def est_rate_hz(self) -> float:
+        """Demod's chirp-rate estimate."""
+
+    @property
+    def est_snr_db(self) -> float:
+        """Demod's post-decode SNR estimate."""
+
+    @property
+    def refine_margin(self) -> float:
+        """Runner-up period over the winner."""
+
+    @property
+    def refine_span(self) -> int:
+        """Coalescing window, in samples -- the MINIMUM BURST SPACING. Two
+        detections closer together than this are treated as the same preamble
+        and merged, so bursts packed tighter than `refine_span` are lost rather
+        than reported. Measured at a 255-chip code, `reps=5`, `spc=2`: bursts
+        spaced 8916 samples yielded 2 decodes from 7 bursts, with `dropped ==
+        0`.
+        """
+
+    @property
+    def retain_span(self) -> int:
+        """History kept per anchor, in samples -- the MINIMUM TRAILING CONTEXT.
+        `refine_span` plus one whole burst. A burst closer than this to the end
+        of what has been pushed is held rather than emitted, because refine
+        cannot yet see the samples it needs. Feed at least this many more, or
+        the last burst of a capture never comes out. At the geometry above the
+        boundary is sharp: 20500 trailing samples against a `retain_span` of
+        20556 loses the burst.
+        """
+
+    @property
+    def pending(self) -> int:
+        """Detections held because their burst window has not fully arrived.
+        `push()` emits nothing for these on purpose -- a burst is returned when
+        it is complete, not when it is guessed at. Feed more samples and it
+        comes out bit-exact, wherever the split fell. Read it at the END of a
+        stream. A caller closing a file or a socket while this is non-zero is
+        discarding a burst that would have decoded, and nothing else
+        distinguishes that from an empty capture: `dropped` counts samples the
+        ring refused, `n_bursts` counts what was demodulated, and a truncated
+        burst is neither.
+        """
+
+    @property
+    def dropped(self) -> int:
+        """Samples the ring refused. A LOST BURST each, not a statistic --
+        lifetime, survives reset().
+        """
+
+    @property
+    def n_bursts(self) -> int:
+        """Bursts demodulated, lifetime."""
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "DsssBurstReceiver":
+        """Enter a context manager, returning this object.
+
+        Lets a DsssBurstReceiver be used in a `with` statement so its C
+        resources are released deterministically on exit rather than at
+        collection time.
+
+        Returns
+        -------
+        DsssBurstReceiver
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the DsssBurstReceiver.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+def bin_to_signed(bin: int, n_bins: int) -> int:
+    """Map an FFT bin index to its SIGNED frequency index --
+    numpy.fft.fftfreq(n) * n, exactly: 0 = DC, ascending positive to
+    (n-1)/2, then wrapping negative, so an even grid's Nyquist bin is -n/2.
+    Multiply by doppler_res_hz for Hz. Call this rather than writing the
+    fold out: the search and its hand-off must agree on the convention, and
+    a consumer seeded on the wrong side of it is off by the full search
+    span -- a failure that once surfaced here as a receiver reporting
+    tracking while decoding noise. A thin wrapper over dp_fftfreq_index()
+    in clib_common.h, so C callers inline the same code.
+
+    Parameters
+    ----------
+    bin : int
+        Bin index in `[0, n_bins)`.
+    n_bins : int
+        Grid size.
+
+    Returns
+    -------
+    int
+        Signed index in `[-(n_bins/2), +((n_bins-1)/2)]`.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.dsss import bin_to_signed
+    >>> [bin_to_signed(b, 8) for b in range(8)]
+    [0, 1, 2, 3, -4, -3, -2, -1]
+    >>> (np.fft.fftfreq(8) * 8).astype(int).tolist()   # same convention
+    [0, 1, 2, 3, -4, -3, -2, -1]
+    >>> bin_to_signed(4, 7)                         # odd grid: no ambiguity
+    -3
+
+    """

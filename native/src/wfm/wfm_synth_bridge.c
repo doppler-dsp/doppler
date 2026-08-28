@@ -35,7 +35,7 @@ wfm_source_has_frame (const wfm_source_t *src)
   return src
          && ((src->acq_code && src->n_acq_code && src->acq_reps)
              || (src->sync && src->n_sync) || src->attach_asm || src->rs_depth
-             || src->randomise || src->convolutional);
+             || src->interleave_depth || src->randomise || src->convolutional);
 }
 
 const char *
@@ -44,14 +44,31 @@ wfm_source_frame_error (const wfm_source_t *src)
   if (!wfm_source_has_frame (src))
     return NULL;
   if (src->type == WFM_SYNTH_DSSS)
-    return NULL; /* the spread path, unchanged */
-  if (src->type != WFM_SYNTH_BITS)
+    {
+      /* A CONTINUOUS dsss stream has no frame at all; the CLI and the
+         composer refuse the burst-frame flags alongside --symbol-rate before
+         reaching here, so there is nothing left to check. */
+      if (src->symbol_rate > 0.0)
+        return NULL;
+      /* A burst SPREADS its frame, so frame bits without a code are not a
+         geometry this can build. It used to leave a zero-length capture and
+         exit 0 -- a refusal nobody was told about. */
+      if ((src->n_sync || src->n_bits) && src->n_data_code == 0)
+        return "a DSSS burst spreads its frame: --data-code is required "
+               "whenever there are frame bits (--sync/--bits) to spread";
+    }
+  else if (src->type != WFM_SYNTH_BITS)
     return "--acq-code/--sync frame a waveform, and a frame needs an explicit "
            "payload: use --type bits with --bits (--modulation bpsk|qpsk), or "
            "--type dsss to spread it";
-  if (!src->bits || src->n_bits == 0)
+  else if (!src->bits || src->n_bits == 0)
     return "a frame needs a payload: --type bits with --acq-code/--sync also "
            "needs --bits";
+
+  /* The stage rules below reach a DSSS burst too, now that its frame is the
+     same description every other source's is (doppler#1017). Before that they
+     were unreachable for it in the worst way: the flags parsed, the stage was
+     dropped, and the waveform came out looking fine. */
 
   /* 4.3.5.1's depths, checked here so a caller learns it from the flag rather
      than from a kernel refusing mid-assembly. */
@@ -75,144 +92,84 @@ wfm_source_frame_error (const wfm_source_t *src)
                "exactly 223*depth octets — virtual fill is not implemented, "
                "so a short frame is refused rather than padded";
     }
+
+  /* The interleaver's geometry, checked at the FLAG for the same reason the
+     outer code's is: the kernel would refuse mid-assembly, and a caller who
+     asked for a permutation the span cannot hold would get a zero-length
+     record and no sentence saying why. Measured on this exact case -- an
+     80-bit data group with `--interleave 8 --interleave-unit 8` -- which
+     produced an empty file and nothing on stderr.
+
+     The COLUMN count follows from the span, so what has to divide is
+     `depth * unit` into the data group. */
+  if (src->interleave_depth != 0)
+    {
+      const size_t unit
+          = src->interleave_unit_bits ? src->interleave_unit_bits : 1u;
+      /* The data group is payload + CRC + the OUTER CODE'S CHECK SYMBOLS,
+         which is what `ccsds_tm_frame_desc_of` gives the interleave stage
+         to cover ("payload, its CRC, and the outer code's check symbols")
+         and is the only span that makes the transform mean anything: an
+         interleaver exists to spread a burst across codewords, so leaving
+         the parity contiguous would defeat the point.
+
+         This guard omitted the parity, so it validated a DIFFERENT span
+         from the one the stage permutes. With --rs-depth 1 the check ran
+         against 1784 bits while the stage covered 2040, which refused the
+         canonical CCSDS arrangement -- 223 octets under RS(255,223),
+         interleaved 5 deep at unit 8 -- even though 2040 divides by 40
+         exactly. `bits_interleave_octets_with_outer_code` had that refusal
+         pinned in the flag-matrix golden as though it were correct. */
+      const size_t parity
+          = src->rs_depth ? (size_t)CCSDS_TM_RS_2E * (size_t)src->rs_depth * 8u
+                          : 0u;
+      const size_t data
+          = src->n_bits + (src->crc ? WFM_FRAME_CRC_BITS : 0u) + parity;
+      const size_t cell = (size_t)src->interleave_depth * unit;
+      if (cell == 0 || data == 0 || data % cell != 0)
+        return "--interleave needs the data group (payload, its CRC if any, "
+               "and the outer code's check symbols) to be a whole number of "
+               "depth x unit units — the column count follows from the span, "
+               "so a remainder has nowhere to go and is refused rather than "
+               "padded";
+    }
   return NULL;
 }
 
-/* The source's frame as a DESCRIPTION: the fields in wire order, and the
- * span each stage covers.
+/* The source's frame as a DESCRIPTION — an ADAPTER, not a second layout.
  *
- * Built here rather than through wfm_frame_describe() because the marker goes
- * in FRONT of everything and a description's field list is positional -- it
- * cannot be appended after the fact. That is the same reason the marker is
- * interesting at all: it enters the frame third and one of the stages after
- * it reaches back over it.
+ * Which stage covers what is `ccsds_tm_frame_desc_of`'s, because the covers
+ * are that standard's and `wfm/wfm_frame.h` deliberately knows nothing about
+ * CCSDS. What is left here is this face's own decision: the DSSS preamble is
+ * a field for an unspread source and is NOT one for a spread burst.
  *
- * Which stage covers what is the whole content of this function:
- *
- *   marker / preamble / sync   found, not decoded -- covered by the inner
- *                              code alone, because all three have to look
- *                              the same in every frame to be findable
- *   payload / crc / parity     the data group -- what the outer code and the
- *                              randomiser reach over
- *   everything                 the inner code
- *
- * The middle row is 10.3.4's rule generalised: CCSDS says the randomiser does
- * not cover the ASM, and the reason it gives -- a marker a receiver
- * correlates against must not vary between frames -- is exactly as true of a
- * preamble and a sync word.
+ * That is a physical fact rather than an inconsistency: a DSSS preamble is
+ * transmitted unmodulated and UNSPREAD, because it is the coherent pull-in
+ * target a receiver correlates raw chips against. It is therefore outside
+ * anything a stage could cover, and `wfm_dsss_desc_chips` prepends it around
+ * the description rather than inside it.
  */
-static int
-describe_source_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
+int
+wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
 {
-  memset (d, 0, sizeof *d);
-
-  unsigned i_asm = 0, i_data = 0, i_crc = 0, i_parity = 0;
-  unsigned n = 0;
-
-  /* The ASM is a literal field like any other; its pattern comes from the one
-     function that expands it, never a second transcription. */
-  static uint8_t marker[CCSDS_TM_ASM_BITS];
-  if (src->attach_asm)
-    {
-      ccsds_tm_asm_bits (marker);
-      i_asm                = n;
-      d->field[n].seq.kind = WFM_SEQ_LITERAL;
-      d->field[n].seq.bits = marker;
-      d->field[n].seq.len  = CCSDS_TM_ASM_BITS;
-      n++;
-    }
-  if (src->n_acq_code && src->acq_reps)
-    {
-      d->field[n].seq.kind = WFM_SEQ_LITERAL;
-      d->field[n].seq.bits = src->acq_code;
-      d->field[n].seq.len  = src->n_acq_code;
-      d->field[n].reps     = src->acq_reps;
-      n++;
-    }
-  if (src->n_sync)
-    {
-      d->field[n].seq.kind = WFM_SEQ_LITERAL;
-      d->field[n].seq.bits = src->sync;
-      d->field[n].seq.len  = src->n_sync;
-      n++;
-    }
-
-  i_data               = n;
-  d->field[n].seq.kind = WFM_SEQ_LITERAL;
-  d->field[n].seq.bits = src->bits;
-  d->field[n].seq.len  = src->n_bits;
-  n++;
-
-  /* Stage indices are needed before the stages exist, because a derived field
-     names the stage that writes it. They are assigned in application order:
-     the CRC first, then the outer code over the result, then the randomiser,
-     then the inner code. */
-  unsigned s_crc = 0, s_rs = 0, s_rand = 0, s_conv = 0, ns = 0;
-  if (src->crc)
-    s_crc = ns++;
-  if (src->rs_depth)
-    s_rs = ns++;
-  if (src->randomise)
-    s_rand = ns++;
-  if (src->convolutional)
-    s_conv = ns++;
-
-  if (src->crc)
-    {
-      i_crc                  = n;
-      d->field[n].bits       = WFM_FRAME_CRC_BITS;
-      d->field[n].derived_by = s_crc + 1u;
-      n++;
-    }
-  if (src->rs_depth)
-    {
-      i_parity               = n;
-      d->field[n].bits       = (size_t)CCSDS_TM_RS_2E * src->rs_depth * 8u;
-      d->field[n].derived_by = s_rs + 1u;
-      n++;
-    }
-  d->n_fields = n;
-  d->n_stages = ns;
-
-  /* The data group: payload, its CRC, and the outer code's check symbols.
-     Contiguous by construction, and each derived field is the last of its own
-     stage's cover, which is what lets one kernel signature serve them all. */
-  const unsigned data_end = n; /* one past the last data field */
-
-  if (src->crc)
-    {
-      d->stage[s_crc].kind        = WFM_STAGE_CRC16;
-      d->stage[s_crc].first_field = i_data;
-      d->stage[s_crc].n_fields    = i_crc - i_data + 1u;
-    }
-  if (src->rs_depth)
-    {
-      d->stage[s_rs].kind        = WFM_STAGE_RS;
-      d->stage[s_rs].depth       = src->rs_depth;
-      d->stage[s_rs].first_field = i_data;
-      d->stage[s_rs].n_fields    = i_parity - i_data + 1u;
-    }
-  if (src->randomise)
-    {
-      d->stage[s_rand].kind        = WFM_STAGE_RANDOMISE;
-      d->stage[s_rand].first_field = i_data;
-      d->stage[s_rand].n_fields    = data_end - i_data;
-      /* WHICH generator, carried on the stage: 131.0-B-6 specifies two and
-         they produce waveforms only the matching receiver derandomises, so
-         this is not a detail the kernel may pick for itself. `depth` is the
-         stage's free parameter and the randomiser has no other use for it. */
-      d->stage[s_rand].depth = (unsigned)src->randomise;
-    }
-  if (src->convolutional)
-    {
-      d->stage[s_conv].kind        = WFM_STAGE_CONV;
-      d->stage[s_conv].first_field = 0u;
-      d->stage[s_conv].n_fields    = n;
-      d->stage[s_conv].emit_num    = 2u;
-      d->stage[s_conv].emit_den    = 1u;
-    }
-  (void)i_asm;
-  return 0;
+  const int                   spread = (src->type == WFM_SYNTH_DSSS);
+  const ccsds_tm_frame_spec_t s      = {
+    .attach_asm           = src->attach_asm,
+    .preamble             = spread ? NULL : src->acq_code,
+    .preamble_len         = spread ? 0u : src->n_acq_code,
+    .preamble_reps        = spread ? 0u : src->acq_reps,
+    .sync                 = src->sync,
+    .sync_len             = src->n_sync,
+    .payload              = src->bits,
+    .payload_len          = src->n_bits,
+    .crc                  = src->crc,
+    .rs_depth             = src->rs_depth,
+    .randomise            = src->randomise,
+    .convolutional        = src->convolutional,
+    .interleave_depth     = src->interleave_depth,
+    .interleave_unit_bits = src->interleave_unit_bits,
+  };
+  return ccsds_tm_frame_desc_of (&s, d);
 }
 
 int
@@ -228,7 +185,7 @@ wfm_source_attach_frame (wfm_synth_state_t *syn, const wfm_source_t *src)
      can carry today — the generated PN/Gold kinds `wfm_seq_t` supports have
      no spelling on any face yet (gh-755). */
   wfm_frame_desc_t d;
-  if (describe_source_frame (src, &d) != 0)
+  if (wfm_source_describe_frame (src, &d) != 0)
     return -1;
 
   wfm_frame_desc_layout_t lay;
@@ -280,10 +237,48 @@ wfm_source_attach_dsss (wfm_synth_state_t *syn, const wfm_source_t *src,
       return wfm_synth_set_dsss_cont (syn, src->data_code, src->n_data_code,
                                       cps, mode, src->bits, src->n_bits);
     }
-  return wfm_synth_set_dsss (syn, src->acq_code, src->n_acq_code,
-                             src->acq_reps, src->data_code, src->n_data_code,
-                             src->sync, src->n_sync, src->bits, src->n_bits,
-                             src->crc);
+  /* A BURST is a frame that is spread. The frame comes from the same
+     description every other source is built from -- so `--conv`, `--asm`,
+     `--rs-depth` and `--randomise` reach a DSSS burst by existing, instead of
+     being read from the scene and then silently dropped (doppler#1017). */
+  wfm_frame_desc_t d;
+  if (wfm_source_describe_frame (src, &d) != 0)
+    return -1;
+  const size_t n = wfm_dsss_desc_nchips (&d, src->n_acq_code, src->acq_reps,
+                                         src->n_data_code);
+  if (n == 0)
+    return -1; /* frame bits with no data code, or an empty burst */
+  uint8_t *chips = malloc (n);
+  if (!chips)
+    return -1;
+  wfm_frame_ops_t ops;
+  ccsds_tm_frame_ops (&ops, NULL);
+  const size_t got = wfm_dsss_desc_chips (
+      &d, &ops, src->acq_code, src->n_acq_code, src->acq_reps, src->data_code,
+      src->n_data_code, chips, n);
+  if (got != n)
+    {
+      /* A stage the description names and nothing can run, or a geometry the
+         stage refuses (RS wants exactly 223*depth octets). Refuse the burst;
+         a waveform missing a stage its caller asked for decodes against
+         itself and syncs to nothing. */
+      free (chips);
+      return -1;
+    }
+  const int rc = wfm_synth_set_dsss_chips (syn, chips, n);
+  free (chips);
+  return rc;
+}
+
+size_t
+wfm_source_dsss_nchips (const wfm_source_t *src)
+{
+  wfm_frame_desc_t d;
+  if (!src || src->type != WFM_SYNTH_DSSS || src->symbol_rate > 0.0
+      || wfm_source_describe_frame (src, &d) != 0)
+    return 0;
+  return wfm_dsss_desc_nchips (&d, src->n_acq_code, src->acq_reps,
+                               src->n_data_code);
 }
 
 wfm_synth_state_t *

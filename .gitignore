@@ -64,6 +64,7 @@ xml/
 build-cov/
 build-ubsan/
 build-tsan/
+build-asan/
 # `make glibc-gate` builds here, inside the bind-mounted checkout, so the
 # container's Debian 10 tree never collides with the dev's own build/.
 build-glibc228/
@@ -74,6 +75,9 @@ build-glibc228/
 # loose on them -- an ignore rule is not bookkeeping, it is what keeps a
 # bind-mounted build tree out of the repository.
 build-ci/
+build-ci-asan/
+build-ci-ubsan/
+build-ci-tsan/
 .mkdoxy/
 
 # jm materialises its own create-only assertion harness on every `jm apply`.
@@ -84,3 +88,7 @@ build-ci/
 # Ignored rather than deleted each time, because `jm apply` recreates it and
 # the drift gate is green either way (verified: exit 0 with it absent).
 native/tests/jm_test.h
+
+# LLVM coverage artifacts
+*.profraw
+*.profdata

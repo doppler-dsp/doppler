@@ -80,7 +80,10 @@ from doppler.track import MpskReceiver, MpskReceiverR
 # The one definition of "an offset inside the loop's acquisition
 # bound". Imported rather than restated: a second copy is how the
 # missing `/m` survived here after doppler#843 fixed it upstream.
-from doppler.track.tests._mpsk_rx_harness import freq_offset_inside_bw
+from doppler.track.tests._mpsk_rx_harness import (
+    freq_offset_inside_bw,
+    rate_settled,
+)
 
 # ── the measurement rules, in one place ──────────────────────────────────
 #
@@ -563,7 +566,7 @@ def implementation_loss_db(m, esn0_db, ser):
 
 
 def run_trial(
-    rng, real, esn0_db=None, noise_only=False, nsym_extra=1200, ampl=None
+    rng, real, esn0_db=None, noise_only=False, nsym_extra=6000, ampl=None
 ):
     """One Monte-Carlo trial. Returns a record, or None if it never locked."""
     g = draw_geometry(rng, real)
@@ -613,7 +616,34 @@ def run_trial(
     if t_lock is None or c_lock is None:
         rec.update(evm=float("nan"), ser=float("nan"), locked=False)
         return rec
-    settle = max(budget, t_lock, c_lock)
+    # max(budget, timing lock, carrier lock) is the standard policy, and
+    # every term in it is about PHASE. None covers the time to slew out the
+    # CLOCK offset this sweep seeds, which is far slower -- measured 12.7x
+    # the 5/Bn budget. While the rate is still wrong the receiver emits at
+    # slightly the wrong cadence, so the rx-to-truth lag MOVES, and BerMeter
+    # scores a detected lag verbatim: the window then reads right at its
+    # start and wrong after it. That is an SER of 0.48 on a receiver whose
+    # settled SER is 0, and it looks exactly like a false lock. doppler#1060.
+    # max(budget, timing lock, carrier lock) is the standard policy, and
+    # every term in it is about PHASE. None covers the time to slew out the
+    # CLOCK offset this sweep seeds, which is far slower -- measured 12.7x
+    # the 5/Bn budget. While the rate is still wrong the receiver emits at
+    # slightly the wrong cadence, so the rx-to-truth lag MOVES, and BerMeter
+    # scores a detected lag verbatim: the window then reads right at its
+    # start and wrong after it. That is an SER of 0.48 on a receiver whose
+    # settled SER is 0, and it looks exactly like a false lock. doppler#1060.
+    r_settled = rate_settled(pr)
+    if r_settled is None:
+        # The rate never stopped moving inside this record, so there is no
+        # window in which a single detected lag is valid. Refuse it rather
+        # than measure it -- an unmeasurable trial reported as a bad one is
+        # how a working receiver acquires a reputation. Counted below so the
+        # refusals cannot hide.
+        rec.update(
+            evm=float("nan"), ser=float("nan"), locked=True, unmeasurable=True
+        )
+        return rec
+    settle = max(budget, t_lock, c_lock, r_settled)
     if len(y) - settle < 300:
         rec.update(evm=float("nan"), ser=float("nan"), locked=False)
         return rec
@@ -1092,7 +1122,19 @@ def main(
     tel_rows = measure_telemetry(rng) if "telemetry" in only else []
 
     # ── self-validation: exit 0 must mean "demonstrated AND checked" ──────
-    locked = [t for t in sweep if t["locked"]]
+    # A trial whose rate never settled inside its record has no window in
+    # which one detected lag is valid, so it carries no EVM or SER to judge.
+    # It is NOT a lock failure -- it is locked -- and it must not be scored
+    # as one. Reported rather than dropped silently: a refusal nobody counts
+    # is indistinguishable from a measurement nobody made.
+    unmeasurable = [t for t in sweep if t.get("unmeasurable")]
+    if unmeasurable:
+        print(
+            f"  {len(unmeasurable)}/{len(sweep)} trial(s) unmeasurable: the "
+            f"timing rate was still slewing at the end of the record, so no "
+            f"single alignment spans a window (doppler#1060)"
+        )
+    locked = [t for t in sweep if t["locked"] and not t.get("unmeasurable")]
     if need_sweep:
         # Acquisition has an SNR THRESHOLD, so a blanket lock-rate assertion is
         # the wrong shape: it either fails on physics or is too weak to catch a

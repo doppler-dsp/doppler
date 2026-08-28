@@ -156,7 +156,27 @@ def allow_at(
     None is NOT "no raises": the caller reports it as a failure, because a
     ratchet that cannot read its baseline has not been checked. Mirrors
     check_tests_ssot.py, which learned the same lesson.
+
+    An empty dict is the third answer -- "no baseline to compare against,
+    and that is correct here" -- for a --root that is not a git repo.
     """
+    # NOT a git repo at all -> the raise check does not APPLY. That is this
+    # gate's own test harness, which runs it against a synthetic tree via
+    # --root, and a synthetic tree has no history to have raised anything
+    # in. Distinct from "a repo whose ref will not resolve", which is the
+    # shallow clone and IS a failure: there the baseline exists and could
+    # not be read.
+    if (
+        subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+        ).returncode
+        != 0
+    ):
+        return {}
+
     mb = subprocess.run(
         ["git", "merge-base", "HEAD", ref],
         cwd=root,

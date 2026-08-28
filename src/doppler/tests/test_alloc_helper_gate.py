@@ -198,3 +198,94 @@ def test_the_real_repo_passes_its_own_ratchet() -> None:
         [sys.executable, str(SCRIPT)], capture_output=True, text=True
     )
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+# --------------------------------------------------------------------------- #
+# The RAISE check, and the two ways "no baseline" differ                      #
+# --------------------------------------------------------------------------- #
+def _git(tmp_path: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", *args], cwd=tmp_path, capture_output=True, check=True
+    )
+
+
+def test_a_raise_without_a_reason_fails(tmp_path: Path) -> None:
+    """The whole point: a count may go up, but not silently.
+
+    The gate cannot see a raise from the working tree alone -- the allow file
+    IS the baseline, so `2` and a raised `1` are the same bytes. It reads the
+    file at the base ref to tell them apart.
+    """
+    a = _seed(
+        tmp_path,
+        {"native/src/x/x_core.c": BARE},
+        allow="native/src/x/x_core.c 1\n",
+    )
+    _git(tmp_path, "init", "-q", "-b", "main")
+    _git(tmp_path, "add", "-A")
+    _git(
+        tmp_path,
+        "-c",
+        "user.email=t@t",
+        "-c",
+        "user.name=t",
+        "commit",
+        "-qm",
+        "base",
+    )
+    _git(tmp_path, "branch", "-f", "origin/main", "main")
+
+    # Two bare allocations now, and the baseline raised to match -- silently.
+    (tmp_path / "native/src/x/x_core.c").write_text(
+        BARE + BARE, encoding="utf-8"
+    )
+    a.write_text("native/src/x/x_core.c 2\n", encoding="utf-8")
+    r = _run(tmp_path, a, "--base", "origin/main")
+    assert r.returncode == 1, r.stdout
+    assert "went UP with no reason" in r.stdout
+
+    # The same raise, explained on the line, is the sanctioned path.
+    a.write_text(
+        "native/src/x/x_core.c 2  # caller-sized, failure handled\n",
+        encoding="utf-8",
+    )
+    r = _run(tmp_path, a, "--base", "origin/main")
+    assert r.returncode == 0, r.stdout
+
+
+def test_a_repo_whose_base_ref_is_missing_fails(tmp_path: Path) -> None:
+    """A shallow clone must not read as "nothing was raised".
+
+    This is the case the not-a-repo escape below must NOT swallow: the
+    baseline exists, it simply could not be read, and a ratchet that cannot
+    read its baseline has not passed.
+    """
+    a = _seed(tmp_path, {"native/src/x/x_core.c": CLEAN}, allow="")
+    _git(tmp_path, "init", "-q", "-b", "main")
+    _git(tmp_path, "add", "-A")
+    _git(
+        tmp_path,
+        "-c",
+        "user.email=t@t",
+        "-c",
+        "user.name=t",
+        "commit",
+        "-qm",
+        "base",
+    )
+    r = _run(tmp_path, a, "--base", "origin/does-not-exist")
+    assert r.returncode == 1, r.stdout
+    assert "cannot read" in r.stdout
+
+
+def test_a_tree_that_is_not_a_repo_skips_the_raise_check(
+    tmp_path: Path,
+) -> None:
+    """...while a non-repo tree has no history to have raised anything in.
+
+    Every other test here seeds exactly that, so getting this wrong took the
+    whole suite red rather than one case -- which is how it was caught.
+    """
+    a = _seed(tmp_path, {"native/src/x/x_core.c": CLEAN}, allow="")
+    r = _run(tmp_path, a, "--base", "origin/main")
+    assert r.returncode == 0, r.stdout

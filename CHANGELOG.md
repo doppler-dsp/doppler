@@ -11488,6 +11488,8 @@ ______________________________________________________________________
 [0.2.7]: https://github.com/doppler-dsp/doppler/compare/v0.2.6...v0.2.7
 [0.2.8]: https://github.com/doppler-dsp/doppler/compare/v0.2.7...v0.2.8
 [0.2.9]: https://github.com/doppler-dsp/doppler/compare/v0.2.8...v0.2.9
+[0.20.0]: https://github.com/doppler-dsp/doppler/compare/v0.19.1...v0.20.0
+[0.21.0]: https://github.com/doppler-dsp/doppler/compare/v0.20.0...v0.21.0
 [0.22.0]: https://github.com/doppler-dsp/doppler/compare/v0.21.0...v0.22.0
 [0.23.0]: https://github.com/doppler-dsp/doppler/compare/v0.22.0...v0.23.0
 [0.23.1]: https://github.com/doppler-dsp/doppler/compare/v0.23.0...v0.23.1
@@ -11498,6 +11500,7 @@ ______________________________________________________________________
 [0.27.0]: https://github.com/doppler-dsp/doppler/compare/v0.26.1...v0.27.0
 [0.28.0]: https://github.com/doppler-dsp/doppler/compare/v0.27.0...v0.28.0
 [0.28.1]: https://github.com/doppler-dsp/doppler/compare/v0.28.0...v0.28.1
+[0.29.0]: https://github.com/doppler-dsp/doppler/compare/v0.28.1...v0.29.0
 [0.3.1]: https://github.com/doppler-dsp/doppler/compare/v0.2.9...v0.3.1
 [0.3.2]: https://github.com/doppler-dsp/doppler/compare/v0.3.1...v0.3.2
 [0.3.3]: https://github.com/doppler-dsp/doppler/compare/v0.3.2...v0.3.3
@@ -11505,6 +11508,9 @@ ______________________________________________________________________
 [0.3.5]: https://github.com/doppler-dsp/doppler/compare/v0.3.4...v0.3.5
 [0.3.6]: https://github.com/doppler-dsp/doppler/compare/v0.3.5...v0.3.6
 [0.3.7]: https://github.com/doppler-dsp/doppler/compare/v0.3.6...v0.3.7
+[0.30.0]: https://github.com/doppler-dsp/doppler/compare/v0.29.0...v0.30.0
+[0.31.0]: https://github.com/doppler-dsp/doppler/compare/v0.30.0...v0.31.0
+[0.32.0]: https://github.com/doppler-dsp/doppler/compare/v0.31.0...v0.32.0
 [0.33.0]: https://github.com/doppler-dsp/doppler/compare/v0.32.0...v0.33.0
 [0.33.1]: https://github.com/doppler-dsp/doppler/compare/v0.33.0...v0.33.1
 [0.33.2]: https://github.com/doppler-dsp/doppler/compare/v0.33.1...v0.33.2
@@ -11523,6 +11529,7 @@ ______________________________________________________________________
 [0.39.0]: https://github.com/doppler-dsp/doppler/compare/v0.38.1...v0.39.0
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
+[0.4.6]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.4.6
 [0.40.0]: https://github.com/doppler-dsp/doppler/compare/v0.39.0...v0.40.0
 [0.41.0]: https://github.com/doppler-dsp/doppler/compare/v0.40.0...v0.41.0
 [0.42.0]: https://github.com/doppler-dsp/doppler/compare/v0.41.0...v0.42.0
@@ -11530,7 +11537,7 @@ ______________________________________________________________________
 [0.43.1]: https://github.com/doppler-dsp/doppler/compare/v0.43.0...v0.43.1
 [0.43.2]: https://github.com/doppler-dsp/doppler/compare/v0.43.1...v0.43.2
 [0.44.0]: https://github.com/doppler-dsp/doppler/compare/v0.43.2...v0.44.0
-[0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
+[0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.6...v0.5.0
 [0.5.1]: https://github.com/doppler-dsp/doppler/compare/v0.5.0...v0.5.1
 [0.5.2]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...v0.5.2
 [0.5.3]: https://github.com/doppler-dsp/doppler/compare/v0.5.2...v0.5.3

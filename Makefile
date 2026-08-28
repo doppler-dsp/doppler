@@ -571,6 +571,7 @@ uv run python scripts/gen_readme.py --check
 uv run python scripts/gen_install_scripts.py --check
 uv run python scripts/gen_validation_log.py --check
 uv run python scripts/gen_doc_versions.py --check
+uv run python scripts/gen_changelog_links.py --check
 uv run python scripts/check_version_strings.py
 uv run python scripts/check_doc_targets.py
 uv run python scripts/check_doc_paths.py
@@ -1998,6 +1999,7 @@ docs-relink: ## Regenerate every generated doc region
 	uv run python scripts/gen_validation_log.py --write
 	uv run python scripts/gen_doc_versions.py --write
 	uv run python scripts/gen_jm_pin.py --write
+	uv run python scripts/gen_changelog_links.py --write
 
 # The pre-push half of docs-relink: the three regions a source edit can drift
 # without touching the generated file. The hook dispatches HERE rather than
@@ -2279,9 +2281,31 @@ issue-link-check: ## A branch changing code must declare Closes #N or No-issue:
 # no exemption at all.
 changelog-assemble: ## Promote changelog.d/ fragments into [Unreleased]
 	@$(UV) run python scripts/changelog-assemble.py
+# Stage what it just did. The fragments are DELETED in the worktree but still
+# tracked, so the next `make lint` hands mdformat a list of paths that no
+# longer exist and fails on a step that succeeded. Cutting v0.44.0 that cost a
+# confused detour; the fix is one line here rather than a sentence in the
+# runbook that the next releaser reads after hitting it.
+	@git add -A changelog.d CHANGELOG.md
 
 changelog-assembled-check: ## Fail if any fragment is still unassembled
 	@$(UV) run python scripts/changelog-assemble.py --check
+
+# The execution home this check did not have. It was named in LOCAL_TARGETS --
+# which is the .PHONY/help list -- and in NOTHING else: not GATES_DEPS, not
+# lint, no CI job. A gate that runs nowhere reports no findings because it
+# never looks, and this repo has now found that shape three times.
+#
+# `lint` is the wrong home for it: a feature branch legitimately carries
+# unassembled fragments, so it would be red on every PR and get deleted. The
+# only moment the question means anything is the one irreversible one --
+# `tag-release` pushes the tag, the tag starts the release workflow, and
+# `github-release` publishes whatever CHANGELOG.md says. Cutting today with
+# 62 fragments outstanding would have published 5 entries out of 67.
+#
+# A prerequisite rather than an edit to standard.mk: tag-release is vendored,
+# and a private copy of an upstream target is how the two drift.
+tag-release: changelog-assembled-check
 
 # Sized against what would actually be PUBLISHED, not what CHANGELOG.md holds:
 # a version section may carry a `### Highlights` block, and release-notes.sh

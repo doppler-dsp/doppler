@@ -68,12 +68,19 @@ import time
 import numpy as np
 
 from doppler.ber import (
+    BerMeter,
+    ber_evm_db,
     ber_lock_symbol,
     ber_settle_syms,
     ber_theory_ser,
 )
 from doppler.telemetry import Telemetry
 from doppler.track import MpskReceiver, MpskReceiverR
+
+# The one definition of "an offset inside the loop's acquisition
+# bound". Imported rather than restated: a second copy is how the
+# missing `/m` survived here after doppler#843 fixed it upstream.
+from doppler.track.tests._mpsk_rx_harness import freq_offset_inside_bw
 
 # ── the measurement rules, in one place ──────────────────────────────────
 #
@@ -263,7 +270,14 @@ def draw_geometry(rng, real):
     tested as if it were.
     """
     m = int(rng.choice([2, 4, 8]))
-    m_out = int(rng.choice([4, 6, 8]))
+    # m_out is NOT swept. The C header declares the domain as "even, 2..8",
+    # and 8 is the only value this receiver is operated at -- it is the
+    # default for the reason the EVM note below records: an I&D matched
+    # filter at m_out = 4 already leaves 1-2 dB, and against this NRZ
+    # stimulus (a rectangular hold, so a full sinc spectrum) decimating
+    # that far cuts into the sidelobes. Sweeping a configuration nobody
+    # runs bought one failing trial in 81 and a skipped example.
+    m_out = 8
     # the real path needs sps > 2*m_out (its cascade runs at twice the overall
     # rate behind the halfband); the complex path only needs sps >= m_out
     lo = 2.2 * m_out if real else 1.1 * m_out
@@ -293,8 +307,22 @@ def draw_geometry(rng, real):
         "fc": fc,
         "bn_timing": bn_timing,
         "bn_carrier": bn_carrier,
-        # offsets INSIDE each loop bandwidth, sign included
-        "freq_offset": float(rng.uniform(-0.5, 0.5)) * bn_carrier / sps,
+        # Offsets INSIDE each loop bandwidth, sign included -- and the
+        # carrier one is `bn_carrier / m`, cycles per SYMBOL, NOT
+        # `bn_carrier / sps`. Both parts of that matter and this line had
+        # both wrong. The NDA discriminator is an M-th power, so it sees m
+        # times the offset and the bound carries a `/m`; and the bound is
+        # stated in the units bn is stated in, so there is no `sps` in it --
+        # converting to cycles per sample happens once, at the constructor.
+        # Dividing by sps instead of m seeded 0.5*m times the bound: 1x at
+        # BPSK, 2x at QPSK and 4x at 8PSK. Measured at 4x, 8PSK still
+        # acquires but takes 4771 symbols against a 3200-symbol record, so
+        # the trial ended mid-acquisition and read as "failed to lock" --
+        # four of them, and every one 8PSK. See freq_offset_inside_bw, which
+        # exists because doppler#843 paid for this once already.
+        "freq_offset": freq_offset_inside_bw(
+            bn_carrier, m, frac=float(rng.uniform(-0.5, 0.5))
+        ),
         "clock_offset": float(rng.uniform(-0.5, 0.5)) * bn_timing,
         "ampl": float(10 ** rng.uniform(np.log10(0.05), np.log10(0.8))),
         "seed": int(rng.integers(0, 1 << 31)),
@@ -358,7 +386,7 @@ def demod(x, g, real, telemetry=True):
         m_out=g["m_out"],
         bn_timing=g["bn_timing"],
         bn_carrier=g["bn_carrier"],
-        init_norm_freq=g["fc"] - g["freq_offset"],
+        init_norm_freq=g["fc"] - g["freq_offset"] / g["sps"],
     )
     tlm = None
     if telemetry:
@@ -395,33 +423,52 @@ def lock_symbol(flag, sustain=200, min_frac=0.9):
     return None if idx < 0 else int(idx)
 
 
-def metrics(y, idx, m, settle):
-    """EVM (dB) and differential SER over the settled window.
+def measure(y, idx, m, settle):
+    """EVM (dB) and COHERENT SER over the settled window, from the library.
 
-    Both are invariant to the M-fold phase ambiguity: the constellation is
-    de-rotated by the mean M-th-power phase, and SER is scored on symbol
-    DIFFERENCES so only a lag is needed, not an absolute rotation. The lag
-    search is deliberately wide -- group delay varies with pulse, front end and
-    rate, and a clipped search reports chance SER on a perfect decode.
+    Neither number is computed here, and that is the point. `ber_evm_db` is
+    doppler's self-referenced EVM and `BerMeter` is its error counter; both
+    score the SAME explicit window, which is a rule of their own ("BER and
+    EVM must be measured on the same one").
+
+    What stood here was a private estimator, and it was wrong twice.
+
+    1. The alignment was the ARGMIN of a +-200 lag search. A minimum over
+       lags is an optimisation over the answer: it false-passes on a lucky
+       alignment over garbage, and false-floors when the true lag falls
+       outside the span. `BerMeter.align` instead CORRELATES a known marker
+       and gates the peak on a false-alarm probability, so a marker too
+       short to identify an alignment reports failure rather than a
+       plausible wrong lag -- and `score()` then uses that detection
+       verbatim.
+    2. The SER it produced was DIFFERENTIAL, scored on symbol differences to
+       dodge the M-fold phase ambiguity. A differential decision fails when
+       EITHER of its two symbols is wrong, so it reads about twice a
+       coherent SER. `implementation_loss_db` then bisected that against
+       `ber_theory_ser`, which is COHERENT -- so every trial was charged a
+       factor of two in SER it had not actually lost. That inflation is what
+       the 5 dB loss tolerance was absorbing, and why this example was
+       skipped instead of fixed. `align` recovers the ABSOLUTE constellation
+       rotation from the marker's phase, so there is no ambiguity left to
+       dodge and the coherent count is available directly.
+
+    Returns `(evm_db, ser, errors, symbols)`, with NaN/zero when the window
+    is too short or no alignment could be detected -- never a guess.
     """
-    ys = y[settle:]
-    if len(ys) < 200:
-        return float("nan"), float("nan")
-    step = 2.0 * np.pi / m
-    yr = ys * np.exp(-1j * np.angle(np.mean(ys**m)) / m)
-    yr = yr / np.sqrt(np.mean(np.abs(yr) ** 2))
-    ideal = np.exp(1j * step * np.round(np.angle(yr) / step))
-    evm = 10 * np.log10(np.mean(np.abs(yr - ideal) ** 2))
-
-    dec = np.round(np.angle(yr) / step).astype(int) % m
-    dd, dt = np.diff(dec) % m, np.diff(idx) % m
-    ser = 1.0
-    for lag in range(-200, 201):
-        a0, b0 = max(0, lag), max(0, -lag) + settle
-        k = min(len(dd) - a0, len(dt) - b0)
-        if k >= 200:
-            ser = min(ser, float(np.mean(dd[a0 : a0 + k] != dt[b0 : b0 + k])))
-    return evm, ser
+    rx = np.ascontiguousarray(y, dtype=np.complex64)
+    if rx.size - settle < 500:
+        return float("nan"), float("nan"), 0, 0
+    met = BerMeter(m=m)
+    met.set_truth(idx.astype(np.uint8))
+    # The marker is drawn from the SETTLED region, and the span matches the
+    # old search's reach -- as a detection window now, not a minimisation.
+    if not met.align(rx, t0=settle, n_marker=256, lag_span=200):
+        return float("nan"), float("nan"), 0, 0
+    met.score(rx, lo=settle, hi=rx.size)
+    if not met.symbols:
+        return float("nan"), float("nan"), 0, 0
+    evm = ber_evm_db(rx, lo=settle, hi=rx.size, m=m)
+    return evm, met.errors / met.symbols, int(met.errors), int(met.symbols)
 
 
 # --8<-- [start:chunking]
@@ -480,7 +527,7 @@ def run_chunked(g, real, nsym, chunk_plan, seed=11):
             m_out=g["m_out"],
             bn_timing=g["bn_timing"],
             bn_carrier=g["bn_carrier"],
-            init_norm_freq=g["fc"] - g["freq_offset"],
+            init_norm_freq=g["fc"] - g["freq_offset"] / g["sps"],
         )
         rng = np.random.default_rng(seed)
         blocks = plan(x, rng)
@@ -531,8 +578,11 @@ def run_trial(
         bn_max = bn_for_loop_snr(g["m"], esn0_db)
         g["bn_carrier"] = min(g["bn_carrier"], bn_max)
         g["bn_timing"] = min(g["bn_timing"], bn_max)
+        # Re-cap against the bound in ITS units after bn was narrowed --
+        # bn_carrier / m, cycles per symbol. No sps here either.
         g["freq_offset"] = np.sign(g["freq_offset"]) * min(
-            abs(g["freq_offset"]), 0.5 * g["bn_carrier"] / g["sps"]
+            abs(g["freq_offset"]),
+            abs(freq_offset_inside_bw(g["bn_carrier"], g["m"], frac=0.5)),
         )
         g["clock_offset"] = np.sign(g["clock_offset"]) * min(
             abs(g["clock_offset"]), 0.5 * g["bn_timing"]
@@ -567,8 +617,8 @@ def run_trial(
     if len(y) - settle < 300:
         rec.update(evm=float("nan"), ser=float("nan"), locked=False)
         return rec
-    evm, ser = metrics(y, idx, g["m"], settle)
-    rec.update(evm=evm, ser=ser, locked=True)
+    evm, ser, errs, syms = measure(y, idx, g["m"], settle)
+    rec.update(evm=evm, ser=ser, errors=errs, symbols=syms, locked=True)
     return rec
 
 
@@ -1081,18 +1131,13 @@ def main(
             # tracks the bound within ~3 dB. A single flat tolerance would
             # either fail on 8PSK's physics or stop policing BPSK entirely.
             allow = 3.0 + abs(squaring_loss_db(t["m"], t["esn0_db"]))
-            # `m_out` is a MEASURED axis, not a nuisance one. An I&D matched
-            # filter at m_out = 4 already leaves 1-2 dB (which is why the
-            # default is 8), and 8PSK has the smallest decision margin, so the
-            # corner compounds: measured, 8PSK at m_out = 4 reaches only
-            # -12.1 dB at Es/N0 = 20 dB, i.e. ~8 dB off its bound, while
-            # m_out >= 8 tracks the squaring-loss allowance. That is a real
-            # constraint on the configuration, so it is asserted at its own
-            # measured level rather than folded into one loose tolerance --
-            # widening `allow` to cover it would stop the bound policing
-            # anything at all.
-            if t["m"] == 8 and t["m_out"] < 8:
-                allow += 5.0
+            # There is no per-m_out corner here any more. It used to add 5 dB
+            # for 8PSK at m_out < 8 -- measured -12.1 dB at Es/N0 = 20 dB,
+            # ~8 dB off the bound -- but m_out is now pinned at 8, the only
+            # value the receiver is operated at, so the allowance covered a
+            # configuration no trial can draw. An allowance for an
+            # unreachable case is indistinguishable from one that is simply
+            # too loose.
             assert t["evm"] < -t["esn0_db"] + allow, (
                 f"EVM {t['evm']:.1f} dB at Es/N0 {t['esn0_db']:.0f} dB, "
                 f"allowance {allow:.1f} dB "

@@ -2974,15 +2974,53 @@ test-api-docs: ## Doctest the docs/api/*.md reference pages
 # a whole round trip to see the rest. The C gate compiles every fence against
 # build/libdoppler.a, so `make build` first; the python gate's `broker=` fences
 # need a NATS broker on :4222 and skip without one.
-test-snippets: ## Run the python/C/shell doc-fence gates
-	@fail=0; \
+#
+# PAGE=<docs-relative path> narrows all three gates to one page while you are
+# writing it. Each gate parametrizes over pages with the docs-relative path as
+# the test id, so one `-k` reaches all three without any of them growing a
+# selector of its own.
+#
+#     make test-snippets PAGE=guide/wfmgen/coding.md
+#
+# It exists because the unscoped target is the whole corpus, and iterating on
+# a single new page through it is slow enough that the actual behaviour was to
+# reach past `make` for a raw pytest with `-k` -- seven times in one session,
+# each prefixed with MAKE_SSOT_OK=1 to get past the hook that exists to stop
+# exactly that. A rule routinely bypassed is a missing option, not a
+# discipline problem: the bypass ran a DIFFERENT command from the gate, which
+# is how a page passes locally and fails in CI.
+#
+# Unscoped is still the gate. PAGE is an iteration aid, so it says so on the
+# way out rather than printing the same "ALL FENCE GATES PASS" line a full run
+# earns.
+test-snippets: ## Run the python/C/shell doc-fence gates (PAGE=<path> to narrow)
+	@fail=0; empty=0; n=0; \
 	 for t in test_doc_snippets test_c_doc_snippets test_sh_doc_snippets; do \
 	     echo "=== $$t ==="; \
+	     n=$$((n + 1)); \
 	     uv run python -m pytest -m docs_snippets -q \
-	         src/doppler/tests/$$t.py || fail=1; \
+	         $(if $(PAGE),-k "$(PAGE)") \
+	         src/doppler/tests/$$t.py; rc=$$?; \
+	     : "5 is pytest's 'collected nothing'. Under PAGE that is the normal"; \
+	     : "answer for two of the three -- a page with only sh fences has no"; \
+	     : "python or C ones -- so it is not a failure. Unscoped it stays"; \
+	     : "one, because the corpus having no fences means discovery broke."; \
+	     if [ "$$rc" = 5 ] && [ -n "$(PAGE)" ]; then empty=$$((empty + 1)); \
+	     elif [ "$$rc" != 0 ]; then fail=1; fi; \
 	 done; \
-	 if [ "$$fail" = 0 ]; then echo "test-snippets: ALL FENCE GATES PASS"; \
-	 else echo "test-snippets: FAILURES above"; exit 1; fi
+	 if [ "$$fail" != 0 ]; then echo "test-snippets: FAILURES above"; exit 1; \
+	 elif [ -n "$(PAGE)" ] && [ "$$empty" = "$$n" ]; then \
+	     : "Every gate collected nothing, so the selector matched NO page."; \
+	     : "Reporting that as a pass is how a typo'd PAGE reads as green."; \
+	     echo "test-snippets: PAGE=$(PAGE) matched no fences in any gate —"; \
+	     echo "  nothing ran. The id is the docs-relative path, e.g."; \
+	     echo "    make test-snippets PAGE=guide/wfmgen/coding.md"; \
+	     exit 1; \
+	 elif [ -n "$(PAGE)" ]; then \
+	     echo "test-snippets: PAGE=$(PAGE) passes ($$empty of $$n gate(s) had"; \
+	     echo "  no fences of their kind) — NOT a full run; the gate is"; \
+	     echo "  \`make test-snippets\` with no PAGE."; \
+	 else echo "test-snippets: ALL FENCE GATES PASS"; fi
 
 # Parallel by default, for the same reason `test-python` is: the workload is
 # embarrassingly parallel and pytest-xdist is already a dev dependency. Each

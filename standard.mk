@@ -336,10 +336,25 @@ STD_TARGETS += pyext
 $(call _std_require,PYEXT_CMD,HAS_C=1 with HAS_PYTHON=1)
 endif
 
-build: ## Configure and build the native library
+# BUILD_TARGET=<name> builds ONE cmake target instead of the whole tree, for
+# the edit-compile-run loop on a single binary. Everything else is unchanged,
+# so `make build` is still the full build and still what CI runs.
+#
+# It exists because the alternative developers actually reach for is a raw
+# `cmake --build <dir> --target <name>`, which bypasses this file entirely --
+# the configure step, BUILD_TYPE, CMAKE_FLAGS and the compiler launcher all
+# come from here, so the hand-run command is a DIFFERENT build wearing the
+# same name. A repo with a hook that blocks raw cmake (doppler has one) then
+# gets the bypass env-var instead, which is worse: the rule is off for the
+# whole command, not just the part that needed it.
+#
+# Deliberately NOT called TARGET: `make TARGET=<goals>` is already the
+# convention for passing goals into a container/runner wrapper, and a name
+# that means two things is a name that will be passed to the wrong one.
+build: ## Configure and build the native library (BUILD_TARGET=<t> for one)
 	$(CMAKE) -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 	    $(CMAKE_FLAGS)
-	$(CMAKE) --build $(BUILD_DIR)
+	$(CMAKE) --build $(BUILD_DIR) $(if $(BUILD_TARGET),--target $(BUILD_TARGET))
 
 debug: ## Build the native library with BUILD_TYPE=Debug
 	@$(MAKE) build BUILD_TYPE=Debug
@@ -774,7 +789,7 @@ endif
 # Three invariants that review has been shown not to catch, each failing rather
 # than warning. A gate that cannot run has not passed.
 
-STD_TARGETS += standard-check help-check ghost-check hook-dispatch-check
+STD_TARGETS += standard-check standard-update help-check ghost-check hook-dispatch-check
 STD_TARGETS += hook-stage-check
 
 # A temp file, portably: bare `mktemp` is a GNU extension, and the BSD one
@@ -829,7 +844,7 @@ _STD_SECTION = case "$$t" in \
     bump-version|version-check|release-branch|tag-release|release-watch \
         |ship) tsec="Release";; \
     test-examples) tsec="Examples";; \
-    standard-check|help-check|ghost-check|hook-dispatch-check|hook-stage-check) \
+    standard-check|standard-update|help-check|ghost-check|hook-dispatch-check|hook-stage-check) \
         tsec="Gates";; \
     *) tsec="Local";; \
 esac
@@ -852,6 +867,43 @@ _STD_SECTION_ORDER = Core Lint Aggregates C Python Rust Docs Doxygen Bench \
 # One gate rather than two. A second target with its own fetch-and-diff loop
 # would be a peer implementation of this one, which is the duplication the list
 # exists to end.
+# The FIX half of the drift gate. `standard-check` reports drift and its
+# message said to run `curl -fsSL <url> -o <file>` by hand -- so the only way
+# to act on this gate was outside make, which is the exact shape this file
+# exists to stamp out. Measured the day it was written: four repos re-vendored
+# by hand-run curl, in a session whose other two commits were about not
+# bypassing make.
+#
+# It shares VENDORED_FILES and the URL derivation with the check rather than
+# restating either, so the two cannot disagree about what is vendored or where
+# it comes from. It re-runs the check afterwards: a fetch that leaves the tree
+# still drifted has not updated anything, and saying so is the point.
+standard-update: ## Re-fetch every vendored file from canonical
+	@if [ -z "$(STANDARD_URL)" ]; then \
+	    echo "standard-update: STANDARD_URL is empty — nothing is vendored"; \
+	    echo "  in this repo, so there is nothing to update."; \
+	    exit 0; \
+	fi; \
+	for f in $(STANDARD_FILE) $(VENDORED_FILES); do \
+	    case "x$$f" in \
+	        "x$(STANDARD_FILE)") u="$(STANDARD_URL)" ;; \
+	        *)                   u="$(VENDOR_BASE_URL)$$f" ;; \
+	    esac; \
+	    tmp=$$(mktemp); \
+	    if ! curl -fsSL "$$u" -o "$$tmp" 2>/dev/null; then \
+	        rm -f "$$tmp"; \
+	        echo "standard-update: cannot fetch $$u — refusing to leave a"; \
+	        echo "  half-updated tree. Fix the fetch and re-run."; \
+	        exit 1; \
+	    fi; \
+	    if cmp -s "$$tmp" "$$f" 2>/dev/null; then rm -f "$$tmp"; \
+	    else mkdir -p "$$(dirname "$$f")"; \
+	         if [ -x "$$f" ]; then mv "$$tmp" "$$f"; chmod +x "$$f"; \
+	         else mv "$$tmp" "$$f"; chmod 644 "$$f"; fi; \
+	         echo "  updated $$f"; fi; \
+	done; \
+	$(MAKE) --no-print-directory standard-check
+
 standard-check: ## Verify every vendored file matches canonical
 	@if [ -z "$(STANDARD_URL)" ]; then \
 	    echo "standard-check: OFF — STANDARD_URL is empty, so drift is NOT"; \

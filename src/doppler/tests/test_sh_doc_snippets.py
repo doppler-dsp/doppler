@@ -43,6 +43,7 @@ import io
 import os
 import re
 import shlex
+import shutil
 import signal
 import subprocess
 from typing import TYPE_CHECKING
@@ -72,6 +73,47 @@ _EXEC_ALLOWED = frozenset(
 )
 
 _HEREDOC_RE = re.compile(r"<<-?\s*'?(?P<tag>\w+)'?")
+
+
+def _wfmgen_works() -> bool:
+    """Does `wfmgen` actually RUN, not merely resolve?
+
+    "On PATH" is the wrong question. The wheel installs a console-script shim
+    that ``execv``s ``doppler/wfm/_bin/wfmgen``, so in an unbuilt tree the
+    NAME resolves fine and the shim dies on a binary that was never copied
+    there. Measured on a fresh worktree: `shutil.which` returned a path and
+    every fence still failed. Probe it instead.
+    """
+    w = _wfmgen()
+    if w is None:
+        return False
+    try:
+        return (
+            subprocess.run(
+                [w, "--help"], capture_output=True, timeout=30
+            ).returncode
+            == 0
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def _wfmgen() -> str | None:
+    """Where ``wfmgen`` resolves, or None.
+
+    The execution half of this gate runs the REAL binary, so its verdict is a
+    property of one specific build -- and the gate never said which. An
+    unbuilt tree makes every wfmgen fence die as ``exit 1`` with an empty
+    stderr tail (``wfmgen: command not found`` goes to the subshell), which
+    reads as "this documented invocation is wrong" rather than "there is no
+    binary". Measured on a fresh worktree: `make test-snippets` reported a
+    correct, committed flag as broken when nothing had been built at all.
+
+    The path is reported on every failure for the same reason. A fence can
+    pass or fail against a DIFFERENT checkout's binary if one is earlier on
+    PATH, and a verdict whose subject is unnamed cannot be checked.
+    """
+    return shutil.which("wfmgen")
 
 
 def _discover_pages() -> list[Path]:
@@ -275,9 +317,22 @@ def test_sh_page_fences(page: Path, tmp_path: Path) -> None:
                     f"killed):\n--- fence ---\n{code}"
                 ) from None
             stderr = err_b.decode(errors="replace")
+            if proc.returncode != 0 and not _wfmgen_works():
+                raise AssertionError(
+                    f"{blockid}: this fence runs `wfmgen`, and `wfmgen "
+                    f"--help` does not succeed here — so nothing on this "
+                    f"page was actually checked. The execution half of "
+                    f"this gate runs the real binary; an unbuilt tree "
+                    f"cannot check it, and reports a correct documented "
+                    f"flag as broken.\n"
+                    f"  wfmgen resolves to: {_wfmgen()}\n"
+                    f"  Build first:  make pyext   (or: make build)\n"
+                    f"--- fence ---\n{code}"
+                )
             assert proc.returncode == 0, (
                 f"{blockid} failed under bash -e (exit "
-                f"{proc.returncode}):\n--- fence ---\n{code}\n"
+                f"{proc.returncode}), wfmgen={_wfmgen()}:"
+                f"\n--- fence ---\n{code}\n"
                 f"--- stderr (tail) ---\n{stderr[-2000:]}"
             )
 

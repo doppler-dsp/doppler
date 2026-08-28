@@ -286,6 +286,73 @@ scratch directory, not committed, per phase 1. What it has to answer is
 whether the field/stage/cover triple can express both configurations above
 without a special case, because that is the whole claim.
 
+## Extraction — where CCSDS still shapes the generic path
+
+The layering is already deliberate in one direction, and the code says so:
+`wfm_source_describe_frame()` carries the note that *"the covers are that
+standard's and `wfm/wfm_frame.h` deliberately knows nothing about CCSDS"*.
+That holds. What does not yet hold is the direction **into** the descriptor.
+
+**The source struct is the standard's stage list.** `wfm_source_t`'s
+framing and coding fields — `attach_asm`, `rs_depth`, `randomise`,
+`convolutional`, `interleave_depth`, `interleave_unit_bits` — are CCSDS TM's
+five stages, one field each. So the adapter that turns a source into a
+description has no choice but to assemble a `ccsds_tm_frame_spec_t` first
+(`native/src/wfm/wfm_synth_bridge.c`, at the `ccsds_tm_frame_desc_of` call),
+and a description reached only through that struct can only ever be a CADU.
+That is the mechanism behind the claim this page opens with: the general
+descriptor exists, and nothing can currently ask it for a frame the standard
+does not have.
+
+The move is one sentence and it is not a rewrite of the adapter: **the source
+carries a description rather than a standard's parameters.** Then
+`wfm_source_describe_frame()` does not get generalized, it gets deleted — and
+the eleven wfmgen flags that spell those six fields collapse into one, which
+is the same change seen from the CLI.
+
+### The five sites, and the order to cut them
+
+| #   | site                                                                                                                | what it is today                                                  | after                                                                                                                               |
+| --- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `native/src/wfm/wfm_synth_bridge.c` — the `ccsds_tm_frame_spec_t` literal and the `ccsds_tm_frame_desc_of()` return | the only route from a wfmgen source to a `wfm_frame_desc_t`       | the source holds a description; the adapter is deleted                                                                              |
+| 2   | the same file's two `ccsds_tm_frame_ops()` calls                                                                    | the generic assembler borrowing the standard's stage-kernel table | the ops table is promoted beside the descriptor; CCSDS supplies configuration, as it already does for `conv_core.h` and `rs_core.h` |
+| 3   | the same file's `CCSDS_TM_RS_K` and `CCSDS_TM_RS_2E` arithmetic                                                     | the standard's code parameters sizing payload and parity buffers  | both lengths come from the layout the descriptor already returns                                                                    |
+| 4   | `native/src/wfm/ccsds_asm_bits.c`                                                                                   | a CCSDS translation unit inside the generic wfm component         | the ASM is a literal field of a preset, not code living in `wfm`                                                                    |
+| 5   | `native/src/frame/frame_core.c` and `native/src/burst_demod/burst_demod_core.c`                                     | include `ccsds_tm/ccsds_tm_frame.h` for the stage kernels         | follows from 2, with no work of their own                                                                                           |
+
+Cut **1 first**, for the reason the sketch above already gives for scheduling
+wfmgen first: it is the site with an external interface, and every other site
+becomes easier once the thing being passed around is a description. Sites 2
+and 3 are then mechanical. Sites 4 and 5 fall out.
+
+### What is deliberately *not* extraction
+
+- **The Python door is already the right shape.** `objects/frame.toml` states
+    the intent plainly: `ccsds_tm` has no binding and is not getting one, so a
+    caller meets the outer code, the randomiser and the inner code *by
+    describing a CADU* — three fields and three covers. `FrameDesc` is not a
+    CCSDS entry point wearing a general name; it is the general door, and
+    CCSDS being reachable through it is the design working.
+- **CCSDS stays, as the example.** It is falsification target 2 on this page
+    for a reason: its facts are published, and it is the one configuration
+    that exercises `cover` asymmetrically — the randomiser skips the ASM while
+    the inner code covers it. Extraction moves it from *under* the general
+    layer to *beside* it. Nothing about it is deleted.
+
+### The gate, or it grows back
+
+The rule is checkable as written: **no component outside `ccsds_tm` includes a
+`ccsds_tm` header.** It is violated in exactly four places today (sites 1–2
+share one, plus 4 and 5), which makes it a ratchet rather than a rule that
+would fail on arrival — the same shape as the allocation-helper gate, which
+landed against 313 pre-existing sites and may only shrink. Start it at the
+measured count, let it fall to zero as the sites above are cut, and it cannot
+silently return afterwards.
+
+Sabotaging it is one line: add the include back to any generic component and
+the gate must go red. A rule this page states and nothing enforces is how the
+tree acquired three framers in the first place.
+
 ______________________________________________________________________
 
 ## Deliberately not in scope

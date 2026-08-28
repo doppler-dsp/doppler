@@ -12,10 +12,6 @@
 #ifndef DOPPLER_H
 #define DOPPLER_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* ── Components ─────────────────────────────────────────────────────────── */
 
 #include "wfm_reader/wfm_reader_core.h"
@@ -175,10 +171,6 @@ extern "C" {
 #include "ber_meter/ber_meter_core.h"
 
 #include "frame_meter/frame_meter_core.h"
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* DOPPLER_H */
 ```

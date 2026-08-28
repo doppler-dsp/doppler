@@ -320,3 +320,41 @@ target_include_directories(validate_wfm_follow_keepup
 target_link_libraries(validate_wfm_follow_keepup PRIVATE doppler_lib_static m)
 add_test(NAME validate_wfm_follow_keepup
          COMMAND validate_wfm_follow_keepup --check)
+
+# ── Labels: which of these a SANITIZER suite should re-run ───────────────────
+#
+# Every entry above registers the harness's `--check` SPOT CHECK, never its
+# full sweep -- the sweep is `make validate-c`, run when an object changes.
+# That contract is right and is not what costs anything.
+#
+# What costs is re-running the spot check under instrumentation. These are
+# Monte Carlo batteries over the DSP kernels, so a sanitizer's per-access
+# shadow-memory work lands on the hottest possible loop. Measured on one CI
+# run (33132488070), the 23 validators against each leg's whole ctest time:
+#
+#   ASan    198.2s of 247.9s   80%
+#   UBSan   216.8s of 270.7s   80%
+#   TSan    751.5s of 834.8s   90%     (validate_rx_coding_gain alone: 258s)
+#
+# The same two harnesses cost 4.4s and 3.3s in an ordinary optimised build,
+# so this is a ~60x instrumentation tax, not an oversized subset.
+#
+# So `sweep` is what a sanitizer suite excludes (`ctest -LE sweep`). The spot
+# check still runs on every PR in the ordinary C suite, which is where it is
+# cheap and where it was always the point.
+#
+# The label is applied by ENUMERATING this directory's tests rather than by
+# listing names, so a validator added later is covered without anyone
+# remembering this block. A new one therefore defaults to "not re-run under
+# sanitizers", which is the right default for a numeric sweep.
+get_property(_dp_validators DIRECTORY PROPERTY TESTS)
+foreach(_dp_v IN LISTS _dp_validators)
+  set_tests_properties(${_dp_v} PROPERTIES LABELS sweep)
+endforeach()
+
+# The exception, and the reason the label is not simply "validation":
+# rx_dynamics is the ONLY validator that starts a thread (dp_tlm_capture's
+# writer -- see the Threads::Threads note above), so it is the only one TSan
+# can say anything about. It costs 0.34s there. Labelled `threaded` instead of
+# `sweep`, so `-LE sweep` keeps it.
+set_tests_properties(validate_rx_dynamics PROPERTIES LABELS threaded)

@@ -1538,14 +1538,14 @@ test-ubsan: ## Run the C suite under UBSan; any undefined behaviour fails
 		$(CMAKE_ARGS)
 	$(CMAKE) --build $(UBSAN_DIR) --parallel $(NPROC)
 # An empty result set is not a pass -- see test-asan.
-	@n=$$($(CTEST) --test-dir $(UBSAN_DIR) -N | sed -n 's/^Total Tests: //p'); \
+	@n=$$($(CTEST) --test-dir $(UBSAN_DIR) $(SAN_EXCLUDE_SWEEP) -N | sed -n 's/^Total Tests: //p'); \
 	 if [ "$$n" = "0" ] || [ -z "$$n" ]; then \
 	   echo "test-ubsan: the suite registered no tests — nothing ran,"; \
 	   echo "  so this gate has not passed."; exit 1; \
 	 fi; \
 	 echo "test-ubsan: $$n test(s) under UndefinedBehaviorSanitizer"
 	UBSAN_OPTIONS=$(UBSAN_OPTS) \
-		$(CTEST) --test-dir $(UBSAN_DIR) --output-on-failure
+		$(CTEST) --test-dir $(UBSAN_DIR) $(SAN_EXCLUDE_SWEEP) --output-on-failure
 
 # ── AddressSanitizer ─────────────────────────────────────────────────────────
 # The C suite rebuilt under ASan, with LeakSanitizer left ON.
@@ -1596,14 +1596,14 @@ test-asan: ## Run the C suite under ASan+LSan; any bad access or leak fails
 # bites harder here because this target takes no pattern: a configure that
 # registered no tests would run zero of them and exit 0, reporting a clean
 # sanitizer run over nothing at all.
-	@n=$$($(CTEST) --test-dir $(ASAN_DIR) -N | sed -n 's/^Total Tests: //p'); \
+	@n=$$($(CTEST) --test-dir $(ASAN_DIR) $(SAN_EXCLUDE_SWEEP) -N | sed -n 's/^Total Tests: //p'); \
 	 if [ "$$n" = "0" ] || [ -z "$$n" ]; then \
 	   echo "test-asan: the suite registered no tests — nothing ran,"; \
 	   echo "  so this gate has not passed."; exit 1; \
 	 fi; \
 	 echo "test-asan: $$n test(s) under AddressSanitizer + LeakSanitizer"
 	ASAN_OPTIONS=$(ASAN_OPTS) \
-		$(CTEST) --test-dir $(ASAN_DIR) --output-on-failure
+		$(CTEST) --test-dir $(ASAN_DIR) $(SAN_EXCLUDE_SWEEP) --output-on-failure
 
 # ── ThreadSanitizer ──────────────────────────────────────────────────────────
 # WHOLE-SUITE, like test-asan, and that is a correction rather than a
@@ -1632,6 +1632,25 @@ test-asan: ## Run the C suite under ASan+LSan; any bad access or leak fails
 # halt_on_error, for exactly the reason UBSAN_OPTS gives above: without it
 # TSan prints a race and the suite still passes, and the gate is decorative.
 TSAN_DIR     ?= build-tsan
+# ── What a SANITIZER suite re-runs ───────────────────────────────────────────
+# The `validate_*` harnesses register their `--check` SPOT CHECK as a ctest
+# entry (their full sweep is `make validate-c`, run when an object changes).
+# That spot check belongs on every PR and it runs in the ordinary C suite,
+# where it is cheap. Re-running it under instrumentation is what costs:
+# measured on CI run 33132488070, the 23 validators were 80% of ASan's ctest
+# time, 80% of UBSan's and 90% of TSan's -- 1166s across the three legs, for
+# work the unsanitized suite already did. The same harnesses cost 4.4s and
+# 3.3s optimised, so it is a ~60x instrumentation tax, not a big subset.
+#
+# They are labelled `sweep` in native/validation/CMakeLists.txt by enumerating
+# that directory, so this stays true as validators are added. `-LE` excludes
+# by label; validate_rx_dynamics is labelled `threaded` instead, because it is
+# the only validator that starts one and it costs TSan 0.34s.
+#
+# Set SAN_SWEEP=1 to put them back -- `make test-asan SAN_SWEEP=1` is the
+# instrumented full-battery run, for when a kernel change wants it.
+SAN_EXCLUDE_SWEEP = $(if $(SAN_SWEEP),,-LE sweep)
+
 TSAN_EXCLUDE ?= ^test_stream_nats_core$$
 TSAN_FLAGS    = -fsanitize=thread -fno-omit-frame-pointer -g
 TSAN_OPTS     = halt_on_error=1:second_deadlock_stack=1
@@ -1649,7 +1668,7 @@ test-tsan: ## Run the C suite under TSan; any data race fails
 # gates were both caught by, and the one this target's old name-pattern was
 # nearly caught by: a pattern that matches almost nothing still matches
 # something, so the guard fires only in the total case.
-	@n=$$($(CTEST) --test-dir $(TSAN_DIR) -E '$(TSAN_EXCLUDE)' -N \
+	@n=$$($(CTEST) --test-dir $(TSAN_DIR) -E '$(TSAN_EXCLUDE)' $(SAN_EXCLUDE_SWEEP) -N \
 	      | sed -n 's/^Total Tests: //p'); \
 	 if [ "$$n" = "0" ] || [ -z "$$n" ]; then \
 	   echo "test-tsan: the suite registered no tests — nothing ran,"; \
@@ -1658,7 +1677,7 @@ test-tsan: ## Run the C suite under TSan; any data race fails
 	 echo "test-tsan: $$n test(s) under ThreadSanitizer" \
 	      "(excluding '$(TSAN_EXCLUDE)', see #1027)"
 	TSAN_OPTIONS=$(TSAN_OPTS) \
-		$(CTEST) --test-dir $(TSAN_DIR) -E '$(TSAN_EXCLUDE)' \
+		$(CTEST) --test-dir $(TSAN_DIR) -E '$(TSAN_EXCLUDE)' $(SAN_EXCLUDE_SWEEP) \
 		--output-on-failure
 
 blazing: ## Clean + Release + -march=native (max speed; never packaged)

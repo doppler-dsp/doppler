@@ -1,12 +1,15 @@
-- **Acquisition's realized false-alarm rate is measured, documented and
-    ratcheted — it is ~1.8× the configured target.** The threshold ladder
-    sizes `pfa_cell` from the native cell count while the peak search runs on
-    the Doppler-interpolated surface, and a maximum over a finer sampling of
-    the same band-limited process is stochastically larger. Measured with only
-    `ACQ_DOPPLER_INTERP` changed: **1.85× target at +5.4σ with interpolation
-    on, 0.90× at −0.6σ with it off.** The certification records it as F7 and
-    ratchets it, the characterization now predicts its sweep from the
-    delivered rate rather than the configured one (which is what made it fail
-    on a detector obeying its own threshold), and `docs/design/dsss-acquisition.md`
-    §9 carries the tradeoff.
+- **Acquisition's realized false-alarm rate is measured, decomposed and
+    ratcheted — a caller gets ~1.65× the rate they configure.** The threshold
+    sizes `pfa_cell` from the native cell count while the gate is decided by a
+    maximum over the Doppler-*interpolated* surface, and a maximum over a
+    finer sampling of the same band-limited process is stochastically larger.
+    Measured at `pfa=1e-2` over 60,000 noise frames, it is two errors of
+    opposite sign: `N_eff(1)/N` = **0.89 ± 0.04** (the native model is
+    conservative — adjacent DFT bins are not perfectly independent) times
+    `N_eff(2)/N_eff(1)` = **1.86 ± 0.09** (what interpolation adds). The
+    *form* is right: the ratio holds across three decades of target, which is
+    a cell-count error rather than a miscalibrated per-cell threshold. The
+    certification records it as F7 and ratchets it, the characterization
+    predicts its sweep from the delivered rate, and
+    `docs/design/dsss-acquisition.md` §9.1 derives the model.
     [#1064](https://github.com/doppler-dsp/doppler/issues/1064)

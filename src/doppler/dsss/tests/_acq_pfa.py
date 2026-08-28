@@ -26,11 +26,30 @@ noise peaks that previously fell between bins and were missed. That is the
 same mechanism as the scalloping-loss win it was added for (doppler#1002,
 ~3.9 dB -> ~0.9 dB), applied to H0.
 
-Measured, 40,000 pure-noise frames, identical build and seed with only
+**Measured, and it decomposes into two errors of opposite sign.** 60,000
+pure-noise frames at `pfa = 1e-2` (the highest-count point, so the tightest
+bars), `doppler_bins = 8`, `n_noncoh = 1`, identical build and seed with only
 `ACQ_DOPPLER_INTERP` changed:
 
-    interp = 2 (shipped)   1.85e-3   1.85x target   +5.4 sigma
-    interp = 1 (control)   9.00e-4   0.90x target   -0.6 sigma
+    N_eff(1) / N            0.89 +/- 0.04   the native model is CONSERVATIVE
+    N_eff(2) / N_eff(1)     1.86 +/- 0.09   what interpolation adds
+    N_eff(2) / N            1.65 +/- 0.05   what a caller actually gets
+
+The two partly cancel, which is why the delivered rate is 1.65x rather than
+1.86x. Quoting 1.86 as "the" error would be quoting the ratio between two
+BUILDS, not the rate anyone experiences -- and a correction of 1.86 applied to
+a model that is already 11% conservative would land at 0.89 of target.
+
+`N_eff(1) < N` because adjacent DFT bins of a white-noise transform are not
+perfectly independent, so the Sidak count slightly overstates the looks. That
+direction is safe: fewer false alarms than asked for.
+
+**The form of the calculation is right; only `N` is wrong.** The ratio holds
+across three decades of target -- 1.65 / 1.40 / 1.50 at 1e-2 / 1e-3 / 1e-4
+with interpolation on, 0.89 / 0.77 / 0.83 with it off -- which is the
+signature of a multiplicative cell-count error. A miscalibrated per-cell
+threshold, or an unaccounted CFAR estimation loss from a finite reference
+window, would DRIFT with the target instead. Neither does.
 
 Tracked as doppler#1064. Until it is fixed, both callers ratchet against the
 measured ratio rather than asserting the target, so the gap cannot widen
@@ -47,9 +66,16 @@ import numpy as np
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-#: Current measured ratio of realized Pfa to the configured target, with the
-#: Doppler interpolation of doppler#1002 active. A RATCHET: it may only
-#: shrink. 1.0 is the goal and closing doppler#1064 is what earns it.
+#: Ratchet on the realized-Pfa-to-target ratio with doppler#1002's Doppler
+#: interpolation active. It may only SHRINK; 1.0 is the goal and closing
+#: doppler#1064 earns it.
+#:
+#: Set at 2.2 against a best estimate of 1.65 +/- 0.05, which is deliberate
+#: headroom rather than slack: the certification measures at `pfa = 1e-3`
+#: over 20,000 frames, where 20 expected hits give the estimate a Poisson
+#: spread of roughly +/-0.22 -- so a bound any tighter would go red on a
+#: run that found nothing wrong. Tighten it when the measurement gets
+#: cheaper, or when the defect is fixed and the ratio collapses to ~0.9.
 PFA_RATIO_RATCHET = 2.2
 
 

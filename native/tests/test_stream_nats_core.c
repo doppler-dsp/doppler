@@ -10,6 +10,13 @@
 #include "dp_test.h"
 #include "stream/stream.h"
 
+/* Forging a frame the parser must REJECT is the whole point of the
+   poison test below, and no doppler API can produce one -- every
+   writer emits a well-formed header. So this one test reaches the
+   transport directly. stream_nats.c remains the only place the
+   LIBRARY includes it. */
+#include <nats.h>
+
 #include <arpa/inet.h>
 #include <complex.h>
 #include <netinet/in.h>
@@ -469,6 +476,113 @@ test_drain_then_send (void)
   dp_pub_destroy (pub); /* still safe: destroy is just the free now */
 }
 
+/* ------------------------------------------------------------------
+ * test_unparseable_frame_does_not_wedge_the_queue
+ * ------------------------------------------------------------------ */
+#define POISON_N 1200 /* > the consumer's MaxAckPending of 1000 */
+
+/* Publish `n` frames that cannot parse, straight onto the work subject. */
+static int
+publish_poison (const char *base, int n)
+{
+  natsConnection *nc = NULL;
+  jsCtx          *js = NULL;
+  if (natsConnection_ConnectTo (&nc, "nats://127.0.0.1:4222") != NATS_OK)
+    return -1;
+  if (natsConnection_JetStream (&js, nc, NULL) != NATS_OK)
+    {
+      natsConnection_Destroy (nc);
+      return -1;
+    }
+
+  char subj[320];
+  (void)snprintf (subj, sizeof subj, "work.%s.POISON", base);
+
+  /* Longer than a header so it is refused for its CONTENT, not its size --
+     a short frame would exercise the length guard instead. 0xAA never
+     matches the magic. */
+  unsigned char junk[200];
+  memset (junk, 0xAA, sizeof junk);
+
+  int rc = 0;
+  for (int i = 0; i < n; i++)
+    if (js_Publish (NULL, js, subj, junk, sizeof junk, NULL, NULL) != NATS_OK)
+      {
+        rc = -1;
+        break;
+      }
+
+  jsCtx_Destroy (js);
+  natsConnection_Destroy (nc);
+  return rc;
+}
+
+static void
+test_unparseable_frame_does_not_wedge_the_queue (void)
+{
+  printf ("\n-- an unparseable frame is terminated, not left pending --\n");
+
+  char base[96];
+  (void)snprintf (base, sizeof base, "poison-%d-%ld", (int)getpid (),
+                  (long)time (NULL));
+  char ep[160];
+  (void)snprintf (ep, sizeof ep, "nats://127.0.0.1:4222/%s", base);
+
+  dp_pub_t *push = dp_push_create (ep, CF32); /* provisions the stream */
+  DP_CHECK (push != NULL);
+
+  /* MORE poison than MaxAckPending, because that is the number which
+     decides whether the queue stumbles or STOPS: an un-acked frame holds a
+     pending slot, and once they are all held the consumer is handed
+     nothing ever again. Measured on the unfixed build: exactly 1000 bad
+     frames, then DP_ERR_TIMEOUT forever. */
+  DP_CHECK (publish_poison (base, POISON_N) == 0);
+
+  /* One good frame BEHIND the poison -- reaching it is the assertion. */
+  float _Complex tx[4] = { 1 + 1 * I, 2 + 2 * I, 3 + 3 * I, 4 + 4 * I };
+  DP_CHECK (dp_pub_send_cf32 (push, tx, 4, 48000.0, 915e6) == DP_OK);
+
+  dp_sub_t *pull = dp_pull_create (ep);
+  DP_CHECK (pull != NULL);
+  dp_sub_set_timeout (pull, 3000);
+
+  int bad = 0, reached = 0;
+  for (int i = 0; i < POISON_N + 200; i++)
+    {
+      dp_msg_t   *msg = NULL;
+      dp_header_t hdr;
+      int         rc = dp_sub_recv (pull, &msg, &hdr);
+      if (rc == DP_ERR_INVALID)
+        {
+          bad++;
+          continue;
+        }
+      if (rc == DP_OK)
+        {
+          reached = 1;
+          if (msg)
+            {
+              (void)dp_msg_ack (msg);
+              dp_msg_free (msg);
+            }
+          break;
+        }
+      break; /* a timeout here IS the wedge this test exists to catch */
+    }
+
+  DP_CHECK_MSG (bad > 1000,
+                "the consumer stopped before clearing MaxAckPending worth "
+                "of unparseable frames: they were left pending, which is "
+                "the wedge -- every slot held by a frame nothing can ack");
+  DP_CHECK_MSG (reached,
+                "the good frame behind the poison was never delivered: an "
+                "unparseable frame must be terminated so the queue moves "
+                "past it, or one bad write ends the subject for good");
+
+  dp_sub_destroy (pull);
+  dp_pub_destroy (push);
+}
+
 int
 main (void)
 {
@@ -482,6 +596,7 @@ main (void)
   test_pub_sub_roundtrip ();
   test_eos_ends_the_stream ();
   test_eos_is_acked_on_the_work_queue ();
+  test_unparseable_frame_does_not_wedge_the_queue ();
   test_req_rep_roundtrip ();
   test_chunked_pub_sub ();
   test_interrupt_unblocks_recv ();

@@ -765,6 +765,31 @@ nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
   rc = nats_parse_frame (m, &hdr, &chunk, &chunked, &body, &body_len);
   if (rc != DP_OK)
     {
+      /* A frame nothing can parse is not work, and on an explicit-ack work
+         queue leaving it unacked blocks the queue for everyone, forever: it
+         redelivers every AckWait, is never removed, and occupies one of
+         MaxAckPending's slots until they are all gone. This is the hazard
+         the EOS branch below documents, in its other form -- there because
+         the caller is handed no message to ack with, here because no
+         consumer can ever succeed at this one.
+
+         Term, not Ack: Ack means "processed", and this was not. Term tells
+         the server not to redeliver regardless of MaxDeliver, which is the
+         only thing that lets the queue move past it.
+
+         The error is still returned rather than skipping to the next frame,
+         so a corrupt frame is REPORTED instead of silently swallowed -- the
+         queue drains and the caller learns. That is the trade this makes:
+         an unparseable frame is dropped, which is a real loss if the parser
+         is ever the thing at fault, and the alternative is a queue that no
+         consumer can use again.
+
+         Measured 2026-08-28: two long-lived `dp-chain-*` work queues had
+         accumulated frames an older build wrote, and every recv against
+         them failed instantly and permanently -- a fresh subject on the
+         same broker and build round-tripped fine. */
+      if (ctx->nats.role == DP_ROLE_PULL)
+        (void)natsMsg_Term (m, NULL);
       natsMsg_Destroy (m);
       return rc;
     }

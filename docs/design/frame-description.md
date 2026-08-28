@@ -90,7 +90,10 @@ does not invent a new operation; it widens the one both already have.
 
 The shape above is **the prototype's**, not the first sketch's — see
 [what the prototype settled](#what-the-prototype-settled) for the two things
-that changed and why.
+that changed and why. For what may appear in each list — the field kinds, the
+stage kinds, what a stage kind must implement, and where the set is allowed to
+grow — see
+[the general solution, enumerated](#the-general-solution-enumerated).
 
 ### `cover` is the load-bearing field, and the header says why
 
@@ -134,6 +137,151 @@ because they are bit machines. Both are right. The conversion belongs in
 exactly one place rather than hidden inside a kernel that then works for one
 caller — so the general assembler owns it, per stage, and a stage declares
 which representation it consumes.
+
+______________________________________________________________________
+
+## The general solution, enumerated
+
+The model above gives the shape. This is the content: what may actually
+appear in the two lists, what each entry costs the assembler, and where the
+set is allowed to grow.
+
+Three of the four enumerations below are **closed** — a fixed set this
+design commits to. The fourth is deliberately open, and it is the one that
+decides whether the generalization is real: a set that only doppler can
+extend is a fourth framer with extra steps.
+
+`native/inc/wfm/wfm_frame.h` is the SSOT for every name here; this page owns
+the reasoning, not the declarations.
+
+### 1. Fields — where a run of bits comes from
+
+A field's kind answers one question only: who produces the bits. Length is a
+separate axis, and so is derivation.
+
+| kind      | bits come from              | parameters                                         |
+| --------- | --------------------------- | -------------------------------------------------- |
+| `LITERAL` | a 0/1 array the caller owns | the array                                          |
+| `PN`      | `pn_create()` — one LFSR    | `poly`, `seed`, `reg_bits`, `lfsr`                 |
+| `GOLD`    | `gold_create()` — two LFSRs | `taps_a`, `seed_a`, `taps_b`, `seed_b`, `reg_bits` |
+| `DOTTED`  | alternating `1010…`         | none — a line at Rs/2 to settle on                 |
+
+Two properties sit **across** the kinds rather than inside them, which is
+what keeps the table four rows long instead of eight:
+
+- **`reps`** repeats the run verbatim. A preamble is not a fifth kind; it is
+    any of the four, repeated.
+- **`derived_by`** names the stage that produces the field instead of the
+    caller. This is the prototype's first finding turned into a struct
+    member: a CRC trailer and a block of Reed-Solomon check symbols are the
+    *same concept*, both on the wire, both sized by their stage — so both are
+    fields, and no stage needs a rule for expanding the field it covers. It
+    is stored as the stage index **plus one**, so a zero-initialised field is
+    caller-supplied rather than silently the output of stage 0.
+
+For the generated kinds, `len` is the **output** length and `reg_bits` the
+register width. They are named apart because conflating them is easy and
+costly: `pn_create()`'s period is `2^reg_bits - 1` and has nothing to do with
+how many bits the field wants.
+
+### 2. Stages — what transforms the fields it covers
+
+| stage        | does                             | length effect                           | derives     | kernel from |
+| ------------ | -------------------------------- | --------------------------------------- | ----------- | ----------- |
+| `CRC16`      | `dp_crc16_ccitt` over the head   | +16 bits, in unit                       | its trailer | built in    |
+| `INTERLEAVE` | permute `depth` × `unit_bits`    | none                                    | nothing     | built in    |
+| `RS`         | a Reed-Solomon code, interleaved | + check symbols, in unit                | its parity  | a table     |
+| `RANDOMISE`  | XOR a pseudo-random sequence     | none                                    | nothing     | a table     |
+| `CONV`       | a convolutional code             | `× emit_num / emit_den`, **new stream** | nothing     | a table     |
+
+The `length effect` column is the design's second prototype finding, and it
+splits the table three ways rather than two. `CRC16` and `RS` add bits that
+appear on the wire **inside the same frame**, so what they add is a derived
+field and the layout simply sums. `INTERLEAVE` and `RANDOMISE` change no
+length at all — one permutes its span, the other XORs it. `CONV` alone
+consumes the assembled frame and emits a *different* stream, which is why
+the layout reports `frame_bits` and `out_bits` as two numbers rather than
+one. Collapsing "adds bits in place" and "emits a new stream" into a single
+"expand" rule is what the prototype started with and argued its way out of.
+
+**Only two stages are built in, and the rule for which is a layering fact,
+not a judgement of importance.** A CRC and a block interleaver need no
+configuration a standard has to supply — `dp_crc16.h` is already a dependency
+and a permutation's whole geometry is `depth`, `unit_bits` and the span it
+covers. An outer code, a randomiser and an inner code are each configured by
+the component that owns them, and `ccsds_tm` must depend on `wfm_frame.h` to
+describe a CADU — so if `wfm_frame.c` called `ccsds_tm`'s kernels the two
+components would form a cycle. The kernels travel in the other direction
+instead, as a table.
+
+### 3. What a stage kind must implement
+
+Three slots, and the arithmetic for a kind lives in exactly one place:
+
+1. **`in_unit`** — rewrite `n` bits in place, where the span lies. Serves a
+    CRC, an outer code and a randomiser alike, because of the invariant in §4:
+    the op receives the whole cover, reads the information at its head and
+    writes whatever it derives into its tail.
+1. **`emit`** — consume the assembled frame and write a different stream.
+    Exactly one of `in_unit` and `emit` is set. `out` may overlap `in`: the
+    frame is assembled in the tail of the caller's buffer and the stream
+    written from its head, so an implementation must read each input bit
+    before writing the output that displaces it — the order an expanding code
+    writes in anyway.
+1. **`undo`** — the receive side, reporting into one `wfm_frame_stage_rx_t`
+    per stage. **Optional, and its absence is information.** The inner code
+    has none by design: it is streaming, emits decisions `depth` bits late,
+    and is undone before frame synchronisation, so a frame checker never sees
+    channel symbols. Such a stage is reported **not checked** rather than
+    passed — different answers, and a receiver that conflated them would call
+    an unverified frame good.
+
+One report shape for every checking stage, rather than a struct per code, is
+what lets a caller compare them: `units` / `ok` / `corrected` / `symbols`. A
+CRC reports one unit that is good or not; an interleaved outer code reports
+one unit per codeword and the repair work it did. `ok == units` with a rising
+`symbols` is margin being spent — and it is spent before it is lost.
+
+### 4. The invariants, which are refusals
+
+Each of these is enforced where the description is read, not documented and
+hoped for. All exist because the failure mode of this design is a frame that
+still assembles, still decodes against itself, and syncs to nothing.
+
+- **A stage's cover is what it OCCUPIES on the wire**, information and
+    derived check symbols together. What it *reads* is the cover minus the
+    fields it derives. Both from one declaration, so the two cannot disagree.
+- **A derived field must be the LAST field of its producing stage's cover.**
+    This is what lets one `in_unit` signature serve every in-place stage. A
+    description that breaks it is refused, rather than producing a frame with
+    the parity in the middle of the data.
+- **A stage whose kind is in neither table is a refusal, never a skip.** A
+    stage that quietly did not run is the exact failure this design is shaped
+    to prevent.
+- **A stage covering no caller-supplied bits derives nothing** — its field
+    drops to zero length. The general form of a rule `wfm_frame_layout` has
+    always applied to its one case: a CRC over an empty payload protects
+    nothing and is not emitted.
+
+### 5. The open end — how the set grows
+
+`wfm_frame_ops_t` is a table looked up by kind that **extends** the built-ins
+rather than replacing them, so a component supplying an outer code does not
+have to restate the CRC. That is the whole extension mechanism, and it has
+two consequences worth separating:
+
+- **A standard's framing is a table plus a description**, both data.
+    `ccsds_tm_frame_ops()` is three entries — outer code, randomiser, inner
+    code — and a CADU is the description in
+    [configuration 2](#2-one-ccsds-cadu) below.
+- **A caller with a stage doppler has never heard of supplies its own entry**
+    rather than waiting for `wfm_stage_kind_t` to grow. This is what makes
+    the answer to *"a mission that is not CCSDS"* a configuration rather than
+    a pull request, which was the point of generalizing at all.
+
+Turbo, LDPC and the B-5 channel interleaver are not in scope here, but they
+are shaped like rows in that table rather than like a sixth framer — which is
+the test this enumeration has to pass.
 
 ______________________________________________________________________
 

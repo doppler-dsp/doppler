@@ -65,6 +65,7 @@
 #include "wfm/wfm_frame.h" /* the descriptor and its layout — the one SSOT */
 #include "conv/conv_core.h"
 #include "rs/rs_core.h"
+#include "cvt/cvt_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -515,6 +516,184 @@ int frame_add_stage(frame_state_t *state, int kind, uint32_t first_field,
  * @endcode
  */
 int frame_build(frame_state_t *state);
+
+/**
+ * @brief Index of the field called @p name, or -1.
+ *
+ * The one lookup that resolves a name, so every index-taking entry point
+ * keeps working unchanged and a rename can only be wrong once. An unnamed
+ * field is ANONYMOUS rather than named `""`, so the empty name matches
+ * nothing — including a field that has no name.
+ *
+ * @param state  the frame.
+ * @param name   the field name.
+ * @return the index, or -1 on NULL or a name no field carries.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wfm import FrameDesc
+ * >>> e = np.empty(0, np.uint8)
+ * >>> d = FrameDesc(e, e, e)
+ * >>> d.add_value("sync", 0xABC, 12)
+ * 0
+ * >>> d.field_index("sync")
+ * 0
+ * >>> d.field_index("absent")
+ * -1
+ *
+ * @endcode
+ */
+int frame_field_index(frame_state_t *state, const char *name);
+
+/**
+ * @brief Give an already-appended field a name, or clear it with `""`.
+ *
+ * @param state  the frame.
+ * @param index  the field to name.
+ * @param name   the new name; truncated at `WFM_FRAME_NAME_MAX - 1`.
+ * @return 0, or -1 on NULL, an out-of-range @p index, a name another field
+ *         already carries, or once the frame is built.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wfm import FrameDesc
+ * >>> e = np.empty(0, np.uint8)
+ * >>> d = FrameDesc(e, e, e)
+ * >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
+ * 0
+ * >>> d.name_field(0, "payload")
+ * 0
+ * >>> d.field_index("payload")
+ * 0
+ *
+ * @endcode
+ */
+int frame_name_field(frame_state_t *state, uint32_t index, const char *name);
+
+/**
+ * @brief Append a named field a stage will fill. Returns its index, or -1.
+ *
+ * A field with a declared length and no source: a CRC trailer, a block of
+ * check symbols. Its producer is wired by @ref frame_add_stage_over rather
+ * than named here, because no stage exists yet when the field it derives is
+ * appended — fields are ordered by POSITION and stages by APPLICATION.
+ *
+ * @param state  the frame.
+ * @param name   the field's name, or NULL for anonymous.
+ * @param bits   its length, which its stage decides and the caller states.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wfm import FrameDesc
+ * >>> e = np.empty(0, np.uint8)
+ * >>> d = FrameDesc(e, e, e)
+ * >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
+ * 0
+ * >>> d.name_field(0, "payload")
+ * 0
+ * >>> d.add_derived("crc", 16)          # a stage will fill it
+ * 1
+ *
+ * @endcode
+ */
+int frame_add_derived(frame_state_t *state, const char *name, size_t bits);
+
+/**
+ * @brief Append a named field from a hex literal. Returns its index, or -1.
+ *
+ * Four bits per digit, MSB-first, so an odd number of digits gives a 4-bit
+ * tail. The expansion is `cvt`'s `hex_to_bin` rather than a second parser
+ * here, so a bad digit is a refusal there and the two cannot disagree about
+ * what a marker expands to.
+ *
+ * @param state  the frame.
+ * @param name   the field's name, or NULL for anonymous.
+ * @param hex    NUL-terminated hex digits; no `0x`, no separators.
+ * @param reps   repetitions; 0 means one.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wfm import FrameDesc
+ * >>> e = np.empty(0, np.uint8)
+ * >>> d = FrameDesc(e, e, e)
+ * >>> d.add_hex("asm", "1ACFFC1D")     # the CCSDS marker, 4 bits a digit
+ * 0
+ * >>> d.build()
+ * >>> d.nbits
+ * 32
+ *
+ * @endcode
+ */
+int frame_add_hex(frame_state_t *state, const char *name, const char *hex,
+                  size_t reps);
+
+/**
+ * @brief Append a named field from an integer. Returns its index, or -1.
+ *
+ * The form to reach for when a literal fits in 64 bits: exact, and with no
+ * failure mode a typo can reach. Wider ones want @ref frame_add_hex.
+ *
+ * @param state  the frame.
+ * @param name   the field's name, or NULL for anonymous.
+ * @param value  the value; only the low @p bits are read.
+ * @param bits   1..64, MSB first.
+ * @param reps   repetitions; 0 means one.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wfm import FrameDesc
+ * >>> e = np.empty(0, np.uint8)
+ * >>> d = FrameDesc(e, e, e)
+ * >>> d.add_value("marker", 0x1A, 8)
+ * 0
+ * >>> d.build()
+ * >>> d.bits().tolist()                 # MSB first
+ * [0, 0, 0, 1, 1, 0, 1, 0]
+ *
+ * @endcode
+ */
+int frame_add_value(frame_state_t *state, const char *name, uint64_t value,
+                    uint32_t bits, size_t reps);
+
+/**
+ * @brief Append a stage covering `[first .. last]` by name.
+ *
+ * The cover is the load-bearing part of the representation and this is the
+ * form that reads. It wires a derived field's producer for you, which
+ * applies the invariant the layout already enforces rather than adding one.
+ *
+ * @param state      the frame.
+ * @param kind       a `wfm_stage_kind_t` index, or a caller's own kind.
+ * @param first      name of the first field covered.
+ * @param last       name of the last field covered; may equal @p first.
+ * @param depth      RS / interleave depth; 0 when unused.
+ * @param unit_bits  interleave unit; 0 reads as 1.
+ * @return the new stage's index, or -1 on NULL, a full description, a name
+ *         neither field carries, @p last before @p first, or once built.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wfm import FrameDesc
+ * >>> e = np.empty(0, np.uint8)
+ * >>> d = FrameDesc(e, e, e)
+ * >>> d.add_field(np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))
+ * 0
+ * >>> d.name_field(0, "payload")
+ * 0
+ * >>> d.add_derived("crc", 16)
+ * 1
+ * >>> d.add_stage_over(0, "payload", "crc")   # 0 = crc16
+ * 0
+ * >>> d.build()
+ * >>> d.crc_ok(d.bits())                # its own bits are its own truth
+ * 1
+ *
+ * @endcode
+ */
+int frame_add_stage_over(frame_state_t *state, int kind, const char *first,
+                         const char *last, uint32_t depth,
+                         uint32_t unit_bits);
+
 
 /**
  * @brief What @ref frame_check found, summed across the stages it reversed.

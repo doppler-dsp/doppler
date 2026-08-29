@@ -450,3 +450,75 @@ def test_a_frame_with_no_reversible_stage_reports_nothing_checked():
     r = d.check(d.bits(1))
     assert r.checked == 0
     assert r.units == 0
+
+
+def test_builder_by_name_matches_the_same_frame_by_index() -> None:
+    """A frame described by NAME is the same frame described by index.
+
+    The by-name builder adds no arithmetic — it only spells the indices — so
+    the falsification available is the strong one: both descriptions must
+    produce the same bits. Comparing the assembled frame rather than the
+    fields is what makes that a claim about behaviour.
+    """
+    import numpy as np
+
+    from doppler.wfm import FrameDesc
+
+    empty = np.empty(0, np.uint8)
+    payload = np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8)
+
+    by_name = FrameDesc(empty, empty, empty)
+    by_name.add_hex("asm", "1ACFFC1D")
+    by_name.add_field(payload)
+    by_name.name_field(1, "payload")
+    by_name.add_derived("crc", 16)
+    by_name.add_stage_over(0, "payload", "crc")
+    by_name.build()
+
+    by_index = FrameDesc(empty, empty, empty)
+    by_index.add_field(
+        np.array(
+            [int(b) for b in f"{0x1ACFFC1D:032b}"], np.uint8
+        )  # the same 32 bits, spelled out
+    )
+    by_index.add_field(payload)
+    by_index.add_field(empty, derived_by=1, derived_bits=16)
+    by_index.add_stage(kind=0, first_field=1, n_fields=2)
+    by_index.build()
+
+    assert by_name.nbits == by_index.nbits == 32 + 8 + 16
+    assert (by_name.bits() == by_index.bits()).all()
+
+
+def test_names_resolve_and_a_duplicate_is_refused() -> None:
+    """The lookup is what makes a name worth carrying, and it is exact."""
+    import numpy as np
+
+    from doppler.wfm import FrameDesc
+
+    empty = np.empty(0, np.uint8)
+    d = FrameDesc(empty, empty, empty)
+    d.add_value("sync", 0xABC, 12)
+    d.add_field(np.array([1, 0, 1, 0], np.uint8))
+    d.name_field(1, "payload")
+
+    assert d.field_index("sync") == 0
+    assert d.field_index("payload") == 1
+    assert d.field_index("absent") == -1
+    # An unnamed field is anonymous, not named "".
+    assert d.field_index("") == -1
+    # A rename onto a taken name would make field_index ambiguous.
+    assert d.name_field(0, "payload") == -1
+
+
+def test_a_value_field_is_msb_first() -> None:
+    """`add_value` states the same convention `add_hex` does."""
+    import numpy as np
+
+    from doppler.wfm import FrameDesc
+
+    empty = np.empty(0, np.uint8)
+    d = FrameDesc(empty, empty, empty)
+    d.add_value("marker", 0x1A, 8)
+    d.build()
+    assert d.bits().tolist() == [0, 0, 0, 1, 1, 0, 1, 0]

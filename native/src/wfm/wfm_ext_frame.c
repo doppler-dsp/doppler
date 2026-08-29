@@ -996,6 +996,128 @@ FrameObj_exit (FrameObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+FrameObj_field_index (FrameObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "name", NULL };
+  const char  *name      = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "s", _kwlist, &name))
+    return NULL;
+  int y = frame_field_index (self->handle, name);
+  return PyLong_FromLong ((long)y);
+}
+
+static PyObject *
+FrameObj_name_field (FrameObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char  *_kwlist[] = { "index", "name", NULL };
+  unsigned long index_raw = 0UL;
+  const char   *name      = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ks", _kwlist, &index_raw,
+                                    &name))
+    return NULL;
+  uint32_t index = (uint32_t)index_raw;
+  int      y     = frame_name_field (self->handle, index, name);
+  return PyLong_FromLong ((long)y);
+}
+
+static PyObject *
+FrameObj_add_hex (FrameObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "name", "hex", "reps", NULL };
+  const char        *name      = NULL;
+  const char        *hex       = NULL;
+  unsigned long long reps_raw  = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ss|K", _kwlist, &name, &hex,
+                                    &reps_raw))
+    return NULL;
+  size_t reps = (size_t)reps_raw;
+  int    y    = frame_add_hex (self->handle, name, hex, reps);
+  return PyLong_FromLong ((long)y);
+}
+
+static PyObject *
+FrameObj_add_value (FrameObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "name", "value", "bits", "reps", NULL };
+  const char        *name      = NULL;
+  unsigned long long value_raw = 0ULL;
+  unsigned long      bits_raw  = 0UL;
+  unsigned long long reps_raw  = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "sKk|K", _kwlist, &name,
+                                    &value_raw, &bits_raw, &reps_raw))
+    return NULL;
+  uint64_t value = (uint64_t)value_raw;
+  uint32_t bits  = (uint32_t)bits_raw;
+  size_t   reps  = (size_t)reps_raw;
+  int      y     = frame_add_value (self->handle, name, value, bits, reps);
+  return PyLong_FromLong ((long)y);
+}
+
+static PyObject *
+FrameObj_add_derived (FrameObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "name", "bits", NULL };
+  const char        *name      = NULL;
+  unsigned long long bits_raw  = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "sK", _kwlist, &name,
+                                    &bits_raw))
+    return NULL;
+  size_t bits = (size_t)bits_raw;
+  int    y    = frame_add_derived (self->handle, name, bits);
+  return PyLong_FromLong ((long)y);
+}
+
+static PyObject *
+FrameObj_add_stage_over (FrameObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]
+      = { "kind", "first", "last", "depth", "unit_bits", NULL };
+  int           kind          = 0;
+  const char   *first         = NULL;
+  const char   *last          = NULL;
+  unsigned long depth_raw     = 0;
+  unsigned long unit_bits_raw = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "iss|kk", _kwlist, &kind,
+                                    &first, &last, &depth_raw, &unit_bits_raw))
+    return NULL;
+  uint32_t depth     = (uint32_t)depth_raw;
+  uint32_t unit_bits = (uint32_t)unit_bits_raw;
+  int      y = frame_add_stage_over (self->handle, kind, first, last, depth,
+                                     unit_bits);
+  return PyLong_FromLong ((long)y);
+}
+
 static PyMethodDef FrameObj_methods[] = {
 
   { "bits", (PyCFunction)(void *)FrameObj_bits, METH_VARARGS | METH_KEYWORDS,
@@ -1671,6 +1793,250 @@ static PyMethodDef FrameObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "field_index", (PyCFunction)(void *)FrameObj_field_index,
+    METH_VARARGS | METH_KEYWORDS,
+    "field_index(name) -> int\n"
+    "\n"
+    "Index of the field called `name`, or -1. The one lookup that\n"
+    "resolves a name, so every index-taking method keeps working and a\n"
+    "rename can only be wrong once. An unnamed field is ANONYMOUS rather\n"
+    "than named \"\", so the empty name matches nothing.\n"
+    "\n"
+    "The one lookup that resolves a name, so every index-taking entry point\n"
+    "keeps working unchanged and a rename can only be wrong once. An unnamed\n"
+    "field is ANONYMOUS rather than named `\"\"`, so the empty name matches\n"
+    "nothing — including a field that has no name.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "name : str\n"
+    "    the field name.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    the index, or -1 on NULL or a name no field carries.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import FrameDesc\n"
+    ">>> e = np.empty(0, np.uint8)\n"
+    ">>> d = FrameDesc(e, e, e)\n"
+    ">>> d.add_value(\"sync\", 0xABC, 12)\n"
+    "0\n"
+    ">>> d.field_index(\"sync\")\n"
+    "0\n"
+    ">>> d.field_index(\"absent\")\n"
+    "-1\n" },
+  { "name_field", (PyCFunction)(void *)FrameObj_name_field,
+    METH_VARARGS | METH_KEYWORDS,
+    "name_field(index, name) -> int\n"
+    "\n"
+    "Give an already-appended field a name, or clear it with \"\". Refuses\n"
+    "a name another field already carries, because `field_index` would then\n"
+    "answer with whichever it reached first. Refuses once the frame is\n"
+    "built.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "index : int\n"
+    "    the field to name.\n"
+    "name : str\n"
+    "    the new name; truncated at `WFM_FRAME_NAME_MAX - 1`.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    0, or -1 on NULL, an out-of-range index, a name another field\n"
+    "    already carries, or once the frame is built.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import FrameDesc\n"
+    ">>> e = np.empty(0, np.uint8)\n"
+    ">>> d = FrameDesc(e, e, e)\n"
+    ">>> d.add_field(np.array([1, 0, 1, 0], np.uint8))\n"
+    "0\n"
+    ">>> d.name_field(0, \"payload\")\n"
+    "0\n"
+    ">>> d.field_index(\"payload\")\n"
+    "0\n" },
+  { "add_hex", (PyCFunction)(void *)FrameObj_add_hex,
+    METH_VARARGS | METH_KEYWORDS,
+    "add_hex(name, hex, reps) -> int\n"
+    "\n"
+    "Append a named field from a hex literal, MSB-first --\n"
+    "`add_hex(\"asm\", \"1ACFFC1D\")` is 32 bits. Four bits per digit, so an "
+    "odd\n"
+    "number of digits gives a 4-bit tail. The expansion is cvt's\n"
+    "`hex_to_bin`, not a second parser, so a bad digit is refused there.\n"
+    "Returns the new field's index, or -1.\n"
+    "\n"
+    "Four bits per digit, MSB-first, so an odd number of digits gives a\n"
+    "4-bit tail. The expansion is `cvt`'s `hex_to_bin` rather than a second\n"
+    "parser here, so a bad digit is a refusal there and the two cannot\n"
+    "disagree about what a marker expands to.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "name : str\n"
+    "    the field's name, or NULL for anonymous.\n"
+    "hex : str\n"
+    "    NUL-terminated hex digits; no `0x`, no separators.\n"
+    "reps : int\n"
+    "    repetitions; 0 means one.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import FrameDesc\n"
+    ">>> e = np.empty(0, np.uint8)\n"
+    ">>> d = FrameDesc(e, e, e)\n"
+    ">>> d.add_hex(\"asm\", \"1ACFFC1D\")     # the CCSDS marker, 4 bits a "
+    "digit\n"
+    "0\n"
+    ">>> d.build()\n"
+    ">>> d.nbits\n"
+    "32\n" },
+  { "add_value", (PyCFunction)(void *)FrameObj_add_value,
+    METH_VARARGS | METH_KEYWORDS,
+    "add_value(name, value, bits, reps) -> int\n"
+    "\n"
+    "Append a named field from an integer, `bits` wide, MSB-first. The\n"
+    "form to reach for when a literal fits in 64 bits: exact, and with no\n"
+    "failure mode a typo can reach. Wider literals want `add_hex` or\n"
+    "`add_field`. Returns the new field's index, or -1.\n"
+    "\n"
+    "The form to reach for when a literal fits in 64 bits: exact, and with\n"
+    "no failure mode a typo can reach. Wider ones want frame_add_hex.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "name : str\n"
+    "    the field's name, or NULL for anonymous.\n"
+    "value : int\n"
+    "    the value; only the low bits are read.\n"
+    "bits : int\n"
+    "    1..64, MSB first.\n"
+    "reps : int\n"
+    "    repetitions; 0 means one.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import FrameDesc\n"
+    ">>> e = np.empty(0, np.uint8)\n"
+    ">>> d = FrameDesc(e, e, e)\n"
+    ">>> d.add_value(\"marker\", 0x1A, 8)\n"
+    "0\n"
+    ">>> d.build()\n"
+    ">>> d.bits().tolist()                 # MSB first\n"
+    "[0, 0, 0, 1, 1, 0, 1, 0]\n" },
+  { "add_derived", (PyCFunction)(void *)FrameObj_add_derived,
+    METH_VARARGS | METH_KEYWORDS,
+    "add_derived(name, bits) -> int\n"
+    "\n"
+    "Append a named field a STAGE will fill -- a CRC trailer, a block of\n"
+    "check symbols. Its producer is not named here because no stage exists\n"
+    "yet when the field it derives is appended; `add_stage_over` wires it.\n"
+    "Returns the new field's index, or -1.\n"
+    "\n"
+    "A field with a declared length and no source: a CRC trailer, a block of\n"
+    "check symbols. Its producer is wired by frame_add_stage_over rather\n"
+    "than named here, because no stage exists yet when the field it derives\n"
+    "is appended — fields are ordered by POSITION and stages by APPLICATION.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "name : str\n"
+    "    the field's name, or NULL for anonymous.\n"
+    "bits : int\n"
+    "    its length, which its stage decides and the caller states.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import FrameDesc\n"
+    ">>> e = np.empty(0, np.uint8)\n"
+    ">>> d = FrameDesc(e, e, e)\n"
+    ">>> d.add_field(np.array([1, 0, 1, 0], np.uint8))\n"
+    "0\n"
+    ">>> d.name_field(0, \"payload\")\n"
+    "0\n"
+    ">>> d.add_derived(\"crc\", 16)          # a stage will fill it\n"
+    "1\n" },
+  { "add_stage_over", (PyCFunction)(void *)FrameObj_add_stage_over,
+    METH_VARARGS | METH_KEYWORDS,
+    "add_stage_over(kind, first, last, depth, unit_bits) -> int\n"
+    "\n"
+    "Append a stage covering `[first .. last]` BY NAME --\n"
+    "`add_stage_over(0, \"payload\", \"crc\")` says what three integers used "
+    "to.\n"
+    "It wires a derived field's producer for you, which applies the\n"
+    "invariant the layout already enforces: a field with a declared length\n"
+    "and no source sitting at the end of a cover has exactly one possible\n"
+    "producer. `kind` is a `wfm_stage_kind_t` index (jm gh-1021 -- a method\n"
+    "parameter cannot yet be a string enum). Returns the new stage's index,\n"
+    "or -1.\n"
+    "\n"
+    "The cover is the load-bearing part of the representation and this is\n"
+    "the form that reads. It wires a derived field's producer for you, which\n"
+    "applies the invariant the layout already enforces rather than adding\n"
+    "one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "kind : int\n"
+    "    a `wfm_stage_kind_t` index, or a caller's own kind.\n"
+    "first : str\n"
+    "    name of the first field covered.\n"
+    "last : str\n"
+    "    name of the last field covered; may equal first.\n"
+    "depth : int\n"
+    "    RS / interleave depth; 0 when unused.\n"
+    "unit_bits : int\n"
+    "    interleave unit; 0 reads as 1.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    the new stage's index, or -1 on NULL, a full description, a name\n"
+    "    neither field carries, last before first, or once built.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import FrameDesc\n"
+    ">>> e = np.empty(0, np.uint8)\n"
+    ">>> d = FrameDesc(e, e, e)\n"
+    ">>> d.add_field(np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))\n"
+    "0\n"
+    ">>> d.name_field(0, \"payload\")\n"
+    "0\n"
+    ">>> d.add_derived(\"crc\", 16)\n"
+    "1\n"
+    ">>> d.add_stage_over(0, \"payload\", \"crc\")   # 0 = crc16\n"
+    "0\n"
+    ">>> d.build()\n"
+    ">>> d.crc_ok(d.bits())                # its own bits are its own truth\n"
+    "1\n" },
   { NULL }
 };
 

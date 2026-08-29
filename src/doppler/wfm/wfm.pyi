@@ -1368,6 +1368,260 @@ class Frame:
 
         """
 
+    def field_index(self, name: str) -> int:
+        """Index of the field called `name`, or -1. The one lookup that
+        resolves a name, so every index-taking method keeps working and a
+        rename can only be wrong once. An unnamed field is ANONYMOUS rather
+        than named "", so the empty name matches nothing.
+
+        The one lookup that resolves a name, so every index-taking entry point
+        keeps working unchanged and a rename can only be wrong once. An unnamed
+        field is ANONYMOUS rather than named `""`, so the empty name matches
+        nothing — including a field that has no name.
+
+        Parameters
+        ----------
+        name : str
+            the field name.
+
+        Returns
+        -------
+        int
+            the index, or -1 on NULL or a name no field carries.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> e = np.empty(0, np.uint8)
+        >>> d = FrameDesc(e, e, e)
+        >>> d.add_value("sync", 0xABC, 12)
+        0
+        >>> d.field_index("sync")
+        0
+        >>> d.field_index("absent")
+        -1
+
+        """
+
+    def name_field(self, index: int, name: str) -> int:
+        """Give an already-appended field a name, or clear it with "". Refuses
+        a name another field already carries, because `field_index` would then
+        answer with whichever it reached first. Refuses once the frame is
+        built.
+
+        Parameters
+        ----------
+        index : int
+            the field to name.
+        name : str
+            the new name; truncated at `WFM_FRAME_NAME_MAX - 1`.
+
+        Returns
+        -------
+        int
+            0, or -1 on NULL, an out-of-range index, a name another field
+            already carries, or once the frame is built.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> e = np.empty(0, np.uint8)
+        >>> d = FrameDesc(e, e, e)
+        >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
+        0
+        >>> d.name_field(0, "payload")
+        0
+        >>> d.field_index("payload")
+        0
+
+        """
+
+    def add_hex(self, name: str, hex: str, reps: int = 0) -> int:
+        """Append a named field from a hex literal, MSB-first --
+        `add_hex("asm", "1ACFFC1D")` is 32 bits. Four bits per digit, so an odd
+        number of digits gives a 4-bit tail. The expansion is cvt's
+        `hex_to_bin`, not a second parser, so a bad digit is refused there.
+        Returns the new field's index, or -1.
+
+        Four bits per digit, MSB-first, so an odd number of digits gives a
+        4-bit tail. The expansion is `cvt`'s `hex_to_bin` rather than a second
+        parser here, so a bad digit is a refusal there and the two cannot
+        disagree about what a marker expands to.
+
+        Parameters
+        ----------
+        name : str
+            the field's name, or NULL for anonymous.
+        hex : str
+            NUL-terminated hex digits; no `0x`, no separators.
+        reps : int
+            repetitions; 0 means one.
+
+        Returns
+        -------
+        int
+            Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> e = np.empty(0, np.uint8)
+        >>> d = FrameDesc(e, e, e)
+        >>> d.add_hex("asm", "1ACFFC1D")     # the CCSDS marker, 4 bits a digit
+        0
+        >>> d.build()
+        >>> d.nbits
+        32
+
+        """
+
+    def add_value(
+        self,
+        name: str,
+        value: int,
+        bits: int,
+        reps: int = 0,
+    ) -> int:
+        """Append a named field from an integer, `bits` wide, MSB-first. The
+        form to reach for when a literal fits in 64 bits: exact, and with no
+        failure mode a typo can reach. Wider literals want `add_hex` or
+        `add_field`. Returns the new field's index, or -1.
+
+        The form to reach for when a literal fits in 64 bits: exact, and with
+        no failure mode a typo can reach. Wider ones want frame_add_hex.
+
+        Parameters
+        ----------
+        name : str
+            the field's name, or NULL for anonymous.
+        value : int
+            the value; only the low bits are read.
+        bits : int
+            1..64, MSB first.
+        reps : int
+            repetitions; 0 means one.
+
+        Returns
+        -------
+        int
+            Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> e = np.empty(0, np.uint8)
+        >>> d = FrameDesc(e, e, e)
+        >>> d.add_value("marker", 0x1A, 8)
+        0
+        >>> d.build()
+        >>> d.bits().tolist()                 # MSB first
+        [0, 0, 0, 1, 1, 0, 1, 0]
+
+        """
+
+    def add_derived(self, name: str, bits: int) -> int:
+        """Append a named field a STAGE will fill -- a CRC trailer, a block of
+        check symbols. Its producer is not named here because no stage exists
+        yet when the field it derives is appended; `add_stage_over` wires it.
+        Returns the new field's index, or -1.
+
+        A field with a declared length and no source: a CRC trailer, a block of
+        check symbols. Its producer is wired by frame_add_stage_over rather
+        than named here, because no stage exists yet when the field it derives
+        is appended — fields are ordered by POSITION and stages by APPLICATION.
+
+        Parameters
+        ----------
+        name : str
+            the field's name, or NULL for anonymous.
+        bits : int
+            its length, which its stage decides and the caller states.
+
+        Returns
+        -------
+        int
+            Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> e = np.empty(0, np.uint8)
+        >>> d = FrameDesc(e, e, e)
+        >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
+        0
+        >>> d.name_field(0, "payload")
+        0
+        >>> d.add_derived("crc", 16)          # a stage will fill it
+        1
+
+        """
+
+    def add_stage_over(
+        self,
+        kind: int,
+        first: str,
+        last: str,
+        depth: int = 0,
+        unit_bits: int = 0,
+    ) -> int:
+        """Append a stage covering `[first .. last]` BY NAME --
+        `add_stage_over(0, "payload", "crc")` says what three integers used to.
+        It wires a derived field's producer for you, which applies the
+        invariant the layout already enforces: a field with a declared length
+        and no source sitting at the end of a cover has exactly one possible
+        producer. `kind` is a `wfm_stage_kind_t` index (jm gh-1021 -- a method
+        parameter cannot yet be a string enum). Returns the new stage's index,
+        or -1.
+
+        The cover is the load-bearing part of the representation and this is
+        the form that reads. It wires a derived field's producer for you, which
+        applies the invariant the layout already enforces rather than adding
+        one.
+
+        Parameters
+        ----------
+        kind : int
+            a `wfm_stage_kind_t` index, or a caller's own kind.
+        first : str
+            name of the first field covered.
+        last : str
+            name of the last field covered; may equal first.
+        depth : int
+            RS / interleave depth; 0 when unused.
+        unit_bits : int
+            interleave unit; 0 reads as 1.
+
+        Returns
+        -------
+        int
+            the new stage's index, or -1 on NULL, a full description, a name
+            neither field carries, last before first, or once built.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> e = np.empty(0, np.uint8)
+        >>> d = FrameDesc(e, e, e)
+        >>> d.add_field(np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))
+        0
+        >>> d.name_field(0, "payload")
+        0
+        >>> d.add_derived("crc", 16)
+        1
+        >>> d.add_stage_over(0, "payload", "crc")   # 0 = crc16
+        0
+        >>> d.build()
+        >>> d.crc_ok(d.bits())                # its own bits are its own truth
+        1
+
+        """
+
     def build(self) -> None:
         """Lay out and materialise a description. Where a description is
         checked: one that cannot produce its own bits is not a frame. Separate
@@ -2278,6 +2532,260 @@ class FrameDesc:
         >>> d.build()
         >>> d.stage_first(0), d.stage_bits(0)
         (32, 2040)
+
+        """
+
+    def field_index(self, name: str) -> int:
+        """Index of the field called `name`, or -1. The one lookup that
+        resolves a name, so every index-taking method keeps working and a
+        rename can only be wrong once. An unnamed field is ANONYMOUS rather
+        than named "", so the empty name matches nothing.
+
+        The one lookup that resolves a name, so every index-taking entry point
+        keeps working unchanged and a rename can only be wrong once. An unnamed
+        field is ANONYMOUS rather than named `""`, so the empty name matches
+        nothing — including a field that has no name.
+
+        Parameters
+        ----------
+        name : str
+            the field name.
+
+        Returns
+        -------
+        int
+            the index, or -1 on NULL or a name no field carries.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> e = np.empty(0, np.uint8)
+        >>> d = FrameDesc(e, e, e)
+        >>> d.add_value("sync", 0xABC, 12)
+        0
+        >>> d.field_index("sync")
+        0
+        >>> d.field_index("absent")
+        -1
+
+        """
+
+    def name_field(self, index: int, name: str) -> int:
+        """Give an already-appended field a name, or clear it with "". Refuses
+        a name another field already carries, because `field_index` would then
+        answer with whichever it reached first. Refuses once the frame is
+        built.
+
+        Parameters
+        ----------
+        index : int
+            the field to name.
+        name : str
+            the new name; truncated at `WFM_FRAME_NAME_MAX - 1`.
+
+        Returns
+        -------
+        int
+            0, or -1 on NULL, an out-of-range index, a name another field
+            already carries, or once the frame is built.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> e = np.empty(0, np.uint8)
+        >>> d = FrameDesc(e, e, e)
+        >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
+        0
+        >>> d.name_field(0, "payload")
+        0
+        >>> d.field_index("payload")
+        0
+
+        """
+
+    def add_hex(self, name: str, hex: str, reps: int = 0) -> int:
+        """Append a named field from a hex literal, MSB-first --
+        `add_hex("asm", "1ACFFC1D")` is 32 bits. Four bits per digit, so an odd
+        number of digits gives a 4-bit tail. The expansion is cvt's
+        `hex_to_bin`, not a second parser, so a bad digit is refused there.
+        Returns the new field's index, or -1.
+
+        Four bits per digit, MSB-first, so an odd number of digits gives a
+        4-bit tail. The expansion is `cvt`'s `hex_to_bin` rather than a second
+        parser here, so a bad digit is a refusal there and the two cannot
+        disagree about what a marker expands to.
+
+        Parameters
+        ----------
+        name : str
+            the field's name, or NULL for anonymous.
+        hex : str
+            NUL-terminated hex digits; no `0x`, no separators.
+        reps : int
+            repetitions; 0 means one.
+
+        Returns
+        -------
+        int
+            Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> e = np.empty(0, np.uint8)
+        >>> d = FrameDesc(e, e, e)
+        >>> d.add_hex("asm", "1ACFFC1D")     # the CCSDS marker, 4 bits a digit
+        0
+        >>> d.build()
+        >>> d.nbits
+        32
+
+        """
+
+    def add_value(
+        self,
+        name: str,
+        value: int,
+        bits: int,
+        reps: int = 0,
+    ) -> int:
+        """Append a named field from an integer, `bits` wide, MSB-first. The
+        form to reach for when a literal fits in 64 bits: exact, and with no
+        failure mode a typo can reach. Wider literals want `add_hex` or
+        `add_field`. Returns the new field's index, or -1.
+
+        The form to reach for when a literal fits in 64 bits: exact, and with
+        no failure mode a typo can reach. Wider ones want frame_add_hex.
+
+        Parameters
+        ----------
+        name : str
+            the field's name, or NULL for anonymous.
+        value : int
+            the value; only the low bits are read.
+        bits : int
+            1..64, MSB first.
+        reps : int
+            repetitions; 0 means one.
+
+        Returns
+        -------
+        int
+            Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> e = np.empty(0, np.uint8)
+        >>> d = FrameDesc(e, e, e)
+        >>> d.add_value("marker", 0x1A, 8)
+        0
+        >>> d.build()
+        >>> d.bits().tolist()                 # MSB first
+        [0, 0, 0, 1, 1, 0, 1, 0]
+
+        """
+
+    def add_derived(self, name: str, bits: int) -> int:
+        """Append a named field a STAGE will fill -- a CRC trailer, a block of
+        check symbols. Its producer is not named here because no stage exists
+        yet when the field it derives is appended; `add_stage_over` wires it.
+        Returns the new field's index, or -1.
+
+        A field with a declared length and no source: a CRC trailer, a block of
+        check symbols. Its producer is wired by frame_add_stage_over rather
+        than named here, because no stage exists yet when the field it derives
+        is appended — fields are ordered by POSITION and stages by APPLICATION.
+
+        Parameters
+        ----------
+        name : str
+            the field's name, or NULL for anonymous.
+        bits : int
+            its length, which its stage decides and the caller states.
+
+        Returns
+        -------
+        int
+            Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> e = np.empty(0, np.uint8)
+        >>> d = FrameDesc(e, e, e)
+        >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
+        0
+        >>> d.name_field(0, "payload")
+        0
+        >>> d.add_derived("crc", 16)          # a stage will fill it
+        1
+
+        """
+
+    def add_stage_over(
+        self,
+        kind: int,
+        first: str,
+        last: str,
+        depth: int = 0,
+        unit_bits: int = 0,
+    ) -> int:
+        """Append a stage covering `[first .. last]` BY NAME --
+        `add_stage_over(0, "payload", "crc")` says what three integers used to.
+        It wires a derived field's producer for you, which applies the
+        invariant the layout already enforces: a field with a declared length
+        and no source sitting at the end of a cover has exactly one possible
+        producer. `kind` is a `wfm_stage_kind_t` index (jm gh-1021 -- a method
+        parameter cannot yet be a string enum). Returns the new stage's index,
+        or -1.
+
+        The cover is the load-bearing part of the representation and this is
+        the form that reads. It wires a derived field's producer for you, which
+        applies the invariant the layout already enforces rather than adding
+        one.
+
+        Parameters
+        ----------
+        kind : int
+            a `wfm_stage_kind_t` index, or a caller's own kind.
+        first : str
+            name of the first field covered.
+        last : str
+            name of the last field covered; may equal first.
+        depth : int
+            RS / interleave depth; 0 when unused.
+        unit_bits : int
+            interleave unit; 0 reads as 1.
+
+        Returns
+        -------
+        int
+            the new stage's index, or -1 on NULL, a full description, a name
+            neither field carries, last before first, or once built.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc
+        >>> e = np.empty(0, np.uint8)
+        >>> d = FrameDesc(e, e, e)
+        >>> d.add_field(np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))
+        0
+        >>> d.name_field(0, "payload")
+        0
+        >>> d.add_derived("crc", 16)
+        1
+        >>> d.add_stage_over(0, "payload", "crc")   # 0 = crc16
+        0
+        >>> d.build()
+        >>> d.crc_ok(d.bits())                # its own bits are its own truth
+        1
 
         """
 

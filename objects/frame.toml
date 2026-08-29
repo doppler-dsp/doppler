@@ -49,6 +49,12 @@ depends_on = [
     { name = "rs", link = true },
     { name = "pn", link = true },
     { name = "gold", link = true },
+    # hex and value field literals expand through cvt's int_to_bin /
+    # hex_to_bin rather than a second parser here. This object is where the
+    # link belongs because it is where the STORAGE is: frame_state_t already
+    # owns a copy of every literal field, and the descriptor itself keeps
+    # borrowed pointers on purpose.
+    { name = "cvt", link = true },
 ]
 
 # ── preamble ────────────────────────────────────────────────────────────────
@@ -322,6 +328,71 @@ params = [
     { name = "depth", type = "uint32_t", default = "0" },
     { name = "emit_num", type = "uint32_t", default = "0" },
     { name = "emit_den", type = "uint32_t", default = "0" },
+    { name = "unit_bits", type = "uint32_t", default = "0" },
+]
+
+[[frame.methods]]
+name = "field_index"
+doc = "Index of the field called `name`, or -1. The one lookup that resolves a name, so every index-taking method keeps working and a rename can only be wrong once. An unnamed field is ANONYMOUS rather than named \"\", so the empty name matches nothing."
+arg_type = "void"
+return_type = "int"
+params = [
+    { name = "name", type = "const char *" },
+]
+
+[[frame.methods]]
+name = "name_field"
+doc = "Give an already-appended field a name, or clear it with \"\". Refuses a name another field already carries, because `field_index` would then answer with whichever it reached first. Refuses once the frame is built."
+arg_type = "void"
+return_type = "int"
+params = [
+    { name = "index", type = "uint32_t" },
+    { name = "name", type = "const char *" },
+]
+
+[[frame.methods]]
+name = "add_hex"
+doc = "Append a named field from a hex literal, MSB-first -- `add_hex(\"asm\", \"1ACFFC1D\")` is 32 bits. Four bits per digit, so an odd number of digits gives a 4-bit tail. The expansion is cvt's `hex_to_bin`, not a second parser, so a bad digit is refused there. Returns the new field's index, or -1."
+arg_type = "void"
+return_type = "int"
+params = [
+    { name = "name", type = "const char *" },
+    { name = "hex", type = "const char *" },
+    { name = "reps", type = "size_t", default = "0" },
+]
+
+[[frame.methods]]
+name = "add_value"
+doc = "Append a named field from an integer, `bits` wide, MSB-first. The form to reach for when a literal fits in 64 bits: exact, and with no failure mode a typo can reach. Wider literals want `add_hex` or `add_field`. Returns the new field's index, or -1."
+arg_type = "void"
+return_type = "int"
+params = [
+    { name = "name", type = "const char *" },
+    { name = "value", type = "uint64_t" },
+    { name = "bits", type = "uint32_t" },
+    { name = "reps", type = "size_t", default = "0" },
+]
+
+[[frame.methods]]
+name = "add_derived"
+doc = "Append a named field a STAGE will fill -- a CRC trailer, a block of check symbols. Its producer is not named here because no stage exists yet when the field it derives is appended; `add_stage_over` wires it. Returns the new field's index, or -1."
+arg_type = "void"
+return_type = "int"
+params = [
+    { name = "name", type = "const char *" },
+    { name = "bits", type = "size_t" },
+]
+
+[[frame.methods]]
+name = "add_stage_over"
+doc = "Append a stage covering `[first .. last]` BY NAME -- `add_stage_over(0, \"payload\", \"crc\")` says what three integers used to. It wires a derived field's producer for you, which applies the invariant the layout already enforces: a field with a declared length and no source sitting at the end of a cover has exactly one possible producer. `kind` is a `wfm_stage_kind_t` index (jm gh-1021 -- a method parameter cannot yet be a string enum). Returns the new stage's index, or -1."
+arg_type = "void"
+return_type = "int"
+params = [
+    { name = "kind", type = "int" },
+    { name = "first", type = "const char *" },
+    { name = "last", type = "const char *" },
+    { name = "depth", type = "uint32_t", default = "0" },
     { name = "unit_bits", type = "uint32_t", default = "0" },
 ]
 

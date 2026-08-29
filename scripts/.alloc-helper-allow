@@ -63,7 +63,7 @@ native/src/fft/pocketfft.c 6
 native/src/fft2d/fft2d_core.c 1
 native/src/filter/design_lowpass.c 1
 native/src/fir/fir_core.c 7
-native/src/frame/frame_core.c 6
+native/src/frame/frame_core.c 7  # caller-sized: add_hex expands 4*strlen(hex)
 native/src/frame_meter/frame_meter_core.c 1
 native/src/gold/gold_core.c 1
 native/src/hbdecim/hbdecim_core.c 4

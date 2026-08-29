@@ -11,6 +11,7 @@
 #include "frame/frame_core.h"
 
 #include "ccsds_tm/ccsds_tm_frame.h"
+#include "cvt/cvt_core.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -487,4 +488,112 @@ frame_check (frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len)
       out.symbols += rx.stage[k].symbols;
     }
   return out;
+}
+
+/* ── naming a description's fields ───────────────────────────────────────
+ *
+ * The Python-facing half of the by-name builder. Each of these delegates to
+ * the wfm_frame_* entry point that owns the rule -- the name lookup, the
+ * cover resolution, the derived-producer wiring -- so this layer adds the
+ * object's own guard (a built frame is frozen) and the STORAGE, and no
+ * arithmetic of its own.
+ */
+
+int
+frame_field_index (frame_state_t *state, const char *name)
+{
+  return state ? wfm_frame_field_index (&state->d, name) : -1;
+}
+
+int
+frame_name_field (frame_state_t *state, uint32_t index, const char *name)
+{
+  if (!state || state->one != NULL || index >= state->d.n_fields)
+    return -1;
+  /* Refuse a duplicate here too: a rename that collided would make
+     field_index answer with whichever field it reached first. */
+  const int taken = wfm_frame_field_index (&state->d, name);
+  if (taken >= 0 && (uint32_t)taken != index)
+    return -1;
+  wfm_seq_t keep = state->d.field[index].seq;
+  (void)keep;
+  {
+    size_t n = (name && name[0]) ? strlen (name) : 0u;
+    if (n >= WFM_FRAME_NAME_MAX)
+      n = WFM_FRAME_NAME_MAX - 1u;
+    if (n)
+      memcpy (state->d.field[index].name, name, n);
+    state->d.field[index].name[n] = '\0';
+  }
+  return 0;
+}
+
+int
+frame_add_derived (frame_state_t *state, const char *name, size_t bits)
+{
+  if (!state || state->one != NULL)
+    return -1;
+  return wfm_frame_add_derived (&state->d, name, bits);
+}
+
+/* Expand `bits` bits into a literal field, through frame_add_field so the
+   copy, the ownership and the refusals stay in one place. `src` is borrowed
+   and freed by the caller. */
+static int
+add_literal_named (frame_state_t *state, const char *name, const uint8_t *src,
+                   size_t n_bits, size_t reps)
+{
+  const int i = frame_add_field (state, src, n_bits, 0 /* WFM_SEQ_LITERAL */,
+                                 0, reps, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+  if (i >= 0 && frame_name_field (state, (uint32_t)i, name) != 0)
+    return -1;
+  return i;
+}
+
+int
+frame_add_hex (frame_state_t *state, const char *name, const char *hex,
+               size_t reps)
+{
+  if (!state || !hex)
+    return -1;
+  const size_t n_bits = 4u * strlen (hex);
+  if (n_bits == 0u)
+    return -1;
+
+  uint8_t *tmp = (uint8_t *)malloc (n_bits);
+  if (!tmp)
+    return -1;
+  int i = -1;
+  /* cvt owns the expansion; a bad digit refuses there rather than here. */
+  if (hex_to_bin (hex, tmp, n_bits, DP_BITORDER_BIG) == n_bits)
+    i = add_literal_named (state, name, tmp, n_bits, reps);
+  free (tmp);
+  return i;
+}
+
+int
+frame_add_value (frame_state_t *state, const char *name, uint64_t value,
+                 uint32_t bits, size_t reps)
+{
+  if (!state || bits == 0u || bits > 64u)
+    return -1;
+
+  uint8_t tmp[64];
+  if (int_to_bin (value, bits, tmp, sizeof tmp, DP_BITORDER_BIG) != bits)
+    return -1;
+  return add_literal_named (state, name, tmp, bits, reps);
+}
+
+int
+frame_add_stage_over (frame_state_t *state, int kind, const char *first,
+                      const char *last, uint32_t depth, uint32_t unit_bits)
+{
+  if (!state || state->one != NULL)
+    return -1;
+  const int s = wfm_frame_add_stage (&state->d, (uint32_t)kind, first, last);
+  if (s < 0)
+    return -1;
+  state->d.stage[s].depth     = depth;
+  state->d.stage[s].unit_bits = unit_bits;
+  return s;
 }

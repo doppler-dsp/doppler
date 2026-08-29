@@ -40,7 +40,7 @@ _One transform, and — the whole point — the fields it covers._ [More...](#de
 |  unsigned | [**emit\_den**](#variable-emit_den)  <br> |
 |  unsigned | [**emit\_num**](#variable-emit_num)  <br> |
 |  unsigned | [**first\_field**](#variable-first_field)  <br> |
-|  [**wfm\_stage\_kind\_t**](wfm__frame_8h.md#enum-wfm_stage_kind_t) | [**kind**](#variable-kind)  <br> |
+|  uint32\_t | [**kind**](#variable-kind)  <br> |
 |  unsigned | [**n\_fields**](#variable-n_fields)  <br> |
 |  unsigned | [**unit\_bits**](#variable-unit_bits)  <br> |
 
@@ -174,11 +174,15 @@ first field covered
 ### variable kind 
 
 ```C++
-wfm_stage_kind_t wfm_stage_t::kind;
+uint32_t wfm_stage_t::kind;
 ```
 
 
 
+The stage's kind: a [**wfm\_stage\_kind\_t**](wfm__frame_8h.md#enum-wfm_stage_kind_t) value, or a caller's own from WFM\_STAGE\_USER up. Open on purpose — see the enum. 
+
+
+        
 
 <hr>
 

@@ -423,7 +423,10 @@ int frame_add_field(frame_state_t *state, const uint8_t *lit, size_t lit_len,
  * `wfm/wfm_frame.h`.
  *
  * @param state        A frame from @ref frame_create_desc.
- * @param kind         @ref wfm_stage_kind_t index; 0=crc16…4=interleave.
+ * @param kind         stage kind: a @ref wfm_stage_kind_t value
+ *                     (0=crc16…4=interleave), or a caller's own from
+ *                     `WFM_STAGE_USER` (0x1000) up, whose kernel then
+ *                     has to reach the assembler through its ops table.
  * @param first_field  First field covered.
  * @param n_fields     Fields covered; 0 = the stage does not run.
  * @param depth        Interleaving depth, for an outer code.

@@ -126,7 +126,22 @@ extern "C"
     unsigned derived_by;
   } wfm_field_t;
 
-  /** @brief What a stage does to the fields it covers. */
+  /**
+   * @brief Stage kinds doppler itself names.
+   *
+   * **A stage's kind is an open `uint32_t`, not this enumeration.** These are
+   * the values doppler has allocated; a caller allocates its own from
+   * @ref WFM_STAGE_USER upward and supplies the kernel through
+   * @ref wfm_frame_ops_t. That is the difference between a description a
+   * caller can extend and a fixed menu — and a closed enum here would make
+   * "a mission that is not CCSDS" a pull request against this header rather
+   * than a configuration, which is the opposite of the point.
+   *
+   * The value is only ever a lookup key. Nothing in this component switches
+   * on it exhaustively, so an unrecognised kind is not undefined behaviour:
+   * it finds no kernel and the assembly is REFUSED, which is the honest
+   * answer and is the same one a declared-but-unsupplied stage already gets.
+   */
   typedef enum
   {
     WFM_STAGE_CRC16     = 0, /**< dp_crc16_ccitt over the covered input  */
@@ -138,7 +153,17 @@ extern "C"
         than inside one. @c depth is the row count and @c unit_bits the
         unit; the column count is derived from the span it covers, because
         a stage's cover is what says how much there is to permute. */
-    WFM_STAGE_INTERLEAVE = 4
+    WFM_STAGE_INTERLEAVE = 4,
+
+    /**
+     * @brief First kind reserved for callers; doppler never allocates here.
+     *
+     * A caller's own stage takes `WFM_STAGE_USER + n`. The guarantee is
+     * one-directional and that is what makes it useful: doppler promises not
+     * to allocate at or above this value, so a kind chosen today cannot
+     * collide with a built-in added later. Below it is doppler's to grow.
+     */
+    WFM_STAGE_USER = 0x1000u
   } wfm_stage_kind_t;
 
   /**
@@ -160,8 +185,10 @@ extern "C"
    */
   typedef struct
   {
-    wfm_stage_kind_t kind;
-    unsigned         first_field; /**< first field covered                */
+    /** The stage's kind: a @ref wfm_stage_kind_t value, or a caller's own
+        from @ref WFM_STAGE_USER up. Open on purpose — see the enum. */
+    uint32_t kind;
+    unsigned first_field; /**< first field covered                */
     unsigned         n_fields;    /**< fields covered; 0 = does not run   */
     unsigned         depth;       /**< RS / INTERLEAVE: interleaving depth */
 
@@ -280,7 +307,8 @@ extern "C"
    */
   typedef struct
   {
-    wfm_stage_kind_t kind;
+    /** The kind this entry implements; matched against @ref wfm_stage_t's. */
+    uint32_t kind;
 
     /** Rewrite @p n bits at @p bits, in place. Returns 0 on success. */
     int (*in_unit) (const wfm_stage_t *st, uint8_t *bits, size_t n,

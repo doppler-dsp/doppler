@@ -308,7 +308,7 @@ frame_add_stage (frame_state_t *state, int kind, uint32_t first_field,
   const unsigned i = state->d.n_stages;
   wfm_stage_t   *s = &state->d.stage[i];
   memset (s, 0, sizeof *s);
-  s->kind        = (wfm_stage_kind_t)kind;
+  s->kind        = (uint32_t)kind;
   s->first_field = first_field;
   s->n_fields    = n_fields;
   s->depth       = depth;

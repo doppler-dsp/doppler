@@ -14,6 +14,7 @@
  * flags as `wavegen`, so `wfmgen --type qpsk --count 4096 …` and
  * `wavegen --type qpsk --count 4096 …` agree sample-for-sample.
  */
+#include "cvt/cvt_core.h"
 #include <complex.h>
 #include <math.h>
 #include <signal.h>
@@ -117,36 +118,27 @@ parse_bit_string (const char *s, size_t *n)
 }
 
 /* Parse a hex string ("AA55") into a malloc'd 0/1 array (MSB first), 4 bits
- * per hex digit; *n gets the bit count. Returns NULL on a non-hex char. */
+ * per hex digit; *n gets the bit count. Returns NULL on a non-hex char.
+ *
+ * The digit loop used to live here, which made it a second statement of a
+ * conversion cvt already owns -- same MSB-first order, same four bits per
+ * digit, same refusal on a bad char. Two copies of that is how a marker
+ * comes to be expanded one way by the generator and another by a receiver.
+ * What stays here is the ALLOCATION, because the caller owns the array; the
+ * conversion is cvt's. */
 static uint8_t *
 parse_hex_string (const char *s, size_t *n)
 {
-  size_t   ndig = strlen (s);
-  uint8_t *b    = malloc (ndig ? ndig * 4 : 1);
+  const size_t nbits = 4u * strlen (s);
+  uint8_t     *b     = malloc (nbits ? nbits : 1);
   if (!b)
     return NULL;
-  size_t len = 0;
-  for (; *s; s++)
+  if (nbits && hex_to_bin (s, b, nbits, DP_BITORDER_BIG) != nbits)
     {
-      int v;
-      if (*s >= '0' && *s <= '9')
-        v = *s - '0';
-      else if (*s >= 'a' && *s <= 'f')
-        v = *s - 'a' + 10;
-      else if (*s >= 'A' && *s <= 'F')
-        v = *s - 'A' + 10;
-      else
-        {
-          free (b);
-          return NULL;
-        }
-      for (int bit = 3; bit >= 0; bit--)
-        /* exactly 4 writes per digit; b holds ndig*4 bytes — never overruns.
-         */
-        /* NOLINTNEXTLINE(clang-analyzer-security.ArrayBound) */
-        b[len++] = (uint8_t)((v >> bit) & 1);
+      free (b);
+      return NULL;
     }
-  *n = len;
+  *n = nbits;
   return b;
 }
 

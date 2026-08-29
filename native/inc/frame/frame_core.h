@@ -331,6 +331,29 @@ int frame_crc_ok(frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_le
  *
  * @return An unbuilt description, or NULL on allocation failure or a field
  *         that cannot be copied.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wfm import FrameDesc
+ * >>> empty = np.empty(0, np.uint8)
+ * >>> d = FrameDesc(empty, empty, empty)          # begin from nothing
+ * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)  # Barker-13
+ * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+ * >>> d.add_field(sync)                           # returns its index
+ * 0
+ * >>> d.add_field(payload)
+ * 1
+ * >>> d.add_field(empty, derived_by=1, derived_bits=16)  # stage 0, PLUS ONE
+ * 2
+ * >>> d.add_stage(kind=0, first_field=1, n_fields=2)   # crc16 over 1..2
+ * 0
+ * >>> d.build()
+ * >>> d.nbits                                     # 13 + 16 + 16
+ * 45
+ * >>> d.crc_ok(d.bits())        # its own bits are its own truth
+ * 1
+ *
+ * @endcode
  */
 frame_state_t *frame_create_desc(int preamble_kind, const uint8_t *preamble, size_t preamble_len, size_t preamble_nbits, size_t preamble_reps, uint64_t preamble_poly, uint64_t preamble_seed, uint32_t preamble_reg_bits, int preamble_lfsr, uint64_t preamble_taps_a, uint64_t preamble_seed_a, uint64_t preamble_taps_b, uint64_t preamble_seed_b, int sync_kind, const uint8_t *sync, size_t sync_len, size_t sync_nbits, uint64_t sync_poly, uint64_t sync_seed, uint32_t sync_reg_bits, int sync_lfsr, uint64_t sync_taps_a, uint64_t sync_seed_a, uint64_t sync_taps_b, uint64_t sync_seed_b, int payload_kind, const uint8_t *payload, size_t payload_len, size_t payload_nbits, uint64_t payload_poly, uint64_t payload_seed, uint32_t payload_reg_bits, int payload_lfsr, uint64_t payload_taps_a, uint64_t payload_seed_a, uint64_t payload_taps_b, uint64_t payload_seed_b, int crc);
 

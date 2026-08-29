@@ -3587,7 +3587,7 @@ class MpskReceiver:
 
 @final
 class BpskReceiver:
-    """Create an M-PSK receiver.
+    """A BPSK receiver stated in the units a caller actually holds: Hz.
 
     Parameters
     ----------
@@ -3637,6 +3637,15 @@ class BpskReceiver:
         real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,
         m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a
         power of two >= 2, bn >= 0, zeta > 0, 0 < bn_agc_ratio < 1)``.
+
+    Examples
+    --------
+    >>> from doppler.track import BpskReceiver
+    >>> rx = BpskReceiver(sample_rate_hz=8e6, symbol_rate_hz=1e6)
+    >>> rx.m                 # the type says it
+    2
+    >>> rx.sps               # derived from the two rates, not asked for
+    8.0
 
     """
     def __init__(
@@ -4164,7 +4173,7 @@ class MpskReceiverR:
     Parameters
     ----------
     m : int, default 4
-        Constellation order M, 2/4/8 (default 4 = QPSK).
+        As mpsk_receiver_create().
     sps : float, default 32.0
         Samples per symbol. Any double **strictly greater than `2 * m_out`**
         (the cascade behind the R2C halfband runs at twice the overall rate,
@@ -4195,25 +4204,18 @@ class MpskReceiverR:
         (NDA arm dumps per symbol): the cascade's own outputs now feed the
         carrier discriminator, so there is no separate arm to size.
     pulse : Literal["iandd", "rrc"], default "iandd"
-        Matched-filter shape (default MPSK_RX_PULSE_IANDD).
+        As mpsk_receiver_create().
     rrc_beta : float, default 0.35
-        RRC roll-off in `[0, 1]` (default 0.35; RRC only).
+        As mpsk_receiver_create().
     rrc_span : int, default 8
-        RRC one-sided span in symbols (default 8; RRC only).
+        As mpsk_receiver_create().
     bn_carrier : float, default 0.01
-        Carrier loop noise bandwidth, **normalised to the symbol rate**
-        (default 0.01). A carrier loop here closes around the matched filter,
-        so its dead time is that filter's group delay — keep it a small
-        fraction of the symbol rate, as a real receiver does.
+        As mpsk_receiver_create(). Still normalised to the SYMBOL rate: the
+        halfband moves the LO's clock, not the loop's units.
     zeta : float, default 0.0
-        Damping factor for both loops. **0 (the default) derives it** as
-        `1/sqrt(2)` (MPSK_RX_ZETA_DEFAULT) — a constant rather than a
-        computation, since nothing in this receiver moves the optimal damping
-        and both loops already share one value. Read it back with
-        mpsk_receiver_get_zeta().
+        As mpsk_receiver_create(); 0 derives.
     bn_timing : float, default 0.01
-        Symbol-timing loop noise bandwidth, normalised to the symbol rate
-        (default 0.01).
+        As mpsk_receiver_create().
     lock_thresh : float, default 0.0
         Declare threshold for the carrier lock indicator, on the carrier lock
         EMA. **0 (the default) derives it** as `sigma_H0 * eta(Pfa)` = 0.4999
@@ -4231,7 +4233,7 @@ class MpskReceiverR:
         not acquire from a cold zero: a real IF must be tuned near, so this is
         the centre a tap buys pull-in *around* rather than from nothing.
     differential : int, default 0
-        bits(): differential (rotation-invariant) demap (default 0 = coherent).
+        As mpsk_receiver_create().
     num_phases : int, default 0
         Matched-filter bank arms; a power of two. Sets the fractional-timing
         resolution to 1/num_phases of an output period. **0 (the default)
@@ -4279,26 +4281,14 @@ class MpskReceiverR:
 
     Examples
     --------
-    Create with defaults:
-
-    >>> from doppler.track import MpskReceiverR
-    >>> obj = MpskReceiverR(
-    ...     m=4,
-    ...     sps=32.0,
-    ...     m_out=0,
-    ...     pulse="iandd",
-    ...     rrc_beta=0.35,
-    ...     rrc_span=8,
-    ...     bn_carrier=0.01,
-    ...     zeta=0.0,
-    ...     bn_timing=0.01,
-    ...     lock_thresh=0.0,
-    ...     init_norm_freq=0.0,
-    ...     differential=0,
-    ...     num_phases=0,
-    ...     agc=1,
-    ...     bn_agc_ratio=0.0,
-    ... )
+    // QPSK on a real IF at 0.2*fs, 32 samples/symbol, I&D matched filter
+    mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
+        4, 32.0, 0, MPSK_RX_PULSE_IANDD, 0.35, 8,
+        0.01, 0.0, 0.01, 0.0, 0.2, 0, 0,
+        1, 0.0);
+    float complex sym[256];
+    size_t k = mpsk_receiver_steps_real (rx, rx_in, rx_len, sym, 256);
+    mpsk_receiver_destroy (rx);
 
     """
     def __init__(

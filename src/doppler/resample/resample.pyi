@@ -1090,30 +1090,33 @@ class RateConverter:
 
 @final
 class MatchedRateConverter:
-    """Create a rate converter for the given output/input rate ratio. Selects
-    the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler
-    stages at construction time (see file header for the selection table).
-    Setting compensate=1 appends a closed-form Molnar-Vucic CIC
-    droop-compensating FIR after any CIC stage, which improves passband
-    flatness at the cost of one extra FIR stage.
+    """Create a rate converter whose terminal stage IS a matched filter.
 
     Parameters
     ----------
     rate : float, default 1.0
-        Output-to-input sample rate ratio. Any positive float.
+        Output-to-input sample rate ratio (any positive float). Rate-agnostic:
+        this object never learns about symbols — a caller wanting `m` samples
+        per symbol asks for `rate = m/sps`.
     compensate : int, default 1
-        Non-zero to append a CIC passband-droop compensating FIR after any CIC
-        stage.
+        Non-zero to correct CIC passband droop (folded into the bank here, not
+        appended as a stage).
     pulse : Literal["iandd", "rrc"], default "rrc"
-        pulse constructor parameter.
+        RC_PULSE_RRC / RC_PULSE_IANDD. RC_PULSE_NONE is invalid here — use
+        RateConverter_create() for a plain conversion.
     beta : float, default 0.35
-        beta constructor parameter.
+        RRC roll-off in `[0, 1]` (ignored for the rectangle).
     span : int, default 8
-        span constructor parameter.
+        One-sided RRC span in symbols (ignored for the rectangle, whose support
+        is always exactly one symbol).
     pulse_sps : float, default 2.0
-        pulse_sps constructor parameter.
+        The pulse's period measured in **output** samples (2 = two samples per
+        symbol out). This is a shape parameter, not a rate-planning one: a
+        matched filter has a symbol duration, and the planner still knows
+        nothing of symbols.
     num_phases : int, default 1024
-        num_phases constructor parameter.
+        Terminal-stage arms; power of two. Sets the fractional timing
+        resolution to `1/num_phases` of an output period.
 
     Raises
     ------
@@ -1124,10 +1127,18 @@ class MatchedRateConverter:
 
     Examples
     --------
-    >>> from doppler.resample import RateConverter
-    >>> rc = RateConverter(rate=0.5, compensate=0)
-    >>> rc.rate
-    0.5
+    Create with defaults:
+
+    >>> from doppler.resample import MatchedRateConverter
+    >>> obj = MatchedRateConverter(
+    ...     rate=1.0,
+    ...     compensate=1,
+    ...     pulse="rrc",
+    ...     beta=0.35,
+    ...     span=8,
+    ...     pulse_sps=2.0,
+    ...     num_phases=1024,
+    ... )
 
     """
     def __init__(

@@ -824,10 +824,32 @@ An empty description is legal here and refused by [**frame\_create**](frame__cor
 
 **Returns:**
 
-An unbuilt description, or NULL on allocation failure or a field that cannot be copied. 
+An unbuilt description, or NULL on allocation failure or a field that cannot be copied.
 
 
 
+```C++
+>>> import numpy as np
+>>> from doppler.wfm import FrameDesc
+>>> empty = np.empty(0, np.uint8)
+>>> d = FrameDesc(empty, empty, empty)          # begin from nothing
+>>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)  # Barker-13
+>>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+>>> d.add_field(sync)                           # returns its index
+0
+>>> d.add_field(payload)
+1
+>>> d.add_field(empty, derived_by=1, derived_bits=16)  # stage 0, PLUS ONE
+2
+>>> d.add_stage(kind=0, first_field=1, n_fields=2)   # crc16 over 1..2
+0
+>>> d.build()
+>>> d.nbits                                     # 13 + 16 + 16
+45
+>>> d.crc_ok(d.bits())        # its own bits are its own truth
+1
+```
+ 
 
 
         

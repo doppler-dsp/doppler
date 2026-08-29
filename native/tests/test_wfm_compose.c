@@ -8,6 +8,7 @@
 #include "ccsds_tm/ccsds_tm.h"
 #include "ccsds_tm/ccsds_tm_frame.h"
 #include "dp_test.h"
+#include "pn/pn_core.h"
 #include "wfm/wfm_compose.h"
 #include "wfm/wfm_dsp.h"   /* wfm_frame_dsss_* for the dsss burst section */
 #include "wfm/wfm_frame.h" /* the descriptor the unspread frame section reads */
@@ -1811,6 +1812,87 @@ main (void)
     DP_REQUIRE_MSG (assembled >= 8,
                     "the equivalence cases must mostly ASSEMBLE, or the "
                     "comparison is between two refusals");
+  }
+
+  /* ── a GENERATED sync reaches the wire THROUGH THE SOURCE ─────────────
+   *
+   * gh-762 step 2. `wfm_seq_t` has had four kinds all along and the frame
+   * layer materialises every one of them, but no caller could spell
+   * anything but LITERAL: `wfm_source_describe_frame` rebuilt each field as
+   * a fresh literal, so a source's kind was discarded one call before the
+   * descriptor could see it. The source now carries `wfm_seq_t` (step 1) and
+   * the bridge passes it through, which is the whole change.
+   *
+   * The truth is `pn_generate` over the same three numbers -- an EXTERNAL
+   * one. A round trip through the frame would agree with itself perfectly
+   * while regenerating the wrong sequence, which is exactly the shape that
+   * let a Gold field sit differentially-checked and wrong.
+   */
+  {
+    static uint8_t pay[64];
+    for (size_t i = 0; i < sizeof pay; i++)
+      pay[i] = (uint8_t)((i * 5u + 1u) & 1u);
+
+    wfm_source_t src;
+    memset (&src, 0, sizeof src);
+    src.type          = WFM_SYNTH_BITS;
+    src.sps           = 2;
+    src.bits          = pay;
+    src.n_bits        = sizeof pay;
+    src.sync.kind     = WFM_SEQ_PN;
+    src.sync.len      = 31u; /* one period of a 5-bit register */
+    src.sync.reg_bits = 5u;
+    src.sync.seed     = 3u;
+
+    /* A generated sequence has NO array, so a source that tested its frame
+       on the pointer read this as unframed and emitted the payload bare. */
+    DP_REQUIRE_MSG (wfm_source_has_frame (&src),
+                    "a PN sync frames a source -- the test is on length, "
+                    "not on an array a generated kind never has");
+    DP_REQUIRE_MSG (wfm_source_frame_error (&src) == NULL,
+                    "and it is a buildable shape");
+
+    wfm_frame_desc_t d;
+    DP_REQUIRE_MSG (wfm_source_describe_frame (&src, &d) == 0, "describe");
+    const int i = wfm_frame_field_index (&d, "sync");
+    DP_REQUIRE_MSG (i >= 0, "the sync field is there by name");
+    DP_REQUIRE_MSG (d.field[i].seq.kind == WFM_SEQ_PN,
+                    "and it is still a PN field -- the kind SURVIVED the "
+                    "bridge, which is the whole of gh-762 step 2");
+
+    wfm_frame_desc_layout_t l;
+    DP_REQUIRE_MSG (wfm_frame_desc_layout (&d, &l) == 0, "layout");
+    static uint8_t got[4096];
+    DP_REQUIRE_MSG (wfm_frame_assemble (&d, NULL, got, sizeof got)
+                        == l.out_bits,
+                    "and the frame assembles");
+
+    static uint8_t want[31];
+    pn_state_t    *pn = pn_create (pn_mls_poly (5u), 3u, 5u, 0);
+    DP_REQUIRE_MSG (pn != NULL, "pn_create");
+    DP_REQUIRE_MSG (pn_generate (pn, 31u, want, 31u) == 31u, "pn_generate");
+    pn_destroy (pn);
+    DP_REQUIRE_MSG (memcmp (got + l.field_off[i], want, 31u) == 0,
+                    "a PN sync declared on the SOURCE is pn_generate of its "
+                    "own three numbers, at the offset the layout promised");
+
+    /* A literal source still describes a literal, unchanged. Both
+       directions: a bridge that stamped PN on everything would pass the
+       assertion above and break every existing caller. */
+    static const uint8_t lit[4] = { 1, 0, 0, 1 };
+    wfm_source_t         plain  = src;
+    memset (&plain.sync, 0, sizeof plain.sync);
+    plain.sync.kind = WFM_SEQ_LITERAL;
+    plain.sync.bits = lit;
+    plain.sync.len  = sizeof lit;
+    wfm_frame_desc_t d2;
+    DP_REQUIRE_MSG (wfm_source_describe_frame (&plain, &d2) == 0, "describe");
+    const int j = wfm_frame_field_index (&d2, "sync");
+    DP_REQUIRE (j >= 0);
+    DP_REQUIRE_MSG (d2.field[j].seq.kind == WFM_SEQ_LITERAL
+                        && d2.field[j].seq.bits == lit,
+                    "a literal sync is still literal, and still the caller's "
+                    "own array rather than a copy");
   }
 
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "

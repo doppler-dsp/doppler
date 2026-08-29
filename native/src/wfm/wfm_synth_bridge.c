@@ -31,12 +31,18 @@ wfm_source_has_frame (const wfm_source_t *src)
      plain set_bits path and emit the payload with no coding at all. `crc`
      stays excluded for the reason it always was — it DEFAULTS to crc16, so it
      alone says nothing about the caller's intent, while every flag below is
-     off unless asked for. */
+     off unless asked for.
+
+     Tested on LENGTH, never on the pointer -- the same rule the descriptor
+     builder below states. A GENERATED sequence (PN, Gold) has no array at
+     all, so a pointer test would read a PN sync as unframed and quietly emit
+     the payload unframed; and for a LITERAL, a length with no array is an
+     unbuildable descriptor that must REACH `wfm_frame_assemble` to be
+     refused there rather than be silently dropped here. */
   return src
-         && ((src->acq_code.bits && src->acq_code.len && src->acq_reps)
-             || (src->sync.bits && src->sync.len) || src->attach_asm
-             || src->rs_depth || src->interleave_depth || src->randomise
-             || src->convolutional);
+         && ((src->acq_code.len && src->acq_reps) || src->sync.len
+             || src->attach_asm || src->rs_depth || src->interleave_depth
+             || src->randomise || src->convolutional);
 }
 
 const char *
@@ -197,11 +203,12 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
      prepends it around the description rather than inside it. */
   if (!spread && src->acq_code.len && src->acq_reps)
     {
-      memset (&seq, 0, sizeof seq);
-      seq.kind = WFM_SEQ_LITERAL;
-      seq.bits = src->acq_code.bits;
-      seq.len  = src->acq_code.len;
-      if (wfm_frame_add_field (d, "preamble", &seq, src->acq_reps) < 0)
+      /* The caller's sequence, PASSED THROUGH rather than rebuilt as a
+         literal. A copy that set `kind = WFM_SEQ_LITERAL` discarded every
+         generated kind before the descriptor could see it, which is what
+         made PN and Gold unreachable from any face (gh-762). */
+      if (wfm_frame_add_field (d, "preamble", &src->acq_code, src->acq_reps)
+          < 0)
         return -1;
       if (!first)
         first = "preamble";
@@ -209,11 +216,7 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
 
   if (src->sync.len)
     {
-      memset (&seq, 0, sizeof seq);
-      seq.kind = WFM_SEQ_LITERAL;
-      seq.bits = src->sync.bits;
-      seq.len  = src->sync.len;
-      if (wfm_frame_add_field (d, "sync", &seq, 0u) < 0)
+      if (wfm_frame_add_field (d, "sync", &src->sync, 0u) < 0)
         return -1;
       if (!first)
         first = "sync";

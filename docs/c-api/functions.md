@@ -1501,6 +1501,7 @@
 * **wfm\_frame\_desc\_crc\_ok** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **wfm\_frame\_desc\_layout** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **wfm\_frame\_describe** ([**wfm\_frame.h**](wfm__frame_8h.md))
+* **wfm\_frame\_field\_index** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **wfm\_frame\_layout** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **wfm\_frame\_nbits** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **wfm\_kw\_check\_standard** ([**wfm\_keywords.h**](wfm__keywords_8h.md))

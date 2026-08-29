@@ -89,6 +89,8 @@ extern "C"
     uint64_t taps_a, seed_a, taps_b, seed_b;
   } wfm_seq_t;
 
+  /** @brief Bytes a field's name may use, NUL included. */
+#define WFM_FRAME_NAME_MAX 16
   /** @brief Fields one description may carry. */
 #define WFM_FRAME_MAX_FIELDS 8
   /** @brief Stages one description may carry. */
@@ -117,6 +119,25 @@ extern "C"
    */
   typedef struct
   {
+    /** What this field is called, `""` when the caller did not say.
+     *
+     * OPTIONAL, and everything keeps working without it: a field is still
+     * addressed by index, and a zero-initialised description is still a
+     * valid one. What a name buys is the other direction — a receiver
+     * slicing a capture asks for `"payload"` rather than for field 2, and a
+     * stage's cover reads as a pair of names rather than a pair of offsets
+     * into a list the reader has to hold in their head.
+     *
+     * That is not a cosmetic difference. `derived_by`, `first_field` and
+     * `n_fields` are all INDICES into this array, which is precisely why a
+     * frame's every parameter has to be passed positionally, and why
+     * `frame_create()` takes 38 arguments.
+     *
+     * A fixed array rather than a pointer, so the description stays a POD
+     * that can be copied, compared and stack-allocated — the property the
+     * whole representation depends on. */
+    char name[WFM_FRAME_NAME_MAX];
+
     wfm_seq_t seq;  /**< the bits, when the caller supplies them        */
     size_t    reps; /**< repetitions of @p seq, verbatim; 0 means one   */
     size_t    bits; /**< derived only: length in bits, sized by its stage */
@@ -352,6 +373,26 @@ extern "C"
     unsigned              n_op; /**< entries in @p op                 */
     void                 *user; /**< handed to every op it calls      */
   } wfm_frame_ops_t;
+
+  /**
+   * @brief Index of the field called @p name, or -1.
+   *
+   * The lookup the whole naming idea rests on, and it is deliberately the
+   * ONLY one: names resolve to indices here and nowhere else, so every
+   * existing index-taking entry point keeps working unchanged and there is
+   * one place a rename can be wrong.
+   *
+   * An empty or NULL @p name finds nothing rather than matching the first
+   * unnamed field — an unnamed field is anonymous, not named `""`, and
+   * matching it would make an unnamed description answer questions about
+   * fields it does not have.
+   *
+   * @param d     the description.
+   * @param name  the field name, NUL-terminated.
+   * @return the field's index, or -1 if @p d or @p name is NULL, @p name is
+   *         empty, or no field carries it.
+   */
+  int wfm_frame_field_index (const wfm_frame_desc_t *d, const char *name);
 
   /**
    * @brief Materialise a description: run every field, then every stage.

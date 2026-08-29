@@ -85,6 +85,7 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 |  int | [**wfm\_frame\_desc\_crc\_ok**](#function-wfm_frame_desc_crc_ok) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const uint8\_t \* rx\_bits) <br>_Check a received frame's CRC against any description that has one._  |
 |  int | [**wfm\_frame\_desc\_layout**](#function-wfm_frame_desc_layout) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) \* out) <br>_Derive every field offset, every stage span and both lengths._  |
 |  int | [**wfm\_frame\_describe**](#function-wfm_frame_describe) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* out) <br>_Express a_ [_**wfm\_frame\_t**_](structwfm__frame__t.md) _as a_[_**wfm\_frame\_desc\_t**_](structwfm__frame__desc__t.md) _._ |
+|  int | [**wfm\_frame\_field\_index**](#function-wfm_frame_field_index) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const char \* name) <br>_Index of the field called_ `name` _, or -1._ |
 |  int | [**wfm\_frame\_layout**](#function-wfm_frame_layout) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f, [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) \* out) <br>_Fill_ `out` _with the field offsets._ |
 |  size\_t | [**wfm\_frame\_nbits**](#function-wfm_frame_nbits) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f) <br>_Total frame bits, or 0 if the geometry is empty._  |
 
@@ -121,6 +122,7 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 | define  | [**WFM\_FRAME\_CRC\_BITS**](wfm__frame_8h.md#define-wfm_frame_crc_bits)  `16u`<br>_Bits of CRC-16-CCITT, when a frame carries one._  |
 | define  | [**WFM\_FRAME\_MAX\_FIELDS**](wfm__frame_8h.md#define-wfm_frame_max_fields)  `8`<br>_Fields one description may carry._  |
 | define  | [**WFM\_FRAME\_MAX\_STAGES**](wfm__frame_8h.md#define-wfm_frame_max_stages)  `6`<br>_Stages one description may carry._  |
+| define  | [**WFM\_FRAME\_NAME\_MAX**](wfm__frame_8h.md#define-wfm_frame_name_max)  `16`<br>_Bytes a field's name may use, NUL included._  |
 
 ## Detailed Description
 
@@ -633,6 +635,48 @@ frame look like".
 
 
 
+### function wfm\_frame\_field\_index 
+
+_Index of the field called_ `name` _, or -1._
+```C++
+int wfm_frame_field_index (
+    const wfm_frame_desc_t * d,
+    const char * name
+) 
+```
+
+
+
+The lookup the whole naming idea rests on, and it is deliberately the ONLY one: names resolve to indices here and nowhere else, so every existing index-taking entry point keeps working unchanged and there is one place a rename can be wrong.
+
+
+An empty or NULL `name` finds nothing rather than matching the first unnamed field — an unnamed field is anonymous, not named `""`, and matching it would make an unnamed description answer questions about fields it does not have.
+
+
+
+
+**Parameters:**
+
+
+* `d` the description. 
+* `name` the field name, NUL-terminated. 
+
+
+
+**Returns:**
+
+the field's index, or -1 if `d` or `name` is NULL, `name` is empty, or no field carries it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function wfm\_frame\_layout 
 
 _Fill_ `out` _with the field offsets._
@@ -727,6 +771,20 @@ _Fields one description may carry._
 _Stages one description may carry._ 
 ```C++
 #define WFM_FRAME_MAX_STAGES `6`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_FRAME\_NAME\_MAX 
+
+_Bytes a field's name may use, NUL included._ 
+```C++
+#define WFM_FRAME_NAME_MAX `16`
 ```
 
 

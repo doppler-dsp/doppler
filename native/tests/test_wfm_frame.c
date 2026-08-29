@@ -873,5 +873,57 @@ main (void)
                   "the caller range must not overlap doppler's");
   }
 
+  /* ── a field's NAME, and the one lookup that resolves it ──────────────
+   *
+   * Names exist so the other direction reads: a receiver slicing a capture
+   * asks for "payload" rather than for field 2, and `derived_by` /
+   * `first_field` / `n_fields` stop being indices a reader has to hold in
+   * their head. They resolve to indices in exactly one place, so every
+   * index-taking entry point keeps working and a rename can only be wrong
+   * once.
+   */
+  {
+    wfm_frame_desc_t d;
+    memset (&d, 0, sizeof d);
+    d.n_fields = 3u;
+    strcpy (d.field[0].name, "sync");
+    d.field[0].seq.kind = WFM_SEQ_DOTTED;
+    d.field[0].seq.len  = 8u;
+    /* field[1] is deliberately left ANONYMOUS. */
+    d.field[1].seq.kind = WFM_SEQ_DOTTED;
+    d.field[1].seq.len  = 16u;
+    strcpy (d.field[2].name, "payload");
+    d.field[2].seq.kind = WFM_SEQ_DOTTED;
+    d.field[2].seq.len  = 24u;
+
+    DP_CHECK (wfm_frame_field_index (&d, "sync") == 0);
+    DP_CHECK (wfm_frame_field_index (&d, "payload") == 2);
+    DP_CHECK_MSG (wfm_frame_field_index (&d, "crc") == -1,
+                  "a name no field carries is -1, not a guess");
+
+    /* An unnamed field is ANONYMOUS, not named "". Matching it would make an
+       unnamed description answer questions about fields it does not have --
+       and every description in this file before now is unnamed. */
+    DP_CHECK_MSG (wfm_frame_field_index (&d, "") == -1,
+                  "the empty name matches nothing, including field 1");
+
+    DP_CHECK (wfm_frame_field_index (NULL, "sync") == -1);
+    DP_CHECK (wfm_frame_field_index (&d, NULL) == -1);
+
+    /* Names change nothing about the geometry: the same description lays out
+       identically whether or not its fields are named. That is what makes
+       this addition safe for every caller that predates it. */
+    wfm_frame_desc_layout_t named, anon;
+    DP_CHECK (wfm_frame_desc_layout (&d, &named) == 0);
+    for (unsigned i = 0; i < d.n_fields; i++)
+      d.field[i].name[0] = '\0';
+    DP_CHECK (wfm_frame_desc_layout (&d, &anon) == 0);
+    DP_CHECK_MSG (named.frame_bits == anon.frame_bits
+                      && named.field_off[2] == anon.field_off[2],
+                  "a name is not part of the geometry");
+    DP_CHECK_MSG (wfm_frame_field_index (&d, "sync") == -1,
+                  "...and clearing the names really did clear them");
+  }
+
   DP_TEST_END ("wfm_frame");
 }

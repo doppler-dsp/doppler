@@ -44,6 +44,7 @@ extern "C"
     uint64_t taps_a, seed_a, taps_b, seed_b;
   } wfm_seq_t;
 
+#define WFM_FRAME_NAME_MAX 16
 #define WFM_FRAME_MAX_FIELDS 8
 #define WFM_FRAME_MAX_STAGES 6
 
@@ -55,6 +56,8 @@ extern "C"
 
   typedef struct
   {
+    char name[WFM_FRAME_NAME_MAX];
+
     wfm_seq_t seq;  
     size_t    reps; 
     size_t    bits; 
@@ -140,6 +143,8 @@ extern "C"
     unsigned              n_op; 
     void                 *user; 
   } wfm_frame_ops_t;
+
+  int wfm_frame_field_index (const wfm_frame_desc_t *d, const char *name);
 
   size_t wfm_frame_assemble (const wfm_frame_desc_t *d,
                              const wfm_frame_ops_t *ops, uint8_t *out,

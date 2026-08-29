@@ -6,7 +6,6 @@ no_state = "true"
 no_step = "true"
 class_name = "Acquisition"
 serializable = "true"
-doc = "Create a streaming DSSS acquisition engine."
 # The continuous front door is a second constructor over the shared engine,
 # not the default acq_create() (gh-509).
 create_fn = "acq_create_continuous"

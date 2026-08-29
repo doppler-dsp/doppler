@@ -702,3 +702,102 @@ wfm_frame_field_index (const wfm_frame_desc_t *d, const char *name)
     }
   return -1;
 }
+
+/* ── building a description by name ──────────────────────────────────────
+ *
+ * Appending, rather than a constructor per shape. A field count baked into a
+ * prototype forces every field's every parameter into it -- which is what
+ * `frame_create()`'s 38 arguments are -- so a fifth field has to be an
+ * append, not a signature change.
+ */
+
+/* A name is taken if any field already carries it. Anonymous fields never
+   collide, because an unnamed field is anonymous rather than named "". */
+static int
+name_taken (const wfm_frame_desc_t *d, const char *name)
+{
+  return (name && name[0] != '\0') ? (wfm_frame_field_index (d, name) >= 0)
+                                   : 0;
+}
+
+static void
+set_name (wfm_field_t *f, const char *name)
+{
+  if (!name || name[0] == '\0')
+    {
+      f->name[0] = '\0';
+      return;
+    }
+  size_t n = strlen (name);
+  if (n >= WFM_FRAME_NAME_MAX)
+    n = WFM_FRAME_NAME_MAX - 1u;
+  memcpy (f->name, name, n);
+  f->name[n] = '\0';
+}
+
+int
+wfm_frame_add_field (wfm_frame_desc_t *d, const char *name,
+                     const wfm_seq_t *seq, size_t reps)
+{
+  if (!d || !seq || d->n_fields >= WFM_FRAME_MAX_FIELDS
+      || name_taken (d, name))
+    return -1;
+
+  const unsigned i = d->n_fields;
+  memset (&d->field[i], 0, sizeof d->field[i]);
+  set_name (&d->field[i], name);
+  d->field[i].seq  = *seq;
+  d->field[i].reps = reps;
+  d->n_fields      = i + 1u;
+  return (int)i;
+}
+
+int
+wfm_frame_add_derived (wfm_frame_desc_t *d, const char *name, size_t bits)
+{
+  if (!d || bits == 0u || d->n_fields >= WFM_FRAME_MAX_FIELDS
+      || name_taken (d, name))
+    return -1;
+
+  const unsigned i = d->n_fields;
+  memset (&d->field[i], 0, sizeof d->field[i]);
+  set_name (&d->field[i], name);
+  d->field[i].bits = bits;
+  /* derived_by stays 0 -- no stage exists yet to name. wfm_frame_add_stage
+     wires it when the stage that covers this field arrives. */
+  d->n_fields = i + 1u;
+  return (int)i;
+}
+
+int
+wfm_frame_add_stage (wfm_frame_desc_t *d, uint32_t kind, const char *first,
+                     const char *last)
+{
+  if (!d || d->n_stages >= WFM_FRAME_MAX_STAGES)
+    return -1;
+
+  const int a = wfm_frame_field_index (d, first);
+  const int b = wfm_frame_field_index (d, last);
+  if (a < 0 || b < 0 || b < a)
+    return -1;
+
+  const unsigned s = d->n_stages;
+  memset (&d->stage[s], 0, sizeof d->stage[s]);
+  d->stage[s].kind        = kind;
+  d->stage[s].first_field = (unsigned)a;
+  d->stage[s].n_fields    = (unsigned)(b - a) + 1u;
+  d->n_stages             = s + 1u;
+
+  /* Wire the derived field's producer, if the last covered field is one.
+     A field with a declared length and no source bits IS derived -- that is
+     the definition, not a heuristic -- and wfm_frame_desc_layout already
+     refuses any description where such a field is not the last of its
+     producing stage's cover. So there is exactly one stage it could name,
+     and wiring it here is what stops a caller stating it a second, different
+     way. */
+  wfm_field_t *lastf = &d->field[b];
+  if (lastf->bits > 0u && lastf->seq.len == 0u && lastf->derived_by == 0u)
+    lastf->derived_by = s + 1u; /* stage index, PLUS ONE */
+
+  return (int)s;
+}

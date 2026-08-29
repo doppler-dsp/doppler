@@ -78,6 +78,9 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 | ---: | :--- |
 |  size\_t | [**wfm\_dsss\_desc\_chips**](#function-wfm_dsss_desc_chips) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, const uint8\_t \* acq\_code, size\_t acq\_len, size\_t acq\_reps, const uint8\_t \* data\_code, size\_t data\_len, uint8\_t \* out, size\_t max\_out) <br>_Build a two-code DSSS burst from a description: assemble, spread._  |
 |  size\_t | [**wfm\_dsss\_desc\_nchips**](#function-wfm_dsss_desc_nchips) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, size\_t acq\_len, size\_t acq\_reps, size\_t data\_len) <br>_Chip count of a DSSS burst built from a description._  |
+|  int | [**wfm\_frame\_add\_derived**](#function-wfm_frame_add_derived) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const char \* name, size\_t bits) <br>_Append a named DERIVED field — one a stage will fill. Returns its index, or -1._  |
+|  int | [**wfm\_frame\_add\_field**](#function-wfm_frame_add_field) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const char \* name, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* seq, size\_t reps) <br>_Append a named field. Returns its index, or -1._  |
+|  int | [**wfm\_frame\_add\_stage**](#function-wfm_frame_add_stage) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, uint32\_t kind, const char \* first, const char \* last) <br>_Append a stage covering_ `[first .. last]` _BY NAME. Returns its index, or -1._ |
 |  size\_t | [**wfm\_frame\_assemble**](#function-wfm_frame_assemble) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, uint8\_t \* out, size\_t max\_out) <br>_Materialise a description: run every field, then every stage._  |
 |  size\_t | [**wfm\_frame\_bits**](#function-wfm_frame_bits) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f, uint8\_t \* out, size\_t max\_out) <br>_Materialise the frame as one flat 0/1 bit array._  |
 |  int | [**wfm\_frame\_check**](#function-wfm_frame_check) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, uint8\_t \* bits, [**wfm\_frame\_rx\_t**](structwfm__frame__rx__t.md) \* rx) <br>_Undo a description's stages over a received frame, and report._  |
@@ -120,8 +123,8 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 | Type | Name |
 | ---: | :--- |
 | define  | [**WFM\_FRAME\_CRC\_BITS**](wfm__frame_8h.md#define-wfm_frame_crc_bits)  `16u`<br>_Bits of CRC-16-CCITT, when a frame carries one._  |
-| define  | [**WFM\_FRAME\_MAX\_FIELDS**](wfm__frame_8h.md#define-wfm_frame_max_fields)  `8`<br>_Fields one description may carry._  |
-| define  | [**WFM\_FRAME\_MAX\_STAGES**](wfm__frame_8h.md#define-wfm_frame_max_stages)  `6`<br>_Stages one description may carry._  |
+| define  | [**WFM\_FRAME\_MAX\_FIELDS**](wfm__frame_8h.md#define-wfm_frame_max_fields)  `16`<br>_Fields one description may carry._  |
+| define  | [**WFM\_FRAME\_MAX\_STAGES**](wfm__frame_8h.md#define-wfm_frame_max_stages)  `8`<br>_Stages one description may carry._  |
 | define  | [**WFM\_FRAME\_NAME\_MAX**](wfm__frame_8h.md#define-wfm_frame_name_max)  `16`<br>_Bytes a field's name may use, NUL included._  |
 
 ## Detailed Description
@@ -331,6 +334,136 @@ size_t wfm_dsss_desc_nchips (
 **Returns:**
 
 burst chips, or 0 if the description is refused, or it has bits and `data_len` is 0, or there is nothing to transmit. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_frame\_add\_derived 
+
+_Append a named DERIVED field — one a stage will fill. Returns its index, or -1._ 
+```C++
+int wfm_frame_add_derived (
+    wfm_frame_desc_t * d,
+    const char * name,
+    size_t bits
+) 
+```
+
+
+
+A field with a declared length and no source: a CRC trailer, a block of R-S check symbols. Its producer is wired by [**wfm\_frame\_add\_stage**](wfm__frame_8h.md#function-wfm_frame_add_stage), not named here, because a stage does not exist yet when the field it derives is appended — fields are ordered by POSITION and stages by APPLICATION, and this is where those two orders meet.
+
+
+
+
+**Parameters:**
+
+
+* `d` the description. 
+* `name` the field's name, or NULL/"" for anonymous. 
+* `bits` its length, which its stage decides and the caller states. 
+
+
+
+**Returns:**
+
+the new field's index, or -1 on NULL, a full description, a zero `bits`, or a name already taken. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_frame\_add\_field 
+
+_Append a named field. Returns its index, or -1._ 
+```C++
+int wfm_frame_add_field (
+    wfm_frame_desc_t * d,
+    const char * name,
+    const wfm_seq_t * seq,
+    size_t reps
+) 
+```
+
+
+
+The building half of the description, and the reason a name is worth carrying: a caller says what a field IS rather than counting positions, and the stage that covers it says so by name too.
+
+
+
+
+**Parameters:**
+
+
+* `d` the description; appended in wire order. 
+* `name` the field's name, or NULL/"" to leave it anonymous. 
+* `seq` where the bits come from; copied by value, so the LITERAL kind still borrows the caller's array and the caller still owns it for as long as `d` is used. 
+* `reps` repetitions of `seq`, verbatim; 0 means one. 
+
+
+
+**Returns:**
+
+the new field's index, or -1 if `d` or `seq` is NULL, the description is full, or `name` is already taken. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_frame\_add\_stage 
+
+_Append a stage covering_ `[first .. last]` _BY NAME. Returns its index, or -1._
+```C++
+int wfm_frame_add_stage (
+    wfm_frame_desc_t * d,
+    uint32_t kind,
+    const char * first,
+    const char * last
+) 
+```
+
+
+
+The cover is the whole point of the representation and this is the form that reads: `add_stage(d, WFM_STAGE_CRC16, "payload", "crc")` says what three integers used to.
+
+
+**It wires a derived field's producer for you**, and that is applying an invariant rather than adding one: [**wfm\_frame\_desc\_layout**](wfm__frame_8h.md#function-wfm_frame_desc_layout) already refuses a description whose derived field is not the LAST of its producing stage's cover, so a field with a declared length and no source sitting at the end of this cover has exactly one possible producer. It is wired here so a caller cannot state it a second, different way.
+
+
+
+
+**Parameters:**
+
+
+* `d` the description. 
+* `kind` a [**wfm\_stage\_kind\_t**](wfm__frame_8h.md#enum-wfm_stage_kind_t) value, or a caller's own from WFM\_STAGE\_USER up. 
+* `first` name of the first field covered. 
+* `last` name of the last field covered; may equal `first`. 
+
+
+
+**Returns:**
+
+the new stage's index, or -1 on NULL, a full description, a name neither field carries, or `last` before `first`. 
 
 
 
@@ -756,11 +889,15 @@ _Bits of CRC-16-CCITT, when a frame carries one._
 
 _Fields one description may carry._ 
 ```C++
-#define WFM_FRAME_MAX_FIELDS `8`
+#define WFM_FRAME_MAX_FIELDS `16`
 ```
 
 
 
+Raised from 8 against a measurement rather than a feeling: the deepest description doppler builds today is SIX fields (ASM, preamble, sync, payload, CRC, R-S parity) and FIVE stages, so 8 left room for two more fields — and a user frame that adds a header and a tail to that shape reaches the old ceiling exactly. The descriptor is a POD carried by value, so the cost is bytes on a stack frame: 1136 -&gt; 2152, which is still a comfortable local. 
+
+
+        
 
 <hr>
 
@@ -770,7 +907,7 @@ _Fields one description may carry._
 
 _Stages one description may carry._ 
 ```C++
-#define WFM_FRAME_MAX_STAGES `6`
+#define WFM_FRAME_MAX_STAGES `8`
 ```
 
 

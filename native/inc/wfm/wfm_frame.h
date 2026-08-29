@@ -91,10 +91,20 @@ extern "C"
 
   /** @brief Bytes a field's name may use, NUL included. */
 #define WFM_FRAME_NAME_MAX 16
-  /** @brief Fields one description may carry. */
-#define WFM_FRAME_MAX_FIELDS 8
+  /**
+   * @brief Fields one description may carry.
+   *
+   * Raised from 8 against a measurement rather than a feeling: the deepest
+   * description doppler builds today is SIX fields (ASM, preamble, sync,
+   * payload, CRC, R-S parity) and FIVE stages, so 8 left room for two more
+   * fields — and a user frame that adds a header and a tail to that shape
+   * reaches the old ceiling exactly. The descriptor is a POD carried by
+   * value, so the cost is bytes on a stack frame: 1136 -> 2152, which is
+   * still a comfortable local.
+   */
+#define WFM_FRAME_MAX_FIELDS 16
   /** @brief Stages one description may carry. */
-#define WFM_FRAME_MAX_STAGES 6
+#define WFM_FRAME_MAX_STAGES 8
 
   /**
    * @brief A run of bits inside the assembled frame, `[first, first + n)`.
@@ -393,6 +403,70 @@ extern "C"
    *         empty, or no field carries it.
    */
   int wfm_frame_field_index (const wfm_frame_desc_t *d, const char *name);
+
+  /**
+   * @brief Append a named field. Returns its index, or -1.
+   *
+   * The building half of the description, and the reason a name is worth
+   * carrying: a caller says what a field IS rather than counting positions,
+   * and the stage that covers it says so by name too.
+   *
+   * @param d     the description; appended in wire order.
+   * @param name  the field's name, or NULL/"" to leave it anonymous.
+   * @param seq   where the bits come from; copied by value, so the LITERAL
+   *              kind still borrows the caller's array and the caller still
+   *              owns it for as long as @p d is used.
+   * @param reps  repetitions of @p seq, verbatim; 0 means one.
+   * @return the new field's index, or -1 if @p d or @p seq is NULL, the
+   *         description is full, or @p name is already taken.
+   */
+  int wfm_frame_add_field (wfm_frame_desc_t *d, const char *name,
+                           const wfm_seq_t *seq, size_t reps);
+
+  /**
+   * @brief Append a named DERIVED field — one a stage will fill. Returns its
+   * index, or -1.
+   *
+   * A field with a declared length and no source: a CRC trailer, a block of
+   * R-S check symbols. Its producer is wired by @ref wfm_frame_add_stage,
+   * not named here, because a stage does not exist yet when the field it
+   * derives is appended — fields are ordered by POSITION and stages by
+   * APPLICATION, and this is where those two orders meet.
+   *
+   * @param d     the description.
+   * @param name  the field's name, or NULL/"" for anonymous.
+   * @param bits  its length, which its stage decides and the caller states.
+   * @return the new field's index, or -1 on NULL, a full description, a
+   *         zero @p bits, or a name already taken.
+   */
+  int wfm_frame_add_derived (wfm_frame_desc_t *d, const char *name,
+                             size_t bits);
+
+  /**
+   * @brief Append a stage covering `[first .. last]` BY NAME. Returns its
+   * index, or -1.
+   *
+   * The cover is the whole point of the representation and this is the form
+   * that reads: `add_stage(d, WFM_STAGE_CRC16, "payload", "crc")` says what
+   * three integers used to.
+   *
+   * **It wires a derived field's producer for you**, and that is applying an
+   * invariant rather than adding one: @ref wfm_frame_desc_layout already
+   * refuses a description whose derived field is not the LAST of its
+   * producing stage's cover, so a field with a declared length and no source
+   * sitting at the end of this cover has exactly one possible producer. It
+   * is wired here so a caller cannot state it a second, different way.
+   *
+   * @param d      the description.
+   * @param kind   a @ref wfm_stage_kind_t value, or a caller's own from
+   *               @ref WFM_STAGE_USER up.
+   * @param first  name of the first field covered.
+   * @param last   name of the last field covered; may equal @p first.
+   * @return the new stage's index, or -1 on NULL, a full description, a name
+   *         neither field carries, or @p last before @p first.
+   */
+  int wfm_frame_add_stage (wfm_frame_desc_t *d, uint32_t kind,
+                           const char *first, const char *last);
 
   /**
    * @brief Materialise a description: run every field, then every stage.

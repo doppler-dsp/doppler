@@ -152,24 +152,144 @@ wfm_source_frame_error (const wfm_source_t *src)
 int
 wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
 {
-  const int                   spread = (src->type == WFM_SYNTH_DSSS);
-  const ccsds_tm_frame_spec_t s      = {
-    .attach_asm           = src->attach_asm,
-    .preamble             = spread ? NULL : src->acq_code,
-    .preamble_len         = spread ? 0u : src->n_acq_code,
-    .preamble_reps        = spread ? 0u : src->acq_reps,
-    .sync                 = src->sync,
-    .sync_len             = src->n_sync,
-    .payload              = src->bits,
-    .payload_len          = src->n_bits,
-    .crc                  = src->crc,
-    .rs_depth             = src->rs_depth,
-    .randomise            = src->randomise,
-    .convolutional        = src->convolutional,
-    .interleave_depth     = src->interleave_depth,
-    .interleave_unit_bits = src->interleave_unit_bits,
-  };
-  return ccsds_tm_frame_desc_of (&s, d);
+  if (!src || !d)
+    return -1;
+
+  const int spread = (src->type == WFM_SYNTH_DSSS);
+  memset (d, 0, sizeof *d);
+
+  /* Built by NAME, through the general builder, rather than by filling a
+     CCSDS-shaped spec struct and asking ccsds_tm to translate it. That
+     struct was the one frame description every doppler face reached, which
+     made a standard's vocabulary the vocabulary -- a frame doppler had
+     never seen had to be spelled in CCSDS's slots or not at all.
+     `ccsds_tm` still owns the KERNELS (ccsds_tm_frame_ops) and the marker's
+     expansion, which is the direction that was always right. */
+
+  wfm_seq_t   seq;
+  const char *first = NULL; /* the inner code covers from here */
+
+  /* The marker's bits come from the ONE function that expands them, never a
+     second transcription. Static because the description points at it and
+     must outlive this call; the same 32 bits in every frame. */
+  static uint8_t marker[CCSDS_TM_ASM_BITS];
+  if (src->attach_asm)
+    {
+      ccsds_tm_asm_bits (marker);
+      memset (&seq, 0, sizeof seq);
+      seq.kind = WFM_SEQ_LITERAL;
+      seq.bits = marker;
+      seq.len  = CCSDS_TM_ASM_BITS;
+      if (wfm_frame_add_field (d, "asm", &seq, 0u) < 0)
+        return -1;
+      first = "asm";
+    }
+
+  /* A field is included on its LENGTH, never on its pointer being non-NULL:
+     a length with no array is an unbuildable descriptor, and it has to reach
+     `wfm_frame_assemble` to be refused there. Dropping the field instead
+     would assemble a frame quietly missing it.
+
+     A DSSS preamble is transmitted unmodulated and UNSPREAD -- it is the
+     coherent pull-in target a receiver correlates raw chips against -- so it
+     is outside anything a stage could cover, and `wfm_dsss_desc_chips`
+     prepends it around the description rather than inside it. */
+  if (!spread && src->n_acq_code && src->acq_reps)
+    {
+      memset (&seq, 0, sizeof seq);
+      seq.kind = WFM_SEQ_LITERAL;
+      seq.bits = src->acq_code;
+      seq.len  = src->n_acq_code;
+      if (wfm_frame_add_field (d, "preamble", &seq, src->acq_reps) < 0)
+        return -1;
+      if (!first)
+        first = "preamble";
+    }
+
+  if (src->n_sync)
+    {
+      memset (&seq, 0, sizeof seq);
+      seq.kind = WFM_SEQ_LITERAL;
+      seq.bits = src->sync;
+      seq.len  = src->n_sync;
+      if (wfm_frame_add_field (d, "sync", &seq, 0u) < 0)
+        return -1;
+      if (!first)
+        first = "sync";
+    }
+
+  /* The payload is a field even when its bits are unknown: a receiver holds
+     the geometry and fills the contents in later. */
+  memset (&seq, 0, sizeof seq);
+  seq.kind = WFM_SEQ_LITERAL;
+  seq.bits = src->bits;
+  seq.len  = src->n_bits;
+  if (wfm_frame_add_field (d, "payload", &seq, 0u) < 0)
+    return -1;
+  if (!first)
+    first = "payload";
+
+  /* The derived fields, in wire order. Their producers are wired by the
+     stage that covers them -- which is why they can be appended before any
+     stage exists, and why the index arithmetic desc_of needed is gone. */
+  if (src->crc && wfm_frame_add_derived (d, "crc", WFM_FRAME_CRC_BITS) < 0)
+    return -1;
+  if (src->rs_depth
+      && wfm_frame_add_derived (d, "rs_parity",
+                                (size_t)CCSDS_TM_RS_2E * src->rs_depth * 8u)
+             < 0)
+    return -1;
+
+  /* The data group ends at whichever derived field is last on the wire. */
+  const char *data_last
+      = src->rs_depth ? "rs_parity" : (src->crc ? "crc" : "payload");
+
+  /* Stages in APPLICATION order: the CRC, the outer code over the result,
+     the randomiser, the interleaver last of the data-group stages so it is
+     what the channel sees, then the inner code over everything. */
+  int st;
+  if (src->crc)
+    {
+      if ((st = wfm_frame_add_stage (d, WFM_STAGE_CRC16, "payload", "crc"))
+          < 0)
+        return -1;
+    }
+  if (src->rs_depth)
+    {
+      if ((st = wfm_frame_add_stage (d, WFM_STAGE_RS, "payload", "rs_parity"))
+          < 0)
+        return -1;
+      d->stage[st].depth = src->rs_depth;
+    }
+  if (src->randomise)
+    {
+      if ((st = wfm_frame_add_stage (d, WFM_STAGE_RANDOMISE, "payload",
+                                     data_last))
+          < 0)
+        return -1;
+      /* WHICH generator, carried on the stage: 131.0-B-6 specifies two and
+         they produce waveforms only the matching receiver derandomises, so
+         it is not a detail the kernel may pick for itself. */
+      d->stage[st].depth = (unsigned)src->randomise;
+    }
+  if (src->interleave_depth)
+    {
+      if ((st = wfm_frame_add_stage (d, WFM_STAGE_INTERLEAVE, "payload",
+                                     data_last))
+          < 0)
+        return -1;
+      d->stage[st].depth     = src->interleave_depth;
+      d->stage[st].unit_bits = src->interleave_unit_bits;
+    }
+  if (src->convolutional)
+    {
+      if ((st = wfm_frame_add_stage (d, WFM_STAGE_CONV, first, data_last)) < 0)
+        return -1;
+      /* 3.2.1: rate 1/2, so the frame it covers leaves twice as long. */
+      d->stage[st].emit_num = 2u;
+      d->stage[st].emit_den = 1u;
+    }
+  return 0;
 }
 
 int

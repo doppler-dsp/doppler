@@ -48,10 +48,10 @@ unit_width (size_t done, size_t total)
 }
 
 size_t
-int_to_bin (uint64_t v, unsigned n_bits, uint8_t *out, size_t max_out,
+int_to_bin (uint64_t v, unsigned n_bits, uint8_t *out, size_t out_len,
             int bitorder)
 {
-  if (!out || n_bits == 0u || n_bits > 64u || n_bits > max_out)
+  if (!out || n_bits == 0u || n_bits > 64u || n_bits > out_len)
     return 0;
   if (bitorder != DP_BITORDER_BIG && bitorder != DP_BITORDER_LITTLE)
     return 0;
@@ -93,7 +93,7 @@ bin_to_int (const uint8_t *bits, size_t n_bits, uint64_t *out, int bitorder)
 }
 
 size_t
-hex_to_bin (const char *hex, uint8_t *out, size_t max_out, int bitorder)
+hex_to_bin (const char *hex, uint8_t *out, size_t out_len, int bitorder)
 {
   if (!hex || !out)
     return 0;
@@ -101,7 +101,7 @@ hex_to_bin (const char *hex, uint8_t *out, size_t max_out, int bitorder)
     return 0;
 
   const size_t n_digits = strlen (hex);
-  if (n_digits == 0 || 4u * n_digits > max_out)
+  if (n_digits == 0 || 4u * n_digits > out_len)
     return 0;
 
   /* Validate the WHOLE string before writing a bit, so a refusal leaves
@@ -129,7 +129,7 @@ hex_to_bin (const char *hex, uint8_t *out, size_t max_out, int bitorder)
 }
 
 size_t
-bin_to_hex (const uint8_t *bits, size_t n_bits, char *out, size_t max_out,
+bin_to_hex (const uint8_t *bits, size_t n_bits, char *out, size_t out_len,
             int bitorder)
 {
   if (!bits || !out || n_bits == 0 || (n_bits & 3u) != 0)
@@ -138,7 +138,7 @@ bin_to_hex (const uint8_t *bits, size_t n_bits, char *out, size_t max_out,
     return 0;
 
   const size_t n_digits = n_bits / 4u;
-  if (n_digits + 1u > max_out)
+  if (n_digits + 1u > out_len)
     return 0;
 
   static const char DIGITS[] = "0123456789abcdef";

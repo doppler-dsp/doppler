@@ -248,6 +248,8 @@
 * **burst\_despreader\_steps\_max\_out** ([**burst\_despreader\_core.h**](burst__despreader__core_8h.md))
 * **bin\_to\_signed** ([**dsss\_core.h**](dsss__core_8h.md))
 * **blackman\_harris\_window** ([**spectral\_core.h**](spectral__core_8h.md))
+* **bin\_to\_hex** ([**util\_core.h**](util__core_8h.md))
+* **bin\_to\_int** ([**util\_core.h**](util__core_8h.md))
 * **bpsk\_map** ([**wfm\_core.h**](wfm__core_8h.md))
 
 
@@ -927,6 +929,7 @@
 * **hbdecim\_q15\_set\_state** ([**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md))
 * **hbdecim\_q15\_state\_bytes** ([**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md))
 * **hann\_window** ([**spectral\_core.h**](spectral__core_8h.md))
+* **hex\_to\_bin** ([**util\_core.h**](util__core_8h.md))
 
 
 ## i
@@ -980,6 +983,7 @@
 * **interp\_table\_execute** ([**interp\_table\_core.h**](interp__table__core_8h.md))
 * **interp\_table\_execute\_max\_out** ([**interp\_table\_core.h**](interp__table__core_8h.md))
 * **interp\_table\_reset** ([**interp\_table\_core.h**](interp__table__core_8h.md))
+* **int\_to\_bin** ([**util\_core.h**](util__core_8h.md))
 
 
 ## j

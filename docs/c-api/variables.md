@@ -31,6 +31,7 @@
 * **dp\_tlm\_t** ([**dp\_tlm\_core.h**](dp__tlm__core_8h.md))
 * **dp\_tlm\_capture\_state\_t** ([**dp\_tlm\_capture\_core.h**](dp__tlm__capture__core_8h.md))
 * **dp\_tlm\_sink\_t** ([**tlm\_sink.h**](tlm__sink_8h.md))
+* **dp\_bitorder\_t** ([**util\_core.h**](util__core_8h.md))
 
 
 ## f

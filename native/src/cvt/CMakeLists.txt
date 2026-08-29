@@ -1,4 +1,4 @@
-add_library(cvt_core OBJECT cvt_core.c)
+add_library(cvt_core OBJECT cvt_core.c int_to_bin.c hex_to_bin.c bin_to_int.c bin_to_hex.c bin_to_nrz.c nrz_to_bin.c)
 target_include_directories(cvt_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
@@ -29,3 +29,43 @@ add_custom_command(TARGET cvt POST_BUILD
     VERBATIM
     COMMENT "Copy cvt extension module")
 endif()
+
+add_executable(test_cvt_core
+    ${CMAKE_SOURCE_DIR}/native/tests/test_cvt_core.c)
+target_link_libraries(test_cvt_core PRIVATE
+    cvt_core
+    f32_to_i16_core
+    i16_to_f32_core
+    i32_to_f32_core
+    i8_to_f32_core
+    f32_to_i16u32_core
+    f32_to_i16u64_core
+    i16u32_to_f32_core
+    i16u64_to_f32_core
+    f32_to_uq15_core
+    uq15_to_f32_core
+    adc_core
+    m)
+target_include_directories(test_cvt_core
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_cvt_core COMMAND test_cvt_core)
+
+add_executable(bench_cvt_core
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_cvt_core.c)
+target_link_libraries(bench_cvt_core PRIVATE
+    cvt_core
+    f32_to_i16_core
+    i16_to_f32_core
+    i32_to_f32_core
+    i8_to_f32_core
+    f32_to_i16u32_core
+    f32_to_i16u64_core
+    i16u32_to_f32_core
+    i16u64_to_f32_core
+    f32_to_uq15_core
+    uq15_to_f32_core
+    adc_core
+    m)
+target_include_directories(bench_cvt_core
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+            ${CMAKE_SOURCE_DIR}/native/benchmarks)

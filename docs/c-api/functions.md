@@ -246,10 +246,11 @@
 * **burst\_despreader\_state\_bytes** ([**burst\_despreader\_core.h**](burst__despreader__core_8h.md))
 * **burst\_despreader\_steps** ([**burst\_despreader\_core.h**](burst__despreader__core_8h.md))
 * **burst\_despreader\_steps\_max\_out** ([**burst\_despreader\_core.h**](burst__despreader__core_8h.md))
+* **bin\_to\_hex** ([**cvt\_core.h**](cvt__core_8h.md))
+* **bin\_to\_int** ([**cvt\_core.h**](cvt__core_8h.md))
+* **bin\_to\_nrz** ([**cvt\_core.h**](cvt__core_8h.md))
 * **bin\_to\_signed** ([**dsss\_core.h**](dsss__core_8h.md))
 * **blackman\_harris\_window** ([**spectral\_core.h**](spectral__core_8h.md))
-* **bin\_to\_hex** ([**util\_core.h**](util__core_8h.md))
-* **bin\_to\_int** ([**util\_core.h**](util__core_8h.md))
 * **bpsk\_map** ([**wfm\_core.h**](wfm__core_8h.md))
 
 
@@ -402,6 +403,8 @@
 * **costas\_tlm\_flush** ([**costas\_core.h**](costas__core_8h.md))
 * **costas\_update** ([**costas\_core.h**](costas__core_8h.md))
 * **costas\_wipeoff** ([**costas\_core.h**](costas__core_8h.md))
+* **cvt\_bit\_slot** ([**cvt\_core.h**](cvt__core_8h.md))
+* **cvt\_unit\_width** ([**cvt\_core.h**](cvt__core_8h.md))
 * **ciccompmf** ([**resample\_core.h**](resample__core_8h.md))
 * **ccsds\_asm\_bits** ([**wfm\_core.h**](wfm__core_8h.md))
 * **crc16** ([**wfm\_core.h**](wfm__core_8h.md))
@@ -899,6 +902,7 @@
 * **HalfbandDecimator\_reset** ([**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md))
 * **HalfbandDecimator\_set\_state** ([**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md))
 * **HalfbandDecimator\_state\_bytes** ([**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md))
+* **hex\_to\_bin** ([**cvt\_core.h**](cvt__core_8h.md))
 * **hbdecim\_create** ([**hbdecim\_core.h**](hbdecim__core_8h.md))
 * **hbdecim\_dc\_gain** ([**hbdecim\_core.h**](hbdecim__core_8h.md))
 * **hbdecim\_destroy** ([**hbdecim\_core.h**](hbdecim__core_8h.md))
@@ -929,11 +933,11 @@
 * **hbdecim\_q15\_set\_state** ([**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md))
 * **hbdecim\_q15\_state\_bytes** ([**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md))
 * **hann\_window** ([**spectral\_core.h**](spectral__core_8h.md))
-* **hex\_to\_bin** ([**util\_core.h**](util__core_8h.md))
 
 
 ## i
 
+* **int\_to\_bin** ([**cvt\_core.h**](cvt__core_8h.md))
 * **i16\_to\_f32\_create** ([**i16\_to\_f32\_core.h**](i16__to__f32__core_8h.md))
 * **i16\_to\_f32\_destroy** ([**i16\_to\_f32\_core.h**](i16__to__f32__core_8h.md))
 * **i16\_to\_f32\_reset** ([**i16\_to\_f32\_core.h**](i16__to__f32__core_8h.md))
@@ -983,7 +987,6 @@
 * **interp\_table\_execute** ([**interp\_table\_core.h**](interp__table__core_8h.md))
 * **interp\_table\_execute\_max\_out** ([**interp\_table\_core.h**](interp__table__core_8h.md))
 * **interp\_table\_reset** ([**interp\_table\_core.h**](interp__table__core_8h.md))
-* **int\_to\_bin** ([**util\_core.h**](util__core_8h.md))
 
 
 ## j
@@ -1130,6 +1133,7 @@
 
 ## n
 
+* **nrz\_to\_bin** ([**cvt\_core.h**](cvt__core_8h.md))
 * **next\_pow2** ([**det\_private.h**](det__private_8h.md))
 * **nco\_add\_ovf\_** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_create** ([**nco\_core.h**](nco__core_8h.md))

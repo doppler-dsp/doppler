@@ -925,5 +925,91 @@ main (void)
                   "...and clearing the names really did clear them");
   }
 
+  /* ── building a description by NAME ───────────────────────────────────
+   *
+   * The falsification available here is the strong one: a description built
+   * by name must be BIT-IDENTICAL to the same description filled in by hand,
+   * because the builder adds no arithmetic -- it only spells the indices.
+   * Comparing the assembled bits rather than the structs is what makes that
+   * a claim about behaviour instead of about layout.
+   */
+  {
+    uint8_t          by_hand[128], by_name[128];
+    wfm_frame_desc_t h, n;
+
+    /* By hand: the shape every test above uses. */
+    memset (&h, 0, sizeof h);
+    h.n_fields             = 2u;
+    h.field[0].seq.kind    = WFM_SEQ_DOTTED;
+    h.field[0].seq.len     = 32u;
+    h.field[1].bits        = WFM_FRAME_CRC_BITS;
+    h.field[1].derived_by  = 1u; /* stage 0, PLUS ONE */
+    h.n_stages             = 1u;
+    h.stage[0].kind        = WFM_STAGE_CRC16;
+    h.stage[0].first_field = 0u;
+    h.stage[0].n_fields    = 2u;
+
+    /* By name: the same thing said differently. */
+    memset (&n, 0, sizeof n);
+    wfm_seq_t payload = { 0 };
+    payload.kind      = WFM_SEQ_DOTTED;
+    payload.len       = 32u;
+    DP_CHECK (wfm_frame_add_field (&n, "payload", &payload, 0u) == 0);
+    DP_CHECK (wfm_frame_add_derived (&n, "crc", WFM_FRAME_CRC_BITS) == 1);
+    DP_CHECK (wfm_frame_add_stage (&n, WFM_STAGE_CRC16, "payload", "crc")
+              == 0);
+
+    /* add_stage wired the producer, and it wired the RIGHT one. */
+    DP_CHECK_MSG (n.field[1].derived_by == 1u,
+                  "the derived field's producer is the stage that covers it");
+
+    const size_t nh = wfm_frame_assemble (&h, NULL, by_hand, sizeof by_hand);
+    const size_t nn = wfm_frame_assemble (&n, NULL, by_name, sizeof by_name);
+    DP_CHECK (nh == 48u && nn == 48u);
+    DP_CHECK_MSG (memcmp (by_hand, by_name, 48u) == 0,
+                  "naming the fields changes no bit of the frame");
+
+    /* A stage's cover really came from the NAMES, not from appending order:
+       ask for a cover that starts at the second field and the span moves. */
+    wfm_frame_desc_t m;
+    memset (&m, 0, sizeof m);
+    wfm_seq_t eight = { 0 };
+    eight.kind      = WFM_SEQ_DOTTED;
+    eight.len       = 8u;
+    DP_CHECK (wfm_frame_add_field (&m, "a", &eight, 0u) == 0);
+    DP_CHECK (wfm_frame_add_field (&m, "b", &eight, 0u) == 1);
+    DP_CHECK (wfm_frame_add_field (&m, "c", &eight, 0u) == 2);
+    DP_CHECK (wfm_frame_add_stage (&m, WFM_STAGE_INTERLEAVE, "b", "c") == 0);
+    DP_CHECK_MSG (m.stage[0].first_field == 1u && m.stage[0].n_fields == 2u,
+                  "the cover is the named range, not the whole frame");
+
+    /* Refusals. */
+    DP_CHECK_MSG (wfm_frame_add_field (&m, "b", &eight, 0u) == -1,
+                  "a duplicate name is refused, not silently shadowed");
+    DP_CHECK_MSG (wfm_frame_add_stage (&m, WFM_STAGE_CRC16, "a", "zzz") == -1,
+                  "a cover naming a field that does not exist is refused");
+    DP_CHECK_MSG (wfm_frame_add_stage (&m, WFM_STAGE_CRC16, "c", "a") == -1,
+                  "a cover that runs backwards is refused");
+    DP_CHECK (wfm_frame_add_field (NULL, "x", &eight, 0u) == -1);
+    DP_CHECK (wfm_frame_add_field (&m, "x", NULL, 0u) == -1);
+    DP_CHECK (wfm_frame_add_derived (&m, "x", 0u) == -1);
+
+    /* Anonymous fields never collide, because "" is not a name. */
+    wfm_frame_desc_t q;
+    memset (&q, 0, sizeof q);
+    DP_CHECK (wfm_frame_add_field (&q, NULL, &eight, 0u) == 0);
+    DP_CHECK_MSG (wfm_frame_add_field (&q, NULL, &eight, 0u) == 1,
+                  "two anonymous fields are two fields, not a collision");
+
+    /* The description fills up and REFUSES rather than overwriting. */
+    wfm_frame_desc_t full;
+    memset (&full, 0, sizeof full);
+    for (unsigned i = 0; i < WFM_FRAME_MAX_FIELDS; i++)
+      DP_CHECK (wfm_frame_add_field (&full, NULL, &eight, 0u) == (int)i);
+    DP_CHECK_MSG (wfm_frame_add_field (&full, NULL, &eight, 0u) == -1,
+                  "a full description refuses the next field");
+    DP_CHECK (full.n_fields == WFM_FRAME_MAX_FIELDS);
+  }
+
   DP_TEST_END ("wfm_frame");
 }

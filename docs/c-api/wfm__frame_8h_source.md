@@ -45,8 +45,8 @@ extern "C"
   } wfm_seq_t;
 
 #define WFM_FRAME_NAME_MAX 16
-#define WFM_FRAME_MAX_FIELDS 8
-#define WFM_FRAME_MAX_STAGES 6
+#define WFM_FRAME_MAX_FIELDS 16
+#define WFM_FRAME_MAX_STAGES 8
 
   typedef struct
   {
@@ -145,6 +145,15 @@ extern "C"
   } wfm_frame_ops_t;
 
   int wfm_frame_field_index (const wfm_frame_desc_t *d, const char *name);
+
+  int wfm_frame_add_field (wfm_frame_desc_t *d, const char *name,
+                           const wfm_seq_t *seq, size_t reps);
+
+  int wfm_frame_add_derived (wfm_frame_desc_t *d, const char *name,
+                             size_t bits);
+
+  int wfm_frame_add_stage (wfm_frame_desc_t *d, uint32_t kind,
+                           const char *first, const char *last);
 
   size_t wfm_frame_assemble (const wfm_frame_desc_t *d,
                              const wfm_frame_ops_t *ops, uint8_t *out,

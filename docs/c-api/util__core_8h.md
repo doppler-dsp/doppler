@@ -59,12 +59,12 @@ _Util module — public C API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**bin\_to\_hex**](#function-bin_to_hex) (const uint8\_t \* bits, size\_t n\_bits, char \* out, size\_t max\_out, int bitorder) <br>_Render unpacked bits back to a hex string — the exact inverse._  |
+|  size\_t | [**bin\_to\_hex**](#function-bin_to_hex) (const uint8\_t \* bits, size\_t n\_bits, char \* out, size\_t out\_len, int bitorder) <br>_Render unpacked bits back to a hex string — the exact inverse._  |
 |  int | [**bin\_to\_int**](#function-bin_to_int) (const uint8\_t \* bits, size\_t n\_bits, uint64\_t \* out, int bitorder) <br>_Read unpacked bits back into an integer — the exact inverse._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**ema\_alpha\_decim**](#function-ema_alpha_decim) (double alpha, size\_t d) <br>_The EMA coefficient that advances_ `d` _samples in one step:_`1 - (1 - alpha)^d` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**ema\_step**](#function-ema_step) (double state, double x, double alpha) <br>_One step of a first-order exponential moving average:_ `state <- state + alpha * (x - state)` _._ |
-|  size\_t | [**hex\_to\_bin**](#function-hex_to_bin) (const char \* hex, uint8\_t \* out, size\_t max\_out, int bitorder) <br>_Expand a hex string to unpacked bits, one per byte._  |
-|  size\_t | [**int\_to\_bin**](#function-int_to_bin) (uint64\_t v, unsigned n\_bits, uint8\_t \* out, size\_t max\_out, int bitorder) <br>_Expand the low_ `n_bits` _of an integer to unpacked bits._ |
+|  size\_t | [**hex\_to\_bin**](#function-hex_to_bin) (const char \* hex, uint8\_t \* out, size\_t out\_len, int bitorder) <br>_Expand a hex string to unpacked bits, one per byte._  |
+|  size\_t | [**int\_to\_bin**](#function-int_to_bin) (uint64\_t v, unsigned n\_bits, uint8\_t \* out, size\_t out\_len, int bitorder) <br>_Expand the low_ `n_bits` _of an integer to unpacked bits._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**saturate**](#function-saturate) (double v, double lo, double hi, double nan\_to) <br>_Saturate a value into_ `[lo, hi]` _,_**total over every double** _— including NaN and both infinities._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float complex | [**square\_clip**](#function-square_clip) (float complex y, float lin) <br>_Square-clip a complex sample: clip the real and imaginary parts independently to_ `[-lin, lin]` _(a square region in the IQ plane, not a circular magnitude limit). Each component is passed through unchanged when its magnitude is within the threshold and clamped to the nearest boundary otherwise._ |
 
@@ -138,7 +138,7 @@ size_t bin_to_hex (
     const uint8_t * bits,
     size_t n_bits,
     char * out,
-    size_t max_out,
+    size_t out_len,
     int bitorder
 ) 
 ```
@@ -156,14 +156,14 @@ Round-tripping is the property worth relying on and the one its test asserts: fo
 * `bits` `n_bits` unpacked bits; any non-zero byte reads as 1. 
 * `n_bits` number of bits; must be a multiple of 4. 
 * `out` receives the digits plus a NUL. 
-* `max_out` capacity of `out` in chars, NUL included. 
+* `out_len` capacity of `out` in chars, NUL included. 
 * `bitorder` DP\_BITORDER\_BIG or DP\_BITORDER\_LITTLE. 
 
 
 
 **Returns:**
 
-digits written, NOT counting the NUL, or 0 if `n_bits` is not a multiple of 4, on NULL, an unknown `bitorder`, or `max_out` too small — in which case `out` is untouched. 
+digits written, NOT counting the NUL, or 0 if `n_bits` is not a multiple of 4, on NULL, an unknown `bitorder`, or `out_len` too small — in which case `out` is untouched. 
 
 
 
@@ -382,7 +382,7 @@ _Expand a hex string to unpacked bits, one per byte._
 size_t hex_to_bin (
     const char * hex,
     uint8_t * out,
-    size_t max_out,
+    size_t out_len,
     int bitorder
 ) 
 ```
@@ -402,14 +402,14 @@ Each hex digit contributes 4 bits and digits are read left to right, so an ODD n
 
 * `hex` NUL-terminated hex digits, `0-9a-fA-F`. No `0x`, no separators — a rejected character is a REFUSAL rather than a skipped one, because a typo'd marker that silently shortens is the failure this exists to avoid. 
 * `out` receives `4 * strlen(hex)` bits, one per byte, 0 or 1. 
-* `max_out` capacity of `out` in bits. 
+* `out_len` capacity of `out` in bits. 
 * `bitorder` DP\_BITORDER\_BIG or DP\_BITORDER\_LITTLE. 
 
 
 
 **Returns:**
 
-bits written, or 0 on a bad digit, an empty string, a NULL, an unknown `bitorder`, or `max_out` too small — `out` untouched.
+bits written, or 0 on a bad digit, an empty string, a NULL, an unknown `bitorder`, or `out_len` too small — `out` untouched.
 
 
 
@@ -435,7 +435,7 @@ size_t int_to_bin (
     uint64_t v,
     unsigned n_bits,
     uint8_t * out,
-    size_t max_out,
+    size_t out_len,
     int bitorder
 ) 
 ```
@@ -456,14 +456,14 @@ Bit order is the same rule [**hex\_to\_bin**](util__core_8h.md#function-hex_to_b
 * `v` the value; only the low `n_bits` are read. 
 * `n_bits` 1..64. Bit 0 out is the MOST significant of those under DP\_BITORDER\_BIG, which is what makes `int_to_bin (0x1A, 8, ...)` read `0,0,0,1,1,0,1,0`. 
 * `out` receives `n_bits` bytes, each 0 or 1. 
-* `max_out` capacity of `out` in bits. 
+* `out_len` capacity of `out` in bits. 
 * `bitorder` DP\_BITORDER\_BIG or DP\_BITORDER\_LITTLE. 
 
 
 
 **Returns:**
 
-`n_bits`, or 0 if `n_bits` is 0 or over 64, on NULL, an unknown `bitorder`, or `max_out` too small — `out` untouched. 
+`n_bits`, or 0 if `n_bits` is 0 or over 64, on NULL, an unknown `bitorder`, or `out_len` too small — `out` untouched. 
 
 
 

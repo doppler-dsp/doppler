@@ -57,13 +57,13 @@ extern "C"
    *                  @ref DP_BITORDER_BIG, which is what makes
    *                  `int_to_bin (0x1A, 8, ...)` read `0,0,0,1,1,0,1,0`.
    * @param out       receives @p n_bits bytes, each 0 or 1.
-   * @param max_out   capacity of @p out in bits.
+   * @param out_len   capacity of @p out in bits.
    * @param bitorder  @ref DP_BITORDER_BIG or @ref DP_BITORDER_LITTLE.
    * @return @p n_bits, or 0 if @p n_bits is 0 or over 64, on NULL, an
-   *         unknown @p bitorder, or @p max_out too small — @p out untouched.
+   *         unknown @p bitorder, or @p out_len too small — @p out untouched.
    */
   size_t int_to_bin (uint64_t v, unsigned n_bits, uint8_t *out,
-                     size_t max_out, int bitorder);
+                     size_t out_len, int bitorder);
 
   /**
    * @brief Read unpacked bits back into an integer — the exact inverse.
@@ -101,10 +101,10 @@ extern "C"
    *                  than a skipped one, because a typo'd marker that
    *                  silently shortens is the failure this exists to avoid.
    * @param out       receives `4 * strlen(hex)` bits, one per byte, 0 or 1.
-   * @param max_out   capacity of @p out in bits.
+   * @param out_len   capacity of @p out in bits.
    * @param bitorder  @ref DP_BITORDER_BIG or @ref DP_BITORDER_LITTLE.
    * @return bits written, or 0 on a bad digit, an empty string, a NULL, an
-   *         unknown @p bitorder, or @p max_out too small — @p out untouched.
+   *         unknown @p bitorder, or @p out_len too small — @p out untouched.
    *
    * @code
    * uint8_t b[32];
@@ -112,7 +112,7 @@ extern "C"
    * // n == 32, and b[0..7] is 0,0,0,1,1,0,1,0 — the CCSDS ASM, bit 0 first
    * @endcode
    */
-  size_t hex_to_bin (const char *hex, uint8_t *out, size_t max_out,
+  size_t hex_to_bin (const char *hex, uint8_t *out, size_t out_len,
                      int bitorder);
 
   /**
@@ -125,14 +125,14 @@ extern "C"
    * @param bits      @p n_bits unpacked bits; any non-zero byte reads as 1.
    * @param n_bits    number of bits; must be a multiple of 4.
    * @param out       receives the digits plus a NUL.
-   * @param max_out   capacity of @p out in chars, NUL included.
+   * @param out_len   capacity of @p out in chars, NUL included.
    * @param bitorder  @ref DP_BITORDER_BIG or @ref DP_BITORDER_LITTLE.
    * @return digits written, NOT counting the NUL, or 0 if @p n_bits is not a
-   *         multiple of 4, on NULL, an unknown @p bitorder, or @p max_out too
+   *         multiple of 4, on NULL, an unknown @p bitorder, or @p out_len too
    *         small — in which case @p out is untouched.
    */
   size_t bin_to_hex (const uint8_t *bits, size_t n_bits, char *out,
-                     size_t max_out, int bitorder);
+                     size_t out_len, int bitorder);
 
   /**
    * @brief Square-clip a complex sample: clip the real and imaginary

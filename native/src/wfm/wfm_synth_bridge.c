@@ -33,9 +33,10 @@ wfm_source_has_frame (const wfm_source_t *src)
      alone says nothing about the caller's intent, while every flag below is
      off unless asked for. */
   return src
-         && ((src->acq_code && src->n_acq_code && src->acq_reps)
-             || (src->sync && src->n_sync) || src->attach_asm || src->rs_depth
-             || src->interleave_depth || src->randomise || src->convolutional);
+         && ((src->acq_code.bits && src->acq_code.len && src->acq_reps)
+             || (src->sync.bits && src->sync.len) || src->attach_asm
+             || src->rs_depth || src->interleave_depth || src->randomise
+             || src->convolutional);
 }
 
 const char *
@@ -53,7 +54,7 @@ wfm_source_frame_error (const wfm_source_t *src)
       /* A burst SPREADS its frame, so frame bits without a code are not a
          geometry this can build. It used to leave a zero-length capture and
          exit 0 -- a refusal nobody was told about. */
-      if ((src->n_sync || src->n_bits) && src->n_data_code == 0)
+      if ((src->sync.len || src->n_bits) && src->data_code.len == 0)
         return "a DSSS burst spreads its frame: --data-code is required "
                "whenever there are frame bits (--sync/--bits) to spread";
     }
@@ -194,24 +195,24 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
      coherent pull-in target a receiver correlates raw chips against -- so it
      is outside anything a stage could cover, and `wfm_dsss_desc_chips`
      prepends it around the description rather than inside it. */
-  if (!spread && src->n_acq_code && src->acq_reps)
+  if (!spread && src->acq_code.len && src->acq_reps)
     {
       memset (&seq, 0, sizeof seq);
       seq.kind = WFM_SEQ_LITERAL;
-      seq.bits = src->acq_code;
-      seq.len  = src->n_acq_code;
+      seq.bits = src->acq_code.bits;
+      seq.len  = src->acq_code.len;
       if (wfm_frame_add_field (d, "preamble", &seq, src->acq_reps) < 0)
         return -1;
       if (!first)
         first = "preamble";
     }
 
-  if (src->n_sync)
+  if (src->sync.len)
     {
       memset (&seq, 0, sizeof seq);
       seq.kind = WFM_SEQ_LITERAL;
-      seq.bits = src->sync;
-      seq.len  = src->n_sync;
+      seq.bits = src->sync.bits;
+      seq.len  = src->sync.len;
       if (wfm_frame_add_field (d, "sync", &seq, 0u) < 0)
         return -1;
       if (!first)
@@ -354,8 +355,9 @@ wfm_source_attach_dsss (wfm_synth_state_t *syn, const wfm_source_t *src,
       int mode = src->dsss_code_only          ? WFM_DSSS_DATA_NONE
                  : (src->bits && src->n_bits) ? WFM_DSSS_DATA_BITS
                                               : WFM_DSSS_DATA_PRBS;
-      return wfm_synth_set_dsss_cont (syn, src->data_code, src->n_data_code,
-                                      cps, mode, src->bits, src->n_bits);
+      return wfm_synth_set_dsss_cont (syn, src->data_code.bits,
+                                      src->data_code.len, cps, mode, src->bits,
+                                      src->n_bits);
     }
   /* A BURST is a frame that is spread. The frame comes from the same
      description every other source is built from -- so `--conv`, `--asm`,
@@ -364,8 +366,8 @@ wfm_source_attach_dsss (wfm_synth_state_t *syn, const wfm_source_t *src,
   wfm_frame_desc_t d;
   if (wfm_source_describe_frame (src, &d) != 0)
     return -1;
-  const size_t n = wfm_dsss_desc_nchips (&d, src->n_acq_code, src->acq_reps,
-                                         src->n_data_code);
+  const size_t n = wfm_dsss_desc_nchips (&d, src->acq_code.len, src->acq_reps,
+                                         src->data_code.len);
   if (n == 0)
     return -1; /* frame bits with no data code, or an empty burst */
   uint8_t *chips = malloc (n);
@@ -374,8 +376,8 @@ wfm_source_attach_dsss (wfm_synth_state_t *syn, const wfm_source_t *src,
   wfm_frame_ops_t ops;
   ccsds_tm_frame_ops (&ops, NULL);
   const size_t got = wfm_dsss_desc_chips (
-      &d, &ops, src->acq_code, src->n_acq_code, src->acq_reps, src->data_code,
-      src->n_data_code, chips, n);
+      &d, &ops, src->acq_code.bits, src->acq_code.len, src->acq_reps,
+      src->data_code.bits, src->data_code.len, chips, n);
   if (got != n)
     {
       /* A stage the description names and nothing can run, or a geometry the
@@ -397,8 +399,8 @@ wfm_source_dsss_nchips (const wfm_source_t *src)
   if (!src || src->type != WFM_SYNTH_DSSS || src->symbol_rate > 0.0
       || wfm_source_describe_frame (src, &d) != 0)
     return 0;
-  return wfm_dsss_desc_nchips (&d, src->n_acq_code, src->acq_reps,
-                               src->n_data_code);
+  return wfm_dsss_desc_nchips (&d, src->acq_code.len, src->acq_reps,
+                               src->data_code.len);
 }
 
 wfm_synth_state_t *
@@ -417,13 +419,13 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
      frame; frame bits require a data code). A CONTINUOUS stream (symbol_rate >
      0) has no frame — it needs only a spreading code. */
   if (src->type == WFM_SYNTH_DSSS && src->symbol_rate <= 0.0
-      && wfm_frame_dsss_nchips (src->n_acq_code, src->acq_reps,
-                                src->n_data_code, src->n_sync, src->n_bits,
+      && wfm_frame_dsss_nchips (src->acq_code.len, src->acq_reps,
+                                src->data_code.len, src->sync.len, src->n_bits,
                                 src->crc)
              == 0)
     return NULL;
   if (src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0
-      && (!src->data_code || src->n_data_code == 0))
+      && (!src->data_code.bits || src->data_code.len == 0))
     return NULL;
   /* A frame this waveform type cannot carry. Refusing is the whole point:
      these fields used to be accepted and dropped, so the caller got an

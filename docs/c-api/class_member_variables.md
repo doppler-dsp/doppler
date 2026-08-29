@@ -514,10 +514,7 @@
 * **n\_op** ([**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md))
 * **n\_sources** ([**wfm\_segment\_t**](structwfm__segment__t.md))
 * **num\_samples\_hi** ([**wfm\_segment\_t**](structwfm__segment__t.md))
-* **n\_acq\_code** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **n\_bits** ([**wfm\_source\_t**](structwfm__source__t.md), [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md))
-* **n\_data\_code** ([**wfm\_source\_t**](structwfm__source__t.md))
-* **n\_sync** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **n\_code** ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md))
 * **nsps** ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md))
 

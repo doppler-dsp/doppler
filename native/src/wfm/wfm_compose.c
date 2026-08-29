@@ -34,9 +34,9 @@ free_segment_sources (wfm_segment_t *seg)
       {
         free (seg->sources[k].bits);
         free (seg->sources[k].symbols);
-        free (seg->sources[k].acq_code);
-        free (seg->sources[k].data_code);
-        free (seg->sources[k].sync);
+        free ((void *)seg->sources[k].acq_code.bits);
+        free ((void *)seg->sources[k].data_code.bits);
+        free ((void *)seg->sources[k].sync.bits);
       }
   free (seg->sources);
   seg->sources = NULL;
@@ -61,11 +61,11 @@ dup_u8 (const uint8_t *src, size_t n)
 static int
 copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
 {
-  dst->bits      = NULL;
-  dst->symbols   = NULL;
-  dst->acq_code  = NULL;
-  dst->data_code = NULL;
-  dst->sync      = NULL;
+  dst->bits           = NULL;
+  dst->symbols        = NULL;
+  dst->acq_code.bits  = NULL;
+  dst->data_code.bits = NULL;
+  dst->sync.bits      = NULL;
   if (src->bits && src->n_bits)
     {
       dst->bits = dup_u8 (src->bits, src->n_bits);
@@ -80,22 +80,22 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
         return -1;
       memcpy (dst->symbols, src->symbols, nbytes);
     }
-  if (src->acq_code && src->n_acq_code)
+  if (src->acq_code.bits && src->acq_code.len)
     {
-      dst->acq_code = dup_u8 (src->acq_code, src->n_acq_code);
-      if (!dst->acq_code)
+      dst->acq_code.bits = dup_u8 (src->acq_code.bits, src->acq_code.len);
+      if (!dst->acq_code.bits)
         return -1;
     }
-  if (src->data_code && src->n_data_code)
+  if (src->data_code.bits && src->data_code.len)
     {
-      dst->data_code = dup_u8 (src->data_code, src->n_data_code);
-      if (!dst->data_code)
+      dst->data_code.bits = dup_u8 (src->data_code.bits, src->data_code.len);
+      if (!dst->data_code.bits)
         return -1;
     }
-  if (src->sync && src->n_sync)
+  if (src->sync.bits && src->sync.len)
     {
-      dst->sync = dup_u8 (src->sync, src->n_sync);
-      if (!dst->sync)
+      dst->sync.bits = dup_u8 (src->sync.bits, src->sync.len);
+      if (!dst->sync.bits)
         return -1;
     }
   return 0;
@@ -420,8 +420,9 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
        * the stream is endless and --count IS the span. It must be excluded
        * here, and not only because the derivation is meaningless:
        * wfm_frame_dsss_nchips() returns a nonzero (garbage) value for it
-       * (n_bits payload * n_data_code + a spurious CRC), which would pass the
-       * `if (nchips)` guard and silently overwrite the user's num_samples. */
+       * (n_bits payload * data_code.len + a spurious CRC), which would pass
+       * the `if (nchips)` guard and silently overwrite the user's num_samples.
+       */
       if (s->segs[i].n_sources == 1
           && s->segs[i].sources[0].type == WFM_SYNTH_DSSS
           && s->segs[i].sources[0].symbol_rate <= 0.0)

@@ -544,16 +544,16 @@ source_free (wfm_source_t *s)
 {
   free (s->bits);
   free (s->symbols);
-  free (s->acq_code);
-  free (s->data_code);
-  free (s->sync);
+  free ((void *)s->acq_code.bits);
+  free ((void *)s->data_code.bits);
+  free ((void *)s->sync.bits);
   /* Nulled individually, not chained: `symbols` is float complex * while the
      rest are uint8_t *, so a chain would be an incompatible assignment. */
-  s->bits      = NULL;
-  s->symbols   = NULL;
-  s->acq_code  = NULL;
-  s->data_code = NULL;
-  s->sync      = NULL;
+  s->bits           = NULL;
+  s->symbols        = NULL;
+  s->acq_code.bits  = NULL;
+  s->data_code.bits = NULL;
+  s->sync.bits      = NULL;
 }
 
 /* ── The option table ────────────────────────────────────────────────────
@@ -714,25 +714,25 @@ static const opt_t OPTS[] = {
     .aux  = AUX (src.n_bits) },
   { .name = "--acq-code",
     .kind = OPT_BITS,
-    .off  = OFF (src.acq_code),
-    .aux  = AUX (src.n_acq_code) },
+    .off  = OFF (src.acq_code.bits),
+    .aux  = AUX (src.acq_code.len) },
   { .name = "--acq-code-hex",
     .kind = OPT_HEX,
-    .off  = OFF (src.acq_code),
-    .aux  = AUX (src.n_acq_code) },
+    .off  = OFF (src.acq_code.bits),
+    .aux  = AUX (src.acq_code.len) },
   { .name = "--acq-reps", .kind = OPT_SIZE, .off = OFF (src.acq_reps) },
   { .name = "--data-code",
     .kind = OPT_BITS,
-    .off  = OFF (src.data_code),
-    .aux  = AUX (src.n_data_code) },
+    .off  = OFF (src.data_code.bits),
+    .aux  = AUX (src.data_code.len) },
   { .name = "--data-code-hex",
     .kind = OPT_HEX,
-    .off  = OFF (src.data_code),
-    .aux  = AUX (src.n_data_code) },
+    .off  = OFF (src.data_code.bits),
+    .aux  = AUX (src.data_code.len) },
   { .name = "--sync",
     .kind = OPT_BITS,
-    .off  = OFF (src.sync),
-    .aux  = AUX (src.n_sync) },
+    .off  = OFF (src.sync.bits),
+    .aux  = AUX (src.sync.len) },
   { .name = "--crc",
     .kind = OPT_CHOICE,
     .off  = OFF (src.crc),
@@ -1413,13 +1413,13 @@ check_continuous_dsss (const wfmgen_opts_t *o)
       (void)fprintf (stderr, "error: --symbol-rate is only for --type dsss\n");
       return 2;
     }
-  if (!o->src.data_code)
+  if (!o->src.data_code.bits)
     {
       (void)fprintf (stderr, "error: continuous dsss (--symbol-rate) needs "
                              "--data-code\n");
       return 2;
     }
-  if (o->src.acq_code || o->src.sync)
+  if (o->src.acq_code.bits || o->src.sync.bits)
     {
       (void)fprintf (stderr, "error: --acq-code/--sync are burst-frame flags, "
                              "meaningless with --symbol-rate\n");

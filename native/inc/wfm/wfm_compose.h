@@ -106,13 +106,20 @@ typedef struct {
     double f_end_hi;   /* upper bound when WFM_RANGE_FEND is set */
     /* type=dsss: the two-code burst geometry (wfm_frame_dsss_chips). The
        payload bits ride the shared `bits` field above (alias "payload"). */
-    uint8_t *acq_code;   /* preamble code (0/1), owned; NULL = no preamble */
-    size_t n_acq_code;   /* preamble code length in chips */
+    /* The three sequences a framed source carries. `wfm_seq_t` already names
+       "a run of bits, however produced" -- LITERAL plus the generated PN /
+       GOLD / DOTTED kinds and their parameters -- so carrying it here is
+       what lets a face spell a generated one (gh-762). The literal case is
+       `kind = WFM_SEQ_LITERAL`, which is what every one of these was before,
+       so today's callers describe exactly what they described.
+
+       OWNERSHIP: a source OWNS its `.bits`. `wfm_seq_t` declares them
+       `const uint8_t *` because a frame DESCRIPTOR borrows them, and the
+       borrowing consumer is the common one; the owner casts to free. */
+    wfm_seq_t acq_code;  /* preamble code (0/1); len 0 = no preamble */
     size_t acq_reps;     /* preamble repetitions */
-    uint8_t *data_code;  /* payload spreading code (0/1), owned */
-    size_t n_data_code;  /* chips per frame symbol (spreading factor) */
-    uint8_t *sync;       /* frame-sync word bits (0/1), owned; NULL = none */
-    size_t n_sync;       /* sync word length in bits */
+    wfm_seq_t data_code; /* payload spreading code; len = spreading factor */
+    wfm_seq_t sync;      /* frame-sync word bits; len 0 = none */
     int crc;             /* frame trailer: 0 none, 1 crc16 (dp_crc16.h) */
     /* type=dsss, CONTINUOUS mode: a data-symbol rate independent of the code
        epoch rate selects the continuous form (wfm_synth_set_dsss_cont) over

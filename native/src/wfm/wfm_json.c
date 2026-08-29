@@ -90,9 +90,9 @@ free_src_bits (wfm_source_t *srcs, size_t ns)
       {
         free (srcs[k].bits);
         free (srcs[k].symbols);
-        free (srcs[k].acq_code);
-        free (srcs[k].data_code);
-        free (srcs[k].sync);
+        free ((void *)srcs[k].acq_code.bits);
+        free ((void *)srcs[k].data_code.bits);
+        free ((void *)srcs[k].sync.bits);
       }
 }
 
@@ -185,9 +185,9 @@ add_frame_fields (cJSON *o, const wfm_source_t *src)
 {
   if (!wfm_source_has_frame (src))
     return;
-  add_bit_string (o, "acq_code", src->acq_code, src->n_acq_code);
+  add_bit_string (o, "acq_code", src->acq_code.bits, src->acq_code.len);
   cJSON_AddNumberToObject (o, "acq_reps", (double)src->acq_reps);
-  add_bit_string (o, "sync", src->sync, src->n_sync);
+  add_bit_string (o, "sync", src->sync.bits, src->sync.len);
   cJSON_AddStringToObject (o, "crc", CRC_NAMES[src->crc ? 1 : 0]);
 }
 
@@ -208,17 +208,17 @@ add_dsss_fields (cJSON *o, const wfm_source_t *src)
      "acq_reps"/"crc" the burst path always writes. */
   if (src->symbol_rate > 0.0)
     {
-      add_bit_string (o, "data_code", src->data_code, src->n_data_code);
+      add_bit_string (o, "data_code", src->data_code.bits, src->data_code.len);
       add_bit_string (o, "payload", src->bits, src->n_bits);
       cJSON_AddNumberToObject (o, "symbol_rate", src->symbol_rate);
       if (src->dsss_code_only) /* omit for the data-modulated default */
         cJSON_AddStringToObject (o, "data", "none");
       return;
     }
-  add_bit_string (o, "acq_code", src->acq_code, src->n_acq_code);
+  add_bit_string (o, "acq_code", src->acq_code.bits, src->acq_code.len);
   cJSON_AddNumberToObject (o, "acq_reps", (double)src->acq_reps);
-  add_bit_string (o, "data_code", src->data_code, src->n_data_code);
-  add_bit_string (o, "sync", src->sync, src->n_sync);
+  add_bit_string (o, "data_code", src->data_code.bits, src->data_code.len);
+  add_bit_string (o, "sync", src->sync.bits, src->sync.len);
   add_bit_string (o, "payload", src->bits, src->n_bits);
   cJSON_AddStringToObject (o, "crc", CRC_NAMES[src->crc ? 1 : 0]);
 }
@@ -337,11 +337,16 @@ read_frame_fields (const cJSON *so, wfm_source_t *out)
   const struct
   {
     const char *key;
-    uint8_t   **arr;
-    size_t     *len;
+    /* `const uint8_t **`, matching the member: a source OWNS these bits, but
+       `wfm_seq_t` declares them const for the borrowing consumer. Storing a
+       freshly-allocated non-const buffer into a const slot is exactly the
+       direction C allows, so the read side needs no cast -- only the frees
+       do. */
+    const uint8_t **arr;
+    size_t         *len;
   } bitkeys[] = {
-    { "acq_code", &out->acq_code, &out->n_acq_code },
-    { "sync", &out->sync, &out->n_sync },
+    { "acq_code", &out->acq_code.bits, &out->acq_code.len },
+    { "sync", &out->sync.bits, &out->sync.len },
   };
   for (size_t i = 0; i < sizeof bitkeys / sizeof bitkeys[0]; i++)
     {
@@ -468,8 +473,8 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
           cJSON_GetObjectItemCaseSensitive (so, "data_code"));
       if (dc)
         {
-          out->data_code = string_to_bits (dc, &out->n_data_code);
-          if (!out->data_code)
+          out->data_code.bits = string_to_bits (dc, &out->data_code.len);
+          if (!out->data_code.bits)
             {
               free_src_bits (out, 1); /* drop this source's partials */
               return -1;

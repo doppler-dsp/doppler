@@ -382,17 +382,15 @@ main (void)
     uint8_t      code[7] = { 1, 1, 1, 0, 0, 1, 0 };
     wfm_source_t prbs    = { .type        = WFM_SYNTH_DSSS,
                              .sps         = 2,
-                             .data_code   = code,
-                             .n_data_code = 7,
+                             .data_code   = { .bits = code, .len = 7 },
                              .symbol_rate = 2700.0 };
     wfm_source_t none    = { .type           = WFM_SYNTH_DSSS,
                              .sps            = 2,
-                             .data_code      = code,
-                             .n_data_code    = 7,
+                             .data_code      = { .bits = code, .len = 7 },
                              .symbol_rate    = 2700.0,
                              .dsss_code_only = 1 };
     wfm_source_t burst   = {
-      .type = WFM_SYNTH_DSSS, .sps = 2, .data_code = code, .n_data_code = 7
+      .type = WFM_SYNTH_DSSS, .sps = 2, .data_code = { .bits = code, .len = 7 }
     }; /* symbol_rate 0 → burst */
 
     wfm_segment_t sp = {

@@ -129,9 +129,9 @@ Synth_dealloc (SynthObject *self)
     wfm_synth_destroy (self->_gen);
   free (self->src.bits);
   free (self->src.symbols);
-  free (self->src.acq_code);
-  free (self->src.data_code);
-  free (self->src.sync);
+  free ((void *)self->src.acq_code.bits);
+  free ((void *)self->src.data_code.bits);
+  free ((void *)self->src.sync.bits);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -602,12 +602,15 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   self->src.rrc_span = rrc_span;
   if (!_attach_symbols (&self->src, symbols))
     return -1;
-  if (!_attach_bytes (&self->src.acq_code, &self->src.n_acq_code, acq_code))
+  if (!_attach_bytes ((uint8_t **)&self->src.acq_code.bits,
+                      &self->src.acq_code.len, acq_code))
     return -1;
   self->src.acq_reps = acq_reps;
-  if (!_attach_bytes (&self->src.data_code, &self->src.n_data_code, data_code))
+  if (!_attach_bytes ((uint8_t **)&self->src.data_code.bits,
+                      &self->src.data_code.len, data_code))
     return -1;
-  if (!_attach_bytes (&self->src.sync, &self->src.n_sync, sync))
+  if (!_attach_bytes ((uint8_t **)&self->src.sync.bits, &self->src.sync.len,
+                      sync))
     return -1;
   {
     int _i = _enum_index (_enum_crc, crc);
@@ -1008,16 +1011,17 @@ static PyObject *
 Synth_get_acq_code (SynthObject *self, void *closure)
 {
   (void)closure;
-  if (self->src.acq_code && self->src.n_acq_code)
-    return PyBytes_FromStringAndSize ((const char *)self->src.acq_code,
-                                      (Py_ssize_t)self->src.n_acq_code);
+  if (self->src.acq_code.bits && self->src.acq_code.len)
+    return PyBytes_FromStringAndSize ((const char *)self->src.acq_code.bits,
+                                      (Py_ssize_t)self->src.acq_code.len);
   Py_RETURN_NONE;
 }
 static int
 Synth_set_acq_code (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _attach_bytes (&self->src.acq_code, &self->src.n_acq_code, value)
+  return _attach_bytes ((uint8_t **)&self->src.acq_code.bits,
+                        &self->src.acq_code.len, value)
              ? 0
              : -1;
 }
@@ -1040,16 +1044,17 @@ static PyObject *
 Synth_get_data_code (SynthObject *self, void *closure)
 {
   (void)closure;
-  if (self->src.data_code && self->src.n_data_code)
-    return PyBytes_FromStringAndSize ((const char *)self->src.data_code,
-                                      (Py_ssize_t)self->src.n_data_code);
+  if (self->src.data_code.bits && self->src.data_code.len)
+    return PyBytes_FromStringAndSize ((const char *)self->src.data_code.bits,
+                                      (Py_ssize_t)self->src.data_code.len);
   Py_RETURN_NONE;
 }
 static int
 Synth_set_data_code (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _attach_bytes (&self->src.data_code, &self->src.n_data_code, value)
+  return _attach_bytes ((uint8_t **)&self->src.data_code.bits,
+                        &self->src.data_code.len, value)
              ? 0
              : -1;
 }
@@ -1057,16 +1062,19 @@ static PyObject *
 Synth_get_sync (SynthObject *self, void *closure)
 {
   (void)closure;
-  if (self->src.sync && self->src.n_sync)
-    return PyBytes_FromStringAndSize ((const char *)self->src.sync,
-                                      (Py_ssize_t)self->src.n_sync);
+  if (self->src.sync.bits && self->src.sync.len)
+    return PyBytes_FromStringAndSize ((const char *)self->src.sync.bits,
+                                      (Py_ssize_t)self->src.sync.len);
   Py_RETURN_NONE;
 }
 static int
 Synth_set_sync (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _attach_bytes (&self->src.sync, &self->src.n_sync, value) ? 0 : -1;
+  return _attach_bytes ((uint8_t **)&self->src.sync.bits, &self->src.sync.len,
+                        value)
+             ? 0
+             : -1;
 }
 static PyObject *
 Synth_get_crc (SynthObject *self, void *closure)
@@ -2510,41 +2518,41 @@ _wfm_compose_segments_to_list (const wfm_segment_t *src, size_t n)
               syn->src.bits   = NULL;
               syn->src.n_bits = 0;
             }
-          if (syn->src.acq_code && syn->src.n_acq_code)
+          if (syn->src.acq_code.bits && syn->src.acq_code.len)
             {
-              uint8_t *copy = (uint8_t *)malloc (syn->src.n_acq_code);
+              uint8_t *copy = (uint8_t *)malloc (syn->src.acq_code.len);
               if (copy)
-                memcpy (copy, syn->src.acq_code, syn->src.n_acq_code);
-              syn->src.acq_code = copy;
+                memcpy (copy, syn->src.acq_code.bits, syn->src.acq_code.len);
+              syn->src.acq_code.bits = copy;
             }
           else
             {
-              syn->src.acq_code   = NULL;
-              syn->src.n_acq_code = 0;
+              syn->src.acq_code.bits = NULL;
+              syn->src.acq_code.len  = 0;
             }
-          if (syn->src.data_code && syn->src.n_data_code)
+          if (syn->src.data_code.bits && syn->src.data_code.len)
             {
-              uint8_t *copy = (uint8_t *)malloc (syn->src.n_data_code);
+              uint8_t *copy = (uint8_t *)malloc (syn->src.data_code.len);
               if (copy)
-                memcpy (copy, syn->src.data_code, syn->src.n_data_code);
-              syn->src.data_code = copy;
+                memcpy (copy, syn->src.data_code.bits, syn->src.data_code.len);
+              syn->src.data_code.bits = copy;
             }
           else
             {
-              syn->src.data_code   = NULL;
-              syn->src.n_data_code = 0;
+              syn->src.data_code.bits = NULL;
+              syn->src.data_code.len  = 0;
             }
-          if (syn->src.sync && syn->src.n_sync)
+          if (syn->src.sync.bits && syn->src.sync.len)
             {
-              uint8_t *copy = (uint8_t *)malloc (syn->src.n_sync);
+              uint8_t *copy = (uint8_t *)malloc (syn->src.sync.len);
               if (copy)
-                memcpy (copy, syn->src.sync, syn->src.n_sync);
-              syn->src.sync = copy;
+                memcpy (copy, syn->src.sync.bits, syn->src.sync.len);
+              syn->src.sync.bits = copy;
             }
           else
             {
-              syn->src.sync   = NULL;
-              syn->src.n_sync = 0;
+              syn->src.sync.bits = NULL;
+              syn->src.sync.len  = 0;
             }
           PyList_SET_ITEM (srclist, (Py_ssize_t)k, (PyObject *)syn);
         }

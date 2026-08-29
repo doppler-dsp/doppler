@@ -142,8 +142,11 @@ uint64_t bin_to_int(const uint8_t *bits, size_t bits_len, int bitorder);
  * @brief Render unpacked bits to hex digits -- inverse of hex_to_bin.
  *
  * The digits come back as ASCII BYTES rather than a string: jm has no string
- * out-parameter, and `uint8_t` is the same type as the `unsigned char` a C
- * caller would use anyway. A NUL is written after the digits.
+ * out-parameter for a module function
+ * (just-buildit/just-makeit#1180), and `uint8_t` is the same type as the
+ * `unsigned char` a C caller would use anyway. A NUL is written after the
+ * digits. The C face is honest; only the Python face pays, with a
+ * `bytes(out).decode()`.
  *
  * @param bits      unpacked bits; any non-zero byte reads as 1.
  * @param bits_len  number of bits; must be a multiple of 4.

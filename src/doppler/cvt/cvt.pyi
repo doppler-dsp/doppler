@@ -2050,14 +2050,18 @@ def bin_to_hex(
 ) -> int:
     """Render unpacked bits back to hex digits -- the exact inverse of
     hex_to_bin. The digits come back as ASCII BYTES rather than a str: jm
-    has no string out-parameter, and uint8_t is the same type as the
+    has no string out-parameter for a module function
+    (just-buildit/just-makeit#1180), and uint8_t is the same type as the
     unsigned char a C caller would use. Decode with bytes(out).decode() in
     Python. n_bits must be a multiple of 4. Returns the digits written, not
     counting the NUL, or 0 on refusal.
 
     The digits come back as ASCII BYTES rather than a string: jm has no
-    string out-parameter, and `uint8_t` is the same type as the `unsigned
-    char` a C caller would use anyway. A NUL is written after the digits.
+    string out-parameter for a module function
+    (just-buildit/just-makeit#1180), and `uint8_t` is the same type as the
+    `unsigned char` a C caller would use anyway. A NUL is written after the
+    digits. The C face is honest; only the Python face pays, with a
+    `bytes(out).decode()`.
 
     Parameters
     ----------

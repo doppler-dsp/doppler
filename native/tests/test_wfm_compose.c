@@ -715,22 +715,19 @@ main (void)
     uint8_t sync[2]  = { 1, 0 };
     uint8_t pay[5]   = { 1, 0, 0, 1, 1 };
 
-    wfm_source_t dsss = { .type        = WFM_SYNTH_DSSS,
-                          .snr         = 6.0,
-                          .snr_mode    = 3, /* esno: outer data symbol */
-                          .seed        = 7,
-                          .sps         = 2,
-                          .pn_length   = 7,
-                          .acq_code    = acq,
-                          .n_acq_code  = 8,
-                          .acq_reps    = 3,
-                          .data_code   = dcode,
-                          .n_data_code = 4,
-                          .sync        = sync,
-                          .n_sync      = 2,
-                          .bits        = pay, /* payload */
-                          .n_bits      = 5,
-                          .crc         = 1 };
+    wfm_source_t dsss = { .type      = WFM_SYNTH_DSSS,
+                          .snr       = 6.0,
+                          .snr_mode  = 3, /* esno: outer data symbol */
+                          .seed      = 7,
+                          .sps       = 2,
+                          .pn_length = 7,
+                          .acq_code  = { .bits = acq, .len = 8 },
+                          .acq_reps  = 3,
+                          .data_code = { .bits = dcode, .len = 4 },
+                          .sync      = { .bits = sync, .len = 2 },
+                          .bits      = pay, /* payload */
+                          .n_bits    = 5,
+                          .crc       = 1 };
     /* deliberately wrong num_samples: the intrinsic on-time must win */
     wfm_segment_t g = { .sources     = &dsss,
                         .n_sources   = 1,
@@ -865,8 +862,8 @@ main (void)
     wfm_source_t  nos       = dsss;
     wfm_segment_t gnos      = g;
     gnos.sources            = &nos;
-    nos.sync                = NULL;
-    nos.n_sync              = 0;
+    nos.sync.bits           = NULL;
+    nos.sync.len            = 0;
     wfm_compose_state_t *cn = wfm_compose_create (&gnos, 1, 0, 0);
     DP_REQUIRE_MSG (cn, "no-sync dsss create");
     size_t               nn  = 0;
@@ -955,9 +952,9 @@ main (void)
      * to stop, and on the CLI it read as a zero-length capture with exit 0.
      * A DSSS burst spreads its frame, so a frame with nothing to spread it
      * by is a geometry no caller can have meant (doppler#1017). */
-    wfm_source_t bad = dsss;
-    bad.data_code    = NULL;
-    bad.n_data_code  = 0;
+    wfm_source_t bad   = dsss;
+    bad.data_code.bits = NULL;
+    bad.data_code.len  = 0;
     wfm_segment_t gbad
         = { .sources = &bad, .n_sources = 1, .fs = 1e6, .off_samples = 4 };
     DP_REQUIRE_MSG (wfm_source_frame_error (&bad) != NULL,
@@ -1467,20 +1464,20 @@ main (void)
     static const uint8_t acq_bits[8] = { 1, 0, 1, 0, 1, 0, 1, 0 };
     static const uint8_t payload[16]
         = { 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0 };
-    wfm_source_t plain  = { .type       = WFM_SYNTH_BITS,
-                            .snr        = 100.0,
-                            .sps        = 1,
-                            .pn_length  = 7,
-                            .bits       = (uint8_t *)payload,
-                            .n_bits     = sizeof payload,
-                            .modulation = 1 /* bpsk */ };
-    wfm_source_t framed = plain;
-    framed.acq_code     = (uint8_t *)acq_bits;
-    framed.n_acq_code   = sizeof acq_bits;
-    framed.acq_reps     = 4;
-    framed.sync         = (uint8_t *)sync_bits;
-    framed.n_sync       = sizeof sync_bits;
-    framed.crc          = 1;
+    wfm_source_t plain   = { .type       = WFM_SYNTH_BITS,
+                             .snr        = 100.0,
+                             .sps        = 1,
+                             .pn_length  = 7,
+                             .bits       = (uint8_t *)payload,
+                             .n_bits     = sizeof payload,
+                             .modulation = 1 /* bpsk */ };
+    wfm_source_t framed  = plain;
+    framed.acq_code.bits = acq_bits;
+    framed.acq_code.len  = sizeof acq_bits;
+    framed.acq_reps      = 4;
+    framed.sync.bits     = sync_bits;
+    framed.sync.len      = sizeof sync_bits;
+    framed.crc           = 1;
 
     DP_REQUIRE_MSG (!wfm_source_has_frame (&plain),
                     "a preamble-less, sync-less source is not framed");
@@ -1590,8 +1587,8 @@ main (void)
      * the array — so it is a C-level guard and it is asserted in C. Note it
      * passes wfm_source_frame_error(): the user-facing rule is about the
      * payload, and this is the layer under it. */
-    wfm_source_t broken = framed;
-    broken.acq_code     = NULL; /* n_acq_code and acq_reps still set */
+    wfm_source_t broken  = framed;
+    broken.acq_code.bits = NULL; /* .len and acq_reps still set */
     DP_REQUIRE_MSG (wfm_source_has_frame (&broken), "still reads as framed");
     DP_REQUIRE_MSG (
         wfm_source_frame_error (&broken) == NULL,
@@ -1749,14 +1746,14 @@ main (void)
                              .interleave_unit_bits = CASES[c].unit };
         if (CASES[c].n_sync)
           {
-            src.sync   = (uint8_t *)syncw;
-            src.n_sync = CASES[c].n_sync;
+            src.sync.bits = syncw;
+            src.sync.len  = CASES[c].n_sync;
           }
         if (CASES[c].n_pre)
           {
-            src.acq_code   = (uint8_t *)pre;
-            src.n_acq_code = CASES[c].n_pre;
-            src.acq_reps   = CASES[c].reps;
+            src.acq_code.bits = pre;
+            src.acq_code.len  = CASES[c].n_pre;
+            src.acq_reps      = CASES[c].reps;
           }
 
         /* The new path. */
@@ -1767,11 +1764,11 @@ main (void)
         /* The path it replaces, spelled the only way that struct allows. */
         const ccsds_tm_frame_spec_t sp = {
           .attach_asm           = src.attach_asm,
-          .preamble             = src.acq_code,
-          .preamble_len         = src.n_acq_code,
+          .preamble             = src.acq_code.bits,
+          .preamble_len         = src.acq_code.len,
           .preamble_reps        = src.acq_reps,
-          .sync                 = src.sync,
-          .sync_len             = src.n_sync,
+          .sync                 = src.sync.bits,
+          .sync_len             = src.sync.len,
           .payload              = src.bits,
           .payload_len          = src.n_bits,
           .crc                  = src.crc,

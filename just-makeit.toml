@@ -1248,6 +1248,10 @@ name = "acq_code"
 type = "uint8_t*"
 bytes = true
 coerce = "bit_pattern"
+# gh-1184: the source carries a `wfm_seq_t`, so the owned array lives at
+# `.bits`/`.len` inside it rather than at the default `acq_code`/`n_acq_code`.
+c_ptr = "acq_code.bits"
+c_len = "acq_code.len"
 doc = "The acquisition/preamble code (0/1), repeated acq_reps times at the head of the frame — the coherent pull-in target BurstDespreader.set_acq/BurstDemod.set_preamble lock to. For type=dsss it is unmodulated chips ahead of the spread frame; for type=bits it is the head of the bit pattern. Setting it (or sync) is what makes a source FRAMED."
 
 [[module.wfm_compose.source.fields]]
@@ -1261,6 +1265,10 @@ name = "data_code"
 type = "uint8_t*"
 bytes = true
 coerce = "bit_pattern"
+# gh-1184: the source carries a `wfm_seq_t`, so the owned array lives at
+# `.bits`/`.len` inside it rather than at the default `data_code`/`n_data_code`.
+c_ptr = "data_code.bits"
+c_len = "data_code.len"
 doc = "For type=dsss: the payload spreading code (0/1 chips) — a second code, distinct from acq_code; every frame bit (sync | payload | crc) is XOR-spread across its full length, so len(data_code) is the spreading factor."
 
 [[module.wfm_compose.source.fields]]
@@ -1268,6 +1276,10 @@ name = "sync"
 type = "uint8_t*"
 bytes = true
 coerce = "bit_pattern"
+# gh-1184: the source carries a `wfm_seq_t`, so the owned array lives at
+# `.bits`/`.len` inside it rather than at the default `sync`/`n_sync`.
+c_ptr = "sync.bits"
+c_len = "sync.len"
 doc = "The frame-sync word bits (e.g. Barker-13) between the preamble and the payload — what BurstDemod.set_frame correlates to resolve frame position and BPSK polarity, and what a BER alignment detects against. Optional; setting it (or acq_code) is what makes a source FRAMED."
 
 [[module.wfm_compose.source.fields]]

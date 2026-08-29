@@ -99,23 +99,23 @@ mls (unsigned stages, uint32_t seed, uint8_t *out)
 static wfm_source_t
 dsss_source (uint8_t *acq, uint8_t *data, uint8_t *sy, uint8_t *payload)
 {
-  wfm_source_t src = { 0 };
-  src.type         = WFM_SYNTH_DSSS;
-  src.freq         = 0.0;
-  src.snr          = ESN0_DB;
-  src.snr_mode     = 3; /* esno -- Es/N0 of the DATA_SF-chip data symbol */
-  src.seed         = 1u;
-  src.sps          = (int)SPC; /* samples per CHIP */
-  src.acq_code     = acq;
-  src.n_acq_code   = ACQ_SF;
-  src.acq_reps     = REPS;
-  src.data_code    = data;
-  src.n_data_code  = DATA_SF;
-  src.sync         = sy;
-  src.n_sync       = SYNC_LEN;
-  src.crc          = 1;       /* crc16 trailer, appended by the engine */
-  src.bits         = payload; /* the payload rides `bits` */
-  src.n_bits       = PAYLOAD;
+  wfm_source_t src   = { 0 };
+  src.type           = WFM_SYNTH_DSSS;
+  src.freq           = 0.0;
+  src.snr            = ESN0_DB;
+  src.snr_mode       = 3; /* esno -- Es/N0 of the DATA_SF-chip data symbol */
+  src.seed           = 1u;
+  src.sps            = (int)SPC; /* samples per CHIP */
+  src.acq_code.bits  = acq;
+  src.acq_code.len   = ACQ_SF;
+  src.acq_reps       = REPS;
+  src.data_code.bits = data;
+  src.data_code.len  = DATA_SF;
+  src.sync.bits      = sy;
+  src.sync.len       = SYNC_LEN;
+  src.crc            = 1;       /* crc16 trailer, appended by the engine */
+  src.bits           = payload; /* the payload rides `bits` */
+  src.n_bits         = PAYLOAD;
   return src;
 }
 

@@ -84,7 +84,7 @@ dsss_sym_span (const wfm_source_t *s, double fs)
 static double
 snr_over_fs (const wfm_source_t *s, double fs)
 {
-  return wfm_snr_over_fs (s->snr_mode, s->type, s->sps, s->n_data_code,
+  return wfm_snr_over_fs (s->snr_mode, s->type, s->sps, s->data_code.len,
                           dsss_sym_span (s, fs), s->snr);
 }
 
@@ -99,7 +99,7 @@ wfm_source_create_snr (const wfm_source_t *src, double fs, double snr,
   if (src->type == WFM_SYNTH_DSSS && snr < WFM_SYNTH_SNR_CLEAN)
     {
       snr = wfm_snr_over_fs (src->snr_mode, src->type, src->sps,
-                             src->n_data_code, dsss_sym_span (src, fs), snr);
+                             src->data_code.len, dsss_sym_span (src, fs), snr);
       *snr_mode = 1; /* fs */
     }
   return snr;

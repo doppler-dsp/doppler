@@ -98,9 +98,9 @@ free_source_arrays (wfm_source_t *s)
 {
   free (s->bits);
   free (s->symbols);
-  free (s->acq_code);
-  free (s->data_code);
-  free (s->sync);
+  free ((void *)s->acq_code.bits);
+  free ((void *)s->data_code.bits);
+  free ((void *)s->sync.bits);
 }
 
 /* malloc+memcpy an owned byte array (NULL for an empty one). */
@@ -121,11 +121,11 @@ dup_u8 (const uint8_t *src, size_t n)
 static int
 copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
 {
-  dst->bits      = NULL;
-  dst->symbols   = NULL;
-  dst->acq_code  = NULL;
-  dst->data_code = NULL;
-  dst->sync      = NULL;
+  dst->bits           = NULL;
+  dst->symbols        = NULL;
+  dst->acq_code.bits  = NULL;
+  dst->data_code.bits = NULL;
+  dst->sync.bits      = NULL;
   if (src->bits && src->n_bits)
     if (!(dst->bits = dup_u8 (src->bits, src->n_bits)))
       return -1;
@@ -136,14 +136,15 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
         return -1;
       memcpy (dst->symbols, src->symbols, nbytes);
     }
-  if (src->acq_code && src->n_acq_code)
-    if (!(dst->acq_code = dup_u8 (src->acq_code, src->n_acq_code)))
+  if (src->acq_code.bits && src->acq_code.len)
+    if (!(dst->acq_code.bits = dup_u8 (src->acq_code.bits, src->acq_code.len)))
       return -1;
-  if (src->data_code && src->n_data_code)
-    if (!(dst->data_code = dup_u8 (src->data_code, src->n_data_code)))
+  if (src->data_code.bits && src->data_code.len)
+    if (!(dst->data_code.bits
+          = dup_u8 (src->data_code.bits, src->data_code.len)))
       return -1;
-  if (src->sync && src->n_sync)
-    if (!(dst->sync = dup_u8 (src->sync, src->n_sync)))
+  if (src->sync.bits && src->sync.len)
+    if (!(dst->sync.bits = dup_u8 (src->sync.bits, src->sync.len)))
       return -1;
   return 0;
 }
@@ -422,7 +423,7 @@ resolve_segment_noise (wfm_plan_segment_t *ps, const wfm_segment_t *g)
             ps->anchor_type    = g->sources[j].type;
             ps->anchor_mode    = g->sources[j].snr_mode;
             ps->anchor_sps     = g->sources[j].sps;
-            ps->anchor_sf      = g->sources[j].n_data_code;
+            ps->anchor_sf      = g->sources[j].data_code.len;
             ps->anchor_sym_span
                 = (g->sources[j].type == WFM_SYNTH_DSSS
                    && g->sources[j].symbol_rate > 0.0 && g->fs > 0.0)

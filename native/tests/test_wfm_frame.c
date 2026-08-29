@@ -27,6 +27,120 @@
 
 static uint8_t buf[CAP];
 
+/* ── a synthetic stage table ──────────────────────────────────────────────
+ *
+ * Deliberately NOT ccsds_tm's. The descriptor is general and CCSDS is one
+ * CONFIGURATION of it, so a test that reached the general machinery only
+ * through ccsds_tm would be evidence about CCSDS — and the general claims
+ * would hold, or fail, unobserved. That was the state before this file: the
+ * receive mirror, the ops table and the second built-in had zero mentions
+ * here and were exercised only in test_ccsds_tm_frame.c.
+ *
+ * These kernels are arithmetic nobody ships. They need to be exactly two
+ * things: order-sensitive against each other, and checkable.
+ */
+
+/* TOY_SUM — the last 8 bits of the cover carry the number of 1s in the head,
+   MSB-first. A check symbol in the shape every in-place stage uses: read the
+   information at the head, write what you derive into the tail. */
+#define TOY_SUM_BITS 8u
+
+static unsigned
+toy_sum_head (const uint8_t *bits, size_t prot)
+{
+  unsigned n = 0;
+  for (size_t i = 0; i < prot; i++)
+    n += (bits[i] & 1u);
+  return n & 0xFFu;
+}
+
+static int
+toy_sum_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
+{
+  (void)st;
+  (void)user;
+  if (n <= TOY_SUM_BITS)
+    return -1;
+  const size_t   prot = n - TOY_SUM_BITS;
+  const unsigned s    = toy_sum_head (bits, prot);
+  for (size_t i = 0; i < TOY_SUM_BITS; i++)
+    bits[prot + i] = (uint8_t)((s >> (7u - i)) & 1u);
+  return 0;
+}
+
+static int
+toy_sum_undo (const wfm_stage_t *st, uint8_t *bits, size_t n,
+              wfm_frame_stage_rx_t *rx, void *user)
+{
+  (void)st;
+  (void)user;
+  if (n <= TOY_SUM_BITS)
+    return -1;
+  const size_t   prot = n - TOY_SUM_BITS;
+  const unsigned want = toy_sum_head (bits, prot);
+  unsigned       got  = 0;
+  for (size_t i = 0; i < TOY_SUM_BITS; i++)
+    got = (got << 1) | (bits[prot + i] & 1u);
+  rx->units   = 1u;
+  rx->ok      = (want == got) ? 1u : 0u;
+  rx->checked = 1;
+  return 0;
+}
+
+/* TOY_FLIP — XOR every bit of the cover. Its own inverse, which is what
+   makes it order-sensitive against TOY_SUM: a sum written before the flip
+   does not describe the bits after it. */
+static int
+toy_flip_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
+{
+  (void)st;
+  (void)user;
+  for (size_t i = 0; i < n; i++)
+    bits[i] ^= 1u;
+  return 0;
+}
+
+static int
+toy_flip_undo (const wfm_stage_t *st, uint8_t *bits, size_t n,
+               wfm_frame_stage_rx_t *rx, void *user)
+{
+  toy_flip_in_unit (st, bits, n, user);
+  rx->units   = 1u;
+  rx->ok      = 1u;
+  rx->checked = 1;
+  return 0;
+}
+
+/* TOY_NOOP — transforms nothing and has NO undo, modelling the one stage
+   shape the receive side must report honestly: reversed somewhere else, or
+   not at all. Identity on purpose, so skipping its undo cannot corrupt the
+   span a later assertion reads. */
+static int
+toy_noop_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
+{
+  (void)st;
+  (void)bits;
+  (void)n;
+  (void)user;
+  return 0;
+}
+
+static const wfm_stage_op_t TOY_OPS[] = {
+  { WFM_STAGE_RS, toy_sum_in_unit, NULL, toy_sum_undo },
+  { WFM_STAGE_RANDOMISE, toy_flip_in_unit, NULL, toy_flip_undo },
+  { WFM_STAGE_CONV, toy_noop_in_unit, NULL, NULL },
+};
+
+static wfm_frame_ops_t
+toy_ops (void)
+{
+  wfm_frame_ops_t o;
+  o.op   = TOY_OPS;
+  o.n_op = (unsigned)(sizeof TOY_OPS / sizeof TOY_OPS[0]);
+  o.user = NULL;
+  return o;
+}
+
 int
 main (void)
 {
@@ -471,6 +585,243 @@ main (void)
               == 0);
     DP_CHECK_MSG (wfm_dsss_desc_nchips (&d, sizeof acq, reps, 0u) == 0,
                   "frame bits with no spreading code is not a geometry");
+  }
+
+  /* ── the ops table EXTENDS the built-ins ──────────────────────────────
+   *
+   * The header's claim: a table "EXTENDS the built-ins rather than replacing
+   * them -- so a table supplying an outer code does not have to restate the
+   * CRC." Nothing pinned it. The paired assertion is what makes it evidence:
+   * the SAME description must fail without the table and pass with it, or a
+   * lookup that ignored the table entirely would satisfy the second half.
+   */
+  {
+    uint8_t          b[128];
+    wfm_frame_desc_t d;
+    wfm_frame_ops_t  ops = toy_ops ();
+    memset (&d, 0, sizeof d);
+    d.n_fields             = 2u;
+    d.field[0].seq.kind    = WFM_SEQ_DOTTED;
+    d.field[0].seq.len     = 32u;
+    d.field[1].bits        = WFM_FRAME_CRC_BITS;
+    d.field[1].derived_by  = 1u; /* stage 0 */
+    d.n_stages             = 2u;
+    d.stage[0].kind        = WFM_STAGE_CRC16; /* built in, NOT in TOY_OPS */
+    d.stage[0].first_field = 0u;
+    d.stage[0].n_fields    = 2u;
+    d.stage[1].kind        = WFM_STAGE_RANDOMISE; /* only in TOY_OPS */
+    d.stage[1].first_field = 0u;
+    d.stage[1].n_fields    = 2u;
+
+    DP_CHECK_MSG (wfm_frame_assemble (&d, NULL, b, sizeof b) == 0,
+                  "without the table the randomise stage has no kernel");
+    DP_CHECK_MSG (wfm_frame_assemble (&d, &ops, b, sizeof b) == 48u,
+                  "with it, the table's stage AND the built-in CRC resolve");
+  }
+
+  /* ── wfm_frame_check reverses in the OPPOSITE order ────────────────────
+   *
+   * "Stages are reversed in the OPPOSITE order to the one they were applied
+   * in." Pinned nowhere. A test that merely watched check() return 1 would
+   * not be evidence for it -- two stages that commute pass in either order.
+   * So the pair is chosen NOT to commute, and the precondition proves it:
+   * undoing the sum while the flip is still on top must FAIL. Only then does
+   * check() == 1 mean the order was right.
+   */
+  {
+    uint8_t          b[128], same_order[128];
+    wfm_frame_desc_t d;
+    wfm_frame_rx_t   rx;
+    wfm_frame_ops_t  ops = toy_ops ();
+    memset (&d, 0, sizeof d);
+    d.n_fields             = 2u;
+    d.field[0].seq.kind    = WFM_SEQ_DOTTED;
+    d.field[0].seq.len     = 24u;
+    d.field[1].bits        = TOY_SUM_BITS;
+    d.field[1].derived_by  = 1u; /* stage 0 — the sum */
+    d.n_stages             = 2u;
+    d.stage[0].kind        = WFM_STAGE_RS; /* toy sum, applied FIRST  */
+    d.stage[0].first_field = 0u;
+    d.stage[0].n_fields    = 2u;
+    d.stage[1].kind        = WFM_STAGE_RANDOMISE; /* toy flip, SECOND */
+    d.stage[1].first_field = 0u;
+    d.stage[1].n_fields    = 2u;
+
+    DP_CHECK (wfm_frame_assemble (&d, &ops, b, sizeof b) == 32u);
+
+    /* The precondition. Undo the sum WITHOUT undoing the flip first -- the
+       same-order mistake -- and it must report not-ok, or the pair commutes
+       and the assertion below is decoration. */
+    memcpy (same_order, b, 32u);
+    wfm_frame_stage_rx_t one;
+    memset (&one, 0, sizeof one);
+    DP_CHECK (toy_sum_undo (&d.stage[0], same_order, 32u, &one, NULL) == 0);
+    DP_CHECK_MSG (one.ok == 0u,
+                  "the toy pair must NOT commute, or the order test is "
+                  "satisfied by any order at all");
+
+    memset (&rx, 0, sizeof rx);
+    DP_CHECK_MSG (wfm_frame_check (&d, &ops, b, &rx) == 1,
+                  "reversing flip-then-sum recovers the frame");
+    DP_CHECK_MSG (rx.checked == 2u, "both stages were actually reversed");
+  }
+
+  /* ── a stage with no undo is NOT CHECKED, never passed ─────────────────
+   *
+   * "A stage with no @c undo kernel is reported as **not checked**, never as
+   * passed." The distinction is the whole point: an FER that read a stage it
+   * never reversed as a stage that passed would report a clean link it had
+   * not looked at. Asserting `ok` alone would not catch that -- `checked` is
+   * the field under test.
+   */
+  {
+    uint8_t          b[128];
+    wfm_frame_desc_t d;
+    wfm_frame_rx_t   rx;
+    wfm_frame_ops_t  ops = toy_ops ();
+    memset (&d, 0, sizeof d);
+    d.n_fields             = 2u;
+    d.field[0].seq.kind    = WFM_SEQ_DOTTED;
+    d.field[0].seq.len     = 24u;
+    d.field[1].bits        = TOY_SUM_BITS;
+    d.field[1].derived_by  = 1u;
+    d.n_stages             = 2u;
+    d.stage[0].kind        = WFM_STAGE_RS; /* has an undo */
+    d.stage[0].first_field = 0u;
+    d.stage[0].n_fields    = 2u;
+    d.stage[1].kind        = WFM_STAGE_CONV; /* in TOY_OPS with undo=NULL */
+    d.stage[1].first_field = 0u;
+    d.stage[1].n_fields    = 2u;
+
+    DP_CHECK (wfm_frame_assemble (&d, &ops, b, sizeof b) == 32u);
+    memset (&rx, 0, sizeof rx);
+    DP_CHECK (wfm_frame_check (&d, &ops, b, &rx) == 1);
+    DP_CHECK_MSG (rx.stage[0].checked == 1 && rx.stage[0].ok == 1u,
+                  "the reversible stage was checked and passed");
+    DP_CHECK_MSG (rx.stage[1].checked == 0,
+                  "the stage with no undo is NOT CHECKED...");
+    DP_CHECK_MSG (rx.stage[1].ok == 0u,
+                  "...and does not get to report itself good");
+    DP_CHECK_MSG (rx.checked == 1u, "exactly one stage was reversed here");
+  }
+
+  /* ── no checking stage at all is -1, not 1 ─────────────────────────────
+   *
+   * The header is emphatic and nothing asserted it: "**A description with no
+   * checking stage at all returns -1**, not 1 ... an FER that conflated them
+   * would score every unprotected frame as perfect." The passing case is
+   * carried alongside so that -1 is not simply what this function always
+   * returns.
+   */
+  {
+    uint8_t          b[128];
+    wfm_frame_desc_t d;
+    wfm_frame_ops_t  ops = toy_ops ();
+    memset (&d, 0, sizeof d);
+    d.n_fields             = 2u;
+    d.field[0].seq.kind    = WFM_SEQ_DOTTED;
+    d.field[0].seq.len     = 24u;
+    d.field[1].bits        = TOY_SUM_BITS;
+    d.field[1].derived_by  = 1u;
+    d.n_stages             = 1u;
+    d.stage[0].kind        = WFM_STAGE_RS;
+    d.stage[0].first_field = 0u;
+    d.stage[0].n_fields    = 2u;
+    DP_CHECK (wfm_frame_assemble (&d, &ops, b, sizeof b) == 32u);
+    DP_CHECK_MSG (wfm_frame_check (&d, &ops, b, NULL) == 1,
+                  "a description WITH a check answers 1");
+
+    /* Same bits, same geometry — only the stage's reversibility differs. */
+    d.stage[0].kind = WFM_STAGE_CONV; /* no undo */
+    DP_CHECK_MSG (wfm_frame_check (&d, &ops, b, NULL) == -1,
+                  "nothing was checked, so the answer is -1, not 1");
+
+    d.n_stages = 0u;
+    DP_CHECK_MSG (wfm_frame_check (&d, &ops, b, NULL) == -1,
+                  "a description with no stages carries no check either");
+  }
+
+  /* ── wfm_frame_desc_crc_ok is a TRI-state ──────────────────────────────
+   *
+   * Zero mentions anywhere in the tree before this. "The three are distinct
+   * on purpose: an FER that read 'carries no check' as 'the check failed'
+   * would count every unprotected frame as an error." All three are asserted
+   * here, because two of them passing says nothing about the third.
+   */
+  {
+    uint8_t          b[128];
+    wfm_frame_desc_t d;
+    memset (&d, 0, sizeof d);
+    d.n_fields             = 2u;
+    d.field[0].seq.kind    = WFM_SEQ_DOTTED;
+    d.field[0].seq.len     = 32u;
+    d.field[1].bits        = WFM_FRAME_CRC_BITS;
+    d.field[1].derived_by  = 1u;
+    d.n_stages             = 1u;
+    d.stage[0].kind        = WFM_STAGE_CRC16;
+    d.stage[0].first_field = 0u;
+    d.stage[0].n_fields    = 2u;
+
+    DP_CHECK (wfm_frame_assemble (&d, NULL, b, sizeof b) == 48u);
+    DP_CHECK_MSG (wfm_frame_desc_crc_ok (&d, b) == 1, "a good frame is 1");
+
+    b[0] ^= 1u;
+    DP_CHECK_MSG (wfm_frame_desc_crc_ok (&d, b) == 0, "a corrupt one is 0");
+    b[0] ^= 1u;
+    DP_CHECK (wfm_frame_desc_crc_ok (&d, b) == 1);
+
+    /* Carries no CRC at all — the third answer. */
+    wfm_frame_desc_t n = d;
+    n.stage[0].kind    = WFM_STAGE_RANDOMISE;
+    DP_CHECK_MSG (wfm_frame_desc_crc_ok (&n, b) == -1,
+                  "no CRC stage is -1, which is not 'the check failed'");
+
+    DP_CHECK (wfm_frame_desc_crc_ok (NULL, b) == -1);
+    DP_CHECK (wfm_frame_desc_crc_ok (&d, NULL) == -1);
+  }
+
+  /* ── the second built-in: INTERLEAVE, through the general path ─────────
+   *
+   * WFM_STAGE_INTERLEAVE had zero mentions in this file; it was reached only
+   * through ccsds_tm and frame_core. It needs no table, so it is the cheapest
+   * proof that a built-in round-trips on the general descriptor.
+   *
+   * The non-identity assertion is the guard that matters: an interleaver that
+   * permuted nothing would satisfy "undo restores the input" perfectly.
+   */
+  {
+    static uint8_t   pat[32];
+    uint8_t          woven[64], plain[64];
+    wfm_frame_desc_t d;
+    wfm_frame_rx_t   rx;
+    for (size_t i = 0; i < sizeof pat; i++)
+      pat[i] = (uint8_t)(i < 16u); /* 16 ones then 16 zeros */
+
+    memset (&d, 0, sizeof d);
+    d.n_fields          = 1u;
+    d.field[0].seq.kind = WFM_SEQ_LITERAL;
+    d.field[0].seq.bits = pat;
+    d.field[0].seq.len  = sizeof pat;
+
+    DP_CHECK (wfm_frame_assemble (&d, NULL, plain, sizeof plain) == 32u);
+
+    d.n_stages             = 1u;
+    d.stage[0].kind        = WFM_STAGE_INTERLEAVE;
+    d.stage[0].first_field = 0u;
+    d.stage[0].n_fields    = 1u;
+    d.stage[0].depth       = 4u;
+    d.stage[0].unit_bits   = 1u;
+    DP_CHECK (wfm_frame_assemble (&d, NULL, woven, sizeof woven) == 32u);
+
+    DP_CHECK_MSG (memcmp (woven, plain, 32u) != 0,
+                  "the interleaver must actually permute, or 'undo restores "
+                  "it' is satisfied by doing nothing");
+
+    memset (&rx, 0, sizeof rx);
+    DP_CHECK_MSG (wfm_frame_check (&d, NULL, woven, &rx) == 1,
+                  "a built-in needs no ops table to be reversed");
+    DP_CHECK_MSG (memcmp (woven, plain, 32u) == 0,
+                  "...and undoing it restores the original bits exactly");
   }
 
   DP_TEST_END ("wfm_frame");

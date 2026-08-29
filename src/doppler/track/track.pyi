@@ -4281,14 +4281,26 @@ class MpskReceiverR:
 
     Examples
     --------
-    // QPSK on a real IF at 0.2*fs, 32 samples/symbol, I&D matched filter
-    mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
-        4, 32.0, 0, MPSK_RX_PULSE_IANDD, 0.35, 8,
-        0.01, 0.0, 0.01, 0.0, 0.2, 0, 0,
-        1, 0.0);
-    float complex sym[256];
-    size_t k = mpsk_receiver_steps_real (rx, rx_in, rx_len, sym, 256);
-    mpsk_receiver_destroy (rx);
+    Create with defaults:
+
+    >>> from doppler.track import MpskReceiverR
+    >>> obj = MpskReceiverR(
+    ...     m=4,
+    ...     sps=32.0,
+    ...     m_out=0,
+    ...     pulse="iandd",
+    ...     rrc_beta=0.35,
+    ...     rrc_span=8,
+    ...     bn_carrier=0.01,
+    ...     zeta=0.0,
+    ...     bn_timing=0.01,
+    ...     lock_thresh=0.0,
+    ...     init_norm_freq=0.0,
+    ...     differential=0,
+    ...     num_phases=0,
+    ...     agc=1,
+    ...     bn_agc_ratio=0.0,
+    ... )
 
     """
     def __init__(

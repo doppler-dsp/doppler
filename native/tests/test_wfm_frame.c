@@ -129,6 +129,8 @@ static const wfm_stage_op_t TOY_OPS[] = {
   { WFM_STAGE_RS, toy_sum_in_unit, NULL, toy_sum_undo },
   { WFM_STAGE_RANDOMISE, toy_flip_in_unit, NULL, toy_flip_undo },
   { WFM_STAGE_CONV, toy_noop_in_unit, NULL, NULL },
+  /* A kind doppler has never heard of, allocated out of the caller range. */
+  { WFM_STAGE_USER + 1u, toy_flip_in_unit, NULL, toy_flip_undo },
 };
 
 static wfm_frame_ops_t
@@ -822,6 +824,53 @@ main (void)
                   "a built-in needs no ops table to be reversed");
     DP_CHECK_MSG (memcmp (woven, plain, 32u) == 0,
                   "...and undoing it restores the original bits exactly");
+  }
+
+  /* ── a kind doppler has never heard of ─────────────────────────────────
+   *
+   * The point of the whole representation, and until the kind became an open
+   * uint32_t it was not expressible: a caller allocates from WFM_STAGE_USER
+   * up, supplies the kernel through its own table, and the assembler neither
+   * knows nor needs to know what the stage does. "A mission that is not
+   * CCSDS" is then a configuration rather than a pull request against
+   * wfm_frame.h.
+   *
+   * The refusal half is the same assertion doppler's own kinds get: unknown
+   * kind, no kernel, no frame -- never a silent skip.
+   */
+  {
+    uint8_t          b[128];
+    wfm_frame_desc_t d;
+    wfm_frame_rx_t   rx;
+    wfm_frame_ops_t  ops = toy_ops ();
+    memset (&d, 0, sizeof d);
+    d.n_fields             = 2u;
+    d.field[0].seq.kind    = WFM_SEQ_DOTTED;
+    d.field[0].seq.len     = 24u;
+    d.field[1].bits        = TOY_SUM_BITS;
+    d.field[1].derived_by  = 1u;
+    d.n_stages             = 2u;
+    d.stage[0].kind        = WFM_STAGE_RS;
+    d.stage[0].first_field = 0u;
+    d.stage[0].n_fields    = 2u;
+    d.stage[1].kind        = WFM_STAGE_USER + 1u; /* not doppler's */
+    d.stage[1].first_field = 0u;
+    d.stage[1].n_fields    = 2u;
+
+    DP_CHECK_MSG (wfm_frame_assemble (&d, NULL, b, sizeof b) == 0,
+                  "a user kind with no kernel is refused like any other");
+    DP_CHECK_MSG (wfm_frame_assemble (&d, &ops, b, sizeof b) == 32u,
+                  "with the caller's table it assembles...");
+    memset (&rx, 0, sizeof rx);
+    DP_CHECK_MSG (wfm_frame_check (&d, &ops, b, &rx) == 1,
+                  "...and reverses through the same open lookup");
+    DP_CHECK_MSG (rx.checked == 2u,
+                  "the user stage is reversed like a built-in, not skipped");
+
+    /* WFM_STAGE_USER must sit above every kind doppler names, or a caller
+       allocating at it would collide with a built-in the day one is added. */
+    DP_CHECK_MSG (WFM_STAGE_USER > WFM_STAGE_INTERLEAVE,
+                  "the caller range must not overlap doppler's");
   }
 
   DP_TEST_END ("wfm_frame");

@@ -379,7 +379,7 @@ static const wfm_stage_op_t BUILTIN[] = {
 };
 
 static const wfm_stage_op_t *
-find_op (const wfm_frame_ops_t *ops, wfm_stage_kind_t kind)
+find_op (const wfm_frame_ops_t *ops, uint32_t kind)
 {
   if (ops)
     {

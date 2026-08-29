@@ -287,7 +287,7 @@ int frame_add_stage (
 
 
 * `state` A frame from [**frame\_create\_desc**](frame__core_8h.md#function-frame_create_desc). 
-* `kind` [**wfm\_stage\_kind\_t**](wfm__frame_8h.md#enum-wfm_stage_kind_t) index; 0=crc16…4=interleave. 
+* `kind` stage kind: a [**wfm\_stage\_kind\_t**](wfm__frame_8h.md#enum-wfm_stage_kind_t) value (0=crc16…4=interleave), or a caller's own from `WFM_STAGE_USER` (0x1000) up, whose kernel then has to reach the assembler through its ops table. 
 * `first_field` First field covered. 
 * `n_fields` Fields covered; 0 = the stage does not run. 
 * `depth` Interleaving depth, for an outer code. 

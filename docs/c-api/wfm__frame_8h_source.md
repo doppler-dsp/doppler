@@ -67,13 +67,15 @@ extern "C"
     WFM_STAGE_RS        = 1, 
     WFM_STAGE_RANDOMISE = 2, 
     WFM_STAGE_CONV      = 3, 
-    WFM_STAGE_INTERLEAVE = 4
+    WFM_STAGE_INTERLEAVE = 4,
+
+    WFM_STAGE_USER = 0x1000u
   } wfm_stage_kind_t;
 
   typedef struct
   {
-    wfm_stage_kind_t kind;
-    unsigned         first_field; 
+    uint32_t kind;
+    unsigned first_field; 
     unsigned         n_fields;    
     unsigned         depth;       
     unsigned unit_bits;
@@ -120,7 +122,7 @@ extern "C"
 
   typedef struct
   {
-    wfm_stage_kind_t kind;
+    uint32_t kind;
 
     int (*in_unit) (const wfm_stage_t *st, uint8_t *bits, size_t n,
                     void *user);

@@ -38,7 +38,7 @@ _How one kind of stage actually transforms bits._ [More...](#detailed-descriptio
 | ---: | :--- |
 |  size\_t(\* | [**emit**](#variable-emit)  <br> |
 |  int(\* | [**in\_unit**](#variable-in_unit)  <br> |
-|  [**wfm\_stage\_kind\_t**](wfm__frame_8h.md#enum-wfm_stage_kind_t) | [**kind**](#variable-kind)  <br> |
+|  uint32\_t | [**kind**](#variable-kind)  <br> |
 |  int(\* | [**undo**](#variable-undo)  <br> |
 
 
@@ -142,11 +142,15 @@ Rewrite `n` bits at `bits`, in place. Returns 0 on success.
 ### variable kind 
 
 ```C++
-wfm_stage_kind_t wfm_stage_op_t::kind;
+uint32_t wfm_stage_op_t::kind;
 ```
 
 
 
+The kind this entry implements; matched against [**wfm\_stage\_t**](structwfm__stage__t.md)'s. 
+
+
+        
 
 <hr>
 

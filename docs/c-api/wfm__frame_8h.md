@@ -51,7 +51,7 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 | ---: | :--- |
 | enum  | [**wfm\_\_frame\_8h\_1a385c44f6fb256e5716a2302a5b940388**](#enum-wfm__frame_8h_1a385c44f6fb256e5716a2302a5b940388)  <br>_Field indices_ [_**wfm\_frame\_describe**_](wfm__frame_8h.md#function-wfm_frame_describe) _writes, in wire order._ |
 | enum  | [**wfm\_seq\_kind\_t**](#enum-wfm_seq_kind_t)  <br>_Where a run of bits comes from._  |
-| enum  | [**wfm\_stage\_kind\_t**](#enum-wfm_stage_kind_t)  <br>_What a stage does to the fields it covers._  |
+| enum  | [**wfm\_stage\_kind\_t**](#enum-wfm_stage_kind_t)  <br>_Stage kinds doppler itself names._  |
 
 
 
@@ -209,19 +209,27 @@ enum wfm_seq_kind_t {
 
 ### enum wfm\_stage\_kind\_t 
 
-_What a stage does to the fields it covers._ 
+_Stage kinds doppler itself names._ 
 ```C++
 enum wfm_stage_kind_t {
     WFM_STAGE_CRC16 = 0,
     WFM_STAGE_RS = 1,
     WFM_STAGE_RANDOMISE = 2,
     WFM_STAGE_CONV = 3,
-    WFM_STAGE_INTERLEAVE = 4
+    WFM_STAGE_INTERLEAVE = 4,
+    WFM_STAGE_USER = 0x1000u
 };
 ```
 
 
 
+**A stage's kind is an open `uint32_t`, not this enumeration.** These are the values doppler has allocated; a caller allocates its own from WFM\_STAGE\_USER upward and supplies the kernel through [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md). That is the difference between a description a caller can extend and a fixed menu — and a closed enum here would make "a mission that is not CCSDS" a pull request against this header rather than a configuration, which is the opposite of the point.
+
+
+The value is only ever a lookup key. Nothing in this component switches on it exhaustively, so an unrecognised kind is not undefined behaviour: it finds no kernel and the assembly is REFUSED, which is the honest answer and is the same one a declared-but-unsupplied stage already gets. 
+
+
+        
 
 <hr>
 ## Public Functions Documentation

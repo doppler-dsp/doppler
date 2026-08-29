@@ -165,17 +165,33 @@ wfm_frame_desc_layout (const wfm_frame_desc_t *d, wfm_frame_desc_layout_t *out)
         }
     }
 
-  /* 5. a stage that emits a different stream sets the output length; the
-        bits it does not cover pass through at their own width. */
+  /* 5. A stage that emits a different stream sets the output length.
+   *
+   * The arithmetic here used to be `(frame_bits - cov) + cov * num / den`,
+   * which reads as "the bits it does not cover pass through at their own
+   * width". Nothing implements that. `wfm_frame_assemble` hands `emit` the
+   * WHOLE assembled frame and requires exactly `out_bits` back, so a
+   * partially-covering emitting stage laid out cleanly and could then never
+   * assemble: the kernel expands bits it was never promised and returns a
+   * count that is not `out_bits`. The caller saw a 0 from `assemble` and had
+   * no way to learn the description, rather than the data, was wrong.
+   *
+   * So the cover must be the whole frame, and there may be only one such
+   * stage -- a second would have to consume the first's output, which
+   * nothing passes it. Both are refused here, where the geometry is decided,
+   * rather than discovered as a silent 0 later. A stage that rewrites PART
+   * of a frame is the in-place kind; that is what a partial cover is for. */
   out->out_bits = out->frame_bits;
+  int emitting  = 0;
   for (unsigned s = 0; s < d->n_stages; s++)
     {
       const wfm_stage_t *st = &d->stage[s];
       if (!st->emit_num || !st->emit_den || out->stage[s].n == 0)
         continue;
-      const size_t cov = out->stage[s].n;
-      out->out_bits
-          = (out->frame_bits - cov) + cov * st->emit_num / st->emit_den;
+      if (emitting || out->stage[s].n != out->frame_bits)
+        return -1;
+      emitting      = 1;
+      out->out_bits = out->frame_bits * st->emit_num / st->emit_den;
     }
   return 0;
 }

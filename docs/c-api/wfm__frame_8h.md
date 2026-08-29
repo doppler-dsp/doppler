@@ -704,6 +704,9 @@ The one operation both shipped framers already have, widened: this is `wfm_frame
 A derived field whose producing stage covers no caller-supplied bits is dropped to zero length — which is the general form of the rule [**wfm\_frame\_layout**](wfm__frame_8h.md#function-wfm_frame_layout) has always applied, that a CRC over an empty payload protects nothing and is not emitted.
 
 
+An EMITTING stage (`emit_num` set) is refused unless it covers the whole frame, and a second one is refused outright. Refusing here is the point: such a description used to lay out perfectly and then be unassemblable for ever, because `out_bits` was computed from the cover while [**wfm\_frame\_assemble**](wfm__frame_8h.md#function-wfm_frame_assemble) hands the kernel the whole frame. The caller got a 0 from `assemble` and no way to learn that the geometry, not the data, was wrong. Geometry is decided here, so it is refused here.
+
+
 
 
 **Parameters:**
@@ -716,7 +719,7 @@ A derived field whose producing stage covers no caller-supplied bits is dropped 
 
 **Returns:**
 
-0, or -1 if `d` or `out` is NULL, or a count or a cover runs past its array. 
+0, or -1 if `d` or `out` is NULL, a count or a cover runs past its array, or an emitting stage covers less than the whole frame or is not the only one. 
 
 
 

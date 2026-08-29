@@ -234,7 +234,19 @@ extern "C"
         `emit_num == 0` means the stage stays inside the frame. Only the
         inner code does the former today, and it is exactly why
         @ref wfm_frame_desc_layout_t reports @p frame_bits and @p out_bits as
-        two numbers rather than one. */
+        two numbers rather than one.
+
+        An emitting stage **covers the WHOLE frame, and a description may
+        hold at most one**. Both are properties of @ref wfm_frame_assemble
+        rather than rules invented for their own sake: it hands @p emit the
+        whole assembled frame and requires exactly `out_bits` back, so a
+        cover narrower than the frame describes something no kernel is ever
+        asked to do, and a second emitting stage would have to consume the
+        first one's output, which nothing passes it.
+        @ref wfm_frame_desc_layout refuses both — see there for why that is
+        the right place to say so. A stage that rewrites part of the frame
+        in place is what a partial cover is FOR; that stage sets
+        `emit_num = 0` and an @c in_unit kernel. */
     unsigned emit_num, emit_den;
   } wfm_stage_t;
 
@@ -503,10 +515,20 @@ extern "C"
    * @ref wfm_frame_layout has always applied, that a CRC over an empty
    * payload protects nothing and is not emitted.
    *
+   * An EMITTING stage (@c emit_num set) is refused unless it covers the
+   * whole frame, and a second one is refused outright. Refusing here is the
+   * point: such a description used to lay out perfectly and then be
+   * unassemblable for ever, because `out_bits` was computed from the cover
+   * while @ref wfm_frame_assemble hands the kernel the whole frame. The
+   * caller got a 0 from `assemble` and no way to learn that the geometry,
+   * not the data, was wrong. Geometry is decided here, so it is refused
+   * here.
+   *
    * @param d    the description.
    * @param out  receives the layout.
-   * @return 0, or -1 if @p d or @p out is NULL, or a count or a cover runs
-   *         past its array.
+   * @return 0, or -1 if @p d or @p out is NULL, a count or a cover runs
+   *         past its array, or an emitting stage covers less than the whole
+   *         frame or is not the only one.
    */
   int wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
                              wfm_frame_desc_layout_t *out);

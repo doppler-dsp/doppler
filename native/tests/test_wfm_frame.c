@@ -1093,5 +1093,77 @@ main (void)
                   "LFSR run on for the whole span");
   }
 
+  /* ── an EMITTING stage covers the whole frame, or it is refused ────────
+   *
+   * `wfm_frame_assemble` hands `emit` the whole assembled frame and demands
+   * exactly `out_bits` back. The layout used to compute `out_bits` from the
+   * stage's COVER instead -- "the bits it does not cover pass through at
+   * their own width" -- which nothing implements. The two disagreed only
+   * when a cover was narrower than the frame, and doppler's own three
+   * emitting stages all cover everything, so the disagreement never fired
+   * in the tree while remaining reachable by any caller.
+   *
+   * The failure it produced is the expensive kind: `wfm_frame_desc_layout`
+   * returned 0, every offset looked right, and `wfm_frame_assemble` then
+   * returned 0 for ever with no way to tell a bad description from bad
+   * data.
+   */
+  {
+    uint8_t                 buf[512];
+    wfm_frame_desc_t        d;
+    wfm_frame_desc_layout_t l;
+
+    /* Two fields, an emitting stage over only the first. */
+    memset (&d, 0, sizeof d);
+    d.n_fields             = 2u;
+    d.field[0].seq.kind    = WFM_SEQ_DOTTED;
+    d.field[0].seq.len     = 32u;
+    d.field[1].seq.kind    = WFM_SEQ_DOTTED;
+    d.field[1].seq.len     = 16u;
+    d.n_stages             = 1u;
+    d.stage[0].kind        = WFM_STAGE_CONV;
+    d.stage[0].first_field = 0u;
+    d.stage[0].n_fields    = 1u; /* 32 of 48 bits */
+    d.stage[0].emit_num    = 2u;
+    d.stage[0].emit_den    = 1u;
+    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == -1,
+                  "an emitting stage over PART of the frame is refused by "
+                  "the layout, not discovered as a 0 from assemble");
+    DP_CHECK_MSG (wfm_frame_assemble (&d, NULL, buf, sizeof buf) == 0,
+                  "and it still assembles nothing, from the same refusal");
+
+    /* Widen it to the whole frame and the same description is fine. Both
+       directions: a rule that only ever refuses is satisfied by refusing
+       everything, which would quietly retire the inner code. */
+    d.stage[0].n_fields = 2u;
+    DP_REQUIRE_MSG (wfm_frame_desc_layout (&d, &l) == 0,
+                    "covering the whole frame is accepted");
+    DP_CHECK_MSG (l.frame_bits == 48u && l.out_bits == 96u,
+                  "rate 1/2 doubles the whole frame");
+
+    /* At most ONE emitting stage. A second would have to consume the
+       first's output, and nothing passes it that -- `assemble` hands every
+       emitting stage the same assembled frame. The old loop simply let the
+       last one win, so a two-stage description reported a plausible
+       `out_bits` that no pair of kernels could produce. */
+    d.n_stages             = 2u;
+    d.stage[1].kind        = WFM_STAGE_CONV;
+    d.stage[1].first_field = 0u;
+    d.stage[1].n_fields    = 2u;
+    d.stage[1].emit_num    = 2u;
+    d.stage[1].emit_den    = 1u;
+    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == -1,
+                  "a second emitting stage is refused");
+
+    /* A stage that DID NOT RUN is not an emitting stage. Its span is zero,
+       so it cannot be the one that sets the length -- and refusing it would
+       break every optional inner code, which is declared and then switched
+       off by covering nothing. */
+    d.stage[1].n_fields = 0u;
+    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == 0,
+                  "a declared-but-not-running emitting stage is ignored, "
+                  "not counted against the one-emitter rule");
+  }
+
   DP_TEST_END ("wfm_frame");
 }

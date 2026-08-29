@@ -144,7 +144,10 @@ unsigned wfm_stage_t::emit_num;
 
 
 
-A stage that consumes the assembled frame and emits a DIFFERENT stream sets these: the output is `n * emit_num / emit_den` bits. `emit_num == 0` means the stage stays inside the frame. Only the inner code does the former today, and it is exactly why [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) reports `frame_bits` and `out_bits` as two numbers rather than one. 
+A stage that consumes the assembled frame and emits a DIFFERENT stream sets these: the output is `n * emit_num / emit_den` bits. `emit_num == 0` means the stage stays inside the frame. Only the inner code does the former today, and it is exactly why [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) reports `frame_bits` and `out_bits` as two numbers rather than one.
+
+
+An emitting stage **covers the WHOLE frame, and a description may hold at most one**. Both are properties of [**wfm\_frame\_assemble**](wfm__frame_8h.md#function-wfm_frame_assemble) rather than rules invented for their own sake: it hands `emit` the whole assembled frame and requires exactly `out_bits` back, so a cover narrower than the frame describes something no kernel is ever asked to do, and a second emitting stage would have to consume the first one's output, which nothing passes it. [**wfm\_frame\_desc\_layout**](wfm__frame_8h.md#function-wfm_frame_desc_layout) refuses both — see there for why that is the right place to say so. A stage that rewrites part of the frame in place is what a partial cover is FOR; that stage sets `emit_num = 0` and an `in_unit` kernel. 
 
 
         

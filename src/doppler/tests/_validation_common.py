@@ -134,6 +134,16 @@ _MASK = "«n»"
 #: `_NUMBER` itself, which silently destroys every protected span.
 _HOLD = "\x01"
 
+#: `--check`'s exit status when the committed report is STALE.
+#:
+#: Deliberately NOT 1. An uncaught exception also exits 1, so a validator
+#: that could not run at all -- an import error, a missing extension module
+#: -- was indistinguishable from one whose report had drifted. The caller
+#: then named the wrong remedy: `make validate` re-renders a report, and
+#: re-rendering cannot fix an import. A distinct code lets the caller answer
+#: "stale" and "did not run" separately (doppler#1074).
+EXIT_STALE = 3
+
 #: Diff lines `--check` prints before truncating.
 #:
 #: Enough to characterise the difference -- a handful of changed numbers
@@ -868,8 +878,11 @@ def cli(build, here: Path) -> int:
     int
         Process exit status, answering ONE question per mode. Under
         `--check` it is staleness alone: 0 when `results.md` matches a
-        fresh run, 1 when it does not. Without `--check` it is the limits:
-        0 when they all hold, 1 when any fails.
+        fresh run, `EXIT_STALE` when it does not. Without `--check` it is
+        the limits: 0 when they all hold, 1 when any fails.
+
+        `--check` never returns 1, so a 1 from a validator means the
+        process died before deciding -- see `EXIT_STALE`.
 
     Notes
     -----
@@ -923,7 +936,7 @@ def cli(build, here: Path) -> int:
             if len(diff) > len(shown):
                 print(f"    … {len(diff) - len(shown)} more diff line(s)")
             print("  Re-run 'make validate'.")
-            return 1
+            return EXIT_STALE
 
         print(f"  up to date: {out.relative_to(repo_root(here))}")
         # Numeric drift is reported and NOT gated -- see `_structural`. Said

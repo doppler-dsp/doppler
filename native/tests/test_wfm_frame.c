@@ -18,6 +18,7 @@
 #include "wfm/wfm_dsp.h" /* the four-field DSSS pair, for the equivalence */
 #include "wfm/wfm_frame.h"
 
+#include "gold/gold_core.h"
 #include "pn/pn_core.h"
 
 #include <stdio.h>
@@ -1009,6 +1010,87 @@ main (void)
     DP_CHECK_MSG (wfm_frame_add_field (&full, NULL, &eight, 0u) == -1,
                   "a full description refuses the next field");
     DP_CHECK (full.n_fields == WFM_FRAME_MAX_FIELDS);
+  }
+
+  /* ── the GENERATED kinds, through that same by-name face ───────────────
+   *
+   * Everything above reaches a PN or a Gold field through `wfm_frame_t`'s
+   * three named slots. The general description -- what wfm_frame_add_field
+   * builds and what every by-name caller assembles -- carried only LITERAL
+   * and DOTTED fields in this suite, so nothing pinned a generated field
+   * reached THIS way to the generator it claims to be. That is the face a
+   * user-defined frame is built through, so it is the one that has to hold.
+   */
+  {
+    wfm_seq_t pn = { 0 };
+    pn.kind      = WFM_SEQ_PN;
+    pn.len       = 20u; /* deliberately NOT a whole period; see below */
+    pn.reg_bits  = 5u;
+    pn.seed      = 3u;
+
+    wfm_seq_t gold = { 0 };
+    gold.kind      = WFM_SEQ_GOLD;
+    gold.len       = 64u;
+    gold.reg_bits  = 10u;
+    gold.taps_a    = 934u;
+    gold.seed_a    = 350u;
+    gold.taps_b    = 567u;
+    gold.seed_b    = 73u;
+
+    wfm_frame_desc_t d;
+    memset (&d, 0, sizeof d);
+    DP_REQUIRE (wfm_frame_add_field (&d, "sync", &pn, 3u) == 0);
+    DP_REQUIRE (wfm_frame_add_field (&d, "payload", &gold, 0u) == 1);
+
+    wfm_frame_desc_layout_t l;
+    DP_REQUIRE (wfm_frame_desc_layout (&d, &l) == 0);
+    DP_CHECK_MSG (l.field_bits[0] == 60u && l.field_bits[1] == 64u,
+                  "a generated field is len*reps like any other");
+    DP_REQUIRE (wfm_frame_assemble (&d, NULL, buf, CAP) == l.out_bits);
+
+    /* Gold against its OWN generator. The named starter set compares a Gold
+       sync against a PN one and asserts they differ in about half their
+       positions -- which a swapped taps_a/taps_b, or an ignored seed_b,
+       satisfies just as well. That two independent sequences differ says
+       nothing about WHICH sequence either one of them is. */
+    static uint8_t want_g[64];
+    gold_state_t  *g = gold_create (934u, 350u, 567u, 73u, 10u);
+    DP_REQUIRE_MSG (g != NULL, "gold_create");
+    DP_REQUIRE (gold_generate (g, 64u, want_g, 64u) == 64u);
+    gold_destroy (g);
+    DP_CHECK_MSG (memcmp (buf + l.field_off[1], want_g, 64u) == 0,
+                  "a Gold field IS gold_generate of its own descriptor");
+
+    /* The PN field, one period of it. */
+    static uint8_t want_p[20];
+    pn_state_t    *p = pn_create (pn_mls_poly (5u), 3u, 5u, 0);
+    DP_REQUIRE_MSG (p != NULL, "pn_create");
+    DP_REQUIRE (pn_generate (p, 20u, want_p, 20u) == 20u);
+    pn_destroy (p);
+    DP_CHECK_MSG (memcmp (buf + l.field_off[0], want_p, 20u) == 0,
+                  "a PN field IS pn_generate of its own descriptor");
+    for (size_t r = 1u; r < 3u; r++)
+      DP_CHECK_MSG (
+          memcmp (buf + l.field_off[0] + r * 20u, buf + l.field_off[0], 20u)
+              == 0,
+          "every repetition of a generated field is identical");
+
+    /* The property DOTTED cannot falsify. wfm_frame.c states that a repeated
+       generated field repeats the SAME bits rather than drawing fresh ones,
+       because period is what coherent integration across reps depends on.
+       Every repeated generated field in this suite was DOTTED -- and dotted
+       redrawn is bit-for-bit dotted repeated, so no test here could tell the
+       two implementations apart and the claim was prose. A PN field can tell
+       them apart, as long as its length is not a whole period: 60 bits of a
+       5-bit register IS three periods, and would have agreed by accident. */
+    static uint8_t run_on[60];
+    pn_state_t    *pc = pn_create (pn_mls_poly (5u), 3u, 5u, 0);
+    DP_REQUIRE_MSG (pc != NULL, "pn_create");
+    DP_REQUIRE (pn_generate (pc, 60u, run_on, 60u) == 60u);
+    pn_destroy (pc);
+    DP_CHECK_MSG (memcmp (buf + l.field_off[0], run_on, 60u) != 0,
+                  "a repeated PN field REPEATS its period -- it is not the "
+                  "LFSR run on for the whole span");
   }
 
   DP_TEST_END ("wfm_frame");

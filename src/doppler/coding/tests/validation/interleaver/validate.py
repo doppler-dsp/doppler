@@ -107,9 +107,12 @@ def view_doc_faces() -> tuple[bool, str]:
     Derived rather than asserted, because it is the specific hazard
     just-makeit#1160 leaves behind: a VIEW's runtime `tp_doc` is a
     placeholder rather than its own `create_fn`'s, so doppler hand-writes
-    it in the sacred fragment — and the `.pyi` stub gets whatever jm
-    derives, which for a view is the PARENT's `create()`. Two faces of one
-    class, from two sources, and nothing compares them.
+    it in the sacred fragment. Two faces of one class, from two sources,
+    and nothing else compares them.
+
+    As of just-makeit 0.70.1 the STUB half derives correctly — it is the
+    view's own `create_fn` now, not the parent's — so what this measures
+    is the remaining runtime half plus any wording drift between the two.
 
     Compared on the opening sentence, which is what a `help()` reader and
     a type checker each see first, with whitespace collapsed since the two
@@ -1054,29 +1057,31 @@ def review(d: Data) -> None:
         "NULL-argument refusals live.",
     )
     if d.doc_faces_agree:
-        measured = "AGREE today, so the drift has closed. "
+        measured = "are the same sentence. "
     else:
         measured = (
-            f"disagree, and the stub opens \u201c{d.doc_stub_says}\u201d "
-            "— the TRANSMIT face's sentence, on the receive class, with no "
-            "mention that `interleave` is deliberately absent. A type "
-            "checker and an IDE read that one; `help()` reads the "
-            "hand-written one. "
+            "differ in wording — the stub opens "
+            f"\u201c{d.doc_stub_says}\u201d — but both now describe the "
+            "RECEIVE face. "
         )
     R.find(
         "F7",
         "GAP",
-        "**The view's two docstrings do not agree, and the stub has the "
-        "wrong one.** jm derives a class docstring from `create()`'s "
-        "doxygen, but a VIEW's runtime `tp_doc` gets a placeholder rather "
-        "than its own `create_fn`'s (just-makeit#1160), so doppler "
-        "hand-writes `Deinterleaver`'s in the sacred fragment. The `.pyi` "
-        "stub, meanwhile, gets what jm derives — and for a view that is "
-        "the PARENT's `create()`. Measured from the two live sources: "
-        "they " + measured + "The fragment's own comment used to claim "
-        "the stub was derived from `interleaver_create_rx`; this is the "
-        "measurement that found it untrue. Retire the hand-written block "
-        "when the fix ships.",
+        "**Half of this closed in just-makeit 0.70.1, and the half that "
+        "remains is the runtime one.** jm derives a class docstring from "
+        "`create()`'s doxygen; for a VIEW it used to derive the stub from "
+        "the PARENT's `create()` and leave the runtime `tp_doc` a "
+        "placeholder (just-makeit#1160). The stub half is FIXED: "
+        "`coding.pyi` now describes the receive face and no longer tells a "
+        "type checker this class builds an interleaver. Measured from the "
+        "two live sources, they " + measured + "The runtime half is not "
+        "fixed. Removing the hand-written `tp_doc` from the sacred "
+        "fragment and re-running `jm apply` on 0.70.1 leaves "
+        "`Deinterleaver.__doc__` EMPTY — measured, not assumed, which is "
+        "why the block is still here after the issue closed, and is filed "
+        "as just-makeit#1183. Retiring it "
+        "on the strength of the issue's state alone would have blanked a "
+        "class docstring. Retire it when the runtime face derives too.",
     )
     R.find(
         "F8",

@@ -5,6 +5,8 @@
  * clean/off), delays, once-through completion, and repeat looping — all
  * over the reused Phase-A synth engine.
  */
+#include "ccsds_tm/ccsds_tm.h"
+#include "ccsds_tm/ccsds_tm_frame.h"
 #include "dp_test.h"
 #include "wfm/wfm_compose.h"
 #include "wfm/wfm_dsp.h"   /* wfm_frame_dsss_* for the dsss burst section */
@@ -1673,6 +1675,145 @@ main (void)
     no_outer.interleave_depth        = 2;
     DP_REQUIRE_MSG (wfm_source_frame_error (&no_outer) == NULL,
                     "with no outer code the group is payload + CRC");
+  }
+
+  /* ── the bridge builds by NAME, and it must build the SAME frame ──────
+   *
+   * `wfm_source_describe_frame` used to fill a CCSDS-shaped spec struct and
+   * hand it to `ccsds_tm_frame_desc_of`, which made a standard's vocabulary
+   * the only vocabulary -- a frame doppler had never seen had to be spelled
+   * in CCSDS's slots or not at all. It now builds through the general
+   * by-name builder instead.
+   *
+   * The falsification is equivalence with the path it replaces, over the
+   * shapes a source can take, asserted on the ASSEMBLED BITS rather than on
+   * the two structs: a description that merely looked alike would prove
+   * nothing about which bits each stage touched. Both paths run the same
+   * CCSDS kernels, so any difference is the description.
+   *
+   * A refusal counts as agreement -- both paths must refuse the same shapes
+   * -- but refusals alone would be a vacuous pass, so the number of cases
+   * that actually assembled is asserted at the end.
+   */
+  {
+    static uint8_t payload[223 * 8];
+    for (size_t i = 0; i < sizeof payload; i++)
+      payload[i] = (uint8_t)((i * 7u + (i >> 3)) & 1u); /* structured */
+    static const uint8_t syncw[13] = { 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1 };
+    static const uint8_t pre[8]    = { 1, 0, 1, 0, 1, 0, 1, 0 };
+
+    const struct
+    {
+      int         asm_, crc, rs, rand, conv;
+      unsigned    ilv, unit;
+      size_t      n_sync, n_pre, reps;
+      const char *what;
+    } CASES[] = {
+      { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "payload alone" },
+      { 0, 1, 0, 0, 0, 0, 0, 13, 0, 0, "sync + CRC" },
+      { 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, "ASM + CRC" },
+      { 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, "outer code" },
+      { 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, "CRC inside the outer code" },
+      { 1, 0, 1, 2, 0, 0, 0, 0, 0, 0, "ASM + outer + randomiser" },
+      { 1, 0, 1, 1, 0, 5, 8, 0, 0, 0, "and an interleaver" },
+      { 1, 0, 1, 1, 1, 5, 8, 0, 0, 0, "and the inner code" },
+      { 0, 1, 0, 0, 0, 0, 0, 13, 8, 4, "a preamble, repeated" },
+    };
+
+    size_t assembled = 0;
+    for (size_t c = 0; c < sizeof CASES / sizeof CASES[0]; c++)
+      {
+        /* The outer code needs payload PLUS its CRC to be exactly
+           223*depth octets -- virtual fill is not implemented and a short
+           frame is refused rather than padded (the source's own guard says
+           so). Size the payload to match, or the case tests a refusal
+           instead of a frame. */
+        size_t n_bits = sizeof payload;
+        if (CASES[c].rs)
+          n_bits = (size_t)223u * (size_t)CASES[c].rs * 8u
+                   - (CASES[c].crc ? WFM_FRAME_CRC_BITS : 0u);
+
+        wfm_source_t src = { .type                 = WFM_SYNTH_BITS,
+                             .snr                  = 100.0,
+                             .sps                  = 1,
+                             .pn_length            = 7,
+                             .modulation           = 1,
+                             .bits                 = payload,
+                             .n_bits               = n_bits,
+                             .attach_asm           = CASES[c].asm_,
+                             .crc                  = CASES[c].crc,
+                             .rs_depth             = (unsigned)CASES[c].rs,
+                             .randomise            = CASES[c].rand,
+                             .convolutional        = CASES[c].conv,
+                             .interleave_depth     = CASES[c].ilv,
+                             .interleave_unit_bits = CASES[c].unit };
+        if (CASES[c].n_sync)
+          {
+            src.sync   = (uint8_t *)syncw;
+            src.n_sync = CASES[c].n_sync;
+          }
+        if (CASES[c].n_pre)
+          {
+            src.acq_code   = (uint8_t *)pre;
+            src.n_acq_code = CASES[c].n_pre;
+            src.acq_reps   = CASES[c].reps;
+          }
+
+        /* The new path. */
+        wfm_frame_desc_t by_name;
+        DP_REQUIRE_MSG (wfm_source_describe_frame (&src, &by_name) == 0,
+                        CASES[c].what);
+
+        /* The path it replaces, spelled the only way that struct allows. */
+        const ccsds_tm_frame_spec_t sp = {
+          .attach_asm           = src.attach_asm,
+          .preamble             = src.acq_code,
+          .preamble_len         = src.n_acq_code,
+          .preamble_reps        = src.acq_reps,
+          .sync                 = src.sync,
+          .sync_len             = src.n_sync,
+          .payload              = src.bits,
+          .payload_len          = src.n_bits,
+          .crc                  = src.crc,
+          .rs_depth             = src.rs_depth,
+          .randomise            = src.randomise,
+          .convolutional        = src.convolutional,
+          .interleave_depth     = src.interleave_depth,
+          .interleave_unit_bits = src.interleave_unit_bits,
+        };
+        wfm_frame_desc_t by_spec;
+        DP_REQUIRE (ccsds_tm_frame_desc_of (&sp, &by_spec) == 0);
+
+        wfm_frame_desc_layout_t la, lb;
+        DP_REQUIRE (wfm_frame_desc_layout (&by_name, &la) == 0);
+        DP_REQUIRE (wfm_frame_desc_layout (&by_spec, &lb) == 0);
+        DP_REQUIRE_MSG (la.out_bits == lb.out_bits, CASES[c].what);
+
+        uint8_t *a = (uint8_t *)malloc (la.out_bits);
+        uint8_t *b = (uint8_t *)malloc (lb.out_bits);
+        DP_REQUIRE (a != NULL && b != NULL);
+
+        wfm_frame_ops_t ops;
+        ccsds_tm_frame_ops (&ops, NULL);
+        const size_t na = wfm_frame_assemble (&by_name, &ops, a, la.out_bits);
+        ccsds_tm_frame_ops (&ops, NULL); /* a fresh inner-code register */
+        const size_t nb = wfm_frame_assemble (&by_spec, &ops, b, lb.out_bits);
+
+        DP_REQUIRE_MSG (na == nb, CASES[c].what);
+        if (na)
+          {
+            DP_REQUIRE_MSG (memcmp (a, b, na) == 0, CASES[c].what);
+            assembled++;
+          }
+        free (a);
+        free (b);
+      }
+
+    /* Refusals agreeing is agreement, but it is not evidence about frames.
+       Most of these have to have actually produced bits. */
+    DP_REQUIRE_MSG (assembled >= 8,
+                    "the equivalence cases must mostly ASSEMBLE, or the "
+                    "comparison is between two refusals");
   }
 
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "

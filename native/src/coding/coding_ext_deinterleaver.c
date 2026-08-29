@@ -666,7 +666,9 @@ static PyTypeObject DeinterleaverObjType = {
   .tp_flags   = Py_TPFLAGS_DEFAULT,
   /* Hand-written: jm derives a class docstring from create()'s header
      doxygen, but a VIEW's tp_doc is a placeholder rather than its own
-     create_fn's (just-makeit#1160). Kept in step with
+     create_fn's. gh-1160 closed and 0.70.1 fixed the STUB half only:
+     removing this block and re-applying leaves __doc__ empty, filed as
+     just-makeit#1183. Kept in step with
      interleaver_create_rx's doxygen.
 
      NOT in step with the .pyi, and that is the part of gh-1160 worth

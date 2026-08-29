@@ -466,5 +466,97 @@ main (void)
                   "unit_bits selects a different permutation");
   }
 
+  /* ── the by-name builder, through the object that owns the storage ────
+   *
+   * frame_add_hex and frame_add_value are where a literal becomes bits, and
+   * the object is the right home for them because it already owns a copy of
+   * every literal field -- the descriptor keeps borrowed pointers on
+   * purpose. The expansion itself is cvt's, not a second parser here.
+   *
+   * The falsification is the one that matters for a builder: the same frame
+   * described two ways must produce the SAME BITS. If `add_hex` and a
+   * hand-expanded literal disagreed, every marker built the new way would
+   * sync to nothing.
+   */
+  {
+    /* 0x1ACFFC1D expanded by hand, MSB first -- the published ASM. */
+    static const uint8_t asm_bits[32]
+        = { 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1 };
+    const uint8_t empty[1] = { 0 };
+
+    frame_state_t *a = frame_create_desc (
+        0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    frame_state_t *b = frame_create_desc (
+        0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    DP_REQUIRE (a != NULL && b != NULL);
+
+    /* a: by hex. b: the same 32 bits as a literal array. */
+    DP_CHECK (frame_add_hex (a, "asm", "1ACFFC1D", 0) == 0);
+    DP_CHECK (frame_add_field (b, asm_bits, 32u, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                               0, 0, 0)
+              == 0);
+    DP_CHECK (frame_build (a) == 0 && frame_build (b) == 0);
+    DP_CHECK_MSG (a->nbits == 32u && b->nbits == 32u,
+                  "four bits per hex digit");
+
+    uint8_t ba[64], bb[64];
+    DP_CHECK (frame_bits (a, 1u, ba, sizeof ba) == 32u);
+    DP_CHECK (frame_bits (b, 1u, bb, sizeof bb) == 32u);
+    DP_CHECK_MSG (memcmp (ba, bb, 32u) == 0,
+                  "a hex literal and a hand-expanded one are the same bits");
+    DP_CHECK_MSG (memcmp (ba, asm_bits, 32u) == 0,
+                  "...and both are the PUBLISHED expansion, MSB first");
+    frame_destroy (a);
+    frame_destroy (b);
+  }
+
+  {
+    const uint8_t  empty[1] = { 0 };
+    frame_state_t *d        = frame_create_desc (
+        0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    DP_REQUIRE (d != NULL);
+
+    /* A whole frame by name: a value marker, a payload, a derived CRC, and
+       a stage that covers the pair -- the shape a caller actually writes. */
+    DP_CHECK (frame_add_value (d, "sync", 0xABCu, 12u, 0) == 0);
+    const uint8_t pay[8] = { 0, 1, 1, 0, 1, 0, 0, 1 };
+    DP_CHECK (
+        frame_add_field (d, pay, 8u, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        == 1);
+    DP_CHECK (frame_name_field (d, 1u, "payload") == 0);
+    DP_CHECK (frame_add_derived (d, "crc", 16u) == 2);
+    DP_CHECK (frame_add_stage_over (d, 0 /* crc16 */, "payload", "crc", 0, 0)
+              == 0);
+    DP_CHECK (frame_build (d) == 0);
+    DP_CHECK_MSG (d->nbits == 12u + 8u + 16u,
+                  "12 + 8 + 16 -- the CRC trailer is a FIELD");
+
+    /* Names resolve, and to the right fields. */
+    DP_CHECK (frame_field_index (d, "sync") == 0);
+    DP_CHECK (frame_field_index (d, "payload") == 1);
+    DP_CHECK (frame_field_index (d, "crc") == 2);
+    DP_CHECK (frame_field_index (d, "nope") == -1);
+    DP_CHECK_MSG (frame_field_off (d, 1u) == 12u,
+                  "the payload starts after the 12-bit sync");
+
+    /* The stage really covers payload..crc, so the CRC it wrote verifies. */
+    uint8_t rx[64];
+    DP_CHECK (frame_bits (d, 1u, rx, sizeof rx) == 36u);
+    DP_CHECK_MSG (frame_crc_ok (d, rx, 36u) == 1,
+                  "the frame's own bits pass its own check");
+    rx[12] ^= 1u;
+    DP_CHECK_MSG (frame_crc_ok (d, rx, 36u) == 0,
+                  "...and a flipped payload bit fails it");
+
+    /* Refusals: a duplicate name, and a cover naming nothing. */
+    DP_CHECK_MSG (frame_name_field (d, 0u, "payload") == -1,
+                  "a rename onto a taken name is refused");
+    frame_destroy (d);
+  }
+
   DP_TEST_END ("frame_core");
 }

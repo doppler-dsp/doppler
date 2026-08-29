@@ -17,6 +17,7 @@ _A frame's bit layout, held as an object so Python can describe one._ [More...](
 * `#include "wfm/wfm_frame.h"`
 * `#include "conv/conv_core.h"`
 * `#include "rs/rs_core.h"`
+* `#include "cvt/cvt_core.h"`
 
 
 
@@ -64,8 +65,12 @@ _A frame's bit layout, held as an object so Python can describe one._ [More...](
 
 | Type | Name |
 | ---: | :--- |
+|  int | [**frame\_add\_derived**](#function-frame_add_derived) ([**frame\_state\_t**](structframe__state__t.md) \* state, const char \* name, size\_t bits) <br>_Append a named field a stage will fill. Returns its index, or -1._  |
 |  int | [**frame\_add\_field**](#function-frame_add_field) ([**frame\_state\_t**](structframe__state__t.md) \* state, const uint8\_t \* lit, size\_t lit\_len, int kind, size\_t gen\_len, size\_t reps, uint64\_t poly, uint64\_t seed, uint32\_t reg\_bits, int lfsr, uint64\_t taps\_a, uint64\_t seed\_a, uint64\_t taps\_b, uint64\_t seed\_b, uint32\_t derived\_by, size\_t derived\_bits) <br>_Append one field to a description._  |
+|  int | [**frame\_add\_hex**](#function-frame_add_hex) ([**frame\_state\_t**](structframe__state__t.md) \* state, const char \* name, const char \* hex, size\_t reps) <br>_Append a named field from a hex literal. Returns its index, or -1._  |
 |  int | [**frame\_add\_stage**](#function-frame_add_stage) ([**frame\_state\_t**](structframe__state__t.md) \* state, int kind, uint32\_t first\_field, uint32\_t n\_fields, uint32\_t depth, uint32\_t emit\_num, uint32\_t emit\_den, uint32\_t unit\_bits) <br>_Append one stage, and the span of fields it covers._  |
+|  int | [**frame\_add\_stage\_over**](#function-frame_add_stage_over) ([**frame\_state\_t**](structframe__state__t.md) \* state, int kind, const char \* first, const char \* last, uint32\_t depth, uint32\_t unit\_bits) <br>_Append a stage covering_ `[first .. last]` _by name._ |
+|  int | [**frame\_add\_value**](#function-frame_add_value) ([**frame\_state\_t**](structframe__state__t.md) \* state, const char \* name, uint64\_t value, uint32\_t bits, size\_t reps) <br>_Append a named field from an integer. Returns its index, or -1._  |
 |  size\_t | [**frame\_bits**](#function-frame_bits) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t n, uint8\_t \* out, size\_t max\_out) <br>_Materialise_ `n` _consecutive frames, one bit per byte._ |
 |  size\_t | [**frame\_bits\_max\_out**](#function-frame_bits_max_out) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t n) <br>_Bits_ [_**frame\_bits**_](frame__core_8h.md#function-frame_bits) _will write for_`n` _frames —_`n * nbits` _._ |
 |  int | [**frame\_build**](#function-frame_build) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Lay out and materialise a described frame._  |
@@ -77,10 +82,12 @@ _A frame's bit layout, held as an object so Python can describe one._ [More...](
 |  size\_t | [**frame\_deframe\_max\_out**](#function-frame_deframe_max_out) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t rx\_bits\_len) <br>_Max bits_ [_**frame\_deframe()**_](frame__core_8h.md#function-frame_deframe) _writes: the frame's own length._ |
 |  void | [**frame\_destroy**](#function-frame_destroy) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Destroy a frame instance and release all memory._  |
 |  size\_t | [**frame\_field\_bits**](#function-frame_field_bits) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t i) <br>_Bits in field_ `i` _, or 0 if there is no such field._ |
+|  int | [**frame\_field\_index**](#function-frame_field_index) ([**frame\_state\_t**](structframe__state__t.md) \* state, const char \* name) <br>_Index of the field called_ `name` _, or -1._ |
 |  size\_t | [**frame\_field\_off**](#function-frame_field_off) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t i) <br>_Bit offset of field_ `i` _, or 0 if there is no such field._ |
 |  [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) | [**frame\_layout**](#function-frame_layout) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Where each field lands, in bits from the start of the frame._  |
 |  size\_t | [**frame\_n\_fields**](#function-frame_n_fields) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Fields in the description._  |
 |  size\_t | [**frame\_n\_stages**](#function-frame_n_stages) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Stages in the description._  |
+|  int | [**frame\_name\_field**](#function-frame_name_field) ([**frame\_state\_t**](structframe__state__t.md) \* state, uint32\_t index, const char \* name) <br>_Give an already-appended field a name, or clear it with_ `""` _._ |
 |  size\_t | [**frame\_stage\_bits**](#function-frame_stage_bits) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t i) <br>_Bits stage_ `i` _covers; 0 for a stage that did not run._ |
 |  size\_t | [**frame\_stage\_first**](#function-frame_stage_first) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t i) <br>_First CADU bit stage_ `i` _covers; 0 for a stage that did not run._ |
 
@@ -172,6 +179,53 @@ frame_destroy(f);
 
 
 
+### function frame\_add\_derived 
+
+_Append a named field a stage will fill. Returns its index, or -1._ 
+```C++
+int frame_add_derived (
+    frame_state_t * state,
+    const char * name,
+    size_t bits
+) 
+```
+
+
+
+A field with a declared length and no source: a CRC trailer, a block of check symbols. Its producer is wired by [**frame\_add\_stage\_over**](frame__core_8h.md#function-frame_add_stage_over) rather than named here, because no stage exists yet when the field it derives is appended — fields are ordered by POSITION and stages by APPLICATION.
+
+
+
+
+**Parameters:**
+
+
+* `state` the frame. 
+* `name` the field's name, or NULL for anonymous. 
+* `bits` its length, which its stage decides and the caller states.
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.wfm import FrameDesc
+>>> e = np.empty(0, np.uint8)
+>>> d = FrameDesc(e, e, e)
+>>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
+0
+>>> d.name_field(0, "payload")
+0
+>>> d.add_derived("crc", 16)          # a stage will fill it
+1
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function frame\_add\_field 
 
 _Append one field to a description._ 
@@ -260,6 +314,54 @@ on the wire -- `derived_by` names the stage that fills it, PLUS ONE:
 
 
 
+### function frame\_add\_hex 
+
+_Append a named field from a hex literal. Returns its index, or -1._ 
+```C++
+int frame_add_hex (
+    frame_state_t * state,
+    const char * name,
+    const char * hex,
+    size_t reps
+) 
+```
+
+
+
+Four bits per digit, MSB-first, so an odd number of digits gives a 4-bit tail. The expansion is `cvt`'s `hex_to_bin` rather than a second parser here, so a bad digit is a refusal there and the two cannot disagree about what a marker expands to.
+
+
+
+
+**Parameters:**
+
+
+* `state` the frame. 
+* `name` the field's name, or NULL for anonymous. 
+* `hex` NUL-terminated hex digits; no `0x`, no separators. 
+* `reps` repetitions; 0 means one.
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.wfm import FrameDesc
+>>> e = np.empty(0, np.uint8)
+>>> d = FrameDesc(e, e, e)
+>>> d.add_hex("asm", "1ACFFC1D")     # the CCSDS marker, 4 bits a digit
+0
+>>> d.build()
+>>> d.nbits
+32
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function frame\_add\_stage 
 
 _Append one stage, and the span of fields it covers._ 
@@ -325,6 +427,121 @@ which is the whole reason a CADU is describable here:
 >>> d.build()
 >>> d.stage_first(0), d.stage_bits(0)
 (32, 2040)
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function frame\_add\_stage\_over 
+
+_Append a stage covering_ `[first .. last]` _by name._
+```C++
+int frame_add_stage_over (
+    frame_state_t * state,
+    int kind,
+    const char * first,
+    const char * last,
+    uint32_t depth,
+    uint32_t unit_bits
+) 
+```
+
+
+
+The cover is the load-bearing part of the representation and this is the form that reads. It wires a derived field's producer for you, which applies the invariant the layout already enforces rather than adding one.
+
+
+
+
+**Parameters:**
+
+
+* `state` the frame. 
+* `kind` a `wfm_stage_kind_t` index, or a caller's own kind. 
+* `first` name of the first field covered. 
+* `last` name of the last field covered; may equal `first`. 
+* `depth` RS / interleave depth; 0 when unused. 
+* `unit_bits` interleave unit; 0 reads as 1. 
+
+
+
+**Returns:**
+
+the new stage's index, or -1 on NULL, a full description, a name neither field carries, `last` before `first`, or once built.
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.wfm import FrameDesc
+>>> e = np.empty(0, np.uint8)
+>>> d = FrameDesc(e, e, e)
+>>> d.add_field(np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))
+0
+>>> d.name_field(0, "payload")
+0
+>>> d.add_derived("crc", 16)
+1
+>>> d.add_stage_over(0, "payload", "crc")   # 0 = crc16
+0
+>>> d.build()
+>>> d.crc_ok(d.bits())                # its own bits are its own truth
+1
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function frame\_add\_value 
+
+_Append a named field from an integer. Returns its index, or -1._ 
+```C++
+int frame_add_value (
+    frame_state_t * state,
+    const char * name,
+    uint64_t value,
+    uint32_t bits,
+    size_t reps
+) 
+```
+
+
+
+The form to reach for when a literal fits in 64 bits: exact, and with no failure mode a typo can reach. Wider ones want [**frame\_add\_hex**](frame__core_8h.md#function-frame_add_hex).
+
+
+
+
+**Parameters:**
+
+
+* `state` the frame. 
+* `name` the field's name, or NULL for anonymous. 
+* `value` the value; only the low `bits` are read. 
+* `bits` 1..64, MSB first. 
+* `reps` repetitions; 0 means one.
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.wfm import FrameDesc
+>>> e = np.empty(0, np.uint8)
+>>> d = FrameDesc(e, e, e)
+>>> d.add_value("marker", 0x1A, 8)
+0
+>>> d.build()
+>>> d.bits().tolist()                 # MSB first
+[0, 0, 0, 1, 1, 0, 1, 0]
 ```
  
 
@@ -1046,6 +1263,58 @@ The field's length in bits.
 
 
 
+### function frame\_field\_index 
+
+_Index of the field called_ `name` _, or -1._
+```C++
+int frame_field_index (
+    frame_state_t * state,
+    const char * name
+) 
+```
+
+
+
+The one lookup that resolves a name, so every index-taking entry point keeps working unchanged and a rename can only be wrong once. An unnamed field is ANONYMOUS rather than named `""`, so the empty name matches nothing — including a field that has no name.
+
+
+
+
+**Parameters:**
+
+
+* `state` the frame. 
+* `name` the field name. 
+
+
+
+**Returns:**
+
+the index, or -1 on NULL or a name no field carries.
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.wfm import FrameDesc
+>>> e = np.empty(0, np.uint8)
+>>> d = FrameDesc(e, e, e)
+>>> d.add_value("sync", 0xABC, 12)
+0
+>>> d.field_index("sync")
+0
+>>> d.field_index("absent")
+-1
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function frame\_field\_off 
 
 _Bit offset of field_ `i` _, or 0 if there is no such field._
@@ -1235,6 +1504,57 @@ How many stages the description carries.
 >>> d.build()
 >>> d.n_stages()         # the CRC is a stage like any other
 1
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function frame\_name\_field 
+
+_Give an already-appended field a name, or clear it with_ `""` _._
+```C++
+int frame_name_field (
+    frame_state_t * state,
+    uint32_t index,
+    const char * name
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` the frame. 
+* `index` the field to name. 
+* `name` the new name; truncated at `WFM_FRAME_NAME_MAX - 1`. 
+
+
+
+**Returns:**
+
+0, or -1 on NULL, an out-of-range `index`, a name another field already carries, or once the frame is built.
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.wfm import FrameDesc
+>>> e = np.empty(0, np.uint8)
+>>> d = FrameDesc(e, e, e)
+>>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
+0
+>>> d.name_field(0, "payload")
+0
+>>> d.field_index("payload")
+0
 ```
  
 

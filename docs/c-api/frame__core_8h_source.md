@@ -19,6 +19,7 @@
 #include "wfm/wfm_frame.h" /* the descriptor and its layout — the one SSOT */
 #include "conv/conv_core.h"
 #include "rs/rs_core.h"
+#include "cvt/cvt_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -65,6 +66,23 @@ int frame_add_stage(frame_state_t *state, int kind, uint32_t first_field,
                     uint32_t emit_den, uint32_t unit_bits);
 
 int frame_build(frame_state_t *state);
+
+int frame_field_index(frame_state_t *state, const char *name);
+
+int frame_name_field(frame_state_t *state, uint32_t index, const char *name);
+
+int frame_add_derived(frame_state_t *state, const char *name, size_t bits);
+
+int frame_add_hex(frame_state_t *state, const char *name, const char *hex,
+                  size_t reps);
+
+int frame_add_value(frame_state_t *state, const char *name, uint64_t value,
+                    uint32_t bits, size_t reps);
+
+int frame_add_stage_over(frame_state_t *state, int kind, const char *first,
+                         const char *last, uint32_t depth,
+                         uint32_t unit_bits);
+
 
 typedef struct {
     int      passed;    

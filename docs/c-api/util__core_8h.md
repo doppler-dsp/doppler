@@ -30,6 +30,11 @@ _Util module — public C API._ [More...](#detailed-description)
 
 
 
+## Public Types
+
+| Type | Name |
+| ---: | :--- |
+| enum  | [**dp\_bitorder\_t**](#enum-dp_bitorder_t)  <br>_Bit order within a byte, for_ [_**hex\_to\_bin**_](util__core_8h.md#function-hex_to_bin) _and_[_**bin\_to\_hex**_](util__core_8h.md#function-bin_to_hex) _._ |
 
 
 
@@ -54,8 +59,12 @@ _Util module — public C API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  size\_t | [**bin\_to\_hex**](#function-bin_to_hex) (const uint8\_t \* bits, size\_t n\_bits, char \* out, size\_t max\_out, int bitorder) <br>_Render unpacked bits back to a hex string — the exact inverse._  |
+|  int | [**bin\_to\_int**](#function-bin_to_int) (const uint8\_t \* bits, size\_t n\_bits, uint64\_t \* out, int bitorder) <br>_Read unpacked bits back into an integer — the exact inverse._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**ema\_alpha\_decim**](#function-ema_alpha_decim) (double alpha, size\_t d) <br>_The EMA coefficient that advances_ `d` _samples in one step:_`1 - (1 - alpha)^d` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**ema\_step**](#function-ema_step) (double state, double x, double alpha) <br>_One step of a first-order exponential moving average:_ `state <- state + alpha * (x - state)` _._ |
+|  size\_t | [**hex\_to\_bin**](#function-hex_to_bin) (const char \* hex, uint8\_t \* out, size\_t max\_out, int bitorder) <br>_Expand a hex string to unpacked bits, one per byte._  |
+|  size\_t | [**int\_to\_bin**](#function-int_to_bin) (uint64\_t v, unsigned n\_bits, uint8\_t \* out, size\_t max\_out, int bitorder) <br>_Expand the low_ `n_bits` _of an integer to unpacked bits._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**saturate**](#function-saturate) (double v, double lo, double hi, double nan\_to) <br>_Saturate a value into_ `[lo, hi]` _,_**total over every double** _— including NaN and both infinities._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float complex | [**square\_clip**](#function-square_clip) (float complex y, float lin) <br>_Square-clip a complex sample: clip the real and imaginary parts independently to_ `[-lin, lin]` _(a square region in the IQ plane, not a circular magnitude limit). Each component is passed through unchanged when its magnitude is within the threshold and clamped to the nearest boundary otherwise._ |
 
@@ -93,8 +102,119 @@ The util functions are header-only and JM\_FORCEINLINE: any caller that includes
 
 
     
+## Public Types Documentation
+
+
+
+
+### enum dp\_bitorder\_t 
+
+_Bit order within a byte, for_ [_**hex\_to\_bin**_](util__core_8h.md#function-hex_to_bin) _and_[_**bin\_to\_hex**_](util__core_8h.md#function-bin_to_hex) _._
+```C++
+enum dp_bitorder_t {
+    DP_BITORDER_BIG = 0,
+    DP_BITORDER_LITTLE = 1
+};
+```
+
+
+
+The name and the values follow numpy's `packbits`/`unpackbits` `bitorder=` argument, because that is the convention anyone writing this conversion has already met. It is a DIFFERENT axis from the `endian` (`le`/`be`) used by the BLUE writer, which selects a file's BYTE order — the `"EEEI"` / `"IEEE"` field of a type-1000 header. A hex literal's character order already fixes which byte comes first; what is left to choose is the order of bits inside one. Overloading one word for both would make a sync word and a sample stream disagree silently. 
+
+
+        
+
+<hr>
 ## Public Functions Documentation
 
+
+
+
+### function bin\_to\_hex 
+
+_Render unpacked bits back to a hex string — the exact inverse._ 
+```C++
+size_t bin_to_hex (
+    const uint8_t * bits,
+    size_t n_bits,
+    char * out,
+    size_t max_out,
+    int bitorder
+) 
+```
+
+
+
+Round-tripping is the property worth relying on and the one its test asserts: for any literal, `bin_to_hex(hex_to_bin(s))` is `s` (lower-case), in either bit order.
+
+
+
+
+**Parameters:**
+
+
+* `bits` `n_bits` unpacked bits; any non-zero byte reads as 1. 
+* `n_bits` number of bits; must be a multiple of 4. 
+* `out` receives the digits plus a NUL. 
+* `max_out` capacity of `out` in chars, NUL included. 
+* `bitorder` DP\_BITORDER\_BIG or DP\_BITORDER\_LITTLE. 
+
+
+
+**Returns:**
+
+digits written, NOT counting the NUL, or 0 if `n_bits` is not a multiple of 4, on NULL, an unknown `bitorder`, or `max_out` too small — in which case `out` is untouched. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function bin\_to\_int 
+
+_Read unpacked bits back into an integer — the exact inverse._ 
+```C++
+int bin_to_int (
+    const uint8_t * bits,
+    size_t n_bits,
+    uint64_t * out,
+    int bitorder
+) 
+```
+
+
+
+Returns a status rather than the value because every `uint64_t` is a legitimate result, so there is no value left over to mean "refused".
+
+
+
+
+**Parameters:**
+
+
+* `bits` `n_bits` unpacked bits; any non-zero byte reads as 1. 
+* `n_bits` 1..64. 
+* `out` receives the value. 
+* `bitorder` DP\_BITORDER\_BIG or DP\_BITORDER\_LITTLE. 
+
+
+
+**Returns:**
+
+0, or -1 if `n_bits` is 0 or over 64, on NULL, or an unknown `bitorder` — in which case `out` is untouched. 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -244,6 +364,106 @@ NOT total in `x`: a non-finite observation poisons the state permanently, becaus
 ```
  
 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function hex\_to\_bin 
+
+_Expand a hex string to unpacked bits, one per byte._ 
+```C++
+size_t hex_to_bin (
+    const char * hex,
+    uint8_t * out,
+    size_t max_out,
+    int bitorder
+) 
+```
+
+
+
+The general form of a transcription this library had exactly one hand-rolled instance of: `ccsds_tm_asm_bits` expands `0x1ACFFC1D` MSB-first, and its own comment says it exists so that the expansion is not written twice. A marker an assembler and a receiver expand differently syncs to nothing, so the expansion is worth owning once.
+
+
+Each hex digit contributes 4 bits and digits are read left to right, so an ODD number of digits is accepted and yields a 4-bit tail. Under DP\_BITORDER\_BIG the bits come out in the order the literal is read; under DP\_BITORDER\_LITTLE the bits within each byte are reversed, and a trailing half-byte is reversed within its own four bits.
+
+
+
+
+**Parameters:**
+
+
+* `hex` NUL-terminated hex digits, `0-9a-fA-F`. No `0x`, no separators — a rejected character is a REFUSAL rather than a skipped one, because a typo'd marker that silently shortens is the failure this exists to avoid. 
+* `out` receives `4 * strlen(hex)` bits, one per byte, 0 or 1. 
+* `max_out` capacity of `out` in bits. 
+* `bitorder` DP\_BITORDER\_BIG or DP\_BITORDER\_LITTLE. 
+
+
+
+**Returns:**
+
+bits written, or 0 on a bad digit, an empty string, a NULL, an unknown `bitorder`, or `max_out` too small — `out` untouched.
+
+
+
+```C++
+uint8_t b[32];
+size_t  n = hex_to_bin ("1ACFFC1D", b, sizeof b, DP_BITORDER_BIG);
+// n == 32, and b[0..7] is 0,0,0,1,1,0,1,0 — the CCSDS ASM, bit 0 first
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function int\_to\_bin 
+
+_Expand the low_ `n_bits` _of an integer to unpacked bits._
+```C++
+size_t int_to_bin (
+    uint64_t v,
+    unsigned n_bits,
+    uint8_t * out,
+    size_t max_out,
+    int bitorder
+) 
+```
+
+
+
+The form a field literal usually wants, and the one to reach for first: a sync word, a marker, a tag. Exact, compiler-checked and with no failure mode a typo can reach — `int_to_bin (0x1ACFFC1DULL, 32, ...)` cannot be misspelled the way `"1ACFFC1D"` can. [**hex\_to\_bin**](util__core_8h.md#function-hex_to_bin) is for the two cases this cannot serve: a literal wider than 64 bits, and text arriving from outside (a CLI flag, a JSON record) where the value is a string before it is anything else.
+
+
+Bit order is the same rule [**hex\_to\_bin**](util__core_8h.md#function-hex_to_bin) follows, so the two agree bit-for-bit on any value both can express: units of 8 bits from the start, a final short unit reversed within itself.
+
+
+
+
+**Parameters:**
+
+
+* `v` the value; only the low `n_bits` are read. 
+* `n_bits` 1..64. Bit 0 out is the MOST significant of those under DP\_BITORDER\_BIG, which is what makes `int_to_bin (0x1A, 8, ...)` read `0,0,0,1,1,0,1,0`. 
+* `out` receives `n_bits` bytes, each 0 or 1. 
+* `max_out` capacity of `out` in bits. 
+* `bitorder` DP\_BITORDER\_BIG or DP\_BITORDER\_LITTLE. 
+
+
+
+**Returns:**
+
+`n_bits`, or 0 if `n_bits` is 0 or over 64, on NULL, an unknown `bitorder`, or `max_out` too small — `out` untouched. 
 
 
 

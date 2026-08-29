@@ -20,6 +20,121 @@ extern "C"
 #endif
 
   /**
+   * @brief Bit order within a byte, for @ref hex_to_bin and @ref bin_to_hex.
+   *
+   * The name and the values follow numpy's `packbits`/`unpackbits`
+   * `bitorder=` argument, because that is the convention anyone writing this
+   * conversion has already met. It is a DIFFERENT axis from the `endian`
+   * (`le`/`be`) used by the BLUE writer, which selects a file's BYTE order —
+   * the `"EEEI"` / `"IEEE"` field of a type-1000 header. A hex literal's
+   * character order already fixes which byte comes first; what is left to
+   * choose is the order of bits inside one. Overloading one word for both
+   * would make a sync word and a sample stream disagree silently.
+   */
+  typedef enum
+  {
+    DP_BITORDER_BIG    = 0, /**< MSB of each byte first — as written  */
+    DP_BITORDER_LITTLE = 1  /**< LSB of each byte first               */
+  } dp_bitorder_t;
+
+  /**
+   * @brief Expand the low @p n_bits of an integer to unpacked bits.
+   *
+   * The form a field literal usually wants, and the one to reach for first:
+   * a sync word, a marker, a tag. Exact, compiler-checked and with no
+   * failure mode a typo can reach — `int_to_bin (0x1ACFFC1DULL, 32, ...)`
+   * cannot be misspelled the way `"1ACFFC1D"` can. @ref hex_to_bin is for
+   * the two cases this cannot serve: a literal wider than 64 bits, and text
+   * arriving from outside (a CLI flag, a JSON record) where the value is a
+   * string before it is anything else.
+   *
+   * Bit order is the same rule @ref hex_to_bin follows, so the two agree
+   * bit-for-bit on any value both can express: units of 8 bits from the
+   * start, a final short unit reversed within itself.
+   *
+   * @param v         the value; only the low @p n_bits are read.
+   * @param n_bits    1..64. Bit 0 out is the MOST significant of those under
+   *                  @ref DP_BITORDER_BIG, which is what makes
+   *                  `int_to_bin (0x1A, 8, ...)` read `0,0,0,1,1,0,1,0`.
+   * @param out       receives @p n_bits bytes, each 0 or 1.
+   * @param max_out   capacity of @p out in bits.
+   * @param bitorder  @ref DP_BITORDER_BIG or @ref DP_BITORDER_LITTLE.
+   * @return @p n_bits, or 0 if @p n_bits is 0 or over 64, on NULL, an
+   *         unknown @p bitorder, or @p max_out too small — @p out untouched.
+   */
+  size_t int_to_bin (uint64_t v, unsigned n_bits, uint8_t *out,
+                     size_t max_out, int bitorder);
+
+  /**
+   * @brief Read unpacked bits back into an integer — the exact inverse.
+   *
+   * Returns a status rather than the value because every `uint64_t` is a
+   * legitimate result, so there is no value left over to mean "refused".
+   *
+   * @param bits      @p n_bits unpacked bits; any non-zero byte reads as 1.
+   * @param n_bits    1..64.
+   * @param out       receives the value.
+   * @param bitorder  @ref DP_BITORDER_BIG or @ref DP_BITORDER_LITTLE.
+   * @return 0, or -1 if @p n_bits is 0 or over 64, on NULL, or an unknown
+   *         @p bitorder — in which case @p out is untouched.
+   */
+  int bin_to_int (const uint8_t *bits, size_t n_bits, uint64_t *out,
+                  int bitorder);
+
+  /**
+   * @brief Expand a hex string to unpacked bits, one per byte.
+   *
+   * The general form of a transcription this library had exactly one
+   * hand-rolled instance of: `ccsds_tm_asm_bits` expands `0x1ACFFC1D`
+   * MSB-first, and its own comment says it exists so that the expansion is
+   * not written twice. A marker an assembler and a receiver expand
+   * differently syncs to nothing, so the expansion is worth owning once.
+   *
+   * Each hex digit contributes 4 bits and digits are read left to right, so
+   * an ODD number of digits is accepted and yields a 4-bit tail. Under
+   * @ref DP_BITORDER_BIG the bits come out in the order the literal is read;
+   * under @ref DP_BITORDER_LITTLE the bits within each byte are reversed,
+   * and a trailing half-byte is reversed within its own four bits.
+   *
+   * @param hex       NUL-terminated hex digits, `0-9a-fA-F`. No `0x`, no
+   *                  separators — a rejected character is a REFUSAL rather
+   *                  than a skipped one, because a typo'd marker that
+   *                  silently shortens is the failure this exists to avoid.
+   * @param out       receives `4 * strlen(hex)` bits, one per byte, 0 or 1.
+   * @param max_out   capacity of @p out in bits.
+   * @param bitorder  @ref DP_BITORDER_BIG or @ref DP_BITORDER_LITTLE.
+   * @return bits written, or 0 on a bad digit, an empty string, a NULL, an
+   *         unknown @p bitorder, or @p max_out too small — @p out untouched.
+   *
+   * @code
+   * uint8_t b[32];
+   * size_t  n = hex_to_bin ("1ACFFC1D", b, sizeof b, DP_BITORDER_BIG);
+   * // n == 32, and b[0..7] is 0,0,0,1,1,0,1,0 — the CCSDS ASM, bit 0 first
+   * @endcode
+   */
+  size_t hex_to_bin (const char *hex, uint8_t *out, size_t max_out,
+                     int bitorder);
+
+  /**
+   * @brief Render unpacked bits back to a hex string — the exact inverse.
+   *
+   * Round-tripping is the property worth relying on and the one its test
+   * asserts: for any literal, `bin_to_hex(hex_to_bin(s))` is `s`
+   * (lower-case), in either bit order.
+   *
+   * @param bits      @p n_bits unpacked bits; any non-zero byte reads as 1.
+   * @param n_bits    number of bits; must be a multiple of 4.
+   * @param out       receives the digits plus a NUL.
+   * @param max_out   capacity of @p out in chars, NUL included.
+   * @param bitorder  @ref DP_BITORDER_BIG or @ref DP_BITORDER_LITTLE.
+   * @return digits written, NOT counting the NUL, or 0 if @p n_bits is not a
+   *         multiple of 4, on NULL, an unknown @p bitorder, or @p max_out too
+   *         small — in which case @p out is untouched.
+   */
+  size_t bin_to_hex (const uint8_t *bits, size_t n_bits, char *out,
+                     size_t max_out, int bitorder);
+
+  /**
    * @brief Square-clip a complex sample: clip the real and imaginary
    * parts independently to `[-lin, lin]` (a square region in the IQ
    * plane, not a circular magnitude limit).  Each component is passed

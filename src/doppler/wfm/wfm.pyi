@@ -1315,7 +1315,9 @@ class Frame:
         Parameters
         ----------
         kind : int
-            wfm_stage_kind_t index; 0=crc16…4=interleave.
+            stage kind: a wfm_stage_kind_t value (0=crc16…4=interleave), or a
+            caller's own from `WFM_STAGE_USER` (0x1000) up, whose kernel then
+            has to reach the assembler through its ops table.
         first_field : int
             First field covered.
         n_fields : int
@@ -2226,7 +2228,9 @@ class FrameDesc:
         Parameters
         ----------
         kind : int
-            wfm_stage_kind_t index; 0=crc16…4=interleave.
+            stage kind: a wfm_stage_kind_t value (0=crc16…4=interleave), or a
+            caller's own from `WFM_STAGE_USER` (0x1000) up, whose kernel then
+            has to reach the assembler through its ops table.
         first_field : int
             First field covered.
         n_fields : int

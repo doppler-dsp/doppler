@@ -154,6 +154,37 @@ extend is a fourth framer with extra steps.
 `native/inc/wfm/wfm_frame.h` is the SSOT for every name here; this page owns
 the reasoning, not the declarations.
 
+One CADU, drawn. The top row is the field list, ordered by POSITION on the
+wire; each row beneath it is one stage's `cover`, ordered by APPLICATION.
+Those are the two lists, and the block widths are schematic — a 32-bit
+marker cannot be drawn to scale beside an 8920-bit payload — so the exact
+spans are in the labels.
+
+```mermaid
+block-beta
+  columns 12
+  ASM["ASM<br/>0 – 32"]
+  PAY["payload<br/>32 – 8952"]:8
+  PAR["rs_parity<br/>8952 – 10232"]:3
+  space
+  RS["RS 255,223 depth 5 — derives rs_parity, in unit"]:11
+  space
+  RND["randomise — in unit, no length change"]:11
+  CONV["conv K=7 r=1/2 — emits 20464 channel symbols"]:12
+```
+
+Read the three cover rows, because they are the design in one picture. `RS`
+and `RANDOMISE` begin at bit 32 — **after** the marker. `CONV` begins at bit
+0 and takes the marker in. That asymmetry is the entire reason a stage
+carries an explicit `cover` rather than inheriting "everything so far": a
+chain would be right for two of these three and wrong for the third, in the
+direction that still encodes, still decodes against itself, and syncs to
+nothing.
+
+The `rs_parity` block is on the wire and is therefore a **field**, not a
+length rule hidden inside the stage that produces it — which is what lets
+the layout be a plain running sum over the top row.
+
 ### 1. Fields — where a run of bits comes from
 
 A field's kind answers one question only: who produces the bits. Length is a

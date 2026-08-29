@@ -491,7 +491,7 @@
 * **next** ([**dp\_pf\_shared\_t**](structdp__pf__shared__t.md), [**node\_sync\_t**](structnode__sync__t.md))
 * **n\_probes** ([**dp\_tlm**](structdp__tlm.md))
 * **now** ([**dp\_tlm**](structdp__tlm.md))
-* **name** ([**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md))
+* **name** ([**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md), [**wfm\_field\_t**](structwfm__field__t.md))
 * **n\_bursts** ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md))
 * **named** ([**frame\_state\_t**](structframe__state__t.md))
 * **nbits** ([**frame\_state\_t**](structframe__state__t.md), [**syncword\_state\_t**](structsyncword__state__t.md))

@@ -676,3 +676,29 @@ wfm_frame_dsss_chips (const uint8_t *acq_code, size_t acq_len, size_t acq_reps,
   return wfm_dsss_desc_chips (&d, NULL, acq_code, acq_len, acq_reps, data_code,
                               data_len, out, total);
 }
+
+int
+wfm_frame_field_index (const wfm_frame_desc_t *d, const char *name)
+{
+  /* No empty-name guard here, deliberately: the anonymous-field skip below
+     already returns -1 for "", and two mechanisms producing one behaviour
+     mask each other -- sabotage either and the test stays green, which is
+     how a broken guard survives. One mechanism, one test that can fail. */
+  if (!d || !name)
+    return -1;
+
+  const unsigned n = (d->n_fields <= WFM_FRAME_MAX_FIELDS)
+                         ? d->n_fields
+                         : WFM_FRAME_MAX_FIELDS;
+  for (unsigned i = 0; i < n; i++)
+    {
+      /* An unnamed field is anonymous, not named "" -- skipping it is what
+         stops an unnamed description answering questions about fields it
+         does not have. */
+      if (d->field[i].name[0] == '\0')
+        continue;
+      if (strncmp (d->field[i].name, name, WFM_FRAME_NAME_MAX) == 0)
+        return (int)i;
+    }
+  return -1;
+}

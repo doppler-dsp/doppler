@@ -94,7 +94,7 @@ Here is a list of all files with brief descriptions:
         * **dir** [**costas**](dir_9b517cb2745356d7938c9e100210a101.md)     
             * **file** [**costas\_core.h**](costas__core_8h.md) _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._     
         * **dir** [**cvt**](dir_7aebb15fbd538257eeb7884581a8ab59.md)     
-            * **file** [**cvt\_core.h**](cvt__core_8h.md) _Cvt module — public C API._ 
+            * **file** [**cvt\_core.h**](cvt__core_8h.md) _Cvt module — public C API._     
         * **dir** [**ddc**](dir_b33dc116452ac5c7d7799725e78b6bdc.md)     
             * **file** [**ddc\_core.h**](ddc__core_8h.md) _Digital Down-Converter — composes LO + RateConverter cascade._     
         * **dir** [**ddcr**](dir_46c04c942eb84c8716610cebe515b046.md)     

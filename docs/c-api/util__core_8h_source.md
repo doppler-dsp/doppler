@@ -21,24 +21,6 @@ extern "C"
 {
 #endif
 
-  typedef enum
-  {
-    DP_BITORDER_BIG    = 0, 
-    DP_BITORDER_LITTLE = 1  
-  } dp_bitorder_t;
-
-  size_t int_to_bin (uint64_t v, unsigned n_bits, uint8_t *out,
-                     size_t out_len, int bitorder);
-
-  int bin_to_int (const uint8_t *bits, size_t n_bits, uint64_t *out,
-                  int bitorder);
-
-  size_t hex_to_bin (const char *hex, uint8_t *out, size_t out_len,
-                     int bitorder);
-
-  size_t bin_to_hex (const uint8_t *bits, size_t n_bits, char *out,
-                     size_t out_len, int bitorder);
-
   JM_FORCEINLINE float complex
   square_clip (float complex y, float lin)
   {

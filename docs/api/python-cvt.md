@@ -136,6 +136,40 @@ ______________________________________________________________________
 
 ::: doppler.cvt.ADC
 
+______________________________________________________________________
+
+## Bits, values and symbols
+
+The conversions a frame field is built from. `int_to_bin` is the one to reach
+for first — a literal that fits in 64 bits, expanded exactly, with no failure
+mode a typo can reach. `hex_to_bin` is for what it cannot serve: a literal
+wider than 64 bits, or one arriving as text from a CLI flag or a JSON record.
+
+Bit order follows numpy's `bitorder` (`0` big, `1` little; big is "as
+written"). It is a **different axis** from the `endian` a BLUE file takes,
+which selects byte order — the `EEEI`/`IEEE` header field. A literal's digit
+order already fixes which byte comes first; what is left to choose is the
+order of bits inside one.
+
+::: doppler.cvt.int_to_bin
+
+::: doppler.cvt.bin_to_int
+
+::: doppler.cvt.hex_to_bin
+
+::: doppler.cvt.bin_to_hex
+
+`bin_to_nrz` maps bits to bipolar symbols as `1 - 2*b` — bit 0 to `+1`, bit 1
+to `-1`. That convention's home is BPSK in
+[`mpsk`](python-mpsk.md): M-PSK at `m = 2` puts label 0 at `+1`. The two are
+asserted equal in the C tests rather than trusted to stay equal, because a
+mapper that disagreed with the receiver's would decode every bit inverted
+while looking perfectly locked.
+
+::: doppler.cvt.bin_to_nrz
+
+::: doppler.cvt.nrz_to_bin
+
 ## Related pages
 
 <!-- related-pages:start -->

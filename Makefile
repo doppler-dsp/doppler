@@ -119,7 +119,7 @@ SYNC_CMD   = $(UV) sync
 # owns the version, so there is no `additional_dependencies` left to drift.
 LINT_TOOLS   = conflict tracked-paths ruff ruff-format mdformat clang-format \
                clang-tidy phase-conversion alloc-helpers stimulus-sources \
-               retired-names ci-pipefail rust-abi
+               retired-names ci-pipefail rust-abi header-example-arity
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -243,6 +243,19 @@ lint-alloc-helpers-baseline: ## Re-record the alloc ratchet after converting som
 # five of them the NAME a C test prints, which no compiler can notice. The
 # list is data, added by the commit that retires a name.
 LINT_retired-names = $(UV) run python scripts/check_retired_names.py
+
+# A header's example block is compiled by NOTHING. `docs/**` fences are built
+# -Werror against libdoppler.a; a header's is rendered by doxygen, published
+# to docs/c-api/**, and -- for a constructor -- transplanted by jm into the
+# .pyi a Python user reads, and not one of those paths type-checks it. So
+# mpsk_receiver_create()'s example passed SIXTEEN arguments to a fifteen-
+# parameter function, and ber_meter_score()'s passes eleven to five. This is
+# the cheap half of #1082: arity only, no compiler, no stand-in preamble for
+# the locals an example fragment references. Python doctest blocks are
+# skipped on their `>>>` -- they carry the binding's arity, not the C one.
+# Ratcheted: the 11 that predate it may only shrink.
+LINT_header-example-arity = \
+    $(UV) run python scripts/check_header_example_arity.py
 
 # A CI step may not throw away the exit code it just produced. The default
 # Actions shell is `bash -e`, where a PIPELINE reports the last command's

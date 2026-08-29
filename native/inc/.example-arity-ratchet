@@ -1,0 +1,26 @@
+# Header example blocks whose C call does not match the declaration in the
+# same header. RATCHETED: this list may only SHRINK. A new disagreement fails
+# `make lint`; a line kept here after its example is fixed fails too, because
+# a waiver that outlives its defect silently covers the next one.
+#
+# Every entry is a C example that DOES NOT COMPILE. They went unnoticed
+# because nothing in the tree compiles a header's example block — see
+# doppler#1082, which also carries the other half (a real compile, not just
+# arity). Fixing one is per-example work: read the current signature, decide
+# the argument the example should pass, delete the line here.
+#
+# Keyed on `<header> <function>`, never a line number: a line number moves
+# whenever anything above it is edited, and the waiver then covers the wrong
+# call without saying so.
+
+native/inc/async_dsss_receiver/async_dsss_receiver_core.h async_dsss_receiver_create
+native/inc/ber_meter/ber_meter_core.h ber_meter_score
+native/inc/corr/corr_core.h corr_create
+native/inc/corr2d/corr2d_core.h corr2d_create
+native/inc/delay/delay_core.h delay_create
+native/inc/dll/dll_core.h dll_create
+native/inc/dsss_receiver/dsss_receiver_core.h dsss_receiver_create
+native/inc/pn/pn_core.h pn_create
+native/inc/specan/specan_core.h specan_create
+native/inc/symsync/symsync_core.h symsync_step
+native/inc/wfm_synth/wfm_synth_core.h wfm_synth_create

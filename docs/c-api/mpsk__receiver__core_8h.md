@@ -234,16 +234,70 @@ The M-fold phase ambiguity is unchanged: resolve it with differential demapping 
 Lifecycle: `mpsk_receiver_create -> (steps / bits / reset)* -> _destroy`.
 
 
+Both examples name every argument, in the constructor's own parameter order, so a reader can check a call against the signature without counting commas. Fifteen positional numbers cannot be read, and they were not being read: the complex example below carried SIXTEEN arguments to a fifteen-parameter function  one left behind by a retired parameter  and said so to nobody, because nothing in the tree compiles a header's example block.
+
+
 
 ```C++
-// QPSK, 8 samples/symbol, I&D matched filter, NDA acquisition
+// QPSK, 8 samples/symbol, I&D matched filter, NDA acquisition.
+const int    m              = 4;     // QPSK
+const double sps            = 8.0;   // samples per symbol
+const size_t m_out          = 4;     // terminal outputs per symbol
+const int    pulse          = MPSK_RX_PULSE_IANDD;
+const double rrc_beta       = 0.35;  // pulse=rrc only; inert for I&D
+const int    rrc_span       = 8;     //   "
+const double bn_carrier     = 0.01;  // x symbol rate
+const double zeta           = 0.707; // critically damped
+const double bn_timing      = 0.01;  // x symbol rate
+const double lock_thresh    = 0.0;   // 0 derives; MPSK_RX_LOCK_THRESH_DEFAULT
+const double init_norm_freq = 0.0;   // no prior carrier estimate
+const int    differential   = 0;     // coherent demap
+const size_t num_phases     = 0;     // 0 derives 64, the saturation point
+const int    agc            = 1;     // one AGC, inside the cascade
+const double bn_agc_ratio   = MPSK_RX_AGC_BW_RATIO;
+
 mpsk_receiver_state_t *rx = mpsk_receiver_create (
-    4, 8.0, 4, MPSK_RX_PULSE_IANDD, 0.35, 8,
-    0.01, 0.707, 0.01, 0.5, 0.0, 100, 0, 1024,
-    1, MPSK_RX_AGC_BW_RATIO);
+    m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta,
+    bn_timing, lock_thresh, init_norm_freq, differential, num_phases,
+    agc, bn_agc_ratio);
 float complex sym[256];
 size_t k = mpsk_receiver_steps (rx, rx_in, rx_len, sym, 256);
 double f = mpsk_receiver_get_norm_freq (rx);  // tracked residual carrier
+mpsk_receiver_destroy (rx);
+```
+
+
+
+The real-IF face is the same call with `_real` on both ends. It lives here rather than on [**mpsk\_receiver\_create\_real()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create_real) because a constructor's own example block is what jm renders as that class's Python `Examples`, so a C block THERE replaces the Python doctest instead of adding to it. Here it reaches a C reader and costs the Python face nothing.
+
+
+
+```C++
+// QPSK on a real IF at 0.2*fs, 32 samples/symbol, I&D matched filter.
+// Same parameters as above; only the three noted in this block differ.
+const int    m              = 4;
+const double sps            = 32.0;  // > 2 * m_out: the cascade behind
+const size_t m_out          = 0;     //   the R2C halfband runs at 2x, and
+                                     //   0 derives m_out = 8
+const int    pulse          = MPSK_RX_PULSE_IANDD;
+const double rrc_beta       = 0.35;
+const int    rrc_span       = 8;
+const double bn_carrier     = 0.01;
+const double zeta           = 0.0;   // 0 derives
+const double bn_timing      = 0.01;
+const double lock_thresh    = 0.0;   // 0 derives
+const double init_norm_freq = 0.2;   // the real IF CENTRE, not a residual
+const int    differential   = 0;
+const size_t num_phases     = 0;     // 0 derives
+const int    agc            = 1;
+const double bn_agc_ratio   = 0.0;   // 0 derives
+
+mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
+    m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta,
+    bn_timing, lock_thresh, init_norm_freq, differential, num_phases,
+    agc, bn_agc_ratio);
+float complex sym[256];
+size_t k = mpsk_receiver_steps_real (rx, rx_in, rx_len, sym, 256);
 mpsk_receiver_destroy (rx);
 ```
  
@@ -622,18 +676,10 @@ A real-valued IF is the usual output of a single-ended ADC, so this is the face 
 Heap-allocated state, or NULL on invalid args / allocation failure. Destroy with [**mpsk\_receiver\_destroy()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_destroy) like any other.
 
 
+Deliberately carries NO example block, exactly like [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create) above  the C usage MOVED to this file's header comment, it was not dropped. A constructor's own example block is what jm renders as the class's Python `Examples`, so a C block here does not add an example, it REPLACES the generated Python one. That is how `MpskReceiverR` came to be the one public class with no runnable example: it had looked covered only because a view used to inherit its parent's docstring, which just-makeit 0.70.1 correctly stopped doing.
 
-```C++
-// QPSK on a real IF at 0.2*fs, 32 samples/symbol, I&D matched filter
-mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
-    4, 32.0, 0, MPSK_RX_PULSE_IANDD, 0.35, 8,
-    0.01, 0.0, 0.01, 0.0, 0.2, 0, 0,
-    1, 0.0);
-float complex sym[256];
-size_t k = mpsk_receiver_steps_real (rx, rx_in, rx_len, sym, 256);
-mpsk_receiver_destroy (rx);
-```
- 
+
+(Written without naming the doxygen command itself: the command is recognised inside backticks too, so spelling it here would open a block that never closes and swallow every declaration below.) 
 
 
         

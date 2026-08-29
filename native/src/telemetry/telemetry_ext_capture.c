@@ -427,9 +427,55 @@ static PyTypeObject CaptureObjType = {
   .tp_basicsize                           = sizeof (CaptureObject),
   .tp_dealloc                             = (destructor)CaptureObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Capture type.\n",
-  .tp_methods                             = CaptureObj_methods,
-  .tp_getset                              = Capture_getset,
-  .tp_new                                 = CaptureObj_new,
-  .tp_init                                = (initproc)CaptureObj_init,
+  .tp_doc
+  = "Opens a lossless capture over t and arms the boundary drain.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "tlm : Any\n"
+    "    Telemetry context to capture. Must outlive the capture.\n"
+    "block_samples : int\n"
+    "    The LARGEST number of input samples processed between two boundaries "
+    "—\n"
+    "    the step of your own block loop.\n"
+    "path : str | os.PathLike\n"
+    "    Output file, truncated if it exists. The 16-byte record layout IS "
+    "the\n"
+    "    file, so np.fromfile reads it directly; a <path>-meta JSON sidecar\n"
+    "    carries the probe table, the counters and the time base.\n"
+    "clock : Any\n"
+    "    The pipeline's sample clock, borrowed for the sidecar's time base — "
+    "see\n"
+    "    MemoryCapture. Pass None to state that there is no time base; the\n"
+    "    argument itself is not omittable.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import os, tempfile\n"
+    ">>> from doppler.telemetry import Telemetry, Capture\n"
+    ">>> from doppler.wfm import SampleClock\n"
+    ">>> tlm = Telemetry(1 << 12)\n"
+    ">>> pid = tlm.probe(\"agc.gain_db\")   # probes FIRST: they set the "
+    "bound\n"
+    ">>> path = os.path.join(tempfile.mkdtemp(), \"rx.tlm\")\n"
+    ">>> with Capture(tlm, 256, path, SampleClock(1e6)) as cap:\n"
+    "...     for blk in range(4):\n"
+    "...         tlm.set_now(blk * 256)   # drains the block just finished\n"
+    "...         tlm.emit(pid, float(blk))\n"
+    ">>> os.path.exists(path + \"-meta\")   # the sidecar, written at close\n"
+    "True\n"
+    "\n"
+    "The 16-byte record layout IS the file, so nothing doppler-specific is\n"
+    "needed to read it back:\n"
+    "\n"
+    ">>> import numpy as np\n"
+    ">>> dt = np.dtype({\"names\": [\"n\", \"value\", \"probe\", \"flags\"],\n"
+    "...                \"formats\": [\"<u8\", \"<f4\", \"<u2\", \"<u2\"],\n"
+    "...                \"offsets\": [0, 8, 12, 14], \"itemsize\": 16})\n"
+    ">>> [float(v) for v in np.fromfile(path, dtype=dt)[\"value\"]]\n"
+    "[0.0, 1.0, 2.0, 3.0]\n",
+  .tp_methods = CaptureObj_methods,
+  .tp_getset  = Capture_getset,
+  .tp_new     = CaptureObj_new,
+  .tp_init    = (initproc)CaptureObj_init,
 };

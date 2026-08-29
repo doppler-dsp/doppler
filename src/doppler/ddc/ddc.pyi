@@ -354,29 +354,30 @@ class DDC:
 
 @final
 class MatchedDDC:
-    """Create a complex-input Digital Down-Converter. Allocates internal state
-    for the LO and RateConverter cascade. The RateConverter selects the
-    cheapest multi-stage decimation chain (CIC + optional halfband + polyphase
-    resampler) for the given rate.
+    """Create a DDC whose cascade's terminal stage IS a matched filter.
 
     Parameters
     ----------
     norm_freq : float, default 0.0
-        LO frequency in cycles/sample at the input rate. Set to -f_carrier to
-        shift a carrier at f_carrier to DC. Any real value is accepted.
+        LO frequency in cycles/sample at the input rate, as ddc_create().
     rate : float, default 0.25
-        Output rate / input rate. Must be > 0. Values >= 1 are up-sampling;
-        typical use is decimation (0 < rate < 1).
+        Output-to-input sample rate ratio. Rate-agnostic: a caller wanting `m`
+        outputs per symbol asks for `rate = m/sps`; the cascade never learns
+        about symbols.
     pulse : Literal["iandd", "rrc"], default "rrc"
-        pulse constructor parameter.
+        RC_PULSE_RRC / RC_PULSE_IANDD. RC_PULSE_NONE is invalid here — use
+        ddc_create() for a plain down-conversion.
     beta : float, default 0.35
-        beta constructor parameter.
+        RRC roll-off in `[0, 1]` (ignored for the rectangle).
     span : int, default 8
-        span constructor parameter.
+        One-sided RRC span in symbols (ignored for the rectangle, whose support
+        is exactly one symbol).
     pulse_sps : float, default 2.0
-        pulse_sps constructor parameter.
+        The pulse's period in **output** samples (2 = two samples per symbol
+        out).
     num_phases : int, default 1024
-        num_phases constructor parameter.
+        Terminal-stage arms; a power of two. Sets the timing resolution to
+        `1/num_phases` of an output period.
 
     Raises
     ------
@@ -387,12 +388,10 @@ class MatchedDDC:
 
     Examples
     --------
-    >>> from doppler.ddc import DDC
-    >>> ddc = DDC(norm_freq=-0.1, rate=0.25)
-    >>> ddc.norm_freq
-    -0.1
-    >>> ddc.rate
-    0.25
+    >>> from doppler.ddc import MatchedDDC
+    >>> rx = MatchedDDC(norm_freq=-0.1, rate=2 / 16, pulse="rrc")
+    >>> rx.rate
+    0.125
 
     """
     def __init__(
@@ -1061,34 +1060,26 @@ class Ddcr:
 
 @final
 class MatchedDdcr:
-    """Create a real-input Digital Down-Converter (Architecture D2). The signal
-    chain is: halfband R2C (2:1, bakes in +fs/4 shift) -> fine LO mix at the
-    intermediate rate (fs_in/2) -> RateConverter -> CF32 output. The halfband
-    stage uses +-1/0 coefficients (no multiplications) and puts the fine LO and
-    the cascade at fs_in/2. That is worth ~1.1-1.7x in a whole receiver (it
-    halves the rate ahead of the polyphase matched filter, so the gain grows
-    with samples/symbol) and close to nothing for the front end alone -- see
-    the file header for the measurements. Use it because the input IS real.
+    """Create a real-input DDC whose terminal stage IS a matched filter.
 
     Parameters
     ----------
     norm_freq : float, default 0.0
-        Fine NCO frequency at the intermediate rate (fs_in/2, cycles/sample).
-        To tune a real tone at normalised input frequency f_c to DC, set
-        norm_freq = -(2*f_c + 0.5).
+        Fine NCO frequency at the INTERMEDIATE rate (fs_in/2) — the same
+        reference ddcr_create() uses.
     rate : float, default 0.25
-        Total output/input rate. Must be in (0, 0.5) because the halfband
-        pre-decimates by 2.
+        Total output/input rate; must be in (0, 0.5).
     pulse : Literal["iandd", "rrc"], default "rrc"
-        pulse constructor parameter.
+        RC_PULSE_RRC / RC_PULSE_IANDD (RC_PULSE_NONE is invalid here — use
+        ddcr_create()).
     beta : float, default 0.35
-        beta constructor parameter.
+        RRC roll-off in `[0, 1]` (ignored for the rectangle).
     span : int, default 8
-        span constructor parameter.
+        One-sided RRC span in symbols (ignored for the rectangle).
     pulse_sps : float, default 2.0
-        pulse_sps constructor parameter.
+        The pulse's period in **output** samples.
     num_phases : int, default 1024
-        num_phases constructor parameter.
+        Terminal-stage arms; a power of two.
 
     Raises
     ------
@@ -1099,12 +1090,10 @@ class MatchedDdcr:
 
     Examples
     --------
-    >>> from doppler.ddc import Ddcr
-    >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
-    >>> ddcr.norm_freq
-    -0.7
-    >>> ddcr.rate
-    0.25
+    >>> from doppler.ddc import MatchedDdcr
+    >>> rx = MatchedDdcr(norm_freq=-0.6875, rate=2 / 16, pulse="rrc")
+    >>> rx.rate
+    0.125
 
     """
     def __init__(

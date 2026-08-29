@@ -1820,7 +1820,7 @@ class Frame:
 
 @final
 class FrameDesc:
-    """Create a frame instance.
+    """The same frame, DEFERRED — a description a caller can extend.
 
     Parameters
     ----------
@@ -1920,24 +1920,24 @@ class FrameDesc:
     Examples
     --------
     >>> import numpy as np
-    >>> from doppler.wfm import Frame
-    >>> empty = np.empty(0, np.uint8)                    # an absent field
-    >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)   # Barker-13
+    >>> from doppler.wfm import FrameDesc
+    >>> empty = np.empty(0, np.uint8)
+    >>> d = FrameDesc(empty, empty, empty)          # begin from nothing
+    >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)  # Barker-13
     >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-    >>> f = Frame(empty, sync, payload, crc="crc16")
-    >>> f.nbits                                          # 13 + 16 + 16
-    45
-    >>> f.layout().payload_off
-    13
-    >>> f.crc_ok(f.bits())        # its own bits are its own truth
+    >>> d.add_field(sync)                           # returns its index
+    0
+    >>> d.add_field(payload)
     1
-
-    A payload a receiver can REGENERATE, rather than one it must be handed:
-
-    >>> g = Frame(empty, sync, empty, payload_kind="pn",
-    ...           payload_nbits=1024, payload_reg_bits=10, crc="crc16")
-    >>> g.nbits
-    1053
+    >>> d.add_field(empty, derived_by=1, derived_bits=16)  # stage 0, PLUS ONE
+    2
+    >>> d.add_stage(kind=0, first_field=1, n_fields=2)   # crc16 over 1..2
+    0
+    >>> d.build()
+    >>> d.nbits                                     # 13 + 16 + 16
+    45
+    >>> d.crc_ok(d.bits())        # its own bits are its own truth
+    1
 
     """
     def __init__(

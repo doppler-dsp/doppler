@@ -2083,19 +2083,18 @@ validate-c: ## Run every C validation harness's FULL sweep (not the --check subs
 # diagnosis and printed a filename. Measured: four reports came back stale in
 # CI and the log said only which files, which is the half that does not
 # distinguish an edited validator (re-run `make validate`) from a machine
-# difference (re-running fixes nothing). Captured and replayed on failure now,
-# from `STALE:` onward so the per-limit PASS lines stay out of it.
+# difference (re-running fixes nothing).
+#
+# The classification then moved OUT of this recipe (doppler#1074). A shell
+# loop cannot be tested, and this one had a third case it did not name: any
+# non-zero exit read as STALE, so a validator that CRASHED -- the usual
+# reason being a fresh worktree where `make build` has not built the Python
+# extensions -- was reported stale and answered with `make validate`, which
+# cannot fix an import. The script tells the three apart and is gated by
+# test_validate_check_classifies.py. The validator list stays here, so
+# VALIDATORS remains the one declaration of what is checked.
 validate-check: ## Fail if any validation report is stale (CI gate)
-	@fail=0; \
-	 for v in $(VALIDATORS); do \
-	     out=$$(uv run python $$v --check 2>&1) || { \
-	         echo "validate-check: STALE — $$v"; \
-	         printf '%s\n' "$$out" | sed -n '/STALE:/,$$p'; \
-	         fail=1; }; \
-	 done; \
-	 if [ "$$fail" = 0 ]; then \
-	     echo "validate-check: OK — $(words $(VALIDATORS)) report(s) up to date"; \
-	 else echo "validate-check: run 'make validate'"; exit 1; fi
+	@uv run python scripts/validate_check.py $(VALIDATORS)
 
 # ── Characterization ─────────────────────────────────────────────────────────
 # A characterization sweeps an object across its whole operating envelope —

@@ -1,6 +1,7 @@
 #include "burst_demod/burst_demod_core.h"
 
 #include "ccsds_tm/ccsds_tm_frame.h" /* the stage kernels + the ASM bits    */
+#include "clib_common.h"             /* dp_xnn — abort-on-OOM, see below    */
 #include "mpsk/mpsk_core.h"          /* mpsk_soft_demap — the ONE LLR rule  */
 
 #include <complex.h>
@@ -392,57 +393,44 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
    * convention `mpsk_soft_demap` documents.
    */
   {
-    float *llr = realloc (s->llr, frame * sizeof *llr);
-    /* `unit` is the object's own read-back buffer now, not a scratch
+    /* dp_xnn, not a checked realloc: the unwind for these two is a path no
+       test can reach, and an uncoverable branch is exactly what the
+       abort-on-OOM helpers exist to remove. Both read-backs describe one
+       frame, so a partial failure would have had to empty BOTH anyway --
+       there is no half-valid state worth writing code for.
+
+       `unit` is the object's own read-back buffer now, not a scratch
        allocation. It was built either way -- the projection and the noise
        estimate are both made from it -- and freeing it cost a caller the
-       quadrature, which is the only thing that separates a residual phase
-       error from a genuine amplitude loss (doppler#1087). */
-    float complex *unit = realloc (s->sym, frame * sizeof *unit);
-    if (llr && unit)
-      {
-        s->llr   = llr;
-        s->sym   = unit;
-        double a = 0.0, q2 = 0.0;
+       quadrature, the one axis a phase-coherence problem shows in
+       (doppler#1087). */
+    float         *llr  = dp_xnn (realloc (s->llr, frame * sizeof *llr));
+    float complex *unit = dp_xnn (realloc (s->sym, frame * sizeof *unit));
+    {
+      s->llr   = llr;
+      s->sym   = unit;
+      double a = 0.0, q2 = 0.0;
+      for (size_t k = 0; k < frame; k++)
+        {
+          const float complex y = sym[best_off + k] * derot;
+          unit[k]               = y;
+          a += fabs ((double)crealf (y));
+          q2 += (double)cimagf (y) * (double)cimagf (y);
+        }
+      a /= (double)frame;
+      /* E[|n|^2] over both dimensions, referred to unit amplitude. The
+         floor keeps a noiseless capture finite rather than infinite. */
+      double n0 = 2.0 * (q2 / (double)frame) / (a > 0.0 ? a * a : 1.0);
+      if (!(n0 > 1e-12))
+        n0 = 1e-12;
+      s->est_n0 = n0;
+      if (a > 0.0)
         for (size_t k = 0; k < frame; k++)
-          {
-            const float complex y = sym[best_off + k] * derot;
-            unit[k]               = y;
-            a += fabs ((double)crealf (y));
-            q2 += (double)cimagf (y) * (double)cimagf (y);
-          }
-        a /= (double)frame;
-        /* E[|n|^2] over both dimensions, referred to unit amplitude. The
-           floor keeps a noiseless capture finite rather than infinite. */
-        double n0 = 2.0 * (q2 / (double)frame) / (a > 0.0 ? a * a : 1.0);
-        if (!(n0 > 1e-12))
-          n0 = 1e-12;
-        s->est_n0 = n0;
-        if (a > 0.0)
-          for (size_t k = 0; k < frame; k++)
-            unit[k] /= (float)a;
-        mpsk_soft_demap (unit, frame, s->llr, frame, 2, (float)n0);
-        s->n_llr = frame;
-        s->n_sym = frame;
-      }
-    else
-      {
-        /* Either allocation failing leaves BOTH read-backs empty rather than
-           one of them half-valid: they describe the same frame, so a caller
-           must not be able to read a stale constellation beside fresh LLRs.
-           realloc returning NULL leaves the old block alive, so whichever
-           did succeed is adopted first and freed here. */
-        if (llr)
-          s->llr = llr;
-        if (unit)
-          s->sym = unit;
-        free (s->llr);
-        free (s->sym);
-        s->llr   = NULL;
-        s->sym   = NULL;
-        s->n_llr = 0;
-        s->n_sym = 0;
-      }
+          unit[k] /= (float)a;
+      mpsk_soft_demap (unit, frame, s->llr, frame, 2, (float)n0);
+      s->n_llr = frame;
+      s->n_sym = frame;
+    }
   }
 
   size_t nbits = (frame <= max_out) ? frame : max_out;

@@ -208,9 +208,13 @@ add_seq_gen (cJSON *o, const char *key, const wfm_seq_t *q)
 {
   if (!q || q->kind == WFM_SEQ_LITERAL || q->len == 0)
     return;
+  /* No OOM branch. Every cJSON_Add* below and the closing AddItemToObject
+     are no-ops on a NULL object, so a failed allocation omits the key here
+     exactly as an early return would -- and an unwind path no test can reach
+     is a line the patch-coverage gate cannot accept. Same reasoning as the
+     abort-on-OOM allocation helpers, and the same shape as the sibling
+     builders in this file that already omit the check. */
   cJSON *g = cJSON_CreateObject ();
-  if (!g)
-    return;
   cJSON_AddStringToObject (g, "kind", SEQ_KINDS[q->kind]);
   cJSON_AddNumberToObject (g, "len", (double)q->len);
   if (q->kind == WFM_SEQ_PN)

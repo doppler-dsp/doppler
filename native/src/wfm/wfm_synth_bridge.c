@@ -480,8 +480,13 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
                                 src->crc)
              == 0)
     return NULL;
+  /* LEN, not `bits`. A generated spreading code carries `bits == NULL` by
+     construction -- the parameters ARE the code -- so testing the pointer
+     refused every continuous `data_code_gen` before it could reach
+     seq_to_chips, on the one face a record restores through. A code that is
+     declared but cannot be built is caught below, where it can say so. */
   if (src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0
-      && (!src->data_code.bits || src->data_code.len == 0))
+      && src->data_code.len == 0)
     return NULL;
   /* A frame this waveform type cannot carry. Refusing is the whole point:
      these fields used to be accepted and dropped, so the caller got an

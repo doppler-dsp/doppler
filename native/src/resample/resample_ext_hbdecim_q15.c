@@ -174,12 +174,20 @@ HalfbandDecimatorQ15_getprop_rate (HalfbandDecimatorQ15Object *self,
   return PyFloat_FromDouble (hbdecim_q15_get_rate (self->handle));
 }
 
-static PyGetSetDef HalfbandDecimatorQ15_getset[]
-    = { { "num_taps", (getter)HalfbandDecimatorQ15_getprop_num_taps, NULL,
-          "Returns num_taps as supplied to hbdecim_q15_create.\n", NULL },
-        { "rate", (getter)HalfbandDecimatorQ15_getprop_rate, NULL,
-          "Always returns 0.5.\n", NULL },
-        { NULL } };
+static PyGetSetDef HalfbandDecimatorQ15_getset[] = {
+  { "num_taps", (getter)HalfbandDecimatorQ15_getprop_num_taps, NULL,
+    "FIR branch length as supplied to the constructor. This is the count of "
+    "non-zero symmetric taps in the FIR branch, not the full sparse halfband "
+    "prototype length. Useful for introspection when chaining multiple "
+    "stages with programmatically computed filter banks.\n",
+    NULL },
+  { "rate", (getter)HalfbandDecimatorQ15_getprop_rate, NULL,
+    "The sample-rate reduction factor; always 0.5 for 2:1 decimation. "
+    "Exposed as a read-only property so pipelines can query the rate of each "
+    "stage programmatically without hard-coding the 2:1 assumption.\n",
+    NULL },
+  { NULL }
+};
 
 static PyObject *
 HalfbandDecimatorQ15Obj_destroy (HalfbandDecimatorQ15Object *self,

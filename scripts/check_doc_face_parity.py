@@ -90,6 +90,16 @@ _C_STRING = re.compile(r'"((?:[^"\\]|\\.)*)"')
 # .tp_name = "<module>.<Class>" gives the fragment's Python class.
 _TP_NAME = re.compile(r'\.tp_name\s*=\s*"(?:[\w.]*\.)?(?P<cls>\w+)"')
 
+# A PyGetSetDef row: the Python-visible name, a getter, an optional setter,
+# then the docstring. Same non-greedy stop as the method row. The sentinel
+# `{ NULL, NULL, NULL, NULL, NULL }` has no `(getter)` and so never matches.
+_GETSET_ROW = re.compile(
+    r'\{\s*"(?P<name>\w+)"\s*,\s*\(getter\)'
+    r"(?P<body>.*?)"
+    r"\}\s*,",
+    re.DOTALL,
+)
+
 
 def c_literal_text(body: str) -> str:
     """Join a run of adjacent C string literals into the string they form.
@@ -149,6 +159,59 @@ def fragment_methods(path: pathlib.Path) -> tuple[str | None, dict]:
     return cls, found
 
 
+def normalise(doc: str) -> str:
+    """Collapse every run of whitespace, so WRAPPING is not a difference.
+
+    The two faces wrap the same prose differently by construction -- the
+    runtime doc is a C string literal clang-format splits at 79 columns, the
+    stub is Python source ruff wraps at its own width -- and neither reflows
+    the other when the text is edited. Comparing the collapsed text asks the
+    only question worth asking: do the two faces say the same thing.
+    """
+    return " ".join(doc.split())
+
+
+def fragment_properties(text: str) -> dict:
+    """``{property: docstring}`` for one sacred fragment's getset table.
+
+    Whole docstrings, NOT numpy sections. A property's doc is prose and
+    carries no `Examples`/`Raises` block, so a section-wise comparison would
+    compare nothing at all and pass forever -- which is precisely the shape
+    of gate this check exists to not be.
+    """
+    found = {}
+    for row in _GETSET_ROW.finditer(text):
+        doc = c_literal_text(row.group("body"))
+        if doc.strip():
+            found[row.group("name")] = normalise(doc)
+    return found
+
+
+def stub_properties(path: pathlib.Path) -> dict:
+    """``{(class, property): docstring}`` for one ``.pyi``.
+
+    A read-only property is `@property`; a writable one also has an
+    `@x.setter` whose docstring jm does not emit, so only the getter counts.
+    """
+    tree = ast.parse(path.read_text())
+    out = {}
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for member in node.body:
+            if not isinstance(member, ast.FunctionDef):
+                continue
+            if not any(
+                isinstance(d, ast.Name) and d.id == "property"
+                for d in member.decorator_list
+            ):
+                continue
+            doc = ast.get_docstring(member, clean=False)
+            if doc and doc.strip():
+                out[(node.name, member.name)] = normalise(doc)
+    return out
+
+
 def stub_methods(path: pathlib.Path) -> dict:
     """``{(class, method, section): body}`` for one ``.pyi``.
 
@@ -183,18 +246,44 @@ def main() -> int:
     args = ap.parse_args()
 
     stubs: dict = {}
+    props: dict = {}
     for pyi in sorted(PYEXT_DIR.rglob("*.pyi")):
         stubs.update(stub_methods(pyi))
+        props.update(stub_properties(pyi))
 
     compared = 0
+    prop_compared = 0
     unmatched: list[str] = []
     bad: list[tuple[str, str, str, list[str], list[str]]] = []
+    prop_bad: list[tuple[str, str, str, str, str]] = []
 
     for frag in sorted(NATIVE_SRC.rglob("*_ext_*.c")):
         cls, methods = fragment_methods(frag)
         if cls is None:
             continue
         rel = frag.relative_to(REPO)
+
+        # PROPERTIES, compared whole rather than section-wise. A property's
+        # doc is prose with no numpy sections, so reusing the method path
+        # would compare nothing and pass forever. jm renders the .pyi from
+        # the manifest but does NOT transplant a property's doc into a sacred
+        # fragment's getset table, so the stub can move while the runtime
+        # __doc__ sits stale -- which is exactly what happened to
+        # DsssBurstReceiver.refine_span while this check reported OK
+        # (doppler#1090).
+        for name, runtime_doc in sorted(
+            fragment_properties(frag.read_text()).items()
+        ):
+            stub_doc = props.get((cls, name))
+            if stub_doc is None:
+                unmatched.append(f"{rel}: {cls}.{name} (property)")
+                continue
+            prop_compared += 1
+            if stub_doc != runtime_doc:
+                prop_bad.append((str(rel), cls, name, stub_doc, runtime_doc))
+            elif args.verbose:
+                print(f"  ok  {cls}.{name} (property)")
+
         for (name, section), runtime_ex in sorted(methods.items()):
             stub_ex = stubs.get((cls, name, section))
             if stub_ex is None:
@@ -222,23 +311,35 @@ def main() -> int:
         for u in unmatched:
             print(f"    {u}")
 
-    if bad:
+    for rel, cls, name, stub_doc, runtime_doc in prop_bad:
+        print(f"\n{rel}: {cls}.{name} (property) — differs between faces")
+        print(f"    stub:    {stub_doc[:140]}")
+        print(f"    runtime: {runtime_doc[:140]}")
+
+    if bad or prop_bad:
         print(
-            f"\nDoc face parity: FAIL — {len(bad)} of {compared} methods "
-            f"diverge between the .pyi and the runtime __doc__.\n"
+            f"\nDoc face parity: FAIL — {len(bad)} of {compared} methods and "
+            f"{len(prop_bad)} of {prop_compared} properties diverge between "
+            "the .pyi and the runtime __doc__.\n"
             "One input, two faces, and only one of them moved.\n"
             "  Examples: the header's @code was edited and the sacred "
             "_ext_<obj>.c fragment did not follow — it is hand-owned, so "
             "update its string literal and clang-format it.\n"
             "  Raises: both faces are jm's, from the manifest, so a "
             "difference here is a CODEGEN bug, not something to hand-patch "
-            "into agreement. Report it."
+            "into agreement. Report it.\n"
+            "  Properties: the .pyi is generated from the manifest and jm "
+            "does not transplant a property doc into a sacred fragment, so "
+            "the manifest is right and the fragment's getset literal is "
+            "what to update (then clang-format it). Whitespace is "
+            "normalised, so only the WORDS differ."
         )
         return 1
 
     print(
-        f"Doc face parity: OK — {compared} methods compared, 0 divergent "
-        f"({len(unmatched)} fragment methods have no stub counterpart)"
+        f"Doc face parity: OK — {compared} methods and {prop_compared} "
+        f"properties compared, 0 divergent ({len(unmatched)} fragment "
+        "members have no stub counterpart)"
     )
     return 0
 

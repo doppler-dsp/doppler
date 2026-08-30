@@ -10,9 +10,9 @@ true of the *Python binding* only: jm renders `[[enum]]` into
 `native/inc/wfm/wfm_names.h` -- maintained by hand and by nobody's gate.
 
 Why that is worse than ordinary duplication: **list order IS the C enum
-value**.
-A table that drifts does not fail to compile and does not raise; it maps a flag
-to the WRONG waveform. The rot is not hypothetical -- `wfm_writer`'s copy of
+value**. A table that drifts does not fail to compile and does not raise; it
+maps a flag to the WRONG waveform. The rot is not hypothetical --
+`wfm_writer`'s copy of
 `TYPE_NAMES` had already fallen to 8 entries with no "dsss", and `wfm_json.c`'s
 `DATA_NAMES` listed `{"none","prbs"}` against `wfmgen.c`'s `{"prbs","none"}`,
 which was harmless only because one file compared its index while the other
@@ -54,7 +54,18 @@ import re
 import sys
 from pathlib import Path
 
-import tomllib
+# `tomllib` is 3.11+. Every OTHER gate under scripts/ that a test in
+# src/doppler/tests/ drives is stdlib-only and so runs on the floor Python,
+# because those tests invoke the script with `sys.executable` -- which, in the
+# `Python 3.9`/`3.10` CI matrix jobs, IS 3.9/3.10. This one reads the manifest,
+# so it needs a TOML parser, and a bare `import tomllib` failed both those jobs
+# with ModuleNotFoundError while passing every 3.11+ job and every local run.
+# `tomli` is the same parser under its pre-stdlib name, marker-gated in the dev
+# group so it installs only where the stdlib lacks one.
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover - exercised by the 3.9/3.10 CI matrix jobs
+    import tomli as tomllib
 
 #: Where the one C home lives, and the manifest that owns its contents. Both
 #: are relative to `--root` so the gate can be exercised over a seeded tree --

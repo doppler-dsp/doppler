@@ -17,8 +17,8 @@
 /* A field's bits, written at `out`. Returns the count, or 0 if the descriptor
    cannot produce them — which is a REFUSAL, not a short write: a frame that
    half-materialises would be scored against a truth nobody can regenerate. */
-static size_t
-seq_bits (const wfm_seq_t *s, uint8_t *out, size_t cap)
+size_t
+wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t cap)
 {
   if (!s || s->len == 0 || s->len > cap)
     return 0;
@@ -425,7 +425,7 @@ wfm_frame_assemble (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
 
   /* Every stage must have a kernel BEFORE anything is written. A stage
      discovered to be unrunnable half way through would leave a partly coded
-     frame in the caller's buffer, which is the shape `seq_bits` already
+     frame in the caller's buffer, which is the shape `wfm_seq_bits` already
      refuses for a field: a frame that half-materialises is scored against a
      truth nobody can reproduce. */
   for (unsigned s = 0; s < d->n_stages; s++)
@@ -452,7 +452,8 @@ wfm_frame_assemble (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
       /* One period, then repeated verbatim — a generated field must repeat
          the SAME bits, not draw fresh ones, or it is not a periodic
          acquisition target and coherent integration across reps is void. */
-      if (seq_bits (&f->seq, frame + l.field_off[i], f->seq.len) != f->seq.len)
+      if (wfm_seq_bits (&f->seq, frame + l.field_off[i], f->seq.len)
+          != f->seq.len)
         return 0;
       for (size_t r = 1; r * f->seq.len < n; r++)
         memcpy (frame + l.field_off[i] + r * f->seq.len,

@@ -481,6 +481,26 @@ extern "C"
                            const char *first, const char *last);
 
   /**
+   * @brief Write @p s's bits, whatever produces them. Returns the count.
+   *
+   * The one place a `wfm_seq_t` becomes bits. A descriptor materialises its
+   * own fields through this, and a consumer that takes a RAW ARRAY rather
+   * than a description -- the DSSS chip builder is the one in this tree --
+   * calls it to expand a generated sequence into a buffer first. Without
+   * that, `bits` is NULL for every generated kind and the array consumer
+   * reads through it.
+   *
+   * @param s        the sequence; a LITERAL copies, the generated kinds run
+   *                 their generator.
+   * @param out      receives @p s->len bits, one per byte.
+   * @param max_out  capacity; 0 is returned if @p s->len exceeds it.
+   * @return bits written, or 0 if the sequence is unbuildable (a LITERAL
+   *         with no array, a length past @p max_out, a generator that
+   *         refused its own parameters).
+   */
+  size_t wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t max_out);
+
+  /**
    * @brief Materialise a description: run every field, then every stage.
    *
    * The general form of @ref wfm_frame_bits. Fields are written in wire

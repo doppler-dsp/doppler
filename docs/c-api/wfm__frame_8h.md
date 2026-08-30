@@ -91,6 +91,7 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 |  int | [**wfm\_frame\_field\_index**](#function-wfm_frame_field_index) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const char \* name) <br>_Index of the field called_ `name` _, or -1._ |
 |  int | [**wfm\_frame\_layout**](#function-wfm_frame_layout) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f, [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) \* out) <br>_Fill_ `out` _with the field offsets._ |
 |  size\_t | [**wfm\_frame\_nbits**](#function-wfm_frame_nbits) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f) <br>_Total frame bits, or 0 if the geometry is empty._  |
+|  size\_t | [**wfm\_seq\_bits**](#function-wfm_seq_bits) (const [**wfm\_seq\_t**](structwfm__seq__t.md) \* s, uint8\_t \* out, size\_t max\_out) <br>_Write_ `s's` _bits, whatever produces them. Returns the count._ |
 
 
 
@@ -861,6 +862,47 @@ size_t wfm_frame_nbits (
 
 
 * `f` the frame; must be non-NULL. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_seq\_bits 
+
+_Write_ `s's` _bits, whatever produces them. Returns the count._
+```C++
+size_t wfm_seq_bits (
+    const wfm_seq_t * s,
+    uint8_t * out,
+    size_t max_out
+) 
+```
+
+
+
+The one place a `wfm_seq_t` becomes bits. A descriptor materialises its own fields through this, and a consumer that takes a RAW ARRAY rather than a description  the DSSS chip builder is the one in this tree  calls it to expand a generated sequence into a buffer first. Without that, `bits` is NULL for every generated kind and the array consumer reads through it.
+
+
+
+
+**Parameters:**
+
+
+* `s` the sequence; a LITERAL copies, the generated kinds run their generator. 
+* `out` receives `s->len` bits, one per byte. 
+* `max_out` capacity; 0 is returned if `s->len` exceeds it. 
+
+
+
+**Returns:**
+
+bits written, or 0 if the sequence is unbuildable (a LITERAL with no array, a length past `max_out`, a generator that refused its own parameters). 
+
 
 
 

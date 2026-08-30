@@ -296,6 +296,41 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
   return 0;
 }
 
+/* Expand a sequence into a caller-owned array, whatever produced it.
+ *
+ * The DSSS chip builder takes RAW ARRAYS, not a description: the spreading
+ * code and a spread preamble are chips, and chips are outside anything the
+ * frame descriptor covers (`wfm_dsss_desc_chips` prepends the preamble
+ * AROUND the description). A generated sequence has `bits == NULL`, so
+ * handing one to that path reads through a null pointer -- which it did,
+ * for a `data_code_gen` arriving from a record, until this existed.
+ *
+ * Returns a malloc'd array the caller frees, or NULL. `*n` is its length. A
+ * LITERAL is returned as a copy rather than borrowed, so one free() covers
+ * both cases and the caller needs no branch. Both consumers COPY what they
+ * are given (`wfm_synth_set_dsss_cont`'s `code` is documented "copied";
+ * `wfm_dsss_desc_chips` reads it during the call), so a temporary is enough.
+ */
+static uint8_t *
+seq_to_chips (const wfm_seq_t *q, size_t *n)
+{
+  *n = 0;
+  if (!q || q->len == 0)
+    return NULL;
+  /* dp_xmalloc, not malloc: an OOM unwind here is a path no test can reach,
+     which is exactly what the allocation-helper rule exists to remove. NULL
+     from this function therefore means one thing only -- the sequence is
+     unbuildable -- and that IS reachable and tested. */
+  uint8_t *buf = dp_xmalloc (q->len);
+  if (wfm_seq_bits (q, buf, q->len) != q->len)
+    {
+      free (buf);
+      return NULL;
+    }
+  *n = q->len;
+  return buf;
+}
+
 int
 wfm_source_attach_frame (wfm_synth_state_t *syn, const wfm_source_t *src)
 {
@@ -355,12 +390,17 @@ wfm_source_attach_dsss (wfm_synth_state_t *syn, const wfm_source_t *src,
          regenerate. (Code-only, --data none, arrives with the CLI flag.) */
       double cps
           = (src->sps > 0) ? (fs / (double)src->sps) / src->symbol_rate : 0.0;
-      int mode = src->dsss_code_only          ? WFM_DSSS_DATA_NONE
-                 : (src->bits && src->n_bits) ? WFM_DSSS_DATA_BITS
-                                              : WFM_DSSS_DATA_PRBS;
-      return wfm_synth_set_dsss_cont (syn, src->data_code.bits,
-                                      src->data_code.len, cps, mode, src->bits,
-                                      src->n_bits);
+      int      mode = src->dsss_code_only          ? WFM_DSSS_DATA_NONE
+                      : (src->bits && src->n_bits) ? WFM_DSSS_DATA_BITS
+                                                   : WFM_DSSS_DATA_PRBS;
+      size_t   dn   = 0;
+      uint8_t *dchp = seq_to_chips (&src->data_code, &dn);
+      if (!dchp)
+        return -1;
+      const int rc = wfm_synth_set_dsss_cont (syn, dchp, dn, cps, mode,
+                                              src->bits, src->n_bits);
+      free (dchp);
+      return rc;
     }
   /* A BURST is a frame that is spread. The frame comes from the same
      description every other source is built from -- so `--conv`, `--asm`,
@@ -378,9 +418,22 @@ wfm_source_attach_dsss (wfm_synth_state_t *syn, const wfm_source_t *src,
     return -1;
   wfm_frame_ops_t ops;
   ccsds_tm_frame_ops (&ops, NULL);
-  const size_t got = wfm_dsss_desc_chips (
-      &d, &ops, src->acq_code.bits, src->acq_code.len, src->acq_reps,
-      src->data_code.bits, src->data_code.len, chips, n);
+  /* Both codes are chips, so both are expanded here rather than in the
+     description -- see seq_to_chips above for why they cannot come from it. */
+  size_t   an = 0, dn = 0;
+  uint8_t *achp = seq_to_chips (&src->acq_code, &an);
+  uint8_t *dchp = seq_to_chips (&src->data_code, &dn);
+  if ((src->acq_code.len && !achp) || (src->data_code.len && !dchp))
+    {
+      free (achp);
+      free (dchp);
+      free (chips);
+      return -1;
+    }
+  const size_t got = wfm_dsss_desc_chips (&d, &ops, achp, an, src->acq_reps,
+                                          dchp, dn, chips, n);
+  free (achp);
+  free (dchp);
   if (got != n)
     {
       /* A stage the description names and nothing can run, or a geometry the

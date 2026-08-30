@@ -1510,38 +1510,57 @@ gallery: ## Run the plot examples and copy their PNGs to docs/assets/
 # `Synth(sps=1)` became a silently dead waveform instead of a crash. A gate
 # that only runs the program cannot see any of it; this one can.
 #
-# `alignment` is excluded, and that is a RATCHET, not an exemption: every
-# report is `member access within misaligned address`, from casting a byte
-# cursor to a struct pointer in dp_tlm, buffer and dp_state. Fixing them is its
-# own change. The exclusion may only ever shrink -- if you find yourself adding
-# a second `-fno-sanitize=`, fix the code instead.
+# `alignment` is INSTRUMENTED and COUNTED, against a ceiling this target
+# reads. Every report is `member access within misaligned address`, from
+# casting a byte cursor to a struct pointer in dp_tlm, buffer and dp_state;
+# fixing them is its own change, so the count is a ratchet in the meantime.
+#
+# It used to be excluded with `-fno-sanitize=alignment` and the words "may
+# only ever shrink" in this comment. Nothing read them:
 #
 #   measured     count   how
 #   (undated)      821   the number this comment carried before #1026
-#   2026-08-27     853   the command below
+#   2026-08-27     853   a hand run, while giving the target a CI home
 #
-# It GREW by 32 between those two rows, silently, because nothing reads it --
-# "may only shrink" is a sentence in a comment, not a gate (#1028).
+# It GREW by 32 between those rows, silently, over an interval nobody can
+# recover because the first number was undated. That is habit #1 exactly --
+# a rule without a gate is a wish (#1028).
 #
-# To re-measure, drop the exclusion, make reports non-fatal, and read the
-# output under `ctest -V`:
+# Excluding the class was also strictly weaker than counting it: an exclusion
+# cannot see a NEW misalignment at all, only reports outside the excluded
+# class. Instrumenting and counting sees both.
 #
-#     make test-ubsan UBSAN_DIR=/tmp/ub UBSAN_OFF=float-divide-by-zero \
-#          UBSAN_OPTS=halt_on_error=0
-#     ( cd /tmp/ub && ctest -V 2>&1 | grep -c 'runtime error' )
-#
-# `-V` is load-bearing, and leaving it out cost an hour here: with reports
-# non-fatal every test PASSES, so `--output-on-failure` -- what this target
-# passes -- prints nothing, and the count comes back 0 from a run that found
-# 853. Absent output is not a pass, one layer further out than usual: the
-# diagnostics existed and ctest discarded them.
+# The cost, stated plainly: reports are non-fatal now (`halt_on_error=0`), so
+# a genuine UB no longer aborts at the point of failure and a test may run on
+# into nonsense after one. The stack trace is still printed, and the parse
+# below fails the target on any non-alignment report, so nothing is missed --
+# only the debugger's convenience.
 UBSAN_DIR    ?= build-ubsan
-UBSAN_OFF    ?= alignment
+# Empty by default: nothing is excluded. Overridable for a bisect, not for a
+# waiver -- if you find yourself setting this, fix the code instead.
+UBSAN_OFF    ?=
 UBSAN_FLAGS   = -fsanitize=undefined,float-cast-overflow \
-                -fno-sanitize=$(UBSAN_OFF) -fno-omit-frame-pointer -g
-# halt_on_error is the whole point: without it UBSan prints and carries on,
-# the suite passes, and the gate is decorative.
-UBSAN_OPTS    = halt_on_error=1:print_stacktrace=1:abort_on_error=1
+                $(if $(UBSAN_OFF),-fno-sanitize=$(UBSAN_OFF),) \
+                -fno-omit-frame-pointer -g
+# halt_on_error=0 so the run COLLECTS every report instead of dying on the
+# first; the recipe below is what makes a report fatal, and it can only count
+# what the run was allowed to print.
+UBSAN_OPTS    = halt_on_error=0:print_stacktrace=1
+#: The alignment ceiling. RATCHETED: it may only come DOWN.
+#:
+#: A CEILING and not an equality, because the count is not deterministic.
+#: Measured over 10 runs against one build: 933 eight times, 934 twice. The
+#: wobble is a single report at dp_tlm_core.h:70 -- a telemetry ring, so how
+#: many times it is read depends on timing, and one access either way is not
+#: a code change. An equality gate on that number would be a flaky gate,
+#: which is worse than no gate: it teaches people to re-run until green.
+#:
+#: So: above the ceiling FAILS (a regression), and more than SLACK below it
+#: also FAILS (something improved -- tighten it, or the ceiling becomes a
+#: waiver outliving its reason, which is the rule the alloc-helper baseline
+#: already states). SLACK is 4, four times the measured wobble.
+UBSAN_ALIGN_CEILING = native/tests/.ubsan-alignment-ceiling
+UBSAN_ALIGN_SLACK   = 4
 
 test-ubsan: ## Run the C suite under UBSan; any undefined behaviour fails
 	$(CMAKE) -B $(UBSAN_DIR) -S . \
@@ -1559,8 +1578,54 @@ test-ubsan: ## Run the C suite under UBSan; any undefined behaviour fails
 	   echo "  so this gate has not passed."; exit 1; \
 	 fi; \
 	 echo "test-ubsan: $$n test(s) under UndefinedBehaviorSanitizer"
-	UBSAN_OPTIONS=$(UBSAN_OPTS) \
-		$(CTEST) --test-dir $(UBSAN_DIR) $(SAN_EXCLUDE_SWEEP) --output-on-failure
+# `-V`, not `--output-on-failure`, and that is load-bearing. With reports
+# non-fatal every test PASSES, so --output-on-failure prints nothing and the
+# count comes back 0 from a run that found hundreds. Absent output is not a
+# pass, one layer further out than usual: the diagnostics existed and ctest
+# discarded them. That cost an hour and briefly produced a commit deleting
+# the ratchet as "stale".
+	@set -e; \
+	 log=$(UBSAN_DIR)/ubsan.log; \
+	 UBSAN_OPTIONS=$(UBSAN_OPTS) \
+	   $(CTEST) --test-dir $(UBSAN_DIR) $(SAN_EXCLUDE_SWEEP) -V > $$log 2>&1 \
+	   || { echo "test-ubsan: a test FAILED outright:"; tail -40 $$log; \
+	        exit 1; }; \
+	 total=$$(grep -c 'runtime error' $$log || true); \
+	 align=$$(grep 'runtime error' $$log | grep -c 'misaligned address' \
+	          || true); \
+	 other=$$((total - align)); \
+	 if [ "$$other" -gt 0 ]; then \
+	   echo "test-ubsan: FAIL -- $$other undefined-behaviour report(s) that"; \
+	   echo "  are NOT the ratcheted alignment class:"; \
+	   grep 'runtime error' $$log | grep -v 'misaligned address' \
+	     | sed 's/^/    /' | sort -u | head -20; \
+	   exit 1; \
+	 fi; \
+	 ceiling=$$(grep -v '^#' $(UBSAN_ALIGN_CEILING) | tr -d '[:space:]'); \
+	 if [ -z "$$ceiling" ]; then \
+	   echo "test-ubsan: FAIL -- $(UBSAN_ALIGN_CEILING) has no number in it."; \
+	   echo "  A ratchet that cannot read its ceiling has not been checked."; \
+	   exit 1; \
+	 fi; \
+	 if [ "$$align" -gt "$$ceiling" ]; then \
+	   echo "test-ubsan: FAIL -- $$align misaligned-access report(s),"; \
+	   echo "  above the ceiling of $$ceiling in $(UBSAN_ALIGN_CEILING)."; \
+	   echo "  This class may only SHRINK. Fix the new cast, or say why"; \
+	   echo "  the ceiling moves and by how much."; \
+	   exit 1; \
+	 fi; \
+	 if [ "$$align" -lt "$$((ceiling - $(UBSAN_ALIGN_SLACK)))" ]; then \
+	   echo "test-ubsan: FAIL -- $$align report(s), more than"; \
+	   echo "  $(UBSAN_ALIGN_SLACK) below the ceiling of $$ceiling."; \
+	   echo "  Something improved: lower $(UBSAN_ALIGN_CEILING) to"; \
+	   echo "  $$align. A ceiling left above a count that came down is a"; \
+	   echo "  waiver outliving its reason, and it would cover the next"; \
+	   echo "  regression silently."; \
+	   exit 1; \
+	 fi; \
+	 echo "test-ubsan: OK -- 0 undefined-behaviour report(s) outside the"; \
+	 echo "  alignment class, and $$align of those against a ceiling of"; \
+	 echo "  $$ceiling (#1028)."
 
 # ── AddressSanitizer ─────────────────────────────────────────────────────────
 # The C suite rebuilt under ASan, with LeakSanitizer left ON.

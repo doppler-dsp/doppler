@@ -1,0 +1,26 @@
+# `member access within misaligned address` reports from the C suite under
+# UBSan. Read by `make test-ubsan`, which fails if a run finds MORE than this
+# (a regression) or more than UBSAN_ALIGN_SLACK FEWER (something improved --
+# lower this, or the number becomes a waiver outliving its reason).
+#
+# RATCHETED: this may only come down. Every report is a byte cursor cast to a
+# struct pointer, in dp_tlm, buffer and dp_state. Fixing them is its own
+# change (doppler#1028); until then this stops the class from growing.
+#
+#   measured     count   note
+#   (undated)      821   carried in a Makefile comment, read by nothing
+#   2026-08-27     853   a hand run while test-ubsan was given a CI home
+#   2026-08-30     934   this gate's first run: 10 runs against one build gave
+#                        933 eight times and 934 twice, so the ceiling is the
+#                        observed MAXIMUM and the gate allows a band below it
+#
+# It grew 821 -> 853 -> 934 while "may only shrink" was a sentence in a
+# comment. The first row is undated, so not even that interval is recoverable.
+#
+# The wobble is ONE report at dp_tlm_core.h:70 -- a telemetry ring, so how
+# often it is read depends on timing. That is why this is a ceiling with a
+# band and not an equality: an equality gate on a number that moves by itself
+# teaches people to re-run until green, which is worse than no gate.
+#
+# Comments are stripped; what is left must be a single integer.
+934

@@ -245,50 +245,25 @@ start_segment (wfm_compose_state_t *s)
   /* Resolve this epoch's (possibly ranged) durations once, up front: ON uses
    * cur_num, the trailing gap uses cur_off. A fixed segment (ranged == 0) just
    * copies the scalars, so a non-ranged scene is byte-identical to before. */
-  uint32_t dseed = g->n_sources ? g->sources[0].seed : 1u;
-  s->cur_num   = (g->ranged & WFM_RANGE_NUM_SAMPLES)
-                     ? wfm_draw_samples (dseed, s->epoch, s->instance, s->cur,
-                                         WFM_RANGE_NUM_SAMPLES, g->num_samples,
-                                         g->num_samples_hi)
-                     : g->num_samples;
-  s->cur_off   = (g->ranged & WFM_RANGE_OFF_SAMPLES)
-                     ? wfm_draw_samples (dseed, s->epoch, s->instance, s->cur,
-                                         WFM_RANGE_OFF_SAMPLES, g->off_samples,
-                                         g->off_samples_hi)
-                     : g->off_samples;
-  s->cur_delay = (g->ranged & WFM_RANGE_DELAY_SAMPLES)
-                     ? wfm_draw_samples (dseed, s->epoch, s->instance, s->cur,
-                                         WFM_RANGE_DELAY_SAMPLES,
-                                         g->delay_samples, g->delay_samples_hi)
-                     : g->delay_samples;
+  wfm_seg_draw_t d;
+  wfm_draw_segment (g, s->epoch, s->instance, s->cur, &d);
+  s->cur_num   = d.on;
+  s->cur_off   = d.off;
+  s->cur_delay = d.delay;
   int ok       = (s->cur_num > 0 && g->n_sources > 0);
   s->n_syn     = 0;
   for (size_t k = 0; k < g->n_sources && ok; k++)
     {
       const wfm_source_t *src = &g->sources[k];
-      /* Draw this epoch's ranged source fields (freq/snr/level/f_end); a fixed
-       * field passes its scalar through unchanged. */
-      double freq
-          = (src->ranged & WFM_RANGE_FREQ)
-                ? wfm_draw_range (src->seed, s->epoch, s->instance, s->cur, k,
-                                  WFM_RANGE_FREQ, src->freq, src->freq_hi)
-                : src->freq;
-      double snr
-          = (src->ranged & WFM_RANGE_SNR)
-                ? wfm_draw_range (src->seed, s->epoch, s->instance, s->cur, k,
-                                  WFM_RANGE_SNR, src->snr, src->snr_hi)
-                : src->snr;
-      double level
-          = (src->ranged & WFM_RANGE_LEVEL)
-                ? wfm_draw_range (src->seed, s->epoch, s->instance, s->cur, k,
-                                  WFM_RANGE_LEVEL, src->level, src->level_hi)
-                : src->level;
-      double f_end
-          = (src->ranged & WFM_RANGE_FEND)
-                ? wfm_draw_range (src->seed, s->epoch, s->instance, s->cur, k,
-                                  WFM_RANGE_FEND, src->f_end, src->f_end_hi)
-                : src->f_end;
-      s->gain[k] = (float)pow (10.0, level / 20.0); /* level → gain */
+      /* Draw this epoch's ranged source fields (freq/snr/level/f_end) through
+         the SAME helper wfm_compose_draws() reports through, so what is
+         rendered and what is reported cannot disagree -- see wfm_draw.h on
+         the sidecar that assembled one row from two provenances. A fixed
+         field passes its scalar through unchanged. */
+      wfm_src_draw_t v;
+      wfm_draw_source (src, s->epoch, s->instance, s->cur, k, &v);
+      const double freq = v.freq, snr = v.snr, f_end = v.f_end;
+      s->gain[k] = (float)pow (10.0, v.level / 20.0); /* level → gain */
       /* Construct the synth through the shared SSOT (wfm_compose_build_synth):
        * the identical create + chirp-span + bits/symbols/RRC + per-repeat
        * noise reseed sequence the Plan cache uses, so a cached per-source

@@ -253,6 +253,66 @@ size_t wfm_compose_spans(const wfm_segment_t *segs, size_t n_segs,
                          wfm_span_t *out, size_t cap);
 
 /**
+ * @brief One rendered source instance: its timing AND the values it was
+ * actually rendered with.
+ *
+ * A `wfm_span_t` answers *when*; this answers *when and what*, for one
+ * source of one instance. The distinction is not academic. The SigMF
+ * sidecar used to build each annotation from two provenances -- timing
+ * replayed through wfm_compose_spans(), frequency and SNR read straight off
+ * the source struct, which for a ranged field still holds `lo` -- so every
+ * annotation of a `--freq 11200:12800 --snr 8:14` scene claimed 11200 Hz and
+ * 8 dB beside a sample-accurate start. Measured against the capture itself:
+ * up to 1224 Hz and 6.0 dB out (doppler#1086). A 6 dB error is a different
+ * operating point, and nothing in the file revealed it.
+ *
+ * An un-ranged field reports its scalar, so a consumer never branches on the
+ * `ranged` bitmask.
+ *
+ * The spec keeps storing `(lo, hi)`: replay is guaranteed by re-deriving the
+ * draw hash, not by recording the draw. "What does this spec permit" and
+ * "what did this run do" are different questions and one field cannot answer
+ * both -- which is why this is a separate call rather than a resolved spec.
+ */
+typedef struct {
+    size_t seg;      /* segment index in the spec                        */
+    size_t instance; /* repeats instance, 0-based                        */
+    size_t src;      /* source index within the segment                  */
+    size_t start;    /* absolute sample index where the instance begins  */
+    size_t delay;    /* leading gap length (samples)                     */
+    size_t on;       /* on-time length (samples)                         */
+    size_t off;      /* trailing gap length (samples)                    */
+    double freq;     /* DRAWN carrier / sweep-start offset, Hz           */
+    double f_end;    /* DRAWN sweep-end offset, Hz (chirp)               */
+    double snr;      /* DRAWN SNR, dB, in the source's own snr_mode      */
+    double level;    /* DRAWN level, dB                                  */
+} wfm_draw_t;
+
+/**
+ * @brief Replay the (epoch 0) instance timeline AND its drawn source values.
+ *
+ * Same size-then-fill protocol as wfm_compose_spans(): call once with `cap`
+ * 0 to size, then again with a buffer. Emits one row per SOURCE per
+ * instance, in stream order, because that is the granularity a per-source
+ * annotation or a scoring pipeline needs. Pass the RESOLVED segments
+ * (wfm_compose_segments() on a live composer) so intrinsic on-times are
+ * already folded in.
+ *
+ * The rows are produced by the same wfm_draw_segment()/wfm_draw_source()
+ * calls the renderer resolves through, so a field added to the draw reaches
+ * both by construction rather than by a reviewer noticing.
+ *
+ * @param segs   Resolved segment array.
+ * @param n_segs Segment count.
+ * @param out    Row buffer (may be NULL when cap is 0).
+ * @param cap    Capacity of out in rows.
+ * @return Total rows in one pass of the spec (sum of n_sources over
+ *         instances), regardless of `cap`.
+ */
+size_t wfm_compose_draws(const wfm_segment_t *segs, size_t n_segs,
+                         wfm_draw_t *out, size_t cap);
+
+/**
  * @brief Resolve a segment list's noise model in place (Phase 4b).
  *
  * No-op for 1-source segments (keeps the bundled-synth path byte-identical).

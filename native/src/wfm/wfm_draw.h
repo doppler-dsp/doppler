@@ -11,6 +11,8 @@
 #ifndef WFM_DRAW_H
 #define WFM_DRAW_H
 
+#include "wfm/wfm_compose.h" /* wfm_segment_t / wfm_source_t */
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -25,5 +27,43 @@ double wfm_draw_range (uint32_t seed, unsigned epoch, size_t inst, size_t seg,
 /* Round a non-negative ranged draw to a sample count. */
 size_t wfm_draw_samples (uint32_t seed, unsigned epoch, size_t inst,
                          size_t seg, unsigned field, size_t lo, size_t hi);
+
+/* ── One resolution, every consumer ──────────────────────────────────────
+ *
+ * The two helpers below are the ONLY place a ranged field becomes a number.
+ * They exist because the SigMF sidecar used to assemble one annotation from
+ * two provenances -- its timing replayed through wfm_compose_spans(), its
+ * frequency and SNR read straight off the source struct, which for a ranged
+ * field still holds `lo`. The row was exact about WHEN and wrong about WHAT,
+ * and the exact half is what stopped anyone looking at the other
+ * (doppler#1086: 1224 Hz and 6.0 dB out, next to a sample-accurate start).
+ *
+ * So the renderer resolves through these and so does every report. A field
+ * added to one is added to both by construction, rather than by a reviewer
+ * noticing.
+ */
+
+/* This instance's segment timing. A fixed field passes its scalar through. */
+typedef struct
+{
+  size_t on;    /* num_samples  */
+  size_t off;   /* trailing gap */
+  size_t delay; /* leading gap  */
+} wfm_seg_draw_t;
+
+void wfm_draw_segment (const wfm_segment_t *g, unsigned epoch, size_t inst,
+                       size_t seg, wfm_seg_draw_t *out);
+
+/* This instance's ranged SOURCE fields, for source `k` of segment `seg`. */
+typedef struct
+{
+  double freq;
+  double f_end;
+  double snr;
+  double level;
+} wfm_src_draw_t;
+
+void wfm_draw_source (const wfm_source_t *src, unsigned epoch, size_t inst,
+                      size_t seg, size_t k, wfm_src_draw_t *out);
 
 #endif /* WFM_DRAW_H */

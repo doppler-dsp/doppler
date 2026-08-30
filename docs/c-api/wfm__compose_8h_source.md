@@ -170,6 +170,23 @@ typedef struct {
 size_t wfm_compose_spans(const wfm_segment_t *segs, size_t n_segs,
                          wfm_span_t *out, size_t cap);
 
+typedef struct {
+    size_t seg;      /* segment index in the spec                        */
+    size_t instance; /* repeats instance, 0-based                        */
+    size_t src;      /* source index within the segment                  */
+    size_t start;    /* absolute sample index where the instance begins  */
+    size_t delay;    /* leading gap length (samples)                     */
+    size_t on;       /* on-time length (samples)                         */
+    size_t off;      /* trailing gap length (samples)                    */
+    double freq;     /* DRAWN carrier / sweep-start offset, Hz           */
+    double f_end;    /* DRAWN sweep-end offset, Hz (chirp)               */
+    double snr;      /* DRAWN SNR, dB, in the source's own snr_mode      */
+    double level;    /* DRAWN level, dB                                  */
+} wfm_draw_t;
+
+size_t wfm_compose_draws(const wfm_segment_t *segs, size_t n_segs,
+                         wfm_draw_t *out, size_t cap);
+
 int wfm_resolve_noise(wfm_segment_t *segs, size_t n);
 
 double wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf,

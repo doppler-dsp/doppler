@@ -1198,6 +1198,74 @@ main (void)
     DP_REQUIRE_MSG (spans[0].delay != spans[1].delay
                         || spans[1].delay != spans[2].delay,
                     "per-instance delay draws are distinct");
+
+    /* ── the DRAWN values, not just the timing ──────────────────────────
+     *
+     * wfm_compose_draws() answers "when AND what". The sidecar used to take
+     * its timing from spans and its frequency/SNR from the source struct --
+     * which for a ranged field holds `lo` -- so a row was exact about when
+     * and wrong about what, and the exact half hid the other (doppler#1086).
+     * These assert the two halves come from ONE walk: identical timing to
+     * spans, one row per source, and values that actually vary. */
+    {
+      wfm_source_t rsrc = *gr2.sources;
+      rsrc.freq         = 1e5;
+      rsrc.freq_hi      = 2e5;
+      rsrc.snr          = 8.0;
+      rsrc.snr_hi       = 14.0;
+      rsrc.ranged       = WFM_RANGE_FREQ | WFM_RANGE_SNR;
+      wfm_segment_t gdw = gr2;
+      gdw.sources       = &rsrc;
+      gdw.n_sources     = 1;
+
+      DP_REQUIRE_MSG (wfm_compose_draws (&gdw, 1, NULL, 0) == 3,
+                      "size-then-fill: one row per source per instance");
+      wfm_draw_t dr[8];
+      size_t     ndr = wfm_compose_draws (&gdw, 1, dr, 8);
+      DP_REQUIRE_MSG (ndr == 3, "three rows for three instances");
+
+      wfm_span_t sp2[8];
+      DP_REQUIRE_MSG (wfm_compose_spans (&gdw, 1, sp2, 8) == 3, "3 spans");
+      for (size_t i = 0; i < 3; i++)
+        DP_REQUIRE_MSG (
+            dr[i].start == sp2[i].start && dr[i].delay == sp2[i].delay
+                && dr[i].on == sp2[i].on && dr[i].off == sp2[i].off,
+            "draws and spans report ONE timeline -- they walk "
+            "the same draw, so they cannot disagree");
+
+      for (size_t i = 0; i < 3; i++)
+        {
+          DP_REQUIRE_MSG (dr[i].seg == 0 && dr[i].instance == i
+                              && dr[i].src == 0,
+                          "each row names its own (segment, instance, src)");
+          DP_REQUIRE_MSG (dr[i].freq >= 1e5 && dr[i].freq <= 2e5,
+                          "a drawn freq lies inside its range");
+          DP_REQUIRE_MSG (dr[i].snr >= 8.0 && dr[i].snr <= 14.0,
+                          "a drawn snr lies inside its range");
+        }
+      /* The defect's signature: reading `lo` gives three identical rows
+         sitting exactly on the bound. Both are refused. */
+      DP_REQUIRE_MSG (dr[0].freq != dr[1].freq || dr[1].freq != dr[2].freq,
+                      "per-instance freq draws are distinct -- three equal "
+                      "values is what reading the range's lo looks like");
+      DP_REQUIRE_MSG (dr[0].freq != 1e5 || dr[1].freq != 1e5,
+                      "a drawn freq is not the range's lo");
+
+      /* An UN-ranged field reports its scalar, so a consumer never has to
+         branch on the `ranged` bitmask to know what it is looking at. */
+      wfm_source_t fsrc = rsrc;
+      fsrc.ranged       = 0;
+      fsrc.freq         = 1234.0;
+      fsrc.snr          = 5.5;
+      fsrc.level        = -3.25;
+      wfm_segment_t gfx = gdw;
+      gfx.sources       = &fsrc;
+      wfm_draw_t fx[8];
+      DP_REQUIRE_MSG (wfm_compose_draws (&gfx, 1, fx, 8) == 3, "3 fixed");
+      DP_REQUIRE_MSG (fx[0].freq == 1234.0 && fx[2].freq == 1234.0
+                          && fx[1].snr == 5.5 && fx[1].level == -3.25,
+                      "an un-ranged field reports its own scalar");
+    }
     wfm_compose_state_t *cr2      = wfm_compose_create (&gr2, 1, 0, 0);
     size_t               rtot2    = 0;
     size_t               first_on = 0, seen = 0;

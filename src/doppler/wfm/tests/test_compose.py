@@ -1564,3 +1564,50 @@ def test_sigmf_annotations_per_instance():
         ).to_sigmf(sample_type="cf32", fs=1e6)
     )
     assert m2["annotations"][0]["core:label"] == "symbols"
+
+
+def test_sigmf_annotation_values_are_the_drawn_ones():
+    """The sidecar is the Python face's ground truth, so it must describe
+    the capture rather than the spec.
+
+    Timing came from a replay of the draws and the spectral keys came off
+    the source struct -- which for a ranged field holds `lo` -- so every
+    annotation of a ranged scene reported the same wrong frequency and SNR
+    beside a sample-accurate start (doppler#1086). Both halves come from one
+    `wfm_compose_draws()` row now, so they cannot disagree.
+
+    `segments` still reports the (lo, hi) RANGE: that is what makes a run
+    replay byte-for-byte, and it is a different question from what this run
+    drew.
+    """
+    lo, hi = 11200.0, 12800.0
+    seg = Segment(
+        "tone",
+        fs=1e6,
+        freq=(lo, hi),
+        snr=(8.0, 14.0),
+        level=(-20.0, -5.0),
+        num_samples=4096,
+        repeats=3,
+    )
+    comp = Composer([seg])
+    anns = json.loads(comp.to_sigmf(sample_type="cf32", fs=1e6))["annotations"]
+    assert len(anns) == 3
+
+    freqs = [a["core:freq_lower_edge"] for a in anns]
+    snrs = [a["wfmgen:snr"] for a in anns]
+    levels = [a["wfmgen:level_db"] for a in anns]
+
+    # Every value inside its declared range...
+    assert all(lo <= f <= hi for f in freqs), freqs
+    assert all(8.0 <= v <= 14.0 for v in snrs), snrs
+    assert all(-20.0 <= v <= -5.0 for v in levels), levels
+    # ...and DISTINCT per instance. Reading the range's lo gives three
+    # identical rows sitting on the bound, which is what this catches.
+    assert len(set(freqs)) == 3, f"freq draws did not vary: {freqs}"
+    assert len(set(snrs)) == 3, f"snr draws did not vary: {snrs}"
+    assert len(set(levels)) == 3, f"level draws did not vary: {levels}"
+    assert min(freqs) > lo, f"an annotation sat on the range's lo: {freqs}"
+
+    # The spec still answers the other question.
+    assert comp.segments[0].freq == (lo, hi)

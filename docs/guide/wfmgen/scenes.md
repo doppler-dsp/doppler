@@ -89,6 +89,12 @@ QPSK-from-bits burst with a trailing gap, and a two-source `sum` mix — that is
 **valid by construction**: it round-trips through `--from-file` unchanged, so it
 doubles as a working starting point, not just documentation.
 
+The schema itself is published alongside these pages:
+[`wfmgen.schema.json`](../../schema/wfmgen.schema.json) (JSON Schema
+2020-12). It is the normative description of every key used below — a
+template shows one valid spec, the schema says what the whole space of them
+is, which is what an editor or a validator needs.
+
 ______________________________________________________________________
 
 ## Mixing sources (`sum`) and sequencing them (`add`)

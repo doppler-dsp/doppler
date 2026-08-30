@@ -25,11 +25,22 @@ The pages are DISCOVERED, not registered: a new ``docs/guide/wfmgen/*.md``
 counts the moment it exists, and a page that is deleted stops counting. So
 this gate cannot be satisfied by editing a list in this file.
 
-Scope: this asks whether every flag is documented. It does NOT ask the
-reverse -- whether every flag the pages cite still exists -- which is real
-doc rot and is filed separately; the guide currently cites ``--build`` and
-``--target``, which belong to `cmake`, so the reverse direction needs a way
-to tell whose flag a token is and that is more than this gate should carry.
+Both directions, since doppler#1054. The reverse -- a page citing a flag
+the parser no longer accepts -- is live rot: a reader copies the line and
+the tool rejects it.
+
+What made the reverse hard was ownership. Scanning pages for ``--``-shaped
+tokens reports ``--build`` and ``--target``, which are correct prose about
+`cmake`, and neither remedy is good: an exemption list goes stale and has to
+be audited, and inferring ownership from prose context is a parser for
+English that will be wrong both ways.
+
+So the reverse question is asked only of tokens inside a **wfmgen
+invocation** in a fenced block. Ownership then comes for free -- the token is
+an argument to `wfmgen` or it is not -- and the two `cmake` flags stop being
+a question at all. Measured before building, as the issue asked: 49 of 63
+flags (78%) appear in such a fence, so the check sees most of the surface
+rather than a corner of it, and there are 0 unknown tokens today.
 
 Usage
 -----
@@ -64,6 +75,106 @@ def _mentioned(flag: str, blob: str) -> bool:
     return re.search(re.escape(flag) + r"(?![A-Za-z0-9-])", blob) is not None
 
 
+# A fenced block, with its info string. Shell fences are the only ones a
+# `wfmgen` command line lives in.
+_FENCE = re.compile(r"^```(\w*)[^\n]*\n(.*?)^```", re.S | re.M)
+_SHELLISH = {"sh", "bash", "console", "shell", ""}
+# A long flag, not the tail of a word or an em-dash run.
+_TOKEN = re.compile(r"(?<![\w-])(--[A-Za-z][A-Za-z0-9-]*)")
+# The command word, after an optional `$ ` prompt and any leading path.
+_INVOKE = re.compile(r"^\$?\s*(?:\S*/)?wfmgen(?:\s|$)")
+
+
+def wfmgen_command_lines(text: str):
+    """Yield each logical `wfmgen ...` command line in a shell fence.
+
+    Backslash continuations are joined first, so a flag on the second line
+    of a wrapped invocation belongs to it; trailing `# comments` are dropped
+    so prose inside a fence cannot be read as an argument.
+    """
+    for fence in _FENCE.finditer(text):
+        if fence.group(1) not in _SHELLISH:
+            continue
+        body = fence.group(2)
+        if "wfmgen" not in body:
+            continue
+        joined, buf = [], ""
+        for raw in body.split("\n"):
+            line = raw.split("#", 1)[0].rstrip()
+            if line.endswith("\\"):
+                buf += line[:-1] + " "
+                continue
+            joined.append((buf + line).strip())
+            buf = ""
+        if buf:
+            joined.append(buf.strip())
+        for cmd in joined:
+            # One line can hold several commands. Attributing the whole line
+            # to wfmgen would read `wfmgen ... && python plot.py --dpi 100`
+            # as wfmgen taking a --dpi, which is the false positive that
+            # made a naive prose scan unusable in the first place. Split on
+            # the shell's own separators and keep only the segments wfmgen
+            # actually runs.
+            for seg in re.split(r"&&|\|\||;|\|", cmd):
+                seg = seg.strip()
+                if _INVOKE.match(seg):
+                    yield seg
+
+
+def reverse_check(root: Path, flags: set[str]) -> int:
+    """Every flag a `wfmgen` fence USES must be one the parser accepts."""
+    pages = sorted((root / "docs").rglob("*.md"))
+    used: dict[str, set[str]] = {}
+    seen: set[str] = set()
+    n_cmds = 0
+    for page in pages:
+        text = page.read_text(encoding="utf-8")
+        for cmd in wfmgen_command_lines(text):
+            n_cmds += 1
+            for tok in _TOKEN.findall(cmd):
+                if tok in flags:
+                    seen.add(tok)
+                else:
+                    used.setdefault(tok, set()).add(
+                        str(page.relative_to(root))
+                    )
+
+    # Fail closed, for the reason the forward direction does: zero commands
+    # would make every citation vacuously valid and print OK over nothing.
+    if n_cmds == 0:
+        print(
+            "wfmgen flag docs: FAIL -- no `wfmgen` command lines found in "
+            "any docs fence.\n"
+            "  Nothing to check means nothing was checked.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if used:
+        print(
+            f"wfmgen flag docs: FAIL -- {len(used)} flag(s) are used in a "
+            "`wfmgen` command line\n  in the docs but are NOT accepted by "
+            f"{SRC}:\n",
+            file=sys.stderr,
+        )
+        for tok, where in sorted(used.items()):
+            print(f"    {tok:<24} {', '.join(sorted(where))}", file=sys.stderr)
+        print(
+            "\n  A reader copies the line and the tool rejects it. Either "
+            "the flag was\n  renamed and the page did not follow, or the "
+            "page invented it.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(
+        f"wfmgen flag docs: OK — {n_cmds} `wfmgen` command line(s) across "
+        f"{len(pages)} page(s) cite only flags that exist "
+        f"({len(seen)} of {len(flags)} flags exercised)"
+    )
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="wfmgen flag doc coverage")
     ap.add_argument("--root", type=Path, default=ROOT)
@@ -92,7 +203,9 @@ def main() -> int:
             f"wfmgen flag docs: OK — {len(flags)} flag(s) documented "
             f"across {len(pages)} guide page(s)"
         )
-        return 0
+        # Forward passed; now the reverse. Both or neither -- a gate that
+        # answers half its question is a gate whose green means half as much.
+        return reverse_check(root, set(flags))
 
     print(
         f"wfmgen flag docs: FAIL -- {len(missing)} of {len(flags)} flag(s) "

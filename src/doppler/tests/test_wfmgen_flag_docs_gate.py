@@ -16,6 +16,11 @@ substring test would call `--interleave` documented on the strength of
 that globs an empty directory reports success having read nothing. All three
 are pinned below, because all three are how this check could look green while
 the guide had a hole in it.
+
+Since doppler#1054 the gate asks the reverse too -- a page citing a flag the
+parser rejects -- and that direction has the same failure modes: it can read
+no command lines and report OK, and it can attribute a chained command's
+flags to wfmgen. Both are pinned as well.
 """
 
 from __future__ import annotations
@@ -71,7 +76,17 @@ def _run(root: Path):
 
 
 # Every fixture page has to name the anchors, or they dominate the report.
-ANCHOR_DOCS = "`--type` `--count` `--output` `-o` `--freq`\n"
+# The fence is not decoration: the reverse direction asks its question only
+# of tokens inside a `wfmgen` invocation, so a fixture with no invocation at
+# all is a fixture the gate correctly refuses to pass (see
+# test_no_wfmgen_command_fails_closed).
+ANCHOR_DOCS = (
+    "`--type` `--count` `--output` `-o` `--freq`\n"
+    "\n"
+    "```sh\n"
+    "wfmgen --type tone --freq 1e5 --count 8 --output a.bin\n"
+    "```\n"
+)
 
 
 def test_a_fully_documented_guide_passes(tmp_path: Path) -> None:
@@ -163,6 +178,83 @@ def test_broken_flag_discovery_is_not_a_pass(tmp_path: Path) -> None:
     r = _run(root)
     assert r.returncode != 0
     assert "flag discovery is broken" in r.stdout + r.stderr
+
+
+def test_a_page_citing_a_flag_the_parser_rejects_fails(tmp_path: Path) -> None:
+    """The reverse defect: the page says `--gone`, the tool says exit 2.
+
+    This is live rot rather than a missing mention -- a reader copies the
+    line and it does not work -- and until doppler#1054 nothing reported it.
+    """
+    root = _seed(
+        tmp_path,
+        ["--asm"],
+        {
+            "coding.md": ANCHOR_DOCS + "`--asm` attaches the marker.\n\n"
+            "```sh\nwfmgen --type tone --gone 3 --count 8 -o a.bin\n```\n"
+        },
+    )
+    r = _run(root)
+    assert r.returncode == 1
+    assert "--gone" in r.stderr
+    # naming the page matters as much as naming the flag
+    assert "coding.md" in r.stderr
+
+
+def test_no_wfmgen_command_fails_closed(tmp_path: Path) -> None:
+    """Every flag documented in prose, and not one command line to check.
+
+    The reverse direction would then have read nothing and reported OK --
+    the same shape as an empty guide directory, one question later.
+    """
+    root = _seed(
+        tmp_path,
+        ["--asm"],
+        {"coding.md": "`--type` `--count` `--output` `-o` `--freq` `--asm`\n"},
+    )
+    r = _run(root)
+    assert r.returncode == 1
+    assert "no `wfmgen` command lines" in r.stderr
+
+
+def test_a_chained_command_does_not_lend_wfmgen_its_flags(
+    tmp_path: Path,
+) -> None:
+    """`wfmgen ... && python plot.py --dpi 100` is not wfmgen taking --dpi.
+
+    Attributing a whole line to wfmgen is the false positive that made a
+    naive scan unusable -- it is why the check is fence-scoped at all -- so
+    the line is split on the shell's own separators. No such line exists in
+    doppler's docs today, which is exactly why it needs a test: without one
+    the gate would be correct by luck and would fire on the first one
+    written.
+    """
+    root = _seed(
+        tmp_path,
+        ["--asm"],
+        {
+            "coding.md": ANCHOR_DOCS + "`--asm` attaches the marker.\n\n"
+            "```sh\nwfmgen --type tone --asm --count 8 -o a.bin && "
+            "python plot.py --dpi 100\n```\n"
+        },
+    )
+    r = _run(root)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_comment_in_a_fence_is_not_an_argument(tmp_path: Path) -> None:
+    """A `# --whatever` note beside a command is prose, not a flag."""
+    root = _seed(
+        tmp_path,
+        ["--asm"],
+        {
+            "coding.md": ANCHOR_DOCS + "`--asm` attaches the marker.\n\n"
+            "```sh\nwfmgen --type tone --asm --count 8 -o a.bin  "
+            "# not --a-real-flag\n```\n"
+        },
+    )
+    r = _run(root)
+    assert r.returncode == 0, r.stdout + r.stderr
 
 
 def test_the_real_repo_passes_its_own_gate() -> None:

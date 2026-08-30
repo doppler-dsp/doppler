@@ -288,6 +288,7 @@ nav:
       - Corr2D Interpolated Inverse: design/corr2d-interpolated-inverse.md
       - Spectral & Measurement API Map: design/spectral-api-map.md
       - Waveform Amplitude & Composition: design/wfmgen-composition.md
+      - Waveform Enum Tables: design/waveform-enum-ssot.md
       - Continuously Variable Resampler: design/RESAMPLER.md
       - Acquisition Kernel: design/acq-fn.md
   - Waveform Generator (wfmgen):

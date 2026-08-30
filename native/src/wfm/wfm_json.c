@@ -14,19 +14,13 @@
 
 #include "cJSON.h"
 
-#include "wfm/wfm_names.h" /* TYPE_NAMES / N_TYPES / MODE_NAMES (SSOT) */
-
-static const char *const LFSR_NAMES[]   = { "galois", "fibonacci" };
-static const char *const BITMOD_NAMES[] = { "none", "bpsk", "qpsk" };
-static const char *const PULSE_NAMES[]  = { "rect", "rrc" };
-static const char *const CRC_NAMES[]    = { "none", "crc16" };
-/* Index order IS wfm_source_t.randomise: 0 off, 1 the 131.0-B-6 default,
-   2 the legacy 255-bit sequence. Same table as wfmgen's RANDS. */
-static const char *const RAND_NAMES[] = { "off", "ccsds", "legacy" };
-/* Continuous-dsss data source: index 0 = code-only, 1 = prbs (the default). */
-static const char *const DATA_NAMES[] = { "none", "prbs" };
-/* Ordered to match wfm_seed_advance_t (NONE=0, NOISE=1, ALL=2). */
-static const char *const SEED_ADVANCE_NAMES[] = { "none", "noise", "all" };
+/* Every enum name table this file spells comes from wfm_names.h, the one C
+   home for them (doppler#760). Seven were declared here until then. One had
+   already drifted: `DATA_NAMES` listed {"none","prbs"}, the reverse of
+   wfmgen's, which was harmless only because this file compared its index to
+   a literal instead of assigning it -- the shared table's order IS
+   wfm_source_t.dsss_code_only, and read_dsss_source now assigns it. */
+#include "wfm/wfm_names.h"
 
 /* Emit a source's RRC pulse-shaping fields when shaping is on (so a default
  * rect spec stays byte-identical). */
@@ -117,7 +111,7 @@ add_stage_fields (cJSON *o, const wfm_source_t *src)
      carrying a bare `true` could not rebuild the capture it describes. */
   if (src->randomise)
     cJSON_AddStringToObject (o, "randomise",
-                             RAND_NAMES[src->randomise == 2 ? 2 : 1]);
+                             RANDOMISE_NAMES[src->randomise == 2 ? 2 : 1]);
   if (src->attach_asm)
     cJSON_AddBoolToObject (o, "asm", 1);
   if (src->convolutional)
@@ -171,9 +165,6 @@ add_bit_string (cJSON *o, const char *key, const uint8_t *bits, size_t n)
     }
 }
 
-/* The four `wfm_seq_kind_t` spellings, in enum order. */
-static const char *const SEQ_KINDS[] = { "literal", "pn", "gold", "dotted" };
-
 /* A 64-bit mask as a hex STRING, not a JSON number.
  *
  * `poly`, `seed` and the Gold taps are `uint64_t`, and a JSON number is a
@@ -215,7 +206,7 @@ add_seq_gen (cJSON *o, const char *key, const wfm_seq_t *q)
      abort-on-OOM allocation helpers, and the same shape as the sibling
      builders in this file that already omit the check. */
   cJSON *g = cJSON_CreateObject ();
-  cJSON_AddStringToObject (g, "kind", SEQ_KINDS[q->kind]);
+  cJSON_AddStringToObject (g, "kind", SEQ_KIND_NAMES[q->kind]);
   cJSON_AddNumberToObject (g, "len", (double)q->len);
   if (q->kind == WFM_SEQ_PN)
     {
@@ -438,7 +429,7 @@ read_seq_gen (const cJSON *so, const char *lit_key, const char *gen_key,
 
   const int k = name_index (
       cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (g, "kind")),
-      SEQ_KINDS, 4);
+      SEQ_KIND_NAMES, 4);
   /* 0 is "literal", which has no generator to restore -- as wrong here as an
      unknown name, and wrong in the same direction. */
   if (k <= 0)
@@ -531,7 +522,7 @@ read_frame_fields (const cJSON *so, wfm_source_t *out)
     const char  *rn  = cJSON_GetStringValue (rnd);
     if (rn != NULL)
       {
-        const int idx  = name_index (rn, RAND_NAMES, 3);
+        const int idx  = name_index (rn, RANDOMISE_NAMES, 3);
         out->randomise = (idx < 0) ? 0 : idx;
       }
     else
@@ -656,13 +647,15 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
       /* symbol_rate > 0 selects the continuous async mode (data clock
          independent of the code); absent/0 = burst. */
       out->symbol_rate = num (so, "symbol_rate", 0.0);
-      /* "data": "none" = code-only (pure code, no modulation); "prbs"
-         (default) / absent = the seeded PN; a payload overrides to itself. */
-      out->dsss_code_only
-          = (name_index (cJSON_GetStringValue (
-                             cJSON_GetObjectItemCaseSensitive (so, "data")),
-                         DATA_NAMES, 2)
-             == 0);
+      /* "data": "prbs" (default) / absent = the seeded PN; "none" = code-only
+         (pure code, no modulation); a payload overrides to itself. The
+         table's index IS dsss_code_only, so the lookup assigns rather than
+         compares -- absent or unrecognised gives -1, which falls to the
+         "prbs" default the same way the old `== 0` form did. */
+      const int data_src = name_index (
+          cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (so, "data")),
+          DATA_SRC_NAMES, 2);
+      out->dsss_code_only = (data_src > 0) ? data_src : 0;
     }
   /* The payload's generator, read once for every type. Its literal spelling
      is "pattern" on a bits source and "payload" on a dsss one -- the same

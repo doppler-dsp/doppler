@@ -129,6 +129,17 @@ repos:
         language: system
         pass_filenames: false
 
+      # A waveform name table's ORDER is the C enum value, so a second copy
+      # maps a flag to the wrong waveform rather than failing to compile.
+      # Fires on every file, not just C: the manifest's [[enum]] blocks are
+      # one of the two sides being compared, and they are TOML.
+      # Design: docs/design/waveform-enum-ssot.md
+      - id: wfm-enum-tables
+        name: waveform enum tables have one home
+        entry: make -s lint-wfm-enum-tables
+        language: system
+        pass_filenames: false
+
       # A CI step may not discard the exit code it just produced. Fires on
       # every file, because a workflow's shape is decided in YAML and the
       # step it guards can be added anywhere in .github/.

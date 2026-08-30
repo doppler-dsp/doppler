@@ -28,41 +28,20 @@
 #include "dp_interrupt.h"
 #include "timing/timing_core.h"
 #include "wfm/wfm_compose.h"
-#include "wfm/wfm_names.h" /* STYPE_NAMES -- the SSOT for --sample-type */
+#include "wfm/wfm_names.h" /* every choice table -- the one C home (#760) */
 #include "wfm/wfm_sink.h"
 #include "wfm/wfmgen.h"
 #include "wfm_writer/wfm_writer_core.h"
 
 #define BLK 4096
 
-static const char *const TYPES[]
-    = { "tone",  "noise", "pn",      "bpsk", "qpsk",
-        "chirp", "bits",  "symbols", "dsss" };
-static const char *const MODES[]   = { "auto", "fs", "ebno", "esno" };
-static const char *const CRCS[]    = { "none", "crc16" };
-static const char *const BITMODS[] = { "none", "bpsk", "qpsk" };
-/* STYPE_NAMES from wfm/wfm_names.h -- the SSOT, not a fourth copy. */
-#define STYPES STYPE_NAMES
-static const char *const FTYPES[]  = { "raw", "csv", "blue", "sigmf" };
-static const char *const ENDIANS[] = { "le", "be" };
-static const char *const LFSRS[]   = { "galois", "fibonacci" };
-static const char *const PULSES[]  = { "rect", "rrc" };
-/* Ordered to match wfm_seed_advance_t (none=0, noise=1, all=2). */
-static const char *const SEEDADV[] = { "none", "noise", "all" };
-/* Ordered to match wfm_segment_t.gap_noise (auto=0, off=1). */
-static const char *const GAPNOISE[] = { "auto", "off" };
-/* --data's two sources, ordered to match wfm_source_t.dsss_code_only rather
-   than to match the usage text: "prbs" is the seeded PN (code_only 0) and
-   "none" is code-only (code_only 1), so the chosen index IS the field. */
-static const char *const DATA_SRC[] = { "prbs", "none" };
-/* --randomise: WHICH section-10 generator, because 131.0-B-6 specifies two
-   and they produce waveforms only the matching receiver derandomises.
-   Index 0 is "off" so an absent flag and an explicit off are one value, and
-   index 1 is B-6 10.4.1's -- the `shall` -- which is what OPT_CHOICE_OPT
-   selects when the flag is given with no value. "legacy" is 10.4.2's 255-bit
-   sequence, kept for backward compatibility and carrying spectral lines at
-   1/255 of the symbol rate. */
-static const char *const RANDS[] = { "off", "ccsds", "legacy" };
+/* Every --flag choice table below is the `*_NAMES` array from
+   wfm/wfm_names.h, the one C home for them (doppler#760). Twelve were
+   declared here instead until then -- two of them, TYPE_NAMES and
+   MODE_NAMES, verbatim copies of tables that header already carried -- and
+   list order IS the C enum value, so a copy that drifted mapped a flag to
+   the wrong waveform rather than failing. `make lint-wfm-enum-tables` now
+   holds the header to the manifest's [[enum]] blocks. */
 
 /* Look name up in a NULL-free table of n entries; -1 if absent. */
 static int
@@ -165,7 +144,7 @@ report_clip (double peak, double frac, int stype, double headroom,
       stderr,
       "wfmgen: warning: %s output clipped — peak is +%.1f dB over full "
       "scale.\n  remedy: --headroom %d, or --sample-type cf32.\n",
-      STYPES[stype], dbfs, need);
+      STYPE_NAMES[stype], dbfs, need);
   if (clip_report)
     (void)fprintf (stderr, "  clipped %.2f%% of I/Q components\n",
                    100.0 * frac);
@@ -754,8 +733,7 @@ seq_both_spellings (const char *gen_flag)
 static int
 parse_seq_gen (const char *flag, const char *v, wfm_seq_t *q)
 {
-  static const char *const KINDS[] = { "literal", "pn", "gold", "dotted" };
-  char                     buf[256];
+  char buf[256];
   if (!v || strlen (v) >= sizeof buf)
     {
       (void)fprintf (stderr, "error: %s: missing or overlong value\n", flag);
@@ -772,7 +750,7 @@ parse_seq_gen (const char *flag, const char *v, wfm_seq_t *q)
 
   char *save = NULL;
   char *tok  = strtok_r (buf, ":", &save);
-  int   kind = tok ? lookup (tok, KINDS, 4) : -1;
+  int   kind = tok ? lookup (tok, SEQ_KIND_NAMES, 4) : -1;
   /* `literal` is rejected, not merely unmatched: a literal sequence is what
      --sync and --sync-hex are for, and a second way to spell it is how two
      spellings of one thing start disagreeing. */
@@ -847,31 +825,31 @@ static const opt_t OPTS[] = {
   { .name = "--type",
     .kind = OPT_CHOICE,
     .off  = OFF (src.type),
-    CHOICES (TYPES) },
+    CHOICES (TYPE_NAMES) },
   { .name = "--snr-mode",
     .kind = OPT_CHOICE,
     .off  = OFF (src.snr_mode),
-    CHOICES (MODES) },
+    CHOICES (MODE_NAMES) },
   { .name = "--sample-type",
     .kind = OPT_CHOICE,
     .off  = OFF (sample_type),
-    CHOICES (STYPES) },
+    CHOICES (STYPE_NAMES) },
   { .name = "--file-type",
     .kind = OPT_CHOICE,
     .off  = OFF (file_type),
-    CHOICES (FTYPES) },
+    CHOICES (FTYPE_NAMES) },
   { .name = "--endian",
     .kind = OPT_CHOICE,
     .off  = OFF (endian),
-    CHOICES (ENDIANS) },
+    CHOICES (ENDIAN_NAMES) },
   { .name = "--lfsr",
     .kind = OPT_CHOICE,
     .off  = OFF (src.lfsr),
-    CHOICES (LFSRS) },
+    CHOICES (LFSR_NAMES) },
   { .name = "--pulse",
     .kind = OPT_CHOICE,
     .off  = OFF (src.pulse),
-    CHOICES (PULSES) },
+    CHOICES (PULSE_NAMES) },
   { .name          = "--rrc-beta",
     .kind          = OPT_DOUBLE,
     .off           = OFF (src.rrc_beta),
@@ -880,7 +858,7 @@ static const opt_t OPTS[] = {
   { .name = "--modulation",
     .kind = OPT_CHOICE,
     .off  = OFF (src.modulation),
-    CHOICES (BITMODS) },
+    CHOICES (BITMOD_NAMES) },
   { .name = "--bits",
     .kind = OPT_BITS,
     .off  = OFF (src.payload.bits),
@@ -924,7 +902,7 @@ static const opt_t OPTS[] = {
   { .name = "--crc",
     .kind = OPT_CHOICE,
     .off  = OFF (src.crc),
-    CHOICES (CRCS) },
+    CHOICES (CRC_NAMES) },
   /* Channel coding, as STAGES over the frame's fields. Each is separately
      optional because the standard makes it so, and they do not all cover the
      same bits -- which is the whole reason the frame is a description rather
@@ -940,7 +918,7 @@ static const opt_t OPTS[] = {
     .alias = "--randomize",
     .kind  = OPT_CHOICE_OPT,
     .off   = OFF (src.randomise),
-    CHOICES (RANDS) },
+    CHOICES (RANDOMISE_NAMES) },
   { .name = "--asm", .kind = OPT_SET, .off = OFF (src.attach_asm) },
   { .name = "--conv", .kind = OPT_SET, .off = OFF (src.convolutional) },
   { .name = "--symbol-rate",
@@ -951,7 +929,7 @@ static const opt_t OPTS[] = {
     .kind = OPT_CHOICE,
     .off  = OFF (src.dsss_code_only),
     .seen = SEEN (data_flag_set),
-    CHOICES (DATA_SRC) },
+    CHOICES (DATA_SRC_NAMES) },
   { .name = "--symbols-file",
     .kind = OPT_SYMBOLS,
     .off  = OFF (src.symbols),
@@ -996,13 +974,13 @@ static const opt_t OPTS[] = {
   { .name = "--gap-noise",
     .kind = OPT_CHOICE,
     .off  = OFF (seg.gap_noise),
-    CHOICES (GAPNOISE) },
+    CHOICES (GAP_NOISE_NAMES) },
   { .name = "--repeat", .kind = OPT_SET, .off = OFF (repeat) },
   { .name = "--continuous", .kind = OPT_SET, .off = OFF (continuous) },
   { .name = "--seed-advance",
     .kind = OPT_CHOICE,
     .off  = OFF (seed_advance),
-    CHOICES (SEEDADV) },
+    CHOICES (SEED_ADVANCE_NAMES) },
   { .name = "--detached", .kind = OPT_SET, .off = OFF (detached) },
   { .name = "--realtime", .kind = OPT_SET, .off = OFF (realtime) },
   { .name      = "--level",
@@ -1393,7 +1371,7 @@ emit_to_stream (const emit_ctx_t *e)
                "error: --sample-type %s is a real (scalar) format, and the\n"
                "  nats:// / zmq:// stream carries complex samples only.\n"
                "  Write a file, or use a complex sample type.\n",
-               STYPES[o->sample_type]);
+               STYPE_NAMES[o->sample_type]);
       return 1;
     }
   wfm_stream_sink_t *sink = wfm_stream_sink_open (o->out_path, o->sample_type);

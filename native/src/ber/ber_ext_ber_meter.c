@@ -706,7 +706,7 @@ static PyMethodDef BerMeterObj_methods[] = {
 
   { "set_truth", (PyCFunction)(void *)BerMeterObj_set_truth,
     METH_VARARGS | METH_KEYWORDS,
-    "set_truth(truth) -> int\n"
+    "set_truth(truth) -> None\n"
     "\n"
     "Install the transmitted symbol INDICES (0..m-1, not Gray labels)\n"
     "this meter scores against. Copied, so the caller's buffer need not\n"
@@ -723,6 +723,12 @@ static PyMethodDef BerMeterObj_methods[] = {
     "----------\n"
     "truth : NDArray[np.uint8]\n"
     "    Transmitted symbol indices, each in `0..m-1`.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_truth failed``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"

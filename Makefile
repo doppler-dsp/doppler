@@ -1073,7 +1073,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 glibc-check glibc-gate glibc-image specan-check \
                 check-isotime-parity \
                 tests-ssot validation-report-check \
-                lint-alloc-helpers-baseline \
+                lint-alloc-helpers-baseline test-ubsan-baseline \
                 compile_commands.json \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
                 apt-stall-config deps-budget-check cargo-floor-check \
@@ -1546,21 +1546,17 @@ UBSAN_FLAGS   = -fsanitize=undefined,float-cast-overflow \
 # first; the recipe below is what makes a report fatal, and it can only count
 # what the run was allowed to print.
 UBSAN_OPTS    = halt_on_error=0:print_stacktrace=1
-#: The alignment ceiling. RATCHETED: it may only come DOWN.
+#: The alignment ratchet: SITES, not reports.
 #:
-#: A CEILING and not an equality, because the count is not deterministic.
-#: Measured over 10 runs against one build: 933 eight times, 934 twice. The
-#: wobble is a single report at dp_tlm_core.h:70 -- a telemetry ring, so how
-#: many times it is read depends on timing, and one access either way is not
-#: a code change. An equality gate on that number would be a flaky gate,
-#: which is worse than no gate: it teaches people to re-run until green.
+#: The first cut counted reports against a ceiling. That number is not a
+#: property of the code -- it is how many times the suite happened to execute
+#: a misaligned access, and it moves with timing and core count. Measured:
+#: 933/934 across ten runs on one machine, and 1058 on CI for the same commit.
+#: A ceiling on it is either machine-specific or so loose it gates nothing.
 #:
-#: So: above the ceiling FAILS (a regression), and more than SLACK below it
-#: also FAILS (something improved -- tighten it, or the ceiling becomes a
-#: waiver outliving its reason, which is the rule the alloc-helper baseline
-#: already states). SLACK is 4, four times the measured wobble.
-UBSAN_ALIGN_CEILING = native/tests/.ubsan-alignment-ceiling
-UBSAN_ALIGN_SLACK   = 4
+#: The distinct source locations ARE code-determined, so that is what is
+#: ratcheted, per file. See scripts/check_ubsan_alignment.py.
+UBSAN_ALIGN_CHECK = $(UV) run python scripts/check_ubsan_alignment.py
 
 test-ubsan: ## Run the C suite under UBSan; any undefined behaviour fails
 	$(CMAKE) -B $(UBSAN_DIR) -S . \
@@ -1590,42 +1586,11 @@ test-ubsan: ## Run the C suite under UBSan; any undefined behaviour fails
 	   $(CTEST) --test-dir $(UBSAN_DIR) $(SAN_EXCLUDE_SWEEP) -V > $$log 2>&1 \
 	   || { echo "test-ubsan: a test FAILED outright:"; tail -40 $$log; \
 	        exit 1; }; \
-	 total=$$(grep -c 'runtime error' $$log || true); \
-	 align=$$(grep 'runtime error' $$log | grep -c 'misaligned address' \
-	          || true); \
-	 other=$$((total - align)); \
-	 if [ "$$other" -gt 0 ]; then \
-	   echo "test-ubsan: FAIL -- $$other undefined-behaviour report(s) that"; \
-	   echo "  are NOT the ratcheted alignment class:"; \
-	   grep 'runtime error' $$log | grep -v 'misaligned address' \
-	     | sed 's/^/    /' | sort -u | head -20; \
-	   exit 1; \
-	 fi; \
-	 ceiling=$$(grep -v '^#' $(UBSAN_ALIGN_CEILING) | tr -d '[:space:]'); \
-	 if [ -z "$$ceiling" ]; then \
-	   echo "test-ubsan: FAIL -- $(UBSAN_ALIGN_CEILING) has no number in it."; \
-	   echo "  A ratchet that cannot read its ceiling has not been checked."; \
-	   exit 1; \
-	 fi; \
-	 if [ "$$align" -gt "$$ceiling" ]; then \
-	   echo "test-ubsan: FAIL -- $$align misaligned-access report(s),"; \
-	   echo "  above the ceiling of $$ceiling in $(UBSAN_ALIGN_CEILING)."; \
-	   echo "  This class may only SHRINK. Fix the new cast, or say why"; \
-	   echo "  the ceiling moves and by how much."; \
-	   exit 1; \
-	 fi; \
-	 if [ "$$align" -lt "$$((ceiling - $(UBSAN_ALIGN_SLACK)))" ]; then \
-	   echo "test-ubsan: FAIL -- $$align report(s), more than"; \
-	   echo "  $(UBSAN_ALIGN_SLACK) below the ceiling of $$ceiling."; \
-	   echo "  Something improved: lower $(UBSAN_ALIGN_CEILING) to"; \
-	   echo "  $$align. A ceiling left above a count that came down is a"; \
-	   echo "  waiver outliving its reason, and it would cover the next"; \
-	   echo "  regression silently."; \
-	   exit 1; \
-	 fi; \
-	 echo "test-ubsan: OK -- 0 undefined-behaviour report(s) outside the"; \
-	 echo "  alignment class, and $$align of those against a ceiling of"; \
-	 echo "  $$ceiling (#1028)."
+	 $(UBSAN_ALIGN_CHECK) $$log
+
+.PHONY: test-ubsan-baseline
+test-ubsan-baseline: ## Re-record the UBSan alignment site baseline
+	@$(UBSAN_ALIGN_CHECK) $(UBSAN_DIR)/ubsan.log --update
 
 # ── AddressSanitizer ─────────────────────────────────────────────────────────
 # The C suite rebuilt under ASan, with LeakSanitizer left ON.

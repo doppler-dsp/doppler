@@ -1,0 +1,31 @@
+# Distinct source locations that produce a UBSan `member access within
+# misaligned address` report, counted per FILE. Read by
+# `scripts/check_ubsan_alignment.py`, which `make test-ubsan` runs.
+#
+# SITES, not reports. The number of reports is how many times the suite
+# happened to execute one, which moves with timing and core count -- measured
+# 933/934 across ten local runs and 1058 on CI for the same commit. The set of
+# locations is a property of the code; the count of executions is not.
+#
+# Per FILE and not per line, so moving a function does not churn the record --
+# the same choice `check_alloc_helpers.py` documents.
+#
+# RATCHETED: a file with MORE sites fails, and a file not listed here may have
+# none. FEWER is a warning: a site not executed on some machine is not a site
+# that was fixed, so tighten this deliberately when a fix lands
+# (`--update`).
+#
+# Every one is a byte cursor cast to a struct pointer. Fixing them is its own
+# change (doppler#1028).
+#
+3 native/inc/buffer/buffer.h
+4 native/inc/dp_state.h
+1 native/inc/dp_tlm/dp_tlm_core.h
+17 native/src/acq/acq_core.c
+17 native/src/detector/detector_core.c
+17 native/src/detector2d/detector2d_core.c
+10 native/src/dp_tlm/dp_tlm_core.c
+2 native/src/dsss_burst_receiver/dsss_burst_receiver_core.c
+15 native/tests/test_buffer_core.c
+4 native/tests/test_detector2d_core.c
+1 native/tests/test_detector_core.c

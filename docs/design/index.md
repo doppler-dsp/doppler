@@ -68,11 +68,12 @@ instead.)
 - [Receiver Test Harness](rx-test.md) — inventory of the stimulus, measurement and gate layers a receiver measurement rests on, and where they do not yet meet
 - [Corr2D Interpolated Inverse](corr2d-interpolated-inverse.md) — decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation
 - [Spectral & Measurement API Map](spectral-api-map.md) — module dependency graph
-- [wfmgen — the stimulus generator](wfmgen.md) — the spine for the tool
-    the rest of the library is calibrated with: what it promises and
-    which gate keeps each promise, the seventeen primitives it composes
-    rather than re-implements, and the eight things still unknown about
-    it — including that no `wfm` object is certified
+- [wfmgen — the waveform generator](wfmgen.md) — the spine for the tool:
+    modulations, impairments and output streams from three interchangeable
+    faces, what it promises and which gate keeps each promise, the
+    seventeen primitives it composes rather than re-implements, and the
+    eight things still unknown about it — including that it states no
+    throughput and no certified envelope
 - [Waveform Amplitude & Composition](wfmgen-composition.md) — level/power conventions for wfmgen
 - [One Home for the Waveform Enum Tables](waveform-enum-ssot.md) — a name
     table's ORDER is the C enum value, so a second copy mis-maps a flag

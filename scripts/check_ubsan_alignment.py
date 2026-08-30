@@ -23,11 +23,16 @@ distinct ``file:line:col`` sites and compares per FILE, so:
   (`check_alloc_helpers.py`), and the same hazard the arity ratchet's header
   calls out.
 
-FEWER sites than the baseline is a WARNING, not a failure, and that is the one
-concession to this being a runtime measurement: a site that is not executed on
-some machine is not a site that was fixed. Tighten the baseline deliberately
-when a fix lands, rather than having the gate demand it on a machine that
-merely ran less.
+FEWER sites than the baseline is a WARNING, not a failure, and that is not a
+courtesy -- it is what makes the baseline portable. Which sites execute
+depends on which tests RUN, and that differs by environment: CI has a NATS
+broker so `test_tlm_sink` runs there and produces four sites a developer box
+never sees. Measured, after assuming otherwise and being corrected by CI: 18
+sites across three files that appear on CI and not here.
+
+So the baseline is seeded from CI, the environment that gates, and a machine
+running less warns rather than fails. A new cast still fails wherever it
+appears. Tighten the baseline deliberately when a fix lands.
 
 Usage
 -----
@@ -205,6 +210,14 @@ def main(argv: list[str]) -> int:
             "moves and by how much.",
             file=sys.stderr,
         )
+        # The FULL observed table, not just the rows that grew. Which sites
+        # execute depends on which tests run, and that differs by
+        # environment -- CI runs `test_tlm_sink` (it has a NATS broker) and
+        # a developer box may not. Printing everything means one failing run
+        # carries the whole baseline, instead of a round trip per row.
+        print("\n  observed, in full:", file=sys.stderr)
+        for f, n in sorted(per_file.items()):
+            print(f"    {n} {f}", file=sys.stderr)
         return 1
 
     for f, (was, now) in sorted(shrank.items()):

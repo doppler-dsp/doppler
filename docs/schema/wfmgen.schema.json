@@ -77,6 +77,65 @@
       "description": "SNR reference convention. auto: Es/N0 for bpsk/qpsk/dsss, over full-scale for the other six (tone/noise/pn/chirp/bits/symbols) -- bits included, because a bits frame has no symbol rate the engine can infer; the guide's Levels & SNR page is the one home for that split. fs: dB relative to full scale. ebno: Eb/N0 (per-bit). esno: Es/N0 (per-symbol; for a dsss burst the outer data symbol of len(data_code) chips x sps samples, for a continuous dsss stream the fs/symbol_rate samples the async symbol spans)."
     },
 
+    "generated_sequence": {
+      "description": "A run of bits produced from a handful of numbers instead of carried as an array — which is what makes a long capture reproducible from its metadata rather than from a million-symbol run. Recorded alongside the literal key it replaces (acq_code_gen, data_code_gen, sync_gen); a field is one or the other, never both. The masks are hex STRINGS, not numbers: they are uint64 and a JSON number is a double, so a 64-bit register's polynomial would not survive a round trip as a number.",
+      "type": "object",
+      "required": ["kind", "len"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": ["pn", "gold", "dotted"],
+          "description": "Which generator produces the bits. 'literal' is absent deliberately: a literal field is recorded as its own '0'/'1' string, so naming it here would be a second way to say the same thing."
+        },
+        "len": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Output length in bits. Independent of reg_bits: the register width sets the PERIOD (2^reg_bits - 1), this sets how many bits are emitted, and conflating the two is easy and costly."
+        },
+        "reg_bits": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64,
+          "description": "Register width for kind=pn/gold; period is 2^reg_bits - 1."
+        },
+        "poly": {
+          "type": "string",
+          "pattern": "^0[xX][0-9a-fA-F]+$",
+          "description": "kind=pn: the LFSR tap mask. '0x0' selects the maximal-length polynomial for reg_bits — the same 'zero means derive' rule --pn-poly applies. A literal zero reaching pn_create() would be a register with no feedback."
+        },
+        "seed": {
+          "type": "string",
+          "pattern": "^0[xX][0-9a-fA-F]+$",
+          "description": "kind=pn: initial register state. '0x0' selects 1; an all-zero register is a fixed point."
+        },
+        "lfsr": {
+          "type": "integer",
+          "enum": [0, 1],
+          "description": "kind=pn: 0 = Galois, 1 = Fibonacci."
+        },
+        "taps_a": {
+          "type": "string",
+          "pattern": "^0[xX][0-9a-fA-F]+$",
+          "description": "kind=gold: first register's tap mask."
+        },
+        "seed_a": {
+          "type": "string",
+          "pattern": "^0[xX][0-9a-fA-F]+$",
+          "description": "kind=gold: first register's initial state ('0x0' selects 1)."
+        },
+        "taps_b": {
+          "type": "string",
+          "pattern": "^0[xX][0-9a-fA-F]+$",
+          "description": "kind=gold: second register's tap mask."
+        },
+        "seed_b": {
+          "type": "string",
+          "pattern": "^0[xX][0-9a-fA-F]+$",
+          "description": "kind=gold: second register's initial state ('0x0' selects 1)."
+        }
+      }
+    },
+
     "source": {
       "description": "One additive source within a segment. Inline single-source segments embed these fields directly alongside fs/num_samples/off_samples. Multi-source segments place them inside the 'sum' array.",
       "type": "object",
@@ -176,6 +235,7 @@
           "pattern": "^[01]+$",
           "description": "type=dsss: the acquisition/preamble code as a '0'/'1' string, repeated acq_reps times unmodulated at the head of the burst — the coherent pull-in target the receiver's acquisition locks to."
         },
+        "acq_code_gen": { "$ref": "#/$defs/generated_sequence" },
         "acq_reps": {
           "type": "integer",
           "minimum": 0,
@@ -187,11 +247,13 @@
           "pattern": "^[01]+$",
           "description": "type=dsss: the payload spreading code as a '0'/'1' string — a second code, distinct from acq_code; every frame bit (sync | payload | crc) is XOR-spread across its full length, so its length is the spreading factor."
         },
+        "data_code_gen": { "$ref": "#/$defs/generated_sequence" },
         "sync": {
           "type": "string",
           "pattern": "^[01]+$",
           "description": "type=dsss: the frame-sync word bits (e.g. Barker-13) between the preamble and the payload. Optional."
         },
+        "sync_gen": { "$ref": "#/$defs/generated_sequence" },
         "payload": {
           "type": "string",
           "pattern": "^[01]+$",
@@ -330,9 +392,12 @@
         "pattern":    { "$ref": "#/$defs/source/properties/pattern" },
         "symbols":    { "$ref": "#/$defs/source/properties/symbols" },
         "acq_code":   { "$ref": "#/$defs/source/properties/acq_code" },
+        "acq_code_gen": { "$ref": "#/$defs/generated_sequence" },
         "acq_reps":   { "$ref": "#/$defs/source/properties/acq_reps" },
         "data_code":  { "$ref": "#/$defs/source/properties/data_code" },
+        "data_code_gen": { "$ref": "#/$defs/generated_sequence" },
         "sync":       { "$ref": "#/$defs/source/properties/sync" },
+        "sync_gen":   { "$ref": "#/$defs/generated_sequence" },
         "payload":    { "$ref": "#/$defs/source/properties/payload" },
         "crc":        { "$ref": "#/$defs/source/properties/crc" },
         "rs_depth":   { "$ref": "#/$defs/source/properties/rs_depth" },

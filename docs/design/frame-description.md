@@ -504,6 +504,33 @@ wfmgen first: it is the site with an external interface, and every other site
 becomes easier once the thing being passed around is a description. Sites 2
 and 3 are then mechanical. Sites 4 and 5 fall out.
 
+#### Status
+
+The table above is the PLAN, kept as written. What has actually landed:
+
+| site | state                                                                                                                                                                                          |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | **done** — `wfm_source_describe_frame()` builds through the by-name builder (`wfm_frame_add_field`), not `ccsds_tm_frame_desc_of()`. Only prose references to the adapter remain in that file. |
+| 2–5  | not started                                                                                                                                                                                    |
+
+Two things changed with site 1 that the plan did not anticipate, because
+they were not visible until the adapter was gone:
+
+- **A source carries `wfm_seq_t`** for its preamble, spreading code and sync
+    word, rather than three `uint8_t * + size_t` pairs. Those pairs could only
+    ever describe a LITERAL run of bits, so the four kinds in the table above
+    were reachable from no face at all — the descriptor supported them, and
+    every route into it flattened them away. This is what
+    [#762](https://github.com/doppler-dsp/doppler/issues/762) is, and it is
+    also why the pairs did not simply survive the migration: `wfm_seq_t`
+    subsumes them, and the literal case is `kind = WFM_SEQ_LITERAL`.
+- **`wfm_source_has_frame()` tests LENGTH, not the pointer.** A generated
+    sequence has no array, so a pointer test read a PN sync as *unframed* and
+    emitted the payload bare — the same silent-unframed shape the file's own
+    comment warns about for the type gate.
+
+The remaining steps are JSON and schema, the wfmgen flags, and the guide.
+
 ### What is deliberately *not* extraction
 
 - **The Python door is already the right shape.** `objects/frame.toml` states

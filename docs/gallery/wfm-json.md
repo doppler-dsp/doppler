@@ -66,6 +66,30 @@ The JSON schema is at `docs/schema/wfmgen.schema.json`; the test suite in
 `src/doppler/wfm/tests/test_schema.py` validates every `--record` output
 against it automatically.
 
+### A sequence carried as numbers, not as an array
+
+A preamble, spreading code or sync word can be *generated* rather than
+listed. The record then carries the generator's parameters under a `_gen`
+key beside the literal one it replaces — a field is one or the other, never
+both:
+
+```json
+"sync_gen": {
+  "kind": "pn", "len": 1023, "reg_bits": 10,
+  "poly": "0x409", "seed": "0x1", "lfsr": 0
+}
+```
+
+That is the difference between a record and a recording: a million-symbol
+sync word is six numbers here, so the capture is reproducible from its
+metadata. `kind` is `pn`, `gold` or `dotted` — `literal` is deliberately not
+spellable, because a literal field is already recorded as its own `0`/`1`
+string and a second spelling is how two of them start disagreeing.
+
+The masks are hex **strings**. They are `uint64`, a JSON number is a double,
+and `wfm_seq_t` allows a register width of 64 — so a number would quietly
+lose the top of the range this field exists for.
+
 ## Reproduce
 
 ```bash

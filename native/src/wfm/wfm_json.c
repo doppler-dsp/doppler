@@ -171,6 +171,67 @@ add_bit_string (cJSON *o, const char *key, const uint8_t *bits, size_t n)
     }
 }
 
+/* The four `wfm_seq_kind_t` spellings, in enum order. */
+static const char *const SEQ_KINDS[] = { "literal", "pn", "gold", "dotted" };
+
+/* A 64-bit mask as a hex STRING, not a JSON number.
+ *
+ * `poly`, `seed` and the Gold taps are `uint64_t`, and a JSON number is a
+ * double: anything above 2^53 does not survive the round trip. A register
+ * width of 64 is inside `wfm_seq_t`'s documented range, so that is not a
+ * theoretical loss -- it is the top of the range this field is FOR. Hex also
+ * reads as what it is, a tap mask, which decimal does not. */
+static void
+add_u64_hex (cJSON *o, const char *key, uint64_t v)
+{
+  char buf[19];
+  snprintf (buf, sizeof buf, "0x%llx", (unsigned long long)v);
+  cJSON_AddStringToObject (o, key, buf);
+}
+
+/* Emit a GENERATED sequence's parameters under @p key.
+ *
+ * A generated sequence has no array to record -- carrying `(poly, seed,
+ * reg_bits)` instead of a million-symbol run is its entire point, and what
+ * makes a long capture reproducible from its metadata. `add_bit_string`
+ * writes NOTHING for one, because there are no bits, so without this the
+ * field would vanish from a `--record` and `--from-file` would rebuild an
+ * unframed waveform: the same silent-unframed shape `add_frame_fields`
+ * warns about below for the type gate.
+ *
+ * A LITERAL emits nothing here and is recorded by `add_bit_string` exactly
+ * as it always was, so every record written before generated kinds existed
+ * is byte-identical to the one written now. That matters: the 1-source
+ * inline form's field order is frozen. */
+static void
+add_seq_gen (cJSON *o, const char *key, const wfm_seq_t *q)
+{
+  if (!q || q->kind == WFM_SEQ_LITERAL || q->len == 0)
+    return;
+  cJSON *g = cJSON_CreateObject ();
+  if (!g)
+    return;
+  cJSON_AddStringToObject (g, "kind", SEQ_KINDS[q->kind]);
+  cJSON_AddNumberToObject (g, "len", (double)q->len);
+  if (q->kind == WFM_SEQ_PN)
+    {
+      cJSON_AddNumberToObject (g, "reg_bits", (double)q->reg_bits);
+      add_u64_hex (g, "poly", q->poly);
+      add_u64_hex (g, "seed", q->seed);
+      cJSON_AddNumberToObject (g, "lfsr", (double)q->lfsr);
+    }
+  else if (q->kind == WFM_SEQ_GOLD)
+    {
+      cJSON_AddNumberToObject (g, "reg_bits", (double)q->reg_bits);
+      add_u64_hex (g, "taps_a", q->taps_a);
+      add_u64_hex (g, "seed_a", q->seed_a);
+      add_u64_hex (g, "taps_b", q->taps_b);
+      add_u64_hex (g, "seed_b", q->seed_b);
+    }
+  /* DOTTED carries no parameters -- kind and len say all of it. */
+  cJSON_AddItemToObject (o, key, g);
+}
+
 /* Emit the FRAME a source carries — the preamble, its repetitions, the sync
  * word and the CRC choice. Deliberately NOT type-gated: an unspread `bits`
  * source can be framed too, and gating this on dsss is how a framed bits
@@ -186,8 +247,10 @@ add_frame_fields (cJSON *o, const wfm_source_t *src)
   if (!wfm_source_has_frame (src))
     return;
   add_bit_string (o, "acq_code", src->acq_code.bits, src->acq_code.len);
+  add_seq_gen (o, "acq_code_gen", &src->acq_code);
   cJSON_AddNumberToObject (o, "acq_reps", (double)src->acq_reps);
   add_bit_string (o, "sync", src->sync.bits, src->sync.len);
+  add_seq_gen (o, "sync_gen", &src->sync);
   cJSON_AddStringToObject (o, "crc", CRC_NAMES[src->crc ? 1 : 0]);
 }
 
@@ -209,6 +272,7 @@ add_dsss_fields (cJSON *o, const wfm_source_t *src)
   if (src->symbol_rate > 0.0)
     {
       add_bit_string (o, "data_code", src->data_code.bits, src->data_code.len);
+      add_seq_gen (o, "data_code_gen", &src->data_code);
       add_bit_string (o, "payload", src->bits, src->n_bits);
       cJSON_AddNumberToObject (o, "symbol_rate", src->symbol_rate);
       if (src->dsss_code_only) /* omit for the data-modulated default */
@@ -216,9 +280,12 @@ add_dsss_fields (cJSON *o, const wfm_source_t *src)
       return;
     }
   add_bit_string (o, "acq_code", src->acq_code.bits, src->acq_code.len);
+  add_seq_gen (o, "acq_code_gen", &src->acq_code);
   cJSON_AddNumberToObject (o, "acq_reps", (double)src->acq_reps);
   add_bit_string (o, "data_code", src->data_code.bits, src->data_code.len);
+  add_seq_gen (o, "data_code_gen", &src->data_code);
   add_bit_string (o, "sync", src->sync.bits, src->sync.len);
+  add_seq_gen (o, "sync_gen", &src->sync);
   add_bit_string (o, "payload", src->bits, src->n_bits);
   cJSON_AddStringToObject (o, "crc", CRC_NAMES[src->crc ? 1 : 0]);
 }
@@ -325,6 +392,74 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
   add_pulse_fields (so, src);
 }
 
+/* A 64-bit mask from its hex string; 0 when the key is absent, which is what
+   `wfm_seq_t` reads as "derive it" for `poly` and "use 1" for a seed. */
+static uint64_t
+u64_hex (const cJSON *o, const char *key)
+{
+  const char *v
+      = cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (o, key));
+  return v ? (uint64_t)strtoull (v, NULL, 0) : 0u;
+}
+
+/* Restore a GENERATED sequence from @p key. Returns 0 when the key is absent
+ * or was read, -1 when it is present and malformed.
+ *
+ * REFUSING rather than ignoring is the point. Every other way of being wrong
+ * here produces a waveform that looks fine and is not the recorded one: an
+ * unknown `kind` from a newer writer, a zero length, or a record carrying
+ * BOTH the literal string and the generator block. A `--from-file` that
+ * quietly builds a different waveform than the one recorded defeats the
+ * whole reason the record exists. */
+static int
+read_seq_gen (const cJSON *so, const char *lit_key, const char *gen_key,
+              wfm_seq_t *q)
+{
+  const cJSON *g = cJSON_GetObjectItemCaseSensitive (so, gen_key);
+  if (!g)
+    return 0;
+  if (!cJSON_IsObject (g))
+    return -1;
+  /* One field, one source of bits. The writer never emits both. */
+  if (cJSON_GetObjectItemCaseSensitive (so, lit_key))
+    return -1;
+
+  const int k = name_index (
+      cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (g, "kind")),
+      SEQ_KINDS, 4);
+  /* 0 is "literal", which has no generator to restore -- as wrong here as an
+     unknown name, and wrong in the same direction. */
+  if (k <= 0)
+    return -1;
+  const double n = num (g, "len", 0);
+  if (n <= 0.0)
+    return -1;
+
+  q->kind = (wfm_seq_kind_t)k;
+  q->len  = (size_t)n;
+  q->bits = NULL;
+  if (q->kind == WFM_SEQ_PN)
+    {
+      q->reg_bits = (uint32_t)num (g, "reg_bits", 0);
+      q->poly     = u64_hex (g, "poly");
+      q->seed     = u64_hex (g, "seed");
+      q->lfsr     = (int)num (g, "lfsr", 0);
+      if (q->reg_bits == 0u || q->reg_bits > 64u)
+        return -1;
+    }
+  else if (q->kind == WFM_SEQ_GOLD)
+    {
+      q->reg_bits = (uint32_t)num (g, "reg_bits", 0);
+      q->taps_a   = u64_hex (g, "taps_a");
+      q->seed_a   = u64_hex (g, "seed_a");
+      q->taps_b   = u64_hex (g, "taps_b");
+      q->seed_b   = u64_hex (g, "seed_b");
+      if (q->reg_bits == 0u || q->reg_bits > 64u)
+        return -1;
+    }
+  return 0;
+}
+
 /* Read the frame back: preamble, repetitions, sync word, CRC choice. The
  * inverse of add_frame_fields(), and called for every waveform type for the
  * same reason it is written for every waveform type. `crc` defaults to crc16
@@ -361,6 +496,12 @@ read_frame_fields (const cJSON *so, wfm_source_t *out)
               return -1;
             }
         }
+    }
+  if (read_seq_gen (so, "acq_code", "acq_code_gen", &out->acq_code) != 0
+      || read_seq_gen (so, "sync", "sync_gen", &out->sync) != 0)
+    {
+      free_src_bits (out, 1);
+      return -1;
     }
   out->acq_reps = (size_t)num (so, "acq_reps", 1);
   int c         = name_index (
@@ -479,6 +620,12 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
               free_src_bits (out, 1); /* drop this source's partials */
               return -1;
             }
+        }
+      if (read_seq_gen (so, "data_code", "data_code_gen", &out->data_code)
+          != 0)
+        {
+          free_src_bits (out, 1);
+          return -1;
         }
       const char *pay = cJSON_GetStringValue (
           cJSON_GetObjectItemCaseSensitive (so, "payload"));

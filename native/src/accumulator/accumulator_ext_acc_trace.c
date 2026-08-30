@@ -400,16 +400,35 @@ static PyMethodDef AccTraceObj_methods[] = {
     "0\n" },
   { "value", (PyCFunction)(void *)AccTraceObj_value,
     METH_VARARGS | METH_KEYWORDS,
-    "value(n=1) -> ndarray\n"
+    "value(count=1) -> ndarray\n"
     "\n"
     "Copy the current averaged trace (None before any accumulate).\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import AccTrace\n"
-    "    >>> obj = AccTrace(1024, \"mean\", 0.1)\n"
-    "    >>> y = obj.value(4)\n"
-    "    >>> y.dtype\n"
-    "    dtype('float32')\n" },
+    "Parameters\n"
+    "----------\n"
+    "count : int\n"
+    "    How many output samples to ask for. The call may return fewer; size\n"
+    "    an `out=` buffer with the matching `_max_out()` when you need the\n"
+    "    worst case.\n"
+    "out : NDArray[np.float32] | None\n"
+    "    Destination, at least n float32 elements.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.float32]\n"
+    "    min(n, max_out) samples, or 0 if empty.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.accumulator import AccTrace\n"
+    ">>> acc = AccTrace(n=3, mode=\"maxhold\")\n"
+    ">>> acc.value() is None            # empty until the first frame\n"
+    "True\n"
+    ">>> acc.accumulate(np.array([1, 5, 2], dtype=np.float32))\n"
+    ">>> acc.accumulate(np.array([4, 3, 6], dtype=np.float32))\n"
+    ">>> acc.value().tolist()           # per-bin running maximum\n"
+    "[4.0, 5.0, 6.0]\n" },
   { "value_max_out", (PyCFunction)AccTraceObj_value_max_out, METH_NOARGS,
     "value_max_out() -> int\n\nMax output length value() can produce for the "
     "current state.\nUse to size the ``out=`` buffer." },

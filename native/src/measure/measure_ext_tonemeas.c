@@ -689,9 +689,9 @@ static PyMethodDef ToneMeasureObj_methods[] = {
     "(3.01, 80.0)\n" },
   { "spectrum_dbfs", (PyCFunction)(void *)ToneMeasureObj_spectrum_dbfs,
     METH_VARARGS | METH_KEYWORDS,
-    "spectrum_dbfs(x) -> ndarray\n"
+    "spectrum_dbfs(x, out) -> ndarray\n"
     "\n"
-    "DC-centred dBFS magnitude spectrum of a capture (length nfft, for "
+    "DC-centred dBFS magnitude spectrum of a capture (length nfft, for\n"
     "plots).\n"
     "\n"
     "The windowed, zero-padded magnitude spectrum behind the metrics, laid\n"
@@ -703,6 +703,8 @@ static PyMethodDef ToneMeasureObj_methods[] = {
     "----------\n"
     "x : NDArray[np.float32]\n"
     "    Real time-domain capture (length x_len).\n"
+    "out : NDArray[np.float32] | None\n"
+    "    Destination buffer (length >= max_out).\n"
     "\n"
     "Returns\n"
     "-------\n"

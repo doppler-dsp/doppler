@@ -923,7 +923,7 @@ static PyMethodDef BpskReceiverObj_methods[] = {
     "True\n" },
   { "steps", (PyCFunction)(void *)BpskReceiverObj_steps,
     METH_VARARGS | METH_KEYWORDS,
-    "steps(x) -> ndarray\n"
+    "steps(x, out) -> ndarray\n"
     "\n"
     "Demodulate a cf32 block and return the recovered M-PSK symbols (one\n"
     "cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the\n"
@@ -951,6 +951,8 @@ static PyMethodDef BpskReceiverObj_methods[] = {
     "----------\n"
     "x : NDArray[np.complex64]\n"
     "    Input cf32 samples.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Output symbols; caller provides max_out capacity.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -988,7 +990,7 @@ static PyMethodDef BpskReceiverObj_methods[] = {
     "fewer.\n" },
   { "bits", (PyCFunction)(void *)BpskReceiverObj_bits,
     METH_VARARGS | METH_KEYWORDS,
-    "bits(x) -> ndarray\n"
+    "bits(x, out) -> ndarray\n"
     "\n"
     "Demodulate a cf32 block and return hard Gray-coded bits (log2(m)\n"
     "bytes of 0/1 per recovered symbol, LSB-first). Coherent by default; if\n"
@@ -1008,6 +1010,8 @@ static PyMethodDef BpskReceiverObj_methods[] = {
     "----------\n"
     "x : NDArray[np.complex64]\n"
     "    Input cf32 samples.\n"
+    "out : NDArray[np.uint8] | None\n"
+    "    Output bytes (0/1); caller provides max_out capacity.\n"
     "\n"
     "Returns\n"
     "-------\n"

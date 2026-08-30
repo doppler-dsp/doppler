@@ -563,12 +563,22 @@ class BurstDespreader:
 
         Examples
         --------
-        // seed from acquisition (norm_freq cyc/sample, chip phase in chips):
-        burst_despreader_state_t *d = burst_despreader_create(code, n, 32, 2, f0, chip, .05, .01);
-        float complex sym[256];
-        size_t k = burst_despreader_steps(d, rx, rx_len, sym, 256);
-        // hard bit of sym[i] = crealf(sym[i]) >= 0
-        burst_despreader_destroy(d);
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstDespreader
+        >>> rng = np.random.default_rng(1)
+        >>> code = rng.integers(0, 2, 31).astype(np.uint8)  # length-31 code
+        >>> bits = rng.integers(0, 2, 30).astype(np.uint8)   # payload bits
+        >>> chips = np.where(code & 1, -1.0, 1.0)    # 0 -> +1, 1 -> -1
+        >>> syms = np.where(bits == 1, -1.0, 1.0)             # BPSK symbols
+        >>> tx = np.concatenate(
+        ...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
+        >>> d = BurstDespreader(code, sf=31, sps=4)
+        >>> sym = d.steps(tx)                        # one prompt/symbol
+        >>> sym.shape
+        (30,)
+        >>> hard = (sym.real < 0).astype(np.uint8)            # BPSK decision
+        >>> float(np.mean(hard != bits))             # payload recovered
+        0.0
 
         """
 

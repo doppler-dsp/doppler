@@ -119,7 +119,8 @@ SYNC_CMD   = $(UV) sync
 # owns the version, so there is no `additional_dependencies` left to drift.
 LINT_TOOLS   = conflict tracked-paths ruff ruff-format mdformat clang-format \
                clang-tidy phase-conversion alloc-helpers stimulus-sources \
-               retired-names ci-pipefail rust-abi header-example-arity
+               retired-names ci-pipefail rust-abi header-example-arity \
+               wfm-enum-tables
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -256,6 +257,16 @@ LINT_retired-names = $(UV) run python scripts/check_retired_names.py
 # Ratcheted: the 11 that predate it may only shrink.
 LINT_header-example-arity = \
     $(UV) run python scripts/check_header_example_arity.py
+
+# A waveform name table's ORDER is the C enum value, so a second copy does not
+# fail to compile -- it maps a flag to the wrong waveform. just-makeit.toml has
+# claimed to be the tables' one source since gh-285; measured, that was true of
+# the Python binding only, while C kept twelve in wfmgen.c, seven in wfm_json.c
+# and three in wfm_names.h, one pair already in OPPOSITE orders (#760). This
+# holds the one header to the manifest's [[enum]] blocks, to the C enums that
+# pin the indices, and to the no-second-home rule.
+# Design: docs/design/waveform-enum-ssot.md
+LINT_wfm-enum-tables = $(UV) run python scripts/check_wfm_enum_tables.py
 
 # A CI step may not throw away the exit code it just produced. The default
 # Actions shell is `bash -e`, where a PIPELINE reports the last command's

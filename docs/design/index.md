@@ -69,5 +69,9 @@ instead.)
 - [Corr2D Interpolated Inverse](corr2d-interpolated-inverse.md) — decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation
 - [Spectral & Measurement API Map](spectral-api-map.md) — module dependency graph
 - [Waveform Amplitude & Composition](wfmgen-composition.md) — level/power conventions for wfmgen
+- [One Home for the Waveform Enum Tables](waveform-enum-ssot.md) — a name
+    table's ORDER is the C enum value, so a second copy mis-maps a flag
+    instead of failing: what owns the tables, and the gate that holds the
+    manifest, the header and the C enums to each other
 - [Continuously Variable Resampler](RESAMPLER.md) — polyphase resampler architecture, testing, and performance optimizations
 - [Acquisition Kernel](acq-fn.md) — pure-functional acquisition kernel for the elastic fleet

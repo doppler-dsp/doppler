@@ -209,11 +209,22 @@ entries = [
   { code = "D", ctype = "double" },               # -> float
 ]
 
-# ── Waveform enum single-source-of-truth (gh-285) ────────────────────────────
+# ── Waveform enum single-source-of-truth (gh-285, gh-760) ───────────────────
 # One string↔int table per synth enum; list order IS the C enum value
-# (append-only — never reorder). The wfm_compose composer (below) emits its C
-# lookup tables from these, collapsing the string tables historically duplicated
-# across wfmgen.c / wfm_json.c / wfmcompose_py.c / compose.py to this one source.
+# (append-only — never reorder).
+#
+# TWO consumers, and it took gh-760 to make the second one true. jm renders
+# the [[enum]] blocks into the binding's own lookup tables (`_enum_*` in
+# wfm_compose_ext.c). The C side reads them through ONE hand-written header,
+# native/inc/wfm/wfm_names.h, whose tables `make lint-wfm-enum-tables` holds
+# to the blocks below.
+#
+# This comment used to claim the collapse was already done "across wfmgen.c /
+# wfm_json.c / wfmcompose_py.c / compose.py". Measured, that was true of the
+# Python face only: wfmgen.c still declared twelve of its own tables and
+# wfm_json.c seven, one pair of them in OPPOSITE orders. Saying so was what
+# let it stand for a year — hence the gate, which cannot.
+# Design: docs/design/waveform-enum-ssot.md
 [module.wfm_reader]
 objects = ["wfm_reader"]
 # gh-523: an object module can now live in an existing subpackage, so Reader
@@ -2703,6 +2714,35 @@ values = ["auto", "fs", "ebno", "esno"]
 [[enum]]
 name = "wfm_lfsr"
 values = ["galois", "fibonacci"]
+
+# The three below name tables that no binding renders — the C side is their
+# only consumer. They are declared here anyway because doppler#760 made this
+# file the SSOT for the C tables too (native/inc/wfm/wfm_names.h, gated by
+# scripts/check_wfm_enum_tables.py), and an enum the gate cannot reach here
+# would be an enum with no declaration at all.
+
+# How much of a source's seed advances per repeat. Order IS
+# wfm_seed_advance_t (native/inc/wfm/wfm_compose.h): none = 0, then the two
+# cumulative levels.
+[[enum]]
+name = "seed_advance"
+values = ["none", "noise", "all"]
+
+# Where a continuous-DSSS source's data bits come from. Order IS
+# wfm_source_t.dsss_code_only: "prbs" is the seeded PN (0, the default) and
+# "none" is code-only (1), so the chosen index IS the field.
+[[enum]]
+name = "data_src"
+values = ["prbs", "none"]
+
+# WHICH CCSDS 131.0-B-6 section-10 randomiser ran. Order IS
+# wfm_source_t.randomise: "off" is 0 so an absent flag and an explicit off are
+# one value, "ccsds" is 10.4.1's `shall`, "legacy" is 10.4.2's 255-bit
+# sequence. Only the matching receiver derandomises a given waveform, so this
+# is three values rather than a bool.
+[[enum]]
+name = "randomise"
+values = ["off", "ccsds", "legacy"]
 
 # Where a frame field's bits come from. Order IS wfm_seq_kind_t
 # (native/inc/wfm/wfm_frame.h): literal = 0, then the three generated kinds.

@@ -37,7 +37,18 @@
 
 | Type | Name |
 | ---: | :--- |
+|  const char \*const | [**BITMOD\_NAMES**](#variable-bitmod_names)   = `{ "none", "bpsk", "qpsk" }`<br> |
+|  const char \*const | [**CRC\_NAMES**](#variable-crc_names)   = `{ "none", "crc16" }`<br> |
+|  const char \*const | [**DATA\_SRC\_NAMES**](#variable-data_src_names)   = `{ "prbs", "none" }`<br> |
+|  const char \*const | [**ENDIAN\_NAMES**](#variable-endian_names)   = `{ "le", "be" }`<br> |
+|  const char \*const | [**FTYPE\_NAMES**](#variable-ftype_names)   = `{ "raw", "csv", "blue", "sigmf" }`<br> |
+|  const char \*const | [**GAP\_NOISE\_NAMES**](#variable-gap_noise_names)   = `{ "auto", "off" }`<br> |
+|  const char \*const | [**LFSR\_NAMES**](#variable-lfsr_names)   = `{ "galois", "fibonacci" }`<br> |
 |  const char \*const | [**MODE\_NAMES**](#variable-mode_names)   = `{ "auto", "fs", "ebno", "esno" }`<br> |
+|  const char \*const | [**PULSE\_NAMES**](#variable-pulse_names)   = `{ "rect", "rrc" }`<br> |
+|  const char \*const | [**RANDOMISE\_NAMES**](#variable-randomise_names)   = `{ "off", "ccsds", "legacy" }`<br> |
+|  const char \*const | [**SEED\_ADVANCE\_NAMES**](#variable-seed_advance_names)   = `{ "none", "noise", "all" }`<br> |
+|  const char \*const | [**SEQ\_KIND\_NAMES**](#variable-seq_kind_names)   = `{ "literal", "pn", "gold", "dotted" }`<br> |
 |  const char \*const | [**STYPE\_NAMES**](#variable-stype_names)   = `/* multi line expression */`<br> |
 |  const char \*const | [**TYPE\_NAMES**](#variable-type_names)   = `/* multi line expression */`<br> |
 
@@ -93,10 +104,153 @@
 
 
 
+### variable BITMOD\_NAMES 
+
+```C++
+const char* const BITMOD_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable CRC\_NAMES 
+
+```C++
+const char* const CRC_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable DATA\_SRC\_NAMES 
+
+```C++
+const char* const DATA_SRC_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable ENDIAN\_NAMES 
+
+```C++
+const char* const ENDIAN_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable FTYPE\_NAMES 
+
+```C++
+const char* const FTYPE_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable GAP\_NOISE\_NAMES 
+
+```C++
+const char* const GAP_NOISE_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable LFSR\_NAMES 
+
+```C++
+const char* const LFSR_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
 ### variable MODE\_NAMES 
 
 ```C++
 const char* const MODE_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable PULSE\_NAMES 
+
+```C++
+const char* const PULSE_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable RANDOMISE\_NAMES 
+
+```C++
+const char* const RANDOMISE_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable SEED\_ADVANCE\_NAMES 
+
+```C++
+const char* const SEED_ADVANCE_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable SEQ\_KIND\_NAMES 
+
+```C++
+const char* const SEQ_KIND_NAMES[];
 ```
 
 

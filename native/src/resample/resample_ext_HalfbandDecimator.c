@@ -158,12 +158,19 @@ HalfbandDecimator_getprop_num_taps (HalfbandDecimatorObject *self,
       (unsigned long long)HalfbandDecimator_get_num_taps (self->handle));
 }
 
-static PyGetSetDef HalfbandDecimator_getset[]
-    = { { "rate", (getter)HalfbandDecimator_getprop_rate, NULL,
-          "Always returns 0.5.\n", NULL },
-        { "num_taps", (getter)HalfbandDecimator_getprop_num_taps, NULL,
-          "Returns the FIR branch length passed to create.\n", NULL },
-        { NULL } };
+static PyGetSetDef HalfbandDecimator_getset[] = {
+  { "rate", (getter)HalfbandDecimator_getprop_rate, NULL,
+    "Fixed decimation rate — always 0.5. The halfband decimator is "
+    "structurally 2:1; this property exists for API parity with Resampler "
+    "and RateConverter.\n",
+    NULL },
+  { "num_taps", (getter)HalfbandDecimator_getprop_num_taps, NULL,
+    "Number of FIR branch taps as passed to create. The all-pass "
+    "(even-phase) branch has no taps; only the odd-phase FIR branch has "
+    "length num_taps. The total prototype length is 2 * num_taps - 1.\n",
+    NULL },
+  { NULL }
+};
 
 static PyObject *
 HalfbandDecimatorObj_destroy (HalfbandDecimatorObject *self,

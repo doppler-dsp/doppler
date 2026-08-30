@@ -172,16 +172,22 @@ PolynomialPhaseEstimator_getprop_n_rate (PolynomialPhaseEstimatorObject *self,
       (unsigned long long)self->handle->n_rate);
 }
 
-static PyGetSetDef PolynomialPhaseEstimator_getset[]
-    = { { "max_len", (getter)PolynomialPhaseEstimator_getprop_max_len, NULL,
-          "max input length (sizes the plan/scratch).\n", NULL },
-        { "nfft", (getter)PolynomialPhaseEstimator_getprop_nfft, NULL,
-          "zero-padded transform length (next pow2 of max_len).\n", NULL },
-        { "max_rate", (getter)PolynomialPhaseEstimator_getprop_max_rate, NULL,
-          "chirp-rate search half-span (cycles/sample^2).\n", NULL },
-        { "n_rate", (getter)PolynomialPhaseEstimator_getprop_n_rate, NULL,
-          "number of chirp-rate hypotheses (1 if max_rate=0).\n", NULL },
-        { NULL } };
+static PyGetSetDef PolynomialPhaseEstimator_getset[] = {
+  { "max_len", (getter)PolynomialPhaseEstimator_getprop_max_len, NULL,
+    "max input length (sizes the plan/scratch).\n", NULL },
+  { "nfft", (getter)PolynomialPhaseEstimator_getprop_nfft, NULL,
+    "zero-padded transform length: 4 * next_pow2 (max_len). The 4x is "
+    "deliberate -- a finer frequency grid before the parabolic peak "
+    "refinement, which matters because the input is often short (preamble "
+    "partials, symbol streams). It also sizes `buf`, `spec` and `mag`, so "
+    "the footprint is 4x what a bare next-pow2 would suggest.\n",
+    NULL },
+  { "max_rate", (getter)PolynomialPhaseEstimator_getprop_max_rate, NULL,
+    "chirp-rate search half-span (cycles/sample^2).\n", NULL },
+  { "n_rate", (getter)PolynomialPhaseEstimator_getprop_n_rate, NULL,
+    "number of chirp-rate hypotheses (1 if max_rate=0).\n", NULL },
+  { NULL }
+};
 
 static PyObject *
 PolynomialPhaseEstimatorObj_destroy (PolynomialPhaseEstimatorObject *self,

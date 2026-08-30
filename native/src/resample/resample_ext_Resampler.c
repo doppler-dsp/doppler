@@ -423,10 +423,7 @@ static PyGetSetDef Resampler_getset[] = {
     "of (rate - 1) (i.e. crossing the boundary between interp and decim "
     "modes) requires a fresh create().\n",
     NULL },
-  { "num_phases", (getter)Resampler_getprop_num_phases, NULL,
-    "Number of polyphase branches in the filter bank. Always a power of two. "
-    "The built-in bank has 4096 phases giving sub-sample timing resolution of "
-    "1/4096 of an input sample period.\n",
+  { "num_phases", (getter)Resampler_getprop_num_phases, NULL, "Num phases.\n",
     NULL },
   { "num_taps", (getter)Resampler_getprop_num_taps, NULL,
     "Taps per polyphase branch. Total prototype filter length is num_phases * "

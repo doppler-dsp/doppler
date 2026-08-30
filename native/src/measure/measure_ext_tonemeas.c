@@ -556,15 +556,15 @@ static PyGetSetDef ToneMeasure_getset[]
         { "enbw", (getter)ToneMeasure_getprop_enbw, NULL,
           "Equivalent noise bandwidth, bins.\n", NULL },
         { "lobe_bins", (getter)ToneMeasure_getprop_lobe_bins, NULL,
-          "Window main-lobe half-width L [bins].\n", NULL },
+          "Window main-lobe half-width L (bins).\n", NULL },
         { "spur_guard_bins", (getter)ToneMeasure_getprop_spur_guard_bins, NULL,
           "Spur guard bins.\n", NULL },
         { "beta", (getter)ToneMeasure_getprop_beta, NULL, "Beta.\n", NULL },
         { "rbw", (getter)ToneMeasure_getprop_rbw, NULL, "Rbw.\n", NULL },
         { "bin_hz", (getter)ToneMeasure_getprop_bin_hz, NULL,
-          "FFT bin spacing = fs/nfft [Hz].\n", NULL },
+          "FFT bin spacing = fs/nfft (Hz).\n", NULL },
         { "proc_gain_db", (getter)ToneMeasure_getprop_proc_gain_db, NULL,
-          "FFT processing gain = 10log10(nfft/2) [dB].\n", NULL },
+          "FFT processing gain = 10log10(nfft/2) (dB).\n", NULL },
         { NULL } };
 
 static PyObject *

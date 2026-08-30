@@ -8,25 +8,38 @@ C engine, so their output is **byte-identical** for the same parameters.
 
 ## Composer parameter reference
 
-| Flag                    | Meaning                                                                                  |
-| ----------------------- | ---------------------------------------------------------------------------------------- |
-| `--from-file SPEC.json` | run a multi-segment spec                                                                 |
-| `json-template [FILE]`  | subcommand: dump an editable example spec (to `FILE`, else stdout)                       |
-| `--level DB`            | source level in dBFS (≤0); scales the segment by `10^(DB/20)` (SNR-invariant; default 0) |
-| `--headroom DB`         | back the output off to `−DB` dBFS so peaks fit (SNR-invariant; default 0)                |
-| `--clip-report`         | print the clipped fraction + peak; `--clip-error` exits non-zero on a clip               |
-| `--fc HZ`               | capture center frequency, written into BLUE/SigMF metadata                               |
-| `--off N`               | trailing gap after the segment (carries the noise floor; see below)                      |
-| `--delay N`             | leading gap before the segment — arrival delay / jitter                                  |
-| `--gap-noise M`         | `auto` (default: gaps carry the segment's noise floor) / `off` (hard zeros)              |
-| `--repeat`              | loop the whole sequence                                                                  |
-| `--continuous`          | never stop (implies repeat) — for streaming                                              |
-| `--seed-advance A`      | `none` (default) / `noise` / `all`: how the seed advances per repeat                     |
-| `--detached`            | BLUE only: write `<out>.hdr` (HCB) + `<out>.det` (data)                                  |
-| `--realtime`            | pace the output to `fs` (see [Streaming](streaming.md))                                  |
-| `--realtime-resync`     | like `--realtime`, but re-anchor to "now" on each underrun                               |
+| Flag                    | Meaning                                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------------------- |
+| `--from-file SPEC.json` | run a multi-segment spec                                                                  |
+| `json-template [FILE]`  | subcommand: dump an editable example spec (to `FILE`, else stdout)                        |
+| `--level DB`            | source level in dBFS (≤0); scales the segment by `10^(DB/20)` (SNR-invariant; default 0)  |
+| `--headroom DB`         | back the output off to `−DB` dBFS so peaks fit (SNR-invariant; default 0)                 |
+| `--clip-report`         | print the clipped fraction + peak; `--clip-error` exits non-zero on a clip                |
+| `--fc HZ`               | capture center frequency, written into BLUE/SigMF metadata                                |
+| `--off N`               | trailing gap after the segment (carries the noise floor; see below)                       |
+| `--delay N`             | leading gap before the segment — arrival delay / jitter                                   |
+| `--gap-noise M`         | `auto` (default: gaps carry the segment's noise floor) / `off` (hard zeros)               |
+| `--repeat`              | loop the whole sequence                                                                   |
+| `--continuous`          | never stop (implies repeat) — for streaming                                               |
+| `--seed-advance A`      | `none` (default) / `noise` / `all`: how the seed advances per repeat                      |
+| `--detached`            | BLUE only: write `<out>.hdr` (HCB) + `<out>.det` (data). Refuses `--realtime` — see below |
+| `--realtime`            | pace the output to `fs` (see [Streaming](streaming.md))                                   |
+| `--realtime-resync`     | like `--realtime`, but re-anchor to "now" on each underrun                                |
 
 ______________________________________________________________________
+
+!!! note "`--detached` is a file format, not a process model"
+
+    It selects BLUE's *detached header* — the HCB in `<out>.hdr`, the samples
+    in `<out>.det` — and nothing about how `wfmgen` runs. So it is refused,
+    rather than quietly dropped, alongside anything that cannot honour it:
+    `--realtime`/`--realtime-resync`, a `nats://` destination, or a
+    `--file-type` other than `blue`.
+
+    Pacing in particular has no consumer to serve: the `.hdr` carries the
+    final sample count, so it is written only once the run ends, and a
+    detached run must be finite anyway. To pace, write a single file
+    (`--file-type blue` without `--detached`) or stream to a broker.
 
 ## Sequencing segments in time
 

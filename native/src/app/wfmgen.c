@@ -494,6 +494,9 @@ static const char USAGE[]
       "                  half the information and mirrors the spectrum.\n"
       "  --file-type T   raw | csv | blue | sigmf (default raw)\n"
       "  --endian E      le | be (default le)\n"
+      "  --detached      BLUE detached header: the HCB to <out>.hdr and the\n"
+      "                  data to <out>.det, instead of one file. Needs\n"
+      "                  --file-type blue, --output, and a finite run.\n"
       "  --record FILE   Write a JSON record of the resolved run to FILE\n"
       "\n"
       "COMPOSITION\n"
@@ -508,7 +511,6 @@ static const char USAGE[]
       "REAL-TIME\n"
       "  --realtime      Pace output to wall-clock sample rate\n"
       "  --realtime-resync  Resync clock at each segment boundary\n"
-      "  --detached      Run as a detached background process\n"
       "\n"
       "SUBCOMMANDS\n"
       "  wfmgen json-template [FILE]\n"
@@ -1462,9 +1464,10 @@ emit_detached_blue (const emit_ctx_t *e)
   wfm_writer_state_t *w     = open_writer (e, df, WFM_FT_RAW);
   if (w)
     {
-      /* Unpaced, unlike the stream and file paths: --realtime has never
-         applied to a detached run. Preserved verbatim here rather than
-         quietly unified while extracting — see gh-725. */
+      /* Unpaced, unlike the stream and file paths, and now unreachable with
+         a clock: check_detached rejects --detached --realtime rather than
+         accepting a flag it would drop (gh-725). The 0 is therefore the only
+         possible value here, not a preserved asymmetry. */
       total = drain_to_writer (e, w, 0);
       rc    = close_writer (e, w);
     }
@@ -1602,11 +1605,67 @@ write_record (const emit_ctx_t *e, int repeating)
   free (json);
 }
 
+/* --detached selects a FILE FORMAT -- BLUE's detached header, the HCB in
+ * <out>.hdr and the samples in <out>.det -- and not a process model. It is
+ * honoured by exactly one destination, so every other combination silently
+ * dropped a flag the user typed (gh-725).
+ *
+ * Two were dropped. `--realtime` never reached the detached drain, and
+ * `--detached` itself was ignored whenever the destination was not a BLUE
+ * file: the dispatch tests `file_type == 2 && detached`, so a nats:// URL or
+ * any other --file-type fell through to the ordinary writer and produced one
+ * undetached file.
+ *
+ * Rejecting rather than pacing settles gh-725's open question, and the
+ * argument is the destination's own shape: the .hdr carries the final sample
+ * count, so it cannot be written until the drain ends, and --detached refuses
+ * an endless run anyway. There is no consumer that a paced detached write
+ * would serve -- nothing can read the pair until it is complete. Pacing it
+ * would only make a finite file take longer with nobody waiting.
+ *
+ * The confusion was seeded by this tool's own help, which described the flag
+ * as "Run as a detached background process" and filed it under REAL-TIME,
+ * where --realtime looks like it must apply. The guide and the CLI test had
+ * it right all along; the help and the flag-matrix exclusion did not.
+ *
+ * Returns 0, or the usage exit code.
+ */
+static int
+check_detached (const wfmgen_opts_t *o)
+{
+  if (!o->detached)
+    return 0;
+  if (o->realtime || o->realtime_resync)
+    {
+      (void)fprintf (stderr,
+                     "error: --detached does not pace: it selects BLUE's "
+                     "detached-header FILE FORMAT (<out>.hdr + <out>.det), "
+                     "and the header is written only once the run ends, so "
+                     "nothing can read the pair while it is being paced. "
+                     "Drop --realtime, or write a single file instead.\n");
+      return 2;
+    }
+  if (o->out_path && !strncmp (o->out_path, "nats://", 7))
+    {
+      (void)fprintf (stderr, "error: --detached writes a file pair; it has no "
+                             "meaning for a nats:// destination\n");
+      return 2;
+    }
+  if (o->file_type != 2)
+    {
+      (void)fprintf (stderr, "error: --detached is BLUE only; it needs "
+                             "--file-type blue\n");
+      return 2;
+    }
+  return 0;
+}
+
 /* Continuous-DSSS flag consistency, for a run built from the flags rather
  * than from a spec file. Every one of these rejects rather than silently
  * ignoring: the flags below are meaningless outside continuous DSSS, and a
  * knob that does nothing in the mode you are in is the worse failure (the
- * --detached precedent). Returns 0, or the usage exit code.
+ * --detached precedent, now enforced above rather than merely cited).
+ * Returns 0, or the usage exit code.
  */
 static int
 check_continuous_dsss (const wfmgen_opts_t *o)
@@ -1773,6 +1832,15 @@ doppler_wfmgen (int argc, char *argv[])
   o.seg.sources = &o.src;
 
   rc = parse_args (argc, argv, &o);
+  if (rc)
+    goto done;
+
+  /* Before the composer, and OUTSIDE the from_file branch below: --detached
+     is a destination flag, so it means the same thing whether the run was
+     built from a spec file or from the signal flags. check_continuous_dsss
+     is flags-only because the knobs it polices have spec-file equivalents
+     that the JSON reader validates itself. */
+  rc = check_detached (&o);
   if (rc)
     goto done;
 

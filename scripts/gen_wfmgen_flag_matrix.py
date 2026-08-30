@@ -72,9 +72,13 @@ SKIP = {
     # Aliases of a flag already covered; same arm, same field.
     "-o": "alias of --output, covered by out_file",
     "--randomize": "alias of --randomise, covered by bits_ccsds_cadu",
-    # Needs a reachable broker; the stream sink is an optional component
-    # and its absence is its own tested path in wfmgen_cli_test.cmake.
-    "--detached": "spawns a background process; see wfmgen_cli_test.cmake",
+    # Writes a PAIR of files rather than one, so there is no single output
+    # for this matrix to size. It does not spawn anything: --detached
+    # selects BLUE's detached-header format, the HCB in <out>.hdr and the
+    # samples in <out>.det. The reason here used to say "spawns a background
+    # process", which is what the tool's own --help said too (gh-725); the
+    # pair is covered file by file in wfmgen_cli_test.cmake.
+    "--detached": "writes <out>.hdr + <out>.det; see wfmgen_cli_test.cmake",
     # Paces to wall-clock. Pinning it would make the suite sleep.
     "--realtime": "paces to wall clock; would make the suite sleep",
     "--realtime-resync": "only meaningful with --realtime",

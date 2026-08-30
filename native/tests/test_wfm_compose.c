@@ -8,6 +8,7 @@
 #include "ccsds_tm/ccsds_tm.h"
 #include "ccsds_tm/ccsds_tm_frame.h"
 #include "dp_test.h"
+#include "gold/gold_core.h"
 #include "pn/pn_core.h"
 #include "wfm/wfm_compose.h"
 #include "wfm/wfm_dsp.h"   /* wfm_frame_dsss_* for the dsss burst section */
@@ -1964,6 +1965,72 @@ main (void)
 
     wfm_compose_destroy (jc);
     free (js);
+
+    /* GOLD and DOTTED through the same round trip, and a DSSS source's
+       spreading code, so every branch of the codec is driven by a test
+       rather than by one kind standing in for three. The Gold taps are the
+       header's own worked example, and the check is again EXTERNAL --
+       gold_generate of the same five numbers. */
+    {
+      wfm_source_t g;
+      memset (&g, 0, sizeof g);
+      g.type               = WFM_SYNTH_DSSS;
+      g.sps                = 2;
+      g.bits               = pay;
+      g.n_bits             = 8;
+      g.acq_reps           = 2;
+      g.acq_code.kind      = WFM_SEQ_DOTTED;
+      g.acq_code.len       = 8u;
+      g.data_code.kind     = WFM_SEQ_PN;
+      g.data_code.len      = 7u;
+      g.data_code.reg_bits = 3u;
+      g.data_code.seed     = 1u;
+      g.sync.kind          = WFM_SEQ_GOLD;
+      g.sync.len           = 16u;
+      g.sync.reg_bits      = 10u;
+      g.sync.taps_a        = 934u;
+      g.sync.seed_a        = 350u;
+      g.sync.taps_b        = 567u;
+      g.sync.seed_b        = 73u;
+
+      wfm_segment_t gseg
+          = { .sources = &g, .n_sources = 1, .fs = 1e6, .num_samples = 512 };
+      char *gjs = wfm_spec_to_json (&gseg, 1, 0, 0, 0, 0.0);
+      DP_REQUIRE_MSG (gjs, "gold/dotted to_json");
+      DP_REQUIRE_MSG (strstr (gjs, "\"sync_gen\"")
+                          && strstr (gjs, "\"acq_code_gen\"")
+                          && strstr (gjs, "\"data_code_gen\""),
+                      "all three sequences record their generators");
+      /* Checked as two pieces: cJSON separates a key from its value with a
+         tab, and pinning the whitespace would make this a formatting test. */
+      DP_REQUIRE_MSG (strstr (gjs, "\"taps_a\"") && strstr (gjs, "0x3a6"),
+                      "a Gold tap mask is recorded as HEX -- a uint64 does "
+                      "not survive a JSON number");
+
+      wfm_compose_state_t *gc = wfm_compose_from_json (gjs);
+      DP_REQUIRE_MSG (gc, "gold/dotted from_json");
+      wfm_compose_destroy (gc);
+      free (gjs);
+
+      /* The Gold sync's bits, against gold_generate of the same numbers. */
+      wfm_frame_desc_t gd;
+      DP_REQUIRE (wfm_source_describe_frame (&g, &gd) == 0);
+      const int gi = wfm_frame_field_index (&gd, "sync");
+      DP_REQUIRE (gi >= 0);
+      wfm_frame_desc_layout_t gl;
+      DP_REQUIRE (wfm_frame_desc_layout (&gd, &gl) == 0);
+      static uint8_t gbits[4096];
+      DP_REQUIRE (wfm_frame_assemble (&gd, NULL, gbits, sizeof gbits)
+                  == gl.out_bits);
+      static uint8_t gwant[16];
+      gold_state_t  *gs = gold_create (934u, 350u, 567u, 73u, 10u);
+      DP_REQUIRE (gs != NULL);
+      DP_REQUIRE (gold_generate (gs, 16u, gwant, 16u) == 16u);
+      gold_destroy (gs);
+      DP_REQUIRE_MSG (memcmp (gbits + gl.field_off[gi], gwant, 16u) == 0,
+                      "a recorded Gold sync IS gold_generate of its own "
+                      "five numbers");
+    }
 
     /* Refusals. Each of these BUILDS a waveform if ignored rather than
        refused, and it is not the recorded one -- which is the one failure a

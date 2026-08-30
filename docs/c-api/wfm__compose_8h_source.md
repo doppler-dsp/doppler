@@ -47,8 +47,14 @@ typedef struct {
                           cache slot (scaled/rotated/dropped as a unit), instead
                           of caching each individually. Ignored by compose().  */
     double f_end;      /* chirp end frequency (Hz); ignored by other types */
-    uint8_t *bits;     /* type=bits: pattern (0/1), owned; NULL otherwise */
-    size_t n_bits;     /* type=bits: pattern length */
+    /* The payload, as a SEQUENCE like its three siblings below rather than
+       a bare array. A literal keeps its bits at `payload.bits`/`payload.len`
+       exactly as `bits`/`n_bits` did; a GENERATED payload (PN/Gold/Dotted)
+       carries its parameters instead, which is what lets a 100k-bit frame be
+       six numbers in a --record. The bridge used to flatten this to
+       WFM_SEQ_LITERAL on the way to the descriptor -- the same copy that
+       made the preamble's generated kinds unreachable (gh-762). */
+    wfm_seq_t payload; /* type=bits: pattern; type=dsss: frame payload */
     int modulation;    /* type=bits: 0 none, 1 bpsk, 2 qpsk */
     float _Complex *symbols; /* type=symbols: stream, owned; NULL otherwise */
     size_t n_symbols;        /* type=symbols: stream length */

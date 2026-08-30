@@ -127,7 +127,7 @@ Synth_dealloc (SynthObject *self)
 {
   if (self->_gen)
     wfm_synth_destroy (self->_gen);
-  free (self->src.bits);
+  free ((void *)self->src.payload.bits);
   free (self->src.symbols);
   free ((void *)self->src.acq_code.bits);
   free ((void *)self->src.data_code.bits);
@@ -575,7 +575,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     {
       self->src.f_end = (double)0.0;
     }
-  if (!_attach_bytes (&self->src.bits, &self->src.n_bits, bits))
+  if (!_attach_bytes ((uint8_t **)&self->src.payload.bits,
+                      &self->src.payload.len, bits))
     return -1;
   {
     int _i = _enum_index (_enum_bitmod, modulation);
@@ -898,16 +899,19 @@ static PyObject *
 Synth_get_bits (SynthObject *self, void *closure)
 {
   (void)closure;
-  if (self->src.bits && self->src.n_bits)
-    return PyBytes_FromStringAndSize ((const char *)self->src.bits,
-                                      (Py_ssize_t)self->src.n_bits);
+  if (self->src.payload.bits && self->src.payload.len)
+    return PyBytes_FromStringAndSize ((const char *)self->src.payload.bits,
+                                      (Py_ssize_t)self->src.payload.len);
   Py_RETURN_NONE;
 }
 static int
 Synth_set_bits (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _attach_bytes (&self->src.bits, &self->src.n_bits, value) ? 0 : -1;
+  return _attach_bytes ((uint8_t **)&self->src.payload.bits,
+                        &self->src.payload.len, value)
+             ? 0
+             : -1;
 }
 static PyObject *
 Synth_get_modulation (SynthObject *self, void *closure)
@@ -2506,17 +2510,17 @@ _wfm_compose_segments_to_list (const wfm_segment_t *src, size_t n)
             }
           syn->src = src[i].sources[k]; /* scalars + bytes ptrs */
           syn->fs  = src[i].fs;
-          if (syn->src.bits && syn->src.n_bits)
+          if (syn->src.payload.bits && syn->src.payload.len)
             {
-              uint8_t *copy = (uint8_t *)malloc (syn->src.n_bits);
+              uint8_t *copy = (uint8_t *)malloc (syn->src.payload.len);
               if (copy)
-                memcpy (copy, syn->src.bits, syn->src.n_bits);
-              syn->src.bits = copy;
+                memcpy (copy, syn->src.payload.bits, syn->src.payload.len);
+              syn->src.payload.bits = copy;
             }
           else
             {
-              syn->src.bits   = NULL;
-              syn->src.n_bits = 0;
+              syn->src.payload.bits = NULL;
+              syn->src.payload.len  = 0;
             }
           if (syn->src.acq_code.bits && syn->src.acq_code.len)
             {

@@ -717,19 +717,19 @@ main (void)
     uint8_t sync[2]  = { 1, 0 };
     uint8_t pay[5]   = { 1, 0, 0, 1, 1 };
 
-    wfm_source_t dsss = { .type      = WFM_SYNTH_DSSS,
-                          .snr       = 6.0,
-                          .snr_mode  = 3, /* esno: outer data symbol */
-                          .seed      = 7,
-                          .sps       = 2,
-                          .pn_length = 7,
-                          .acq_code  = { .bits = acq, .len = 8 },
-                          .acq_reps  = 3,
-                          .data_code = { .bits = dcode, .len = 4 },
-                          .sync      = { .bits = sync, .len = 2 },
-                          .bits      = pay, /* payload */
-                          .n_bits    = 5,
-                          .crc       = 1 };
+    wfm_source_t dsss = { .type         = WFM_SYNTH_DSSS,
+                          .snr          = 6.0,
+                          .snr_mode     = 3, /* esno: outer data symbol */
+                          .seed         = 7,
+                          .sps          = 2,
+                          .pn_length    = 7,
+                          .acq_code     = { .bits = acq, .len = 8 },
+                          .acq_reps     = 3,
+                          .data_code    = { .bits = dcode, .len = 4 },
+                          .sync         = { .bits = sync, .len = 2 },
+                          .payload.bits = pay, /* payload */
+                          .payload.len  = 5,
+                          .crc          = 1 };
     /* deliberately wrong num_samples: the intrinsic on-time must win */
     wfm_segment_t g = { .sources     = &dsss,
                         .n_sources   = 1,
@@ -764,15 +764,15 @@ main (void)
         wfm_frame_dsss_chips (acq, 8, 3, dcode, 4, sync, 2, pay, 5, 1, chips)
             == nchips,
         "hand chips");
-    wfm_source_t         bits = { .type       = WFM_SYNTH_BITS,
-                                  .snr        = 6.0 - 10.0 * log10 (4.0 * 2.0),
-                                  .snr_mode   = 1, /* fs */
-                                  .seed       = 7,
-                                  .sps        = 2,
-                                  .pn_length  = 7,
-                                  .bits       = chips,
-                                  .n_bits     = nchips,
-                                  .modulation = 1 };
+    wfm_source_t         bits = { .type      = WFM_SYNTH_BITS,
+                                  .snr       = 6.0 - 10.0 * log10 (4.0 * 2.0),
+                                  .snr_mode  = 1, /* fs */
+                                  .seed      = 7,
+                                  .sps       = 2,
+                                  .pn_length = 7,
+                                  .payload.bits = chips,
+                                  .payload.len  = nchips,
+                                  .modulation   = 1 };
     wfm_segment_t        gb   = { .sources     = &bits,
                                   .n_sources   = 1,
                                   .fs          = 1e6,
@@ -1534,13 +1534,13 @@ main (void)
     static const uint8_t acq_bits[8] = { 1, 0, 1, 0, 1, 0, 1, 0 };
     static const uint8_t payload[16]
         = { 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0 };
-    wfm_source_t plain   = { .type       = WFM_SYNTH_BITS,
-                             .snr        = 100.0,
-                             .sps        = 1,
-                             .pn_length  = 7,
-                             .bits       = (uint8_t *)payload,
-                             .n_bits     = sizeof payload,
-                             .modulation = 1 /* bpsk */ };
+    wfm_source_t plain   = { .type         = WFM_SYNTH_BITS,
+                             .snr          = 100.0,
+                             .sps          = 1,
+                             .pn_length    = 7,
+                             .payload.bits = (uint8_t *)payload,
+                             .payload.len  = sizeof payload,
+                             .modulation   = 1 /* bpsk */ };
     wfm_source_t framed  = plain;
     framed.acq_code.bits = acq_bits;
     framed.acq_code.len  = sizeof acq_bits;
@@ -1563,24 +1563,54 @@ main (void)
     /* The frame is honoured where the payload is explicit, and refused with a
        reason where it is not — never accepted and dropped. */
     DP_REQUIRE_MSG (wfm_source_frame_error (&framed) == NULL, "bits is fine");
+
+    /* A PN-sourced waveform CAN be framed now, given a payload. #755 refused
+       --type bpsk outright because the synth's LFSR is endless and nothing
+       said where the payload stopped; a payload length is that bound, so the
+       question is the one BITS always answered -- is there a payload at all
+       (gh-762). */
     wfm_source_t framed_pn = framed;
     framed_pn.type         = WFM_SYNTH_BPSK; /* symbols from the PN LFSR */
-    DP_REQUIRE_MSG (wfm_source_frame_error (&framed_pn) != NULL,
-                    "a frame on a PN-sourced waveform has no payload length");
+    DP_REQUIRE_MSG (wfm_source_frame_error (&framed_pn) == NULL,
+                    "a bounded payload is what a framed PN-sourced waveform "
+                    "was ever missing");
+    wfm_synth_state_t *psy = wfm_source_to_synth (&framed_pn, 1e6);
+    DP_REQUIRE_MSG (psy, "and it BUILDS on the standalone face");
+    wfm_synth_destroy (psy);
+
+    /* The same source with a GENERATED payload -- the shape --payload-len
+       resolves to, and what makes a 100k-bit frame six numbers in a record. */
+    wfm_source_t framed_gen = framed_pn;
+    framed_gen.payload
+        = (wfm_seq_t){ .kind = WFM_SEQ_PN, .len = 64, .reg_bits = 7 };
+    DP_REQUIRE_MSG (wfm_source_frame_error (&framed_gen) == NULL,
+                    "a generated payload is a payload -- tested on LENGTH, "
+                    "never on the array a generated kind does not have");
+    wfm_synth_state_t *gsy = wfm_source_to_synth (&framed_gen, 1e6);
+    DP_REQUIRE_MSG (gsy, "a framed waveform whose payload is GENERATED "
+                         "builds -- the last place gh-762's flattening "
+                         "survived was this descriptor's payload field");
+    wfm_synth_destroy (gsy);
+
     wfm_source_t framed_empty = framed;
-    framed_empty.bits         = NULL;
-    framed_empty.n_bits       = 0;
+    framed_empty.payload.bits = NULL;
+    framed_empty.payload.len  = 0;
     DP_REQUIRE_MSG (wfm_source_frame_error (&framed_empty) != NULL,
                     "a frame with no payload is refused");
 
-    /* And the refusal REACHES the caller on both faces. Asserting only that
-       the predicate returns a message would leave the two construction paths
-       free to ignore it — which is precisely the shape of the bug: the fields
-       were validated nowhere and dropped silently. */
-    DP_REQUIRE_MSG (!wfm_source_to_synth (&framed_pn, 1.0),
+    /* A type that carries no bit stream at all still cannot be framed, and
+       the refusal REACHES the caller on both faces. Asserting only that the
+       predicate returns a message would leave the two construction paths free
+       to ignore it — which is precisely the shape of the bug: the fields were
+       validated nowhere and dropped silently. */
+    wfm_source_t framed_chirp = framed;
+    framed_chirp.type         = WFM_SYNTH_CHIRP;
+    DP_REQUIRE_MSG (wfm_source_frame_error (&framed_chirp) != NULL,
+                    "a chirp has no bit stream to frame, payload or not");
+    DP_REQUIRE_MSG (!wfm_source_to_synth (&framed_chirp, 1.0),
                     "the standalone face refuses a frame the waveform type "
                     "cannot carry");
-    wfm_segment_t bad_seg = { .sources     = &framed_pn,
+    wfm_segment_t bad_seg = { .sources     = &framed_chirp,
                               .n_sources   = 1,
                               .fs          = 1e6,
                               .num_samples = 64,
@@ -1703,8 +1733,8 @@ main (void)
                           .sps                  = 1,
                           .pn_length            = 7,
                           .modulation           = 1,
-                          .bits                 = frame,
-                          .n_bits               = sizeof frame,
+                          .payload.bits         = frame,
+                          .payload.len          = sizeof frame,
                           .crc                  = 0,
                           .rs_depth             = 1,
                           .interleave_depth     = 5,
@@ -1736,8 +1766,8 @@ main (void)
        payload bits and no CRC is two units of 8, so depth 2 divides it. */
     wfm_source_t         no_outer    = cadu;
     static const uint8_t sixteen[16] = { 0 };
-    no_outer.bits                    = (uint8_t *)sixteen;
-    no_outer.n_bits                  = sizeof sixteen;
+    no_outer.payload.bits            = (uint8_t *)sixteen;
+    no_outer.payload.len             = sizeof sixteen;
     no_outer.rs_depth                = 0;
     no_outer.interleave_depth        = 2;
     DP_REQUIRE_MSG (wfm_source_frame_error (&no_outer) == NULL,
@@ -1805,8 +1835,8 @@ main (void)
                              .sps                  = 1,
                              .pn_length            = 7,
                              .modulation           = 1,
-                             .bits                 = payload,
-                             .n_bits               = n_bits,
+                             .payload.bits         = payload,
+                             .payload.len          = n_bits,
                              .attach_asm           = CASES[c].asm_,
                              .crc                  = CASES[c].crc,
                              .rs_depth             = (unsigned)CASES[c].rs,
@@ -1839,8 +1869,8 @@ main (void)
           .preamble_reps        = src.acq_reps,
           .sync                 = src.sync.bits,
           .sync_len             = src.sync.len,
-          .payload              = src.bits,
-          .payload_len          = src.n_bits,
+          .payload              = src.payload.bits,
+          .payload_len          = src.payload.len,
           .crc                  = src.crc,
           .rs_depth             = src.rs_depth,
           .randomise            = src.randomise,
@@ -1906,8 +1936,8 @@ main (void)
     memset (&src, 0, sizeof src);
     src.type          = WFM_SYNTH_BITS;
     src.sps           = 2;
-    src.bits          = pay;
-    src.n_bits        = sizeof pay;
+    src.payload.bits  = pay;
+    src.payload.len   = sizeof pay;
     src.sync.kind     = WFM_SEQ_PN;
     src.sync.len      = 31u; /* one period of a 5-bit register */
     src.sync.reg_bits = 5u;
@@ -1986,8 +2016,8 @@ main (void)
     memset (&src, 0, sizeof src);
     src.type          = WFM_SYNTH_BITS;
     src.sps           = 2;
-    src.bits          = pay;
-    src.n_bits        = sizeof pay;
+    src.payload.bits  = pay;
+    src.payload.len   = sizeof pay;
     src.sync.kind     = WFM_SEQ_PN;
     src.sync.len      = 31u;
     src.sync.reg_bits = 5u;
@@ -2044,8 +2074,8 @@ main (void)
       memset (&g, 0, sizeof g);
       g.type               = WFM_SYNTH_DSSS;
       g.sps                = 2;
-      g.bits               = pay;
-      g.n_bits             = 8;
+      g.payload.bits       = pay;
+      g.payload.len        = 8;
       g.acq_reps           = 2;
       g.acq_code.kind      = WFM_SEQ_DOTTED;
       g.acq_code.len       = 8u;
@@ -2183,17 +2213,17 @@ main (void)
 
     /* A burst with NO acquisition preamble. The expansion still runs over the
        absent field and must yield nothing rather than invent one. */
-    wfm_source_t       nopre = { .type      = WFM_SYNTH_DSSS,
-                                 .snr       = 40.0,
-                                 .snr_mode  = 1,
-                                 .seed      = 7,
-                                 .sps       = 2,
-                                 .pn_length = 7,
-                                 .data_code = { .bits = dcode4, .len = 4 },
-                                 .sync      = { .bits = sync2, .len = 2 },
-                                 .bits      = pay5,
-                                 .n_bits    = 5,
-                                 .crc       = 1 };
+    wfm_source_t       nopre = { .type         = WFM_SYNTH_DSSS,
+                                 .snr          = 40.0,
+                                 .snr_mode     = 1,
+                                 .seed         = 7,
+                                 .sps          = 2,
+                                 .pn_length    = 7,
+                                 .data_code    = { .bits = dcode4, .len = 4 },
+                                 .sync         = { .bits = sync2, .len = 2 },
+                                 .payload.bits = pay5,
+                                 .payload.len  = 5,
+                                 .crc          = 1 };
     wfm_synth_state_t *ns    = wfm_source_to_synth (&nopre, 1e6);
     DP_REQUIRE_MSG (ns, "a burst with a sync word and no preamble is a burst");
     wfm_synth_destroy (ns);

@@ -45,6 +45,8 @@ wfm_source_has_frame (const wfm_source_t *src)
              || src->randomise || src->convolutional);
 }
 
+static int type_can_frame (const wfm_source_t *src);
+
 const char *
 wfm_source_frame_error (const wfm_source_t *src)
 {
@@ -60,17 +62,23 @@ wfm_source_frame_error (const wfm_source_t *src)
       /* A burst SPREADS its frame, so frame bits without a code are not a
          geometry this can build. It used to leave a zero-length capture and
          exit 0 -- a refusal nobody was told about. */
-      if ((src->sync.len || src->n_bits) && src->data_code.len == 0)
+      if ((src->sync.len || src->payload.len) && src->data_code.len == 0)
         return "a DSSS burst spreads its frame: --data-code is required "
                "whenever there are frame bits (--sync/--bits) to spread";
     }
-  else if (src->type != WFM_SYNTH_BITS)
-    return "--acq-code/--sync frame a waveform, and a frame needs an explicit "
-           "payload: use --type bits with --bits (--modulation bpsk|qpsk), or "
-           "--type dsss to spread it";
-  else if (!src->bits || src->n_bits == 0)
-    return "a frame needs a payload: --type bits with --acq-code/--sync also "
-           "needs --bits";
+  else if (!type_can_frame (src))
+    return "--acq-code/--sync frame a waveform, and this type carries no bit "
+           "stream to frame: use --type bits/bpsk/qpsk/pn, or --type dsss to "
+           "spread it";
+  /* LENGTH, not the pointer: a generated payload has no array. #755 refused
+     the PN-sourced types outright here because their data is endless and
+     nothing bounded it; --payload-len is that bound, so the question is now
+     the same one BITS always answered -- is there a payload at all
+     (gh-762). */
+  else if (src->payload.len == 0)
+    return "a frame needs a payload: --bits (or --bits-hex/--bits-file), "
+           "--payload-gen for a generated one, or --payload-len to bound one "
+           "the waveform's own PN fills";
 
   /* The stage rules below reach a DSSS burst too, now that its frame is the
      same description every other source's is (doppler#1017). Before that they
@@ -92,7 +100,8 @@ wfm_source_frame_error (const wfm_source_t *src)
      receiver it was aimed at. */
   if (src->rs_depth != 0)
     {
-      const size_t data = src->n_bits + (src->crc ? WFM_FRAME_CRC_BITS : 0u);
+      const size_t data
+          = src->payload.len + (src->crc ? WFM_FRAME_CRC_BITS : 0u);
       const size_t want = (size_t)CCSDS_TM_RS_K * src->rs_depth * 8u;
       if (data != want)
         return "--rs-depth needs the payload (plus its CRC, if any) to be "
@@ -131,7 +140,7 @@ wfm_source_frame_error (const wfm_source_t *src)
           = src->rs_depth ? (size_t)CCSDS_TM_RS_2E * (size_t)src->rs_depth * 8u
                           : 0u;
       const size_t data
-          = src->n_bits + (src->crc ? WFM_FRAME_CRC_BITS : 0u) + parity;
+          = src->payload.len + (src->crc ? WFM_FRAME_CRC_BITS : 0u) + parity;
       const size_t cell = (size_t)src->interleave_depth * unit;
       if (cell == 0 || data == 0 || data % cell != 0)
         return "--interleave needs the data group (payload, its CRC if any, "
@@ -223,12 +232,13 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
     }
 
   /* The payload is a field even when its bits are unknown: a receiver holds
-     the geometry and fills the contents in later. */
-  memset (&seq, 0, sizeof seq);
-  seq.kind = WFM_SEQ_LITERAL;
-  seq.bits = src->bits;
-  seq.len  = src->n_bits;
-  if (wfm_frame_add_field (d, "payload", &seq, 0u) < 0)
+     the geometry and fills the contents in later.
+
+     PASSED THROUGH, like the preamble above and for the same reason. This
+     used to copy the array into a fresh WFM_SEQ_LITERAL, which discarded a
+     generated payload before the descriptor could see it -- the last place
+     gh-762's flattening survived after the preamble and sync were fixed. */
+  if (wfm_frame_add_field (d, "payload", &src->payload, 0u) < 0)
     return -1;
   if (!first)
     first = "payload";
@@ -331,18 +341,69 @@ seq_to_chips (const wfm_seq_t *q, size_t *n)
   return buf;
 }
 
+/* The symbol mapping a framed source's bits take.
+ *
+ * A `bits` source says so with --modulation. The PN-sourced types SAY it in
+ * their own name -- a framed --type qpsk is Gray-coded QPSK over the frame,
+ * not over the PN stream it would otherwise have emitted -- so asking for a
+ * --modulation there would be a second way to spell the type. */
+static int
+frame_modulation (const wfm_source_t *src)
+{
+  switch (src->type)
+    {
+    case WFM_SYNTH_QPSK:
+      return 2; /* qpsk */
+    case WFM_SYNTH_BPSK:
+    case WFM_SYNTH_PN:
+      return 1; /* bpsk */
+    default:
+      return src->modulation;
+    }
+}
+
+/* Can this waveform type carry a frame at all?
+ *
+ * BITS always could. The PN-sourced types could not, for one reason: their
+ * data comes from the synth's own LFSR, which is endless, so there was no
+ * length to bound a payload with and #755 refused them outright. A payload
+ * LENGTH is exactly what removes that -- once the payload field has a size,
+ * a framed --type bpsk is the same descriptor every other source builds
+ * (gh-762). CHIRP, TONE, NOISE and SYMBOLS carry no bit stream at all and
+ * still cannot. */
+static int
+type_can_frame (const wfm_source_t *src)
+{
+  return src->type == WFM_SYNTH_BITS || src->type == WFM_SYNTH_BPSK
+         || src->type == WFM_SYNTH_QPSK || src->type == WFM_SYNTH_PN;
+}
+
 int
 wfm_source_attach_frame (wfm_synth_state_t *syn, const wfm_source_t *src)
 {
-  if (src->type != WFM_SYNTH_BITS || !src->bits || !src->n_bits)
+  /* Tested on LENGTH, not on the pointer: a GENERATED payload has no array,
+     and reading it as "no payload" is how the generated kinds stayed
+     unreachable everywhere else in this file. */
+  if (!type_can_frame (src) || src->payload.len == 0)
     return 0; /* nothing to attach; mirrors wfm_synth_set_bits */
   if (!wfm_source_has_frame (src))
-    return wfm_synth_set_bits (syn, src->bits, src->n_bits, src->modulation);
+    {
+      /* Unframed. Only a BITS source transmits its payload directly -- for
+         the PN-sourced types an unframed payload is not a waveform they
+         have, so they keep emitting their own stream. */
+      if (src->type != WFM_SYNTH_BITS)
+        return 0;
+      size_t   n   = 0;
+      uint8_t *bts = seq_to_chips (&src->payload, &n);
+      if (!bts)
+        return -1;
+      const int rc = wfm_synth_set_bits (syn, bts, n, src->modulation);
+      free (bts);
+      return rc;
+    }
 
-  /* Framed: the pattern is the whole frame, assembled by the one descriptor.
-     Every caller-supplied field is LITERAL here because that is all a source
-     can carry today — the generated PN/Gold kinds `wfm_seq_t` supports have
-     no spelling on any face yet (gh-755). */
+  /* Framed: the pattern is the whole frame, assembled by the one
+     descriptor, whatever waveform type carries it. */
   wfm_frame_desc_t d;
   if (wfm_source_describe_frame (src, &d) != 0)
     return -1;
@@ -370,7 +431,7 @@ wfm_source_attach_frame (wfm_synth_state_t *syn, const wfm_source_t *src)
       return -1;
     }
   /* set_bits copies, so the frame buffer is ours to release. */
-  int rc = wfm_synth_set_bits (syn, bits, n, src->modulation);
+  int rc = wfm_synth_set_bits (syn, bits, n, frame_modulation (src));
   free (bits);
   return rc;
 }
@@ -390,15 +451,16 @@ wfm_source_attach_dsss (wfm_synth_state_t *syn, const wfm_source_t *src,
          regenerate. (Code-only, --data none, arrives with the CLI flag.) */
       double cps
           = (src->sps > 0) ? (fs / (double)src->sps) / src->symbol_rate : 0.0;
-      int      mode = src->dsss_code_only          ? WFM_DSSS_DATA_NONE
-                      : (src->bits && src->n_bits) ? WFM_DSSS_DATA_BITS
-                                                   : WFM_DSSS_DATA_PRBS;
+      int      mode = src->dsss_code_only ? WFM_DSSS_DATA_NONE
+                      : (src->payload.bits && src->payload.len)
+                          ? WFM_DSSS_DATA_BITS
+                          : WFM_DSSS_DATA_PRBS;
       size_t   dn   = 0;
       uint8_t *dchp = seq_to_chips (&src->data_code, &dn);
       if (!dchp)
         return -1;
-      const int rc = wfm_synth_set_dsss_cont (syn, dchp, dn, cps, mode,
-                                              src->bits, src->n_bits);
+      const int rc = wfm_synth_set_dsss_cont (
+          syn, dchp, dn, cps, mode, src->payload.bits, src->payload.len);
       free (dchp);
       return rc;
     }
@@ -466,7 +528,7 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
      so the generated Synth_ensure_gen turns this NULL into an error at first
      generation (the old Synth.__init__ raised eagerly; standalone generation
      is lazy, so the guard moves to first steps()/step()). */
-  if (src->type == WFM_SYNTH_BITS && (!src->bits || !src->n_bits))
+  if (src->type == WFM_SYNTH_BITS && (!src->payload.bits || !src->payload.len))
     return NULL;
   /* Likewise a "symbols" waveform needs a constellation stream. */
   if (src->type == WFM_SYNTH_SYMBOLS && (!src->symbols || !src->n_symbols))
@@ -476,8 +538,8 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
      0) has no frame — it needs only a spreading code. */
   if (src->type == WFM_SYNTH_DSSS && src->symbol_rate <= 0.0
       && wfm_frame_dsss_nchips (src->acq_code.len, src->acq_reps,
-                                src->data_code.len, src->sync.len, src->n_bits,
-                                src->crc)
+                                src->data_code.len, src->sync.len,
+                                src->payload.len, src->crc)
              == 0)
     return NULL;
   /* LEN, not `bits`. A generated spreading code carries `bits == NULL` by

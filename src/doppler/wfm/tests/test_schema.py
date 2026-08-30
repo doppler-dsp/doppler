@@ -542,6 +542,28 @@ _VALID_STATICS: list[tuple[str, dict[str, Any]]] = [
             ],
         },
     ),
+    (
+        # gh-762's last field. The payload wears two literal names --
+        # "pattern" on a bits source, "payload" on a dsss one -- but ONE
+        # generator key, because it is one field.
+        "generated_payload",
+        {
+            "version": 1,
+            "segments": [
+                {
+                    **_SEG,
+                    "payload_gen": {
+                        "kind": "pn",
+                        "len": 1024,
+                        "reg_bits": 10,
+                        "poly": "0x409",
+                        "seed": "0x1",
+                        "lfsr": 0,
+                    },
+                }
+            ],
+        },
+    ),
 ]
 
 _INVALID_STATICS: list[tuple[str, dict[str, Any]]] = [

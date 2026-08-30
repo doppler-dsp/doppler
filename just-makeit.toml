@@ -1209,6 +1209,11 @@ type = "uint8_t*"
 bytes = true
 aliases = ["pattern", "payload"]
 coerce = "bit_pattern"
+# gh-762: the payload is a `wfm_seq_t` like its three siblings now, so it can
+# carry a GENERATED kind instead of only a literal array. The Python kwarg
+# and its aliases are unchanged -- only where the owned array lives moved.
+c_ptr = "payload.bits"
+c_len = "payload.len"
 doc = "For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill the request. For type=dsss (as `payload`): the payload bits of the burst frame."
 
 [[module.wfm_compose.source.fields]]

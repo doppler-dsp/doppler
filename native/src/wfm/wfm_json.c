@@ -88,7 +88,7 @@ free_src_bits (wfm_source_t *srcs, size_t ns)
   if (srcs)
     for (size_t k = 0; k < ns; k++)
       {
-        free (srcs[k].bits);
+        free (srcs[k].payload.bits);
         free (srcs[k].symbols);
         free ((void *)srcs[k].acq_code.bits);
         free ((void *)srcs[k].data_code.bits);
@@ -146,9 +146,9 @@ add_bits_fields (cJSON *o, const wfm_source_t *src)
     return;
   int bm = (src->modulation >= 0 && src->modulation < 3) ? src->modulation : 1;
   cJSON_AddStringToObject (o, "modulation", BITMOD_NAMES[bm]);
-  if (src->bits && src->n_bits)
+  if (src->payload.bits && src->payload.len)
     {
-      char *bs = bits_to_string (src->bits, src->n_bits);
+      char *bs = bits_to_string (src->payload.bits, src->payload.len);
       if (bs)
         {
           cJSON_AddStringToObject (o, "pattern", bs);
@@ -263,6 +263,14 @@ add_frame_fields (cJSON *o, const wfm_source_t *src)
 static void
 add_dsss_fields (cJSON *o, const wfm_source_t *src)
 {
+  /* The payload's GENERATOR, emitted here because this is the one helper
+     BOTH emit paths reach for EVERY type -- the frozen 1-source inline form
+     and the multi-source `sum` each build their own field list, so a key
+     added to only one of them is a key half the records lose. It sits beside
+     its two literal spellings rather than inside them ("pattern" on a bits
+     source, "payload" on a dsss one): one field under two names, and a
+     generated payload has bits for neither to write. */
+  add_seq_gen (o, "payload_gen", &src->payload);
   if (src->type != WFM_SYNTH_DSSS)
     {
       /* Not spread, but possibly framed. */
@@ -277,7 +285,7 @@ add_dsss_fields (cJSON *o, const wfm_source_t *src)
     {
       add_bit_string (o, "data_code", src->data_code.bits, src->data_code.len);
       add_seq_gen (o, "data_code_gen", &src->data_code);
-      add_bit_string (o, "payload", src->bits, src->n_bits);
+      add_bit_string (o, "payload", src->payload.bits, src->payload.len);
       cJSON_AddNumberToObject (o, "symbol_rate", src->symbol_rate);
       if (src->dsss_code_only) /* omit for the data-modulated default */
         cJSON_AddStringToObject (o, "data", "none");
@@ -290,7 +298,7 @@ add_dsss_fields (cJSON *o, const wfm_source_t *src)
   add_seq_gen (o, "data_code_gen", &src->data_code);
   add_bit_string (o, "sync", src->sync.bits, src->sync.len);
   add_seq_gen (o, "sync_gen", &src->sync);
-  add_bit_string (o, "payload", src->bits, src->n_bits);
+  add_bit_string (o, "payload", src->payload.bits, src->payload.len);
   cJSON_AddStringToObject (o, "crc", CRC_NAMES[src->crc ? 1 : 0]);
 }
 
@@ -598,8 +606,8 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
       const char  *patt_str = cJSON_GetStringValue (pat);
       if (patt_str)
         {
-          out->bits = string_to_bits (patt_str, &out->n_bits);
-          if (!out->bits)
+          out->payload.bits = string_to_bits (patt_str, &out->payload.len);
+          if (!out->payload.bits)
             return -1;
         }
     }
@@ -638,8 +646,8 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
             cJSON_GetObjectItemCaseSensitive (so, "pattern"));
       if (pay)
         {
-          out->bits = string_to_bits (pay, &out->n_bits);
-          if (!out->bits)
+          out->payload.bits = string_to_bits (pay, &out->payload.len);
+          if (!out->payload.bits)
             {
               free_src_bits (out, 1); /* drop this source's partials */
               return -1;
@@ -656,6 +664,22 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
                          DATA_NAMES, 2)
              == 0);
     }
+  /* The payload's generator, read once for every type. Its literal spelling
+     is "pattern" on a bits source and "payload" on a dsss one -- the same
+     field under two names -- so whichever is PRESENT is the one refused
+     alongside the generator. A record carrying both is refused rather than
+     resolved, for the reason read_seq_gen gives. */
+  if (read_seq_gen (so,
+                    cJSON_GetObjectItemCaseSensitive (so, "payload")
+                        ? "payload"
+                        : "pattern",
+                    "payload_gen", &out->payload)
+      != 0)
+    {
+      free_src_bits (out, 1);
+      return -1;
+    }
+
   if (t == WFM_SYNTH_SYMBOLS)
     {
       const cJSON *sy = cJSON_GetObjectItemCaseSensitive (so, "symbols");
@@ -816,17 +840,17 @@ wfm_spec_template_json (void)
     .seed      = 1,
   };
   wfm_source_t bits = {
-    .type       = WFM_SYNTH_BITS,
-    .snr        = 30.0,
-    .sps        = 8,
-    .pn_length  = 7,
-    .seed       = 1,
-    .modulation = 2, /* qpsk */
-    .bits       = (uint8_t *)pattern,
-    .n_bits     = sizeof (pattern),
-    .pulse      = 1, /* rrc */
-    .rrc_beta   = 0.35,
-    .rrc_span   = 8,
+    .type         = WFM_SYNTH_BITS,
+    .snr          = 30.0,
+    .sps          = 8,
+    .pn_length    = 7,
+    .seed         = 1,
+    .modulation   = 2, /* qpsk */
+    .payload.bits = (uint8_t *)pattern,
+    .payload.len  = sizeof (pattern),
+    .pulse        = 1, /* rrc */
+    .rrc_beta     = 0.35,
+    .rrc_span     = 8,
   };
   wfm_source_t mix[2] = {
     { .type      = WFM_SYNTH_BPSK, /* anchor: sets the noise floor */

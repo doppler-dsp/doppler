@@ -2054,6 +2054,96 @@ main (void)
             "\"pattern\":\"0101\",\"sync_gen\":{\"kind\":\"pn\",\"len\":8,"
             "\"reg_bits\":0}}]}"),
         "a PN with no register width is refused");
+    DP_REQUIRE_MSG (
+        !wfm_compose_from_json (
+            "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"bits\","
+            "\"pattern\":\"0101\",\"sync_gen\":5}]}"),
+        "a generator block that is not an object is refused -- a scalar there "
+        "is a writer this reader does not understand");
+    DP_REQUIRE_MSG (
+        !wfm_compose_from_json (
+            "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"bits\","
+            "\"pattern\":\"0101\",\"sync_gen\":{\"kind\":\"pn\","
+            "\"reg_bits\":5}}]}"),
+        "a generator with no length is refused -- length is the one parameter "
+        "no default can supply");
+    DP_REQUIRE_MSG (
+        !wfm_compose_from_json (
+            "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"bits\","
+            "\"pattern\":\"0101\",\"sync_gen\":{\"kind\":\"gold\",\"len\":8,"
+            "\"reg_bits\":65}}]}"),
+        "a Gold register wider than the 64 bits gold_create() holds is "
+        "refused, not silently masked down");
+    DP_REQUIRE_MSG (
+        !wfm_compose_from_json (
+            "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"dsss\","
+            "\"data_code_gen\":{\"kind\":\"martian\",\"len\":8}}]}"),
+        "a malformed data_code_gen is refused on the dsss source too -- the "
+        "spread half reads its generators through the same gate");
+  }
+
+  /* ── the chip path MATERIALISES a generated code ─────────────────
+   *
+   * The DSSS chip builders take raw arrays, never a description, so a
+   * generated `data_code`/`acq_code` -- whose parameters ARE the code, with
+   * `bits == NULL` -- has to be expanded before it reaches them. Read through
+   * as a pointer it dereferenced NULL; refused on the pointer it became "no
+   * code at all". Both are asserted on the STANDALONE face, because that is
+   * the one a `--from-file` record restores through. */
+  {
+    static const uint8_t dcode4[4] = { 0, 1, 1, 0 };
+    static const uint8_t sync2[2]  = { 1, 0 };
+    static uint8_t       pay5[5]   = { 1, 0, 0, 1, 1 };
+
+    /* CONTINUOUS, spread by a generated PN. This is exactly the shape a
+       recorded `data_code_gen` restores to. */
+    wfm_source_t cgen
+        = { .type        = WFM_SYNTH_DSSS,
+            .snr         = 40.0,
+            .snr_mode    = 1,
+            .seed        = 7,
+            .sps         = 2,
+            .pn_length   = 7,
+            .symbol_rate = 1e4,
+            .data_code   = { .kind = WFM_SEQ_PN, .len = 31, .reg_bits = 5 } };
+    wfm_synth_state_t *cs = wfm_source_to_synth (&cgen, 1e6);
+    DP_REQUIRE_MSG (cs,
+                    "a continuous stream spread by a GENERATED code builds -- "
+                    "a generated code carries no array, so a pointer test "
+                    "refused every recorded data_code_gen on this face");
+    wfm_synth_destroy (cs);
+
+    /* A burst with NO acquisition preamble. The expansion still runs over the
+       absent field and must yield nothing rather than invent one. */
+    wfm_source_t       nopre = { .type      = WFM_SYNTH_DSSS,
+                                 .snr       = 40.0,
+                                 .snr_mode  = 1,
+                                 .seed      = 7,
+                                 .sps       = 2,
+                                 .pn_length = 7,
+                                 .data_code = { .bits = dcode4, .len = 4 },
+                                 .sync      = { .bits = sync2, .len = 2 },
+                                 .bits      = pay5,
+                                 .n_bits    = 5,
+                                 .crc       = 1 };
+    wfm_synth_state_t *ns    = wfm_source_to_synth (&nopre, 1e6);
+    DP_REQUIRE_MSG (ns, "a burst with a sync word and no preamble is a burst");
+    wfm_synth_destroy (ns);
+
+    /* A code that is DECLARED and unbuildable -- a length with no array -- is
+       refused on BOTH chip paths. Spreading whatever the fresh buffer held
+       would produce a capture no receiver can be scored against. */
+    wfm_source_t cbad = cgen;
+    cbad.data_code    = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .len = 8 };
+    DP_REQUIRE_MSG (!wfm_source_to_synth (&cbad, 1e6),
+                    "a continuous spreading code with a length and no bits is "
+                    "refused");
+
+    wfm_source_t bbad = nopre;
+    bbad.acq_code     = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .len = 8 };
+    bbad.acq_reps     = 3;
+    DP_REQUIRE_MSG (!wfm_source_to_synth (&bbad, 1e6),
+                    "a burst preamble with a length and no bits is refused");
   }
 
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "

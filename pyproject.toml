@@ -110,6 +110,13 @@ dev = [
     "matplotlib>=3.10.9; python_version >= '3.10'",
     "matplotlib<3.10; python_version == '3.9'",
     "jsonschema>=4.18",
+    # The stdlib TOML parser under its pre-3.11 name. `tomllib` landed in
+    # 3.11; scripts/check_wfm_enum_tables.py reads just-makeit.toml and is
+    # driven by a test that invokes it with `sys.executable`, so it runs under
+    # every interpreter in the CI matrix — including the 3.9 and 3.10 jobs,
+    # which is where a bare `import tomllib` failed. Marker-gated, so 3.11+
+    # installs nothing and uses the stdlib.
+    "tomli>=2.0; python_version < '3.11'",
     # jm drives the manifest/codegen and the benchmark suite. Pinned HERE
     # rather than invoked through uvx: an unpinned `uvx just-makeit` silently
     # reuses whatever version happens to be installed as a uv TOOL, which is

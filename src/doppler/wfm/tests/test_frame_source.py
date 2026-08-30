@@ -196,12 +196,56 @@ def test_the_cli_and_the_composer_agree(tmp_path):
 
 def test_the_cli_refuses_with_the_reason(tmp_path):
     """Exit 2 and a message naming the replacement — not exit 0 and silence,
-    and not the generic 'could not build the waveform spec' either."""
+    and not the generic 'could not build the waveform spec' either.
+
+    A framed `--type bpsk` is no longer refused for its TYPE: gh-762's
+    `--payload-len` gave the PN-sourced waveforms the payload bound they
+    were missing, so what is left to refuse is a frame with no payload at
+    all — which is the same thing `--type bits` was always refused for.
+    """
     p, _ = _cli(
         ["--type", "bpsk", "--sync", _bits(SYNC), "--count", "256"], tmp_path
     )
     assert p.returncode == 2
-    assert "--type bits" in p.stderr
+    assert "payload" in p.stderr
+    assert "--payload-len" in p.stderr, (
+        "the refusal must name the flag that removes it"
+    )
+
+    # And with that bound supplied, the same command BUILDS.
+    ok, _ = _cli(
+        [
+            "--type",
+            "bpsk",
+            "--sync",
+            _bits(SYNC),
+            "--payload-len",
+            "64",
+            "--pn-length",
+            "7",
+            "--count",
+            "256",
+        ],
+        tmp_path,
+    )
+    assert ok.returncode == 0, ok.stderr
+
+    # A type with no bit stream at all is still refused, payload or not.
+    ch, _ = _cli(
+        [
+            "--type",
+            "chirp",
+            "--sync",
+            _bits(SYNC),
+            "--payload-len",
+            "64",
+            "--count",
+            "256",
+        ],
+        tmp_path,
+    )
+    assert ch.returncode == 2
+    assert "no bit stream" in ch.stderr
 
     p2, _ = _cli(
         [

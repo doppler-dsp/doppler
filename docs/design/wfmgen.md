@@ -8,8 +8,8 @@
     exists to make visible, and [Unknowns](#unknowns) is the list.
 
 A fast, full-featured waveform generator — modulations, impairments and
-output streams — driven identically from a CLI, a Python API and a JSON
-scene file. Six design pages already own a slice of it and until now none
+output streams — with a C API at its core and a CLI, a Python API and a JSON
+scene file over it, all driving one engine to byte-identical output. Six design pages already own a slice of it and until now none
 owned the tool. This page is the spine: what wfmgen is for, what it promises,
 what it composes, and — the part that earns it a place — **what we do not yet
 know about it**.
@@ -59,15 +59,16 @@ result derived through it. It currently has neither.
 
 Users first — the internal rows are real, but they are not why it exists.
 
-| who                          | with what                                     | what they do with the answer                                           |
-| ---------------------------- | --------------------------------------------- | ---------------------------------------------------------------------- |
-| Someone who needs a waveform | `wfmgen --type qpsk --snr 12 -o capture.cf32` | feeds a receiver, a lab instrument, or another tool                    |
-| A field/interop test         | `wfmgen … -o capture.sigmf`                   | hands a real file to another tool, with a sidecar saying what is in it |
-| A live consumer              | `wfmgen --realtime -o nats://…`               | paces a stream to wall clock for a running pipeline                    |
-| A bug report                 | `--record scene.json`                         | replays someone else's exact waveform byte-for-byte                    |
-| A receiver test              | `Composer([...]).compose()` in-process        | scores demod/BER against truth it also gets from the scene             |
-| A Monte-Carlo sweep          | `Plan.prepare()` then `.at(snr)`              | re-weights a cached render instead of re-synthesising                  |
-| A validation report          | a scene declared once, swept                  | measures a limit that goes in a certified envelope                     |
+| who                          | with what                                              | what they do with the answer                                           |
+| ---------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------- |
+| Someone who needs a waveform | `wfmgen --type qpsk --snr 12 -o capture.cf32`          | feeds a receiver, a lab instrument, or another tool                    |
+| A C application              | `wfm_compose_create()` -> `_execute()` -> `_destroy()` | pulls IQ straight into its own buffer, no Python in the process        |
+| A field/interop test         | `wfmgen … -o capture.sigmf`                            | hands a real file to another tool, with a sidecar saying what is in it |
+| A live consumer              | `wfmgen --realtime -o nats://…`                        | paces a stream to wall clock for a running pipeline                    |
+| A bug report                 | `--record scene.json`                                  | replays someone else's exact waveform byte-for-byte                    |
+| A receiver test              | `Composer([...]).compose()` in-process                 | scores demod/BER against truth it also gets from the scene             |
+| A Monte-Carlo sweep          | `Plan.prepare()` then `.at(snr)`                       | re-weights a cached render instead of re-synthesising                  |
+| A validation report          | a scene declared once, swept                           | measures a limit that goes in a certified envelope                     |
 
 The `--record` row shapes the design most: **a scene is a value**, not a
 script. Anything a run can be told must be expressible in the JSON a
@@ -86,11 +87,14 @@ ones the tool exists for, are the least gated of all.
     intended coverage, so a missing capability is a gap nobody's gate can
     see.
 
-1. **Easy to use, identically from three faces.** The same scene is CLI
-    flags, a Python object, or JSON, and all three drive one engine to
-    byte-identical output. *Gated:* `make drift-check` and
-    `gen_wfmgen_flag_matrix.py` keep the faces from diverging;
-    "easy" itself is a review judgement.
+1. **Easy to use, identically from four faces.** This is a C-first library,
+    so the **C API is the face** — `wfm_compose_create` / `_execute` /
+    `_destroy` and its siblings — and the CLI, the Python objects and the
+    JSON scene are wrappers over it, never reimplementations. The same scene
+    expressed any of the four ways renders byte-identically. *Gated:*
+    `make drift-check` and `gen_wfmgen_flag_matrix.py` keep the faces from
+    diverging, `make test-examples-c` runs the C example, and the doc fences
+    compile against the real library; "easy" itself is a review judgement.
 
 1. **Fast enough to be the inner loop.** A sweep should not pay to
     re-synthesise what it already rendered: `Plan` caches a scene's clean

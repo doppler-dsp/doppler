@@ -128,6 +128,41 @@ in either order, and counting `--acq-code-hex` as the same field as
 `--acq-code`. Accepting the pair would write a `--record` carrying both
 spellings, which this tool's own `--from-file` then refuses to read.
 
+### The payload, generated or just bounded
+
+The payload is a sequence like the other three, so `--payload-gen` takes the
+same `KIND:LEN[:...]` spec:
+
+```sh
+wfmgen --type bits --modulation bpsk --payload-gen pn:65535:16 \
+       --sync 1111100110101 --sps 4 --count 65536 -o framed.cf32
+```
+
+`--payload-len N` is the shorthand for the common case. It bounds the payload
+at `N` bits and fills it from the waveform's **own** PN parameters
+(`--pn-length`, `--pn-poly`, `--seed`), so the bits a receiver regenerates are
+the ones this waveform would have transmitted anyway:
+
+```sh
+wfmgen --type bpsk --sync 1111100110101 --payload-len 1024 --pn-length 10 \
+       --sps 4 --count 16384 -o framed_bpsk.cf32
+```
+
+**That command used to exit 2.** A frame on `--type bpsk`/`qpsk`/`pn` was
+refused outright, because those waveforms take their data from the synth's
+own endless LFSR and nothing said where the payload stopped. A length is
+exactly that bound, so a framed PN-sourced waveform is now the same
+descriptor every other source builds — `--conv`, `--rs-depth`, `--randomise`
+and the rest all reach it. The frame's bits take the mapping the **type**
+names, so a framed `--type qpsk` is Gray-coded QPSK over the frame and there
+is no `--modulation` to disagree with it.
+
+A type that carries no bit stream at all — `tone`, `noise`, `chirp`,
+`symbols` — still cannot be framed, with or without a payload.
+
+`--payload-len`, `--payload-gen` and `--bits` are three spellings of one
+field, so giving two is refused the same way the other sequences are.
+
 For `--type bits` the payload is `--bits*` and `--modulation` maps it to BPSK or
 QPSK, so a framed unspread waveform is one command:
 
@@ -238,6 +273,8 @@ ______________________________________________________________________
 | `--acq-code-gen`  | `KIND:LEN[:...]`                                  | —        | preamble as a generated sequence (`pn`/`gold`/`dotted`)                            |
 | `--data-code-gen` | `KIND:LEN[:...]`                                  | —        | spreading code as a generated sequence                                             |
 | `--sync-gen`      | `KIND:LEN[:...]`                                  | —        | sync word as a generated sequence                                                  |
+| `--payload-gen`   | `KIND:LEN[:...]`                                  | —        | payload as a generated sequence                                                    |
+| `--payload-len`   | int                                               | —        | payload bounded at N bits, filled from this source's own PN                        |
 | `--acq-reps`      | int                                               | `1`      | `dsss`: preamble repetitions                                                       |
 | `--data-code`     | 0/1 string                                        | —        | `dsss`: payload spreading code (or `--data-code-hex`)                              |
 | `--sync`          | 0/1 string                                        | —        | `dsss`: frame-sync word (optional)                                                 |

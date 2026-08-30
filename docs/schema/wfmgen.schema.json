@@ -78,7 +78,7 @@
     },
 
     "generated_sequence": {
-      "description": "A run of bits produced from a handful of numbers instead of carried as an array — which is what makes a long capture reproducible from its metadata rather than from a million-symbol run. Recorded alongside the literal key it replaces (acq_code_gen, data_code_gen, sync_gen); a field is one or the other, never both. The masks are hex STRINGS, not numbers: they are uint64 and a JSON number is a double, so a 64-bit register's polynomial would not survive a round trip as a number.",
+      "description": "A run of bits produced from a handful of numbers instead of carried as an array — which is what makes a long capture reproducible from its metadata rather than from a million-symbol run. Recorded alongside the literal key it replaces (acq_code_gen, data_code_gen, sync_gen, payload_gen); a field is one or the other, never both. The masks are hex STRINGS, not numbers: they are uint64 and a JSON number is a double, so a 64-bit register's polynomial would not survive a round trip as a number.",
       "type": "object",
       "required": ["kind", "len"],
       "additionalProperties": false,
@@ -254,6 +254,7 @@
           "description": "type=dsss: the frame-sync word bits (e.g. Barker-13) between the preamble and the payload. Optional."
         },
         "sync_gen": { "$ref": "#/$defs/generated_sequence" },
+        "payload_gen": { "$ref": "#/$defs/generated_sequence" },
         "payload": {
           "type": "string",
           "pattern": "^[01]+$",
@@ -398,6 +399,7 @@
         "data_code_gen": { "$ref": "#/$defs/generated_sequence" },
         "sync":       { "$ref": "#/$defs/source/properties/sync" },
         "sync_gen":   { "$ref": "#/$defs/generated_sequence" },
+        "payload_gen": { "$ref": "#/$defs/generated_sequence" },
         "payload":    { "$ref": "#/$defs/source/properties/payload" },
         "crc":        { "$ref": "#/$defs/source/properties/crc" },
         "rs_depth":   { "$ref": "#/$defs/source/properties/rs_depth" },

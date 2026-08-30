@@ -453,6 +453,12 @@ static const char USAGE[]
       "  --data-code-gen SPEC Payload spreading code GENERATED (see below)\n"
       "  --sync BITS          Frame-sync word, e.g. Barker-13 (default none)\n"
       "  --sync-gen SPEC      Frame-sync word GENERATED (see below)\n"
+      "  --payload-gen SPEC   Payload GENERATED (see below)\n"
+      "  --payload-len N      Payload bounded at N bits, filled from this\n"
+      "                       source's own --pn-length/--pn-poly/--seed.\n"
+      "                       This is what lets --type bpsk|qpsk|pn carry a\n"
+      "                       frame at all: their data is an endless LFSR,\n"
+      "                       so nothing said where the payload stopped.\n"
       "  --crc C              none | crc16 payload trailer (default crc16)\n"
       "\n"
       "GENERATED SEQUENCES  (--acq-code-gen / --data-code-gen / --sync-gen)\n"
@@ -469,6 +475,8 @@ static const char USAGE[]
       "    gold:LEN:REG_BITS:TAPS_A:SEED_A:TAPS_B:SEED_B   a Gold pair\n"
       "    dotted:LEN                           alternating 1010..., a line\n"
       "                                         at Rs/2 to settle on\n"
+      "  --bits, --payload-gen and --payload-len are three spellings of ONE\n"
+      "  field; giving two is refused rather than resolved.\n"
       "\n"
       "DSSS CONTINUOUS  (--type dsss --symbol-rate HZ)\n"
       "  An endless stream: code B repeats forever and data rides it at\n"
@@ -560,14 +568,14 @@ static const char USAGE[]
 static void
 source_free (wfm_source_t *s)
 {
-  free (s->bits);
+  free ((void *)s->payload.bits);
   free (s->symbols);
   free ((void *)s->acq_code.bits);
   free ((void *)s->data_code.bits);
   free ((void *)s->sync.bits);
   /* Nulled individually, not chained: `symbols` is float complex * while the
      rest are uint8_t *, so a chain would be an incompatible assignment. */
-  s->bits           = NULL;
+  s->payload.bits   = NULL;
   s->symbols        = NULL;
   s->acq_code.bits  = NULL;
   s->data_code.bits = NULL;
@@ -623,6 +631,10 @@ typedef struct
   int           sample_type, file_type, endian;
   int           data_flag_set;   /* --data given (continuous dsss only) */
   int           symbol_rate_set; /* --symbol-rate given (reject <= 0) */
+  /* --payload-len: a payload BOUNDED rather than spelled. Resolved after the
+     whole line is read, because it is expressed in the source's own PN
+     parameters and those may be typed after it. */
+  size_t payload_len;
 } wfmgen_opts_t;
 
 /* How a flag's value is read. The enum type is used for `opt_t.kind` (rather
@@ -719,6 +731,7 @@ static const struct
   { "--acq-code", "--acq-code-gen", OFF (src.acq_code) },
   { "--data-code", "--data-code-gen", OFF (src.data_code) },
   { "--sync", "--sync-gen", OFF (src.sync) },
+  { "--bits", "--payload-gen", OFF (src.payload) },
 };
 
 /* Complain about @p gen_flag's pair. Returns 2 -- the exit code every other
@@ -870,16 +883,18 @@ static const opt_t OPTS[] = {
     CHOICES (BITMODS) },
   { .name = "--bits",
     .kind = OPT_BITS,
-    .off  = OFF (src.bits),
-    .aux  = AUX (src.n_bits) },
+    .off  = OFF (src.payload.bits),
+    .aux  = AUX (src.payload.len) },
   { .name = "--bits-hex",
     .kind = OPT_HEX,
-    .off  = OFF (src.bits),
-    .aux  = AUX (src.n_bits) },
+    .off  = OFF (src.payload.bits),
+    .aux  = AUX (src.payload.len) },
   { .name = "--bits-file",
     .kind = OPT_BITS_FILE,
-    .off  = OFF (src.bits),
-    .aux  = AUX (src.n_bits) },
+    .off  = OFF (src.payload.bits),
+    .aux  = AUX (src.payload.len) },
+  { .name = "--payload-gen", .kind = OPT_SEQ_GEN, .off = OFF (src.payload) },
+  { .name = "--payload-len", .kind = OPT_SIZE, .off = OFF (payload_len) },
   { .name = "--acq-code",
     .kind = OPT_BITS,
     .off  = OFF (src.acq_code.bits),
@@ -1235,6 +1250,46 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
       const wfm_seq_t *q = (const wfm_seq_t *)((char *)o + SEQ_PAIRS[i].off);
       if (q->kind != WFM_SEQ_LITERAL && q->bits)
         return seq_both_spellings (SEQ_PAIRS[i].gen);
+    }
+
+  /* --payload-len: a payload BOUNDED rather than spelled.
+   *
+   * #755 refused a frame on --type bpsk/qpsk/pn because their data comes
+   * from the synth's own endless LFSR and nothing said where the payload
+   * stopped. This is that bound -- and it resolves to a PN sequence carrying
+   * the source's OWN pn parameters, so the payload a receiver regenerates is
+   * the one the waveform would have transmitted anyway. Six numbers in the
+   * record instead of a 100k-character string.
+   *
+   * Resolved here rather than at parse time because --pn-length/--pn-poly/
+   * --seed may be typed after it, and reading them early would silently bind
+   * the defaults. */
+  if (o->payload_len)
+    {
+      if (o->src.payload.len)
+        {
+          (void)fprintf (stderr,
+                         "error: --payload-len and %s set the same field -- "
+                         "give one, not both (--payload-len bounds a payload "
+                         "the waveform's own PN fills)\n",
+                         o->src.payload.kind == WFM_SEQ_LITERAL
+                             ? "--bits"
+                             : "--payload-gen");
+          return 2;
+        }
+      o->src.payload.kind     = WFM_SEQ_PN;
+      o->src.payload.len      = o->payload_len;
+      o->src.payload.reg_bits = (uint32_t)o->src.pn_length;
+      o->src.payload.poly     = o->src.pn_poly;
+      o->src.payload.seed     = o->src.seed;
+      o->src.payload.lfsr     = o->src.lfsr;
+      if (o->src.payload.reg_bits == 0u || o->src.payload.reg_bits > 64u)
+        {
+          (void)fprintf (stderr,
+                         "error: --payload-len needs --pn-length in 1..64 "
+                         "(it is the register the payload is drawn from)\n");
+          return 2;
+        }
     }
   return 0;
 }
@@ -1612,7 +1667,7 @@ check_continuous_dsss (const wfmgen_opts_t *o)
                              "meaningless with --symbol-rate\n");
       return 2;
     }
-  if (o->data_flag_set && o->src.bits)
+  if (o->data_flag_set && o->src.payload.bits)
     {
       (void)fprintf (stderr,
                      "error: --data and --bits both set the data; use one\n");

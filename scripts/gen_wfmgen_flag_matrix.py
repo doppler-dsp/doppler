@@ -675,6 +675,89 @@ def cases() -> list[tuple[str, list[str]]]:
                 "1010",
             ],
         ),
+        # ---- the payload: bounded, or generated ----
+        # gh-762's last two flags. `--payload-len` retires #755's refusal:
+        # a PN-sourced waveform was refused a frame outright because its
+        # data is endless and nothing said where the payload stopped. The
+        # bound resolves to a PN sequence carrying the source's OWN pn
+        # parameters, so the record is six numbers and the replay is the
+        # waveform that was transmitted.
+        (
+            "bpsk_framed_payload_len",
+            [
+                "--type",
+                "bpsk",
+                "--sync",
+                "1111100110101",
+                "--payload-len",
+                "64",
+                "--pn-length",
+                "7",
+                "--sps",
+                "2",
+                "--count",
+                "512",
+            ],
+        ),
+        # QPSK too: the frame's bits take the mapping the TYPE names, not a
+        # --modulation, which would be a second way to spell the type.
+        (
+            "qpsk_framed_payload_len",
+            [
+                "--type",
+                "qpsk",
+                "--sync",
+                "1111100110101",
+                "--payload-len",
+                "128",
+                "--pn-length",
+                "9",
+                "--sps",
+                "2",
+                "--count",
+                "1024",
+            ],
+        ),
+        (
+            "bits_payload_gen_pn",
+            [
+                "--type",
+                "bits",
+                "--modulation",
+                "bpsk",
+                "--payload-gen",
+                "pn:64:7",
+                "--sync",
+                "1111100110101",
+                "--sps",
+                "2",
+                "--count",
+                "512",
+            ],
+        ),
+        # A spread frame whose PAYLOAD is generated -- the descriptor's
+        # payload field was the last place gh-762's flattening survived.
+        (
+            "dsss_payload_gen",
+            [
+                "--type",
+                "dsss",
+                "--data-code",
+                "0110",
+                "--payload-gen",
+                "pn:31:5",
+                "--sync",
+                "10",
+                "--acq-code",
+                "10101010",
+                "--acq-reps",
+                "2",
+                "--sps",
+                "2",
+                "--count",
+                "4096",
+            ],
+        ),
         # A field takes ONE spelling. BOTH orders are cases, because they
         # fail in different places and used to fail differently: the literal
         # first is caught before the generated parse memsets it away, the
@@ -784,6 +867,49 @@ def cases() -> list[tuple[str, list[str]]]:
                 "1011",
                 "--sync-gen",
                 "gold:16:10:934",
+                "--count",
+                "64",
+            ],
+        ),
+        # The payload is one field however it is spelled: an array, a
+        # generator, or a length the waveform's own PN fills.
+        (
+            "err_payload_len_and_bits",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "1011",
+                "--payload-len",
+                "64",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "err_payload_gen_and_bits",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "1011",
+                "--payload-gen",
+                "pn:64:7",
+                "--count",
+                "64",
+            ],
+        ),
+        # A type carrying no bit stream still cannot be framed, payload or
+        # not -- --payload-len retired the refusal for bpsk/qpsk/pn only.
+        (
+            "err_framed_chirp",
+            [
+                "--type",
+                "chirp",
+                "--sync",
+                "1111100110101",
+                "--payload-len",
+                "64",
                 "--count",
                 "64",
             ],

@@ -96,7 +96,7 @@ struct wfm_plan
 static void
 free_source_arrays (wfm_source_t *s)
 {
-  free (s->bits);
+  free ((void *)s->payload.bits);
   free (s->symbols);
   free ((void *)s->acq_code.bits);
   free ((void *)s->data_code.bits);
@@ -121,13 +121,13 @@ dup_u8 (const uint8_t *src, size_t n)
 static int
 copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
 {
-  dst->bits           = NULL;
+  dst->payload.bits   = NULL;
   dst->symbols        = NULL;
   dst->acq_code.bits  = NULL;
   dst->data_code.bits = NULL;
   dst->sync.bits      = NULL;
-  if (src->bits && src->n_bits)
-    if (!(dst->bits = dup_u8 (src->bits, src->n_bits)))
+  if (src->payload.bits && src->payload.len)
+    if (!(dst->payload.bits = dup_u8 (src->payload.bits, src->payload.len)))
       return -1;
   if (src->symbols && src->n_symbols)
     {

@@ -395,6 +395,61 @@
       "version": 1
     }
   },
+  "bits_payload_gen_pn": {
+    "argv": [
+      "--type",
+      "bits",
+      "--modulation",
+      "bpsk",
+      "--payload-gen",
+      "pn:64:7",
+      "--sync",
+      "1111100110101",
+      "--sps",
+      "2",
+      "--count",
+      "512"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 4096
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "acq_reps": 1,
+          "crc": "crc16",
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "modulation": "bpsk",
+          "num_samples": 512,
+          "off_samples": 0,
+          "payload_gen": {
+            "kind": "pn",
+            "len": 64,
+            "lfsr": 0,
+            "poly": "0x0",
+            "reg_bits": 7,
+            "seed": "0x0"
+          },
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 2,
+          "sync": "1111100110101",
+          "type": "bits"
+        }
+      ],
+      "version": 1
+    }
+  },
   "bits_sync_gen_gold": {
     "argv": [
       "--type",
@@ -501,6 +556,60 @@
             "seed": "0x3"
           },
           "type": "bits"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "bpsk_framed_payload_len": {
+    "argv": [
+      "--type",
+      "bpsk",
+      "--sync",
+      "1111100110101",
+      "--payload-len",
+      "64",
+      "--pn-length",
+      "7",
+      "--sps",
+      "2",
+      "--count",
+      "512"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 4096
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "acq_reps": 1,
+          "crc": "crc16",
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 512,
+          "off_samples": 0,
+          "payload_gen": {
+            "kind": "pn",
+            "len": 64,
+            "lfsr": 0,
+            "poly": "0x0",
+            "reg_bits": 7,
+            "seed": "0x0"
+          },
+          "pn_length": 7,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 2,
+          "sync": "1111100110101",
+          "type": "bpsk"
         }
       ],
       "version": 1
@@ -885,6 +994,66 @@
       "version": 1
     }
   },
+  "dsss_payload_gen": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--data-code",
+      "0110",
+      "--payload-gen",
+      "pn:31:5",
+      "--sync",
+      "10",
+      "--acq-code",
+      "10101010",
+      "--acq-reps",
+      "2",
+      "--sps",
+      "2",
+      "--count",
+      "4096"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 3392
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "acq_code": "10101010",
+          "acq_reps": 2,
+          "crc": "crc16",
+          "data_code": "0110",
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 424,
+          "off_samples": 0,
+          "payload_gen": {
+            "kind": "pn",
+            "len": 31,
+            "lfsr": 0,
+            "poly": "0x0",
+            "reg_bits": 5,
+            "seed": "0x0"
+          },
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 2,
+          "sync": "10",
+          "type": "dsss"
+        }
+      ],
+      "version": 1
+    }
+  },
   "err_acq_hex_then_gen": {
     "argv": [
       "--type",
@@ -932,11 +1101,56 @@
     "outputs": {},
     "record": null
   },
+  "err_framed_chirp": {
+    "argv": [
+      "--type",
+      "chirp",
+      "--sync",
+      "1111100110101",
+      "--payload-len",
+      "64",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
   "err_missing_value": {
     "argv": [
       "--type",
       "tone",
       "--freq"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_payload_gen_and_bits": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "1011",
+      "--payload-gen",
+      "pn:64:7",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_payload_len_and_bits": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "1011",
+      "--payload-len",
+      "64",
+      "--count",
+      "64"
     ],
     "exit": 2,
     "outputs": {},
@@ -1447,6 +1661,60 @@
           "snr_mode": "auto",
           "sps": 2,
           "type": "pn"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "qpsk_framed_payload_len": {
+    "argv": [
+      "--type",
+      "qpsk",
+      "--sync",
+      "1111100110101",
+      "--payload-len",
+      "128",
+      "--pn-length",
+      "9",
+      "--sps",
+      "2",
+      "--count",
+      "1024"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 8192
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "acq_reps": 1,
+          "crc": "crc16",
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 1024,
+          "off_samples": 0,
+          "payload_gen": {
+            "kind": "pn",
+            "len": 128,
+            "lfsr": 0,
+            "poly": "0x0",
+            "reg_bits": 9,
+            "seed": "0x0"
+          },
+          "pn_length": 9,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 2,
+          "sync": "1111100110101",
+          "type": "qpsk"
         }
       ],
       "version": 1

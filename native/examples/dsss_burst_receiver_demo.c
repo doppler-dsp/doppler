@@ -113,9 +113,9 @@ dsss_source (uint8_t *acq, uint8_t *data, uint8_t *sy, uint8_t *payload)
   src.data_code.len  = DATA_SF;
   src.sync.bits      = sy;
   src.sync.len       = SYNC_LEN;
-  src.crc            = 1;       /* crc16 trailer, appended by the engine */
-  src.bits           = payload; /* the payload rides `bits` */
-  src.n_bits         = PAYLOAD;
+  src.crc            = 1; /* crc16 trailer, appended by the engine */
+  src.payload.bits   = payload;
+  src.payload.len    = PAYLOAD;
   return src;
 }
 

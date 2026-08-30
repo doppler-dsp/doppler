@@ -40,7 +40,6 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  size\_t | [**acq\_reps**](#variable-acq_reps)  <br> |
 |  int | [**attach\_asm**](#variable-attach_asm)  <br> |
 |  int | [**background**](#variable-background)  <br> |
-|  uint8\_t \* | [**bits**](#variable-bits)  <br> |
 |  int | [**convolutional**](#variable-convolutional)  <br> |
 |  int | [**crc**](#variable-crc)  <br> |
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**data\_code**](#variable-data_code)  <br> |
@@ -55,8 +54,8 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  double | [**level\_hi**](#variable-level_hi)  <br> |
 |  int | [**lfsr**](#variable-lfsr)  <br> |
 |  int | [**modulation**](#variable-modulation)  <br> |
-|  size\_t | [**n\_bits**](#variable-n_bits)  <br> |
 |  size\_t | [**n\_symbols**](#variable-n_symbols)  <br> |
+|  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**payload**](#variable-payload)  <br> |
 |  int | [**pn\_length**](#variable-pn_length)  <br> |
 |  uint64\_t | [**pn\_poly**](#variable-pn_poly)  <br> |
 |  int | [**pulse**](#variable-pulse)  <br> |
@@ -176,19 +175,6 @@ int wfm_source_t::attach_asm;
 
 ```C++
 int wfm_source_t::background;
-```
-
-
-
-
-<hr>
-
-
-
-### variable bits 
-
-```C++
-uint8_t* wfm_source_t::bits;
 ```
 
 
@@ -380,10 +366,10 @@ int wfm_source_t::modulation;
 
 
 
-### variable n\_bits 
+### variable n\_symbols 
 
 ```C++
-size_t wfm_source_t::n_bits;
+size_t wfm_source_t::n_symbols;
 ```
 
 
@@ -393,10 +379,10 @@ size_t wfm_source_t::n_bits;
 
 
 
-### variable n\_symbols 
+### variable payload 
 
 ```C++
-size_t wfm_source_t::n_symbols;
+wfm_seq_t wfm_source_t::payload;
 ```
 
 

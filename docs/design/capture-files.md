@@ -4,6 +4,7 @@ A capture has to survive leaving the process. `wfm_writer` and
 `wfm_reader` are the two halves of that: cf32 in, bytes on disk, cf32
 back. [Reading and writing captures](../guide/wfm-io/index.md) is how to
 use them; this page is why they are shaped as they are.
+[wfmgen](wfmgen.md) is the main producer on the writing side.
 
 Four containers, and the split that matters is not the file format:
 

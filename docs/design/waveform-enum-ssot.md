@@ -1,5 +1,8 @@
 # One home for the waveform enum tables
 
+*Part of [wfmgen](wfmgen.md), which owns the tool's goals, what it
+composes, and what is still unknown about it.*
+
 Every waveform choice a user spells as a word — `--type qpsk`, `--file-type sigmf`, `"data": "prbs"` — is an **index** by the time it reaches C. The word
 is looked up in a table of strings and the *position* it was found at is the
 value that gets stored. Nothing else records that mapping: there is no

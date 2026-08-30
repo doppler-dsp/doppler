@@ -1,5 +1,8 @@
 # Waveform amplitude & composition
 
+*Part of [wfmgen](wfmgen.md), which owns the tool's goals, what it
+composes, and what is still unknown about it.*
+
 !!! success "Status: Implemented"
 
     This RFC is now built. Per-source `level`, `--headroom`, multi-source

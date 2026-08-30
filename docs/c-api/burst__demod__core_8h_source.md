@@ -54,6 +54,8 @@ extern "C"
     /* ── read-backs (after demod) ── */
     float *llr;   
     size_t n_llr; 
+    float complex *sym; 
+    size_t n_sym; 
     double est_n0; 
     size_t frame_offset; 
     size_t n_symbols;    
@@ -83,6 +85,11 @@ extern "C"
                            size_t max_out);
 
   size_t burst_demod_llrs_max_out (burst_demod_state_t *state, size_t n);
+
+  size_t burst_demod_symbols (burst_demod_state_t *state, size_t n,
+                              float complex *out, size_t max_out);
+
+  size_t burst_demod_symbols_max_out (burst_demod_state_t *state, size_t n);
 
   void burst_demod_set_prior (burst_demod_state_t *state, double f0_coarse,
                               size_t start);

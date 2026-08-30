@@ -2023,6 +2023,82 @@ class BurstDemod:
             Output.
         """
 
+    def symbols(
+        self,
+        count: int = 1,
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """The DEROTATED complex symbols of the last demod() — the
+        constellation `llrs()` is the real part of. Same span and
+        normalisation: the whole frame, scaled to unit mean-|Re|, so
+        `symbols.real` is `llrs()` up to `est_n0`. The quadrature is why this
+        exists: after derotation the real axis carries the signal and the
+        imaginary axis carries noise alone, so a residual phase error — which
+        scales Re by `cos(phi)` without adding noise — is indistinguishable
+        from a genuine amplitude or SNR loss in mean |LLR|, in LLR spread and
+        in BER alike. Measured over 20000 BPSK symbols, a 30° phase error and
+        an amplitude loss of `cos(30°)` agreed to three decimals in all three
+        and differed only in Q/I energy, 0.386 against 0.077. That is a
+        pointing problem against a link-budget one, on a burst this object
+        already characterised well enough to know. It was built either way and
+        freed unread (doppler#1087).
+
+        Same span and same normalisation as burst_demod_llrs(): the whole
+        frame, scaled to unit mean-|Re| by the burst's own estimate, so
+        `crealf(symbols[k])` is that bit's LLR up to est_n0.
+
+        The quadrature is why this exists. After derotation the real axis
+        carries the signal and the imaginary axis carries noise alone, so Q is
+        diagnostic: a residual phase error scales Re by `cos(phi)` WITHOUT
+        adding noise, which makes it indistinguishable from a genuine amplitude
+        or SNR loss in mean |LLR|, in LLR spread and in BER alike. Measured
+        over 20000 BPSK symbols, a 30 degree phase error and an amplitude loss
+        of `cos(30 deg)` agreed to three decimals in all three, and differed
+        only in Q/I energy — 0.386 against 0.077 (doppler#1087). That is the
+        difference between a pointing problem and a link-budget one, on a burst
+        this object already characterised well enough to know.
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[np.complex64] | None
+            Receives the symbols, one per frame bit.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Symbols written — `min(frame bits, max_out)`, or 0 if the last
+            demod() produced no frame.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstDemod
+        >>> dcode = (np.arange(50) & 1).astype(np.uint8)
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
+        >>> d.set_sync(np.zeros(13, dtype=np.uint8))
+        >>> d.symbols_max_out(1)       # one per frame symbol, as llrs()
+        93
+
+        """
+
+    def symbols_max_out(self, n: int) -> int:
+        """Max symbols burst_demod_symbols() writes: the frame's length.
+
+        Parameters
+        ----------
+        n : int
+            Ignored — the count is the last demod()'s frame.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
     def set_prior(self, f0_coarse: float, start: int) -> None:
         """Seed from acquisition: coarse Doppler (cycles/sample at the input
         rate) and the preamble start sample.
@@ -2102,6 +2178,17 @@ class BurstDemod:
         """symbols the frame occupies AFTER the sync word — a number the caller
         states. What they MEAN is the frame description's business, one layer
         up.
+        """
+
+    @property
+    def est_n0(self) -> float:
+        """Noise power the LLRs are scaled by, referred to unit symbol
+        amplitude — `2·var(Im)/mean|Re|²` over the derotated frame, floored at
+        1e-12 so a noiseless capture stays finite. `llrs()` is divided by this,
+        so multiplying back recovers the raw projection, and two bursts are
+        comparable only because both were scaled by their own estimate. Reading
+        it beside `symbols()` is what turns the constellation into an absolute
+        measurement rather than a picture.
         """
 
     def destroy(self) -> None:

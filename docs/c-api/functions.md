@@ -224,6 +224,8 @@
 * **burst\_demod\_set\_preamble** ([**burst\_demod\_core.h**](burst__demod__core_8h.md))
 * **burst\_demod\_set\_prior** ([**burst\_demod\_core.h**](burst__demod__core_8h.md))
 * **burst\_demod\_set\_sync** ([**burst\_demod\_core.h**](burst__demod__core_8h.md))
+* **burst\_demod\_symbols** ([**burst\_demod\_core.h**](burst__demod__core_8h.md))
+* **burst\_demod\_symbols\_max\_out** ([**burst\_demod\_core.h**](burst__demod__core_8h.md))
 * **burst\_despreader\_bits** ([**burst\_despreader\_core.h**](burst__despreader__core_8h.md))
 * **burst\_despreader\_bits\_max\_out** ([**burst\_despreader\_core.h**](burst__despreader__core_8h.md))
 * **burst\_despreader\_create** ([**burst\_despreader\_core.h**](burst__despreader__core_8h.md))

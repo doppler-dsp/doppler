@@ -96,6 +96,18 @@ extern "C"
                        hard decision demod() returned. Valid until the next
                        demod(); n_llr of them.                            */
     size_t n_llr; /**< LLRs the last demod() wrote (the frame's length).  */
+    float complex *sym; /**< The frame's DEROTATED, unit-normalised complex
+                             symbols -- the constellation the LLRs are the
+                             real part of. Built either way to compute the
+                             projection and the noise estimate, and freed
+                             unread until doppler#1087: for BPSK a residual
+                             phase error and a genuine amplitude loss are
+                             indistinguishable in every real-only statistic
+                             (a rotation scales Re by cos(phi) without adding
+                             noise), so |LLR|, its spread and the BER all
+                             agree while only the quadrature separates them.
+                             Valid until the next demod(); n_sym of them.  */
+    size_t n_sym; /**< Symbols the last demod() wrote (the frame's length).*/
     double est_n0; /**< Noise power the LLRs are scaled by, referred to
                         unit symbol amplitude. Published so a caller can
                         undo the scaling, or compare bursts by it.        */
@@ -313,6 +325,53 @@ extern "C"
    * @param n      Ignored — the count is the last demod()'s frame.
    */
   size_t burst_demod_llrs_max_out (burst_demod_state_t *state, size_t n);
+
+  /**
+   * @brief The last demod()'s DEROTATED complex symbols — the constellation
+   *        the LLRs are the real part of.
+   *
+   * Same span and same normalisation as burst_demod_llrs(): the whole frame,
+   * scaled to unit mean-|Re| by the burst's own estimate, so
+   * `crealf(symbols[k])` is that bit's LLR up to @c est_n0.
+   *
+   * The quadrature is why this exists. After derotation the real axis
+   * carries the signal and the imaginary axis carries noise alone, so Q is
+   * diagnostic: a residual phase error scales Re by `cos(phi)` WITHOUT
+   * adding noise, which makes it indistinguishable from a genuine amplitude
+   * or SNR loss in mean |LLR|, in LLR spread and in BER alike. Measured over
+   * 20000 BPSK symbols, a 30 degree phase error and an amplitude loss of
+   * `cos(30 deg)` agreed to three decimals in all three, and differed only in
+   * Q/I energy — 0.386 against 0.077 (doppler#1087). That is the difference
+   * between a pointing problem and a link-budget one, on a burst this object
+   * already characterised well enough to know.
+   *
+   * @param state    Demodulator handle.
+   * @param n        Ignored — the count is the last demod()'s frame.
+   * @param out      Receives the symbols, one per frame bit.
+   * @param max_out  Capacity of @p out; see burst_demod_symbols_max_out().
+   * @return Symbols written — `min(frame bits, max_out)`, or 0 if the last
+   *         demod() produced no frame.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import BurstDemod
+   * >>> dcode = (np.arange(50) & 1).astype(np.uint8)
+   * >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
+   * >>> d.set_sync(np.zeros(13, dtype=np.uint8))
+   * >>> d.symbols_max_out(1)       # one per frame symbol, as llrs()
+   * 93
+   *
+   * @endcode
+   */
+  size_t burst_demod_symbols (burst_demod_state_t *state, size_t n,
+                              float complex *out, size_t max_out);
+
+  /**
+   * @brief Max symbols burst_demod_symbols() writes: the frame's length.
+   *
+   * @param state  Demodulator handle.
+   * @param n      Ignored — the count is the last demod()'s frame.
+   */
+  size_t burst_demod_symbols_max_out (burst_demod_state_t *state, size_t n);
 
   /**
    * @brief Seed the demodulator from acquisition with the coarse Doppler and

@@ -96,6 +96,14 @@ variable_output = true
 pass_capacity = true
 
 [[burst_demod.methods]]
+name = "symbols"
+doc = "The DEROTATED complex symbols of the last demod() — the constellation `llrs()` is the real part of. Same span and normalisation: the whole frame, scaled to unit mean-|Re|, so `symbols.real` is `llrs()` up to `est_n0`. The quadrature is why this exists: after derotation the real axis carries the signal and the imaginary axis carries noise alone, so a residual phase error — which scales Re by `cos(phi)` without adding noise — is indistinguishable from a genuine amplitude or SNR loss in mean |LLR|, in LLR spread and in BER alike. Measured over 20000 BPSK symbols, a 30° phase error and an amplitude loss of `cos(30°)` agreed to three decimals in all three and differed only in Q/I energy, 0.386 against 0.077. That is a pointing problem against a link-budget one, on a burst this object already characterised well enough to know. It was built either way and freed unread (doppler#1087)."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+
+[[burst_demod.methods]]
 name = "set_prior"
 doc = "Seed from acquisition: coarse Doppler (cycles/sample at the input rate) and the preamble start sample."
 arg_type = "void"
@@ -142,3 +150,12 @@ field = true
 name = "frame_syms"
 type = "size_t"
 field = true
+
+# The scale `llrs()` is divided by. Published so a caller can undo it, or
+# compare bursts by it -- it was a struct field the read-back surface never
+# carried, which made the LLR scaling documented but not checkable.
+[[burst_demod.properties]]
+name = "est_n0"
+type = "double"
+field = true
+doc = "Noise power the LLRs are scaled by, referred to unit symbol amplitude — `2·var(Im)/mean|Re|²` over the derotated frame, floored at 1e-12 so a noiseless capture stays finite. `llrs()` is divided by this, so multiplying back recovers the raw projection, and two bursts are comparable only because both were scaled by their own estimate. Reading it beside `symbols()` is what turns the constellation into an absolute measurement rather than a picture."

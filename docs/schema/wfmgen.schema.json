@@ -212,6 +212,38 @@
           ]
         },
 
+        "doppler": {
+          "default": 0.0,
+          "description": "Clock Doppler in ppm. Rescales the whole received time base by 1 + doppler\u00d71e-6, so the symbol and chip rates move with the carrier \u2014 which is what a real pass does and what freq cannot express (an offset moves the carrier alone). Omitted from the round-trip record when 0 and doppler_rate is 0, in which case no channel is built at all. Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
+          "oneOf": [
+            { "type": "number" },
+            { "$ref": "#/$defs/number_range" }
+          ]
+        },
+
+        "doppler_rate": {
+          "default": 0.0,
+          "description": "Linear ramp on doppler, in ppm per second of elapsed stream time. The channel runs through a segment's gaps as well as its on-time \u2014 an emitter does not stop moving because its burst ended \u2014 so this is per second, not per second of on-time. Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
+          "oneOf": [
+            { "type": "number" },
+            { "$ref": "#/$defs/number_range" }
+          ]
+        },
+
+        "carrier_hz": {
+          "type": "number",
+          "default": 0.0,
+          "description": "RF carrier (Hz) the ppm figures are referred to, giving the coherent carrier rotation that accompanies the time-base warp. 0 (the default) warps the clock alone. Independent of doppler/doppler_rate: 0 is a legitimate scene, not an unset field."
+        },
+
+        "doppler_lifetime": {
+          "type": "string",
+          "enum": ["per_instance", "persist"],
+          "default": "per_instance",
+          "description": "How long this source's Doppler channel lives. per_instance: the channel dies with each repeats instance, so the geometry restarts \u2014 the repeated-trial shape, and what composes with a ranged doppler re-drawn per instance. persist: one continuous pass carries across the segment's gaps and repeat instances, keyed by (segment, source) position. Plan.prepare() REFUSES a persist source, because its cache renders each source independently and concurrently.",
+          "$comment": "Omitted from the round-trip record at per_instance."
+        },
+
         "modulation": {
           "type": "string",
           "enum": ["none", "bpsk", "qpsk"],
@@ -389,6 +421,12 @@
           "description": "Gap policy for the segment's delay and trailing gap. auto (default): gaps carry the segment's noise floor (the sources' AWGN keeps running while the signal stops; clean scenes still get exact-zero gaps). off: gaps are hard zeros."
         },
         "level":      { "$ref": "#/$defs/source/properties/level" },
+        "doppler":    { "$ref": "#/$defs/source/properties/doppler" },
+        "doppler_rate": { "$ref": "#/$defs/source/properties/doppler_rate" },
+        "carrier_hz": { "$ref": "#/$defs/source/properties/carrier_hz" },
+        "doppler_lifetime": {
+          "$ref": "#/$defs/source/properties/doppler_lifetime"
+        },
         "modulation": { "$ref": "#/$defs/source/properties/modulation" },
         "pattern":    { "$ref": "#/$defs/source/properties/pattern" },
         "symbols":    { "$ref": "#/$defs/source/properties/symbols" },

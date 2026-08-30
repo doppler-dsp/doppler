@@ -213,6 +213,54 @@ def cases() -> list[tuple[str, list[str]]]:
                 "32",
             ],
         ),
+        # ---- clock Doppler: the ppm pair, its carrier, and the lifetime ----
+        # Two cases rather than one, because the lifetime only means anything
+        # over `repeats` -- a single-instance run resolves both lifetimes to
+        # the same spec and would pin the flag without exercising it.
+        (
+            "doppler_scalar",
+            [
+                "--type",
+                "qpsk",
+                "--fs",
+                "1e6",
+                "--sps",
+                "4",
+                "--count",
+                "64",
+                "--doppler",
+                "25",
+                "--doppler-rate",
+                "4",
+                "--carrier-hz",
+                "2.4e9",
+            ],
+        ),
+        (
+            "doppler_persist_ranged",
+            [
+                "--type",
+                "bpsk",
+                "--fs",
+                "1e6",
+                "--sps",
+                "8",
+                "--count",
+                "32",
+                "--off",
+                "16",
+                "--repeats",
+                "3",
+                "--doppler",
+                "2:9",
+                "--doppler-rate",
+                "0.1:0.5",
+                "--carrier-hz",
+                "1.5e9",
+                "--doppler-lifetime",
+                "persist",
+            ],
+        ),
         # ---- bits input, all three sources and the modulation knob ----
         (
             "bits_literal",

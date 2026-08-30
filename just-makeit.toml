@@ -1150,6 +1150,8 @@ ranged = [
     { name = "snr", flag = "WFM_RANGE_SNR" },
     { name = "level", flag = "WFM_RANGE_LEVEL" },
     { name = "f_end", flag = "WFM_RANGE_FEND" },
+    { name = "doppler", flag = "WFM_RANGE_DOPPLER" },
+    { name = "doppler_rate", flag = "WFM_RANGE_DOPPLER_RATE" },
 ]
 
 [[module.wfm_compose.source.fields]]
@@ -1227,6 +1229,34 @@ name = "f_end"
 type = "double"
 default = "0.0"
 doc = "Chirp end frequency in Hz; ignored by non-chirp types."
+
+# Clock Doppler (gh-942) — per SOURCE, because it is a property of one
+# emitter's motion and two transmitters in a `sum` segment are on different
+# geometries.
+[[module.wfm_compose.source.fields]]
+name = "doppler"
+type = "double"
+default = "0.0"
+doc = "Clock Doppler in ppm: the received time base is rescaled by 1 + doppler*1e-6, so the symbol and chip rates move with the carrier and a timing loop sees the error a carrier-only `freq` offset hides. Accepts a (lo, hi) tuple drawn uniformly per repeat, like freq/snr. Zero doppler AND zero doppler_rate means no channel is built at all, so a source that does not ask for Doppler renders exactly as it always did."
+
+[[module.wfm_compose.source.fields]]
+name = "doppler_rate"
+type = "double"
+default = "0.0"
+doc = "Linear ramp on `doppler`, in ppm per second of elapsed stream time. The channel runs through a segment's gaps as well as its on-time — an emitter does not stop moving because its burst ended — so this is per second, not per second of on-time. Accepts a (lo, hi) tuple drawn uniformly per repeat."
+
+[[module.wfm_compose.source.fields]]
+name = "carrier_hz"
+type = "double"
+default = "0.0"
+doc = "RF carrier in Hz that the ppm figures are referred to, giving the coherent carrier rotation that accompanies the time-base warp. 0 (the default) warps the clock alone, with no carrier rotation — a legitimate scene, not an unset field. Independent of doppler/doppler_rate."
+
+[[module.wfm_compose.source.fields]]
+name = "doppler_lifetime"
+type = "int"
+enum = "doppler_lifetime"
+default = "per_instance"
+doc = "How long this source's Doppler channel lives. per_instance (default): the channel dies with each `repeats` instance, so the geometry restarts — the repeated-trial shape, which composes with a ranged doppler re-drawn per instance. persist: one continuous pass carries across the segment's gaps and repeat instances, keyed by (segment, source) position — the only lifetime under which doppler_rate accumulates across a multi-burst scene. Plan.prepare() REFUSES a persist source, because its cache renders each source independently and concurrently; compose() and stream() honour both."
 
 [[module.wfm_compose.source.fields]]
 name = "bits"
@@ -2728,6 +2758,13 @@ values = ["auto", "fs", "ebno", "esno"]
 [[enum]]
 name = "wfm_lfsr"
 values = ["galois", "fibonacci"]
+
+# How long a source's Doppler channel lives (gh-942). Order IS
+# wfm_doppler_lifetime_t (native/inc/wfm/wfm_compose.h): per_instance = 0 so
+# an undeclared lifetime is the repeated-trial shape, persist = 1.
+[[enum]]
+name = "doppler_lifetime"
+values = ["per_instance", "persist"]
 
 # The three below name tables that no binding renders — the C side is their
 # only consumer. They are declared here anyway because doppler#760 made this

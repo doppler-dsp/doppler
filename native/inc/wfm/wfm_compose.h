@@ -343,6 +343,11 @@ typedef struct {
     double f_end;    /* DRAWN sweep-end offset, Hz (chirp)               */
     double snr;      /* DRAWN SNR, dB, in the source's own snr_mode      */
     double level;    /* DRAWN level, dB                                  */
+    /* Clock Doppler is DRAWN like the four above, so it is reported like
+       them. A ranged `doppler` recorded in the spec is a span; what this
+       instance actually flew is only ever knowable here. */
+    double doppler;      /* DRAWN clock Doppler, ppm                     */
+    double doppler_rate; /* DRAWN Doppler rate, ppm/s                    */
 } wfm_draw_t;
 
 /**

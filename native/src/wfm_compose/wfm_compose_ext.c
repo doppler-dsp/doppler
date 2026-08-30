@@ -45,6 +45,12 @@ static const char *const _enum_wfm_lfsr[] = {
   NULL,
 };
 
+static const char *const _enum_doppler_lifetime[] = {
+  "per_instance",
+  "persist",
+  NULL,
+};
+
 static const char *const _enum_bitmod[] = {
   "none",
   "bpsk",
@@ -286,69 +292,77 @@ _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj)
 static int
 Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]       = { "type",
-                                  "freq",
-                                  "snr",
-                                  "snr_mode",
-                                  "seed",
-                                  "sps",
-                                  "pn_length",
-                                  "pn_poly",
-                                  "lfsr",
-                                  "level",
-                                  "background",
-                                  "f_end",
-                                  "bits",
-                                  "modulation",
-                                  "pulse",
-                                  "rrc_beta",
-                                  "rrc_span",
-                                  "symbols",
-                                  "acq_code",
-                                  "acq_reps",
-                                  "data_code",
-                                  "sync",
-                                  "crc",
-                                  "rs_depth",
-                                  "randomise",
-                                  "attach_asm",
-                                  "convolutional",
-                                  "symbol_rate",
-                                  "dsss_code_only",
-                                  "fs",
-                                  NULL };
-  const char  *type           = "tone";
-  PyObject    *freq           = NULL;
-  PyObject    *snr            = NULL;
-  const char  *snr_mode       = "auto";
-  uint32_t     seed           = 0;
-  int          sps            = 1;
-  int          pn_length      = 15;
-  uint64_t     pn_poly        = 0;
-  const char  *lfsr           = "galois";
-  PyObject    *level          = NULL;
-  int          background     = 0;
-  PyObject    *f_end          = NULL;
-  PyObject    *bits           = NULL;
-  const char  *modulation     = "bpsk";
-  const char  *pulse          = "rect";
-  double       rrc_beta       = 0.35;
-  int          rrc_span       = 8;
-  PyObject    *symbols        = NULL;
-  PyObject    *acq_code       = NULL;
-  size_t       acq_reps       = 1;
-  PyObject    *data_code      = NULL;
-  PyObject    *sync           = NULL;
-  const char  *crc            = "crc16";
-  int          rs_depth       = 0;
-  int          randomise      = 0;
-  int          attach_asm     = 0;
-  int          convolutional  = 0;
-  double       symbol_rate    = 0.0;
-  int          dsss_code_only = 0;
-  double       fs             = 1e6;
-  PyObject    *_kw            = kwds;
-  int          _kw_owned      = 0;
+  static char *kwlist[]         = { "type",
+                                    "freq",
+                                    "snr",
+                                    "snr_mode",
+                                    "seed",
+                                    "sps",
+                                    "pn_length",
+                                    "pn_poly",
+                                    "lfsr",
+                                    "level",
+                                    "background",
+                                    "f_end",
+                                    "doppler",
+                                    "doppler_rate",
+                                    "carrier_hz",
+                                    "doppler_lifetime",
+                                    "bits",
+                                    "modulation",
+                                    "pulse",
+                                    "rrc_beta",
+                                    "rrc_span",
+                                    "symbols",
+                                    "acq_code",
+                                    "acq_reps",
+                                    "data_code",
+                                    "sync",
+                                    "crc",
+                                    "rs_depth",
+                                    "randomise",
+                                    "attach_asm",
+                                    "convolutional",
+                                    "symbol_rate",
+                                    "dsss_code_only",
+                                    "fs",
+                                    NULL };
+  const char  *type             = "tone";
+  PyObject    *freq             = NULL;
+  PyObject    *snr              = NULL;
+  const char  *snr_mode         = "auto";
+  uint32_t     seed             = 0;
+  int          sps              = 1;
+  int          pn_length        = 15;
+  uint64_t     pn_poly          = 0;
+  const char  *lfsr             = "galois";
+  PyObject    *level            = NULL;
+  int          background       = 0;
+  PyObject    *f_end            = NULL;
+  PyObject    *doppler          = NULL;
+  PyObject    *doppler_rate     = NULL;
+  double       carrier_hz       = 0.0;
+  const char  *doppler_lifetime = "per_instance";
+  PyObject    *bits             = NULL;
+  const char  *modulation       = "bpsk";
+  const char  *pulse            = "rect";
+  double       rrc_beta         = 0.35;
+  int          rrc_span         = 8;
+  PyObject    *symbols          = NULL;
+  PyObject    *acq_code         = NULL;
+  size_t       acq_reps         = 1;
+  PyObject    *data_code        = NULL;
+  PyObject    *sync             = NULL;
+  const char  *crc              = "crc16";
+  int          rs_depth         = 0;
+  int          randomise        = 0;
+  int          attach_asm       = 0;
+  int          convolutional    = 0;
+  double       symbol_rate      = 0.0;
+  int          dsss_code_only   = 0;
+  double       fs               = 1e6;
+  PyObject    *_kw              = kwds;
+  int          _kw_owned        = 0;
   if (kwds)
     {
       {
@@ -434,11 +448,12 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     }
   if (!PyArg_ParseTupleAndKeywords (
-          args, _kw, "|sOOsIiiKsOiOOssdiOOnOOsiiiidid", kwlist, &type, &freq,
-          &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level,
-          &background, &f_end, &bits, &modulation, &pulse, &rrc_beta,
-          &rrc_span, &symbols, &acq_code, &acq_reps, &data_code, &sync, &crc,
-          &rs_depth, &randomise, &attach_asm, &convolutional, &symbol_rate,
+          args, _kw, "|sOOsIiiKsOiOOOdsOssdiOOnOOsiiiidid", kwlist, &type,
+          &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr,
+          &level, &background, &f_end, &doppler, &doppler_rate, &carrier_hz,
+          &doppler_lifetime, &bits, &modulation, &pulse, &rrc_beta, &rrc_span,
+          &symbols, &acq_code, &acq_reps, &data_code, &sync, &crc, &rs_depth,
+          &randomise, &attach_asm, &convolutional, &symbol_rate,
           &dsss_code_only, &fs))
     {
       if (_kw_owned)
@@ -575,6 +590,61 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     {
       self->src.f_end = (double)0.0;
     }
+  if (doppler != NULL)
+    {
+      double _lo, _hi;
+      int    _r;
+      if (!_jm_parse_range (doppler, &_lo, &_hi, &_r))
+        return -1;
+      self->src.doppler = (double)_lo;
+      if (_r)
+        {
+          self->src.doppler_hi = (double)_hi;
+          self->src.ranged |= WFM_RANGE_DOPPLER;
+        }
+      else
+        {
+          self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER;
+        }
+    }
+  else
+    {
+      self->src.doppler = (double)0.0;
+    }
+  if (doppler_rate != NULL)
+    {
+      double _lo, _hi;
+      int    _r;
+      if (!_jm_parse_range (doppler_rate, &_lo, &_hi, &_r))
+        return -1;
+      self->src.doppler_rate = (double)_lo;
+      if (_r)
+        {
+          self->src.doppler_rate_hi = (double)_hi;
+          self->src.ranged |= WFM_RANGE_DOPPLER_RATE;
+        }
+      else
+        {
+          self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER_RATE;
+        }
+    }
+  else
+    {
+      self->src.doppler_rate = (double)0.0;
+    }
+  self->src.carrier_hz = carrier_hz;
+  {
+    int _i = _enum_index (_enum_doppler_lifetime, doppler_lifetime);
+    if (_i < 0)
+      {
+        PyErr_Format (
+            PyExc_ValueError,
+            "invalid doppler_lifetime '%s' (choices: per_instance, persist)",
+            doppler_lifetime);
+        return -1;
+      }
+    self->src.doppler_lifetime = _i;
+  }
   if (!_attach_bytes ((uint8_t **)&self->src.payload.bits,
                       &self->src.payload.len, bits))
     return -1;
@@ -893,6 +963,104 @@ Synth_set_f_end (SynthObject *self, PyObject *value, void *closure)
     {
       self->src.ranged &= ~(unsigned)WFM_RANGE_FEND;
     }
+  return 0;
+}
+static PyObject *
+Synth_get_doppler (SynthObject *self, void *closure)
+{
+  (void)closure;
+  if (self->src.ranged & WFM_RANGE_DOPPLER)
+    return Py_BuildValue ("(dd)", (double)self->src.doppler,
+                          (double)self->src.doppler_hi);
+  return PyFloat_FromDouble ((double)self->src.doppler);
+}
+static int
+Synth_set_doppler (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  double _lo, _hi;
+  int    _r;
+  if (!_jm_parse_range (value, &_lo, &_hi, &_r))
+    return -1;
+  self->src.doppler = (double)_lo;
+  if (_r)
+    {
+      self->src.doppler_hi = (double)_hi;
+      self->src.ranged |= WFM_RANGE_DOPPLER;
+    }
+  else
+    {
+      self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER;
+    }
+  return 0;
+}
+static PyObject *
+Synth_get_doppler_rate (SynthObject *self, void *closure)
+{
+  (void)closure;
+  if (self->src.ranged & WFM_RANGE_DOPPLER_RATE)
+    return Py_BuildValue ("(dd)", (double)self->src.doppler_rate,
+                          (double)self->src.doppler_rate_hi);
+  return PyFloat_FromDouble ((double)self->src.doppler_rate);
+}
+static int
+Synth_set_doppler_rate (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  double _lo, _hi;
+  int    _r;
+  if (!_jm_parse_range (value, &_lo, &_hi, &_r))
+    return -1;
+  self->src.doppler_rate = (double)_lo;
+  if (_r)
+    {
+      self->src.doppler_rate_hi = (double)_hi;
+      self->src.ranged |= WFM_RANGE_DOPPLER_RATE;
+    }
+  else
+    {
+      self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER_RATE;
+    }
+  return 0;
+}
+static PyObject *
+Synth_get_carrier_hz (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return PyFloat_FromDouble ((double)self->src.carrier_hz);
+}
+static int
+Synth_set_carrier_hz (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  self->src.carrier_hz = (double)PyFloat_AsDouble (value);
+  if (PyErr_Occurred ())
+    return -1;
+  return 0;
+}
+static PyObject *
+Synth_get_doppler_lifetime (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return PyUnicode_FromString (
+      _enum_doppler_lifetime[self->src.doppler_lifetime]);
+}
+static int
+Synth_set_doppler_lifetime (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  const char *s = PyUnicode_AsUTF8 (value);
+  if (!s)
+    return -1;
+  int _i = _enum_index (_enum_doppler_lifetime, s);
+  if (_i < 0)
+    {
+      PyErr_Format (
+          PyExc_ValueError,
+          "invalid doppler_lifetime '%s' (choices: per_instance, persist)", s);
+      return -1;
+    }
+  self->src.doppler_lifetime = _i;
   return 0;
 }
 static PyObject *
@@ -1226,6 +1394,14 @@ static PyGetSetDef Synth_getset[] = {
   { "background", (getter)Synth_get_background, (setter)Synth_set_background,
     NULL, NULL },
   { "f_end", (getter)Synth_get_f_end, (setter)Synth_set_f_end, NULL, NULL },
+  { "doppler", (getter)Synth_get_doppler, (setter)Synth_set_doppler, NULL,
+    NULL },
+  { "doppler_rate", (getter)Synth_get_doppler_rate,
+    (setter)Synth_set_doppler_rate, NULL, NULL },
+  { "carrier_hz", (getter)Synth_get_carrier_hz, (setter)Synth_set_carrier_hz,
+    NULL, NULL },
+  { "doppler_lifetime", (getter)Synth_get_doppler_lifetime,
+    (setter)Synth_set_doppler_lifetime, NULL, NULL },
   { "bits", (getter)Synth_get_bits, (setter)Synth_set_bits, NULL, NULL },
   { "modulation", (getter)Synth_get_modulation, (setter)Synth_set_modulation,
     NULL, NULL },
@@ -2022,6 +2198,58 @@ Segment_flat_f_end (SegmentObject *self, void *closure)
   return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "f_end");
 }
 static PyObject *
+Segment_flat_doppler (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "doppler is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
+                                 "doppler");
+}
+static PyObject *
+Segment_flat_doppler_rate (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "doppler_rate is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
+                                 "doppler_rate");
+}
+static PyObject *
+Segment_flat_carrier_hz (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "carrier_hz is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
+                                 "carrier_hz");
+}
+static PyObject *
+Segment_flat_doppler_lifetime (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "doppler_lifetime is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
+                                 "doppler_lifetime");
+}
+static PyObject *
 Segment_flat_bits (SegmentObject *self, void *closure)
 {
   (void)closure;
@@ -2285,6 +2513,11 @@ static PyGetSetDef Segment_getset[] = {
   { "level", (getter)Segment_flat_level, NULL, NULL, NULL },
   { "background", (getter)Segment_flat_background, NULL, NULL, NULL },
   { "f_end", (getter)Segment_flat_f_end, NULL, NULL, NULL },
+  { "doppler", (getter)Segment_flat_doppler, NULL, NULL, NULL },
+  { "doppler_rate", (getter)Segment_flat_doppler_rate, NULL, NULL, NULL },
+  { "carrier_hz", (getter)Segment_flat_carrier_hz, NULL, NULL, NULL },
+  { "doppler_lifetime", (getter)Segment_flat_doppler_lifetime, NULL, NULL,
+    NULL },
   { "bits", (getter)Segment_flat_bits, NULL, NULL, NULL },
   { "modulation", (getter)Segment_flat_modulation, NULL, NULL, NULL },
   { "pulse", (getter)Segment_flat_pulse, NULL, NULL, NULL },
@@ -3153,14 +3386,40 @@ _Composer_obj_to_dict (PyObject *o, const char *const *keys)
 static const char *const _Composer_seg_keys[]
     = { "fs",        "num_samples", "off_samples", "repeats", "delay_samples",
         "gap_noise", NULL };
-static const char *const _Composer_src_keys[] = {
-  "type",       "freq",          "snr",         "snr_mode",       "seed",
-  "sps",        "pn_length",     "pn_poly",     "lfsr",           "level",
-  "background", "f_end",         "bits",        "modulation",     "pulse",
-  "rrc_beta",   "rrc_span",      "symbols",     "acq_code",       "acq_reps",
-  "data_code",  "sync",          "crc",         "rs_depth",       "randomise",
-  "attach_asm", "convolutional", "symbol_rate", "dsss_code_only", NULL
-};
+static const char *const _Composer_src_keys[] = { "type",
+                                                  "freq",
+                                                  "snr",
+                                                  "snr_mode",
+                                                  "seed",
+                                                  "sps",
+                                                  "pn_length",
+                                                  "pn_poly",
+                                                  "lfsr",
+                                                  "level",
+                                                  "background",
+                                                  "f_end",
+                                                  "doppler",
+                                                  "doppler_rate",
+                                                  "carrier_hz",
+                                                  "doppler_lifetime",
+                                                  "bits",
+                                                  "modulation",
+                                                  "pulse",
+                                                  "rrc_beta",
+                                                  "rrc_span",
+                                                  "symbols",
+                                                  "acq_code",
+                                                  "acq_reps",
+                                                  "data_code",
+                                                  "sync",
+                                                  "crc",
+                                                  "rs_depth",
+                                                  "randomise",
+                                                  "attach_asm",
+                                                  "convolutional",
+                                                  "symbol_rate",
+                                                  "dsss_code_only",
+                                                  NULL };
 
 static PyObject *
 Composer_to_dict (ComposerObject *self, PyObject *Py_UNUSED (ignored))

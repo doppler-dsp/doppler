@@ -68,6 +68,15 @@ static const char *const LFSR_NAMES[] = { "galois", "fibonacci" };
 /* SSOT: enum=wfm_pulse */
 static const char *const PULSE_NAMES[] = { "rect", "rrc" };
 
+/* How long a source's clock-Doppler channel lives. "per_instance" is index 0
+   so an undeclared lifetime is the repeated-trial shape -- a channel that
+   dies with the renderer -- and "persist" is the scene-owned one that carries
+   a pass across a segment's gaps and repeats.
+   SSOT: enum=doppler_lifetime, cenum=wfm/wfm_compose.h:wfm_doppler_lifetime_t
+ */
+static const char *const DOPPLER_LIFETIME_NAMES[]
+    = { "per_instance", "persist" };
+
 /* SSOT: enum=seed_advance, cenum=wfm/wfm_compose.h:wfm_seed_advance_t */
 static const char *const SEED_ADVANCE_NAMES[] = { "none", "noise", "all" };
 

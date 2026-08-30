@@ -37,6 +37,8 @@ _One rendered source instance: its timing AND the values it was actually rendere
 | Type | Name |
 | ---: | :--- |
 |  size\_t | [**delay**](#variable-delay)  <br> |
+|  double | [**doppler**](#variable-doppler)  <br> |
+|  double | [**doppler\_rate**](#variable-doppler_rate)  <br> |
 |  double | [**f\_end**](#variable-f_end)  <br> |
 |  double | [**freq**](#variable-freq)  <br> |
 |  size\_t | [**instance**](#variable-instance)  <br> |
@@ -113,6 +115,32 @@ The spec keeps storing `(lo, hi)`: replay is guaranteed by re-deriving the draw 
 
 ```C++
 size_t wfm_draw_t::delay;
+```
+
+
+
+
+<hr>
+
+
+
+### variable doppler 
+
+```C++
+double wfm_draw_t::doppler;
+```
+
+
+
+
+<hr>
+
+
+
+### variable doppler\_rate 
+
+```C++
+double wfm_draw_t::doppler_rate;
 ```
 
 

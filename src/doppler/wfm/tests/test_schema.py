@@ -78,6 +78,47 @@ _LIVE_CASES: list[tuple[str, list[str]]] = [
     ("tone_headroom", ["--type", "tone", "--count", "64", "--headroom", "6"]),
     ("tone_level", ["--type", "tone", "--count", "64", "--level", "-6"]),
     ("tone_snr", ["--type", "tone", "--snr", "20", "--count", "64"]),
+    # ── clock Doppler: scalar, ranged, and the lifetime ─────────────────────
+    (
+        "doppler_scalar",
+        [
+            "--type",
+            "tone",
+            "--count",
+            "64",
+            "--doppler",
+            "25",
+            "--doppler-rate",
+            "4",
+            "--carrier-hz",
+            "2.4e9",
+        ],
+    ),
+    (
+        "doppler_ranged_persist",
+        [
+            "--type",
+            "tone",
+            "--count",
+            "64",
+            "--repeats",
+            "2",
+            "--doppler",
+            "2:9",
+            "--doppler-rate",
+            "0.1:0.5",
+            "--carrier-hz",
+            "1.5e9",
+            "--doppler-lifetime",
+            "persist",
+        ],
+    ),
+    # carrier_hz on its own: no channel is built, but the key is still
+    # emitted, so `additionalProperties: false` has to know about it.
+    (
+        "carrier_hz_alone",
+        ["--type", "tone", "--count", "64", "--carrier-hz", "2.4e9"],
+    ),
     # ── noise ───────────────────────────────────────────────────────────────
     ("noise_basic", ["--type", "noise", "--count", "64"]),
     (
@@ -598,6 +639,22 @@ _INVALID_STATICS: list[tuple[str, dict[str, Any]]] = [
         "freq_range_three",
         {"version": 1, "segments": [{**_SEG, "freq": [1.0, 2.0, 3.0]}]},
     ),  # range pair must be exactly [lo, hi]
+    (
+        "bad_doppler_lifetime",
+        {"version": 1, "segments": [{**_SEG, "doppler_lifetime": "forever"}]},
+    ),  # a lifetime this build cannot honour must not validate
+    (
+        "doppler_range_three",
+        {"version": 1, "segments": [{**_SEG, "doppler": [1.0, 2.0, 3.0]}]},
+    ),  # doppler is ranged like freq: exactly [lo, hi]
+    (
+        "doppler_rate_not_a_number",
+        {"version": 1, "segments": [{**_SEG, "doppler_rate": "fast"}]},
+    ),
+    (
+        "carrier_hz_not_a_number",
+        {"version": 1, "segments": [{**_SEG, "carrier_hz": "S-band"}]},
+    ),
     # A 64-bit mask must be a hex STRING: a JSON number is a double, so a
     # register above 2^53 would not survive the round trip.
     (

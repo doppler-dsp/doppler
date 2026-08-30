@@ -56,6 +56,35 @@ class Synth:
         Synth.steps().
     f_end : float | tuple[float, float], default 0.0
         Chirp end frequency in Hz; ignored by non-chirp types.
+    doppler : float | tuple[float, float], default 0.0
+        Clock Doppler in ppm: the received time base is rescaled by 1 +
+        doppler*1e-6, so the symbol and chip rates move with the carrier and a
+        timing loop sees the error a carrier-only `freq` offset hides. Accepts
+        a (lo, hi) tuple drawn uniformly per repeat, like freq/snr. Zero
+        doppler AND zero doppler_rate means no channel is built at all, so a
+        source that does not ask for Doppler renders exactly as it always did.
+    doppler_rate : float | tuple[float, float], default 0.0
+        Linear ramp on `doppler`, in ppm per second of elapsed stream time. The
+        channel runs through a segment's gaps as well as its on-time — an
+        emitter does not stop moving because its burst ended — so this is per
+        second, not per second of on-time. Accepts a (lo, hi) tuple drawn
+        uniformly per repeat.
+    carrier_hz : float, default 0.0
+        RF carrier in Hz that the ppm figures are referred to, giving the
+        coherent carrier rotation that accompanies the time-base warp. 0 (the
+        default) warps the clock alone, with no carrier rotation — a legitimate
+        scene, not an unset field. Independent of doppler/doppler_rate.
+    doppler_lifetime : str, default ``"per_instance"``
+        How long this source's Doppler channel lives. per_instance (default):
+        the channel dies with each `repeats` instance, so the geometry restarts
+        — the repeated-trial shape, which composes with a ranged doppler
+        re-drawn per instance. persist: one continuous pass carries across the
+        segment's gaps and repeat instances, keyed by (segment, source)
+        position — the only lifetime under which doppler_rate accumulates
+        across a multi-burst scene. Plan.prepare() REFUSES a persist source,
+        because its cache renders each source independently and concurrently;
+        compose() and stream() honour both.
+        One of ``"per_instance"``, ``"persist"``.
     bits : bytes | None, default None
         For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill
         the request. For type=dsss (as `payload`): the payload bits of the
@@ -157,6 +186,10 @@ class Synth:
         level: float | tuple[float, float] = ...,
         background: int = ...,
         f_end: float | tuple[float, float] = ...,
+        doppler: float | tuple[float, float] = ...,
+        doppler_rate: float | tuple[float, float] = ...,
+        carrier_hz: float = ...,
+        doppler_lifetime: str = ...,
         bits: bytes | None = ...,
         modulation: str = ...,
         pulse: str = ...,
@@ -188,6 +221,10 @@ class Synth:
     level: float | tuple[float, float]
     background: int
     f_end: float | tuple[float, float]
+    doppler: float | tuple[float, float]
+    doppler_rate: float | tuple[float, float]
+    carrier_hz: float
+    doppler_lifetime: str
     bits: bytes | None
     modulation: str
     pulse: str
@@ -264,6 +301,35 @@ class Segment:
         Synth.steps().
     f_end : float | tuple[float, float], default 0.0
         Chirp end frequency in Hz; ignored by non-chirp types.
+    doppler : float | tuple[float, float], default 0.0
+        Clock Doppler in ppm: the received time base is rescaled by 1 +
+        doppler*1e-6, so the symbol and chip rates move with the carrier and a
+        timing loop sees the error a carrier-only `freq` offset hides. Accepts
+        a (lo, hi) tuple drawn uniformly per repeat, like freq/snr. Zero
+        doppler AND zero doppler_rate means no channel is built at all, so a
+        source that does not ask for Doppler renders exactly as it always did.
+    doppler_rate : float | tuple[float, float], default 0.0
+        Linear ramp on `doppler`, in ppm per second of elapsed stream time. The
+        channel runs through a segment's gaps as well as its on-time — an
+        emitter does not stop moving because its burst ended — so this is per
+        second, not per second of on-time. Accepts a (lo, hi) tuple drawn
+        uniformly per repeat.
+    carrier_hz : float, default 0.0
+        RF carrier in Hz that the ppm figures are referred to, giving the
+        coherent carrier rotation that accompanies the time-base warp. 0 (the
+        default) warps the clock alone, with no carrier rotation — a legitimate
+        scene, not an unset field. Independent of doppler/doppler_rate.
+    doppler_lifetime : str, default ``"per_instance"``
+        How long this source's Doppler channel lives. per_instance (default):
+        the channel dies with each `repeats` instance, so the geometry restarts
+        — the repeated-trial shape, which composes with a ranged doppler
+        re-drawn per instance. persist: one continuous pass carries across the
+        segment's gaps and repeat instances, keyed by (segment, source)
+        position — the only lifetime under which doppler_rate accumulates
+        across a multi-burst scene. Plan.prepare() REFUSES a persist source,
+        because its cache renders each source independently and concurrently;
+        compose() and stream() honour both.
+        One of ``"per_instance"``, ``"persist"``.
     bits : bytes | None, default None
         For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill
         the request. For type=dsss (as `payload`): the payload bits of the
@@ -390,6 +456,10 @@ class Segment:
     level: float
     background: int
     f_end: float
+    doppler: float
+    doppler_rate: float
+    carrier_hz: float
+    doppler_lifetime: str
     bits: bytes | None
     modulation: str
     pulse: str
@@ -421,6 +491,10 @@ class Segment:
         level: float | tuple[float, float] = ...,
         background: int = ...,
         f_end: float | tuple[float, float] = ...,
+        doppler: float | tuple[float, float] = ...,
+        doppler_rate: float | tuple[float, float] = ...,
+        carrier_hz: float = ...,
+        doppler_lifetime: str = ...,
         bits: bytes | None = ...,
         modulation: str = ...,
         pulse: str = ...,

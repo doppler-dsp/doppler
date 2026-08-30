@@ -40,6 +40,7 @@
 |  const char \*const | [**BITMOD\_NAMES**](#variable-bitmod_names)   = `{ "none", "bpsk", "qpsk" }`<br> |
 |  const char \*const | [**CRC\_NAMES**](#variable-crc_names)   = `{ "none", "crc16" }`<br> |
 |  const char \*const | [**DATA\_SRC\_NAMES**](#variable-data_src_names)   = `{ "prbs", "none" }`<br> |
+|  const char \*const | [**DOPPLER\_LIFETIME\_NAMES**](#variable-doppler_lifetime_names)   = `{ "per\_instance", "persist" }`<br> |
 |  const char \*const | [**ENDIAN\_NAMES**](#variable-endian_names)   = `{ "le", "be" }`<br> |
 |  const char \*const | [**FTYPE\_NAMES**](#variable-ftype_names)   = `{ "raw", "csv", "blue", "sigmf" }`<br> |
 |  const char \*const | [**GAP\_NOISE\_NAMES**](#variable-gap_noise_names)   = `{ "auto", "off" }`<br> |
@@ -134,6 +135,19 @@ const char* const CRC_NAMES[];
 
 ```C++
 const char* const DATA_SRC_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable DOPPLER\_LIFETIME\_NAMES 
+
+```C++
+const char* const DOPPLER_LIFETIME_NAMES[];
 ```
 
 

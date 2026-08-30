@@ -1611,3 +1611,131 @@ def test_sigmf_annotation_values_are_the_drawn_ones():
 
     # The spec still answers the other question.
     assert comp.segments[0].freq == (lo, hi)
+
+
+# ---------------------------------------------------------------------------
+# Clock Doppler on a source (gh-942) — the Python and JSON faces
+# ---------------------------------------------------------------------------
+
+_DOP_KW = {"fs": 1e6, "sps": 4, "num_samples": 4096, "seed": 3}
+
+
+def _dop(**extra):
+    return np.asarray(
+        Composer([Segment("bpsk", **_DOP_KW, **extra)]).compose()
+    )
+
+
+def test_doppler_kwarg_reaches_the_render() -> None:
+    # The kwarg exists on Segment and it CHANGES the waveform. Without this
+    # every assertion below could pass on an inert field.
+    assert not np.array_equal(_dop(), _dop(doppler=50.0, carrier_hz=2.2e9))
+    assert not np.array_equal(
+        _dop(), _dop(doppler_rate=500.0, carrier_hz=2.2e9)
+    )
+
+
+def test_carrier_hz_alone_builds_no_channel() -> None:
+    # Zero doppler AND zero doppler_rate means no channel at all, so a
+    # declared carrier is inert on its own -- and a scene that asks for no
+    # Doppler renders through exactly the code it always did.
+    np.testing.assert_array_equal(_dop(), _dop(carrier_hz=2.2e9))
+
+
+def test_ranged_doppler_is_a_tuple_on_the_python_face() -> None:
+    # The library-wide spelling: a ranged field is a (lo, hi) tuple in
+    # Python and a [lo, hi] array in JSON. `doppler_hi` is not a kwarg.
+    seg = Segment(
+        "bpsk", **_DOP_KW, doppler=(2.0, 9.0), doppler_rate=(0.1, 0.5)
+    )
+    assert seg.doppler == (2.0, 9.0)
+    assert seg.doppler_rate == (0.1, 0.5)
+    with pytest.raises(TypeError):
+        Segment("bpsk", **_DOP_KW, doppler_hi=9.0)
+
+
+def test_doppler_lifetime_is_a_string_enum() -> None:
+    seg = Segment("bpsk", **_DOP_KW, doppler=5.0, doppler_lifetime="persist")
+    assert seg.doppler_lifetime == "persist"
+    assert Segment("bpsk", **_DOP_KW).doppler_lifetime == "per_instance"
+    with pytest.raises(ValueError):
+        Segment("bpsk", **_DOP_KW, doppler_lifetime="forever")
+
+
+def test_doppler_survives_a_json_round_trip() -> None:
+    # What a face is FOR: a scene written through it renders the same. A key
+    # emitted but not read, or read into the wrong field, lands here.
+    scene = Composer(
+        [
+            Segment(
+                "bpsk",
+                **_DOP_KW,
+                doppler=(2.0, 9.0),
+                doppler_rate=0.4,
+                carrier_hz=2.2e9,
+                doppler_lifetime="persist",
+            )
+        ]
+    )
+    spec = scene.to_json()
+    seg = json.loads(spec)["segments"][0]
+    assert seg["doppler"] == [2.0, 9.0]  # the SPAN, not one instance's draw
+    assert seg["doppler_rate"] == 0.4
+    assert seg["carrier_hz"] == 2.2e9
+    assert seg["doppler_lifetime"] == "persist"
+    np.testing.assert_array_equal(
+        Composer.from_json(spec).compose(), scene.compose()
+    )
+
+
+def test_a_scene_without_doppler_emits_no_doppler_keys() -> None:
+    # Omitted at the default, exactly as level and background are: every
+    # recorded spec in the world would otherwise churn for a field it does
+    # not use.
+    seg = json.loads(Composer([Segment("bpsk", **_DOP_KW)]).to_json())[
+        "segments"
+    ][0]
+    assert not [k for k in seg if "doppler" in k or k == "carrier_hz"]
+
+
+def test_sigmf_annotations_carry_the_drawn_doppler() -> None:
+    # The sidecar's whole point is that what is rendered and what is
+    # reported cannot disagree (doppler#1086). Doppler is drawn like
+    # freq/snr/level, so it is reported like them: per instance, not the
+    # spec's lo on every row.
+    seg = Segment(
+        "bpsk",
+        fs=1e6,
+        sps=4,
+        num_samples=4096,
+        repeats=3,
+        seed=5,
+        doppler=(2.0, 9.0),
+        doppler_rate=(0.1, 0.5),
+        carrier_hz=1.5e9,
+    )
+    comp = Composer([seg])
+    anns = json.loads(comp.to_sigmf(sample_type="cf32", fs=1e6))["annotations"]
+    assert len(anns) == 3
+
+    ppm = [a["wfmgen:doppler_ppm"] for a in anns]
+    rate = [a["wfmgen:doppler_rate_ppm_s"] for a in anns]
+    assert all(2.0 <= v <= 9.0 for v in ppm), ppm
+    assert all(0.1 <= v <= 0.5 for v in rate), rate
+    assert len(set(ppm)) == 3, f"doppler draws did not vary: {ppm}"
+    assert len(set(rate)) == 3, f"doppler_rate draws did not vary: {rate}"
+    assert min(ppm) > 2.0, f"an annotation sat on the range's lo: {ppm}"
+    assert all(a["wfmgen:carrier_hz"] == 1.5e9 for a in anns)
+    assert all(a["wfmgen:doppler_lifetime"] == "per_instance" for a in anns)
+
+    # The spec still answers the other question.
+    assert comp.segments[0].doppler == (2.0, 9.0)
+
+
+def test_sigmf_omits_doppler_keys_without_a_channel() -> None:
+    anns = json.loads(
+        Composer([Segment("bpsk", **_DOP_KW)]).to_sigmf(
+            sample_type="cf32", fs=1e6
+        )
+    )["annotations"]
+    assert not [k for k in anns[0] if "doppler" in k or "carrier_hz" in k]

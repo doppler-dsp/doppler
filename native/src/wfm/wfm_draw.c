@@ -148,17 +148,19 @@ wfm_compose_draws (const wfm_segment_t *segs, size_t n_segs, wfm_draw_t *out,
               wfm_src_draw_t v;
               wfm_draw_source (&g->sources[k], 0, inst, i, k, &v);
               if (out && total < cap)
-                out[total] = (wfm_draw_t){ .seg      = i,
-                                           .instance = inst,
-                                           .src      = k,
-                                           .start    = pos,
-                                           .delay    = d.delay,
-                                           .on       = d.on,
-                                           .off      = d.off,
-                                           .freq     = v.freq,
-                                           .f_end    = v.f_end,
-                                           .snr      = v.snr,
-                                           .level    = v.level };
+                out[total] = (wfm_draw_t){ .seg          = i,
+                                           .instance     = inst,
+                                           .src          = k,
+                                           .start        = pos,
+                                           .delay        = d.delay,
+                                           .on           = d.on,
+                                           .off          = d.off,
+                                           .freq         = v.freq,
+                                           .f_end        = v.f_end,
+                                           .snr          = v.snr,
+                                           .level        = v.level,
+                                           .doppler      = v.doppler,
+                                           .doppler_rate = v.doppler_rate };
               total++;
             }
           pos += d.delay + d.on + d.off;

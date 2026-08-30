@@ -773,8 +773,48 @@ plan_build (const char *spec_json, const plan_loaded_t *loaded)
       if (g->fs != segs[0].fs)
         goto done; /* one global sample rate across the whole scene */
       for (size_t k = 0; k < g->n_sources; k++)
-        if (g->sources[k].ranged)
-          goto done; /* a ranged source is ambiguous for a static cache */
+        {
+          const wfm_source_t *src = &g->sources[k];
+          if (src->ranged)
+            goto done; /* a ranged source is ambiguous for a static cache */
+          /* A source with a Doppler CHANNEL is refused, rather than cached
+             wrong. Both lifetimes, for two independently sufficient reasons
+             -- measured against compose(), not assumed:
+
+             1. WHAT COMES BEFORE THE BURST. This cache holds one source's
+                clean ON-time in isolation, but a Doppler channel is a
+                resampler with state, and it RUNS THROUGH the gaps (gh-409):
+                its filter rings the burst's tail out across the trailing
+                gap, and a leading `delay_samples` advances the geometry
+                before the burst even starts. Measured on a clean one-source
+                scene: `off_samples = 256` diverges from compose() over all
+                256 gap samples, and `delay_samples = 256` diverges over the
+                BURST from sample 257 on. The cache has nowhere to put that
+                history.
+
+             2. WHERE THE NOISE SITS. compose() puts the AWGN inside the
+                synth, so the channel resamples the noise too; the cache
+                holds a CLEAN render and re-weights noise on top, outside
+                the channel. Measured on a bundled single noisy source with
+                no gaps at all: max |err| 1.73 on a unit-power signal.
+
+             PERSIST would be refused even without those, and for its own
+             reason: the cache renders each source independently and, in
+             cache_build_one, concurrently, and "bit-identical to the serial
+             build" is a documented property of it -- a channel carrying
+             across segments makes segment i depend on 0..i-1 having been
+             rendered in order, which is exactly the assumption that build is
+             allowed to make.
+
+             A lifetime declared on a source with zero doppler AND zero
+             doppler_rate builds no channel, so it is not refused for a field
+             it does not use. Teaching the cache to carry a channel's history
+             is gh-1109; until then no plan is the honest answer, because a
+             wrong one differs from compose() in a way nothing downstream
+             can see. */
+          if (src->doppler != 0.0 || src->doppler_rate != 0.0)
+            goto done;
+        }
       size_t seg_sig, seg_bg;
       if (segment_slots (g, &seg_sig, &seg_bg) != 0)
         goto done; /* background sources are not a contiguous prefix */

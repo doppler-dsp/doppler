@@ -45,6 +45,7 @@ ______________________________________________________________________
 | [Waveforms](waveforms.md)                  | The nine `--type`s, PN/MLS codes, RRC pulse shaping.                           |
 | [Levels & SNR](levels.md)                  | Unit-average-power, full-scale, clipping, headroom, the SNR model.             |
 | [Scenes](scenes.md)                        | Multi-segment specs, `sum`/`add`, seeds, ranged values, `--record`.            |
+| [Clock Doppler](doppler.md)                | A source that is moving — ppm time-base warp, rate, lifetime, and `Plan`.      |
 | [Channel Coding](coding.md)                | RS, randomiser, ASM, convolutional, block interleaver — and the CADU.          |
 | [DSSS Bursts](dsss-bursts.md)              | Two-code spread-spectrum burst trains, chip-rate Es/N0, free ground truth.     |
 | [Streaming](streaming.md)                  | Real-time pacing and streaming to NATS.                                        |

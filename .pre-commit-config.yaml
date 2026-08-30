@@ -110,6 +110,23 @@ repos:
         pass_filenames: false
         types_or: [c]
 
+      # A header's @code example is compiled by NOTHING -- doxygen renders it,
+      # jm transplants a constructor's into the .pyi, and neither type-checks
+      # it. Fires on any C change, since the example and the declaration it
+      # describes live in the same header.
+      #
+      # This hook is the gate's execution home, and it had none for the life
+      # of the gate (doppler#1104): `header-example-arity` was in LINT_TOOLS
+      # and in nothing else, and `make lint` runs pre-commit -- so a tool with
+      # no hook here is reachable only by typing its target by hand. Its
+      # 11-finding ratchet was therefore never enforced either.
+      - id: header-example-arity
+        name: header example arity
+        entry: make -s lint-header-example-arity
+        language: system
+        pass_filenames: false
+        types_or: [c]
+
       # A trusted internal allocation goes through clib_common.h's
       # abort-on-OOM helpers. Fires on any C change: a bare malloc can
       # appear in any core, and the point is to catch the FIRST one.

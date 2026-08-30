@@ -1556,7 +1556,12 @@ UBSAN_OPTS    = halt_on_error=0:print_stacktrace=1
 #:
 #: The distinct source locations ARE code-determined, so that is what is
 #: ratcheted, per file. See scripts/check_ubsan_alignment.py.
-UBSAN_ALIGN_CHECK = $(UV) run python scripts/check_ubsan_alignment.py
+# `python3`, not `$(UV) run python`, and that is not a style choice: the
+# UBSan CI job is a C-only container with no venv, so the uv form exits 127 --
+# "command not found" -- and the gate fails for having no interpreter rather
+# than for anything it measured. The script imports only the standard library
+# (argparse, re, sys, collections, pathlib) precisely so it can run here.
+UBSAN_ALIGN_CHECK = python3 scripts/check_ubsan_alignment.py
 
 test-ubsan: ## Run the C suite under UBSan; any undefined behaviour fails
 	$(CMAKE) -B $(UBSAN_DIR) -S . \

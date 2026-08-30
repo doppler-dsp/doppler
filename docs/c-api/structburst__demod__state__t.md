@@ -55,11 +55,13 @@ _BurstDemod state. Allocate with_ [_**burst\_demod\_create()**_](burst__demod__c
 |  double | [**max\_rate**](#variable-max_rate)  <br> |
 |  size\_t | [**n\_llr**](#variable-n_llr)  <br> |
 |  size\_t | [**n\_part**](#variable-n_part)  <br> |
+|  size\_t | [**n\_sym**](#variable-n_sym)  <br> |
 |  size\_t | [**n\_symbols**](#variable-n_symbols)  <br> |
 |  float complex \* | [**part**](#variable-part)  <br> |
 |  [**ppe\_state\_t**](structppe__state__t.md) \* | [**ppe**](#variable-ppe)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
 |  size\_t | [**start**](#variable-start)  <br> |
+|  float complex \* | [**sym**](#variable-sym)  <br> |
 |  int8\_t \* | [**sync**](#variable-sync)  <br> |
 |  size\_t | [**sync\_len**](#variable-sync_len)  <br> |
 
@@ -445,6 +447,23 @@ size_t burst_demod_state_t::n_part;
 
 
 
+### variable n\_sym 
+
+```C++
+size_t burst_demod_state_t::n_sym;
+```
+
+
+
+Symbols the last demod() wrote (the frame's length). 
+
+
+        
+
+<hr>
+
+
+
 ### variable n\_symbols 
 
 ```C++
@@ -525,6 +544,24 @@ size_t burst_demod_state_t::start;
 
 
 preamble start sample in the burst. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable sym 
+
+```C++
+float complex* burst_demod_state_t::sym;
+```
+
+
+
+The frame's DEROTATED, unit-normalised complex symbols  the constellation the LLRs are the real part of. Built either way to compute the projection and the noise estimate, and freed unread until doppler#1087: for BPSK a residual phase error and a genuine amplitude loss are indistinguishable in every real-only statistic (a rotation scales Re by cos(phi) without adding noise), so \|LLR\|, its spread and the BER all agree while only the quadrature separates them. Valid until the next demod(); n\_sym of them. 
  
 
 

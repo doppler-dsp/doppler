@@ -235,11 +235,18 @@ run_edge_cases (void)
   DP_CHECK (burst_demod_demod (d, tiny, 8, eb, FRAME_SYMS) == 0);
   float el[FRAME_SYMS];
   DP_CHECK (burst_demod_llrs (d, 1, el, FRAME_SYMS) == 0);
+  float complex esym[FRAME_SYMS];
+  DP_CHECK_MSG (burst_demod_symbols (d, 1, esym, FRAME_SYMS) == 0,
+                "no frame yet: the constellation read-back is empty, not "
+                "stale");
   /* The capacity accessor answers from the CONFIGURATION, so it reports a
      frame's worth even when the last call produced none — that is what a
      caller sizes a buffer with, before there is anything to size for. */
   DP_CHECK_MSG (burst_demod_llrs_max_out (d, 1) == FRAME_SYMS,
                 "llrs_max_out is the frame's length, not the last call's");
+  DP_CHECK_MSG (burst_demod_symbols_max_out (d, 1) == FRAME_SYMS,
+                "symbols_max_out matches llrs_max_out -- the two read-backs "
+                "describe ONE frame at one length");
   DP_CHECK_MSG (burst_demod_demod_max_out (d) == FRAME_SYMS,
                 "and demod_max_out agrees with it");
   burst_demod_destroy (d);
@@ -613,6 +620,56 @@ main (void)
     /* And they are SCALED: a noise estimate the caller can read back. */
     DP_CHECK_MSG (d->est_n0 > 0.0, "the LLR scale is published, not hidden");
 
+    /* ── the CONSTELLATION the LLRs are the real part of ────────────────
+     *
+     * It was built either way -- the projection and the noise estimate are
+     * both made from it -- and then freed unread, which cost a caller the
+     * quadrature (doppler#1087). After derotation the real axis carries the
+     * signal and the imaginary axis carries noise alone, so Q is the only
+     * place a phase-coherence problem shows: measured through this object, a
+     * Doppler rate of 1e5 Hz/s raises Q/I 41x while est_snr_db, est_rate_hz
+     * and the bits are all unchanged. */
+    float complex *sy = malloc (nl * sizeof *sy);
+    DP_REQUIRE (sy != NULL);
+    DP_CHECK_MSG (burst_demod_symbols (d, 1, sy, nl) == nl,
+                  "the constellation spans the frame, as the LLRs do");
+
+    size_t sign_bad = 0, scale_bad = 0;
+    for (size_t i = 0; i < nl; i++)
+      {
+        if (((crealf (sy[i]) < 0.0f) ? 1u : 0u) != bits[i])
+          sign_bad++;
+        /* llr = 4*Re/est_n0 -- one projection, reported twice. Checking the
+           RELATION rather than either value keeps this a statement about the
+           two read-backs agreeing, not about the demapper's constant. */
+        const float want = 4.0f * crealf (sy[i]) / (float)d->est_n0;
+        const float tol  = 1e-3f * (fabsf (want) + 1.0f);
+        if (fabsf (llr[i] - want) > tol)
+          scale_bad++;
+      }
+    DP_CHECK_MSG (sign_bad == 0,
+                  "Re(symbol) carries the same decision the bits do");
+    DP_CHECK_MSG (scale_bad == 0,
+                  "llrs() is Re(symbols) scaled by est_n0 -- the same "
+                  "projection reported twice, not two computations");
+
+    /* This fixture is effectively noiseless (snr ~71 dB), so the honest
+       statement here is that the constellation is TIGHT: derotated onto the
+       real axis with almost nothing in quadrature. A constellation that was
+       not derotated, or was the raw symbols, would fail this. How Q behaves
+       when there IS an impairment needs a noisy scene and is asserted on the
+       Python side, where one can be composed. */
+    double qe = 0.0, ie = 0.0;
+    for (size_t i = 0; i < nl; i++)
+      {
+        qe += (double)cimagf (sy[i]) * (double)cimagf (sy[i]);
+        ie += (double)crealf (sy[i]) * (double)crealf (sy[i]);
+      }
+    DP_CHECK_MSG (ie > 0.0 && qe < 0.01 * ie,
+                  "a clean burst derotates onto the real axis -- the "
+                  "constellation is the derotated one, not the raw symbols");
+
+    free (sy);
     free (llr);
     burst_demod_destroy (d);
     free (y);

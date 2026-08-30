@@ -77,6 +77,8 @@ _Feedforward BPSK DSSS frame demodulator._ [More...](#detailed-description)
 |  void | [**burst\_demod\_set\_preamble**](#function-burst_demod_set_preamble) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t reps) <br>_Register the unmodulated acquisition preamble code and its repetition count used for the feedforward (f0, rate) estimate._  |
 |  void | [**burst\_demod\_set\_prior**](#function-burst_demod_set_prior) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, double f0\_coarse, size\_t start) <br>_Seed the demodulator from acquisition with the coarse Doppler and the preamble start sample._  |
 |  void | [**burst\_demod\_set\_sync**](#function-burst_demod_set_sync) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, const uint8\_t \* sync, size\_t sync\_len) <br>_Register the known frame-sync word used for frame alignment and phase/sign resolution._  |
+|  size\_t | [**burst\_demod\_symbols**](#function-burst_demod_symbols) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, size\_t n, float complex \* out, size\_t max\_out) <br>_The last demod()'s DEROTATED complex symbols — the constellation the LLRs are the real part of._  |
+|  size\_t | [**burst\_demod\_symbols\_max\_out**](#function-burst_demod_symbols_max_out) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, size\_t n) <br>_Max symbols_ [_**burst\_demod\_symbols()**_](burst__demod__core_8h.md#function-burst_demod_symbols) _writes: the frame's length._ |
 
 
 
@@ -619,6 +621,91 @@ This is the ONLY thing this object is told about the frame's content, and it is 
 >>> d.set_sync(sync)   # Barker-13: frame align + phase/sign fix
 ```
  
+
+
+
+
+        
+
+<hr>
+
+
+
+### function burst\_demod\_symbols 
+
+_The last demod()'s DEROTATED complex symbols — the constellation the LLRs are the real part of._ 
+```C++
+size_t burst_demod_symbols (
+    burst_demod_state_t * state,
+    size_t n,
+    float complex * out,
+    size_t max_out
+) 
+```
+
+
+
+Same span and same normalisation as [**burst\_demod\_llrs()**](burst__demod__core_8h.md#function-burst_demod_llrs): the whole frame, scaled to unit mean-\|Re\| by the burst's own estimate, so `crealf(symbols[k])` is that bit's LLR up to `est_n0`.
+
+
+The quadrature is why this exists. After derotation the real axis carries the signal and the imaginary axis carries noise alone, so Q is diagnostic: a residual phase error scales Re by `cos(phi)` WITHOUT adding noise, which makes it indistinguishable from a genuine amplitude or SNR loss in mean \|LLR\|, in LLR spread and in BER alike. Measured over 20000 BPSK symbols, a 30 degree phase error and an amplitude loss of `cos(30 deg)` agreed to three decimals in all three, and differed only in Q/I energy — 0.386 against 0.077 (doppler#1087). That is the difference between a pointing problem and a link-budget one, on a burst this object already characterised well enough to know.
+
+
+
+
+**Parameters:**
+
+
+* `state` Demodulator handle. 
+* `n` Ignored — the count is the last demod()'s frame. 
+* `out` Receives the symbols, one per frame bit. 
+* `max_out` Capacity of `out`; see [**burst\_demod\_symbols\_max\_out()**](burst__demod__core_8h.md#function-burst_demod_symbols_max_out). 
+
+
+
+**Returns:**
+
+Symbols written — `min(frame bits, max_out)`, or 0 if the last demod() produced no frame. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import BurstDemod
+>>> dcode = (np.arange(50) & 1).astype(np.uint8)
+>>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
+>>> d.set_sync(np.zeros(13, dtype=np.uint8))
+>>> d.symbols_max_out(1)       # one per frame symbol, as llrs()
+93
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function burst\_demod\_symbols\_max\_out 
+
+_Max symbols_ [_**burst\_demod\_symbols()**_](burst__demod__core_8h.md#function-burst_demod_symbols) _writes: the frame's length._
+```C++
+size_t burst_demod_symbols_max_out (
+    burst_demod_state_t * state,
+    size_t n
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Demodulator handle. 
+* `n` Ignored — the count is the last demod()'s frame. 
 
 
 

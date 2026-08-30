@@ -157,3 +157,66 @@ def test_demod_out_undersized_raises():
     x = np.zeros(4, dtype=np.complex64)
     with pytest.raises(ValueError):
         d.demod(x, out=out)
+
+
+def test_symbols_is_the_constellation_llrs_is_the_real_part_of():
+    """`symbols()` and `llrs()` are one projection reported twice.
+
+    The object built the derotated constellation either way -- the LLR
+    projection and the noise estimate are both made from it -- and then freed
+    it unread (doppler#1087). Same span, same normalisation, and the exact
+    relation `llr = 4*Re/est_n0` so a caller can move between them.
+    """
+    payload = ((np.arange(PAYLOAD) * 7 + 3) & 1).astype(np.uint8)
+    d = _make(0.0)
+    d.set_prior(0.012, 0)
+    bits = d.demod(_burst(payload, 0.012, 0.0))
+    assert _frame_ok(bits)
+
+    sym = np.asarray(d.symbols())
+    llr = np.asarray(d.llrs())
+    assert sym.dtype == np.complex64
+    assert sym.size == llr.size == FRAME_SYMS
+    assert d.symbols_max_out(1) == d.llrs_max_out(1) == FRAME_SYMS
+
+    # The same decision, seen twice.
+    assert np.array_equal((sym.real < 0).astype(np.uint8), bits[:FRAME_SYMS])
+    # And the same numbers, up to the published scale.
+    assert d.est_n0 > 0.0
+    np.testing.assert_allclose(llr, 4.0 * sym.real / d.est_n0, rtol=1e-3)
+
+
+def test_symbols_quadrature_shows_what_no_other_readback_does():
+    """Q is why the constellation is worth keeping.
+
+    After derotation the real axis carries the signal and the imaginary axis
+    carries noise alone, so a phase-coherence problem lands in Q and nowhere
+    else. Measured through this object, a Doppler rate the estimator is not
+    configured to track raises Q/I by more than an order of magnitude while
+    `est_snr_db` does not move, `est_rate_hz` still reports 0, and the frame
+    still decodes -- so nothing in the pre-#1087 read-back surface reveals
+    it. That is the difference between a pointing problem and a clean link.
+    """
+    payload = ((np.arange(PAYLOAD) * 7 + 3) & 1).astype(np.uint8)
+
+    def run(mu):
+        d = _make(0.0)  # max_rate 0: the rate below is NOT tracked
+        d.set_prior(0.012, 0)
+        bits = d.demod(_burst(payload, 0.012, mu))
+        sym = np.asarray(d.symbols())
+        qi = float(np.sum(sym.imag**2) / max(np.sum(sym.real**2), 1e-30))
+        return d, bits, qi
+
+    clean, clean_bits, qi_clean = run(0.0)
+    rated, rated_bits, qi_rated = run(6e-10)
+
+    # Both still decode, so the bits say nothing is wrong...
+    assert _frame_ok(clean_bits) and _frame_ok(rated_bits)
+    # ...and the scalar estimates do not separate them either.
+    assert rated.est_snr_db == pytest.approx(clean.est_snr_db, abs=1.0)
+    assert rated.est_rate_hz == pytest.approx(0.0, abs=1.0)
+    # Only the quadrature does.
+    assert qi_rated > 5.0 * qi_clean, (
+        f"Q/I {qi_rated:.5f} vs clean {qi_clean:.5f} -- the quadrature is "
+        "the axis that shows a phase-coherence problem"
+    )

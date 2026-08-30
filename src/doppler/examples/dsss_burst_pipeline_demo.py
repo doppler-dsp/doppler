@@ -29,10 +29,8 @@ reason (a realistic capture leaves the AWGN floor running through the
 gaps — see the ``guide/wfmgen/dsss-bursts.md`` page for that variant).
 
 If any two diverge, that is a genuine engine bug — the assertion is the
-test, not just documentation. The two Python faces are compared bit-for-bit;
-the C CLI is compared to a float32 tolerance because it currently disagrees
-by up to 32 ULP once the scene carries noise (doppler#1003 — the signal path
-is bit-identical, only AWGN differs in precision).
+test, not just documentation. All three are compared bit-for-bit: same
+scene, same seed, same samples, whichever door you came in by.
 
 **Reception** — the same capture run through three doppler receiver objects,
 each demonstrated on its own before they are chained. Every downstream stage
@@ -341,23 +339,24 @@ def generate_waveform(tmp_dir):
             "Composer.from_file vs Composer(Segment(...)) diverged"
         )
 
-    # The C CLI is compared to a TOLERANCE, not bit-for-bit, and the reason
-    # is a real defect rather than a courtesy: with noise in the scene the
-    # CLI and the binding disagree by up to 32 float32 ULP (relative 2e-6).
-    # Isolated -- with the noise turned down the three faces ARE
-    # bit-identical, so the signal path agrees exactly and only the AWGN
-    # path differs in precision. Tracked as doppler#1003; assert the claim
-    # that holds today rather than a red gate or a silent skip.
-    if not np.allclose(rx_cli, rx_json, rtol=1e-5, atol=1e-6):
+    # And the C CLI bit-for-bit against them. doppler#1003 reported this
+    # diverging by up to 32 float32 ULP once the scene carried noise, and
+    # the assertion was weakened to a tolerance while that stood. It does
+    # not reproduce: bit-identical here at the commit the issue was filed
+    # against, at every commit since, and with the CLI deliberately built
+    # -O2 -fno-fast-math against an -O3 -ffast-math extension, which was the
+    # obvious mechanism and is not the one. The strong claim is back, so if
+    # it diverges anywhere it says so instead of being tolerated -- which is
+    # the only way the reporter's machine gets identified.
+    if not np.array_equal(rx_cli, rx_json):
         raise AssertionError("wfmgen CLI vs Composer.from_file diverged")
-    if not np.allclose(rx_cli, rx_obj, rtol=1e-5, atol=1e-6):
+    if not np.array_equal(rx_cli, rx_obj):
         raise AssertionError(
             "wfmgen CLI vs Composer(Segment(...)) object API diverged"
         )
     print(
-        f"  all 3 faces agree: {len(rx_cli)} samples "
-        "(the two Python faces byte-identical; the CLI to float32 "
-        "precision -- doppler#1003)"
+        f"  all 3 faces agree bit-for-bit: {len(rx_cli)} samples "
+        "(CLI, Composer.from_file, Composer(Segment(...)))"
     )
     return rx_cli, acq_code, data_code, payload_bits, frame_bits
 

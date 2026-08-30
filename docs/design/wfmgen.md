@@ -1,4 +1,4 @@
-# wfmgen — the stimulus generator
+# wfmgen — the waveform generator
 
 !!! note "Status: shipped, and uncertified"
 
@@ -7,9 +7,11 @@
     so there is measurement but no stated envelope. That is the gap this page
     exists to make visible, and [Unknowns](#unknowns) is the list.
 
-Six design pages already own a slice of this tool, and until now none owned
-the tool. This page is the spine: what wfmgen is for, what it promises, what
-it composes, and — the part that earns it a place — **what we do not yet
+A fast, full-featured waveform generator — modulations, impairments and
+output streams — driven identically from a CLI, a Python API and a JSON
+scene file. Six design pages already own a slice of it and until now none
+owned the tool. This page is the spine: what wfmgen is for, what it promises,
+what it composes, and — the part that earns it a place — **what we do not yet
 know about it**.
 
 It contains no mechanics. How to *use* wfmgen is the
@@ -20,62 +22,111 @@ ______________________________________________________________________
 
 ## Why
 
-Every receiver in this library is measured against a signal somebody had to
-generate. If that signal comes from a hand-rolled numpy cell in each test,
-three things follow, and all three have happened here: the stimulus drifts
-between tests, a receiver is scored against a waveform nobody else can
-reproduce, and a bug in the stimulus reads as a bug in the receiver.
+**wfmgen is a waveform generator for people who need waveforms.** Fast,
+full-featured and easy to drive, across three axes:
 
-wfmgen exists so the stimulus is **one implementation, declared rather than
-coded, and reproducible from a file**. It is deliberately not a convenience
-wrapper: it is the instrument the rest of the library is calibrated with,
-which is exactly why it should be held to the certification standard it has
-not yet met.
+- **Modulations** — tone, noise, PN/MLS, BPSK, QPSK, chirp, arbitrary bit
+    patterns, arbitrary symbol streams, and DSSS in both burst and continuous
+    asynchronous form; with CCSDS framing on top of any of them (Reed-Solomon,
+    convolutional, randomiser, ASM, block interleaving, CRC).
+- **Impairments** — AWGN under four SNR conventions, per-source level with
+    headroom and observable clipping, and clock Doppler with offset, rate and
+    two channel lifetimes. Declared per *source*, so two emitters in one scene
+    can be on different geometries.
+- **Output streams** — raw, CSV, BLUE type-1000 and SigMF; ten sample types
+    in either endianness; to a file, to stdout, or paced to wall clock over
+    NATS.
+
+Easy to use is a design goal, not a nicety: the same scene is a handful of
+CLI flags, a Python object, or a JSON file, and all three drive one engine to
+byte-identical output. Fast is a goal too — `Plan` exists so a Monte-Carlo
+sweep re-weights a cached render instead of re-synthesising it, and
+`Plan.prepare()` fans its per-source builds across cores.
+
+**Secondarily — and only secondarily — it is our SSOT for stimulus.** Every
+receiver in this library is measured against a signal somebody had to
+generate, and when that signal came from a hand-rolled numpy cell per test,
+all three predictable things happened: the stimulus drifted between tests, a
+receiver was scored against a waveform nobody else could reproduce, and a bug
+in the stimulus read as a bug in the receiver. wfmgen ended that by being one
+implementation, declared rather than coded.
+
+Both readings point the same way on certification. A tool users depend on
+owes them a stated envelope; a tool we calibrate against owes it to every
+result derived through it. It currently has neither.
 
 ## Use cases
 
-| who                  | with what                              | what they do with the answer                                           |
-| -------------------- | -------------------------------------- | ---------------------------------------------------------------------- |
-| A receiver test      | `Composer([...]).compose()` in-process | scores demod/BER against a known truth it also gets from the scene     |
-| A validation report  | a scene declared once, swept           | measures a limit that goes in a certified envelope                     |
-| A Monte-Carlo sweep  | `Plan.prepare()` then `.at(snr)`       | re-weights a cached render instead of re-synthesising                  |
-| A field/interop test | `wfmgen … -o capture.sigmf`            | hands a real file to another tool, with a sidecar saying what is in it |
-| A live consumer      | `wfmgen --realtime -o nats://…`        | paces a stream to wall clock for a running pipeline                    |
-| A bug report         | `--record scene.json`                  | replays someone else's exact waveform byte-for-byte                    |
+Users first — the internal rows are real, but they are not why it exists.
 
-The last row is the one that shapes the design most: **a scene is a value**,
-not a script. Anything a run can be told must be expressible in the JSON a
+| who                          | with what                                     | what they do with the answer                                           |
+| ---------------------------- | --------------------------------------------- | ---------------------------------------------------------------------- |
+| Someone who needs a waveform | `wfmgen --type qpsk --snr 12 -o capture.cf32` | feeds a receiver, a lab instrument, or another tool                    |
+| A field/interop test         | `wfmgen … -o capture.sigmf`                   | hands a real file to another tool, with a sidecar saying what is in it |
+| A live consumer              | `wfmgen --realtime -o nats://…`               | paces a stream to wall clock for a running pipeline                    |
+| A bug report                 | `--record scene.json`                         | replays someone else's exact waveform byte-for-byte                    |
+| A receiver test              | `Composer([...]).compose()` in-process        | scores demod/BER against truth it also gets from the scene             |
+| A Monte-Carlo sweep          | `Plan.prepare()` then `.at(snr)`              | re-weights a cached render instead of re-synthesising                  |
+| A validation report          | a scene declared once, swept                  | measures a limit that goes in a certified envelope                     |
+
+The `--record` row shapes the design most: **a scene is a value**, not a
+script. Anything a run can be told must be expressible in the JSON a
 `--record` writes, or the run is not reproducible.
 
 ## Design goals
 
 Each is a promise a caller may lean on, and each names the gate that keeps it
-true. Where a promise is *not* gated, that is said.
+true. Where a promise is *not* gated, that is said — and the first three, the
+ones the tool exists for, are the least gated of all.
+
+1. **Full-featured across the three axes.** A user should not have to leave
+    wfmgen for a modulation, an impairment or a container the domain
+    routinely needs. *Gated:* only per feature — `check_wfmgen_flag_docs.py`
+    proves every one of the 67 flags is documented, but nothing states the
+    intended coverage, so a missing capability is a gap nobody's gate can
+    see.
+
+1. **Easy to use, identically from three faces.** The same scene is CLI
+    flags, a Python object, or JSON, and all three drive one engine to
+    byte-identical output. *Gated:* `make drift-check` and
+    `gen_wfmgen_flag_matrix.py` keep the faces from diverging;
+    "easy" itself is a review judgement.
+
+1. **Fast enough to be the inner loop.** A sweep should not pay to
+    re-synthesise what it already rendered: `Plan` caches a scene's clean
+    per-source signal and re-weights it, and `Plan.prepare()` fans those
+    builds across cores. *NOT gated:* benchmarks exist for every wfm
+    component, but **no stated throughput** — see [Unknowns](#unknowns).
 
 1. **A scene round-trips.** `--record` → `--from-file` reproduces the
     waveform byte-for-byte, including the resolved `headroom` and
     `seed_advance` that a naive re-render would lose.
     *Gated:* `test_cli_record_replays.py`, `test_schema.py`.
+
 1. **A ranged field records its span, not one draw.** Each drawn value is a
     hash of `(seed, repeat index, segment, source, field)` — no RNG state —
     so a recorded sweep replays as the same *sequence* of draws.
     *Gated:* `test_cli_ranged.py`; the draw's **statistics** are not, see
     [Unknowns](#unknowns).
+
 1. **What is rendered and what is reported cannot disagree.** The composer
     and `wfm_compose_draws()` resolve through the same helper, so the SigMF
     sidecar carries the value each instance actually flew.
     *Gated:* `test_compose.py`. This was not always true — a ranged scene
     once annotated every instance with its `lo`, measured 1224 Hz and 6.0 dB
     out ([#1086](https://github.com/doppler-dsp/doppler/issues/1086)).
+
 1. **One waveform engine, one pull path.** A one-segment scene is
     byte-identical to driving its `synth` directly, and the streaming
     composer and the `Plan` cache pull through the same function, so a
     holdover cannot exist on one side and not the other.
     *Gated:* `test_wfm_compose.c`.
+
 1. **Adding a knob cannot fork a face.** A field is declared once and
     reaches JSON, Python and the CLI from that declaration; enum names have
     one C home. *Gated:* `make drift-check`, `check_wfm_enum_tables.py`,
     `check_wfmgen_flag_docs.py`, `gen_wfmgen_flag_matrix.py`.
+
 1. **0 dBFS is unit average power**, and clipping is observable rather than
     silent. *Gated:* `TestQuantization`; the PAPR budget behind it is not
     measured, see [Unknowns](#unknowns).
@@ -141,9 +192,9 @@ and the order that difference imposes.
 Written down so a sweep is designed to *find out* rather than to confirm.
 Each is a phase-7 measurement and then a phase-8 limit.
 
-1. **The envelope itself.** No `wfm` object is certified, so there is no
-    statement of what a caller may rely on — the largest gap, and the one the
-    others are found by.
+1. **The envelope itself.** No `wfm` object is certified, so a user is
+    handed a generator with no statement of what it guarantees — the largest
+    gap, and the one the others are found by.
 1. **Realised Es/N0 in `esno`, `ebno` and `auto`.** Only `fs` mode has a
     realised-SNR test. The requested-versus-measured error, and its
     dependence on `sps` and pulse shape, is unmeasured — and
@@ -160,8 +211,14 @@ Each is a phase-7 measurement and then a phase-8 limit.
     measured at the composer's output, and the same for `doppler_rate` — the
     channel is certified nowhere and the composition is new
     ([#942](https://github.com/doppler-dsp/doppler/issues/942)).
-1. **Real-time pacing headroom.** The maximum sustainable `fs` before a
-    `--realtime` stream slips, per sample type and sink, is unknown.
+1. **No stated throughput, for a tool whose first goal is speed.** Nothing
+    says how fast wfmgen generates: samples/s per waveform type, how that
+    scales with `sum` sources and with framing, what `Plan` actually buys
+    over re-composing, or the maximum `fs` a `--realtime` stream sustains
+    before it slips, per sample type and sink. Benchmarks exist for every wfm
+    component, so the instruments are there and the claim is not — which is
+    the gap that matters most to a user choosing this over writing their
+    own.
 1. **Multi-source noise-floor resolution.** How accurately the shared floor
     is placed when sources sit at widely different levels.
 1. **The composer cannot be checkpointed.** It carries `epoch`, `instance`,

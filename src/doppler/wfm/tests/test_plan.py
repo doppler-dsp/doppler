@@ -249,6 +249,66 @@ def test_rejects_ranged_num_samples() -> None:
         prepare(ranged)
 
 
+def _doppler_scene(**extra) -> Composer:
+    return Composer(
+        [
+            Segment(
+                "bpsk",
+                fs=1e6,
+                sps=4,
+                snr=12.0,
+                num_samples=2048,
+                seed=3,
+                carrier_hz=2.2e9,
+                **extra,
+            )
+        ]
+    )
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        pytest.param({"doppler": 5.0}, id="offset"),
+        pytest.param({"doppler_rate": 200.0}, id="rate"),
+        pytest.param(
+            {"doppler": 5.0, "doppler_lifetime": "per_instance"},
+            id="per_instance",
+        ),
+        pytest.param(
+            {"doppler": 5.0, "doppler_lifetime": "persist"}, id="persist"
+        ),
+    ],
+)
+def test_rejects_a_doppler_source(extra) -> None:
+    """A Doppler channel is refused rather than cached wrong.
+
+    Both lifetimes, for reasons measured against ``compose()`` rather than
+    assumed. The cache holds one source's clean on-time in isolation, but a
+    Doppler channel is a stateful resampler that also runs through the gaps:
+    a trailing gap carries the burst's ring-out and a leading delay advances
+    the geometry before the burst starts, neither of which the cache can
+    hold. Separately, ``compose()`` puts the AWGN *inside* the channel and
+    the cache re-weights noise outside it. See ``plan_build()`` for the
+    measurements; gh-1109 is the follow-up.
+    """
+    with pytest.raises(ValueError, match="doppler"):
+        prepare(_doppler_scene(**extra))
+
+
+def test_doppler_free_scene_still_prepares() -> None:
+    # The reject above must be about the CHANNEL, not about the keys being
+    # present: zero doppler AND zero doppler_rate builds no channel, so a
+    # declared lifetime and a declared carrier describe nothing and cannot
+    # cost a scene its plan.
+    plan = prepare(_doppler_scene(doppler_lifetime="persist", doppler=0.0))
+    assert len(plan) == 2048
+    np.testing.assert_array_equal(
+        plan.render(),
+        _doppler_scene(doppler_lifetime="persist", doppler=0.0).compose(),
+    )
+
+
 def test_multi_segment_plan_matches_compose() -> None:
     segs = [
         Segment.sum(

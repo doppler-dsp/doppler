@@ -6,5 +6,5 @@
     with the carrier and a timing loop sees the error a carrier-only offset
     hides. The channel runs through gaps too — on the noise floor — so
     `doppler_rate` is per second, not per unit of on-time. Lifetime is
-    declared; `Plan` refuses `PERSIST`, whose history-dependence its
-    concurrent cache cannot honour. C-only so far; the faces are #942.
+    declared, and `Plan` refuses a Doppler source: a cached on-time carries
+    no channel history (#1109). C-only so far; the faces are #942.

@@ -39,6 +39,7 @@
 * **dp\_tlm\_capture\_state\_t** ([**dp\_tlm\_capture\_core.h**](dp__tlm__capture__core_8h.md))
 * **dp\_tlm\_sink\_t** ([**tlm\_sink.h**](tlm__sink_8h.md))
 * **DATA\_SRC\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
+* **DOPPLER\_LIFETIME\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 
 
 ## e

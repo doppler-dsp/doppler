@@ -777,6 +777,116 @@
       "version": 1
     }
   },
+  "doppler_persist_ranged": {
+    "argv": [
+      "--type",
+      "bpsk",
+      "--fs",
+      "1e6",
+      "--sps",
+      "8",
+      "--count",
+      "32",
+      "--off",
+      "16",
+      "--repeats",
+      "3",
+      "--doppler",
+      "2:9",
+      "--doppler-rate",
+      "0.1:0.5",
+      "--carrier-hz",
+      "1.5e9",
+      "--doppler-lifetime",
+      "persist"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 1152
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "carrier_hz": 1500000000,
+          "doppler": [
+            2,
+            9
+          ],
+          "doppler_lifetime": "persist",
+          "doppler_rate": [
+            0.1,
+            0.5
+          ],
+          "freq": 0,
+          "fs": 1000000,
+          "lfsr": "galois",
+          "num_samples": 32,
+          "off_samples": 16,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "repeats": 3,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 8,
+          "type": "bpsk"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "doppler_scalar": {
+    "argv": [
+      "--type",
+      "qpsk",
+      "--fs",
+      "1e6",
+      "--sps",
+      "4",
+      "--count",
+      "64",
+      "--doppler",
+      "25",
+      "--doppler-rate",
+      "4",
+      "--carrier-hz",
+      "2.4e9"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 512
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "carrier_hz": 2400000000,
+          "doppler": 25,
+          "doppler_rate": 4,
+          "freq": 0,
+          "fs": 1000000,
+          "lfsr": "galois",
+          "num_samples": 64,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 4,
+          "type": "qpsk"
+        }
+      ],
+      "version": 1
+    }
+  },
   "dsss_burst": {
     "argv": [
       "--type",

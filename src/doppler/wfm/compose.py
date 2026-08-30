@@ -197,8 +197,9 @@ class Plan:
                 "scene cannot be prepared as a Plan: expected finite "
                 "segments (no continuous/repeat scene) with a ranged "
                 "on-time or a ranged per-source field (freq/snr/level/"
-                "f_end) -- ranged off_samples/delay_samples and repeats "
-                "are supported, as is a lone bundled noisy source"
+                "f_end), and no source carrying clock doppler/"
+                "doppler_rate -- ranged off_samples/delay_samples and "
+                "repeats are supported, as is a lone bundled noisy source"
             ) from exc
 
     def render(

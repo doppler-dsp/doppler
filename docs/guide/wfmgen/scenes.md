@@ -198,7 +198,7 @@ it a **range**: a numeric field accepts either a scalar (used as-is) or a
 
 ```jsonc
 { "type": "bpsk", "fs": 1e6, "sps": 8, "pn_length": 7,
-  "freq":        [11200, 12800],   // Doppler offset re-drawn every burst
+  "freq":        [11200, 12800],   // carrier offset re-drawn every burst
   "snr":         [8, 14],          // a fresh SNR each burst
   "num_samples": 8192,
   "off_samples": [4000, 5600] }    // jittered trailing gap → code phase walks
@@ -207,6 +207,11 @@ it a **range**: a numeric field accepts either a scalar (used as-is) or a
 On the CLI the same fields take `LO:HI` in place of a scalar — `--freq 11200:12800`, `--off 4000:5600`, `--snr 8:14`, `--level -12:-3` — and a bare
 number is still just that number.
 
+A ranged `freq` moves the carrier and nothing else. For a source whose
+**clock** is moving — symbol and chip rates scaling with the carrier, as a
+real pass does — see [Clock Doppler](doppler.md); `doppler`/`doppler_rate`
+are ranged fields on this same list.
+
 The draw is **reproducible without RNG state**: each value is a hash of
 `(seed, repeat index, segment index, source index, field)`, so `--record` stores
 the *range* and `--from-file` replays the identical sequence of draws
@@ -214,7 +219,7 @@ byte-for-byte. Ranges compose with the advancing seed and with `chirp`'s
 `freq`/`f-end` (a sweep whose endpoints jitter per burst).
 
 ```sh
-# Endless bursts, each at a random Doppler offset and a jittered gap:
+# Endless bursts, each at a random carrier offset and a jittered gap:
 wfmgen --type bpsk --fs 1e6 --sps 8 --pn-length 7 \
        --freq 11200:12800 --count 8192 --off 4000:5600 \
        --continuous --realtime -o stream.cf32

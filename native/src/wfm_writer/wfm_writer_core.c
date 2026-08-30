@@ -998,6 +998,29 @@ wfm_sigmf_meta_json (int sample_type, int endian, double fs, double fc,
             if (src->dsss_code_only)
               cJSON_AddStringToObject (a, "wfmgen:data", "none");
           }
+        /* Clock Doppler, from the DRAWN row for the same reason snr and
+         * level are: a ranged `--doppler 0:5` scene has one span in the spec
+         * and a different value on every instance, and the annotation is the
+         * only place the instance's own value survives. Emitted only when a
+         * channel was actually built (both zero means none), so a scene
+         * without Doppler writes exactly the sidecar it always did. */
+        if (d->doppler != 0.0 || d->doppler_rate != 0.0)
+          {
+            cJSON_AddNumberToObject (a, "wfmgen:doppler_ppm", d->doppler);
+            cJSON_AddNumberToObject (a, "wfmgen:doppler_rate_ppm_s",
+                                     d->doppler_rate);
+            /* The carrier the ppm is referred to: without it the two numbers
+               above do not name a frequency shift, only a time-base scale. */
+            if (src->carrier_hz != 0.0)
+              cJSON_AddNumberToObject (a, "wfmgen:carrier_hz",
+                                       src->carrier_hz);
+            cJSON_AddStringToObject (
+                a, "wfmgen:doppler_lifetime",
+                DOPPLER_LIFETIME_NAMES[(src->doppler_lifetime
+                                        == WFM_DOPPLER_PERSIST)
+                                           ? WFM_DOPPLER_PERSIST
+                                           : WFM_DOPPLER_PER_INSTANCE]);
+          }
         cJSON_AddItemToArray (anns, a);
       }
     }

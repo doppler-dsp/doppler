@@ -361,6 +361,40 @@ add_num_or_range (cJSON *o, const char *key, double lo, double hi, int ranged)
     cJSON_AddNumberToObject (o, key, lo);
 }
 
+/* Emit a source's CLOCK DOPPLER, when it has any.
+ *
+ * Every key here is OMITTED at its default, for the same reason `level` and
+ * `background` are: the emitted spec is what --record writes and --from-file
+ * replays, so a key that is always present churns every recorded scene for a
+ * field it does not use. A scene with no Doppler is byte-identical to one
+ * written before this existed.
+ *
+ * `doppler`/`doppler_rate` go through add_num_or_range, so a ranged one
+ * records the SPAN it was given rather than the value one instance drew --
+ * "what does this spec permit" is the question a spec answers, and
+ * wfm_compose_draws() answers "what did this run do" separately. That is what
+ * makes --record -> --from-file replay the same scene rather than one frozen
+ * instance of it. */
+static void
+add_doppler_fields (cJSON *o, const wfm_source_t *src)
+{
+  if (src->doppler != 0.0 || (src->ranged & WFM_RANGE_DOPPLER))
+    add_num_or_range (o, "doppler", src->doppler, src->doppler_hi,
+                      src->ranged & WFM_RANGE_DOPPLER);
+  if (src->doppler_rate != 0.0 || (src->ranged & WFM_RANGE_DOPPLER_RATE))
+    add_num_or_range (o, "doppler_rate", src->doppler_rate,
+                      src->doppler_rate_hi,
+                      src->ranged & WFM_RANGE_DOPPLER_RATE);
+  /* The carrier the ppm is referred to. Independent of the two above --
+     0 means the time base is warped with no coherent carrier rotation, which
+     is a legitimate scene, not an unset field. */
+  if (src->carrier_hz != 0.0)
+    cJSON_AddNumberToObject (o, "carrier_hz", src->carrier_hz);
+  if (src->doppler_lifetime == WFM_DOPPLER_PERSIST)
+    cJSON_AddStringToObject (o, "doppler_lifetime",
+                             DOPPLER_LIFETIME_NAMES[WFM_DOPPLER_PERSIST]);
+}
+
 /* Add a source's fields to object `so` (no fs/num/off — those are the
  * segment's; level omitted at 0). Used for the "sum" array entries; the inline
  * 1-source form keeps its own field order for byte-identity. */
@@ -388,6 +422,7 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
                       src->ranged & WFM_RANGE_LEVEL);
   if (src->background) /* omit when false so old specs are unchanged */
     cJSON_AddBoolToObject (so, "background", 1);
+  add_doppler_fields (so, src);
   add_bits_fields (so, src);
   add_stage_fields (so, src);
   add_symbols_fields (so, src);
@@ -540,6 +575,40 @@ read_frame_fields (const cJSON *so, wfm_source_t *out)
   return 0;
 }
 
+/* Read a source's CLOCK DOPPLER, the mirror of add_doppler_fields().
+ *
+ * Absent means zero, which is what every scene written before this existed
+ * says and what a scene with no Doppler still says -- and zero on both fields
+ * is what makes the composer build no channel at all, so an old spec renders
+ * through exactly the code it always did.
+ *
+ * ORs into `out->ranged` rather than assigning it: the caller's struct literal
+ * has already set the freq/snr/level/f_end bits. */
+static void
+read_doppler_fields (const cJSON *so, wfm_source_t *out)
+{
+  double dop_hi = 0, rate_hi = 0;
+  int    rd = 0, rr = 0;
+  out->doppler         = num_or_range (so, "doppler", 0.0, &dop_hi, &rd);
+  out->doppler_rate    = num_or_range (so, "doppler_rate", 0.0, &rate_hi, &rr);
+  out->doppler_hi      = dop_hi;
+  out->doppler_rate_hi = rate_hi;
+  out->ranged |= (unsigned)((rd ? WFM_RANGE_DOPPLER : 0)
+                            | (rr ? WFM_RANGE_DOPPLER_RATE : 0));
+  out->carrier_hz = num (so, "carrier_hz", 0.0);
+  /* An unrecognised name falls to PER_INSTANCE, index 0 -- the same way an
+     unknown `lfsr` or `snr_mode` falls to its index 0. A name a newer writer
+     invented is a lifetime this build cannot honour, and the repeated-trial
+     shape is the one that does not silently carry state across a scene. */
+  const int lt
+      = name_index (cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (
+                        so, "doppler_lifetime")),
+                    DOPPLER_LIFETIME_NAMES, 2);
+  out->doppler_lifetime = (lt == WFM_DOPPLER_PERSIST)
+                              ? WFM_DOPPLER_PERSIST
+                              : WFM_DOPPLER_PER_INSTANCE;
+}
+
 /* Parse a source object (the inline segment, or a "sum" entry) into *out.
  * Returns 0, or -1 on a missing/unknown waveform type. */
 static int
@@ -586,6 +655,7 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
     .level_hi = level_hi,
     .f_end_hi = f_end_hi,
   };
+  read_doppler_fields (so, out);
   if (t == WFM_SYNTH_BITS)
     {
       int bm = name_index (
@@ -774,6 +844,7 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
                               src->ranged & WFM_RANGE_LEVEL);
           if (src->background) /* omit when false so old specs are unchanged */
             cJSON_AddBoolToObject (s, "background", 1);
+          add_doppler_fields (s, src);
           add_bits_fields (s, src);
           add_stage_fields (s, src);
           add_symbols_fields (s, src);

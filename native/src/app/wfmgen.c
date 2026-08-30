@@ -305,8 +305,8 @@ static const char USAGE[]
       "                    dsss  - two-code DSSS burst (see DSSS BURST)\n"
       "\n"
       "SIGNAL PARAMETERS\n"
-      "  (LO:HI on --freq/--f-end/--snr/--level/--count/--off draws that "
-      "field\n"
+      "  (LO:HI on --freq/--f-end/--snr/--level/--count/--off/--doppler/\n"
+      "   --doppler-rate draws that field\n"
       "   uniformly each repeat — e.g. --freq 9000:14000 — reproducible per"
       " seed)\n"
       "  --fs HZ         Sample rate (default 1.0; freq treated as"
@@ -469,6 +469,21 @@ static const char USAGE[]
       "  --symbol-rate HZ     Data symbol rate; > 0 selects continuous mode\n"
       "  --data-code[-hex] C  Spreading code (required)\n"
       "  --data D             none | prbs data source (default prbs)\n"
+      "\n"
+      "CLOCK DOPPLER\n"
+      "  Rescales the whole received time base, so the symbol and chip rates\n"
+      "  move with the carrier -- what a real pass does, and what --freq\n"
+      "  cannot express (an offset moves the carrier alone).\n"
+      "  --doppler PPM[:PPM]       Clock Doppler in ppm (default 0 = none)\n"
+      "  --doppler-rate PPM_S[:PPM_S]  Linear ramp on it, ppm/s\n"
+      "  --carrier-hz HZ           RF carrier the ppm is referred to; 0\n"
+      "                            (default) warps the clock with no\n"
+      "                            coherent carrier rotation\n"
+      "  --doppler-lifetime L      per_instance (default) | persist --\n"
+      "                            per_instance restarts the geometry each\n"
+      "                            --repeats instance (the repeated-trial\n"
+      "                            shape); persist carries one continuous\n"
+      "                            pass across a segment's gaps and repeats\n"
       "\n"
       "PN SEQUENCE  (--type pn)\n"
       "  --pn-length N   Register length; period = 2^N - 1 (default 15)\n"
@@ -948,6 +963,24 @@ static const opt_t OPTS[] = {
     .aux       = AUX (src.f_end_hi),
     .range_bit = WFM_RANGE_FEND },
   { .name = "--fc", .kind = OPT_DOUBLE, .off = OFF (fc) },
+  /* CLOCK DOPPLER. Ranged like --freq and --snr because a pass is a
+     distribution, not a number: `--doppler 2:8` is eight trials on eight
+     geometries. See wfm/wfm_compose.h on why this is not --freq. */
+  { .name      = "--doppler",
+    .kind      = OPT_RANGE_D,
+    .off       = OFF (src.doppler),
+    .aux       = AUX (src.doppler_hi),
+    .range_bit = WFM_RANGE_DOPPLER },
+  { .name      = "--doppler-rate",
+    .kind      = OPT_RANGE_D,
+    .off       = OFF (src.doppler_rate),
+    .aux       = AUX (src.doppler_rate_hi),
+    .range_bit = WFM_RANGE_DOPPLER_RATE },
+  { .name = "--carrier-hz", .kind = OPT_DOUBLE, .off = OFF (src.carrier_hz) },
+  { .name = "--doppler-lifetime",
+    .kind = OPT_CHOICE,
+    .off  = OFF (src.doppler_lifetime),
+    CHOICES (DOPPLER_LIFETIME_NAMES) },
   { .name      = "--snr",
     .kind      = OPT_RANGE_D,
     .off       = OFF (src.snr),

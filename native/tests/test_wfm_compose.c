@@ -2485,10 +2485,222 @@ main (void)
                     "replay above is the replay of a constant)");
   }
 
-  printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "
-          "resolve, sum-json, headroom, seed_advance, ranged fields, "
-          "dsss burst, unspread frame, repeats, doppler block-invariance, "
-          "persist-through-gap, ranged doppler)\n",
-          total);
+  /* ── the JSON face carries Doppler (gh-942) ───────────────────────────
+   *
+   * Not "the keys appear" -- what a face is for is that a scene written
+   * through it RENDERS the same. So each case round-trips a spec and
+   * compares the two composes sample-for-sample: a key emitted but not
+   * read, read into the wrong field, or silently dropped, all land as a
+   * difference here rather than as a passing string match.
+   *
+   * The persist case is what pins `doppler_lifetime` specifically: with the
+   * lifetime lost in the round trip the reparsed scene renders PER_INSTANCE,
+   * which restarts the geometry at the second burst and cannot match.
+   */
+  {
+    struct
+    {
+      const char  *what;
+      wfm_source_t src;
+      size_t       repeats;
+      size_t       off;
+    } cases[] = {
+      { "scalar doppler",
+        { .type       = WFM_SYNTH_TONE,
+          .freq       = 1e5,
+          .snr        = WFM_SYNTH_SNR_CLEAN,
+          .seed       = 7,
+          .doppler    = 25.0,
+          .carrier_hz = 2.5e9 },
+        1,
+        0 },
+      { "doppler_rate with no offset",
+        { .type         = WFM_SYNTH_TONE,
+          .freq         = 5e4,
+          .snr          = WFM_SYNTH_SNR_CLEAN,
+          .seed         = 9,
+          .doppler_rate = 150.0,
+          .carrier_hz   = 1.2e9 },
+        1,
+        0 },
+      { "ranged doppler over repeats",
+        { .type            = WFM_SYNTH_TONE,
+          .freq            = 5e4,
+          .snr             = WFM_SYNTH_SNR_CLEAN,
+          .seed            = 11,
+          .doppler         = -20.0,
+          .doppler_hi      = 20.0,
+          .doppler_rate    = -50.0,
+          .doppler_rate_hi = 50.0,
+          .carrier_hz      = 2.0e9,
+          .ranged          = WFM_RANGE_DOPPLER | WFM_RANGE_DOPPLER_RATE },
+        3,
+        500 },
+      { "persist across a gap",
+        { .type             = WFM_SYNTH_TONE,
+          .freq             = 5e4,
+          .snr              = WFM_SYNTH_SNR_CLEAN,
+          .seed             = 13,
+          .doppler          = 5.0,
+          .doppler_rate     = 200.0,
+          .carrier_hz       = 2.0e9,
+          .doppler_lifetime = WFM_DOPPLER_PERSIST },
+        2,
+        1500 },
+      /* carrier_hz alone: no channel is built, so this pins that the key
+         round-trips WITHOUT quietly turning into a warp. */
+      { "carrier_hz with no doppler",
+        { .type       = WFM_SYNTH_TONE,
+          .freq       = 5e4,
+          .snr        = WFM_SYNTH_SNR_CLEAN,
+          .seed       = 17,
+          .carrier_hz = 2.0e9 },
+        1,
+        0 },
+    };
+
+    enum
+    {
+      JN = 6000
+    };
+    static float complex ja[JN], jb[JN];
+
+    for (size_t ci = 0; ci < sizeof cases / sizeof *cases; ci++)
+      {
+        wfm_segment_t seg = { .sources     = &cases[ci].src,
+                              .n_sources   = 1,
+                              .fs          = 1e6,
+                              .num_samples = 1200,
+                              .off_samples = cases[ci].off,
+                              .repeats     = cases[ci].repeats };
+        char         *js  = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
+        DP_REQUIRE_MSG (js, "doppler spec serialises");
+
+        wfm_compose_state_t *c0 = wfm_compose_create (&seg, 1, 0, 0);
+        wfm_compose_state_t *c1 = wfm_compose_from_json (js);
+        DP_REQUIRE_MSG (c0 && c1, "doppler spec reparses");
+
+        size_t n0 = 0, n1 = 0;
+        for (size_t n; (n = wfm_compose_execute (c0, ja + n0, JN - n0)) > 0;)
+          n0 += n;
+        for (size_t n; (n = wfm_compose_execute (c1, jb + n1, JN - n1)) > 0;)
+          n1 += n;
+        wfm_compose_destroy (c0);
+        wfm_compose_destroy (c1);
+
+        DP_REQUIRE_MSG (n0 == n1 && n0 > 0, cases[ci].what);
+        DP_REQUIRE_MSG (memcmp (ja, jb, n0 * sizeof *ja) == 0,
+                        "a doppler scene renders identically through JSON");
+        free (js);
+      }
+
+    /* A ranged field records its SPAN, not one instance's draw: a spec
+       answers "what does this permit", and freezing a draw into it would
+       make --from-file replay one instance of a sweep instead of the sweep.
+       (wfm_compose_draws() answers the other question -- see below.) */
+    {
+      wfm_source_t  r = { .type       = WFM_SYNTH_TONE,
+                          .snr        = WFM_SYNTH_SNR_CLEAN,
+                          .doppler    = -20.0,
+                          .doppler_hi = 20.0,
+                          .ranged     = WFM_RANGE_DOPPLER };
+      wfm_segment_t seg
+          = { .sources = &r, .n_sources = 1, .fs = 1e6, .num_samples = 64 };
+      char *js = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
+      DP_REQUIRE_MSG (js && strstr (js, "\"doppler\":\t[-20, 20]"),
+                      "a ranged doppler records its span");
+      free (js);
+    }
+
+    /* OMITTED at the default, exactly as level and background are: a scene
+       that asks for no Doppler must serialise byte-for-byte as it did before
+       these keys existed, or every recorded spec in the world churns. */
+    {
+      wfm_source_t q
+          = { .type = WFM_SYNTH_TONE, .snr = WFM_SYNTH_SNR_CLEAN, .sps = 8 };
+      wfm_segment_t seg
+          = { .sources = &q, .n_sources = 1, .fs = 1e6, .num_samples = 64 };
+      char *js = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
+      DP_REQUIRE_MSG (js, "clean spec serialises");
+      DP_REQUIRE_MSG (!strstr (js, "doppler") && !strstr (js, "carrier_hz"),
+                      "a scene with no Doppler emits no Doppler keys");
+      free (js);
+      /* And the absent keys read back as no channel at all, not as a warp
+         of zero that still resamples. */
+      wfm_compose_state_t *c = wfm_compose_from_json (
+          "{\"segments\":[{\"type\":\"tone\",\"fs\":1e6,"
+          "\"num_samples\":64}]}");
+      DP_REQUIRE_MSG (c, "a Doppler-free spec parses");
+      wfm_compose_destroy (c);
+    }
+  }
+
+  /* ── wfm_compose_draws() reports the DRAWN Doppler (gh-942) ────────────
+   *
+   * The surface exists so "what is rendered and what is reported cannot
+   * disagree" (doppler#1086: the sidecar read timing from a replay and
+   * VALUES from the source struct, so a ranged field annotated every
+   * instance with its `lo`, measured up to 6.0 dB out). Doppler is drawn
+   * like freq/snr/level/f_end, so it has to be reported like them.
+   */
+  {
+    wfm_source_t src
+        = { .type            = WFM_SYNTH_TONE,
+            .snr             = WFM_SYNTH_SNR_CLEAN,
+            .seed            = 5,
+            .doppler         = 2.0,
+            .doppler_hi      = 9.0,
+            .doppler_rate    = 0.1,
+            .doppler_rate_hi = 0.5,
+            .carrier_hz      = 1.5e9,
+            .ranged          = WFM_RANGE_DOPPLER | WFM_RANGE_DOPPLER_RATE };
+    wfm_segment_t seg = { .sources     = &src,
+                          .n_sources   = 1,
+                          .fs          = 1e6,
+                          .num_samples = 256,
+                          .repeats     = 3 };
+    wfm_draw_t    rows[8];
+    DP_REQUIRE_MSG (wfm_compose_draws (&seg, 1, rows, 8) == 3,
+                    "one row per instance");
+    for (int i = 0; i < 3; i++)
+      {
+        DP_REQUIRE_MSG (rows[i].doppler >= 2.0 && rows[i].doppler <= 9.0,
+                        "the drawn doppler lies inside its declared span");
+        DP_REQUIRE_MSG (rows[i].doppler_rate >= 0.1
+                            && rows[i].doppler_rate <= 0.5,
+                        "the drawn doppler_rate lies inside its span");
+      }
+    /* The #1086 failure exactly: reporting the struct's `lo` on every row
+       is inside the span too, so the span check alone cannot see it. */
+    DP_REQUIRE_MSG (rows[0].doppler != rows[1].doppler
+                        || rows[1].doppler != rows[2].doppler,
+                    "instances report DIFFERENT drawn doppler (reporting the "
+                    "spec's lo on every row is what doppler#1086 was)");
+    DP_REQUIRE_MSG (rows[0].doppler_rate != rows[1].doppler_rate
+                        || rows[1].doppler_rate != rows[2].doppler_rate,
+                    "instances report DIFFERENT drawn doppler_rate");
+
+    /* A FIXED doppler passes its scalar through unchanged -- the same
+       contract freq/snr have, and what makes the row readable without
+       knowing whether the field was ranged. */
+    wfm_source_t  f  = { .type    = WFM_SYNTH_TONE,
+                         .snr     = WFM_SYNTH_SNR_CLEAN,
+                         .doppler = 12.5 };
+    wfm_segment_t fg = { .sources     = &f,
+                         .n_sources   = 1,
+                         .fs          = 1e6,
+                         .num_samples = 256,
+                         .repeats     = 2 };
+    DP_REQUIRE_MSG (wfm_compose_draws (&fg, 1, rows, 8) == 2, "2 fixed rows");
+    DP_REQUIRE_MSG (rows[0].doppler == 12.5 && rows[1].doppler == 12.5,
+                    "a fixed doppler reports its scalar on every instance");
+  }
+
+  printf (
+      "test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "
+      "resolve, sum-json, headroom, seed_advance, ranged fields, "
+      "dsss burst, unspread frame, repeats, doppler block-invariance, "
+      "persist-through-gap, ranged doppler, doppler json, doppler draws)\n",
+      total);
   return 0;
 }

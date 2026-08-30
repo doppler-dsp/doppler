@@ -491,6 +491,57 @@ _VALID_STATICS: list[tuple[str, dict[str, Any]]] = [
         "level_range",
         {"version": 1, "segments": [{**_SEG, "level": [-12.0, -3.0]}]},
     ),
+    # gh-762: a sequence produced from numbers rather than carried as an
+    # array. The whole point is that the METADATA reproduces the capture, so
+    # the record has to be able to say it.
+    (
+        "generated_pn_sync",
+        {
+            "version": 1,
+            "segments": [
+                {
+                    **_SEG,
+                    "sync_gen": {
+                        "kind": "pn",
+                        "len": 1023,
+                        "reg_bits": 10,
+                        "poly": "0x409",
+                        "seed": "0x1",
+                        "lfsr": 0,
+                    },
+                }
+            ],
+        },
+    ),
+    (
+        "generated_gold_acq_code",
+        {
+            "version": 1,
+            "segments": [
+                {
+                    **_SEG,
+                    "acq_code_gen": {
+                        "kind": "gold",
+                        "len": 64,
+                        "reg_bits": 10,
+                        "taps_a": "0x3a6",
+                        "seed_a": "0x15e",
+                        "taps_b": "0x237",
+                        "seed_b": "0x49",
+                    },
+                }
+            ],
+        },
+    ),
+    (
+        "generated_dotted_needs_no_parameters",
+        {
+            "version": 1,
+            "segments": [
+                {**_SEG, "data_code_gen": {"kind": "dotted", "len": 16}}
+            ],
+        },
+    ),
 ]
 
 _INVALID_STATICS: list[tuple[str, dict[str, Any]]] = [
@@ -525,6 +576,72 @@ _INVALID_STATICS: list[tuple[str, dict[str, Any]]] = [
         "freq_range_three",
         {"version": 1, "segments": [{**_SEG, "freq": [1.0, 2.0, 3.0]}]},
     ),  # range pair must be exactly [lo, hi]
+    # A 64-bit mask must be a hex STRING: a JSON number is a double, so a
+    # register above 2^53 would not survive the round trip.
+    (
+        "generated_poly_as_number",
+        {
+            "version": 1,
+            "segments": [
+                {
+                    **_SEG,
+                    "sync_gen": {
+                        "kind": "pn",
+                        "len": 31,
+                        "reg_bits": 5,
+                        "poly": 9,
+                    },
+                }
+            ],
+        },
+    ),
+    # "literal" is deliberately absent from the enum: a literal field is
+    # recorded as its own '0'/'1' string, and a second way to say it is how
+    # two spellings of one thing start disagreeing.
+    (
+        "generated_kind_literal",
+        {
+            "version": 1,
+            "segments": [
+                {**_SEG, "sync_gen": {"kind": "literal", "len": 8}},
+            ],
+        },
+    ),
+    (
+        "generated_kind_unknown",
+        {
+            "version": 1,
+            "segments": [{**_SEG, "sync_gen": {"kind": "martian", "len": 8}}],
+        },
+    ),
+    (
+        "generated_missing_len",
+        {
+            "version": 1,
+            "segments": [{**_SEG, "sync_gen": {"kind": "pn"}}],
+        },
+    ),
+    (
+        "generated_unknown_key",
+        {
+            "version": 1,
+            "segments": [
+                {**_SEG, "sync_gen": {"kind": "pn", "len": 8, "wat": 1}}
+            ],
+        },
+    ),
+    (
+        "generated_reg_bits_over_64",
+        {
+            "version": 1,
+            "segments": [
+                {
+                    **_SEG,
+                    "sync_gen": {"kind": "pn", "len": 8, "reg_bits": 65},
+                }
+            ],
+        },
+    ),
 ]
 
 

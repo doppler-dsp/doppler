@@ -1895,6 +1895,100 @@ main (void)
                     "own array rather than a copy");
   }
 
+  /* ── a GENERATED sequence SURVIVES --record → --from-file ─────────────
+   *
+   * gh-762 step 3. `add_bit_string` writes nothing when there are no bits,
+   * and a generated sequence has none by definition -- so before this a PN
+   * sync VANISHED from the record and `--from-file` rebuilt an unframed
+   * waveform at exit 0. That is the same silent-unframed shape
+   * `add_frame_fields`'s own comment warns about for the type gate, and it
+   * is worse here: the whole reason to carry (poly, seed, reg_bits) instead
+   * of a million-symbol array is that the METADATA reproduces the capture.
+   *
+   * Asserted on the assembled BITS, not on the struct: a record that merely
+   * looked alike would prove nothing about the waveform it rebuilds.
+   */
+  {
+    static uint8_t pay[64];
+    for (size_t i = 0; i < sizeof pay; i++)
+      pay[i] = (uint8_t)((i * 3u + 1u) & 1u);
+
+    wfm_source_t src;
+    memset (&src, 0, sizeof src);
+    src.type          = WFM_SYNTH_BITS;
+    src.sps           = 2;
+    src.bits          = pay;
+    src.n_bits        = sizeof pay;
+    src.sync.kind     = WFM_SEQ_PN;
+    src.sync.len      = 31u;
+    src.sync.reg_bits = 5u;
+    src.sync.seed     = 3u;
+    src.sync.poly     = 0u; /* derive the maximal-length polynomial */
+
+    wfm_segment_t seg
+        = { .sources = &src, .n_sources = 1, .fs = 1e6, .num_samples = 256 };
+    char *js = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
+    DP_REQUIRE_MSG (js, "to_json");
+    DP_REQUIRE_MSG (strstr (js, "\"sync_gen\""),
+                    "a generated sync is RECORDED -- it has no bit string, "
+                    "so without its own key the field left no trace at all");
+    DP_REQUIRE_MSG (!strstr (js, "\"sync\":"),
+                    "and not also as a literal: one field, one source of "
+                    "bits");
+    DP_REQUIRE_MSG (strstr (js, "\"kind\":\"pn\"")
+                        || strstr (js, "\"kind\":\t\"pn\""),
+                    "the kind is named");
+
+    wfm_compose_state_t *jc = wfm_compose_from_json (js);
+    DP_REQUIRE_MSG (jc, "from_json");
+
+    /* The bits the reloaded description assembles must equal the original's,
+       and must equal pn_generate -- an EXTERNAL truth, so a record that
+       round-tripped its own mistake perfectly would still fail. */
+    wfm_frame_desc_t d;
+    DP_REQUIRE_MSG (wfm_source_describe_frame (&src, &d) == 0, "describe");
+    const int i = wfm_frame_field_index (&d, "sync");
+    DP_REQUIRE (i >= 0);
+    wfm_frame_desc_layout_t l;
+    DP_REQUIRE (wfm_frame_desc_layout (&d, &l) == 0);
+    static uint8_t got[4096];
+    DP_REQUIRE (wfm_frame_assemble (&d, NULL, got, sizeof got) == l.out_bits);
+
+    static uint8_t want[31];
+    pn_state_t    *pn = pn_create (pn_mls_poly (5u), 3u, 5u, 0);
+    DP_REQUIRE (pn != NULL);
+    DP_REQUIRE (pn_generate (pn, 31u, want, 31u) == 31u);
+    pn_destroy (pn);
+    DP_REQUIRE_MSG (memcmp (got + l.field_off[i], want, 31u) == 0,
+                    "the recorded PN sync is pn_generate of its own numbers");
+
+    wfm_compose_destroy (jc);
+    free (js);
+
+    /* Refusals. Each of these BUILDS a waveform if ignored rather than
+       refused, and it is not the recorded one -- which is the one failure a
+       record exists to prevent. */
+    DP_REQUIRE_MSG (
+        !wfm_compose_from_json (
+            "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"bits\","
+            "\"pattern\":\"0101\",\"sync_gen\":{\"kind\":\"martian\","
+            "\"len\":8}}]}"),
+        "an unknown kind is refused, not silently dropped -- a newer writer's "
+        "record must not load as a different waveform");
+    DP_REQUIRE_MSG (
+        !wfm_compose_from_json (
+            "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"bits\","
+            "\"pattern\":\"0101\",\"sync\":\"0110\","
+            "\"sync_gen\":{\"kind\":\"pn\",\"len\":8,\"reg_bits\":3}}]}"),
+        "a field carrying BOTH a literal and a generator is refused");
+    DP_REQUIRE_MSG (
+        !wfm_compose_from_json (
+            "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"bits\","
+            "\"pattern\":\"0101\",\"sync_gen\":{\"kind\":\"pn\",\"len\":8,"
+            "\"reg_bits\":0}}]}"),
+        "a PN with no register width is refused");
+  }
+
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "
           "resolve, sum-json, headroom, seed_advance, ranged fields, "
           "dsss burst, unspread frame, repeats)\n",

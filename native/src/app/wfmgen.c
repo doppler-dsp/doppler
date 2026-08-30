@@ -446,11 +446,29 @@ static const char USAGE[]
       "  Es/N0 of the outer DATA symbol (code-B chips x sps samples).\n"
       "  --acq-code BITS      Preamble code as a 0/1 string\n"
       "  --acq-code-hex HEX   Preamble code as hex (MSB-first)\n"
+      "  --acq-code-gen SPEC  Preamble code GENERATED (see below)\n"
       "  --acq-reps N         Preamble repetitions (default 1)\n"
       "  --data-code BITS     Payload spreading code as a 0/1 string\n"
       "  --data-code-hex HEX  Payload spreading code as hex (MSB-first)\n"
+      "  --data-code-gen SPEC Payload spreading code GENERATED (see below)\n"
       "  --sync BITS          Frame-sync word, e.g. Barker-13 (default none)\n"
+      "  --sync-gen SPEC      Frame-sync word GENERATED (see below)\n"
       "  --crc C              none | crc16 payload trailer (default crc16)\n"
+      "\n"
+      "GENERATED SEQUENCES  (--acq-code-gen / --data-code-gen / --sync-gen)\n"
+      "  SPEC is KIND:LEN[:...], colon-separated like --freq's LO:HI. A\n"
+      "  1023-chip code is six numbers here instead of a 1023-character\n"
+      "  string, and --record stores those numbers, so the capture is\n"
+      "  reproducible from its own metadata. Every number takes hex or\n"
+      "  decimal, so a tap mask reads as 0x409 the way it does in the\n"
+      "  literature. A field takes ONE spelling: the literal flag above or\n"
+      "  its -gen form, never both.\n"
+      "    pn:LEN:REG_BITS[:SEED[:POLY]]        one LFSR; SEED 0 selects 1,\n"
+      "                                         POLY 0 the maximal-length\n"
+      "                                         polynomial for REG_BITS\n"
+      "    gold:LEN:REG_BITS:TAPS_A:SEED_A:TAPS_B:SEED_B   a Gold pair\n"
+      "    dotted:LEN                           alternating 1010..., a line\n"
+      "                                         at Rs/2 to settle on\n"
       "\n"
       "DSSS CONTINUOUS  (--type dsss --symbol-rate HZ)\n"
       "  An endless stream: code B repeats forever and data rides it at\n"
@@ -630,6 +648,7 @@ enum opt_kind
   OPT_HEX,        /* "a5"   -> uint8_t * at off, its bit count at aux     */
   OPT_BITS_FILE,  /* a file whose BYTES are the bits, MSB first          */
   OPT_SYMBOLS,    /* a raw cf32 file -> float _Complex * at off           */
+  OPT_SEQ_GEN,    /* KIND:LEN[:...] -> a generated wfm_seq_t at off        */
 };
 
 /* One flag.
@@ -661,6 +680,155 @@ typedef struct
 /* Rows are in the order the old else-if chain matched them, so the two can
    be read side by side. Order is not otherwise significant — every lookup
    scans the whole table. */
+/* Parse a GENERATED sequence: `KIND:LEN[:...]`, colon-separated like the
+ * `LO[:HI]` ranges above.
+ *
+ *     pn:LEN[:REG_BITS[:SEED[:POLY]]]
+ *     gold:LEN:REG_BITS:TAPS_A:SEED_A:TAPS_B:SEED_B
+ *     dotted:LEN
+ *
+ * ONE flag per sequence with the kind as DATA, rather than one flag per
+ * (sequence, kind) pair. Three kinds across three sequences would be nine
+ * flags for a surface this campaign exists to shrink -- and the spelling
+ * here is then the same one the record uses (`sync_gen: {kind: "pn", ...}`),
+ * so the CLI, the JSON and the schema share one vocabulary instead of three.
+ *
+ * Every number goes through strtoull base 0, so a tap mask may be written
+ * `0x409` as it is in the record and in the literature, or in decimal.
+ * Returns 0, or -1 having already said what was wrong. */
+/* One field, one source of bits -- refused rather than resolved.
+ *
+ * There is no correct answer to which spelling wins, and both ways of being
+ * wrong are silent. `--sync 0110 --sync-gen pn:31:5` leaves the generated
+ * kind over a stray literal array, so `--record` emits BOTH `sync` and
+ * `sync_gen` and the reader (which refuses exactly that pair) cannot load the
+ * capture the run just wrote. The other order clears the array and the
+ * literal vanishes with nothing said. This is the CLI face of the rule
+ * `read_seq_gen` already enforces on the JSON one.
+ *
+ * ONE table drives both checks. The two orders are caught in different
+ * places -- a literal already present is caught before parse_seq_gen's memset
+ * erases it, a literal parsed afterwards is caught once the whole line is
+ * read -- and a pair declared twice is a pair that can disagree about which
+ * flags it names. */
+static const struct
+{
+  const char *lit, *gen;
+  size_t      off;
+} SEQ_PAIRS[] = {
+  { "--acq-code", "--acq-code-gen", OFF (src.acq_code) },
+  { "--data-code", "--data-code-gen", OFF (src.data_code) },
+  { "--sync", "--sync-gen", OFF (src.sync) },
+};
+
+/* Complain about @p gen_flag's pair. Returns 2 -- the exit code every other
+   usage error here uses, so a scripted caller sees one number for "you typed
+   something impossible" whichever order it was typed in. */
+static int
+seq_both_spellings (const char *gen_flag)
+{
+  const char *lit = "the literal form";
+  for (size_t i = 0; i < sizeof SEQ_PAIRS / sizeof *SEQ_PAIRS; i++)
+    if (strcmp (SEQ_PAIRS[i].gen, gen_flag) == 0)
+      lit = SEQ_PAIRS[i].lit;
+  (void)fprintf (stderr,
+                 "error: %s and %s set the same field -- give one, not "
+                 "both (a generated sequence has no bit string)\n",
+                 lit, gen_flag);
+  return 2;
+}
+
+static int
+parse_seq_gen (const char *flag, const char *v, wfm_seq_t *q)
+{
+  static const char *const KINDS[] = { "literal", "pn", "gold", "dotted" };
+  char                     buf[256];
+  if (!v || strlen (v) >= sizeof buf)
+    {
+      (void)fprintf (stderr, "error: %s: missing or overlong value\n", flag);
+      return -1;
+    }
+  /* A literal already parsed into this field. Caught here because the memset
+     below would erase the evidence. */
+  if (q->bits)
+    {
+      (void)seq_both_spellings (flag);
+      return -1; /* the OPT_SEQ_GEN case maps any non-zero to exit 2 */
+    }
+  memcpy (buf, v, strlen (v) + 1);
+
+  char *save = NULL;
+  char *tok  = strtok_r (buf, ":", &save);
+  int   kind = tok ? lookup (tok, KINDS, 4) : -1;
+  /* `literal` is rejected, not merely unmatched: a literal sequence is what
+     --sync and --sync-hex are for, and a second way to spell it is how two
+     spellings of one thing start disagreeing. */
+  if (kind <= 0)
+    {
+      (void)fprintf (stderr,
+                     "error: %s: kind must be pn, gold or dotted "
+                     "(a literal sequence is --sync/--acq-code/--data-code)\n",
+                     flag);
+      return -1;
+    }
+
+  unsigned long long field[7] = { 0 };
+  size_t             n        = 0;
+  while ((tok = strtok_r (NULL, ":", &save)) != NULL && n < 7)
+    field[n++] = strtoull (tok, NULL, 0);
+
+  memset (q, 0, sizeof *q);
+  q->kind = (wfm_seq_kind_t)kind;
+  if (n < 1 || field[0] == 0ull)
+    {
+      (void)fprintf (stderr, "error: %s: a length is required, e.g. %s\n",
+                     flag, kind == 3 ? "dotted:16" : "pn:1023:10");
+      return -1;
+    }
+  q->len = (size_t)field[0];
+
+  if (q->kind == WFM_SEQ_PN)
+    {
+      q->reg_bits = (uint32_t)(n > 1 ? field[1] : 0ull);
+      q->seed     = n > 2 ? field[2] : 0ull;
+      q->poly     = n > 3 ? field[3] : 0ull;
+      if (q->reg_bits == 0u || q->reg_bits > 64u)
+        {
+          (void)fprintf (stderr,
+                         "error: %s: pn needs a register width in 1..64, "
+                         "e.g. pn:1023:10\n",
+                         flag);
+          return -1;
+        }
+    }
+  else if (q->kind == WFM_SEQ_GOLD)
+    {
+      if (n < 6)
+        {
+          (void)fprintf (stderr,
+                         "error: %s: gold needs "
+                         "LEN:REG_BITS:TAPS_A:SEED_A:TAPS_B:SEED_B, "
+                         "e.g. gold:64:10:934:350:567:73\n",
+                         flag);
+          return -1;
+        }
+      q->reg_bits = (uint32_t)field[1];
+      q->taps_a   = field[2];
+      q->seed_a   = field[3];
+      q->taps_b   = field[4];
+      q->seed_b   = field[5];
+      if (q->reg_bits == 0u || q->reg_bits > 64u)
+        {
+          (void)fprintf (stderr,
+                         "error: %s: gold needs a register width in 1..64\n",
+                         flag);
+          return -1;
+        }
+    }
+  /* DOTTED takes only its length. */
+  return 0;
+}
+
 static const opt_t OPTS[] = {
   { .name = "--from-file", .kind = OPT_STR, .off = OFF (from_file) },
   { .name = "--type",
@@ -720,6 +888,7 @@ static const opt_t OPTS[] = {
     .kind = OPT_HEX,
     .off  = OFF (src.acq_code.bits),
     .aux  = AUX (src.acq_code.len) },
+  { .name = "--acq-code-gen", .kind = OPT_SEQ_GEN, .off = OFF (src.acq_code) },
   { .name = "--acq-reps", .kind = OPT_SIZE, .off = OFF (src.acq_reps) },
   { .name = "--data-code",
     .kind = OPT_BITS,
@@ -729,10 +898,14 @@ static const opt_t OPTS[] = {
     .kind = OPT_HEX,
     .off  = OFF (src.data_code.bits),
     .aux  = AUX (src.data_code.len) },
+  { .name = "--data-code-gen",
+    .kind = OPT_SEQ_GEN,
+    .off  = OFF (src.data_code) },
   { .name = "--sync",
     .kind = OPT_BITS,
     .off  = OFF (src.sync.bits),
     .aux  = AUX (src.sync.len) },
+  { .name = "--sync-gen", .kind = OPT_SEQ_GEN, .off = OFF (src.sync) },
   { .name = "--crc",
     .kind = OPT_CHOICE,
     .off  = OFF (src.crc),
@@ -992,6 +1165,11 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
           *(size_t *)dst = (size_t)strtoull (v, NULL, 10);
           break;
 
+        case OPT_SEQ_GEN:
+          if (parse_seq_gen (a, v, (wfm_seq_t *)dst) != 0)
+            return 2;
+          break;
+
         case OPT_U32:
           *(uint32_t *)dst = (uint32_t)strtoul (v, NULL, 10);
           break;
@@ -1048,6 +1226,15 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
           }
           break;
         }
+    }
+
+  /* The other order: a generated kind still standing under a literal array
+     that a later --sync/--acq-code/--data-code parsed on top of it. */
+  for (size_t i = 0; i < sizeof SEQ_PAIRS / sizeof *SEQ_PAIRS; i++)
+    {
+      const wfm_seq_t *q = (const wfm_seq_t *)((char *)o + SEQ_PAIRS[i].off);
+      if (q->kind != WFM_SEQ_LITERAL && q->bits)
+        return seq_both_spellings (SEQ_PAIRS[i].gen);
     }
   return 0;
 }

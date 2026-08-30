@@ -283,6 +283,74 @@ def cases() -> list[tuple[str, list[str]]]:
                 "64",
             ],
         ),
+        # ---- generated sequences: the kinds a face could not spell ----
+        # gh-762. `wfm_seq_t` has always had PN/Gold/Dotted and the frame
+        # layer materialised all of them, but every route in flattened the
+        # kind to LITERAL, so no command line could ask for one. These three
+        # cases exist to pin the RECORD as much as the waveform: a generated
+        # sequence has no bit string, so before it had a key of its own the
+        # field left no trace in `--record` at all and `--from-file` rebuilt
+        # an unframed waveform at exit 0.
+        (
+            "bits_sync_gen_pn",
+            [
+                "--type",
+                "bits",
+                "--modulation",
+                "bpsk",
+                "--bits",
+                "10110010",
+                # 31 = one full period of a 5-bit register, so the case also
+                # says the length is an OUTPUT length and not the period.
+                "--sync-gen",
+                "pn:31:5:3",
+                "--sps",
+                "2",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "bits_sync_gen_gold",
+            [
+                "--type",
+                "bits",
+                "--modulation",
+                "bpsk",
+                "--bits",
+                "10110010",
+                # The taps are written in hex here and in decimal in the
+                # dsss case below, because both are accepted and a record
+                # that only ever saw one spelling proves half the parser.
+                "--sync-gen",
+                "gold:64:10:0x3a6:0x15e:0x237:0x49",
+                "--sps",
+                "2",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "dsss_codes_gen",
+            [
+                "--type",
+                "dsss",
+                "--bits",
+                "1011",
+                "--acq-code-gen",
+                "dotted:8",
+                "--acq-reps",
+                "2",
+                "--data-code-gen",
+                "pn:7:3:1",
+                "--sync-gen",
+                "gold:16:10:934:350:567:73",
+                "--sps",
+                "2",
+                "--count",
+                "512",
+            ],
+        ),
         # ---- the block interleaver, and the unit that makes it work ----
         # Two cases rather than one, because the two flags are not the same
         # kind of thing: --interleave selects the stage, --interleave-unit
@@ -605,6 +673,119 @@ def cases() -> list[tuple[str, list[str]]]:
                 "1011",
                 "--acq-code",
                 "1010",
+            ],
+        ),
+        # A field takes ONE spelling. BOTH orders are cases, because they
+        # fail in different places and used to fail differently: the literal
+        # first is caught before the generated parse memsets it away, the
+        # generated first is caught only once the whole line is read. Neither
+        # was refused at all before gh-762 -- the pair produced a generated
+        # kind wearing a stray literal array, whose `--record` emitted both
+        # `sync` and `sync_gen` and could then never be read back.
+        (
+            "err_sync_literal_then_gen",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "10110010",
+                "--sync",
+                "0110",
+                "--sync-gen",
+                "pn:31:5",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "err_sync_gen_then_literal",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "10110010",
+                "--sync-gen",
+                "pn:31:5",
+                "--sync",
+                "0110",
+                "--count",
+                "64",
+            ],
+        ),
+        # The hex spelling is the same field by another name, so it conflicts
+        # too -- and on the preamble rather than the sync, so the pair table
+        # is exercised on more than one of its rows.
+        (
+            "err_acq_hex_then_gen",
+            [
+                "--type",
+                "dsss",
+                "--bits",
+                "1011",
+                "--data-code",
+                "0110",
+                "--acq-code-hex",
+                "a5",
+                "--acq-code-gen",
+                "dotted:8",
+                "--acq-reps",
+                "2",
+                "--count",
+                "256",
+            ],
+        ),
+        # The generated parser's own refusals: `literal` is not a kind it
+        # will spell, and a length is the one parameter no default supplies.
+        (
+            "err_seq_gen_kind_literal",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "1011",
+                "--sync-gen",
+                "literal:8",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "err_seq_gen_no_len",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "1011",
+                "--sync-gen",
+                "pn",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "err_seq_gen_pn_no_reg",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "1011",
+                "--sync-gen",
+                "pn:31",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "err_seq_gen_gold_short",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "1011",
+                "--sync-gen",
+                "gold:16:10:934",
+                "--count",
+                "64",
             ],
         ),
     ]

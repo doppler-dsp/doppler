@@ -395,6 +395,117 @@
       "version": 1
     }
   },
+  "bits_sync_gen_gold": {
+    "argv": [
+      "--type",
+      "bits",
+      "--modulation",
+      "bpsk",
+      "--bits",
+      "10110010",
+      "--sync-gen",
+      "gold:64:10:0x3a6:0x15e:0x237:0x49",
+      "--sps",
+      "2",
+      "--count",
+      "64"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 512
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "acq_reps": 1,
+          "crc": "crc16",
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "modulation": "bpsk",
+          "num_samples": 64,
+          "off_samples": 0,
+          "pattern": "10110010",
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 2,
+          "sync_gen": {
+            "kind": "gold",
+            "len": 64,
+            "reg_bits": 10,
+            "seed_a": "0x15e",
+            "seed_b": "0x49",
+            "taps_a": "0x3a6",
+            "taps_b": "0x237"
+          },
+          "type": "bits"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "bits_sync_gen_pn": {
+    "argv": [
+      "--type",
+      "bits",
+      "--modulation",
+      "bpsk",
+      "--bits",
+      "10110010",
+      "--sync-gen",
+      "pn:31:5:3",
+      "--sps",
+      "2",
+      "--count",
+      "64"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 512
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "acq_reps": 1,
+          "crc": "crc16",
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "modulation": "bpsk",
+          "num_samples": 64,
+          "off_samples": 0,
+          "pattern": "10110010",
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 2,
+          "sync_gen": {
+            "kind": "pn",
+            "len": 31,
+            "lfsr": 0,
+            "poly": "0x0",
+            "reg_bits": 5,
+            "seed": "0x3"
+          },
+          "type": "bits"
+        }
+      ],
+      "version": 1
+    }
+  },
   "bpsk_rrc": {
     "argv": [
       "--type",
@@ -658,6 +769,77 @@
       "version": 1
     }
   },
+  "dsss_codes_gen": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--bits",
+      "1011",
+      "--acq-code-gen",
+      "dotted:8",
+      "--acq-reps",
+      "2",
+      "--data-code-gen",
+      "pn:7:3:1",
+      "--sync-gen",
+      "gold:16:10:934:350:567:73",
+      "--sps",
+      "2",
+      "--count",
+      "512"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 4288
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "acq_code_gen": {
+            "kind": "dotted",
+            "len": 8
+          },
+          "acq_reps": 2,
+          "crc": "crc16",
+          "data_code_gen": {
+            "kind": "pn",
+            "len": 7,
+            "lfsr": 0,
+            "poly": "0x0",
+            "reg_bits": 3,
+            "seed": "0x1"
+          },
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 536,
+          "off_samples": 0,
+          "payload": "1011",
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 2,
+          "sync_gen": {
+            "kind": "gold",
+            "len": 16,
+            "reg_bits": 10,
+            "seed_a": "0x15e",
+            "seed_b": "0x49",
+            "taps_a": "0x3a6",
+            "taps_b": "0x237"
+          },
+          "type": "dsss"
+        }
+      ],
+      "version": 1
+    }
+  },
   "dsss_continuous": {
     "argv": [
       "--type",
@@ -702,6 +884,27 @@
       ],
       "version": 1
     }
+  },
+  "err_acq_hex_then_gen": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--bits",
+      "1011",
+      "--data-code",
+      "0110",
+      "--acq-code-hex",
+      "a5",
+      "--acq-code-gen",
+      "dotted:8",
+      "--acq-reps",
+      "2",
+      "--count",
+      "256"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
   },
   "err_bad_choice": {
     "argv": [
@@ -777,6 +980,100 @@
       "10110010",
       "--rs-depth",
       "1",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_seq_gen_gold_short": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "1011",
+      "--sync-gen",
+      "gold:16:10:934",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_seq_gen_kind_literal": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "1011",
+      "--sync-gen",
+      "literal:8",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_seq_gen_no_len": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "1011",
+      "--sync-gen",
+      "pn",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_seq_gen_pn_no_reg": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "1011",
+      "--sync-gen",
+      "pn:31",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_sync_gen_then_literal": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "10110010",
+      "--sync-gen",
+      "pn:31:5",
+      "--sync",
+      "0110",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_sync_literal_then_gen": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "10110010",
+      "--sync",
+      "0110",
+      "--sync-gen",
+      "pn:31:5",
       "--count",
       "64"
     ],

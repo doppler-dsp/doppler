@@ -91,6 +91,43 @@ Setting `--acq-code` **or** `--sync` is what makes a source framed. `--crc` on
 its own does not — it defaults to `crc16`, so treating it as intent would put a
 trailer on every plain bit pattern ever generated.
 
+### A sequence given as numbers, not as a string
+
+A preamble, spreading code or sync word can be **generated** instead of typed
+out. `--acq-code-gen`, `--data-code-gen` and `--sync-gen` each take
+`KIND:LEN[:...]`, colon-separated like `--freq`'s `LO:HI`:
+
+| spec                                            | means                                                                                       |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `pn:LEN:REG_BITS[:SEED[:POLY]]`                 | one LFSR. `SEED` 0 selects 1; `POLY` 0 selects the maximal-length polynomial for `REG_BITS` |
+| `gold:LEN:REG_BITS:TAPS_A:SEED_A:TAPS_B:SEED_B` | a Gold pair                                                                                 |
+| `dotted:LEN`                                    | alternating `1010…`, a line at Rs/2 to settle on                                            |
+
+```sh
+wfmgen --type bits --bits 10110010 --sync-gen pn:1023:10 \
+       --sps 4 --count 8192 --record run.json -o framed.cf32
+```
+
+Every number takes hex or decimal, so a tap mask reads as `0x409` the way it
+does in the literature.
+
+**Why this exists.** `--sync 1111100110101` is fine for a Barker-13. A
+1023-chip sync word is not, and a `--record` of one is a 1023-character
+string that says nothing about what produced it. The generated form records
+six numbers instead, so a capture is reproducible from its metadata — which
+is the point of the kinds, not a shorthand for them:
+
+```json
+"sync_gen": { "kind": "pn", "len": 1023, "reg_bits": 10,
+              "poly": "0x0", "seed": "0x0", "lfsr": 0 }
+```
+
+A field is one or the other. `--sync` and `--sync-gen` together is refused
+rather than resolved, because there is no correct answer to which one wins —
+in either order, and counting `--acq-code-hex` as the same field as
+`--acq-code`. Accepting the pair would write a `--record` carrying both
+spellings, which this tool's own `--from-file` then refuses to read.
+
 For `--type bits` the payload is `--bits*` and `--modulation` maps it to BPSK or
 QPSK, so a framed unspread waveform is one command:
 
@@ -181,28 +218,31 @@ ______________________________________________________________________
 
 ## Engine parameter reference
 
-| Flag             | Type                                              | Default  | Meaning                                                                            |
-| ---------------- | ------------------------------------------------- | -------- | ---------------------------------------------------------------------------------- |
-| `--type`         | `tone noise pn bpsk qpsk chirp bits symbols dsss` | `tone`   | waveform                                                                           |
-| `--fs`           | float (Hz)                                        | `1.0`    | sample rate (default `1.0` ⇒ `--freq`/`--f-end` are normalised, cycles/sample)     |
-| `--freq`         | float (Hz)                                        | `0`      | frequency offset from baseband (mixed by the LO); chirp start                      |
-| `--f-end`        | float (Hz)                                        | `0`      | chirp end frequency (`--type chirp` only)                                          |
-| `--snr`          | float (dB)                                        | `100`    | SNR; metric chosen by `--snr-mode` (≈clean at 100) — see [Levels & SNR](levels.md) |
-| `--snr-mode`     | `auto fs ebno esno`                               | `auto`   | how `--snr` is interpreted                                                         |
-| `--seed`         | uint32                                            | `0`      | PRNG / LFSR seed (deterministic)                                                   |
-| `--sps`          | int                                               | `1`      | samples per symbol (`*psk`/`bits`/`symbols`) / per chip (`pn`)                     |
-| `--pn-length`    | int (2..64)                                       | `15`     | LFSR register length → period `2ⁿ−1`                                               |
-| `--pn-poly`      | uint64                                            | `0`      | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial                                |
-| `--lfsr`         | `galois fibonacci`                                | `galois` | LFSR realization (same polynomial/period, different sequence)                      |
-| `--bits`         | 0/1 string                                        | —        | `bits`: pattern, e.g. `10110101` (or `--bits-hex`/`--bits-file`)                   |
-| `--modulation`   | `none bpsk qpsk`                                  | `bpsk`   | `bits`: how the pattern maps to symbols                                            |
-| `--symbols-file` | path (cf32)                                       | —        | `symbols`: raw interleaved-I/Q complex64 constellation stream                      |
-| `--acq-code`     | 0/1 string                                        | —        | `dsss`: preamble code (or `--acq-code-hex`)                                        |
-| `--acq-reps`     | int                                               | `1`      | `dsss`: preamble repetitions                                                       |
-| `--data-code`    | 0/1 string                                        | —        | `dsss`: payload spreading code (or `--data-code-hex`)                              |
-| `--sync`         | 0/1 string                                        | —        | `dsss`: frame-sync word (optional)                                                 |
-| `--crc`          | `none crc16`                                      | `crc16`  | `dsss`: CRC-16 trailer over the payload bits                                       |
-| `--pulse`        | `rect rrc`                                        | `rect`   | pulse shape; `rrc` = band-limited RRC shaping                                      |
-| `--rrc-beta`     | float                                             | `0.35`   | RRC roll-off (`--pulse rrc`)                                                       |
-| `--rrc-span`     | int                                               | `8`      | RRC filter support in symbols (`--pulse rrc`)                                      |
-| `--count`        | int                                               | `1024`   | number of complex samples to generate                                              |
+| Flag              | Type                                              | Default  | Meaning                                                                            |
+| ----------------- | ------------------------------------------------- | -------- | ---------------------------------------------------------------------------------- |
+| `--type`          | `tone noise pn bpsk qpsk chirp bits symbols dsss` | `tone`   | waveform                                                                           |
+| `--fs`            | float (Hz)                                        | `1.0`    | sample rate (default `1.0` ⇒ `--freq`/`--f-end` are normalised, cycles/sample)     |
+| `--freq`          | float (Hz)                                        | `0`      | frequency offset from baseband (mixed by the LO); chirp start                      |
+| `--f-end`         | float (Hz)                                        | `0`      | chirp end frequency (`--type chirp` only)                                          |
+| `--snr`           | float (dB)                                        | `100`    | SNR; metric chosen by `--snr-mode` (≈clean at 100) — see [Levels & SNR](levels.md) |
+| `--snr-mode`      | `auto fs ebno esno`                               | `auto`   | how `--snr` is interpreted                                                         |
+| `--seed`          | uint32                                            | `0`      | PRNG / LFSR seed (deterministic)                                                   |
+| `--sps`           | int                                               | `1`      | samples per symbol (`*psk`/`bits`/`symbols`) / per chip (`pn`)                     |
+| `--pn-length`     | int (2..64)                                       | `15`     | LFSR register length → period `2ⁿ−1`                                               |
+| `--pn-poly`       | uint64                                            | `0`      | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial                                |
+| `--lfsr`          | `galois fibonacci`                                | `galois` | LFSR realization (same polynomial/period, different sequence)                      |
+| `--bits`          | 0/1 string                                        | —        | `bits`: pattern, e.g. `10110101` (or `--bits-hex`/`--bits-file`)                   |
+| `--modulation`    | `none bpsk qpsk`                                  | `bpsk`   | `bits`: how the pattern maps to symbols                                            |
+| `--symbols-file`  | path (cf32)                                       | —        | `symbols`: raw interleaved-I/Q complex64 constellation stream                      |
+| `--acq-code`      | 0/1 string                                        | —        | `dsss`: preamble code (or `--acq-code-hex`)                                        |
+| `--acq-code-gen`  | `KIND:LEN[:...]`                                  | —        | preamble as a generated sequence (`pn`/`gold`/`dotted`)                            |
+| `--data-code-gen` | `KIND:LEN[:...]`                                  | —        | spreading code as a generated sequence                                             |
+| `--sync-gen`      | `KIND:LEN[:...]`                                  | —        | sync word as a generated sequence                                                  |
+| `--acq-reps`      | int                                               | `1`      | `dsss`: preamble repetitions                                                       |
+| `--data-code`     | 0/1 string                                        | —        | `dsss`: payload spreading code (or `--data-code-hex`)                              |
+| `--sync`          | 0/1 string                                        | —        | `dsss`: frame-sync word (optional)                                                 |
+| `--crc`           | `none crc16`                                      | `crc16`  | `dsss`: CRC-16 trailer over the payload bits                                       |
+| `--pulse`         | `rect rrc`                                        | `rect`   | pulse shape; `rrc` = band-limited RRC shaping                                      |
+| `--rrc-beta`      | float                                             | `0.35`   | RRC roll-off (`--pulse rrc`)                                                       |
+| `--rrc-span`      | int                                               | `8`      | RRC filter support in symbols (`--pulse rrc`)                                      |
+| `--count`         | int                                               | `1024`   | number of complex samples to generate                                              |

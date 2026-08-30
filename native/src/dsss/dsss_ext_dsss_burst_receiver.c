@@ -822,14 +822,31 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
   { "refine_margin", (getter)DsssBurstReceiver_getprop_refine_margin, NULL,
     "Runner-up period over the winner.\n", NULL },
   { "refine_span", (getter)DsssBurstReceiver_getprop_refine_span, NULL,
-    "Coalescing window, in samples -- the MINIMUM BURST SPACING.\n"
+    "Coalescing window, in samples -- the reach over which two detections\n"
+    "are ONE preamble.\n"
     "\n"
-    "Two detections closer together than this are treated as the same "
-    "preamble\n"
-    "and merged, so bursts packed tighter than `refine_span` are lost rather\n"
-    "than reported. Measured at a 255-chip code, `reps=5`, `spc=2`: bursts\n"
-    "spaced 8916 samples yielded 2 decodes from 7 bursts, with `dropped == "
-    "0`.\n",
+    "Both sides of that test are burst STARTS (resolved code epochs), so "
+    "this\n"
+    "bounds start-to-start separation, NOT the dead air between bursts. The "
+    "two\n"
+    "differ by a whole burst, and reading it as dead air costs a caller "
+    "real\n"
+    "airtime for nothing. The gap actually required is\n"
+    "\n"
+    "    max(0, refine_span - burst_len)      burst_len = retain_span - "
+    "refine_span\n"
+    "\n"
+    "which is 0 whenever a burst is longer than the refine reach -- every\n"
+    "realistic payload. At a 255-chip code, `reps=5`, `spc=2` the reach is "
+    "12240\n"
+    "samples; an 8316-sample burst placed 8916 apart start-to-start (600 "
+    "samples\n"
+    "of dead air against the 3924 required) yields 2 decodes from 7 bursts "
+    "with\n"
+    "`dropped == 0`, while at `frame_syms=2053` the same code gives a\n"
+    "261228-sample burst -- 21.3x the reach -- and every spacing down to "
+    "ZERO\n"
+    "dead air yields 7 of 7 (doppler#1085).\n",
     NULL },
   { "retain_span", (getter)DsssBurstReceiver_getprop_retain_span, NULL,
     "History kept per anchor, in samples -- the MINIMUM TRAILING CONTEXT.\n"

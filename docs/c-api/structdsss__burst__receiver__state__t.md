@@ -855,7 +855,7 @@ size_t dsss_burst_receiver_state_t::refine_span;
 Candidate offsets searched, in samples: `(k_lo + k_hi + reps) * code_period`, which is `(4*reps + 4) * code_period` for the `k_lo` chosen in create(). This doc claimed `2*reps*code_period` until it was measured  2.4x low at reps=5  so read `refine_span` rather than the formula.
 
 
-It is also the CALLER-facing minimum burst spacing: two anchors closer than this are coalesced as one preamble, so bursts packed tighter are merged and the rest are lost. 
+The merge test compares two resolved code epochs  burst START against burst START  so it bounds start-to-start separation, NOT the dead air between bursts. The two differ by a whole burst; the gap a caller must leave is `max(0, refine_span - burst_len)`, which is 0 for any burst longer than the reach. Reading it as dead air reserved 9% airtime for nothing (doppler#1085). 
  
 
 

@@ -152,6 +152,26 @@ GATES_DEPS    ?= lint test-all
 GATES_CI_FILE   ?= .github/workflows/ci.yml
 GATES_PROVISION ?= install-deps
 
+# The converse, and it went unchecked for as long as `gates-check` existed: a
+# target sitting in GATES_DEPS that NO workflow runs passes without a word, so
+# the repo declares a gate, `make gates` runs it locally, and it guards no pull
+# request. Not hypothetical -- doppler recorded it twice, and then found
+# `test-ubsan` and `test-tsan` had run on no PR ever. UBSan, once wired, found
+# four undefined operations on its first run.
+#
+# GATES_LOCAL_ONLY is the deliberate exception, named the way GATES_PROVISION
+# is: a gate that genuinely cannot run on a runner (hardware, a network the
+# runner lacks) is still a gate you run before merging, and forcing it out of
+# GATES_DEPS would lose it. Naming one is a decision that shows up in a diff.
+GATES_LOCAL_ONLY ?=
+
+# Targets CI runs that the scan cannot see for itself -- one driven from an
+# `env` expression, or run by a workflow other than GATES_CI_FILE. Naming them
+# is better than widening the scan into a guess: the check refuses to run at
+# all when it meets an interpolation it cannot resolve, so a repo is told
+# exactly what to add rather than handed a wrong answer.
+GATES_CI_EXTRA ?=
+
 $(call _std_require,TEST_CMD,every repo)
 $(call _std_require,TEST_FAST_CMD,every repo)
 # `clean` needs at least one of the two to be doing anything at all.
@@ -176,7 +196,7 @@ test-fast: ## Run tests, stopping at the first failure
 # `lint` is the gate — CI runs exactly this and nothing else. The three
 # consistency gates come first because they are near-free and catch the class
 # of rot that review demonstrably does not.
-lint: standard-check help-check ghost-check hook-dispatch-check hook-stage-check gates-check ## Run the full lint gate (CI runs this)
+lint: standard-check help-check ghost-check hook-dispatch-check hook-stage-check gates-check gates-home-check ## Run the full lint gate (CI runs this)
 	@hook=$$(git rev-parse --git-path hooks/pre-commit 2>/dev/null); \
 	 if [ -n "$$hook" ] && [ ! -f "$$hook" ]; then \
 	     $(PRE_COMMIT) install >/dev/null 2>&1 \
@@ -223,7 +243,7 @@ $(foreach _t,$(LINT_TOOLS),$(eval $(call _std_lint_rule,$(_t))))
 
 # ── Aggregates ───────────────────────────────────────────────────────────────
 
-STD_TARGETS += test-all gates gates-check
+STD_TARGETS += test-all gates gates-check gates-home-check
 
 test-all: $(TEST_ALL_DEPS) ## Run every test suite in the repo
 
@@ -260,10 +280,7 @@ gates-check: ## Verify `gates` runs every make target CI invokes
 	 if [ ! -f "$$ci" ]; then echo "gates-check: no $$ci — skipped"; exit 0; fi; \
 	 db=$$($(_STD_TMP)); trap 'rm -f "$$db"' EXIT; \
 	 $(MAKE) -rpn --no-print-directory .std-db-goal >"$$db" 2>/dev/null; \
-	 ci_targets=$$(sed -E 's/(^|[[:space:]])#.*$$//' "$$ci" \
-	     | grep -hoE '(^[[:space:]]*(- )?run:[[:space:]]*make|^[[:space:]]*make|[;&|][[:space:]]*make)[[:space:]]+[a-zA-Z_][a-zA-Z0-9_-]*' \
-	     | grep -oE 'make[[:space:]]+[a-zA-Z_][a-zA-Z0-9_-]*$$' \
-	     | sed -E 's/make[[:space:]]+//' | LC_ALL=C sort -u); \
+	 ci_targets=$$($(_STD_CI_TARGETS)); \
 	 if [ -z "$$ci_targets" ]; then \
 	     echo "ERROR: gates-check matched no 'make <target>' in $$ci —"; \
 	     echo "  the scan found nothing, so it did not run, so it has not passed."; \
@@ -299,6 +316,91 @@ gates-check: ## Verify `gates` runs every make target CI invokes
 	     exit 1; \
 	 fi; \
 	 echo "gates-check: gates covers all $$(set -- $$ci_targets; echo $$#) CI make-targets"
+
+# The other direction. `gates-check` makes `gates`' promise true; this one makes
+# each entry's promise true -- that a target named as a gate actually guards a
+# pull request. A GATES_DEPS entry no workflow reaches is a check the repo
+# believes it has: `make gates` runs it, every dev sees it pass, and nothing
+# blocks on it. doppler carried two like that for their whole lives.
+#
+# Reachability is not a grep, and that is the whole difficulty. Three of
+# doppler's entries have no literal `make <t>` in any workflow and are covered
+# anyway, by two different mechanisms:
+#
+#   * `changelog-check` and `release-notes-size-check` are prerequisites of
+#     `lint`, and CI runs `make lint`. Found by walking DOWN from the CI
+#     targets, the mirror of the walk `gates-check` does from `gates`.
+#   * `test-all` is an aggregate whose four components CI runs separately.
+#     Walking down never reaches it -- it is above the CI targets, not below.
+#     It is covered because every one of its prerequisites is, and because it
+#     has NO RECIPE of its own, so running the parts does all the work running
+#     it would. An aggregate WITH a recipe is not covered by its parts, and the
+#     make database distinguishes the two ("recipe to execute"), so this does
+#     not have to guess.
+#
+# A grep-only check would report all three on a correct repo, and a check that
+# is wrong on the repo that prompted it is one nobody keeps.
+gates-home-check: ## Verify every gate in GATES_DEPS runs in some CI job
+	@ci="$(GATES_CI_FILE)"; \
+	 if [ ! -f "$$ci" ]; then echo "gates-home-check: no $$ci — skipped"; exit 0; fi; \
+	 if [ -z "$(strip $(GATES_DEPS))" ]; then \
+	     echo "gates-home-check: GATES_DEPS is empty — skipped"; exit 0; fi; \
+	 db=$$($(_STD_TMP)); trap 'rm -f "$$db"' EXIT; \
+	 $(MAKE) -rpn --no-print-directory .std-db-goal >"$$db" 2>/dev/null; \
+	 ci_targets=$$($(_STD_CI_TARGETS)); \
+	 if [ -z "$$ci_targets" ]; then \
+	     echo "ERROR: gates-home-check matched no 'make <target>' in $$ci —"; \
+	     echo "  the scan found nothing, so it did not run, so it has not passed."; \
+	     exit 1; \
+	 fi; \
+	 : "Down from every CI target: a gate spliced into one (changelog-check"; \
+	 : "under lint) has its home there."; \
+	 covered=" "; frontier="$$ci_targets"; \
+	 for t in $$ci_targets; do covered="$$covered$$t "; done; \
+	 while [ -n "$$frontier" ]; do \
+	     next=""; \
+	     for t in $$frontier; do \
+	         for p in $$(sed -n "s/^$$t:[ ]*//p" "$$db" | sed 's/|.*//'); do \
+	             case "$$covered" in *" $$p "*) ;; \
+	                 *) covered="$$covered$$p "; next="$$next $$p";; esac; \
+	         done; \
+	     done; \
+	     frontier="$$next"; \
+	 done; \
+	 : "Then upward, to a fixpoint: a recipe-less aggregate whose every"; \
+	 : "prerequisite is covered is covered, because running the parts is"; \
+	 : "running it. One with a recipe of its own is NOT."; \
+	 added=1; \
+	 while [ "$$added" = 1 ]; do \
+	     added=0; \
+	     for t in $(GATES_DEPS); do \
+	         case "$$covered" in *" $$t "*) continue;; esac; \
+	         line=$$(sed -n "s/^$$t:[ ]*//p" "$$db" | sed 's/|.*//' | head -n1); \
+	         [ -n "$$line" ] || continue; \
+	         sed -n "/^$$t:/,/^$$/p" "$$db" | grep -q 'recipe to execute' && continue; \
+	         all=1; \
+	         for p in $$line; do \
+	             case "$$covered" in *" $$p "*) ;; *) all=0;; esac; \
+	         done; \
+	         if [ "$$all" = 1 ]; then covered="$$covered$$t "; added=1; fi; \
+	     done; \
+	 done; \
+	 rc=0; n=0; \
+	 for t in $(GATES_DEPS); do \
+	     case " $(GATES_LOCAL_ONLY) " in *" $$t "*) continue;; esac; \
+	     n=$$((n+1)); \
+	     case "$$covered" in *" $$t "*) continue;; esac; \
+	     echo "ERROR: 'make $$t' is in GATES_DEPS, but no job in $$ci runs it"; \
+	     rc=1; \
+	 done; \
+	 if [ $$rc -ne 0 ]; then \
+	     echo ""; \
+	     echo "  A gate nothing runs guards nothing. Wire it into $$ci, or drop"; \
+	     echo "  it from GATES_DEPS, or name it in GATES_LOCAL_ONLY if it truly"; \
+	     echo "  cannot run on a runner."; \
+	     exit 1; \
+	 fi; \
+	 echo "gates-home-check: $$n gate(s) have an execution home in CI"
 
 # ── HAS_C ────────────────────────────────────────────────────────────────────
 # `release` is RESERVED for the C build type. The release workflow is `ship`
@@ -796,6 +898,53 @@ STD_TARGETS += hook-stage-check
 # macOS ships requires a template. The gates parse make's own database, which
 # is far too big to hold in a shell variable comfortably.
 _STD_TMP = mktemp "$${TMPDIR:-/tmp}/std.XXXXXX"
+
+# The `make <target>` invocations in $$ci, one per line, sorted and unique.
+# ONE extractor because `gates-check` and `gates-home-check` are the two
+# directions of a single claim, and two copies of a scan is how the directions
+# come to disagree about what CI runs. Takes `make` only at a command position
+# (start of a `run:` line or block-scalar body, or after ; & |), so neither
+# `cmake` nor a `make X` inside a comment or a `name:` counts, and the first
+# token only, so a target invoked with arguments still does. Reads `ci` from
+# the calling recipe's shell.
+#
+# `\#`, not a bare `#`: in a variable definition make takes `#` as the start
+# of a comment and truncates the pipeline mid-regex, which the shell then
+# reports as `Unterminated quoted string` -- a syntax error with no syntax
+# error in it. Bracketing it as `[#]` does NOT help; make does not know a
+# regex from a comment. In a recipe LINE, where this lived before, `#` is
+# passed through untouched, which is why the move needed the escape.
+# The same applies to a shell `$${var\#pattern}` further down: make sees a
+# `#`, not a parameter expansion.
+#
+# The matrix arm is why this could not stay a plain grep. doppler runs its
+# sanitizers as `run: make $${{ matrix.san.target }}`, with `test-asan` /
+# `test-ubsan` / `test-tsan` listed in the matrix -- so there is no literal
+# `make test-asan` anywhere. A missed CI target is a harmless under-count for
+# `gates-check` (it demands less of `gates`); for `gates-home-check` the same
+# blind spot is a FALSE FINDING against three targets that do run, on the very
+# repo the check was written for. The interpolation names the key that supplies
+# it, so the values are resolved rather than guessed at: `matrix.san.target`
+# reads `target:` under `san:`, and a flat `matrix.thing` reads the list.
+_STD_CI_TARGETS = { sed -E 's/(^|[[:space:]])\#.*$$//' "$$ci" \
+	     | grep -hoE '(^[[:space:]]*(- )?run:[[:space:]]*make|^[[:space:]]*make|[;&|][[:space:]]*make)[[:space:]]+[a-zA-Z_][a-zA-Z0-9_-]*' \
+	     | grep -oE 'make[[:space:]]+[a-zA-Z_][a-zA-Z0-9_-]*$$' \
+	     | sed -E 's/make[[:space:]]+//'; \
+	   for _e in $$(grep -oE 'make[[:space:]]+\$$\{\{[[:space:]]*matrix\.[a-zA-Z0-9_.]+' "$$ci" \
+	       | sed -E 's/.*matrix\.//' | LC_ALL=C sort -u); do \
+	     _k=$${_e%%.*}; _f=$${_e\#*.}; \
+	     if [ "$$_f" = "$$_e" ]; then \
+	       sed -n "/^[[:space:]]*$$_k:[[:space:]]*$$/,/^[[:space:]]*[a-zA-Z_-]*:[[:space:]]*$$/p" "$$ci" \
+	         | grep -oE '^[[:space:]]*-[[:space:]]*[a-zA-Z_][a-zA-Z0-9_-]*[[:space:]]*$$' \
+	         | sed -E 's/[[:space:]]*-[[:space:]]*//;s/[[:space:]]*$$//'; \
+	     else \
+	       sed -n "/^[[:space:]]*$$_k:[[:space:]]*$$/,/^[[:space:]]*[a-zA-Z_-]*:[[:space:]]*$$/p" "$$ci" \
+	         | grep -oE "[{,][[:space:]]*$$_f:[[:space:]]*[a-zA-Z_][a-zA-Z0-9_-]*|^[[:space:]]*$$_f:[[:space:]]*[a-zA-Z_][a-zA-Z0-9_-]*" \
+	         | sed -E "s/.*$$_f:[[:space:]]*//"; \
+	     fi; \
+	   done; \
+	   for _x in $(GATES_CI_EXTRA); do echo "$$_x"; done; \
+	 } | LC_ALL=C sort -u
 
 # The goal the gates hand to their database dump, and the only reason it
 # exists. `-p` prints the full database whatever the goal is, but with NO goal

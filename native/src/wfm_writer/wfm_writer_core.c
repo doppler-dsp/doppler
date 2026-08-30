@@ -924,77 +924,84 @@ wfm_sigmf_meta_json (int sample_type, int endian, double fs, double fc,
   cJSON_AddItemToArray (caps, cap0);
 
   cJSON *anns = cJSON_AddArrayToObject (root, "annotations");
-  /* One annotation per SOURCE per rendered INSTANCE, at the exact drawn
-   * position: wfm_compose_spans() replays the ranged draws (repeats
-   * instancing, jittered delays/gaps, intrinsic dsss on-times), so the
-   * sidecar's sample_start/sample_count are ground truth for the capture —
-   * usable directly to score a detector. (The old walker advanced by the
-   * scalar num+off once per segment: wrong for ranged scenes, blind to
-   * repeats.) */
-  size_t      n_spans = wfm_compose_spans (segs, n_segs, NULL, 0);
-  wfm_span_t *spans   = n_spans ? malloc (n_spans * sizeof *spans) : NULL;
-  if (spans)
-    (void)wfm_compose_spans (segs, n_segs, spans, n_spans);
-  for (size_t sp = 0; spans && sp < n_spans; sp++)
+  /* One annotation per SOURCE per rendered INSTANCE, from ONE row.
+   *
+   * wfm_compose_draws() replays the ranged draws (repeats instancing,
+   * jittered delays/gaps, intrinsic dsss on-times) AND the drawn
+   * freq/f_end/snr/level, through the same helpers the composer renders
+   * through. Reading the timing from a replay and the values from the source
+   * struct is what this used to do, and for a ranged field that struct still
+   * holds `lo`: a `--freq 11200:12800 --snr 8:14` scene wrote 11200 Hz and
+   * 8 dB on EVERY annotation, beside a sample-accurate start. Measured
+   * against the capture, up to 1224 Hz and 6.0 dB out (doppler#1086). The
+   * exact half is what stopped anyone looking at the other. */
+  size_t      n_rows = wfm_compose_draws (segs, n_segs, NULL, 0);
+  wfm_draw_t *rows   = n_rows ? malloc (n_rows * sizeof *rows) : NULL;
+  if (rows)
+    (void)wfm_compose_draws (segs, n_segs, rows, n_rows);
+  for (size_t r = 0; rows && r < n_rows; r++)
     {
-      const wfm_segment_t *s     = &segs[spans[sp].seg];
-      size_t               start = spans[sp].start + spans[sp].delay;
-      for (size_t k = 0; k < s->n_sources; k++)
-        {
-          const wfm_source_t *src = &s->sources[k];
-          cJSON              *a   = cJSON_CreateObject ();
-          cJSON_AddNumberToObject (a, "core:sample_start", (double)start);
-          cJSON_AddNumberToObject (a, "core:sample_count",
-                                   (double)spans[sp].on);
-          /* Occupied band: a chirp spans f_start..f_end; a modulated source
-           * (pn/bpsk/qpsk) is ~fs/sps wide about its centre; tone/noise are a
-           * line at the offset. */
-          double bw, center;
-          if (src->type == WFM_SYNTH_CHIRP)
-            {
-              double lo = src->freq < src->f_end ? src->freq : src->f_end;
-              double hi = src->freq < src->f_end ? src->f_end : src->freq;
-              cJSON_AddNumberToObject (a, "core:freq_lower_edge", fc + lo);
-              cJSON_AddNumberToObject (a, "core:freq_upper_edge", fc + hi);
-            }
-          else
-            {
-              bw = (src->type >= 2 && src->sps > 0) ? s->fs / (double)src->sps
-                                                    : 0.0;
-              center = fc + src->freq;
-              cJSON_AddNumberToObject (a, "core:freq_lower_edge",
-                                       center - bw / 2.0);
-              cJSON_AddNumberToObject (a, "core:freq_upper_edge",
-                                       center + bw / 2.0);
-            }
-          if (src->type >= 0 && src->type < N_TYPES)
-            cJSON_AddStringToObject (a, "core:label", TYPE_NAMES[src->type]);
-          cJSON_AddNumberToObject (a, "wfmgen:snr", src->snr);
-          if (src->snr_mode >= 0 && src->snr_mode < 4)
-            cJSON_AddStringToObject (a, "wfmgen:snr_mode",
-                                     MODE_NAMES[src->snr_mode]);
-          cJSON_AddNumberToObject (a, "wfmgen:sps", src->sps);
-          cJSON_AddNumberToObject (a, "wfmgen:seed", src->seed);
-          cJSON_AddNumberToObject (a, "wfmgen:pn_length", src->pn_length);
-          cJSON_AddNumberToObject (a, "wfmgen:pn_poly", src->pn_poly);
-          /* The "dsss" core:label can't distinguish a synchronous burst
-           * (integer chips/symbol, framed) from a continuous asynchronous
-           * stream — only symbol_rate does. Emit it for a continuous source so
-           * a scorer knows the outer symbol clock; mirror the JSON face's
-           * data-source label ("none" for code-only, omitted for the
-           * data-modulated default). Burst dsss and every other type omit
-           * these keys (symbol_rate <= 0). */
-          if (src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0)
-            {
-              cJSON_AddNumberToObject (a, "wfmgen:symbol_rate",
-                                       src->symbol_rate);
-              if (src->dsss_code_only)
-                cJSON_AddStringToObject (a, "wfmgen:data", "none");
-            }
-          cJSON_AddItemToArray (anns, a);
-        }
+      const wfm_draw_t    *d     = &rows[r];
+      const wfm_segment_t *s     = &segs[d->seg];
+      size_t               start = d->start + d->delay;
+      {
+        const wfm_source_t *src = &s->sources[d->src];
+        cJSON              *a   = cJSON_CreateObject ();
+        cJSON_AddNumberToObject (a, "core:sample_start", (double)start);
+        cJSON_AddNumberToObject (a, "core:sample_count", (double)d->on);
+        /* Occupied band: a chirp spans f_start..f_end; a modulated source
+         * (pn/bpsk/qpsk) is ~fs/sps wide about its centre; tone/noise are a
+         * line at the offset. Every frequency here is the DRAWN one. */
+        double bw, center;
+        if (src->type == WFM_SYNTH_CHIRP)
+          {
+            double lo = d->freq < d->f_end ? d->freq : d->f_end;
+            double hi = d->freq < d->f_end ? d->f_end : d->freq;
+            cJSON_AddNumberToObject (a, "core:freq_lower_edge", fc + lo);
+            cJSON_AddNumberToObject (a, "core:freq_upper_edge", fc + hi);
+          }
+        else
+          {
+            bw = (src->type >= 2 && src->sps > 0) ? s->fs / (double)src->sps
+                                                  : 0.0;
+            center = fc + d->freq;
+            cJSON_AddNumberToObject (a, "core:freq_lower_edge",
+                                     center - bw / 2.0);
+            cJSON_AddNumberToObject (a, "core:freq_upper_edge",
+                                     center + bw / 2.0);
+          }
+        if (src->type >= 0 && src->type < N_TYPES)
+          cJSON_AddStringToObject (a, "core:label", TYPE_NAMES[src->type]);
+        cJSON_AddNumberToObject (a, "wfmgen:snr", d->snr);
+        /* Emitted because it is DRAWN and otherwise unrecoverable: a ranged
+           --level had no annotation key at all, so its per-instance value was
+           the one drawn quantity a scorer could not read back. */
+        cJSON_AddNumberToObject (a, "wfmgen:level_db", d->level);
+        if (src->snr_mode >= 0 && src->snr_mode < 4)
+          cJSON_AddStringToObject (a, "wfmgen:snr_mode",
+                                   MODE_NAMES[src->snr_mode]);
+        cJSON_AddNumberToObject (a, "wfmgen:sps", src->sps);
+        cJSON_AddNumberToObject (a, "wfmgen:seed", src->seed);
+        cJSON_AddNumberToObject (a, "wfmgen:pn_length", src->pn_length);
+        cJSON_AddNumberToObject (a, "wfmgen:pn_poly", src->pn_poly);
+        /* The "dsss" core:label can't distinguish a synchronous burst
+         * (integer chips/symbol, framed) from a continuous asynchronous
+         * stream — only symbol_rate does. Emit it for a continuous source so
+         * a scorer knows the outer symbol clock; mirror the JSON face's
+         * data-source label ("none" for code-only, omitted for the
+         * data-modulated default). Burst dsss and every other type omit
+         * these keys (symbol_rate <= 0). */
+        if (src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0)
+          {
+            cJSON_AddNumberToObject (a, "wfmgen:symbol_rate",
+                                     src->symbol_rate);
+            if (src->dsss_code_only)
+              cJSON_AddStringToObject (a, "wfmgen:data", "none");
+          }
+        cJSON_AddItemToArray (anns, a);
+      }
     }
-  free (spans);
+  free (rows);
 
   char *out = cJSON_PrintUnformatted (root);
   cJSON_Delete (root);

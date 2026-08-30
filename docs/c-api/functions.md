@@ -1465,6 +1465,7 @@
 * **wfm\_compose\_build\_synth** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_create** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_destroy** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_compose\_draws** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_execute** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_from\_file** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_from\_json** ([**wfm\_compose.h**](wfm__compose_8h.md))

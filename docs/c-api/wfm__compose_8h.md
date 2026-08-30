@@ -32,6 +32,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+| struct | [**wfm\_draw\_t**](structwfm__draw__t.md) <br>_One rendered source instance: its timing AND the values it was actually rendered with._  |
 | struct | [**wfm\_segment\_t**](structwfm__segment__t.md) <br>_One composer segment: one or more sources summed over the same span, then a trailing off-time gap._  |
 | struct | [**wfm\_source\_t**](structwfm__source__t.md) <br>_One additive source within a segment: a_ `synth` _config + its level._ |
 | struct | [**wfm\_span\_t**](structwfm__span__t.md) <br>_One rendered segment instance's exact timing: where it lands in the composed stream and how its_ `delay | on | off` _spans divide it._ |
@@ -71,6 +72,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* | [**wfm\_compose\_build\_synth**](#function-wfm_compose_build_synth) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, size\_t on\_len, double freq, double snr, double f\_end, unsigned epoch, int seed\_advance, size\_t instance) <br>_Construct + configure the synth for one resolved source._  |
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_create**](#function-wfm_compose_create) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous) <br>_Build a composer over a copy of_ `segs` _._ |
 |  void | [**wfm\_compose\_destroy**](#function-wfm_compose_destroy) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state) <br>_Destroy a composer and its active synth._  |
+|  size\_t | [**wfm\_compose\_draws**](#function-wfm_compose_draws) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, [**wfm\_draw\_t**](structwfm__draw__t.md) \* out, size\_t cap) <br>_Replay the (epoch 0) instance timeline AND its drawn source values._  |
 |  size\_t | [**wfm\_compose\_execute**](#function-wfm_compose_execute) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, float complex \* out, size\_t max) <br>_Emit up to_ `max` _samples of the composed stream._ |
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_from\_file**](#function-wfm_compose_from_file) (const char \* path) <br>_Build a composer from a JSON spec file._  |
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_from\_json**](#function-wfm_compose_from_json) (const char \* json) <br>_Build a composer from a JSON spec string (for_  _from-file)._ |
@@ -321,6 +323,52 @@ void wfm_compose_destroy (
 
 
 * `state` May be NULL. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_compose\_draws 
+
+_Replay the (epoch 0) instance timeline AND its drawn source values._ 
+```C++
+size_t wfm_compose_draws (
+    const wfm_segment_t * segs,
+    size_t n_segs,
+    wfm_draw_t * out,
+    size_t cap
+) 
+```
+
+
+
+Same size-then-fill protocol as [**wfm\_compose\_spans()**](wfm__compose_8h.md#function-wfm_compose_spans): call once with `cap` 0 to size, then again with a buffer. Emits one row per SOURCE per instance, in stream order, because that is the granularity a per-source annotation or a scoring pipeline needs. Pass the RESOLVED segments ([**wfm\_compose\_segments()**](wfm__compose_8h.md#function-wfm_compose_segments) on a live composer) so intrinsic on-times are already folded in.
+
+
+The rows are produced by the same wfm\_draw\_segment()/wfm\_draw\_source() calls the renderer resolves through, so a field added to the draw reaches both by construction rather than by a reviewer noticing.
+
+
+
+
+**Parameters:**
+
+
+* `segs` Resolved segment array. 
+* `n_segs` Segment count. 
+* `out` Row buffer (may be NULL when cap is 0). 
+* `cap` Capacity of out in rows. 
+
+
+
+**Returns:**
+
+Total rows in one pass of the spec (sum of n\_sources over instances), regardless of `cap`. 
+
 
 
 

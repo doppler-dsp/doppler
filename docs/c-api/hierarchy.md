@@ -132,6 +132,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**tonemeas\_state\_t**](structtonemeas__state__t.md) _ToneMeasure state: owned window, FFT plan and analysis scratch._ 
 * **struct** [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) _UQ15ToF32 state._ 
 * **struct** [**viterbi\_state\_t**](structviterbi__state__t.md) _A streaming maximum-likelihood (Viterbi) decoder._ 
+* **struct** [**wfm\_draw\_t**](structwfm__draw__t.md) _One rendered source instance: its timing AND the values it was actually rendered with._ 
 * **struct** [**wfm\_field\_t**](structwfm__field__t.md) _One field of a frame — a run of bits that appears on the wire._ 
 * **struct** [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) _Where every field and every stage landed._ 
 * **struct** [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) _A frame as a description: what is on the wire, and what covers it._ 

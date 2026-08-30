@@ -73,7 +73,7 @@ add_executable(test_wfm_compose
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_compose.c)
 # the composer reuses synth, which pulls in lo/awgn/pn
 target_link_libraries(test_wfm_compose PRIVATE
-    wfm_compose_core wfm_draw_core wfm_dsp_core wfm_frame_core wfm_cjson_core
+    wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core wfm_cjson_core
     ccsds_tm_core conv_core rs_core
     wfm_synth_core lo_core awgn_core
     pn_core gold_core fir_core resamp_core
@@ -89,7 +89,7 @@ add_test(NAME test_wfm_compose COMMAND test_wfm_compose)
 add_executable(bench_wfm_compose_core
     ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_compose_core.c)
 target_link_libraries(bench_wfm_compose_core PRIVATE
-    wfm_compose_core wfm_draw_core wfm_dsp_core wfm_frame_core wfm_cjson_core
+    wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core wfm_cjson_core
     ccsds_tm_core conv_core rs_core
     wfm_synth_core lo_core awgn_core
     pn_core gold_core fir_core resamp_core
@@ -104,7 +104,7 @@ target_include_directories(bench_wfm_compose_core PRIVATE
 add_executable(test_wfm_plan
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_plan.c)
 target_link_libraries(test_wfm_plan PRIVATE
-    wfm_compose_core wfm_draw_core wfm_dsp_core wfm_frame_core wfm_cjson_core
+    wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core wfm_cjson_core
     ccsds_tm_core conv_core rs_core
     wfm_synth_core lo_core awgn_core
     pn_core gold_core fir_core resamp_core
@@ -293,7 +293,7 @@ if(NOT WIN32)
     set_target_properties(wfmgen_cli PROPERTIES OUTPUT_NAME wfmgen)
     target_link_libraries(wfmgen_cli PRIVATE
         wfmgen_core
-        wfm_compose_core wfm_draw_core wfm_writer_core wfm_keywords_core wfm_sink_core timing_core wfm_cjson_core
+        wfm_compose_core doppler_channel_core wfm_draw_core wfm_writer_core wfm_keywords_core wfm_sink_core timing_core wfm_cjson_core
         wfm_dsp_core wfm_frame_core ccsds_tm_core conv_core rs_core wfm_synth_core lo_core awgn_core pn_core gold_core fir_core resamp_core
         cvt_core  # hex_to_bin: --acq-code-hex / --data-code-hex
         $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>

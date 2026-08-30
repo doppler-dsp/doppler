@@ -15,6 +15,7 @@
 #include "clib_common.h"
 #include "wfm_synth/wfm_synth_core.h"
 #include "wfm/wfm_frame.h" /* wfm_frame_desc_t — a source's frame, described */
+#include "doppler_channel/doppler_channel_core.h" /* a source's clock Doppler */
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,7 +30,18 @@ enum
   WFM_RANGE_NUM_SAMPLES   = 1u << 4, /* segment.num_samples span         */
   WFM_RANGE_OFF_SAMPLES   = 1u << 5, /* segment.off_samples span         */
   WFM_RANGE_DELAY_SAMPLES = 1u << 6, /* segment.delay_samples span       */
+  /* Source again, continuing after the segment bits rather than renumbering
+     them: the bit index is the draw's stream selector (wfm_draw_range), so
+     moving one would change every drawn value in every existing scene. */
+  WFM_RANGE_DOPPLER      = 1u << 7, /* source.doppler → [lo, doppler_hi] */
+  WFM_RANGE_DOPPLER_RATE = 1u << 8, /* source.doppler_rate → [lo, hi]    */
 };
+
+typedef enum
+{
+  WFM_DOPPLER_PER_INSTANCE = 0,
+  WFM_DOPPLER_PERSIST      = 1,
+} wfm_doppler_lifetime_t;
 
 typedef struct {
     int type;          /* WFM_SYNTH_TONE … WFM_SYNTH_BITS */
@@ -61,11 +73,28 @@ typedef struct {
     int pulse;         /* pn/bpsk/qpsk pulse shape: 0 rect, 1 rrc */
     double rrc_beta;   /* RRC roll-off (pulse=rrc) */
     int rrc_span;      /* RRC support in symbols (pulse=rrc) */
-    unsigned ranged;   /* WFM_RANGE_{FREQ,SNR,LEVEL,FEND} bitmask */
+    unsigned ranged;   /* WFM_RANGE_{FREQ,SNR,LEVEL,FEND,DOPPLER*} bitmask */
     double freq_hi;    /* upper bound when WFM_RANGE_FREQ is set */
     double snr_hi;     /* upper bound when WFM_RANGE_SNR is set */
     double level_hi;   /* upper bound when WFM_RANGE_LEVEL is set */
     double f_end_hi;   /* upper bound when WFM_RANGE_FEND is set */
+    /* CLOCK DOPPLER, per source rather than per segment: it is a property of
+       one emitter's motion, and two transmitters in a `sum` segment are on
+       different geometries. `freq` cannot express it -- an offset moves the
+       carrier alone, while Doppler rescales the whole received time base, so
+       the symbol and chip rates move with it and a timing loop sees the error
+       a carrier-only offset hides.
+
+       Zero `doppler` AND zero `doppler_rate` means no channel is built at
+       all, so a scene that does not ask for Doppler renders through exactly
+       the code it always did. */
+    double doppler;      /* ppm; time-base scale is 1 + doppler*1e-6 */
+    double doppler_rate; /* ppm/s; linear ramp on `doppler` */
+    double carrier_hz;   /* RF carrier the ppm is referred to, for the
+                            coherent carrier term (0 = no carrier rotation) */
+    double doppler_hi;      /* upper bound when WFM_RANGE_DOPPLER is set */
+    double doppler_rate_hi; /* upper bound when WFM_RANGE_DOPPLER_RATE */
+    int doppler_lifetime;   /* a wfm_doppler_lifetime_t */
     /* type=dsss: the two-code burst geometry (wfm_frame_dsss_chips). The
        payload bits ride the shared `bits` field above (alias "payload"). */
     /* The three sequences a framed source carries. `wfm_seq_t` already names
@@ -219,6 +248,21 @@ wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs,
                                            double snr, double f_end,
                                            unsigned epoch, int seed_advance,
                                            size_t instance);
+
+typedef struct wfm_render wfm_render_t;
+
+wfm_render_t *wfm_compose_build_render(const wfm_source_t *src, double fs,
+                                       size_t on_len, double freq, double snr,
+                                       double f_end, double doppler,
+                                       double doppler_rate, unsigned epoch,
+                                       int seed_advance, size_t instance,
+                                       doppler_channel_state_t *borrow);
+
+void wfm_render_steps(wfm_render_t *r, float _Complex *dst, size_t n);
+
+void wfm_render_noise_steps(wfm_render_t *r, float _Complex *dst, size_t n);
+
+void wfm_render_destroy(wfm_render_t *r);
 
 typedef enum
 {

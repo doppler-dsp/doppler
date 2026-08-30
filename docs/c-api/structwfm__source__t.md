@@ -40,9 +40,15 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  size\_t | [**acq\_reps**](#variable-acq_reps)  <br> |
 |  int | [**attach\_asm**](#variable-attach_asm)  <br> |
 |  int | [**background**](#variable-background)  <br> |
+|  double | [**carrier\_hz**](#variable-carrier_hz)  <br> |
 |  int | [**convolutional**](#variable-convolutional)  <br> |
 |  int | [**crc**](#variable-crc)  <br> |
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**data\_code**](#variable-data_code)  <br> |
+|  double | [**doppler**](#variable-doppler)  <br> |
+|  double | [**doppler\_hi**](#variable-doppler_hi)  <br> |
+|  int | [**doppler\_lifetime**](#variable-doppler_lifetime)  <br> |
+|  double | [**doppler\_rate**](#variable-doppler_rate)  <br> |
+|  double | [**doppler\_rate\_hi**](#variable-doppler_rate_hi)  <br> |
 |  int | [**dsss\_code\_only**](#variable-dsss_code_only)  <br> |
 |  double | [**f\_end**](#variable-f_end)  <br> |
 |  double | [**f\_end\_hi**](#variable-f_end_hi)  <br> |
@@ -184,6 +190,19 @@ int wfm_source_t::background;
 
 
 
+### variable carrier\_hz 
+
+```C++
+double wfm_source_t::carrier_hz;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable convolutional 
 
 ```C++
@@ -214,6 +233,71 @@ int wfm_source_t::crc;
 
 ```C++
 wfm_seq_t wfm_source_t::data_code;
+```
+
+
+
+
+<hr>
+
+
+
+### variable doppler 
+
+```C++
+double wfm_source_t::doppler;
+```
+
+
+
+
+<hr>
+
+
+
+### variable doppler\_hi 
+
+```C++
+double wfm_source_t::doppler_hi;
+```
+
+
+
+
+<hr>
+
+
+
+### variable doppler\_lifetime 
+
+```C++
+int wfm_source_t::doppler_lifetime;
+```
+
+
+
+
+<hr>
+
+
+
+### variable doppler\_rate 
+
+```C++
+double wfm_source_t::doppler_rate;
+```
+
+
+
+
+<hr>
+
+
+
+### variable doppler\_rate\_hi 
+
+```C++
+double wfm_source_t::doppler_rate_hi;
 ```
 
 

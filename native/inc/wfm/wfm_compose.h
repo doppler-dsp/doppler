@@ -34,6 +34,7 @@
 #include "clib_common.h"
 #include "wfm_synth/wfm_synth_core.h"
 #include "wfm/wfm_frame.h" /* wfm_frame_desc_t — a source's frame, described */
+#include "doppler_channel/doppler_channel_core.h" /* a source's clock Doppler */
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,8 +50,8 @@ extern "C" {
  * etc. burst-to-burst while staying *reproducible*: the draw is a deterministic
  * hash of the source seed, the epoch, the segment/source index, and the field,
  * so `--record` stores the span (not a drawn value) and `--from-file` replays
- * the same sequence byte-for-byte. Bits 0–3 live on `wfm_source_t.ranged`;
- * bits 4–6 on `wfm_segment_t.ranged`.
+ * the same sequence byte-for-byte. Bits 0–3 and 7–8 live on
+ * `wfm_source_t.ranged`; bits 4–6 on `wfm_segment_t.ranged`.
  */
 enum
 {
@@ -61,7 +62,40 @@ enum
   WFM_RANGE_NUM_SAMPLES   = 1u << 4, /* segment.num_samples span         */
   WFM_RANGE_OFF_SAMPLES   = 1u << 5, /* segment.off_samples span         */
   WFM_RANGE_DELAY_SAMPLES = 1u << 6, /* segment.delay_samples span       */
+  /* Source again, continuing after the segment bits rather than renumbering
+     them: the bit index is the draw's stream selector (wfm_draw_range), so
+     moving one would change every drawn value in every existing scene. */
+  WFM_RANGE_DOPPLER      = 1u << 7, /* source.doppler → [lo, doppler_hi] */
+  WFM_RANGE_DOPPLER_RATE = 1u << 8, /* source.doppler_rate → [lo, hi]    */
 };
+
+/**
+ * @brief When a source's Doppler channel restarts.
+ *
+ * Neither is a superset of the other, so it is declared rather than defaulted
+ * into an argument:
+ *
+ * - `PER_INSTANCE` (default) restarts the geometry for every burst instance,
+ *   which is the repeated-trial shape — every burst sees the same pass, and
+ *   it composes with the per-instance re-draw of a ranged `doppler`.
+ * - `PERSIST` carries one emitter's motion across every REPEAT INSTANCE of
+ *   its segment, and across the gaps between them, so burst *k* sees where
+ *   the pass has got to. It is the only lifetime under which `doppler_rate`
+ *   means anything over a multi-burst scene.
+ *
+ * The channel is keyed by (segment, source), because that is the only source
+ * identity the composer has — a position. So a PERSIST source persists over
+ * its own segment's instances; two DIFFERENT segments each get their own
+ * pass, even where a reader might call them the same emitter. Sharing one
+ * across segments needs a declared source id, which nothing in the scene
+ * format carries yet; gh-942 says as much ("no per-source identity that
+ * survives it ... the repeats/epoch machinery is where one would hang").
+ */
+typedef enum
+{
+  WFM_DOPPLER_PER_INSTANCE = 0,
+  WFM_DOPPLER_PERSIST      = 1,
+} wfm_doppler_lifetime_t;
 
 /**
  * @brief One additive source within a segment: a `synth` config + its level.
@@ -105,11 +139,28 @@ typedef struct {
     int pulse;         /* pn/bpsk/qpsk pulse shape: 0 rect, 1 rrc */
     double rrc_beta;   /* RRC roll-off (pulse=rrc) */
     int rrc_span;      /* RRC support in symbols (pulse=rrc) */
-    unsigned ranged;   /* WFM_RANGE_{FREQ,SNR,LEVEL,FEND} bitmask */
+    unsigned ranged;   /* WFM_RANGE_{FREQ,SNR,LEVEL,FEND,DOPPLER*} bitmask */
     double freq_hi;    /* upper bound when WFM_RANGE_FREQ is set */
     double snr_hi;     /* upper bound when WFM_RANGE_SNR is set */
     double level_hi;   /* upper bound when WFM_RANGE_LEVEL is set */
     double f_end_hi;   /* upper bound when WFM_RANGE_FEND is set */
+    /* CLOCK DOPPLER, per source rather than per segment: it is a property of
+       one emitter's motion, and two transmitters in a `sum` segment are on
+       different geometries. `freq` cannot express it -- an offset moves the
+       carrier alone, while Doppler rescales the whole received time base, so
+       the symbol and chip rates move with it and a timing loop sees the error
+       a carrier-only offset hides.
+
+       Zero `doppler` AND zero `doppler_rate` means no channel is built at
+       all, so a scene that does not ask for Doppler renders through exactly
+       the code it always did. */
+    double doppler;      /* ppm; time-base scale is 1 + doppler*1e-6 */
+    double doppler_rate; /* ppm/s; linear ramp on `doppler` */
+    double carrier_hz;   /* RF carrier the ppm is referred to, for the
+                            coherent carrier term (0 = no carrier rotation) */
+    double doppler_hi;      /* upper bound when WFM_RANGE_DOPPLER is set */
+    double doppler_rate_hi; /* upper bound when WFM_RANGE_DOPPLER_RATE */
+    int doppler_lifetime;   /* a wfm_doppler_lifetime_t */
     /* type=dsss: the two-code burst geometry (wfm_frame_dsss_chips). The
        payload bits ride the shared `bits` field above (alias "payload"). */
     /* The three sequences a framed source carries. `wfm_seq_t` already names
@@ -512,6 +563,61 @@ wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs,
                                            double snr, double f_end,
                                            unsigned epoch, int seed_advance,
                                            size_t instance);
+
+/** @brief One source's renderer: its synth, plus its Doppler channel. */
+typedef struct wfm_render wfm_render_t;
+
+/**
+ * @brief Build a source's renderer — `wfm_compose_build_synth` plus the
+ * clock-Doppler channel the source declares, if it declares one.
+ *
+ * THE pull path. Both faces go through `wfm_render_steps()` rather than
+ * calling `wfm_synth_steps()` themselves, because a Doppler channel is a
+ * RESAMPLER: it consumes about `n*(1+d)` inputs per `n` outputs, so "pull
+ * `k`, get `k`" only holds if something keeps the remainder. Two
+ * implementations that agreed today would drift the moment either grew a
+ * holdover the other did not.
+ *
+ * A source with `doppler == 0 && doppler_rate == 0` gets no channel and
+ * `wfm_render_steps()` is then literally `wfm_synth_steps()`, so every scene
+ * that does not ask for Doppler renders through exactly the path it always
+ * did — byte-identical, not merely equivalent.
+ *
+ * `doppler`/`doppler_rate` arrive ranged-resolved, like `freq`/`snr`/`f_end`.
+ *
+ * @p borrow is the channel a `WFM_DOPPLER_PERSIST` source keeps ACROSS
+ * segments: the composer owns it for the life of the scene and passes it in
+ * here, so the renderer uses it without adopting it and the geometry does not
+ * restart when the synth is torn down at a segment boundary. NULL means the
+ * ordinary case — the renderer creates and owns a channel if the source
+ * declares Doppler, and destroys it with itself.
+ *
+ * @return A heap renderer (caller wfm_render_destroy()s it), or NULL.
+ */
+wfm_render_t *wfm_compose_build_render(const wfm_source_t *src, double fs,
+                                       size_t on_len, double freq, double snr,
+                                       double f_end, double doppler,
+                                       double doppler_rate, unsigned epoch,
+                                       int seed_advance, size_t instance,
+                                       doppler_channel_state_t *borrow);
+
+/** @brief Pull exactly @p n samples from @p r, through its channel if any. */
+void wfm_render_steps(wfm_render_t *r, float _Complex *dst, size_t n);
+
+/**
+ * @brief Pull @p n samples of the source's NOISE FLOOR only, through the
+ * same channel.
+ *
+ * What a gap renders (gh-409). The channel runs here too, and deliberately:
+ * an emitter does not stop moving because its burst ended, so a pass is
+ * continuous and during a gap the thing propagating is the noise floor. Skip
+ * the channel over gaps and `doppler_rate` across a multi-burst scene
+ * quietly means "rate per unit of ON time" instead of per second.
+ */
+void wfm_render_noise_steps(wfm_render_t *r, float _Complex *dst, size_t n);
+
+/** @brief Free a renderer and everything it owns. NULL-safe. */
+void wfm_render_destroy(wfm_render_t *r);
 
 /**
  * @brief Per-repeat seed policy for a looped/continuous stream.

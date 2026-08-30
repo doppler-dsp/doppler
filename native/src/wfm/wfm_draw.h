@@ -61,6 +61,8 @@ typedef struct
   double f_end;
   double snr;
   double level;
+  double doppler;      /* ppm    */
+  double doppler_rate; /* ppm/s  */
 } wfm_src_draw_t;
 
 void wfm_draw_source (const wfm_source_t *src, unsigned epoch, size_t inst,

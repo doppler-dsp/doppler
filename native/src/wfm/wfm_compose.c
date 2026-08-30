@@ -131,28 +131,39 @@ struct wfm_compose_state
                                   per-repeat seed advance + ranged-field draws */
   size_t instance;             /* current segment's repeats counter (0-based) —
                                   folds into ranged draws + the AWGN reseed */
-  size_t cur;                  /* current segment index */
-  int    phase;                /* PHASE_ON / PHASE_OFF / PHASE_DONE */
-  size_t left;                 /* samples remaining in the current phase */
-  size_t cur_num;            /* this epoch's resolved on-time (ranged/fixed) */
-  size_t cur_off;            /* this epoch's resolved off-time gap */
-  size_t cur_delay;          /* this epoch's resolved leading delay */
-  wfm_synth_state_t **syn;   /* active segment's synths (one per source) */
-  float              *gain;  /* parallel: 10^(level/20) per source */
-  size_t              n_syn; /* live synth count while ON (0 otherwise) */
-  size_t              syn_cap; /* capacity of syn/gain = max n_sources */
-  float complex      *scratch; /* SCRATCH_CAP render buffer for N-source sum */
+  size_t         cur;          /* current segment index */
+  int            phase;        /* PHASE_ON / PHASE_OFF / PHASE_DONE */
+  size_t         left;         /* samples remaining in the current phase */
+  size_t         cur_num;   /* this epoch's resolved on-time (ranged/fixed) */
+  size_t         cur_off;   /* this epoch's resolved off-time gap */
+  size_t         cur_delay; /* this epoch's resolved leading delay */
+  wfm_render_t **rend;      /* active segment's renderers (one per source) */
+  float         *gain;      /* parallel: 10^(level/20) per source */
+  size_t         n_syn;     /* live renderer count while ON (0 otherwise) */
+  size_t         syn_cap;   /* capacity of rend/gain = max n_sources */
+  float complex *scratch;   /* SCRATCH_CAP render buffer for N-source sum */
+  /* PERSIST channels, one slot per (segment, source), owned for the life of
+     the scene. A source's identity is its position -- the composer has no
+     other -- and that is exactly what has to survive the per-segment synth
+     teardown for `doppler_rate` to mean anything across a multi-burst pass.
+     NULL everywhere unless some source declares WFM_DOPPLER_PERSIST. */
+  doppler_channel_state_t **pch;
+  size_t                   *pch_off; /* first slot of segment i */
+  size_t                    pch_n;   /* total slots */
 };
 
-/* Destroy the active segment's synths (the syn[] array stays allocated). */
+/* Destroy the active segment's renderers (the rend[] array stays allocated).
+ * A PERSIST source's channel is BORROWED, so it survives this by construction
+ * -- that is the whole point of the borrow: this teardown is exactly the
+ * event that used to restart the geometry at every segment boundary. */
 static void
 stop_synths (wfm_compose_state_t *s)
 {
   for (size_t k = 0; k < s->n_syn; k++)
-    if (s->syn[k])
+    if (s->rend[k])
       {
-        wfm_synth_destroy (s->syn[k]);
-        s->syn[k] = NULL;
+        wfm_render_destroy (s->rend[k]);
+        s->rend[k] = NULL;
       }
   s->n_syn = 0;
 }
@@ -238,6 +249,178 @@ wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
   return syn;
 }
 
+/* One source's renderer. `ch` is NULL unless the source declares Doppler, and
+ * everything below it is then unused — which is what keeps a non-Doppler
+ * scene on exactly its old code path. */
+struct wfm_render
+{
+  wfm_synth_state_t       *syn;
+  doppler_channel_state_t *ch;
+  int                      ch_borrowed; /* a PERSIST channel the scene owns */
+  float _Complex          *in;   /* one input block for the channel      */
+  float _Complex          *hold; /* what the channel produced, undrained */
+  size_t                   hold_cap;
+  size_t                   hold_n;  /* valid samples in hold            */
+  size_t                   hold_rd; /* how many of them are spent       */
+};
+
+/* Input block fed per refill. Not DOPPLER_CHANNEL_MAX_BLOCK: the holdover
+ * buffer is sized from execute_max_out(), which assumes a FULL max block, so
+ * a smaller feed keeps both allocations modest while still amortising the
+ * per-call ramp setup. Any value is correct — the channel's accumulator
+ * carries across calls, so the output does not depend on how the input was
+ * chunked. */
+#define RENDER_FEED 4096u
+
+void
+wfm_render_destroy (wfm_render_t *r)
+{
+  if (!r)
+    return;
+  if (r->syn)
+    wfm_synth_destroy (r->syn);
+  if (r->ch && !r->ch_borrowed)
+    doppler_channel_destroy (r->ch);
+  free (r->in);
+  free (r->hold);
+  free (r);
+}
+
+wfm_render_t *
+wfm_compose_build_render (const wfm_source_t *src, double fs, size_t on_len,
+                          double freq, double snr, double f_end,
+                          double doppler, double doppler_rate, unsigned epoch,
+                          int seed_advance, size_t instance,
+                          doppler_channel_state_t *borrow)
+{
+  wfm_render_t *r = dp_xcalloc (1, sizeof *r);
+  r->syn = wfm_compose_build_synth (src, fs, on_len, freq, snr, f_end, epoch,
+                                    seed_advance, instance);
+  if (!r->syn)
+    {
+      /* NOT an OOM path: build_synth also returns NULL for an invalid
+         geometry, which the streaming composer turns into a silent gap. */
+      free (r);
+      return NULL;
+    }
+  /* No declared motion, no channel: the pull below is then a straight
+     wfm_synth_steps and the scene is byte-identical to before Doppler
+     existed. Both terms are checked because a pure rate ramp starting from
+     zero offset is a legitimate pass. */
+  if (!borrow && doppler == 0.0 && doppler_rate == 0.0)
+    return r;
+
+  if (borrow)
+    {
+      /* A PERSIST source: the scene owns this channel across segments, so
+         the geometry carries rather than restarting when the synth is torn
+         down at a boundary. */
+      r->ch          = borrow;
+      r->ch_borrowed = 1;
+    }
+  else
+    r->ch
+        = doppler_channel_create (fs, src->carrier_hz, doppler, doppler_rate);
+  if (!r->ch)
+    {
+      wfm_render_destroy (r);
+      return NULL;
+    }
+  r->hold_cap = doppler_channel_execute_max_out (r->ch);
+  r->in       = dp_xmalloc (RENDER_FEED * sizeof *r->in);
+  r->hold     = dp_xmalloc (r->hold_cap * sizeof *r->hold);
+  return r;
+}
+
+/* Pull `n` samples, taking the synth's full output or only its AWGN.
+ *
+ * The channel RUNS EITHER WAY, and that is the point rather than an
+ * incidental sharing of code: an emitter does not stop moving because its
+ * burst ended. A pass is continuous, so during a gap the thing propagating
+ * through the channel is the noise floor the segment already carries
+ * (gh-409) — the geometry keeps advancing, and burst k+1 sees where the pass
+ * actually got to instead of where it would be if time had stopped between
+ * bursts. With the channel skipped over gaps, `doppler_rate` across a
+ * multi-burst scene would silently mean "rate per unit of ON time".
+ *
+ * A consequence worth naming: the holdover is NOT flushed at a phase
+ * boundary. Samples that entered the channel during the on-time can emerge
+ * after it, which is the dilation being modelled, not leakage. */
+static void
+render_pull (wfm_render_t *r, float _Complex *dst, size_t n, int noise_only)
+{
+  if (!r->ch)
+    {
+      if (noise_only)
+        wfm_synth_noise_steps (r->syn, dst, n);
+      else
+        wfm_synth_steps (r->syn, dst, n);
+      return;
+    }
+  size_t done = 0;
+  while (done < n)
+    {
+      if (r->hold_rd < r->hold_n)
+        {
+          size_t take = r->hold_n - r->hold_rd;
+          if (take > n - done)
+            take = n - done;
+          memcpy (dst + done, r->hold + r->hold_rd, take * sizeof *dst);
+          r->hold_rd += take;
+          done += take;
+          continue;
+        }
+      /* Refill. The output buffer is sized at execute_max_out() and NEVER
+         at "just what is still wanted": doppler_channel_execute's loop is
+         `off < x_len && n_out < max_out`, so a short buffer stops it early
+         and the input it had not yet consumed is dropped on the floor --
+         silently, and it is exactly the samples the holdover exists to
+         keep. Re-queried each pass because the bound tracks the ramp. */
+      r->hold_rd = 0;
+      r->hold_n  = 0;
+      /* Size the FEED to the buffer, rather than growing the buffer to the
+         feed. This is the line that keeps doppler_channel_execute from
+         stopping on `n_out < max_out` and DROPPING the input it had not
+         consumed -- the one failure the whole holdover exists to avoid.
+
+         execute_max_out() bounds the output of a full
+         DOPPLER_CHANNEL_MAX_BLOCK input and tracks the ramp, so `fits`
+         scales it down to the largest input whose output still fits what we
+         own. Unconditional rather than a `bound > hold_cap` guard: with
+         RENDER_FEED at a sixteenth of MAX_BLOCK the clamp is inert unless
+         the time base compresses by more than 16x, so a guard would be a
+         branch no test could reach -- while the arithmetic is exercised
+         every call and is correct at any ramp. A shorter feed costs nothing:
+         the channel's accumulator carries across calls, so chunking is
+         invisible in the output. */
+      size_t bound = doppler_channel_execute_max_out (r->ch);
+      size_t fits
+          = (size_t)((double)r->hold_cap * (double)DOPPLER_CHANNEL_MAX_BLOCK
+                     / (double)bound);
+      size_t feed = (fits < RENDER_FEED) ? fits : RENDER_FEED;
+      if (feed == 0)
+        feed = 1;
+      if (noise_only)
+        wfm_synth_noise_steps (r->syn, r->in, feed);
+      else
+        wfm_synth_steps (r->syn, r->in, feed);
+      r->hold_n
+          = doppler_channel_execute (r->ch, r->in, feed, r->hold, r->hold_cap);
+    }
+}
+
+void
+wfm_render_steps (wfm_render_t *r, float _Complex *dst, size_t n)
+{
+  render_pull (r, dst, n, 0);
+}
+
+void
+wfm_render_noise_steps (wfm_render_t *r, float _Complex *dst, size_t n)
+{
+  render_pull (r, dst, n, 1);
+}
+
 static void
 start_segment (wfm_compose_state_t *s)
 {
@@ -270,10 +453,24 @@ start_segment (wfm_compose_state_t *s)
        * render is byte-identical to this composed one. freq/snr/f_end are
        * already ranged-resolved above; epoch/seed_advance drive the per-repeat
        * seed. */
-      s->syn[k]
-          = wfm_compose_build_synth (src, g->fs, s->cur_num, freq, snr, f_end,
-                                     s->epoch, s->seed_advance, s->instance);
-      if (!s->syn[k])
+      /* A PERSIST source renders through the scene-owned channel in its
+         slot, created on first use so a scene that never reaches a segment
+         never pays for it. PER_INSTANCE passes NULL and the renderer makes
+         its own, which dies with the instance -- the repeated-trial shape. */
+      doppler_channel_state_t *borrow = NULL;
+      if (src->doppler_lifetime == WFM_DOPPLER_PERSIST
+          && (v.doppler != 0.0 || v.doppler_rate != 0.0) && s->pch)
+        {
+          size_t slot = s->pch_off[s->cur] + k;
+          if (!s->pch[slot])
+            s->pch[slot] = doppler_channel_create (g->fs, src->carrier_hz,
+                                                   v.doppler, v.doppler_rate);
+          borrow = s->pch[slot];
+        }
+      s->rend[k] = wfm_compose_build_render (
+          src, g->fs, s->cur_num, freq, snr, f_end, v.doppler, v.doppler_rate,
+          s->epoch, s->seed_advance, s->instance, borrow);
+      if (!s->rend[k])
         ok = 0;
       else
         s->n_syn = k + 1; /* track for stop_synths on partial failure */
@@ -431,17 +628,38 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
   for (size_t i = 0; i < n_segs; i++)
     if (s->segs[i].n_sources > max_src)
       max_src = s->segs[i].n_sources;
-  s->syn     = calloc (max_src, sizeof (*s->syn));
+  s->rend    = calloc (max_src, sizeof (*s->rend));
   s->gain    = malloc (max_src * sizeof (*s->gain));
   s->scratch = malloc (SCRATCH_CAP * sizeof (*s->scratch));
-  if (!s->syn || !s->gain || !s->scratch)
+  /* PERSIST slots, allocated only when a source actually asks for one: a
+     scene with no persisting Doppler carries no extra state at all. The
+     offsets are a prefix sum over segments, so slot (seg, k) is one add. */
+  size_t persist = 0, slots = 0;
+  for (size_t i = 0; i < n_segs; i++)
+    {
+      slots += s->segs[i].n_sources;
+      for (size_t k = 0; k < s->segs[i].n_sources; k++)
+        if (s->segs[i].sources[k].doppler_lifetime == WFM_DOPPLER_PERSIST)
+          persist = 1;
+    }
+  if (persist)
+    {
+      s->pch     = dp_xcalloc (slots ? slots : 1, sizeof (*s->pch));
+      s->pch_off = dp_xcalloc (n_segs, sizeof (*s->pch_off));
+      s->pch_n   = slots;
+      for (size_t i = 1; i < n_segs; i++)
+        s->pch_off[i] = s->pch_off[i - 1] + s->segs[i - 1].n_sources;
+    }
+  if (!s->rend || !s->gain || !s->scratch)
     {
       for (size_t i = 0; i < n_segs; i++)
         free_segment_sources (&s->segs[i]);
       free (s->segs);
-      free (s->syn);
+      free (s->rend);
       free (s->gain);
       free (s->scratch);
+      free (s->pch);
+      free (s->pch_off);
       free (s);
       return NULL;
     }
@@ -471,19 +689,19 @@ render_gap (wfm_compose_state_t *s, float complex *out, size_t k)
     }
   if (s->n_syn == 1)
     {
-      wfm_synth_noise_steps (s->syn[0], out, k);
+      wfm_render_noise_steps (s->rend[0], out, k);
       if (s->gain[0] != 1.0f)
         for (size_t j = 0; j < k; j++)
           out[j] *= s->gain[0];
       return;
     }
-  wfm_synth_noise_steps (s->syn[0], s->scratch, k);
+  wfm_render_noise_steps (s->rend[0], s->scratch, k);
   float g0 = s->gain[0];
   for (size_t j = 0; j < k; j++)
     out[j] = g0 * s->scratch[j];
   for (size_t sx = 1; sx < s->n_syn; sx++)
     {
-      wfm_synth_noise_steps (s->syn[sx], s->scratch, k);
+      wfm_render_noise_steps (s->rend[sx], s->scratch, k);
       float gs = s->gain[sx];
       for (size_t j = 0; j < k; j++)
         out[j] += gs * s->scratch[j];
@@ -525,7 +743,7 @@ wfm_compose_execute (wfm_compose_state_t *state, float complex *out,
                * wfm_synth_steps() is chunk-invariant, so block size is free.)
                * The Phase-3 level gain is a post-multiply here (no-op at 0
                * dB). */
-              wfm_synth_steps (state->syn[0], out + i, k);
+              wfm_render_steps (state->rend[0], out + i, k);
               if (state->gain[0] != 1.0f)
                 for (size_t j = 0; j < k; j++)
                   out[i + j] *= state->gain[0];
@@ -538,13 +756,13 @@ wfm_compose_execute (wfm_compose_state_t *state, float complex *out,
                */
               if (k > (size_t)SCRATCH_CAP)
                 k = SCRATCH_CAP;
-              wfm_synth_steps (state->syn[0], state->scratch, k);
+              wfm_render_steps (state->rend[0], state->scratch, k);
               float g0 = state->gain[0];
               for (size_t j = 0; j < k; j++)
                 out[i + j] = g0 * state->scratch[j];
               for (size_t sx = 1; sx < state->n_syn; sx++)
                 {
-                  wfm_synth_steps (state->syn[sx], state->scratch, k);
+                  wfm_render_steps (state->rend[sx], state->scratch, k);
                   float gs = state->gain[sx];
                   for (size_t j = 0; j < k; j++)
                     out[i + j] += gs * state->scratch[j];
@@ -612,12 +830,19 @@ wfm_compose_destroy (wfm_compose_state_t *state)
   if (state)
     {
       stop_synths (state);
+      /* The PERSIST channels outlive every renderer by design, so this is
+         the only place that can free them. */
+      for (size_t i = 0; i < state->pch_n; i++)
+        if (state->pch[i])
+          doppler_channel_destroy (state->pch[i]);
       for (size_t i = 0; i < state->n_segs; i++)
         free_segment_sources (&state->segs[i]);
       free (state->segs);
-      free (state->syn);
+      free (state->rend);
       free (state->gain);
       free (state->scratch);
+      free (state->pch);
+      free (state->pch_off);
       free (state);
     }
 }

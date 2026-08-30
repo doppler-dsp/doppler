@@ -2,13 +2,21 @@
  * @file burst_despreader_core.h
  * @brief BurstDespreader component API.
  *
- * Lifecycle: `create -> (step / steps / reset)* -> destroy`
+ * Lifecycle: `create -> (steps / bits / reset)* -> destroy`
+ *
+ * This object despreads a BLOCK: one prompt sample per spread symbol, so
+ * there is no scalar `step` -- a single input chip is not a symbol.
  *
  * Example:
  * @code
- * burst_despreader_state_t *obj = burst_despreader_create(NULL, 0, 1, 2, 0.0, 0.0, 0.05, 0.01);
- * float complex y = burst_despreader_step(obj, 0.0f + 0.0f * I);
- * burst_despreader_destroy(obj);
+ * static const uint8_t code[4] = { 1, 0, 1, 1 };
+ * burst_despreader_state_t *obj
+ *     = burst_despreader_create (code, 4, 4, 2, 0.0, 0.0, 0.05, 0.01);
+ * float complex in[8]  = { 0 };
+ * float complex out[8] = { 0 };
+ * size_t n = burst_despreader_steps (obj, in, 8, out,
+ *                                    burst_despreader_steps_max_out (obj));
+ * burst_despreader_destroy (obj);
  * @endcode
  */
 #ifndef BURST_DESPREADER_CORE_H

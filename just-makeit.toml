@@ -248,6 +248,13 @@ close_fn        = "wfm_plan_destroy"
 create_fn       = "wfm_plan_prepare"
 extra_link_libs = ["wfm_draw_core", "wfm_cjson_core", "m"]
 
+# The Plan cache renders through the composer's wfm_render_* path, which
+# reaches the Doppler channel (gh-942) even though Plan itself refuses a
+# PERSIST source — the PER_INSTANCE case is cached like any other.
+[[module.wfm_plan.depends_on]]
+name = "doppler_channel"
+link = true
+
 [[module.wfm_plan.create_args]]
 name = "spec_json"
 type = "string"
@@ -1058,6 +1065,13 @@ extra_link_libs = ["wfm_draw_core", "wfm_cjson_core", "wfm_keywords_core", "m"]
 # [module.sample_clock].
 [[module.wfm_compose.depends_on]]
 name = "dp_interrupt_guard"
+link = true
+
+# Clock Doppler on a source (gh-942). DECLARED rather than added to
+# extra_link_libs: it is a real component with its own core, and the #225
+# migration made `depends_on link=true` the way a composing module names one.
+[[module.wfm_compose.depends_on]]
+name = "doppler_channel"
 link = true
 
 # The source type wraps wfm_source_t field-for-field (struct order); enum fields

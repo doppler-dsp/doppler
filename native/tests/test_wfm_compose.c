@@ -2244,9 +2244,251 @@ main (void)
                     "a burst preamble with a length and no bits is refused");
   }
 
+  /* ── clock Doppler (gh-942) ───────────────────────────────────────────
+   *
+   * The regression that matters is BLOCK SIZE, not the split point. A
+   * Doppler channel is a resampler: it consumes ~n*(1+d) inputs per n
+   * outputs, so the composer's "pull k, get k" only holds because the
+   * renderer keeps a holdover. Get that wrong and the output depends on how
+   * the caller happened to chunk its reads -- which #939 shows a
+   * split-resume test does NOT catch, because both halves can fit inside
+   * one internal block and never exercise the boundary at all.
+   *
+   * So: render the same scene through a range of block sizes, including
+   * ones that are not divisors of the feed, and require every one to be
+   * bit-identical to a single-call render.
+   */
+  {
+    wfm_source_t  src = { .type       = WFM_SYNTH_TONE,
+                          .freq       = 1e5,
+                          .snr        = 40.0,
+                          .seed       = 7,
+                          .doppler    = 25.0, /* ppm */
+                          .carrier_hz = 2.5e9 };
+    wfm_segment_t seg
+        = { .sources = &src, .n_sources = 1, .fs = 1e6, .num_samples = 20000 };
+
+    enum
+    {
+      N = 20000
+    };
+    static float complex ref[N], got[N];
+
+    wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 0, 0);
+    DP_REQUIRE_MSG (c, "a doppler source composes");
+    size_t nref = 0;
+    for (size_t n; (n = wfm_compose_execute (c, ref + nref, N - nref)) > 0;)
+      nref += n;
+    wfm_compose_destroy (c);
+    DP_REQUIRE_MSG (nref == N, "doppler scene still yields its full on-time");
+
+    /* Deliberately awkward sizes: 1 exercises the holdover every sample,
+       4096 is exactly the internal feed, and 4095/4097 straddle it. */
+    static const size_t blocks[] = { 1, 3, 511, 1000, 4095, 4096, 4097, 9973 };
+    for (size_t bi = 0; bi < sizeof blocks / sizeof *blocks; bi++)
+      {
+        size_t b = blocks[bi];
+        c        = wfm_compose_create (&seg, 1, 0, 0);
+        DP_REQUIRE (c);
+        size_t ngot = 0;
+        for (size_t n; ngot < N;)
+          {
+            size_t want = (N - ngot < b) ? N - ngot : b;
+            n           = wfm_compose_execute (c, got + ngot, want);
+            if (n == 0)
+              break;
+            ngot += n;
+          }
+        wfm_compose_destroy (c);
+        DP_REQUIRE_MSG (ngot == nref,
+                        "a doppler render's LENGTH is block-size invariant");
+        DP_REQUIRE_MSG (memcmp (ref, got, nref * sizeof *ref) == 0,
+                        "a doppler render is bit-identical at every block "
+                        "size -- the holdover, not the chunking, decides it");
+      }
+
+    /* The channel must actually be doing something, or the invariance above
+       is the invariance of a no-op. 25 ppm over 20000 samples at 1 MHz is
+       half a sample of dilation and a 62.5 kHz carrier term, so the same
+       scene without Doppler must differ. */
+    wfm_source_t plain = src;
+    plain.doppler      = 0.0;
+    plain.carrier_hz   = 0.0;
+    wfm_segment_t pseg = seg;
+    pseg.sources       = &plain;
+    c                  = wfm_compose_create (&pseg, 1, 0, 0);
+    DP_REQUIRE (c);
+    size_t npl = 0;
+    for (size_t n; (n = wfm_compose_execute (c, got + npl, N - npl)) > 0;)
+      npl += n;
+    wfm_compose_destroy (c);
+    DP_REQUIRE_MSG (memcmp (ref, got, nref * sizeof *ref) != 0,
+                    "doppler changes the waveform (else the block-size "
+                    "invariance above proves nothing)");
+  }
+
+  /* ── a PERSIST pass keeps moving through the gap ──────────────────────
+   *
+   * An emitter does not stop moving because its burst ended, so the channel
+   * runs over the off-time too -- on the noise floor, which is what a gap
+   * carries. The observable consequence is that a LONGER gap leaves the pass
+   * further along by the time the next burst starts.
+   *
+   * Two renders of the same two-burst scene differing ONLY in gap length,
+   * compared over the second burst. If the channel were skipped over gaps
+   * (or reset per instance), the second burst would be identical in both and
+   * this would fail -- which is exactly what makes it a test of the
+   * behaviour rather than of the plumbing.
+   *
+   * The source is CLEAN, so gaps are exact zeros and the synth's AWGN stream
+   * cannot itself carry the gap-length difference into burst 2. The synths
+   * are torn down per instance, so burst 2's signal is otherwise identical
+   * between the two renders: the channel is the only thing that can differ.
+   */
+  {
+    enum
+    {
+      B    = 4000, /* burst   */
+      G1   = 1000, /* short gap */
+      G2   = 9000, /* long gap  */
+      CAP2 = 2 * (B + G2)
+    };
+    static float complex a[CAP2], b[CAP2];
+
+    wfm_source_t src = { .type             = WFM_SYNTH_TONE,
+                         .freq             = 5e4,
+                         .snr              = WFM_SYNTH_SNR_CLEAN,
+                         .seed             = 11,
+                         .doppler          = 5.0,   /* ppm   */
+                         .doppler_rate     = 200.0, /* ppm/s */
+                         .carrier_hz       = 2.0e9,
+                         .doppler_lifetime = WFM_DOPPLER_PERSIST };
+
+    size_t         got[2];
+    float complex *bufs[2] = { a, b };
+    const size_t   gaps[2] = { G1, G2 };
+    for (int g = 0; g < 2; g++)
+      {
+        wfm_segment_t        seg = { .sources     = &src,
+                                     .n_sources   = 1,
+                                     .fs          = 1e6,
+                                     .num_samples = B,
+                                     .off_samples = gaps[g],
+                                     .repeats     = 2 };
+        wfm_compose_state_t *c   = wfm_compose_create (&seg, 1, 0, 0);
+        DP_REQUIRE_MSG (c, "a persisting-doppler scene composes");
+        size_t nn = 0;
+        for (size_t n;
+             (n = wfm_compose_execute (c, bufs[g] + nn, CAP2 - nn)) > 0;)
+          nn += n;
+        wfm_compose_destroy (c);
+        got[g] = nn;
+      }
+
+    /* Burst 1 starts at 0 in both and has seen no gap yet: identical. */
+    DP_REQUIRE_MSG (memcmp (a, b, B * sizeof *a) == 0,
+                    "the FIRST burst is unaffected by what follows it");
+    /* Burst 2 starts after the gap in each render. */
+    DP_REQUIRE_MSG (got[0] >= (size_t)(B + G1 + B)
+                        && got[1] >= (size_t)(B + G2 + B),
+                    "both renders reached their second burst");
+    DP_REQUIRE_MSG (memcmp (a + B + G1, b + B + G2, B * sizeof *a) != 0,
+                    "a longer gap leaves the pass further along -- the "
+                    "channel runs on the noise floor while the burst is "
+                    "absent, so doppler_rate is per SECOND, not per unit "
+                    "of on-time");
+
+    /* And the LIMIT of that, pinned so the header's claim stays true: the
+       channel is keyed by (segment, source), because a position is the only
+       source identity the composer has. Two SEGMENTS declaring the same
+       parameters are therefore two passes, not one continued -- each starts
+       at its own t=0, so segment 1's burst matches segment 0's rather than
+       carrying on from it. Sharing across segments needs a declared source
+       id that the scene format does not have (gh-942). */
+    wfm_source_t two_src = src;
+    two_src.doppler_rate = 0.0; /* offset only: a pass that has not moved */
+    wfm_segment_t two[2] = {
+      { .sources = &two_src, .n_sources = 1, .fs = 1e6, .num_samples = B },
+      { .sources = &two_src, .n_sources = 1, .fs = 1e6, .num_samples = B }
+    };
+    wfm_compose_state_t *c2 = wfm_compose_create (two, 2, 0, 0);
+    DP_REQUIRE_MSG (c2, "a two-segment persisting scene composes");
+    size_t n2 = 0;
+    for (size_t n; (n = wfm_compose_execute (c2, a + n2, CAP2 - n2)) > 0;)
+      n2 += n;
+    wfm_compose_destroy (c2);
+    DP_REQUIRE_MSG (n2 == 2 * B, "both segments rendered");
+    DP_REQUIRE_MSG (memcmp (a, a + B, B * sizeof *a) == 0,
+                    "each SEGMENT gets its own pass: identical declarations "
+                    "render identically, because the key is (segment, "
+                    "source) and there is no cross-segment source id");
+  }
+
+  /* ── a RANGED doppler draws per instance, and replays ─────────────────
+   *
+   * `doppler`/`doppler_rate` join freq/snr/level/f_end as [lo, hi] fields,
+   * which is the main testing path the capability is for: sweeping a
+   * receiver over a span of geometries without writing a scene per point.
+   * Two properties, and the second is the one that makes a recorded sweep
+   * reproducible:
+   *
+   *   - instances DIFFER (the draw actually varies), and
+   *   - a second identical render REPLAYS them exactly (the draw hashes its
+   *     key rather than consuming RNG state).
+   */
+  {
+    enum
+    {
+      B  = 2048,
+      R  = 3,
+      NT = R * B
+    };
+    static float complex r1[NT], r2[NT];
+
+    /* BOTH ranged fields: doppler_rate draws from its own stream, and
+       ranging only the offset would leave that one unexercised. */
+    wfm_source_t src
+        = { .type            = WFM_SYNTH_TONE,
+            .freq            = 1e5,
+            .snr             = WFM_SYNTH_SNR_CLEAN,
+            .seed            = 3,
+            .carrier_hz      = 1.0e9,
+            .doppler         = -20.0,
+            .doppler_hi      = 20.0,
+            .doppler_rate    = -50.0,
+            .doppler_rate_hi = 50.0,
+            .ranged          = WFM_RANGE_DOPPLER | WFM_RANGE_DOPPLER_RATE };
+    wfm_segment_t seg = { .sources     = &src,
+                          .n_sources   = 1,
+                          .fs          = 1e6,
+                          .num_samples = B,
+                          .repeats     = R };
+
+    float complex *outs[2] = { r1, r2 };
+    for (int pass = 0; pass < 2; pass++)
+      {
+        wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 0, 0);
+        DP_REQUIRE_MSG (c, "a ranged-doppler scene composes");
+        size_t nn = 0;
+        for (size_t n;
+             (n = wfm_compose_execute (c, outs[pass] + nn, NT - nn)) > 0;)
+          nn += n;
+        wfm_compose_destroy (c);
+        DP_REQUIRE_MSG (nn == NT, "ranged-doppler scene yields every burst");
+      }
+
+    DP_REQUIRE_MSG (memcmp (r1, r2, NT * sizeof *r1) == 0,
+                    "a ranged doppler REPLAYS: the draw hashes its key, so a "
+                    "recorded sweep reproduces byte-for-byte");
+    DP_REQUIRE_MSG (memcmp (r1, r1 + B, B * sizeof *r1) != 0,
+                    "consecutive instances draw DIFFERENT doppler (else the "
+                    "replay above is the replay of a constant)");
+  }
+
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "
           "resolve, sum-json, headroom, seed_advance, ranged fields, "
-          "dsss burst, unspread frame, repeats)\n",
+          "dsss burst, unspread frame, repeats, doppler block-invariance, "
+          "persist-through-gap, ranged doppler)\n",
           total);
   return 0;
 }

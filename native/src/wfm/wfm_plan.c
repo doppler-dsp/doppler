@@ -462,14 +462,14 @@ render_source_into (const wfm_segment_t *g, const wfm_plan_segment_t *ps,
       return 0;
     }
 
-  double             cache_snr = ps->bundled ? WFM_SYNTH_SNR_CLEAN : src->snr;
-  wfm_synth_state_t *syn
-      = wfm_compose_build_synth (src, g->fs, n, src->freq, cache_snr,
-                                 src->f_end, 0, WFM_SEED_ADVANCE_NONE, 0);
-  if (!syn)
+  double        cache_snr = ps->bundled ? WFM_SYNTH_SNR_CLEAN : src->snr;
+  wfm_render_t *r         = wfm_compose_build_render (
+      src, g->fs, n, src->freq, cache_snr, src->f_end, src->doppler,
+      src->doppler_rate, 0, WFM_SEED_ADVANCE_NONE, 0, NULL);
+  if (!r)
     return -1;
-  wfm_synth_steps (syn, buf, n);
-  wfm_synth_destroy (syn);
+  wfm_render_steps (r, buf, n);
+  wfm_render_destroy (r);
   return 0;
 }
 

@@ -86,6 +86,17 @@ wfm_draw_source (const wfm_source_t *src, unsigned epoch, size_t inst,
                    ? wfm_draw_range (src->seed, epoch, inst, seg, k,
                                      WFM_RANGE_FEND, src->f_end, src->f_end_hi)
                    : src->f_end;
+  out->doppler
+      = (src->ranged & WFM_RANGE_DOPPLER)
+            ? wfm_draw_range (src->seed, epoch, inst, seg, k,
+                              WFM_RANGE_DOPPLER, src->doppler, src->doppler_hi)
+            : src->doppler;
+  out->doppler_rate
+      = (src->ranged & WFM_RANGE_DOPPLER_RATE)
+            ? wfm_draw_range (src->seed, epoch, inst, seg, k,
+                              WFM_RANGE_DOPPLER_RATE, src->doppler_rate,
+                              src->doppler_rate_hi)
+            : src->doppler_rate;
 }
 
 size_t

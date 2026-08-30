@@ -13,6 +13,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 * `#include "clib_common.h"`
 * `#include "wfm_synth/wfm_synth_core.h"`
 * `#include "wfm/wfm_frame.h"`
+* `#include "doppler_channel/doppler_channel_core.h"`
 
 
 
@@ -44,6 +45,8 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 | ---: | :--- |
 | enum  | [**wfm\_\_compose\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57**](#enum-wfm__compose_8h_1ab04a0655cd1e3bcac5e8f48c18df1a57)  <br>_Per-field "draw uniformly each repeat" flags (_ `ranged` _bitmask)._ |
 | typedef struct wfm\_compose\_state | [**wfm\_compose\_state\_t**](#typedef-wfm_compose_state_t)  <br> |
+| enum  | [**wfm\_doppler\_lifetime\_t**](#enum-wfm_doppler_lifetime_t)  <br>_When a source's Doppler channel restarts._  |
+| typedef struct wfm\_render | [**wfm\_render\_t**](#typedef-wfm_render_t)  <br>_One source's renderer: its synth, plus its Doppler channel._  |
 | enum  | [**wfm\_seed\_advance\_t**](#enum-wfm_seed_advance_t)  <br>_Per-repeat seed policy for a looped/continuous stream._  |
 
 
@@ -69,6 +72,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  [**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* | [**wfm\_compose\_build\_render**](#function-wfm_compose_build_render) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, size\_t on\_len, double freq, double snr, double f\_end, double doppler, double doppler\_rate, unsigned epoch, int seed\_advance, size\_t instance, [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* borrow) <br>_Build a source's renderer —_ `wfm_compose_build_synth` _plus the clock-Doppler channel the source declares, if it declares one._ |
 |  [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* | [**wfm\_compose\_build\_synth**](#function-wfm_compose_build_synth) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, size\_t on\_len, double freq, double snr, double f\_end, unsigned epoch, int seed\_advance, size\_t instance) <br>_Construct + configure the synth for one resolved source._  |
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_create**](#function-wfm_compose_create) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous) <br>_Build a composer over a copy of_ `segs` _._ |
 |  void | [**wfm\_compose\_destroy**](#function-wfm_compose_destroy) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state) <br>_Destroy a composer and its active synth._  |
@@ -80,6 +84,9 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  const [**wfm\_segment\_t**](structwfm__segment__t.md) \* | [**wfm\_compose\_segments**](#function-wfm_compose_segments) (const [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, size\_t \* n\_out, int \* repeat, int \* continuous) <br>_Borrow the composer's stored segment list (for_  _record / SigMF)._ |
 |  void | [**wfm\_compose\_set\_seed\_advance**](#function-wfm_compose_set_seed_advance) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, int mode) <br>_Choose how the seed advances on each repeat of a looped/continuous stream (a_ `wfm_seed_advance_t` _):_ |
 |  size\_t | [**wfm\_compose\_spans**](#function-wfm_compose_spans) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, [**wfm\_span\_t**](structwfm__span__t.md) \* out, size\_t cap) <br>_Replay the (epoch 0) instance timeline of a resolved segment list._  |
+|  void | [**wfm\_render\_destroy**](#function-wfm_render_destroy) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r) <br>_Free a renderer and everything it owns. NULL-safe._  |
+|  void | [**wfm\_render\_noise\_steps**](#function-wfm_render_noise_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull_ `n` _samples of the source's NOISE FLOOR only, through the same channel._ |
+|  void | [**wfm\_render\_steps**](#function-wfm_render_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull exactly_ `n` _samples from_`r` _, through its channel if any._ |
 |  int | [**wfm\_resolve\_noise**](#function-wfm_resolve_noise) ([**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n) <br>_Resolve a segment list's noise model in place (Phase 4b)._  |
 |  double | [**wfm\_snr\_over\_fs**](#function-wfm_snr_over_fs) (int snr\_mode, int type, int sps, size\_t sf, double sym\_span, double snr) <br>_SNR (dB) referred to fs, from a source's snr/snr\_mode/sps/type._  |
 |  int | [**wfm\_source\_attach\_dsss**](#function-wfm_source_attach_dsss) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Attach a dsss source's data to a freshly-created synth._  |
@@ -165,13 +172,15 @@ enum wfm__compose_8h_1ab04a0655cd1e3bcac5e8f48c18df1a57 {
     WFM_RANGE_FEND = 1u << 3,
     WFM_RANGE_NUM_SAMPLES = 1u << 4,
     WFM_RANGE_OFF_SAMPLES = 1u << 5,
-    WFM_RANGE_DELAY_SAMPLES = 1u << 6
+    WFM_RANGE_DELAY_SAMPLES = 1u << 6,
+    WFM_RANGE_DOPPLER = 1u << 7,
+    WFM_RANGE_DOPPLER_RATE = 1u << 8
 };
 ```
 
 
 
-A scalar field is a constant; a _ranged_ field carries a `[lo, hi]` span (the scalar holds `lo`, a companion `*_hi` holds `hi`) and is redrawn uniformly in `[lo, hi]` at the start of every repeat (composer epoch) — so a looped / continuous stream can vary Doppler (`freq`), arrival jitter (`off_samples`), etc. burst-to-burst while staying _reproducible_: the draw is a deterministic hash of the source seed, the epoch, the segment/source index, and the field, so `--record` stores the span (not a drawn value) and `--from-file` replays the same sequence byte-for-byte. Bits 0–3 live on `wfm_source_t.ranged`; bits 4–6 on `wfm_segment_t.ranged`. 
+A scalar field is a constant; a _ranged_ field carries a `[lo, hi]` span (the scalar holds `lo`, a companion `*_hi` holds `hi`) and is redrawn uniformly in `[lo, hi]` at the start of every repeat (composer epoch) — so a looped / continuous stream can vary Doppler (`freq`), arrival jitter (`off_samples`), etc. burst-to-burst while staying _reproducible_: the draw is a deterministic hash of the source seed, the epoch, the segment/source index, and the field, so `--record` stores the span (not a drawn value) and `--from-file` replays the same sequence byte-for-byte. Bits 0–3 and 7–8 live on `wfm_source_t.ranged`; bits 4–6 on `wfm_segment_t.ranged`. 
 
 
         
@@ -192,6 +201,52 @@ Opaque composer state.
 
 
         
+
+<hr>
+
+
+
+### enum wfm\_doppler\_lifetime\_t 
+
+_When a source's Doppler channel restarts._ 
+```C++
+enum wfm_doppler_lifetime_t {
+    WFM_DOPPLER_PER_INSTANCE = 0,
+    WFM_DOPPLER_PERSIST = 1
+};
+```
+
+
+
+Neither is a superset of the other, so it is declared rather than defaulted into an argument:
+
+
+
+* `PER_INSTANCE` (default) restarts the geometry for every burst instance, which is the repeated-trial shape — every burst sees the same pass, and it composes with the per-instance re-draw of a ranged `doppler`.
+* `PERSIST` carries one emitter's motion across every REPEAT INSTANCE of its segment, and across the gaps between them, so burst _k_ sees where the pass has got to. It is the only lifetime under which `doppler_rate` means anything over a multi-burst scene.
+
+
+
+
+The channel is keyed by (segment, source), because that is the only source identity the composer has — a position. So a PERSIST source persists over its own segment's instances; two DIFFERENT segments each get their own pass, even where a reader might call them the same emitter. Sharing one across segments needs a declared source id, which nothing in the scene format carries yet; gh-942 says as much ("no per-source identity that
+survives it ... the repeats/epoch machinery is where one would hang"). 
+
+
+        
+
+<hr>
+
+
+
+### typedef wfm\_render\_t 
+
+_One source's renderer: its synth, plus its Doppler channel._ 
+```C++
+typedef struct wfm_render wfm_render_t;
+```
+
+
+
 
 <hr>
 
@@ -218,6 +273,57 @@ A source's single `seed` feeds two RNGs: the PN LFSR (spreading code _and_ data 
 <hr>
 ## Public Functions Documentation
 
+
+
+
+### function wfm\_compose\_build\_render 
+
+_Build a source's renderer —_ `wfm_compose_build_synth` _plus the clock-Doppler channel the source declares, if it declares one._
+```C++
+wfm_render_t * wfm_compose_build_render (
+    const wfm_source_t * src,
+    double fs,
+    size_t on_len,
+    double freq,
+    double snr,
+    double f_end,
+    double doppler,
+    double doppler_rate,
+    unsigned epoch,
+    int seed_advance,
+    size_t instance,
+    doppler_channel_state_t * borrow
+) 
+```
+
+
+
+THE pull path. Both faces go through `wfm_render_steps()` rather than calling `wfm_synth_steps()` themselves, because a Doppler channel is a RESAMPLER: it consumes about `n*(1+d)` inputs per `n` outputs, so "pull
+`k`, get `k`" only holds if something keeps the remainder. Two implementations that agreed today would drift the moment either grew a holdover the other did not.
+
+
+A source with `doppler == 0 && doppler_rate == 0` gets no channel and `wfm_render_steps()` is then literally `wfm_synth_steps()`, so every scene that does not ask for Doppler renders through exactly the path it always did — byte-identical, not merely equivalent.
+
+
+`doppler`/`doppler_rate` arrive ranged-resolved, like `freq`/`snr`/`f_end`.
+
+
+`borrow` is the channel a `WFM_DOPPLER_PERSIST` source keeps ACROSS segments: the composer owns it for the life of the scene and passes it in here, so the renderer uses it without adopting it and the geometry does not restart when the synth is torn down at a segment boundary. NULL means the ordinary case — the renderer creates and owns a channel if the source declares Doppler, and destroys it with itself.
+
+
+
+
+**Returns:**
+
+A heap renderer (caller [**wfm\_render\_destroy()**](wfm__compose_8h.md#function-wfm_render_destroy)s it), or NULL. 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -607,6 +713,62 @@ Total number of instances in one pass of the spec.
 
 
         
+
+<hr>
+
+
+
+### function wfm\_render\_destroy 
+
+_Free a renderer and everything it owns. NULL-safe._ 
+```C++
+void wfm_render_destroy (
+    wfm_render_t * r
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function wfm\_render\_noise\_steps 
+
+_Pull_ `n` _samples of the source's NOISE FLOOR only, through the same channel._
+```C++
+void wfm_render_noise_steps (
+    wfm_render_t * r,
+    float _Complex * dst,
+    size_t n
+) 
+```
+
+
+
+What a gap renders (gh-409). The channel runs here too, and deliberately: an emitter does not stop moving because its burst ended, so a pass is continuous and during a gap the thing propagating is the noise floor. Skip the channel over gaps and `doppler_rate` across a multi-burst scene quietly means "rate per unit of ON time" instead of per second. 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_render\_steps 
+
+_Pull exactly_ `n` _samples from_`r` _, through its channel if any._
+```C++
+void wfm_render_steps (
+    wfm_render_t * r,
+    float _Complex * dst,
+    size_t n
+) 
+```
+
+
+
 
 <hr>
 

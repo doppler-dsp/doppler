@@ -101,6 +101,16 @@ endif
 # and are pinned by uv.lock — which is what makes local and CI resolve
 # identically, and why the hook config resolves no lock-managed tool itself.
 UV         = uv
+
+# A BARE interpreter, deliberately not `$(UV) run python`, and the exception
+# is narrow: scripts/nats_streams.py is stdlib-only (there is a test pinning
+# that) and its callers are the two places a resolved dev venv cannot be
+# assumed. `nats-up` runs in the C-only sanitizer/Docker jobs, which never
+# sync the dev group -- routing it through uv made those jobs provision a
+# whole Python environment to count streams, and TSan failed in 40s doing it.
+# `nats-down` runs `if: always()`, after a job that may have failed for any
+# reason at all, including a broken environment.
+NATS_STREAMS = python3 scripts/nats_streams.py
 DEV_RUN    = $(UV) run --group dev
 RUFF       = $(DEV_RUN) ruff
 # Routed through the dev group, not PATH: uv.lock is the one pin, shared by
@@ -393,6 +403,12 @@ TEST_ALL_DEPS = test test-examples test-python test-examples-python
 nats-up: ## Start the NATS JetStream broker the nats:// stream tests need
 	@docker rm -f nats >/dev/null 2>&1 || true
 	@bash scripts/start-nats.sh
+	@$(NATS_STREAMS) --check
+
+# The remedy `nats-up` names. Deleting is prefix-guarded to DP_WORK_*, so a
+# shared broker's other streams are reported and left alone.
+nats-purge: ## Delete the leftover DP_WORK_* JetStream work queues
+	@$(NATS_STREAMS) --delete --quiet-when-absent
 
 # Symmetric with start-nats.sh's two paths: kill the binary by its pidfile,
 # remove the container if there is one. Both unconditionally and both quietly,
@@ -421,7 +437,24 @@ nats-up: ## Start the NATS JetStream broker the nats:// stream tests need
 # The removal itself cannot fail the target. That is the `if: always()` rule
 # above: the store is a temp directory, and a surviving one is worth a warning
 # and not worth converting a red test run into a red cleanup.
+# THE STREAMS COME OUT FIRST, and that is the ordering this target was
+# missing rather than a refinement. Everything below cleans up a broker THIS
+# repo started -- the pidfile's process, the container, its own temp store.
+# But start-nats.sh REUSES a broker already listening on 4222, and on that
+# path there is no pidfile, no container and no temp store, so every step
+# below is a no-op and the durable work queues simply stay. They accumulated
+# to 5,236 streams / 40.8 GiB on one dev box, and because a work queue is
+# keyed by an endpoint that repeats (dp-chain-<port>), a later run opened onto
+# the previous era's queue and a compose test failed on 174,133 frames in a
+# retired wire format. Deleting them needs the broker UP, so it happens here,
+# before anything is killed.
+#
+# Non-fatal for the same reason the store removal below is: this runs with
+# `if: always()` after a job that may already have failed, and a cleanup step
+# must not convert red tests into a red cleanup.
 nats-down: ## Stop and remove the NATS JetStream broker
+	@$(NATS_STREAMS) --delete --quiet-when-absent \
+	    || echo "nats-down: WARNING — could not purge DP_WORK_* streams"
 	@pidfile="$${NATS_PIDFILE:-$${TMPDIR:-/tmp}/doppler-nats.pid}"; \
 	 if [ -f "$$pidfile" ]; then \
 	     pid="$$(cat "$$pidfile")"; \
@@ -1066,7 +1099,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 gen-c-api-check \
                 gen-c-api-run \
                 package-c package-c-tarball sdist release-notes \
-                print-jm-version nats-up nats-down \
+                print-jm-version nats-up nats-down nats-purge \
                 docs-relink docs-drift-check drift-check changelog-check \
                 release-notes-size-check workflow-syntax-check \
                 jm-pin \

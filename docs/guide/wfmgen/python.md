@@ -18,7 +18,7 @@ synth.reset()                            # restart the sequence (keeps config)
 
 ## The builders and the composer
 
-The composition layer mirrors the [concepts](concepts.md) ladder. Builders
+The composition layer mirrors the [concepts](index.md#the-ladder-the-whole-mental-model) ladder. Builders
 `tone()` / `bpsk()` / `qpsk()` / `pn()` / `noise()` / `chirp(f_start=…, f_end=…)`
 / `bits(pattern=…, modulation=…)` each return a `Synth`; `Segment.sum` mixes
 them, `.add` / `Timeline` sequences them, and `Composer` renders:
@@ -40,7 +40,7 @@ with Reader("frame.cf32", sample_type="cf32") as r:  # C reader → complex64
     back = r.read(r.num_samples)
 ```
 
-Remember the timing gotcha from [concepts](concepts.md#gotcha-where-timing-lives):
+Remember the timing gotcha from [concepts](index.md#gotcha-where-timing-lives):
 `num_samples` / `off_samples` go on `Segment.sum(...)`, not on `Composer(...)`.
 
 ## The symbols input — bring your own constellation

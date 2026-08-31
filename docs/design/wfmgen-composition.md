@@ -27,7 +27,7 @@ time, and offers `--snr` as the only level control. Three things push past that:
     RRC pulse-shaping, QAM, and OFDM all have **PAPR > 0 dB**, so their peaks
     exceed full-scale and clip. The level idiom must be **average power**, and
     peak headroom must be a first-class control. (See
-    [Amplitude & full-scale](../guide/wfmgen/levels.md#amplitude-full-scale).)
+    [Amplitude & full-scale](../guide/wfmgen/waveforms.md#amplitude-full-scale).)
 1. **Real scenes are sums.** A signal of interest plus interferers plus a noise
     floor is an **additive mix** of sources at different frequencies and levels —
     which needs a per-source level, something the single-source model lacks.

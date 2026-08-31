@@ -19,7 +19,7 @@ distinct from the preamble code — the same frame layout
 Each gap is an explicit, distinct sample count (not `repeats=N`'s randomized
 redraws) so every burst's ground truth position stays exactly known for
 scoring below; `gap_noise="off"` pins the inter-burst floor to silence for
-the same reason — the [DSSS bursts](../guide/wfmgen/dsss-bursts.md) guide
+the same reason — the [DSSS bursts](../guide/wfmgen/waveforms.md#dsss-bursts) guide
 page shows the realistic variant with the AWGN floor running through gaps.
 
 ## Generating the capture — three faces, one scene

@@ -107,7 +107,7 @@ with Writer(tmp / "clip.raw", fs=1e6, file_type="raw", sample_type="ci8") as w:
 
 `headroom` (dB) attenuates on the way out instead, so a scene with known peaks
 lands under full scale without rescaling it yourself. See [Levels &
-SNR](../guide/wfmgen/levels.md#scaling-to-the-wire-and-headroom).
+SNR](../guide/wfmgen/waveforms.md#scaling-to-the-wire-and-headroom).
 
 ### BLUE keywords
 
@@ -222,7 +222,7 @@ ______________________________________________________________________
 <!-- related-pages:start -->
 
 **Gallery** — [type="symbols" — Bring Your Own Constellation](../gallery/symbols.md), [Composing a Scene — `.sum()`, `.add()`, and Headroom](../gallery/wfm-composition.md), [Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md), [Waveform Write — Compose, Write, Read Back](../gallery/wfm-write.md), [wfmgen — One Engine, Every Waveform](../gallery/wfmgen.md)
-**Guides** — [Capture I/O](../guide/wfm-io/index.md), [Reading captures](../guide/wfm-io/reading.md), [Writing captures — output & file types](../guide/wfm-io/writing.md), [Levels & SNR](../guide/wfmgen/levels.md), [Python API](../guide/wfmgen/python.md)
+**Guides** — [Capture I/O](../guide/wfm-io/index.md), [Reading captures](../guide/wfm-io/reading.md), [Writing captures — output & file types](../guide/wfm-io/writing.md), [Python API](../guide/wfmgen/python.md), [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
 **Design** — [Capture files — one reader, one writer, four containers](../design/capture-files.md), [Design](../design/index.md), [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md), [wfmgen — the waveform generator](../design/wfmgen.md)
 **Contributing** — [Validation log](../dev/contributing/validation-log.md), [Release Checklist](../dev/release.md)
 

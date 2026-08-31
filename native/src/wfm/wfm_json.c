@@ -8,6 +8,7 @@
 #include "wfm/wfm_compose.h"
 
 #include <complex.h>
+#include <stddef.h> /* offsetof — the frame key tables name members once */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -82,11 +83,24 @@ free_src_bits (wfm_source_t *srcs, size_t ns)
   if (srcs)
     for (size_t k = 0; k < ns; k++)
       {
-        free (srcs[k].payload.bits);
+        free ((void *)srcs[k].payload.bits);
         free (srcs[k].symbols);
         free ((void *)srcs[k].acq_code.bits);
         free ((void *)srcs[k].data_code.bits);
         free ((void *)srcs[k].sync.bits);
+        /* A CARRIED description, when it came from JSON. `wfm_source_t`
+           borrows a frame -- a caller's own outlives the source -- but one
+           this file parsed has no other owner, the same asymmetry the const
+           bit arrays above already carry. Fields first: their literal bits
+           hang off the description being freed. */
+        if (srcs[k].frame)
+          {
+            wfm_frame_desc_t *d = (wfm_frame_desc_t *)srcs[k].frame;
+            for (unsigned f = 0; f < d->n_fields; f++)
+              free ((void *)d->field[f].seq.bits);
+            free (d);
+            srcs[k].frame = NULL;
+          }
       }
 }
 
@@ -395,6 +409,188 @@ add_doppler_fields (cJSON *o, const wfm_source_t *src)
                              DOPPLER_LIFETIME_NAMES[WFM_DOPPLER_PERSIST]);
 }
 
+/* wfm_names.h's STAGE_KIND_NAMES deliberately carries no `cenum=`: the enum
+   ends in WFM_STAGE_USER, a BOUNDARY a caller allocates above rather than a
+   sixth name, and the gate's cenum check (enumerator count, and each explicit
+   value equal to its index) cannot express that. The ordering that table
+   relies on is pinned HERE instead, where wfm_frame.h is in scope -- so a
+   reordered enum is a compile error rather than a scene file that silently
+   names the wrong stage. */
+_Static_assert (WFM_STAGE_CRC16 == 0 && WFM_STAGE_RS == 1
+                    && WFM_STAGE_RANDOMISE == 2 && WFM_STAGE_CONV == 3
+                    && WFM_STAGE_INTERLEAVE == 4 && N_STAGE_KINDS == 5,
+                "STAGE_KIND_NAMES is indexed by wfm_stage_kind_t");
+_Static_assert (WFM_STAGE_USER >= N_STAGE_KINDS,
+                "a named stage kind must not collide with a caller's own");
+
+/* One numeric member of a frame's field or stage, named ONCE for both
+ * directions.
+ *
+ * A stage carries six of these and a field three. That is the size at which
+ * a hand-written emitter list and a hand-written parser list start to
+ * disagree, and the disagreement is silent: every key here has a meaningful
+ * zero default, so one added to the writer and forgotten in the reader
+ * produces a record that reads back as a DIFFERENT frame rather than as an
+ * error. `read_frame_fields` already drives its bit arrays from a table for
+ * this reason; this is the same move applied to both directions at once.
+ *
+ * @p wide says which member type the offset points at, because a field mixes
+ * `size_t` (reps, bits) with `unsigned` (derived_by), and reading one as the
+ * other is precisely the corruption a shared list exists to prevent. */
+typedef struct
+{
+  const char *key;
+  size_t      off;  /**< offsetof into the owning struct   */
+  int         wide; /**< 1 = size_t member, 0 = unsigned   */
+} num_key_t;
+
+#define STAGE_KEY(m) { #m, offsetof (wfm_stage_t, m), 0 }
+static const num_key_t STAGE_KEYS[] = {
+  STAGE_KEY (first_field), STAGE_KEY (n_fields), STAGE_KEY (depth),
+  STAGE_KEY (unit_bits),   STAGE_KEY (emit_num), STAGE_KEY (emit_den),
+};
+#define N_STAGE_KEYS (sizeof STAGE_KEYS / sizeof *STAGE_KEYS)
+
+static const num_key_t FIELD_KEYS[] = {
+  { "reps", offsetof (wfm_field_t, reps), 1 },
+  { "bits", offsetof (wfm_field_t, bits), 1 },
+  { "derived_by", offsetof (wfm_field_t, derived_by), 0 },
+};
+#define N_FIELD_KEYS (sizeof FIELD_KEYS / sizeof *FIELD_KEYS)
+
+/* Write every non-zero member named by @p keys. A zero is OMITTED rather
+   than written, which is the rule the rest of this file keeps and is what
+   makes read_num_keys()'s 0 default the exact inverse of this. */
+static void
+add_num_keys (cJSON *o, const void *base, const num_key_t *keys, size_t n)
+{
+  for (size_t i = 0; i < n; i++)
+    {
+      const void  *p = (const char *)base + keys[i].off;
+      const double v = keys[i].wide ? (double)*(const size_t *)p
+                                    : (double)*(const unsigned *)p;
+      if (v != 0.0)
+        cJSON_AddNumberToObject (o, keys[i].key, v);
+    }
+}
+
+/* Read every member named by @p keys; an absent key is 0. The inverse of
+   add_num_keys, from the same list -- which is the whole point of the list. */
+static void
+read_num_keys (const cJSON *o, void *base, const num_key_t *keys, size_t n)
+{
+  for (size_t i = 0; i < n; i++)
+    {
+      void        *p = (char *)base + keys[i].off;
+      const double v = num (o, keys[i].key, 0);
+      if (keys[i].wide)
+        *(size_t *)p = (size_t)v;
+      else
+        *(unsigned *)p = (unsigned)v;
+    }
+}
+
+/* A stage's kind: the NAME when this build has one, the raw integer when it
+ * does not.
+ *
+ * The kind is an open `uint32_t`. doppler names 0..4 and promises never to
+ * allocate at or above WFM_STAGE_USER, which is where a caller's own kinds
+ * live. A name-only encoding could not carry those at all -- it would turn
+ * "a mission that is not CCSDS" back into a pull request against a header --
+ * and a number-only one would spell doppler's own stages as magic constants
+ * in a file people are expected to read and edit. So both, and the reader
+ * takes either. */
+static void
+add_stage_kind (cJSON *o, uint32_t kind)
+{
+  if (kind < N_STAGE_KINDS)
+    cJSON_AddStringToObject (o, "kind", STAGE_KIND_NAMES[kind]);
+  else
+    cJSON_AddNumberToObject (o, "kind", (double)kind);
+}
+
+/* Read a kind written either way. Returns 0, or -1 when the key is absent,
+   is neither string nor number, or names a stage this build does not know.
+   REFUSING matters more here than anywhere else in this file: kind 0 is
+   crc16, so a defaulting reader would turn every typo into a CRC stage. */
+static int
+read_stage_kind (const cJSON *o, uint32_t *out)
+{
+  const cJSON *k = cJSON_GetObjectItemCaseSensitive (o, "kind");
+  if (cJSON_IsString (k))
+    {
+      const int i
+          = name_index (k->valuestring, STAGE_KIND_NAMES, N_STAGE_KINDS);
+      if (i < 0)
+        return -1;
+      *out = (uint32_t)i;
+      return 0;
+    }
+  if (cJSON_IsNumber (k) && k->valuedouble >= 0.0)
+    {
+      *out = (uint32_t)k->valuedouble;
+      return 0;
+    }
+  return -1;
+}
+
+/* Emit the frame description a source CARRIES, when it carries one.
+ *
+ * `wfm_source_t.frame` is a frame the caller BUILT rather than one derived
+ * from the flat framing fields, and it says things they cannot: a field of
+ * the caller's own bits at a position of their choosing, a stage covering a
+ * span they name. Without this key a `--record` of such a source would write
+ * the flat fields alone and `--from-file` would rebuild the DERIVED frame --
+ * a different waveform, silently. That is the same failure add_frame_fields()
+ * describes for a framed source recorded unframed, one level up.
+ *
+ * Written only when a description is carried, so every record from a source
+ * without one stays byte-identical to what it was before this existed. */
+static void
+add_frame_desc (cJSON *o, const wfm_source_t *src)
+{
+  const wfm_frame_desc_t *d = src->frame;
+  if (!d)
+    return;
+
+  cJSON *fr     = cJSON_CreateObject ();
+  cJSON *fields = cJSON_AddArrayToObject (fr, "fields");
+  for (unsigned i = 0; i < d->n_fields; i++)
+    {
+      const wfm_field_t *f  = &d->field[i];
+      cJSON             *fo = cJSON_CreateObject ();
+      if (f->name[0])
+        cJSON_AddStringToObject (fo, "name", f->name);
+      /* Literal bits as the same "0/1" string every other array in this file
+         uses; a generated field carries its parameters instead, through the
+         shared add_seq_gen. The two are mutually exclusive, and read_seq_gen
+         refuses a record that carries both. */
+      if (f->seq.kind == WFM_SEQ_LITERAL && f->seq.bits && f->seq.len)
+        {
+          char *s = bits_to_string (f->seq.bits, f->seq.len);
+          if (s)
+            {
+              cJSON_AddStringToObject (fo, "lit", s);
+              free (s);
+            }
+        }
+      add_seq_gen (fo, "gen", &f->seq);
+      add_num_keys (fo, f, FIELD_KEYS, N_FIELD_KEYS);
+      cJSON_AddItemToArray (fields, fo);
+    }
+
+  cJSON *stages = cJSON_AddArrayToObject (fr, "stages");
+  for (unsigned i = 0; i < d->n_stages; i++)
+    {
+      const wfm_stage_t *s  = &d->stage[i];
+      cJSON             *so = cJSON_CreateObject ();
+      add_stage_kind (so, s->kind);
+      add_num_keys (so, s, STAGE_KEYS, N_STAGE_KEYS);
+      cJSON_AddItemToArray (stages, so);
+    }
+  cJSON_AddItemToObject (o, "frame", fr);
+}
+
 /* Add a source's fields to object `so` (no fs/num/off — those are the
  * segment's; level omitted at 0). Used for the "sum" array entries; the inline
  * 1-source form keeps its own field order for byte-identity. */
@@ -428,6 +624,9 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
   add_symbols_fields (so, src);
   add_dsss_fields (so, src);
   add_pulse_fields (so, src);
+  /* Last, and only when one is carried: a source without a description
+     writes exactly the bytes it wrote before this key existed. */
+  add_frame_desc (so, src);
 }
 
 /* A 64-bit mask from its hex string; 0 when the key is absent, which is what
@@ -494,6 +693,98 @@ read_seq_gen (const cJSON *so, const char *lit_key, const char *gen_key,
       q->seed_b   = u64_hex (g, "seed_b");
       if (q->reg_bits == 0u || q->reg_bits > 64u)
         return -1;
+    }
+  return 0;
+}
+
+/* Restore a CARRIED frame description — the inverse of add_frame_desc().
+ *
+ * Returns 0 when the key is absent or was read, -1 when it is present and
+ * malformed. Refusing rather than salvaging is the same judgement
+ * read_seq_gen() makes and for the same reason: a frame read wrong builds a
+ * waveform that looks fine and is not the recorded one.
+ *
+ * The description, and any literal bit arrays hanging off its fields, are
+ * OWNED by the source here. `wfm_source_t` borrows a frame — a caller's own
+ * description outlives the source — but one parsed from JSON has no other
+ * owner, exactly as the acq_code/data_code/sync arrays above have none.
+ * free_src_bits() releases all of it, including on the partial-failure paths
+ * below: every slot is counted into n_fields/n_stages as it is claimed, so a
+ * description abandoned half-built still frees completely. */
+static int
+read_frame_desc (const cJSON *so, wfm_source_t *out)
+{
+  const cJSON *fr = cJSON_GetObjectItemCaseSensitive (so, "frame");
+  if (!fr)
+    return 0;
+  if (!cJSON_IsObject (fr))
+    return -1;
+
+  /* dp_xcalloc, not calloc: a fixed-size internal struct is the trusted
+     allocation the abort-on-OOM helper is for, and it retires an unwind
+     branch no test can reach -- the same reasoning add_seq_gen() gives for
+     having no OOM path of its own. */
+  wfm_frame_desc_t *d = dp_xcalloc (1, sizeof *d);
+  out->frame          = d; /* owned from here; free_src_bits releases it */
+
+  const cJSON *it;
+  const cJSON *fields = cJSON_GetObjectItemCaseSensitive (fr, "fields");
+  if (fields)
+    {
+      if (!cJSON_IsArray (fields))
+        return -1;
+      cJSON_ArrayForEach (it, fields)
+      {
+        if (!cJSON_IsObject (it) || d->n_fields >= WFM_FRAME_MAX_FIELDS)
+          return -1;
+        wfm_field_t *f = &d->field[d->n_fields++];
+
+        const char *nm = cJSON_GetStringValue (
+            cJSON_GetObjectItemCaseSensitive (it, "name"));
+        if (nm)
+          {
+            /* Truncating would RENAME the field, and a name is what a
+               receiver slices a capture by, so a name this build cannot
+               hold is a spec it cannot honour. Refuse it rather than store
+               a prefix that resolves to something else. */
+            if (strlen (nm) >= WFM_FRAME_NAME_MAX)
+              return -1;
+            snprintf (f->name, sizeof f->name, "%s", nm);
+          }
+
+        const char *lit = cJSON_GetStringValue (
+            cJSON_GetObjectItemCaseSensitive (it, "lit"));
+        if (lit)
+          {
+            size_t   n = 0;
+            uint8_t *b = string_to_bits (lit, &n);
+            if (!b)
+              return -1;
+            f->seq.kind = WFM_SEQ_LITERAL;
+            f->seq.bits = b;
+            f->seq.len  = n;
+          }
+        /* Also refuses a field carrying BOTH "lit" and "gen". */
+        if (read_seq_gen (it, "lit", "gen", &f->seq) != 0)
+          return -1;
+        read_num_keys (it, f, FIELD_KEYS, N_FIELD_KEYS);
+      }
+    }
+
+  const cJSON *stages = cJSON_GetObjectItemCaseSensitive (fr, "stages");
+  if (stages)
+    {
+      if (!cJSON_IsArray (stages))
+        return -1;
+      cJSON_ArrayForEach (it, stages)
+      {
+        if (!cJSON_IsObject (it) || d->n_stages >= WFM_FRAME_MAX_STAGES)
+          return -1;
+        wfm_stage_t *s = &d->stage[d->n_stages++];
+        if (read_stage_kind (it, &s->kind) != 0)
+          return -1;
+        read_num_keys (it, s, STAGE_KEYS, N_STAGE_KEYS);
+      }
     }
   return 0;
 }
@@ -678,6 +969,12 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
    * quietly rebuilds a different waveform. */
   if (read_frame_fields (so, out) != 0)
     return -1;
+  /* A CARRIED description, if the record has one. Read after the flat fields
+   * rather than before, so it is the LAST word on what frame this is —
+   * matching wfm_source_describe_frame(), where a carried description beats
+   * the flat fields it sits beside instead of being merged with them. */
+  if (read_frame_desc (so, out) != 0)
+    return -1;
   if (t == WFM_SYNTH_DSSS)
     {
       /* The spread half: the payload's own code, the payload under "payload"
@@ -850,6 +1147,9 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
           add_symbols_fields (s, src);
           add_dsss_fields (s, src);
           add_pulse_fields (s, src);
+          /* Appended last, so this form's frozen field order is unchanged
+             for every source that carries no description. */
+          add_frame_desc (s, src);
         }
       else
         {

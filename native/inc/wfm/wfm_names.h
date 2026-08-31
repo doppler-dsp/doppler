@@ -55,6 +55,19 @@ static const char *const ENDIAN_NAMES[] = { "le", "be" };
 /* SSOT: enum=wfm_lfsr */
 static const char *const LFSR_NAMES[] = { "galois", "fibonacci" };
 
+/* The stage kinds doppler names, for the scene JSON. NO `cenum=`, and that
+   is deliberate rather than an omission: `wfm_stage_kind_t` ends in
+   WFM_STAGE_USER = 0x1000, a sentinel a caller allocates ABOVE, so the enum
+   has six enumerators to this table's five and the sixth sits at 4096 rather
+   than at index 5. `cenum=` checks both of those and would fail on both, for
+   a table that is correct -- it cannot express "names the values, stops
+   before the boundary". The indices are pinned instead by a _Static_assert
+   in wfm_json.c, where wfm_frame.h is in scope; see there.
+   SSOT: enum=stage_kind, count=N_STAGE_KINDS */
+static const char *const STAGE_KIND_NAMES[]
+    = { "crc16", "rs", "randomise", "conv", "interleave" };
+#define N_STAGE_KINDS 5
+
 /* SSOT: enum=wfm_pulse */
 static const char *const PULSE_NAMES[] = { "rect", "rrc" };
 

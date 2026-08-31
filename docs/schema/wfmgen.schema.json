@@ -358,6 +358,101 @@
           "minimum": 1,
           "default": 8,
           "description": "RRC filter support in symbols, ONE-SIDED: wfm_rrc_ntaps() produces 2 * rrc_span * sps + 1 taps, unit-energy (sum of h^2 = 1). Only used when pulse=rrc."
+        },
+        "frame": { "$ref": "#/$defs/frame_desc" }
+      }
+    },
+
+    "frame_desc": {
+      "description": "A frame the CALLER built, and the answer to \"what frame is this?\" when it is present. The flat framing and coding keys beside it (acq_code, sync, crc, rs_depth, randomise, asm, conv, interleave) stay, as SUGAR that builds one of these — so every scene written before this key existed still loads — but a description says things they cannot: a field of the caller's own bits at a position of their choosing, a stage covering a span they name, an arrangement no flag spells. Present, it WINS: wfm_source_describe_frame returns it instead of deriving one, rather than merging the two. KERNELS are not in here and cannot be: a stage names a KIND, and the code that runs it is a wfm_frame_ops_t entry a caller supplies in C.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "type": "array",
+          "maxItems": 16,
+          "description": "What is on the wire, ordered by POSITION. Ordered independently of stages, because order and coverage are independent axes — in a CCSDS CADU the marker is inserted third and covered by the stage applied fourth, which one ordered list cannot say. Indices into THIS array are what derived_by and a stage's first_field count in.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "maxLength": 15,
+                "description": "What the field is called; optional, and everything works without it (a field is addressed by index). What it buys is the other direction — a receiver slicing a capture asks for \"payload\" rather than for field 2. Refused rather than truncated when too long, because truncating renames the field."
+              },
+              "lit": {
+                "type": "string",
+                "pattern": "^[01]*$",
+                "description": "The field's bits, literally, as the same \"0/1\" string every other bit array in this schema uses. Mutually exclusive with \"gen\": a record carrying both is refused, because one field has one source of bits."
+              },
+              "gen": { "$ref": "#/$defs/generated_sequence" },
+              "reps": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Repetitions of the field's sequence, verbatim; 0 means one."
+              },
+              "bits": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "DERIVED fields only: length in bits, sized by the stage that produces it."
+              },
+              "derived_by": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "0 when the caller supplies this field; otherwise the index of the producing stage, PLUS ONE. The +1 is so a zero here is a caller-supplied field rather than silently the output of stage 0."
+              }
+            }
+          }
+        },
+        "stages": {
+          "type": "array",
+          "maxItems": 8,
+          "description": "The transforms, ordered by APPLICATION, each with the span of fields it covers.",
+          "items": {
+            "type": "object",
+            "required": ["kind"],
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "oneOf": [
+                  { "type": "string", "enum": ["crc16", "rs", "randomise", "conv", "interleave"] },
+                  { "type": "integer", "minimum": 0 }
+                ],
+                "description": "Which transform. A NAME for a kind doppler names, or the raw INTEGER for a caller's own — allocated from WFM_STAGE_USER (4096) up, which doppler promises never to allocate at or above. Both spellings are accepted on input; the writer emits a name when it has one. A name-only encoding could not carry a caller's kind at all; a number-only one would spell doppler's own stages as magic constants. An unknown NAME is refused rather than defaulted, because kind 0 is crc16 and a defaulting reader would turn every typo into a CRC stage."
+              },
+              "first_field": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Index of the first field this stage covers."
+              },
+              "n_fields": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Fields covered; 0 means the stage does not run. Load-bearing, not a refinement: a stage that inherited \"whatever ran before me\" is the chain that is right at three stage boundaries and wrong at the fourth — still encoding, still decoding against itself, and syncing to nothing. The cover is what the stage OCCUPIES on the wire, so for a code it is the information AND the check symbols it derives."
+              },
+              "depth": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "RS / INTERLEAVE: interleaving depth (for INTERLEAVE, the row count; the column count is derived from the span covered)."
+              },
+              "unit_bits": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "INTERLEAVE: bits per interleaved unit; 0 reads as 1. NOT folded into depth, because the two are independent — depth 8 over octets and depth 8 over bits are different permutations of the same span, and only one of them protects an octet-oriented outer code."
+              },
+              "emit_num": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "A stage that consumes the assembled frame and emits a DIFFERENT stream sets this: the output is n * emit_num / emit_den bits. 0 means the stage stays inside the frame. An emitting stage covers the WHOLE frame and a description may hold at most one — both properties of wfm_frame_assemble rather than rules invented for their own sake."
+              },
+              "emit_den": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Denominator of the emitting stage's rate; see emit_num."
+              }
+            }
+          }
         }
       }
     },
@@ -450,7 +545,8 @@
         "data":        { "$ref": "#/$defs/source/properties/data" },
         "pulse":      { "$ref": "#/$defs/source/properties/pulse" },
         "rrc_beta":   { "$ref": "#/$defs/source/properties/rrc_beta" },
-        "rrc_span":   { "$ref": "#/$defs/source/properties/rrc_span" }
+        "rrc_span":   { "$ref": "#/$defs/source/properties/rrc_span" },
+        "frame":      { "$ref": "#/$defs/frame_desc" }
       }
     },
 

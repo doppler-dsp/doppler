@@ -335,6 +335,194 @@ test_a_source_carries_the_frame_a_caller_built (void)
   return 0;
 }
 
+/* The scene JSON carries a description across, in BOTH directions.
+ *
+ * A carried frame that the spec cannot write is a frame Python and
+ * `--from-file` cannot reach, and one the spec writes but cannot read back is
+ * worse: `--record` then `--from-file` rebuilds the DERIVED frame, silently,
+ * and the capture nobody can reproduce looks exactly like one that works.
+ *
+ * Two kinds of assertion, because they catch different failures and neither
+ * subsumes the other.
+ *
+ * Field-by-field catches a value mangled in transit. The byte-identical
+ * emit -> parse -> emit catches a key the READER has no line for: the value
+ * regresses to its default, the second emit writes something different, and
+ * the strings diverge. That is why one stage below carries a non-zero
+ * `depth`/`unit_bits` that no field assert reads back -- with every
+ * uncompared key sitting at 0 the re-emit could not fail and would be
+ * decoration. Sabotage-checked: a parser that drops "depth" is caught HERE
+ * and by nothing else in this test.
+ *
+ * What the re-emit does NOT catch, measured rather than assumed: a key the
+ * WRITER alone adds. Both emissions write it, so the strings still match and
+ * every assert here passes. `additionalProperties: false` in
+ * docs/schema/wfmgen.schema.json is what refuses an undeclared key, checked
+ * by test_schema.py against real --record output. */
+static int
+test_a_carried_frame_survives_the_scene_json (void)
+{
+  static const uint8_t marker_bits[8] = { 1, 0, 1, 0, 1, 1, 0, 0 };
+
+  static const uint8_t payload_bits[16]
+      = { 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1 };
+
+  wfm_seq_t marker = { 0 };
+  marker.kind      = WFM_SEQ_LITERAL;
+  marker.bits      = marker_bits;
+  marker.len       = 8;
+
+  wfm_seq_t payload = { 0 };
+  payload.kind      = WFM_SEQ_LITERAL;
+  payload.bits      = payload_bits;
+  payload.len       = 16;
+
+  /* A GENERATED field, so the seq marshaling this reuses is exercised too:
+     the parameters cross, not a million-symbol run. */
+  wfm_seq_t code = { 0 };
+  code.kind      = WFM_SEQ_PN;
+  code.len       = 31;
+  code.reg_bits  = 5;
+  code.poly      = 0x12u;
+  code.seed      = 1u;
+  code.lfsr      = 0;
+
+  wfm_frame_desc_t d;
+  memset (&d, 0, sizeof d);
+  DP_REQUIRE_MSG (wfm_frame_add_field (&d, "mark", &marker, 0u) == 0,
+                  "json-frame: add_field mark == 0");
+  DP_REQUIRE_MSG (wfm_frame_add_field (&d, "code", &code, 0u) == 1,
+                  "json-frame: add_field code == 1");
+  DP_REQUIRE_MSG (wfm_frame_add_derived (&d, "check", 16u) == 2,
+                  "json-frame: add_derived check == 2");
+  DP_REQUIRE_MSG (wfm_frame_add_stage (&d, WFM_STAGE_CRC16, "code", "check")
+                      == 0,
+                  "json-frame: add_stage crc16 == 0");
+  /* A kind doppler has NEVER heard of, which is the case a name-only
+     encoding could not carry at all -- the whole reason the wire form takes
+     an integer as well as a name. */
+  DP_REQUIRE_MSG (
+      wfm_frame_add_stage (&d, WFM_STAGE_USER + 1u, "mark", "check") == 1,
+      "json-frame: add_stage user+1 == 1");
+  /* A stage carrying NON-ZERO geometry, and deliberately geometry no assert
+     below reads back field-by-field. That is what gives the byte-identical
+     re-emit something to catch that nothing else here would: a parser that
+     drops "depth" leaves it at its 0 default, the second emit then OMITS the
+     key, and only the string comparison notices. With every uncompared key
+     sitting at 0 the re-emit could not fail, and would be decoration. */
+  DP_REQUIRE_MSG (
+      wfm_frame_add_stage (&d, WFM_STAGE_INTERLEAVE, "mark", "check") == 2,
+      "json-frame: add_stage interleave == 2");
+  d.stage[2].depth     = 4u;
+  d.stage[2].unit_bits = 8u;
+
+  /* BITS rather than BPSK: the spec writes a literal payload back only for
+     a bits source ("pattern"), and a payload that does not survive the round
+     trip would make the reject below fire for the wrong reason. */
+  wfm_source_t src = { .type      = WFM_SYNTH_BITS,
+                       .freq      = 0.0,
+                       .snr       = 40.0,
+                       .snr_mode  = 0,
+                       .seed      = 1,
+                       .sps       = 4,
+                       .pn_length = 7 };
+  /* A framed source needs a payload -- wfm_source_frame_error() refuses one
+     without, and a CARRIED description is framing by the same predicate, so
+     the rule reaches this source exactly as it reaches a flat-framed one. */
+  src.payload = payload;
+  src.frame   = &d;
+  wfm_segment_t seg
+      = { .sources = &src, .n_sources = 1, .fs = 1e6, .num_samples = 256 };
+
+  char *js1 = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
+  DP_REQUIRE_MSG (js1, "json-frame: to_json");
+  DP_REQUIRE_MSG (strstr (js1, "\"frame\""),
+                  "json-frame: the spec carries a \"frame\" key");
+  /* A named kind reads as its name, a caller's own as its number. */
+  DP_REQUIRE_MSG (strstr (js1, "\"crc16\""),
+                  "json-frame: a named kind is written by NAME");
+  DP_REQUIRE_MSG (strstr (js1, "4097"),
+                  "json-frame: a caller's own kind is written as its integer");
+
+  wfm_compose_state_t *c = wfm_compose_from_json (js1);
+  DP_REQUIRE_MSG (c, "json-frame: from_json");
+
+  size_t               n  = 0;
+  int                  rp = 0, ct = 0;
+  const wfm_segment_t *gs = wfm_compose_segments (c, &n, &rp, &ct);
+  DP_REQUIRE_MSG (gs && n == 1 && gs[0].n_sources == 1,
+                  "json-frame: one segment, one source came back");
+  const wfm_frame_desc_t *g = gs[0].sources[0].frame;
+  DP_REQUIRE_MSG (g, "json-frame: the parsed source CARRIES a description");
+
+  DP_REQUIRE_MSG (g->n_fields == d.n_fields && g->n_stages == d.n_stages,
+                  "json-frame: field and stage counts survive");
+  DP_REQUIRE_MSG (strcmp (g->field[0].name, "mark") == 0
+                      && strcmp (g->field[1].name, "code") == 0
+                      && strcmp (g->field[2].name, "check") == 0,
+                  "json-frame: field names survive");
+  DP_REQUIRE_MSG (g->field[0].seq.kind == WFM_SEQ_LITERAL
+                      && g->field[0].seq.len == 8
+                      && memcmp (g->field[0].seq.bits, marker_bits, 8) == 0,
+                  "json-frame: a literal field's BITS survive");
+  DP_REQUIRE_MSG (
+      g->field[1].seq.kind == WFM_SEQ_PN && g->field[1].seq.len == 31
+          && g->field[1].seq.reg_bits == 5 && g->field[1].seq.poly == 0x12u
+          && g->field[1].seq.seed == 1u,
+      "json-frame: a generated field's PARAMETERS survive");
+  DP_REQUIRE_MSG (g->field[2].bits == 16u
+                      && g->field[2].derived_by == d.field[2].derived_by,
+                  "json-frame: a derived field's length and producer survive");
+  DP_REQUIRE_MSG (g->stage[0].kind == WFM_STAGE_CRC16
+                      && g->stage[1].kind == WFM_STAGE_USER + 1u,
+                  "json-frame: both a named and a caller's own kind survive");
+  DP_REQUIRE_MSG (g->stage[0].first_field == d.stage[0].first_field
+                      && g->stage[0].n_fields == d.stage[0].n_fields
+                      && g->stage[1].first_field == d.stage[1].first_field
+                      && g->stage[1].n_fields == d.stage[1].n_fields,
+                  "json-frame: every stage's COVER survives");
+
+  /* The one that catches a key with only one direction wired. */
+  char *js2 = wfm_spec_to_json (gs, n, rp, ct, 0, 0.0);
+  DP_REQUIRE_MSG (js2, "json-frame: re-emit");
+  DP_REQUIRE_MSG (strcmp (js1, js2) == 0,
+                  "json-frame: emit -> parse -> emit is byte-identical");
+
+  free (js2);
+  wfm_compose_destroy (c);
+  free (js1);
+
+  /* Each reject below differs from THIS scene by exactly one thing: the
+     frame defect under test. Asserting the control PARSES is what stops
+     them passing for an unrelated reason -- a framed source with no payload
+     is refused outright, so a frame reject written without one proves
+     nothing about the frame. */
+#define FRAME_SCENE(FR)                                                       \
+  "{\"segments\":[{\"type\":\"bits\",\"fs\":1e6,\"num_samples\":16,"          \
+  "\"pattern\":\"1100101001110001\",\"frame\":" FR "}]}"
+
+  wfm_compose_state_t *ctl = wfm_compose_from_json (
+      FRAME_SCENE ("{\"fields\":[{\"name\":\"a\",\"lit\":\"1010\"}]}"));
+  DP_REQUIRE_MSG (ctl, "json-frame: the control scene parses");
+  wfm_compose_destroy (ctl);
+
+  /* A kind this build does not know is REFUSED, not defaulted -- kind 0 is
+     crc16, so a reader that fell back would turn a typo into a CRC stage. */
+  DP_REQUIRE_MSG (!wfm_compose_from_json (FRAME_SCENE (
+                      "{\"fields\":[{\"name\":\"a\",\"lit\":\"1010\"}],"
+                      "\"stages\":[{\"kind\":\"crc32\",\"n_fields\":1}]}")),
+                  "json-frame: an unknown stage NAME is refused");
+  DP_REQUIRE_MSG (
+      !wfm_compose_from_json (FRAME_SCENE (
+          "{\"fields\":[{\"name\":\"a\",\"lit\":\"1010\","
+          "\"gen\":{\"kind\":\"pn\",\"len\":8,\"reg_bits\":4}}]}")),
+      "json-frame: a field carrying BOTH lit and gen is refused");
+#undef FRAME_SCENE
+
+  printf ("  a carried frame survives the scene json\n");
+  return 0;
+}
+
 int
 main (void)
 {
@@ -3009,6 +3197,8 @@ main (void)
   if (test_the_two_faces_agree ())
     return 1;
   if (test_a_source_carries_the_frame_a_caller_built ())
+    return 1;
+  if (test_a_carried_frame_survives_the_scene_json ())
     return 1;
 
   printf (

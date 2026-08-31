@@ -1,8 +1,9 @@
-"""An UNSPREAD frame: the same descriptor, across all three wfmgen faces.
+"""An UNSPREAD frame: the same descriptor, across all three wfmgen
+interfaces -- Python, the C CLI, and the scene JSON.
 
 ``sync`` / ``acq_code`` / ``acq_reps`` / ``crc`` describe a frame's bit
 layout, and until this change they reached the samples only through
-``type="dsss"``. On every unspread face they were accepted, stored, and
+``type="dsss"``. On every unspread interface they were accepted, stored, and
 readable back — and applied nowhere. ``wfmgen --type bpsk --sync … --crc
 crc16`` exited 0 and produced a waveform byte-identical to the unframed run;
 ``Synth(type="bits", sync=…)`` did the same and handed the sync word back
@@ -14,7 +15,7 @@ wrong about, because nothing looked. So these tests are behavioural
 throughout — never "the flag was accepted", always "the samples moved, and
 moved to the descriptor's own bits".
 
-The three faces are the point. They converge on one construction path
+The three interfaces are the point. They converge on one construction path
 (``wfm_compose_build_synth``), so a frame honoured on one and dropped on
 another is the failure this file exists to catch:
 
@@ -112,11 +113,11 @@ def _cli_frame_args(framed: bool, count: int) -> list[str]:
     return args
 
 
-# ── the composer face ────────────────────────────────────────────────────────
+# ── the Python interface ─────────────────────────────────────────────────────
 
 
 def test_a_frame_changes_the_composed_waveform():
-    """The assertion whose absence was the defect, at the documented face."""
+    """The assertion whose absence was the defect, at the documented API."""
     n = NBITS * SPS
     assert not np.array_equal(_compose(False, n), _compose(True, n))
 
@@ -170,7 +171,7 @@ def test_a_frame_the_type_cannot_carry_is_refused(wtype):
         Composer([Segment(**kw)]).compose()
 
 
-# ── the CLI face ─────────────────────────────────────────────────────────────
+# ── the C CLI ────────────────────────────────────────────────────────────────
 
 
 def test_the_cli_frame_flags_reach_the_samples(tmp_path):
@@ -184,8 +185,8 @@ def test_the_cli_frame_flags_reach_the_samples(tmp_path):
 
 
 def test_the_cli_and_the_composer_agree(tmp_path):
-    """Same description, same bytes. Two faces that disagree are worse than
-    one face that is wrong, because nothing says which to believe."""
+    """Same description, same bytes. Two interfaces that disagree are worse
+    than one that is wrong, because nothing says which to believe."""
     n = NBITS * SPS
     p, out = _cli(_cli_frame_args(True, n), tmp_path)
     assert p.returncode == 0, p.stderr
@@ -309,3 +310,70 @@ def test_an_unframed_record_stays_unframed(tmp_path):
     p2, out2 = _cli(["--from-file", str(rec)], tmp_path, "b.dat")
     assert p2.returncode == 0, p2.stderr
     assert out2.read_bytes() == out.read_bytes()
+
+
+# ── a frame the CALLER built, reaching Python through the scene JSON ─────────
+
+
+def _carried(with_frame: bool) -> np.ndarray:
+    """The same scene, differing only in whether it carries a description."""
+    seg = {
+        "type": "bits",
+        "fs": FS,
+        "sps": SPS,
+        "modulation": "bpsk",
+        "pattern": _bits(PAYLOAD),
+        "num_samples": (len(SYNC) + len(PAYLOAD)) * SPS,
+    }
+    if with_frame:
+        seg["frame"] = {
+            "fields": [
+                {"name": "sync", "lit": _bits(SYNC)},
+                {"name": "payload", "lit": _bits(PAYLOAD)},
+            ]
+        }
+    return np.asarray(
+        Composer.from_json(json.dumps({"segments": [seg]})).compose()
+    )
+
+
+def test_python_reaches_a_carried_frame_with_no_new_binding():
+    """The whole point of the ``frame`` key, demonstrated end to end.
+
+    ``Segment`` is jm-generated and jm has no field type that accepts another
+    extension object, so ``Segment(frame=FrameDesc(...))`` cannot be declared.
+    It does not need to be: ``Composer.from_json`` is the same C code
+    ``wfmgen --from-file`` runs, so a description crosses into Python through
+    the scene JSON and needs no binding of its own.
+
+    Behavioural, per this file's own rule — not "the key was accepted" but
+    "the samples moved". A carried frame puts the sync word on the wire ahead
+    of the payload, which an unframed scene does not.
+    """
+    assert not np.array_equal(_carried(False), _carried(True))
+
+
+def test_a_carried_frame_survives_the_python_round_trip():
+    """It goes back OUT again, so a scene read and re-written keeps its frame.
+
+    The reader and the writer are separate functions in ``wfm_json.c``; a
+    description that parsed but did not re-emit would make ``from_json`` ->
+    ``to_json`` quietly drop the frame, and the next ``--from-file`` of that
+    output would rebuild the derived one.
+    """
+    seg = {
+        "type": "bits",
+        "fs": FS,
+        "sps": SPS,
+        "modulation": "bpsk",
+        "pattern": _bits(PAYLOAD),
+        "num_samples": (len(SYNC) + len(PAYLOAD)) * SPS,
+        "frame": {"fields": [{"name": "sync", "lit": _bits(SYNC)}]},
+    }
+    once = Composer.from_json(json.dumps({"segments": [seg]})).to_json()
+    got = json.loads(once)["segments"][0]["frame"]
+    assert got["fields"][0]["name"] == "sync"
+    assert got["fields"][0]["lit"] == _bits(SYNC)
+    # And again, so the second pass is a fixed point rather than a decay.
+    twice = Composer.from_json(once).to_json()
+    assert json.loads(twice)["segments"][0]["frame"] == got

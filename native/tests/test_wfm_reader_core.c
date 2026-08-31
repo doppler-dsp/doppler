@@ -9,6 +9,7 @@
 
 #include <complex.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1405,6 +1406,294 @@ test_scalar_round_trips_through_our_own_writer (void)
   return 0;
 }
 
+/* ── the surface the PYTHON BINDING calls, which is the one nothing tests
+ *
+ * Inventory against wfm_reader_core.h. Fifteen entry points had zero
+ * mentions in any C test in the tree, and they are not a random fifteen:
+ * they are almost exactly the set the generated binding uses.
+ *
+ *   metadata   the C suite reads it through wfm_reader_info(), which fills
+ *              its struct from r->file_type, r->fs, r->fc, r->mode,
+ *              r->endian DIRECTLY. `Reader.fs`, `.fc`, `.file_type`,
+ *              `.sample_type`, `.mode`, `.endian` and `.num_samples` each
+ *              go through a wfm_reader_get_* accessor instead. Two
+ *              independent readers of one state, and only one was
+ *              exercised: a transposed accessor would leave all 1473 lines
+ *              of this file green and every Python property wrong.
+ *
+ *   maps       the C suite uses the find_* lookups; `Reader.keywords` and
+ *              `Reader.header` ITERATE, through wfm_reader_num_keywords /
+ *              _keyword_tag and _num_header_fields / _header_tag /
+ *              _header_field. wfm_reader_ext_wfm_reader.c:827 and :991 are
+ *              the call sites. None of the four enumerators was tested.
+ *
+ * So the sections below score the accessors against what was WRITTEN --
+ * an external truth, not the other reader -- and then require the two
+ * readers to agree, with a precondition that the values are not defaults
+ * so the agreement cannot be vacuous.
+ */
+static int
+test_the_accessor_surface (void)
+{
+  const char  *path = "dp_rd_acc.blue";
+  const double FS = 2.4e6, FC = 1.42e9;
+  float _Complex x[N];
+  make_signal (x, N);
+
+  /* ── written -> read back, through the accessors only ─────────────── */
+  {
+    remove (path);
+    wfm_writer_state_t *w = wfm_writer_create (path, FS, WFM_FT_BLUE, 3, 0, FC,
+                                               0, 0.0, 0.0, false);
+    DP_REQUIRE_MSG (w, "accessors: writer");
+    DP_REQUIRE_MSG (wfm_writer_write (w, x, N) == N, "accessors: write");
+    DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "accessors: close");
+
+    wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
+    DP_REQUIRE_MSG (r, "accessors: reader");
+    /* every one of these is a distinct field, so a transposed pair shows */
+    DP_REQUIRE_MSG (wfm_reader_get_file_type (r) == WFM_FT_BLUE,
+                    "get_file_type is the type detected from the content");
+    DP_REQUIRE_MSG (wfm_reader_get_sample_type (r) == 3,
+                    "get_sample_type is the ci16 the writer declared");
+    DP_REQUIRE_MSG (wfm_reader_get_mode (r) == WFM_MODE_COMPLEX,
+                    "get_mode is complex for a C-mode BLUE file");
+    DP_REQUIRE_MSG (wfm_reader_get_endian (r) == 0, "get_endian is le");
+    DP_REQUIRE_MSG (dp_near (wfm_reader_get_fs (r), FS, 1e-6),
+                    "get_fs is the rate written, via BLUE xdelta");
+    DP_REQUIRE_MSG (dp_near (wfm_reader_get_fc (r), FC, 1e-3),
+                    "get_fc is the centre frequency written");
+    DP_REQUIRE_MSG (wfm_reader_get_num_samples (r) == N,
+                    "get_num_samples is the count written");
+    /* fs and fc are DIFFERENT numbers here on purpose: 2.4e6 against
+       1.42e9. A getter returning its neighbour's field is a swap this
+       catches and a same-valued fixture would not. */
+    DP_REQUIRE_MSG (wfm_reader_get_fs (r) != wfm_reader_get_fc (r),
+                    "precondition: the two rates are distinguishable");
+    wfm_reader_destroy (r);
+  }
+
+  /* ── the two readers must agree, and not vacuously ────────────────── */
+  {
+    wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
+    DP_REQUIRE_MSG (r, "agree: reader");
+    wfm_reader_info_t info;
+    wfm_reader_info (r, &info);
+    /* precondition first: an all-zero info would satisfy every comparison
+       below against an all-zero accessor set. */
+    DP_REQUIRE_MSG (info.fs != 0.0 && info.fc != 0.0 && info.num_samples != 0,
+                    "precondition: info carries non-default values");
+    DP_REQUIRE_MSG (info.file_type == wfm_reader_get_file_type (r),
+                    "info.file_type == get_file_type");
+    DP_REQUIRE_MSG (info.sample_type == wfm_reader_get_sample_type (r),
+                    "info.sample_type == get_sample_type");
+    DP_REQUIRE_MSG (info.mode == wfm_reader_get_mode (r),
+                    "info.mode == get_mode");
+    DP_REQUIRE_MSG (info.endian == wfm_reader_get_endian (r),
+                    "info.endian == get_endian");
+    DP_REQUIRE_MSG (info.fs == wfm_reader_get_fs (r), "info.fs == get_fs");
+    DP_REQUIRE_MSG (info.fc == wfm_reader_get_fc (r), "info.fc == get_fc");
+    DP_REQUIRE_MSG (info.num_samples == wfm_reader_get_num_samples (r),
+                    "info.num_samples == get_num_samples");
+    DP_REQUIRE_MSG (info.fc_source == wfm_reader_get_fc_source (r),
+                    "info.fc_source == get_fc_source");
+    DP_REQUIRE_MSG (info.fs_source == wfm_reader_get_fs_source (r),
+                    "info.fs_source == get_fs_source");
+    DP_REQUIRE_MSG (info.t0_source == wfm_reader_get_t0_source (r),
+                    "info.t0_source == get_t0_source");
+    DP_REQUIRE_MSG (info.trailing_bytes == wfm_reader_get_trailing_bytes (r),
+                    "info.trailing_bytes == get_trailing_bytes");
+    DP_REQUIRE_MSG (info.t0_unix_sec == wfm_reader_get_t0 (r),
+                    "info.t0_unix_sec == get_t0");
+    wfm_reader_destroy (r);
+    remove (path);
+  }
+
+  /* ── provenance: fc 0.0 must be distinguishable from fc not found ──
+   *
+   * The header is explicit that this is the whole point -- "a genuine
+   * baseband capture and a capture whose frequency this library failed to
+   * find are otherwise indistinguishable" -- and get_fc_source had zero
+   * mentions. Two captures, same fc == 0.0, different answers. */
+  {
+    const char *named = "dp_rd_src_named.blue";
+    const char *bare  = "dp_rd_src_bare.raw";
+    remove (named);
+    remove (bare);
+
+    wfm_writer_state_t *w = wfm_writer_create (named, 1e6, WFM_FT_BLUE, 3, 0,
+                                               0.0, 0, 0.0, 0.0, false);
+    DP_REQUIRE_MSG (w, "provenance: blue writer");
+    DP_REQUIRE_MSG (wfm_writer_write (w, x, 64) == 64, "provenance: write");
+    DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "provenance: close");
+
+    /* a headerless raw file carries no metadata at all */
+    wfm_writer_state_t *b = wfm_writer_create (bare, 1e6, WFM_FT_RAW, 3, 0,
+                                               0.0, 0, 0.0, 0.0, false);
+    DP_REQUIRE_MSG (b, "provenance: raw writer");
+    DP_REQUIRE_MSG (wfm_writer_write (b, x, 64) == 64, "provenance: write2");
+    DP_REQUIRE_MSG (wfm_writer_close (b) == 0, "provenance: close2");
+
+    wfm_reader_state_t *rn = wfm_reader_create (named, 0, 0);
+    wfm_reader_state_t *rb = wfm_reader_create (bare, 3, 0);
+    DP_REQUIRE_MSG (rn && rb, "provenance: readers");
+    /* both report 0.0, which is exactly why the SOURCE has to differ */
+    DP_REQUIRE_MSG (wfm_reader_get_fc (rn) == 0.0
+                        && wfm_reader_get_fc (rb) == 0.0,
+                    "precondition: both centre frequencies read 0.0");
+    DP_REQUIRE_MSG (wfm_reader_get_fs_source (rn) == WFM_FS_BLUE_XDELTA,
+                    "a BLUE capture says its rate came from xdelta");
+    DP_REQUIRE_MSG (wfm_reader_get_fs_source (rb) == WFM_FS_NONE,
+                    "a headerless raw one says nothing carried a rate");
+    DP_REQUIRE_MSG (wfm_reader_get_fs (rb) == 0.0,
+                    "and so its rate is 0.0, not a guess");
+    /* doppler's own BLUE writer leaves the timecode zero: that must read
+       as NONE, or every capture it writes dates to 1950. */
+    DP_REQUIRE_MSG (wfm_reader_get_t0_source (rn) == WFM_T0_NONE,
+                    "an unset BLUE timecode is NONE, never 1950");
+    DP_REQUIRE_MSG (wfm_reader_get_t0 (rn) == 0.0, "and t0 is 0.0");
+    wfm_reader_destroy (rn);
+    wfm_reader_destroy (rb);
+    remove (named);
+    remove (bare);
+  }
+  return 0;
+}
+
+/* ── the ITERATORS Reader.keywords and Reader.header are built from ──────
+ *
+ * The C suite reaches keywords and header fields through the find_*
+ * lookups; the binding ITERATES with the index-based enumerators, and all
+ * four of those were untested. The check is that enumerating recovers
+ * exactly what looking up does -- every tag present, each resolving to the
+ * same record -- because that equivalence is what makes the dict the
+ * binding builds a faithful view rather than a plausible one.
+ */
+static int
+test_the_enumerators (void)
+{
+  const char *path = "dp_rd_enum.blue";
+  float _Complex x[N];
+  make_signal (x, N);
+  remove (path);
+
+  wfm_writer_state_t *w = wfm_writer_create (path, 1e6, WFM_FT_BLUE, 3, 0, 0.0,
+                                             0, 0.0, 0.0, false);
+  DP_REQUIRE_MSG (w, "enum: writer");
+  DP_REQUIRE_MSG (wfm_writer_write (w, x, N) == N, "enum: write");
+  if (attach_keywords (w))
+    return 1;
+  DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "enum: close");
+
+  wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
+  DP_REQUIRE_MSG (r, "enum: reader");
+
+  /* keywords: every index yields a tag, and that tag finds the SAME record
+     the enumerator returned. A tag that enumerated but did not resolve is
+     the failure the binding would turn into a KeyError. */
+  size_t nk = wfm_reader_num_keywords (r);
+  DP_REQUIRE_MSG (nk == 7, "enum: the seven keywords written are there");
+  for (size_t i = 0; i < nk; i++)
+    {
+      const char *tag = wfm_reader_keyword_tag (r, i);
+      DP_REQUIRE_MSG (tag && *tag, "keyword_tag is a non-empty tag");
+      const wfm_keyword_t *by_index = wfm_reader_keyword (r, i);
+      const wfm_keyword_t *by_tag   = wfm_reader_find_keyword (r, tag);
+      DP_REQUIRE_MSG (by_index && by_tag,
+                      "both the index and the tag resolve");
+      DP_REQUIRE_MSG (by_index == by_tag,
+                      "enumerating and looking up reach the same record");
+    }
+  /* Out of range is NULL for the RECORD accessor, which documents exactly
+     that. The TAG accessor deliberately does not check: its doc comment says
+     jm's dict loop only ever calls it for [0, num_keywords), so the bound is
+     the caller's. Asserted as the contract reads rather than as one might
+     wish it read -- calling the tag form out of range here would be the test
+     performing the undefined behaviour it is meant to be describing. See F2.
+   */
+  DP_REQUIRE_MSG (wfm_reader_keyword (r, nk) == NULL,
+                  "keyword past the end is NULL, as documented");
+
+  /* header fields: the same three questions over the other map */
+  size_t nh = wfm_reader_num_header_fields (r);
+  DP_REQUIRE_MSG (nh > 0, "a BLUE capture exposes header fields");
+  for (size_t i = 0; i < nh; i++)
+    {
+      const char *tag = wfm_reader_header_tag (r, i);
+      DP_REQUIRE_MSG (tag && *tag, "header_tag is a non-empty tag");
+      const wfm_keyword_t *by_index = wfm_reader_header_field (r, i);
+      const wfm_keyword_t *by_tag   = wfm_reader_find_header_field (r, tag);
+      DP_REQUIRE_MSG (by_index && by_tag,
+                      "both the index and the tag resolve");
+      DP_REQUIRE_MSG (by_index == by_tag,
+                      "enumerating and looking up reach the same field");
+    }
+  DP_REQUIRE_MSG (wfm_reader_header_field (r, nh) == NULL,
+                  "header_field past the end is NULL, as documented");
+
+  /* the two maps are DISTINCT: a header field is not a keyword. Without
+     this, one map aliased onto the other would satisfy everything above. */
+  DP_REQUIRE_MSG (wfm_reader_find_keyword (r, wfm_reader_header_tag (r, 0))
+                      == NULL,
+                  "a header tag is not also a keyword");
+
+  wfm_reader_destroy (r);
+  remove (path);
+  return 0;
+}
+
+/* ── the follow knobs, and read_follow_max_out ──────────────────────────
+ *
+ * get_follow_timeout_ms, get_follow_grace_ms and read_follow_max_out had
+ * zero mentions; only the timeout SETTER was used. A setter tested without
+ * its getter cannot tell a stored value from a discarded one.
+ */
+static int
+test_the_follow_knobs (void)
+{
+  const char *path = "dp_rd_follow.blue";
+  float _Complex x[N];
+  make_signal (x, N);
+  remove (path);
+  wfm_writer_state_t *w = wfm_writer_create (path, 1e6, WFM_FT_BLUE, 3, 0, 0.0,
+                                             0, 0.0, 0.0, false);
+  DP_REQUIRE_MSG (w, "follow: writer");
+  DP_REQUIRE_MSG (wfm_writer_write (w, x, N) == N, "follow: write");
+  DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "follow: close");
+
+  wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
+  DP_REQUIRE_MSG (r, "follow: reader");
+
+  /* defaults are readable before anything is set */
+  uint32_t t0 = wfm_reader_get_follow_timeout_ms (r);
+  uint32_t g0 = wfm_reader_get_follow_grace_ms (r);
+  wfm_reader_set_follow_timeout_ms (r, t0 + 137u);
+  DP_REQUIRE_MSG (wfm_reader_get_follow_timeout_ms (r) == t0 + 137u,
+                  "the follow timeout reads back what was set");
+  DP_REQUIRE_MSG (wfm_reader_get_follow_grace_ms (r) == g0,
+                  "and setting the timeout leaves the grace alone");
+  wfm_reader_set_follow_grace_ms (r, g0 + 29u);
+  DP_REQUIRE_MSG (wfm_reader_get_follow_grace_ms (r) == g0 + 29u,
+                  "the grace reads back what was set");
+  DP_REQUIRE_MSG (wfm_reader_get_follow_timeout_ms (r) == t0 + 137u,
+                  "and the timeout is still what it was -- two knobs, "
+                  "not one aliased pair");
+
+  /* the capacity accessors are the identity, including at 0 */
+  DP_REQUIRE_MSG (wfm_reader_read_max_out (r, 0) == 0,
+                  "read_max_out (0) is 0");
+  DP_REQUIRE_MSG (wfm_reader_read_max_out (r, 4096) == 4096,
+                  "read_max_out is the identity");
+  DP_REQUIRE_MSG (wfm_reader_read_follow_max_out (r, 0) == 0,
+                  "read_follow_max_out (0) is 0");
+  DP_REQUIRE_MSG (wfm_reader_read_follow_max_out (r, 4096) == 4096,
+                  "read_follow_max_out is the identity");
+
+  wfm_reader_destroy (r);
+  remove (path);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1467,6 +1756,12 @@ main (void)
   if (test_flush_makes_samples_observable ())
     return 1;
   if (test_scalar_round_trips_through_our_own_writer ())
+    return 1;
+  if (test_the_accessor_surface ())
+    return 1;
+  if (test_the_enumerators ())
+    return 1;
+  if (test_the_follow_knobs ())
     return 1;
   printf ("test_wfm_reader: all passed\n");
   return 0;

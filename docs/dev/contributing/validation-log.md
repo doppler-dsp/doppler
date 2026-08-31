@@ -60,7 +60,7 @@ There is no list here to update.
 
 <!-- validation-log:start -->
 
-**30 objects certified** — 20 of the 79 `objects/*.toml` jm fragments, plus 10 with no object manifest at all (`ccsds_tm`, `conv`, `detection`, `ema`, `mpsk`, `resamp`, `rs`, `wfm_compose`, `wfm_frame`, `wfm_plan`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
+**31 objects certified** — 21 of the 79 `objects/*.toml` jm fragments, plus 10 with no object manifest at all (`ccsds_tm`, `conv`, `detection`, `ema`, `mpsk`, `resamp`, `rs`, `wfm_compose`, `wfm_frame`, `wfm_plan`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
 
 | object                                                                                                                                 | module       | limits | findings | still open                 |
 | -------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------ | -------- | -------------------------- |
@@ -85,6 +85,7 @@ There is no list here to update.
 | [MpskReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/mpsk_receiver/results.md)           | `track`      | 63/63  | 8        | 2 — F6, F7                 |
 | [RateSync](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/ratesync/results.md)                    | `track`      | 36/36  | 17       | 2 — F7, F17                |
 | [EMA](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/util/tests/validation/ema/results.md)                               | `util`       | 15/15  | 6        | none                       |
+| [PN](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/pn/results.md)                                  | `wfm`        | 16/16  | 4        | none                       |
 | [Composer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_compose/results.md)                   | `wfm`        | 15/15  | 4        | none                       |
 | [Frame](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_frame/results.md)                        | `wfm`        | 16/16  | 4        | 1 — F2                     |
 | [Plan](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_plan/results.md)                          | `wfm`        | 17/17  | 4        | 2 — F1, F2                 |

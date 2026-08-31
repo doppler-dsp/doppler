@@ -690,7 +690,8 @@ class Gold:
     two m-sequences form a genuine "preferred pair" — their XOR family has a
     strict three-valued periodic autocorrelation/cross-correlation set ``{-1,
     -65, 63}`` — so varying ``seed_a`` (User dependent per the standard) walks
-    the whole 2**length -member Gold-code family while Register B stays fixed.
+    the 2**length-1 XOR members of the Gold-code family while Register B stays
+    fixed.
 
     Parameters
     ----------
@@ -700,8 +701,9 @@ class Gold:
         Register A polynomial x^10+x^9+x^8+x^6+x^3+x^2+1).
     seed_a : int, default 350
         Register A initial value; must be non-zero. Per CCSDS this is "User
-        dependent" — any nonzero value selects a different member of the
-        1024-code Gold family. Default 350 is the worked example from CCSDS
+        dependent" — each of the 2^length-1 nonzero values selects a different
+        member of the family (1023 distinct codes at length=10, verified in
+        test_gold_core.c). Default 350 is the worked example from CCSDS
         415.0-G-1 Figure 5-2 (PN Code Library Table 1, Code Number 365).
     taps_b : int, default 567
         Register B feedback-tap mask, same bit convention as ``taps_a``.

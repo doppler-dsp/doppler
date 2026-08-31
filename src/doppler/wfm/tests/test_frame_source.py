@@ -33,7 +33,7 @@ import subprocess
 import numpy as np
 import pytest
 
-from doppler.wfm import Composer, Segment, cli, crc16
+from doppler.wfm import Composer, FrameDesc, Segment, cli, crc16
 
 SPS = 4
 FS = 1e6
@@ -377,3 +377,45 @@ def test_a_carried_frame_survives_the_python_round_trip():
     # And again, so the second pass is a fixed point rather than a decay.
     twice = Composer.from_json(once).to_json()
     assert json.loads(twice)["segments"][0]["frame"] == got
+
+
+# ── waiting on just-makeit#1224 ─────────────────────────────────────────────
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "just-makeit#1224: an init_param/field cannot take another generated "
+        "object, so `frame=` cannot be declared on Segment. Strict on "
+        "purpose -- when jm ships it AND objects/… declares the field, this "
+        "XPASSes and fails CI until the marker is removed, which is how the "
+        "adoption announces itself instead of waiting to be remembered."
+    ),
+)
+def test_segment_takes_a_framedesc_directly():
+    """The ergonomic form, and the exact bar its adoption has to clear.
+
+    `FrameDesc` is already generated and `Composer.from_json` already carries
+    a description into C, so nothing here is a new capability -- this is
+    sugar over the path `test_python_reaches_a_carried_frame_with_no_new_
+    binding` pins. That is why the assertion is not "it does not raise" but
+    "it renders the SAME bytes as the JSON route": sugar that produces a
+    different waveform from the interchange it wraps is worse than no sugar.
+
+    Do not delete the JSON tests when this passes. The scene JSON is the
+    interchange -- it is what `wfmgen --from-file` eats and what a recorded
+    capture replays through -- and this only spares a caller from spelling
+    it. Deleting them would retire the thing being wrapped.
+    """
+    desc = FrameDesc(np.zeros(0, np.uint8), SYNC, PAYLOAD, crc="none")
+    seg = Segment(
+        type="bits",
+        fs=FS,
+        sps=SPS,
+        modulation="bpsk",
+        bits=PAYLOAD.tobytes(),
+        num_samples=(len(SYNC) + len(PAYLOAD)) * SPS,
+        frame=desc,
+    )
+    direct = np.asarray(Composer([seg]).compose())
+    assert np.array_equal(direct, _carried(True))

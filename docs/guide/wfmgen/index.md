@@ -43,27 +43,46 @@ Everything else follows from that. Sources stack *upwards* — several playing
 at once, into one receiver, over one span, sharing one noise floor. Segments
 lay out *rightwards* — one span after another in time.
 
+Read the diagram below **left to right as the sample clock**. It is one scene
+of 7168 samples, and every object in the model appears in it exactly where it
+does its work.
+
 ```mermaid
 flowchart LR
-    subgraph S1["<b>Segment 1</b> — 4096 on, 1024 off"]
+    subgraph SEG1["<b>Segment</b> · samples 0—4095"]
         direction TB
-        a1["source · <b>qpsk</b><br/>the signal"]
-        a2["source · <b>tone</b><br/>an interferer"]
-        a3["source · <b>noise</b><br/>the floor"]
+        q["<b>Synth</b> · qpsk<br/>the signal"]
+        t["<b>Synth</b> · tone<br/>an interferer"]
+        n["<b>Synth</b> · noise<br/>the floor"]
     end
-    subgraph S2["<b>Segment 2</b> — 2048 on"]
+    GAP["its trailing gap<br/>4096—5119<br/><i>keeps the noise floor</i>"]
+    subgraph SEG2["<b>Segment</b> · samples 5120—7167"]
         direction TB
-        b1["source · <b>chirp</b>"]
+        c["<b>Synth</b> · chirp"]
     end
-    S1 -->|"next in time"| S2
+    SEG1 -->|"off_samples"| GAP
+    GAP -->|"<b>.add()</b> — next in time"| SEG2
+    SEG2 --> COMP["<b>Composer</b><br/>press play"]
+    COMP --> IQ[("7168 samples<br/>complex64 I/Q")]
+    COMP -. "prepare()" .-> PLAN["<b>Plan</b><br/>render once, then<br/>re-weight per sweep point"]
 
-    classDef sig fill:#ede7f6,stroke:#5e35b1,color:#000;
-    class a1,a2,a3,b1 sig;
+    classDef synth stroke-width:3px;
+    class q,t,n,c synth;
 ```
 
-Stacked inside one box = **summed**, at the same instant. Box after box =
-**sequenced**, one after the other. Those are the only two ways to combine
-anything here, and they are the two verbs `.sum()` and `.add()`.
+Everything the model has is in that one picture:
+
+- **Stacked inside a box** = **summed**, at the same instant, sharing one
+    noise floor — that is `.sum()`, and each stacked box is a **`Synth`**.
+- **A box** is a **`Segment`**: a span of samples, plus the trailing gap that
+    follows it.
+- **Box after box, left to right** = **sequenced** in time — that is `.add()`,
+    and the whole row is the **`Timeline`**.
+- The **`Composer`** at the right-hand end turns the row into samples;
+    the dashed branch is [`Plan`](scenes.md#prepare-once-sweep-many-plan), a
+    cache for when you need the same scene many times over.
+
+Summing and sequencing are the only two ways to combine anything here.
 
 ### The same thing has four names
 
@@ -94,32 +113,9 @@ layer is an object, and they stack in a fixed ladder:
 
 **`Synth` → `Segment` → `Timeline` → `Composer` → samples.**
 
-```mermaid
-flowchart TB
-    y1["<b>Synth</b> — qpsk · signal"]
-    y2["<b>Synth</b> — tone · interferer"]
-    y3["<b>Synth</b> — noise · the floor"]
-    subgraph TL["<b>Timeline</b> — segments in TIME →"]
-        direction LR
-        A["<b>Segment A</b><br/>one span · one noise floor"] -->|".add()"| B["Segment B<br/>+ trailing gap"] -->|".add()"| C["…"]
-    end
-    y1 & y2 & y3 -->|".sum()"| A
-    TL --> COMP["<b>Composer</b> — press play"]
-    COMP -->|"compose()"| IQ[("complex64 I/Q")]
-
-    TL -. "prepare()" .-> PLAN["<b>Plan</b><br/>render each source once · cache"]
-    PLAN -. "render(θ) · at(snr, seed)" .-> SWEEP[("I/Q ·<br/>one per sweep point")]
-
-    classDef syn fill:#ede7f6,stroke:#5e35b1,color:#000;
-    classDef plan fill:#e8f5e9,stroke:#2e7d32,color:#000;
-    class y1,y2,y3 syn;
-    class PLAN,SWEEP plan;
-```
-
-Three Synths mix **at once** into Segment A (`.sum` — one column, one noise
-floor); Segments line up **in time** into a Timeline (`.add` — one row); the
-Composer presses play. The dashed branch is [`Plan`](scenes.md#prepare-once-sweep-many-plan),
-a cache over a finished scene for when you need that scene many times.
+That is the timeline above, read as a list of objects rather than as a span of
+time — the same four boxes, and each layer adds exactly one thing the layer
+below it has no opinion about:
 
 | Object         | Is                                                                                                 | Adds                                        | Analogy                                                           |
 | -------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------- |

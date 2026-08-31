@@ -258,8 +258,8 @@ flowchart LR
     SEG -- ".add(B, …)" --> sA
     TL --> COMP["Composer(…).compose()"] --> IQ[("complex64 I/Q")]
 
-    classDef syn fill:#ede7f6,stroke:#5e35b1,color:#000;
-    classDef seg fill:#e3f2fd,stroke:#1565c0,color:#000;
+    classDef syn stroke-width:3px;
+    classDef seg stroke-width:3px,stroke-dasharray:4 2;
     class y1,y2,y3 syn;
     class sA,sB,sC seg;
 ```

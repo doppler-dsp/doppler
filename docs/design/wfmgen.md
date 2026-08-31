@@ -30,16 +30,39 @@ ______________________________________________________________________
 
 ## Waveforms: Defining Terms
 
-Five terms carry the whole design, and the rest of this page assumes them.
-The last column is where each one lives in the code.
+A scene is built as a ladder, each rung wrapping the one above it:
 
-| term             | is                                                                                                                                    | in C                                    |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| **source**       | one emitter — a waveform type plus its frequency, level, SNR, framing and impairments                                                 | `wfm_source_t`                          |
-| **segment**      | one or more sources summed together over a fixed duration, at one sample rate, with optional leading delay and trailing gap           | `wfm_segment_t`                         |
-| **scene**        | the concatenation of all segments plus the global options (repeat, continuous, seed advance, headroom) — the full waveform definition | a `wfm_segment_t[]` plus those flags    |
-| **instance**     | one particular playing of a segment                                                                                                   | the composer's `instance` counter       |
-| **ranged field** | a field given `[lo, hi]` instead of one number, and re-picked at random for every instance                                            | a `_hi` companion + a `WFM_RANGE_*` bit |
+```text
+  tone() · bpsk() · qpsk() · pn() · noise() · chirp() · bits()
+                        │  factories, each returning a Synth
+                        ▼
+   Synth  ── one source ──────────────── .steps(n) ──►  samples
+     │
+     │  Segment(...) or Segment.sum(synth, ...)
+     ▼
+  Segment ── sources summed over a fixed duration
+     │
+     │  .add(segment, ...)
+     ▼
+  Timeline ── segments in sequence
+     │
+     │  Composer(timeline | segment | [segment, ...])
+     ▼
+  Composer ── the whole scene ────────── .compose() ──►  samples
+```
+
+Either end renders: a `Synth` on its own for a single source, a `Composer`
+for the whole scene. Five terms name the rungs, and the rest of this page
+assumes them. The last two columns are where each one lives, so the
+vocabulary and the API are defined together rather than a page apart.
+
+| term             | is                                                                                                                                    | in C                                    | in Python                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ---------------------------------------------- |
+| **source**       | one emitter — a waveform type plus its frequency, level, SNR, framing and impairments                                                 | `wfm_source_t`                          | `Synth`                                        |
+| **segment**      | one or more sources summed together over a fixed duration, at one sample rate, with optional leading delay and trailing gap           | `wfm_segment_t`                         | `Segment`                                      |
+| **scene**        | the concatenation of all segments plus the global options (repeat, continuous, seed advance, headroom) — the full waveform definition | a `wfm_segment_t[]` plus those flags    | a `Timeline` (or list) plus `Composer`'s flags |
+| **instance**     | one particular playing of a segment                                                                                                   | the composer's `instance` counter       | the `repeats` argument                         |
+| **ranged field** | a field given `[lo, hi]` instead of one number, and re-picked at random for every instance                                            | a `_hi` companion + a `WFM_RANGE_*` bit | a `(lo, hi)` tuple                             |
 
 ______________________________________________________________________
 
@@ -81,16 +104,16 @@ result derived through it. It currently has neither.
 
 Users first — the internal rows are real, but they are not why it exists.
 
-| who                          | with what                                              | what they do with the answer                                          |
-| ---------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------- |
-| Someone who needs a waveform | `wfmgen --type qpsk --snr 12 -o capture.cf32`          | feeds a receiver, a lab instrument, or another tool                   |
-| A C application              | `wfm_compose_create()` -> `_execute()` -> `_destroy()` | pulls IQ straight into its own buffer, no Python in the process       |
-| A field/interop test         | `wfmgen … -o capture.sigmf`                            | hands a real file to another tool, with metadata saying what is in it |
-| A live consumer              | `wfmgen --realtime -o nats://…`                        | wall-clock pacing, here to NATS but available to any sink             |
-| A bug report                 | `--record scene.json`                                  | replays someone else's exact waveform byte-for-byte                   |
-| A receiver test              | `Composer([...]).compose()` in-process                 | scores demod/BER against truth it also gets from the scene            |
-| A Monte-Carlo sweep          | `Plan.prepare()` then `.at(snr)`                       | re-weights a cached render instead of re-synthesising                 |
-| A validation report          | a scene declared once, swept                           | measures a limit that goes in a certified envelope                    |
+| who | with what | what they do with the answer |
+| \--- | --- | --- | --- |
+| Someone who needs a waveform | `wfmgen --type qpsk --snr 12 -o capture.cf32` | feeds a receiver, a lab instrument, or another tool |
+| A C application | `wfm_compose_create()` -> `_execute()` -> `_destroy()` | pulls IQ straight into its own buffer, no Python in the process |
+| A field/interop test | `wfmgen … -o capture.sigmf` | hands a real file to another tool, with metadata saying what is in it |
+| A live consumer | `wfmgen --realtime -o nats://…` | wall-clock pacing, here to NATS but available to any sink |
+| A bug report | `--record scene.json` | replays someone else's exact waveform byte-for-byte |
+| A receiver test | `Composer([...]).compose()` in-process | scores demod/BER against truth it also gets from the scene |
+| A Monte-Carlo sweep | `Plan.prepare()` then `.at(snr)` | re-weights a cached render instead of re-synthesising |
+| A validation report | a scene declared once, swept | measures a limit that goes in a certified envelope |
 
 The `--record` row shapes the design most: **a scene is a value**, not a
 script. Anything a run can be told must be expressible in the JSON a

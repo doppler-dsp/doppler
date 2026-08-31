@@ -39,10 +39,13 @@ wfm_source_has_frame (const wfm_source_t *src)
      the payload unframed; and for a LITERAL, a length with no array is an
      unbuildable descriptor that must REACH `wfm_frame_assemble` to be
      refused there rather than be silently dropped here. */
+  /* A carried description is the frame, whatever the flat fields say --
+     they are sugar for building one, so a source that already has one does
+     not need them consulted. */
   return src
-         && ((src->acq_code.len && src->acq_reps) || src->sync.len
-             || src->attach_asm || src->rs_depth || src->interleave_depth
-             || src->randomise || src->convolutional);
+         && (src->frame != NULL || (src->acq_code.len && src->acq_reps)
+             || src->sync.len || src->attach_asm || src->rs_depth
+             || src->interleave_depth || src->randomise || src->convolutional);
 }
 
 static int type_can_frame (const wfm_source_t *src);
@@ -170,6 +173,15 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
 {
   if (!src || !d)
     return -1;
+
+  /* A caller-supplied description IS the frame. Copied rather than aliased
+     so the caller may reuse or free their own; the SEQUENCES it points at
+     are still borrowed, on the same terms as everywhere else here. */
+  if (src->frame)
+    {
+      *d = *src->frame;
+      return 0;
+    }
 
   const int spread = (src->type == WFM_SYNTH_DSSS);
   memset (d, 0, sizeof *d);

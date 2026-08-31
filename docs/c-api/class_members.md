@@ -284,7 +284,7 @@
 * **freq\_scale** ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md))
 * **fib\_taps** ([**pn\_state\_t**](structpn__state__t.md))
 * **fft** ([**ppe\_state\_t**](structppe__state__t.md), [**psd\_state\_t**](structpsd__state__t.md))
-* **frame** ([**psd\_state\_t**](structpsd__state__t.md))
+* **frame** ([**psd\_state\_t**](structpsd__state__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
 * **full\_scale** ([**psd\_state\_t**](structpsd__state__t.md))
 * **field\_poly** ([**rs\_code\_t**](structrs__code__t.md))
 * **first\_root** ([**rs\_code\_t**](structrs__code__t.md))

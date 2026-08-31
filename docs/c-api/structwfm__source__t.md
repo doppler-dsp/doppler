@@ -52,6 +52,7 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  int | [**dsss\_code\_only**](#variable-dsss_code_only)  <br> |
 |  double | [**f\_end**](#variable-f_end)  <br> |
 |  double | [**f\_end\_hi**](#variable-f_end_hi)  <br> |
+|  const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* | [**frame**](#variable-frame)  <br> |
 |  double | [**freq**](#variable-freq)  <br> |
 |  double | [**freq\_hi**](#variable-freq_hi)  <br> |
 |  unsigned | [**interleave\_depth**](#variable-interleave_depth)  <br> |
@@ -337,6 +338,19 @@ double wfm_source_t::f_end;
 
 ```C++
 double wfm_source_t::f_end_hi;
+```
+
+
+
+
+<hr>
+
+
+
+### variable frame 
+
+```C++
+const wfm_frame_desc_t* wfm_source_t::frame;
 ```
 
 

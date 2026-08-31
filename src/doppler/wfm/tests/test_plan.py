@@ -488,3 +488,61 @@ def test_background_survives_save_restore() -> None:
     restored = PlanFromBlob(plan.save())
     assert restored.n_sources == plan.n_sources == 3
     np.testing.assert_array_equal(restored.render(), plan.render())
+
+
+def test_ranged_gap_draw_length_varies_and_never_exceeds_len() -> None:
+    """`len()` is a CAPACITY; the drawn length is a property of the draw.
+
+    Certified in `tests/validation/wfm_plan` (§2.4). For a ranged-gap
+    scene every seed redraws the gaps, so the materialized length moves
+    and a caller must read it off the returned array -- `len(plan)` is
+    the worst case, every gap at its `hi` bound.
+
+    Pinned here because the Python docstring currently promises the
+    opposite ("length ``len()``"), which costs a Monte-Carlo caller both
+    rectangular idioms; that is doppler#1128. When it is fixed, this test
+    is what makes the change deliberate rather than silent.
+    """
+    plan = prepare(
+        Composer(
+            Segment.sum(
+                qpsk(snr=10.0, seed=33, sps=8, pn_length=7),
+                fs=1e6,
+                num_samples=256,
+                off_samples=(32, 512),
+                delay_samples=(16, 256),
+                repeats=3,
+            )
+        )
+    )
+    cap = len(plan)
+    lengths = {int(plan.render(seed=s).shape[0]) for s in (1, 2, 3, 7, 11)}
+
+    assert len(lengths) > 1, "a ranged gap must redraw the length per seed"
+    assert max(lengths) <= cap, "no draw may exceed the worst-case capacity"
+    # The precondition that keeps the assertion above from being vacuous:
+    # a capacity every draw happened to saturate would satisfy it too.
+    assert min(lengths) < cap, "len() is a worst case, not the drawn length"
+
+
+def test_fixed_gap_scene_draws_one_rectangular_length() -> None:
+    """The other side of doppler#1128: with no ranged gap, stacking is safe.
+
+    This is what makes the rule usable rather than a warning -- the
+    rectangular Monte-Carlo idiom is correct exactly when the scene
+    declares no ranged gap, and that boundary is the thing a caller needs.
+    """
+    plan = prepare(
+        Composer(
+            Segment.sum(
+                qpsk(snr=10.0, seed=33, sps=8, pn_length=7),
+                fs=1e6,
+                num_samples=256,
+                off_samples=128,
+                repeats=3,
+            )
+        )
+    )
+    draws = list(plan.monte_carlo(6.0, 4, seed0=1))
+    assert len({int(d.shape[0]) for d in draws}) == 1
+    assert np.array(draws).shape == (4, len(plan))

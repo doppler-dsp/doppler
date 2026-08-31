@@ -33,6 +33,9 @@ from doppler.wfm.tests.validation.wfm_compose import (
 from doppler.wfm.tests.validation.wfm_frame import (
     validate as wfm_frame_validate,
 )
+from doppler.wfm.tests.validation.wfm_plan import (
+    validate as wfm_plan_validate,
+)
 from doppler.wfm.tests.validation.wfm_reader import (
     validate as wfm_reader_validate,
 )
@@ -46,6 +49,7 @@ from doppler.wfm.tests.validation.wfm_writer import (
 OBJECTS = {
     "wfm_compose": wfm_compose_validate,
     "wfm_frame": wfm_frame_validate,
+    "wfm_plan": wfm_plan_validate,
     "wfm_reader": wfm_reader_validate,
     "wfm_synth": wfm_synth_validate,
     "wfm_writer": wfm_writer_validate,

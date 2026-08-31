@@ -375,6 +375,35 @@ size_t wfm_compose_draws(const wfm_segment_t *segs, size_t n_segs,
                          wfm_draw_t *out, size_t cap);
 
 /**
+ * @brief The same rows wfm_compose_draws() reports, as a JSON array.
+ *
+ * One object per source per instance, in stream order, with the keys named
+ * after the `wfm_draw_t` fields. Exists so a binding can hand a caller its
+ * GROUND TRUTH without marshalling a struct array itself: a ranged field is
+ * only usable if what it drew can be read back, and scoring a receiver
+ * against a scene whose `freq` re-draws per instance means scoring against a
+ * number the caller does not otherwise have (doppler#1112).
+ *
+ * Reads through wfm_compose_draws(), so it cannot disagree with the SigMF
+ * annotations, which read through it too.
+ *
+ * @param segs   Resolved segment array (wfm_compose_segments()).
+ * @param n_segs Segment count.
+ * @return Heap JSON string the caller free()s; never NULL — the allocations
+ *         go through the abort-on-OOM helpers. A spec with no rows yields
+ *         `[]`.
+ *
+ * @code
+ * size_t n; int rp, ct;
+ * const wfm_segment_t *segs = wfm_compose_segments(c, &n, &rp, &ct);
+ * char *js = wfm_draws_json(segs, n);
+ * puts(js);
+ * free(js);
+ * @endcode
+ */
+char *wfm_draws_json(const wfm_segment_t *segs, size_t n_segs);
+
+/**
  * @brief Resolve a segment list's noise model in place (Phase 4b).
  *
  * No-op for 1-source segments (keeps the bundled-synth path byte-identical).

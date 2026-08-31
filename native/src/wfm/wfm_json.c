@@ -1113,3 +1113,44 @@ wfm_compose_from_file (const char *path)
   free (buf);
   return c;
 }
+
+/* The drawn per-instance values as JSON — see wfm/wfm_compose.h.
+ *
+ * Every number here comes from wfm_compose_draws(), never from the source
+ * struct: for a ranged field the struct still holds `lo`, and reporting that
+ * is exactly the defect doppler#1086 measured at 1224 Hz and 6.0 dB out. */
+char *
+wfm_draws_json (const wfm_segment_t *segs, size_t n_segs)
+{
+  const size_t n_rows = wfm_compose_draws (segs, n_segs, NULL, 0);
+  wfm_draw_t  *rows   = n_rows ? dp_xmalloc (n_rows * sizeof *rows) : NULL;
+  if (rows)
+    (void)wfm_compose_draws (segs, n_segs, rows, n_rows);
+
+  cJSON *arr = dp_xnn (cJSON_CreateArray ());
+  for (size_t i = 0; rows && i < n_rows; i++)
+    {
+      const wfm_draw_t *d = &rows[i];
+      cJSON            *o = dp_xnn (cJSON_CreateObject ());
+      /* Where the row sits in the spec and in the stream. */
+      cJSON_AddNumberToObject (o, "seg", (double)d->seg);
+      cJSON_AddNumberToObject (o, "instance", (double)d->instance);
+      cJSON_AddNumberToObject (o, "src", (double)d->src);
+      cJSON_AddNumberToObject (o, "start", (double)d->start);
+      cJSON_AddNumberToObject (o, "delay", (double)d->delay);
+      cJSON_AddNumberToObject (o, "on", (double)d->on);
+      cJSON_AddNumberToObject (o, "off", (double)d->off);
+      /* What this instance actually flew. */
+      cJSON_AddNumberToObject (o, "freq", d->freq);
+      cJSON_AddNumberToObject (o, "f_end", d->f_end);
+      cJSON_AddNumberToObject (o, "snr", d->snr);
+      cJSON_AddNumberToObject (o, "level", d->level);
+      cJSON_AddNumberToObject (o, "doppler", d->doppler);
+      cJSON_AddNumberToObject (o, "doppler_rate", d->doppler_rate);
+      cJSON_AddItemToArray (arr, o);
+    }
+  free (rows);
+  char *out = dp_xnn (cJSON_PrintUnformatted (arr));
+  cJSON_Delete (arr);
+  return out;
+}

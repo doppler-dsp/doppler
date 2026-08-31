@@ -84,6 +84,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  const [**wfm\_segment\_t**](structwfm__segment__t.md) \* | [**wfm\_compose\_segments**](#function-wfm_compose_segments) (const [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, size\_t \* n\_out, int \* repeat, int \* continuous) <br>_Borrow the composer's stored segment list (for_  _record / SigMF)._ |
 |  void | [**wfm\_compose\_set\_seed\_advance**](#function-wfm_compose_set_seed_advance) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, int mode) <br>_Choose how the seed advances on each repeat of a looped/continuous stream (a_ `wfm_seed_advance_t` _):_ |
 |  size\_t | [**wfm\_compose\_spans**](#function-wfm_compose_spans) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, [**wfm\_span\_t**](structwfm__span__t.md) \* out, size\_t cap) <br>_Replay the (epoch 0) instance timeline of a resolved segment list._  |
+|  char \* | [**wfm\_draws\_json**](#function-wfm_draws_json) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs) <br>_The same rows_ [_**wfm\_compose\_draws()**_](wfm__compose_8h.md#function-wfm_compose_draws) _reports, as a JSON array._ |
 |  void | [**wfm\_render\_destroy**](#function-wfm_render_destroy) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r) <br>_Free a renderer and everything it owns. NULL-safe._  |
 |  void | [**wfm\_render\_noise\_steps**](#function-wfm_render_noise_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull_ `n` _samples of the source's NOISE FLOOR only, through the same channel._ |
 |  void | [**wfm\_render\_steps**](#function-wfm_render_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull exactly_ `n` _samples from_`r` _, through its channel if any._ |
@@ -710,6 +711,56 @@ Total number of instances in one pass of the spec.
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_draws\_json 
+
+_The same rows_ [_**wfm\_compose\_draws()**_](wfm__compose_8h.md#function-wfm_compose_draws) _reports, as a JSON array._
+```C++
+char * wfm_draws_json (
+    const wfm_segment_t * segs,
+    size_t n_segs
+) 
+```
+
+
+
+One object per source per instance, in stream order, with the keys named after the `wfm_draw_t` fields. Exists so a binding can hand a caller its GROUND TRUTH without marshalling a struct array itself: a ranged field is only usable if what it drew can be read back, and scoring a receiver against a scene whose `freq` re-draws per instance means scoring against a number the caller does not otherwise have (doppler#1112).
+
+
+Reads through [**wfm\_compose\_draws()**](wfm__compose_8h.md#function-wfm_compose_draws), so it cannot disagree with the SigMF annotations, which read through it too.
+
+
+
+
+**Parameters:**
+
+
+* `segs` Resolved segment array ([**wfm\_compose\_segments()**](wfm__compose_8h.md#function-wfm_compose_segments)). 
+* `n_segs` Segment count. 
+
+
+
+**Returns:**
+
+Heap JSON string the caller free()s; never NULL — the allocations go through the abort-on-OOM helpers. A spec with no rows yields `[]`.
+
+
+
+```C++
+size_t n; int rp, ct;
+const wfm_segment_t *segs = wfm_compose_segments(c, &n, &rp, &ct);
+char *js = wfm_draws_json(segs, n);
+puts(js);
+free(js);
+```
+ 
 
 
         

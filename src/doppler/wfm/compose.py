@@ -359,6 +359,64 @@ def PlanFromFile(path: str | os.PathLike[str]) -> Plan:  # noqa: N802
     return Plan._wrap(_PlanFromFile(path))
 
 
+def draws(scene: Composer) -> list[dict]:
+    """What each instance of a scene actually drew — its ground truth.
+
+    A ranged field is re-picked at random for every instance, so the scene
+    declares a span while each burst flies one value out of it. Scoring a
+    receiver means knowing *which* value, and the span cannot tell you: read
+    the range's ``lo`` instead and you are wrong by up to its width, which is
+    the defect measured at 1224 Hz and 6.0 dB in doppler#1086.
+
+    One row per source per instance, in stream order. The timing keys
+    (``seg``, ``instance``, ``src``, ``start``, ``delay``, ``on``, ``off``)
+    say where the row sits; the rest (``freq``, ``f_end``, ``snr``,
+    ``level``, ``doppler``, ``doppler_rate``) are the drawn values.
+
+    These are the same rows the SigMF metadata is built from — both read
+    through ``wfm_compose_draws()`` in C — so a capture and an in-process
+    render cannot disagree about what was generated.
+
+    Parameters
+    ----------
+    scene : Composer
+        The composer to interrogate. Fixed fields report their scalar, so a
+        scene with no ranged field is still described row by row.
+
+    Returns
+    -------
+    list of dict
+        One record per source per instance.
+
+    Examples
+    --------
+    >>> from doppler.wfm.compose import Composer, Segment, draws
+    >>> scene = Composer(
+    ...     [
+    ...         Segment(
+    ...             "bpsk",
+    ...             fs=1e6,
+    ...             sps=4,
+    ...             num_samples=1024,
+    ...             repeats=3,
+    ...             seed=5,
+    ...             freq=(9000.0, 14000.0),
+    ...         )
+    ...     ]
+    ... )
+    >>> rows = draws(scene)
+    >>> len(rows)
+    3
+    >>> [r["instance"] for r in rows]
+    [0, 1, 2]
+    >>> all(9000.0 <= r["freq"] <= 14000.0 for r in rows)
+    True
+    >>> len({r["freq"] for r in rows}) == 3  # each burst drew its own
+    True
+    """
+    return _json.loads(scene._draws_json())
+
+
 def prepare(scene: Composer | str | bytes) -> Plan:
     """Prepare a scene into a reusable :class:`Plan` (``Plan(scene)``).
 

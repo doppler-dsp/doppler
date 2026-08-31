@@ -892,7 +892,7 @@ extra_link_libs = ["wfm_dsp_core"]
 # straight from their .so submodules — zero hand-Python). Composition surface +
 # the remaining free functions still come from compose.py.
 [module.wfm.reexports]
-compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "Plan", "prepare", "PlanFromBlob", "PlanFromFile"]
+compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "Plan", "prepare", "draws", "PlanFromBlob", "PlanFromFile"]
 wfm_writer = ["Writer", "write_blue_header"]
 wfm_reader = ["Reader"]
 wfm_sink = ["StreamSink"]
@@ -1469,6 +1469,20 @@ to_json_fn = "wfm_spec_to_json"
 # (doppler#978). headroom is a writer gain, not composer state, so it is still
 # the literal 0.0: a Python Composer has none.
 to_json_trailing = ["wfm_compose_seed_advance (self->state)", "0.0"]
+
+# The drawn per-instance values, as JSON. Declared as a serializer because
+# that is jm's shape for "call a C function with this composer's segments and
+# hand back a string" -- the same mechanism to_sigmf uses, so the two read the
+# same rows through wfm_compose_draws() and cannot disagree (doppler#1112).
+[[module.wfm_compose.serializers]]
+# Private on purpose: the public way to read a scene's draws is
+# doppler.wfm.draws(), which parses these rows into records. Naming it with a
+# leading underscore keeps one public surface rather than two, and keeps a
+# method jm cannot yet give a docstring out of the public API meter.
+name = "_draws_json"
+fn = "wfm_draws_json"
+returns = "str"
+header = "wfm/wfm_compose.h"
 
 [[module.wfm_compose.serializers]]
 name = "to_sigmf"

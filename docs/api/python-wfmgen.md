@@ -402,6 +402,22 @@ for a given SNR.
 
 ______________________________________________________________________
 
+## `draws()` — what a ranged scene actually drew
+
+A ranged field is re-picked at random for every repeat instance, so the scene
+declares a span while each burst flies one value out of it. Scoring a receiver
+means knowing *which* value, and the span cannot tell you — read the range's
+`lo` instead and you are wrong by up to its width.
+
+`draws(scene)` returns one record per source per instance: where it sits
+(`seg`, `instance`, `src`, `start`, `delay`, `on`, `off`) and what it drew
+(`freq`, `f_end`, `snr`, `level`, `doppler`, `doppler_rate`). These are the
+same rows a capture's SigMF metadata is built from — both read through
+`wfm_compose_draws()` in C — so an in-process render and a written capture
+cannot disagree about what was generated.
+
+::: doppler.wfm.compose.draws
+
 ## `Plan` — prepare-once stimulus engine
 
 A composed scene is a linear form `Σ gainₖ·signalₖ + noise`, and the expensive

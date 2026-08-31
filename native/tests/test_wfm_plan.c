@@ -910,6 +910,167 @@ main (void)
                     "load of a missing file is NULL");
   }
 
+  /* ── the Doppler refusal: a DECISION, not a gap (gh-1109) ──────────────
+   * A source carrying clock Doppler is refused outright rather than cached
+   * wrong. The channel is a resampler whose state runs THROUGH the gaps,
+   * while this cache holds one clean ON-time in isolation and re-weights the
+   * noise OUTSIDE the channel; both divergences were measured against
+   * compose() (see plan_build's note). So the contract is that no plan comes
+   * back at all — and the EDGE is part of the rule: a lifetime declared on a
+   * source with zero doppler builds no channel and must NOT be refused.
+   *
+   * Each case moves ONE field off an accepted baseline, so a NULL is
+   * attributable to that field and to nothing else; and each asserts the
+   * serialized spec actually CARRIES the field, because a reject test over a
+   * key the writer silently drops passes for the wrong reason. */
+  {
+    wfm_source_t  dsrc = { .type      = 0, /* clean tone */
+                           .freq      = 1e5,
+                           .snr       = 100.0,
+                           .seed      = 5,
+                           .sps       = 8,
+                           .pn_length = 7 };
+    wfm_segment_t dseg
+        = { .sources = &dsrc, .n_sources = 1, .fs = 1e6, .num_samples = L };
+
+    /* The baseline this whole block is differential against. */
+    char *jb = wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
+    DP_REQUIRE_MSG (jb, "doppler baseline json");
+    wfm_plan_t *pb = wfm_plan_prepare (jb);
+    DP_REQUIRE_MSG (pb, "DOPPLER: the same scene with NO doppler is ACCEPTED");
+    wfm_plan_destroy (pb);
+    free (jb);
+
+    /* 1. a constant Doppler offset. */
+    dsrc.doppler = 5.0; /* ppm */
+    char *jd     = wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
+    DP_REQUIRE_MSG (jd && strstr (jd, "\"doppler\""),
+                    "doppler json carries the field (else vacuous)");
+    DP_REQUIRE_MSG (wfm_plan_prepare (jd) == NULL,
+                    "DOPPLER: doppler != 0 is refused (gh-1109)");
+    free (jd);
+    dsrc.doppler = 0.0;
+
+    /* 2. a Doppler RATE alone is equally a channel. */
+    dsrc.doppler_rate = 0.5; /* ppm/s */
+    char *jr          = wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
+    DP_REQUIRE_MSG (jr && strstr (jr, "\"doppler_rate\""),
+                    "doppler_rate json carries the field (else vacuous)");
+    DP_REQUIRE_MSG (wfm_plan_prepare (jr) == NULL,
+                    "DOPPLER: doppler_rate != 0 is refused (gh-1109)");
+    free (jr);
+    dsrc.doppler_rate = 0.0;
+
+    /* 3. THE EDGE: a lifetime on a source with zero doppler and zero
+     *    doppler_rate builds no channel, so it is NOT refused for a field it
+     *    does not use. PERSIST is the only lifetime the writer serializes. */
+    dsrc.doppler_lifetime = WFM_DOPPLER_PERSIST;
+    char *jl              = wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
+    DP_REQUIRE_MSG (jl && strstr (jl, "\"doppler_lifetime\""),
+                    "lifetime json carries the field (else vacuous)");
+    wfm_plan_t *pl2 = wfm_plan_prepare (jl);
+    DP_REQUIRE_MSG (pl2, "DOPPLER: a lifetime with zero doppler builds no "
+                         "channel and is ACCEPTED");
+    wfm_plan_destroy (pl2);
+    free (jl);
+    dsrc.doppler_lifetime = 0;
+  }
+
+  /* ── len() is a CAPACITY and the tail is zero padding ───────────────────
+   * The header's allocation contract: render()/at() write up to
+   * wfm_plan_len() samples, return the ACTUAL length of that draw, and
+   * everything past the return value is ZERO — not stale. A caller sizes one
+   * buffer at len() and reuses it across draws, so a tail still holding the
+   * previous (longer) draw would read as signal. Pre-filling with a sentinel
+   * is what makes this non-vacuous: an untouched buffer is not evidence. */
+  {
+    wfm_source_t psrc
+        = { .type = 4, .snr = 10.0, .seed = 33, .sps = 8, .pn_length = 7 };
+    wfm_segment_t pseg
+        = { .sources          = &psrc,
+            .n_sources        = 1,
+            .fs               = 1e6,
+            .num_samples      = L / 4,
+            .off_samples      = 32,
+            .off_samples_hi   = 512,
+            .delay_samples    = 16,
+            .delay_samples_hi = 256,
+            .ranged  = WFM_RANGE_OFF_SAMPLES | WFM_RANGE_DELAY_SAMPLES,
+            .repeats = 3 };
+    char *jp = wfm_spec_to_json (&pseg, 1, 0, 0, 0, 0.0);
+    DP_REQUIRE_MSG (jp, "pad json");
+    wfm_plan_t *pp = wfm_plan_prepare (jp);
+    DP_REQUIRE_MSG (pp, "pad prepare");
+    size_t cap = wfm_plan_len (pp);
+    DP_REQUIRE_MSG (cap > 0 && cap <= 8192, "pad capacity fits the buffer");
+
+    float _Complex *pbuf = malloc (cap * sizeof *pbuf);
+    DP_REQUIRE_MSG (pbuf, "alloc pad buffer");
+
+    /* Find a draw genuinely SHORTER than the capacity — the precondition the
+       claim is about. Every gap at its `hi` bound would pad nothing. */
+    size_t drawn = 0;
+    for (size_t s = 1; s <= 64 && drawn == 0; s++)
+      {
+        char ov[64];
+        snprintf (ov, sizeof ov, "{\"seed\":%zu}", s);
+        for (size_t i = 0; i < cap; i++)
+          pbuf[i] = 1.0f + 2.0f * I; /* sentinel: never a valid pad */
+        size_t got_s = wfm_plan_render (pp, ov, pbuf);
+        if (got_s > 0 && got_s < cap)
+          drawn = got_s;
+      }
+    DP_REQUIRE_MSG (drawn > 0,
+                    "PAD: a short draw exists (else the claim is vacuous)");
+
+    size_t nonzero = 0;
+    for (size_t i = drawn; i < cap; i++)
+      if (crealf (pbuf[i]) != 0.0f || cimagf (pbuf[i]) != 0.0f)
+        nonzero++;
+    DP_REQUIRE_MSG (nonzero == 0,
+                    "PAD: every sample past the returned length is zero");
+
+    /* And the same for at(), the scalar fast path. */
+    for (size_t i = 0; i < cap; i++)
+      pbuf[i] = 1.0f + 2.0f * I;
+    size_t at_got = wfm_plan_at (pp, 6.0, 12345u, pbuf);
+    DP_REQUIRE_MSG (at_got > 0 && at_got <= cap, "PAD: at() draw within cap");
+    size_t at_nonzero = 0;
+    for (size_t i = at_got; i < cap; i++)
+      if (crealf (pbuf[i]) != 0.0f || cimagf (pbuf[i]) != 0.0f)
+        at_nonzero++;
+    DP_REQUIRE_MSG (at_nonzero == 0, "PAD: at() zero-pads its tail too");
+
+    free (pbuf);
+    wfm_plan_destroy (pp);
+    free (jp);
+  }
+
+  /* ── the lifecycle edges nothing else reaches ──────────────────────────
+   * destroy(NULL) is a documented no-op; dump() reports an open/write error
+   * rather than claiming success; a foreign-endian blob is rejected outright
+   * (the buffers are native-endian POD, so reinterpreting them would be
+   * silently wrong — the one thing save/restore promises never to be). */
+  {
+    wfm_plan_destroy (NULL); /* documented no-op; a crash here is the test */
+
+    DP_REQUIRE_MSG (wfm_plan_dump (p, "no_such_dir_wfm_plan/x.bin") != 0,
+                    "DUMP: an unopenable path reports failure, not success");
+
+    size_t   eblen = wfm_plan_save_bytes (p);
+    uint8_t *eblob = malloc (eblen);
+    DP_REQUIRE_MSG (eblob, "alloc endian blob");
+    DP_REQUIRE_MSG (wfm_plan_save (p, eblob) == eblen, "save endian blob");
+    wfm_plan_t *eok = wfm_plan_restore (eblob, eblen);
+    DP_REQUIRE_MSG (eok, "endian baseline: the untouched blob restores");
+    wfm_plan_destroy (eok);
+    eblob[6] ^= 1u; /* the host-endian byte */
+    DP_REQUIRE_MSG (
+        wfm_plan_restore (eblob, eblen) == NULL,
+        "ENDIAN: a foreign-endian blob is refused, not reinterpreted");
+    free (eblob);
+  }
+
   wfm_plan_destroy (p);
   free (json);
   free (ref);

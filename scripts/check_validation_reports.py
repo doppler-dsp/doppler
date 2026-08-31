@@ -367,10 +367,37 @@ def check_lifecycle(path: Path) -> list[str]:
         rf"\b{re.escape(obj)}_[A-Za-z0-9_]*\s*\("
     )
     tests = ROOT / "native" / "tests"
-    if not any(
+    pinned = any(
         pat.search(t.read_text(encoding="utf-8", errors="ignore"))
         for t in tests.glob("*.c")
-    ):
+    )
+
+    # A TOOL is certified on different evidence, and the discriminator is a
+    # fact rather than a name: a component ships `native/inc/<obj>/`, an app
+    # does not. `wfmgen` is the only such subject today -- no `_core.h`, no
+    # binding, `wfmgen_core` exports nothing out-of-line -- so the campaign's
+    # usual phase-4 artifact, `test_<obj>_core.c`, cannot exist for it. Its
+    # C-level evidence is the validation harness that renders through the C
+    # API, `native/validation/<obj>_certify.c`.
+    #
+    # Narrow on purpose. This does NOT let an ordinary object count its own
+    # validator as its C pin -- that would let phase 8 satisfy phase 4 with
+    # itself, which is the whole thing this rule exists to stop. The branch
+    # is reachable only when there is no component header directory at all.
+    if not pinned and not (ROOT / "native" / "inc" / obj).is_dir():
+        harness = ROOT / "native" / "validation" / f"{obj}_certify.c"
+        if harness.is_file():
+            pinned = True
+        else:
+            bad.append(
+                f"{rel}: '{obj}' has no native/inc/{obj}/, so it is being "
+                f"certified as a tool -- which requires "
+                f"native/validation/{obj}_certify.c as its C-level evidence, "
+                "and there is none"
+            )
+            return bad
+
+    if not pinned:
         bad.append(
             f"{rel}: no C test references '{obj}' — phase 8 is certifying "
             "an object that phase 4 never pinned"

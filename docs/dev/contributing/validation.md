@@ -333,6 +333,50 @@ Three rules that matter more here than for a bound object:
 
 ______________________________________________________________________
 
+## Certifying a TOOL
+
+`wfmgen` is the first subject that is neither a bound object nor an unbound
+component: it is an **application**. There is no `wfmgen_core.h`, no binding,
+and `wfmgen_core` exports nothing out-of-line, so the SSOT the campaign's
+order names — the C header's prose — does not exist to read.
+
+The substitution the owner chose is **the CLI contract plus
+`docs/design/<tool>.md`**, measured by running the built binary against the
+in-process library render. Everything else is unchanged.
+
+| piece       | bound object                                   | TOOL                                                  |
+| ----------- | ---------------------------------------------- | ----------------------------------------------------- |
+| SSOT        | `native/inc/<obj>/<obj>_core.h`                | the CLI contract + `docs/design/<tool>.md`            |
+| step 1      | the header's prose claims                      | the design page's **goals**, and the gate each names  |
+| measurement | `validate.py`, through the binding             | `native/validation/<tool>_certify.c`, rendering bytes |
+| folder      | `src/doppler/<module>/tests/validation/<obj>/` | `src/doppler/tests/validation/<tool>/`                |
+
+Two things specific to a tool, both learned from wfmgen:
+
+- **A design page that annotates its own gates is step 1 nearly done — and
+    the annotation is a hypothesis.** `docs/design/wfmgen.md` names the gate
+    behind each of its nine goals, which is exactly the claim inventory the
+    header would have given. The verdict column is then the result of
+    *running* each one. One of wfmgen's nine did not survive that: the
+    headline "identical from four APIs" was pinned at two of the four, and
+    what stood in for the third was a test that composed one scene twice in
+    one process — determinism, not agreement.
+- **Compare through the API being certified, never through a shared
+    serializer.** wfmgen's C leg builds a `wfm_source_t` struct rather than
+    calling `wfm_compose_from_json`, because routing it through JSON would
+    put all three legs behind one parser, and step 2's rule applies: a
+    consistency test is blind to any defect its paths share.
+
+`check_validation_reports.py` knows about this substitution. Its phase-4 rule
+normally requires a C test under `native/tests/` naming the object; when
+there is **no `native/inc/<obj>/` at all** — the fact that distinguishes an
+application from a component — it requires `native/validation/<obj>_certify.c`
+instead. The branch is deliberately unreachable for an ordinary object, which
+must not be allowed to count its own validator as its C pin: that would let
+phase 8 satisfy phase 4 with itself.
+
+______________________________________________________________________
+
 ## Where a long sweep goes instead — characterization
 
 A validator runs on every push, twice: `test_validation_limits.py` executes

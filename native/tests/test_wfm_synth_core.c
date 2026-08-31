@@ -5,6 +5,7 @@
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 /* Floating-point helpers — use inline functions, not macros, so arguments
  * are evaluated exactly once.  Safe to call with stateful step() results. */
@@ -690,6 +691,389 @@ main (void)
     free (blob);
     wfm_synth_destroy (a);
     wfm_synth_destroy (c);
+  }
+
+  /* ── §A  wfm_synth_snr_over_fs / wfm_synth_bps: the ONE SNR conversion ────
+   *
+   * The header calls wfm_synth_snr_over_fs "the one place this arithmetic
+   * lives" and says getting it wrong is SILENT — the waveform is still a
+   * waveform, at an SNR nobody asked for. Both it and wfm_synth_bps had ZERO
+   * mentions in any C test in the tree: the only thing pinning either was
+   * test_wfm_compose.c's noise-power table, which reaches them through
+   * wfm_snr_over_fs() and only for the six segment-level cases it lists.
+   *
+   * The expected values below are LITERALS derived by hand from the formula
+   * in the doc comment, never by calling the function — the same rule the
+   * compose test learned. 10*log10(2) = 3.010299956639812 and
+   * 10*log10(8) = 9.030899869919435; the rest is addition.
+   */
+  {
+    const double fs_db = 12.0;
+    /* mode 1 (over fs): the figure passes through untouched, whatever the
+       span or the bits-per-symbol — those terms belong to the other modes. */
+    DP_CHECK_NEAR (wfm_synth_snr_over_fs (1, 1, 8.0, fs_db), 12.0, 1e-12);
+    DP_CHECK_NEAR (wfm_synth_snr_over_fs (1, 2, 8.0, fs_db), 12.0, 1e-12);
+    DP_CHECK_NEAR (wfm_synth_snr_over_fs (1, 2, 1.0, fs_db), 12.0, 1e-12);
+    /* mode 3 (Es/No): snr − 10log10(span). The header's own worked example
+       says 12 dB at 8 samples/symbol is 2.969 dB over fs. */
+    DP_CHECK_NEAR (wfm_synth_snr_over_fs (3, 1, 8.0, fs_db), 2.969100130080565,
+                   1e-12);
+    DP_CHECK_NEAR (wfm_synth_snr_over_fs (3, 2, 8.0, fs_db), 2.969100130080565,
+                   1e-12); /* bps is NOT in the Es branch */
+    DP_CHECK_NEAR (wfm_synth_snr_over_fs (3, 1, 5.0, 3.0), -3.989700043360187,
+                   1e-12);
+    /* mode 2 (Eb/No): snr + 10log10(bps) − 10log10(span). The same figure
+       read as Eb/No on QPSK is exactly 10log10(2) = 3.010 dB hotter. */
+    DP_CHECK_NEAR (wfm_synth_snr_over_fs (2, 2, 8.0, fs_db), 5.979400086720377,
+                   1e-12);
+    DP_CHECK_NEAR (wfm_synth_snr_over_fs (2, 1, 8.0, fs_db), 2.969100130080565,
+                   1e-12); /* bps 1: Eb/No == Es/No */
+    DP_CHECK_NEAR (wfm_synth_snr_over_fs (2, 1, 1.0, 7.0), 7.0, 1e-12);
+    /* the span guard: a non-positive span is treated as 1 sample, so the
+       conversion degenerates to the identity rather than to −inf/NaN. */
+    DP_CHECK_NEAR (wfm_synth_snr_over_fs (3, 1, 0.0, fs_db), 12.0, 1e-12);
+    DP_CHECK_NEAR (wfm_synth_snr_over_fs (3, 1, -5.0, fs_db), 12.0, 1e-12);
+    DP_CHECK_NEAR (wfm_synth_snr_over_fs (2, 2, 0.0, fs_db),
+                   15.010299956639812, 1e-12);
+    /* bps: QPSK carries two bits, EVERY other type carries one — including
+       dsss, which is what makes ebno == esno for a DSSS source. Asserted
+       over the whole enum, so a tenth type cannot be added without a
+       deliberate answer here. */
+    for (int t = WFM_SYNTH_TONE; t <= WFM_SYNTH_DSSS; t++)
+      DP_CHECK (wfm_synth_bps (t) == (t == WFM_SYNTH_QPSK ? 2 : 1));
+  }
+
+  /* ── §B  create()'s `auto` resolves DSSS to fs, and that is DELIBERATE ────
+   *
+   * The generator and the composer resolve `auto` DIFFERENTLY for dsss: the
+   * composer says Es/No because only it knows the spreading factor, while
+   * create() says fs because the codes attach afterwards. The divergence is
+   * documented in both files and asserted in neither, so nothing would have
+   * noticed the two agreeing (which would silently move every bundled DSSS
+   * source's noise by 10log10(sf·sps)).
+   *
+   * A codeless dsss synth holds cur_re = 0, so its output IS the noise term
+   * and the measured power is the noise power directly. At snr = 9 dB the
+   * two candidate answers are far apart: fs gives 10^(−0.9) = 0.125893,
+   * while Es/No at sps = 8 would give 10^(−(9−9.0309)/10) = 1.00714.
+   */
+  {
+    const size_t       n  = 200000;
+    wfm_synth_state_t *ds = wfm_synth_create (WFM_SYNTH_DSSS, 1e6, 0.0, 9.0, 0,
+                                              11, 8, 9, 0, 0, 0.0);
+    DP_REQUIRE_MSG (ds != NULL, "auto/dsss: create");
+    float complex *y = malloc (n * sizeof *y);
+    DP_REQUIRE_MSG (y != NULL, "auto/dsss: alloc");
+    wfm_synth_steps (ds, y, n);
+    double p = 0.0;
+    for (size_t i = 0; i < n; i++)
+      p += (double)(crealf (y[i]) * crealf (y[i])
+                    + cimagf (y[i]) * cimagf (y[i]));
+    p /= (double)n;
+    DP_CHECK_NEAR (p, 0.125893, 0.005); /* fs, NOT the 1.007 of Es/No */
+    free (y);
+    wfm_synth_destroy (ds);
+  }
+
+  /* ── §C  set_dsss_chips: the install path a wfm_frame_desc_t burst takes ──
+   *
+   * A public entry point with zero mentions anywhere in the tree. It is the
+   * spreading half of set_dsss(), split out so a caller who assembled the
+   * frame himself installs it through the SAME path — so the properties that
+   * matter are the BPSK mapping, that the chips are copied (the header says
+   * "@p chips stays the caller's"), and the rejects.
+   */
+  {
+    uint8_t            chips[6] = { 1, 0, 0, 1, 1, 0 };
+    wfm_synth_state_t *dc = wfm_synth_create (WFM_SYNTH_DSSS, 1e6, 0.0, 100.0,
+                                              1, 3, 2, 9, 0, 0, 0.0);
+    DP_REQUIRE_MSG (dc != NULL, "set_dsss_chips: create");
+    DP_CHECK (wfm_synth_set_dsss_chips (dc, chips, 6) == 0);
+    /* chip 1 → −1, chip 0 → +1, each held for the create-time sps (2). */
+    float complex y[12];
+    wfm_synth_steps (dc, y, 12);
+    for (size_t k = 0; k < 6; k++)
+      {
+        float want = chips[k] ? -1.0f : 1.0f;
+        DP_CHECK_NEAR (crealf (y[2 * k]), want, 1e-6);
+        DP_CHECK_NEAR (crealf (y[2 * k + 1]), want, 1e-6);
+        DP_CHECK_NEAR (cimagf (y[2 * k]), 0.0f, 1e-6);
+      }
+    /* COPIED, not borrowed: mutating the caller's array after the call must
+       not change a single output sample. A borrow would sail through every
+       assertion above and only fail once the caller's buffer went away. */
+    wfm_synth_reset (dc);
+    for (size_t k = 0; k < 6; k++)
+      chips[k] ^= 1u; /* invert every chip in the CALLER's array */
+    float complex y2[12];
+    wfm_synth_steps (dc, y2, 12);
+    int same = 1;
+    for (size_t i = 0; i < 12; i++)
+      if (y[i] != y2[i])
+        same = 0;
+    DP_CHECK (same); /* the synth kept its own copy */
+    /* rejects, and the documented no-op for every other type */
+    DP_CHECK (wfm_synth_set_dsss_chips (dc, NULL, 6) == -1);
+    DP_CHECK (wfm_synth_set_dsss_chips (dc, chips, 0) == -1);
+    wfm_synth_state_t *tn2 = wfm_synth_create (WFM_SYNTH_TONE, 1e6, 0.0, 100.0,
+                                               1, 3, 2, 9, 0, 0, 0.0);
+    DP_REQUIRE_MSG (tn2 != NULL, "set_dsss_chips: tone create");
+    DP_CHECK (wfm_synth_set_dsss_chips (tn2, chips, 6) == 0); /* no-op */
+    DP_CHECK (tn2->bits == NULL); /* and it really did nothing */
+    wfm_synth_destroy (tn2);
+    wfm_synth_destroy (dc);
+  }
+
+  /* ── §D  reseed_noise: NEW noise, and the signal must not move ───────────
+   *
+   * The composer calls this to give each repeat of a segment a fresh noise
+   * realization while the underlying waveform stays bit-identical. Untested
+   * anywhere. The falsifiable half is the SECOND clause: if the reseed
+   * reached the PN as well, the symbol sequence would change too, and the
+   * two runs would differ by SYMBOL scale (≈2) instead of noise scale. At
+   * 40 dB over fs the noise is σ ≈ 0.007 per component, so the gap between
+   * "noise moved" and "signal moved" is two orders of magnitude wide.
+   */
+  {
+    const size_t   n = 4000;
+    float complex *a = malloc (n * sizeof *a);
+    float complex *b = malloc (n * sizeof *b);
+    DP_REQUIRE_MSG (a && b, "reseed: alloc");
+    wfm_synth_state_t *ra = wfm_synth_create (WFM_SYNTH_BPSK, 1e6, 0.0, 40.0,
+                                              1, 7, 8, 7, 0, 0, 0.0);
+    wfm_synth_state_t *rb = wfm_synth_create (WFM_SYNTH_BPSK, 1e6, 0.0, 40.0,
+                                              1, 7, 8, 7, 0, 0, 0.0);
+    DP_REQUIRE_MSG (ra && rb, "reseed: create");
+    wfm_synth_steps (ra, a, n);
+    wfm_synth_reseed_noise (rb, 999u); /* only the noise is reseeded */
+    wfm_synth_steps (rb, b, n);
+    double dmax = 0.0, amax = 0.0;
+    for (size_t i = 0; i < n; i++)
+      {
+        double d = cabs ((double complex)a[i] - (double complex)b[i]);
+        if (d > dmax)
+          dmax = d;
+        double m = cabs ((double complex)a[i]);
+        if (m > amax)
+          amax = m;
+      }
+    DP_CHECK (dmax > 1e-4); /* the reseed DID change the noise */
+    DP_CHECK (dmax < 0.5);  /* but the symbols did not move (that is ≈2) */
+    DP_CHECK (amax > 0.5);  /* precondition: there is a signal to move */
+    /* a clean synth has no AWGN child, so reseeding it is a no-op — the
+       output stays bit-identical rather than silently gaining noise. */
+    wfm_synth_state_t *cl = wfm_synth_create (WFM_SYNTH_BPSK, 1e6, 0.0, 100.0,
+                                              1, 7, 8, 7, 0, 0, 0.0);
+    DP_REQUIRE_MSG (cl != NULL, "reseed/clean: create");
+    float complex c1[64], c2[64];
+    wfm_synth_steps (cl, c1, 64);
+    wfm_synth_reset (cl);
+    wfm_synth_reseed_noise (cl, 12345u);
+    wfm_synth_steps (cl, c2, 64);
+    int clean_same = 1;
+    for (size_t i = 0; i < 64; i++)
+      if (c1[i] != c2[i])
+        clean_same = 0;
+    DP_CHECK (clean_same);
+    wfm_synth_reseed_noise (NULL, 1u); /* documented NULL no-op */
+    wfm_synth_destroy (cl);
+    wfm_synth_destroy (ra);
+    wfm_synth_destroy (rb);
+    free (a);
+    free (b);
+  }
+
+  /* ── §E  noise_steps: a gap is the SEAMLESS continuation of the on-time ──
+   *
+   * The composer renders a segment's off-time through this, and the header's
+   * claim is precise: it draws the identical AWGN sub-sequences the on-time
+   * path would have drawn, because it chunks its awgn_generate calls exactly
+   * as wfm_synth_steps does (the vectorized awgn path is NOT block-boundary
+   * invariant, so the call PATTERN is the thing that has to match, not just
+   * the sample count). The object's own test never touched it — it was
+   * reachable only through test_wfm_compose.c.
+   *
+   * type=noise holds cur_re = 0, so the output IS the noise term and the two
+   * paths can be compared bit-for-bit with no signal to subtract. The gap
+   * length crosses the internal CH = 2048 chunk boundary on purpose: at 3000
+   * samples a mismatched chunking diverges from sample 2048 onward, and at
+   * any length below 2048 it could not.
+   */
+  {
+    const size_t   n1 = 1000, n2 = 3000;
+    float complex *g  = malloc (n2 * sizeof *g);
+    float complex *on = malloc (n2 * sizeof *on);
+    float complex *sk = malloc (n1 * sizeof *sk);
+    DP_REQUIRE_MSG (g && on && sk, "noise_steps: alloc");
+    wfm_synth_state_t *na = wfm_synth_create (WFM_SYNTH_NOISE, 1e6, 0.0, 100.0,
+                                              1, 4, 8, 7, 0, 0, 0.0);
+    wfm_synth_state_t *nb = wfm_synth_create (WFM_SYNTH_NOISE, 1e6, 0.0, 100.0,
+                                              1, 4, 8, 7, 0, 0, 0.0);
+    DP_REQUIRE_MSG (na && nb, "noise_steps: create");
+    wfm_synth_steps (na, sk, n1); /* both advance identically first */
+    wfm_synth_steps (nb, sk, n1);
+    wfm_synth_noise_steps (na, g, n2); /* the gap */
+    wfm_synth_steps (nb, on, n2);      /* the on-time it must match */
+    int    seam      = 1;
+    size_t first_bad = n2;
+    for (size_t i = 0; i < n2; i++)
+      if (g[i] != on[i])
+        {
+          if (seam)
+            first_bad = i;
+          seam = 0;
+        }
+    DP_CHECK_MSG (seam, "gap noise continues the on-time RNG stream");
+    if (!seam)
+      fprintf (stderr, "  first divergence at sample %zu of %zu\n", first_bad,
+               n2);
+    /* precondition: the stream is not all zeros, or the comparison above
+       would hold for a noise_steps that generated nothing at all. */
+    double e = 0.0;
+    for (size_t i = 0; i < n2; i++)
+      e += (double)(crealf (g[i]) * crealf (g[i]));
+    DP_CHECK (e > 0.0);
+    /* a clean synth has no AWGN child: exact zeros, nothing advanced. */
+    wfm_synth_state_t *cn = wfm_synth_create (WFM_SYNTH_TONE, 1e6, 0.0, 100.0,
+                                              1, 4, 8, 7, 0, 0, 0.0);
+    DP_REQUIRE_MSG (cn != NULL, "noise_steps/clean: create");
+    float complex z[16];
+    for (size_t i = 0; i < 16; i++)
+      z[i] = 7.0f + 7.0f * I; /* poison, so "wrote zeros" is falsifiable */
+    wfm_synth_noise_steps (cn, z, 16);
+    int zeros = 1;
+    for (size_t i = 0; i < 16; i++)
+      if (z[i] != 0.0f + 0.0f * I)
+        zeros = 0;
+    DP_CHECK (zeros);
+    wfm_synth_noise_steps (NULL, z, 16); /* documented NULL no-op */
+    wfm_synth_destroy (cn);
+    wfm_synth_destroy (na);
+    wfm_synth_destroy (nb);
+    free (g);
+    free (on);
+    free (sk);
+  }
+
+  /* ── §F  the ten accessors — read-back AND the behaviour each claims ─────
+   *
+   * All ten had zero mentions in any C test. Read-back alone would be
+   * satisfied by a pair that stored into a field nothing reads, so each
+   * setter is followed by the effect its doc comment promises.
+   */
+  {
+    wfm_synth_state_t *ac = wfm_synth_create (WFM_SYNTH_QPSK, 1e6, 0.0, 100.0,
+                                              1, 5, 4, 7, 0, 0, 0.0);
+    DP_REQUIRE_MSG (ac != NULL, "accessors: create");
+    DP_CHECK (wfm_synth_get_wtype (ac) == WFM_SYNTH_QPSK);
+    DP_CHECK (wfm_synth_get_nsps (ac) == 4);
+    wfm_synth_set_wtype (ac, WFM_SYNTH_BPSK);
+    DP_CHECK (wfm_synth_get_wtype (ac) == WFM_SYNTH_BPSK);
+    wfm_synth_set_wtype (ac, WFM_SYNTH_QPSK);
+    wfm_synth_set_nsps (ac, 2);
+    DP_CHECK (wfm_synth_get_nsps (ac) == 2);
+    wfm_synth_set_nsps (ac, 4);
+    /* sym_pos runs 0..nsps−1 and wraps: after k steps from a fresh reset it
+       reads k mod nsps, and sym_pos == 0 means the NEXT sample starts a
+       fresh symbol — which is what the doc comment offers for framing. */
+    wfm_synth_reset (ac);
+    DP_CHECK (wfm_synth_get_sym_pos (ac) == 0);
+    for (int k = 1; k <= 9; k++)
+      {
+        (void)wfm_synth_step (ac);
+        DP_CHECK (wfm_synth_get_sym_pos (ac) == k % 4);
+      }
+    /* cur_re/cur_im are the held symbol: for QPSK both legs are ±1/√2. */
+    wfm_synth_reset (ac);
+    (void)wfm_synth_step (ac);
+    const float q = 0.70710678118654752f;
+    DP_CHECK_NEAR (fabsf (wfm_synth_get_cur_re (ac)), q, 1e-6);
+    DP_CHECK_NEAR (fabsf (wfm_synth_get_cur_im (ac)), q, 1e-6);
+    /* an injected symbol takes effect within the current hold ... */
+    wfm_synth_set_cur_re (ac, 0.25f);
+    wfm_synth_set_cur_im (ac, -0.5f);
+    DP_CHECK_NEAR (wfm_synth_get_cur_re (ac), 0.25f, 1e-9);
+    DP_CHECK_NEAR (wfm_synth_get_cur_im (ac), -0.5f, 1e-9);
+    float complex held = wfm_synth_step (ac); /* sym_pos is 1..3: mid-hold */
+    DP_CHECK_NEAR (crealf (held), 0.25f, 1e-6);
+    DP_CHECK_NEAR (cimagf (held), -0.5f, 1e-6);
+    /* ... and injecting sym_pos = 0 forces the NEXT step to latch a fresh
+       symbol from the LFSR, overwriting the injected one. */
+    wfm_synth_set_sym_pos (ac, 0);
+    DP_CHECK (wfm_synth_get_sym_pos (ac) == 0);
+    float complex fresh = wfm_synth_step (ac);
+    DP_CHECK_NEAR (fabsf (crealf (fresh)), q, 1e-6); /* latched, not 0.25 */
+    DP_CHECK_NEAR (fabsf (cimagf (fresh)), q, 1e-6);
+    wfm_synth_destroy (ac);
+  }
+
+  /* ── §G  RRC shaping against an EXTERNAL truth (both branches) ───────────
+   *
+   * Two claims meet here, and each was pinned only against the other path:
+   * set_rrc's "the taps are scaled by sqrt(sps) internally for unit transmit
+   * power, so every caller passes the raw taps", and shaper_prime's "the
+   * polyphase output aligns with the dense FIR to float precision". The
+   * existing sections compare step() against steps() and shaped against
+   * unshaped — both structurally blind to a shared error in the shaping
+   * itself, exactly the trap the validation page warns about.
+   *
+   * The truth used here is neither path: a direct convolution of the
+   * sqrt(sps)-scaled taps with the sps-upsampled symbol impulse train,
+   * evaluated in double. sps = 4 takes the polyphase branch (power of two)
+   * and sps = 3 the dense-FIR fallback, so ONE truth covers both.
+   */
+  {
+    const float         taps[5] = { 0.1f, -0.3f, 0.8f, 0.25f, -0.05f };
+    const size_t        ntaps   = 5;
+    const float complex syms[4] = { 1.0f + 0.0f * I, 0.0f + 1.0f * I,
+                                    -1.0f + 0.0f * I, 0.5f - 0.5f * I };
+    const int sps_cases[2]      = { 4, 3 }; /* polyphase, then dense FIR */
+    for (int c = 0; c < 2; c++)
+      {
+        const int          sps = sps_cases[c];
+        const size_t       n   = 40;
+        wfm_synth_state_t *sh  = wfm_synth_create (
+            WFM_SYNTH_SYMBOLS, 1e6, 0.0, 100.0, 1, 1, sps, 7, 0, 0, 0.0);
+        DP_REQUIRE_MSG (sh != NULL, "rrc/truth: create");
+        DP_CHECK (wfm_synth_set_symbols (sh, syms, 4) == 0);
+        DP_CHECK (wfm_synth_set_rrc (sh, taps, ntaps) == 0);
+        /* the branch actually under test, asserted so a change in set_rrc's
+           selection rule cannot quietly collapse both cases onto one path */
+        if (c == 0)
+          DP_CHECK (sh->shaper != NULL && sh->fir == NULL);
+        else
+          DP_CHECK (sh->fir != NULL && sh->shaper == NULL);
+        float complex *y = malloc (n * sizeof *y);
+        DP_REQUIRE_MSG (y != NULL, "rrc/truth: alloc");
+        wfm_synth_steps (sh, y, n);
+        const double scale = sqrt ((double)sps);
+        int          ok    = 1;
+        double       worst = 0.0;
+        for (size_t i = 0; i < n; i++)
+          {
+            double complex want = 0.0;
+            for (size_t k = 0; k < ntaps; k++)
+              {
+                if (k > i)
+                  break;
+                size_t j = i - k; /* impulse-train index */
+                if (j % (size_t)sps)
+                  continue; /* structural zero between symbols */
+                want += (double)taps[k] * scale
+                        * (double complex)syms[(j / (size_t)sps) % 4];
+              }
+            double err = cabs ((double complex)y[i] - want);
+            if (err > worst)
+              worst = err;
+            if (err > 2e-6)
+              ok = 0;
+          }
+        DP_CHECK_MSG (ok, "shaped output == scaled taps * upsampled symbols");
+        if (!ok)
+          fprintf (stderr, "  sps=%d worst |err| = %.3g\n", sps, worst);
+        free (y);
+        wfm_synth_destroy (sh);
+      }
   }
 
   /* the serialization sections above also count via CHECK — fail if any

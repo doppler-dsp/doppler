@@ -339,6 +339,19 @@ add_test(NAME validate_wfm_follow_keepup
 # The same two harnesses cost 4.4s and 3.3s in an ordinary optimised build,
 # so this is a ~60x instrumentation tax, not an oversized subset.
 #
+# wfmgen's own certification: the C leg of the four-API byte-identity claim.
+# Renders canonical scenes through the STRUCT API and writes raw cf32 for
+# validate.py to hash and compare against the CLI and the Python composer.
+# Added ABOVE the label loop below so it inherits `sweep` like every other
+# validator -- it is cheap, but the loop enumerates rather than lists, and
+# sitting below it would silently opt out.
+add_executable(validate_wfmgen_certify
+               ${CMAKE_CURRENT_SOURCE_DIR}/wfmgen_certify.c)
+target_include_directories(validate_wfmgen_certify
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_wfmgen_certify PRIVATE doppler_lib_static m)
+add_test(NAME validate_wfmgen_certify COMMAND validate_wfmgen_certify --check)
+
 # So `sweep` is what a sanitizer suite excludes (`ctest -LE sweep`). The spot
 # check still runs on every PR in the ordinary C suite, which is where it is
 # cheap and where it was always the point.

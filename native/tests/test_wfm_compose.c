@@ -27,6 +27,163 @@
    path refuses, which is the only way "they share the attach" is checkable. */
 extern wfm_synth_state_t *wfm_source_to_synth (const wfm_source_t *, double);
 
+/* ── the SEAM functions, whose whole job is that two faces agree ─────────
+ *
+ * This is the composition, so its subject is the seam rather than a re-run
+ * of the parts (Synth, Writer, Reader and Frame are certified separately
+ * and this cites them rather than re-deriving them).
+ *
+ * Four functions in wfm_compose.h exist for no reason except to stop the
+ * faces drifting, and each says so in its own doc. Two of them had ZERO
+ * mentions in any C test in the tree:
+ *
+ *   wfm_source_create_snr    "the one create-time entry point shared by the
+ *                            composer and the standalone-Synth bridge, so
+ *                            every face agrees to the bit"      -- 0 tests
+ *   wfm_source_attach_frame  "called from the same two places for the same
+ *                            reason"                            -- 0 tests
+ *
+ * A function whose entire purpose is agreement, with nothing asserting the
+ * agreement, is the shape this campaign exists to find.
+ */
+static int
+test_the_create_snr_seam (void)
+{
+  /* ── every non-dsss type passes through UNCHANGED, mode included ─────
+     The pre-referral exists for one type. For the rest, touching either
+     value here would silently move the noise of every composed source,
+     and the generator's own conversion would then be applied twice. */
+  {
+    const int types[] = { WFM_SYNTH_TONE, WFM_SYNTH_NOISE,  WFM_SYNTH_PN,
+                          WFM_SYNTH_BPSK, WFM_SYNTH_QPSK,   WFM_SYNTH_CHIRP,
+                          WFM_SYNTH_BITS, WFM_SYNTH_SYMBOLS };
+    const int modes[] = { 0, 1, 2, 3 };
+    for (size_t t = 0; t < sizeof types / sizeof types[0]; t++)
+      for (size_t m = 0; m < sizeof modes / sizeof modes[0]; m++)
+        {
+          wfm_source_t s = { 0 };
+          s.type         = types[t];
+          s.sps          = 8;
+          s.snr_mode     = modes[m];
+          int    mode    = -1;
+          double got     = wfm_source_create_snr (&s, 1e6, 7.5, &mode);
+          DP_REQUIRE_MSG (got == 7.5,
+                          "a non-dsss source's SNR passes through");
+          DP_REQUIRE_MSG (mode == modes[m],
+                          "and so does its mode -- the conversion is for "
+                          "dsss alone");
+        }
+  }
+
+  /* ── a dsss source is pre-referred to fs, because create() cannot ────
+     wfm_synth_create() runs before the codes attach, so it cannot know the
+     spreading factor its own esno would need. The composer does, and hands
+     over an already-fs figure. Scored against the arithmetic the header
+     states -- snr - 10log10(span) - not against wfm_snr_over_fs(), which
+     is the same conversion and would move with it. */
+  {
+    const size_t sf  = 8; /* chips per data symbol */
+    const int    sps = 2; /* samples per chip      */
+    /* burst: the span is sf*sps = 16 samples, so 10log10(16) = 12.0412 dB */
+    wfm_source_t b  = { 0 };
+    b.type          = WFM_SYNTH_DSSS;
+    b.sps           = sps;
+    b.snr_mode      = 3; /* esno */
+    b.data_code.len = sf;
+    int    mode     = -1;
+    double got      = wfm_source_create_snr (&b, 1e6, 9.0, &mode);
+    DP_REQUIRE_MSG (mode == 1, "a dsss source is handed over as fs");
+    DP_REQUIRE_MSG (dp_near (got, 9.0 - 12.041199826559248, 1e-9),
+                    "burst span is sf*sps -- 9 dB Es/N0 over 16 samples is "
+                    "-3.0412 dB over fs");
+
+    /* continuous: the symbol clock is INDEPENDENT of the code, so the span
+       is fs/symbol_rate, NOT sf*sps. The two coincide only in the
+       synchronous case the continuous mode exists to avoid, so a fixture
+       where they agree would prove nothing -- these deliberately differ. */
+    wfm_source_t c = b;
+    c.symbol_rate  = 12500.0; /* fs/symbol_rate = 80 samples */
+    mode           = -1;
+    got            = wfm_source_create_snr (&c, 1e6, 9.0, &mode);
+    DP_REQUIRE_MSG (mode == 1, "continuous dsss too");
+    DP_REQUIRE_MSG (dp_near (got, 9.0 - 19.030899869919434, 1e-9),
+                    "continuous span is fs/symbol_rate (80), NOT sf*sps");
+    DP_REQUIRE_MSG (
+        !dp_near (9.0 - 19.030899869919434, 9.0 - 12.041199826559248, 1e-6),
+        "precondition: the two spans give different answers here");
+  }
+
+  /* ── a CLEAN dsss source passes through, or the no-AWGN shortcut dies ─
+     wfm_synth_create() skips AWGN entirely at snr >= WFM_SYNTH_SNR_CLEAN.
+     Pre-referring a clean figure would push it below the threshold and
+     make every clean dsss source pay for noise it did not ask for. */
+  {
+    wfm_source_t s  = { 0 };
+    s.type          = WFM_SYNTH_DSSS;
+    s.sps           = 2;
+    s.snr_mode      = 3;
+    s.data_code.len = 8;
+    int    mode     = -1;
+    double got = wfm_source_create_snr (&s, 1e6, WFM_SYNTH_SNR_CLEAN, &mode);
+    DP_REQUIRE_MSG (got >= WFM_SYNTH_SNR_CLEAN,
+                    "a clean dsss source stays clean -- the no-AWGN "
+                    "shortcut still applies");
+  }
+  return 0;
+}
+
+/* ── the two synth-construction faces agree, in C as well as Python ─────
+ *
+ * The claim is "every face agrees to the bit", and until now C deferred it
+ * ("covered from Python, where that face actually lives") while Python's
+ * own three-faces test compares kwargs-Composer, from_json and the CLI --
+ * three spellings of the COMPOSER path. The standalone bridge was compared
+ * with none of them. It is one memcmp; it belongs here.
+ */
+static int
+test_the_two_faces_agree (void)
+{
+  const size_t   n = 512;
+  float complex *a = malloc (n * sizeof *a);
+  float complex *b = malloc (n * sizeof *b);
+  DP_REQUIRE_MSG (a && b, "faces: alloc");
+
+  const int types[] = { WFM_SYNTH_TONE, WFM_SYNTH_BPSK, WFM_SYNTH_QPSK,
+                        WFM_SYNTH_PN, WFM_SYNTH_NOISE };
+  for (size_t t = 0; t < sizeof types / sizeof types[0]; t++)
+    for (int noisy = 0; noisy <= 1; noisy++)
+      {
+        wfm_source_t s = { 0 };
+        s.type         = types[t];
+        s.sps          = 8;
+        s.seed         = 5;
+        s.pn_length    = 9;
+        s.snr          = noisy ? 9.0 : 100.0;
+        s.snr_mode     = noisy ? 3 : 0;
+
+        wfm_synth_state_t *comp = wfm_compose_build_synth (
+            &s, 1e6, n, s.freq, s.snr, s.f_end, 0, 0, 0);
+        wfm_synth_state_t *bridge = wfm_source_to_synth (&s, 1e6);
+        DP_REQUIRE_MSG (comp && bridge, "both faces build");
+        wfm_synth_steps (comp, a, n);
+        wfm_synth_steps (bridge, b, n);
+        DP_REQUIRE_MSG (memcmp (a, b, n * sizeof *a) == 0,
+                        "the composer's synth and the standalone bridge's "
+                        "are byte-identical");
+        /* and not vacuously: a noisy source must not be all zeros, and a
+           signal source must not be silent */
+        double p = 0.0;
+        for (size_t i = 0; i < n; i++)
+          p += (double)(crealf (a[i]) * crealf (a[i]));
+        DP_REQUIRE_MSG (p > 0.0, "precondition: the face produced signal");
+        wfm_synth_destroy (comp);
+        wfm_synth_destroy (bridge);
+      }
+  free (a);
+  free (b);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -2695,6 +2852,11 @@ main (void)
     DP_REQUIRE_MSG (rows[0].doppler == 12.5 && rows[1].doppler == 12.5,
                     "a fixed doppler reports its scalar on every instance");
   }
+
+  if (test_the_create_snr_seam ())
+    return 1;
+  if (test_the_two_faces_agree ())
+    return 1;
 
   printf (
       "test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "

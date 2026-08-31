@@ -104,16 +104,16 @@ result derived through it. It currently has neither.
 
 Users first — the internal rows are real, but they are not why it exists.
 
-| who | with what | what they do with the answer |
-| \--- | --- | --- | --- |
-| Someone who needs a waveform | `wfmgen --type qpsk --snr 12 -o capture.cf32` | feeds a receiver, a lab instrument, or another tool |
-| A C application | `wfm_compose_create()` -> `_execute()` -> `_destroy()` | pulls IQ straight into its own buffer, no Python in the process |
-| A field/interop test | `wfmgen … -o capture.sigmf` | hands a real file to another tool, with metadata saying what is in it |
-| A live consumer | `wfmgen --realtime -o nats://…` | wall-clock pacing, here to NATS but available to any sink |
-| A bug report | `--record scene.json` | replays someone else's exact waveform byte-for-byte |
-| A receiver test | `Composer([...]).compose()` in-process | scores demod/BER against truth it also gets from the scene |
-| A Monte-Carlo sweep | `Plan.prepare()` then `.at(snr)` | re-weights a cached render instead of re-synthesising |
-| A validation report | a scene declared once, swept | measures a limit that goes in a certified envelope |
+| who                          | with what                                              | what they do with the answer                                          |
+| ---------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------- |
+| Someone who needs a waveform | `wfmgen --type qpsk --snr 12 -o capture.cf32`          | feeds a receiver, a lab instrument, or another tool                   |
+| A C application              | `wfm_compose_create()` -> `_execute()` -> `_destroy()` | pulls IQ straight into its own buffer, no Python in the process       |
+| A field/interop test         | `wfmgen … -o capture.sigmf`                            | hands a real file to another tool, with metadata saying what is in it |
+| A live consumer              | `wfmgen --realtime -o nats://…`                        | wall-clock pacing, here to NATS but available to any sink             |
+| A bug report                 | `--record scene.json`                                  | replays someone else's exact waveform byte-for-byte                   |
+| A receiver test              | `Composer([...]).compose()` in-process                 | scores demod/BER against truth it also gets from the scene            |
+| A Monte-Carlo sweep          | `Plan.prepare()` then `.at(snr)`                       | re-weights a cached render instead of re-synthesising                 |
+| A validation report          | a scene declared once, swept                           | measures a limit that goes in a certified envelope                    |
 
 The `--record` row shapes the design most: **a scene is a value**, not a
 script. Anything a run can be told must be expressible in the JSON a

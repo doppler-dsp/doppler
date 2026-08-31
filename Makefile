@@ -632,6 +632,7 @@ uv run python scripts/gen_changelog_links.py --check
 uv run python scripts/check_version_strings.py
 uv run python scripts/check_doc_targets.py
 uv run python scripts/check_doc_paths.py
+uv run python scripts/check_md_tables.py
 uv run python scripts/check_serializable.py
 uv run python scripts/check_doc_face_parity.py
 uv run python scripts/check_init_param_optionality.py

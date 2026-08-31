@@ -812,6 +812,38 @@ class Push:
         """
         ...
 
+    def delete_stream(self) -> None:
+        """Destroy the work-queue stream backing this endpoint.
+
+        Every frame still in the queue goes with it, acked or not.
+
+        Administrative, and deliberately never automatic: a work queue is
+        shared infrastructure and outliving any one producer is the
+        feature, so closing a ``Push`` must not end it. Call this only
+        when you own the queue's lifetime — a test that invented the
+        subject, or a tool tearing down what it provisioned. A work queue
+        drops a frame only when a consumer *acks* it, so frames nobody
+        consumed are kept forever otherwise (doppler#1136).
+
+        Only a ``Push`` provisions the stream, so a ``Pull`` cannot attach
+        to the endpoint again until another ``Push`` re-creates it.
+
+        Raises
+        ------
+        ValueError
+            If the push is already closed.
+        RuntimeError
+            If the broker refuses; the message carries what it said.
+
+        Examples
+        --------
+        >>> from doppler.stream import Push, CF64
+        >>> push = Push("nats://127.0.0.1:4222/t19112", CF64)  # doctest: +SKIP
+        >>> push.delete_stream()                               # doctest: +SKIP
+        >>> push.close()                                       # doctest: +SKIP
+        """
+        ...
+
     def close(self) -> None:
         """Destroy the underlying NATS handle and release all resources.
 

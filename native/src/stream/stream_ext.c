@@ -253,7 +253,11 @@ do_send (void *ctx, int sample_type, send_ci32_fn fn_ci32,
     }
   if (rc != DP_OK)
     {
-      PyErr_Format (PyExc_RuntimeError, "send failed: %s", dp_strerror (rc));
+      /* Append the transport's own account when there is one: "Send error"
+         alone is what made six CI occurrences of this undiagnosable. */
+      const char *detail = dp_ctx_last_error ((const dp_pub_t *)ctx);
+      PyErr_Format (PyExc_RuntimeError, "send failed: %s%s%s",
+                    dp_strerror (rc), *detail ? " -- " : "", detail);
       return NULL;
     }
 
@@ -432,8 +436,9 @@ Publisher_send (PublisherObject *self, PyObject *args, PyObject *kwds)
       Py_END_ALLOW_THREADS;
       if (rc != DP_OK)
         {
-          PyErr_Format (PyExc_RuntimeError, "send failed: %s",
-                        dp_strerror (rc));
+          const char *detail = dp_ctx_last_error (self->ctx);
+          PyErr_Format (PyExc_RuntimeError, "send failed: %s%s%s",
+                        dp_strerror (rc), *detail ? " -- " : "", detail);
           return NULL;
         }
       Py_RETURN_NONE;
@@ -875,6 +880,28 @@ Push_send_eos (PushObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
+Push_delete_stream (PushObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (self->closed || !self->ctx)
+    {
+      PyErr_SetString (PyExc_ValueError, "push is closed");
+      return NULL;
+    }
+  int rc;
+  Py_BEGIN_ALLOW_THREADS
+    rc = dp_ctx_delete_stream (self->ctx);
+  Py_END_ALLOW_THREADS
+  if (rc != DP_OK)
+    {
+      const char *detail = dp_ctx_last_error (self->ctx);
+      PyErr_Format (PyExc_RuntimeError, "delete_stream failed: %s%s%s",
+                    dp_strerror (rc), *detail ? " -- " : "", detail);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 Push_close (PushObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->closed && self->ctx)
@@ -930,6 +957,20 @@ static PyMethodDef Push_methods[] = {
     ">>> push = Push(\"nats://127.0.0.1:4222/work\", CF32)  # doctest: +SKIP\n"
     ">>> push.send_eos()                                    # doctest: "
     "+SKIP\n" },
+  { "delete_stream", (PyCFunction)Push_delete_stream, METH_NOARGS,
+    "delete_stream() -- destroy the work-queue stream backing this "
+    "endpoint, and every frame still in it.\n\n"
+    "Administrative, and never automatic: a work queue is shared "
+    "infrastructure and outliving any one producer is the feature, so "
+    "closing a Push must not end it. Call this only when you own the "
+    "queue's lifetime. A work queue drops a frame only when a consumer "
+    "acks it, so frames nobody consumed are kept forever otherwise.\n\n"
+    "Only a Push provisions the stream, so a Pull cannot attach to the "
+    "endpoint again until another Push re-creates it.\n\n"
+    "Examples\n--------\n"
+    ">>> from doppler.stream import Push, CF64  # doctest: +SKIP\n"
+    ">>> push = Push(\"nats://127.0.0.1:4222/iq\", CF64)  # doctest: +SKIP\n"
+    ">>> push.delete_stream()  # doctest: +SKIP\n" },
   { "close", (PyCFunction)Push_close, METH_NOARGS, NULL },
   { "__enter__", (PyCFunction)Push_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)Push_exit, METH_VARARGS, NULL },

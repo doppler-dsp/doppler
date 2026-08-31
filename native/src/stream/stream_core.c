@@ -383,6 +383,18 @@ dp_host_rep (void)
 }
 
 const char *
+dp_ctx_last_error (const dp_pub_t *ctx)
+{
+  return (ctx && ctx->last_error[0]) ? ctx->last_error : "";
+}
+
+int
+dp_ctx_delete_stream (dp_pub_t *ctx)
+{
+  return ctx ? nats_delete_stream (ctx) : DP_ERR_INVALID;
+}
+
+const char *
 dp_strerror (int err)
 {
   switch (err)

@@ -30,9 +30,13 @@ from doppler.tests._validation_common import assert_renders
 from doppler.wfm.tests.validation.wfm_synth import (
     validate as wfm_synth_validate,
 )
+from doppler.wfm.tests.validation.wfm_writer import (
+    validate as wfm_writer_validate,
+)
 
 OBJECTS = {
     "wfm_synth": wfm_synth_validate,
+    "wfm_writer": wfm_writer_validate,
 }
 
 

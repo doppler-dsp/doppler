@@ -224,6 +224,6 @@ ______________________________________________________________________
 **Gallery** — [type="symbols" — Bring Your Own Constellation](../gallery/symbols.md), [Composing a Scene — `.sum()`, `.add()`, and Headroom](../gallery/wfm-composition.md), [Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md), [Waveform Write — Compose, Write, Read Back](../gallery/wfm-write.md), [wfmgen — One Engine, Every Waveform](../gallery/wfmgen.md)
 **Guides** — [Capture I/O](../guide/wfm-io/index.md), [Reading captures](../guide/wfm-io/reading.md), [Writing captures — output & file types](../guide/wfm-io/writing.md), [Levels & SNR](../guide/wfmgen/levels.md), [Python API](../guide/wfmgen/python.md)
 **Design** — [Capture files — one reader, one writer, four containers](../design/capture-files.md), [Design](../design/index.md), [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md), [wfmgen — the waveform generator](../design/wfmgen.md)
-**Contributing** — [Release Checklist](../dev/release.md)
+**Contributing** — [Validation log](../dev/contributing/validation-log.md), [Release Checklist](../dev/release.md)
 
 <!-- related-pages:end -->

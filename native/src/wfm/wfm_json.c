@@ -974,7 +974,16 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
    * matching wfm_source_describe_frame(), where a carried description beats
    * the flat fields it sits beside instead of being merged with them. */
   if (read_frame_desc (so, out) != 0)
-    return -1;
+    {
+      /* A refused description is still an ALLOCATED one -- it is reachable
+         from `out->frame` the moment it exists, so that the partial-failure
+         paths inside read_frame_desc have an owner. Releasing it is this
+         function's job on every other reader too; skipping it here leaked
+         the description and its fields' bits on exactly the paths the reject
+         tests exercise, which is how ASan found it. */
+      free_src_bits (out, 1); /* drop this source's partials */
+      return -1;
+    }
   if (t == WFM_SYNTH_DSSS)
     {
       /* The spread half: the payload's own code, the payload under "payload"

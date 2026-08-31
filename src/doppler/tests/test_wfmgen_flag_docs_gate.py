@@ -263,3 +263,51 @@ def test_the_real_repo_passes_its_own_gate() -> None:
         [sys.executable, str(SCRIPT)], capture_output=True, text=True
     )
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+# ── the exercise ratchet (doppler#1143) ─────────────────────────────────────
+#
+# Scoped to the real repository inside the gate, because the rule is about
+# doppler's docs rather than any tree's shape -- a synthetic fixture's unused
+# flag is not a regression. So the comparison is tested here DIRECTLY, on the
+# same function the gate calls, rather than through a seeded root.
+
+
+def _violations(unexercised, allowed):
+    sys.path.insert(0, str(SCRIPT.parent))
+    import check_wfmgen_flag_docs as gate
+
+    return gate.exercise_violations(set(unexercised), set(allowed))
+
+
+def test_a_waived_unexercised_flag_is_allowed() -> None:
+    """The steady state: everything unexercised is on the list."""
+    assert _violations({"--a", "--b"}, {"--a", "--b"}) == ([], [])
+
+
+def test_an_unwaived_unexercised_flag_fails() -> None:
+    """A capability shipped with nothing running it."""
+    new, stale = _violations({"--a", "--b"}, {"--a"})
+    assert new == ["--b"] and stale == []
+
+
+def test_a_waiver_that_outlived_its_defect_fails() -> None:
+    """The half that matters: a stale entry covers the next regression.
+
+    Without this direction the list could only grow in practice -- nobody
+    deletes an entry a gate never complains about, and the count it is
+    supposed to ratchet stops meaning anything.
+    """
+    new, stale = _violations({"--a"}, {"--a", "--b"})
+    assert new == [] and stale == ["--b"]
+
+
+def test_an_empty_ratchet_is_not_a_free_pass() -> None:
+    """Deleting the file waives nothing, so the gate fails loudly.
+
+    This is why the gate needs no "missing file" branch of its own: an absent
+    ratchet is the empty set, and the ordinary rule then names every
+    unexercised flag.
+    """
+    new, stale = _violations({"--a", "--b"}, set())
+    assert new == ["--a", "--b"] and stale == []

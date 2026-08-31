@@ -17,37 +17,44 @@
 # capability is a gap nobody's gate can see" -- and the gate has been
 # printing the measurement as its SECOND line, which nobody read, since it
 # was written: "(53 of 67 flags exercised)". doppler#1143 is that sentence
-# with a number attached. The fix is not fourteen new examples on demand; it
-# is that the number may not get worse.
+# with a number attached.
 #
-# Not all fourteen are the same weight, and the list says which is which
-# rather than flattening them:
+# doppler#1149 PAID THE DEBT DOWN. All thirteen real capabilities now have a
+# runnable line on the page that was already explaining them, and 66 of 67
+# flags are exercised. What each one got:
 #
-#   -o  is the SHORT ALIAS of --output, and --output is exercised. Nothing
-#       about the capability is undemonstrated; only this spelling is. It is
-#       the weakest entry here and the cheapest to retire.
+#   --clip-report / --clip-error  the clipping section of waveforms.md, as
+#       the sequence a reader actually performs: measure (42.41% of I/Q
+#       components clipped, peak +13.4 dB over full scale), then make it an
+#       exit status, then take the remedy the report named and pass.
+#   --level         beside it, against --headroom -- per-source placement
+#       versus one common gain on the way to the wire.
+#   --pn-poly       forcing the tap set, shown byte-identical to the
+#       auto-selected one for length 7 (0x60), which is how you CHECK a
+#       polynomial you were handed.
+#   --rrc-span      the deeper-stopband / more-filter-delay trade.
+#   --gap-noise     measured in the gap: 0.1036 power at 10 dB SNR, or 0.0.
+#   --randomize     the US spelling, run and byte-compared against
+#       --randomise. An alias exists to be typed; this proves it is real.
+#   --acq-code-gen / --data-code-gen  one DSSS burst with BOTH codes
+#       generated, beside the --sync-gen line that was already there.
+#   --data          the same continuous DSSS stream with the data switched
+#       off -- the pure code, what you correlate against.
+#   --fc            the SigMF sidecar it writes, read back.
+#   --repeat / --realtime-resync  the scenes page's looping and live-stream
+#       fences. Both loop forever by design, so they are parse-validated
+#       rather than executed -- which the gate's own rules already handle.
 #
-# The rest are capabilities with no runnable line at all. Two groups are
-# worth naming because they are load-bearing elsewhere:
+# WHAT IS LEFT, and it is not debt.
 #
-#   --clip-error / --clip-report  are the observability half of design goal 9
-#       ("clipping is observable rather than silent"). A goal whose evidence
-#       flags are undemonstrated is half a goal.
-#   --level                       is how every non-anchor source in a
-#       multi-source scene places its power relative to the noise floor. A
-#       scene author reaches for it early and the docs never run it.
+#   -o  cannot be retired by writing anything. It is ALREADY used in a
+#       `wfmgen` command line under docs/ -- the "30-second version" on the
+#       guide index opens with `-o capture.cf32` -- but the gate tokenises
+#       LONG flags only (`_TOKEN` matches `--[A-Za-z]...`), so a short flag
+#       can never land in `seen` and is therefore unexercised BY
+#       CONSTRUCTION. This entry is a fact about the checker, not a gap in
+#       the docs, and it must stay until the checker learns short flags.
+#       Do NOT add a doc line for it: there is no line that would work, and
+#       writing documentation to tick a gate is the wrong direction anyway.
 #
---acq-code-gen
---clip-error
---clip-report
---data
---data-code-gen
---fc
---gap-noise
---level
---pn-poly
---randomize
---realtime-resync
---repeat
---rrc-span
 -o

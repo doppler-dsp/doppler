@@ -196,9 +196,19 @@ changes — ideal for a soak test, a live receiver feed, or a rotating-file
 recorder. The first loop is always the unmodified seed for every mode, so a
 finite single-pass run is unaffected and `--record` stays byte-reproducible.
 
-<!-- docs-snippet: no-exec=unbounded --continuous --realtime stream; burst.json is illustrative -->
+What *creates* the loops is **`--repeat`**: it plays the whole sequence again
+after the last segment, indefinitely. `--continuous` is the stronger form — it
+never finishes *and* implies `--repeat`, so every block comes back full. Reach
+for `--repeat` when you want the scene's own segment boundaries preserved in a
+looping capture, and `--continuous` when you are feeding something that just
+wants samples forever.
+
+<!-- docs-snippet: no-exec=every line here loops forever by design -->
 
 ```sh
+# The scene, on a loop, with fresh noise each time round.
+wfmgen --from-file burst.json --repeat --seed-advance noise -o loop.cf32
+
 # A PN preamble + payload, repeating forever, fresh noise each burst:
 wfmgen --from-file burst.json --continuous --realtime --seed-advance noise \
        -o stream.cf32
@@ -552,6 +562,18 @@ If the producer can't keep up (a block takes longer than its `N/fs` period — a
 at exit (`wfmgen: 3 underrun(s) — worst 1.2 ms behind real time`). Use
 **`--realtime-resync`** instead to re-anchor the clock to "now" on each underrun,
 staying near real time going forward at the cost of an inserted gap.
+
+```sh
+# Same stream, but never try to "catch up" after a stall: a live receiver
+# would rather see a gap than a burst of stale samples arriving too fast.
+wfmgen --type qpsk --fs 1e6 --sps 8 --continuous --realtime --realtime-resync \
+       --output nats://127.0.0.1:4222/iq
+```
+
+Which one you want is a question about the consumer, not about the generator.
+Keep the default when the *absolute* timeline is the truth (you are going to
+line the capture up against something else afterwards); use `--realtime-resync`
+when *staying current* matters more than the total elapsed count.
 
 !!! note "Software pacing is average-rate, not sample-accurate"
 

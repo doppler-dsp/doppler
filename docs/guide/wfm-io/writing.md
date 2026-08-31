@@ -95,6 +95,15 @@ wfmgen --type qpsk --count 200000 --sample-type ci16 --endian be \
 # a SigMF pair (capture.sigmf-data + capture.sigmf-meta)
 wfmgen json-template > scenario.json      # or bring your own scene spec
 wfmgen --from-file scenario.json --sample-type ci16 --file-type sigmf -o capture
+
+# --fc records the RF centre the baseband was taken at. It changes no
+# sample -- it is the one number that says where in the spectrum this was.
+wfmgen --type tone --freq 1e5 --fs 1e6 --fc 2.4e9 --count 4096 \
+       --sample-type ci16 --file-type sigmf -o tuned
+python3 -c "
+import json
+print(json.load(open('tuned.sigmf-meta'))['captures'][0])"
+#   {'core:sample_start': 0, 'core:frequency': 2400000000}
 ```
 
 ### SigMF sidecar schema

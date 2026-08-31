@@ -129,6 +129,12 @@ out. `--acq-code-gen`, `--data-code-gen` and `--sync-gen` each take
 ```sh
 wfmgen --type bits --bits 10110010 --sync-gen pn:1023:10 \
        --sps 4 --count 8192 --record run.json -o framed.cf32
+
+# A DSSS burst with BOTH of its codes generated: a 127-chip preamble a
+# receiver correlates against, and a 31-chip code spreading the payload.
+wfmgen --type dsss --acq-code-gen pn:127:7 --acq-reps 4 \
+       --data-code-gen pn:31:5 --sync 1111100110101 --bits-hex a5c3 \
+       --sps 2 --snr 8 --snr-mode esno -o burst.cf32
 ```
 
 Every number takes hex or decimal, so a tap mask reads as `0x409` the way it
@@ -248,6 +254,10 @@ specific tap set.
 wfmgen --type pn --pn-length 7   --sps 1 --count 127   # one full period (2⁷−1)
 wfmgen --type pn --pn-length 11  --sps 4               # length-11 MLS, 4× oversampled
 wfmgen --type pn --pn-length 7   --lfsr fibonacci      # Fibonacci realization
+# Force a specific tap set instead of the auto-selected one. 0x60 is the
+# table's own entry for length 7 (x⁷+x⁶+1), so this is byte-identical to
+# --pn-poly 0 above -- which is how you check a polynomial you were handed.
+wfmgen --type pn --pn-length 7 --pn-poly 0x60 --sps 1 --count 127 -o pn7.cf32
 ```
 
 `--lfsr` selects the LFSR realization: **`galois`** (default, internal XOR
@@ -270,6 +280,10 @@ scaled, so the output stays at unit average power.
 
 ```sh
 wfmgen --type qpsk --sps 8 --pulse rrc --rrc-beta 0.22 --count 100000 -o wcdma.cf32
+# A longer span truncates the RRC tails less, so the stopband is deeper --
+# at the cost of `--rrc-span * --sps` more samples of filter delay.
+wfmgen --type qpsk --sps 8 --pulse rrc --rrc-beta 0.22 --rrc-span 16 \
+       --count 100000 -o wcdma-span16.cf32
 ```
 
 ______________________________________________________________________
@@ -369,6 +383,38 @@ So clipping is governed by **PAPR**, not by something being "signal" vs "noise":
 `Reader` (see [Output & file types](../wfm-io/writing.md)) inverts the same map, so a float
 round-trip is exact and an integer round-trip is exact only where it neither
 clipped nor truncated.
+
+**Clipping is observable, not silent.** Two flags turn "the capture looks
+wrong" into a number, and they are what to reach for before anything else:
+**`--clip-report`** prints the clipped fraction and the peak to stderr, and
+**`--clip-error`** makes clipping an *exit status* — which is what you want in
+a script that generates a capture and must not hand on a broken one.
+
+```sh
+# What does this shaped, noisy QPSK actually do to a 16-bit integer capture?
+wfmgen --type qpsk --sps 8 --pulse rrc --snr 6 --count 20000 \
+       --sample-type ci16 --clip-report -o shaped.ci16
+#   wfmgen: warning: ci16 output clipped — peak is +13.4 dB over full scale.
+#     remedy: --headroom 14, or --sample-type cf32.
+#     clipped 42.41% of I/Q components
+
+# Refuse to write a clipped capture at all: this one EXITS NON-ZERO.
+wfmgen --type qpsk --sps 8 --pulse rrc --snr 6 --count 20000 \
+       --sample-type ci16 --clip-error -o shaped.ci16 || echo "clipped, as expected"
+
+# Take the remedy the report named, and it passes.
+wfmgen --type qpsk --sps 8 --pulse rrc --snr 6 --count 20000 \
+       --sample-type ci16 --headroom 14 --clip-error -o clean.ci16
+
+# --level places a source in dBFS. Backing a source off is how a scene puts
+# one signal below another; --headroom scales the composite AFTER summing.
+wfmgen --type tone --freq 1e5 --fs 1e6 --level -10 --count 4096 -o quiet.cf32
+```
+
+`--level` is per-source and `--headroom` is per-output: a level difference is
+part of the scene (and survives into every sweep point a
+[`Plan`](scenes.md#prepare-once-sweep-many-plan) renders), while
+headroom is a single common gain applied on the way to the wire.
 
 ```python
 >>> import numpy as np
@@ -550,6 +596,25 @@ gap = x[-4000:]                                        # inside the last gap
 assert abs(float(np.mean(np.abs(gap) ** 2)) - floor) / floor < 0.2
 ```
 
+On the CLI that switch is **`--gap-noise`**, and the difference is measurable
+in the gap itself — the noise floor at 10 dB SNR, or exact zeros:
+
+```sh
+wfmgen --type bpsk --snr 10 --count 2048 --off 1024 -o gap-auto.cf32
+wfmgen --type bpsk --snr 10 --count 2048 --off 1024 --gap-noise off -o gap-off.cf32
+python3 -c "
+import numpy as np
+for f in ('gap-auto.cf32', 'gap-off.cf32'):
+    g = np.fromfile(f, dtype=np.complex64)[2048:]   # the trailing gap only
+    print(f, 'gap power', round(float(np.mean(np.abs(g) ** 2)), 4))"
+#   gap-auto.cf32 gap power 0.1036
+#   gap-off.cf32 gap power 0.0
+```
+
+Use `off` when a downstream tool defines a burst by "where the samples are
+non-zero"; leave it on `auto` for anything that has to pick the burst out of
+a channel, which is the case the default is built for.
+
 ### Ground truth for free
 
 The engine knows every drawn instance timing, and the SigMF sidecar emits
@@ -712,6 +777,12 @@ wfmgen --type dsss --fs 6138000 --sps 2 --seed 1 \
        --symbol-rate 2700 --data-code 111001010110011 \
        --snr 10 --snr-mode esno --count 40000 \
        --record cont.json -o cont.cf32
+
+# The same stream with the data switched OFF -- the pure repeating code,
+# which is what you correlate against when bringing a receiver up.
+wfmgen --type dsss --fs 6138000 --sps 2 --seed 1 \
+       --symbol-rate 2700 --data-code 111001010110011 --data none \
+       --snr 10 --snr-mode esno --count 40000 -o code-only.cf32
 ```
 
 `--data none` selects code-only; a supplied `--bits`/`--bits-hex` selects a
@@ -903,6 +974,12 @@ wfmgen --type bits --bits-hex b25a --sync 10110 --randomise \
        --count 512 -o r-default.cf32
 wfmgen --type bits --bits-hex b25a --sync 10110 --randomise legacy \
        --count 512 -o r-legacy.cf32
+
+# --randomize is the same flag, spelled the other way. Both spellings are
+# accepted everywhere, and produce the same bytes:
+wfmgen --type bits --bits-hex b25a --sync 10110 --randomize \
+       --count 512 -o r-us.cf32
+python3 -c "print(open('r-default.cf32','rb').read() == open('r-us.cf32','rb').read())"
 ```
 
 A bare `--randomise` selects `ccsds`: the 131071-bit sequence from

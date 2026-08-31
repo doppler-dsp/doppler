@@ -27,6 +27,7 @@ from __future__ import annotations
 import pytest
 
 from doppler.tests._validation_common import assert_renders
+from doppler.wfm.tests.validation.gold import validate as gold_validate
 from doppler.wfm.tests.validation.pn import validate as pn_validate
 from doppler.wfm.tests.validation.wfm_compose import (
     validate as wfm_compose_validate,
@@ -48,6 +49,7 @@ from doppler.wfm.tests.validation.wfm_writer import (
 )
 
 OBJECTS = {
+    "gold": gold_validate,
     "pn": pn_validate,
     "wfm_compose": wfm_compose_validate,
     "wfm_frame": wfm_frame_validate,

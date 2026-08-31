@@ -10,8 +10,11 @@
  * strict three-valued periodic autocorrelation/cross-correlation set
  * {-1, -65, 63} (verified: see native/tests/test_gold_core.c). Register A's
  * initial condition is "User dependent" per the standard — varying it walks
- * the whole Gold-code family (2^length members); Register B's taps and
- * initial condition are both fixed by the standard.
+ * the 2^length-1 XOR members of the family (1023 at length=10; the seed
+ * must be nonzero). The family itself has 2^length+1 members: those plus
+ * the two constituent m-sequences, which this generator does not emit because
+ * it always XORs both registers. Register B's taps and initial condition are
+ * both fixed by the standard.
  *
  * Lifecycle: create -> generate/reset (repeatable) -> destroy
  *
@@ -61,16 +64,17 @@ typedef struct {
  * default polynomials the two m-sequences form a genuine "preferred pair" —
  * their XOR family has a strict three-valued periodic
  * autocorrelation/cross-correlation set ``{-1, -65, 63}`` — so varying
- * ``seed_a`` (User dependent per the standard) walks the whole 2**length
- * -member Gold-code family while Register B stays fixed.
+ * ``seed_a`` (User dependent per the standard) walks the 2**length-1 XOR
+ * members of the Gold-code family while Register B stays fixed.
  *
  * @param taps_a  Register A feedback-tap mask; bit k set means stage k+1 is
  *              XORed into the feedback. Default 934 (stages 2,3,6,8,9,10 —
  *              the CCSDS-fixed Register A polynomial
  *              x^10+x^9+x^8+x^6+x^3+x^2+1).
  * @param seed_a  Register A initial value; must be non-zero. Per CCSDS this
- *              is "User dependent" — any nonzero value selects a different
- *              member of the 1024-code Gold family. Default 350 is the
+ *              is "User dependent" — each of the 2^length-1 nonzero values
+ *              selects a different member of the family (1023 distinct codes
+ *              at length=10, verified in test_gold_core.c). Default 350 is the
  *              worked example from CCSDS 415.0-G-1 Figure 5-2 (PN Code
  *              Library Table 1, Code Number 365).
  * @param taps_b  Register B feedback-tap mask, same bit convention as

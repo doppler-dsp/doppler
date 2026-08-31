@@ -8,13 +8,21 @@ with no header either. In every case the measurements come from a
 harness under `native/validation/`, and the validator beside this file
 renders and asserts them.
 
-**`OBJECTS` is a hand-written registry, and that is a trap worth naming.**
+**`OBJECTS` is DISCOVERED, not written down** (doppler#1144).
 `docs/dev/contributing/validation.md` says both gates "discover by glob, so
-a new object is gated the moment its folder exists". That is true of
-`make validate-check` and NOT of this file: a validator added under
-`src/doppler/tests/validation/` renders a report, passes the staleness
-gate, and has its limits asserted by nobody until someone edits the dict
-below. wfmgen was in exactly that state for the length of one commit.
+a new object is gated the moment its folder exists". That was true of
+`make validate-check` and false here: this file carried a hand-written dict,
+so a validator added under `src/doppler/tests/validation/` rendered a
+report, passed the staleness gate AND the report-format gate, and had its
+limits asserted by nobody until someone remembered to edit it. wfmgen sat
+exactly there for the length of one commit -- three green gates and an
+unasserted envelope, which is the shape that page's own opening section
+describes.
+
+Discovery is bounded and cheap: this directory holds only the subjects with
+no Python face, so importing them costs what the named ones already cost.
+`_discover()` fails loudly on an empty result, because a glob that silently
+matches zero is the same defect one level up.
 
 That is the whole difference. The rest is the campaign's rule unchanged:
 run the object's own `build(write=False)` and assert every limit that run
@@ -32,20 +40,43 @@ own gate: `validate.py --check`, run by `make validate-check`.
 
 from __future__ import annotations
 
+import importlib
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 import pytest
 
 from doppler.tests._validation_common import assert_renders
-from doppler.tests.validation.ccsds_tm import validate as ccsds_tm_validate
-from doppler.tests.validation.conv import validate as conv_validate
-from doppler.tests.validation.rs import validate as rs_validate
-from doppler.tests.validation.wfmgen import validate as wfmgen_validate
 
-OBJECTS = {
-    "ccsds_tm": ccsds_tm_validate,
-    "conv": conv_validate,
-    "rs": rs_validate,
-    "wfmgen": wfmgen_validate,
-}
+if TYPE_CHECKING:
+    from types import ModuleType
+
+_HERE = Path(__file__).resolve().parent
+
+
+def _discover() -> dict[str, ModuleType]:
+    """Every validator beside this file, by folder name.
+
+    A folder is a subject iff it holds `validate.py`, so `__pycache__` and
+    any stray directory drop out without needing to be named.
+    """
+    found = {
+        d.name: importlib.import_module(
+            f"doppler.tests.validation.{d.name}.validate"
+        )
+        for d in sorted(_HERE.glob("validation/*/"))
+        if (d / "validate.py").is_file()
+    }
+    if not found:
+        raise AssertionError(
+            f"no validators found under {_HERE / 'validation'} - a gate that "
+            "matches nothing reports a clean tree, which is the defect this "
+            "file exists to end (doppler#1144)"
+        )
+    return found
+
+
+OBJECTS = _discover()
 
 
 @pytest.fixture(scope="module", params=sorted(OBJECTS))

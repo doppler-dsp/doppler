@@ -351,7 +351,7 @@ def build(write: bool = True) -> Report:
     )
     R.find(
         "F5",
-        "GAP",
+        "FIXED",
         "**The limits gate does not discover by glob, though the process "
         "page twice says it does** (#1144). `make validate-check` globs; the "
         "tree-wide `test_validation_limits.py` asserts only the names typed "
@@ -361,9 +361,14 @@ def build(write: bool = True) -> Report:
         "exactly that state for one commit: 11 limits measured, "
         "`validate-check` reporting 33 reports up to date, and "
         "`-k 'validation_limits and wfmgen'` collecting zero tests. Fixed "
-        "for wfmgen by registering it; the trap is still there for the next "
-        "one, which is why it is a GAP rather than FIXED. The campaign's own "
-        "recurring shape, found in the campaign's own infrastructure.",
+        "by discovery: `OBJECTS` is now globbed from the folders beside the "
+        "gate, so the page's promise is true of both gates rather than one, "
+        "and `_discover()` fails loudly on an empty match because a glob "
+        "that silently finds nothing is the same defect one level up. "
+        "Proven by dropping a throwaway validator in place and watching the "
+        "gate collect it with no registration -- the same selection returned "
+        "zero tests before. The campaign's own recurring shape, found in "
+        "the campaign's own infrastructure.",
     )
     R.md()
 
@@ -414,10 +419,12 @@ def build(write: bool = True) -> Report:
             "private copy of a locator that already existed and fails "
             "loudly. Prefer the shared one; a private copy is not a "
             "harmless duplicate when it changes the failure mode.",
-            "**Registering a new validator is a step nobody asks you for** "
-            "(F5, #1144). `validation.md` promises both gates discover by "
-            "glob; only the staleness one does. A validator can render, pass "
-            "two gates, and have its limits asserted by nobody — check "
+            "**A validator used to be gated only if someone remembered to "
+            "register it** (F5, #1144, now fixed). `validation.md` promised "
+            "both gates discover by glob and only the staleness one did, so "
+            "this report rendered, passed two gates, and had its limits "
+            "asserted by nobody for one commit. Both glob now — but the "
+            "habit is still worth keeping: check that "
             "`-k 'validation_limits and <obj>'` collects something before "
             "believing a green run.",
             "**The five-scene matrix is four distinct waveforms** (§2.2): "

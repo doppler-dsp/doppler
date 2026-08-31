@@ -179,6 +179,63 @@ test_the_two_faces_agree (void)
         wfm_synth_destroy (comp);
         wfm_synth_destroy (bridge);
       }
+  /* ── and the case where the shared helper actually DOES work ─────────
+   *
+   * The loop above uses types for which wfm_source_create_snr is a
+   * pass-through, so it cannot see the two faces drift: sabotaging the
+   * bridge to skip the helper entirely left it green. A dsss source at a
+   * data-symbol Es/N0 is where the pre-referral happens, and it is the only
+   * shape that can catch that. Found by sabotage, which is what it is for.
+   */
+  {
+    static const uint8_t code[8] = { 1, 0, 0, 1, 1, 0, 1, 0 };
+    static const uint8_t pay[5]  = { 1, 0, 1, 1, 0 };
+    wfm_source_t         s       = { 0 };
+    s.type                       = WFM_SYNTH_DSSS;
+    s.sps                        = 2;
+    s.seed                       = 3;
+    s.pn_length                  = 9;
+    s.snr                        = 9.0;
+    s.snr_mode                   = 3; /* esno: the pre-referral runs */
+    s.acq_code.kind              = WFM_SEQ_LITERAL;
+    s.acq_code.bits              = code;
+    s.acq_code.len               = sizeof code;
+    s.acq_reps                   = 3;
+    s.data_code.kind             = WFM_SEQ_LITERAL;
+    s.data_code.bits             = code;
+    s.data_code.len              = sizeof code;
+    s.payload.kind               = WFM_SEQ_LITERAL;
+    s.payload.bits               = pay;
+    s.payload.len                = sizeof pay;
+    s.crc                        = 1;
+
+    float complex *da = malloc (n * sizeof *da);
+    float complex *db = malloc (n * sizeof *db);
+    DP_REQUIRE_MSG (da && db, "dsss faces: alloc");
+    wfm_synth_state_t *comp = wfm_compose_build_synth (
+        &s, 1e6, n, s.freq, s.snr, s.f_end, 0, 0, 0);
+    wfm_synth_state_t *bridge = wfm_source_to_synth (&s, 1e6);
+    DP_REQUIRE_MSG (comp && bridge, "both faces build a dsss burst");
+    wfm_synth_steps (comp, da, n);
+    wfm_synth_steps (bridge, db, n);
+    DP_REQUIRE_MSG (memcmp (da, db, n * sizeof *da) == 0,
+                    "the two faces agree on a dsss source, where the "
+                    "shared SNR referral actually runs");
+    /* precondition: the noise is really there, or the comparison is of two
+       clean waveforms and the referral could not have shown up either way */
+    double p = 0.0;
+    for (size_t i = 0; i < n; i++)
+      p += (double)(crealf (da[i]) * crealf (da[i])
+                    + cimagf (da[i]) * cimagf (da[i]));
+    DP_REQUIRE_MSG (p / (double)n > 1.5,
+                    "precondition: the source is genuinely noisy, so the "
+                    "referral is in the answer");
+    wfm_synth_destroy (comp);
+    wfm_synth_destroy (bridge);
+    free (da);
+    free (db);
+  }
+
   free (a);
   free (b);
   return 0;

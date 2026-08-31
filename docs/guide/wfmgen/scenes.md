@@ -8,6 +8,13 @@ or stream it in real time.
 What each waveform *is* belongs to [Waveforms](waveforms.md); the object
 model is on the [guide index](index.md#the-ladder-the-whole-mental-model).
 
+!!! info "\"source\" on this page is \"`Synth`\" in Python"
+
+    One waveform's recipe. This page and the scene JSON call it a **source**;
+    the [Python API](python.md) calls the same thing a `Synth`. A **segment**
+    is the time span one or more sources are summed over — see
+    [source and segment](index.md#source-and-segment-the-one-distinction-to-get-right).
+
 ______________________________________________________________________
 
 A **scene** is more than one waveform: sources mixed at the same time, segments

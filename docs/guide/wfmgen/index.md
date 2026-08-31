@@ -35,6 +35,56 @@ were not generated here. [Writing captures](../wfm-io/writing.md) holds the
 
 ______________________________________________________________________
 
+## Source and segment — the one distinction to get right
+
+**A source is WHAT plays. A segment is WHEN.**
+
+Everything else follows from that. Sources stack *upwards* — several playing
+at once, into one receiver, over one span, sharing one noise floor. Segments
+lay out *rightwards* — one span after another in time.
+
+```mermaid
+flowchart LR
+    subgraph S1["<b>Segment 1</b> — 4096 on, 1024 off"]
+        direction TB
+        a1["source · <b>qpsk</b><br/>the signal"]
+        a2["source · <b>tone</b><br/>an interferer"]
+        a3["source · <b>noise</b><br/>the floor"]
+    end
+    subgraph S2["<b>Segment 2</b> — 2048 on"]
+        direction TB
+        b1["source · <b>chirp</b>"]
+    end
+    S1 -->|"next in time"| S2
+
+    classDef sig fill:#ede7f6,stroke:#5e35b1,color:#000;
+    class a1,a2,a3,b1 sig;
+```
+
+Stacked inside one box = **summed**, at the same instant. Box after box =
+**sequenced**, one after the other. Those are the only two ways to combine
+anything here, and they are the two verbs `.sum()` and `.add()`.
+
+### The same thing has four names
+
+A source is one waveform's recipe, and which word you meet depends only on
+which API you are reading. This is the single most common stumble, because
+the guide's own pages speak different dialects: the CLI and JSON pages say
+*source*, the Python page says *Synth*.
+
+| Where you are | What a source is called                                     | What a segment is called        |
+| ------------- | ----------------------------------------------------------- | ------------------------------- |
+| C API         | `wfm_source_t`                                              | `wfm_segment_t`                 |
+| Scene JSON    | an entry in `"sum"`                                         | an entry in `"segments"`        |
+| CLI           | the flags themselves — one run describes exactly one source | `--count` / `--off` on that run |
+| Python        | `Synth`                                                     | `Segment`                       |
+
+The CLI row is why a one-segment run needs no vocabulary at all: with one
+source in one segment there is nothing to name, which is exactly the simple
+case `wfmgen --type qpsk --count 100000` is.
+
+______________________________________________________________________
+
 ## The ladder — the whole mental model
 
 `wfmgen` has one job, turning a description of a signal into I/Q samples, but a

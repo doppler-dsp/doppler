@@ -1,0 +1,53 @@
+# Ratchet for scripts/check_wfmgen_flag_docs.py's exercise rule.
+#
+# One wfmgen flag per line that the docs DOCUMENT but never RUN: no `wfmgen`
+# command line anywhere under docs/ passes it, so no reader can copy a line
+# that uses it and no gate demonstrates what it does.
+#
+# THIS LIST MAY ONLY SHRINK, and it is checked in BOTH directions:
+#
+#   * a flag that is unexercised and NOT listed here fails -- that is a new
+#     capability shipped with nothing running it;
+#   * a flag listed here that IS now exercised also fails -- a waiver that
+#     outlives its defect silently covers the next one, which is the rule
+#     `.example-arity-ratchet` and `.private-rng-ratchet` already keep.
+#
+# Why this exists. `docs/design/wfmgen.md`'s first design goal admits the
+# hole in prose -- "nothing states the intended coverage, so a missing
+# capability is a gap nobody's gate can see" -- and the gate has been
+# printing the measurement as its SECOND line, which nobody read, since it
+# was written: "(53 of 67 flags exercised)". doppler#1143 is that sentence
+# with a number attached. The fix is not fourteen new examples on demand; it
+# is that the number may not get worse.
+#
+# Not all fourteen are the same weight, and the list says which is which
+# rather than flattening them:
+#
+#   -o  is the SHORT ALIAS of --output, and --output is exercised. Nothing
+#       about the capability is undemonstrated; only this spelling is. It is
+#       the weakest entry here and the cheapest to retire.
+#
+# The rest are capabilities with no runnable line at all. Two groups are
+# worth naming because they are load-bearing elsewhere:
+#
+#   --clip-error / --clip-report  are the observability half of design goal 9
+#       ("clipping is observable rather than silent"). A goal whose evidence
+#       flags are undemonstrated is half a goal.
+#   --level                       is how every non-anchor source in a
+#       multi-source scene places its power relative to the noise floor. A
+#       scene author reaches for it early and the docs never run it.
+#
+--acq-code-gen
+--clip-error
+--clip-report
+--data
+--data-code-gen
+--fc
+--gap-noise
+--level
+--pn-poly
+--randomize
+--realtime-resync
+--repeat
+--rrc-span
+-o

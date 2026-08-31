@@ -353,6 +353,8 @@
 
 ## w
 
+* **WFM\_SEGMENT\_DEFAULTS** ([**wfm\_defaults.h**](wfm__defaults_8h.md))
+* **WFM\_SOURCE\_DEFAULTS** ([**wfm\_defaults.h**](wfm__defaults_8h.md))
 * **WFM\_FRAME\_CRC\_BITS** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **WFM\_FRAME\_MAX\_FIELDS** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **WFM\_FRAME\_MAX\_STAGES** ([**wfm\_frame.h**](wfm__frame_8h.md))

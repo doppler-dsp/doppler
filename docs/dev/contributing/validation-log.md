@@ -96,7 +96,7 @@ There is no list here to update.
 | [ccsds_tm](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/ccsds_tm/results.md)                          | `— (C only)` | 12/12  | 5        | 1 — F2                     |
 | [conv](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/conv/results.md)                                  | `— (C only)` | 7/7    | 3        | none                       |
 | [rs](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/rs/results.md)                                      | `— (C only)` | 11/11  | 4        | none                       |
-| [wfmgen](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/wfmgen/results.md)                              | `— (C only)` | 11/11  | 5        | 2 — F2, F4                 |
+| [wfmgen](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/wfmgen/results.md)                              | `— (C only)` | 11/11  | 5        | 1 — F4                     |
 
 <!-- validation-log:end -->
 

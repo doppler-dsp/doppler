@@ -66,6 +66,104 @@ def _unique_endpoint(hint: str = "ep") -> str:
     return f"nats://127.0.0.1:4222/{hint}{random.randint(1, 10**9)}"
 
 
+# How long to keep trying before calling an endpoint dead. Generous on
+# purpose: this bounds a FAILURE, it is not a delay anything pays on the
+# happy path, where the first probe crosses immediately.
+_READY_DEADLINE_S = 10.0
+
+
+def _ready_queue(sender, receiver, probe) -> None:
+    """Block until a work-queue endpoint demonstrably carries a frame.
+
+    Replaces a fixed ``time.sleep``. How long JetStream takes to provision
+    a work queue is a property of the machine and the broker's load, so a
+    constant is wrong on any machine but the one it was measured on --
+    which is what made these tests flaky under CI load (doppler#1131).
+
+    The probe is sent ONCE and then waited for: a work queue persists, so
+    re-sending would leave spare frames behind for the test's own ``recv``
+    to pick up instead of its data.
+    """
+    deadline = time.monotonic() + _READY_DEADLINE_S
+    last: Exception | None = None
+    sent = False
+    while time.monotonic() < deadline:
+        try:
+            if not sent:
+                sender.send(probe)
+                sent = True  # enqueued exactly once
+            receiver.recv(timeout_ms=250)
+            return
+        except Exception as exc:
+            last = exc
+    raise AssertionError(
+        f"work queue not ready after {_READY_DEADLINE_S:.0f}s; last: {last!r}"
+    )
+
+
+def _drain(endpoint) -> None:
+    """Consume anything still queued, so a probe leaves no residue."""
+    while True:
+        try:
+            endpoint.recv(timeout_ms=20)
+        except Exception:
+            return
+
+
+def _ready_reqrep(req, rep, probe) -> None:
+    """Block until a request/reply pair completes a full exchange.
+
+    Neither :func:`_ready_queue` nor :func:`_ready_fanout` fits: a request
+    that is delivered but never answered leaves BOTH ends mid-exchange, and
+    the next ``recv`` on either fails. Readiness here means a whole
+    round-trip -- request out, request in, reply out, reply in.
+    """
+    deadline = time.monotonic() + _READY_DEADLINE_S
+    last: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            req.send(probe)
+            rep.recv(timeout_ms=100)
+            rep.send(probe)
+            req.recv(timeout_ms=250)
+            _drain(req)  # retries may have left spare replies queued
+            _drain(rep)
+            return
+        except Exception as exc:
+            last = exc
+    raise AssertionError(
+        f"req/rep not ready after {_READY_DEADLINE_S:.0f}s; last: {last!r}"
+    )
+
+
+def _ready_fanout(sender, receiver, probe) -> None:
+    """Block until a fan-out endpoint demonstrably carries a frame.
+
+    The counterpart to :func:`_ready_queue` for core NATS, where a publish
+    with no registered subscriber is simply lost rather than queued. So the
+    probe is REPEATED until one arrives, and any duplicates that arrived in
+    the meantime are drained before the test starts.
+    """
+    deadline = time.monotonic() + _READY_DEADLINE_S
+    last: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            sender.send(probe)
+            receiver.recv(timeout_ms=100)
+            break
+        except Exception as exc:
+            last = exc
+    else:
+        raise AssertionError(
+            f"fan-out not ready after {_READY_DEADLINE_S:.0f}s; last: {last!r}"
+        )
+    while True:  # drain the probes that landed before the one we saw
+        try:
+            receiver.recv(timeout_ms=20)
+        except Exception:
+            return
+
+
 # ------------------------------------------------------------------ #
 # get_timestamp_ns                                                    #
 # ------------------------------------------------------------------ #
@@ -78,7 +176,7 @@ def test_timestamp_ns_is_positive():
 
 def test_timestamp_ns_increases():
     t0 = get_timestamp_ns()
-    time.sleep(0.001)
+    time.sleep(0.001)  # not readiness: the clock has to actually advance
     t1 = get_timestamp_ns()
     assert t1 > t0
 
@@ -93,7 +191,7 @@ def push_pull_cf64():
     ep = _unique_endpoint()
     push = Push(ep, CF64)
     pull = Pull(ep)
-    time.sleep(0.05)  # allow the JetStream work-queue to provision
+    _ready_queue(push, pull, np.zeros(1, dtype=np.complex128))
     yield push, pull
     push.__exit__(None, None, None)
     pull.__exit__(None, None, None)
@@ -184,7 +282,7 @@ def test_push_pull_cf32_roundtrip():
     # and check the values survive the round-trip at float precision.
     push = Push(ep, CF64)
     pull = Pull(ep)
-    time.sleep(0.05)
+    _ready_queue(push, pull, np.zeros(1, dtype=np.complex128))
     x = np.array([1 + 2j, -3 - 4j], dtype=np.complex128)
     push.send(x)
     samples, _ = pull.recv(timeout_ms=2000)
@@ -202,7 +300,7 @@ def test_push_pull_ci32_roundtrip():
     ep = _unique_endpoint()
     push = Push(ep, CI32)
     pull = Pull(ep)
-    time.sleep(0.05)
+    _ready_queue(push, pull, np.zeros(2, dtype=np.int32))
     # CI32 send expects int32, interleaved [I0, Q0, I1, Q1, ...];
     # recv returns a flat int32 array of the same layout.
     x = np.array([1, 2, 3, 4], dtype=np.int32)  # 2 IQ pairs
@@ -223,7 +321,7 @@ def test_pub_sub_cf64_roundtrip():
     ep = _unique_endpoint()
     pub = Publisher(ep, CF64)
     sub = Subscriber(ep)
-    time.sleep(0.3)  # core NATS: sub must exist before publish
+    _ready_fanout(pub, sub, np.zeros(1, dtype=np.complex128))
     x = np.array([7 + 8j, 9 + 10j], dtype=np.complex128)
     pub.send(x, sample_rate=int(1e6))
     samples, _hdr = sub.recv(timeout_ms=2000)
@@ -240,7 +338,7 @@ def test_pub_sub_cf64_roundtrip():
 def test_push_context_manager():
     ep = _unique_endpoint()
     with Push(ep, CF64) as push, Pull(ep) as pull:
-        time.sleep(0.05)
+        _ready_queue(push, pull, np.zeros(1, dtype=np.complex128))
         x = np.ones(4, dtype=np.complex128)
         push.send(x)
         samples, _ = pull.recv(timeout_ms=2000)
@@ -274,6 +372,8 @@ def test_flush_makes_the_send_observable():
     """send() returns before the server has it; flush() is the round trip."""
     ep = _unique_endpoint()
     sub = Subscriber(ep)
+    # No publisher yet, so there is nothing to probe with; this test is
+    # ABOUT the send/flush boundary and a probe would blur it.
     time.sleep(0.05)
     pub = Publisher(ep, CF64)
     pub.send(np.ones(16, dtype=np.complex128), sample_rate=1e6)
@@ -319,7 +419,7 @@ def test_interrupt_unblocks_a_blocking_recv():
 
     it = _guard()
     sub = Subscriber(_unique_endpoint())
-    time.sleep(0.05)
+    time.sleep(0.05)  # lone subscriber: no counterpart to probe with
 
     timer = threading.Timer(0.4, it.interrupt)
     timer.start()
@@ -363,7 +463,7 @@ def test_interrupt_latency_is_the_callers_to_set():
     assert it.latency_ms() == 10
     try:
         sub = Subscriber(_unique_endpoint())
-        time.sleep(0.05)
+        time.sleep(0.05)  # lone subscriber: no counterpart to probe with
         timer = threading.Timer(0.2, it.interrupt)
         timer.start()
         t0 = time.monotonic()
@@ -485,7 +585,7 @@ def test_pub_sub_ci32_roundtrip():
     ep = _unique_endpoint()
     pub = Publisher(ep, CI32)
     sub = Subscriber(ep)
-    time.sleep(0.1)
+    _ready_fanout(pub, sub, np.zeros(2, dtype=np.int32))
     x = np.array([10, 20, 30, 40], dtype=np.int32)  # 2 IQ pairs
     pub.send(x)
     samples, _hdr = sub.recv(timeout_ms=2000)
@@ -499,7 +599,7 @@ def test_pub_sub_header_fields():
     ep = _unique_endpoint()
     pub = Publisher(ep, CF64)
     sub = Subscriber(ep)
-    time.sleep(0.1)
+    _ready_fanout(pub, sub, np.zeros(1, dtype=np.complex128))
     x = np.ones(4, dtype=np.complex128)
     pub.send(x, sample_rate=int(2e6), center_freq=int(433e6))
     _, hdr = sub.recv(timeout_ms=2000)
@@ -526,7 +626,7 @@ def req_rep_cf64():
     ep = _unique_endpoint()
     rep = Replier(ep, CF64)
     req = Requester(ep, CF64)
-    time.sleep(0.05)
+    _ready_reqrep(req, rep, np.zeros(1, dtype=np.complex128))
     yield req, rep
     req.__exit__(None, None, None)
     rep.__exit__(None, None, None)
@@ -579,7 +679,7 @@ def test_req_rep_ci32_roundtrip():
     ep = _unique_endpoint()
     rep = Replier(ep, CI32)
     req = Requester(ep, CI32)
-    time.sleep(0.05)
+    _ready_reqrep(req, rep, np.zeros(2, dtype=np.int32))
     x = np.array([1, 2, 3, 4], dtype=np.int32)
     req.send(x)
     samples, _ = rep.recv(timeout_ms=2000)
@@ -607,7 +707,7 @@ def test_requester_reply_timeout_raises():
     ep = _unique_endpoint()
     rep = Replier(ep, CF64)
     req = Requester(ep, CF64)
-    time.sleep(0.05)
+    _ready_reqrep(req, rep, np.zeros(1, dtype=np.complex128))
     # Send a request but never reply — requester recv should time out.
     x = np.ones(4, dtype=np.complex128)
     req.send(x)
@@ -626,7 +726,7 @@ def test_requester_reply_timeout_raises():
 def test_pull_context_manager():
     ep = _unique_endpoint()
     with Push(ep, CF64) as push, Pull(ep) as pull:
-        time.sleep(0.05)
+        _ready_queue(push, pull, np.zeros(1, dtype=np.complex128))
         x = np.ones(4, dtype=np.complex128)
         push.send(x)
         samples, _ = pull.recv(timeout_ms=2000)
@@ -636,7 +736,7 @@ def test_pull_context_manager():
 def test_subscriber_context_manager():
     ep = _unique_endpoint()
     with Publisher(ep, CF64) as pub, Subscriber(ep) as sub:
-        time.sleep(0.1)
+        _ready_fanout(pub, sub, np.zeros(1, dtype=np.complex128))
         x = np.ones(4, dtype=np.complex128)
         pub.send(x)
         samples, _ = sub.recv(timeout_ms=2000)
@@ -646,7 +746,7 @@ def test_subscriber_context_manager():
 def test_req_rep_context_manager():
     ep = _unique_endpoint()
     with Replier(ep, CF64) as rep, Requester(ep, CF64) as req:
-        time.sleep(0.05)
+        _ready_reqrep(req, rep, np.zeros(1, dtype=np.complex128))
         x = np.ones(4, dtype=np.complex128)
         req.send(x)
         samples, _ = rep.recv(timeout_ms=2000)
@@ -663,9 +763,8 @@ def test_req_rep_context_manager():
 def test_nats_pub_sub_roundtrip():
     ep = _unique_endpoint("pubsub")
     sub = Subscriber(ep)
-    time.sleep(0.3)  # core NATS: sub must exist before publish
     pub = Publisher(ep, CF64)
-    time.sleep(0.3)
+    _ready_fanout(pub, sub, np.zeros(1, dtype=np.complex128))
     x = np.array([1 + 2j, 3 + 4j, 5 + 6j], dtype=np.complex128)
     pub.send(x, sample_rate=48000, center_freq=int(915e6))
     samples, hdr = sub.recv(timeout_ms=3000)
@@ -686,7 +785,7 @@ def test_nats_pub_sub_timeout():
 def test_nats_req_rep_roundtrip():
     ep = _unique_endpoint("ctrl")
     rep = Replier(ep)
-    time.sleep(0.3)
+    time.sleep(0.3)  # lone replier: the requester is built below
     req = Requester(ep)
     req.send(np.array([1 + 2j, 3 + 4j], dtype=np.complex128))
     got, _ = rep.recv(timeout_ms=3000)
@@ -702,9 +801,8 @@ def test_nats_chunked_pub_sub():
     """A >1 MiB frame is split into chunks and reassembled byte-identical."""
     ep = _unique_endpoint("chunk")
     sub = Subscriber(ep)
-    time.sleep(0.3)
     pub = Publisher(ep, CF64)
-    time.sleep(0.3)
+    _ready_fanout(pub, sub, np.zeros(1, dtype=np.complex128))
     rng = np.random.default_rng(0)
     big = (
         rng.standard_normal(100_000) + 1j * rng.standard_normal(100_000)
@@ -769,6 +867,8 @@ def test_pub_sub_tlm16_roundtrip():
     ep = _unique_endpoint("tlm")
     pub = Publisher(ep, TLM16)
     sub = Subscriber(ep)
+    # TLM16 carries records, not I/Q, so a probe would need a valid
+    # telemetry frame to be meaningful; left as a wait deliberately.
     time.sleep(0.3)  # core NATS: sub must exist before publish
 
     tlm = Telemetry(1 << 12)

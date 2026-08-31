@@ -43,6 +43,8 @@ COVERAGE: dict[str, str] = {
     "Segment": "TestComposerGraph",
     "Timeline": "TestComposerGraph",
     "Composer": "TestComposerGraph",
+    # a scene's drawn ground truth — dedicated tests in test_compose.py
+    "draws": "test_compose.py",
     # factories
     "tone": "TestFactories",
     "noise": "TestFactories",

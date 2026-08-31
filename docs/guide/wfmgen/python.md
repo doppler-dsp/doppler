@@ -5,6 +5,13 @@ flag is a keyword argument, and the same defaults apply. For the full generated
 reference (every class and method), see the
 [Python: Waveform Generator API](../../api/python-wfmgen.md).
 
+!!! info "`Synth` here is \"source\" everywhere else"
+
+    One waveform's recipe. Python calls it a `Synth`; the CLI, the scene JSON
+    and the C API all call the same thing a **source**. A `Segment` is the
+    time span one or more of them are summed over — see
+    [source and segment](index.md#source-and-segment-the-one-distinction-to-get-right).
+
 ```python
 import numpy as np
 from doppler.wfm import Synth

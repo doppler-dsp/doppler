@@ -1,8 +1,18 @@
-# Scenes — multi-segment specs
+# Scenes — composing in time
+
+A scene is segments in sequence: what plays, for how long, what follows,
+and what varies per repeat. This page covers the spec format, then the
+two things you do with a finished scene — sweep it cheaply with `Plan`,
+or stream it in real time.
+
+What each waveform *is* belongs to [Waveforms](waveforms.md); the object
+model is on the [guide index](index.md#the-ladder-the-whole-mental-model).
+
+______________________________________________________________________
 
 A **scene** is more than one waveform: sources mixed at the same time, segments
 sequenced in time, repeats, and reproducible randomness. This is the
-[Segment / Timeline / Composer](concepts.md) rungs of the ladder in practice.
+[Segment / Timeline / Composer](index.md#the-ladder-the-whole-mental-model) rungs of the ladder in practice.
 Both the CLI (`--from-file SPEC.json`) and the Python `Composer` drive the same
 C engine, so their output is **byte-identical** for the same parameters.
 
@@ -23,7 +33,7 @@ C engine, so their output is **byte-identical** for the same parameters.
 | `--continuous`          | never stop (implies repeat) — for streaming                                               |
 | `--seed-advance A`      | `none` (default) / `noise` / `all`: how the seed advances per repeat                      |
 | `--detached`            | BLUE only: write `<out>.hdr` (HCB) + `<out>.det` (data). Refuses `--realtime` — see below |
-| `--realtime`            | pace the output to `fs` (see [Streaming](streaming.md))                                   |
+| `--realtime`            | pace the output to `fs` (see [Streaming](scenes.md#streaming-real-time-pacing))           |
 | `--realtime-resync`     | like `--realtime`, but re-anchor to "now" on each underrun                                |
 
 ______________________________________________________________________
@@ -209,7 +219,7 @@ number is still just that number.
 
 A ranged `freq` moves the carrier and nothing else. For a source whose
 **clock** is moving — symbol and chip rates scaling with the carrier, as a
-real pass does — see [Clock Doppler](doppler.md); `doppler`/`doppler_rate`
+real pass does — see [Clock Doppler](waveforms.md#clock-doppler-a-source-that-is-moving); `doppler`/`doppler_rate`
 are ranged fields on this same list.
 
 The draw is **reproducible without RNG state**: each value is a hash of
@@ -264,7 +274,7 @@ Instance semantics are exactly what a burst train wants:
 under `--repeat` — the whole thing again with the next epoch's draws.
 
 On the CLI the single-segment face is `--repeats N`; in Python it is
-`Segment(..., repeats=5)`. See [DSSS bursts](dsss-bursts.md) for the worked
+`Segment(..., repeats=5)`. See [DSSS bursts](waveforms.md#dsss-bursts) for the worked
 burst-train walkthrough.
 
 ______________________________________________________________________
@@ -288,9 +298,295 @@ through JSON in Python — `Composer.from_json(c.to_json())` reproduces the stre
 
 ______________________________________________________________________
 
+## Prepare once, sweep many — `Plan`
+
+Evaluating a system — a detector, a demodulator, a synchroniser — means feeding
+it the **same scene at many operating points**: a detection or BER curve is a
+sweep over SNR; a robustness check nudges a gain or a phase; a Monte-Carlo run
+repeats one scene under fresh noise. Re-composing from scratch at every point is
+wasteful, because a composed scene is already a **linear form**,
+
+$$
+\text{out} \;=\; \sum_k \text{gain}_k \cdot \text{signal}_k \;+\; \text{noise},
+$$
+
+and the expensive DSP — spreading, root-raised-cosine pulse shaping, the local
+oscillator — lives entirely in the **signal** terms. Those do not change when you
+sweep a level, a phase, the SNR, or the noise seed. Only cheap coefficients do.
+
+`prepare(scene)` renders and caches each source **once**, returning a `Plan`.
+Every subsequent render is a cheap re-weighted sum of the cache — and **bit-for-bit
+identical** to a full compose. It is not a fifth rung on the
+[object-model ladder](index.md#the-ladder-the-whole-mental-model); it is a *cache over a finished scene*, for
+when you need that scene many times.
+
+### Preparing a scene
+
+Build a [scene](scenes.md) exactly as you would for `compose()`, then prepare it.
+The baseline `render()` (no overrides) reproduces `Composer(scene).compose()`
+exactly:
+
+```python
+import numpy as np
+from doppler.wfm import Composer, Segment, prepare, qpsk
+
+scene = Composer(Segment.sum(
+    qpsk(snr=8.0, seed=7, sps=8, pn_length=9),        # the wanted user (anchor)
+    qpsk(seed=101, sps=8, pn_length=9, level=-6.0),   # a co-channel interferer
+    fs=1e6, num_samples=4096,
+))
+
+plan = prepare(scene)                                 # render + cache ONCE
+assert np.array_equal(plan.render(), scene.compose())  # baseline is bit-exact
+len(plan), plan.n_sources                             # samples, signal sources
+```
+
+`len(plan)` is the sample count; `plan.n_sources` counts the **signal** sources
+(the resolved noise floor is separate). `prepare(scene)` is shorthand for
+`Plan(scene)` — either works, and a `Plan` is a context manager if you want to
+free its cache promptly.
+
+### The overridable axes
+
+`render()` takes five optional overrides. Omit them all for the baseline; pass
+any subset to vary that axis. The three per-source axes are lists in scene order,
+length `n_sources`:
+
+| Override | Type          | Meaning                                                     |
+| -------- | ------------- | ----------------------------------------------------------- |
+| `gains`  | `list[float]` | absolute source levels in dBFS (`0` = unit power)           |
+| `phases` | `list[float]` | per-source phase rotation in radians (`0` = identity)       |
+| `enable` | `list[bool]`  | `False` drops a source — an exact `gain = 0` term           |
+| `snr`    | `float`       | global SNR (dB) — moves **only** the noise floor            |
+| `seed`   | `int`         | the noise realization (defaults to the scene's anchor seed) |
+
+```python
+# one wanted user, interferer pulled down 6 dB and rotated 90°, floor at 3 dB
+x = plan.render(gains=[0.0, -12.0], phases=[0.0, np.pi / 2], snr=3.0)
+x.shape, x.dtype
+```
+
+Every override composes: `gains` and `phases` and `enable` and `snr` and `seed`
+can all be set in one call. Anything you leave out keeps its resolved value from
+the scene.
+
+### Which method to reach for
+
+`render()` is the general form. Three convenience methods wrap it for the common
+campaigns — reach for whichever names your intent:
+
+- **`at(snr, seed=None)`** — the scalar fast path (no JSON round-trip), the hot
+    loop of a sweep. `seed` defaults to the anchor seed, which reproduces a full
+    compose at that SNR.
+- **`sweep(snrs, seed=None)`** — yields `(snr, samples)` across an SNR list at a
+    **held** noise seed, so only the floor moves. The natural stimulus for a
+    Pd/BER-vs-SNR curve.
+- **`monte_carlo(snr, n, seed0=0)`** — yields `n` independent noise realizations
+    at a **fixed** SNR; the signal is identical across draws, only the noise
+    differs.
+
+```python
+# a held-seed SNR curve — same noise realization, only the floor moves
+curve = {snr: x for snr, x in plan.sweep([-3.0, 0.0, 3.0, 6.0, 9.0])}
+
+# 16 independent noise draws at 6 dB — identical signal, different noise
+draws = list(plan.monte_carlo(6.0, 16, seed0=1000))
+assert len({d.tobytes() for d in draws}) == 16       # every realization differs
+```
+
+### Recipe — a detection / BER curve
+
+Sweep the channel SNR and measure a per-point statistic. Here a light
+matched-filter peak-SNR against a clean copy of the wanted user (itself produced
+by disabling the interferer — see the next recipe). A real campaign averages each
+point over Monte-Carlo draws:
+
+```python
+# a clean, interference-free copy of the wanted user = the matched filter
+template = plan.render(enable=[True, False])[: len(plan) // 2]
+template = template / (np.linalg.norm(template) + 1e-30)
+
+def peak_snr(x):
+    c = np.abs(np.correlate(x, template, mode="valid"))
+    pk = int(c.argmax())
+    off = np.delete(c, slice(max(0, pk - 4), pk + 5))
+    return 10 * np.log10(c[pk] ** 2 / (np.mean(off ** 2) + 1e-30))
+
+snrs = np.arange(-6.0, 13.0, 3.0)
+# each point: mean peak-SNR over 8 independent noise draws
+detect = [np.mean([peak_snr(plan.at(s, 2000 + j)) for j in range(8)])
+          for s in snrs]
+len(detect) == len(snrs)
+```
+
+The measured curve climbs with channel SNR and then flattens as the
+multiple-access interference floor takes over — and the cache reproduces the
+precise noise power the resolver placed at every point.
+
+### Recipe — isolate or recombine sources
+
+`enable` drops a source as an exact `gain = 0` term, so you can pull any subset
+out of a scene without rebuilding it — a clean reference, an interference-only
+capture, a jammer-free template:
+
+```python
+wanted_only = plan.render(enable=[True, False])       # signal + noise, no MAI
+interferer_only = plan.render(enable=[False, True])   # co-channel only + noise
+```
+
+### Recipe — a gain-imbalance or phase sweep
+
+Because `gains` and `phases` are cheap post-multiplies on the cache, a
+sensitivity sweep over a relative level or phase is nearly free:
+
+```python
+# sweep the interferer's level from 0 down to -18 dB (wanted user fixed at 0)
+gain_sweep = [plan.render(gains=[0.0, g]) for g in range(0, -19, -3)]
+
+# sweep its carrier phase across a full turn
+phase_sweep = [plan.render(phases=[0.0, ph])
+               for ph in np.linspace(0, 2 * np.pi, 8, endpoint=False)]
+len(gain_sweep), len(phase_sweep)
+```
+
+### Why it is fast (and exact)
+
+The cost of `prepare()` is one full render of every source. After that, each
+`render()`/`at()` is a handful of scaled vector adds over the cache — no LFSR, no
+convolution, no transcendentals. So a campaign of `P` points costs roughly
+"one compose + `P` cheap sums" instead of "`P` full composes", and the speedup
+grows with the number of sources and the sample count, since that is exactly the
+signal work the cache elides.
+
+Exactness is guaranteed by construction: the composer's accumulate is
+`Σₖ gainₖ·synthₖ` in source order with `gainₖ = 10^(levelₖ/20)`, and `synthₖ`
+depends on everything *except* level — so a re-weighted sum of the cached renders
+is bitwise identical to a full compose at those gains. `render()` with no
+overrides equals `compose()` to the last bit, which is the standing test
+contract (checked in both harnesses). Phase is a defined render-time rotation
+(`φ = 0` is the identity, skipped entirely), exact by construction rather than
+reproduced.
+
+### Scope and limits
+
+`prepare()` needs a scene whose length is **fixed** and whose per-source
+weights are **fixed**, because that is what makes a re-render a re-weighted
+sum instead of a re-synthesis. Two things break that, and they are the two it
+refuses:
+
+| refused                                                       | why                                                                                                                                                |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a **ranged signal** field — `snr=(4, 8)`, `freq=(0.01, 0.05)` | the value the cache was rendered at is the one thing a sweep is supposed to vary afterwards, so a per-repeat redraw of it has nothing to re-weight |
+| **`continuous=True`**                                         | the length is open-ended, and the cache is the rendered samples                                                                                    |
+
+Everything else the scene can say is fine — including three things this page
+used to claim were rejected. Multi-segment scenes, `repeats`, and ranged
+**timing** (`off_samples`, `delay_samples`, the per-instance jitter a burst
+train wants) all prepare, which is what
+[DSSS bursts](waveforms.md#sweeping-a-burst-train-with-plan) relies on. So
+does a lone **bundled** noisy source, whose private RNG is fused into the
+signal.
+
+```pycon
+>>> from doppler.wfm import Composer, Segment, prepare
+>>> plan = prepare(Composer([Segment(type="qpsk", snr=6.0, num_samples=512,
+...                                  off_samples=(100, 300), repeats=2)]))
+>>> len(plan) > 0                     # ranged TIMING + repeats: prepared
+True
+>>> try:                              # a ranged SIGNAL field: refused
+...     prepare(Composer([Segment(type="qpsk", snr=(4.0, 8.0),
+...                               num_samples=512)]))
+... except ValueError:
+...     print("rejected")
+rejected
+```
+
+A prepared `Plan` **can** be serialized — `plan.save()` → `bytes`,
+`plan.dump(path)` → a file, restored with `PlanFromBlob` / `PlanFromFile` — and
+the restored cache reproduces the stimulus bit-for-bit. But reach for it only to
+checkpoint or resume a *live* Plan, **not** to move one between processes: the
+blob is the whole rendered cache — roughly `n_sources × len(plan) × 8` bytes —
+so it grows with the scene, and for anything large, restoring a multi-gigabyte
+blob is **slower than re-rendering it from scratch**.
+
+For a hand-off, persist the scene's compact **spec JSON** (`Composer.to_json()`)
+and re-`prepare()` on the far side — the re-render is almost always cheaper than
+shipping and deserializing the cache, and the spec is kilobytes, not gigabytes.
+The rule of thumb: transport the *recipe*, not the *rendered signal*.
+
+Frequency (Doppler) and delay (multipath) are planned follow-ups on the same
+frame — additive axes, not a rewrite.
+
+______________________________________________________________________
+
+## Streaming — real-time pacing
+
+By default `wfmgen` emits as fast as the CPU allows — `fs` is only metadata (the
+BLUE `xdelta`, the NATS header). Add **`--realtime`** to throttle the output to
+`fs`, so blocks leave on an `epoch + n/fs` schedule — mimicking a hardware
+sample clock feeding the sink. This is what you want when a downstream consumer
+expects samples to arrive at the real rate (a live spectrum display, an SDR
+playback emulation):
+
+```sh
+# Stream QPSK to a live receiver at the true 1 MS/s, not as fast as possible.
+# Requires a nats-server reachable at the endpoint.
+wfmgen --type qpsk --fs 1e6 --sps 8 --continuous --realtime \
+       --output nats://127.0.0.1:4222/iq
+```
+
+The schedule is **drift-free**: each deadline is recomputed from the cumulative
+sample count against a fixed epoch, so sleep jitter never accumulates — the
+long-run rate is exactly `fs`. Pacing does **not** alter the samples; a file
+written with and without `--realtime` is byte-identical.
+
+If the producer can't keep up (a block takes longer than its `N/fs` period — an
+*underrun*), `wfmgen` keeps the absolute timeline and prints a summary to stderr
+at exit (`wfmgen: 3 underrun(s) — worst 1.2 ms behind real time`). Use
+**`--realtime-resync`** instead to re-anchor the clock to "now" on each underrun,
+staying near real time going forward at the cost of an inserted gap.
+
+!!! note "Software pacing is average-rate, not sample-accurate"
+
+    On a non-realtime OS you get a drift-free *average* rate with bounded
+    per-block jitter, never true sample-clock fidelity. Keep blocks large enough
+    that the period `N/fs` comfortably exceeds scheduler jitter, and let the
+    consumer's buffer absorb the rest.
+
+______________________________________________________________________
+
+### The same clock in Python — `SampleClock`
+
+The same C core is exposed as `SampleClock`, which paces and timestamps a stream
+against an ideal `fs`-Hz clock — throttle a producer to real time and tag blocks
+with their ideal timestamp:
+
+<!-- docs-snippet: skip=illustrative real-time pacing loop over reader IQ -->
+
+```python
+from doppler.wfm import Composer, SampleClock, StreamSink
+
+# Requires a nats-server reachable at the endpoint.
+comp = Composer(type="qpsk", sps=8, continuous=True)
+clk = SampleClock(fs=1e6)
+with StreamSink("nats://127.0.0.1:4222/iq") as sink:
+    while True:
+        blk = comp.execute(4096)
+        ts = clk.stamp()              # ideal ns timestamp of this block
+        sink.send(blk, fs=1e6, fc=0.0)
+        clk.pace(len(blk))            # sleep to epoch + n/fs (GIL released)
+```
+
+The schedule is drift-free (deadlines come from the cumulative sample count, not
+summed sleeps); underruns are counted in `clk.underruns` / `clk.max_lateness`,
+and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
+`SampleClock` and `StreamSink` are POSIX-only. See the
+[Python API](python.md) for the full class surface.
+
+______________________________________________________________________
+
 ## See also
 
-- [Gallery: Composing a Scene](../../gallery/wfm-composition.md) — a visual
-    `sum`/`add` demo (spectrum/spectrogram) built from this page's spec shape.
-- [Gallery: Waveform JSON Round-Trip](../../gallery/wfm-json.md) — a full scene
-    reconstructed purely from a `--record`-style JSON spec.
+- [Waveforms](waveforms.md) — what goes into a segment.
+- [Python API](python.md) — the same scenes from Python.
+- [Gallery: scene composition](../../gallery/wfm-composition.md).

@@ -17,7 +17,7 @@ check before assuming a field survives the round trip.
 | `--record`        | path                      | —       | write a JSON record of the resolved run (see [Scenes](../wfmgen/scenes.md)) |
 
 The integer sample types map ±1.0 → ±max-code (and can clip on PAPR > 0 dB
-content); see [Levels & SNR → Scaling to the wire](../wfmgen/levels.md#scaling-to-the-wire-and-headroom).
+content); see [Levels & SNR → Scaling to the wire](../wfmgen/waveforms.md#scaling-to-the-wire-and-headroom).
 
 Reading these back — and what metadata each file type actually preserves — is
 [Reading captures](reading.md).
@@ -168,7 +168,7 @@ wfmgen --type tone --continuous --output nats://127.0.0.1:4222/iq  # stream fore
 
 A `dp_sub_*` subscriber (e.g. `native/examples/spectrum_analyzer`) reads the NATS
 stream. For pacing a live stream to the true sample rate, see
-[Streaming](../wfmgen/streaming.md).
+[Streaming](../wfmgen/scenes.md#streaming-real-time-pacing).
 
 ______________________________________________________________________
 

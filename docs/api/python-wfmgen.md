@@ -143,7 +143,7 @@ offset  = Synth(type="pn", pn_length=9, sps=1, freq=2.5e5, fs=1e6).steps(511)
 
 `snr_mode` (`"auto"`, `"fs"`, `"ebno"`, `"esno"`) sets how `snr` is
 interpreted. Which types `"auto"` sends to which reference is written out once,
-in the guide: [Levels & SNR](../guide/wfmgen/levels.md#snr-noise).
+in the guide: [Levels & SNR](../guide/wfmgen/waveforms.md#snr-noise).
 
 ### RRC pulse shaping (band-limited carriers)
 
@@ -442,7 +442,7 @@ rather than returning wrong samples).
 Reach for it to checkpoint or resume a **live** `Plan`, not to move one between
 processes — the blob is the whole rendered cache, so for a hand-off the spec
 JSON is the thing to ship. The reasoning, with the sizes:
-[Prepare Once, Sweep Many](../guide/wfmgen/plan.md#scope-and-limits).
+[Prepare Once, Sweep Many](../guide/wfmgen/scenes.md#scope-and-limits).
 
 ::: doppler.wfm.compose.PlanFromBlob
 
@@ -630,7 +630,7 @@ bit is wrong. The marker is what can see it, because no randomiser covers it.
 <!-- related-pages:start -->
 
 **Gallery** — [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [A CCSDS CADU, as a Frame Description](../gallery/ccsds-link.md), [Name Your Own Code — and What Happens Past the Radius](../gallery/coding.md), [A Crowded Band — Many Signals, One Parallel `prepare`](../gallery/crowded-band.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [DsssBurstReceiver — the Composed Burst Chain](../gallery/dsss-burst-receiver.md), [Gallery](../gallery/index.md), [One Cache Slot for a Whole Background Field](../gallery/plan-background.md), [Prepare Once, Sweep Many — the `Plan` stimulus engine](../gallery/plan.md), [type="symbols" — Bring Your Own Constellation](../gallery/symbols.md), [Composing a Scene — `.sum()`, `.add()`, and Headroom](../gallery/wfm-composition.md), [Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md), [Waveform Write — Compose, Write, Read Back](../gallery/wfm-write.md), [wfmgen — One Engine, Every Waveform](../gallery/wfmgen.md)
-**Guides** — [Real-Time Pacing & Timestamping](../guide/timing.md), [Reading captures](../guide/wfm-io/reading.md), [Writing captures — output & file types](../guide/wfm-io/writing.md), [Channel coding — the stages over a frame](../guide/wfmgen/coding.md), [Concepts — the object model](../guide/wfmgen/concepts.md), [Clock Doppler — a source that is moving](../guide/wfmgen/doppler.md), [DSSS bursts — a burst train in one declaration](../guide/wfmgen/dsss-bursts.md), [Waveform Generator — `wfmgen`](../guide/wfmgen/index.md), [Prepare Once, Sweep Many — the `Plan` engine](../guide/wfmgen/plan.md), [Python API](../guide/wfmgen/python.md), [Scenes — multi-segment specs](../guide/wfmgen/scenes.md), [Streaming — real-time pacing](../guide/wfmgen/streaming.md), [Waveforms](../guide/wfmgen/waveforms.md)
+**Guides** — [Real-Time Pacing & Timestamping](../guide/timing.md), [Reading captures](../guide/wfm-io/reading.md), [Writing captures — output & file types](../guide/wfm-io/writing.md), [Waveform Generator — `wfmgen`](../guide/wfmgen/index.md), [Python API](../guide/wfmgen/python.md), [Scenes — composing in time](../guide/wfmgen/scenes.md), [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
 **Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [DsssReceiver Specifications](../design/async-dsss-spec.md), [`DsssBurstReceiver`: the burst chain, composed in C](../design/dsss-burst-receiver.md), [A Frame as a Description](../design/frame-description.md), [Design](../design/index.md), [MPSK Receiver](../design/mpsk.md), [Receiver Test Harness](../design/rx-test.md), [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md), [One home for the waveform enum tables](../design/waveform-enum-ssot.md), [Waveform amplitude & composition](../design/wfmgen-composition.md), [wfmgen — the waveform generator](../design/wfmgen.md)
 **Contributing** — [Validation log](../dev/contributing/validation-log.md)
 

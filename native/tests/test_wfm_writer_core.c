@@ -8,6 +8,8 @@
 #include "wfm_writer/wfm_writer_core.h"
 
 #include <complex.h>
+#include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -213,6 +215,235 @@ test_raw_csv_sidecar (void)
     remove ("dp_wr_clash.raw");
     remove ("dp_wr_clash.raw.sigmf-meta");
   }
+  return 0;
+}
+
+/* ── the four entry points nothing mentioned, and two claims stated in prose
+ *
+ * Inventory against wfm_writer_core.h: wfm_writer_destroy, and the three
+ * get_* accessors the Python `Writer` exposes as properties, had ZERO
+ * mentions in any C test in the tree. The accessors are where a derivation
+ * bug hides -- peak_dbfs is a log, clipped is a rule about which wire types
+ * can saturate -- and the object binding's whole error path runs through
+ * destroy().
+ *
+ * Two claims the header makes in prose and nothing checked are pinned here
+ * too: that the remedy for a clipped capture "is exactly ceil(20*log10(peak))
+ * dB of headroom", and that gain 1.0 is "a bit-exact no-op ... so output
+ * stays byte-identical".
+ */
+static int
+test_untested_accessors_and_headroom (void)
+{
+  const char *path = "dp_wr_cert.raw";
+  float _Complex x[64];
+  for (size_t i = 0; i < 64; i++)
+    x[i] = 0.25f + 0.10f * (float _Complex)I;
+
+  /* ── peak_dbfs is exactly 20*log10(peak), and -inf before anything is
+     written -- not 0 dB, which is what a naive log of an empty peak gives
+     and which a caller would read as "already at full scale". */
+  {
+    remove (path);
+    FILE *fp = fopen (path, "wb+");
+    DP_REQUIRE_MSG (fp, "accessors: open");
+    wfm_writer_state_t *w
+        = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0.0, 0, 0.0); /* ci16 */
+    DP_REQUIRE_MSG (w, "accessors: writer");
+    DP_REQUIRE_MSG (wfm_writer_get_peak_dbfs (w) == -INFINITY,
+                    "peak_dbfs is -inf before a sample is written");
+    DP_REQUIRE_MSG (!wfm_writer_get_clipped (w), "nothing written, no clip");
+    DP_REQUIRE_MSG (wfm_writer_write (w, x, 64) == 64, "accessors: write");
+    /* peak is max(|I|,|Q|) = 0.25; 20*log10(0.25) = -12.0411998 dB */
+    DP_REQUIRE_MSG (dp_near (wfm_writer_peak (w), 0.25, 1e-6),
+                    "peak is the larger axis");
+    DP_REQUIRE_MSG (
+        dp_near (wfm_writer_get_peak_dbfs (w), -12.0411998265592, 1e-9),
+        "peak_dbfs is 20*log10(peak), to the digit");
+    DP_REQUIRE_MSG (!wfm_writer_get_clipped (w), "0.25 does not clip");
+    /* the two clip_fraction spellings are one number, not two */
+    DP_REQUIRE_MSG (wfm_writer_get_clip_fraction (w)
+                        == wfm_writer_clip_fraction (w),
+                    "get_clip_fraction is clip_fraction");
+    DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "accessors: close");
+    fclose (fp);
+    remove (path);
+  }
+
+  /* ── clipped is a rule about the WIRE TYPE, not just the level: only the
+     integer types saturate, so a float capture above full scale is loud, not
+     clipped. Same samples, same peak, opposite answers. */
+  {
+    const struct
+    {
+      int         stype;
+      int         want_clipped;
+      const char *what;
+    } cases[] = {
+      { 0, 0, "cf32 above full scale is loud, not clipped" },
+      { 1, 0, "cf64 the same" },
+      { 2, 1, "ci32 saturates" },
+      { 3, 1, "ci16 saturates" },
+      { 4, 1, "ci8 saturates" },
+    };
+    float _Complex hot[16];
+    for (size_t i = 0; i < 16; i++)
+      hot[i] = 1.5f + 0.5f * (float _Complex)I;
+    for (size_t k = 0; k < sizeof cases / sizeof cases[0]; k++)
+      {
+        remove (path);
+        FILE *fp = fopen (path, "wb+");
+        DP_REQUIRE_MSG (fp, "clipped: open");
+        wfm_writer_state_t *w = wfm_writer_open (
+            fp, WFM_FT_RAW, cases[k].stype, 0, 1e6, 0.0, 0, 0.0);
+        DP_REQUIRE_MSG (w, "clipped: writer");
+        DP_REQUIRE_MSG (wfm_writer_write (w, hot, 16) == 16, "clipped: write");
+        /* the peak is the same 1.5 on every type -- floats DO report one,
+           which is where this object and wfm_sink deliberately differ */
+        DP_REQUIRE_MSG (dp_near (wfm_writer_peak (w), 1.5, 1e-6),
+                        "every wire type reports the peak, floats included");
+        DP_REQUIRE_MSG (wfm_writer_get_clipped (w)
+                            == (bool)cases[k].want_clipped,
+                        cases[k].what);
+        DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "clipped: close");
+        fclose (fp);
+        remove (path);
+      }
+  }
+
+  /* ── "the remedy is exactly ceil(20*log10(peak)) dB of headroom".
+     A claim with a number in it, and nothing ran it. Take a capture that
+     clips, compute the header's own remedy, apply it as the gain, and the
+     rewritten capture must sit at or under full scale -- and the next dB
+     down must NOT be enough, or "exactly" would be an overstatement. */
+  {
+    const double peaks[] = { 1.05, 1.5, 2.0, 3.7 };
+    for (size_t k = 0; k < sizeof peaks / sizeof peaks[0]; k++)
+      {
+        float _Complex hot[32];
+        for (size_t i = 0; i < 32; i++)
+          hot[i] = (float)peaks[k] + 0.0f * (float _Complex)I;
+        double remedy_db = ceil (20.0 * log10 (peaks[k]));
+        /* the remedy, applied */
+        remove (path);
+        FILE *fp = fopen (path, "wb+");
+        DP_REQUIRE_MSG (fp, "headroom: open");
+        wfm_writer_state_t *w
+            = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0.0, 0, 0.0);
+        DP_REQUIRE_MSG (w, "headroom: writer");
+        wfm_writer_set_gain (w, pow (10.0, -remedy_db / 20.0));
+        DP_REQUIRE_MSG (wfm_writer_write (w, hot, 32) == 32, "headroom: wr");
+        DP_REQUIRE_MSG (wfm_writer_peak (w) <= 1.0,
+                        "ceil(20log10(peak)) dB of headroom clears the clip");
+        DP_REQUIRE_MSG (!wfm_writer_get_clipped (w), "and clipped goes false");
+        DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "headroom: close");
+        fclose (fp);
+
+        /* one dB less is NOT enough -- the bound is exact, not conservative.
+           (Skipped when the remedy is already 1 dB: 0 dB of headroom is the
+           unattenuated case and 1.05 is the only peak here that reaches it.)
+         */
+        if (remedy_db >= 2.0)
+          {
+            remove (path);
+            fp = fopen (path, "wb+");
+            DP_REQUIRE_MSG (fp, "headroom: open short");
+            w = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0.0, 0, 0.0);
+            DP_REQUIRE_MSG (w, "headroom: writer short");
+            wfm_writer_set_gain (w, pow (10.0, -(remedy_db - 1.0) / 20.0));
+            DP_REQUIRE_MSG (wfm_writer_write (w, hot, 32) == 32, "hr: wr2");
+            DP_REQUIRE_MSG (wfm_writer_peak (w) > 1.0,
+                            "one dB less still clips -- the bound bites");
+            DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "headroom: close2");
+            fclose (fp);
+          }
+        remove (path);
+      }
+  }
+
+  /* ── "Default gain 1.0 (H = 0) is a bit-exact no-op (x1.0), so output stays
+     byte-identical." Two captures, one with the gain never touched and one
+     set explicitly to 1.0, compared BYTE for byte. A multiply that was not
+     bit-exact -- or a gain path that rounded differently from the direct one
+     -- would show up here and nowhere else. */
+  {
+    const char *a_path = "dp_wr_g_default.raw";
+    const char *b_path = "dp_wr_g_unity.raw";
+    float _Complex sig[128];
+    for (size_t i = 0; i < 128; i++)
+      sig[i] = (float)(0.9 * sin (i * 0.37))
+               + (float)(0.8 * cos (i * 0.11)) * (float _Complex)I;
+    uint8_t a[8192], b[8192];
+    size_t  na, nb;
+    for (int stype = 0; stype <= 4; stype++)
+      {
+        remove (a_path);
+        remove (b_path);
+        FILE *fa = fopen (a_path, "wb+");
+        FILE *fb = fopen (b_path, "wb+");
+        DP_REQUIRE_MSG (fa && fb, "unity: open");
+        wfm_writer_state_t *wa
+            = wfm_writer_open (fa, WFM_FT_RAW, stype, 0, 1e6, 0.0, 0, 0.0);
+        wfm_writer_state_t *wb
+            = wfm_writer_open (fb, WFM_FT_RAW, stype, 0, 1e6, 0.0, 0, 0.0);
+        DP_REQUIRE_MSG (wa && wb, "unity: writers");
+        wfm_writer_set_gain (wb, 1.0); /* explicitly, vs never set at all */
+        DP_REQUIRE_MSG (wfm_writer_write (wa, sig, 128) == 128, "unity: wa");
+        DP_REQUIRE_MSG (wfm_writer_write (wb, sig, 128) == 128, "unity: wb");
+        na = slurp (fa, a, sizeof a);
+        nb = slurp (fb, b, sizeof b);
+        DP_REQUIRE_MSG (na == nb && na > 0, "unity: same length");
+        DP_REQUIRE_MSG (memcmp (a, b, na) == 0,
+                        "gain 1.0 is byte-identical to the default");
+        DP_REQUIRE_MSG (wfm_writer_close (wa) == 0, "unity: close a");
+        DP_REQUIRE_MSG (wfm_writer_close (wb) == 0, "unity: close b");
+        fclose (fa);
+        fclose (fb);
+      }
+    remove (a_path);
+    remove (b_path);
+  }
+
+  /* ── destroy() is close() under the object binding's name, and it must
+     carry the SAME failure. Zero mentions anywhere: the generated Writer's
+     close() raises on a non-zero return, so if destroy ever stopped agreeing
+     with close, a failed finalisation would stop reaching Python. */
+  {
+    const char *ro_path = "dp_wr_destroy_ro.raw";
+    remove (ro_path);
+    FILE *mk = fopen (ro_path, "wb");
+    DP_REQUIRE_MSG (mk, "destroy: create");
+    fclose (mk);
+    FILE *ro = fopen (ro_path, "rb"); /* every write on this fails */
+    DP_REQUIRE_MSG (ro, "destroy: reopen read-only");
+    wfm_writer_state_t *w
+        = wfm_writer_open (ro, WFM_FT_RAW, 0, 0, 1e6, 0.0, 0, 0.0);
+    if (w)
+      {
+        float _Complex s[8];
+        for (size_t i = 0; i < 8; i++)
+          s[i] = 0.5f + 0.0f * (float _Complex)I;
+        wfm_writer_write (w, s, 8);
+        DP_REQUIRE_MSG (wfm_writer_destroy (w) != 0,
+                        "destroy reports the failed flush, as close does");
+      }
+    fclose (ro);
+    remove (ro_path);
+
+    /* and on a healthy capture it succeeds and frees -- run under the same
+       harness so a leak here is ASan's to report, not a silent pass. */
+    remove (path);
+    FILE *ok = fopen (path, "wb+");
+    DP_REQUIRE_MSG (ok, "destroy: open ok");
+    wfm_writer_state_t *g
+        = wfm_writer_open (ok, WFM_FT_RAW, 3, 0, 1e6, 0.0, 0, 0.0);
+    DP_REQUIRE_MSG (g, "destroy: writer ok");
+    DP_REQUIRE_MSG (wfm_writer_write (g, x, 64) == 64, "destroy: write ok");
+    DP_REQUIRE_MSG (wfm_writer_destroy (g) == 0, "destroy: 0 on success");
+    fclose (ok);
+    remove (path);
+  }
+
   return 0;
 }
 
@@ -592,6 +823,8 @@ main (void)
   if (test_close_reports_a_failed_flush ())
     return 1;
   if (test_raw_csv_sidecar ())
+    return 1;
+  if (test_untested_accessors_and_headroom ())
     return 1;
   printf (
       "test_wfm_writer: OK (raw/endian/csv/blue + sigmf + sidecar + clip + "

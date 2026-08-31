@@ -168,6 +168,48 @@ def _ready_fanout(sender, receiver, probe) -> None:
             return
 
 
+# The transport's own words for "that stream is already gone". The C layer
+# reports what the broker said rather than a bare code (doppler#1131), which
+# is what makes this distinguishable at all: the full text is
+# "delete_stream failed: Invalid argument -- Not Found".
+_STREAM_ALREADY_GONE = "Not Found"
+
+
+def _delete_stream_if_present(push) -> None:
+    """Delete a work-queue stream, tolerating one that is already absent.
+
+    ``Push.delete_stream()`` is deliberately strict -- deleting a stream
+    that is not there is an error, and
+    ``test_deleting_a_stream_twice_reports_the_brokers_refusal`` pins that.
+    Strictness is right for the API and wrong for CLEANUP: teardown runs
+    whatever the test did, and deleting something twice is the ordinary
+    shape of cleanup code. Unconditional deletion turned a passing test
+    into a CI ERROR against whichever test used the fixture last
+    (doppler#1147).
+
+    Only the ALREADY-ABSENT case is tolerated, so the gate doppler#1136
+    asked for survives: a stream that EXISTS and cannot be deleted still
+    fails the run, and so the 40 GB of work-queue residue that issue was
+    about would still be caught.
+
+    Not the cause, ruled out while fixing this: subject collision between
+    xdist workers. ``_unique_endpoint`` draws from ``random``, which each
+    worker seeds from urandom, and nothing in the suite calls
+    ``random.seed`` -- only ``numpy.random.seed``, in a different module.
+
+    Parameters
+    ----------
+    push : doppler.stream.Push
+        The producer that provisioned the stream. Any other ``RuntimeError``
+        -- an unreachable broker, a timeout -- propagates unchanged.
+    """
+    try:
+        push.delete_stream()
+    except RuntimeError as exc:
+        if _STREAM_ALREADY_GONE not in str(exc):
+            raise
+
+
 # ------------------------------------------------------------------ #
 # get_timestamp_ns                                                    #
 # ------------------------------------------------------------------ #
@@ -200,7 +242,7 @@ def push_pull_cf64():
     # A work queue keeps every frame no consumer ACKED, in a file-backed
     # stream nothing else deletes -- 40 GB of it, from repeated runs
     # (doppler#1136). The subject was made up here, so ending it is ours.
-    push.delete_stream()
+    _delete_stream_if_present(push)
     push.__exit__(None, None, None)
     pull.__exit__(None, None, None)
 
@@ -941,7 +983,7 @@ def test_delete_stream_removes_frames_nobody_consumed():
             break
     assert drained == 0, f"{drained} frame(s) survived delete_stream"
 
-    push2.delete_stream()
+    _delete_stream_if_present(push2)  # cleanup, not the assertion above
     for obj in (push, push2, pull):
         obj.__exit__(None, None, None)
 
@@ -993,3 +1035,57 @@ def test_delete_stream_on_a_closed_push_is_refused():
     push.__exit__(None, None, None)
     with pytest.raises(ValueError, match="closed"):
         push.delete_stream()
+
+
+# ------------------------------------------------------------------ #
+# Idempotent teardown (doppler#1147)                                  #
+# ------------------------------------------------------------------ #
+
+
+def test_cleanup_delete_tolerates_a_stream_that_is_already_gone():
+    """Deleting twice through the cleanup helper is not an error.
+
+    The teardown shape doppler#1147 is about, against the real broker:
+    whatever a test did to the stream, ending the fixture must not turn a
+    passing test into an ERROR.
+    """
+    ep = _unique_endpoint()
+    push = Push(ep, CF64)
+    _delete_stream_if_present(push)
+    _delete_stream_if_present(push)  # the one that used to raise
+    push.__exit__(None, None, None)
+
+
+class _FakePush:
+    """A Push stand-in that fails a delete with the text it is given."""
+
+    def __init__(self, message: str) -> None:
+        self._message = message
+        self.calls = 0
+
+    def delete_stream(self) -> None:
+        self.calls += 1
+        raise RuntimeError(self._message)
+
+
+def test_cleanup_delete_still_fails_on_a_delete_that_is_not_absence():
+    """A real delete failure is NOT swallowed -- the doppler#1136 gate.
+
+    This is what stops the fix for doppler#1147 from being a bare
+    ``except RuntimeError: pass``. A stream that exists and cannot be
+    deleted is the 40 GB regression, and it must still fail the run;
+    widen the guard and this test goes red.
+    """
+    broker_down = _FakePush("delete_stream failed: Timeout -- no responders")
+    with pytest.raises(RuntimeError, match="Timeout"):
+        _delete_stream_if_present(broker_down)
+    assert broker_down.calls == 1
+
+
+def test_cleanup_delete_swallows_only_the_brokers_absence_reply():
+    """The tolerated case is the one the broker itself reports."""
+    already_gone = _FakePush(
+        "delete_stream failed: Invalid argument -- Not Found"
+    )
+    _delete_stream_if_present(already_gone)
+    assert already_gone.calls == 1

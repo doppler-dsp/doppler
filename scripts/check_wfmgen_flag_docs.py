@@ -61,6 +61,9 @@ from gen_wfmgen_flag_matrix import dispatcher_flags
 ROOT = Path(__file__).resolve().parent.parent
 GUIDE = "docs/guide/wfmgen"
 SRC = "native/src/app/wfmgen.c"
+#: Flags the docs document but never RUN. May only shrink, and a stale
+#: entry fails too -- see the file's own header (doppler#1143).
+RATCHET = "scripts/.wfmgen-flag-exercise-ratchet"
 
 
 def _mentioned(flag: str, blob: str) -> bool:
@@ -167,10 +170,62 @@ def reverse_check(root: Path, flags: set[str]) -> int:
         )
         return 1
 
+    # The exercise RATCHET. The count above has been printed since this gate
+    # was written and read by nobody; doppler#1143 turns it into a number that
+    # may not get worse. Checked both ways, because a waiver that outlives its
+    # defect silently covers the next one.
+    ratchet_path = root / RATCHET
+    if not ratchet_path.is_file():
+        print(
+            f"wfmgen flag docs: FAIL -- {RATCHET} is missing.\n"
+            "  Without it every unexercised flag is vacuously allowed, which\n"
+            "  is the gate reporting OK over nothing.",
+            file=sys.stderr,
+        )
+        return 1
+    allowed = {
+        ln.strip()
+        for ln in ratchet_path.read_text(encoding="utf-8").splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
+    }
+    unexercised = flags - seen
+    new = sorted(unexercised - allowed)
+    stale = sorted(allowed - unexercised)
+
+    if new or stale:
+        print(
+            "wfmgen flag docs: FAIL -- the exercise ratchet moved.\n",
+            file=sys.stderr,
+        )
+        if new:
+            print(
+                f"  {len(new)} flag(s) are documented but run by NO `wfmgen`\n"
+                f"  command line in docs/, and are not in {RATCHET}:\n",
+                file=sys.stderr,
+            )
+            for f in new:
+                print(f"    {f}", file=sys.stderr)
+            print(
+                "\n  Add a runnable line to a guide page that uses it. A\n"
+                "  capability nobody can copy is one the docs describe and\n"
+                "  nothing demonstrates.",
+                file=sys.stderr,
+            )
+        if stale:
+            print(
+                f"\n  {len(stale)} entr(ies) in {RATCHET} are now EXERCISED\n"
+                "  and must be deleted -- the list may only shrink:\n",
+                file=sys.stderr,
+            )
+            for f in stale:
+                print(f"    {f}", file=sys.stderr)
+        return 1
+
     print(
         f"wfmgen flag docs: OK — {n_cmds} `wfmgen` command line(s) across "
         f"{len(pages)} page(s) cite only flags that exist "
-        f"({len(seen)} of {len(flags)} flags exercised)"
+        f"({len(seen)} of {len(flags)} flags exercised; "
+        f"{len(allowed)} ratcheted, may only shrink)"
     )
     return 0
 

@@ -352,10 +352,13 @@ def build(write: bool = True) -> Report:
         "the hole goal 1 already admits in prose, that nothing states the "
         "intended coverage. Among them `--clip-error`/`--clip-report`, which "
         "are the observability half of goal 9, and `--level`, which is how "
-        "every non-anchor source places its power. Tracked as #1143, which "
-        "also records that naming the set reproduces 13 rather than 14 — the "
-        "gate splits `--flag=value` differently — so the gate's count is "
-        "authoritative and the list is one short of it.",
+        "every non-anchor source places its power. The count may no longer "
+        "grow: #1143 turned it into a RATCHET checked both ways, so a new "
+        "unexercised flag fails and a waiver that outlives its defect fails "
+        "too. The debt itself is #1149 and still open, which is why this "
+        "stays a GAP — bounding a hole is not filling it. One of the "
+        "fourteen, `-o`, is only the short alias of an exercised "
+        "`--output`, so thirteen capabilities are genuinely undemonstrated.",
     )
     R.find(
         "F5",

@@ -9,3 +9,10 @@
     private copy of the CLI locator that returned `None` into a `skipif`, so
     the only evidence for that promise could report green having run nothing;
     they now use the shared `cli._runnable()`, which fails with the path.
+- **wfmgen is certified.** `src/doppler/tests/validation/wfmgen/results.md`
+    is the evidence: the design page's nine goals, each verified by running
+    the gate it names rather than reading the annotation, and 11 limits over
+    the three-way render. It is the first TOOL the campaign has certified, so
+    `validation.md` gains a "certifying a tool" substitution and
+    `check_validation_reports.py` learns to accept a validation harness as
+    the C-level pin when there is no component header at all.

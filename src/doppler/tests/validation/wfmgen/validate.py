@@ -302,7 +302,7 @@ def build(write: bool = True) -> Report:
     )
     R.find(
         "F2",
-        "CONFIRMED",
+        "FIXED",
         "**The defaults goal 2 depends on are declared once and restated "
         "twice, two of them as enum indices** (#1142). `just-makeit.toml` "
         "declares all eleven with `default =`; `wfmgen.c` repeats them as a "
@@ -316,8 +316,16 @@ def build(write: bool = True) -> Report:
         "— append-only protects the tail, not the head — and the manifest "
         "still means `bpsk` while `1` becomes the new second entry. This is "
         "the rot `wfm_names.h` was created to end (doppler#760), one level "
-        "up, in a literal no enum gate scans. Not fixed here: a fix is not "
-        "evidence, and the campaign's unit is one object per PR.",
+        "up, in a literal no enum gate scans. FIXED by generation: "
+        "`scripts/gen_wfm_defaults.py` renders the manifest's declaration "
+        "into `wfm_defaults.h`, resolving an enum-valued default through "
+        "the field's OWN declared `enum` key rather than by searching for "
+        'a matching string -- `"bpsk"` sits in two enums, and a '
+        "search-by-value picks the wrong one. Sabotage-proven the way the "
+        "issue describes: PREPEND an entry to `[[enum]] bitmod` and the "
+        "generated header follows the NAME (`.modulation = 1` becomes `2`) "
+        "while the gate goes red, where the hand-written `1` would have "
+        "stayed `1` and silently meant the new second entry.",
     )
     R.find(
         "F3",
@@ -407,13 +415,15 @@ def build(write: bool = True) -> Report:
             "pinned at two of four; the C leg — the API the design page "
             "calls PRIMARY — was covered by a test that composes one scene "
             "twice in one process, which is determinism, not agreement (F1).",
-            "**Do not trust a default you did not read from the manifest** "
-            "(F2, #1142). The eleven values goal 2 depends on are declared "
-            "in `just-makeit.toml`, restated by hand in `wfmgen.c`, and "
-            "absent from a C caller's zero-initialised struct — with no gate "
-            "comparing them. Two are restated as enum INDICES, so prepending "
-            "an entry to `[[enum]] bitmod` or `[[enum]] crc` changes a "
-            "default with nothing failing.",
+            "**A default now has one home, and an enum-valued one follows its "
+            "NAME** (F2, #1142, now fixed). The values goal 2 depends on were "
+            "declared in `just-makeit.toml`, restated by hand in `wfmgen.c`, "
+            "and absent from a C caller's zero-initialised struct, with no "
+            "gate comparing them — two of them as enum INDICES, so prepending "
+            "to `[[enum]] bitmod` would have changed a default with nothing "
+            "failing. They are generated from the manifest now, and the "
+            "byte-parity limits in §2.1 are what proved the change altered "
+            "no waveform.",
             "**A skip and a pass read the same in a log** (F3). The single "
             "test carrying goal 2's evidence could skip itself, via a "
             "private copy of a locator that already existed and fails "

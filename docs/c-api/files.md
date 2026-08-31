@@ -244,6 +244,7 @@ Here is a list of all files with brief descriptions:
         * **dir** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md)     
             * **file** [**wfm\_compose.h**](wfm__compose_8h.md) _Multi-segment waveform composer (Phase B)._     
             * **file** [**wfm\_core.h**](wfm__core_8h.md) _Wfmgen module — public C API._     
+            * **file** [**wfm\_defaults.h**](wfm__defaults_8h.md)     
             * **file** [**wfm\_dsp.h**](wfm__dsp_8h.md) _DSSS spreading + root-raised-cosine pulse shaping (Phase B)._     
             * **file** [**wfm\_frame.h**](wfm__frame_8h.md) _A frame's BIT layout, described once and read from both ends._     
             * **file** [**wfm\_keywords.h**](wfm__keywords_8h.md) _BLUE extended-header keywords — the X-Midas binary tag/value codec._     

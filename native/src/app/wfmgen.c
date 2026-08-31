@@ -28,7 +28,8 @@
 #include "dp_interrupt.h"
 #include "timing/timing_core.h"
 #include "wfm/wfm_compose.h"
-#include "wfm/wfm_names.h" /* every choice table -- the one C home (#760) */
+#include "wfm/wfm_defaults.h" /* WFM_SOURCE/SEGMENT_DEFAULTS */
+#include "wfm/wfm_names.h"    /* every choice table -- the one C home (#760) */
 #include "wfm/wfm_sink.h"
 #include "wfm/wfmgen.h"
 #include "wfm_writer/wfm_writer_core.h"
@@ -1846,20 +1847,22 @@ doppler_wfmgen (int argc, char *argv[])
     return run_json_template (argc, argv);
 
   /* Single-segment defaults: one source in one segment. fs = 1.0 means
-     frequencies are normalised (cycles/sample) out of the box. These mirror
-     the Python Synth/Composer defaults (just-makeit.toml) so `wfmgen` and
-     `Synth()` agree sample-for-sample. Every other field is zero, which is
-     the default the option table's rows are written against. */
+     frequencies are normalised (cycles/sample) out of the box.
+
+     These no longer MIRROR the Python defaults -- they ARE them, rendered
+     from the same `just-makeit.toml` declaration by
+     `scripts/gen_wfm_defaults.py` (doppler#1142). They used to be a struct
+     literal here whose own comment said it mirrored the manifest, with no
+     gate comparing the two, and with `modulation` and `crc` restated as enum
+     INDICES so a prepended [[enum]] entry would have changed them silently.
+     Every other field is zero, which is the default the option table's rows
+     are written against, and which is why the generated macros carry only
+     the non-zero ones. */
   wfmgen_opts_t o
-      = { .src = { .sps        = 1,
-                   .snr        = 100.0,
-                   .pn_length  = 15,
-                   .modulation = 1, /* bits: default bpsk */
-                   .rrc_beta   = 0.35,
-                   .rrc_span   = 8,
-                   .acq_reps   = 1,   /* dsss: one preamble */
-                   .crc        = 1 }, /* dsss: crc16 trailer */
-          .seg = { .n_sources = 1, .fs = 1.0, .num_samples = 1024 } };
+      = { .src = WFM_SOURCE_DEFAULTS, .seg = WFM_SEGMENT_DEFAULTS };
+  /* n_sources is the single-segment SHAPE rather than a user default: the
+     manifest does not declare it and should not, because no flag sets it. */
+  o.seg.n_sources = 1;
   /* Set after the initialiser, not inside it: `&o.src` is the address of a
      sibling member of the very object being initialised. */
   o.seg.sources = &o.src;

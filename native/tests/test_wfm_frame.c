@@ -144,6 +144,206 @@ toy_ops (void)
   return o;
 }
 
+/* ── wfm_seq_bits: "the one place a wfm_seq_t becomes bits", untested ────
+ *
+ * Inventory against wfm_frame.h. This object is well covered -- 18 declared
+ * entry points, 16 of them exercised -- and the two that were not are the
+ * interesting ones. `wfm_seq_bits` had ZERO mentions in any C test in the
+ * tree, and its own doc calls it the single place this conversion happens:
+ * a descriptor materialises its fields through it, and the DSSS chip
+ * builder calls it to expand a generated sequence before consuming a raw
+ * array.
+ *
+ * Every claim below is one the header states, and each is checked against
+ * arithmetic or against the defining property of the sequence -- never
+ * against another doppler path that could share the same mistake.
+ */
+static int
+test_seq_bits (void)
+{
+  uint8_t out[512];
+
+  /* ── LITERAL copies, and MASKS to 0/1 ────────────────────────────────
+     The mask matters: a caller who hands in a byte array that is not
+     already 0/1 (a parsed hex nibble, say) must not get 2s and 3s written
+     into a bit stream that everything downstream treats as one-per-byte. */
+  {
+    const uint8_t src[8] = { 1, 0, 1, 1, 2, 3, 0, 255 };
+    wfm_seq_t     s      = { .kind = WFM_SEQ_LITERAL, .len = 8, .bits = src };
+    memset (out, 0xAA, sizeof out);
+    DP_REQUIRE_MSG (wfm_seq_bits (&s, out, sizeof out) == 8,
+                    "LITERAL writes len bits");
+    for (size_t i = 0; i < 8; i++)
+      DP_REQUIRE_MSG (out[i] == (uint8_t)(src[i] & 1u),
+                      "LITERAL copies, masked to 0/1");
+    /* a LITERAL with no array is unbuildable, not a silent zero field */
+    wfm_seq_t empty = { .kind = WFM_SEQ_LITERAL, .len = 8, .bits = NULL };
+    DP_REQUIRE_MSG (wfm_seq_bits (&empty, out, sizeof out) == 0,
+                    "a LITERAL with no array returns 0");
+  }
+
+  /* ── DOTTED is 1010..., and it STARTS HIGH ───────────────────────────
+     The header says why in as many words: "Starts high so a one-bit field
+     is not silently the same as zeros." A dotting field that began low
+     would make len==1 indistinguishable from an absent one, which is
+     exactly the failure a settling pattern must not have. */
+  {
+    wfm_seq_t s = { .kind = WFM_SEQ_DOTTED, .len = 9 };
+    memset (out, 0xAA, sizeof out);
+    DP_REQUIRE_MSG (wfm_seq_bits (&s, out, sizeof out) == 9,
+                    "DOTTED writes len bits");
+    for (size_t i = 0; i < 9; i++)
+      DP_REQUIRE_MSG (out[i] == (uint8_t)((i & 1u) ^ 1u), "DOTTED alternates");
+    DP_REQUIRE_MSG (out[0] == 1u, "and it starts HIGH, not low");
+    wfm_seq_t one = { .kind = WFM_SEQ_DOTTED, .len = 1 };
+    DP_REQUIRE_MSG (wfm_seq_bits (&one, out, sizeof out) == 1 && out[0] == 1u,
+                    "a one-bit dotted field is a 1, not a 0");
+  }
+
+  /* ── PN: poly 0 means "the MLS polynomial", NOT a literal 0 ──────────
+     The header spells out the hazard: a literal 0 reaching pn_create() is
+     a register with no feedback, which emits the seed and then zeros --
+     "a CONSTANT field that still looks like a field". So the check is not
+     that bits came out, it is that they are an m-sequence: over one full
+     period 2^n - 1 there are exactly 2^(n-1) ones, and the run is not
+     constant. That is arithmetic about maximal-length sequences, and owes
+     nothing to doppler. */
+  {
+    for (uint32_t n = 5; n <= 9; n += 2)
+      {
+        const size_t period = ((size_t)1u << n) - 1u;
+        wfm_seq_t    s      = { .kind     = WFM_SEQ_PN,
+                                .len      = period,
+                                .poly     = 0, /* 0 => pn_mls_poly (n) */
+                                .seed     = 0, /* 0 => 1               */
+                                .reg_bits = n };
+        DP_REQUIRE_MSG (wfm_seq_bits (&s, out, sizeof out) == period,
+                        "PN writes len bits");
+        size_t ones = 0;
+        for (size_t i = 0; i < period; i++)
+          {
+            DP_REQUIRE_MSG (out[i] <= 1u, "PN emits 0/1");
+            ones += out[i];
+          }
+        /* an m-sequence of period 2^n-1 has exactly 2^(n-1) ones */
+        DP_REQUIRE_MSG (ones == ((size_t)1u << (n - 1)),
+                        "poly 0 gives a maximal-length sequence, not a "
+                        "feedback-free register emitting zeros");
+      }
+    /* a zero seed must not lock the register at its fixed point */
+    wfm_seq_t z = {
+      .kind = WFM_SEQ_PN, .len = 31, .poly = 0, .seed = 0, .reg_bits = 5
+    };
+    DP_REQUIRE_MSG (wfm_seq_bits (&z, out, sizeof out) == 31,
+                    "a zero seed still builds");
+    size_t nz = 0;
+    for (size_t i = 0; i < 31; i++)
+      nz += out[i];
+    DP_REQUIRE_MSG (nz == 16, "seed 0 resolves to 1, not an all-zero "
+                              "register stuck at its fixed point");
+    /* a register width with no MLS entry is a refusal, not a zero field */
+    wfm_seq_t bad = {
+      .kind = WFM_SEQ_PN, .len = 8, .poly = 0, .seed = 1, .reg_bits = 0
+    };
+    DP_REQUIRE_MSG (wfm_seq_bits (&bad, out, sizeof out) == 0,
+                    "a generator that refuses its parameters returns 0");
+  }
+
+  /* ── GOLD builds, and is not its own component sequence ──────────────
+     A Gold code is two LFSRs combined; the failure worth catching is one
+     of them being ignored, which would silently ship a plain m-sequence
+     under a Gold label. So the test is that changing ONLY the second
+     register's seed changes the output. */
+  {
+    uint8_t   a[255], b[255];
+    wfm_seq_t g1 = { .kind     = WFM_SEQ_GOLD,
+                     .len      = 255,
+                     .reg_bits = 8,
+                     .taps_a   = 0,
+                     .seed_a   = 1,
+                     .taps_b   = 0,
+                     .seed_b   = 1 };
+    wfm_seq_t g2 = g1;
+    g2.seed_b    = 2;
+    size_t n1    = wfm_seq_bits (&g1, a, sizeof a);
+    size_t n2    = wfm_seq_bits (&g2, b, sizeof b);
+    DP_REQUIRE_MSG (n1 == 255 && n2 == 255, "GOLD writes len bits");
+    DP_REQUIRE_MSG (memcmp (a, b, 255) != 0,
+                    "the SECOND register participates -- a Gold code that "
+                    "ignored it would be a plain m-sequence");
+  }
+
+  /* ── the refusals, which are what keep a half-built field out ────────
+     Every one of these is a 0 return rather than a partial write, so a
+     caller cannot end up scoring against a truth nobody can reproduce. */
+  {
+    const uint8_t src[4] = { 1, 0, 1, 0 };
+    wfm_seq_t     s      = { .kind = WFM_SEQ_LITERAL, .len = 4, .bits = src };
+    DP_REQUIRE_MSG (wfm_seq_bits (NULL, out, sizeof out) == 0,
+                    "a NULL sequence returns 0");
+    DP_REQUIRE_MSG (wfm_seq_bits (&s, out, 3) == 0,
+                    "a length past the capacity returns 0, not a truncation");
+    /* and it wrote nothing on the way to refusing */
+    memset (out, 0xAA, sizeof out);
+    DP_REQUIRE_MSG (wfm_seq_bits (&s, out, 3) == 0, "still 0");
+    DP_REQUIRE_MSG (out[0] == 0xAA,
+                    "a refused build leaves the caller's buffer alone");
+    wfm_seq_t zero_len = { .kind = WFM_SEQ_LITERAL, .len = 0, .bits = src };
+    DP_REQUIRE_MSG (wfm_seq_bits (&zero_len, out, sizeof out) == 0,
+                    "len 0 means the field is absent");
+  }
+  return 0;
+}
+
+/* ── wfm_frame_dsss_nchips: the burst geometry, in this object's own test
+ *
+ * Reached only through wfm_synth's tests until now -- so the chip count a
+ * DSSS burst occupies was certified as a side effect of testing the
+ * synthesiser, never as a claim of the frame layer that owns it. The
+ * arithmetic is stated in the header and checked here against it:
+ * acq_len*acq_reps preamble chips, then (sync + payload + CRC) frame bits,
+ * each spread by data_len.
+ */
+static int
+test_dsss_nchips (void)
+{
+  const struct
+  {
+    size_t acq_len, acq_reps, data_len, sync_len, payload_len;
+    int    crc;
+    size_t want;
+  } cases[] = {
+    /* preamble only: no frame bits, so no spreading term */
+    { 8, 3, 4, 0, 0, 0, 8 * 3 },
+    /* the wfm_synth fixture: 8*3 + (2 + 5 + 16) * 4 */
+    { 8, 3, 4, 2, 5, 1, 8 * 3 + (2 + 5 + 16) * 4 },
+    /* the same without a CRC drops exactly WFM_FRAME_CRC_BITS symbols */
+    { 8, 3, 4, 2, 5, 0, 8 * 3 + (2 + 5) * 4 },
+    /* no preamble at all: frame only */
+    { 0, 0, 16, 8, 32, 1, (8 + 32 + 16) * 16 },
+  };
+  for (size_t k = 0; k < sizeof cases / sizeof cases[0]; k++)
+    {
+      size_t got = wfm_frame_dsss_nchips (cases[k].acq_len, cases[k].acq_reps,
+                                          cases[k].data_len, cases[k].sync_len,
+                                          cases[k].payload_len, cases[k].crc);
+      DP_REQUIRE_MSG (got == cases[k].want,
+                      "dsss_nchips is preamble + spread frame bits");
+    }
+  /* frame bits with no spreading code is a refusal: there is no chip count
+     for a frame nothing spreads, and 0 is how the synth learns to reject it */
+  DP_REQUIRE_MSG (wfm_frame_dsss_nchips (8, 3, 0, 2, 5, 1) == 0,
+                  "frame bits with no data code is unbuildable");
+  DP_REQUIRE_MSG (wfm_frame_dsss_nchips (0, 0, 4, 0, 0, 0) == 0,
+                  "an empty burst is unbuildable");
+  /* the CRC term is exactly WFM_FRAME_CRC_BITS symbols wide */
+  DP_REQUIRE_MSG (wfm_frame_dsss_nchips (0, 0, 1, 0, 1, 1)
+                          - wfm_frame_dsss_nchips (0, 0, 1, 0, 1, 0)
+                      == WFM_FRAME_CRC_BITS,
+                  "a CRC costs exactly WFM_FRAME_CRC_BITS spread symbols");
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1165,5 +1365,9 @@ main (void)
                   "not counted against the one-emitter rule");
   }
 
+  if (test_seq_bits ())
+    return 1;
+  if (test_dsss_nchips ())
+    return 1;
   DP_TEST_END ("wfm_frame");
 }

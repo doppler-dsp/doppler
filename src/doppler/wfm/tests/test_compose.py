@@ -9,7 +9,6 @@ Writer↔Reader round-trip per sample type, segment timing, and the DSP helpers.
 
 import hashlib
 import json
-import os
 import random
 import shutil
 import struct
@@ -20,8 +19,8 @@ import time
 import numpy as np
 import pytest
 
-from doppler.tests._repo import repo_root
-from doppler.wfm import dsss_spread, mls_poly, rrc_taps, write_blue_header
+from doppler.tests._repo import build_dir
+from doppler.wfm import cli, dsss_spread, mls_poly, rrc_taps, write_blue_header
 from doppler.wfm.compose import (
     Composer,
     Reader,
@@ -49,23 +48,26 @@ def _read_all(r):
     return np.concatenate(chunks) if chunks else np.empty(0, np.complex64)
 
 
-def _wfmgen_bin():
-    """The one C CLI: on PATH (wheel console-shim or installed), else the
-    CMake build tree, else None (parity tests skip)."""
-    p = shutil.which("wfmgen")
-    if p:
-        return p
-    root = repo_root(__file__)
-    for cand in root.glob("build*/**/wfmgen"):
-        if cand.is_file() and os.access(cand, os.X_OK):
-            return str(cand)
-    return None
+# The ONE locator, shared with cli.py and the five other test modules that
+# already call it. This module used to carry a sixth, private copy that fell
+# back to a `build*/**/wfmgen` glob and returned None, feeding a skipif.
+#
+# That private copy was not a harmless duplicate: `test_byte_parity_vs_wfmgen`
+# below is the ONLY evidence for the wfmgen design doc's second goal -- "the
+# same scene expressed through any of the four APIs renders byte-identically"
+# -- and a locator that returns None turns a missing binary into a SKIP, which
+# reads identically to a pass in a log. `cli._runnable()` raises
+# FileNotFoundError naming the path instead. CI runs `make build` (which
+# builds wfmgen) before `make test-python`, so failing closed costs nothing
+# there and is what validation.md asks for: a missing binary FAILS.
+def _wfmgen() -> str:
+    """Resolved per call, not at import.
 
-
-_WFMGEN = _wfmgen_bin()
-_needs_wfmgen = pytest.mark.skipif(
-    _WFMGEN is None, reason="wfmgen CLI not built / on PATH"
-)
+    Fail-closed and PRECISE: only the handful of tests that actually shell
+    out to the CLI fail when it is missing, rather than the whole module
+    erroring at collection and taking ~120 unrelated tests with it.
+    """
+    return cli._runnable()
 
 
 # StreamSink and SampleClock are POSIX-only (the vendored nats.c client is
@@ -99,7 +101,6 @@ def _md5(path) -> str:
     return hashlib.md5(open(path, "rb").read()).hexdigest()
 
 
-@_needs_wfmgen
 @pytest.mark.parametrize("wtype", ["tone", "noise", "pn", "bpsk", "qpsk"])
 @pytest.mark.parametrize("stype", ["cf32", "ci16", "ci8"])
 def test_byte_parity_vs_wfmgen(tmp_path, wtype, stype):
@@ -110,7 +111,7 @@ def test_byte_parity_vs_wfmgen(tmp_path, wtype, stype):
     cli = tmp_path / "cli.iq"
     subprocess.run(
         [
-            _WFMGEN,
+            _wfmgen(),
             "--type",
             wtype,
             "--fs",
@@ -142,7 +143,79 @@ def test_byte_parity_vs_wfmgen(tmp_path, wtype, stype):
     assert _md5(py) == _md5(cli), f"{wtype}/{stype} diverged from wfmgen"
 
 
-@_needs_wfmgen
+_C_HARNESS = build_dir(__file__) / "native/validation/validate_wfmgen_certify"
+
+
+@pytest.mark.parametrize("wtype", ["tone", "noise", "pn", "bpsk", "qpsk"])
+def test_c_api_byte_parity_vs_wfmgen(tmp_path, wtype):
+    """The C leg of the four-API byte-identity claim.
+
+    `docs/design/wfmgen.md` goal 2 promises "the same scene expressed through
+    any of the four renders byte-identically", and calls the C API the
+    PRIMARY one. Python-vs-CLI is pinned above and JSON-vs-CLI in
+    `test_cli_record_replays.py`; until this existed the C leg was pinned by
+    nothing. What stood in for it was `native/examples/wfmgen_demo.c` §5,
+    which composes one scene TWICE IN ONE PROCESS and memcmp's the buffers --
+    determinism, not cross-API agreement, and it would pass unchanged if the
+    C API and the CLI had diverged completely.
+
+    The harness builds its scene from a `wfm_source_t` STRUCT rather than
+    through `wfm_compose_from_json`, deliberately: routing it through JSON
+    would put all three legs behind one parser, and a consistency test is
+    blind to any defect its paths share.
+
+    Fails, never skips, when the harness is missing -- the whole content of
+    this assertion comes from that binary, so a skip and a pass read the same.
+    """
+    assert _C_HARNESS.is_file(), (
+        f"{_C_HARNESS} not built — run `make build`. This test FAILS rather "
+        "than skipping: its entire content comes from that binary."
+    )
+    n = 1024
+    c_out = tmp_path / "c.iq"
+    subprocess.run(
+        [str(_C_HARNESS), "--render", wtype, str(c_out)], check=True
+    )
+
+    cli_out = tmp_path / "cli.iq"
+    subprocess.run(
+        [
+            _wfmgen(),
+            "--type",
+            wtype,
+            "--fs",
+            "1e6",
+            "--freq",
+            "1e5",
+            "--count",
+            str(n),
+            "--snr",
+            "100",
+            "--sample-type",
+            "cf32",
+            "--endian",
+            "le",
+            "-o",
+            str(cli_out),
+        ],
+        check=True,
+    )
+
+    x = Composer(
+        type=wtype, fs=1e6, freq=1e5, num_samples=n, snr=100.0
+    ).compose()
+    py_out = tmp_path / "py.iq"
+    with Writer(
+        py_out, fs=1e6, file_type="raw", sample_type="cf32", endian="le"
+    ) as w:
+        w.write(x)
+
+    assert _md5(c_out) == _md5(cli_out), (
+        f"{wtype}: C API diverged from the CLI"
+    )
+    assert _md5(c_out) == _md5(py_out), f"{wtype}: C API diverged from Python"
+
+
 def test_chirp_byte_parity_vs_wfmgen(tmp_path):
     """A chirp segment is byte-identical between the Composer and the CLI; the
     sweep span = the segment's num_samples = --count."""
@@ -150,7 +223,7 @@ def test_chirp_byte_parity_vs_wfmgen(tmp_path):
     cli = tmp_path / "cli.iq"
     subprocess.run(
         [
-            _WFMGEN,
+            _wfmgen(),
             "--type",
             "chirp",
             "--fs",
@@ -757,7 +830,6 @@ def test_reader_roundtrips_each_file_type(
     assert np.max(np.abs(y - x)) < tol
 
 
-@_needs_wfmgen
 @pytest.mark.parametrize(
     "file_type,detached,out_name,read_name",
     [
@@ -785,7 +857,7 @@ def test_reader_reads_back_wfmgen_cli_file_type(
     """
     fs, freq, n = 1e6, 1e5, 4096
     cmd = [
-        _WFMGEN,
+        _wfmgen(),
         "--type",
         "tone",
         "--freq",
@@ -818,7 +890,6 @@ def test_reader_reads_back_wfmgen_cli_file_type(
     assert np.max(np.abs(y - ref)) == 0.0  # bit-exact through the file type
 
 
-@_needs_wfmgen
 @pytest.mark.parametrize("hdr_ext", [".hdr", ".prm", ".tmp"])
 def test_reader_detached_header_is_the_entry_point(tmp_path, hdr_ext):
     """Opening a DETACHED BLUE capture by its header must read the payload.
@@ -839,7 +910,7 @@ def test_reader_detached_header_is_the_entry_point(tmp_path, hdr_ext):
     fs, freq, n = 1e6, 1e5, 1024
     subprocess.run(
         [
-            _WFMGEN,
+            _wfmgen(),
             "--type",
             "tone",
             "--freq",
@@ -1139,7 +1210,7 @@ def test_segment_level():
 
 
 # ── Phase 4b: .sum() multi-source segments + noise resolution ────────────────
-# (_WFMGEN / _needs_wfmgen are defined at the top of the module.)
+# (_wfmgen() is defined at the top of the module.)
 
 
 def test_sum_compose_basic():
@@ -1215,7 +1286,6 @@ def test_sum_explicit_noise_floor():
     assert np.isclose(x.var(), 10 ** (-13.0 / 10), rtol=5e-2)
 
 
-@_needs_wfmgen
 def test_sum_cli_parity(tmp_path):
     """wfmgen --from-file == the Python composer for a summed spec,
     byte-exact."""
@@ -1229,7 +1299,7 @@ def test_sum_cli_parity(tmp_path):
     cli = tmp_path / "cli.cf32"
     subprocess.run(
         [
-            _WFMGEN,
+            _wfmgen(),
             "--from-file",
             str(spec),
             "--sample-type",
@@ -1303,7 +1373,6 @@ def test_timeline_json_roundtrip():
     )
 
 
-@_needs_wfmgen
 def test_bits_byte_parity_vs_wfmgen(tmp_path):
     """A bits segment is byte-identical between the Composer and the CLI."""
 
@@ -1311,7 +1380,7 @@ def test_bits_byte_parity_vs_wfmgen(tmp_path):
     cli = tmp_path / "cli.cf32"
     subprocess.run(
         [
-            _WFMGEN,
+            _wfmgen(),
             "--type",
             "bits",
             "--bits",
@@ -1381,7 +1450,6 @@ def test_bits_in_sum_scene():
     assert len(Composer(mix).compose()) == 128
 
 
-@_needs_wfmgen
 def test_rrc_byte_parity_vs_wfmgen(tmp_path):
     """An RRC-shaped segment is byte-identical between the Composer and CLI."""
     from doppler.wfm import qpsk  # noqa: F401
@@ -1390,7 +1458,7 @@ def test_rrc_byte_parity_vs_wfmgen(tmp_path):
     cli = tmp_path / "cli.cf32"
     subprocess.run(
         [
-            _WFMGEN,
+            _wfmgen(),
             "--type",
             "qpsk",
             "--sps",

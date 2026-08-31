@@ -2773,6 +2773,18 @@ values = ["auto", "fs", "ebno", "esno"]
 name = "wfm_lfsr"
 values = ["galois", "fibonacci"]
 
+# The stage kinds doppler itself names. Order IS wfm_stage_kind_t
+# (native/inc/wfm/wfm_frame.h): crc16 = 0 through interleave = 4.
+#
+# This list is deliberately NOT the whole enum. A stage's kind is an open
+# uint32_t, and WFM_STAGE_USER (0x1000) is the sentinel a caller allocates
+# from -- a boundary, not a name. So the scene JSON writes a NAME for a kind
+# this list holds and the raw INTEGER for anything else, which is the only
+# encoding that can round-trip a kind doppler has never heard of.
+[[enum]]
+name = "stage_kind"
+values = ["crc16", "rs", "randomise", "conv", "interleave"]
+
 # How long a source's Doppler channel lives (gh-942). Order IS
 # wfm_doppler_lifetime_t (native/inc/wfm/wfm_compose.h): per_instance = 0 so
 # an undeclared lifetime is the repeated-trial shape, persist = 1.

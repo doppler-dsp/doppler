@@ -50,6 +50,7 @@
 |  const char \*const | [**RANDOMISE\_NAMES**](#variable-randomise_names)   = `{ "off", "ccsds", "legacy" }`<br> |
 |  const char \*const | [**SEED\_ADVANCE\_NAMES**](#variable-seed_advance_names)   = `{ "none", "noise", "all" }`<br> |
 |  const char \*const | [**SEQ\_KIND\_NAMES**](#variable-seq_kind_names)   = `{ "literal", "pn", "gold", "dotted" }`<br> |
+|  const char \*const | [**STAGE\_KIND\_NAMES**](#variable-stage_kind_names)   = `{ "crc16", "rs", "randomise", "conv", "interleave" }`<br> |
 |  const char \*const | [**STYPE\_NAMES**](#variable-stype_names)   = `/* multi line expression */`<br> |
 |  const char \*const | [**TYPE\_NAMES**](#variable-type_names)   = `/* multi line expression */`<br> |
 
@@ -97,6 +98,7 @@
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**N\_STAGE\_KINDS**](wfm__names_8h.md#define-n_stage_kinds)  `5`<br> |
 | define  | [**N\_STYPES**](wfm__names_8h.md#define-n_stypes)  `10`<br> |
 | define  | [**N\_TYPES**](wfm__names_8h.md#define-n_types)  `9`<br> |
 
@@ -274,6 +276,19 @@ const char* const SEQ_KIND_NAMES[];
 
 
 
+### variable STAGE\_KIND\_NAMES 
+
+```C++
+const char* const STAGE_KIND_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
 ### variable STYPE\_NAMES 
 
 ```C++
@@ -300,6 +315,19 @@ const char* const TYPE_NAMES[];
 ## Macro Definition Documentation
 
 
+
+
+
+### define N\_STAGE\_KINDS 
+
+```C++
+#define N_STAGE_KINDS `5`
+```
+
+
+
+
+<hr>
 
 
 

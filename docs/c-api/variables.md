@@ -104,6 +104,7 @@
 * **symsync\_\_core\_8h\_1abed82baf7f470b522273a3e37c24c600** ([**symsync\_core.h**](symsync__core_8h.md))
 * **SEED\_ADVANCE\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 * **SEQ\_KIND\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
+* **STAGE\_KIND\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 * **STYPE\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 
 

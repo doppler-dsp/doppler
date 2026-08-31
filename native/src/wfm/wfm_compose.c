@@ -32,11 +32,23 @@ free_segment_sources (wfm_segment_t *seg)
   if (seg->sources)
     for (size_t k = 0; k < seg->n_sources; k++)
       {
-        free (seg->sources[k].payload.bits);
+        free ((void *)seg->sources[k].payload.bits);
         free (seg->sources[k].symbols);
         free ((void *)seg->sources[k].acq_code.bits);
         free ((void *)seg->sources[k].data_code.bits);
         free ((void *)seg->sources[k].sync.bits);
+        /* The carried description, on the same terms as the arrays above:
+           the composer took its OWN copy so the caller's need not outlive
+           it, so the copy is the composer's to release. Its fields' literal
+           bits go first -- they hang off the description. */
+        if (seg->sources[k].frame)
+          {
+            wfm_frame_desc_t *d = (wfm_frame_desc_t *)seg->sources[k].frame;
+            for (unsigned f = 0; f < d->n_fields; f++)
+              free ((void *)d->field[f].seq.bits);
+            free (d);
+            seg->sources[k].frame = NULL;
+          }
       }
   free (seg->sources);
   seg->sources = NULL;
@@ -66,6 +78,34 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
   dst->acq_code.bits  = NULL;
   dst->data_code.bits = NULL;
   dst->sync.bits      = NULL;
+  dst->frame          = NULL;
+  /* A CARRIED description is borrowed by a source -- the caller's own must
+     outlive it -- but the composer deliberately outlives its caller's
+     buffers, which is what every dup_u8 below is for. So it takes its own
+     copy of the description AND of each field's literal bits, and owns
+     both. Without this a `--from-file` scene would be reading a description
+     its parser had already freed. */
+  if (src->frame)
+    {
+      wfm_frame_desc_t *d = dp_xmalloc (sizeof *d);
+      *d                  = *src->frame;
+      dst->frame          = d;
+      /* Null every borrowed pointer FIRST, so a failure part-way leaves a
+         description free_segment_sources() can walk without touching a
+         buffer that belongs to the caller. */
+      for (unsigned f = 0; f < d->n_fields; f++)
+        d->field[f].seq.bits = NULL;
+      for (unsigned f = 0; f < d->n_fields; f++)
+        {
+          const wfm_seq_t *q = &src->frame->field[f].seq;
+          if (q->bits && q->len)
+            {
+              d->field[f].seq.bits = dup_u8 (q->bits, q->len);
+              if (!d->field[f].seq.bits)
+                return -1;
+            }
+        }
+    }
   if (src->payload.bits && src->payload.len)
     {
       dst->payload.bits = dup_u8 (src->payload.bits, src->payload.len);

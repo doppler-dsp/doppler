@@ -303,6 +303,7 @@
 * **NCO\_ADD\_OVF** ([**nco\_core.h**](nco__core_8h.md))
 * **NCO\_STATE\_MAGIC** ([**nco\_core.h**](nco__core_8h.md))
 * **NCO\_STATE\_VERSION** ([**nco\_core.h**](nco__core_8h.md))
+* **N\_STAGE\_KINDS** ([**wfm\_names.h**](wfm__names_8h.md))
 * **N\_STYPES** ([**wfm\_names.h**](wfm__names_8h.md))
 * **N\_TYPES** ([**wfm\_names.h**](wfm__names_8h.md))
 

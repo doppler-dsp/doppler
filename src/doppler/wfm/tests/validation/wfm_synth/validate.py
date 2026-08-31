@@ -456,6 +456,8 @@ def measure_snr(d: Data) -> None:
         "clean tone is exactly `1+0j` at every sample."
     )
     R.md()
+    R.md("![Realized noise power against each reference](snr.png)")
+    R.md()
 
 
 def measure_shaping(d: Data) -> None:
@@ -541,6 +543,8 @@ def measure_shaping(d: Data) -> None:
         f"{d.rect_oob / max(worst_oob, 1e-12):.0f}x, is what the filter is "
         "for."
     )
+    R.md()
+    R.md("![Shaped spectra against the rectangular control](spectrum.png)")
     R.md()
     _csv(
         DATA / "rrc_containment.csv",
@@ -657,6 +661,8 @@ def measure_chirp(d: Data) -> None:
         f"{d.chirp_step_gap:.3f} -- the largest two unit-modulus signals "
         "can differ by."
     )
+    R.md()
+    R.md("![One chirp, three read patterns](chirp.png)")
     R.md()
 
 

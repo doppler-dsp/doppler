@@ -27,6 +27,9 @@ from __future__ import annotations
 import pytest
 
 from doppler.tests._validation_common import assert_renders
+from doppler.wfm.tests.validation.wfm_compose import (
+    validate as wfm_compose_validate,
+)
 from doppler.wfm.tests.validation.wfm_frame import (
     validate as wfm_frame_validate,
 )
@@ -41,6 +44,7 @@ from doppler.wfm.tests.validation.wfm_writer import (
 )
 
 OBJECTS = {
+    "wfm_compose": wfm_compose_validate,
     "wfm_frame": wfm_frame_validate,
     "wfm_reader": wfm_reader_validate,
     "wfm_synth": wfm_synth_validate,

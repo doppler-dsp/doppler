@@ -844,6 +844,12 @@ main (void)
     wfm_synth_state_t *rb = wfm_synth_create (WFM_SYNTH_BPSK, 1e6, 0.0, 40.0,
                                               1, 7, 8, 7, 0, 0, 0.0);
     DP_REQUIRE_MSG (ra && rb, "reseed: create");
+    /* Advance BOTH first, so the PN is somewhere other than its initial
+       register. Reseeding a synth whose LFSR has never stepped cannot show
+       the signal moving — a sabotage that rewound the PN inside
+       reseed_noise() passed this section until the warm-up was added. */
+    wfm_synth_steps (ra, a, 500);
+    wfm_synth_steps (rb, b, 500);
     wfm_synth_steps (ra, a, n);
     wfm_synth_reseed_noise (rb, 999u); /* only the noise is reseeded */
     wfm_synth_steps (rb, b, n);

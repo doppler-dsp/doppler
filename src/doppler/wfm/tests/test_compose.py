@@ -31,6 +31,7 @@ from doppler.wfm.compose import (
     Synth,
     Timeline,
     Writer,
+    draws,
     noise,
     prepare,
     qpsk,
@@ -1739,3 +1740,84 @@ def test_sigmf_omits_doppler_keys_without_a_channel() -> None:
         )
     )["annotations"]
     assert not [k for k in anns[0] if "doppler" in k or "carrier_hz" in k]
+
+
+# ---------------------------------------------------------------------------
+# draws() — the ground truth of a ranged scene (gh-1112)
+# ---------------------------------------------------------------------------
+
+
+def _ranged_scene():
+    return Composer(
+        [
+            Segment(
+                "bpsk",
+                fs=1e6,
+                sps=4,
+                num_samples=4096,
+                repeats=4,
+                seed=5,
+                freq=(9000.0, 14000.0),
+                snr=(8.0, 14.0),
+                level=(-20.0, -5.0),
+            )
+        ]
+    )
+
+
+def test_draws_returns_a_row_per_source_per_instance() -> None:
+    rows = draws(_ranged_scene())
+    assert len(rows) == 4
+    assert [r["instance"] for r in rows] == [0, 1, 2, 3]
+    # Sample-accurate placement, not just an ordering.
+    assert [r["start"] for r in rows] == [0, 4096, 8192, 12288]
+    assert all(r["on"] == 4096 for r in rows)
+
+
+def test_draws_reports_the_drawn_value_not_the_span() -> None:
+    # The whole point: a ranged field's row must carry what that instance
+    # flew. Reporting the span's `lo` on every row is inside the declared
+    # range too, so only the variation catches it -- that was doppler#1086.
+    rows = draws(_ranged_scene())
+    for r in rows:
+        assert 9000.0 <= r["freq"] <= 14000.0
+        assert 8.0 <= r["snr"] <= 14.0
+        assert -20.0 <= r["level"] <= -5.0
+    assert len({r["freq"] for r in rows}) == 4
+    assert len({r["snr"] for r in rows}) == 4
+    assert min(r["freq"] for r in rows) > 9000.0
+
+
+def test_draws_agrees_with_the_sigmf_metadata() -> None:
+    """Both faces read the same rows, so they cannot disagree.
+
+    This is the identity the surface exists for: a capture's metadata and an
+    in-process render must describe the same waveform. If a future change
+    gives either side its own draw path, this goes red.
+    """
+    scene = _ranged_scene()
+    rows = draws(scene)
+    fc = 1.2e6
+    anns = json.loads(scene.to_sigmf(sample_type="cf32", fs=1e6, fc=fc))[
+        "annotations"
+    ]
+    assert len(anns) == len(rows)
+    for r, a in zip(rows, anns):
+        assert a["core:sample_start"] == r["start"] + r["delay"]
+        assert a["core:sample_count"] == r["on"]
+        assert a["wfmgen:snr"] == pytest.approx(r["snr"])
+        assert a["wfmgen:level_db"] == pytest.approx(r["level"])
+        # The annotation carries a band; its centre is fc + the drawn freq.
+        centre = (a["core:freq_lower_edge"] + a["core:freq_upper_edge"]) / 2.0
+        assert centre - fc == pytest.approx(r["freq"])
+
+
+def test_draws_describes_a_fixed_scene_too() -> None:
+    # A scene with no ranged field still gets a row per instance, carrying
+    # the scalar -- so a caller never has to ask whether it was ranged.
+    scene = Composer(
+        [Segment("tone", fs=1e6, num_samples=256, repeats=2, freq=1e5)]
+    )
+    rows = draws(scene)
+    assert len(rows) == 2
+    assert all(r["freq"] == 1e5 for r in rows)

@@ -1476,6 +1476,7 @@
 * **wfm\_compose\_segments** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_set\_seed\_advance** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_spans** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_draws\_json** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_render\_destroy** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_render\_noise\_steps** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_render\_steps** ([**wfm\_compose.h**](wfm__compose_8h.md))

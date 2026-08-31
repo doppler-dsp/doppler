@@ -3490,6 +3490,30 @@ fail:
 }
 
 static PyObject *
+Composer__draws_json (ComposerObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (self->destroyed)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "composer already closed");
+      return NULL;
+    }
+
+  size_t               _n;
+  int                  _rep = 0, _cont = 0;
+  const wfm_segment_t *segs
+      = wfm_compose_segments (self->state, &_n, &_rep, &_cont);
+  char *_js = wfm_draws_json (segs, _n);
+  if (!_js)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "wfm_draws_json failed");
+      return NULL;
+    }
+  PyObject *_s = PyUnicode_FromString (_js);
+  free (_js);
+  return _s;
+}
+
+static PyObject *
 Composer_to_sigmf (ComposerObject *self, PyObject *args, PyObject *kwds)
 {
   if (self->destroyed)
@@ -3553,6 +3577,8 @@ static PyMethodDef Composer_methods[] = {
     "speed multiplier. 0 streams as fast as possible." },
   { "to_dict", (PyCFunction)Composer_to_dict, METH_NOARGS,
     "to_dict() -> dict (resolved repeat/continuous/segments)" },
+  { "_draws_json", (PyCFunction)Composer__draws_json, METH_NOARGS,
+    "_draws_json(...) -> str" },
   { "to_sigmf", (PyCFunction)(void (*) (void))Composer_to_sigmf,
     METH_VARARGS | METH_KEYWORDS, "to_sigmf(...) -> str" },
   { "from_json", (PyCFunction)Composer_from_json, METH_VARARGS | METH_CLASS,

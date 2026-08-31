@@ -227,6 +227,8 @@ typedef struct {
 size_t wfm_compose_draws(const wfm_segment_t *segs, size_t n_segs,
                          wfm_draw_t *out, size_t cap);
 
+char *wfm_draws_json(const wfm_segment_t *segs, size_t n_segs);
+
 int wfm_resolve_noise(wfm_segment_t *segs, size_t n);
 
 double wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf,

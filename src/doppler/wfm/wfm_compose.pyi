@@ -592,6 +592,8 @@ class Composer:
         """
     def to_dict(self) -> dict:
         """Serialise the composer state to a dict."""
+    def _draws_json(self) -> str:
+        """Serialise as _draws_json."""
     def to_sigmf(
         self,
         sample_type: str = ...,

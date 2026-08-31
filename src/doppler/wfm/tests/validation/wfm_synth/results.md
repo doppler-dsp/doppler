@@ -135,6 +135,8 @@ Worst deviation across all 42 cases is 0.20%, which is the Monte-Carlo error of 
 
 The cutoff is a structural switch, not a numerical one: 304 bytes of AWGN state appear the moment the requested SNR drops below 100 dB, while the samples on either side of the boundary are indistinguishable in float32. A clean tone is exactly `1+0j` at every sample.
 
+![Realized noise power against each reference](snr.png)
+
 ### 2.5 Pulse shaping: unit power, and the occupied band (C §G)
 
 `set_rrc` scales the caller's taps by sqrt(sps) internally so the symbol-rate impulse train -- one impulse every sps samples, mean power 1/sps -- comes back out at unit power. That scaling is what makes the SNR reference in §2.4 survive shaping, so it is measured across both of set_rrc's branches: a power-of-two sps takes the polyphase shaper, anything else the dense FIR.
@@ -178,6 +180,8 @@ An RRC with roll-off beta occupies `(1+beta) * Rs`. Measured as the fraction of 
 
 Shaping confines all but 0.0014% of the power inside `(1+beta)*Rs`. The same BPSK stream unshaped leaks 12.6% past the same edge -- a rectangular hold is a sinc in frequency and never stops. That ratio, about 9089x, is what the filter is for.
 
+![Shaped spectra against the rectangular control](spectrum.png)
+
 ### 2.6 The chirp sweeps linearly -- when its span is pinned
 
 A linear FM sweep's slope is `(f_end - f_start)/span`, so the span has to be known before generation. Scored against a straight-line fit to the instantaneous frequency, which is one numpy unwrap and one difference.
@@ -201,6 +205,8 @@ The span above was pinned by the single `steps(n)` call that read the whole swee
 | `steps(64)` x 64 | 200.0 kHz | 2.000 |
 
 `step()` sweeps 0 Hz: with the span never pinned the slope stays 0 and the output is a constant-frequency tone at `f_start`. The difference from the correct waveform is 2.000 -- the largest two unit-modulus signals can differ by.
+
+![One chirp, three read patterns](chirp.png)
 
 ### 2.7 One waveform, two faces (C §steps)
 

@@ -241,6 +241,100 @@ test_the_two_faces_agree (void)
   return 0;
 }
 
+/* ── a source EATS a frame the caller built ──────────────────────────
+ * The frame builder already did everything asked of it -- named fields,
+ * a caller's own bits at a position they choose, stages covering spans
+ * they name, kernels looked up by kind. What it could not do was reach
+ * wfmgen: wfm_source_t restated 13 flat framing/coding fields, derived a
+ * description from them, and offered no way to hand one in. So every new
+ * coding type had to become another wfmgen flag rather than a stage.
+ *
+ * These pin the seam that fixes it. wfm_source_describe_frame is also one
+ * of the entry points no C test called, which is how it could be the ONE
+ * place every consumer funnels through and still be unpinned. */
+static int
+test_a_source_carries_the_frame_a_caller_built (void)
+{
+  /* A field of the caller's own bits -- 0x5C5C, spelled bit by bit -- is
+     the case the flat fields cannot express at all: they offer a preamble,
+     a sync word and a payload, at fixed positions, and nothing else. */
+  static uint8_t marker_bits[16];
+  for (int i = 0; i < 16; i++)
+    marker_bits[i] = (uint8_t)((0x5C5Cu >> (15 - i)) & 1u);
+  static uint8_t payload_bits[24];
+  for (int i = 0; i < 24; i++)
+    payload_bits[i] = (uint8_t)(i & 1u);
+
+  wfm_seq_t marker  = { 0 };
+  marker.kind       = WFM_SEQ_LITERAL;
+  marker.bits       = marker_bits;
+  marker.len        = 16;
+  wfm_seq_t payload = { 0 };
+  payload.kind      = WFM_SEQ_LITERAL;
+  payload.bits      = payload_bits;
+  payload.len       = 24;
+
+  wfm_frame_desc_t d;
+  memset (&d, 0, sizeof d);
+  DP_REQUIRE_MSG (wfm_frame_add_field (&d, "mark", &marker, 0u) == 0,
+                  "frame: wfm_frame_add_field (&d, 'mark', &marker, 0u) == 0");
+  DP_REQUIRE_MSG (
+      wfm_frame_add_field (&d, "payload", &payload, 0u) == 1,
+      "frame: wfm_frame_add_field (&d, 'payload', &payload, 0u) == 1");
+  DP_REQUIRE_MSG (
+      wfm_frame_add_stage (&d, WFM_STAGE_CRC16, "payload", "payload") == 0,
+      "frame: wfm_frame_add_stage (&d, WFM_STAGE_CRC16, 'payload', 'payl");
+
+  wfm_source_t src = { 0 };
+  src.type         = WFM_SYNTH_BPSK;
+  src.payload      = payload;
+
+  /* Without a carried frame, none of the flat fields is set, so this
+     source is unframed -- the precondition that makes the next line mean
+     something rather than restating a default. */
+  DP_REQUIRE_MSG (!wfm_source_has_frame (&src),
+                  "frame: !wfm_source_has_frame (&src)");
+
+  src.frame = &d;
+  DP_REQUIRE_MSG (
+      wfm_source_has_frame (&src),
+      "frame: wfm_source_has_frame (&src)"); /* carried == framed */
+
+  /* And the description the composer will use is the one handed in, not a
+     translation of the flat fields. */
+  wfm_frame_desc_t got;
+  DP_REQUIRE_MSG (wfm_source_describe_frame (&src, &got) == 0,
+                  "frame: wfm_source_describe_frame (&src, &got) == 0");
+  DP_REQUIRE_MSG (got.n_fields == d.n_fields,
+                  "frame: got.n_fields == d.n_fields");
+  DP_REQUIRE_MSG (got.n_stages == d.n_stages,
+                  "frame: got.n_stages == d.n_stages");
+  DP_REQUIRE_MSG (memcmp (&got, &d, sizeof d) == 0,
+                  "frame: memcmp (&got, &d, sizeof d) == 0");
+
+  /* A carried frame BEATS the sugar: set a flat field that would have
+     produced a different description and the carried one still wins. */
+  src.attach_asm = 1;
+  DP_REQUIRE_MSG (wfm_source_describe_frame (&src, &got) == 0,
+                  "frame: wfm_source_describe_frame (&src, &got) == 0");
+  DP_REQUIRE_MSG (memcmp (&got, &d, sizeof d) == 0,
+                  "frame: memcmp (&got, &d, sizeof d) == 0");
+
+  /* Drop it and the sugar builds a description again -- the flat path is
+     untouched, which is what keeps every existing scene working. */
+  src.frame = NULL;
+  DP_REQUIRE_MSG (
+      wfm_source_has_frame (&src),
+      "frame: wfm_source_has_frame (&src)"); /* attach_asm alone frames it */
+  DP_REQUIRE_MSG (wfm_source_describe_frame (&src, &got) == 0,
+                  "frame: wfm_source_describe_frame (&src, &got) == 0");
+  DP_REQUIRE_MSG (memcmp (&got, &d, sizeof d) != 0,
+                  "frame: memcmp (&got, &d, sizeof d) != 0");
+
+  printf ("  a source carries the frame a caller built\n");
+  return 0;
+}
+
 int
 main (void)
 {
@@ -2913,6 +3007,8 @@ main (void)
   if (test_the_create_snr_seam ())
     return 1;
   if (test_the_two_faces_agree ())
+    return 1;
+  if (test_a_source_carries_the_frame_a_caller_built ())
     return 1;
 
   printf (

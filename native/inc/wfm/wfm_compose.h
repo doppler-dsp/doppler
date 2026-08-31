@@ -161,6 +161,24 @@ typedef struct {
     double doppler_hi;      /* upper bound when WFM_RANGE_DOPPLER is set */
     double doppler_rate_hi; /* upper bound when WFM_RANGE_DOPPLER_RATE */
     int doppler_lifetime;   /* a wfm_doppler_lifetime_t */
+    /* A frame the CALLER built, and the answer to "what frame is this?"
+       when it is set. The flat framing and coding fields below stay, as
+       SUGAR that builds one of these -- so every existing scene, flag and
+       JSON key keeps working -- but a description says things they cannot:
+       a field of the caller's own bits at a position of their choosing, a
+       stage covering a span they name, an arrangement no flag spells.
+
+       Borrowed, never owned: the description points at the caller's
+       sequences exactly as `wfm_seq_t` is borrowed elsewhere here, so it
+       must outlive the source. NULL means "derive one from the fields
+       below", which is what every source did before this existed.
+
+       KERNELS stay in C by design. A description names a stage's KIND; the
+       code that runs it is a `wfm_frame_ops_t` entry, and a caller adding a
+       genuinely new transform (convolutional interleaving, say) writes that
+       kernel in C and hands it to `wfm_frame_assemble` directly. */
+    const wfm_frame_desc_t *frame;
+
     /* type=dsss: the two-code burst geometry (wfm_frame_dsss_chips). The
        payload bits ride the shared `bits` field above (alias "payload"). */
     /* The three sequences a framed source carries. `wfm_seq_t` already names

@@ -35,6 +35,19 @@ frequency-response test signals all fall out of this one type. The sweep **span
 is the length you ask for**: standalone it sweeps over `--count`; in a `Segment`
 it fills `num_samples` — so `--f-end` is reached at the last sample either way.
 
+!!! warning "A standalone chirp's span is fixed by the first read"
+
+    The slope needs a span, and a chirp that nothing pins takes it from the
+    first `steps()` call. That is right for the CLI and for a `Segment`, which
+    both pin the length up front — but a Python caller reading the raw
+    `Synth`/`_SynthEngine` a sample or a block at a time does not: `step()`
+    never pins at all and emits a constant tone at `--freq`, and reading in
+    64-sample blocks sweeps to `--f-end` within the first block and then holds.
+    Render a chirp in one `steps(n)` call, or drive it through
+    `Segment`/`Composer`. Tracked as
+    [#1115](https://github.com/doppler-dsp/doppler/issues/1115); measured in
+    [Synth's validation report](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_synth/results.md).
+
 ______________________________________________________________________
 
 ## Bits — your bit pattern, mapped
